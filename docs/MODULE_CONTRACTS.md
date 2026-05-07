@@ -32,7 +32,7 @@ Each module owns:
 - `permissions`: signed-in staff can manage their own tasks and participate in chat; admin can clear/delete broader records where allowed.
 - `events`: task created, task completed, message sent, message read, profile opened.
 - `qa`: dashboard data remains protected by app-state and backups.
-- `migration`: tasks and chat should move before deeper planning modules. Home Tasks now has an inert read-only adapter boundary in `src/modules/home/tasks-adapter.mjs`; it must stay read-only until migration is explicit.
+- `migration`: tasks and chat should move before deeper planning modules. Home Tasks now has an inert read-only adapter boundary in `src/modules/home/tasks-adapter.mjs`; Home Chat has the same read-only boundary in `src/modules/home/chat-adapter.mjs`. Both must stay read-only until migration is explicit.
 
 ## Team Chat
 
@@ -42,7 +42,7 @@ Each module owns:
 - `permissions`: signed-in staff can send/read; admin-only destructive actions stay explicit.
 - `events`: message sent, message read, reaction changed, direct thread opened.
 - `qa`: chat storage remains protected by app-state and backups.
-- `migration`: move to `chat_threads`, `chat_messages`, `chat_read_receipts`, and `chat_reactions` after Home task contracts are stable.
+- `migration`: move to `chat_threads`, `chat_messages`, `chat_read_receipts`, and `chat_reactions` after Home task contracts are stable. The inert Home Chat adapter must keep matching the legacy widget payload until a verified database adapter can be dual-read.
 
 ## Exercise Library
 

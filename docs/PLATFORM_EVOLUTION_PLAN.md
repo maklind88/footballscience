@@ -42,6 +42,8 @@ Current inert skeleton:
 - `src/modules/manifest.mjs`
 - `src/modules/home/tasks.mjs`
 - `src/modules/home/tasks-adapter.mjs`
+- `src/modules/home/chat.mjs`
+- `src/modules/home/chat-adapter.mjs`
 
 These files are not loaded by `index.html` yet. They exist so future refactors have a safe destination and a tested contract before product logic moves.
 
@@ -50,6 +52,9 @@ First adapter boundary:
 - Home Tasks has a read-only adapter for the existing `football-dashboard-tasks-v1` payload.
 - It can normalize current task records and calculate the same Work Queue buckets as the current dashboard.
 - Writes remain blocked until a later migration explicitly enables them.
+- Home Chat has a read-only adapter for the existing `football-dashboard-chat-v1` payload.
+- It can normalize current messages, direct-message thread ids, unread counts, mentions, reactions, and thread lists without loading in the current UI.
+- Chat writes, read receipts, and destructive actions remain blocked until migration is explicitly enabled.
 
 ### Stage 3: Data Adapter Layer
 

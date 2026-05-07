@@ -35,7 +35,7 @@ This smoke test also verifies localhost dev-auth does not call `/api/client-conf
 
 `qa/platform-safety-contracts.api.spec.mjs` is the long-term platform guardrail. It fails QA if protected storage keys, backup coverage, module contracts, live-smoke hooks, or the daily backup cron disappear during future refactors.
 
-`npm run qa:contracts` runs the platform safety guardrail plus the inert modular core checks for registry coverage, permissions, events, read-only storage adapters, and the Home Tasks adapter boundary.
+`npm run qa:contracts` runs the platform safety guardrail plus the inert modular core checks for registry coverage, permissions, events, read-only storage adapters, the Home Tasks adapter boundary, and the Home Chat adapter boundary.
 
 ## Manual UI Checks
 

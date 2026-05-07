@@ -54,6 +54,8 @@ const coreFiles = [
   "src/modules/manifest.mjs",
   "src/modules/home/tasks.mjs",
   "src/modules/home/tasks-adapter.mjs",
+  "src/modules/home/chat.mjs",
+  "src/modules/home/chat-adapter.mjs",
   "src/modules/home/index.mjs",
 ];
 
@@ -130,10 +132,13 @@ test("core module contracts are covered by dedicated QA", () => {
   const packageJson = readJson("package.json");
   const modularCoreSpec = readProjectFile("qa/modular-core.api.spec.mjs");
   const homeTasksSpec = readProjectFile("qa/home-tasks-adapter.api.spec.mjs");
+  const homeChatSpec = readProjectFile("qa/home-chat-adapter.api.spec.mjs");
 
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-safety-contracts.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-tasks-adapter.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-chat-adapter.api.spec.mjs");
   expect(modularCoreSpec).toContain("modular core covers protected storage keys");
   expect(modularCoreSpec).toContain("read-only storage adapter blocks accidental writes");
   expect(homeTasksSpec).toContain("Home Tasks legacy read adapter uses the protected storage key");
+  expect(homeChatSpec).toContain("Home Chat legacy read adapter uses the protected storage key");
 });

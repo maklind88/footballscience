@@ -42,6 +42,8 @@ module.exports = async (req, res) => {
       status: body?.status,
       lastActivityAt: body?.lastActivityAt,
       workspaceId: body?.workspaceId,
+      typingThreadId: body?.typingThreadId,
+      typingAt: body?.typingAt,
     });
 
     return sendJson(res, result.ok ? 200 : 400, result);

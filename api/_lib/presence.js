@@ -7,6 +7,7 @@ const PRESENCE_SCHEMA = "footballscience-presence-v1";
 const ONLINE_TTL_MS = 80 * 1000;
 const AWAY_TTL_MS = 6 * 60 * 1000;
 const RETAIN_TTL_MS = 24 * 60 * 60 * 1000;
+const TYPING_TTL_MS = 9 * 1000;
 
 function getStorageBaseUrl() {
   const { url, serviceRoleKey } = readConfig();
@@ -217,6 +218,9 @@ function sanitizePresenceEntries(entries = {}) {
         if (!actor.id) {
           actor.id = userId;
         }
+        const typingAt = entry?.typingAt || "";
+        const typingAtMs = new Date(typingAt || 0).getTime();
+        const isTypingFresh = Number.isFinite(typingAtMs) && nowMs - typingAtMs <= TYPING_TTL_MS;
 
         return [
           actor.id,
@@ -228,6 +232,8 @@ function sanitizePresenceEntries(entries = {}) {
             rawStatus: normalizePresenceStatus(entry?.status),
             lastSeenAt: entry?.lastSeenAt || entry?.updatedAt || "",
             lastActivityAt: entry?.lastActivityAt || "",
+            typingThreadId: isTypingFresh ? normalizePresenceString(entry?.typingThreadId || "") : "",
+            typingAt: isTypingFresh ? typingAt : "",
             updatedAt: entry?.updatedAt || "",
           },
         ];
@@ -270,6 +276,14 @@ async function updatePresence(actor, values = {}) {
   if (!normalizedActor.id) {
     return { ok: false, reason: "Missing signed-in user." };
   }
+  const previousEntry = entries[normalizedActor.id] || {};
+  const hasTypingThread = Object.prototype.hasOwnProperty.call(values, "typingThreadId");
+  const typingThreadId = hasTypingThread
+    ? normalizePresenceString(values.typingThreadId || "")
+    : normalizePresenceString(previousEntry.typingThreadId || "");
+  const typingAt = typingThreadId
+    ? normalizePresenceString(values.typingAt || previousEntry.typingAt || now)
+    : "";
 
   entries[normalizedActor.id] = {
     userId: normalizedActor.id,
@@ -279,6 +293,8 @@ async function updatePresence(actor, values = {}) {
     lastSeenAt: now,
     lastActivityAt: normalizePresenceString(values.lastActivityAt || now),
     workspaceId: normalizePresenceString(values.workspaceId || ""),
+    typingThreadId,
+    typingAt,
     updatedAt: now,
   };
 

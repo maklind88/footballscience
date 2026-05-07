@@ -405,6 +405,7 @@ const dashboardChatWidgetNotificationCursorStorageKey = "football-dashboard-chat
 const dashboardChatWidgetNotificationStateStorageKey = "football-dashboard-chat-widget-notification-state-v1";
 const dashboardChatTeamThreadId = "team";
 const dashboardChatWidgetMessageLimit = 50;
+const dashboardChatPinnedLimit = 3;
 const dashboardNotificationSeenStorageKey = "football-dashboard-notification-seen-v1";
 const dashboardTutorialPrefsStorageKey = "football-dashboard-tutorial-prefs-v1";
 const dashboardNewsSeenStorageKey = "football-dashboard-news-seen-v1";
@@ -6135,6 +6136,10 @@ let sessionPlannerPeriodizationOverlayDate = null;
 let dashboardChatThreadId = "team";
 let dashboardChatWidgetToastTimer = null;
 let dashboardChatWidgetToastState = null;
+let dashboardChatTypingThreadId = "";
+let dashboardChatTypingAt = 0;
+let dashboardChatTypingLastSentAt = 0;
+let dashboardChatTypingClearTimer = null;
 let sessionPlannerPeriodizationOverlayMode = "view";
 let sessionPlannerLibraryOpen = false;
 let sessionPlannerLibraryPhaseFilter = "all";
@@ -6251,10 +6256,12 @@ let adminAuditLoadedAt = 0;
 let adminAuditLoadError = "";
 const platformDefaultRoles = ["admin", "coach", "analyst", "performance", "medical", "guest"];
 const dashboardPresenceHeartbeatMs = 25000;
-const dashboardPresencePollMs = 35000;
+const dashboardPresencePollMs = 6000;
 const dashboardPresenceIdleMs = 90000;
 const dashboardPresenceOnlineTtlMs = 85000;
 const dashboardPresenceAwayTtlMs = 6 * 60 * 1000;
+const dashboardTypingTtlMs = 9000;
+const dashboardTypingSendThrottleMs = 1800;
 let dashboardPresenceEntriesByUserId = {};
 let dashboardPresenceHeartbeatTimer = null;
 let dashboardPresencePollTimer = null;
@@ -8153,6 +8160,54 @@ function writeDashboardChatWidgetNotificationCursor(nextCursor) {
   });
 }
 
+function normalizeDashboardMentionToken(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^@/, "")
+    .replace(/[^a-z0-9._-]/g, "");
+}
+
+function getDashboardMentionKeys(user = {}) {
+  const emailHandle = String(user.email || "").split("@", 1)[0];
+  const fullName = `${user.firstName || ""}.${user.lastName || ""}`;
+  return new Set(
+    [user.username, emailHandle, user.firstName, user.lastName, fullName, formatUserName(user).replace(/\s+/g, ".")]
+      .map(normalizeDashboardMentionToken)
+      .filter(Boolean)
+  );
+}
+
+function getDashboardMentionUserIdsForToken(token, users = getPlatformUsers(), authorUserId = "") {
+  const normalizedToken = normalizeDashboardMentionToken(token);
+  if (!normalizedToken) {
+    return [];
+  }
+
+  const activeUsers = users.filter((user) => user.status === "active" && user.id !== authorUserId);
+  if (["all", "team", "staff", "everyone"].includes(normalizedToken)) {
+    return activeUsers.map((user) => user.id);
+  }
+
+  return activeUsers
+    .filter((user) => getDashboardMentionKeys(user).has(normalizedToken))
+    .map((user) => user.id);
+}
+
+function getDashboardMentionUserIds(text, users = getPlatformUsers(), authorUserId = "") {
+  const matches = String(text || "").matchAll(/@([a-zA-Z0-9._-]{2,64})/g);
+  const mentionedUserIds = new Set();
+  for (const match of matches) {
+    getDashboardMentionUserIdsForToken(match[1], users, authorUserId).forEach((userId) => mentionedUserIds.add(userId));
+  }
+
+  return Array.from(mentionedUserIds);
+}
+
+function canPinDashboardChatMessage(user = getCurrentPlatformUser()) {
+  return user?.role === "admin" || user?.role === "coach";
+}
+
 function normalizeDashboardMessageAuthor(author = {}) {
   const id = String(author?.id || "").trim();
   if (!id) {
@@ -8181,6 +8236,9 @@ function normalizeDashboardMessage(message) {
   const readBy = Array.isArray(message?.readBy)
     ? message.readBy.map((userId) => String(userId ?? "").trim()).filter(Boolean)
     : [];
+  const mentionedUserIds = Array.isArray(message?.mentionedUserIds)
+    ? message.mentionedUserIds.map((userId) => String(userId || "").trim()).filter(Boolean)
+    : getDashboardMentionUserIds(text, getPlatformUsers(), userId);
 
   return {
     id: message?.id || createDashboardId("message"),
@@ -8190,6 +8248,9 @@ function normalizeDashboardMessage(message) {
     createdAt: message?.createdAt || new Date().toISOString(),
     deliveredAt: message?.deliveredAt || message?.createdAt || new Date().toISOString(),
     readBy: Array.from(new Set([userId, ...readBy].filter(Boolean))),
+    mentionedUserIds: Array.from(new Set(mentionedUserIds)),
+    pinnedAt: String(message?.pinnedAt || "").trim(),
+    pinnedBy: String(message?.pinnedBy || "").trim(),
     author: normalizeDashboardMessageAuthor(message?.author || message?.user || null),
   };
 }
@@ -8205,7 +8266,15 @@ function readDashboardMessages() {
 }
 
 function writeDashboardMessages(messages) {
-  writeDashboardJson(dashboardChatStorageKey, messages.map(normalizeDashboardMessage).slice(-80));
+  const normalizedMessages = messages.map(normalizeDashboardMessage).filter((message) => message.text && message.userId);
+  const recentMessages = normalizedMessages.slice(-80);
+  const pinnedMessages = normalizedMessages
+    .filter((message) => message.pinnedAt && !recentMessages.some((recentMessage) => recentMessage.id === message.id))
+    .slice(-20);
+  const nextMessages = [...pinnedMessages, ...recentMessages]
+    .filter((message, index, source) => source.findIndex((candidate) => candidate.id === message.id) === index)
+    .sort((first, second) => new Date(first.createdAt) - new Date(second.createdAt));
+  writeDashboardJson(dashboardChatStorageKey, nextMessages);
 }
 
 function createDashboardMessage(text, threadId = dashboardChatTeamThreadId) {
@@ -8220,6 +8289,7 @@ function createDashboardMessage(text, threadId = dashboardChatTeamThreadId) {
     text: cleanText,
     userId: currentUser.id,
     readBy: [currentUser.id],
+    mentionedUserIds: getDashboardMentionUserIds(cleanText, getPlatformUsers(), currentUser.id),
     author: currentUser,
   });
   writeDashboardMessages([...readDashboardMessages(), message]);
@@ -8260,6 +8330,33 @@ function removeDashboardMessage(messageId) {
   writeDashboardMessages(readDashboardMessages().filter((message) => message.id !== messageId));
 }
 
+function toggleDashboardMessagePin(messageId) {
+  const currentUser = getCurrentPlatformUser();
+  if (!canPinDashboardChatMessage(currentUser)) {
+    return false;
+  }
+
+  let changed = false;
+  const nextMessages = readDashboardMessages().map((message) => {
+    if (message.id !== messageId) {
+      return message;
+    }
+
+    changed = true;
+    return normalizeDashboardMessage({
+      ...message,
+      pinnedAt: message.pinnedAt ? "" : new Date().toISOString(),
+      pinnedBy: message.pinnedAt ? "" : currentUser.id,
+    });
+  });
+
+  if (changed) {
+    writeDashboardMessages(nextMessages);
+  }
+
+  return changed;
+}
+
 function clearDashboardMessages() {
   writeDashboardMessages([]);
 }
@@ -8284,6 +8381,9 @@ function getDashboardChatThreadData(
   const unreadCount = currentUser
     ? threadMessages.filter((message) => message.userId !== currentUser.id && !message.readBy.includes(currentUser.id)).length
     : 0;
+  const mentionCount = currentUser
+    ? threadMessages.filter((message) => message.userId !== currentUser.id && message.mentionedUserIds.includes(currentUser.id)).length
+    : 0;
   const lastMessage = threadMessages.length ? threadMessages[threadMessages.length - 1] : null;
   return {
     threadId: normalizedThreadId,
@@ -8292,6 +8392,7 @@ function getDashboardChatThreadData(
     participant: participants[0] || null,
     messageCount: threadMessages.length,
     unreadCount,
+    mentionCount,
     lastMessage,
   };
 }
@@ -8398,6 +8499,8 @@ function normalizeDashboardPresenceEntries(entries = []) {
             lastSeenAt: String(entry.lastSeenAt || entry.updatedAt || ""),
             lastActivityAt: String(entry.lastActivityAt || ""),
             workspaceId: String(entry.workspaceId || ""),
+            typingThreadId: entry.typingThreadId ? normalizeDashboardChatThreadId(entry.typingThreadId, dashboardChatTeamThreadId) : "",
+            typingAt: String(entry.typingAt || ""),
             updatedAt: String(entry.updatedAt || ""),
           },
         ];
@@ -8409,7 +8512,7 @@ function normalizeDashboardPresenceEntries(entries = []) {
 function getDashboardPresenceSignature(entriesByUserId = dashboardPresenceEntriesByUserId) {
   return Object.entries(entriesByUserId)
     .sort(([firstId], [secondId]) => firstId.localeCompare(secondId))
-    .map(([userId, entry]) => `${userId}:${entry.status}:${entry.lastSeenAt}`)
+    .map(([userId, entry]) => `${userId}:${entry.status}:${entry.lastSeenAt}:${entry.typingThreadId}:${entry.typingAt}`)
     .join("|");
 }
 
@@ -8484,6 +8587,14 @@ function getDashboardPresenceWorkspaceId() {
   return hubState?.activeWorkspaceId || "";
 }
 
+function getActiveDashboardTypingThreadId() {
+  if (!dashboardChatTypingThreadId || Date.now() - dashboardChatTypingAt > dashboardTypingTtlMs) {
+    return "";
+  }
+
+  return dashboardChatTypingThreadId;
+}
+
 async function pushDashboardPresence(statusOverride = "") {
   const currentUser = getCurrentPlatformUser();
   const authStore = getPlatformAuthStore();
@@ -8497,6 +8608,8 @@ async function pushDashboardPresence(statusOverride = "") {
     const result = await authStore.updatePresence(status, {
       lastActivityAt: new Date(dashboardPresenceLastActivityAt).toISOString(),
       workspaceId: getDashboardPresenceWorkspaceId(),
+      typingThreadId: getActiveDashboardTypingThreadId(),
+      typingAt: getActiveDashboardTypingThreadId() ? new Date(dashboardChatTypingAt).toISOString() : "",
     });
     if (result?.ok) {
       applyDashboardPresenceEntries(result.entries, { forceRender: true });
@@ -8561,6 +8674,70 @@ function stopDashboardPresenceRuntime() {
   dashboardPresenceEntriesByUserId = {};
   dashboardPresenceLastRenderedSignature = "";
   renderDashboardChatWidget();
+}
+
+function clearDashboardChatTyping() {
+  dashboardChatTypingThreadId = "";
+  dashboardChatTypingAt = 0;
+  if (dashboardChatTypingClearTimer) {
+    window.clearTimeout(dashboardChatTypingClearTimer);
+    dashboardChatTypingClearTimer = null;
+  }
+  pushDashboardPresence().catch(() => {});
+}
+
+function queueDashboardChatTyping(threadId) {
+  const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+  dashboardChatTypingThreadId = normalizedThreadId;
+  dashboardChatTypingAt = Date.now();
+  if (dashboardChatTypingClearTimer) {
+    window.clearTimeout(dashboardChatTypingClearTimer);
+  }
+  dashboardChatTypingClearTimer = window.setTimeout(() => {
+    dashboardChatTypingClearTimer = null;
+    clearDashboardChatTyping();
+  }, dashboardTypingTtlMs);
+
+  if (Date.now() - dashboardChatTypingLastSentAt < dashboardTypingSendThrottleMs) {
+    return;
+  }
+
+  dashboardChatTypingLastSentAt = Date.now();
+  pushDashboardPresence().catch(() => {});
+}
+
+function getDashboardTypingUsers(threadId, users = getPlatformUsers(), currentUser = getCurrentPlatformUser()) {
+  const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+  const now = Date.now();
+  return users.filter((user) => {
+    if (!user?.id || user.id === currentUser?.id) {
+      return false;
+    }
+
+    const entry = getDashboardPresenceEntry(user.id);
+    const typingAtMs = new Date(entry?.typingAt || 0).getTime();
+    return (
+      entry?.typingThreadId === normalizedThreadId &&
+      Number.isFinite(typingAtMs) &&
+      now - typingAtMs <= dashboardTypingTtlMs
+    );
+  });
+}
+
+function renderDashboardTypingIndicator(threadId, users, currentUser) {
+  const typingUsers = getDashboardTypingUsers(threadId, users, currentUser);
+  if (!typingUsers.length) {
+    return "";
+  }
+
+  const names = typingUsers.slice(0, 2).map(formatUserName);
+  const label = typingUsers.length === 1
+    ? `${names[0]} is typing`
+    : typingUsers.length === 2
+      ? `${names[0]} and ${names[1]} are typing`
+      : `${names[0]}, ${names[1]} and ${typingUsers.length - 2} more are typing`;
+
+  return `<div class="dashboard-chat-typing" aria-live="polite"><span></span><span></span><span></span><strong>${escapeHtml(label)}</strong></div>`;
 }
 
 function readDashboardNotificationSeenMap() {
@@ -8755,6 +8932,67 @@ function renderDashboardMessageStatus(message, users, currentUser) {
   `;
 }
 
+function renderDashboardMessageText(message, users = getPlatformUsers()) {
+  const text = String(message?.text || "");
+  return text
+    .split(/(@[a-zA-Z0-9._-]{2,64})/g)
+    .map((part) => {
+      if (!part.startsWith("@")) {
+        return escapeHtml(part).replaceAll("\n", "<br />");
+      }
+
+      const mentionedUserIds = getDashboardMentionUserIdsForToken(part.slice(1), users, message.userId);
+      if (!mentionedUserIds.length) {
+        return escapeHtml(part);
+      }
+
+      return `<mark class="dashboard-chat-mention">${escapeHtml(part)}</mark>`;
+    })
+    .join("");
+}
+
+function getDashboardPinnedMessagesForThread(messages = readDashboardMessages(), threadId = dashboardChatTeamThreadId) {
+  const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+  return messages
+    .filter((message) => message.threadId === normalizedThreadId && message.pinnedAt)
+    .sort((first, second) => new Date(second.pinnedAt || 0) - new Date(first.pinnedAt || 0))
+    .slice(0, dashboardChatPinnedLimit);
+}
+
+function renderDashboardPinnedMessages(pinnedMessages = [], users = getPlatformUsers(), currentUser = getCurrentPlatformUser()) {
+  if (!pinnedMessages.length) {
+    return "";
+  }
+
+  return `
+    <section class="dashboard-chat-pins" aria-label="Pinned chat messages">
+      <div class="dashboard-chat-pins-head">
+        <strong>Pinned</strong>
+        <span>${escapeHtml(`${pinnedMessages.length}`)}</span>
+      </div>
+      ${pinnedMessages
+        .map((message) => {
+          const author = users.find((user) => user.id === message.userId) || message.author || null;
+          const canUnpin = canPinDashboardChatMessage(currentUser);
+          return `
+            <article class="dashboard-chat-pin-card">
+              <div>
+                <strong>${escapeHtml(author ? formatUserName(author) : "Staff")}</strong>
+                <p>${renderDashboardMessageText(message, users)}</p>
+              </div>
+              ${
+                canUnpin
+                  ? `<button type="button" data-dashboard-toggle-pin-message="${escapeHtml(message.id)}">Unpin</button>`
+                  : ""
+              }
+            </article>
+          `;
+        })
+        .join("")}
+    </section>
+  `;
+}
+
 function clearDashboardMessagesForThread(threadId) {
   const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
   writeDashboardMessages(readDashboardMessages().filter((message) => message.threadId !== normalizedThreadId));
@@ -8775,7 +9013,9 @@ function getDashboardChatWidgetThreadPreview(thread, users, currentUser) {
       .trim()
       .slice(0, 55) || "Message";
 
-  return `${senderName}: ${shortText}`;
+  return lastMessage.mentionedUserIds?.includes(currentUser?.id)
+    ? `Mentioned you: ${shortText}`
+    : `${senderName}: ${shortText}`;
 }
 
 function getDashboardChatWidgetLatestThread(threads = []) {
@@ -8817,6 +9057,7 @@ function renderDashboardChatWidgetAvatarStack(users = [], className = "dashboard
 
 function renderDashboardChatWidgetMessage(message, users, currentUser) {
   const isOwn = message.userId === currentUser?.id;
+  const isMentioned = !isOwn && message.mentionedUserIds.includes(currentUser?.id);
   const user = users.find((candidate) => candidate.id === message.userId) ?? message.author ?? null;
   const userName = user ? formatUserName(user) : "Unknown";
   const avatarMarkup = user
@@ -8824,9 +9065,11 @@ function renderDashboardChatWidgetMessage(message, users, currentUser) {
     : `<span class="dashboard-chat-avatar" aria-hidden="true">?</span>`;
   const statusMarkup = isOwn ? renderDashboardMessageStatus(message, users, currentUser) : "";
   const canDeleteChat = isCurrentPlatformUserAdmin();
+  const canPinChat = canPinDashboardChatMessage(currentUser);
+  const pinLabel = message.pinnedAt ? "Unpin" : "Pin";
 
   return `
-    <article class="dashboard-chat-message${isOwn ? " is-own" : ""}">
+    <article class="dashboard-chat-message${isOwn ? " is-own" : ""}${isMentioned ? " is-mentioned" : ""}${message.pinnedAt ? " is-pinned" : ""}">
       <div class="dashboard-chat-meta">
         ${avatarMarkup}
         <span class="dashboard-chat-author">
@@ -8834,13 +9077,18 @@ function renderDashboardChatWidgetMessage(message, users, currentUser) {
           <small>${escapeHtml(formatDashboardTime(message.createdAt))}</small>
         </span>
         ${
+          canPinChat
+            ? `<button type="button" class="dashboard-chat-pin-button" data-dashboard-toggle-pin-message="${escapeHtml(message.id)}">${escapeHtml(pinLabel)}</button>`
+            : ""
+        }
+        ${
           canDeleteChat
             ? `<button type="button" class="dashboard-chat-delete-button" data-dashboard-remove-message="${escapeHtml(message.id)}" aria-label="Delete message from ${escapeHtml(userName)}">×</button>`
             : ""
         }
       </div>
       <div class="dashboard-chat-bubble">
-        <p>${escapeHtml(message.text).replaceAll("\n", "<br />")}</p>
+        <p>${renderDashboardMessageText(message, users)}</p>
         ${statusMarkup}
       </div>
     </article>
@@ -8862,7 +9110,7 @@ function renderDashboardChatWidgetThreadItem(thread, currentUser, users, isSelec
   return `
     <button
       type="button"
-      class="dashboard-chat-thread-item${isSelected ? " is-active" : ""}${isUnread ? " is-unread" : ""}"
+      class="dashboard-chat-thread-item${isSelected ? " is-active" : ""}${isUnread ? " is-unread" : ""}${thread.mentionCount ? " is-mentioned" : ""}"
       data-dashboard-chat-thread="${escapeHtml(thread.threadId)}"
       data-dashboard-chat-search="${escapeHtml(searchText)}"
     >
@@ -8878,7 +9126,7 @@ function renderDashboardChatWidgetThreadItem(thread, currentUser, users, isSelec
           <span>${escapeHtml(`${thread.messageCount || 0} message${thread.messageCount === 1 ? "" : "s"}`)}</span>
         </span>
       </span>
-      ${isUnread ? `<span class="dashboard-chat-thread-unread">${isUnread}</span>` : ""}
+      ${thread.mentionCount ? `<span class="dashboard-chat-thread-mention-badge">@</span>` : isUnread ? `<span class="dashboard-chat-thread-unread">${isUnread}</span>` : ""}
     </button>
   `;
 }
@@ -8909,6 +9157,7 @@ function renderDashboardChatWidget() {
   const activeThread = threads.find((thread) => thread.threadId === activeThreadId);
   const hasThreadMessages = resolvedMessages.filter((message) => message.threadId === activeThreadId);
   const visibleMessages = [...hasThreadMessages.slice(-dashboardChatWidgetMessageLimit)].reverse();
+  const pinnedMessages = getDashboardPinnedMessagesForThread(resolvedMessages, activeThreadId);
   const latestThread = threads.find((thread) => thread.unreadCount) || getDashboardChatWidgetLatestThread(threads);
   const activeThreadLabel = activeThread?.label || "Team Chat";
   const activeThreadSubLabel = activeThread
@@ -9035,9 +9284,11 @@ function renderDashboardChatWidget() {
               }
             </div>
           </header>
+          ${renderDashboardPinnedMessages(pinnedMessages, users, currentUser)}
           <div class="dashboard-chat-list" data-dashboard-chat-list aria-live="polite">
             ${visibleMessages.length ? visibleMessages.map((message) => renderDashboardChatWidgetMessage(message, users, currentUser)).join("") : `<div class="dashboard-chat-empty-state"><strong>No messages yet</strong><span>${escapeHtml(activeThread?.isTeamThread ? "Start the team thread." : `Start a direct message with ${activeThreadLabel}.`)}</span></div>`}
           </div>
+          ${renderDashboardTypingIndicator(activeThreadId, users, currentUser)}
           <form class="dashboard-chat-form" data-dashboard-chat-form>
             <textarea name="message" data-dashboard-chat-input autocomplete="off" rows="1" placeholder="Message ${escapeHtml(activeThreadLabel)}"></textarea>
             <button type="submit">Send</button>
@@ -9080,7 +9331,11 @@ function syncDashboardChatWidgetNotificationCursor() {
     return;
   }
 
-  const latestMessage = [...messages].reverse().find((message) => message.userId !== currentUser.id);
+  const reversedMessages = [...messages].reverse();
+  const latestMention = reversedMessages.find(
+    (message) => message.userId !== currentUser.id && message.mentionedUserIds.includes(currentUser.id)
+  );
+  const latestMessage = latestMention || reversedMessages.find((message) => message.userId !== currentUser.id);
   if (!latestMessage) {
     return;
   }
@@ -9099,7 +9354,13 @@ function syncDashboardChatWidgetNotificationCursor() {
   const sender = users?.find((entry) => entry.id === latestMessage.userId);
   const senderName = formatUserName(sender ?? latestMessage.author ?? { firstName: "Team", lastName: "Member" });
   const threadName = formatDashboardChatThreadLabel(latestMessage.threadId, currentUser, getPlatformUsers());
-  showDashboardChatWidgetToast(`New message from ${senderName} in ${threadName}`, latestMessage.threadId);
+  const mentionedCurrentUser = latestMessage.mentionedUserIds.includes(currentUser.id);
+  showDashboardChatWidgetToast(
+    mentionedCurrentUser
+      ? `${senderName} mentioned you in ${threadName}`
+      : `New message from ${senderName} in ${threadName}`,
+    latestMessage.threadId
+  );
 
   writeDashboardChatWidgetNotificationCursor({
     lastMessageId: latestMessage.id,
@@ -69689,6 +69950,9 @@ ui.dashboardChatWidgetRoot?.addEventListener("click", (event) => {
       ...currentState,
       isOpen: !currentState.isOpen,
     };
+    if (!nextState.isOpen) {
+      clearDashboardChatTyping();
+    }
     writeDashboardChatWidgetState(nextState);
     if (nextState.isOpen) {
       hideDashboardChatWidgetToast();
@@ -69714,6 +69978,7 @@ ui.dashboardChatWidgetRoot?.addEventListener("click", (event) => {
     if (!threadId) {
       return;
     }
+    clearDashboardChatTyping();
     writeDashboardChatWidgetState({
       isOpen: true,
       selectedThreadId: threadId,
@@ -69740,6 +70005,17 @@ ui.dashboardChatWidgetRoot?.addEventListener("click", (event) => {
     return;
   }
 
+  const pinMessageButton = event.target.closest("[data-dashboard-toggle-pin-message]");
+  if (pinMessageButton) {
+    if (!canPinDashboardChatMessage()) {
+      return;
+    }
+
+    toggleDashboardMessagePin(pinMessageButton.dataset.dashboardTogglePinMessage);
+    renderDashboardChatWidget();
+    return;
+  }
+
   const removeMessageButton = event.target.closest("[data-dashboard-remove-message]");
   if (removeMessageButton) {
     if (!isCurrentPlatformUserAdmin()) {
@@ -69757,6 +70033,19 @@ ui.dashboardChatWidgetRoot?.addEventListener("click", (event) => {
 });
 
 ui.dashboardChatWidgetRoot?.addEventListener("input", (event) => {
+  const chatInput = event.target.closest("[data-dashboard-chat-input]");
+  if (chatInput) {
+    markDashboardPresenceActivity();
+    const currentState = readDashboardChatWidgetState();
+    const threadId = normalizeDashboardChatThreadId(currentState.selectedThreadId, dashboardChatTeamThreadId);
+    if (chatInput.value.trim()) {
+      queueDashboardChatTyping(threadId);
+    } else {
+      clearDashboardChatTyping();
+    }
+    return;
+  }
+
   const filterInput = event.target.closest("[data-dashboard-chat-filter]");
   if (!filterInput) {
     return;
@@ -69845,6 +70134,7 @@ ui.dashboardChatWidgetRoot?.addEventListener("submit", (event) => {
   const currentState = readDashboardChatWidgetState();
   const threadId = normalizeDashboardChatThreadId(currentState.selectedThreadId, dashboardChatTeamThreadId);
   createDashboardMessage(messageText, threadId);
+  clearDashboardChatTyping();
   if (input) {
     input.value = "";
   }

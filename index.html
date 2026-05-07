@@ -2328,6 +2328,8 @@
               status,
               lastActivityAt: values.lastActivityAt || new Date().toISOString(),
               workspaceId: values.workspaceId || "",
+              typingThreadId: values.typingThreadId || "",
+              typingAt: values.typingAt || "",
             }),
           });
           if (!response.ok) {

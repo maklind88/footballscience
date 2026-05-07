@@ -1,0 +1,91 @@
+# Platform Evolution Plan
+
+This plan is the long-term safety rail for growing Football Science without breaking what already works.
+
+## Principle
+
+Do not rebuild the platform in one big-bang rewrite. Evolve it by adding a modular core beside the current app, then move one module at a time only after tests, backup checks, and rollback paths are in place.
+
+## Non-Negotiables
+
+- Protected coaching data must not be deleted, reset, seeded over, or silently overwritten.
+- Current Supabase Storage app-state remains the production source of truth until a module has a verified database replacement.
+- New Postgres tables must be additive first. Do not remove the current storage path during early migrations.
+- Any table exposed through Supabase APIs must have RLS enabled and policies reviewed before production use.
+- Authorization data belongs in `app_metadata` or server-side tables, not user-editable metadata.
+- Every production release must pass local QA and basic live verification.
+- Every data migration needs a rollback story and a restore drill path.
+
+## Stages
+
+### Stage 1: Safety Rails
+
+- Keep current behavior unchanged.
+- Add architecture contracts to QA.
+- Document module ownership, protected storage keys, rollback rules, and the migration order.
+- Add live QA credentials before relying on production smoke as a release gate.
+
+### Stage 2: Modular Core
+
+- Create a small core layer for modules, storage adapters, permissions, events, and UI lifecycle.
+- Start with read-only wrappers around the existing functions.
+- Extract one low-risk module at a time without changing the visible UI.
+
+### Stage 3: Data Adapter Layer
+
+- Each module reads and writes through a stable adapter.
+- The first adapter keeps using current `/api/app-state`.
+- A database adapter can then be introduced module by module.
+- During migration, use dual-read / dual-write only where needed and compare results before switching reads.
+
+### Stage 4: Database Model
+
+Move from global JSON objects toward relational tables:
+
+- organizations
+- teams
+- profiles
+- memberships
+- schedule_events
+- sessions
+- session_blocks
+- exercises
+- periodization_days
+- medical_availability
+- tasks
+- chat_threads
+- chat_messages
+- audit_events
+
+Every tenant-owned table should include `organization_id`. Team-specific records should also include `team_id`.
+
+### Stage 5: Scale and Operations
+
+- Add staging and production separation.
+- Add load tests for auth, schedule, session planner, chat, and app-state APIs.
+- Add monitoring for auth errors, function latency, failed writes, backup freshness, and frontend exceptions.
+- Add restore drills and point-in-time recovery when data volume or business risk justifies it.
+
+## Migration Order
+
+1. Home Tasks
+2. Team Chat
+3. Schedule
+4. Exercise Library
+5. Session Planner
+6. Periodization
+7. Medical Team
+8. Game Simulator
+
+This order starts with smaller, separable modules before moving the deepest planning data.
+
+## Release Rule
+
+For each stage:
+
+1. Add tests first or in the same commit.
+2. Keep old data paths active.
+3. Deploy only after QA passes.
+4. Verify production endpoints.
+5. Keep rollback simple: revert code first, restore data only if a migration actually changed production data.
+

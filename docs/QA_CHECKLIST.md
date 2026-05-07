@@ -33,6 +33,8 @@ This smoke test also verifies localhost dev-auth does not call `/api/client-conf
 
 `npm run qa:api` also verifies that `/api/app-state-backup` rejects anonymous access and accepts a valid Vercel cron secret without exposing server secrets.
 
+`qa/platform-safety-contracts.api.spec.mjs` is the long-term platform guardrail. It fails QA if protected storage keys, backup coverage, module contracts, live-smoke hooks, or the daily backup cron disappear during future refactors.
+
 ## Manual UI Checks
 
 - Localhost opens the platform through dev-auth without hitting `/api/client-config`.

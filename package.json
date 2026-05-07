@@ -4,6 +4,7 @@
     "qa": "npm run check && playwright test --config=qa/playwright.config.mjs",
     "qa:api": "playwright test --config=qa/playwright.config.mjs --project=api-contracts",
     "qa:browser": "playwright test --config=qa/playwright.config.mjs --project=chromium",
+    "qa:contracts": "playwright test --config=qa/playwright.config.mjs --project=api-contracts qa/platform-safety-contracts.api.spec.mjs",
     "qa:live": "playwright test --config=qa/live.playwright.config.mjs",
     "qa:deploy": "npm run qa"
   },

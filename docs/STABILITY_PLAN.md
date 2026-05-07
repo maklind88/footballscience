@@ -86,3 +86,4 @@ The backup endpoint writes:
 - Add automated verification that the latest Supabase backup object exists after cron runs.
 - Run a restore drill: export, restore, refresh, verify Schedule/Periodization/Sessions/Medical.
 - Put the project under a visible git workflow if this folder is not already inside one.
+- Keep `docs/PLATFORM_EVOLUTION_PLAN.md`, `docs/MODULE_CONTRACTS.md`, and `qa/platform-safety-contracts.api.spec.mjs` in sync before modular refactors.

@@ -1,0 +1,82 @@
+# Next Steps
+
+## Highest Priority
+
+- Keep improving Session Planner and Tacticalboard.
+- Keep updating this docs folder after meaningful product decisions.
+- Treat data safety as a product requirement: keep backup/export/restore working for Schedule, Periodization, Sessions, Medical, users, and simulator data.
+- Verify live `footballscience.xyz` after deployment, especially if localStorage can make old data appear.
+
+## Home Dashboard
+
+- Keep Home visually quiet and operational.
+- Avoid fake dashboard content; render empty space until tasks/chat exist.
+- Expand delegated task workflow later with due dates, priorities, and notifications.
+- Keep personal To-Do editable on Home and mirrored on Profile.
+- Update `dashboardNewsVersion` when a future release should trigger the news popup.
+
+## Session Planner
+
+- Treat existing Exercise Library entries as protected data: all future migrations should append/merge and keep backups, not reset or remove saved exercises.
+- Finish Exercise Library as a scalable popup/modal with save, archive/restore, confirmation, and filtering by Phase/Sub-Phase.
+- Add edit existing library exercise and rename flows without overwriting archived or existing entries silently.
+- Add multi-select dropdown behavior for Phase and Sub-Phase with check marks.
+- Allow drag/reorder of blocks so Block 2 can become Block 1.
+- Keep date strip smooth: one-week visible range, arrows scroll only, Today jumps to today.
+- Make plus button open useful choices: add from library, create new exercise, duplicate current exercise, upload exercise.
+- Ensure long custom text never breaks the left list layout.
+- Keep periodization card compact and clickable, without redundant labels.
+
+## Tacticalboard
+
+- Make line width slider control all draw tools properly.
+- Use normal pointer cursor for drawing, hand/grab cursor for draggable selected objects.
+- Add live drawing preview for lines/arrows/runs/passes.
+- Implement three-point curve drawing.
+- Add box select, multi-select, and group move.
+- Add delete all drawings with confirmation.
+- Add 11v11 goal, dashed line, coach marker, and better cone visuals.
+- Make selected goals rotate with an on-object handle.
+- Keep new exercise boards empty except for pitch lines.
+- Keep pitch large, close to left menu, and proportionally realistic.
+
+## Periodization
+
+- Keep week view visually quiet and symmetrical.
+- Keep popup centered.
+- Today should jump to the actual day.
+- Admin should edit; other users should view.
+- Import/update more real planning data from provided documents without breaking structure.
+
+## Schedule
+
+- Keep selected day visible/sticky when scrolling long overview ranges.
+- Keep overview colors clear and add small color legend per month.
+- Admin edit only; non-admin view only.
+
+## Game Simulator
+
+- Create polished tutorial/explanation screen before simulator.
+- Enter opens fullscreen simulator.
+- Improve fullscreen button contrast.
+- Hide the old cluttered non-fullscreen simulator view as the primary route.
+
+## Admin
+
+- Add an Admin workspace for role and visibility permissions.
+- My Team should be visible only to admin for now.
+- Add user management: edit email, reset/change password, remove users, role assignment.
+
+## Medical Team
+
+- Add real roster import from the club website once names, numbers and images are provided.
+- Connect Medical Team recommendations to Sessions so coaches can see training participation status while planning.
+- Add deeper injury/rehab/return-to-play fields only after deciding the medical workflow and permissions.
+- Keep coaches focused on clear participation recommendations while medical details stay permission-aware.
+
+## Future Backend
+
+- Replace localStorage with real auth and database storage.
+- Move the data-safety layer from browser-local protection to real server persistence with version history/backups.
+- Add real file/image uploads for Tacticalboard and exercises.
+- Prepare codebase for eventual mobile app wrapper.

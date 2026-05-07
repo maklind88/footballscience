@@ -1,0 +1,12 @@
+.vercel
+**/.vercel
+.DS_Store
+.env
+.env.*
+!.env.example
+backups
+node_modules
+playwright-report
+reference-copy.mp4
+reference-video.mp4
+test-results

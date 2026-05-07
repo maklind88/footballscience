@@ -1,0 +1,17 @@
+{
+  "scripts": {
+    "check": "node --check app.js",
+    "qa": "npm run check && playwright test --config=qa/playwright.config.mjs",
+    "qa:api": "playwright test --config=qa/playwright.config.mjs --project=api-contracts",
+    "qa:browser": "playwright test --config=qa/playwright.config.mjs --project=chromium",
+    "qa:live": "playwright test --config=qa/live.playwright.config.mjs",
+    "qa:deploy": "npm run qa"
+  },
+  "dependencies": {
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1"
+  }
+}

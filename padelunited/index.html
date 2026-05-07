@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="sv">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f5f5f7" />
+    <title>Padel United</title>
+    <link rel="stylesheet" href="./styles.css?v=admin-lock-20260428c" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#overview" aria-label="Padel United">
+          <span class="brand-mark" aria-hidden="true">PU</span>
+          <span>
+            <strong>Padel United</strong>
+            <small>Ranking 2026</small>
+          </span>
+        </a>
+
+        <nav class="main-nav" aria-label="Primär navigering">
+          <a href="#ranking">Ranking</a>
+          <a href="#profiles">Profiler</a>
+          <a href="#rivalries">Dueller</a>
+          <a href="#matches">Matcher</a>
+          <a href="#admin">Admin</a>
+        </nav>
+
+        <button id="adminQuickButton" class="pill-button" type="button">Admin</button>
+      </header>
+
+      <main>
+        <section id="overview" class="hero-section">
+          <div class="hero-copy">
+            <p class="eyebrow">Padel United</p>
+            <h1>Ranking, form och bragging rights.</h1>
+            <div class="hero-actions">
+              <a class="primary-button" href="#profiles">Se spelarprofiler</a>
+              <a class="ghost-button" href="#matches">Senaste matcher</a>
+            </div>
+          </div>
+
+          <aside class="hero-panel" aria-label="Ledare">
+            <div class="court-visual" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <div class="trophy-card">
+              <div class="trophy-icon" aria-hidden="true">
+                <svg viewBox="0 0 96 96" role="img">
+                  <path d="M25 18h46v11c0 18-10 31-23 31S25 47 25 29V18Z" />
+                  <path d="M25 25H12c1 18 10 28 24 30M71 25h13c-1 18-10 28-24 30" />
+                  <path d="M41 60v12h14V60M31 80h34M36 72h24" />
+                </svg>
+              </div>
+              <span class="leader-label">Pokalhållare</span>
+              <strong id="heroLeader">-</strong>
+              <small id="heroLeaderMeta">-</small>
+            </div>
+          </aside>
+        </section>
+
+        <section class="metric-grid" aria-label="Sammanfattning">
+          <article class="metric-card">
+            <span>Matcher</span>
+            <strong id="metricMatches">0</strong>
+            <small id="metricLastMatch">Ingen match</small>
+          </article>
+          <article class="metric-card">
+            <span>Spelare</span>
+            <strong id="metricPlayers">0</strong>
+            <small>Aktiva i rankingen</small>
+          </article>
+          <article class="metric-card is-positive">
+            <span>Bäst form</span>
+            <strong id="metricFormPlayer">-</strong>
+            <small id="metricFormMeta">-</small>
+          </article>
+          <article class="metric-card is-negative">
+            <span>Hetaste skräll</span>
+            <strong id="metricSwingPlayer">-</strong>
+            <small id="metricSwingMeta">-</small>
+          </article>
+        </section>
+
+        <section class="content-grid content-grid-wide">
+          <article id="ranking" class="panel ranking-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Live</p>
+                <h2>Ranking</h2>
+              </div>
+              <button id="resetDataButton" class="ghost-button" type="button" data-admin-only hidden>Återställ data</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Plats</th>
+                    <th>Spelare</th>
+                    <th>Rating</th>
+                    <th>Record</th>
+                    <th>Form</th>
+                    <th>Trend</th>
+                  </tr>
+                </thead>
+                <tbody id="rankingTable"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel podium-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Pallen</p>
+                <h2>Topp 3</h2>
+              </div>
+            </div>
+            <div id="podium" class="podium"></div>
+          </article>
+        </section>
+
+        <section class="content-grid">
+          <article class="panel chart-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Trend</p>
+                <h2>Ratingkurva</h2>
+              </div>
+              <select id="chartPlayerSelect" aria-label="Välj spelare för trendgraf"></select>
+            </div>
+            <canvas id="trendChart" width="900" height="420" aria-label="Trendgraf"></canvas>
+          </article>
+
+          <article class="panel momentum-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Momentum</p>
+                <h2>Formbarometer</h2>
+              </div>
+            </div>
+            <div id="momentumList" class="momentum-list"></div>
+          </article>
+        </section>
+
+        <section id="profiles" class="panel profile-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Spelare</p>
+              <h2>Profilsida</h2>
+            </div>
+            <select id="profilePlayerSelect" aria-label="Välj profil"></select>
+          </div>
+          <div id="profileView" class="profile-view"></div>
+        </section>
+
+        <section id="rivalries" class="content-grid">
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Dueller</p>
+                <h2>Vem äger vem?</h2>
+              </div>
+            </div>
+            <div id="rivalryGrid" class="rivalry-grid"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Partners</p>
+                <h2>Bästa par</h2>
+              </div>
+            </div>
+            <div id="partnerGrid" class="partner-grid"></div>
+          </article>
+        </section>
+
+        <section id="form" class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Form</p>
+              <h2>Alla spelarkort</h2>
+            </div>
+            <div class="legend">
+              <span class="legend-dot positive"></span> Positiv
+              <span class="legend-dot neutral"></span> Neutral
+              <span class="legend-dot negative"></span> Sämre
+            </div>
+          </div>
+          <div id="playerCards" class="player-grid"></div>
+        </section>
+
+        <section id="matches" class="content-grid">
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Historik</p>
+                <h2>Senaste matcher</h2>
+              </div>
+              <button id="exportButton" class="ghost-button" type="button">Exportera</button>
+            </div>
+            <div id="matchList" class="match-list"></div>
+          </article>
+
+          <article id="admin" class="panel admin-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Admin</p>
+                <h2 id="adminTitle">Logga in</h2>
+              </div>
+              <span id="adminStatePill" class="status-pill">Utloggad</span>
+            </div>
+
+            <form id="loginForm" class="login-form">
+              <label>
+                Användare
+                <input id="adminUser" name="user" autocomplete="username" value="erkan.saglik" />
+              </label>
+              <label>
+                Lösenord
+                <input id="adminPassword" name="password" type="password" autocomplete="new-password" />
+              </label>
+              <button class="primary-button" type="submit">Logga in</button>
+              <p id="loginMessage" class="form-message" role="alert"></p>
+            </form>
+
+            <form id="resultForm" class="result-form" hidden>
+              <div class="form-row">
+                <label>
+                  Datum
+                  <input id="matchDate" name="date" type="date" required />
+                </label>
+                <label>
+                  Resultat
+                  <select id="matchResult" name="result">
+                    <option value="V">Lag A vann</option>
+                    <option value="F">Lag B vann</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="team-entry-grid">
+                <fieldset>
+                  <legend>Lag A</legend>
+                  <select id="teamA1" required></select>
+                  <select id="teamA2" required></select>
+                </fieldset>
+                <fieldset>
+                  <legend>Lag B</legend>
+                  <select id="teamB1" required></select>
+                  <select id="teamB2" required></select>
+                </fieldset>
+              </div>
+
+              <label>
+                Score
+                <input id="matchScore" name="score" placeholder="Ex. 6-4, 6-3" />
+              </label>
+
+              <div class="admin-actions">
+                <button class="primary-button" type="submit">Spara match</button>
+                <button id="logoutButton" class="ghost-button" type="button">Logga ut</button>
+              </div>
+              <p id="resultMessage" class="form-message" role="status"></p>
+            </form>
+
+            <form id="playerForm" class="player-form" hidden>
+              <label>
+                Ny spelare
+                <input id="newPlayerName" maxlength="18" placeholder="Initialer eller namn" />
+              </label>
+              <button class="ghost-button" type="submit">Lägg till</button>
+            </form>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <script src="./app.js?v=admin-lock-20260428c"></script>
+  </body>
+</html>

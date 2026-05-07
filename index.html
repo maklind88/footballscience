@@ -1,0 +1,2688 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-store" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>Football Science Coaching Platform</title>
+    <link id="appStylesheet" rel="stylesheet" />
+    <script>
+      window.__assetVersion = Date.now().toString();
+      document.getElementById("appStylesheet").href = `./styles.css?v=${window.__assetVersion}`;
+    </script>
+  </head>
+  <body class="is-auth-locked">
+    <section id="loginScreen" class="login-screen" aria-label="Coaching platform login">
+      <div class="login-card">
+        <p class="login-kicker">Football Science Coaching Platform</p>
+
+        <form id="loginForm" class="login-form">
+          <label>
+            Username or Email
+            <input id="loginUsername" name="username" autocomplete="username" />
+          </label>
+          <label>
+            Password
+            <input id="loginPassword" name="password" type="password" autocomplete="current-password" />
+          </label>
+          <p id="loginError" class="login-error" role="alert" hidden>
+            Incorrect username or password.
+          </p>
+          <button type="submit">Sign in</button>
+        </form>
+
+        <button id="forgotPasswordToggle" type="button" class="login-link-button" aria-expanded="false">
+          Forgot password?
+        </button>
+
+        <form id="forgotPasswordForm" class="login-forgot-form" hidden>
+          <label>
+            Enter username or email
+            <input id="forgotPasswordIdentifier" name="forgotIdentifier" autocomplete="username" />
+          </label>
+          <p id="forgotPasswordMessage" class="login-message" role="status" hidden></p>
+          <div class="login-form-actions">
+            <button type="submit">Send credentials</button>
+            <button type="button" id="forgotPasswordCancel" class="secondary">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <div id="hubShell" class="coach-platform" hidden>
+      <aside id="hubSidebar" class="platform-sidebar">
+        <div class="platform-brand">
+          <span class="platform-mark">ML</span>
+          <div>
+            <strong>Mak Coaching</strong>
+            <span>Daily team platform</span>
+          </div>
+        </div>
+
+        <nav id="workspaceList" class="platform-nav" aria-label="Platform sections"></nav>
+
+        <div class="platform-sidebar-foot">
+          <div class="coach-avatar">ML</div>
+          <div>
+            <strong id="coachName">Mak Lind</strong>
+            <span id="coachRole">Head Coach</span>
+          </div>
+        </div>
+      </aside>
+
+      <main class="platform-main">
+        <header class="platform-topbar">
+          <div class="platform-title">
+            <button id="sidebarToggle" type="button" class="sidebar-toggle" aria-label="Toggle sidebar">
+              ☰
+            </button>
+            <div>
+              <p id="workspaceMeta"></p>
+              <h1 id="workspaceTitle" role="button" tabindex="0" aria-label="Open home">Football Science</h1>
+            </div>
+          </div>
+          <div class="platform-topbar-actions">
+            <nav id="topIconMenu" class="top-icon-menu" aria-label="Platform navigation"></nav>
+            <label class="workspace-switcher-label" for="workspaceQuickSwitch" hidden>
+              <span>Section</span>
+              <select id="workspaceQuickSwitch" aria-label="Open workspace"></select>
+            </label>
+            <div class="platform-account-menu">
+              <button
+                id="profileMenuButton"
+                type="button"
+                class="platform-account-button"
+                aria-label="Open profile menu"
+                aria-haspopup="menu"
+                aria-expanded="false"
+              >
+                <span id="profileMenuAvatar" class="platform-account-avatar" aria-hidden="true">ML</span>
+                <span class="platform-account-copy">
+                  <strong id="profileMenuName">Mak Lind</strong>
+                  <small id="profileMenuClub">North Carolina Courage</small>
+                </span>
+              </button>
+              <div id="profileMenu" class="platform-profile-menu" role="menu" hidden>
+                <div class="profile-menu-head">
+                  <span id="profileMenuPanelAvatar" class="platform-account-avatar" aria-hidden="true">ML</span>
+                  <div>
+                    <strong id="profileMenuPanelName">Mak Lind</strong>
+                    <span id="profileMenuPanelClub">North Carolina Courage</span>
+                  </div>
+                </div>
+                <div id="dataSafetyStatus" class="profile-menu-data-status" role="status">Local autosave ready</div>
+                <button id="dataSafetyExportButton" type="button" role="menuitem">Export Data Backup</button>
+                <button id="dataSafetyImportButton" type="button" role="menuitem">Restore Data Backup</button>
+                <input id="dataSafetyImportInput" type="file" accept="application/json" hidden />
+                <button type="button" data-open-workspace="my-profile" role="menuitem">Profile</button>
+                <button type="button" data-open-workspace="settings" role="menuitem">Settings</button>
+                <button id="logoutButton" type="button" class="profile-menu-logout" role="menuitem">Log out</button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div class="platform-content">
+          <section class="workspace-view platform-home-view is-active" data-workspace-view="home">
+            <div class="platform-home-shell">
+              <section class="platform-home-hero">
+                <div>
+                  <p id="dashboardDate" class="workspace-date"></p>
+                  <h1 class="workspace-heading">Football Science Coaching Platform</h1>
+                  <p id="dashboardGreeting" class="dashboard-welcome">Welcome back, Mak.</p>
+                </div>
+              </section>
+
+              <div id="dashboardGrid" class="workspace-grid"></div>
+
+            </div>
+          </section>
+
+          <div
+            id="dashboardChatWidgetRoot"
+            class="dashboard-chat-widget-root"
+            aria-label="Team chat widget"
+          ></div>
+
+          <section class="workspace-view platform-placeholder-view" data-workspace-view="placeholder">
+            <article class="placeholder-shell platform-module-shell">
+              <p id="placeholderTag" class="placeholder-tag">Module</p>
+              <h1 id="placeholderTitle" class="placeholder-title">Module Shell</h1>
+              <p id="placeholderDescription" class="placeholder-description">
+                This module is ready to be built without changing the Game Simulator.
+              </p>
+              <div id="placeholderModules" class="placeholder-modules"></div>
+            </article>
+          </section>
+
+          <section class="workspace-view platform-profile-view" data-workspace-view="profile">
+            <div id="profileWorkspace" class="profile-workspace platform-module-shell"></div>
+          </section>
+
+          <section class="workspace-view platform-staff-view" data-workspace-view="staff">
+            <div id="staffWorkspace" class="staff-workspace platform-module-shell"></div>
+          </section>
+
+          <section class="workspace-view platform-admin-view" data-workspace-view="admin">
+            <div id="adminWorkspace" class="admin-workspace platform-module-shell"></div>
+          </section>
+
+          <section class="workspace-view platform-medical-view" data-workspace-view="medical-team">
+            <div id="medicalTeamWorkspace" class="medical-workspace platform-module-shell"></div>
+          </section>
+
+          <section class="workspace-view platform-player-profiles-view" data-workspace-view="player-profiles">
+            <div id="playerProfilesWorkspace" class="player-profiles-workspace platform-module-shell"></div>
+          </section>
+
+          <section class="workspace-view platform-schedule-view" data-workspace-view="schedule">
+            <div id="scheduleWorkspace" class="schedule-workspace platform-module-shell">
+              <header class="schedule-hero-card">
+                <div>
+                  <p class="placeholder-tag">Schedule</p>
+                  <h1 id="scheduleMonthTitle" class="schedule-title">Season Calendar</h1>
+                </div>
+                <div class="schedule-toolbar" aria-label="Calendar navigation">
+                  <div class="schedule-view-switch" aria-label="Schedule view">
+                    <button id="scheduleMonthViewButton" type="button" class="schedule-view-button is-active">Month</button>
+                    <button id="scheduleOverviewViewButton" type="button" class="schedule-view-button">Overview</button>
+                  </div>
+                  <div id="scheduleOverviewSpanControl" class="schedule-span-select" aria-label="Overview months">
+                    <div class="schedule-span-buttons" role="group" aria-label="Overview months">
+                      <button id="scheduleOverviewSpan3Button" type="button" data-schedule-span="3" aria-label="Show 3 months">3M</button>
+                      <button id="scheduleOverviewSpan6Button" type="button" data-schedule-span="6" aria-label="Show 6 months">6M</button>
+                      <button id="scheduleOverviewSpan9Button" type="button" data-schedule-span="9" aria-label="Show 9 months">9M</button>
+                      <button id="scheduleOverviewSpan12Button" type="button" data-schedule-span="12" aria-label="Show 12 months">12M</button>
+                    </div>
+                  </div>
+                  <button id="schedulePrevMonthButton" type="button" class="schedule-nav-button" aria-label="Previous month">←</button>
+                  <button id="scheduleTodayButton" type="button" class="schedule-today-button">Today</button>
+                  <button id="scheduleNextMonthButton" type="button" class="schedule-nav-button" aria-label="Next month">→</button>
+                </div>
+              </header>
+
+              <section class="schedule-layout">
+                <article class="schedule-board-card">
+                  <div id="scheduleWeekdays" class="schedule-weekdays" aria-hidden="true">
+                    <span>Mon</span>
+                    <span>Tue</span>
+                    <span>Wed</span>
+                    <span>Thu</span>
+                    <span>Fri</span>
+                    <span>Sat</span>
+                    <span>Sun</span>
+                  </div>
+                  <div id="scheduleCalendarGrid" class="schedule-calendar-grid"></div>
+                  <div id="scheduleOverviewGrid" class="schedule-overview-grid" hidden></div>
+                </article>
+
+                <aside id="scheduleDayCard" class="schedule-day-card">
+                  <div class="schedule-day-card-head">
+                    <div>
+                      <p id="scheduleDayEyebrow" class="placeholder-tag">Selected Day</p>
+                      <h2 id="scheduleSelectedDateLabel">Today</h2>
+                    </div>
+                    <button
+                      id="scheduleEditDayButton"
+                      type="button"
+                      class="schedule-day-edit-button"
+                      data-schedule-edit-day
+                      aria-label="Edit selected day"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 17.25V20h2.75L17.9 8.85l-2.75-2.75L4 17.25Z"></path>
+                        <path d="m17.1 4.15 2.75 2.75"></path>
+                      </svg>
+                    </button>
+                  </div>
+                  <div id="scheduleEventList" class="schedule-event-list"></div>
+
+                  <form id="scheduleEventForm" class="schedule-event-form">
+                    <label>
+                      <span>Date</span>
+                      <input id="scheduleEventDate" name="date" type="date" required />
+                    </label>
+                    <label>
+                      <span>Time</span>
+                      <input id="scheduleEventTime" name="time" type="time" />
+                    </label>
+                    <label>
+                      <span>Type</span>
+                      <select id="scheduleEventType" name="type">
+                        <option value="training">Training</option>
+                        <option value="match">Match</option>
+                        <option value="meeting">Meeting</option>
+                        <option value="travel">Travel</option>
+                        <option value="recovery">Recovery</option>
+                        <option value="off">Off</option>
+                      </select>
+                    </label>
+                    <label class="schedule-form-wide">
+                      <span>Title</span>
+                      <input id="scheduleEventTitle" name="title" placeholder="Training, match, meeting..." required />
+                    </label>
+                    <label class="schedule-form-wide">
+                      <span>Notes</span>
+                      <textarea id="scheduleEventNote" name="note" rows="3"></textarea>
+                    </label>
+                    <div class="schedule-form-actions schedule-form-wide">
+                      <button id="scheduleEventSubmitButton" type="submit">Add Plan</button>
+                      <button id="scheduleEventCancelButton" type="button" hidden>Cancel</button>
+                    </div>
+                  </form>
+                </aside>
+              </section>
+            </div>
+          </section>
+
+          <section class="workspace-view platform-periodization-view" data-workspace-view="periodization">
+            <div id="periodizationShell" class="periodization-shell platform-module-shell">
+              <header class="periodization-hero-card">
+                <div>
+                  <p class="placeholder-tag">Season Plan</p>
+                  <h1 id="periodizationHeading" class="schedule-title">Periodization</h1>
+                </div>
+                <div class="periodization-toolbar">
+                  <button id="periodizationPrevMonthButton" type="button" class="schedule-nav-button" aria-label="Previous periodization month">←</button>
+                  <select id="periodizationMonthSelect" class="periodization-month-select" aria-label="Periodization month">
+                    <option value="0">January 2026</option>
+                    <option value="1">February 2026</option>
+                    <option value="2">March 2026</option>
+                    <option value="3">April 2026</option>
+                    <option value="4">May 2026</option>
+                    <option value="5">June 2026</option>
+                    <option value="6">July 2026</option>
+                    <option value="7">August 2026</option>
+                    <option value="8">September 2026</option>
+                    <option value="9">October 2026</option>
+                    <option value="10">November 2026</option>
+                    <option value="11">December 2026</option>
+                  </select>
+                  <button id="periodizationNextMonthButton" type="button" class="schedule-nav-button" aria-label="Next periodization month">→</button>
+                  <button id="periodizationTodayButton" type="button" class="schedule-today-button">Today</button>
+                </div>
+              </header>
+              <section class="periodization-layout">
+                <article class="periodization-board">
+                  <div id="periodizationBoard" class="periodization-board-canvas"></div>
+                </article>
+              </section>
+            </div>
+          </section>
+
+          <section class="workspace-view platform-session-view" data-workspace-view="session-planner">
+            <div id="sessionPlannerWorkspace" class="session-planner-workspace platform-module-shell"></div>
+          </section>
+
+          <section
+            class="workspace-view platform-game-simulator-view is-simulator-intro"
+            data-workspace-view="game-simulator"
+          >
+            <div id="gameSimulatorIntro" class="simulator-intro" tabindex="-1">
+              <section class="simulator-intro-hero">
+                <div>
+                  <p class="placeholder-tag">Game Simulator</p>
+                  <h1 class="simulator-intro-title">From magnetic board to football physics</h1>
+                  <p class="simulator-intro-lead">
+                    A 2D match simulator built for coaching reality: every pass, dribble, shot,
+                    run, body angle and defensive action is tied to the same match clock instead
+                    of moving magnets faster than football allows.
+                  </p>
+                </div>
+                <article class="simulator-intro-panel">
+                  <h2>What the engine protects</h2>
+                  <ul>
+                    <li>Ball speed, player speed and action time are calculated together.</li>
+                    <li>Players can only reach spaces their profile makes realistic.</li>
+                    <li>Sequences play back as video-like movement, not static board snapshots.</li>
+                  </ul>
+                </article>
+              </section>
+
+              <section class="simulator-intro-grid" aria-label="Simulator engine">
+                <article class="simulator-intro-card">
+                  <span>01</span>
+                  <h2>Ball Action Engine</h2>
+                  <p>Every pass, dribble and shot has an origin, target, distance, travel profile and ETA.</p>
+                </article>
+                <article class="simulator-intro-card">
+                  <span>02</span>
+                  <h2>Ball Speed Model</h2>
+                  <p>Auto mode profiles short passes, switches, through balls, shots and carry actions; manual mode lets you stress-test any speed.</p>
+                </article>
+                <article class="simulator-intro-card">
+                  <span>03</span>
+                  <h2>Player Movement</h2>
+                  <p>Reach is calculated from reaction time, acceleration, top speed and the ball action duration.</p>
+                </article>
+                <article class="simulator-intro-card">
+                  <span>04</span>
+                  <h2>Receiving and Interception</h2>
+                  <p>Receivers control inside a realistic radius; opponents can intercept, press or tackle when arrival timing makes it possible.</p>
+                </article>
+                <article class="simulator-intro-card">
+                  <span>05</span>
+                  <h2>Body Orientation</h2>
+                  <p>Players face their run first, then settle with ball-facing or open body shape at arrival.</p>
+                </article>
+                <article class="simulator-intro-card">
+                  <span>06</span>
+                  <h2>Sequences and Autopilot</h2>
+                  <p>Actions are recorded as steps, interpolated like video and linked to formations, identity and spacing rules.</p>
+                </article>
+              </section>
+
+              <section class="simulator-intro-formulas" aria-label="Core calculations">
+                <div class="simulator-formula-chip">Ball ETA = distance, action type, speed profile and deceleration</div>
+                <div class="simulator-formula-chip">Player reach = reaction time + acceleration curve + top-speed cap</div>
+                <div class="simulator-formula-chip">Dribble realism = carrier quality, role, surface, weather and pressure</div>
+                <div class="simulator-formula-chip">Reception = control radius + first-touch mode + open body orientation</div>
+                <div class="simulator-formula-chip">Defending = block spacing, line integrity, pressure chain and duels</div>
+                <div class="simulator-formula-chip">Sequence = each action recorded, interpolated and replayed at match speed</div>
+              </section>
+
+              <section class="simulator-intro-flow" aria-label="How to use the simulator">
+                <div class="simulator-intro-step"><span>1</span> Set action</div>
+                <div class="simulator-intro-step"><span>2</span> Move players</div>
+                <div class="simulator-intro-step"><span>3</span> Press Enter</div>
+                <div class="simulator-intro-step"><span>4</span> Watch fullscreen</div>
+              </section>
+
+              <div class="simulator-intro-actions">
+                <p>Press Enter to open the live simulator in fullscreen.</p>
+                <button id="simulatorIntroEnterButton" type="button" class="simulator-intro-enter">
+                  Enter Simulator
+                </button>
+              </div>
+            </div>
+            <div class="app-shell simulator-workspace">
+              <section class="simulation-layout">
+                <article class="pitch-panel">
+                  <div id="pitchStage" class="pitch-stage">
+                    <div class="pitch-toolbar pitch-toolbar-top">
+                      <div class="team-control-board" aria-label="Team setup controls">
+                        <article class="team-setup-card team-setup-card-home">
+                          <header class="team-setup-header">
+                            <span class="team-setup-dot team-setup-dot-home"></span>
+                            <div>
+                              <strong>Blue Team</strong>
+                            </div>
+                          </header>
+                          <div class="team-setup-grid">
+                            <label class="team-select-field formation-field" for="homeFormationSelect">
+                              <span>Formation</span>
+                              <select id="homeFormationSelect">
+                                <option value="4-3-3">4-3-3</option>
+                                <option value="4-1-4-1">4-1-4-1</option>
+                                <option value="3-4-3">3-4-3</option>
+                                <option value="4-4-2">4-4-2</option>
+                                <option value="4-2-3-1">4-2-3-1</option>
+                                <option value="3-5-2">3-5-2</option>
+                              </select>
+                            </label>
+                            <label class="team-select-field identity-field" for="homeAttackStyleSelect">
+                              <span>Attack</span>
+                              <select id="homeAttackStyleSelect">
+                                <option value="balanced">Balanced</option>
+                                <option value="control-possession" selected>Control Possession</option>
+                                <option value="tiki-taka">Tiki-Taka</option>
+                                <option value="fluid-combinations">Fluid Combinations</option>
+                                <option value="vertical-tiki-taka">Vertical Tiki-Taka</option>
+                                <option value="vertical-play">Vertical Play</option>
+                                <option value="gegenpress">Gegenpress</option>
+                                <option value="wing-play">Wing Play</option>
+                                <option value="overlap-wide">Overlap Wide</option>
+                                <option value="fluid-counter-attack">Fluid Counter-Attack</option>
+                                <option value="direct-transition">Direct Transition</option>
+                                <option value="counter-attack">Counter Attack</option>
+                                <option value="route-one">Route One</option>
+                              </select>
+                            </label>
+                            <label class="team-select-field identity-field" for="homeDefenseStyleSelect">
+                              <span>Defence</span>
+                              <select id="homeDefenseStyleSelect">
+                                <option value="balanced-block">Balanced Block</option>
+                                <option value="high-press">High Press</option>
+                                <option value="mid-block" selected>Mid Block</option>
+                                <option value="low-block">Low Block</option>
+                                <option value="gegenpress">Gegenpress</option>
+                                <option value="counter-press">Counter Press</option>
+                                <option value="press-trap-wide">Wide Press Trap</option>
+                                <option value="catenaccio">Catenaccio</option>
+                                <option value="park-the-bus">Park The Bus</option>
+                                <option value="protect-box">Protect Box</option>
+                              </select>
+                            </label>
+                          </div>
+                        </article>
+
+                        <article class="team-setup-card team-setup-card-away">
+                          <header class="team-setup-header">
+                            <span class="team-setup-dot team-setup-dot-away"></span>
+                            <div>
+                              <strong>Red Team</strong>
+                            </div>
+                          </header>
+                          <div class="team-setup-grid">
+                            <label class="team-select-field formation-field" for="awayFormationSelect">
+                              <span>Formation</span>
+                              <select id="awayFormationSelect">
+                                <option value="4-3-3">4-3-3</option>
+                                <option value="4-1-4-1">4-1-4-1</option>
+                                <option value="3-4-3" selected>3-4-3</option>
+                                <option value="4-4-2">4-4-2</option>
+                                <option value="4-2-3-1">4-2-3-1</option>
+                                <option value="3-5-2">3-5-2</option>
+                              </select>
+                            </label>
+                            <label class="team-select-field identity-field" for="awayAttackStyleSelect">
+                              <span>Attack</span>
+                              <select id="awayAttackStyleSelect">
+                                <option value="balanced">Balanced</option>
+                                <option value="control-possession">Control Possession</option>
+                                <option value="tiki-taka">Tiki-Taka</option>
+                                <option value="fluid-combinations">Fluid Combinations</option>
+                                <option value="vertical-tiki-taka">Vertical Tiki-Taka</option>
+                                <option value="vertical-play" selected>Vertical Play</option>
+                                <option value="gegenpress">Gegenpress</option>
+                                <option value="wing-play">Wing Play</option>
+                                <option value="overlap-wide">Overlap Wide</option>
+                                <option value="fluid-counter-attack">Fluid Counter-Attack</option>
+                                <option value="direct-transition">Direct Transition</option>
+                                <option value="counter-attack">Counter Attack</option>
+                                <option value="route-one">Route One</option>
+                              </select>
+                            </label>
+                            <label class="team-select-field identity-field" for="awayDefenseStyleSelect">
+                              <span>Defence</span>
+                              <select id="awayDefenseStyleSelect">
+                                <option value="balanced-block">Balanced Block</option>
+                                <option value="high-press">High Press</option>
+                                <option value="mid-block" selected>Mid Block</option>
+                                <option value="low-block">Low Block</option>
+                                <option value="gegenpress">Gegenpress</option>
+                                <option value="counter-press">Counter Press</option>
+                                <option value="press-trap-wide">Wide Press Trap</option>
+                                <option value="catenaccio">Catenaccio</option>
+                                <option value="park-the-bus">Park The Bus</option>
+                                <option value="protect-box">Protect Box</option>
+                              </select>
+                            </label>
+                          </div>
+                        </article>
+
+                        <article class="team-autopilot-card">
+                          <label class="team-select-field physical-profile-field" for="physicalProfileSelect">
+                            <span>Physical Level</span>
+                            <select id="physicalProfileSelect">
+                              <option value="elite-women" selected>Elite Women</option>
+                              <option value="elite-men">Elite Men</option>
+                              <option value="academy-women">Academy Women</option>
+                              <option value="academy-men">Academy Men</option>
+                            </select>
+                          </label>
+                          <div class="team-autopilot-actions">
+                            <button
+                              id="offensiveAutopilotButton"
+                              type="button"
+                              class="mode-button secondary autopilot-button offensive-autopilot-button"
+                              aria-pressed="false"
+                              title="Moves the team with the ball into support, width, depth and rest-defence positions for the planned action."
+                            >
+                              Attack Manual
+                            </button>
+                            <button
+                              id="defensiveAutopilotButton"
+                              type="button"
+                              class="mode-button secondary autopilot-button"
+                              aria-pressed="false"
+                              title="Moves the team without the ball into a compact defensive block for the planned action."
+                            >
+                              Defence Manual
+                            </button>
+                          </div>
+                        </article>
+                      </div>
+                    </div>
+
+                    <canvas id="pitchCanvas" width="1050" height="680"></canvas>
+
+                    <div class="fullscreen-hud fullscreen-hud-left">
+                      <section class="info-card fullscreen-hud-card">
+                        <div class="fullscreen-hud-head">
+                          <h2>Selected Player</h2>
+                          <div class="fullscreen-player-meta">
+                            <span id="fullscreenSelectedPlayerName" class="fullscreen-player-name">-</span>
+                            <span class="fullscreen-player-reach">
+                              Action Distance
+                              <strong id="fullscreenSelectedReachAtArrival">-</strong>
+                            </span>
+                          </div>
+                        </div>
+                        <div id="fullscreenSelectedPlayerCard" class="selected-card"></div>
+                      </section>
+                    </div>
+
+                    <div class="fullscreen-hud fullscreen-hud-right">
+                      <section class="info-card fullscreen-hud-card">
+                        <h2>Status</h2>
+                        <dl class="metrics metrics-fullscreen">
+                          <div>
+                            <dt>Simulation Time</dt>
+                            <dd id="fullscreenSimTime">0.00 s</dd>
+                          </div>
+                          <div>
+                            <dt>Ball Status</dt>
+                            <dd id="fullscreenBallStatus">Still</dd>
+                          </div>
+                          <div>
+                            <dt>Ball ETA</dt>
+                            <dd id="fullscreenBallEta">0.00 s</dd>
+                          </div>
+                          <div>
+                            <dt>Total Action Time</dt>
+                            <dd id="fullscreenActionTime">0.00 s</dd>
+                          </div>
+                          <div>
+                            <dt>Action Type</dt>
+                            <dd id="fullscreenActionType">-</dd>
+                          </div>
+                          <div>
+                            <dt>Ball Profile</dt>
+                            <dd id="fullscreenBallProfile">-</dd>
+                          </div>
+                          <div>
+                            <dt>Ball Speed</dt>
+                            <dd id="fullscreenBallCurrentSpeed">-</dd>
+                          </div>
+                          <div>
+                            <dt>Action Distance</dt>
+                            <dd id="fullscreenActionDistance">0.0 m</dd>
+                          </div>
+                          <div>
+                            <dt>Ball Carrier</dt>
+                            <dd id="fullscreenBallOwner">-</dd>
+                          </div>
+                        </dl>
+                      </section>
+                    </div>
+
+                    <div class="pitch-toolbar pitch-toolbar-bottom">
+                      <div class="toolbar-group action-controls action-controls-bottom">
+                        <button id="passModeButton" type="button" class="mode-button is-active">Pass</button>
+                        <button id="dribbleModeButton" type="button" class="mode-button secondary">Dribble</button>
+                        <button id="shotModeButton" type="button" class="mode-button secondary">Shot</button>
+                        <button id="assignBallButton" type="button" class="mode-button secondary">Set Selected Player as Ball Carrier</button>
+                        <button id="playPauseButton" type="button" class="mode-button">Start</button>
+                        <button id="resetButton" type="button" class="mode-button secondary">Reset</button>
+                      </div>
+                      <div class="toolbar-group">
+                        <button id="previousStepButton" type="button" class="mode-button secondary">&larr;</button>
+                        <span id="sequenceStepLabel" class="sequence-step-label">Start</span>
+                        <button id="nextStepButton" type="button" class="mode-button secondary">&rarr;</button>
+                        <button id="playSequenceButton" type="button" class="mode-button secondary">Play From Here</button>
+                        <button id="clearSequenceButton" type="button" class="mode-button secondary">Clear Sequence</button>
+                      </div>
+                      <div class="toolbar-group">
+                        <button id="saveSequenceButton" type="button" class="mode-button secondary">Save Sequence</button>
+                        <button id="loadSequenceButton" type="button" class="mode-button secondary">Load Latest</button>
+                        <button id="downloadSequenceButton" type="button" class="mode-button secondary">Download Current</button>
+                        <button id="pitchFullscreenButton" type="button" class="mode-button secondary">Fullscreen</button>
+                      </div>
+                    </div>
+
+                    <div class="controls-card controls-card-inline compact-game-controls">
+                      <label class="speed-control compact-range-control" for="playbackSpeed">
+                        <span class="compact-control-head">
+                          <span>Playback</span>
+                          <strong id="playbackSpeedLabel" class="control-value">1.00x</strong>
+                        </span>
+                        <input
+                          id="playbackSpeed"
+                          type="range"
+                          min="0.25"
+                          max="2"
+                          step="0.25"
+                          value="1"
+                        />
+                      </label>
+
+                      <div class="speed-control speed-mode-control compact-tuning-control">
+                        <div class="compact-control-head">
+                          <label for="ballSpeed">Ball Speed</label>
+                          <div class="segmented-control">
+                            <button id="ballSpeedAutoButton" type="button" class="mode-button secondary is-active">Auto</button>
+                            <button id="ballSpeedManualButton" type="button" class="mode-button secondary">Manual</button>
+                          </div>
+                        </div>
+                        <input
+                          id="ballSpeed"
+                          type="range"
+                          min="4"
+                          max="30"
+                          step="1"
+                          value="12"
+                        />
+                        <span id="ballSpeedLabel" class="control-value">Auto</span>
+                      </div>
+
+                      <div class="speed-control speed-mode-control compact-tuning-control">
+                        <div class="compact-control-head">
+                          <label for="dribbleSpeed">Dribble Speed</label>
+                          <div class="segmented-control">
+                            <button id="dribbleSpeedAutoButton" type="button" class="mode-button secondary is-active">Auto</button>
+                            <button id="dribbleSpeedManualButton" type="button" class="mode-button secondary">Manual</button>
+                          </div>
+                        </div>
+                        <input
+                          id="dribbleSpeed"
+                          type="range"
+                          min="2"
+                          max="7"
+                          step="0.25"
+                          value="4.5"
+                        />
+                        <span id="dribbleSpeedLabel" class="control-value">Auto</span>
+                      </div>
+
+                      <div class="compact-environment-controls">
+                        <label class="speed-control compact-select-control" for="pitchSurfaceSelect">
+                          Pitch
+                          <select id="pitchSurfaceSelect">
+                            <option value="natural-grass">Natural Grass</option>
+                            <option value="hybrid-grass" selected>Hybrid Grass</option>
+                            <option value="football-turf">Football Turf</option>
+                          </select>
+                        </label>
+
+                        <label class="speed-control compact-select-control" for="weatherSelect">
+                          Weather
+                          <select id="weatherSelect">
+                            <option value="dry">Dry</option>
+                            <option value="damp" selected>Damp</option>
+                            <option value="wet">Wet</option>
+                          </select>
+                        </label>
+
+                        <label class="speed-control compact-select-control" for="firstTouchSelect">
+                          Touch
+                          <select id="firstTouchSelect">
+                            <option value="auto" selected>Auto</option>
+                            <option value="kill">Kill</option>
+                            <option value="forward">Forward</option>
+                            <option value="inside">Inside</option>
+                            <option value="outside">Outside</option>
+                            <option value="back">Back</option>
+                            <option value="across">Across Body</option>
+                          </select>
+                        </label>
+
+                        <label class="speed-control compact-select-control" for="defensiveAggressionSelect">
+                          Duels
+                          <select id="defensiveAggressionSelect">
+                            <option value="conservative">Conservative</option>
+                            <option value="balanced" selected>Balanced</option>
+                            <option value="aggressive">Aggressive</option>
+                          </select>
+                        </label>
+                      </div>
+
+                      <div class="legend">
+                        <span><i class="swatch swatch-ball"></i>Ball</span>
+                        <span id="homeLegendLabel"><i class="swatch swatch-home"></i>Blue Team 4-3-3</span>
+                        <span id="awayLegendLabel"><i class="swatch swatch-away"></i>Red Team 3-4-3</span>
+                        <span><i class="swatch swatch-target"></i>Target</span>
+                        <span><i class="swatch swatch-zone"></i>Reach</span>
+                      </div>
+                    </div>
+                    <div id="metricTooltip" class="metric-tooltip" role="tooltip" hidden></div>
+                  </div>
+                </article>
+
+                <aside class="sidebar">
+                  <section class="info-card">
+                    <h2>Status</h2>
+                    <dl class="metrics">
+                      <div>
+                        <dt>Simulation Time</dt>
+                        <dd id="simTime">0.00 s</dd>
+                      </div>
+                      <div>
+                        <dt>Ball Status</dt>
+                        <dd id="ballStatus">Still</dd>
+                      </div>
+                      <div>
+                        <dt>Ball ETA</dt>
+                        <dd id="ballEta">0.00 s</dd>
+                      </div>
+                      <div>
+                        <dt>Total Action Time</dt>
+                        <dd id="actionTime">0.00 s</dd>
+                      </div>
+                      <div>
+                        <dt>Action Type</dt>
+                        <dd id="actionType">-</dd>
+                      </div>
+                      <div>
+                        <dt>Ball Profile</dt>
+                        <dd id="ballProfile">-</dd>
+                      </div>
+                      <div>
+                        <dt>Ball Speed</dt>
+                        <dd id="ballCurrentSpeed">-</dd>
+                      </div>
+                      <div>
+                        <dt>Ball Carrier</dt>
+                        <dd id="ballOwner">-</dd>
+                      </div>
+                      <div>
+                        <dt>Selected Player</dt>
+                        <dd id="selectedPlayerName">-</dd>
+                      </div>
+                      <div>
+                        <dt>Action Distance</dt>
+                        <dd id="selectedReachAtArrival">-</dd>
+                      </div>
+                    </dl>
+                  </section>
+
+                  <section class="info-card">
+                    <h2>Selected Player</h2>
+                    <div id="selectedPlayerCard" class="selected-card"></div>
+                  </section>
+
+                  <section class="info-card" hidden>
+                    <h2>Squads</h2>
+                    <div id="playerTable" class="player-table"></div>
+                  </section>
+
+                  <section class="info-card" hidden>
+                    <h2>Event Log</h2>
+                    <ul id="eventLog" class="event-log"></ul>
+                  </section>
+
+                  <section class="info-card">
+                    <h2>Sequence</h2>
+                    <p id="sequenceStatus" class="sequence-status">No sequence recorded yet.</p>
+                    <div id="sequenceList" class="sequence-list"></div>
+                    <div class="saved-library">
+                      <h3>Saved Sequences</h3>
+                      <p id="savedSequenceStatus" class="saved-sequence-status">No central sequences saved yet.</p>
+                      <div id="savedSequenceList" class="saved-sequence-list"></div>
+                    </div>
+                  </section>
+                </aside>
+              </section>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      (() => {
+        const DEFAULT_ROLES = ["admin", "coach", "analyst", "performance", "medical", "guest"];
+        const SUPABASE_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js";
+        const API_CLIENT_CONFIG = "/api/client-config";
+        const API_ADMIN_USERS = "/api/admin-users";
+        const API_USER_LOOKUP = "/api/user-lookup";
+        const API_SEND_RESET = "/api/send-reset";
+        const API_APP_STATE = "/api/app-state";
+        const API_AUDIT_LOG = "/api/audit-log";
+        const API_SESSION_HISTORY = "/api/session-history";
+        const DATA_SAFETY_MANIFEST_KEY = "football-data-safety-v1";
+        const ONLINE_APP_URL = "https://footballscience.xyz/";
+        const DEV_AUTH_SESSION_KEY = "football-science-dev-auth-session-v1";
+        const DEV_AUTH_PASSWORD = "courage";
+        const SESSION_PLANNER_STATE_KEY = "football-session-planner-v3";
+        const SESSION_PLANNER_REDUCTION_GUARD_KEY = "blockReductionGuard";
+        const SESSION_PLANNER_REDUCTION_WINDOW_MS = 30 * 60 * 1000;
+        const SESSION_PLANNER_BLOCK_FIELD_META_KEY = "fieldUpdatedAt";
+        const SESSION_PLANNER_BLOCK_MERGE_FIELDS = [
+          "label",
+          "title",
+          "focus",
+          "phase",
+          "subPhase",
+          "minutes",
+          "time",
+          "intensity",
+          "pitchSize",
+          "material",
+          "objective",
+          "why",
+          "organization",
+          "principles",
+          "diagram",
+          "tacticalPitchMode",
+          "playerBoardLayoutMode",
+          "visualImage",
+          "playerBoardPositions",
+          "playerBoardColors",
+          "tacticalElements",
+        ];
+        const SESSION_PLANNER_BLOCK_MERGE_FIELD_SET = new Set(SESSION_PLANNER_BLOCK_MERGE_FIELDS);
+        const CENTRAL_STATE_KEYS = new Set([
+          "football-workspace-hub-v3",
+          "football-periodization-v2",
+          "football-schedule-v1",
+          SESSION_PLANNER_STATE_KEY,
+          "football-session-exercise-library-v1",
+          "football-session-exercise-library-backup-v1",
+          "football-dashboard-tasks-v1",
+          "football-dashboard-chat-v1",
+          "football-dashboard-notification-seen-v1",
+          "football-dashboard-tutorial-prefs-v1",
+          "football-dashboard-news-seen-v1",
+          "football-medical-team-v1",
+          "football-player-profiles-v1",
+          "football-simulator-sequence-v1",
+          "football-simulator-sequence-library-v2",
+        ]);
+        const RETIRED_CENTRAL_STATE_KEYS = new Set([
+          "football-workspace-hub-v1",
+          "football-workspace-hub-v2",
+          "football-periodization-v1",
+          "football-session-planner-v1",
+          "football-session-planner-v2",
+          "football-simulator-sequence-library-v1",
+          "mak-coaching-platform-users-v1",
+          "mak-coaching-platform-session-v1",
+        ]);
+        const MAX_PROFILE_IMAGE_URL_LENGTH = 1800;
+        const MAX_AUTH_ACCESS_TOKEN_LENGTH = 6000;
+
+        const authState = {
+          supabase: null,
+          session: null,
+          currentUser: null,
+          users: [],
+          roles: [...DEFAULT_ROLES],
+          isReady: false,
+          isSigningOut: false,
+          devMode: false,
+        };
+        const centralState = {
+          hydrated: false,
+          hydrating: false,
+          lastError: "",
+          lastSyncedAt: "",
+        };
+        let postAuthHydrationTimer = 0;
+        let postAuthHydrationRunId = 0;
+
+        function normalizeProfileImageValue(value) {
+          const raw = String(value || "").trim();
+          if (!raw || raw.length > MAX_PROFILE_IMAGE_URL_LENGTH) {
+            return "";
+          }
+          if (raw.startsWith("data:image/")) {
+            return raw;
+          }
+          try {
+            const parsed = new URL(raw);
+            return parsed.protocol === "https:" || parsed.protocol === "http:" ? raw : "";
+          } catch {
+            return "";
+          }
+        }
+
+        function normalizeAuthUser(user = {}) {
+          const meta = user.user_metadata || {};
+          const appMeta = user.app_metadata || {};
+          const role = String(appMeta.role || meta.role || user.role || "coach").trim().toLowerCase();
+          const status = String(appMeta.status || meta.status || user.status || "active").trim().toLowerCase();
+          return {
+            id: String(user.id || ""),
+            email: String(user.email || "").toLowerCase(),
+            firstName: String(meta.firstName || meta.first_name || user.firstName || user.first_name || "New").trim(),
+            lastName: String(meta.lastName || meta.last_name || user.lastName || user.last_name || "User").trim(),
+            username:
+              String(meta.username || meta.user_name || user.username || user.user_name || user.email || "")
+                .split("@", 1)[0]
+                .trim()
+                .toLowerCase() || "user",
+            role: DEFAULT_ROLES.includes(role) ? role : "coach",
+            title: String(meta.title || user.title || "Coach").trim(),
+            department: String(meta.department || user.department || "Football").trim(),
+            team: String(meta.team || user.team || "North Carolina Courage").trim(),
+            status: status === "paused" ? "paused" : "active",
+            profileImageUrl: normalizeProfileImageValue(
+              meta.profileImageUrl ||
+                meta.profile_image_url ||
+                meta.avatarUrl ||
+                meta.avatar_url ||
+                user.profileImageUrl ||
+                user.profile_image_url ||
+                user.avatarUrl ||
+                user.avatar_url ||
+                ""
+            ),
+            createdAt: user.created_at || user.createdAt || new Date().toISOString(),
+            updatedAt: user.updated_at || user.updatedAt || "",
+            lastSignInAt: user.last_sign_in_at || user.lastSignInAt || "",
+          };
+        }
+
+        function toFormError(message, isError = false) {
+          const loginError = document.getElementById("loginError");
+          if (!loginError) {
+            return;
+          }
+          loginError.textContent = message;
+          loginError.hidden = !message;
+          loginError.classList.toggle("login-error", isError);
+          loginError.classList.toggle("login-success", !isError);
+        }
+
+        function setLoginBusy(isBusy, message = "") {
+          const loginForm = document.getElementById("loginForm");
+          const submitButton = loginForm?.querySelector('button[type="submit"]');
+          if (!submitButton) {
+            return;
+          }
+
+          if (!submitButton.dataset.defaultText) {
+            submitButton.dataset.defaultText = submitButton.textContent || "Sign in";
+          }
+
+          submitButton.disabled = Boolean(isBusy);
+          submitButton.textContent = isBusy ? message || "Signing in..." : submitButton.dataset.defaultText;
+        }
+
+        function withTimeout(promise, timeoutMs, timeoutMessage) {
+          let timeoutId = 0;
+          return Promise.race([
+            Promise.resolve(promise).finally(() => {
+              if (timeoutId) {
+                window.clearTimeout(timeoutId);
+              }
+            }),
+            new Promise((_, reject) => {
+              timeoutId = window.setTimeout(() => {
+                reject(new Error(timeoutMessage || "The request took too long. Try again."));
+              }, timeoutMs);
+            }),
+          ]);
+        }
+
+        function isLocalFileHost() {
+          return window.location.protocol === "file:";
+        }
+
+        function isLocalDevHost() {
+          const host = window.location.hostname || "";
+          return host === "localhost" || host === "127.0.0.1" || host === "::1" || host.endsWith(".localhost");
+        }
+
+        function shouldForceCanonicalHost() {
+          return false;
+        }
+
+        function redirectToCanonicalHost() {
+          const nextUrl = `https://footballscience.xyz${window.location.pathname || "/"}${window.location.search || ""}${window.location.hash || ""}`;
+          window.location.replace(nextUrl);
+        }
+
+        function getPasswordResetRedirectUrl() {
+          const fallback = "https://footballscience.xyz/";
+          try {
+            const host = window.location.hostname || "";
+            if (host === "localhost" || host === "127.0.0.1" || host.endsWith(".localhost")) {
+              return `${window.location.origin}/`;
+            }
+          } catch {
+            return fallback;
+          }
+
+          return fallback;
+        }
+
+        function purgeLegacyLocalAccountStorage() {
+          try {
+            window.localStorage.removeItem("mak-coaching-platform-users-v1");
+            window.localStorage.removeItem("mak-coaching-platform-session-v1");
+          } catch {
+            // ignore storage cleanup failures
+          }
+        }
+
+        function setForgotPasswordMessage(message, isError = false) {
+          const forgotPasswordMessage = document.getElementById("forgotPasswordMessage");
+          if (!forgotPasswordMessage) {
+            return;
+          }
+
+          if (message) {
+            forgotPasswordMessage.textContent = message;
+            forgotPasswordMessage.hidden = false;
+            forgotPasswordMessage.classList.toggle("login-error", isError);
+            forgotPasswordMessage.classList.toggle("login-success", !isError);
+          } else {
+            forgotPasswordMessage.hidden = true;
+            forgotPasswordMessage.textContent = "";
+            forgotPasswordMessage.classList.remove("login-error", "login-success");
+          }
+        }
+
+        function requestWorkspaceOpen(workspaceId) {
+          if (!workspaceId) {
+            return;
+          }
+
+          window.__pendingWorkspaceId = workspaceId;
+          window.dispatchEvent(
+            new CustomEvent("platform:open-workspace", {
+              detail: { workspaceId },
+            })
+          );
+        }
+
+        function notifyAuthChange(user) {
+          window.platformSession = user;
+          window.dispatchEvent(new CustomEvent("platform:user-change", { detail: { user } }));
+        }
+
+        function getDevAuthUsers() {
+          return [
+            normalizeAuthUser({
+              id: "dev-user-mak",
+              email: "mak@footballscience.local",
+              user_metadata: {
+                firstName: "Mak",
+                lastName: "Lind",
+                username: "mak",
+                title: "Head Coach",
+                department: "Football",
+                team: "North Carolina Courage",
+              },
+              app_metadata: {
+                role: "admin",
+                status: "active",
+              },
+              created_at: "2026-01-01T00:00:00.000Z",
+            }),
+          ];
+        }
+
+        function writeDevAuthSession(userId = "") {
+          try {
+            if (userId) {
+              window.localStorage.setItem(DEV_AUTH_SESSION_KEY, userId);
+            } else {
+              window.localStorage.removeItem(DEV_AUTH_SESSION_KEY);
+            }
+          } catch {
+            // Local dev auth still works for this tab even if persistence is unavailable.
+          }
+        }
+
+        function readDevAuthSessionUserId() {
+          try {
+            return window.localStorage.getItem(DEV_AUTH_SESSION_KEY) || "";
+          } catch {
+            return "";
+          }
+        }
+
+        function initializeDevAuth() {
+          authState.devMode = true;
+          authState.supabase = null;
+          authState.session = null;
+          authState.roles = [...DEFAULT_ROLES];
+          authState.users = getDevAuthUsers();
+          const savedUserId = readDevAuthSessionUserId() || authState.users[0]?.id || "";
+          if (savedUserId) {
+            setCurrentUserById(savedUserId);
+            writeDevAuthSession(savedUserId);
+          }
+
+          if (authState.currentUser) {
+            showPlatform(authState.currentUser);
+          } else {
+            showLogin();
+            toFormError("Local dev mode: use mak / courage.");
+          }
+          authState.isReady = true;
+        }
+
+        async function signInWithDevAuth(identifier, password) {
+          const cleanIdentifier = String(identifier || "").trim().toLowerCase();
+          const cleanPassword = String(password || "").trim();
+          const user = authState.users.find(
+            (candidate) => candidate.username === cleanIdentifier || candidate.email === cleanIdentifier
+          );
+
+          if (!user || cleanPassword !== DEV_AUTH_PASSWORD) {
+            return { ok: false, reason: "Incorrect local dev username or password." };
+          }
+
+          authState.currentUser = user;
+          authState.session = null;
+          writeDevAuthSession(user.id);
+          notifyAuthChange(user);
+          return { ok: true };
+        }
+
+        async function ensureDomReady() {
+          if (document.readyState !== "loading") {
+            return;
+          }
+
+          await new Promise((resolve) => {
+            document.addEventListener("DOMContentLoaded", () => resolve(), { once: true });
+          });
+        }
+
+        async function loadScript(src) {
+          await new Promise((resolve, reject) => {
+            const existing = Array.from(document.querySelectorAll("script[src]")).find((script) => script.src === src);
+            if (existing) {
+              if (window.supabase) {
+                resolve();
+                return;
+              }
+              existing.addEventListener("load", resolve, { once: true });
+              existing.addEventListener("error", reject, { once: true });
+              return;
+            }
+
+            const script = document.createElement("script");
+            script.src = src;
+            script.async = true;
+            script.onload = resolve;
+            script.onerror = () => reject(new Error(`Could not load ${src}`));
+            document.head.appendChild(script);
+          });
+        }
+
+        async function readJsonResponse(response) {
+          if (!response) {
+            return null;
+          }
+          try {
+            const text = await response.text();
+            if (!text) {
+              return null;
+            }
+
+            try {
+              return JSON.parse(text);
+            } catch {
+              return { message: text.slice(0, 400) };
+            }
+          } catch {
+            return null;
+          }
+        }
+
+        async function getActiveAccessToken() {
+          if (!authState.supabase) {
+            return authState.session?.access_token || null;
+          }
+
+          const { data } = await authState.supabase.auth.getSession();
+          const session = data?.session || null;
+          if (!session?.access_token) {
+            return null;
+          }
+
+          if (!authState.session || authState.session.access_token !== session.access_token) {
+            authState.session = session;
+            setCurrentUserFromSession(session.user || null);
+          }
+
+          return session.access_token;
+        }
+
+        function isAuthTokenOversized(token) {
+          return String(token || "").length > MAX_AUTH_ACCESS_TOKEN_LENGTH;
+        }
+
+        async function refreshAccessToken() {
+          if (!authState.supabase) {
+            return null;
+          }
+
+          try {
+            const refreshResult = await withTimeout(
+              authState.supabase.auth.refreshSession(),
+              12000,
+              "Session refresh took too long."
+            );
+            if (refreshResult?.error) {
+              return null;
+            }
+
+            const refreshedSession = refreshResult?.data?.session || null;
+            if (!refreshedSession?.access_token) {
+              return null;
+            }
+
+            authState.session = refreshedSession;
+            setCurrentUserFromSession(refreshedSession.user || null);
+            return refreshedSession.access_token;
+          } catch {
+            return null;
+          }
+        }
+
+        async function apiRequest(path, options = {}) {
+          const { timeoutMs = 15000, skipAuth = false, ...fetchOptions } = options || {};
+          let accessToken = skipAuth ? null : await getActiveAccessToken();
+          if (!skipAuth && accessToken && isAuthTokenOversized(accessToken)) {
+            const refreshedToken = await refreshAccessToken();
+            accessToken = refreshedToken || accessToken;
+          }
+          if (!skipAuth && accessToken && isAuthTokenOversized(accessToken)) {
+            await signOut();
+            return {
+              ok: false,
+              status: 0,
+              payload: {
+                reason: "Your session was too large and has been reset. Sign in again and try again.",
+              },
+            };
+          }
+          const headers = new Headers(fetchOptions.headers || {});
+          if (accessToken) {
+            headers.set("Authorization", `Bearer ${accessToken}`);
+          }
+
+          if (!headers.has("Content-Type")) {
+            headers.set("Content-Type", "application/json");
+          }
+
+          let response = null;
+          const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+          const timeoutId =
+            controller && timeoutMs > 0
+              ? window.setTimeout(() => {
+                  controller.abort();
+                }, timeoutMs)
+              : 0;
+          try {
+            response = await fetch(path, {
+              ...fetchOptions,
+              headers,
+              credentials: "omit",
+              cache: "no-store",
+              signal: fetchOptions.signal || controller?.signal,
+            });
+          } catch (error) {
+            return {
+              ok: false,
+              status: 0,
+              payload: {
+                reason:
+                  error?.name === "AbortError"
+                    ? "The request took too long. Check your connection and try again."
+                    : error?.message || "Network error. Check your connection and try again.",
+              },
+            };
+          } finally {
+            if (timeoutId) {
+              window.clearTimeout(timeoutId);
+            }
+          }
+
+          const payload = await readJsonResponse(response);
+          if (response.status === 401 && authState.currentUser) {
+            await signOut();
+          }
+          return {
+            ok: response.ok,
+            status: response.status,
+            payload: payload || {},
+          };
+        }
+
+        function isCentralStateKey(key) {
+          return CENTRAL_STATE_KEYS.has(String(key || ""));
+        }
+
+        function shouldRemoveLocalCentralStateKey(key) {
+          const normalizedKey = String(key || "");
+          return isCentralStateKey(normalizedKey) || RETIRED_CENTRAL_STATE_KEYS.has(normalizedKey);
+        }
+
+        function collectCentralLocalStateEntries() {
+          const entries = {};
+          try {
+            for (let index = 0; index < window.localStorage.length; index += 1) {
+              const key = window.localStorage.key(index);
+              if (isCentralStateKey(key)) {
+                entries[key] = window.localStorage.getItem(key) ?? "";
+              }
+            }
+          } catch {
+            return {};
+          }
+
+          return entries;
+        }
+
+        function readCentralSyncManifestEntries() {
+          try {
+            const raw = window.localStorage.getItem(DATA_SAFETY_MANIFEST_KEY);
+            const parsed = raw ? JSON.parse(raw) : null;
+            return parsed?.entries && typeof parsed.entries === "object" ? parsed.entries : {};
+          } catch {
+            return {};
+          }
+        }
+
+        function parseSessionPlannerStateValue(value) {
+          try {
+            const parsed = JSON.parse(String(value || ""));
+            return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+          } catch {
+            return null;
+          }
+        }
+
+        function getSessionPlannerStateSessions(state) {
+          return state?.sessions && typeof state.sessions === "object" && !Array.isArray(state.sessions)
+            ? state.sessions
+            : {};
+        }
+
+        function getSessionPlannerStateBlockCount(session) {
+          return Array.isArray(session?.blocks) ? session.blocks.length : 0;
+        }
+
+        function parseSessionPlannerReductionGuardTime(value) {
+          const timestamp = typeof value === "number" ? value : new Date(value || 0).getTime();
+          return Number.isFinite(timestamp) ? timestamp : 0;
+        }
+
+        function getSessionPlannerReductionGuards(state) {
+          const guard = state?.[SESSION_PLANNER_REDUCTION_GUARD_KEY];
+          if (!guard || typeof guard !== "object" || Array.isArray(guard)) {
+            return {};
+          }
+
+          const now = Date.now();
+          return Object.entries(guard).reduce((freshGuards, [dateValue, timestampValue]) => {
+            const timestamp = parseSessionPlannerReductionGuardTime(timestampValue);
+            if (timestamp && now - timestamp <= SESSION_PLANNER_REDUCTION_WINDOW_MS) {
+              freshGuards[dateValue] = timestamp;
+            }
+            return freshGuards;
+          }, {});
+        }
+
+        function canReduceSessionPlannerStateBlocks(state, dateValue) {
+          return Boolean(getSessionPlannerReductionGuards(state)[dateValue]);
+        }
+
+        function normalizeSessionPlannerBlockFieldMeta(source = {}) {
+          if (!source || typeof source !== "object" || Array.isArray(source)) {
+            return {};
+          }
+
+          return Object.entries(source).reduce((normalizedMeta, [field, timestampValue]) => {
+            if (!SESSION_PLANNER_BLOCK_MERGE_FIELD_SET.has(field)) {
+              return normalizedMeta;
+            }
+
+            const timestamp = parseSessionPlannerReductionGuardTime(timestampValue);
+            if (timestamp) {
+              normalizedMeta[field] = new Date(timestamp).toISOString();
+            }
+            return normalizedMeta;
+          }, {});
+        }
+
+        function getSessionPlannerBlockFieldUpdatedAtMs(block = {}, field) {
+          return parseSessionPlannerReductionGuardTime(block?.[SESSION_PLANNER_BLOCK_FIELD_META_KEY]?.[field]);
+        }
+
+        function cloneSessionPlannerMergeValue(value) {
+          if (!value || typeof value !== "object") {
+            return value;
+          }
+
+          try {
+            return JSON.parse(JSON.stringify(value));
+          } catch {
+            return Array.isArray(value) ? [...value] : { ...value };
+          }
+        }
+
+        function isSessionPlannerEmptyMergeValue(value) {
+          if (value === null || value === undefined) {
+            return true;
+          }
+          if (typeof value === "string") {
+            return value.trim() === "";
+          }
+          if (Array.isArray(value)) {
+            return value.length === 0;
+          }
+          if (typeof value === "object") {
+            return Object.keys(value).length === 0;
+          }
+          return false;
+        }
+
+        function getSessionPlannerBlockId(block = {}) {
+          return typeof block?.id === "string" && block.id.trim() ? block.id.trim() : "";
+        }
+
+        function mergeSessionPlannerBlocks(existingBlock = {}, incomingBlock = {}) {
+          const merged = {
+            ...existingBlock,
+            ...incomingBlock,
+            id: getSessionPlannerBlockId(incomingBlock) || getSessionPlannerBlockId(existingBlock),
+          };
+          const mergedMeta = {
+            ...normalizeSessionPlannerBlockFieldMeta(existingBlock[SESSION_PLANNER_BLOCK_FIELD_META_KEY]),
+            ...normalizeSessionPlannerBlockFieldMeta(incomingBlock[SESSION_PLANNER_BLOCK_FIELD_META_KEY]),
+          };
+
+          SESSION_PLANNER_BLOCK_MERGE_FIELDS.forEach((field) => {
+            const existingTimestamp = getSessionPlannerBlockFieldUpdatedAtMs(existingBlock, field);
+            const incomingTimestamp = getSessionPlannerBlockFieldUpdatedAtMs(incomingBlock, field);
+            const existingValue = existingBlock[field];
+            const incomingValue = incomingBlock[field];
+
+            if (existingTimestamp && (!incomingTimestamp || existingTimestamp > incomingTimestamp)) {
+              merged[field] = cloneSessionPlannerMergeValue(existingValue);
+              mergedMeta[field] = new Date(existingTimestamp).toISOString();
+              return;
+            }
+
+            if (!existingTimestamp && !incomingTimestamp && isSessionPlannerEmptyMergeValue(incomingValue) && !isSessionPlannerEmptyMergeValue(existingValue)) {
+              merged[field] = cloneSessionPlannerMergeValue(existingValue);
+              return;
+            }
+
+            merged[field] = cloneSessionPlannerMergeValue(incomingValue);
+            if (incomingTimestamp) {
+              mergedMeta[field] = new Date(incomingTimestamp).toISOString();
+            }
+          });
+
+          const newestFieldTimestamp = Object.values(mergedMeta).reduce(
+            (latest, timestampValue) => Math.max(latest, parseSessionPlannerReductionGuardTime(timestampValue)),
+            0
+          );
+          const newestBlockTimestamp = Math.max(
+            parseSessionPlannerReductionGuardTime(existingBlock.updatedAt),
+            parseSessionPlannerReductionGuardTime(incomingBlock.updatedAt),
+            newestFieldTimestamp
+          );
+          merged[SESSION_PLANNER_BLOCK_FIELD_META_KEY] = mergedMeta;
+          if (newestBlockTimestamp) {
+            merged.updatedAt = new Date(newestBlockTimestamp).toISOString();
+          }
+          return merged;
+        }
+
+        function mergeSessionPlannerSessions(existingSession = {}, incomingSession = {}, dateValue, canReduceBlocks = false) {
+          const existingBlocks = Array.isArray(existingSession.blocks) ? existingSession.blocks : [];
+          const incomingBlocks = Array.isArray(incomingSession.blocks) ? incomingSession.blocks : [];
+          const existingById = new Map(existingBlocks.map((block) => [getSessionPlannerBlockId(block), block]).filter(([id]) => id));
+          const incomingIds = new Set();
+          const blocks = incomingBlocks.map((incomingBlock) => {
+            const blockId = getSessionPlannerBlockId(incomingBlock);
+            if (blockId) {
+              incomingIds.add(blockId);
+            }
+            const existingBlock = existingById.get(blockId);
+            return existingBlock ? mergeSessionPlannerBlocks(existingBlock, incomingBlock) : cloneSessionPlannerMergeValue(incomingBlock);
+          });
+
+          if (!canReduceBlocks) {
+            existingBlocks.forEach((existingBlock) => {
+              const blockId = getSessionPlannerBlockId(existingBlock);
+              if (!blockId || !incomingIds.has(blockId)) {
+                blocks.push(cloneSessionPlannerMergeValue(existingBlock));
+              }
+            });
+          }
+
+          const hasIncomingSelection = blocks.some((block) => getSessionPlannerBlockId(block) === incomingSession.selectedBlockId);
+          const hasExistingSelection = blocks.some((block) => getSessionPlannerBlockId(block) === existingSession.selectedBlockId);
+          return {
+            ...existingSession,
+            ...incomingSession,
+            date: incomingSession.date || existingSession.date || dateValue,
+            title: isSessionPlannerEmptyMergeValue(incomingSession.title) && !isSessionPlannerEmptyMergeValue(existingSession.title)
+              ? existingSession.title
+              : incomingSession.title,
+            theme: isSessionPlannerEmptyMergeValue(incomingSession.theme) && !isSessionPlannerEmptyMergeValue(existingSession.theme)
+              ? existingSession.theme
+              : incomingSession.theme,
+            selectedBlockId: hasIncomingSelection
+              ? incomingSession.selectedBlockId
+              : hasExistingSelection
+                ? existingSession.selectedBlockId
+                : getSessionPlannerBlockId(blocks[0]) || "",
+            blocks,
+          };
+        }
+
+        function mergeSessionPlannerStateValues(localValue, centralValue) {
+          const localState = parseSessionPlannerStateValue(localValue);
+          const centralStateValue = parseSessionPlannerStateValue(centralValue);
+          if (!localState || !centralStateValue) {
+            return { value: centralValue, changed: false };
+          }
+
+          const localSessions = getSessionPlannerStateSessions(localState);
+          const centralSessions = getSessionPlannerStateSessions(centralStateValue);
+          const mergedState = {
+            ...centralStateValue,
+            sessions: {},
+          };
+
+          const sessionDates = new Set([
+            ...Object.keys(centralSessions),
+            ...Object.keys(localSessions),
+          ]);
+
+          sessionDates.forEach((dateValue) => {
+            const centralSession = centralSessions[dateValue];
+            const localSession = localSessions[dateValue];
+            if (centralSession && localSession) {
+              mergedState.sessions[dateValue] = mergeSessionPlannerSessions(
+                centralSession,
+                localSession,
+                dateValue,
+                canReduceSessionPlannerStateBlocks(localState, dateValue)
+              );
+              return;
+            }
+
+            if (localSession) {
+              mergedState.sessions[dateValue] = localSession;
+              return;
+            }
+
+            if (centralSession) {
+              mergedState.sessions[dateValue] = centralSession;
+            }
+          });
+
+          const guards = getSessionPlannerReductionGuards(localState);
+          if (Object.keys(guards).length) {
+            mergedState[SESSION_PLANNER_REDUCTION_GUARD_KEY] = {
+              ...getSessionPlannerReductionGuards(centralStateValue),
+              ...guards,
+            };
+          } else {
+            delete mergedState[SESSION_PLANNER_REDUCTION_GUARD_KEY];
+          }
+
+          const mergedValue = JSON.stringify(mergedState);
+          return { value: mergedValue, changed: mergedValue !== centralValue };
+        }
+
+        function applyCentralStateEntries(entries = {}) {
+          const normalizedEntries = Object.fromEntries(
+            Object.entries(entries || {}).filter(([key, value]) => isCentralStateKey(key) && typeof value === "string")
+          );
+          const pendingEntries = readCentralSyncManifestEntries();
+          const writeBackEntries = [];
+          window.__footballScienceCentralHydrating = true;
+          try {
+            for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
+              const key = window.localStorage.key(index);
+              if (
+                shouldRemoveLocalCentralStateKey(key) &&
+                !Object.prototype.hasOwnProperty.call(normalizedEntries, key) &&
+                !pendingEntries[key]?.pendingCentralSync
+              ) {
+                window.localStorage.removeItem(key);
+              }
+            }
+            Object.entries(normalizedEntries).forEach(([key, value]) => {
+              if (pendingEntries[key]?.pendingCentralSync) {
+                return;
+              }
+              let valueToApply = value;
+              if (key === SESSION_PLANNER_STATE_KEY) {
+                const mergedValue = mergeSessionPlannerStateValues(window.localStorage.getItem(key), value);
+                valueToApply = mergedValue.value;
+                if (mergedValue.changed) {
+                  writeBackEntries.push([key, valueToApply]);
+                }
+              }
+              window.localStorage.setItem(key, valueToApply);
+            });
+          } finally {
+            window.__footballScienceCentralHydrating = false;
+          }
+          writeBackEntries.forEach(([key, value]) => {
+            syncCentralStateKey(key, value).catch(() => {});
+          });
+        }
+
+        async function hydrateCentralState() {
+          if (authState.devMode) {
+            centralState.hydrated = true;
+            centralState.hydrating = false;
+            centralState.lastError = "";
+            centralState.lastSyncedAt = new Date().toISOString();
+            window.dispatchEvent(
+              new CustomEvent("footballscience:central-state-ready", {
+                detail: { entries: collectCentralLocalStateEntries(), localDev: true },
+              })
+            );
+            return true;
+          }
+
+          if (centralState.hydrating || !authState.session?.access_token) {
+            return centralState.hydrated;
+          }
+
+          centralState.hydrating = true;
+          centralState.lastError = "";
+          try {
+            const response = await apiRequest(API_APP_STATE, { method: "GET", timeoutMs: 10000 });
+            if (!response.ok) {
+              centralState.lastError = response.payload?.reason || "Central app data could not be loaded.";
+              return false;
+            }
+
+            const entries = response.payload?.entries && typeof response.payload.entries === "object"
+              ? response.payload.entries
+              : {};
+            const hasCentralEntries = Object.keys(entries).length > 0;
+            if (hasCentralEntries) {
+              applyCentralStateEntries(entries);
+            } else {
+              const localEntries = collectCentralLocalStateEntries();
+              if (Object.keys(localEntries).length) {
+                const seedResponse = await apiRequest(API_APP_STATE, {
+                  method: "POST",
+                  body: JSON.stringify({ entries: localEntries }),
+                });
+                if (!seedResponse.ok) {
+                  centralState.lastError = seedResponse.payload?.reason || "Central app data could not be seeded.";
+                  return false;
+                }
+              }
+            }
+
+            centralState.hydrated = true;
+            centralState.lastSyncedAt = new Date().toISOString();
+            window.dispatchEvent(
+              new CustomEvent("footballscience:central-state-ready", {
+                detail: { entries: hasCentralEntries ? entries : collectCentralLocalStateEntries() },
+              })
+            );
+            return true;
+          } catch (error) {
+            centralState.lastError = error?.message || "Central app data could not be loaded.";
+            return false;
+          } finally {
+            centralState.hydrating = false;
+          }
+        }
+
+        async function syncCentralStateKey(key, value, options = {}) {
+          if (authState.devMode) {
+            centralState.lastError = "";
+            centralState.lastSyncedAt = new Date().toISOString();
+            return { ok: true, localDev: true };
+          }
+
+          if (!authState.session?.access_token || !isCentralStateKey(key)) {
+            return { ok: false, reason: "Central sync is not ready." };
+          }
+
+          try {
+            const response = await apiRequest(API_APP_STATE, {
+              method: options.removed ? "DELETE" : "POST",
+              body: JSON.stringify({
+                key,
+                value: String(value ?? ""),
+                removed: Boolean(options.removed),
+              }),
+            });
+            if (!response.ok) {
+              centralState.lastError = response.payload?.reason || "Central sync failed.";
+              return { ok: false, reason: centralState.lastError };
+            }
+
+            centralState.lastError = "";
+            centralState.lastSyncedAt = new Date().toISOString();
+            return { ok: true, ...(response.payload || {}) };
+          } catch (error) {
+            centralState.lastError = error?.message || "Central sync failed.";
+            return { ok: false, reason: centralState.lastError };
+          }
+        }
+
+        async function lookupAuthUser(identifier) {
+          if (!identifier) {
+            return null;
+          }
+          const response = await apiRequest(`${API_USER_LOOKUP}?identifier=${encodeURIComponent(identifier)}`, {
+            method: "GET",
+            skipAuth: true,
+            timeoutMs: 8000,
+          });
+          return response.ok ? response.payload?.user ?? null : null;
+        }
+
+        function mergeAuthUser(nextUser, options = {}) {
+          const normalizedUser = normalizeAuthUser(nextUser);
+          if (!normalizedUser.id) {
+            return null;
+          }
+
+          const existingIndex = authState.users.findIndex((candidate) => candidate.id === normalizedUser.id);
+          if (existingIndex >= 0) {
+            authState.users[existingIndex] = { ...normalizeAuthUser(authState.users[existingIndex]), ...normalizedUser };
+          } else {
+            authState.users = [normalizedUser, ...authState.users];
+          }
+
+          if (options.setCurrent || authState.currentUser?.id === normalizedUser.id) {
+            authState.currentUser = { ...(authState.currentUser || {}), ...normalizedUser };
+            notifyAuthChange(authState.currentUser);
+          }
+
+          return normalizedUser;
+        }
+
+        async function refreshUserCache() {
+          const response = await apiRequest(API_ADMIN_USERS, {
+            method: "GET",
+            timeoutMs: 9000,
+          });
+
+          if (response.ok && Array.isArray(response.payload?.users)) {
+            authState.users = response.payload.users.map((user) => normalizeAuthUser(user)).filter((user) => user.id);
+            authState.roles = Array.isArray(response.payload.roles) ? response.payload.roles : authState.roles;
+            const refreshedCurrentUser = authState.users.find((user) => user.id === authState.currentUser?.id);
+            if (refreshedCurrentUser) {
+              authState.currentUser = refreshedCurrentUser;
+              notifyAuthChange(refreshedCurrentUser);
+            }
+            return true;
+          }
+
+          if (!authState.users.length && authState.currentUser) {
+            authState.users = [authState.currentUser];
+          }
+          return false;
+        }
+
+        async function refreshCurrentUserProfile(sessionUserId = "") {
+          const response = await apiRequest(`${API_ADMIN_USERS}?me=1`, {
+            method: "GET",
+            timeoutMs: 8000,
+          });
+          const meUser = response.payload?.user || response.payload?.payload?.user || null;
+          if (!response.ok || !meUser) {
+            return null;
+          }
+
+          const nextUser = normalizeAuthUser(meUser);
+          if (sessionUserId && nextUser.id !== sessionUserId) {
+            return null;
+          }
+
+          setCurrentUserFromSession(nextUser);
+          return authState.currentUser;
+        }
+
+        function queuePostAuthHydration(session = authState.session) {
+          const queuedSession = session?.access_token ? session : authState.session;
+          const sessionUserId = queuedSession?.user?.id || "";
+          if (!queuedSession?.access_token || !sessionUserId) {
+            return;
+          }
+
+          if (postAuthHydrationTimer) {
+            window.clearTimeout(postAuthHydrationTimer);
+          }
+
+          const runId = ++postAuthHydrationRunId;
+          postAuthHydrationTimer = window.setTimeout(async () => {
+            postAuthHydrationTimer = 0;
+            if (runId !== postAuthHydrationRunId || authState.session?.access_token !== queuedSession.access_token) {
+              return;
+            }
+
+            await Promise.allSettled([
+              refreshCurrentUserProfile(sessionUserId),
+              hydrateCentralState(),
+              refreshUserCache(),
+            ]);
+
+            if (runId !== postAuthHydrationRunId) {
+              return;
+            }
+
+            const refreshedUser = authState.users.find((candidate) => candidate.id === sessionUserId);
+            if (refreshedUser) {
+              setCurrentUserFromSession(refreshedUser);
+            } else if (authState.currentUser?.id) {
+              notifyAuthChange(authState.currentUser);
+            }
+          }, 0);
+        }
+
+        function setCurrentUserById(userId) {
+          const nextUser = authState.users.find((candidate) => candidate.id === userId) || null;
+          if (!nextUser) {
+            return;
+          }
+          authState.currentUser = nextUser;
+          notifyAuthChange(nextUser);
+        }
+
+        function setCurrentUserFromSession(sessionUser) {
+          const nextUser = normalizeAuthUser(sessionUser);
+          if (!nextUser.id) {
+            authState.currentUser = null;
+            notifyAuthChange(null);
+            return;
+          }
+
+          mergeAuthUser(nextUser, { setCurrent: true });
+        }
+
+        async function hydrateCurrentUser(session = null, options = {}) {
+          const nextSession = session?.access_token ? session : null;
+          const nextSessionUser = session?.user || null;
+          const waitForCentral = options.waitForCentral !== false;
+          const waitForProfile = options.waitForProfile !== false;
+
+          if (!nextSession || !nextSessionUser) {
+            authState.currentUser = null;
+            authState.session = null;
+            authState.users = [];
+            notifyAuthChange(null);
+            return null;
+          }
+
+          authState.session = nextSession;
+          const sessionUserId = nextSessionUser.id;
+          setCurrentUserFromSession(nextSessionUser);
+
+          if (waitForProfile) {
+            await refreshCurrentUserProfile(sessionUserId);
+          }
+
+          if (!waitForCentral) {
+            queuePostAuthHydration(nextSession);
+            return authState.currentUser;
+          }
+
+          try {
+            await withTimeout(hydrateCentralState(), 12000, "Central app data is still loading.");
+          } catch {
+            hydrateCentralState().catch(() => {});
+          }
+
+          try {
+            await withTimeout(refreshUserCache(), 8000, "User list is still loading.");
+          } catch {
+            refreshUserCache().catch(() => {});
+          }
+
+          if (!authState.currentUser && sessionUserId) {
+            setCurrentUserById(sessionUserId);
+          }
+
+          if (!authState.currentUser?.id) {
+            authState.currentUser = null;
+            authState.users = [];
+            notifyAuthChange(null);
+          } else if (authState.currentUser.id) {
+            notifyAuthChange(authState.currentUser);
+          }
+          return authState.currentUser;
+        }
+
+        async function signInWithIdentifier(identifier, password) {
+          if (authState.devMode) {
+            return signInWithDevAuth(identifier, password);
+          }
+
+          if (!authState.supabase) {
+            return { ok: false, reason: "Authentication is not initialized. Open the app through footballscience.xyz." };
+          }
+
+          const cleanIdentifier = String(identifier || "").trim().toLowerCase();
+          const cleanPassword = String(password || "").trim();
+          if (!cleanIdentifier || !cleanPassword) {
+            return { ok: false, reason: "Username and password are required." };
+          }
+
+          let email = cleanIdentifier;
+          let foundByUsername = false;
+          if (!cleanIdentifier.includes("@")) {
+            const lookup = await lookupAuthUser(cleanIdentifier);
+            if (lookup?.email) {
+              foundByUsername = true;
+              email = lookup.email;
+            }
+          }
+
+          try {
+            const result = await withTimeout(
+              authState.supabase.auth.signInWithPassword({
+                email,
+                password: cleanPassword,
+              }),
+              20000,
+              "Supabase login is taking too long. Check your network and try again."
+            );
+
+            if (result.error) {
+              const message = String(result.error.message || "").toLowerCase();
+              if (foundByUsername && message.includes("invalid")) {
+                return {
+                  ok: false,
+                  reason:
+                    "Incorrect username or password. Make sure you are using the password for this account.",
+                };
+              }
+
+              if (!cleanIdentifier.includes("@") && message.includes("invalid")) {
+                return {
+                  ok: false,
+                  reason:
+                    "Incorrect username or password. If you used a username, try the email address instead, or reset the password.",
+                };
+              }
+
+              if (message.includes("invalid")) {
+                return {
+                  ok: false,
+                  reason: "Invalid login credentials.",
+                };
+              }
+
+              return { ok: false, reason: result.error.message || "Invalid username or password." };
+            }
+            if (!result.data?.session) {
+              return { ok: false, reason: "Could not start a session." };
+            }
+
+            await hydrateCurrentUser(result.data.session, { waitForCentral: false, waitForProfile: false });
+            return { ok: true };
+          } catch (error) {
+            return { ok: false, reason: error?.message || "Sign in failed." };
+          }
+        }
+
+        async function resetPasswordFor(identifier) {
+          if (authState.devMode) {
+            return { ok: true, localDev: true };
+          }
+
+          if (!authState.supabase) {
+            return { ok: false, reason: "Authentication is not initialized. Open the app through footballscience.xyz." };
+          }
+
+          const cleanIdentifier = String(identifier || "").trim().toLowerCase();
+          if (!cleanIdentifier) {
+            return { ok: false, reason: "Enter a username or email." };
+          }
+
+          const lookup = cleanIdentifier.includes("@") ? { email: cleanIdentifier } : await lookupAuthUser(cleanIdentifier);
+          const email = lookup?.email || cleanIdentifier;
+          if (!email) {
+            return { ok: false, reason: "No matching account found." };
+          }
+
+          const redirectTo = getPasswordResetRedirectUrl();
+          const result = await authState.supabase.auth.resetPasswordForEmail(email, { redirectTo });
+          if (result.error) {
+            return { ok: false, reason: result.error.message || "We could not send a reset link." };
+          }
+
+          return { ok: true };
+        }
+
+        async function adminCreateUser(values = {}) {
+          if (authState.devMode) {
+            const now = new Date().toISOString();
+            const createdUser = normalizeAuthUser({
+              id: `dev-user-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+              email: values.email,
+              firstName: values.firstName || "New",
+              lastName: values.lastName || "User",
+              username: values.username || values.email,
+              role: values.role || "coach",
+              title: values.title || "Coach",
+              department: values.department || "Football",
+              team: values.team || "North Carolina Courage",
+              status: values.status || "active",
+              createdAt: now,
+            });
+            authState.users = [createdUser, ...authState.users];
+            return { ok: true, status: 200, user: createdUser, generatedPassword: DEV_AUTH_PASSWORD };
+          }
+
+          const response = await apiRequest(API_ADMIN_USERS, {
+            method: "POST",
+            body: JSON.stringify(values),
+          });
+          if (!response.ok) {
+            const reasonFromPayload =
+              response.payload?.reason ||
+              response.payload?.error_description ||
+              response.payload?.error ||
+              response.payload?.message ||
+              "";
+            return {
+              ok: false,
+              status: response.status,
+              reason: reasonFromPayload
+                ? `Create user failed (${response.status}): ${reasonFromPayload}`
+                : `Create user failed (${response.status}).`,
+            };
+          }
+          const createdUser = response.payload?.user || null;
+          if (createdUser?.id) {
+            mergeAuthUser(createdUser);
+          }
+          await refreshUserCache();
+          return {
+            ok: true,
+            status: response.status,
+            user: createdUser,
+            generatedPassword: response.payload?.generatedPassword || null,
+          };
+        }
+
+        async function adminUpdateUser(userId, values = {}) {
+          if (!String(userId || "").trim()) {
+            return { ok: false, reason: "Missing user id." };
+          }
+
+          if (authState.devMode) {
+            const existingUser = authState.users.find((user) => user.id === userId);
+            if (!existingUser) {
+              return { ok: false, reason: "User could not be found." };
+            }
+            const updatedUser = normalizeAuthUser({
+              ...existingUser,
+              ...values,
+              user_metadata: {
+                ...existingUser,
+                ...values,
+              },
+              app_metadata: {
+                role: values.role || existingUser.role,
+                status: values.status || existingUser.status,
+              },
+            });
+            authState.users = authState.users.map((user) => (user.id === userId ? updatedUser : user));
+            if (authState.currentUser?.id === userId) {
+              authState.currentUser = updatedUser;
+              notifyAuthChange(updatedUser);
+            }
+            return { ok: true, user: updatedUser, generatedPassword: null };
+          }
+
+          const response = await apiRequest(`${API_ADMIN_USERS}?userId=${encodeURIComponent(userId)}`, {
+            method: "PUT",
+            timeoutMs: 20000,
+            body: JSON.stringify(values),
+          });
+          if (!response.ok) {
+            return {
+              ok: false,
+              reason: response.payload?.reason || `Could not save the change (${response.status}).`,
+            };
+          }
+
+          const updatedUser = response.payload?.user || null;
+          if (updatedUser?.id) {
+            mergeAuthUser(updatedUser, { setCurrent: updatedUser.id === authState.currentUser?.id });
+          }
+          try {
+            await withTimeout(refreshUserCache(), 9000, "User list refresh took too long.");
+          } catch {
+            refreshUserCache().catch(() => {});
+          }
+          return {
+            ok: true,
+            user: updatedUser,
+            generatedPassword: response.payload?.generatedPassword || null,
+          };
+        }
+
+        async function adminRemoveUser(userId) {
+          if (authState.devMode) {
+            if (authState.currentUser?.id === userId) {
+              await signOut();
+              return { ok: true };
+            }
+            authState.users = authState.users.filter((user) => user.id !== userId);
+            return { ok: true };
+          }
+
+          const response = await apiRequest(`${API_ADMIN_USERS}?userId=${encodeURIComponent(userId)}`, {
+            method: "DELETE",
+          });
+          if (!response.ok) {
+            return { ok: false, reason: response.payload?.reason || "User could not be removed." };
+          }
+          if (authState.currentUser?.id === userId) {
+            await signOut();
+            return { ok: true };
+          }
+          authState.users = authState.users.filter((user) => user.id !== userId);
+          await refreshUserCache();
+          return { ok: true };
+        }
+
+        async function adminSendReset(userId) {
+          if (authState.devMode) {
+            return { ok: true, userId };
+          }
+
+          const response = await apiRequest(API_SEND_RESET, {
+            method: "POST",
+            body: JSON.stringify({ userId, redirectTo: getPasswordResetRedirectUrl() }),
+          });
+          if (!response.ok) {
+            return { ok: false, reason: response.payload?.reason || "Reset email could not be sent." };
+          }
+          return { ok: true };
+        }
+
+        async function adminGetAuditLog(limit = 80) {
+          if (authState.devMode) {
+            return { ok: true, entries: [], updatedAt: "" };
+          }
+
+          const response = await apiRequest(`${API_AUDIT_LOG}?limit=${encodeURIComponent(limit)}`, {
+            method: "GET",
+            timeoutMs: 9000,
+          });
+          if (!response.ok) {
+            return { ok: false, reason: response.payload?.reason || "Audit log could not be loaded." };
+          }
+
+          return {
+            ok: true,
+            entries: Array.isArray(response.payload?.entries) ? response.payload.entries : [],
+            updatedAt: response.payload?.updatedAt || "",
+          };
+        }
+
+        async function getSessionHistory(date, limit = 50) {
+          if (authState.devMode) {
+            return { ok: true, entries: [], updatedAt: "" };
+          }
+
+          const params = new URLSearchParams();
+          if (date) {
+            params.set("date", date);
+          }
+          params.set("limit", String(limit));
+          const response = await apiRequest(`${API_SESSION_HISTORY}?${params.toString()}`, {
+            method: "GET",
+            timeoutMs: 9000,
+          });
+          if (!response.ok) {
+            return { ok: false, reason: response.payload?.reason || "Session history could not be loaded." };
+          }
+
+          return {
+            ok: true,
+            entries: Array.isArray(response.payload?.entries) ? response.payload.entries : [],
+            updatedAt: response.payload?.updatedAt || "",
+          };
+        }
+
+        async function restoreSessionHistory(entryId, mode = "before") {
+          if (authState.devMode) {
+            return { ok: false, reason: "Session history restore is only available online." };
+          }
+
+          const response = await apiRequest(API_SESSION_HISTORY, {
+            method: "POST",
+            timeoutMs: 20000,
+            body: JSON.stringify({
+              action: "restore",
+              entryId,
+              mode,
+            }),
+          });
+          if (!response.ok) {
+            return { ok: false, reason: response.payload?.reason || "Session could not be restored." };
+          }
+
+          return {
+            ok: true,
+            date: response.payload?.date || "",
+            value: response.payload?.value || "",
+            updatedAt: response.payload?.updatedAt || "",
+          };
+        }
+
+        function clearAuthState() {
+          authState.currentUser = null;
+          authState.session = null;
+          authState.users = [];
+          notifyAuthChange(null);
+        }
+
+        function clearStoredAuthArtifacts() {
+          if (typeof window === "undefined") {
+            return;
+          }
+
+          const clearStorage = (storage) => {
+            if (!storage) {
+              return;
+            }
+
+            for (let index = storage.length - 1; index >= 0; index -= 1) {
+              const key = storage.key(index);
+              if (!key) {
+                continue;
+              }
+
+              const lowered = key.toLowerCase();
+              if (lowered.startsWith("sb-") || lowered.includes("supabase")) {
+                storage.removeItem(key);
+              }
+            }
+          };
+
+          try {
+            clearStorage(window.localStorage);
+            clearStorage(window.sessionStorage);
+          } catch {
+            // ignore storage cleanup failures
+          }
+
+          try {
+            const cookieBits = document.cookie ? document.cookie.split(";") : [];
+            cookieBits.forEach((cookie) => {
+              const name = cookie.split("=")[0]?.trim();
+              if (!name) {
+                return;
+              }
+              if (!name.toLowerCase().includes("supabase")) {
+                return;
+              }
+              document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+            });
+          } catch {
+            // ignore cookie cleanup failures
+          }
+        }
+
+        async function signOut(options = {}) {
+          const shouldSignOutRemote = options.remote !== false && authState.supabase && !authState.isSigningOut;
+          const remoteSignOut = shouldSignOutRemote
+            ? (async () => {
+                authState.isSigningOut = true;
+                try {
+                  const { error } = await withTimeout(
+                    authState.supabase.auth.signOut({ scope: "global" }),
+                    5000,
+                    "Sign out took too long."
+                  );
+                  if (error) {
+                    console.warn("Sign out warning:", error);
+                  }
+                } catch (error) {
+                  console.warn("Sign out failed:", error);
+                } finally {
+                  authState.isSigningOut = false;
+                }
+              })()
+            : Promise.resolve();
+
+          clearAuthState();
+          if (authState.devMode) {
+            writeDevAuthSession("");
+          }
+          clearStoredAuthArtifacts();
+          purgeLegacyLocalAccountStorage();
+          setProfileMenuOpen(false);
+          showLogin();
+          remoteSignOut.catch((error) => {
+            if (error) {
+              console.warn("Sign out cleanup failed:", error);
+            }
+          });
+        }
+
+        function setProfileMenuOpen(isOpen) {
+          const profileMenuButton = document.getElementById("profileMenuButton");
+          const profileMenu = document.getElementById("profileMenu");
+          if (!profileMenuButton || !profileMenu) {
+            return;
+          }
+
+          profileMenu.hidden = !isOpen;
+          profileMenuButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        }
+
+        function isProfileMenuOpen() {
+          const profileMenu = document.getElementById("profileMenu");
+          return Boolean(profileMenu && !profileMenu.hidden);
+        }
+
+        function showPlatform(user) {
+          document.body.classList.remove("is-auth-locked");
+          document.body.classList.add("is-authenticated");
+          document.getElementById("loginScreen").hidden = true;
+          document.getElementById("hubShell").hidden = false;
+          notifyAuthChange(user);
+          window.dispatchEvent(new Event("resize"));
+        }
+
+        function showLogin() {
+          const password = document.getElementById("loginPassword");
+          const username = document.getElementById("loginUsername");
+          document.body.classList.add("is-auth-locked");
+          document.body.classList.remove("is-authenticated");
+          document.getElementById("loginScreen").hidden = false;
+          document.getElementById("hubShell").hidden = true;
+          if (password) {
+            password.value = "";
+          }
+          if (username) {
+            username.focus();
+          }
+        }
+
+        async function hydrateFromExistingSession() {
+          await refreshAccessToken().catch(() => null);
+          const { data, error } = await authState.supabase.auth.getSession();
+          if (error) {
+            await signOut();
+            return;
+          }
+
+          if (data?.session) {
+            authState.session = data.session;
+            await hydrateCurrentUser(data.session, { waitForCentral: false, waitForProfile: false });
+          }
+        }
+
+        async function bootAuth() {
+          if (isLocalFileHost()) {
+            window.location.replace(ONLINE_APP_URL);
+            return;
+          }
+
+          if (shouldForceCanonicalHost()) {
+            redirectToCanonicalHost();
+            return;
+          }
+
+          await ensureDomReady();
+          purgeLegacyLocalAccountStorage();
+
+          const loginForm = document.getElementById("loginForm");
+          const usernameInput = document.getElementById("loginUsername");
+          const passwordInput = document.getElementById("loginPassword");
+          const logoutButton = document.getElementById("logoutButton");
+          const profileMenuButton = document.getElementById("profileMenuButton");
+          const profileMenu = document.getElementById("profileMenu");
+          const forgotPasswordToggle = document.getElementById("forgotPasswordToggle");
+          const forgotPasswordForm = document.getElementById("forgotPasswordForm");
+          const forgotPasswordIdentifier = document.getElementById("forgotPasswordIdentifier");
+
+          const attachSharedAuthUiHandlers = () => {
+            forgotPasswordToggle?.addEventListener("click", () => {
+              if (!forgotPasswordForm || !forgotPasswordToggle) {
+                return;
+              }
+
+              forgotPasswordForm.hidden = !forgotPasswordForm.hidden;
+              forgotPasswordToggle.setAttribute("aria-expanded", forgotPasswordForm.hidden ? "false" : "true");
+              if (!forgotPasswordForm.hidden) {
+                forgotPasswordIdentifier?.focus();
+              }
+            });
+
+            document.getElementById("forgotPasswordCancel")?.addEventListener("click", () => {
+              if (!forgotPasswordForm || !forgotPasswordToggle) {
+                return;
+              }
+
+              forgotPasswordForm.hidden = true;
+              forgotPasswordToggle.setAttribute("aria-expanded", "false");
+              setForgotPasswordMessage("");
+              if (forgotPasswordIdentifier) {
+                forgotPasswordIdentifier.value = "";
+              }
+            });
+
+            forgotPasswordForm?.addEventListener("submit", async (event) => {
+              event.preventDefault();
+              if (!forgotPasswordIdentifier) {
+                return;
+              }
+
+              const result = await resetPasswordFor(forgotPasswordIdentifier.value);
+              if (!result?.ok) {
+                setForgotPasswordMessage(result.reason || "Could not send reset link.", true);
+                return;
+              }
+
+              setForgotPasswordMessage(
+                authState.devMode
+                  ? "Local dev mode uses mak / courage."
+                  : "Password reset link sent. Check inbox for your link."
+              );
+              forgotPasswordIdentifier.value = "";
+            });
+
+            profileMenuButton?.addEventListener("click", (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setProfileMenuOpen(!isProfileMenuOpen());
+            });
+
+            profileMenu?.addEventListener("click", (event) => {
+              const workspaceTrigger = event.target.closest("[data-open-workspace]");
+              if (!workspaceTrigger) {
+                return;
+              }
+
+              setProfileMenuOpen(false);
+              requestWorkspaceOpen(workspaceTrigger.dataset.openWorkspace);
+            });
+
+            document.addEventListener("click", (event) => {
+              if (!isProfileMenuOpen() || event.target.closest(".platform-account-menu")) {
+                return;
+              }
+              setProfileMenuOpen(false);
+            });
+
+            document.addEventListener("keydown", (event) => {
+              if (event.key !== "Escape" || !isProfileMenuOpen()) {
+                return;
+              }
+
+              setProfileMenuOpen(false);
+              profileMenuButton?.focus();
+            });
+
+            document.addEventListener("click", (event) => {
+              const workspaceTrigger = event.target.closest("[data-open-workspace]");
+              if (!workspaceTrigger) {
+                return;
+              }
+
+              requestWorkspaceOpen(workspaceTrigger.dataset.openWorkspace);
+            });
+
+            logoutButton?.addEventListener("click", async () => {
+              setProfileMenuOpen(false);
+              await signOut();
+            });
+          };
+
+          loginForm?.addEventListener("submit", async (event) => {
+            event.preventDefault();
+
+            if (!usernameInput || !passwordInput) {
+              toFormError("Login form is not ready yet.");
+              return;
+            }
+
+            const identifier = usernameInput.value;
+            setLoginBusy(true, "Signing in...");
+            toFormError("Checking login...");
+            try {
+              const result = await withTimeout(
+                signInWithIdentifier(identifier, passwordInput.value),
+                30000,
+                "Login is taking too long. Reload the page and try again."
+              );
+              if (!result?.ok) {
+                toFormError(result.reason || "Login failed.", true);
+                return;
+              }
+
+              toFormError("");
+              showPlatform(authState.currentUser);
+            } catch (error) {
+              toFormError(error?.message || "Login failed.", true);
+            } finally {
+              setLoginBusy(false);
+            }
+          });
+
+          attachSharedAuthUiHandlers();
+
+          if (isLocalDevHost()) {
+            initializeDevAuth();
+            return;
+          }
+
+          let clientConfigResponse = null;
+          try {
+            const configResponse = await fetch(API_CLIENT_CONFIG, { credentials: "omit", cache: "no-store" });
+            const configPayload = await readJsonResponse(configResponse);
+            if (!configPayload?.ok || !configPayload.url || !configPayload.anonKey) {
+              throw new Error(configPayload?.reason || "Supabase settings are not available.");
+            }
+            clientConfigResponse = configPayload;
+          } catch (error) {
+            toFormError("Could not initialize authentication. Check the deployment environment settings.");
+            showLogin();
+            authState.isReady = true;
+            return;
+          }
+
+          await loadScript(SUPABASE_CDN);
+
+          if (!window.supabase || !window.supabase.createClient) {
+            toFormError("Could not load authentication client.");
+            showLogin();
+            authState.isReady = true;
+            return;
+          }
+
+          authState.supabase = window.supabase.createClient(clientConfigResponse.url, clientConfigResponse.anonKey, {
+            auth: {
+              autoRefreshToken: true,
+              persistSession: true,
+              detectSessionInUrl: false,
+            },
+          });
+
+          await hydrateFromExistingSession();
+          if (!authState.currentUser) {
+            showLogin();
+          } else {
+            showPlatform(authState.currentUser);
+          }
+          authState.isReady = true;
+
+          authState.supabase.auth.onAuthStateChange(async (event, session) => {
+            if (session) {
+              await hydrateCurrentUser(session, { waitForCentral: false, waitForProfile: false });
+              if (authState.currentUser) {
+                showPlatform(authState.currentUser);
+              } else {
+                showLogin();
+              }
+              return;
+            }
+
+            if (event === "SIGNED_OUT") {
+              await signOut({ remote: false });
+            }
+          });
+
+        }
+
+        window.platformAuthStore = {
+          createUser: adminCreateUser,
+          updateUser: adminUpdateUser,
+          removeUser: adminRemoveUser,
+          sendPasswordReset: adminSendReset,
+          getAuditLog: adminGetAuditLog,
+          getSessionHistory,
+          restoreSessionHistory,
+          getUsers: () => authState.users,
+          writeUsers: (users) => {
+            authState.users = Array.isArray(users) ? users : [];
+            return authState.users;
+          },
+          getCurrentUser: () => authState.currentUser,
+          setCurrentUser: setCurrentUserById,
+          clearCurrentUser: () => {
+            authState.currentUser = null;
+            authState.users = [];
+            authState.session = null;
+            if (authState.devMode) {
+              writeDevAuthSession("");
+            }
+            notifyAuthChange(null);
+          },
+          isAdmin: () => authState.currentUser?.role === "admin",
+          roles: authState.roles,
+        };
+        window.footballScienceCentralState = {
+          hydrate: hydrateCentralState,
+          syncKey: syncCentralStateKey,
+          isHydrated: () => centralState.hydrated,
+          getStatus: () => ({ ...centralState }),
+        };
+
+        window.platformAuthReadyPromise = bootAuth();
+      })();
+    </script>
+    <script type="module">
+      document.body.dataset.inlineReady = "true";
+      const assetVersion = window.__assetVersion || Date.now().toString();
+      const loadOptionalScript = (src) =>
+        new Promise((resolve) => {
+          const script = document.createElement("script");
+          script.src = src;
+          script.onload = resolve;
+          script.onerror = resolve;
+          document.head.appendChild(script);
+        });
+
+      Promise.resolve(window.platformAuthReadyPromise)
+        .catch(() => null)
+        .then(() => loadOptionalScript(`./periodization-import-data.js?v=${assetVersion}`))
+        .then(() => {
+          import(`./app.js?v=${assetVersion}`).catch((error) => {
+            document.body.dataset.appLoadError = error?.message ?? "App script failed to load";
+            console.error(error);
+          });
+        });
+    </script>
+  </body>
+</html>

@@ -406,6 +406,18 @@ const dashboardChatWidgetNotificationStateStorageKey = "football-dashboard-chat-
 const dashboardChatTeamThreadId = "team";
 const dashboardChatWidgetMessageLimit = 50;
 const dashboardChatPinnedLimit = 3;
+const dashboardChatReactionOptions = [
+  { key: "seen", label: "Seen" },
+  { key: "agree", label: "Agree" },
+  { key: "done", label: "Done" },
+  { key: "question", label: "Question" },
+];
+const dashboardChatPriorityOptions = [
+  { key: "normal", label: "Normal" },
+  { key: "important", label: "Important" },
+  { key: "urgent", label: "Urgent" },
+];
+const dashboardChatPriorityKeys = new Set(dashboardChatPriorityOptions.map((option) => option.key));
 const dashboardNotificationSeenStorageKey = "football-dashboard-notification-seen-v1";
 const dashboardTutorialPrefsStorageKey = "football-dashboard-tutorial-prefs-v1";
 const dashboardNewsSeenStorageKey = "football-dashboard-news-seen-v1";
@@ -6140,6 +6152,8 @@ let dashboardChatTypingThreadId = "";
 let dashboardChatTypingAt = 0;
 let dashboardChatTypingLastSentAt = 0;
 let dashboardChatTypingClearTimer = null;
+let dashboardChatReplyDraft = null;
+let dashboardChatPriorityDraft = "normal";
 let sessionPlannerPeriodizationOverlayMode = "view";
 let sessionPlannerLibraryOpen = false;
 let sessionPlannerLibraryPhaseFilter = "all";
@@ -8208,6 +8222,25 @@ function canPinDashboardChatMessage(user = getCurrentPlatformUser()) {
   return user?.role === "admin" || user?.role === "coach";
 }
 
+function normalizeDashboardChatPriority(value) {
+  const priority = String(value || "normal").trim().toLowerCase();
+  return dashboardChatPriorityKeys.has(priority) ? priority : "normal";
+}
+
+function normalizeDashboardReactions(reactions = {}) {
+  const normalized = {};
+  dashboardChatReactionOptions.forEach((option) => {
+    normalized[option.key] = Array.from(
+      new Set(
+        (Array.isArray(reactions?.[option.key]) ? reactions[option.key] : [])
+          .map((userId) => String(userId || "").trim())
+          .filter(Boolean)
+      )
+    );
+  });
+  return normalized;
+}
+
 function normalizeDashboardMessageAuthor(author = {}) {
   const id = String(author?.id || "").trim();
   if (!id) {
@@ -8249,6 +8282,9 @@ function normalizeDashboardMessage(message) {
     deliveredAt: message?.deliveredAt || message?.createdAt || new Date().toISOString(),
     readBy: Array.from(new Set([userId, ...readBy].filter(Boolean))),
     mentionedUserIds: Array.from(new Set(mentionedUserIds)),
+    reactions: normalizeDashboardReactions(message?.reactions),
+    replyToId: String(message?.replyToId || "").trim(),
+    priority: normalizeDashboardChatPriority(message?.priority),
     pinnedAt: String(message?.pinnedAt || "").trim(),
     pinnedBy: String(message?.pinnedBy || "").trim(),
     author: normalizeDashboardMessageAuthor(message?.author || message?.user || null),
@@ -8290,6 +8326,8 @@ function createDashboardMessage(text, threadId = dashboardChatTeamThreadId) {
     userId: currentUser.id,
     readBy: [currentUser.id],
     mentionedUserIds: getDashboardMentionUserIds(cleanText, getPlatformUsers(), currentUser.id),
+    replyToId: dashboardChatReplyDraft?.threadId === threadId ? dashboardChatReplyDraft.messageId : "",
+    priority: dashboardChatPriorityDraft,
     author: currentUser,
   });
   writeDashboardMessages([...readDashboardMessages(), message]);
@@ -8355,6 +8393,54 @@ function toggleDashboardMessagePin(messageId) {
   }
 
   return changed;
+}
+
+function toggleDashboardMessageReaction(messageId, reactionKey) {
+  const currentUser = getCurrentPlatformUser();
+  const normalizedReactionKey = dashboardChatReactionOptions.some((option) => option.key === reactionKey) ? reactionKey : "";
+  if (!currentUser?.id || !normalizedReactionKey) {
+    return false;
+  }
+
+  let changed = false;
+  const nextMessages = readDashboardMessages().map((message) => {
+    if (message.id !== messageId) {
+      return message;
+    }
+
+    changed = true;
+    const reactions = normalizeDashboardReactions(message.reactions);
+    const currentSet = new Set(reactions[normalizedReactionKey] || []);
+    if (currentSet.has(currentUser.id)) {
+      currentSet.delete(currentUser.id);
+    } else {
+      currentSet.add(currentUser.id);
+    }
+    reactions[normalizedReactionKey] = Array.from(currentSet);
+    return normalizeDashboardMessage({
+      ...message,
+      reactions,
+    });
+  });
+
+  if (changed) {
+    writeDashboardMessages(nextMessages);
+  }
+
+  return changed;
+}
+
+function setDashboardChatReplyDraft(messageId, threadId) {
+  dashboardChatReplyDraft = messageId
+    ? {
+        messageId: String(messageId || "").trim(),
+        threadId: normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId),
+      }
+    : null;
+}
+
+function setDashboardChatPriorityDraft(priority) {
+  dashboardChatPriorityDraft = normalizeDashboardChatPriority(priority);
 }
 
 function clearDashboardMessages() {
@@ -8911,7 +8997,7 @@ function renderDashboardMessageStatus(message, users, currentUser) {
   return `
     <details class="dashboard-chat-status dashboard-chat-receipt is-read" data-dashboard-read-receipt>
       <summary aria-label="Show readers: ${escapeHtml(readerNames.join(", "))}">
-        <span class="dashboard-chat-check is-read" aria-hidden="true">✓✓</span>
+        <span class="dashboard-chat-check-pair is-read" aria-hidden="true"><span>✓</span><span>✓</span></span>
         <span class="dashboard-chat-check-label">Read ${readers.length}</span>
       </summary>
       <span class="dashboard-chat-readers" aria-hidden="true">
@@ -8934,6 +9020,44 @@ function renderDashboardMessageStatus(message, users, currentUser) {
         <small>${escapeHtml(readerCountLabel)}</small>
       </div>
     </details>
+  `;
+}
+
+function getDashboardMessageById(messageId, messages = readDashboardMessages()) {
+  return messages.find((message) => message.id === messageId) || null;
+}
+
+function getDashboardMessageAuthorName(message, users = getPlatformUsers()) {
+  const author = users.find((user) => user.id === message?.userId) || message?.author || null;
+  return author ? formatUserName(author) : "Staff";
+}
+
+function getDashboardMessagePreview(message) {
+  return String(message?.text || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 86);
+}
+
+function renderDashboardReplyReference(message, users = getPlatformUsers(), options = {}) {
+  if (!message) {
+    return "";
+  }
+
+  const authorName = getDashboardMessageAuthorName(message, users);
+  const preview = getDashboardMessagePreview(message);
+  const closeButton = options.cancelable
+    ? `<button type="button" data-dashboard-cancel-reply aria-label="Cancel reply">×</button>`
+    : "";
+
+  return `
+    <div class="dashboard-chat-reply-ref${options.compact ? " is-compact" : ""}">
+      <span>
+        <strong>${escapeHtml(authorName)}</strong>
+        <small>${escapeHtml(preview || "Message")}</small>
+      </span>
+      ${closeButton}
+    </div>
   `;
 }
 
@@ -8998,6 +9122,40 @@ function renderDashboardPinnedMessages(pinnedMessages = [], users = getPlatformU
   `;
 }
 
+function renderDashboardMessageReactions(message, currentUser = getCurrentPlatformUser()) {
+  const reactions = normalizeDashboardReactions(message.reactions);
+  return `
+    <div class="dashboard-chat-reactions" aria-label="Message reactions">
+      ${dashboardChatReactionOptions
+        .map((option) => {
+          const userIds = reactions[option.key] || [];
+          const isActive = currentUser?.id ? userIds.includes(currentUser.id) : false;
+          const countLabel = userIds.length ? ` ${userIds.length}` : "";
+          return `
+            <button
+              type="button"
+              class="${isActive ? "is-active" : ""}"
+              data-dashboard-message-reaction="${escapeHtml(message.id)}"
+              data-dashboard-reaction-key="${escapeHtml(option.key)}"
+              aria-pressed="${isActive}"
+            >${escapeHtml(option.label)}${escapeHtml(countLabel)}</button>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function renderDashboardMessagePriority(message) {
+  const priority = normalizeDashboardChatPriority(message.priority);
+  if (priority === "normal") {
+    return "";
+  }
+
+  const option = dashboardChatPriorityOptions.find((candidate) => candidate.key === priority);
+  return `<span class="dashboard-chat-priority is-${escapeHtml(priority)}">${escapeHtml(option?.label || priority)}</span>`;
+}
+
 function clearDashboardMessagesForThread(threadId) {
   const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
   writeDashboardMessages(readDashboardMessages().filter((message) => message.threadId !== normalizedThreadId));
@@ -9017,10 +9175,13 @@ function getDashboardChatWidgetThreadPreview(thread, users, currentUser) {
       .replace(/\s+/g, " ")
       .trim()
       .slice(0, 55) || "Message";
+  const priority = normalizeDashboardChatPriority(lastMessage.priority);
+  const priorityOption = dashboardChatPriorityOptions.find((option) => option.key === priority);
+  const priorityPrefix = priority === "normal" ? "" : `${priorityOption?.label || priority}: `;
 
   return lastMessage.mentionedUserIds?.includes(currentUser?.id)
-    ? `Mentioned you: ${shortText}`
-    : `${senderName}: ${shortText}`;
+    ? `${priorityPrefix}Mentioned you: ${shortText}`
+    : `${priorityPrefix}${senderName}: ${shortText}`;
 }
 
 function getDashboardChatWidgetLatestThread(threads = []) {
@@ -9072,6 +9233,9 @@ function renderDashboardChatWidgetMessage(message, users, currentUser) {
   const canDeleteChat = isCurrentPlatformUserAdmin();
   const canPinChat = canPinDashboardChatMessage(currentUser);
   const pinLabel = message.pinnedAt ? "Unpin" : "Pin";
+  const replyMessage = message.replyToId ? getDashboardMessageById(message.replyToId) : null;
+  const replyMarkup = replyMessage ? renderDashboardReplyReference(replyMessage, users, { compact: true }) : "";
+  const priorityMarkup = renderDashboardMessagePriority(message);
 
   return `
     <article class="dashboard-chat-message${isOwn ? " is-own" : ""}${isMentioned ? " is-mentioned" : ""}${message.pinnedAt ? " is-pinned" : ""}">
@@ -9081,6 +9245,7 @@ function renderDashboardChatWidgetMessage(message, users, currentUser) {
           <strong>${escapeHtml(userName)}</strong>
           <small>${escapeHtml(formatDashboardTime(message.createdAt))}</small>
         </span>
+        <button type="button" class="dashboard-chat-reply-button" data-dashboard-reply-message="${escapeHtml(message.id)}">Reply</button>
         ${
           canPinChat
             ? `<button type="button" class="dashboard-chat-pin-button" data-dashboard-toggle-pin-message="${escapeHtml(message.id)}">${escapeHtml(pinLabel)}</button>`
@@ -9093,7 +9258,10 @@ function renderDashboardChatWidgetMessage(message, users, currentUser) {
         }
       </div>
       <div class="dashboard-chat-bubble">
+        ${priorityMarkup}
+        ${replyMarkup}
         <p>${renderDashboardMessageText(message, users)}</p>
+        ${renderDashboardMessageReactions(message, currentUser)}
         ${statusMarkup}
       </div>
     </article>
@@ -9152,10 +9320,11 @@ function renderDashboardChatWidget() {
   const notificationState = readDashboardChatWidgetNotificationState();
   const state = readDashboardChatWidgetState();
   const activeElement = document.activeElement;
-  const wasComposerFocused = Boolean(activeElement?.matches?.("[data-dashboard-chat-input]"));
-  const previousComposerDraft = wasComposerFocused ? activeElement.value : "";
-  const previousComposerSelectionStart = wasComposerFocused ? activeElement.selectionStart : null;
-  const previousComposerSelectionEnd = wasComposerFocused ? activeElement.selectionEnd : null;
+  const existingComposer = root.querySelector("[data-dashboard-chat-input]");
+  const wasComposerFocused = Boolean(existingComposer && activeElement === existingComposer);
+  const previousComposerDraft = existingComposer?.value || "";
+  const previousComposerSelectionStart = wasComposerFocused ? existingComposer.selectionStart : null;
+  const previousComposerSelectionEnd = wasComposerFocused ? existingComposer.selectionEnd : null;
   const previousComposerThreadId = state.selectedThreadId;
   const messages = readDashboardMessages();
   const resolvedMessages = state.isOpen ? markDashboardMessagesReadForCurrentUser(messages, state.selectedThreadId) : messages;
@@ -9184,6 +9353,33 @@ function renderDashboardChatWidget() {
     ? getDashboardChatWidgetThreadPreview(latestThread, users, currentUser)
     : "Open team room";
   const teamPresenceLabel = getDashboardChatWidgetThreadStatus({ isTeamThread: true }, users);
+  let activeReplyMessage = null;
+  if (dashboardChatReplyDraft?.threadId === activeThreadId) {
+    activeReplyMessage = getDashboardMessageById(dashboardChatReplyDraft.messageId, resolvedMessages);
+  } else {
+    dashboardChatReplyDraft = null;
+  }
+  if (dashboardChatReplyDraft && !activeReplyMessage) {
+    dashboardChatReplyDraft = null;
+  }
+  const replyComposerMarkup = activeReplyMessage
+    ? renderDashboardReplyReference(activeReplyMessage, users, { cancelable: true })
+    : "";
+  const priorityControlsMarkup = dashboardChatPriorityOptions
+    .map((option) => {
+      const isActive = dashboardChatPriorityDraft === option.key;
+      return `
+        <button
+          type="button"
+          class="dashboard-chat-priority-button is-${escapeHtml(option.key)}${isActive ? " is-active" : ""}"
+          data-dashboard-chat-priority="${escapeHtml(option.key)}"
+          aria-pressed="${isActive}"
+        >
+          ${escapeHtml(option.label)}
+        </button>
+      `;
+    })
+    .join("");
 
   if (activeThreadId !== state.selectedThreadId) {
     writeDashboardChatWidgetState({
@@ -9300,7 +9496,11 @@ function renderDashboardChatWidget() {
             ${visibleMessages.length ? visibleMessages.map((message) => renderDashboardChatWidgetMessage(message, users, currentUser)).join("") : `<div class="dashboard-chat-empty-state"><strong>No messages yet</strong><span>${escapeHtml(activeThread?.isTeamThread ? "Start the team thread." : `Start a direct message with ${activeThreadLabel}.`)}</span></div>`}
           </div>
           ${renderDashboardTypingIndicator(activeThreadId, users, currentUser)}
+          ${replyComposerMarkup}
           <form class="dashboard-chat-form" data-dashboard-chat-form>
+            <div class="dashboard-chat-compose-tools" role="group" aria-label="Message priority">
+              ${priorityControlsMarkup}
+            </div>
             <textarea name="message" data-dashboard-chat-input autocomplete="off" rows="1" placeholder="Message ${escapeHtml(activeThreadLabel)}"></textarea>
             <button type="submit">Send</button>
           </form>
@@ -9309,12 +9509,14 @@ function renderDashboardChatWidget() {
     </aside>
   `;
 
-  if (wasComposerFocused && previousComposerThreadId === activeThreadId) {
+  if (previousComposerThreadId === activeThreadId) {
     const nextComposer = root.querySelector("[data-dashboard-chat-input]");
     if (nextComposer) {
       nextComposer.value = previousComposerDraft;
-      nextComposer.focus();
-      if (previousComposerSelectionStart !== null && previousComposerSelectionEnd !== null) {
+      if (wasComposerFocused) {
+        nextComposer.focus();
+      }
+      if (wasComposerFocused && previousComposerSelectionStart !== null && previousComposerSelectionEnd !== null) {
         nextComposer.setSelectionRange(previousComposerSelectionStart, previousComposerSelectionEnd);
       }
     }
@@ -69961,6 +70163,42 @@ ui.dashboardChatWidgetRoot?.addEventListener("click", (event) => {
     return;
   }
 
+  const replyMessageButton = event.target.closest("[data-dashboard-reply-message]");
+  if (replyMessageButton) {
+    const currentState = readDashboardChatWidgetState();
+    const threadId = normalizeDashboardChatThreadId(currentState.selectedThreadId, dashboardChatTeamThreadId);
+    setDashboardChatReplyDraft(replyMessageButton.dataset.dashboardReplyMessage, threadId);
+    renderDashboardChatWidget();
+    focusDashboardChatWidgetComposer();
+    return;
+  }
+
+  const cancelReplyButton = event.target.closest("[data-dashboard-cancel-reply]");
+  if (cancelReplyButton) {
+    setDashboardChatReplyDraft("", "");
+    renderDashboardChatWidget();
+    focusDashboardChatWidgetComposer();
+    return;
+  }
+
+  const reactionButton = event.target.closest("[data-dashboard-message-reaction][data-dashboard-reaction-key]");
+  if (reactionButton) {
+    toggleDashboardMessageReaction(
+      reactionButton.dataset.dashboardMessageReaction,
+      reactionButton.dataset.dashboardReactionKey
+    );
+    renderDashboardChatWidget();
+    return;
+  }
+
+  const priorityButton = event.target.closest("[data-dashboard-chat-priority]");
+  if (priorityButton) {
+    setDashboardChatPriorityDraft(priorityButton.dataset.dashboardChatPriority);
+    renderDashboardChatWidget();
+    focusDashboardChatWidgetComposer();
+    return;
+  }
+
   const toggleChat = event.target.closest("[data-dashboard-chat-widget-toggle]");
   if (toggleChat) {
     const currentState = readDashboardChatWidgetState();
@@ -69970,6 +70208,8 @@ ui.dashboardChatWidgetRoot?.addEventListener("click", (event) => {
     };
     if (!nextState.isOpen) {
       clearDashboardChatTyping();
+      setDashboardChatReplyDraft("", "");
+      setDashboardChatPriorityDraft("normal");
     }
     writeDashboardChatWidgetState(nextState);
     if (nextState.isOpen) {
@@ -69997,6 +70237,8 @@ ui.dashboardChatWidgetRoot?.addEventListener("click", (event) => {
       return;
     }
     clearDashboardChatTyping();
+    setDashboardChatReplyDraft("", "");
+    setDashboardChatPriorityDraft("normal");
     writeDashboardChatWidgetState({
       isOpen: true,
       selectedThreadId: threadId,
@@ -70153,6 +70395,8 @@ ui.dashboardChatWidgetRoot?.addEventListener("submit", (event) => {
   const threadId = normalizeDashboardChatThreadId(currentState.selectedThreadId, dashboardChatTeamThreadId);
   createDashboardMessage(messageText, threadId);
   clearDashboardChatTyping();
+  setDashboardChatReplyDraft("", "");
+  setDashboardChatPriorityDraft("normal");
   if (input) {
     input.value = "";
   }

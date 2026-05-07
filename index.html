@@ -2511,6 +2511,7 @@
           const forgotPasswordToggle = document.getElementById("forgotPasswordToggle");
           const forgotPasswordForm = document.getElementById("forgotPasswordForm");
           const forgotPasswordIdentifier = document.getElementById("forgotPasswordIdentifier");
+          setLoginBusy(true, "Loading...");
 
           const attachSharedAuthUiHandlers = () => {
             forgotPasswordToggle?.addEventListener("click", () => {
@@ -2640,6 +2641,7 @@
 
           if (isLocalDevHost()) {
             initializeDevAuth();
+            setLoginBusy(false);
             return;
           }
 
@@ -2655,6 +2657,7 @@
             toFormError("Could not initialize authentication. Check the deployment environment settings.");
             showLogin();
             authState.isReady = true;
+            setLoginBusy(false);
             return;
           }
 
@@ -2664,6 +2667,7 @@
             toFormError("Could not load authentication client.");
             showLogin();
             authState.isReady = true;
+            setLoginBusy(false);
             return;
           }
 
@@ -2682,6 +2686,7 @@
             showPlatform(authState.currentUser);
           }
           authState.isReady = true;
+          setLoginBusy(false);
 
           authState.supabase.auth.onAuthStateChange(async (event, session) => {
             if (session) {

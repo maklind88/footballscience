@@ -32,9 +32,16 @@ async function dismissDashboardModal(page) {
   }
 }
 
+async function waitForAuthReady(page) {
+  await page.waitForFunction(() => Boolean(window.platformAuthReadyPromise), null, { timeout: 15_000 });
+  await page.evaluate(() => window.platformAuthReadyPromise);
+}
+
 async function signIn(page) {
   await page.goto("/", { waitUntil: "domcontentloaded" });
+  await waitForAuthReady(page);
   if (await page.locator("#loginScreen:visible").count()) {
+    await expect(page.locator('#loginForm button[type="submit"]')).toBeEnabled();
     await page.locator("#loginUsername").fill(process.env.LIVE_QA_USERNAME);
     await page.locator("#loginPassword").fill(process.env.LIVE_QA_PASSWORD);
     await page.locator('#loginForm button[type="submit"]').click();

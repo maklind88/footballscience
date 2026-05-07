@@ -5,3 +5,4 @@ export {
   protectedStorageKeys,
 } from "../core/platform-contracts.mjs";
 
+export * from "./home/index.mjs";

@@ -32,7 +32,7 @@ Each module owns:
 - `permissions`: signed-in staff can manage their own tasks and participate in chat; admin can clear/delete broader records where allowed.
 - `events`: task created, task completed, message sent, message read, profile opened.
 - `qa`: dashboard data remains protected by app-state and backups.
-- `migration`: tasks and chat should move before deeper planning modules.
+- `migration`: tasks and chat should move before deeper planning modules. Home Tasks now has an inert read-only adapter boundary in `src/modules/home/tasks-adapter.mjs`; it must stay read-only until migration is explicit.
 
 ## Team Chat
 

@@ -52,6 +52,9 @@ const coreFiles = [
   "src/core/storage-adapters.mjs",
   "src/core/index.mjs",
   "src/modules/manifest.mjs",
+  "src/modules/home/tasks.mjs",
+  "src/modules/home/tasks-adapter.mjs",
+  "src/modules/home/index.mjs",
 ];
 
 test("protected product data remains covered by client safety, central state, and backups", () => {
@@ -126,9 +129,11 @@ test("modular core skeleton exists beside the current app but is not loaded by p
 test("core module contracts are covered by dedicated QA", () => {
   const packageJson = readJson("package.json");
   const modularCoreSpec = readProjectFile("qa/modular-core.api.spec.mjs");
+  const homeTasksSpec = readProjectFile("qa/home-tasks-adapter.api.spec.mjs");
 
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-safety-contracts.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-tasks-adapter.api.spec.mjs");
   expect(modularCoreSpec).toContain("modular core covers protected storage keys");
   expect(modularCoreSpec).toContain("read-only storage adapter blocks accidental writes");
+  expect(homeTasksSpec).toContain("Home Tasks legacy read adapter uses the protected storage key");
 });
-

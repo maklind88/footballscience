@@ -8382,7 +8382,12 @@ function getDashboardChatThreadData(
     ? threadMessages.filter((message) => message.userId !== currentUser.id && !message.readBy.includes(currentUser.id)).length
     : 0;
   const mentionCount = currentUser
-    ? threadMessages.filter((message) => message.userId !== currentUser.id && message.mentionedUserIds.includes(currentUser.id)).length
+    ? threadMessages.filter(
+        (message) =>
+          message.userId !== currentUser.id &&
+          message.mentionedUserIds.includes(currentUser.id) &&
+          !message.readBy.includes(currentUser.id)
+      ).length
     : 0;
   const lastMessage = threadMessages.length ? threadMessages[threadMessages.length - 1] : null;
   return {
@@ -9146,6 +9151,12 @@ function renderDashboardChatWidget() {
   const users = getPlatformUsers().filter((user) => user.status === "active");
   const notificationState = readDashboardChatWidgetNotificationState();
   const state = readDashboardChatWidgetState();
+  const activeElement = document.activeElement;
+  const wasComposerFocused = Boolean(activeElement?.matches?.("[data-dashboard-chat-input]"));
+  const previousComposerDraft = wasComposerFocused ? activeElement.value : "";
+  const previousComposerSelectionStart = wasComposerFocused ? activeElement.selectionStart : null;
+  const previousComposerSelectionEnd = wasComposerFocused ? activeElement.selectionEnd : null;
+  const previousComposerThreadId = state.selectedThreadId;
   const messages = readDashboardMessages();
   const resolvedMessages = state.isOpen ? markDashboardMessagesReadForCurrentUser(messages, state.selectedThreadId) : messages;
   const threads = getDashboardChatThreadList(currentUser, users, resolvedMessages);
@@ -9297,6 +9308,17 @@ function renderDashboardChatWidget() {
       </div>
     </aside>
   `;
+
+  if (wasComposerFocused && previousComposerThreadId === activeThreadId) {
+    const nextComposer = root.querySelector("[data-dashboard-chat-input]");
+    if (nextComposer) {
+      nextComposer.value = previousComposerDraft;
+      nextComposer.focus();
+      if (previousComposerSelectionStart !== null && previousComposerSelectionEnd !== null) {
+        nextComposer.setSelectionRange(previousComposerSelectionStart, previousComposerSelectionEnd);
+      }
+    }
+  }
 }
 
 function syncDashboardChatWidgetNotificationCursor() {
@@ -9331,11 +9353,7 @@ function syncDashboardChatWidgetNotificationCursor() {
     return;
   }
 
-  const reversedMessages = [...messages].reverse();
-  const latestMention = reversedMessages.find(
-    (message) => message.userId !== currentUser.id && message.mentionedUserIds.includes(currentUser.id)
-  );
-  const latestMessage = latestMention || reversedMessages.find((message) => message.userId !== currentUser.id);
+  const latestMessage = [...messages].reverse().find((message) => message.userId !== currentUser.id);
   if (!latestMessage) {
     return;
   }

@@ -34,12 +34,24 @@ const protectedStorageKeys = [
 const moduleContractIds = [
   "platform-shell",
   "home",
+  "chat",
   "schedule",
+  "exercise-library",
   "periodization",
   "session-planner",
   "medical-team",
   "player-profiles",
   "game-simulator",
+];
+
+const coreFiles = [
+  "src/core/platform-contracts.mjs",
+  "src/core/module-registry.mjs",
+  "src/core/permissions.mjs",
+  "src/core/events.mjs",
+  "src/core/storage-adapters.mjs",
+  "src/core/index.mjs",
+  "src/modules/manifest.mjs",
 ];
 
 test("protected product data remains covered by client safety, central state, and backups", () => {
@@ -98,5 +110,25 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   );
   expect(qaWorkflow).toContain("node-version: 24");
   expect(qaWorkflow).toContain("npm run qa");
+});
+
+test("modular core skeleton exists beside the current app but is not loaded by production HTML yet", () => {
+  const indexHtml = readProjectFile("index.html");
+
+  for (const file of coreFiles) {
+    expect(fs.existsSync(path.join(rootDir, file)), `${file} should exist`).toBe(true);
+  }
+
+  expect(indexHtml).not.toContain("src/core/");
+  expect(indexHtml).not.toContain("src/modules/");
+});
+
+test("core module contracts are covered by dedicated QA", () => {
+  const packageJson = readJson("package.json");
+  const modularCoreSpec = readProjectFile("qa/modular-core.api.spec.mjs");
+
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-safety-contracts.api.spec.mjs");
+  expect(modularCoreSpec).toContain("modular core covers protected storage keys");
+  expect(modularCoreSpec).toContain("read-only storage adapter blocks accidental writes");
 });
 

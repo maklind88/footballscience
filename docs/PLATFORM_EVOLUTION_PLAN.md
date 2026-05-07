@@ -30,6 +30,18 @@ Do not rebuild the platform in one big-bang rewrite. Evolve it by adding a modul
 - Create a small core layer for modules, storage adapters, permissions, events, and UI lifecycle.
 - Start with read-only wrappers around the existing functions.
 - Extract one low-risk module at a time without changing the visible UI.
+- Keep the first modular core files inert until tests prove that each extracted module preserves existing behavior.
+
+Current inert skeleton:
+
+- `src/core/platform-contracts.mjs`
+- `src/core/module-registry.mjs`
+- `src/core/permissions.mjs`
+- `src/core/events.mjs`
+- `src/core/storage-adapters.mjs`
+- `src/modules/manifest.mjs`
+
+These files are not loaded by `index.html` yet. They exist so future refactors have a safe destination and a tested contract before product logic moves.
 
 ### Stage 3: Data Adapter Layer
 
@@ -88,4 +100,3 @@ For each stage:
 3. Deploy only after QA passes.
 4. Verify production endpoints.
 5. Keep rollback simple: revert code first, restore data only if a migration actually changed production data.
-

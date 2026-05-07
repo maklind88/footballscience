@@ -34,6 +34,26 @@ Each module owns:
 - `qa`: dashboard data remains protected by app-state and backups.
 - `migration`: tasks and chat should move before deeper planning modules.
 
+## Team Chat
+
+- `id`: `chat`
+- `purpose`: staff room and direct colleague messaging.
+- `data`: `football-dashboard-chat-v1`
+- `permissions`: signed-in staff can send/read; admin-only destructive actions stay explicit.
+- `events`: message sent, message read, reaction changed, direct thread opened.
+- `qa`: chat storage remains protected by app-state and backups.
+- `migration`: move to `chat_threads`, `chat_messages`, `chat_read_receipts`, and `chat_reactions` after Home task contracts are stable.
+
+## Exercise Library
+
+- `id`: `exercise-library`
+- `purpose`: reusable exercise catalog shared with the Session Planner.
+- `data`: `football-session-exercise-library-v1`, `football-session-exercise-library-backup-v1`
+- `permissions`: admin/coach edit; planning roles view.
+- `events`: exercise saved, exercise archived, exercise restored.
+- `qa`: existing library entries must stay protected and restorable.
+- `migration`: migrate before Session Planner blocks where possible; use soft archive and versioning instead of hard deletes.
+
 ## Schedule
 
 - `id`: `schedule`
@@ -93,4 +113,3 @@ Each module owns:
 - `events`: sequence saved, sequence loaded, library item archived/restored.
 - `qa`: protected by central state and backup contracts.
 - `migration`: move large sequence payloads last, after export/import and restore drills are proven.
-

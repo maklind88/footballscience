@@ -6247,6 +6247,18 @@ let adminAuditLoading = false;
 let adminAuditLoadedAt = 0;
 let adminAuditLoadError = "";
 const platformDefaultRoles = ["admin", "coach", "analyst", "performance", "medical", "guest"];
+const dashboardPresenceHeartbeatMs = 25000;
+const dashboardPresencePollMs = 35000;
+const dashboardPresenceIdleMs = 90000;
+const dashboardPresenceOnlineTtlMs = 85000;
+const dashboardPresenceAwayTtlMs = 6 * 60 * 1000;
+let dashboardPresenceEntriesByUserId = {};
+let dashboardPresenceHeartbeatTimer = null;
+let dashboardPresencePollTimer = null;
+let dashboardPresenceStarted = false;
+let dashboardPresenceLastActivityAt = Date.now();
+let dashboardPresenceLastRenderedSignature = "";
+let dashboardPresenceInFlight = false;
 
 function getPlatformAuthStore() {
   return window.platformAuthStore ?? null;
@@ -8324,6 +8336,230 @@ function getDashboardChatUnreadCountForCurrentUser(currentUser = getCurrentPlatf
   return getDashboardChatThreadList(currentUser, getPlatformUsers(), messages).reduce((total, thread) => total + thread.unreadCount, 0);
 }
 
+function normalizeDashboardPresenceStatus(value) {
+  const status = String(value || "").trim().toLowerCase();
+  if (status === "away" || status === "offline") {
+    return status;
+  }
+  return "online";
+}
+
+function getDashboardSelfPresenceStatus() {
+  if (document.visibilityState !== "visible" || !document.hasFocus()) {
+    return "away";
+  }
+
+  return Date.now() - dashboardPresenceLastActivityAt > dashboardPresenceIdleMs ? "away" : "online";
+}
+
+function resolveDashboardPresenceStatus(entry, userId = "") {
+  const currentUser = getCurrentPlatformUser();
+  if (!entry && currentUser?.id && currentUser.id === userId) {
+    return getDashboardSelfPresenceStatus();
+  }
+
+  const lastSeenMs = new Date(entry?.lastSeenAt || entry?.updatedAt || 0).getTime();
+  if (!Number.isFinite(lastSeenMs)) {
+    return "offline";
+  }
+
+  const ageMs = Date.now() - lastSeenMs;
+  const rawStatus = normalizeDashboardPresenceStatus(entry?.status);
+  if (rawStatus === "offline" || ageMs > dashboardPresenceAwayTtlMs) {
+    return "offline";
+  }
+  if (rawStatus === "away" || ageMs > dashboardPresenceOnlineTtlMs) {
+    return "away";
+  }
+  return "online";
+}
+
+function normalizeDashboardPresenceEntries(entries = []) {
+  if (!Array.isArray(entries)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    entries
+      .map((entry) => {
+        const userId = String(entry?.userId || entry?.user?.id || "").trim();
+        if (!userId) {
+          return null;
+        }
+
+        return [
+          userId,
+          {
+            userId,
+            status: normalizeDashboardPresenceStatus(entry.status),
+            lastSeenAt: String(entry.lastSeenAt || entry.updatedAt || ""),
+            lastActivityAt: String(entry.lastActivityAt || ""),
+            workspaceId: String(entry.workspaceId || ""),
+            updatedAt: String(entry.updatedAt || ""),
+          },
+        ];
+      })
+      .filter(Boolean)
+  );
+}
+
+function getDashboardPresenceSignature(entriesByUserId = dashboardPresenceEntriesByUserId) {
+  return Object.entries(entriesByUserId)
+    .sort(([firstId], [secondId]) => firstId.localeCompare(secondId))
+    .map(([userId, entry]) => `${userId}:${entry.status}:${entry.lastSeenAt}`)
+    .join("|");
+}
+
+function applyDashboardPresenceEntries(entries = [], options = {}) {
+  const nextEntries = normalizeDashboardPresenceEntries(entries);
+  const nextSignature = getDashboardPresenceSignature(nextEntries);
+  dashboardPresenceEntriesByUserId = nextEntries;
+  if (!options.forceRender && nextSignature === dashboardPresenceLastRenderedSignature) {
+    return;
+  }
+
+  dashboardPresenceLastRenderedSignature = nextSignature;
+  renderDashboardChatWidget();
+}
+
+function getDashboardPresenceEntry(userId) {
+  return dashboardPresenceEntriesByUserId[String(userId || "").trim()] || null;
+}
+
+function getDashboardPresenceStatus(userId) {
+  return resolveDashboardPresenceStatus(getDashboardPresenceEntry(userId), String(userId || "").trim());
+}
+
+function getDashboardPresenceLabel(status) {
+  const normalizedStatus = normalizeDashboardPresenceStatus(status);
+  if (normalizedStatus === "online") {
+    return "Online";
+  }
+  if (normalizedStatus === "away") {
+    return "Passive";
+  }
+  return "Offline";
+}
+
+function getDashboardPresenceSummary(users = []) {
+  return users.reduce(
+    (summary, user) => {
+      const status = getDashboardPresenceStatus(user.id);
+      summary[status] = (summary[status] || 0) + 1;
+      return summary;
+    },
+    { online: 0, away: 0, offline: 0 }
+  );
+}
+
+function renderDashboardPresenceDot(user, options = {}) {
+  const status = getDashboardPresenceStatus(user?.id);
+  const label = getDashboardPresenceLabel(status);
+  return `
+    <span
+      class="dashboard-presence-dot is-${escapeHtml(status)}${options.inline ? " is-inline" : ""}"
+      title="${escapeHtml(label)}"
+      aria-label="${escapeHtml(label)}"
+    ></span>
+  `;
+}
+
+function renderDashboardPresenceAvatar(user, className) {
+  return `
+    <span class="dashboard-presence-avatar">
+      ${renderUserAvatar(user, className)}
+      ${renderDashboardPresenceDot(user)}
+    </span>
+  `;
+}
+
+function markDashboardPresenceActivity() {
+  dashboardPresenceLastActivityAt = Date.now();
+}
+
+function getDashboardPresenceWorkspaceId() {
+  return hubState?.activeWorkspaceId || "";
+}
+
+async function pushDashboardPresence(statusOverride = "") {
+  const currentUser = getCurrentPlatformUser();
+  const authStore = getPlatformAuthStore();
+  if (!currentUser?.id || !authStore?.updatePresence || dashboardPresenceInFlight) {
+    return;
+  }
+
+  dashboardPresenceInFlight = true;
+  try {
+    const status = statusOverride || getDashboardSelfPresenceStatus();
+    const result = await authStore.updatePresence(status, {
+      lastActivityAt: new Date(dashboardPresenceLastActivityAt).toISOString(),
+      workspaceId: getDashboardPresenceWorkspaceId(),
+    });
+    if (result?.ok) {
+      applyDashboardPresenceEntries(result.entries, { forceRender: true });
+    }
+  } catch {
+    // Presence is decorative; chat should keep working if the heartbeat misses.
+  } finally {
+    dashboardPresenceInFlight = false;
+  }
+}
+
+async function refreshDashboardPresence(options = {}) {
+  const currentUser = getCurrentPlatformUser();
+  const authStore = getPlatformAuthStore();
+  if (!currentUser?.id || !authStore?.getPresence) {
+    return;
+  }
+
+  try {
+    const result = await authStore.getPresence();
+    if (result?.ok) {
+      applyDashboardPresenceEntries(result.entries, { forceRender: Boolean(options.forceRender) });
+    }
+  } catch {
+    // Keep the last known presence state; stale users fall back to passive/offline visually.
+  }
+}
+
+function startDashboardPresenceRuntime() {
+  const currentUser = getCurrentPlatformUser();
+  if (!currentUser?.id) {
+    stopDashboardPresenceRuntime();
+    return;
+  }
+
+  if (dashboardPresenceStarted) {
+    return;
+  }
+
+  dashboardPresenceStarted = true;
+  markDashboardPresenceActivity();
+  pushDashboardPresence("online").catch(() => {});
+  refreshDashboardPresence({ forceRender: true }).catch(() => {});
+  dashboardPresenceHeartbeatTimer = window.setInterval(() => {
+    pushDashboardPresence().catch(() => {});
+  }, dashboardPresenceHeartbeatMs);
+  dashboardPresencePollTimer = window.setInterval(() => {
+    refreshDashboardPresence().catch(() => {});
+  }, dashboardPresencePollMs);
+}
+
+function stopDashboardPresenceRuntime() {
+  if (dashboardPresenceHeartbeatTimer) {
+    window.clearInterval(dashboardPresenceHeartbeatTimer);
+    dashboardPresenceHeartbeatTimer = null;
+  }
+  if (dashboardPresencePollTimer) {
+    window.clearInterval(dashboardPresencePollTimer);
+    dashboardPresencePollTimer = null;
+  }
+  dashboardPresenceStarted = false;
+  dashboardPresenceEntriesByUserId = {};
+  dashboardPresenceLastRenderedSignature = "";
+  renderDashboardChatWidget();
+}
+
 function readDashboardNotificationSeenMap() {
   const parsed = readDashboardJson(dashboardNotificationSeenStorageKey, {});
   return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
@@ -8549,10 +8785,14 @@ function getDashboardChatWidgetLatestThread(threads = []) {
 
 function getDashboardChatWidgetThreadStatus(thread, users = []) {
   if (thread.isTeamThread) {
-    return `${users.length} active`;
+    const summary = getDashboardPresenceSummary(users);
+    if (summary.online || summary.away) {
+      return `${summary.online} online${summary.away ? ` · ${summary.away} passive` : ""}`;
+    }
+    return `${users.length} staff`;
   }
 
-  return "Direct";
+  return getDashboardPresenceLabel(getDashboardPresenceStatus(thread.participant?.id));
 }
 
 function renderDashboardChatWidgetAvatarStack(users = [], className = "dashboard-chat-avatar-stack") {
@@ -8567,7 +8807,7 @@ function renderDashboardChatWidgetAvatarStack(users = [], className = "dashboard
 
   return `
     <span class="${className}" aria-hidden="true">
-      ${visibleUsers.map((user) => renderUserAvatar(user, "dashboard-chat-stack-avatar")).join("")}
+      ${visibleUsers.map((user) => renderDashboardPresenceAvatar(user, "dashboard-chat-stack-avatar")).join("")}
     </span>
   `;
 }
@@ -8577,7 +8817,7 @@ function renderDashboardChatWidgetMessage(message, users, currentUser) {
   const user = users.find((candidate) => candidate.id === message.userId) ?? message.author ?? null;
   const userName = user ? formatUserName(user) : "Unknown";
   const avatarMarkup = user
-    ? renderUserAvatar(user, "dashboard-chat-avatar")
+    ? renderDashboardPresenceAvatar(user, "dashboard-chat-avatar")
     : `<span class="dashboard-chat-avatar" aria-hidden="true">?</span>`;
   const statusMarkup = isOwn ? renderDashboardMessageStatus(message, users, currentUser) : "";
   const canDeleteChat = isCurrentPlatformUserAdmin();
@@ -8609,7 +8849,7 @@ function renderDashboardChatWidgetThreadItem(thread, currentUser, users, isSelec
   const preview = getDashboardChatWidgetThreadPreview(thread, users, currentUser);
   const threadStatus = getDashboardChatWidgetThreadStatus(thread, users);
   const avatarMarkup = thread.participant
-    ? renderUserAvatar(thread.participant, "dashboard-chat-thread-avatar")
+    ? renderDashboardPresenceAvatar(thread.participant, "dashboard-chat-thread-avatar")
     : `<span class="dashboard-chat-thread-avatar is-team" aria-hidden="true">T</span>`;
   const threadTime = thread.lastMessage
     ? formatDashboardTime(thread.lastMessage.createdAt)
@@ -8767,7 +9007,7 @@ function renderDashboardChatWidget() {
           <header class="dashboard-chat-thread-head">
             <div class="dashboard-chat-thread-head-main">
               ${activeThread?.participant
-                ? renderUserAvatar(activeThread.participant, "dashboard-chat-thread-head-avatar")
+                ? renderDashboardPresenceAvatar(activeThread.participant, "dashboard-chat-thread-head-avatar")
                 : renderDashboardChatWidgetAvatarStack(headerParticipants, "dashboard-chat-thread-head-stack")}
               <div>
                 <h3>${escapeHtml(activeThreadLabel)}</h3>
@@ -72545,6 +72785,11 @@ window.addEventListener("platform:user-change", () => {
   syncPlatformUserFromAuth();
   syncAccountMenu();
   setProfileMenuOpen(false);
+  if (getCurrentPlatformUser()) {
+    startDashboardPresenceRuntime();
+  } else {
+    stopDashboardPresenceRuntime();
+  }
   if (getCurrentPlatformUser() && getCentralStateBridge()?.isHydrated?.()) {
     reloadCentralizedAppStateFromStorage();
     return;
@@ -72562,6 +72807,8 @@ window.addEventListener("footballscience:central-state-ready", () => {
   dataSafetyRuntimeStatus.lastError = "";
   queueCentralStateStatus("");
   flushCentralStateWrites();
+  startDashboardPresenceRuntime();
+  refreshDashboardPresence({ forceRender: true }).catch(() => {});
   requestCentralizedAppStateReload();
   refreshDataSafetyStatus();
 });
@@ -72575,17 +72822,45 @@ document.addEventListener("pointerup", () => {
 }, true);
 
 window.addEventListener("focus", () => {
+  markDashboardPresenceActivity();
+  startDashboardPresenceRuntime();
+  pushDashboardPresence("online").catch(() => {});
+  refreshDashboardPresence({ forceRender: true }).catch(() => {});
   refreshCentralStateFromSource("focus");
   window.setTimeout(flushDeferredCentralizedAppStateReload, 180);
 });
 
+window.addEventListener("blur", () => {
+  pushDashboardPresence("away").catch(() => {});
+});
+
 document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") {
+    pushDashboardPresence("away").catch(() => {});
+    renderDashboardChatWidget();
+    return;
+  }
+
+  markDashboardPresenceActivity();
+  startDashboardPresenceRuntime();
+  pushDashboardPresence("online").catch(() => {});
+  refreshDashboardPresence({ forceRender: true }).catch(() => {});
   if (document.visibilityState !== "visible") {
     return;
   }
 
   refreshCentralStateFromSource("visibility");
   window.setTimeout(flushDeferredCentralizedAppStateReload, 180);
+});
+
+["pointerdown", "keydown", "mousemove", "touchstart"].forEach((eventName) => {
+  document.addEventListener(
+    eventName,
+    () => {
+      markDashboardPresenceActivity();
+    },
+    { passive: true }
+  );
 });
 
 centralStateRefreshTimer = window.setInterval(() => {
@@ -72622,6 +72897,8 @@ window.addEventListener("storage", (event) => {
 });
 
 window.addEventListener("pagehide", () => {
+  pushDashboardPresence("away").catch(() => {});
+
   if (centralStateWriteTimer) {
     window.clearTimeout(centralStateWriteTimer);
     centralStateWriteTimer = null;
@@ -72663,6 +72940,7 @@ syncTeamIdentityControls();
 syncPhysicalProfileControls();
 refreshDataSafetyStatus();
 initializeWorkspaceHub();
+startDashboardPresenceRuntime();
 updateModeButtons();
 syncDefensiveAutopilotButton();
 syncOffensiveAutopilotButton();

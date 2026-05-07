@@ -832,6 +832,7 @@
         const API_APP_STATE = "/api/app-state";
         const API_AUDIT_LOG = "/api/audit-log";
         const API_SESSION_HISTORY = "/api/session-history";
+        const API_PRESENCE = "/api/presence";
         const DATA_SAFETY_MANIFEST_KEY = "football-data-safety-v1";
         const ONLINE_APP_URL = "https://footballscience.xyz/";
         const DEV_AUTH_SESSION_KEY = "football-science-dev-auth-session-v1";
@@ -2267,6 +2268,51 @@
           };
         }
 
+        async function getPresence() {
+          if (authState.devMode) {
+            return { ok: true, entries: [], updatedAt: "" };
+          }
+
+          const response = await apiRequest(API_PRESENCE, {
+            method: "GET",
+            timeoutMs: 7000,
+          });
+          if (!response.ok) {
+            return { ok: false, reason: response.payload?.reason || "Presence could not be loaded." };
+          }
+
+          return {
+            ok: true,
+            entries: Array.isArray(response.payload?.entries) ? response.payload.entries : [],
+            updatedAt: response.payload?.updatedAt || "",
+          };
+        }
+
+        async function updatePresence(status = "online", values = {}) {
+          if (authState.devMode) {
+            return { ok: true, entries: [], updatedAt: new Date().toISOString(), localDev: true };
+          }
+
+          const response = await apiRequest(API_PRESENCE, {
+            method: "POST",
+            timeoutMs: 7000,
+            body: JSON.stringify({
+              status,
+              lastActivityAt: values.lastActivityAt || new Date().toISOString(),
+              workspaceId: values.workspaceId || "",
+            }),
+          });
+          if (!response.ok) {
+            return { ok: false, reason: response.payload?.reason || "Presence could not be updated." };
+          }
+
+          return {
+            ok: true,
+            entries: Array.isArray(response.payload?.entries) ? response.payload.entries : [],
+            updatedAt: response.payload?.updatedAt || "",
+          };
+        }
+
         function clearAuthState() {
           authState.currentUser = null;
           authState.session = null;
@@ -2633,6 +2679,8 @@
           getAuditLog: adminGetAuditLog,
           getSessionHistory,
           restoreSessionHistory,
+          getPresence,
+          updatePresence,
           getUsers: () => authState.users,
           writeUsers: (users) => {
             authState.users = Array.isArray(users) ? users : [];

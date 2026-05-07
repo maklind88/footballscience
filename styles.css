@@ -2491,6 +2491,7 @@ body {
 }
 
 .dashboard-chat-thread-item,
+.dashboard-chat-pin-button,
 .dashboard-chat-clear-button,
 .dashboard-chat-delete-button {
   min-height: auto;
@@ -2525,6 +2526,11 @@ body {
 
 .dashboard-chat-thread-item.is-unread {
   background: rgba(37, 99, 235, 0.07);
+}
+
+.dashboard-chat-thread-item.is-mentioned {
+  background: rgba(255, 176, 32, 0.11);
+  border-color: rgba(255, 176, 32, 0.24);
 }
 
 .dashboard-chat-thread-avatar,
@@ -2631,11 +2637,26 @@ body {
   line-height: 1;
 }
 
+.dashboard-chat-thread-mention-badge {
+  align-self: center;
+  min-width: 1.18rem;
+  min-height: 1.18rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #ffb020;
+  color: #1d1d1f;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .dashboard-chat-conversation {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
   background: #ffffff;
 }
 
@@ -8483,6 +8504,79 @@ body {
   border: 1px solid rgba(29, 29, 31, 0.06);
   max-height: calc(94vh - 7.2rem);
   overflow: auto;
+}
+
+.dashboard-chat-pins {
+  display: grid;
+  gap: 0.46rem;
+  padding: 0.62rem 0.78rem;
+  border-bottom: 1px solid rgba(29, 29, 31, 0.08);
+  background: linear-gradient(180deg, rgba(255, 248, 230, 0.8), rgba(255, 255, 255, 0.92));
+}
+
+.dashboard-chat-pins-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: #8a6116;
+  font-size: 0.68rem;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.dashboard-chat-pin-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.52rem;
+  padding: 0.52rem 0.58rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(255, 176, 32, 0.24);
+}
+
+.dashboard-chat-pin-card strong,
+.dashboard-chat-pin-card p {
+  min-width: 0;
+}
+
+.dashboard-chat-pin-card strong {
+  display: block;
+  color: #1d1d1f;
+  font-size: 0.72rem;
+  font-weight: 840;
+}
+
+.dashboard-chat-pin-card p {
+  margin: 0.08rem 0 0;
+  color: #555b65;
+  font-size: 0.74rem;
+  font-weight: 650;
+  line-height: 1.28;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-chat-pin-card button,
+.dashboard-chat-pin-button {
+  min-height: 1.72rem;
+  padding: 0.22rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(255, 176, 32, 0.14);
+  border: 1px solid rgba(255, 176, 32, 0.24);
+  color: #8a6116;
+  box-shadow: none;
+  font-size: 0.66rem;
+  font-weight: 820;
+}
+
+.dashboard-chat-pin-card button:hover,
+.dashboard-chat-pin-button:hover {
+  background: rgba(255, 176, 32, 0.2);
+  box-shadow: none;
 }
 
 .session-player-board-profile-head {

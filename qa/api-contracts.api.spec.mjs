@@ -58,13 +58,22 @@ function createMockResponse() {
 
 async function callHandler(handler, req = {}) {
   const res = createMockResponse();
+  const body = req.body;
+  const request = {
+    method: "GET",
+    url: "/",
+    headers: {},
+    ...req,
+  };
+  if (!request[Symbol.asyncIterator]) {
+    request[Symbol.asyncIterator] = async function* requestBodyIterator() {
+      if (body !== undefined) {
+        yield Buffer.from(String(body));
+      }
+    };
+  }
   await handler(
-    {
-      method: "GET",
-      url: "/",
-      headers: {},
-      ...req,
-    },
+    request,
     res
   );
 
@@ -74,6 +83,89 @@ async function callHandler(handler, req = {}) {
     headers: res.headers,
     payload,
   };
+}
+
+const appStateSessionPlannerKey = "football-session-planner-v3";
+const appStateSessionPlannerPath = `global/${appStateSessionPlannerKey}.json`;
+
+function createAppStateStorageEntry(key, value, updatedAt = "2026-05-07T00:00:00.000Z") {
+  return {
+    schema: "footballscience-app-state-v1",
+    key,
+    value: typeof value === "string" ? value : JSON.stringify(value),
+    updatedAt,
+    updatedBy: "coach-existing",
+  };
+}
+
+function createMockPlatformUser(role = "coach") {
+  return {
+    id: "coach-1",
+    email: "coach@example.com",
+    user_metadata: {
+      firstName: "QA",
+      lastName: "Coach",
+      username: "qa.coach",
+    },
+    app_metadata: {
+      role,
+      status: "active",
+    },
+    created_at: "2026-05-07T00:00:00.000Z",
+  };
+}
+
+function createAppStateFetchMock(initialObjects = {}, role = "coach") {
+  const objects = new Map(Object.entries(initialObjects));
+  const writes = [];
+  const user = createMockPlatformUser(role);
+
+  const fetchMock = async (url, options = {}) => {
+    const requestUrl = String(url);
+    const method = String(options.method || "GET").toUpperCase();
+
+    if (requestUrl.endsWith("/auth/v1/user")) {
+      return new Response(JSON.stringify(user), { status: 200 });
+    }
+
+    if (requestUrl.includes("/auth/v1/admin/users/coach-1")) {
+      return new Response(JSON.stringify(user), { status: 200 });
+    }
+
+    if (requestUrl.endsWith("/storage/v1/bucket/footballscience-app-state")) {
+      return new Response(JSON.stringify({ id: "footballscience-app-state" }), { status: 200 });
+    }
+
+    const objectMarker = "/storage/v1/object/footballscience-app-state/";
+    const objectMarkerIndex = requestUrl.indexOf(objectMarker);
+    if (objectMarkerIndex >= 0) {
+      const objectPath = decodeURIComponent(requestUrl.slice(objectMarkerIndex + objectMarker.length).split("?", 1)[0]);
+      if (method === "GET") {
+        if (!objects.has(objectPath)) {
+          return new Response("{}", { status: 404 });
+        }
+        return new Response(JSON.stringify(objects.get(objectPath)), { status: 200 });
+      }
+
+      if (method === "PUT" || method === "POST") {
+        const entry = JSON.parse(String(options.body || "{}"));
+        objects.set(objectPath, entry);
+        writes.push({ method, objectPath, entry });
+        return new Response(JSON.stringify({ Key: objectPath }), { status: 200 });
+      }
+
+      if (method === "DELETE") {
+        const body = JSON.parse(String(options.body || "{}"));
+        const prefixes = Array.isArray(body?.prefixes) ? body.prefixes : [];
+        prefixes.forEach((prefix) => objects.delete(prefix));
+        return new Response(JSON.stringify({ deleted: prefixes.length }), { status: 200 });
+      }
+    }
+
+    return new Response(JSON.stringify({ message: `Unexpected request: ${requestUrl}` }), { status: 500 });
+  };
+
+  return { fetchMock, objects, writes };
 }
 
 test("client-config fails loudly when Supabase browser config is missing", async () => {
@@ -130,6 +222,160 @@ test("app-state rejects unauthenticated requests before touching Supabase storag
     });
     expect(response.payload.reason).toContain("signed in");
   } finally {
+    restoreEnv(env);
+  }
+});
+
+test("app-state merges concurrent Session Planner edits by field timestamps", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const existingState = {
+    selectedDate: "2026-05-05",
+    sessions: {
+      "2026-05-05": {
+        date: "2026-05-05",
+        selectedBlockId: "block-1",
+        blocks: [
+          {
+            id: "block-1",
+            title: "Rondo",
+            objective: "Central objective",
+            organization: "Old organization",
+            fieldUpdatedAt: {
+              objective: "2026-05-07T15:00:00.000Z",
+              organization: "2026-05-07T13:00:00.000Z",
+            },
+            updatedAt: "2026-05-07T15:00:00.000Z",
+          },
+        ],
+      },
+    },
+  };
+  const incomingState = {
+    selectedDate: "2026-05-05",
+    sessions: {
+      "2026-05-05": {
+        date: "2026-05-05",
+        selectedBlockId: "block-1",
+        blocks: [
+          {
+            id: "block-1",
+            title: "Rondo",
+            objective: "Stale local objective",
+            organization: "New organization from another tab",
+            fieldUpdatedAt: {
+              objective: "2026-05-07T14:00:00.000Z",
+              organization: "2026-05-07T16:00:00.000Z",
+            },
+            updatedAt: "2026-05-07T16:00:00.000Z",
+          },
+        ],
+      },
+    },
+  };
+  const storage = createAppStateFetchMock({
+    [appStateSessionPlannerPath]: createAppStateStorageEntry(appStateSessionPlannerKey, existingState),
+  });
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        key: appStateSessionPlannerKey,
+        value: JSON.stringify(incomingState),
+      }),
+    });
+    expect(response.status).toBe(200);
+    expect(response.payload).toMatchObject({
+      ok: true,
+      key: appStateSessionPlannerKey,
+      merged: true,
+    });
+
+    const storedState = JSON.parse(storage.objects.get(appStateSessionPlannerPath).value);
+    const storedBlock = storedState.sessions["2026-05-05"].blocks[0];
+    expect(storedBlock.objective).toBe("Central objective");
+    expect(storedBlock.organization).toBe("New organization from another tab");
+    expect(response.payload.metadata.hash).toHaveLength(64);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state preserves Session Planner blocks during stale single-user saves", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const existingState = {
+    selectedDate: "2026-05-05",
+    sessions: {
+      "2026-05-05": {
+        date: "2026-05-05",
+        selectedBlockId: "block-1",
+        blocks: [
+          { id: "block-1", title: "Block one", fieldUpdatedAt: { title: "2026-05-07T12:00:00.000Z" } },
+          { id: "block-2", title: "Block two", fieldUpdatedAt: { title: "2026-05-07T12:05:00.000Z" } },
+        ],
+      },
+    },
+  };
+  const staleIncomingState = {
+    selectedDate: "2026-05-05",
+    sessions: {
+      "2026-05-05": {
+        date: "2026-05-05",
+        selectedBlockId: "block-1",
+        blocks: [
+          { id: "block-1", title: "Block one edited", fieldUpdatedAt: { title: "2026-05-07T12:10:00.000Z" } },
+        ],
+      },
+    },
+  };
+  const storage = createAppStateFetchMock({
+    [appStateSessionPlannerPath]: createAppStateStorageEntry(appStateSessionPlannerKey, existingState),
+  });
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        key: appStateSessionPlannerKey,
+        value: JSON.stringify(staleIncomingState),
+      }),
+    });
+    expect(response.status).toBe(200);
+    expect(response.payload).toMatchObject({
+      ok: true,
+      merged: true,
+    });
+
+    const storedState = JSON.parse(storage.objects.get(appStateSessionPlannerPath).value);
+    const storedBlocks = storedState.sessions["2026-05-05"].blocks;
+    expect(storedBlocks.map((block) => block.id)).toEqual(["block-1", "block-2"]);
+    expect(storedBlocks[0].title).toBe("Block one edited");
+    expect(storedBlocks[1].title).toBe("Block two");
+  } finally {
+    global.fetch = originalFetch;
     restoreEnv(env);
   }
 });

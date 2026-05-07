@@ -910,6 +910,7 @@
           hydrating: false,
           lastError: "",
           lastSyncedAt: "",
+          metadata: {},
         };
         let postAuthHydrationTimer = 0;
         let postAuthHydrationRunId = 0;
@@ -1623,10 +1624,16 @@
           return { value: mergedValue, changed: mergedValue !== centralValue };
         }
 
-        function applyCentralStateEntries(entries = {}) {
+        function applyCentralStateEntries(entries = {}, metadata = {}) {
           const normalizedEntries = Object.fromEntries(
             Object.entries(entries || {}).filter(([key, value]) => isCentralStateKey(key) && typeof value === "string")
           );
+          centralState.metadata = Object.entries(metadata || {}).reduce((normalized, [key, value]) => {
+            if (isCentralStateKey(key) && value && typeof value === "object") {
+              normalized[key] = value;
+            }
+            return normalized;
+          }, {});
           const pendingEntries = readCentralSyncManifestEntries();
           const writeBackEntries = [];
           window.__footballScienceCentralHydrating = true;
@@ -1669,6 +1676,7 @@
             centralState.hydrating = false;
             centralState.lastError = "";
             centralState.lastSyncedAt = new Date().toISOString();
+            centralState.metadata = {};
             window.dispatchEvent(
               new CustomEvent("footballscience:central-state-ready", {
                 detail: { entries: collectCentralLocalStateEntries(), localDev: true },
@@ -1693,9 +1701,12 @@
             const entries = response.payload?.entries && typeof response.payload.entries === "object"
               ? response.payload.entries
               : {};
+            const metadata = response.payload?.metadata && typeof response.payload.metadata === "object"
+              ? response.payload.metadata
+              : {};
             const hasCentralEntries = Object.keys(entries).length > 0;
             if (hasCentralEntries) {
-              applyCentralStateEntries(entries);
+              applyCentralStateEntries(entries, metadata);
             } else {
               const localEntries = collectCentralLocalStateEntries();
               if (Object.keys(localEntries).length) {
@@ -1706,6 +1717,14 @@
                 if (!seedResponse.ok) {
                   centralState.lastError = seedResponse.payload?.reason || "Central app data could not be seeded.";
                   return false;
+                }
+                if (Array.isArray(seedResponse.payload?.results)) {
+                  centralState.metadata = seedResponse.payload.results.reduce((normalized, result) => {
+                    if (isCentralStateKey(result?.key) && result?.metadata) {
+                      normalized[result.key] = result.metadata;
+                    }
+                    return normalized;
+                  }, {});
                 }
               }
             }
@@ -1738,12 +1757,15 @@
           }
 
           try {
+            const baseMetadata = centralState.metadata?.[key] || {};
             const response = await apiRequest(API_APP_STATE, {
               method: options.removed ? "DELETE" : "POST",
               body: JSON.stringify({
                 key,
                 value: String(value ?? ""),
                 removed: Boolean(options.removed),
+                baseHash: baseMetadata.hash || "",
+                baseUpdatedAt: baseMetadata.updatedAt || "",
               }),
             });
             if (!response.ok) {
@@ -1753,6 +1775,12 @@
 
             centralState.lastError = "";
             centralState.lastSyncedAt = new Date().toISOString();
+            if (response.payload?.metadata) {
+              centralState.metadata = {
+                ...centralState.metadata,
+                [key]: response.payload.metadata,
+              };
+            }
             return { ok: true, ...(response.payload || {}) };
           } catch (error) {
             centralState.lastError = error?.message || "Central sync failed.";

@@ -2686,6 +2686,65 @@ body {
   min-width: 3.25rem;
 }
 
+.dashboard-presence-avatar {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  line-height: 0;
+}
+
+.dashboard-chat-avatar-stack .dashboard-presence-avatar + .dashboard-presence-avatar,
+.dashboard-chat-thread-head-stack .dashboard-presence-avatar + .dashboard-presence-avatar {
+  margin-left: -0.72rem;
+}
+
+.dashboard-chat-avatar-stack .dashboard-presence-avatar:nth-child(1),
+.dashboard-chat-thread-head-stack .dashboard-presence-avatar:nth-child(1) {
+  z-index: 3;
+}
+
+.dashboard-chat-avatar-stack .dashboard-presence-avatar:nth-child(2),
+.dashboard-chat-thread-head-stack .dashboard-presence-avatar:nth-child(2) {
+  z-index: 2;
+}
+
+.dashboard-chat-avatar-stack .dashboard-presence-avatar:nth-child(3),
+.dashboard-chat-thread-head-stack .dashboard-presence-avatar:nth-child(3) {
+  z-index: 1;
+}
+
+.dashboard-presence-dot {
+  position: absolute;
+  right: -0.02rem;
+  bottom: -0.01rem;
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 999px;
+  border: 2px solid #fff;
+  background: #98a2b3;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
+}
+
+.dashboard-presence-dot.is-online {
+  background: #30d158;
+}
+
+.dashboard-presence-dot.is-away {
+  background: #ffb020;
+}
+
+.dashboard-presence-dot.is-offline {
+  background: #98a2b3;
+}
+
+.dashboard-presence-dot.is-inline {
+  position: static;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-width: 0;
+  box-shadow: none;
+}
+
 .dashboard-chat-stack-avatar,
 .dashboard-chat-stack-avatar.has-photo,
 .dashboard-chat-thread-head-avatar,

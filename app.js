@@ -763,6 +763,9 @@ async function flushCentralStateWrites() {
     }
 
     applyCentralSyncedStateValue(write, result.value);
+    if (result?.merged && write.key === sessionPlannerStorageKey && hubState?.activeWorkspaceId === "session-planner") {
+      showSessionPlannerToast("Central sync merged another coach's latest Session Planner changes.", "warning");
+    }
     setCentralSyncPendingState(write.key, false, write.removed);
   }
 
@@ -8920,6 +8923,7 @@ function renderDashboardChatWidget() {
   const launcherPreview = latestThread
     ? getDashboardChatWidgetThreadPreview(latestThread, users, currentUser)
     : "Open team room";
+  const teamPresenceLabel = getDashboardChatWidgetThreadStatus({ isTeamThread: true }, users);
 
   if (activeThreadId !== state.selectedThreadId) {
     writeDashboardChatWidgetState({
@@ -8938,7 +8942,7 @@ function renderDashboardChatWidget() {
                 ${renderDashboardChatWidgetAvatarStack(users)}
                 <span class="dashboard-chat-widget-title-copy">
                   <span>Team Chat</span>
-                  <small>${escapeHtml(unreadCount ? `${unreadCount} unread` : "Live staff workspace")}</small>
+                  <small>${escapeHtml(unreadCount ? `${unreadCount} unread` : teamPresenceLabel)}</small>
                 </span>
               </button>
               <div class="dashboard-chat-widget-actions">
@@ -26759,6 +26763,9 @@ function reloadCentralizedAppStateFromStorage() {
   }
 
   const previousSessionPlannerSelection = getCurrentSessionPlannerUiSelection();
+  if (hubState?.activeWorkspaceId === "session-planner") {
+    syncSelectedSessionPlannerBlockFieldsFromDom();
+  }
   hubState = repairWorkspaceState(readWorkspaceHubState());
   periodizationState = readPeriodizationState();
   scheduleState = readScheduleState();

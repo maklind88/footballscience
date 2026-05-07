@@ -102,7 +102,6 @@ const STATE_KEY_WORKSPACE_EDIT_MAP = {
   "football-simulator-sequence-library-v2": "game-simulator",
 };
 const ADMIN_ONLY_STATE_KEYS = new Set(["mak-coaching-platform-users-v1"]);
-const MERGE_PROTECTED_STATE_KEYS = new Set([SESSION_PLANNER_KEY, SESSION_EXERCISE_LIBRARY_KEY]);
 
 function storageHeaders(contentType = "application/json") {
   const { serviceRoleKey } = readConfig();
@@ -834,6 +833,15 @@ function filterStateEntriesForActor(actor, entries = {}) {
   }, {});
 }
 
+function filterStateMetadataForEntries(metadata = {}, entries = {}) {
+  return Object.keys(entries || {}).reduce((filtered, key) => {
+    if (metadata[key]) {
+      filtered[key] = metadata[key];
+    }
+    return filtered;
+  }, {});
+}
+
 async function writeStateObject(entry) {
   const path = objectPathForKey(entry.key);
   const result = await storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${path}`, {
@@ -920,10 +928,18 @@ async function applyStateEntries(actor, entries = {}) {
         });
       }
     }
-    results.push(entry.key);
+    results.push({
+      key: entry.key,
+      metadata: getStateEntryMetadata(entry),
+      merged: Boolean(authorization.merged),
+    });
   }
 
-  return { ok: true, keys: results };
+  return {
+    ok: true,
+    keys: results.map((result) => result.key),
+    results,
+  };
 }
 
 module.exports = async (req, res) => {
@@ -947,10 +963,12 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === "GET") {
-      const entries = await listStateObjects();
+      const stateObjects = await listStateObjects();
+      const entries = filterStateEntriesForActor(actor, stateObjects.entries);
       return sendJson(res, 200, {
         ok: true,
-        entries: filterStateEntriesForActor(actor, entries),
+        entries,
+        metadata: filterStateMetadataForEntries(stateObjects.metadata, entries),
         updatedAt: new Date().toISOString(),
       });
     }
@@ -1036,6 +1054,8 @@ module.exports = async (req, res) => {
       key: entry.key,
       updatedAt: entry.updatedAt,
       value: entry.value,
+      metadata: getStateEntryMetadata(entry),
+      merged: Boolean(authorization.merged),
     });
   } catch (error) {
     if (error?.code === "BODY_TOO_LARGE") {

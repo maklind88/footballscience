@@ -57,6 +57,9 @@ const coreFiles = [
   "src/modules/home/chat.mjs",
   "src/modules/home/chat-adapter.mjs",
   "src/modules/home/index.mjs",
+  "src/modules/schedule/events.mjs",
+  "src/modules/schedule/schedule-adapter.mjs",
+  "src/modules/schedule/index.mjs",
 ];
 
 test("protected product data remains covered by client safety, central state, and backups", () => {
@@ -133,12 +136,15 @@ test("core module contracts are covered by dedicated QA", () => {
   const modularCoreSpec = readProjectFile("qa/modular-core.api.spec.mjs");
   const homeTasksSpec = readProjectFile("qa/home-tasks-adapter.api.spec.mjs");
   const homeChatSpec = readProjectFile("qa/home-chat-adapter.api.spec.mjs");
+  const scheduleSpec = readProjectFile("qa/schedule-adapter.api.spec.mjs");
 
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-safety-contracts.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-tasks-adapter.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-chat-adapter.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/schedule-adapter.api.spec.mjs");
   expect(modularCoreSpec).toContain("modular core covers protected storage keys");
   expect(modularCoreSpec).toContain("read-only storage adapter blocks accidental writes");
   expect(homeTasksSpec).toContain("Home Tasks legacy read adapter uses the protected storage key");
   expect(homeChatSpec).toContain("Home Chat legacy read adapter uses the protected storage key");
+  expect(scheduleSpec).toContain("Schedule legacy read adapter uses the protected storage key");
 });

@@ -1,10 +1,10 @@
 {
   "scripts": {
-    "check": "node --check app.js && node --check src/core/index.mjs && node --check src/modules/manifest.mjs && node --check src/modules/home/index.mjs",
+    "check": "node --check app.js && node --check src/core/index.mjs && node --check src/modules/manifest.mjs && node --check src/modules/home/index.mjs && node --check src/modules/schedule/index.mjs",
     "qa": "npm run check && playwright test --config=qa/playwright.config.mjs",
     "qa:api": "playwright test --config=qa/playwright.config.mjs --project=api-contracts",
     "qa:browser": "playwright test --config=qa/playwright.config.mjs --project=chromium",
-    "qa:contracts": "playwright test --config=qa/playwright.config.mjs --project=api-contracts qa/platform-safety-contracts.api.spec.mjs qa/modular-core.api.spec.mjs qa/home-tasks-adapter.api.spec.mjs qa/home-chat-adapter.api.spec.mjs",
+    "qa:contracts": "playwright test --config=qa/playwright.config.mjs --project=api-contracts qa/platform-safety-contracts.api.spec.mjs qa/modular-core.api.spec.mjs qa/home-tasks-adapter.api.spec.mjs qa/home-chat-adapter.api.spec.mjs qa/schedule-adapter.api.spec.mjs",
     "qa:live": "playwright test --config=qa/live.playwright.config.mjs",
     "qa:deploy": "npm run qa"
   },

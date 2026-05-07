@@ -44,6 +44,8 @@ Current inert skeleton:
 - `src/modules/home/tasks-adapter.mjs`
 - `src/modules/home/chat.mjs`
 - `src/modules/home/chat-adapter.mjs`
+- `src/modules/schedule/events.mjs`
+- `src/modules/schedule/schedule-adapter.mjs`
 
 These files are not loaded by `index.html` yet. They exist so future refactors have a safe destination and a tested contract before product logic moves.
 
@@ -55,6 +57,9 @@ First adapter boundary:
 - Home Chat has a read-only adapter for the existing `football-dashboard-chat-v1` payload.
 - It can normalize current messages, direct-message thread ids, unread counts, mentions, reactions, and thread lists without loading in the current UI.
 - Chat writes, read receipts, and destructive actions remain blocked until migration is explicitly enabled.
+- Schedule has a read-only adapter for the existing `football-schedule-v1` payload.
+- It can normalize current calendar state, select day/month events, identify main events, and locate training-session events.
+- Schedule writes and event removal remain blocked until migration is explicitly enabled.
 
 ### Stage 3: Data Adapter Layer
 

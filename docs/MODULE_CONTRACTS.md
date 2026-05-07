@@ -62,7 +62,7 @@ Each module owns:
 - `permissions`: admin/coach edit; broader staff view according to workspace access.
 - `events`: date selected, event created, event updated, event removed.
 - `qa`: schedule edits persist after refresh.
-- `migration`: move to `schedule_events` with `organization_id`, `team_id`, date, type, title, notes, and audit fields.
+- `migration`: move to `schedule_events` with `organization_id`, `team_id`, date, type, title, notes, and audit fields. Schedule now has an inert read-only adapter boundary in `src/modules/schedule/schedule-adapter.mjs`; it must stay read-only until migration is explicit.
 
 ## Periodization
 

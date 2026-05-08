@@ -1,6 +1,12 @@
+import { createSimulatorControlBindings } from "./src/modules/game-simulator/control-bindings.mjs";
+import { createSimulatorFullscreenController } from "./src/modules/game-simulator/fullscreen.mjs";
+import { createSimulatorKeyboardStateController } from "./src/modules/game-simulator/keyboard-state.mjs";
+import { createSimulatorWorkspaceController } from "./src/modules/game-simulator/workspace-controller.mjs";
+import { createDashboardChatWidgetRenderer } from "./src/modules/chat/chat-widget-renderer.mjs";
+import { createDashboardHomeCardsRenderer } from "./src/modules/home/dashboard-renderer.mjs";
+import { selectHomeTaskQueues } from "./src/modules/home/tasks.mjs";
 const canvas = document.getElementById("pitchCanvas");
 const ctx = canvas.getContext("2d");
-
 const ui = {
   hubShell: document.getElementById("hubShell"),
   hubSidebar: document.getElementById("hubSidebar"),
@@ -155,13 +161,62 @@ const ui = {
   savedSequenceStatus: document.getElementById("savedSequenceStatus"),
   savedSequenceList: document.getElementById("savedSequenceList"),
 };
-
+const gameSimulatorFullscreenController = createSimulatorFullscreenController({
+  getStageElement: () => ui.pitchStage,
+  getCanvasElement: () => canvas,
+  getButtonElement: () => ui.pitchFullscreenButton,
+  documentRef: document,
+  log: (message) => logEvent(message),
+});
+const gameSimulatorKeyboardState = createSimulatorKeyboardStateController({
+  onActionModeChanged: () => {
+    updateModeButtons();
+    render();
+  },
+});
+const gameSimulatorWorkspaceController = createSimulatorWorkspaceController({
+  getWorkspaceElement: () => ui.gameSimulatorWorkspace,
+  getIntroElement: () => ui.gameSimulatorIntro,
+  getPitchStageElement: () => ui.pitchStage,
+  getIsActiveWorkspace: () => isGameSimulatorWorkspaceActive(),
+  render: () => render(),
+  renderWorkspaceChrome: () => renderWorkspaceChrome(),
+  log: (message) => logEvent(message),
+  syncFullscreen: () => syncPitchFullscreenButton(),
+  documentRef: document,
+  requestAnimationFrame: (callback) => window.requestAnimationFrame(callback),
+});
+const gameSimulatorControlBindings = createSimulatorControlBindings({
+  windowRef: window,
+  documentRef: document,
+  getIntroButton: () => ui.simulatorIntroEnterButton,
+  getFullscreenButton: () => ui.pitchFullscreenButton,
+  isActiveWorkspace: () => isGameSimulatorWorkspaceActive(),
+  isLaunched: () => gameSimulatorWorkspaceController.isLaunched(),
+  getOffensiveAutopilotEnabled: () => state.offensiveAutopilot,
+  getKeyboardActionMode: () => state.keyboardActionMode,
+  hasActiveMetricTooltip: () => Boolean(activeMetricTooltipTarget && !ui.metricTooltip?.hidden),
+  launchFromIntro: () => launchGameSimulatorFromIntro(),
+  toggleFullscreen: () => togglePitchFullscreen(),
+  syncFullscreenButton: () => syncPitchFullscreenButton(),
+  updateFullscreenHudLayout: () => updatePitchFullscreenHudLayout(),
+  ensureMetricTooltipLayer: () => ensureMetricTooltipLayer(),
+  positionMetricTooltip: () => positionMetricTooltip(activeMetricTooltipTarget),
+  resetIntro: () => resetGameSimulatorIntro(),
+  renderWorkspaceChrome: () => renderWorkspaceChrome(),
+  shouldIgnoreSpaceAutopilotHotkey: (event) => shouldIgnoreSpaceAutopilotHotkey(event),
+  toggleSpaceAutopilotPlayback: () => toggleSpaceAutopilotPlayback(),
+  shouldIgnoreHotkey: (event) => shouldIgnoreHotkey(event),
+  executePlannedAction: () => executePlannedAction(),
+  setKeyboardActionMode: (mode) => setKeyboardActionMode(mode),
+  armKeyboardActionGrace: (mode) => armKeyboardActionGrace(mode),
+  clearKeyboardActionGrace: () => clearKeyboardActionGrace(),
+});
 const pitch = {
   length: 105,
   width: 68,
   inset: 2,
 };
-
 const teams = {
   home: {
     id: "home",
@@ -186,7 +241,6 @@ const teams = {
     },
   },
 };
-
 const defaultTeamIdentities = {
   home: {
     attackStyle: "control-possession",
@@ -197,9 +251,7 @@ const defaultTeamIdentities = {
     defenseStyle: "mid-block",
   },
 };
-
 const defaultPhysicalProfileKey = "elite-women";
-
 const competitionPhysicalProfiles = {
   "elite-women": {
     key: "elite-women",
@@ -255,19 +307,15 @@ const competitionPhysicalProfiles = {
     },
   },
 };
-
 const defaultKickoffTeamId = "home";
-
 const defaultFormations = {
   home: "4-3-3",
   away: "3-4-3",
 };
-
 const teamRosterOrder = {
   home: ["H1", "H2", "H3", "H4", "H5", "H6", "H8", "H10", "H11", "H9", "H7"],
   away: ["A1", "A2", "A3", "A4", "A5", "A6", "A8", "A7", "A11", "A9", "A10"],
 };
-
 const formationLayouts = {
   "4-3-3": [
     [7.5, 34],
@@ -348,7 +396,6 @@ const formationLayouts = {
     [58, 40],
   ],
 };
-
 const playerRadiusMeters = 1.2;
 const ballRadiusMeters = 0.58;
 const sequenceStorageKey = "football-simulator-sequence-v1";
@@ -360,14 +407,15 @@ const defaultScenarioInfo = {
   meta:
     "Every pass, dribble or shot is saved automatically as a step that you can adjust, jump between and replay from the current position.",
 };
-
 const workspaceHubStorageKey = "football-workspace-hub-v3";
+const workspaceHubDefaultActiveWorkspaceId = "home";
 const periodizationStorageKey = "football-periodization-v2";
 const scheduleStorageKey = "football-schedule-v1";
 // Bump this when the session planner data shape changes so old browser storage
 // cannot make a new deployment render like a previous version.
 const sessionPlannerStorageKey = "football-session-planner-v3";
 const sessionPlannerBlockReductionGuardKey = "blockReductionGuard";
+const sessionPlannerBlockDeletionTombstoneKey = "blockDeletionTombstones";
 const sessionPlannerBlockReductionGuardMaxAgeMs = 30 * 60 * 1000;
 const sessionPlannerBlockFieldUpdatedAtKey = "fieldUpdatedAt";
 const sessionPlannerBlockMergeFields = Object.freeze([
@@ -397,6 +445,16 @@ const sessionPlannerBlockMergeFieldSet = new Set(sessionPlannerBlockMergeFields)
 const sessionPlannerExerciseLibraryStorageKey = "football-session-exercise-library-v1";
 const sessionPlannerExerciseLibraryBackupStorageKey = "football-session-exercise-library-backup-v1";
 const sessionPlannerExerciseLibraryBackupSchema = "football-session-exercise-library-backup-v1";
+const sessionPlannerExerciseLibraryFoldersStorageKey = "football-session-exercise-library-folders-v1";
+const sessionPlannerExerciseLibraryFoldersBackupStorageKey = "football-session-exercise-library-folders-backup-v1";
+const sessionPlannerExerciseLibraryFoldersBackupSchema = "football-session-exercise-library-folders-backup-v1";
+const sessionPlannerExerciseLibraryVersionLimit = 8;
+const sessionPlannerLibrarySortOptions = [
+  { value: "updated", label: "Recently updated" },
+  { value: "created", label: "Newest created" },
+  { value: "title", label: "Title A-Z" },
+  { value: "phase", label: "Phase" },
+];
 const playerProfilesStorageKey = "football-player-profiles-v1";
 const dashboardTaskStorageKey = "football-dashboard-tasks-v1";
 const dashboardChatStorageKey = "football-dashboard-chat-v1";
@@ -404,7 +462,9 @@ const dashboardChatWidgetStateStorageKey = "football-dashboard-chat-widget-state
 const dashboardChatWidgetNotificationCursorStorageKey = "football-dashboard-chat-widget-notification-cursor-v1";
 const dashboardChatWidgetNotificationStateStorageKey = "football-dashboard-chat-widget-notification-state-v1";
 const dashboardChatTeamThreadId = "team";
+const dashboardChatMaxMessageLength = 1600;
 const dashboardChatWidgetMessageLimit = 50;
+const dashboardChatApiPageLimit = 40;
 const dashboardChatPinnedLimit = 3;
 const dashboardChatReactionOptions = [
   { key: "seen", label: "Seen" },
@@ -418,6 +478,13 @@ const dashboardChatPriorityOptions = [
   { key: "urgent", label: "Urgent" },
 ];
 const dashboardChatPriorityKeys = new Set(dashboardChatPriorityOptions.map((option) => option.key));
+const dashboardChatAdvancedThreadTemplates = [
+  { key: "staff", label: "Staff", type: "group", title: "Staff Room", visibility: "staff" },
+  { key: "medical", label: "Medical", type: "medical", title: "Medical Room", visibility: "medical" },
+  { key: "matchday", label: "Matchday", type: "matchday", title: "Matchday Room", visibility: "staff" },
+  { key: "training", label: "Training", type: "training", title: "Training Room", visibility: "members" },
+  { key: "announcements", label: "Announcements", type: "announcement", title: "Announcements", visibility: "staff" },
+];
 const dashboardNotificationSeenStorageKey = "football-dashboard-notification-seen-v1";
 const dashboardTutorialPrefsStorageKey = "football-dashboard-tutorial-prefs-v1";
 const dashboardNewsSeenStorageKey = "football-dashboard-news-seen-v1";
@@ -426,6 +493,7 @@ const dataSafetyStorageKey = "football-data-safety-v1";
 const dataSafetyExportSchema = "football-science-backup-v1";
 const dataSafetyDatabaseName = "football-science-data-safety-v1";
 const maxProfileImageUrlLength = 1800;
+const maxProfileImageUploadDataUrlLength = 900000;
 const dataSafetySnapshotStoreName = "snapshots";
 const dataSafetyLatestStoreName = "latest";
 const dataSafetyMaxSnapshots = 30;
@@ -436,6 +504,8 @@ const dataSafetyProtectedStorageKeys = [
   sessionPlannerStorageKey,
   sessionPlannerExerciseLibraryStorageKey,
   sessionPlannerExerciseLibraryBackupStorageKey,
+  sessionPlannerExerciseLibraryFoldersStorageKey,
+  sessionPlannerExerciseLibraryFoldersBackupStorageKey,
   playerProfilesStorageKey,
   dashboardTaskStorageKey,
   dashboardChatStorageKey,
@@ -454,6 +524,8 @@ const dataSafetyStorageLabels = {
   [sessionPlannerStorageKey]: "Session Planner",
   [sessionPlannerExerciseLibraryStorageKey]: "Exercise Library",
   [sessionPlannerExerciseLibraryBackupStorageKey]: "Exercise Library Backup",
+  [sessionPlannerExerciseLibraryFoldersStorageKey]: "Exercise Library Folders",
+  [sessionPlannerExerciseLibraryFoldersBackupStorageKey]: "Exercise Library Folders Backup",
   [dashboardTaskStorageKey]: "Dashboard Tasks",
   [dashboardChatStorageKey]: "Team Chat",
   [dashboardNotificationSeenStorageKey]: "Home Notifications",
@@ -484,7 +556,37 @@ const dataSafetyRuntimeStatus = {
   lastError: "",
   lastSnapshotError: "",
 };
-
+const dashboardHomeCardsRenderer = createDashboardHomeCardsRenderer({
+  escapeHtml,
+  renderTaskList: (tasks, users, currentUser, options) => renderDashboardTaskList(tasks, users, currentUser, options),
+  resolveUserLabel: (userId, users) => getDashboardUserLabel(userId, users),
+});
+const dashboardChatWidgetRenderer = createDashboardChatWidgetRenderer({
+  teamThreadId: dashboardChatTeamThreadId,
+  messageLimit: dashboardChatWidgetMessageLimit,
+  maxMessageLength: dashboardChatMaxMessageLength,
+  priorityOptions: dashboardChatPriorityOptions,
+  escapeHtml,
+  formatUserName,
+  formatTime: formatDashboardTime,
+  normalizePriority: normalizeDashboardChatPriority,
+  getPresenceSummary: getDashboardPresenceSummary,
+  getPresenceStatus: getDashboardPresenceStatus,
+  getPresenceLabel: getDashboardPresenceLabel,
+  renderPresenceAvatar: renderDashboardPresenceAvatar,
+  renderMessageStatus: renderDashboardMessageStatus,
+  renderMessageText: renderDashboardMessageText,
+  renderMessageAttachments: renderDashboardMessageAttachments,
+  renderMessageReactions: renderDashboardMessageReactions,
+  renderMessageAttachments: renderDashboardMessageAttachments,
+  renderReplyReference: renderDashboardReplyReference,
+  renderPinnedMessages: renderDashboardPinnedMessages,
+  renderTypingIndicator: renderDashboardTypingIndicator,
+  getPinnedMessagesForThread: getDashboardPinnedMessagesForThread,
+  getMessageById: getDashboardMessageById,
+  canDeleteMessage: isCurrentPlatformUserAdmin,
+  canPinMessage: canPinDashboardChatMessage,
+});
 function getDataSafetyStorage() {
   try {
     return window.localStorage;
@@ -492,61 +594,48 @@ function getDataSafetyStorage() {
     return null;
   }
 }
-
 function getDataSafetyNow() {
   return new Date().toISOString();
 }
-
 function isDataSafetyInternalStorageKey(key) {
   const normalizedKey = String(key || "");
   return normalizedKey === dataSafetyStorageKey || normalizedKey.startsWith("football-data-safety-");
 }
-
 function isDataSafetyProtectedStorageKey(key) {
   const normalizedKey = String(key || "");
   if (!normalizedKey || isDataSafetyInternalStorageKey(normalizedKey)) {
     return false;
   }
-
   return dataSafetyProtectedStorageKeySet.has(normalizedKey);
 }
-
 function rawDataSafetyGetItem(key) {
   const storage = getDataSafetyStorage();
   if (!storage || !dataSafetyNativeGetItem) {
     return null;
   }
-
   return dataSafetyNativeGetItem.call(storage, key);
 }
-
 function rawDataSafetySetItem(key, value) {
   const storage = getDataSafetyStorage();
   if (!storage || !dataSafetyNativeSetItem) {
     return;
   }
-
   dataSafetyNativeSetItem.call(storage, key, value);
 }
-
 function rawDataSafetyRemoveItem(key) {
   const storage = getDataSafetyStorage();
   if (!storage || !dataSafetyNativeRemoveItem) {
     return;
   }
-
   dataSafetyNativeRemoveItem.call(storage, key);
 }
-
 function rawDataSafetyKey(index) {
   const storage = getDataSafetyStorage();
   if (!storage || !dataSafetyNativeKey) {
     return null;
   }
-
   return dataSafetyNativeKey.call(storage, index);
 }
-
 function createDataSafetyManifest() {
   return {
     version: 1,
@@ -565,14 +654,12 @@ function createDataSafetyManifest() {
     entries: {},
   };
 }
-
 function readDataSafetyManifest() {
   try {
     const raw = rawDataSafetyGetItem(dataSafetyStorageKey);
     if (!raw) {
       return createDataSafetyManifest();
     }
-
     const parsed = JSON.parse(raw);
     return {
       ...createDataSafetyManifest(),
@@ -583,28 +670,24 @@ function readDataSafetyManifest() {
     return createDataSafetyManifest();
   }
 }
-
 function writeDataSafetyManifest(manifest) {
   const normalizedManifest = {
     ...createDataSafetyManifest(),
     ...manifest,
     updatedAt: getDataSafetyNow(),
   };
-
   try {
     rawDataSafetySetItem(dataSafetyStorageKey, JSON.stringify(normalizedManifest));
   } catch (error) {
     dataSafetyRuntimeStatus.lastError = error?.message || "Data safety manifest could not be saved.";
   }
 }
-
 function mutateDataSafetyManifest(mutator) {
   const manifest = readDataSafetyManifest();
   mutator(manifest);
   writeDataSafetyManifest(manifest);
   return manifest;
 }
-
 function hashDataSafetyString(value) {
   const text = String(value ?? "");
   let hash = 2166136261;
@@ -612,36 +695,38 @@ function hashDataSafetyString(value) {
     hash ^= text.charCodeAt(index);
     hash = Math.imul(hash, 16777619);
   }
-
   return (hash >>> 0).toString(36);
 }
-
 function getDataSafetyStorageLabel(key) {
   return dataSafetyStorageLabels[key] || key.replace(/^football-/, "").replaceAll("-", " ");
 }
-
 let centralStateWriteTimer = null;
 let centralStateRefreshTimer = null;
 const centralStateWriteQueue = new Map();
-const centralStateRefreshIntervalMs = 18000;
-
+const centralStateWriteSuppressionKeys = new Set();
+const centralStateRefreshIntervalMs = 10000;
 function getCentralStateBridge() {
   return window.footballScienceCentralState ?? null;
 }
-
+function getCentralStateMetadataForKey(key) {
+  const metadata = getCentralStateBridge()?.getStatus?.()?.metadata;
+  const entry = metadata?.[String(key || "")];
+  return entry && typeof entry === "object" ? entry : {};
+}
+function getCentralStateRevisionForKey(key) {
+  const revision = Number(getCentralStateMetadataForKey(key).revision);
+  return Number.isInteger(revision) && revision >= 0 ? revision : 0;
+}
 function canWriteCentralBackedCache() {
   if (window.__footballScienceCentralHydrating) {
     return true;
   }
-
   const bridge = getCentralStateBridge();
   return Boolean(getCurrentPlatformUser() && bridge?.syncKey);
 }
-
 function createCentralBackedStorageError() {
   return new Error("Central Supabase sync is not ready. Changes are saved locally and will sync later.");
 }
-
 function setCentralSyncPendingState(key, isPending = false, isRemoved = false) {
   const normalizedKey = String(key || "");
   mutateDataSafetyManifest((manifest) => {
@@ -655,45 +740,37 @@ function setCentralSyncPendingState(key, isPending = false, isRemoved = false) {
   });
   queueDataSafetyStatusRefresh();
 }
-
 function queueCentralStateStatus(error = "") {
   mutateDataSafetyManifest((manifest) => {
     if (error) {
       manifest.lastCentralError = error;
       return;
     }
-
     manifest.lastCentralError = "";
     manifest.lastCentralSyncedAt = getDataSafetyNow();
   });
   queueDataSafetyStatusRefresh();
 }
-
 function hasPendingCentralStateWrites() {
   if (centralStateWriteTimer || centralStateWriteQueue.size) {
     return true;
   }
-
   return Object.values(readDataSafetyManifest().entries || {}).some((entry) => entry?.pendingCentralSync);
 }
-
 function applyCentralSyncedStateValue(write = {}, syncedValue) {
   const key = String(write.key || "");
   if (!key || write.removed || typeof syncedValue !== "string") {
     return;
   }
-
   if (centralStateWriteQueue.has(key) || rawDataSafetyGetItem(key) !== write.value || syncedValue === write.value) {
     return;
   }
-
   window.__footballScienceCentralHydrating = true;
   try {
     rawDataSafetySetItem(key, syncedValue);
   } finally {
     window.__footballScienceCentralHydrating = false;
   }
-
   mutateDataSafetyManifest((manifest) => {
     const currentEntry = manifest.entries[key] || {};
     manifest.entries[key] = {
@@ -706,7 +783,6 @@ function applyCentralSyncedStateValue(write = {}, syncedValue) {
     };
   });
   queueDataSafetySnapshot("central-merge");
-
   if (key === sessionPlannerStorageKey) {
     sessionPlannerState = readSessionPlannerStatePreservingUiSelection();
     if (hubState?.activeWorkspaceId === "session-planner" && !shouldDeferCentralizedAppStateReload()) {
@@ -714,59 +790,78 @@ function applyCentralSyncedStateValue(write = {}, syncedValue) {
     }
     return;
   }
-
   if (key === sessionPlannerExerciseLibraryStorageKey) {
     sessionPlannerExerciseLibrary = readSessionPlannerExerciseLibrary();
     if (hubState?.activeWorkspaceId === "session-planner" && !shouldDeferCentralizedAppStateReload()) {
       renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
     }
+    return;
+  }
+  if (key === sessionPlannerExerciseLibraryFoldersStorageKey) {
+    sessionPlannerExerciseLibraryFolders = readSessionPlannerExerciseLibraryFolders();
+    if (hubState?.activeWorkspaceId === "session-planner" && !shouldDeferCentralizedAppStateReload()) {
+      renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+    }
+    return;
+  }
+  if (key === dashboardChatStorageKey) {
+    renderDashboardChatWidget();
+    renderTopIconMenu();
+    return;
+  }
+  if (key === playerProfilesStorageKey) {
+    playerProfilesState = readPlayerProfilesState();
+    if (hubState?.activeWorkspaceId === "player-profiles" && !shouldDeferCentralizedAppStateReload()) {
+      renderPlayerProfilesWorkspace();
+    }
   }
 }
-
 function queueCentralStateWrite(key, value, options = {}) {
   if (window.__footballScienceCentralHydrating) {
     return;
   }
-
   const normalizedKey = String(key || "");
   if (!isDataSafetyProtectedStorageKey(normalizedKey)) {
     return;
   }
-
   const bridge = getCentralStateBridge();
   if (!getCurrentPlatformUser() || !bridge?.syncKey) {
     queueCentralStateStatus("Central sync is not available.");
     return;
   }
-
   setCentralSyncPendingState(normalizedKey, true, Boolean(options.removed));
-
   centralStateWriteQueue.set(normalizedKey, {
     key: normalizedKey,
     value: String(value ?? ""),
     removed: Boolean(options.removed),
+    baseRevision: getCentralStateRevisionForKey(normalizedKey),
   });
-
   if (centralStateWriteTimer) {
     window.clearTimeout(centralStateWriteTimer);
   }
-
   centralStateWriteTimer = window.setTimeout(flushCentralStateWrites, 120);
 }
-
 async function flushCentralStateWrites() {
   centralStateWriteTimer = null;
   const bridge = getCentralStateBridge();
   if (!bridge?.syncKey || !centralStateWriteQueue.size) {
     return;
   }
-
   const writes = Array.from(centralStateWriteQueue.values());
   centralStateWriteQueue.clear();
   for (let index = 0; index < writes.length; index += 1) {
     const write = writes[index];
-    const result = await bridge.syncKey(write.key, write.value, { removed: write.removed });
+    const result = await bridge.syncKey(write.key, write.value, {
+      removed: write.removed,
+      baseRevision: write.baseRevision,
+    });
     if (!result?.ok) {
+      if (result?.conflict || result?.status === 409) {
+        setCentralSyncPendingState(write.key, false, write.removed);
+        queueCentralStateStatus(result?.reason || "Central state is newer. Local cache was refreshed.");
+        await bridge.hydrate?.().catch(() => {});
+        continue;
+      }
       for (let retryIndex = index; retryIndex < writes.length; retryIndex += 1) {
         const retryWrite = writes[retryIndex];
         centralStateWriteQueue.set(retryWrite.key, retryWrite);
@@ -774,23 +869,19 @@ async function flushCentralStateWrites() {
       queueCentralStateStatus(result?.reason || "Central sync failed.");
       return;
     }
-
     applyCentralSyncedStateValue(write, result.value);
     if (result?.merged && write.key === sessionPlannerStorageKey && hubState?.activeWorkspaceId === "session-planner") {
       showSessionPlannerToast("Central sync merged another coach's latest Session Planner changes.", "warning");
     }
     setCentralSyncPendingState(write.key, false, write.removed);
   }
-
   queueCentralStateStatus("");
 }
-
 function recordDataSafetyWrite(key, value, options = {}) {
   const normalizedKey = String(key || "");
   if (!isDataSafetyProtectedStorageKey(normalizedKey)) {
     return;
   }
-
   const textValue = String(value ?? "");
   const now = getDataSafetyNow();
   dataSafetyRuntimeStatus.lastError = "";
@@ -809,10 +900,11 @@ function recordDataSafetyWrite(key, value, options = {}) {
     };
   });
   queueDataSafetySnapshot(options.removed ? "after-remove" : "autosave");
-  queueCentralStateWrite(normalizedKey, textValue, options);
+  if (!centralStateWriteSuppressionKeys.has(normalizedKey)) {
+    queueCentralStateWrite(normalizedKey, textValue, options);
+  }
   queueDataSafetyStatusRefresh();
 }
-
 function handleDataSafetyWriteError(key, error) {
   const message = error?.message || "Local save failed.";
   dataSafetyRuntimeStatus.lastError = message;
@@ -822,14 +914,12 @@ function handleDataSafetyWriteError(key, error) {
   });
   queueDataSafetyStatusRefresh();
 }
-
 function collectFootballScienceStorageData() {
   const storage = getDataSafetyStorage();
   const data = {};
   if (!storage) {
     return data;
   }
-
   const keys = new Set(dataSafetyProtectedStorageKeys);
   for (let index = 0; index < storage.length; index += 1) {
     const key = rawDataSafetyKey(index);
@@ -837,17 +927,14 @@ function collectFootballScienceStorageData() {
       keys.add(key);
     }
   }
-
   keys.forEach((key) => {
     const value = rawDataSafetyGetItem(key);
     if (value !== null) {
       data[key] = value;
     }
   });
-
   return data;
 }
-
 function createFootballScienceBackupEnvelope(reason = "manual") {
   const storage = collectFootballScienceStorageData();
   const entries = Object.entries(storage).map(([key, value]) => ({
@@ -856,7 +943,6 @@ function createFootballScienceBackupEnvelope(reason = "manual") {
     size: value.length,
     hash: hashDataSafetyString(value),
   }));
-
   return {
     schema: dataSafetyExportSchema,
     app: "Football Science",
@@ -871,7 +957,6 @@ function createFootballScienceBackupEnvelope(reason = "manual") {
     storage,
   };
 }
-
 function waitForDataSafetyTransaction(transaction) {
   return new Promise((resolve, reject) => {
     transaction.oncomplete = () => resolve();
@@ -879,18 +964,15 @@ function waitForDataSafetyTransaction(transaction) {
     transaction.onabort = () => reject(transaction.error);
   });
 }
-
 function openDataSafetyDatabase() {
   if (dataSafetyDbPromise) {
     return dataSafetyDbPromise;
   }
-
   dataSafetyDbPromise = new Promise((resolve, reject) => {
     if (!window.indexedDB) {
       reject(new Error("IndexedDB is not available."));
       return;
     }
-
     const request = window.indexedDB.open(dataSafetyDatabaseName, 1);
     request.onupgradeneeded = () => {
       const database = request.result;
@@ -904,10 +986,8 @@ function openDataSafetyDatabase() {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
-
   return dataSafetyDbPromise;
 }
-
 async function pruneDataSafetySnapshots(database) {
   const keys = await new Promise((resolve, reject) => {
     const transaction = database.transaction(dataSafetySnapshotStoreName, "readonly");
@@ -915,24 +995,20 @@ async function pruneDataSafetySnapshots(database) {
     request.onsuccess = () => resolve(Array.from(request.result || []));
     request.onerror = () => reject(request.error);
   });
-
   if (keys.length <= dataSafetyMaxSnapshots) {
     return;
   }
-
   const keysToDelete = keys.sort().slice(0, keys.length - dataSafetyMaxSnapshots);
   const transaction = database.transaction(dataSafetySnapshotStoreName, "readwrite");
   const store = transaction.objectStore(dataSafetySnapshotStoreName);
   keysToDelete.forEach((key) => store.delete(key));
   await waitForDataSafetyTransaction(transaction);
 }
-
 async function saveDataSafetySnapshot(reason = "autosave") {
   const snapshot = {
     ...createFootballScienceBackupEnvelope(reason),
     id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
   };
-
   try {
     const database = await openDataSafetyDatabase();
     const transaction = database.transaction(
@@ -962,36 +1038,29 @@ async function saveDataSafetySnapshot(reason = "autosave") {
     return false;
   }
 }
-
 function queueDataSafetySnapshot(reason = "autosave") {
   if (dataSafetySnapshotTimer) {
     window.clearTimeout(dataSafetySnapshotTimer);
   }
-
   dataSafetySnapshotTimer = window.setTimeout(() => {
     dataSafetySnapshotTimer = null;
     saveDataSafetySnapshot(reason);
   }, 900);
 }
-
 function formatDataSafetyTime(value) {
   if (!value) {
     return "";
   }
-
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return "";
   }
-
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
-
 function refreshDataSafetyStatus() {
   if (!ui.dataSafetyStatus) {
     return;
   }
-
   const manifest = readDataSafetyManifest();
   const centralStatus = getCentralStateBridge()?.getStatus?.() ?? {};
   const error = dataSafetyRuntimeStatus.lastError || manifest.lastError;
@@ -1008,34 +1077,34 @@ function refreshDataSafetyStatus() {
     ui.dataSafetyStatus.title = centralError;
     return;
   }
-
   if (error) {
     ui.dataSafetyStatus.textContent = "Autosave needs attention";
     ui.dataSafetyStatus.title = error;
     return;
   }
-
   const centralTime = formatDataSafetyTime(centralStatus.lastSyncedAt || manifest.lastCentralSyncedAt);
   const snapshotTime = formatDataSafetyTime(manifest.lastSnapshotAt);
   const savedTime = formatDataSafetyTime(manifest.lastSavedAt);
+  if (centralStatus.localDev) {
+    ui.dataSafetyStatus.textContent = "Local dev cache";
+    ui.dataSafetyStatus.title = "You are on localhost/dev mode. Changes are saved in this browser only and are not shared with colleagues.";
+    return;
+  }
   if (hasPendingCentralSync) {
     ui.dataSafetyStatus.textContent = savedTime ? `Sync pending ${savedTime}` : "Sync pending";
     ui.dataSafetyStatus.title = "Changes are saved locally and waiting to be written to Supabase.";
     return;
   }
-
   if (centralTime) {
     ui.dataSafetyStatus.textContent = `Central sync ${centralTime}`;
     ui.dataSafetyStatus.title = "Football Science data is synced centrally through Supabase.";
     return;
   }
-
   if (snapshotTime) {
     ui.dataSafetyStatus.textContent = `Central cache ${snapshotTime}`;
     ui.dataSafetyStatus.title = "A browser cache snapshot exists, but Supabase remains the source of truth.";
     return;
   }
-
   if (savedTime) {
     ui.dataSafetyStatus.textContent = `Waiting for central sync ${savedTime}`;
     ui.dataSafetyStatus.title = snapshotWarning
@@ -1043,29 +1112,24 @@ function refreshDataSafetyStatus() {
       : "Supabase is the source of truth. The browser cache is only used after central sync is ready.";
     return;
   }
-
   ui.dataSafetyStatus.textContent = "Central sync ready";
   ui.dataSafetyStatus.title = snapshotWarning
     ? `Supabase sync is ready. Browser cache snapshot issue: ${snapshotWarning}`
     : "Schedule, Periodization, Sessions, Player Profiles, Exercise Library, Medical, Simulator and Dashboard sync centrally after login.";
 }
-
 function queueDataSafetyStatusRefresh() {
   if (dataSafetyStatusTimer) {
     window.clearTimeout(dataSafetyStatusTimer);
   }
-
   dataSafetyStatusTimer = window.setTimeout(() => {
     dataSafetyStatusTimer = null;
     refreshDataSafetyStatus();
   }, 120);
 }
-
 function requestDataSafetyPersistentStorage() {
   if (!navigator.storage?.persist) {
     return;
   }
-
   navigator.storage
     .persist()
     .then((granted) => {
@@ -1080,7 +1144,6 @@ function requestDataSafetyPersistentStorage() {
       });
     });
 }
-
 function exportFootballScienceDataBackup() {
   try {
     const backup = createFootballScienceBackupEnvelope("manual-export");
@@ -1107,28 +1170,22 @@ function exportFootballScienceDataBackup() {
     window.alert(message);
   }
 }
-
 function getStorageFromFootballScienceBackup(backup) {
   if (!backup || typeof backup !== "object") {
     return null;
   }
-
   if (backup.schema === dataSafetyExportSchema && backup.storage && typeof backup.storage === "object") {
     return backup.storage;
   }
-
   if (backup.keys && typeof backup.keys === "object") {
     return backup.keys;
   }
-
   return null;
 }
-
 async function importFootballScienceDataBackupFile(file) {
   if (!file) {
     return;
   }
-
   let backup;
   try {
     backup = JSON.parse(await file.text());
@@ -1136,17 +1193,14 @@ async function importFootballScienceDataBackupFile(file) {
     window.alert("That file is not a valid Football Science backup.");
     return;
   }
-
   const storage = getStorageFromFootballScienceBackup(backup);
   const entries = Object.entries(storage || {}).filter(
     ([key, value]) => isDataSafetyProtectedStorageKey(key) && typeof value === "string"
   );
-
   if (!entries.length) {
     window.alert("That backup did not contain any restorable Football Science data.");
     return;
   }
-
   const createdAt = backup.createdAt ? new Date(backup.createdAt).toLocaleString() : "unknown time";
   const confirmed = window.confirm(
     `Restore Football Science data from ${createdAt}?\n\nCurrent local data will be snapshotted first, then the page will reload.`
@@ -1154,7 +1208,6 @@ async function importFootballScienceDataBackupFile(file) {
   if (!confirmed) {
     return;
   }
-
   await saveDataSafetySnapshot("before-restore");
   try {
     entries.forEach(([key, value]) => {
@@ -1175,18 +1228,15 @@ async function importFootballScienceDataBackupFile(file) {
     window.alert(message);
   }
 }
-
 function migrateDataSafetyLegacyStorageKeys() {
   Object.entries(dataSafetyLegacyStorageKeys).forEach(([currentKey, legacyKeys]) => {
     if (rawDataSafetyGetItem(currentKey) !== null) {
       return;
     }
-
     const legacyKey = legacyKeys.find((key) => rawDataSafetyGetItem(key) !== null);
     if (!legacyKey) {
       return;
     }
-
     const legacyValue = rawDataSafetyGetItem(legacyKey);
     try {
       rawDataSafetySetItem(currentKey, legacyValue);
@@ -1203,36 +1253,30 @@ function migrateDataSafetyLegacyStorageKeys() {
     }
   });
 }
-
 function installFootballDataSafety() {
   if (dataSafetyInstalled || typeof window === "undefined" || typeof Storage === "undefined") {
     return;
   }
-
   const storage = getDataSafetyStorage();
   if (!storage) {
     return;
   }
-
   dataSafetyNativeGetItem = Storage.prototype.getItem;
   dataSafetyNativeSetItem = Storage.prototype.setItem;
   dataSafetyNativeRemoveItem = Storage.prototype.removeItem;
   dataSafetyNativeClear = Storage.prototype.clear;
   dataSafetyNativeKey = Storage.prototype.key;
-
   Storage.prototype.setItem = function patchedDataSafetySetItem(key, value) {
     const normalizedKey = String(key || "");
     const normalizedValue = String(value ?? "");
     if (this !== storage || !isDataSafetyProtectedStorageKey(normalizedKey)) {
       return dataSafetyNativeSetItem.call(this, key, value);
     }
-
     if (!canWriteCentralBackedCache()) {
       const error = createCentralBackedStorageError();
       handleDataSafetyWriteError(normalizedKey, error);
       throw error;
     }
-
     const previousValue = rawDataSafetyGetItem(normalizedKey);
     try {
       const result = dataSafetyNativeSetItem.call(this, normalizedKey, normalizedValue);
@@ -1245,31 +1289,26 @@ function installFootballDataSafety() {
       throw error;
     }
   };
-
   Storage.prototype.removeItem = function patchedDataSafetyRemoveItem(key) {
     const normalizedKey = String(key || "");
     if (this !== storage || !isDataSafetyProtectedStorageKey(normalizedKey)) {
       return dataSafetyNativeRemoveItem.call(this, key);
     }
-
     if (!canWriteCentralBackedCache()) {
       const error = createCentralBackedStorageError();
       handleDataSafetyWriteError(normalizedKey, error);
       throw error;
     }
-
     const previousValue = rawDataSafetyGetItem(normalizedKey);
     if (previousValue !== null) {
       saveDataSafetySnapshot("before-remove");
     }
-
     const result = dataSafetyNativeRemoveItem.call(this, normalizedKey);
     if (previousValue !== null) {
       recordDataSafetyWrite(normalizedKey, "", { removed: true });
     }
     return result;
   };
-
   Storage.prototype.clear = function patchedDataSafetyClear() {
     const removedKeys = this === storage ? Object.keys(collectFootballScienceStorageData()) : [];
     if (this === storage && removedKeys.length && !canWriteCentralBackedCache()) {
@@ -1277,11 +1316,9 @@ function installFootballDataSafety() {
       handleDataSafetyWriteError(removedKeys[0], error);
       throw error;
     }
-
     if (this === storage && Object.keys(collectFootballScienceStorageData()).length) {
       saveDataSafetySnapshot("before-clear");
     }
-
     const result = dataSafetyNativeClear.call(this);
     if (this === storage) {
       mutateDataSafetyManifest((manifest) => {
@@ -1294,7 +1331,6 @@ function installFootballDataSafety() {
     }
     return result;
   };
-
   dataSafetyInstalled = true;
   migrateDataSafetyLegacyStorageKeys();
   mutateDataSafetyManifest((manifest) => {
@@ -1311,7 +1347,6 @@ function installFootballDataSafety() {
     saveSnapshot: saveDataSafetySnapshot,
   };
 }
-
 installFootballDataSafety();
 const dashboardNewsVersion = "home-dashboard-personal-todo-v2";
 const dashboardNewsItems = [
@@ -1480,7 +1515,6 @@ const defaultHubState = {
     },
   ],
 };
-
 const topIconMenuOrder = [
   "home",
   "schedule",
@@ -1494,8 +1528,8 @@ const topIconMenuOrder = [
   "team-identity",
   "game-simulator",
 ];
-
 const defaultWorkspaceAccess = {
+  chat: ["admin", "coach", "analyst", "performance", "medical"],
   schedule: ["admin", "coach", "analyst", "performance", "medical", "guest"],
   periodization: ["admin", "coach", "analyst", "performance", "medical"],
   "session-planner": ["admin", "coach", "analyst", "performance", "medical"],
@@ -1507,8 +1541,8 @@ const defaultWorkspaceAccess = {
   "team-identity": ["admin", "coach"],
   "game-simulator": ["admin", "coach", "analyst", "performance"],
 };
-
 const defaultWorkspaceEditAccess = {
+  chat: ["admin", "coach", "analyst", "performance", "medical"],
   schedule: ["admin", "coach"],
   periodization: ["admin", "coach", "performance"],
   "session-planner": ["admin", "coach"],
@@ -1525,8 +1559,19 @@ const requiredWorkspaceAccess = {
     view: ["admin", "coach", "analyst", "performance", "medical"],
     edit: ["admin", "coach"],
   },
+  "player-profiles": {
+    view: ["admin", "coach", "performance", "medical"],
+    edit: ["admin", "coach"],
+  },
+  "medical-team": {
+    view: ["admin", "coach", "performance", "medical"],
+    edit: ["admin", "medical", "performance"],
+  },
+  "team-identity": {
+    view: ["admin", "coach"],
+    edit: ["admin", "coach"],
+  },
 };
-
 const medicalParticipationOptions = [0, 10, 25, 50, 75, 100];
 const medicalStatusOptions = [
   { key: "full", label: "Full Training", tone: "full", defaultParticipation: 100 },
@@ -1851,7 +1896,6 @@ const defaultMedicalPlayers = [
     rosterOrder: 27,
   },
 ];
-
 const placeholderWorkspaceContent = {
   "team-identity": {
     tag: "Team Identity",
@@ -1995,7 +2039,6 @@ const placeholderWorkspaceContent = {
     ],
   },
 };
-
 const playerProfileRoleOptions = ["GK", "LB", "CB", "RB", "LWB", "RWB", "6", "8", "10", "LW", "RW", "ST"];
 const squadFormationOptions = [
   {
@@ -2148,9 +2191,35 @@ const playerProfileTabOptions = [
   { key: "medical", label: "Medical" },
   { key: "performance", label: "Performance" },
   { key: "notes", label: "Notes" },
+  { key: "history", label: "History" },
 ];
 const playerProfilesDefaultRosterVersion = "player-profiles-ncc-2026-v1";
-
+const playerProfilesSchemaVersion = 3;
+const playerProfileChangeLogLimit = 250;
+const playerProfileChangeFieldDefinitions = [
+  { key: "name", label: "Name" },
+  { key: "number", label: "Number" },
+  { key: "position", label: "Position" },
+  { key: "status", label: "Availability status", options: playerProfileStatusOptions },
+  { key: "squadStatus", label: "Squad status", options: playerProfileSquadStatusOptions },
+  { key: "careerPhase", label: "Career phase", options: playerProfileCareerPhaseOptions },
+  { key: "primaryRole", label: "Primary role" },
+  { key: "secondaryRoles", label: "Secondary roles", type: "array" },
+  { key: "preferredSide", label: "Preferred side", options: playerProfilePreferredSideOptions },
+  { key: "roleGroup", label: "Role group", options: playerProfileRoleGroupOptions },
+  { key: "idp.status", label: "IDP status", options: playerProfileIdpStatusOptions },
+  { key: "idp.primaryFocus", label: "IDP focus" },
+  { key: "idp.nextAction", label: "IDP next action" },
+  { key: "idp.reviewDate", label: "IDP review date" },
+  { key: "coachNotes", label: "Coach notes" },
+  { key: "futureData.performanceNotes", label: "Performance notes" },
+  { key: "futureData.scoutingNotes", label: "Scouting notes" },
+  { key: "futureData.analysisNotes", label: "Analysis notes" },
+  { key: "attributeRatings.technical", label: "Technical rating" },
+  { key: "attributeRatings.tactical", label: "Tactical rating" },
+  { key: "attributeRatings.physical", label: "Physical rating" },
+  { key: "attributeRatings.mental", label: "Mental rating" },
+];
 const periodizationMonthNames = [
   "January",
   "February",
@@ -2165,7 +2234,6 @@ const periodizationMonthNames = [
   "November",
   "December",
 ];
-
 const periodizationYear = 2026;
 const importedNccPeriodizationVersion = window.__importedNccPeriodizationVersion || "";
 const importedNccPeriodizationDays =
@@ -2180,7 +2248,6 @@ const defaultPeriodizationState = {
   importVersion: importedNccPeriodizationVersion,
   days: importedNccPeriodizationDays,
 };
-
 const periodizationPhaseLibrary = {
   "In Possession": ["Build with GK", "Build Up", "Creating Phase", "Finishing Phase"],
   "Out of Possession": ["High Press vs GK", "High Press", "Block Defending", "Box Defending"],
@@ -2195,7 +2262,6 @@ const periodizationPhaseLibrary = {
     "Throw Ins (Def)",
   ],
 };
-
 const periodizationTeamPrinciplesBySubPhase = {
   "Build with GK": [
     "Create time and space with positioning",
@@ -2258,7 +2324,6 @@ const periodizationTeamPrinciplesBySubPhase = {
     "Protect the goal/centre immediately after losing the ball",
   ],
 };
-
 const periodizationMiniGamePrinciplesBySubPhase = {
   "Build with GK": [
     "Drive past press",
@@ -2386,7 +2451,6 @@ const periodizationMiniGamePrinciplesBySubPhase = {
     "3. Long structure (Play into defind area, players around the ball).",
   ],
 };
-
 const periodizationOptionLibrary = {
   seasonPhase: ["Pre Season", "Competition", "Playoffs", "Transition", "Off Season"],
   daySchedule: ["Training", "Training + Travel", "Match", "Travel Day", "Recovery", "Meeting", "Off"],
@@ -2413,7 +2477,6 @@ const periodizationOptionLibrary = {
   teamPrinciples: Object.values(periodizationTeamPrinciplesBySubPhase).flat(),
   miniGamePrinciples: Object.values(periodizationMiniGamePrinciplesBySubPhase).flat(),
 };
-
 const squadBlueprints = [
   { team: "home", id: "H1", shortLabel: "GK", role: "Goalkeeper", position: [7.5, 34], maxSpeed: 5.4, acceleration: 1.9, reactionTime: 0.38 },
   { team: "home", id: "H2", shortLabel: "LB", role: "Left Back", position: [20, 11], maxSpeed: 8.1, acceleration: 2.8, reactionTime: 0.24 },
@@ -2438,7 +2501,6 @@ const squadBlueprints = [
   { team: "away", id: "A9", shortLabel: "ST", role: "Centre Forward", position: [54, 34], maxSpeed: 8.8, acceleration: 3.1, reactionTime: 0.18 },
   { team: "away", id: "A10", shortLabel: "RW", role: "Right Forward", position: [56, 54], maxSpeed: 8.8, acceleration: 3.1, reactionTime: 0.18 },
 ];
-
 const intelligenceRoleArchetypes = [
   {
     key: "goalkeeper",
@@ -2554,7 +2616,6 @@ const intelligenceRoleArchetypes = [
     },
   },
 ];
-
 const sprintRoleArchetypes = [
   {
     key: "goalkeeper",
@@ -2637,7 +2698,6 @@ const sprintRoleArchetypes = [
     shortBurstBoost: 0.07,
   },
 ];
-
 const playerTendencyTemplates = {
   balanced: {
     label: "Balanced Profile",
@@ -2728,7 +2788,6 @@ const playerTendencyTemplates = {
     switchPlay: 0.26,
   },
 };
-
 const gameRoleProfiles = {
   gk: {
     label: "Sweeper Keeper",
@@ -2763,7 +2822,6 @@ const gameRoleProfiles = {
     strengths: { creator: 0.08, receiver: 0.1, runner: 0.08, finisher: 0.1, dribbler: 0.05, switcher: -0.02 },
   },
 };
-
 const intelligenceLabelBoosts = {
   "6": 2,
   "8": 1,
@@ -2771,7 +2829,6 @@ const intelligenceLabelBoosts = {
   CB: 1,
   ST: 1,
 };
-
 const formationMagnetLabels = {
   "4-3-3": ["GK", "LB", "CB", "CB", "RB", "6", "8", "10", "W", "9", "W"],
   "4-1-4-1": ["GK", "LB", "CB", "CB", "RB", "6", "8", "8", "W", "9", "W"],
@@ -2780,7 +2837,6 @@ const formationMagnetLabels = {
   "4-2-3-1": ["GK", "LB", "CB", "CB", "RB", "6", "8", "W", "10", "W", "9"],
   "3-5-2": ["GK", "CB", "CB", "CB", "WB", "8", "6", "8", "WB", "9", "9"],
 };
-
 const defensiveAutopilotProfiles = {
   "4-3-3": {
     blockWidth: 40,
@@ -2843,7 +2899,6 @@ const defensiveAutopilotProfiles = {
     maxBackLineFromOwnGoal: 49,
   },
 };
-
 const offensiveAutopilotProfiles = {
   "4-3-3": {
     principleLabel: "triangles, high front three and overlapping width",
@@ -2977,7 +3032,6 @@ const offensiveAutopilotProfiles = {
     },
   },
 };
-
 const offensivePhaseProfiles = {
   setPiece: {
     label: "Set Piece",
@@ -3012,7 +3066,6 @@ const offensivePhaseProfiles = {
     finalThirdPin: 4,
   },
 };
-
 const matchPhaseModel = {
   inPossession: {
     label: "In Possession",
@@ -3035,7 +3088,6 @@ const matchPhaseModel = {
     description: "Restarts such as kick-off, corners, free-kicks, throw-ins, goal-kicks and penalties.",
   },
 };
-
 const setPiecePhaseProfiles = {
   kickoff: {
     label: "Kick-Off",
@@ -3063,7 +3115,6 @@ const setPiecePhaseProfiles = {
     principleLabel: "isolate the execution moment and prepare rebound positions",
   },
 };
-
 const attackStylePresets = {
   balanced: {
     label: "Balanced",
@@ -3334,14 +3385,12 @@ const attackStylePresets = {
     routeOneBias: 0.95,
   },
 };
-
 const possessionRhythmDefaults = {
   targetSeconds: 8.8,
   progressionUrgency: 0.5,
   sidewaysTolerance: 0.42,
   recycleWindow: 0.5,
 };
-
 const possessionRhythmByAttackStyle = {
   balanced: {
     targetSeconds: 8.8,
@@ -3422,14 +3471,12 @@ const possessionRhythmByAttackStyle = {
     recycleWindow: 0.16,
   },
 };
-
 function getAttackStyleRhythmProfile(styleKey = "balanced") {
   return {
     ...possessionRhythmDefaults,
     ...(possessionRhythmByAttackStyle[styleKey] ?? possessionRhythmByAttackStyle.balanced),
   };
 }
-
 const defenseStylePresets = {
   "balanced-block": {
     label: "Balanced Block",
@@ -3562,7 +3609,6 @@ const defenseStylePresets = {
     tackleIntent: 0.34,
   },
 };
-
 const defensivePhaseProfiles = {
   setPiece: {
     label: "Set Piece",
@@ -3738,7 +3784,6 @@ const defensivePhaseProfiles = {
     },
   },
 };
-
 const defensiveAggressionPresets = {
   conservative: {
     label: "Conservative",
@@ -3777,7 +3822,6 @@ const defensiveAggressionPresets = {
     scoreBonus: 0.025,
   },
 };
-
 const pitchSurfacePresets = {
   "natural-grass": {
     key: "natural-grass",
@@ -3801,7 +3845,6 @@ const pitchSurfacePresets = {
     dribbleCarryFactor: 1.015,
   },
 };
-
 const weatherPresets = {
   dry: {
     key: "dry",
@@ -3828,7 +3871,6 @@ const weatherPresets = {
     ballSkidFactor: 1.08,
   },
 };
-
 const firstTouchModes = {
   auto: "Auto",
   kill: "Kill",
@@ -3838,57 +3880,43 @@ const firstTouchModes = {
   back: "Back",
   across: "Across Body",
 };
-
 function resolvePreferredFoot(blueprint) {
   const role = blueprint?.role?.toLowerCase() ?? "";
   const shortLabel = blueprint?.shortLabel?.toUpperCase() ?? "";
-
   if (/\bleft\b/.test(role) || shortLabel.startsWith("L")) {
     return "left";
   }
-
   if (/\bright\b/.test(role) || shortLabel.startsWith("R")) {
     return "right";
   }
-
   if (/goalkeeper|center back|holding midfielder/.test(role)) {
     return "right";
   }
-
   if (/attacking midfielder|winger|forward|striker|centre forward/.test(role)) {
     return blueprint.team === "away" && /10|11/.test(blueprint.id) ? "left" : "right";
   }
-
   return "right";
 }
-
 function resolveWeakFootQuality(blueprint) {
   const role = blueprint?.role?.toLowerCase() ?? "";
   const shortLabel = blueprint?.shortLabel?.toUpperCase() ?? "";
-
   if (/goalkeeper/.test(role)) {
     return 0.58;
   }
-
   if (/center back/.test(role) || /^(LCB|RCB|CB)$/.test(shortLabel)) {
     return 0.62;
   }
-
   if (/winger|forward|striker|centre forward|attacking midfielder/.test(role)) {
     return 0.78;
   }
-
   if (/holding midfielder|central midfielder|no\. 8/.test(role) || /^(6|8|10)$/.test(shortLabel)) {
     return 0.74;
   }
-
   if (/back|wing-back/.test(role) || /^(LB|RB|LM|RM)$/.test(shortLabel)) {
     return 0.7;
   }
-
   return 0.68;
 }
-
 const autoBallProfiles = {
   "gk-short-build": {
     key: "gk-short-build",
@@ -4113,7 +4141,6 @@ const autoBallProfiles = {
     spinRateRange: [3.4, 5.8],
   },
 };
-
 const autoDribbleProfiles = {
   "gk-carry": {
     key: "gk-carry",
@@ -4215,25 +4242,20 @@ const autoDribbleProfiles = {
     maxSpeed: 5.35,
   },
 };
-
 function getPlayerMagnetLabel(player) {
   if (!player) {
     return "";
   }
-
   const teamId = getPlayerTeamId(player);
   const roster = teamRosterOrder[teamId] ?? [];
   const slotIndex = roster.indexOf(player.id);
   const formation = teams[teamId]?.formation;
   const formationLabels = formationMagnetLabels[formation];
-
   if (slotIndex >= 0 && formationLabels?.[slotIndex]) {
     return formationLabels[slotIndex];
   }
-
   const role = player.role ?? "";
   const shortLabel = player.shortLabel ?? "";
-
   if (/goalkeeper/i.test(role) || shortLabel === "GK") return "GK";
   if (/center back/i.test(role) || /^(LCB|RCB|CB)$/i.test(shortLabel)) return "CB";
   if (/wing-back/i.test(role) || /^(LM|RM)$/i.test(shortLabel)) return "WB";
@@ -4247,23 +4269,18 @@ function getPlayerMagnetLabel(player) {
   if (shortLabel === "8" || /no\. 8|central midfielder/i.test(role)) return "8";
   if (/striker|centre forward/i.test(role) || /^ST$/i.test(shortLabel)) return "9";
   if (/winger|forward/i.test(role) || /^(LW|RW)$/i.test(shortLabel)) return "W";
-
   return shortLabel;
 }
-
 function vec(x, y) {
   return { x, y };
 }
-
 function cloneVector(point) {
   return { x: point.x, y: point.y };
 }
-
 function cloneSecurePossession(securePossession) {
   if (!securePossession) {
     return null;
   }
-
   return {
     ...securePossession,
     opponentPlayerIds: Array.isArray(securePossession.opponentPlayerIds)
@@ -4273,12 +4290,10 @@ function cloneSecurePossession(securePossession) {
     escapePoint: securePossession.escapePoint ? cloneVector(securePossession.escapePoint) : null,
   };
 }
-
 function cloneGoalEvent(goal) {
   if (!goal) {
     return null;
   }
-
   return {
     scoringTeamId: goal.scoringTeamId ?? null,
     concedingTeamId: goal.concedingTeamId ?? null,
@@ -4288,12 +4303,10 @@ function cloneGoalEvent(goal) {
     displayPoint: goal.displayPoint ? cloneVector(goal.displayPoint) : null,
   };
 }
-
 function cloneShotPlacement(placement) {
   if (!placement) {
     return null;
   }
-
   return {
     intendedTarget: placement.intendedTarget ? cloneVector(placement.intendedTarget) : null,
     executedTarget: placement.executedTarget ? cloneVector(placement.executedTarget) : null,
@@ -4306,35 +4319,28 @@ function cloneShotPlacement(placement) {
     goalDistance: Number.isFinite(placement.goalDistance) ? placement.goalDistance : 0,
   };
 }
-
 function subtract(a, b) {
   return {
     x: a.x - b.x,
     y: a.y - b.y,
   };
 }
-
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
-
 function lerp(start, end, ratio) {
   return start + (end - start) * ratio;
 }
-
 function randomBetween(min, max) {
   return min + Math.random() * (max - min);
 }
-
 function randomSign() {
   return Math.random() < 0.5 ? -1 : 1;
 }
-
 function addPointNoise(point, radiusMeters = 0, inset = pitch.inset) {
   if (!point || radiusMeters <= 0) {
     return point ? cloneVector(point) : point;
   }
-
   const angle = randomBetween(0, Math.PI * 2);
   const radius = Math.sqrt(Math.random()) * radiusMeters;
   return clampToPitch({
@@ -4342,7 +4348,6 @@ function addPointNoise(point, radiusMeters = 0, inset = pitch.inset) {
     y: point.y + Math.sin(angle) * radius,
   }, inset);
 }
-
 function chooseWeightedOption(options, getWeight) {
   const weighted = options
     .map((option) => ({
@@ -4350,11 +4355,9 @@ function chooseWeightedOption(options, getWeight) {
       weight: Math.max(0, getWeight(option)),
     }))
     .filter((entry) => entry.weight > 0);
-
   if (!weighted.length) {
     return options[0] ?? null;
   }
-
   const totalWeight = weighted.reduce((total, entry) => total + entry.weight, 0);
   let cursor = Math.random() * totalWeight;
   for (const entry of weighted) {
@@ -4363,34 +4366,27 @@ function chooseWeightedOption(options, getWeight) {
       return entry.option;
     }
   }
-
   return weighted[weighted.length - 1].option;
 }
-
 function getNaturalDecisionDiversityWeight(candidate, profile = {}, options = {}) {
   const carrier = options.carrier ?? candidate?.carrier ?? null;
   const startPoint =
     options.startPoint ??
     (carrier ? getPlayerBallControlPoint(carrier) : null);
-
   if (!candidate?.target || !carrier?.team || !startPoint) {
     return 1;
   }
-
   const recent = getRecentPossessionSteps(carrier.team, 7)
     .map((step) => getRecordedStepPattern(step, carrier.team))
     .filter(Boolean);
-
   if (!recent.length) {
     return 1;
   }
-
   const pattern = getAutoPilotCandidatePattern(candidate, carrier, startPoint);
   const targetThreat = getPitchThreatProfile(candidate.target, carrier.team);
   const lastPattern = recent[0] ?? null;
   let familyStreak = 0;
   let laneStreak = 0;
-
   for (const entry of recent) {
     if (entry.family === pattern.family) {
       familyStreak += 1;
@@ -4398,7 +4394,6 @@ function getNaturalDecisionDiversityWeight(candidate, profile = {}, options = {}
       break;
     }
   }
-
   for (const entry of recent) {
     if (entry.laneKey === pattern.laneKey && entry.thirdKey === pattern.thirdKey) {
       laneStreak += 1;
@@ -4406,7 +4401,6 @@ function getNaturalDecisionDiversityWeight(candidate, profile = {}, options = {}
       break;
     }
   }
-
   const sameReceiverRoleCount = pattern.receiverRoleKey
     ? recent.filter((entry) => entry.receiverRoleKey === pattern.receiverRoleKey).length
     : 0;
@@ -4430,48 +4424,38 @@ function getNaturalDecisionDiversityWeight(candidate, profile = {}, options = {}
     ? Math.abs(getPitchLaneIndex(pattern.laneKey) - getPitchLaneIndex(lastPattern.laneKey))
     : 0;
   let weight = 1;
-
   if (!highValueException) {
     weight -= clamp(familyStreak * 0.1 * repeatTolerance, 0, 0.34);
     weight -= clamp(laneStreak * 0.12, 0, 0.38);
     weight -= clamp((sameReceiverRoleCount - 1) * 0.05, 0, 0.18);
     weight -= clamp((sameSpaceCount - 2) * 0.05, 0, 0.2);
   }
-
   if (laneStreak >= 2 && laneShiftFromLast >= 2) {
     weight += 0.18 + (profile.switchBias ?? 0.5) * 0.1;
   }
-
   if (familyStreak >= 2 && pattern.family !== lastPattern?.family) {
     weight += 0.14 + (profile.tempo ?? 0.5) * 0.08;
   }
-
   if (recent.some((entry) => entry.family === "recycle") && pattern.forwardGain >= 6) {
     weight += 0.12 + (profile.progressionUrgency ?? 0.5) * 0.08;
   }
-
   if (highValueException) {
     weight += candidate.actionType === "shot" ? 0.12 : 0.06;
   }
-
   const naturalNoise = randomBetween(
     -clamp(0.04 + (profile.risk ?? 0.5) * 0.04, 0.04, 0.1),
     clamp(0.05 + (profile.tempo ?? 0.5) * 0.06, 0.05, 0.12)
   );
-
   return clamp(weight + naturalNoise, highValueException ? 0.72 : 0.36, 1.42);
 }
-
 function getAutoPilotDecisionPersonalityWeight(candidate, profile = {}, options = {}) {
   const carrier = options.carrier ?? candidate?.carrier ?? null;
   const startPoint =
     options.startPoint ??
     (carrier ? getPlayerBallControlPoint(carrier) : null);
-
   if (!candidate?.target || !carrier || !startPoint) {
     return 1;
   }
-
   const context = getPlayerDecisionContext(carrier);
   const pattern = getAutoPilotCandidatePattern(candidate, carrier, startPoint);
   const targetThreat = getPitchThreatProfile(candidate.target, carrier.team);
@@ -4502,10 +4486,8 @@ function getAutoPilotDecisionPersonalityWeight(candidate, profile = {}, options 
     targetThreat.value >= 0.62 ||
     targetThreat.centralPocket >= 0.42 ||
     actionSpace.spacePriority?.score >= 0.62;
-
   let fit = 0;
   let tendencyFit = 0;
-
   if (candidate.actionType === "dribble") {
     fit =
       getAutoPilotRoleStrength(carrier, "dribbler") * 0.58 +
@@ -4556,7 +4538,6 @@ function getAutoPilotDecisionPersonalityWeight(candidate, profile = {}, options 
       getAutoPilotRoleStrength(carrier, "receiver") * 0.22;
     tendencyFit = getPlayerTendency(carrier, "passAndMove") * 0.34;
   }
-
   const personalityFit = clamp((fit + tendencyFit) / 1.18, 0, 1.16);
   const pressureSafetyFit =
     underPressure >= 0.48
@@ -4589,16 +4570,13 @@ function getAutoPilotDecisionPersonalityWeight(candidate, profile = {}, options 
     pressureSafetyFit +
     intelligenceGuard +
     naturalVariance;
-
   return clamp(score, lowValueRisk ? 0.62 : 0.74, isHighValue ? 1.28 : 1.2);
 }
-
 function chooseScoredCandidateWithVariation(candidates, profile = {}, options = {}) {
   const available = candidates.filter(Boolean);
   if (!available.length) {
     return null;
   }
-
   const sorted = [...available].sort((a, b) => b.score - a.score);
   const bestScore = sorted[0].score ?? 0;
   const tolerance =
@@ -4612,7 +4590,6 @@ function chooseScoredCandidateWithVariation(candidates, profile = {}, options = 
     (candidate.score ?? 0) >= bestScore - tolerance ||
     candidate.mustShoot
   ));
-
   return chooseWeightedOption(pool, (candidate) => {
     const relativeScore = ((candidate.score ?? 0) - bestScore) / Math.max(temperature, 0.01);
     const principleBoost = candidate.isPrinciplePattern ? 1.1 : 1;
@@ -4623,49 +4600,40 @@ function chooseScoredCandidateWithVariation(candidates, profile = {}, options = 
     return Math.exp(relativeScore) * principleBoost * preferredBoost * shotBoost * diversityWeight * personalityWeight;
   });
 }
-
 function clampToPitch(point, inset = pitch.inset) {
   return {
     x: clamp(point.x, inset, pitch.length - inset),
     y: clamp(point.y, inset, pitch.width - inset),
   };
 }
-
 function distance(a, b) {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   return Math.sqrt(dx * dx + dy * dy);
 }
-
 function normalize(from, to) {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const length = Math.sqrt(dx * dx + dy * dy);
-
   if (length === 0) {
     return { x: 0, y: 0 };
   }
-
   return {
     x: dx / length,
     y: dy / length,
   };
 }
-
 function moveTowards(from, to, maxDistance) {
   const remaining = distance(from, to);
-
   if (remaining <= maxDistance) {
     return cloneVector(to);
   }
-
   const direction = normalize(from, to);
   return {
     x: from.x + direction.x * maxDistance,
     y: from.y + direction.y * maxDistance,
   };
 }
-
 function normalizeAngle(angle) {
   let next = angle;
   while (next > Math.PI) {
@@ -4676,39 +4644,31 @@ function normalizeAngle(angle) {
   }
   return next;
 }
-
 function angleBetween(from, to) {
   return Math.atan2(to.y - from.y, to.x - from.x);
 }
-
 function angleDifference(a, b) {
   return Math.abs(normalizeAngle(a - b));
 }
-
 function getTeamAttackAngle(teamId) {
   return teamId === "home" ? 0 : Math.PI;
 }
-
 function getPlayerFacingAngle(player) {
   return Number.isFinite(player.bodyAngle) ? player.bodyAngle : getTeamAttackAngle(player.team);
 }
-
 function rotatePlayerBodyToward(player, targetPoint, blend = 1) {
   if (!targetPoint) {
     return;
   }
-
   const desiredAngle = angleBetween(player.position, targetPoint);
   const currentAngle = getPlayerFacingAngle(player);
   const delta = normalizeAngle(desiredAngle - currentAngle);
   player.bodyAngle = normalizeAngle(currentAngle + delta * clamp(blend, 0, 1));
 }
-
 function rotatePlayerBodyTowardAngle(player, desiredAngle, blend = 1, maxTurn = Infinity) {
   if (!player || !Number.isFinite(desiredAngle)) {
     return;
   }
-
   const currentAngle = getPlayerFacingAngle(player);
   let delta = normalizeAngle(desiredAngle - currentAngle);
   if (Number.isFinite(maxTurn)) {
@@ -4716,23 +4676,19 @@ function rotatePlayerBodyTowardAngle(player, desiredAngle, blend = 1, maxTurn = 
   }
   player.bodyAngle = normalizeAngle(currentAngle + delta * clamp(blend, 0, 1));
 }
-
 function rotatePlayerBodyAlongMovement(player, fromPoint, toPoint, blend = 1) {
   if (!player || !fromPoint || !toPoint || distance(fromPoint, toPoint) <= 0.001) {
     return;
   }
-
   const desiredAngle = angleBetween(fromPoint, toPoint);
   const currentAngle = getPlayerFacingAngle(player);
   const delta = normalizeAngle(desiredAngle - currentAngle);
   player.bodyAngle = normalizeAngle(currentAngle + delta * clamp(blend, 0, 1));
 }
-
 function getBallAwareBodyAngle(player, focusPoint) {
   if (!player || !focusPoint) {
     return player ? getPlayerFacingAngle(player) : 0;
   }
-
   const ballAngle = angleBetween(player.position, focusPoint);
   const nextPlayAngle = getTeamAttackAngle(player.team);
   const attackBias = clamp(
@@ -4740,92 +4696,74 @@ function getBallAwareBodyAngle(player, focusPoint) {
     -Math.PI / 7.5,
     Math.PI / 7.5
   );
-
   return normalizeAngle(ballAngle + attackBias);
 }
-
 function getPlayerBallControlPoint(player) {
   const facingAngle = getPlayerFacingAngle(player);
   const controlOffset = getBallControlOffsetMeters();
-
   return clampToPitch({
     x: player.position.x + Math.cos(facingAngle) * controlOffset,
     y: player.position.y + Math.sin(facingAngle) * controlOffset,
   });
 }
-
 function getPreferredFootOffsetAngle(player) {
   return player?.preferredFoot === "left" ? Math.PI / 7.5 : -Math.PI / 7.5;
 }
-
 function getFootUsageScore(player, referenceAngle, baseAngle = getPlayerFacingAngle(player)) {
   if (!player || !Number.isFinite(referenceAngle)) {
     return 0.82;
   }
-
   const preferredPocketAngle = normalizeAngle(baseAngle + getPreferredFootOffsetAngle(player));
   const alternatePocketAngle = normalizeAngle(baseAngle - getPreferredFootOffsetAngle(player));
   const preferredAlignment = 1 - angleDifference(referenceAngle, preferredPocketAngle) / Math.PI;
   const alternateAlignment = 1 - angleDifference(referenceAngle, alternatePocketAngle) / Math.PI;
   const weakFootQuality = clamp(player.weakFootQuality ?? 0.68, 0.45, 0.92);
-
   return clamp(
     Math.max(preferredAlignment, alternateAlignment * weakFootQuality),
     0.2,
     1
   );
 }
-
 function blendAngles(angleA, angleB, weightA = 0.5, weightB = 0.5) {
   const x = Math.cos(angleA) * weightA + Math.cos(angleB) * weightB;
   const y = Math.sin(angleA) * weightA + Math.sin(angleB) * weightB;
-
   if (Math.abs(x) <= 0.0001 && Math.abs(y) <= 0.0001) {
     return angleA;
   }
-
   return Math.atan2(y, x);
 }
-
 function projectPointOnSegment(point, segmentStart, segmentEnd) {
   const dx = segmentEnd.x - segmentStart.x;
   const dy = segmentEnd.y - segmentStart.y;
   const lengthSquared = dx * dx + dy * dy;
-
   if (lengthSquared === 0) {
     return cloneVector(segmentStart);
   }
-
   const t = clamp(
     ((point.x - segmentStart.x) * dx + (point.y - segmentStart.y) * dy) / lengthSquared,
     0,
     1
   );
-
   return {
     x: segmentStart.x + dx * t,
     y: segmentStart.y + dy * t,
   };
 }
-
 function projectPointOnSegmentWithRatio(point, segmentStart, segmentEnd) {
   const dx = segmentEnd.x - segmentStart.x;
   const dy = segmentEnd.y - segmentStart.y;
   const lengthSquared = dx * dx + dy * dy;
-
   if (lengthSquared === 0) {
     return {
       point: cloneVector(segmentStart),
       ratio: 0,
     };
   }
-
   const ratio = clamp(
     ((point.x - segmentStart.x) * dx + (point.y - segmentStart.y) * dy) / lengthSquared,
     0,
     1
   );
-
   return {
     point: {
       x: segmentStart.x + dx * ratio,
@@ -4834,19 +4772,15 @@ function projectPointOnSegmentWithRatio(point, segmentStart, segmentEnd) {
     ratio,
   };
 }
-
 function formatTime(seconds) {
   return `${seconds.toFixed(2)} s`;
 }
-
 function formatSpeed(value) {
   return `${value.toFixed(1)} m/s`;
 }
-
 function formatMeters(value) {
   return `${value.toFixed(1)} m`;
 }
-
 function getIntelligenceArchetype(blueprint) {
   return (
     intelligenceRoleArchetypes.find((archetype) =>
@@ -4854,7 +4788,6 @@ function getIntelligenceArchetype(blueprint) {
     ) ?? intelligenceRoleArchetypes[intelligenceRoleArchetypes.length - 1]
   );
 }
-
 function getSprintArchetype(blueprint) {
   const roleLabel = blueprint?.team
     ? getPlayerMagnetLabel(blueprint) || blueprint.shortLabel
@@ -4865,12 +4798,10 @@ function getSprintArchetype(blueprint) {
     ) ?? sprintRoleArchetypes[sprintRoleArchetypes.length - 1]
   );
 }
-
 function roundTo(value, decimals = 2) {
   const multiplier = 10 ** decimals;
   return Math.round(value * multiplier) / multiplier;
 }
-
 function getActivePhysicalProfileKey() {
   try {
     return state?.physicalProfile ?? defaultPhysicalProfileKey;
@@ -4878,22 +4809,18 @@ function getActivePhysicalProfileKey() {
     return defaultPhysicalProfileKey;
   }
 }
-
 function getCompetitionPhysicalProfile(profileKey = null) {
   const resolvedKey = profileKey ?? getActivePhysicalProfileKey();
   return competitionPhysicalProfiles[resolvedKey] ?? competitionPhysicalProfiles[defaultPhysicalProfileKey];
 }
-
 function getCompetitionPhysicalLabel(profileKey = null) {
   return getCompetitionPhysicalProfile(profileKey).label;
 }
-
 function getRolePhysicalMultipliers(playerLike, profileKey = null) {
   const physicalProfile = getCompetitionPhysicalProfile(profileKey);
   const archetype = getSprintArchetype(playerLike);
   return physicalProfile.roleMultipliers?.[archetype.key] ?? {};
 }
-
 function buildPlayerPhysicalProfile(blueprint, profileKey = null) {
   const physicalProfile = getCompetitionPhysicalProfile(profileKey);
   const roleMultipliers = getRolePhysicalMultipliers(blueprint, physicalProfile.key);
@@ -4908,7 +4835,6 @@ function buildPlayerPhysicalProfile(blueprint, profileKey = null) {
     physicalProfile.reactionTimeMultiplier * (roleMultipliers.reactionTimeMultiplier ?? 1);
   const dribbleSpeedMultiplier =
     physicalProfile.dribbleSpeedMultiplier * (roleMultipliers.dribbleSpeedMultiplier ?? 1);
-
   return {
     key: physicalProfile.key,
     label: physicalProfile.label,
@@ -4923,7 +4849,6 @@ function buildPlayerPhysicalProfile(blueprint, profileKey = null) {
     ballPowerMultiplier: physicalProfile.ballPowerMultiplier,
   };
 }
-
 function applyPhysicalProfileToPlayer(player, profileKey = null) {
   const physicalProfile = buildPlayerPhysicalProfile(player, profileKey);
   player.baseMaxSpeed = physicalProfile.baseMaxSpeed;
@@ -4934,16 +4859,13 @@ function applyPhysicalProfileToPlayer(player, profileKey = null) {
   player.reactionTime = physicalProfile.reactionTime;
   player.physicalProfile = physicalProfile;
 }
-
 function applyPhysicalProfileToPlayers(players, profileKey = null) {
   players.forEach((player) => applyPhysicalProfileToPlayer(player, profileKey));
 }
-
 function intelligenceScoreToMetric(intelligence, weight, floor = 0.44, ceiling = 0.96) {
   const normalized = clamp((intelligence - 60) / 25, 0, 1);
   return clamp(floor + normalized * 0.38 * weight, floor, ceiling);
 }
-
 function buildPlayerIntelligenceProfile(blueprint) {
   const archetype = getIntelligenceArchetype(blueprint);
   const intelligence = clamp(
@@ -4961,7 +4883,6 @@ function buildPlayerIntelligenceProfile(blueprint) {
     pressResistance: intelligenceScoreToMetric(intelligence, archetype.weights.pressResistance),
     composure: intelligenceScoreToMetric(intelligence, archetype.weights.composure),
   };
-
   profile.executionUnderPressure = clamp(
     profile.technicalSecurity * 0.5 +
       profile.pressResistance * 0.25 +
@@ -4969,10 +4890,8 @@ function buildPlayerIntelligenceProfile(blueprint) {
     0.4,
     0.96
   );
-
   return profile;
 }
-
 function buildPlayerSprintProfile(blueprint) {
   const archetype = getSprintArchetype(blueprint);
   return {
@@ -4983,46 +4902,35 @@ function buildPlayerSprintProfile(blueprint) {
     shortBurstBoost: archetype.shortBurstBoost,
   };
 }
-
 function getDefaultPlayerTendencyKey(blueprint) {
   const role = blueprint.role ?? "";
   const label = blueprint.shortLabel ?? "";
-
   if (/goalkeeper/i.test(role)) {
     return "ball-retainer";
   }
-
   if (/wing-back/i.test(role) || /back/i.test(role) || /^(LB|RB|LM|RM)$/i.test(label)) {
     return "overlap-runner";
   }
-
   if (/winger|forward/i.test(role) || /^(LW|RW)$/i.test(label)) {
     return "dribbler";
   }
-
   if (/striker|centre forward/i.test(role) || /^ST$/i.test(label)) {
     return "box-runner";
   }
-
   if (/holding midfielder/i.test(role) || label === "6") {
     return "ball-retainer";
   }
-
   if (/no\. 8|central midfielder|attacking midfielder/i.test(role) || label === "8" || label === "10") {
     return "pass-and-move";
   }
-
   if (/center back/i.test(role) || /^(LCB|RCB|CB)$/i.test(label)) {
     return "line-breaker";
   }
-
   return "balanced";
 }
-
 function buildPlayerTendencyProfile(blueprint) {
   const key = blueprint.tendencyKey ?? getDefaultPlayerTendencyKey(blueprint);
   const template = playerTendencyTemplates[key] ?? playerTendencyTemplates.balanced;
-
   return {
     key,
     label: template.label,
@@ -5036,23 +4944,18 @@ function buildPlayerTendencyProfile(blueprint) {
     switchPlay: template.switchPlay,
   };
 }
-
 function getPlayerTendency(player, tendencyKey) {
   return clamp(player?.tendencyProfile?.[tendencyKey] ?? 0.5, 0, 1);
 }
-
 function getKickoffSpot() {
   return vec(pitch.length / 2, pitch.width / 2);
 }
-
 function getKickoffTakerId(teamId = defaultKickoffTeamId) {
   return teamId === "away" ? "A9" : "H9";
 }
-
 function findTeamPlayerByMagnetLabel(teamId, label, players = state.players) {
   return players.find((player) => player.team === teamId && getPlayerMagnetLabel(player) === label) ?? null;
 }
-
 function getKickoffSupportId(teamId = defaultKickoffTeamId, players = state.players) {
   return (
     findTeamPlayerByMagnetLabel(teamId, "6", players)?.id ??
@@ -5061,7 +4964,6 @@ function getKickoffSupportId(teamId = defaultKickoffTeamId, players = state.play
     (teamId === "away" ? "A8" : "H6")
   );
 }
-
 function chooseKickoffSupportId(teamId = defaultKickoffTeamId, players = state.players) {
   const formation = teams[teamId]?.formation ?? "4-3-3";
   const styleProfile = getTeamAttackStyleProfile(teamId);
@@ -5088,20 +4990,17 @@ function chooseKickoffSupportId(teamId = defaultKickoffTeamId, players = state.p
             : label === "10"
               ? 0.28 + styleProfile.directness * 0.16
               : 0;
-
       return {
         player,
         score: roleScore + labelScore + randomBetween(-0.18, 0.22),
       };
     })
     .filter((candidate) => candidate.score >= 0.32);
-
   return chooseScoredCandidateWithVariation(candidates, styleProfile, {
     tolerance: 0.95,
     temperature: 0.36,
   })?.player.id ?? getKickoffSupportId(teamId, players);
 }
-
 function getKickoffSupportPoint(teamId, support = null) {
   const kickoffSpot = getKickoffSpot();
   const styleProfile = getTeamAttackStyleProfile(teamId);
@@ -5116,13 +5015,11 @@ function getKickoffSupportPoint(teamId, support = null) {
   const side = randomSign();
   const dropDistance = randomBetween(4.7, 7.4) + (styleProfile.shortSupport - 0.5) * 0.9;
   const diagonalDistance = randomBetween(1.4, 5.8) * diagonalPreference;
-
   return clampToPitch({
     x: kickoffSpot.x - sign * dropDistance,
     y: kickoffSpot.y + side * diagonalDistance,
   }, 2);
 }
-
 const kickoffOpeningProfiles = {
   "secure-backline": {
     key: "secure-backline",
@@ -5165,38 +5062,31 @@ const kickoffOpeningProfiles = {
       0.16 + profile.directness * 0.44 + profile.lineBreakBias * 0.34 + profile.progressionUrgency * 0.26 + profile.tempo * 0.12,
   },
 };
-
 const kickoffOpeningMemory = {
   home: [],
   away: [],
 };
-
 function getRecentKickoffOpeningPenalty(teamId, openingKey) {
   if (!teamId || !openingKey) {
     return 0;
   }
-
   return (kickoffOpeningMemory[teamId] ?? []).reduce((penalty, key, index) => {
     if (key !== openingKey) {
       return penalty;
     }
-
     return penalty + (index === 0 ? 0.52 : 0.18 / (index + 0.75));
   }, 0);
 }
-
 function rememberKickoffOpening(teamId, openingKey) {
   if (!teamId || !openingKey || !kickoffOpeningMemory[teamId]) {
     return;
   }
-
   const memory = kickoffOpeningMemory[teamId];
   memory.unshift(openingKey);
   if (memory.length > 10) {
     memory.length = 10;
   }
 }
-
 function chooseKickoffOpeningProfile(teamId) {
   const profile = getOffensiveAutopilotProfile(teamId, getKickoffSpot(), "setPiece");
   const entries = Object.entries(kickoffOpeningProfiles);
@@ -5205,11 +5095,9 @@ function chooseKickoffOpeningProfile(teamId) {
     return opening.weight(profile) + randomBetween(-0.05, 0.12) - repeatPenalty;
   });
   const [, opening] = selectedEntry ?? entries[0];
-
   rememberKickoffOpening(teamId, opening.key);
   return opening;
 }
-
 function clampKickoffPlayerToOwnHalf(point, teamId) {
   const center = getKickoffSpot();
   const isHome = teamId === "home";
@@ -5220,16 +5108,13 @@ function clampKickoffPlayerToOwnHalf(point, teamId) {
     y: clamp(point.y, 2, pitch.width - 2),
   };
 }
-
 function applyKickoffShapeVariation(players, kickoffTeamId, protectedIds = new Set()) {
   const center = getKickoffSpot();
-
   players.forEach((player) => {
     const teamId = getPlayerTeamId(player);
     if (!teamId || protectedIds.has(player.id)) {
       return;
     }
-
     const attackSign = getAttackDirectionSign(teamId);
     const isKickoffTeam = teamId === kickoffTeamId;
     const roleKey = getOffensiveRoleKey(player, teams[teamId]?.formation);
@@ -5237,7 +5122,6 @@ function applyKickoffShapeVariation(players, kickoffTeamId, protectedIds = new S
     const defenseProfile = getTeamDefenseStyleProfile(teamId);
     let xShift = randomBetween(-1.2, 1.2);
     let yShift = randomBetween(-2.1, 2.1);
-
     if (isKickoffTeam) {
       const stretch =
         (attackProfile.directness - 0.5) * 2.6 +
@@ -5261,7 +5145,6 @@ function applyKickoffShapeVariation(players, kickoffTeamId, protectedIds = new S
       xShift += attackSign * (lineIntent + pressIntent * randomBetween(0.2, 1.8));
       yShift += (center.y - player.position.y) * compactPull + randomBetween(-1.1, 1.1);
     }
-
     player.position = clampKickoffPlayerToOwnHalf({
       x: player.position.x + xShift,
       y: player.position.y + yShift,
@@ -5269,21 +5152,16 @@ function applyKickoffShapeVariation(players, kickoffTeamId, protectedIds = new S
     player.bodyAngle = getTeamAttackAngle(teamId);
   });
 }
-
 function getKickoffDefensivePhaseKey(teamId) {
   const preferredPhase = getTeamDefenseStyleProfile(teamId).preferredPhase;
-
   if (preferredPhase === "highPress") {
     return "highPress";
   }
-
   if (preferredPhase === "lowBlock" || preferredPhase === "boxDefending") {
     return "lowBlock";
   }
-
   return "midBlock";
 }
-
 function getKickoffDefensiveSetupProfile(teamId, phaseKey = getKickoffDefensivePhaseKey(teamId)) {
   const formation = teams[teamId]?.formation ?? "4-3-3";
   const formationProfile = defensiveAutopilotProfiles[formation] ?? defensiveAutopilotProfiles["4-3-3"];
@@ -5293,7 +5171,6 @@ function getKickoffDefensiveSetupProfile(teamId, phaseKey = getKickoffDefensiveP
   const styleProfile = getTeamDefenseStyleProfile(teamId);
   const gapWeight = phaseProfile.formationGapWeight ?? 0.4;
   const widthWeight = phaseProfile.formationWidthWeight ?? 0.45;
-
   return {
     ...phaseProfile,
     formation,
@@ -5371,13 +5248,11 @@ function getKickoffDefensiveSetupProfile(teamId, phaseKey = getKickoffDefensiveP
     ),
   };
 }
-
 function applyKickoffDefensiveStructure(players, kickoffTeamId) {
   const defendingTeamId = getOtherTeamId(kickoffTeamId);
   if (!defendingTeamId) {
     return;
   }
-
   const kickoffSpot = getKickoffSpot();
   const phaseKey = getKickoffDefensivePhaseKey(defendingTeamId);
   const profile = getKickoffDefensiveSetupProfile(defendingTeamId, phaseKey);
@@ -5393,17 +5268,14 @@ function applyKickoffDefensiveStructure(players, kickoffTeamId) {
     midfield: [],
     forward: [],
   };
-
   players
     .filter((player) => getPlayerTeamId(player) === defendingTeamId)
     .forEach((player) => {
       groups[getDefensiveAutopilotLineKey(player, formation, phaseKey)].push(player);
     });
-
   Object.values(groups).forEach((group) => {
     group.sort((a, b) => (baseYById.get(a.id) ?? a.position.y) - (baseYById.get(b.id) ?? b.position.y));
   });
-
   groups.gk.forEach((player) => {
     const target = getDefensiveGoalkeeperTarget(defendingTeamId, kickoffSpot, profile);
     player.position = clampKickoffPlayerToOwnHalf(target, defendingTeamId);
@@ -5411,13 +5283,11 @@ function applyKickoffDefensiveStructure(players, kickoffTeamId) {
     player.actionOrigin = null;
     player.movementProgress = 0;
   });
-
   ["back", "midfield", "forward"].forEach((lineKey) => {
     const linePlayers = groups[lineKey].filter((player) => !isGoalkeeper(player));
     if (!linePlayers.length) {
       return;
     }
-
     const integritySettings = getDefensiveCompactLineIntegritySettings(profile, lineKey);
     const gap =
       integritySettings?.gap ??
@@ -5425,7 +5295,6 @@ function applyKickoffDefensiveStructure(players, kickoffTeamId) {
     const lineWidth = gap * Math.max(0, linePlayers.length - 1);
     const lineX = getDefensiveLineX(defendingTeamId, lineKey, kickoffSpot, profile);
     const centerY = getDefensiveLineCenterY(lineKey, profile, kickoffSpot, lineWidth);
-
     linePlayers.forEach((player, index) => {
       const slot = {
         x: lineX,
@@ -5438,18 +5307,15 @@ function applyKickoffDefensiveStructure(players, kickoffTeamId) {
     });
   });
 }
-
 function getBallControlOffsetMeters() {
   return playerRadiusMeters * 0.72 + ballRadiusMeters * 0.48;
 }
-
 function placePlayerWithControlPoint(player, controlPoint, facingAngle = getTeamAttackAngle(player.team)) {
   player.bodyAngle = facingAngle;
   player.position = getPlayerPositionForControlPoint(player, controlPoint, facingAngle);
   player.actionOrigin = null;
   player.movementProgress = 0;
 }
-
 function getPlayerPositionForControlPoint(player, controlPoint, facingAngle = getTeamAttackAngle(player.team)) {
   const controlOffset = getBallControlOffsetMeters();
   return clampToPitch({
@@ -5457,34 +5323,27 @@ function getPlayerPositionForControlPoint(player, controlPoint, facingAngle = ge
     y: controlPoint.y - Math.sin(facingAngle) * controlOffset,
   }, 2);
 }
-
 function getPlayerTeamId(player) {
   if (player?.team) {
     return player.team;
   }
-
   const blueprint = squadBlueprints.find((candidate) => candidate.id === player?.id);
   if (blueprint?.team) {
     return blueprint.team;
   }
-
   if (typeof player?.id === "string") {
     if (player.id.startsWith("H")) return "home";
     if (player.id.startsWith("A")) return "away";
   }
-
   return null;
 }
-
 function constrainPlayersForKickoff(players, kickoffTeamId = defaultKickoffTeamId) {
   const center = getKickoffSpot();
   const centerCircleBuffer = 10.2;
-
   players.forEach((player) => {
     if (player.id === getKickoffTakerId(kickoffTeamId)) {
       return;
     }
-
     const playerTeamId = getPlayerTeamId(player);
     const isHome = playerTeamId === "home";
     const ownHalfX = isHome
@@ -5494,7 +5353,6 @@ function constrainPlayersForKickoff(players, kickoffTeamId = defaultKickoffTeamI
       x: ownHalfX,
       y: player.position.y,
     };
-
     if (playerTeamId !== kickoffTeamId && distance(player.position, center) < centerCircleBuffer) {
       const direction = normalize(center, player.position);
       const fallbackDirection = isHome ? vec(-1, 0) : vec(1, 0);
@@ -5507,18 +5365,15 @@ function constrainPlayersForKickoff(players, kickoffTeamId = defaultKickoffTeamI
         ? Math.min(player.position.x, center.x - 1.8)
         : Math.max(player.position.x, center.x + 1.8);
     }
-
     player.actionOrigin = null;
     player.movementProgress = 0;
   });
 }
-
 function applyKickoffSetup(targetState = state, { teamId = defaultKickoffTeamId, resetFormations = true } = {}) {
   if (resetFormations) {
     setTeamFormationOnPlayers(targetState.players, "home", teams.home.formation);
     setTeamFormationOnPlayers(targetState.players, "away", teams.away.formation);
   }
-
   const kickoffSpot = getKickoffSpot();
   const taker = targetState.players.find((player) => player.id === getKickoffTakerId(teamId));
   const supportId = chooseKickoffSupportId(teamId, targetState.players);
@@ -5528,22 +5383,18 @@ function applyKickoffSetup(targetState = state, { teamId = defaultKickoffTeamId,
   const takerFacingAngle = support ? angleBetween(kickoffSpot, supportPoint) : facingAngle;
   const supportFacingAngle = angleBetween(supportPoint, kickoffSpot);
   const openingProfile = chooseKickoffOpeningProfile(teamId);
-
   applyKickoffShapeVariation(targetState.players, teamId, new Set([taker?.id, support?.id].filter(Boolean)));
   applyKickoffDefensiveStructure(targetState.players, teamId);
   constrainPlayersForKickoff(targetState.players, teamId);
-
   if (support) {
     support.position = supportPoint;
     support.bodyAngle = supportFacingAngle;
     support.actionOrigin = null;
     support.movementProgress = 0;
   }
-
   if (taker) {
     placePlayerWithControlPoint(taker, kickoffSpot, takerFacingAngle);
   }
-
   targetState.selectedPlayerId = taker?.id ?? null;
   targetState.selectedPlayerIds = taker ? [taker.id] : [];
   targetState.matchPhase = "setPieces";
@@ -5579,7 +5430,6 @@ function applyKickoffSetup(targetState = state, { teamId = defaultKickoffTeamId,
   targetState.ball.securePossession = null;
   invalidateAutoPilotPossessionPlan(targetState);
 }
-
 function getGoalKickTakerId(teamId = "home", players = state.players) {
   const roster = teamRosterOrder[teamId] ?? [];
   return (
@@ -5588,31 +5438,26 @@ function getGoalKickTakerId(teamId = "home", players = state.players) {
     null
   );
 }
-
 function getGoalKickSpot(teamId = "home") {
   return {
     x: teamId === "home" ? 5.8 : pitch.length - 5.8,
     y: pitch.width / 2,
   };
 }
-
 function applyGoalKickSetup(targetState = state, { teamId = "home", resetFormations = false } = {}) {
   if (resetFormations) {
     setTeamFormationOnPlayers(targetState.players, "home", teams.home.formation);
     setTeamFormationOnPlayers(targetState.players, "away", teams.away.formation);
   }
-
   const takerId = getGoalKickTakerId(teamId, targetState.players);
   const taker = targetState.players.find((player) => player.id === takerId);
   const goalKickSpot = getGoalKickSpot(teamId);
   const facingAngle = getTeamAttackAngle(teamId);
-
   if (taker) {
     placePlayerWithControlPoint(taker, goalKickSpot, facingAngle);
     taker.actionOrigin = null;
     taker.movementProgress = 0;
   }
-
   targetState.selectedPlayerId = taker?.id ?? null;
   targetState.selectedPlayerIds = taker ? [taker.id] : [];
   targetState.matchPhase = "setPieces";
@@ -5645,14 +5490,12 @@ function applyGoalKickSetup(targetState = state, { teamId = "home", resetFormati
   targetState.ball.securePossession = null;
   invalidateAutoPilotPossessionPlan(targetState);
 }
-
 function getCornerKickSpot(teamId = "home", sideY = 0) {
   return {
     x: teamId === "home" ? pitch.length - 0.65 : 0.65,
     y: sideY <= pitch.width / 2 ? 0.65 : pitch.width - 0.65,
   };
 }
-
 function getCornerKickTakerId(teamId = "home", sideY = 0, players = state.players) {
   const roster = teamRosterOrder[teamId] ?? [];
   const goalkeeperId = roster[0] ?? null;
@@ -5665,28 +5508,23 @@ function getCornerKickTakerId(teamId = "home", sideY = 0, players = state.player
       rosterIndex: roster.indexOf(player.id),
     }))
     .sort((a, b) => a.distanceToCorner - b.distanceToCorner || a.rosterIndex - b.rosterIndex);
-
   return teamPlayers[0]?.player.id ?? roster.find((id) => id !== goalkeeperId) ?? goalkeeperId ?? null;
 }
-
 function applyCornerSetup(targetState = state, { teamId = "home", sideY = 0, resetFormations = false } = {}) {
   if (resetFormations) {
     setTeamFormationOnPlayers(targetState.players, "home", teams.home.formation);
     setTeamFormationOnPlayers(targetState.players, "away", teams.away.formation);
   }
-
   const cornerSpot = getCornerKickSpot(teamId, sideY);
   const takerId = getCornerKickTakerId(teamId, sideY, targetState.players);
   const taker = targetState.players.find((player) => player.id === takerId);
   const deliveryTarget = getOpponentPenaltySpot(teamId);
   const facingAngle = angleBetween(cornerSpot, deliveryTarget);
-
   if (taker) {
     placePlayerWithControlPoint(taker, cornerSpot, facingAngle);
     taker.actionOrigin = null;
     taker.movementProgress = 0;
   }
-
   targetState.selectedPlayerId = taker?.id ?? null;
   targetState.selectedPlayerIds = taker ? [taker.id] : [];
   targetState.matchPhase = "setPieces";
@@ -5720,7 +5558,6 @@ function applyCornerSetup(targetState = state, { teamId = "home", sideY = 0, res
   targetState.ball.securePossession = null;
   invalidateAutoPilotPossessionPlan(targetState);
 }
-
 function getRestartTakerId(teamId = "home", point = getKickoffSpot(), players = state.players, preferredLabels = []) {
   const roster = teamRosterOrder[teamId] ?? [];
   const goalkeeperId = roster[0] ?? null;
@@ -5733,34 +5570,28 @@ function getRestartTakerId(teamId = "home", point = getKickoffSpot(), players = 
       const setPieceBonus =
         (preferred.has(label) ? 0.72 : 0) +
         (label === "10" ? 0.24 : label === "9" ? 0.2 : label === "8" ? 0.16 : label === "W" ? 0.12 : 0);
-
       return {
         player,
         score: setPieceBonus - distance(player.position, point) * 0.016 - Math.max(rosterIndex, 0) * 0.006,
       };
     })
     .sort((a, b) => b.score - a.score);
-
   return candidates[0]?.player.id ?? roster.find((id) => id !== goalkeeperId) ?? goalkeeperId ?? null;
 }
-
 function applyFreeKickSetup(targetState = state, { teamId = "home", point = getKickoffSpot(), resetFormations = false } = {}) {
   if (resetFormations) {
     setTeamFormationOnPlayers(targetState.players, "home", teams.home.formation);
     setTeamFormationOnPlayers(targetState.players, "away", teams.away.formation);
   }
-
   const freeKickSpot = clampToPitch(point, 1.8);
   const takerId = getRestartTakerId(teamId, freeKickSpot, targetState.players, ["10", "8", "W", "9"]);
   const taker = targetState.players.find((player) => player.id === takerId);
   const facingAngle = angleBetween(freeKickSpot, getOpponentGoalCenter(teamId));
-
   if (taker) {
     placePlayerWithControlPoint(taker, freeKickSpot, facingAngle);
     taker.actionOrigin = null;
     taker.movementProgress = 0;
   }
-
   targetState.selectedPlayerId = taker?.id ?? null;
   targetState.selectedPlayerIds = taker ? [taker.id] : [];
   targetState.matchPhase = "setPieces";
@@ -5794,24 +5625,20 @@ function applyFreeKickSetup(targetState = state, { teamId = "home", point = getK
   targetState.ball.securePossession = null;
   invalidateAutoPilotPossessionPlan(targetState);
 }
-
 function applyPenaltySetup(targetState = state, { teamId = "home", resetFormations = false } = {}) {
   if (resetFormations) {
     setTeamFormationOnPlayers(targetState.players, "home", teams.home.formation);
     setTeamFormationOnPlayers(targetState.players, "away", teams.away.formation);
   }
-
   const penaltySpot = getOpponentPenaltySpot(teamId);
   const takerId = getRestartTakerId(teamId, penaltySpot, targetState.players, ["9", "10", "W", "8"]);
   const taker = targetState.players.find((player) => player.id === takerId);
   const facingAngle = angleBetween(penaltySpot, getOpponentGoalCenter(teamId));
-
   if (taker) {
     placePlayerWithControlPoint(taker, penaltySpot, facingAngle);
     taker.actionOrigin = null;
     taker.movementProgress = 0;
   }
-
   targetState.selectedPlayerId = taker?.id ?? null;
   targetState.selectedPlayerIds = taker ? [taker.id] : [];
   targetState.matchPhase = "setPieces";
@@ -5844,16 +5671,13 @@ function applyPenaltySetup(targetState = state, { teamId = "home", resetFormatio
   targetState.ball.securePossession = null;
   invalidateAutoPilotPossessionPlan(targetState);
 }
-
 function getThrowInSpot(point = state.ball.position, sideY = point?.y ?? 0) {
   const touchlineY = sideY <= pitch.width / 2 ? 0.65 : pitch.width - 0.65;
-
   return {
     x: clamp(point?.x ?? pitch.length / 2, 1.4, pitch.length - 1.4),
     y: touchlineY,
   };
 }
-
 function getThrowInTakerId(teamId = "home", point = state.ball.position, players = state.players) {
   const roster = teamRosterOrder[teamId] ?? [];
   const goalkeeperId = roster[0] ?? null;
@@ -5876,16 +5700,13 @@ function getThrowInTakerId(teamId = "home", point = state.ball.position, players
       };
     })
     .sort((a, b) => a.score - b.score);
-
   return teamPlayers[0]?.player.id ?? roster.find((id) => id !== goalkeeperId) ?? goalkeeperId ?? null;
 }
-
 function applyThrowInSetup(targetState = state, { teamId = "home", point = state.ball.position, sideY = point?.y ?? 0, resetFormations = false } = {}) {
   if (resetFormations) {
     setTeamFormationOnPlayers(targetState.players, "home", teams.home.formation);
     setTeamFormationOnPlayers(targetState.players, "away", teams.away.formation);
   }
-
   const throwSpot = getThrowInSpot(point, sideY);
   const takerId = getThrowInTakerId(teamId, throwSpot, targetState.players);
   const taker = targetState.players.find((player) => player.id === takerId);
@@ -5894,13 +5715,11 @@ function applyThrowInSetup(targetState = state, { teamId = "home", point = state
     y: pitch.width / 2,
   };
   const facingAngle = angleBetween(throwSpot, facingTarget);
-
   if (taker) {
     placePlayerWithControlPoint(taker, throwSpot, facingAngle);
     taker.actionOrigin = null;
     taker.movementProgress = 0;
   }
-
   targetState.selectedPlayerId = taker?.id ?? null;
   targetState.selectedPlayerIds = taker ? [taker.id] : [];
   targetState.matchPhase = "setPieces";
@@ -5935,18 +5754,15 @@ function applyThrowInSetup(targetState = state, { teamId = "home", point = state
   targetState.ball.securePossession = null;
   invalidateAutoPilotPossessionPlan(targetState);
 }
-
 function getFormationPositions(formation, teamId) {
   const layout = formationLayouts[formation] ?? formationLayouts["4-3-3"];
   return layout.map(([x, y]) =>
     teamId === "home" ? vec(x, y) : vec(pitch.length - x, y)
   );
 }
-
 function setTeamFormationOnPlayers(players, teamId, formation) {
   const roster = teamRosterOrder[teamId];
   const positions = getFormationPositions(formation, teamId);
-
   roster.forEach((playerId, index) => {
     const player = players.find((candidate) => candidate.id === playerId);
     const target = positions[index];
@@ -5957,7 +5773,6 @@ function setTeamFormationOnPlayers(players, teamId, formation) {
     }
   });
 }
-
 function createPlayer(blueprint, physicalProfileKey = defaultPhysicalProfileKey) {
   const intelligenceProfile = buildPlayerIntelligenceProfile(blueprint);
   const sprintProfile = buildPlayerSprintProfile(blueprint);
@@ -5991,13 +5806,11 @@ function createPlayer(blueprint, physicalProfileKey = defaultPhysicalProfileKey)
     movementProgress: 0,
   };
 }
-
 function resetPlayerMovementProgress(players = state.players) {
   players.forEach((player) => {
     player.movementProgress = 0;
   });
 }
-
 function createInitialState() {
   teams.home.formation = defaultFormations.home;
   teams.away.formation = defaultFormations.away;
@@ -6007,7 +5820,6 @@ function createInitialState() {
   setTeamFormationOnPlayers(players, "home", teams.home.formation);
   setTeamFormationOnPlayers(players, "away", teams.away.formation);
   const kickoffSpot = getKickoffSpot();
-
   const initialState = {
     time: 0,
     dt: 0.05,
@@ -6111,17 +5923,17 @@ function createInitialState() {
     },
     players,
   };
-
   applyKickoffSetup(initialState, {
     teamId: defaultKickoffTeamId,
     resetFormations: false,
   });
-
   return initialState;
 }
-
 let state = createInitialState();
 let lastFrame = null;
+let simulatorAnimationRuntime = null;
+let simulatorAnimationRuntimePromise = null;
+let simulatorAnimationLoopRequested = false;
 let hubState = null;
 let periodizationState = null;
 let periodizationDayOverlayOpen = false;
@@ -6139,11 +5951,14 @@ let playerProfilesState = null;
 let playerProfilesSearchQuery = "";
 let playerProfilesRoleGroupFilter = "all";
 let playerProfileActiveTab = "overview";
+let playerProfileModalOpen = false;
+let playerProfileNewPlayerModalOpen = false;
 let squadComparisonRole = "8";
 let squadComparisonPlayerIds = ["", ""];
 let squadFormationFit = "4-3-3";
 let sessionPlannerState = null;
 let sessionPlannerExerciseLibrary = null;
+let sessionPlannerExerciseLibraryFolders = null;
 let sessionPlannerPeriodizationOverlayDate = null;
 let dashboardChatThreadId = "team";
 let dashboardChatWidgetToastTimer = null;
@@ -6154,12 +5969,36 @@ let dashboardChatTypingLastSentAt = 0;
 let dashboardChatTypingClearTimer = null;
 let dashboardChatReplyDraft = null;
 let dashboardChatPriorityDraft = "normal";
+let dashboardChatConfirmAction = null;
+let dashboardChatApiReadReceiptSyncSignatures = new Set();
+let dashboardChatApiSyncTimer = 0;
+let dashboardChatApiRealtimeChannel = null;
+let dashboardChatApiRealtimeSignature = "";
+let dashboardChatApiScope = null;
+let dashboardChatApiThreads = [];
+let dashboardChatApiPagination = {};
+let dashboardChatMessageSearchQuery = "";
+let dashboardChatModerationOpen = false;
+let dashboardChatModerationState = { loading: false, audits: [], retentionPolicy: null, error: "" };
+let dashboardChatComposerAttachmentDraft = null;
+const dashboardChatAttachmentSignedUrlCache = new Map();
 let sessionPlannerPeriodizationOverlayMode = "view";
 let sessionPlannerLibraryOpen = false;
 let sessionPlannerLibraryPhaseFilter = "all";
 let sessionPlannerLibrarySubPhaseFilter = "all";
+let sessionPlannerLibraryPhaseFilters = [];
+let sessionPlannerLibrarySubPhaseFilters = [];
+let sessionPlannerLibraryFilterOpen = "";
 let sessionPlannerLibrarySearchQuery = "";
 let sessionPlannerLibraryArchiveView = "active";
+let sessionPlannerLibrarySortMode = "updated";
+let sessionPlannerLibraryPreviewExerciseId = "";
+let sessionPlannerLibraryEditExerciseId = "";
+let sessionPlannerLibrarySelectedFolderId = "all";
+let sessionPlannerLibraryEditingFolderId = "";
+let sessionPlannerDraggedLibraryExerciseId = "";
+let sessionPlannerLibraryPointerDrag = null;
+let sessionPlannerLibrarySuppressNextClick = false;
 let sessionPlannerPendingLibrarySave = null;
 let sessionPlannerSnapshotRecoveryQueued = false;
 let sessionPlannerExerciseLibrarySnapshotRecoveryQueued = false;
@@ -6167,6 +6006,7 @@ let sessionPlannerHistoryEntries = [];
 let sessionPlannerHistoryLoading = false;
 let sessionPlannerHistoryLoadedDate = "";
 let sessionPlannerHistoryLoadError = "";
+let sessionPlannerHistoryOpen = false;
 let sessionPlannerToastMessage = "";
 let sessionPlannerToastTone = "success";
 let sessionPlannerToastTimeoutId = null;
@@ -6283,17 +6123,14 @@ let dashboardPresenceStarted = false;
 let dashboardPresenceLastActivityAt = Date.now();
 let dashboardPresenceLastRenderedSignature = "";
 let dashboardPresenceInFlight = false;
-
 function getPlatformAuthStore() {
   return window.platformAuthStore ?? null;
 }
-
 function syncPlatformUserFromAuth() {
   const authStore = getPlatformAuthStore();
   platformUser = authStore?.getCurrentUser?.() ?? window.platformSession ?? null;
   return platformUser;
 }
-
 function setFormSubmitButtonState(form, options = {}) {
   const {
     isSubmitting = false,
@@ -6303,12 +6140,10 @@ function setFormSubmitButtonState(form, options = {}) {
   if (!form || typeof form.querySelector !== "function") {
     return;
   }
-
   const submitButton = form.querySelector('button[type="submit"], [data-admin-create-user-submit]');
   if (!submitButton) {
     return;
   }
-
   if (isSubmitting) {
     if (submitButton.dataset.savedLabel == null) {
       submitButton.dataset.savedLabel = String(submitButton.textContent || defaultLabel);
@@ -6317,12 +6152,10 @@ function setFormSubmitButtonState(form, options = {}) {
     submitButton.textContent = submittingLabel;
     return;
   }
-
   submitButton.disabled = false;
   submitButton.textContent = submitButton.dataset.savedLabel || defaultLabel;
   delete submitButton.dataset.savedLabel;
 }
-
 function withUiTimeout(promise, timeoutMs, timeoutMessage) {
   let timeoutId = 0;
   return Promise.race([
@@ -6338,40 +6171,31 @@ function withUiTimeout(promise, timeoutMs, timeoutMessage) {
     }),
   ]);
 }
-
 function getCurrentPlatformUser() {
   return platformUser ?? syncPlatformUserFromAuth();
 }
-
 function updatePlatformUserFromPayload(nextUser) {
   const authStore = getPlatformAuthStore();
   if (!nextUser?.id || !authStore?.getUsers || !authStore?.writeUsers || !authStore?.setCurrentUser) {
     return;
   }
-
   const users = Array.isArray(authStore.getUsers()) ? authStore.getUsers() : [];
   const nextUsers = users.some((entry) => entry.id === nextUser.id)
     ? users.map((entry) => (entry.id === nextUser.id ? { ...entry, ...nextUser } : entry))
     : [nextUser, ...users];
-
   authStore.writeUsers(nextUsers);
-
   const currentUser = getCurrentPlatformUser();
   if (currentUser?.id === nextUser.id) {
     authStore.setCurrentUser(nextUser.id);
   }
 }
-
 function isCurrentPlatformUserAdmin() {
-  const authStore = getPlatformAuthStore();
   const user = getCurrentPlatformUser();
-  return user?.role === "admin" || authStore?.isAdmin?.() === true;
+  return String(user?.role || "").trim().toLowerCase() === "admin";
 }
-
 function getPlatformUsers() {
   return getPlatformAuthStore()?.getUsers?.() ?? [];
 }
-
 function getPlatformRoles() {
   const roles = getPlatformAuthStore()?.roles;
   if (Array.isArray(roles)) {
@@ -6387,25 +6211,27 @@ function getPlatformRoles() {
   }
   return platformDefaultRoles;
 }
-
 function formatUserName(user) {
   return [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || "Unknown User";
 }
-
 function getUserInitials(user) {
   const firstInitial = user?.firstName?.trim()?.[0] ?? "";
   const lastInitial = user?.lastName?.trim()?.[0] ?? "";
   return `${firstInitial}${lastInitial}`.toUpperCase() || "U";
 }
-
 function getUserProfileImageUrl(user) {
   const value = String(user?.profileImageUrl ?? "").trim();
-  if (!value || value.length > maxProfileImageUrlLength) {
+  if (!value) {
+    return "";
+  }
+  if (value.startsWith("data:image/")) {
+    return value.length <= maxProfileImageUploadDataUrlLength ? value : "";
+  }
+  if (value.length > maxProfileImageUrlLength) {
     return "";
   }
   return value;
 }
-
 function renderUserAvatar(user, className) {
   const profileImageUrl = getUserProfileImageUrl(user);
   const avatarClassName = `${className}${profileImageUrl ? " has-photo" : ""}`;
@@ -6415,23 +6241,19 @@ function renderUserAvatar(user, className) {
     </span>
   `;
 }
-
 function applyUserAvatar(element, user) {
   if (!element) {
     return;
   }
-
   const profileImageUrl = getUserProfileImageUrl(user);
   element.classList.toggle("has-photo", Boolean(profileImageUrl));
   element.innerHTML = profileImageUrl
     ? `<img src="${escapeHtml(profileImageUrl)}" alt="" />`
     : escapeHtml(getUserInitials(user));
 }
-
 function getUserClub(user) {
   return user?.team?.trim() || "Football Science";
 }
-
 function syncAccountMenu(user = getCurrentPlatformUser()) {
   const name = user ? formatUserName(user) : "Profile";
   const club = getUserClub(user);
@@ -6443,31 +6265,25 @@ function syncAccountMenu(user = getCurrentPlatformUser()) {
     [ui.profileMenuClub, club],
     [ui.profileMenuPanelClub, club],
   ];
-
   accountFields.forEach(([element, value]) => {
     if (element) {
       element.textContent = value;
     }
   });
-
   if (ui.profileMenuButton) {
     ui.profileMenuButton.setAttribute("aria-label", `Open profile menu for ${name}`);
   }
 }
-
 function setProfileMenuOpen(isOpen) {
   if (!ui.profileMenu || !ui.profileMenuButton) {
     return;
   }
-
   ui.profileMenu.hidden = !isOpen;
   ui.profileMenuButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
 }
-
 function isProfileMenuOpen() {
   return Boolean(ui.profileMenu && !ui.profileMenu.hidden);
 }
-
 function getRoleLabel(role) {
   const labels = {
     admin: "Admin",
@@ -6479,13 +6295,11 @@ function getRoleLabel(role) {
   };
   return labels[role] ?? "Coach";
 }
-
 function getAllWorkspacePool(sourceState = hubState) {
   return Array.isArray(sourceState?.workspaces) && sourceState.workspaces.length
     ? sourceState.workspaces
     : defaultHubState.workspaces;
 }
-
 function normalizeWorkspaceRoleList(roles = [], fallback = []) {
   const knownRoles = new Set(platformDefaultRoles);
   const sourceRoles = Array.isArray(roles) ? roles : fallback;
@@ -6493,7 +6307,6 @@ function normalizeWorkspaceRoleList(roles = [], fallback = []) {
     new Set(["admin", ...sourceRoles.filter((role) => knownRoles.has(role))])
   );
 }
-
 function normalizeWorkspaceAccessEntry(workspaceId, entry) {
   const defaultView = defaultWorkspaceAccess[workspaceId] ?? platformDefaultRoles;
   const defaultEdit = defaultWorkspaceEditAccess[workspaceId] ?? ["admin"];
@@ -6509,14 +6322,12 @@ function normalizeWorkspaceAccessEntry(workspaceId, entry) {
       edit: normalizeWorkspaceRoleList(edit, ["admin"]),
     };
   };
-
   if (Array.isArray(entry)) {
     return withRequiredAccess({
       view: normalizeWorkspaceRoleList(entry, defaultView),
       edit: normalizeWorkspaceRoleList(defaultEdit, ["admin"]),
     });
   }
-
   if (entry && typeof entry === "object") {
     const view = normalizeWorkspaceRoleList(entry.view, defaultView);
     const edit = normalizeWorkspaceRoleList(entry.edit, defaultEdit).filter((role) => view.includes(role));
@@ -6525,13 +6336,11 @@ function normalizeWorkspaceAccessEntry(workspaceId, entry) {
       edit: normalizeWorkspaceRoleList(edit, ["admin"]),
     });
   }
-
   return withRequiredAccess({
     view: normalizeWorkspaceRoleList(defaultView, platformDefaultRoles),
     edit: normalizeWorkspaceRoleList(defaultEdit, ["admin"]),
   });
 }
-
 function getWorkspaceAccessConfig(sourceState = hubState) {
   const configuredAccess = sourceState?.workspaceAccess ?? {};
   const workspaceIds = new Set([
@@ -6539,17 +6348,14 @@ function getWorkspaceAccessConfig(sourceState = hubState) {
     ...Object.keys(defaultWorkspaceEditAccess),
     ...Object.keys(configuredAccess),
   ]);
-
   return Array.from(workspaceIds).reduce((config, workspaceId) => {
     config[workspaceId] = normalizeWorkspaceAccessEntry(workspaceId, configuredAccess[workspaceId]);
     return config;
   }, {});
 }
-
 function getWorkspaceByIdFromPool(workspaceId, sourceState = hubState) {
   return getAllWorkspacePool(sourceState).find((workspace) => workspace.id === workspaceId) ?? null;
 }
-
 function canUserAccessWorkspace(
   workspace,
   user = getCurrentPlatformUser(),
@@ -6558,27 +6364,21 @@ function canUserAccessWorkspace(
   if (!workspace) {
     return false;
   }
-
   if (user?.role === "admin") {
     return true;
   }
-
   if (workspace.requiresAdmin) {
     return false;
   }
-
   const permission = normalizeWorkspaceAccessEntry(workspace.id, accessConfig[workspace.id]);
   if (!permission.view.length) {
     return true;
   }
-
   return permission.view.includes(user?.role ?? "guest");
 }
-
 function canCurrentUserAccessWorkspace(workspace) {
   return canUserAccessWorkspace(workspace);
 }
-
 function canUserEditWorkspace(
   workspaceId,
   user = getCurrentPlatformUser(),
@@ -6587,48 +6387,37 @@ function canUserEditWorkspace(
   if (user?.role === "admin") {
     return true;
   }
-
   const workspace = getWorkspaceByIdFromPool(workspaceId);
   if (!workspace || workspace.requiresAdmin) {
     return false;
   }
-
   const permission = normalizeWorkspaceAccessEntry(workspaceId, accessConfig[workspaceId]);
   return permission.view.includes(user?.role ?? "guest") && permission.edit.includes(user?.role ?? "guest");
 }
-
 function canCurrentUserEditWorkspace(workspaceId) {
   return canUserEditWorkspace(workspaceId);
 }
-
 function canEditScheduleWorkspace() {
   return canCurrentUserEditWorkspace("schedule");
 }
-
 function canEditSessionPlanner() {
   return canCurrentUserEditWorkspace("session-planner");
 }
-
 function canEditPeriodizationWorkspace() {
   return canCurrentUserEditWorkspace("periodization");
 }
-
 function canEditGameSimulatorWorkspace() {
   return canCurrentUserEditWorkspace("game-simulator");
 }
-
 function getAccessibleWorkspacePool() {
   return getAllWorkspacePool().filter((workspace) => canCurrentUserAccessWorkspace(workspace));
 }
-
 function getVisibleWorkspacePool() {
   return getAccessibleWorkspacePool().filter((workspace) => !workspace.hiddenFromNav);
 }
-
 function mergeWorkspaceDefinitions(sourceWorkspaces = []) {
   const sourceById = new Map(sourceWorkspaces.map((workspace) => [workspace.id, workspace]));
   const defaultsById = new Map(defaultHubState.workspaces.map((workspace) => [workspace.id, workspace]));
-
   return defaultHubState.workspaces.map((defaultWorkspace) => {
     const workspace = sourceById.get(defaultWorkspace.id);
     if (!workspace || !defaultsById.has(workspace.id)) {
@@ -6639,16 +6428,13 @@ function mergeWorkspaceDefinitions(sourceWorkspaces = []) {
       ...fallback,
       ...workspace,
     };
-
     if (defaultWorkspace.id === "session-planner" || defaultWorkspace.id === "player-profiles") {
       mergedWorkspace.kind = defaultWorkspace.kind;
       mergedWorkspace.status = defaultWorkspace.status;
     }
-
     return mergedWorkspace;
   });
 }
-
 function repairWorkspaceState(candidateState = hubState) {
   const repairedState = candidateState ?? cloneHubState(defaultHubState);
   const mergedWorkspaces = mergeWorkspaceDefinitions(
@@ -6661,16 +6447,13 @@ function repairWorkspaceState(candidateState = hubState) {
       workspace.id === repairedState.activeWorkspaceId &&
       canUserAccessWorkspace(workspace, getCurrentPlatformUser(), getWorkspaceAccessConfig(repairedState))
   );
-
   repairedState.workspaces = mergedWorkspaces;
   repairedState.workspaceAccess = getWorkspaceAccessConfig(repairedState);
   if (!activeExists) {
     repairedState.activeWorkspaceId = "home";
   }
-
   return repairedState;
 }
-
 function getWorkspaceIdFromUrl() {
   try {
     const params = new URLSearchParams(window.location.search);
@@ -6679,7 +6462,6 @@ function getWorkspaceIdFromUrl() {
     return null;
   }
 }
-
 const defaultPeriodizationDayTemplates = [
   {
     dayLabel: "Monday",
@@ -6850,10 +6632,8 @@ const defaultPeriodizationDayTemplates = [
     sessionNotes: "Recovery and staff review.",
   },
 ];
-
 const periodizationMultiFields = new Set(["matchPhases", "subPhases", "teamPrinciples", "miniGamePrinciples"]);
 let periodizationMultiSelectOpenField = "";
-
 function isDateValueInYear(dateValue, year) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateValue))) {
     return false;
@@ -6861,12 +6641,10 @@ function isDateValueInYear(dateValue, year) {
   const date = parseScheduleDateValue(dateValue);
   return date.getFullYear() === year && formatScheduleDateValue(date) === dateValue;
 }
-
 function normalizePeriodizationMultiValue(value) {
   const rawValues = Array.isArray(value) ? value : String(value ?? "").split("|");
   return [...new Set(rawValues.map((item) => String(item).trim()).filter(Boolean))];
 }
-
 function normalizePeriodizationDay(day = {}) {
   const normalized = {};
   [
@@ -6895,18 +6673,14 @@ function normalizePeriodizationDay(day = {}) {
     const value = String(day[key] ?? "").trim();
     normalized[key] = key === "matchDay" && value.toUpperCase() === "N/A" ? "" : value;
   });
-
   periodizationMultiFields.forEach((key) => {
     normalized[key] = normalizePeriodizationMultiValue(day[key]);
   });
-
   return normalized;
 }
-
 function getPeriodizationScheduleDefaults(dateValue) {
   const events = scheduleState ? getScheduleEventsForDate(dateValue) : [];
   const mainEvent = events[0] ?? null;
-
   if (!mainEvent) {
     return {
       daySchedule: "Off",
@@ -6916,7 +6690,6 @@ function getPeriodizationScheduleDefaults(dateValue) {
       pitchSize: "",
     };
   }
-
   const type = mainEvent.type;
   const label = scheduleEventTypes[type]?.label ?? "Training";
   return {
@@ -6944,7 +6717,6 @@ function getPeriodizationScheduleDefaults(dateValue) {
               : "",
   };
 }
-
 function getDefaultPeriodizationDay(dateValue) {
   return normalizePeriodizationDay({
     seasonPhase: "Competition",
@@ -6952,27 +6724,22 @@ function getDefaultPeriodizationDay(dateValue) {
     ...getPeriodizationScheduleDefaults(dateValue),
   });
 }
-
 function getPeriodizationDay(dateValue) {
   return normalizePeriodizationDay({
     ...getDefaultPeriodizationDay(dateValue),
     ...(periodizationState?.days?.[dateValue] ?? {}),
   });
 }
-
 function ensurePeriodizationState() {
   if (!periodizationState) {
     periodizationState = readPeriodizationState();
   }
-
   return periodizationState;
 }
-
 function writePeriodizationDay(dateValue, patch = {}, shouldRender = true) {
   if (!periodizationState || !isDateValueInYear(dateValue, periodizationYear) || !canEditPeriodizationWorkspace()) {
     return;
   }
-
   periodizationState.days[dateValue] = normalizePeriodizationDay({
     ...getPeriodizationDay(dateValue),
     ...patch,
@@ -6982,12 +6749,10 @@ function writePeriodizationDay(dateValue, patch = {}, shouldRender = true) {
     renderPeriodizationWorkspace();
   }
 }
-
 function selectPeriodizationDate(dateValue, shouldOpenOverlay = true, overlayMode = "view") {
   if (!periodizationState || !isDateValueInYear(dateValue, periodizationYear)) {
     return;
   }
-
   const date = parseScheduleDateValue(dateValue);
   const safeOverlayMode = overlayMode === "edit" && !canEditPeriodizationWorkspace() ? "view" : overlayMode;
   periodizationState.selectedDate = dateValue;
@@ -6997,23 +6762,19 @@ function selectPeriodizationDate(dateValue, shouldOpenOverlay = true, overlayMod
   writePeriodizationState();
   renderPeriodizationWorkspace();
 }
-
 function mergePeriodizationImportedDays(days = {}) {
   const mergedDays = {};
   const dateValues = new Set([
     ...Object.keys(importedNccPeriodizationDays),
     ...Object.keys(days || {}),
   ]);
-
   dateValues.forEach((dateValue) => {
     if (!isDateValueInYear(dateValue, periodizationYear)) {
       return;
     }
-
     const importedDay = normalizePeriodizationDay(importedNccPeriodizationDays[dateValue] || {});
     const savedDay = normalizePeriodizationDay(days?.[dateValue] || {});
     const mergedDay = { ...importedDay };
-
     Object.entries(savedDay).forEach(([key, value]) => {
       if (Array.isArray(value)) {
         if (value.length) {
@@ -7021,18 +6782,14 @@ function mergePeriodizationImportedDays(days = {}) {
         }
         return;
       }
-
       if (String(value ?? "").trim()) {
         mergedDay[key] = value;
       }
     });
-
     mergedDays[dateValue] = normalizePeriodizationDay(mergedDay);
   });
-
   return mergedDays;
 }
-
 function clonePeriodizationState(source = defaultPeriodizationState) {
   const rawMonthIndex = Number(source.selectedMonthIndex);
   const selectedMonthIndex = Number.isFinite(rawMonthIndex)
@@ -7044,7 +6801,6 @@ function clonePeriodizationState(source = defaultPeriodizationState) {
     : fallbackDate;
   const importVersion = String(source.importVersion || "");
   const days = {};
-
   if (source.days && typeof source.days === "object") {
     Object.entries(source.days).forEach(([dateValue, day]) => {
       if (isDateValueInYear(dateValue, periodizationYear) && day && typeof day === "object") {
@@ -7052,11 +6808,9 @@ function clonePeriodizationState(source = defaultPeriodizationState) {
       }
     });
   }
-
   const mergedDays = importVersion === importedNccPeriodizationVersion
     ? days
     : mergePeriodizationImportedDays(days);
-
   return {
     selectedYear: periodizationYear,
     selectedMonthIndex,
@@ -7068,7 +6822,6 @@ function clonePeriodizationState(source = defaultPeriodizationState) {
     days: mergedDays,
   };
 }
-
 function readPeriodizationState() {
   try {
     const raw = window.localStorage.getItem(periodizationStorageKey);
@@ -7083,39 +6836,32 @@ function readPeriodizationState() {
     return state;
   }
 }
-
 function writePeriodizationState() {
   if (!periodizationState) {
     return;
   }
-
   try {
     window.localStorage.setItem(periodizationStorageKey, JSON.stringify(periodizationState));
   } catch {
     logEvent("Periodization settings could not be written to local storage.");
   }
 }
-
 function formatMonthLabel(date) {
   return new Intl.DateTimeFormat("en-US", {
     month: "long",
     year: "numeric",
   }).format(date);
 }
-
 function getSelectedPeriodizationDate() {
   if (!periodizationState) {
     return new Date(periodizationYear, 0, 1);
   }
-
   return new Date(periodizationState.selectedYear, periodizationState.selectedMonthIndex, 1);
 }
-
 function setPeriodizationMonth(monthIndex) {
   if (!periodizationState || monthIndex < 0 || monthIndex > 11) {
     return;
   }
-
   periodizationDayOverlayOpen = false;
   periodizationDayOverlayMode = "view";
   periodizationState.selectedMonthIndex = monthIndex;
@@ -7129,15 +6875,12 @@ function setPeriodizationMonth(monthIndex) {
     renderPeriodizationWorkspace();
   }
 }
-
 function shiftPeriodizationMonth(delta) {
   if (!periodizationState) {
     return;
   }
-
   setPeriodizationMonth(periodizationState.selectedMonthIndex + delta);
 }
-
 function jumpPeriodizationToToday() {
   const today = new Date();
   const todayDateValue = formatScheduleDateValue(new Date(periodizationYear, today.getMonth(), today.getDate()));
@@ -7153,28 +6896,22 @@ function jumpPeriodizationToToday() {
     renderPeriodizationWorkspace();
   }
 }
-
 function padDatePart(value) {
   return String(value).padStart(2, "0");
 }
-
 function formatScheduleDateValue(date) {
   return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}`;
 }
-
 function parseScheduleDateValue(dateValue) {
   const [year, month, day] = String(dateValue).split("-").map(Number);
   if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
     return new Date();
   }
-
   return new Date(year, month - 1, day);
 }
-
 function cloneScheduleEvent(event = {}) {
   const date = event.date || defaultScheduleState.selectedDate;
   const type = scheduleEventTypes[event.type] ? event.type : "training";
-
   return {
     id: event.id || `event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     date,
@@ -7184,7 +6921,6 @@ function cloneScheduleEvent(event = {}) {
     note: event.note || "",
   };
 }
-
 function cloneScheduleState(source = defaultScheduleState) {
   const now = new Date();
   const selectedYear = Number.isFinite(Number(source.selectedYear))
@@ -7201,7 +6937,6 @@ function cloneScheduleState(source = defaultScheduleState) {
   const events = Array.isArray(source.events)
     ? source.events.map(cloneScheduleEvent).filter((event) => event.title.trim())
     : [];
-
   return {
     selectedYear,
     selectedMonthIndex,
@@ -7212,7 +6947,6 @@ function cloneScheduleState(source = defaultScheduleState) {
     events,
   };
 }
-
 function getScheduleEventSignature(event) {
   return [
     event.date || "",
@@ -7222,26 +6956,22 @@ function getScheduleEventSignature(event) {
     event.note || "",
   ].join("::");
 }
-
 function mergeImportedNccSchedule(state) {
   const mergedState = cloneScheduleState(state);
   if (mergedState.importVersion === importedNccScheduleVersion) {
     return mergedState;
   }
-
   const existingIds = new Set(mergedState.events.map((event) => event.id));
   const existingSignatures = new Set(mergedState.events.map(getScheduleEventSignature));
   const importedEvents = importedNccScheduleEvents
     .map(cloneScheduleEvent)
     .filter((event) => !existingIds.has(event.id) && !existingSignatures.has(getScheduleEventSignature(event)));
-
   return {
     ...mergedState,
     importVersion: importedNccScheduleVersion,
     events: [...mergedState.events, ...importedEvents],
   };
 }
-
 function readScheduleState() {
   try {
     const raw = window.localStorage.getItem(scheduleStorageKey);
@@ -7253,29 +6983,24 @@ function readScheduleState() {
     return mergeImportedNccSchedule(defaultScheduleState);
   }
 }
-
 function writeScheduleState() {
   if (!scheduleState) {
     return;
   }
-
   try {
     window.localStorage.setItem(scheduleStorageKey, JSON.stringify(scheduleState));
   } catch {
     logEvent("Schedule could not be written to local storage.");
   }
 }
-
 function getScheduleEventsForDate(dateValue) {
   if (!scheduleState) {
     scheduleState = readScheduleState();
   }
-
   return scheduleState.events
     .filter((event) => event.date === dateValue)
     .sort((a, b) => `${a.time || "99:99"} ${a.title}`.localeCompare(`${b.time || "99:99"} ${b.title}`));
 }
-
 function getScheduleMainEvent(events = []) {
   return [...events].sort((a, b) => {
     const priorityA = scheduleMainEventPriority[a.type] ?? 99;
@@ -7283,51 +7008,41 @@ function getScheduleMainEvent(events = []) {
     if (priorityA !== priorityB) {
       return priorityA - priorityB;
     }
-
     return `${a.time || "99:99"} ${a.title}`.localeCompare(`${b.time || "99:99"} ${b.title}`);
   })[0];
 }
-
 function isScheduleSessionEvent(event) {
   const title = String(event?.title ?? "").toLowerCase();
   return event?.type === "training" || title.includes("training");
 }
-
 function getScheduleSessionEventForDate(dateValue) {
   return getScheduleEventsForDate(dateValue).find(isScheduleSessionEvent) ?? null;
 }
-
 function getScheduledSessionTitleForDate(dateValue) {
   return getScheduleSessionEventForDate(dateValue)?.title || "";
 }
-
 function isScheduleDayEditing() {
   return scheduleDayPanelMode === "edit" && canEditScheduleWorkspace();
 }
-
 function getScheduleMonthEvents(year, monthIndex) {
   if (!scheduleState) {
     return [];
   }
-
   return scheduleState.events.filter((event) => {
     const eventDate = parseScheduleDateValue(event.date);
     return eventDate.getFullYear() === year && eventDate.getMonth() === monthIndex;
   });
 }
-
 function getScheduleLegendTypes(events = []) {
   return Array.from(new Set(events.map((event) => event.type)))
     .filter((type) => scheduleEventTypes[type])
     .sort((typeA, typeB) => (scheduleMainEventPriority[typeA] ?? 99) - (scheduleMainEventPriority[typeB] ?? 99));
 }
-
 function renderScheduleOverviewLegend(events = []) {
   const types = getScheduleLegendTypes(events);
   if (!types.length) {
     return "";
   }
-
   return `
     <div class="schedule-overview-legend" aria-label="Calendar colour legend">
       ${types
@@ -7344,7 +7059,6 @@ function renderScheduleOverviewLegend(events = []) {
     </div>
   `;
 }
-
 function getScheduleDateLabel(dateValue) {
   return new Intl.DateTimeFormat("en-GB", {
     weekday: "long",
@@ -7353,20 +7067,16 @@ function getScheduleDateLabel(dateValue) {
     year: "numeric",
   }).format(parseScheduleDateValue(dateValue));
 }
-
 function getScheduleNavigationStep() {
   if (!scheduleState) {
     return 1;
   }
-
   return scheduleState.viewMode === "overview" ? scheduleState.overviewSpan : 1;
 }
-
 function shiftScheduleMonth(delta) {
   if (!scheduleState) {
     return;
   }
-
   const nextDate = new Date(scheduleState.selectedYear, scheduleState.selectedMonthIndex + delta, 1);
   scheduleState.selectedYear = nextDate.getFullYear();
   scheduleState.selectedMonthIndex = nextDate.getMonth();
@@ -7374,34 +7084,28 @@ function shiftScheduleMonth(delta) {
   writeScheduleState();
   renderScheduleWorkspace();
 }
-
 function setScheduleViewMode(viewMode) {
   if (!scheduleState) {
     return;
   }
-
   scheduleState.viewMode = viewMode === "overview" ? "overview" : "month";
   writeScheduleState();
   renderScheduleWorkspace();
 }
-
 function setScheduleOverviewSpan(span) {
   if (!scheduleState) {
     return;
   }
-
   const overviewSpan = Number(span);
   scheduleState.overviewSpan = [3, 6, 9, 12].includes(overviewSpan) ? overviewSpan : 6;
   scheduleState.viewMode = "overview";
   writeScheduleState();
   renderScheduleWorkspace();
 }
-
 function selectScheduleDate(dateValue) {
   if (!scheduleState) {
     return;
   }
-
   scheduleDayPanelMode = "view";
   scheduleEditingEventId = null;
   const date = parseScheduleDateValue(dateValue);
@@ -7420,51 +7124,42 @@ function selectScheduleDate(dateValue) {
   writeScheduleState();
   renderScheduleWorkspace();
 }
-
 function jumpScheduleToToday() {
   const today = new Date();
   selectScheduleDate(formatScheduleDateValue(today));
 }
-
 function copyScheduleEvent(eventId) {
   if (!scheduleState || !canEditScheduleWorkspace()) {
     return;
   }
-
   const event = scheduleState.events.find((item) => item.id === eventId);
   if (!event) {
     return;
   }
-
   scheduleClipboard = {
     kind: "event",
     events: [cloneScheduleEvent(event)],
   };
   renderScheduleWorkspace();
 }
-
 function copySelectedScheduleDay() {
   if (!scheduleState || !canEditScheduleWorkspace()) {
     return;
   }
-
   const events = getScheduleEventsForDate(scheduleState.selectedDate);
   if (!events.length) {
     return;
   }
-
   scheduleClipboard = {
     kind: "day",
     events: events.map(cloneScheduleEvent),
   };
   renderScheduleWorkspace();
 }
-
 function pasteScheduleClipboardToSelectedDay() {
   if (!scheduleState || !scheduleClipboard?.events?.length || !isScheduleDayEditing()) {
     return;
   }
-
   const date = scheduleState.selectedDate;
   if (scheduleClipboard.kind === "day") {
     scheduleState.events = scheduleState.events.filter((event) => event.date !== date);
@@ -7481,30 +7176,24 @@ function pasteScheduleClipboardToSelectedDay() {
   writeScheduleState();
   renderScheduleWorkspace();
 }
-
 function isScheduleWorkspaceActive() {
   return hubState?.activeWorkspaceId === "schedule";
 }
-
 function isEditableKeyboardTarget(target) {
   const element = target instanceof Element ? target : null;
   if (!element) {
     return false;
   }
-
   return Boolean(element.closest("input, textarea, select, [contenteditable='true']"));
 }
-
 function startEditingScheduleEvent(eventId) {
   if (!scheduleState || !canEditScheduleWorkspace()) {
     return;
   }
-
   const event = scheduleState.events.find((item) => item.id === eventId);
   if (!event) {
     return;
   }
-
   scheduleEditingEventId = event.id;
   scheduleDayPanelMode = "edit";
   const date = parseScheduleDateValue(event.date);
@@ -7514,7 +7203,6 @@ function startEditingScheduleEvent(eventId) {
   writeScheduleState();
   renderScheduleWorkspace();
 }
-
 function clearScheduleEventEditor({ returnToView = false } = {}) {
   scheduleEditingEventId = null;
   if (returnToView) {
@@ -7525,7 +7213,6 @@ function clearScheduleEventEditor({ returnToView = false } = {}) {
   }
   renderScheduleWorkspace();
 }
-
 function renderScheduleEventPill(event) {
   const eventType = scheduleEventTypes[event.type] ?? scheduleEventTypes.training;
   return `
@@ -7535,41 +7222,33 @@ function renderScheduleEventPill(event) {
     </span>
   `;
 }
-
 function getScheduleMonthGridDates(year, monthIndex) {
   const firstDay = new Date(year, monthIndex, 1);
   const mondayOffset = (firstDay.getDay() + 6) % 7;
   const gridStart = new Date(year, monthIndex, 1 - mondayOffset);
-
   return Array.from({ length: 42 }, (_, index) => {
     const date = new Date(gridStart);
     date.setDate(gridStart.getDate() + index);
     return date;
   });
 }
-
 function getScheduleOverviewLabel() {
   if (!scheduleState) {
     return "Season Overview";
   }
-
   const startDate = new Date(scheduleState.selectedYear, scheduleState.selectedMonthIndex, 1);
   const endDate = new Date(scheduleState.selectedYear, scheduleState.selectedMonthIndex + scheduleState.overviewSpan - 1, 1);
   const startLabel = new Intl.DateTimeFormat("en-GB", { month: "long" }).format(startDate);
   const endLabel = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" }).format(endDate);
-
   if (startDate.getFullYear() !== endDate.getFullYear()) {
     return `${startLabel} ${startDate.getFullYear()} - ${endLabel}`;
   }
-
   return `${startLabel} - ${endLabel}`;
 }
-
 function renderScheduleMonthDay(date, isCompact = false, visibleMonthIndex = scheduleState?.selectedMonthIndex) {
   if (!scheduleState) {
     return "";
   }
-
   const dateValue = formatScheduleDateValue(date);
   const selectedDateValue = scheduleState.selectedDate;
   const todayValue = formatScheduleDateValue(new Date());
@@ -7581,12 +7260,10 @@ function renderScheduleMonthDay(date, isCompact = false, visibleMonthIndex = sch
   const mainEvent = getScheduleMainEvent(events);
   const mainTone = mainEvent ? scheduleEventTypes[mainEvent.type]?.tone || "training" : "";
   const eventToneClass = mainTone ? ` is-main-${mainTone}` : "";
-
   if (isCompact) {
     if (!isCurrentMonth) {
       return `<span class="schedule-overview-day-spacer" aria-hidden="true"></span>`;
     }
-
     return `
       <button
         type="button"
@@ -7598,10 +7275,8 @@ function renderScheduleMonthDay(date, isCompact = false, visibleMonthIndex = sch
       </button>
     `;
   }
-
   const visibleEvents = events.slice(0, 3).map(renderScheduleEventPill).join("");
   const overflow = events.length > 3 ? `<span class="schedule-more-pill">+${events.length - 3}</span>` : "";
-
   return `
     <button
       type="button"
@@ -7613,12 +7288,10 @@ function renderScheduleMonthDay(date, isCompact = false, visibleMonthIndex = sch
     </button>
   `;
 }
-
 function renderScheduleOverviewMonth(monthDate) {
   const monthLabel = formatMonthLabel(monthDate);
   const dates = getScheduleMonthGridDates(monthDate.getFullYear(), monthDate.getMonth());
   const monthEvents = getScheduleMonthEvents(monthDate.getFullYear(), monthDate.getMonth());
-
   return `
     <article class="schedule-overview-month">
       <header>
@@ -7634,7 +7307,6 @@ function renderScheduleOverviewMonth(monthDate) {
     </article>
   `;
 }
-
 function renderScheduleEventCard(event, isAdmin) {
   const eventType = scheduleEventTypes[event.type] ?? scheduleEventTypes.training;
   const eventMeta = [event.time, eventType.label].filter(Boolean).join(" · ");
@@ -7646,7 +7318,6 @@ function renderScheduleEventCard(event, isAdmin) {
       </div>
     `
     : "";
-
   return `
     <article class="schedule-event-card is-${escapeHtml(eventType.tone)}">
       <div>
@@ -7658,7 +7329,6 @@ function renderScheduleEventCard(event, isAdmin) {
     </article>
   `;
 }
-
 function renderScheduleWorkspace() {
   if (
     !scheduleState ||
@@ -7670,7 +7340,6 @@ function renderScheduleWorkspace() {
   ) {
     return;
   }
-
   const selectedMonthDate = new Date(scheduleState.selectedYear, scheduleState.selectedMonthIndex, 1);
   const selectedMonthLabel = formatMonthLabel(selectedMonthDate);
   const selectedDateValue = scheduleState.selectedDate;
@@ -7682,7 +7351,6 @@ function renderScheduleWorkspace() {
   }
   const isEditingDay = isScheduleDayEditing();
   const editingEvent = scheduleState.events.find((event) => event.id === scheduleEditingEventId) ?? null;
-
   ui.scheduleMonthTitle.textContent = isOverview ? getScheduleOverviewLabel() : selectedMonthLabel;
   ui.scheduleMonthTitle.hidden = isOverview;
   ui.scheduleMonthViewButton?.classList.toggle("is-active", !isOverview);
@@ -7749,7 +7417,6 @@ function renderScheduleWorkspace() {
     ui.scheduleEditDayButton.setAttribute("aria-pressed", String(isEditingDay));
     ui.scheduleEditDayButton.setAttribute("aria-label", isEditingDay ? "Close edit mode" : "Edit selected day");
   }
-
   if (ui.scheduleAdminActions) {
     ui.scheduleAdminActions.hidden = !isEditingDay;
   }
@@ -7763,7 +7430,6 @@ function renderScheduleWorkspace() {
   if (ui.scheduleCopyDayButton) {
     ui.scheduleCopyDayButton.disabled = !getScheduleEventsForDate(selectedDateValue).length;
   }
-
   if (isOverview && ui.scheduleOverviewGrid) {
     ui.scheduleOverviewGrid.innerHTML = Array.from({ length: scheduleState.overviewSpan }, (_, index) =>
       renderScheduleOverviewMonth(new Date(scheduleState.selectedYear, scheduleState.selectedMonthIndex + index, 1))
@@ -7772,13 +7438,11 @@ function renderScheduleWorkspace() {
     const days = getScheduleMonthGridDates(scheduleState.selectedYear, scheduleState.selectedMonthIndex);
     ui.scheduleCalendarGrid.innerHTML = days.map((date) => renderScheduleMonthDay(date)).join("");
   }
-
   const selectedEvents = getScheduleEventsForDate(selectedDateValue);
   ui.scheduleEventList.innerHTML = selectedEvents.length
     ? selectedEvents.map((event) => renderScheduleEventCard(event, isEditingDay)).join("")
     : `<p class="schedule-empty-state">No plans on this day yet.</p>`;
 }
-
 function cloneHubState(source = defaultHubState) {
   return {
     activeWorkspaceId: source.activeWorkspaceId,
@@ -7805,18 +7469,22 @@ function cloneHubState(source = defaultHubState) {
     },
   };
 }
-
+function clonePersistableWorkspaceHubState(source = hubState) {
+  const clonedState = cloneHubState(source ?? defaultHubState);
+  delete clonedState.activeWorkspaceId;
+  return clonedState;
+}
 function readWorkspaceHubState() {
   try {
     const raw = window.localStorage.getItem(workspaceHubStorageKey);
     if (!raw) {
       return cloneHubState(defaultHubState);
     }
-
     const parsed = JSON.parse(raw);
     return cloneHubState({
       ...defaultHubState,
       ...parsed,
+      activeWorkspaceId: workspaceHubDefaultActiveWorkspaceId,
       profile: {
         ...defaultHubState.profile,
         ...(parsed?.profile ?? {}),
@@ -7835,111 +7503,88 @@ function readWorkspaceHubState() {
     return cloneHubState(defaultHubState);
   }
 }
-
 function writeWorkspaceHubState() {
   if (!hubState) {
     return;
   }
-
   try {
-    window.localStorage.setItem(workspaceHubStorageKey, JSON.stringify(hubState));
+    window.localStorage.setItem(workspaceHubStorageKey, JSON.stringify(clonePersistableWorkspaceHubState(hubState)));
   } catch {
     logEvent("Workspace hub settings could not be written to local storage.");
   }
 }
-
 function getWorkspaceById(workspaceId) {
   const workspaces = getAccessibleWorkspacePool();
   return workspaces.find((workspace) => workspace.id === workspaceId) ?? null;
 }
-
 function getWorkspaceByIdUnfiltered(workspaceId, sourceState = hubState) {
   const workspaces = getAllWorkspacePool(sourceState);
   return workspaces.find((workspace) => workspace.id === workspaceId) ?? null;
 }
-
 function getSafeWorkspaceId(workspaceId, sourceState = hubState) {
   const workspace = getWorkspaceByIdUnfiltered(workspaceId, sourceState);
   if (!workspace) {
     return null;
   }
-
   const user = getCurrentPlatformUser();
   const accessConfig = getWorkspaceAccessConfig(sourceState);
   if (!canUserAccessWorkspace(workspace, user, accessConfig)) {
     return null;
   }
-
   return workspace.id;
 }
-
 function getWorkspaceViewId(workspaceId) {
   const workspace = getWorkspaceById(workspaceId);
   if (!workspace) {
     return "home";
   }
-
   if (workspace.kind === "simulator") {
     return "game-simulator";
   }
-
   if (workspace.kind === "dashboard") {
     return "home";
   }
-
   if (workspace.kind === "profile") {
     return "profile";
   }
-
   if (workspace.kind === "staff") {
     return "staff";
   }
-
   if (workspace.kind === "admin") {
     return "admin";
   }
-
   if (workspace.kind === "medical") {
     return "medical-team";
   }
-
   if (workspace.kind === "player-profiles") {
     return "player-profiles";
   }
-
   if (workspace.kind === "schedule") {
     return "schedule";
   }
-
   if (workspace.kind === "periodization") {
     return "periodization";
   }
-
   if (workspace.kind === "session") {
     return "session-planner";
   }
-
   return "placeholder";
 }
-
 function getWorkspaceQuery() {
   return ui.workspaceSearch?.value.trim().toLowerCase() ?? "";
 }
-
 function getVisibleWorkspaces() {
   const workspaces = getVisibleWorkspacePool();
   const query = getWorkspaceQuery();
   if (!query) {
     return workspaces;
   }
-
   return workspaces.filter((workspace) =>
     `${workspace.title} ${workspace.meta} ${workspace.description} ${workspace.status}`
       .toLowerCase()
       .includes(query)
   );
 }
-
 function getDashboardDateLabel() {
   return new Intl.DateTimeFormat("en-GB", {
     weekday: "long",
@@ -7947,7 +7592,6 @@ function getDashboardDateLabel() {
     month: "long",
   }).format(new Date());
 }
-
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -7955,24 +7599,20 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
 }
-
 function createDashboardId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
-
 function readDashboardJson(key, fallback) {
   try {
     const raw = window.localStorage.getItem(key);
     if (!raw) {
       return fallback;
     }
-
     return JSON.parse(raw);
   } catch {
     return fallback;
   }
 }
-
 function writeDashboardJson(key, value) {
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
@@ -7980,13 +7620,11 @@ function writeDashboardJson(key, value) {
     logEvent("Dashboard data could not be written to local storage.");
   }
 }
-
 function normalizeDashboardTask(task) {
   const currentUser = getCurrentPlatformUser();
   const title = String(task?.title ?? "").trim();
   const assignedTo = task?.assignedTo || currentUser?.id || "";
   const createdBy = task?.createdBy || currentUser?.id || assignedTo;
-
   return {
     id: task?.id || createDashboardId("task"),
     title,
@@ -7999,7 +7637,6 @@ function normalizeDashboardTask(task) {
     completedAt: task?.completedAt || "",
   };
 }
-
 function readDashboardTasks() {
   const parsed = readDashboardJson(dashboardTaskStorageKey, []);
   return Array.isArray(parsed)
@@ -8009,18 +7646,15 @@ function readDashboardTasks() {
         .sort((first, second) => new Date(second.createdAt) - new Date(first.createdAt))
     : [];
 }
-
 function writeDashboardTasks(tasks) {
   writeDashboardJson(dashboardTaskStorageKey, tasks.map(normalizeDashboardTask));
 }
-
 function createDashboardTask(values) {
   const currentUser = getCurrentPlatformUser();
   const title = String(values?.title ?? "").trim();
   if (!currentUser || !title) {
     return null;
   }
-
   const task = normalizeDashboardTask({
     title,
     note: values?.note ?? "",
@@ -8031,14 +7665,12 @@ function createDashboardTask(values) {
   writeDashboardTasks([task, ...readDashboardTasks()]);
   return task;
 }
-
 function updateDashboardTask(taskId, patch) {
   const tasks = readDashboardTasks();
   const nextTasks = tasks.map((task) => {
     if (task.id !== taskId) {
       return task;
     }
-
     const nextStatus = patch?.status ?? task.status;
     return normalizeDashboardTask({
       ...task,
@@ -8051,73 +7683,80 @@ function updateDashboardTask(taskId, patch) {
   });
   writeDashboardTasks(nextTasks);
 }
-
 function removeDashboardTask(taskId) {
   writeDashboardTasks(readDashboardTasks().filter((task) => task.id !== taskId));
 }
-
 function normalizeDashboardChatThreadId(rawThreadId, fallbackThreadId = dashboardChatTeamThreadId) {
   const threadId = String(rawThreadId || fallbackThreadId || "").trim();
   if (!threadId || threadId === dashboardChatTeamThreadId) {
     return dashboardChatTeamThreadId;
   }
-
+  if (dashboardChatAdvancedThreadTemplates.some((template) => template.key === threadId)) {
+    return threadId;
+  }
   if (!threadId.startsWith("dm:")) {
     return dashboardChatTeamThreadId;
   }
-
   const [, leftId = "", rightId = ""] = threadId.split(":");
   const normalizedIds = [leftId, rightId]
     .map((id) => String(id || "").trim())
     .filter(Boolean)
     .sort();
-
   if (normalizedIds.length !== 2 || normalizedIds[0] === normalizedIds[1]) {
     return dashboardChatTeamThreadId;
   }
-
   return `dm:${normalizedIds[0]}:${normalizedIds[1]}`;
 }
-
 function createDashboardChatThreadId(firstUserId, secondUserId) {
   return normalizeDashboardChatThreadId(
     `dm:${String(firstUserId || "").trim()}:${String(secondUserId || "").trim()}`,
     dashboardChatTeamThreadId
   );
 }
-
+function getDashboardChatTeamName() {
+  const scopedTeamName = String(
+    dashboardChatApiScope?.teamName ||
+      dashboardChatApiScope?.team?.name ||
+      dashboardChatApiScope?.team_name ||
+      ""
+  ).trim();
+  const userTeamName = String(getCurrentPlatformUser()?.team || "").trim();
+  return scopedTeamName || userTeamName || "Team";
+}
+function getDashboardChatTeamChatTitle() {
+  const teamName = getDashboardChatTeamName();
+  return teamName && teamName !== "Team" ? `${teamName} Chat` : "Team Chat";
+}
 function formatDashboardChatThreadLabel(threadId, currentUser, users = getPlatformUsers()) {
   const normalized = normalizeDashboardChatThreadId(threadId);
   if (normalized === dashboardChatTeamThreadId) {
-    return "Team Chat";
+    return getDashboardChatTeamChatTitle();
   }
-
+  const template = dashboardChatAdvancedThreadTemplates.find((candidate) => candidate.key === normalized);
+  if (template) {
+    return template.title;
+  }
   const [, firstId = "", secondId = ""] = normalized.split(":");
   const currentUserId = currentUser?.id || "";
   const partnerId = firstId === currentUserId ? secondId : firstId;
   const partner = users.find((user) => user.id === partnerId);
   return partner ? formatUserName(partner) : "Direct Message";
 }
-
 function getDashboardChatThreadParticipants(threadId, users = getPlatformUsers()) {
   const normalized = normalizeDashboardChatThreadId(threadId);
-  if (normalized === dashboardChatTeamThreadId) {
+  if (normalized === dashboardChatTeamThreadId || dashboardChatAdvancedThreadTemplates.some((template) => template.key === normalized)) {
     return [];
   }
-
   const [, firstId = "", secondId = ""] = normalized.split(":");
   const userIds = [firstId, secondId];
   return userIds.map((userId) => users.find((user) => user.id === userId)).filter(Boolean);
 }
-
 function getDashboardChatThreadLabel(threadId, currentUser, users = getPlatformUsers()) {
   if (threadId === dashboardChatTeamThreadId) {
     return "Staff Room";
   }
-
   return formatDashboardChatThreadLabel(threadId, currentUser, users);
 }
-
 function readDashboardChatWidgetState() {
   const parsed = readDashboardJson(dashboardChatWidgetStateStorageKey, {
     isOpen: false,
@@ -8128,35 +7767,39 @@ function readDashboardChatWidgetState() {
     selectedThreadId: normalizeDashboardChatThreadId(parsed?.selectedThreadId, dashboardChatTeamThreadId),
   };
 }
-
 function writeDashboardChatWidgetState(nextState) {
   writeDashboardJson(dashboardChatWidgetStateStorageKey, {
     isOpen: Boolean(nextState?.isOpen),
     selectedThreadId: normalizeDashboardChatThreadId(nextState?.selectedThreadId, dashboardChatTeamThreadId),
   });
 }
-
 function readDashboardChatWidgetNotificationState() {
   const parsed = readDashboardJson(dashboardChatWidgetNotificationStateStorageKey, {
     enabled: true,
+    level: "all",
   });
+  const level = ["all", "mentions", "muted"].includes(parsed?.level) ? parsed.level : parsed?.enabled === false ? "muted" : "all";
   return {
-    enabled: parsed?.enabled !== false,
+    enabled: level !== "muted",
+    level,
   };
 }
-
 function writeDashboardChatWidgetNotificationState(nextState) {
+  const level = ["all", "mentions", "muted"].includes(nextState?.level)
+    ? nextState.level
+    : nextState?.enabled === false
+      ? "muted"
+      : "all";
   writeDashboardJson(dashboardChatWidgetNotificationStateStorageKey, {
-    enabled: nextState?.enabled !== false,
+    enabled: level !== "muted",
+    level,
   });
 }
-
 function readDashboardChatWidgetNotificationCursor() {
   const parsed = readDashboardJson(dashboardChatWidgetNotificationCursorStorageKey, {});
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     return { lastMessageId: "", seenAt: 0, userId: "", threadId: dashboardChatTeamThreadId };
   }
-
   return {
     lastMessageId: String(parsed.lastMessageId || "").trim(),
     seenAt: Number.isFinite(Number(parsed.seenAt)) ? Number(parsed.seenAt) : 0,
@@ -8164,7 +7807,6 @@ function readDashboardChatWidgetNotificationCursor() {
     threadId: normalizeDashboardChatThreadId(parsed.threadId, dashboardChatTeamThreadId),
   };
 }
-
 function writeDashboardChatWidgetNotificationCursor(nextCursor) {
   writeDashboardJson(dashboardChatWidgetNotificationCursorStorageKey, {
     lastMessageId: String(nextCursor?.lastMessageId || "").trim(),
@@ -8173,7 +7815,15 @@ function writeDashboardChatWidgetNotificationCursor(nextCursor) {
     threadId: normalizeDashboardChatThreadId(nextCursor?.threadId, dashboardChatTeamThreadId),
   });
 }
-
+function isDashboardDocumentActivelyViewed() {
+  return document.visibilityState === "visible" && document.hasFocus();
+}
+function isDashboardChatThreadActivelyViewed(threadId = "") {
+  const state = readDashboardChatWidgetState();
+  const selectedThreadId = normalizeDashboardChatThreadId(state.selectedThreadId, dashboardChatTeamThreadId);
+  const targetThreadId = threadId ? normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId) : selectedThreadId;
+  return Boolean(state.isOpen && isDashboardDocumentActivelyViewed() && selectedThreadId === targetThreadId);
+}
 function normalizeDashboardMentionToken(value) {
   return String(value || "")
     .trim()
@@ -8181,7 +7831,6 @@ function normalizeDashboardMentionToken(value) {
     .replace(/^@/, "")
     .replace(/[^a-z0-9._-]/g, "");
 }
-
 function getDashboardMentionKeys(user = {}) {
   const emailHandle = String(user.email || "").split("@", 1)[0];
   const fullName = `${user.firstName || ""}.${user.lastName || ""}`;
@@ -8191,42 +7840,34 @@ function getDashboardMentionKeys(user = {}) {
       .filter(Boolean)
   );
 }
-
 function getDashboardMentionUserIdsForToken(token, users = getPlatformUsers(), authorUserId = "") {
   const normalizedToken = normalizeDashboardMentionToken(token);
   if (!normalizedToken) {
     return [];
   }
-
   const activeUsers = users.filter((user) => user.status === "active" && user.id !== authorUserId);
   if (["all", "team", "staff", "everyone"].includes(normalizedToken)) {
     return activeUsers.map((user) => user.id);
   }
-
   return activeUsers
     .filter((user) => getDashboardMentionKeys(user).has(normalizedToken))
     .map((user) => user.id);
 }
-
 function getDashboardMentionUserIds(text, users = getPlatformUsers(), authorUserId = "") {
   const matches = String(text || "").matchAll(/@([a-zA-Z0-9._-]{2,64})/g);
   const mentionedUserIds = new Set();
   for (const match of matches) {
     getDashboardMentionUserIdsForToken(match[1], users, authorUserId).forEach((userId) => mentionedUserIds.add(userId));
   }
-
   return Array.from(mentionedUserIds);
 }
-
 function canPinDashboardChatMessage(user = getCurrentPlatformUser()) {
   return user?.role === "admin" || user?.role === "coach";
 }
-
 function normalizeDashboardChatPriority(value) {
   const priority = String(value || "normal").trim().toLowerCase();
   return dashboardChatPriorityKeys.has(priority) ? priority : "normal";
 }
-
 function normalizeDashboardReactions(reactions = {}) {
   const normalized = {};
   dashboardChatReactionOptions.forEach((option) => {
@@ -8240,13 +7881,11 @@ function normalizeDashboardReactions(reactions = {}) {
   });
   return normalized;
 }
-
 function normalizeDashboardMessageAuthor(author = {}) {
   const id = String(author?.id || "").trim();
   if (!id) {
     return null;
   }
-
   return {
     id,
     email: String(author?.email || "").toLowerCase(),
@@ -8261,18 +7900,16 @@ function normalizeDashboardMessageAuthor(author = {}) {
     profileImageUrl: String(author?.profileImageUrl || author?.profile_image_url || "").trim(),
   };
 }
-
 function normalizeDashboardMessage(message) {
   const currentUser = getCurrentPlatformUser();
-  const userId = message?.userId || currentUser?.id || "";
-  const text = String(message?.text ?? "").trim();
+  const userId = message?.userId || message?.authorId || message?.senderId || currentUser?.id || "";
+  const text = String(message?.text ?? "").trim().slice(0, dashboardChatMaxMessageLength);
   const readBy = Array.isArray(message?.readBy)
     ? message.readBy.map((userId) => String(userId ?? "").trim()).filter(Boolean)
     : [];
   const mentionedUserIds = Array.isArray(message?.mentionedUserIds)
     ? message.mentionedUserIds.map((userId) => String(userId || "").trim()).filter(Boolean)
     : getDashboardMentionUserIds(text, getPlatformUsers(), userId);
-
   return {
     id: message?.id || createDashboardId("message"),
     userId,
@@ -8288,20 +7925,20 @@ function normalizeDashboardMessage(message) {
     pinnedAt: String(message?.pinnedAt || "").trim(),
     pinnedBy: String(message?.pinnedBy || "").trim(),
     author: normalizeDashboardMessageAuthor(message?.author || message?.user || null),
+    attachments: Array.isArray(message?.attachments) ? message.attachments : [],
   };
 }
-
 function readDashboardMessages() {
   const parsed = readDashboardJson(dashboardChatStorageKey, []);
-  return Array.isArray(parsed)
-    ? parsed
+  const sourceMessages = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.messages) ? parsed.messages : [];
+  return Array.isArray(sourceMessages)
+    ? sourceMessages
         .map(normalizeDashboardMessage)
         .filter((message) => message.text && message.userId)
         .sort((first, second) => new Date(first.createdAt) - new Date(second.createdAt))
     : [];
 }
-
-function writeDashboardMessages(messages) {
+function writeDashboardMessages(messages, options = {}) {
   const normalizedMessages = messages.map(normalizeDashboardMessage).filter((message) => message.text && message.userId);
   const recentMessages = normalizedMessages.slice(-80);
   const pinnedMessages = normalizedMessages
@@ -8310,17 +7947,456 @@ function writeDashboardMessages(messages) {
   const nextMessages = [...pinnedMessages, ...recentMessages]
     .filter((message, index, source) => source.findIndex((candidate) => candidate.id === message.id) === index)
     .sort((first, second) => new Date(first.createdAt) - new Date(second.createdAt));
-  writeDashboardJson(dashboardChatStorageKey, nextMessages);
+  if (options.skipCentralSync) {
+    centralStateWriteSuppressionKeys.add(dashboardChatStorageKey);
+  }
+  try {
+    writeDashboardJson(dashboardChatStorageKey, nextMessages);
+  } finally {
+    centralStateWriteSuppressionKeys.delete(dashboardChatStorageKey);
+  }
 }
-
-function createDashboardMessage(text, threadId = dashboardChatTeamThreadId) {
+function getDashboardChatThreadTypeForApi(threadId) {
+  const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+  if (normalizedThreadId === dashboardChatTeamThreadId) {
+    return "team";
+  }
+  const template = dashboardChatAdvancedThreadTemplates.find((candidate) => candidate.key === normalizedThreadId);
+  return template?.type || "dm";
+}
+function getDashboardChatParticipantIdsForApi(threadId) {
+  return getDashboardChatThreadParticipants(threadId)
+    .map((user) => user?.id)
+    .filter(Boolean);
+}
+async function getDashboardChatApiAccessToken() {
+  if (window.platformAuthReadyPromise instanceof Promise) {
+    try {
+      await window.platformAuthReadyPromise;
+    } catch {
+      // Continue with any usable auth state already in memory.
+    }
+  }
+  const authStore = getPlatformAuthStore();
+  if (typeof authStore?.getAccessToken !== "function") {
+    return "";
+  }
+  try {
+    return String((await authStore.getAccessToken()) || "").trim();
+  } catch {
+    return "";
+  }
+}
+async function sendDashboardChatApiAction(payload = {}) {
+  const token = await getDashboardChatApiAccessToken();
+  if (!token) {
+    return { ok: false, status: 401, reason: "Chat API requires an authenticated session." };
+  }
+  try {
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    const responseText = await response.text();
+    let result = {};
+    if (responseText) {
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        result = { reason: responseText.slice(0, 240) };
+      }
+    }
+    if (!response.ok || result?.ok === false) {
+      return {
+        ok: false,
+        status: response.status,
+        reason: result?.reason || result?.message || `Chat API failed (${response.status}).`,
+        retryable: response.status >= 500,
+      };
+    }
+    return { ok: true, status: response.status, result };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      reason: error?.message || "Chat API could not be reached.",
+      retryable: true,
+    };
+  }
+}
+async function fetchDashboardChatApi(query = {}) {
+  const token = await getDashboardChatApiAccessToken();
+  if (!token) {
+    return { ok: false, status: 401, reason: "Chat API requires an authenticated session." };
+  }
+  const params = new URLSearchParams();
+  Object.entries(query).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim()) {
+      params.set(key, String(value));
+    }
+  });
+  try {
+    const response = await fetch(`/api/chat${params.toString() ? `?${params.toString()}` : ""}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      cache: "no-store",
+    });
+    const responseText = await response.text();
+    let result = {};
+    if (responseText) {
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        result = { reason: responseText.slice(0, 240) };
+      }
+    }
+    if (!response.ok || result?.ok === false) {
+      return {
+        ok: false,
+        status: response.status,
+        reason: result?.reason || result?.message || `Chat API failed (${response.status}).`,
+      };
+    }
+    return { ok: true, status: response.status, result };
+  } catch (error) {
+    return { ok: false, status: 0, reason: error?.message || "Chat API could not be reached." };
+  }
+}
+function canFallbackDashboardChatApiResult(result = {}) {
+  if (result.retryable) {
+    return true;
+  }
+  const host = window.location?.hostname || "";
+  const isLocalHost = host === "localhost" || host === "127.0.0.1" || host === "::1" || host.endsWith(".localhost");
+  const isDevAuth = Boolean(getPlatformAuthStore()?.isDevMode?.());
+  return Boolean(isLocalHost && isDevAuth && result.status === 401);
+}
+function logDashboardChatApiFailure(action, result = {}) {
+  console.warn(`Chat action ${action} was not saved through /api/chat.`, result.reason || result.status || result);
+}
+function normalizeDashboardApiThread(thread = {}) {
+  const type = String(thread.type || "team").trim().toLowerCase();
+  const legacyThreadId = String(thread.metadata?.legacyThreadId || thread.legacyThreadId || "").trim();
+  return {
+    threadId: normalizeDashboardChatThreadId(legacyThreadId || (type === "team" ? dashboardChatTeamThreadId : thread.id), dashboardChatTeamThreadId),
+    databaseThreadId: String(thread.id || "").trim(),
+    type,
+    title: String(thread.title || thread.name || (type === "team" ? "Team Chat" : "Chat")).trim(),
+    visibility: String(thread.visibility || "members").trim(),
+    lastMessageAt: String(thread.last_message_at || thread.lastMessageAt || thread.updated_at || "").trim(),
+    messageCount: Number(thread.message_count || thread.messageCount || 0) || 0,
+    metadata: thread.metadata || {},
+  };
+}
+function normalizeDashboardApiMessage(message = {}, thread = null) {
+  const apiThread = thread ? normalizeDashboardApiThread(thread) : null;
+  const threadId = normalizeDashboardChatThreadId(
+    message.legacyThreadId || message.threadId || message.thread_id || apiThread?.threadId || dashboardChatTeamThreadId,
+    dashboardChatTeamThreadId
+  );
+  const author = message.author || message.user || null;
+  const authorId = message.userId || message.author_id || message.authorId || "";
+  return normalizeDashboardMessage({
+    id: message.id || message.messageId,
+    threadId,
+    text: message.text ?? message.body ?? "",
+    userId: authorId,
+    createdAt: message.createdAt || message.created_at,
+    deliveredAt: message.deliveredAt || message.createdAt || message.created_at,
+    readBy: Array.isArray(message.readBy) ? message.readBy : [],
+    mentionedUserIds: Array.isArray(message.mentionedUserIds) ? message.mentionedUserIds : [],
+    reactions: message.reactions || {},
+    replyToId: message.replyToId || message.reply_to_id || "",
+    priority: message.priority,
+    pinnedAt: message.pinnedAt || message.pinned_at || "",
+    pinnedBy: message.pinnedBy || message.pinned_by || "",
+    author,
+    attachments: Array.isArray(message.attachments) ? message.attachments : [],
+  });
+}
+function mergeDashboardChatApiMessages(messages = [], options = {}) {
+  if (!Array.isArray(messages) || !messages.length) {
+    return readDashboardMessages();
+  }
+  const current = readDashboardMessages();
+  const byId = new Map(current.map((message) => [message.id, message]));
+  messages.map(normalizeDashboardApiMessage).forEach((message) => {
+    if (message.text && message.userId) {
+      byId.set(message.id, message);
+    }
+  });
+  const mergedMessages = Array.from(byId.values()).sort((first, second) => new Date(first.createdAt) - new Date(second.createdAt));
+  writeDashboardMessages(mergedMessages, { skipCentralSync: true });
+  if (options.render !== false) {
+    renderDashboardChatWidget();
+  }
+  return mergedMessages;
+}
+function updateDashboardChatApiThreads(threads = []) {
+  if (!Array.isArray(threads)) {
+    return;
+  }
+  const byId = new Map(dashboardChatApiThreads.map((thread) => [thread.threadId, thread]));
+  threads.map(normalizeDashboardApiThread).forEach((thread) => {
+    if (thread.threadId) {
+      byId.set(thread.threadId, thread);
+    }
+  });
+  dashboardChatApiThreads = Array.from(byId.values());
+}
+function applyDashboardChatApiPayload(payload = {}, options = {}) {
+  if (payload.scope) {
+    dashboardChatApiScope = payload.scope;
+    setupDashboardChatRealtime();
+  }
+  if (Array.isArray(payload.threads)) {
+    updateDashboardChatApiThreads(payload.threads);
+  } else if (payload.thread) {
+    updateDashboardChatApiThreads([payload.thread]);
+  }
+  if (payload.nextCursor !== undefined) {
+    const threadId = normalizeDashboardChatThreadId(options.threadId || payload.thread?.legacyThreadId || payload.thread?.metadata?.legacyThreadId || dashboardChatTeamThreadId, dashboardChatTeamThreadId);
+    dashboardChatApiPagination[threadId] = String(payload.nextCursor || "");
+  }
+  if (Array.isArray(payload.messages)) {
+    mergeDashboardChatApiMessages(payload.messages, { render: false });
+  }
+}
+async function refreshDashboardChatFromApi(options = {}) {
+  const threadId = normalizeDashboardChatThreadId(options.threadId || readDashboardChatWidgetState().selectedThreadId, dashboardChatTeamThreadId);
+  const query = {
+    threadId,
+    limit: options.limit || dashboardChatApiPageLimit,
+  };
+  if (options.cursor) {
+    query.cursor = options.cursor;
+  }
+  if (options.search) {
+    query.search = options.search;
+    delete query.threadId;
+  }
+  const result = await fetchDashboardChatApi(query);
+  if (!result.ok) {
+    if (!canFallbackDashboardChatApiResult(result)) {
+      logDashboardChatApiFailure("load", result);
+    }
+    return result;
+  }
+  applyDashboardChatApiPayload(result.result, { threadId });
+  renderDashboardChatWidget();
+  return result;
+}
+function queueDashboardChatApiRefresh(options = {}) {
+  if (dashboardChatApiSyncTimer) {
+    window.clearTimeout(dashboardChatApiSyncTimer);
+  }
+  dashboardChatApiSyncTimer = window.setTimeout(() => {
+    dashboardChatApiSyncTimer = 0;
+    void refreshDashboardChatFromApi(options);
+  }, Number(options.delayMs ?? 160));
+}
+async function loadOlderDashboardChatMessagesWithApi(threadId) {
+  const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+  const cursor = dashboardChatApiPagination[normalizedThreadId];
+  if (!cursor) {
+    return null;
+  }
+  return refreshDashboardChatFromApi({ threadId: normalizedThreadId, cursor });
+}
+async function loadDashboardChatModerationFromApi() {
+  if (!isCurrentPlatformUserAdmin()) {
+    return null;
+  }
+  dashboardChatModerationState = { ...dashboardChatModerationState, loading: true, error: "" };
+  renderDashboardChatWidget();
+  const result = await fetchDashboardChatApi({ view: "moderation", limit: 40 });
+  if (!result.ok) {
+    dashboardChatModerationState = { ...dashboardChatModerationState, loading: false, error: result.reason || "Could not load moderation." };
+    renderDashboardChatWidget();
+    return result;
+  }
+  dashboardChatModerationState = {
+    loading: false,
+    audits: Array.isArray(result.result.audits) ? result.result.audits : [],
+    retentionPolicy: result.result.retentionPolicy || null,
+    error: "",
+  };
+  if (result.result.scope) {
+    dashboardChatApiScope = result.result.scope;
+  }
+  renderDashboardChatWidget();
+  return result;
+}
+function getDashboardSupabaseClient() {
+  const authStore = getPlatformAuthStore?.();
+  return authStore?.getSupabaseClient?.() || authStore?.supabase || null;
+}
+function getDashboardAttachmentStorageRef(attachment = {}) {
+  const bucket = String(attachment.bucket || attachment.storage_bucket || "").trim();
+  const path = String(attachment.path || attachment.storage_path || "").trim();
+  return bucket && path ? { bucket, path } : null;
+}
+async function uploadDashboardChatAttachmentFile(file, attachment = {}) {
+  const storageRef = getDashboardAttachmentStorageRef(attachment);
+  const supabase = getDashboardSupabaseClient();
+  if (!file || !storageRef || !supabase?.storage?.from) {
+    return { ok: false, reason: "Attachment storage is not ready." };
+  }
+  const storage = supabase.storage.from(storageRef.bucket);
+  const contentType = file.type || attachment.mimeType || attachment.mime_type || "application/octet-stream";
+  try {
+    if (typeof storage.createSignedUploadUrl === "function" && typeof storage.uploadToSignedUrl === "function") {
+      const signed = await storage.createSignedUploadUrl(storageRef.path);
+      const signedUploadUrl = signed?.data?.signedUrl || signed?.data?.signedURL || "";
+      const token = signed?.data?.token || signed?.token || (signedUploadUrl ? new URL(signedUploadUrl).searchParams.get("token") : "");
+      if (!signed?.error && token) {
+        const uploaded = await storage.uploadToSignedUrl(storageRef.path, token, file, { contentType });
+        if (uploaded?.error) {
+          return { ok: false, reason: uploaded.error.message || "Attachment upload failed." };
+        }
+        return { ok: true, path: storageRef.path };
+      }
+    }
+    const uploaded = await storage.upload(storageRef.path, file, {
+      cacheControl: "3600",
+      contentType,
+      upsert: false,
+    });
+    if (uploaded?.error) {
+      return { ok: false, reason: uploaded.error.message || "Attachment upload failed." };
+    }
+    return { ok: true, path: storageRef.path };
+  } catch (error) {
+    return { ok: false, reason: error?.message || "Attachment upload failed." };
+  }
+}
+async function createDashboardChatAttachmentIntent(file, threadId = dashboardChatTeamThreadId) {
+  if (!file) {
+    return null;
+  }
+  const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+  const result = await sendDashboardChatApiAction({
+    action: "createAttachmentIntent",
+    threadId: normalizedThreadId,
+    threadType: getDashboardChatThreadTypeForApi(normalizedThreadId),
+    threadTitle: getDashboardChatThreadLabel(normalizedThreadId, getCurrentPlatformUser()),
+    participantIds: getDashboardChatParticipantIdsForApi(normalizedThreadId),
+    fileName: file.name,
+    mimeType: file.type || "application/octet-stream",
+    byteSize: file.size || 0,
+  });
+  if (!result.ok) {
+    logDashboardChatApiFailure("createAttachmentIntent", result);
+    showDashboardChatWidgetToast(result.reason || "Attachment could not be prepared.", normalizedThreadId);
+    return null;
+  }
+  const attachment = result.result?.attachment || null;
+  const upload = await uploadDashboardChatAttachmentFile(file, attachment);
+  if (!upload.ok) {
+    logDashboardChatApiFailure("uploadAttachment", upload);
+    showDashboardChatWidgetToast(upload.reason || "Attachment upload failed.", normalizedThreadId);
+    dashboardChatComposerAttachmentDraft = null;
+    renderDashboardChatWidget();
+    focusDashboardChatWidgetComposer();
+    return null;
+  }
+  dashboardChatComposerAttachmentDraft = attachment
+    ? {
+        ...attachment,
+        status: "uploaded",
+        metadata: {
+          ...(attachment.metadata || {}),
+          uploadReady: true,
+        },
+      }
+    : null;
+  renderDashboardChatWidget();
+  focusDashboardChatWidgetComposer();
+  return dashboardChatComposerAttachmentDraft;
+}
+async function createDashboardAdvancedChatThread(templateKey) {
+  const template = dashboardChatAdvancedThreadTemplates.find((candidate) => candidate.key === templateKey);
+  if (!template) {
+    return null;
+  }
+  const legacyThreadId = template.key;
+  const result = await sendDashboardChatApiAction({
+    action: "createThread",
+    threadId: legacyThreadId,
+    type: template.type,
+    title: template.title,
+    visibility: template.visibility,
+    participantIds: getDashboardChatParticipantIdsForApi(legacyThreadId),
+  });
+  if (!result.ok) {
+    logDashboardChatApiFailure("createThread", result);
+    return null;
+  }
+  applyDashboardChatApiPayload(result.result || {}, { threadId: legacyThreadId });
+  dashboardChatMessageSearchQuery = "";
+  writeDashboardChatWidgetState({
+    isOpen: true,
+    selectedThreadId: legacyThreadId,
+  });
+  renderDashboardChatWidget();
+  focusDashboardChatWidgetComposer();
+  return result.result?.thread || null;
+}
+function setupDashboardChatRealtime() {
+  const authStore = getPlatformAuthStore();
+  const supabaseClient = typeof authStore?.getSupabaseClient === "function" ? authStore.getSupabaseClient() : null;
+  const scope = dashboardChatApiScope;
+  if (!supabaseClient?.channel || !scope?.teamId) {
+    return;
+  }
+  const signature = `${scope.organizationId || ""}:${scope.teamId || ""}`;
+  if (dashboardChatApiRealtimeSignature === signature && dashboardChatApiRealtimeChannel) {
+    return;
+  }
+  if (dashboardChatApiRealtimeChannel && typeof supabaseClient.removeChannel === "function") {
+    supabaseClient.removeChannel(dashboardChatApiRealtimeChannel);
+  }
+  dashboardChatApiRealtimeSignature = signature;
+  dashboardChatApiRealtimeChannel = supabaseClient
+    .channel(`chat:${signature}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "chat_messages", filter: `team_id=eq.${scope.teamId}` }, () =>
+      queueDashboardChatApiRefresh({ delayMs: 250 })
+    )
+    .on("postgres_changes", { event: "*", schema: "public", table: "chat_reactions", filter: `team_id=eq.${scope.teamId}` }, () =>
+      queueDashboardChatApiRefresh({ delayMs: 250 })
+    )
+    .on("postgres_changes", { event: "*", schema: "public", table: "chat_read_receipts", filter: `team_id=eq.${scope.teamId}` }, () =>
+      queueDashboardChatApiRefresh({ delayMs: 400 })
+    )
+    .subscribe();
+}
+async function commitDashboardChatApiAction(payload, localCommit) {
+  const result = await sendDashboardChatApiAction(payload);
+  if (result.ok) {
+    applyDashboardChatApiPayload(result.result || {}, {
+      threadId: payload?.threadId,
+    });
+  }
+  if (result.ok || canFallbackDashboardChatApiResult(result)) {
+    return localCommit(result);
+  }
+  logDashboardChatApiFailure(payload?.action || "unknown", result);
+  return null;
+}
+function createDashboardMessage(text, threadId = dashboardChatTeamThreadId, options = {}) {
   const currentUser = getCurrentPlatformUser();
   const cleanText = String(text ?? "").trim();
   if (!currentUser || !cleanText) {
     return null;
   }
-
   const message = normalizeDashboardMessage({
+    id: options.id || "",
     threadId,
     text: cleanText,
     userId: currentUser.id,
@@ -8330,16 +8406,82 @@ function createDashboardMessage(text, threadId = dashboardChatTeamThreadId) {
     priority: dashboardChatPriorityDraft,
     author: currentUser,
   });
-  writeDashboardMessages([...readDashboardMessages(), message]);
+  writeDashboardMessages([...readDashboardMessages(), message], {
+    skipCentralSync: Boolean(options.skipCentralSync),
+  });
   return message;
 }
-
+async function createDashboardMessageWithApi(text, threadId = dashboardChatTeamThreadId) {
+  const currentUser = getCurrentPlatformUser();
+  const cleanText = String(text ?? "").trim().slice(0, dashboardChatMaxMessageLength);
+  if (!currentUser || !cleanText) {
+    return null;
+  }
+  const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+  const messageId = createDashboardId("message");
+  const replyToId = dashboardChatReplyDraft?.threadId === normalizedThreadId ? dashboardChatReplyDraft.messageId : "";
+  const priority = dashboardChatPriorityDraft;
+  return commitDashboardChatApiAction(
+    {
+      action: "sendMessage",
+      id: messageId,
+      threadId: normalizedThreadId,
+      threadType: getDashboardChatThreadTypeForApi(normalizedThreadId),
+      threadTitle: getDashboardChatThreadLabel(normalizedThreadId, currentUser),
+      participantIds: getDashboardChatParticipantIdsForApi(normalizedThreadId),
+      text: cleanText,
+      replyToId,
+      priority,
+      mentionedUserIds: getDashboardMentionUserIds(cleanText, getPlatformUsers(), currentUser.id),
+      attachmentIds: dashboardChatComposerAttachmentDraft?.id ? [dashboardChatComposerAttachmentDraft.id] : [],
+    },
+    (apiResult) => {
+      if (apiResult?.ok && apiResult.result?.message) {
+        const message = normalizeDashboardApiMessage(apiResult.result.message, apiResult.result.thread);
+        mergeDashboardChatApiMessages([message], { render: false });
+        dashboardChatComposerAttachmentDraft = null;
+        return message;
+      }
+      const message = createDashboardMessage(cleanText, normalizedThreadId, {
+        id: messageId,
+        skipCentralSync: Boolean(apiResult?.ok),
+      });
+      dashboardChatComposerAttachmentDraft = null;
+      return message;
+    }
+  );
+}
+function queueDashboardChatReadReceiptApi(threadId, messages = readDashboardMessages()) {
+  const currentUser = getCurrentPlatformUser();
+  const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+  const latestMessage = [...messages].reverse().find((message) => message.threadId === normalizedThreadId);
+  if (!currentUser?.id || !latestMessage?.id) {
+    return;
+  }
+  const signature = `${currentUser.id}:${normalizedThreadId}:${latestMessage.id}`;
+  if (dashboardChatApiReadReceiptSyncSignatures.has(signature)) {
+    return;
+  }
+  if (dashboardChatApiReadReceiptSyncSignatures.size > 250) {
+    dashboardChatApiReadReceiptSyncSignatures = new Set();
+  }
+  dashboardChatApiReadReceiptSyncSignatures.add(signature);
+  void sendDashboardChatApiAction({
+    action: "markThreadRead",
+    threadId: normalizedThreadId,
+    lastReadMessageId: latestMessage.id,
+  }).then((result) => {
+    if (!result.ok && !canFallbackDashboardChatApiResult(result)) {
+      dashboardChatApiReadReceiptSyncSignatures.delete(signature);
+      logDashboardChatApiFailure("markThreadRead", result);
+    }
+  });
+}
 function markDashboardMessagesReadForCurrentUser(messages = readDashboardMessages(), threadId = null) {
   const currentUser = getCurrentPlatformUser();
   if (!currentUser) {
     return messages;
   }
-
   const normalizedThreadId = threadId ? normalizeDashboardChatThreadId(threadId, null) : null;
   let changed = false;
   const nextMessages = messages.map((message) => {
@@ -8349,37 +8491,51 @@ function markDashboardMessagesReadForCurrentUser(messages = readDashboardMessage
     if (message.userId === currentUser.id || message.readBy.includes(currentUser.id)) {
       return message;
     }
-
     changed = true;
     return normalizeDashboardMessage({
       ...message,
       readBy: [...message.readBy, currentUser.id],
     });
   });
-
   if (changed) {
     writeDashboardMessages(nextMessages);
+    if (normalizedThreadId) {
+      queueDashboardChatReadReceiptApi(normalizedThreadId, nextMessages);
+    }
   }
-
   return nextMessages;
 }
-
-function removeDashboardMessage(messageId) {
-  writeDashboardMessages(readDashboardMessages().filter((message) => message.id !== messageId));
+function removeDashboardMessage(messageId, options = {}) {
+  writeDashboardMessages(readDashboardMessages().filter((message) => message.id !== messageId), {
+    skipCentralSync: Boolean(options.skipCentralSync),
+  });
 }
-
-function toggleDashboardMessagePin(messageId) {
+function removeDashboardMessageWithApi(messageId) {
+  const normalizedMessageId = String(messageId || "").trim();
+  if (!normalizedMessageId) {
+    return Promise.resolve(null);
+  }
+  return commitDashboardChatApiAction(
+    {
+      action: "deleteMessage",
+      messageId: normalizedMessageId,
+    },
+    (apiResult) => {
+      removeDashboardMessage(normalizedMessageId, { skipCentralSync: Boolean(apiResult?.ok) });
+      return true;
+    }
+  );
+}
+function toggleDashboardMessagePin(messageId, options = {}) {
   const currentUser = getCurrentPlatformUser();
   if (!canPinDashboardChatMessage(currentUser)) {
     return false;
   }
-
   let changed = false;
   const nextMessages = readDashboardMessages().map((message) => {
     if (message.id !== messageId) {
       return message;
     }
-
     changed = true;
     return normalizeDashboardMessage({
       ...message,
@@ -8387,27 +8543,37 @@ function toggleDashboardMessagePin(messageId) {
       pinnedBy: message.pinnedAt ? "" : currentUser.id,
     });
   });
-
   if (changed) {
-    writeDashboardMessages(nextMessages);
+    writeDashboardMessages(nextMessages, { skipCentralSync: Boolean(options.skipCentralSync) });
   }
-
   return changed;
 }
-
-function toggleDashboardMessageReaction(messageId, reactionKey) {
+function toggleDashboardMessagePinWithApi(messageId) {
+  const normalizedMessageId = String(messageId || "").trim();
+  const message = readDashboardMessages().find((candidate) => candidate.id === normalizedMessageId);
+  if (!message || !canPinDashboardChatMessage()) {
+    return Promise.resolve(false);
+  }
+  return commitDashboardChatApiAction(
+    {
+      action: "setMessagePinned",
+      messageId: normalizedMessageId,
+      pinned: !message.pinnedAt,
+    },
+    (apiResult) => toggleDashboardMessagePin(normalizedMessageId, { skipCentralSync: Boolean(apiResult?.ok) })
+  );
+}
+function toggleDashboardMessageReaction(messageId, reactionKey, options = {}) {
   const currentUser = getCurrentPlatformUser();
   const normalizedReactionKey = dashboardChatReactionOptions.some((option) => option.key === reactionKey) ? reactionKey : "";
   if (!currentUser?.id || !normalizedReactionKey) {
     return false;
   }
-
   let changed = false;
   const nextMessages = readDashboardMessages().map((message) => {
     if (message.id !== messageId) {
       return message;
     }
-
     changed = true;
     const reactions = normalizeDashboardReactions(message.reactions);
     const currentSet = new Set(reactions[normalizedReactionKey] || []);
@@ -8422,14 +8588,32 @@ function toggleDashboardMessageReaction(messageId, reactionKey) {
       reactions,
     });
   });
-
   if (changed) {
-    writeDashboardMessages(nextMessages);
+    writeDashboardMessages(nextMessages, { skipCentralSync: Boolean(options.skipCentralSync) });
   }
-
   return changed;
 }
-
+function toggleDashboardMessageReactionWithApi(messageId, reactionKey) {
+  const currentUser = getCurrentPlatformUser();
+  const normalizedMessageId = String(messageId || "").trim();
+  const normalizedReactionKey = dashboardChatReactionOptions.some((option) => option.key === reactionKey) ? reactionKey : "";
+  const message = readDashboardMessages().find((candidate) => candidate.id === normalizedMessageId);
+  if (!currentUser?.id || !normalizedMessageId || !normalizedReactionKey || !message) {
+    return Promise.resolve(false);
+  }
+  const reactions = normalizeDashboardReactions(message.reactions);
+  const action = reactions[normalizedReactionKey]?.includes(currentUser.id) ? "removeReaction" : "addReaction";
+  return commitDashboardChatApiAction(
+    {
+      action,
+      messageId: normalizedMessageId,
+      reaction: normalizedReactionKey,
+    },
+    (apiResult) => toggleDashboardMessageReaction(normalizedMessageId, normalizedReactionKey, {
+      skipCentralSync: Boolean(apiResult?.ok),
+    })
+  );
+}
 function setDashboardChatReplyDraft(messageId, threadId) {
   dashboardChatReplyDraft = messageId
     ? {
@@ -8438,20 +8622,28 @@ function setDashboardChatReplyDraft(messageId, threadId) {
       }
     : null;
 }
-
 function setDashboardChatPriorityDraft(priority) {
   dashboardChatPriorityDraft = normalizeDashboardChatPriority(priority);
 }
-
+function setDashboardChatConfirmAction(action = null) {
+  dashboardChatConfirmAction = action
+    ? {
+        type: String(action.type || "").trim(),
+        messageId: String(action.messageId || "").trim(),
+        threadId: normalizeDashboardChatThreadId(action.threadId, dashboardChatTeamThreadId),
+        title: String(action.title || "Confirm chat action").trim(),
+        message: String(action.message || "This action cannot be undone.").trim(),
+        confirmLabel: String(action.confirmLabel || "Confirm").trim(),
+      }
+    : null;
+}
 function clearDashboardMessages() {
   writeDashboardMessages([]);
 }
-
 function getDashboardChatThreadMessages(messages = readDashboardMessages(), threadId = dashboardChatTeamThreadId) {
   const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
   return messages.filter((message) => message.threadId === normalizedThreadId);
 }
-
 function getDashboardChatThreadData(
   threadId,
   currentUser = getCurrentPlatformUser(),
@@ -8460,7 +8652,8 @@ function getDashboardChatThreadData(
 ) {
   const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
   const isTeamThread = normalizedThreadId === dashboardChatTeamThreadId;
-  const participants = isTeamThread
+  const isManagedThread = dashboardChatAdvancedThreadTemplates.some((template) => template.key === normalizedThreadId);
+  const participants = isTeamThread || isManagedThread
     ? []
     : getDashboardChatThreadParticipants(normalizedThreadId, users).filter((user) => user?.id !== currentUser?.id);
   const threadMessages = getDashboardChatThreadMessages(messages, normalizedThreadId);
@@ -8476,24 +8669,26 @@ function getDashboardChatThreadData(
       ).length
     : 0;
   const lastMessage = threadMessages.length ? threadMessages[threadMessages.length - 1] : null;
+  const apiThread = dashboardChatApiThreads.find((thread) => thread.threadId === normalizedThreadId) || null;
   return {
     threadId: normalizedThreadId,
-    label: formatDashboardChatThreadLabel(normalizedThreadId, currentUser, users),
+    label: apiThread?.title || formatDashboardChatThreadLabel(normalizedThreadId, currentUser, users),
     isTeamThread,
+    type: apiThread?.type || (isManagedThread ? dashboardChatAdvancedThreadTemplates.find((template) => template.key === normalizedThreadId)?.type : isTeamThread ? "team" : "dm"),
     participant: participants[0] || null,
-    messageCount: threadMessages.length,
+    messageCount: Math.max(threadMessages.length, apiThread?.messageCount || 0),
     unreadCount,
     mentionCount,
     lastMessage,
+    apiThread,
   };
 }
-
 function getDashboardChatThreadList(currentUser = getCurrentPlatformUser(), users = getPlatformUsers(), messages = readDashboardMessages()) {
   if (!currentUser?.id) {
     return [
       {
         threadId: dashboardChatTeamThreadId,
-        label: "Team Chat",
+        label: getDashboardChatTeamChatTitle(),
         isTeamThread: true,
         messageCount: 0,
         unreadCount: 0,
@@ -8502,14 +8697,21 @@ function getDashboardChatThreadList(currentUser = getCurrentPlatformUser(), user
       },
     ];
   }
-
   const activeUsers = users.filter((candidate) => candidate.status === "active" && candidate.id !== currentUser.id);
   const threadRows = [getDashboardChatThreadData(dashboardChatTeamThreadId, currentUser, users, messages)];
+  const advancedThreadIds = Array.from(
+    new Set([
+      ...dashboardChatAdvancedThreadTemplates.map((template) => template.key),
+      ...dashboardChatApiThreads
+        .filter((thread) => thread.threadId !== dashboardChatTeamThreadId && !String(thread.threadId).startsWith("dm:"))
+        .map((thread) => thread.threadId),
+    ])
+  );
+  const advancedThreads = advancedThreadIds.map((threadId) => getDashboardChatThreadData(threadId, currentUser, users, messages));
   const directThreads = activeUsers.map((user) =>
     getDashboardChatThreadData(createDashboardChatThreadId(currentUser.id, user.id), currentUser, users, messages)
   );
-
-  directThreads.sort((first, second) => {
+  const sortThreads = (first, second) => {
     const firstTime = new Date(first.lastMessage?.createdAt || 0).getTime();
     const secondTime = new Date(second.lastMessage?.createdAt || 0).getTime();
     if (firstTime === secondTime) {
@@ -8518,19 +8720,17 @@ function getDashboardChatThreadList(currentUser = getCurrentPlatformUser(), user
       return firstName.localeCompare(secondName, undefined, { sensitivity: "base" });
     }
     return secondTime - firstTime;
-  });
-
-  return [...threadRows, ...directThreads];
+  };
+  advancedThreads.sort(sortThreads);
+  directThreads.sort(sortThreads);
+  return [...threadRows, ...advancedThreads, ...directThreads];
 }
-
 function getDashboardChatUnreadCountForCurrentUser(currentUser = getCurrentPlatformUser(), messages = readDashboardMessages()) {
   if (!currentUser?.id) {
     return 0;
   }
-
   return getDashboardChatThreadList(currentUser, getPlatformUsers(), messages).reduce((total, thread) => total + thread.unreadCount, 0);
 }
-
 function normalizeDashboardPresenceStatus(value) {
   const status = String(value || "").trim().toLowerCase();
   if (status === "away" || status === "offline") {
@@ -8538,26 +8738,21 @@ function normalizeDashboardPresenceStatus(value) {
   }
   return "online";
 }
-
 function getDashboardSelfPresenceStatus() {
   if (document.visibilityState !== "visible" || !document.hasFocus()) {
     return "away";
   }
-
   return Date.now() - dashboardPresenceLastActivityAt > dashboardPresenceIdleMs ? "away" : "online";
 }
-
 function resolveDashboardPresenceStatus(entry, userId = "") {
   const currentUser = getCurrentPlatformUser();
   if (!entry && currentUser?.id && currentUser.id === userId) {
     return getDashboardSelfPresenceStatus();
   }
-
   const lastSeenMs = new Date(entry?.lastSeenAt || entry?.updatedAt || 0).getTime();
   if (!Number.isFinite(lastSeenMs)) {
     return "offline";
   }
-
   const ageMs = Date.now() - lastSeenMs;
   const rawStatus = normalizeDashboardPresenceStatus(entry?.status);
   if (rawStatus === "offline" || ageMs > dashboardPresenceAwayTtlMs) {
@@ -8568,12 +8763,10 @@ function resolveDashboardPresenceStatus(entry, userId = "") {
   }
   return "online";
 }
-
 function normalizeDashboardPresenceEntries(entries = []) {
   if (!Array.isArray(entries)) {
     return {};
   }
-
   return Object.fromEntries(
     entries
       .map((entry) => {
@@ -8581,7 +8774,6 @@ function normalizeDashboardPresenceEntries(entries = []) {
         if (!userId) {
           return null;
         }
-
         return [
           userId,
           {
@@ -8599,14 +8791,12 @@ function normalizeDashboardPresenceEntries(entries = []) {
       .filter(Boolean)
   );
 }
-
 function getDashboardPresenceSignature(entriesByUserId = dashboardPresenceEntriesByUserId) {
   return Object.entries(entriesByUserId)
     .sort(([firstId], [secondId]) => firstId.localeCompare(secondId))
     .map(([userId, entry]) => `${userId}:${entry.status}:${entry.lastSeenAt}:${entry.typingThreadId}:${entry.typingAt}`)
     .join("|");
 }
-
 function applyDashboardPresenceEntries(entries = [], options = {}) {
   const nextEntries = normalizeDashboardPresenceEntries(entries);
   const nextSignature = getDashboardPresenceSignature(nextEntries);
@@ -8614,19 +8804,15 @@ function applyDashboardPresenceEntries(entries = [], options = {}) {
   if (!options.forceRender && nextSignature === dashboardPresenceLastRenderedSignature) {
     return;
   }
-
   dashboardPresenceLastRenderedSignature = nextSignature;
   renderDashboardChatWidget();
 }
-
 function getDashboardPresenceEntry(userId) {
   return dashboardPresenceEntriesByUserId[String(userId || "").trim()] || null;
 }
-
 function getDashboardPresenceStatus(userId) {
   return resolveDashboardPresenceStatus(getDashboardPresenceEntry(userId), String(userId || "").trim());
 }
-
 function getDashboardPresenceLabel(status) {
   const normalizedStatus = normalizeDashboardPresenceStatus(status);
   if (normalizedStatus === "online") {
@@ -8637,7 +8823,6 @@ function getDashboardPresenceLabel(status) {
   }
   return "Offline";
 }
-
 function getDashboardPresenceSummary(users = []) {
   return users.reduce(
     (summary, user) => {
@@ -8648,7 +8833,6 @@ function getDashboardPresenceSummary(users = []) {
     { online: 0, away: 0, offline: 0 }
   );
 }
-
 function renderDashboardPresenceDot(user, options = {}) {
   const status = getDashboardPresenceStatus(user?.id);
   const label = getDashboardPresenceLabel(status);
@@ -8660,7 +8844,6 @@ function renderDashboardPresenceDot(user, options = {}) {
     ></span>
   `;
 }
-
 function renderDashboardPresenceAvatar(user, className) {
   return `
     <span class="dashboard-presence-avatar">
@@ -8669,30 +8852,24 @@ function renderDashboardPresenceAvatar(user, className) {
     </span>
   `;
 }
-
 function markDashboardPresenceActivity() {
   dashboardPresenceLastActivityAt = Date.now();
 }
-
 function getDashboardPresenceWorkspaceId() {
   return hubState?.activeWorkspaceId || "";
 }
-
 function getActiveDashboardTypingThreadId() {
   if (!dashboardChatTypingThreadId || Date.now() - dashboardChatTypingAt > dashboardTypingTtlMs) {
     return "";
   }
-
   return dashboardChatTypingThreadId;
 }
-
 async function pushDashboardPresence(statusOverride = "") {
   const currentUser = getCurrentPlatformUser();
   const authStore = getPlatformAuthStore();
   if (!currentUser?.id || !authStore?.updatePresence || dashboardPresenceInFlight) {
     return;
   }
-
   dashboardPresenceInFlight = true;
   try {
     const status = statusOverride || getDashboardSelfPresenceStatus();
@@ -8711,14 +8888,12 @@ async function pushDashboardPresence(statusOverride = "") {
     dashboardPresenceInFlight = false;
   }
 }
-
 async function refreshDashboardPresence(options = {}) {
   const currentUser = getCurrentPlatformUser();
   const authStore = getPlatformAuthStore();
   if (!currentUser?.id || !authStore?.getPresence) {
     return;
   }
-
   try {
     const result = await authStore.getPresence();
     if (result?.ok) {
@@ -8728,18 +8903,15 @@ async function refreshDashboardPresence(options = {}) {
     // Keep the last known presence state; stale users fall back to passive/offline visually.
   }
 }
-
 function startDashboardPresenceRuntime() {
   const currentUser = getCurrentPlatformUser();
   if (!currentUser?.id) {
     stopDashboardPresenceRuntime();
     return;
   }
-
   if (dashboardPresenceStarted) {
     return;
   }
-
   dashboardPresenceStarted = true;
   markDashboardPresenceActivity();
   pushDashboardPresence("online").catch(() => {});
@@ -8751,7 +8923,6 @@ function startDashboardPresenceRuntime() {
     refreshDashboardPresence().catch(() => {});
   }, dashboardPresencePollMs);
 }
-
 function stopDashboardPresenceRuntime() {
   if (dashboardPresenceHeartbeatTimer) {
     window.clearInterval(dashboardPresenceHeartbeatTimer);
@@ -8766,7 +8937,6 @@ function stopDashboardPresenceRuntime() {
   dashboardPresenceLastRenderedSignature = "";
   renderDashboardChatWidget();
 }
-
 function clearDashboardChatTyping() {
   dashboardChatTypingThreadId = "";
   dashboardChatTypingAt = 0;
@@ -8776,7 +8946,6 @@ function clearDashboardChatTyping() {
   }
   pushDashboardPresence().catch(() => {});
 }
-
 function queueDashboardChatTyping(threadId) {
   const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
   dashboardChatTypingThreadId = normalizedThreadId;
@@ -8788,15 +8957,12 @@ function queueDashboardChatTyping(threadId) {
     dashboardChatTypingClearTimer = null;
     clearDashboardChatTyping();
   }, dashboardTypingTtlMs);
-
   if (Date.now() - dashboardChatTypingLastSentAt < dashboardTypingSendThrottleMs) {
     return;
   }
-
   dashboardChatTypingLastSentAt = Date.now();
   pushDashboardPresence().catch(() => {});
 }
-
 function getDashboardTypingUsers(threadId, users = getPlatformUsers(), currentUser = getCurrentPlatformUser()) {
   const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
   const now = Date.now();
@@ -8804,7 +8970,6 @@ function getDashboardTypingUsers(threadId, users = getPlatformUsers(), currentUs
     if (!user?.id || user.id === currentUser?.id) {
       return false;
     }
-
     const entry = getDashboardPresenceEntry(user.id);
     const typingAtMs = new Date(entry?.typingAt || 0).getTime();
     return (
@@ -8814,54 +8979,38 @@ function getDashboardTypingUsers(threadId, users = getPlatformUsers(), currentUs
     );
   });
 }
-
 function renderDashboardTypingIndicator(threadId, users, currentUser) {
   const typingUsers = getDashboardTypingUsers(threadId, users, currentUser);
   if (!typingUsers.length) {
     return "";
   }
-
   const names = typingUsers.slice(0, 2).map(formatUserName);
   const label = typingUsers.length === 1
     ? `${names[0]} is typing`
     : typingUsers.length === 2
       ? `${names[0]} and ${names[1]} are typing`
       : `${names[0]}, ${names[1]} and ${typingUsers.length - 2} more are typing`;
-
   return `<div class="dashboard-chat-typing" aria-live="polite"><span></span><span></span><span></span><strong>${escapeHtml(label)}</strong></div>`;
 }
-
 function readDashboardNotificationSeenMap() {
   const parsed = readDashboardJson(dashboardNotificationSeenStorageKey, {});
   return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
 }
-
 function writeDashboardNotificationSeenMap(seenMap) {
   writeDashboardJson(dashboardNotificationSeenStorageKey, seenMap && typeof seenMap === "object" ? seenMap : {});
 }
-
 function getDashboardNotificationSeenAt(user = getCurrentPlatformUser()) {
   if (!user?.id) {
     return 0;
   }
-
   const seenAt = readDashboardNotificationSeenMap()[user.id];
   const seenTime = new Date(seenAt || 0).getTime();
   return Number.isFinite(seenTime) ? seenTime : 0;
 }
-
 function hasDashboardHomeNotifications(user = getCurrentPlatformUser()) {
   if (!user?.id) {
     return false;
   }
-
-  const unreadMessage = readDashboardMessages().some(
-    (message) => message.userId !== user.id && !message.readBy.includes(user.id)
-  );
-  if (unreadMessage) {
-    return true;
-  }
-
   const seenAt = getDashboardNotificationSeenAt(user);
   return readDashboardTasks().some((task) => {
     const createdAt = new Date(task.createdAt || 0).getTime();
@@ -8875,43 +9024,35 @@ function hasDashboardHomeNotifications(user = getCurrentPlatformUser()) {
     );
   });
 }
-
 function markDashboardHomeSeenForCurrentUser() {
   const user = getCurrentPlatformUser();
   if (!user?.id) {
     return;
   }
-
-  markDashboardMessagesReadForCurrentUser(readDashboardMessages());
   writeDashboardNotificationSeenMap({
     ...readDashboardNotificationSeenMap(),
     [user.id]: new Date().toISOString(),
   });
 }
-
 function getDashboardUserLabel(userId, users = getPlatformUsers()) {
   const user = users.find((candidate) => candidate.id === userId);
   return user ? formatUserName(user) : "Unknown";
 }
-
 function formatDashboardTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return "";
   }
-
   return new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
 }
-
 function formatDashboardDateTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return "";
   }
-
   return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "short",
@@ -8919,7 +9060,6 @@ function formatDashboardDateTime(value) {
     minute: "2-digit",
   }).format(date);
 }
-
 function renderDashboardTaskRow(task, users, currentUser, options = {}) {
   const assignee = getDashboardUserLabel(task.assignedTo, users);
   const creator = getDashboardUserLabel(task.createdBy, users);
@@ -8935,7 +9075,6 @@ function renderDashboardTaskRow(task, users, currentUser, options = {}) {
       : task.scope === "personal"
         ? "Personal"
         : `From ${creator}`;
-
   return `
     <div class="dashboard-task-row${isDone ? " is-done" : ""}">
       <button
@@ -8959,30 +9098,25 @@ function renderDashboardTaskRow(task, users, currentUser, options = {}) {
     </div>
   `;
 }
-
 function renderDashboardTaskList(tasks, users, currentUser, options = {}) {
   const visibleTasks = Number.isFinite(Number(options.limit)) ? tasks.slice(0, Number(options.limit)) : tasks;
   if (!visibleTasks.length) {
     return `<div class="dashboard-empty-space" aria-hidden="true"></div>`;
   }
-
   return `
     <div class="dashboard-task-list">
       ${visibleTasks.map((task) => renderDashboardTaskRow(task, users, currentUser, options)).join("")}
     </div>
   `;
 }
-
 function renderDashboardMessageStatus(message, users, currentUser) {
   if (message.userId !== currentUser?.id) {
     return "";
   }
-
   const readers = message.readBy
     .filter((userId) => userId !== currentUser.id)
     .map((userId) => users.find((user) => user.id === userId))
     .filter(Boolean);
-
   if (!readers.length) {
     return `
       <div class="dashboard-chat-status">
@@ -8990,10 +9124,8 @@ function renderDashboardMessageStatus(message, users, currentUser) {
       </div>
     `;
   }
-
   const readerNames = readers.map(formatUserName);
   const readerCountLabel = `${readers.length} reader${readers.length === 1 ? "" : "s"}`;
-
   return `
     <details class="dashboard-chat-status dashboard-chat-receipt is-read" data-dashboard-read-receipt>
       <summary aria-label="Show readers: ${escapeHtml(readerNames.join(", "))}">
@@ -9022,34 +9154,28 @@ function renderDashboardMessageStatus(message, users, currentUser) {
     </details>
   `;
 }
-
 function getDashboardMessageById(messageId, messages = readDashboardMessages()) {
   return messages.find((message) => message.id === messageId) || null;
 }
-
 function getDashboardMessageAuthorName(message, users = getPlatformUsers()) {
   const author = users.find((user) => user.id === message?.userId) || message?.author || null;
   return author ? formatUserName(author) : "Staff";
 }
-
 function getDashboardMessagePreview(message) {
   return String(message?.text || "")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 86);
 }
-
 function renderDashboardReplyReference(message, users = getPlatformUsers(), options = {}) {
   if (!message) {
     return "";
   }
-
   const authorName = getDashboardMessageAuthorName(message, users);
   const preview = getDashboardMessagePreview(message);
   const closeButton = options.cancelable
     ? `<button type="button" data-dashboard-cancel-reply aria-label="Cancel reply">×</button>`
     : "";
-
   return `
     <div class="dashboard-chat-reply-ref${options.compact ? " is-compact" : ""}">
       <span>
@@ -9060,7 +9186,6 @@ function renderDashboardReplyReference(message, users = getPlatformUsers(), opti
     </div>
   `;
 }
-
 function renderDashboardMessageText(message, users = getPlatformUsers()) {
   const text = String(message?.text || "");
   return text
@@ -9069,17 +9194,14 @@ function renderDashboardMessageText(message, users = getPlatformUsers()) {
       if (!part.startsWith("@")) {
         return escapeHtml(part).replaceAll("\n", "<br />");
       }
-
       const mentionedUserIds = getDashboardMentionUserIdsForToken(part.slice(1), users, message.userId);
       if (!mentionedUserIds.length) {
         return escapeHtml(part);
       }
-
       return `<mark class="dashboard-chat-mention">${escapeHtml(part)}</mark>`;
     })
     .join("");
 }
-
 function getDashboardPinnedMessagesForThread(messages = readDashboardMessages(), threadId = dashboardChatTeamThreadId) {
   const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
   return messages
@@ -9087,12 +9209,10 @@ function getDashboardPinnedMessagesForThread(messages = readDashboardMessages(),
     .sort((first, second) => new Date(second.pinnedAt || 0) - new Date(first.pinnedAt || 0))
     .slice(0, dashboardChatPinnedLimit);
 }
-
 function renderDashboardPinnedMessages(pinnedMessages = [], users = getPlatformUsers(), currentUser = getCurrentPlatformUser()) {
   if (!pinnedMessages.length) {
     return "";
   }
-
   return `
     <section class="dashboard-chat-pins" aria-label="Pinned chat messages">
       <div class="dashboard-chat-pins-head">
@@ -9121,7 +9241,6 @@ function renderDashboardPinnedMessages(pinnedMessages = [], users = getPlatformU
     </section>
   `;
 }
-
 function renderDashboardMessageReactions(message, currentUser = getCurrentPlatformUser()) {
   const reactions = normalizeDashboardReactions(message.reactions);
   return `
@@ -9145,177 +9264,117 @@ function renderDashboardMessageReactions(message, currentUser = getCurrentPlatfo
     </div>
   `;
 }
-
-function renderDashboardMessagePriority(message) {
-  const priority = normalizeDashboardChatPriority(message.priority);
-  if (priority === "normal") {
+function clearDashboardMessagesForThread(threadId, options = {}) {
+  const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+  writeDashboardMessages(readDashboardMessages().filter((message) => message.threadId !== normalizedThreadId), {
+    skipCentralSync: Boolean(options.skipCentralSync),
+  });
+}
+function clearDashboardMessagesForThreadWithApi(threadId) {
+  const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+  return commitDashboardChatApiAction(
+    {
+      action: "clearThread",
+      threadId: normalizedThreadId,
+    },
+    (apiResult) => {
+      clearDashboardMessagesForThread(normalizedThreadId, { skipCentralSync: Boolean(apiResult?.ok) });
+      return true;
+    }
+  );
+}
+function getDashboardAttachmentCacheKey(attachment = {}) {
+  const storageRef = getDashboardAttachmentStorageRef(attachment);
+  return storageRef ? `${storageRef.bucket}:${storageRef.path}` : "";
+}
+function getDashboardAttachmentSignedUrl(attachment = {}) {
+  const key = getDashboardAttachmentCacheKey(attachment);
+  if (!key) {
     return "";
   }
-
-  const option = dashboardChatPriorityOptions.find((candidate) => candidate.key === priority);
-  return `<span class="dashboard-chat-priority is-${escapeHtml(priority)}">${escapeHtml(option?.label || priority)}</span>`;
-}
-
-function clearDashboardMessagesForThread(threadId) {
-  const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
-  writeDashboardMessages(readDashboardMessages().filter((message) => message.threadId !== normalizedThreadId));
-}
-
-function getDashboardChatWidgetThreadPreview(thread, users, currentUser) {
-  const lastMessage = thread.lastMessage;
-  if (!lastMessage) {
-    return thread.isTeamThread ? "Open team room" : "Start a direct message";
+  const cached = dashboardChatAttachmentSignedUrlCache.get(key);
+  if (!cached?.url || Date.now() > Number(cached.expiresAt || 0)) {
+    return "";
   }
-
-  const isOwn = lastMessage.userId === currentUser?.id;
-  const sender = users.find((user) => user.id === lastMessage.userId);
-  const senderName = isOwn ? "You" : formatUserName(sender || null);
-  const shortText =
-    String(lastMessage.text || "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 55) || "Message";
-  const priority = normalizeDashboardChatPriority(lastMessage.priority);
-  const priorityOption = dashboardChatPriorityOptions.find((option) => option.key === priority);
-  const priorityPrefix = priority === "normal" ? "" : `${priorityOption?.label || priority}: `;
-
-  return lastMessage.mentionedUserIds?.includes(currentUser?.id)
-    ? `${priorityPrefix}Mentioned you: ${shortText}`
-    : `${priorityPrefix}${senderName}: ${shortText}`;
+  return cached.url;
 }
-
-function getDashboardChatWidgetLatestThread(threads = []) {
-  return [...threads].sort((first, second) => {
-    const firstTime = new Date(first.lastMessage?.createdAt || 0).getTime();
-    const secondTime = new Date(second.lastMessage?.createdAt || 0).getTime();
-    return secondTime - firstTime;
-  })[0] ?? null;
-}
-
-function getDashboardChatWidgetThreadStatus(thread, users = []) {
-  if (thread.isTeamThread) {
-    const summary = getDashboardPresenceSummary(users);
-    if (summary.online || summary.away) {
-      return `${summary.online} online${summary.away ? ` · ${summary.away} passive` : ""}`;
+function queueDashboardChatAttachmentSignedUrls(messages = readDashboardMessages()) {
+  const supabase = getDashboardSupabaseClient();
+  if (!supabase?.storage?.from) {
+    return;
+  }
+  const attachments = messages
+    .flatMap((message) => (Array.isArray(message.attachments) ? message.attachments : []))
+    .filter((attachment) => String(attachment.status || "ready").toLowerCase() === "ready");
+  attachments.forEach((attachment) => {
+    const storageRef = getDashboardAttachmentStorageRef(attachment);
+    const key = getDashboardAttachmentCacheKey(attachment);
+    const cached = key ? dashboardChatAttachmentSignedUrlCache.get(key) : null;
+    if (!storageRef || !key || cached?.pending || (cached?.url && Date.now() < Number(cached.expiresAt || 0))) {
+      return;
     }
-    return `${users.length} staff`;
-  }
-
-  return getDashboardPresenceLabel(getDashboardPresenceStatus(thread.participant?.id));
-}
-
-function renderDashboardChatWidgetAvatarStack(users = [], className = "dashboard-chat-avatar-stack") {
-  const visibleUsers = users.filter(Boolean).slice(0, 3);
-  if (!visibleUsers.length) {
-    return `
-      <span class="${className}" aria-hidden="true">
-        <span class="dashboard-chat-stack-avatar is-team">T</span>
-      </span>
-    `;
-  }
-
-  return `
-    <span class="${className}" aria-hidden="true">
-      ${visibleUsers.map((user) => renderDashboardPresenceAvatar(user, "dashboard-chat-stack-avatar")).join("")}
-    </span>
-  `;
-}
-
-function renderDashboardChatWidgetMessage(message, users, currentUser) {
-  const isOwn = message.userId === currentUser?.id;
-  const isMentioned = !isOwn && message.mentionedUserIds.includes(currentUser?.id);
-  const user = users.find((candidate) => candidate.id === message.userId) ?? message.author ?? null;
-  const userName = user ? formatUserName(user) : "Unknown";
-  const avatarMarkup = user
-    ? renderDashboardPresenceAvatar(user, "dashboard-chat-avatar")
-    : `<span class="dashboard-chat-avatar" aria-hidden="true">?</span>`;
-  const statusMarkup = isOwn ? renderDashboardMessageStatus(message, users, currentUser) : "";
-  const canDeleteChat = isCurrentPlatformUserAdmin();
-  const canPinChat = canPinDashboardChatMessage(currentUser);
-  const pinLabel = message.pinnedAt ? "Unpin" : "Pin";
-  const replyMessage = message.replyToId ? getDashboardMessageById(message.replyToId) : null;
-  const replyMarkup = replyMessage ? renderDashboardReplyReference(replyMessage, users, { compact: true }) : "";
-  const priorityMarkup = renderDashboardMessagePriority(message);
-
-  return `
-    <article class="dashboard-chat-message${isOwn ? " is-own" : ""}${isMentioned ? " is-mentioned" : ""}${message.pinnedAt ? " is-pinned" : ""}">
-      <div class="dashboard-chat-meta">
-        ${avatarMarkup}
-        <span class="dashboard-chat-author">
-          <strong>${escapeHtml(userName)}</strong>
-          <small>${escapeHtml(formatDashboardTime(message.createdAt))}</small>
-        </span>
-        <button type="button" class="dashboard-chat-reply-button" data-dashboard-reply-message="${escapeHtml(message.id)}">Reply</button>
-        ${
-          canPinChat
-            ? `<button type="button" class="dashboard-chat-pin-button" data-dashboard-toggle-pin-message="${escapeHtml(message.id)}">${escapeHtml(pinLabel)}</button>`
-            : ""
+    dashboardChatAttachmentSignedUrlCache.set(key, { pending: true, expiresAt: Date.now() + 30000 });
+    supabase.storage
+      .from(storageRef.bucket)
+      .createSignedUrl(storageRef.path, 600)
+      .then(({ data, error }) => {
+        if (error) {
+          dashboardChatAttachmentSignedUrlCache.set(key, { pending: false, error: error.message, expiresAt: Date.now() + 30000 });
+          return;
         }
-        ${
-          canDeleteChat
-            ? `<button type="button" class="dashboard-chat-delete-button" data-dashboard-remove-message="${escapeHtml(message.id)}" aria-label="Delete message from ${escapeHtml(userName)}">×</button>`
-            : ""
-        }
-      </div>
-      <div class="dashboard-chat-bubble">
-        ${priorityMarkup}
-        ${replyMarkup}
-        <p>${renderDashboardMessageText(message, users)}</p>
-        ${renderDashboardMessageReactions(message, currentUser)}
-        ${statusMarkup}
-      </div>
-    </article>
-  `;
+        const url = data?.signedUrl || data?.signedURL || "";
+        dashboardChatAttachmentSignedUrlCache.set(key, {
+          pending: false,
+          url,
+          expiresAt: Date.now() + 9 * 60 * 1000,
+        });
+        renderDashboardChatWidget();
+      })
+      .catch((error) => {
+        dashboardChatAttachmentSignedUrlCache.set(key, { pending: false, error: error?.message || "Signing failed.", expiresAt: Date.now() + 30000 });
+      });
+  });
 }
-
-function renderDashboardChatWidgetThreadItem(thread, currentUser, users, isSelected, isUnread) {
-  const threadLabel = thread.isTeamThread ? "Team Room" : thread.label;
-  const preview = getDashboardChatWidgetThreadPreview(thread, users, currentUser);
-  const threadStatus = getDashboardChatWidgetThreadStatus(thread, users);
-  const avatarMarkup = thread.participant
-    ? renderDashboardPresenceAvatar(thread.participant, "dashboard-chat-thread-avatar")
-    : `<span class="dashboard-chat-thread-avatar is-team" aria-hidden="true">T</span>`;
-  const threadTime = thread.lastMessage
-    ? formatDashboardTime(thread.lastMessage.createdAt)
-    : "—";
-  const searchText = `${threadLabel} ${preview} ${threadStatus}`.toLowerCase();
-
+function renderDashboardMessageAttachments(message) {
+  const attachments = Array.isArray(message.attachments) ? message.attachments : [];
+  if (!attachments.length) {
+    return "";
+  }
   return `
-    <button
-      type="button"
-      class="dashboard-chat-thread-item${isSelected ? " is-active" : ""}${isUnread ? " is-unread" : ""}${thread.mentionCount ? " is-mentioned" : ""}"
-      data-dashboard-chat-thread="${escapeHtml(thread.threadId)}"
-      data-dashboard-chat-search="${escapeHtml(searchText)}"
-    >
-      ${avatarMarkup}
-      <span class="dashboard-chat-thread-copy">
-        <span class="dashboard-chat-thread-row">
-          <strong>${escapeHtml(threadLabel)}</strong>
-          <small>${escapeHtml(threadTime)}</small>
-        </span>
-        <small>${escapeHtml(preview)}</small>
-        <span class="dashboard-chat-thread-meta">
-          <span>${escapeHtml(threadStatus)}</span>
-          <span>${escapeHtml(`${thread.messageCount || 0} message${thread.messageCount === 1 ? "" : "s"}`)}</span>
-        </span>
-      </span>
-      ${thread.mentionCount ? `<span class="dashboard-chat-thread-mention-badge">@</span>` : isUnread ? `<span class="dashboard-chat-thread-unread">${isUnread}</span>` : ""}
-    </button>
+    <div class="dashboard-chat-attachments" aria-label="Message attachments">
+      ${attachments
+        .map((attachment) => {
+          const name = attachment.metadata?.fileName || attachment.fileName || "Attachment";
+          const size = Number(attachment.byte_size || attachment.byteSize || 0);
+          const sizeLabel = size ? `${Math.ceil(size / 1024)} KB` : "Pending";
+          const signedUrl = getDashboardAttachmentSignedUrl(attachment);
+          const content = `
+              <span aria-hidden="true">□</span>
+              <strong>${escapeHtml(name)}</strong>
+              <small>${escapeHtml(signedUrl ? sizeLabel : `${sizeLabel} · preparing`)}</small>
+          `;
+          return `
+            ${
+              signedUrl
+                ? `<a class="dashboard-chat-attachment-pill" href="${escapeHtml(signedUrl)}" target="_blank" rel="noopener noreferrer">${content}</a>`
+                : `<span class="dashboard-chat-attachment-pill">${content}</span>`
+            }
+          `;
+        })
+        .join("")}
+    </div>
   `;
 }
-
 function renderDashboardChatWidget() {
   const root = ui.dashboardChatWidgetRoot;
   if (!root) {
     return;
   }
-
   const currentUser = getCurrentPlatformUser();
   if (!currentUser) {
     root.innerHTML = "";
     return;
   }
-
   const users = getPlatformUsers().filter((user) => user.status === "active");
   const notificationState = readDashboardChatWidgetNotificationState();
   const state = readDashboardChatWidgetState();
@@ -9327,189 +9386,44 @@ function renderDashboardChatWidget() {
   const previousComposerSelectionEnd = wasComposerFocused ? existingComposer.selectionEnd : null;
   const previousComposerThreadId = state.selectedThreadId;
   const messages = readDashboardMessages();
-  const resolvedMessages = state.isOpen ? markDashboardMessagesReadForCurrentUser(messages, state.selectedThreadId) : messages;
+  const resolvedMessages = isDashboardChatThreadActivelyViewed(state.selectedThreadId)
+    ? markDashboardMessagesReadForCurrentUser(messages, state.selectedThreadId)
+    : messages;
+  queueDashboardChatAttachmentSignedUrls(resolvedMessages);
   const threads = getDashboardChatThreadList(currentUser, users, resolvedMessages);
   const activeThreadId = threads.some((thread) => thread.threadId === state.selectedThreadId)
     ? state.selectedThreadId
     : threads[0]?.threadId || dashboardChatTeamThreadId;
-  const isOpen = Boolean(state.isOpen);
   const unreadCount = getDashboardChatUnreadCountForCurrentUser(currentUser, resolvedMessages);
-  const activeThread = threads.find((thread) => thread.threadId === activeThreadId);
-  const hasThreadMessages = resolvedMessages.filter((message) => message.threadId === activeThreadId);
-  const visibleMessages = [...hasThreadMessages.slice(-dashboardChatWidgetMessageLimit)].reverse();
-  const pinnedMessages = getDashboardPinnedMessagesForThread(resolvedMessages, activeThreadId);
-  const latestThread = threads.find((thread) => thread.unreadCount) || getDashboardChatWidgetLatestThread(threads);
-  const activeThreadLabel = activeThread?.label || "Team Chat";
-  const activeThreadSubLabel = activeThread
-    ? `${getDashboardChatWidgetThreadStatus(activeThread, users)} · ${activeThread.messageCount} message${activeThread.messageCount === 1 ? "" : "s"}`
-    : "No messages";
-  const headerParticipants = activeThread?.isTeamThread
-    ? users
-    : [activeThread?.participant].filter(Boolean);
-  const launcherParticipants = latestThread?.isTeamThread
-    ? users
-    : [latestThread?.participant].filter(Boolean);
-  const launcherPreview = latestThread
-    ? getDashboardChatWidgetThreadPreview(latestThread, users, currentUser)
-    : "Open team room";
-  const teamPresenceLabel = getDashboardChatWidgetThreadStatus({ isTeamThread: true }, users);
-  let activeReplyMessage = null;
-  if (dashboardChatReplyDraft?.threadId === activeThreadId) {
-    activeReplyMessage = getDashboardMessageById(dashboardChatReplyDraft.messageId, resolvedMessages);
-  } else {
-    dashboardChatReplyDraft = null;
-  }
-  if (dashboardChatReplyDraft && !activeReplyMessage) {
-    dashboardChatReplyDraft = null;
-  }
-  const replyComposerMarkup = activeReplyMessage
-    ? renderDashboardReplyReference(activeReplyMessage, users, { cancelable: true })
-    : "";
-  const priorityControlsMarkup = dashboardChatPriorityOptions
-    .map((option) => {
-      const isActive = dashboardChatPriorityDraft === option.key;
-      return `
-        <button
-          type="button"
-          class="dashboard-chat-priority-button is-${escapeHtml(option.key)}${isActive ? " is-active" : ""}"
-          data-dashboard-chat-priority="${escapeHtml(option.key)}"
-          aria-pressed="${isActive}"
-        >
-          ${escapeHtml(option.label)}
-        </button>
-      `;
-    })
-    .join("");
-
-  if (activeThreadId !== state.selectedThreadId) {
+  const renderedWidget = dashboardChatWidgetRenderer.render({
+    currentUser,
+    users,
+    notificationState,
+    state,
+    messages: resolvedMessages,
+    threads,
+    activeThreadId,
+    unreadCount,
+    replyDraft: dashboardChatReplyDraft,
+    priorityDraft: dashboardChatPriorityDraft,
+    confirmAction: dashboardChatConfirmAction,
+    messageSearchQuery: dashboardChatMessageSearchQuery,
+    hasOlderMessages: Boolean(dashboardChatApiPagination[activeThreadId]),
+    advancedThreadTemplates: dashboardChatAdvancedThreadTemplates,
+    moderationOpen: dashboardChatModerationOpen,
+    moderationState: dashboardChatModerationState,
+    attachmentDraft: dashboardChatComposerAttachmentDraft,
+    teamChatTitle: getDashboardChatTeamChatTitle(),
+  });
+  dashboardChatReplyDraft = renderedWidget.replyDraft;
+  if (renderedWidget.activeThreadId !== state.selectedThreadId) {
     writeDashboardChatWidgetState({
       ...state,
-      selectedThreadId: activeThreadId,
+      selectedThreadId: renderedWidget.activeThreadId,
     });
   }
-
-  root.innerHTML = `
-    <aside class="dashboard-chat-widget${isOpen ? " is-open" : ""}">
-      ${
-        isOpen
-          ? `
-            <header class="dashboard-chat-widget-header">
-              <button type="button" class="dashboard-chat-widget-title" data-dashboard-chat-widget-toggle aria-expanded="true">
-                ${renderDashboardChatWidgetAvatarStack(users)}
-                <span class="dashboard-chat-widget-title-copy">
-                  <span>Team Chat</span>
-                  <small>${escapeHtml(unreadCount ? `${unreadCount} unread` : teamPresenceLabel)}</small>
-                </span>
-              </button>
-              <div class="dashboard-chat-widget-actions">
-                <button
-                  type="button"
-                  class="dashboard-chat-widget-notify"
-                  data-dashboard-chat-widget-toggle-notifications
-                  aria-pressed="${notificationState.enabled}"
-                  aria-label="${notificationState.enabled ? "Turn chat notifications off" : "Turn chat notifications on"}"
-                >
-                  ${notificationState.enabled ? "On" : "Off"}
-                </button>
-                <button
-                  type="button"
-                  class="dashboard-chat-widget-close"
-                  data-dashboard-chat-widget-toggle
-                  aria-label="Close team chat"
-                >
-                  ×
-                </button>
-              </div>
-            </header>
-          `
-          : `
-            <button type="button" class="dashboard-chat-launcher" data-dashboard-chat-widget-toggle aria-expanded="false">
-              ${renderDashboardChatWidgetAvatarStack(launcherParticipants)}
-              <span class="dashboard-chat-launcher-copy">
-                <strong>Team Chat</strong>
-                <small>${escapeHtml(launcherPreview)}</small>
-              </span>
-              ${unreadCount ? `<span class="dashboard-chat-header-badge">${unreadCount}</span>` : `<span class="dashboard-chat-launcher-dot" aria-hidden="true"></span>`}
-            </button>
-          `
-      }
-      <button type="button" class="dashboard-chat-widget-toast" data-dashboard-chat-widget-toast data-dashboard-chat-toast-open aria-live="polite" aria-atomic="true" hidden></button>
-      <div class="dashboard-chat-widget-body">
-        <section class="dashboard-chat-thread-list" aria-label="Chat threads">
-          <div class="dashboard-chat-inbox-head">
-            <div>
-              <strong>Inbox</strong>
-              <small>${escapeHtml(unreadCount ? `${unreadCount} unread` : "All caught up")}</small>
-            </div>
-            <input
-              type="search"
-              data-dashboard-chat-filter
-              autocomplete="off"
-              placeholder="Search"
-              aria-label="Search chat threads"
-            />
-          </div>
-          <div class="dashboard-chat-thread-scroll" data-dashboard-chat-thread-list>
-            ${threads
-              .map((thread) =>
-                renderDashboardChatWidgetThreadItem(
-                  thread,
-                  currentUser,
-                  users,
-                  thread.threadId === activeThreadId,
-                  thread.unreadCount
-                )
-              )
-              .join("")}
-          </div>
-        </section>
-        <section class="dashboard-chat-conversation" aria-label="Active conversation">
-          <header class="dashboard-chat-thread-head">
-            <div class="dashboard-chat-thread-head-main">
-              ${activeThread?.participant
-                ? renderDashboardPresenceAvatar(activeThread.participant, "dashboard-chat-thread-head-avatar")
-                : renderDashboardChatWidgetAvatarStack(headerParticipants, "dashboard-chat-thread-head-stack")}
-              <div>
-                <h3>${escapeHtml(activeThreadLabel)}</h3>
-                <small>${escapeHtml(activeThreadSubLabel)}</small>
-              </div>
-            </div>
-            <div>
-              ${
-                isCurrentPlatformUserAdmin()
-                  ? `
-                    <button
-                      type="button"
-                      class="dashboard-chat-clear-button"
-                      data-dashboard-clear-thread
-                      data-dashboard-chat-clear-thread="${escapeHtml(activeThreadId)}"
-                    >
-                      Clear
-                    </button>
-                  `
-                  : ""
-              }
-            </div>
-          </header>
-          ${renderDashboardPinnedMessages(pinnedMessages, users, currentUser)}
-          <div class="dashboard-chat-list" data-dashboard-chat-list aria-live="polite">
-            ${visibleMessages.length ? visibleMessages.map((message) => renderDashboardChatWidgetMessage(message, users, currentUser)).join("") : `<div class="dashboard-chat-empty-state"><strong>No messages yet</strong><span>${escapeHtml(activeThread?.isTeamThread ? "Start the team thread." : `Start a direct message with ${activeThreadLabel}.`)}</span></div>`}
-          </div>
-          ${renderDashboardTypingIndicator(activeThreadId, users, currentUser)}
-          ${replyComposerMarkup}
-          <form class="dashboard-chat-form" data-dashboard-chat-form>
-            <div class="dashboard-chat-compose-tools" role="group" aria-label="Message priority">
-              ${priorityControlsMarkup}
-            </div>
-            <textarea name="message" data-dashboard-chat-input autocomplete="off" rows="1" placeholder="Message ${escapeHtml(activeThreadLabel)}"></textarea>
-            <button type="submit">Send</button>
-          </form>
-        </section>
-      </div>
-    </aside>
-  `;
-
-  if (previousComposerThreadId === activeThreadId) {
+  root.innerHTML = renderedWidget.html;
+  if (previousComposerThreadId === renderedWidget.activeThreadId) {
     const nextComposer = root.querySelector("[data-dashboard-chat-input]");
     if (nextComposer) {
       nextComposer.value = previousComposerDraft;
@@ -9521,22 +9435,20 @@ function renderDashboardChatWidget() {
       }
     }
   }
+  renderTopIconMenu();
 }
-
 function syncDashboardChatWidgetNotificationCursor() {
   const currentUser = getCurrentPlatformUser();
   if (!currentUser) {
     return;
   }
-
   const state = readDashboardChatWidgetState();
   const notifications = readDashboardChatWidgetNotificationState();
   const messages = readDashboardMessages();
   const normalizedActiveThreadId = normalizeDashboardChatThreadId(state.selectedThreadId, dashboardChatTeamThreadId);
   const activeThreadLastMessage = [...messages].reverse().find((message) => message.threadId === normalizedActiveThreadId);
   const currentCursor = readDashboardChatWidgetNotificationCursor();
-
-  if (state.isOpen && activeThreadLastMessage) {
+  if (activeThreadLastMessage && isDashboardChatThreadActivelyViewed(activeThreadLastMessage.threadId)) {
     if (
       currentCursor.threadId !== activeThreadLastMessage.threadId ||
       currentCursor.lastMessageId !== activeThreadLastMessage.id ||
@@ -9550,38 +9462,34 @@ function syncDashboardChatWidgetNotificationCursor() {
       });
     }
   }
-
   if (!notifications.enabled) {
     return;
   }
-
   const latestMessage = [...messages].reverse().find((message) => message.userId !== currentUser.id);
   if (!latestMessage) {
     return;
   }
-
   const cursor = currentCursor;
   if (cursor.lastMessageId === latestMessage.id && cursor.userId === latestMessage.userId && cursor.threadId === latestMessage.threadId) {
     return;
   }
-
-  const isActiveThread = state.isOpen && state.selectedThreadId === latestMessage.threadId;
-  if (isActiveThread) {
+  if (isDashboardChatThreadActivelyViewed(latestMessage.threadId)) {
     return;
   }
-
   const users = getPlatformUsers();
   const sender = users?.find((entry) => entry.id === latestMessage.userId);
   const senderName = formatUserName(sender ?? latestMessage.author ?? { firstName: "Team", lastName: "Member" });
   const threadName = formatDashboardChatThreadLabel(latestMessage.threadId, currentUser, getPlatformUsers());
   const mentionedCurrentUser = latestMessage.mentionedUserIds.includes(currentUser.id);
+  if (notifications.level === "mentions" && !mentionedCurrentUser) {
+    return;
+  }
   showDashboardChatWidgetToast(
     mentionedCurrentUser
       ? `${senderName} mentioned you in ${threadName}`
       : `New message from ${senderName} in ${threadName}`,
     latestMessage.threadId
   );
-
   writeDashboardChatWidgetNotificationCursor({
     lastMessageId: latestMessage.id,
     seenAt: Date.now(),
@@ -9589,30 +9497,25 @@ function syncDashboardChatWidgetNotificationCursor() {
     threadId: latestMessage.threadId,
   });
 }
-
 function showDashboardChatWidgetToast(messageText, threadId = dashboardChatTeamThreadId) {
   const root = ui.dashboardChatWidgetRoot;
   if (!root) {
     return;
   }
-
   if (dashboardChatWidgetToastTimer) {
     window.clearTimeout(dashboardChatWidgetToastTimer);
     dashboardChatWidgetToastTimer = null;
   }
-
   const toastState = {
     text: String(messageText || "").trim(),
     createdAt: Date.now(),
     threadId: normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId),
   };
   dashboardChatWidgetToastState = toastState;
-
   const toastRoot = root.querySelector("[data-dashboard-chat-widget-toast]");
   if (!toastRoot || !toastState.text) {
     return;
   }
-
   toastRoot.textContent = toastState.text;
   toastRoot.dataset.dashboardChatToastThread = toastState.threadId;
   toastRoot.hidden = false;
@@ -9623,62 +9526,50 @@ function showDashboardChatWidgetToast(messageText, threadId = dashboardChatTeamT
     dashboardChatWidgetToastTimer = null;
   }, 3900);
 }
-
 function hideDashboardChatWidgetToast() {
   const root = ui.dashboardChatWidgetRoot;
   if (!root) {
     return;
   }
-
   const toastRoot = root.querySelector("[data-dashboard-chat-widget-toast]");
   if (toastRoot) {
     toastRoot.hidden = true;
     toastRoot.textContent = "";
     delete toastRoot.dataset.dashboardChatToastThread;
   }
-
   if (dashboardChatWidgetToastTimer) {
     window.clearTimeout(dashboardChatWidgetToastTimer);
     dashboardChatWidgetToastTimer = null;
   }
 }
-
 function focusDashboardChatWidgetComposer() {
   window.setTimeout(() => {
     ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-input]")?.focus();
   }, 0);
 }
-
 function getDashboardScheduleState() {
   if (!scheduleState) {
     scheduleState = readScheduleState();
   }
-
   return scheduleState;
 }
-
 function getDashboardSessionPlannerState() {
   if (!sessionPlannerState) {
     sessionPlannerState = readSessionPlannerState();
   }
-
   return sessionPlannerState;
 }
-
 function getDashboardTodayValue() {
   return formatScheduleDateValue(new Date());
 }
-
 function formatDashboardDateLabel(dateValue, variant = "short") {
   const date = parseScheduleDateValue(dateValue);
   const options =
     variant === "long"
       ? { weekday: "long", day: "numeric", month: "long" }
       : { weekday: "short", day: "numeric", month: "short" };
-
   return new Intl.DateTimeFormat("en-GB", options).format(date);
 }
-
 function getDashboardRelativeDateLabel(dateValue, todayValue = getDashboardTodayValue()) {
   const today = parseScheduleDateValue(todayValue);
   const date = parseScheduleDateValue(dateValue);
@@ -9691,7 +9582,6 @@ function getDashboardRelativeDateLabel(dateValue, todayValue = getDashboardToday
   }
   return formatDashboardDateLabel(dateValue);
 }
-
 function getDashboardUpcomingEvents(todayValue = getDashboardTodayValue(), types = null) {
   const state = getDashboardScheduleState();
   const allowedTypes = Array.isArray(types) ? new Set(types) : null;
@@ -9702,30 +9592,24 @@ function getDashboardUpcomingEvents(todayValue = getDashboardTodayValue(), types
       if (dateComparison !== 0) {
         return dateComparison;
       }
-
       const priorityComparison =
         (scheduleMainEventPriority[first.type] ?? 99) - (scheduleMainEventPriority[second.type] ?? 99);
       if (priorityComparison !== 0) {
         return priorityComparison;
       }
-
       return `${first.time || "99:99"} ${first.title}`.localeCompare(`${second.time || "99:99"} ${second.title}`);
     });
 }
-
 function getDashboardSessionForDate(dateValue) {
   const state = getDashboardSessionPlannerState();
   return state.sessions?.[dateValue] ?? createSessionPlannerEmptySession(dateValue);
 }
-
 function getDashboardSessionTotalMinutes(session) {
   return (session?.blocks ?? []).reduce((total, block) => total + (Number(block.minutes) || 0), 0);
 }
-
 function getDashboardNextSession(todayValue = getDashboardTodayValue()) {
   const state = getDashboardSessionPlannerState();
   const nextSessionEvent = getDashboardUpcomingEvents(todayValue).find(isScheduleSessionEvent) ?? null;
-
   if (nextSessionEvent) {
     const session = getDashboardSessionForDate(nextSessionEvent.date);
     return {
@@ -9735,12 +9619,10 @@ function getDashboardNextSession(todayValue = getDashboardTodayValue()) {
       isMissingPlan: !session.blocks.length,
     };
   }
-
   const plannedSessions = Object.entries(state.sessions ?? {})
     .map(([dateValue, session]) => cloneSessionPlannerSession({ ...session, date: session.date || dateValue }))
     .filter((session) => session.date >= todayValue && session.blocks.length)
     .sort((first, second) => first.date.localeCompare(second.date));
-
   if (plannedSessions.length) {
     return {
       date: plannedSessions[0].date,
@@ -9749,10 +9631,8 @@ function getDashboardNextSession(todayValue = getDashboardTodayValue()) {
       isMissingPlan: false,
     };
   }
-
   const fallbackDate = todayValue;
   const fallbackSession = getDashboardSessionForDate(fallbackDate);
-
   return {
     date: fallbackDate,
     session: fallbackSession,
@@ -9760,7 +9640,6 @@ function getDashboardNextSession(todayValue = getDashboardTodayValue()) {
     isMissingPlan: !fallbackSession.blocks.length,
   };
 }
-
 function getDashboardLoadTone(load, eventType = "") {
   const cleanLoad = String(load ?? "").toLowerCase();
   if (eventType === "match" || cleanLoad.includes("match")) {
@@ -9780,19 +9659,16 @@ function getDashboardLoadTone(load, eventType = "") {
   }
   return eventType || "neutral";
 }
-
 function getDashboardMicrocycle(todayValue = getDashboardTodayValue()) {
   getDashboardScheduleState();
   ensurePeriodizationState();
   const today = parseScheduleDateValue(todayValue);
-
   return Array.from({ length: 7 }, (_, index) => {
     const dateValue = formatScheduleDateValue(addCalendarDays(today, index));
     const events = getScheduleEventsForDate(dateValue);
     const mainEvent = getScheduleMainEvent(events) ?? null;
     const periodizationDay = getPeriodizationDay(dateValue);
     const load = periodizationDay.physicalLoad || scheduleEventTypes[mainEvent?.type]?.label || "";
-
     return {
       dateValue,
       dayLabel: new Intl.DateTimeFormat("en-GB", { weekday: "short" }).format(parseScheduleDateValue(dateValue)),
@@ -9804,12 +9680,10 @@ function getDashboardMicrocycle(todayValue = getDashboardTodayValue()) {
     };
   });
 }
-
 function getDashboardMedicalAlert(todayValue = getDashboardTodayValue()) {
   ensureMedicalState();
   const records = medicalState.records.filter((record) => record.date === todayValue);
   const limitedRecords = records.filter((record) => !["full", "monitor"].includes(record.status));
-
   if (limitedRecords.length) {
     return {
       title: "Medical availability",
@@ -9818,7 +9692,6 @@ function getDashboardMedicalAlert(todayValue = getDashboardTodayValue()) {
       workspaceId: "medical-team",
     };
   }
-
   if (!records.length) {
     return {
       title: "Medical availability",
@@ -9827,7 +9700,6 @@ function getDashboardMedicalAlert(todayValue = getDashboardTodayValue()) {
       workspaceId: "medical-team",
     };
   }
-
   return {
     title: "Medical availability",
     detail: "Logged for today",
@@ -9835,7 +9707,6 @@ function getDashboardMedicalAlert(todayValue = getDashboardTodayValue()) {
     workspaceId: "medical-team",
   };
 }
-
 function getDashboardAlerts(context) {
   const alerts = [];
   if (context.nextSession.isMissingPlan) {
@@ -9847,7 +9718,6 @@ function getDashboardAlerts(context) {
       dateValue: context.nextSession.date,
     });
   }
-
   if (context.nextMatch) {
     alerts.push({
       title: "Upcoming match prep",
@@ -9857,9 +9727,7 @@ function getDashboardAlerts(context) {
       dateValue: context.nextMatch.date,
     });
   }
-
   alerts.push(getDashboardMedicalAlert(context.todayValue));
-
   if (context.delegatedOpenTasks.length) {
     alerts.push({
       title: "Staff follow-up",
@@ -9868,15 +9736,12 @@ function getDashboardAlerts(context) {
       focus: "task",
     });
   }
-
   return alerts.slice(0, 4);
 }
-
-function getDashboardHomeContext(currentUser, users, tasks, messages) {
+function getDashboardHomeContext(currentUser, users, tasks) {
   const todayValue = getDashboardTodayValue();
   getDashboardScheduleState();
   ensurePeriodizationState();
-
   const todayEvents = getScheduleEventsForDate(todayValue);
   const todayMainEvent = getScheduleMainEvent(todayEvents) ?? null;
   const todayPeriodization = getPeriodizationDay(todayValue);
@@ -9884,28 +9749,11 @@ function getDashboardHomeContext(currentUser, users, tasks, messages) {
   const nextMatch = getDashboardUpcomingEvents(todayValue, ["match"])[0] ?? null;
   const nextSession = getDashboardNextSession(todayValue);
   const microcycle = getDashboardMicrocycle(todayValue);
-  const personalOpenTasks = tasks.filter(
-    (task) =>
-      task.assignedTo === currentUser.id &&
-      task.createdBy === currentUser.id &&
-      task.scope === "personal" &&
-      task.status !== "done"
-  );
-  const myOpenTasks = tasks.filter(
-    (task) =>
-      task.assignedTo === currentUser.id &&
-      task.scope !== "personal" &&
-      task.status !== "done"
-  );
-  const delegatedOpenTasks = tasks.filter(
-    (task) => task.createdBy === currentUser.id && task.assignedTo !== currentUser.id && task.status !== "done"
-  );
-
+  const taskQueues = selectHomeTaskQueues(tasks, currentUser?.id);
   const context = {
     currentUser,
     users,
     tasks,
-    messages,
     todayValue,
     todayEvents,
     todayMainEvent,
@@ -9914,322 +9762,27 @@ function getDashboardHomeContext(currentUser, users, tasks, messages) {
     nextMatch,
     nextSession,
     microcycle,
-    personalOpenTasks,
-    myOpenTasks,
-    delegatedOpenTasks,
+    personalOpenTasks: taskQueues.personalOpenTasks,
+    myOpenTasks: taskQueues.myOpenTasks,
+    delegatedOpenTasks: taskQueues.delegatedOpenTasks,
   };
   context.alerts = getDashboardAlerts(context);
   return context;
 }
-
-function renderDashboardNextSessionCard(context) {
-  const { date, session, event, isMissingPlan } = context.nextSession;
-  const blocks = session.blocks ?? [];
-  const totalMinutes = getDashboardSessionTotalMinutes(session);
-  const phaseValues = blocks.flatMap((block) => normalizePeriodizationMultiValue(block.phase)).filter(Boolean);
-  const subPhaseValues = blocks.flatMap((block) => normalizePeriodizationMultiValue(block.subPhase)).filter(Boolean);
-  const scheduledTitle = event?.title || getScheduledSessionTitleForDate(date);
-  const sessionTitle = session.title && session.title !== "Session" ? session.title : "";
-  const phaseLabel = blocks.length ? phaseValues[0] || "No phase set" : "Scheduled in Schedule";
-  const subPhaseLabel = blocks.length
-    ? subPhaseValues[0] || "No sub-phase set"
-    : "Add exercise blocks when the detailed plan is ready.";
-
-  return `
-    <article class="dashboard-panel dashboard-session-card">
-      <header class="dashboard-panel-head">
-        <div>
-          <p class="dashboard-card-kicker">Next Session</p>
-          <h2>${escapeHtml(scheduledTitle || sessionTitle || "Training Session")}</h2>
-        </div>
-        <span class="dashboard-panel-count">${escapeHtml(getDashboardRelativeDateLabel(date, context.todayValue))}</span>
-      </header>
-      <div class="dashboard-session-summary">
-        <span><strong>${blocks.length}</strong><small>Blocks</small></span>
-        <span><strong>${totalMinutes || "—"}</strong><small>Minutes</small></span>
-        <span><strong>${escapeHtml(event?.time || "—")}</strong><small>Start</small></span>
-      </div>
-      <div class="dashboard-session-focus">
-        <strong>${escapeHtml(phaseLabel)}</strong>
-        <span>${escapeHtml(subPhaseLabel)}</span>
-      </div>
-      <div class="dashboard-session-blocks">
-        ${
-          blocks.slice(0, 4).map(
-            (block) => `
-              <span>
-                <strong>${escapeHtml(block.label || "Block")}</strong>
-                <small>${escapeHtml(block.title || "Exercise")}</small>
-              </span>
-            `
-          ).join("") || `<div class="dashboard-empty-space" aria-hidden="true"></div>`
-        }
-      </div>
-      <div class="dashboard-panel-actions">
-        <button type="button" data-dashboard-open-session-date="${escapeHtml(date)}">Open Sessions</button>
-        <button type="button" data-dashboard-create-session-date="${escapeHtml(date)}">${isMissingPlan ? "Plan Blocks" : "Open Plan"}</button>
-      </div>
-    </article>
-  `;
-}
-
-function renderDashboardMicrocycleCard(context) {
-  return `
-    <article class="dashboard-panel dashboard-microcycle-card">
-      <header class="dashboard-panel-head">
-        <div>
-          <p class="dashboard-card-kicker">Microcycle Load</p>
-          <h2>7 Day Rhythm</h2>
-        </div>
-        <span class="dashboard-panel-count">${escapeHtml(formatDashboardDateLabel(context.todayValue))}</span>
-      </header>
-      <div class="dashboard-microcycle-strip">
-        ${context.microcycle
-          .map(
-            (day) => `
-              <button
-                type="button"
-                class="dashboard-micro-day is-${escapeHtml(day.tone)}"
-                data-dashboard-open-periodization-date="${escapeHtml(day.dateValue)}"
-                aria-label="Open ${escapeHtml(formatDashboardDateLabel(day.dateValue, "long"))}"
-              >
-                <span>${escapeHtml(day.dayLabel)}</span>
-                <strong>${escapeHtml(day.dateLabel)}</strong>
-                <small>${escapeHtml(day.matchDay || day.load || scheduleEventTypes[day.event?.type]?.label || "")}</small>
-              </button>
-            `
-          )
-          .join("")}
-      </div>
-    </article>
-  `;
-}
-
-function renderDashboardTodoCommand(context, staffOptions) {
-  return `
-    <article class="dashboard-panel dashboard-todo-command">
-      <header class="dashboard-panel-head">
-        <div>
-          <p class="dashboard-card-kicker">Coach To-Do</p>
-          <h2>Work Queue</h2>
-        </div>
-        <div class="dashboard-summary-strip" aria-label="Task overview">
-          <span><strong>${context.myOpenTasks.length}</strong><small>Mine</small></span>
-          <span><strong>${context.delegatedOpenTasks.length}</strong><small>Delegated</small></span>
-          <span><strong>${context.personalOpenTasks.length}</strong><small>Personal</small></span>
-        </div>
-      </header>
-      <div class="dashboard-todo-columns">
-        <section>
-          <h3>My Work</h3>
-          ${renderDashboardTaskList(context.myOpenTasks, context.users, context.currentUser, { showCreator: true, limit: 3 })}
-        </section>
-        <section>
-          <h3>Personal</h3>
-          <form id="dashboardPersonalTodoForm" class="profile-todo-form dashboard-inline-form">
-            <input name="title" type="text" autocomplete="off" placeholder="Add your own To-Do" required />
-            <button type="submit">Add</button>
-          </form>
-          ${renderDashboardTaskList(context.personalOpenTasks, context.users, context.currentUser, { limit: 3 })}
-        </section>
-        <section>
-          <h3>Delegate</h3>
-          <form id="dashboardTaskForm" class="dashboard-task-form dashboard-task-form-compact">
-            <label>
-              <span>Task</span>
-              <input name="title" type="text" autocomplete="off" placeholder="Add a task" required />
-            </label>
-            <label>
-              <span>Owner</span>
-              <select name="assignedTo">${staffOptions}</select>
-            </label>
-            <button type="submit">Add</button>
-          </form>
-          ${renderDashboardTaskList(context.delegatedOpenTasks, context.users, context.currentUser, { showAssignee: true, limit: 3 })}
-        </section>
-      </div>
-    </article>
-  `;
-}
-
-function renderDashboardAlertsCard(context) {
-  const alerts = context.alerts ?? [];
-  return `
-    <article class="dashboard-panel dashboard-alerts-card">
-      <header class="dashboard-panel-head">
-        <div>
-          <p class="dashboard-card-kicker">Player / Team Alerts</p>
-          <h2>Attention</h2>
-        </div>
-        <span class="dashboard-panel-count">${alerts.length}</span>
-      </header>
-      <div class="dashboard-alert-list">
-        ${
-          alerts
-            .map(
-              (alert) => `
-                <button
-                  type="button"
-                  class="dashboard-alert-item is-${escapeHtml(alert.tone || "neutral")}"
-                  ${
-                    alert.workspaceId
-                      ? `data-open-workspace="${escapeHtml(alert.workspaceId)}"`
-                      : alert.action === "session"
-                        ? `data-dashboard-open-session-date="${escapeHtml(alert.dateValue || context.todayValue)}"`
-                        : alert.focus
-                          ? `data-dashboard-focus="${escapeHtml(alert.focus)}"`
-                          : ""
-                  }
-                  ${alert.dateValue && alert.workspaceId === "schedule" ? `data-dashboard-open-schedule-date="${escapeHtml(alert.dateValue)}"` : ""}
-                >
-                  <strong>${escapeHtml(alert.title)}</strong>
-                  <span>${escapeHtml(alert.detail)}</span>
-                </button>
-              `
-            )
-            .join("") || `<div class="dashboard-empty-space" aria-hidden="true"></div>`
-        }
-      </div>
-    </article>
-  `;
-}
-
-function renderDashboardTopTasksRow(context) {
-  const topPriorityTasks = getDashboardTopPriorityTasks(context, 3);
-
-  return `
-    <section class="dashboard-top-task-band" aria-label="Top tasks">
-      <article class="dashboard-panel dashboard-top-task-panel">
-        <header class="dashboard-panel-head">
-          <div>
-            <p class="dashboard-card-kicker">Top 3</p>
-            <h2>Priority Tasks</h2>
-          </div>
-          <span class="dashboard-panel-count">Today</span>
-        </header>
-        <div class="dashboard-top-task-list">
-          ${
-            topPriorityTasks.length
-              ? topPriorityTasks
-                  .map((task) => renderDashboardTopTaskRow(task, context.users, context.currentUser))
-                  .join("")
-              : `<div class="dashboard-top-task-empty" role="note">No top tasks yet.</div>`
-          }
-        </div>
-        <div class="dashboard-panel-actions">
-          <button type="button" data-dashboard-open-top-tasks>Open task board</button>
-          <button type="button" data-dashboard-focus="task">Add task</button>
-        </div>
-      </article>
-    </section>
-  `;
-}
-
-function getDashboardTopPriorityTasks(context, limit = 3) {
-  const currentUserId = context.currentUser?.id;
-  const taskMap = new Map();
-  [...context.myOpenTasks, ...context.delegatedOpenTasks, ...context.personalOpenTasks].forEach((task) => {
-    if (task?.id && !taskMap.has(task.id)) {
-      taskMap.set(task.id, task);
-    }
-  });
-
-  return [...taskMap.values()]
-    .sort((first, second) => {
-      const firstOwner = first.assignedTo === currentUserId;
-      const secondOwner = second.assignedTo === currentUserId;
-      const firstCreatedByMe = first.createdBy === currentUserId;
-      const secondCreatedByMe = second.createdBy === currentUserId;
-      const firstScore =
-        (firstOwner ? 2 : 0) + (firstCreatedByMe && !firstOwner ? 1 : 0) + (first.scope === "team" ? 1 : 0);
-      const secondScore =
-        (secondOwner ? 2 : 0) + (secondCreatedByMe && !secondOwner ? 1 : 0) + (second.scope === "team" ? 1 : 0);
-      if (firstScore !== secondScore) {
-        return secondScore - firstScore;
-      }
-      return new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime();
-    })
-    .slice(0, limit);
-}
-
-function getDashboardTopTaskMeta(task, users, currentUser) {
-  const assigneeLabel = getDashboardUserLabel(task.assignedTo, users);
-  const creatorLabel = getDashboardUserLabel(task.createdBy, users);
-
-  if (task.scope === "personal") {
-    return "Personal";
-  }
-  if (task.assignedTo === currentUser?.id && task.createdBy !== currentUser?.id) {
-    return "Your task";
-  }
-  if (task.createdBy === currentUser?.id && task.assignedTo !== currentUser?.id) {
-    return `Delegated to ${assigneeLabel}`;
-  }
-  if (task.assignedTo === task.createdBy) {
-    return `Owner: ${assigneeLabel}`;
-  }
-  return `From ${creatorLabel}`;
-}
-
-function renderDashboardTopTaskRow(task, users, currentUser) {
-  return `
-    <div class="dashboard-top-task-row">
-      <button
-        type="button"
-        class="dashboard-task-toggle"
-        data-dashboard-toggle-task="${escapeHtml(task.id)}"
-        aria-label="Mark ${escapeHtml(task.title)} as done"
-      >
-        <span></span>
-      </button>
-      <div class="dashboard-top-task-copy">
-        <strong>${escapeHtml(task.title)}</strong>
-        <small>${escapeHtml(getDashboardTopTaskMeta(task, users, currentUser))}</small>
-      </div>
-    </div>
-  `;
-}
-
-function renderDashboardQuickActions(context) {
-  const sessionDate = context.nextSession.date || context.todayValue;
-  return `
-    <article class="dashboard-panel dashboard-quick-actions-card">
-      <header class="dashboard-panel-head">
-        <div>
-          <p class="dashboard-card-kicker">Quick Actions</p>
-          <h2>Open</h2>
-        </div>
-      </header>
-      <div class="dashboard-quick-actions">
-        <button type="button" data-dashboard-create-session-date="${escapeHtml(sessionDate)}">Create Session</button>
-        <button type="button" data-dashboard-open-schedule-date="${escapeHtml(context.todayValue)}">Schedule</button>
-        <button type="button" data-dashboard-open-tacticalboard="${escapeHtml(sessionDate)}">Tacticalboard</button>
-        <button type="button" data-dashboard-focus="task">Add Task</button>
-        <button type="button" data-dashboard-open-periodization-date="${escapeHtml(context.todayValue)}">Periodization Day</button>
-        <button type="button" data-open-workspace="player-profiles">IDP</button>
-      </div>
-    </article>
-  `;
-}
-
 function getDashboardTutorialPrefs() {
   const parsed = readDashboardJson(dashboardTutorialPrefsStorageKey, {});
   return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
 }
-
 function writeDashboardTutorialPrefs(prefs) {
   writeDashboardJson(dashboardTutorialPrefsStorageKey, prefs);
 }
-
 function getDashboardTutorialPreference(userId) {
   return getDashboardTutorialPrefs()[userId] ?? null;
 }
-
 function saveDashboardTutorialPreference(userId, showOnLogin) {
   if (!userId) {
     return;
   }
-
   writeDashboardTutorialPrefs({
     ...getDashboardTutorialPrefs(),
     [userId]: {
@@ -10238,39 +9791,31 @@ function saveDashboardTutorialPreference(userId, showOnLogin) {
     },
   });
 }
-
 function shouldShowDashboardTutorialOnLogin(user) {
   if (!user?.id) {
     return false;
   }
-
   const preference = getDashboardTutorialPreference(user.id);
   return Boolean(preference?.showOnLogin);
 }
-
 function getDashboardNewsSeenMap() {
   const parsed = readDashboardJson(dashboardNewsSeenStorageKey, {});
   return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
 }
-
 function hasSeenDashboardNews(userId) {
   return getDashboardNewsSeenMap()[userId] === dashboardNewsVersion;
 }
-
 function markDashboardNewsSeen(userId) {
   if (!userId) {
     return;
   }
-
   writeDashboardJson(dashboardNewsSeenStorageKey, {
     ...getDashboardNewsSeenMap(),
     [userId]: dashboardNewsVersion,
   });
 }
-
 let dashboardModalAfterClose = null;
 let dashboardPopupsScheduledForUserId = null;
-
 function getDashboardModalRoot() {
   let root = document.getElementById("dashboardModalRoot");
   if (!root) {
@@ -10280,10 +9825,8 @@ function getDashboardModalRoot() {
     root.hidden = true;
     document.body.appendChild(root);
   }
-
   return root;
 }
-
 function closeDashboardModal(runAfterClose = true) {
   const root = getDashboardModalRoot();
   root.hidden = true;
@@ -10294,13 +9837,11 @@ function closeDashboardModal(runAfterClose = true) {
     afterClose();
   }
 }
-
 function showDashboardTutorialModal(options = {}) {
   const user = getCurrentPlatformUser();
   if (!user) {
     return;
   }
-
   const preference = getDashboardTutorialPreference(user.id);
   const shouldShowNext = Boolean(preference?.showOnLogin);
   const root = getDashboardModalRoot();
@@ -10342,13 +9883,11 @@ function showDashboardTutorialModal(options = {}) {
   root.hidden = false;
   root.querySelector(".dashboard-modal-actions [data-dashboard-tutorial-save]")?.focus();
 }
-
 function showDashboardNewsModal() {
   const user = getCurrentPlatformUser();
   if (!user || hasSeenDashboardNews(user.id)) {
     return;
   }
-
   const root = getDashboardModalRoot();
   dashboardModalAfterClose = null;
   root.innerHTML = `
@@ -10372,16 +9911,13 @@ function showDashboardNewsModal() {
   root.hidden = false;
   root.querySelector(".dashboard-modal-actions [data-dashboard-news-dismiss]")?.focus();
 }
-
 function maybeShowDashboardNewsModal() {
   const user = getCurrentPlatformUser();
   if (!user || hasSeenDashboardNews(user.id)) {
     return;
   }
-
   showDashboardNewsModal();
 }
-
 function scheduleDashboardLoginPopups() {
   const user = getCurrentPlatformUser();
   if (!user) {
@@ -10389,29 +9925,24 @@ function scheduleDashboardLoginPopups() {
     closeDashboardModal(false);
     return;
   }
-
   if (dashboardPopupsScheduledForUserId === user.id) {
     return;
   }
-
   dashboardPopupsScheduledForUserId = user.id;
   window.setTimeout(() => {
     const activeUser = getCurrentPlatformUser();
     if (!activeUser || activeUser.id !== user.id) {
       return;
     }
-
     if (shouldShowDashboardTutorialOnLogin(activeUser)) {
       showDashboardTutorialModal({
         afterClose: maybeShowDashboardNewsModal,
       });
       return;
     }
-
     maybeShowDashboardNewsModal();
   }, 350);
 }
-
 const selectedPlayerMetricHelp = {
   team:
     "The team the selected player belongs to. Team context affects attacking direction, opponent pressure and formation labels.",
@@ -10442,14 +9973,11 @@ const selectedPlayerMetricHelp = {
   movedFromStart:
     "How far the player has been moved from the locked action start position in this planned step.",
 };
-
 function renderSelectedMetricLabel(label, helpKey = "") {
   const helpText = selectedPlayerMetricHelp[helpKey];
-
   if (!helpText) {
     return `<span class="selected-label">${escapeHtml(label)}</span>`;
   }
-
   return `
     <span class="selected-label selected-label-row">
       <span>${escapeHtml(label)}</span>
@@ -10467,10 +9995,8 @@ function renderSelectedMetricLabel(label, helpKey = "") {
     </span>
   `;
 }
-
 function renderSelectedMetric(label, value, helpKey = "", className = "") {
   const classAttribute = className ? ` class="${className}"` : "";
-
   return `
     <div${classAttribute}>
       ${renderSelectedMetricLabel(label, helpKey)}
@@ -10478,7 +10004,6 @@ function renderSelectedMetric(label, value, helpKey = "", className = "") {
     </div>
   `;
 }
-
 function renderSelectedProfileControl(player) {
   const options = Object.entries(playerTendencyTemplates)
     .map(([key, profile]) => {
@@ -10490,7 +10015,6 @@ function renderSelectedProfileControl(player) {
       `;
     })
     .join("");
-
   return `
     <div class="selected-profile-control selected-span">
       ${renderSelectedMetricLabel("Player Profile", "playerProfile")}
@@ -10506,7 +10030,6 @@ function renderSelectedProfileControl(player) {
     </div>
   `;
 }
-
 function getTopIconSvg(workspaceId) {
   const icons = {
     home: `
@@ -10594,33 +10117,27 @@ function getTopIconSvg(workspaceId) {
       </svg>
     `,
   };
-
   return icons[workspaceId] ?? `
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <circle cx="12" cy="12" r="8"/>
     </svg>
   `;
 }
-
 function getTopIconLabel(workspace) {
   const labels = {
     home: "Home",
     "player-profiles": "Squad",
   };
-
   return labels[workspace?.id] ?? workspace?.title ?? "";
 }
-
 function renderTopIconMenu() {
   if (!ui.topIconMenu || !hubState) {
     return;
   }
-
   const workspaces = topIconMenuOrder
     .map((workspaceId) => getWorkspaceById(workspaceId))
     .filter((workspace) => workspace && (!workspace.hiddenFromNav || workspace.id === "home"));
   const hasHomeNotification = hasDashboardHomeNotifications();
-
   ui.topIconMenu.innerHTML = workspaces
     .map((workspace) => {
       const isActive = workspace.id === hubState.activeWorkspaceId;
@@ -10641,23 +10158,19 @@ function renderTopIconMenu() {
     })
     .join("");
 }
-
 function renderWorkspaceList() {
   if (!ui.workspaceList) {
     return;
   }
-
   hubState = repairWorkspaceState(hubState);
   let visibleWorkspaces = getVisibleWorkspaces();
   const isPlatformNav = ui.workspaceList.classList.contains("platform-nav");
-
   if (!visibleWorkspaces.length) {
     if (ui.workspaceSearch) {
       ui.workspaceSearch.value = "";
     }
     visibleWorkspaces = hubState.workspaces;
   }
-
   ui.workspaceList.innerHTML = visibleWorkspaces
     .map((workspace) => {
       const activeClass = workspace.id === hubState.activeWorkspaceId ? " is-active" : "";
@@ -10672,7 +10185,6 @@ function renderWorkspaceList() {
           </button>
         `;
       }
-
       return `
         <button type="button" class="workspace-nav-item${activeClass}" data-open-workspace="${workspace.id}">
           <div class="workspace-nav-head">
@@ -10686,16 +10198,13 @@ function renderWorkspaceList() {
     })
     .join("");
 }
-
 function renderWorkspaceQuickSwitch(activeWorkspaceId = hubState?.activeWorkspaceId) {
   if (!ui.workspaceQuickSwitch || !hubState) {
     return;
   }
-
   const workspaces = getAccessibleWorkspacePool().filter(
     (workspace) => !workspace.hiddenFromNav || workspace.id === activeWorkspaceId
   );
-
   ui.workspaceQuickSwitch.innerHTML = workspaces
     .map(
       (workspace) =>
@@ -10704,58 +10213,39 @@ function renderWorkspaceQuickSwitch(activeWorkspaceId = hubState?.activeWorkspac
     .join("");
   ui.workspaceQuickSwitch.value = activeWorkspaceId;
 }
-
 function renderDashboardCards() {
   if (!ui.dashboardGrid) {
     return;
   }
-
   const currentUser = getCurrentPlatformUser();
   if (!currentUser) {
     ui.dashboardGrid.innerHTML = "";
     return;
   }
-
   const users = getPlatformUsers().filter((user) => user.status === "active");
   const tasks = readDashboardTasks();
-  const messages = readDashboardMessages();
-  const context = getDashboardHomeContext(currentUser, users, tasks, messages);
+  const context = getDashboardHomeContext(currentUser, users, tasks);
   const staffOptions = users
     .map(
       (user) =>
         `<option value="${escapeHtml(user.id)}" ${user.id === currentUser.id ? "selected" : ""}>${escapeHtml(formatUserName(user))}</option>`
     )
     .join("");
-
   ui.dashboardGrid.innerHTML = `
-    <section class="dashboard-workspace-layout dashboard-home-ops" aria-label="Home dashboard">
-      <section class="dashboard-home-grid" aria-label="Coach workspace">
-        <section class="dashboard-home-main" aria-label="Work queue and alerts">
-          ${renderDashboardTopTasksRow(context)}
-          <section class="dashboard-symmetric-row" aria-label="Coach operations">
-            ${renderDashboardTodoCommand(context, staffOptions)}
-            ${renderDashboardAlertsCard(context)}
-          </section>
-        </section>
-      </section>
-    </section>
+    ${dashboardHomeCardsRenderer.render(context, staffOptions)}
   `;
-
   syncDashboardChatWidgetNotificationCursor();
 }
-
 function refreshDashboardSurfaces(profileMessage = "") {
   renderDashboardCards();
   if (hubState?.activeWorkspaceId === "my-profile") {
     renderProfileWorkspace(profileMessage);
   }
 }
-
 function renderPlaceholderWorkspace() {
   if (!ui.placeholderTag || !ui.placeholderTitle || !ui.placeholderDescription || !ui.placeholderModules) {
     return;
   }
-
   const workspace = getWorkspaceById(hubState.activeWorkspaceId);
   const content = placeholderWorkspaceContent[workspace?.id] ?? {
     tag: "Workspace",
@@ -10763,7 +10253,6 @@ function renderPlaceholderWorkspace() {
     description: workspace?.description ?? "This workspace shell is ready for the next module.",
     modules: [],
   };
-
   ui.placeholderTag.textContent = content.tag;
   ui.placeholderTitle.textContent = content.title;
   ui.placeholderDescription.textContent = content.description;
@@ -10795,7 +10284,6 @@ function renderPlaceholderWorkspace() {
           </article>
         `;
       }
-
       if (module.variant === "idp-development") {
         return `
           <article class="placeholder-module idp-development-card">
@@ -10825,7 +10313,6 @@ function renderPlaceholderWorkspace() {
           </article>
         `;
       }
-
       if (module.variant === "identity-development") {
         return `
           <article class="placeholder-module identity-development-card">
@@ -10853,7 +10340,6 @@ function renderPlaceholderWorkspace() {
           </article>
         `;
       }
-
       return `
         <article class="placeholder-module">
           <strong>${escapeHtml(module.title)}</strong>
@@ -10864,7 +10350,6 @@ function renderPlaceholderWorkspace() {
     })
     .join("");
 }
-
 const sessionPlannerDefaultExerciseLibrary = [
   {
     id: "possession-block-defending-high-press",
@@ -10922,7 +10407,6 @@ const sessionPlannerDefaultExerciseLibrary = [
     diagram: "final-third",
   },
 ];
-
 function cloneSessionPlannerTacticalElement(element = {}) {
   const type = element.type || "blue-player";
   const playerBadge = normalizeSessionPlannerTacticalPlayerBadge(element.playerNumber);
@@ -10934,7 +10418,6 @@ function cloneSessionPlannerTacticalElement(element = {}) {
         }))
         .filter((point) => point.x !== null && point.y !== null)
     : [];
-
   return {
     id: element.id || `tactical-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     type,
@@ -10954,7 +10437,6 @@ function cloneSessionPlannerTacticalElement(element = {}) {
     points,
   };
 }
-
 function getDefaultTacticalColor(type = "blue-player") {
   const colors = {
     "blue-player": "#1d8bff",
@@ -10981,88 +10463,68 @@ function getDefaultTacticalColor(type = "blue-player") {
     text: "#111827",
     remove: "#d92d20",
   };
-
   return colors[type] || "#111827";
 }
-
 function normalizeTacticalColor(value, fallback = "#111827") {
   const color = String(value || "").trim();
   return /^#[0-9a-f]{3,8}$/i.test(color) ? color : fallback;
 }
-
 function normalizeTacticalLineStyle(value) {
   return ["solid", "dashed", "dotted"].includes(value) ? value : "solid";
 }
-
 function normalizeTacticalLineWidth(value, fallback = 1.1) {
   const number = Number(value);
   return Number.isFinite(number) ? clamp(number, 0.25, 6) : fallback;
 }
-
 function normalizeTacticalRotation(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) {
     return 0;
   }
-
   return Math.round(((number % 360) + 360) % 360);
 }
-
 function isSessionPlannerTacticalGoalType(type = "") {
   return type === "mini-goal" || type === "big-goal";
 }
-
 function isSessionPlannerTacticalPlayerType(type = "") {
   return type === "blue-player" || type === "red-player" || type === "neutral-player";
 }
-
 function normalizeSessionPlannerTacticalPlayerBadge(value) {
   const raw = String(value ?? "").trim();
   if (!raw) {
     return "";
   }
-
   return raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 2);
 }
-
 function getSessionPlannerTacticalPlayerBadgeFromKeyboardEvent(event) {
   if (event.metaKey || event.ctrlKey || event.altKey) {
     return "";
   }
-
   const key = String(event.key || "");
   return /^[a-zA-Z0-9]$/.test(key) ? key : "";
 }
-
 function getTacticalStrokeDasharray(lineStyle) {
   if (lineStyle === "dashed") {
     return "3 2";
   }
-
   if (lineStyle === "dotted") {
     return "0.7 1.6";
   }
-
   return "";
 }
-
 function getSessionPlannerTacticalRenderStrokeWidth(value) {
   const logicalWidth = normalizeTacticalLineWidth(value);
   return clamp(logicalWidth * 0.52, 0.16, 3.15);
 }
-
 function getDefaultTacticalLineStyle(type = "line") {
   if (type === "pass" || type === "dashed-line" || type === "dashed-zone") {
     return "dashed";
   }
-
   if (type === "freehand") {
     return "solid";
   }
-
   return "solid";
 }
-
 function getSessionPlannerTacticalDefaultCurveControlPoint(from = {}, to = {}, bend = 13) {
   const x = Number.isFinite(Number(from.x)) ? Number(from.x) : 50;
   const y = Number.isFinite(Number(from.y)) ? Number(from.y) : 50;
@@ -11071,13 +10533,11 @@ function getSessionPlannerTacticalDefaultCurveControlPoint(from = {}, to = {}, b
   const dx = x2 - x;
   const dy = y2 - y;
   const distance = Math.hypot(dx, dy) || 1;
-
   return {
     x: clamp((x + x2) / 2 + (-dy / distance) * bend, 0, 100),
     y: clamp((y + y2) / 2 + (dx / distance) * bend, 0, 100),
   };
 }
-
 function getSessionPlannerTacticalCurveControlPoint(element = {}, coordinates = null) {
   if (Number.isFinite(Number(element.controlX)) && Number.isFinite(Number(element.controlY))) {
     return {
@@ -11085,7 +10545,6 @@ function getSessionPlannerTacticalCurveControlPoint(element = {}, coordinates = 
       y: clamp(Number(element.controlY), 0, 100),
     };
   }
-
   const from = {
     x: Number.isFinite(Number(coordinates?.x)) ? Number(coordinates.x) : element.x,
     y: Number.isFinite(Number(coordinates?.y)) ? Number(coordinates.y) : element.y,
@@ -11094,10 +10553,8 @@ function getSessionPlannerTacticalCurveControlPoint(element = {}, coordinates = 
     x: Number.isFinite(Number(coordinates?.x2)) ? Number(coordinates.x2) : element.x2,
     y: Number.isFinite(Number(coordinates?.y2)) ? Number(coordinates.y2) : element.y2,
   };
-
   return getSessionPlannerTacticalDefaultCurveControlPoint(from, to);
 }
-
 function createSessionPlannerLineElement(type, from, to, options = {}) {
   const element = {
     type,
@@ -11109,13 +10566,11 @@ function createSessionPlannerLineElement(type, from, to, options = {}) {
     lineWidth: sessionPlannerTacticalLineWidth,
     lineStyle: sessionPlannerTacticalLineStyle || getDefaultTacticalLineStyle(type),
   };
-
   if (type === "curve") {
     const controlPoint = options.controlPoint || getSessionPlannerTacticalDefaultCurveControlPoint(from, to);
     element.controlX = controlPoint.x;
     element.controlY = controlPoint.y;
   }
-
   return element;
 }
 
@@ -11252,6 +10707,8 @@ function createSessionPlannerLibraryExercise(source = {}) {
     createdBy,
     updatedBy,
     source: sourceType,
+    tags: normalizeSessionPlannerLibraryTags(source.tags),
+    versions: normalizeSessionPlannerLibraryVersions(source.versions),
   };
 }
 
@@ -11287,6 +10744,72 @@ function normalizeSessionPlannerExerciseLibraryList(sourceLibrary = []) {
         id: exerciseId,
       };
     });
+}
+
+function normalizeSessionPlannerLibraryVersions(sourceVersions = []) {
+  if (!Array.isArray(sourceVersions)) {
+    return [];
+  }
+
+  return sourceVersions
+    .filter((version) => version && typeof version === "object" && !Array.isArray(version))
+    .map((version) => ({
+      id: String(version.id || "").trim() || createSessionPlannerStableId("version"),
+      createdAt: normalizeSessionPlannerTimestamp(version.createdAt) || getSessionPlannerLibraryNow(),
+      createdBy: String(version.createdBy || "").trim(),
+      reason: String(version.reason || "Updated").trim() || "Updated",
+      title: String(version.title || "").trim(),
+      focus: String(version.focus || "").trim(),
+      phase: formatSessionPlannerMultiValue(version.phase),
+      subPhase: formatSessionPlannerMultiValue(version.subPhase),
+      tags: normalizeSessionPlannerLibraryTags(version.tags),
+      minutes: Number.isFinite(Number(version.minutes)) ? Math.max(0, Number(version.minutes)) : 0,
+      time: String(version.time || "").trim(),
+      intensity: Number.isFinite(Number(version.intensity)) ? clamp(Number(version.intensity), 1, 5) : 3,
+      pitchSize: String(version.pitchSize || "").trim(),
+      material: String(version.material || "").trim(),
+      objective: String(version.objective || "").trim(),
+      why: String(version.why || "").trim(),
+      organization: String(version.organization || "").trim(),
+      principles: String(version.principles || "").trim(),
+      diagram: String(version.diagram || "").trim() || "empty",
+      tacticalPitchMode: normalizeSessionPlannerTacticalPitchMode(version.tacticalPitchMode),
+      playerBoardLayoutMode: version.playerBoardLayoutMode === "manual" ? "manual" : "auto",
+    }))
+    .slice(0, sessionPlannerExerciseLibraryVersionLimit);
+}
+
+function createSessionPlannerLibraryVersionSnapshot(exercise = {}, reason = "Updated") {
+  return {
+    id: createSessionPlannerStableId("version"),
+    createdAt: getSessionPlannerLibraryNow(),
+    createdBy: getSessionPlannerLibraryUserId(),
+    reason: String(reason || "Updated").trim() || "Updated",
+    title: String(exercise.title || "").trim(),
+    focus: String(exercise.focus || "").trim(),
+    phase: formatSessionPlannerMultiValue(exercise.phase),
+    subPhase: formatSessionPlannerMultiValue(exercise.subPhase),
+    tags: normalizeSessionPlannerLibraryTags(exercise.tags),
+    minutes: Number.isFinite(Number(exercise.minutes)) ? Math.max(0, Number(exercise.minutes)) : 0,
+    time: String(exercise.time || "").trim(),
+    intensity: Number.isFinite(Number(exercise.intensity)) ? clamp(Number(exercise.intensity), 1, 5) : 3,
+    pitchSize: String(exercise.pitchSize || "").trim(),
+    material: String(exercise.material || "").trim(),
+    objective: String(exercise.objective || "").trim(),
+    why: String(exercise.why || "").trim(),
+    organization: String(exercise.organization || "").trim(),
+    principles: String(exercise.principles || "").trim(),
+    diagram: String(exercise.diagram || "").trim() || "empty",
+    tacticalPitchMode: normalizeSessionPlannerTacticalPitchMode(exercise.tacticalPitchMode),
+    playerBoardLayoutMode: exercise.playerBoardLayoutMode === "manual" ? "manual" : "auto",
+  };
+}
+
+function appendSessionPlannerLibraryVersion(exercise = {}, reason = "Updated") {
+  return [
+    createSessionPlannerLibraryVersionSnapshot(exercise, reason),
+    ...normalizeSessionPlannerLibraryVersions(exercise.versions),
+  ].slice(0, sessionPlannerExerciseLibraryVersionLimit);
 }
 
 function isSessionPlannerLibraryExerciseArchived(exercise = {}) {
@@ -11489,6 +11012,196 @@ function getSessionPlannerExerciseLibrary() {
   return sessionPlannerExerciseLibrary;
 }
 
+function normalizeSessionPlannerLibraryFolderVisibility(value) {
+  return value === "personal" ? "personal" : "team";
+}
+
+function normalizeSessionPlannerLibraryFolderExerciseIds(sourceIds = []) {
+  if (!Array.isArray(sourceIds)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      sourceIds
+        .map((exerciseId) => String(exerciseId || "").trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+function createSessionPlannerLibraryFolder(source = {}) {
+  const now = getSessionPlannerLibraryNow();
+  const createdAt = normalizeSessionPlannerTimestamp(source.createdAt) || now;
+  const updatedAt = normalizeSessionPlannerTimestamp(source.updatedAt) || createdAt;
+  const archivedAt = normalizeSessionPlannerTimestamp(source.archivedAt);
+  const createdBy = String(source.createdBy || "").trim();
+  const updatedBy = String(source.updatedBy || createdBy || "").trim();
+
+  return {
+    id: String(source.id || "").trim() || createSessionPlannerStableId("folder"),
+    name: String(source.name || "Untitled Folder").trim() || "Untitled Folder",
+    visibility: normalizeSessionPlannerLibraryFolderVisibility(source.visibility),
+    exerciseIds: normalizeSessionPlannerLibraryFolderExerciseIds(source.exerciseIds),
+    createdAt,
+    createdBy,
+    updatedAt,
+    updatedBy,
+    archivedAt,
+    archivedBy: archivedAt ? String(source.archivedBy || "").trim() : "",
+    source: String(source.source || "").trim() || "library",
+  };
+}
+
+function createSessionPlannerDefaultExerciseLibraryFolders() {
+  const now = getSessionPlannerLibraryNow();
+  return [
+    createSessionPlannerLibraryFolder({
+      id: "team-exercises",
+      name: "Team Exercises",
+      visibility: "team",
+      exerciseIds: [],
+      createdAt: now,
+      updatedAt: now,
+      source: "default",
+    }),
+  ];
+}
+
+function normalizeSessionPlannerExerciseLibraryFolders(sourceFolders = []) {
+  if (!Array.isArray(sourceFolders)) {
+    return [];
+  }
+
+  const usedIds = new Set();
+  return sourceFolders
+    .filter((folder) => folder && typeof folder === "object" && !Array.isArray(folder))
+    .map((folder) => {
+      const normalizedFolder = createSessionPlannerLibraryFolder(folder);
+      let folderId = String(normalizedFolder.id || "").trim() || createSessionPlannerStableId("folder");
+      while (usedIds.has(folderId)) {
+        folderId = createSessionPlannerStableId("folder");
+      }
+      usedIds.add(folderId);
+      return {
+        ...normalizedFolder,
+        id: folderId,
+      };
+    });
+}
+
+function isSessionPlannerLibraryFolderArchived(folder = {}) {
+  return Boolean(normalizeSessionPlannerTimestamp(folder.archivedAt));
+}
+
+function parseSessionPlannerExerciseLibraryFoldersPayload(rawFolders) {
+  if (!rawFolders) {
+    return null;
+  }
+
+  try {
+    const parsedFolders = JSON.parse(rawFolders);
+    const sourceFolders = Array.isArray(parsedFolders)
+      ? parsedFolders
+      : parsedFolders?.schema === sessionPlannerExerciseLibraryFoldersBackupSchema && Array.isArray(parsedFolders.folders)
+        ? parsedFolders.folders
+        : null;
+
+    if (!Array.isArray(sourceFolders)) {
+      return null;
+    }
+
+    return normalizeSessionPlannerExerciseLibraryFolders(sourceFolders);
+  } catch {
+    return null;
+  }
+}
+
+function readSessionPlannerExerciseLibraryFoldersFromStorage(storageKey) {
+  try {
+    const rawFolders = window.localStorage.getItem(storageKey);
+    if (rawFolders === null) {
+      return null;
+    }
+
+    const folders = parseSessionPlannerExerciseLibraryFoldersPayload(rawFolders);
+    return folders ? { storageKey, folders } : null;
+  } catch {
+    return null;
+  }
+}
+
+function createSessionPlannerExerciseLibraryFoldersBackupEnvelope(folders = []) {
+  return {
+    schema: sessionPlannerExerciseLibraryFoldersBackupSchema,
+    savedAt: new Date().toISOString(),
+    count: folders.length,
+    folders,
+  };
+}
+
+function writeSessionPlannerExerciseLibraryFoldersToStorage(folders = []) {
+  const normalizedFolders = normalizeSessionPlannerExerciseLibraryFolders(folders);
+  const foldersText = JSON.stringify(normalizedFolders);
+
+  try {
+    window.localStorage.setItem(sessionPlannerExerciseLibraryFoldersStorageKey, foldersText);
+  } catch (error) {
+    logEvent(error?.message || "Exercise library folders could not be saved centrally.");
+    return {
+      saved: false,
+      backupSaved: false,
+      folders: normalizedFolders,
+      error,
+    };
+  }
+
+  let backupSaved = true;
+  try {
+    window.localStorage.setItem(
+      sessionPlannerExerciseLibraryFoldersBackupStorageKey,
+      JSON.stringify(createSessionPlannerExerciseLibraryFoldersBackupEnvelope(normalizedFolders))
+    );
+  } catch (error) {
+    backupSaved = false;
+    logEvent(error?.message || "Exercise library folders backup could not be saved centrally.");
+  }
+
+  if (typeof saveDataSafetySnapshot === "function") {
+    saveDataSafetySnapshot("exercise-library-folders-save");
+  }
+
+  return {
+    saved: true,
+    backupSaved,
+    folders: normalizedFolders,
+    error: null,
+  };
+}
+
+function readSessionPlannerExerciseLibraryFolders() {
+  const mainFolders = readSessionPlannerExerciseLibraryFoldersFromStorage(sessionPlannerExerciseLibraryFoldersStorageKey);
+  if (mainFolders) {
+    return mainFolders.folders;
+  }
+
+  const backupFolders = readSessionPlannerExerciseLibraryFoldersFromStorage(sessionPlannerExerciseLibraryFoldersBackupStorageKey);
+  if (backupFolders) {
+    writeSessionPlannerExerciseLibraryFoldersToStorage(backupFolders.folders);
+    return backupFolders.folders;
+  }
+
+  return normalizeSessionPlannerExerciseLibraryFolders(createSessionPlannerDefaultExerciseLibraryFolders());
+}
+
+function getSessionPlannerExerciseLibraryFolders() {
+  if (!Array.isArray(sessionPlannerExerciseLibraryFolders)) {
+    sessionPlannerExerciseLibraryFolders = readSessionPlannerExerciseLibraryFolders();
+  }
+
+  return sessionPlannerExerciseLibraryFolders;
+}
+
 function writeSessionPlannerExerciseLibrary() {
   if (!Array.isArray(sessionPlannerExerciseLibrary)) {
     return false;
@@ -11514,6 +11227,27 @@ function normalizeSessionPlannerMultiValue(value) {
 
 function formatSessionPlannerMultiValue(value) {
   return normalizeSessionPlannerMultiValue(value).join(", ");
+}
+
+function normalizeSessionPlannerLibraryTags(value) {
+  const seenTags = new Set();
+  return normalizeSessionPlannerMultiValue(value)
+    .map((tag) => String(tag || "").replace(/^#+/, "").trim().replace(/\s+/g, " "))
+    .filter(Boolean)
+    .filter((tag) => {
+      const normalizedTag = tag.toLowerCase();
+      if (seenTags.has(normalizedTag)) {
+        return false;
+      }
+
+      seenTags.add(normalizedTag);
+      return true;
+    })
+    .slice(0, 24);
+}
+
+function formatSessionPlannerLibraryTags(value) {
+  return normalizeSessionPlannerLibraryTags(value).join(", ");
 }
 
 function getSessionPlannerMultiValueSummary(value, fallback) {
@@ -11629,6 +11363,540 @@ function clearSessionPlannerMultiSelectValue(field) {
   refreshSessionPlannerMultiSelectFields([field]);
 }
 
+function normalizeSessionPlannerLibraryFilterValues(value) {
+  const values = Array.isArray(value) ? value : normalizeSessionPlannerMultiValue(value);
+  return Array.from(
+    new Set(
+      values
+        .map((item) => String(item || "").trim())
+        .filter((item) => item && item.toLowerCase() !== "all")
+    )
+  );
+}
+
+function getSessionPlannerLibraryFilterValues(filterKey) {
+  if (filterKey === "phase") {
+    return normalizeSessionPlannerLibraryFilterValues(
+      sessionPlannerLibraryPhaseFilters.length ? sessionPlannerLibraryPhaseFilters : sessionPlannerLibraryPhaseFilter
+    );
+  }
+
+  if (filterKey === "subPhase") {
+    return normalizeSessionPlannerLibraryFilterValues(
+      sessionPlannerLibrarySubPhaseFilters.length
+        ? sessionPlannerLibrarySubPhaseFilters
+        : sessionPlannerLibrarySubPhaseFilter
+    );
+  }
+
+  return [];
+}
+
+function setSessionPlannerLibraryFilterValues(filterKey, values = []) {
+  const normalizedValues = normalizeSessionPlannerLibraryFilterValues(values);
+  if (filterKey === "phase") {
+    sessionPlannerLibraryPhaseFilters = normalizedValues;
+    sessionPlannerLibraryPhaseFilter = normalizedValues[0] || "all";
+  }
+
+  if (filterKey === "subPhase") {
+    sessionPlannerLibrarySubPhaseFilters = normalizedValues;
+    sessionPlannerLibrarySubPhaseFilter = normalizedValues[0] || "all";
+  }
+}
+
+function toggleSessionPlannerLibraryFilterOpen(filterKey) {
+  sessionPlannerLibraryFilterOpen = sessionPlannerLibraryFilterOpen === filterKey ? "" : filterKey;
+  renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+}
+
+function toggleSessionPlannerLibraryFilterValue(filterKey, value) {
+  const cleanValue = String(value || "").trim();
+  if (!cleanValue) {
+    return;
+  }
+
+  const currentValues = getSessionPlannerLibraryFilterValues(filterKey);
+  const nextValues = currentValues.includes(cleanValue)
+    ? currentValues.filter((item) => item !== cleanValue)
+    : [...currentValues, cleanValue];
+
+  setSessionPlannerLibraryFilterValues(filterKey, nextValues);
+  sessionPlannerLibraryFilterOpen = filterKey;
+  sessionPlannerLibraryPreviewExerciseId = "";
+  sessionPlannerLibraryEditExerciseId = "";
+  renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+}
+
+function clearSessionPlannerLibraryFilter(filterKey) {
+  setSessionPlannerLibraryFilterValues(filterKey, []);
+  sessionPlannerLibraryFilterOpen = filterKey;
+  sessionPlannerLibraryPreviewExerciseId = "";
+  sessionPlannerLibraryEditExerciseId = "";
+  renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+}
+
+function exerciseMatchesSessionPlannerLibraryFilterValue(exerciseValue, selectedValues = []) {
+  if (!selectedValues.length) {
+    return true;
+  }
+
+  const exerciseValues = normalizeSessionPlannerMultiValue(exerciseValue);
+  return selectedValues.some((value) => exerciseValues.includes(value));
+}
+
+function getSessionPlannerVisibleLibraryFolders() {
+  return getSessionPlannerExerciseLibraryFolders()
+    .filter((folder) => !isSessionPlannerLibraryFolderArchived(folder))
+    .sort((a, b) => {
+      const visibilitySort = a.visibility.localeCompare(b.visibility);
+      return visibilitySort || a.name.localeCompare(b.name);
+    });
+}
+
+function getSessionPlannerArchivedLibraryFolders() {
+  return getSessionPlannerExerciseLibraryFolders()
+    .filter((folder) => isSessionPlannerLibraryFolderArchived(folder))
+    .sort((a, b) => String(b.archivedAt || "").localeCompare(String(a.archivedAt || "")) || a.name.localeCompare(b.name));
+}
+
+function getSessionPlannerLibraryFolderById(folderId) {
+  const targetId = String(folderId || "").trim();
+  if (!targetId) {
+    return null;
+  }
+
+  return getSessionPlannerExerciseLibraryFolders().find((folder) => folder.id === targetId) || null;
+}
+
+function getSessionPlannerLibraryFolderExerciseIdSet(folderId = sessionPlannerLibrarySelectedFolderId) {
+  const targetFolderId = String(folderId || "all");
+  const currentUserId = getSessionPlannerLibraryUserId();
+  const visibleFolders = getSessionPlannerVisibleLibraryFolders();
+
+  if (targetFolderId === "all") {
+    return null;
+  }
+
+  if (targetFolderId === "team") {
+    return new Set(
+      visibleFolders
+        .filter((folder) => folder.visibility === "team")
+        .flatMap((folder) => normalizeSessionPlannerLibraryFolderExerciseIds(folder.exerciseIds))
+    );
+  }
+
+  if (targetFolderId === "mine") {
+    return new Set(
+      visibleFolders
+        .filter((folder) => folder.visibility === "personal" && (!folder.createdBy || folder.createdBy === currentUserId))
+        .flatMap((folder) => normalizeSessionPlannerLibraryFolderExerciseIds(folder.exerciseIds))
+    );
+  }
+
+  const folder = getSessionPlannerLibraryFolderById(targetFolderId);
+  return new Set(normalizeSessionPlannerLibraryFolderExerciseIds(folder?.exerciseIds));
+}
+
+function exerciseMatchesSessionPlannerLibraryFolder(exercise = {}) {
+  const folderExerciseIds = getSessionPlannerLibraryFolderExerciseIdSet();
+  return !folderExerciseIds || folderExerciseIds.has(exercise.id);
+}
+
+function getSessionPlannerLibraryFolderCount(folderId, archiveView = sessionPlannerLibraryArchiveView) {
+  const folderExerciseIds = getSessionPlannerLibraryFolderExerciseIdSet(folderId);
+  return getSessionPlannerLibraryExercisesByArchiveState(archiveView).filter((exercise) =>
+    !folderExerciseIds || folderExerciseIds.has(exercise.id)
+  ).length;
+}
+
+function getSessionPlannerLibraryFolderName(folderId = sessionPlannerLibrarySelectedFolderId) {
+  if (folderId === "all") {
+    return "All Exercises";
+  }
+
+  if (folderId === "team") {
+    return "Team";
+  }
+
+  if (folderId === "mine") {
+    return "Mine";
+  }
+
+  return getSessionPlannerLibraryFolderById(folderId)?.name || "Folder";
+}
+
+function getUniqueSessionPlannerLibraryFolderName(baseName = "Untitled Folder", excludeFolderId = "") {
+  const cleanBaseName = String(baseName || "Untitled Folder").trim().replace(/\s+/g, " ") || "Untitled Folder";
+  const existingFolderNames = new Set(
+    getSessionPlannerExerciseLibraryFolders()
+      .filter((folder) => folder.id !== excludeFolderId && !isSessionPlannerLibraryFolderArchived(folder))
+      .map((folder) => normalizeSessionPlannerLibraryTitle(folder.name))
+      .filter(Boolean)
+  );
+
+  let candidate = cleanBaseName;
+  let suffix = 2;
+  while (existingFolderNames.has(normalizeSessionPlannerLibraryTitle(candidate))) {
+    candidate = `${cleanBaseName} ${suffix}`;
+    suffix += 1;
+  }
+
+  return candidate;
+}
+
+function selectSessionPlannerLibraryFolder(folderId = "all") {
+  const normalizedFolderId = String(folderId || "all").trim() || "all";
+  const isVirtualFolder = ["all", "team", "mine"].includes(normalizedFolderId);
+  const targetFolder = getSessionPlannerLibraryFolderById(normalizedFolderId);
+  const targetFolderId = isVirtualFolder || (targetFolder && !isSessionPlannerLibraryFolderArchived(targetFolder))
+    ? normalizedFolderId
+    : "all";
+
+  sessionPlannerLibrarySelectedFolderId = targetFolderId;
+  sessionPlannerLibraryPreviewExerciseId = "";
+  sessionPlannerLibraryEditExerciseId = "";
+  sessionPlannerLibraryEditingFolderId = "";
+  sessionPlannerLibraryFilterOpen = "";
+  renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+}
+
+function startSessionPlannerExerciseLibraryFolderEdit(folderId) {
+  if (!canEditSessionPlanner()) {
+    return;
+  }
+
+  const folder = getSessionPlannerLibraryFolderById(folderId);
+  if (!folder || isSessionPlannerLibraryFolderArchived(folder)) {
+    return;
+  }
+
+  sessionPlannerLibraryEditingFolderId = folder.id;
+  renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+}
+
+function cancelSessionPlannerExerciseLibraryFolderEdit() {
+  sessionPlannerLibraryEditingFolderId = "";
+  renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+}
+
+function createSessionPlannerExerciseLibraryFolderFromForm(form) {
+  if (!canEditSessionPlanner() || !form) {
+    return;
+  }
+
+  const nameField = form.querySelector("[data-session-library-folder-name]");
+  const visibilityField = form.querySelector("[data-session-library-folder-visibility]");
+  const folderName = String(nameField?.value || "").trim().replace(/\s+/g, " ");
+  if (!folderName) {
+    showSessionPlannerToast("Add a folder name first.", "warning");
+    return;
+  }
+
+  const folders = getSessionPlannerExerciseLibraryFolders();
+  const folderNameExists = folders.some(
+    (folder) =>
+      !isSessionPlannerLibraryFolderArchived(folder) &&
+      normalizeSessionPlannerLibraryTitle(folder.name) === normalizeSessionPlannerLibraryTitle(folderName)
+  );
+  if (folderNameExists) {
+    showSessionPlannerToast("A folder with that name already exists.", "warning");
+    return;
+  }
+
+  const now = getSessionPlannerLibraryNow();
+  const currentUserId = getSessionPlannerLibraryUserId();
+  const newFolder = createSessionPlannerLibraryFolder({
+    id: createSessionPlannerStableId("folder"),
+    name: folderName,
+    visibility: normalizeSessionPlannerLibraryFolderVisibility(visibilityField?.value),
+    exerciseIds: [],
+    createdAt: now,
+    createdBy: currentUserId,
+    updatedAt: now,
+    updatedBy: currentUserId,
+    source: "user",
+  });
+  const writeResult = writeSessionPlannerExerciseLibraryFoldersToStorage([newFolder, ...folders]);
+
+  if (!writeResult.saved) {
+    showSessionPlannerToast("The folder could not be saved. No exercises were changed.", "error");
+    return;
+  }
+
+  sessionPlannerExerciseLibraryFolders = writeResult.folders;
+  sessionPlannerLibrarySelectedFolderId = newFolder.id;
+  sessionPlannerLibraryPreviewExerciseId = "";
+  sessionPlannerLibraryEditExerciseId = "";
+  renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+  showSessionPlannerToast(
+    writeResult.backupSaved
+      ? `Created folder: "${newFolder.name}".`
+      : `Created folder: "${newFolder.name}". Backup could not be updated.`,
+    writeResult.backupSaved ? "success" : "warning"
+  );
+}
+
+function updateSessionPlannerExerciseLibraryFolderFromForm(form) {
+  if (!canEditSessionPlanner() || !form) {
+    return;
+  }
+
+  const folder = getSessionPlannerLibraryFolderById(form.dataset.sessionLibraryFolderEditForm);
+  if (!folder || isSessionPlannerLibraryFolderArchived(folder)) {
+    return;
+  }
+
+  const nameField = form.querySelector("[data-session-library-folder-edit-name]");
+  const visibilityField = form.querySelector("[data-session-library-folder-edit-visibility]");
+  const folderName = String(nameField?.value || "").trim().replace(/\s+/g, " ");
+  if (!folderName) {
+    showSessionPlannerToast("Folder name cannot be empty.", "warning");
+    return;
+  }
+
+  const folderNameExists = getSessionPlannerExerciseLibraryFolders().some(
+    (item) =>
+      item.id !== folder.id &&
+      !isSessionPlannerLibraryFolderArchived(item) &&
+      normalizeSessionPlannerLibraryTitle(item.name) === normalizeSessionPlannerLibraryTitle(folderName)
+  );
+  if (folderNameExists) {
+    showSessionPlannerToast("A folder with that name already exists.", "warning");
+    return;
+  }
+
+  const now = getSessionPlannerLibraryNow();
+  const currentUserId = getSessionPlannerLibraryUserId();
+  const nextFolder = createSessionPlannerLibraryFolder({
+    ...folder,
+    name: folderName,
+    visibility: normalizeSessionPlannerLibraryFolderVisibility(visibilityField?.value),
+    updatedAt: now,
+    updatedBy: currentUserId,
+  });
+  const writeResult = writeSessionPlannerExerciseLibraryFoldersToStorage(
+    getSessionPlannerExerciseLibraryFolders().map((item) => (item.id === folder.id ? nextFolder : item))
+  );
+
+  if (!writeResult.saved) {
+    showSessionPlannerToast("The folder could not be updated. Exercises were not changed.", "error");
+    return;
+  }
+
+  sessionPlannerExerciseLibraryFolders = writeResult.folders;
+  sessionPlannerLibrarySelectedFolderId = nextFolder.id;
+  sessionPlannerLibraryEditingFolderId = "";
+  renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+  showSessionPlannerToast(
+    writeResult.backupSaved
+      ? `Updated folder: "${nextFolder.name}".`
+      : `Updated folder: "${nextFolder.name}". Backup could not be updated.`,
+    writeResult.backupSaved ? "success" : "warning"
+  );
+}
+
+function archiveSessionPlannerExerciseLibraryFolder(folderId) {
+  if (!canEditSessionPlanner()) {
+    return;
+  }
+
+  const folder = getSessionPlannerLibraryFolderById(folderId);
+  if (!folder || isSessionPlannerLibraryFolderArchived(folder)) {
+    return;
+  }
+
+  const shouldArchive = window.confirm(`Archive folder "${folder.name}"?\n\nExercises inside it will stay in the library and remain available from All Exercises.`);
+  if (!shouldArchive) {
+    return;
+  }
+
+  const now = getSessionPlannerLibraryNow();
+  const currentUserId = getSessionPlannerLibraryUserId();
+  const writeResult = writeSessionPlannerExerciseLibraryFoldersToStorage(
+    getSessionPlannerExerciseLibraryFolders().map((item) =>
+      item.id === folder.id
+        ? {
+            ...item,
+            archivedAt: now,
+            archivedBy: currentUserId,
+            updatedAt: now,
+            updatedBy: currentUserId,
+          }
+        : item
+    )
+  );
+
+  if (!writeResult.saved) {
+    showSessionPlannerToast("The folder could not be archived. Exercises were not changed.", "error");
+    return;
+  }
+
+  sessionPlannerExerciseLibraryFolders = writeResult.folders;
+  if (sessionPlannerLibrarySelectedFolderId === folder.id) {
+    sessionPlannerLibrarySelectedFolderId = "all";
+  }
+  sessionPlannerLibraryPreviewExerciseId = "";
+  sessionPlannerLibraryEditExerciseId = "";
+  sessionPlannerLibraryEditingFolderId = "";
+  renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+  showSessionPlannerToast(`Archived folder: "${folder.name}". Exercises stayed saved.`);
+}
+
+function restoreSessionPlannerExerciseLibraryFolder(folderId) {
+  if (!canEditSessionPlanner()) {
+    return;
+  }
+
+  const folder = getSessionPlannerLibraryFolderById(folderId);
+  if (!folder || !isSessionPlannerLibraryFolderArchived(folder)) {
+    return;
+  }
+
+  const now = getSessionPlannerLibraryNow();
+  const currentUserId = getSessionPlannerLibraryUserId();
+  const restoredName = getUniqueSessionPlannerLibraryFolderName(folder.name, folder.id);
+  const writeResult = writeSessionPlannerExerciseLibraryFoldersToStorage(
+    getSessionPlannerExerciseLibraryFolders().map((item) =>
+      item.id === folder.id
+        ? {
+            ...item,
+            name: restoredName,
+            archivedAt: "",
+            archivedBy: "",
+            updatedAt: now,
+            updatedBy: currentUserId,
+          }
+        : item
+    )
+  );
+
+  if (!writeResult.saved) {
+    showSessionPlannerToast("The folder could not be restored. Exercises were not changed.", "error");
+    return;
+  }
+
+  sessionPlannerExerciseLibraryFolders = writeResult.folders;
+  sessionPlannerLibrarySelectedFolderId = folder.id;
+  sessionPlannerLibraryPreviewExerciseId = "";
+  sessionPlannerLibraryEditExerciseId = "";
+  sessionPlannerLibraryEditingFolderId = "";
+  renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+  showSessionPlannerToast(
+    writeResult.backupSaved
+      ? `Restored folder: "${restoredName}".`
+      : `Restored folder: "${restoredName}". Backup could not be updated.`,
+    writeResult.backupSaved ? "success" : "warning"
+  );
+}
+
+function addSessionPlannerExerciseToLibraryFolder(exerciseId, folderId) {
+  if (!canEditSessionPlanner()) {
+    return;
+  }
+
+  const exercise = getSessionPlannerLibraryExerciseById(exerciseId);
+  const folder = getSessionPlannerLibraryFolderById(folderId);
+  if (!exercise || !folder || isSessionPlannerLibraryFolderArchived(folder)) {
+    return;
+  }
+
+  if (isSessionPlannerLibraryExerciseArchived(exercise)) {
+    showSessionPlannerToast("Restore the exercise before placing it in a folder.", "warning");
+    return;
+  }
+
+  const existingExerciseIds = normalizeSessionPlannerLibraryFolderExerciseIds(folder.exerciseIds);
+  if (existingExerciseIds.includes(exercise.id)) {
+    sessionPlannerLibrarySelectedFolderId = folder.id;
+    sessionPlannerLibraryPreviewExerciseId = exercise.id;
+    renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+    showSessionPlannerToast(`"${exercise.title || "Exercise"}" is already in "${folder.name}".`, "warning");
+    return;
+  }
+
+  const now = getSessionPlannerLibraryNow();
+  const currentUserId = getSessionPlannerLibraryUserId();
+  const writeResult = writeSessionPlannerExerciseLibraryFoldersToStorage(
+    getSessionPlannerExerciseLibraryFolders().map((item) =>
+      item.id === folder.id
+        ? {
+            ...item,
+            exerciseIds: [...existingExerciseIds, exercise.id],
+            updatedAt: now,
+            updatedBy: currentUserId,
+          }
+        : item
+    )
+  );
+
+  if (!writeResult.saved) {
+    showSessionPlannerToast("The folder could not be updated. The exercise stayed unchanged.", "error");
+    return;
+  }
+
+  sessionPlannerExerciseLibraryFolders = writeResult.folders;
+  sessionPlannerLibrarySelectedFolderId = folder.id;
+  sessionPlannerLibraryPreviewExerciseId = exercise.id;
+  sessionPlannerLibraryEditExerciseId = "";
+  renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+  showSessionPlannerToast(
+    writeResult.backupSaved
+      ? `Added "${exercise.title || "Exercise"}" to "${folder.name}".`
+      : `Added "${exercise.title || "Exercise"}" to "${folder.name}". Backup could not be updated.`,
+    writeResult.backupSaved ? "success" : "warning"
+  );
+}
+
+function removeSessionPlannerExerciseFromLibraryFolder(exerciseId, folderId = sessionPlannerLibrarySelectedFolderId) {
+  if (!canEditSessionPlanner()) {
+    return;
+  }
+
+  const exercise = getSessionPlannerLibraryExerciseById(exerciseId);
+  const folder = getSessionPlannerLibraryFolderById(folderId);
+  if (!exercise || !folder || isSessionPlannerLibraryFolderArchived(folder)) {
+    return;
+  }
+
+  const existingExerciseIds = normalizeSessionPlannerLibraryFolderExerciseIds(folder.exerciseIds);
+  if (!existingExerciseIds.includes(exercise.id)) {
+    showSessionPlannerToast(`"${exercise.title || "Exercise"}" is not in "${folder.name}".`, "warning");
+    return;
+  }
+
+  const now = getSessionPlannerLibraryNow();
+  const currentUserId = getSessionPlannerLibraryUserId();
+  const writeResult = writeSessionPlannerExerciseLibraryFoldersToStorage(
+    getSessionPlannerExerciseLibraryFolders().map((item) =>
+      item.id === folder.id
+        ? {
+            ...item,
+            exerciseIds: existingExerciseIds.filter((itemExerciseId) => itemExerciseId !== exercise.id),
+            updatedAt: now,
+            updatedBy: currentUserId,
+          }
+        : item
+    )
+  );
+
+  if (!writeResult.saved) {
+    showSessionPlannerToast("The folder could not be updated. The exercise stayed in place.", "error");
+    return;
+  }
+
+  sessionPlannerExerciseLibraryFolders = writeResult.folders;
+  sessionPlannerLibraryPreviewExerciseId = "";
+  sessionPlannerLibraryEditExerciseId = "";
+  renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+  showSessionPlannerToast(
+    writeResult.backupSaved
+      ? `Removed "${exercise.title || "Exercise"}" from "${folder.name}".`
+      : `Removed "${exercise.title || "Exercise"}" from "${folder.name}". Backup could not be updated.`,
+    writeResult.backupSaved ? "success" : "warning"
+  );
+}
+
 function getSessionPlannerLibraryOptionValues(key) {
   const values = getSessionPlannerLibraryExercisesByArchiveState()
     .flatMap((exercise) => normalizeSessionPlannerMultiValue(exercise[key]))
@@ -11637,64 +11905,124 @@ function getSessionPlannerLibraryOptionValues(key) {
   return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
 }
 
+function normalizeSessionPlannerLibrarySortMode(value) {
+  const sortValue = String(value || "").trim();
+  return sessionPlannerLibrarySortOptions.some((option) => option.value === sortValue) ? sortValue : "updated";
+}
+
+function getSessionPlannerLibrarySortTimestamp(exercise = {}, key = "updated") {
+  const value = key === "created" ? exercise.createdAt : exercise.updatedAt || exercise.createdAt;
+  const timestamp = Date.parse(normalizeSessionPlannerTimestamp(value) || "");
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function compareSessionPlannerLibraryExerciseTitles(a = {}, b = {}) {
+  return String(a.title || "").localeCompare(String(b.title || ""), undefined, { sensitivity: "base" });
+}
+
+function compareSessionPlannerLibraryExercises(a = {}, b = {}) {
+  const sortMode = normalizeSessionPlannerLibrarySortMode(sessionPlannerLibrarySortMode);
+
+  if (sortMode === "created") {
+    return (
+      getSessionPlannerLibrarySortTimestamp(b, "created") -
+        getSessionPlannerLibrarySortTimestamp(a, "created") ||
+      compareSessionPlannerLibraryExerciseTitles(a, b)
+    );
+  }
+
+  if (sortMode === "title") {
+    return compareSessionPlannerLibraryExerciseTitles(a, b);
+  }
+
+  if (sortMode === "phase") {
+    return (
+      `${a.phase || ""} ${a.subPhase || ""} ${a.title || ""}`.localeCompare(
+        `${b.phase || ""} ${b.subPhase || ""} ${b.title || ""}`,
+        undefined,
+        { sensitivity: "base" }
+      ) ||
+      getSessionPlannerLibrarySortTimestamp(b, "updated") -
+        getSessionPlannerLibrarySortTimestamp(a, "updated")
+    );
+  }
+
+  return (
+    getSessionPlannerLibrarySortTimestamp(b, "updated") -
+      getSessionPlannerLibrarySortTimestamp(a, "updated") ||
+    compareSessionPlannerLibraryExerciseTitles(a, b)
+  );
+}
+
 function getFilteredSessionPlannerExerciseLibrary() {
-  const phaseFilter = sessionPlannerLibraryPhaseFilter || "all";
-  const subPhaseFilter = sessionPlannerLibrarySubPhaseFilter || "all";
+  const phaseFilters = getSessionPlannerLibraryFilterValues("phase");
+  const subPhaseFilters = getSessionPlannerLibraryFilterValues("subPhase");
   const searchQuery = String(sessionPlannerLibrarySearchQuery || "").trim().toLowerCase();
 
   return getSessionPlannerLibraryExercisesByArchiveState()
     .filter((exercise) => {
-      const phaseMatches =
-        phaseFilter === "all" || normalizeSessionPlannerMultiValue(exercise.phase).includes(phaseFilter);
-      const subPhaseMatches =
-        subPhaseFilter === "all" || normalizeSessionPlannerMultiValue(exercise.subPhase).includes(subPhaseFilter);
+      const phaseMatches = exerciseMatchesSessionPlannerLibraryFilterValue(exercise.phase, phaseFilters);
+      const subPhaseMatches = exerciseMatchesSessionPlannerLibraryFilterValue(exercise.subPhase, subPhaseFilters);
+      const folderMatches = exerciseMatchesSessionPlannerLibraryFolder(exercise);
       const searchableText = [
         exercise.title,
         exercise.focus,
         exercise.objective,
         exercise.phase,
         exercise.subPhase,
+        formatSessionPlannerLibraryTags(exercise.tags),
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
       const searchMatches = !searchQuery || searchableText.includes(searchQuery);
-      return phaseMatches && subPhaseMatches && searchMatches;
+      return folderMatches && phaseMatches && subPhaseMatches && searchMatches;
     })
-    .sort((a, b) =>
-      `${a.phase || ""} ${a.subPhase || ""} ${a.title || ""}`.localeCompare(
-        `${b.phase || ""} ${b.subPhase || ""} ${b.title || ""}`
-      )
-    );
+    .sort(compareSessionPlannerLibraryExercises);
 }
 
 function updateSessionPlannerLibraryFilter(filterKey, value) {
-  const cleanValue = value || "all";
-
-  if (filterKey === "phase") {
-    sessionPlannerLibraryPhaseFilter = cleanValue;
-  }
-
-  if (filterKey === "subPhase") {
-    sessionPlannerLibrarySubPhaseFilter = cleanValue;
-  }
-
+  setSessionPlannerLibraryFilterValues(filterKey, normalizeSessionPlannerLibraryFilterValues(value));
+  sessionPlannerLibraryPreviewExerciseId = "";
+  sessionPlannerLibraryEditExerciseId = "";
   renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
 
 function updateSessionPlannerLibraryArchiveView(value) {
   sessionPlannerLibraryArchiveView = value === "archived" ? "archived" : "active";
+  sessionPlannerLibraryFilterOpen = "";
+  sessionPlannerLibraryPreviewExerciseId = "";
+  sessionPlannerLibraryEditExerciseId = "";
+  renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+}
+
+function updateSessionPlannerLibrarySortMode(value) {
+  sessionPlannerLibrarySortMode = normalizeSessionPlannerLibrarySortMode(value);
+  sessionPlannerLibraryFilterOpen = "";
+  sessionPlannerLibraryPreviewExerciseId = "";
+  sessionPlannerLibraryEditExerciseId = "";
   renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
 
 function renderSessionPlannerLibraryResults() {
   const filteredExercises = getFilteredSessionPlannerExerciseLibrary();
+  const previewExercise = getSessionPlannerLibraryPreviewExercise(filteredExercises);
   const libraryGrid = ui.sessionPlannerWorkspace?.querySelector(".session-library-modal-grid");
+  const folderPanel = ui.sessionPlannerWorkspace?.querySelector(".session-library-folder-panel");
+  const previewPanel = ui.sessionPlannerWorkspace?.querySelector(".session-library-preview-panel");
   const libraryCount = ui.sessionPlannerWorkspace?.querySelector(".session-library-count");
   const archiveTabs = ui.sessionPlannerWorkspace?.querySelector(".session-library-archive-tabs");
 
   if (libraryGrid) {
     libraryGrid.innerHTML = renderSessionPlannerLibrary(filteredExercises);
+  }
+
+  if (folderPanel) {
+    folderPanel.outerHTML = renderSessionPlannerLibraryFolders();
+  }
+
+  if (previewPanel) {
+    previewPanel.outerHTML = renderSessionPlannerLibraryPreview(previewExercise);
   }
 
   if (libraryCount) {
@@ -11708,7 +12036,327 @@ function renderSessionPlannerLibraryResults() {
 
 function updateSessionPlannerLibrarySearch(value) {
   sessionPlannerLibrarySearchQuery = String(value || "");
+  sessionPlannerLibraryPreviewExerciseId = "";
+  sessionPlannerLibraryEditExerciseId = "";
   renderSessionPlannerLibraryResults();
+}
+
+function getSessionPlannerLibraryExerciseById(exerciseId) {
+  const targetId = String(exerciseId || "").trim();
+  if (!targetId) {
+    return null;
+  }
+
+  return getSessionPlannerExerciseLibrary().find((exercise) => exercise.id === targetId) || null;
+}
+
+function getSessionPlannerLibraryPreviewExercise(exercises = getFilteredSessionPlannerExerciseLibrary()) {
+  const exerciseList = Array.isArray(exercises) ? exercises : [];
+  if (!exerciseList.length) {
+    sessionPlannerLibraryPreviewExerciseId = "";
+    sessionPlannerLibraryEditExerciseId = "";
+    return null;
+  }
+
+  const ids = new Set(exerciseList.map((exercise) => exercise.id));
+  if (sessionPlannerLibraryEditExerciseId && !ids.has(sessionPlannerLibraryEditExerciseId)) {
+    sessionPlannerLibraryEditExerciseId = "";
+  }
+
+  const selectedExercise =
+    exerciseList.find((exercise) => exercise.id === sessionPlannerLibraryPreviewExerciseId) || exerciseList[0];
+  sessionPlannerLibraryPreviewExerciseId = selectedExercise.id;
+  return selectedExercise;
+}
+
+function selectSessionPlannerLibraryPreview(exerciseId) {
+  const exercise = getSessionPlannerLibraryExerciseById(exerciseId);
+  if (!exercise) {
+    return;
+  }
+
+  sessionPlannerLibraryPreviewExerciseId = exercise.id;
+  sessionPlannerLibraryEditExerciseId = "";
+  renderSessionPlannerLibraryResults();
+}
+
+function startSessionPlannerLibraryExerciseEdit(exerciseId) {
+  if (!canEditSessionPlanner()) {
+    return;
+  }
+
+  const exercise = getSessionPlannerLibraryExerciseById(exerciseId);
+  if (!exercise) {
+    return;
+  }
+
+  if (isSessionPlannerLibraryExerciseArchived(exercise)) {
+    showSessionPlannerToast("Restore the exercise before editing it.", "warning");
+    return;
+  }
+
+  sessionPlannerLibraryPreviewExerciseId = exercise.id;
+  sessionPlannerLibraryEditExerciseId = exercise.id;
+  sessionPlannerLibraryFilterOpen = "";
+  renderSessionPlannerLibraryResults();
+}
+
+function cancelSessionPlannerLibraryExerciseEdit() {
+  const exercise = getSessionPlannerLibraryExerciseById(sessionPlannerLibraryEditExerciseId);
+  if (
+    exercise &&
+    hasSessionPlannerLibraryExerciseEditChanges(exercise) &&
+    !window.confirm("Discard unsaved exercise edits?")
+  ) {
+    return;
+  }
+
+  sessionPlannerLibraryEditExerciseId = "";
+  renderSessionPlannerLibraryResults();
+}
+
+function getUniqueSessionPlannerLibraryTitle(baseTitle = "Untitled Exercise", excludeExerciseId = "") {
+  const cleanBaseTitle = String(baseTitle || "Untitled Exercise").trim() || "Untitled Exercise";
+  const existingTitles = new Set(
+    getSessionPlannerExerciseLibrary()
+      .filter((exercise) => exercise.id !== excludeExerciseId)
+      .map((exercise) => normalizeSessionPlannerLibraryTitle(exercise.title))
+      .filter(Boolean)
+  );
+
+  let candidate = cleanBaseTitle;
+  let suffix = 2;
+  while (existingTitles.has(normalizeSessionPlannerLibraryTitle(candidate))) {
+    candidate = `${cleanBaseTitle} ${suffix}`;
+    suffix += 1;
+  }
+
+  return candidate;
+}
+
+function duplicateSessionPlannerLibraryExercise(exerciseId) {
+  if (!canEditSessionPlanner()) {
+    return;
+  }
+
+  const exercise = getSessionPlannerLibraryExerciseById(exerciseId);
+  if (!exercise) {
+    return;
+  }
+
+  if (isSessionPlannerLibraryExerciseArchived(exercise)) {
+    showSessionPlannerToast("Restore the exercise before duplicating it.", "warning");
+    return;
+  }
+
+  const now = getSessionPlannerLibraryNow();
+  const currentUserId = getSessionPlannerLibraryUserId();
+  const duplicateTitle = getUniqueSessionPlannerLibraryTitle(`${exercise.title || "Untitled Exercise"} Copy`);
+  const duplicate = cloneSessionPlannerLibraryExercise({
+    ...exercise,
+    id: createSessionPlannerStableId("exercise"),
+    title: duplicateTitle,
+    createdAt: now,
+    createdBy: currentUserId,
+    updatedAt: now,
+    updatedBy: currentUserId,
+    archivedAt: "",
+    archivedBy: "",
+    source: "duplicate",
+    versions: [createSessionPlannerLibraryVersionSnapshot(exercise, "Duplicated from original")],
+  });
+
+  const library = getSessionPlannerExerciseLibrary().map(cloneSessionPlannerLibraryExercise);
+  const writeResult = writeSessionPlannerExerciseLibraryToStorage([duplicate, ...library]);
+  if (!writeResult.saved) {
+    showSessionPlannerToast("The duplicate could not be saved. The library was not changed.", "error");
+    return;
+  }
+
+  sessionPlannerExerciseLibrary = writeResult.exercises;
+  sessionPlannerLibraryPreviewExerciseId = duplicate.id;
+  sessionPlannerLibraryEditExerciseId = "";
+  sessionPlannerLibraryArchiveView = "active";
+  sessionPlannerLibraryFilterOpen = "";
+  renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+  showSessionPlannerToast(
+    writeResult.backupSaved
+      ? `Duplicated and saved: "${duplicate.title}".`
+      : `Duplicated and saved: "${duplicate.title}". Backup could not be updated.`,
+    writeResult.backupSaved ? "success" : "warning"
+  );
+}
+
+function updateSessionPlannerLibraryExerciseFromEdit(exerciseId) {
+  if (!canEditSessionPlanner()) {
+    return;
+  }
+
+  const exercise = getSessionPlannerLibraryExerciseById(exerciseId);
+  if (!exercise || isSessionPlannerLibraryExerciseArchived(exercise)) {
+    return;
+  }
+
+  const editFields = getSessionPlannerLibraryExerciseEditFields();
+  const nextSnapshot = getSessionPlannerLibraryExerciseEditSnapshot(editFields);
+  const nextTitle = nextSnapshot.title || "Untitled Exercise";
+  const titleConflict = getSessionPlannerExerciseLibrary().some(
+    (item) =>
+      item.id !== exercise.id &&
+      normalizeSessionPlannerLibraryTitle(item.title) === normalizeSessionPlannerLibraryTitle(nextTitle)
+  );
+
+  if (titleConflict) {
+    showSessionPlannerToast("Another library exercise already uses that title.", "warning");
+    return;
+  }
+
+  const hasChanges = hasSessionPlannerLibraryExerciseEditChanges(exercise, editFields);
+  if (!hasChanges) {
+    sessionPlannerLibraryEditExerciseId = "";
+    renderSessionPlannerLibraryResults();
+    showSessionPlannerToast("No library changes to save.", "warning");
+    return;
+  }
+
+  const now = getSessionPlannerLibraryNow();
+  const currentUserId = getSessionPlannerLibraryUserId();
+  const nextExercise = cloneSessionPlannerLibraryExercise({
+    ...exercise,
+    ...nextSnapshot,
+    updatedAt: now,
+    updatedBy: currentUserId,
+    versions: appendSessionPlannerLibraryVersion(exercise, "Edited"),
+  });
+
+  const writeResult = writeSessionPlannerExerciseLibraryToStorage(
+    getSessionPlannerExerciseLibrary().map((item) => (item.id === exercise.id ? nextExercise : item))
+  );
+  if (!writeResult.saved) {
+    showSessionPlannerToast("The edit could not be saved. The original exercise stayed intact.", "error");
+    return;
+  }
+
+  sessionPlannerExerciseLibrary = writeResult.exercises;
+  sessionPlannerLibraryPreviewExerciseId = nextExercise.id;
+  sessionPlannerLibraryEditExerciseId = "";
+  renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+  showSessionPlannerToast(
+    writeResult.backupSaved
+      ? `Updated in library: "${nextExercise.title}".`
+      : `Updated in library: "${nextExercise.title}". Backup could not be updated.`,
+    writeResult.backupSaved ? "success" : "warning"
+  );
+}
+
+function getSessionPlannerLibraryExerciseEditFields() {
+  const editFields = {};
+  ui.sessionPlannerWorkspace
+    ?.querySelectorAll("[data-session-library-edit-field]")
+    .forEach((field) => {
+      const fieldKey = field.dataset.sessionLibraryEditField;
+      if (fieldKey) {
+        editFields[fieldKey] = field.value;
+      }
+    });
+  return editFields;
+}
+
+function getSessionPlannerLibraryExerciseEditSnapshot(source = {}) {
+  return {
+    title: String(source.title || "").trim() || "Untitled Exercise",
+    focus: String(source.focus || "").trim(),
+    phase: formatSessionPlannerMultiValue(source.phase),
+    subPhase: formatSessionPlannerMultiValue(source.subPhase),
+    tags: normalizeSessionPlannerLibraryTags(source.tags),
+    minutes: Number.isFinite(Number(source.minutes)) ? Math.max(0, Number(source.minutes)) : 0,
+    time: String(source.time || "").trim(),
+    intensity: Number.isFinite(Number(source.intensity)) ? clamp(Number(source.intensity), 1, 5) : 3,
+    pitchSize: String(source.pitchSize || "").trim(),
+    material: String(source.material || "").trim(),
+    objective: String(source.objective || "").trim(),
+    why: String(source.why || "").trim(),
+    organization: String(source.organization || "").trim(),
+    principles: String(source.principles || "").trim(),
+  };
+}
+
+function getSessionPlannerLibraryExerciseComparableSnapshot(exercise = {}) {
+  return getSessionPlannerLibraryExerciseEditSnapshot({
+    title: exercise.title,
+    focus: exercise.focus,
+    phase: exercise.phase,
+    subPhase: exercise.subPhase,
+    tags: exercise.tags,
+    minutes: exercise.minutes,
+    time: exercise.time,
+    intensity: exercise.intensity,
+    pitchSize: exercise.pitchSize,
+    material: exercise.material,
+    objective: exercise.objective,
+    why: exercise.why,
+    organization: exercise.organization,
+    principles: exercise.principles,
+  });
+}
+
+function hasSessionPlannerLibraryExerciseEditChanges(exercise = {}, editFields = getSessionPlannerLibraryExerciseEditFields()) {
+  return JSON.stringify(getSessionPlannerLibraryExerciseComparableSnapshot(exercise)) !==
+    JSON.stringify(getSessionPlannerLibraryExerciseEditSnapshot(editFields));
+}
+
+function saveSessionPlannerLibraryExerciseEditAsCopy(exerciseId) {
+  if (!canEditSessionPlanner()) {
+    return;
+  }
+
+  const exercise = getSessionPlannerLibraryExerciseById(exerciseId);
+  if (!exercise || isSessionPlannerLibraryExerciseArchived(exercise)) {
+    return;
+  }
+
+  const nextSnapshot = getSessionPlannerLibraryExerciseEditSnapshot(getSessionPlannerLibraryExerciseEditFields());
+  const requestedTitle = nextSnapshot.title || exercise.title || "Untitled Exercise";
+  const copyTitle = getUniqueSessionPlannerLibraryTitle(
+    normalizeSessionPlannerLibraryTitle(requestedTitle) === normalizeSessionPlannerLibraryTitle(exercise.title)
+      ? `${requestedTitle} Copy`
+      : requestedTitle
+  );
+  const now = getSessionPlannerLibraryNow();
+  const currentUserId = getSessionPlannerLibraryUserId();
+  const copiedExercise = cloneSessionPlannerLibraryExercise({
+    ...exercise,
+    ...nextSnapshot,
+    id: createSessionPlannerStableId("exercise"),
+    title: copyTitle,
+    createdAt: now,
+    createdBy: currentUserId,
+    updatedAt: now,
+    updatedBy: currentUserId,
+    archivedAt: "",
+    archivedBy: "",
+    source: "edited-copy",
+    versions: [createSessionPlannerLibraryVersionSnapshot(exercise, "Copied before edit")],
+  });
+  const writeResult = writeSessionPlannerExerciseLibraryToStorage(
+    [copiedExercise, ...getSessionPlannerExerciseLibrary()]
+  );
+  if (!writeResult.saved) {
+    showSessionPlannerToast("The copy could not be saved. The original exercise stayed intact.", "error");
+    return;
+  }
+
+  sessionPlannerExerciseLibrary = writeResult.exercises;
+  sessionPlannerLibraryPreviewExerciseId = copiedExercise.id;
+  sessionPlannerLibraryEditExerciseId = "";
+  sessionPlannerLibraryArchiveView = "active";
+  renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+  showSessionPlannerToast(
+    writeResult.backupSaved
+      ? `Saved copy: "${copiedExercise.title}".`
+      : `Saved copy: "${copiedExercise.title}". Backup could not be updated.`,
+    writeResult.backupSaved ? "success" : "warning"
+  );
 }
 
 function normalizeSessionPlannerLibraryTitle(title = "") {
@@ -11750,6 +12398,7 @@ function buildSessionPlannerLibraryExerciseFromBlock(block) {
     focus: String(block.focus || "").trim(),
     phase: block.phase || "",
     subPhase: block.subPhase || "",
+    tags: [],
     minutes: block.minutes,
     time: block.time || "",
     intensity: block.intensity,
@@ -11842,11 +12491,17 @@ function commitSessionPlannerExerciseToLibrary(exercise, mode = "new", existingE
       archivedAt: "",
       archivedBy: "",
       source: existingExercise.source || exercise.source || "session",
+      versions: appendSessionPlannerLibraryVersion(existingExercise, "Replaced from session"),
     });
     toastMessage = `Updated in library: "${exercise.title || "Untitled Exercise"}".`;
   } else {
+    const nextExerciseTitle =
+      mode === "duplicate"
+        ? getUniqueSessionPlannerLibraryTitle(`${exercise.title || "Untitled Exercise"} Copy`, existingExerciseId)
+        : exercise.title;
     library.unshift(cloneSessionPlannerLibraryExercise({
       ...exercise,
+      title: nextExerciseTitle,
       createdAt: exercise.createdAt || now,
       createdBy: exercise.createdBy || currentUserId,
       updatedAt: now,
@@ -11854,9 +12509,13 @@ function commitSessionPlannerExerciseToLibrary(exercise, mode = "new", existingE
       archivedAt: "",
       archivedBy: "",
       source: exercise.source || "session",
+      versions:
+        mode === "duplicate"
+          ? [createSessionPlannerLibraryVersionSnapshot(exercise, "Duplicated from session")]
+          : normalizeSessionPlannerLibraryVersions(exercise.versions),
     }));
     if (mode === "duplicate") {
-      toastMessage = `Duplicated and saved: "${exercise.title || "Untitled Exercise"}".`;
+      toastMessage = `Duplicated and saved: "${nextExerciseTitle || "Untitled Exercise"}".`;
     }
   }
 
@@ -11867,10 +12526,13 @@ function commitSessionPlannerExerciseToLibrary(exercise, mode = "new", existingE
   }
 
   sessionPlannerExerciseLibrary = writeResult.exercises;
-  sessionPlannerLibraryPhaseFilter = exercise.phase || "all";
-  sessionPlannerLibrarySubPhaseFilter = exercise.subPhase || "all";
+  setSessionPlannerLibraryFilterValues("phase", normalizeSessionPlannerMultiValue(exercise.phase));
+  setSessionPlannerLibraryFilterValues("subPhase", normalizeSessionPlannerMultiValue(exercise.subPhase));
   sessionPlannerLibrarySearchQuery = "";
   sessionPlannerLibraryOpen = true;
+  sessionPlannerLibraryPreviewExerciseId = exercise.id || "";
+  sessionPlannerLibraryEditExerciseId = "";
+  sessionPlannerLibraryFilterOpen = "";
   sessionPlannerPendingLibrarySave = null;
   renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
   showSessionPlannerToast(
@@ -12186,6 +12848,34 @@ function canReduceSessionPlannerBlocksForDate(source, dateValue) {
   return Boolean(normalizeSessionPlannerBlockReductionGuard(source)[dateValue]);
 }
 
+function normalizeSessionPlannerBlockDeletionTombstones(source = {}) {
+  const tombstones = source?.[sessionPlannerBlockDeletionTombstoneKey];
+  if (!tombstones || typeof tombstones !== "object" || Array.isArray(tombstones)) {
+    return {};
+  }
+
+  return Object.entries(tombstones).reduce((normalized, [dateValue, blockMap]) => {
+    if (!blockMap || typeof blockMap !== "object" || Array.isArray(blockMap)) {
+      return normalized;
+    }
+
+    const normalizedBlocks = Object.entries(blockMap).reduce((blocks, [blockId, timestampValue]) => {
+      const cleanBlockId = String(blockId || "").trim();
+      const timestamp = parseSessionPlannerBlockReductionGuardTime(timestampValue);
+      if (cleanBlockId && timestamp) {
+        blocks[cleanBlockId] = new Date(timestamp).toISOString();
+      }
+      return blocks;
+    }, {});
+
+    const cleanDate = String(dateValue || "").trim();
+    if (cleanDate && Object.keys(normalizedBlocks).length) {
+      normalized[cleanDate] = normalizedBlocks;
+    }
+    return normalized;
+  }, {});
+}
+
 function markSessionPlannerBlockReductionAllowed(dateValue) {
   if (!sessionPlannerState || !dateValue) {
     return;
@@ -12197,6 +12887,24 @@ function markSessionPlannerBlockReductionAllowed(dateValue) {
   };
 }
 
+function markSessionPlannerBlockDeleted(dateValue, blockId) {
+  const cleanDate = String(dateValue || "").trim();
+  const cleanBlockId = String(blockId || "").trim();
+  if (!sessionPlannerState || !cleanDate || !cleanBlockId) {
+    return;
+  }
+
+  const tombstones = normalizeSessionPlannerBlockDeletionTombstones(sessionPlannerState);
+  sessionPlannerState[sessionPlannerBlockDeletionTombstoneKey] = {
+    ...tombstones,
+    [cleanDate]: {
+      ...(tombstones[cleanDate] || {}),
+      [cleanBlockId]: new Date().toISOString(),
+    },
+  };
+  markSessionPlannerBlockReductionAllowed(cleanDate);
+}
+
 function applySessionPlannerBlockReductionGuard(targetState, sourceState) {
   const guard = normalizeSessionPlannerBlockReductionGuard(sourceState);
   if (Object.keys(guard).length) {
@@ -12205,6 +12913,30 @@ function applySessionPlannerBlockReductionGuard(targetState, sourceState) {
     delete targetState[sessionPlannerBlockReductionGuardKey];
   }
   return targetState;
+}
+
+function applySessionPlannerBlockDeletionTombstones(targetState, ...sourceStates) {
+  const tombstones = sourceStates.reduce((merged, sourceState) => {
+    const next = normalizeSessionPlannerBlockDeletionTombstones(sourceState);
+    Object.entries(next).forEach(([dateValue, blockMap]) => {
+      merged[dateValue] = {
+        ...(merged[dateValue] || {}),
+        ...blockMap,
+      };
+    });
+    return merged;
+  }, {});
+
+  if (Object.keys(tombstones).length) {
+    targetState[sessionPlannerBlockDeletionTombstoneKey] = tombstones;
+  } else {
+    delete targetState[sessionPlannerBlockDeletionTombstoneKey];
+  }
+  return targetState;
+}
+
+function getSessionPlannerDeletedBlockIds(source, dateValue) {
+  return new Set(Object.keys(normalizeSessionPlannerBlockDeletionTombstones(source)[dateValue] || {}));
 }
 
 function cloneSessionPlannerBlockMergeValue(value) {
@@ -12309,20 +13041,36 @@ function mergeSessionPlannerBlockForWrite(existingBlock, incomingBlock) {
   return createSessionPlannerBlock(merged);
 }
 
-function mergeSessionPlannerSessionForWrite(existingSession, incomingSession, dateValue, canReduceBlocks = false) {
+function filterSessionPlannerDeletedBlocksForWrite(session, dateValue, deletedBlockIds = new Set()) {
+  const filteredSession = cloneSessionPlannerSession({ ...session, date: session?.date || dateValue });
+  if (!deletedBlockIds.size) {
+    return filteredSession;
+  }
+
+  filteredSession.blocks = filteredSession.blocks.filter((block) => !deletedBlockIds.has(block.id));
+  if (!filteredSession.blocks.some((block) => block.id === filteredSession.selectedBlockId)) {
+    filteredSession.selectedBlockId = filteredSession.blocks[0]?.id ?? "";
+  }
+  return filteredSession;
+}
+
+function mergeSessionPlannerSessionForWrite(existingSession, incomingSession, dateValue, canReduceBlocks = false, deletedBlockIds = new Set()) {
   const existing = cloneSessionPlannerSession({ ...existingSession, date: existingSession?.date || dateValue });
   const incoming = cloneSessionPlannerSession({ ...incomingSession, date: incomingSession?.date || dateValue });
   const existingById = new Map(existing.blocks.map((block) => [block.id, block]));
   const incomingIds = new Set();
-  const blocks = incoming.blocks.map((incomingBlock) => {
+  const blocks = incoming.blocks.flatMap((incomingBlock) => {
     incomingIds.add(incomingBlock.id);
+    if (deletedBlockIds.has(incomingBlock.id)) {
+      return [];
+    }
     const existingBlock = existingById.get(incomingBlock.id);
-    return existingBlock ? mergeSessionPlannerBlockForWrite(existingBlock, incomingBlock) : createSessionPlannerBlock(incomingBlock);
+    return [existingBlock ? mergeSessionPlannerBlockForWrite(existingBlock, incomingBlock) : createSessionPlannerBlock(incomingBlock)];
   });
 
   if (!canReduceBlocks) {
     existing.blocks.forEach((existingBlock) => {
-      if (!incomingIds.has(existingBlock.id)) {
+      if (!incomingIds.has(existingBlock.id) && !deletedBlockIds.has(existingBlock.id)) {
         blocks.push(createSessionPlannerBlock(existingBlock));
       }
     });
@@ -12362,10 +13110,10 @@ function cloneSessionPlannerState(source = createSessionPlannerDefaultState()) {
     sessions[fallback.selectedDate] = fallback.sessions[fallback.selectedDate];
   }
 
-  return applySessionPlannerBlockReductionGuard({
+  return applySessionPlannerBlockDeletionTombstones(applySessionPlannerBlockReductionGuard({
     selectedDate,
     sessions,
-  }, source);
+  }, source), source);
 }
 
 function readSessionPlannerState() {
@@ -12384,6 +13132,7 @@ function mergeSessionPlannerStateForWrite(existingState, incomingState) {
     ...incoming,
     sessions: {},
   };
+  applySessionPlannerBlockDeletionTombstones(merged, existing, incoming);
 
   const sessionDates = new Set([
     ...Object.keys(existing.sessions || {}),
@@ -12398,22 +13147,24 @@ function mergeSessionPlannerStateForWrite(existingState, incomingState) {
         existingSession,
         incomingSession,
         dateValue,
-        canReduceSessionPlannerBlocksForDate(incoming, dateValue)
+        canReduceSessionPlannerBlocksForDate(incoming, dateValue),
+        getSessionPlannerDeletedBlockIds(merged, dateValue)
       );
       return;
     }
 
+    const deletedBlockIds = getSessionPlannerDeletedBlockIds(merged, dateValue);
     if (existingSession) {
-      merged.sessions[dateValue] = existingSession;
+      merged.sessions[dateValue] = filterSessionPlannerDeletedBlocksForWrite(existingSession, dateValue, deletedBlockIds);
       return;
     }
 
     if (incomingSession) {
-      merged.sessions[dateValue] = incomingSession;
+      merged.sessions[dateValue] = filterSessionPlannerDeletedBlocksForWrite(incomingSession, dateValue, deletedBlockIds);
     }
   });
 
-  return applySessionPlannerBlockReductionGuard(merged, incoming);
+  return applySessionPlannerBlockDeletionTombstones(applySessionPlannerBlockReductionGuard(merged, incoming), existing, incoming);
 }
 
 function mergeSessionPlannerStateFromBackup(currentState, backupState) {
@@ -12430,18 +13181,23 @@ function mergeSessionPlannerStateFromBackup(currentState, backupState) {
   Object.entries(backup.sessions || {}).forEach(([dateValue, backupSession]) => {
     const currentSession = merged.sessions?.[dateValue];
     const currentBlockCount = Array.isArray(currentSession?.blocks) ? currentSession.blocks.length : 0;
-    const backupBlockCount = Array.isArray(backupSession?.blocks) ? backupSession.blocks.length : 0;
+    const backupSessionWithoutDeletedBlocks = filterSessionPlannerDeletedBlocksForWrite(
+      backupSession,
+      dateValue,
+      getSessionPlannerDeletedBlockIds(current, dateValue)
+    );
+    const backupBlockCount = Array.isArray(backupSessionWithoutDeletedBlocks?.blocks) ? backupSessionWithoutDeletedBlocks.blocks.length : 0;
     if (
       backupBlockCount > currentBlockCount &&
       !canReduceSessionPlannerBlocksForDate(current, dateValue)
     ) {
-      merged.sessions[dateValue] = backupSession;
+      merged.sessions[dateValue] = backupSessionWithoutDeletedBlocks;
       recoveredSessions += 1;
     }
   });
 
   return {
-    state: applySessionPlannerBlockReductionGuard(merged, current),
+    state: applySessionPlannerBlockDeletionTombstones(applySessionPlannerBlockReductionGuard(merged, current), current, backup),
     recoveredSessions,
   };
 }
@@ -12703,6 +13459,87 @@ function clearSessionPlannerBlockDragState() {
     .forEach((row) => row.classList.remove("is-dragging", "is-drop-before", "is-drop-after"));
 }
 
+function clearSessionPlannerLibraryDragState() {
+  sessionPlannerDraggedLibraryExerciseId = "";
+  sessionPlannerLibraryPointerDrag = null;
+  ui.sessionPlannerWorkspace
+    ?.querySelectorAll(".session-library-item.is-dragging, .session-library-folder-card.is-drop-target")
+    .forEach((element) => element.classList.remove("is-dragging", "is-drop-target"));
+}
+
+function updateSessionPlannerLibraryPointerDropTarget(clientX, clientY) {
+  const target = document.elementFromPoint(clientX, clientY)?.closest?.("[data-session-library-folder-drop]");
+  ui.sessionPlannerWorkspace
+    ?.querySelectorAll(".session-library-folder-card.is-drop-target")
+    .forEach((folderCard) => {
+      if (folderCard !== target) {
+        folderCard.classList.remove("is-drop-target");
+      }
+    });
+  target?.classList.add("is-drop-target");
+  return target || null;
+}
+
+function startSessionPlannerLibraryPointerDrag(event) {
+  const item = event.target.closest?.("[data-session-library-drag-exercise]");
+  if (!item || !canEditSessionPlanner() || event.button !== 0 || event.target.closest(".session-library-actions")) {
+    return false;
+  }
+
+  sessionPlannerLibraryPointerDrag = {
+    exerciseId: item.dataset.sessionLibraryDragExercise,
+    startX: event.clientX,
+    startY: event.clientY,
+    active: false,
+  };
+  return true;
+}
+
+function updateSessionPlannerLibraryPointerDrag(event) {
+  if (!sessionPlannerLibraryPointerDrag?.exerciseId) {
+    return false;
+  }
+
+  const deltaX = Math.abs(event.clientX - sessionPlannerLibraryPointerDrag.startX);
+  const deltaY = Math.abs(event.clientY - sessionPlannerLibraryPointerDrag.startY);
+  if (!sessionPlannerLibraryPointerDrag.active && deltaX + deltaY < 10) {
+    return true;
+  }
+
+  sessionPlannerLibraryPointerDrag.active = true;
+  sessionPlannerDraggedLibraryExerciseId = sessionPlannerLibraryPointerDrag.exerciseId;
+  ui.sessionPlannerWorkspace
+    ?.querySelectorAll("[data-session-library-drag-exercise]")
+    .forEach((item) => {
+      if (item.dataset.sessionLibraryDragExercise === sessionPlannerDraggedLibraryExerciseId) {
+        item.classList.add("is-dragging");
+      }
+    });
+  updateSessionPlannerLibraryPointerDropTarget(event.clientX, event.clientY);
+  event.preventDefault();
+  return true;
+}
+
+function finishSessionPlannerLibraryPointerDrag(event) {
+  if (!sessionPlannerLibraryPointerDrag?.exerciseId) {
+    return false;
+  }
+
+  const dragState = sessionPlannerLibraryPointerDrag;
+  const shouldDrop = Boolean(dragState.active);
+  const folderDropTarget = shouldDrop ? updateSessionPlannerLibraryPointerDropTarget(event.clientX, event.clientY) : null;
+  if (folderDropTarget) {
+    sessionPlannerLibrarySuppressNextClick = true;
+    addSessionPlannerExerciseToLibraryFolder(
+      dragState.exerciseId,
+      folderDropTarget.dataset.sessionLibraryFolderDrop
+    );
+  }
+
+  clearSessionPlannerLibraryDragState();
+  return shouldDrop;
+}
+
 function deleteSessionPlannerBlock(blockId) {
   if (!canEditSessionPlanner()) {
     return;
@@ -12723,7 +13560,7 @@ function deleteSessionPlannerBlock(blockId) {
   }
 
   session.blocks.splice(blockIndex, 1);
-  markSessionPlannerBlockReductionAllowed(session.date);
+  markSessionPlannerBlockDeleted(session.date, blockId);
 
   if (session.selectedBlockId === blockId) {
     session.selectedBlockId = session.blocks[Math.min(blockIndex, session.blocks.length - 1)]?.id ?? "";
@@ -12744,6 +13581,9 @@ function setSessionPlannerLibraryOpen(isOpen) {
     sessionPlannerAddMenuOpen = false;
     sessionPlannerPlayerBoardOpen = false;
     sessionPlannerPrintOverlayOpen = false;
+  } else {
+    sessionPlannerLibraryFilterOpen = "";
+    sessionPlannerLibraryEditExerciseId = "";
   }
   renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
@@ -14750,8 +15590,10 @@ function applySessionPlannerExercise(exerciseId) {
     createdAt,
     createdBy,
     source,
+    tags,
     updatedAt,
     updatedBy,
+    versions,
     ...exerciseContent
   } = exercise;
 
@@ -15841,23 +16683,61 @@ function renderSessionPlannerBlockList(session) {
     .join("");
 }
 
-function renderSessionPlannerLibraryFilter(label, filterKey, value, options) {
+function renderSessionPlannerLibraryFilter(label, filterKey, options) {
+  const selectedValues = getSessionPlannerLibraryFilterValues(filterKey);
+  const selectedSet = new Set(selectedValues);
+  const isOpen = sessionPlannerLibraryFilterOpen === filterKey;
+  const summaryLabel = selectedValues.length ? selectedValues.join(", ") : `All ${label.toLowerCase()}s`;
+
   return `
-    <label class="session-library-filter">
+    <div class="session-library-filter${isOpen ? " is-open" : ""}">
       <span>${escapeHtml(label)}</span>
-      <select data-session-library-filter="${escapeHtml(filterKey)}">
-        <option value="all"${value === "all" ? " selected" : ""}>All</option>
-        ${options
-          .map(
-            (option) => `
-              <option value="${escapeHtml(option)}"${value === option ? " selected" : ""}>
-                ${escapeHtml(option)}
-              </option>
-            `
-          )
-          .join("")}
-      </select>
-    </label>
+      <button
+        type="button"
+        class="session-library-filter-trigger${selectedValues.length ? " has-value" : ""}"
+        data-session-library-filter-toggle="${escapeHtml(filterKey)}"
+        aria-expanded="${isOpen ? "true" : "false"}"
+      >
+        <span>${escapeHtml(summaryLabel)}</span>
+        <small>${selectedValues.length || "All"}</small>
+      </button>
+      ${
+        isOpen
+          ? `
+            <div class="session-library-filter-menu">
+              <button
+                type="button"
+                class="session-library-filter-clear"
+                data-session-library-filter-clear="${escapeHtml(filterKey)}"
+              >
+                Clear selection
+              </button>
+              ${
+                options.length
+                  ? options
+                      .map((option) => {
+                        const selected = selectedSet.has(option);
+                        return `
+                          <button
+                            type="button"
+                            class="session-library-filter-option${selected ? " is-selected" : ""}"
+                            data-session-library-filter-option="${escapeHtml(filterKey)}"
+                            data-session-library-filter-value="${escapeHtml(option)}"
+                            aria-pressed="${selected ? "true" : "false"}"
+                          >
+                            <i>${selected ? "✓" : ""}</i>
+                            <span>${escapeHtml(option)}</span>
+                          </button>
+                        `;
+                      })
+                      .join("")
+                  : `<p class="session-library-filter-empty">No values yet</p>`
+              }
+            </div>
+          `
+          : ""
+      }
+    </div>
   `;
 }
 
@@ -15871,6 +16751,21 @@ function formatSessionPlannerLibraryDate(value = "") {
     day: "numeric",
     month: "short",
     year: "numeric",
+  }).format(new Date(timestamp));
+}
+
+function formatSessionPlannerLibraryDateTime(value = "") {
+  const timestamp = normalizeSessionPlannerTimestamp(value);
+  if (!timestamp) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   }).format(new Date(timestamp));
 }
 
@@ -15900,9 +16795,510 @@ function renderSessionPlannerLibraryArchiveTabs() {
   `;
 }
 
+function renderSessionPlannerLibrarySortControl() {
+  const sortMode = normalizeSessionPlannerLibrarySortMode(sessionPlannerLibrarySortMode);
+  return `
+    <label class="session-library-sort">
+      <span>Sort</span>
+      <select data-session-library-sort aria-label="Sort exercises">
+        ${sessionPlannerLibrarySortOptions
+          .map((option) => `
+            <option value="${escapeHtml(option.value)}"${option.value === sortMode ? " selected" : ""}>
+              ${escapeHtml(option.label)}
+            </option>
+          `)
+          .join("")}
+      </select>
+    </label>
+  `;
+}
+
 function getSessionPlannerLibraryCountLabel(count) {
   const statusLabel = sessionPlannerLibraryArchiveView === "archived" ? "archived " : "";
-  return `${count} ${statusLabel}exercise${count === 1 ? "" : "s"}`;
+  const folderName = getSessionPlannerLibraryFolderName();
+  const folderLabel = sessionPlannerLibrarySelectedFolderId === "all" ? "" : ` in ${folderName}`;
+  return `${count} ${statusLabel}exercise${count === 1 ? "" : "s"}${folderLabel}`;
+}
+
+function renderSessionPlannerLibraryFolderButton(folderId, label, count, options = {}) {
+  const isSelected = sessionPlannerLibrarySelectedFolderId === folderId;
+  return `
+    <button
+      type="button"
+      class="session-library-folder-button${isSelected ? " is-selected" : ""}${options.drop ? " is-droppable" : ""}"
+      data-session-library-folder="${escapeHtml(folderId)}"
+      ${options.drop ? `data-session-library-folder-drop="${escapeHtml(folderId)}"` : ""}
+      aria-pressed="${isSelected ? "true" : "false"}"
+    >
+      <span>${escapeHtml(label)}</span>
+      <small>${count}</small>
+    </button>
+  `;
+}
+
+function renderSessionPlannerLibraryFolderEditForm(folder) {
+  return `
+    <form
+      class="session-library-folder-form session-library-folder-edit-form"
+      data-session-library-folder-edit-form="${escapeHtml(folder.id)}"
+    >
+      <input
+        type="text"
+        value="${escapeHtml(folder.name)}"
+        maxlength="80"
+        data-session-library-folder-edit-name
+        aria-label="Folder name"
+      />
+      <select data-session-library-folder-edit-visibility aria-label="Folder visibility">
+        <option value="team"${folder.visibility === "team" ? " selected" : ""}>Team</option>
+        <option value="personal"${folder.visibility === "personal" ? " selected" : ""}>Personal</option>
+      </select>
+      <div class="session-library-folder-form-actions">
+        <button type="submit">Save</button>
+        <button
+          type="button"
+          class="session-library-folder-cancel"
+          data-session-library-cancel-folder-edit
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  `;
+}
+
+function renderSessionPlannerLibraryFolderCard(folder, options = {}) {
+  const isAdmin = canEditSessionPlanner();
+  const currentUserId = getSessionPlannerLibraryUserId();
+  const isArchived = options.archived ?? isSessionPlannerLibraryFolderArchived(folder);
+  const count = isArchived
+    ? normalizeSessionPlannerLibraryFolderExerciseIds(folder.exerciseIds).length
+    : getSessionPlannerLibraryFolderCount(folder.id);
+  const ownerLabel = folder.visibility === "personal"
+    ? folder.createdBy && folder.createdBy !== currentUserId
+      ? "Personal"
+      : "Mine"
+    : "Team";
+  const isSelected = !isArchived && sessionPlannerLibrarySelectedFolderId === folder.id;
+
+  if (isAdmin && !isArchived && sessionPlannerLibraryEditingFolderId === folder.id) {
+    return `
+      <div
+        class="session-library-folder-card is-editing${isSelected ? " is-selected" : ""}"
+        data-session-library-folder-drop="${escapeHtml(folder.id)}"
+      >
+        ${renderSessionPlannerLibraryFolderEditForm(folder)}
+      </div>
+    `;
+  }
+
+  return `
+    <div
+      class="session-library-folder-card${isSelected ? " is-selected" : ""}${isArchived ? " is-archived" : ""}"
+      ${isArchived ? "" : `data-session-library-folder-drop="${escapeHtml(folder.id)}"`}
+    >
+      ${
+        isArchived
+          ? `
+            <div class="session-library-folder-card-main" aria-label="${escapeHtml(folder.name)}">
+              <span>Archived ${escapeHtml(ownerLabel)}</span>
+              <strong>${escapeHtml(folder.name)}</strong>
+              <small>${count} saved reference${count === 1 ? "" : "s"}</small>
+            </div>
+          `
+          : `
+            <button
+              type="button"
+              class="session-library-folder-card-main"
+              data-session-library-folder="${escapeHtml(folder.id)}"
+              aria-pressed="${isSelected ? "true" : "false"}"
+            >
+              <span>${escapeHtml(ownerLabel)}</span>
+              <strong>${escapeHtml(folder.name)}</strong>
+              <small>${count} exercise${count === 1 ? "" : "s"}</small>
+            </button>
+          `
+      }
+      ${
+        isAdmin
+          ? `
+            <div class="session-library-folder-card-actions">
+              ${
+                isArchived
+                  ? `
+                    <button
+                      type="button"
+                      class="session-library-folder-restore"
+                      data-session-library-restore-folder="${escapeHtml(folder.id)}"
+                      aria-label="Restore folder ${escapeHtml(folder.name)}"
+                    >
+                      Restore
+                    </button>
+                  `
+                  : `
+                    <button
+                      type="button"
+                      class="session-library-folder-edit"
+                      data-session-library-edit-folder="${escapeHtml(folder.id)}"
+                      aria-label="Rename folder ${escapeHtml(folder.name)}"
+                    >
+                      Rename
+                    </button>
+                    ${
+                      folder.source !== "default"
+                        ? `
+                          <button
+                            type="button"
+                            class="session-library-folder-archive"
+                            data-session-library-archive-folder="${escapeHtml(folder.id)}"
+                            aria-label="Archive folder ${escapeHtml(folder.name)}"
+                          >
+                            Archive
+                          </button>
+                        `
+                        : ""
+                    }
+                  `
+              }
+            </div>
+          `
+          : ""
+      }
+    </div>
+  `;
+}
+
+function renderSessionPlannerLibraryArchivedFolders() {
+  const archivedFolders = getSessionPlannerArchivedLibraryFolders();
+  if (!canEditSessionPlanner() || !archivedFolders.length) {
+    return "";
+  }
+
+  return `
+    <details class="session-library-folder-archive-panel">
+      <summary>
+        <span>Archived folders</span>
+        <small>${archivedFolders.length}</small>
+      </summary>
+      <div class="session-library-folder-list">
+        ${archivedFolders.map((folder) => renderSessionPlannerLibraryFolderCard(folder, { archived: true })).join("")}
+      </div>
+    </details>
+  `;
+}
+
+function renderSessionPlannerLibraryFolders() {
+  const isAdmin = canEditSessionPlanner();
+  const folders = getSessionPlannerVisibleLibraryFolders();
+
+  return `
+    <aside class="session-library-folder-panel">
+      <div class="session-library-folder-head">
+        <span>Folders</span>
+        <strong>${escapeHtml(getSessionPlannerLibraryFolderName())}</strong>
+      </div>
+      <div class="session-library-folder-quick">
+        ${renderSessionPlannerLibraryFolderButton("all", "All Exercises", getSessionPlannerLibraryFolderCount("all"))}
+        ${renderSessionPlannerLibraryFolderButton("team", "Team", getSessionPlannerLibraryFolderCount("team"))}
+        ${renderSessionPlannerLibraryFolderButton("mine", "Mine", getSessionPlannerLibraryFolderCount("mine"))}
+      </div>
+      ${
+        isAdmin
+          ? `
+            <form class="session-library-folder-form" data-session-library-folder-form>
+              <input
+                type="text"
+                placeholder="New folder..."
+                maxlength="80"
+                data-session-library-folder-name
+                aria-label="New folder name"
+              />
+              <select data-session-library-folder-visibility aria-label="Folder visibility">
+                <option value="team">Team</option>
+                <option value="personal">Personal</option>
+              </select>
+              <button type="submit">Create</button>
+            </form>
+          `
+          : ""
+      }
+      <div class="session-library-folder-list">
+        ${
+          folders.length
+            ? folders.map((folder) => renderSessionPlannerLibraryFolderCard(folder)).join("")
+            : `<p class="session-library-folder-empty">No folders yet.</p>`
+        }
+      </div>
+      ${renderSessionPlannerLibraryArchivedFolders()}
+    </aside>
+  `;
+}
+
+function renderSessionPlannerLibraryTagChips(tags) {
+  const normalizedTags = normalizeSessionPlannerLibraryTags(tags);
+  if (!normalizedTags.length) {
+    return "";
+  }
+
+  return `
+    <div class="session-library-custom-tags" aria-label="Exercise tags">
+      ${normalizedTags.map((tag) => `<span>#${escapeHtml(tag)}</span>`).join("")}
+    </div>
+  `;
+}
+
+function renderSessionPlannerLibraryFieldText(value, fallback = "Not set") {
+  const cleanValue = String(value || "").trim();
+  return cleanValue ? escapeHtml(cleanValue).replaceAll("\n", "<br>") : escapeHtml(fallback);
+}
+
+function renderSessionPlannerLibraryDetail(label, value) {
+  return `
+    <div class="session-library-preview-detail">
+      <span>${escapeHtml(label)}</span>
+      <p>${renderSessionPlannerLibraryFieldText(value)}</p>
+    </div>
+  `;
+}
+
+function renderSessionPlannerLibraryEditField(exercise, key, label, options = {}) {
+  const value = key === "tags" ? formatSessionPlannerLibraryTags(exercise.tags) : exercise[key] ?? "";
+  const isLong = options.long ?? true;
+  const rows = options.rows ?? 3;
+  const type = options.type || "text";
+  const minAttribute = options.min !== undefined ? `min="${escapeHtml(options.min)}"` : "";
+  const maxAttribute = options.max !== undefined ? `max="${escapeHtml(options.max)}"` : "";
+  const stepAttribute = options.step !== undefined ? `step="${escapeHtml(options.step)}"` : "";
+
+  if (isLong) {
+    return `
+      <label class="session-library-edit-field session-library-edit-field-long">
+        <span>${escapeHtml(label)}</span>
+        <textarea
+          rows="${rows}"
+          data-session-library-edit-field="${escapeHtml(key)}"
+        >${escapeHtml(value)}</textarea>
+      </label>
+    `;
+  }
+
+  return `
+    <label class="session-library-edit-field">
+      <span>${escapeHtml(label)}</span>
+      <input
+        type="${escapeHtml(type)}"
+        value="${escapeHtml(value)}"
+        data-session-library-edit-field="${escapeHtml(key)}"
+        ${minAttribute}
+        ${maxAttribute}
+        ${stepAttribute}
+      />
+    </label>
+  `;
+}
+
+function renderSessionPlannerLibraryEditSection(label, fields = []) {
+  return `
+    <section class="session-library-edit-section">
+      <span>${escapeHtml(label)}</span>
+      <div class="session-library-edit-grid">
+        ${fields.join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderSessionPlannerLibraryEditPanel(exercise) {
+  return `
+    <div class="session-library-edit-panel">
+      <div class="session-library-edit-head">
+        <span>Edit exercise</span>
+        <strong>${escapeHtml(exercise.title || "Untitled Exercise")}</strong>
+      </div>
+      ${renderSessionPlannerLibraryEditSection("Identity", [
+        renderSessionPlannerLibraryEditField(exercise, "title", "Title", { long: false }),
+        renderSessionPlannerLibraryEditField(exercise, "tags", "Tags", { long: false }),
+        renderSessionPlannerLibraryEditField(exercise, "phase", "Phase", { long: false }),
+        renderSessionPlannerLibraryEditField(exercise, "subPhase", "Sub-phase", { long: false }),
+      ])}
+      ${renderSessionPlannerLibraryEditSection("Load", [
+        renderSessionPlannerLibraryEditField(exercise, "minutes", "Minutes", { long: false, type: "number", min: 0 }),
+        renderSessionPlannerLibraryEditField(exercise, "intensity", "Intensity", { long: false, type: "number", min: 1, max: 5 }),
+        renderSessionPlannerLibraryEditField(exercise, "time", "Time", { long: false }),
+        renderSessionPlannerLibraryEditField(exercise, "pitchSize", "Pitch size", { long: false }),
+      ])}
+      ${renderSessionPlannerLibraryEditSection("Purpose", [
+        renderSessionPlannerLibraryEditField(exercise, "focus", "Focus", { rows: 2 }),
+        renderSessionPlannerLibraryEditField(exercise, "objective", "Objective", { rows: 3 }),
+        renderSessionPlannerLibraryEditField(exercise, "why", "Why", { rows: 3 }),
+      ])}
+      ${renderSessionPlannerLibraryEditSection("Setup", [
+        renderSessionPlannerLibraryEditField(exercise, "organization", "Organization", { rows: 3 }),
+        renderSessionPlannerLibraryEditField(exercise, "material", "Measure & Material", { rows: 2 }),
+      ])}
+      ${renderSessionPlannerLibraryEditSection("Coaching", [
+        renderSessionPlannerLibraryEditField(exercise, "principles", "Principles & Coaching Points", { rows: 4 }),
+      ])}
+      <div class="session-library-preview-actions">
+        <button
+          type="button"
+          class="session-library-use-button"
+          data-session-save-library-edit="${escapeHtml(exercise.id)}"
+        >
+          Save changes
+        </button>
+        <button
+          type="button"
+          class="session-library-secondary-button"
+          data-session-save-library-edit-copy="${escapeHtml(exercise.id)}"
+        >
+          Save as copy
+        </button>
+        <button
+          type="button"
+          class="session-library-secondary-button"
+          data-session-cancel-library-edit
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function renderSessionPlannerLibraryVersions(exercise) {
+  const versions = normalizeSessionPlannerLibraryVersions(exercise?.versions);
+  if (!versions.length) {
+    return `<p class="session-library-preview-note">No previous versions yet.</p>`;
+  }
+
+  return `
+    <div class="session-library-version-list">
+      ${versions
+        .slice(0, 4)
+        .map((version) => {
+          const versionDate = formatSessionPlannerLibraryDateTime(version.createdAt);
+          return `
+            <div class="session-library-version-item">
+              <strong>${escapeHtml(version.reason || "Updated")}</strong>
+              <span>${escapeHtml(version.title || "Untitled Exercise")}</span>
+              ${versionDate ? `<small>${escapeHtml(versionDate)}</small>` : ""}
+            </div>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function renderSessionPlannerLibraryPreview(exercise) {
+  if (!exercise) {
+    return `
+      <aside class="session-library-preview-panel">
+        <p class="session-library-empty">Select an exercise to preview it.</p>
+      </aside>
+    `;
+  }
+
+  const isAdmin = canEditSessionPlanner();
+  const isArchived = isSessionPlannerLibraryExerciseArchived(exercise);
+  const isEditing = sessionPlannerLibraryEditExerciseId === exercise.id && isAdmin && !isArchived;
+  const updatedDate = formatSessionPlannerLibraryDateTime(
+    isArchived ? exercise.archivedAt : exercise.updatedAt || exercise.createdAt
+  );
+  const versionCount = normalizeSessionPlannerLibraryVersions(exercise.versions).length;
+  const selectedFolder = getSessionPlannerLibraryFolderById(sessionPlannerLibrarySelectedFolderId);
+  const canRemoveFromSelectedFolder =
+    isAdmin &&
+    !isArchived &&
+    selectedFolder &&
+    !isSessionPlannerLibraryFolderArchived(selectedFolder) &&
+    normalizeSessionPlannerLibraryFolderExerciseIds(selectedFolder.exerciseIds).includes(exercise.id);
+
+  return `
+    <aside class="session-library-preview-panel">
+      <div class="session-library-preview-head">
+        <div class="session-library-tags">
+          <span>${escapeHtml(getSessionPlannerMultiValueSummary(exercise.phase, "No phase"))}</span>
+          <span>${escapeHtml(getSessionPlannerMultiValueSummary(exercise.subPhase, "No sub-phase"))}</span>
+          ${isArchived ? `<span class="session-library-archive-chip">Archived</span>` : ""}
+        </div>
+        ${renderSessionPlannerLibraryTagChips(exercise.tags)}
+        <h3>${escapeHtml(exercise.title || "Untitled Exercise")}</h3>
+        <p>${renderSessionPlannerLibraryFieldText(exercise.focus || exercise.objective, "No description yet.")}</p>
+        <small>
+          ${escapeHtml(isArchived ? "Archived" : "Updated")}
+          ${updatedDate ? ` ${escapeHtml(updatedDate)}` : ""}
+          · ${versionCount} version${versionCount === 1 ? "" : "s"}
+        </small>
+      </div>
+      ${
+        isEditing
+          ? renderSessionPlannerLibraryEditPanel(exercise)
+          : `
+            <div class="session-library-preview-actions">
+              ${
+                isAdmin && !isArchived
+                  ? `
+                    <button type="button" class="session-library-use-button" data-session-use-exercise="${escapeHtml(exercise.id)}">Use</button>
+                    <button type="button" class="session-library-secondary-button" data-session-duplicate-library-exercise="${escapeHtml(exercise.id)}">Duplicate</button>
+                    <button type="button" class="session-library-secondary-button" data-session-edit-library-exercise="${escapeHtml(exercise.id)}">Edit</button>
+                    ${
+                      canRemoveFromSelectedFolder
+                        ? `
+                          <button
+                            type="button"
+                            class="session-library-secondary-button"
+                            data-session-remove-library-exercise-from-folder="${escapeHtml(exercise.id)}"
+                            data-session-remove-library-folder="${escapeHtml(selectedFolder.id)}"
+                          >
+                            Remove from folder
+                          </button>
+                        `
+                        : ""
+                    }
+                    <button
+                      type="button"
+                      class="session-library-delete-button"
+                      data-session-delete-library-exercise="${escapeHtml(exercise.id)}"
+                      aria-label="Archive ${escapeHtml(exercise.title || "exercise")}"
+                    >
+                      Archive
+                    </button>
+                  `
+                  : ""
+              }
+              ${
+                isAdmin && isArchived
+                  ? `
+                    <button
+                      type="button"
+                      class="session-library-restore-button"
+                      data-session-restore-library-exercise="${escapeHtml(exercise.id)}"
+                      aria-label="Restore ${escapeHtml(exercise.title || "exercise")}"
+                    >
+                      Restore
+                    </button>
+                  `
+                  : ""
+              }
+            </div>
+            <div class="session-library-preview-details">
+              ${renderSessionPlannerLibraryDetail("Objective", exercise.objective)}
+              ${renderSessionPlannerLibraryDetail("Why", exercise.why)}
+              ${renderSessionPlannerLibraryDetail("Organization", exercise.organization)}
+              ${renderSessionPlannerLibraryDetail("Measure & Material", exercise.material)}
+              ${renderSessionPlannerLibraryDetail("Principles", exercise.principles)}
+              ${renderSessionPlannerLibraryDetail("Pitch", exercise.pitchSize)}
+            </div>
+            <section class="session-library-version-panel">
+              <span>Version history</span>
+              ${renderSessionPlannerLibraryVersions(exercise)}
+            </section>
+          `
+      }
+    </aside>
+  `;
 }
 
 function renderSessionPlannerLibrary(exercises = getFilteredSessionPlannerExerciseLibrary()) {
@@ -15917,19 +17313,30 @@ function renderSessionPlannerLibrary(exercises = getFilteredSessionPlannerExerci
       const metaDate = isArchived
         ? formatSessionPlannerLibraryDate(exercise.archivedAt)
         : formatSessionPlannerLibraryDate(exercise.updatedAt || exercise.createdAt);
+      const isSelected = exercise.id === sessionPlannerLibraryPreviewExerciseId;
 
       return `
-        <article class="session-library-item${isArchived ? " is-archived" : ""}">
-          <div>
+        <article
+          class="session-library-item${isArchived ? " is-archived" : ""}${isSelected ? " is-selected" : ""}"
+          data-session-library-drag-exercise="${escapeHtml(exercise.id)}"
+          draggable="${isAdmin && !isArchived ? "true" : "false"}"
+        >
+          <button
+            type="button"
+            class="session-library-item-main"
+            data-session-preview-library-exercise="${escapeHtml(exercise.id)}"
+            aria-pressed="${isSelected ? "true" : "false"}"
+          >
             <div class="session-library-tags">
-              <span>${escapeHtml(exercise.phase || "No phase")}</span>
-              <span>${escapeHtml(exercise.subPhase || "No sub-phase")}</span>
+              <span>${escapeHtml(getSessionPlannerMultiValueSummary(exercise.phase, "No phase"))}</span>
+              <span>${escapeHtml(getSessionPlannerMultiValueSummary(exercise.subPhase, "No sub-phase"))}</span>
               ${isArchived ? `<span class="session-library-archive-chip">Archived</span>` : ""}
             </div>
+            ${renderSessionPlannerLibraryTagChips(exercise.tags)}
             <strong>${escapeHtml(exercise.title || "Untitled Exercise")}</strong>
             <p>${escapeHtml(exercise.focus || exercise.objective || "No description yet.")}</p>
             ${metaDate ? `<small class="session-library-meta">${isArchived ? "Archived" : "Updated"} ${escapeHtml(metaDate)}</small>` : ""}
-          </div>
+          </button>
           ${
             isAdmin
               ? `
@@ -15950,6 +17357,22 @@ function renderSessionPlannerLibrary(exercises = getFilteredSessionPlannerExerci
                         <button type="button" class="session-library-use-button" data-session-use-exercise="${escapeHtml(
                           exercise.id
                         )}">Use</button>
+                        <button
+                          type="button"
+                          class="session-library-secondary-button"
+                          data-session-duplicate-library-exercise="${escapeHtml(exercise.id)}"
+                          aria-label="Duplicate ${escapeHtml(exercise.title || "exercise")}"
+                        >
+                          Duplicate
+                        </button>
+                        <button
+                          type="button"
+                          class="session-library-secondary-button"
+                          data-session-edit-library-exercise="${escapeHtml(exercise.id)}"
+                          aria-label="Edit ${escapeHtml(exercise.title || "exercise")}"
+                        >
+                          Edit
+                        </button>
                         <button
                           type="button"
                           class="session-library-delete-button"
@@ -15976,6 +17399,7 @@ function renderSessionPlannerLibraryOverlay() {
   }
 
   const filteredExercises = getFilteredSessionPlannerExerciseLibrary();
+  const previewExercise = getSessionPlannerLibraryPreviewExercise(filteredExercises);
   const phaseOptions = getSessionPlannerLibraryOptionValues("phase");
   const subPhaseOptions = getSessionPlannerLibraryOptionValues("subPhase");
 
@@ -16001,20 +17425,20 @@ function renderSessionPlannerLibraryOverlay() {
           </label>
           <div class="session-library-filter-row">
             ${renderSessionPlannerLibraryArchiveTabs()}
-            ${renderSessionPlannerLibraryFilter("Phase", "phase", sessionPlannerLibraryPhaseFilter, phaseOptions)}
-            ${renderSessionPlannerLibraryFilter(
-              "Sub-phase",
-              "subPhase",
-              sessionPlannerLibrarySubPhaseFilter,
-              subPhaseOptions
-            )}
+            ${renderSessionPlannerLibraryFilter("Phase", "phase", phaseOptions)}
+            ${renderSessionPlannerLibraryFilter("Sub-phase", "subPhase", subPhaseOptions)}
+            ${renderSessionPlannerLibrarySortControl()}
           </div>
           <span class="session-library-count">
             ${getSessionPlannerLibraryCountLabel(filteredExercises.length)}
           </span>
         </div>
-        <div class="session-library-modal-grid">
-          ${renderSessionPlannerLibrary(filteredExercises)}
+        <div class="session-library-modal-body">
+          ${renderSessionPlannerLibraryFolders()}
+          <div class="session-library-modal-grid">
+            ${renderSessionPlannerLibrary(filteredExercises)}
+          </div>
+          ${renderSessionPlannerLibraryPreview(previewExercise)}
         </div>
       </section>
     </div>
@@ -18505,95 +19929,47 @@ function renderSessionPlannerPlayerBoardTools() {
   const autoTargetCount = selectedCount || boardPlayers.length;
   const teamCount = normalizeSessionPlannerPlayerBoardTeamCount(sessionPlannerPlayerBoardTeamCount);
   const autoMode = normalizeSessionPlannerPlayerBoardAutoMode(sessionPlannerPlayerBoardAutoMode);
+  const selectedDisabled = selectedCount ? "" : "disabled";
+  const playersDisabled = boardPlayers.length ? "" : "disabled";
+  const teamOptions = Array.from({ length: sessionPlannerPlayerBoardMaxTeamCount }, (_, index) => index + 1)
+    .map((count) => `<option value="${count}"${count === teamCount ? " selected" : ""}>${count}</option>`)
+    .join("");
+  const autoModeOptions = sessionPlannerPlayerBoardAutoModeOptions
+    .map(
+      (option) =>
+        `<option value="${escapeHtml(option.key)}"${option.key === autoMode ? " selected" : ""}>${escapeHtml(option.label)}</option>`
+    )
+    .join("");
+  const colorButtons = sessionPlannerPlayerBoardColorOptions
+    .map((option) => {
+      const value = escapeHtml(option.value);
+      const text = escapeHtml(getSessionPlannerPlayerBoardTextColor(option.value));
+      const label = escapeHtml(option.label);
+      return `<button type="button" class="session-player-board-color-button" data-session-player-board-color="${value}" style="--session-player-board-color: ${value}; --session-player-board-text: ${text};" title="${label}" aria-label="${escapeHtml(`Set selected players ${option.label}`)}" ${selectedDisabled}></button>`;
+    })
+    .join("");
   return `
     <div class="session-player-board-tools" data-session-player-board-tools>
       <form class="session-player-board-team-tools" data-session-player-board-auto-form>
-        <label>
-          <span>Teams</span>
-          <select data-session-player-board-team-count aria-label="Number of teams">
-            ${Array.from({ length: sessionPlannerPlayerBoardMaxTeamCount }, (_, index) => index + 1)
-              .map(
-                (count) => `
-                  <option value="${count}"${count === teamCount ? " selected" : ""}>${count}</option>
-                `
-              )
-              .join("")}
-          </select>
-        </label>
-        <label>
-          <span>Auto</span>
-          <select data-session-player-board-auto-mode aria-label="Auto select mode">
-            ${sessionPlannerPlayerBoardAutoModeOptions
-              .map(
-                (option) => `
-                  <option value="${escapeHtml(option.key)}"${option.key === autoMode ? " selected" : ""}>${escapeHtml(option.label)}</option>
-                `
-              )
-              .join("")}
-          </select>
-        </label>
-        <button
-          type="submit"
-          class="session-player-board-tool-button is-auto"
-          data-session-player-board-auto-select
-          ${autoTargetCount ? "" : "disabled"}
-        >Auto Select</button>
+        <label><span>Teams</span><select data-session-player-board-team-count aria-label="Number of teams">${teamOptions}</select></label>
+        <label><span>Auto</span><select data-session-player-board-auto-mode aria-label="Auto select mode">${autoModeOptions}</select></label>
+        <button type="submit" class="session-player-board-tool-button is-auto" data-session-player-board-auto-select ${autoTargetCount ? "" : "disabled"}>Auto Select</button>
       </form>
-      <button
-        type="button"
-        class="session-player-board-tool-button is-assistant"
-        data-session-selection-assistant-open
-        ${boardPlayers.length ? "" : "disabled"}
-      >Assistant</button>
+      <button type="button" class="session-player-board-tool-button is-assistant" data-session-selection-assistant-open ${playersDisabled}>Assistant</button>
       <form class="session-player-board-formation-tools" data-session-player-board-formation-form>
         <label class="session-player-board-formation-field">
           <span class="session-player-board-formation-label">Formation</span>
           <small data-session-player-board-selected-count>${selectedCount} selected</small>
-          <input
-            type="text"
-            inputmode="numeric"
-            autocomplete="off"
-            value="${escapeHtml(sessionPlannerPlayerBoardFormationInput)}"
-            placeholder="Set formation"
-            aria-label="Set formation, for example 3-3-1"
-            data-session-player-board-formation-input
-          />
+          <input type="text" inputmode="numeric" autocomplete="off" value="${escapeHtml(sessionPlannerPlayerBoardFormationInput)}" placeholder="Set formation" aria-label="Set formation, for example 3-3-1" data-session-player-board-formation-input />
         </label>
-        <button
-          type="submit"
-          class="session-player-board-tool-button"
-          data-session-player-board-apply-formation
-          ${selectedCount ? "" : "disabled"}
-        >Place</button>
-        <button
-          type="button"
-          class="session-player-board-tool-button is-priority"
-          data-session-player-board-prioritize
-          ${selectedCount ? "" : "disabled"}
-        >Prioritize</button>
+        <button type="submit" class="session-player-board-tool-button" data-session-player-board-apply-formation ${selectedDisabled}>Place</button>
+        <button type="button" class="session-player-board-tool-button is-priority" data-session-player-board-prioritize ${selectedDisabled}>Prioritize</button>
       </form>
-      <button
-        type="button"
-        class="session-player-board-tool-button"
-        data-session-player-board-reset-positions
-        ${boardPlayers.length ? "" : "disabled"}
-      >Reset</button>
+      <button type="button" class="session-player-board-tool-button" data-session-player-board-reset-positions ${playersDisabled}>Reset</button>
       <div class="session-player-board-color-tools" aria-label="Player board colours">
         <span>Colour</span>
-        ${sessionPlannerPlayerBoardColorOptions
-          .map((option) => `
-            <button
-              type="button"
-              class="session-player-board-color-button"
-              data-session-player-board-color="${escapeHtml(option.value)}"
-              style="--session-player-board-color: ${escapeHtml(option.value)}; --session-player-board-text: ${escapeHtml(getSessionPlannerPlayerBoardTextColor(option.value))};"
-              title="${escapeHtml(option.label)}"
-              aria-label="${escapeHtml(`Set selected players ${option.label}`)}"
-              ${selectedCount ? "" : "disabled"}
-            ></button>
-          `)
-          .join("")}
-        <button type="button" class="session-player-board-tool-button" data-session-player-board-clear-colors ${selectedCount ? "" : "disabled"}>Clear</button>
+        ${colorButtons}
+        <button type="button" class="session-player-board-tool-button" data-session-player-board-clear-colors ${selectedDisabled}>Clear</button>
       </div>
     </div>
   `;
@@ -18741,10 +20117,11 @@ function getSessionPlannerHistoryActionLabel(action = "") {
 }
 
 function renderSessionPlannerHistoryPanel() {
-  const canRestore = canEditSessionPlanner();
+  if (!isCurrentPlatformUserAdmin()) {
+    return "";
+  }
   const dateValue = sessionPlannerState?.selectedDate || "";
   const visibleEntries = sessionPlannerHistoryEntries.filter((entry) => entry.date === dateValue).slice(0, 6);
-
   let body = "";
   if (sessionPlannerHistoryLoading && sessionPlannerHistoryLoadedDate !== dateValue) {
     body = `<p class="session-history-empty">Loading versions...</p>`;
@@ -18757,7 +20134,6 @@ function renderSessionPlannerHistoryPanel() {
       .map((entry) => {
         const beforeCount = Number(entry.beforeBlockCount) || 0;
         const afterCount = Number(entry.afterBlockCount) || 0;
-        const restoreDisabled = !canRestore;
         const restoreLabel = entry.beforeSession ? "Restore" : "Undo";
         return `
           <article class="session-history-row">
@@ -18766,11 +20142,7 @@ function renderSessionPlannerHistoryPanel() {
               <span>${escapeHtml(beforeCount)} → ${escapeHtml(afterCount)} blocks</span>
               <small>${escapeHtml(getSessionPlannerHistoryActorLabel(entry))} · ${escapeHtml(formatSessionPlannerHistoryTime(entry.createdAt))}</small>
             </div>
-            <button
-              type="button"
-              data-session-restore-history="${escapeHtml(entry.id)}"
-              ${restoreDisabled ? "disabled" : ""}
-            >${escapeHtml(restoreLabel)}</button>
+            <button type="button" data-session-restore-history="${escapeHtml(entry.id)}">${escapeHtml(restoreLabel)}</button>
           </article>
         `;
       })
@@ -18778,22 +20150,25 @@ function renderSessionPlannerHistoryPanel() {
   }
 
   return `
-    <section class="session-tool-panel session-history-panel">
+    <section class="session-tool-panel session-history-panel${sessionPlannerHistoryOpen ? " is-open" : " is-collapsed"}">
       <div class="session-tool-panel-head session-history-head">
-        <div>
-          <span>Version history</span>
-          <strong>Session restore</strong>
-        </div>
-        <button type="button" data-session-refresh-history>Refresh</button>
+        <button type="button" class="session-history-toggle" data-session-toggle-history aria-expanded="${sessionPlannerHistoryOpen ? "true" : "false"}">
+          <div>
+            <span>Version history</span>
+            <strong>Session restore</strong>
+          </div>
+          <small>${sessionPlannerHistoryOpen ? "Hide" : "Show"}</small>
+        </button>
+        ${sessionPlannerHistoryOpen ? `<button type="button" data-session-refresh-history>Refresh</button>` : ""}
       </div>
-      <div class="session-history-list">${body}</div>
+      ${sessionPlannerHistoryOpen ? `<div class="session-history-list">${body}</div>` : ""}
     </section>
   `;
 }
 
 async function loadSessionPlannerHistory(dateValue = sessionPlannerState?.selectedDate, options = {}) {
   const cleanDate = String(dateValue || "").trim();
-  if (!cleanDate || sessionPlannerHistoryLoading) {
+  if (!cleanDate || sessionPlannerHistoryLoading || !isCurrentPlatformUserAdmin()) {
     return;
   }
 
@@ -19565,7 +20940,12 @@ function renderSessionPlannerWorkspace(options = {}) {
       ? session.title
       : getScheduledSessionTitleForDate(sessionPlannerState.selectedDate) || "Session";
   const sessionTotalMinutes = getDashboardSessionTotalMinutes(session);
-  if (sessionPlannerHistoryLoadedDate !== sessionPlannerState.selectedDate && !sessionPlannerHistoryLoading) {
+  if (
+    isCurrentPlatformUserAdmin() &&
+    sessionPlannerHistoryOpen &&
+    sessionPlannerHistoryLoadedDate !== sessionPlannerState.selectedDate &&
+    !sessionPlannerHistoryLoading
+  ) {
     loadSessionPlannerHistory(sessionPlannerState.selectedDate).catch(() => {});
   }
 
@@ -19735,6 +21115,29 @@ function renderSessionPlannerWorkspace(options = {}) {
   }
 }
 
+let profileWorkspaceFlashMessage = "";
+let profileWorkspaceFlashTimer = null;
+
+function getProfileWorkspaceMessage(message = "") {
+  const nextMessage = String(message || "");
+  if (!nextMessage) {
+    return profileWorkspaceFlashMessage;
+  }
+
+  profileWorkspaceFlashMessage = nextMessage;
+  if (profileWorkspaceFlashTimer) {
+    window.clearTimeout(profileWorkspaceFlashTimer);
+  }
+  profileWorkspaceFlashTimer = window.setTimeout(() => {
+    profileWorkspaceFlashTimer = null;
+    profileWorkspaceFlashMessage = "";
+    if (hubState?.activeWorkspaceId === "my-profile") {
+      renderProfileWorkspace();
+    }
+  }, 5000);
+  return profileWorkspaceFlashMessage;
+}
+
 function renderProfileWorkspace(message = "") {
   if (!ui.profileWorkspace) {
     return;
@@ -19753,6 +21156,7 @@ function renderProfileWorkspace(message = "") {
   const openPersonalTasks = personalTasks.filter((task) => task.status !== "done");
   const completedPersonalTasks = personalTasks.filter((task) => task.status === "done").slice(0, 3);
   const hasProfilePhoto = Boolean(getUserProfileImageUrl(user));
+  const profileMessage = getProfileWorkspaceMessage(message);
 
   ui.profileWorkspace.innerHTML = `
     <section class="profile-shell">
@@ -19766,7 +21170,7 @@ function renderProfileWorkspace(message = "") {
       </header>
 
       <form id="profileForm" class="platform-form profile-form">
-        ${message ? `<p class="staff-message profile-wide">${escapeHtml(message)}</p>` : ""}
+        ${profileMessage ? `<p class="staff-message profile-wide">${escapeHtml(profileMessage)}</p>` : ""}
         <div class="profile-image-field profile-wide">
           <div>
             <span>Profile image</span>
@@ -19895,10 +21299,10 @@ function createProfileImageDataUrl(file) {
           throw new Error("The image could not be read.");
         }
 
-        const outputSizes = [128, 112, 96, 80, 72, 64];
+        const outputSizes = [512, 448, 384, 320, 256, 192, 128];
         const outputFormats = [
-          ["image/webp", [0.66, 0.54, 0.44]],
-          ["image/jpeg", [0.62, 0.5, 0.4]],
+          ["image/webp", [0.82, 0.72, 0.62, 0.52]],
+          ["image/jpeg", [0.78, 0.68, 0.58, 0.48]],
         ];
         const sourceSize = Math.min(naturalWidth, naturalHeight);
         const sourceX = (naturalWidth - sourceSize) / 2;
@@ -19922,7 +21326,7 @@ function createProfileImageDataUrl(file) {
               if (!fallbackDataUrl || candidate.length < fallbackDataUrl.length) {
                 fallbackDataUrl = candidate;
               }
-              if (candidate.length <= maxProfileImageUrlLength) {
+              if (candidate.length <= maxProfileImageUploadDataUrlLength) {
                 resolve(candidate);
                 return;
               }
@@ -19930,12 +21334,12 @@ function createProfileImageDataUrl(file) {
           }
         }
 
-        if (fallbackDataUrl.length <= maxProfileImageUrlLength) {
+        if (fallbackDataUrl.length <= maxProfileImageUploadDataUrlLength) {
           resolve(fallbackDataUrl);
           return;
         }
 
-        throw new Error("Profile image is still too large. Use a simpler image.");
+        throw new Error("Profile image is still too large. Choose a simpler image under 1 MB.");
       } catch (error) {
         reject(error);
       } finally {
@@ -20406,6 +21810,7 @@ function renderAdminWorkspace(message = "") {
     users[0] ??
     null;
   selectedAdminUserId = selectedUser?.id ?? null;
+  const selectedUserIsSelf = Boolean(selectedUser?.id && selectedUser.id === currentUser?.id);
 
   const roleOptions = roles
     .map(
@@ -20554,11 +21959,11 @@ function renderAdminWorkspace(message = "") {
                   </label>
                   <label>
                     <span>Role</span>
-                    <select name="role">${roleOptions}</select>
+                    <select name="role" ${selectedUserIsSelf ? "disabled" : ""}>${roleOptions}</select>
                   </label>
                   <label>
                     <span>Status</span>
-                    <select name="status">${statusOptions}</select>
+                    <select name="status" ${selectedUserIsSelf ? "disabled" : ""}>${statusOptions}</select>
                   </label>
                   <label>
                     <span>Title</span>
@@ -20581,7 +21986,7 @@ function renderAdminWorkspace(message = "") {
                     <input name="team" value="${escapeHtml(selectedUser.team)}" />
                   </label>
                   <div class="profile-form-footer">
-                    <span>Save user sets this password in Supabase. Reset actions replace the old password.</span>
+                    <span>${selectedUserIsSelf ? "Your own admin role and status are protected." : "Save user sets this password in Supabase. Reset actions replace the old password."}</span>
                     <span class="admin-selected-user-actions">
                       <button type="submit">Save</button>
                       <button type="button" data-admin-reset-password="${escapeHtml(selectedUser.id)}">Reset email</button>
@@ -20905,6 +22310,58 @@ function normalizeMedicalInjuryPlan(plan = {}) {
   };
 }
 
+function createDefaultMedicalGovernancePolicy() {
+  return {
+    schema: "football-medical-governance-v1",
+    dataLevel: "private-medical",
+    coachShareBoundary: "availability-approved-note",
+    consentRequired: true,
+    retentionMonths: 24,
+    reviewCadenceDays: 30,
+    policyOwner: "Medical Lead",
+    incidentContact: "Admin",
+    lastReviewed: "",
+    updatedAt: "",
+    updatedBy: "",
+  };
+}
+
+function normalizeMedicalGovernancePolicy(policy = {}) {
+  const defaults = createDefaultMedicalGovernancePolicy();
+  const retentionMonths = clamp(Number(policy.retentionMonths) || defaults.retentionMonths, 1, 120);
+  const reviewCadenceDays = clamp(Number(policy.reviewCadenceDays) || defaults.reviewCadenceDays, 1, 90);
+  return {
+    ...defaults,
+    dataLevel: "private-medical",
+    coachShareBoundary: "availability-approved-note",
+    consentRequired: normalizeMedicalShareValue(policy.consentRequired ?? defaults.consentRequired),
+    retentionMonths: Math.round(retentionMonths),
+    reviewCadenceDays: Math.round(reviewCadenceDays),
+    policyOwner: String(policy.policyOwner ?? defaults.policyOwner).trim().slice(0, 80) || defaults.policyOwner,
+    incidentContact: String(policy.incidentContact ?? defaults.incidentContact).trim().slice(0, 120) || defaults.incidentContact,
+    lastReviewed: isMedicalDateValue(policy.lastReviewed) ? policy.lastReviewed : "",
+    updatedAt: String(policy.updatedAt ?? "").trim(),
+    updatedBy: String(policy.updatedBy ?? "").trim(),
+  };
+}
+
+function sanitizeMedicalGovernancePolicyForCoachView() {
+  const defaults = createDefaultMedicalGovernancePolicy();
+  return {
+    schema: defaults.schema,
+    dataLevel: "coach-safe",
+    coachShareBoundary: defaults.coachShareBoundary,
+    consentRequired: true,
+    retentionMonths: 0,
+    reviewCadenceDays: 0,
+    policyOwner: "",
+    incidentContact: "",
+    lastReviewed: "",
+    updatedAt: "",
+    updatedBy: "",
+  };
+}
+
 function getMedicalPlayerNumberRank(player) {
   const value = String(player?.number ?? "").trim();
   if (!/^\d+$/.test(value)) {
@@ -20990,25 +22447,104 @@ function cloneMedicalState(source = {}) {
     players,
     records,
     injuryPlans,
+    policy: normalizeMedicalGovernancePolicy(source.policy),
     rosterVersion: source.rosterVersion || medicalDefaultRosterVersion,
   };
+}
+
+function canViewPrivateMedicalDetails() {
+  return canEditMedicalTeam();
+}
+
+function sanitizeMedicalRecordForCoachView(record = {}) {
+  const participation = normalizeMedicalParticipation(record.participation, 100);
+  const statusKey = medicalStatusOptions.some((status) => status.key === record.status)
+    ? record.status
+    : getMedicalStatusForParticipation(participation);
+  return {
+    ...record,
+    status: statusKey,
+    participation,
+    actualParticipation: medicalActualParticipationFallback,
+    comment: "",
+    coachNote: record.shareWithCoach ? String(record.coachNote ?? "").trim() : "",
+    shareWithCoach: normalizeMedicalShareValue(record.shareWithCoach),
+    rtpPhase: medicalRtpPhaseOptions.some((phase) => phase.key === record.rtpPhase)
+      ? record.rtpPhase
+      : getMedicalRtpPhaseForRecommendation(statusKey, participation),
+    clearance: {},
+    gates: {},
+    createdBy: "coach-safe",
+  };
+}
+
+function sanitizeMedicalInjuryPlanForCoachView(plan = {}) {
+  const participation = normalizeMedicalParticipation(plan.participation, 0);
+  const statusKey = medicalStatusOptions.some((status) => status.key === plan.status)
+    ? plan.status
+    : getMedicalStatusForParticipation(participation);
+  return {
+    ...plan,
+    injuryType: "Availability plan",
+    bodyArea: "",
+    status: statusKey,
+    participation,
+    reviewDate: "",
+    rtpPhase: medicalRtpPhaseOptions.some((phase) => phase.key === plan.rtpPhase)
+      ? plan.rtpPhase
+      : getMedicalRtpPhaseForRecommendation(statusKey, participation),
+    phase: "Coach-safe availability plan",
+    clearance: {},
+    gates: {},
+    coachNote: plan.shareWithCoach ? String(plan.coachNote ?? "").trim() : "",
+    shareWithCoach: normalizeMedicalShareValue(plan.shareWithCoach),
+    comment: "",
+    createdBy: "coach-safe",
+  };
+}
+
+function sanitizeMedicalStateForCurrentUser(state = {}) {
+  if (!getCurrentPlatformUser() || canViewPrivateMedicalDetails()) {
+    return state;
+  }
+
+  return cloneMedicalState({
+    ...state,
+    records: Array.isArray(state.records) ? state.records.map(sanitizeMedicalRecordForCoachView) : [],
+    injuryPlans: Array.isArray(state.injuryPlans) ? state.injuryPlans.map(sanitizeMedicalInjuryPlanForCoachView) : [],
+    policy: sanitizeMedicalGovernancePolicyForCoachView(),
+  });
+}
+
+function setMedicalStateStorageValue(state = medicalState, suppressCentralSync = false) {
+  if (suppressCentralSync) {
+    centralStateWriteSuppressionKeys.add(medicalTeamStorageKey);
+  }
+
+  try {
+    window.localStorage.setItem(medicalTeamStorageKey, JSON.stringify(state));
+  } finally {
+    if (suppressCentralSync) {
+      centralStateWriteSuppressionKeys.delete(medicalTeamStorageKey);
+    }
+  }
 }
 
 function readMedicalState() {
   try {
     const raw = window.localStorage.getItem(medicalTeamStorageKey);
     const parsed = raw ? JSON.parse(raw) : {};
-    const state = cloneMedicalState(parsed);
+    const state = sanitizeMedicalStateForCurrentUser(cloneMedicalState(parsed));
     const shouldPersistSeededRoster =
       !raw || (!parsed?.rosterVersion && Array.isArray(parsed?.players) && parsed.players.length === 0);
     if (shouldPersistSeededRoster) {
-      window.localStorage.setItem(medicalTeamStorageKey, JSON.stringify(state));
+      setMedicalStateStorageValue(state, Boolean(getCurrentPlatformUser() && !canViewPrivateMedicalDetails()));
     }
     return state;
   } catch {
-    const state = cloneMedicalState({});
+    const state = sanitizeMedicalStateForCurrentUser(cloneMedicalState({}));
     try {
-      window.localStorage.setItem(medicalTeamStorageKey, JSON.stringify(state));
+      setMedicalStateStorageValue(state, Boolean(getCurrentPlatformUser() && !canViewPrivateMedicalDetails()));
     } catch {
       logEvent("Medical Team data could not be written to local storage.");
     }
@@ -21022,7 +22558,8 @@ function writeMedicalState() {
   }
 
   try {
-    window.localStorage.setItem(medicalTeamStorageKey, JSON.stringify(medicalState));
+    const coachSafeOnly = Boolean(getCurrentPlatformUser() && !canViewPrivateMedicalDetails());
+    setMedicalStateStorageValue(coachSafeOnly ? sanitizeMedicalStateForCurrentUser(medicalState) : medicalState, coachSafeOnly);
   } catch {
     logEvent("Medical Team data could not be written to local storage.");
   }
@@ -21256,6 +22793,140 @@ function normalizePlayerProfile(player = {}) {
   };
 }
 
+function normalizePlayerProfileChangeLogEntry(entry = {}) {
+  const createdAt = Date.parse(entry.createdAt) ? entry.createdAt : new Date().toISOString();
+  const changes = Array.isArray(entry.changes)
+    ? entry.changes
+        .filter((change) => change && typeof change === "object")
+        .map((change) => ({
+          field: String(change.field ?? "").trim(),
+          from: String(change.from ?? "").trim(),
+          to: String(change.to ?? "").trim(),
+        }))
+        .filter((change) => change.field || change.from || change.to)
+    : [];
+
+  return {
+    id: String(entry.id || createDashboardId("squad-change")),
+    type: String(entry.type || "profile-updated").trim(),
+    playerId: String(entry.playerId ?? "").trim(),
+    playerName: String(entry.playerName ?? "").trim(),
+    actor: String(entry.actor ?? "Football Science").trim(),
+    summary: String(entry.summary ?? "").trim(),
+    changes,
+    createdAt,
+  };
+}
+
+function normalizePlayerProfileChangeLog(entries = []) {
+  return (Array.isArray(entries) ? entries : [])
+    .map(normalizePlayerProfileChangeLogEntry)
+    .sort((first, second) => new Date(second.createdAt) - new Date(first.createdAt))
+    .slice(0, playerProfileChangeLogLimit);
+}
+
+function getNestedPlayerProfileValue(source = {}, path = "") {
+  return path.split(".").reduce((value, key) => (value && typeof value === "object" ? value[key] : undefined), source);
+}
+
+function formatPlayerProfileChangeValue(value, definition = {}) {
+  if (Array.isArray(value)) {
+    return value.length ? value.join(" / ") : "-";
+  }
+  if (definition.options) {
+    const option = getPlayerProfileOption(definition.options, value, null);
+    return option ? option.label : String(value ?? "").trim() || "-";
+  }
+  return String(value ?? "").trim() || "-";
+}
+
+function getPlayerProfileChangeDiffs(previousPlayer = {}, nextPlayer = {}) {
+  return playerProfileChangeFieldDefinitions
+    .map((definition) => {
+      const previousValue = getNestedPlayerProfileValue(previousPlayer, definition.key);
+      const nextValue = getNestedPlayerProfileValue(nextPlayer, definition.key);
+      const formattedPrevious = formatPlayerProfileChangeValue(previousValue, definition);
+      const formattedNext = formatPlayerProfileChangeValue(nextValue, definition);
+      return formattedPrevious === formattedNext
+        ? null
+        : {
+            field: definition.label,
+            from: formattedPrevious,
+            to: formattedNext,
+          };
+    })
+    .filter(Boolean);
+}
+
+function getCurrentSquadActorLabel() {
+  const user = getCurrentPlatformUser?.();
+  const firstName = String(user?.firstName || user?.user_metadata?.firstName || "").trim();
+  const lastName = String(user?.lastName || user?.user_metadata?.lastName || "").trim();
+  const displayName = String(user?.name || user?.displayName || [firstName, lastName].filter(Boolean).join(" ")).trim();
+  return displayName || String(user?.email || "Football Science").trim();
+}
+
+function getSquadChangeSummary(type, player = {}, changes = []) {
+  if (type === "player-added") {
+    return `${player?.name || "Player"} added to Squad`;
+  }
+  if (type === "player-removed") {
+    return `${player?.name || "Player"} removed from Squad`;
+  }
+  if (type === "squad-import") {
+    return `${changes.length || 0} player profiles imported`;
+  }
+  const roleChange = changes.find((change) => change.field === "Primary role");
+  if (roleChange) {
+    return `${player?.name || "Player"} role changed to ${roleChange.to}`;
+  }
+  const firstChange = changes[0];
+  return firstChange
+    ? `${player?.name || "Player"} updated: ${firstChange.field}`
+    : `${player?.name || "Player"} profile saved`;
+}
+
+function recordPlayerProfileChange(type, player = {}, changes = [], options = {}) {
+  ensurePlayerProfilesState();
+  const safeChanges = Array.isArray(changes) ? changes.filter(Boolean) : [];
+  const summary = options.summary || getSquadChangeSummary(type, player, safeChanges);
+  const entry = normalizePlayerProfileChangeLogEntry({
+    id: createDashboardId("squad-change"),
+    type,
+    playerId: player?.id || options.playerId || "",
+    playerName: player?.name || options.playerName || "",
+    actor: options.actor || getCurrentSquadActorLabel(),
+    summary,
+    changes: safeChanges,
+    createdAt: options.createdAt || new Date().toISOString(),
+  });
+
+  playerProfilesState.changeLog = normalizePlayerProfileChangeLog([entry, ...(playerProfilesState.changeLog || [])]);
+}
+
+function getPlayerProfileChangeLog(playerId = "") {
+  ensurePlayerProfilesState();
+  return normalizePlayerProfileChangeLog(playerProfilesState.changeLog).filter((entry) => entry.playerId === playerId);
+}
+
+function getRecentPlayerProfileChangeLog(limit = 5) {
+  ensurePlayerProfilesState();
+  return normalizePlayerProfileChangeLog(playerProfilesState.changeLog).slice(0, limit);
+}
+
+function formatPlayerProfileChangeTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function comparePlayerProfiles(first, second) {
   return compareMedicalPlayers(first, second);
 }
@@ -21290,7 +22961,8 @@ function clonePlayerProfilesState(source = {}) {
     selectedPlayerId,
     players,
     rosterVersion: source.rosterVersion || playerProfilesDefaultRosterVersion,
-    schemaVersion: 2,
+    changeLog: normalizePlayerProfileChangeLog(source.changeLog || source.history || []),
+    schemaVersion: playerProfilesSchemaVersion,
     updatedAt: source.updatedAt || new Date().toISOString(),
   };
 }
@@ -21300,7 +22972,7 @@ function readPlayerProfilesState() {
     const raw = window.localStorage.getItem(playerProfilesStorageKey);
     const parsed = raw ? JSON.parse(raw) : {};
     const state = clonePlayerProfilesState(parsed);
-    if (!raw || parsed?.schemaVersion !== 2) {
+    if (!raw || parsed?.schemaVersion !== playerProfilesSchemaVersion) {
       window.localStorage.setItem(playerProfilesStorageKey, JSON.stringify(state));
     }
     return state;
@@ -21354,6 +23026,47 @@ function getSelectedPlayerProfile() {
     playerProfilesState.players[0] ??
     null
   );
+}
+
+function openPlayerProfileModal(playerId) {
+  ensurePlayerProfilesState();
+  if (!playerProfilesState.players.some((player) => player.id === playerId)) {
+    return;
+  }
+
+  playerProfilesState.selectedPlayerId = playerId;
+  playerProfileModalOpen = true;
+  playerProfileNewPlayerModalOpen = false;
+  writePlayerProfilesState();
+  renderPlayerProfilesWorkspace();
+}
+
+function closePlayerProfileModal() {
+  if (!playerProfileModalOpen) {
+    return;
+  }
+
+  playerProfileModalOpen = false;
+  renderPlayerProfilesWorkspace();
+}
+
+function openPlayerProfileNewPlayerModal() {
+  if (!canEditPlayerProfiles()) {
+    return;
+  }
+
+  playerProfileModalOpen = false;
+  playerProfileNewPlayerModalOpen = true;
+  renderPlayerProfilesWorkspace();
+}
+
+function closePlayerProfileNewPlayerModal() {
+  if (!playerProfileNewPlayerModalOpen) {
+    return;
+  }
+
+  playerProfileNewPlayerModalOpen = false;
+  renderPlayerProfilesWorkspace();
 }
 
 function getLatestManualMedicalLog(playerId) {
@@ -21430,22 +23143,6 @@ function getVisiblePlayerProfiles() {
   });
 }
 
-function getPlayerProfilesStats() {
-  ensurePlayerProfilesState();
-  const total = playerProfilesState.players.length;
-  const available = playerProfilesState.players.filter((player) => player.status === "available").length;
-  const managed = playerProfilesState.players.filter((player) => ["managed", "rehab", "unavailable"].includes(player.status)).length;
-  const activeIdp = playerProfilesState.players.filter((player) => player.idp?.status && player.idp.status !== "none").length;
-  const idpReviewsDue = getPlayerProfilesIdpReviewItems().filter((item) => item.urgency !== "clear").length;
-  const completeProfiles = playerProfilesState.players.filter((player) => getPlayerProfileCompleteness(player) >= 70).length;
-  const groups = playerProfileRoleGroupOptions.reduce((result, option) => {
-    result[option.key] = playerProfilesState.players.filter((player) => player.roleGroup === option.key).length;
-    return result;
-  }, {});
-
-  return { total, available, managed, activeIdp, idpReviewsDue, completeProfiles, groups };
-}
-
 function getPlayerProfileCompleteness(player = {}) {
   const checks = [
     player.name,
@@ -21462,16 +23159,6 @@ function getPlayerProfileCompleteness(player = {}) {
   ];
   const completeCount = checks.filter((value) => String(value ?? "").trim()).length;
   return Math.round((completeCount / checks.length) * 100);
-}
-
-function renderSquadBoardMetric(label, value, detail = "") {
-  return `
-    <div class="squad-board-metric">
-      <span>${escapeHtml(label)}</span>
-      <strong>${escapeHtml(value)}</strong>
-      ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
-    </div>
-  `;
 }
 
 function renderPlayerProfileAvatar(player, className = "player-profile-avatar") {
@@ -22155,6 +23842,71 @@ function renderPlayerProfileFuturePanel(player) {
   `;
 }
 
+function renderPlayerProfileChangeLogRows(entries = []) {
+  if (!entries.length) {
+    return `<p class="squad-change-empty">No changes tracked for this player yet.</p>`;
+  }
+
+  return entries
+    .map((entry) => `
+      <article class="squad-change-row">
+        <header>
+          <div>
+            <strong>${escapeHtml(entry.summary || "Profile updated")}</strong>
+            <span>${escapeHtml(entry.actor || "Football Science")} · ${escapeHtml(formatPlayerProfileChangeTime(entry.createdAt))}</span>
+          </div>
+          <em>${escapeHtml(entry.type.replaceAll("-", " "))}</em>
+        </header>
+        ${
+          entry.changes.length
+            ? `<div class="squad-change-diff">
+                ${entry.changes
+                  .slice(0, 5)
+                  .map((change) => `
+                    <span>
+                      <b>${escapeHtml(change.field)}</b>
+                      <small>${escapeHtml(change.from)} -> ${escapeHtml(change.to)}</small>
+                    </span>
+                  `)
+                  .join("")}
+              </div>`
+            : ""
+        }
+      </article>
+    `)
+    .join("");
+}
+
+function renderPlayerProfileHistoryPanel(player) {
+  const playerEntries = getPlayerProfileChangeLog(player.id);
+  const recentEntries = getRecentPlayerProfileChangeLog(5);
+  return `
+    <article class="squad-profile-section squad-change-history">
+      <header class="squad-section-head">
+        <div>
+          <p>Change History</p>
+          <h2>Profile Audit Trail</h2>
+        </div>
+        <span>${playerEntries.length} player changes</span>
+      </header>
+      <div class="squad-change-history-grid">
+        <section>
+          <h3>${escapeHtml(player.name)}</h3>
+          <div class="squad-change-list">
+            ${renderPlayerProfileChangeLogRows(playerEntries)}
+          </div>
+        </section>
+        <section>
+          <h3>Recent Squad Room activity</h3>
+          <div class="squad-change-list">
+            ${renderPlayerProfileChangeLogRows(recentEntries)}
+          </div>
+        </section>
+      </div>
+    </article>
+  `;
+}
+
 function renderPlayerProfileTabs() {
   return `
     <nav class="squad-profile-tabs" aria-label="Player profile sections">
@@ -22391,7 +24143,35 @@ function renderPlayerProfileSelectedPanel(player) {
       </article>
       ${activeTab === "medical" ? renderPlayerProfileMedicalPanel(player) : ""}
       ${activeTab === "performance" ? renderPlayerProfileFuturePanel(player) : ""}
+      ${activeTab === "history" ? renderPlayerProfileHistoryPanel(player) : ""}
     </aside>
+  `;
+}
+
+function renderPlayerProfileModal(player) {
+  if (!playerProfileModalOpen || !player) {
+    return "";
+  }
+
+  return `
+    <div class="squad-profile-modal-overlay" data-player-profile-modal-overlay>
+      <div
+        class="squad-profile-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="${escapeHtml(`${player.name} player profile`)}"
+      >
+        <button
+          type="button"
+          class="squad-profile-modal-close"
+          data-player-profile-modal-close
+          aria-label="Close player profile"
+        >
+          &times;
+        </button>
+        ${renderPlayerProfileSelectedPanel(player)}
+      </div>
+    </div>
   `;
 }
 
@@ -22429,6 +24209,33 @@ function renderPlayerProfileNewPlayerCard() {
         <button type="submit" ${canEdit ? "" : "disabled"}>Add player</button>
       </form>
     </article>
+  `;
+}
+
+function renderPlayerProfileNewPlayerModal() {
+  if (!playerProfileNewPlayerModalOpen) {
+    return "";
+  }
+
+  return `
+    <div class="squad-profile-modal-overlay" data-player-profile-new-modal-overlay>
+      <div
+        class="squad-profile-modal squad-new-player-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Add player"
+      >
+        <button
+          type="button"
+          class="squad-profile-modal-close"
+          data-player-profile-new-modal-close
+          aria-label="Close add player"
+        >
+          &times;
+        </button>
+        ${renderPlayerProfileNewPlayerCard()}
+      </div>
+    </div>
   `;
 }
 
@@ -23167,6 +24974,7 @@ function buildSquadDataFoundationPayload() {
         "player_idp",
         "player_medical_summary_links",
         "player_future_data",
+        "player_change_log",
       ],
       primaryKey: "players.id",
       sessionPlannerContract: "sessionPlanner.players.v2",
@@ -23179,6 +24987,7 @@ function buildSquadDataFoundationPayload() {
       idp: ["status", "primaryFocus", "strengths", "focusAreas", "nextAction", "reviewDate"],
       medicalSummary: ["currentAvailability", "rtpStatus", "coachNote", "latestLogDate", "latestLogSummary"],
       futureData: ["matchData", "load", "minutes", "performanceNotes", "scoutingNotes", "analysisNotes"],
+      changeLog: ["id", "type", "playerId", "actor", "summary", "changes", "createdAt"],
     },
     dataQuality: {
       totalFlags: dataQuality.totalFlags,
@@ -23223,6 +25032,7 @@ function buildSquadDataFoundationPayload() {
       createdAt: player.createdAt,
       updatedAt: player.updatedAt,
     })),
+    changeLog: normalizePlayerProfileChangeLog(playerProfilesState.changeLog),
     sessionPlanner: {
       players: buildSquadSessionPlannerContracts(),
     },
@@ -23361,6 +25171,13 @@ function importSquadDataFoundationPayload(payload = {}) {
   if (!playerProfilesState.selectedPlayerId && playerProfilesState.players[0]) {
     playerProfilesState.selectedPlayerId = playerProfilesState.players[0].id;
   }
+  if (importedCount) {
+    recordPlayerProfileChange("squad-import", null, Array.from({ length: importedCount }, (_, index) => ({
+      field: `Player ${index + 1}`,
+      from: "Import file",
+      to: "Squad profile",
+    })));
+  }
   writePlayerProfilesState();
   renderPlayerProfilesWorkspace(`${importedCount} player profiles imported.`);
 }
@@ -23475,7 +25292,6 @@ function renderPlayerProfilesWorkspace(message = "") {
 
   ensurePlayerProfilesState();
   ensureMedicalState();
-  const stats = getPlayerProfilesStats();
   const visiblePlayers = getVisiblePlayerProfiles();
   const selectedPlayer = getSelectedPlayerProfile();
 
@@ -23494,47 +25310,42 @@ function renderPlayerProfilesWorkspace(message = "") {
           <span>Reports</span>
         </div>
         <div class="squad-access-chip">${escapeHtml(getPlayerProfilesAccessLabel())}</div>
+        <div class="squad-command-tools" aria-label="Squad list controls">
+          <div class="squad-command-list-summary">
+            <div>
+              <strong>Squad List</strong>
+              <span>${visiblePlayers.length}/${playerProfilesState.players.length} players</span>
+            </div>
+            <button
+              type="button"
+              class="squad-add-player-trigger"
+              data-player-profile-new-open
+              aria-label="Add player"
+              title="Add player"
+              ${canEditPlayerProfiles() ? "" : "disabled"}
+            >
+              +
+            </button>
+          </div>
+          <div class="squad-list-tools">
+            <input
+              type="search"
+              value="${escapeHtml(playerProfilesSearchQuery)}"
+              placeholder="Search player, role, number..."
+              data-player-profile-search
+            />
+            <select data-player-profile-role-group-filter aria-label="Filter by role group">
+              <option value="all" ${playerProfilesRoleGroupFilter === "all" ? "selected" : ""}>All groups</option>
+              ${renderPlayerProfileOptionSet(playerProfileRoleGroupOptions, playerProfilesRoleGroupFilter)}
+            </select>
+          </div>
+        </div>
       </header>
 
       ${message ? `<div class="player-profile-message">${escapeHtml(message)}</div>` : ""}
 
-      <section class="squad-board-overview" aria-label="Squad profile summary">
-        ${renderSquadBoardMetric("Players", String(stats.total), "central profiles")}
-        ${renderSquadBoardMetric("Available", String(stats.available), "current squad status")}
-        ${renderSquadBoardMetric("IDPs", String(stats.activeIdp), "active development plans")}
-        ${renderSquadBoardMetric("Reviews", String(stats.idpReviewsDue), "due / next 14 days")}
-        ${renderSquadBoardMetric("Complete", String(stats.completeProfiles), "70%+ profile data")}
-        ${renderSquadBoardMetric("Def / Mid / Fwd", `${stats.groups.defender || 0}/${stats.groups.midfielder || 0}/${stats.groups.forward || 0}`, "role balance")}
-      </section>
-
-      ${renderPlayerRoleDnaSpotlight(selectedPlayer)}
-      ${renderSquadDepthBoard()}
-      ${renderSquadFormationFitPanel()}
-      ${renderSquadIntelligencePanel()}
-      ${renderSquadDataFoundationPanel()}
-      ${renderPlayerProfilesIdpOverview()}
-      ${renderSquadComparisonPanel()}
-
-      <section class="squad-workspace-layout">
+      <section class="squad-workspace-layout squad-workspace-layout-list-first">
         <main class="squad-list-panel" aria-label="Squad overview">
-          <div class="squad-list-toolbar">
-            <div>
-              <h2>Squad List</h2>
-              <span>${visiblePlayers.length}/${playerProfilesState.players.length} players</span>
-            </div>
-            <div class="squad-list-tools">
-              <input
-                type="search"
-                value="${escapeHtml(playerProfilesSearchQuery)}"
-                placeholder="Search player, role, number..."
-                data-player-profile-search
-              />
-              <select data-player-profile-role-group-filter aria-label="Filter by role group">
-                <option value="all" ${playerProfilesRoleGroupFilter === "all" ? "selected" : ""}>All groups</option>
-                ${renderPlayerProfileOptionSet(playerProfileRoleGroupOptions, playerProfilesRoleGroupFilter)}
-              </select>
-            </div>
-          </div>
           <div class="squad-table-wrap">
             <table class="squad-table">
               <thead>
@@ -23558,10 +25369,11 @@ function renderPlayerProfilesWorkspace(message = "") {
               </tbody>
             </table>
           </div>
-          ${renderPlayerProfileNewPlayerCard()}
         </main>
-        ${renderPlayerProfileSelectedPanel(selectedPlayer)}
       </section>
+
+      ${renderPlayerProfileModal(selectedPlayer)}
+      ${renderPlayerProfileNewPlayerModal()}
     </div>
   `;
 }
@@ -23617,6 +25429,11 @@ function addPlayerProfile(values = {}) {
 
   playerProfilesState.players = [...playerProfilesState.players, player].sort(comparePlayerProfiles);
   playerProfilesState.selectedPlayerId = player.id;
+  recordPlayerProfileChange("player-added", player, [
+    { field: "Primary role", from: "-", to: player.primaryRole },
+    { field: "Role group", from: "-", to: formatPlayerProfileChangeValue(player.roleGroup, { options: playerProfileRoleGroupOptions }) },
+    { field: "Squad status", from: "-", to: formatPlayerProfileChangeValue(player.squadStatus, { options: playerProfileSquadStatusOptions }) },
+  ]);
   writePlayerProfilesState();
   return player;
 }
@@ -23629,9 +25446,20 @@ function updatePlayerProfile(values = {}) {
   }
 
   const currentPlayer = playerProfilesState.players[playerIndex];
+  const currentNaturalRoleGroup = getPlayerProfileRoleGroupForRole(currentPlayer.primaryRole, currentPlayer.position);
+  const nextPrimaryRole = normalizePlayerProfileRole(values.primaryRole, currentPlayer.primaryRole);
+  const nextPosition = values.position || currentPlayer.position;
+  const nextNaturalRoleGroup = getPlayerProfileRoleGroupForRole(nextPrimaryRole, nextPosition);
+  const submittedRoleGroup = String(values.roleGroup || "").trim();
+  const shouldAutoAlignRoleGroup =
+    (!submittedRoleGroup || submittedRoleGroup === currentPlayer.roleGroup) &&
+    currentPlayer.roleGroup === currentNaturalRoleGroup &&
+    nextNaturalRoleGroup !== currentPlayer.roleGroup;
   const nextPlayer = normalizePlayerProfile({
     ...currentPlayer,
     ...values,
+    primaryRole: nextPrimaryRole,
+    roleGroup: shouldAutoAlignRoleGroup ? nextNaturalRoleGroup : submittedRoleGroup || nextNaturalRoleGroup,
     attributeRatings: {
       ...currentPlayer.attributeRatings,
       ...values.attributeRatings,
@@ -23650,19 +25478,29 @@ function updatePlayerProfile(values = {}) {
     return false;
   }
 
+  const changes = getPlayerProfileChangeDiffs(currentPlayer, nextPlayer);
   const nextPlayers = [...playerProfilesState.players];
   nextPlayers[playerIndex] = nextPlayer;
   playerProfilesState.players = nextPlayers.sort(comparePlayerProfiles);
   playerProfilesState.selectedPlayerId = nextPlayer.id;
+  if (changes.length) {
+    recordPlayerProfileChange("profile-updated", nextPlayer, changes);
+  }
   writePlayerProfilesState();
   return true;
 }
 
 function removePlayerProfile(playerId) {
   ensurePlayerProfilesState();
+  const removedPlayer = playerProfilesState.players.find((player) => player.id === playerId) ?? null;
   const nextPlayers = playerProfilesState.players.filter((player) => player.id !== playerId);
   playerProfilesState.players = nextPlayers;
   playerProfilesState.selectedPlayerId = nextPlayers[0]?.id || "";
+  if (removedPlayer) {
+    recordPlayerProfileChange("player-removed", removedPlayer, [
+      { field: "Squad status", from: formatPlayerProfileChangeValue(removedPlayer.squadStatus, { options: playerProfileSquadStatusOptions }), to: "Removed" },
+    ]);
+  }
   writePlayerProfilesState();
 }
 
@@ -24209,6 +26047,92 @@ function buildMedicalCoachHandoverText(dateValue = medicalState?.selectedDate) {
   return lines.join("\n");
 }
 
+function recordMedicalAuditEvent(event = {}) {
+  const auditBridge = window.footballScienceAudit;
+  if (!getCurrentPlatformUser() || !auditBridge?.record) {
+    return Promise.resolve({ ok: false });
+  }
+
+  return auditBridge.record(event).catch(() => ({ ok: false }));
+}
+
+function getMedicalDatabasePlayer(playerId) {
+  ensureMedicalState();
+  return medicalState.players.find((player) => player.id === playerId) ?? null;
+}
+
+function buildMedicalDatabaseStateSummary() {
+  ensureMedicalState();
+  const stats = getMedicalDailyStats(medicalState.selectedDate);
+  return {
+    selectedDate: medicalState.selectedDate,
+    rosterVersion: medicalState.rosterVersion,
+    playerCount: medicalState.players.length,
+    recordCount: medicalState.records.length,
+    injuryPlanCount: medicalState.injuryPlans.length,
+    fullCount: stats.fullCount,
+    modifiedCount: stats.modifiedCount,
+    unavailableCount: stats.unavailableCount,
+    unloggedCount: stats.unloggedCount,
+    coachSharedItems:
+      medicalState.records.filter((record) => record.shareWithCoach).length +
+      medicalState.injuryPlans.filter((plan) => plan.shareWithCoach).length,
+  };
+}
+
+function getMedicalDatabaseIdempotencyKey(eventType, payload = {}) {
+  const playerId = payload.playerId || payload.record?.playerId || payload.plan?.playerId || payload.player?.id || "";
+  const entityId =
+    payload.record?.id ||
+    payload.plan?.id ||
+    payload.player?.id ||
+    payload.recordId ||
+    payload.planId ||
+    payload.policy?.updatedAt ||
+    payload.updatedAt ||
+    Date.now();
+  return [eventType, playerId, entityId].filter(Boolean).join(":");
+}
+
+function recordMedicalDatabaseSyncEvent(eventType, payload = {}) {
+  const databaseBridge = window.footballScienceMedicalDatabase;
+  if (!getCurrentPlatformUser() || !canViewPrivateMedicalDetails() || !databaseBridge?.record) {
+    return Promise.resolve({ ok: false });
+  }
+
+  const legacyPlayerId = payload.playerId || payload.record?.playerId || payload.plan?.playerId || payload.player?.id || "";
+  const player = payload.player || getMedicalDatabasePlayer(legacyPlayerId);
+  const payloadCopy = { ...payload };
+  delete payloadCopy.idempotencyKey;
+
+  return databaseBridge
+    .record({
+      action: "recordSyncEvent",
+      eventType,
+      legacyPlayerId,
+      idempotencyKey: payload.idempotencyKey || getMedicalDatabaseIdempotencyKey(eventType, payload),
+      payload: {
+        schema: "footballscience-medical-room-event-v1",
+        sourceKey: medicalTeamStorageKey,
+        eventType,
+        selectedDate: medicalState?.selectedDate || "",
+        player: player
+          ? {
+              id: player.id,
+              name: player.name,
+              number: player.number,
+              position: player.position,
+              photoUrl: player.photoUrl,
+              updatedAt: player.updatedAt,
+            }
+          : null,
+        stateSummary: buildMedicalDatabaseStateSummary(),
+        ...payloadCopy,
+      },
+    })
+    .catch(() => ({ ok: false }));
+}
+
 function copyMedicalCoachHandoverToClipboard() {
   const text = buildMedicalCoachHandoverText(medicalState.selectedDate);
   if (!navigator.clipboard?.writeText) {
@@ -24218,7 +26142,17 @@ function copyMedicalCoachHandoverToClipboard() {
 
   navigator.clipboard
     .writeText(text)
-    .then(() => renderMedicalTeamWorkspace("Coach-safe handover copied."))
+    .then(() => {
+      void recordMedicalAuditEvent({
+        action: "medical.handover.copied",
+        summary: "Copied coach-safe medical handover",
+        details: {
+          date: medicalState.selectedDate,
+          itemCount: getMedicalCoachHandoverItems(medicalState.selectedDate).length,
+        },
+      });
+      renderMedicalTeamWorkspace("Coach-safe handover copied.");
+    })
     .catch(() => renderMedicalTeamWorkspace("Coach-safe handover could not be copied."));
 }
 
@@ -24508,6 +26442,7 @@ function applyMedicalBulkRecommendation(values = {}) {
     ? values.rtpPhase
     : getMedicalRtpPhaseForRecommendation(status, participation);
   const blockedPlayers = [];
+  const savedRecords = [];
   let savedCount = 0;
 
   selectedPlayers.forEach((player) => {
@@ -24530,6 +26465,7 @@ function applyMedicalBulkRecommendation(values = {}) {
     });
     if (record) {
       savedCount += 1;
+      savedRecords.push(record);
     }
   });
 
@@ -24539,6 +26475,7 @@ function applyMedicalBulkRecommendation(values = {}) {
 
   return {
     savedCount,
+    records: savedRecords,
     blockedCount: blockedPlayers.length,
     blockedNames: blockedPlayers.map((player) => player.name),
   };
@@ -24585,7 +26522,7 @@ function renderMedicalBulkUpdatePanel(players = getFilteredMedicalPlayers()) {
           <input name="coachNote" placeholder="Example: modified team only, no finishing volume" ${canEdit ? "" : "disabled"} />
         </label>
         <label class="medical-bulk-wide">
-          <span>Internal note</span>
+          <span>Internal medical note</span>
           <input name="comment" placeholder="Internal medical note" ${canEdit ? "" : "disabled"} />
         </label>
         <label class="medical-inline-check medical-bulk-share">
@@ -24606,6 +26543,133 @@ function renderMedicalMetric(label, value, meta = "", tone = "") {
       <strong>${escapeHtml(value)}</strong>
       ${meta ? `<small>${escapeHtml(meta)}</small>` : ""}
     </article>
+  `;
+}
+
+function renderMedicalSecurityPanel() {
+  const currentUser = getCurrentPlatformUser();
+  const canSeePrivate = canViewPrivateMedicalDetails();
+  const handoverCount = getMedicalCoachHandoverItems(medicalState.selectedDate).length;
+  const roleLabel = getRoleLabel(currentUser?.role || "guest");
+
+  return `
+    <section class="medical-security-panel" aria-label="Medical data security">
+      <article class="medical-security-card medical-security-card-dark">
+        <span>Security Layer</span>
+        <strong>${canSeePrivate ? "Private medical workspace" : "Coach-safe view"}</strong>
+        <small>${escapeHtml(roleLabel)} / ${canSeePrivate ? "full clinical fields" : "approved availability only"}</small>
+      </article>
+      <article class="medical-security-card">
+        <span>Shared Data</span>
+        <strong>${canSeePrivate ? `${handoverCount} coach-safe items` : "No internal notes"}</strong>
+        <small>${canSeePrivate ? "Only approved notes leave medical" : "Clinical notes are stripped server-side"}</small>
+      </article>
+      <article class="medical-security-card">
+        <span>Audit Trail</span>
+        <strong>Medical writes logged</strong>
+        <small>Handover copy logs counts, not note text</small>
+      </article>
+      <article class="medical-security-card">
+        <span>RTP Controls</span>
+        <strong>Sign-off gates</strong>
+        <small>Doctor / physio / performance before full training</small>
+      </article>
+    </section>
+  `;
+}
+
+function getMedicalGovernanceStatus() {
+  const policy = normalizeMedicalGovernancePolicy(medicalState.policy);
+  const todayValue = formatScheduleDateValue(new Date());
+  const daysSinceReview = policy.lastReviewed
+    ? Math.max(0, Math.round((parseScheduleDateValue(todayValue) - parseScheduleDateValue(policy.lastReviewed)) / (24 * 60 * 60 * 1000)))
+    : null;
+  const reviewDue = daysSinceReview === null || daysSinceReview >= policy.reviewCadenceDays;
+  return {
+    policy,
+    daysSinceReview,
+    reviewDue,
+    coachSharedItems:
+      medicalState.records.filter((record) => record.shareWithCoach).length +
+      medicalState.injuryPlans.filter((plan) => plan.shareWithCoach).length,
+    privateRecordCount: medicalState.records.filter((record) => String(record.comment || "").trim()).length,
+  };
+}
+
+function updateMedicalGovernancePolicy(values = {}) {
+  if (!canViewPrivateMedicalDetails()) {
+    return false;
+  }
+
+  const now = new Date().toISOString();
+  medicalState.policy = normalizeMedicalGovernancePolicy({
+    ...medicalState.policy,
+    retentionMonths: values.retentionMonths,
+    reviewCadenceDays: values.reviewCadenceDays,
+    consentRequired: values.consentRequired,
+    policyOwner: values.policyOwner,
+    incidentContact: values.incidentContact,
+    lastReviewed: values.lastReviewed,
+    updatedAt: now,
+    updatedBy: getCurrentPlatformUser()?.id || "",
+  });
+  writeMedicalState();
+  return true;
+}
+
+function renderMedicalGovernancePanel() {
+  if (!canViewPrivateMedicalDetails()) {
+    return "";
+  }
+
+  const status = getMedicalGovernanceStatus();
+  const policy = status.policy;
+  const updatedLabel = policy.updatedAt ? formatAdminDateTime(policy.updatedAt) : "Not saved";
+
+  return `
+    <section class="medical-governance-panel" aria-label="Medical governance controls">
+      <article class="medical-governance-summary">
+        <span>Governance</span>
+        <strong>${status.reviewDue ? "Review due" : "Policy current"}</strong>
+        <small>${status.daysSinceReview === null ? "No review date" : `${status.daysSinceReview} days since review`}</small>
+      </article>
+      <article class="medical-governance-card">
+        <span>Data Boundary</span>
+        <strong>Private medical</strong>
+        <small>${status.coachSharedItems} coach-approved shares / ${status.privateRecordCount} private notes</small>
+      </article>
+      <form id="medicalGovernanceForm" class="medical-governance-form">
+        <label>
+          <span>Retention</span>
+          <input name="retentionMonths" type="number" min="1" max="120" value="${escapeHtml(policy.retentionMonths)}" />
+        </label>
+        <label>
+          <span>Review every</span>
+          <input name="reviewCadenceDays" type="number" min="1" max="90" value="${escapeHtml(policy.reviewCadenceDays)}" />
+        </label>
+        <label>
+          <span>Last reviewed</span>
+          <input name="lastReviewed" type="date" value="${escapeHtml(policy.lastReviewed)}" />
+        </label>
+        <label>
+          <span>Owner</span>
+          <input name="policyOwner" value="${escapeHtml(policy.policyOwner)}" />
+        </label>
+        <label>
+          <span>Incident contact</span>
+          <input name="incidentContact" value="${escapeHtml(policy.incidentContact)}" />
+        </label>
+        <label class="medical-inline-check medical-governance-check">
+          <input type="checkbox" name="consentRequired" ${policy.consentRequired ? "checked" : ""} />
+          <span>Consent required</span>
+        </label>
+        <button type="submit">Save policy</button>
+      </form>
+      <article class="medical-governance-foot">
+        <span>Last update</span>
+        <strong>${escapeHtml(updatedLabel)}</strong>
+      </article>
+    </section>
   `;
 }
 
@@ -25104,7 +27168,7 @@ function renderMedicalInjuryPlanForm(player, canEdit) {
             .join("")}
         </div>
         <label>
-          <span>Clinical note</span>
+          <span>Internal clinical note</span>
           <textarea name="comment" rows="3" ${canEdit ? "" : "disabled"}></textarea>
         </label>
         <label>
@@ -25328,7 +27392,7 @@ function renderMedicalPlayerModal() {
                   ${renderMedicalActualPresets(formActual, canEdit)}
                 </div>
                 <label>
-                  <span>Comment</span>
+                  <span>Internal medical note</span>
                   <textarea name="comment" rows="4" ${canEdit ? "" : "disabled"}>${escapeHtml(record?.comment ?? "")}</textarea>
                 </label>
                 <label>
@@ -25472,7 +27536,7 @@ function renderMedicalSelectedPanel() {
             </label>
           </div>
           <label>
-            <span>Comment</span>
+            <span>Internal medical note</span>
             <textarea name="comment" rows="4" ${canEdit ? "" : "disabled"}>${escapeHtml(record?.comment ?? "")}</textarea>
           </label>
           <button type="submit" ${canEdit ? "" : "disabled"}>Save status</button>
@@ -25547,6 +27611,9 @@ function renderMedicalTeamWorkspace(message = "") {
       ${renderMedicalDateStrip()}
 
       ${message ? `<div class="medical-message">${escapeHtml(message)}</div>` : ""}
+
+      ${renderMedicalSecurityPanel()}
+      ${renderMedicalGovernancePanel()}
 
       <section class="medical-metrics-grid" aria-label="Medical availability summary">
         ${renderMedicalMetric("Full", String(stats.fullCount), "effective 100%", "full")}
@@ -25783,7 +27850,7 @@ function updateMedicalPlanClearance(values) {
   medicalState.injuryPlans = nextPlans;
   medicalState.selectedPlayerId = nextPlan.playerId;
   writeMedicalState();
-  return true;
+  return nextPlan;
 }
 
 function removeMedicalInjuryPlan(planId) {
@@ -26862,68 +28929,19 @@ function renderPeriodizationWorkspace() {
 }
 
 function isPitchFullscreenActive() {
-  return document.fullscreenElement === ui.pitchStage;
+  return gameSimulatorFullscreenController.isActive();
 }
 
 function syncPitchFullscreenButton() {
-  if (!ui.pitchFullscreenButton) {
-    return;
-  }
-
-  ui.pitchFullscreenButton.textContent = isPitchFullscreenActive()
-    ? "Exit Fullscreen"
-    : "Fullscreen";
+  gameSimulatorFullscreenController.syncButton();
 }
 
 function updatePitchFullscreenHudLayout() {
-  if (!ui.pitchStage) {
-    return;
-  }
-
-  if (!isPitchFullscreenActive()) {
-    ui.pitchStage.style.removeProperty("--fullscreen-hud-top");
-    ui.pitchStage.style.removeProperty("--fullscreen-hud-width");
-    ui.pitchStage.style.removeProperty("--fullscreen-hud-left-offset");
-    ui.pitchStage.style.removeProperty("--fullscreen-hud-right-offset");
-    return;
-  }
-
-  const stageRect = ui.pitchStage.getBoundingClientRect();
-  const canvasRect = canvas.getBoundingClientRect();
-  const sidePadding = 16;
-  const canvasLeftOffset = Math.max(0, canvasRect.left - stageRect.left);
-  const canvasRightOffset = Math.max(0, stageRect.right - canvasRect.right);
-  const usableLeftGutter = Math.max(0, canvasLeftOffset - sidePadding * 2);
-  const usableRightGutter = Math.max(0, canvasRightOffset - sidePadding * 2);
-  const minGutter = Math.min(usableLeftGutter, usableRightGutter);
-  const preferredWidth = Math.min(272, Math.max(176, minGutter));
-  const panelWidth = Math.max(136, Math.min(preferredWidth, minGutter || preferredWidth));
-  const leftOffset = Math.max(sidePadding, (canvasLeftOffset - panelWidth) / 2);
-  const rightOffset = Math.max(sidePadding, (canvasRightOffset - panelWidth) / 2);
-  const topOffset = Math.max(84, canvasRect.top - stageRect.top + 12);
-
-  ui.pitchStage.style.setProperty("--fullscreen-hud-top", `${topOffset}px`);
-  ui.pitchStage.style.setProperty("--fullscreen-hud-width", `${panelWidth}px`);
-  ui.pitchStage.style.setProperty("--fullscreen-hud-left-offset", `${leftOffset}px`);
-  ui.pitchStage.style.setProperty("--fullscreen-hud-right-offset", `${rightOffset}px`);
+  gameSimulatorFullscreenController.updateHudLayout();
 }
 
 async function togglePitchFullscreen() {
-  if (!ui.pitchStage) {
-    return;
-  }
-
-  try {
-    if (isPitchFullscreenActive()) {
-      await document.exitFullscreen();
-    } else {
-      await ui.pitchStage.requestFullscreen();
-    }
-  } catch {
-    logEvent("Fullscreen mode is not available here.");
-  } finally {
-    syncPitchFullscreenButton();
-  }
+  await gameSimulatorFullscreenController.toggle();
 }
 
 function hasUnsavedSimulatorWork() {
@@ -26988,62 +29006,19 @@ function resetUnsavedSimulatorSession() {
 }
 
 function isSimulatorIntroActive() {
-  return (
-    hubState?.activeWorkspaceId === "game-simulator" &&
-    Boolean(ui.gameSimulatorWorkspace?.classList.contains("is-simulator-intro"))
-  );
+  return gameSimulatorWorkspaceController.isIntroActive();
 }
 
 function resetGameSimulatorIntro() {
-  if (!ui.gameSimulatorWorkspace) {
-    return;
-  }
-
-  ui.gameSimulatorWorkspace.classList.add("is-simulator-intro");
-  ui.gameSimulatorWorkspace.classList.remove("is-simulator-launched");
-  window.requestAnimationFrame(() => {
-    ui.gameSimulatorIntro?.focus({ preventScroll: true });
-  });
+  gameSimulatorWorkspaceController.resetIntro();
 }
 
 function syncGameSimulatorIntroState() {
-  if (hubState?.activeWorkspaceId !== "game-simulator" || !ui.gameSimulatorWorkspace) {
-    return;
-  }
-
-  if (!ui.gameSimulatorWorkspace.classList.contains("is-simulator-launched")) {
-    ui.gameSimulatorWorkspace.classList.add("is-simulator-intro");
-  }
+  gameSimulatorWorkspaceController.syncIntroState();
 }
 
 async function launchGameSimulatorFromIntro() {
-  if (!ui.gameSimulatorWorkspace) {
-    return;
-  }
-
-  ui.gameSimulatorWorkspace.classList.remove("is-simulator-intro");
-  ui.gameSimulatorWorkspace.classList.add("is-simulator-launched");
-  render();
-
-  try {
-    if (!ui.pitchStage?.requestFullscreen) {
-      throw new Error("Fullscreen is not available.");
-    }
-
-    if (!document.fullscreenElement) {
-      await ui.pitchStage.requestFullscreen();
-    }
-
-    if (!document.fullscreenElement) {
-      throw new Error("Fullscreen could not be opened.");
-    }
-  } catch {
-    logEvent("Fullscreen mode is not available from this browser context.");
-    resetGameSimulatorIntro();
-    renderWorkspaceChrome();
-  } finally {
-    syncPitchFullscreenButton();
-  }
+  await gameSimulatorWorkspaceController.launchFromIntro();
 }
 
 function pauseSimulatorForWorkspaceSwitch() {
@@ -27099,6 +29074,7 @@ function renderWorkspaceChrome() {
 
   document.body.dataset.appReady = "true";
   document.body.dataset.activeWorkspace = activeWorkspace.id;
+  document.body.dataset.userRole = String(currentUser?.role || "guest").trim().toLowerCase() || "guest";
   ui.hubShell?.classList.toggle("is-sidebar-collapsed", hubState.sidebarCollapsed);
   if (ui.workspaceTitle) {
     ui.workspaceTitle.textContent = "Football Science";
@@ -27183,6 +29159,9 @@ function renderWorkspaceChrome() {
     if (ui.gameSimulatorWorkspace?.classList.contains("is-simulator-launched")) {
       render();
     }
+    startSimulatorAnimationLoop();
+  } else {
+    stopSimulatorAnimationLoop();
   }
 }
 
@@ -27198,6 +29177,12 @@ function setActiveWorkspace(workspaceId) {
 
   if (previousWorkspaceId === "game-simulator" && targetWorkspaceId !== "game-simulator") {
     pauseSimulatorForWorkspaceSwitch();
+    stopSimulatorAnimationLoop();
+  }
+
+  if (previousWorkspaceId === "player-profiles" && targetWorkspaceId !== "player-profiles") {
+    playerProfileModalOpen = false;
+    playerProfileNewPlayerModalOpen = false;
   }
 
   if (targetWorkspaceId === "game-simulator") {
@@ -27216,14 +29201,11 @@ function initializeWorkspaceHub() {
   const safeUrlWorkspaceId = getSafeWorkspaceId(urlWorkspaceId, hubState);
   const pendingWorkspaceId = window.__pendingWorkspaceId;
   const safePendingWorkspaceId = getSafeWorkspaceId(pendingWorkspaceId, hubState);
-  const safeCurrentWorkspaceId = getSafeWorkspaceId(hubState.activeWorkspaceId, hubState);
-  const safeHomeWorkspaceId = getSafeWorkspaceId("home", hubState);
+  const safeHomeWorkspaceId = getSafeWorkspaceId(workspaceHubDefaultActiveWorkspaceId, hubState);
   if (safePendingWorkspaceId) {
     hubState.activeWorkspaceId = safePendingWorkspaceId;
   } else if (safeUrlWorkspaceId) {
     hubState.activeWorkspaceId = safeUrlWorkspaceId;
-  } else if (safeCurrentWorkspaceId) {
-    hubState.activeWorkspaceId = safeCurrentWorkspaceId;
   } else if (safeHomeWorkspaceId) {
     hubState.activeWorkspaceId = safeHomeWorkspaceId;
   }
@@ -27244,10 +29226,14 @@ function reloadCentralizedAppStateFromStorage() {
   }
 
   const previousSessionPlannerSelection = getCurrentSessionPlannerUiSelection();
+  const previousWorkspaceId = hubState?.activeWorkspaceId || workspaceHubDefaultActiveWorkspaceId;
   if (hubState?.activeWorkspaceId === "session-planner") {
     syncSelectedSessionPlannerBlockFieldsFromDom();
   }
-  hubState = repairWorkspaceState(readWorkspaceHubState());
+  hubState = repairWorkspaceState({
+    ...readWorkspaceHubState(),
+    activeWorkspaceId: previousWorkspaceId,
+  });
   periodizationState = readPeriodizationState();
   scheduleState = readScheduleState();
   medicalState = readMedicalState();
@@ -69061,18 +71047,67 @@ function handleCanvasDoubleClick() {
   render();
 }
 
+function isGameSimulatorWorkspaceActive() {
+  return hubState?.activeWorkspaceId === "game-simulator";
+}
+
+function resetSimulatorAnimationClock() {
+  lastFrame = null;
+}
+
+async function getSimulatorAnimationRuntime() {
+  if (simulatorAnimationRuntime) {
+    return simulatorAnimationRuntime;
+  }
+
+  if (!simulatorAnimationRuntimePromise) {
+    simulatorAnimationRuntimePromise = import("./src/modules/game-simulator/runtime.mjs")
+      .then(({ createSimulatorAnimationLoop }) => {
+        simulatorAnimationRuntime = createSimulatorAnimationLoop({
+          shouldRun: () => simulatorAnimationLoopRequested && isGameSimulatorWorkspaceActive(),
+          onFrame: animationFrame,
+        });
+        return simulatorAnimationRuntime;
+      })
+      .catch((error) => {
+        simulatorAnimationRuntimePromise = null;
+        console.error(error);
+        throw error;
+      });
+  }
+
+  return simulatorAnimationRuntimePromise;
+}
+
+function startSimulatorAnimationLoop() {
+  simulatorAnimationLoopRequested = true;
+  getSimulatorAnimationRuntime()
+    .then((runtime) => {
+      if (simulatorAnimationLoopRequested && isGameSimulatorWorkspaceActive()) {
+        runtime.start();
+      }
+    })
+    .catch(() => {});
+}
+
+function stopSimulatorAnimationLoop() {
+  simulatorAnimationLoopRequested = false;
+  simulatorAnimationRuntime?.stop();
+  resetSimulatorAnimationClock();
+}
+
 function animationFrame(timestamp) {
+  if (!isGameSimulatorWorkspaceActive()) {
+    resetSimulatorAnimationClock();
+    return;
+  }
+
   if (lastFrame === null) {
     lastFrame = timestamp;
   }
 
   const realDt = Math.min((timestamp - lastFrame) / 1000, 0.05);
   lastFrame = timestamp;
-
-  if (hubState?.activeWorkspaceId !== "game-simulator") {
-    window.requestAnimationFrame(animationFrame);
-    return;
-  }
 
   if (state.isRunning) {
     stepSimulation(realDt);
@@ -69081,11 +71116,10 @@ function animationFrame(timestamp) {
   applyNearbyBallOrientation(realDt);
 
   render();
-  window.requestAnimationFrame(animationFrame);
 }
 
 function executePlannedAction() {
-  if (hubState?.activeWorkspaceId !== "game-simulator") {
+  if (!isGameSimulatorWorkspaceActive()) {
     return;
   }
 
@@ -69496,84 +71530,31 @@ function syncOffensiveAutopilotButton() {
 }
 
 function shouldIgnoreHotkey(event) {
-  const tagName = event.target?.tagName;
-  return (
-    event.metaKey ||
-    event.ctrlKey ||
-    event.altKey ||
-    tagName === "INPUT" ||
-    tagName === "TEXTAREA" ||
-    tagName === "SELECT" ||
-    tagName === "BUTTON" ||
-    event.target?.isContentEditable
-  );
+  return gameSimulatorKeyboardState.shouldIgnoreHotkey(event);
 }
 
 function shouldIgnoreSpaceAutopilotHotkey(event) {
-  const tagName = event.target?.tagName;
-  return (
-    event.metaKey ||
-    event.ctrlKey ||
-    event.altKey ||
-    tagName === "INPUT" ||
-    tagName === "TEXTAREA" ||
-    tagName === "SELECT" ||
-    event.target?.isContentEditable
-  );
-}
-
-function getInteractionTimestamp() {
-  return typeof performance !== "undefined" && typeof performance.now === "function"
-    ? performance.now()
-    : Date.now();
+  return gameSimulatorKeyboardState.shouldIgnoreSpaceAutopilotHotkey(event);
 }
 
 function clearKeyboardActionGrace() {
-  state.keyboardActionGraceMode = null;
-  state.keyboardActionGraceUntil = 0;
+  gameSimulatorKeyboardState.clearKeyboardActionGrace(state);
 }
 
 function armKeyboardActionGrace(mode, durationMs = 220) {
-  state.keyboardActionGraceMode = mode;
-  state.keyboardActionGraceUntil = getInteractionTimestamp() + durationMs;
+  gameSimulatorKeyboardState.armKeyboardActionGrace(state, mode, durationMs);
 }
 
 function getPointerRequestedActionMode() {
-  if (state.keyboardActionMode) {
-    return state.keyboardActionMode;
-  }
-
-  if (
-    state.keyboardActionGraceMode &&
-    getInteractionTimestamp() <= state.keyboardActionGraceUntil
-  ) {
-    return state.keyboardActionGraceMode;
-  }
-
-  if (state.keyboardActionGraceMode) {
-    clearKeyboardActionGrace();
-  }
-
-  return state.actionMode;
+  return gameSimulatorKeyboardState.getPointerRequestedActionMode(state);
 }
 
 function consumePointerActionMode(mode) {
-  if (!state.keyboardActionMode && state.keyboardActionGraceMode === mode) {
-    clearKeyboardActionGrace();
-  }
+  gameSimulatorKeyboardState.consumePointerActionMode(state, mode);
 }
 
 function setKeyboardActionMode(mode) {
-  if (state.keyboardActionMode === mode) {
-    return;
-  }
-
-  state.keyboardActionMode = mode;
-  if (mode) {
-    clearKeyboardActionGrace();
-  }
-  updateModeButtons();
-  render();
+  gameSimulatorKeyboardState.setKeyboardActionMode(state, mode);
 }
 
 function toggleActionMode(mode) {
@@ -70134,7 +72115,7 @@ ui.dashboardGrid?.addEventListener("click", (event) => {
   setActiveWorkspace(trigger.dataset.openWorkspace);
 });
 
-ui.dashboardChatWidgetRoot?.addEventListener("click", (event) => {
+ui.dashboardChatWidgetRoot?.addEventListener("click", async (event) => {
   const toastOpenButton = event.target.closest("[data-dashboard-chat-toast-open]");
   if (toastOpenButton && !toastOpenButton.hidden) {
     const threadId = normalizeDashboardChatThreadId(
@@ -70163,6 +72144,28 @@ ui.dashboardChatWidgetRoot?.addEventListener("click", (event) => {
     return;
   }
 
+  const confirmBackdrop = event.target.closest("[data-dashboard-chat-confirm-backdrop]");
+  const confirmCancelButton = event.target.closest("[data-dashboard-chat-confirm-cancel]");
+  if ((confirmBackdrop && event.target === confirmBackdrop) || confirmCancelButton) {
+    setDashboardChatConfirmAction(null);
+    renderDashboardChatWidget();
+    return;
+  }
+
+  const confirmApplyButton = event.target.closest("[data-dashboard-chat-confirm-apply]");
+  if (confirmApplyButton) {
+    const confirmAction = dashboardChatConfirmAction;
+    setDashboardChatConfirmAction(null);
+    if (confirmAction?.type === "clearThread") {
+      await clearDashboardMessagesForThreadWithApi(confirmAction.threadId);
+    } else if (confirmAction?.type === "deleteMessage") {
+      await removeDashboardMessageWithApi(confirmAction.messageId);
+      renderTopIconMenu();
+    }
+    renderDashboardChatWidget();
+    return;
+  }
+
   const replyMessageButton = event.target.closest("[data-dashboard-reply-message]");
   if (replyMessageButton) {
     const currentState = readDashboardChatWidgetState();
@@ -70183,11 +72186,47 @@ ui.dashboardChatWidgetRoot?.addEventListener("click", (event) => {
 
   const reactionButton = event.target.closest("[data-dashboard-message-reaction][data-dashboard-reaction-key]");
   if (reactionButton) {
-    toggleDashboardMessageReaction(
+    await toggleDashboardMessageReactionWithApi(
       reactionButton.dataset.dashboardMessageReaction,
       reactionButton.dataset.dashboardReactionKey
     );
     renderDashboardChatWidget();
+    return;
+  }
+
+  const loadEarlierButton = event.target.closest("[data-dashboard-chat-load-earlier]");
+  if (loadEarlierButton) {
+    await loadOlderDashboardChatMessagesWithApi(loadEarlierButton.dataset.dashboardChatLoadEarlier);
+    return;
+  }
+
+  const createThreadButton = event.target.closest("[data-dashboard-chat-create-thread]");
+  if (createThreadButton) {
+    await createDashboardAdvancedChatThread(createThreadButton.dataset.dashboardChatCreateThread);
+    return;
+  }
+
+  const moderationToggle = event.target.closest("[data-dashboard-chat-moderation-toggle]");
+  if (moderationToggle) {
+    dashboardChatModerationOpen = !dashboardChatModerationOpen;
+    renderDashboardChatWidget();
+    if (dashboardChatModerationOpen && !dashboardChatModerationState.audits.length) {
+      await loadDashboardChatModerationFromApi();
+    }
+    return;
+  }
+
+  const moderationRefresh = event.target.closest("[data-dashboard-chat-moderation-refresh]");
+  if (moderationRefresh) {
+    await loadDashboardChatModerationFromApi();
+    return;
+  }
+
+  const clearAttachmentButton = event.target.closest("[data-dashboard-chat-attachment-clear]");
+  if (clearAttachmentButton) {
+    dashboardChatComposerAttachmentDraft = null;
+    renderDashboardChatWidget();
+    focusDashboardChatWidgetComposer();
     return;
   }
 
@@ -70210,10 +72249,12 @@ ui.dashboardChatWidgetRoot?.addEventListener("click", (event) => {
       clearDashboardChatTyping();
       setDashboardChatReplyDraft("", "");
       setDashboardChatPriorityDraft("normal");
+      setDashboardChatConfirmAction(null);
     }
     writeDashboardChatWidgetState(nextState);
     if (nextState.isOpen) {
       hideDashboardChatWidgetToast();
+      queueDashboardChatApiRefresh({ threadId: currentState.selectedThreadId, delayMs: 0 });
     }
     renderDashboardChatWidget();
     if (nextState.isOpen) {
@@ -70225,7 +72266,8 @@ ui.dashboardChatWidgetRoot?.addEventListener("click", (event) => {
   const toggleNotifications = event.target.closest("[data-dashboard-chat-widget-toggle-notifications]");
   if (toggleNotifications) {
     const notifications = readDashboardChatWidgetNotificationState();
-    writeDashboardChatWidgetNotificationState({ enabled: !notifications.enabled });
+    const nextLevel = notifications.level === "all" ? "mentions" : notifications.level === "mentions" ? "muted" : "all";
+    writeDashboardChatWidgetNotificationState({ level: nextLevel });
     renderDashboardChatWidget();
     return;
   }
@@ -70239,12 +72281,14 @@ ui.dashboardChatWidgetRoot?.addEventListener("click", (event) => {
     clearDashboardChatTyping();
     setDashboardChatReplyDraft("", "");
     setDashboardChatPriorityDraft("normal");
+    dashboardChatMessageSearchQuery = "";
     writeDashboardChatWidgetState({
       isOpen: true,
       selectedThreadId: threadId,
     });
     hideDashboardChatWidgetToast();
     renderDashboardChatWidget();
+    queueDashboardChatApiRefresh({ threadId, delayMs: 0 });
     focusDashboardChatWidgetComposer();
     return;
   }
@@ -70256,11 +72300,17 @@ ui.dashboardChatWidgetRoot?.addEventListener("click", (event) => {
     }
 
     const threadId = clearThreadButton.dataset.dashboardChatClearThread;
-    if (!threadId || !window.confirm("Clear this thread?")) {
+    if (!threadId) {
       return;
     }
 
-    clearDashboardMessagesForThread(threadId);
+    setDashboardChatConfirmAction({
+      type: "clearThread",
+      threadId,
+      title: "Clear this thread?",
+      message: "This removes all visible messages from the selected chat thread. The action is audited.",
+      confirmLabel: "Clear thread",
+    });
     renderDashboardChatWidget();
     return;
   }
@@ -70271,7 +72321,7 @@ ui.dashboardChatWidgetRoot?.addEventListener("click", (event) => {
       return;
     }
 
-    toggleDashboardMessagePin(pinMessageButton.dataset.dashboardTogglePinMessage);
+    await toggleDashboardMessagePinWithApi(pinMessageButton.dataset.dashboardTogglePinMessage);
     renderDashboardChatWidget();
     return;
   }
@@ -70282,13 +72332,14 @@ ui.dashboardChatWidgetRoot?.addEventListener("click", (event) => {
       return;
     }
 
-    if (!window.confirm("Delete this chat message?")) {
-      return;
-    }
-
-    removeDashboardMessage(removeMessageButton.dataset.dashboardRemoveMessage);
+    setDashboardChatConfirmAction({
+      type: "deleteMessage",
+      messageId: removeMessageButton.dataset.dashboardRemoveMessage,
+      title: "Delete this message?",
+      message: "This removes the message from the chat view. The action is audited and can be reviewed by admins.",
+      confirmLabel: "Delete message",
+    });
     renderDashboardChatWidget();
-    renderTopIconMenu();
   }
 });
 
@@ -70302,6 +72353,17 @@ ui.dashboardChatWidgetRoot?.addEventListener("input", (event) => {
       queueDashboardChatTyping(threadId);
     } else {
       clearDashboardChatTyping();
+    }
+    return;
+  }
+
+  const messageSearchInput = event.target.closest("[data-dashboard-chat-message-search]");
+  if (messageSearchInput) {
+    dashboardChatMessageSearchQuery = messageSearchInput.value.trim().slice(0, 120);
+    if (dashboardChatMessageSearchQuery.length >= 2) {
+      queueDashboardChatApiRefresh({ search: dashboardChatMessageSearchQuery, delayMs: 220 });
+    } else {
+      renderDashboardChatWidget();
     }
     return;
   }
@@ -70378,7 +72440,7 @@ ui.dashboardGrid?.addEventListener("submit", (event) => {
   }
 });
 
-ui.dashboardChatWidgetRoot?.addEventListener("submit", (event) => {
+ui.dashboardChatWidgetRoot?.addEventListener("submit", async (event) => {
   const chatForm = event.target.closest("[data-dashboard-chat-form]");
   if (!chatForm) {
     return;
@@ -70386,14 +72448,36 @@ ui.dashboardChatWidgetRoot?.addEventListener("submit", (event) => {
 
   event.preventDefault();
   const input = chatForm.querySelector("[data-dashboard-chat-input]");
-  const messageText = input?.value?.trim() || "";
+  const rawMessageText = (input?.value || "").trim();
+  const fallbackAttachmentText = dashboardChatComposerAttachmentDraft?.metadata?.fileName
+    ? `Attachment: ${dashboardChatComposerAttachmentDraft.metadata.fileName}`
+    : "";
+  const messageText = (rawMessageText || fallbackAttachmentText).slice(0, dashboardChatMaxMessageLength);
   if (!messageText) {
     return;
   }
 
   const currentState = readDashboardChatWidgetState();
   const threadId = normalizeDashboardChatThreadId(currentState.selectedThreadId, dashboardChatTeamThreadId);
-  createDashboardMessage(messageText, threadId);
+  const submitButton = chatForm.querySelector('button[type="submit"]');
+  if (submitButton?.disabled) {
+    return;
+  }
+
+  if (submitButton) {
+    submitButton.disabled = true;
+  }
+  let message = null;
+  try {
+    message = await createDashboardMessageWithApi(messageText, threadId);
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+    }
+  }
+  if (!message) {
+    return;
+  }
   clearDashboardChatTyping();
   setDashboardChatReplyDraft("", "");
   setDashboardChatPriorityDraft("normal");
@@ -70602,15 +72686,18 @@ ui.profileWorkspace?.addEventListener("change", async (event) => {
     const profileValues = { ...values };
     delete profileValues.role;
     delete profileValues.status;
-      const result = await authStore.updateUser(user.id, { ...profileValues, profileImageUrl });
-      if (!result?.ok) {
-        renderProfileWorkspace(result?.reason || "Profile image could not be saved.");
-        return;
-      }
-      updatePlatformUserFromPayload(result.user || result.payload?.user);
-      syncPlatformUserFromAuth();
-      renderWorkspaceChrome();
-      renderProfileWorkspace("Profile image saved.");
+    renderProfileWorkspace("Uploading profile image...");
+    const uploadImage = authStore.uploadProfileImage || ((userId, imageDataUrl, patch) =>
+      authStore.updateUser?.(userId, { ...patch, profileImageUrl: imageDataUrl }));
+    const result = await uploadImage(user.id, profileImageUrl, profileValues);
+    if (!result?.ok) {
+      renderProfileWorkspace(result?.reason || "Profile image could not be saved.");
+      return;
+    }
+    updatePlatformUserFromPayload(result.user || result.payload?.user);
+    syncPlatformUserFromAuth();
+    renderWorkspaceChrome();
+    renderProfileWorkspace("Profile image saved.");
   } catch (error) {
     const message =
       error?.name === "QuotaExceededError"
@@ -70637,16 +72724,17 @@ ui.profileWorkspace?.addEventListener("click", async (event) => {
       return;
     }
 
-      try {
-        const result = await authStore.updateUser(user.id, { profileImageUrl: "" });
-        if (!result?.ok) {
-          renderProfileWorkspace(result?.reason || "Profile image could not be removed.");
-          return;
-        }
-        updatePlatformUserFromPayload(result.user || result.payload?.user);
-        syncPlatformUserFromAuth();
-        renderWorkspaceChrome();
-        renderProfileWorkspace("Profile image removed.");
+    try {
+      const removeImage = authStore.removeProfileImage || ((userId) => authStore.updateUser?.(userId, { profileImageUrl: "" }));
+      const result = await removeImage(user.id);
+      if (!result?.ok) {
+        renderProfileWorkspace(result?.reason || "Profile image could not be removed.");
+        return;
+      }
+      updatePlatformUserFromPayload(result.user || result.payload?.user);
+      syncPlatformUserFromAuth();
+      renderWorkspaceChrome();
+      renderProfileWorkspace("Profile image removed.");
     } catch (error) {
       renderProfileWorkspace(error?.message || "Profile image could not be removed.");
     }
@@ -71239,7 +73327,15 @@ ui.medicalTeamWorkspace?.addEventListener("click", (event) => {
   const deleteRecordButton = event.target.closest("[data-medical-delete-record]");
   if (deleteRecordButton && canEditMedicalTeam()) {
     if (window.confirm("Delete this medical log entry?")) {
-      removeMedicalRecord(deleteRecordButton.dataset.medicalDeleteRecord);
+      const recordId = deleteRecordButton.dataset.medicalDeleteRecord;
+      const record = medicalState.records.find((entry) => entry.id === recordId) ?? null;
+      removeMedicalRecord(recordId);
+      void recordMedicalDatabaseSyncEvent("record-deleted", {
+        playerId: record?.playerId || "",
+        recordId,
+        record,
+        idempotencyKey: `record-deleted:${recordId}`,
+      });
       renderMedicalTeamWorkspace("Log entry deleted.");
     }
     return;
@@ -71248,7 +73344,15 @@ ui.medicalTeamWorkspace?.addEventListener("click", (event) => {
   const deleteInjuryPlanButton = event.target.closest("[data-medical-delete-injury-plan]");
   if (deleteInjuryPlanButton && canEditMedicalTeam()) {
     if (window.confirm("Delete this availability plan?")) {
-      removeMedicalInjuryPlan(deleteInjuryPlanButton.dataset.medicalDeleteInjuryPlan);
+      const planId = deleteInjuryPlanButton.dataset.medicalDeleteInjuryPlan;
+      const plan = medicalState.injuryPlans.find((entry) => entry.id === planId) ?? null;
+      removeMedicalInjuryPlan(planId);
+      void recordMedicalDatabaseSyncEvent("availability-plan-deleted", {
+        playerId: plan?.playerId || "",
+        planId,
+        plan,
+        idempotencyKey: `availability-plan-deleted:${planId}`,
+      });
       renderMedicalTeamWorkspace("Availability plan deleted.");
     }
     return;
@@ -71259,6 +73363,11 @@ ui.medicalTeamWorkspace?.addEventListener("click", (event) => {
     const player = medicalState.players.find((candidate) => candidate.id === removePlayerButton.dataset.medicalRemovePlayer);
     if (player && window.confirm(`Remove ${player.name} and the medical log?`)) {
       removeMedicalPlayer(player.id);
+      void recordMedicalDatabaseSyncEvent("player-removed", {
+        playerId: player.id,
+        player,
+        idempotencyKey: `player-removed:${player.id}`,
+      });
       medicalPlayerModalOpen = false;
       renderMedicalTeamWorkspace("Player removed.");
     }
@@ -71377,6 +73486,20 @@ ui.medicalTeamWorkspace?.addEventListener("change", (event) => {
 });
 
 ui.medicalTeamWorkspace?.addEventListener("submit", (event) => {
+  const governanceForm = event.target.closest("#medicalGovernanceForm");
+  if (governanceForm) {
+    event.preventDefault();
+    const saved = updateMedicalGovernancePolicy(getPlatformFormValues(governanceForm));
+    if (saved) {
+      void recordMedicalDatabaseSyncEvent("governance-saved", {
+        policy: medicalState.policy,
+        idempotencyKey: `governance-saved:${medicalState.policy?.updatedAt || Date.now()}`,
+      });
+    }
+    renderMedicalTeamWorkspace(saved ? "Medical governance policy saved." : "Medical governance policy could not be saved.");
+    return;
+  }
+
   const rosterImportForm = event.target.closest("#medicalRosterImportForm");
   if (rosterImportForm) {
     event.preventDefault();
@@ -71392,6 +73515,11 @@ ui.medicalTeamWorkspace?.addEventListener("submit", (event) => {
     }
 
     upsertMedicalPlayers(players);
+    void recordMedicalDatabaseSyncEvent("players-imported", {
+      players,
+      importedCount: players.length,
+      idempotencyKey: `players-imported:${Date.now()}`,
+    });
     rosterImportForm.reset();
     renderMedicalTeamWorkspace(`${players.length} player${players.length === 1 ? "" : "s"} imported.`);
     return;
@@ -71411,6 +73539,14 @@ ui.medicalTeamWorkspace?.addEventListener("submit", (event) => {
     }
 
     const result = applyMedicalBulkRecommendation(getPlatformFormValues(bulkRecommendationForm));
+    if (result.savedCount) {
+      void recordMedicalDatabaseSyncEvent("bulk-recommendation-saved", {
+        records: result.records,
+        recordIds: result.records.map((record) => record.id),
+        date: result.records[0]?.date || medicalState.selectedDate,
+        idempotencyKey: `bulk-recommendation-saved:${result.records.map((record) => record.id).join("|")}`,
+      });
+    }
     const skippedText = result.blockedCount
       ? ` ${result.blockedCount} skipped for clearance: ${result.blockedNames.slice(0, 3).join(", ")}${result.blockedNames.length > 3 ? "..." : ""}.`
       : "";
@@ -71432,6 +73568,11 @@ ui.medicalTeamWorkspace?.addEventListener("submit", (event) => {
     }
 
     upsertMedicalPlayers([player]);
+    void recordMedicalDatabaseSyncEvent("player-added", {
+      playerId: player.id,
+      player,
+      idempotencyKey: `player-added:${player.id}`,
+    });
     newPlayerForm.reset();
     renderMedicalTeamWorkspace("Player added.");
     return;
@@ -71445,6 +73586,13 @@ ui.medicalTeamWorkspace?.addEventListener("submit", (event) => {
     }
 
     const plan = addMedicalInjuryPlan(getPlatformFormValues(injuryPlanForm));
+    if (plan) {
+      void recordMedicalDatabaseSyncEvent("availability-plan-created", {
+        playerId: plan.playerId,
+        plan,
+        idempotencyKey: `availability-plan-created:${plan.id}`,
+      });
+    }
     renderMedicalTeamWorkspace(plan ? "Availability plan created." : "Availability plan could not be created.");
     return;
   }
@@ -71465,6 +73613,13 @@ ui.medicalTeamWorkspace?.addEventListener("submit", (event) => {
     }
 
     const record = addMedicalRecord(values);
+    if (record) {
+      void recordMedicalDatabaseSyncEvent("recommendation-saved", {
+        playerId: record.playerId,
+        record,
+        idempotencyKey: `recommendation-saved:${record.id}`,
+      });
+    }
     medicalPlayerModalOpen = false;
     renderMedicalTeamWorkspace(record ? "Status saved." : "Status could not be saved.");
     return;
@@ -71478,6 +73633,13 @@ ui.medicalTeamWorkspace?.addEventListener("submit", (event) => {
     }
 
     const saved = updateMedicalPlanClearance(getPlatformFormValues(clearanceForm));
+    if (saved) {
+      void recordMedicalDatabaseSyncEvent("clearance-saved", {
+        playerId: saved.playerId,
+        plan: saved,
+        idempotencyKey: `clearance-saved:${saved.id}:${saved.updatedAt || Date.now()}`,
+      });
+    }
     renderMedicalTeamWorkspace(saved ? "Clearance checklist saved." : "Clearance checklist could not be saved.");
     return;
   }
@@ -71489,12 +73651,39 @@ ui.medicalTeamWorkspace?.addEventListener("submit", (event) => {
       return;
     }
 
-    const saved = updateMedicalPlayerProfile(getPlatformFormValues(playerProfileForm));
+    const profileValues = getPlatformFormValues(playerProfileForm);
+    const saved = updateMedicalPlayerProfile(profileValues);
+    if (saved) {
+      const player = getMedicalDatabasePlayer(profileValues.playerId);
+      void recordMedicalDatabaseSyncEvent("player-profile-saved", {
+        playerId: profileValues.playerId,
+        player,
+        idempotencyKey: `player-profile-saved:${profileValues.playerId}:${player?.updatedAt || Date.now()}`,
+      });
+    }
     renderMedicalTeamWorkspace(saved ? "Player profile saved." : "Player profile could not be saved.");
   }
 });
 
 ui.playerProfilesWorkspace?.addEventListener("click", (event) => {
+  if (event.target.matches("[data-player-profile-modal-overlay]") || event.target.closest("[data-player-profile-modal-close]")) {
+    closePlayerProfileModal();
+    return;
+  }
+
+  if (
+    event.target.matches("[data-player-profile-new-modal-overlay]") ||
+    event.target.closest("[data-player-profile-new-modal-close]")
+  ) {
+    closePlayerProfileNewPlayerModal();
+    return;
+  }
+
+  if (event.target.closest("[data-player-profile-new-open]")) {
+    openPlayerProfileNewPlayerModal();
+    return;
+  }
+
   const tabButton = event.target.closest("[data-player-profile-tab]");
   if (tabButton) {
     playerProfileActiveTab = normalizePlayerProfileTab(tabButton.dataset.playerProfileTab);
@@ -71519,13 +73708,7 @@ ui.playerProfilesWorkspace?.addEventListener("click", (event) => {
 
   const selectButton = event.target.closest("[data-player-profile-select]");
   if (selectButton) {
-    ensurePlayerProfilesState();
-    const playerId = selectButton.dataset.playerProfileSelect;
-    if (playerProfilesState.players.some((player) => player.id === playerId)) {
-      playerProfilesState.selectedPlayerId = playerId;
-      writePlayerProfilesState();
-      renderPlayerProfilesWorkspace();
-    }
+    openPlayerProfileModal(selectButton.dataset.playerProfileSelect);
     return;
   }
 
@@ -71547,6 +73730,8 @@ ui.playerProfilesWorkspace?.addEventListener("click", (event) => {
   const player = playerProfilesState.players.find((candidate) => candidate.id === removeButton.dataset.playerProfileRemove);
   if (player && window.confirm(`Remove ${player.name} from Player Profiles?`)) {
     removePlayerProfile(player.id);
+    playerProfileModalOpen = false;
+    playerProfileNewPlayerModalOpen = false;
     renderPlayerProfilesWorkspace("Player removed.");
   }
 });
@@ -71638,6 +73823,9 @@ ui.playerProfilesWorkspace?.addEventListener("submit", (event) => {
 
     const player = addPlayerProfile(getPlatformFormValues(newPlayerForm));
     newPlayerForm.reset();
+    if (player) {
+      playerProfileNewPlayerModalOpen = false;
+    }
     renderPlayerProfilesWorkspace(player ? "Player added." : "Player name is required.");
     return;
   }
@@ -71657,6 +73845,12 @@ ui.playerProfilesWorkspace?.addEventListener("submit", (event) => {
 });
 
 ui.sessionPlannerWorkspace?.addEventListener("click", (event) => {
+  if (sessionPlannerLibrarySuppressNextClick) {
+    sessionPlannerLibrarySuppressNextClick = false;
+    event.preventDefault();
+    return;
+  }
+
   const sessionPeriodizationClose = event.target.closest("[data-periodization-close]");
   if (sessionPeriodizationClose && sessionPlannerPeriodizationOverlayDate) {
     closeSessionPlannerPeriodizationOverlay();
@@ -71916,6 +74110,16 @@ ui.sessionPlannerWorkspace?.addEventListener("click", (event) => {
     return;
   }
 
+  const toggleHistoryButton = event.target.closest("[data-session-toggle-history]");
+  if (toggleHistoryButton) {
+    sessionPlannerHistoryOpen = !sessionPlannerHistoryOpen;
+    if (sessionPlannerHistoryOpen) {
+      loadSessionPlannerHistory(sessionPlannerState?.selectedDate).catch(() => {});
+    }
+    renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+    return;
+  }
+
   const refreshHistoryButton = event.target.closest("[data-session-refresh-history]");
   if (refreshHistoryButton) {
     loadSessionPlannerHistory(sessionPlannerState?.selectedDate, { force: true }).catch(() => {});
@@ -71937,6 +74141,36 @@ ui.sessionPlannerWorkspace?.addEventListener("click", (event) => {
   const openLibraryButton = event.target.closest("[data-session-open-library]");
   if (openLibraryButton) {
     setSessionPlannerLibraryOpen(true);
+    return;
+  }
+
+  const libraryFolderButton = event.target.closest("[data-session-library-folder]");
+  if (libraryFolderButton) {
+    selectSessionPlannerLibraryFolder(libraryFolderButton.dataset.sessionLibraryFolder);
+    return;
+  }
+
+  const archiveLibraryFolderButton = event.target.closest("[data-session-library-archive-folder]");
+  if (archiveLibraryFolderButton) {
+    archiveSessionPlannerExerciseLibraryFolder(archiveLibraryFolderButton.dataset.sessionLibraryArchiveFolder);
+    return;
+  }
+
+  const editLibraryFolderButton = event.target.closest("[data-session-library-edit-folder]");
+  if (editLibraryFolderButton) {
+    startSessionPlannerExerciseLibraryFolderEdit(editLibraryFolderButton.dataset.sessionLibraryEditFolder);
+    return;
+  }
+
+  const cancelLibraryFolderEditButton = event.target.closest("[data-session-library-cancel-folder-edit]");
+  if (cancelLibraryFolderEditButton) {
+    cancelSessionPlannerExerciseLibraryFolderEdit();
+    return;
+  }
+
+  const restoreLibraryFolderButton = event.target.closest("[data-session-library-restore-folder]");
+  if (restoreLibraryFolderButton) {
+    restoreSessionPlannerExerciseLibraryFolder(restoreLibraryFolderButton.dataset.sessionLibraryRestoreFolder);
     return;
   }
 
@@ -72041,6 +74275,36 @@ ui.sessionPlannerWorkspace?.addEventListener("click", (event) => {
     return;
   }
 
+  const duplicateLibraryExerciseButton = event.target.closest("[data-session-duplicate-library-exercise]");
+  if (duplicateLibraryExerciseButton) {
+    duplicateSessionPlannerLibraryExercise(duplicateLibraryExerciseButton.dataset.sessionDuplicateLibraryExercise);
+    return;
+  }
+
+  const editLibraryExerciseButton = event.target.closest("[data-session-edit-library-exercise]");
+  if (editLibraryExerciseButton) {
+    startSessionPlannerLibraryExerciseEdit(editLibraryExerciseButton.dataset.sessionEditLibraryExercise);
+    return;
+  }
+
+  const saveLibraryEditButton = event.target.closest("[data-session-save-library-edit]");
+  if (saveLibraryEditButton) {
+    updateSessionPlannerLibraryExerciseFromEdit(saveLibraryEditButton.dataset.sessionSaveLibraryEdit);
+    return;
+  }
+
+  const saveLibraryEditCopyButton = event.target.closest("[data-session-save-library-edit-copy]");
+  if (saveLibraryEditCopyButton) {
+    saveSessionPlannerLibraryExerciseEditAsCopy(saveLibraryEditCopyButton.dataset.sessionSaveLibraryEditCopy);
+    return;
+  }
+
+  const cancelLibraryEditButton = event.target.closest("[data-session-cancel-library-edit]");
+  if (cancelLibraryEditButton) {
+    cancelSessionPlannerLibraryExerciseEdit();
+    return;
+  }
+
   const deleteLibraryExerciseButton = event.target.closest("[data-session-delete-library-exercise]");
   if (deleteLibraryExerciseButton) {
     deleteSessionPlannerLibraryExercise(deleteLibraryExerciseButton.dataset.sessionDeleteLibraryExercise);
@@ -72050,6 +74314,42 @@ ui.sessionPlannerWorkspace?.addEventListener("click", (event) => {
   const restoreLibraryExerciseButton = event.target.closest("[data-session-restore-library-exercise]");
   if (restoreLibraryExerciseButton) {
     restoreSessionPlannerLibraryExercise(restoreLibraryExerciseButton.dataset.sessionRestoreLibraryExercise);
+    return;
+  }
+
+  const removeLibraryExerciseFromFolderButton = event.target.closest("[data-session-remove-library-exercise-from-folder]");
+  if (removeLibraryExerciseFromFolderButton) {
+    removeSessionPlannerExerciseFromLibraryFolder(
+      removeLibraryExerciseFromFolderButton.dataset.sessionRemoveLibraryExerciseFromFolder,
+      removeLibraryExerciseFromFolderButton.dataset.sessionRemoveLibraryFolder
+    );
+    return;
+  }
+
+  const previewLibraryExerciseButton = event.target.closest("[data-session-preview-library-exercise]");
+  if (previewLibraryExerciseButton) {
+    selectSessionPlannerLibraryPreview(previewLibraryExerciseButton.dataset.sessionPreviewLibraryExercise);
+    return;
+  }
+
+  const libraryFilterToggle = event.target.closest("[data-session-library-filter-toggle]");
+  if (libraryFilterToggle) {
+    toggleSessionPlannerLibraryFilterOpen(libraryFilterToggle.dataset.sessionLibraryFilterToggle);
+    return;
+  }
+
+  const libraryFilterOption = event.target.closest("[data-session-library-filter-option]");
+  if (libraryFilterOption) {
+    toggleSessionPlannerLibraryFilterValue(
+      libraryFilterOption.dataset.sessionLibraryFilterOption,
+      libraryFilterOption.dataset.sessionLibraryFilterValue
+    );
+    return;
+  }
+
+  const libraryFilterClear = event.target.closest("[data-session-library-filter-clear]");
+  if (libraryFilterClear) {
+    clearSessionPlannerLibraryFilter(libraryFilterClear.dataset.sessionLibraryFilterClear);
     return;
   }
 
@@ -72076,6 +74376,20 @@ ui.sessionPlannerWorkspace?.addEventListener("dblclick", (event) => {
 });
 
 ui.sessionPlannerWorkspace?.addEventListener("submit", (event) => {
+  const libraryFolderEditForm = event.target.closest?.("[data-session-library-folder-edit-form]");
+  if (libraryFolderEditForm) {
+    event.preventDefault();
+    updateSessionPlannerExerciseLibraryFolderFromForm(libraryFolderEditForm);
+    return;
+  }
+
+  const libraryFolderForm = event.target.closest?.("[data-session-library-folder-form]");
+  if (libraryFolderForm) {
+    event.preventDefault();
+    createSessionPlannerExerciseLibraryFolderFromForm(libraryFolderForm);
+    return;
+  }
+
   const playerBoardAutoForm = event.target.closest?.("[data-session-player-board-auto-form]");
   if (playerBoardAutoForm) {
     event.preventDefault();
@@ -72099,6 +74413,15 @@ ui.sessionPlannerWorkspace?.addEventListener("submit", (event) => {
 });
 
 ui.sessionPlannerWorkspace?.addEventListener("dragstart", (event) => {
+  const libraryExerciseItem = event.target.closest("[data-session-library-drag-exercise]");
+  if (libraryExerciseItem && canEditSessionPlanner()) {
+    sessionPlannerDraggedLibraryExerciseId = libraryExerciseItem.dataset.sessionLibraryDragExercise;
+    libraryExerciseItem.classList.add("is-dragging");
+    event.dataTransfer.effectAllowed = "copy";
+    event.dataTransfer.setData("text/plain", sessionPlannerDraggedLibraryExerciseId);
+    return;
+  }
+
   const row = event.target.closest("[data-session-block-drop-id]");
   if (!row || !canEditSessionPlanner()) {
     return;
@@ -72111,6 +74434,21 @@ ui.sessionPlannerWorkspace?.addEventListener("dragstart", (event) => {
 });
 
 ui.sessionPlannerWorkspace?.addEventListener("dragover", (event) => {
+  const folderDropTarget = event.target.closest("[data-session-library-folder-drop]");
+  if (folderDropTarget && sessionPlannerDraggedLibraryExerciseId) {
+    event.preventDefault();
+    ui.sessionPlannerWorkspace
+      ?.querySelectorAll(".session-library-folder-card.is-drop-target")
+      .forEach((folderCard) => {
+        if (folderCard !== folderDropTarget) {
+          folderCard.classList.remove("is-drop-target");
+        }
+      });
+    folderDropTarget.classList.add("is-drop-target");
+    event.dataTransfer.dropEffect = "copy";
+    return;
+  }
+
   const row = event.target.closest("[data-session-block-drop-id]");
   if (!row || !sessionPlannerDraggedBlockId || row.dataset.sessionBlockDropId === sessionPlannerDraggedBlockId) {
     return;
@@ -72131,6 +74469,12 @@ ui.sessionPlannerWorkspace?.addEventListener("dragover", (event) => {
 });
 
 ui.sessionPlannerWorkspace?.addEventListener("dragleave", (event) => {
+  const folderDropTarget = event.target.closest("[data-session-library-folder-drop]");
+  if (folderDropTarget) {
+    folderDropTarget.classList.remove("is-drop-target");
+    return;
+  }
+
   const row = event.target.closest("[data-session-block-drop-id]");
   if (!row) {
     return;
@@ -72140,6 +74484,17 @@ ui.sessionPlannerWorkspace?.addEventListener("dragleave", (event) => {
 });
 
 ui.sessionPlannerWorkspace?.addEventListener("drop", (event) => {
+  const folderDropTarget = event.target.closest("[data-session-library-folder-drop]");
+  if (folderDropTarget && sessionPlannerDraggedLibraryExerciseId) {
+    event.preventDefault();
+    addSessionPlannerExerciseToLibraryFolder(
+      sessionPlannerDraggedLibraryExerciseId,
+      folderDropTarget.dataset.sessionLibraryFolderDrop
+    );
+    clearSessionPlannerLibraryDragState();
+    return;
+  }
+
   const row = event.target.closest("[data-session-block-drop-id]");
   if (!row || !sessionPlannerDraggedBlockId) {
     return;
@@ -72156,9 +74511,14 @@ ui.sessionPlannerWorkspace?.addEventListener("drop", (event) => {
 
 ui.sessionPlannerWorkspace?.addEventListener("dragend", () => {
   clearSessionPlannerBlockDragState();
+  clearSessionPlannerLibraryDragState();
 });
 
 ui.sessionPlannerWorkspace?.addEventListener("pointerdown", (event) => {
+  if (startSessionPlannerLibraryPointerDrag(event)) {
+    return;
+  }
+
   if (startSessionPlannerPlayerBoardDrag(event)) {
     return;
   }
@@ -72171,6 +74531,10 @@ ui.sessionPlannerWorkspace?.addEventListener("pointerdown", (event) => {
 });
 
 window.addEventListener("pointermove", (event) => {
+  if (updateSessionPlannerLibraryPointerDrag(event)) {
+    return;
+  }
+
   if (updateSessionPlannerPlayerBoardDrag(event)) {
     return;
   }
@@ -72182,7 +74546,11 @@ window.addEventListener("pointermove", (event) => {
   updateSessionPlannerTacticalDrag(event);
 });
 
-window.addEventListener("pointerup", () => {
+window.addEventListener("pointerup", (event) => {
+  if (finishSessionPlannerLibraryPointerDrag(event)) {
+    return;
+  }
+
   if (finishSessionPlannerPlayerBoardDrag()) {
     return;
   }
@@ -72376,6 +74744,12 @@ ui.sessionPlannerWorkspace?.addEventListener("change", (event) => {
   const libraryFilter = event.target.closest("[data-session-library-filter]");
   if (libraryFilter) {
     updateSessionPlannerLibraryFilter(libraryFilter.dataset.sessionLibraryFilter, libraryFilter.value);
+    return;
+  }
+
+  const librarySort = event.target.closest("[data-session-library-sort]");
+  if (librarySort) {
+    updateSessionPlannerLibrarySortMode(librarySort.value);
     return;
   }
 
@@ -72827,6 +75201,23 @@ ui.scheduleOverviewSpanButtons?.forEach((button) => {
   });
 });
 
+ui.dashboardChatWidgetRoot?.addEventListener("change", async (event) => {
+  const attachmentInput = event.target.closest("[data-dashboard-chat-attachment-input]");
+  if (!attachmentInput) {
+    return;
+  }
+
+  const file = attachmentInput.files?.[0] || null;
+  if (!file) {
+    return;
+  }
+
+  const currentState = readDashboardChatWidgetState();
+  const threadId = normalizeDashboardChatThreadId(currentState.selectedThreadId, dashboardChatTeamThreadId);
+  await createDashboardChatAttachmentIntent(file, threadId);
+  attachmentInput.value = "";
+});
+
 ui.scheduleCalendarGrid?.addEventListener("click", (event) => {
   const dateTrigger = event.target.closest("[data-schedule-date]");
   if (!dateTrigger) {
@@ -72928,38 +75319,7 @@ ui.scheduleEventForm?.addEventListener("submit", (event) => {
   renderScheduleWorkspace();
 });
 
-ui.simulatorIntroEnterButton?.addEventListener("click", () => {
-  launchGameSimulatorFromIntro();
-});
-
-ui.pitchFullscreenButton.addEventListener("click", () => {
-  togglePitchFullscreen();
-});
-
-document.addEventListener("fullscreenchange", () => {
-  syncPitchFullscreenButton();
-  updatePitchFullscreenHudLayout();
-  if (activeMetricTooltipTarget && !ui.metricTooltip?.hidden) {
-    ensureMetricTooltipLayer();
-    positionMetricTooltip(activeMetricTooltipTarget);
-  }
-
-  if (
-    !document.fullscreenElement &&
-    hubState.activeWorkspaceId === "game-simulator" &&
-    ui.gameSimulatorWorkspace?.classList.contains("is-simulator-launched")
-  ) {
-    resetGameSimulatorIntro();
-    renderWorkspaceChrome();
-  }
-});
-
-window.addEventListener("resize", () => {
-  updatePitchFullscreenHudLayout();
-  if (activeMetricTooltipTarget && !ui.metricTooltip?.hidden) {
-    positionMetricTooltip(activeMetricTooltipTarget);
-  }
-});
+gameSimulatorControlBindings.bind();
 
 document.addEventListener("mousemove", (event) => {
   const trigger = event.target.closest?.("[data-metric-help]");
@@ -73043,6 +75403,14 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && medicalPlayerModalOpen) {
     medicalPlayerModalOpen = false;
     renderMedicalTeamWorkspace();
+  }
+
+  if (event.key === "Escape" && playerProfileModalOpen) {
+    closePlayerProfileModal();
+  }
+
+  if (event.key === "Escape" && playerProfileNewPlayerModalOpen) {
+    closePlayerProfileNewPlayerModal();
   }
 
   if (event.key === "Escape" && periodizationDayOverlayOpen) {
@@ -73262,81 +75630,7 @@ ui.savedSequenceList.addEventListener("click", (event) => {
   }
 });
 
-window.addEventListener("keydown", (event) => {
-  if (hubState?.activeWorkspaceId !== "game-simulator") {
-    return;
-  }
-
-  const key = String(event.key || "").toLowerCase();
-  if (
-    (event.code === "Space" || key === " ") &&
-    state.offensiveAutopilot &&
-    !shouldIgnoreSpaceAutopilotHotkey(event)
-  ) {
-    event.preventDefault();
-    if (!event.repeat) {
-      toggleSpaceAutopilotPlayback();
-    }
-    return;
-  }
-
-  if (shouldIgnoreHotkey(event)) {
-    return;
-  }
-
-  if (key === "enter") {
-    event.preventDefault();
-    executePlannedAction();
-    return;
-  }
-
-  if (key === "p") {
-    event.preventDefault();
-    setKeyboardActionMode("pass");
-    return;
-  }
-
-  if (key === "d") {
-    event.preventDefault();
-    setKeyboardActionMode("dribble");
-    return;
-  }
-
-  if (key === "s") {
-    event.preventDefault();
-    setKeyboardActionMode("shot");
-  }
-});
-
-window.addEventListener("keyup", (event) => {
-  if (hubState?.activeWorkspaceId !== "game-simulator") {
-    return;
-  }
-
-  const key = String(event.key || "").toLowerCase();
-  if (key === "p" && state.keyboardActionMode === "pass") {
-    armKeyboardActionGrace("pass");
-    setKeyboardActionMode(null);
-    return;
-  }
-
-  if (key === "d" && state.keyboardActionMode === "dribble") {
-    armKeyboardActionGrace("dribble");
-    setKeyboardActionMode(null);
-    return;
-  }
-
-  if (key === "s" && state.keyboardActionMode === "shot") {
-    armKeyboardActionGrace("shot");
-    setKeyboardActionMode(null);
-  }
-});
-
 window.addEventListener("blur", () => {
-  clearKeyboardActionGrace();
-  if (state.keyboardActionMode !== null) {
-    setKeyboardActionMode(null);
-  }
   setProfileMenuOpen(false);
 });
 
@@ -73432,9 +75726,15 @@ window.addEventListener("storage", (event) => {
     queueDataSafetySnapshot("cross-tab-update");
   }
 
+  if (event.key === dashboardChatStorageKey) {
+    renderDashboardChatWidget();
+    syncDashboardChatWidgetNotificationCursor();
+    renderTopIconMenu();
+    return;
+  }
+
   if (
     event.key === dashboardTaskStorageKey ||
-    event.key === dashboardChatStorageKey ||
     event.key === dashboardNotificationSeenStorageKey ||
     event.key === playerProfilesStorageKey
   ) {
@@ -73442,10 +75742,6 @@ window.addEventListener("storage", (event) => {
       playerProfilesState = readPlayerProfilesState();
       renderPlayerProfilesWorkspace();
       return;
-    }
-    if (event.key === dashboardChatStorageKey) {
-      renderDashboardChatWidget();
-      syncDashboardChatWidgetNotificationCursor();
     }
     if (hubState?.activeWorkspaceId === "home") {
       markDashboardHomeSeenForCurrentUser();
@@ -73507,5 +75803,5 @@ syncFormationControls();
 updateSequenceButtons();
 if (hubState?.activeWorkspaceId === "game-simulator") {
   render();
+  startSimulatorAnimationLoop();
 }
-window.requestAnimationFrame(animationFrame);

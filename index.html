@@ -17,7 +17,6 @@
     <section id="loginScreen" class="login-screen" aria-label="Coaching platform login">
       <div class="login-card">
         <p class="login-kicker">Football Science Coaching Platform</p>
-
         <form id="loginForm" class="login-form">
           <label>
             Username or Email
@@ -32,11 +31,9 @@
           </p>
           <button type="submit">Sign in</button>
         </form>
-
         <button id="forgotPasswordToggle" type="button" class="login-link-button" aria-expanded="false">
           Forgot password?
         </button>
-
         <form id="forgotPasswordForm" class="login-forgot-form" hidden>
           <label>
             Enter username or email
@@ -50,7 +47,6 @@
         </form>
       </div>
     </section>
-
     <div id="hubShell" class="coach-platform" hidden>
       <aside id="hubSidebar" class="platform-sidebar">
         <div class="platform-brand">
@@ -60,9 +56,7 @@
             <span>Daily team platform</span>
           </div>
         </div>
-
         <nav id="workspaceList" class="platform-nav" aria-label="Platform sections"></nav>
-
         <div class="platform-sidebar-foot">
           <div class="coach-avatar">ML</div>
           <div>
@@ -71,7 +65,6 @@
           </div>
         </div>
       </aside>
-
       <main class="platform-main">
         <header class="platform-topbar">
           <div class="platform-title">
@@ -123,7 +116,6 @@
             </div>
           </div>
         </header>
-
         <div class="platform-content">
           <section class="workspace-view platform-home-view is-active" data-workspace-view="home">
             <div class="platform-home-shell">
@@ -134,18 +126,14 @@
                   <p id="dashboardGreeting" class="dashboard-welcome">Welcome back, Mak.</p>
                 </div>
               </section>
-
               <div id="dashboardGrid" class="workspace-grid"></div>
-
             </div>
           </section>
-
           <div
             id="dashboardChatWidgetRoot"
             class="dashboard-chat-widget-root"
             aria-label="Team chat widget"
           ></div>
-
           <section class="workspace-view platform-placeholder-view" data-workspace-view="placeholder">
             <article class="placeholder-shell platform-module-shell">
               <p id="placeholderTag" class="placeholder-tag">Module</p>
@@ -156,27 +144,21 @@
               <div id="placeholderModules" class="placeholder-modules"></div>
             </article>
           </section>
-
           <section class="workspace-view platform-profile-view" data-workspace-view="profile">
             <div id="profileWorkspace" class="profile-workspace platform-module-shell"></div>
           </section>
-
           <section class="workspace-view platform-staff-view" data-workspace-view="staff">
             <div id="staffWorkspace" class="staff-workspace platform-module-shell"></div>
           </section>
-
           <section class="workspace-view platform-admin-view" data-workspace-view="admin">
             <div id="adminWorkspace" class="admin-workspace platform-module-shell"></div>
           </section>
-
           <section class="workspace-view platform-medical-view" data-workspace-view="medical-team">
             <div id="medicalTeamWorkspace" class="medical-workspace platform-module-shell"></div>
           </section>
-
           <section class="workspace-view platform-player-profiles-view" data-workspace-view="player-profiles">
             <div id="playerProfilesWorkspace" class="player-profiles-workspace platform-module-shell"></div>
           </section>
-
           <section class="workspace-view platform-schedule-view" data-workspace-view="schedule">
             <div id="scheduleWorkspace" class="schedule-workspace platform-module-shell">
               <header class="schedule-hero-card">
@@ -202,7 +184,6 @@
                   <button id="scheduleNextMonthButton" type="button" class="schedule-nav-button" aria-label="Next month">→</button>
                 </div>
               </header>
-
               <section class="schedule-layout">
                 <article class="schedule-board-card">
                   <div id="scheduleWeekdays" class="schedule-weekdays" aria-hidden="true">
@@ -217,7 +198,6 @@
                   <div id="scheduleCalendarGrid" class="schedule-calendar-grid"></div>
                   <div id="scheduleOverviewGrid" class="schedule-overview-grid" hidden></div>
                 </article>
-
                 <aside id="scheduleDayCard" class="schedule-day-card">
                   <div class="schedule-day-card-head">
                     <div>
@@ -238,7 +218,6 @@
                     </button>
                   </div>
                   <div id="scheduleEventList" class="schedule-event-list"></div>
-
                   <form id="scheduleEventForm" class="schedule-event-form">
                     <label>
                       <span>Date</span>
@@ -276,7 +255,6 @@
               </section>
             </div>
           </section>
-
           <section class="workspace-view platform-periodization-view" data-workspace-view="periodization">
             <div id="periodizationShell" class="periodization-shell platform-module-shell">
               <header class="periodization-hero-card">
@@ -311,11 +289,9 @@
               </section>
             </div>
           </section>
-
           <section class="workspace-view platform-session-view" data-workspace-view="session-planner">
             <div id="sessionPlannerWorkspace" class="session-planner-workspace platform-module-shell"></div>
           </section>
-
           <section
             class="workspace-view platform-game-simulator-view is-simulator-intro"
             data-workspace-view="game-simulator"
@@ -340,7 +316,6 @@
                   </ul>
                 </article>
               </section>
-
               <section class="simulator-intro-grid" aria-label="Simulator engine">
                 <article class="simulator-intro-card">
                   <span>01</span>
@@ -373,7 +348,6 @@
                   <p>Actions are recorded as steps, interpolated like video and linked to formations, identity and spacing rules.</p>
                 </article>
               </section>
-
               <section class="simulator-intro-formulas" aria-label="Core calculations">
                 <div class="simulator-formula-chip">Ball ETA = distance, action type, speed profile and deceleration</div>
                 <div class="simulator-formula-chip">Player reach = reaction time + acceleration curve + top-speed cap</div>
@@ -382,14 +356,12 @@
                 <div class="simulator-formula-chip">Defending = block spacing, line integrity, pressure chain and duels</div>
                 <div class="simulator-formula-chip">Sequence = each action recorded, interpolated and replayed at match speed</div>
               </section>
-
               <section class="simulator-intro-flow" aria-label="How to use the simulator">
                 <div class="simulator-intro-step"><span>1</span> Set action</div>
                 <div class="simulator-intro-step"><span>2</span> Move players</div>
                 <div class="simulator-intro-step"><span>3</span> Press Enter</div>
                 <div class="simulator-intro-step"><span>4</span> Watch fullscreen</div>
               </section>
-
               <div class="simulator-intro-actions">
                 <p>Press Enter to open the live simulator in fullscreen.</p>
                 <button id="simulatorIntroEnterButton" type="button" class="simulator-intro-enter">
@@ -457,7 +429,6 @@
                             </label>
                           </div>
                         </article>
-
                         <article class="team-setup-card team-setup-card-away">
                           <header class="team-setup-header">
                             <span class="team-setup-dot team-setup-dot-away"></span>
@@ -512,7 +483,6 @@
                             </label>
                           </div>
                         </article>
-
                         <article class="team-autopilot-card">
                           <label class="team-select-field physical-profile-field" for="physicalProfileSelect">
                             <span>Physical Level</span>
@@ -546,9 +516,7 @@
                         </article>
                       </div>
                     </div>
-
                     <canvas id="pitchCanvas" width="1050" height="680"></canvas>
-
                     <div class="fullscreen-hud fullscreen-hud-left">
                       <section class="info-card fullscreen-hud-card">
                         <div class="fullscreen-hud-head">
@@ -564,7 +532,6 @@
                         <div id="fullscreenSelectedPlayerCard" class="selected-card"></div>
                       </section>
                     </div>
-
                     <div class="fullscreen-hud fullscreen-hud-right">
                       <section class="info-card fullscreen-hud-card">
                         <h2>Status</h2>
@@ -608,7 +575,6 @@
                         </dl>
                       </section>
                     </div>
-
                     <div class="pitch-toolbar pitch-toolbar-bottom">
                       <div class="toolbar-group action-controls action-controls-bottom">
                         <button id="passModeButton" type="button" class="mode-button is-active">Pass</button>
@@ -632,7 +598,6 @@
                         <button id="pitchFullscreenButton" type="button" class="mode-button secondary">Fullscreen</button>
                       </div>
                     </div>
-
                     <div class="controls-card controls-card-inline compact-game-controls">
                       <label class="speed-control compact-range-control" for="playbackSpeed">
                         <span class="compact-control-head">
@@ -648,7 +613,6 @@
                           value="1"
                         />
                       </label>
-
                       <div class="speed-control speed-mode-control compact-tuning-control">
                         <div class="compact-control-head">
                           <label for="ballSpeed">Ball Speed</label>
@@ -667,7 +631,6 @@
                         />
                         <span id="ballSpeedLabel" class="control-value">Auto</span>
                       </div>
-
                       <div class="speed-control speed-mode-control compact-tuning-control">
                         <div class="compact-control-head">
                           <label for="dribbleSpeed">Dribble Speed</label>
@@ -686,7 +649,6 @@
                         />
                         <span id="dribbleSpeedLabel" class="control-value">Auto</span>
                       </div>
-
                       <div class="compact-environment-controls">
                         <label class="speed-control compact-select-control" for="pitchSurfaceSelect">
                           Pitch
@@ -696,7 +658,6 @@
                             <option value="football-turf">Football Turf</option>
                           </select>
                         </label>
-
                         <label class="speed-control compact-select-control" for="weatherSelect">
                           Weather
                           <select id="weatherSelect">
@@ -705,7 +666,6 @@
                             <option value="wet">Wet</option>
                           </select>
                         </label>
-
                         <label class="speed-control compact-select-control" for="firstTouchSelect">
                           Touch
                           <select id="firstTouchSelect">
@@ -718,7 +678,6 @@
                             <option value="across">Across Body</option>
                           </select>
                         </label>
-
                         <label class="speed-control compact-select-control" for="defensiveAggressionSelect">
                           Duels
                           <select id="defensiveAggressionSelect">
@@ -728,7 +687,6 @@
                           </select>
                         </label>
                       </div>
-
                       <div class="legend">
                         <span><i class="swatch swatch-ball"></i>Ball</span>
                         <span id="homeLegendLabel"><i class="swatch swatch-home"></i>Blue Team 4-3-3</span>
@@ -740,7 +698,6 @@
                     <div id="metricTooltip" class="metric-tooltip" role="tooltip" hidden></div>
                   </div>
                 </article>
-
                 <aside class="sidebar">
                   <section class="info-card">
                     <h2>Status</h2>
@@ -787,22 +744,18 @@
                       </div>
                     </dl>
                   </section>
-
                   <section class="info-card">
                     <h2>Selected Player</h2>
                     <div id="selectedPlayerCard" class="selected-card"></div>
                   </section>
-
                   <section class="info-card" hidden>
                     <h2>Squads</h2>
                     <div id="playerTable" class="player-table"></div>
                   </section>
-
                   <section class="info-card" hidden>
                     <h2>Event Log</h2>
                     <ul id="eventLog" class="event-log"></ul>
                   </section>
-
                   <section class="info-card">
                     <h2>Sequence</h2>
                     <p id="sequenceStatus" class="sequence-status">No sequence recorded yet.</p>
@@ -820,24 +773,28 @@
         </div>
       </main>
     </div>
-
     <script>
       (() => {
         const DEFAULT_ROLES = ["admin", "coach", "analyst", "performance", "medical", "guest"];
         const SUPABASE_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js";
         const API_CLIENT_CONFIG = "/api/client-config";
         const API_ADMIN_USERS = "/api/admin-users";
+        const API_PROFILE_IMAGE = "/api/profile-image";
         const API_USER_LOOKUP = "/api/user-lookup";
         const API_SEND_RESET = "/api/send-reset";
         const API_APP_STATE = "/api/app-state";
         const API_AUDIT_LOG = "/api/audit-log";
+        const API_MEDICAL = "/api/medical";
         const API_SESSION_HISTORY = "/api/session-history";
         const API_PRESENCE = "/api/presence";
         const DATA_SAFETY_MANIFEST_KEY = "football-data-safety-v1";
         const ONLINE_APP_URL = "https://footballscience.xyz/";
         const DEV_AUTH_SESSION_KEY = "football-science-dev-auth-session-v1";
         const DEV_AUTH_PASSWORD = "courage";
+        const WORKSPACE_HUB_STATE_KEY = "football-workspace-hub-v3";
         const SESSION_PLANNER_STATE_KEY = "football-session-planner-v3";
+        const PLAYER_PROFILES_STATE_KEY = "football-player-profiles-v1";
+        const MEDICAL_TEAM_STATE_KEY = "football-medical-team-v1";
         const SESSION_PLANNER_REDUCTION_GUARD_KEY = "blockReductionGuard";
         const SESSION_PLANNER_REDUCTION_WINDOW_MS = 30 * 60 * 1000;
         const SESSION_PLANNER_BLOCK_FIELD_META_KEY = "fieldUpdatedAt";
@@ -866,19 +823,21 @@
         ];
         const SESSION_PLANNER_BLOCK_MERGE_FIELD_SET = new Set(SESSION_PLANNER_BLOCK_MERGE_FIELDS);
         const CENTRAL_STATE_KEYS = new Set([
-          "football-workspace-hub-v3",
+          WORKSPACE_HUB_STATE_KEY,
           "football-periodization-v2",
           "football-schedule-v1",
           SESSION_PLANNER_STATE_KEY,
           "football-session-exercise-library-v1",
           "football-session-exercise-library-backup-v1",
+          "football-session-exercise-library-folders-v1",
+          "football-session-exercise-library-folders-backup-v1",
           "football-dashboard-tasks-v1",
           "football-dashboard-chat-v1",
           "football-dashboard-notification-seen-v1",
           "football-dashboard-tutorial-prefs-v1",
           "football-dashboard-news-seen-v1",
-          "football-medical-team-v1",
-          "football-player-profiles-v1",
+          MEDICAL_TEAM_STATE_KEY,
+          PLAYER_PROFILES_STATE_KEY,
           "football-simulator-sequence-v1",
           "football-simulator-sequence-library-v2",
         ]);
@@ -894,7 +853,6 @@
         ]);
         const MAX_PROFILE_IMAGE_URL_LENGTH = 1800;
         const MAX_AUTH_ACCESS_TOKEN_LENGTH = 6000;
-
         const authState = {
           supabase: null,
           session: null,
@@ -910,18 +868,15 @@
           hydrating: false,
           lastError: "",
           lastSyncedAt: "",
+          localDev: false,
           metadata: {},
         };
         let postAuthHydrationTimer = 0;
         let postAuthHydrationRunId = 0;
-
         function normalizeProfileImageValue(value) {
           const raw = String(value || "").trim();
           if (!raw || raw.length > MAX_PROFILE_IMAGE_URL_LENGTH) {
             return "";
-          }
-          if (raw.startsWith("data:image/")) {
-            return raw;
           }
           try {
             const parsed = new URL(raw);
@@ -930,7 +885,6 @@
             return "";
           }
         }
-
         function normalizeAuthUser(user = {}) {
           const meta = user.user_metadata || {};
           const appMeta = user.app_metadata || {};
@@ -967,7 +921,6 @@
             lastSignInAt: user.last_sign_in_at || user.lastSignInAt || "",
           };
         }
-
         function toFormError(message, isError = false) {
           const loginError = document.getElementById("loginError");
           if (!loginError) {
@@ -978,22 +931,18 @@
           loginError.classList.toggle("login-error", isError);
           loginError.classList.toggle("login-success", !isError);
         }
-
         function setLoginBusy(isBusy, message = "") {
           const loginForm = document.getElementById("loginForm");
           const submitButton = loginForm?.querySelector('button[type="submit"]');
           if (!submitButton) {
             return;
           }
-
           if (!submitButton.dataset.defaultText) {
             submitButton.dataset.defaultText = submitButton.textContent || "Sign in";
           }
-
           submitButton.disabled = Boolean(isBusy);
           submitButton.textContent = isBusy ? message || "Signing in..." : submitButton.dataset.defaultText;
         }
-
         function withTimeout(promise, timeoutMs, timeoutMessage) {
           let timeoutId = 0;
           return Promise.race([
@@ -1009,25 +958,20 @@
             }),
           ]);
         }
-
         function isLocalFileHost() {
           return window.location.protocol === "file:";
         }
-
         function isLocalDevHost() {
           const host = window.location.hostname || "";
           return host === "localhost" || host === "127.0.0.1" || host === "::1" || host.endsWith(".localhost");
         }
-
         function shouldForceCanonicalHost() {
           return false;
         }
-
         function redirectToCanonicalHost() {
           const nextUrl = `https://footballscience.xyz${window.location.pathname || "/"}${window.location.search || ""}${window.location.hash || ""}`;
           window.location.replace(nextUrl);
         }
-
         function getPasswordResetRedirectUrl() {
           const fallback = "https://footballscience.xyz/";
           try {
@@ -1038,10 +982,8 @@
           } catch {
             return fallback;
           }
-
           return fallback;
         }
-
         function purgeLegacyLocalAccountStorage() {
           try {
             window.localStorage.removeItem("mak-coaching-platform-users-v1");
@@ -1050,13 +992,11 @@
             // ignore storage cleanup failures
           }
         }
-
         function setForgotPasswordMessage(message, isError = false) {
           const forgotPasswordMessage = document.getElementById("forgotPasswordMessage");
           if (!forgotPasswordMessage) {
             return;
           }
-
           if (message) {
             forgotPasswordMessage.textContent = message;
             forgotPasswordMessage.hidden = false;
@@ -1068,12 +1008,10 @@
             forgotPasswordMessage.classList.remove("login-error", "login-success");
           }
         }
-
         function requestWorkspaceOpen(workspaceId) {
           if (!workspaceId) {
             return;
           }
-
           window.__pendingWorkspaceId = workspaceId;
           window.dispatchEvent(
             new CustomEvent("platform:open-workspace", {
@@ -1081,12 +1019,10 @@
             })
           );
         }
-
         function notifyAuthChange(user) {
           window.platformSession = user;
           window.dispatchEvent(new CustomEvent("platform:user-change", { detail: { user } }));
         }
-
         function getDevAuthUsers() {
           return [
             normalizeAuthUser({
@@ -1108,7 +1044,6 @@
             }),
           ];
         }
-
         function writeDevAuthSession(userId = "") {
           try {
             if (userId) {
@@ -1120,7 +1055,6 @@
             // Local dev auth still works for this tab even if persistence is unavailable.
           }
         }
-
         function readDevAuthSessionUserId() {
           try {
             return window.localStorage.getItem(DEV_AUTH_SESSION_KEY) || "";
@@ -1128,7 +1062,6 @@
             return "";
           }
         }
-
         function initializeDevAuth() {
           authState.devMode = true;
           authState.supabase = null;
@@ -1140,7 +1073,6 @@
             setCurrentUserById(savedUserId);
             writeDevAuthSession(savedUserId);
           }
-
           if (authState.currentUser) {
             showPlatform(authState.currentUser);
           } else {
@@ -1149,35 +1081,29 @@
           }
           authState.isReady = true;
         }
-
         async function signInWithDevAuth(identifier, password) {
           const cleanIdentifier = String(identifier || "").trim().toLowerCase();
           const cleanPassword = String(password || "").trim();
           const user = authState.users.find(
             (candidate) => candidate.username === cleanIdentifier || candidate.email === cleanIdentifier
           );
-
           if (!user || cleanPassword !== DEV_AUTH_PASSWORD) {
             return { ok: false, reason: "Incorrect local dev username or password." };
           }
-
           authState.currentUser = user;
           authState.session = null;
           writeDevAuthSession(user.id);
           notifyAuthChange(user);
           return { ok: true };
         }
-
         async function ensureDomReady() {
           if (document.readyState !== "loading") {
             return;
           }
-
           await new Promise((resolve) => {
             document.addEventListener("DOMContentLoaded", () => resolve(), { once: true });
           });
         }
-
         async function loadScript(src) {
           await new Promise((resolve, reject) => {
             const existing = Array.from(document.querySelectorAll("script[src]")).find((script) => script.src === src);
@@ -1190,7 +1116,6 @@
               existing.addEventListener("error", reject, { once: true });
               return;
             }
-
             const script = document.createElement("script");
             script.src = src;
             script.async = true;
@@ -1199,7 +1124,6 @@
             document.head.appendChild(script);
           });
         }
-
         async function readJsonResponse(response) {
           if (!response) {
             return null;
@@ -1209,7 +1133,6 @@
             if (!text) {
               return null;
             }
-
             try {
               return JSON.parse(text);
             } catch {
@@ -1219,35 +1142,28 @@
             return null;
           }
         }
-
         async function getActiveAccessToken() {
           if (!authState.supabase) {
             return authState.session?.access_token || null;
           }
-
           const { data } = await authState.supabase.auth.getSession();
           const session = data?.session || null;
           if (!session?.access_token) {
             return null;
           }
-
           if (!authState.session || authState.session.access_token !== session.access_token) {
             authState.session = session;
             setCurrentUserFromSession(session.user || null);
           }
-
           return session.access_token;
         }
-
         function isAuthTokenOversized(token) {
           return String(token || "").length > MAX_AUTH_ACCESS_TOKEN_LENGTH;
         }
-
         async function refreshAccessToken() {
           if (!authState.supabase) {
             return null;
           }
-
           try {
             const refreshResult = await withTimeout(
               authState.supabase.auth.refreshSession(),
@@ -1257,12 +1173,10 @@
             if (refreshResult?.error) {
               return null;
             }
-
             const refreshedSession = refreshResult?.data?.session || null;
             if (!refreshedSession?.access_token) {
               return null;
             }
-
             authState.session = refreshedSession;
             setCurrentUserFromSession(refreshedSession.user || null);
             return refreshedSession.access_token;
@@ -1270,7 +1184,6 @@
             return null;
           }
         }
-
         async function apiRequest(path, options = {}) {
           const { timeoutMs = 15000, skipAuth = false, ...fetchOptions } = options || {};
           let accessToken = skipAuth ? null : await getActiveAccessToken();
@@ -1292,11 +1205,9 @@
           if (accessToken) {
             headers.set("Authorization", `Bearer ${accessToken}`);
           }
-
           if (!headers.has("Content-Type")) {
             headers.set("Content-Type", "application/json");
           }
-
           let response = null;
           const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
           const timeoutId =
@@ -1329,7 +1240,6 @@
               window.clearTimeout(timeoutId);
             }
           }
-
           const payload = await readJsonResponse(response);
           if (response.status === 401 && authState.currentUser) {
             await signOut();
@@ -1340,16 +1250,13 @@
             payload: payload || {},
           };
         }
-
         function isCentralStateKey(key) {
           return CENTRAL_STATE_KEYS.has(String(key || ""));
         }
-
         function shouldRemoveLocalCentralStateKey(key) {
           const normalizedKey = String(key || "");
           return isCentralStateKey(normalizedKey) || RETIRED_CENTRAL_STATE_KEYS.has(normalizedKey);
         }
-
         function collectCentralLocalStateEntries() {
           const entries = {};
           try {
@@ -1362,10 +1269,8 @@
           } catch {
             return {};
           }
-
           return entries;
         }
-
         function readCentralSyncManifestEntries() {
           try {
             const raw = window.localStorage.getItem(DATA_SAFETY_MANIFEST_KEY);
@@ -1375,7 +1280,10 @@
             return {};
           }
         }
-
+        function getCentralStateBaseRevision(metadata = {}) {
+          const revision = Number(metadata?.revision);
+          return Number.isInteger(revision) && revision >= 0 ? revision : 0;
+        }
         function parseSessionPlannerStateValue(value) {
           try {
             const parsed = JSON.parse(String(value || ""));
@@ -1384,28 +1292,23 @@
             return null;
           }
         }
-
         function getSessionPlannerStateSessions(state) {
           return state?.sessions && typeof state.sessions === "object" && !Array.isArray(state.sessions)
             ? state.sessions
             : {};
         }
-
         function getSessionPlannerStateBlockCount(session) {
           return Array.isArray(session?.blocks) ? session.blocks.length : 0;
         }
-
         function parseSessionPlannerReductionGuardTime(value) {
           const timestamp = typeof value === "number" ? value : new Date(value || 0).getTime();
           return Number.isFinite(timestamp) ? timestamp : 0;
         }
-
         function getSessionPlannerReductionGuards(state) {
           const guard = state?.[SESSION_PLANNER_REDUCTION_GUARD_KEY];
           if (!guard || typeof guard !== "object" || Array.isArray(guard)) {
             return {};
           }
-
           const now = Date.now();
           return Object.entries(guard).reduce((freshGuards, [dateValue, timestampValue]) => {
             const timestamp = parseSessionPlannerReductionGuardTime(timestampValue);
@@ -1415,21 +1318,17 @@
             return freshGuards;
           }, {});
         }
-
         function canReduceSessionPlannerStateBlocks(state, dateValue) {
           return Boolean(getSessionPlannerReductionGuards(state)[dateValue]);
         }
-
         function normalizeSessionPlannerBlockFieldMeta(source = {}) {
           if (!source || typeof source !== "object" || Array.isArray(source)) {
             return {};
           }
-
           return Object.entries(source).reduce((normalizedMeta, [field, timestampValue]) => {
             if (!SESSION_PLANNER_BLOCK_MERGE_FIELD_SET.has(field)) {
               return normalizedMeta;
             }
-
             const timestamp = parseSessionPlannerReductionGuardTime(timestampValue);
             if (timestamp) {
               normalizedMeta[field] = new Date(timestamp).toISOString();
@@ -1437,23 +1336,19 @@
             return normalizedMeta;
           }, {});
         }
-
         function getSessionPlannerBlockFieldUpdatedAtMs(block = {}, field) {
           return parseSessionPlannerReductionGuardTime(block?.[SESSION_PLANNER_BLOCK_FIELD_META_KEY]?.[field]);
         }
-
         function cloneSessionPlannerMergeValue(value) {
           if (!value || typeof value !== "object") {
             return value;
           }
-
           try {
             return JSON.parse(JSON.stringify(value));
           } catch {
             return Array.isArray(value) ? [...value] : { ...value };
           }
         }
-
         function isSessionPlannerEmptyMergeValue(value) {
           if (value === null || value === undefined) {
             return true;
@@ -1469,11 +1364,9 @@
           }
           return false;
         }
-
         function getSessionPlannerBlockId(block = {}) {
           return typeof block?.id === "string" && block.id.trim() ? block.id.trim() : "";
         }
-
         function mergeSessionPlannerBlocks(existingBlock = {}, incomingBlock = {}) {
           const merged = {
             ...existingBlock,
@@ -1484,30 +1377,25 @@
             ...normalizeSessionPlannerBlockFieldMeta(existingBlock[SESSION_PLANNER_BLOCK_FIELD_META_KEY]),
             ...normalizeSessionPlannerBlockFieldMeta(incomingBlock[SESSION_PLANNER_BLOCK_FIELD_META_KEY]),
           };
-
           SESSION_PLANNER_BLOCK_MERGE_FIELDS.forEach((field) => {
             const existingTimestamp = getSessionPlannerBlockFieldUpdatedAtMs(existingBlock, field);
             const incomingTimestamp = getSessionPlannerBlockFieldUpdatedAtMs(incomingBlock, field);
             const existingValue = existingBlock[field];
             const incomingValue = incomingBlock[field];
-
             if (existingTimestamp && (!incomingTimestamp || existingTimestamp > incomingTimestamp)) {
               merged[field] = cloneSessionPlannerMergeValue(existingValue);
               mergedMeta[field] = new Date(existingTimestamp).toISOString();
               return;
             }
-
             if (!existingTimestamp && !incomingTimestamp && isSessionPlannerEmptyMergeValue(incomingValue) && !isSessionPlannerEmptyMergeValue(existingValue)) {
               merged[field] = cloneSessionPlannerMergeValue(existingValue);
               return;
             }
-
             merged[field] = cloneSessionPlannerMergeValue(incomingValue);
             if (incomingTimestamp) {
               mergedMeta[field] = new Date(incomingTimestamp).toISOString();
             }
           });
-
           const newestFieldTimestamp = Object.values(mergedMeta).reduce(
             (latest, timestampValue) => Math.max(latest, parseSessionPlannerReductionGuardTime(timestampValue)),
             0
@@ -1523,7 +1411,6 @@
           }
           return merged;
         }
-
         function mergeSessionPlannerSessions(existingSession = {}, incomingSession = {}, dateValue, canReduceBlocks = false) {
           const existingBlocks = Array.isArray(existingSession.blocks) ? existingSession.blocks : [];
           const incomingBlocks = Array.isArray(incomingSession.blocks) ? incomingSession.blocks : [];
@@ -1537,7 +1424,6 @@
             const existingBlock = existingById.get(blockId);
             return existingBlock ? mergeSessionPlannerBlocks(existingBlock, incomingBlock) : cloneSessionPlannerMergeValue(incomingBlock);
           });
-
           if (!canReduceBlocks) {
             existingBlocks.forEach((existingBlock) => {
               const blockId = getSessionPlannerBlockId(existingBlock);
@@ -1546,7 +1432,6 @@
               }
             });
           }
-
           const hasIncomingSelection = blocks.some((block) => getSessionPlannerBlockId(block) === incomingSession.selectedBlockId);
           const hasExistingSelection = blocks.some((block) => getSessionPlannerBlockId(block) === existingSession.selectedBlockId);
           return {
@@ -1567,26 +1452,22 @@
             blocks,
           };
         }
-
         function mergeSessionPlannerStateValues(localValue, centralValue) {
           const localState = parseSessionPlannerStateValue(localValue);
           const centralStateValue = parseSessionPlannerStateValue(centralValue);
           if (!localState || !centralStateValue) {
             return { value: centralValue, changed: false };
           }
-
           const localSessions = getSessionPlannerStateSessions(localState);
           const centralSessions = getSessionPlannerStateSessions(centralStateValue);
           const mergedState = {
             ...centralStateValue,
             sessions: {},
           };
-
           const sessionDates = new Set([
             ...Object.keys(centralSessions),
             ...Object.keys(localSessions),
           ]);
-
           sessionDates.forEach((dateValue) => {
             const centralSession = centralSessions[dateValue];
             const localSession = localSessions[dateValue];
@@ -1599,17 +1480,14 @@
               );
               return;
             }
-
             if (localSession) {
               mergedState.sessions[dateValue] = localSession;
               return;
             }
-
             if (centralSession) {
               mergedState.sessions[dateValue] = centralSession;
             }
           });
-
           const guards = getSessionPlannerReductionGuards(localState);
           if (Object.keys(guards).length) {
             mergedState[SESSION_PLANNER_REDUCTION_GUARD_KEY] = {
@@ -1619,11 +1497,89 @@
           } else {
             delete mergedState[SESSION_PLANNER_REDUCTION_GUARD_KEY];
           }
-
           const mergedValue = JSON.stringify(mergedState);
           return { value: mergedValue, changed: mergedValue !== centralValue };
         }
-
+        const CENTRAL_STATE_MEDIA_FIELDS = [
+          "photoUrl",
+          "sourceUrl",
+          "profileImageUrl",
+          "avatarUrl",
+          "imageUrl",
+          "portraitUrl",
+        ];
+        function parseCentralObjectStateValue(value) {
+          try {
+            const parsed = JSON.parse(String(value || ""));
+            return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+          } catch {
+            return null;
+          }
+        }
+        function getCentralStateRecordMergeKey(record = {}) {
+          const id = String(record?.id || record?.userId || record?.playerId || "").trim();
+          if (id) {
+            return `id:${id}`;
+          }
+          const name = String(record?.name || record?.fullName || "").trim().toLowerCase();
+          return name ? `name:${name}` : "";
+        }
+        function preserveCentralStateMediaFields(record = {}, fallbackRecord = {}) {
+          if (!record || typeof record !== "object" || Array.isArray(record)) {
+            return { record, changed: false };
+          }
+          let changed = false;
+          const mergedRecord = CENTRAL_STATE_MEDIA_FIELDS.reduce((merged, field) => {
+            const currentValue = String(merged?.[field] || "").trim();
+            const fallbackValue = String(fallbackRecord?.[field] || "").trim();
+            if (!currentValue && fallbackValue) {
+              changed = true;
+              return { ...merged, [field]: fallbackValue };
+            }
+            return merged;
+          }, record);
+          return { record: mergedRecord, changed };
+        }
+        function mergeCentralStateMediaValues(localValue, centralValue) {
+          const localState = parseCentralObjectStateValue(localValue);
+          const centralStateValue = parseCentralObjectStateValue(centralValue);
+          if (!localState || !centralStateValue || !Array.isArray(localState.players) || !Array.isArray(centralStateValue.players)) {
+            return { value: centralValue, changed: false };
+          }
+          const localPlayersByKey = new Map();
+          localState.players.forEach((player) => {
+            const key = getCentralStateRecordMergeKey(player);
+            if (key) {
+              localPlayersByKey.set(key, player);
+            }
+          });
+          let changed = false;
+          const mergedPlayers = centralStateValue.players.map((centralPlayer) => {
+            const key = getCentralStateRecordMergeKey(centralPlayer);
+            const localPlayer = key ? localPlayersByKey.get(key) : null;
+            if (!localPlayer) {
+              return centralPlayer;
+            }
+            const merged = preserveCentralStateMediaFields(centralPlayer, localPlayer);
+            changed = changed || merged.changed;
+            return merged.record;
+          });
+          if (!changed) {
+            return { value: centralValue, changed: false };
+          }
+          return {
+            value: JSON.stringify({ ...centralStateValue, players: mergedPlayers }),
+            changed: true,
+          };
+        }
+        function sanitizeWorkspaceHubStateValue(value) {
+          const state = parseCentralObjectStateValue(value);
+          if (!state) {
+            return value;
+          }
+          const { activeWorkspaceId, ...sharedState } = state;
+          return JSON.stringify(sharedState);
+        }
         function applyCentralStateEntries(entries = {}, metadata = {}) {
           const normalizedEntries = Object.fromEntries(
             Object.entries(entries || {}).filter(([key, value]) => isCentralStateKey(key) && typeof value === "string")
@@ -1653,8 +1609,16 @@
                 return;
               }
               let valueToApply = value;
-              if (key === SESSION_PLANNER_STATE_KEY) {
+              if (key === WORKSPACE_HUB_STATE_KEY) {
+                valueToApply = sanitizeWorkspaceHubStateValue(value);
+              } else if (key === SESSION_PLANNER_STATE_KEY) {
                 const mergedValue = mergeSessionPlannerStateValues(window.localStorage.getItem(key), value);
+                valueToApply = mergedValue.value;
+                if (mergedValue.changed) {
+                  writeBackEntries.push([key, valueToApply]);
+                }
+              } else if (key === PLAYER_PROFILES_STATE_KEY || key === MEDICAL_TEAM_STATE_KEY) {
+                const mergedValue = mergeCentralStateMediaValues(window.localStorage.getItem(key), value);
                 valueToApply = mergedValue.value;
                 if (mergedValue.changed) {
                   writeBackEntries.push([key, valueToApply]);
@@ -1669,13 +1633,13 @@
             syncCentralStateKey(key, value).catch(() => {});
           });
         }
-
         async function hydrateCentralState() {
           if (authState.devMode) {
             centralState.hydrated = true;
             centralState.hydrating = false;
             centralState.lastError = "";
             centralState.lastSyncedAt = new Date().toISOString();
+            centralState.localDev = true;
             centralState.metadata = {};
             window.dispatchEvent(
               new CustomEvent("footballscience:central-state-ready", {
@@ -1684,20 +1648,18 @@
             );
             return true;
           }
-
           if (centralState.hydrating || !authState.session?.access_token) {
             return centralState.hydrated;
           }
-
           centralState.hydrating = true;
           centralState.lastError = "";
           try {
+            centralState.localDev = false;
             const response = await apiRequest(API_APP_STATE, { method: "GET", timeoutMs: 10000 });
             if (!response.ok) {
               centralState.lastError = response.payload?.reason || "Central app data could not be loaded.";
               return false;
             }
-
             const entries = response.payload?.entries && typeof response.payload.entries === "object"
               ? response.payload.entries
               : {};
@@ -1728,7 +1690,6 @@
                 }
               }
             }
-
             centralState.hydrated = true;
             centralState.lastSyncedAt = new Date().toISOString();
             window.dispatchEvent(
@@ -1744,35 +1705,49 @@
             centralState.hydrating = false;
           }
         }
-
         async function syncCentralStateKey(key, value, options = {}) {
           if (authState.devMode) {
             centralState.lastError = "";
             centralState.lastSyncedAt = new Date().toISOString();
+            centralState.localDev = true;
             return { ok: true, localDev: true };
           }
-
           if (!authState.session?.access_token || !isCentralStateKey(key)) {
             return { ok: false, reason: "Central sync is not ready." };
           }
-
           try {
+            centralState.localDev = false;
             const baseMetadata = centralState.metadata?.[key] || {};
+            const baseRevision = Number.isInteger(Number(options.baseRevision))
+              ? Number(options.baseRevision)
+              : getCentralStateBaseRevision(baseMetadata);
             const response = await apiRequest(API_APP_STATE, {
               method: options.removed ? "DELETE" : "POST",
               body: JSON.stringify({
                 key,
                 value: String(value ?? ""),
                 removed: Boolean(options.removed),
+                baseRevision,
                 baseHash: baseMetadata.hash || "",
                 baseUpdatedAt: baseMetadata.updatedAt || "",
+                metadata: {
+                  baseRevision,
+                  revision: baseRevision,
+                  hash: baseMetadata.hash || "",
+                  updatedAt: baseMetadata.updatedAt || "",
+                },
               }),
             });
             if (!response.ok) {
               centralState.lastError = response.payload?.reason || "Central sync failed.";
-              return { ok: false, reason: centralState.lastError };
+              return {
+                ok: false,
+                status: response.status,
+                conflict: response.status === 409,
+                currentRevision: response.payload?.currentRevision,
+                reason: centralState.lastError,
+              };
             }
-
             centralState.lastError = "";
             centralState.lastSyncedAt = new Date().toISOString();
             if (response.payload?.metadata) {
@@ -1787,7 +1762,6 @@
             return { ok: false, reason: centralState.lastError };
           }
         }
-
         async function lookupAuthUser(identifier) {
           if (!identifier) {
             return null;
@@ -1799,34 +1773,28 @@
           });
           return response.ok ? response.payload?.user ?? null : null;
         }
-
         function mergeAuthUser(nextUser, options = {}) {
           const normalizedUser = normalizeAuthUser(nextUser);
           if (!normalizedUser.id) {
             return null;
           }
-
           const existingIndex = authState.users.findIndex((candidate) => candidate.id === normalizedUser.id);
           if (existingIndex >= 0) {
             authState.users[existingIndex] = { ...normalizeAuthUser(authState.users[existingIndex]), ...normalizedUser };
           } else {
             authState.users = [normalizedUser, ...authState.users];
           }
-
           if (options.setCurrent || authState.currentUser?.id === normalizedUser.id) {
             authState.currentUser = { ...(authState.currentUser || {}), ...normalizedUser };
             notifyAuthChange(authState.currentUser);
           }
-
           return normalizedUser;
         }
-
         async function refreshUserCache() {
           const response = await apiRequest(API_ADMIN_USERS, {
             method: "GET",
             timeoutMs: 9000,
           });
-
           if (response.ok && Array.isArray(response.payload?.users)) {
             authState.users = response.payload.users.map((user) => normalizeAuthUser(user)).filter((user) => user.id);
             authState.roles = Array.isArray(response.payload.roles) ? response.payload.roles : authState.roles;
@@ -1837,13 +1805,11 @@
             }
             return true;
           }
-
           if (!authState.users.length && authState.currentUser) {
             authState.users = [authState.currentUser];
           }
           return false;
         }
-
         async function refreshCurrentUserProfile(sessionUserId = "") {
           const response = await apiRequest(`${API_ADMIN_USERS}?me=1`, {
             method: "GET",
@@ -1853,44 +1819,36 @@
           if (!response.ok || !meUser) {
             return null;
           }
-
           const nextUser = normalizeAuthUser(meUser);
           if (sessionUserId && nextUser.id !== sessionUserId) {
             return null;
           }
-
           setCurrentUserFromSession(nextUser);
           return authState.currentUser;
         }
-
         function queuePostAuthHydration(session = authState.session) {
           const queuedSession = session?.access_token ? session : authState.session;
           const sessionUserId = queuedSession?.user?.id || "";
           if (!queuedSession?.access_token || !sessionUserId) {
             return;
           }
-
           if (postAuthHydrationTimer) {
             window.clearTimeout(postAuthHydrationTimer);
           }
-
           const runId = ++postAuthHydrationRunId;
           postAuthHydrationTimer = window.setTimeout(async () => {
             postAuthHydrationTimer = 0;
             if (runId !== postAuthHydrationRunId || authState.session?.access_token !== queuedSession.access_token) {
               return;
             }
-
             await Promise.allSettled([
               refreshCurrentUserProfile(sessionUserId),
               hydrateCentralState(),
               refreshUserCache(),
             ]);
-
             if (runId !== postAuthHydrationRunId) {
               return;
             }
-
             const refreshedUser = authState.users.find((candidate) => candidate.id === sessionUserId);
             if (refreshedUser) {
               setCurrentUserFromSession(refreshedUser);
@@ -1899,7 +1857,6 @@
             }
           }, 0);
         }
-
         function setCurrentUserById(userId) {
           const nextUser = authState.users.find((candidate) => candidate.id === userId) || null;
           if (!nextUser) {
@@ -1908,7 +1865,6 @@
           authState.currentUser = nextUser;
           notifyAuthChange(nextUser);
         }
-
         function setCurrentUserFromSession(sessionUser) {
           const nextUser = normalizeAuthUser(sessionUser);
           if (!nextUser.id) {
@@ -1916,16 +1872,16 @@
             notifyAuthChange(null);
             return;
           }
-
           mergeAuthUser(nextUser, { setCurrent: true });
         }
-
+        function isPausedAccount(user) {
+          return String(user?.status || "").trim().toLowerCase() === "paused";
+        }
         async function hydrateCurrentUser(session = null, options = {}) {
           const nextSession = session?.access_token ? session : null;
           const nextSessionUser = session?.user || null;
           const waitForCentral = options.waitForCentral !== false;
           const waitForProfile = options.waitForProfile !== false;
-
           if (!nextSession || !nextSessionUser) {
             authState.currentUser = null;
             authState.session = null;
@@ -1933,36 +1889,29 @@
             notifyAuthChange(null);
             return null;
           }
-
           authState.session = nextSession;
           const sessionUserId = nextSessionUser.id;
           setCurrentUserFromSession(nextSessionUser);
-
           if (waitForProfile) {
             await refreshCurrentUserProfile(sessionUserId);
           }
-
           if (!waitForCentral) {
             queuePostAuthHydration(nextSession);
             return authState.currentUser;
           }
-
           try {
             await withTimeout(hydrateCentralState(), 12000, "Central app data is still loading.");
           } catch {
             hydrateCentralState().catch(() => {});
           }
-
           try {
             await withTimeout(refreshUserCache(), 8000, "User list is still loading.");
           } catch {
             refreshUserCache().catch(() => {});
           }
-
           if (!authState.currentUser && sessionUserId) {
             setCurrentUserById(sessionUserId);
           }
-
           if (!authState.currentUser?.id) {
             authState.currentUser = null;
             authState.users = [];
@@ -1972,22 +1921,18 @@
           }
           return authState.currentUser;
         }
-
         async function signInWithIdentifier(identifier, password) {
           if (authState.devMode) {
             return signInWithDevAuth(identifier, password);
           }
-
           if (!authState.supabase) {
             return { ok: false, reason: "Authentication is not initialized. Open the app through footballscience.xyz." };
           }
-
           const cleanIdentifier = String(identifier || "").trim().toLowerCase();
           const cleanPassword = String(password || "").trim();
           if (!cleanIdentifier || !cleanPassword) {
             return { ok: false, reason: "Username and password are required." };
           }
-
           let email = cleanIdentifier;
           let foundByUsername = false;
           if (!cleanIdentifier.includes("@")) {
@@ -1997,7 +1942,6 @@
               email = lookup.email;
             }
           }
-
           try {
             const result = await withTimeout(
               authState.supabase.auth.signInWithPassword({
@@ -2007,7 +1951,6 @@
               20000,
               "Supabase login is taking too long. Check your network and try again."
             );
-
             if (result.error) {
               const message = String(result.error.message || "").toLowerCase();
               if (foundByUsername && message.includes("invalid")) {
@@ -2017,7 +1960,6 @@
                     "Incorrect username or password. Make sure you are using the password for this account.",
                 };
               }
-
               if (!cleanIdentifier.includes("@") && message.includes("invalid")) {
                 return {
                   ok: false,
@@ -2025,56 +1967,50 @@
                     "Incorrect username or password. If you used a username, try the email address instead, or reset the password.",
                 };
               }
-
               if (message.includes("invalid")) {
                 return {
                   ok: false,
                   reason: "Invalid login credentials.",
                 };
               }
-
               return { ok: false, reason: result.error.message || "Invalid username or password." };
             }
             if (!result.data?.session) {
               return { ok: false, reason: "Could not start a session." };
             }
-
-            await hydrateCurrentUser(result.data.session, { waitForCentral: false, waitForProfile: false });
+            await hydrateCurrentUser(result.data.session, { waitForCentral: false, waitForProfile: true });
+            if (isPausedAccount(authState.currentUser)) {
+              await signOut();
+              return { ok: false, reason: "This account is paused. Contact an admin." };
+            }
             return { ok: true };
           } catch (error) {
             return { ok: false, reason: error?.message || "Sign in failed." };
           }
         }
-
         async function resetPasswordFor(identifier) {
           if (authState.devMode) {
             return { ok: true, localDev: true };
           }
-
           if (!authState.supabase) {
             return { ok: false, reason: "Authentication is not initialized. Open the app through footballscience.xyz." };
           }
-
           const cleanIdentifier = String(identifier || "").trim().toLowerCase();
           if (!cleanIdentifier) {
             return { ok: false, reason: "Enter a username or email." };
           }
-
           const lookup = cleanIdentifier.includes("@") ? { email: cleanIdentifier } : await lookupAuthUser(cleanIdentifier);
           const email = lookup?.email || cleanIdentifier;
           if (!email) {
             return { ok: false, reason: "No matching account found." };
           }
-
           const redirectTo = getPasswordResetRedirectUrl();
           const result = await authState.supabase.auth.resetPasswordForEmail(email, { redirectTo });
           if (result.error) {
             return { ok: false, reason: result.error.message || "We could not send a reset link." };
           }
-
           return { ok: true };
         }
-
         async function adminCreateUser(values = {}) {
           if (authState.devMode) {
             const now = new Date().toISOString();
@@ -2094,7 +2030,6 @@
             authState.users = [createdUser, ...authState.users];
             return { ok: true, status: 200, user: createdUser, generatedPassword: DEV_AUTH_PASSWORD };
           }
-
           const response = await apiRequest(API_ADMIN_USERS, {
             method: "POST",
             body: JSON.stringify(values),
@@ -2126,12 +2061,10 @@
             generatedPassword: response.payload?.generatedPassword || null,
           };
         }
-
         async function adminUpdateUser(userId, values = {}) {
           if (!String(userId || "").trim()) {
             return { ok: false, reason: "Missing user id." };
           }
-
           if (authState.devMode) {
             const existingUser = authState.users.find((user) => user.id === userId);
             if (!existingUser) {
@@ -2156,7 +2089,6 @@
             }
             return { ok: true, user: updatedUser, generatedPassword: null };
           }
-
           const response = await apiRequest(`${API_ADMIN_USERS}?userId=${encodeURIComponent(userId)}`, {
             method: "PUT",
             timeoutMs: 20000,
@@ -2168,7 +2100,6 @@
               reason: response.payload?.reason || `Could not save the change (${response.status}).`,
             };
           }
-
           const updatedUser = response.payload?.user || null;
           if (updatedUser?.id) {
             mergeAuthUser(updatedUser, { setCurrent: updatedUser.id === authState.currentUser?.id });
@@ -2184,7 +2115,87 @@
             generatedPassword: response.payload?.generatedPassword || null,
           };
         }
-
+        async function uploadProfileImage(userId, imageDataUrl, values = {}) {
+          if (!String(userId || "").trim()) {
+            return { ok: false, reason: "Missing user id." };
+          }
+          if (!String(imageDataUrl || "").startsWith("data:image/")) {
+            return { ok: false, reason: "Choose an image file." };
+          }
+          if (authState.devMode) {
+            const existingUser = authState.users.find((user) => user.id === userId);
+            if (!existingUser) {
+              return { ok: false, reason: "User could not be found." };
+            }
+            const updatedUser = {
+              ...existingUser,
+              ...values,
+              profileImageUrl: imageDataUrl,
+              updatedAt: new Date().toISOString(),
+            };
+            authState.users = authState.users.map((user) => (user.id === userId ? updatedUser : user));
+            if (authState.currentUser?.id === userId) {
+              authState.currentUser = updatedUser;
+              notifyAuthChange(updatedUser);
+            }
+            return { ok: true, user: updatedUser, profileImageUrl: imageDataUrl };
+          }
+          const response = await apiRequest(API_PROFILE_IMAGE, {
+            method: "POST",
+            timeoutMs: 26000,
+            body: JSON.stringify({
+              userId,
+              imageDataUrl,
+              profile: values,
+            }),
+          });
+          if (!response.ok) {
+            return {
+              ok: false,
+              status: response.status,
+              reason: response.payload?.reason || `Profile image could not be saved (${response.status}).`,
+            };
+          }
+          const updatedUser = response.payload?.user || null;
+          if (updatedUser?.id) {
+            mergeAuthUser(updatedUser, { setCurrent: updatedUser.id === authState.currentUser?.id });
+          }
+          return {
+            ok: true,
+            status: response.status,
+            user: updatedUser,
+            profileImageUrl: response.payload?.profileImageUrl || updatedUser?.profileImageUrl || "",
+          };
+        }
+        async function removeProfileImage(userId) {
+          if (!String(userId || "").trim()) {
+            return { ok: false, reason: "Missing user id." };
+          }
+          if (authState.devMode) {
+            return adminUpdateUser(userId, { profileImageUrl: "" });
+          }
+          const response = await apiRequest(API_PROFILE_IMAGE, {
+            method: "DELETE",
+            timeoutMs: 18000,
+            body: JSON.stringify({ userId }),
+          });
+          if (!response.ok) {
+            return {
+              ok: false,
+              status: response.status,
+              reason: response.payload?.reason || `Profile image could not be removed (${response.status}).`,
+            };
+          }
+          const updatedUser = response.payload?.user || null;
+          if (updatedUser?.id) {
+            mergeAuthUser(updatedUser, { setCurrent: updatedUser.id === authState.currentUser?.id });
+          }
+          return {
+            ok: true,
+            status: response.status,
+            user: updatedUser,
+          };
+        }
         async function adminRemoveUser(userId) {
           if (authState.devMode) {
             if (authState.currentUser?.id === userId) {
@@ -2194,7 +2205,6 @@
             authState.users = authState.users.filter((user) => user.id !== userId);
             return { ok: true };
           }
-
           const response = await apiRequest(`${API_ADMIN_USERS}?userId=${encodeURIComponent(userId)}`, {
             method: "DELETE",
           });
@@ -2209,12 +2219,10 @@
           await refreshUserCache();
           return { ok: true };
         }
-
         async function adminSendReset(userId) {
           if (authState.devMode) {
             return { ok: true, userId };
           }
-
           const response = await apiRequest(API_SEND_RESET, {
             method: "POST",
             body: JSON.stringify({ userId, redirectTo: getPasswordResetRedirectUrl() }),
@@ -2224,12 +2232,10 @@
           }
           return { ok: true };
         }
-
         async function adminGetAuditLog(limit = 80) {
           if (authState.devMode) {
             return { ok: true, entries: [], updatedAt: "" };
           }
-
           const response = await apiRequest(`${API_AUDIT_LOG}?limit=${encodeURIComponent(limit)}`, {
             method: "GET",
             timeoutMs: 9000,
@@ -2237,19 +2243,50 @@
           if (!response.ok) {
             return { ok: false, reason: response.payload?.reason || "Audit log could not be loaded." };
           }
-
           return {
             ok: true,
             entries: Array.isArray(response.payload?.entries) ? response.payload.entries : [],
             updatedAt: response.payload?.updatedAt || "",
           };
         }
-
+        async function recordAuditEvent(event = {}) {
+          if (authState.devMode) {
+            return { ok: true, localDev: true };
+          }
+          const response = await apiRequest(API_AUDIT_LOG, {
+            method: "POST",
+            body: JSON.stringify(event || {}),
+            timeoutMs: 9000,
+          });
+          if (!response.ok) {
+            return { ok: false, reason: response.payload?.reason || "Audit event could not be saved." };
+          }
+          return { ok: true };
+        }
+        async function recordMedicalDatabaseEvent(event = {}) {
+          if (authState.devMode) {
+            return { ok: true, localDev: true, stored: false };
+          }
+          const response = await apiRequest(API_MEDICAL, {
+            method: "POST",
+            body: JSON.stringify(event || {}),
+            timeoutMs: 9000,
+          });
+          if (!response.ok) {
+            return { ok: false, reason: response.payload?.reason || "Medical database event could not be saved." };
+          }
+          return {
+            ok: true,
+            stored: Boolean(response.payload?.stored),
+            enabled: response.payload?.enabled !== false,
+            duplicate: Boolean(response.payload?.duplicate),
+            payloadHash: response.payload?.payloadHash || "",
+          };
+        }
         async function getSessionHistory(date, limit = 50) {
           if (authState.devMode) {
             return { ok: true, entries: [], updatedAt: "" };
           }
-
           const params = new URLSearchParams();
           if (date) {
             params.set("date", date);
@@ -2262,19 +2299,16 @@
           if (!response.ok) {
             return { ok: false, reason: response.payload?.reason || "Session history could not be loaded." };
           }
-
           return {
             ok: true,
             entries: Array.isArray(response.payload?.entries) ? response.payload.entries : [],
             updatedAt: response.payload?.updatedAt || "",
           };
         }
-
         async function restoreSessionHistory(entryId, mode = "before") {
           if (authState.devMode) {
             return { ok: false, reason: "Session history restore is only available online." };
           }
-
           const response = await apiRequest(API_SESSION_HISTORY, {
             method: "POST",
             timeoutMs: 20000,
@@ -2287,7 +2321,6 @@
           if (!response.ok) {
             return { ok: false, reason: response.payload?.reason || "Session could not be restored." };
           }
-
           return {
             ok: true,
             date: response.payload?.date || "",
@@ -2295,12 +2328,10 @@
             updatedAt: response.payload?.updatedAt || "",
           };
         }
-
         async function getPresence() {
           if (authState.devMode) {
             return { ok: true, entries: [], updatedAt: "" };
           }
-
           const response = await apiRequest(API_PRESENCE, {
             method: "GET",
             timeoutMs: 7000,
@@ -2308,19 +2339,16 @@
           if (!response.ok) {
             return { ok: false, reason: response.payload?.reason || "Presence could not be loaded." };
           }
-
           return {
             ok: true,
             entries: Array.isArray(response.payload?.entries) ? response.payload.entries : [],
             updatedAt: response.payload?.updatedAt || "",
           };
         }
-
         async function updatePresence(status = "online", values = {}) {
           if (authState.devMode) {
             return { ok: true, entries: [], updatedAt: new Date().toISOString(), localDev: true };
           }
-
           const response = await apiRequest(API_PRESENCE, {
             method: "POST",
             timeoutMs: 7000,
@@ -2335,51 +2363,43 @@
           if (!response.ok) {
             return { ok: false, reason: response.payload?.reason || "Presence could not be updated." };
           }
-
           return {
             ok: true,
             entries: Array.isArray(response.payload?.entries) ? response.payload.entries : [],
             updatedAt: response.payload?.updatedAt || "",
           };
         }
-
         function clearAuthState() {
           authState.currentUser = null;
           authState.session = null;
           authState.users = [];
           notifyAuthChange(null);
         }
-
         function clearStoredAuthArtifacts() {
           if (typeof window === "undefined") {
             return;
           }
-
           const clearStorage = (storage) => {
             if (!storage) {
               return;
             }
-
             for (let index = storage.length - 1; index >= 0; index -= 1) {
               const key = storage.key(index);
               if (!key) {
                 continue;
               }
-
               const lowered = key.toLowerCase();
               if (lowered.startsWith("sb-") || lowered.includes("supabase")) {
                 storage.removeItem(key);
               }
             }
           };
-
           try {
             clearStorage(window.localStorage);
             clearStorage(window.sessionStorage);
           } catch {
             // ignore storage cleanup failures
           }
-
           try {
             const cookieBits = document.cookie ? document.cookie.split(";") : [];
             cookieBits.forEach((cookie) => {
@@ -2396,7 +2416,6 @@
             // ignore cookie cleanup failures
           }
         }
-
         async function signOut(options = {}) {
           const shouldSignOutRemote = options.remote !== false && authState.supabase && !authState.isSigningOut;
           const remoteSignOut = shouldSignOutRemote
@@ -2418,7 +2437,6 @@
                 }
               })()
             : Promise.resolve();
-
           clearAuthState();
           if (authState.devMode) {
             writeDevAuthSession("");
@@ -2433,23 +2451,19 @@
             }
           });
         }
-
         function setProfileMenuOpen(isOpen) {
           const profileMenuButton = document.getElementById("profileMenuButton");
           const profileMenu = document.getElementById("profileMenu");
           if (!profileMenuButton || !profileMenu) {
             return;
           }
-
           profileMenu.hidden = !isOpen;
           profileMenuButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
         }
-
         function isProfileMenuOpen() {
           const profileMenu = document.getElementById("profileMenu");
           return Boolean(profileMenu && !profileMenu.hidden);
         }
-
         function showPlatform(user) {
           document.body.classList.remove("is-auth-locked");
           document.body.classList.add("is-authenticated");
@@ -2458,7 +2472,6 @@
           notifyAuthChange(user);
           window.dispatchEvent(new Event("resize"));
         }
-
         function showLogin() {
           const password = document.getElementById("loginPassword");
           const username = document.getElementById("loginUsername");
@@ -2473,7 +2486,6 @@
             username.focus();
           }
         }
-
         async function hydrateFromExistingSession() {
           await refreshAccessToken().catch(() => null);
           const { data, error } = await authState.supabase.auth.getSession();
@@ -2481,27 +2493,25 @@
             await signOut();
             return;
           }
-
           if (data?.session) {
             authState.session = data.session;
-            await hydrateCurrentUser(data.session, { waitForCentral: false, waitForProfile: false });
+            await hydrateCurrentUser(data.session, { waitForCentral: false, waitForProfile: true });
+            if (isPausedAccount(authState.currentUser)) {
+              await signOut();
+            }
           }
         }
-
         async function bootAuth() {
           if (isLocalFileHost()) {
             window.location.replace(ONLINE_APP_URL);
             return;
           }
-
           if (shouldForceCanonicalHost()) {
             redirectToCanonicalHost();
             return;
           }
-
           await ensureDomReady();
           purgeLegacyLocalAccountStorage();
-
           const loginForm = document.getElementById("loginForm");
           const usernameInput = document.getElementById("loginUsername");
           const passwordInput = document.getElementById("loginPassword");
@@ -2512,25 +2522,21 @@
           const forgotPasswordForm = document.getElementById("forgotPasswordForm");
           const forgotPasswordIdentifier = document.getElementById("forgotPasswordIdentifier");
           setLoginBusy(true, "Loading...");
-
           const attachSharedAuthUiHandlers = () => {
             forgotPasswordToggle?.addEventListener("click", () => {
               if (!forgotPasswordForm || !forgotPasswordToggle) {
                 return;
               }
-
               forgotPasswordForm.hidden = !forgotPasswordForm.hidden;
               forgotPasswordToggle.setAttribute("aria-expanded", forgotPasswordForm.hidden ? "false" : "true");
               if (!forgotPasswordForm.hidden) {
                 forgotPasswordIdentifier?.focus();
               }
             });
-
             document.getElementById("forgotPasswordCancel")?.addEventListener("click", () => {
               if (!forgotPasswordForm || !forgotPasswordToggle) {
                 return;
               }
-
               forgotPasswordForm.hidden = true;
               forgotPasswordToggle.setAttribute("aria-expanded", "false");
               setForgotPasswordMessage("");
@@ -2538,19 +2544,16 @@
                 forgotPasswordIdentifier.value = "";
               }
             });
-
             forgotPasswordForm?.addEventListener("submit", async (event) => {
               event.preventDefault();
               if (!forgotPasswordIdentifier) {
                 return;
               }
-
               const result = await resetPasswordFor(forgotPasswordIdentifier.value);
               if (!result?.ok) {
                 setForgotPasswordMessage(result.reason || "Could not send reset link.", true);
                 return;
               }
-
               setForgotPasswordMessage(
                 authState.devMode
                   ? "Local dev mode uses mak / courage."
@@ -2558,62 +2561,50 @@
               );
               forgotPasswordIdentifier.value = "";
             });
-
             profileMenuButton?.addEventListener("click", (event) => {
               event.preventDefault();
               event.stopPropagation();
               setProfileMenuOpen(!isProfileMenuOpen());
             });
-
             profileMenu?.addEventListener("click", (event) => {
               const workspaceTrigger = event.target.closest("[data-open-workspace]");
               if (!workspaceTrigger) {
                 return;
               }
-
               setProfileMenuOpen(false);
               requestWorkspaceOpen(workspaceTrigger.dataset.openWorkspace);
             });
-
             document.addEventListener("click", (event) => {
               if (!isProfileMenuOpen() || event.target.closest(".platform-account-menu")) {
                 return;
               }
               setProfileMenuOpen(false);
             });
-
             document.addEventListener("keydown", (event) => {
               if (event.key !== "Escape" || !isProfileMenuOpen()) {
                 return;
               }
-
               setProfileMenuOpen(false);
               profileMenuButton?.focus();
             });
-
             document.addEventListener("click", (event) => {
               const workspaceTrigger = event.target.closest("[data-open-workspace]");
               if (!workspaceTrigger) {
                 return;
               }
-
               requestWorkspaceOpen(workspaceTrigger.dataset.openWorkspace);
             });
-
             logoutButton?.addEventListener("click", async () => {
               setProfileMenuOpen(false);
               await signOut();
             });
           };
-
           loginForm?.addEventListener("submit", async (event) => {
             event.preventDefault();
-
             if (!usernameInput || !passwordInput) {
               toFormError("Login form is not ready yet.");
               return;
             }
-
             const identifier = usernameInput.value;
             setLoginBusy(true, "Signing in...");
             toFormError("Checking login...");
@@ -2627,7 +2618,6 @@
                 toFormError(result.reason || "Login failed.", true);
                 return;
               }
-
               toFormError("");
               showPlatform(authState.currentUser);
             } catch (error) {
@@ -2636,15 +2626,12 @@
               setLoginBusy(false);
             }
           });
-
           attachSharedAuthUiHandlers();
-
           if (isLocalDevHost()) {
             initializeDevAuth();
             setLoginBusy(false);
             return;
           }
-
           let clientConfigResponse = null;
           try {
             const configResponse = await fetch(API_CLIENT_CONFIG, { credentials: "omit", cache: "no-store" });
@@ -2660,9 +2647,7 @@
             setLoginBusy(false);
             return;
           }
-
           await loadScript(SUPABASE_CDN);
-
           if (!window.supabase || !window.supabase.createClient) {
             toFormError("Could not load authentication client.");
             showLogin();
@@ -2670,7 +2655,6 @@
             setLoginBusy(false);
             return;
           }
-
           authState.supabase = window.supabase.createClient(clientConfigResponse.url, clientConfigResponse.anonKey, {
             auth: {
               autoRefreshToken: true,
@@ -2678,7 +2662,6 @@
               detectSessionInUrl: false,
             },
           });
-
           await hydrateFromExistingSession();
           if (!authState.currentUser) {
             showLogin();
@@ -2687,7 +2670,6 @@
           }
           authState.isReady = true;
           setLoginBusy(false);
-
           authState.supabase.auth.onAuthStateChange(async (event, session) => {
             if (session) {
               await hydrateCurrentUser(session, { waitForCentral: false, waitForProfile: false });
@@ -2698,17 +2680,16 @@
               }
               return;
             }
-
             if (event === "SIGNED_OUT") {
               await signOut({ remote: false });
             }
           });
-
         }
-
         window.platformAuthStore = {
           createUser: adminCreateUser,
           updateUser: adminUpdateUser,
+          uploadProfileImage,
+          removeProfileImage,
           removeUser: adminRemoveUser,
           sendPasswordReset: adminSendReset,
           getAuditLog: adminGetAuditLog,
@@ -2717,6 +2698,9 @@
           getPresence,
           updatePresence,
           getUsers: () => authState.users,
+          getAccessToken: getActiveAccessToken,
+          getSupabaseClient: () => authState.supabase,
+          isDevMode: () => Boolean(authState.devMode),
           writeUsers: (users) => {
             authState.users = Array.isArray(users) ? users : [];
             return authState.users;
@@ -2741,7 +2725,12 @@
           isHydrated: () => centralState.hydrated,
           getStatus: () => ({ ...centralState }),
         };
-
+        window.footballScienceAudit = {
+          record: recordAuditEvent,
+        };
+        window.footballScienceMedicalDatabase = {
+          record: recordMedicalDatabaseEvent,
+        };
         window.platformAuthReadyPromise = bootAuth();
       })();
     </script>
@@ -2756,15 +2745,19 @@
           script.onerror = resolve;
           document.head.appendChild(script);
         });
-
-      Promise.resolve(window.platformAuthReadyPromise)
-        .catch(() => null)
-        .then(() => loadOptionalScript(`./periodization-import-data.js?v=${assetVersion}`))
+      const authReady = Promise.resolve(window.platformAuthReadyPromise).catch(() => null);
+      const importedPeriodizationReady = loadOptionalScript(`./periodization-import-data.js?v=${assetVersion}`);
+      Promise.all([authReady, importedPeriodizationReady])
         .then(() => {
-          import(`./app.js?v=${assetVersion}`).catch((error) => {
-            document.body.dataset.appLoadError = error?.message ?? "App script failed to load";
-            console.error(error);
-          });
+          window.performance?.mark?.("footballscience:app-import-start");
+          import(`./app.js?v=${assetVersion}`)
+            .then(() => {
+              window.performance?.mark?.("footballscience:app-import-ready");
+            })
+            .catch((error) => {
+              document.body.dataset.appLoadError = error?.message ?? "App script failed to load";
+              console.error(error);
+            });
         });
     </script>
   </body>

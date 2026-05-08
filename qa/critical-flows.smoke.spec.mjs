@@ -4,6 +4,8 @@ const scheduleKey = "football-schedule-v1";
 const periodizationKey = "football-periodization-v2";
 const sessionPlannerKey = "football-session-planner-v3";
 const medicalKey = "football-medical-team-v1";
+const dashboardChatKey = "football-dashboard-chat-v1";
+const workspaceHubKey = "football-workspace-hub-v3";
 
 async function dismissDashboardModal(page) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -104,6 +106,124 @@ test("localhost boots through dev auth and keeps Supabase config off the local p
   await expect(page.locator("#dataSafetyStatus")).toContainText(/sync|autosave|saved|cache/i);
   await expect(page.locator("#dataSafetyExportButton")).toBeVisible();
   await expect(page.locator("#dataSafetyImportButton")).toBeVisible();
+});
+
+test("Workspace hub ignores stale shared active workspace on boot", async ({ page }) => {
+  await page.addInitScript(
+    ({ key }) => {
+      window.localStorage.setItem(
+        key,
+        JSON.stringify({
+          activeWorkspaceId: "game-simulator",
+          workspaceAccess: {
+            home: { view: ["admin", "coach"], edit: ["admin", "coach"] },
+            "game-simulator": { view: ["admin", "coach"], edit: ["admin", "coach"] },
+          },
+        })
+      );
+    },
+    { key: workspaceHubKey }
+  );
+
+  await bootApp(page);
+
+  await expect(page.locator("body")).toHaveAttribute("data-active-workspace", "home");
+  const storedHubState = JSON.parse(await page.evaluate((key) => window.localStorage.getItem(key), workspaceHubKey));
+  expect(storedHubState.activeWorkspaceId).toBeUndefined();
+});
+
+test("Profile updates sync to the account menu and logout returns to sign in", async ({ page }) => {
+  const stamp = Date.now();
+  await bootApp(page);
+
+  await page.locator("#profileMenuButton").click();
+  await page.locator('#profileMenu [data-open-workspace="my-profile"]').click();
+  await expect(page.locator('[data-workspace-view="profile"].is-active')).toBeVisible();
+
+  await page.locator('#profileForm input[name="firstName"]').fill("QA");
+  await page.locator('#profileForm input[name="lastName"]').fill(`Account ${stamp}`);
+  await page.locator('#profileForm input[name="title"]').fill("Account Tester");
+  await page.locator('#profileForm input[name="department"]').fill("Football Ops");
+  await page.locator('#profileForm input[name="team"]').fill(`Central Team ${stamp}`);
+  await page.locator('#profileForm button[type="submit"]').click();
+
+  await expect(page.locator("#profileWorkspace")).toContainText("Saved.");
+  await expect(page.locator("#profileWorkspace .profile-title")).toContainText(`QA Account ${stamp}`);
+  await expect(page.locator("#profileMenuName")).toContainText(`QA Account ${stamp}`);
+  await expect(page.locator("#profileMenuClub")).toContainText(`Central Team ${stamp}`);
+
+  await page.locator("#profileMenuButton").click();
+  await page.locator("#logoutButton").click();
+  await expect(page.locator("#loginScreen")).toBeVisible();
+  await expect(page.locator("#hubShell")).toBeHidden();
+});
+
+test("Chat launcher shows unread chat until the thread is opened", async ({ page }) => {
+  const messageId = `qa-chat-unread-${Date.now()}`;
+  await bootApp(page);
+
+  await page.evaluate(
+    ({ key, id }) => {
+      const existingMessages = JSON.parse(window.localStorage.getItem(key) || "[]");
+      const nextMessages = [
+        ...existingMessages.filter((message) => message.id !== id),
+        {
+          id,
+          userId: "qa-colleague",
+          threadId: "team",
+          text: "QA unread chat notification",
+          createdAt: new Date().toISOString(),
+          deliveredAt: new Date().toISOString(),
+          readBy: ["qa-colleague"],
+          mentionedUserIds: [],
+          author: {
+            id: "qa-colleague",
+            firstName: "QA",
+            lastName: "Colleague",
+            role: "coach",
+            status: "active",
+          },
+        },
+      ];
+      window.localStorage.setItem(key, JSON.stringify(nextMessages));
+      window.dispatchEvent(new StorageEvent("storage", { key, newValue: JSON.stringify(nextMessages) }));
+    },
+    { key: dashboardChatKey, id: messageId }
+  );
+
+  await expect(page.locator(".dashboard-chat-launcher .dashboard-chat-header-badge")).toContainText("1");
+  await expect(page.locator('.top-icon-menu-item[data-open-workspace="home"].has-notification')).toHaveCount(0);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          ({ key, id }) => {
+            const message = JSON.parse(window.localStorage.getItem(key) || "[]").find((entry) => entry.id === id);
+            return Boolean(message?.readBy?.includes("dev-user-mak"));
+          },
+          { key: dashboardChatKey, id: messageId }
+        ),
+      { timeout: 3_000 }
+    )
+    .toBe(false);
+
+  await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          ({ key, id }) => {
+            const message = JSON.parse(window.localStorage.getItem(key) || "[]").find((entry) => entry.id === id);
+            return Boolean(message?.readBy?.includes("dev-user-mak"));
+          },
+          { key: dashboardChatKey, id: messageId }
+        ),
+      { timeout: 5_000 }
+    )
+    .toBe(true);
+  await expect(page.locator(".dashboard-chat-launcher .dashboard-chat-header-badge")).toHaveCount(0);
+  await expect(page.locator('.top-icon-menu-item[data-open-workspace="home"].has-notification')).toHaveCount(0);
 });
 
 test("Schedule edits persist after refresh", async ({ page }) => {

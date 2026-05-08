@@ -1,5 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
+const qaDir = path.dirname(fileURLToPath(import.meta.url));
+const staticServerPath = path.join(qaDir, "static-server.mjs");
 const port = Number(process.env.QA_PORT || 4173);
 const baseURL = `http://127.0.0.1:${port}`;
 
@@ -21,7 +25,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: `node static-server.mjs --port ${port}`,
+    command: `node ${JSON.stringify(staticServerPath)} --port ${port}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 15_000,

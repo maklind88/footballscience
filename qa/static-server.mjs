@@ -22,6 +22,7 @@ const contentTypes = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
   ".mp4": "video/mp4",
   ".png": "image/png",
   ".svg": "image/svg+xml",
@@ -73,7 +74,16 @@ const server = createServer(async (req, res) => {
       "Content-Length": fileStat.size,
       "Cache-Control": "no-store",
     });
-    createReadStream(filePath).pipe(res);
+    const stream = createReadStream(filePath);
+    stream.on("error", () => {
+      if (!res.destroyed) {
+        res.destroy();
+      }
+    });
+    res.on("close", () => {
+      stream.destroy();
+    });
+    stream.pipe(res);
   } catch {
     sendText(res, 404, "Not found");
   }

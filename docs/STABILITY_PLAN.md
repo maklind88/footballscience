@@ -10,7 +10,7 @@ Treat these as protected product data:
 - Session Planner and Exercise Library
 - Periodization
 - Medical Team
-- Player Profiles
+- Squad
 - Home tasks and staff chat
 - Game Simulator sequences and sequence library
 
@@ -19,11 +19,13 @@ Treat these as protected product data:
 - Production source of truth: Supabase-backed central app state through `/api/app-state`.
 - Server backups: `/api/app-state-backup` writes timestamped Supabase Storage backups under `backups/app-state/`.
 - Browser storage: fast local cache, autosave surface, and emergency export/import source.
-- Data Safety manifest: tracks protected local writes and pending central sync.
+- Data Safety Contract: `src/core/data-safety-contracts.cjs` is the shared registry for module key, scope, merge policy, required fields, revision behavior, audit, and snapshot requirements.
+- Data Safety manifest: tracks protected local writes and pending central sync. Local storage is cache-only, never the production source of truth.
 - IndexedDB snapshots: local safety net for recent browser-side state.
 - Localhost/dev auth: local-only mode for development and QA; it must not call `/api/client-config`.
 
 The app must never treat a missing or incomplete sync response as permission to overwrite local protected data with an empty value.
+Versioned module writes carry their latest known `baseRevision` from the client. If central state is newer, `/api/app-state` rejects the stale write unless the module contract has an explicit merge strategy that preserves newer data. The browser write queue clears stale-conflict retries and hydrates the central version back into cache.
 
 ## QA Gate
 
@@ -37,6 +39,8 @@ This runs:
 
 - `npm run check`
 - API contract tests for client config and app-state auth behavior.
+- Data Safety contract tests for central pipeline, organization scope, revision metadata, stale-write rejection, and protected key coverage.
+- Browser two-tab revision smoke in `qa/central-state-revision.smoke.spec.mjs`.
 - Browser smoke tests for Schedule, Periodization, Session Planner, and Medical Team refresh persistence.
 
 For deploy-specific shorthand:

@@ -7,6 +7,14 @@ const MAX_NAME_LENGTH = 80;
 const MAX_USERNAME_LENGTH = 64;
 const MAX_PROFILE_IMAGE_LENGTH = 1800;
 const MAX_JSON_BODY_BYTES = 256 * 1024;
+const PROFILE_IMAGE_BUCKET = "footballscience-profile-images";
+const MAX_PROFILE_IMAGE_UPLOAD_BYTES = 1024 * 1024;
+const PROFILE_IMAGE_TYPES = new Map([
+  ["image/jpeg", "jpg"],
+  ["image/jpg", "jpg"],
+  ["image/png", "png"],
+  ["image/webp", "webp"],
+]);
 
 function getEnvValue(primary, alternatives = []) {
   for (const key of [primary, ...alternatives]) {
@@ -81,10 +89,6 @@ function normalizeProfileImageValue(value) {
 
   if (raw.length > MAX_PROFILE_IMAGE_LENGTH) {
     return "";
-  }
-
-  if (raw.startsWith("data:image/")) {
-    return raw;
   }
 
   try {
@@ -176,6 +180,23 @@ function buildHeaders(apiKey) {
   };
 }
 
+async function parseSupabaseResponse(response) {
+  if (!response || response.status === 204) {
+    return {};
+  }
+
+  const text = await response.text();
+  if (!text) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { message: text };
+  }
+}
+
 async function callSupabase(path, method, body, token) {
   const { url, serviceRoleKey } = readConfig();
   if (!url || !serviceRoleKey) {
@@ -192,7 +213,7 @@ async function callSupabase(path, method, body, token) {
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  const payload = await parseResponseJson(response);
+  const payload = await parseSupabaseResponse(response);
   if (!response.ok) {
     return {
       ok: false,
@@ -210,6 +231,188 @@ async function callSupabase(path, method, body, token) {
     status: response.status,
     data: payload,
   };
+}
+
+async function callSupabaseStorage(path, method, body, options = {}) {
+  const { url, serviceRoleKey } = readConfig();
+  if (!url || !serviceRoleKey) {
+    return {
+      ok: false,
+      status: 500,
+      error: { message: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment." },
+    };
+  }
+
+  const headers = {
+    apikey: serviceRoleKey,
+    Authorization: `Bearer ${serviceRoleKey}`,
+    ...(options.contentType ? { "Content-Type": options.contentType } : {}),
+    ...(options.headers || {}),
+  };
+
+  const response = await fetch(`${url}/storage/v1${path}`, {
+    method,
+    headers,
+    body,
+  });
+
+  const payload = await parseSupabaseResponse(response);
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: response.status,
+      error: {
+        message: payload?.error || payload?.message || payload?.msg || `Storage request failed (${response.status}).`,
+        payload,
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    status: response.status,
+    data: payload,
+  };
+}
+
+function parseLegacyProfileImageDataUrl(value) {
+  const raw = String(value || "").trim();
+  const match = raw.match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,([a-z0-9+/=\s]+)$/i);
+  if (!match) {
+    return null;
+  }
+
+  const contentType = match[1].toLowerCase() === "image/jpg" ? "image/jpeg" : match[1].toLowerCase();
+  const extension = PROFILE_IMAGE_TYPES.get(contentType);
+  if (!extension) {
+    return null;
+  }
+
+  const buffer = Buffer.from(match[2].replace(/\s+/g, ""), "base64");
+  if (!buffer.length || buffer.length > MAX_PROFILE_IMAGE_UPLOAD_BYTES) {
+    return null;
+  }
+
+  return {
+    buffer,
+    contentType,
+    extension,
+  };
+}
+
+function findLegacyProfileImageDataUrl(metadata = {}) {
+  for (const key of ["profileImageUrl", "profile_image_url", "avatarUrl", "avatar_url"]) {
+    const parsed = parseLegacyProfileImageDataUrl(metadata?.[key]);
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+async function ensureProfileImageBucket() {
+  const existing = await callSupabaseStorage(`/bucket/${encodeURIComponent(PROFILE_IMAGE_BUCKET)}`, "GET", null);
+  if (existing.ok) {
+    if (existing.data?.public === false) {
+      const updated = await callSupabaseStorage(
+        `/bucket/${encodeURIComponent(PROFILE_IMAGE_BUCKET)}`,
+        "PUT",
+        JSON.stringify({
+          public: true,
+          file_size_limit: MAX_PROFILE_IMAGE_UPLOAD_BYTES,
+          allowed_mime_types: ["image/jpeg", "image/png", "image/webp"],
+        }),
+        { contentType: "application/json" }
+      );
+      return updated.ok;
+    }
+    return true;
+  }
+
+  if (existing.status !== 404) {
+    return false;
+  }
+
+  const created = await callSupabaseStorage(
+    "/bucket",
+    "POST",
+    JSON.stringify({
+      id: PROFILE_IMAGE_BUCKET,
+      name: PROFILE_IMAGE_BUCKET,
+      public: true,
+      file_size_limit: MAX_PROFILE_IMAGE_UPLOAD_BYTES,
+      allowed_mime_types: ["image/jpeg", "image/png", "image/webp"],
+    }),
+    { contentType: "application/json" }
+  );
+
+  return created.ok || created.status === 409;
+}
+
+function buildProfileImageObjectPath(userId, extension) {
+  const safeUserId = String(userId || "user").replace(/[^a-z0-9_-]/gi, "-") || "user";
+  const randomPart = Math.random().toString(36).slice(2, 8);
+  return `users/${safeUserId}/avatar-migrated-${Date.now()}-${randomPart}.${extension}`;
+}
+
+function getProfileImagePublicUrl(objectPath) {
+  const { url } = readConfig();
+  return `${url}/storage/v1/object/public/${PROFILE_IMAGE_BUCKET}/${objectPath}?v=${Date.now()}`;
+}
+
+async function uploadMigratedProfileImage(userId, image) {
+  const objectPath = buildProfileImageObjectPath(userId, image.extension);
+  const result = await callSupabaseStorage(
+    `/object/${encodeURIComponent(PROFILE_IMAGE_BUCKET)}/${objectPath}`,
+    "POST",
+    image.buffer,
+    {
+      contentType: image.contentType,
+      headers: {
+        "Cache-Control": "public, max-age=31536000, immutable",
+        "x-upsert": "true",
+      },
+    }
+  );
+
+  return result.ok ? getProfileImagePublicUrl(objectPath) : "";
+}
+
+async function migrateLegacyProfileImageForRawUser(rawUser) {
+  if (!rawUser?.id || !rawUser?.user_metadata || typeof rawUser.user_metadata !== "object") {
+    return rawUser;
+  }
+
+  const image = findLegacyProfileImageDataUrl(rawUser.user_metadata);
+  if (!image) {
+    return rawUser;
+  }
+
+  const bucketReady = await ensureProfileImageBucket();
+  if (!bucketReady) {
+    return rawUser;
+  }
+
+  const publicUrl = await uploadMigratedProfileImage(rawUser.id, image);
+  if (!publicUrl) {
+    return rawUser;
+  }
+
+  const nextMetadata = {
+    ...rawUser.user_metadata,
+    profileImageUrl: publicUrl,
+    profile_image_url: publicUrl,
+    avatarUrl: publicUrl,
+    avatar_url: publicUrl,
+  };
+
+  const result = await callSupabase(`/admin/users/${encodeURIComponent(rawUser.id)}`, "PUT", {
+    user_metadata: nextMetadata,
+    app_metadata: rawUser.app_metadata || {},
+  });
+
+  return result.ok ? result.data?.user || result.data || rawUser : rawUser;
 }
 
 async function getCurrentActor(authHeader) {
@@ -242,7 +445,8 @@ async function getCurrentActor(authHeader) {
   }
 
   const freshUser = await getRawAuthUserById(user.id);
-  return normalizePlatformUser(freshUser || user);
+  const migratedUser = await migrateLegacyProfileImageForRawUser(freshUser || user);
+  return normalizePlatformUser(migratedUser || freshUser || user);
 }
 
 async function listAllAuthUsers(perPage = 200) {
@@ -274,7 +478,10 @@ async function listAllAuthUsers(perPage = 200) {
 
     const payload = await parseResponseJson(response);
     const chunk = Array.isArray(payload?.users) ? payload.users : Array.isArray(payload) ? payload : [];
-    users.push(...chunk.map((entry) => normalizePlatformUser(entry)));
+    for (const entry of chunk) {
+      const migratedUser = await migrateLegacyProfileImageForRawUser(entry);
+      users.push(normalizePlatformUser(migratedUser || entry));
+    }
 
     if (chunk.length < limit) {
       break;
@@ -298,7 +505,8 @@ async function findAuthUserByIdentifier(identifier) {
 
 async function getAuthUserById(id) {
   const user = await getRawAuthUserById(id);
-  return user ? normalizePlatformUser(user) : null;
+  const migratedUser = await migrateLegacyProfileImageForRawUser(user);
+  return migratedUser ? normalizePlatformUser(migratedUser) : null;
 }
 
 async function getRawAuthUserById(id) {

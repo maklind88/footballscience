@@ -5,27 +5,12 @@ const {
   sendCorsHeaders,
   sendJson,
 } = require("./_lib/supabase-admin.js");
+const { dataSafetyRegistry } = require("../src/core/data-safety-contracts.cjs");
 
 const STATE_BUCKET = "footballscience-app-state";
 const STATE_PREFIX = "global";
 const BACKUP_PREFIX = "backups/app-state";
-const CENTRAL_STATE_KEYS = new Set([
-  "football-workspace-hub-v3",
-  "football-periodization-v2",
-  "football-schedule-v1",
-  "football-session-planner-v3",
-  "football-session-exercise-library-v1",
-  "football-session-exercise-library-backup-v1",
-  "football-dashboard-tasks-v1",
-  "football-dashboard-chat-v1",
-  "football-dashboard-notification-seen-v1",
-  "football-dashboard-tutorial-prefs-v1",
-  "football-dashboard-news-seen-v1",
-  "football-medical-team-v1",
-  "football-player-profiles-v1",
-  "football-simulator-sequence-v1",
-  "football-simulator-sequence-library-v2",
-]);
+const CENTRAL_STATE_KEYS = new Set(dataSafetyRegistry.keys());
 
 function getStorageBaseUrl() {
   const { url, serviceRoleKey } = readConfig();
@@ -150,6 +135,10 @@ async function collectCentralStateBackupEntries() {
       entries[entry.key] = value;
       manifest[entry.key] = {
         present: true,
+        moduleId: dataSafetyRegistry.getByKey(entry.key)?.moduleId || "",
+        organizationId: entry.organizationId || "global",
+        revision: Number.isInteger(Number(entry.revision)) ? Number(entry.revision) : 0,
+        mergePolicy: entry.mergePolicy || dataSafetyRegistry.getByKey(entry.key)?.mergePolicy || "",
         updatedAt: entry.updatedAt || "",
         updatedBy: entry.updatedBy || "",
         bytes: Buffer.byteLength(value, "utf8"),

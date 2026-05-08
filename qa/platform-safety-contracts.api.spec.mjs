@@ -20,6 +20,8 @@ const protectedStorageKeys = [
   "football-session-planner-v3",
   "football-session-exercise-library-v1",
   "football-session-exercise-library-backup-v1",
+  "football-session-exercise-library-folders-v1",
+  "football-session-exercise-library-folders-backup-v1",
   "football-dashboard-tasks-v1",
   "football-dashboard-chat-v1",
   "football-dashboard-notification-seen-v1",
@@ -46,6 +48,8 @@ const moduleContractIds = [
 
 const coreFiles = [
   "src/core/platform-contracts.mjs",
+  "src/core/data-safety-contracts.cjs",
+  "src/core/data-safety-contracts.mjs",
   "src/core/module-registry.mjs",
   "src/core/permissions.mjs",
   "src/core/events.mjs",
@@ -57,23 +61,39 @@ const coreFiles = [
   "src/modules/home/chat.mjs",
   "src/modules/home/chat-adapter.mjs",
   "src/modules/home/index.mjs",
+  "src/modules/chat/chat.mjs",
+  "src/modules/chat/chat-adapter.mjs",
+  "src/modules/chat/chat-api-client.mjs",
+  "src/modules/chat/chat-widget-renderer.mjs",
+  "src/modules/chat/index.mjs",
   "src/modules/schedule/events.mjs",
   "src/modules/schedule/schedule-adapter.mjs",
   "src/modules/schedule/index.mjs",
+  "src/modules/squad/players.mjs",
+  "src/modules/squad/squad-adapter.mjs",
+  "src/modules/squad/index.mjs",
+  "src/modules/game-simulator/index.mjs",
+  "src/modules/game-simulator/control-bindings.mjs",
+  "src/modules/game-simulator/fullscreen.mjs",
+  "src/modules/game-simulator/runtime.mjs",
+  "src/modules/game-simulator/workspace-controller.mjs",
+  "src/modules/game-simulator/keyboard-state.mjs",
 ];
 
 test("protected product data remains covered by client safety, central state, and backups", () => {
   const appSource = readProjectFile("app.js");
   const appStateSource = readProjectFile("api/app-state.js");
   const backupSource = readProjectFile("api/app-state-backup.js");
+  const dataSafetySource = readProjectFile("src/core/data-safety-contracts.cjs");
   const moduleContracts = readProjectFile("docs/MODULE_CONTRACTS.md");
 
   for (const key of protectedStorageKeys) {
     expect(appSource, `${key} must stay in app.js data safety coverage`).toContain(key);
-    expect(appStateSource, `${key} must stay in /api/app-state central coverage`).toContain(key);
-    expect(backupSource, `${key} must stay in /api/app-state-backup coverage`).toContain(key);
+    expect(dataSafetySource, `${key} must stay in the central Data Safety Contract`).toContain(key);
     expect(moduleContracts, `${key} must be assigned to a module contract`).toContain(key);
   }
+  expect(appStateSource).toContain("dataSafetyRegistry.keys()");
+  expect(backupSource).toContain("dataSafetyRegistry.keys()");
 });
 
 test("platform evolution plan forbids risky rewrites and destructive data moves", () => {
@@ -103,11 +123,16 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   const vercelConfig = readJson("vercel.json");
   const liveSpec = readProjectFile("qa/production.live.spec.mjs");
   const qaWorkflow = readProjectFile(".github/workflows/qa.yml");
+  const performanceBudget = readProjectFile("scripts/performance-budget.mjs");
 
+  expect(packageJson.scripts["qa"]).toContain("npm run qa:perf");
+  expect(packageJson.scripts["qa:perf"]).toContain("scripts/performance-budget.mjs");
   expect(packageJson.scripts["qa:live"]).toContain("qa/live.playwright.config.mjs");
   expect(liveSpec).toContain("LIVE_QA_USERNAME");
   expect(liveSpec).toContain("LIVE_QA_PASSWORD");
   expect(liveSpec).toContain("production-safe live smoke");
+  expect(performanceBudget).toContain("maxGzipBytes");
+  expect(performanceBudget).toContain("targetGzipBytes");
   expect(vercelConfig.crons).toEqual(
     expect.arrayContaining([
       expect.objectContaining({
@@ -134,17 +159,73 @@ test("modular core skeleton exists beside the current app but is not loaded by p
 test("core module contracts are covered by dedicated QA", () => {
   const packageJson = readJson("package.json");
   const modularCoreSpec = readProjectFile("qa/modular-core.api.spec.mjs");
+  const dataSafetySpec = readProjectFile("qa/data-safety-contracts.api.spec.mjs");
   const homeTasksSpec = readProjectFile("qa/home-tasks-adapter.api.spec.mjs");
   const homeChatSpec = readProjectFile("qa/home-chat-adapter.api.spec.mjs");
+  const homeChatWidgetSpec = readProjectFile("qa/home-chat-widget-renderer.api.spec.mjs");
   const scheduleSpec = readProjectFile("qa/schedule-adapter.api.spec.mjs");
+  const squadAdapterSpec = readProjectFile("qa/squad-adapter.api.spec.mjs");
+  const squadDatabaseSpec = readProjectFile("qa/squad-database-schema.api.spec.mjs");
+  const gameSimulatorSpec = readProjectFile("qa/game-simulator-controller.api.spec.mjs");
+  const gameSimulatorBindingsSpec = readProjectFile("qa/game-simulator-control-bindings.api.spec.mjs");
+  const gameSimulatorFullscreenSpec = readProjectFile("qa/game-simulator-fullscreen.api.spec.mjs");
+  const gameSimulatorKeyboardStateSpec = readProjectFile("qa/game-simulator-keyboard-state.api.spec.mjs");
 
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-safety-contracts.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/data-safety-contracts.api.spec.mjs");
+  expect(dataSafetySpec).toContain("data safety registry covers every protected module storage key");
+  expect(dataSafetySpec).toContain("central app-state rejects stale versioned writes");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-tasks-adapter.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-chat-adapter.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-dashboard-renderer.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-chat-widget-renderer.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/schedule-adapter.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-adapter.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-database-schema.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-controller.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-control-bindings.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-fullscreen.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-keyboard-state.api.spec.mjs");
   expect(modularCoreSpec).toContain("modular core covers protected storage keys");
   expect(modularCoreSpec).toContain("read-only storage adapter blocks accidental writes");
   expect(homeTasksSpec).toContain("Home Tasks legacy read adapter uses the protected storage key");
   expect(homeChatSpec).toContain("Home Chat legacy read adapter uses the protected storage key");
+  expect(homeChatWidgetSpec).toContain("home chat widget renderer");
   expect(scheduleSpec).toContain("Schedule legacy read adapter uses the protected storage key");
+  expect(squadAdapterSpec).toContain("Squad legacy read adapter uses the protected storage key");
+  expect(squadDatabaseSpec).toContain("multi-tenant roster model");
+  expect(gameSimulatorSpec).toContain("game simulator workspace controller");
+  expect(gameSimulatorBindingsSpec).toContain("game simulator control bindings");
+  expect(gameSimulatorFullscreenSpec).toContain("game simulator fullscreen controller");
+  expect(gameSimulatorKeyboardStateSpec).toContain("game simulator keyboard state");
+});
+
+test("game simulator animation loop does not run globally outside the simulator workspace", () => {
+  const packageJson = readJson("package.json");
+  const appSource = readProjectFile("app.js");
+  const controlBindingsSource = readProjectFile("src/modules/game-simulator/control-bindings.mjs");
+  const fullscreenSource = readProjectFile("src/modules/game-simulator/fullscreen.mjs");
+  const runtimeSource = readProjectFile("src/modules/game-simulator/runtime.mjs");
+  const workspaceControllerSource = readProjectFile("src/modules/game-simulator/workspace-controller.mjs");
+
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/control-bindings.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/fullscreen.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/runtime.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/workspace-controller.mjs");
+  expect(appSource).toContain("createSimulatorControlBindings");
+  expect(appSource).toContain("createSimulatorFullscreenController");
+  expect(appSource).toContain("createSimulatorWorkspaceController");
+  expect(appSource).toContain('import("./src/modules/game-simulator/runtime.mjs")');
+  expect(appSource).toContain("function startSimulatorAnimationLoop()");
+  expect(appSource).toContain("function stopSimulatorAnimationLoop()");
+  expect(appSource).toContain('hubState?.activeWorkspaceId === "game-simulator"');
+  expect(appSource).not.toContain("\nwindow.requestAnimationFrame(animationFrame);\n");
+  expect(controlBindingsSource).toContain("createSimulatorControlBindings");
+  expect(controlBindingsSource).toContain("handleKeyDown");
+  expect(fullscreenSource).toContain("createSimulatorFullscreenController");
+  expect(fullscreenSource).toContain("updateHudLayout");
+  expect(runtimeSource).toContain("createSimulatorAnimationLoop");
+  expect(runtimeSource).toContain("window.requestAnimationFrame(tick)");
+  expect(workspaceControllerSource).toContain("createSimulatorWorkspaceController");
+  expect(workspaceControllerSource).toContain("launchFromIntro");
 });

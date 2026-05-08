@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   canEditModule,
   canViewModule,
+  dataSafetyRegistry,
   createModuleRegistry,
   createPlatformEventBus,
   createReadOnlyStorageAdapter,
@@ -16,7 +17,14 @@ test("modular core covers protected storage keys without loading the current UI"
   const registry = createModuleRegistry(platformModules);
 
   expect(registry.assertProtectedStorageCoverage(protectedStorageKeys)).toBe(true);
+  expect(registry.assertDataSafetyCoverage()).toBe(true);
+  expect(dataSafetyRegistry.assertStorageKeyCoverage(protectedStorageKeys)).toBe(true);
   expect(registry.ownersForStorageKey("football-dashboard-chat-v1")).toEqual(["chat"]);
+  expect(registry.dataSafetyForStorageKey("football-dashboard-chat-v1")).toMatchObject({
+    moduleId: "chat",
+    saveEndpoint: "/api/app-state",
+    localPersistence: "cache-only",
+  });
   expect(registry.ownersForStorageKey("football-session-exercise-library-backup-v1")).toEqual(["exercise-library"]);
   expect(platformModuleRegistry.ids()).toContain("session-planner");
 });
@@ -64,4 +72,3 @@ test("read-only storage adapter blocks accidental writes during modular extracti
   await expect(adapter.write("football-schedule-v1", "{}")).rejects.toThrow("read-only");
   await expect(adapter.remove("football-schedule-v1")).rejects.toThrow("Destructive migration paths");
 });
-

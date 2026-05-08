@@ -35,6 +35,10 @@ This smoke test also verifies localhost dev-auth does not call `/api/client-conf
 
 `qa/platform-safety-contracts.api.spec.mjs` is the long-term platform guardrail. It fails QA if protected storage keys, backup coverage, module contracts, live-smoke hooks, or the daily backup cron disappear during future refactors.
 
+`qa/data-safety-contracts.api.spec.mjs` is the shared module data safety gate. It fails QA if a protected module key lacks a central save contract, cache-only browser storage rule, organization scope, revision fields, merge policy, or stale-write protection.
+
+`qa/central-state-revision.smoke.spec.mjs` simulates two browser tabs against the central sync bridge. It verifies the first tab saves with the current `baseRevision`, a stale second tab sends its old revision, and the stale write cannot overwrite newer central data.
+
 `npm run qa:contracts` runs the platform safety guardrail plus the inert modular core checks for registry coverage, permissions, events, read-only storage adapters, the Home Tasks adapter boundary, the Home Chat adapter boundary, and the Schedule adapter boundary.
 
 ## Manual UI Checks
@@ -48,6 +52,10 @@ This smoke test also verifies localhost dev-auth does not call `/api/client-conf
 - Top nav order is correct.
 - Right account menu opens and Profile is reachable there.
 - Profile image upload saves locally and appears in both Profile and the account menu.
+- Profile image upload stores a Supabase Storage URL in auth metadata, never an inline `data:image/...` value.
+- Profile save updates name, title, department, team, and the top-right account menu without refresh.
+- Admin cannot accidentally remove their own admin role or pause their own account.
+- Paused accounts cannot continue into the platform after sign-in/session refresh.
 - Home does not render the removed Today Command Center card.
 - Home renders Staff Room high on the right, with Coach To-Do and Player/Team Alerts as the main work surface.
 - Session Planner shows scheduled training days as planned even when exercise blocks are not added yet.
@@ -70,6 +78,13 @@ This smoke test also verifies localhost dev-auth does not call `/api/client-conf
 - Session Planner blocks can be selected without reloading the date strip.
 - Long text does not break left cards.
 - Exercise Library can save, use, archive, and restore an exercise without removing it from storage.
+- Exercise Library Phase/Sub-Phase filters support multi-select with check marks, and filtered results keep a coherent preview selection.
+- Exercise Library Duplicate/Edit can create or update an exercise, persist after reload, and keep the original available unless explicitly edited.
+- Exercise Library Edit offers Save changes, Save as copy, and Cancel; Save as copy creates a new variant and leaves the original untouched.
+- Exercise Library edit/replace/duplicate writes lightweight version snapshots.
+- Exercise Library can create Team/Personal folders, drag active exercises into a folder, reload, and keep the folder membership.
+- Archiving a folder does not archive, remove, or overwrite the exercises assigned to it.
+- Exercise Library can rename/restore folders, remove an exercise from a folder without deleting it, save/search tags, and switch sort modes.
 - Tacticalboard opens, can add objects, draw, select, delete, and close.
 - New exercise Tacticalboard starts empty except pitch lines.
 - Game Simulator route does not keep simulation running after leaving.

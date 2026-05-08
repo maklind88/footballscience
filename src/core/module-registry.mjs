@@ -1,4 +1,5 @@
 import { platformModules, protectedStorageKeys } from "./platform-contracts.mjs";
+import { dataSafetyRegistry } from "./data-safety-contracts.mjs";
 
 function normalizeModuleId(value) {
   return String(value || "").trim();
@@ -56,8 +57,18 @@ export function createModuleRegistry(modules = platformModules) {
       }
       return true;
     },
+    dataSafetyForModule(moduleId) {
+      return dataSafetyRegistry.forModule(normalizeModuleId(moduleId));
+    },
+    dataSafetyForStorageKey(storageKey) {
+      return dataSafetyRegistry.getByKey(String(storageKey || "").trim());
+    },
+    assertDataSafetyCoverage() {
+      dataSafetyRegistry.assertModuleCoverage(normalizedModules);
+      dataSafetyRegistry.assertRequiredContractFields();
+      return true;
+    },
   });
 }
 
 export const platformModuleRegistry = createModuleRegistry();
-

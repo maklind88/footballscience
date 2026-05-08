@@ -3,9 +3,21 @@
 ## Highest Priority
 
 - Keep improving Session Planner and Tacticalboard.
+- Keep Profile, Account Menu, admin user accounts, and Supabase-backed user data stable before expanding account features.
 - Keep updating this docs folder after meaningful product decisions.
 - Treat data safety as a product requirement: keep backup/export/restore working for Schedule, Periodization, Sessions, Medical, users, and simulator data.
 - Verify live `footballscience.xyz` after deployment, especially if localStorage can make old data appear.
+
+## Profile / Accounts
+
+- Audit Profile save so name, title, department, team, and profile image update both the profile workspace and top-right account menu.
+- Keep Profile reachable only through the account menu.
+- Keep Profile / Settings / Logout visually clean and reliable.
+- Confirm Logout signs out immediately without requiring refresh.
+- Keep admin account creation, updates, password actions, and role changes Supabase-first.
+- Add focused QA coverage for profile update propagation, profile image propagation, and logout behavior.
+- Keep profile image uploads out of auth JWT metadata: images go to Supabase Storage and auth metadata stores only the public image URL.
+- Keep self-admin role/status protected and keep paused accounts from entering the app.
 
 ## Home Dashboard
 
@@ -18,9 +30,10 @@
 ## Session Planner
 
 - Treat existing Exercise Library entries as protected data: all future migrations should append/merge and keep backups, not reset or remove saved exercises.
-- Finish Exercise Library as a scalable popup/modal with save, archive/restore, confirmation, and filtering by Phase/Sub-Phase.
-- Add edit existing library exercise and rename flows without overwriting archived or existing entries silently.
-- Add multi-select dropdown behavior for Phase and Sub-Phase with check marks.
+- Continue hardening Exercise Library around protected data, backup recovery, and long-term migrations.
+- Expand Exercise Library version history later with restore-from-version if needed.
+- Improve large-library ergonomics next: saved views, bulk folder actions, tag filters, and import/export validation.
+- Keep folder membership as non-destructive metadata; deleting/archiving a folder must not delete exercises.
 - Allow drag/reorder of blocks so Block 2 can become Block 1.
 - Keep date strip smooth: one-week visible range, arrows scroll only, Today jumps to today.
 - Make plus button open useful choices: add from library, create new exercise, duplicate current exercise, upload exercise.

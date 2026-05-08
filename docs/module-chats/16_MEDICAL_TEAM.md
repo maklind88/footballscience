@@ -46,4 +46,8 @@ Forsta konkreta instruktionen:
 - Coach-Safe Handover visar en ren coachvy med managed players och endast kommentarer som explicit ar godkanda att dela, plus copy action.
 - Spelarpopupen har Medical Profile summary med current status, RTP phase, active plan, review date, 7-day average, log entries, clearance sign-offs och load gates.
 - Session Planner visar block gate/warnings: hur manga matchar vald blockniva, ligger under blocknivan, ar 0% eller saknar medical entry.
+- Security Layer ar tillagd: API:t filtrerar `football-medical-team-v1` server-side for coach/read-only roller sa interna notes, injury/body-area, review date, clearance gates, actual participation och created-by inte skickas till coachvyn. Medical/performance/admin behaller full vy.
+- Klienten sanerar ocksa coachvyn fran gammal localStorage-cache, Medical Room visar Security Layer-panel, och audit-loggen sparar medical writes samt coach-safe handover copy med counts endast, utan note-text.
+- Governance-panel ar tillagd for medical/admin: retention months, consent required, policy owner, incident contact, last reviewed date och review cadence. Policy-objektet exkluderas fran coach-safe server payload.
+- Supabase RLS foundation ar staged i `supabase/migrations/20260507230628_medical_module_multitenant.sql`: `medical_*` tables for governance, consent, cases, recommendations, availability plans, clearance, load gates, review tasks och audit. Nuvarande UI anvander fortfarande app-state; databasen ar server-write first och exponerar bara coach-safe availability columns/views till authenticated clients.
 ```

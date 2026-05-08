@@ -8,6 +8,7 @@ const {
 } = require("./_lib/supabase-admin.js");
 const { appendAuditLog } = require("./_lib/audit-log.js");
 const { appendSessionPlannerHistory } = require("./_lib/session-history.js");
+const { dataSafetyRegistry } = require("../src/core/data-safety-contracts.cjs");
 const crypto = require("crypto");
 
 const STATE_BUCKET = "footballscience-app-state";
@@ -15,7 +16,11 @@ const STATE_PREFIX = "global";
 const MAX_STATE_VALUE_BYTES = 12 * 1024 * 1024;
 const SESSION_PLANNER_KEY = "football-session-planner-v3";
 const SESSION_EXERCISE_LIBRARY_KEY = "football-session-exercise-library-v1";
+const SESSION_EXERCISE_LIBRARY_FOLDERS_KEY = "football-session-exercise-library-folders-v1";
+const MEDICAL_TEAM_KEY = "football-medical-team-v1";
+const PLAYER_PROFILES_KEY = "football-player-profiles-v1";
 const SESSION_PLANNER_REDUCTION_GUARD_KEY = "blockReductionGuard";
+const SESSION_PLANNER_BLOCK_DELETION_TOMBSTONE_KEY = "blockDeletionTombstones";
 const SESSION_PLANNER_REDUCTION_WINDOW_MS = 30 * 60 * 1000;
 const SESSION_PLANNER_BLOCK_FIELD_META_KEY = "fieldUpdatedAt";
 const SESSION_PLANNER_BLOCK_MERGE_FIELDS = [
@@ -42,25 +47,10 @@ const SESSION_PLANNER_BLOCK_MERGE_FIELDS = [
   "tacticalElements",
 ];
 const SESSION_PLANNER_BLOCK_MERGE_FIELD_SET = new Set(SESSION_PLANNER_BLOCK_MERGE_FIELDS);
-const CENTRAL_STATE_KEYS = new Set([
-  "football-workspace-hub-v3",
-  "football-periodization-v2",
-  "football-schedule-v1",
-  SESSION_PLANNER_KEY,
-  SESSION_EXERCISE_LIBRARY_KEY,
-  "football-session-exercise-library-backup-v1",
-  "football-dashboard-tasks-v1",
-  "football-dashboard-chat-v1",
-  "football-dashboard-notification-seen-v1",
-  "football-dashboard-tutorial-prefs-v1",
-  "football-dashboard-news-seen-v1",
-  "football-medical-team-v1",
-  "football-player-profiles-v1",
-  "football-simulator-sequence-v1",
-  "football-simulator-sequence-library-v2",
-]);
+const CENTRAL_STATE_KEYS = new Set(dataSafetyRegistry.keys());
 const WORKSPACE_HUB_KEY = "football-workspace-hub-v3";
 const DEFAULT_WORKSPACE_ACCESS = {
+  chat: ["admin", "coach", "analyst", "performance", "medical"],
   schedule: ["admin", "coach", "analyst", "performance", "medical", "guest"],
   periodization: ["admin", "coach", "analyst", "performance", "medical"],
   "session-planner": ["admin", "coach", "analyst", "performance", "medical"],
@@ -73,6 +63,7 @@ const DEFAULT_WORKSPACE_ACCESS = {
   "game-simulator": ["admin", "coach", "analyst", "performance"],
 };
 const DEFAULT_WORKSPACE_EDIT_ACCESS = {
+  chat: ["admin", "coach", "analyst", "performance", "medical"],
   schedule: ["admin", "coach"],
   periodization: ["admin", "coach", "performance"],
   "session-planner": ["admin", "coach"],
@@ -89,19 +80,44 @@ const REQUIRED_WORKSPACE_ACCESS = {
     view: ["admin", "coach", "analyst", "performance", "medical"],
     edit: ["admin", "coach"],
   },
+  "player-profiles": {
+    view: ["admin", "coach", "performance", "medical"],
+    edit: ["admin", "coach"],
+  },
+  "medical-team": {
+    view: ["admin", "coach", "performance", "medical"],
+    edit: ["admin", "medical", "performance"],
+  },
+  "team-identity": {
+    view: ["admin", "coach"],
+    edit: ["admin", "coach"],
+  },
 };
 const STATE_KEY_WORKSPACE_EDIT_MAP = {
+  "football-dashboard-chat-v1": "chat",
   "football-schedule-v1": "schedule",
   "football-periodization-v2": "periodization",
   [SESSION_PLANNER_KEY]: "session-planner",
   [SESSION_EXERCISE_LIBRARY_KEY]: "session-planner",
   "football-session-exercise-library-backup-v1": "session-planner",
-  "football-medical-team-v1": "medical-team",
-  "football-player-profiles-v1": "player-profiles",
+  [SESSION_EXERCISE_LIBRARY_FOLDERS_KEY]: "session-planner",
+  "football-session-exercise-library-folders-backup-v1": "session-planner",
+  [MEDICAL_TEAM_KEY]: "medical-team",
+  [PLAYER_PROFILES_KEY]: "player-profiles",
   "football-simulator-sequence-v1": "game-simulator",
   "football-simulator-sequence-library-v2": "game-simulator",
 };
 const ADMIN_ONLY_STATE_KEYS = new Set(["mak-coaching-platform-users-v1"]);
+const MEDICAL_PRIVATE_ROLES = new Set(["admin", "medical", "performance"]);
+const MEDICAL_PARTICIPATION_OPTIONS = new Set([0, 10, 25, 50, 75, 100]);
+const MEDICAL_STATUS_KEYS = new Set(["full", "modified", "controlled", "rehab", "unavailable", "monitor"]);
+const MEDICAL_RTP_PHASE_KEYS = new Set([
+  "medical-restriction",
+  "rehab",
+  "modified-team",
+  "full-training",
+  "match-available",
+]);
 
 function storageHeaders(contentType = "application/json") {
   const { serviceRoleKey } = readConfig();
@@ -270,22 +286,44 @@ function hashStateValue(value = "") {
   return crypto.createHash("sha256").update(String(value ?? ""), "utf8").digest("hex");
 }
 
+function getStateEntryRevision(entry = {}) {
+  const revision = Number(entry?.revision);
+  return Number.isInteger(revision) && revision >= 0 ? revision : 0;
+}
+
+function getActorOrganizationId(actor = {}, contract = {}) {
+  const candidates = [
+    actor.organizationId,
+    actor.organization_id,
+    actor.app_metadata?.organizationId,
+    actor.app_metadata?.organization_id,
+    contract.defaultOrganizationId,
+    "global",
+  ];
+  return String(candidates.find((value) => String(value || "").trim()) || "global").trim();
+}
+
 function getStateEntryMetadata(entry = {}) {
   const value = String(entry?.value ?? "");
   return {
     updatedAt: entry?.updatedAt || "",
     updatedBy: entry?.updatedBy || "",
+    revision: getStateEntryRevision(entry),
+    organizationId: String(entry?.organizationId || "global"),
+    moduleId: String(entry?.moduleId || dataSafetyRegistry.getByKey(entry?.key)?.moduleId || ""),
+    mergePolicy: String(entry?.mergePolicy || dataSafetyRegistry.getByKey(entry?.key)?.mergePolicy || ""),
     hash: entry?.hash || hashStateValue(value),
     size: Buffer.byteLength(value, "utf8"),
   };
 }
 
-function normalizeStateEntry(key, value, actor, removed = false) {
+function normalizeStateEntry(key, value, actor, removed = false, previousEntry = null) {
   const normalizedKey = sanitizeStateKey(key);
   if (!normalizedKey) {
     return null;
   }
 
+  const contract = dataSafetyRegistry.requireByKey(normalizedKey);
   const normalizedValue = String(value ?? "");
   if (!removed && Buffer.byteLength(normalizedValue, "utf8") > MAX_STATE_VALUE_BYTES) {
     throw new Error(`${normalizedKey} is too large to sync centrally.`);
@@ -294,11 +332,63 @@ function normalizeStateEntry(key, value, actor, removed = false) {
   return {
     schema: "footballscience-app-state-v1",
     key: normalizedKey,
+    moduleId: contract.moduleId,
+    organizationId: previousEntry?.organizationId || getActorOrganizationId(actor, contract),
+    savePipeline: contract.savePipeline,
+    sourceOfTruth: contract.sourceOfTruth,
+    localPersistence: contract.localPersistence,
+    mergePolicy: contract.mergePolicy,
+    revision: getStateEntryRevision(previousEntry) + 1,
     value: normalizedValue,
     removed: Boolean(removed),
     updatedAt: new Date().toISOString(),
     updatedBy: actor?.id || "",
     hash: hashStateValue(normalizedValue),
+  };
+}
+
+function parseClientRevision(value) {
+  const revision = Number(value);
+  return Number.isInteger(revision) && revision >= 0 ? revision : null;
+}
+
+function getClientBaseRevision(metadata = {}, key = "") {
+  if (!metadata || typeof metadata !== "object") {
+    return null;
+  }
+
+  const direct = parseClientRevision(metadata.baseRevision ?? metadata.revision);
+  if (direct !== null) {
+    return direct;
+  }
+
+  const entryMetadata = metadata[key];
+  if (entryMetadata && typeof entryMetadata === "object") {
+    return parseClientRevision(entryMetadata.baseRevision ?? entryMetadata.revision);
+  }
+
+  return null;
+}
+
+function getStaleWriteRejection(contract, previousEntry, authorization, clientBaseRevision) {
+  if (clientBaseRevision === null) {
+    return null;
+  }
+
+  const currentRevision = getStateEntryRevision(previousEntry);
+  if (!currentRevision || currentRevision <= clientBaseRevision) {
+    return null;
+  }
+
+  if (contract?.staleWriteStrategy === "merge" && authorization?.merged) {
+    return null;
+  }
+
+  return {
+    ok: false,
+    status: 409,
+    reason: `Stale ${contract?.moduleId || "module"} data was not saved because the central state is already newer.`,
+    currentRevision,
   };
 }
 
@@ -360,6 +450,51 @@ function getFreshSessionPlannerReductionGuards(state) {
 
 function canReduceSessionPlannerBlocks(state, dateValue) {
   return Boolean(getFreshSessionPlannerReductionGuards(state)[dateValue]);
+}
+
+function normalizeSessionPlannerBlockDeletionTombstones(state) {
+  const tombstones = state?.[SESSION_PLANNER_BLOCK_DELETION_TOMBSTONE_KEY];
+  if (!tombstones || typeof tombstones !== "object" || Array.isArray(tombstones)) {
+    return {};
+  }
+
+  return Object.entries(tombstones).reduce((normalized, [dateValue, blockMap]) => {
+    if (!blockMap || typeof blockMap !== "object" || Array.isArray(blockMap)) {
+      return normalized;
+    }
+
+    const normalizedBlocks = Object.entries(blockMap).reduce((blocks, [blockId, timestampValue]) => {
+      const cleanBlockId = String(blockId || "").trim();
+      const timestamp = parseSessionPlannerGuardTimestamp(timestampValue);
+      if (cleanBlockId && timestamp) {
+        blocks[cleanBlockId] = new Date(timestamp).toISOString();
+      }
+      return blocks;
+    }, {});
+
+    const cleanDate = String(dateValue || "").trim();
+    if (cleanDate && Object.keys(normalizedBlocks).length) {
+      normalized[cleanDate] = normalizedBlocks;
+    }
+    return normalized;
+  }, {});
+}
+
+function mergeSessionPlannerBlockDeletionTombstones(...states) {
+  return states.reduce((merged, state) => {
+    const tombstones = normalizeSessionPlannerBlockDeletionTombstones(state);
+    Object.entries(tombstones).forEach(([dateValue, blockMap]) => {
+      merged[dateValue] = {
+        ...(merged[dateValue] || {}),
+        ...blockMap,
+      };
+    });
+    return merged;
+  }, {});
+}
+
+function getSessionPlannerDeletedBlockIds(tombstones, dateValue) {
+  return new Set(Object.keys(tombstones?.[dateValue] || {}));
 }
 
 function normalizeSessionPlannerBlockFieldMeta(source = {}) {
@@ -466,24 +601,27 @@ function mergeSessionPlannerBlocks(existingBlock = {}, incomingBlock = {}) {
   return merged;
 }
 
-function mergeSessionPlannerSessions(existingSession = {}, incomingSession = {}, dateValue, canReduceBlocks = false) {
+function mergeSessionPlannerSessions(existingSession = {}, incomingSession = {}, dateValue, canReduceBlocks = false, deletedBlockIds = new Set()) {
   const existingBlocks = Array.isArray(existingSession.blocks) ? existingSession.blocks : [];
   const incomingBlocks = Array.isArray(incomingSession.blocks) ? incomingSession.blocks : [];
   const existingById = new Map(existingBlocks.map((block) => [getSessionPlannerBlockId(block), block]).filter(([id]) => id));
   const incomingIds = new Set();
-  const blocks = incomingBlocks.map((incomingBlock) => {
+  const blocks = incomingBlocks.flatMap((incomingBlock) => {
     const blockId = getSessionPlannerBlockId(incomingBlock);
     if (blockId) {
       incomingIds.add(blockId);
     }
+    if (blockId && deletedBlockIds.has(blockId)) {
+      return [];
+    }
     const existingBlock = existingById.get(blockId);
-    return existingBlock ? mergeSessionPlannerBlocks(existingBlock, incomingBlock) : cloneSessionPlannerMergeValue(incomingBlock);
+    return [existingBlock ? mergeSessionPlannerBlocks(existingBlock, incomingBlock) : cloneSessionPlannerMergeValue(incomingBlock)];
   });
 
   if (!canReduceBlocks) {
     existingBlocks.forEach((existingBlock) => {
       const blockId = getSessionPlannerBlockId(existingBlock);
-      if (!blockId || !incomingIds.has(blockId)) {
+      if ((!blockId || !incomingIds.has(blockId)) && !deletedBlockIds.has(blockId)) {
         blocks.push(cloneSessionPlannerMergeValue(existingBlock));
       }
     });
@@ -510,6 +648,21 @@ function mergeSessionPlannerSessions(existingSession = {}, incomingSession = {},
   };
 }
 
+function filterSessionPlannerDeletedBlocks(session = {}, dateValue, deletedBlockIds = new Set()) {
+  const filteredSession = cloneSessionPlannerMergeValue(session) || {};
+  filteredSession.date = filteredSession.date || dateValue;
+  if (!deletedBlockIds.size) {
+    return filteredSession;
+  }
+
+  const blocks = Array.isArray(filteredSession.blocks) ? filteredSession.blocks : [];
+  filteredSession.blocks = blocks.filter((block) => !deletedBlockIds.has(getSessionPlannerBlockId(block)));
+  if (!filteredSession.blocks.some((block) => getSessionPlannerBlockId(block) === filteredSession.selectedBlockId)) {
+    filteredSession.selectedBlockId = getSessionPlannerBlockId(filteredSession.blocks[0]) || "";
+  }
+  return filteredSession;
+}
+
 function normalizeSessionPlannerReductionGuards(state) {
   const freshGuards = getFreshSessionPlannerReductionGuards(state);
   if (Object.keys(freshGuards).length) {
@@ -518,6 +671,16 @@ function normalizeSessionPlannerReductionGuards(state) {
   }
 
   delete state[SESSION_PLANNER_REDUCTION_GUARD_KEY];
+}
+
+function normalizeSessionPlannerBlockDeletionTombstonesInState(state) {
+  const tombstones = normalizeSessionPlannerBlockDeletionTombstones(state);
+  if (Object.keys(tombstones).length) {
+    state[SESSION_PLANNER_BLOCK_DELETION_TOMBSTONE_KEY] = tombstones;
+    return;
+  }
+
+  delete state[SESSION_PLANNER_BLOCK_DELETION_TOMBSTONE_KEY];
 }
 
 async function protectSessionPlannerStateValue(rawValue) {
@@ -530,14 +693,17 @@ async function protectSessionPlannerStateValue(rawValue) {
   const existingState = parseSessionPlannerStateValue(existingEntry?.value);
   if (!existingState) {
     normalizeSessionPlannerReductionGuards(incomingState);
+    normalizeSessionPlannerBlockDeletionTombstonesInState(incomingState);
     return { ok: true, value: JSON.stringify(incomingState), merged: false };
   }
 
   const incomingSessions = getSessionPlannerSessions(incomingState);
   const existingSessions = getSessionPlannerSessions(existingState);
+  const blockDeletionTombstones = mergeSessionPlannerBlockDeletionTombstones(existingState, incomingState);
   const mergedState = {
     ...incomingState,
     sessions: {},
+    [SESSION_PLANNER_BLOCK_DELETION_TOMBSTONE_KEY]: blockDeletionTombstones,
   };
 
   const sessionDates = new Set([
@@ -553,22 +719,25 @@ async function protectSessionPlannerStateValue(rawValue) {
         existingSession,
         incomingSession,
         dateValue,
-        canReduceSessionPlannerBlocks(incomingState, dateValue)
+        canReduceSessionPlannerBlocks(incomingState, dateValue),
+        getSessionPlannerDeletedBlockIds(blockDeletionTombstones, dateValue)
       );
       return;
     }
 
+    const deletedBlockIds = getSessionPlannerDeletedBlockIds(blockDeletionTombstones, dateValue);
     if (existingSession) {
-      mergedState.sessions[dateValue] = existingSession;
+      mergedState.sessions[dateValue] = filterSessionPlannerDeletedBlocks(existingSession, dateValue, deletedBlockIds);
       return;
     }
 
     if (incomingSession) {
-      mergedState.sessions[dateValue] = incomingSession;
+      mergedState.sessions[dateValue] = filterSessionPlannerDeletedBlocks(incomingSession, dateValue, deletedBlockIds);
     }
   });
 
   normalizeSessionPlannerReductionGuards(mergedState);
+  normalizeSessionPlannerBlockDeletionTombstonesInState(mergedState);
   const mergedValue = JSON.stringify(mergedState);
   return { ok: true, value: mergedValue, merged: mergedValue !== rawValue };
 }
@@ -664,6 +833,185 @@ async function protectSessionPlannerExerciseLibraryValue(rawValue) {
   return { ok: true, value: mergedValue, merged: mergedValue !== rawValue };
 }
 
+function parsePlayerProfilesStateValue(rawValue) {
+  const parsed = safeParseJson(rawValue, null);
+  return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+}
+
+function getPlayerProfilesStateTimestamp(state = {}) {
+  return parseSessionPlannerGuardTimestamp(state?.updatedAt);
+}
+
+function getPlayerProfileTimestamp(player = {}) {
+  return Math.max(
+    parseSessionPlannerGuardTimestamp(player?.updatedAt),
+    parseSessionPlannerGuardTimestamp(player?.createdAt)
+  );
+}
+
+function getPlayerProfileMergeKey(player = {}) {
+  const id = String(player?.id || "").trim();
+  if (id) {
+    return `id:${id}`;
+  }
+
+  const name = String(player?.name || "").trim().toLowerCase();
+  return name ? `name:${name}` : "";
+}
+
+function chooseNewestPlayerProfile(existingPlayer = {}, incomingPlayer = {}) {
+  const existingTimestamp = getPlayerProfileTimestamp(existingPlayer);
+  const incomingTimestamp = getPlayerProfileTimestamp(incomingPlayer);
+  const selectedPlayer = existingTimestamp > incomingTimestamp ? existingPlayer : incomingPlayer;
+  const fallbackPlayer = selectedPlayer === existingPlayer ? incomingPlayer : existingPlayer;
+  return preservePlayerProfileMediaFields(selectedPlayer, fallbackPlayer);
+}
+
+const PLAYER_PROFILE_MEDIA_FIELDS = Object.freeze([
+  "photoUrl",
+  "sourceUrl",
+  "profileImageUrl",
+  "avatarUrl",
+  "imageUrl",
+  "portraitUrl",
+]);
+
+function preservePlayerProfileMediaFields(player = {}, fallbackPlayer = {}) {
+  if (!player || typeof player !== "object" || Array.isArray(player)) {
+    return player;
+  }
+
+  return PLAYER_PROFILE_MEDIA_FIELDS.reduce((mergedPlayer, field) => {
+    const currentValue = String(mergedPlayer?.[field] || "").trim();
+    const fallbackValue = String(fallbackPlayer?.[field] || "").trim();
+    if (!currentValue && fallbackValue) {
+      return { ...mergedPlayer, [field]: fallbackValue };
+    }
+    return mergedPlayer;
+  }, player);
+}
+
+function getPlayerProfileChangeLogTimestamp(entry = {}) {
+  return parseSessionPlannerGuardTimestamp(entry?.createdAt);
+}
+
+function getPlayerProfileChangeLogKey(entry = {}) {
+  const id = String(entry?.id || "").trim();
+  if (id) {
+    return `id:${id}`;
+  }
+
+  const createdAt = String(entry?.createdAt || "").trim();
+  const playerId = String(entry?.playerId || "").trim();
+  const summary = String(entry?.summary || "").trim();
+  return createdAt || playerId || summary ? `fallback:${createdAt}:${playerId}:${summary}` : "";
+}
+
+function normalizePlayerProfileChangeLog(entries = []) {
+  return (Array.isArray(entries) ? entries : [])
+    .filter((entry) => entry && typeof entry === "object" && !Array.isArray(entry))
+    .sort((first, second) => getPlayerProfileChangeLogTimestamp(second) - getPlayerProfileChangeLogTimestamp(first))
+    .slice(0, 250);
+}
+
+function mergePlayerProfileChangeLog(existingEntries = [], incomingEntries = []) {
+  const entriesByKey = new Map();
+  [...normalizePlayerProfileChangeLog(existingEntries), ...normalizePlayerProfileChangeLog(incomingEntries)].forEach((entry) => {
+    const key = getPlayerProfileChangeLogKey(entry);
+    if (!key) {
+      return;
+    }
+
+    const existingEntry = entriesByKey.get(key);
+    if (!existingEntry || getPlayerProfileChangeLogTimestamp(entry) >= getPlayerProfileChangeLogTimestamp(existingEntry)) {
+      entriesByKey.set(key, entry);
+    }
+  });
+
+  return normalizePlayerProfileChangeLog(Array.from(entriesByKey.values()));
+}
+
+async function protectPlayerProfilesStateValue(rawValue) {
+  const incomingState = parsePlayerProfilesStateValue(rawValue);
+  if (!incomingState || !Array.isArray(incomingState.players)) {
+    return { ok: false, reason: "Squad player data is invalid and was not saved." };
+  }
+
+  const existingEntry = await readStateObject(PLAYER_PROFILES_KEY);
+  const existingState = parsePlayerProfilesStateValue(existingEntry?.value);
+  if (!existingState || !Array.isArray(existingState.players)) {
+    return { ok: true, value: JSON.stringify(incomingState), merged: false };
+  }
+
+  const incomingStateTimestamp = getPlayerProfilesStateTimestamp(incomingState);
+  const existingByKey = new Map();
+  existingState.players.forEach((player) => {
+    const key = getPlayerProfileMergeKey(player);
+    if (key) {
+      existingByKey.set(key, player);
+    }
+  });
+
+  const usedKeys = new Set();
+  const mergedPlayers = incomingState.players
+    .filter((player) => player && typeof player === "object" && !Array.isArray(player))
+    .map((incomingPlayer) => {
+      const key = getPlayerProfileMergeKey(incomingPlayer);
+      if (!key) {
+        return incomingPlayer;
+      }
+
+      usedKeys.add(key);
+      const existingPlayer = existingByKey.get(key);
+      return existingPlayer ? chooseNewestPlayerProfile(existingPlayer, incomingPlayer) : incomingPlayer;
+    });
+
+  existingState.players.forEach((existingPlayer) => {
+    const key = getPlayerProfileMergeKey(existingPlayer);
+    if (!key || usedKeys.has(key)) {
+      return;
+    }
+
+    if (getPlayerProfileTimestamp(existingPlayer) > incomingStateTimestamp) {
+      mergedPlayers.push(existingPlayer);
+    }
+  });
+
+  mergedPlayers.sort((first, second) => {
+    const firstOrder = Number(first?.rosterOrder);
+    const secondOrder = Number(second?.rosterOrder);
+    const normalizedFirstOrder = Number.isFinite(firstOrder) ? firstOrder : Number.MAX_SAFE_INTEGER;
+    const normalizedSecondOrder = Number.isFinite(secondOrder) ? secondOrder : Number.MAX_SAFE_INTEGER;
+    if (normalizedFirstOrder !== normalizedSecondOrder) {
+      return normalizedFirstOrder - normalizedSecondOrder;
+    }
+
+    return String(first?.name || "").localeCompare(String(second?.name || ""));
+  });
+
+  const selectedPlayerId = mergedPlayers.some((player) => player?.id === incomingState.selectedPlayerId)
+    ? incomingState.selectedPlayerId
+    : mergedPlayers.some((player) => player?.id === existingState.selectedPlayerId)
+      ? existingState.selectedPlayerId
+      : mergedPlayers[0]?.id || "";
+  const mergedState = {
+    ...existingState,
+    ...incomingState,
+    selectedPlayerId,
+    players: mergedPlayers,
+    changeLog: mergePlayerProfileChangeLog(existingState.changeLog, incomingState.changeLog),
+    updatedAt: new Date(
+      Math.max(
+        getPlayerProfilesStateTimestamp(existingState),
+        getPlayerProfilesStateTimestamp(incomingState),
+        Date.now()
+      )
+    ).toISOString(),
+  };
+  const mergedValue = JSON.stringify(mergedState);
+  return { ok: true, value: mergedValue, merged: mergedValue !== rawValue };
+}
+
 async function readWorkspaceHubStateValue() {
   const entry = await readStateObject(WORKSPACE_HUB_KEY);
   return entry?.value || "";
@@ -729,9 +1077,10 @@ function sanitizeWorkspaceHubRead(rawValue, accessConfig = {}) {
   if (!hubState || typeof hubState !== "object") {
     return rawValue;
   }
+  const { activeWorkspaceId, ...sharedState } = hubState;
 
   return JSON.stringify({
-    ...hubState,
+    ...sharedState,
     workspaceAccess: normalizeWorkspaceAccessConfig(accessConfig),
   });
 }
@@ -741,19 +1090,218 @@ async function sanitizeWorkspaceHubWriteForActor(actor, rawValue) {
   if (!nextState || typeof nextState !== "object") {
     return rawValue;
   }
+  const { activeWorkspaceId, ...sharedNextState } = nextState;
 
   if (actor?.role === "admin") {
     return JSON.stringify({
-      ...nextState,
-      workspaceAccess: normalizeWorkspaceAccessConfig(nextState.workspaceAccess || {}),
+      ...sharedNextState,
+      workspaceAccess: normalizeWorkspaceAccessConfig(sharedNextState.workspaceAccess || {}),
     });
   }
 
   const currentState = safeParseJson(await readWorkspaceHubStateValue(), {});
   return JSON.stringify({
-    ...nextState,
-    workspaces: currentState?.workspaces || nextState.workspaces,
+    ...sharedNextState,
+    workspaces: currentState?.workspaces || sharedNextState.workspaces,
     workspaceAccess: normalizeWorkspaceAccessConfig(currentState?.workspaceAccess || {}),
+  });
+}
+
+function canActorViewPrivateMedical(actor) {
+  return MEDICAL_PRIVATE_ROLES.has(String(actor?.role || "").trim().toLowerCase());
+}
+
+function normalizeMedicalText(value, maxLength = 240) {
+  return String(value ?? "").trim().slice(0, maxLength);
+}
+
+function normalizeMedicalDateValue(value) {
+  const cleanValue = normalizeMedicalText(value, 24);
+  return /^\d{4}-\d{2}-\d{2}$/.test(cleanValue) ? cleanValue : "";
+}
+
+function normalizeMedicalParticipationValue(value, fallback = 100) {
+  const numericValue = Number(value);
+  return MEDICAL_PARTICIPATION_OPTIONS.has(numericValue) ? numericValue : fallback;
+}
+
+function normalizeMedicalStatusValue(value, participation = 100) {
+  const cleanValue = normalizeMedicalText(value, 40);
+  if (MEDICAL_STATUS_KEYS.has(cleanValue)) {
+    return cleanValue;
+  }
+  if (participation === 0) {
+    return "unavailable";
+  }
+  if (participation <= 25) {
+    return "rehab";
+  }
+  if (participation <= 50) {
+    return "controlled";
+  }
+  if (participation < 100) {
+    return "modified";
+  }
+  return "full";
+}
+
+function normalizeMedicalRtpPhaseValue(value, status = "full", participation = 100) {
+  const cleanValue = normalizeMedicalText(value, 60);
+  if (MEDICAL_RTP_PHASE_KEYS.has(cleanValue)) {
+    return cleanValue;
+  }
+  if (status === "unavailable" || participation === 0) {
+    return "medical-restriction";
+  }
+  if (status === "rehab" || participation <= 25) {
+    return "rehab";
+  }
+  if (status === "modified" || status === "controlled" || participation < 100) {
+    return "modified-team";
+  }
+  if (status === "monitor") {
+    return "match-available";
+  }
+  return "full-training";
+}
+
+function getCoachApprovedMedicalNote(item = {}) {
+  return item?.shareWithCoach ? normalizeMedicalText(item.coachNote, 480) : "";
+}
+
+function sanitizeMedicalPlayerForCoach(player = {}) {
+  return {
+    id: normalizeMedicalText(player.id, 180),
+    name: normalizeMedicalText(player.name, 180),
+    number: normalizeMedicalText(player.number, 24),
+    position: normalizeMedicalText(player.position, 80),
+    photoUrl: normalizeMedicalText(player.photoUrl, 1800),
+    sourceUrl: normalizeMedicalText(player.sourceUrl, 1800),
+    rosterOrder: Number.isFinite(Number(player.rosterOrder)) ? Number(player.rosterOrder) : null,
+    createdAt: normalizeMedicalText(player.createdAt, 40),
+    updatedAt: normalizeMedicalText(player.updatedAt, 40),
+  };
+}
+
+function sanitizeMedicalRecordForCoach(record = {}) {
+  const participation = normalizeMedicalParticipationValue(record.participation, 100);
+  const status = normalizeMedicalStatusValue(record.status, participation);
+  return {
+    id: normalizeMedicalText(record.id, 180),
+    playerId: normalizeMedicalText(record.playerId, 180),
+    date: normalizeMedicalDateValue(record.date),
+    status,
+    participation,
+    actualParticipation: "not-logged",
+    comment: "",
+    coachNote: getCoachApprovedMedicalNote(record),
+    shareWithCoach: Boolean(record.shareWithCoach),
+    rtpPhase: normalizeMedicalRtpPhaseValue(record.rtpPhase, status, participation),
+    clearance: {},
+    gates: {},
+    source: normalizeMedicalText(record.source, 80),
+    injuryPlanId: normalizeMedicalText(record.injuryPlanId, 180),
+    createdAt: normalizeMedicalText(record.createdAt, 40),
+    createdBy: "",
+  };
+}
+
+function sanitizeMedicalInjuryPlanForCoach(plan = {}) {
+  const participation = normalizeMedicalParticipationValue(plan.participation, 0);
+  const status = normalizeMedicalStatusValue(plan.status, participation);
+  return {
+    id: normalizeMedicalText(plan.id, 180),
+    playerId: normalizeMedicalText(plan.playerId, 180),
+    injuryType: "Availability plan",
+    bodyArea: "",
+    startDate: normalizeMedicalDateValue(plan.startDate),
+    endDate: normalizeMedicalDateValue(plan.endDate),
+    duration: Math.max(1, Number(plan.duration) || 1),
+    durationUnit: ["days", "weeks", "months"].includes(plan.durationUnit) ? plan.durationUnit : "weeks",
+    status,
+    participation,
+    reviewDate: "",
+    rtpPhase: normalizeMedicalRtpPhaseValue(plan.rtpPhase, status, participation),
+    phase: "Coach-safe availability plan",
+    clearance: {},
+    gates: {},
+    coachNote: getCoachApprovedMedicalNote(plan),
+    shareWithCoach: Boolean(plan.shareWithCoach),
+    comment: "",
+    createdAt: normalizeMedicalText(plan.createdAt, 40),
+    updatedAt: normalizeMedicalText(plan.updatedAt, 40),
+    createdBy: "",
+  };
+}
+
+function sanitizeMedicalTeamStateForCoach(rawValue) {
+  const state = safeParseJson(rawValue, {});
+  if (!state || typeof state !== "object") {
+    return JSON.stringify({
+      selectedDate: "",
+      selectedPlayerId: "",
+      players: [],
+      records: [],
+      injuryPlans: [],
+      rosterVersion: "",
+      securityView: "coach-safe",
+    });
+  }
+
+  return JSON.stringify({
+    selectedDate: normalizeMedicalDateValue(state.selectedDate),
+    selectedPlayerId: normalizeMedicalText(state.selectedPlayerId, 180),
+    players: Array.isArray(state.players) ? state.players.map(sanitizeMedicalPlayerForCoach) : [],
+    records: Array.isArray(state.records) ? state.records.map(sanitizeMedicalRecordForCoach) : [],
+    injuryPlans: Array.isArray(state.injuryPlans) ? state.injuryPlans.map(sanitizeMedicalInjuryPlanForCoach) : [],
+    rosterVersion: normalizeMedicalText(state.rosterVersion, 120),
+    securityView: "coach-safe",
+  });
+}
+
+function summarizeMedicalStateForAudit(rawValue) {
+  const state = safeParseJson(rawValue, {});
+  const records = Array.isArray(state?.records) ? state.records : [];
+  const injuryPlans = Array.isArray(state?.injuryPlans) ? state.injuryPlans : [];
+  const policy = state?.policy && typeof state.policy === "object" ? state.policy : {};
+  return {
+    playerCount: Array.isArray(state?.players) ? state.players.length : 0,
+    recordCount: records.length,
+    planCount: injuryPlans.length,
+    coachSharedRecordCount: records.filter((record) => record?.shareWithCoach).length,
+    coachSharedPlanCount: injuryPlans.filter((plan) => plan?.shareWithCoach).length,
+    selectedDate: normalizeMedicalDateValue(state?.selectedDate),
+    retentionMonths: Math.max(0, Math.min(120, Number(policy.retentionMonths) || 0)),
+    consentRequired: policy.consentRequired === true || policy.consentRequired === "true",
+    policyReviewDate: normalizeMedicalDateValue(policy.lastReviewed),
+  };
+}
+
+async function appendMedicalStateAudit(actor, rawValue) {
+  await appendAuditLog(actor, {
+    action: "medical.updated",
+    summary: "Updated Medical Team state",
+    details: summarizeMedicalStateForAudit(rawValue),
+  });
+}
+
+async function appendDataSafetyWriteAudit(actor, previousEntry, nextEntry, merged = false) {
+  if (!nextEntry?.key) {
+    return;
+  }
+
+  await appendAuditLog(actor, {
+    action: "data-safety.saved",
+    summary: `Saved ${nextEntry.moduleId || nextEntry.key} through the central data pipeline`,
+    details: {
+      key: nextEntry.key,
+      moduleId: nextEntry.moduleId,
+      organizationId: nextEntry.organizationId,
+      mergePolicy: nextEntry.mergePolicy,
+      merged: Boolean(merged),
+      before: previousEntry ? getStateEntryMetadata(previousEntry) : null,
+      after: getStateEntryMetadata(nextEntry),
+    },
   });
 }
 
@@ -765,6 +1313,10 @@ async function authorizeStateWrite(actor, key, rawValue, removed = false) {
 
     if (key === SESSION_EXERCISE_LIBRARY_KEY && !removed) {
       return protectSessionPlannerExerciseLibraryValue(rawValue);
+    }
+
+    if (key === PLAYER_PROFILES_KEY && !removed) {
+      return protectPlayerProfilesStateValue(rawValue);
     }
 
     if (key === WORKSPACE_HUB_KEY && !removed) {
@@ -804,27 +1356,37 @@ async function authorizeStateWrite(actor, key, rawValue, removed = false) {
     return protectSessionPlannerExerciseLibraryValue(rawValue);
   }
 
+  if (key === PLAYER_PROFILES_KEY && !removed) {
+    return protectPlayerProfilesStateValue(rawValue);
+  }
+
   return { ok: true, value: rawValue };
 }
 
 function filterStateEntriesForActor(actor, entries = {}) {
-  if (actor?.role === "admin") {
-    return entries;
-  }
-
   const accessConfig = getWorkspaceAccessConfigFromHubValue(entries[WORKSPACE_HUB_KEY]);
   return Object.entries(entries).reduce((filtered, [key, value]) => {
-    if (ADMIN_ONLY_STATE_KEYS.has(key)) {
-      return filtered;
-    }
-
     if (key === WORKSPACE_HUB_KEY) {
       filtered[key] = sanitizeWorkspaceHubRead(value, accessConfig);
       return filtered;
     }
 
+    if (actor?.role === "admin") {
+      filtered[key] = value;
+      return filtered;
+    }
+
+    if (ADMIN_ONLY_STATE_KEYS.has(key)) {
+      return filtered;
+    }
+
     const workspaceId = STATE_KEY_WORKSPACE_EDIT_MAP[key];
     if (workspaceId && !canActorViewWorkspace(actor, workspaceId, accessConfig)) {
+      return filtered;
+    }
+
+    if (key === MEDICAL_TEAM_KEY && !canActorViewPrivateMedical(actor)) {
+      filtered[key] = sanitizeMedicalTeamStateForCoach(value);
       return filtered;
     }
 
@@ -835,9 +1397,14 @@ function filterStateEntriesForActor(actor, entries = {}) {
 
 function filterStateMetadataForEntries(metadata = {}, entries = {}) {
   return Object.keys(entries || {}).reduce((filtered, key) => {
-    if (metadata[key]) {
-      filtered[key] = metadata[key];
-    }
+    const value = String(entries[key] ?? "");
+    const baseMetadata = metadata[key] || {};
+    filtered[key] = {
+      updatedAt: baseMetadata.updatedAt || "",
+      updatedBy: baseMetadata.updatedBy || "",
+      hash: hashStateValue(value),
+      size: Buffer.byteLength(value, "utf8"),
+    };
     return filtered;
   }, {});
 }
@@ -889,7 +1456,7 @@ async function listStateObjects() {
   return { entries, metadata };
 }
 
-async function applyStateEntries(actor, entries = {}) {
+async function applyStateEntries(actor, entries = {}, metadata = {}) {
   const results = [];
   for (const [key, rawValue] of Object.entries(entries)) {
     const normalizedKey = sanitizeStateKey(key);
@@ -897,16 +1464,24 @@ async function applyStateEntries(actor, entries = {}) {
       continue;
     }
 
-    const previousEntry =
-      normalizedKey === WORKSPACE_HUB_KEY || normalizedKey === SESSION_PLANNER_KEY
-        ? await readStateObject(normalizedKey)
-        : null;
+    const contract = dataSafetyRegistry.requireByKey(normalizedKey);
+    const previousEntry = await readStateObject(normalizedKey);
     const authorization = await authorizeStateWrite(actor, normalizedKey, rawValue, false);
     if (!authorization.ok) {
       return { ok: false, reason: authorization.reason || `Could not sync ${normalizedKey}.` };
     }
 
-    const entry = normalizeStateEntry(normalizedKey, authorization.value, actor, false);
+    const staleWrite = getStaleWriteRejection(
+      contract,
+      previousEntry,
+      authorization,
+      getClientBaseRevision(metadata, normalizedKey)
+    );
+    if (staleWrite) {
+      return staleWrite;
+    }
+
+    const entry = normalizeStateEntry(normalizedKey, authorization.value, actor, false, previousEntry);
     if (!entry) {
       continue;
     }
@@ -915,6 +1490,7 @@ async function applyStateEntries(actor, entries = {}) {
     if (!result.ok) {
       return { ok: false, reason: result.reason || `Could not sync ${entry.key}.` };
     }
+    await appendDataSafetyWriteAudit(actor, previousEntry, entry, authorization.merged);
     if (normalizedKey === SESSION_PLANNER_KEY) {
       await appendSessionPlannerHistory(actor, previousEntry?.value || "", authorization.value);
     }
@@ -928,10 +1504,14 @@ async function applyStateEntries(actor, entries = {}) {
         });
       }
     }
+    if (normalizedKey === MEDICAL_TEAM_KEY) {
+      await appendMedicalStateAudit(actor, authorization.value);
+    }
     results.push({
       key: entry.key,
       metadata: getStateEntryMetadata(entry),
       merged: Boolean(authorization.merged),
+      revision: entry.revision,
     });
   }
 
@@ -979,8 +1559,8 @@ module.exports = async (req, res) => {
 
     const body = await parseJsonBody(req);
     if (body?.entries && typeof body.entries === "object" && req.method !== "DELETE") {
-      const result = await applyStateEntries(actor, body.entries);
-      return sendJson(res, result.ok ? 200 : 400, result);
+      const result = await applyStateEntries(actor, body.entries, body.metadata || body.revisions || {});
+      return sendJson(res, result.ok ? 200 : result.status || 400, result);
     }
 
     const key = sanitizeStateKey(body?.key || new URL(req.url, "http://localhost").searchParams.get("key"));
@@ -1003,20 +1583,30 @@ module.exports = async (req, res) => {
       return sendJson(res, 200, { ok: true, key, removed: true });
     }
 
-    const previousEntry =
-      key === WORKSPACE_HUB_KEY || key === SESSION_PLANNER_KEY
-        ? await readStateObject(key)
-        : null;
+    const contract = dataSafetyRegistry.requireByKey(key);
+    const previousEntry = await readStateObject(key);
     const authorization = await authorizeStateWrite(actor, key, body?.value, false);
     if (!authorization.ok) {
       return sendJson(res, 403, { ok: false, reason: authorization.reason || "You do not have edit access." });
     }
 
-    const entry = normalizeStateEntry(key, authorization.value, actor, false);
+    const staleWrite = getStaleWriteRejection(
+      contract,
+      previousEntry,
+      authorization,
+      getClientBaseRevision(body?.metadata || body, key)
+    );
+    if (staleWrite) {
+      return sendJson(res, staleWrite.status, staleWrite);
+    }
+
+    const entry = normalizeStateEntry(key, authorization.value, actor, false, previousEntry);
     const result = await writeStateObject(entry);
     if (!result.ok) {
       return sendJson(res, 400, { ok: false, reason: result.reason || "Could not sync central state." });
     }
+
+    await appendDataSafetyWriteAudit(actor, previousEntry, entry, authorization.merged);
 
     if (key === SESSION_PLANNER_KEY) {
       const historyEntries = await appendSessionPlannerHistory(actor, previousEntry?.value || "", authorization.value);
@@ -1049,10 +1639,18 @@ module.exports = async (req, res) => {
       }
     }
 
+    if (key === MEDICAL_TEAM_KEY) {
+      await appendMedicalStateAudit(actor, authorization.value);
+    }
+
     return sendJson(res, 200, {
       ok: true,
       key: entry.key,
       updatedAt: entry.updatedAt,
+      updatedBy: entry.updatedBy,
+      revision: entry.revision,
+      organizationId: entry.organizationId,
+      moduleId: entry.moduleId,
       value: entry.value,
       metadata: getStateEntryMetadata(entry),
       merged: Boolean(authorization.merged),

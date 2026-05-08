@@ -7,7 +7,7 @@ Top navigation is icon-based. Desired order:
 1. Schedule
 2. Periodization
 3. Sessions
-4. IDP
+4. Squad
 5. Analysis Room
 6. My Team
 7. Medical Team
@@ -15,6 +15,20 @@ Top navigation is icon-based. Desired order:
 9. Game Simulator
 
 The right account menu owns Profile, Settings, and Logout. The main title `Football Science` should route to Home.
+
+## Profile / Account Menu
+
+Purpose: personal profile, account identity, settings entry point, and logout.
+
+Current direction:
+
+- Profile is accessed from the top-right account menu, not the main navigation.
+- Profile shows profile image, name, email, role, title, department, and team/club.
+- Saved profile changes must update the profile page and the top-right account menu without a refresh.
+- Profile image should appear consistently in Profile, account menu, and user-facing places that show the current user.
+- Account menu should contain Profile, Settings, and Logout, open/close cleanly, and layer above every workspace.
+- Logout must complete immediately in the UI and return the user to sign-in without needing a manual refresh.
+- Production account/user data should be Supabase-first, with local browser state only used as cache or local development fallback.
 
 ## Home
 
@@ -30,7 +44,7 @@ Current direction:
 - Home should feel like a clean coaching workspace: welcome card first, Staff Room pinned high on the right, and Coach To-Do plus Player/Team Alerts as the main work surface.
 - The previous Today Command Center card is intentionally hidden for now; avoid bringing it back until the workflow is clearer.
 - Schedule is the source for whether training is planned; Session Planner only adds the exercise blocks.
-- Staff Room chat should stay compact at the top right, showing recent messages without dominating the page.
+- Chat is its own standalone module with a global bottom-right experience. Home should not own chat state, unread state, or destructive chat actions.
 - First-login tutorial appears as a popup and lets the user choose whether to show it next login.
 - If the user chooses not to show the tutorial again, it should stay hidden for that user.
 - Release/news popups can appear when `dashboardNewsVersion` changes.
@@ -102,6 +116,16 @@ Required direction:
 - Archive library exercises with confirmation, and restore them from Archive.
 - Filter/sort by Phase and Sub-Phase.
 - Phase/Sub-Phase multi-select with check marks.
+- Preview a selected exercise before use.
+- Duplicate and edit active library exercises without silently overwriting existing or archived entries.
+- Exercise edit mode has explicit Save changes, Save as copy, and Cancel actions; Save as copy creates a new exercise variant while preserving the original.
+- Keep lightweight version snapshots for library edits/replacements/duplicates.
+- Organize exercises with folders/collections stored separately from exercise records.
+- Support All Exercises, Team, Mine, and concrete folder views.
+- Coaches can create Team or Personal folders and drag active exercises into folders.
+- Coaches can rename folders, change folder visibility, restore archived folders, and remove an exercise from a folder without deleting the exercise record.
+- Archiving a folder must never archive or delete the exercises inside it.
+- Exercises can carry tags for search/scan, and the library supports sort modes for updated, created, title, and phase.
 - Library should become large without feeling messy.
 - Library exercises carry metadata such as `createdAt`, `updatedAt`, `archivedAt`, `source`, and user ids when available.
 
@@ -168,9 +192,17 @@ Future state:
 
 Currently a placeholder. User asked for a skunk placeholder: `Skunks Work building this` with a skunk image/visual.
 
-## IDP
+## Squad
 
-Player Profiles should be named `IDP` in the hover/title language. This module is not deeply built yet.
+The old Player Profiles workspace is now `Squad` in product language. Keep the first screen focused on the squad list, player-profile modal, and compact add-player flow. IDP content can return later inside the player profile when it has a clear workflow.
+
+Current direction:
+
+- Squad List stays at the top.
+- Search, role-group filter, and add-player button live in one command bar.
+- Clicking a player opens the player profile in a modal.
+- Heavy sections below the list stay hidden until needed.
+- Long-term data moves from `football-player-profiles-v1` to the multi-tenant `squad_*` schema.
 
 ## Team Identity
 
@@ -183,7 +215,7 @@ Purpose: daily module for medical staff to recommend how much each player should
 Direction:
 
 - First build is an Availability Control overview for the whole squad.
-- Each player profile can store number, name, position, and image URL so the same player base can later feed IDP.
+- Each player profile can store number, name, position, and image URL so the same player base can later feed Squad and IDP work.
 - The default player base is seeded from the official NC Courage 2026 roster page with names, position groups, roster images, and source URLs; shirt numbers remain editable/importable.
 - The overview should stay efficient: dense squad cards, small player images, command-board summary, and player popup for recommendations/log/profile.
 - Daily Medical Huddle shows what changed since yesterday, who is managed today, open recommendations, review pressure, and coach-approved handover notes.
@@ -198,5 +230,9 @@ Direction:
 - Each log entry stores status, recommended participation, actual participation when known, and a free-text comment.
 - Logs can be backdated and remain visible on each player.
 - Coaches see only availability, participation, and comments explicitly approved to share; detailed medical notes remain in the medical view.
+- The server filters `football-medical-team-v1` for coach/read-only roles before data reaches the browser: internal notes, diagnosis/body-area fields, review dates, clearance gates, actual participation, and created-by values are stripped from coach-safe payloads.
+- Medical Room shows a Security Layer panel that states whether the current user is in full private medical mode or coach-safe mode, and medical writes plus coach-safe handover copies are logged without storing note text in the audit details.
+- Medical Room now has a private Governance panel for medical/admin roles: retention months, consent requirement, policy owner, incident contact, last reviewed date, and review cadence. This policy object is excluded from coach-safe server payloads.
+- A Supabase database/RLS foundation is staged in `supabase/migrations/20260507230628_medical_module_multitenant.sql`: `medical_*` tables for governance, consent, cases, recommendations, availability plans, clearance, load gates, review tasks, and audit events. The rollout is server-write first; direct authenticated access only exposes coach-safe availability columns/views.
 - Session Planner has a medical availability strip for the selected training date so coaches can see who is 0/10/25/50/75% while planning, with a selected-block gate summary and Player Board warnings for below-limit, 0%, and not-set players.
-- Medical information needs careful role/permission thinking when real auth is added.
+- Medical information still needs formal production/legal sign-off before storing real regulated medical records and before switching the live UI from app-state to `medical_*` database tables.

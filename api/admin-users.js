@@ -201,7 +201,7 @@ module.exports = async (req, res) => {
       nextPayload.status = target.status;
     }
 
-    if (actor.role !== "admin" && targetId === actor.id) {
+    if (targetId === actor.id) {
       nextPayload.role = target.role;
       nextPayload.status = target.status;
     }

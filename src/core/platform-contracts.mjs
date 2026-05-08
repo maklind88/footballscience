@@ -7,6 +7,8 @@ export const protectedStorageKeys = Object.freeze([
   "football-session-planner-v3",
   "football-session-exercise-library-v1",
   "football-session-exercise-library-backup-v1",
+  "football-session-exercise-library-folders-v1",
+  "football-session-exercise-library-folders-backup-v1",
   "football-dashboard-tasks-v1",
   "football-dashboard-chat-v1",
   "football-dashboard-notification-seen-v1",
@@ -63,7 +65,7 @@ export const platformModules = Object.freeze([
     stage: "module",
     storageKeys: Object.freeze(["football-dashboard-chat-v1"]),
     futureTables: Object.freeze(["chat_threads", "chat_messages", "chat_read_receipts", "chat_reactions"]),
-    viewRoles: Object.freeze(["admin", "coach", "analyst", "performance", "medical", "guest"]),
+    viewRoles: Object.freeze(["admin", "coach", "analyst", "performance", "medical"]),
     editRoles: Object.freeze(["admin", "coach", "analyst", "performance", "medical"]),
     emits: Object.freeze(["chat.message-sent", "chat.message-read"]),
     consumes: Object.freeze(["profile.updated"]),
@@ -86,11 +88,13 @@ export const platformModules = Object.freeze([
     storageKeys: Object.freeze([
       "football-session-exercise-library-v1",
       "football-session-exercise-library-backup-v1",
+      "football-session-exercise-library-folders-v1",
+      "football-session-exercise-library-folders-backup-v1",
     ]),
-    futureTables: Object.freeze(["exercises", "exercise_versions"]),
+    futureTables: Object.freeze(["exercises", "exercise_versions", "exercise_folders", "exercise_folder_items"]),
     viewRoles: Object.freeze(["admin", "coach", "analyst", "performance", "medical"]),
     editRoles: Object.freeze(["admin", "coach"]),
-    emits: Object.freeze(["exercise.saved", "exercise.archived", "exercise.restored"]),
+    emits: Object.freeze(["exercise.saved", "exercise.archived", "exercise.restored", "exercise.folder-updated"]),
     consumes: Object.freeze(["session.block-updated"]),
   }),
   Object.freeze({
@@ -128,10 +132,17 @@ export const platformModules = Object.freeze([
   }),
   Object.freeze({
     id: "player-profiles",
-    label: "Player Profiles",
+    label: "Squad",
     stage: "module",
     storageKeys: Object.freeze(["football-player-profiles-v1"]),
-    futureTables: Object.freeze(["profiles", "player_profiles", "memberships"]),
+    futureTables: Object.freeze([
+      "squad_organizations",
+      "squad_clubs",
+      "squad_teams",
+      "squad_seasons",
+      "squad_players",
+      "squad_roster_memberships",
+    ]),
     viewRoles: Object.freeze(["admin", "coach", "performance", "medical"]),
     editRoles: Object.freeze(["admin", "coach"]),
     emits: Object.freeze(["profile.updated"]),
@@ -155,4 +166,3 @@ export const platformModuleIds = Object.freeze(platformModules.map((module) => m
 export function getProtectedStorageKeySet() {
   return new Set(protectedStorageKeys);
 }
-

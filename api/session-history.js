@@ -13,8 +13,9 @@ const {
   parseSessionPlannerState,
 } = require("./_lib/session-history.js");
 
-const SESSION_HISTORY_VIEW_ROLES = new Set(["admin", "coach", "analyst", "performance", "medical"]);
-const SESSION_HISTORY_EDIT_ROLES = new Set(["admin", "coach"]);
+const SESSION_HISTORY_VIEW_ROLES = new Set(["admin"]);
+const SESSION_HISTORY_EDIT_ROLES = new Set(["admin"]);
+const SESSION_PLANNER_BLOCK_DELETION_TOMBSTONE_KEY = "blockDeletionTombstones";
 
 function canViewSessionHistory(actor) {
   return SESSION_HISTORY_VIEW_ROLES.has(actor?.role);
@@ -26,6 +27,71 @@ function canRestoreSessionHistory(actor) {
 
 function getEntrySession(entry, mode = "before") {
   return mode === "after" ? entry?.afterSession : entry?.beforeSession;
+}
+
+function getRestoreBlockIds(session = {}) {
+  return new Set(
+    (Array.isArray(session?.blocks) ? session.blocks : [])
+      .map((block) => String(block?.id || "").trim())
+      .filter(Boolean)
+  );
+}
+
+function pruneRestoreTombstoneState(state) {
+  const tombstones = state?.[SESSION_PLANNER_BLOCK_DELETION_TOMBSTONE_KEY];
+  if (!tombstones || typeof tombstones !== "object" || Array.isArray(tombstones)) {
+    delete state[SESSION_PLANNER_BLOCK_DELETION_TOMBSTONE_KEY];
+    return;
+  }
+
+  Object.keys(tombstones).forEach((dateValue) => {
+    const blockMap = tombstones[dateValue];
+    if (!blockMap || typeof blockMap !== "object" || Array.isArray(blockMap) || !Object.keys(blockMap).length) {
+      delete tombstones[dateValue];
+    }
+  });
+
+  if (!Object.keys(tombstones).length) {
+    delete state[SESSION_PLANNER_BLOCK_DELETION_TOMBSTONE_KEY];
+  }
+}
+
+function clearRestoredSessionBlockTombstones(state, dateValue, restoreSession) {
+  const blockIds = getRestoreBlockIds(restoreSession);
+  const blockMap = state?.[SESSION_PLANNER_BLOCK_DELETION_TOMBSTONE_KEY]?.[dateValue];
+  if (!blockIds.size || !blockMap || typeof blockMap !== "object" || Array.isArray(blockMap)) {
+    return;
+  }
+
+  blockIds.forEach((blockId) => {
+    delete blockMap[blockId];
+  });
+  pruneRestoreTombstoneState(state);
+}
+
+function markRemovedSessionBlocksTombstoned(state, dateValue, previousSession) {
+  const blockIds = getRestoreBlockIds(previousSession);
+  if (!blockIds.size || !dateValue) {
+    return;
+  }
+
+  const tombstones = state[SESSION_PLANNER_BLOCK_DELETION_TOMBSTONE_KEY] &&
+    typeof state[SESSION_PLANNER_BLOCK_DELETION_TOMBSTONE_KEY] === "object" &&
+    !Array.isArray(state[SESSION_PLANNER_BLOCK_DELETION_TOMBSTONE_KEY])
+    ? state[SESSION_PLANNER_BLOCK_DELETION_TOMBSTONE_KEY]
+    : {};
+  const blockMap = tombstones[dateValue] &&
+    typeof tombstones[dateValue] === "object" &&
+    !Array.isArray(tombstones[dateValue])
+    ? tombstones[dateValue]
+    : {};
+  const timestamp = new Date().toISOString();
+  blockIds.forEach((blockId) => {
+    blockMap[blockId] = timestamp;
+  });
+  tombstones[dateValue] = blockMap;
+  state[SESSION_PLANNER_BLOCK_DELETION_TOMBSTONE_KEY] = tombstones;
+  pruneRestoreTombstoneState(state);
 }
 
 module.exports = async (req, res) => {
@@ -95,12 +161,15 @@ module.exports = async (req, res) => {
     const previousValue = stateEntry?.value || "";
     const sessionPlannerState = parseSessionPlannerState(previousValue);
     sessionPlannerState.sessions = sessionPlannerState.sessions || {};
+    const previousSession = sessionPlannerState.sessions?.[dateValue];
     if (restoreSession) {
       sessionPlannerState.sessions[dateValue] = {
         ...restoreSession,
         date: dateValue,
       };
+      clearRestoredSessionBlockTombstones(sessionPlannerState, dateValue, restoreSession);
     } else {
+      markRemovedSessionBlocksTombstoned(sessionPlannerState, dateValue, previousSession);
       delete sessionPlannerState.sessions[dateValue];
     }
     sessionPlannerState.selectedDate = dateValue;

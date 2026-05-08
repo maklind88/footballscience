@@ -72,6 +72,10 @@ create table if not exists public.squad_players (
   nationality text,
   preferred_foot text,
   status text not null default 'active',
+  row_version integer not null default 1,
+  deleted_at timestamptz,
+  deleted_by uuid references auth.users(id) on delete set null,
+  delete_reason text,
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -96,6 +100,10 @@ create table if not exists public.squad_roster_memberships (
   joined_on date,
   left_on date,
   status text not null default 'active',
+  row_version integer not null default 1,
+  deleted_at timestamptz,
+  deleted_by uuid references auth.users(id) on delete set null,
+  delete_reason text,
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -139,6 +147,22 @@ create table if not exists public.squad_player_status_events (
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   metadata jsonb not null default '{}'::jsonb
+);
+
+create table if not exists public.squad_roster_membership_versions (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.squad_organizations(id) on delete restrict,
+  team_id uuid not null references public.squad_teams(id) on delete restrict,
+  season_id uuid not null references public.squad_seasons(id) on delete restrict,
+  player_id uuid not null references public.squad_players(id) on delete restrict,
+  roster_membership_id uuid not null references public.squad_roster_memberships(id) on delete restrict,
+  row_version integer not null,
+  change_type text not null,
+  changed_fields text[] not null default '{}'::text[],
+  before_record jsonb,
+  after_record jsonb not null,
+  actor_id uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
 );
 
 create table if not exists public.squad_player_notes (
@@ -207,8 +231,11 @@ create table if not exists public.squad_audit_events (
 
 create index if not exists squad_players_org_status_sort_idx on public.squad_players (organization_id, status, sort_name, id);
 create index if not exists squad_players_display_name_trgm_idx on public.squad_players using gin (lower(display_name) gin_trgm_ops);
+create index if not exists squad_players_active_org_sort_idx on public.squad_players (organization_id, sort_name, id) where deleted_at is null and status <> 'archived';
 create index if not exists squad_roster_team_season_status_idx on public.squad_roster_memberships (team_id, season_id, status, squad_status, player_id);
 create index if not exists squad_roster_team_season_role_idx on public.squad_roster_memberships (team_id, season_id, role_group, primary_role, status);
+create index if not exists squad_roster_active_team_season_idx on public.squad_roster_memberships (team_id, season_id, squad_status, role_group, player_id) where deleted_at is null and status <> 'archived';
+create index if not exists squad_roster_versions_roster_created_idx on public.squad_roster_membership_versions (roster_membership_id, created_at desc);
 create index if not exists squad_import_batches_org_created_idx on public.squad_import_batches (organization_id, created_at desc);
 create index if not exists squad_audit_events_org_created_idx on public.squad_audit_events (organization_id, created_at desc);
 
@@ -219,8 +246,12 @@ alter table public.squad_seasons enable row level security;
 alter table public.squad_staff_memberships enable row level security;
 alter table public.squad_players enable row level security;
 alter table public.squad_roster_memberships enable row level security;
+alter table public.squad_roster_membership_versions enable row level security;
 alter table public.squad_player_notes enable row level security;
 alter table public.squad_audit_events enable row level security;
 
 -- Authorization data must come from app_metadata, not user_metadata.
 -- Direct authenticated writes are intentionally not granted in the first rollout.
+-- Roster writes should go through server-only functions using expected row_version.
+-- Hard deletes for players and roster memberships are blocked; archive/restore uses deleted_at.
+-- Roster updates create rollback rows in squad_roster_membership_versions.

@@ -859,7 +859,7 @@ async function flushCentralStateWrites() {
       if (result?.conflict || result?.status === 409) {
         setCentralSyncPendingState(write.key, false, write.removed);
         queueCentralStateStatus(result?.reason || "Central state is newer. Local cache was refreshed.");
-        await bridge.hydrate?.().catch(() => {});
+        await bridge.hydrate?.({ forceApply: true }).catch(() => {});
         continue;
       }
       for (let retryIndex = index; retryIndex < writes.length; retryIndex += 1) {
@@ -5992,7 +5992,6 @@ let sessionPlannerLibraryFilterOpen = "";
 let sessionPlannerLibrarySearchQuery = "";
 let sessionPlannerLibraryArchiveView = "active";
 let sessionPlannerLibrarySortMode = "updated";
-let sessionPlannerLibraryPreviewExerciseId = "";
 let sessionPlannerLibraryEditExerciseId = "";
 let sessionPlannerLibrarySelectedFolderId = "all";
 let sessionPlannerLibraryEditingFolderId = "";
@@ -11423,7 +11422,6 @@ function toggleSessionPlannerLibraryFilterValue(filterKey, value) {
 
   setSessionPlannerLibraryFilterValues(filterKey, nextValues);
   sessionPlannerLibraryFilterOpen = filterKey;
-  sessionPlannerLibraryPreviewExerciseId = "";
   sessionPlannerLibraryEditExerciseId = "";
   renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
@@ -11431,7 +11429,6 @@ function toggleSessionPlannerLibraryFilterValue(filterKey, value) {
 function clearSessionPlannerLibraryFilter(filterKey) {
   setSessionPlannerLibraryFilterValues(filterKey, []);
   sessionPlannerLibraryFilterOpen = filterKey;
-  sessionPlannerLibraryPreviewExerciseId = "";
   sessionPlannerLibraryEditExerciseId = "";
   renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
@@ -11554,7 +11551,6 @@ function selectSessionPlannerLibraryFolder(folderId = "all") {
     : "all";
 
   sessionPlannerLibrarySelectedFolderId = targetFolderId;
-  sessionPlannerLibraryPreviewExerciseId = "";
   sessionPlannerLibraryEditExerciseId = "";
   sessionPlannerLibraryEditingFolderId = "";
   sessionPlannerLibraryFilterOpen = "";
@@ -11626,7 +11622,6 @@ function createSessionPlannerExerciseLibraryFolderFromForm(form) {
 
   sessionPlannerExerciseLibraryFolders = writeResult.folders;
   sessionPlannerLibrarySelectedFolderId = newFolder.id;
-  sessionPlannerLibraryPreviewExerciseId = "";
   sessionPlannerLibraryEditExerciseId = "";
   renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
   showSessionPlannerToast(
@@ -11736,7 +11731,6 @@ function archiveSessionPlannerExerciseLibraryFolder(folderId) {
   if (sessionPlannerLibrarySelectedFolderId === folder.id) {
     sessionPlannerLibrarySelectedFolderId = "all";
   }
-  sessionPlannerLibraryPreviewExerciseId = "";
   sessionPlannerLibraryEditExerciseId = "";
   sessionPlannerLibraryEditingFolderId = "";
   renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
@@ -11778,7 +11772,6 @@ function restoreSessionPlannerExerciseLibraryFolder(folderId) {
 
   sessionPlannerExerciseLibraryFolders = writeResult.folders;
   sessionPlannerLibrarySelectedFolderId = folder.id;
-  sessionPlannerLibraryPreviewExerciseId = "";
   sessionPlannerLibraryEditExerciseId = "";
   sessionPlannerLibraryEditingFolderId = "";
   renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
@@ -11809,7 +11802,6 @@ function addSessionPlannerExerciseToLibraryFolder(exerciseId, folderId) {
   const existingExerciseIds = normalizeSessionPlannerLibraryFolderExerciseIds(folder.exerciseIds);
   if (existingExerciseIds.includes(exercise.id)) {
     sessionPlannerLibrarySelectedFolderId = folder.id;
-    sessionPlannerLibraryPreviewExerciseId = exercise.id;
     renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
     showSessionPlannerToast(`"${exercise.title || "Exercise"}" is already in "${folder.name}".`, "warning");
     return;
@@ -11837,7 +11829,6 @@ function addSessionPlannerExerciseToLibraryFolder(exerciseId, folderId) {
 
   sessionPlannerExerciseLibraryFolders = writeResult.folders;
   sessionPlannerLibrarySelectedFolderId = folder.id;
-  sessionPlannerLibraryPreviewExerciseId = exercise.id;
   sessionPlannerLibraryEditExerciseId = "";
   renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
   showSessionPlannerToast(
@@ -11886,7 +11877,6 @@ function removeSessionPlannerExerciseFromLibraryFolder(exerciseId, folderId = se
   }
 
   sessionPlannerExerciseLibraryFolders = writeResult.folders;
-  sessionPlannerLibraryPreviewExerciseId = "";
   sessionPlannerLibraryEditExerciseId = "";
   renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
   showSessionPlannerToast(
@@ -11983,7 +11973,6 @@ function getFilteredSessionPlannerExerciseLibrary() {
 
 function updateSessionPlannerLibraryFilter(filterKey, value) {
   setSessionPlannerLibraryFilterValues(filterKey, normalizeSessionPlannerLibraryFilterValues(value));
-  sessionPlannerLibraryPreviewExerciseId = "";
   sessionPlannerLibraryEditExerciseId = "";
   renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
@@ -11991,7 +11980,6 @@ function updateSessionPlannerLibraryFilter(filterKey, value) {
 function updateSessionPlannerLibraryArchiveView(value) {
   sessionPlannerLibraryArchiveView = value === "archived" ? "archived" : "active";
   sessionPlannerLibraryFilterOpen = "";
-  sessionPlannerLibraryPreviewExerciseId = "";
   sessionPlannerLibraryEditExerciseId = "";
   renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
@@ -11999,19 +11987,19 @@ function updateSessionPlannerLibraryArchiveView(value) {
 function updateSessionPlannerLibrarySortMode(value) {
   sessionPlannerLibrarySortMode = normalizeSessionPlannerLibrarySortMode(value);
   sessionPlannerLibraryFilterOpen = "";
-  sessionPlannerLibraryPreviewExerciseId = "";
   sessionPlannerLibraryEditExerciseId = "";
   renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
 
 function renderSessionPlannerLibraryResults() {
   const filteredExercises = getFilteredSessionPlannerExerciseLibrary();
-  const previewExercise = getSessionPlannerLibraryPreviewExercise(filteredExercises);
   const libraryGrid = ui.sessionPlannerWorkspace?.querySelector(".session-library-modal-grid");
   const folderPanel = ui.sessionPlannerWorkspace?.querySelector(".session-library-folder-panel");
-  const previewPanel = ui.sessionPlannerWorkspace?.querySelector(".session-library-preview-panel");
+  const libraryModal = ui.sessionPlannerWorkspace?.querySelector(".session-library-modal");
+  const editDialog = ui.sessionPlannerWorkspace?.querySelector("[data-session-library-edit-dialog]");
   const libraryCount = ui.sessionPlannerWorkspace?.querySelector(".session-library-count");
   const archiveTabs = ui.sessionPlannerWorkspace?.querySelector(".session-library-archive-tabs");
+  const editExercise = getSessionPlannerLibraryEditExercise();
 
   if (libraryGrid) {
     libraryGrid.innerHTML = renderSessionPlannerLibrary(filteredExercises);
@@ -12021,8 +12009,14 @@ function renderSessionPlannerLibraryResults() {
     folderPanel.outerHTML = renderSessionPlannerLibraryFolders();
   }
 
-  if (previewPanel) {
-    previewPanel.outerHTML = renderSessionPlannerLibraryPreview(previewExercise);
+  if (editDialog) {
+    if (editExercise) {
+      editDialog.outerHTML = renderSessionPlannerLibraryEditDialog(editExercise);
+    } else {
+      editDialog.remove();
+    }
+  } else if (libraryModal && editExercise) {
+    libraryModal.insertAdjacentHTML("beforeend", renderSessionPlannerLibraryEditDialog(editExercise));
   }
 
   if (libraryCount) {
@@ -12036,7 +12030,6 @@ function renderSessionPlannerLibraryResults() {
 
 function updateSessionPlannerLibrarySearch(value) {
   sessionPlannerLibrarySearchQuery = String(value || "");
-  sessionPlannerLibraryPreviewExerciseId = "";
   sessionPlannerLibraryEditExerciseId = "";
   renderSessionPlannerLibraryResults();
 }
@@ -12050,34 +12043,18 @@ function getSessionPlannerLibraryExerciseById(exerciseId) {
   return getSessionPlannerExerciseLibrary().find((exercise) => exercise.id === targetId) || null;
 }
 
-function getSessionPlannerLibraryPreviewExercise(exercises = getFilteredSessionPlannerExerciseLibrary()) {
-  const exerciseList = Array.isArray(exercises) ? exercises : [];
-  if (!exerciseList.length) {
-    sessionPlannerLibraryPreviewExerciseId = "";
+function getSessionPlannerLibraryEditExercise() {
+  if (!sessionPlannerLibraryEditExerciseId) {
+    return null;
+  }
+
+  const exercise = getSessionPlannerLibraryExerciseById(sessionPlannerLibraryEditExerciseId);
+  if (!exercise || isSessionPlannerLibraryExerciseArchived(exercise)) {
     sessionPlannerLibraryEditExerciseId = "";
     return null;
   }
 
-  const ids = new Set(exerciseList.map((exercise) => exercise.id));
-  if (sessionPlannerLibraryEditExerciseId && !ids.has(sessionPlannerLibraryEditExerciseId)) {
-    sessionPlannerLibraryEditExerciseId = "";
-  }
-
-  const selectedExercise =
-    exerciseList.find((exercise) => exercise.id === sessionPlannerLibraryPreviewExerciseId) || exerciseList[0];
-  sessionPlannerLibraryPreviewExerciseId = selectedExercise.id;
-  return selectedExercise;
-}
-
-function selectSessionPlannerLibraryPreview(exerciseId) {
-  const exercise = getSessionPlannerLibraryExerciseById(exerciseId);
-  if (!exercise) {
-    return;
-  }
-
-  sessionPlannerLibraryPreviewExerciseId = exercise.id;
-  sessionPlannerLibraryEditExerciseId = "";
-  renderSessionPlannerLibraryResults();
+  return exercise;
 }
 
 function startSessionPlannerLibraryExerciseEdit(exerciseId) {
@@ -12095,7 +12072,6 @@ function startSessionPlannerLibraryExerciseEdit(exerciseId) {
     return;
   }
 
-  sessionPlannerLibraryPreviewExerciseId = exercise.id;
   sessionPlannerLibraryEditExerciseId = exercise.id;
   sessionPlannerLibraryFilterOpen = "";
   renderSessionPlannerLibraryResults();
@@ -12174,7 +12150,6 @@ function duplicateSessionPlannerLibraryExercise(exerciseId) {
   }
 
   sessionPlannerExerciseLibrary = writeResult.exercises;
-  sessionPlannerLibraryPreviewExerciseId = duplicate.id;
   sessionPlannerLibraryEditExerciseId = "";
   sessionPlannerLibraryArchiveView = "active";
   sessionPlannerLibraryFilterOpen = "";
@@ -12238,7 +12213,6 @@ function updateSessionPlannerLibraryExerciseFromEdit(exerciseId) {
   }
 
   sessionPlannerExerciseLibrary = writeResult.exercises;
-  sessionPlannerLibraryPreviewExerciseId = nextExercise.id;
   sessionPlannerLibraryEditExerciseId = "";
   renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
   showSessionPlannerToast(
@@ -12347,7 +12321,6 @@ function saveSessionPlannerLibraryExerciseEditAsCopy(exerciseId) {
   }
 
   sessionPlannerExerciseLibrary = writeResult.exercises;
-  sessionPlannerLibraryPreviewExerciseId = copiedExercise.id;
   sessionPlannerLibraryEditExerciseId = "";
   sessionPlannerLibraryArchiveView = "active";
   renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
@@ -12530,7 +12503,6 @@ function commitSessionPlannerExerciseToLibrary(exercise, mode = "new", existingE
   setSessionPlannerLibraryFilterValues("subPhase", normalizeSessionPlannerMultiValue(exercise.subPhase));
   sessionPlannerLibrarySearchQuery = "";
   sessionPlannerLibraryOpen = true;
-  sessionPlannerLibraryPreviewExerciseId = exercise.id || "";
   sessionPlannerLibraryEditExerciseId = "";
   sessionPlannerLibraryFilterOpen = "";
   sessionPlannerPendingLibrarySave = null;
@@ -13586,6 +13558,19 @@ function setSessionPlannerLibraryOpen(isOpen) {
     sessionPlannerLibraryEditExerciseId = "";
   }
   renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+}
+
+function closeSessionPlannerLibrary() {
+  const editExercise = getSessionPlannerLibraryEditExercise();
+  if (
+    editExercise &&
+    hasSessionPlannerLibraryExerciseEditChanges(editExercise) &&
+    !window.confirm("Discard unsaved exercise edits?")
+  ) {
+    return;
+  }
+
+  setSessionPlannerLibraryOpen(false);
 }
 
 function setSessionPlannerAddMenuOpen(isOpen) {
@@ -17166,6 +17151,60 @@ function renderSessionPlannerLibraryEditPanel(exercise) {
   `;
 }
 
+function renderSessionPlannerLibraryEditDialog(exercise) {
+  if (!exercise) {
+    return "";
+  }
+
+  return `
+    <div class="session-library-edit-dialog-backdrop" data-session-library-edit-dialog>
+      <section class="session-library-edit-dialog" role="dialog" aria-modal="true" aria-label="Edit library exercise">
+        <header class="session-library-edit-dialog-head">
+          <div>
+            <span>Library edit</span>
+            <h3>${escapeHtml(exercise.title || "Untitled Exercise")}</h3>
+          </div>
+          <button type="button" class="session-library-close-button" data-session-cancel-library-edit aria-label="Close edit">Close</button>
+        </header>
+        ${renderSessionPlannerLibraryEditPanel(exercise)}
+      </section>
+    </div>
+  `;
+}
+
+function canRemoveSessionPlannerLibraryExerciseFromSelectedFolder(exercise = {}) {
+  const selectedFolder = getSessionPlannerLibraryFolderById(sessionPlannerLibrarySelectedFolderId);
+  return Boolean(
+    canEditSessionPlanner() &&
+      exercise.id &&
+      !isSessionPlannerLibraryExerciseArchived(exercise) &&
+      selectedFolder &&
+      !isSessionPlannerLibraryFolderArchived(selectedFolder) &&
+      normalizeSessionPlannerLibraryFolderExerciseIds(selectedFolder.exerciseIds).includes(exercise.id)
+  );
+}
+
+function renderSessionPlannerLibraryCardDetails(exercise = {}) {
+  const details = [
+    ["Objective", exercise.objective || exercise.focus],
+    ["Why", exercise.why],
+    ["Organization", exercise.organization],
+    ["Measure & Material", exercise.material],
+    ["Principles", exercise.principles],
+    ["Pitch", exercise.pitchSize],
+  ].filter(([, value]) => String(value || "").trim());
+
+  if (!details.length) {
+    return "";
+  }
+
+  return `
+    <div class="session-library-preview-details session-library-card-details">
+      ${details.map(([label, value]) => renderSessionPlannerLibraryDetail(label, value)).join("")}
+    </div>
+  `;
+}
+
 function renderSessionPlannerLibraryVersions(exercise) {
   const versions = normalizeSessionPlannerLibraryVersions(exercise?.versions);
   if (!versions.length) {
@@ -17191,116 +17230,6 @@ function renderSessionPlannerLibraryVersions(exercise) {
   `;
 }
 
-function renderSessionPlannerLibraryPreview(exercise) {
-  if (!exercise) {
-    return `
-      <aside class="session-library-preview-panel">
-        <p class="session-library-empty">Select an exercise to preview it.</p>
-      </aside>
-    `;
-  }
-
-  const isAdmin = canEditSessionPlanner();
-  const isArchived = isSessionPlannerLibraryExerciseArchived(exercise);
-  const isEditing = sessionPlannerLibraryEditExerciseId === exercise.id && isAdmin && !isArchived;
-  const updatedDate = formatSessionPlannerLibraryDateTime(
-    isArchived ? exercise.archivedAt : exercise.updatedAt || exercise.createdAt
-  );
-  const versionCount = normalizeSessionPlannerLibraryVersions(exercise.versions).length;
-  const selectedFolder = getSessionPlannerLibraryFolderById(sessionPlannerLibrarySelectedFolderId);
-  const canRemoveFromSelectedFolder =
-    isAdmin &&
-    !isArchived &&
-    selectedFolder &&
-    !isSessionPlannerLibraryFolderArchived(selectedFolder) &&
-    normalizeSessionPlannerLibraryFolderExerciseIds(selectedFolder.exerciseIds).includes(exercise.id);
-
-  return `
-    <aside class="session-library-preview-panel">
-      <div class="session-library-preview-head">
-        <div class="session-library-tags">
-          <span>${escapeHtml(getSessionPlannerMultiValueSummary(exercise.phase, "No phase"))}</span>
-          <span>${escapeHtml(getSessionPlannerMultiValueSummary(exercise.subPhase, "No sub-phase"))}</span>
-          ${isArchived ? `<span class="session-library-archive-chip">Archived</span>` : ""}
-        </div>
-        ${renderSessionPlannerLibraryTagChips(exercise.tags)}
-        <h3>${escapeHtml(exercise.title || "Untitled Exercise")}</h3>
-        <p>${renderSessionPlannerLibraryFieldText(exercise.focus || exercise.objective, "No description yet.")}</p>
-        <small>
-          ${escapeHtml(isArchived ? "Archived" : "Updated")}
-          ${updatedDate ? ` ${escapeHtml(updatedDate)}` : ""}
-          · ${versionCount} version${versionCount === 1 ? "" : "s"}
-        </small>
-      </div>
-      ${
-        isEditing
-          ? renderSessionPlannerLibraryEditPanel(exercise)
-          : `
-            <div class="session-library-preview-actions">
-              ${
-                isAdmin && !isArchived
-                  ? `
-                    <button type="button" class="session-library-use-button" data-session-use-exercise="${escapeHtml(exercise.id)}">Use</button>
-                    <button type="button" class="session-library-secondary-button" data-session-duplicate-library-exercise="${escapeHtml(exercise.id)}">Duplicate</button>
-                    <button type="button" class="session-library-secondary-button" data-session-edit-library-exercise="${escapeHtml(exercise.id)}">Edit</button>
-                    ${
-                      canRemoveFromSelectedFolder
-                        ? `
-                          <button
-                            type="button"
-                            class="session-library-secondary-button"
-                            data-session-remove-library-exercise-from-folder="${escapeHtml(exercise.id)}"
-                            data-session-remove-library-folder="${escapeHtml(selectedFolder.id)}"
-                          >
-                            Remove from folder
-                          </button>
-                        `
-                        : ""
-                    }
-                    <button
-                      type="button"
-                      class="session-library-delete-button"
-                      data-session-delete-library-exercise="${escapeHtml(exercise.id)}"
-                      aria-label="Archive ${escapeHtml(exercise.title || "exercise")}"
-                    >
-                      Archive
-                    </button>
-                  `
-                  : ""
-              }
-              ${
-                isAdmin && isArchived
-                  ? `
-                    <button
-                      type="button"
-                      class="session-library-restore-button"
-                      data-session-restore-library-exercise="${escapeHtml(exercise.id)}"
-                      aria-label="Restore ${escapeHtml(exercise.title || "exercise")}"
-                    >
-                      Restore
-                    </button>
-                  `
-                  : ""
-              }
-            </div>
-            <div class="session-library-preview-details">
-              ${renderSessionPlannerLibraryDetail("Objective", exercise.objective)}
-              ${renderSessionPlannerLibraryDetail("Why", exercise.why)}
-              ${renderSessionPlannerLibraryDetail("Organization", exercise.organization)}
-              ${renderSessionPlannerLibraryDetail("Measure & Material", exercise.material)}
-              ${renderSessionPlannerLibraryDetail("Principles", exercise.principles)}
-              ${renderSessionPlannerLibraryDetail("Pitch", exercise.pitchSize)}
-            </div>
-            <section class="session-library-version-panel">
-              <span>Version history</span>
-              ${renderSessionPlannerLibraryVersions(exercise)}
-            </section>
-          `
-      }
-    </aside>
-  `;
-}
-
 function renderSessionPlannerLibrary(exercises = getFilteredSessionPlannerExerciseLibrary()) {
   const isAdmin = canEditSessionPlanner();
   if (!exercises.length) {
@@ -17313,20 +17242,20 @@ function renderSessionPlannerLibrary(exercises = getFilteredSessionPlannerExerci
       const metaDate = isArchived
         ? formatSessionPlannerLibraryDate(exercise.archivedAt)
         : formatSessionPlannerLibraryDate(exercise.updatedAt || exercise.createdAt);
-      const isSelected = exercise.id === sessionPlannerLibraryPreviewExerciseId;
+      const updatedDate = formatSessionPlannerLibraryDateTime(
+        isArchived ? exercise.archivedAt : exercise.updatedAt || exercise.createdAt
+      );
+      const versionCount = normalizeSessionPlannerLibraryVersions(exercise.versions).length;
+      const selectedFolder = getSessionPlannerLibraryFolderById(sessionPlannerLibrarySelectedFolderId);
+      const canRemoveFromSelectedFolder = canRemoveSessionPlannerLibraryExerciseFromSelectedFolder(exercise);
 
       return `
         <article
-          class="session-library-item${isArchived ? " is-archived" : ""}${isSelected ? " is-selected" : ""}"
+          class="session-library-item${isArchived ? " is-archived" : ""}"
           data-session-library-drag-exercise="${escapeHtml(exercise.id)}"
           draggable="${isAdmin && !isArchived ? "true" : "false"}"
         >
-          <button
-            type="button"
-            class="session-library-item-main"
-            data-session-preview-library-exercise="${escapeHtml(exercise.id)}"
-            aria-pressed="${isSelected ? "true" : "false"}"
-          >
+          <div class="session-library-item-main">
             <div class="session-library-tags">
               <span>${escapeHtml(getSessionPlannerMultiValueSummary(exercise.phase, "No phase"))}</span>
               <span>${escapeHtml(getSessionPlannerMultiValueSummary(exercise.subPhase, "No sub-phase"))}</span>
@@ -17335,8 +17264,13 @@ function renderSessionPlannerLibrary(exercises = getFilteredSessionPlannerExerci
             ${renderSessionPlannerLibraryTagChips(exercise.tags)}
             <strong>${escapeHtml(exercise.title || "Untitled Exercise")}</strong>
             <p>${escapeHtml(exercise.focus || exercise.objective || "No description yet.")}</p>
-            ${metaDate ? `<small class="session-library-meta">${isArchived ? "Archived" : "Updated"} ${escapeHtml(metaDate)}</small>` : ""}
-          </button>
+            <small class="session-library-meta">
+              ${escapeHtml(isArchived ? "Archived" : "Updated")}
+              ${updatedDate ? ` ${escapeHtml(updatedDate)}` : metaDate ? ` ${escapeHtml(metaDate)}` : ""}
+              · ${versionCount} version${versionCount === 1 ? "" : "s"}
+            </small>
+            ${renderSessionPlannerLibraryCardDetails(exercise)}
+          </div>
           ${
             isAdmin
               ? `
@@ -17373,6 +17307,20 @@ function renderSessionPlannerLibrary(exercises = getFilteredSessionPlannerExerci
                         >
                           Edit
                         </button>
+                        ${
+                          canRemoveFromSelectedFolder
+                            ? `
+                              <button
+                                type="button"
+                                class="session-library-secondary-button"
+                                data-session-remove-library-exercise-from-folder="${escapeHtml(exercise.id)}"
+                                data-session-remove-library-folder="${escapeHtml(selectedFolder.id)}"
+                              >
+                                Remove from folder
+                              </button>
+                            `
+                            : ""
+                        }
                         <button
                           type="button"
                           class="session-library-delete-button"
@@ -17399,7 +17347,7 @@ function renderSessionPlannerLibraryOverlay() {
   }
 
   const filteredExercises = getFilteredSessionPlannerExerciseLibrary();
-  const previewExercise = getSessionPlannerLibraryPreviewExercise(filteredExercises);
+  const editExercise = getSessionPlannerLibraryEditExercise();
   const phaseOptions = getSessionPlannerLibraryOptionValues("phase");
   const subPhaseOptions = getSessionPlannerLibraryOptionValues("subPhase");
 
@@ -17438,8 +17386,8 @@ function renderSessionPlannerLibraryOverlay() {
           <div class="session-library-modal-grid">
             ${renderSessionPlannerLibrary(filteredExercises)}
           </div>
-          ${renderSessionPlannerLibraryPreview(previewExercise)}
         </div>
+        ${renderSessionPlannerLibraryEditDialog(editExercise)}
       </section>
     </div>
   `;
@@ -73900,7 +73848,7 @@ ui.sessionPlannerWorkspace?.addEventListener("click", (event) => {
   }
 
   if (event.target.matches("[data-session-library-overlay]")) {
-    setSessionPlannerLibraryOpen(false);
+    closeSessionPlannerLibrary();
     return;
   }
 
@@ -74134,7 +74082,7 @@ ui.sessionPlannerWorkspace?.addEventListener("click", (event) => {
 
   const closeLibraryButton = event.target.closest("[data-session-close-library]");
   if (closeLibraryButton) {
-    setSessionPlannerLibraryOpen(false);
+    closeSessionPlannerLibrary();
     return;
   }
 
@@ -74305,6 +74253,11 @@ ui.sessionPlannerWorkspace?.addEventListener("click", (event) => {
     return;
   }
 
+  if (event.target.matches("[data-session-library-edit-dialog]")) {
+    cancelSessionPlannerLibraryExerciseEdit();
+    return;
+  }
+
   const deleteLibraryExerciseButton = event.target.closest("[data-session-delete-library-exercise]");
   if (deleteLibraryExerciseButton) {
     deleteSessionPlannerLibraryExercise(deleteLibraryExerciseButton.dataset.sessionDeleteLibraryExercise);
@@ -74323,12 +74276,6 @@ ui.sessionPlannerWorkspace?.addEventListener("click", (event) => {
       removeLibraryExerciseFromFolderButton.dataset.sessionRemoveLibraryExerciseFromFolder,
       removeLibraryExerciseFromFolderButton.dataset.sessionRemoveLibraryFolder
     );
-    return;
-  }
-
-  const previewLibraryExerciseButton = event.target.closest("[data-session-preview-library-exercise]");
-  if (previewLibraryExerciseButton) {
-    selectSessionPlannerLibraryPreview(previewLibraryExerciseButton.dataset.sessionPreviewLibraryExercise);
     return;
   }
 

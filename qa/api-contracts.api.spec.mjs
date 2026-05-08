@@ -609,6 +609,10 @@ test("app-state preserves newer Squad role edits when a stale client syncs later
         type: "profile-updated",
         playerId: "player-1",
         summary: "QA Player role changed to 8",
+        changes: [
+          { field: "Primary role", from: "CB", to: "8" },
+          { field: "Role group", from: "Defender", to: "Midfielder" },
+        ],
         createdAt: "2026-05-07T12:10:01.000Z",
       },
     ],
@@ -632,6 +636,10 @@ test("app-state preserves newer Squad role edits when a stale client syncs later
         type: "profile-updated",
         playerId: "player-1",
         summary: "QA Player role changed to CB",
+        changes: [
+          { field: "Primary role", from: "8", to: "CB" },
+          { field: "Role group", from: "Midfielder", to: "Defender" },
+        ],
         createdAt: "2026-05-07T12:00:01.000Z",
       },
     ],
@@ -644,7 +652,10 @@ test("app-state preserves newer Squad role edits when a stale client syncs later
           "player-profiles": { view: ["admin", "coach"], edit: ["admin", "coach"] },
         },
       }),
-      [playerProfilesPath]: createAppStateStorageEntry(playerProfilesKey, existingSquadState),
+      [playerProfilesPath]: {
+        ...createAppStateStorageEntry(playerProfilesKey, existingSquadState),
+        revision: 2,
+      },
     },
     "coach"
   );
@@ -660,6 +671,7 @@ test("app-state preserves newer Squad role edits when a stale client syncs later
       body: JSON.stringify({
         key: playerProfilesKey,
         value: JSON.stringify(staleSquadState),
+        metadata: { baseRevision: 1 },
       }),
     });
 
@@ -676,6 +688,116 @@ test("app-state preserves newer Squad role edits when a stale client syncs later
       primaryRole: "ST",
     });
     expect(syncedState.changeLog.map((entry) => entry.id)).toEqual(["change-new", "change-old"]);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state preserves Squad position when a stale role save carries older player fields", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const existingSquadState = {
+    selectedPlayerId: "player-1",
+    players: [
+      {
+        id: "player-1",
+        name: "QA Player",
+        number: "2",
+        position: "Right Back",
+        primaryRole: "CB",
+        secondaryRoles: ["RB"],
+        roleGroup: "defender",
+        updatedAt: "2026-05-07T12:10:00.000Z",
+      },
+    ],
+    changeLog: [
+      {
+        id: "change-position",
+        type: "profile-updated",
+        playerId: "player-1",
+        summary: "QA Player position changed to Right Back",
+        changes: [{ field: "Position", from: "Defender", to: "Right Back" }],
+        createdAt: "2026-05-07T12:10:01.000Z",
+      },
+    ],
+    updatedAt: "2026-05-07T12:10:00.000Z",
+  };
+  const staleRoleSave = {
+    selectedPlayerId: "player-1",
+    players: [
+      {
+        id: "player-1",
+        name: "QA Player",
+        number: "2",
+        position: "Defender",
+        primaryRole: "8",
+        secondaryRoles: ["10"],
+        roleGroup: "midfielder",
+        updatedAt: "2026-05-07T12:20:00.000Z",
+      },
+    ],
+    changeLog: [
+      {
+        id: "change-role",
+        type: "profile-updated",
+        playerId: "player-1",
+        summary: "QA Player role changed to 8",
+        changes: [
+          { field: "Primary role", from: "CB", to: "8" },
+          { field: "Secondary roles", from: "RB", to: "10" },
+          { field: "Role group", from: "Defender", to: "Midfielder" },
+        ],
+        createdAt: "2026-05-07T12:20:01.000Z",
+      },
+    ],
+    updatedAt: "2026-05-07T12:20:00.000Z",
+  };
+  const storage = createAppStateFetchMock(
+    {
+      [workspaceHubPath]: createAppStateStorageEntry(workspaceHubKey, {
+        workspaceAccess: {
+          "player-profiles": { view: ["admin", "coach"], edit: ["admin", "coach"] },
+        },
+      }),
+      [playerProfilesPath]: {
+        ...createAppStateStorageEntry(playerProfilesKey, existingSquadState),
+        revision: 2,
+      },
+    },
+    "coach"
+  );
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        key: playerProfilesKey,
+        value: JSON.stringify(staleRoleSave),
+        metadata: { baseRevision: 1 },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload.merged).toBe(true);
+    const syncedPlayer = JSON.parse(response.payload.value).players[0];
+    expect(syncedPlayer).toMatchObject({
+      id: "player-1",
+      position: "Right Back",
+      primaryRole: "8",
+      secondaryRoles: ["10"],
+      roleGroup: "midfielder",
+    });
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);
@@ -811,7 +933,10 @@ test("app-state merges concurrent Session Planner edits by field timestamps", as
     },
   };
   const storage = createAppStateFetchMock({
-    [appStateSessionPlannerPath]: createAppStateStorageEntry(appStateSessionPlannerKey, existingState),
+    [appStateSessionPlannerPath]: {
+      ...createAppStateStorageEntry(appStateSessionPlannerKey, existingState),
+      revision: 1,
+    },
   });
   global.fetch = storage.fetchMock;
 
@@ -825,6 +950,7 @@ test("app-state merges concurrent Session Planner edits by field timestamps", as
       body: JSON.stringify({
         key: appStateSessionPlannerKey,
         value: JSON.stringify(incomingState),
+        metadata: { baseRevision: 1 },
       }),
     });
     expect(response.status).toBe(200);
@@ -879,7 +1005,10 @@ test("app-state preserves Session Planner blocks during stale single-user saves"
     },
   };
   const storage = createAppStateFetchMock({
-    [appStateSessionPlannerPath]: createAppStateStorageEntry(appStateSessionPlannerKey, existingState),
+    [appStateSessionPlannerPath]: {
+      ...createAppStateStorageEntry(appStateSessionPlannerKey, existingState),
+      revision: 1,
+    },
   });
   global.fetch = storage.fetchMock;
 
@@ -893,6 +1022,7 @@ test("app-state preserves Session Planner blocks during stale single-user saves"
       body: JSON.stringify({
         key: appStateSessionPlannerKey,
         value: JSON.stringify(staleIncomingState),
+        metadata: { baseRevision: 1 },
       }),
     });
     expect(response.status).toBe(200);
@@ -969,7 +1099,10 @@ test("app-state prevents stale Session Planner saves from resurrecting deleted b
     },
   };
   const storage = createAppStateFetchMock({
-    [appStateSessionPlannerPath]: createAppStateStorageEntry(appStateSessionPlannerKey, existingState),
+    [appStateSessionPlannerPath]: {
+      ...createAppStateStorageEntry(appStateSessionPlannerKey, existingState),
+      revision: 1,
+    },
   });
   global.fetch = storage.fetchMock;
 
@@ -983,6 +1116,7 @@ test("app-state prevents stale Session Planner saves from resurrecting deleted b
       body: JSON.stringify({
         key: appStateSessionPlannerKey,
         value: JSON.stringify(deleteIncomingState),
+        metadata: { baseRevision: 1 },
       }),
     });
     expect(deleteResponse.status).toBe(200);
@@ -997,6 +1131,7 @@ test("app-state prevents stale Session Planner saves from resurrecting deleted b
       body: JSON.stringify({
         key: appStateSessionPlannerKey,
         value: JSON.stringify(staleIncomingState),
+        metadata: { baseRevision: 1 },
       }),
     });
     expect(staleResponse.status).toBe(200);

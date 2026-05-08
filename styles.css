@@ -6810,19 +6810,14 @@ body{
 }
 
 .session-library-item{
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.75rem;
-  align-items: stretch;
+  align-items: start;
   padding: 0.78rem;
   border-radius: 20px;
   background: rgba(246, 246, 248, 0.75);
   border: 1px solid rgba(29, 29, 31, 0.06);
-}
-
-.session-library-item.is-selected{
-  border-color: rgba(0, 113, 227, 0.34);
-  background: rgba(0, 113, 227, 0.07);
 }
 
 .session-library-item.is-dragging{
@@ -6836,7 +6831,8 @@ body{
 }
 
 .session-library-item-main{
-  flex: 1 1 auto;
+  display: grid;
+  gap: 0.18rem;
   min-width: 0;
   padding: 0;
   border: 0;
@@ -6846,12 +6842,6 @@ body{
   box-shadow: none;
   font: inherit;
   text-align: left;
-  cursor: pointer;
-}
-
-.session-library-item-main:focus{
-  outline: 0;
-  box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.1);
 }
 
 .session-library-item-main > div:first-child{
@@ -6926,8 +6916,11 @@ body{
   font-weight: 800;
 }
 
+.session-library-card-details{grid-template-columns:repeat(auto-fit,minmax(min(100%,11rem),1fr));margin-top:0.46rem;}
+
 .session-library-actions{
   flex: 0 0 12rem;
+  width: min(12rem, 100%);
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
@@ -10195,7 +10188,7 @@ a.dashboard-chat-attachment-pill:hover{
 
 .session-library-modal-body{
   display: grid;
-  grid-template-columns: minmax(13rem, 0.42fr) minmax(0, 0.9fr) minmax(20rem, 0.78fr);
+  grid-template-columns: minmax(13rem, 0.3fr) minmax(0, 1fr);
   gap: 0.85rem;
   align-items: start;
 }
@@ -10432,20 +10425,20 @@ a.dashboard-chat-attachment-pill:hover{
 .session-library-modal-grid{
   display: grid;
   gap: 0.65rem;
-  min-width: 0;
-}
-
-.session-library-preview-panel{
-  display: grid;
-  gap: 0.8rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  align-items: start;
   min-width: 0;
   max-height: min(64vh, 680px);
   overflow: auto;
-  padding: 0.86rem;
-  border-radius: 24px;
-  background: rgba(246, 246, 248, 0.84);
-  border: 1px solid rgba(29, 29, 31, 0.06);
 }
+
+.session-library-edit-dialog-backdrop{position:fixed;inset:1rem;z-index:160;display:grid;place-items:center;padding:0.75rem;background:rgba(29,29,31,0.28);backdrop-filter:blur(12px);border-radius:30px;}
+
+.session-library-edit-dialog{width:min(880px,100%);max-height:calc(100vh - 3.5rem);overflow:auto;display:grid;gap:0.78rem;padding:0.86rem;border-radius:24px;background:rgba(255,255,255,0.96);border:1px solid rgba(255,255,255,0.8);box-shadow:0 30px 90px rgba(29,29,31,0.24);}
+
+.session-library-edit-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:0.75rem;}
+
+.session-library-edit-dialog-head h3{margin:0.12rem 0 0;color:#1d1d1f;font-size:1.24rem;line-height:1.08;overflow-wrap:anywhere;}
 
 .session-library-preview-head{
   display: grid;
@@ -10501,6 +10494,7 @@ a.dashboard-chat-attachment-pill:hover{
 .session-library-version-panel > span,
 .session-library-edit-field span,
 .session-library-edit-head span,
+.session-library-edit-dialog-head span,
 .session-library-edit-section > span{
   color: #86868b;
   font-size: 0.66rem;
@@ -15601,7 +15595,7 @@ select{
   }
 
   .session-library-folder-panel,
-  .session-library-preview-panel{
+  .session-library-modal-grid{
     max-height: none;
   }
 

@@ -25,7 +25,9 @@ Treat these as protected product data:
 - Localhost/dev auth: local-only mode for development and QA; it must not call `/api/client-config`.
 
 The app must never treat a missing or incomplete sync response as permission to overwrite local protected data with an empty value.
-Versioned module writes carry their latest known `baseRevision` from the client. If central state is newer, `/api/app-state` rejects the stale write unless the module contract has an explicit merge strategy that preserves newer data. The browser write queue clears stale-conflict retries and hydrates the central version back into cache.
+Versioned module writes carry their latest known `baseRevision` from the client. If central state is newer, `/api/app-state` rejects the stale write unless the module contract has an explicit merge strategy that preserves newer data. Writes or deletes with no base revision are rejected once central data exists. The browser write queue clears stale-conflict retries and hydrates the central version back into cache.
+
+For database-backed modules, the same rule moves down into Postgres: mutable rows must carry a `row_version`, writes use compare-and-swap, deletes become soft deletes, and history tables capture enough before/after state for restore drills. Squad now has the first staged guard migration for this pattern.
 
 ## QA Gate
 
@@ -40,6 +42,7 @@ This runs:
 - `npm run check`
 - API contract tests for client config and app-state auth behavior.
 - Data Safety contract tests for central pipeline, organization scope, revision metadata, stale-write rejection, and protected key coverage.
+- Database guard tests for module migrations that add row versions, soft deletes, hard-delete blocking, and restore history.
 - Browser two-tab revision smoke in `qa/central-state-revision.smoke.spec.mjs`.
 - Browser smoke tests for Schedule, Periodization, Session Planner, and Medical Team refresh persistence.
 

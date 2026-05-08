@@ -21,9 +21,9 @@ Fokus:
 - Man ska kunna arkivera ovningar fran biblioteket med bekraftelse och aterstalla dem fran Archive.
 - Man ska kunna sortera och filtrera pa Phase och Sub-Phase.
 - Phase och Sub-Phase ska kunna vara multi-select med check marks.
-- Man ska kunna forhansgranska en ovning innan den anvands.
+- Biblioteket ska visa ovningens innehall och actions direkt i kort/listyta, utan separat preview-panel.
 - Man ska kunna duplicera och redigera aktiva ovningar utan att original forsvinner.
-- Edit-laget ska ha tydlig Save changes, Save as copy och Cancel sa en coach kan skapa en variant utan att andra tappar originalet.
+- Edit ska oppna en nested popup i bibliotekets modal med tydlig Save changes, Save as copy och Cancel sa en coach kan skapa en variant utan att andra tappar originalet.
 - Biblioteket ska spara latt versionshistorik nar ovningar uppdateras.
 - Man ska kunna skapa Team- och Personal-mappar.
 - Man ska kunna byta namn/visibility pa mappar och aterstalla arkiverade mappar.

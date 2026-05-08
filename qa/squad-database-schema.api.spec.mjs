@@ -8,6 +8,10 @@ const migration = readFileSync(
   resolve(__dirname, "../supabase/migrations/20260507185637_squad_module_multitenant.sql"),
   "utf8"
 );
+const guardMigration = readFileSync(
+  resolve(__dirname, "../supabase/migrations/20260508000000_squad_data_loss_guards.sql"),
+  "utf8"
+);
 
 const coreTables = [
   "squad_organizations",
@@ -86,4 +90,54 @@ test("squad database migration keeps current UI values compatible during rollout
   expect(migration).toContain("squad_staff_org_user_unique_idx");
   expect(migration).toContain("squad_staff_club_user_unique_idx");
   expect(migration).toContain("squad_staff_team_user_unique_idx");
+});
+
+test("squad guard migration adds row-version and soft-delete fields to critical roster records", () => {
+  ["public.squad_players", "public.squad_roster_memberships"].forEach((tableName) => {
+    expect(guardMigration).toContain(`alter table ${tableName}`);
+    expect(guardMigration).toContain("add column if not exists row_version integer not null default 1");
+    expect(guardMigration).toContain("add column if not exists deleted_at timestamptz");
+    expect(guardMigration).toContain("add column if not exists deleted_by uuid references auth.users(id) on delete set null");
+    expect(guardMigration).toContain("add column if not exists delete_reason text");
+  });
+
+  expect(guardMigration).toContain("squad_players_row_version_check check (row_version > 0)");
+  expect(guardMigration).toContain("squad_roster_memberships_row_version_check check (row_version > 0)");
+  expect(guardMigration).toContain("squad_players_active_org_sort_idx");
+  expect(guardMigration).toContain("squad_roster_active_team_season_idx");
+  expect(guardMigration).toContain("where deleted_at is null and status <> 'archived'");
+});
+
+test("squad guard migration records rollback history for roster changes", () => {
+  expect(guardMigration).toContain("create table if not exists public.squad_roster_membership_versions");
+  expect(guardMigration).toContain("before_record jsonb");
+  expect(guardMigration).toContain("after_record jsonb not null");
+  expect(guardMigration).toContain("changed_fields text[] not null default '{}'::text[]");
+  expect(guardMigration).toContain("change_type in ('insert', 'update', 'archive', 'restore')");
+  expect(guardMigration).toContain("create trigger squad_roster_memberships_log_version");
+  expect(guardMigration).toContain("after insert or update on public.squad_roster_memberships");
+  expect(guardMigration).toContain("squad_roster_versions_roster_created_idx");
+  expect(guardMigration).toContain("squad roster versions are manager visible");
+});
+
+test("squad guard migration forces database writes through version-checked server functions", () => {
+  expect(guardMigration).toContain("create or replace function app_private.squad_update_roster_membership");
+  expect(guardMigration).toContain("create or replace function app_private.squad_archive_roster_membership");
+  expect(guardMigration).toContain("create or replace function app_private.squad_restore_roster_membership");
+  expect(guardMigration).toContain("expected_row_version integer");
+  expect(guardMigration).toContain("and row_version = expected_row_version");
+  expect(guardMigration).toContain("raise exception 'Squad row version conflict.' using errcode = '40001'");
+  expect(guardMigration).toContain("revoke execute on function app_private.squad_update_roster_membership(uuid, integer, jsonb) from public, anon, authenticated");
+  expect(guardMigration).toContain("revoke execute on function public.squad_log_roster_membership_version() from public, anon, authenticated");
+  expect(guardMigration).toContain("grant execute on function app_private.squad_update_roster_membership(uuid, integer, jsonb) to service_role");
+  expect(guardMigration).not.toContain("grant delete on public.squad_players");
+  expect(guardMigration).not.toContain("grant delete on public.squad_roster_memberships");
+});
+
+test("squad guard migration blocks hard deletes at the database boundary", () => {
+  expect(guardMigration).toContain("create or replace function app_private.squad_prevent_hard_delete");
+  expect(guardMigration).toContain("Hard delete is disabled for Squad records");
+  expect(guardMigration).toContain("before delete on public.squad_players");
+  expect(guardMigration).toContain("before delete on public.squad_roster_memberships");
+  expect(guardMigration).toContain("Use archive/restore with deleted_at instead");
 });

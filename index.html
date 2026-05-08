@@ -1280,6 +1280,34 @@
             return {};
           }
         }
+        function parseCentralSyncTimestamp(value) {
+          const timestamp = Date.parse(String(value || ""));
+          return Number.isFinite(timestamp) ? timestamp : 0;
+        }
+        function shouldApplyCentralStateEntry(key, pendingEntry = {}, metadataEntry = {}, options = {}) {
+          if (options.forceApply || !pendingEntry?.pendingCentralSync) {
+            return true;
+          }
+          const centralUpdatedAt = parseCentralSyncTimestamp(metadataEntry.updatedAt);
+          const localPendingUpdatedAt = parseCentralSyncTimestamp(pendingEntry.updatedAt);
+          return centralUpdatedAt > 0 && centralUpdatedAt >= localPendingUpdatedAt;
+        }
+        function clearCentralPendingSyncFlag(key) {
+          try {
+            const raw = window.localStorage.getItem(DATA_SAFETY_MANIFEST_KEY);
+            const manifest = raw ? JSON.parse(raw) : null;
+            const entry = manifest?.entries?.[key];
+            if (!entry?.pendingCentralSync) {
+              return;
+            }
+            entry.pendingCentralSync = false;
+            manifest.lastCentralError = "";
+            manifest.lastCentralSyncedAt = new Date().toISOString();
+            window.localStorage.setItem(DATA_SAFETY_MANIFEST_KEY, JSON.stringify(manifest));
+          } catch {
+            // The central entry has already been applied; a stale manifest flag can be repaired on the next write.
+          }
+        }
         function getCentralStateBaseRevision(metadata = {}) {
           const revision = Number(metadata?.revision);
           return Number.isInteger(revision) && revision >= 0 ? revision : 0;
@@ -1580,7 +1608,7 @@
           const { activeWorkspaceId, ...sharedState } = state;
           return JSON.stringify(sharedState);
         }
-        function applyCentralStateEntries(entries = {}, metadata = {}) {
+        function applyCentralStateEntries(entries = {}, metadata = {}, options = {}) {
           const normalizedEntries = Object.fromEntries(
             Object.entries(entries || {}).filter(([key, value]) => isCentralStateKey(key) && typeof value === "string")
           );
@@ -1592,6 +1620,7 @@
           }, {});
           const pendingEntries = readCentralSyncManifestEntries();
           const writeBackEntries = [];
+          const resolvedPendingKeys = [];
           window.__footballScienceCentralHydrating = true;
           try {
             for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
@@ -1605,19 +1634,24 @@
               }
             }
             Object.entries(normalizedEntries).forEach(([key, value]) => {
-              if (pendingEntries[key]?.pendingCentralSync) {
+              const pendingEntry = pendingEntries[key] || {};
+              const metadataEntry = centralState.metadata[key] || {};
+              if (!shouldApplyCentralStateEntry(key, pendingEntry, metadataEntry, options)) {
                 return;
+              }
+              if (pendingEntry?.pendingCentralSync) {
+                resolvedPendingKeys.push(key);
               }
               let valueToApply = value;
               if (key === WORKSPACE_HUB_STATE_KEY) {
                 valueToApply = sanitizeWorkspaceHubStateValue(value);
-              } else if (key === SESSION_PLANNER_STATE_KEY) {
+              } else if (key === SESSION_PLANNER_STATE_KEY && !options.forceApply) {
                 const mergedValue = mergeSessionPlannerStateValues(window.localStorage.getItem(key), value);
                 valueToApply = mergedValue.value;
                 if (mergedValue.changed) {
                   writeBackEntries.push([key, valueToApply]);
                 }
-              } else if (key === PLAYER_PROFILES_STATE_KEY || key === MEDICAL_TEAM_STATE_KEY) {
+              } else if (!options.forceApply && (key === PLAYER_PROFILES_STATE_KEY || key === MEDICAL_TEAM_STATE_KEY)) {
                 const mergedValue = mergeCentralStateMediaValues(window.localStorage.getItem(key), value);
                 valueToApply = mergedValue.value;
                 if (mergedValue.changed) {
@@ -1629,11 +1663,12 @@
           } finally {
             window.__footballScienceCentralHydrating = false;
           }
+          resolvedPendingKeys.forEach(clearCentralPendingSyncFlag);
           writeBackEntries.forEach(([key, value]) => {
             syncCentralStateKey(key, value).catch(() => {});
           });
         }
-        async function hydrateCentralState() {
+        async function hydrateCentralState(options = {}) {
           if (authState.devMode) {
             centralState.hydrated = true;
             centralState.hydrating = false;
@@ -1668,7 +1703,7 @@
               : {};
             const hasCentralEntries = Object.keys(entries).length > 0;
             if (hasCentralEntries) {
-              applyCentralStateEntries(entries, metadata);
+              applyCentralStateEntries(entries, metadata, options);
             } else {
               const localEntries = collectCentralLocalStateEntries();
               if (Object.keys(localEntries).length) {

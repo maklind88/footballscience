@@ -159,6 +159,12 @@ function createAppStateFetchMock(initialObjects = {}, role = "coach") {
         writes.push({ method, objectPath, entry });
         return new Response(JSON.stringify({ Key: objectPath }), { status: 200 });
       }
+
+      if (method === "DELETE") {
+        objects.delete(objectPath);
+        writes.push({ method, objectPath, entry: null });
+        return new Response(JSON.stringify({ Key: objectPath }), { status: 200 });
+      }
     }
 
     return new Response(JSON.stringify({ message: `Unexpected request: ${requestUrl}` }), { status: 500 });
@@ -296,6 +302,88 @@ test("central app-state rejects stale versioned writes before overwriting newer 
     expect(response.payload.reason).toContain("central state is already newer");
     expect(storage.writes.some((write) => write.objectPath === path)).toBe(false);
     expect(JSON.parse(storage.objects.get(path).value).events[0].title).toBe("Newer central value");
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("central app-state rejects unversioned writes once module data exists", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const key = "football-schedule-v1";
+  const path = `global/${key}.json`;
+  const storage = createAppStateFetchMock({
+    [path]: createAppStateStorageEntry(key, { events: [{ id: "safe", title: "Central value" }] }, { revision: 5 }),
+  });
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        key,
+        value: JSON.stringify({ events: [{ id: "old", title: "Old client value" }] }),
+      }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(response.payload).toMatchObject({
+      ok: false,
+      currentRevision: 5,
+      missingBaseRevision: true,
+    });
+    expect(response.payload.reason).toContain("current central revision");
+    expect(storage.writes.some((write) => write.objectPath === path)).toBe(false);
+    expect(JSON.parse(storage.objects.get(path).value).events[0].title).toBe("Central value");
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("central app-state rejects unversioned deletes once module data exists", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const key = "football-schedule-v1";
+  const path = `global/${key}.json`;
+  const storage = createAppStateFetchMock({
+    [path]: createAppStateStorageEntry(key, { events: [{ id: "safe", title: "Central value" }] }, { revision: 5 }),
+  });
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "DELETE",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({ key }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(response.payload).toMatchObject({
+      ok: false,
+      currentRevision: 5,
+      missingBaseRevision: true,
+    });
+    expect(storage.writes.some((write) => write.objectPath === path && write.method === "DELETE")).toBe(false);
+    expect(JSON.parse(storage.objects.get(path).value).events[0].title).toBe("Central value");
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);

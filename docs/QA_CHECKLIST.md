@@ -41,6 +41,8 @@ This smoke test also verifies localhost dev-auth does not call `/api/client-conf
 
 `npm run qa:contracts` runs the platform safety guardrail plus the inert modular core checks for registry coverage, permissions, events, read-only storage adapters, the Home Tasks adapter boundary, the Home Chat adapter boundary, and the Schedule adapter boundary.
 
+`qa/squad-database-schema.api.spec.mjs` also locks the Squad database rollout: RLS must stay enabled, direct browser writes remain blocked, row-version guarded server functions must exist before database writes, and hard deletes must stay disabled for player/roster records.
+
 ## Manual UI Checks
 
 - Localhost opens the platform through dev-auth without hitting `/api/client-config`.
@@ -78,7 +80,7 @@ This smoke test also verifies localhost dev-auth does not call `/api/client-conf
 - Session Planner blocks can be selected without reloading the date strip.
 - Long text does not break left cards.
 - Exercise Library can save, use, archive, and restore an exercise without removing it from storage.
-- Exercise Library Phase/Sub-Phase filters support multi-select with check marks, and filtered results keep a coherent preview selection.
+- Exercise Library Phase/Sub-Phase filters support multi-select with check marks, and filtered results show exercise content/actions directly in cards without a preview panel.
 - Exercise Library Duplicate/Edit can create or update an exercise, persist after reload, and keep the original available unless explicitly edited.
 - Exercise Library Edit offers Save changes, Save as copy, and Cancel; Save as copy creates a new variant and leaves the original untouched.
 - Exercise Library edit/replace/duplicate writes lightweight version snapshots.

@@ -8,6 +8,7 @@ Squad is the durable player-roster module. The visible UI can stay simple: list 
 - Product language should use `Squad`.
 - Legacy storage key remains `football-player-profiles-v1` during rollout.
 - The first database foundation is `supabase/migrations/20260507185637_squad_module_multitenant.sql`.
+- Database data-loss guards are staged in `supabase/migrations/20260508000000_squad_data_loss_guards.sql`.
 - The first module boundary is `src/modules/squad`, with a read-only adapter around the legacy state.
 
 ## Tenant Model
@@ -47,6 +48,9 @@ The important split is `squad_players` versus `squad_roster_memberships`:
 
 - All tables live behind RLS.
 - Browser clients only get direct `select` grants for now; writes stay server-side until the database adapter is intentionally enabled.
+- Mutable roster writes must use database `row_version` compare-and-swap. Missing or stale versions fail instead of overwriting newer data.
+- Player and roster deletes are soft-delete only; hard deletes are blocked by database triggers.
+- Roster changes are copied into `squad_roster_membership_versions`, so admins can inspect and restore historical versions.
 - Supabase Data API exposure must be checked per project; newer projects may not expose new tables automatically.
 - Authorization uses `app_metadata.role`, never user-editable metadata.
 - Guest/player roles are excluded from staff access.
@@ -59,10 +63,11 @@ The important split is `squad_players` versus `squad_roster_memberships`:
 2. Use `src/modules/squad` as the normalization and read boundary for tests and future API work.
 3. Backfill organizations, clubs, teams, seasons, players, and roster memberships from the legacy payload.
 4. Add a server API for paged list/search and player-profile reads.
-5. Dual-read legacy and database data for one release window.
-6. Dual-write add/edit/import actions with audit events.
-7. Flip reads to database mode behind a feature flag.
-8. Remove legacy writes only after backup and rollback drills pass.
+5. Add a server API for row-versioned add/edit/archive/restore writes.
+6. Dual-read legacy and database data for one release window.
+7. Dual-write add/edit/import actions with audit events and roster version history.
+8. Flip reads to database mode behind a feature flag.
+9. Remove legacy writes only after backup and rollback drills pass.
 
 ## Product Direction
 

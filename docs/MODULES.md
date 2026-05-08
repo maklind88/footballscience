@@ -116,9 +116,9 @@ Required direction:
 - Archive library exercises with confirmation, and restore them from Archive.
 - Filter/sort by Phase and Sub-Phase.
 - Phase/Sub-Phase multi-select with check marks.
-- Preview a selected exercise before use.
+- Show exercise content and actions directly in the library cards, without a separate preview panel.
 - Duplicate and edit active library exercises without silently overwriting existing or archived entries.
-- Exercise edit mode has explicit Save changes, Save as copy, and Cancel actions; Save as copy creates a new exercise variant while preserving the original.
+- Exercise edit mode opens as a nested popup in the library modal with explicit Save changes, Save as copy, and Cancel actions; Save as copy creates a new exercise variant while preserving the original.
 - Keep lightweight version snapshots for library edits/replacements/duplicates.
 - Organize exercises with folders/collections stored separately from exercise records.
 - Support All Exercises, Team, Mine, and concrete folder views.

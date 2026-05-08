@@ -371,12 +371,22 @@ function getClientBaseRevision(metadata = {}, key = "") {
 }
 
 function getStaleWriteRejection(contract, previousEntry, authorization, clientBaseRevision) {
-  if (clientBaseRevision === null) {
+  const currentRevision = getStateEntryRevision(previousEntry);
+  if (!currentRevision) {
     return null;
   }
 
-  const currentRevision = getStateEntryRevision(previousEntry);
-  if (!currentRevision || currentRevision <= clientBaseRevision) {
+  if (clientBaseRevision === null) {
+    return {
+      ok: false,
+      status: 409,
+      reason: `Versioned ${contract?.moduleId || "module"} data was not saved because the client did not include the current central revision.`,
+      currentRevision,
+      missingBaseRevision: true,
+    };
+  }
+
+  if (currentRevision <= clientBaseRevision) {
     return null;
   }
 
@@ -875,6 +885,86 @@ const PLAYER_PROFILE_MEDIA_FIELDS = Object.freeze([
   "imageUrl",
   "portraitUrl",
 ]);
+const PLAYER_PROFILE_CHANGE_FIELD_PATHS = {
+  Name: "name",
+  Number: "number",
+  Position: "position",
+  "Availability status": "status",
+  "Squad status": "squadStatus",
+  "Career phase": "careerPhase",
+  "Primary role": "primaryRole",
+  "Secondary roles": "secondaryRoles",
+  "Preferred side": "preferredSide",
+  "Role group": "roleGroup",
+  "IDP status": "idp.status",
+  "IDP focus": "idp.primaryFocus",
+  "IDP next action": "idp.nextAction",
+  "IDP review date": "idp.reviewDate",
+  "Coach notes": "coachNotes",
+  "Performance notes": "futureData.performanceNotes",
+  "Scouting notes": "futureData.scoutingNotes",
+  "Analysis notes": "futureData.analysisNotes",
+  "Technical rating": "attributeRatings.technical",
+  "Tactical rating": "attributeRatings.tactical",
+  "Physical rating": "attributeRatings.physical",
+  "Mental rating": "attributeRatings.mental",
+};
+const PLAYER_PROFILE_NON_DESTRUCTIVE_FIELDS = new Set([
+  "name",
+  "number",
+  "position",
+  "photoUrl",
+  "sourceUrl",
+  "profileImageUrl",
+  "avatarUrl",
+  "imageUrl",
+  "portraitUrl",
+  "primaryRole",
+  "roleGroup",
+]);
+
+function getNestedPlayerProfileValue(source = {}, path = "") {
+  return path.split(".").reduce((value, key) => (value && typeof value === "object" ? value[key] : undefined), source);
+}
+
+function setNestedPlayerProfileValue(source = {}, path = "", value) {
+  const keys = path.split(".").filter(Boolean);
+  if (!keys.length) {
+    return source;
+  }
+
+  let target = source;
+  keys.slice(0, -1).forEach((key) => {
+    if (!target[key] || typeof target[key] !== "object" || Array.isArray(target[key])) {
+      target[key] = {};
+    }
+    target = target[key];
+  });
+  target[keys[keys.length - 1]] = value;
+  return source;
+}
+
+function hasPlayerProfileValue(value) {
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+  if (value && typeof value === "object") {
+    return Object.keys(value).length > 0;
+  }
+  return String(value ?? "").trim() !== "";
+}
+
+function preserveNonDestructivePlayerProfileFields(existingPlayer = {}, incomingPlayer = {}) {
+  const mergedPlayer = { ...incomingPlayer };
+  PLAYER_PROFILE_NON_DESTRUCTIVE_FIELDS.forEach((path) => {
+    const existingValue = getNestedPlayerProfileValue(existingPlayer, path);
+    const incomingValue = getNestedPlayerProfileValue(incomingPlayer, path);
+    if (hasPlayerProfileValue(existingValue) && !hasPlayerProfileValue(incomingValue)) {
+      setNestedPlayerProfileValue(mergedPlayer, path, existingValue);
+    }
+  });
+  return mergedPlayer;
+}
 
 function preservePlayerProfileMediaFields(player = {}, fallbackPlayer = {}) {
   if (!player || typeof player !== "object" || Array.isArray(player)) {
@@ -931,18 +1021,126 @@ function mergePlayerProfileChangeLog(existingEntries = [], incomingEntries = [])
   return normalizePlayerProfileChangeLog(Array.from(entriesByKey.values()));
 }
 
-async function protectPlayerProfilesStateValue(rawValue) {
+function getPlayerProfileChangeFieldPath(change = {}) {
+  return PLAYER_PROFILE_CHANGE_FIELD_PATHS[String(change?.field || "").trim()] || "";
+}
+
+function createPlayerProfileFieldChangeIndex(changeLog = []) {
+  const index = new Map();
+  normalizePlayerProfileChangeLog(changeLog).forEach((entry) => {
+    const playerKey = entry.playerId
+      ? `id:${entry.playerId}`
+      : entry.playerName
+        ? `name:${String(entry.playerName).trim().toLowerCase()}`
+        : "";
+    if (!playerKey) {
+      return;
+    }
+
+    const entryTimestamp = getPlayerProfileChangeLogTimestamp(entry);
+    (Array.isArray(entry.changes) ? entry.changes : []).forEach((change) => {
+      const path = getPlayerProfileChangeFieldPath(change);
+      if (!path) {
+        return;
+      }
+
+      const fieldKey = `${playerKey}:${path}`;
+      if ((index.get(fieldKey) || 0) < entryTimestamp) {
+        index.set(fieldKey, entryTimestamp);
+      }
+    });
+  });
+  return index;
+}
+
+function getPlayerProfileFieldChangeTime(index, player = {}, path = "") {
+  const mergeKey = getPlayerProfileMergeKey(player);
+  return mergeKey ? index.get(`${mergeKey}:${path}`) || 0 : 0;
+}
+
+function getIncomingPlayerProfileChangedPaths(existingState = {}, incomingState = {}, incomingPlayer = {}) {
+  const existingKeys = new Set(
+    normalizePlayerProfileChangeLog(existingState.changeLog).map(getPlayerProfileChangeLogKey).filter(Boolean)
+  );
+  const mergeKey = getPlayerProfileMergeKey(incomingPlayer);
+  const changedPaths = new Set();
+
+  normalizePlayerProfileChangeLog(incomingState.changeLog).forEach((entry) => {
+    const entryKey = getPlayerProfileChangeLogKey(entry);
+    if (entryKey && existingKeys.has(entryKey)) {
+      return;
+    }
+
+    const entryMergeKey = entry.playerId
+      ? `id:${entry.playerId}`
+      : entry.playerName
+        ? `name:${String(entry.playerName).trim().toLowerCase()}`
+        : "";
+    if (!mergeKey || entryMergeKey !== mergeKey) {
+      return;
+    }
+
+    (Array.isArray(entry.changes) ? entry.changes : []).forEach((change) => {
+      const path = getPlayerProfileChangeFieldPath(change);
+      if (path) {
+        changedPaths.add(path);
+      }
+    });
+  });
+
+  return changedPaths;
+}
+
+function mergeStalePlayerProfile(existingState = {}, incomingState = {}, existingPlayer = {}, incomingPlayer = {}) {
+  const changedPaths = getIncomingPlayerProfileChangedPaths(existingState, incomingState, incomingPlayer);
+  if (!changedPaths.size) {
+    return preservePlayerProfileMediaFields(existingPlayer, incomingPlayer);
+  }
+
+  const existingFieldChangeIndex = createPlayerProfileFieldChangeIndex(existingState.changeLog);
+  const incomingFieldChangeIndex = createPlayerProfileFieldChangeIndex(incomingState.changeLog);
+  const mergedPlayer = { ...existingPlayer };
+
+  changedPaths.forEach((path) => {
+    const incomingChangeTime = getPlayerProfileFieldChangeTime(incomingFieldChangeIndex, incomingPlayer, path);
+    const existingChangeTime = getPlayerProfileFieldChangeTime(existingFieldChangeIndex, existingPlayer, path);
+    if (existingChangeTime && incomingChangeTime && existingChangeTime > incomingChangeTime) {
+      return;
+    }
+
+    const incomingValue = getNestedPlayerProfileValue(incomingPlayer, path);
+    const existingValue = getNestedPlayerProfileValue(existingPlayer, path);
+    if (hasPlayerProfileValue(existingValue) && !hasPlayerProfileValue(incomingValue)) {
+      return;
+    }
+
+    setNestedPlayerProfileValue(mergedPlayer, path, incomingValue);
+  });
+
+  mergedPlayer.updatedAt = new Date(
+    Math.max(getPlayerProfileTimestamp(existingPlayer), getPlayerProfileTimestamp(incomingPlayer), Date.now())
+  ).toISOString();
+  return preservePlayerProfileMediaFields(mergedPlayer, existingPlayer);
+}
+
+async function protectPlayerProfilesStateValue(rawValue, context = {}) {
   const incomingState = parsePlayerProfilesStateValue(rawValue);
   if (!incomingState || !Array.isArray(incomingState.players)) {
     return { ok: false, reason: "Squad player data is invalid and was not saved." };
   }
 
-  const existingEntry = await readStateObject(PLAYER_PROFILES_KEY);
+  const existingEntry = context.previousEntry || await readStateObject(PLAYER_PROFILES_KEY);
   const existingState = parsePlayerProfilesStateValue(existingEntry?.value);
   if (!existingState || !Array.isArray(existingState.players)) {
     return { ok: true, value: JSON.stringify(incomingState), merged: false };
   }
 
+  const previousRevision = getStateEntryRevision(existingEntry);
+  const incomingBaseRevision = parseClientRevision(context.clientBaseRevision);
+  const incomingIsStale =
+    incomingBaseRevision !== null &&
+    previousRevision > 0 &&
+    incomingBaseRevision < previousRevision;
   const incomingStateTimestamp = getPlayerProfilesStateTimestamp(incomingState);
   const existingByKey = new Map();
   existingState.players.forEach((player) => {
@@ -963,7 +1161,12 @@ async function protectPlayerProfilesStateValue(rawValue) {
 
       usedKeys.add(key);
       const existingPlayer = existingByKey.get(key);
-      return existingPlayer ? chooseNewestPlayerProfile(existingPlayer, incomingPlayer) : incomingPlayer;
+      if (!existingPlayer) {
+        return incomingPlayer;
+      }
+      return incomingIsStale
+        ? mergeStalePlayerProfile(existingState, incomingState, existingPlayer, incomingPlayer)
+        : preserveNonDestructivePlayerProfileFields(existingPlayer, chooseNewestPlayerProfile(existingPlayer, incomingPlayer));
     });
 
   existingState.players.forEach((existingPlayer) => {
@@ -1305,7 +1508,7 @@ async function appendDataSafetyWriteAudit(actor, previousEntry, nextEntry, merge
   });
 }
 
-async function authorizeStateWrite(actor, key, rawValue, removed = false) {
+async function authorizeStateWrite(actor, key, rawValue, removed = false, context = {}) {
   if (actor?.role === "admin") {
     if (key === SESSION_PLANNER_KEY && !removed) {
       return protectSessionPlannerStateValue(rawValue);
@@ -1316,7 +1519,7 @@ async function authorizeStateWrite(actor, key, rawValue, removed = false) {
     }
 
     if (key === PLAYER_PROFILES_KEY && !removed) {
-      return protectPlayerProfilesStateValue(rawValue);
+      return protectPlayerProfilesStateValue(rawValue, context);
     }
 
     if (key === WORKSPACE_HUB_KEY && !removed) {
@@ -1357,7 +1560,7 @@ async function authorizeStateWrite(actor, key, rawValue, removed = false) {
   }
 
   if (key === PLAYER_PROFILES_KEY && !removed) {
-    return protectPlayerProfilesStateValue(rawValue);
+    return protectPlayerProfilesStateValue(rawValue, context);
   }
 
   return { ok: true, value: rawValue };
@@ -1466,7 +1669,11 @@ async function applyStateEntries(actor, entries = {}, metadata = {}) {
 
     const contract = dataSafetyRegistry.requireByKey(normalizedKey);
     const previousEntry = await readStateObject(normalizedKey);
-    const authorization = await authorizeStateWrite(actor, normalizedKey, rawValue, false);
+    const clientBaseRevision = getClientBaseRevision(metadata, normalizedKey);
+    const authorization = await authorizeStateWrite(actor, normalizedKey, rawValue, false, {
+      previousEntry,
+      clientBaseRevision,
+    });
     if (!authorization.ok) {
       return { ok: false, reason: authorization.reason || `Could not sync ${normalizedKey}.` };
     }
@@ -1475,7 +1682,7 @@ async function applyStateEntries(actor, entries = {}, metadata = {}) {
       contract,
       previousEntry,
       authorization,
-      getClientBaseRevision(metadata, normalizedKey)
+      clientBaseRevision
     );
     if (staleWrite) {
       return staleWrite;
@@ -1570,9 +1777,25 @@ module.exports = async (req, res) => {
 
     const removed = req.method === "DELETE" || body?.removed === true;
     if (removed) {
-      const authorization = await authorizeStateWrite(actor, key, "", true);
+      const contract = dataSafetyRegistry.requireByKey(key);
+      const previousEntry = await readStateObject(key);
+      const clientBaseRevision = getClientBaseRevision(body?.metadata || body, key);
+      const authorization = await authorizeStateWrite(actor, key, "", true, {
+        previousEntry,
+        clientBaseRevision,
+      });
       if (!authorization.ok) {
         return sendJson(res, 403, { ok: false, reason: authorization.reason || "You do not have edit access." });
+      }
+
+      const staleWrite = getStaleWriteRejection(
+        contract,
+        previousEntry,
+        authorization,
+        clientBaseRevision
+      );
+      if (staleWrite) {
+        return sendJson(res, staleWrite.status, staleWrite);
       }
 
       const result = await removeStateObject(key);
@@ -1585,7 +1808,11 @@ module.exports = async (req, res) => {
 
     const contract = dataSafetyRegistry.requireByKey(key);
     const previousEntry = await readStateObject(key);
-    const authorization = await authorizeStateWrite(actor, key, body?.value, false);
+    const clientBaseRevision = getClientBaseRevision(body?.metadata || body, key);
+    const authorization = await authorizeStateWrite(actor, key, body?.value, false, {
+      previousEntry,
+      clientBaseRevision,
+    });
     if (!authorization.ok) {
       return sendJson(res, 403, { ok: false, reason: authorization.reason || "You do not have edit access." });
     }
@@ -1594,7 +1821,7 @@ module.exports = async (req, res) => {
       contract,
       previousEntry,
       authorization,
-      getClientBaseRevision(body?.metadata || body, key)
+      clientBaseRevision
     );
     if (staleWrite) {
       return sendJson(res, staleWrite.status, staleWrite);

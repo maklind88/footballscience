@@ -988,9 +988,7 @@
           try {
             window.localStorage.removeItem("mak-coaching-platform-users-v1");
             window.localStorage.removeItem("mak-coaching-platform-session-v1");
-          } catch {
-            // ignore storage cleanup failures
-          }
+          } catch {}
         }
         function setForgotPasswordMessage(message, isError = false) {
           const forgotPasswordMessage = document.getElementById("forgotPasswordMessage");
@@ -1051,9 +1049,7 @@
             } else {
               window.localStorage.removeItem(DEV_AUTH_SESSION_KEY);
             }
-          } catch {
-            // Local dev auth still works for this tab even if persistence is unavailable.
-          }
+          } catch {}
         }
         function readDevAuthSessionUserId() {
           try {
@@ -1106,21 +1102,22 @@
         }
         async function loadScript(src) {
           await new Promise((resolve, reject) => {
-            const existing = Array.from(document.querySelectorAll("script[src]")).find((script) => script.src === src);
+            const fail = () => reject();
+            window.setTimeout(fail, 15000);
+            const existing = document.querySelector(`script[src="${src}"]`);
             if (existing) {
               if (window.supabase) {
                 resolve();
                 return;
               }
               existing.addEventListener("load", resolve, { once: true });
-              existing.addEventListener("error", reject, { once: true });
+              existing.addEventListener("error", fail, { once: true });
               return;
             }
             const script = document.createElement("script");
             script.src = src;
-            script.async = true;
             script.onload = resolve;
-            script.onerror = () => reject(new Error(`Could not load ${src}`));
+            script.onerror = fail;
             document.head.appendChild(script);
           });
         }
@@ -1146,7 +1143,7 @@
           if (!authState.supabase) {
             return authState.session?.access_token || null;
           }
-          const { data } = await authState.supabase.auth.getSession();
+          const { data } = await readSupabaseSession();
           const session = data?.session || null;
           if (!session?.access_token) {
             return null;
@@ -1304,9 +1301,7 @@
             manifest.lastCentralError = "";
             manifest.lastCentralSyncedAt = new Date().toISOString();
             window.localStorage.setItem(DATA_SAFETY_MANIFEST_KEY, JSON.stringify(manifest));
-          } catch {
-            // The central entry has already been applied; a stale manifest flag can be repaired on the next write.
-          }
+          } catch {}
         }
         function getCentralStateBaseRevision(metadata = {}) {
           const revision = Number(metadata?.revision);
@@ -2432,9 +2427,7 @@
           try {
             clearStorage(window.localStorage);
             clearStorage(window.sessionStorage);
-          } catch {
-            // ignore storage cleanup failures
-          }
+          } catch {}
           try {
             const cookieBits = document.cookie ? document.cookie.split(";") : [];
             cookieBits.forEach((cookie) => {
@@ -2447,9 +2440,7 @@
               }
               document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
             });
-          } catch {
-            // ignore cookie cleanup failures
-          }
+          } catch {}
         }
         async function signOut(options = {}) {
           const shouldSignOutRemote = options.remote !== false && authState.supabase && !authState.isSigningOut;
@@ -2521,11 +2512,20 @@
             username.focus();
           }
         }
+        function readSupabaseSession() {
+          return withTimeout(authState.supabase.auth.getSession(), 12000, "Session timeout.");
+        }
         async function hydrateFromExistingSession() {
           await refreshAccessToken().catch(() => null);
-          const { data, error } = await authState.supabase.auth.getSession();
+          let sessionResult;
+          try {
+            sessionResult = await readSupabaseSession();
+          } catch {
+            return;
+          }
+          const { data, error } = sessionResult || {};
           if (error) {
-            await signOut();
+            await signOut({ remote: false });
             return;
           }
           if (data?.session) {
@@ -2676,15 +2676,23 @@
             }
             clientConfigResponse = configPayload;
           } catch (error) {
-            toFormError("Could not initialize authentication. Check the deployment environment settings.");
+            toFormError("Could not initialize authentication.");
             showLogin();
             authState.isReady = true;
             setLoginBusy(false);
             return;
           }
-          await loadScript(SUPABASE_CDN);
+          try {
+            await loadScript(SUPABASE_CDN);
+          } catch (error) {
+            toFormError("Auth client failed.");
+            showLogin();
+            authState.isReady = true;
+            setLoginBusy(false);
+            return;
+          }
           if (!window.supabase || !window.supabase.createClient) {
-            toFormError("Could not load authentication client.");
+            toFormError("Auth client failed.");
             showLogin();
             authState.isReady = true;
             setLoginBusy(false);

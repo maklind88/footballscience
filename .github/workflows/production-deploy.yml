@@ -43,22 +43,55 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      - name: Check CI deploy secrets
+        id: ci-deploy-env
+        shell: bash
+        run: |
+          missing=()
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID LIVE_QA_USERNAME LIVE_QA_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              missing+=("$name")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "CI-driven production deploy is missing required secret(s): ${missing[*]}"
+            echo "::notice title=CI deploy skipped::Missing required secret(s): ${missing[*]}. Vercel Git integration can still deploy the pushed main commit; add these secrets to enable gated CI deploy and authenticated live QA."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report skipped CI deploy
+        if: ${{ steps.ci-deploy-env.outputs.enabled != 'true' }}
+        run: |
+          echo "CI-driven production deploy skipped because the repository is missing deploy/live-QA secrets."
+          echo "Vercel Git integration remains the active deployment path for pushes to main."
+
       - run: npm run release:ci-env
+        if: ${{ steps.ci-deploy-env.outputs.enabled == 'true' }}
 
       - name: Verify manual release gate
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && steps.ci-deploy-env.outputs.enabled == 'true' }}
         run: npm run release:gate
 
       - name: Verify QA release preflight
-        if: ${{ github.event_name == 'workflow_run' }}
+        if: ${{ github.event_name == 'workflow_run' && steps.ci-deploy-env.outputs.enabled == 'true' }}
         run: npm run release:preflight
 
       - run: npx playwright install --with-deps chromium
+        if: ${{ steps.ci-deploy-env.outputs.enabled == 'true' }}
       - run: npx --yes vercel@53.2.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
+        if: ${{ steps.ci-deploy-env.outputs.enabled == 'true' }}
       - run: npx --yes vercel@53.2.0 build --prod --token="$VERCEL_TOKEN"
+        if: ${{ steps.ci-deploy-env.outputs.enabled == 'true' }}
 
       - name: Deploy production
+        if: ${{ steps.ci-deploy-env.outputs.enabled == 'true' }}
         run: npx --yes vercel@53.2.0 deploy --prebuilt --prod --token="$VERCEL_TOKEN" | tee deployment-url.txt
 
       - run: npm run release:postdeploy
+        if: ${{ steps.ci-deploy-env.outputs.enabled == 'true' }}
       - run: npm run qa:live:required
+        if: ${{ steps.ci-deploy-env.outputs.enabled == 'true' }}

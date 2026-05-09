@@ -74,6 +74,8 @@ CodeQL runs through `.github/workflows/codeql.yml`, and Dependabot is configured
 
 Production deploys are CI-driven through `.github/workflows/production-deploy.yml`. The workflow starts after the `QA` workflow succeeds on `main`, checks required secrets, deploys through Vercel CLI, runs `npm run release:postdeploy`, and then runs authenticated live QA. Manual dispatch uses the same gates.
 
+If the CI deploy/live-QA secrets are not configured yet, the production deploy workflow exits successfully with a clear GitHub Actions notice instead of failing the release history. In that mode, Vercel's Git integration remains the active deployment path for pushes to `main`. Add the secrets below to turn on gated CI deploys and authenticated live QA.
+
 Required GitHub repository secrets for CI deploy:
 
 ```bash

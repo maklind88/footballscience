@@ -9833,6 +9833,12 @@ function renderDashboardChatWidget() {
   const existingThreadList = root.querySelector("[data-dashboard-chat-thread-list]");
   const previousThreadListScrollTop = existingThreadList?.scrollTop ?? 0;
   const previousThreadListScrollLeft = existingThreadList?.scrollLeft ?? 0;
+  const existingChatList = root.querySelector("[data-dashboard-chat-list]");
+  const previousChatListScrollTop = existingChatList?.scrollTop ?? null;
+  const previousChatListScrollHeight = existingChatList?.scrollHeight ?? 0;
+  const previousChatListClientHeight = existingChatList?.clientHeight ?? 0;
+  const previousChatListWasAtBottom =
+    existingChatList && previousChatListScrollHeight - previousChatListScrollTop - previousChatListClientHeight < 48;
   const messages = readDashboardMessages();
   const resolvedMessages = isDashboardChatThreadActivelyViewed(state.selectedThreadId)
     ? markDashboardMessagesReadForCurrentUser(messages, state.selectedThreadId)
@@ -9882,6 +9888,11 @@ function renderDashboardChatWidget() {
   if (nextThreadList) {
     nextThreadList.scrollTop = previousThreadListScrollTop;
     nextThreadList.scrollLeft = previousThreadListScrollLeft;
+  }
+  const nextChatList = root.querySelector("[data-dashboard-chat-list]");
+  if (nextChatList && previousChatListScrollTop !== null && previousComposerThreadId === renderedWidget.activeThreadId) {
+    const nextMaxScrollTop = Math.max(0, nextChatList.scrollHeight - nextChatList.clientHeight);
+    nextChatList.scrollTop = previousChatListWasAtBottom ? nextMaxScrollTop : Math.min(previousChatListScrollTop, nextMaxScrollTop);
   }
   if (previousComposerThreadId === renderedWidget.activeThreadId) {
     const nextComposer = root.querySelector("[data-dashboard-chat-input]");

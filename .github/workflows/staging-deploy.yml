@@ -1,0 +1,82 @@
+name: Staging Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - staging
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      LIVE_QA_BASE_URL: ${{ vars.LIVE_QA_BASE_URL || 'https://footballscience.xyz' }}
+      STAGING_QA_BASE_URL: ${{ vars.STAGING_QA_BASE_URL }}
+      STAGING_QA_PASSWORD: ${{ secrets.STAGING_QA_PASSWORD }}
+      STAGING_QA_USERNAME: ${{ secrets.STAGING_QA_USERNAME }}
+      STAGING_SUPABASE_PROJECT_REF: ${{ vars.STAGING_SUPABASE_PROJECT_REF }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run qa
+
+      - name: Check staging deploy config
+        id: staging-env
+        shell: bash
+        run: |
+          missing=()
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID STAGING_QA_USERNAME STAGING_QA_PASSWORD STAGING_SUPABASE_PROJECT_REF; do
+            if [ -z "${!name}" ]; then
+              missing+=("$name")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Staging deploy skipped::Missing required secret/variable(s): ${missing[*]}. QA still ran; configure staging secrets and a separate Supabase project to enable staging deploy."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report skipped staging deploy
+        if: ${{ steps.staging-env.outputs.enabled != 'true' }}
+        run: echo "Staging deploy skipped until staging secrets/variables are configured."
+
+      - run: npm run verify:staging-env -- --required
+        if: ${{ steps.staging-env.outputs.enabled == 'true' }}
+
+      - run: npx --yes vercel@53.2.0 pull --yes --environment=preview --token="$VERCEL_TOKEN"
+        if: ${{ steps.staging-env.outputs.enabled == 'true' }}
+      - run: npx --yes vercel@53.2.0 build --token="$VERCEL_TOKEN"
+        if: ${{ steps.staging-env.outputs.enabled == 'true' }}
+
+      - name: Deploy staging preview
+        if: ${{ steps.staging-env.outputs.enabled == 'true' }}
+        shell: bash
+        run: |
+          npx --yes vercel@53.2.0 deploy --prebuilt --token="$VERCEL_TOKEN" | tee deployment-url.txt
+          deployment_url="$(tail -n 1 deployment-url.txt)"
+          echo "STAGING_DEPLOYMENT_URL=$deployment_url" >> "$GITHUB_ENV"
+
+      - name: Authenticated staging smoke
+        if: ${{ steps.staging-env.outputs.enabled == 'true' }}
+        run: |
+          if [ -z "$STAGING_QA_BASE_URL" ]; then
+            export STAGING_QA_BASE_URL="$STAGING_DEPLOYMENT_URL"
+          fi
+          npm run qa:staging:required

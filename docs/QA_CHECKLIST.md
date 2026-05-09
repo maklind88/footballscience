@@ -16,6 +16,8 @@ npm run qa
   - `npm run qa:api` validates serverless API contracts.
   - `npm run qa:browser` validates critical local browser flows.
   - `npm run qa:live` runs the optional production smoke if `LIVE_QA_USERNAME` and `LIVE_QA_PASSWORD` are set.
+  - `npm run qa:staging` runs the optional staging smoke if `STAGING_QA_BASE_URL`, `STAGING_QA_USERNAME`, and `STAGING_QA_PASSWORD` are set.
+  - `npm run qa:staging:required` fails if staging is not fully configured.
 - If `index.html` auth script changes, parse-check the inline script with Node before browser testing.
 - Run `node --check app.js` after editing JavaScript.
 - Check that `index.html`, `app.js`, and `styles.css` paths still load from local file or deployment.
@@ -97,6 +99,7 @@ This smoke test also verifies localhost dev-auth does not call `/api/client-conf
 Before telling the user the site is updated:
 
 - Run `npm run qa:deploy` locally and require it to pass.
+- For normal releases, verify the change on staging before production.
 - Deploy with Vercel.
 - Alias deployment to `footballscience.xyz`.
 - Open or request a cache-busting URL.

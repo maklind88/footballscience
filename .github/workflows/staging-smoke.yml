@@ -1,0 +1,25 @@
+name: Staging Smoke
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      LIVE_QA_BASE_URL: ${{ vars.LIVE_QA_BASE_URL || 'https://footballscience.xyz' }}
+      STAGING_QA_BASE_URL: ${{ vars.STAGING_QA_BASE_URL }}
+      STAGING_QA_PASSWORD: ${{ secrets.STAGING_QA_PASSWORD }}
+      STAGING_QA_USERNAME: ${{ secrets.STAGING_QA_USERNAME }}
+      STAGING_SUPABASE_PROJECT_REF: ${{ vars.STAGING_SUPABASE_PROJECT_REF }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run verify:staging-env -- --required
+      - run: npx playwright install --with-deps chromium
+      - run: npm run qa:staging:required

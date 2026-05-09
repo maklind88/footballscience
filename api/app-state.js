@@ -1879,6 +1879,10 @@ function filterStateMetadataForEntries(metadata = {}, entries = {}) {
     filtered[key] = {
       updatedAt: baseMetadata.updatedAt || "",
       updatedBy: baseMetadata.updatedBy || "",
+      revision: getStateEntryRevision(baseMetadata),
+      organizationId: baseMetadata.organizationId || "global",
+      moduleId: baseMetadata.moduleId || dataSafetyRegistry.getByKey(key)?.moduleId || "",
+      mergePolicy: baseMetadata.mergePolicy || dataSafetyRegistry.getByKey(key)?.mergePolicy || "",
       hash: hashStateValue(value),
       size: Buffer.byteLength(value, "utf8"),
     };

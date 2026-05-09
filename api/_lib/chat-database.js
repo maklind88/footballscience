@@ -1018,6 +1018,34 @@ async function enrichThreadSummaries(actor, threads = []) {
   );
 }
 
+async function recalculateThreadSummary(thread = {}) {
+  if (!thread?.id) {
+    return thread;
+  }
+  const messages = await selectMany(
+    "chat_messages",
+    [
+      `select=${MESSAGE_SELECT}`,
+      `thread_id=eq.${filterValue(thread.id)}`,
+      "deleted_at=is.null",
+      "order=created_at.desc",
+      "limit=1000",
+    ].join("&")
+  ).catch(() => []);
+  const latestMessage = messages[0] || null;
+  const [updatedThread] = await patchRows("chat_threads", `id=eq.${filterValue(thread.id)}`, {
+    last_message_id: latestMessage?.id || null,
+    last_message_at: latestMessage?.created_at || null,
+    message_count: messages.length,
+  }).catch(() => []);
+  return updatedThread || {
+    ...thread,
+    last_message_id: latestMessage?.id || null,
+    last_message_at: latestMessage?.created_at || null,
+    message_count: messages.length,
+  };
+}
+
 async function handleDatabaseGet(req, res, actor) {
   const query = new URL(req.url, "http://localhost").searchParams;
   const view = normalizeString(query.get("view"), 40).toLowerCase();
@@ -1169,13 +1197,15 @@ async function handleDatabaseGet(req, res, actor) {
     const messages = await selectMany("chat_messages", filters.join("&"));
     const nextCursor = messages.length === limit ? messages[messages.length - 1]?.created_at || "" : "";
     const enrichedMessages = await enrichMessages([...messages].reverse(), thread);
+    const [threadSummary] = await enrichThreadSummaries(actor, [thread]);
+    const responseThread = threadSummary || thread;
     return sendJson(res, 200, {
       ok: true,
       schema: "footballscience-chat-database-v1",
       mode: "database",
       scope,
-      thread,
-      threads: [thread],
+      thread: responseThread,
+      threads: [responseThread],
       messages: enrichedMessages,
       nextCursor,
     });
@@ -1491,8 +1521,9 @@ async function deleteMessage(actor, body) {
     thread_id: message.thread_id,
     message_id: message.id,
   });
+  const updatedThread = await recalculateThreadSummary(thread);
 
-  return { ok: true, action: "deleteMessage", thread, message: updatedMessage, auditId: audit?.id || "" };
+  return { ok: true, action: "deleteMessage", thread: updatedThread, message: updatedMessage, auditId: audit?.id || "" };
 }
 
 async function setReaction(actor, body, shouldAdd) {

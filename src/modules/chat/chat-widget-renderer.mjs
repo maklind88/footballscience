@@ -16,6 +16,37 @@ function parseThreadActivityTime(thread = {}) {
   return Number.isFinite(time) ? time : 0;
 }
 
+function dateSeparatorKey(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function formatDateSeparator(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const dayDiff = Math.round((startOfToday - startOfDate) / (24 * 60 * 60 * 1000));
+  if (dayDiff === 0) {
+    return "Today";
+  }
+  if (dayDiff === 1) {
+    return "Yesterday";
+  }
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: date.getFullYear() === today.getFullYear() ? undefined : "numeric",
+  }).format(date);
+}
+
 export function createDashboardChatWidgetRenderer(dependencies = {}) {
   const {
     teamThreadId = "team",
@@ -181,6 +212,20 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
   `;
   }
 
+  function renderMessagesWithDateSeparators(messages, users, currentUser) {
+    let previousKey = "";
+    return messages
+      .map((message) => {
+        const currentKey = dateSeparatorKey(message.createdAt);
+        const separator = currentKey && currentKey !== previousKey
+          ? `<div class="dashboard-chat-date-separator"><span>${escapeHtml(formatDateSeparator(message.createdAt))}</span></div>`
+          : "";
+        previousKey = currentKey || previousKey;
+        return `${separator}${renderMessage(message, users, currentUser)}`;
+      })
+      .join("");
+  }
+
   function renderThreadItem(thread, currentUser, users, isSelected, isUnread) {
     const threadLabel = thread.isTeamThread ? "Team Room" : thread.label;
     const preview = getThreadPreview(thread, users, currentUser);
@@ -326,6 +371,18 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
               <strong>Moderation</strong>
               <button type="button" data-dashboard-chat-moderation-refresh>${moderationState.loading ? "Loading" : "Refresh"}</button>
             </div>
+            ${
+              moderationState.health
+                ? `
+                  <div class="dashboard-chat-health-grid" aria-label="Chat health">
+                    <span><strong>${escapeHtml(moderationState.health.threadCount ?? 0)}</strong><small>Threads</small></span>
+                    <span><strong>${escapeHtml(moderationState.health.messageCount ?? 0)}</strong><small>Messages</small></span>
+                    <span><strong>${escapeHtml(moderationState.health.deletedMessageCount ?? 0)}</strong><small>Deleted</small></span>
+                    <span><strong>${escapeHtml(moderationState.health.pendingAttachmentCount ?? 0)}</strong><small>Pending files</small></span>
+                  </div>
+                `
+                : ""
+            }
             ${
               moderationState.error
                 ? `<p>${escapeHtml(moderationState.error)}</p>`
@@ -486,7 +543,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           ${renderPinnedMessages(pinnedMessages, users, currentUser)}
           <div class="dashboard-chat-list" data-dashboard-chat-list aria-live="polite">
             ${hasOlderMessages && !normalizedMessageSearch ? `<button type="button" class="dashboard-chat-load-more" data-dashboard-chat-load-earlier="${escapeHtml(activeThreadId)}">Load earlier</button>` : ""}
-            ${visibleMessages.length ? visibleMessages.map((message) => renderMessage(message, users, currentUser)).join("") : `<div class="dashboard-chat-empty-state"><strong>No messages yet</strong><span>${escapeHtml(activeThread?.isTeamThread ? "Start the team thread." : `Start a direct message with ${activeThreadLabel}.`)}</span></div>`}
+            ${visibleMessages.length ? renderMessagesWithDateSeparators(visibleMessages, users, currentUser) : `<div class="dashboard-chat-empty-state"><strong>No messages yet</strong><span>${escapeHtml(activeThread?.isTeamThread ? "Start the team thread." : `Start a direct message with ${activeThreadLabel}.`)}</span></div>`}
           </div>
           ${renderTypingIndicator(activeThreadId, users, currentUser)}
           ${replyComposerMarkup}

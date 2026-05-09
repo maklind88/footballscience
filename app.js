@@ -8495,6 +8495,7 @@ async function loadDashboardChatModerationFromApi() {
   dashboardChatModerationState = { ...dashboardChatModerationState, loading: true, error: "" };
   renderDashboardChatWidget();
   const result = await fetchDashboardChatApi({ view: "moderation", limit: 40 });
+  const healthResult = await fetchDashboardChatApi({ view: "health", limit: 8 });
   if (!result.ok) {
     dashboardChatModerationState = { ...dashboardChatModerationState, loading: false, error: result.reason || "Could not load moderation." };
     renderDashboardChatWidget();
@@ -8504,8 +8505,12 @@ async function loadDashboardChatModerationFromApi() {
     loading: false,
     audits: Array.isArray(result.result.audits) ? result.result.audits : [],
     retentionPolicy: result.result.retentionPolicy || null,
+    health: healthResult.ok ? healthResult.result.health || null : dashboardChatModerationState.health,
     error: "",
   };
+  if (healthResult.ok && Array.isArray(healthResult.result.audits) && !dashboardChatModerationState.audits.length) {
+    dashboardChatModerationState.audits = healthResult.result.audits;
+  }
   if (result.result.scope) {
     dashboardChatApiScope = result.result.scope;
   }
@@ -8639,6 +8644,7 @@ function handleDashboardChatRealtimeMessageChange(change = {}) {
     renderTopIconMenu();
   }
   queueDashboardChatApiRefresh({ delayMs: 250 });
+  queueDashboardChatThreadSummaryRefresh({ delayMs: 350 });
 }
 function setupDashboardChatRealtime() {
   const authStore = getPlatformAuthStore();
@@ -8696,6 +8702,7 @@ function createDashboardMessage(text, threadId = dashboardChatTeamThreadId, opti
     replyToId: dashboardChatReplyDraft?.threadId === threadId ? dashboardChatReplyDraft.messageId : "",
     priority: dashboardChatPriorityDraft,
     author: currentUser,
+    status: options.status || "sent",
   });
   writeDashboardMessages([...readDashboardMessages(), message], {
     skipCentralSync: Boolean(options.skipCentralSync),
@@ -8716,6 +8723,7 @@ async function createDashboardMessageWithApi(text, threadId = dashboardChatTeamT
     {
       action: "sendMessage",
       id: messageId,
+      clientMessageId: messageId,
       threadId: normalizedThreadId,
       threadType: getDashboardChatThreadTypeForApi(normalizedThreadId),
       threadTitle: getDashboardChatThreadLabel(normalizedThreadId, currentUser),
@@ -8735,6 +8743,7 @@ async function createDashboardMessageWithApi(text, threadId = dashboardChatTeamT
       }
       const message = createDashboardMessage(cleanText, normalizedThreadId, {
         id: messageId,
+        status: "pending",
         skipCentralSync: Boolean(apiResult?.ok),
       });
       dashboardChatComposerAttachmentDraft = null;
@@ -8814,10 +8823,12 @@ async function removeDashboardMessageWithApi(messageId) {
   if (result.ok) {
     applyDashboardChatApiPayload(result.result || {}, { threadId: result.result?.thread?.metadata?.legacyThreadId });
     removeDashboardMessage(normalizedMessageId);
+    queueDashboardChatThreadSummaryRefresh({ delayMs: 50 });
     return true;
   }
   if (result.status === 404) {
     removeDashboardMessage(normalizedMessageId);
+    queueDashboardChatThreadSummaryRefresh({ delayMs: 50 });
     return true;
   }
   logDashboardChatApiFailure("deleteMessage", result);
@@ -9616,6 +9627,7 @@ function clearDashboardMessagesForThreadWithApi(threadId) {
     },
     (apiResult) => {
       clearDashboardMessagesForThread(normalizedThreadId, { skipCentralSync: Boolean(apiResult?.ok) });
+      queueDashboardChatThreadSummaryRefresh({ delayMs: 50 });
       return true;
     }
   );
@@ -72777,6 +72789,7 @@ ui.dashboardChatWidgetRoot?.addEventListener("submit", async (event) => {
   clearDashboardChatTyping();
   setDashboardChatReplyDraft("", "");
   setDashboardChatPriorityDraft("normal");
+  queueDashboardChatThreadSummaryRefresh({ delayMs: 50 });
   if (input) {
     input.value = "";
   }

@@ -39,12 +39,13 @@ export function createDashboardChatAttachmentRenderer({ escapeHtml, getSupabaseC
     if (!attachments.length) return "";
     return `<div class="dashboard-chat-attachments" aria-label="Message attachments">${attachments.map((attachment) => {
       const name = attachment.metadata?.fileName || attachment.fileName || "Attachment";
+      const mimeType = attachment.mimeType || attachment.mime_type || attachment.metadata?.mimeType || "";
       const size = Number(attachment.byte_size || attachment.byteSize || 0);
       const sizeLabel = size ? `${Math.ceil(size / 1024)} KB` : "Pending";
       const signedUrl = getSignedUrl(attachment);
       const content = `<span aria-hidden="true">□</span><strong>${escapeHtml(name)}</strong><small>${escapeHtml(signedUrl ? sizeLabel : `${sizeLabel} · preparing`)}</small>`;
       return signedUrl
-        ? `<a class="dashboard-chat-attachment-pill" href="${escapeHtml(signedUrl)}" target="_blank" rel="noopener noreferrer">${content}</a>`
+        ? `<button type="button" class="dashboard-chat-attachment-pill" data-dashboard-chat-attachment-preview data-dashboard-chat-attachment-url="${escapeHtml(signedUrl)}" data-dashboard-chat-attachment-name="${escapeHtml(name)}" data-dashboard-chat-attachment-mime="${escapeHtml(mimeType)}">${content}</button>`
         : `<span class="dashboard-chat-attachment-pill">${content}</span>`;
     }).join("")}</div>`;
   };

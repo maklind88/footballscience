@@ -4,6 +4,7 @@ import { createSimulatorKeyboardStateController } from "./src/modules/game-simul
 import { createSimulatorWorkspaceController } from "./src/modules/game-simulator/workspace-controller.mjs";
 import { createDashboardChatWidgetRenderer } from "./src/modules/chat/chat-widget-renderer.mjs";
 import { createDashboardChatAttachmentRenderer } from "./src/modules/chat/chat-attachment-renderer.mjs";
+import { createDashboardChatAttachmentPreview } from "./src/modules/chat/chat-attachment-preview.mjs";
 import { uploadDashboardChatAttachmentFile as uploadDashboardChatAttachmentFileWithClient } from "./src/modules/chat/chat-attachment-storage.mjs";
 import { createDashboardHomeCardsRenderer } from "./src/modules/home/dashboard-renderer.mjs";
 import { selectHomeTaskQueues } from "./src/modules/home/tasks.mjs";
@@ -570,6 +571,7 @@ const dashboardChatAttachmentRenderer = createDashboardChatAttachmentRenderer({
   getSupabaseClient: getDashboardSupabaseClient,
   renderChatWidget: () => renderDashboardChatWidget(),
 });
+const dashboardChatAttachmentPreview = createDashboardChatAttachmentPreview();
 const dashboardChatWidgetRenderer = createDashboardChatWidgetRenderer({
   teamThreadId: dashboardChatTeamThreadId,
   messageLimit: dashboardChatWidgetMessageLimit,
@@ -72626,6 +72628,17 @@ ui.dashboardChatWidgetRoot?.addEventListener("click", async (event) => {
     dashboardChatComposerAttachmentDraft = null;
     renderDashboardChatWidget();
     focusDashboardChatWidgetComposer();
+    return;
+  }
+
+  const attachmentPreviewButton = event.target.closest("[data-dashboard-chat-attachment-preview]");
+  if (attachmentPreviewButton) {
+    event.preventDefault();
+    dashboardChatAttachmentPreview.open({
+      url: attachmentPreviewButton.dataset.dashboardChatAttachmentUrl,
+      name: attachmentPreviewButton.dataset.dashboardChatAttachmentName,
+      mimeType: attachmentPreviewButton.dataset.dashboardChatAttachmentMime,
+    });
     return;
   }
 

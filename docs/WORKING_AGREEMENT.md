@@ -8,6 +8,7 @@
 - Do not invent real coaching content unless explicitly asked. Use structure and sample placeholders only where useful.
 - Verify changes before saying they are done.
 - When a finished change should be visible on the public website, deploy it to Vercel, alias it to `footballscience.xyz`, and verify the live files before saying it is done.
+- In every Codex chat, follow the stable release order in `AGENTS.md`: validate, commit intended files only, push after QA, deploy only after the release gate, then run postdeploy verification.
 - If work becomes slow because context is huge, start a new thread and read `docs/AI_HANDOFF.md`.
 
 ## What Good Looks Like

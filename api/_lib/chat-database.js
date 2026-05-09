@@ -905,6 +905,32 @@ function messagePreviewText(message = {}) {
   return normalizeString(message.body || message.text || "", 180).replace(/\s+/g, " ").trim();
 }
 
+function threadParticipantIds(thread = {}) {
+  const metadata = thread.metadata && typeof thread.metadata === "object" ? thread.metadata : {};
+  const legacyThreadId = toLegacyThreadId(thread);
+  return Array.from(
+    new Set([
+      ...(Array.isArray(metadata.participantIds) ? metadata.participantIds : []),
+      ...getParticipantIdsFromLegacyKey(legacyThreadId, normalizeThreadType(thread.type)),
+    ].map((value) => normalizeId(value)).filter(Boolean))
+  );
+}
+
+function threadPermissionsForActor(actor, thread = {}) {
+  const role = actorRole(actor);
+  const manager = canAdmin(actor) || MANAGER_ROLES.has(role);
+  const type = normalizeThreadType(thread.type);
+  return {
+    canSend: type !== "announcement" || manager,
+    canAttach: true,
+    canReact: true,
+    canReadReceipts: true,
+    canPin: manager,
+    canClear: canAdmin(actor),
+    canModerate: canAdmin(actor),
+  };
+}
+
 async function enrichMessages(messages = [], thread = null) {
   const messageIds = messages.map((message) => message.id).filter(Boolean);
   if (!messageIds.length) {
@@ -1009,6 +1035,9 @@ async function enrichThreadSummaries(actor, threads = []) {
         ...thread,
         legacyThreadId: toLegacyThreadId(thread),
         threadId: toLegacyThreadId(thread),
+        participants: threadParticipantIds(thread),
+        permissions: threadPermissionsForActor(actor, thread),
+        avatarUrl: normalizeString(thread.metadata?.avatarUrl || thread.metadata?.imageUrl || "", 800),
         lastMessage: enrichedLastMessage || null,
         lastMessagePreview: enrichedLastMessage ? messagePreviewText(enrichedLastMessage) : "",
         unreadCount,

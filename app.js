@@ -5989,6 +5989,9 @@ let dashboardChatApiReadReceiptSyncSignatures = new Set();
 let dashboardChatApiSyncTimer = 0;
 let dashboardChatApiRealtimeChannel = null;
 let dashboardChatApiRealtimeSignature = "";
+let dashboardChatApiRealtimeStatus = "idle";
+let dashboardChatApiRealtimeLastEventAt = 0;
+let dashboardChatApiRealtimeRecoveryTimer = 0;
 let dashboardChatApiScope = null;
 let dashboardChatApiThreads = [];
 let dashboardChatApiPagination = {};
@@ -8306,6 +8309,9 @@ function normalizeDashboardApiThread(thread = {}) {
     lastReadAt: String(thread.lastReadAt || thread.last_read_at || "").trim(),
     lastMessage: thread.lastMessage || thread.last_message || null,
     lastMessagePreview: String(thread.lastMessagePreview || thread.last_message_preview || "").trim(),
+    participants: Array.isArray(thread.participants) ? thread.participants.map((value) => String(value || "").trim()).filter(Boolean) : [],
+    permissions: thread.permissions && typeof thread.permissions === "object" ? thread.permissions : {},
+    avatarUrl: String(thread.avatarUrl || thread.avatar_url || "").trim(),
     metadata: thread.metadata || {},
   };
 }
@@ -8442,6 +8448,16 @@ function queueDashboardChatThreadSummaryRefresh(options = {}) {
     dashboardChatThreadSummaryLastRequestedAt = Date.now();
     void refreshDashboardChatThreadSummariesFromApi(options);
   }, Number(options.delayMs ?? 200));
+}
+function queueDashboardChatCurrentViewRefresh(options = {}) {
+  queueDashboardChatThreadSummaryRefresh({ delayMs: Number(options.delayMs ?? 120), render: false });
+  const state = readDashboardChatWidgetState();
+  if (state.isOpen) {
+    queueDashboardChatApiRefresh({
+      threadId: state.selectedThreadId,
+      delayMs: Number(options.delayMs ?? 120) + 40,
+    });
+  }
 }
 async function refreshDashboardChatFromApi(options = {}) {
   const threadId = normalizeDashboardChatThreadId(options.threadId || readDashboardChatWidgetState().selectedThreadId, dashboardChatTeamThreadId);
@@ -8633,6 +8649,7 @@ async function createDashboardAdvancedChatThread(templateKey) {
   return result.result?.thread || null;
 }
 function handleDashboardChatRealtimeMessageChange(change = {}) {
+  dashboardChatApiRealtimeLastEventAt = Date.now();
   const eventType = String(change.eventType || change.type || "").toUpperCase();
   const record = change.new || change.old || {};
   const messageId = String(record?.id || record?.messageId || "").trim();
@@ -8645,6 +8662,21 @@ function handleDashboardChatRealtimeMessageChange(change = {}) {
   }
   queueDashboardChatApiRefresh({ delayMs: 250 });
   queueDashboardChatThreadSummaryRefresh({ delayMs: 350 });
+}
+function handleDashboardChatRealtimeStatus(status = "") {
+  dashboardChatApiRealtimeStatus = String(status || "unknown");
+  if (dashboardChatApiRealtimeRecoveryTimer) {
+    window.clearTimeout(dashboardChatApiRealtimeRecoveryTimer);
+    dashboardChatApiRealtimeRecoveryTimer = 0;
+  }
+  if (dashboardChatApiRealtimeStatus === "SUBSCRIBED") {
+    queueDashboardChatCurrentViewRefresh({ delayMs: 250 });
+    return;
+  }
+  dashboardChatApiRealtimeRecoveryTimer = window.setTimeout(() => {
+    dashboardChatApiRealtimeRecoveryTimer = 0;
+    queueDashboardChatCurrentViewRefresh({ delayMs: 0 });
+  }, 1200);
 }
 function setupDashboardChatRealtime() {
   const authStore = getPlatformAuthStore();
@@ -8671,7 +8703,7 @@ function setupDashboardChatRealtime() {
     .on("postgres_changes", { event: "*", schema: "public", table: "chat_read_receipts", filter: realtimeScopeFilter }, () =>
       queueDashboardChatApiRefresh({ delayMs: 400 })
     )
-    .subscribe();
+    .subscribe(handleDashboardChatRealtimeStatus);
 }
 async function commitDashboardChatApiAction(payload, localCommit) {
   const result = await sendDashboardChatApiAction(payload);
@@ -72562,7 +72594,7 @@ ui.dashboardChatWidgetRoot?.addEventListener("click", async (event) => {
     writeDashboardChatWidgetState(nextState);
     if (nextState.isOpen) {
       hideDashboardChatWidgetToast();
-      queueDashboardChatApiRefresh({ threadId: currentState.selectedThreadId, delayMs: 0 });
+      queueDashboardChatCurrentViewRefresh({ delayMs: 0 });
     }
     renderDashboardChatWidget();
     if (nextState.isOpen) {
@@ -72596,7 +72628,7 @@ ui.dashboardChatWidgetRoot?.addEventListener("click", async (event) => {
     });
     hideDashboardChatWidgetToast();
     renderDashboardChatWidget();
-    queueDashboardChatApiRefresh({ threadId, delayMs: 0 });
+    queueDashboardChatCurrentViewRefresh({ delayMs: 0 });
     focusDashboardChatWidgetComposer();
     return;
   }
@@ -75987,6 +76019,7 @@ window.addEventListener("focus", () => {
   startDashboardPresenceRuntime();
   pushDashboardPresence("online").catch(() => {});
   refreshDashboardPresence({ forceRender: true }).catch(() => {});
+  queueDashboardChatCurrentViewRefresh({ delayMs: 250 });
   refreshCentralStateFromSource("focus");
   window.setTimeout(flushDeferredCentralizedAppStateReload, 180);
 });
@@ -76010,6 +76043,7 @@ document.addEventListener("visibilitychange", () => {
     return;
   }
 
+  queueDashboardChatCurrentViewRefresh({ delayMs: 250 });
   refreshCentralStateFromSource("visibility");
   window.setTimeout(flushDeferredCentralizedAppStateReload, 180);
 });

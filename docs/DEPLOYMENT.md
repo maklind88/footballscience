@@ -6,6 +6,27 @@ Football Science is deployed to Vercel and aliased to `footballscience.xyz`.
 
 From `/Users/maklind/Documents/New project`:
 
+### Automated Safe Flow
+
+For normal Codex-driven releases, use the project release automation:
+
+```bash
+npm run release:auto -- --stage-all --commit "fix: concise message" --push --deploy
+```
+
+If unrelated local changes exist, stage only the intended files first and omit `--stage-all`:
+
+```bash
+git add <intended-files>
+npm run release:auto -- --commit "fix: concise message" --push --deploy
+```
+
+The script runs QA before pushing, pushes the current branch, runs the release gate, deploys to Vercel production, and runs postdeploy verification. It stops before deployment if the working tree is dirty or any check fails.
+
+### Manual Flow
+
+Use the manual flow only when you need direct control over a release step:
+
 ```bash
 npm run release:gate
 ```

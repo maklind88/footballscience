@@ -1,0 +1,64 @@
+name: Production Deploy
+
+on:
+  workflow_run:
+    workflows:
+      - QA
+    types:
+      - completed
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    runs-on: ubuntu-latest
+    env:
+      LIVE_QA_BASE_URL: ${{ vars.LIVE_QA_BASE_URL || 'https://footballscience.xyz' }}
+      LIVE_QA_PASSWORD: ${{ secrets.LIVE_QA_PASSWORD }}
+      LIVE_QA_USERNAME: ${{ secrets.LIVE_QA_USERNAME }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: Checkout QA commit
+        if: ${{ github.event_name == 'workflow_run' }}
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Checkout current commit
+        if: ${{ github.event_name != 'workflow_run' }}
+        uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm run release:ci-env
+
+      - name: Verify manual release gate
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: npm run release:gate
+
+      - name: Verify QA release preflight
+        if: ${{ github.event_name == 'workflow_run' }}
+        run: npm run release:preflight
+
+      - run: npx playwright install --with-deps chromium
+      - run: npx --yes vercel@53.2.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
+      - run: npx --yes vercel@53.2.0 build --prod --token="$VERCEL_TOKEN"
+
+      - name: Deploy production
+        run: npx --yes vercel@53.2.0 deploy --prebuilt --prod --token="$VERCEL_TOKEN" | tee deployment-url.txt
+
+      - run: npm run release:postdeploy
+      - run: npm run qa:live:required

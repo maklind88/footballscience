@@ -46,7 +46,7 @@ RELEASE_ALLOW_DIRTY=1 RELEASE_ALLOW_UNPUSHED=1 npm run release:gate
 Only deploy after the gate passes:
 
 ```bash
-npx vercel deploy --prod --yes
+npx --yes vercel@53.2.0 deploy --prod --yes
 ```
 
 Copy the deployment URL returned by Vercel.
@@ -72,6 +72,24 @@ The same workflow also runs:
 
 CodeQL runs through `.github/workflows/codeql.yml`, and Dependabot is configured in `.github/dependabot.yml` for npm and GitHub Actions updates.
 
+Production deploys are CI-driven through `.github/workflows/production-deploy.yml`. The workflow starts after the `QA` workflow succeeds on `main`, checks required secrets, deploys through Vercel CLI, runs `npm run release:postdeploy`, and then runs authenticated live QA. Manual dispatch uses the same gates.
+
+Required GitHub repository secrets for CI deploy:
+
+```bash
+VERCEL_TOKEN
+VERCEL_ORG_ID
+VERCEL_PROJECT_ID
+LIVE_QA_USERNAME
+LIVE_QA_PASSWORD
+```
+
+Optional GitHub repository variable:
+
+```bash
+LIVE_QA_BASE_URL  # defaults to https://footballscience.xyz
+```
+
 Remote Supabase migration verification lives in `.github/workflows/supabase-migrations.yml`. It runs automatically when migration files are pushed to `main`, and it can be started manually from GitHub Actions. Required secure configuration:
 
 ```bash
@@ -89,7 +107,7 @@ npm run qa:supabase:remote
 
 `qa:supabase:remote` links the CI runner to the target Supabase project, lists local vs remote migrations, runs linked database linting, and runs `supabase db push --dry-run`. Do not put these values in source files.
 
-Optional live smoke requires a dedicated test account and these CI/local environment variables:
+Authenticated live smoke requires a dedicated test account and these CI/local environment variables:
 
 ```bash
 LIVE_QA_USERNAME
@@ -99,7 +117,7 @@ LIVE_QA_BASE_URL
 
 `LIVE_QA_BASE_URL` defaults to `https://footballscience.xyz`.
 
-Manual production smoke can be started in GitHub Actions through `.github/workflows/production-smoke.yml`.
+Manual production smoke can be started in GitHub Actions through `.github/workflows/production-smoke.yml`; it now fails clearly if the live QA secrets are missing.
 
 ## Alias To Domain
 

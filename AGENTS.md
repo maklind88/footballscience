@@ -44,6 +44,7 @@ npm run release:auto -- --commit "type: concise message" --push --deploy
 ## Deployment Safety
 
 - Do not deploy from a dirty working tree.
+- Prefer the GitHub `Production Deploy` workflow for normal production releases after `QA` passes on `main`.
 - Do not use emergency overrides unless the user explicitly confirms an urgent hotfix.
 - Do not put secrets in source files. Vercel/GitHub/Supabase secrets stay in their respective dashboards.
 - After deployment, verify the live domain and protected backup endpoint through `npm run release:postdeploy`.

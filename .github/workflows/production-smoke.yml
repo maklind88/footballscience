@@ -17,9 +17,8 @@ jobs:
         env:
           LIVE_QA_BASE_URL: ${{ vars.LIVE_QA_BASE_URL || 'https://footballscience.xyz' }}
       - run: npx playwright install --with-deps chromium
-      - name: Optional authenticated live smoke
-        if: ${{ secrets.LIVE_QA_USERNAME != '' && secrets.LIVE_QA_PASSWORD != '' }}
-        run: npm run qa:live
+      - name: Authenticated live smoke
+        run: npm run qa:live:required
         env:
           LIVE_QA_USERNAME: ${{ secrets.LIVE_QA_USERNAME }}
           LIVE_QA_PASSWORD: ${{ secrets.LIVE_QA_PASSWORD }}

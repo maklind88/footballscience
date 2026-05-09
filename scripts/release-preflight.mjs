@@ -31,9 +31,12 @@ function requireFile(relativePath, label = relativePath) {
 requireFile("package-lock.json", "package-lock.json");
 requireFile("vercel.json", "vercel.json");
 requireFile(".github/workflows/qa.yml", "GitHub QA workflow");
+requireFile(".github/workflows/production-deploy.yml", "GitHub production deploy workflow");
 requireFile(".github/workflows/supabase-migrations.yml", "Supabase migration workflow");
 requireFile("qa/live.playwright.config.mjs", "live QA config");
 requireFile("qa/production.live.spec.mjs", "production live smoke test");
+requireFile("scripts/verify-ci-release-env.mjs", "CI release environment verifier");
+requireFile("scripts/verify-live-qa-env.mjs", "live QA environment verifier");
 
 const branch = tryGit(["rev-parse", "--abbrev-ref", "HEAD"]) || "unknown";
 const status = tryGit(["status", "--porcelain"]);
@@ -55,7 +58,7 @@ if (!upstream) {
 }
 
 if (!process.env.LIVE_QA_USERNAME || !process.env.LIVE_QA_PASSWORD) {
-  warnings.push("LIVE_QA_USERNAME/LIVE_QA_PASSWORD are not set, so npm run qa:live will skip production login smoke.");
+  warnings.push("LIVE_QA_USERNAME/LIVE_QA_PASSWORD are not set; npm run qa:live skips, and npm run qa:live:required fails.");
 }
 
 console.log("Release preflight");

@@ -182,7 +182,7 @@ async function main() {
   if (options.deploy) {
     requireCleanWorkingTree("Production deploy");
     run("npm", ["run", "release:gate"]);
-    const deployOutput = run("npx", ["vercel", "deploy", "--prod", "--yes"], { capture: true });
+    const deployOutput = run("npx", ["--yes", "vercel@53.2.0", "deploy", "--prod", "--yes"], { capture: true });
     const deploymentUrl = extractDeploymentUrl(deployOutput);
     if (deploymentUrl) {
       console.log(`\nProduction deployment: ${deploymentUrl}`);

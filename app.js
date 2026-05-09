@@ -8393,6 +8393,13 @@ function applyDashboardChatApiPayload(payload = {}, options = {}) {
     dashboardChatApiScope = payload.scope;
     setupDashboardChatRealtime();
   }
+  if (payload.health) {
+    dashboardChatModerationState = {
+      ...dashboardChatModerationState,
+      health: payload.health,
+      audits: Array.isArray(payload.audits) ? payload.audits : dashboardChatModerationState.audits,
+    };
+  }
   if (Array.isArray(payload.threads)) {
     updateDashboardChatApiThreads(payload.threads);
   } else if (payload.thread) {
@@ -8411,6 +8418,30 @@ function applyDashboardChatApiPayload(payload = {}, options = {}) {
   if (payload.message) {
     mergeDashboardChatApiMessages([payload.message], { render: false });
   }
+}
+async function refreshDashboardChatThreadSummariesFromApi(options = {}) {
+  const result = await fetchDashboardChatApi({ view: "threads", limit: options.limit || 80 });
+  if (!result.ok) {
+    if (!canFallbackDashboardChatApiResult(result)) {
+      logDashboardChatApiFailure("threads", result);
+    }
+    return result;
+  }
+  applyDashboardChatApiPayload(result.result || {});
+  if (options.render !== false) {
+    renderDashboardChatWidget();
+  }
+  return result;
+}
+function queueDashboardChatThreadSummaryRefresh(options = {}) {
+  if (dashboardChatThreadSummarySyncTimer) {
+    window.clearTimeout(dashboardChatThreadSummarySyncTimer);
+  }
+  dashboardChatThreadSummarySyncTimer = window.setTimeout(() => {
+    dashboardChatThreadSummarySyncTimer = 0;
+    dashboardChatThreadSummaryLastRequestedAt = Date.now();
+    void refreshDashboardChatThreadSummariesFromApi(options);
+  }, Number(options.delayMs ?? 200));
 }
 async function refreshDashboardChatFromApi(options = {}) {
   const threadId = normalizeDashboardChatThreadId(options.threadId || readDashboardChatWidgetState().selectedThreadId, dashboardChatTeamThreadId);
@@ -9685,6 +9716,9 @@ function renderDashboardChatWidget() {
     return;
   }
   resetDashboardChatLocalCacheIfNeeded();
+  if (!dashboardChatThreadSummarySyncTimer && Date.now() - dashboardChatThreadSummaryLastRequestedAt > 30000) {
+    queueDashboardChatThreadSummaryRefresh({ delayMs: 50, render: false });
+  }
   const users = getPlatformUsers().filter((user) => user.status === "active");
   const notificationState = readDashboardChatWidgetNotificationState();
   const state = readDashboardChatWidgetState();

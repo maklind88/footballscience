@@ -94,6 +94,8 @@ LIVE_QA_BASE_URL  # defaults to https://footballscience.xyz
 
 Remote Supabase migration verification lives in `.github/workflows/supabase-migrations.yml`. It runs automatically when migration files are pushed to `main`, and it can be started manually from GitHub Actions. Required secure configuration:
 
+If the remote Supabase credentials are not configured yet, the workflow still runs the local migration safety gate and then exits successfully with a clear notice that remote verification was skipped.
+
 ```bash
 SUPABASE_ACCESS_TOKEN  # GitHub secret
 SUPABASE_DB_PASSWORD   # GitHub secret

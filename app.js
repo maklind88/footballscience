@@ -409,6 +409,7 @@ const defaultScenarioInfo = {
 };
 const workspaceHubStorageKey = "football-workspace-hub-v3";
 const workspaceHubDefaultActiveWorkspaceId = "home";
+const workspaceLastActiveStorageKey = "football-workspace-last-active-local-v1";
 const periodizationStorageKey = "football-periodization-v2";
 const scheduleStorageKey = "football-schedule-v1";
 // Bump this when the session planner data shape changes so old browser storage
@@ -458,6 +459,7 @@ const sessionPlannerLibrarySortOptions = [
 const playerProfilesStorageKey = "football-player-profiles-v1";
 const dashboardTaskStorageKey = "football-dashboard-tasks-v1";
 const dashboardChatStorageKey = "football-dashboard-chat-v1";
+const dashboardChatDeletedMessageIdsStorageKey = "football-dashboard-chat-deleted-message-ids-v1";
 const dashboardChatWidgetStateStorageKey = "football-dashboard-chat-widget-state-v1";
 const dashboardChatWidgetNotificationCursorStorageKey = "football-dashboard-chat-widget-notification-cursor-v1";
 const dashboardChatWidgetNotificationStateStorageKey = "football-dashboard-chat-widget-notification-state-v1";
@@ -508,7 +510,6 @@ const dataSafetyProtectedStorageKeys = [
   sessionPlannerExerciseLibraryFoldersBackupStorageKey,
   playerProfilesStorageKey,
   dashboardTaskStorageKey,
-  dashboardChatStorageKey,
   dashboardNotificationSeenStorageKey,
   dashboardTutorialPrefsStorageKey,
   dashboardNewsSeenStorageKey,
@@ -527,7 +528,6 @@ const dataSafetyStorageLabels = {
   [sessionPlannerExerciseLibraryFoldersStorageKey]: "Exercise Library Folders",
   [sessionPlannerExerciseLibraryFoldersBackupStorageKey]: "Exercise Library Folders Backup",
   [dashboardTaskStorageKey]: "Dashboard Tasks",
-  [dashboardChatStorageKey]: "Team Chat",
   [dashboardNotificationSeenStorageKey]: "Home Notifications",
   [dashboardTutorialPrefsStorageKey]: "Dashboard Preferences",
   [dashboardNewsSeenStorageKey]: "Dashboard News",
@@ -805,6 +805,13 @@ function applyCentralSyncedStateValue(write = {}, syncedValue) {
     return;
   }
   if (key === dashboardChatStorageKey) {
+    purgeDashboardDeletedMessagesFromStorage();
+    renderDashboardChatWidget();
+    renderTopIconMenu();
+    return;
+  }
+  if (key === dashboardChatDeletedMessageIdsStorageKey) {
+    purgeDashboardDeletedMessagesFromStorage();
     renderDashboardChatWidget();
     renderTopIconMenu();
     return;
@@ -1446,7 +1453,7 @@ const defaultHubState = {
       meta: "Availability",
       description: "Player availability, medical recommendations and training participation logs.",
       status: "New",
-      icon: "✚",
+      icon: "♡",
     },
     {
       id: "admin",
@@ -6461,6 +6468,29 @@ function getWorkspaceIdFromUrl() {
     return null;
   }
 }
+function readRememberedWorkspaceId() {
+  try {
+    return (
+      window.sessionStorage.getItem(workspaceLastActiveStorageKey) ||
+      window.localStorage.getItem(workspaceLastActiveStorageKey) ||
+      null
+    );
+  } catch {
+    return null;
+  }
+}
+function rememberActiveWorkspaceId(workspaceId) {
+  const safeWorkspaceId = typeof workspaceId === "string" ? workspaceId.trim() : "";
+  if (!safeWorkspaceId) {
+    return;
+  }
+  try {
+    window.sessionStorage.setItem(workspaceLastActiveStorageKey, safeWorkspaceId);
+  } catch {}
+  try {
+    window.localStorage.setItem(workspaceLastActiveStorageKey, safeWorkspaceId);
+  } catch {}
+}
 const defaultPeriodizationDayTemplates = [
   {
     dayLabel: "Monday",
@@ -7101,7 +7131,21 @@ function setScheduleOverviewSpan(span) {
   writeScheduleState();
   renderScheduleWorkspace();
 }
-function selectScheduleDate(dateValue) {
+function scrollScheduleDateIntoView(dateValue) {
+  const root = scheduleState?.viewMode === "overview" ? ui.scheduleOverviewGrid : ui.scheduleCalendarGrid;
+  if (!root || !dateValue) {
+    return;
+  }
+  const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+  window.requestAnimationFrame(() => {
+    root.querySelector(`[data-schedule-date="${dateValue}"]`)?.scrollIntoView({
+      block: "center",
+      inline: "nearest",
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+    });
+  });
+}
+function selectScheduleDate(dateValue, options = {}) {
   if (!scheduleState) {
     return;
   }
@@ -7114,7 +7158,11 @@ function selectScheduleDate(dateValue) {
     scheduleState.selectedMonthIndex + (scheduleState.viewMode === "overview" ? scheduleState.overviewSpan : 1),
     0
   );
-  const keepOverviewWindow = scheduleState.viewMode === "overview" && date >= windowStart && date <= windowEnd;
+  const keepOverviewWindow =
+    options.keepOverviewWindow !== false &&
+    scheduleState.viewMode === "overview" &&
+    date >= windowStart &&
+    date <= windowEnd;
   if (!keepOverviewWindow) {
     scheduleState.selectedYear = date.getFullYear();
     scheduleState.selectedMonthIndex = date.getMonth();
@@ -7122,10 +7170,16 @@ function selectScheduleDate(dateValue) {
   scheduleState.selectedDate = formatScheduleDateValue(date);
   writeScheduleState();
   renderScheduleWorkspace();
+  if (options.scrollIntoView) {
+    scrollScheduleDateIntoView(scheduleState.selectedDate);
+  }
 }
 function jumpScheduleToToday() {
   const today = new Date();
-  selectScheduleDate(formatScheduleDateValue(today));
+  selectScheduleDate(formatScheduleDateValue(today), {
+    keepOverviewWindow: false,
+    scrollIntoView: true,
+  });
 }
 function copyScheduleEvent(eventId) {
   if (!scheduleState || !canEditScheduleWorkspace()) {
@@ -7735,11 +7789,38 @@ function formatDashboardChatThreadLabel(threadId, currentUser, users = getPlatfo
   if (template) {
     return template.title;
   }
+  const participantPartner = getDashboardChatThreadParticipants(normalized, users).find((user) => !isSameDashboardUser(user, currentUser));
+  if (participantPartner) {
+    return formatUserName(participantPartner);
+  }
   const [, firstId = "", secondId = ""] = normalized.split(":");
   const currentUserId = currentUser?.id || "";
   const partnerId = firstId === currentUserId ? secondId : firstId;
   const partner = users.find((user) => user.id === partnerId);
   return partner ? formatUserName(partner) : "Direct Message";
+}
+function normalizeDashboardUserIdentityValue(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+function isSameDashboardUser(firstUser = {}, secondUser = {}) {
+  if (!firstUser || !secondUser) {
+    return false;
+  }
+  const firstKeys = [
+    firstUser.id,
+    firstUser.email,
+    firstUser.username,
+  ].map(normalizeDashboardUserIdentityValue).filter(Boolean);
+  const secondKeys = new Set([
+    secondUser.id,
+    secondUser.email,
+    secondUser.username,
+  ].map(normalizeDashboardUserIdentityValue).filter(Boolean));
+  return firstKeys.some((key) => secondKeys.has(key));
+}
+function isGenericDashboardChatThreadTitle(value = "") {
+  const normalized = String(value || "").trim().toLowerCase();
+  return !normalized || ["chat", "team chat", "group chat", "direct message", "private chat"].includes(normalized);
 }
 function getDashboardChatThreadParticipants(threadId, users = getPlatformUsers()) {
   const normalized = normalizeDashboardChatThreadId(threadId);
@@ -7752,7 +7833,7 @@ function getDashboardChatThreadParticipants(threadId, users = getPlatformUsers()
 }
 function getDashboardChatThreadLabel(threadId, currentUser, users = getPlatformUsers()) {
   if (threadId === dashboardChatTeamThreadId) {
-    return "Staff Room";
+    return getDashboardChatTeamChatTitle();
   }
   return formatDashboardChatThreadLabel(threadId, currentUser, users);
 }
@@ -7927,18 +8008,57 @@ function normalizeDashboardMessage(message) {
     attachments: Array.isArray(message?.attachments) ? message.attachments : [],
   };
 }
+function readDashboardDeletedMessageIds() {
+  const parsed = readDashboardJson(dashboardChatDeletedMessageIdsStorageKey, []);
+  return new Set(Array.isArray(parsed) ? parsed.map((id) => String(id || "").trim()).filter(Boolean) : []);
+}
+function rememberDashboardDeletedMessageId(messageId) {
+  const normalizedMessageId = String(messageId || "").trim();
+  if (!normalizedMessageId) {
+    return;
+  }
+  const nextIds = [normalizedMessageId, ...Array.from(readDashboardDeletedMessageIds()).filter((id) => id !== normalizedMessageId)].slice(0, 500);
+  writeDashboardJson(dashboardChatDeletedMessageIdsStorageKey, nextIds);
+  purgeDashboardDeletedMessagesFromStorage();
+}
+function purgeDashboardDeletedMessagesFromStorage(options = {}) {
+  const deletedMessageIds = readDashboardDeletedMessageIds();
+  if (!deletedMessageIds.size) {
+    return;
+  }
+  const parsed = readDashboardJson(dashboardChatStorageKey, []);
+  const sourceMessages = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.messages) ? parsed.messages : [];
+  if (!Array.isArray(sourceMessages) || !sourceMessages.length) {
+    return;
+  }
+  const nextMessages = sourceMessages.filter((message) => {
+    const sourceId = String(message?.id || message?.messageId || "").trim();
+    const normalizedId = normalizeDashboardMessage(message).id;
+    return !deletedMessageIds.has(sourceId) && !deletedMessageIds.has(normalizedId);
+  });
+  if (nextMessages.length === sourceMessages.length) {
+    return;
+  }
+  writeDashboardMessages(nextMessages, {
+    skipCentralSync: Boolean(options.skipCentralSync),
+  });
+}
 function readDashboardMessages() {
   const parsed = readDashboardJson(dashboardChatStorageKey, []);
   const sourceMessages = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.messages) ? parsed.messages : [];
+  const deletedMessageIds = readDashboardDeletedMessageIds();
   return Array.isArray(sourceMessages)
     ? sourceMessages
         .map(normalizeDashboardMessage)
-        .filter((message) => message.text && message.userId)
+        .filter((message) => message.text && message.userId && !deletedMessageIds.has(message.id))
         .sort((first, second) => new Date(first.createdAt) - new Date(second.createdAt))
     : [];
 }
 function writeDashboardMessages(messages, options = {}) {
-  const normalizedMessages = messages.map(normalizeDashboardMessage).filter((message) => message.text && message.userId);
+  const deletedMessageIds = readDashboardDeletedMessageIds();
+  const normalizedMessages = messages
+    .map(normalizeDashboardMessage)
+    .filter((message) => message.text && message.userId && !deletedMessageIds.has(message.id));
   const recentMessages = normalizedMessages.slice(-80);
   const pinnedMessages = normalizedMessages
     .filter((message) => message.pinnedAt && !recentMessages.some((recentMessage) => recentMessage.id === message.id))
@@ -8082,11 +8202,15 @@ function logDashboardChatApiFailure(action, result = {}) {
 function normalizeDashboardApiThread(thread = {}) {
   const type = String(thread.type || "team").trim().toLowerCase();
   const legacyThreadId = String(thread.metadata?.legacyThreadId || thread.legacyThreadId || "").trim();
+  const template =
+    dashboardChatAdvancedThreadTemplates.find((candidate) => candidate.key === legacyThreadId) ||
+    dashboardChatAdvancedThreadTemplates.find((candidate) => candidate.type === type);
+  const resolvedLegacyThreadId = legacyThreadId || template?.key || "";
   return {
-    threadId: normalizeDashboardChatThreadId(legacyThreadId || (type === "team" ? dashboardChatTeamThreadId : thread.id), dashboardChatTeamThreadId),
+    threadId: normalizeDashboardChatThreadId(resolvedLegacyThreadId || (type === "team" ? dashboardChatTeamThreadId : thread.id), dashboardChatTeamThreadId),
     databaseThreadId: String(thread.id || "").trim(),
     type,
-    title: String(thread.title || thread.name || (type === "team" ? "Team Chat" : "Chat")).trim(),
+    title: String(template?.title || thread.title || thread.name || (type === "team" ? getDashboardChatTeamChatTitle() : "Chat")).trim(),
     visibility: String(thread.visibility || "members").trim(),
     lastMessageAt: String(thread.last_message_at || thread.lastMessageAt || thread.updated_at || "").trim(),
     messageCount: Number(thread.message_count || thread.messageCount || 0) || 0,
@@ -8120,13 +8244,35 @@ function normalizeDashboardApiMessage(message = {}, thread = null) {
   });
 }
 function mergeDashboardChatApiMessages(messages = [], options = {}) {
-  if (!Array.isArray(messages) || !messages.length) {
+  if (!Array.isArray(messages)) {
     return readDashboardMessages();
   }
-  const current = readDashboardMessages();
+  const replaceThreadId = options.replaceThreadId ? normalizeDashboardChatThreadId(options.replaceThreadId, "") : "";
+  const current = replaceThreadId
+    ? readDashboardMessages().filter((message) => message.threadId !== replaceThreadId)
+    : readDashboardMessages();
+  if (!messages.length) {
+    if (replaceThreadId) {
+      writeDashboardMessages(current, { skipCentralSync: true });
+      if (options.render !== false) {
+        renderDashboardChatWidget();
+      }
+    }
+    return current;
+  }
   const byId = new Map(current.map((message) => [message.id, message]));
-  messages.map(normalizeDashboardApiMessage).forEach((message) => {
-    if (message.text && message.userId) {
+  const deletedMessageIds = readDashboardDeletedMessageIds();
+  messages.forEach((sourceMessage) => {
+    const sourceMessageId = String(sourceMessage?.id || sourceMessage?.messageId || "").trim();
+    const deletedAt = String(sourceMessage?.deletedAt || sourceMessage?.deleted_at || "").trim();
+    if (sourceMessageId && deletedAt) {
+      rememberDashboardDeletedMessageId(sourceMessageId);
+      deletedMessageIds.add(sourceMessageId);
+      byId.delete(sourceMessageId);
+      return;
+    }
+    const message = normalizeDashboardApiMessage(sourceMessage);
+    if (message?.text && message.userId && !deletedMessageIds.has(message.id)) {
       byId.set(message.id, message);
     }
   });
@@ -8164,13 +8310,20 @@ function applyDashboardChatApiPayload(payload = {}, options = {}) {
     dashboardChatApiPagination[threadId] = String(payload.nextCursor || "");
   }
   if (Array.isArray(payload.messages)) {
-    mergeDashboardChatApiMessages(payload.messages, { render: false });
+    mergeDashboardChatApiMessages(payload.messages, {
+      render: false,
+      replaceThreadId: options.replaceThread ? options.threadId || payload.thread?.legacyThreadId || payload.thread?.metadata?.legacyThreadId : "",
+    });
+  }
+  if (payload.message) {
+    mergeDashboardChatApiMessages([payload.message], { render: false });
   }
 }
 async function refreshDashboardChatFromApi(options = {}) {
   const threadId = normalizeDashboardChatThreadId(options.threadId || readDashboardChatWidgetState().selectedThreadId, dashboardChatTeamThreadId);
   const query = {
     threadId,
+    threadType: getDashboardChatThreadTypeForApi(threadId),
     limit: options.limit || dashboardChatApiPageLimit,
   };
   if (options.cursor) {
@@ -8187,7 +8340,10 @@ async function refreshDashboardChatFromApi(options = {}) {
     }
     return result;
   }
-  applyDashboardChatApiPayload(result.result, { threadId });
+  applyDashboardChatApiPayload(result.result, {
+    threadId,
+    replaceThread: !options.cursor && !options.search,
+  });
   renderDashboardChatWidget();
   return result;
 }
@@ -8347,11 +8503,24 @@ async function createDashboardAdvancedChatThread(templateKey) {
   focusDashboardChatWidgetComposer();
   return result.result?.thread || null;
 }
+function handleDashboardChatRealtimeMessageChange(change = {}) {
+  const eventType = String(change.eventType || change.type || "").toUpperCase();
+  const record = change.new || change.old || {};
+  const messageId = String(record?.id || record?.messageId || "").trim();
+  const deletedAt = String(record?.deleted_at || record?.deletedAt || "").trim();
+  if (messageId && (deletedAt || eventType === "DELETE")) {
+    removeDashboardMessage(messageId);
+    renderDashboardChatWidget();
+    syncDashboardChatWidgetNotificationCursor();
+    renderTopIconMenu();
+  }
+  queueDashboardChatApiRefresh({ delayMs: 250 });
+}
 function setupDashboardChatRealtime() {
   const authStore = getPlatformAuthStore();
   const supabaseClient = typeof authStore?.getSupabaseClient === "function" ? authStore.getSupabaseClient() : null;
   const scope = dashboardChatApiScope;
-  if (!supabaseClient?.channel || !scope?.teamId) {
+  if (!supabaseClient?.channel || !scope?.organizationId) {
     return;
   }
   const signature = `${scope.organizationId || ""}:${scope.teamId || ""}`;
@@ -8362,15 +8531,14 @@ function setupDashboardChatRealtime() {
     supabaseClient.removeChannel(dashboardChatApiRealtimeChannel);
   }
   dashboardChatApiRealtimeSignature = signature;
+  const realtimeScopeFilter = `organization_id=eq.${scope.organizationId}`;
   dashboardChatApiRealtimeChannel = supabaseClient
     .channel(`chat:${signature}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "chat_messages", filter: `team_id=eq.${scope.teamId}` }, () =>
+    .on("postgres_changes", { event: "*", schema: "public", table: "chat_messages", filter: realtimeScopeFilter }, handleDashboardChatRealtimeMessageChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "chat_reactions", filter: realtimeScopeFilter }, () =>
       queueDashboardChatApiRefresh({ delayMs: 250 })
     )
-    .on("postgres_changes", { event: "*", schema: "public", table: "chat_reactions", filter: `team_id=eq.${scope.teamId}` }, () =>
-      queueDashboardChatApiRefresh({ delayMs: 250 })
-    )
-    .on("postgres_changes", { event: "*", schema: "public", table: "chat_read_receipts", filter: `team_id=eq.${scope.teamId}` }, () =>
+    .on("postgres_changes", { event: "*", schema: "public", table: "chat_read_receipts", filter: realtimeScopeFilter }, () =>
       queueDashboardChatApiRefresh({ delayMs: 400 })
     )
     .subscribe();
@@ -8505,25 +8673,32 @@ function markDashboardMessagesReadForCurrentUser(messages = readDashboardMessage
   return nextMessages;
 }
 function removeDashboardMessage(messageId, options = {}) {
+  rememberDashboardDeletedMessageId(messageId);
   writeDashboardMessages(readDashboardMessages().filter((message) => message.id !== messageId), {
     skipCentralSync: Boolean(options.skipCentralSync),
   });
 }
-function removeDashboardMessageWithApi(messageId) {
+async function removeDashboardMessageWithApi(messageId) {
   const normalizedMessageId = String(messageId || "").trim();
   if (!normalizedMessageId) {
-    return Promise.resolve(null);
+    return null;
   }
-  return commitDashboardChatApiAction(
-    {
-      action: "deleteMessage",
-      messageId: normalizedMessageId,
-    },
-    (apiResult) => {
-      removeDashboardMessage(normalizedMessageId, { skipCentralSync: Boolean(apiResult?.ok) });
-      return true;
-    }
-  );
+  const result = await sendDashboardChatApiAction({
+    action: "deleteMessage",
+    messageId: normalizedMessageId,
+  });
+  if (result.ok) {
+    applyDashboardChatApiPayload(result.result || {}, { threadId: result.result?.thread?.metadata?.legacyThreadId });
+    removeDashboardMessage(normalizedMessageId);
+    return true;
+  }
+  if (result.status === 404) {
+    removeDashboardMessage(normalizedMessageId);
+    return true;
+  }
+  logDashboardChatApiFailure("deleteMessage", result);
+  showDashboardChatWidgetToast(result.reason || "Message could not be deleted.");
+  return false;
 }
 function toggleDashboardMessagePin(messageId, options = {}) {
   const currentUser = getCurrentPlatformUser();
@@ -8654,7 +8829,7 @@ function getDashboardChatThreadData(
   const isManagedThread = dashboardChatAdvancedThreadTemplates.some((template) => template.key === normalizedThreadId);
   const participants = isTeamThread || isManagedThread
     ? []
-    : getDashboardChatThreadParticipants(normalizedThreadId, users).filter((user) => user?.id !== currentUser?.id);
+    : getDashboardChatThreadParticipants(normalizedThreadId, users).filter((user) => !isSameDashboardUser(user, currentUser));
   const threadMessages = getDashboardChatThreadMessages(messages, normalizedThreadId);
   const unreadCount = currentUser
     ? threadMessages.filter((message) => message.userId !== currentUser.id && !message.readBy.includes(currentUser.id)).length
@@ -8669,11 +8844,16 @@ function getDashboardChatThreadData(
     : 0;
   const lastMessage = threadMessages.length ? threadMessages[threadMessages.length - 1] : null;
   const apiThread = dashboardChatApiThreads.find((thread) => thread.threadId === normalizedThreadId) || null;
+  const managedTemplate = dashboardChatAdvancedThreadTemplates.find((template) => template.key === normalizedThreadId);
+  const isDirectThread = !isTeamThread && !isManagedThread && normalizedThreadId.startsWith("dm:");
+  const fallbackThreadLabel = formatDashboardChatThreadLabel(normalizedThreadId, currentUser, users);
+  const apiThreadTitle = String(apiThread?.title || "").trim();
+  const shouldUseComputedLabel = isTeamThread || isDirectThread || isGenericDashboardChatThreadTitle(apiThreadTitle);
   return {
     threadId: normalizedThreadId,
-    label: apiThread?.title || formatDashboardChatThreadLabel(normalizedThreadId, currentUser, users),
+    label: shouldUseComputedLabel ? fallbackThreadLabel : apiThreadTitle,
     isTeamThread,
-    type: apiThread?.type || (isManagedThread ? dashboardChatAdvancedThreadTemplates.find((template) => template.key === normalizedThreadId)?.type : isTeamThread ? "team" : "dm"),
+    type: apiThread?.type || (isManagedThread ? managedTemplate?.type : isTeamThread ? "team" : "dm"),
     participant: participants[0] || null,
     messageCount: Math.max(threadMessages.length, apiThread?.messageCount || 0),
     unreadCount,
@@ -8696,7 +8876,7 @@ function getDashboardChatThreadList(currentUser = getCurrentPlatformUser(), user
       },
     ];
   }
-  const activeUsers = users.filter((candidate) => candidate.status === "active" && candidate.id !== currentUser.id);
+  const activeUsers = users.filter((candidate) => candidate.status === "active" && !isSameDashboardUser(candidate, currentUser));
   const threadRows = [getDashboardChatThreadData(dashboardChatTeamThreadId, currentUser, users, messages)];
   const advancedThreadIds = Array.from(
     new Set([
@@ -8711,8 +8891,14 @@ function getDashboardChatThreadList(currentUser = getCurrentPlatformUser(), user
     getDashboardChatThreadData(createDashboardChatThreadId(currentUser.id, user.id), currentUser, users, messages)
   );
   const sortThreads = (first, second) => {
-    const firstTime = new Date(first.lastMessage?.createdAt || 0).getTime();
-    const secondTime = new Date(second.lastMessage?.createdAt || 0).getTime();
+    const firstTime = Math.max(
+      new Date(first.lastMessage?.createdAt || 0).getTime() || 0,
+      new Date(first.apiThread?.lastMessageAt || 0).getTime() || 0
+    );
+    const secondTime = Math.max(
+      new Date(second.lastMessage?.createdAt || 0).getTime() || 0,
+      new Date(second.apiThread?.lastMessageAt || 0).getTime() || 0
+    );
     if (firstTime === secondTime) {
       const firstName = getDashboardUserLabel(first.participant?.id, users);
       const secondName = getDashboardUserLabel(second.participant?.id, users);
@@ -8722,7 +8908,7 @@ function getDashboardChatThreadList(currentUser = getCurrentPlatformUser(), user
   };
   advancedThreads.sort(sortThreads);
   directThreads.sort(sortThreads);
-  return [...threadRows, ...advancedThreads, ...directThreads];
+  return [...threadRows, ...advancedThreads, ...directThreads].sort(sortThreads);
 }
 function getDashboardChatUnreadCountForCurrentUser(currentUser = getCurrentPlatformUser(), messages = readDashboardMessages()) {
   if (!currentUser?.id) {
@@ -9371,12 +9557,18 @@ function renderDashboardChatWidget() {
   }
   const currentUser = getCurrentPlatformUser();
   if (!currentUser) {
+    document.body?.classList.remove("has-dashboard-chat-widget");
+    document.body?.classList.remove("is-dashboard-chat-closed");
+    document.body?.classList.remove("is-dashboard-chat-open");
     root.innerHTML = "";
     return;
   }
   const users = getPlatformUsers().filter((user) => user.status === "active");
   const notificationState = readDashboardChatWidgetNotificationState();
   const state = readDashboardChatWidgetState();
+  document.body?.classList.add("has-dashboard-chat-widget");
+  document.body?.classList.toggle("is-dashboard-chat-open", Boolean(state.isOpen));
+  document.body?.classList.toggle("is-dashboard-chat-closed", !state.isOpen);
   const activeElement = document.activeElement;
   const existingComposer = root.querySelector("[data-dashboard-chat-input]");
   const wasComposerFocused = Boolean(existingComposer && activeElement === existingComposer);
@@ -9384,6 +9576,9 @@ function renderDashboardChatWidget() {
   const previousComposerSelectionStart = wasComposerFocused ? existingComposer.selectionStart : null;
   const previousComposerSelectionEnd = wasComposerFocused ? existingComposer.selectionEnd : null;
   const previousComposerThreadId = state.selectedThreadId;
+  const existingThreadList = root.querySelector("[data-dashboard-chat-thread-list]");
+  const previousThreadListScrollTop = existingThreadList?.scrollTop ?? 0;
+  const previousThreadListScrollLeft = existingThreadList?.scrollLeft ?? 0;
   const messages = readDashboardMessages();
   const resolvedMessages = isDashboardChatThreadActivelyViewed(state.selectedThreadId)
     ? markDashboardMessagesReadForCurrentUser(messages, state.selectedThreadId)
@@ -9422,6 +9617,11 @@ function renderDashboardChatWidget() {
     });
   }
   root.innerHTML = renderedWidget.html;
+  const nextThreadList = root.querySelector("[data-dashboard-chat-thread-list]");
+  if (nextThreadList) {
+    nextThreadList.scrollTop = previousThreadListScrollTop;
+    nextThreadList.scrollLeft = previousThreadListScrollLeft;
+  }
   if (previousComposerThreadId === renderedWidget.activeThreadId) {
     const nextComposer = root.querySelector("[data-dashboard-chat-input]");
     if (nextComposer) {
@@ -10099,8 +10299,8 @@ function getTopIconSvg(workspaceId) {
     `,
     "medical-team": `
       <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M12 21s7-3.7 7-10V6l-7-3-7 3v5c0 6.3 7 10 7 10Z"/>
-        <path d="M12 8v7M8.5 11.5h7"/>
+        <path d="M12 20.6 5.7 14.8C2.7 12 2.4 7.2 5.9 5.2c2.1-1.2 4.6-.5 6.1 1.5 1.5-2 4-2.7 6.1-1.5 3.2 1.8 3.3 6 1 8.9"/>
+        <path d="M18 10.5v8M14 14.5h8"/>
       </svg>
     `,
     admin: `
@@ -15666,10 +15866,10 @@ function syncSessionPlannerDateStripState(dateControls = ui.sessionPlannerWorksp
   });
 }
 
-function scrollSessionPlannerSelectedDateIntoView() {
+function scrollSessionPlannerSelectedDateIntoView(options = {}) {
   const selectedDateButton = ui.sessionPlannerWorkspace?.querySelector(".session-date-pill.is-active");
   selectedDateButton?.scrollIntoView({
-    behavior: "smooth",
+    behavior: options.behavior || "auto",
     block: "nearest",
     inline: "center",
   });
@@ -18457,27 +18657,6 @@ function renderSessionPlannerPlayerBoardWarnings(block, options = {}) {
   `;
 }
 
-function renderSessionPlannerMedicalBlockNote(dateValue) {
-  const block = getSessionPlannerSelectedBlock();
-  const warnings = getSessionPlannerPlayerBoardWarnings(block, dateValue);
-  const parts = [`${warnings.available.length} match ${warnings.rule.valueLabel}`];
-  if (warnings.belowLimit.length) {
-    parts.push(`${warnings.belowLimit.length} below`);
-  }
-  if (warnings.unavailable.length) {
-    parts.push(`${warnings.unavailable.length} out`);
-  }
-  if (warnings.unconfirmed.length) {
-    parts.push(`${warnings.unconfirmed.length} not set`);
-  }
-
-  return `
-    <p class="session-medical-block-note">
-      ${escapeHtml(warnings.rule.label)} gate: ${escapeHtml(parts.join(" / "))}
-    </p>
-  `;
-}
-
 function getSessionPlannerPlayerBoardLabelCandidates(player) {
   const words = String(player?.name ?? "").trim().split(/\s+/).filter(Boolean);
   const first = words[0] ?? "Player";
@@ -20324,7 +20503,7 @@ function renderSessionPlannerMedicalAvailability(dateValue) {
         ${buckets
           .map(
             (bucket) => `
-              <span class="${bucket.count ? "has-count" : ""}">
+              <span class="session-medical-bucket is-availability-${bucket.participation}${bucket.count ? " has-count" : ""}">
                 <strong>${bucket.participation}%</strong>
                 <small>${bucket.count}</small>
               </span>
@@ -20332,7 +20511,6 @@ function renderSessionPlannerMedicalAvailability(dateValue) {
           )
           .join("")}
       </div>
-      ${renderSessionPlannerMedicalBlockNote(dateValue)}
     </section>
   `;
 }
@@ -20860,18 +21038,19 @@ function renderSessionPlannerWorkspace(options = {}) {
     return;
   }
 
-  const preserveDateStripScroll = options.preserveDateStripScroll ?? false;
-  const alignSelectedDate = options.alignSelectedDate ?? !preserveDateStripScroll;
-  const previousDateControls = preserveDateStripScroll
-    ? ui.sessionPlannerWorkspace.querySelector(".session-date-controls")
-    : null;
-  const previousRenderedSelectedDate =
-    previousDateControls?.querySelector(".session-date-pill.is-active")?.dataset.sessionDate ?? "";
-  const previousDateStripScrollLeft = previousDateControls?.querySelector(".session-date-strip")?.scrollLeft ?? 0;
-
   if (!sessionPlannerState) {
     sessionPlannerState = readSessionPlannerState();
   }
+
+  const previousDateControls = ui.sessionPlannerWorkspace.querySelector(".session-date-controls");
+  const previousRenderedSelectedDate =
+    previousDateControls?.querySelector(".session-date-pill.is-active")?.dataset.sessionDate ?? "";
+  const previousDateStripScrollLeft = previousDateControls?.querySelector(".session-date-strip")?.scrollLeft ?? 0;
+  const preserveDateStripScroll = options.preserveDateStripScroll ?? false;
+  const canReuseDateControls =
+    Boolean(previousDateControls) && previousRenderedSelectedDate === sessionPlannerState?.selectedDate;
+  const alignSelectedDate = options.alignSelectedDate ?? !canReuseDateControls;
+
   ensurePeriodizationState();
 
   const session = getSessionPlannerSelectedSession();
@@ -21041,25 +21220,27 @@ function renderSessionPlannerWorkspace(options = {}) {
     ${renderSessionPlannerPrintOverlay(session)}
   `;
 
-  const canReuseDateControls =
-    Boolean(previousDateControls) && previousRenderedSelectedDate === sessionPlannerState.selectedDate;
   if (canReuseDateControls) {
     const nextDateControls = ui.sessionPlannerWorkspace.querySelector(".session-date-controls");
     nextDateControls?.replaceWith(previousDateControls);
     syncSessionPlannerDateStripState(previousDateControls);
+    const dateStrip = previousDateControls.querySelector(".session-date-strip");
+    if (dateStrip) {
+      dateStrip.scrollLeft = previousDateStripScrollLeft;
+    }
   }
 
   window.requestAnimationFrame(resizeSessionPlannerTextareas);
   renderSessionPlannerToast();
-  if (preserveDateStripScroll) {
+  if (preserveDateStripScroll && !canReuseDateControls) {
     window.requestAnimationFrame(() => {
       const dateStrip = ui.sessionPlannerWorkspace?.querySelector(".session-date-strip");
       if (dateStrip) {
         dateStrip.scrollLeft = previousDateStripScrollLeft;
       }
     });
-  } else if (alignSelectedDate) {
-    window.requestAnimationFrame(scrollSessionPlannerSelectedDateIntoView);
+  } else if (alignSelectedDate && !canReuseDateControls) {
+    window.requestAnimationFrame(() => scrollSessionPlannerSelectedDateIntoView({ behavior: "auto" }));
   }
 }
 
@@ -21464,7 +21645,7 @@ function renderStaffWorkspace(message = "") {
       return `
         <article class="staff-user-row${isSelected ? " is-selected" : ""}">
           <button type="button" data-staff-select-user="${escapeHtml(staffUser.id)}">
-            <span class="staff-user-avatar">${escapeHtml(getUserInitials(staffUser))}</span>
+            ${renderUserAvatar(staffUser, "staff-user-avatar")}
             <span>
               <strong>${escapeHtml(formatUserName(staffUser))}</strong>
               <small>${escapeHtml(staffUser.title)} · ${escapeHtml(getRoleLabel(staffUser.role))}</small>
@@ -21508,7 +21689,7 @@ function renderStaffWorkspace(message = "") {
             selectedUser
               ? `
                 <div class="profile-preview-head">
-                  <div class="profile-avatar">${escapeHtml(getUserInitials(selectedUser))}</div>
+                  ${renderUserAvatar(selectedUser, "profile-avatar")}
                   <div>
                     <h2>${escapeHtml(formatUserName(selectedUser))}</h2>
                     <span>${escapeHtml(selectedUser.email)}</span>
@@ -21793,7 +21974,7 @@ function renderAdminWorkspace(message = "") {
       return `
           <article class="admin-user-row${isSelected ? " is-selected" : ""}">
             <button type="button" class="admin-user-main" data-admin-select-user="${escapeHtml(adminUser.id)}">
-              <span class="staff-user-avatar">${escapeHtml(getUserInitials(adminUser))}</span>
+              ${renderUserAvatar(adminUser, "staff-user-avatar")}
               <span class="admin-user-copy">
                 <span class="admin-user-name-line">
                   <strong>${escapeHtml(formatUserName(adminUser))}</strong>
@@ -29138,6 +29319,7 @@ function setActiveWorkspace(workspaceId) {
   }
 
   hubState.activeWorkspaceId = targetWorkspaceId;
+  rememberActiveWorkspaceId(targetWorkspaceId);
   writeWorkspaceHubState();
   renderWorkspaceChrome();
 }
@@ -29149,14 +29331,19 @@ function initializeWorkspaceHub() {
   const safeUrlWorkspaceId = getSafeWorkspaceId(urlWorkspaceId, hubState);
   const pendingWorkspaceId = window.__pendingWorkspaceId;
   const safePendingWorkspaceId = getSafeWorkspaceId(pendingWorkspaceId, hubState);
+  const rememberedWorkspaceId = readRememberedWorkspaceId();
+  const safeRememberedWorkspaceId = getSafeWorkspaceId(rememberedWorkspaceId, hubState);
   const safeHomeWorkspaceId = getSafeWorkspaceId(workspaceHubDefaultActiveWorkspaceId, hubState);
   if (safePendingWorkspaceId) {
     hubState.activeWorkspaceId = safePendingWorkspaceId;
   } else if (safeUrlWorkspaceId) {
     hubState.activeWorkspaceId = safeUrlWorkspaceId;
+  } else if (safeRememberedWorkspaceId) {
+    hubState.activeWorkspaceId = safeRememberedWorkspaceId;
   } else if (safeHomeWorkspaceId) {
     hubState.activeWorkspaceId = safeHomeWorkspaceId;
   }
+  rememberActiveWorkspaceId(hubState.activeWorkspaceId);
   window.__pendingWorkspaceId = null;
   periodizationState = readPeriodizationState();
   scheduleState = readScheduleState();
@@ -75674,6 +75861,15 @@ window.addEventListener("storage", (event) => {
   }
 
   if (event.key === dashboardChatStorageKey) {
+    purgeDashboardDeletedMessagesFromStorage();
+    renderDashboardChatWidget();
+    syncDashboardChatWidgetNotificationCursor();
+    renderTopIconMenu();
+    return;
+  }
+
+  if (event.key === dashboardChatDeletedMessageIdsStorageKey) {
+    purgeDashboardDeletedMessagesFromStorage();
     renderDashboardChatWidget();
     syncDashboardChatWidgetNotificationCursor();
     renderTopIconMenu();

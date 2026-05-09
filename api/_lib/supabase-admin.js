@@ -9,6 +9,7 @@ const MAX_PROFILE_IMAGE_LENGTH = 1800;
 const MAX_JSON_BODY_BYTES = 256 * 1024;
 const PROFILE_IMAGE_BUCKET = "footballscience-profile-images";
 const MAX_PROFILE_IMAGE_UPLOAD_BYTES = 1024 * 1024;
+const MAX_LEGACY_PROFILE_IMAGE_DATA_URL_LENGTH = 2 * 1024 * 1024;
 const PROFILE_IMAGE_TYPES = new Map([
   ["image/jpeg", "jpg"],
   ["image/jpg", "jpg"],
@@ -81,10 +82,17 @@ function normalizeUsername(value, fallback = "user") {
   return normalized || fallback;
 }
 
-function normalizeProfileImageValue(value) {
+function normalizeProfileImageValue(value, options = {}) {
   const raw = String(value || "").trim();
   if (!raw) {
     return "";
+  }
+
+  if (raw.startsWith("data:image/")) {
+    if (!options.allowDataUrl || raw.length > MAX_LEGACY_PROFILE_IMAGE_DATA_URL_LENGTH) {
+      return "";
+    }
+    return parseLegacyProfileImageDataUrl(raw) ? raw : "";
   }
 
   if (raw.length > MAX_PROFILE_IMAGE_LENGTH) {
@@ -146,7 +154,8 @@ function normalizePlatformUser(user) {
     team: normalizeProfileValue(metadata?.team || "North Carolina Courage", MAX_METADATA_FIELD_LENGTH),
     status: normalizeStatus(appMetadata?.status),
     profileImageUrl: normalizeProfileImageValue(
-      metadata?.profileImageUrl || metadata?.profile_image_url || metadata?.avatarUrl || metadata?.avatar_url
+      metadata?.profileImageUrl || metadata?.profile_image_url || metadata?.avatarUrl || metadata?.avatar_url,
+      { allowDataUrl: true }
     ),
     createdAt: user?.created_at || new Date().toISOString(),
     updatedAt: user?.updated_at || "",

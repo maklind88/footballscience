@@ -96,11 +96,11 @@ function createAuthUser(metadata = {}) {
   };
 }
 
-test("profile metadata rejects inline data images so auth tokens stay small", () => {
+test("profile metadata rejects new inline images but legacy profile reads still show them", () => {
   const inlineImage = "data:image/png;base64,aaaa";
 
   expect(normalizeProfilePayload({ profileImageUrl: inlineImage }).profileImageUrl).toBe("");
-  expect(normalizePlatformUser(createAuthUser({ profileImageUrl: inlineImage })).profileImageUrl).toBe("");
+  expect(normalizePlatformUser(createAuthUser({ profileImageUrl: inlineImage })).profileImageUrl).toBe(inlineImage);
 });
 
 test("profile image API uploads to storage and stores only a public URL in auth metadata", async () => {

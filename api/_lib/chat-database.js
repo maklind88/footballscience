@@ -665,16 +665,63 @@ async function readThreadByLegacyKey(scope, legacyKey, type = "team") {
   return threads.find((thread) => thread?.metadata?.legacyThreadId === legacyKey) || null;
 }
 
+function getParticipantIdsFromLegacyKey(legacyKey, type = "team") {
+  if (type !== "dm") {
+    return [];
+  }
+  const [, firstId = "", secondId = ""] = String(legacyKey || "").split(":");
+  return [firstId, secondId].filter((userId) => isUuid(userId));
+}
+
+function getParticipantIdsForThread(actor, body = {}, legacyKey = "", type = "team") {
+  return Array.from(
+    new Set([
+      actor.id,
+      ...getParticipantIdsFromLegacyKey(legacyKey, type),
+      ...(Array.isArray(body.participantIds) ? body.participantIds : []),
+      ...(Array.isArray(body.participants) ? body.participants : []),
+    ].filter((userId) => isUuid(userId)))
+  ).slice(0, 80);
+}
+
+async function ensureThreadParticipants(actor, thread, participantIds = []) {
+  if (!thread?.id || !participantIds.length) {
+    return;
+  }
+  const existingParticipants = await selectMany(
+    "chat_thread_participants",
+    `select=user_id&thread_id=eq.${filterValue(thread.id)}&user_id=${inFilter(participantIds)}`
+  ).catch(() => []);
+  const existingIds = new Set(existingParticipants.map((participant) => participant.user_id));
+  const missingIds = participantIds.filter((userId) => !existingIds.has(userId));
+  if (!missingIds.length) {
+    return;
+  }
+  await insertRows(
+    "chat_thread_participants",
+    missingIds.map((userId) => ({
+      thread_id: thread.id,
+      organization_id: thread.organization_id,
+      team_id: thread.team_id,
+      user_id: userId,
+      participant_role: userId === actor.id ? "owner" : "member",
+      created_by: isUuid(actor.id) ? actor.id : null,
+    }))
+  ).catch(() => null);
+}
+
 async function ensureScopedThread(actor, body = {}, scope, options = {}) {
   const requestedThreadId = normalizeId(body.threadId || body.thread_id || body.id);
   if (isUuid(requestedThreadId)) {
     return readThread(requestedThreadId);
   }
 
-  const type = normalizeThreadType(body.type || body.threadType || options.type || (requestedThreadId === "team" ? "team" : "group"));
+  const inferredThreadType = requestedThreadId === "team" ? "team" : requestedThreadId.startsWith("dm:") ? "dm" : "group";
+  const type = normalizeThreadType(body.type || body.threadType || options.type || inferredThreadType);
   const legacyKey = legacyThreadKey(requestedThreadId || body.legacyThreadId || type, type) || `${type}:${actor.id || "staff"}`;
   const existing = await readThreadByLegacyKey(scope, legacyKey, type);
   if (existing) {
+    await ensureThreadParticipants(actor, existing, getParticipantIdsForThread(actor, body, legacyKey, type));
     return existing;
   }
 
@@ -710,13 +757,7 @@ async function ensureScopedThread(actor, body = {}, scope, options = {}) {
   });
   const thread = threadRows[0] || null;
 
-  const participantIds = Array.from(
-    new Set([
-      actor.id,
-      ...(Array.isArray(body.participantIds) ? body.participantIds : []),
-      ...(Array.isArray(body.participants) ? body.participants : []),
-    ].filter((userId) => isUuid(userId)))
-  ).slice(0, 80);
+  const participantIds = getParticipantIdsForThread(actor, body, legacyKey, type);
 
   if (thread?.id && (type !== "team" || participantIds.length)) {
     await insertRows(
@@ -1012,7 +1053,7 @@ async function handleDatabaseGet(req, res, actor) {
       organizationId: scope.organizationId,
       teamId: scope.teamId,
       threadId: threadId || "team",
-      type: query.get("threadType") || "team",
+      type: query.get("threadType") || (String(threadId || "").startsWith("dm:") ? "dm" : "team"),
     });
     const access = await ensureThreadAccess(actor, thread);
     if (!access.ok) {
@@ -1285,12 +1326,18 @@ async function deleteMessage(actor, body) {
     return { ok: false, status: 403, reason: "Only the author or an admin can delete this message." };
   }
 
+  const deletedAt = new Date().toISOString();
   const rows = await patchRows("chat_messages", `id=eq.${filterValue(message.id)}`, {
     body: "",
-    deleted_at: new Date().toISOString(),
+    deleted_at: deletedAt,
     deleted_by: actor.id || null,
   });
-  const updatedMessage = rows[0] || null;
+  const updatedMessage = rows[0] || {
+    ...message,
+    body: "",
+    deleted_at: deletedAt,
+    deleted_by: actor.id || null,
+  };
   const audit = await insertAudit(actor, "deleteMessage", {
     organization_id: message.organization_id,
     team_id: message.team_id,

@@ -6,6 +6,7 @@ const sessionPlannerKey = "football-session-planner-v3";
 const medicalKey = "football-medical-team-v1";
 const dashboardChatKey = "football-dashboard-chat-v1";
 const workspaceHubKey = "football-workspace-hub-v3";
+const workspaceLastActiveKey = "football-workspace-last-active-local-v1";
 
 async function dismissDashboardModal(page) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -132,7 +133,48 @@ test("Workspace hub ignores stale shared active workspace on boot", async ({ pag
   expect(storedHubState.activeWorkspaceId).toBeUndefined();
 });
 
-test("Profile updates sync to the account menu and logout returns to sign in", async ({ page }) => {
+test("Refresh keeps the active workspace without flashing the login screen", async ({ page }) => {
+  await bootApp(page);
+  await openWorkspace(page, "schedule");
+  await expect(page.locator("body")).toHaveAttribute("data-active-workspace", "schedule");
+  await expect
+    .poll(() => page.evaluate((key) => window.localStorage.getItem(key), workspaceLastActiveKey), { timeout: 5_000 })
+    .toBe("schedule");
+
+  await page.addInitScript(() => {
+    window.__qaLoginFlashDuringBoot = false;
+    const markLoginVisibility = () => {
+      const loginScreen = document.getElementById("loginScreen");
+      if (loginScreen && !loginScreen.hidden) {
+        window.__qaLoginFlashDuringBoot = true;
+      }
+    };
+    const observer = new MutationObserver(markLoginVisibility);
+    const startObserver = () => {
+      markLoginVisibility();
+      observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["class", "hidden", "style"],
+        childList: true,
+        subtree: true,
+      });
+    };
+    if (document.documentElement) {
+      startObserver();
+    } else {
+      document.addEventListener("DOMContentLoaded", startObserver, { once: true });
+    }
+  });
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.locator("#hubShell")).toBeVisible();
+  await expect(page.locator("#loginScreen")).toBeHidden();
+  await expect(page.locator("body")).toHaveAttribute("data-active-workspace", "schedule");
+  await expect(page.locator('[data-workspace-view="schedule"].is-active')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__qaLoginFlashDuringBoot)).toBe(false);
+});
+
+test("Profile updates sync to the account menu and local dev keeps Mak signed in", async ({ page }) => {
   const stamp = Date.now();
   await bootApp(page);
 
@@ -154,8 +196,9 @@ test("Profile updates sync to the account menu and logout returns to sign in", a
 
   await page.locator("#profileMenuButton").click();
   await page.locator("#logoutButton").click();
-  await expect(page.locator("#loginScreen")).toBeVisible();
-  await expect(page.locator("#hubShell")).toBeHidden();
+  await expect(page.locator("#hubShell")).toBeVisible();
+  await expect(page.locator("#loginScreen")).toBeHidden();
+  await expect(page.locator("#profileMenuName")).toContainText("Mak Lind");
 });
 
 test("Chat launcher shows unread chat until the thread is opened", async ({ page }) => {
@@ -244,6 +287,59 @@ test("Schedule edits persist after refresh", async ({ page }) => {
   await expect(page.locator("#hubShell")).toBeVisible();
   await openWorkspace(page, "schedule");
   await expectStorageContains(page, scheduleKey, title);
+});
+
+test("Schedule Today anchors overview to the real current date", async ({ page }) => {
+  await page.addInitScript(({ key }) => {
+    const realDate = Date;
+    const fixedNow = new realDate("2026-05-08T12:00:00-04:00").getTime();
+    class FixedDate extends realDate {
+      constructor(...args) {
+        super(...(args.length ? args : [fixedNow]));
+      }
+      static now() {
+        return fixedNow;
+      }
+    }
+    FixedDate.UTC = realDate.UTC;
+    FixedDate.parse = realDate.parse;
+    FixedDate.prototype = realDate.prototype;
+    window.Date = FixedDate;
+    window.localStorage.setItem(
+      key,
+      JSON.stringify({
+        selectedYear: 2026,
+        selectedMonthIndex: 0,
+        selectedDate: "2026-01-15",
+        viewMode: "overview",
+        overviewSpan: 6,
+        importVersion: "ncc-2026-numbers-v1",
+        events: [],
+      })
+    );
+  }, { key: scheduleKey });
+
+  await bootApp(page);
+  await openWorkspace(page, "schedule");
+  await page.locator("#scheduleTodayButton").click();
+
+  await expect(page.locator("#scheduleSelectedDateLabel")).toHaveText("Friday, 8 May 2026");
+  await expect(page.locator(".schedule-overview-month h3").first()).toHaveText("May 2026");
+  await expect(page.locator('[data-schedule-date="2026-05-08"]')).toHaveClass(/is-selected/);
+  await expect
+    .poll(() =>
+      page.evaluate((key) => {
+        const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+        return {
+          selectedDate: state.selectedDate,
+          selectedMonthIndex: state.selectedMonthIndex,
+        };
+      }, scheduleKey)
+    )
+    .toEqual({
+      selectedDate: "2026-05-08",
+      selectedMonthIndex: 4,
+    });
 });
 
 test("Periodization day notes persist after refresh", async ({ page }) => {

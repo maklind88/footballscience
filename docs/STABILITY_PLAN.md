@@ -40,6 +40,7 @@ npm run qa
 This runs:
 
 - `npm run check`
+- Static Supabase migration safety checks through `npm run qa:supabase`.
 - API contract tests for client config and app-state auth behavior.
 - Data Safety contract tests for central pipeline, organization scope, revision metadata, stale-write rejection, and protected key coverage.
 - Database guard tests for module migrations that add row versions, soft deletes, hard-delete blocking, and restore history.
@@ -81,11 +82,12 @@ The backup endpoint writes:
 ## Release Routine
 
 1. Run `npm run qa:deploy`.
-2. Deploy to Vercel only after the gate passes.
-3. Verify `/api/client-config` on the live domain returns `ok:true`.
-4. Verify `/api/app-state-backup` is protected from anonymous requests.
-5. Open a cache-busting live URL and verify the changed behavior.
-6. If live looks old, compare deployed `app.js` hash and check browser site data before assuming deployment failed.
+2. For changes under `supabase/migrations`, run `npm run qa:supabase:remote` with secure Supabase credentials or confirm the GitHub Actions Supabase migration workflow passed.
+3. Deploy to Vercel only after the gate passes.
+4. Verify `/api/client-config` on the live domain returns `ok:true`.
+5. Verify `/api/app-state-backup` is protected from anonymous requests.
+6. Open a cache-busting live URL and verify the changed behavior.
+7. If live looks old, compare deployed `app.js` hash and check browser site data before assuming deployment failed.
 
 ## Next Hardening
 

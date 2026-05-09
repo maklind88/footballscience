@@ -7,14 +7,15 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>Football Science Coaching Platform</title>
+    <style>body.is-booting{overflow:hidden}body.is-booting:before{content:"Loading...";position:fixed;inset:0;z-index:9999;display:grid;place-items:center;color:#242426;background:#f5f5f799;backdrop-filter:blur(18px);font-weight:800}</style>
     <link id="appStylesheet" rel="stylesheet" />
     <script>
       window.__assetVersion = Date.now().toString();
       document.getElementById("appStylesheet").href = `./styles.css?v=${window.__assetVersion}`;
     </script>
   </head>
-  <body class="is-auth-locked">
-    <section id="loginScreen" class="login-screen" aria-label="Coaching platform login">
+  <body class="is-auth-locked is-booting">
+    <section id="loginScreen" class="login-screen" aria-label="Coaching platform login" hidden>
       <div class="login-card">
         <p class="login-kicker">Football Science Coaching Platform</p>
         <form id="loginForm" class="login-form">
@@ -779,6 +780,7 @@
         const SUPABASE_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js";
         const API_CLIENT_CONFIG = "/api/client-config";
         const API_ADMIN_USERS = "/api/admin-users";
+        const API_AUTH_LOGIN = "/api/client-config";
         const API_PROFILE_IMAGE = "/api/profile-image";
         const API_USER_LOOKUP = "/api/user-lookup";
         const API_SEND_RESET = "/api/send-reset";
@@ -832,7 +834,6 @@
           "football-session-exercise-library-folders-v1",
           "football-session-exercise-library-folders-backup-v1",
           "football-dashboard-tasks-v1",
-          "football-dashboard-chat-v1",
           "football-dashboard-notification-seen-v1",
           "football-dashboard-tutorial-prefs-v1",
           "football-dashboard-news-seen-v1",
@@ -847,6 +848,7 @@
           "football-periodization-v1",
           "football-session-planner-v1",
           "football-session-planner-v2",
+          "football-dashboard-chat-v1",
           "football-simulator-sequence-library-v1",
           "mak-coaching-platform-users-v1",
           "mak-coaching-platform-session-v1",
@@ -875,15 +877,10 @@
         let postAuthHydrationRunId = 0;
         function normalizeProfileImageValue(value) {
           const raw = String(value || "").trim();
-          if (!raw || raw.length > MAX_PROFILE_IMAGE_URL_LENGTH) {
-            return "";
-          }
-          try {
-            const parsed = new URL(raw);
-            return parsed.protocol === "https:" || parsed.protocol === "http:" ? raw : "";
-          } catch {
-            return "";
-          }
+          if (!raw) return "";
+          if (raw.startsWith("data:image/")) return raw.length <= 2e6 ? raw : "";
+          if (raw.length > MAX_PROFILE_IMAGE_URL_LENGTH) return "";
+          try { const parsed = new URL(raw); return /^https?:$/.test(parsed.protocol) ? raw : ""; } catch { return ""; }
         }
         function normalizeAuthUser(user = {}) {
           const meta = user.user_metadata || {};
@@ -964,6 +961,9 @@
         function isLocalDevHost() {
           const host = window.location.hostname || "";
           return host === "localhost" || host === "127.0.0.1" || host === "::1" || host.endsWith(".localhost");
+        }
+        function isLocalDevelopmentSurface() {
+          return isLocalDevHost();
         }
         function shouldForceCanonicalHost() {
           return false;
@@ -1139,21 +1139,27 @@
             return null;
           }
         }
-        async function getActiveAccessToken() {
-          if (!authState.supabase) {
-            return authState.session?.access_token || null;
-          }
+      async function getActiveAccessToken() {
+        if (authState.session?.access_token) {
+          return authState.session.access_token;
+        }
+        if (!authState.supabase) {
+          return null;
+        }
+        try {
           const { data } = await readSupabaseSession();
           const session = data?.session || null;
           if (!session?.access_token) {
             return null;
           }
-          if (!authState.session || authState.session.access_token !== session.access_token) {
-            authState.session = session;
-            setCurrentUserFromSession(session.user || null);
-          }
+          authState.session = session;
+          setCurrentUserFromSession(session.user || null);
           return session.access_token;
+        } catch (error) {
+          console.warn("Supabase session read timed out; using cached session when available.", error);
+          return authState.session?.access_token || null;
         }
+      }
         function isAuthTokenOversized(token) {
           return String(token || "").length > MAX_AUTH_ACCESS_TOKEN_LENGTH;
         }
@@ -1952,67 +1958,50 @@
           return authState.currentUser;
         }
         async function signInWithIdentifier(identifier, password) {
-          if (authState.devMode) {
-            return signInWithDevAuth(identifier, password);
-          }
-          if (!authState.supabase) {
-            return { ok: false, reason: "Authentication is not initialized. Open the app through footballscience.xyz." };
-          }
+          if (authState.devMode) return signInWithDevAuth(identifier, password);
+          if (!authState.supabase) return { ok: false, reason: "Authentication is not initialized. Open the app through footballscience.xyz." };
           const cleanIdentifier = String(identifier || "").trim().toLowerCase();
           const cleanPassword = String(password || "").trim();
-          if (!cleanIdentifier || !cleanPassword) {
-            return { ok: false, reason: "Username and password are required." };
-          }
+          if (!cleanIdentifier || !cleanPassword) return { ok: false, reason: "Username and password are required." };
           let email = cleanIdentifier;
           let foundByUsername = false;
           if (!cleanIdentifier.includes("@")) {
             const lookup = await lookupAuthUser(cleanIdentifier);
-            if (lookup?.email) {
-              foundByUsername = true;
-              email = lookup.email;
-            }
+            if (lookup?.email) { foundByUsername = true; email = lookup.email; }
           }
           try {
-            const result = await withTimeout(
-              authState.supabase.auth.signInWithPassword({
-                email,
-                password: cleanPassword,
-              }),
-              20000,
-              "Supabase login is taking too long. Check your network and try again."
-            );
-            if (result.error) {
-              const message = String(result.error.message || "").toLowerCase();
-              if (foundByUsername && message.includes("invalid")) {
-                return {
-                  ok: false,
-                  reason:
-                    "Incorrect username or password. Make sure you are using the password for this account.",
-                };
+            const loginResponse = await apiRequest(API_AUTH_LOGIN,{method:"POST",skipAuth:true,timeoutMs:15000,body:JSON.stringify({email,password:cleanPassword})});
+            if (!loginResponse.ok) {
+              const proxyReason = String(loginResponse.payload?.reason || "");
+              const shouldTryDirectLogin = [0, 404, 405, 500, 502, 504].includes(Number(loginResponse.status)) ||
+                /too long|took too long|not be reached|network|method not allowed|not found|configured/i.test(proxyReason);
+              if (shouldTryDirectLogin) {
+                const directResult = await withTimeout(
+                  authState.supabase.auth.signInWithPassword({email,password:cleanPassword}),
+                  12000,
+                  "Login is taking too long. Check your network and try again."
+                );
+                if (directResult.error) {
+                  loginResponse.payload = { reason: directResult.error.message || proxyReason || "Invalid username or password." };
+                } else if (directResult.data?.session) {
+            await hydrateCurrentUser(directResult.data.session, { waitForCentral: false, waitForProfile: false });
+                  if (isPausedAccount(authState.currentUser)) { await signOut(); return { ok: false, reason: "This account is paused. Contact an admin." }; }
+                  return { ok: true };
+                }
               }
-              if (!cleanIdentifier.includes("@") && message.includes("invalid")) {
-                return {
-                  ok: false,
-                  reason:
-                    "Incorrect username or password. If you used a username, try the email address instead, or reset the password.",
-                };
-              }
-              if (message.includes("invalid")) {
-                return {
-                  ok: false,
-                  reason: "Invalid login credentials.",
-                };
-              }
-              return { ok: false, reason: result.error.message || "Invalid username or password." };
+              const message = String(loginResponse.payload?.reason || "").toLowerCase();
+              if (foundByUsername && message.includes("invalid")) return {ok:false,reason:"Incorrect username or password. Make sure you are using the password for this account."};
+              if (!cleanIdentifier.includes("@") && message.includes("invalid")) return {ok:false,reason:"Incorrect username or password. If you used a username, try the email address instead, or reset the password."};
+              if (message.includes("invalid")) return {ok:false,reason:"Invalid login credentials."};
+              return { ok: false, reason: loginResponse.payload?.reason || "Invalid username or password." };
             }
-            if (!result.data?.session) {
-              return { ok: false, reason: "Could not start a session." };
-            }
-            await hydrateCurrentUser(result.data.session, { waitForCentral: false, waitForProfile: true });
-            if (isPausedAccount(authState.currentUser)) {
-              await signOut();
-              return { ok: false, reason: "This account is paused. Contact an admin." };
-            }
+            const session = loginResponse.payload?.session || null;
+            if (!session?.access_token || !session?.refresh_token) return { ok: false, reason: "Could not start a session." };
+            authState.supabase.auth.setSession({access_token:session.access_token,refresh_token:session.refresh_token}).catch((error) => {
+              console.warn("Supabase local session save failed after server login.", error);
+            });
+        await hydrateCurrentUser(session, { waitForCentral: false, waitForProfile: false });
+            if (isPausedAccount(authState.currentUser)) { await signOut(); return { ok: false, reason: "This account is paused. Contact an admin." }; }
             return { ok: true };
           } catch (error) {
             return { ok: false, reason: error?.message || "Sign in failed." };
@@ -2465,11 +2454,20 @@
             : Promise.resolve();
           clearAuthState();
           if (authState.devMode) {
-            writeDevAuthSession("");
+            authState.users = getDevAuthUsers();
+            const devUser = authState.users[0] || null;
+            if (devUser) {
+              authState.currentUser = devUser;
+              writeDevAuthSession(devUser.id);
+            }
           }
           clearStoredAuthArtifacts();
           purgeLegacyLocalAccountStorage();
           setProfileMenuOpen(false);
+          if (authState.devMode && authState.currentUser) {
+            showPlatform(authState.currentUser);
+            return;
+          }
           showLogin();
           remoteSignOut.catch((error) => {
             if (error) {
@@ -2490,19 +2488,45 @@
           const profileMenu = document.getElementById("profileMenu");
           return Boolean(profileMenu && !profileMenu.hidden);
         }
+        function revealPlatformShell(user = authState.currentUser) {
+          document.body.classList.remove("is-auth-locked");
+          document.body.classList.remove("is-booting");
+          document.body.classList.add("is-authenticated");
+          const loginScreen = document.getElementById("loginScreen");
+          const hubShell = document.getElementById("hubShell");
+          if (loginScreen) {
+            loginScreen.hidden = true;
+          }
+          if (hubShell) {
+            hubShell.hidden = false;
+          }
+          notifyAuthChange(user);
+          window.dispatchEvent(new Event("resize"));
+        }
         function showPlatform(user) {
           document.body.classList.remove("is-auth-locked");
           document.body.classList.add("is-authenticated");
-          document.getElementById("loginScreen").hidden = true;
-          document.getElementById("hubShell").hidden = false;
+          const loginScreen = document.getElementById("loginScreen");
+          const hubShell = document.getElementById("hubShell");
+          if (loginScreen) {
+            loginScreen.hidden = true;
+          }
+          if (window.__footballScienceAppReady) {
+            revealPlatformShell(user);
+            return;
+          }
+          document.body.classList.add("is-booting");
+          if (hubShell) {
+            hubShell.hidden = true;
+          }
           notifyAuthChange(user);
-          window.dispatchEvent(new Event("resize"));
         }
         function showLogin() {
           const password = document.getElementById("loginPassword");
           const username = document.getElementById("loginUsername");
           document.body.classList.add("is-auth-locked");
           document.body.classList.remove("is-authenticated");
+          document.body.classList.remove("is-booting");
           document.getElementById("loginScreen").hidden = false;
           document.getElementById("hubShell").hidden = true;
           if (password) {
@@ -2512,8 +2536,14 @@
             username.focus();
           }
         }
-        function readSupabaseSession() {
-          return withTimeout(authState.supabase.auth.getSession(), 12000, "Session timeout.");
+        window.platformMarkAppReady=()=>{window.__footballScienceAppReady=true;if(authState.currentUser){document.getElementById("hubShell").hidden=false;requestAnimationFrame(()=>revealPlatformShell(authState.currentUser));}};
+        async function readSupabaseSession() {
+          try {
+            return await withTimeout(authState.supabase.auth.getSession(), 8000, "Session lookup timed out.");
+          } catch (error) {
+            console.warn("Supabase session lookup failed; continuing with cached session.", error);
+            return { data: { session: authState.session || null }, error: null };
+          }
         }
         async function hydrateFromExistingSession() {
           await refreshAccessToken().catch(() => null);
@@ -2530,7 +2560,7 @@
           }
           if (data?.session) {
             authState.session = data.session;
-            await hydrateCurrentUser(data.session, { waitForCentral: false, waitForProfile: true });
+            await hydrateCurrentUser(data.session, { waitForCentral: false, waitForProfile: false });
             if (isPausedAccount(authState.currentUser)) {
               await signOut();
             }
@@ -2557,6 +2587,12 @@
           const forgotPasswordForm = document.getElementById("forgotPasswordForm");
           const forgotPasswordIdentifier = document.getElementById("forgotPasswordIdentifier");
           setLoginBusy(true, "Loading...");
+          const loginInitSafetyTimer = window.setTimeout(() => {
+            if (!authState.isReady && !authState.supabase && !authState.devMode) {
+              toFormError("Authentication is still loading. Reload the page and try again.", true);
+              setLoginBusy(false);
+            }
+          }, 12000);
           const attachSharedAuthUiHandlers = () => {
             forgotPasswordToggle?.addEventListener("click", () => {
               if (!forgotPasswordForm || !forgotPasswordToggle) {
@@ -2662,49 +2698,46 @@
             }
           });
           attachSharedAuthUiHandlers();
-          if (isLocalDevHost()) {
+          if (isLocalDevelopmentSurface()) {
             initializeDevAuth();
             setLoginBusy(false);
             return;
           }
           let clientConfigResponse = null;
           try {
-            const configResponse = await fetch(API_CLIENT_CONFIG, { credentials: "omit", cache: "no-store" });
+            const configResponse = await withTimeout(fetch(API_CLIENT_CONFIG,{credentials:"omit",cache:"no-store"}),12000,"Authentication settings took too long to load.");
             const configPayload = await readJsonResponse(configResponse);
             if (!configPayload?.ok || !configPayload.url || !configPayload.anonKey) {
               throw new Error(configPayload?.reason || "Supabase settings are not available.");
             }
             clientConfigResponse = configPayload;
           } catch (error) {
-            toFormError("Could not initialize authentication.");
+            window.clearTimeout(loginInitSafetyTimer);
+            toFormError(error?.message || "Could not initialize authentication.", true);
             showLogin();
             authState.isReady = true;
             setLoginBusy(false);
             return;
           }
           try {
-            await loadScript(SUPABASE_CDN);
+            await withTimeout(loadScript(SUPABASE_CDN), 15000, "Auth client took too long to load.");
           } catch (error) {
-            toFormError("Auth client failed.");
+            window.clearTimeout(loginInitSafetyTimer);
+            toFormError(error?.message || "Auth client failed.", true);
             showLogin();
             authState.isReady = true;
             setLoginBusy(false);
             return;
           }
           if (!window.supabase || !window.supabase.createClient) {
+            window.clearTimeout(loginInitSafetyTimer);
             toFormError("Auth client failed.");
             showLogin();
             authState.isReady = true;
             setLoginBusy(false);
             return;
           }
-          authState.supabase = window.supabase.createClient(clientConfigResponse.url, clientConfigResponse.anonKey, {
-            auth: {
-              autoRefreshToken: true,
-              persistSession: true,
-              detectSessionInUrl: false,
-            },
-          });
+          authState.supabase = window.supabase.createClient(clientConfigResponse.url, clientConfigResponse.anonKey, {auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:false}});
           await hydrateFromExistingSession();
           if (!authState.currentUser) {
             showLogin();
@@ -2712,6 +2745,7 @@
             showPlatform(authState.currentUser);
           }
           authState.isReady = true;
+          window.clearTimeout(loginInitSafetyTimer);
           setLoginBusy(false);
           authState.supabase.auth.onAuthStateChange(async (event, session) => {
             if (session) {
@@ -2796,6 +2830,7 @@
           import(`./app.js?v=${assetVersion}`)
             .then(() => {
               window.performance?.mark?.("footballscience:app-import-ready");
+              window.platformMarkAppReady?.();
             })
             .catch((error) => {
               document.body.dataset.appLoadError = error?.message ?? "App script failed to load";

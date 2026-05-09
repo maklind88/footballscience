@@ -413,7 +413,7 @@ function filterChatStateForActor(state, actor) {
     threads: allowedThreads,
     messages: normalized.messages.filter((message) => {
       const threadId = normalizeId(message?.threadId || message?.channelId, "");
-      return !threadId || allowedThreadIds.has(threadId);
+      return !message?.isDeleted && (!threadId || allowedThreadIds.has(threadId));
     }),
   };
 

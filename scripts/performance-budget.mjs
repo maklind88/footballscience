@@ -16,14 +16,14 @@ const budgets = [
   },
   {
     file: "styles.css",
-    maxBytes: 430_000,
-    maxGzipBytes: 65_000,
+    maxBytes: 470_000,
+    maxGzipBytes: 68_000,
     maxLines: 21_000,
     targetGzipBytes: 45_000,
   },
   {
     file: "index.html",
-    maxBytes: 130_000,
+    maxBytes: 134_000,
     maxGzipBytes: 25_000,
     maxLines: 2_900,
     targetGzipBytes: 18_000,

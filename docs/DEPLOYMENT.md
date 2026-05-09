@@ -22,6 +22,25 @@ Copy the deployment URL returned by Vercel.
 
 GitHub Actions runs `npm run qa` on pushes to `main` and pull requests through `.github/workflows/qa.yml`.
 
+`npm run qa` also runs `npm run qa:supabase`, a static migration safety gate that checks ordering, destructive SQL, RLS, default grants, and `security definer` guardrails for every file in `supabase/migrations`.
+
+Remote Supabase migration verification lives in `.github/workflows/supabase-migrations.yml`. It runs automatically when migration files are pushed to `main`, and it can be started manually from GitHub Actions. Required secure configuration:
+
+```bash
+SUPABASE_ACCESS_TOKEN  # GitHub secret
+SUPABASE_DB_PASSWORD   # GitHub secret
+SUPABASE_PROJECT_REF   # GitHub repository variable
+```
+
+The remote gate runs:
+
+```bash
+npm run qa:supabase
+npm run qa:supabase:remote
+```
+
+`qa:supabase:remote` links the CI runner to the target Supabase project, lists local vs remote migrations, runs linked database linting, and runs `supabase db push --dry-run`. Do not put these values in source files.
+
 Optional live smoke requires a dedicated test account and these CI/local environment variables:
 
 ```bash

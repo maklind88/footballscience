@@ -133,6 +133,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const replyMessage = message.replyToId ? getMessageById(message.replyToId) : null;
     const replyMarkup = replyMessage ? renderReplyReference(replyMessage, users, { compact: true }) : "";
     const priorityMarkup = renderMessagePriority(message);
+    const reactionMarkup = renderMessageReactions(message, currentUser);
 
     return `
     <article class="dashboard-chat-message${isOwn ? " is-own" : ""}${isMentioned ? " is-mentioned" : ""}${message.pinnedAt ? " is-pinned" : ""}">
@@ -142,24 +143,35 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           <strong>${escapeHtml(userName)}</strong>
           <small>${escapeHtml(formatTime(message.createdAt))}</small>
         </span>
-        <button type="button" class="dashboard-chat-reply-button" data-dashboard-reply-message="${escapeHtml(message.id)}">Reply</button>
-        ${
-          canPinChat
-            ? `<button type="button" class="dashboard-chat-pin-button" data-dashboard-toggle-pin-message="${escapeHtml(message.id)}">${escapeHtml(pinLabel)}</button>`
-            : ""
-        }
-        ${
-          canDeleteChat
-            ? `<button type="button" class="dashboard-chat-delete-button" data-dashboard-remove-message="${escapeHtml(message.id)}" aria-label="Delete message from ${escapeHtml(userName)}">&times;</button>`
-            : ""
-        }
       </div>
       <div class="dashboard-chat-bubble">
+        <details class="dashboard-chat-message-menu">
+          <summary aria-label="Message actions">
+            <span aria-hidden="true">&#8964;</span>
+          </summary>
+          <div class="dashboard-chat-message-menu-panel" role="menu">
+            <button type="button" class="dashboard-chat-menu-action" data-dashboard-reply-message="${escapeHtml(message.id)}" role="menuitem">Reply</button>
+            ${
+              reactionMarkup
+                ? `<div class="dashboard-chat-menu-reaction-group" role="group" aria-label="React to message">${reactionMarkup}</div>`
+                : ""
+            }
+            ${
+              canPinChat
+                ? `<button type="button" class="dashboard-chat-menu-action" data-dashboard-toggle-pin-message="${escapeHtml(message.id)}" role="menuitem">${escapeHtml(pinLabel)}</button>`
+                : ""
+            }
+            ${
+              canDeleteChat
+                ? `<button type="button" class="dashboard-chat-menu-action is-danger" data-dashboard-remove-message="${escapeHtml(message.id)}" aria-label="Delete message from ${escapeHtml(userName)}" role="menuitem">Delete</button>`
+                : ""
+            }
+          </div>
+        </details>
         ${priorityMarkup}
         ${replyMarkup}
         <p>${renderMessageText(message, users)}</p>
         ${renderMessageAttachments(message, users)}
-        ${renderMessageReactions(message, currentUser)}
         ${statusMarkup}
       </div>
     </article>
@@ -269,7 +281,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
             .includes(normalizedMessageSearch)
         )
       : hasThreadMessages;
-    const visibleMessages = [...searchedMessages.slice(-messageLimit)].reverse();
+    const visibleMessages = searchedMessages.slice(-messageLimit);
     const pinnedMessages = getPinnedMessagesForThread(messages, activeThreadId);
     const latestThread = threads.find((thread) => thread.unreadCount) || getLatestThread(threads);
     const activeThreadLabel = activeThread?.label || teamChatTitle;
@@ -277,24 +289,29 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       ? `${getThreadStatus(activeThread, users)} \u00b7 ${activeThread.messageCount} message${activeThread.messageCount === 1 ? "" : "s"}`
       : "No messages";
     const headerParticipants = activeThread?.isTeamThread ? users : [activeThread?.participant].filter(Boolean);
-    const launcherParticipants = latestThread?.isTeamThread ? users : [latestThread?.participant].filter(Boolean);
-    const launcherPreview = latestThread ? getThreadPreview(latestThread, users, currentUser) : "Open team room";
+    const launcherThread = activeThread || latestThread;
+    const launcherParticipants = launcherThread?.isTeamThread ? users : [launcherThread?.participant].filter(Boolean);
+    const launcherLabel = launcherThread?.label || teamChatTitle;
+    const launcherPreview = launcherThread ? getThreadPreview(launcherThread, users, currentUser) : "Open team room";
     const teamPresenceLabel = getThreadStatus({ isTeamThread: true }, users);
     const notificationLevel = notificationState.level || (notificationState.enabled ? "all" : "muted");
     const notificationLabel = { all: "All", mentions: "Mentions", muted: "Muted" }[notificationLevel] || "All";
     const threadPresetMarkup = advancedThreadTemplates.length
       ? `
-          <div class="dashboard-chat-thread-presets" aria-label="Create chat thread">
-            ${advancedThreadTemplates
-              .map(
-                (template) => `
-                  <button type="button" data-dashboard-chat-create-thread="${escapeHtml(template.key)}">
-                    ${escapeHtml(template.label)}
-                  </button>
-                `
-              )
-              .join("")}
-          </div>
+          <details class="dashboard-chat-thread-presets" data-dashboard-chat-thread-presets>
+            <summary aria-label="Create new chat">+</summary>
+            <div class="dashboard-chat-thread-preset-menu" aria-label="Create chat thread">
+              ${advancedThreadTemplates
+                .map(
+                  (template) => `
+                    <button type="button" data-dashboard-chat-create-thread="${escapeHtml(template.key)}">
+                      ${escapeHtml(template.label)}
+                    </button>
+                  `
+                )
+                .join("")}
+            </div>
+          </details>
         `
       : "";
     const moderationMarkup = moderationOpen
@@ -344,14 +361,17 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const priorityControlsMarkup = priorityOptions
       .map((option) => {
         const isActive = priorityDraft === option.key;
+        const icon = option.key === "normal" ? "N" : option.key === "important" ? "!" : option.key === "urgent" ? "!!" : option.label.slice(0, 1);
         return `
         <button
           type="button"
           class="dashboard-chat-priority-button is-${escapeHtml(option.key)}${isActive ? " is-active" : ""}"
           data-dashboard-chat-priority="${escapeHtml(option.key)}"
           aria-pressed="${isActive}"
+          title="${escapeHtml(option.label)}"
+          aria-label="${escapeHtml(option.label)} priority"
         >
-          ${escapeHtml(option.label)}
+          ${escapeHtml(icon)}
         </button>
       `;
       })
@@ -367,10 +387,10 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           ? `
             <header class="dashboard-chat-widget-header">
               <button type="button" class="dashboard-chat-widget-title" data-dashboard-chat-widget-toggle aria-expanded="true">
-                ${renderAvatarStack(users)}
+                ${renderAvatarStack(headerParticipants)}
                 <span class="dashboard-chat-widget-title-copy">
-                  <span>${escapeHtml(teamChatTitle)}</span>
-                  <small>${escapeHtml(unreadCount ? `${unreadCount} unread` : teamPresenceLabel)}</small>
+                  <span>${escapeHtml(activeThreadLabel)}</span>
+                  <small>${escapeHtml(activeThreadSubLabel)}</small>
                 </span>
               </button>
               <div class="dashboard-chat-widget-actions">
@@ -383,6 +403,25 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                 >
                   ${escapeHtml(notificationLabel)}
                 </button>
+                ${
+                  canDeleteMessage(currentUser)
+                    ? `
+                      <button
+                        type="button"
+                        class="dashboard-chat-clear-button"
+                        data-dashboard-clear-thread
+                        data-dashboard-chat-clear-thread="${escapeHtml(activeThreadId)}"
+                      >
+                        Clear
+                      </button>
+                    `
+                    : ""
+                }
+                ${
+                  canDeleteMessage(currentUser)
+                    ? `<button type="button" class="dashboard-chat-moderation-button" data-dashboard-chat-moderation-toggle aria-pressed="${moderationOpen}">Audit</button>`
+                    : ""
+                }
                 <button
                   type="button"
                   class="dashboard-chat-widget-close"
@@ -398,10 +437,10 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
             <button type="button" class="dashboard-chat-launcher" data-dashboard-chat-widget-toggle aria-expanded="false">
               ${renderAvatarStack(launcherParticipants)}
               <span class="dashboard-chat-launcher-copy">
-                <strong>${escapeHtml(teamChatTitle)}</strong>
+                <strong>${escapeHtml(launcherLabel)}</strong>
                 <small>${escapeHtml(launcherPreview)}</small>
               </span>
-              ${unreadCount ? `<span class="dashboard-chat-header-badge">${unreadCount}</span>` : `<span class="dashboard-chat-launcher-dot" aria-hidden="true"></span>`}
+              ${unreadCount ? `<span class="dashboard-chat-header-badge is-unread" aria-label="${escapeHtml(`${unreadCount} unread chat message${unreadCount === 1 ? "" : "s"}`)}">${unreadCount}</span>` : `<span class="dashboard-chat-launcher-dot" aria-hidden="true"></span>`}
             </button>
           `
       }
@@ -414,6 +453,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
               <strong>Inbox</strong>
               <small>${escapeHtml(unreadCount ? `${unreadCount} unread` : "All caught up")}</small>
             </div>
+            ${threadPresetMarkup}
             <input
               type="search"
               data-dashboard-chat-filter
@@ -422,7 +462,6 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
               aria-label="Search chat threads"
             />
           </div>
-          ${threadPresetMarkup}
           <div class="dashboard-chat-thread-scroll" data-dashboard-chat-thread-list>
             ${threads
               .map((thread) =>
@@ -438,55 +477,6 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           </div>
         </section>
         <section class="dashboard-chat-conversation" aria-label="Active conversation">
-          <header class="dashboard-chat-thread-head">
-            <div class="dashboard-chat-thread-head-main">
-              ${activeThread?.participant
-                ? renderPresenceAvatar(activeThread.participant, "dashboard-chat-thread-head-avatar")
-                : renderAvatarStack(headerParticipants, "dashboard-chat-thread-head-stack")}
-              <div>
-                <h3>${escapeHtml(activeThreadLabel)}</h3>
-                <small>${escapeHtml(activeThreadSubLabel)}</small>
-              </div>
-            </div>
-            <div class="dashboard-chat-thread-actions">
-              ${
-                canDeleteMessage(currentUser)
-                  ? `
-                    <button
-                      type="button"
-                      class="dashboard-chat-clear-button"
-                      data-dashboard-clear-thread
-                      data-dashboard-chat-clear-thread="${escapeHtml(activeThreadId)}"
-                    >
-                      Clear
-                    </button>
-                  `
-                  : ""
-              }
-              ${
-                canDeleteMessage(currentUser)
-                  ? `<button type="button" class="dashboard-chat-moderation-button" data-dashboard-chat-moderation-toggle aria-pressed="${moderationOpen}">Audit</button>`
-                  : ""
-              }
-              <button
-                type="button"
-                class="dashboard-chat-widget-close dashboard-chat-thread-close-button"
-                data-dashboard-chat-widget-toggle
-                aria-label="Close team chat"
-              >
-                &times;
-              </button>
-            </div>
-          </header>
-          <div class="dashboard-chat-search-row">
-            <input
-              type="search"
-              data-dashboard-chat-message-search
-              value="${escapeHtml(messageSearchQuery)}"
-              placeholder="Search messages"
-              aria-label="Search messages in this thread"
-            />
-          </div>
           ${moderationMarkup}
           ${renderPinnedMessages(pinnedMessages, users, currentUser)}
           <div class="dashboard-chat-list" data-dashboard-chat-list aria-live="polite">
@@ -497,21 +487,23 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           ${replyComposerMarkup}
           ${attachmentDraftMarkup}
           <form class="dashboard-chat-form" data-dashboard-chat-form>
-            <div class="dashboard-chat-compose-tools" role="group" aria-label="Message priority">
-              ${priorityControlsMarkup}
-              <label class="dashboard-chat-attachment-button">
-                <input type="file" data-dashboard-chat-attachment-input hidden />
-                <span>Attach</span>
-              </label>
+            <div class="dashboard-chat-input-shell">
+              <textarea
+                name="message"
+                data-dashboard-chat-input
+                autocomplete="off"
+                rows="1"
+                maxlength="${maxMessageLength}"
+                placeholder="Message ${escapeHtml(activeThreadLabel)}"
+              ></textarea>
+              <div class="dashboard-chat-compose-tools" role="group" aria-label="Message priority and attachments">
+                ${priorityControlsMarkup}
+                <label class="dashboard-chat-attachment-button" title="Attach file" aria-label="Attach file">
+                  <input type="file" data-dashboard-chat-attachment-input hidden />
+                  <span aria-hidden="true">&#128206;</span>
+                </label>
+              </div>
             </div>
-            <textarea
-              name="message"
-              data-dashboard-chat-input
-              autocomplete="off"
-              rows="1"
-              maxlength="${maxMessageLength}"
-              placeholder="Message ${escapeHtml(activeThreadLabel)}"
-            ></textarea>
             <button type="submit">Send</button>
           </form>
         </section>

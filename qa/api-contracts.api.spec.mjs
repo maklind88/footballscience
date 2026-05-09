@@ -1,10 +1,12 @@
 import { expect, test } from "@playwright/test";
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const clientConfigHandler = require("../api/client-config.js");
 const appStateHandler = require("../api/app-state.js");
 const appStateBackupHandler = require("../api/app-state-backup.js");
+const appStateBackupStatusHandler = require("../api/app-state-backup-status.js");
 const sessionHistoryHandler = require("../api/session-history.js");
 
 const supabaseEnvKeys = [
@@ -40,6 +42,10 @@ function clearEnv(keys) {
   keys.forEach((key) => {
     delete process.env[key];
   });
+}
+
+function sha256(value) {
+  return createHash("sha256").update(String(value ?? ""), "utf8").digest("hex");
 }
 
 function createMockResponse() {
@@ -1445,6 +1451,105 @@ test("app-state backup accepts Vercel cron secret and writes a backup pointer", 
     expect(writes.some((write) => write.url.endsWith("/backups/app-state/latest.json"))).toBe(true);
     expect(writes.some((write) => write.body.includes("QA backup fixture"))).toBe(true);
     expect(JSON.stringify(writes)).not.toContain("service-role-test-key");
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state backup status verifies latest pointer without exposing backup entries", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.CRON_SECRET = "cron-test-secret";
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const backupCore = {
+    schema: "footballscience-app-state-backup-v1",
+    createdAt: new Date().toISOString(),
+    source: "api/app-state-backup",
+    actor: {
+      id: "vercel-cron",
+      role: "system",
+      email: "",
+    },
+    entryCount: 1,
+    manifest: {
+      "football-schedule-v1": {
+        present: true,
+        moduleId: "schedule",
+        organizationId: "global",
+        revision: 2,
+        mergePolicy: "server-merge",
+        updatedAt: "2026-05-07T00:00:00.000Z",
+        updatedBy: "qa",
+        bytes: 34,
+        sha256: "entry-hash",
+      },
+    },
+    entries: {
+      "football-schedule-v1": JSON.stringify({ privateFixture: "must stay out of status" }),
+    },
+  };
+  const backupEnvelope = {
+    ...backupCore,
+    contentSha256: sha256(JSON.stringify(backupCore)),
+  };
+  const backupPath = `backups/app-state/2026-05-09/${backupEnvelope.contentSha256.slice(0, 12)}.json`;
+  const latestPointer = {
+    schema: "footballscience-app-state-backup-pointer-v1",
+    createdAt: backupEnvelope.createdAt,
+    path: backupPath,
+    entryCount: backupEnvelope.entryCount,
+    contentSha256: backupEnvelope.contentSha256,
+  };
+
+  global.fetch = async (url) => {
+    const requestUrl = String(url);
+    if (requestUrl.endsWith("/storage/v1/object/footballscience-app-state/backups/app-state/latest.json")) {
+      return new Response(JSON.stringify(latestPointer), { status: 200 });
+    }
+
+    if (requestUrl.endsWith(`/storage/v1/object/footballscience-app-state/${backupPath}`)) {
+      return new Response(JSON.stringify(backupEnvelope), { status: 200 });
+    }
+
+    return new Response(JSON.stringify({ message: `Unexpected request: ${requestUrl}` }), { status: 500 });
+  };
+
+  try {
+    const anonymousResponse = await callHandler(appStateBackupStatusHandler, {
+      method: "GET",
+      url: "/api/app-state-backup-status",
+      headers: {},
+    });
+    expect(anonymousResponse.status).toBe(401);
+    expect(anonymousResponse.payload.reason).toContain("Admin");
+
+    const response = await callHandler(appStateBackupStatusHandler, {
+      method: "GET",
+      url: "/api/app-state-backup-status",
+      headers: {
+        authorization: "Bearer cron-test-secret",
+      },
+    });
+    expect(response.status).toBe(200);
+    expect(response.payload).toMatchObject({
+      ok: true,
+      backupMatchesPointer: true,
+      latest: {
+        path: backupPath,
+        entryCount: 1,
+        contentSha256: backupEnvelope.contentSha256,
+      },
+      backup: {
+        contentSha256: backupEnvelope.contentSha256,
+        computedSha256: backupEnvelope.contentSha256,
+      },
+    });
+    expect(JSON.stringify(response.payload)).not.toContain("privateFixture");
+    expect(JSON.stringify(response.payload)).not.toContain("service-role-test-key");
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);

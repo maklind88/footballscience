@@ -30,10 +30,14 @@ function requirePackageScript(name, expected) {
   }
 }
 
-requirePackageScript("release:monitor", "npm run release:postdeploy && npm run qa:live:required");
+requirePackageScript("release:backup", "node scripts/verify-app-state-backup-freshness.mjs");
+requirePackageScript("release:monitor", "npm run release:postdeploy && npm run release:backup && npm run qa:live:required");
 requirePackageScript("release:rules", "node scripts/verify-release-rules.mjs");
 
 requireText("vercel.json", "scripts/vercel-ignore-build.mjs", "automatic Vercel production builds must stay blocked");
+requireText("api/app-state-backup-status.js", "backupMatchesPointer", "backup status must verify pointer/object integrity");
+requireText("scripts/verify-production-deploy.mjs", "/api/app-state-backup-status", "postdeploy must prove backup status endpoint is protected");
+requireText("scripts/verify-ci-release-env.mjs", "CRON_SECRET", "production CI must include the cron secret used for backup freshness checks");
 
 requireText(".github/workflows/staging-deploy.yml", "branches:", "staging must deploy from the staging branch");
 requireText(".github/workflows/staging-deploy.yml", "- staging", "staging branch must remain explicit");
@@ -48,9 +52,11 @@ requireText(".github/workflows/production-deploy.yml", "npm run qa:staging:requi
 requireText(".github/workflows/production-deploy.yml", "vercel@53.2.0 deploy --prebuilt --prod", "production deploy must use the pinned Vercel CLI prebuilt path");
 requireText(".github/workflows/production-deploy.yml", "npm run release:postdeploy", "production deploy must verify the live domain");
 requireText(".github/workflows/production-deploy.yml", "npm run qa:live:required", "production deploy must run authenticated live smoke");
+requireText(".github/workflows/production-deploy.yml", "CRON_SECRET", "production deploy must receive the cron secret required by the release environment gate");
 
 requireText(".github/workflows/production-smoke.yml", "schedule:", "production monitoring must run automatically");
 requireText(".github/workflows/production-smoke.yml", "npm run release:monitor", "production monitoring must run postdeploy and live smoke");
+requireText(".github/workflows/production-smoke.yml", "CRON_SECRET", "production monitoring must verify backup freshness with the cron secret");
 
 requireText(".github/workflows/production-rollback.yml", "workflow_dispatch:", "rollback must be manual only");
 requireText(".github/workflows/production-rollback.yml", "ROLLBACK", "rollback must require explicit confirmation");

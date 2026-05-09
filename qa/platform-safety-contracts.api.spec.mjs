@@ -130,7 +130,9 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   expect(packageJson.scripts["qa:perf"]).toContain("scripts/performance-budget.mjs");
   expect(packageJson.scripts["qa:live"]).toContain("qa/live.playwright.config.mjs");
   expect(packageJson.scripts["release:gate"]).toContain("npm run release:safety");
+  expect(packageJson.scripts["release:monitor"]).toContain("npm run release:backup");
   expect(fs.existsSync(path.join(rootDir, "scripts/verify-production-safety-gate.mjs"))).toBe(true);
+  expect(fs.existsSync(path.join(rootDir, "api/app-state-backup-status.js"))).toBe(true);
   expect(vercelConfig.ignoreCommand).toContain("scripts/vercel-ignore-build.mjs");
   expect(vercelIgnoreBuild).toContain("GitHub Production Deploy");
   expect(liveSpec).toContain("LIVE_QA_USERNAME");

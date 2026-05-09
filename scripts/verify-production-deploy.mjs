@@ -47,6 +47,14 @@ const backupText = await backupResponse.text();
 expect(!backupResponse.ok, "/api/app-state-backup must not allow anonymous success.");
 expect(backupText.includes("Admin sign-in") || backupText.includes("cron secret"), "/api/app-state-backup did not return the expected protection message.");
 
+const backupStatusResponse = await fetch(new URL("/api/app-state-backup-status", baseUrl), { cache: "no-store" });
+const backupStatusText = await backupStatusResponse.text();
+expect(!backupStatusResponse.ok, "/api/app-state-backup-status must not allow anonymous success.");
+expect(
+  backupStatusText.includes("Admin sign-in") || backupStatusText.includes("cron secret"),
+  "/api/app-state-backup-status did not return the expected protection message."
+);
+
 if (failures.length) {
   console.error("\nProduction verification failed:");
   failures.forEach((failure) => console.error(`- ${failure}`));
@@ -56,4 +64,5 @@ if (failures.length) {
   console.log("- app.js: ok");
   console.log("- client config: ok");
   console.log("- backup protection: ok");
+  console.log("- backup status protection: ok");
 }

@@ -1,11 +1,25 @@
-name: Production Smoke
+name: Production Monitor
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-monitor
+  cancel-in-progress: false
 
 jobs:
-  smoke:
+  monitor:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      LIVE_QA_BASE_URL: ${{ vars.LIVE_QA_BASE_URL || 'https://footballscience.xyz' }}
+      LIVE_QA_PASSWORD: ${{ secrets.LIVE_QA_PASSWORD }}
+      LIVE_QA_USERNAME: ${{ secrets.LIVE_QA_USERNAME }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -13,13 +27,5 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run release:postdeploy
-        env:
-          LIVE_QA_BASE_URL: ${{ vars.LIVE_QA_BASE_URL || 'https://footballscience.xyz' }}
       - run: npx playwright install --with-deps chromium
-      - name: Authenticated live smoke
-        run: npm run qa:live:required
-        env:
-          LIVE_QA_USERNAME: ${{ secrets.LIVE_QA_USERNAME }}
-          LIVE_QA_PASSWORD: ${{ secrets.LIVE_QA_PASSWORD }}
-          LIVE_QA_BASE_URL: ${{ vars.LIVE_QA_BASE_URL || 'https://footballscience.xyz' }}
+      - run: npm run release:monitor

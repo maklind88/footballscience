@@ -107,6 +107,7 @@ function createAppStateStorageEntry(key, value, updatedAt = "2026-05-07T00:00:00
     value: typeof value === "string" ? value : JSON.stringify(value),
     updatedAt,
     updatedBy: "coach-existing",
+    revision: 1,
   };
 }
 
@@ -508,6 +509,11 @@ test("app-state returns coach-safe medical data to coaches", async () => {
     expect(rawMedicalValue).not.toContain("private-squad-note");
     expect(rawMedicalValue).not.toContain("private-medical@example.com");
     expect(response.payload.metadata[medicalTeamKey].size).toBe(Buffer.byteLength(rawMedicalValue, "utf8"));
+    expect(response.payload.metadata[medicalTeamKey]).toMatchObject({
+      revision: 1,
+      moduleId: "medical-team",
+      mergePolicy: "server-sanitized",
+    });
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);
@@ -865,6 +871,7 @@ test("app-state preserves existing Squad player images when newer saves omit med
       body: JSON.stringify({
         key: playerProfilesKey,
         value: JSON.stringify(incomingSquadState),
+        metadata: { baseRevision: 1 },
       }),
     });
 

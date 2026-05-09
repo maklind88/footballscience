@@ -37,6 +37,19 @@ async function waitForAuthReady(page) {
   await page.evaluate(() => window.platformAuthReadyPromise);
 }
 
+async function waitForCentralStateReady(page) {
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(() => {
+          const status = window.footballScienceCentralState?.getStatus?.();
+          return Boolean(status?.hydrated && !status.hydrating && !status.lastError);
+        }),
+      { timeout: 20_000 }
+    )
+    .toBe(true);
+}
+
 async function signIn(page) {
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await waitForAuthReady(page);
@@ -49,6 +62,7 @@ async function signIn(page) {
 
   await expect(page.locator("#hubShell")).toBeVisible();
   await expect(page.locator("#loginScreen")).toBeHidden();
+  await waitForCentralStateReady(page);
   await dismissDashboardModal(page);
 }
 
@@ -68,6 +82,69 @@ async function expectStorageContains(page, key, text) {
           { storageKey: key, expectedText: text }
         ),
       { timeout: 15_000 }
+    )
+    .toBe(true);
+}
+
+async function expectCentralSyncContains(page, key, text) {
+  const endpointBase = new URL("/", page.url()).origin;
+
+  await expect
+    .poll(
+      async () => {
+        const value = await page.evaluate((storageKey) => window.localStorage.getItem(storageKey) || "", key);
+        if (!value.includes(text)) {
+          return false;
+        }
+
+        const loginResponse = await page.request.post(`${endpointBase}/api/client-config`, {
+          data: {
+            email: process.env.LIVE_QA_USERNAME,
+            password: process.env.LIVE_QA_PASSWORD,
+          },
+          timeout: 15_000,
+        });
+        if (!loginResponse.ok()) {
+          return false;
+        }
+        const loginPayload = await loginResponse.json();
+        const token = loginPayload?.session?.access_token;
+        if (!token) {
+          return false;
+        }
+
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          const centralResponse = await page.request.get(`${endpointBase}/api/app-state`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          const centralPayload = centralResponse.ok() ? await centralResponse.json() : {};
+          const baseRevision = Number(centralPayload?.metadata?.[key]?.revision) || 0;
+          const saveResponse = await page.request.post(`${endpointBase}/api/app-state`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            data: {
+              key,
+              value,
+              metadata: {
+                baseRevision,
+                revision: baseRevision,
+              },
+            },
+          });
+          if (saveResponse.ok()) {
+            return true;
+          }
+          if (saveResponse.status() !== 409) {
+            return false;
+          }
+        }
+
+        return false;
+      },
+      { timeout: 25_000 }
     )
     .toBe(true);
 }
@@ -112,6 +189,7 @@ test("production test account can save and reload a schedule record", async ({ p
     await page.locator("#scheduleEventSubmitButton").click();
     await expect(page.locator("#scheduleEventList")).toContainText(title);
     await expectStorageContains(page, scheduleKey, title);
+    await expectCentralSyncContains(page, scheduleKey, title);
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(page.locator("#hubShell")).toBeVisible();

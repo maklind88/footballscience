@@ -23,6 +23,7 @@ Treat these as protected product data:
 - Data Safety manifest: tracks protected local writes and pending central sync. Local storage is cache-only, never the production source of truth.
 - IndexedDB snapshots: local safety net for recent browser-side state.
 - Localhost/dev auth: local-only mode for development and QA; it must not call `/api/client-config`.
+- Local/live isolation: production env files such as `.vercel/.env.production.local` must not live in the local workspace. `npm run verify:local-isolation` fails QA if local env points at the live Supabase/Postgres backend.
 
 The app must never treat a missing or incomplete sync response as permission to overwrite local protected data with an empty value.
 Versioned module writes carry their latest known `baseRevision` from the client. If central state is newer, `/api/app-state` rejects the stale write unless the module contract has an explicit merge strategy that preserves newer data. Writes or deletes with no base revision are rejected once central data exists. The browser write queue clears stale-conflict retries and hydrates the central version back into cache.
@@ -39,6 +40,7 @@ npm run qa
 
 This runs:
 
+- `npm run verify:local-isolation`
 - `npm run check`
 - Static Supabase migration safety checks through `npm run qa:supabase`.
 - API contract tests for client config and app-state auth behavior.

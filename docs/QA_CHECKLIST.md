@@ -11,6 +11,7 @@ npm run qa
 ```
 
 - For narrower checks:
+  - `npm run verify:local-isolation` verifies local dev is not wired to live Supabase/Postgres.
   - `npm run check` validates `app.js` syntax.
   - `npm run qa:api` validates serverless API contracts.
   - `npm run qa:browser` validates critical local browser flows.

@@ -569,7 +569,6 @@ const dashboardHomeCardsRenderer = createDashboardHomeCardsRenderer({
 const dashboardChatAttachmentRenderer = createDashboardChatAttachmentRenderer({
   escapeHtml,
   getSupabaseClient: getDashboardSupabaseClient,
-  renderChatWidget: () => renderDashboardChatWidget(),
 });
 const dashboardChatAttachmentPreview = createDashboardChatAttachmentPreview();
 const dashboardChatWidgetRenderer = createDashboardChatWidgetRenderer({
@@ -9795,6 +9794,13 @@ function clearDashboardMessagesForThreadWithApi(threadId) {
     }
   );
 }
+function getDashboardChatRenderSignature(html = "") {
+  let hash = 0;
+  for (let index = 0; index < html.length; index += 1) {
+    hash = (hash * 31 + html.charCodeAt(index)) >>> 0;
+  }
+  return `${html.length}:${hash}`;
+}
 function renderDashboardChatWidget() {
   const root = ui.dashboardChatWidgetRoot;
   if (!root) {
@@ -9805,6 +9811,7 @@ function renderDashboardChatWidget() {
     document.body?.classList.remove("has-dashboard-chat-widget");
     document.body?.classList.remove("is-dashboard-chat-closed");
     document.body?.classList.remove("is-dashboard-chat-open");
+    delete root.dataset.dashboardChatRenderSignature;
     root.innerHTML = "";
     return;
   }
@@ -9880,7 +9887,16 @@ function renderDashboardChatWidget() {
       selectedThreadId: renderedWidget.activeThreadId,
     });
   }
+  const renderSignature = getDashboardChatRenderSignature(renderedWidget.html);
+  if (root.dataset.dashboardChatRenderSignature === renderSignature) {
+    if (shouldClearSubmittedComposerDraft) {
+      dashboardChatSubmittedComposerDrafts.delete(previousComposerThreadId);
+    }
+    renderTopIconMenu();
+    return;
+  }
   root.innerHTML = renderedWidget.html;
+  root.dataset.dashboardChatRenderSignature = renderSignature;
   if (shouldClearSubmittedComposerDraft) {
     dashboardChatSubmittedComposerDrafts.delete(previousComposerThreadId);
   }

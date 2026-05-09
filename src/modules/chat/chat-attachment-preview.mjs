@@ -26,6 +26,25 @@ function triggerDownload(url, name) {
   anchor.remove();
 }
 
+async function saveAttachmentAs(url, name) {
+  if (!window.showSaveFilePicker) {
+    triggerDownload(url, name);
+    return;
+  }
+  const response = await fetch(url);
+  if (!response.ok) {
+    triggerDownload(url, name);
+    return;
+  }
+  const blob = await response.blob();
+  const handle = await window.showSaveFilePicker({
+    suggestedName: name || "attachment",
+  });
+  const writable = await handle.createWritable();
+  await writable.write(blob);
+  await writable.close();
+}
+
 export function createDashboardChatAttachmentPreview() {
   let previewRoot = null;
   const close = () => {
@@ -50,7 +69,7 @@ export function createDashboardChatAttachmentPreview() {
       <div class="dashboard-chat-attachment-preview-backdrop" data-chat-attachment-preview-close></div>
       <section class="dashboard-chat-attachment-preview-card" role="dialog" aria-modal="true" aria-label="Attachment preview">
         <header>
-          <div><span>Attachment</span><strong>${html(name)}</strong></div>
+          <div><span>Preview</span><strong>${html(name)}</strong></div>
           <div class="dashboard-chat-attachment-preview-actions">
             <button type="button" data-chat-attachment-preview-print>Print</button>
             <button type="button" data-chat-attachment-preview-download>Download</button>
@@ -67,7 +86,8 @@ export function createDashboardChatAttachmentPreview() {
       </section>`;
     previewRoot.addEventListener("click", (event) => {
       if (event.target.closest("[data-chat-attachment-preview-close]")) close();
-      if (event.target.closest("[data-chat-attachment-preview-download],[data-chat-attachment-preview-save]")) triggerDownload(url, name);
+      if (event.target.closest("[data-chat-attachment-preview-download]")) triggerDownload(url, name);
+      if (event.target.closest("[data-chat-attachment-preview-save]")) saveAttachmentAs(url, name).catch(() => triggerDownload(url, name));
       if (event.target.closest("[data-chat-attachment-preview-print]")) print(url, name, mimeType);
     });
     document.body.append(previewRoot);

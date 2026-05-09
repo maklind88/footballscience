@@ -710,6 +710,17 @@ async function ensureThreadParticipants(actor, thread, participantIds = []) {
   ).catch(() => null);
 }
 
+function canonicalDirectThreadKey(actor, body = {}, requestedThreadId = "") {
+  const participantIds = Array.from(
+    new Set(getParticipantIdsForThread(actor, body, requestedThreadId, "dm").filter(Boolean))
+  ).sort();
+  if (participantIds.length >= 2) {
+    return `dm:${participantIds.slice(0, 2).join(":")}`;
+  }
+  const rawKey = normalizeId(requestedThreadId || body.legacyThreadId || body.legacy_thread_id || "");
+  return rawKey.startsWith("dm:") ? rawKey : legacyThreadKey(rawKey || "dm", "dm");
+}
+
 async function ensureScopedThread(actor, body = {}, scope, options = {}) {
   const requestedThreadId = normalizeId(body.threadId || body.thread_id || body.id);
   if (isUuid(requestedThreadId)) {
@@ -718,7 +729,8 @@ async function ensureScopedThread(actor, body = {}, scope, options = {}) {
 
   const inferredThreadType = requestedThreadId === "team" ? "team" : requestedThreadId.startsWith("dm:") ? "dm" : "group";
   const type = normalizeThreadType(body.type || body.threadType || options.type || inferredThreadType);
-  const legacyKey = legacyThreadKey(requestedThreadId || body.legacyThreadId || type, type) || `${type}:${actor.id || "staff"}`;
+  const canonicalThreadId = type === "dm" ? canonicalDirectThreadKey(actor, body, requestedThreadId) : requestedThreadId;
+  const legacyKey = legacyThreadKey(canonicalThreadId || body.legacyThreadId || type, type) || `${type}:${actor.id || "staff"}`;
   const existing = await readThreadByLegacyKey(scope, legacyKey, type);
   if (existing) {
     await ensureThreadParticipants(actor, existing, getParticipantIdsForThread(actor, body, legacyKey, type));
@@ -1051,18 +1063,28 @@ async function recalculateThreadSummary(thread = {}) {
   if (!thread?.id) {
     return thread;
   }
-  const messages = await selectMany(
-    "chat_messages",
-    [
-      `select=${MESSAGE_SELECT}`,
-      `thread_id=eq.${filterValue(thread.id)}`,
-      "deleted_at=is.null",
-      "order=created_at.desc",
-      "limit=1",
-    ].join("&")
-  ).catch(() => []);
+  const [messages, visibleMessages] = await Promise.all([
+    selectMany(
+      "chat_messages",
+      [
+        `select=${MESSAGE_SELECT}`,
+        `thread_id=eq.${filterValue(thread.id)}`,
+        "deleted_at=is.null",
+        "order=created_at.desc",
+        "limit=1",
+      ].join("&")
+    ).catch(() => []),
+    selectMany(
+      "chat_messages",
+      [
+        "select=id",
+        `thread_id=eq.${filterValue(thread.id)}`,
+        "deleted_at=is.null",
+      ].join("&")
+    ).catch(() => []),
+  ]);
   const latestMessage = messages[0] || null;
-  const nextMessageCount = Math.max(Number(thread.message_count || 1) - 1, 0);
+  const nextMessageCount = visibleMessages.length;
   const [updatedThread] = await patchRows("chat_threads", `id=eq.${filterValue(thread.id)}`, {
     last_message_id: latestMessage?.id || null,
     last_message_at: latestMessage?.created_at || null,
@@ -1393,17 +1415,11 @@ async function sendMessage(actor, body) {
     ).catch(() => null);
   }
 
-  const threadRows = await patchRows("chat_threads", `id=eq.${filterValue(thread.id)}`, {
-    last_message_id: message.id,
-    last_message_at: message.created_at,
-    message_count: Number(thread.message_count || 0) + 1,
-  });
-  const updatedThread = threadRows[0] || {
+  const updatedThread = await recalculateThreadSummary({
     ...thread,
     last_message_id: message.id,
     last_message_at: message.created_at,
-    message_count: Number(thread.message_count || 0) + 1,
-  };
+  });
 
   await insertRows("chat_read_receipts", {
     thread_id: thread.id,

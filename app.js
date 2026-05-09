@@ -8424,9 +8424,10 @@ function mergeDashboardChatApiMessages(messages = [], options = {}) {
   }
   const replaceThreadId = options.replaceThreadId ? normalizeDashboardChatThreadId(options.replaceThreadId, "") : "";
   const messageThread = options.thread || null;
+  const existingMessages = readDashboardMessages();
   const current = replaceThreadId
-    ? readDashboardMessages().filter((message) => message.threadId !== replaceThreadId)
-    : readDashboardMessages();
+    ? existingMessages.filter((message) => message.threadId !== replaceThreadId || message.status === "pending" || message.status === "failed")
+    : existingMessages;
   if (!messages.length) {
     if (replaceThreadId) {
       writeDashboardMessages(current, { skipCentralSync: true });
@@ -8440,14 +8441,23 @@ function mergeDashboardChatApiMessages(messages = [], options = {}) {
   const deletedMessageIds = readDashboardDeletedMessageIds();
   messages.forEach((sourceMessage) => {
     const sourceMessageId = String(sourceMessage?.id || sourceMessage?.messageId || "").trim();
+    const clientMessageId = String(sourceMessage?.clientMessageId || sourceMessage?.client_message_id || "").trim();
     const deletedAt = String(sourceMessage?.deletedAt || sourceMessage?.deleted_at || "").trim();
     if (sourceMessageId && deletedAt) {
       rememberDashboardDeletedMessageId(sourceMessageId);
       deletedMessageIds.add(sourceMessageId);
       byId.delete(sourceMessageId);
+      if (clientMessageId) {
+        rememberDashboardDeletedMessageId(clientMessageId);
+        deletedMessageIds.add(clientMessageId);
+        byId.delete(clientMessageId);
+      }
       return;
     }
     const message = normalizeDashboardApiMessage(sourceMessage, messageThread);
+    if (clientMessageId && byId.has(clientMessageId) && clientMessageId !== message.id) {
+      byId.delete(clientMessageId);
+    }
     const resolvedMessage = replaceThreadId && message?.threadId !== replaceThreadId
       ? { ...message, threadId: replaceThreadId }
       : message;

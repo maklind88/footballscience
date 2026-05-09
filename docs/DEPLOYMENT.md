@@ -31,16 +31,20 @@ Use the manual flow only when you need direct control over a release step:
 npm run release:gate
 ```
 
-`release:gate` runs the release preflight first, then the full QA deploy gate. It blocks normal releases when:
+`release:gate` runs the release preflight, the production safety gate, and then the full QA deploy gate. It blocks normal releases when:
 
 - the working tree has uncommitted changes
 - the branch is behind its upstream
 - local commits have not been pushed to GitHub
+- the release is not running from `main`
+- the `staging` branch does not contain the exact same code tree as the production candidate
+- staging and production URLs or Supabase refs are missing or point to the same backend
+- authenticated staging/live QA credentials are missing
 
 Emergency overrides exist for hotfixes only:
 
 ```bash
-RELEASE_ALLOW_DIRTY=1 RELEASE_ALLOW_UNPUSHED=1 npm run release:gate
+RELEASE_ALLOW_DIRTY=1 RELEASE_ALLOW_UNPUSHED=1 RELEASE_ACK_EMERGENCY=1 npm run release:gate
 ```
 
 Only deploy after the gate passes:
@@ -72,9 +76,11 @@ The same workflow also runs:
 
 CodeQL runs through `.github/workflows/codeql.yml`, and Dependabot is configured in `.github/dependabot.yml` for npm and GitHub Actions updates.
 
-Production deploys are CI-driven through `.github/workflows/production-deploy.yml`. The workflow starts after the `QA` workflow succeeds on `main`, checks required secrets, deploys through Vercel CLI, runs `npm run release:postdeploy`, and then runs authenticated live QA. Manual dispatch uses the same gates.
+Production deploys are CI-driven through `.github/workflows/production-deploy.yml`. The workflow starts after the `QA` workflow succeeds on `main`, requires the staging and production safety configuration, verifies staging smoke, deploys through Vercel CLI, runs `npm run release:postdeploy`, and then runs authenticated live QA. Manual dispatch uses the same gates.
 
-If the CI deploy/live-QA secrets are not configured yet, the production deploy workflow exits successfully with a clear GitHub Actions notice instead of failing the release history. In that mode, Vercel's Git integration remains the active deployment path for pushes to `main`. Add the secrets below to turn on gated CI deploys and authenticated live QA.
+Production deploys must fail closed when required secrets or staging isolation are missing. Do not fall back to an ungated production deploy path.
+
+Automatic Vercel Git production builds are blocked by `vercel.json` through `scripts/vercel-ignore-build.mjs`. Preview/staging builds continue, but production must go through the gated GitHub workflow or an explicitly acknowledged emergency path.
 
 Required GitHub repository secrets for CI deploy:
 
@@ -84,12 +90,17 @@ VERCEL_ORG_ID
 VERCEL_PROJECT_ID
 LIVE_QA_USERNAME
 LIVE_QA_PASSWORD
+STAGING_QA_USERNAME
+STAGING_QA_PASSWORD
 ```
 
-Optional GitHub repository variable:
+Required GitHub repository variables:
 
 ```bash
 LIVE_QA_BASE_URL  # defaults to https://footballscience.xyz
+STAGING_QA_BASE_URL
+SUPABASE_PROJECT_REF
+STAGING_SUPABASE_PROJECT_REF
 ```
 
 Remote Supabase migration verification lives in `.github/workflows/supabase-migrations.yml`. It runs automatically when migration files are pushed to `main`, and it can be started manually from GitHub Actions. Required secure configuration:

@@ -34,7 +34,7 @@ npm run qa
 
 This smoke test also verifies localhost dev-auth does not call `/api/client-config` and that the Data Safety export/import controls are present in the profile menu.
 
-`npm run qa:api` also verifies that `/api/app-state-backup` rejects anonymous access and accepts a valid Vercel cron secret without exposing server secrets.
+`npm run qa:api` also verifies that `/api/app-state-backup` rejects anonymous access and accepts a valid Vercel cron secret without exposing server secrets. It verifies `/api/app-state-backup-status` separately so the latest backup pointer can be checked without exposing saved app data.
 
 `qa/platform-safety-contracts.api.spec.mjs` is the long-term platform guardrail. It fails QA if protected storage keys, backup coverage, module contracts, live-smoke hooks, or the daily backup cron disappear during future refactors.
 
@@ -104,5 +104,6 @@ Before telling the user the site is updated:
 - Alias deployment to `footballscience.xyz`.
 - Open or request a cache-busting URL.
 - Confirm `/api/app-state-backup` returns `401` without authorization.
+- Confirm `/api/app-state-backup-status` returns `401` without authorization.
 - Verify live assets and visible behavior.
 - If live appears old, check localStorage/site data before assuming deployment failed.

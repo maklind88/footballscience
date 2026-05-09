@@ -17,7 +17,7 @@ Treat these as protected product data:
 ## Storage Model
 
 - Production source of truth: Supabase-backed central app state through `/api/app-state`.
-- Server backups: `/api/app-state-backup` writes timestamped Supabase Storage backups under `backups/app-state/`.
+- Server backups: `/api/app-state-backup` writes timestamped Supabase Storage backups under `backups/app-state/`; `/api/app-state-backup-status` verifies the latest pointer and object hash without exposing backup data.
 - Browser storage: fast local cache, autosave surface, and emergency export/import source.
 - Data Safety Contract: `src/core/data-safety-contracts.cjs` is the shared registry for module key, scope, merge policy, required fields, revision behavior, audit, and snapshot requirements.
 - Data Safety manifest: tracks protected local writes and pending central sync. Local storage is cache-only, never the production source of truth.
@@ -80,6 +80,8 @@ The backup endpoint writes:
 
 - A timestamped full backup: `backups/app-state/YYYY-MM-DD/<timestamp>-<hash>.json`
 - A latest pointer: `backups/app-state/latest.json`
+
+Production Monitor runs `npm run release:backup` as part of `npm run release:monitor`. The check fails if the latest pointer is missing, stale, or does not match the backup object's content hash.
 
 ## Release Routine
 

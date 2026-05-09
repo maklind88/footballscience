@@ -61,7 +61,7 @@ After Vercel reports `READY`, run:
 npm run release:postdeploy
 ```
 
-This verifies the live domain, `app.js`, `/api/client-config`, and that `/api/app-state-backup` is not anonymously accessible.
+This verifies the live domain, `app.js`, `/api/client-config`, and that `/api/app-state-backup` plus `/api/app-state-backup-status` are not anonymously accessible.
 
 ## CI Gate
 
@@ -132,7 +132,7 @@ LIVE_QA_BASE_URL
 
 `LIVE_QA_BASE_URL` defaults to `https://footballscience.xyz`.
 
-Production monitoring runs through `.github/workflows/production-smoke.yml` under the GitHub Actions name `Production Monitor`. It runs every six hours and can also be started manually. The monitor runs `npm run release:monitor`, which verifies the live domain/API and then runs authenticated live smoke. It fails clearly if the live QA secrets are missing.
+Production monitoring runs through `.github/workflows/production-smoke.yml` under the GitHub Actions name `Production Monitor`. It runs every six hours and can also be started manually. The monitor runs `npm run release:monitor`, which verifies the live domain/API, checks that the latest app-state backup pointer matches a real Supabase Storage backup, and then runs authenticated live smoke. It fails clearly if the live QA or cron secrets are missing.
 
 The release process is protected by `npm run release:rules`. This rule check is part of `npm run qa` and fails if the staging deploy, production deploy, production monitor, rollback workflow, or Vercel production-build blocker are removed or weakened.
 
@@ -197,6 +197,7 @@ The backup endpoint must be protected anonymously:
 
 ```bash
 curl -i https://footballscience.xyz/api/app-state-backup
+curl -i https://footballscience.xyz/api/app-state-backup-status
 ```
 
 Expected without auth:
@@ -223,6 +224,8 @@ CRON_SECRET
 ```
 
 When the cron runs, `/api/app-state-backup` writes timestamped Supabase Storage objects under `backups/app-state/` and updates `backups/app-state/latest.json`.
+
+`/api/app-state-backup-status` is read-only and returns only metadata about the latest pointer and backup object. Production monitor calls it with `CRON_SECRET` and fails if the backup is stale, missing, or does not match the pointer hash.
 
 ## Current Hosting Notes
 

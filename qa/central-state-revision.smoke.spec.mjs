@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const revisionStateKey = "football-simulator-sequence-v1";
+const periodizationStateKey = "football-periodization-v2";
 const scheduleStateKey = "football-schedule-v1";
 const qaUser = {
   id: "qa-user-1",
@@ -324,6 +325,98 @@ test("central Schedule hydration preserves the local selected day", async ({ bro
             selectedMonthIndex: state.selectedMonthIndex,
           };
         }, scheduleStateKey),
+        { timeout: 10_000 }
+      )
+      .toEqual({
+        selectedDate: "2026-05-09",
+        selectedMonthIndex: 4,
+      });
+  } finally {
+    await tab.context.close();
+  }
+});
+
+test("central Periodization hydration preserves the local selected day", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const localPeriodizationState = {
+    selectedYear: 2026,
+    selectedMonthIndex: 4,
+    selectedDate: "2026-05-09",
+    importVersion: "ncc-2026-periodization-v1",
+    days: {
+      "2026-05-09": {
+        seasonPhase: "Competition",
+        daySchedule: "Travel Day",
+        sessionNotes: "Local today note",
+      },
+    },
+  };
+  const centralPeriodizationState = {
+    selectedYear: 2026,
+    selectedMonthIndex: 0,
+    selectedDate: "2026-01-15",
+    importVersion: "ncc-2026-periodization-v1",
+    days: {
+      "2026-05-09": {
+        seasonPhase: "Competition",
+        daySchedule: "Training",
+        sessionNotes: "Central training note",
+      },
+    },
+  };
+  const centralStore = {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+    entries: {
+      [periodizationStateKey]: JSON.stringify(centralPeriodizationState),
+    },
+    metadataEntries: {
+      [periodizationStateKey]: createMetadata(4, JSON.stringify(centralPeriodizationState)),
+    },
+  };
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "periodization-local-date", {
+    initScript: ({ key, value }) => {
+      window.localStorage.setItem(key, value);
+    },
+    initArg: { key: periodizationStateKey, value: JSON.stringify(localPeriodizationState) },
+  });
+
+  try {
+    await expect
+      .poll(() =>
+        tab.page.evaluate((key) => {
+          const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+          return {
+            selectedDate: state.selectedDate,
+            selectedMonthIndex: state.selectedMonthIndex,
+            daySchedule: state.days?.["2026-05-09"]?.daySchedule || "",
+            note: state.days?.["2026-05-09"]?.sessionNotes || "",
+          };
+        }, periodizationStateKey),
+        { timeout: 10_000 }
+      )
+      .toEqual({
+        selectedDate: "2026-05-09",
+        selectedMonthIndex: 4,
+        daySchedule: "Training",
+        note: "Central training note",
+      });
+
+    centralPeriodizationState.selectedMonthIndex = 1;
+    centralPeriodizationState.selectedDate = "2026-02-01";
+    centralStore.entries[periodizationStateKey] = JSON.stringify(centralPeriodizationState);
+    centralStore.metadataEntries[periodizationStateKey] = createMetadata(5, centralStore.entries[periodizationStateKey]);
+    await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ forceApply: true }));
+
+    await expect
+      .poll(() =>
+        tab.page.evaluate((key) => {
+          const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+          return {
+            selectedDate: state.selectedDate,
+            selectedMonthIndex: state.selectedMonthIndex,
+          };
+        }, periodizationStateKey),
         { timeout: 10_000 }
       )
       .toEqual({

@@ -901,6 +901,10 @@ function toLegacyThreadId(thread = {}) {
   return normalizeThreadType(thread?.type) === "team" ? "team" : thread?.id || "";
 }
 
+function messagePreviewText(message = {}) {
+  return normalizeString(message.body || message.text || "", 180).replace(/\s+/g, " ").trim();
+}
+
 async function enrichMessages(messages = [], thread = null) {
   const messageIds = messages.map((message) => message.id).filter(Boolean);
   if (!messageIds.length) {
@@ -966,8 +970,52 @@ async function enrichMessages(messages = [], thread = null) {
       reactions: reactionsByMessage.get(message.id) || {},
       readBy: Array.from(new Set([message.author_id, ...readBy].filter(Boolean))),
       attachments: (attachmentsByMessage.get(message.id) || []).map(attachmentClientPayload),
+      status: message.deleted_at ? "deleted" : "sent",
     };
   });
+}
+
+async function enrichThreadSummaries(actor, threads = []) {
+  if (!Array.isArray(threads) || !threads.length) {
+    return [];
+  }
+  const threadIds = threads.map((thread) => thread.id).filter(Boolean);
+  const lastMessageIds = threads.map((thread) => thread.last_message_id).filter(Boolean);
+  const [lastMessages, receipts] = await Promise.all([
+    lastMessageIds.length
+      ? selectMany("chat_messages", `select=${MESSAGE_SELECT}&id=${inFilter(lastMessageIds)}&deleted_at=is.null`).catch(() => [])
+      : Promise.resolve([]),
+    actor?.id && threadIds.length
+      ? selectMany(
+          "chat_read_receipts",
+          `select=${RECEIPT_SELECT}&thread_id=${inFilter(threadIds)}&user_id=eq.${filterValue(actor.id)}`
+        ).catch(() => [])
+      : Promise.resolve([]),
+  ]);
+  const messagesById = new Map(lastMessages.map((message) => [message.id, message]));
+  const receiptsByThreadId = new Map(receipts.map((receipt) => [receipt.thread_id, receipt]));
+  return Promise.all(
+    threads.map(async (thread) => {
+      const lastMessage = messagesById.get(thread.last_message_id) || null;
+      const [enrichedLastMessage] = lastMessage ? await enrichMessages([lastMessage], thread) : [];
+      const receipt = receiptsByThreadId.get(thread.id) || null;
+      const lastMessageAtMs = Date.parse(thread.last_message_at || lastMessage?.created_at || "");
+      const lastReadAtMs = Date.parse(receipt?.last_read_at || "");
+      const unreadCount =
+        enrichedLastMessage?.author_id && enrichedLastMessage.author_id !== actor?.id && Number.isFinite(lastMessageAtMs) && (!Number.isFinite(lastReadAtMs) || lastMessageAtMs > lastReadAtMs)
+          ? 1
+          : 0;
+      return {
+        ...thread,
+        legacyThreadId: toLegacyThreadId(thread),
+        threadId: toLegacyThreadId(thread),
+        lastMessage: enrichedLastMessage || null,
+        lastMessagePreview: enrichedLastMessage ? messagePreviewText(enrichedLastMessage) : "",
+        unreadCount,
+        lastReadAt: receipt?.last_read_at || "",
+      };
+    })
+  );
 }
 
 async function handleDatabaseGet(req, res, actor) {
@@ -1010,6 +1058,52 @@ async function handleDatabaseGet(req, res, actor) {
       scope,
       audits,
       retentionPolicy: retentionPolicies[0] || null,
+    });
+  }
+
+  if (view === "health") {
+    if (!canAdmin(actor)) {
+      return sendJson(res, 403, { ok: false, reason: "Admin chat access required." });
+    }
+    const [threads, messages, attachments, audits] = await Promise.all([
+      selectMany(
+        "chat_threads",
+        `select=id,last_message_at,message_count,updated_at&organization_id=eq.${filterValue(scope.organizationId)}&archived_at=is.null&limit=1000`
+      ).catch(() => []),
+      selectMany(
+        "chat_messages",
+        `select=id,thread_id,deleted_at,created_at&organization_id=eq.${filterValue(scope.organizationId)}&limit=1000`
+      ).catch(() => []),
+      selectMany(
+        "chat_attachments",
+        `select=id,status,created_at&organization_id=eq.${filterValue(scope.organizationId)}&limit=1000`
+      ).catch(() => []),
+      selectMany(
+        "chat_audit_events",
+        `select=${AUDIT_SELECT}&organization_id=eq.${filterValue(scope.organizationId)}&order=created_at.desc&limit=8`
+      ).catch(() => []),
+    ]);
+    return sendJson(res, 200, {
+      ok: true,
+      schema: "footballscience-chat-database-v1",
+      mode: "database",
+      scope,
+      health: {
+        checkedAt: new Date().toISOString(),
+        threadCount: threads.length,
+        messageCount: messages.filter((message) => !message.deleted_at).length,
+        deletedMessageCount: messages.filter((message) => message.deleted_at).length,
+        attachmentCount: attachments.length,
+        pendingAttachmentCount: attachments.filter((attachment) => attachment.status === "pending").length,
+        latestThreadAt:
+          threads
+            .map((thread) => thread.last_message_at || thread.updated_at || "")
+            .filter(Boolean)
+            .sort()
+            .at(-1) || "",
+        latestAuditAt: audits[0]?.created_at || "",
+      },
+      audits,
     });
   }
 
@@ -1100,12 +1194,13 @@ async function handleDatabaseGet(req, res, actor) {
   }
 
   const threads = await selectMany("chat_threads", threadFilters.join("&"));
+  const threadSummaries = await enrichThreadSummaries(actor, threads);
   return sendJson(res, 200, {
     ok: true,
     schema: "footballscience-chat-database-v1",
     mode: "database",
     scope,
-    threads,
+    threads: threadSummaries,
     messages: [],
   });
 }
@@ -1127,7 +1222,7 @@ async function createThread(actor, body) {
 
 async function sendMessage(actor, body) {
   const text = normalizeMessageText(body.text || body.message || body.body);
-  const clientMessageId = normalizeString(body.clientMessageId || body.client_message_id, 120);
+  const clientMessageId = normalizeString(body.clientMessageId || body.client_message_id || body.id, 120);
 
   if (!text) {
     return { ok: false, status: 400, reason: "Message text is required." };
@@ -1141,6 +1236,29 @@ async function sendMessage(actor, body) {
 
   if (thread?.metadata?.announcementOnly && !canManageByRole(access.membership?.role) && !canAdmin(actor)) {
     return { ok: false, status: 403, reason: "Only chat managers can post announcements." };
+  }
+
+  if (clientMessageId) {
+    const existingMessage = await selectOne(
+      "chat_messages",
+      [
+        `select=${MESSAGE_SELECT}`,
+        `thread_id=eq.${filterValue(thread.id)}`,
+        `client_message_id=eq.${filterValue(clientMessageId)}`,
+        "deleted_at=is.null",
+      ].join("&")
+    ).catch(() => null);
+    if (existingMessage) {
+      const [enrichedExistingMessage] = await enrichMessages([existingMessage], thread);
+      return {
+        ok: true,
+        action: "sendMessage",
+        duplicate: true,
+        thread,
+        message: enrichedExistingMessage || existingMessage,
+        auditId: "",
+      };
+    }
   }
 
   const rows = await insertRows("chat_messages", {
@@ -1190,6 +1308,7 @@ async function sendMessage(actor, body) {
   await patchRows("chat_threads", `id=eq.${filterValue(thread.id)}`, {
     last_message_id: message.id,
     last_message_at: message.created_at,
+    message_count: Number(thread.message_count || 0) + 1,
   });
 
   await insertRows("chat_read_receipts", {

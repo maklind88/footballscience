@@ -225,7 +225,7 @@ CRON_SECRET
 
 When the cron runs, `/api/app-state-backup` writes timestamped Supabase Storage objects under `backups/app-state/` and updates `backups/app-state/latest.json`.
 
-`/api/app-state-backup-status` is read-only and returns only metadata about the latest pointer and backup object. Production monitor calls it with `CRON_SECRET` and fails if the backup is stale, missing, or does not match the pointer hash.
+`/api/app-state-backup-status` is read-only and returns only metadata about the latest pointer and backup object. Vercel rewrites it to `/api/app-state-backup?mode=status`, so the check does not add another serverless function. Production monitor calls it with `CRON_SECRET` and fails if the backup is stale, missing, or does not match the pointer hash.
 
 ## Current Hosting Notes
 

@@ -125,6 +125,7 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   const qaWorkflow = readProjectFile(".github/workflows/qa.yml");
   const performanceBudget = readProjectFile("scripts/performance-budget.mjs");
   const vercelIgnoreBuild = readProjectFile("scripts/vercel-ignore-build.mjs");
+  const backupSource = readProjectFile("api/app-state-backup.js");
 
   expect(packageJson.scripts["qa"]).toContain("npm run qa:perf");
   expect(packageJson.scripts["qa:perf"]).toContain("scripts/performance-budget.mjs");
@@ -132,8 +133,16 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   expect(packageJson.scripts["release:gate"]).toContain("npm run release:safety");
   expect(packageJson.scripts["release:monitor"]).toContain("npm run release:backup");
   expect(fs.existsSync(path.join(rootDir, "scripts/verify-production-safety-gate.mjs"))).toBe(true);
-  expect(fs.existsSync(path.join(rootDir, "api/app-state-backup-status.js"))).toBe(true);
+  expect(backupSource).toContain("backupMatchesPointer");
   expect(vercelConfig.ignoreCommand).toContain("scripts/vercel-ignore-build.mjs");
+  expect(vercelConfig.rewrites).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        source: "/api/app-state-backup-status",
+        destination: "/api/app-state-backup?mode=status",
+      }),
+    ])
+  );
   expect(vercelIgnoreBuild).toContain("GitHub Production Deploy");
   expect(liveSpec).toContain("LIVE_QA_USERNAME");
   expect(liveSpec).toContain("LIVE_QA_PASSWORD");

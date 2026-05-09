@@ -10,6 +10,7 @@ const { dataSafetyRegistry } = require("../src/core/data-safety-contracts.cjs");
 const STATE_BUCKET = "footballscience-app-state";
 const STATE_PREFIX = "global";
 const BACKUP_PREFIX = "backups/app-state";
+const LATEST_BACKUP_PATH = `${BACKUP_PREFIX}/latest.json`;
 const CENTRAL_STATE_KEYS = new Set(dataSafetyRegistry.keys());
 
 function getStorageBaseUrl() {
@@ -196,6 +197,82 @@ async function writeBackupObject(path, payload, upsert = false) {
   return result;
 }
 
+function parseBackupJson(text) {
+  if (!text) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+async function readBackupObject(path) {
+  const result = await storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${path}`, {
+    method: "GET",
+    raw: true,
+    contentType: "",
+  });
+
+  if (!result.ok) {
+    return result;
+  }
+
+  const payload = parseBackupJson(result.payload);
+  if (!payload) {
+    return { ok: false, status: 500, reason: "App-state backup object is not valid JSON." };
+  }
+
+  return { ok: true, status: result.status, payload };
+}
+
+function isSafeBackupPath(path) {
+  const normalized = String(path || "");
+  return (
+    normalized.startsWith(`${BACKUP_PREFIX}/`) &&
+    normalized.endsWith(".json") &&
+    normalized !== LATEST_BACKUP_PATH &&
+    !normalized.includes("..") &&
+    !normalized.includes("?") &&
+    !normalized.includes("#") &&
+    !normalized.startsWith("/")
+  );
+}
+
+function summarizeBackupStatus(pointer, backup) {
+  const { contentSha256, ...backupCore } = backup;
+  const computedSha256 = hashText(JSON.stringify(backupCore));
+  const createdAtMs = Date.parse(pointer.createdAt || backup.createdAt || "");
+  const ageMs = Number.isFinite(createdAtMs) ? Math.max(0, Date.now() - createdAtMs) : null;
+
+  return {
+    latest: {
+      schema: pointer.schema || "",
+      createdAt: pointer.createdAt || "",
+      ageMs,
+      path: pointer.path || "",
+      entryCount: Number.isInteger(Number(pointer.entryCount)) ? Number(pointer.entryCount) : 0,
+      contentSha256: pointer.contentSha256 || "",
+    },
+    backup: {
+      schema: backup.schema || "",
+      createdAt: backup.createdAt || "",
+      entryCount: Number.isInteger(Number(backup.entryCount)) ? Number(backup.entryCount) : 0,
+      contentSha256: contentSha256 || "",
+      computedSha256,
+    },
+    backupMatchesPointer:
+      pointer.schema === "footballscience-app-state-backup-pointer-v1" &&
+      backup.schema === "footballscience-app-state-backup-v1" &&
+      pointer.createdAt === backup.createdAt &&
+      Number(pointer.entryCount) === Number(backup.entryCount) &&
+      pointer.contentSha256 === contentSha256 &&
+      computedSha256 === contentSha256,
+  };
+}
+
 function getAuthorizationHeader(req) {
   return req.headers?.authorization || req.headers?.Authorization || "";
 }
@@ -220,6 +297,52 @@ async function authorizeBackupRequest(req) {
   return { ok: true, actor };
 }
 
+function isBackupStatusRequest(req) {
+  try {
+    const url = new URL(req.url || "", "https://footballscience.local");
+    return url.pathname.endsWith("/app-state-backup-status") || url.searchParams.get("mode") === "status";
+  } catch {
+    return false;
+  }
+}
+
+async function sendBackupStatus(res) {
+  const pointerResult = await readBackupObject(LATEST_BACKUP_PATH);
+  if (!pointerResult.ok) {
+    return sendJson(res, pointerResult.status === 404 ? 404 : 500, {
+      ok: false,
+      reason: pointerResult.reason || "Latest app-state backup pointer is not available.",
+    });
+  }
+
+  const pointer = pointerResult.payload || {};
+  if (!isSafeBackupPath(pointer.path)) {
+    return sendJson(res, 409, { ok: false, reason: "Latest app-state backup pointer contains an invalid path." });
+  }
+
+  const backupResult = await readBackupObject(pointer.path);
+  if (!backupResult.ok) {
+    return sendJson(res, backupResult.status === 404 ? 404 : 500, {
+      ok: false,
+      reason: backupResult.reason || "Latest app-state backup object is not available.",
+    });
+  }
+
+  const summary = summarizeBackupStatus(pointer, backupResult.payload || {});
+  if (!summary.backupMatchesPointer) {
+    return sendJson(res, 409, {
+      ok: false,
+      reason: "Latest app-state backup pointer does not match the stored backup object.",
+      ...summary,
+    });
+  }
+
+  return sendJson(res, 200, {
+    ok: true,
+    ...summary,
+  });
+}
+
 module.exports = async (req, res) => {
   sendCorsHeaders(res);
 
@@ -229,7 +352,8 @@ module.exports = async (req, res) => {
     return;
   }
 
-  if (req.method !== "GET" && req.method !== "POST") {
+  const backupStatusRequest = isBackupStatusRequest(req);
+  if ((backupStatusRequest && req.method !== "GET") || (!backupStatusRequest && req.method !== "GET" && req.method !== "POST")) {
     return sendJson(res, 405, { ok: false, reason: "Method not allowed." });
   }
 
@@ -239,6 +363,10 @@ module.exports = async (req, res) => {
   }
 
   try {
+    if (backupStatusRequest) {
+      return sendBackupStatus(res);
+    }
+
     const bucket = await ensureStateBucket();
     if (!bucket.ok) {
       return sendJson(res, 500, { ok: false, reason: bucket.reason || "Central app-state bucket is not available." });
@@ -249,7 +377,7 @@ module.exports = async (req, res) => {
     const timestamp = envelope.createdAt.replace(/[:.]/g, "-");
     const day = envelope.createdAt.slice(0, 10);
     const backupPath = `${BACKUP_PREFIX}/${day}/${timestamp}-${envelope.contentSha256.slice(0, 12)}.json`;
-    const latestPath = `${BACKUP_PREFIX}/latest.json`;
+    const latestPath = LATEST_BACKUP_PATH;
 
     const backupResult = await writeBackupObject(backupPath, envelope, false);
     if (!backupResult.ok) {

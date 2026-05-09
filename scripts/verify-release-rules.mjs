@@ -35,7 +35,8 @@ requirePackageScript("release:monitor", "npm run release:postdeploy && npm run r
 requirePackageScript("release:rules", "node scripts/verify-release-rules.mjs");
 
 requireText("vercel.json", "scripts/vercel-ignore-build.mjs", "automatic Vercel production builds must stay blocked");
-requireText("api/app-state-backup-status.js", "backupMatchesPointer", "backup status must verify pointer/object integrity");
+requireText("api/app-state-backup.js", "backupMatchesPointer", "backup status must verify pointer/object integrity");
+requireText("vercel.json", "/api/app-state-backup-status", "backup status route must reuse the existing backup function");
 requireText("scripts/verify-production-deploy.mjs", "/api/app-state-backup-status", "postdeploy must prove backup status endpoint is protected");
 requireText("scripts/verify-ci-release-env.mjs", "CRON_SECRET", "production CI must include the cron secret used for backup freshness checks");
 

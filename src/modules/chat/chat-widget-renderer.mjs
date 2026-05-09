@@ -47,6 +47,41 @@ function formatDateSeparator(value) {
   }).format(date);
 }
 
+function formatFileSize(value) {
+  const bytes = Number(value || 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "";
+  }
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getAttachmentDraftIcon(attachmentDraft = {}) {
+  const mimeType = String(attachmentDraft.metadata?.mimeType || attachmentDraft.mimeType || attachmentDraft.mime_type || "").toLowerCase();
+  const fileName = String(attachmentDraft.metadata?.fileName || attachmentDraft.file_name || "").toLowerCase();
+  if (mimeType.startsWith("image/") || /\.(png|jpe?g|webp|gif|svg)$/.test(fileName)) {
+    return "IMG";
+  }
+  if (mimeType.includes("pdf") || fileName.endsWith(".pdf")) {
+    return "PDF";
+  }
+  if (mimeType.includes("spreadsheet") || /\.(xlsx?|csv)$/.test(fileName)) {
+    return "XLS";
+  }
+  if (mimeType.includes("word") || /\.(docx?|rtf)$/.test(fileName)) {
+    return "DOC";
+  }
+  if (mimeType.startsWith("video/")) {
+    return "VID";
+  }
+  return "FILE";
+}
+
 export function createDashboardChatWidgetRenderer(dependencies = {}) {
   const {
     teamThreadId = "team",
@@ -409,9 +444,12 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       : "";
     const attachmentDraftMarkup = attachmentDraft
       ? `
-          <div class="dashboard-chat-attachment-draft">
-            <span aria-hidden="true">&#9633;</span>
-            <strong>${escapeHtml(attachmentDraft.metadata?.fileName || "Attachment")}</strong>
+          <div class="dashboard-chat-attachment-draft is-${escapeHtml(attachmentDraft.status || "pending")}">
+            <span class="dashboard-chat-attachment-draft-icon" aria-hidden="true">${escapeHtml(attachmentDraft.status === "uploading" ? "..." : attachmentDraft.status === "failed" ? "!" : getAttachmentDraftIcon(attachmentDraft))}</span>
+            <span class="dashboard-chat-attachment-draft-copy">
+              <strong>${escapeHtml(attachmentDraft.metadata?.fileName || "Attachment")}</strong>
+              <small>${escapeHtml(attachmentDraft.status === "failed" ? attachmentDraft.error || "Upload failed" : attachmentDraft.status === "uploading" ? "Uploading" : formatFileSize(attachmentDraft.metadata?.byteSize || attachmentDraft.byte_size) || "Ready")}</small>
+            </span>
             <button type="button" data-dashboard-chat-attachment-clear aria-label="Remove attachment">&times;</button>
           </div>
         `

@@ -3,6 +3,7 @@ import { createSimulatorFullscreenController } from "./src/modules/game-simulato
 import { createSimulatorKeyboardStateController } from "./src/modules/game-simulator/keyboard-state.mjs";
 import { createSimulatorWorkspaceController } from "./src/modules/game-simulator/workspace-controller.mjs";
 import { createDashboardChatWidgetRenderer } from "./src/modules/chat/chat-widget-renderer.mjs";
+import { uploadDashboardChatAttachmentFile as uploadDashboardChatAttachmentFileWithClient } from "./src/modules/chat/chat-attachment-storage.mjs";
 import { createDashboardHomeCardsRenderer } from "./src/modules/home/dashboard-renderer.mjs";
 import { selectHomeTaskQueues } from "./src/modules/home/tasks.mjs";
 const canvas = document.getElementById("pitchCanvas");
@@ -8368,6 +8369,8 @@ function logDashboardChatApiFailure(action, result = {}) {
 function normalizeDashboardApiThread(thread = {}) {
   const type = String(thread.type || "team").trim().toLowerCase();
   const legacyThreadId = String(thread.metadata?.legacyThreadId || thread.legacyThreadId || "").trim();
+  const messageCount = Number(thread.message_count || thread.messageCount || 0) || 0;
+  const lastMessage = thread.lastMessage || thread.last_message || null;
   const template =
     dashboardChatAdvancedThreadTemplates.find((candidate) => candidate.key === legacyThreadId) ||
     dashboardChatAdvancedThreadTemplates.find((candidate) => candidate.type === type);
@@ -8378,11 +8381,11 @@ function normalizeDashboardApiThread(thread = {}) {
     type,
     title: String(template?.title || thread.title || thread.name || (type === "team" ? getDashboardChatTeamChatTitle() : "Chat")).trim(),
     visibility: String(thread.visibility || "members").trim(),
-    lastMessageAt: String(thread.last_message_at || thread.lastMessageAt || thread.updated_at || "").trim(),
-    messageCount: Number(thread.message_count || thread.messageCount || 0) || 0,
+    lastMessageAt: String(messageCount || lastMessage ? thread.last_message_at || thread.lastMessageAt || "" : "").trim(),
+    messageCount,
     unreadCount: Number(thread.unreadCount || thread.unread_count || 0) || 0,
     lastReadAt: String(thread.lastReadAt || thread.last_read_at || "").trim(),
-    lastMessage: thread.lastMessage || thread.last_message || null,
+    lastMessage,
     lastMessagePreview: String(thread.lastMessagePreview || thread.last_message_preview || "").trim(),
     participants: Array.isArray(thread.participants) ? thread.participants.map((value) => String(value || "").trim()).filter(Boolean) : [],
     permissions: thread.permissions && typeof thread.permissions === "object" ? thread.permissions : {},
@@ -8660,38 +8663,7 @@ function getDashboardAttachmentStorageRef(attachment = {}) {
   return bucket && path ? { bucket, path } : null;
 }
 async function uploadDashboardChatAttachmentFile(file, attachment = {}) {
-  const storageRef = getDashboardAttachmentStorageRef(attachment);
-  const supabase = getDashboardSupabaseClient();
-  if (!file || !storageRef || !supabase?.storage?.from) {
-    return { ok: false, reason: "Attachment storage is not ready." };
-  }
-  const storage = supabase.storage.from(storageRef.bucket);
-  const contentType = file.type || attachment.mimeType || attachment.mime_type || "application/octet-stream";
-  try {
-    if (typeof storage.createSignedUploadUrl === "function" && typeof storage.uploadToSignedUrl === "function") {
-      const signed = await storage.createSignedUploadUrl(storageRef.path);
-      const signedUploadUrl = signed?.data?.signedUrl || signed?.data?.signedURL || "";
-      const token = signed?.data?.token || signed?.token || (signedUploadUrl ? new URL(signedUploadUrl).searchParams.get("token") : "");
-      if (!signed?.error && token) {
-        const uploaded = await storage.uploadToSignedUrl(storageRef.path, token, file, { contentType });
-        if (uploaded?.error) {
-          return { ok: false, reason: uploaded.error.message || "Attachment upload failed." };
-        }
-        return { ok: true, path: storageRef.path };
-      }
-    }
-    const uploaded = await storage.upload(storageRef.path, file, {
-      cacheControl: "3600",
-      contentType,
-      upsert: false,
-    });
-    if (uploaded?.error) {
-      return { ok: false, reason: uploaded.error.message || "Attachment upload failed." };
-    }
-    return { ok: true, path: storageRef.path };
-  } catch (error) {
-    return { ok: false, reason: error?.message || "Attachment upload failed." };
-  }
+  return uploadDashboardChatAttachmentFileWithClient(file, attachment, getDashboardSupabaseClient());
 }
 async function createDashboardChatAttachmentIntent(file, threadId = dashboardChatTeamThreadId) {
   if (!file) {
@@ -8713,7 +8685,15 @@ async function createDashboardChatAttachmentIntent(file, threadId = dashboardCha
     showDashboardChatWidgetToast(result.reason || "Attachment could not be prepared.", normalizedThreadId);
     return null;
   }
-  const attachment = result.result?.attachment || null;
+  const uploadIntent = result.result?.upload || null;
+  const attachment = result.result?.attachment
+    ? {
+        ...result.result.attachment,
+        upload: uploadIntent,
+        token: uploadIntent?.token || "",
+        signedUrl: uploadIntent?.signedUrl || "",
+      }
+    : null;
   const upload = await uploadDashboardChatAttachmentFile(file, attachment);
   if (!upload.ok) {
     logDashboardChatApiFailure("uploadAttachment", upload);
@@ -8727,10 +8707,7 @@ async function createDashboardChatAttachmentIntent(file, threadId = dashboardCha
     ? {
         ...attachment,
         status: "uploaded",
-        metadata: {
-          ...(attachment.metadata || {}),
-          uploadReady: true,
-        },
+        metadata: { ...(attachment.metadata || {}), uploadReady: true },
       }
     : null;
   renderDashboardChatWidget();
@@ -8921,7 +8898,18 @@ function queueDashboardChatReadReceiptApi(threadId, messages = readDashboardMess
     threadId: normalizedThreadId,
     lastReadMessageId: latestMessage.id,
   }).then((result) => {
-    if (!result.ok && !canFallbackDashboardChatApiResult(result)) {
+    if (result.ok) {
+      updateDashboardChatApiThreads(
+        dashboardChatApiThreads.map((thread) =>
+          thread.threadId === normalizedThreadId
+            ? { ...thread, unreadCount: 0, lastReadAt: new Date().toISOString() }
+            : thread
+        )
+      );
+      renderDashboardChatWidget();
+      return;
+    }
+    if (!canFallbackDashboardChatApiResult(result)) {
       dashboardChatApiReadReceiptSyncSignatures.delete(signature);
       logDashboardChatApiFailure("markThreadRead", result);
     }
@@ -9144,10 +9132,13 @@ function getDashboardChatThreadData(
   const apiThread = dashboardChatApiThreads.find((thread) => thread.threadId === normalizedThreadId) || null;
   const apiLastMessage = apiThread?.lastMessage ? normalizeDashboardApiMessage(apiThread.lastMessage, apiThread) : null;
   const lastMessage = threadMessages.length ? threadMessages[threadMessages.length - 1] : apiLastMessage;
-  const lastActivityMs = Math.max(
-    Date.parse(lastMessage?.createdAt || "") || 0,
-    Date.parse(apiThread?.lastMessageAt || "") || 0
-  );
+  const hasMessageActivity = Boolean(threadMessages.length || apiLastMessage || Number(apiThread?.messageCount || 0) > 0);
+  const lastActivityMs = hasMessageActivity
+    ? Math.max(
+        Date.parse(lastMessage?.createdAt || "") || 0,
+        Date.parse(apiThread?.lastMessageAt || "") || 0
+      )
+    : 0;
   const managedTemplate = dashboardChatAdvancedThreadTemplates.find((template) => template.key === normalizedThreadId);
   const isDirectThread = !isTeamThread && !isManagedThread && normalizedThreadId.startsWith("dm:");
   const fallbackThreadLabel = formatDashboardChatThreadLabel(normalizedThreadId, currentUser, users);
@@ -9205,8 +9196,13 @@ function getDashboardChatThreadList(currentUser = getCurrentPlatformUser(), user
   );
   const directThreads = directThreadIds.map((threadId) => getDashboardChatThreadData(threadId, currentUser, users, messages));
   const sortThreads = (first, second) => {
-    const firstTime = Date.parse(first.lastActivityAt || first.lastMessage?.createdAt || first.apiThread?.lastMessageAt || "") || 0;
-    const secondTime = Date.parse(second.lastActivityAt || second.lastMessage?.createdAt || second.apiThread?.lastMessageAt || "") || 0;
+    const firstHasMessages = Boolean(first.messageCount || first.lastMessage || first.apiThread?.lastMessage || first.apiThread?.lastMessageAt);
+    const secondHasMessages = Boolean(second.messageCount || second.lastMessage || second.apiThread?.lastMessage || second.apiThread?.lastMessageAt);
+    if (firstHasMessages !== secondHasMessages) {
+      return firstHasMessages ? -1 : 1;
+    }
+    const firstTime = firstHasMessages ? Date.parse(first.lastActivityAt || first.lastMessage?.createdAt || first.apiThread?.lastMessageAt || "") || 0 : 0;
+    const secondTime = secondHasMessages ? Date.parse(second.lastActivityAt || second.lastMessage?.createdAt || second.apiThread?.lastMessageAt || "") || 0 : 0;
     if (firstTime === secondTime) {
       const firstName = getDashboardUserLabel(first.participant?.id, users);
       const secondName = getDashboardUserLabel(second.participant?.id, users);
@@ -9888,7 +9884,7 @@ function renderDashboardChatWidget() {
   }
   resetDashboardChatLocalCacheIfNeeded();
   if (!dashboardChatThreadSummarySyncTimer && Date.now() - dashboardChatThreadSummaryLastRequestedAt > 30000) {
-    queueDashboardChatThreadSummaryRefresh({ delayMs: 50, render: false });
+    queueDashboardChatThreadSummaryRefresh({ delayMs: 50, render: true });
   }
   const users = getPlatformUsers().filter((user) => user.status === "active");
   const notificationState = readDashboardChatWidgetNotificationState();

@@ -245,6 +245,61 @@ function attachmentClientPayload(attachment = {}) {
   };
 }
 
+function storageObjectPath(bucket, path) {
+  const safeBucket = encodeURIComponent(String(bucket || ""));
+  const safePath = String(path || "")
+    .split("/")
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+  return `${safeBucket}/${safePath}`;
+}
+
+async function createSignedAttachmentUpload(bucket, path) {
+  const config = readConfig();
+  if (!config.url || !config.serviceRoleKey || !bucket || !path) {
+    return null;
+  }
+  try {
+    const response = await fetch(
+      `${config.url}/storage/v1/object/upload/sign/${storageObjectPath(bucket, path)}`,
+      {
+        method: "POST",
+        headers: {
+          apikey: config.serviceRoleKey,
+          Authorization: `Bearer ${config.serviceRoleKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ expiresIn: 60 * 60 * 2 }),
+      }
+    );
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return null;
+    }
+    const signedUrl = payload.signedURL || payload.signedUrl || payload.url || "";
+    const token =
+      payload.token ||
+      payload.uploadToken ||
+      (() => {
+        try {
+          const absoluteUrl = signedUrl.startsWith("http")
+            ? signedUrl
+            : `${config.url}/storage/v1${signedUrl.startsWith("/") ? "" : "/"}${signedUrl}`;
+          return new URL(absoluteUrl).searchParams.get("token") || "";
+        } catch {
+          return "";
+        }
+      })();
+    return {
+      signedUrl,
+      token,
+      expiresIn: 60 * 60 * 2,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function restBaseUrl() {
   const { url, serviceRoleKey } = readConfig();
   if (!url || !serviceRoleKey) {
@@ -1188,6 +1243,18 @@ async function handleDatabaseGet(req, res, actor) {
   }
 
   if (search) {
+    const participantRows = actor?.id
+      ? await selectMany(
+          "chat_thread_participants",
+          [
+            "select=thread_id",
+            `organization_id=eq.${filterValue(scope.organizationId)}`,
+            `user_id=eq.${filterValue(actor.id)}`,
+            "limit=200",
+          ].join("&")
+        ).catch(() => [])
+      : [];
+    const participantThreadIds = new Set(participantRows.map((row) => row.thread_id).filter(Boolean));
     const filters = [
       `select=${MESSAGE_SELECT}`,
       `organization_id=eq.${filterValue(scope.organizationId)}`,
@@ -1196,17 +1263,21 @@ async function handleDatabaseGet(req, res, actor) {
       "order=created_at.desc",
       `limit=${limit}`,
     ];
-    if (scope.teamId) {
-      filters.push(`team_id=eq.${filterValue(scope.teamId)}`);
-    }
     const messages = await selectMany("chat_messages", filters.join("&"));
     const threads = messages.length
       ? await selectMany("chat_threads", `select=${THREAD_SELECT}&id=${inFilter(Array.from(new Set(messages.map((message) => message.thread_id))))}`)
       : [];
-    const threadsById = new Map(threads.map((thread) => [thread.id, thread]));
+    const threadsById = new Map(
+      threads
+        .filter((thread) => thread.team_id === scope.teamId || (thread.type === "dm" && participantThreadIds.has(thread.id)))
+        .map((thread) => [thread.id, thread])
+    );
     const enriched = [];
     for (const message of messages.reverse()) {
       const thread = threadsById.get(message.thread_id) || null;
+      if (!thread) {
+        continue;
+      }
       const [mapped] = await enrichMessages([message], thread);
       if (mapped) {
         enriched.push(mapped);
@@ -1275,7 +1346,47 @@ async function handleDatabaseGet(req, res, actor) {
     threadFilters.push(`team_id=eq.${filterValue(scope.teamId)}`);
   }
 
-  const threads = await selectMany("chat_threads", threadFilters.join("&"));
+  const scopedThreads = await selectMany("chat_threads", threadFilters.join("&"));
+  const participantRows = actor?.id
+    ? await selectMany(
+        "chat_thread_participants",
+        [
+          "select=thread_id",
+          `organization_id=eq.${filterValue(scope.organizationId)}`,
+          `user_id=eq.${filterValue(actor.id)}`,
+          "limit=200",
+        ].join("&")
+      ).catch(() => [])
+    : [];
+  const participantThreadIds = Array.from(new Set(participantRows.map((row) => row.thread_id).filter(Boolean)));
+  const directThreads = participantThreadIds.length
+    ? await selectMany(
+        "chat_threads",
+        [
+          `select=${THREAD_SELECT}`,
+          `organization_id=eq.${filterValue(scope.organizationId)}`,
+          "type=eq.dm",
+          `id=${inFilter(participantThreadIds)}`,
+          "archived_at=is.null",
+          "order=last_message_at.desc.nullslast",
+          `limit=${limit}`,
+        ].join("&")
+      ).catch(() => [])
+    : [];
+  const threadsById = new Map();
+  [...scopedThreads, ...directThreads].forEach((thread) => {
+    if (thread?.id) {
+      threadsById.set(thread.id, thread);
+    }
+  });
+  const threads = Array.from(threadsById.values()).sort((first, second) => {
+    const firstTime = Date.parse(first.last_message_at || "") || 0;
+    const secondTime = Date.parse(second.last_message_at || "") || 0;
+    if (firstTime !== secondTime) {
+      return secondTime - firstTime;
+    }
+    return String(first.title || "").localeCompare(String(second.title || ""), undefined, { sensitivity: "base" });
+  });
   const threadSummaries = await enrichThreadSummaries(actor, threads);
   return sendJson(res, 200, {
     ok: true,
@@ -1751,6 +1862,10 @@ async function createAttachmentIntent(actor, body) {
     byteSize,
   });
 
+  const signedUpload = attachment
+    ? await createSignedAttachmentUpload(attachment.storage_bucket, attachment.storage_path)
+    : null;
+
   return {
     ok: true,
     action: "createAttachmentIntent",
@@ -1760,6 +1875,9 @@ async function createAttachmentIntent(actor, body) {
       ? {
           bucket: attachment.storage_bucket,
           path: attachment.storage_path,
+          signedUrl: signedUpload?.signedUrl || "",
+          token: signedUpload?.token || "",
+          expiresIn: signedUpload?.expiresIn || 0,
           maxBytes: MAX_ATTACHMENT_BYTES,
           allowedMimeTypes: allowedAttachmentMimeTypes(),
         }

@@ -6,7 +6,6 @@ const require = createRequire(import.meta.url);
 const clientConfigHandler = require("../api/client-config.js");
 const appStateHandler = require("../api/app-state.js");
 const appStateBackupHandler = require("../api/app-state-backup.js");
-const appStateBackupStatusHandler = require("../api/app-state-backup-status.js");
 const sessionHistoryHandler = require("../api/session-history.js");
 
 const supabaseEnvKeys = [
@@ -1519,7 +1518,7 @@ test("app-state backup status verifies latest pointer without exposing backup en
   };
 
   try {
-    const anonymousResponse = await callHandler(appStateBackupStatusHandler, {
+    const anonymousResponse = await callHandler(appStateBackupHandler, {
       method: "GET",
       url: "/api/app-state-backup-status",
       headers: {},
@@ -1527,7 +1526,7 @@ test("app-state backup status verifies latest pointer without exposing backup en
     expect(anonymousResponse.status).toBe(401);
     expect(anonymousResponse.payload.reason).toContain("Admin");
 
-    const response = await callHandler(appStateBackupStatusHandler, {
+    const response = await callHandler(appStateBackupHandler, {
       method: "GET",
       url: "/api/app-state-backup-status",
       headers: {

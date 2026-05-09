@@ -1,5 +1,11 @@
 {
   "ignoreCommand": "node scripts/vercel-ignore-build.mjs",
+  "rewrites": [
+    {
+      "source": "/api/app-state-backup-status",
+      "destination": "/api/app-state-backup?mode=status"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",

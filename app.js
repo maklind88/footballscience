@@ -6674,7 +6674,10 @@ const defaultPeriodizationDayTemplates = [
     sessionNotes: "Recovery and staff review.",
   },
 ];
-const periodizationMultiFields = new Set(["matchPhases", "subPhases", "teamPrinciples", "miniGamePrinciples"]);
+const periodizationFieldUpdatedAtKey = "fieldUpdatedAt";
+const periodizationScalarFields = Object.freeze("seasonPhase|daySchedule|matchDay|sessionType|physicalLoad|pitchSize|preTrainingVideo|preTrainingNotes|psychologicalFocus|psychologicalNotes|mainFocus|gkFocus|warmUp|block1|block2|block3|block4|sessionNotes|sessionPlanLink|sessionVideoLink|sessionGpsReportLink".split("|"));
+const periodizationMultiFields = new Set("matchPhases|subPhases|teamPrinciples|miniGamePrinciples".split("|"));
+const periodizationTrackedFields = new Set([...periodizationScalarFields, ...periodizationMultiFields]);
 let periodizationMultiSelectOpenField = "";
 function isDateValueInYear(dateValue, year) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateValue))) {
@@ -6689,35 +6692,28 @@ function normalizePeriodizationMultiValue(value) {
 }
 function normalizePeriodizationDay(day = {}) {
   const normalized = {};
-  [
-    "seasonPhase",
-    "daySchedule",
-    "matchDay",
-    "sessionType",
-    "physicalLoad",
-    "pitchSize",
-    "preTrainingVideo",
-    "preTrainingNotes",
-    "psychologicalFocus",
-    "psychologicalNotes",
-    "mainFocus",
-    "gkFocus",
-    "warmUp",
-    "block1",
-    "block2",
-    "block3",
-    "block4",
-    "sessionNotes",
-    "sessionPlanLink",
-    "sessionVideoLink",
-    "sessionGpsReportLink",
-  ].forEach((key) => {
+  periodizationScalarFields.forEach((key) => {
     const value = String(day[key] ?? "").trim();
     normalized[key] = key === "matchDay" && value.toUpperCase() === "N/A" ? "" : value;
   });
   periodizationMultiFields.forEach((key) => {
     normalized[key] = normalizePeriodizationMultiValue(day[key]);
   });
+  const fieldUpdatedAt = {};
+  if (day?.[periodizationFieldUpdatedAtKey] && typeof day[periodizationFieldUpdatedAtKey] === "object") {
+    Object.entries(day[periodizationFieldUpdatedAtKey]).forEach(([key, value]) => {
+      if (!periodizationTrackedFields.has(key)) {
+        return;
+      }
+      const timestamp = new Date(value || 0).getTime();
+      if (Number.isFinite(timestamp) && timestamp > 0) {
+        fieldUpdatedAt[key] = new Date(timestamp).toISOString();
+      }
+    });
+  }
+  if (Object.keys(fieldUpdatedAt).length) {
+    normalized[periodizationFieldUpdatedAtKey] = fieldUpdatedAt;
+  }
   return normalized;
 }
 function getPeriodizationScheduleDefaults(dateValue) {
@@ -6782,10 +6778,25 @@ function writePeriodizationDay(dateValue, patch = {}, shouldRender = true) {
   if (!periodizationState || !isDateValueInYear(dateValue, periodizationYear) || !canEditPeriodizationWorkspace()) {
     return;
   }
-  periodizationState.days[dateValue] = normalizePeriodizationDay({
-    ...getPeriodizationDay(dateValue),
+  const previousDay = getPeriodizationDay(dateValue);
+  const nextDay = normalizePeriodizationDay({
+    ...previousDay,
     ...patch,
   });
+  const fieldUpdatedAt = {
+    ...(previousDay[periodizationFieldUpdatedAtKey] || {}),
+    ...(nextDay[periodizationFieldUpdatedAtKey] || {}),
+  };
+  const now = new Date().toISOString();
+  Object.keys(patch || {}).forEach((key) => {
+    if (periodizationTrackedFields.has(key)) {
+      fieldUpdatedAt[key] = now;
+    }
+  });
+  if (Object.keys(fieldUpdatedAt).length) {
+    nextDay[periodizationFieldUpdatedAtKey] = fieldUpdatedAt;
+  }
+  periodizationState.days[dateValue] = nextDay;
   writePeriodizationState();
   if (shouldRender) {
     renderPeriodizationWorkspace();
@@ -6876,12 +6887,77 @@ function mergePeriodizationStatePreservingLocalUi(localValue, centralValue) {
   if (!localState || typeof localState !== "object" || !centralStateValue || typeof centralStateValue !== "object") {
     return centralValue;
   }
+  const mergedDays = mergePeriodizationDayMapPreservingLocalEdits(localState.days, centralStateValue.days);
   return JSON.stringify({
     ...centralStateValue,
+    days: mergedDays,
     selectedYear: localState.selectedYear ?? centralStateValue.selectedYear,
     selectedMonthIndex: localState.selectedMonthIndex ?? centralStateValue.selectedMonthIndex,
     selectedDate: localState.selectedDate ?? centralStateValue.selectedDate,
   });
+}
+function getPeriodizationFieldUpdatedAtMs(day = {}, field = "") {
+  const timestamp = new Date(day?.[periodizationFieldUpdatedAtKey]?.[field] || 0).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+function isEmptyPeriodizationMergeValue(value) {
+  if (Array.isArray(value)) {
+    return value.length === 0;
+  }
+  return String(value ?? "").trim() === "";
+}
+function mergePeriodizationDayPreservingLocalEdits(localDay = {}, centralDay = {}) {
+  const local = normalizePeriodizationDay(localDay);
+  const central = normalizePeriodizationDay(centralDay);
+  const merged = { ...central };
+  const mergedMeta = {
+    ...(central[periodizationFieldUpdatedAtKey] || {}),
+    ...(local[periodizationFieldUpdatedAtKey] || {}),
+  };
+  periodizationTrackedFields.forEach((field) => {
+    const localTimestamp = getPeriodizationFieldUpdatedAtMs(local, field);
+    const centralTimestamp = getPeriodizationFieldUpdatedAtMs(central, field);
+    if (localTimestamp && (!centralTimestamp || localTimestamp >= centralTimestamp)) {
+      merged[field] = Array.isArray(local[field]) ? [...local[field]] : local[field];
+      mergedMeta[field] = new Date(localTimestamp).toISOString();
+      return;
+    }
+    if (centralTimestamp && (!localTimestamp || centralTimestamp > localTimestamp)) {
+      merged[field] = Array.isArray(central[field]) ? [...central[field]] : central[field];
+      mergedMeta[field] = new Date(centralTimestamp).toISOString();
+      return;
+    }
+    if (isEmptyPeriodizationMergeValue(central[field]) && !isEmptyPeriodizationMergeValue(local[field])) {
+      merged[field] = Array.isArray(local[field]) ? [...local[field]] : local[field];
+    }
+  });
+  if (Object.keys(mergedMeta).length) {
+    merged[periodizationFieldUpdatedAtKey] = mergedMeta;
+  }
+  return normalizePeriodizationDay(merged);
+}
+function mergePeriodizationDayMapPreservingLocalEdits(localDays = {}, centralDays = {}) {
+  const mergedDays = {};
+  const dateValues = new Set([
+    ...Object.keys(centralDays || {}),
+    ...Object.keys(localDays || {}),
+  ]);
+  dateValues.forEach((dateValue) => {
+    const centralDay = centralDays?.[dateValue];
+    const localDay = localDays?.[dateValue];
+    if (centralDay && localDay) {
+      mergedDays[dateValue] = mergePeriodizationDayPreservingLocalEdits(localDay, centralDay);
+      return;
+    }
+    if (centralDay) {
+      mergedDays[dateValue] = normalizePeriodizationDay(centralDay);
+      return;
+    }
+    if (localDay) {
+      mergedDays[dateValue] = normalizePeriodizationDay(localDay);
+    }
+  });
+  return mergedDays;
 }
 function setPeriodizationStateStorageValue(state = periodizationState, options = {}) {
   const shouldSyncCentral = options.syncCentral !== false;
@@ -8347,6 +8423,7 @@ function mergeDashboardChatApiMessages(messages = [], options = {}) {
     return readDashboardMessages();
   }
   const replaceThreadId = options.replaceThreadId ? normalizeDashboardChatThreadId(options.replaceThreadId, "") : "";
+  const messageThread = options.thread || null;
   const current = replaceThreadId
     ? readDashboardMessages().filter((message) => message.threadId !== replaceThreadId)
     : readDashboardMessages();
@@ -8370,9 +8447,12 @@ function mergeDashboardChatApiMessages(messages = [], options = {}) {
       byId.delete(sourceMessageId);
       return;
     }
-    const message = normalizeDashboardApiMessage(sourceMessage);
-    if (message?.text && message.userId && !deletedMessageIds.has(message.id)) {
-      byId.set(message.id, message);
+    const message = normalizeDashboardApiMessage(sourceMessage, messageThread);
+    const resolvedMessage = replaceThreadId && message?.threadId !== replaceThreadId
+      ? { ...message, threadId: replaceThreadId }
+      : message;
+    if (resolvedMessage?.text && resolvedMessage.userId && !deletedMessageIds.has(resolvedMessage.id)) {
+      byId.set(resolvedMessage.id, resolvedMessage);
     }
   });
   const mergedMessages = Array.from(byId.values()).sort((first, second) => new Date(first.createdAt) - new Date(second.createdAt));
@@ -8412,17 +8492,26 @@ function applyDashboardChatApiPayload(payload = {}, options = {}) {
     updateDashboardChatApiThreads([payload.thread]);
   }
   if (payload.nextCursor !== undefined) {
-    const threadId = normalizeDashboardChatThreadId(options.threadId || payload.thread?.legacyThreadId || payload.thread?.metadata?.legacyThreadId || dashboardChatTeamThreadId, dashboardChatTeamThreadId);
+    const threadId = normalizeDashboardChatThreadId(
+      options.threadId || payload.thread?.threadId || payload.thread?.legacyThreadId || payload.thread?.metadata?.legacyThreadId || dashboardChatTeamThreadId,
+      dashboardChatTeamThreadId
+    );
     dashboardChatApiPagination[threadId] = String(payload.nextCursor || "");
   }
   if (Array.isArray(payload.messages)) {
     mergeDashboardChatApiMessages(payload.messages, {
       render: false,
-      replaceThreadId: options.replaceThread ? options.threadId || payload.thread?.legacyThreadId || payload.thread?.metadata?.legacyThreadId : "",
+      thread: payload.thread || null,
+      replaceThreadId: options.replaceThread
+        ? options.threadId || payload.thread?.threadId || payload.thread?.legacyThreadId || payload.thread?.metadata?.legacyThreadId
+        : "",
     });
   }
   if (payload.message) {
-    mergeDashboardChatApiMessages([payload.message], { render: false });
+    mergeDashboardChatApiMessages([payload.message], {
+      render: false,
+      thread: payload.thread || null,
+    });
   }
 }
 async function refreshDashboardChatThreadSummariesFromApi(options = {}) {
@@ -72366,7 +72455,7 @@ ui.dashboardGrid?.addEventListener("click", (event) => {
       periodizationState.selectedMonthIndex = date.getMonth();
       periodizationDayOverlayOpen = true;
       periodizationDayOverlayMode = "view";
-      writePeriodizationState();
+      writePeriodizationState({ syncCentral: false });
     }
     setActiveWorkspace("periodization");
     return;

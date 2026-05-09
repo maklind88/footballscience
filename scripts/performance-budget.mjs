@@ -10,8 +10,8 @@ const budgets = [
   {
     file: "app.js",
     maxBytes: 2_700_000,
-    maxGzipBytes: 471_000,
-    maxLines: 76_200,
+    maxGzipBytes: 472_000,
+    maxLines: 76_300,
     targetGzipBytes: 350_000,
   },
   {
@@ -23,9 +23,9 @@ const budgets = [
   },
   {
     file: "index.html",
-    maxBytes: 136_000,
+    maxBytes: 143_000,
     maxGzipBytes: 25_000,
-    maxLines: 2_900,
+    maxLines: 3_020,
     targetGzipBytes: 18_000,
   },
   {

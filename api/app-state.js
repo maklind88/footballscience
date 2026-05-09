@@ -14,6 +14,7 @@ const crypto = require("crypto");
 const STATE_BUCKET = "footballscience-app-state";
 const STATE_PREFIX = "global";
 const MAX_STATE_VALUE_BYTES = 12 * 1024 * 1024;
+const PERIODIZATION_KEY = "football-periodization-v2";
 const SESSION_PLANNER_KEY = "football-session-planner-v3";
 const SESSION_EXERCISE_LIBRARY_KEY = "football-session-exercise-library-v1";
 const SESSION_EXERCISE_LIBRARY_FOLDERS_KEY = "football-session-exercise-library-folders-v1";
@@ -47,6 +48,32 @@ const SESSION_PLANNER_BLOCK_MERGE_FIELDS = [
   "tacticalElements",
 ];
 const SESSION_PLANNER_BLOCK_MERGE_FIELD_SET = new Set(SESSION_PLANNER_BLOCK_MERGE_FIELDS);
+const PERIODIZATION_FIELD_META_KEY = "fieldUpdatedAt";
+const PERIODIZATION_SCALAR_FIELDS = [
+  "seasonPhase",
+  "daySchedule",
+  "matchDay",
+  "sessionType",
+  "physicalLoad",
+  "pitchSize",
+  "preTrainingVideo",
+  "preTrainingNotes",
+  "psychologicalFocus",
+  "psychologicalNotes",
+  "mainFocus",
+  "gkFocus",
+  "warmUp",
+  "block1",
+  "block2",
+  "block3",
+  "block4",
+  "sessionNotes",
+  "sessionPlanLink",
+  "sessionVideoLink",
+  "sessionGpsReportLink",
+];
+const PERIODIZATION_MULTI_FIELDS = ["matchPhases", "subPhases", "teamPrinciples", "miniGamePrinciples"];
+const PERIODIZATION_FIELD_SET = new Set([...PERIODIZATION_SCALAR_FIELDS, ...PERIODIZATION_MULTI_FIELDS]);
 const CENTRAL_STATE_KEYS = new Set(dataSafetyRegistry.keys());
 const WORKSPACE_HUB_KEY = "football-workspace-hub-v3";
 const DEFAULT_WORKSPACE_ACCESS = {
@@ -96,7 +123,7 @@ const REQUIRED_WORKSPACE_ACCESS = {
 const STATE_KEY_WORKSPACE_EDIT_MAP = {
   "football-dashboard-chat-v1": "chat",
   "football-schedule-v1": "schedule",
-  "football-periodization-v2": "periodization",
+  [PERIODIZATION_KEY]: "periodization",
   [SESSION_PLANNER_KEY]: "session-planner",
   [SESSION_EXERCISE_LIBRARY_KEY]: "session-planner",
   "football-session-exercise-library-backup-v1": "session-planner",
@@ -218,6 +245,18 @@ function safeParseJson(value, fallback = null) {
     return JSON.parse(String(value || ""));
   } catch {
     return fallback;
+  }
+}
+
+function cloneMergeValue(value) {
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return Array.isArray(value) ? [...value] : { ...value };
   }
 }
 
@@ -420,6 +459,160 @@ async function readStateObject(key) {
   } catch {
     return null;
   }
+}
+
+function parsePeriodizationStateValue(rawValue) {
+  const parsed = safeParseJson(rawValue, null);
+  return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+}
+
+function getPeriodizationDays(state) {
+  return state?.days && typeof state.days === "object" && !Array.isArray(state.days)
+    ? state.days
+    : {};
+}
+
+function normalizePeriodizationMultiValue(value) {
+  const rawValues = Array.isArray(value) ? value : String(value ?? "").split("|");
+  return Array.from(new Set(rawValues.map((item) => String(item).trim()).filter(Boolean)));
+}
+
+function parseMergeTimestamp(value) {
+  const timestamp = typeof value === "number" ? value : new Date(value || 0).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function normalizePeriodizationDay(day = {}) {
+  const normalized = {};
+  PERIODIZATION_SCALAR_FIELDS.forEach((field) => {
+    const value = String(day?.[field] ?? "").trim();
+    normalized[field] = field === "matchDay" && value.toUpperCase() === "N/A" ? "" : value;
+  });
+  PERIODIZATION_MULTI_FIELDS.forEach((field) => {
+    normalized[field] = normalizePeriodizationMultiValue(day?.[field]);
+  });
+
+  const fieldUpdatedAt = {};
+  if (day?.[PERIODIZATION_FIELD_META_KEY] && typeof day[PERIODIZATION_FIELD_META_KEY] === "object") {
+    Object.entries(day[PERIODIZATION_FIELD_META_KEY]).forEach(([field, timestampValue]) => {
+      if (!PERIODIZATION_FIELD_SET.has(field)) {
+        return;
+      }
+      const timestamp = parseMergeTimestamp(timestampValue);
+      if (timestamp) {
+        fieldUpdatedAt[field] = new Date(timestamp).toISOString();
+      }
+    });
+  }
+  if (Object.keys(fieldUpdatedAt).length) {
+    normalized[PERIODIZATION_FIELD_META_KEY] = fieldUpdatedAt;
+  }
+  return normalized;
+}
+
+function isEmptyPeriodizationValue(value) {
+  if (Array.isArray(value)) {
+    return value.length === 0;
+  }
+  return String(value ?? "").trim() === "";
+}
+
+function getPeriodizationFieldUpdatedAtMs(day = {}, field = "") {
+  return parseMergeTimestamp(day?.[PERIODIZATION_FIELD_META_KEY]?.[field]);
+}
+
+function mergePeriodizationDays(existingDay = {}, incomingDay = {}) {
+  const existing = normalizePeriodizationDay(existingDay);
+  const incoming = normalizePeriodizationDay(incomingDay);
+  const merged = { ...existing };
+  const mergedMeta = {
+    ...(existing[PERIODIZATION_FIELD_META_KEY] || {}),
+    ...(incoming[PERIODIZATION_FIELD_META_KEY] || {}),
+  };
+
+  PERIODIZATION_FIELD_SET.forEach((field) => {
+    const existingTimestamp = getPeriodizationFieldUpdatedAtMs(existing, field);
+    const incomingTimestamp = getPeriodizationFieldUpdatedAtMs(incoming, field);
+    const existingValue = existing[field];
+    const incomingValue = incoming[field];
+
+    if (incomingTimestamp && (!existingTimestamp || incomingTimestamp >= existingTimestamp)) {
+      merged[field] = cloneMergeValue(incomingValue);
+      mergedMeta[field] = new Date(incomingTimestamp).toISOString();
+      return;
+    }
+
+    if (existingTimestamp && (!incomingTimestamp || existingTimestamp > incomingTimestamp)) {
+      merged[field] = cloneMergeValue(existingValue);
+      mergedMeta[field] = new Date(existingTimestamp).toISOString();
+      return;
+    }
+
+    if (isEmptyPeriodizationValue(existingValue) && !isEmptyPeriodizationValue(incomingValue)) {
+      merged[field] = cloneMergeValue(incomingValue);
+      return;
+    }
+
+    merged[field] = cloneMergeValue(existingValue);
+  });
+
+  if (Object.keys(mergedMeta).length) {
+    merged[PERIODIZATION_FIELD_META_KEY] = mergedMeta;
+  } else {
+    delete merged[PERIODIZATION_FIELD_META_KEY];
+  }
+
+  return normalizePeriodizationDay(merged);
+}
+
+async function protectPeriodizationStateValue(rawValue) {
+  const incomingState = parsePeriodizationStateValue(rawValue);
+  if (!incomingState) {
+    return { ok: false, reason: "Periodization data is invalid and was not saved." };
+  }
+
+  const incomingDays = getPeriodizationDays(incomingState);
+  const existingEntry = await readStateObject(PERIODIZATION_KEY);
+  const existingState = parsePeriodizationStateValue(existingEntry?.value);
+  if (!existingState) {
+    const normalizedState = {
+      ...incomingState,
+      days: Object.fromEntries(
+        Object.entries(incomingDays).map(([dateValue, day]) => [dateValue, normalizePeriodizationDay(day)])
+      ),
+    };
+    return { ok: true, value: JSON.stringify(normalizedState), merged: false };
+  }
+
+  const existingDays = getPeriodizationDays(existingState);
+  const mergedState = {
+    ...existingState,
+    ...incomingState,
+    days: {},
+  };
+  const dateValues = new Set([
+    ...Object.keys(existingDays),
+    ...Object.keys(incomingDays),
+  ]);
+
+  dateValues.forEach((dateValue) => {
+    const existingDay = existingDays[dateValue];
+    const incomingDay = incomingDays[dateValue];
+    if (existingDay && incomingDay) {
+      mergedState.days[dateValue] = mergePeriodizationDays(existingDay, incomingDay);
+      return;
+    }
+    if (incomingDay) {
+      mergedState.days[dateValue] = normalizePeriodizationDay(incomingDay);
+      return;
+    }
+    if (existingDay) {
+      mergedState.days[dateValue] = normalizePeriodizationDay(existingDay);
+    }
+  });
+
+  const mergedValue = JSON.stringify(mergedState);
+  return { ok: true, value: mergedValue, merged: mergedValue !== rawValue };
 }
 
 function parseSessionPlannerStateValue(rawValue) {
@@ -1518,6 +1711,10 @@ async function authorizeStateWrite(actor, key, rawValue, removed = false, contex
       return protectSessionPlannerExerciseLibraryValue(rawValue);
     }
 
+    if (key === PERIODIZATION_KEY && !removed) {
+      return protectPeriodizationStateValue(rawValue);
+    }
+
     if (key === PLAYER_PROFILES_KEY && !removed) {
       return protectPlayerProfilesStateValue(rawValue, context);
     }
@@ -1557,6 +1754,10 @@ async function authorizeStateWrite(actor, key, rawValue, removed = false, contex
 
   if (key === SESSION_EXERCISE_LIBRARY_KEY && !removed) {
     return protectSessionPlannerExerciseLibraryValue(rawValue);
+  }
+
+  if (key === PERIODIZATION_KEY && !removed) {
+    return protectPeriodizationStateValue(rawValue);
   }
 
   if (key === PLAYER_PROFILES_KEY && !removed) {

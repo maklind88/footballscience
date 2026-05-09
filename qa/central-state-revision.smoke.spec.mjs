@@ -402,8 +402,22 @@ test("central Periodization hydration preserves the local selected day", async (
         note: "Central training note",
       });
 
+    await tab.page.evaluate((key) => {
+      const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+      state.days["2026-05-09"].sessionNotes = "Fresh local note after central load";
+      state.days["2026-05-09"].fieldUpdatedAt = {
+        ...(state.days["2026-05-09"].fieldUpdatedAt || {}),
+        sessionNotes: "2026-05-07T17:00:00.000Z",
+      };
+      window.localStorage.setItem(key, JSON.stringify(state));
+    }, periodizationStateKey);
+
     centralPeriodizationState.selectedMonthIndex = 1;
     centralPeriodizationState.selectedDate = "2026-02-01";
+    centralPeriodizationState.days["2026-05-09"].sessionNotes = "Older central note";
+    centralPeriodizationState.days["2026-05-09"].fieldUpdatedAt = {
+      sessionNotes: "2026-05-07T16:00:00.000Z",
+    };
     centralStore.entries[periodizationStateKey] = JSON.stringify(centralPeriodizationState);
     centralStore.metadataEntries[periodizationStateKey] = createMetadata(5, centralStore.entries[periodizationStateKey]);
     await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ forceApply: true }));
@@ -415,6 +429,7 @@ test("central Periodization hydration preserves the local selected day", async (
           return {
             selectedDate: state.selectedDate,
             selectedMonthIndex: state.selectedMonthIndex,
+            note: state.days?.["2026-05-09"]?.sessionNotes || "",
           };
         }, periodizationStateKey),
         { timeout: 10_000 }
@@ -422,6 +437,7 @@ test("central Periodization hydration preserves the local selected day", async (
       .toEqual({
         selectedDate: "2026-05-09",
         selectedMonthIndex: 4,
+        note: "Fresh local note after central load",
       });
   } finally {
     await tab.context.close();

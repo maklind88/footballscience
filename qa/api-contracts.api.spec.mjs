@@ -91,6 +91,8 @@ const appStateSessionPlannerPath = `global/${appStateSessionPlannerKey}.json`;
 const appStateSessionHistoryKey = "football-session-planner-history-v1";
 const appStateSessionHistoryPath = `global/${appStateSessionHistoryKey}.json`;
 const appStateChatKey = "football-dashboard-chat-v1";
+const periodizationKey = "football-periodization-v2";
+const periodizationPath = `global/${periodizationKey}.json`;
 const workspaceHubKey = "football-workspace-hub-v3";
 const workspaceHubPath = `global/${workspaceHubKey}.json`;
 const playerProfilesKey = "football-player-profiles-v1";
@@ -965,6 +967,94 @@ test("app-state merges concurrent Session Planner edits by field timestamps", as
     expect(storedBlock.objective).toBe("Central objective");
     expect(storedBlock.organization).toBe("New organization from another tab");
     expect(response.payload.metadata.hash).toHaveLength(64);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state merges stale Periodization day edits by field timestamps", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const existingState = {
+    selectedYear: 2026,
+    selectedMonthIndex: 4,
+    selectedDate: "2026-05-09",
+    importVersion: "ncc-2026-periodization-v1",
+    days: {
+      "2026-05-09": {
+        seasonPhase: "Competition",
+        daySchedule: "Training",
+        physicalLoad: "High",
+        sessionNotes: "Central note",
+        fieldUpdatedAt: {
+          physicalLoad: "2026-05-07T15:00:00.000Z",
+          sessionNotes: "2026-05-07T13:00:00.000Z",
+        },
+      },
+      "2026-05-10": {
+        seasonPhase: "Competition",
+        daySchedule: "Recovery",
+        sessionNotes: "Existing recovery",
+      },
+    },
+  };
+  const staleIncomingState = {
+    selectedYear: 2026,
+    selectedMonthIndex: 4,
+    selectedDate: "2026-05-09",
+    importVersion: "ncc-2026-periodization-v1",
+    days: {
+      "2026-05-09": {
+        seasonPhase: "Competition",
+        daySchedule: "Training",
+        physicalLoad: "Low",
+        sessionNotes: "Fresh coach edit",
+        fieldUpdatedAt: {
+          physicalLoad: "2026-05-07T14:00:00.000Z",
+          sessionNotes: "2026-05-07T16:00:00.000Z",
+        },
+      },
+    },
+  };
+  const storage = createAppStateFetchMock({
+    [periodizationPath]: {
+      ...createAppStateStorageEntry(periodizationKey, existingState),
+      revision: 2,
+    },
+  });
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        key: periodizationKey,
+        value: JSON.stringify(staleIncomingState),
+        metadata: { baseRevision: 1 },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload).toMatchObject({
+      ok: true,
+      key: periodizationKey,
+      merged: true,
+    });
+
+    const storedState = JSON.parse(storage.objects.get(periodizationPath).value);
+    expect(storedState.days["2026-05-09"].physicalLoad).toBe("High");
+    expect(storedState.days["2026-05-09"].sessionNotes).toBe("Fresh coach edit");
+    expect(storedState.days["2026-05-10"].sessionNotes).toBe("Existing recovery");
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);

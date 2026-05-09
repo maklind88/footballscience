@@ -142,7 +142,8 @@ const dataSafetyContracts = Object.freeze([
     moduleId: "periodization",
     key: "football-periodization-v2",
     recordType: "periodization-days",
-    mergePolicy: dataSafetyMergePolicies.revisionGuardedLastWrite,
+    mergePolicy: dataSafetyMergePolicies.fieldTimestampMerge,
+    staleWriteStrategy: "merge",
     scope: {
       teamScoped: true,
     },

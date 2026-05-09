@@ -1549,6 +1549,32 @@
         }
         const SCHEDULE_LOCAL_UI_FIELDS = ["selectedYear", "selectedMonthIndex", "selectedDate", "viewMode", "overviewSpan"];
         const PERIODIZATION_LOCAL_UI_FIELDS = ["selectedYear", "selectedMonthIndex", "selectedDate"];
+        const PERIODIZATION_FIELD_META_KEY = "fieldUpdatedAt";
+        const PERIODIZATION_SCALAR_FIELDS = [
+          "seasonPhase",
+          "daySchedule",
+          "matchDay",
+          "sessionType",
+          "physicalLoad",
+          "pitchSize",
+          "preTrainingVideo",
+          "preTrainingNotes",
+          "psychologicalFocus",
+          "psychologicalNotes",
+          "mainFocus",
+          "gkFocus",
+          "warmUp",
+          "block1",
+          "block2",
+          "block3",
+          "block4",
+          "sessionNotes",
+          "sessionPlanLink",
+          "sessionVideoLink",
+          "sessionGpsReportLink",
+        ];
+        const PERIODIZATION_MULTI_FIELDS = ["matchPhases", "subPhases", "teamPrinciples", "miniGamePrinciples"];
+        const PERIODIZATION_FIELD_SET = new Set([...PERIODIZATION_SCALAR_FIELDS, ...PERIODIZATION_MULTI_FIELDS]);
         function mergeCentralStateLocalUiFields(localValue, centralValue, fields) {
           const localState = parseCentralObjectStateValue(localValue);
           const centralStateValue = parseCentralObjectStateValue(centralValue);
@@ -1570,6 +1596,112 @@
             value: changed ? JSON.stringify(mergedState) : centralValue,
             changed: false,
           };
+        }
+        function normalizePeriodizationCentralMultiValue(value) {
+          const rawValues = Array.isArray(value) ? value : String(value ?? "").split("|");
+          return [...new Set(rawValues.map((item) => String(item).trim()).filter(Boolean))];
+        }
+        function normalizePeriodizationCentralDay(day = {}) {
+          const normalized = {};
+          PERIODIZATION_SCALAR_FIELDS.forEach((field) => {
+            const value = String(day?.[field] ?? "").trim();
+            normalized[field] = field === "matchDay" && value.toUpperCase() === "N/A" ? "" : value;
+          });
+          PERIODIZATION_MULTI_FIELDS.forEach((field) => {
+            normalized[field] = normalizePeriodizationCentralMultiValue(day?.[field]);
+          });
+          const fieldUpdatedAt = {};
+          if (day?.[PERIODIZATION_FIELD_META_KEY] && typeof day[PERIODIZATION_FIELD_META_KEY] === "object") {
+            Object.entries(day[PERIODIZATION_FIELD_META_KEY]).forEach(([field, timestampValue]) => {
+              if (!PERIODIZATION_FIELD_SET.has(field)) {
+                return;
+              }
+              const timestamp = new Date(timestampValue || 0).getTime();
+              if (Number.isFinite(timestamp) && timestamp > 0) {
+                fieldUpdatedAt[field] = new Date(timestamp).toISOString();
+              }
+            });
+          }
+          if (Object.keys(fieldUpdatedAt).length) {
+            normalized[PERIODIZATION_FIELD_META_KEY] = fieldUpdatedAt;
+          }
+          return normalized;
+        }
+        function getPeriodizationCentralFieldUpdatedAtMs(day = {}, field = "") {
+          const timestamp = new Date(day?.[PERIODIZATION_FIELD_META_KEY]?.[field] || 0).getTime();
+          return Number.isFinite(timestamp) ? timestamp : 0;
+        }
+        function isEmptyPeriodizationCentralValue(value) {
+          if (Array.isArray(value)) {
+            return value.length === 0;
+          }
+          return String(value ?? "").trim() === "";
+        }
+        function mergePeriodizationCentralDay(localDay = {}, centralDay = {}) {
+          const local = normalizePeriodizationCentralDay(localDay);
+          const central = normalizePeriodizationCentralDay(centralDay);
+          const merged = { ...central };
+          const mergedMeta = {
+            ...(central[PERIODIZATION_FIELD_META_KEY] || {}),
+            ...(local[PERIODIZATION_FIELD_META_KEY] || {}),
+          };
+          PERIODIZATION_FIELD_SET.forEach((field) => {
+            const localTimestamp = getPeriodizationCentralFieldUpdatedAtMs(local, field);
+            const centralTimestamp = getPeriodizationCentralFieldUpdatedAtMs(central, field);
+            if (localTimestamp && (!centralTimestamp || localTimestamp >= centralTimestamp)) {
+              merged[field] = Array.isArray(local[field]) ? [...local[field]] : local[field];
+              mergedMeta[field] = new Date(localTimestamp).toISOString();
+              return;
+            }
+            if (centralTimestamp && (!localTimestamp || centralTimestamp > localTimestamp)) {
+              merged[field] = Array.isArray(central[field]) ? [...central[field]] : central[field];
+              mergedMeta[field] = new Date(centralTimestamp).toISOString();
+              return;
+            }
+            if (isEmptyPeriodizationCentralValue(central[field]) && !isEmptyPeriodizationCentralValue(local[field])) {
+              merged[field] = Array.isArray(local[field]) ? [...local[field]] : local[field];
+            }
+          });
+          if (Object.keys(mergedMeta).length) {
+            merged[PERIODIZATION_FIELD_META_KEY] = mergedMeta;
+          }
+          return normalizePeriodizationCentralDay(merged);
+        }
+        function mergePeriodizationCentralStateValues(localValue, centralValue) {
+          const localState = parseCentralObjectStateValue(localValue);
+          const centralStateValue = parseCentralObjectStateValue(centralValue);
+          if (!localState || !centralStateValue) {
+            return { value: centralValue, changed: false };
+          }
+          const localDays = localState.days && typeof localState.days === "object" && !Array.isArray(localState.days)
+            ? localState.days
+            : {};
+          const centralDays = centralStateValue.days && typeof centralStateValue.days === "object" && !Array.isArray(centralStateValue.days)
+            ? centralStateValue.days
+            : {};
+          const mergedDays = {};
+          const dateValues = new Set([...Object.keys(centralDays), ...Object.keys(localDays)]);
+          dateValues.forEach((dateValue) => {
+            if (centralDays[dateValue] && localDays[dateValue]) {
+              mergedDays[dateValue] = mergePeriodizationCentralDay(localDays[dateValue], centralDays[dateValue]);
+              return;
+            }
+            if (centralDays[dateValue]) {
+              mergedDays[dateValue] = normalizePeriodizationCentralDay(centralDays[dateValue]);
+              return;
+            }
+            if (localDays[dateValue]) {
+              mergedDays[dateValue] = normalizePeriodizationCentralDay(localDays[dateValue]);
+            }
+          });
+          const mergedState = { ...centralStateValue, days: mergedDays };
+          PERIODIZATION_LOCAL_UI_FIELDS.forEach((field) => {
+            if (Object.prototype.hasOwnProperty.call(localState, field)) {
+              mergedState[field] = localState[field];
+            }
+          });
+          const mergedValue = JSON.stringify(mergedState);
+          return { value: mergedValue, changed: mergedValue !== centralValue };
         }
         function getCentralStateRecordMergeKey(record = {}) {
           const id = String(record?.id || record?.userId || record?.playerId || "").trim();
@@ -1673,7 +1805,7 @@
               if (key === WORKSPACE_HUB_STATE_KEY) {
                 valueToApply = sanitizeWorkspaceHubStateValue(value);
               } else if (key === PERIODIZATION_STATE_KEY) {
-                valueToApply = mergeCentralStateLocalUiFields(window.localStorage.getItem(key), value, PERIODIZATION_LOCAL_UI_FIELDS).value;
+                valueToApply = mergePeriodizationCentralStateValues(window.localStorage.getItem(key), value).value;
               } else if (key === SCHEDULE_STATE_KEY) {
                 valueToApply = mergeCentralStateLocalUiFields(window.localStorage.getItem(key), value, SCHEDULE_LOCAL_UI_FIELDS).value;
               } else if (key === SESSION_PLANNER_STATE_KEY && !options.forceApply) {

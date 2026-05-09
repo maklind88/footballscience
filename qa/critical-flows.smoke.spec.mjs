@@ -415,6 +415,15 @@ test("Periodization day notes persist after refresh", async ({ page }) => {
   await notesField.fill(note);
   await notesField.blur();
   await expectStorageContains(page, periodizationKey, note);
+  await expect
+    .poll(() =>
+      page.evaluate((key) => {
+        const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+        const selectedDate = state.selectedDate || "";
+        return Boolean(state.days?.[selectedDate]?.fieldUpdatedAt?.sessionNotes);
+      }, periodizationKey)
+    )
+    .toBe(true);
 
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.locator("#hubShell")).toBeVisible();

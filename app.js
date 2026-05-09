@@ -461,7 +461,7 @@ const dashboardTaskStorageKey = "football-dashboard-tasks-v1";
 const dashboardChatStorageKey = "football-dashboard-chat-v1";
 const dashboardChatDeletedMessageIdsStorageKey = "football-dashboard-chat-deleted-message-ids-v1";
 const dashboardChatLocalCacheResetStorageKey = "football-dashboard-chat-local-cache-reset-v1";
-const dashboardChatLocalCacheResetVersion = "2026-05-09-chat-database-reset-v1";
+const dashboardChatLocalCacheResetVersion = "2026-05-09-chat-database-only-v3";
 const dashboardChatWidgetStateStorageKey = "football-dashboard-chat-widget-state-v1";
 const dashboardChatWidgetNotificationCursorStorageKey = "football-dashboard-chat-widget-notification-cursor-v1";
 const dashboardChatWidgetNotificationStateStorageKey = "football-dashboard-chat-widget-notification-state-v1";
@@ -813,6 +813,7 @@ function applyCentralSyncedStateValue(write = {}, syncedValue) {
     return;
   }
   if (key === dashboardChatStorageKey) {
+    dashboardChatRuntimeMessages = [];
     purgeDashboardDeletedMessagesFromStorage();
     renderDashboardChatWidget();
     renderTopIconMenu();
@@ -5995,12 +5996,15 @@ let dashboardChatApiRealtimeRecoveryTimer = 0;
 let dashboardChatApiScope = null;
 let dashboardChatApiThreads = [];
 let dashboardChatApiPagination = {};
+let dashboardChatRuntimeMessages = [];
+let dashboardChatHydratedThreadIds = new Set();
 let dashboardChatMessageSearchQuery = "";
 let dashboardChatModerationOpen = false;
 let dashboardChatModerationState = { loading: false, audits: [], retentionPolicy: null, health: null, error: "" };
 let dashboardChatThreadSummarySyncTimer = 0;
 let dashboardChatThreadSummaryLastRequestedAt = 0;
 let dashboardChatComposerAttachmentDraft = null;
+let dashboardChatSubmittedComposerDrafts = new Map();
 const dashboardChatAttachmentSignedUrlCache = new Map();
 let sessionPlannerPeriodizationOverlayMode = "view";
 let sessionPlannerLibraryOpen = false;
@@ -8193,17 +8197,15 @@ function purgeDashboardDeletedMessagesFromStorage(options = {}) {
   if (!deletedMessageIds.size) {
     return;
   }
-  const parsed = readDashboardJson(dashboardChatStorageKey, []);
-  const sourceMessages = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.messages) ? parsed.messages : [];
-  if (!Array.isArray(sourceMessages) || !sourceMessages.length) {
+  if (!dashboardChatRuntimeMessages.length) {
     return;
   }
-  const nextMessages = sourceMessages.filter((message) => {
+  const nextMessages = dashboardChatRuntimeMessages.filter((message) => {
     const sourceId = String(message?.id || message?.messageId || "").trim();
     const normalizedId = normalizeDashboardMessage(message).id;
     return !deletedMessageIds.has(sourceId) && !deletedMessageIds.has(normalizedId);
   });
-  if (nextMessages.length === sourceMessages.length) {
+  if (nextMessages.length === dashboardChatRuntimeMessages.length) {
     return;
   }
   writeDashboardMessages(nextMessages, {
@@ -8211,11 +8213,13 @@ function purgeDashboardDeletedMessagesFromStorage(options = {}) {
   });
 }
 function readDashboardMessages() {
-  const parsed = readDashboardJson(dashboardChatStorageKey, []);
-  const sourceMessages = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.messages) ? parsed.messages : [];
+  if (!dashboardChatRuntimeMessages.length) {
+    const parsed = readDashboardJson(dashboardChatStorageKey, []);
+    dashboardChatRuntimeMessages = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.messages) ? parsed.messages : [];
+  }
   const deletedMessageIds = readDashboardDeletedMessageIds();
-  return Array.isArray(sourceMessages)
-    ? sourceMessages
+  return Array.isArray(dashboardChatRuntimeMessages)
+    ? dashboardChatRuntimeMessages
         .map(normalizeDashboardMessage)
         .filter((message) => message.text && message.userId && !deletedMessageIds.has(message.id))
         .sort((first, second) => new Date(first.createdAt) - new Date(second.createdAt))
@@ -8233,14 +8237,9 @@ function writeDashboardMessages(messages, options = {}) {
   const nextMessages = [...pinnedMessages, ...recentMessages]
     .filter((message, index, source) => source.findIndex((candidate) => candidate.id === message.id) === index)
     .sort((first, second) => new Date(first.createdAt) - new Date(second.createdAt));
-  if (options.skipCentralSync) {
-    centralStateWriteSuppressionKeys.add(dashboardChatStorageKey);
-  }
-  try {
-    writeDashboardJson(dashboardChatStorageKey, nextMessages);
-  } finally {
-    centralStateWriteSuppressionKeys.delete(dashboardChatStorageKey);
-  }
+  dashboardChatRuntimeMessages = nextMessages;
+  centralStateWriteSuppressionKeys.add(dashboardChatStorageKey);
+  try { writeDashboardJson(dashboardChatStorageKey, nextMessages); } finally { centralStateWriteSuppressionKeys.delete(dashboardChatStorageKey); }
 }
 function getDashboardChatThreadTypeForApi(threadId) {
   const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
@@ -8425,11 +8424,28 @@ function mergeDashboardChatApiMessages(messages = [], options = {}) {
   const replaceThreadId = options.replaceThreadId ? normalizeDashboardChatThreadId(options.replaceThreadId, "") : "";
   const messageThread = options.thread || null;
   const existingMessages = readDashboardMessages();
+  const existingThreadMessages = replaceThreadId ? existingMessages.filter((message) => message.threadId === replaceThreadId) : [];
   const current = replaceThreadId
     ? existingMessages.filter((message) => message.threadId !== replaceThreadId || message.status === "pending" || message.status === "failed")
     : existingMessages;
   if (!messages.length) {
     if (replaceThreadId) {
+      const recentLocalMessageCutoff = Date.now() - 2 * 60 * 1000;
+      const hasRecentLocalThreadMessages = existingThreadMessages.some((message) => {
+        const createdAtMs = Date.parse(message.createdAt || "");
+        return message.status === "pending" || message.status === "failed" || (Number.isFinite(createdAtMs) && createdAtMs >= recentLocalMessageCutoff);
+      });
+      const threadStillHasServerActivity = [
+        messageThread?.lastMessage,
+        messageThread?.last_message,
+        messageThread?.last_message_id,
+        messageThread?.lastMessageAt,
+        messageThread?.last_message_at,
+        Number(messageThread?.messageCount || messageThread?.message_count || 0) > 0,
+      ].some(Boolean);
+      if (hasRecentLocalThreadMessages || threadStillHasServerActivity) {
+        return existingMessages;
+      }
       writeDashboardMessages(current, { skipCentralSync: true });
       if (options.render !== false) {
         renderDashboardChatWidget();
@@ -8574,11 +8590,13 @@ async function refreshDashboardChatFromApi(options = {}) {
   }
   const result = await fetchDashboardChatApi(query);
   if (!result.ok) {
+    dashboardChatHydratedThreadIds.delete(threadId);
     if (!canFallbackDashboardChatApiResult(result)) {
       logDashboardChatApiFailure("load", result);
     }
     return result;
   }
+  dashboardChatHydratedThreadIds.add(threadId);
   applyDashboardChatApiPayload(result.result, {
     threadId,
     replaceThread: !options.cursor && !options.search,
@@ -8850,37 +8868,38 @@ async function createDashboardMessageWithApi(text, threadId = dashboardChatTeamT
   const messageId = createDashboardId("message");
   const replyToId = dashboardChatReplyDraft?.threadId === normalizedThreadId ? dashboardChatReplyDraft.messageId : "";
   const priority = dashboardChatPriorityDraft;
-  return commitDashboardChatApiAction(
-    {
-      action: "sendMessage",
-      id: messageId,
-      clientMessageId: messageId,
-      threadId: normalizedThreadId,
-      threadType: getDashboardChatThreadTypeForApi(normalizedThreadId),
-      threadTitle: getDashboardChatThreadLabel(normalizedThreadId, currentUser),
-      participantIds: getDashboardChatParticipantIdsForApi(normalizedThreadId),
-      text: cleanText,
-      replyToId,
-      priority,
-      mentionedUserIds: getDashboardMentionUserIds(cleanText, getPlatformUsers(), currentUser.id),
-      attachmentIds: dashboardChatComposerAttachmentDraft?.id ? [dashboardChatComposerAttachmentDraft.id] : [],
-    },
-    (apiResult) => {
-      if (apiResult?.ok && apiResult.result?.message) {
-        const message = normalizeDashboardApiMessage(apiResult.result.message, apiResult.result.thread);
-        mergeDashboardChatApiMessages([message], { render: false });
-        dashboardChatComposerAttachmentDraft = null;
-        return message;
-      }
-      const message = createDashboardMessage(cleanText, normalizedThreadId, {
-        id: messageId,
-        status: "pending",
-        skipCentralSync: Boolean(apiResult?.ok),
-      });
-      dashboardChatComposerAttachmentDraft = null;
-      return message;
-    }
-  );
+  const attachmentIds = dashboardChatComposerAttachmentDraft?.id ? [dashboardChatComposerAttachmentDraft.id] : [];
+  const pendingMessage = createDashboardMessage(cleanText, normalizedThreadId, { id: messageId, status: "pending", skipCentralSync: true });
+  renderDashboardChatWidget();
+  const result = await sendDashboardChatApiAction({
+    action: "sendMessage",
+    id: messageId,
+    clientMessageId: messageId,
+    threadId: normalizedThreadId,
+    threadType: getDashboardChatThreadTypeForApi(normalizedThreadId),
+    threadTitle: getDashboardChatThreadLabel(normalizedThreadId, currentUser),
+    participantIds: getDashboardChatParticipantIdsForApi(normalizedThreadId),
+    text: cleanText,
+    replyToId,
+    priority,
+    mentionedUserIds: getDashboardMentionUserIds(cleanText, getPlatformUsers(), currentUser.id),
+    attachmentIds,
+  });
+  dashboardChatComposerAttachmentDraft = null;
+  if (result.ok) {
+    applyDashboardChatApiPayload(result.result || {}, { threadId: normalizedThreadId });
+    const message = result.result?.message ? normalizeDashboardApiMessage(result.result.message, result.result.thread) : null;
+    return message || pendingMessage;
+  }
+  if (canFallbackDashboardChatApiResult(result)) {
+    return pendingMessage;
+  }
+  logDashboardChatApiFailure("sendMessage", result);
+  writeDashboardMessages(readDashboardMessages().map((message) => (message.id === messageId ? { ...message, status: "failed" } : message)), {
+    skipCentralSync: true,
+  });
+  showDashboardChatWidgetToast(result.reason || "Message could not be sent.", normalizedThreadId);
+  return pendingMessage;
 }
 function queueDashboardChatReadReceiptApi(threadId, messages = readDashboardMessages()) {
   const currentUser = getCurrentPlatformUser();
@@ -9173,9 +9192,18 @@ function getDashboardChatThreadList(currentUser = getCurrentPlatformUser(), user
     ])
   );
   const advancedThreads = advancedThreadIds.map((threadId) => getDashboardChatThreadData(threadId, currentUser, users, messages));
-  const directThreads = activeUsers.map((user) =>
-    getDashboardChatThreadData(createDashboardChatThreadId(currentUser.id, user.id), currentUser, users, messages)
+  const directThreadIds = Array.from(
+    new Set([
+      ...activeUsers.map((user) => createDashboardChatThreadId(currentUser.id, user.id)),
+      ...dashboardChatApiThreads
+        .filter((thread) => String(thread.threadId || "").startsWith("dm:"))
+        .map((thread) => thread.threadId),
+      ...messages
+        .map((message) => message.threadId)
+        .filter((threadId) => String(threadId || "").startsWith("dm:")),
+    ])
   );
+  const directThreads = directThreadIds.map((threadId) => getDashboardChatThreadData(threadId, currentUser, users, messages));
   const sortThreads = (first, second) => {
     const firstTime = Date.parse(first.lastActivityAt || first.lastMessage?.createdAt || first.apiThread?.lastMessageAt || "") || 0;
     const secondTime = Date.parse(second.lastActivityAt || second.lastMessage?.createdAt || second.apiThread?.lastMessageAt || "") || 0;
@@ -9871,10 +9899,15 @@ function renderDashboardChatWidget() {
   const activeElement = document.activeElement;
   const existingComposer = root.querySelector("[data-dashboard-chat-input]");
   const wasComposerFocused = Boolean(existingComposer && activeElement === existingComposer);
-  const previousComposerDraft = existingComposer?.value || "";
   const previousComposerSelectionStart = wasComposerFocused ? existingComposer.selectionStart : null;
   const previousComposerSelectionEnd = wasComposerFocused ? existingComposer.selectionEnd : null;
   const previousComposerThreadId = state.selectedThreadId;
+  const previousComposerRawDraft = existingComposer?.value || "";
+  const submittedComposerDraft = dashboardChatSubmittedComposerDrafts.get(previousComposerThreadId) || "";
+  const shouldClearSubmittedComposerDraft = Boolean(submittedComposerDraft) && (
+    !previousComposerRawDraft || previousComposerRawDraft.trim() === submittedComposerDraft
+  );
+  const previousComposerDraft = shouldClearSubmittedComposerDraft ? "" : previousComposerRawDraft;
   const existingThreadList = root.querySelector("[data-dashboard-chat-thread-list]");
   const previousThreadListScrollTop = existingThreadList?.scrollTop ?? 0;
   const previousThreadListScrollLeft = existingThreadList?.scrollLeft ?? 0;
@@ -9887,6 +9920,10 @@ function renderDashboardChatWidget() {
   const activeThreadId = threads.some((thread) => thread.threadId === state.selectedThreadId)
     ? state.selectedThreadId
     : threads[0]?.threadId || dashboardChatTeamThreadId;
+  if (state.isOpen && activeThreadId && !dashboardChatHydratedThreadIds.has(activeThreadId) && !dashboardChatApiSyncTimer) {
+    dashboardChatHydratedThreadIds.add(activeThreadId);
+    queueDashboardChatApiRefresh({ threadId: activeThreadId, delayMs: 0 });
+  }
   const unreadCount = getDashboardChatUnreadCountForCurrentUser(currentUser, resolvedMessages);
   const renderedWidget = dashboardChatWidgetRenderer.render({
     currentUser,
@@ -9916,6 +9953,9 @@ function renderDashboardChatWidget() {
     });
   }
   root.innerHTML = renderedWidget.html;
+  if (shouldClearSubmittedComposerDraft) {
+    dashboardChatSubmittedComposerDrafts.delete(previousComposerThreadId);
+  }
   const nextThreadList = root.querySelector("[data-dashboard-chat-thread-list]");
   if (nextThreadList) {
     nextThreadList.scrollTop = previousThreadListScrollTop;
@@ -72906,6 +72946,11 @@ ui.dashboardChatWidgetRoot?.addEventListener("submit", async (event) => {
   if (submitButton) {
     submitButton.disabled = true;
   }
+  dashboardChatSubmittedComposerDrafts.set(threadId, messageText);
+  if (input) {
+    input.value = "";
+  }
+  clearDashboardChatTyping();
   let message = null;
   try {
     message = await createDashboardMessageWithApi(messageText, threadId);
@@ -72917,13 +72962,9 @@ ui.dashboardChatWidgetRoot?.addEventListener("submit", async (event) => {
   if (!message) {
     return;
   }
-  clearDashboardChatTyping();
   setDashboardChatReplyDraft("", "");
   setDashboardChatPriorityDraft("normal");
   queueDashboardChatThreadSummaryRefresh({ delayMs: 50 });
-  if (input) {
-    input.value = "";
-  }
   renderDashboardChatWidget();
   focusDashboardChatWidgetComposer();
   renderTopIconMenu();
@@ -76168,6 +76209,7 @@ window.addEventListener("storage", (event) => {
   }
 
   if (event.key === dashboardChatStorageKey) {
+    dashboardChatRuntimeMessages = [];
     purgeDashboardDeletedMessagesFromStorage();
     renderDashboardChatWidget();
     syncDashboardChatWidgetNotificationCursor();

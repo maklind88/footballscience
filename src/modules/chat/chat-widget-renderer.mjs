@@ -11,6 +11,11 @@ function defaultNormalizePriority(value, priorityOptions = []) {
   return priorityOptions.some((option) => option.key === priority) ? priority : "normal";
 }
 
+function parseThreadActivityTime(thread = {}) {
+  const time = Date.parse(thread.lastActivityAt || thread.lastMessage?.createdAt || thread.apiThread?.lastMessageAt || "");
+  return Number.isFinite(time) ? time : 0;
+}
+
 export function createDashboardChatWidgetRenderer(dependencies = {}) {
   const {
     teamThreadId = "team",
@@ -73,9 +78,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
 
   function getLatestThread(threads = []) {
     return [...threads].sort((first, second) => {
-      const firstTime = new Date(first.lastMessage?.createdAt || first.apiThread?.lastMessageAt || 0).getTime();
-      const secondTime = new Date(second.lastMessage?.createdAt || second.apiThread?.lastMessageAt || 0).getTime();
-      return secondTime - firstTime;
+      return parseThreadActivityTime(second) - parseThreadActivityTime(first);
     })[0] ?? null;
   }
 
@@ -185,10 +188,12 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const avatarMarkup = thread.participant
       ? renderPresenceAvatar(thread.participant, "dashboard-chat-thread-avatar")
       : `<span class="dashboard-chat-thread-avatar is-team" aria-hidden="true">${escapeHtml(thread.isTeamThread ? "T" : (threadLabel[0] || "C"))}</span>`;
-    const threadTime = thread.lastMessage
-      ? escapeHtml(formatTime(thread.lastMessage.createdAt))
-      : thread.apiThread?.lastMessageAt
-        ? escapeHtml(formatTime(thread.apiThread.lastMessageAt))
+    const threadTime = thread.lastActivityAt
+      ? escapeHtml(formatTime(thread.lastActivityAt))
+      : thread.lastMessage
+        ? escapeHtml(formatTime(thread.lastMessage.createdAt))
+        : thread.apiThread?.lastMessageAt
+          ? escapeHtml(formatTime(thread.apiThread.lastMessageAt))
         : "&mdash;";
     const searchText = `${threadLabel} ${preview} ${threadStatus}`.toLowerCase();
 

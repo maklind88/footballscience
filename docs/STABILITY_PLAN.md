@@ -81,13 +81,24 @@ The backup endpoint writes:
 
 ## Release Routine
 
-1. Run `npm run qa:deploy`.
-2. For changes under `supabase/migrations`, run `npm run qa:supabase:remote` with secure Supabase credentials or confirm the GitHub Actions Supabase migration workflow passed.
-3. Deploy to Vercel only after the gate passes.
-4. Verify `/api/client-config` on the live domain returns `ok:true`.
-5. Verify `/api/app-state-backup` is protected from anonymous requests.
-6. Open a cache-busting live URL and verify the changed behavior.
-7. If live looks old, compare deployed `app.js` hash and check browser site data before assuming deployment failed.
+1. Commit the release candidate and push it to GitHub.
+2. Run `npm run release:gate`.
+3. For changes under `supabase/migrations`, run `npm run qa:supabase:remote` with secure Supabase credentials or confirm the GitHub Actions Supabase migration workflow passed.
+4. Deploy to Vercel only after the gate passes.
+5. Run `npm run release:postdeploy`.
+6. Start the manual Production Smoke GitHub Action when a release touches auth, app-state, Schedule, or chat.
+7. Open a cache-busting live URL and verify the changed behavior.
+8. If live looks old, compare deployed `app.js` hash and check browser site data before assuming deployment failed.
+
+Normal releases should not deploy from a dirty or unpushed working tree. `RELEASE_ALLOW_DIRTY=1` and `RELEASE_ALLOW_UNPUSHED=1` are emergency-only hotfix overrides.
+
+Security automation now includes:
+
+- GitHub QA workflow with release preflight and `npm audit --audit-level=high`.
+- CodeQL static analysis.
+- Dependabot for npm and GitHub Actions.
+- Production smoke workflow for live domain/API verification.
+- Vercel security headers in `vercel.json`.
 
 ## Next Hardening
 

@@ -7,10 +7,22 @@ Football Science is deployed to Vercel and aliased to `footballscience.xyz`.
 From `/Users/maklind/Documents/New project`:
 
 ```bash
-npm run qa:deploy
+npm run release:gate
 ```
 
-Only deploy after the QA gate passes:
+`release:gate` runs the release preflight first, then the full QA deploy gate. It blocks normal releases when:
+
+- the working tree has uncommitted changes
+- the branch is behind its upstream
+- local commits have not been pushed to GitHub
+
+Emergency overrides exist for hotfixes only:
+
+```bash
+RELEASE_ALLOW_DIRTY=1 RELEASE_ALLOW_UNPUSHED=1 npm run release:gate
+```
+
+Only deploy after the gate passes:
 
 ```bash
 npx vercel deploy --prod --yes
@@ -18,11 +30,26 @@ npx vercel deploy --prod --yes
 
 Copy the deployment URL returned by Vercel.
 
+After Vercel reports `READY`, run:
+
+```bash
+npm run release:postdeploy
+```
+
+This verifies the live domain, `app.js`, `/api/client-config`, and that `/api/app-state-backup` is not anonymously accessible.
+
 ## CI Gate
 
 GitHub Actions runs `npm run qa` on pushes to `main` and pull requests through `.github/workflows/qa.yml`.
 
+The same workflow also runs:
+
+- `npm run release:preflight`
+- `npm run security:audit`
+
 `npm run qa` also runs `npm run qa:supabase`, a static migration safety gate that checks ordering, destructive SQL, RLS, default grants, and `security definer` guardrails for every file in `supabase/migrations`.
+
+CodeQL runs through `.github/workflows/codeql.yml`, and Dependabot is configured in `.github/dependabot.yml` for npm and GitHub Actions updates.
 
 Remote Supabase migration verification lives in `.github/workflows/supabase-migrations.yml`. It runs automatically when migration files are pushed to `main`, and it can be started manually from GitHub Actions. Required secure configuration:
 
@@ -50,6 +77,8 @@ LIVE_QA_BASE_URL
 ```
 
 `LIVE_QA_BASE_URL` defaults to `https://footballscience.xyz`.
+
+Manual production smoke can be started in GitHub Actions through `.github/workflows/production-smoke.yml`.
 
 ## Alias To Domain
 

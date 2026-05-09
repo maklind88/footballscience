@@ -292,7 +292,7 @@ test("Schedule edits persist after refresh", async ({ page }) => {
 test("Schedule Today anchors overview to the real current date", async ({ page }) => {
   await page.addInitScript(({ key }) => {
     const realDate = Date;
-    const fixedNow = new realDate("2026-05-08T12:00:00-04:00").getTime();
+    const fixedNow = new realDate("2026-05-09T12:00:00-04:00").getTime();
     class FixedDate extends realDate {
       constructor(...args) {
         super(...(args.length ? args : [fixedNow]));
@@ -323,9 +323,9 @@ test("Schedule Today anchors overview to the real current date", async ({ page }
   await openWorkspace(page, "schedule");
   await page.locator("#scheduleTodayButton").click();
 
-  await expect(page.locator("#scheduleSelectedDateLabel")).toHaveText("Friday, 8 May 2026");
+  await expect(page.locator("#scheduleSelectedDateLabel")).toHaveText("Saturday, 9 May 2026");
   await expect(page.locator(".schedule-overview-month h3").first()).toHaveText("May 2026");
-  await expect(page.locator('[data-schedule-date="2026-05-08"]')).toHaveClass(/is-selected/);
+  await expect(page.locator('[data-schedule-date="2026-05-09"]')).toHaveClass(/is-selected/);
   await expect
     .poll(() =>
       page.evaluate((key) => {
@@ -337,7 +337,7 @@ test("Schedule Today anchors overview to the real current date", async ({ page }
       }, scheduleKey)
     )
     .toEqual({
-      selectedDate: "2026-05-08",
+      selectedDate: "2026-05-09",
       selectedMonthIndex: 4,
     });
 });

@@ -460,6 +460,8 @@ const playerProfilesStorageKey = "football-player-profiles-v1";
 const dashboardTaskStorageKey = "football-dashboard-tasks-v1";
 const dashboardChatStorageKey = "football-dashboard-chat-v1";
 const dashboardChatDeletedMessageIdsStorageKey = "football-dashboard-chat-deleted-message-ids-v1";
+const dashboardChatLocalCacheResetStorageKey = "football-dashboard-chat-local-cache-reset-v1";
+const dashboardChatLocalCacheResetVersion = "2026-05-09-chat-database-reset-v1";
 const dashboardChatWidgetStateStorageKey = "football-dashboard-chat-widget-state-v1";
 const dashboardChatWidgetNotificationCursorStorageKey = "football-dashboard-chat-widget-notification-cursor-v1";
 const dashboardChatWidgetNotificationStateStorageKey = "football-dashboard-chat-widget-notification-state-v1";
@@ -765,9 +767,15 @@ function applyCentralSyncedStateValue(write = {}, syncedValue) {
   if (centralStateWriteQueue.has(key) || rawDataSafetyGetItem(key) !== write.value || syncedValue === write.value) {
     return;
   }
+  const valueToApply =
+    key === scheduleStorageKey
+      ? mergeScheduleStatePreservingLocalUi(rawDataSafetyGetItem(key), syncedValue)
+      : key === periodizationStorageKey
+        ? mergePeriodizationStatePreservingLocalUi(rawDataSafetyGetItem(key), syncedValue)
+      : syncedValue;
   window.__footballScienceCentralHydrating = true;
   try {
-    rawDataSafetySetItem(key, syncedValue);
+    rawDataSafetySetItem(key, valueToApply);
   } finally {
     window.__footballScienceCentralHydrating = false;
   }
@@ -777,8 +785,8 @@ function applyCentralSyncedStateValue(write = {}, syncedValue) {
       ...(currentEntry?.label ? currentEntry : { label: getDataSafetyStorageLabel(key), writes: 0 }),
       ...currentEntry,
       updatedAt: getDataSafetyNow(),
-      size: syncedValue.length,
-      hash: hashDataSafetyString(syncedValue),
+      size: valueToApply.length,
+      hash: hashDataSafetyString(valueToApply),
       pendingCentralSync: false,
     };
   });
@@ -6788,7 +6796,7 @@ function selectPeriodizationDate(dateValue, shouldOpenOverlay = true, overlayMod
   periodizationState.selectedMonthIndex = date.getMonth();
   periodizationDayOverlayOpen = shouldOpenOverlay;
   periodizationDayOverlayMode = safeOverlayMode;
-  writePeriodizationState();
+  writePeriodizationState({ syncCentral: false });
   renderPeriodizationWorkspace();
 }
 function mergePeriodizationImportedDays(days = {}) {
@@ -6851,26 +6859,61 @@ function clonePeriodizationState(source = defaultPeriodizationState) {
     days: mergedDays,
   };
 }
+function mergePeriodizationStatePreservingLocalUi(localValue, centralValue) {
+  let localState = null;
+  let centralStateValue = null;
+  try {
+    localState = localValue ? JSON.parse(localValue) : null;
+    centralStateValue = centralValue ? JSON.parse(centralValue) : null;
+  } catch {
+    return centralValue;
+  }
+  if (!localState || typeof localState !== "object" || !centralStateValue || typeof centralStateValue !== "object") {
+    return centralValue;
+  }
+  return JSON.stringify({
+    ...centralStateValue,
+    selectedYear: localState.selectedYear ?? centralStateValue.selectedYear,
+    selectedMonthIndex: localState.selectedMonthIndex ?? centralStateValue.selectedMonthIndex,
+    selectedDate: localState.selectedDate ?? centralStateValue.selectedDate,
+  });
+}
+function setPeriodizationStateStorageValue(state = periodizationState, options = {}) {
+  const shouldSyncCentral = options.syncCentral !== false;
+  if (!shouldSyncCentral) {
+    centralStateWriteSuppressionKeys.add(periodizationStorageKey);
+  }
+  try {
+    window.localStorage.setItem(periodizationStorageKey, JSON.stringify(state));
+  } finally {
+    if (!shouldSyncCentral) {
+      centralStateWriteSuppressionKeys.delete(periodizationStorageKey);
+    }
+  }
+}
 function readPeriodizationState() {
   try {
     const raw = window.localStorage.getItem(periodizationStorageKey);
     const state = raw ? clonePeriodizationState(JSON.parse(raw)) : clonePeriodizationState(defaultPeriodizationState);
-    window.localStorage.setItem(periodizationStorageKey, JSON.stringify(state));
+    const normalizedValue = JSON.stringify(state);
+    if (raw !== normalizedValue) {
+      setPeriodizationStateStorageValue(state, { syncCentral: false });
+    }
     return state;
   } catch {
     const state = clonePeriodizationState(defaultPeriodizationState);
     try {
-      window.localStorage.setItem(periodizationStorageKey, JSON.stringify(state));
+      setPeriodizationStateStorageValue(state, { syncCentral: false });
     } catch {}
     return state;
   }
 }
-function writePeriodizationState() {
+function writePeriodizationState(options = {}) {
   if (!periodizationState) {
     return;
   }
   try {
-    window.localStorage.setItem(periodizationStorageKey, JSON.stringify(periodizationState));
+    setPeriodizationStateStorageValue(periodizationState, options);
   } catch {
     logEvent("Periodization settings could not be written to local storage.");
   }
@@ -6899,7 +6942,7 @@ function setPeriodizationMonth(monthIndex) {
   if (selectedDate.getFullYear() !== periodizationYear || selectedDate.getMonth() !== monthIndex) {
     periodizationState.selectedDate = formatScheduleDateValue(monthStart);
   }
-  writePeriodizationState();
+  writePeriodizationState({ syncCentral: false });
   if (hubState?.activeWorkspaceId === "periodization") {
     renderPeriodizationWorkspace();
   }
@@ -6911,16 +6954,21 @@ function shiftPeriodizationMonth(delta) {
   setPeriodizationMonth(periodizationState.selectedMonthIndex + delta);
 }
 function jumpPeriodizationToToday() {
+  ensurePeriodizationState();
+  if (!periodizationState) {
+    return;
+  }
   const today = new Date();
   const todayDateValue = formatScheduleDateValue(new Date(periodizationYear, today.getMonth(), today.getDate()));
   periodizationDayOverlayOpen = true;
   periodizationDayOverlayMode = "view";
   periodizationState = clonePeriodizationState({
+    ...periodizationState,
     selectedMonthIndex: today.getMonth(),
     selectedDate: todayDateValue,
     days: periodizationState?.days ?? {},
   });
-  writePeriodizationState();
+  writePeriodizationState({ syncCentral: false });
   if (hubState?.activeWorkspaceId === "periodization") {
     renderPeriodizationWorkspace();
   }
@@ -7001,23 +7049,60 @@ function mergeImportedNccSchedule(state) {
     events: [...mergedState.events, ...importedEvents],
   };
 }
+function mergeScheduleStatePreservingLocalUi(localValue, centralValue) {
+  let localState = null;
+  let centralStateValue = null;
+  try {
+    localState = localValue ? JSON.parse(localValue) : null;
+    centralStateValue = centralValue ? JSON.parse(centralValue) : null;
+  } catch {
+    return centralValue;
+  }
+  if (!localState || typeof localState !== "object" || !centralStateValue || typeof centralStateValue !== "object") {
+    return centralValue;
+  }
+  return JSON.stringify({
+    ...centralStateValue,
+    selectedYear: localState.selectedYear ?? centralStateValue.selectedYear,
+    selectedMonthIndex: localState.selectedMonthIndex ?? centralStateValue.selectedMonthIndex,
+    selectedDate: localState.selectedDate ?? centralStateValue.selectedDate,
+    viewMode: localState.viewMode ?? centralStateValue.viewMode,
+    overviewSpan: localState.overviewSpan ?? centralStateValue.overviewSpan,
+  });
+}
+function setScheduleStateStorageValue(state = scheduleState, options = {}) {
+  const shouldSyncCentral = options.syncCentral !== false;
+  if (!shouldSyncCentral) {
+    centralStateWriteSuppressionKeys.add(scheduleStorageKey);
+  }
+  try {
+    window.localStorage.setItem(scheduleStorageKey, JSON.stringify(state));
+  } finally {
+    if (!shouldSyncCentral) {
+      centralStateWriteSuppressionKeys.delete(scheduleStorageKey);
+    }
+  }
+}
 function readScheduleState() {
   try {
     const raw = window.localStorage.getItem(scheduleStorageKey);
     const state = raw ? cloneScheduleState(JSON.parse(raw)) : cloneScheduleState(defaultScheduleState);
     const mergedState = mergeImportedNccSchedule(state);
-    window.localStorage.setItem(scheduleStorageKey, JSON.stringify(mergedState));
+    const mergedValue = JSON.stringify(mergedState);
+    if (raw !== mergedValue) {
+      setScheduleStateStorageValue(mergedState, { syncCentral: false });
+    }
     return mergedState;
   } catch {
     return mergeImportedNccSchedule(defaultScheduleState);
   }
 }
-function writeScheduleState() {
+function writeScheduleState(options = {}) {
   if (!scheduleState) {
     return;
   }
   try {
-    window.localStorage.setItem(scheduleStorageKey, JSON.stringify(scheduleState));
+    setScheduleStateStorageValue(scheduleState, options);
   } catch {
     logEvent("Schedule could not be written to local storage.");
   }
@@ -7110,7 +7195,7 @@ function shiftScheduleMonth(delta) {
   scheduleState.selectedYear = nextDate.getFullYear();
   scheduleState.selectedMonthIndex = nextDate.getMonth();
   scheduleState.selectedDate = formatScheduleDateValue(nextDate);
-  writeScheduleState();
+  writeScheduleState({ syncCentral: false });
   renderScheduleWorkspace();
 }
 function setScheduleViewMode(viewMode) {
@@ -7118,7 +7203,7 @@ function setScheduleViewMode(viewMode) {
     return;
   }
   scheduleState.viewMode = viewMode === "overview" ? "overview" : "month";
-  writeScheduleState();
+  writeScheduleState({ syncCentral: false });
   renderScheduleWorkspace();
 }
 function setScheduleOverviewSpan(span) {
@@ -7128,7 +7213,7 @@ function setScheduleOverviewSpan(span) {
   const overviewSpan = Number(span);
   scheduleState.overviewSpan = [3, 6, 9, 12].includes(overviewSpan) ? overviewSpan : 6;
   scheduleState.viewMode = "overview";
-  writeScheduleState();
+  writeScheduleState({ syncCentral: false });
   renderScheduleWorkspace();
 }
 function scrollScheduleDateIntoView(dateValue) {
@@ -7168,7 +7253,7 @@ function selectScheduleDate(dateValue, options = {}) {
     scheduleState.selectedMonthIndex = date.getMonth();
   }
   scheduleState.selectedDate = formatScheduleDateValue(date);
-  writeScheduleState();
+  writeScheduleState({ syncCentral: false });
   renderScheduleWorkspace();
   if (options.scrollIntoView) {
     scrollScheduleDateIntoView(scheduleState.selectedDate);
@@ -7253,7 +7338,7 @@ function startEditingScheduleEvent(eventId) {
   scheduleState.selectedYear = date.getFullYear();
   scheduleState.selectedMonthIndex = date.getMonth();
   scheduleState.selectedDate = event.date;
-  writeScheduleState();
+  writeScheduleState({ syncCentral: false });
   renderScheduleWorkspace();
 }
 function clearScheduleEventEditor({ returnToView = false } = {}) {
@@ -8814,6 +8899,20 @@ function setDashboardChatConfirmAction(action = null) {
 function clearDashboardMessages() {
   writeDashboardMessages([]);
 }
+function resetDashboardChatLocalCacheIfNeeded() {
+  try {
+    if (localStorage.getItem(dashboardChatLocalCacheResetStorageKey) === dashboardChatLocalCacheResetVersion) {
+      return;
+    }
+    localStorage.setItem(dashboardChatStorageKey, "[]");
+    localStorage.setItem(dashboardChatDeletedMessageIdsStorageKey, "[]");
+    localStorage.setItem(dashboardChatWidgetNotificationCursorStorageKey, "{}");
+    localStorage.setItem(dashboardChatWidgetNotificationStateStorageKey, "{}");
+    localStorage.setItem(dashboardChatLocalCacheResetStorageKey, dashboardChatLocalCacheResetVersion);
+  } catch {
+    // If localStorage is unavailable, the database-backed chat still remains the source of truth.
+  }
+}
 function getDashboardChatThreadMessages(messages = readDashboardMessages(), threadId = dashboardChatTeamThreadId) {
   const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
   return messages.filter((message) => message.threadId === normalizedThreadId);
@@ -8844,6 +8943,10 @@ function getDashboardChatThreadData(
     : 0;
   const lastMessage = threadMessages.length ? threadMessages[threadMessages.length - 1] : null;
   const apiThread = dashboardChatApiThreads.find((thread) => thread.threadId === normalizedThreadId) || null;
+  const lastActivityMs = Math.max(
+    Date.parse(lastMessage?.createdAt || "") || 0,
+    Date.parse(apiThread?.lastMessageAt || "") || 0
+  );
   const managedTemplate = dashboardChatAdvancedThreadTemplates.find((template) => template.key === normalizedThreadId);
   const isDirectThread = !isTeamThread && !isManagedThread && normalizedThreadId.startsWith("dm:");
   const fallbackThreadLabel = formatDashboardChatThreadLabel(normalizedThreadId, currentUser, users);
@@ -8859,6 +8962,7 @@ function getDashboardChatThreadData(
     unreadCount,
     mentionCount,
     lastMessage,
+    lastActivityAt: lastActivityMs ? new Date(lastActivityMs).toISOString() : "",
     apiThread,
   };
 }
@@ -8891,14 +8995,8 @@ function getDashboardChatThreadList(currentUser = getCurrentPlatformUser(), user
     getDashboardChatThreadData(createDashboardChatThreadId(currentUser.id, user.id), currentUser, users, messages)
   );
   const sortThreads = (first, second) => {
-    const firstTime = Math.max(
-      new Date(first.lastMessage?.createdAt || 0).getTime() || 0,
-      new Date(first.apiThread?.lastMessageAt || 0).getTime() || 0
-    );
-    const secondTime = Math.max(
-      new Date(second.lastMessage?.createdAt || 0).getTime() || 0,
-      new Date(second.apiThread?.lastMessageAt || 0).getTime() || 0
-    );
+    const firstTime = Date.parse(first.lastActivityAt || first.lastMessage?.createdAt || first.apiThread?.lastMessageAt || "") || 0;
+    const secondTime = Date.parse(second.lastActivityAt || second.lastMessage?.createdAt || second.apiThread?.lastMessageAt || "") || 0;
     if (firstTime === secondTime) {
       const firstName = getDashboardUserLabel(first.participant?.id, users);
       const secondName = getDashboardUserLabel(second.participant?.id, users);
@@ -9228,10 +9326,24 @@ function formatDashboardTime(value) {
   if (Number.isNaN(date.getTime())) {
     return "";
   }
-  return new Intl.DateTimeFormat("en-GB", {
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const dayDiff = Math.round((startOfToday - startOfDate) / (24 * 60 * 60 * 1000));
+  const timeLabel = new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+  if (dayDiff === 0) {
+    return timeLabel;
+  }
+  if (dayDiff === 1) {
+    return `Yesterday ${timeLabel}`;
+  }
+  const dateOptions = date.getFullYear() === today.getFullYear()
+    ? { day: "2-digit", month: "short" }
+    : { day: "2-digit", month: "short", year: "numeric" };
+  return `${new Intl.DateTimeFormat("en-GB", dateOptions).format(date)} ${timeLabel}`;
 }
 function formatDashboardDateTime(value) {
   const date = new Date(value);
@@ -9563,6 +9675,7 @@ function renderDashboardChatWidget() {
     root.innerHTML = "";
     return;
   }
+  resetDashboardChatLocalCacheIfNeeded();
   const users = getPlatformUsers().filter((user) => user.status === "active");
   const notificationState = readDashboardChatWidgetNotificationState();
   const state = readDashboardChatWidgetState();
@@ -28571,7 +28684,7 @@ function openSessionPlannerPeriodizationOverlay(dateValue, mode = "view") {
   sessionPlannerPeriodizationOverlayDate = dateValue;
   sessionPlannerPeriodizationOverlayMode = safeMode;
   periodizationMultiSelectOpenField = "";
-  writePeriodizationState();
+  writePeriodizationState({ syncCentral: false });
   renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
 

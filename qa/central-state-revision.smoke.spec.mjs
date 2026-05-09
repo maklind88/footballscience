@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const revisionStateKey = "football-simulator-sequence-v1";
+const scheduleStateKey = "football-schedule-v1";
 const qaUser = {
   id: "qa-user-1",
   email: "qa@footballscience.test",
@@ -115,8 +116,8 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies) {
         contentType: "application/json",
         body: JSON.stringify({
           ok: true,
-          entries: { [revisionStateKey]: centralStore.value },
-          metadata: { [revisionStateKey]: centralStore.metadata },
+          entries: { [revisionStateKey]: centralStore.value, ...(centralStore.entries || {}) },
+          metadata: { [revisionStateKey]: centralStore.metadata, ...(centralStore.metadataEntries || {}) },
           updatedAt: new Date().toISOString(),
         }),
       });
@@ -180,10 +181,13 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies) {
   });
 }
 
-async function bootCentralPage(browser, baseURL, centralStore, syncBodies, tabName) {
+async function bootCentralPage(browser, baseURL, centralStore, syncBodies, tabName, options = {}) {
   const context = await browser.newContext();
   await installCentralRevisionRoutes(context, centralStore, syncBodies);
   const page = await context.newPage();
+  if (options.initScript) {
+    await page.addInitScript(options.initScript, options.initArg);
+  }
   const targetUrl = new URL(baseURL || "http://127.0.0.1:4173/");
   targetUrl.hostname = "127.0.0.1.nip.io";
   targetUrl.searchParams.set("qaTab", tabName);
@@ -242,5 +246,91 @@ test("two browser tabs send baseRevision and stale tab cannot overwrite newer ce
   } finally {
     await first.context.close();
     await stale.context.close();
+  }
+});
+
+test("central Schedule hydration preserves the local selected day", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const localScheduleState = {
+    selectedYear: 2026,
+    selectedMonthIndex: 4,
+    selectedDate: "2026-05-09",
+    viewMode: "overview",
+    overviewSpan: 6,
+    importVersion: "ncc-2026-numbers-v1",
+    events: [{ id: "local-training", date: "2026-05-09", type: "training", title: "Local Training" }],
+  };
+  const centralScheduleState = {
+    selectedYear: 2026,
+    selectedMonthIndex: 0,
+    selectedDate: "2026-01-15",
+    viewMode: "month",
+    overviewSpan: 3,
+    importVersion: "ncc-2026-numbers-v1",
+    events: [{ id: "central-match", date: "2026-05-09", type: "match", title: "Central Match" }],
+  };
+  const centralStore = {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+    entries: {
+      [scheduleStateKey]: JSON.stringify(centralScheduleState),
+    },
+    metadataEntries: {
+      [scheduleStateKey]: createMetadata(4, JSON.stringify(centralScheduleState)),
+    },
+  };
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "schedule-local-date", {
+    initScript: ({ key, value }) => {
+      window.localStorage.setItem(key, value);
+    },
+    initArg: { key: scheduleStateKey, value: JSON.stringify(localScheduleState) },
+  });
+
+  try {
+    await expect
+      .poll(() =>
+        tab.page.evaluate((key) => {
+          const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+          return {
+            selectedDate: state.selectedDate,
+            selectedMonthIndex: state.selectedMonthIndex,
+            viewMode: state.viewMode,
+            overviewSpan: state.overviewSpan,
+            eventTitles: (state.events || []).map((event) => event.title),
+          };
+        }, scheduleStateKey),
+        { timeout: 10_000 }
+      )
+      .toEqual({
+        selectedDate: "2026-05-09",
+        selectedMonthIndex: 4,
+        viewMode: "overview",
+        overviewSpan: 6,
+        eventTitles: ["Central Match"],
+      });
+
+    centralScheduleState.selectedMonthIndex = 1;
+    centralScheduleState.selectedDate = "2026-02-01";
+    centralStore.entries[scheduleStateKey] = JSON.stringify(centralScheduleState);
+    centralStore.metadataEntries[scheduleStateKey] = createMetadata(5, centralStore.entries[scheduleStateKey]);
+    await tab.page.evaluate(() => window.footballScienceCentralState.hydrate({ forceApply: true }));
+
+    await expect
+      .poll(() =>
+        tab.page.evaluate((key) => {
+          const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+          return {
+            selectedDate: state.selectedDate,
+            selectedMonthIndex: state.selectedMonthIndex,
+          };
+        }, scheduleStateKey),
+        { timeout: 10_000 }
+      )
+      .toEqual({
+        selectedDate: "2026-05-09",
+        selectedMonthIndex: 4,
+      });
+  } finally {
+    await tab.context.close();
   }
 });

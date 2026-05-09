@@ -824,10 +824,11 @@
           "tacticalElements",
         ];
         const SESSION_PLANNER_BLOCK_MERGE_FIELD_SET = new Set(SESSION_PLANNER_BLOCK_MERGE_FIELDS);
+        const SCHEDULE_STATE_KEY = "football-schedule-v1";
         const CENTRAL_STATE_KEYS = new Set([
           WORKSPACE_HUB_STATE_KEY,
           "football-periodization-v2",
-          "football-schedule-v1",
+          SCHEDULE_STATE_KEY,
           SESSION_PLANNER_STATE_KEY,
           "football-session-exercise-library-v1",
           "football-session-exercise-library-backup-v1",
@@ -1545,6 +1546,29 @@
             return null;
           }
         }
+        const SCHEDULE_LOCAL_UI_FIELDS = ["selectedYear", "selectedMonthIndex", "selectedDate", "viewMode", "overviewSpan"];
+        function mergeScheduleStateValues(localValue, centralValue) {
+          const localState = parseCentralObjectStateValue(localValue);
+          const centralStateValue = parseCentralObjectStateValue(centralValue);
+          if (!localState || !centralStateValue) {
+            return { value: centralValue, changed: false };
+          }
+          let changed = false;
+          const mergedState = { ...centralStateValue };
+          SCHEDULE_LOCAL_UI_FIELDS.forEach((field) => {
+            if (!Object.prototype.hasOwnProperty.call(localState, field)) {
+              return;
+            }
+            if (mergedState[field] !== localState[field]) {
+              changed = true;
+            }
+            mergedState[field] = localState[field];
+          });
+          return {
+            value: changed ? JSON.stringify(mergedState) : centralValue,
+            changed: false,
+          };
+        }
         function getCentralStateRecordMergeKey(record = {}) {
           const id = String(record?.id || record?.userId || record?.playerId || "").trim();
           if (id) {
@@ -1646,6 +1670,8 @@
               let valueToApply = value;
               if (key === WORKSPACE_HUB_STATE_KEY) {
                 valueToApply = sanitizeWorkspaceHubStateValue(value);
+              } else if (key === SCHEDULE_STATE_KEY) {
+                valueToApply = mergeScheduleStateValues(window.localStorage.getItem(key), value).value;
               } else if (key === SESSION_PLANNER_STATE_KEY && !options.forceApply) {
                 const mergedValue = mergeSessionPlannerStateValues(window.localStorage.getItem(key), value);
                 valueToApply = mergedValue.value;

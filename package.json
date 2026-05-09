@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "check": "node --check app.js && node --check scripts/performance-budget.mjs && node --check scripts/verify-supabase-migrations.mjs && node --check scripts/verify-supabase-remote.mjs && node --check src/core/data-safety-contracts.cjs && node --check src/core/data-safety-contracts.mjs && node --check src/core/index.mjs && node --check src/modules/manifest.mjs && node --check src/modules/home/index.mjs && node --check src/modules/home/dashboard-renderer.mjs && node --check src/modules/chat/index.mjs && node --check src/modules/chat/chat-widget-renderer.mjs && node --check src/modules/schedule/index.mjs && node --check src/modules/squad/index.mjs && node --check src/modules/squad/players.mjs && node --check src/modules/squad/squad-adapter.mjs && node --check src/modules/game-simulator/index.mjs && node --check src/modules/game-simulator/runtime.mjs && node --check src/modules/game-simulator/workspace-controller.mjs && node --check src/modules/game-simulator/control-bindings.mjs && node --check src/modules/game-simulator/fullscreen.mjs && node --check src/modules/game-simulator/keyboard-state.mjs",
+    "check": "node --check app.js && node --check scripts/performance-budget.mjs && node --check scripts/release-preflight.mjs && node --check scripts/verify-production-deploy.mjs && node --check scripts/verify-supabase-migrations.mjs && node --check scripts/verify-supabase-remote.mjs && node --check src/core/data-safety-contracts.cjs && node --check src/core/data-safety-contracts.mjs && node --check src/core/index.mjs && node --check src/modules/manifest.mjs && node --check src/modules/home/index.mjs && node --check src/modules/home/dashboard-renderer.mjs && node --check src/modules/chat/index.mjs && node --check src/modules/chat/chat-widget-renderer.mjs && node --check src/modules/schedule/index.mjs && node --check src/modules/squad/index.mjs && node --check src/modules/squad/players.mjs && node --check src/modules/squad/squad-adapter.mjs && node --check src/modules/game-simulator/index.mjs && node --check src/modules/game-simulator/runtime.mjs && node --check src/modules/game-simulator/workspace-controller.mjs && node --check src/modules/game-simulator/control-bindings.mjs && node --check src/modules/game-simulator/fullscreen.mjs && node --check src/modules/game-simulator/keyboard-state.mjs",
     "qa": "npm run check && npm run qa:supabase && npm run qa:perf && playwright test --config=qa/playwright.config.mjs",
     "qa:api": "playwright test --config=qa/playwright.config.mjs --project=api-contracts",
     "qa:browser": "playwright test --config=qa/playwright.config.mjs --project=chromium",
@@ -9,7 +9,11 @@
     "qa:supabase": "node scripts/verify-supabase-migrations.mjs",
     "qa:supabase:remote": "node scripts/verify-supabase-remote.mjs",
     "qa:live": "playwright test --config=qa/live.playwright.config.mjs",
-    "qa:deploy": "npm run qa"
+    "qa:deploy": "npm run qa",
+    "release:preflight": "node scripts/release-preflight.mjs",
+    "release:gate": "npm run release:preflight && npm run qa:deploy",
+    "release:postdeploy": "node scripts/verify-production-deploy.mjs",
+    "security:audit": "npm audit --audit-level=high"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",

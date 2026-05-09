@@ -145,6 +145,16 @@ const MEDICAL_RTP_PHASE_KEYS = new Set([
   "full-training",
   "match-available",
 ]);
+const BLOCKED_CONTENT_PATTERNS = [
+  { pattern: /<\s*script\b/i, label: "script tags" },
+  { pattern: /<\s*iframe\b/i, label: "iframe tags" },
+  { pattern: /<\s*object\b/i, label: "object tags" },
+  { pattern: /<\s*embed\b/i, label: "embed tags" },
+  { pattern: /\bon[a-z]+\s*=/i, label: "inline event handlers" },
+  { pattern: /javascript\s*:/i, label: "javascript URLs" },
+];
+const BLOCKED_JSON_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+const MAX_CONTENT_DEPTH = 80;
 
 function storageHeaders(contentType = "application/json") {
   const { serviceRoleKey } = readConfig();
@@ -354,6 +364,69 @@ function getStateEntryMetadata(entry = {}) {
     hash: entry?.hash || hashStateValue(value),
     size: Buffer.byteLength(value, "utf8"),
   };
+}
+
+function validateStateContentValue(value, pathLabel = "value", depth = 0) {
+  if (depth > MAX_CONTENT_DEPTH) {
+    return `${pathLabel} is too deeply nested.`;
+  }
+
+  if (typeof value === "string") {
+    const blockedPattern = BLOCKED_CONTENT_PATTERNS.find((entry) => entry.pattern.test(value));
+    return blockedPattern ? `${pathLabel} contains blocked executable content (${blockedPattern.label}).` : "";
+  }
+
+  if (!value || typeof value !== "object") {
+    return "";
+  }
+
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      const issue = validateStateContentValue(value[index], `${pathLabel}[${index}]`, depth + 1);
+      if (issue) {
+        return issue;
+      }
+    }
+    return "";
+  }
+
+  for (const [key, nestedValue] of Object.entries(value)) {
+    if (BLOCKED_JSON_KEYS.has(key)) {
+      return `${pathLabel}.${key} is not allowed in central state.`;
+    }
+    const issue = validateStateContentValue(nestedValue, `${pathLabel}.${key}`, depth + 1);
+    if (issue) {
+      return issue;
+    }
+  }
+
+  return "";
+}
+
+function validateCentralStateContent(key, value, contract = {}) {
+  if (contract?.contentSafety?.inputPolicy !== "server-validated-json") {
+    return { ok: true };
+  }
+
+  const parsed = safeParseJson(value, undefined);
+  if (parsed === undefined || parsed === null || typeof parsed !== "object") {
+    return {
+      ok: false,
+      status: 400,
+      reason: `${contract?.moduleId || key} data must be valid JSON object or array content before central sync.`,
+    };
+  }
+
+  const issue = validateStateContentValue(parsed);
+  if (issue) {
+    return {
+      ok: false,
+      status: 400,
+      reason: `${contract?.moduleId || key} data was not saved because ${issue}`,
+    };
+  }
+
+  return { ok: true };
 }
 
 function normalizeStateEntry(key, value, actor, removed = false, previousEntry = null) {
@@ -1879,6 +1952,11 @@ async function applyStateEntries(actor, entries = {}, metadata = {}) {
       return { ok: false, reason: authorization.reason || `Could not sync ${normalizedKey}.` };
     }
 
+    const contentSafety = validateCentralStateContent(normalizedKey, authorization.value, contract);
+    if (!contentSafety.ok) {
+      return contentSafety;
+    }
+
     const staleWrite = getStaleWriteRejection(
       contract,
       previousEntry,
@@ -2016,6 +2094,11 @@ module.exports = async (req, res) => {
     });
     if (!authorization.ok) {
       return sendJson(res, 403, { ok: false, reason: authorization.reason || "You do not have edit access." });
+    }
+
+    const contentSafety = validateCentralStateContent(key, authorization.value, contract);
+    if (!contentSafety.ok) {
+      return sendJson(res, contentSafety.status || 400, contentSafety);
     }
 
     const staleWrite = getStaleWriteRejection(

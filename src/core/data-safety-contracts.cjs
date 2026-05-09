@@ -6,6 +6,12 @@ const CENTRAL_APP_STATE_ENDPOINT = "/api/app-state";
 const LOCAL_CACHE_ONLY = "cache-only";
 const SERVER_SOURCE_OF_TRUTH = "server";
 const REQUIRED_RECORD_FIELDS = Object.freeze(["updatedAt", "updatedBy", "revision", "organizationId"]);
+const DEFAULT_CONTENT_SAFETY = Object.freeze({
+  inputPolicy: "server-validated-json",
+  htmlPolicy: "escaped-text-only",
+  executableContent: "reject",
+  prototypePollutionKeys: "reject",
+});
 
 const dataSafetyMergePolicies = Object.freeze({
   appendPreserveNewer: "append-preserve-newer",
@@ -36,6 +42,7 @@ function freezeContract(contract) {
       enabled: true,
       backupEndpoint: "/api/app-state-backup",
     }),
+    contentSafety: DEFAULT_CONTENT_SAFETY,
     revision: Object.freeze({
       required: true,
       strategy: "server-increment",
@@ -265,6 +272,14 @@ function createDataSafetyRegistry(contracts = dataSafetyContracts) {
         if (!contract.mergePolicy || !contract.scope?.tenancy || contract.saveEndpoint !== CENTRAL_APP_STATE_ENDPOINT) {
           missing.push(`${contract.key}:pipeline`);
         }
+        if (
+          contract.contentSafety?.inputPolicy !== DEFAULT_CONTENT_SAFETY.inputPolicy ||
+          contract.contentSafety?.htmlPolicy !== DEFAULT_CONTENT_SAFETY.htmlPolicy ||
+          contract.contentSafety?.executableContent !== DEFAULT_CONTENT_SAFETY.executableContent ||
+          contract.contentSafety?.prototypePollutionKeys !== DEFAULT_CONTENT_SAFETY.prototypePollutionKeys
+        ) {
+          missing.push(`${contract.key}:contentSafety`);
+        }
       }
       if (missing.length) {
         throw new Error(`Invalid data safety contracts: ${missing.join(", ")}`);
@@ -280,6 +295,7 @@ module.exports = {
   CENTRAL_APP_STATE_ENDPOINT,
   CENTRAL_APP_STATE_PIPELINE,
   DATA_SAFETY_SCHEMA,
+  DEFAULT_CONTENT_SAFETY,
   LOCAL_CACHE_ONLY,
   REQUIRED_RECORD_FIELDS,
   SERVER_SOURCE_OF_TRUTH,

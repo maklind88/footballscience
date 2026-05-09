@@ -18,6 +18,7 @@ Options:
   --commit, -m TEXT   Commit staged changes with TEXT.
   --push              Push the current branch after QA passes.
   --deploy            Push if needed, run release gate, deploy to Vercel production, then verify.
+                      The release gate requires main, staging/live isolation, and a matching staging tree.
   --help              Show this help.
 `);
 }

@@ -71,8 +71,22 @@ jobs:
         shell: bash
         run: |
           npx --yes vercel@53.2.0 deploy --prebuilt --token="$VERCEL_TOKEN" | tee deployment-url.txt
-          deployment_url="$(tail -n 1 deployment-url.txt)"
+          deployment_url="$(grep -Eo 'https://[^[:space:]]+\.vercel\.app' deployment-url.txt | tail -n 1)"
+          if [ -z "$deployment_url" ]; then
+            echo "Could not resolve staging deployment URL from Vercel output."
+            exit 1
+          fi
           echo "STAGING_DEPLOYMENT_URL=$deployment_url" >> "$GITHUB_ENV"
+
+      - name: Alias staging domain
+        if: ${{ steps.staging-env.outputs.enabled == 'true' && vars.STAGING_QA_BASE_URL != '' }}
+        shell: bash
+        run: |
+          staging_host="$(node -e 'console.log(new URL(process.env.STAGING_QA_BASE_URL).hostname)')"
+          deployment_host="$(node -e 'console.log(new URL(process.env.STAGING_DEPLOYMENT_URL).hostname)')"
+          if [ "$staging_host" != "$deployment_host" ]; then
+            npx --yes vercel@53.2.0 alias set "$STAGING_DEPLOYMENT_URL" "$staging_host" --token="$VERCEL_TOKEN"
+          fi
 
       - name: Authenticated staging smoke
         if: ${{ steps.staging-env.outputs.enabled == 'true' }}

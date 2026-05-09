@@ -3,6 +3,7 @@ import { createSimulatorFullscreenController } from "./src/modules/game-simulato
 import { createSimulatorKeyboardStateController } from "./src/modules/game-simulator/keyboard-state.mjs";
 import { createSimulatorWorkspaceController } from "./src/modules/game-simulator/workspace-controller.mjs";
 import { createDashboardChatWidgetRenderer } from "./src/modules/chat/chat-widget-renderer.mjs";
+import { createDashboardChatAttachmentRenderer } from "./src/modules/chat/chat-attachment-renderer.mjs";
 import { uploadDashboardChatAttachmentFile as uploadDashboardChatAttachmentFileWithClient } from "./src/modules/chat/chat-attachment-storage.mjs";
 import { createDashboardHomeCardsRenderer } from "./src/modules/home/dashboard-renderer.mjs";
 import { selectHomeTaskQueues } from "./src/modules/home/tasks.mjs";
@@ -564,6 +565,11 @@ const dashboardHomeCardsRenderer = createDashboardHomeCardsRenderer({
   renderTaskList: (tasks, users, currentUser, options) => renderDashboardTaskList(tasks, users, currentUser, options),
   resolveUserLabel: (userId, users) => getDashboardUserLabel(userId, users),
 });
+const dashboardChatAttachmentRenderer = createDashboardChatAttachmentRenderer({
+  escapeHtml,
+  getSupabaseClient: getDashboardSupabaseClient,
+  renderChatWidget: () => renderDashboardChatWidget(),
+});
 const dashboardChatWidgetRenderer = createDashboardChatWidgetRenderer({
   teamThreadId: dashboardChatTeamThreadId,
   messageLimit: dashboardChatWidgetMessageLimit,
@@ -579,9 +585,8 @@ const dashboardChatWidgetRenderer = createDashboardChatWidgetRenderer({
   renderPresenceAvatar: renderDashboardPresenceAvatar,
   renderMessageStatus: renderDashboardMessageStatus,
   renderMessageText: renderDashboardMessageText,
-  renderMessageAttachments: renderDashboardMessageAttachments,
+  renderMessageAttachments: dashboardChatAttachmentRenderer.renderMessageAttachments,
   renderMessageReactions: renderDashboardMessageReactions,
-  renderMessageAttachments: renderDashboardMessageAttachments,
   renderReplyReference: renderDashboardReplyReference,
   renderPinnedMessages: renderDashboardPinnedMessages,
   renderTypingIndicator: renderDashboardTypingIndicator,
@@ -6006,7 +6011,6 @@ let dashboardChatThreadSummarySyncTimer = 0;
 let dashboardChatThreadSummaryLastRequestedAt = 0;
 let dashboardChatComposerAttachmentDraft = null;
 let dashboardChatSubmittedComposerDrafts = new Map();
-const dashboardChatAttachmentSignedUrlCache = new Map();
 let sessionPlannerPeriodizationOverlayMode = "view";
 let sessionPlannerLibraryOpen = false;
 let sessionPlannerLibraryPhaseFilter = "all";
@@ -8662,14 +8666,15 @@ function getDashboardAttachmentStorageRef(attachment = {}) {
   const path = String(attachment.path || attachment.storage_path || "").trim();
   return bucket && path ? { bucket, path } : null;
 }
+function setDashboardChatAttachmentDraft(next) { dashboardChatComposerAttachmentDraft = next; renderDashboardChatWidget(); focusDashboardChatWidgetComposer(); }
 async function uploadDashboardChatAttachmentFile(file, attachment = {}) {
   return uploadDashboardChatAttachmentFileWithClient(file, attachment, getDashboardSupabaseClient(), getDashboardChatApiAccessToken);
 }
 async function createDashboardChatAttachmentIntent(file, threadId = dashboardChatTeamThreadId) {
-  if (!file) {
-    return null;
-  }
+  if (!file) return null;
   const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+  const fileMetadata = { fileName: file.name || "Attachment", byteSize: file.size || 0, mimeType: file.type || "application/octet-stream" };
+  setDashboardChatAttachmentDraft({ id: createDashboardId("attachment"), status: "uploading", metadata: fileMetadata });
   const result = await sendDashboardChatApiAction({
     action: "createAttachmentIntent",
     threadId: normalizedThreadId,
@@ -8682,37 +8687,38 @@ async function createDashboardChatAttachmentIntent(file, threadId = dashboardCha
   });
   if (!result.ok) {
     logDashboardChatApiFailure("createAttachmentIntent", result);
-    showDashboardChatWidgetToast(result.reason || "Attachment could not be prepared.", normalizedThreadId);
+    showDashboardChatWidgetToast(result.reason || "Attach failed.", normalizedThreadId);
+    setDashboardChatAttachmentDraft({ ...dashboardChatComposerAttachmentDraft, status: "failed", error: result.reason || "Attach failed." });
     return null;
   }
   const uploadIntent = result.result?.upload || null;
-  const attachment = result.result?.attachment
-    ? {
-        ...result.result.attachment,
-        upload: uploadIntent,
-        token: uploadIntent?.token || "",
-        signedUrl: uploadIntent?.signedUrl || "",
-      }
-    : null;
+  const attachment = result.result?.attachment ? { ...result.result.attachment, upload: uploadIntent, token: uploadIntent?.token || "" } : null;
   const upload = await uploadDashboardChatAttachmentFile(file, attachment);
   if (!upload.ok) {
     logDashboardChatApiFailure("uploadAttachment", upload);
-    showDashboardChatWidgetToast(upload.reason || "Attachment upload failed.", normalizedThreadId);
-    dashboardChatComposerAttachmentDraft = null;
-    renderDashboardChatWidget();
-    focusDashboardChatWidgetComposer();
+    showDashboardChatWidgetToast(upload.reason || "Upload failed.", normalizedThreadId);
+    setDashboardChatAttachmentDraft({ ...(attachment || dashboardChatComposerAttachmentDraft || {}), status: "failed", error: upload.reason || "Upload failed.", metadata: { ...(dashboardChatComposerAttachmentDraft?.metadata || {}), ...(attachment?.metadata || {}) } });
     return null;
   }
-  dashboardChatComposerAttachmentDraft = attachment
-    ? {
-        ...attachment,
-        status: "uploaded",
-        metadata: { ...(attachment.metadata || {}), uploadReady: true },
-      }
-    : null;
-  renderDashboardChatWidget();
-  focusDashboardChatWidgetComposer();
+  setDashboardChatAttachmentDraft(attachment ? { ...attachment, status: "uploaded", metadata: { ...(attachment.metadata || {}), uploadReady: true } } : null);
   return dashboardChatComposerAttachmentDraft;
+}
+async function handleDashboardChatAttachmentInputChange(attachmentInput) {
+  if (!attachmentInput || attachmentInput.dataset.busy === "true") return;
+  const file = attachmentInput.files?.[0] || null;
+  if (!file) return;
+  attachmentInput.dataset.busy = "true";
+  try {
+    const currentState = readDashboardChatWidgetState();
+    const threadId = normalizeDashboardChatThreadId(currentState.selectedThreadId, dashboardChatTeamThreadId);
+    await createDashboardChatAttachmentIntent(file, threadId);
+  } catch (error) {
+    setDashboardChatAttachmentDraft({ id: createDashboardId("attachment"), status: "failed", error: error?.message || "Upload failed.", metadata: { fileName: file.name || "Attachment", byteSize: file.size || 0, mimeType: file.type || "application/octet-stream" } });
+    showDashboardChatWidgetToast(dashboardChatComposerAttachmentDraft.error, dashboardChatActiveThreadId);
+  } finally {
+    attachmentInput.value = "";
+    delete attachmentInput.dataset.busy;
+  }
 }
 async function createDashboardAdvancedChatThread(templateKey) {
   const template = dashboardChatAdvancedThreadTemplates.find((candidate) => candidate.key === templateKey);
@@ -9787,88 +9793,6 @@ function clearDashboardMessagesForThreadWithApi(threadId) {
     }
   );
 }
-function getDashboardAttachmentCacheKey(attachment = {}) {
-  const storageRef = getDashboardAttachmentStorageRef(attachment);
-  return storageRef ? `${storageRef.bucket}:${storageRef.path}` : "";
-}
-function getDashboardAttachmentSignedUrl(attachment = {}) {
-  const key = getDashboardAttachmentCacheKey(attachment);
-  if (!key) {
-    return "";
-  }
-  const cached = dashboardChatAttachmentSignedUrlCache.get(key);
-  if (!cached?.url || Date.now() > Number(cached.expiresAt || 0)) {
-    return "";
-  }
-  return cached.url;
-}
-function queueDashboardChatAttachmentSignedUrls(messages = readDashboardMessages()) {
-  const supabase = getDashboardSupabaseClient();
-  if (!supabase?.storage?.from) {
-    return;
-  }
-  const attachments = messages
-    .flatMap((message) => (Array.isArray(message.attachments) ? message.attachments : []))
-    .filter((attachment) => String(attachment.status || "ready").toLowerCase() === "ready");
-  attachments.forEach((attachment) => {
-    const storageRef = getDashboardAttachmentStorageRef(attachment);
-    const key = getDashboardAttachmentCacheKey(attachment);
-    const cached = key ? dashboardChatAttachmentSignedUrlCache.get(key) : null;
-    if (!storageRef || !key || cached?.pending || (cached?.url && Date.now() < Number(cached.expiresAt || 0))) {
-      return;
-    }
-    dashboardChatAttachmentSignedUrlCache.set(key, { pending: true, expiresAt: Date.now() + 30000 });
-    supabase.storage
-      .from(storageRef.bucket)
-      .createSignedUrl(storageRef.path, 600)
-      .then(({ data, error }) => {
-        if (error) {
-          dashboardChatAttachmentSignedUrlCache.set(key, { pending: false, error: error.message, expiresAt: Date.now() + 30000 });
-          return;
-        }
-        const url = data?.signedUrl || data?.signedURL || "";
-        dashboardChatAttachmentSignedUrlCache.set(key, {
-          pending: false,
-          url,
-          expiresAt: Date.now() + 9 * 60 * 1000,
-        });
-        renderDashboardChatWidget();
-      })
-      .catch((error) => {
-        dashboardChatAttachmentSignedUrlCache.set(key, { pending: false, error: error?.message || "Signing failed.", expiresAt: Date.now() + 30000 });
-      });
-  });
-}
-function renderDashboardMessageAttachments(message) {
-  const attachments = Array.isArray(message.attachments) ? message.attachments : [];
-  if (!attachments.length) {
-    return "";
-  }
-  return `
-    <div class="dashboard-chat-attachments" aria-label="Message attachments">
-      ${attachments
-        .map((attachment) => {
-          const name = attachment.metadata?.fileName || attachment.fileName || "Attachment";
-          const size = Number(attachment.byte_size || attachment.byteSize || 0);
-          const sizeLabel = size ? `${Math.ceil(size / 1024)} KB` : "Pending";
-          const signedUrl = getDashboardAttachmentSignedUrl(attachment);
-          const content = `
-              <span aria-hidden="true">□</span>
-              <strong>${escapeHtml(name)}</strong>
-              <small>${escapeHtml(signedUrl ? sizeLabel : `${sizeLabel} · preparing`)}</small>
-          `;
-          return `
-            ${
-              signedUrl
-                ? `<a class="dashboard-chat-attachment-pill" href="${escapeHtml(signedUrl)}" target="_blank" rel="noopener noreferrer">${content}</a>`
-                : `<span class="dashboard-chat-attachment-pill">${content}</span>`
-            }
-          `;
-        })
-        .join("")}
-    </div>
-  `;
-}
 function renderDashboardChatWidget() {
   const root = ui.dashboardChatWidgetRoot;
   if (!root) {
@@ -9911,7 +9835,7 @@ function renderDashboardChatWidget() {
   const resolvedMessages = isDashboardChatThreadActivelyViewed(state.selectedThreadId)
     ? markDashboardMessagesReadForCurrentUser(messages, state.selectedThreadId)
     : messages;
-  queueDashboardChatAttachmentSignedUrls(resolvedMessages);
+  dashboardChatAttachmentRenderer.queueSignedUrls(resolvedMessages);
   const threads = getDashboardChatThreadList(currentUser, users, resolvedMessages);
   const activeThreadId = threads.some((thread) => thread.threadId === state.selectedThreadId)
     ? state.selectedThreadId
@@ -72706,7 +72630,12 @@ ui.dashboardChatWidgetRoot?.addEventListener("click", async (event) => {
   }
 
   const attachmentTrigger = event.target.closest("[data-dashboard-chat-attachment-trigger]");
-  if (attachmentTrigger) { event.preventDefault(); attachmentTrigger.closest("[data-dashboard-chat-form]")?.querySelector("[data-dashboard-chat-attachment-input]")?.click(); return; }
+  if (attachmentTrigger) {
+    event.preventDefault();
+    const attachmentInput = attachmentTrigger.closest("[data-dashboard-chat-form]")?.querySelector("[data-dashboard-chat-attachment-input]");
+    if (attachmentInput) { attachmentInput.onchange = () => { void handleDashboardChatAttachmentInputChange(attachmentInput); }; attachmentInput.click(); }
+    return;
+  }
 
   const priorityButton = event.target.closest("[data-dashboard-chat-priority]");
   if (priorityButton) {
@@ -75685,16 +75614,7 @@ ui.dashboardChatWidgetRoot?.addEventListener("change", async (event) => {
   if (!attachmentInput) {
     return;
   }
-
-  const file = attachmentInput.files?.[0] || null;
-  if (!file) {
-    return;
-  }
-
-  const currentState = readDashboardChatWidgetState();
-  const threadId = normalizeDashboardChatThreadId(currentState.selectedThreadId, dashboardChatTeamThreadId);
-  await createDashboardChatAttachmentIntent(file, threadId);
-  attachmentInput.value = "";
+  await handleDashboardChatAttachmentInputChange(attachmentInput);
 });
 
 ui.scheduleCalendarGrid?.addEventListener("click", (event) => {

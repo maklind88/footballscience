@@ -342,6 +342,66 @@ test("Schedule Today anchors overview to the real current date", async ({ page }
     });
 });
 
+test("Periodization Today opens the real current date", async ({ page }) => {
+  await page.addInitScript(({ key }) => {
+    const realDate = Date;
+    const fixedNow = new realDate("2026-05-09T12:00:00-04:00").getTime();
+    class FixedDate extends realDate {
+      constructor(...args) {
+        super(...(args.length ? args : [fixedNow]));
+      }
+      static now() {
+        return fixedNow;
+      }
+    }
+    FixedDate.UTC = realDate.UTC;
+    FixedDate.parse = realDate.parse;
+    FixedDate.prototype = realDate.prototype;
+    window.Date = FixedDate;
+    window.localStorage.setItem(
+      key,
+      JSON.stringify({
+        selectedYear: 2026,
+        selectedMonthIndex: 0,
+        selectedDate: "2026-01-15",
+        importVersion: "ncc-2026-periodization-v1",
+        days: {
+          "2026-05-09": {
+            seasonPhase: "Competition",
+            daySchedule: "Travel Day",
+            sessionNotes: "QA today anchor",
+          },
+        },
+      })
+    );
+  }, { key: periodizationKey });
+
+  await bootApp(page);
+  await openWorkspace(page, "periodization");
+  await page.locator("#periodizationTodayButton").click();
+
+  await expect(page.locator("#periodizationHeading")).toHaveText("May 2026");
+  await expect(page.locator('[data-periodization-date="2026-05-09"]')).toHaveClass(/is-selected/);
+  await expect(page.locator("[data-periodization-overlay]")).toBeVisible();
+  await expect(page.locator("[data-periodization-overlay] h2").first()).toHaveText("Saturday, May 9");
+  await expect
+    .poll(() =>
+      page.evaluate((key) => {
+        const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+        return {
+          selectedDate: state.selectedDate,
+          selectedMonthIndex: state.selectedMonthIndex,
+          note: state.days?.["2026-05-09"]?.sessionNotes || "",
+        };
+      }, periodizationKey)
+    )
+    .toEqual({
+      selectedDate: "2026-05-09",
+      selectedMonthIndex: 4,
+      note: "QA today anchor",
+    });
+});
+
 test("Periodization day notes persist after refresh", async ({ page }) => {
   const note = `QA Periodization ${Date.now()}`;
   await bootApp(page);

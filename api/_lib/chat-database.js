@@ -1029,20 +1029,21 @@ async function recalculateThreadSummary(thread = {}) {
       `thread_id=eq.${filterValue(thread.id)}`,
       "deleted_at=is.null",
       "order=created_at.desc",
-      "limit=1000",
+      "limit=1",
     ].join("&")
   ).catch(() => []);
   const latestMessage = messages[0] || null;
+  const nextMessageCount = Math.max(Number(thread.message_count || 1) - 1, 0);
   const [updatedThread] = await patchRows("chat_threads", `id=eq.${filterValue(thread.id)}`, {
     last_message_id: latestMessage?.id || null,
     last_message_at: latestMessage?.created_at || null,
-    message_count: messages.length,
+    message_count: nextMessageCount,
   }).catch(() => []);
   return updatedThread || {
     ...thread,
     last_message_id: latestMessage?.id || null,
     last_message_at: latestMessage?.created_at || null,
-    message_count: messages.length,
+    message_count: nextMessageCount,
   };
 }
 
@@ -1363,11 +1364,17 @@ async function sendMessage(actor, body) {
     ).catch(() => null);
   }
 
-  await patchRows("chat_threads", `id=eq.${filterValue(thread.id)}`, {
+  const threadRows = await patchRows("chat_threads", `id=eq.${filterValue(thread.id)}`, {
     last_message_id: message.id,
     last_message_at: message.created_at,
     message_count: Number(thread.message_count || 0) + 1,
   });
+  const updatedThread = threadRows[0] || {
+    ...thread,
+    last_message_id: message.id,
+    last_message_at: message.created_at,
+    message_count: Number(thread.message_count || 0) + 1,
+  };
 
   await insertRows("chat_read_receipts", {
     thread_id: thread.id,
@@ -1398,7 +1405,7 @@ async function sendMessage(actor, body) {
   });
   const [enrichedMessage] = await enrichMessages([message], thread);
 
-  return { ok: true, action: "sendMessage", thread, message: enrichedMessage || message, auditId: audit?.id || "" };
+  return { ok: true, action: "sendMessage", thread: updatedThread, message: enrichedMessage || message, auditId: audit?.id || "" };
 }
 
 async function editMessage(actor, body) {
@@ -1412,7 +1419,7 @@ async function editMessage(actor, body) {
   }
 
   const message = await selectOne("chat_messages", `select=${MESSAGE_SELECT}&id=eq.${filterValue(messageId)}`);
-  if (!message) {
+  if (!message || message.deleted_at) {
     return { ok: false, status: 404, reason: "Message not found." };
   }
 
@@ -1451,7 +1458,7 @@ async function updateMessageFlag(actor, body, action) {
   }
 
   const message = await selectOne("chat_messages", `select=${MESSAGE_SELECT}&id=eq.${filterValue(messageId)}`);
-  if (!message) {
+  if (!message || message.deleted_at) {
     return { ok: false, status: 404, reason: "Message not found." };
   }
 
@@ -1489,7 +1496,7 @@ async function deleteMessage(actor, body) {
   }
 
   const message = await selectOne("chat_messages", `select=${MESSAGE_SELECT}&id=eq.${filterValue(messageId)}`);
-  if (!message) {
+  if (!message || message.deleted_at) {
     return { ok: false, status: 404, reason: "Message not found." };
   }
 

@@ -1548,30 +1548,8 @@
           }
         }
         const SCHEDULE_LOCAL_UI_FIELDS = ["selectedYear", "selectedMonthIndex", "selectedDate", "viewMode", "overviewSpan"];
-        function mergeScheduleStateValues(localValue, centralValue) {
-          const localState = parseCentralObjectStateValue(localValue);
-          const centralStateValue = parseCentralObjectStateValue(centralValue);
-          if (!localState || !centralStateValue) {
-            return { value: centralValue, changed: false };
-          }
-          let changed = false;
-          const mergedState = { ...centralStateValue };
-          SCHEDULE_LOCAL_UI_FIELDS.forEach((field) => {
-            if (!Object.prototype.hasOwnProperty.call(localState, field)) {
-              return;
-            }
-            if (mergedState[field] !== localState[field]) {
-              changed = true;
-            }
-            mergedState[field] = localState[field];
-          });
-          return {
-            value: changed ? JSON.stringify(mergedState) : centralValue,
-            changed: false,
-          };
-        }
         const PERIODIZATION_LOCAL_UI_FIELDS = ["selectedYear", "selectedMonthIndex", "selectedDate"];
-        function mergePeriodizationStateValues(localValue, centralValue) {
+        function mergeCentralStateLocalUiFields(localValue, centralValue, fields) {
           const localState = parseCentralObjectStateValue(localValue);
           const centralStateValue = parseCentralObjectStateValue(centralValue);
           if (!localState || !centralStateValue) {
@@ -1579,7 +1557,7 @@
           }
           let changed = false;
           const mergedState = { ...centralStateValue };
-          PERIODIZATION_LOCAL_UI_FIELDS.forEach((field) => {
+          fields.forEach((field) => {
             if (!Object.prototype.hasOwnProperty.call(localState, field)) {
               return;
             }
@@ -1695,9 +1673,9 @@
               if (key === WORKSPACE_HUB_STATE_KEY) {
                 valueToApply = sanitizeWorkspaceHubStateValue(value);
               } else if (key === PERIODIZATION_STATE_KEY) {
-                valueToApply = mergePeriodizationStateValues(window.localStorage.getItem(key), value).value;
+                valueToApply = mergeCentralStateLocalUiFields(window.localStorage.getItem(key), value, PERIODIZATION_LOCAL_UI_FIELDS).value;
               } else if (key === SCHEDULE_STATE_KEY) {
-                valueToApply = mergeScheduleStateValues(window.localStorage.getItem(key), value).value;
+                valueToApply = mergeCentralStateLocalUiFields(window.localStorage.getItem(key), value, SCHEDULE_LOCAL_UI_FIELDS).value;
               } else if (key === SESSION_PLANNER_STATE_KEY && !options.forceApply) {
                 const mergedValue = mergeSessionPlannerStateValues(window.localStorage.getItem(key), value);
                 valueToApply = mergedValue.value;

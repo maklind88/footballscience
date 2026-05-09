@@ -1261,20 +1261,48 @@ async function sendMessage(actor, body) {
     }
   }
 
-  const rows = await insertRows("chat_messages", {
-    organization_id: thread.organization_id,
-    team_id: thread.team_id,
-    thread_id: thread.id,
-    author_id: actor.id || null,
-    body: text,
-    priority: normalizePriority(body.priority),
-    reply_to_id: normalizeId(body.replyToId || body.reply_to_id) || null,
-    client_message_id: clientMessageId || null,
-    metadata: {
-      authorName: normalizeString(`${actor.firstName || ""} ${actor.lastName || ""}`.trim() || actor.username || actor.email),
-      authorRole: actorRole(actor),
-    },
-  });
+  let rows = [];
+  try {
+    rows = await insertRows("chat_messages", {
+      organization_id: thread.organization_id,
+      team_id: thread.team_id,
+      thread_id: thread.id,
+      author_id: actor.id || null,
+      body: text,
+      priority: normalizePriority(body.priority),
+      reply_to_id: normalizeId(body.replyToId || body.reply_to_id) || null,
+      client_message_id: clientMessageId || null,
+      metadata: {
+        authorName: normalizeString(`${actor.firstName || ""} ${actor.lastName || ""}`.trim() || actor.username || actor.email),
+        authorRole: actorRole(actor),
+      },
+    });
+  } catch (error) {
+    if (!clientMessageId) {
+      throw error;
+    }
+    const existingMessage = await selectOne(
+      "chat_messages",
+      [
+        `select=${MESSAGE_SELECT}`,
+        `thread_id=eq.${filterValue(thread.id)}`,
+        `client_message_id=eq.${filterValue(clientMessageId)}`,
+        "deleted_at=is.null",
+      ].join("&")
+    ).catch(() => null);
+    if (!existingMessage) {
+      throw error;
+    }
+    const [enrichedExistingMessage] = await enrichMessages([existingMessage], thread);
+    return {
+      ok: true,
+      action: "sendMessage",
+      duplicate: true,
+      thread,
+      message: enrichedExistingMessage || existingMessage,
+      auditId: "",
+    };
+  }
   const message = rows[0];
   const mentions = mentionHandles(text);
   const attachmentIds = Array.isArray(body.attachmentIds)

@@ -5994,7 +5994,9 @@ let dashboardChatApiThreads = [];
 let dashboardChatApiPagination = {};
 let dashboardChatMessageSearchQuery = "";
 let dashboardChatModerationOpen = false;
-let dashboardChatModerationState = { loading: false, audits: [], retentionPolicy: null, error: "" };
+let dashboardChatModerationState = { loading: false, audits: [], retentionPolicy: null, health: null, error: "" };
+let dashboardChatThreadSummarySyncTimer = 0;
+let dashboardChatThreadSummaryLastRequestedAt = 0;
 let dashboardChatComposerAttachmentDraft = null;
 const dashboardChatAttachmentSignedUrlCache = new Map();
 let sessionPlannerPeriodizationOverlayMode = "view";
@@ -8091,6 +8093,7 @@ function normalizeDashboardMessage(message) {
     pinnedBy: String(message?.pinnedBy || "").trim(),
     author: normalizeDashboardMessageAuthor(message?.author || message?.user || null),
     attachments: Array.isArray(message?.attachments) ? message.attachments : [],
+    status: String(message?.status || "sent").trim().toLowerCase(),
   };
 }
 function readDashboardDeletedMessageIds() {
@@ -8299,6 +8302,10 @@ function normalizeDashboardApiThread(thread = {}) {
     visibility: String(thread.visibility || "members").trim(),
     lastMessageAt: String(thread.last_message_at || thread.lastMessageAt || thread.updated_at || "").trim(),
     messageCount: Number(thread.message_count || thread.messageCount || 0) || 0,
+    unreadCount: Number(thread.unreadCount || thread.unread_count || 0) || 0,
+    lastReadAt: String(thread.lastReadAt || thread.last_read_at || "").trim(),
+    lastMessage: thread.lastMessage || thread.last_message || null,
+    lastMessagePreview: String(thread.lastMessagePreview || thread.last_message_preview || "").trim(),
     metadata: thread.metadata || {},
   };
 }
@@ -8326,6 +8333,7 @@ function normalizeDashboardApiMessage(message = {}, thread = null) {
     pinnedBy: message.pinnedBy || message.pinned_by || "",
     author,
     attachments: Array.isArray(message.attachments) ? message.attachments : [],
+    status: message.status || (message.deleted_at || message.deletedAt ? "deleted" : "sent"),
   });
 }
 function mergeDashboardChatApiMessages(messages = [], options = {}) {
@@ -8941,8 +8949,9 @@ function getDashboardChatThreadData(
           !message.readBy.includes(currentUser.id)
       ).length
     : 0;
-  const lastMessage = threadMessages.length ? threadMessages[threadMessages.length - 1] : null;
   const apiThread = dashboardChatApiThreads.find((thread) => thread.threadId === normalizedThreadId) || null;
+  const apiLastMessage = apiThread?.lastMessage ? normalizeDashboardApiMessage(apiThread.lastMessage, apiThread) : null;
+  const lastMessage = threadMessages.length ? threadMessages[threadMessages.length - 1] : apiLastMessage;
   const lastActivityMs = Math.max(
     Date.parse(lastMessage?.createdAt || "") || 0,
     Date.parse(apiThread?.lastMessageAt || "") || 0
@@ -8959,7 +8968,7 @@ function getDashboardChatThreadData(
     type: apiThread?.type || (isManagedThread ? managedTemplate?.type : isTeamThread ? "team" : "dm"),
     participant: participants[0] || null,
     messageCount: Math.max(threadMessages.length, apiThread?.messageCount || 0),
-    unreadCount,
+    unreadCount: Math.max(unreadCount, apiThread?.unreadCount || 0),
     mentionCount,
     lastMessage,
     lastActivityAt: lastActivityMs ? new Date(lastActivityMs).toISOString() : "",

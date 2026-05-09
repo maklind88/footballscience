@@ -60,6 +60,7 @@ First adapter boundary:
 - Schedule has a read-only adapter for the existing `football-schedule-v1` payload.
 - It can normalize current calendar state, select day/month events, identify main events, and locate training-session events.
 - Schedule writes and event removal remain blocked until migration is explicitly enabled.
+- Schedule also has a staged server adapter and Supabase migration for `schedule_events`, sync inbox, versions, and audit logs. It remains feature-flagged so the current app-state path stays the production source of truth until dual-read / dual-write verification is green.
 
 ### Stage 3: Data Adapter Layer
 
@@ -67,6 +68,7 @@ First adapter boundary:
 - The first adapter keeps using current `/api/app-state`.
 - A database adapter can then be introduced module by module.
 - During migration, use dual-read / dual-write only where needed and compare results before switching reads.
+- Database adapters start in shadow/dual-write mode, never as the first live source. They must reject stale writes with row-version checks and preserve the old `/api/app-state` recovery path until rollback drills are proven.
 
 ### Stage 4: Database Model
 

@@ -180,6 +180,8 @@ test("core module contracts are covered by dedicated QA", () => {
   const homeChatSpec = readProjectFile("qa/home-chat-adapter.api.spec.mjs");
   const homeChatWidgetSpec = readProjectFile("qa/home-chat-widget-renderer.api.spec.mjs");
   const scheduleSpec = readProjectFile("qa/schedule-adapter.api.spec.mjs");
+  const scheduleDatabaseAdapterSpec = readProjectFile("qa/schedule-database-adapter.api.spec.mjs");
+  const scheduleDatabaseSpec = readProjectFile("qa/schedule-database-schema.api.spec.mjs");
   const squadAdapterSpec = readProjectFile("qa/squad-adapter.api.spec.mjs");
   const squadDatabaseSpec = readProjectFile("qa/squad-database-schema.api.spec.mjs");
   const gameSimulatorSpec = readProjectFile("qa/game-simulator-controller.api.spec.mjs");
@@ -196,6 +198,8 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-dashboard-renderer.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-chat-widget-renderer.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/schedule-adapter.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/schedule-database-adapter.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/schedule-database-schema.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-adapter.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-database-schema.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-controller.api.spec.mjs");
@@ -208,6 +212,8 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(homeChatSpec).toContain("Home Chat legacy read adapter uses the protected storage key");
   expect(homeChatWidgetSpec).toContain("home chat widget renderer");
   expect(scheduleSpec).toContain("Schedule legacy read adapter uses the protected storage key");
+  expect(scheduleDatabaseAdapterSpec).toContain("schedule database adapter remains feature flagged");
+  expect(scheduleDatabaseSpec).toContain("server-write first and RLS protected");
   expect(squadAdapterSpec).toContain("Squad legacy read adapter uses the protected storage key");
   expect(squadDatabaseSpec).toContain("multi-tenant roster model");
   expect(gameSimulatorSpec).toContain("game simulator workspace controller");

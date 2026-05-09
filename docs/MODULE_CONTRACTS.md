@@ -76,7 +76,7 @@ Non-negotiable rules:
 - `permissions`: admin/coach edit; broader staff view according to workspace access.
 - `events`: date selected, event created, event updated, event removed.
 - `qa`: schedule edits persist after refresh.
-- `migration`: move to `schedule_events` with `organization_id`, `team_id`, date, type, title, notes, and audit fields. Schedule now has an inert read-only adapter boundary in `src/modules/schedule/schedule-adapter.mjs`; it must stay read-only until migration is explicit.
+- `migration`: current app-state remains active while the database foundation is staged in `schedule_events`, `schedule_event_versions`, `schedule_state_sync_events`, and `schedule_audit_events`. Schedule has an inert read-only adapter boundary in `src/modules/schedule/schedule-adapter.mjs` plus a feature-flagged server adapter in `api/_lib/schedule-database.js`; writes stay server-owned, row-version checked, RLS protected, and blocked from direct authenticated client writes until migration is explicit.
 
 ## Periodization
 

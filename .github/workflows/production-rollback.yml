@@ -1,0 +1,63 @@
+name: Production Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment:
+        description: "Vercel deployment URL or deployment id to restore"
+        required: true
+        type: string
+      confirm:
+        description: "Type ROLLBACK to confirm production rollback"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      LIVE_QA_BASE_URL: ${{ vars.LIVE_QA_BASE_URL || 'https://footballscience.xyz' }}
+      LIVE_QA_PASSWORD: ${{ secrets.LIVE_QA_PASSWORD }}
+      LIVE_QA_USERNAME: ${{ secrets.LIVE_QA_USERNAME }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      ROLLBACK_CONFIRMATION: ${{ inputs.confirm }}
+      ROLLBACK_DEPLOYMENT: ${{ inputs.deployment }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Verify rollback environment
+        shell: bash
+        run: |
+          if [ "$ROLLBACK_CONFIRMATION" != "ROLLBACK" ]; then
+            echo "Rollback confirmation must be exactly ROLLBACK."
+            exit 1
+          fi
+          missing=()
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID LIVE_QA_USERNAME LIVE_QA_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              missing+=("$name")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "Missing rollback secret(s): ${missing[*]}"
+            exit 1
+          fi
+      - name: Roll back production alias
+        run: npx --yes vercel@53.2.0 rollback "$ROLLBACK_DEPLOYMENT" --yes --timeout=5m --token="$VERCEL_TOKEN"
+      - run: npm run release:postdeploy
+      - run: npx playwright install --with-deps chromium
+      - run: npm run qa:live:required

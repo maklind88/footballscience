@@ -11,6 +11,9 @@
 - In every Codex chat, follow the stable release order in `AGENTS.md`: validate, commit intended files only, push after QA, deploy only after the release gate, then run postdeploy verification.
 - For normal production releases, prefer GitHub Actions `Production Deploy` so QA, Vercel deploy, postdeploy checks, and authenticated live smoke run in one auditable path.
 - Production releases must fail closed when staging/live isolation, staging smoke, or exact staging-code matching cannot be proven.
+- Production monitoring must stay automated. The scheduled `Production Monitor` workflow should keep postdeploy and authenticated live smoke running even on days with no feature work.
+- Rollbacks must use the `Production Rollback` workflow, require explicit `ROLLBACK` confirmation, and pass postdeploy/live smoke before the rollback is considered complete.
+- `npm run release:rules` is part of QA and protects the release train itself. Do not weaken it to make a deploy easier.
 - If work becomes slow because context is huge, start a new thread and read `docs/AI_HANDOFF.md`.
 
 ## What Good Looks Like

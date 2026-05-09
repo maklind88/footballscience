@@ -103,6 +103,9 @@ Security automation now includes:
 - Dependabot for npm and GitHub Actions.
 - Staging Deploy and Staging Smoke workflows with separate `STAGING_*` secrets and Supabase-ref isolation checks.
 - Production safety gate that fails closed if staging/live are not isolated or the staging branch does not match the production candidate.
+- Release rules verification through `npm run release:rules` so future edits cannot silently remove staging, production monitor, rollback, live smoke, or the Vercel production-build blocker.
+- Scheduled Production Monitor every six hours. It runs postdeploy checks and authenticated live smoke against `footballscience.xyz`.
+- Manual Production Rollback workflow. It requires the exact deployment URL/id plus `ROLLBACK`, then verifies postdeploy and live smoke after rollback.
 - Vercel Git production builds are ignored by default so production uses the gated GitHub workflow instead of an automatic push-to-live path.
 - Central app-state content safety that rejects executable user content and prototype-pollution keys before module data is stored.
 - Production smoke workflow for live domain/API verification.
@@ -110,7 +113,6 @@ Security automation now includes:
 
 ## Next Hardening
 
-- Add credentials for `LIVE_QA_USERNAME` and `LIVE_QA_PASSWORD` in CI secrets once a dedicated test account exists.
 - Add automated verification that the latest Supabase backup object exists after cron runs.
 - Run a restore drill: export, restore, refresh, verify Schedule/Periodization/Sessions/Medical.
 - Put the project under a visible git workflow if this folder is not already inside one.

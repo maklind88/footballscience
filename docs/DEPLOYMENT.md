@@ -132,7 +132,31 @@ LIVE_QA_BASE_URL
 
 `LIVE_QA_BASE_URL` defaults to `https://footballscience.xyz`.
 
-Manual production smoke can be started in GitHub Actions through `.github/workflows/production-smoke.yml`; it now fails clearly if the live QA secrets are missing.
+Production monitoring runs through `.github/workflows/production-smoke.yml` under the GitHub Actions name `Production Monitor`. It runs every six hours and can also be started manually. The monitor runs `npm run release:monitor`, which verifies the live domain/API and then runs authenticated live smoke. It fails clearly if the live QA secrets are missing.
+
+The release process is protected by `npm run release:rules`. This rule check is part of `npm run qa` and fails if the staging deploy, production deploy, production monitor, rollback workflow, or Vercel production-build blocker are removed or weakened.
+
+## Rollback
+
+Use rollback only when live production is broken and the safest action is to restore a known-good Vercel deployment.
+
+Preferred rollback path:
+
+1. Open GitHub Actions.
+2. Start `Production Rollback`.
+3. Paste the known-good Vercel deployment URL or deployment id.
+4. Type `ROLLBACK` in the confirmation field.
+5. Wait for rollback, postdeploy verification, and authenticated live smoke to pass.
+
+The rollback workflow uses:
+
+```bash
+npx --yes vercel@53.2.0 rollback <deployment-url-or-id> --yes --timeout=5m
+npm run release:postdeploy
+npm run qa:live:required
+```
+
+If a rollback follows a data migration, restore data only after code rollback is verified and only from a known-good Supabase backup/snapshot. Code rollback first; data restore second.
 
 ## Alias To Domain
 

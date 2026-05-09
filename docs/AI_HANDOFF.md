@@ -2,6 +2,8 @@
 
 Read this file first when starting a new thread on Football Science.
 
+Also read `docs/LIVE_FIRST_WORKFLOW.md`. The durable working model is live-first: the user describes the desired product outcome on `https://footballscience.xyz`, and Codex owns the technical implementation path, QA, GitHub, deploy discipline, and production verification.
+
 ## Product
 
 Football Science is a premium coaching platform for daily team operations. The user wants it to become the base of his coaching career: schedule, periodization, session planning, tactical board, team/admin management, IDP, analysis, identity, and game simulator.
@@ -11,11 +13,15 @@ Design should feel clean, Apple/Mac-like, calm, professional, and modular. Avoid
 ## User Preferences
 
 - Communicate with the user in Swedish.
+- The user is not expected to know how to build the platform. Treat their messages as product wishes and live observations, not technical implementation instructions.
+- Live is the product truth. If the user is looking at `footballscience.xyz`, verify live behavior before assuming local state is enough.
+- Ask fewer technical questions. Decide implementation details yourself unless there is a real product, data-loss, security, or release-risk ambiguity.
 - Keep UI labels mostly in English football terms unless the user asks otherwise.
 - Do not say something is done unless it has been checked.
 - The user strongly dislikes needing to ask again if something works locally but not for them.
 - Work one module at a time, but keep architecture future-proof.
 - Prefer implementation over long theory when the request is clear.
+- Parallel chats are allowed only by separated module ownership. Do not touch Team Chat in a non-chat thread when the user says chat is handled elsewhere.
 
 ## Current Codebase
 

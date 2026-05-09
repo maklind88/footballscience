@@ -2,6 +2,8 @@
 
 ## Highest Priority
 
+- Use the live-first workflow in `docs/LIVE_FIRST_WORKFLOW.md`: the user describes the desired live outcome, Codex handles implementation, QA, GitHub, deployment discipline, and production verification.
+- Keep parallel Codex chats separated by module ownership so unfinished work does not leak into production releases.
 - Keep improving Session Planner and Tacticalboard.
 - Keep Profile, Account Menu, admin user accounts, and Supabase-backed user data stable before expanding account features.
 - Keep updating this docs folder after meaningful product decisions.

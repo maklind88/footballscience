@@ -82,11 +82,46 @@ jobs:
         if: ${{ steps.staging-env.outputs.enabled == 'true' && vars.STAGING_QA_BASE_URL != '' }}
         shell: bash
         run: |
-          staging_host="$(node -e 'console.log(new URL(process.env.STAGING_QA_BASE_URL).hostname)')"
-          deployment_host="$(node -e 'console.log(new URL(process.env.STAGING_DEPLOYMENT_URL).hostname)')"
-          if [ "$staging_host" != "$deployment_host" ]; then
-            npx --yes vercel@53.2.0 alias set "$STAGING_DEPLOYMENT_URL" "$staging_host" --token="$VERCEL_TOKEN"
-          fi
+          node --input-type=module <<'NODE'
+          const stagingHost = new URL(process.env.STAGING_QA_BASE_URL).hostname;
+          const deploymentHost = new URL(process.env.STAGING_DEPLOYMENT_URL).hostname;
+
+          if (stagingHost === deploymentHost) {
+            console.log("Staging smoke will use the deployment URL directly.");
+            process.exit(0);
+          }
+
+          const teamId = process.env.VERCEL_ORG_ID;
+          const headers = {
+            Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
+            "Content-Type": "application/json",
+          };
+
+          const deploymentUrl = new URL(`https://api.vercel.com/v13/deployments/${deploymentHost}`);
+          deploymentUrl.searchParams.set("teamId", teamId);
+          const deploymentResponse = await fetch(deploymentUrl, { headers });
+          const deployment = await deploymentResponse.json();
+
+          if (!deploymentResponse.ok) {
+            throw new Error(`Could not inspect staging deployment: ${deployment.error?.message || deployment.message || deploymentResponse.status}`);
+          }
+
+          const deploymentId = deployment.id || deployment.uid;
+          const aliasUrl = new URL(`https://api.vercel.com/v2/deployments/${deploymentId}/aliases`);
+          aliasUrl.searchParams.set("teamId", teamId);
+          const aliasResponse = await fetch(aliasUrl, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ alias: stagingHost }),
+          });
+          const aliasPayload = await aliasResponse.json();
+
+          if (!aliasResponse.ok) {
+            throw new Error(`Could not assign staging alias: ${aliasPayload.error?.message || aliasPayload.message || aliasResponse.status}`);
+          }
+
+          console.log(`Assigned ${stagingHost} to ${deploymentHost}.`);
+          NODE
 
       - name: Authenticated staging smoke
         if: ${{ steps.staging-env.outputs.enabled == 'true' }}

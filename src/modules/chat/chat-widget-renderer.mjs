@@ -598,10 +598,10 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
               ></textarea>
               <div class="dashboard-chat-compose-tools" role="group" aria-label="Message priority and attachments">
                 ${priorityControlsMarkup}
-                <label class="dashboard-chat-attachment-button" title="Attach file" aria-label="Attach file">
-                  <input type="file" data-dashboard-chat-attachment-input hidden />
+                <button type="button" class="dashboard-chat-attachment-button" data-dashboard-chat-attachment-trigger title="Attach file" aria-label="Attach file">
                   <span aria-hidden="true">&#128206;</span>
-                </label>
+                </button>
+                <input type="file" data-dashboard-chat-attachment-input hidden />
               </div>
             </div>
             <button type="submit">Send</button>

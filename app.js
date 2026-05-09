@@ -8663,7 +8663,7 @@ function getDashboardAttachmentStorageRef(attachment = {}) {
   return bucket && path ? { bucket, path } : null;
 }
 async function uploadDashboardChatAttachmentFile(file, attachment = {}) {
-  return uploadDashboardChatAttachmentFileWithClient(file, attachment, getDashboardSupabaseClient());
+  return uploadDashboardChatAttachmentFileWithClient(file, attachment, getDashboardSupabaseClient(), getDashboardChatApiAccessToken);
 }
 async function createDashboardChatAttachmentIntent(file, threadId = dashboardChatTeamThreadId) {
   if (!file) {
@@ -72704,6 +72704,9 @@ ui.dashboardChatWidgetRoot?.addEventListener("click", async (event) => {
     focusDashboardChatWidgetComposer();
     return;
   }
+
+  const attachmentTrigger = event.target.closest("[data-dashboard-chat-attachment-trigger]");
+  if (attachmentTrigger) { event.preventDefault(); attachmentTrigger.closest("[data-dashboard-chat-form]")?.querySelector("[data-dashboard-chat-attachment-input]")?.click(); return; }
 
   const priorityButton = event.target.closest("[data-dashboard-chat-priority]");
   if (priorityButton) {

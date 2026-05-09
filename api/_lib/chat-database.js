@@ -40,6 +40,7 @@ const RATE_LIMITS = {
   markThreadRead: 120,
   clearThread: 5,
   createAttachmentIntent: 20,
+  uploadAttachmentObject: 20,
   default: 60,
 };
 const rateLimitBuckets = new Map();
@@ -298,6 +299,102 @@ async function createSignedAttachmentUpload(bucket, path) {
   } catch {
     return null;
   }
+}
+
+function multipartBoundary(contentType = "") {
+  const match = String(contentType).match(/boundary=(?:"([^"]+)"|([^;]+))/i);
+  return match ? match[1] || match[2] || "" : "";
+}
+
+async function readRequestBuffer(req, maxBytes) {
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of req) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buffer.length;
+    if (total > maxBytes) {
+      const error = new Error("Attachment upload is too large.");
+      error.code = "BODY_TOO_LARGE";
+      throw error;
+    }
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks, total);
+}
+
+function parseMultipartContentDisposition(value = "") {
+  const name = String(value).match(/(?:^|;)\s*name="([^"]*)"/i)?.[1] || "";
+  const filename = String(value).match(/(?:^|;)\s*filename="([^"]*)"/i)?.[1] || "";
+  return { name, filename };
+}
+
+function parseMultipartBody(buffer, boundary) {
+  const fields = {};
+  const files = {};
+  const delimiter = Buffer.from(`--${boundary}`);
+  let cursor = buffer.indexOf(delimiter);
+  while (cursor !== -1) {
+    cursor += delimiter.length;
+    if (buffer.slice(cursor, cursor + 2).toString() === "--") break;
+    if (buffer[cursor] === 13 && buffer[cursor + 1] === 10) cursor += 2;
+    const headerEnd = buffer.indexOf(Buffer.from("\r\n\r\n"), cursor);
+    if (headerEnd === -1) break;
+    const next = buffer.indexOf(delimiter, headerEnd + 4);
+    if (next === -1) break;
+    const headers = buffer.slice(cursor, headerEnd).toString("utf8").split(/\r\n/).reduce((map, line) => {
+      const index = line.indexOf(":");
+      if (index > -1) map[line.slice(0, index).trim().toLowerCase()] = line.slice(index + 1).trim();
+      return map;
+    }, {});
+    const disposition = parseMultipartContentDisposition(headers["content-disposition"]);
+    let contentEnd = next;
+    if (buffer[contentEnd - 2] === 13 && buffer[contentEnd - 1] === 10) contentEnd -= 2;
+    const content = buffer.slice(headerEnd + 4, contentEnd);
+    if (disposition.name) {
+      if (disposition.filename) {
+        files[disposition.name] = {
+          fileName: normalizeFileName(disposition.filename),
+          mimeType: normalizeString(headers["content-type"] || "application/octet-stream", MAX_MIME_LENGTH),
+          buffer: content,
+        };
+      } else {
+        fields[disposition.name] = content.toString("utf8");
+      }
+    }
+    cursor = next;
+  }
+  return { fields, files };
+}
+
+async function parseMultipartRequest(req) {
+  const boundary = multipartBoundary(req.headers?.["content-type"] || req.headers?.["Content-Type"]);
+  if (!boundary) {
+    return null;
+  }
+  return parseMultipartBody(await readRequestBuffer(req, MAX_ATTACHMENT_BYTES + 1024 * 1024), boundary);
+}
+
+async function uploadStorageObject(bucket, path, buffer, mimeType) {
+  const config = readConfig();
+  if (!config.url || !config.serviceRoleKey) {
+    return { ok: false, status: 500, reason: "Attachment storage is not configured." };
+  }
+  const response = await fetch(`${config.url}/storage/v1/object/${storageObjectPath(bucket, path)}`, {
+    method: "POST",
+    headers: {
+      apikey: config.serviceRoleKey,
+      Authorization: `Bearer ${config.serviceRoleKey}`,
+      "Cache-Control": "3600",
+      "Content-Type": mimeType || "application/octet-stream",
+      "x-upsert": "true",
+    },
+    body: buffer,
+  });
+  if (response.ok) {
+    return { ok: true };
+  }
+  const payload = await response.json().catch(() => ({}));
+  return { ok: false, status: response.status, reason: payload.message || payload.error || "Attachment upload failed." };
 }
 
 function restBaseUrl() {
@@ -1886,8 +1983,59 @@ async function createAttachmentIntent(actor, body) {
   };
 }
 
+async function uploadAttachmentObject(actor, body, file) {
+  const attachmentId = normalizeId(body.attachmentId || body.attachment_id || body.id);
+  if (!isUuid(attachmentId)) {
+    return { ok: false, status: 400, reason: "attachmentId is required." };
+  }
+  if (!file?.buffer?.length) {
+    return { ok: false, status: 400, reason: "Attachment file is required." };
+  }
+  if (file.buffer.length > MAX_ATTACHMENT_BYTES) {
+    return { ok: false, status: 413, reason: "Attachment is too large. Maximum file size is 50 MB." };
+  }
+  const attachment = await selectOne(
+    "chat_attachments",
+    `select=*&id=eq.${filterValue(attachmentId)}&uploaded_by=eq.${filterValue(actor.id)}`
+  );
+  if (!attachment) {
+    return { ok: false, status: 404, reason: "Attachment was not found." };
+  }
+  const thread = await readThread(attachment.thread_id);
+  const access = await ensureThreadAccess(actor, thread);
+  if (!access.ok) {
+    return access;
+  }
+  const mimeType = normalizeString(file.mimeType || attachment.mime_type || "application/octet-stream", MAX_MIME_LENGTH);
+  if (!isAllowedAttachmentMimeType(mimeType)) {
+    return { ok: false, status: 415, reason: "Attachment file type is not allowed." };
+  }
+  const uploaded = await uploadStorageObject(attachment.storage_bucket, attachment.storage_path, file.buffer, mimeType);
+  if (!uploaded.ok) {
+    return uploaded;
+  }
+  const metadata = attachment.metadata && typeof attachment.metadata === "object" ? attachment.metadata : {};
+  const rows = await patchRows("chat_attachments", `id=eq.${filterValue(attachment.id)}`, {
+    metadata: {
+      ...metadata,
+      fileName: metadata.fileName || file.fileName || "Attachment",
+      uploadReady: true,
+      uploadedAt: new Date().toISOString(),
+    },
+  }).catch(() => [attachment]);
+  return {
+    ok: true,
+    action: "uploadAttachmentObject",
+    thread,
+    attachment: attachmentClientPayload(rows[0] || attachment),
+  };
+}
+
 async function handleDatabasePost(req, res, actor) {
-  const body = await parseJsonBody(req);
+  const multipart = String(req.headers?.["content-type"] || req.headers?.["Content-Type"] || "").toLowerCase().includes("multipart/form-data")
+    ? await parseMultipartRequest(req)
+    : null;
+  const body = multipart?.fields || await parseJsonBody(req);
   const action = normalizeString(body?.action, 48);
   const rateLimit = checkRateLimit(actor, action);
   if (!rateLimit.ok) {
@@ -1915,6 +2063,8 @@ async function handleDatabasePost(req, res, actor) {
     result = await clearThread(actor, body);
   } else if (action === "createAttachmentIntent") {
     result = await createAttachmentIntent(actor, body);
+  } else if (action === "uploadAttachmentObject") {
+    result = await uploadAttachmentObject(actor, body, multipart?.files?.file || multipart?.files?.attachment);
   } else {
     result = { ok: false, status: 400, reason: "Unsupported chat action." };
   }

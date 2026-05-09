@@ -86,7 +86,7 @@ The backup endpoint writes:
 1. Commit the release candidate and push it to the `staging` branch.
 2. Let the Staging Deploy workflow run QA and authenticated staging smoke against an isolated staging backend.
 3. Move the verified change to `main`.
-4. Run `npm run release:gate`.
+4. Run `npm run release:gate`. The gate requires `main`, a clean tree, staging/live Supabase isolation, and an `origin/staging` tree that matches the production candidate.
 5. For changes under `supabase/migrations`, run `npm run qa:supabase:remote` with secure Supabase credentials or confirm the GitHub Actions Supabase migration workflow passed.
 6. Deploy to Vercel only after the gate passes.
 7. Run `npm run release:postdeploy`.
@@ -94,7 +94,7 @@ The backup endpoint writes:
 9. Open a cache-busting live URL and verify the changed behavior.
 10. If live looks old, compare deployed `app.js` hash and check browser site data before assuming deployment failed.
 
-Normal releases should not deploy from a dirty or unpushed working tree. `RELEASE_ALLOW_DIRTY=1` and `RELEASE_ALLOW_UNPUSHED=1` are emergency-only hotfix overrides.
+Normal releases should not deploy from a dirty or unpushed working tree. `RELEASE_ALLOW_DIRTY=1` and `RELEASE_ALLOW_UNPUSHED=1` are emergency-only hotfix overrides and must be paired with `RELEASE_ACK_EMERGENCY=1`.
 
 Security automation now includes:
 
@@ -102,6 +102,9 @@ Security automation now includes:
 - CodeQL static analysis.
 - Dependabot for npm and GitHub Actions.
 - Staging Deploy and Staging Smoke workflows with separate `STAGING_*` secrets and Supabase-ref isolation checks.
+- Production safety gate that fails closed if staging/live are not isolated or the staging branch does not match the production candidate.
+- Vercel Git production builds are ignored by default so production uses the gated GitHub workflow instead of an automatic push-to-live path.
+- Central app-state content safety that rejects executable user content and prototype-pollution keys before module data is stored.
 - Production smoke workflow for live domain/API verification.
 - Vercel security headers in `vercel.json`.
 

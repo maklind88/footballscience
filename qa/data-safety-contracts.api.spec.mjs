@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { createRequire } from "node:module";
 import {
   CENTRAL_APP_STATE_ENDPOINT,
+  DEFAULT_CONTENT_SAFETY,
   LOCAL_CACHE_ONLY,
   REQUIRED_RECORD_FIELDS,
   SERVER_SOURCE_OF_TRUTH,
@@ -189,6 +190,7 @@ test("every module contract uses the central save pipeline and cache-only browse
     expect(contract.saveEndpoint).toBe(CENTRAL_APP_STATE_ENDPOINT);
     expect(contract.sourceOfTruth).toBe(SERVER_SOURCE_OF_TRUTH);
     expect(contract.localPersistence).toBe(LOCAL_CACHE_ONLY);
+    expect(contract.contentSafety).toMatchObject(DEFAULT_CONTENT_SAFETY);
     expect(contract.requiresOrganizationId).toBe(true);
     expect(contract.scope.tenancy).toBe("organization");
     expect(contract.mergePolicy).toBeTruthy();
@@ -199,6 +201,78 @@ test("every module contract uses the central save pipeline and cache-only browse
     for (const field of REQUIRED_RECORD_FIELDS) {
       expect(contract.requiredFields).toContain(field);
     }
+  }
+});
+
+test("central app-state rejects executable user content before writing module state", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const key = "football-schedule-v1";
+  const path = `global/${key}.json`;
+  const storage = createAppStateFetchMock();
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        key,
+        value: JSON.stringify({
+          events: [{ id: "unsafe", title: "<img src=x onerror=alert(1)>Match" }],
+        }),
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.payload.reason).toContain("blocked executable content");
+    expect(storage.writes.some((write) => write.objectPath === path)).toBe(false);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("central app-state rejects prototype pollution keys before writing module state", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const key = "football-schedule-v1";
+  const path = `global/${key}.json`;
+  const storage = createAppStateFetchMock();
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        key,
+        value: '{"events":[],"__proto__":{"polluted":true}}',
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.payload.reason).toContain("not allowed in central state");
+    expect(storage.writes.some((write) => write.objectPath === path)).toBe(false);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
   }
 });
 

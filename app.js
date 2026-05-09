@@ -10337,7 +10337,7 @@ function renderTopIconMenu() {
     .map((workspaceId) => getWorkspaceById(workspaceId))
     .filter((workspace) => workspace && (!workspace.hiddenFromNav || workspace.id === "home"));
   const hasHomeNotification = hasDashboardHomeNotifications();
-  ui.topIconMenu.innerHTML = workspaces
+  const nextMarkup = workspaces
     .map((workspace) => {
       const isActive = workspace.id === hubState.activeWorkspaceId;
       const label = getTopIconLabel(workspace);
@@ -10356,6 +10356,11 @@ function renderTopIconMenu() {
       `;
     })
     .join("");
+  if (ui.topIconMenu.__lastRenderedMarkup === nextMarkup) {
+    return;
+  }
+  ui.topIconMenu.__lastRenderedMarkup = nextMarkup;
+  ui.topIconMenu.innerHTML = nextMarkup;
 }
 function renderWorkspaceList() {
   if (!ui.workspaceList) {

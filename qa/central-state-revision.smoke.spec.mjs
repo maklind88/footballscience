@@ -186,11 +186,13 @@ async function bootCentralPage(browser, baseURL, centralStore, syncBodies, tabNa
   const context = await browser.newContext();
   await installCentralRevisionRoutes(context, centralStore, syncBodies);
   const page = await context.newPage();
+  await page.addInitScript(() => {
+    window.__footballScienceQaForceCentralState = true;
+  });
   if (options.initScript) {
     await page.addInitScript(options.initScript, options.initArg);
   }
   const targetUrl = new URL(baseURL || "http://127.0.0.1:4173/");
-  targetUrl.hostname = "127.0.0.1.nip.io";
   targetUrl.searchParams.set("qaTab", tabName);
   await page.goto(targetUrl.toString(), { waitUntil: "domcontentloaded" });
   await expect(page.locator("#hubShell")).toBeVisible();

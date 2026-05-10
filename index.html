@@ -965,7 +965,7 @@
           return host === "localhost" || host === "127.0.0.1" || host === "::1" || host.endsWith(".localhost");
         }
         function isLocalDevelopmentSurface() {
-          return isLocalDevHost();
+          return isLocalDevHost() && !window.__footballScienceQaForceCentralState;
         }
         function shouldForceCanonicalHost() {
           return false;

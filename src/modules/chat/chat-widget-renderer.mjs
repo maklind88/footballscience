@@ -219,20 +219,20 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
             <span aria-hidden="true">&#8964;</span>
           </summary>
           <div class="dashboard-chat-message-menu-panel" role="menu">
-            <button type="button" class="dashboard-chat-menu-action" data-dashboard-reply-message="${escapeHtml(message.id)}" role="menuitem">Reply</button>
+            <button type="button" class="dashboard-chat-menu-action" data-dashboard-reply-message="${escapeHtml(message.id)}" role="menuitem"><span aria-hidden="true">&#8617;</span><span>Reply</span></button>
             ${
               reactionMarkup
-                ? `<div class="dashboard-chat-menu-reaction-group" role="group" aria-label="React to message">${reactionMarkup}</div>`
+                ? `<div class="dashboard-chat-menu-reaction-group" role="group" aria-label="React to message"><strong>React</strong>${reactionMarkup}</div>`
                 : ""
             }
             ${
               canPinChat
-                ? `<button type="button" class="dashboard-chat-menu-action" data-dashboard-toggle-pin-message="${escapeHtml(message.id)}" role="menuitem">${escapeHtml(pinLabel)}</button>`
+                ? `<button type="button" class="dashboard-chat-menu-action" data-dashboard-toggle-pin-message="${escapeHtml(message.id)}" role="menuitem"><span aria-hidden="true">&#9733;</span><span>${escapeHtml(pinLabel)}</span></button>`
                 : ""
             }
             ${
               canDeleteChat
-                ? `<button type="button" class="dashboard-chat-menu-action is-danger" data-dashboard-remove-message="${escapeHtml(message.id)}" aria-label="Delete message from ${escapeHtml(userName)}" role="menuitem">Delete</button>`
+                ? `<button type="button" class="dashboard-chat-menu-action is-danger" data-dashboard-remove-message="${escapeHtml(message.id)}" aria-label="Delete message from ${escapeHtml(userName)}" role="menuitem"><span aria-hidden="true">&#128465;</span><span>Delete</span></button>`
                 : ""
             }
           </div>

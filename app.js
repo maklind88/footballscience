@@ -8621,12 +8621,14 @@ function queueDashboardChatApiRefresh(options = {}) {
     void refreshDashboardChatFromApi(options);
   }, Number(options.delayMs ?? 160));
 }
+let dashboardChatPageScroll = false;
 async function loadOlderDashboardChatMessagesWithApi(threadId) {
   const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
   const cursor = dashboardChatApiPagination[normalizedThreadId];
   if (!cursor) {
     return null;
   }
+  dashboardChatPageScroll = true;
   return refreshDashboardChatFromApi({ threadId: normalizedThreadId, cursor });
 }
 async function loadDashboardChatModerationFromApi() {
@@ -9845,7 +9847,8 @@ function renderDashboardChatWidget() {
   const previousChatListScrollHeight = existingChatList?.scrollHeight ?? 0;
   const previousChatListClientHeight = existingChatList?.clientHeight ?? 0;
   const previousChatListWasAtBottom =
-    existingChatList && previousChatListScrollHeight - previousChatListScrollTop - previousChatListClientHeight < 48;
+    existingChatList && previousChatListScrollHeight - previousChatListScrollTop - previousChatListClientHeight <96;
+  const preserveChatScroll = dashboardChatPageScroll;
   const messages = readDashboardMessages();
   const resolvedMessages = isDashboardChatThreadActivelyViewed(state.selectedThreadId)
     ? markDashboardMessagesReadForCurrentUser(messages, state.selectedThreadId)
@@ -9908,8 +9911,14 @@ function renderDashboardChatWidget() {
   const nextChatList = root.querySelector("[data-dashboard-chat-list]");
   if (nextChatList && previousChatListScrollTop !== null && previousComposerThreadId === renderedWidget.activeThreadId) {
     const nextMaxScrollTop = Math.max(0, nextChatList.scrollHeight - nextChatList.clientHeight);
-    nextChatList.scrollTop = previousChatListWasAtBottom ? nextMaxScrollTop : Math.min(previousChatListScrollTop, nextMaxScrollTop);
+    const nextScrollTop = preserveChatScroll
+      ? previousChatListScrollTop + Math.max(0, nextChatList.scrollHeight - previousChatListScrollHeight)
+      : previousChatListScrollTop;
+    nextChatList.scrollTop = previousChatListWasAtBottom
+      ? nextMaxScrollTop
+      : Math.min(Math.max(0, nextScrollTop), nextMaxScrollTop);
   }
+  dashboardChatPageScroll = false;
   if (previousComposerThreadId === renderedWidget.activeThreadId) {
     const nextComposer = root.querySelector("[data-dashboard-chat-input]");
     if (nextComposer) {
@@ -72543,7 +72552,12 @@ ui.dashboardGrid?.addEventListener("click", (event) => {
   setActiveWorkspace(trigger.dataset.openWorkspace);
 });
 
+function closeChatMenus(x = null) { ui.dashboardChatWidgetRoot?.querySelectorAll(".dashboard-chat-message-menu[open]").forEach((menu) => { if (menu !== x) menu.removeAttribute("open"); }); }
+
 ui.dashboardChatWidgetRoot?.addEventListener("click", async (event) => {
+  const activeMenu = event.target.closest(".dashboard-chat-message-menu");
+  closeChatMenus(activeMenu);
+
   const toastOpenButton = event.target.closest("[data-dashboard-chat-toast-open]");
   if (toastOpenButton && !toastOpenButton.hidden) {
     const threadId = normalizeDashboardChatThreadId(

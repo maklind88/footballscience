@@ -1,8 +1,17 @@
 import process from "node:process";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const baseUrl = new URL(process.env.LIVE_QA_BASE_URL || process.argv[2] || "https://footballscience.xyz");
 const cacheBust = `release-check=${Date.now()}`;
 const failures = [];
+const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+function sha256(value) {
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
 
 function urlFor(pathname) {
   const url = new URL(pathname, baseUrl);
@@ -30,10 +39,17 @@ expect(home.text.includes("platformAuthReadyPromise"), "Home HTML is missing aut
 expect(home.text.includes("Loading..."), "Home HTML is missing premium loading marker.");
 
 const app = await readText(urlFor("/app.js"));
+const expectedAppSource = fs.readFileSync(path.join(rootDir, "app.js"), "utf8");
+const expectedAppHash = sha256(expectedAppSource);
+const liveAppHash = sha256(app.text);
 expect(app.response.ok, `app.js did not return 2xx: ${app.response.status}`);
 expect(app.text.includes("workspaceLastActiveStorageKey"), "app.js is missing refresh workspace persistence.");
 expect(app.text.includes("__lastRenderedMarkup"), "app.js is missing top menu rerender guard.");
 expect(app.text.includes("football-dashboard-chat-v1"), "app.js is missing chat storage contract key.");
+expect(
+  liveAppHash === expectedAppHash,
+  `Live app.js hash does not match this release. expected=${expectedAppHash} live=${liveAppHash}`
+);
 
 const clientConfigResponse = await fetch(new URL("/api/client-config", baseUrl), { cache: "no-store" });
 const clientConfig = await clientConfigResponse.json().catch(() => ({}));
@@ -62,6 +78,7 @@ if (failures.length) {
 } else {
   console.log("- home: ok");
   console.log("- app.js: ok");
+  console.log(`- app.js hash: ${liveAppHash}`);
   console.log("- client config: ok");
   console.log("- backup protection: ok");
   console.log("- backup status protection: ok");

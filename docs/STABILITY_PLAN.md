@@ -106,6 +106,7 @@ Security automation now includes:
 - Staging Deploy and Staging Smoke workflows with separate `STAGING_*` secrets and Supabase-ref isolation checks.
 - Production safety gate that fails closed if staging/live are not isolated or the staging branch does not match the production candidate.
 - Release rules verification through `npm run release:rules` so future edits cannot silently remove staging, production monitor, rollback, live smoke, or the Vercel production-build blocker.
+- Postdeploy verifies the live `/app.js` SHA-256 hash against the release checkout so stale Vercel/browser assets cannot pass as a successful deploy.
 - Scheduled Production Monitor every six hours. It runs postdeploy checks and authenticated live smoke against `footballscience.xyz`.
 - Manual Production Rollback workflow. It requires the exact deployment URL/id plus `ROLLBACK`, then verifies postdeploy and live smoke after rollback.
 - Vercel Git production builds are ignored by default so production uses the gated GitHub workflow instead of an automatic push-to-live path.

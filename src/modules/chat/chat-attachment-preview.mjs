@@ -52,11 +52,17 @@ async function saveAttachmentAs(url, name) {
 export function createDashboardChatAttachmentPreview() {
   let previewRoot = null;
   let previewObjectUrl = "";
+  let previousActiveElement = null;
+  let previousBodyOverflow = "";
   const close = () => {
     if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
     previewObjectUrl = "";
     previewRoot?.remove();
     previewRoot = null;
+    document.body.style.overflow = previousBodyOverflow;
+    previousBodyOverflow = "";
+    previousActiveElement?.focus?.();
+    previousActiveElement = null;
   };
   const setOpenLink = (url) => {
     const openLink = previewRoot?.querySelector("[data-chat-attachment-preview-open]");
@@ -112,9 +118,27 @@ export function createDashboardChatAttachmentPreview() {
       );
     }
   };
+  const keepFocusInsidePreview = (event) => {
+    if (!previewRoot || event.key !== "Tab") return;
+    const focusable = [...previewRoot.querySelectorAll("button,a,input,select,textarea,[tabindex]:not([tabindex='-1'])")]
+      .filter((node) => !node.disabled && node.offsetParent !== null);
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!first || !last) return;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
   const open = ({ url, name = "Attachment", mimeType = "" } = {}) => {
     if (!url) return;
     close();
+    previousActiveElement = document.activeElement;
+    previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     previewRoot = document.createElement("div");
     previewRoot.className = "dashboard-chat-attachment-preview";
     previewRoot.innerHTML = `
@@ -141,9 +165,11 @@ export function createDashboardChatAttachmentPreview() {
       if (event.target.closest("[data-chat-attachment-preview-print]")) print(previewObjectUrl || url, name, mimeType);
     });
     document.body.append(previewRoot);
+    previewRoot.querySelector("[data-chat-attachment-preview-close]")?.focus();
     void loadPreviewBlob(url, name, mimeType);
   };
   document.addEventListener("keydown", (event) => {
+    keepFocusInsidePreview(event);
     if (event.key === "Escape" && previewRoot) close();
   });
   return { open, close };

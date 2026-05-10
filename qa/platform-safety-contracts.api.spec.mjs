@@ -149,6 +149,8 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   expect(vercelIgnoreBuild).toContain("GitHub Production Deploy");
   expect(storagePolicy).toContain("approvedLocalOnlyStorageKeys");
   expect(storagePolicy).toContain("dataSafetyProtectedStorageKeys");
+  expect(readProjectFile("scripts/verify-production-deploy.mjs")).toContain("Live app.js hash does not match this release");
+  expect(readProjectFile("scripts/verify-production-deploy.mjs")).toContain("crypto.createHash");
   expect(liveSpec).toContain("LIVE_QA_USERNAME");
   expect(liveSpec).toContain("LIVE_QA_PASSWORD");
   expect(liveSpec).toContain("production-safe live smoke");

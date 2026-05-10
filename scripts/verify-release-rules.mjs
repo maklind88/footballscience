@@ -41,6 +41,7 @@ requireText("scripts/verify-storage-key-policy.mjs", "approvedLocalOnlyStorageKe
 requireText("api/app-state-backup.js", "backupMatchesPointer", "backup status must verify pointer/object integrity");
 requireText("vercel.json", "/api/app-state-backup-status", "backup status route must reuse the existing backup function");
 requireText("scripts/verify-production-deploy.mjs", "/api/app-state-backup-status", "postdeploy must prove backup status endpoint is protected");
+requireText("scripts/verify-production-deploy.mjs", "Live app.js hash does not match this release", "postdeploy must prove production is serving the expected release asset");
 requireText("scripts/verify-ci-release-env.mjs", "CRON_SECRET", "production CI must include the cron secret used for backup freshness checks");
 
 requireText(".github/workflows/staging-deploy.yml", "branches:", "staging must deploy from the staging branch");

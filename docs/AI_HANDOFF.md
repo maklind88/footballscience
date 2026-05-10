@@ -2,6 +2,8 @@
 
 Read this file first when starting a new thread on Football Science.
 
+Also read `AGENTS.md` and `docs/LIVE_FIRST_WORKFLOW.md`. The durable working model is live-first: the user describes the desired product outcome on `https://footballscience.xyz`, and Codex owns the technical implementation path, QA, GitHub, deploy discipline, and production verification.
+
 ## Product
 
 Football Science is a premium coaching platform for daily team operations. The user wants it to become the base of his coaching career: schedule, periodization, session planning, tactical board, team/admin management, IDP, analysis, identity, and game simulator.
@@ -11,11 +13,15 @@ Design should feel clean, Apple/Mac-like, calm, professional, and modular. Avoid
 ## User Preferences
 
 - Communicate with the user in Swedish.
+- The user is not expected to know how to build the platform. Treat their messages as product wishes and live observations, not technical implementation instructions.
+- Live is the product truth. If the user is looking at `footballscience.xyz`, verify live behavior before assuming local state is enough.
+- Ask fewer technical questions. Decide implementation details yourself unless there is a real product, data-loss, security, or release-risk ambiguity.
 - Keep UI labels mostly in English football terms unless the user asks otherwise.
 - Do not say something is done unless it has been checked.
 - The user strongly dislikes needing to ask again if something works locally but not for them.
 - Work one module at a time, but keep architecture future-proof.
 - Prefer implementation over long theory when the request is clear.
+- Parallel chats are allowed only by separated module ownership. Do not touch Team Chat in a non-chat thread when the user says chat is handled elsewhere.
 
 ## Current Codebase
 
@@ -79,6 +85,7 @@ Recent requirements:
 - Medical Team now has a dense availability command-board build with NC Courage 2026 roster profiles, smaller official roster images, Daily Medical Huddle, coach-safe handover feed with copy action, roster-level bulk recommendations, player popup recommendations, player Medical Profile summary, Availability Plans for multi-week/month restrictions, 0/10/25/50/75/100 participation steps, RTP phases, review alerts, clearance checklist/load gates, coach-safe comments, backdated logs, comments, and actual participation logging.
 - Medical Team has a first security/governance layer: `/api/app-state` returns a server-sanitized coach-safe version of `football-medical-team-v1` to coach/read-only roles, while admin/medical/performance keep full private fields. Client reads also sanitize coach view from stale local cache. Medical writes and coach-safe handover copy events go to the audit log with counts only, not clinical note text. Medical/admin roles have a private Governance panel for retention months, consent required, policy owner, incident contact, last reviewed date, and review cadence; this policy object is excluded from coach payloads.
 - Medical Team now has a staged Supabase RLS foundation in `supabase/migrations/20260507230628_medical_module_multitenant.sql`. It creates `medical_*` tables for governance, consents, cases, availability recommendations/plans, clearance sign-offs, load gates, review tasks, and audit events. The current UI still uses app-state; the migration is server-write first and exposes only coach-safe availability columns/views to authenticated clients.
+- Schedule now has a staged Supabase RLS foundation in `supabase/migrations/20260509230500_schedule_module_database_v1.sql` plus `api/_lib/schedule-database.js`. The current UI still uses `football-schedule-v1` through app-state; the database path is feature-flagged, server-write first, row-version protected, soft-delete only, and includes sync inbox, versions, and audit tables.
 - Session Planner now reads Medical Team availability for the selected date and shows a compact left-panel availability summary without player names, plus the selected block medical gate so coaches see how many players match the block, sit below the block, are out, or are not set.
 - Session Planner `Players / Player Board` shows a larger white pitch preview with no explanatory copy and opens a popup under Tacticalboard. The popup uses a large fixed white pitch that fills the remaining screen space inside the modal without internal scrolling; players are draggable rectangular initial chips that can be placed freely, close together, stacked, or overlapped. Player chips must not nudge on hover or tiny pointer movement; drag begins only after a clear movement threshold. The selected-player toolbar lives in the popup top bar, not on top of the pitch: drag a selection rectangle on the board to select multiple players, move selected players as a group, and apply/reset chip colours for selected players together. Duplicate initials expand with an extra first/last-name letter. Double-clicking a player chip opens a player profile popup with medical availability, planned participation and actual participation for the selected training date. It shows players explicitly set by Medical Team who are available for the selected block load or higher: 0% hidden, 10%+ on block 1, 25%+ on block 2, 50%+ on block 3, and 75%+ on block 4 and later. Players with no medical entry are shown as not set, not assumed to be 100%. Player Board also surfaces block warnings for below-limit, 0%, and not-set players.
 - Session Planner date strip should show about one week, scroll smoothly, and arrows should scroll dates only, not change selected day.

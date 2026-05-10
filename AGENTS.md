@@ -2,6 +2,17 @@
 
 These rules apply to every Codex chat working in this repository.
 
+## Live-First Product Ownership
+
+- The user is the product owner and describes the desired live outcome. Codex owns the technical path: implementation, QA, GitHub, release safety, deploy, and production verification.
+- Treat `https://footballscience.xyz` as the product truth the user evaluates. Local files, branches, previews, and staging are engineering tools, not things the user should need to reason about.
+- Do not ask the user to choose technical implementation details when a safe engineering decision can be made from project context.
+- Do not ask "do you want me to run safe release/deploy?" after completed work that should be live. Run the safe release path automatically when gates allow. If release is blocked, explain the blocker and the safest next action in plain Swedish.
+- If the user gives a technical instruction that would weaken safety, interpret the underlying product goal and choose the safer path.
+- If the user says another chat owns a module, do not touch that module here unless the user explicitly redirects ownership.
+- Multiple Codex chats are allowed only when they own different modules or responsibilities. Use branches or worktrees to isolate parallel work, and never deploy a bundle that accidentally includes another chat's unfinished changes.
+- When live behavior matters, verify live before assuming local state is enough.
+
 ## Stability First
 
 - Start by checking `git status --short` and identify unrelated local changes.

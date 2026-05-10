@@ -246,6 +246,7 @@ function summarizeBackupStatus(pointer, backup) {
   const computedSha256 = hashText(JSON.stringify(backupCore));
   const createdAtMs = Date.parse(pointer.createdAt || backup.createdAt || "");
   const ageMs = Number.isFinite(createdAtMs) ? Math.max(0, Date.now() - createdAtMs) : null;
+  const manifestSummary = summarizeBackupManifest(backup.manifest || {});
 
   return {
     latest: {
@@ -263,13 +264,62 @@ function summarizeBackupStatus(pointer, backup) {
       contentSha256: contentSha256 || "",
       computedSha256,
     },
+    manifest: manifestSummary.manifest,
+    manifestCoverage: manifestSummary.coverage,
     backupMatchesPointer:
       pointer.schema === "footballscience-app-state-backup-pointer-v1" &&
       backup.schema === "footballscience-app-state-backup-v1" &&
       pointer.createdAt === backup.createdAt &&
       Number(pointer.entryCount) === Number(backup.entryCount) &&
       pointer.contentSha256 === contentSha256 &&
-      computedSha256 === contentSha256,
+      computedSha256 === contentSha256 &&
+      manifestSummary.coverage.missingKeys.length === 0,
+  };
+}
+
+function summarizeBackupManifest(rawManifest) {
+  const source = rawManifest && typeof rawManifest === "object" && !Array.isArray(rawManifest) ? rawManifest : {};
+  const manifest = {};
+  const missingKeys = [];
+  let presentEntryCount = 0;
+
+  for (const key of CENTRAL_STATE_KEYS) {
+    const contract = dataSafetyRegistry.getByKey(key);
+    const entry = source[key];
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      missingKeys.push(key);
+      manifest[key] = {
+        present: false,
+        moduleId: contract?.moduleId || "",
+      };
+      continue;
+    }
+
+    const present = entry.present === true;
+    if (present) {
+      presentEntryCount += 1;
+    }
+
+    manifest[key] = {
+      present,
+      moduleId: String(entry.moduleId || contract?.moduleId || ""),
+      organizationId: String(entry.organizationId || contract?.defaultOrganizationId || "global"),
+      revision: Number.isInteger(Number(entry.revision)) ? Number(entry.revision) : 0,
+      mergePolicy: String(entry.mergePolicy || contract?.mergePolicy || ""),
+      updatedAt: String(entry.updatedAt || ""),
+      bytes: Number.isInteger(Number(entry.bytes)) ? Number(entry.bytes) : 0,
+      sha256: String(entry.sha256 || ""),
+    };
+  }
+
+  return {
+    manifest,
+    coverage: {
+      keyCount: CENTRAL_STATE_KEYS.size,
+      manifestKeyCount: Object.keys(source).length,
+      presentEntryCount,
+      missingKeys,
+    },
   };
 }
 

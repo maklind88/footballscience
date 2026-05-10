@@ -7,6 +7,7 @@ const clientConfigHandler = require("../api/client-config.js");
 const appStateHandler = require("../api/app-state.js");
 const appStateBackupHandler = require("../api/app-state-backup.js");
 const sessionHistoryHandler = require("../api/session-history.js");
+const { dataSafetyRegistry } = require("../src/core/data-safety-contracts.cjs");
 
 const supabaseEnvKeys = [
   "CRON_SECRET",
@@ -1464,6 +1465,30 @@ test("app-state backup status verifies latest pointer without exposing backup en
   process.env.SUPABASE_URL = "https://example.supabase.co";
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
 
+  const backupManifest = Object.fromEntries(
+    dataSafetyRegistry.keys().map((key) => {
+      const contract = dataSafetyRegistry.getByKey(key);
+      return [
+        key,
+        {
+          present: false,
+          moduleId: contract.moduleId,
+        },
+      ];
+    })
+  );
+  backupManifest["football-schedule-v1"] = {
+    present: true,
+    moduleId: "schedule",
+    organizationId: "global",
+    revision: 2,
+    mergePolicy: "server-merge",
+    updatedAt: "2026-05-07T00:00:00.000Z",
+    updatedBy: "qa",
+    bytes: 34,
+    sha256: sha256("schedule-fixture"),
+  };
+
   const backupCore = {
     schema: "footballscience-app-state-backup-v1",
     createdAt: new Date().toISOString(),
@@ -1474,19 +1499,7 @@ test("app-state backup status verifies latest pointer without exposing backup en
       email: "",
     },
     entryCount: 1,
-    manifest: {
-      "football-schedule-v1": {
-        present: true,
-        moduleId: "schedule",
-        organizationId: "global",
-        revision: 2,
-        mergePolicy: "server-merge",
-        updatedAt: "2026-05-07T00:00:00.000Z",
-        updatedBy: "qa",
-        bytes: 34,
-        sha256: "entry-hash",
-      },
-    },
+    manifest: backupManifest,
     entries: {
       "football-schedule-v1": JSON.stringify({ privateFixture: "must stay out of status" }),
     },
@@ -1546,9 +1559,28 @@ test("app-state backup status verifies latest pointer without exposing backup en
         contentSha256: backupEnvelope.contentSha256,
         computedSha256: backupEnvelope.contentSha256,
       },
+      manifestCoverage: {
+        keyCount: dataSafetyRegistry.keys().length,
+        presentEntryCount: 1,
+        missingKeys: [],
+      },
+      manifest: {
+        "football-schedule-v1": {
+          present: true,
+          moduleId: "schedule",
+          organizationId: "global",
+          revision: 2,
+          mergePolicy: "server-merge",
+          updatedAt: "2026-05-07T00:00:00.000Z",
+          bytes: 34,
+          sha256: sha256("schedule-fixture"),
+        },
+      },
     });
     expect(JSON.stringify(response.payload)).not.toContain("privateFixture");
+    expect(JSON.stringify(response.payload)).not.toContain('"entries"');
     expect(JSON.stringify(response.payload)).not.toContain("service-role-test-key");
+    expect(JSON.stringify(response.payload)).not.toContain('"updatedBy"');
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);

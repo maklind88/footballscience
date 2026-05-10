@@ -31,7 +31,8 @@ function requirePackageScript(name, expected) {
 }
 
 requirePackageScript("release:backup", "node scripts/verify-app-state-backup-freshness.mjs");
-requirePackageScript("release:monitor", "npm run release:postdeploy && npm run release:backup && npm run qa:live:required");
+requirePackageScript("release:restore-readiness", "node scripts/verify-app-state-restore-readiness.mjs");
+requirePackageScript("release:monitor", "npm run release:postdeploy && npm run release:backup && npm run release:restore-readiness && npm run qa:live:required");
 requirePackageScript("release:rules", "node scripts/verify-release-rules.mjs");
 requirePackageScript("storage:guard", "node scripts/verify-storage-key-policy.mjs");
 
@@ -39,6 +40,8 @@ requireText("vercel.json", "scripts/vercel-ignore-build.mjs", "automatic Vercel 
 requireText("package.json", "npm run storage:guard", "full QA must include the storage key policy gate");
 requireText("scripts/verify-storage-key-policy.mjs", "approvedLocalOnlyStorageKeys", "new local-only storage keys must be explicitly justified");
 requireText("api/app-state-backup.js", "backupMatchesPointer", "backup status must verify pointer/object integrity");
+requireText("api/app-state-backup.js", "manifestCoverage", "backup status must expose restore-readiness metadata without raw entries");
+requireText("scripts/verify-app-state-restore-readiness.mjs", "dataSafetyRegistry.keys()", "restore readiness must check every protected Data Safety key");
 requireText("vercel.json", "/api/app-state-backup-status", "backup status route must reuse the existing backup function");
 requireText("scripts/verify-production-deploy.mjs", "/api/app-state-backup-status", "postdeploy must prove backup status endpoint is protected");
 requireText("scripts/verify-production-deploy.mjs", "Live app.js hash does not match this release", "postdeploy must prove production is serving the expected release asset");

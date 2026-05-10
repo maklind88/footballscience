@@ -46,6 +46,8 @@ This smoke test also verifies localhost dev-auth does not call `/api/client-conf
 
 `npm run release:restore-readiness` verifies that the latest app-state backup exposes sanitized manifest metadata for every protected Data Safety key without exposing raw backup entries. Production Monitor runs it after backup freshness.
 
+`npm run release:restore-drill` verifies that the latest app-state backup can be parsed server-side, that present entries match their manifest hashes/byte counts, and that the drill is read-only. Production Monitor runs it before authenticated live smoke.
+
 `qa/central-state-revision.smoke.spec.mjs` simulates two browser tabs against the central sync bridge. It verifies the first tab saves with the current `baseRevision`, a stale second tab sends its old revision, and the stale write cannot overwrite newer central data.
 
 `npm run qa:contracts` runs the platform safety guardrail plus the inert modular core checks for registry coverage, permissions, events, read-only storage adapters, the Home Tasks adapter boundary, the Home Chat adapter boundary, and the Schedule adapter boundary.

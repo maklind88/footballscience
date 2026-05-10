@@ -1464,6 +1464,7 @@ test("app-state backup status verifies latest pointer without exposing backup en
   process.env.CRON_SECRET = "cron-test-secret";
   process.env.SUPABASE_URL = "https://example.supabase.co";
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  const scheduleValue = JSON.stringify({ privateFixture: "must stay out of status" });
 
   const backupManifest = Object.fromEntries(
     dataSafetyRegistry.keys().map((key) => {
@@ -1485,8 +1486,8 @@ test("app-state backup status verifies latest pointer without exposing backup en
     mergePolicy: "server-merge",
     updatedAt: "2026-05-07T00:00:00.000Z",
     updatedBy: "qa",
-    bytes: 34,
-    sha256: sha256("schedule-fixture"),
+    bytes: Buffer.byteLength(scheduleValue, "utf8"),
+    sha256: sha256(scheduleValue),
   };
 
   const backupCore = {
@@ -1501,7 +1502,7 @@ test("app-state backup status verifies latest pointer without exposing backup en
     entryCount: 1,
     manifest: backupManifest,
     entries: {
-      "football-schedule-v1": JSON.stringify({ privateFixture: "must stay out of status" }),
+      "football-schedule-v1": scheduleValue,
     },
   };
   const backupEnvelope = {
@@ -1572,8 +1573,8 @@ test("app-state backup status verifies latest pointer without exposing backup en
           revision: 2,
           mergePolicy: "server-merge",
           updatedAt: "2026-05-07T00:00:00.000Z",
-          bytes: 34,
-          sha256: sha256("schedule-fixture"),
+          bytes: Buffer.byteLength(scheduleValue, "utf8"),
+          sha256: sha256(scheduleValue),
         },
       },
     });
@@ -1581,6 +1582,128 @@ test("app-state backup status verifies latest pointer without exposing backup en
     expect(JSON.stringify(response.payload)).not.toContain('"entries"');
     expect(JSON.stringify(response.payload)).not.toContain("service-role-test-key");
     expect(JSON.stringify(response.payload)).not.toContain('"updatedBy"');
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state restore drill parses latest backup without restoring or exposing entries", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.CRON_SECRET = "cron-test-secret";
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  const scheduleValue = JSON.stringify({ privateFixture: "must stay out of restore drill" });
+
+  const backupManifest = Object.fromEntries(
+    dataSafetyRegistry.keys().map((key) => {
+      const contract = dataSafetyRegistry.getByKey(key);
+      return [
+        key,
+        {
+          present: false,
+          moduleId: contract.moduleId,
+        },
+      ];
+    })
+  );
+  backupManifest["football-schedule-v1"] = {
+    present: true,
+    moduleId: "schedule",
+    organizationId: "global",
+    revision: 4,
+    mergePolicy: "server-merge",
+    updatedAt: "2026-05-07T00:00:00.000Z",
+    updatedBy: "qa",
+    bytes: Buffer.byteLength(scheduleValue, "utf8"),
+    sha256: sha256(scheduleValue),
+  };
+
+  const backupCore = {
+    schema: "footballscience-app-state-backup-v1",
+    createdAt: new Date().toISOString(),
+    source: "api/app-state-backup",
+    actor: {
+      id: "vercel-cron",
+      role: "system",
+      email: "",
+    },
+    entryCount: 1,
+    manifest: backupManifest,
+    entries: {
+      "football-schedule-v1": scheduleValue,
+    },
+  };
+  const backupEnvelope = {
+    ...backupCore,
+    contentSha256: sha256(JSON.stringify(backupCore)),
+  };
+  const backupPath = `backups/app-state/2026-05-09/${backupEnvelope.contentSha256.slice(0, 12)}.json`;
+  const latestPointer = {
+    schema: "footballscience-app-state-backup-pointer-v1",
+    createdAt: backupEnvelope.createdAt,
+    path: backupPath,
+    entryCount: backupEnvelope.entryCount,
+    contentSha256: backupEnvelope.contentSha256,
+  };
+
+  global.fetch = async (url) => {
+    const requestUrl = String(url);
+    if (requestUrl.endsWith("/storage/v1/object/footballscience-app-state/backups/app-state/latest.json")) {
+      return new Response(JSON.stringify(latestPointer), { status: 200 });
+    }
+
+    if (requestUrl.endsWith(`/storage/v1/object/footballscience-app-state/${backupPath}`)) {
+      return new Response(JSON.stringify(backupEnvelope), { status: 200 });
+    }
+
+    return new Response(JSON.stringify({ message: `Unexpected request: ${requestUrl}` }), { status: 500 });
+  };
+
+  try {
+    const response = await callHandler(appStateBackupHandler, {
+      method: "GET",
+      url: "/api/app-state-backup?mode=restore-drill",
+      headers: {
+        authorization: "Bearer cron-test-secret",
+      },
+    });
+    expect(response.status).toBe(200);
+    expect(response.payload).toMatchObject({
+      ok: true,
+      manifestCoverage: {
+        keyCount: dataSafetyRegistry.keys().length,
+        presentEntryCount: 1,
+        missingKeys: [],
+      },
+      restoreDrill: {
+        dryRun: true,
+        restored: false,
+        restorable: true,
+        keyCount: dataSafetyRegistry.keys().length,
+        entryCount: 1,
+        declaredEntryCount: 1,
+        pointerEntryCount: 1,
+        parsedEntryCount: 1,
+        unknownEntryKeys: [],
+        missingEntryKeys: [],
+        unexpectedEntryKeys: [],
+        invalidEntries: [],
+        modules: {
+          schedule: {
+            presentEntryCount: 1,
+            parsedEntryCount: 1,
+          },
+        },
+      },
+    });
+    expect(JSON.stringify(response.payload)).not.toContain("privateFixture");
+    expect(JSON.stringify(response.payload)).not.toContain('"entries"');
+    expect(JSON.stringify(response.payload)).not.toContain('"manifest"');
+    expect(JSON.stringify(response.payload)).not.toContain('"updatedBy"');
+    expect(JSON.stringify(response.payload)).not.toContain("service-role-test-key");
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);

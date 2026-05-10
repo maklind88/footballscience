@@ -19,6 +19,7 @@ Treat these as protected product data:
 - Production source of truth: Supabase-backed central app state through `/api/app-state`.
 - Server backups: `/api/app-state-backup` writes timestamped Supabase Storage backups under `backups/app-state/`; `/api/app-state-backup-status` rewrites to the same backup function and verifies the latest pointer/object hash without exposing backup data.
 - Restore readiness: backup status returns a sanitized manifest for every Data Safety key, so monitors can prove each protected module has restore metadata without exposing saved entries.
+- Restore drill: `/api/app-state-backup?mode=restore-drill` performs a read-only server-side parse of the latest backup entries, verifies manifest hashes/byte counts, and reports only metadata. It never writes restored state and never exposes raw entries.
 - Browser storage: fast local cache, autosave surface, and emergency export/import source.
 - Data Safety Contract: `src/core/data-safety-contracts.cjs` is the shared registry for module key, scope, merge policy, required fields, revision behavior, audit, and snapshot requirements.
 - Data Safety manifest: tracks protected local writes and pending central sync. Local storage is cache-only, never the production source of truth.
@@ -82,7 +83,7 @@ The backup endpoint writes:
 - A timestamped full backup: `backups/app-state/YYYY-MM-DD/<timestamp>-<hash>.json`
 - A latest pointer: `backups/app-state/latest.json`
 
-Production Monitor runs `npm run release:backup` and `npm run release:restore-readiness` as part of `npm run release:monitor`. The checks fail if the latest pointer is missing, stale, does not match the backup object's content hash, or lacks restore metadata for any protected Data Safety key.
+Production Monitor runs `npm run release:backup`, `npm run release:restore-readiness`, and `npm run release:restore-drill` as part of `npm run release:monitor`. The checks fail if the latest pointer is missing, stale, does not match the backup object's content hash, lacks restore metadata for any protected Data Safety key, or cannot parse every present backup entry without writing data.
 
 ## Release Routine
 
@@ -110,6 +111,7 @@ Security automation now includes:
 - Postdeploy verifies the live `/app.js` SHA-256 hash against the release checkout so stale Vercel/browser assets cannot pass as a successful deploy.
 - Scheduled Production Monitor every six hours. It runs postdeploy checks and authenticated live smoke against `footballscience.xyz`.
 - Restore-readiness monitoring verifies that latest app-state backup metadata covers every protected module key while keeping raw backup entries private.
+- Restore-drill monitoring verifies the latest backup can be parsed module-by-module without exposing entries or writing restored data.
 - Manual Production Rollback workflow. It requires the exact deployment URL/id plus `ROLLBACK`, then verifies postdeploy and live smoke after rollback.
 - Vercel Git production builds are ignored by default so production uses the gated GitHub workflow instead of an automatic push-to-live path.
 - Central app-state content safety that rejects executable user content and prototype-pollution keys before module data is stored.
@@ -118,6 +120,6 @@ Security automation now includes:
 
 ## Next Hardening
 
-- Run a full restore drill: export, restore into an isolated environment, refresh, verify Schedule/Periodization/Sessions/Medical.
+- Run a full isolated restore: restore a verified backup into a disposable staging environment, refresh, verify Schedule/Periodization/Sessions/Medical, then destroy it.
 - Put the project under a visible git workflow if this folder is not already inside one.
 - Keep `docs/PLATFORM_EVOLUTION_PLAN.md`, `docs/MODULE_CONTRACTS.md`, and `qa/platform-safety-contracts.api.spec.mjs` in sync before modular refactors.

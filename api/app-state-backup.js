@@ -323,6 +323,123 @@ function summarizeBackupManifest(rawManifest) {
   };
 }
 
+function createModuleRestoreSummary() {
+  const modules = {};
+  for (const key of CENTRAL_STATE_KEYS) {
+    const moduleId = dataSafetyRegistry.getByKey(key)?.moduleId || "unknown";
+    if (!modules[moduleId]) {
+      modules[moduleId] = {
+        protectedKeyCount: 0,
+        presentEntryCount: 0,
+        parsedEntryCount: 0,
+      };
+    }
+    modules[moduleId].protectedKeyCount += 1;
+  }
+  return modules;
+}
+
+function createRestoreDrillSummary(backup, statusSummary) {
+  const manifest = backup.manifest && typeof backup.manifest === "object" && !Array.isArray(backup.manifest) ? backup.manifest : {};
+  const entries = backup.entries && typeof backup.entries === "object" && !Array.isArray(backup.entries) ? backup.entries : {};
+  const modules = createModuleRestoreSummary();
+  const unknownEntryKeys = [];
+  const missingEntryKeys = [];
+  const unexpectedEntryKeys = [];
+  const invalidEntries = [];
+  let parsedEntryCount = 0;
+
+  for (const key of Object.keys(entries)) {
+    if (!CENTRAL_STATE_KEYS.has(key)) {
+      unknownEntryKeys.push(key);
+    }
+  }
+
+  for (const key of CENTRAL_STATE_KEYS) {
+    const contract = dataSafetyRegistry.getByKey(key);
+    const moduleId = contract?.moduleId || "unknown";
+    const manifestEntry = manifest[key] || {};
+    const hasEntry = Object.prototype.hasOwnProperty.call(entries, key);
+    const present = manifestEntry.present === true;
+
+    if (!present && hasEntry) {
+      unexpectedEntryKeys.push(key);
+      continue;
+    }
+
+    if (!present) {
+      continue;
+    }
+
+    modules[moduleId].presentEntryCount += 1;
+
+    if (!hasEntry) {
+      missingEntryKeys.push(key);
+      continue;
+    }
+
+    const value = String(entries[key] ?? "");
+    const bytes = Buffer.byteLength(value, "utf8");
+    const sha256 = hashText(value);
+    const entryFailures = [];
+
+    if (Number(manifestEntry.bytes) !== bytes) {
+      entryFailures.push("bytes");
+    }
+
+    if (String(manifestEntry.sha256 || "") !== sha256) {
+      entryFailures.push("sha256");
+    }
+
+    try {
+      JSON.parse(value);
+    } catch {
+      entryFailures.push("json");
+    }
+
+    if (entryFailures.length) {
+      invalidEntries.push({
+        key,
+        moduleId,
+        reasons: entryFailures,
+      });
+      continue;
+    }
+
+    parsedEntryCount += 1;
+    modules[moduleId].parsedEntryCount += 1;
+  }
+
+  const entryCount = Object.keys(entries).length;
+  const declaredEntryCount = Number(backup.entryCount || 0);
+  const pointerEntryCount = Number(statusSummary.latest.entryCount || 0);
+  const entryCountMatches = entryCount === declaredEntryCount && entryCount === pointerEntryCount;
+  const restorable =
+    statusSummary.backupMatchesPointer &&
+    entryCountMatches &&
+    unknownEntryKeys.length === 0 &&
+    missingEntryKeys.length === 0 &&
+    unexpectedEntryKeys.length === 0 &&
+    invalidEntries.length === 0;
+
+  return {
+    dryRun: true,
+    restored: false,
+    restorable,
+    keyCount: CENTRAL_STATE_KEYS.size,
+    entryCount,
+    declaredEntryCount,
+    pointerEntryCount,
+    parsedEntryCount,
+    moduleCount: Object.keys(modules).length,
+    modules,
+    unknownEntryKeys,
+    missingEntryKeys,
+    unexpectedEntryKeys,
+    invalidEntries,
+  };
+}
+
 function getAuthorizationHeader(req) {
   return req.headers?.authorization || req.headers?.Authorization || "";
 }
@@ -351,6 +468,15 @@ function isBackupStatusRequest(req) {
   try {
     const url = new URL(req.url || "", "https://footballscience.local");
     return url.pathname.endsWith("/app-state-backup-status") || url.searchParams.get("mode") === "status";
+  } catch {
+    return false;
+  }
+}
+
+function isRestoreDrillRequest(req) {
+  try {
+    const url = new URL(req.url || "", "https://footballscience.local");
+    return url.searchParams.get("mode") === "restore-drill";
   } catch {
     return false;
   }
@@ -393,6 +519,51 @@ async function sendBackupStatus(res) {
   });
 }
 
+async function sendBackupRestoreDrill(res) {
+  const pointerResult = await readBackupObject(LATEST_BACKUP_PATH);
+  if (!pointerResult.ok) {
+    return sendJson(res, pointerResult.status === 404 ? 404 : 500, {
+      ok: false,
+      reason: pointerResult.reason || "Latest app-state backup pointer is not available.",
+    });
+  }
+
+  const pointer = pointerResult.payload || {};
+  if (!isSafeBackupPath(pointer.path)) {
+    return sendJson(res, 409, { ok: false, reason: "Latest app-state backup pointer contains an invalid path." });
+  }
+
+  const backupResult = await readBackupObject(pointer.path);
+  if (!backupResult.ok) {
+    return sendJson(res, backupResult.status === 404 ? 404 : 500, {
+      ok: false,
+      reason: backupResult.reason || "Latest app-state backup object is not available.",
+    });
+  }
+
+  const backup = backupResult.payload || {};
+  const summary = summarizeBackupStatus(pointer, backup);
+  const restoreDrill = createRestoreDrillSummary(backup, summary);
+  if (!restoreDrill.restorable) {
+    return sendJson(res, 409, {
+      ok: false,
+      reason: "Latest app-state backup is not restore-ready.",
+      latest: summary.latest,
+      backup: summary.backup,
+      manifestCoverage: summary.manifestCoverage,
+      restoreDrill,
+    });
+  }
+
+  return sendJson(res, 200, {
+    ok: true,
+    latest: summary.latest,
+    backup: summary.backup,
+    manifestCoverage: summary.manifestCoverage,
+    restoreDrill,
+  });
+}
+
 module.exports = async (req, res) => {
   sendCorsHeaders(res);
 
@@ -403,7 +574,9 @@ module.exports = async (req, res) => {
   }
 
   const backupStatusRequest = isBackupStatusRequest(req);
-  if ((backupStatusRequest && req.method !== "GET") || (!backupStatusRequest && req.method !== "GET" && req.method !== "POST")) {
+  const restoreDrillRequest = isRestoreDrillRequest(req);
+  const readonlyMetadataRequest = backupStatusRequest || restoreDrillRequest;
+  if ((readonlyMetadataRequest && req.method !== "GET") || (!readonlyMetadataRequest && req.method !== "GET" && req.method !== "POST")) {
     return sendJson(res, 405, { ok: false, reason: "Method not allowed." });
   }
 
@@ -415,6 +588,10 @@ module.exports = async (req, res) => {
   try {
     if (backupStatusRequest) {
       return sendBackupStatus(res);
+    }
+
+    if (restoreDrillRequest) {
+      return sendBackupRestoreDrill(res);
     }
 
     const bucket = await ensureStateBucket();

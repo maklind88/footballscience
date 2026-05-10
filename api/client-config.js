@@ -1,4 +1,5 @@
 const { parseJsonBody, readConfig, sendCorsHeaders, sendJson } = require("./_lib/supabase-admin.js");
+const { guardApiRequest } = require("./_lib/platform-security.js");
 
 const MAX_IDENTIFIER_LENGTH = 180;
 const MAX_PASSWORD_LENGTH = 256;
@@ -139,6 +140,11 @@ module.exports = async (req, res) => {
     return;
   }
 
+  const security = guardApiRequest(req, res, { route: "/api/client-config", moduleId: "auth" });
+  if (!security.ok) {
+    return;
+  }
+
   if (req.method === "POST") {
     return handleLogin(req, res);
   }
@@ -149,20 +155,13 @@ module.exports = async (req, res) => {
 
   const { url, anonKey, serviceRoleKey } = readConfig();
   if (!url || !anonKey) {
-    res.statusCode = 500;
-    res.setHeader("Content-Type", "application/json");
-    res.end(JSON.stringify({ ok: false, reason: "Missing SUPABASE_URL or SUPABASE_ANON_KEY in environment." }));
-    return;
+    return sendJson(res, 500, { ok: false, reason: "Missing SUPABASE_URL or SUPABASE_ANON_KEY in environment." });
   }
 
-  res.statusCode = 200;
-  res.setHeader("Content-Type", "application/json");
-  res.end(
-    JSON.stringify({
-      ok: true,
-      url,
-      anonKey,
-      hasServiceRoleKey: Boolean(serviceRoleKey),
-    })
-  );
+  return sendJson(res, 200, {
+    ok: true,
+    url,
+    anonKey,
+    hasServiceRoleKey: Boolean(serviceRoleKey),
+  });
 };

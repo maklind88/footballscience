@@ -5,6 +5,7 @@ const {
   parseJsonBody,
 } = require("./_lib/supabase-admin.js");
 const { appendAuditLog } = require("./_lib/audit-log.js");
+const { guardApiRequest } = require("./_lib/platform-security.js");
 const {
   appendSessionPlannerHistory,
   getSessionHistoryEntries,
@@ -106,6 +107,17 @@ module.exports = async (req, res) => {
   const actor = await getCurrentActor(req.headers?.authorization || req.headers?.Authorization);
   if (!actor) {
     return sendJson(res, 401, { ok: false, reason: "You must be signed in." });
+  }
+
+  const security = guardApiRequest(req, res, {
+    route: "/api/session-history",
+    moduleId: "session-planner",
+    actor,
+    action: "restore",
+    permissionDeniedReason: "You do not have access to Session Planner history.",
+  });
+  if (!security.ok) {
+    return;
   }
 
   if (!canViewSessionHistory(actor)) {

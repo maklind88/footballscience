@@ -50,6 +50,8 @@ const coreFiles = [
   "src/core/platform-contracts.mjs",
   "src/core/data-safety-contracts.cjs",
   "src/core/data-safety-contracts.mjs",
+  "src/core/permission-matrix.cjs",
+  "src/core/permission-matrix.mjs",
   "src/core/module-registry.mjs",
   "src/core/permissions.mjs",
   "src/core/events.mjs",
@@ -126,13 +128,17 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   const performanceBudget = readProjectFile("scripts/performance-budget.mjs");
   const vercelIgnoreBuild = readProjectFile("scripts/vercel-ignore-build.mjs");
   const storagePolicy = readProjectFile("scripts/verify-storage-key-policy.mjs");
+  const platformSecurityGuard = readProjectFile("api/_lib/platform-security.js");
+  const platformSecurityVerifier = readProjectFile("scripts/verify-platform-security.mjs");
   const backupSource = readProjectFile("api/app-state-backup.js");
   const restoreReadiness = readProjectFile("scripts/verify-app-state-restore-readiness.mjs");
   const restoreDrill = readProjectFile("scripts/verify-app-state-restore-drill.mjs");
 
   expect(packageJson.scripts["qa"]).toContain("npm run qa:perf");
   expect(packageJson.scripts["qa"]).toContain("npm run storage:guard");
+  expect(packageJson.scripts["qa"]).toContain("npm run security:platform");
   expect(packageJson.scripts["storage:guard"]).toBe("node scripts/verify-storage-key-policy.mjs");
+  expect(packageJson.scripts["security:platform"]).toBe("node scripts/verify-platform-security.mjs");
   expect(packageJson.scripts["qa:perf"]).toContain("scripts/performance-budget.mjs");
   expect(packageJson.scripts["qa:live"]).toContain("qa/live.playwright.config.mjs");
   expect(packageJson.scripts["release:gate"]).toContain("npm run release:safety");
@@ -161,6 +167,10 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   expect(vercelIgnoreBuild).toContain("GitHub Production Deploy");
   expect(storagePolicy).toContain("approvedLocalOnlyStorageKeys");
   expect(storagePolicy).toContain("dataSafetyProtectedStorageKeys");
+  expect(platformSecurityGuard).toContain("footballscience-api-security-event-v1");
+  expect(platformSecurityGuard).toContain("api.permission_denied");
+  expect(platformSecurityVerifier).toContain("public.platform_security_events");
+  expect(platformSecurityVerifier).toContain("Platform security verification: ok");
   expect(readProjectFile("scripts/verify-production-deploy.mjs")).toContain("Live app.js hash does not match this release");
   expect(readProjectFile("scripts/verify-production-deploy.mjs")).toContain("crypto.createHash");
   expect(liveSpec).toContain("LIVE_QA_USERNAME");
@@ -194,6 +204,7 @@ test("modular core skeleton exists beside the current app but is not loaded by p
 test("core module contracts are covered by dedicated QA", () => {
   const packageJson = readJson("package.json");
   const modularCoreSpec = readProjectFile("qa/modular-core.api.spec.mjs");
+  const platformSecuritySpec = readProjectFile("qa/platform-security-contracts.api.spec.mjs");
   const dataSafetySpec = readProjectFile("qa/data-safety-contracts.api.spec.mjs");
   const homeTasksSpec = readProjectFile("qa/home-tasks-adapter.api.spec.mjs");
   const homeChatSpec = readProjectFile("qa/home-chat-adapter.api.spec.mjs");
@@ -209,7 +220,11 @@ test("core module contracts are covered by dedicated QA", () => {
   const gameSimulatorKeyboardStateSpec = readProjectFile("qa/game-simulator-keyboard-state.api.spec.mjs");
 
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-safety-contracts.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-security-contracts.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/data-safety-contracts.api.spec.mjs");
+  expect(platformSecuritySpec).toContain("permission matrix covers every module action");
+  expect(platformSecuritySpec).toContain("API guard rate limits abusive public requests");
+  expect(platformSecuritySpec).toContain("tenant isolation and permission matrix are enforced");
   expect(dataSafetySpec).toContain("data safety registry covers every protected module storage key");
   expect(dataSafetySpec).toContain("central app-state rejects stale versioned writes");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-tasks-adapter.api.spec.mjs");

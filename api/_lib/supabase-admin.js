@@ -1,3 +1,5 @@
+const { finishApiRequest } = require("./platform-security.js");
+
 const DEFAULT_ROLES = ["admin", "coach", "analyst", "performance", "medical", "guest"];
 const ROLE_LOOKUP = new Set(DEFAULT_ROLES);
 const MIN_PASSWORD_LENGTH = 6;
@@ -713,6 +715,7 @@ function sendJson(res, status, payload) {
   sendCorsHeaders(res);
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
+  finishApiRequest(res, status, payload);
   res.end(JSON.stringify(payload));
 }
 

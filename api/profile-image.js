@@ -7,6 +7,7 @@ const {
   sendJson,
 } = require("./_lib/supabase-admin.js");
 const { appendAuditLog } = require("./_lib/audit-log.js");
+const { guardApiRequest } = require("./_lib/platform-security.js");
 
 const PROFILE_IMAGE_BUCKET = "footballscience-profile-images";
 const MAX_JSON_BODY_BYTES = 2 * 1024 * 1024;
@@ -284,6 +285,15 @@ module.exports = async (req, res) => {
   const actor = await getCurrentActor(req.headers?.authorization || req.headers?.Authorization);
   if (!actor) {
     return sendJson(res, 401, { ok: false, reason: "You must be signed in." });
+  }
+
+  const security = guardApiRequest(req, res, {
+    route: "/api/profile-image",
+    moduleId: "profile",
+    actor,
+  });
+  if (!security.ok) {
+    return;
   }
 
   try {

@@ -36,10 +36,21 @@ requirePackageScript("release:restore-drill", "node scripts/verify-app-state-res
 requirePackageScript("release:monitor", "npm run release:postdeploy && npm run release:backup && npm run release:restore-readiness && npm run release:restore-drill && npm run qa:live:required");
 requirePackageScript("release:rules", "node scripts/verify-release-rules.mjs");
 requirePackageScript("storage:guard", "node scripts/verify-storage-key-policy.mjs");
+requirePackageScript("security:platform", "node scripts/verify-platform-security.mjs");
 
 requireText("vercel.json", "scripts/vercel-ignore-build.mjs", "automatic Vercel production builds must stay blocked");
 requireText("package.json", "npm run storage:guard", "full QA must include the storage key policy gate");
+requireText("package.json", "npm run security:platform", "full QA must include the platform security control-plane gate");
 requireText("scripts/verify-storage-key-policy.mjs", "approvedLocalOnlyStorageKeys", "new local-only storage keys must be explicitly justified");
+requireText("scripts/verify-platform-security.mjs", "Platform security verification: ok", "platform tenant isolation and permission matrix must stay testable");
+requireText("src/core/permission-matrix.cjs", "platformPermissionMatrix", "backend permissions must live in the central permission matrix");
+requireText("api/_lib/platform-security.js", "footballscience-api-security-event-v1", "API observability must keep a stable structured log schema");
+requireText("api/_lib/platform-security.js", "X-RateLimit-Limit", "API guard must expose rate limit state");
+requireText("api/_lib/platform-security.js", "api.permission_denied", "API guard must log blocked backend permissions");
+requireText("api/_lib/supabase-admin.js", "finishApiRequest", "API JSON responses must close security observability spans");
+requireText("supabase/migrations/20260510030705_platform_security_control_plane.sql", "public.platform_permission_matrix", "database must include a server-owned permission matrix");
+requireText("supabase/migrations/20260510030705_platform_security_control_plane.sql", "public.platform_security_events", "database must include security event storage for incidents");
+requireText("supabase/migrations/20260510030705_platform_security_control_plane.sql", "app_private.has_platform_permission", "RLS policies need a server-side permission helper");
 requireText("api/app-state-backup.js", "backupMatchesPointer", "backup status must verify pointer/object integrity");
 requireText("api/app-state-backup.js", "manifestCoverage", "backup status must expose restore-readiness metadata without raw entries");
 requireText("api/app-state-backup.js", "createRestoreDrillSummary", "backup restore drill must parse the latest backup without writing data");

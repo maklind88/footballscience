@@ -12,6 +12,7 @@ const {
   parseJsonBody,
 } = require("./_lib/supabase-admin.js");
 const { appendAuditLog } = require("./_lib/audit-log.js");
+const { guardApiRequest } = require("./_lib/platform-security.js");
 
 function getTargetId(query, body) {
   return body?.id || query.get("id") || query.get("userId") || "";
@@ -76,6 +77,15 @@ module.exports = async (req, res) => {
   const method = String(req.method || "").toUpperCase();
   const query = new URL(req.url, "http://localhost").searchParams;
   const { url, serviceRoleKey } = readConfig();
+  const security = guardApiRequest(req, res, {
+    route: "/api/admin-users",
+    moduleId: "admin-users",
+    actor,
+    enforcePermission: false,
+  });
+  if (!security.ok) {
+    return;
+  }
 
   try {
     if (!url || !serviceRoleKey) {

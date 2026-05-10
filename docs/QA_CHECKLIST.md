@@ -14,6 +14,7 @@ npm run qa
   - `npm run verify:local-isolation` verifies local dev is not wired to live Supabase/Postgres.
   - `npm run check` validates `app.js` syntax.
   - `npm run qa:api` validates serverless API contracts.
+  - `npm run security:platform` validates the Permission Matrix, guarded API routes, tenant-scoped migrations, rate-limit contract, and security observability.
   - `npm run qa:browser` validates critical local browser flows.
   - `npm run qa:live` runs the optional production smoke if `LIVE_QA_USERNAME` and `LIVE_QA_PASSWORD` are set.
   - `npm run qa:staging` runs the optional staging smoke if `STAGING_QA_BASE_URL`, `STAGING_QA_USERNAME`, and `STAGING_QA_PASSWORD` are set.
@@ -41,6 +42,8 @@ This smoke test also verifies localhost dev-auth does not call `/api/client-conf
 `qa/data-safety-contracts.api.spec.mjs` is the shared module data safety gate. It fails QA if a protected module key lacks a central save contract, cache-only browser storage rule, organization scope, revision fields, merge policy, or stale-write protection.
 
 `npm run storage:guard` fails QA if `app.js` introduces a new Football Science storage key without either a Data Safety Contract, a dedicated API cache contract, or an explicit local-only justification. This keeps localStorage as cache/prefs only instead of a hidden production source of truth.
+
+`npm run security:platform` fails QA if a public API route is missing the backend guard, if a permission action lacks roles, if a new public table lacks tenant scope/RLS revocation, or if the security event schema disappears.
 
 `npm run release:postdeploy` verifies the live `/app.js` SHA-256 hash against the release checkout. A deploy where Vercel still serves an older app asset must fail instead of relying on visual cache checks.
 

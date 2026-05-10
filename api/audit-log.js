@@ -5,6 +5,7 @@ const {
   sendJson,
 } = require("./_lib/supabase-admin.js");
 const { appendAuditLog, readAuditLog } = require("./_lib/audit-log.js");
+const { guardApiRequest } = require("./_lib/platform-security.js");
 
 const CLIENT_AUDIT_ACTIONS = new Set(["medical.handover.copied"]);
 
@@ -35,6 +36,15 @@ module.exports = async (req, res) => {
   const actor = await getCurrentActor(req.headers?.authorization || req.headers?.Authorization);
   if (!actor) {
     return sendJson(res, 401, { ok: false, reason: "You must be signed in." });
+  }
+
+  const security = guardApiRequest(req, res, {
+    route: "/api/audit-log",
+    moduleId: "audit-log",
+    actor,
+  });
+  if (!security.ok) {
+    return;
   }
 
   if (req.method === "POST") {

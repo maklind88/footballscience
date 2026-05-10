@@ -26,6 +26,8 @@ Treat these as protected product data:
 - IndexedDB snapshots: local safety net for recent browser-side state.
 - Localhost/dev auth: local-only mode for development and QA; it must not call `/api/client-config`.
 - Local/live isolation: production env files such as `.vercel/.env.production.local` must not live in the local workspace. `npm run verify:local-isolation` fails QA if local env points at the live Supabase/Postgres backend.
+- Security control plane: `src/core/permission-matrix.cjs`, `api/_lib/platform-security.js`, and `public.platform_permission_matrix` define one backend-owned permission model for every module. UI may hide actions, but backend/API/RLS must enforce them.
+- Structured incident events: guarded API routes emit `footballscience-api-security-event-v1` logs for rate limits, permission denials, auth failures, API failures, and request latency.
 
 The app must never treat a missing or incomplete sync response as permission to overwrite local protected data with an empty value.
 Versioned module writes carry their latest known `baseRevision` from the client. If central state is newer, `/api/app-state` rejects the stale write unless the module contract has an explicit merge strategy that preserves newer data. Writes or deletes with no base revision are rejected once central data exists. The browser write queue clears stale-conflict retries and hydrates the central version back into cache.
@@ -45,8 +47,10 @@ This runs:
 - `npm run verify:local-isolation`
 - `npm run check`
 - Static Supabase migration safety checks through `npm run qa:supabase`.
+- Platform security control-plane checks through `npm run security:platform`.
 - API contract tests for client config and app-state auth behavior.
 - Data Safety contract tests for central pipeline, organization scope, revision metadata, stale-write rejection, and protected key coverage.
+- Permission Matrix tests for backend read/write/delete/export/restore rules and guarded API route coverage.
 - Database guard tests for module migrations that add row versions, soft deletes, hard-delete blocking, and restore history.
 - Browser two-tab revision smoke in `qa/central-state-revision.smoke.spec.mjs`.
 - Browser smoke tests for Schedule, Periodization, Session Planner, and Medical Team refresh persistence.
@@ -108,6 +112,7 @@ Security automation now includes:
 - Staging Deploy and Staging Smoke workflows with separate `STAGING_*` secrets and Supabase-ref isolation checks.
 - Production safety gate that fails closed if staging/live are not isolated or the staging branch does not match the production candidate.
 - Release rules verification through `npm run release:rules` so future edits cannot silently remove staging, production monitor, rollback, live smoke, or the Vercel production-build blocker.
+- Platform security verification through `npm run security:platform` so future routes, modules, and database tables cannot silently bypass tenant scope, the permission matrix, rate limits, or security observability.
 - Postdeploy verifies the live `/app.js` SHA-256 hash against the release checkout so stale Vercel/browser assets cannot pass as a successful deploy.
 - Scheduled Production Monitor every six hours. It runs postdeploy checks and authenticated live smoke against `footballscience.xyz`.
 - Restore-readiness monitoring verifies that latest app-state backup metadata covers every protected module key while keeping raw backup entries private.

@@ -6,6 +6,7 @@ const {
   sendJson,
 } = require("./_lib/supabase-admin.js");
 const { appendAuditLog } = require("./_lib/audit-log.js");
+const { guardApiRequest } = require("./_lib/platform-security.js");
 
 function sanitizeRedirectTo(value) {
   const fallback = "https://footballscience.xyz/";
@@ -51,6 +52,16 @@ module.exports = async (req, res) => {
 
   if (actor.role !== "admin") {
     return sendJson(res, 403, { ok: false, reason: "Admin access required." });
+  }
+
+  const security = guardApiRequest(req, res, {
+    route: "/api/send-reset",
+    moduleId: "admin-users",
+    actor,
+    action: "admin",
+  });
+  if (!security.ok) {
+    return;
   }
 
   let body = {};

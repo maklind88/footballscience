@@ -6,6 +6,7 @@ const {
   sendCorsHeaders,
   sendJson,
 } = require("./_lib/supabase-admin.js");
+const { guardApiRequest } = require("./_lib/platform-security.js");
 const {
   handleDatabaseChatRequest,
   isDatabaseChatEnabled,
@@ -1106,6 +1107,15 @@ module.exports = async (req, res) => {
 
   if (!canUseChat(actor)) {
     return sendJson(res, 403, { ok: false, reason: "Chat access requires a staff role." });
+  }
+
+  const security = guardApiRequest(req, res, {
+    route: "/api/chat",
+    moduleId: "chat",
+    actor,
+  });
+  if (!security.ok) {
+    return;
   }
 
   if (isDatabaseChatEnabled()) {

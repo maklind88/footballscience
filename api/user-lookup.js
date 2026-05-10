@@ -3,6 +3,7 @@ const {
   sendCorsHeaders,
   sendJson,
 } = require("./_lib/supabase-admin.js");
+const { guardApiRequest } = require("./_lib/platform-security.js");
 
 module.exports = async (req, res) => {
   sendCorsHeaders(res);
@@ -15,6 +16,11 @@ module.exports = async (req, res) => {
 
   if (req.method !== "GET") {
     return sendJson(res, 405, { ok: false, reason: "Method not allowed." });
+  }
+
+  const security = guardApiRequest(req, res, { route: "/api/user-lookup", moduleId: "admin-users" });
+  if (!security.ok) {
+    return;
   }
 
   const { searchParams } = new URL(req.url, "http://localhost");

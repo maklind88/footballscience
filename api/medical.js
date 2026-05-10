@@ -4,6 +4,7 @@ const {
   sendJson,
 } = require("./_lib/supabase-admin.js");
 const { handleMedicalDatabaseRequest } = require("./_lib/medical-database.js");
+const { guardApiRequest } = require("./_lib/platform-security.js");
 
 module.exports = async (req, res) => {
   sendCorsHeaders(res);
@@ -17,6 +18,15 @@ module.exports = async (req, res) => {
   const actor = await getCurrentActor(req.headers?.authorization || req.headers?.Authorization);
   if (!actor) {
     return sendJson(res, 401, { ok: false, reason: "You must be signed in." });
+  }
+
+  const security = guardApiRequest(req, res, {
+    route: "/api/medical",
+    moduleId: "medical-team",
+    actor,
+  });
+  if (!security.ok) {
+    return;
   }
 
   try {

@@ -10,6 +10,7 @@ Each module owns:
 - `purpose`: what user workflow it supports.
 - `data`: storage keys now and future database tables later.
 - `permissions`: view and edit role expectations.
+- `permissionMatrix`: backend-owned `read`, `write`, `delete`, `export`, `restore`, `admin`, and `observe` rules in `src/core/permission-matrix.cjs`.
 - `events`: cross-module signals it emits or consumes.
 - `qa`: smoke tests that must remain green.
 - `migration`: how it moves from current app-state to future tables.
@@ -22,11 +23,24 @@ Every protected module key must also exist in `src/core/data-safety-contracts.cj
 Non-negotiable rules:
 
 - Modules save through the central pipeline at `/api/app-state`; browser storage is cache only.
+- Modules expose protected API work only through routes registered in the Permission Matrix and guarded by `api/_lib/platform-security.js`.
 - Every saved entry is stamped server-side with `updatedAt`, `updatedBy`, `revision`, and `organizationId`.
 - Stale versioned writes are rejected unless the module has an explicit server merge policy.
 - The server owns merge behavior. Current protected merges include Session Planner field timestamps, Squad player record timestamps, and append/preserve behavior for library-style data.
 - Audit entries and snapshots are part of the contract, with sensitive values summarized/redacted rather than blindly storing clinical or secret text.
 - A module is not considered safe until `qa/data-safety-contracts.api.spec.mjs` passes for its storage keys.
+- A module is not considered secure until `npm run security:platform` proves API guard coverage, permission matrix coverage, tenant scope, RLS, and observability.
+
+## Permission Matrix Contract
+
+The central permission model lives in `src/core/permission-matrix.cjs` and is seeded into `public.platform_permission_matrix`.
+
+Rules:
+
+- UI can only mirror permissions; backend routes and RLS policies are the source of truth.
+- Every public `api/*.js` route must be registered in `apiRouteSecurity` with module id, method-to-action mapping, rate limits, and enforcement mode.
+- Every tenant-owned database row needs `organization_id`; team-scoped records need `team_id`.
+- Security events use `platform_security_events` and structured API logs so incident monitoring can detect spikes in 401/403/429/500 and slow saves.
 
 ## Platform Shell
 

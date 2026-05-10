@@ -8,6 +8,7 @@ const {
 } = require("./_lib/supabase-admin.js");
 const { appendAuditLog } = require("./_lib/audit-log.js");
 const { appendSessionPlannerHistory } = require("./_lib/session-history.js");
+const { guardApiRequest } = require("./_lib/platform-security.js");
 const { dataSafetyRegistry } = require("../src/core/data-safety-contracts.cjs");
 const crypto = require("crypto");
 
@@ -2024,6 +2025,16 @@ module.exports = async (req, res) => {
   const actor = await getCurrentActor(req.headers?.authorization || req.headers?.Authorization);
   if (!actor) {
     return sendJson(res, 401, { ok: false, reason: "You must be signed in." });
+  }
+
+  const security = guardApiRequest(req, res, {
+    route: "/api/app-state",
+    moduleId: "app-state",
+    actor,
+    enforcePermission: false,
+  });
+  if (!security.ok) {
+    return;
   }
 
   const bucket = await ensureStateBucket();

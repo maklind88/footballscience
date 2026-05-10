@@ -5,6 +5,7 @@ const {
   sendCorsHeaders,
   sendJson,
 } = require("./_lib/supabase-admin.js");
+const { guardApiRequest } = require("./_lib/platform-security.js");
 const { dataSafetyRegistry } = require("../src/core/data-safety-contracts.cjs");
 
 const STATE_BUCKET = "footballscience-app-state";
@@ -583,6 +584,16 @@ module.exports = async (req, res) => {
   const authorization = await authorizeBackupRequest(req);
   if (!authorization.ok) {
     return sendJson(res, authorization.status, { ok: false, reason: authorization.reason });
+  }
+
+  const security = guardApiRequest(req, res, {
+    route: backupStatusRequest ? "/api/app-state-backup-status" : "/api/app-state-backup",
+    moduleId: "app-state",
+    actor: authorization.actor,
+    action: readonlyMetadataRequest ? "restore" : "export",
+  });
+  if (!security.ok) {
+    return;
   }
 
   try {

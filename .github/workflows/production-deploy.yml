@@ -67,6 +67,8 @@ jobs:
 
       - name: Verify staging smoke before production
         run: npm run qa:staging:required
+      - name: Create predeploy app-state backup
+        run: npm run release:predeploy-backup
       - run: npx --yes vercel@53.2.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
       - run: npx --yes vercel@53.2.0 build --prod --token="$VERCEL_TOKEN"
 
@@ -74,4 +76,5 @@ jobs:
         run: npx --yes vercel@53.2.0 deploy --prebuilt --prod --token="$VERCEL_TOKEN" | tee deployment-url.txt
 
       - run: npm run release:postdeploy
+      - run: npm run release:postdeploy-content
       - run: npm run qa:live:required

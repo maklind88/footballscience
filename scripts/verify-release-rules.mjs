@@ -31,6 +31,8 @@ function requirePackageScript(name, expected) {
 }
 
 requirePackageScript("release:backup", "node scripts/verify-app-state-backup-freshness.mjs");
+requirePackageScript("release:predeploy-backup", "node scripts/create-app-state-backup.mjs");
+requirePackageScript("release:postdeploy-content", "node scripts/verify-live-content-safety.mjs");
 requirePackageScript("release:restore-readiness", "node scripts/verify-app-state-restore-readiness.mjs");
 requirePackageScript("release:restore-drill", "node scripts/verify-app-state-restore-drill.mjs");
 requirePackageScript("release:monitor", "npm run release:postdeploy && npm run release:backup && npm run release:restore-readiness && npm run release:restore-drill && npm run qa:live:required");
@@ -43,6 +45,9 @@ requireText("scripts/verify-storage-key-policy.mjs", "approvedLocalOnlyStorageKe
 requireText("api/app-state-backup.js", "backupMatchesPointer", "backup status must verify pointer/object integrity");
 requireText("api/app-state-backup.js", "manifestCoverage", "backup status must expose restore-readiness metadata without raw entries");
 requireText("api/app-state-backup.js", "createRestoreDrillSummary", "backup restore drill must parse the latest backup without writing data");
+requireText("api/app-state-backup.js", "live-safety-status", "live content status must expose sanitized current counts for deploy comparison");
+requireText("scripts/create-app-state-backup.mjs", "/api/app-state-backup", "predeploy must create a protected app-state backup");
+requireText("scripts/verify-live-content-safety.mjs", "decreased during deploy", "postdeploy content checks must fail when protected counts go down");
 requireText("scripts/verify-app-state-restore-readiness.mjs", "dataSafetyRegistry.keys()", "restore readiness must check every protected Data Safety key");
 requireText("scripts/verify-app-state-restore-drill.mjs", "dryRun", "restore drill must prove it is read-only");
 requireText("vercel.json", "/api/app-state-backup-status", "backup status route must reuse the existing backup function");
@@ -60,8 +65,10 @@ requireText(".github/workflows/production-deploy.yml", "workflows:", "production
 requireText(".github/workflows/production-deploy.yml", "- QA", "production deploy must wait for QA");
 requireText(".github/workflows/production-deploy.yml", "npm run release:safety", "production deploy must keep the safety gate");
 requireText(".github/workflows/production-deploy.yml", "npm run qa:staging:required", "production deploy must verify staging first");
+requireText(".github/workflows/production-deploy.yml", "npm run release:predeploy-backup", "production deploy must create an app-state backup before Vercel deploy");
 requireText(".github/workflows/production-deploy.yml", "vercel@53.2.0 deploy --prebuilt --prod", "production deploy must use the pinned Vercel CLI prebuilt path");
 requireText(".github/workflows/production-deploy.yml", "npm run release:postdeploy", "production deploy must verify the live domain");
+requireText(".github/workflows/production-deploy.yml", "npm run release:postdeploy-content", "production deploy must verify protected content counts after deploy");
 requireText(".github/workflows/production-deploy.yml", "npm run qa:live:required", "production deploy must run authenticated live smoke");
 requireText(".github/workflows/production-deploy.yml", "CRON_SECRET", "production deploy must receive the cron secret required by the release environment gate");
 

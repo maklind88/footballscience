@@ -20,6 +20,8 @@ Treat these as protected product data:
 - Server backups: `/api/app-state-backup` writes timestamped Supabase Storage backups under `backups/app-state/`; `/api/app-state-backup-status` rewrites to the same backup function and verifies the latest pointer/object hash without exposing backup data.
 - Restore readiness: backup status returns a sanitized manifest for every Data Safety key, so monitors can prove each protected module has restore metadata without exposing saved entries.
 - Restore drill: `/api/app-state-backup?mode=restore-drill` performs a read-only server-side parse of the latest backup entries, verifies manifest hashes/byte counts, and reports only metadata. It never writes restored state and never exposes raw entries.
+- Predeploy backup: production release automation runs `npm run release:predeploy-backup`, which creates a fresh protected app-state backup and saves a sanitized live-content baseline for postdeploy comparison.
+- Live content safety: `/api/app-state-backup?mode=live-safety-status` returns protected counts and hashes only. Postdeploy checks compare it with the predeploy baseline and fail if player counts, role/status coverage, sessions, exercises, folders, or other protected counts move backwards.
 - Browser storage: fast local cache, autosave surface, and emergency export/import source.
 - Data Safety Contract: `src/core/data-safety-contracts.cjs` is the shared registry for module key, scope, merge policy, required fields, revision behavior, audit, and snapshot requirements.
 - Data Safety manifest: tracks protected local writes and pending central sync. Local storage is cache-only, never the production source of truth.
@@ -28,7 +30,11 @@ Treat these as protected product data:
 - Local/live isolation: production env files such as `.vercel/.env.production.local` must not live in the local workspace. `npm run verify:local-isolation` fails QA if local env points at the live Supabase/Postgres backend.
 
 The app must never treat a missing or incomplete sync response as permission to overwrite local protected data with an empty value.
-Versioned module writes carry their latest known `baseRevision` from the client. If central state is newer, `/api/app-state` rejects the stale write unless the module contract has an explicit merge strategy that preserves newer data. Writes or deletes with no base revision are rejected once central data exists. The browser write queue clears stale-conflict retries and hydrates the central version back into cache.
+Versioned module writes carry their latest known `baseRevision` from the client. If central state is newer, `/api/app-state` rejects the stale write unless the module contract has an explicit merge strategy that preserves newer data. Writes or deletes with no base revision are rejected once central data exists. Reset-like writes that would clear a populated live array are rejected unless they carry an explicit restore/destructive-migration intent. The browser write queue clears stale-conflict retries and hydrates the central version back into cache.
+
+Squad has an extra live-content rule while it still uses `football-player-profiles-v1`: a player that exists in central state cannot disappear just because a module update, seed, or import payload omits that player. Server sync only removes a Squad player when the incoming changelog includes a new `player-removed` event for that player.
+
+Squad and Medical demo rosters are now localhost-only. Production can read real central state or an empty state, but it must not seed North Carolina Courage demo players into central app-state during login or deploy.
 
 For database-backed modules, the same rule moves down into Postgres: mutable rows must carry a `row_version`, writes use compare-and-swap, deletes become soft deletes, and history tables capture enough before/after state for restore drills. Squad now has the first staged guard migration for this pattern.
 
@@ -47,6 +53,7 @@ This runs:
 - Static Supabase migration safety checks through `npm run qa:supabase`.
 - API contract tests for client config and app-state auth behavior.
 - Data Safety contract tests for central pipeline, organization scope, revision metadata, stale-write rejection, and protected key coverage.
+- Live-content survival tests for module seed/reset writes: central arrays cannot be cleared silently, and Squad live players survive module seed syncs unless a real removal event exists.
 - Database guard tests for module migrations that add row versions, soft deletes, hard-delete blocking, and restore history.
 - Browser two-tab revision smoke in `qa/central-state-revision.smoke.spec.mjs`.
 - Browser smoke tests for Schedule, Periodization, Session Planner, and Medical Team refresh persistence.

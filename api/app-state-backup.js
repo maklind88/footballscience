@@ -12,6 +12,13 @@ const STATE_PREFIX = "global";
 const BACKUP_PREFIX = "backups/app-state";
 const LATEST_BACKUP_PATH = `${BACKUP_PREFIX}/latest.json`;
 const CENTRAL_STATE_KEYS = new Set(dataSafetyRegistry.keys());
+const PLAYER_PROFILES_KEY = "football-player-profiles-v1";
+const MEDICAL_TEAM_KEY = "football-medical-team-v1";
+const SESSION_PLANNER_KEY = "football-session-planner-v3";
+const SCHEDULE_KEY = "football-schedule-v1";
+const PERIODIZATION_KEY = "football-periodization-v2";
+const EXERCISE_LIBRARY_KEY = "football-session-exercise-library-v1";
+const EXERCISE_LIBRARY_FOLDERS_KEY = "football-session-exercise-library-folders-v1";
 
 function getStorageBaseUrl() {
   const { url, serviceRoleKey } = readConfig();
@@ -118,6 +125,156 @@ async function readStateObject(key) {
 
 function hashText(value) {
   return createHash("sha256").update(String(value ?? ""), "utf8").digest("hex");
+}
+
+function parseJsonValue(value) {
+  try {
+    return JSON.parse(String(value || ""));
+  } catch {
+    return null;
+  }
+}
+
+function isRecord(value) {
+  return value && typeof value === "object" && !Array.isArray(value);
+}
+
+function countNonEmpty(items = [], field) {
+  return items.filter((item) => String(item?.[field] ?? "").trim()).length;
+}
+
+function addTopLevelShapeCounts(counts, state) {
+  if (Array.isArray(state)) {
+    counts.itemCount = state.length;
+    return counts;
+  }
+  if (!isRecord(state)) {
+    return counts;
+  }
+  Object.entries(state).forEach(([field, value]) => {
+    if (Array.isArray(value)) {
+      counts[`${field}Count`] = value.length;
+      return;
+    }
+    if (isRecord(value)) {
+      counts[`${field}KeyCount`] = Object.keys(value).length;
+    }
+  });
+  return counts;
+}
+
+function summarizePlayerProfilesState(state) {
+  const players = Array.isArray(state?.players) ? state.players : [];
+  return {
+    format: "json-object",
+    counts: {
+      ...addTopLevelShapeCounts({}, state),
+      playerCount: players.length,
+      playersWithPosition: countNonEmpty(players, "position"),
+      playersWithSquadStatus: countNonEmpty(players, "squadStatus"),
+      playersWithCareerPhase: countNonEmpty(players, "careerPhase"),
+      playersWithPrimaryRole: countNonEmpty(players, "primaryRole"),
+      playersWithRoleGroup: countNonEmpty(players, "roleGroup"),
+      playersWithStatus: countNonEmpty(players, "status"),
+    },
+    rosterVersion: String(state?.rosterVersion || ""),
+    schemaVersion: Number.isInteger(Number(state?.schemaVersion)) ? Number(state.schemaVersion) : 0,
+    identityHash: hashText(players.map((player) => String(player?.id || "")).filter(Boolean).sort().join("|")),
+  };
+}
+
+function summarizeMedicalTeamState(state) {
+  const players = Array.isArray(state?.players) ? state.players : [];
+  const records = Array.isArray(state?.records) ? state.records : [];
+  const injuryPlans = Array.isArray(state?.injuryPlans) ? state.injuryPlans : [];
+  return {
+    format: "json-object",
+    counts: {
+      ...addTopLevelShapeCounts({}, state),
+      playerCount: players.length,
+      medicalRecordCount: records.length,
+      injuryPlanCount: injuryPlans.length,
+      playersWithPosition: countNonEmpty(players, "position"),
+      recordsWithPlayer: countNonEmpty(records, "playerId"),
+      plansWithPlayer: countNonEmpty(injuryPlans, "playerId"),
+    },
+    rosterVersion: String(state?.rosterVersion || ""),
+    identityHash: hashText(players.map((player) => String(player?.id || "")).filter(Boolean).sort().join("|")),
+  };
+}
+
+function summarizeSessionPlannerState(state) {
+  const sessions = isRecord(state?.sessions) ? state.sessions : {};
+  const blockCount = Object.values(sessions).reduce((total, session) => total + (Array.isArray(session?.blocks) ? session.blocks.length : 0), 0);
+  return {
+    format: "json-object",
+    counts: {
+      ...addTopLevelShapeCounts({}, state),
+      sessionCount: Object.keys(sessions).length,
+      blockCount,
+    },
+  };
+}
+
+function summarizeGenericStateValue(key, value) {
+  const parsed = parseJsonValue(value);
+  if (!parsed) {
+    return {
+      format: "string",
+      counts: {},
+    };
+  }
+  if (key === PLAYER_PROFILES_KEY && isRecord(parsed)) {
+    return summarizePlayerProfilesState(parsed);
+  }
+  if (key === MEDICAL_TEAM_KEY && isRecord(parsed)) {
+    return summarizeMedicalTeamState(parsed);
+  }
+  if (key === SESSION_PLANNER_KEY && isRecord(parsed)) {
+    return summarizeSessionPlannerState(parsed);
+  }
+  if (key === SCHEDULE_KEY && isRecord(parsed)) {
+    return {
+      format: "json-object",
+      counts: {
+        ...addTopLevelShapeCounts({}, parsed),
+        eventCount: Array.isArray(parsed.events) ? parsed.events.length : 0,
+      },
+    };
+  }
+  if (key === PERIODIZATION_KEY && isRecord(parsed)) {
+    return {
+      format: "json-object",
+      counts: {
+        ...addTopLevelShapeCounts({}, parsed),
+        dayCount: isRecord(parsed.days) ? Object.keys(parsed.days).length : 0,
+      },
+    };
+  }
+  if (key === EXERCISE_LIBRARY_KEY) {
+    const exercises = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.exercises) ? parsed.exercises : [];
+    return {
+      format: Array.isArray(parsed) ? "json-array" : "json-object",
+      counts: {
+        ...addTopLevelShapeCounts({}, parsed),
+        exerciseCount: exercises.length,
+      },
+    };
+  }
+  if (key === EXERCISE_LIBRARY_FOLDERS_KEY) {
+    const folders = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.folders) ? parsed.folders : [];
+    return {
+      format: Array.isArray(parsed) ? "json-array" : "json-object",
+      counts: {
+        ...addTopLevelShapeCounts({}, parsed),
+        folderCount: folders.length,
+      },
+    };
+  }
+  return {
+    format: Array.isArray(parsed) ? "json-array" : "json-object",
+    counts: addTopLevelShapeCounts({}, parsed),
+  };
 }
 
 async function collectCentralStateBackupEntries() {
@@ -482,6 +639,47 @@ function isRestoreDrillRequest(req) {
   }
 }
 
+function isLiveSafetyStatusRequest(req) {
+  try {
+    const url = new URL(req.url || "", "https://footballscience.local");
+    return url.searchParams.get("mode") === "live-safety-status";
+  } catch {
+    return false;
+  }
+}
+
+async function sendLiveSafetyStatus(res) {
+  const { entries, manifest } = await collectCentralStateBackupEntries();
+  const keys = dataSafetyRegistry.keys();
+  const safetyManifest = {};
+
+  keys.forEach((key) => {
+    const contract = dataSafetyRegistry.getByKey(key);
+    const entry = manifest[key] || { present: false };
+    const present = entry.present === true && Object.prototype.hasOwnProperty.call(entries, key);
+    safetyManifest[key] = {
+      present,
+      moduleId: contract?.moduleId || "",
+      organizationId: present ? entry.organizationId || "global" : "",
+      revision: present && Number.isInteger(Number(entry.revision)) ? Number(entry.revision) : 0,
+      mergePolicy: present ? entry.mergePolicy || contract?.mergePolicy || "" : contract?.mergePolicy || "",
+      updatedAt: present ? entry.updatedAt || "" : "",
+      bytes: present && Number.isInteger(Number(entry.bytes)) ? Number(entry.bytes) : 0,
+      sha256: present ? entry.sha256 || "" : "",
+      summary: present ? summarizeGenericStateValue(key, entries[key]) : { format: "missing", counts: {} },
+    };
+  });
+
+  return sendJson(res, 200, {
+    ok: true,
+    schema: "footballscience-live-content-safety-v1",
+    generatedAt: new Date().toISOString(),
+    keyCount: keys.length,
+    presentEntryCount: Object.values(safetyManifest).filter((entry) => entry.present).length,
+    manifest: safetyManifest,
+  });
+}
+
 async function sendBackupStatus(res) {
   const pointerResult = await readBackupObject(LATEST_BACKUP_PATH);
   if (!pointerResult.ok) {
@@ -575,7 +773,8 @@ module.exports = async (req, res) => {
 
   const backupStatusRequest = isBackupStatusRequest(req);
   const restoreDrillRequest = isRestoreDrillRequest(req);
-  const readonlyMetadataRequest = backupStatusRequest || restoreDrillRequest;
+  const liveSafetyStatusRequest = isLiveSafetyStatusRequest(req);
+  const readonlyMetadataRequest = backupStatusRequest || restoreDrillRequest || liveSafetyStatusRequest;
   if ((readonlyMetadataRequest && req.method !== "GET") || (!readonlyMetadataRequest && req.method !== "GET" && req.method !== "POST")) {
     return sendJson(res, 405, { ok: false, reason: "Method not allowed." });
   }
@@ -592,6 +791,10 @@ module.exports = async (req, res) => {
 
     if (restoreDrillRequest) {
       return sendBackupRestoreDrill(res);
+    }
+
+    if (liveSafetyStatusRequest) {
+      return sendLiveSafetyStatus(res);
     }
 
     const bucket = await ensureStateBucket();

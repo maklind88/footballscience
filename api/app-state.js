@@ -514,6 +514,81 @@ function getStaleWriteRejection(contract, previousEntry, authorization, clientBa
   };
 }
 
+function getMetadataEntry(metadata = {}, key = "") {
+  if (!metadata || typeof metadata !== "object") {
+    return {};
+  }
+
+  const entry = metadata[key];
+  return entry && typeof entry === "object" && !Array.isArray(entry) ? entry : metadata;
+}
+
+function hasExplicitDestructiveOverwriteIntent(metadata = {}, key = "") {
+  const entry = getMetadataEntry(metadata, key);
+  return (
+    entry.allowDestructiveOverwrite === true ||
+    entry.intent === "restore" ||
+    entry.intent === "admin-restore" ||
+    entry.intent === "destructive-migration"
+  );
+}
+
+function getDestructiveResetRejection(contract, previousEntry, rawValue, metadata = {}, key = "") {
+  if (!previousEntry?.value || hasExplicitDestructiveOverwriteIntent(metadata, key)) {
+    return null;
+  }
+
+  const previousValue = safeParseJson(previousEntry.value, null);
+  const nextValue = safeParseJson(rawValue, null);
+  if (!previousValue || !nextValue || typeof previousValue !== "object" || typeof nextValue !== "object") {
+    return null;
+  }
+
+  const resetFields = Object.entries(previousValue)
+    .filter(([, value]) => Array.isArray(value) && value.length >= 3)
+    .filter(([field]) => {
+      const nextField = nextValue[field];
+      return !Array.isArray(nextField) || nextField.length === 0;
+    })
+    .map(([field]) => field);
+
+  if (!resetFields.length) {
+    return null;
+  }
+
+  return {
+    ok: false,
+    status: 409,
+    reason: `Potential destructive reset for ${contract?.moduleId || "module"} was not saved because it would clear live ${resetFields.join(", ")} data.`,
+    currentRevision: getStateEntryRevision(previousEntry),
+    destructiveReset: true,
+    resetFields,
+  };
+}
+
+function getLocalDemoRosterSeedRejection(key = "", rawValue = "", metadata = {}) {
+  if (![PLAYER_PROFILES_KEY, MEDICAL_TEAM_KEY].includes(key) || hasExplicitDestructiveOverwriteIntent(metadata, key)) {
+    return null;
+  }
+  const parsed = safeParseJson(rawValue, null);
+  const players = Array.isArray(parsed?.players) ? parsed.players : [];
+  if (!players.length || !players.every((player) => String(player?.id || "").startsWith("ncc-2026-"))) {
+    return null;
+  }
+  const protectedFields =
+    key === PLAYER_PROFILES_KEY ? [parsed.changeLog, parsed.history] : [parsed.records, parsed.injuryPlans];
+  const hasLiveWork = protectedFields.some((items) => Array.isArray(items) && items.length > 0);
+  if (hasLiveWork) {
+    return null;
+  }
+  return {
+    ok: false,
+    status: 409,
+    reason: "Local demo roster seed was not saved to central state. Live roster content must be created or restored explicitly.",
+    localDemoSeed: true,
+  };
+}
+
 async function readStateObject(key) {
   const path = objectPathForKey(key);
   const result = await storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${path}`, {
@@ -1324,6 +1399,41 @@ function getPlayerProfileFieldChangeTime(index, player = {}, path = "") {
   return mergeKey ? index.get(`${mergeKey}:${path}`) || 0 : 0;
 }
 
+function getPlayerProfileChangeEntryMergeKey(entry = {}) {
+  const playerId = String(entry?.playerId || "").trim();
+  if (playerId) {
+    return `id:${playerId}`;
+  }
+
+  const playerName = String(entry?.playerName || "").trim().toLowerCase();
+  return playerName ? `name:${playerName}` : "";
+}
+
+function getIncomingPlayerProfileRemovalKeys(existingState = {}, incomingState = {}) {
+  const existingChangeKeys = new Set(
+    normalizePlayerProfileChangeLog(existingState.changeLog).map(getPlayerProfileChangeLogKey).filter(Boolean)
+  );
+  const removalKeys = new Set();
+
+  normalizePlayerProfileChangeLog(incomingState.changeLog).forEach((entry) => {
+    const entryKey = getPlayerProfileChangeLogKey(entry);
+    if (entryKey && existingChangeKeys.has(entryKey)) {
+      return;
+    }
+
+    if (entry?.type !== "player-removed") {
+      return;
+    }
+
+    const playerKey = getPlayerProfileChangeEntryMergeKey(entry);
+    if (playerKey) {
+      removalKeys.add(playerKey);
+    }
+  });
+
+  return removalKeys;
+}
+
 function getIncomingPlayerProfileChangedPaths(existingState = {}, incomingState = {}, incomingPlayer = {}) {
   const existingKeys = new Set(
     normalizePlayerProfileChangeLog(existingState.changeLog).map(getPlayerProfileChangeLogKey).filter(Boolean)
@@ -1407,7 +1517,6 @@ async function protectPlayerProfilesStateValue(rawValue, context = {}) {
     incomingBaseRevision !== null &&
     previousRevision > 0 &&
     incomingBaseRevision < previousRevision;
-  const incomingStateTimestamp = getPlayerProfilesStateTimestamp(incomingState);
   const existingByKey = new Map();
   existingState.players.forEach((player) => {
     const key = getPlayerProfileMergeKey(player);
@@ -1416,6 +1525,7 @@ async function protectPlayerProfilesStateValue(rawValue, context = {}) {
     }
   });
 
+  const explicitRemovalKeys = getIncomingPlayerProfileRemovalKeys(existingState, incomingState);
   const usedKeys = new Set();
   const mergedPlayers = incomingState.players
     .filter((player) => player && typeof player === "object" && !Array.isArray(player))
@@ -1441,9 +1551,11 @@ async function protectPlayerProfilesStateValue(rawValue, context = {}) {
       return;
     }
 
-    if (getPlayerProfileTimestamp(existingPlayer) > incomingStateTimestamp) {
-      mergedPlayers.push(existingPlayer);
+    if (explicitRemovalKeys.has(key)) {
+      return;
     }
+
+    mergedPlayers.push(existingPlayer);
   });
 
   mergedPlayers.sort((first, second) => {
@@ -1961,6 +2073,11 @@ async function applyStateEntries(actor, entries = {}, metadata = {}) {
       return contentSafety;
     }
 
+    const localDemoSeed = getLocalDemoRosterSeedRejection(normalizedKey, authorization.value, metadata);
+    if (localDemoSeed) {
+      return localDemoSeed;
+    }
+
     const staleWrite = getStaleWriteRejection(
       contract,
       previousEntry,
@@ -1969,6 +2086,17 @@ async function applyStateEntries(actor, entries = {}, metadata = {}) {
     );
     if (staleWrite) {
       return staleWrite;
+    }
+
+    const destructiveReset = getDestructiveResetRejection(
+      contract,
+      previousEntry,
+      authorization.value,
+      metadata,
+      normalizedKey
+    );
+    if (destructiveReset) {
+      return destructiveReset;
     }
 
     const entry = normalizeStateEntry(normalizedKey, authorization.value, actor, false, previousEntry);
@@ -2105,6 +2233,11 @@ module.exports = async (req, res) => {
       return sendJson(res, contentSafety.status || 400, contentSafety);
     }
 
+    const localDemoSeed = getLocalDemoRosterSeedRejection(key, authorization.value, body?.metadata || body);
+    if (localDemoSeed) {
+      return sendJson(res, localDemoSeed.status, localDemoSeed);
+    }
+
     const staleWrite = getStaleWriteRejection(
       contract,
       previousEntry,
@@ -2113,6 +2246,17 @@ module.exports = async (req, res) => {
     );
     if (staleWrite) {
       return sendJson(res, staleWrite.status, staleWrite);
+    }
+
+    const destructiveReset = getDestructiveResetRejection(
+      contract,
+      previousEntry,
+      authorization.value,
+      body?.metadata || body,
+      key
+    );
+    if (destructiveReset) {
+      return sendJson(res, destructiveReset.status, destructiveReset);
     }
 
     const entry = normalizeStateEntry(key, authorization.value, actor, false, previousEntry);

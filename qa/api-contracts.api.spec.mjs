@@ -895,6 +895,246 @@ test("app-state preserves existing Squad player images when newer saves omit med
   }
 });
 
+test("app-state preserves live Squad players omitted by a module seed sync", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const existingSquadState = {
+    selectedPlayerId: "live-player",
+    players: [
+      {
+        id: "seed-player",
+        name: "Seed Player",
+        primaryRole: "CB",
+        roleGroup: "defender",
+        updatedAt: "2026-05-07T12:00:00.000Z",
+      },
+      {
+        id: "live-player",
+        name: "Live Admin Player",
+        position: "Right Back",
+        squadStatus: "important",
+        careerPhase: "peak",
+        primaryRole: "RB",
+        roleGroup: "defender",
+        updatedAt: "2026-05-07T12:30:00.000Z",
+      },
+    ],
+    changeLog: [
+      {
+        id: "change-live-added",
+        type: "player-added",
+        playerId: "live-player",
+        summary: "Live Admin Player added to Squad",
+        changes: [{ field: "Name", from: "", to: "Live Admin Player" }],
+        createdAt: "2026-05-07T12:30:01.000Z",
+      },
+    ],
+    updatedAt: "2026-05-07T12:30:00.000Z",
+  };
+  const moduleSeedState = {
+    selectedPlayerId: "seed-player",
+    players: [
+      {
+        id: "seed-player",
+        name: "Seed Player",
+        primaryRole: "CB",
+        roleGroup: "defender",
+        updatedAt: "2026-05-08T09:00:00.000Z",
+      },
+    ],
+    rosterVersion: "module-seed-v2",
+    updatedAt: "2026-05-08T09:00:00.000Z",
+  };
+  const storage = createAppStateFetchMock(
+    {
+      [workspaceHubPath]: createAppStateStorageEntry(workspaceHubKey, {
+        workspaceAccess: {
+          "player-profiles": { view: ["admin", "coach"], edit: ["admin", "coach"] },
+        },
+      }),
+      [playerProfilesPath]: {
+        ...createAppStateStorageEntry(playerProfilesKey, existingSquadState),
+        revision: 3,
+      },
+    },
+    "coach"
+  );
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        key: playerProfilesKey,
+        value: JSON.stringify(moduleSeedState),
+        metadata: { baseRevision: 3 },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload.merged).toBe(true);
+    const syncedState = JSON.parse(response.payload.value);
+    expect(syncedState.players.map((player) => player.id)).toEqual(["live-player", "seed-player"]);
+    expect(syncedState.players.find((player) => player.id === "live-player")).toMatchObject({
+      name: "Live Admin Player",
+      position: "Right Back",
+      squadStatus: "important",
+      careerPhase: "peak",
+      primaryRole: "RB",
+    });
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state rejects local-only Squad demo roster seeds before central state exists", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  const storage = createAppStateFetchMock({}, "admin");
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer admin-token",
+      },
+      body: JSON.stringify({
+        key: playerProfilesKey,
+        value: JSON.stringify({
+          players: [
+            {
+              id: "ncc-2026-local-demo",
+              name: "Local Demo Player",
+              position: "Defender",
+            },
+          ],
+          rosterVersion: "player-profiles-ncc-2026-v1",
+          schemaVersion: 3,
+          changeLog: [],
+        }),
+      }),
+    });
+    expect(response.status).toBe(409);
+    expect(response.payload).toMatchObject({
+      ok: false,
+      localDemoSeed: true,
+    });
+    expect(storage.writes).toEqual([]);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state allows explicit Squad removals with a new removal changelog entry", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const existingSquadState = {
+    selectedPlayerId: "player-1",
+    players: [
+      {
+        id: "player-1",
+        name: "Keep Player",
+        primaryRole: "CB",
+        roleGroup: "defender",
+        updatedAt: "2026-05-07T12:00:00.000Z",
+      },
+      {
+        id: "player-2",
+        name: "Remove Player",
+        primaryRole: "ST",
+        roleGroup: "forward",
+        updatedAt: "2026-05-07T12:00:00.000Z",
+      },
+    ],
+    changeLog: [],
+    updatedAt: "2026-05-07T12:00:00.000Z",
+  };
+  const removalState = {
+    selectedPlayerId: "player-1",
+    players: [
+      {
+        id: "player-1",
+        name: "Keep Player",
+        primaryRole: "CB",
+        roleGroup: "defender",
+        updatedAt: "2026-05-07T12:05:00.000Z",
+      },
+    ],
+    changeLog: [
+      {
+        id: "change-remove-player-2",
+        type: "player-removed",
+        playerId: "player-2",
+        playerName: "Remove Player",
+        summary: "Remove Player removed from Squad",
+        changes: [{ field: "Squad status", from: "Squad", to: "Removed" }],
+        createdAt: "2026-05-07T12:05:01.000Z",
+      },
+    ],
+    updatedAt: "2026-05-07T12:05:00.000Z",
+  };
+  const storage = createAppStateFetchMock(
+    {
+      [workspaceHubPath]: createAppStateStorageEntry(workspaceHubKey, {
+        workspaceAccess: {
+          "player-profiles": { view: ["admin", "coach"], edit: ["admin", "coach"] },
+        },
+      }),
+      [playerProfilesPath]: {
+        ...createAppStateStorageEntry(playerProfilesKey, existingSquadState),
+        revision: 2,
+      },
+    },
+    "coach"
+  );
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        key: playerProfilesKey,
+        value: JSON.stringify(removalState),
+        metadata: { baseRevision: 2 },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const syncedState = JSON.parse(response.payload.value);
+    expect(syncedState.players.map((player) => player.id)).toEqual(["player-1"]);
+    expect(syncedState.changeLog.map((entry) => entry.id)).toContain("change-remove-player-2");
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
 test("app-state merges concurrent Session Planner edits by field timestamps", async () => {
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;
@@ -1582,6 +1822,100 @@ test("app-state backup status verifies latest pointer without exposing backup en
     expect(JSON.stringify(response.payload)).not.toContain('"entries"');
     expect(JSON.stringify(response.payload)).not.toContain("service-role-test-key");
     expect(JSON.stringify(response.payload)).not.toContain('"updatedBy"');
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state live safety status exposes protected counts without raw content", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.CRON_SECRET = "cron-test-secret";
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const squadValue = JSON.stringify({
+    players: [
+      {
+        id: "private-player-1",
+        name: "Private Player Name",
+        position: "Centre back",
+        squadStatus: "important",
+        careerPhase: "peak",
+        primaryRole: "CB",
+        roleGroup: "defender",
+        status: "available",
+      },
+    ],
+    rosterVersion: "live-admin-roster",
+    schemaVersion: 3,
+    changeLog: [{ id: "change-1", summary: "Private role note" }],
+  });
+
+  global.fetch = async (url) => {
+    const requestUrl = String(url);
+    if (requestUrl.includes("/storage/v1/object/footballscience-app-state/global/football-player-profiles-v1.json")) {
+      return new Response(
+        JSON.stringify({
+          key: playerProfilesKey,
+          value: squadValue,
+          organizationId: "global",
+          revision: 12,
+          updatedAt: "2026-05-09T12:00:00.000Z",
+          updatedBy: "admin-user-id",
+          mergePolicy: "server-merge",
+        }),
+        { status: 200 }
+      );
+    }
+
+    if (requestUrl.includes("/storage/v1/object/footballscience-app-state/global/")) {
+      return new Response("{}", { status: 404 });
+    }
+
+    return new Response(JSON.stringify({ message: `Unexpected request: ${requestUrl}` }), { status: 500 });
+  };
+
+  try {
+    const response = await callHandler(appStateBackupHandler, {
+      method: "GET",
+      url: "/api/app-state-backup?mode=live-safety-status",
+      headers: {
+        authorization: "Bearer cron-test-secret",
+      },
+    });
+    expect(response.status).toBe(200);
+    expect(response.payload).toMatchObject({
+      ok: true,
+      schema: "footballscience-live-content-safety-v1",
+      keyCount: dataSafetyRegistry.keys().length,
+      presentEntryCount: 1,
+      manifest: {
+        [playerProfilesKey]: {
+          present: true,
+          moduleId: "player-profiles",
+          revision: 12,
+          bytes: Buffer.byteLength(squadValue, "utf8"),
+          sha256: sha256(squadValue),
+          summary: {
+            counts: {
+              playerCount: 1,
+              playersWithPosition: 1,
+              playersWithSquadStatus: 1,
+              playersWithCareerPhase: 1,
+              playersWithPrimaryRole: 1,
+            },
+          },
+        },
+      },
+    });
+    expect(JSON.stringify(response.payload)).not.toContain("Private Player Name");
+    expect(JSON.stringify(response.payload)).not.toContain("Private role note");
+    expect(JSON.stringify(response.payload)).not.toContain('"entries"');
+    expect(JSON.stringify(response.payload)).not.toContain('"updatedBy"');
+    expect(JSON.stringify(response.payload)).not.toContain("service-role-test-key");
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);

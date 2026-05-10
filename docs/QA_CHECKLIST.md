@@ -38,7 +38,7 @@ This smoke test also verifies localhost dev-auth does not call `/api/client-conf
 
 `qa/platform-safety-contracts.api.spec.mjs` is the long-term platform guardrail. It fails QA if protected storage keys, backup coverage, module contracts, live-smoke hooks, or the daily backup cron disappear during future refactors.
 
-`qa/data-safety-contracts.api.spec.mjs` is the shared module data safety gate. It fails QA if a protected module key lacks a central save contract, cache-only browser storage rule, organization scope, revision fields, merge policy, or stale-write protection.
+`qa/data-safety-contracts.api.spec.mjs` is the shared module data safety gate. It fails QA if a protected module key lacks a central save contract, cache-only browser storage rule, organization scope, revision fields, merge policy, or stale-write protection. It also fails QA if a module update can silently clear a populated live array without explicit restore/destructive-migration intent.
 
 `npm run storage:guard` fails QA if `app.js` introduces a new Football Science storage key without either a Data Safety Contract, a dedicated API cache contract, or an explicit local-only justification. This keeps localStorage as cache/prefs only instead of a hidden production source of truth.
 
@@ -48,11 +48,15 @@ This smoke test also verifies localhost dev-auth does not call `/api/client-conf
 
 `npm run release:restore-drill` verifies that the latest app-state backup can be parsed server-side, that present entries match their manifest hashes/byte counts, and that the drill is read-only. Production Monitor runs it before authenticated live smoke.
 
+`npm run release:predeploy-backup` creates a fresh protected app-state backup before production deploy and stores a sanitized live-content baseline. `npm run release:postdeploy-content` compares live protected counts after deploy against that baseline and fails if content counts move backwards.
+
 `qa/central-state-revision.smoke.spec.mjs` simulates two browser tabs against the central sync bridge. It verifies the first tab saves with the current `baseRevision`, a stale second tab sends its old revision, and the stale write cannot overwrite newer central data.
 
 `npm run qa:contracts` runs the platform safety guardrail plus the inert modular core checks for registry coverage, permissions, events, read-only storage adapters, the Home Tasks adapter boundary, the Home Chat adapter boundary, and the Schedule adapter boundary.
 
 `qa/squad-database-schema.api.spec.mjs` also locks the Squad database rollout: RLS must stay enabled, direct browser writes remain blocked, row-version guarded server functions must exist before database writes, and hard deletes must stay disabled for player/roster records.
+
+`qa/api-contracts.api.spec.mjs` includes Squad live-content survival checks: module seed payloads must not drop live-added players, while real UI removals remain allowed through a `player-removed` changelog entry.
 
 ## Manual UI Checks
 

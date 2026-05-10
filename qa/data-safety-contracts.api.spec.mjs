@@ -463,3 +463,58 @@ test("central app-state rejects unversioned deletes once module data exists", as
     restoreEnv(env);
   }
 });
+
+test("central app-state rejects reset-like writes that would clear live arrays", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const key = "football-schedule-v1";
+  const path = `global/${key}.json`;
+  const storage = createAppStateFetchMock({
+    [path]: createAppStateStorageEntry(
+      key,
+      {
+        events: [
+          { id: "one", title: "Live one" },
+          { id: "two", title: "Live two" },
+          { id: "three", title: "Live three" },
+        ],
+      },
+      { revision: 5 }
+    ),
+  });
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        key,
+        value: JSON.stringify({ events: [] }),
+        metadata: { baseRevision: 5 },
+      }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(response.payload).toMatchObject({
+      ok: false,
+      currentRevision: 5,
+      destructiveReset: true,
+      resetFields: ["events"],
+    });
+    expect(response.payload.reason).toContain("Potential destructive reset");
+    expect(storage.writes.some((write) => write.objectPath === path)).toBe(false);
+    expect(JSON.parse(storage.objects.get(path).value).events).toHaveLength(3);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});

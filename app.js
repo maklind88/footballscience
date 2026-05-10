@@ -22819,9 +22819,8 @@ function compareMedicalPlayers(first, second) {
 }
 
 function cloneMedicalState(source = {}) {
-  const shouldSeedDefaultRoster =
-    !Array.isArray(source.players) || (!source.rosterVersion && source.players.length === 0);
-  const players = (shouldSeedDefaultRoster ? defaultMedicalPlayers : source.players)
+  const seedDemo = window.__fsDemoRoster && (!Array.isArray(source.players) || (!source.rosterVersion && source.players.length === 0));
+  const players = (seedDemo ? defaultMedicalPlayers : Array.isArray(source.players) ? source.players : [])
     .map(normalizeMedicalPlayer)
     .filter(Boolean)
     .sort(compareMedicalPlayers);
@@ -22858,7 +22857,7 @@ function cloneMedicalState(source = {}) {
     records,
     injuryPlans,
     policy: normalizeMedicalGovernancePolicy(source.policy),
-    rosterVersion: source.rosterVersion || medicalDefaultRosterVersion,
+    rosterVersion: source.rosterVersion || (seedDemo ? medicalDefaultRosterVersion : ""),
   };
 }
 
@@ -23342,13 +23341,8 @@ function comparePlayerProfiles(first, second) {
 }
 
 function clonePlayerProfilesState(source = {}) {
-  const seededPlayers = defaultMedicalPlayers.map((player) =>
-    normalizePlayerProfile({
-      ...player,
-      primaryRole: getDefaultPlayerProfileRole(player),
-      roleGroup: getPlayerProfileRoleGroupForRole(getDefaultPlayerProfileRole(player), player.position),
-    })
-  );
+  const seedDemo = window.__fsDemoRoster && (!Array.isArray(source.players) || (!source.rosterVersion && source.players.length === 0));
+  const seededPlayers = seedDemo ? defaultMedicalPlayers.map(normalizePlayerProfile) : [];
   const incomingPlayers = Array.isArray(source.players)
     ? source.players.map(normalizePlayerProfile).filter(Boolean)
     : [];
@@ -23370,7 +23364,7 @@ function clonePlayerProfilesState(source = {}) {
   return {
     selectedPlayerId,
     players,
-    rosterVersion: source.rosterVersion || playerProfilesDefaultRosterVersion,
+    rosterVersion: source.rosterVersion || (seedDemo ? playerProfilesDefaultRosterVersion : ""),
     changeLog: normalizePlayerProfileChangeLog(source.changeLog || source.history || []),
     schemaVersion: playerProfilesSchemaVersion,
     updatedAt: source.updatedAt || new Date().toISOString(),

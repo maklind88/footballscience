@@ -129,6 +129,10 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   const backupSource = readProjectFile("api/app-state-backup.js");
   const restoreReadiness = readProjectFile("scripts/verify-app-state-restore-readiness.mjs");
   const restoreDrill = readProjectFile("scripts/verify-app-state-restore-drill.mjs");
+  const productionDeployWorkflow = readProjectFile(".github/workflows/production-deploy.yml");
+  const liveContentSafety = readProjectFile("scripts/verify-live-content-safety.mjs");
+  const appSource = readProjectFile("app.js");
+  const appStateSource = readProjectFile("api/app-state.js");
 
   expect(packageJson.scripts["qa"]).toContain("npm run qa:perf");
   expect(packageJson.scripts["qa"]).toContain("npm run storage:guard");
@@ -136,6 +140,8 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   expect(packageJson.scripts["qa:perf"]).toContain("scripts/performance-budget.mjs");
   expect(packageJson.scripts["qa:live"]).toContain("qa/live.playwright.config.mjs");
   expect(packageJson.scripts["release:gate"]).toContain("npm run release:safety");
+  expect(packageJson.scripts["release:predeploy-backup"]).toBe("node scripts/create-app-state-backup.mjs");
+  expect(packageJson.scripts["release:postdeploy-content"]).toBe("node scripts/verify-live-content-safety.mjs");
   expect(packageJson.scripts["release:monitor"]).toContain("npm run release:backup");
   expect(packageJson.scripts["release:monitor"]).toContain("npm run release:restore-readiness");
   expect(packageJson.scripts["release:monitor"]).toContain("npm run release:restore-drill");
@@ -145,6 +151,15 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   expect(backupSource).toContain("backupMatchesPointer");
   expect(backupSource).toContain("manifestCoverage");
   expect(backupSource).toContain("createRestoreDrillSummary");
+  expect(backupSource).toContain("live-safety-status");
+  expect(liveContentSafety).toContain("decreased during deploy");
+  expect(liveContentSafety).toContain("dataSafetyRegistry.keys()");
+  expect(productionDeployWorkflow).toContain("npm run release:predeploy-backup");
+  expect(productionDeployWorkflow).toContain("npm run release:postdeploy-content");
+  expect(readProjectFile("index.html")).toContain("window.__fsDemoRoster = 1");
+  expect(appSource).toContain("window.__fsDemoRoster");
+  expect(appStateSource).toContain("getLocalDemoRosterSeedRejection");
+  expect(appStateSource).toContain("localDemoSeed");
   expect(restoreReadiness).toContain("dataSafetyRegistry.keys()");
   expect(restoreReadiness).toContain("Backup status must not expose raw backup entries");
   expect(restoreDrill).toContain("dryRun");

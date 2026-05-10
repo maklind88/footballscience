@@ -183,12 +183,14 @@ async function main() {
   if (options.deploy) {
     requireCleanWorkingTree("Production deploy");
     run("npm", ["run", "release:gate"]);
+    run("npm", ["run", "release:predeploy-backup"]);
     const deployOutput = run("npx", ["--yes", "vercel@53.2.0", "deploy", "--prod", "--yes"], { capture: true });
     const deploymentUrl = extractDeploymentUrl(deployOutput);
     if (deploymentUrl) {
       console.log(`\nProduction deployment: ${deploymentUrl}`);
     }
     run("npm", ["run", "release:postdeploy"]);
+    run("npm", ["run", "release:postdeploy-content"]);
   }
 
   if (!options.commitMessage && !options.push && !options.deploy) {

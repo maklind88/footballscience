@@ -1062,6 +1062,7 @@
         }
         function initializeDevAuth() {
           authState.devMode = true;
+          window.__fsDemoRoster = 1;
           authState.supabase = null;
           authState.session = null;
           authState.roles = [...DEFAULT_ROLES];

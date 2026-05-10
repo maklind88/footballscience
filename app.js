@@ -8846,22 +8846,15 @@ function createDashboardMessage(text, threadId = dashboardChatTeamThreadId, opti
 }
 function updateDashboardMessageLocalStatus(messageId, status, patch = {}) {
   const normalizedMessageId = String(messageId || "").trim();
-  if (!normalizedMessageId) {
-    return null;
-  }
+  if (!normalizedMessageId) return null;
   let updatedMessage = null;
-  const nextMessages = readDashboardMessages().map((message) => {
-    if (message.id !== normalizedMessageId) {
-      return message;
-    }
-    updatedMessage = normalizeDashboardMessage({
-      ...message,
-      ...patch,
-      status,
-    });
-    return updatedMessage;
-  });
-  writeDashboardMessages(nextMessages, { skipCentralSync: true });
+  writeDashboardMessages(
+    readDashboardMessages().map((message) => {
+      if (message.id !== normalizedMessageId) return message;
+      return (updatedMessage = normalizeDashboardMessage({ ...message, ...patch, status }));
+    }),
+    { skipCentralSync: true }
+  );
   return updatedMessage;
 }
 async function createDashboardMessageWithApi(text, threadId = dashboardChatTeamThreadId) {
@@ -9641,62 +9634,15 @@ function renderDashboardTaskList(tasks, users, currentUser, options = {}) {
   `;
 }
 function renderDashboardMessageStatus(message, users, currentUser) {
-  if (message.userId !== currentUser?.id) {
-    return "";
-  }
-  const lifecycle = getDashboardMessageLifecycle(message, users, currentUser);
-  const readers = lifecycle.readers;
-  if (lifecycle.key !== "read") {
-    const iconMarkup = lifecycle.key === "pending"
-      ? `<span class="dashboard-chat-status-dot" aria-hidden="true"></span>`
-      : lifecycle.key === "failed"
-        ? `<span class="dashboard-chat-check is-failed" aria-hidden="true">!</span>`
-        : lifecycle.key === "delivered"
-          ? `<span class="dashboard-chat-check-pair" aria-hidden="true"><span>✓</span><span>✓</span></span>`
-          : `<span class="dashboard-chat-check" aria-hidden="true">✓</span>`;
-    return `
-      <div class="dashboard-chat-status is-${escapeHtml(lifecycle.key)}" aria-label="Message status: ${escapeHtml(lifecycle.label)}">
-        ${iconMarkup}
-        <span class="dashboard-chat-check-label">${escapeHtml(lifecycle.label)}</span>
-      </div>
-    `;
-  }
-  if (!readers.length) {
-    return `
-      <div class="dashboard-chat-status is-sent" aria-label="Message status: Sent">
-        <span class="dashboard-chat-check" aria-hidden="true">✓</span>
-        <span class="dashboard-chat-check-label">Sent</span>
-      </div>
-    `;
-  }
-  const readerNames = readers.map(formatUserName);
-  const readerCountLabel = `${readers.length} reader${readers.length === 1 ? "" : "s"}`;
+  if (message.userId !== currentUser?.id) return "";
+  const readCount = (Array.isArray(message?.readBy) ? message.readBy : []).filter((userId) => userId !== currentUser?.id && userId !== message.userId).length;
+  const status = String(message?.status || "").trim().toLowerCase();
+  const statusKey = status === "failed" || status === "pending" || status === "delivered" ? status : readCount || status === "read" ? "read" : "sent";
+  const statusIcon = statusKey === "pending" ? "•" : statusKey === "failed" ? "!" : statusKey === "sent" ? "✓" : "✓✓";
   return `
-    <details class="dashboard-chat-status dashboard-chat-receipt is-read" data-dashboard-read-receipt>
-      <summary aria-label="Show readers: ${escapeHtml(readerNames.join(", "))}">
-        <span class="dashboard-chat-check-pair is-read" aria-hidden="true"><span>✓</span><span>✓</span></span>
-        <span class="dashboard-chat-check-label">Read ${readers.length}</span>
-      </summary>
-      <span class="dashboard-chat-readers" aria-hidden="true">
-        ${readers.slice(0, 3).map((user) => renderUserAvatar(user, "dashboard-chat-read-avatar")).join("")}
-      </span>
-      <div class="dashboard-chat-receipt-popover" role="list" aria-label="Read receipts">
-        <strong>Read by</strong>
-        <div class="dashboard-chat-receipt-list">
-          ${readers
-            .map(
-              (user) => `
-                <span class="dashboard-chat-receipt-row" role="listitem">
-                  ${renderUserAvatar(user, "dashboard-chat-read-avatar")}
-                  <span>${escapeHtml(formatUserName(user))}</span>
-                </span>
-              `
-            )
-            .join("")}
-        </div>
-        <small>${escapeHtml(readerCountLabel)}</small>
-      </div>
-    </details>
+    <div class="dashboard-chat-status is-${statusKey}">
+      <span class="dashboard-chat-check-label">${statusIcon}</span>
+    </div>
   `;
 }
 function getDashboardMessageById(messageId, messages = readDashboardMessages()) {
@@ -9711,67 +9657,6 @@ function getDashboardMessagePreview(message) {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 86);
-}
-async function copyDashboardTextToClipboard(text) {
-  const copyText = String(text || "");
-  if (!copyText) {
-    return false;
-  }
-  if (navigator.clipboard?.writeText && window.isSecureContext) {
-    await navigator.clipboard.writeText(copyText);
-    return true;
-  }
-  const textarea = document.createElement("textarea");
-  textarea.value = copyText;
-  textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.left = "-9999px";
-  document.body.appendChild(textarea);
-  textarea.select();
-  let copied = false;
-  try {
-    copied = document.execCommand("copy");
-  } catch {
-    copied = false;
-  }
-  textarea.remove();
-  return copied;
-}
-function getDashboardMessageReaders(message, users = getPlatformUsers(), currentUser = getCurrentPlatformUser()) {
-  if (!message?.readBy?.length) {
-    return [];
-  }
-  return message.readBy
-    .filter((userId) => userId !== currentUser?.id && userId !== message.userId)
-    .map((userId) => users.find((user) => user.id === userId))
-    .filter(Boolean);
-}
-function getDashboardMessageLifecycle(message, users = getPlatformUsers(), currentUser = getCurrentPlatformUser()) {
-  const status = String(message?.status || "sent").trim().toLowerCase();
-  const readers = getDashboardMessageReaders(message, users, currentUser);
-  if (status === "failed") {
-    return { key: "failed", label: "Failed", readers };
-  }
-  if (status === "pending") {
-    return { key: "pending", label: "Sending", readers };
-  }
-  if (readers.length || status === "read") {
-    return { key: "read", label: `Read ${readers.length || ""}`.trim(), readers };
-  }
-  if (status === "delivered") {
-    return { key: "delivered", label: "Delivered", readers };
-  }
-  return { key: "sent", label: "Sent", readers };
-}
-function getDashboardMessageInfoText(message, users = getPlatformUsers(), currentUser = getCurrentPlatformUser()) {
-  const lifecycle = getDashboardMessageLifecycle(message, users, currentUser);
-  const createdAt = message?.createdAt ? new Date(message.createdAt) : null;
-  const dateLabel = createdAt && !Number.isNaN(createdAt.getTime())
-    ? new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(createdAt)
-    : "";
-  const readerNames = lifecycle.readers.map(formatUserName);
-  const readerLabel = readerNames.length ? `Read by ${readerNames.slice(0, 3).join(", ")}${readerNames.length > 3 ? ` +${readerNames.length - 3}` : ""}` : "";
-  return [lifecycle.label, dateLabel, readerLabel].filter(Boolean).join(" · ");
 }
 function renderDashboardReplyReference(message, users = getPlatformUsers(), options = {}) {
   if (!message) {
@@ -72723,17 +72608,9 @@ ui.dashboardChatWidgetRoot?.addEventListener("click", async (event) => {
   const copyMessageButton = event.target.closest("[data-dashboard-copy-message]");
   if (copyMessageButton) {
     const message = getDashboardMessageById(copyMessageButton.dataset.dashboardCopyMessage);
-    const copied = message ? await copyDashboardTextToClipboard(message.text) : false;
-    showDashboardChatWidgetToast(copied ? "Message copied." : "Could not copy message.", message?.threadId || dashboardChatTeamThreadId);
-    return;
-  }
-
-  const messageInfoButton = event.target.closest("[data-dashboard-message-info]");
-  if (messageInfoButton) {
-    const message = getDashboardMessageById(messageInfoButton.dataset.dashboardMessageInfo);
-    if (message) {
-      showDashboardChatWidgetToast(getDashboardMessageInfoText(message), message.threadId);
-    }
+    const text = String(message?.text || "");
+    const copied = Boolean(text && navigator.clipboard?.writeText && await navigator.clipboard.writeText(text).then(() => true, () => false));
+    showDashboardChatWidgetToast(copied ? "Copied" : "Failed", message?.threadId || dashboardChatTeamThreadId);
     return;
   }
 

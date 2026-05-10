@@ -222,7 +222,6 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           <div class="dashboard-chat-message-menu-panel" role="menu">
             <button type="button" class="dashboard-chat-menu-action" data-dashboard-reply-message="${escapeHtml(message.id)}" role="menuitem"><span aria-hidden="true">&#8617;</span><span>Reply</span></button>
             <button type="button" class="dashboard-chat-menu-action" data-dashboard-copy-message="${escapeHtml(message.id)}" role="menuitem"><span aria-hidden="true">&#10697;</span><span>Copy</span></button>
-            <button type="button" class="dashboard-chat-menu-action" data-dashboard-message-info="${escapeHtml(message.id)}" role="menuitem"><span aria-hidden="true">i</span><span>Info</span></button>
             ${
               reactionMarkup
                 ? `<div class="dashboard-chat-menu-reaction-group" role="group" aria-label="React to message"><strong>React</strong>${reactionMarkup}</div>`

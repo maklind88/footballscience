@@ -61,6 +61,8 @@ jobs:
       - run: npm run verify:staging-env -- --required
         if: ${{ steps.staging-env.outputs.enabled == 'true' }}
 
+      - run: npm run release:vercel-token
+        if: ${{ steps.staging-env.outputs.enabled == 'true' }}
       - run: npx --yes vercel@53.2.0 pull --yes --environment=preview --token="$VERCEL_TOKEN"
         if: ${{ steps.staging-env.outputs.enabled == 'true' }}
       - run: npx --yes vercel@53.2.0 build --token="$VERCEL_TOKEN"

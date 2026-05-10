@@ -35,6 +35,7 @@ requirePackageScript("release:restore-readiness", "node scripts/verify-app-state
 requirePackageScript("release:restore-drill", "node scripts/verify-app-state-restore-drill.mjs");
 requirePackageScript("release:monitor", "npm run release:postdeploy && npm run release:backup && npm run release:restore-readiness && npm run release:restore-drill && npm run qa:live:required");
 requirePackageScript("release:rules", "node scripts/verify-release-rules.mjs");
+requirePackageScript("release:vercel-token", "node scripts/verify-vercel-token.mjs");
 requirePackageScript("storage:guard", "node scripts/verify-storage-key-policy.mjs");
 requirePackageScript("security:platform", "node scripts/verify-platform-security.mjs");
 
@@ -60,17 +61,20 @@ requireText("vercel.json", "/api/app-state-backup-status", "backup status route 
 requireText("scripts/verify-production-deploy.mjs", "/api/app-state-backup-status", "postdeploy must prove backup status endpoint is protected");
 requireText("scripts/verify-production-deploy.mjs", "Live app.js hash does not match this release", "postdeploy must prove production is serving the expected release asset");
 requireText("scripts/verify-ci-release-env.mjs", "CRON_SECRET", "production CI must include the cron secret used for backup freshness checks");
+requireText("scripts/verify-vercel-token.mjs", "Vercel deployment token: ok", "CI must verify the Vercel token before deployment commands run");
 
 requireText(".github/workflows/staging-deploy.yml", "branches:", "staging must deploy from the staging branch");
 requireText(".github/workflows/staging-deploy.yml", "- staging", "staging branch must remain explicit");
 requireText(".github/workflows/staging-deploy.yml", "npm run qa", "staging must run full QA");
 requireText(".github/workflows/staging-deploy.yml", "npm run qa:staging:required", "staging must prove authenticated smoke");
+requireText(".github/workflows/staging-deploy.yml", "npm run release:vercel-token", "staging must fail closed when the Vercel token is invalid");
 requireText(".github/workflows/staging-deploy.yml", "api.vercel.com/v2/deployments", "staging alias should use the API path that works for subdomains");
 
 requireText(".github/workflows/production-deploy.yml", "workflows:", "production deploy must be triggered by QA");
 requireText(".github/workflows/production-deploy.yml", "- QA", "production deploy must wait for QA");
 requireText(".github/workflows/production-deploy.yml", "npm run release:safety", "production deploy must keep the safety gate");
 requireText(".github/workflows/production-deploy.yml", "npm run qa:staging:required", "production deploy must verify staging first");
+requireText(".github/workflows/production-deploy.yml", "npm run release:vercel-token", "production must fail closed when the Vercel token is invalid");
 requireText(".github/workflows/production-deploy.yml", "vercel@53.2.0 deploy --prebuilt --prod", "production deploy must use the pinned Vercel CLI prebuilt path");
 requireText(".github/workflows/production-deploy.yml", "npm run release:postdeploy", "production deploy must verify the live domain");
 requireText(".github/workflows/production-deploy.yml", "npm run qa:live:required", "production deploy must run authenticated live smoke");
@@ -82,6 +86,7 @@ requireText(".github/workflows/production-smoke.yml", "CRON_SECRET", "production
 
 requireText(".github/workflows/production-rollback.yml", "workflow_dispatch:", "rollback must be manual only");
 requireText(".github/workflows/production-rollback.yml", "ROLLBACK", "rollback must require explicit confirmation");
+requireText(".github/workflows/production-rollback.yml", "npm run release:vercel-token", "rollback must fail closed when the Vercel token is invalid");
 requireText(".github/workflows/production-rollback.yml", "vercel@53.2.0 rollback", "rollback must use the pinned Vercel CLI");
 requireText(".github/workflows/production-rollback.yml", "npm run release:postdeploy", "rollback must verify the live domain");
 requireText(".github/workflows/production-rollback.yml", "npm run qa:live:required", "rollback must run authenticated live smoke");

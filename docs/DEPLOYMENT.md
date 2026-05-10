@@ -94,6 +94,14 @@ STAGING_QA_USERNAME
 STAGING_QA_PASSWORD
 ```
 
+`VERCEL_TOKEN` must be a long-lived Vercel account token stored only in GitHub Secrets. Do not use a temporary local Vercel CLI session token for normal releases. Staging, production deploy, and rollback all run:
+
+```bash
+npm run release:vercel-token
+```
+
+This calls the Vercel API, proves the token is valid, and proves it can access the configured `VERCEL_PROJECT_ID` under `VERCEL_ORG_ID` before any Vercel deploy or rollback command can run.
+
 Required GitHub repository variables:
 
 ```bash

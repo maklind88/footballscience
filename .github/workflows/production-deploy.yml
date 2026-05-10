@@ -51,6 +51,7 @@ jobs:
       - run: npm ci
 
       - run: npm run release:ci-env
+      - run: npm run release:vercel-token
 
       - run: npx playwright install --with-deps chromium
 

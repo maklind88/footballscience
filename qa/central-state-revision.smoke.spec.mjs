@@ -219,6 +219,18 @@ async function writeRevisionValue(page, title) {
   );
 }
 
+async function closeCentralStateContext(context) {
+  try {
+    await context.close();
+  } catch (error) {
+    const message = String(error?.message || "");
+    if (message.includes("ENOENT") && message.includes(".network")) {
+      return;
+    }
+    throw error;
+  }
+}
+
 test("two browser tabs send baseRevision and stale tab cannot overwrite newer central state", async ({ browser, baseURL }) => {
   const initialValue = createStateValue("Original central sequence");
   const centralStore = {
@@ -247,8 +259,8 @@ test("two browser tabs send baseRevision and stale tab cannot overwrite newer ce
       .poll(() => stale.page.evaluate((key) => window.localStorage.getItem(key) || "", revisionStateKey), { timeout: 10_000 })
       .toContain("Fresh sequence from first tab");
   } finally {
-    await first.context.close();
-    await stale.context.close();
+    await closeCentralStateContext(first.context);
+    await closeCentralStateContext(stale.context);
   }
 });
 
@@ -334,7 +346,7 @@ test("central Schedule hydration preserves the local selected day", async ({ bro
         selectedMonthIndex: 4,
       });
   } finally {
-    await tab.context.close();
+    await closeCentralStateContext(tab.context);
   }
 });
 
@@ -442,6 +454,6 @@ test("central Periodization hydration preserves the local selected day", async (
         note: "Fresh local note after central load",
       });
   } finally {
-    await tab.context.close();
+    await closeCentralStateContext(tab.context);
   }
 });

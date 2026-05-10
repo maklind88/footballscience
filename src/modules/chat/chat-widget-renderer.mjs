@@ -190,6 +190,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
   function renderMessage(message, users, currentUser) {
     const isOwn = message.userId === currentUser?.id;
     const isMentioned = !isOwn && message.mentionedUserIds.includes(currentUser?.id);
+    const messageStatus = String(message.status || "sent").trim().toLowerCase().replace(/[^a-z-]/g, "");
     const user = users.find((candidate) => candidate.id === message.userId) ?? message.author ?? null;
     const userName = user ? formatUserName(user) : "Unknown";
     const avatarMarkup = user
@@ -205,7 +206,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const reactionMarkup = renderMessageReactions(message, currentUser);
 
     return `
-    <article class="dashboard-chat-message${isOwn ? " is-own" : ""}${isMentioned ? " is-mentioned" : ""}${message.pinnedAt ? " is-pinned" : ""}">
+    <article class="dashboard-chat-message${isOwn ? " is-own" : ""}${isMentioned ? " is-mentioned" : ""}${message.pinnedAt ? " is-pinned" : ""}${messageStatus ? ` is-status-${escapeHtml(messageStatus)}` : ""}" data-dashboard-chat-message-id="${escapeHtml(message.id)}">
       <div class="dashboard-chat-meta">
         ${avatarMarkup}
         <span class="dashboard-chat-author">
@@ -215,11 +216,13 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       </div>
       <div class="dashboard-chat-bubble">
         <details class="dashboard-chat-message-menu">
-          <summary aria-label="Message actions">
+          <summary aria-label="Open message actions">
             <span aria-hidden="true">&#8964;</span>
           </summary>
           <div class="dashboard-chat-message-menu-panel" role="menu">
             <button type="button" class="dashboard-chat-menu-action" data-dashboard-reply-message="${escapeHtml(message.id)}" role="menuitem"><span aria-hidden="true">&#8617;</span><span>Reply</span></button>
+            <button type="button" class="dashboard-chat-menu-action" data-dashboard-copy-message="${escapeHtml(message.id)}" role="menuitem"><span aria-hidden="true">&#10697;</span><span>Copy</span></button>
+            <button type="button" class="dashboard-chat-menu-action" data-dashboard-message-info="${escapeHtml(message.id)}" role="menuitem"><span aria-hidden="true">i</span><span>Info</span></button>
             ${
               reactionMarkup
                 ? `<div class="dashboard-chat-menu-reaction-group" role="group" aria-label="React to message"><strong>React</strong>${reactionMarkup}</div>`

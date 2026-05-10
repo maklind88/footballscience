@@ -150,6 +150,11 @@ export function normalizeHomeChatPriority(value) {
   return homeChatPriorityKeys.includes(priority) ? priority : "normal";
 }
 
+export function normalizeHomeChatMessageStatus(value) {
+  const status = normalizeText(value || "sent").toLowerCase();
+  return ["pending", "sent", "delivered", "read", "failed", "deleted"].includes(status) ? status : "sent";
+}
+
 export function normalizeHomeChatMessage(message = {}, options = {}) {
   const currentUserId = normalizeText(options.currentUserId);
   const userId = normalizeText(message?.userId || currentUserId);
@@ -175,6 +180,8 @@ export function normalizeHomeChatMessage(message = {}, options = {}) {
     pinnedAt: normalizeText(message?.pinnedAt),
     pinnedBy: normalizeText(message?.pinnedBy),
     author: normalizeHomeChatAuthor(message?.author || message?.user || null),
+    attachments: Object.freeze(Array.isArray(message?.attachments) ? message.attachments : []),
+    status: normalizeHomeChatMessageStatus(message?.status),
   });
 }
 

@@ -132,7 +132,7 @@ LIVE_QA_BASE_URL
 
 `LIVE_QA_BASE_URL` defaults to `https://footballscience.xyz`.
 
-Production monitoring runs through `.github/workflows/production-smoke.yml` under the GitHub Actions name `Production Monitor`. It runs every six hours and can also be started manually. The monitor runs `npm run release:monitor`, which verifies the live domain/API, checks that the latest app-state backup pointer matches a real Supabase Storage backup, and then runs authenticated live smoke. It fails clearly if the live QA or cron secrets are missing.
+Production monitoring runs through `.github/workflows/production-smoke.yml` under the GitHub Actions name `Production Monitor`. It runs every six hours and can also be started manually. The monitor runs `npm run release:monitor`, which verifies the live domain/API, checks that the latest app-state backup pointer matches a real Supabase Storage backup, verifies sanitized restore-readiness metadata for every protected module key, and then runs authenticated live smoke. It fails clearly if the live QA or cron secrets are missing.
 
 The release process is protected by `npm run release:rules`. This rule check is part of `npm run qa` and fails if the staging deploy, production deploy, production monitor, rollback workflow, or Vercel production-build blocker are removed or weakened.
 

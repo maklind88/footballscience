@@ -127,6 +127,7 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   const vercelIgnoreBuild = readProjectFile("scripts/vercel-ignore-build.mjs");
   const storagePolicy = readProjectFile("scripts/verify-storage-key-policy.mjs");
   const backupSource = readProjectFile("api/app-state-backup.js");
+  const restoreReadiness = readProjectFile("scripts/verify-app-state-restore-readiness.mjs");
 
   expect(packageJson.scripts["qa"]).toContain("npm run qa:perf");
   expect(packageJson.scripts["qa"]).toContain("npm run storage:guard");
@@ -135,8 +136,13 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   expect(packageJson.scripts["qa:live"]).toContain("qa/live.playwright.config.mjs");
   expect(packageJson.scripts["release:gate"]).toContain("npm run release:safety");
   expect(packageJson.scripts["release:monitor"]).toContain("npm run release:backup");
+  expect(packageJson.scripts["release:monitor"]).toContain("npm run release:restore-readiness");
+  expect(packageJson.scripts["release:restore-readiness"]).toBe("node scripts/verify-app-state-restore-readiness.mjs");
   expect(fs.existsSync(path.join(rootDir, "scripts/verify-production-safety-gate.mjs"))).toBe(true);
   expect(backupSource).toContain("backupMatchesPointer");
+  expect(backupSource).toContain("manifestCoverage");
+  expect(restoreReadiness).toContain("dataSafetyRegistry.keys()");
+  expect(restoreReadiness).toContain("Backup status must not expose raw backup entries");
   expect(vercelConfig.ignoreCommand).toContain("scripts/vercel-ignore-build.mjs");
   expect(vercelConfig.rewrites).toEqual(
     expect.arrayContaining([

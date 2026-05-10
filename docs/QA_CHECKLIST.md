@@ -44,6 +44,8 @@ This smoke test also verifies localhost dev-auth does not call `/api/client-conf
 
 `npm run release:postdeploy` verifies the live `/app.js` SHA-256 hash against the release checkout. A deploy where Vercel still serves an older app asset must fail instead of relying on visual cache checks.
 
+`npm run release:restore-readiness` verifies that the latest app-state backup exposes sanitized manifest metadata for every protected Data Safety key without exposing raw backup entries. Production Monitor runs it after backup freshness.
+
 `qa/central-state-revision.smoke.spec.mjs` simulates two browser tabs against the central sync bridge. It verifies the first tab saves with the current `baseRevision`, a stale second tab sends its old revision, and the stale write cannot overwrite newer central data.
 
 `npm run qa:contracts` runs the platform safety guardrail plus the inert modular core checks for registry coverage, permissions, events, read-only storage adapters, the Home Tasks adapter boundary, the Home Chat adapter boundary, and the Schedule adapter boundary.

@@ -40,6 +40,8 @@ This smoke test also verifies localhost dev-auth does not call `/api/client-conf
 
 `qa/data-safety-contracts.api.spec.mjs` is the shared module data safety gate. It fails QA if a protected module key lacks a central save contract, cache-only browser storage rule, organization scope, revision fields, merge policy, or stale-write protection.
 
+`npm run storage:guard` fails QA if `app.js` introduces a new Football Science storage key without either a Data Safety Contract, a dedicated API cache contract, or an explicit local-only justification. This keeps localStorage as cache/prefs only instead of a hidden production source of truth.
+
 `qa/central-state-revision.smoke.spec.mjs` simulates two browser tabs against the central sync bridge. It verifies the first tab saves with the current `baseRevision`, a stale second tab sends its old revision, and the stale write cannot overwrite newer central data.
 
 `npm run qa:contracts` runs the platform safety guardrail plus the inert modular core checks for registry coverage, permissions, events, read-only storage adapters, the Home Tasks adapter boundary, the Home Chat adapter boundary, and the Schedule adapter boundary.

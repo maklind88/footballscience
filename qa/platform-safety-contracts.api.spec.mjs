@@ -133,12 +133,17 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   const backupSource = readProjectFile("api/app-state-backup.js");
   const restoreReadiness = readProjectFile("scripts/verify-app-state-restore-readiness.mjs");
   const restoreDrill = readProjectFile("scripts/verify-app-state-restore-drill.mjs");
+  const incidentWorkflow = readProjectFile(".github/workflows/production-incident-alert.yml");
+  const incidentReadiness = readProjectFile("scripts/verify-incident-readiness.mjs");
 
   expect(packageJson.scripts["qa"]).toContain("npm run qa:perf");
   expect(packageJson.scripts["qa"]).toContain("npm run storage:guard");
   expect(packageJson.scripts["qa"]).toContain("npm run security:platform");
+  expect(packageJson.scripts["qa"]).toContain("npm run release:incident-readiness");
   expect(packageJson.scripts["storage:guard"]).toBe("node scripts/verify-storage-key-policy.mjs");
   expect(packageJson.scripts["security:platform"]).toBe("node scripts/verify-platform-security.mjs");
+  expect(packageJson.scripts["release:incident-alert"]).toBe("node scripts/create-incident-alert.mjs");
+  expect(packageJson.scripts["release:incident-readiness"]).toBe("node scripts/verify-incident-readiness.mjs");
   expect(packageJson.scripts["qa:perf"]).toContain("scripts/performance-budget.mjs");
   expect(packageJson.scripts["qa:live"]).toContain("qa/live.playwright.config.mjs");
   expect(packageJson.scripts["release:gate"]).toContain("npm run release:safety");
@@ -171,6 +176,10 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   expect(platformSecurityGuard).toContain("api.permission_denied");
   expect(platformSecurityVerifier).toContain("public.platform_security_events");
   expect(platformSecurityVerifier).toContain("Platform security verification: ok");
+  expect(incidentWorkflow).toContain("Production Incident Alert");
+  expect(incidentWorkflow).toContain("issues: write");
+  expect(incidentWorkflow).toContain("npm run release:incident-alert");
+  expect(incidentReadiness).toContain("Incident readiness verification: ok");
   expect(readProjectFile("scripts/verify-production-deploy.mjs")).toContain("Live app.js hash does not match this release");
   expect(readProjectFile("scripts/verify-production-deploy.mjs")).toContain("crypto.createHash");
   expect(liveSpec).toContain("LIVE_QA_USERNAME");
@@ -221,6 +230,7 @@ test("core module contracts are covered by dedicated QA", () => {
 
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-safety-contracts.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-security-contracts.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/incident-alert-contracts.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/data-safety-contracts.api.spec.mjs");
   expect(platformSecuritySpec).toContain("permission matrix covers every module action");
   expect(platformSecuritySpec).toContain("API guard rate limits abusive public requests");

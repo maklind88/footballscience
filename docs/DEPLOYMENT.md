@@ -142,6 +142,14 @@ LIVE_QA_BASE_URL
 
 Production monitoring runs through `.github/workflows/production-smoke.yml` under the GitHub Actions name `Production Monitor`. It runs every six hours and can also be started manually. The monitor runs `npm run release:monitor`, which verifies the live domain/API, checks that the latest app-state backup pointer matches a real Supabase Storage backup, verifies sanitized restore-readiness metadata for every protected module key, runs a read-only restore drill against the latest backup entries, and then runs authenticated live smoke. It fails clearly if the live QA or cron secrets are missing.
 
+Production incident alerting runs through `.github/workflows/production-incident-alert.yml` under the GitHub Actions name `Production Incident Alert`. It opens or updates a GitHub issue when `main` QA, Supabase migrations, production deploy, production monitor, or rollback fails. The workflow has `issues: write` only so it can create an incident record; it must not include secrets, raw backup entries, auth tokens, or user content.
+
+Run the incident guard locally with:
+
+```bash
+npm run release:incident-readiness
+```
+
 The release process is protected by `npm run release:rules`. This rule check is part of `npm run qa` and fails if the staging deploy, production deploy, production monitor, rollback workflow, or Vercel production-build blocker are removed or weakened.
 
 ## Rollback

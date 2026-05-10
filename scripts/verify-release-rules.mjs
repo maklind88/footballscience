@@ -34,6 +34,8 @@ requirePackageScript("release:backup", "node scripts/verify-app-state-backup-fre
 requirePackageScript("release:restore-readiness", "node scripts/verify-app-state-restore-readiness.mjs");
 requirePackageScript("release:restore-drill", "node scripts/verify-app-state-restore-drill.mjs");
 requirePackageScript("release:monitor", "npm run release:postdeploy && npm run release:backup && npm run release:restore-readiness && npm run release:restore-drill && npm run qa:live:required");
+requirePackageScript("release:incident-alert", "node scripts/create-incident-alert.mjs");
+requirePackageScript("release:incident-readiness", "node scripts/verify-incident-readiness.mjs");
 requirePackageScript("release:rules", "node scripts/verify-release-rules.mjs");
 requirePackageScript("release:vercel-token", "node scripts/verify-vercel-token.mjs");
 requirePackageScript("storage:guard", "node scripts/verify-storage-key-policy.mjs");
@@ -62,6 +64,7 @@ requireText("scripts/verify-production-deploy.mjs", "/api/app-state-backup-statu
 requireText("scripts/verify-production-deploy.mjs", "Live app.js hash does not match this release", "postdeploy must prove production is serving the expected release asset");
 requireText("scripts/verify-ci-release-env.mjs", "CRON_SECRET", "production CI must include the cron secret used for backup freshness checks");
 requireText("scripts/verify-vercel-token.mjs", "Vercel deployment token: ok", "CI must verify the Vercel token before deployment commands run");
+requireText("scripts/verify-incident-readiness.mjs", "Incident readiness verification: ok", "incident alerting must stay testable");
 
 requireText(".github/workflows/staging-deploy.yml", "branches:", "staging must deploy from the staging branch");
 requireText(".github/workflows/staging-deploy.yml", "- staging", "staging branch must remain explicit");
@@ -83,6 +86,12 @@ requireText(".github/workflows/production-deploy.yml", "CRON_SECRET", "productio
 requireText(".github/workflows/production-smoke.yml", "schedule:", "production monitoring must run automatically");
 requireText(".github/workflows/production-smoke.yml", "npm run release:monitor", "production monitoring must run postdeploy and live smoke");
 requireText(".github/workflows/production-smoke.yml", "CRON_SECRET", "production monitoring must verify backup freshness with the cron secret");
+
+requireText(".github/workflows/production-incident-alert.yml", "workflow_run:", "incident alerting must watch workflow completions");
+requireText(".github/workflows/production-incident-alert.yml", "Production Deploy", "production deploy failures must alert");
+requireText(".github/workflows/production-incident-alert.yml", "Production Monitor", "production monitor failures must alert");
+requireText(".github/workflows/production-incident-alert.yml", "issues: write", "incident alerting must be able to open GitHub issues");
+requireText(".github/workflows/production-incident-alert.yml", "npm run release:incident-alert", "incident alerting must use the shared script");
 
 requireText(".github/workflows/production-rollback.yml", "workflow_dispatch:", "rollback must be manual only");
 requireText(".github/workflows/production-rollback.yml", "ROLLBACK", "rollback must require explicit confirmation");

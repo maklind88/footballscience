@@ -37,6 +37,8 @@ Production incident rules should watch these signals:
 - stale backup pointer or failed restore-readiness
 - repeated permission denials from the same actor/IP
 
+`Production Incident Alert` opens or updates a GitHub issue when QA on `main`, Supabase migrations, production deploy, production monitor, or rollback fails. This makes failed release and live-health signals visible without exposing secrets or backup content in the alert.
+
 ## Required Checks
 
 Run before release:

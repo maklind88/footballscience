@@ -115,6 +115,7 @@ Security automation now includes:
 - Platform security verification through `npm run security:platform` so future routes, modules, and database tables cannot silently bypass tenant scope, the permission matrix, rate limits, or security observability.
 - Postdeploy verifies the live `/app.js` SHA-256 hash against the release checkout so stale Vercel/browser assets cannot pass as a successful deploy.
 - Scheduled Production Monitor every six hours. It runs postdeploy checks and authenticated live smoke against `footballscience.xyz`.
+- Production Incident Alert workflow opens or updates a GitHub issue when `main` QA, Supabase migrations, production deploy, production monitor, or rollback fails.
 - Restore-readiness monitoring verifies that latest app-state backup metadata covers every protected module key while keeping raw backup entries private.
 - Restore-drill monitoring verifies the latest backup can be parsed module-by-module without exposing entries or writing restored data.
 - Manual Production Rollback workflow. It requires the exact deployment URL/id plus `ROLLBACK`, then verifies postdeploy and live smoke after rollback.

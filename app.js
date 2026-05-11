@@ -28165,10 +28165,31 @@ function parseMedicalRosterCsvLine(line = "") {
 }
 
 function parseMedicalRosterText(text) {
-  return String(text ?? "")
-    .split(/\n+/)
-    .map(parseMedicalRosterLine)
-    .filter(Boolean);
+  const rawLines = String(text ?? "").split(/\r?\n/);
+  const parsed = {
+    players: [],
+    skippedLines: [],
+  };
+
+  rawLines.forEach((line, index) => {
+    const trimmedLine = String(line ?? "").trim();
+    if (!trimmedLine) {
+      return;
+    }
+
+    const player = parseMedicalRosterLine(trimmedLine);
+    if (player) {
+      parsed.players.push(player);
+      return;
+    }
+
+    parsed.skippedLines.push({
+      line: index + 1,
+      value: trimmedLine,
+    });
+  });
+
+  return parsed;
 }
 
 function upsertMedicalPlayers(players) {
@@ -74042,9 +74063,12 @@ ui.medicalTeamWorkspace?.addEventListener("submit", (event) => {
     }
 
     const values = getPlatformFormValues(rosterImportForm);
-    const players = parseMedicalRosterText(values.rosterText);
+    const importResult = parseMedicalRosterText(values.rosterText);
+    const players = importResult.players;
+    const skippedCount = importResult.skippedLines.length;
     if (!players.length) {
-      renderMedicalTeamWorkspace("No players found in the roster paste.");
+      const skippedMessage = skippedCount ? ` ${skippedCount} line(s) could not be parsed.` : "";
+      renderMedicalTeamWorkspace(`No players found in the roster paste.${skippedMessage}`);
       return;
     }
 
@@ -74055,7 +74079,10 @@ ui.medicalTeamWorkspace?.addEventListener("submit", (event) => {
       idempotencyKey: `players-imported:${Date.now()}`,
     });
     rosterImportForm.reset();
-    renderMedicalTeamWorkspace(`${players.length} player${players.length === 1 ? "" : "s"} imported.`);
+    const skippedMessage = skippedCount
+      ? ` ${skippedCount} line${skippedCount === 1 ? "" : "s"} could not be parsed and were skipped.`
+      : "";
+    renderMedicalTeamWorkspace(`${players.length} player${players.length === 1 ? "" : "s"} imported.${skippedMessage}`);
     return;
   }
 

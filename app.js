@@ -22913,7 +22913,7 @@ function sanitizeMedicalInjuryPlanForCoachView(plan = {}) {
 }
 
 function sanitizeMedicalStateForCurrentUser(state = {}) {
-  if (!getCurrentPlatformUser() || canViewPrivateMedicalDetails()) {
+  if (getCurrentPlatformUser() && canViewPrivateMedicalDetails()) {
     return state;
   }
 
@@ -22947,13 +22947,13 @@ function readMedicalState() {
     const shouldPersistSeededRoster =
       !raw || (!parsed?.rosterVersion && Array.isArray(parsed?.players) && parsed.players.length === 0);
     if (shouldPersistSeededRoster) {
-      setMedicalStateStorageValue(state, Boolean(getCurrentPlatformUser() && !canViewPrivateMedicalDetails()));
+      setMedicalStateStorageValue(state, !canViewPrivateMedicalDetails());
     }
     return state;
   } catch {
     const state = sanitizeMedicalStateForCurrentUser(cloneMedicalState({}));
     try {
-      setMedicalStateStorageValue(state, Boolean(getCurrentPlatformUser() && !canViewPrivateMedicalDetails()));
+      setMedicalStateStorageValue(state, !canViewPrivateMedicalDetails());
     } catch {
       logEvent("Medical Team data could not be written to local storage.");
     }
@@ -22967,8 +22967,14 @@ function writeMedicalState() {
   }
 
   try {
-    const coachSafeOnly = Boolean(getCurrentPlatformUser() && !canViewPrivateMedicalDetails());
-    setMedicalStateStorageValue(coachSafeOnly ? sanitizeMedicalStateForCurrentUser(medicalState) : medicalState, coachSafeOnly);
+    const coachSafeOnly = !canViewPrivateMedicalDetails();
+    const nextState = coachSafeOnly ? sanitizeMedicalStateForCurrentUser(medicalState) : medicalState;
+    const nextStateJson = JSON.stringify(nextState);
+    const currentStateJson = window.localStorage.getItem(medicalTeamStorageKey);
+    if (currentStateJson === nextStateJson) {
+      return;
+    }
+    setMedicalStateStorageValue(nextState, coachSafeOnly);
   } catch {
     logEvent("Medical Team data could not be written to local storage.");
   }
@@ -28051,20 +28057,38 @@ function parseMedicalRosterLine(line) {
     return null;
   }
 
-  const delimitedParts = cleanLine.split(/\t|\||;|,/).map((part) => part.trim()).filter(Boolean);
+  const delimitedParts = parseMedicalRosterLineParts(cleanLine);
   if (delimitedParts.length >= 2) {
-    const firstPartIsNumber = /^\#?\d{1,3}$/.test(delimitedParts[0]);
-    const secondPartIsNumber = /^\#?\d{1,3}$/.test(delimitedParts[1]);
-    const number = firstPartIsNumber
-      ? delimitedParts[0].replace("#", "")
-      : secondPartIsNumber
-        ? delimitedParts[1].replace("#", "")
-        : "";
-    const name = firstPartIsNumber ? delimitedParts[1] : delimitedParts[0];
-    const position = firstPartIsNumber ? delimitedParts[2] : secondPartIsNumber ? delimitedParts[2] : delimitedParts[1] || "";
     const photoUrl = delimitedParts.find((part) => /^https?:\/\//i.test(part)) || "";
+    const compactedParts = delimitedParts
+      .filter((part) => part !== photoUrl)
+      .map((part) => part.trim())
+      .filter(Boolean);
 
-    return normalizeMedicalPlayer({ number, name, position, photoUrl });
+    const numberIndex = compactedParts.findIndex((part) => /^\#?\d{1,3}$/.test(part));
+    if (numberIndex >= 0) {
+      const number = compactedParts[numberIndex].replace("#", "");
+      const numberIsFirst = numberIndex === 0;
+      const hasCommaName = compactedParts.length > 3;
+      const name = numberIsFirst
+        ? hasCommaName
+          ? compactedParts.slice(1, compactedParts.length - 1).join(", ")
+          : compactedParts[1] || ""
+        : compactedParts.slice(0, numberIndex).join(", ");
+      const position = numberIsFirst
+        ? hasCommaName
+          ? compactedParts[compactedParts.length - 1]
+          : compactedParts[2] || ""
+        : compactedParts[numberIndex + 1] || "";
+
+      return normalizeMedicalPlayer({ number, name, position, photoUrl });
+    }
+
+    return normalizeMedicalPlayer({
+      name: compactedParts[0],
+      position: compactedParts[1] || "",
+      photoUrl,
+    });
   }
 
   const numberMatch = cleanLine.match(/^\#?(\d{1,3})\s+(.+)$/);
@@ -28076,6 +28100,62 @@ function parseMedicalRosterLine(line) {
   }
 
   return normalizeMedicalPlayer({ name: cleanLine });
+}
+
+function parseMedicalRosterLineParts(line = "") {
+  const rawLine = String(line ?? "").trim();
+  if (!rawLine) {
+    return [];
+  }
+
+  if (rawLine.includes("\t")) {
+    return rawLine.split("\t").map((part) => part.trim()).filter(Boolean);
+  }
+
+  if (rawLine.includes("|")) {
+    return rawLine.split("|").map((part) => part.trim()).filter(Boolean);
+  }
+
+  if (rawLine.includes(";")) {
+    return rawLine.split(";").map((part) => part.trim()).filter(Boolean);
+  }
+
+  return parseMedicalRosterCsvLine(rawLine);
+}
+
+function parseMedicalRosterCsvLine(line = "") {
+  const rawLine = String(line ?? "");
+  const parts = [];
+  let part = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < rawLine.length; i++) {
+    const char = rawLine[i];
+    const nextChar = rawLine[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        part += '"';
+        i++;
+        continue;
+      }
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (char === "," && !inQuotes) {
+      parts.push(part.trim());
+      part = "";
+      continue;
+    }
+
+    part += char;
+  }
+
+  parts.push(part.trim());
+  return parts
+    .map((part) => part.replace(/^"|"$/g, "").trim())
+    .filter(Boolean);
 }
 
 function parseMedicalRosterText(text) {

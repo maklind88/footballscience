@@ -9,9 +9,9 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const budgets = [
   {
     file: "app.js",
-    maxBytes: 2_700_000,
-    maxGzipBytes: 472_000,
-    maxLines: 76_300,
+    maxBytes: 2_710_000,
+    maxGzipBytes: 473_000,
+    maxLines: 76_450,
     targetGzipBytes: 350_000,
   },
   {

@@ -25557,6 +25557,7 @@ function importSquadDataFoundationPayload(payload = {}) {
   }
 
   let importedCount = 0;
+  const profilesForMedicalSync = [];
   incomingPlayers.forEach((incomingPlayer) => {
     const incomingName = String(incomingPlayer.name ?? "").trim();
     if (!incomingName) {
@@ -25580,6 +25581,7 @@ function importSquadDataFoundationPayload(payload = {}) {
     } else {
       playerProfilesState.players.push(normalized);
     }
+    profilesForMedicalSync.push(normalized);
     importedCount += 1;
   });
 
@@ -25595,6 +25597,7 @@ function importSquadDataFoundationPayload(payload = {}) {
     })));
   }
   writePlayerProfilesState();
+  syncMedicalPlayersFromPlayerProfiles(profilesForMedicalSync);
   renderPlayerProfilesWorkspace(`${importedCount} player profiles imported.`);
 }
 
@@ -25833,6 +25836,39 @@ function getPlayerProfileFormValues(form) {
   };
 }
 
+function buildMedicalPlayerFromPlayerProfile(player = {}) {
+  const now = new Date().toISOString();
+  const createdAt = String(player.createdAt || "").trim() || now;
+  const updatedAt = String(player.updatedAt || "").trim() || now;
+
+  return normalizeMedicalPlayer({
+    id: player.id || createDashboardId("medical-player"),
+    name: player.name,
+    number: player.number,
+    position: player.position,
+    photoUrl: player.photoUrl,
+    sourceUrl: player.sourceUrl,
+    rosterOrder: player.rosterOrder,
+    createdAt,
+    updatedAt,
+  });
+}
+
+function syncMedicalPlayersFromPlayerProfiles(players = []) {
+  if (!Array.isArray(players) || !players.length) {
+    return;
+  }
+
+  const medicalPlayers = players
+    .map(buildMedicalPlayerFromPlayerProfile)
+    .filter((player) => player && player.id && player.name);
+  if (!medicalPlayers.length) {
+    return;
+  }
+
+  upsertMedicalPlayers(medicalPlayers);
+}
+
 function addPlayerProfile(values = {}) {
   ensurePlayerProfilesState();
   const player = normalizePlayerProfile({
@@ -25851,6 +25887,7 @@ function addPlayerProfile(values = {}) {
     { field: "Squad status", from: "-", to: formatPlayerProfileChangeValue(player.squadStatus, { options: playerProfileSquadStatusOptions }) },
   ]);
   writePlayerProfilesState();
+  syncMedicalPlayersFromPlayerProfiles([player]);
   return player;
 }
 
@@ -25903,6 +25940,7 @@ function updatePlayerProfile(values = {}) {
     recordPlayerProfileChange("profile-updated", nextPlayer, changes);
   }
   writePlayerProfilesState();
+  syncMedicalPlayersFromPlayerProfiles([nextPlayer]);
   return true;
 }
 
@@ -25918,6 +25956,9 @@ function removePlayerProfile(playerId) {
     ]);
   }
   writePlayerProfilesState();
+  if (removedPlayer) {
+    removeMedicalPlayer(removedPlayer.id);
+  }
 }
 
 function createSessionPlannerPlayerProfileContract(player, dateValue = formatScheduleDateValue(new Date())) {
@@ -28194,26 +28235,35 @@ function parseMedicalRosterText(text) {
 
 function upsertMedicalPlayers(players) {
   ensureMedicalState();
+  const existingById = new Map(
+    medicalState.players
+      .filter((player) => player && player.id)
+      .map((player) => [String(player.id), player])
+  );
   const existingBySignature = new Map(
     medicalState.players.map((player) => [`${player.number}|${player.name}`.toLowerCase(), player])
   );
   const nextPlayers = [...medicalState.players];
 
   players.forEach((player) => {
-    const signature = `${player.number}|${player.name}`.toLowerCase();
-    const existingPlayer = existingBySignature.get(signature);
+    const signature = `${String(player.number || "").trim()}|${String(player.name || "").trim().toLowerCase()}`;
+    const playerId = String(player.id || "").trim();
+    const existingPlayer = existingById.get(playerId) || existingBySignature.get(signature);
+
     if (existingPlayer) {
       Object.assign(existingPlayer, {
         ...existingPlayer,
         ...player,
-        id: existingPlayer.id,
+        id: existingPlayer.id || player.id,
         updatedAt: new Date().toISOString(),
       });
-      return;
+    } else {
+      nextPlayers.push(player);
+      if (playerId) {
+        existingById.set(playerId, player);
+      }
+      existingBySignature.set(signature, player);
     }
-
-    nextPlayers.push(player);
-    existingBySignature.set(signature, player);
   });
 
   medicalState = cloneMedicalState({

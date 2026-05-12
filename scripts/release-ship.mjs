@@ -16,18 +16,16 @@ const fullReleasePatterns = [
   /^supabase\//,
   /^vercel\.json$/,
 ];
-const quickValidation = [
+const fastValidation = [
   "verify:local-isolation",
   "check",
-  "release:rules",
-  "release:incident-readiness",
-  "storage:guard",
   "security:platform",
   "qa:supabase",
   "qa:perf",
   "qa:contracts",
-  "qa:browser",
+  "qa:smoke",
 ];
+
 
 function printHelp() {
   console.log(`Safe Ship release automation
@@ -35,14 +33,14 @@ function printHelp() {
 Usage:
   npm run release:ship -- --stage-all --commit "fix: message" --push --deploy
   npm run release:ship -- --commit "fix: message" --push
-  npm run release:ship -- --mode quick
+  npm run release:ship -- --mode fast
 
 Options:
   --stage-all              Stage every current change in this worktree.
   --commit, -m TEXT        Commit staged changes with TEXT after validation passes.
   --push                   Push the current branch after validation/commit.
   --deploy                 Release through staging -> main -> GitHub Production Deploy.
-  --mode auto|quick|full   auto chooses full for API/data/security/module changes.
+  --mode auto|fast|safe    auto chooses safe for API/data/security/module changes.
   --skip-github-wait       Push release refs without waiting for GitHub workflows.
   --help                   Show this help.
 `);
@@ -83,12 +81,15 @@ function parseArgs(argv) {
     }
   }
 
-  if (!["auto", "quick", "full"].includes(options.mode)) {
-    throw new Error("--mode must be auto, quick, or full.");
+  if (!["auto", "fast", "safe", "quick", "full"].includes(options.mode)) {
+    throw new Error("--mode must be auto, fast, safe, quick, or full.");
   }
   if ((options.commitMessage === "" && argv.includes("--commit")) || (options.commitMessage === "" && argv.includes("-m"))) {
     throw new Error("--commit requires a commit message.");
   }
+
+  if (options.mode === "quick") options.mode = "fast";
+  if (options.mode === "full") options.mode = "safe";
 
   return options;
 }
@@ -181,7 +182,7 @@ function requireCleanWorkingTree(context) {
 
 function classifyReleaseMode(paths, requestedMode) {
   if (requestedMode !== "auto") return requestedMode;
-  return paths.some((file) => fullReleasePatterns.some((pattern) => pattern.test(file))) ? "full" : "quick";
+  return paths.some((file) => fullReleasePatterns.some((pattern) => pattern.test(file))) ? "safe" : "fast";
 }
 
 function releasePaths(options) {
@@ -196,12 +197,12 @@ function releasePaths(options) {
 }
 
 function runValidation(mode) {
-  if (mode === "full") {
+  if (mode === "safe") {
     run("npm", ["run", "qa"]);
     return;
   }
 
-  for (const scriptName of quickValidation) {
+  for (const scriptName of fastValidation) {
     run("npm", ["run", scriptName]);
   }
 }

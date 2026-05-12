@@ -17132,6 +17132,25 @@ select{
   background: rgba(255, 234, 232, 0.72);
 }
 
+.squad-data-import-history-action{
+  justify-self: start;
+  border: 1px solid rgba(29, 29, 31, 0.16);
+  border-radius: 7px;
+  background: #1d1d1f;
+  color: #ffffff;
+  min-height: 1.86rem;
+  padding: 0 0.72rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.squad-data-import-history-action:disabled{
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .squad-data-empty{
   display: block;
   padding: 0.62rem;

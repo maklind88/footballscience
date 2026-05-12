@@ -25882,6 +25882,14 @@ function buildPlayerProfileImportUndoHistoryRows() {
           <span>${escapeHtml(`${importedCount} records (${createdCount} added, ${updatedCount} updated)`)}</span>
           <small>${escapeHtml(`By ${appliedBy} • ${appliedAtLabel}${relativeAge ? ` (${relativeAge})` : ""}`)}</small>
           <small>${escapeHtml(stateText)}</small>
+          <button
+            type="button"
+            class="squad-data-import-history-action"
+            data-player-profile-import-undo-history="${index}"
+            ${isUndoable ? "" : "disabled"}
+          >
+            Undo snapshot
+          </button>
         </article>
       `;
     })
@@ -75060,6 +75068,21 @@ ui.playerProfilesWorkspace?.addEventListener("click", (event) => {
 
   const undoImportButton = event.target.closest("[data-player-profile-import-undo]");
   if (undoImportButton) {
+    renderPlayerProfilesWorkspace(applyPlayerProfileImportUndo());
+    return;
+  }
+
+  const undoHistoryButton = event.target.closest("[data-player-profile-import-undo-history]");
+  if (undoHistoryButton) {
+    const requestedIndex = Number(undoHistoryButton.dataset?.playerProfileImportUndoHistory);
+    if (!Number.isFinite(requestedIndex) || requestedIndex !== 0) {
+      renderPlayerProfilesWorkspace({
+        status: "warning",
+        lines: ["Only the latest import snapshot can be undone from this view."],
+      });
+      return;
+    }
+
     renderPlayerProfilesWorkspace(applyPlayerProfileImportUndo());
     return;
   }

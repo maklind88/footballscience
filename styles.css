@@ -288,6 +288,9 @@ body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF 
 .platform-topbar{
   position: relative;
   z-index: 80;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   min-height: 70px;
   display: flex;
   align-items: center;
@@ -302,6 +305,7 @@ body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF 
 
 .platform-title{
   gap: 0.9rem;
+  min-width: 0;
 }
 
 .sidebar-toggle{
@@ -337,7 +341,8 @@ body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF 
 .platform-topbar-actions{
   position: relative;
   display: flex;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-width: 0;
   justify-content: flex-end;
   align-items: center;
   gap: 0.85rem;
@@ -347,6 +352,10 @@ body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF 
 .top-icon-menu{
   display: flex;
   align-items: center;
+  min-width: 0;
+  max-width: min(54rem, 100%);
+  overflow-x: auto;
+  scrollbar-width: none;
   gap: 0.36rem;
   padding: 0.35rem;
   border-radius: 999px;
@@ -360,8 +369,13 @@ body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF 
   backdrop-filter: blur(28px);
 }
 
+.top-icon-menu::-webkit-scrollbar{
+  display: none;
+}
+
 .top-icon-menu-item{
   position: relative;
+  flex: 0 0 auto;
   width: 4.3rem;
   height: 3.7rem;
   display: inline-flex;
@@ -18582,11 +18596,15 @@ select{
 
 .medical-workspace{
   padding: clamp(1rem, 2vw, 1.5rem);
+  overflow-x: hidden;
 }
 
 .medical-shell{
   display: grid;
-  gap: 0.82rem;
+  gap: 0.72rem;
+  width: min(100%, 98rem);
+  margin: 0 auto;
+  min-width: 0;
 }
 
 .medical-hero{
@@ -18594,9 +18612,9 @@ select{
   align-items: flex-end;
   justify-content: space-between;
   gap: 1rem;
-  min-height: 7.6rem;
-  padding: clamp(1rem, 2vw, 1.45rem);
-  border-radius: 20px;
+  min-height: 6.2rem;
+  padding: clamp(0.9rem, 1.7vw, 1.25rem);
+  border-radius: 16px;
   color: #f7f9fb;
   background:
     linear-gradient(135deg, rgba(19, 28, 35, 0.96), rgba(36, 47, 55, 0.94)),
@@ -18607,8 +18625,8 @@ select{
 
 .medical-hero h1{
   margin: 0.2rem 0 0;
-  font-size: clamp(2rem, 4.2vw, 3.55rem);
-  line-height: 0.92;
+  font-size: clamp(1.75rem, 3.2vw, 2.8rem);
+  line-height: 0.96;
   letter-spacing: 0;
 }
 
@@ -18641,11 +18659,11 @@ select{
 
 .medical-date-strip{
   display: grid;
-  grid-template-columns: auto minmax(9rem, 11rem) auto auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(8.5rem, 10rem) auto auto minmax(0, 1fr);
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.65rem;
-  border-radius: 20px;
+  gap: 0.45rem;
+  padding: 0.52rem;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.76);
   border: 1px solid rgba(29, 29, 31, 0.08);
   box-shadow: 0 12px 30px rgba(29, 29, 31, 0.06);
@@ -18730,7 +18748,7 @@ select{
 
 .medical-window-days{
   display: grid;
-  grid-template-columns: repeat(7, minmax(7.4rem, 1fr));
+  grid-template-columns: repeat(7, minmax(6.2rem, 1fr));
   gap: 0.45rem;
   min-width: 0;
   overflow-x: auto;
@@ -18741,8 +18759,8 @@ select{
   display: grid;
   align-content: center;
   gap: 0.15rem;
-  min-width: 7.4rem;
-  padding: 0.58rem 0.7rem;
+  min-width: 6.2rem;
+  padding: 0.48rem 0.58rem;
   text-align: left;
 }
 
@@ -18789,17 +18807,17 @@ select{
 
 .medical-security-panel{
   display: grid;
-  grid-template-columns: minmax(13rem, 1.1fr) repeat(3, minmax(0, 1fr));
-  gap: 0.55rem;
+  grid-template-columns: minmax(11rem, 1.05fr) repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
 }
 
 .medical-security-card{
   display: grid;
   align-content: center;
   gap: 0.18rem;
-  min-height: 5.4rem;
-  padding: 0.72rem;
-  border-radius: 16px;
+  min-height: 4.7rem;
+  padding: 0.62rem;
+  border-radius: 14px;
   color: #1d1d1f;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(246, 248, 250, 0.9)),
@@ -18837,11 +18855,11 @@ select{
 
 .medical-governance-panel{
   display: grid;
-  grid-template-columns: minmax(11rem, 0.42fr) minmax(12rem, 0.52fr) minmax(0, 1.7fr) minmax(9rem, 0.36fr);
+  grid-template-columns: minmax(10rem, 0.48fr) minmax(11rem, 0.56fr) minmax(0, 1.35fr);
   align-items: stretch;
-  gap: 0.55rem;
-  padding: 0.68rem;
-  border-radius: 18px;
+  gap: 0.48rem;
+  padding: 0.58rem;
+  border-radius: 16px;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(241, 244, 247, 0.88)),
     #ffffff;
@@ -18900,10 +18918,14 @@ select{
 
 .medical-governance-form{
   display: grid;
-  grid-template-columns: repeat(3, minmax(7rem, 0.5fr)) minmax(8rem, 0.7fr) minmax(9rem, 0.8fr) minmax(8rem, 0.52fr) auto;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: end;
-  gap: 0.45rem;
+  gap: 0.4rem;
   min-width: 0;
+}
+
+.medical-governance-foot{
+  grid-column: 1 / -1;
 }
 
 .medical-governance-form label{
@@ -19386,17 +19408,21 @@ select{
 
 .medical-bulk-panel{
   display: grid;
-  grid-template-columns: minmax(9rem, 0.34fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(9rem, 0.28fr) minmax(0, 1fr);
+  grid-template-areas:
+    "summary form"
+    "actions form";
   align-items: stretch;
-  gap: 0.55rem;
-  padding: 0.68rem;
-  border-radius: 18px;
+  gap: 0.48rem;
+  padding: 0.58rem;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.82);
   border: 1px solid rgba(29, 29, 31, 0.08);
   box-shadow: 0 12px 28px rgba(29, 29, 31, 0.055);
 }
 
 .medical-bulk-summary{
+  grid-area: summary;
   display: grid;
   align-content: center;
   gap: 0.1rem;
@@ -19422,8 +19448,11 @@ select{
 }
 
 .medical-bulk-actions{
-  display: grid;
+  grid-area: actions;
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.38rem;
+  align-content: end;
 }
 
 .medical-bulk-actions button,
@@ -19455,11 +19484,20 @@ select{
 }
 
 .medical-bulk-form{
+  grid-area: form;
   display: grid;
-  grid-template-columns: minmax(8.5rem, 0.55fr) minmax(8rem, 0.5fr) minmax(9rem, 0.62fr) minmax(12rem, 1fr) minmax(12rem, 1fr) minmax(9rem, 0.52fr) auto;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   align-items: end;
-  gap: 0.45rem;
+  gap: 0.4rem;
   min-width: 0;
+}
+
+.medical-bulk-wide{
+  grid-column: span 2;
+}
+
+.medical-bulk-form button{
+  grid-column: span 2;
 }
 
 .medical-bulk-form label{
@@ -19492,7 +19530,7 @@ select{
 
 .medical-squad-grid{
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(13.35rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(12.2rem, 1fr));
   gap: 0.5rem;
   min-width: 0;
 }
@@ -19509,8 +19547,8 @@ select{
 
 .medical-player-card{
   display: grid;
-  gap: 0.5rem;
-  padding: 0.58rem;
+  gap: 0.42rem;
+  padding: 0.52rem;
   cursor: pointer;
   outline: none;
 }
@@ -19553,15 +19591,15 @@ select{
 }
 
 .medical-player-avatar{
-  width: 2.35rem;
-  height: 2.35rem;
+  width: 2.1rem;
+  height: 2.1rem;
   border-radius: 10px;
   font-size: 0.72rem;
 }
 
 .medical-player-avatar.has-photo{
-  width: 3rem;
-  height: 2.35rem;
+  width: 2.55rem;
+  height: 2.1rem;
   border-radius: 10px;
 }
 
@@ -19978,11 +20016,11 @@ select{
   z-index: 1;
   display: grid;
   gap: 0.85rem;
-  width: min(68rem, calc(100vw - 2rem));
-  max-height: min(48rem, calc(100vh - 2rem));
+  width: min(62rem, calc(100vw - 1.4rem));
+  max-height: min(46rem, calc(100dvh - 1.4rem));
   overflow: auto;
-  padding: 0.9rem;
-  border-radius: 22px;
+  padding: 0.75rem;
+  border-radius: 18px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 248, 250, 0.94)),
     #ffffff;
@@ -19994,9 +20032,9 @@ select{
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.85rem;
-  border-radius: 18px;
+  gap: 0.62rem;
+  padding: 0.68rem;
+  border-radius: 15px;
   color: #ffffff;
   background:
     linear-gradient(135deg, rgba(18, 29, 38, 0.98), rgba(45, 59, 68, 0.96)),
@@ -20013,8 +20051,8 @@ select{
 .medical-modal-player h2{
   margin: 0;
   color: #ffffff;
-  font-size: clamp(1.35rem, 3vw, 2.35rem);
-  line-height: 0.96;
+  font-size: clamp(1.1rem, 2.4vw, 1.85rem);
+  line-height: 1;
 }
 
 .medical-modal-player span,
@@ -20027,9 +20065,9 @@ select{
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  width: 4.6rem;
-  height: 3.3rem;
-  border-radius: 14px;
+  width: 3.6rem;
+  height: 2.7rem;
+  border-radius: 12px;
   color: #ffffff;
   background: #081722;
   font-weight: 900;
@@ -20043,9 +20081,9 @@ select{
 
 .medical-modal-current{
   display: grid;
-  min-width: 8rem;
-  padding: 0.62rem 0.75rem;
-  border-radius: 14px;
+  min-width: 6.7rem;
+  padding: 0.52rem 0.62rem;
+  border-radius: 12px;
   text-align: right;
 }
 
@@ -20513,6 +20551,14 @@ select{
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .medical-bulk-panel{
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "summary"
+      "actions"
+      "form";
+  }
+
   .medical-layout,
   .medical-empty-state{
     grid-template-columns: 1fr;
@@ -20558,13 +20604,25 @@ select{
     grid-template-columns: 1fr;
   }
 
+  .medical-bulk-wide,
+  .medical-bulk-form button{
+    grid-column: auto;
+  }
+
   .medical-modal-header{
-    grid-template-columns: minmax(0, 1fr) auto;
+    position: relative;
+    grid-template-columns: minmax(0, 1fr);
+    padding-right: 3.2rem;
   }
 
   .medical-modal-current{
-    grid-column: 1 / -1;
     text-align: left;
+  }
+
+  .medical-modal-close{
+    position: absolute;
+    top: 0.62rem;
+    right: 0.62rem;
   }
 
   .medical-preset-grid{
@@ -20597,8 +20655,45 @@ select{
     padding: 0.8rem;
   }
 
+  .top-icon-menu{
+    justify-content: center;
+    overflow-x: visible;
+    gap: 0.22rem;
+    padding: 0.28rem;
+  }
+
+  .top-icon-menu-item{
+    width: 2.25rem;
+    height: 2.35rem;
+    border-radius: 1rem;
+  }
+
+  .top-icon-menu-graphic{
+    width: 1.45rem;
+    height: 1.45rem;
+  }
+
+  .top-icon-menu-label{
+    display: none;
+  }
+
   .medical-metrics-grid{
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .medical-window-days{
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    overflow-x: visible;
+    gap: 0.18rem;
+  }
+
+  .medical-window-day{
+    min-width: 0;
+    padding: 0.42rem 0.28rem;
+  }
+
+  .medical-window-day small{
+    display: none;
   }
 
   .medical-command-board,

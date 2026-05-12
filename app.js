@@ -1352,6 +1352,7 @@ const topIconMenuOrder = [
   "schedule",
   "periodization",
   "session-planner",
+  "medical-team",
   "player-profiles",
   "analysis-room",
   "staff",
@@ -27527,9 +27528,6 @@ function renderMedicalTeamWorkspace(message = "") {
 
       ${message ? `<div class="medical-message">${escapeHtml(message)}</div>` : ""}
 
-      ${renderMedicalSecurityPanel()}
-      ${renderMedicalGovernancePanel()}
-
       <section class="medical-metrics-grid" aria-label="Medical availability summary">
         ${renderMedicalMetric("Full", String(stats.fullCount), "effective 100%", "full")}
         ${renderMedicalMetric("Modified", String(stats.modifiedCount), "10-75%", "modified")}
@@ -27542,15 +27540,17 @@ function renderMedicalTeamWorkspace(message = "") {
       ${
         medicalState.players.length
           ? `
-            ${renderMedicalDailyHuddle()}
-            ${renderMedicalCoachHandoverPanel()}
-            ${renderMedicalCommandBoard()}
             <section class="medical-layout">
               ${renderMedicalRosterPanel()}
             </section>
+            ${renderMedicalDailyHuddle()}
+            ${renderMedicalCoachHandoverPanel()}
+            ${renderMedicalCommandBoard()}
           `
           : renderMedicalRosterSetup()
       }
+      ${renderMedicalSecurityPanel()}
+      ${renderMedicalGovernancePanel()}
       ${renderMedicalPlayerModal()}
     </div>
   `;

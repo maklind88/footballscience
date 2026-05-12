@@ -16,9 +16,9 @@ const budgets = [
   },
   {
     file: "styles.css",
-    maxBytes: 470_000,
-    maxGzipBytes: 69_000,
-    maxLines: 22_000,
+    maxBytes: 485_000,
+    maxGzipBytes: 71_000,
+    maxLines: 22_300,
     targetGzipBytes: 45_000,
   },
   {

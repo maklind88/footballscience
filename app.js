@@ -56,6 +56,7 @@ const ui = {
   workspaceMeta: document.getElementById("workspaceMeta"),
   workspaceStatus: document.getElementById("workspaceStatus"),
   workspaceQuickSwitch: document.getElementById("workspaceQuickSwitch"),
+  platformThemeModeSelect: document.getElementById("platformThemeModeSelect"),
   profileMenuButton: document.getElementById("profileMenuButton"),
   profileMenu: document.getElementById("profileMenu"),
   profileMenuAvatar: document.getElementById("profileMenuAvatar"),
@@ -218,10 +219,15 @@ const sessionPlannerBlockReductionGuardKey = "blockReductionGuard";
 const sessionPlannerBlockDeletionTombstoneKey = "blockDeletionTombstones";
 const sessionPlannerBlockReductionGuardMaxAgeMs = 30 * 60 * 1000;
 const sessionPlannerBlockFieldUpdatedAtKey = "fieldUpdatedAt";
+const platformThemeModeStorageKey = "football-platform-theme-mode-v1";
+const platformThemeModeDefault = "auto";
+const platformThemeModeSupported = new Set(["auto", "light", "dark"]);
 const platformDarkThemeStartHour = 19;
 const platformDarkThemeEndHour = 6;
 const platformThemeRefreshIntervalMs = 60 * 1000;
 let platformThemeRefreshTimer = null;
+let platformThemeMediaQuery = null;
+let platformThemeMediaQueryListener = null;
 const sessionPlannerBlockMergeFields = Object.freeze([
   "label",
   "title",
@@ -415,6 +421,19 @@ function getDataSafetyNow() {
 }
 
 function isPlatformDarkThemeActive(now = new Date()) {
+  const mode = getPlatformThemeMode();
+  if (mode === "dark") {
+    return true;
+  }
+  if (mode === "light") {
+    return false;
+  }
+
+  const query = platformThemeMediaQuery ?? getPlatformColorSchemeMediaQuery();
+  if (query && typeof query.matches === "boolean") {
+    return Boolean(query.matches);
+  }
+
   const totalMinutes = now.getHours() * 60 + now.getMinutes();
   const start = platformDarkThemeStartHour * 60;
   const end = platformDarkThemeEndHour * 60;
@@ -422,6 +441,7 @@ function isPlatformDarkThemeActive(now = new Date()) {
 }
 
 function applyPlatformThemeByTime() {
+  const nextMode = getPlatformThemeMode();
   const isDark = isPlatformDarkThemeActive();
   if (!document.body) {
     return;
@@ -429,14 +449,79 @@ function applyPlatformThemeByTime() {
 
   document.body.classList.toggle("is-dark-mode", isDark);
   document.body.dataset.themeMode = isDark ? "dark" : "light";
+  if (ui.platformThemeModeSelect) {
+    ui.platformThemeModeSelect.value = platformThemeModeSupported.has(nextMode) ? nextMode : platformThemeModeDefault;
+  }
 }
 
 function startPlatformThemeScheduler() {
+  if (platformThemeMediaQueryListener && platformThemeMediaQuery) {
+    if (typeof platformThemeMediaQuery.removeEventListener === "function") {
+      platformThemeMediaQuery.removeEventListener("change", platformThemeMediaQueryListener);
+    } else if (typeof platformThemeMediaQuery.removeListener === "function") {
+      platformThemeMediaQuery.removeListener(platformThemeMediaQueryListener);
+    }
+  }
+
+  platformThemeMediaQuery = getPlatformColorSchemeMediaQuery();
+  if (platformThemeMediaQuery) {
+    if (!platformThemeMediaQueryListener) {
+      platformThemeMediaQueryListener = () => applyPlatformThemeByTime();
+    }
+    if (typeof platformThemeMediaQuery.addEventListener === "function") {
+      platformThemeMediaQuery.addEventListener("change", platformThemeMediaQueryListener);
+    } else if (typeof platformThemeMediaQuery.addListener === "function") {
+      platformThemeMediaQuery.addListener(platformThemeMediaQueryListener);
+    }
+  }
+
   applyPlatformThemeByTime();
   if (platformThemeRefreshTimer) {
     window.clearInterval(platformThemeRefreshTimer);
   }
   platformThemeRefreshTimer = window.setInterval(applyPlatformThemeByTime, platformThemeRefreshIntervalMs);
+}
+
+function getPlatformThemeMode() {
+  return normalizePlatformThemeMode(readPlatformThemeMode());
+}
+
+function readPlatformThemeMode() {
+  try {
+    return window.localStorage.getItem(platformThemeModeStorageKey) || platformThemeModeDefault;
+  } catch {
+    return platformThemeModeDefault;
+  }
+}
+
+function normalizePlatformThemeMode(value = "") {
+  const normalizedMode = String(value || "").trim().toLowerCase();
+  return platformThemeModeSupported.has(normalizedMode) ? normalizedMode : platformThemeModeDefault;
+}
+
+function setPlatformThemeMode(rawMode = platformThemeModeDefault) {
+  const mode = normalizePlatformThemeMode(rawMode);
+  try {
+    window.localStorage.setItem(platformThemeModeStorageKey, mode);
+  } catch {
+    // Local storage may be unavailable in strict privacy mode.
+  }
+  if (ui.platformThemeModeSelect) {
+    ui.platformThemeModeSelect.value = mode;
+  }
+  applyPlatformThemeByTime();
+}
+
+function getPlatformColorSchemeMediaQuery() {
+  if (platformThemeMediaQuery) {
+    return platformThemeMediaQuery;
+  }
+
+  if (typeof window.matchMedia !== "function") {
+    return null;
+  }
+
+  return window.matchMedia("(prefers-color-scheme: dark)");
 }
 
 function isDataSafetyInternalStorageKey(key) {
@@ -4242,6 +4327,15 @@ let adminAuditLoadError = "";
 const platformDefaultRoles = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
 const platformManagementRoleSet = new Set(["admin", "club-admin", "team-admin"]);
 const platformStaffRoleSet = new Set(["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"]);
+const platformRoleAliases = Object.freeze({
+  "super-admin": "admin",
+  "superadmin": "admin",
+  "administrator": "admin",
+  "platform-admin": "admin",
+  "platform owner": "admin",
+  "owner": "admin",
+  "admin-role": "admin",
+});
 const adminTitleSuggestions = Object.freeze([
   "Sporting Director",
   "Head of Scouting",
@@ -4451,8 +4545,15 @@ function getRoleLabel(role) {
   return labels[role] ?? "Coach";
 }
 function normalizePlatformRole(role, fallback = "coach") {
+  if (Array.isArray(role)) {
+    return normalizePlatformRole(role.find((entry) => typeof entry === "string" && entry.trim()) || "", fallback);
+  }
+  if (role && typeof role === "object") {
+    return normalizePlatformRole(role?.role || role?.name || role?.value || "", fallback);
+  }
   const normalizedRole = String(role || "").trim().toLowerCase();
-  return platformDefaultRoles.includes(normalizedRole) ? normalizedRole : fallback;
+  const mappedRole = platformRoleAliases[normalizedRole] || normalizedRole;
+  return platformDefaultRoles.includes(mappedRole) ? mappedRole : fallback;
 }
 function isPlatformAdminUser(user) {
   return normalizePlatformRole(user?.role, "") === "admin";
@@ -4912,7 +5013,8 @@ function canUserAccessWorkspace(
   if (!workspace) {
     return false;
   }
-  if (user?.role === "admin") {
+  const normalizedRole = normalizePlatformRole(user?.role, "guest");
+  if (normalizedRole === "admin") {
     return true;
   }
   if (workspace.requiresAdmin) {
@@ -4922,7 +5024,7 @@ function canUserAccessWorkspace(
   if (!permission.view.length) {
     return true;
   }
-  return permission.view.includes(user?.role ?? "guest");
+  return permission.view.includes(normalizedRole);
 }
 function canCurrentUserAccessWorkspace(workspace) {
   return canUserAccessWorkspace(workspace);
@@ -4932,7 +5034,8 @@ function canUserEditWorkspace(
   user = getCurrentPlatformUser(),
   accessConfig = getWorkspaceAccessConfig()
 ) {
-  if (user?.role === "admin") {
+  const normalizedRole = normalizePlatformRole(user?.role, "guest");
+  if (normalizedRole === "admin") {
     return true;
   }
   const workspace = getWorkspaceByIdFromPool(workspaceId);
@@ -4946,7 +5049,7 @@ function canUserEditWorkspace(
     return false;
   }
   const permission = normalizeWorkspaceAccessEntry(workspaceId, accessConfig[workspaceId]);
-  return permission.view.includes(user?.role ?? "guest") && permission.edit.includes(user?.role ?? "guest");
+  return permission.view.includes(normalizedRole) && permission.edit.includes(normalizedRole);
 }
 function canCurrentUserEditWorkspace(workspaceId) {
   return canUserEditWorkspace(workspaceId);
@@ -6825,7 +6928,8 @@ function getDashboardMentionUserIds(text, users = getPlatformUsers(), authorUser
   return Array.from(mentionedUserIds);
 }
 function canPinDashboardChatMessage(user = getCurrentPlatformUser()) {
-  return user?.role === "admin" || user?.role === "coach";
+  const normalizedRole = normalizePlatformRole(user?.role, "");
+  return normalizedRole === "admin" || normalizedRole === "coach" || normalizedRole === "club-admin" || normalizedRole === "team-admin";
 }
 function normalizeDashboardChatPriority(value) {
   const priority = String(value || "normal").trim().toLowerCase();
@@ -73163,6 +73267,10 @@ ui.workspaceSearch?.addEventListener("input", () => {
 
 ui.workspaceQuickSwitch?.addEventListener("change", () => {
   setActiveWorkspace(ui.workspaceQuickSwitch.value);
+});
+
+ui.platformThemeModeSelect?.addEventListener("change", () => {
+  setPlatformThemeMode(ui.platformThemeModeSelect?.value);
 });
 
 ui.workspaceList?.addEventListener("click", (event) => {

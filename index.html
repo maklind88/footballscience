@@ -10,19 +10,28 @@
     <style>
       body.is-booting{overflow:hidden}
       body.is-booting:before{
-        content:"Loading...";
+        content:"Loading";
         position:fixed;
         inset:0;
         z-index:9999;
         display:grid;
         place-items:center;
         color:var(--ink);
-        background:rgba(245,245,247,0.6);
+        background:rgba(245,245,247,0.36);
         backdrop-filter:blur(18px);
-        font-weight:800
+        font-weight:800;
+        letter-spacing:0.01em;
+        animation: platform-loading-dots 1.2s infinite;
       }
+      @keyframes platform-loading-dots {
+        0%, 20% { content: "Loading"; }
+        40% { content: "Loading."; }
+        60% { content: "Loading.."; }
+        80%, 100% { content: "Loading..."; }
+      }
+
       body.is-dark-mode.is-booting:before{
-        background: rgba(11,16,32,0.68);
+        background: rgba(11,16,32,0.55);
         color: #e5e7eb;
       }
     </style>
@@ -33,6 +42,42 @@
     </script>
   </head>
   <body class="is-auth-locked is-booting">
+    <script>
+      (function () {
+        const themeModeKey = "football-platform-theme-mode-v1";
+        const supportedModes = new Set(["auto", "light", "dark"]);
+
+        function normalizeThemeMode(value) {
+          const normalized = String(value || "auto").trim().toLowerCase();
+          return supportedModes.has(normalized) ? normalized : "auto";
+        }
+
+        function isAutoThemeDark() {
+          try {
+            const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
+            if (mq?.media && typeof mq.matches === "boolean") {
+              return Boolean(mq.matches);
+            }
+          } catch {
+            // Fallback to schedule if matchMedia is unavailable.
+          }
+
+          const totalMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+          return totalMinutes >= 19 * 60 || totalMinutes < 6 * 60;
+        }
+
+        try {
+          const selectedMode = normalizeThemeMode(window.localStorage?.getItem(themeModeKey));
+          const useDarkMode = selectedMode === "dark" || (selectedMode === "auto" && isAutoThemeDark());
+          if (document.body) {
+            document.body.classList.toggle("is-dark-mode", Boolean(useDarkMode));
+            document.body.dataset.themeMode = useDarkMode ? "dark" : "light";
+          }
+        } catch {
+          // Ignore bootstrap-time theme init failures.
+        }
+      })();
+    </script>
     <section id="loginScreen" class="login-screen" aria-label="Coaching platform login" hidden>
       <div class="login-card">
         <p class="login-kicker">Football Science Coaching Platform</p>
@@ -125,6 +170,14 @@
                   </div>
                 </div>
                 <div id="dataSafetyStatus" class="profile-menu-data-status" role="status">Local autosave ready</div>
+                <div class="platform-theme-switcher">
+                  <span class="platform-theme-switcher-label">Theme</span>
+                  <select id="platformThemeModeSelect" class="platform-theme-select" aria-label="Theme mode">
+                    <option value="auto">Auto</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                  </select>
+                </div>
                 <button id="dataSafetyExportButton" type="button" role="menuitem">Export Data Backup</button>
                 <button id="dataSafetyImportButton" type="button" role="menuitem">Restore Data Backup</button>
                 <input id="dataSafetyImportInput" type="file" accept="application/json" hidden />
@@ -798,6 +851,15 @@
     <script>
       (() => {
         const DEFAULT_ROLES = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
+        const ROLE_ALIAS_MAP = Object.freeze({
+          "super-admin": "admin",
+          "superadmin": "admin",
+          "administrator": "admin",
+          "platform-admin": "admin",
+          "platform owner": "admin",
+          "owner": "admin",
+          "admin-role": "admin",
+        });
         const DEFAULT_CLUB_ID = "club-ncc";
         const DEFAULT_TEAM_ID = "team-ncc-first";
         const SUPABASE_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js";
@@ -902,6 +964,17 @@
         };
         let postAuthHydrationTimer = 0;
         let postAuthHydrationRunId = 0;
+        function normalizeRoleForAuth(rawRole, fallback = "coach") {
+          if (Array.isArray(rawRole)) {
+            return normalizeRoleForAuth(rawRole.find((entry) => typeof entry === "string" && entry.trim()) || "", fallback);
+          }
+          if (rawRole && typeof rawRole === "object") {
+            return normalizeRoleForAuth(rawRole?.role || rawRole?.name || rawRole?.value || "", fallback);
+          }
+          const role = String(rawRole || "").trim().toLowerCase();
+          const mapped = ROLE_ALIAS_MAP[role] || role;
+          return DEFAULT_ROLES.includes(mapped) ? mapped : fallback;
+        }
         function normalizeProfileImageValue(value) {
           const raw = String(value || "").trim();
           if (!raw) return "";
@@ -912,7 +985,10 @@
         function normalizeAuthUser(user = {}) {
           const meta = user.user_metadata || {};
           const appMeta = user.app_metadata || {};
-          const role = String(appMeta.role || meta.role || user.role || "coach").trim().toLowerCase();
+          const role = normalizeRoleForAuth(
+            appMeta.role || meta.role || user.role || appMeta.roleHierarchy || meta.roleHierarchy || user.roleHierarchy,
+            "coach"
+          );
           const status = String(appMeta.status || meta.status || user.status || "active").trim().toLowerCase();
           return {
             id: String(user.id || ""),
@@ -2992,7 +3068,7 @@
             }
             notifyAuthChange(null);
           },
-          isAdmin: () => ["admin", "club-admin", "team-admin"].includes(authState.currentUser?.role),
+          isAdmin: () => ["admin", "club-admin", "team-admin"].includes(normalizeRoleForAuth(authState.currentUser?.role, "")),
           roles: authState.roles,
         };
         window.footballScienceCentralState={hydrate:hydrateCentralState,syncKey:syncCentralStateKey,isCentralKey:isCentralStateKey,isHydrated:()=>centralState.hydrated,getStatus:()=>({...centralState})};

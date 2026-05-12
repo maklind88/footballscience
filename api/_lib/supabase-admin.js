@@ -2,6 +2,15 @@ const { finishApiRequest } = require("./platform-security.js");
 
 const DEFAULT_ROLES = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
 const ROLE_LOOKUP = new Set(DEFAULT_ROLES);
+const ROLE_ALIAS_MAP = Object.freeze({
+  "super-admin": "admin",
+  "superadmin": "admin",
+  "administrator": "admin",
+  "platform-admin": "admin",
+  "platform owner": "admin",
+  "owner": "admin",
+  "admin-role": "admin",
+});
 const DEFAULT_CLUB_ID = "club-ncc";
 const DEFAULT_TEAM_ID = "team-ncc-first";
 const MIN_PASSWORD_LENGTH = 6;
@@ -59,8 +68,15 @@ function parseBearer(value) {
 }
 
 function normalizeRole(value) {
+  if (Array.isArray(value)) {
+    return normalizeRole(value.find((entry) => typeof entry === "string" && entry.trim()) || "coach");
+  }
+  if (value && typeof value === "object") {
+    return normalizeRole(value?.role || value?.name || value?.value || "coach");
+  }
   const role = String(value || "coach").trim().toLowerCase();
-  return ROLE_LOOKUP.has(role) ? role : "coach";
+  const mappedRole = ROLE_ALIAS_MAP[role] || role;
+  return ROLE_LOOKUP.has(mappedRole) ? mappedRole : "coach";
 }
 
 function normalizeStatus(value) {

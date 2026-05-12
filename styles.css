@@ -19,6 +19,9 @@
   box-sizing: border-box;
 }
 body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue",sans-serif;color:var(--ink);background:var(--bg)}
+body{
+  color-scheme: light;
+}
 [hidden]{display:none!important}
 .login-screen{
   min-height: 100vh;
@@ -507,6 +510,22 @@ body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF 
   cursor: pointer;
 }
 
+body.is-dark-mode .workspace-switcher-label select{
+  color: #e2e8f0;
+  border-color: rgba(148, 163, 184, 0.32);
+  background:
+    linear-gradient(180deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.86)),
+    rgba(15, 23, 42, 0.82);
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(226, 232, 240, 0.85) 50%),
+    linear-gradient(135deg, rgba(226, 232, 240, 0.85) 50%, transparent 50%);
+  background-position:
+    calc(100% - 0.84rem) 48%,
+    calc(100% - 0.62rem) 48%;
+  background-size: 0.46rem 0.46rem;
+  background-repeat: no-repeat;
+}
+
 .workspace-switcher-label::after{
   content: "";
   width: 0.45rem;
@@ -518,10 +537,62 @@ body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF 
   transform: rotate(45deg) translateY(-1px);
 }
 
+body.is-dark-mode .workspace-switcher-label::after{
+  border-right-color: rgba(226, 232, 240, 0.7);
+  border-bottom-color: rgba(226, 232, 240, 0.7);
+}
+
 .workspace-switcher-label select:focus-visible{
   box-shadow:
     0 0 0 4px rgba(0, 113, 227, 0.13),
     0 12px 30px rgba(0, 0, 0, 0.08);
+}
+
+body.is-dark-mode .workspace-switcher-label select:hover{
+  background:
+    linear-gradient(180deg, rgba(30, 41, 59, 0.98), rgba(15, 23, 42, 0.92)),
+    rgba(15, 23, 42, 0.88);
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(226, 232, 240, 0.92) 50%),
+    linear-gradient(135deg, rgba(226, 232, 240, 0.92) 50%, transparent 50%);
+  background-position:
+    calc(100% - 0.84rem) 48%,
+    calc(100% - 0.62rem) 48%;
+  background-size: 0.46rem 0.46rem;
+  background-repeat: no-repeat;
+}
+
+body.is-dark-mode .workspace-switcher-label select:focus-visible{
+  box-shadow:
+    0 0 0 4px rgba(59, 130, 246, 0.22),
+    0 12px 28px rgba(0, 0, 0, 0.28);
+}
+
+body.is-dark-mode .platform-account-button{
+  background: rgba(15, 23, 42, 0.86);
+  color: #e2e8f0;
+  border-color: rgba(148, 163, 184, 0.22);
+}
+
+body.is-dark-mode .platform-account-button:hover,
+body.is-dark-mode .platform-account-button:focus-visible{
+  background: rgba(30, 41, 59, 0.95);
+  border-color: rgba(148, 163, 184, 0.32);
+}
+
+body.is-dark-mode .platform-account-button:focus-visible{
+  box-shadow:
+    0 0 0 4px rgba(59, 130, 246, 0.22),
+    0 12px 28px rgba(0, 0, 0, 0.28);
+}
+
+body.is-dark-mode .platform-account-button::after{
+  border-right-color: rgba(226, 232, 240, 0.76);
+  border-bottom-color: rgba(226, 232, 240, 0.76);
+}
+
+body.is-dark-mode .platform-account-copy small{
+  color: #94a3b8;
 }
 
 .platform-account-menu{
@@ -655,6 +726,11 @@ body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF 
   transform: rotate(45deg);
 }
 
+body.is-dark-mode .platform-profile-menu::before{
+  background: rgba(15, 23, 42, 0.96);
+  border-color: rgba(148, 163, 184, 0.32);
+}
+
 .profile-menu-head{
   display: flex;
   align-items: center;
@@ -730,6 +806,114 @@ body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF 
 .platform-profile-menu button:hover{
   background: rgba(0, 0, 0, 0.055);
   box-shadow: none;
+}
+
+.platform-theme-switcher{
+  margin: 0.32rem 0;
+  padding: 0.4rem 0.45rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.platform-theme-switcher-label{
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 0.24rem;
+  color: #6e6e73;
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.platform-theme-select{
+  width: 100%;
+  min-height: 2.45rem;
+  border: 1px solid rgba(0, 0, 0, 0.11);
+  border-radius: 999px;
+  padding: 0 2.2rem 0 0.8rem;
+  text-indent: 0.02rem;
+  color: #1d1d1f;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(247, 247, 249, 0.88)),
+    rgba(255, 255, 255, 0.78);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(29, 29, 31, 0.7) 50%),
+    linear-gradient(135deg, rgba(29, 29, 31, 0.7) 50%, transparent 50%);
+  background-position:
+    calc(100% - 0.84rem) 48%,
+    calc(100% - 0.62rem) 48%;
+  background-size: 0.46rem 0.46rem;
+  background-repeat: no-repeat;
+}
+
+.platform-theme-select:focus-visible{
+  box-shadow:
+    0 0 0 4px rgba(0, 113, 227, 0.13),
+    0 12px 30px rgba(0, 0, 0, 0.08);
+}
+
+body.is-dark-mode .platform-theme-select:focus-visible{
+  box-shadow:
+    0 0 0 4px rgba(59, 130, 246, 0.2),
+    0 12px 30px rgba(0, 0, 0, 0.18);
+}
+
+.platform-theme-select:hover{
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(238, 238, 243, 0.92)),
+    rgba(255, 255, 255, 0.94);
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(29, 29, 31, 0.82) 50%),
+    linear-gradient(135deg, rgba(29, 29, 31, 0.82) 50%, transparent 50%);
+  background-position:
+    calc(100% - 0.84rem) 48%,
+    calc(100% - 0.62rem) 48%;
+  background-size: 0.46rem 0.46rem;
+  background-repeat: no-repeat;
+}
+
+body.is-dark-mode .platform-theme-switcher{
+  background: rgba(15, 23, 42, 0.72);
+}
+
+body.is-dark-mode .platform-theme-switcher-label{
+  color: var(--muted);
+}
+
+body.is-dark-mode .platform-theme-select{
+  color: var(--ink);
+  border-color: rgba(148, 163, 184, 0.32);
+  background:
+    linear-gradient(180deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.86)),
+    rgba(15, 23, 42, 0.82);
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(229, 231, 235, 0.75) 50%),
+    linear-gradient(135deg, rgba(229, 231, 235, 0.75) 50%, transparent 50%);
+  background-position:
+    calc(100% - 0.84rem) 48%,
+    calc(100% - 0.62rem) 48%;
+  background-size: 0.46rem 0.46rem;
+  background-repeat: no-repeat;
+}
+
+body.is-dark-mode .platform-theme-select:hover{
+  background:
+    linear-gradient(180deg, rgba(30, 41, 59, 0.98), rgba(15, 23, 42, 0.92)),
+    rgba(15, 23, 42, 0.88);
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(229, 231, 235, 0.88) 50%),
+    linear-gradient(135deg, rgba(229, 231, 235, 0.88) 50%, transparent 50%);
+  background-position:
+    calc(100% - 0.84rem) 48%,
+    calc(100% - 0.62rem) 48%;
+  background-size: 0.46rem 0.46rem;
+  background-repeat: no-repeat;
 }
 
 .platform-profile-menu .profile-menu-logout{
@@ -21190,6 +21374,345 @@ body.is-dark-mode .dashboard-chat-widget .dashboard-chat-form textarea{
   border-color: rgba(148, 163, 184, 0.2);
 }
 
+body.is-dark-mode .platform-schedule-view,
+body.is-dark-mode .platform-periodization-view,
+body.is-dark-mode .platform-session-view{
+  color: var(--ink);
+}
+
+body.is-dark-mode .schedule-hero-card,
+body.is-dark-mode .session-planner-hero{
+  background:
+    radial-gradient(circle at 92% 0%, rgba(37, 99, 235, 0.14), transparent 16rem),
+    rgba(15, 23, 42, 0.78);
+  border-color: rgba(148, 163, 184, 0.22);
+  box-shadow: 0 24px 70px rgba(3, 7, 18, 0.42);
+}
+
+body.is-dark-mode .schedule-title,
+body.is-dark-mode .session-planner-hero h1{
+  color: var(--ink);
+}
+
+body.is-dark-mode .schedule-toolbar,
+body.is-dark-mode .session-date-strip{
+  background: rgba(15, 23, 42, 0.65);
+  border-color: rgba(148, 163, 184, 0.22);
+}
+
+body.is-dark-mode .schedule-view-switch,
+body.is-dark-mode .schedule-span-select,
+body.is-dark-mode .session-date-controls,
+body.is-dark-mode .schedule-span-buttons{
+  background: rgba(30, 41, 59, 0.66);
+}
+
+body.is-dark-mode .schedule-view-button,
+body.is-dark-mode .schedule-span-label,
+body.is-dark-mode .schedule-span-buttons button,
+body.is-dark-mode .session-date-pill{
+  color: var(--muted);
+}
+
+body.is-dark-mode .schedule-view-button.is-active,
+body.is-dark-mode .schedule-span-buttons button.is-active,
+body.is-dark-mode .session-date-pill.is-active{
+  color: #ffffff;
+  background: #1d4ed8;
+}
+
+body.is-dark-mode .session-date-nav-button,
+body.is-dark-mode .session-date-today-button,
+body.is-dark-mode .schedule-date-nav-button,
+body.is-dark-mode .session-planner-workspace .session-date-nav-button,
+body.is-dark-mode .session-planner-workspace .session-date-today-button{
+  color: var(--ink);
+  background: rgba(30, 41, 59, 0.82);
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+body.is-dark-mode .session-date-pill.is-active.has-session::after{
+  background: #ffffff;
+}
+
+body.is-dark-mode .session-date-pill.has-session::after{
+  background: #60a5fa;
+}
+
+body.is-dark-mode .session-date-pill span,
+body.is-dark-mode .session-date-pill strong,
+body.is-dark-mode .session-date-pill em{
+  color: var(--ink);
+}
+
+body.is-dark-mode .session-date-pill.is-active span,
+body.is-dark-mode .session-date-pill.is-active strong,
+body.is-dark-mode .session-date-pill.is-active em{
+  color: #f8fafc;
+}
+
+body.is-dark-mode .session-medical-availability{
+  color: var(--ink);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.9));
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+body.is-dark-mode .session-medical-availability header strong{
+  color: var(--ink);
+}
+
+body.is-dark-mode .session-medical-availability header span,
+body.is-dark-mode .session-medical-availability header small{
+  color: var(--muted);
+}
+
+body.is-dark-mode .session-medical-summary span{
+  background: rgba(30, 41, 59, 0.82);
+  border-color: rgba(148, 163, 184, 0.2);
+  color: var(--muted);
+}
+
+body.is-dark-mode .session-medical-bucket.is-availability-0{
+  border-color: #7f1d1d;
+  background: rgba(146, 39, 39, 0.24);
+  color: #fecaca;
+}
+
+body.is-dark-mode .session-medical-bucket.is-availability-10{
+  border-color: #9f1239;
+  background: rgba(190, 18, 60, 0.22);
+  color: #fecdd3;
+}
+
+body.is-dark-mode .session-medical-bucket.is-availability-25{
+  border-color: #9a3412;
+  background: rgba(180, 83, 9, 0.2);
+  color: #fed7aa;
+}
+
+body.is-dark-mode .session-medical-bucket.is-availability-50{
+  border-color: #854d0e;
+  background: rgba(161, 98, 7, 0.22);
+  color: #fef08a;
+}
+
+body.is-dark-mode .session-medical-bucket.is-availability-75{
+  border-color: #166534;
+  background: rgba(22, 101, 52, 0.24);
+  color: #bbf7d0;
+}
+
+body.is-dark-mode .session-medical-bucket.is-availability-100{
+  border-color: #15803d;
+  background: rgba(21, 128, 61, 0.24);
+  color: #bbf7d0;
+}
+
+body.is-dark-mode .session-planner-grid,
+body.is-dark-mode .session-card{
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+body.is-dark-mode .session-card{
+  background: rgba(30, 41, 59, 0.82);
+  box-shadow: 0 24px 70px rgba(3, 7, 18, 0.36);
+}
+
+body.is-dark-mode .session-card-head h2,
+body.is-dark-mode .session-builder-head h2,
+body.is-dark-mode .session-planner-summary-chips .session-matchday-chip,
+body.is-dark-mode .session-builder-head p,
+body.is-dark-mode .session-total-time-chip b,
+body.is-dark-mode .session-total-time-chip span{
+  color: var(--ink);
+}
+
+body.is-dark-mode .session-card-head span,
+body.is-dark-mode .session-builder-head span,
+body.is-dark-mode .session-builder-field span,
+body.is-dark-mode .session-field-readonly span,
+body.is-dark-mode .session-builder-header-field,
+body.is-dark-mode .session-builder-focus-input,
+body.is-dark-mode .session-planner-summary-chips .session-matchday-chip{
+  color: var(--muted);
+}
+
+body.is-dark-mode .session-matchday-chip{
+  background: rgba(244, 63, 94, 0.16);
+  color: #fecdd3;
+}
+
+body.is-dark-mode .session-total-time-chip{
+  background: rgba(14, 116, 144, 0.22);
+  color: #bae6fd;
+}
+
+body.is-dark-mode .session-builder-title-input,
+body.is-dark-mode .session-builder-focus-input,
+body.is-dark-mode .session-builder-header-field,
+body.is-dark-mode .session-builder-header-field:focus,
+body.is-dark-mode .session-add-block-button,
+body.is-dark-mode .session-print-open-button,
+body.is-dark-mode .session-print-open-button:hover{
+  color: #f8fafc;
+}
+
+body.is-dark-mode .session-builder-title-input,
+body.is-dark-mode .session-builder-header-field,
+body.is-dark-mode .session-builder-focus-input{
+  background: rgba(2, 6, 23, 0.5);
+}
+
+body.is-dark-mode .session-block-empty,
+body.is-dark-mode .session-block-button{
+  color: var(--muted);
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(148, 163, 184, 0.18);
+}
+
+body.is-dark-mode .session-block-empty strong,
+body.is-dark-mode .session-block-button strong{
+  color: var(--ink);
+}
+
+body.is-dark-mode .session-block-button{
+  color: var(--ink);
+  background: rgba(30, 41, 59, 0.76);
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+body.is-dark-mode .session-block-button span,
+body.is-dark-mode .session-block-button small{
+  color: var(--muted);
+}
+
+body.is-dark-mode .session-block-button.is-active{
+  background: linear-gradient(145deg, #1d4ed8, #1e40af);
+}
+
+body.is-dark-mode .session-block-order-controls button{
+  color: var(--ink);
+  background: rgba(30, 41, 59, 0.88);
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+body.is-dark-mode .session-block-delete-button{
+  color: #fda4af;
+  background: rgba(15, 23, 42, 0.9);
+}
+
+body.is-dark-mode .session-builder-action-button{
+  color: var(--ink);
+  background: rgba(30, 41, 59, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+body.is-dark-mode .session-builder-action-button-save{
+  color: #f8fafc;
+}
+
+body.is-dark-mode .session-builder-action-button-danger{
+  background: rgba(220, 38, 38, 0.16);
+  color: #fecaca;
+}
+
+body.is-dark-mode .platform-session-view,
+body.is-dark-mode .platform-periodization-view,
+body.is-dark-mode .platform-schedule-view{
+  color: var(--ink);
+}
+
+body.is-dark-mode .platform-session-view [class*="session-"],
+body.is-dark-mode .platform-periodization-view [class*="session-"],
+body.is-dark-mode .platform-schedule-view [class*="session-"]{
+  color: var(--ink);
+}
+
+body.is-dark-mode .platform-session-view [class*="session-"] :where(*),
+body.is-dark-mode .platform-periodization-view [class*="session-"] :where(*),
+body.is-dark-mode .platform-schedule-view [class*="session-"] :where(*){
+  color: inherit;
+}
+
+body.is-dark-mode .platform-session-view :is(
+  [class*="session-"][class*="card"],
+  [class*="session-"][class*="panel"],
+  [class*="session-"][class*="modal"],
+  [class*="session-"][class*="overlay"],
+  [class*="session-"][class*="dialog"],
+  [class*="session-"][class*="board"],
+  [class*="session-"][class*="list"],
+  [class*="session-"][class*="toolbar"],
+  [class*="session-"][class*="tool"],
+  [class*="session-"][class*="head"],
+  [class*="session-"][class*="header"],
+  [class*="session-"][class*="body"],
+  [class*="session-"][class*="meta"],
+  [class*="session-"][class*="search"],
+  [class*="session-"][class*="filter"],
+  [class*="session-"][class*="field"],
+  [class*="session-"][class*="item"],
+  [class*="session-"][class*="row"],
+  [class*="session-"][class*="toast"],
+  [class*="session-"][class*="assistant"],
+  [class*="session-"][class*="print"],
+  [class*="session-"][class*="library"],
+  [class*="session-"][class*="history"],
+  [class*="session-"][class*="selection"],
+  [class*="session-"][class*="actions"],
+  [class*="session-"][class*="tools"],
+  [class*="session-"][class*="workspace"],
+  [class*="session-"][class*="menu"],
+  [class*="session-"][class*="segment"],
+  [class*="session-"][class*="summary"],
+  [class*="session-"][class*="preview"]
+){
+  background: rgba(15, 23, 42, 0.7);
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+body.is-dark-mode .platform-session-view [class*="session-"] input,
+body.is-dark-mode .platform-session-view [class*="session-"] textarea,
+body.is-dark-mode .platform-session-view [class*="session-"] select,
+body.is-dark-mode .platform-periodization-view [class*="session-"] input,
+body.is-dark-mode .platform-periodization-view [class*="session-"] textarea,
+body.is-dark-mode .platform-periodization-view [class*="session-"] select,
+body.is-dark-mode .platform-schedule-view [class*="session-"] input,
+body.is-dark-mode .platform-schedule-view [class*="session-"] textarea,
+body.is-dark-mode .platform-schedule-view [class*="session-"] select{
+  background: rgba(15, 23, 42, 0.92) !important;
+  border-color: rgba(148, 163, 184, 0.24) !important;
+  color: var(--ink) !important;
+}
+
+body.is-dark-mode .platform-session-view [class*="session-"] button,
+body.is-dark-mode .platform-periodization-view [class*="session-"] button,
+body.is-dark-mode .platform-schedule-view [class*="session-"] button{
+  border-color: rgba(148, 163, 184, 0.2);
+  color: var(--ink);
+}
+
+body.is-dark-mode .session-diagram-card,
+body.is-dark-mode .session-detail-card{
+  background: rgba(15, 23, 42, 0.64);
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+body.is-dark-mode .session-pitch-diagram{
+  --session-pitch-line: rgba(226, 232, 240, 0.84);
+  --session-pitch-goal-line: rgba(226, 232, 240, 0.85);
+  --session-pitch-goal-net: rgba(226, 232, 240, 0.24);
+}
+
+body.is-dark-mode .session-pitch-diagram::before,
+body.is-dark-mode .session-pitch-box,
+body.is-dark-mode .session-pitch-goal-area,
+body.is-dark-mode .session-pitch-goal,
+body.is-dark-mode .session-pitch-penalty-spot{
+  border-color: var(--session-pitch-line);
+  color: var(--session-pitch-line);
+}
+
 body.is-dark-mode .dashboard-chat-widget .dashboard-chat-message p,
 body.is-dark-mode .dashboard-chat-widget .dashboard-chat-bubble p{
   border-radius: 10px;
@@ -21233,8 +21756,27 @@ body.is-dark-mode .platform-account-button{
   border-color: rgba(148, 163, 184, 0.2);
 }
 
+body.is-dark-mode .platform-profile-menu{
+  box-shadow: 0 26px 80px rgba(3, 7, 18, 0.55);
+}
+
+body.is-dark-mode .platform-profile-menu::before{
+  background: rgba(15, 23, 42, 0.96);
+  border-left-color: rgba(148, 163, 184, 0.24);
+  border-top-color: rgba(148, 163, 184, 0.24);
+}
+
 body.is-dark-mode .platform-profile-menu button{
   color: var(--ink);
+}
+
+body.is-dark-mode .platform-profile-menu button:hover,
+body.is-dark-mode .platform-profile-menu button:focus-visible{
+  background: rgba(30, 41, 59, 0.84);
+}
+
+body.is-dark-mode .platform-profile-menu button.profile-menu-logout:hover{
+  color: #fda4af;
 }
 
 body.is-dark-mode .profile-menu-data-status{

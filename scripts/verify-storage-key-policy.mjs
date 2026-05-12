@@ -9,6 +9,7 @@ const appSource = fs.readFileSync(path.join(rootDir, "app.js"), "utf8");
 
 const approvedLocalOnlyStorageKeys = Object.freeze({
   "football-workspace-last-active-local-v1": "per-browser navigation memory; never shared between staff",
+  "football-platform-theme-mode-v1": "per-browser theme preference for local UI chrome",
   "football-dashboard-chat-deleted-message-ids-v1": "legacy chat compatibility cache; chat source of truth is /api/chat",
   "football-dashboard-chat-local-cache-reset-v1": "per-browser chat cache migration marker",
   "football-dashboard-chat-widget-state-v1": "per-browser widget open/minimized preference",

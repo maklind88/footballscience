@@ -20,6 +20,7 @@ test("Schedule adapter normalizes current schedule storage without changing the 
     selectedDate: "2026-05-07",
     viewMode: "overview",
     overviewSpan: 9,
+    visibleEventTypes: ["match", "training", "match", "bad"],
     importVersion: "ncc-2026-numbers-v1",
     events: [
       {
@@ -51,6 +52,7 @@ test("Schedule adapter normalizes current schedule storage without changing the 
     selectedDate: "2026-05-07",
     viewMode: "overview",
     overviewSpan: 9,
+    visibleEventTypes: ["match", "training"],
     importVersion: "ncc-2026-numbers-v1",
   });
   expect(state.events).toHaveLength(2);
@@ -142,6 +144,7 @@ test("Schedule adapter treats invalid legacy payloads as empty instead of destru
     selectedMonthIndex: 4,
     viewMode: "month",
     overviewSpan: 6,
+    visibleEventTypes: ["training", "match", "meeting", "travel", "recovery", "off"],
     events: [],
   });
   expect(normalizeScheduleState({ events: "bad" }, { now, idFactory }).events).toEqual([]);

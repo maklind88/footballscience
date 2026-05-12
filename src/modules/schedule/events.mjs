@@ -86,6 +86,12 @@ export function normalizeScheduleEventType(type) {
   return scheduleEventTypes[normalizedType] ? normalizedType : "training";
 }
 
+export function normalizeScheduleVisibleEventTypes(value) {
+  const candidateTypes = Array.isArray(value) ? value : scheduleEventTypeKeys;
+  const visibleTypes = Array.from(new Set(candidateTypes.map(normalizeText).filter((type) => scheduleEventTypes[type])));
+  return Object.freeze(visibleTypes.length ? visibleTypes : [...scheduleEventTypeKeys]);
+}
+
 export function normalizeScheduleEvent(event = {}, options = {}) {
   const fallbackDate = normalizeText(options.selectedDate) || formatScheduleDateValue(options.now || defaultNow());
   const idFactory = typeof options.idFactory === "function" ? options.idFactory : defaultIdFactory;
@@ -129,6 +135,7 @@ export function normalizeScheduleState(rawValue, options = {}) {
     selectedDate,
     viewMode: ["month", "week", "overview"].includes(source.viewMode) ? source.viewMode : "month",
     overviewSpan,
+    visibleEventTypes: normalizeScheduleVisibleEventTypes(source.visibleEventTypes),
     importVersion: normalizeText(source.importVersion),
     events: Object.freeze(events),
   });

@@ -9153,6 +9153,9 @@ function getDashboardChatThreadData(
   const apiThread = dashboardChatApiThreads.find((thread) => thread.threadId === normalizedThreadId) || null;
   const apiLastMessage = apiThread?.lastMessage ? normalizeDashboardApiMessage(apiThread.lastMessage, apiThread) : null;
   const lastMessage = threadMessages.length ? threadMessages[threadMessages.length - 1] : apiLastMessage;
+  const effectiveUnreadCount = threadMessages.length
+    ? unreadCount
+    : Number(apiThread?.unreadCount || 0) || 0;
   const hasMessageActivity = Boolean(threadMessages.length || apiLastMessage || Number(apiThread?.messageCount || 0) > 0);
   const lastActivityMs = hasMessageActivity
     ? Math.max(
@@ -9172,7 +9175,7 @@ function getDashboardChatThreadData(
     type: apiThread?.type || (isManagedThread ? managedTemplate?.type : isTeamThread ? "team" : "dm"),
     participant: participants[0] || null,
     messageCount: Math.max(threadMessages.length, apiThread?.messageCount || 0),
-    unreadCount: Math.max(unreadCount, apiThread?.unreadCount || 0),
+    unreadCount: effectiveUnreadCount,
     mentionCount,
     lastMessage,
     lastActivityAt: lastActivityMs ? new Date(lastActivityMs).toISOString() : "",

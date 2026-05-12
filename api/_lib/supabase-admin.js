@@ -156,7 +156,7 @@ function normalizePlatformUser(user) {
     username: normalizeUsername(metadata?.username || metadata?.user_name || emailHandle(user?.email || ""), "user"),
     firstName: normalizeProfileValue(metadata?.firstName || metadata?.first_name || "New", MAX_NAME_LENGTH),
     lastName: normalizeProfileValue(metadata?.lastName || metadata?.last_name || "User", MAX_NAME_LENGTH),
-    role: normalizeRole(appMetadata?.role || "coach"),
+    role: normalizeRole(appMetadata?.role || metadata?.role || user?.role || "coach"),
     title: normalizeProfileValue(metadata?.title || "Coach", MAX_METADATA_FIELD_LENGTH),
     department: normalizeProfileValue(metadata?.department || "Football", MAX_METADATA_FIELD_LENGTH),
     clubId: normalizeProfileValue(metadata?.clubId || metadata?.club_id || DEFAULT_CLUB_ID, MAX_METADATA_FIELD_LENGTH),

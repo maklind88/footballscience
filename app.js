@@ -20740,7 +20740,7 @@ function getSessionPlannerAvailabilityItems(dateValue = medicalState?.selectedDa
     if (!isTemporaryPlayerProfile(item.player)) {
       return true;
     }
-    return Boolean(item.record);
+    return isPlayerProfileTemporaryActiveOnDate(item.player, dateValue) && Boolean(item.record);
   });
 }
 
@@ -23026,6 +23026,43 @@ function normalizePlayerProfileTemporaryDate(value) {
   return cleanValue;
 }
 
+function isPlayerProfileTemporaryActiveOnDate(player = {}, dateValue = "") {
+  if (!isTemporaryPlayerProfile(player)) {
+    return true;
+  }
+
+  const activeDate = normalizePlayerProfileTemporaryDate(dateValue);
+  if (!activeDate) {
+    return true;
+  }
+
+  const fromDate = normalizePlayerProfileTemporaryDate(player.temporaryFrom);
+  const toDate = normalizePlayerProfileTemporaryDate(player.temporaryTo);
+  if (fromDate && activeDate < fromDate) {
+    return false;
+  }
+  if (toDate && activeDate > toDate) {
+    return false;
+  }
+
+  return true;
+}
+
+function getPlayerProfileTemporaryWindowLabel(player = {}) {
+  const fromDate = normalizePlayerProfileTemporaryDate(player.temporaryFrom);
+  const toDate = normalizePlayerProfileTemporaryDate(player.temporaryTo);
+  if (fromDate && toDate) {
+    return `${fromDate} to ${toDate}`;
+  }
+  if (fromDate) {
+    return `from ${fromDate}`;
+  }
+  if (toDate) {
+    return `until ${toDate}`;
+  }
+  return "";
+}
+
 function playerProfileCountsInSquad(player = {}) {
   if (typeof player.countsInSquad === "boolean") {
     return player.countsInSquad;
@@ -23964,11 +24001,11 @@ function renderSquadRosterMeta(player) {
   if (!isTemporaryPlayerProfile(player)) {
     return "";
   }
-  const dates = [player.temporaryFrom, player.temporaryTo].filter(Boolean).join(" to ");
+  const windowLabel = getPlayerProfileTemporaryWindowLabel(player);
   return `
     <small class="squad-player-temporary-meta">
       ${escapeHtml(getPlayerProfileRosterTypeOption(player.rosterType).shortLabel || "Temporary")}
-      ${dates ? ` / ${escapeHtml(dates)}` : ""}
+      ${windowLabel ? ` / ${escapeHtml(windowLabel)}` : ""}
     </small>
   `;
 }
@@ -26516,7 +26553,10 @@ function renderMedicalTemporaryPlayerBadge(player = {}) {
   if (!isTemporaryPlayerProfile(player)) {
     return "";
   }
-  return `<span class="medical-temporary-badge">${escapeHtml(getPlayerProfileRosterLabel(player))}</span>`;
+  const windowLabel = getPlayerProfileTemporaryWindowLabel(player);
+  const isActiveToday = isPlayerProfileTemporaryActiveOnDate(player, medicalState?.selectedDate);
+  const label = [getPlayerProfileRosterLabel(player), windowLabel].filter(Boolean).join(" / ");
+  return `<span class="medical-temporary-badge${isActiveToday ? "" : " is-outside-window"}">${escapeHtml(label)}</span>`;
 }
 
 function getMedicalDailyStats(dateValue = medicalState?.selectedDate) {

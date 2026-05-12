@@ -203,7 +203,7 @@ Current direction:
 - Search, role-group filter, and add-player button live in one command bar.
 - Clicking a player opens the player profile in a modal.
 - Temporary players can be added as academy call-ups, trialists, or guest training players. They live in Squad and sync to Medical for clearance, but `countsInSquad=false` keeps them out of first-team totals, depth, and role balance.
-- Session Planner only sees a temporary player when Medical has logged an availability record or active availability plan for that training date.
+- Temporary players can carry a `temporaryFrom`/`temporaryTo` training window. Session Planner only sees them inside that window and only when Medical has logged an availability record or active availability plan for that training date.
 - Heavy sections below the list stay hidden until needed.
 - Long-term data moves from `football-player-profiles-v1` to the multi-tenant `squad_*` schema.
 

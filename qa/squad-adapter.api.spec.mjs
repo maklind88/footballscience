@@ -4,6 +4,8 @@ import {
   createSquadLegacyReadAdapter,
   createSquadRosterDraft,
   filterSquadPlayers,
+  isSquadPlayerTemporaryActiveOnDate,
+  normalizeSquadDateValue,
   normalizeSquadState,
   selectSquadPlayerPage,
   squadStorageKey,
@@ -84,6 +86,8 @@ test("Squad selectors support filtering, counts, and cursor-friendly pages", () 
           rosterType: "academy",
           countsInSquad: false,
           temporaryGroup: "Academy Training Group",
+          temporaryFrom: "2026-05-08",
+          temporaryTo: "2026-05-12",
           rosterOrder: 4,
         },
       ],
@@ -108,6 +112,12 @@ test("Squad selectors support filtering, counts, and cursor-friendly pages", () 
     },
   });
   expect(filterSquadPlayers(state.players, { rosterType: "temporary" }).map((player) => player.id)).toEqual(["academy-1"]);
+  expect(filterSquadPlayers(state.players, { rosterType: "temporary", activeOnDate: "2026-05-07" }).map((player) => player.id)).toEqual([]);
+  expect(filterSquadPlayers(state.players, { rosterType: "temporary", activeOnDate: "2026-05-10" }).map((player) => player.id)).toEqual(["academy-1"]);
+  expect(filterSquadPlayers(state.players, { rosterType: "temporary", activeOnDate: "2026-05-13" }).map((player) => player.id)).toEqual([]);
+  expect(isSquadPlayerTemporaryActiveOnDate(state.players.find((player) => player.id === "academy-1"), "2026-05-12")).toBe(true);
+  expect(isSquadPlayerTemporaryActiveOnDate(state.players.find((player) => player.id === "academy-1"), "2026-05-13")).toBe(false);
+  expect(normalizeSquadDateValue("bad-date")).toBe("");
   expect(filterSquadPlayers(state.players, { rosterType: "squad" }).map((player) => player.id)).toEqual([
     "gk",
     "cb",

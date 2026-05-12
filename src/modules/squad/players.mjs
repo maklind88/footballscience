@@ -55,6 +55,41 @@ function normalizeBoolean(value, fallback = false) {
   return fallback;
 }
 
+export function normalizeSquadDateValue(value) {
+  const cleanValue = normalizeText(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanValue)) {
+    return "";
+  }
+
+  const parsedDate = new Date(`${cleanValue}T00:00:00`);
+  return Number.isNaN(parsedDate.getTime()) ? "" : cleanValue;
+}
+
+export function isSquadPlayerTemporary(player = {}) {
+  return player.countsInSquad === false;
+}
+
+export function isSquadPlayerTemporaryActiveOnDate(player = {}, dateValue = "") {
+  if (!isSquadPlayerTemporary(player)) {
+    return true;
+  }
+
+  const activeDate = normalizeSquadDateValue(dateValue);
+  if (!activeDate) {
+    return true;
+  }
+
+  const fromDate = normalizeSquadDateValue(player.temporaryFrom || player.temporary_from);
+  const toDate = normalizeSquadDateValue(player.temporaryTo || player.temporary_to);
+  if (fromDate && activeDate < fromDate) {
+    return false;
+  }
+  if (toDate && activeDate > toDate) {
+    return false;
+  }
+  return true;
+}
+
 export function parseSquadStatePayload(rawValue) {
   if (!rawValue) {
     return {};
@@ -148,8 +183,8 @@ export function normalizeSquadPlayer(player = {}, options = {}) {
     rosterType,
     countsInSquad,
     temporaryGroup: countsInSquad ? "" : normalizeText(player.temporaryGroup || player.temporary_group || player.subGroup || player.sub_group),
-    temporaryFrom: countsInSquad ? "" : normalizeText(player.temporaryFrom || player.temporary_from || player.startDate || player.start_date),
-    temporaryTo: countsInSquad ? "" : normalizeText(player.temporaryTo || player.temporary_to || player.endDate || player.end_date),
+    temporaryFrom: countsInSquad ? "" : normalizeSquadDateValue(player.temporaryFrom || player.temporary_from || player.startDate || player.start_date),
+    temporaryTo: countsInSquad ? "" : normalizeSquadDateValue(player.temporaryTo || player.temporary_to || player.endDate || player.end_date),
     primaryRole,
     secondaryRoles: Object.freeze(secondaryRoles),
     roleGroup,
@@ -227,6 +262,7 @@ export function filterSquadPlayers(players = [], filters = {}) {
   const status = normalizeKey(filters.status || "all");
   const squadStatus = normalizeKey(filters.squadStatus || "all");
   const rosterType = normalizeKey(filters.rosterType || "all");
+  const activeOnDate = normalizeSquadDateValue(filters.activeOnDate || filters.date);
 
   return Object.freeze(
     players.filter((player) => {
@@ -246,6 +282,9 @@ export function filterSquadPlayers(players = [], filters = {}) {
         return false;
       }
       if (!["all", "squad", "temporary"].includes(rosterType) && player.rosterType !== rosterType) {
+        return false;
+      }
+      if (activeOnDate && !isSquadPlayerTemporaryActiveOnDate(player, activeOnDate)) {
         return false;
       }
       if (query && !getSquadPlayerSearchText(player).includes(query)) {

@@ -19058,6 +19058,11 @@ select{
   white-space: nowrap;
 }
 
+.medical-player-title-line .medical-temporary-badge.is-outside-window{
+  color: #8a5a00;
+  background: #fff3d8;
+}
+
 .medical-status-chip{
   display: inline-flex;
   align-items: center;

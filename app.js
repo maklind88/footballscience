@@ -636,7 +636,7 @@ function applyCentralSyncedStateValue(write = {}, syncedValue) {
     return;
   }
   if (key === playerProfilesStorageKey) {
-    playerProfileLastImportSnapshot = null;
+    clearPlayerProfileImportUndoSnapshots();
     playerProfilesState = readPlayerProfilesState();
     if (hubState?.activeWorkspaceId === "player-profiles" && !shouldDeferCentralizedAppStateReload()) {
       renderPlayerProfilesWorkspace();
@@ -644,7 +644,7 @@ function applyCentralSyncedStateValue(write = {}, syncedValue) {
     return;
   }
   if (key === medicalTeamStorageKey) {
-    playerProfileLastImportSnapshot = null;
+    clearPlayerProfileImportUndoSnapshots();
     medicalState = readMedicalState();
     if (hubState?.activeWorkspaceId === "player-profiles" && !shouldDeferCentralizedAppStateReload()) {
       renderPlayerProfilesWorkspace();
@@ -4040,6 +4040,8 @@ let playerProfilesRosterFilter = "all";
 let playerProfileActiveTab = "overview";
 let playerProfileModalOpen = false;
 let playerProfileNewPlayerModalOpen = false;
+const playerProfileImportUndoHistoryLimit = 3;
+let playerProfileImportUndoHistory = [];
 let playerProfileLastImportSnapshot = null;
 let pendingPlayerProfileImportPlan = null;
 let squadComparisonRole = "8";
@@ -25303,48 +25305,71 @@ function createPlayerProfileImportUndoSnapshot(plan = {}) {
   };
 }
 
-function getPlayerProfileImportUndoState() {
-  const relativeTimeLabel = (timestamp) => {
-    if (!timestamp) {
-      return "";
-    }
+function clearPlayerProfileImportUndoSnapshots() {
+  playerProfileImportUndoHistory = [];
+  playerProfileLastImportSnapshot = null;
+}
 
-    const parsed = new Date(timestamp).getTime();
-    if (!Number.isFinite(parsed)) {
-      return "";
-    }
-
-    const diffMs = Date.now() - parsed;
-    if (diffMs < 0) {
-      return "";
-    }
-
-    const absMinutes = Math.max(0, Math.floor(diffMs / 60000));
-    if (absMinutes < 1) {
-      return "just now";
-    }
-    if (absMinutes < 60) {
-      return `${absMinutes} minute${absMinutes === 1 ? "" : "s"} ago`;
-    }
-
-    const absHours = Math.floor(absMinutes / 60);
-    if (absHours < 24) {
-      return `${absHours} hour${absHours === 1 ? "" : "s"} ago`;
-    }
-
-    const absDays = Math.floor(absHours / 24);
-    if (absDays < 30) {
-      return `${absDays} day${absDays === 1 ? "" : "s"} ago`;
-    }
-
-    const absWeeks = Math.floor(absDays / 7);
-    if (absWeeks < 5) {
-      return `${absWeeks} week${absWeeks === 1 ? "" : "s"} ago`;
-    }
-
+function getPlayerProfileImportUndoRelativeTimeLabel(timestamp) {
+  if (!timestamp) {
     return "";
-  };
+  }
 
+  const parsed = new Date(timestamp).getTime();
+  if (!Number.isFinite(parsed)) {
+    return "";
+  }
+
+  const diffMs = Date.now() - parsed;
+  if (diffMs < 0) {
+    return "";
+  }
+
+  const absMinutes = Math.max(0, Math.floor(diffMs / 60000));
+  if (absMinutes < 1) {
+    return "just now";
+  }
+  if (absMinutes < 60) {
+    return `${absMinutes} minute${absMinutes === 1 ? "" : "s"} ago`;
+  }
+
+  const absHours = Math.floor(absMinutes / 60);
+  if (absHours < 24) {
+    return `${absHours} hour${absHours === 1 ? "" : "s"} ago`;
+  }
+
+  const absDays = Math.floor(absHours / 24);
+  if (absDays < 30) {
+    return `${absDays} day${absDays === 1 ? "" : "s"} ago`;
+  }
+
+  const absWeeks = Math.floor(absDays / 7);
+  if (absWeeks < 5) {
+    return `${absWeeks} week${absWeeks === 1 ? "" : "s"} ago`;
+  }
+
+  return "";
+}
+
+function registerPlayerProfileImportUndoSnapshot(snapshot = {}) {
+  if (!snapshot || typeof snapshot !== "object") {
+    return;
+  }
+
+  playerProfileImportUndoHistory = [
+    { ...snapshot },
+    ...(Array.isArray(playerProfileImportUndoHistory) ? playerProfileImportUndoHistory : []),
+  ].slice(0, playerProfileImportUndoHistoryLimit);
+  playerProfileLastImportSnapshot = playerProfileImportUndoHistory[0] || null;
+}
+
+function getPlayerProfileImportUndoHistory(limit = playerProfileImportUndoHistoryLimit) {
+  const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : playerProfileImportUndoHistoryLimit;
+  const history = Array.isArray(playerProfileImportUndoHistory) ? playerProfileImportUndoHistory : [];
+  return history.slice(0, safeLimit);
+}
+
+function getPlayerProfileImportUndoState() {
   if (!canEditPlayerProfiles()) {
     return {
       canUndo: false,
@@ -25355,7 +25380,8 @@ function getPlayerProfileImportUndoState() {
     };
   }
 
-  if (!playerProfileLastImportSnapshot) {
+  const latestSnapshot = playerProfileImportUndoHistory[0] || playerProfileLastImportSnapshot;
+  if (!latestSnapshot) {
     return {
       canUndo: false,
       reason: "No player profile import can be undone right now.",
@@ -25365,7 +25391,7 @@ function getPlayerProfileImportUndoState() {
     };
   }
 
-  const expectedChangeLogHead = playerProfileLastImportSnapshot.undoChangeLogId || "";
+  const expectedChangeLogHead = latestSnapshot?.undoChangeLogId || "";
   const currentChangeLogHead = getRecentPlayerProfileChangeLog(1)[0]?.id || "";
   if (expectedChangeLogHead && currentChangeLogHead && expectedChangeLogHead !== currentChangeLogHead) {
     return {
@@ -25377,14 +25403,14 @@ function getPlayerProfileImportUndoState() {
     };
   }
 
-  const importedCount = Number(playerProfileLastImportSnapshot.plan?.importedCount) || 0;
-  const createdCount = Number(playerProfileLastImportSnapshot.plan?.createdCount) || 0;
-  const updatedCount = Number(playerProfileLastImportSnapshot.plan?.updatedCount) || 0;
-  const appliedBy = String(playerProfileLastImportSnapshot.appliedBy || playerProfileLastImportSnapshot.actor || "Unknown");
-  const importedAt = playerProfileLastImportSnapshot.createdAt || "";
-  const appliedAt = playerProfileLastImportSnapshot.appliedAt || importedAt;
+  const importedCount = Number(latestSnapshot?.plan?.importedCount) || 0;
+  const createdCount = Number(latestSnapshot?.plan?.createdCount) || 0;
+  const updatedCount = Number(latestSnapshot?.plan?.updatedCount) || 0;
+  const appliedBy = String(latestSnapshot?.appliedBy || latestSnapshot?.actor || "Unknown");
+  const importedAt = latestSnapshot?.createdAt || "";
+  const appliedAt = latestSnapshot?.appliedAt || importedAt;
   const appliedAtLabel = appliedAt ? new Date(appliedAt).toLocaleString() : "";
-  const appliedAgo = appliedAt ? relativeTimeLabel(appliedAt) : "";
+  const appliedAgo = appliedAt ? getPlayerProfileImportUndoRelativeTimeLabel(appliedAt) : "";
 
   return {
     canUndo: true,
@@ -25406,11 +25432,20 @@ function applyPlayerProfileImportUndo() {
     };
   }
 
-  if (!playerProfileLastImportSnapshot || !playerProfileLastImportSnapshot.playerProfilesState) {
-    playerProfileLastImportSnapshot = null;
+  if (!playerProfileImportUndoHistory.length || !playerProfileLastImportSnapshot) {
+    clearPlayerProfileImportUndoSnapshots();
     return {
       status: "warning",
       lines: ["No import undo state was available."],
+    };
+  }
+
+  const topSnapshot = playerProfileImportUndoHistory[0];
+  if (!topSnapshot?.playerProfilesState) {
+    clearPlayerProfileImportUndoSnapshots();
+    return {
+      status: "warning",
+      lines: ["No valid import undo snapshot was available."],
     };
   }
 
@@ -25423,7 +25458,7 @@ function applyPlayerProfileImportUndo() {
   }
 
   const currentChangeLogHead = getRecentPlayerProfileChangeLog(1)[0]?.id || "";
-  const expectedChangeLogHead = playerProfileLastImportSnapshot.undoChangeLogId || "";
+  const expectedChangeLogHead = topSnapshot.undoChangeLogId || "";
   if (expectedChangeLogHead && currentChangeLogHead && currentChangeLogHead !== expectedChangeLogHead) {
     return {
       status: "warning",
@@ -25434,14 +25469,16 @@ function applyPlayerProfileImportUndo() {
     };
   }
 
-  playerProfilesState = clonePlayerProfilesState(playerProfileLastImportSnapshot.playerProfilesState);
-  medicalState = cloneMedicalState(playerProfileLastImportSnapshot.medicalState || {});
-  playerProfileLastImportSnapshot = null;
+  playerProfilesState = clonePlayerProfilesState(topSnapshot.playerProfilesState);
+  medicalState = cloneMedicalState(topSnapshot.medicalState || {});
+  playerProfileImportUndoHistory = playerProfileImportUndoHistory.slice(1);
+  playerProfileLastImportSnapshot = playerProfileImportUndoHistory[0] || null;
+  const restoredCount = Number(topSnapshot?.plan?.importedCount) || 0;
   writePlayerProfilesState();
   writeMedicalState();
   return {
     status: "success",
-    lines: ["Last player profile import was undone."],
+    lines: [`Last player profile import was undone${restoredCount ? ` (${restoredCount} record${restoredCount === 1 ? "" : "s"})` : ""}.`],
   };
 }
 
@@ -25716,9 +25753,9 @@ function importSquadDataFoundationPayload(payload = {}, options = {}) {
     preApplySnapshot.undoChangeLogId = latestLog?.id || "";
     preApplySnapshot.appliedBy = latestLog?.actor || getCurrentSquadActorLabel();
     preApplySnapshot.appliedAt = latestLog?.createdAt || new Date().toISOString();
+    preApplySnapshot.actor = preApplySnapshot.appliedBy;
+    registerPlayerProfileImportUndoSnapshot(preApplySnapshot);
   }
-  preApplySnapshot.actor = preApplySnapshot.appliedBy;
-  playerProfileLastImportSnapshot = preApplySnapshot;
   writePlayerProfilesState();
   syncMedicalPlayersFromPlayerProfiles(basePlan.profilesForMedicalSync || []);
   writeMedicalState();
@@ -25808,10 +25845,54 @@ function renderSquadDataQualityRows(report) {
     .join("");
 }
 
+function buildPlayerProfileImportUndoHistoryRows() {
+  const history = getPlayerProfileImportUndoHistory();
+  if (!history.length) {
+    return `<span class="squad-data-empty">No recent import snapshots available.</span>`;
+  }
+
+  const currentChangeLogHead = getRecentPlayerProfileChangeLog(1)[0]?.id || "";
+
+  return history
+    .map((entry, index) => {
+      const importedAt = entry.appliedAt || entry.createdAt || "";
+      const appliedAtLabel = importedAt ? new Date(appliedAt).toLocaleString() : "Unknown time";
+      const relativeAge = importedAt ? getPlayerProfileImportUndoRelativeTimeLabel(appliedAt) : "";
+      const appliedBy = String(entry?.appliedBy || entry?.actor || "Unknown");
+      const importedCount = Number(entry?.plan?.importedCount) || 0;
+      const createdCount = Number(entry?.plan?.createdCount) || 0;
+      const updatedCount = Number(entry?.plan?.updatedCount) || 0;
+      const isLatest = index === 0;
+      const isStale = isLatest && Boolean(entry?.undoChangeLogId)
+        && Boolean(currentChangeLogHead)
+        && entry.undoChangeLogId !== currentChangeLogHead;
+      const isUndoable = isLatest && !isStale && canEditPlayerProfiles();
+      const stateClass = isUndoable ? "is-undoable" : "is-blocked";
+      const stateText = isLatest
+        ? isUndoable
+          ? "Undoable"
+          : isStale
+            ? "Blocked by newer profile changes"
+            : "Read-only mode"
+        : "Older snapshot";
+
+      return `
+        <article class="squad-data-import-history-row ${stateClass}">
+          <strong>Snapshot ${index + 1}</strong>
+          <span>${escapeHtml(`${importedCount} records (${createdCount} added, ${updatedCount} updated)`)}</span>
+          <small>${escapeHtml(`By ${appliedBy} • ${appliedAtLabel}${relativeAge ? ` (${relativeAge})` : ""}`)}</small>
+          <small>${escapeHtml(stateText)}</small>
+        </article>
+      `;
+    })
+    .join("");
+}
+
 function renderSquadDataFoundationPanel() {
   const report = buildSquadDataQualityReport();
   const payload = buildSquadDataFoundationPayload();
   const importUndoState = getPlayerProfileImportUndoState();
+  const importUndoHistory = buildPlayerProfileImportUndoHistoryRows();
   const importUndoMeta = String(importUndoState.canUndo ? (importUndoState.summary || "") : (importUndoState.reason || "")).trim();
   const importUndoMetaTone = importUndoState.canUndo ? "is-success" : "is-warning";
 
@@ -25887,6 +25968,12 @@ function renderSquadDataFoundationPanel() {
             <input type="file" accept="application/json,.json" data-squad-data-import-file hidden />
           </div>
           ${importUndoMeta ? `<small class="squad-data-import-note ${importUndoMetaTone}">${escapeHtml(importUndoMeta)}</small>` : ""}
+          <div class="squad-data-import-history-wrap">
+            <span class="squad-data-import-history-label">Import undo history (last ${playerProfileImportUndoHistoryLimit})</span>
+            <div class="squad-data-import-history">
+              ${importUndoHistory}
+            </div>
+          </div>
         </article>
       </div>
     </section>

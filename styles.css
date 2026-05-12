@@ -17076,6 +17076,62 @@ select{
   color: #0c6e3f;
 }
 
+.squad-data-import-history-wrap{
+  margin-top: 0.5rem;
+  display: grid;
+  gap: 0.34rem;
+}
+
+.squad-data-import-history-label{
+  margin: 0;
+  color: #6e6e73;
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.squad-data-import-history{
+  display: grid;
+  gap: 0.34rem;
+}
+
+.squad-data-import-history-row{
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.48rem;
+  border: 1px solid rgba(29, 29, 31, 0.1);
+  border-radius: 8px;
+  background: rgba(245, 245, 247, 0.78);
+}
+
+.squad-data-import-history-row strong{
+  color: #1d1d1f;
+  font-size: 0.74rem;
+}
+
+.squad-data-import-history-row span,
+.squad-data-import-history-row small{
+  display: block;
+  color: #6e6e73;
+  font-size: 0.68rem;
+}
+
+.squad-data-import-history-row small{
+  color: #4c4c51;
+  font-weight: 850;
+}
+
+.squad-data-import-history-row.is-undoable{
+  border-color: rgba(16, 157, 89, 0.35);
+  background: rgba(225, 247, 234, 0.72);
+}
+
+.squad-data-import-history-row.is-blocked{
+  border-color: rgba(217, 45, 32, 0.28);
+  background: rgba(255, 234, 232, 0.72);
+}
+
 .squad-data-empty{
   display: block;
   padding: 0.62rem;

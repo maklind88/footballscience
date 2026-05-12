@@ -28,6 +28,7 @@ jobs:
       STAGING_QA_BASE_URL: ${{ vars.STAGING_QA_BASE_URL }}
       STAGING_QA_PASSWORD: ${{ secrets.STAGING_QA_PASSWORD }}
       STAGING_QA_USERNAME: ${{ secrets.STAGING_QA_USERNAME }}
+      STAGING_BRANCH_ALIAS: ${{ vars.STAGING_BRANCH_ALIAS || 'footballscience-git-staging-makattack.vercel.app' }}
       STAGING_SUPABASE_PROJECT_REF: ${{ vars.STAGING_SUPABASE_PROJECT_REF }}
       SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -67,6 +68,10 @@ jobs:
       - name: Verify production safety gate
         run: npm run release:safety
 
+      - name: Restore staging alias before staging smoke
+        if: ${{ env.STAGING_QA_BASE_URL != '' }}
+        run: node scripts/restore-staging-alias.mjs
+
       - name: Verify staging smoke before production
         run: npm run qa:staging:required
       - run: npx --yes vercel@53.2.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
@@ -74,6 +79,10 @@ jobs:
 
       - name: Deploy production
         run: npx --yes vercel@53.2.0 deploy --prebuilt --prod --token="$VERCEL_TOKEN" | tee deployment-url.txt
+
+      - name: Restore staging alias after production deploy
+        if: ${{ env.STAGING_QA_BASE_URL != '' }}
+        run: node scripts/restore-staging-alias.mjs
 
       - run: npm run release:postdeploy
       - run: npm run qa:live:required

@@ -239,7 +239,7 @@ test("Squad module placement creates Medical slots and controls Session Planner 
       temporaryFrom: "2026-05-10",
       temporaryTo: "2026-05-12",
     },
-    { date: "2026-05-11", hasMedicalAvailability: false }
+    { date: "2026-05-11" }
   );
   expect(temporaryPlacement).toMatchObject({
     medicalRosterSlot: {
@@ -248,8 +248,9 @@ test("Squad module placement creates Medical slots and controls Session Planner 
       countsInSquad: false,
     },
     sessionPlanner: {
-      visible: false,
-      requiresMedicalAvailabilityBeforeTemporaryUse: true,
+      visible: true,
+      medicalClearanceRequired: false,
+      requiresMedicalAvailabilityBeforeTemporaryUse: false,
     },
   });
 
@@ -263,7 +264,7 @@ test("Squad module placement creates Medical slots and controls Session Planner 
         temporaryFrom: "2026-05-10",
         temporaryTo: "2026-05-12",
       },
-      { date: "2026-05-11", hasMedicalAvailability: true }
+      { date: "2026-05-13" }
     ).sessionPlanner.visible
-  ).toBe(true);
+  ).toBe(false);
 });

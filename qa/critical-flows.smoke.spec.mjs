@@ -778,3 +778,51 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
     )
     .toBe(false);
 });
+
+test("Academy Squad add is available for session planning without Medical clearance", async ({ page }) => {
+  const playerName = `QA Academy Planner ${Date.now()}`;
+  await bootApp(page);
+  await openWorkspace(page, "player-profiles");
+
+  await page.locator("[data-player-profile-new-open]").click();
+  const form = page.locator("#playerProfileNewPlayerForm:visible").first();
+  await expect(form).toBeVisible();
+  await form.locator('input[name="name"]').fill(playerName);
+  await form.locator('input[name="number"]').fill("89");
+  await form.locator('input[name="position"]').fill("Forward");
+  await form.locator('select[name="primaryRole"]').selectOption("ST");
+  await form.locator('select[name="rosterType"]').selectOption("academy");
+  await form.locator('button[type="submit"]').click();
+
+  await expectStorageContains(page, playerProfilesKey, playerName);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        ({ storageKey, name }) => {
+          const state = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+          const player = Array.isArray(state.players)
+            ? state.players.find((candidate) => candidate.name === name)
+            : null;
+          return player
+            ? {
+                countsInSquad: player.countsInSquad,
+                rosterType: player.rosterType || "",
+                hasMedicalRecord: Boolean((state.records || []).some((record) => record.playerId === player.id)),
+              }
+            : null;
+        },
+        { storageKey: medicalKey, name: playerName }
+      )
+    )
+    .toMatchObject({
+      countsInSquad: false,
+      rosterType: "academy",
+      hasMedicalRecord: false,
+    });
+
+  await openWorkspace(page, "session-planner");
+  await page.locator("[data-session-open-player-board]").click();
+  await expect(
+    page.locator(`.session-player-board-token[aria-label^="${playerName}, 100% available"]`)
+  ).toBeVisible();
+});

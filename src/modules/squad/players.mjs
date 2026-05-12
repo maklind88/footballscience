@@ -405,7 +405,6 @@ export function createSquadModulePlacementDraft(player = {}, options = {}) {
   }
 
   const activeDate = normalizeSquadDateValue(options.date || options.activeOnDate);
-  const hasMedicalAvailability = normalizeBoolean(options.hasMedicalAvailability, false);
   const isSquadPlayer = normalizedPlayer.countsInSquad !== false;
   const temporaryActive = isSquadPlayerTemporaryActiveOnDate(normalizedPlayer, activeDate);
 
@@ -429,10 +428,10 @@ export function createSquadModulePlacementDraft(player = {}, options = {}) {
       rosterOrder: normalizedPlayer.rosterOrder,
     }),
     sessionPlanner: Object.freeze({
-      visible: isSquadPlayer || (temporaryActive && hasMedicalAvailability),
+      visible: isSquadPlayer || temporaryActive,
       countsInSquad: isSquadPlayer,
-      medicalClearanceRequired: true,
-      requiresMedicalAvailabilityBeforeTemporaryUse: !isSquadPlayer,
+      medicalClearanceRequired: isSquadPlayer,
+      requiresMedicalAvailabilityBeforeTemporaryUse: false,
     }),
   });
 }

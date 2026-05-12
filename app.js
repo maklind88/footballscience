@@ -18449,7 +18449,7 @@ function isSessionPlannerPlayerVisibleForBoard(participation, rule) {
 function getSessionPlannerPlayerBoardPlayers(block = getSessionPlannerSelectedBlock()) {
   const rule = getSessionPlannerPlayerBoardRule(block);
   return getSessionPlannerAvailabilityItems(sessionPlannerState?.selectedDate)
-    .filter((item) => item.record && isSessionPlannerPlayerVisibleForBoard(item.participation, rule))
+    .filter((item) => (item.record || item.planningOnly) && isSessionPlannerPlayerVisibleForBoard(item.participation, rule))
     .map((item) => ({
       ...item,
       player: getSessionPlannerPlayerBoardSyncedPlayer(item.player),
@@ -18470,17 +18470,19 @@ function getSessionPlannerPlayerBoardSummary(block = getSessionPlannerSelectedBl
       (item) => item.record && item.participation > 0 && item.participation < rule.min
     ).length,
     hiddenZeroCount: availabilityItems.filter((item) => item.record && item.participation === 0).length,
-    unconfirmedCount: availabilityItems.filter((item) => !item.record).length,
+    unconfirmedCount: availabilityItems.filter((item) => !item.record && !item.planningOnly).length,
   };
 }
 
 function getSessionPlannerPlayerBoardWarnings(block = getSessionPlannerSelectedBlock(), dateValue = sessionPlannerState?.selectedDate) {
   const rule = getSessionPlannerPlayerBoardRule(block);
   const availabilityItems = getSessionPlannerAvailabilityItems(dateValue);
-  const available = availabilityItems.filter((item) => item.record && isSessionPlannerPlayerVisibleForBoard(item.participation, rule));
+  const available = availabilityItems.filter((item) =>
+    (item.record || item.planningOnly) && isSessionPlannerPlayerVisibleForBoard(item.participation, rule)
+  );
   const belowLimit = availabilityItems.filter((item) => item.record && item.participation > 0 && item.participation < rule.min);
   const unavailable = availabilityItems.filter((item) => item.record && item.participation === 0);
-  const unconfirmed = availabilityItems.filter((item) => !item.record);
+  const unconfirmed = availabilityItems.filter((item) => !item.record && !item.planningOnly);
 
   return {
     rule,
@@ -19843,7 +19845,11 @@ function renderSessionPlannerPlayerBoardProfile(item, block, rule, totalPlayers)
   const actualLabel = actualParticipation === medicalActualParticipationFallback ? "Not logged" : `${actualParticipation}%`;
   const rtpPhase = record?.rtpPhase ? getMedicalRtpPhaseOption(record.rtpPhase).label : "Not set";
   const coachNote = getMedicalCoachComment(record);
-  const sourceLabel = record?.source === "injury-plan" ? "Availability plan" : "Daily medical log";
+  const sourceLabel = item.planningOnly
+    ? "Planning guest"
+    : record?.source === "injury-plan"
+      ? "Availability plan"
+      : "Daily medical log";
   const dateLabel = formatMedicalDateLabel(sessionPlannerState?.selectedDate, "long");
   const squadContract = getSessionPlannerPlayerBoardBridgeContract(player);
   const squadPrimaryRole = squadContract?.primaryRole || getSessionPlannerPlayerBoardBridgeRoleLabel(player) || "Not linked";
@@ -20369,12 +20375,30 @@ function getMedicalAvailabilityItems(dateValue = medicalState?.selectedDate) {
 }
 
 function getSessionPlannerAvailabilityItems(dateValue = medicalState?.selectedDate) {
-  return getMedicalAvailabilityItems(dateValue).filter((item) => {
-    if (!isTemporaryPlayerProfile(item.player)) {
-      return true;
-    }
-    return isPlayerProfileTemporaryActiveOnDate(item.player, dateValue) && Boolean(item.record);
-  });
+  return getMedicalAvailabilityItems(dateValue)
+    .filter((item) => {
+      if (!isTemporaryPlayerProfile(item.player)) {
+        return true;
+      }
+      return isPlayerProfileTemporaryActiveOnDate(item.player, dateValue);
+    })
+    .map((item) => {
+      if (!isTemporaryPlayerProfile(item.player) || item.record) {
+        return item;
+      }
+
+      return {
+        ...item,
+        status: {
+          key: "planning-guest",
+          label: "Planning guest",
+          tone: "full",
+          defaultParticipation: 100,
+        },
+        participation: 100,
+        planningOnly: true,
+      };
+    });
 }
 
 function getSessionPlannerMedicalAvailability(dateValue) {
@@ -26872,9 +26896,6 @@ function getPlayerProfileModulePlacementState(player = {}, dateValue = medicalSt
   ensureMedicalState();
   const medicalPlayer = findMedicalPlayerForPlayerProfile(player);
   const medicalPlayerId = medicalPlayer?.id || "";
-  const hasMedicalAvailability = medicalPlayerId
-    ? Boolean(getLatestMedicalRecord(medicalPlayerId, dateValue))
-    : false;
   const countsInSquad = playerProfileCountsInSquad(player);
   return {
     profileId: String(player.id || "").trim(),
@@ -26882,8 +26903,8 @@ function getPlayerProfileModulePlacementState(player = {}, dateValue = medicalSt
     medicalRosterSlot: Boolean(medicalPlayer),
     sessionPlannerVisible: countsInSquad
       ? Boolean(medicalPlayer)
-      : Boolean(medicalPlayer && isPlayerProfileTemporaryActiveOnDate(player, dateValue) && hasMedicalAvailability),
-    medicalClearanceRequired: true,
+      : Boolean(medicalPlayer && isPlayerProfileTemporaryActiveOnDate(player, dateValue)),
+    medicalClearanceRequired: countsInSquad,
   };
 }
 
@@ -76137,7 +76158,7 @@ ui.playerProfilesWorkspace?.addEventListener("submit", (event) => {
       buildPlayerProfileOperationFeedback(
         result,
         player
-          ? `${isTemporaryPlayerProfile(player) ? "Temporary player" : "Player"} added. Medical roster slot and planner placement are ready for clearance.`
+          ? `${isTemporaryPlayerProfile(player) ? "Temporary player added. Planner placement is ready without Medical clearance." : "Player added. Medical roster slot and planner placement are ready for clearance."}`
           : "Could not add player profile."
       )
     );

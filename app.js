@@ -30312,11 +30312,6 @@ function refreshPeriodizationBoardDependentFields(changedKey = "") {
 function renderPeriodizationWeek(weekDates, monthIndex) {
   const weekNumber = getIsoWeekNumber(weekDates[0]);
   const model = getPeriodizationMicrocycleModel(weekDates);
-  const matchLabel = model.matchDays.length
-    ? model.matchDays.map((item) => item.matchDayLabel || "Match").join(" / ")
-    : "";
-  const loadLabel = model.activeDays.length ? `${model.totalLoad} load` : "Recovery";
-  const peakLabel = model.peakLoad ? getPeriodizationLoadScoreLabel(model.peakLoad) : "";
 
   return `
     <section class="periodization-microcycle-card" data-periodization-week-start="${escapeHtml(formatScheduleDateValue(weekDates[0]))}">
@@ -30326,13 +30321,6 @@ function renderPeriodizationWeek(weekDates, monthIndex) {
           <strong>Week ${weekNumber}</strong>
         </div>
         <p>${escapeHtml(model.rangeLabel)}</p>
-        <div class="periodization-microcycle-summary">
-          ${renderPeriodizationMicrocycleMetric("Load", loadLabel, model.highLoadCount ? "hard" : "")}
-          ${renderPeriodizationMicrocycleMetric("Peak", peakLabel)}
-          ${renderPeriodizationMicrocycleMetric("Match", matchLabel, "match")}
-          ${renderPeriodizationMicrocycleMetric("Focus", model.focusLabel || model.subFocusLabel)}
-          ${renderPeriodizationMicrocycleMetric("Pitch", model.pitchLabel)}
-        </div>
         ${renderPeriodizationMicrocycleLoadRail(model)}
       </header>
       <div class="periodization-week-grid">

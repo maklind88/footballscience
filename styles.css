@@ -10818,7 +10818,7 @@ overflow: hidden;
 }
 .periodization-microcycle-head{
 display: grid;
-grid-template-columns: minmax(7rem, 0.48fr) minmax(8rem, 0.5fr) minmax(0, 1.4fr) minmax(13rem, 0.9fr);
+grid-template-columns: minmax(7rem, 0.55fr) minmax(8rem, 0.65fr) minmax(13rem, 1fr);
 gap: 0.72rem;
 align-items: center;
 padding: 0.95rem 1.05rem;
@@ -10837,13 +10837,6 @@ letter-spacing: 0;
 margin: 0;
 color: rgba(255, 255, 255, 0.72);
 font-weight: 800;
-}
-.periodization-microcycle-summary{
-display: flex;
-flex-wrap: wrap;
-gap: 0.38rem;
-min-width: 0;
-align-items: center;
 }
 .periodization-microcycle-metric{
 display: grid;
@@ -13105,9 +13098,6 @@ grid-template-columns: repeat(2, minmax(0, 1fr));
 .periodization-microcycle-head,
 .periodization-edit-context{
 grid-template-columns: 1fr;
-}
-.periodization-microcycle-summary{
-align-items: stretch;
 }
 .periodization-microcycle-metric{
 flex: 1 1 6.8rem;

@@ -75,6 +75,7 @@ const coreFiles = [
   "src/modules/squad/squad-adapter.mjs",
   "src/modules/squad/index.mjs",
   "src/modules/game-simulator/index.mjs",
+  "src/modules/game-simulator/controllers.mjs",
   "src/modules/game-simulator/control-bindings.mjs",
   "src/modules/game-simulator/fullscreen.mjs",
   "src/modules/game-simulator/runtime.mjs",
@@ -224,6 +225,7 @@ test("core module contracts are covered by dedicated QA", () => {
   const squadAdapterSpec = readProjectFile("qa/squad-adapter.api.spec.mjs");
   const squadDatabaseSpec = readProjectFile("qa/squad-database-schema.api.spec.mjs");
   const gameSimulatorSpec = readProjectFile("qa/game-simulator-controller.api.spec.mjs");
+  const gameSimulatorControllersSpec = readProjectFile("qa/game-simulator-controllers.api.spec.mjs");
   const gameSimulatorBindingsSpec = readProjectFile("qa/game-simulator-control-bindings.api.spec.mjs");
   const gameSimulatorFullscreenSpec = readProjectFile("qa/game-simulator-fullscreen.api.spec.mjs");
   const gameSimulatorKeyboardStateSpec = readProjectFile("qa/game-simulator-keyboard-state.api.spec.mjs");
@@ -247,6 +249,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-adapter.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-database-schema.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-controller.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-controllers.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-control-bindings.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-fullscreen.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-keyboard-state.api.spec.mjs");
@@ -261,6 +264,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(squadAdapterSpec).toContain("Squad legacy read adapter uses the protected storage key");
   expect(squadDatabaseSpec).toContain("multi-tenant roster model");
   expect(gameSimulatorSpec).toContain("game simulator workspace controller");
+  expect(gameSimulatorControllersSpec).toContain("game simulator controller loader");
   expect(gameSimulatorBindingsSpec).toContain("game simulator control bindings");
   expect(gameSimulatorFullscreenSpec).toContain("game simulator fullscreen controller");
   expect(gameSimulatorKeyboardStateSpec).toContain("game simulator keyboard state");
@@ -269,23 +273,28 @@ test("core module contracts are covered by dedicated QA", () => {
 test("game simulator animation loop does not run globally outside the simulator workspace", () => {
   const packageJson = readJson("package.json");
   const appSource = readProjectFile("app.js");
+  const controllersSource = readProjectFile("src/modules/game-simulator/controllers.mjs");
   const controlBindingsSource = readProjectFile("src/modules/game-simulator/control-bindings.mjs");
   const fullscreenSource = readProjectFile("src/modules/game-simulator/fullscreen.mjs");
   const runtimeSource = readProjectFile("src/modules/game-simulator/runtime.mjs");
   const workspaceControllerSource = readProjectFile("src/modules/game-simulator/workspace-controller.mjs");
 
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/control-bindings.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/controllers.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/fullscreen.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/runtime.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/workspace-controller.mjs");
-  expect(appSource).toContain("createSimulatorControlBindings");
-  expect(appSource).toContain("createSimulatorFullscreenController");
-  expect(appSource).toContain("createSimulatorWorkspaceController");
+  expect(appSource).not.toContain('from "./src/modules/game-simulator/control-bindings.mjs"');
+  expect(appSource).not.toContain('from "./src/modules/game-simulator/fullscreen.mjs"');
+  expect(appSource).not.toContain('from "./src/modules/game-simulator/workspace-controller.mjs"');
+  expect(appSource).toContain('import("./src/modules/game-simulator/controllers.mjs")');
   expect(appSource).toContain('import("./src/modules/game-simulator/runtime.mjs")');
   expect(appSource).toContain("function startSimulatorAnimationLoop()");
   expect(appSource).toContain("function stopSimulatorAnimationLoop()");
   expect(appSource).toContain('hubState?.activeWorkspaceId === "game-simulator"');
   expect(appSource).not.toContain("\nwindow.requestAnimationFrame(animationFrame);\n");
+  expect(controllersSource).toContain("createSimulatorControllers");
+  expect(controllersSource).toContain("createSimulatorControlBindings");
   expect(controlBindingsSource).toContain("createSimulatorControlBindings");
   expect(controlBindingsSource).toContain("handleKeyDown");
   expect(fullscreenSource).toContain("createSimulatorFullscreenController");

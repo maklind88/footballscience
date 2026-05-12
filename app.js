@@ -1,7 +1,3 @@
-import { createSimulatorControlBindings } from "./src/modules/game-simulator/control-bindings.mjs";
-import { createSimulatorFullscreenController } from "./src/modules/game-simulator/fullscreen.mjs";
-import { createSimulatorKeyboardStateController } from "./src/modules/game-simulator/keyboard-state.mjs";
-import { createSimulatorWorkspaceController } from "./src/modules/game-simulator/workspace-controller.mjs";
 import { createDashboardChatWidgetRenderer } from "./src/modules/chat/chat-widget-renderer.mjs";
 import { createDashboardChatAttachmentRenderer } from "./src/modules/chat/chat-attachment-renderer.mjs";
 import { createDashboardChatAttachmentPreview } from "./src/modules/chat/chat-attachment-preview.mjs";
@@ -164,57 +160,8 @@ const ui = {
   savedSequenceStatus: document.getElementById("savedSequenceStatus"),
   savedSequenceList: document.getElementById("savedSequenceList"),
 };
-const gameSimulatorFullscreenController = createSimulatorFullscreenController({
-  getStageElement: () => ui.pitchStage,
-  getCanvasElement: () => canvas,
-  getButtonElement: () => ui.pitchFullscreenButton,
-  documentRef: document,
-  log: (message) => logEvent(message),
-});
-const gameSimulatorKeyboardState = createSimulatorKeyboardStateController({
-  onActionModeChanged: () => {
-    updateModeButtons();
-    render();
-  },
-});
-const gameSimulatorWorkspaceController = createSimulatorWorkspaceController({
-  getWorkspaceElement: () => ui.gameSimulatorWorkspace,
-  getIntroElement: () => ui.gameSimulatorIntro,
-  getPitchStageElement: () => ui.pitchStage,
-  getIsActiveWorkspace: () => isGameSimulatorWorkspaceActive(),
-  render: () => render(),
-  renderWorkspaceChrome: () => renderWorkspaceChrome(),
-  log: (message) => logEvent(message),
-  syncFullscreen: () => syncPitchFullscreenButton(),
-  documentRef: document,
-  requestAnimationFrame: (callback) => window.requestAnimationFrame(callback),
-});
-const gameSimulatorControlBindings = createSimulatorControlBindings({
-  windowRef: window,
-  documentRef: document,
-  getIntroButton: () => ui.simulatorIntroEnterButton,
-  getFullscreenButton: () => ui.pitchFullscreenButton,
-  isActiveWorkspace: () => isGameSimulatorWorkspaceActive(),
-  isLaunched: () => gameSimulatorWorkspaceController.isLaunched(),
-  getOffensiveAutopilotEnabled: () => state.offensiveAutopilot,
-  getKeyboardActionMode: () => state.keyboardActionMode,
-  hasActiveMetricTooltip: () => Boolean(activeMetricTooltipTarget && !ui.metricTooltip?.hidden),
-  launchFromIntro: () => launchGameSimulatorFromIntro(),
-  toggleFullscreen: () => togglePitchFullscreen(),
-  syncFullscreenButton: () => syncPitchFullscreenButton(),
-  updateFullscreenHudLayout: () => updatePitchFullscreenHudLayout(),
-  ensureMetricTooltipLayer: () => ensureMetricTooltipLayer(),
-  positionMetricTooltip: () => positionMetricTooltip(activeMetricTooltipTarget),
-  resetIntro: () => resetGameSimulatorIntro(),
-  renderWorkspaceChrome: () => renderWorkspaceChrome(),
-  shouldIgnoreSpaceAutopilotHotkey: (event) => shouldIgnoreSpaceAutopilotHotkey(event),
-  toggleSpaceAutopilotPlayback: () => toggleSpaceAutopilotPlayback(),
-  shouldIgnoreHotkey: (event) => shouldIgnoreHotkey(event),
-  executePlannedAction: () => executePlannedAction(),
-  setKeyboardActionMode: (mode) => setKeyboardActionMode(mode),
-  armKeyboardActionGrace: (mode) => armKeyboardActionGrace(mode),
-  clearKeyboardActionGrace: () => clearKeyboardActionGrace(),
-});
+let gameSimulatorControllersPromise = null;
+let gameSimulatorFullscreenController = null, gameSimulatorKeyboardState = null, gameSimulatorWorkspaceController = null;
 const pitch = {
   length: 105,
   width: 68,
@@ -29764,20 +29711,17 @@ function renderPeriodizationWorkspace() {
   `;
 }
 
-function isPitchFullscreenActive() {
-  return gameSimulatorFullscreenController.isActive();
-}
+function isPitchFullscreenActive() { return gameSimulatorFullscreenController?.isActive() ?? false; }
 
 function syncPitchFullscreenButton() {
-  gameSimulatorFullscreenController.syncButton();
+  gameSimulatorFullscreenController?.syncButton();
 }
 
-function updatePitchFullscreenHudLayout() {
-  gameSimulatorFullscreenController.updateHudLayout();
-}
+function updatePitchFullscreenHudLayout() { gameSimulatorFullscreenController?.updateHudLayout(); }
 
 async function togglePitchFullscreen() {
-  await gameSimulatorFullscreenController.toggle();
+  await ensureGameSimulatorControllers();
+  await gameSimulatorFullscreenController?.toggle();
 }
 
 function hasUnsavedSimulatorWork() {
@@ -29842,19 +29786,29 @@ function resetUnsavedSimulatorSession() {
 }
 
 function isSimulatorIntroActive() {
-  return gameSimulatorWorkspaceController.isIntroActive();
+  return gameSimulatorWorkspaceController?.isIntroActive() ??
+    Boolean(isGameSimulatorWorkspaceActive() && ui.gameSimulatorWorkspace?.classList.contains("is-simulator-intro"));
 }
 
 function resetGameSimulatorIntro() {
-  gameSimulatorWorkspaceController.resetIntro();
+  if (gameSimulatorWorkspaceController) return gameSimulatorWorkspaceController.resetIntro();
+
+  ui.gameSimulatorWorkspace?.classList.add("is-simulator-intro");
+  ui.gameSimulatorWorkspace?.classList.remove("is-simulator-launched");
 }
 
 function syncGameSimulatorIntroState() {
-  gameSimulatorWorkspaceController.syncIntroState();
+  if (gameSimulatorWorkspaceController) return gameSimulatorWorkspaceController.syncIntroState();
+
+  const workspace = ui.gameSimulatorWorkspace;
+  if (isGameSimulatorWorkspaceActive() && workspace && !workspace.classList.contains("is-simulator-launched")) {
+    workspace.classList.add("is-simulator-intro");
+  }
 }
 
 async function launchGameSimulatorFromIntro() {
-  await gameSimulatorWorkspaceController.launchFromIntro();
+  await ensureGameSimulatorControllers();
+  await gameSimulatorWorkspaceController?.launchFromIntro();
 }
 
 function pauseSimulatorForWorkspaceSwitch() {
@@ -30023,6 +29977,7 @@ function setActiveWorkspace(workspaceId) {
 
   if (targetWorkspaceId === "game-simulator") {
     resetGameSimulatorIntro();
+    queueGameSimulatorControllersLoad();
   }
 
   hubState.activeWorkspaceId = targetWorkspaceId;
@@ -71893,6 +71848,67 @@ function isGameSimulatorWorkspaceActive() {
   return hubState?.activeWorkspaceId === "game-simulator";
 }
 
+function shouldIgnoreSimulatorTextOrModifierTarget(event) { const t = event?.target, tag = t?.tagName; return Boolean(event?.metaKey || event?.ctrlKey || event?.altKey || ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(tag) || t?.isContentEditable); }
+
+async function ensureGameSimulatorControllers() {
+  if (gameSimulatorWorkspaceController) return;
+
+  if (!gameSimulatorControllersPromise) {
+    gameSimulatorControllersPromise = import("./src/modules/game-simulator/controllers.mjs")
+      .then(({ createSimulatorControllers }) => {
+        const controllers = createSimulatorControllers({
+          windowRef: window, documentRef: document, bindButtonControls: false,
+          getStageElement: () => ui.pitchStage,
+          getCanvasElement: () => canvas,
+          getButtonElement: () => ui.pitchFullscreenButton,
+          getWorkspaceElement: () => ui.gameSimulatorWorkspace,
+          getIntroElement: () => ui.gameSimulatorIntro,
+          getPitchStageElement: () => ui.pitchStage,
+          getIsActiveWorkspace: () => isGameSimulatorWorkspaceActive(),
+          getOffensiveAutopilotEnabled: () => state.offensiveAutopilot,
+          getKeyboardActionMode: () => state.keyboardActionMode,
+          hasActiveMetricTooltip: () => Boolean(activeMetricTooltipTarget && !ui.metricTooltip?.hidden),
+          log: (message) => logEvent(message),
+          onActionModeChanged: () => {
+            updateModeButtons();
+            render();
+          },
+          render,
+          renderWorkspaceChrome,
+          syncFullscreen: syncPitchFullscreenButton,
+          syncFullscreenButton: syncPitchFullscreenButton,
+          updateFullscreenHudLayout: updatePitchFullscreenHudLayout,
+          ensureMetricTooltipLayer,
+          positionMetricTooltip: () => positionMetricTooltip(activeMetricTooltipTarget),
+          resetIntro: resetGameSimulatorIntro,
+          toggleSpaceAutopilotPlayback,
+          executePlannedAction,
+          setKeyboardActionMode,
+          armKeyboardActionGrace,
+          clearKeyboardActionGrace,
+          requestAnimationFrame: (callback) => window.requestAnimationFrame(callback),
+        });
+
+        gameSimulatorFullscreenController = controllers.fullscreenController;
+        gameSimulatorKeyboardState = controllers.keyboardState; gameSimulatorWorkspaceController = controllers.workspaceController;
+
+        controllers.controlBindings.bind();
+
+        syncGameSimulatorIntroState();
+        syncPitchFullscreenButton();
+        updatePitchFullscreenHudLayout();
+      })
+      .catch((error) => {
+        gameSimulatorControllersPromise = null;
+        throw error;
+      });
+  }
+
+  return gameSimulatorControllersPromise;
+}
+
+function queueGameSimulatorControllersLoad() { ensureGameSimulatorControllers().catch(() => {}); }
+
 function resetSimulatorAnimationClock() {
   lastFrame = null;
 }
@@ -72371,32 +72387,33 @@ function syncOffensiveAutopilotButton() {
   ui.offensiveAutopilotButton.disabled = state.isRunning || state.sequence.isPlaying;
 }
 
-function shouldIgnoreHotkey(event) {
-  return gameSimulatorKeyboardState.shouldIgnoreHotkey(event);
-}
+function shouldIgnoreHotkey(event) { return shouldIgnoreSimulatorTextOrModifierTarget(event); }
 
-function shouldIgnoreSpaceAutopilotHotkey(event) {
-  return gameSimulatorKeyboardState.shouldIgnoreSpaceAutopilotHotkey(event);
-}
+function shouldIgnoreSpaceAutopilotHotkey(event) { return shouldIgnoreSimulatorTextOrModifierTarget(event); }
 
-function clearKeyboardActionGrace() {
-  gameSimulatorKeyboardState.clearKeyboardActionGrace(state);
-}
+function clearKeyboardActionGrace() { gameSimulatorKeyboardState?.clearKeyboardActionGrace(state); }
 
 function armKeyboardActionGrace(mode, durationMs = 220) {
-  gameSimulatorKeyboardState.armKeyboardActionGrace(state, mode, durationMs);
+  if (gameSimulatorKeyboardState) return gameSimulatorKeyboardState.armKeyboardActionGrace(state, mode, durationMs);
+
+  state.keyboardActionGraceMode = mode;
+  state.keyboardActionGraceUntil = Date.now() + durationMs;
 }
 
 function getPointerRequestedActionMode() {
-  return gameSimulatorKeyboardState.getPointerRequestedActionMode(state);
+  return gameSimulatorKeyboardState?.getPointerRequestedActionMode(state) ?? state.keyboardActionMode ?? state.actionMode;
 }
 
-function consumePointerActionMode(mode) {
-  gameSimulatorKeyboardState.consumePointerActionMode(state, mode);
-}
+function consumePointerActionMode(mode) { gameSimulatorKeyboardState?.consumePointerActionMode(state, mode); }
 
 function setKeyboardActionMode(mode) {
-  gameSimulatorKeyboardState.setKeyboardActionMode(state, mode);
+  if (gameSimulatorKeyboardState) return gameSimulatorKeyboardState.setKeyboardActionMode(state, mode);
+
+  if (state.keyboardActionMode === mode) return;
+
+  state.keyboardActionMode = mode;
+  updateModeButtons();
+  render();
 }
 
 function toggleActionMode(mode) {
@@ -76204,7 +76221,8 @@ ui.scheduleEventForm?.addEventListener("submit", (event) => {
   renderScheduleWorkspace();
 });
 
-gameSimulatorControlBindings.bind();
+ui.simulatorIntroEnterButton?.addEventListener("click", () => launchGameSimulatorFromIntro().catch(console.error));
+ui.pitchFullscreenButton?.addEventListener("click", () => togglePitchFullscreen().catch(console.error));
 
 document.addEventListener("mousemove", (event) => {
   const trigger = event.target.closest?.("[data-metric-help]");
@@ -76699,6 +76717,7 @@ syncOffensiveAutopilotButton();
 syncFormationControls();
 updateSequenceButtons();
 if (hubState?.activeWorkspaceId === "game-simulator") {
+  queueGameSimulatorControllersLoad();
   render();
   startSimulatorAnimationLoop();
 }

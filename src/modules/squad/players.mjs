@@ -398,6 +398,45 @@ export function createSquadRosterDraft(player = {}, context = {}) {
   });
 }
 
+export function createSquadModulePlacementDraft(player = {}, options = {}) {
+  const normalizedPlayer = normalizeSquadPlayer(player);
+  if (!normalizedPlayer) {
+    return null;
+  }
+
+  const activeDate = normalizeSquadDateValue(options.date || options.activeOnDate);
+  const hasMedicalAvailability = normalizeBoolean(options.hasMedicalAvailability, false);
+  const isSquadPlayer = normalizedPlayer.countsInSquad !== false;
+  const temporaryActive = isSquadPlayerTemporaryActiveOnDate(normalizedPlayer, activeDate);
+
+  return Object.freeze({
+    profileId: normalizedPlayer.id,
+    module: "squad",
+    medicalRosterSlot: Object.freeze({
+      id: normalizedPlayer.id,
+      profileId: normalizedPlayer.id,
+      sourceModule: "player-profiles",
+      name: normalizedPlayer.name,
+      number: normalizedPlayer.number,
+      position: normalizedPlayer.position,
+      photoUrl: normalizedPlayer.photoUrl,
+      sourceUrl: normalizedPlayer.sourceUrl,
+      rosterType: normalizedPlayer.rosterType,
+      countsInSquad: normalizedPlayer.countsInSquad,
+      temporaryGroup: normalizedPlayer.temporaryGroup,
+      temporaryFrom: normalizedPlayer.temporaryFrom,
+      temporaryTo: normalizedPlayer.temporaryTo,
+      rosterOrder: normalizedPlayer.rosterOrder,
+    }),
+    sessionPlanner: Object.freeze({
+      visible: isSquadPlayer || (temporaryActive && hasMedicalAvailability),
+      countsInSquad: isSquadPlayer,
+      medicalClearanceRequired: true,
+      requiresMedicalAvailabilityBeforeTemporaryUse: !isSquadPlayer,
+    }),
+  });
+}
+
 export function selectRecentlyUpdatedSquadPlayers(players = [], limit = 10) {
   return Object.freeze(
     [...players]

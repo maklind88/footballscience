@@ -20344,6 +20344,7 @@ function renderSessionPlannerToolsPanel(block) {
 }
 
 function getMedicalAvailabilityItems(dateValue = medicalState?.selectedDate) {
+  ensurePlayerProfileModulePlacements();
   ensureMedicalState();
   return [...medicalState.players]
     .sort(compareMedicalPlayers)
@@ -22376,13 +22377,18 @@ function normalizeMedicalPlayer(player = {}) {
 
   const rosterOrder = Number(player.rosterOrder);
   const rosterType = normalizePlayerProfileRosterType(player.rosterType || player.playerType || player.squadType);
+  const profileId = String(
+    player.profileId ?? player.playerProfileId ?? player.squadProfileId ?? player.sourceProfileId ?? ""
+  ).trim();
   return {
     id: player.id || createDashboardId("medical-player"),
+    profileId,
     name,
     number: String(player.number ?? "").trim(),
     position: String(player.position ?? "").trim(),
     photoUrl: String(player.photoUrl ?? "").trim(),
     sourceUrl: String(player.sourceUrl ?? "").trim(),
+    sourceModule: String(player.sourceModule ?? "").trim(),
     rosterType,
     countsInSquad: typeof player.countsInSquad === "boolean"
       ? player.countsInSquad
@@ -23666,10 +23672,19 @@ function getLatestManualMedicalLog(playerId) {
 }
 
 function getPlayerProfileMedicalSnapshot(playerId, dateValue = formatScheduleDateValue(new Date())) {
+  ensurePlayerProfilesState();
+  const profile = playerProfilesState.players.find((player) => player.id === playerId);
+  if (profile) {
+    ensurePlayerProfileModulePlacements([profile]);
+  } else {
+    ensureMedicalState();
+  }
   ensureMedicalState();
-  const currentRecord = getLatestMedicalRecord(playerId, dateValue);
-  const latestLog = getLatestManualMedicalLog(playerId);
-  const activePlan = getActiveMedicalInjuryPlan(playerId, dateValue);
+  const medicalPlayer = resolveMedicalPlayerForPlayerProfileId(playerId);
+  const medicalPlayerId = medicalPlayer?.id || playerId;
+  const currentRecord = getLatestMedicalRecord(medicalPlayerId, dateValue);
+  const latestLog = getLatestManualMedicalLog(medicalPlayerId);
+  const activePlan = getActiveMedicalInjuryPlan(medicalPlayerId, dateValue);
   const availabilityLabel = currentRecord
     ? `${getMedicalStatusOption(currentRecord.status).label} / ${currentRecord.participation}%`
     : "Not logged today";
@@ -25533,6 +25548,7 @@ function getSquadPlayerDataQualityFlags(player = {}) {
   );
   const baselineAttributes = attributeValues.every((value) => value === 3);
   const medicalSnapshot = player.id ? getPlayerProfileMedicalSnapshot(player.id) : null;
+  const modulePlacement = player.id ? getPlayerProfileModulePlacementState(player) : null;
 
   if (!player.primaryRole) {
     flags.push({ key: "missing-role", label: "Missing primary role", severity: "critical" });
@@ -25551,6 +25567,9 @@ function getSquadPlayerDataQualityFlags(player = {}) {
   }
   if (!medicalSnapshot || medicalSnapshot.latestLogSummary === "No medical log yet") {
     flags.push({ key: "medical-link", label: "No medical log linked", severity: "watch" });
+  }
+  if (!modulePlacement?.medicalRosterSlot) {
+    flags.push({ key: "module-placement", label: "Missing Medical/Planner placement", severity: "critical" });
   }
   if (completeness < 70) {
     flags.push({ key: "profile-complete", label: `Profile ${completeness}% complete`, severity: "critical" });
@@ -25630,6 +25649,7 @@ function buildSquadSessionPlannerContracts() {
       rtpStatus: medicalSnapshot.rtpStatus,
       roleDnaScores: roleScores,
       bestRoleMatches,
+      modulePlacement: getPlayerProfileModulePlacementState(player),
       dataQualityFlags: getSquadPlayerDataQualityFlags(player).map((flag) => flag.key),
       updatedAt: player.updatedAt,
     };
@@ -25681,6 +25701,7 @@ function buildSquadDataFoundationPayload() {
       roleDna: playerProfileRoleOptions,
       idp: ["status", "primaryFocus", "strengths", "focusAreas", "nextAction", "reviewDate"],
       medicalSummary: ["currentAvailability", "rtpStatus", "coachNote", "latestLogDate", "latestLogSummary"],
+      modulePlacement: ["medicalRosterSlot", "medicalPlayerId", "sessionPlannerVisible", "medicalClearanceRequired"],
       futureData: ["matchData", "load", "minutes", "performanceNotes", "scoutingNotes", "analysisNotes"],
       changeLog: ["id", "type", "playerId", "actor", "summary", "changes", "createdAt"],
     },
@@ -25727,6 +25748,7 @@ function buildSquadDataFoundationPayload() {
       },
       idp: player.idp,
       medicalSummary: getPlayerProfileMedicalSnapshot(player.id),
+      modulePlacement: getPlayerProfileModulePlacementState(player),
       futureData: player.futureData,
       coachNotes: player.coachNotes,
       dataQualityFlags: getSquadPlayerDataQualityFlags(player),
@@ -26625,7 +26647,7 @@ function renderPlayerProfilesWorkspace(message = "") {
   }
 
   ensurePlayerProfilesState();
-  ensureMedicalState();
+  ensurePlayerProfileModulePlacements();
   const visiblePlayers = getVisiblePlayerProfiles();
   const selectedPlayer = getSelectedPlayerProfile();
   const rosterSummary = getPlayerProfilesRosterSummary(playerProfilesState.players);
@@ -26768,14 +26790,17 @@ function buildMedicalPlayerFromPlayerProfile(player = {}) {
   const now = new Date().toISOString();
   const createdAt = String(player.createdAt || "").trim() || now;
   const updatedAt = String(player.updatedAt || "").trim() || now;
+  const profileId = String(player.id || "").trim();
 
   return normalizeMedicalPlayer({
-    id: player.id || createDashboardId("medical-player"),
+    id: profileId || createDashboardId("medical-player"),
+    profileId,
     name: player.name,
     number: player.number,
     position: player.position,
     photoUrl: player.photoUrl,
     sourceUrl: player.sourceUrl,
+    sourceModule: "player-profiles",
     rosterType: player.rosterType,
     countsInSquad: player.countsInSquad,
     temporaryGroup: player.temporaryGroup,
@@ -26787,19 +26812,114 @@ function buildMedicalPlayerFromPlayerProfile(player = {}) {
   });
 }
 
-function syncMedicalPlayersFromPlayerProfiles(players = []) {
-  if (!Array.isArray(players) || !players.length) {
-    return;
+function getMedicalPlayerPlacementSignature(player = {}) {
+  const name = normalizePlayerProfileName(player.name || "");
+  if (!name) {
+    return "";
   }
 
-  const medicalPlayers = players
+  return `${String(player.number ?? "").trim().toLowerCase()}|${name}`;
+}
+
+function getMedicalPlayerProfileLinkId(player = {}) {
+  return String(
+    player.profileId ?? player.playerProfileId ?? player.squadProfileId ?? player.sourceProfileId ?? ""
+  ).trim();
+}
+
+function findMedicalPlayerForPlayerProfile(player = {}) {
+  ensureMedicalState();
+  const profileId = String(player.id || player.profileId || "").trim();
+  if (profileId) {
+    const linkedMatch = medicalState.players.find((medicalPlayer) =>
+      [medicalPlayer.id, getMedicalPlayerProfileLinkId(medicalPlayer)]
+        .map((value) => String(value ?? "").trim())
+        .includes(profileId)
+    );
+    if (linkedMatch) {
+      return linkedMatch;
+    }
+  }
+
+  const signature = getMedicalPlayerPlacementSignature(player);
+  if (!signature) {
+    return null;
+  }
+
+  return medicalState.players.find((medicalPlayer) => getMedicalPlayerPlacementSignature(medicalPlayer) === signature) ?? null;
+}
+
+function resolveMedicalPlayerForPlayerProfileId(playerId = "") {
+  ensurePlayerProfilesState();
+  ensureMedicalState();
+  const profileId = String(playerId || "").trim();
+  if (!profileId) {
+    return null;
+  }
+
+  const directMatch = medicalState.players.find((medicalPlayer) =>
+    medicalPlayer.id === profileId || getMedicalPlayerProfileLinkId(medicalPlayer) === profileId
+  );
+  if (directMatch) {
+    return directMatch;
+  }
+
+  const profile = playerProfilesState.players.find((player) => player.id === profileId);
+  return profile ? findMedicalPlayerForPlayerProfile(profile) : null;
+}
+
+function getPlayerProfileModulePlacementState(player = {}, dateValue = medicalState?.selectedDate) {
+  ensureMedicalState();
+  const medicalPlayer = findMedicalPlayerForPlayerProfile(player);
+  const medicalPlayerId = medicalPlayer?.id || "";
+  const hasMedicalAvailability = medicalPlayerId
+    ? Boolean(getLatestMedicalRecord(medicalPlayerId, dateValue))
+    : false;
+  const countsInSquad = playerProfileCountsInSquad(player);
+  return {
+    profileId: String(player.id || "").trim(),
+    medicalPlayerId,
+    medicalRosterSlot: Boolean(medicalPlayer),
+    sessionPlannerVisible: countsInSquad
+      ? Boolean(medicalPlayer)
+      : Boolean(medicalPlayer && isPlayerProfileTemporaryActiveOnDate(player, dateValue) && hasMedicalAvailability),
+    medicalClearanceRequired: true,
+  };
+}
+
+function ensurePlayerProfileModulePlacements(players = null) {
+  ensurePlayerProfilesState();
+  ensureMedicalState();
+  const sourcePlayers = Array.isArray(players) ? players : playerProfilesState.players;
+  const medicalPlayers = sourcePlayers
     .map(buildMedicalPlayerFromPlayerProfile)
     .filter((player) => player && player.id && player.name);
+
   if (!medicalPlayers.length) {
-    return;
+    return {
+      created: 0,
+      updated: 0,
+      unchanged: 0,
+      total: 0,
+      changed: false,
+    };
   }
 
-  upsertMedicalPlayers(medicalPlayers);
+  return upsertMedicalPlayers(medicalPlayers);
+}
+
+function syncMedicalPlayersFromPlayerProfiles(players = []) {
+  if (!Array.isArray(players) || !players.length) {
+    return {
+      created: 0,
+      updated: 0,
+      unchanged: 0,
+      total: 0,
+      changed: false,
+    };
+  }
+
+  return ensurePlayerProfileModulePlacements(players);
 }
 
 function addPlayerProfile(values = {}) {
@@ -29250,6 +29370,41 @@ function parseMedicalRosterText(text) {
   return parsed;
 }
 
+const medicalRosterPlacementFields = Object.freeze([
+  "profileId",
+  "name",
+  "number",
+  "position",
+  "photoUrl",
+  "sourceUrl",
+  "sourceModule",
+  "rosterType",
+  "countsInSquad",
+  "temporaryGroup",
+  "temporaryFrom",
+  "temporaryTo",
+  "rosterOrder",
+]);
+
+function normalizeMedicalRosterPlacementComparableValue(player = {}, field = "") {
+  if (field === "countsInSquad") {
+    return player.countsInSquad === false ? "false" : "true";
+  }
+  if (field === "rosterOrder") {
+    const rosterOrder = Number(player.rosterOrder);
+    return Number.isFinite(rosterOrder) ? String(rosterOrder) : "";
+  }
+  return String(player[field] ?? "").trim();
+}
+
+function shouldUpdateMedicalRosterPlacement(existingPlayer = {}, incomingPlayer = {}) {
+  return medicalRosterPlacementFields.some(
+    (field) =>
+      normalizeMedicalRosterPlacementComparableValue(existingPlayer, field) !==
+      normalizeMedicalRosterPlacementComparableValue(incomingPlayer, field)
+  );
+}
+
 function upsertMedicalPlayers(players) {
   ensureMedicalState();
   const existingById = new Map(
@@ -29258,30 +29413,65 @@ function upsertMedicalPlayers(players) {
       .map((player) => [String(player.id), player])
   );
   const existingBySignature = new Map(
-    medicalState.players.map((player) => [`${player.number}|${player.name}`.toLowerCase(), player])
+    medicalState.players
+      .map((player) => [getMedicalPlayerPlacementSignature(player), player])
+      .filter(([signature]) => Boolean(signature))
   );
   const nextPlayers = [...medicalState.players];
+  const result = {
+    created: 0,
+    updated: 0,
+    unchanged: 0,
+    total: Array.isArray(players) ? players.length : 0,
+    changed: false,
+  };
 
   players.forEach((player) => {
-    const signature = `${String(player.number || "").trim()}|${String(player.name || "").trim().toLowerCase()}`;
+    if (!player || !player.name) {
+      return;
+    }
+    const signature = getMedicalPlayerPlacementSignature(player);
     const playerId = String(player.id || "").trim();
     const existingPlayer = existingById.get(playerId) || existingBySignature.get(signature);
 
     if (existingPlayer) {
-      Object.assign(existingPlayer, {
+      const mergedPlayer = {
         ...existingPlayer,
         ...player,
         id: existingPlayer.id || player.id,
-        updatedAt: new Date().toISOString(),
-      });
+      };
+      if (shouldUpdateMedicalRosterPlacement(existingPlayer, mergedPlayer)) {
+        Object.assign(existingPlayer, {
+          ...mergedPlayer,
+          updatedAt: new Date().toISOString(),
+        });
+        result.updated += 1;
+        result.changed = true;
+      } else {
+        result.unchanged += 1;
+      }
+      if (playerId) {
+        existingById.set(playerId, existingPlayer);
+      }
+      if (signature) {
+        existingBySignature.set(signature, existingPlayer);
+      }
     } else {
       nextPlayers.push(player);
+      result.created += 1;
+      result.changed = true;
       if (playerId) {
         existingById.set(playerId, player);
       }
-      existingBySignature.set(signature, player);
+      if (signature) {
+        existingBySignature.set(signature, player);
+      }
     }
   });
+
+  if (!result.changed) {
+    return result;
+  }
 
   medicalState = cloneMedicalState({
     ...medicalState,
@@ -29289,6 +29479,7 @@ function upsertMedicalPlayers(players) {
     selectedPlayerId: medicalState.selectedPlayerId || nextPlayers[0]?.id || "",
   });
   writeMedicalState();
+  return result;
 }
 
 function addMedicalRecord(values) {
@@ -75946,7 +76137,7 @@ ui.playerProfilesWorkspace?.addEventListener("submit", (event) => {
       buildPlayerProfileOperationFeedback(
         result,
         player
-          ? `${isTemporaryPlayerProfile(player) ? "Temporary player" : "Player"} added. Medical can now clear them for training dates.`
+          ? `${isTemporaryPlayerProfile(player) ? "Temporary player" : "Player"} added. Medical roster slot and planner placement are ready for clearance.`
           : "Could not add player profile."
       )
     );

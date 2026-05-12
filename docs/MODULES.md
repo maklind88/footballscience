@@ -232,8 +232,10 @@ Current direction:
 - Squad List stays at the top.
 - Search, role-group filter, and add-player button live in one command bar.
 - Clicking a player opens the player profile in a modal.
+- Adding a real squad player from the platform must create a linked Medical roster slot immediately. That slot uses the Squad profile id as `profileId`, keeps Medical as the clearance owner, and makes the player available to Session Planner as `not set` until Medical logs availability.
 - Temporary players can be added as academy call-ups, trialists, or guest training players. They live in Squad and sync to Medical for clearance, but `countsInSquad=false` keeps them out of first-team totals, depth, and role balance.
 - Temporary players can carry a `temporaryFrom`/`temporaryTo` training window. Session Planner only sees them inside that window and only when Medical has logged an availability record or active availability plan for that training date.
+- Squad, Medical, and Session Planner self-heal module placements on read: if a player exists in Squad but the linked Medical slot is missing, the slot is recreated without touching existing Medical logs or plans.
 - Heavy sections below the list stay hidden until needed.
 - Long-term data moves from `football-player-profiles-v1` to the multi-tenant `squad_*` schema.
 

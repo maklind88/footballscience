@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   createSquadCounts,
   createSquadLegacyReadAdapter,
+  createSquadModulePlacementDraft,
   createSquadRosterDraft,
   filterSquadPlayers,
   isSquadPlayerTemporaryActiveOnDate,
@@ -203,4 +204,66 @@ test("Squad roster draft maps legacy UI fields toward the Supabase schema", () =
       },
     },
   });
+});
+
+test("Squad module placement creates Medical slots and controls Session Planner visibility", () => {
+  const squadPlacement = createSquadModulePlacementDraft({
+    id: "real-player",
+    name: "Real Squad Player",
+    number: "22",
+    position: "Midfielder",
+    primaryRole: "8",
+  });
+
+  expect(squadPlacement).toMatchObject({
+    profileId: "real-player",
+    medicalRosterSlot: {
+      id: "real-player",
+      profileId: "real-player",
+      sourceModule: "player-profiles",
+      name: "Real Squad Player",
+      countsInSquad: true,
+    },
+    sessionPlanner: {
+      visible: true,
+      medicalClearanceRequired: true,
+    },
+  });
+
+  const temporaryPlacement = createSquadModulePlacementDraft(
+    {
+      id: "academy-callup",
+      name: "Academy Call-up",
+      rosterType: "academy",
+      countsInSquad: false,
+      temporaryFrom: "2026-05-10",
+      temporaryTo: "2026-05-12",
+    },
+    { date: "2026-05-11", hasMedicalAvailability: false }
+  );
+  expect(temporaryPlacement).toMatchObject({
+    medicalRosterSlot: {
+      id: "academy-callup",
+      profileId: "academy-callup",
+      countsInSquad: false,
+    },
+    sessionPlanner: {
+      visible: false,
+      requiresMedicalAvailabilityBeforeTemporaryUse: true,
+    },
+  });
+
+  expect(
+    createSquadModulePlacementDraft(
+      {
+        id: "academy-callup",
+        name: "Academy Call-up",
+        rosterType: "academy",
+        countsInSquad: false,
+        temporaryFrom: "2026-05-10",
+        temporaryTo: "2026-05-12",
+      },
+      { date: "2026-05-11", hasMedicalAvailability: true }
+    ).sessionPlanner.visible
+  ).toBe(true);
 });

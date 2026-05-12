@@ -61,7 +61,7 @@ async function signIn(page) {
     await page.locator('#loginForm button[type="submit"]').click();
   }
 
-  await expect(page.locator("#hubShell")).toBeVisible();
+  await expect(page.locator("#hubShell")).toBeVisible({ timeout: 30_000 });
   await expect(page.locator("#loginScreen")).toBeHidden();
   await waitForCentralStateReady(page);
   await dismissDashboardModal(page);

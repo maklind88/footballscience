@@ -37,6 +37,7 @@ function printHelp() {
   console.log(`Safe Ship release automation
 
 Usage:
+  npm run deploy
   npm run release:ship -- --stage-all --commit "fix: message" --push --deploy
   npm run release:ship -- --commit "fix: message" --push
   npm run release:ship -- --mode quick
@@ -47,10 +48,10 @@ Options:
   --stage-all              Stage every current change in this worktree.
   --commit, -m TEXT        Commit staged changes with TEXT after validation passes.
   --push                   Push the current branch after validation/commit.
-  --deploy                 Release through staging -> main -> GitHub Production Deploy.
+  --deploy                 fast mode deploys directly to production after push; safe mode uses staging -> production.
   --mode auto|fast|safe    auto chooses safe for API/data/security/module changes.
   (quick/full are aliases: quick=fast, full=safe)
-  fast mode runs the minimum live safety gate and skips long budget/browser suites.
+  fast mode runs the minimum live safety gate, pushes main, deploys Vercel production, and verifies live.
   safe mode runs the full QA gate.
   --skip-github-wait       Push release refs without waiting for GitHub workflows.
   --help                   Show this help.
@@ -323,6 +324,21 @@ function deployThroughGithub(options) {
   run("npm", ["run", "release:postdeploy"]);
 }
 
+function extractDeploymentUrl(output) {
+  const matches = String(output || "").match(/https:\/\/[^\s]+\.vercel\.app/g);
+  return matches?.[matches.length - 1] || "";
+}
+
+function deployDirectProduction() {
+  requireCleanWorkingTree("Fast production deploy");
+  const deployOutput = run("npx", ["--yes", "vercel@53.2.0", "deploy", "--prod", "--yes"], { capture: true });
+  const deploymentUrl = extractDeploymentUrl(deployOutput);
+  if (deploymentUrl) {
+    console.log(`\nFast production deployment: ${deploymentUrl}`);
+  }
+  run("npm", ["run", "release:postdeploy"]);
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const options = parseArgs(args);
@@ -375,7 +391,11 @@ async function main() {
   }
 
   if (options.deploy) {
-    deployThroughGithub(options);
+    if (mode === "fast") {
+      deployDirectProduction();
+    } else {
+      deployThroughGithub(options);
+    }
   }
 
   console.log("\nSafe Ship summary");

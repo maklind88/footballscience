@@ -23,6 +23,7 @@ const fastValidation = [
   "storage:guard",
   "security:platform",
 ];
+const safeValidationCoverage = ["qa:contracts", "qa:browser"];
 const safeValidation = ["qa"];
 const releaseModeAliases = Object.freeze({
   auto: "auto",

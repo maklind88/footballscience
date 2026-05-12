@@ -18,7 +18,7 @@
 *{
   box-sizing: border-box;
 }
-body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue",sans-serif;color:var(--ink);background:#f5f5f7}
+body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue",sans-serif;color:var(--ink);background:var(--bg)}
 [hidden]{display:none!important}
 .login-screen{
   min-height: 100vh;
@@ -20967,4 +20967,316 @@ select{
   body.is-session-printing .session-print-page{width:var(--session-print-width) !important;height:var(--session-print-height) !important;max-width:none !important;max-height:var(--session-print-height) !important;margin:0 !important;overflow:hidden !important;box-shadow:none !important;border-radius:0 !important;break-after:page;break-inside:avoid;page-break-after:always;page-break-inside:avoid}
 
   body.is-session-printing .session-print-page:last-child{break-after:auto;page-break-after:auto}
+}
+
+body.is-dark-mode{
+  color-scheme: dark;
+  --bg: #0b1020;
+  --panel: rgba(15, 23, 42, 0.82);
+  --ink: #e5e7eb;
+  --muted: #94a3b8;
+  --line: rgba(148, 163, 184, 0.24);
+  --pitch: #3b8f6c;
+  --pitch-dark: #125f45;
+  --home: #2e67ba;
+  --away: #e05f5f;
+  --ball: #f59e0b;
+  --target: #fb923c;
+  --shadow: 0 18px 44px rgba(0, 0, 0, 0.44);
+}
+
+body.is-dark-mode,
+body.is-dark-mode *{
+  caret-color: #93c5fd;
+}
+
+body.is-dark-mode .coach-platform,
+body.is-dark-mode .platform-main,
+body.is-dark-mode .platform-content,
+body.is-dark-mode .platform-home-shell,
+body.is-dark-mode .platform-home-view,
+body.is-dark-mode .platform-placeholder-view,
+body.is-dark-mode .platform-profile-view,
+body.is-dark-mode .platform-staff-view,
+body.is-dark-mode .platform-admin-view,
+body.is-dark-mode .platform-medical-view,
+body.is-dark-mode .platform-player-profiles-view,
+body.is-dark-mode .platform-game-simulator-view,
+body.is-dark-mode .platform-module-shell,
+body.is-dark-mode .platform-sidebar,
+body.is-dark-mode .workspace-shell,
+body.is-dark-mode .profile-shell{
+  background: var(--bg);
+  color: var(--ink);
+}
+
+body.is-dark-mode .platform-sidebar{
+  background:
+    linear-gradient(180deg, rgba(30, 41, 59, 0.9), rgba(14, 23, 42, 0.86)),
+    rgba(14, 23, 42, 0.74);
+  border-right-color: rgba(148, 163, 184, 0.2);
+}
+
+body.is-dark-mode .platform-topbar,
+body.is-dark-mode .top-icon-menu{
+  background: rgba(15, 23, 42, 0.86);
+  color: var(--ink);
+  border-color: rgba(148, 163, 184, 0.2);
+  box-shadow: var(--shadow);
+}
+
+body.is-dark-mode .platform-title h1{
+  color: var(--ink);
+}
+
+body.is-dark-mode .platform-title h1:hover,
+body.is-dark-mode .platform-title h1:focus-visible{
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.18);
+}
+
+body.is-dark-mode .platform-nav-item{
+  color: var(--ink);
+  background: rgba(15, 23, 42, 0.58);
+  border-color: rgba(148, 163, 184, 0.18);
+}
+
+body.is-dark-mode .platform-nav-item.is-active,
+body.is-dark-mode .platform-nav-item:hover{
+  background: rgba(30, 41, 59, 0.94);
+  border-color: rgba(148, 163, 184, 0.32);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+body.is-dark-mode .platform-nav-text small,
+body.is-dark-mode .platform-sidebar strong{
+  color: var(--muted);
+}
+
+body.is-dark-mode .platform-content{
+  background: linear-gradient(180deg, #0b1020 0%, #0a1224 100%);
+}
+
+body.is-dark-mode .platform-home-hero,
+body.is-dark-mode .dashboard-card,
+body.is-dark-mode .dashboard-panel,
+body.is-dark-mode .dashboard-chat-panel,
+body.is-dark-mode .dashboard-top-task-row,
+body.is-dark-mode .profile-todo-form,
+body.is-dark-mode .dashboard-task-form,
+body.is-dark-mode .platform-module-shell{
+  background: rgba(15, 23, 42, 0.82);
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+body.is-dark-mode .platform-home-hero,
+body.is-dark-mode .dashboard-panel{
+  box-shadow: var(--shadow);
+}
+
+body.is-dark-mode .dashboard-card,
+body.is-dark-mode .dashboard-card-kicker,
+body.is-dark-mode .dashboard-top-task-copy,
+body.is-dark-mode .dashboard-item-main strong,
+body.is-dark-mode .dashboard-panel-copy,
+body.is-dark-mode .dashboard-panel-head h2,
+body.is-dark-mode .dashboard-card-head h2,
+body.is-dark-mode .dashboard-card-head h3,
+body.is-dark-mode .dashboard-panel-count,
+body.is-dark-mode .workspace-heading,
+body.is-dark-mode .dashboard-welcome,
+body.is-dark-mode .dashboard-todo-title,
+body.is-dark-mode .placeholder-title,
+body.is-dark-mode .placeholder-description{
+  color: var(--ink);
+}
+
+body.is-dark-mode .dashboard-card-kicker,
+body.is-dark-mode .dashboard-item-meta,
+body.is-dark-mode .dashboard-top-task-copy small,
+body.is-dark-mode .dashboard-panel-count,
+body.is-dark-mode .dashboard-task-form label,
+body.is-dark-mode .dashboard-task-list-empty,
+body.is-dark-mode .placeholder-tag,
+body.is-dark-mode .dashboard-chat-widget-title-copy small{
+  color: var(--muted);
+}
+
+body.is-dark-mode .dashboard-pill,
+body.is-dark-mode .pulse-badge,
+body.is-dark-mode .placeholder-chip{
+  background: rgba(51, 65, 85, 0.74);
+  color: var(--ink);
+}
+
+body.is-dark-mode .dashboard-panel-link,
+body.is-dark-mode .dashboard-panel-link:hover,
+body.is-dark-mode .dashboard-row-action{
+  color: var(--muted);
+}
+
+body.is-dark-mode .dashboard-card-footer,
+body.is-dark-mode .dashboard-list-item,
+body.is-dark-mode .pulse-row,
+body.is-dark-mode .module-row{
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+body.is-dark-mode .dashboard-chat-widget-root{
+  filter: drop-shadow(0 18px 48px rgba(0, 0, 0, 0.45));
+}
+
+body.is-dark-mode .dashboard-chat-widget{
+  filter: drop-shadow(0 22px 48px rgba(0, 0, 0, 0.45));
+}
+
+body.is-dark-mode .dashboard-chat-widget.is-open{
+  background: rgba(15, 23, 42, 0.94);
+  border-color: rgba(148, 163, 184, 0.16);
+}
+
+body.is-dark-mode .dashboard-chat-launcher,
+body.is-dark-mode .dashboard-chat-widget-header,
+body.is-dark-mode .dashboard-chat-widget-body,
+body.is-dark-mode .dashboard-chat-thread-head,
+body.is-dark-mode .dashboard-chat-inbox-head,
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-form,
+body.is-dark-mode .dashboard-chat-conversation,
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-thread-list{
+  background: rgba(17, 24, 39, 0.92);
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+body.is-dark-mode .dashboard-chat-thread-item{
+  background: rgba(15, 23, 42, 0.65);
+}
+
+body.is-dark-mode .dashboard-chat-thread-item.is-active{
+  background: rgba(30, 41, 59, 0.95);
+  border-color: rgba(37, 99, 235, 0.4);
+  color: #e2e8f0;
+  box-shadow: var(--shadow);
+}
+
+body.is-dark-mode .dashboard-chat-thread-copy strong,
+body.is-dark-mode .dashboard-chat-thread-head h3,
+body.is-dark-mode .dashboard-chat-thread-row strong,
+body.is-dark-mode .dashboard-chat-widget-title-copy span,
+body.is-dark-mode .dashboard-chat-widget-title-copy small,
+body.is-dark-mode .dashboard-chat-thread-head small,
+body.is-dark-mode .dashboard-chat-title,
+body.is-dark-mode .dashboard-chat-message strong,
+body.is-dark-mode .dashboard-chat-author strong{
+  color: var(--ink);
+}
+
+body.is-dark-mode .dashboard-chat-thread-copy small,
+body.is-dark-mode .dashboard-chat-thread-meta,
+body.is-dark-mode .dashboard-chat-thread-meta span,
+body.is-dark-mode .dashboard-chat-thread-row small,
+body.is-dark-mode .dashboard-chat-widget-title-copy small,
+body.is-dark-mode .dashboard-chat-meta,
+body.is-dark-mode .dashboard-chat-thread-meta{
+  color: var(--muted);
+}
+
+body.is-dark-mode .dashboard-chat-thread-item,
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-message p,
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-bubble p,
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-inbox-head input,
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-form textarea{
+  background: rgba(15, 23, 42, 0.92);
+  color: var(--ink);
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-message p,
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-bubble p{
+  border-radius: 10px;
+}
+
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-message.is-own p,
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-message.is-own .dashboard-chat-bubble p{
+  background: linear-gradient(180deg, #1d4ed8, #1e40af);
+  color: #fff;
+}
+
+body.is-dark-mode .dashboard-chat-widget-title-copy small,
+body.is-dark-mode .dashboard-chat-inbox-head small{
+  color: var(--muted);
+}
+
+body.is-dark-mode .dashboard-task-form input,
+body.is-dark-mode .dashboard-task-form select,
+body.is-dark-mode .dashboard-task-form textarea,
+body.is-dark-mode .profile-todo-form input,
+body.is-dark-mode .dashboard-chat-form input,
+body.is-dark-mode .dashboard-chat-inbox-head input,
+body.is-dark-mode .dashboard-chat-form textarea{
+  background: rgba(15, 23, 42, 0.9);
+  color: var(--ink);
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+body.is-dark-mode .dashboard-task-form button,
+body.is-dark-mode .profile-todo-form button,
+body.is-dark-mode .dashboard-chat-form button,
+body.is-dark-mode .dashboard-modal-actions button{
+  color: #fff;
+  background: linear-gradient(180deg, #1d4ed8, #1e3a8a);
+}
+
+body.is-dark-mode .platform-profile-menu,
+body.is-dark-mode .platform-account-button{
+  background: rgba(15, 23, 42, 0.86);
+  color: var(--ink);
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+body.is-dark-mode .platform-profile-menu button{
+  color: var(--ink);
+}
+
+body.is-dark-mode .profile-menu-data-status{
+  color: #34d399;
+}
+
+body.is-dark-mode .login-screen{
+  background:
+    radial-gradient(circle at 18% 12%, rgba(59, 130, 246, 0.09), transparent 22rem),
+    radial-gradient(circle at 82% 8%, rgba(14, 165, 233, 0.09), transparent 24rem),
+    linear-gradient(180deg, #101a31 0%, #090f1e 100%);
+}
+
+body.is-dark-mode .login-card{
+  color: var(--ink);
+  border-color: rgba(148, 163, 184, 0.24);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.88), rgba(30, 41, 59, 0.76)),
+    rgba(15, 23, 42, 0.86);
+  box-shadow: 0 26px 72px rgba(0, 0, 0, 0.5);
+}
+
+body.is-dark-mode .login-kicker,
+body.is-dark-mode .login-form label,
+body.is-dark-mode .login-link-button{
+  color: var(--muted);
+}
+
+body.is-dark-mode .login-form input,
+body.is-dark-mode .login-form input:focus{
+  color: var(--ink);
+  border-color: rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.9);
+}
+
+body.is-dark-mode .login-forgot-form input,
+body.is-dark-mode .login-forgot-form input:focus{
+  color: var(--ink);
+  border-color: rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.9);
+}
+
+body.is-dark-mode .login-error{
+  color: #fb7185;
 }

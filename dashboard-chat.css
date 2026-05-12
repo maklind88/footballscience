@@ -73,3 +73,97 @@ body.is-dashboard-chat-closed .dashboard-chat-launcher{min-height:3.05rem!import
 .dashboard-chat-attachment-draft-icon{display:inline-grid!important;place-items:center!important;width:2rem!important;min-width:2rem!important;height:2rem!important;border-radius:10px!important;background:#0f172a!important;color:#fff!important;font-size:.55rem!important;font-weight:950!important;letter-spacing:.03em!important}.dashboard-chat-attachment-draft-copy{display:grid!important;gap:.08rem!important;min-width:0!important;line-height:1.1!important}.dashboard-chat-attachment-draft-copy strong,.dashboard-chat-attachment-draft-copy small{display:block!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}.dashboard-chat-attachment-draft.is-uploaded .dashboard-chat-attachment-draft-icon{background:#176449!important}.dashboard-chat-attachment-draft.is-uploading .dashboard-chat-attachment-draft-icon{background:#1d4ed8!important}.dashboard-chat-attachment-draft.is-failed .dashboard-chat-attachment-draft-icon{background:#dc2626!important}
 .dashboard-chat-attachment-preview{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:clamp(.8rem,2vw,1.4rem)}.dashboard-chat-attachment-preview-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.52);backdrop-filter:blur(14px)}.dashboard-chat-attachment-preview-card{position:relative;z-index:1;display:grid;grid-template-rows:auto minmax(0,1fr);width:min(70rem,100%);height:min(46rem,88dvh);overflow:hidden;border:1px solid rgba(255,255,255,.36);border-radius:28px;background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(248,250,252,.96));box-shadow:0 38px 120px rgba(15,23,42,.42)}.dashboard-chat-attachment-preview-card header{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.9rem 1rem;border-bottom:1px solid rgba(15,23,42,.08);background:rgba(255,255,255,.78);backdrop-filter:blur(18px)}.dashboard-chat-attachment-preview-card header div:first-child{display:grid;gap:.08rem;min-width:0}.dashboard-chat-attachment-preview-card header span{color:#64748b;font-size:.68rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em}.dashboard-chat-attachment-preview-card header strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#0f172a;font-size:.95rem;font-weight:950}.dashboard-chat-attachment-preview-actions{display:flex;align-items:center;gap:.42rem;flex:0 0 auto}.dashboard-chat-attachment-preview-actions button,.dashboard-chat-attachment-preview-actions a{display:inline-grid;place-items:center;min-height:2.25rem;padding:0 .82rem;border:1px solid rgba(15,23,42,.09);border-radius:999px;background:#fff;color:#0f172a;box-shadow:0 10px 22px rgba(15,23,42,.07);font:inherit;font-size:.72rem;font-weight:950;text-decoration:none;cursor:pointer}.dashboard-chat-attachment-preview-actions .is-close{width:2.35rem;min-width:2.35rem;padding:0;background:#0f172a;color:#fff;font-size:1.25rem}.dashboard-chat-attachment-preview-body{display:grid;place-items:center;min-height:0;padding:1rem;background:radial-gradient(circle at top left,rgba(47,143,107,.08),transparent 28rem),#f8fafc}.dashboard-chat-attachment-preview-body img{max-width:100%;max-height:100%;border-radius:18px;box-shadow:0 18px 42px rgba(15,23,42,.18)}.dashboard-chat-attachment-preview-body iframe{width:100%;height:100%;border:0;border-radius:18px;background:#fff;box-shadow:0 18px 42px rgba(15,23,42,.12)}.dashboard-chat-attachment-pill{cursor:pointer}button.dashboard-chat-attachment-pill{text-align:left}button.dashboard-chat-attachment-pill:hover{border-color:rgba(47,143,107,.22);background:rgba(47,143,107,.1);color:#176449}@media(max-width:720px){.dashboard-chat-attachment-preview-card{height:92dvh;border-radius:22px}.dashboard-chat-attachment-preview-card header{align-items:flex-start;flex-direction:column}.dashboard-chat-attachment-preview-actions{width:100%;overflow-x:auto}.dashboard-chat-attachment-preview-actions button,.dashboard-chat-attachment-preview-actions a{white-space:nowrap}}
 .dashboard-chat-attachment-preview{z-index:2147483000}
+
+body.is-dark-mode .dashboard-chat-widget{
+  --chat-ink:#e2e8f0;
+  --chat-muted:#94a3b8;
+  --chat-line:rgba(226,232,240,0.12);
+  --chat-surface:rgba(15,23,42,0.95);
+  --chat-accent:#38bdf8;
+  background: rgba(15, 23, 42, 0.95) !important;
+  color: #e2e8f0 !important;
+  border-color: rgba(148, 163, 184, 0.2) !important;
+  box-shadow: 0 28px 78px rgba(0,0,0,0.5) !important;
+}
+
+body.is-dark-mode .dashboard-chat-widget.is-open{
+  background: rgba(15,23,42,0.96) !important;
+}
+
+body.is-dark-mode .dashboard-chat-launcher{
+  background: rgba(17, 24, 39, 0.95) !important;
+  border-color: rgba(148, 163, 184, 0.2) !important;
+}
+
+body.is-dark-mode .dashboard-chat-widget-header,
+body.is-dark-mode .dashboard-chat-thread-head,
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-form,
+body.is-dark-mode .dashboard-chat-inbox-head,
+body.is-dark-mode .dashboard-chat-thread-list,
+body.is-dark-mode .dashboard-chat-conversation,
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-thread-item,
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-widget-title-copy span{
+  background: var(--chat-surface) !important;
+  color: var(--chat-ink) !important;
+  border-color: rgba(148, 163, 184, 0.22) !important;
+}
+
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-message p,
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-bubble p{
+  background: rgba(30,41,59,0.95) !important;
+  border-color: rgba(148, 163, 184, 0.22) !important;
+  color: var(--chat-ink) !important;
+}
+
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-message.is-own p,
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-message.is-own .dashboard-chat-bubble p{
+  background: linear-gradient(180deg,#1d4ed8,#1e3a8a) !important;
+  color: #fff !important;
+}
+
+body.is-dark-mode .dashboard-chat-thread-item.is-active{
+  background: rgba(30, 41, 59, 0.95) !important;
+}
+
+body.is-dark-mode .dashboard-chat-thread-item:hover,
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-thread-item.is-active{
+  box-shadow: 0 16px 32px rgba(0,0,0,0.35) !important;
+}
+
+body.is-dark-mode .dashboard-chat-thread-copy strong,
+body.is-dark-mode .dashboard-chat-thread-head h3,
+body.is-dark-mode .dashboard-chat-author strong,
+body.is-dark-mode .dashboard-chat-inbox-head strong,
+body.is-dark-mode .dashboard-chat-widget-title-copy span{
+  color: var(--chat-ink) !important;
+}
+
+body.is-dark-mode .dashboard-chat-thread-copy small,
+body.is-dark-mode .dashboard-chat-thread-meta,
+body.is-dark-mode .dashboard-chat-thread-meta span,
+body.is-dark-mode .dashboard-chat-widget-title-copy small,
+body.is-dark-mode .dashboard-chat-inbox-head small,
+body.is-dark-mode .dashboard-chat-thread-head small{
+  color: var(--chat-muted) !important;
+}
+
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-form textarea,
+body.is-dark-mode .dashboard-chat-inbox-head input,
+body.is-dark-mode .dashboard-chat-form input{
+  background: rgba(15,23,42,0.9) !important;
+  color: var(--chat-ink) !important;
+  border-color: rgba(148, 163, 184, 0.2) !important;
+}
+
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-form button{
+  background: #2563eb !important;
+}
+
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-compose-tools button,
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-pin-button,
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-reply-button,
+body.is-dark-mode .dashboard-chat-widget .dashboard-chat-delete-button{
+  background: rgba(15, 23, 42, 0.86) !important;
+  color: var(--chat-muted) !important;
+  border-color: rgba(148, 163, 184, 0.25) !important;
+}

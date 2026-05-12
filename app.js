@@ -218,6 +218,10 @@ const sessionPlannerBlockReductionGuardKey = "blockReductionGuard";
 const sessionPlannerBlockDeletionTombstoneKey = "blockDeletionTombstones";
 const sessionPlannerBlockReductionGuardMaxAgeMs = 30 * 60 * 1000;
 const sessionPlannerBlockFieldUpdatedAtKey = "fieldUpdatedAt";
+const platformDarkThemeStartHour = 19;
+const platformDarkThemeEndHour = 6;
+const platformThemeRefreshIntervalMs = 60 * 1000;
+let platformThemeRefreshTimer = null;
 const sessionPlannerBlockMergeFields = Object.freeze([
   "label",
   "title",
@@ -409,6 +413,32 @@ function getDataSafetyStorage() {
 function getDataSafetyNow() {
   return new Date().toISOString();
 }
+
+function isPlatformDarkThemeActive(now = new Date()) {
+  const totalMinutes = now.getHours() * 60 + now.getMinutes();
+  const start = platformDarkThemeStartHour * 60;
+  const end = platformDarkThemeEndHour * 60;
+  return totalMinutes >= start || totalMinutes < end;
+}
+
+function applyPlatformThemeByTime() {
+  const isDark = isPlatformDarkThemeActive();
+  if (!document.body) {
+    return;
+  }
+
+  document.body.classList.toggle("is-dark-mode", isDark);
+  document.body.dataset.themeMode = isDark ? "dark" : "light";
+}
+
+function startPlatformThemeScheduler() {
+  applyPlatformThemeByTime();
+  if (platformThemeRefreshTimer) {
+    window.clearInterval(platformThemeRefreshTimer);
+  }
+  platformThemeRefreshTimer = window.setInterval(applyPlatformThemeByTime, platformThemeRefreshIntervalMs);
+}
+
 function isDataSafetyInternalStorageKey(key) {
   const normalizedKey = String(key || "");
   return normalizedKey === dataSafetyStorageKey || normalizedKey.startsWith("football-data-safety-");
@@ -30343,6 +30373,7 @@ function setActiveWorkspace(workspaceId) {
 }
 
 function initializeWorkspaceHub() {
+  startPlatformThemeScheduler();
   syncPlatformUserFromAuth();
   hubState = repairWorkspaceState(readWorkspaceHubState());
   const urlWorkspaceId = getWorkspaceIdFromUrl();
@@ -77189,6 +77220,7 @@ document.addEventListener("pointerup", () => {
 }, true);
 
 window.addEventListener("focus", () => {
+  applyPlatformThemeByTime();
   markDashboardPresenceActivity();
   startDashboardPresenceRuntime();
   pushDashboardPresence("online").catch(() => {});
@@ -77208,6 +77240,7 @@ document.addEventListener("visibilitychange", () => {
     renderDashboardChatWidget();
     return;
   }
+  applyPlatformThemeByTime();
 
   markDashboardPresenceActivity();
   startDashboardPresenceRuntime();

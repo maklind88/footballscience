@@ -26,3 +26,11 @@ Fokus:
 
 Nar du har last dokumenten, bekrafta kort att du jobbar med Platform Shell och vanta pa min konkreta instruktion.
 ```
+
+## Implementation checkpoint
+
+- Platform shell now has a shared resource/module loader in `src/core/platform-module-loader.mjs`.
+- `dashboard-chat.css` is loaded by the shell instead of blocking initial HTML stylesheet loading.
+- Game Simulator dynamic controllers/runtime use the shared loader and are preloaded from top-nav hover/focus intent.
+- Home dashboard cards render only while Home is active, so workspace switches do not keep rebuilding Home surfaces.
+- Next step is physical module extraction from `app.js`: Schedule, Periodization, Sessions, IDP, Medical, then Game Simulator model data.

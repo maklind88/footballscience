@@ -182,6 +182,15 @@ const dataSafetyContracts = Object.freeze([
     },
   }),
   freezeContract({
+    moduleId: "scouting",
+    key: "football-scouting-v1",
+    recordType: "scouting-workspace",
+    mergePolicy: dataSafetyMergePolicies.revisionGuardedLastWrite,
+    scope: {
+      teamScoped: true,
+    },
+  }),
+  freezeContract({
     moduleId: "game-simulator",
     key: "football-simulator-sequence-v1",
     recordType: "simulator-active-sequence",

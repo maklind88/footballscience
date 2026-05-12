@@ -968,6 +968,7 @@ body.is-dark-mode .platform-theme-select:hover{
 .platform-profile-view,
 .platform-staff-view,
 .platform-admin-view,
+.platform-scouting-view,
 .platform-player-profiles-view,
 .platform-game-simulator-view{
   padding: clamp(1rem, 2vw, 1.45rem);
@@ -11354,7 +11355,35 @@ body:not([data-user-role="admin"]) .session-history-panel{ display: none !import
 }
 
 .schedule-board-card{
+  display: grid;
+  gap: 0.75rem;
   padding: 1rem;
+}
+
+.schedule-layer-filter{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+  align-items: center;
+}
+
+.schedule-layer-button{
+  min-height: 2.15rem;
+  min-width: 0;
+  padding: 0 0.68rem;
+  border: 1px solid rgba(29, 29, 31, 0.08);
+  border-radius: 12px;
+  color: rgba(29, 29, 31, 0.66);
+  background: rgba(245, 245, 247, 0.72);
+  box-shadow: none;
+  font-size: 0.74rem;
+  font-weight: 860;
+}
+
+.schedule-layer-button.is-active{
+  color: #fff;
+  background: #1d1d1f;
+  border-color: rgba(29, 29, 31, 0.24);
 }
 
 .schedule-weekdays,
@@ -11409,6 +11438,7 @@ body:not([data-user-role="admin"]) .session-history-panel{ display: none !import
 }
 
 .schedule-week-day{
+  position: relative;
   min-width: 0;
   display: grid;
   grid-template-rows: auto auto 1fr;
@@ -11436,6 +11466,13 @@ body:not([data-user-role="admin"]) .session-history-panel{ display: none !import
   box-shadow:
     0 18px 40px rgba(0, 113, 227, 0.14),
     inset 0 0 0 1px rgba(0, 113, 227, 0.18);
+}
+
+.schedule-week-day.has-warnings{
+  border-color: rgba(255, 149, 0, 0.34);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 149, 0, 0.2),
+    0 14px 30px rgba(255, 149, 0, 0.08);
 }
 
 .schedule-week-day-head{
@@ -11504,6 +11541,11 @@ body:not([data-user-role="admin"]) .session-history-panel{ display: none !import
   white-space: nowrap;
 }
 
+.schedule-week-day-meta .schedule-week-warning-chip{
+  color: #7a4300;
+  background: rgba(255, 149, 0, 0.18);
+}
+
 .schedule-week-event-stack{
   display: grid;
   align-content: start;
@@ -11514,6 +11556,19 @@ body:not([data-user-role="admin"]) .session-history-panel{ display: none !import
 .schedule-week-event-stack .schedule-event-pill{
   border-radius: 14px;
   white-space: normal;
+}
+
+.schedule-week-event-summary{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.2rem;
+  padding: 0.36rem 0.5rem;
+  border-radius: 14px;
+  color: var(--schedule-event-text, rgba(29, 29, 31, 0.72));
+  background: rgba(255, 255, 255, 0.68);
+  font-size: 0.72rem;
+  font-weight: 880;
 }
 
 .schedule-week-empty{
@@ -11643,6 +11698,19 @@ body:not([data-user-role="admin"]) .session-history-panel{ display: none !import
   box-shadow: inset 0 0 0 1px var(--schedule-event-border, rgba(0, 113, 227, 0.18));
 }
 
+.schedule-overview-day.has-warnings::after,
+.schedule-day-button.has-warnings::after{
+  content: "";
+  position: absolute;
+  top: 0.42rem;
+  right: 0.42rem;
+  width: 0.48rem;
+  height: 0.48rem;
+  border-radius: 999px;
+  background: #ff9500;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.84);
+}
+
 .schedule-overview-day.has-events:hover{
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.12)),
@@ -11693,6 +11761,7 @@ body:not([data-user-role="admin"]) .session-history-panel{ display: none !import
 }
 
 .schedule-day-button{
+  position: relative;
   min-height: clamp(6.5rem, 9.5vw, 8.3rem);
   display: grid;
   align-content: start;
@@ -21150,7 +21219,291 @@ select{
 
   body.is-session-printing .session-print-page{width:var(--session-print-width) !important;height:var(--session-print-height) !important;max-width:none !important;max-height:var(--session-print-height) !important;margin:0 !important;overflow:hidden !important;box-shadow:none !important;border-radius:0 !important;break-after:page;break-inside:avoid;page-break-after:always;page-break-inside:avoid}
 
-  body.is-session-printing .session-print-page:last-child{break-after:auto;page-break-after:auto}
+body.is-session-printing .session-print-page:last-child{break-after:auto;page-break-after:auto}
+}
+
+.platform-scouting-view{
+  background:
+    linear-gradient(180deg, rgba(248, 249, 250, 0.98), rgba(235, 238, 241, 0.98)),
+    #f5f5f7;
+}
+
+.scouting-workspace{
+  width: min(1420px, 100%);
+  margin: 0 auto;
+}
+
+.scouting-shell{
+  display: grid;
+  gap: 0.82rem;
+}
+
+.scouting-hero{
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 6rem;
+  padding: clamp(0.95rem, 2vw, 1.25rem);
+  border-radius: 8px;
+  color: #f9fafb;
+  background:
+    linear-gradient(135deg, rgba(20, 31, 28, 0.96), rgba(64, 75, 68, 0.94)),
+    #1d2925;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 18px 46px rgba(31, 38, 44, 0.14);
+}
+
+.scouting-hero h1{
+  margin: 0.12rem 0 0;
+  color: #ffffff;
+  font-size: clamp(1.75rem, 3.2vw, 2.55rem);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.scouting-hero .placeholder-tag{
+  color: rgba(255, 255, 255, 0.68);
+}
+
+.scouting-metrics{
+  display: grid;
+  grid-template-columns: repeat(4, minmax(5.4rem, 1fr));
+  gap: 0.5rem;
+  width: min(32rem, 100%);
+}
+
+.scouting-metrics span{
+  display: grid;
+  gap: 0.18rem;
+  min-height: 3.25rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 0.72rem;
+  font-weight: 780;
+  text-transform: uppercase;
+}
+
+.scouting-metrics strong{
+  color: #ffffff;
+  font-size: 1.05rem;
+}
+
+.scouting-board{
+  display: grid;
+  gap: 0.72rem;
+}
+
+.scouting-command-bar{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.72rem;
+  align-items: center;
+  padding: 0.72rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(29, 29, 31, 0.08);
+}
+
+.scouting-tabs,
+.scouting-tools{
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+}
+
+.scouting-tab,
+.scouting-primary-button,
+.scouting-target-form button,
+.scouting-target-actions button{
+  min-height: 2.35rem;
+  border-radius: 8px;
+  border: 1px solid rgba(29, 29, 31, 0.1);
+  background: rgba(255, 255, 255, 0.9);
+  color: #1d1d1f;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.scouting-tab{
+  padding: 0.45rem 0.72rem;
+}
+
+.scouting-tab.is-active,
+.scouting-primary-button,
+.scouting-target-form button{
+  color: #ffffff;
+  background: #26362f;
+  border-color: #26362f;
+}
+
+.scouting-tools input,
+.scouting-tools select,
+.scouting-target-form input,
+.scouting-target-form select,
+.scouting-target-form textarea,
+.scouting-target-actions select{
+  min-height: 2.35rem;
+  border-radius: 8px;
+  border: 1px solid rgba(29, 29, 31, 0.12);
+  background: #ffffff;
+  color: #1d1d1f;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 720;
+}
+
+.scouting-tools input,
+.scouting-tools select{
+  padding: 0.48rem 0.65rem;
+}
+
+.scouting-tools input{
+  width: min(16rem, 42vw);
+}
+
+.scouting-primary-button,
+.scouting-target-form button,
+.scouting-target-actions button{
+  padding: 0.48rem 0.78rem;
+}
+
+.scouting-target-form{
+  display: none;
+  grid-template-columns: repeat(6, minmax(0, 1fr)) auto;
+  gap: 0.5rem;
+  align-items: start;
+  padding: 0.72rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(29, 29, 31, 0.08);
+}
+
+.scouting-target-form.is-open{
+  display: grid;
+}
+
+.scouting-target-form input,
+.scouting-target-form select,
+.scouting-target-form textarea{
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem 0.65rem;
+}
+
+.scouting-target-form textarea{
+  grid-column: span 2;
+  resize: vertical;
+}
+
+.scouting-content{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.scouting-target-card,
+.scouting-empty-panel{
+  min-height: 8.25rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(29, 29, 31, 0.08);
+  box-shadow: 0 12px 30px rgba(31, 38, 44, 0.05);
+}
+
+.scouting-target-card{
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.82rem;
+}
+
+.scouting-target-main,
+.scouting-target-actions{
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.scouting-target-main strong{
+  display: block;
+  color: #1d1d1f;
+  font-size: 1rem;
+}
+
+.scouting-target-main span,
+.scouting-note-line,
+.scouting-fit-line{
+  color: #6e6e73;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.scouting-target-badges{
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  white-space: nowrap;
+}
+
+.scouting-priority-chip{
+  padding: 0.28rem 0.48rem;
+  border-radius: 999px;
+  color: #203b2c;
+  background: rgba(111, 191, 139, 0.18);
+  border: 1px solid rgba(37, 119, 72, 0.14);
+  font-weight: 860;
+}
+
+.scouting-fit-line,
+.scouting-note-line{
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.scouting-target-actions{
+  align-items: center;
+}
+
+.scouting-target-actions select{
+  padding: 0.42rem 0.56rem;
+}
+
+.scouting-target-actions button{
+  width: 2.35rem;
+  padding: 0;
+  color: #8a1f11;
+  background: rgba(254, 226, 226, 0.72);
+  border-color: rgba(220, 38, 38, 0.22);
+}
+
+@media (max-width: 980px){
+  .scouting-hero,
+  .scouting-command-bar{
+    grid-template-columns: 1fr;
+  }
+
+  .scouting-hero{
+    display: grid;
+  }
+
+  .scouting-metrics,
+  .scouting-content,
+  .scouting-target-form{
+    grid-template-columns: 1fr;
+  }
+
+  .scouting-target-form textarea{
+    grid-column: auto;
+  }
+
+  .scouting-tools input{
+    width: 100%;
+  }
 }
 
 body.is-dark-mode{
@@ -21184,6 +21537,7 @@ body.is-dark-mode .platform-profile-view,
 body.is-dark-mode .platform-staff-view,
 body.is-dark-mode .platform-admin-view,
 body.is-dark-mode .platform-medical-view,
+body.is-dark-mode .platform-scouting-view,
 body.is-dark-mode .platform-player-profiles-view,
 body.is-dark-mode .platform-game-simulator-view,
 body.is-dark-mode .platform-module-shell,
@@ -21217,6 +21571,37 @@ body.is-dark-mode .platform-title h1:hover,
 body.is-dark-mode .platform-title h1:focus-visible{
   color: #93c5fd;
   background: rgba(59, 130, 246, 0.18);
+}
+
+body.is-dark-mode .scouting-command-bar,
+body.is-dark-mode .scouting-target-form,
+body.is-dark-mode .scouting-target-card,
+body.is-dark-mode .scouting-empty-panel{
+  background: rgba(15, 23, 42, 0.82);
+  border-color: rgba(148, 163, 184, 0.2);
+  color: var(--ink);
+}
+
+body.is-dark-mode .scouting-tab,
+body.is-dark-mode .scouting-tools input,
+body.is-dark-mode .scouting-tools select,
+body.is-dark-mode .scouting-target-form input,
+body.is-dark-mode .scouting-target-form select,
+body.is-dark-mode .scouting-target-form textarea,
+body.is-dark-mode .scouting-target-actions select{
+  background: rgba(30, 41, 59, 0.92);
+  border-color: rgba(148, 163, 184, 0.22);
+  color: var(--ink);
+}
+
+body.is-dark-mode .scouting-target-main strong{
+  color: var(--ink);
+}
+
+body.is-dark-mode .scouting-target-main span,
+body.is-dark-mode .scouting-note-line,
+body.is-dark-mode .scouting-fit-line{
+  color: var(--muted);
 }
 
 body.is-dark-mode .platform-nav-item{
@@ -21410,15 +21795,22 @@ body.is-dark-mode .schedule-span-buttons{
 body.is-dark-mode .schedule-view-button,
 body.is-dark-mode .schedule-span-label,
 body.is-dark-mode .schedule-span-buttons button,
+body.is-dark-mode .schedule-layer-button,
 body.is-dark-mode .session-date-pill{
   color: var(--muted);
 }
 
 body.is-dark-mode .schedule-view-button.is-active,
 body.is-dark-mode .schedule-span-buttons button.is-active,
+body.is-dark-mode .schedule-layer-button.is-active,
 body.is-dark-mode .session-date-pill.is-active{
   color: #ffffff;
   background: #1d4ed8;
+}
+
+body.is-dark-mode .schedule-layer-button{
+  background: rgba(30, 41, 59, 0.66);
+  border-color: rgba(148, 163, 184, 0.18);
 }
 
 body.is-dark-mode .session-date-nav-button,

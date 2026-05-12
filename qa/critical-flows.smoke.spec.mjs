@@ -383,6 +383,14 @@ test("Schedule week view shows daily operations and opens linked session", async
             title: "Training",
             note: "QA week operations",
           },
+          {
+            id: "qa-week-training-duplicate",
+            date: "2026-05-09",
+            time: "10:00",
+            type: "training",
+            title: "Training",
+            note: "QA week operations",
+          },
         ],
       })
     );
@@ -439,14 +447,114 @@ test("Schedule week view shows daily operations and opens linked session", async
 
   await expect(page.locator("#scheduleWeekGrid")).toBeVisible();
   await expect(page.locator(".schedule-week-day.is-selected")).toContainText("9");
-  await expect(page.locator("#scheduleDayInsights")).toContainText("1 blocks / 15 min");
-  await expect(page.locator("#scheduleDayInsights")).toContainText("Training");
+  await expect(page.locator(".schedule-week-day.is-selected .schedule-week-event-summary")).toHaveText("1 plan");
+  await expect(page.locator("#scheduleEventList .schedule-event-card")).toHaveCount(1);
+  await expect(page.locator("#scheduleEventList")).toContainText("Training");
+  await expect(page.locator("#scheduleDayInsights")).toContainText("1 block / 15 min");
   await expect(page.locator("#scheduleDayInsights")).toContainText("MD-1");
+  await expect(page.locator("#scheduleDayInsights")).not.toContainText("Training Session");
 
   await page.locator('[data-schedule-open-session-date="2026-05-09"]').click();
 
   await expect(page.locator('[data-workspace-view="session-planner"].is-active')).toBeVisible();
   await expect(page.locator("#sessionPlannerWorkspace")).toContainText("Training Session");
+});
+
+test("Schedule layers filter the board while conflict alerts stay visible", async ({ page }) => {
+  await page.addInitScript(({ scheduleKey, sessionPlannerKey, periodizationKey }) => {
+    const realDate = Date;
+    const fixedNow = new realDate("2026-05-10T12:00:00-04:00").getTime();
+    class FixedDate extends realDate {
+      constructor(...args) {
+        super(...(args.length ? args : [fixedNow]));
+      }
+      static now() {
+        return fixedNow;
+      }
+    }
+    FixedDate.UTC = realDate.UTC;
+    FixedDate.parse = realDate.parse;
+    FixedDate.prototype = realDate.prototype;
+    window.Date = FixedDate;
+    window.localStorage.setItem(
+      scheduleKey,
+      JSON.stringify({
+        selectedYear: 2026,
+        selectedMonthIndex: 4,
+        selectedDate: "2026-05-10",
+        viewMode: "week",
+        overviewSpan: 6,
+        importVersion: "ncc-2026-numbers-v1",
+        events: [
+          {
+            id: "qa-layer-training",
+            date: "2026-05-10",
+            time: "10:00",
+            type: "training",
+            title: "Training",
+            note: "Layer QA",
+          },
+          {
+            id: "qa-layer-match",
+            date: "2026-05-10",
+            time: "10:00",
+            type: "match",
+            title: "QA Match",
+            note: "Same slot",
+          },
+          {
+            id: "qa-layer-off",
+            date: "2026-05-10",
+            type: "off",
+            title: "Off",
+            note: "Conflict seed",
+          },
+        ],
+      })
+    );
+    window.localStorage.setItem(
+      sessionPlannerKey,
+      JSON.stringify({
+        selectedDate: "2026-05-10",
+        sessions: {},
+      })
+    );
+    window.localStorage.setItem(
+      periodizationKey,
+      JSON.stringify({
+        selectedYear: 2026,
+        selectedMonthIndex: 4,
+        selectedDate: "2026-05-10",
+        importVersion: "ncc-2026-periodization-v1",
+        days: {
+          "2026-05-10": {
+            daySchedule: "Off",
+          },
+        },
+      })
+    );
+  }, { scheduleKey, sessionPlannerKey, periodizationKey });
+
+  await bootApp(page);
+  await openWorkspace(page, "schedule");
+
+  await expect(page.locator("#scheduleWeekGrid")).toBeVisible();
+  await expect(page.locator(".schedule-week-day.is-selected .schedule-week-event-summary")).toHaveText("3 plans");
+  await expect(page.locator(".schedule-week-day.is-selected")).toContainText("alert");
+  await expect(page.locator("#scheduleDayInsights")).toContainText("OFF mixed with active plan");
+  await expect(page.locator("#scheduleDayInsights")).toContainText("Time conflict at 10:00");
+
+  await page.locator('[data-schedule-layer="match"]').click();
+
+  await expect(page.locator('[data-schedule-layer="match"]')).toHaveClass(/is-active/);
+  await expect(page.locator('[data-schedule-layer="all"]')).not.toHaveClass(/is-active/);
+  await expect(page.locator(".schedule-week-day.is-selected .schedule-week-event-summary")).toHaveText("1 plan");
+  await expect(page.locator("#scheduleEventList")).toContainText("Training");
+  await expect(page.locator("#scheduleEventList")).toContainText("QA Match");
+  await expect(page.locator("#scheduleEventList")).toContainText("Off");
+
+  await page.locator('[data-schedule-layer="all"]').click();
+  await expect(page.locator(".schedule-week-day.is-selected .schedule-week-event-summary")).toHaveText("3 plans");
 });
 
 test("Periodization Today opens the real current date", async ({ page }) => {

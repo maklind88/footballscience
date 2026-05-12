@@ -22,6 +22,8 @@ Use the module-specific starters in `docs/module-chats/`:
 14. `docs/module-chats/14_PROFILE_ACCOUNT.md`
 15. `docs/module-chats/15_DEPLOYMENT_QA.md`
 16. `docs/module-chats/16_MEDICAL_TEAM.md`
+17. `docs/module-chats/17_CHAT.md`
+18. `docs/module-chats/18_SCOUTING.md`
 
 ## How To Use
 

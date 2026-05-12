@@ -26,7 +26,9 @@ test("modular core covers protected storage keys without loading the current UI"
     localPersistence: "cache-only",
   });
   expect(registry.ownersForStorageKey("football-session-exercise-library-backup-v1")).toEqual(["exercise-library"]);
+  expect(registry.ownersForStorageKey("football-scouting-v1")).toEqual(["scouting"]);
   expect(platformModuleRegistry.ids()).toContain("session-planner");
+  expect(platformModuleRegistry.ids()).toContain("scouting");
 });
 
 test("migration order starts with low-risk modules and keeps deep planning modules later", () => {

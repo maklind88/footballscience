@@ -44,6 +44,7 @@ import { createDashboardChatAttachmentPreview } from "./src/modules/chat/chat-at
 import { uploadDashboardChatAttachmentFile as uploadDashboardChatAttachmentFileWithClient } from "./src/modules/chat/chat-attachment-storage.mjs";
 import { createDashboardHomeCardsRenderer } from "./src/modules/home/dashboard-renderer.mjs";
 import { selectHomeTaskQueues } from "./src/modules/home/tasks.mjs";
+import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 const canvas = document.getElementById("pitchCanvas");
 const ctx = canvas.getContext("2d");
 const ui = {
@@ -97,6 +98,7 @@ const ui = {
   scheduleOverviewViewButton: document.getElementById("scheduleOverviewViewButton"),
   scheduleOverviewSpanControl: document.getElementById("scheduleOverviewSpanControl"),
   scheduleOverviewSpanButtons: Array.from(document.querySelectorAll("[data-schedule-span]")),
+  scheduleLayerButtons: Array.from(document.querySelectorAll("[data-schedule-layer]")),
   scheduleWeekdays: document.getElementById("scheduleWeekdays"),
   scheduleCalendarGrid: document.getElementById("scheduleCalendarGrid"),
   scheduleWeekGrid: document.getElementById("scheduleWeekGrid"),
@@ -128,6 +130,7 @@ const ui = {
   adminWorkspace: document.getElementById("adminWorkspace"),
   medicalTeamWorkspace: document.getElementById("medicalTeamWorkspace"),
   playerProfilesWorkspace: document.getElementById("playerProfilesWorkspace"),
+  scoutingWorkspace: document.getElementById("scoutingWorkspace"),
   gameSimulatorWorkspace: document.querySelector('[data-workspace-view="game-simulator"]'),
   gameSimulatorIntro: document.getElementById("gameSimulatorIntro"),
   simulatorIntroEnterButton: document.getElementById("simulatorIntroEnterButton"),
@@ -204,6 +207,11 @@ const ui = {
   savedSequenceStatus: document.getElementById("savedSequenceStatus"),
   savedSequenceList: document.getElementById("savedSequenceList"),
 };
+const platformAssetVersion = window.__assetVersion || Date.now();
+const platformModuleLoader = createPlatformModuleLoader({
+  documentRef: document,
+  assetVersion: platformAssetVersion,
+});
 let gameSimulatorControllersPromise = null;
 let gameSimulatorFullscreenController = null, gameSimulatorKeyboardState = null, gameSimulatorWorkspaceController = null;
 const workspaceHubStorageKey = "football-workspace-hub-v3";
@@ -221,6 +229,31 @@ const sessionPlannerBlockReductionGuardMaxAgeMs = 30 * 60 * 1000;
 const sessionPlannerBlockFieldUpdatedAtKey = "fieldUpdatedAt";
 const platformThemeModeStorageKey = "football-platform-theme-mode-v1";
 const platformThemeModeDefault = "auto";
+function queuePlatformIdleTask(callback, timeout = 300) {
+  if (typeof callback !== "function") {
+    return;
+  }
+
+  if (typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(callback, { timeout });
+    return;
+  }
+
+  window.setTimeout(callback, Math.min(timeout, 120));
+}
+
+function ensureDashboardChatStylesheet() {
+  return platformModuleLoader.loadStylesheet("dashboard-chat", "dashboard-chat.css", {
+    id: "dashboardChatStylesheet",
+  });
+}
+
+function queueDashboardChatStylesheetLoad() {
+  queuePlatformIdleTask(() => {
+    ensureDashboardChatStylesheet().catch(() => {});
+  }, 220);
+}
+
 const platformThemeModeSupported = new Set(["auto", "light", "dark"]);
 const platformDarkThemeStartHour = 19;
 const platformDarkThemeEndHour = 6;
@@ -304,6 +337,7 @@ const dashboardNotificationSeenStorageKey = "football-dashboard-notification-see
 const dashboardTutorialPrefsStorageKey = "football-dashboard-tutorial-prefs-v1";
 const dashboardNewsSeenStorageKey = "football-dashboard-news-seen-v1";
 const medicalTeamStorageKey = "football-medical-team-v1";
+const scoutingStorageKey = "football-scouting-v1";
 const sequenceStorageKey = "football-simulator-sequence-v1";
 const sequenceLibraryStorageKey = "football-simulator-sequence-library-v2";
 const dataSafetyStorageKey = "football-data-safety-v1";
@@ -330,6 +364,7 @@ const dataSafetyProtectedStorageKeys = [
   dashboardTutorialPrefsStorageKey,
   dashboardNewsSeenStorageKey,
   medicalTeamStorageKey,
+  scoutingStorageKey,
   sequenceStorageKey,
   sequenceLibraryStorageKey,
 ];
@@ -351,6 +386,7 @@ const dataSafetyStorageLabels = {
   [dashboardNewsSeenStorageKey]: "Dashboard News",
   [medicalTeamStorageKey]: "Medical Room",
   [playerProfilesStorageKey]: "Player Profiles",
+  [scoutingStorageKey]: "Scouting",
   [sequenceStorageKey]: "Current Simulator Sequence",
   [sequenceLibraryStorageKey]: "Simulator Sequence Library",
 };
@@ -763,6 +799,16 @@ function applyCentralSyncedStateValue(write = {}, syncedValue) {
     medicalState = readMedicalState();
     if (hubState?.activeWorkspaceId === "player-profiles" && !shouldDeferCentralizedAppStateReload()) {
       renderPlayerProfilesWorkspace();
+    }
+    if (hubState?.activeWorkspaceId === "medical-team" && !shouldDeferCentralizedAppStateReload()) {
+      renderMedicalTeamWorkspace();
+    }
+    return;
+  }
+  if (key === scoutingStorageKey) {
+    scoutingState = readScoutingState();
+    if (hubState?.activeWorkspaceId === "scouting" && !shouldDeferCentralizedAppStateReload()) {
+      renderScoutingWorkspace();
     }
   }
 }
@@ -1324,14 +1370,40 @@ const scheduleMainEventPriority = {
   recovery: 5,
   off: 6,
 };
+const scheduleLayerTypes = Object.freeze(Object.keys(scheduleEventTypes));
 const defaultScheduleState = {
   selectedYear: new Date().getFullYear(),
   selectedMonthIndex: new Date().getMonth(),
   selectedDate: formatScheduleDateValue(new Date()),
   viewMode: "month",
   overviewSpan: 6,
+  visibleEventTypes: scheduleLayerTypes,
   importVersion: "",
   events: [],
+};
+const scoutingTabs = [
+  { id: "targets", label: "Targets" },
+  { id: "shortlist", label: "Shortlist" },
+  { id: "reports", label: "Reports" },
+  { id: "opposition", label: "Opposition" },
+];
+const scoutingStatusOptions = [
+  { value: "new", label: "New" },
+  { value: "monitoring", label: "Monitoring" },
+  { value: "shortlist", label: "Shortlist" },
+  { value: "archived", label: "Archived" },
+];
+const scoutingPriorityOptions = [
+  { value: "normal", label: "Normal" },
+  { value: "high", label: "High" },
+  { value: "urgent", label: "Urgent" },
+];
+const defaultScoutingState = {
+  activeTab: "targets",
+  searchQuery: "",
+  statusFilter: "all",
+  targets: [],
+  reports: [],
 };
 const importedNccScheduleEvents = Array.isArray(window.__importedNccScheduleEvents)
   ? window.__importedNccScheduleEvents
@@ -1462,6 +1534,15 @@ const defaultHubState = {
       icon: "◔",
     },
     {
+      id: "scouting",
+      kind: "scouting",
+      title: "Scouting",
+      meta: "Recruitment",
+      description: "Targets, reports, watchlists and opposition scouting.",
+      status: "New",
+      icon: "◇",
+    },
+    {
       id: "analysis-room",
       kind: "placeholder",
       title: "Analysis Room",
@@ -1476,10 +1557,11 @@ const topIconMenuOrder = [
   "schedule",
   "periodization",
   "session-planner",
-  "medical-team",
   "player-profiles",
+  "scouting",
   "analysis-room",
   "staff",
+  "medical-team",
   "team-identity",
   "game-simulator",
 ];
@@ -1489,6 +1571,7 @@ const defaultWorkspaceAccess = {
   periodization: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   "session-planner": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   "player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout", "performance", "medical"],
+  scouting: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
   "analysis-room": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
   "medical-team": ["admin", "club-admin", "team-admin", "coach", "performance", "medical"],
   staff: ["admin"],
@@ -1502,6 +1585,7 @@ const defaultWorkspaceEditAccess = {
   periodization: ["admin", "club-admin", "team-admin", "coach", "performance"],
   "session-planner": ["admin", "club-admin", "team-admin", "coach"],
   "player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout"],
+  scouting: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
   "analysis-room": ["admin", "club-admin", "team-admin", "scout", "analyst"],
   "medical-team": ["admin", "club-admin", "team-admin", "medical", "performance"],
   staff: ["admin"],
@@ -1521,6 +1605,10 @@ const requiredWorkspaceAccess = {
   "medical-team": {
     view: ["admin", "club-admin", "team-admin", "coach", "performance", "medical"],
     edit: ["admin", "club-admin", "team-admin", "medical", "performance"],
+  },
+  scouting: {
+    view: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
+    edit: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
   },
   "team-identity": {
     view: ["admin", "club-admin", "team-admin", "coach"],
@@ -4162,6 +4250,8 @@ let pendingPlayerProfileImportPlan = null;
 let squadComparisonRole = "8";
 let squadComparisonPlayerIds = ["", ""];
 let squadFormationFit = "4-3-3";
+let scoutingState = null;
+let scoutingTargetFormOpen = false;
 let sessionPlannerState = null;
 let sessionPlannerExerciseLibrary = null;
 let sessionPlannerExerciseLibraryFolders = null;
@@ -5066,6 +5156,9 @@ function canEditPeriodizationWorkspace() {
 function canEditGameSimulatorWorkspace() {
   return canCurrentUserEditWorkspace("game-simulator");
 }
+function canEditScoutingWorkspace() {
+  return canCurrentUserEditWorkspace("scouting");
+}
 function getAccessibleWorkspacePool() {
   return getAllWorkspacePool().filter((workspace) => canCurrentUserAccessWorkspace(workspace));
 }
@@ -5722,6 +5815,34 @@ function cloneScheduleEvent(event = {}) {
     note: event.note || "",
   };
 }
+function normalizeScheduleTextForDedup(value) {
+  return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+function getScheduleEventDedupKey(event = {}) {
+  return [
+    event.date || "",
+    event.time || "",
+    event.type || "",
+    normalizeScheduleTextForDedup(event.title),
+    normalizeScheduleTextForDedup(event.note),
+  ].join("::");
+}
+function getUniqueScheduleEvents(events = []) {
+  const seen = new Set();
+  return events.filter((event) => {
+    const key = getScheduleEventDedupKey(event);
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+function normalizeScheduleVisibleEventTypes(value) {
+  const candidateTypes = Array.isArray(value) ? value : scheduleLayerTypes;
+  const visibleTypes = Array.from(new Set(candidateTypes.filter((type) => scheduleEventTypes[type])));
+  return visibleTypes.length ? visibleTypes : [...scheduleLayerTypes];
+}
 function cloneScheduleState(source = defaultScheduleState) {
   const now = new Date();
   const selectedYear = Number.isFinite(Number(source.selectedYear))
@@ -5735,27 +5856,24 @@ function cloneScheduleState(source = defaultScheduleState) {
   const viewMode = ["month", "week", "overview"].includes(source.viewMode) ? source.viewMode : "month";
   const overviewSpanOptions = [3, 6, 9, 12];
   const overviewSpan = overviewSpanOptions.includes(Number(source.overviewSpan)) ? Number(source.overviewSpan) : 6;
-  const events = Array.isArray(source.events)
-    ? source.events.map(cloneScheduleEvent).filter((event) => event.title.trim())
-    : [];
+  const events = getUniqueScheduleEvents(
+    Array.isArray(source.events)
+      ? source.events.map(cloneScheduleEvent).filter((event) => event.title.trim())
+      : []
+  );
   return {
     selectedYear,
     selectedMonthIndex,
     selectedDate,
     viewMode,
     overviewSpan,
+    visibleEventTypes: normalizeScheduleVisibleEventTypes(source.visibleEventTypes),
     importVersion: source.importVersion || "",
     events,
   };
 }
 function getScheduleEventSignature(event) {
-  return [
-    event.date || "",
-    event.time || "",
-    event.type || "",
-    event.title || "",
-    event.note || "",
-  ].join("::");
+  return getScheduleEventDedupKey(event);
 }
 function mergeImportedNccSchedule(state) {
   const mergedState = cloneScheduleState(state);
@@ -5792,6 +5910,7 @@ function mergeScheduleStatePreservingLocalUi(localValue, centralValue) {
     selectedDate: localState.selectedDate ?? centralStateValue.selectedDate,
     viewMode: localState.viewMode ?? centralStateValue.viewMode,
     overviewSpan: localState.overviewSpan ?? centralStateValue.overviewSpan,
+    visibleEventTypes: localState.visibleEventTypes ?? centralStateValue.visibleEventTypes,
   });
 }
 function setScheduleStateStorageValue(state = scheduleState, options = {}) {
@@ -5831,13 +5950,323 @@ function writeScheduleState(options = {}) {
     logEvent("Schedule could not be written to local storage.");
   }
 }
+function normalizeScoutingText(value, maxLength = 160) {
+  return String(value ?? "").trim().slice(0, maxLength);
+}
+function normalizeScoutingStatus(value) {
+  const status = normalizeScoutingText(value, 40);
+  return scoutingStatusOptions.some((option) => option.value === status) ? status : "new";
+}
+function normalizeScoutingPriority(value) {
+  const priority = normalizeScoutingText(value, 40);
+  return scoutingPriorityOptions.some((option) => option.value === priority) ? priority : "normal";
+}
+function cloneScoutingTarget(target = {}) {
+  const now = new Date().toISOString();
+  const createdAt = normalizeScoutingText(target.createdAt, 40) || now;
+  return {
+    id: normalizeScoutingText(target.id, 120) || `scouting-target-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: normalizeScoutingText(target.name, 120),
+    club: normalizeScoutingText(target.club, 120),
+    position: normalizeScoutingText(target.position, 80),
+    age: normalizeScoutingText(target.age, 12),
+    status: normalizeScoutingStatus(target.status),
+    priority: normalizeScoutingPriority(target.priority),
+    fit: normalizeScoutingText(target.fit, 80),
+    notes: normalizeScoutingText(target.notes, 900),
+    createdAt,
+    updatedAt: normalizeScoutingText(target.updatedAt, 40) || createdAt,
+  };
+}
+function cloneScoutingReport(report = {}) {
+  return {
+    id: normalizeScoutingText(report.id, 120) || `scouting-report-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    targetId: normalizeScoutingText(report.targetId, 120),
+    title: normalizeScoutingText(report.title, 160),
+    type: ["player", "opposition"].includes(report.type) ? report.type : "player",
+    summary: normalizeScoutingText(report.summary, 1200),
+    createdAt: normalizeScoutingText(report.createdAt, 40) || new Date().toISOString(),
+  };
+}
+function cloneScoutingState(source = defaultScoutingState) {
+  const activeTab = scoutingTabs.some((tab) => tab.id === source.activeTab) ? source.activeTab : "targets";
+  return {
+    activeTab,
+    searchQuery: normalizeScoutingText(source.searchQuery, 120),
+    statusFilter: source.statusFilter === "all" ? "all" : normalizeScoutingStatus(source.statusFilter),
+    targets: Array.isArray(source.targets)
+      ? source.targets.map(cloneScoutingTarget).filter((target) => target.name)
+      : [],
+    reports: Array.isArray(source.reports)
+      ? source.reports.map(cloneScoutingReport).filter((report) => report.title || report.summary)
+      : [],
+  };
+}
+function setScoutingStateStorageValue(state = scoutingState, options = {}) {
+  const shouldSyncCentral = options.syncCentral !== false;
+  if (!shouldSyncCentral) {
+    centralStateWriteSuppressionKeys.add(scoutingStorageKey);
+  }
+  try {
+    window.localStorage.setItem(scoutingStorageKey, JSON.stringify(state));
+  } finally {
+    if (!shouldSyncCentral) {
+      centralStateWriteSuppressionKeys.delete(scoutingStorageKey);
+    }
+  }
+}
+function readScoutingState() {
+  try {
+    const raw = window.localStorage.getItem(scoutingStorageKey);
+    const state = raw ? cloneScoutingState(JSON.parse(raw)) : cloneScoutingState(defaultScoutingState);
+    const normalizedValue = JSON.stringify(state);
+    if (raw !== normalizedValue) {
+      setScoutingStateStorageValue(state, { syncCentral: false });
+    }
+    return state;
+  } catch {
+    const state = cloneScoutingState(defaultScoutingState);
+    try {
+      setScoutingStateStorageValue(state, { syncCentral: false });
+    } catch {}
+    return state;
+  }
+}
+function writeScoutingState(options = {}) {
+  if (!scoutingState) {
+    return;
+  }
+  try {
+    setScoutingStateStorageValue(scoutingState, options);
+  } catch {
+    logEvent("Scouting could not be written to local storage.");
+  }
+}
+function ensureScoutingState() {
+  if (!scoutingState) {
+    scoutingState = readScoutingState();
+  }
+  return scoutingState;
+}
+function formatScoutingDate(value) {
+  const timestamp = new Date(value || 0).getTime();
+  if (!Number.isFinite(timestamp) || !timestamp) {
+    return "";
+  }
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(timestamp));
+}
+function getVisibleScoutingTargets() {
+  const state = ensureScoutingState();
+  const query = state.searchQuery.toLowerCase();
+  return state.targets.filter((target) => {
+    if (state.activeTab === "shortlist" && target.status !== "shortlist") {
+      return false;
+    }
+    if (state.activeTab === "targets" && state.statusFilter !== "all" && target.status !== state.statusFilter) {
+      return false;
+    }
+    if (!query) {
+      return true;
+    }
+    return [target.name, target.club, target.position, target.fit, target.notes]
+      .join(" ")
+      .toLowerCase()
+      .includes(query);
+  });
+}
+function renderScoutingTabButton(tab) {
+  const active = ensureScoutingState().activeTab === tab.id;
+  return `
+    <button type="button" class="scouting-tab${active ? " is-active" : ""}" data-scouting-tab="${escapeHtml(tab.id)}">
+      ${escapeHtml(tab.label)}
+    </button>
+  `;
+}
+function renderScoutingTargetCard(target) {
+  const canEdit = canEditScoutingWorkspace();
+  const meta = [target.position, target.age ? `${target.age} yrs` : "", target.club].filter(Boolean).join(" / ");
+  const statusOptions = scoutingStatusOptions
+    .map(
+      (option) =>
+        `<option value="${escapeHtml(option.value)}" ${target.status === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`
+    )
+    .join("");
+  return `
+    <article class="scouting-target-card">
+      <div class="scouting-target-main">
+        <div>
+          <strong>${escapeHtml(target.name)}</strong>
+          <span>${escapeHtml(meta)}</span>
+        </div>
+        <div class="scouting-target-badges">
+          <span class="scouting-priority-chip">${escapeHtml(scoutingPriorityOptions.find((option) => option.value === target.priority)?.label || "Normal")}</span>
+          <span>${escapeHtml(formatScoutingDate(target.updatedAt))}</span>
+        </div>
+      </div>
+      ${target.fit ? `<p class="scouting-fit-line">${escapeHtml(target.fit)}</p>` : ""}
+      ${target.notes ? `<p class="scouting-note-line">${escapeHtml(target.notes)}</p>` : ""}
+      <div class="scouting-target-actions">
+        <select data-scouting-target-status="${escapeHtml(target.id)}" aria-label="Target status" ${canEdit ? "" : "disabled"}>
+          ${statusOptions}
+        </select>
+        ${canEdit ? `<button type="button" data-remove-scouting-target="${escapeHtml(target.id)}" aria-label="Remove target">x</button>` : ""}
+      </div>
+    </article>
+  `;
+}
+function renderScoutingActiveContent() {
+  const state = ensureScoutingState();
+  const targets = getVisibleScoutingTargets();
+  if (state.activeTab === "reports" || state.activeTab === "opposition") {
+    return `<div class="scouting-empty-panel" aria-hidden="true"></div>`;
+  }
+  return targets.length
+    ? targets.map(renderScoutingTargetCard).join("")
+    : `<div class="scouting-empty-panel" aria-hidden="true"></div>`;
+}
+function renderScoutingWorkspace() {
+  if (!ui.scoutingWorkspace) {
+    return;
+  }
+  const state = ensureScoutingState();
+  const canEdit = canEditScoutingWorkspace();
+  const targetCount = state.targets.filter((target) => target.status !== "archived").length;
+  const shortlistCount = state.targets.filter((target) => target.status === "shortlist").length;
+  const oppositionCount = state.reports.filter((report) => report.type === "opposition").length;
+  const statusFilterOptions = [
+    `<option value="all" ${state.statusFilter === "all" ? "selected" : ""}>All status</option>`,
+    ...scoutingStatusOptions.map(
+      (option) =>
+        `<option value="${escapeHtml(option.value)}" ${state.statusFilter === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`
+    ),
+  ].join("");
+  const priorityOptions = scoutingPriorityOptions
+    .map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
+    .join("");
+  ui.scoutingWorkspace.innerHTML = `
+    <section class="scouting-shell">
+      <header class="scouting-hero">
+        <div>
+          <p class="placeholder-tag">Scouting</p>
+          <h1>Scouting</h1>
+        </div>
+        <div class="scouting-metrics" aria-label="Scouting summary">
+          <span><strong>${targetCount}</strong> Targets</span>
+          <span><strong>${shortlistCount}</strong> Shortlist</span>
+          <span><strong>${state.reports.length}</strong> Reports</span>
+          <span><strong>${oppositionCount}</strong> Opposition</span>
+        </div>
+      </header>
+      <section class="scouting-board">
+        <div class="scouting-command-bar">
+          <div class="scouting-tabs" role="tablist" aria-label="Scouting views">
+            ${scoutingTabs.map(renderScoutingTabButton).join("")}
+          </div>
+          <div class="scouting-tools">
+            <input
+              type="search"
+              value="${escapeHtml(state.searchQuery)}"
+              placeholder="Search"
+              aria-label="Search scouting"
+              data-scouting-search
+            />
+            <select data-scouting-status-filter aria-label="Filter targets by status">
+              ${statusFilterOptions}
+            </select>
+            ${canEdit ? `<button type="button" class="scouting-primary-button" data-scouting-toggle-target-form>${scoutingTargetFormOpen ? "Close" : "Add Target"}</button>` : ""}
+          </div>
+        </div>
+        ${canEdit ? `
+          <form class="scouting-target-form${scoutingTargetFormOpen ? " is-open" : ""}" data-scouting-target-form>
+            <input name="name" placeholder="Player name" required />
+            <input name="position" placeholder="Position" />
+            <input name="age" inputmode="numeric" placeholder="Age" />
+            <input name="club" placeholder="Club" />
+            <select name="priority" aria-label="Priority">${priorityOptions}</select>
+            <input name="fit" placeholder="Role fit" />
+            <textarea name="notes" rows="2" placeholder="Notes"></textarea>
+            <button type="submit">Save Target</button>
+        </form>
+      ` : ""}
+      <div class="scouting-content">
+          ${renderScoutingActiveContent()}
+      </div>
+      </section>
+    </section>
+  `;
+}
+function setScoutingActiveTab(tabId) {
+  const state = ensureScoutingState();
+  if (!scoutingTabs.some((tab) => tab.id === tabId)) {
+    return;
+  }
+  state.activeTab = tabId;
+  writeScoutingState({ syncCentral: false });
+  renderScoutingWorkspace();
+}
+function addScoutingTargetFromForm(form) {
+  if (!canEditScoutingWorkspace()) {
+    return;
+  }
+  const values = Object.fromEntries(new FormData(form).entries());
+  const target = cloneScoutingTarget({
+    name: values.name,
+    club: values.club,
+    position: values.position,
+    age: values.age,
+    priority: values.priority,
+    fit: values.fit,
+    notes: values.notes,
+    updatedAt: new Date().toISOString(),
+  });
+  if (!target.name) {
+    return;
+  }
+  const state = ensureScoutingState();
+  state.targets = [target, ...state.targets];
+  state.activeTab = "targets";
+  scoutingTargetFormOpen = false;
+  writeScoutingState();
+  renderScoutingWorkspace();
+}
+function updateScoutingTargetStatus(targetId, status) {
+  if (!canEditScoutingWorkspace()) {
+    return;
+  }
+  const state = ensureScoutingState();
+  state.targets = state.targets.map((target) =>
+    target.id === targetId
+      ? cloneScoutingTarget({ ...target, status: normalizeScoutingStatus(status), updatedAt: new Date().toISOString() })
+      : target
+  );
+  writeScoutingState();
+  renderScoutingWorkspace();
+}
+function removeScoutingTarget(targetId) {
+  if (!canEditScoutingWorkspace() || !window.confirm("Remove this scouting target?")) {
+    return;
+  }
+  const state = ensureScoutingState();
+  state.targets = state.targets.filter((target) => target.id !== targetId);
+  writeScoutingState();
+  renderScoutingWorkspace();
+}
 function getScheduleEventsForDate(dateValue) {
   if (!scheduleState) {
     scheduleState = readScheduleState();
   }
-  return scheduleState.events
-    .filter((event) => event.date === dateValue)
+  return getUniqueScheduleEvents(scheduleState.events.filter((event) => event.date === dateValue))
     .sort((a, b) => `${a.time || "99:99"} ${a.title}`.localeCompare(`${b.time || "99:99"} ${b.title}`));
+}
+function getScheduleVisibleEventTypes() {
+  return scheduleState ? normalizeScheduleVisibleEventTypes(scheduleState.visibleEventTypes) : [...scheduleLayerTypes];
+}
+function getScheduleVisibleEvents(events = []) {
+  const visibleTypes = new Set(getScheduleVisibleEventTypes());
+  return events.filter((event) => visibleTypes.has(event.type));
+}
+function getScheduleVisibleEventsForDate(dateValue) {
+  return getScheduleVisibleEvents(getScheduleEventsForDate(dateValue));
 }
 function getScheduleMainEvent(events = []) {
   return [...events].sort((a, b) => {
@@ -5866,10 +6295,15 @@ function getScheduleMonthEvents(year, monthIndex) {
   if (!scheduleState) {
     return [];
   }
-  return scheduleState.events.filter((event) => {
-    const eventDate = parseScheduleDateValue(event.date);
-    return eventDate.getFullYear() === year && eventDate.getMonth() === monthIndex;
-  });
+  return getUniqueScheduleEvents(
+    scheduleState.events.filter((event) => {
+      const eventDate = parseScheduleDateValue(event.date);
+      return eventDate.getFullYear() === year && eventDate.getMonth() === monthIndex;
+    })
+  );
+}
+function getScheduleVisibleMonthEvents(year, monthIndex) {
+  return getScheduleVisibleEvents(getScheduleMonthEvents(year, monthIndex));
 }
 function getScheduleLegendTypes(events = []) {
   return Array.from(new Set(events.map((event) => event.type)))
@@ -5952,6 +6386,33 @@ function setScheduleOverviewSpan(span) {
   const overviewSpan = Number(span);
   scheduleState.overviewSpan = [3, 6, 9, 12].includes(overviewSpan) ? overviewSpan : 6;
   scheduleState.viewMode = "overview";
+  writeScheduleState({ syncCentral: false });
+  renderScheduleWorkspace();
+}
+function setScheduleLayer(layer) {
+  if (!scheduleState) {
+    return;
+  }
+  const currentTypes = getScheduleVisibleEventTypes();
+  let nextTypes = [...currentTypes];
+  if (layer === "all") {
+    nextTypes = [...scheduleLayerTypes];
+  } else if (scheduleEventTypes[layer]) {
+    const currentlyShowingAll = currentTypes.length === scheduleLayerTypes.length;
+    const nextSet = currentlyShowingAll ? new Set([layer]) : new Set(currentTypes);
+    if (!currentlyShowingAll && nextSet.has(layer)) {
+      if (nextSet.size === 1) {
+        nextTypes = [...scheduleLayerTypes];
+      } else {
+        nextSet.delete(layer);
+        nextTypes = [...nextSet];
+      }
+    } else {
+      nextSet.add(layer);
+      nextTypes = [...nextSet];
+    }
+  }
+  scheduleState.visibleEventTypes = normalizeScheduleVisibleEventTypes(nextTypes);
   writeScheduleState({ syncCentral: false });
   renderScheduleWorkspace();
 }
@@ -6055,6 +6516,7 @@ function pasteScheduleClipboardToSelectedDay() {
       })
     )
   );
+  scheduleState.events = getUniqueScheduleEvents(scheduleState.events);
   writeScheduleState();
   renderScheduleWorkspace();
 }
@@ -6156,10 +6618,16 @@ function renderScheduleMonthDay(date, isCompact = false, visibleMonthIndex = sch
   const canHighlight = !isCompact || isCurrentMonth;
   const isSelected = canHighlight && dateValue === selectedDateValue;
   const isToday = canHighlight && dateValue === todayValue;
-  const events = getScheduleEventsForDate(dateValue);
+  const allEvents = getScheduleEventsForDate(dateValue);
+  const events = getScheduleVisibleEvents(allEvents);
   const mainEvent = getScheduleMainEvent(events);
   const mainTone = mainEvent ? scheduleEventTypes[mainEvent.type]?.tone || "training" : "";
   const eventToneClass = mainTone ? ` is-main-${mainTone}` : "";
+  const warnings = getScheduleDayWarningsForDate(dateValue, allEvents);
+  const warningClass = warnings.length ? " has-warnings" : "";
+  const ariaLabel = warnings.length
+    ? `${getScheduleDateLabel(dateValue)}, ${warnings.length} alert${warnings.length === 1 ? "" : "s"}`
+    : getScheduleDateLabel(dateValue);
   if (isCompact) {
     if (!isCurrentMonth) {
       return `<span class="schedule-overview-day-spacer" aria-hidden="true"></span>`;
@@ -6167,9 +6635,9 @@ function renderScheduleMonthDay(date, isCompact = false, visibleMonthIndex = sch
     return `
       <button
         type="button"
-        class="schedule-overview-day${isSelected ? " is-selected" : ""}${isToday ? " is-today" : ""}${events.length ? ` has-events${eventToneClass}` : ""}"
+        class="schedule-overview-day${isSelected ? " is-selected" : ""}${isToday ? " is-today" : ""}${warningClass}${events.length ? ` has-events${eventToneClass}` : ""}"
         data-schedule-date="${escapeHtml(dateValue)}"
-        aria-label="${escapeHtml(getScheduleDateLabel(dateValue))}"
+        aria-label="${escapeHtml(ariaLabel)}"
       >
         <span>${date.getDate()}</span>
       </button>
@@ -6180,8 +6648,9 @@ function renderScheduleMonthDay(date, isCompact = false, visibleMonthIndex = sch
   return `
     <button
       type="button"
-      class="schedule-day-button${isCurrentMonth ? "" : " is-muted"}${isSelected ? " is-selected" : ""}${isToday ? " is-today" : ""}${events.length ? ` has-events${eventToneClass}` : ""}"
+      class="schedule-day-button${isCurrentMonth ? "" : " is-muted"}${isSelected ? " is-selected" : ""}${isToday ? " is-today" : ""}${warningClass}${events.length ? ` has-events${eventToneClass}` : ""}"
       data-schedule-date="${escapeHtml(dateValue)}"
+      aria-label="${escapeHtml(ariaLabel)}"
     >
       <span class="schedule-day-number">${date.getDate()}</span>
       <span class="schedule-day-events">${visibleEvents}${overflow}</span>
@@ -6191,7 +6660,7 @@ function renderScheduleMonthDay(date, isCompact = false, visibleMonthIndex = sch
 function renderScheduleOverviewMonth(monthDate) {
   const monthLabel = formatMonthLabel(monthDate);
   const dates = getScheduleMonthGridDates(monthDate.getFullYear(), monthDate.getMonth());
-  const monthEvents = getScheduleMonthEvents(monthDate.getFullYear(), monthDate.getMonth());
+  const monthEvents = getScheduleVisibleMonthEvents(monthDate.getFullYear(), monthDate.getMonth());
   return `
     <article class="schedule-overview-month">
       <header>
@@ -6211,7 +6680,8 @@ function renderScheduleWeekDay(date) {
   const dateValue = formatScheduleDateValue(date);
   const selectedDateValue = scheduleState?.selectedDate || "";
   const todayValue = formatScheduleDateValue(new Date());
-  const events = getScheduleEventsForDate(dateValue);
+  const allEvents = getScheduleEventsForDate(dateValue);
+  const events = getScheduleVisibleEvents(allEvents);
   const mainEvent = getScheduleMainEvent(events);
   const mainTone = mainEvent ? scheduleEventTypes[mainEvent.type]?.tone || "training" : "";
   const eventToneClass = mainTone ? ` is-main-${mainTone}` : "";
@@ -6220,9 +6690,16 @@ function renderScheduleWeekDay(date) {
   const session = sessionPlannerState?.sessions?.[dateValue] || null;
   const sessionBlockCount = Array.isArray(session?.blocks) ? session.blocks.length : 0;
   const weekdayLabel = new Intl.DateTimeFormat("en-GB", { weekday: "short" }).format(date);
+  const eventSummary = events.length
+    ? `<span class="schedule-week-event-summary">${events.length} plan${events.length === 1 ? "" : "s"}</span>`
+    : `<span class="schedule-week-empty"></span>`;
+  const warnings = getScheduleDayWarningsForDate(dateValue, allEvents);
+  const warningSummary = warnings.length
+    ? `<span class="schedule-week-warning-chip">${warnings.length} alert${warnings.length === 1 ? "" : "s"}</span>`
+    : "";
 
   return `
-    <article class="schedule-week-day${dateValue === selectedDateValue ? " is-selected" : ""}${dateValue === todayValue ? " is-today" : ""}${events.length ? ` has-events${eventToneClass}` : ""}" data-schedule-date="${escapeHtml(dateValue)}">
+    <article class="schedule-week-day${dateValue === selectedDateValue ? " is-selected" : ""}${dateValue === todayValue ? " is-today" : ""}${warnings.length ? " has-warnings" : ""}${events.length ? ` has-events${eventToneClass}` : ""}" data-schedule-date="${escapeHtml(dateValue)}">
       <button type="button" class="schedule-week-day-head" data-schedule-date="${escapeHtml(dateValue)}">
         <span>${escapeHtml(weekdayLabel)}</span>
         <strong>${date.getDate()}</strong>
@@ -6230,9 +6707,10 @@ function renderScheduleWeekDay(date) {
       <div class="schedule-week-day-meta">
         ${periodizationLabel ? `<span>${escapeHtml(periodizationLabel)}</span>` : ""}
         ${sessionBlockCount ? `<span>${sessionBlockCount} blocks</span>` : ""}
+        ${warningSummary}
       </div>
       <div class="schedule-week-event-stack">
-        ${events.length ? events.map((event) => renderScheduleEventPill(event)).join("") : `<span class="schedule-week-empty"></span>`}
+        ${eventSummary}
       </div>
     </article>
   `;
@@ -6272,21 +6750,40 @@ function getScheduleSessionSnapshot(dateValue) {
     minutes: blocks.reduce((total, block) => total + (Number(block.minutes) || 0), 0),
   };
 }
+function formatScheduleBlockSummary(blockCount, minutes = 0) {
+  const blockLabel = `${blockCount} block${blockCount === 1 ? "" : "s"}`;
+  return minutes ? `${blockLabel} / ${minutes} min` : blockLabel;
+}
 function getScheduleDayWarnings(events, periodizationDay, sessionSnapshot) {
   const warnings = [];
   const hasTraining = events.some((event) => isScheduleSessionEvent(event));
+  const hasMatch = events.some((event) => event.type === "match");
   const hasOff = events.some((event) => event.type === "off");
   const hasActivePlan = events.some((event) => event.type !== "off");
   const periodizationLabel = getPeriodizationDayScheduleLabel(periodizationDay);
+  const periodizationText = String(periodizationLabel || "").toLowerCase();
+  const matchDayLabel = getPeriodizationMatchDayLabel(periodizationDay.matchDay);
 
   if (hasTraining && !sessionSnapshot.hasSession) {
     warnings.push("Training without session plan");
   }
-  if (periodizationLabel.toLowerCase() === "off" && hasActivePlan) {
+  if (sessionSnapshot.hasSession && !hasTraining) {
+    warnings.push("Session without schedule training");
+  }
+  if (periodizationText === "off" && hasActivePlan) {
     warnings.push("Periodization says OFF");
   }
   if (hasOff && hasActivePlan) {
     warnings.push("OFF mixed with active plan");
+  }
+  if (hasMatch && !matchDayLabel) {
+    warnings.push("Match missing match day tag");
+  }
+  if (events.length && periodizationText.includes("training") && !hasTraining) {
+    warnings.push("Periodization expects training");
+  }
+  if (events.length && periodizationText.includes("match") && !hasMatch) {
+    warnings.push("Periodization expects match");
   }
 
   const timedEvents = events.filter((event) => event.time);
@@ -6299,9 +6796,12 @@ function getScheduleDayWarnings(events, periodizationDay, sessionSnapshot) {
 
   return warnings;
 }
+function getScheduleDayWarningsForDate(dateValue, events = getScheduleEventsForDate(dateValue)) {
+  ensurePeriodizationState();
+  return getScheduleDayWarnings(events, getPeriodizationDay(dateValue), getScheduleSessionSnapshot(dateValue));
+}
 function renderScheduleDayInsights(dateValue, selectedEvents) {
   ensurePeriodizationState();
-  const mainEvent = getScheduleMainEvent(selectedEvents);
   const periodizationDay = getPeriodizationDay(dateValue);
   const periodizationLabel = getPeriodizationDayScheduleLabel(periodizationDay);
   const matchDayLabel = getPeriodizationMatchDayLabel(periodizationDay.matchDay);
@@ -6313,28 +6813,24 @@ function renderScheduleDayInsights(dateValue, selectedEvents) {
   ].slice(0, 3);
   const canCreateSession = canEditSessionPlanner();
   const sessionAction = sessionSnapshot.hasSession ? "Open Session" : canCreateSession ? "Create Session" : "Open Sessions";
+  const sessionSummary = sessionSnapshot.hasSession
+    ? formatScheduleBlockSummary(sessionSnapshot.blocks.length, sessionSnapshot.minutes)
+    : "Not built";
+  const periodizationSummary = matchDayLabel || periodizationDay.physicalLoad || (selectedEvents.length ? "Set" : periodizationLabel || "Open");
+  const periodizationDetail = phaseLabels.length ? phaseLabels.join(" / ") : selectedEvents.length ? "Aligned to selected day" : "";
 
   return `
     <section class="schedule-day-ops">
       <div class="schedule-day-summary-grid">
         <article>
-          <span>Main</span>
-          <strong>${escapeHtml(mainEvent?.title || periodizationLabel || "Open")}</strong>
-          ${mainEvent ? `<small>${escapeHtml([mainEvent.time, scheduleEventTypes[mainEvent.type]?.label].filter(Boolean).join(" / "))}</small>` : ""}
-        </article>
-        <article>
           <span>Session</span>
-          <strong>${escapeHtml(sessionSnapshot.hasSession ? sessionSnapshot.session.title || "Training Session" : "Not built")}</strong>
-          ${
-            sessionSnapshot.hasSession
-              ? `<small>${sessionSnapshot.blocks.length} blocks${sessionSnapshot.minutes ? ` / ${sessionSnapshot.minutes} min` : ""}</small>`
-              : ""
-          }
+          <strong>${escapeHtml(sessionSummary)}</strong>
+          ${sessionSnapshot.hasSession ? `<small>Built from selected day</small>` : ""}
         </article>
         <article>
           <span>Periodization</span>
-          <strong>${escapeHtml([periodizationLabel, matchDayLabel].filter(Boolean).join(" / ") || "Open")}</strong>
-          ${phaseLabels.length ? `<small>${escapeHtml(phaseLabels.join(" / "))}</small>` : ""}
+          <strong>${escapeHtml(periodizationSummary)}</strong>
+          ${periodizationDetail ? `<small>${escapeHtml(periodizationDetail)}</small>` : ""}
         </article>
       </div>
       ${
@@ -6388,6 +6884,14 @@ function renderScheduleWorkspace() {
   ui.scheduleMonthViewButton?.setAttribute("aria-pressed", String(scheduleState.viewMode === "month"));
   ui.scheduleWeekViewButton?.setAttribute("aria-pressed", String(isWeek));
   ui.scheduleOverviewViewButton?.setAttribute("aria-pressed", String(isOverview));
+  const visibleEventTypes = getScheduleVisibleEventTypes();
+  const showingAllEventTypes = visibleEventTypes.length === scheduleLayerTypes.length;
+  ui.scheduleLayerButtons?.forEach((button) => {
+    const layer = button.dataset.scheduleLayer;
+    const isActive = layer === "all" ? showingAllEventTypes : visibleEventTypes.includes(layer);
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
   if (ui.scheduleOverviewSpanControl) {
     ui.scheduleOverviewSpanControl.hidden = !isOverview;
   }
@@ -6597,6 +7101,9 @@ function getWorkspaceViewId(workspaceId) {
   }
   if (workspace.kind === "player-profiles") {
     return "player-profiles";
+  }
+  if (workspace.kind === "scouting") {
+    return "scouting";
   }
   if (workspace.kind === "schedule") {
     return "schedule";
@@ -8622,6 +9129,7 @@ function renderDashboardChatWidget() {
     root.innerHTML = "";
     return;
   }
+  ensureDashboardChatStylesheet().catch(() => {});
   resetDashboardChatLocalCacheIfNeeded();
   if (!dashboardChatThreadSummarySyncTimer && Date.now() - dashboardChatThreadSummaryLastRequestedAt > 30000) {
     queueDashboardChatThreadSummaryRefresh({ delayMs: 50, render: true });
@@ -9383,6 +9891,13 @@ function getTopIconSvg(workspaceId) {
         <rect x="3" y="4" width="18" height="16" rx="2"/>
         <path d="M12 4v16M3 10h18M7.5 14h3M13.5 14h3"/>
         <circle cx="12" cy="10" r="1.8"/>
+      </svg>
+    `,
+    scouting: `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="11" cy="11" r="6"/>
+        <path d="m16 16 5 5"/>
+        <path d="M8.5 11h5M11 8.5v5"/>
       </svg>
     `,
     "analysis-room": `
@@ -30331,6 +30846,88 @@ function pauseSimulatorForWorkspaceSwitch() {
   }
 }
 
+function hydrateWorkspaceModuleState(workspaceId = hubState?.activeWorkspaceId) {
+  const viewId = getWorkspaceViewId(workspaceId || workspaceHubDefaultActiveWorkspaceId);
+
+  if (viewId === "schedule") {
+    if (!scheduleState) {
+      scheduleState = readScheduleState();
+    }
+    return;
+  }
+
+  if (viewId === "periodization") {
+    if (!periodizationState) {
+      periodizationState = readPeriodizationState();
+    }
+    if (!scheduleState) {
+      scheduleState = readScheduleState();
+    }
+    return;
+  }
+
+  if (viewId === "session-planner") {
+    if (!sessionPlannerState) {
+      sessionPlannerState = readSessionPlannerState();
+    }
+    if (!sessionPlannerExerciseLibrary) {
+      sessionPlannerExerciseLibrary = readSessionPlannerExerciseLibrary();
+    }
+    if (!sessionPlannerExerciseLibraryFolders) {
+      sessionPlannerExerciseLibraryFolders = readSessionPlannerExerciseLibraryFolders();
+    }
+    if (!periodizationState) {
+      periodizationState = readPeriodizationState();
+    }
+    if (!medicalState) {
+      medicalState = readMedicalState();
+    }
+    return;
+  }
+
+  if (viewId === "medical-team") {
+    if (!medicalState) {
+      medicalState = readMedicalState();
+    }
+    if (!playerProfilesState) {
+      playerProfilesState = readPlayerProfilesState();
+    }
+    return;
+  }
+
+  if (viewId === "player-profiles") {
+    if (!playerProfilesState) {
+      playerProfilesState = readPlayerProfilesState();
+    }
+    if (!medicalState) {
+      medicalState = readMedicalState();
+    }
+    return;
+  }
+
+  if (viewId === "scouting") {
+    ensureScoutingState();
+  }
+}
+
+function queueWorkspaceModulePreload(workspaceId = "") {
+  const safeWorkspaceId = getSafeWorkspaceId(workspaceId, hubState) || workspaceId;
+  const viewId = getWorkspaceViewId(safeWorkspaceId || workspaceHubDefaultActiveWorkspaceId);
+
+  if (viewId === "game-simulator") {
+    queueGameSimulatorControllersLoad();
+  }
+}
+
+function preloadWorkspaceFromTrigger(trigger) {
+  const workspaceId = trigger?.dataset?.openWorkspace || "";
+  if (!workspaceId) {
+    return;
+  }
+
+  queueWorkspaceModulePreload(workspaceId);
+}
+
 function renderWorkspaceChrome() {
   if (!hubState) {
     return;
@@ -30351,6 +30948,7 @@ function renderWorkspaceChrome() {
     hubState.activeWorkspaceId = activeWorkspace.id;
   }
   const activeViewId = getWorkspaceViewId(activeWorkspace.id);
+  hydrateWorkspaceModuleState(activeWorkspace.id);
 
   document.body.dataset.appReady = "true";
   document.body.dataset.activeWorkspace = activeWorkspace.id;
@@ -30386,7 +30984,9 @@ function renderWorkspaceChrome() {
   renderWorkspaceList();
   renderTopIconMenu();
   renderWorkspaceQuickSwitch(activeWorkspace.id);
-  renderDashboardCards();
+  if (activeWorkspace.id === "home") {
+    renderDashboardCards();
+  }
   renderDashboardChatWidget();
   syncDashboardChatWidgetNotificationCursor();
 
@@ -30420,6 +31020,10 @@ function renderWorkspaceChrome() {
 
   if (activeViewId === "player-profiles") {
     renderPlayerProfilesWorkspace();
+  }
+
+  if (activeViewId === "scouting") {
+    renderScoutingWorkspace();
   }
 
   if (activeViewId === "schedule") {
@@ -30467,8 +31071,8 @@ function setActiveWorkspace(workspaceId) {
 
   if (targetWorkspaceId === "game-simulator") {
     resetGameSimulatorIntro();
-    queueGameSimulatorControllersLoad();
   }
+  queueWorkspaceModulePreload(targetWorkspaceId);
 
   hubState.activeWorkspaceId = targetWorkspaceId;
   rememberActiveWorkspaceId(targetWorkspaceId);
@@ -30498,13 +31102,10 @@ function initializeWorkspaceHub() {
   }
   rememberActiveWorkspaceId(hubState.activeWorkspaceId);
   window.__pendingWorkspaceId = null;
-  periodizationState = readPeriodizationState();
-  scheduleState = readScheduleState();
-  medicalState = readMedicalState();
-  playerProfilesState = readPlayerProfilesState();
-  sessionPlannerState = readSessionPlannerState();
+  hydrateWorkspaceModuleState(hubState.activeWorkspaceId);
   writeWorkspaceHubState();
   renderWorkspaceChrome();
+  queueDashboardChatStylesheetLoad();
   scheduleDashboardLoginPopups();
 }
 
@@ -30526,6 +31127,7 @@ function reloadCentralizedAppStateFromStorage() {
   scheduleState = readScheduleState();
   medicalState = readMedicalState();
   playerProfilesState = readPlayerProfilesState();
+  scoutingState = readScoutingState();
   sessionPlannerState = readSessionPlannerStatePreservingUiSelection(previousSessionPlannerSelection);
   sessionPlannerExerciseLibrary = readSessionPlannerExerciseLibrary();
   state.savedSequences = readSavedSequenceLibrary();
@@ -72344,7 +72946,9 @@ function shouldIgnoreSimulatorTextOrModifierTarget(event) { const t = event?.tar
 async function ensureGameSimulatorControllers() {
   if (gameSimulatorWorkspaceController) return;
   if (!gameSimulatorControllersPromise) {
-    gameSimulatorControllersPromise = import("./src/modules/game-simulator/controllers.mjs")
+    gameSimulatorControllersPromise = platformModuleLoader.loadModule("game-simulator.controllers", () =>
+      import("./src/modules/game-simulator/controllers.mjs")
+    )
       .then(({ createSimulatorControllers }) => {
         const controllers = createSimulatorControllers({
           windowRef: window, documentRef: document, bindButtonControls: false,
@@ -72403,7 +73007,9 @@ async function getSimulatorAnimationRuntime() {
   }
 
   if (!simulatorAnimationRuntimePromise) {
-    simulatorAnimationRuntimePromise = import("./src/modules/game-simulator/runtime.mjs")
+    simulatorAnimationRuntimePromise = platformModuleLoader.loadModule("game-simulator.runtime", () =>
+      import("./src/modules/game-simulator/runtime.mjs")
+    )
       .then(({ createSimulatorAnimationLoop }) => {
         simulatorAnimationRuntime = createSimulatorAnimationLoop({
           shouldRun: () => simulatorAnimationLoopRequested && isGameSimulatorWorkspaceActive(),
@@ -73282,6 +73888,14 @@ ui.workspaceList?.addEventListener("click", (event) => {
   setActiveWorkspace(trigger.dataset.openWorkspace);
 });
 
+ui.workspaceList?.addEventListener("mouseover", (event) => {
+  preloadWorkspaceFromTrigger(event.target.closest("[data-open-workspace]"));
+});
+
+ui.workspaceList?.addEventListener("focusin", (event) => {
+  preloadWorkspaceFromTrigger(event.target.closest("[data-open-workspace]"));
+});
+
 ui.topIconMenu?.addEventListener("click", (event) => {
   const trigger = event.target.closest("[data-open-workspace]");
   if (!trigger) {
@@ -73289,6 +73903,14 @@ ui.topIconMenu?.addEventListener("click", (event) => {
   }
 
   setActiveWorkspace(trigger.dataset.openWorkspace);
+});
+
+ui.topIconMenu?.addEventListener("mouseover", (event) => {
+  preloadWorkspaceFromTrigger(event.target.closest("[data-open-workspace]"));
+});
+
+ui.topIconMenu?.addEventListener("focusin", (event) => {
+  preloadWorkspaceFromTrigger(event.target.closest("[data-open-workspace]"));
 });
 
 ui.workspaceTitle?.addEventListener("click", () => {
@@ -76812,6 +77434,14 @@ ui.scheduleOverviewSpanButtons?.forEach((button) => {
   });
 });
 
+ui.scheduleWorkspace?.addEventListener("click", (event) => {
+  const layerTrigger = event.target.closest("[data-schedule-layer]");
+  if (!layerTrigger) {
+    return;
+  }
+  setScheduleLayer(layerTrigger.dataset.scheduleLayer);
+});
+
 ui.dashboardChatWidgetRoot?.addEventListener("change", async (event) => {
   const attachmentInput = event.target.closest("[data-dashboard-chat-attachment-input]");
   if (!attachmentInput) {
@@ -76962,13 +77592,76 @@ ui.scheduleEventForm?.addEventListener("submit", (event) => {
     );
     scheduleEditingEventId = null;
   } else {
-    scheduleState.events.push(cloneScheduleEvent(eventPayload));
+    const nextEvent = cloneScheduleEvent(eventPayload);
+    if (!scheduleState.events.some((item) => getScheduleEventDedupKey(item) === getScheduleEventDedupKey(nextEvent))) {
+      scheduleState.events.push(nextEvent);
+    }
   }
 
+  scheduleState.events = getUniqueScheduleEvents(scheduleState.events);
   writeScheduleState();
   event.currentTarget.reset();
   scheduleDayPanelMode = "view";
   renderScheduleWorkspace();
+});
+
+ui.scoutingWorkspace?.addEventListener("click", (event) => {
+  const tabTrigger = event.target.closest("[data-scouting-tab]");
+  if (tabTrigger) {
+    setScoutingActiveTab(tabTrigger.dataset.scoutingTab);
+    return;
+  }
+
+  const formTrigger = event.target.closest("[data-scouting-toggle-target-form]");
+  if (formTrigger) {
+    scoutingTargetFormOpen = !scoutingTargetFormOpen;
+    renderScoutingWorkspace();
+    return;
+  }
+
+  const removeTrigger = event.target.closest("[data-remove-scouting-target]");
+  if (removeTrigger) {
+    removeScoutingTarget(removeTrigger.dataset.removeScoutingTarget);
+  }
+});
+
+ui.scoutingWorkspace?.addEventListener("input", (event) => {
+  const searchInput = event.target.closest("[data-scouting-search]");
+  if (!searchInput) {
+    return;
+  }
+  const state = ensureScoutingState();
+  state.searchQuery = normalizeScoutingText(searchInput.value, 120);
+  writeScoutingState({ syncCentral: false });
+  const content = ui.scoutingWorkspace?.querySelector(".scouting-content");
+  if (content) {
+    content.innerHTML = renderScoutingActiveContent();
+  }
+});
+
+ui.scoutingWorkspace?.addEventListener("change", (event) => {
+  const statusFilter = event.target.closest("[data-scouting-status-filter]");
+  if (statusFilter) {
+    const state = ensureScoutingState();
+    state.statusFilter = statusFilter.value === "all" ? "all" : normalizeScoutingStatus(statusFilter.value);
+    writeScoutingState({ syncCentral: false });
+    renderScoutingWorkspace();
+    return;
+  }
+
+  const targetStatus = event.target.closest("[data-scouting-target-status]");
+  if (targetStatus) {
+    updateScoutingTargetStatus(targetStatus.dataset.scoutingTargetStatus, targetStatus.value);
+  }
+});
+
+ui.scoutingWorkspace?.addEventListener("submit", (event) => {
+  const targetForm = event.target.closest("[data-scouting-target-form]");
+  if (!targetForm) {
+    return;
+  }
+  event.preventDefault();
+  addScoutingTargetFromForm(targetForm);
 });
 
 ui.simulatorIntroEnterButton?.addEventListener("click", () => launchGameSimulatorFromIntro().catch(console.error));
@@ -77403,8 +78096,14 @@ window.addEventListener("storage", (event) => {
   if (
     event.key === dashboardTaskStorageKey ||
     event.key === dashboardNotificationSeenStorageKey ||
-    event.key === playerProfilesStorageKey
+    event.key === playerProfilesStorageKey ||
+    event.key === scoutingStorageKey
   ) {
+    if (event.key === scoutingStorageKey && hubState?.activeWorkspaceId === "scouting") {
+      scoutingState = readScoutingState();
+      renderScoutingWorkspace();
+      return;
+    }
     if (event.key === playerProfilesStorageKey && hubState?.activeWorkspaceId === "player-profiles") {
       playerProfilesState = readPlayerProfilesState();
       renderPlayerProfilesWorkspace();

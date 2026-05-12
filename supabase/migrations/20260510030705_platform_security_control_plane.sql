@@ -8,7 +8,7 @@ create table if not exists public.platform_permission_matrix (
   module_id text not null check (module_id ~ '^[a-z0-9][a-z0-9-]{1,80}$'),
   action text not null check (action in ('read', 'write', 'delete', 'export', 'restore', 'admin', 'observe')),
   roles text[] not null check (
-    roles <@ array['admin', 'coach', 'analyst', 'performance', 'medical', 'guest']::text[]
+    roles <@ array['admin', 'club-admin', 'team-admin', 'coach', 'scout', 'analyst', 'performance', 'medical', 'guest']::text[]
     and array_length(roles, 1) is not null
   ),
   scope text not null default 'organization' check (scope in ('global', 'organization', 'team', 'user')),
@@ -31,7 +31,7 @@ create table if not exists public.platform_security_events (
   severity text not null default 'info' check (severity in ('info', 'warning', 'error', 'critical')),
   status_code integer check (status_code is null or status_code between 100 and 599),
   actor_id uuid references auth.users(id) on delete set null,
-  actor_role text check (actor_role is null or actor_role in ('admin', 'coach', 'analyst', 'performance', 'medical', 'guest', 'system')),
+  actor_role text check (actor_role is null or actor_role in ('admin', 'club-admin', 'team-admin', 'coach', 'scout', 'analyst', 'performance', 'medical', 'guest', 'system')),
   request_id text check (request_id is null or char_length(request_id) <= 160),
   ip_hash text check (ip_hash is null or char_length(ip_hash) = 64),
   user_agent_hash text check (user_agent_hash is null or char_length(user_agent_hash) = 64),
@@ -189,6 +189,14 @@ values
   ('player-profiles', 'restore', array['admin','coach'], 'team', true, true, 'Restore squad records.'),
   ('player-profiles', 'admin', array['admin'], 'team', true, true, 'Administer squad module.'),
   ('player-profiles', 'observe', array['admin','coach'], 'team', true, true, 'Observe squad health.'),
+
+  ('scouting', 'read', array['admin','club-admin','team-admin','coach','scout','analyst'], 'team', true, true, 'Read scouting targets, reports, and shortlists.'),
+  ('scouting', 'write', array['admin','club-admin','team-admin','coach','scout','analyst'], 'team', true, true, 'Create and update scouting targets, reports, and shortlists.'),
+  ('scouting', 'delete', array['admin','club-admin','team-admin','coach','scout','analyst'], 'team', true, true, 'Archive scouting records.'),
+  ('scouting', 'export', array['admin','coach','scout','analyst'], 'team', true, true, 'Export scouting records.'),
+  ('scouting', 'restore', array['admin','coach'], 'team', true, true, 'Restore scouting records.'),
+  ('scouting', 'admin', array['admin'], 'team', true, true, 'Administer scouting module.'),
+  ('scouting', 'observe', array['admin','coach','scout','analyst'], 'team', true, true, 'Observe scouting health.'),
 
   ('game-simulator', 'read', array['admin','coach','analyst','performance'], 'team', true, true, 'Read simulator sequences.'),
   ('game-simulator', 'write', array['admin','coach','analyst'], 'team', true, true, 'Write simulator sequences.'),

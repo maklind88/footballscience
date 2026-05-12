@@ -132,6 +132,16 @@ Rules:
 - `qa`: protected by central state and backup contracts.
 - `migration`: move through the read-only Squad adapter first, then dual-read / dual-write into `squad_organizations`, `squad_clubs`, `squad_teams`, `squad_seasons`, `squad_players`, `squad_roster_memberships`, and supporting `squad_*` history/import/media tables. Preserve `football-player-profiles-v1` until database reads, backups, and rollback drills are verified.
 
+## Scouting
+
+- `id`: `scouting`
+- `purpose`: recruitment targets, reports, shortlists, and opposition scouting.
+- `data`: `football-scouting-v1`
+- `permissions`: platform/club/team admin, coach, scout, and analyst view/edit; platform admin owns module administration.
+- `events`: scouting target created, scouting report created, shortlist updated.
+- `qa`: protected by central state, permission matrix, and migration contracts.
+- `migration`: move through app-state first, then dual-read / dual-write into `scouting_targets`, `scouting_reports`, and `scouting_shortlists`.
+
 ## Game Simulator
 
 - `id`: `game-simulator`

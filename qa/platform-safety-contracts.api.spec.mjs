@@ -30,6 +30,7 @@ const protectedStorageKeys = [
   "football-dashboard-news-seen-v1",
   "football-medical-team-v1",
   "football-player-profiles-v1",
+  "football-scouting-v1",
   "football-simulator-sequence-v1",
   "football-simulator-sequence-library-v2",
 ];
@@ -44,6 +45,7 @@ const moduleContractIds = [
   "session-planner",
   "medical-team",
   "player-profiles",
+  "scouting",
   "game-simulator",
 ];
 

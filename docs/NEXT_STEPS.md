@@ -69,6 +69,13 @@
 - Keep overview colors clear and add small color legend per month.
 - Admin edit only; non-admin view only.
 
+## Scouting
+
+- Keep Scouting empty by default until real targets/reports are added.
+- Build the next pass around target profile detail, report creation, shortlist workflow, and opposition scouting.
+- Preserve `football-scouting-v1` through central app-state, backup, export, and restore.
+- Move long-term data into `scouting_targets`, `scouting_reports`, and `scouting_shortlists` only through an additive, dual-read rollout.
+
 ## Game Simulator
 
 - Create polished tutorial/explanation screen before simulator.

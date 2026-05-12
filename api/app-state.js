@@ -21,6 +21,7 @@ const SESSION_EXERCISE_LIBRARY_KEY = "football-session-exercise-library-v1";
 const SESSION_EXERCISE_LIBRARY_FOLDERS_KEY = "football-session-exercise-library-folders-v1";
 const MEDICAL_TEAM_KEY = "football-medical-team-v1";
 const PLAYER_PROFILES_KEY = "football-player-profiles-v1";
+const SCOUTING_KEY = "football-scouting-v1";
 const SESSION_PLANNER_REDUCTION_GUARD_KEY = "blockReductionGuard";
 const SESSION_PLANNER_BLOCK_DELETION_TOMBSTONE_KEY = "blockDeletionTombstones";
 const SESSION_PLANNER_REDUCTION_WINDOW_MS = 30 * 60 * 1000;
@@ -84,6 +85,7 @@ const DEFAULT_WORKSPACE_ACCESS = {
   periodization: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   "session-planner": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   "player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout", "performance", "medical"],
+  scouting: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
   "analysis-room": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
   "medical-team": ["admin", "club-admin", "team-admin", "coach", "performance", "medical"],
   staff: ["admin", "club-admin", "team-admin"],
@@ -97,6 +99,7 @@ const DEFAULT_WORKSPACE_EDIT_ACCESS = {
   periodization: ["admin", "club-admin", "team-admin", "coach", "performance"],
   "session-planner": ["admin", "club-admin", "team-admin", "coach"],
   "player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout"],
+  scouting: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
   "analysis-room": ["admin", "club-admin", "team-admin", "scout", "analyst"],
   "medical-team": ["admin", "club-admin", "team-admin", "medical", "performance"],
   staff: ["admin", "club-admin", "team-admin"],
@@ -117,6 +120,10 @@ const REQUIRED_WORKSPACE_ACCESS = {
     view: ["admin", "club-admin", "team-admin", "coach", "performance", "medical"],
     edit: ["admin", "club-admin", "team-admin", "medical", "performance"],
   },
+  scouting: {
+    view: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
+    edit: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
+  },
   "team-identity": {
     view: ["admin", "club-admin", "team-admin", "coach"],
     edit: ["admin", "club-admin", "team-admin", "coach"],
@@ -134,6 +141,7 @@ const STATE_KEY_WORKSPACE_EDIT_MAP = {
   "football-session-exercise-library-folders-backup-v1": "session-planner",
   [MEDICAL_TEAM_KEY]: "medical-team",
   [PLAYER_PROFILES_KEY]: "player-profiles",
+  [SCOUTING_KEY]: "scouting",
   "football-simulator-sequence-v1": "game-simulator",
   "football-simulator-sequence-library-v2": "game-simulator",
 };

@@ -36,9 +36,8 @@
       }
     </style>
     <link id=s rel=stylesheet>
-    <link id=c rel=stylesheet>
     <script>
-      {const v=window.__assetVersion=Date.now(),d=document;d.getElementById("s").href=`styles.css?v=${v}`;d.getElementById("c").href=`dashboard-chat.css?v=${v}`}
+      {const v=window.__assetVersion=Date.now(),d=document;d.getElementById("s").href=`styles.css?v=${v}`}
     </script>
   </head>
   <body class="is-auth-locked is-booting">
@@ -231,6 +230,9 @@
           <section class="workspace-view platform-player-profiles-view" data-workspace-view="player-profiles">
             <div id="playerProfilesWorkspace" class="player-profiles-workspace platform-module-shell"></div>
           </section>
+          <section class="workspace-view platform-scouting-view" data-workspace-view="scouting">
+            <div id="scoutingWorkspace" class="scouting-workspace platform-module-shell"></div>
+          </section>
           <section class="workspace-view platform-schedule-view" data-workspace-view="schedule">
             <div id="scheduleWorkspace" class="schedule-workspace platform-module-shell">
               <header class="schedule-hero-card">
@@ -259,6 +261,15 @@
               </header>
               <section class="schedule-layout">
                 <article class="schedule-board-card">
+                  <div id="scheduleLayerFilters" class="schedule-layer-filter" aria-label="Schedule layers">
+                    <button type="button" class="schedule-layer-button is-active" data-schedule-layer="all">All</button>
+                    <button type="button" class="schedule-layer-button" data-schedule-layer="training">Training</button>
+                    <button type="button" class="schedule-layer-button" data-schedule-layer="match">Match</button>
+                    <button type="button" class="schedule-layer-button" data-schedule-layer="meeting">Meeting</button>
+                    <button type="button" class="schedule-layer-button" data-schedule-layer="travel">Travel</button>
+                    <button type="button" class="schedule-layer-button" data-schedule-layer="recovery">Recovery</button>
+                    <button type="button" class="schedule-layer-button" data-schedule-layer="off">Off</button>
+                  </div>
                   <div id="scheduleWeekdays" class="schedule-weekdays" aria-hidden="true">
                     <span>Mon</span>
                     <span>Tue</span>
@@ -883,6 +894,7 @@
         const SESSION_PLANNER_STATE_KEY = "football-session-planner-v3";
         const PLAYER_PROFILES_STATE_KEY = "football-player-profiles-v1";
         const MEDICAL_TEAM_STATE_KEY = "football-medical-team-v1";
+        const SCOUTING_STATE_KEY = "football-scouting-v1";
         const SESSION_PLANNER_REDUCTION_GUARD_KEY = "blockReductionGuard";
         const SESSION_PLANNER_REDUCTION_WINDOW_MS = 30 * 60 * 1000;
         const SESSION_PLANNER_BLOCK_FIELD_META_KEY = "fieldUpdatedAt";
@@ -928,6 +940,7 @@
           "football-dashboard-news-seen-v1",
           MEDICAL_TEAM_STATE_KEY,
           PLAYER_PROFILES_STATE_KEY,
+          SCOUTING_STATE_KEY,
           "football-simulator-sequence-v1",
           "football-simulator-sequence-library-v2",
         ]);

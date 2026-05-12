@@ -51,6 +51,7 @@ test("permission matrix covers every module action with conservative roles", () 
     "medical-team",
     "player-profiles",
     "schedule",
+    "scouting",
     "session-planner",
   ]));
 

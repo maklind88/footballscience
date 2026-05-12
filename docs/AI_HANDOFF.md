@@ -44,7 +44,8 @@ Design should feel clean, Apple/Mac-like, calm, professional, and modular. Avoid
   - `football-schedule-v1`
   - `football-session-planner-v3`
   - `football-medical-team-v1`
-  - `football-medical-team-v1`
+  - `football-player-profiles-v1`
+  - `football-scouting-v1`
 
 ## Current Navigation Order
 
@@ -54,11 +55,12 @@ Top nav should be:
 2. Periodization
 3. Sessions
 4. IDP
-5. Analysis Room
-6. My Team
-7. Medical Team
-8. Identity
-9. Game Simulator
+5. Scouting
+6. Analysis Room
+7. My Team
+8. Medical Team
+9. Identity
+10. Game Simulator
 
 Profile should be reachable from the account menu on the right, not as a main nav item. Football Science title should act as Home.
 

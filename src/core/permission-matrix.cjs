@@ -141,6 +141,17 @@ const platformPermissionMatrix = Object.freeze([
   }, {
     storageKeys: ["football-player-profiles-v1"],
   }),
+  moduleContract("scouting", "Scouting", "team", {
+    read: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
+    write: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
+    delete: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
+    export: ["admin", "coach", "scout", "analyst"],
+    restore: ["admin", "coach"],
+    admin: ["admin"],
+    observe: ["admin", "coach", "scout", "analyst"],
+  }, {
+    storageKeys: ["football-scouting-v1"],
+  }),
   moduleContract("game-simulator", "Game Simulator", "team", {
     read: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance"],
     write: simulatorWriteRoles,

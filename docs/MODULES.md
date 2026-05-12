@@ -7,14 +7,21 @@ Top navigation is icon-based. Desired order:
 1. Schedule
 2. Periodization
 3. Sessions
-4. Squad
+4. IDP
 5. Analysis Room
 6. My Team
-7. Medical Team
-8. Identity
-9. Game Simulator
+7. Identity
+8. Game Simulator
 
 The right account menu owns Profile, Settings, and Logout. The main title `Football Science` should route to Home.
+
+Scale direction:
+
+- The shell owns shared resource loading through `src/core/platform-module-loader.mjs` so CSS, scripts, and dynamic modules are deduplicated.
+- Global chat styling is no longer a render-blocking HTML stylesheet; the shell loads it after the app starts and reuses the same promise.
+- Heavy workspace code should load on activation or navigation intent. Game Simulator controllers/runtime now go through the shell loader, and top navigation hover/focus preloads the simulator controllers before the click.
+- Home-only dashboard rendering should stay scoped to Home. Other workspaces should not re-render Home cards during normal workspace switches.
+- Next extraction target: move Schedule, Periodization, Sessions, IDP, and Medical state/renderers behind the same loader pattern so `app.js` can shrink in physical chunks.
 
 ## Profile / Account Menu
 
@@ -200,6 +207,19 @@ Future state:
 ## Analysis Room
 
 Currently a placeholder. User asked for a skunk placeholder: `Skunks Work building this` with a skunk image/visual.
+
+## Scouting
+
+Purpose: recruitment targets, watchlists, scouting notes, reports, and later opposition scouting.
+
+Current direction:
+
+- Scouting is a first-class module with workspace id `scouting`.
+- Current state key is `football-scouting-v1`, protected by the central app-state/data-safety contract.
+- The first live surface is a clean targets workspace with Targets, Shortlist, Reports, and Opposition tabs.
+- No fake scouting records should be seeded; empty views stay visually quiet.
+- Platform Admin, Club Admin, Team Admin, Coach, Scout, and Analyst can view and edit.
+- Long-term data should move into `scouting_targets`, `scouting_reports`, and `scouting_shortlists`.
 
 ## Squad
 

@@ -21,6 +21,7 @@ export const protectedStorageKeys = Object.freeze([
   "football-dashboard-news-seen-v1",
   "football-medical-team-v1",
   "football-player-profiles-v1",
+  "football-scouting-v1",
   "football-simulator-sequence-v1",
   "football-simulator-sequence-library-v2",
 ]);
@@ -33,6 +34,7 @@ export const platformModuleMigrationOrder = Object.freeze([
   "session-planner",
   "periodization",
   "medical-team",
+  "scouting",
   "game-simulator",
 ]);
 
@@ -152,6 +154,17 @@ export const platformModules = Object.freeze([
     editRoles: Object.freeze(["admin", "club-admin", "team-admin", "coach", "scout"]),
     emits: Object.freeze(["profile.updated"]),
     consumes: Object.freeze(["medical.availability-updated"]),
+  }),
+  Object.freeze({
+    id: "scouting",
+    label: "Scouting",
+    stage: "module",
+    storageKeys: Object.freeze(["football-scouting-v1"]),
+    futureTables: Object.freeze(["scouting_targets", "scouting_reports", "scouting_shortlists"]),
+    viewRoles: Object.freeze(["admin", "club-admin", "team-admin", "coach", "scout", "analyst"]),
+    editRoles: Object.freeze(["admin", "club-admin", "team-admin", "coach", "scout", "analyst"]),
+    emits: Object.freeze(["scouting.target-created", "scouting.report-created", "scouting.shortlist-updated"]),
+    consumes: Object.freeze(["profile.updated", "schedule.event-updated"]),
   }),
   Object.freeze({
     id: "game-simulator",

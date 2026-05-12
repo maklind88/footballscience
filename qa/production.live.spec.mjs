@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 const scheduleKey = "football-schedule-v1";
 const hasLiveCredentials = Boolean(process.env.LIVE_QA_USERNAME && process.env.LIVE_QA_PASSWORD);
+const expectsAdminCredentials = process.env.LIVE_QA_EXPECT_ADMIN !== "0";
 
 test.skip(!hasLiveCredentials, "Set LIVE_QA_USERNAME and LIVE_QA_PASSWORD for production-safe live smoke.");
 
@@ -167,6 +168,8 @@ async function removeScheduleEventIfPresent(page, title) {
 }
 
 test("production admin account can open Access & Users", async ({ page }) => {
+  test.skip(!expectsAdminCredentials, "This live smoke account is not expected to have admin access.");
+
   await signIn(page);
 
   await expect

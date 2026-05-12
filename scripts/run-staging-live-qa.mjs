@@ -34,6 +34,7 @@ const result = spawnSync("npx", ["playwright", "test", "--config=qa/live.playwri
     LIVE_QA_BASE_URL: stagingBaseUrl,
     LIVE_QA_USERNAME: stagingUsername,
     LIVE_QA_PASSWORD: stagingPassword,
+    LIVE_QA_EXPECT_ADMIN: process.env.STAGING_QA_EXPECT_ADMIN || "0",
   },
   stdio: "inherit",
   shell: false,

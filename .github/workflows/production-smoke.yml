@@ -18,6 +18,7 @@ jobs:
     timeout-minutes: 10
     env:
       LIVE_QA_BASE_URL: ${{ vars.LIVE_QA_BASE_URL || 'https://footballscience.xyz' }}
+      LIVE_QA_EXPECT_ADMIN: "1"
       LIVE_QA_PASSWORD: ${{ secrets.LIVE_QA_PASSWORD }}
       LIVE_QA_USERNAME: ${{ secrets.LIVE_QA_USERNAME }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}

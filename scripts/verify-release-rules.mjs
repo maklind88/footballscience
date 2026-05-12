@@ -83,10 +83,12 @@ requireText(".github/workflows/production-deploy.yml", "npm run release:vercel-t
 requireText(".github/workflows/production-deploy.yml", "vercel@53.2.0 deploy --prebuilt --prod", "production deploy must use the pinned Vercel CLI prebuilt path");
 requireText(".github/workflows/production-deploy.yml", "npm run release:postdeploy", "production deploy must verify the live domain");
 requireText(".github/workflows/production-deploy.yml", "npm run qa:live:required", "production deploy must run authenticated live smoke");
+requireText(".github/workflows/production-deploy.yml", 'LIVE_QA_EXPECT_ADMIN: "1"', "production deploy must prove the live QA account still has admin access");
 requireText(".github/workflows/production-deploy.yml", "CRON_SECRET", "production deploy must receive the cron secret required by the release environment gate");
 
 requireText(".github/workflows/production-smoke.yml", "schedule:", "production monitoring must run automatically");
 requireText(".github/workflows/production-smoke.yml", "npm run release:monitor", "production monitoring must run postdeploy and live smoke");
+requireText(".github/workflows/production-smoke.yml", 'LIVE_QA_EXPECT_ADMIN: "1"', "production monitoring must prove the live QA account still has admin access");
 requireText(".github/workflows/production-smoke.yml", "CRON_SECRET", "production monitoring must verify backup freshness with the cron secret");
 
 requireText(".github/workflows/production-incident-alert.yml", "workflow_run:", "incident alerting must watch workflow completions");
@@ -101,6 +103,7 @@ requireText(".github/workflows/production-rollback.yml", "npm run release:vercel
 requireText(".github/workflows/production-rollback.yml", "vercel@53.2.0 rollback", "rollback must use the pinned Vercel CLI");
 requireText(".github/workflows/production-rollback.yml", "npm run release:postdeploy", "rollback must verify the live domain");
 requireText(".github/workflows/production-rollback.yml", "npm run qa:live:required", "rollback must run authenticated live smoke");
+requireText(".github/workflows/production-rollback.yml", 'LIVE_QA_EXPECT_ADMIN: "1"', "rollback verification must prove the live QA account still has admin access");
 
 if (failures.length) {
   console.error("Release rules verification failed:");

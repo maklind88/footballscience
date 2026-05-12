@@ -25,6 +25,8 @@
     "release:vercel-token": "node scripts/verify-vercel-token.mjs",
     "release:gate": "npm run release:preflight && npm run release:safety && npm run qa:deploy",
     "release:auto": "node scripts/release-auto.mjs",
+    "release:ship:fast": "node scripts/release-ship.mjs --mode fast",
+    "release:ship:safe": "node scripts/release-ship.mjs --mode safe",
     "release:ship": "node scripts/release-ship.mjs",
     "release:postdeploy": "node scripts/verify-production-deploy.mjs",
     "release:backup": "node scripts/verify-app-state-backup-freshness.mjs",

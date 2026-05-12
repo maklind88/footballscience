@@ -16,7 +16,7 @@ const fullReleasePatterns = [
   /^supabase\//,
   /^vercel\.json$/,
 ];
-const quickValidation = [
+const fastValidation = [
   "verify:local-isolation",
   "check",
   "release:rules",
@@ -28,6 +28,14 @@ const quickValidation = [
   "qa:contracts",
   "qa:browser",
 ];
+const safeValidation = ["qa"];
+const releaseModeAliases = Object.freeze({
+  auto: "auto",
+  quick: "fast",
+  full: "safe",
+  fast: "fast",
+  safe: "safe",
+});
 
 function printHelp() {
   console.log(`Safe Ship release automation
@@ -36,13 +44,16 @@ Usage:
   npm run release:ship -- --stage-all --commit "fix: message" --push --deploy
   npm run release:ship -- --commit "fix: message" --push
   npm run release:ship -- --mode quick
+  npm run release:ship -- --mode fast
+  npm run release:ship -- --mode safe
 
 Options:
   --stage-all              Stage every current change in this worktree.
   --commit, -m TEXT        Commit staged changes with TEXT after validation passes.
   --push                   Push the current branch after validation/commit.
   --deploy                 Release through staging -> main -> GitHub Production Deploy.
-  --mode auto|quick|full   auto chooses full for API/data/security/module changes.
+  --mode auto|fast|safe    auto chooses safe for API/data/security/module changes.
+  (quick/full are aliases: quick=fast, full=safe)
   --skip-github-wait       Push release refs without waiting for GitHub workflows.
   --help                   Show this help.
 `);
@@ -73,7 +84,7 @@ function parseArgs(argv) {
     } else if (arg === "--help" || arg === "-h") {
       options.help = true;
     } else if (arg === "--mode") {
-      options.mode = String(argv[index + 1] || "").trim();
+      options.mode = String(argv[index + 1] || "").trim().toLowerCase();
       index += 1;
     } else if (arg === "--commit" || arg === "-m") {
       options.commitMessage = String(argv[index + 1] || "").trim();
@@ -83,8 +94,8 @@ function parseArgs(argv) {
     }
   }
 
-  if (!["auto", "quick", "full"].includes(options.mode)) {
-    throw new Error("--mode must be auto, quick, or full.");
+  if (!["auto", "quick", "full", "fast", "safe"].includes(options.mode)) {
+    throw new Error("--mode must be auto, quick, full, fast, or safe.");
   }
   if ((options.commitMessage === "" && argv.includes("--commit")) || (options.commitMessage === "" && argv.includes("-m"))) {
     throw new Error("--commit requires a commit message.");
@@ -179,9 +190,18 @@ function requireCleanWorkingTree(context) {
   }
 }
 
+function normalizeMode(mode) {
+  const normalized = releaseModeAliases[String(mode).toLowerCase()];
+  if (!normalized) {
+    throw new Error(`Unknown release mode: ${mode}`);
+  }
+  return normalized;
+}
+
 function classifyReleaseMode(paths, requestedMode) {
-  if (requestedMode !== "auto") return requestedMode;
-  return paths.some((file) => fullReleasePatterns.some((pattern) => pattern.test(file))) ? "full" : "quick";
+  const normalizedMode = normalizeMode(requestedMode);
+  if (normalizedMode !== "auto") return normalizedMode;
+  return paths.some((file) => fullReleasePatterns.some((pattern) => pattern.test(file))) ? "safe" : "fast";
 }
 
 function releasePaths(options) {
@@ -196,12 +216,14 @@ function releasePaths(options) {
 }
 
 function runValidation(mode) {
-  if (mode === "full") {
-    run("npm", ["run", "qa"]);
+  if (mode === "safe") {
+    for (const scriptName of safeValidation) {
+      run("npm", ["run", scriptName]);
+    }
     return;
   }
 
-  for (const scriptName of quickValidation) {
+  for (const scriptName of fastValidation) {
     run("npm", ["run", scriptName]);
   }
 }

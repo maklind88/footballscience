@@ -23953,6 +23953,388 @@ function renderSquadComparisonPanel() {
   `;
 }
 
+function formatPlayerProfileTimelineDate(value, fallback = "Now") {
+  if (!value) {
+    return fallback;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return String(value).trim() || fallback;
+  }
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function getPlayerDossierReadiness(player = {}) {
+  const medicalSnapshot = getPlayerProfileMedicalSnapshot(player.id);
+  const availabilityAdjustment = getSquadMatrixAvailabilityAdjustment(player);
+  const participation = Number(medicalSnapshot.participation);
+  const primaryRole = normalizePlayerProfileRole(player.primaryRole, "8");
+  const roleScore = getPlayerRoleDnaScore(player, primaryRole);
+  const statusText = [player.status, medicalSnapshot.currentAvailability, medicalSnapshot.rtpStatus]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  let tone = "ready";
+  let label = "Match ready";
+  let detail = "Available for normal selection decisions.";
+
+  if (/unavailable|out|injur|medical restriction/.test(statusText) || availabilityAdjustment <= -20) {
+    tone = "out";
+    label = "Unavailable";
+    detail = "Selection should be cleared with medical staff.";
+  } else if (/rehab|restricted|rtp|return/.test(statusText) || availabilityAdjustment <= -10) {
+    tone = "managed";
+    label = "Managed RTP";
+    detail = "Use controlled exposure and confirm limits before selection.";
+  } else if (/limited|modified|partial|monitor/.test(statusText) || availabilityAdjustment < 0 || (Number.isFinite(participation) && participation < 75)) {
+    tone = "monitor";
+    label = "Monitor load";
+    detail = "Available with load awareness and staff communication.";
+  } else if (roleScore < 66) {
+    tone = "development";
+    label = "Role development";
+    detail = "Ready physically, but role fit needs development evidence.";
+  }
+
+  return {
+    tone,
+    label,
+    detail,
+    participation: Number.isFinite(participation) ? participation : null,
+    medicalSnapshot,
+  };
+}
+
+function getPlayerDossierConfidence(player = {}) {
+  const completeness = getPlayerProfileCompleteness(player);
+  const qualityFlags = getSquadPlayerDataQualityFlags(player);
+  const attributeValues = playerProfileAttributeGroups.map((group) =>
+    normalizePlayerProfileNumber(player.attributeRatings?.[group.key], 3)
+  );
+  let score = completeness;
+
+  if (attributeValues.some((value) => value !== 3)) {
+    score += 8;
+  }
+  if (player.primaryRole && Array.isArray(player.secondaryRoles) && player.secondaryRoles.length) {
+    score += 6;
+  }
+  if (player.idp?.primaryFocus || player.idp?.nextAction || player.idp?.focusAreas) {
+    score += 5;
+  }
+  if (player.futureData?.performanceNotes || player.futureData?.scoutingNotes || player.futureData?.analysisNotes) {
+    score += 5;
+  }
+  score -= qualityFlags.filter((flag) => flag.severity === "critical").length * 8;
+  score -= qualityFlags.filter((flag) => flag.severity === "watch").length * 3;
+  score = clamp(Math.round(score), 0, 100);
+
+  return {
+    score,
+    tone: score >= 82 ? "high" : score >= 62 ? "medium" : "low",
+    label: score >= 82 ? "High confidence" : score >= 62 ? "Working confidence" : "Needs evidence",
+    qualityFlags,
+  };
+}
+
+function getPlayerDossierBestUse(player = {}) {
+  const readiness = getPlayerDossierReadiness(player);
+  const bestMatch = getPlayerRoleDnaBestMatches(player, 1)[0];
+  const idpFocus = String(player.idp?.primaryFocus || player.idp?.focusAreas || "").trim();
+
+  if (readiness.tone === "out") {
+    return "Do not select until medical status changes.";
+  }
+  if (readiness.tone === "managed") {
+    return `Use as managed ${bestMatch?.role || player.primaryRole || "role"} exposure with clear minutes/load limits.`;
+  }
+  if (readiness.tone === "monitor") {
+    return `Use in ${bestMatch?.role || player.primaryRole || "best-fit role"} with load monitoring.`;
+  }
+  if (idpFocus) {
+    return `Use in ${bestMatch?.role || player.primaryRole || "best-fit role"} to reinforce IDP focus: ${idpFocus}.`;
+  }
+  return `Best current use: ${bestMatch?.role || player.primaryRole || "role not set"} - ${bestMatch?.definition?.label || "profile under review"}.`;
+}
+
+function getPlayerDossierDecisionSignals(player = {}) {
+  const primaryRole = normalizePlayerProfileRole(player.primaryRole, "8");
+  const roleReasons = getPlayerRoleDnaReasons(player, primaryRole);
+  const readiness = getPlayerDossierReadiness(player);
+  const confidence = getPlayerDossierConfidence(player);
+  const signals = [];
+  const risks = [];
+
+  roleReasons.strengths.slice(0, 2).forEach((reason) => signals.push(reason));
+  if (player.squadStatus) {
+    signals.push(`${getPlayerProfileOption(playerProfileSquadStatusOptions, player.squadStatus).label} squad status`);
+  }
+  if (player.idp?.primaryFocus) {
+    signals.push(`IDP focus: ${player.idp.primaryFocus}`);
+  }
+  if (readiness.tone === "ready") {
+    signals.push(readiness.detail);
+  }
+
+  roleReasons.risks.slice(0, 2).forEach((risk) => risks.push(risk));
+  if (readiness.tone !== "ready") {
+    risks.push(readiness.detail);
+  }
+  confidence.qualityFlags.slice(0, 2).forEach((flag) => risks.push(flag.label));
+
+  return {
+    signals: signals.length ? signals.slice(0, 4) : ["Add more role evidence to strengthen the profile."],
+    risks: risks.length ? risks.slice(0, 4) : ["No major dossier risk flagged."],
+  };
+}
+
+function renderPlayerDossierPanel(player) {
+  if (!player) {
+    return "";
+  }
+
+  const readiness = getPlayerDossierReadiness(player);
+  const confidence = getPlayerDossierConfidence(player);
+  const bestMatches = getPlayerRoleDnaBestMatches(player, 3);
+  const primaryDefinition = getPlayerRoleDnaDefinition(player.primaryRole);
+  const decisionSignals = getPlayerDossierDecisionSignals(player);
+  const completeness = getPlayerProfileCompleteness(player);
+  const latestMedical = readiness.medicalSnapshot.latestLogSummary || "No medical log yet";
+  const reviewDate = player.idp?.reviewDate || "No review date";
+
+  return `
+    <section class="player-dossier-panel is-${escapeHtml(readiness.tone)}" aria-label="Player dossier">
+      <header>
+        <div class="player-dossier-title">
+          <p>Player Dossier</p>
+          <h2>${escapeHtml(player.name)}</h2>
+          <span>${escapeHtml(primaryDefinition.label)} / ${escapeHtml(player.roleGroup || "role group not set")}</span>
+        </div>
+        <div class="player-dossier-status">
+          <strong>${escapeHtml(readiness.label)}</strong>
+          <span>${escapeHtml(readiness.participation === null ? "Availability not logged" : `${readiness.participation}% available`)}</span>
+        </div>
+      </header>
+
+      <div class="player-dossier-brief">
+        <article>
+          <span>Best next use</span>
+          <strong>${escapeHtml(getPlayerDossierBestUse(player))}</strong>
+        </article>
+        <article>
+          <span>Coach decision note</span>
+          <strong>${escapeHtml(player.coachNotes || player.idp?.nextAction || "Add a coach decision note for selection context.")}</strong>
+        </article>
+      </div>
+
+      <div class="player-dossier-metrics">
+        <span>Readiness <strong>${escapeHtml(readiness.label)}</strong></span>
+        <span>Confidence <strong>${confidence.score}%</strong></span>
+        <span>Profile <strong>${completeness}%</strong></span>
+        <span>IDP review <strong>${escapeHtml(reviewDate)}</strong></span>
+      </div>
+
+      <div class="player-dossier-grid">
+        <article class="player-dossier-card">
+          <span>Role fit board</span>
+          <div class="player-dossier-role-list">
+            ${bestMatches
+              .map((match) => `
+                <button type="button" data-squad-comparison-role-jump="${escapeHtml(match.role)}">
+                  <strong>${escapeHtml(match.role)}</strong>
+                  <span>${escapeHtml(match.definition.label)}</span>
+                  <b>${match.score}%</b>
+                </button>
+              `)
+              .join("")}
+          </div>
+        </article>
+        <article class="player-dossier-card">
+          <span>Selection signals</span>
+          <ul class="player-dossier-list">
+            ${decisionSignals.signals.map((signal) => `<li>${escapeHtml(signal)}</li>`).join("")}
+          </ul>
+        </article>
+        <article class="player-dossier-card">
+          <span>Watch points</span>
+          <ul class="player-dossier-list is-risk">
+            ${decisionSignals.risks.map((risk) => `<li>${escapeHtml(risk)}</li>`).join("")}
+          </ul>
+        </article>
+        <article class="player-dossier-card">
+          <span>Medical / RTP summary</span>
+          <strong>${escapeHtml(readiness.medicalSnapshot.rtpStatus || readiness.medicalSnapshot.currentAvailability)}</strong>
+          <p>${escapeHtml(latestMedical)}</p>
+        </article>
+      </div>
+
+      <footer>
+        <span>Dossier confidence</span>
+        <strong>${escapeHtml(confidence.label)} / ${confidence.qualityFlags.length ? confidence.qualityFlags.map((flag) => flag.label).join(" / ") : "No major data gaps"}</strong>
+      </footer>
+    </section>
+  `;
+}
+
+function getPlayerProfileTimelineItems(player = {}) {
+  if (!player?.id) {
+    return [];
+  }
+
+  const readiness = getPlayerDossierReadiness(player);
+  const medicalSnapshot = readiness.medicalSnapshot || getPlayerProfileMedicalSnapshot(player.id);
+  const idpStatus = getPlayerProfileOption(playerProfileIdpStatusOptions, player.idp?.status || "none").label;
+  const timelineItems = [
+    {
+      type: "selection",
+      title: readiness.label,
+      summary: getPlayerDossierBestUse(player),
+      meta: "Selection view",
+      createdAt: player.updatedAt || player.createdAt,
+      priority: readiness.tone === "ready" ? "stable" : "watch",
+    },
+  ];
+
+  if (player.idp?.primaryFocus || player.idp?.nextAction || player.idp?.reviewDate) {
+    timelineItems.push({
+      type: "idp",
+      title: `IDP - ${idpStatus}`,
+      summary: [player.idp?.primaryFocus, player.idp?.nextAction].filter(Boolean).join(" / ") || "Development plan active.",
+      meta: player.idp?.reviewDate ? `Review ${formatPlayerProfileTimelineDate(player.idp.reviewDate)}` : "Development",
+      createdAt: player.idp?.reviewDate || player.updatedAt || player.createdAt,
+      priority: player.idp?.status === "review" ? "watch" : "stable",
+    });
+  }
+
+  if (medicalSnapshot.latestLogSummary && medicalSnapshot.latestLogSummary !== "No medical log yet") {
+    timelineItems.push({
+      type: "medical",
+      title: medicalSnapshot.rtpStatus || medicalSnapshot.currentAvailability || "Medical update",
+      summary: medicalSnapshot.latestLogSummary,
+      meta: "Medical / RTP",
+      createdAt: medicalSnapshot.latestLogDate || player.updatedAt || player.createdAt,
+      priority: readiness.tone === "out" || readiness.tone === "managed" ? "critical" : "watch",
+    });
+  }
+
+  if (player.coachNotes) {
+    timelineItems.push({
+      type: "coach",
+      title: "Coach note",
+      summary: player.coachNotes,
+      meta: "Staff context",
+      createdAt: player.updatedAt || player.createdAt,
+      priority: "stable",
+    });
+  }
+
+  [
+    ["performance", "Performance note", player.futureData?.performanceNotes],
+    ["analysis", "Scouting / analysis note", [player.futureData?.scoutingNotes, player.futureData?.analysisNotes].filter(Boolean).join(" / ")],
+  ].forEach(([type, title, summary]) => {
+    if (summary) {
+      timelineItems.push({
+        type,
+        title,
+        summary,
+        meta: "Future data lane",
+        createdAt: player.updatedAt || player.createdAt,
+        priority: "stable",
+      });
+    }
+  });
+
+  getPlayerProfileChangeLog(player.id).slice(0, 7).forEach((entry) => {
+    const changeSummary = entry.changes
+      .slice(0, 2)
+      .map((change) => `${change.field}: ${change.from} -> ${change.to}`)
+      .join(" / ");
+    timelineItems.push({
+      type: "profile",
+      title: entry.summary || "Profile updated",
+      summary: changeSummary || "Profile information changed.",
+      meta: entry.actor || "Football Science",
+      createdAt: entry.createdAt,
+      priority: entry.type === "player-added" ? "stable" : "neutral",
+    });
+  });
+
+  return timelineItems
+    .filter((item) => item.title || item.summary)
+    .sort((first, second) => {
+      const firstTime = Date.parse(first.createdAt) || 0;
+      const secondTime = Date.parse(second.createdAt) || 0;
+      return secondTime - firstTime;
+    })
+    .slice(0, 9);
+}
+
+function renderPlayerTimelineItems(items = []) {
+  if (!items.length) {
+    return `
+      <div class="player-timeline-empty">
+        Add coach notes, IDP actions, medical logs or profile edits to build this player's development story.
+      </div>
+    `;
+  }
+
+  return items
+    .map((item) => `
+      <article class="player-timeline-item is-${escapeHtml(item.priority || "neutral")}">
+        <div class="player-timeline-dot" aria-hidden="true">${escapeHtml(String(item.type || "log").slice(0, 2).toUpperCase())}</div>
+        <div class="player-timeline-content">
+          <header>
+            <div>
+              <span>${escapeHtml(item.meta || "Squad")}</span>
+              <strong>${escapeHtml(item.title)}</strong>
+            </div>
+            <time>${escapeHtml(formatPlayerProfileTimelineDate(item.createdAt))}</time>
+          </header>
+          <p>${escapeHtml(item.summary)}</p>
+        </div>
+      </article>
+    `)
+    .join("");
+}
+
+function renderPlayerProfileTimelinePanel(player) {
+  const items = getPlayerProfileTimelineItems(player);
+  const latestItem = items[0];
+  const medicalCount = items.filter((item) => item.type === "medical").length;
+  const developmentCount = items.filter((item) => item.type === "idp" || item.type === "performance" || item.type === "analysis").length;
+
+  return `
+    <section class="player-timeline-panel" aria-label="Player timeline and development log">
+      <header>
+        <div>
+          <p>Player Timeline</p>
+          <h2>Development Log</h2>
+          <span>Coach, IDP, medical, performance and profile events in one staff view.</span>
+        </div>
+        <div class="player-timeline-summary">
+          <strong>${items.length}</strong>
+          <span>signals</span>
+        </div>
+      </header>
+
+      <div class="player-timeline-metrics">
+        <span>Latest <strong>${escapeHtml(latestItem ? formatPlayerProfileTimelineDate(latestItem.createdAt) : "No log")}</strong></span>
+        <span>Development <strong>${developmentCount}</strong></span>
+        <span>Medical/RTP <strong>${medicalCount}</strong></span>
+        <span>Audit trail <strong>${getPlayerProfileChangeLog(player.id).length}</strong></span>
+      </div>
+
+      <div class="player-timeline-list">
+        ${renderPlayerTimelineItems(items)}
+      </div>
+    </section>
+  `;
+}
+
 function renderPlayerProfileMedicalPanel(player) {
   const snapshot = getPlayerProfileMedicalSnapshot(player.id);
   return `
@@ -24155,6 +24537,9 @@ function renderPlayerProfileSelectedPanel(player) {
           </div>
         </div>
       </article>
+      ${renderPlayerDossierPanel(player)}
+      ${renderPlayerProfileTimelinePanel(player)}
+      ${renderPlayerRoleDnaSpotlight(player)}
       ${renderPlayerProfileTabs()}
 
       <article class="squad-profile-section squad-editor-section">

@@ -1,4 +1,10 @@
-const { parseJsonBody, readConfig, sendCorsHeaders, sendJson } = require("./_lib/supabase-admin.js");
+const {
+  findAuthUserByIdentifier,
+  parseJsonBody,
+  readConfig,
+  sendCorsHeaders,
+  sendJson,
+} = require("./_lib/supabase-admin.js");
 const { guardApiRequest } = require("./_lib/platform-security.js");
 
 const MAX_IDENTIFIER_LENGTH = 180;
@@ -63,6 +69,16 @@ function publicAuthError(payload = {}, fallback = "Invalid login credentials.") 
   return raw.slice(0, 180) || fallback;
 }
 
+async function resolveLoginEmail(identifier) {
+  const cleanIdentifier = normalizeText(identifier, MAX_IDENTIFIER_LENGTH).toLowerCase();
+  if (!cleanIdentifier || cleanIdentifier.includes("@")) {
+    return cleanIdentifier;
+  }
+
+  const user = await findAuthUserByIdentifier(cleanIdentifier);
+  return normalizeText(user?.email, MAX_IDENTIFIER_LENGTH).toLowerCase();
+}
+
 async function handleLogin(req, res) {
   if (!checkLoginRateLimit(req)) {
     return sendJson(res, 429, { ok: false, reason: "Too many login attempts. Please wait a moment and try again." });
@@ -80,10 +96,21 @@ async function handleLogin(req, res) {
     return sendJson(res, error.code === "BODY_TOO_LARGE" ? 413 : 400, { ok: false, reason: "Login request is invalid." });
   }
 
-  const email = normalizeText(body.email || body.identifier, MAX_IDENTIFIER_LENGTH).toLowerCase();
+  const identifier = normalizeText(body.email || body.identifier, MAX_IDENTIFIER_LENGTH).toLowerCase();
   const password = normalizeText(body.password, MAX_PASSWORD_LENGTH);
-  if (!email || !password) {
+  if (!identifier || !password) {
     return sendJson(res, 400, { ok: false, reason: "Username and password are required." });
+  }
+
+  let email = "";
+  try {
+    email = await resolveLoginEmail(identifier);
+  } catch {
+    return sendJson(res, 503, { ok: false, reason: "Authentication could not be reached. Please try again." });
+  }
+
+  if (!email) {
+    return sendJson(res, 401, { ok: false, reason: "Invalid login credentials." });
   }
 
   try {

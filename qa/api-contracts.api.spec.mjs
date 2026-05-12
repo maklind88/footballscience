@@ -225,6 +225,94 @@ test("client-config exposes only browser-safe config when configured", async () 
   }
 });
 
+test("client-config login resolves usernames before Supabase password auth", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const tokenBodies = [];
+  global.fetch = async (url, options = {}) => {
+    const requestUrl = String(url);
+    if (requestUrl.includes("/auth/v1/admin/users")) {
+      return new Response(
+        JSON.stringify({
+          users: [
+            {
+              id: "user-jess",
+              email: "jess.silva@nccourage.com",
+              user_metadata: {
+                firstName: "Jess",
+                lastName: "Silva",
+                username: "jess.silva",
+                role: "scout",
+                status: "active",
+              },
+              app_metadata: {
+                role: "scout",
+                status: "active",
+              },
+            },
+          ],
+        }),
+        { status: 200 }
+      );
+    }
+
+    if (requestUrl.includes("/auth/v1/token")) {
+      const body = JSON.parse(String(options.body || "{}"));
+      tokenBodies.push(body);
+      return new Response(
+        JSON.stringify({
+          access_token: "access-token",
+          refresh_token: "refresh-token",
+          expires_in: 3600,
+          expires_at: 1770000000,
+          token_type: "bearer",
+          user: {
+            id: "user-jess",
+            email: body.email,
+          },
+        }),
+        { status: 200 }
+      );
+    }
+
+    return new Response(JSON.stringify({ message: `Unexpected request: ${requestUrl}` }), { status: 500 });
+  };
+
+  try {
+    const response = await callHandler(clientConfigHandler, {
+      method: "POST",
+      url: "/api/client-config",
+      body: JSON.stringify({
+        identifier: "jess.silva",
+        password: "correct-password",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload).toMatchObject({
+      ok: true,
+      session: {
+        access_token: "access-token",
+        refresh_token: "refresh-token",
+      },
+    });
+    expect(tokenBodies).toEqual([
+      {
+        email: "jess.silva@nccourage.com",
+        password: "correct-password",
+      },
+    ]);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
 test("app-state rejects unauthenticated requests before touching Supabase storage", async () => {
   const env = snapshotEnv(supabaseEnvKeys);
   clearEnv(supabaseEnvKeys);

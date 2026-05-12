@@ -20,13 +20,8 @@ const fastValidation = [
   "verify:local-isolation",
   "check",
   "release:rules",
-  "release:incident-readiness",
   "storage:guard",
   "security:platform",
-  "qa:supabase",
-  "qa:perf",
-  "qa:contracts",
-  "qa:browser",
 ];
 const safeValidation = ["qa"];
 const releaseModeAliases = Object.freeze({
@@ -54,6 +49,8 @@ Options:
   --deploy                 Release through staging -> main -> GitHub Production Deploy.
   --mode auto|fast|safe    auto chooses safe for API/data/security/module changes.
   (quick/full are aliases: quick=fast, full=safe)
+  fast mode runs the minimum live safety gate and skips long budget/browser suites.
+  safe mode runs the full QA gate.
   --skip-github-wait       Push release refs without waiting for GitHub workflows.
   --help                   Show this help.
 `);

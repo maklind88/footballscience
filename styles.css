@@ -18593,6 +18593,475 @@ color: #8a1f11;
 background: rgba(254, 226, 226, 0.72);
 border-color: rgba(220, 38, 38, 0.22);
 }
+.scouting-content{
+display: block;
+}
+.scouting-load-panel,
+.scouting-database-panel,
+.scouting-lists-panel,
+.scouting-shadow-card{
+border-radius: 10px;
+background: rgba(255, 255, 255, 0.92);
+border: 1px solid rgba(29, 29, 31, 0.08);
+box-shadow: 0 14px 34px rgba(31, 38, 44, 0.06);
+}
+.scouting-load-panel{
+display: grid;
+gap: 0.45rem;
+min-height: 12rem;
+place-items: center;
+text-align: center;
+padding: 1.5rem;
+}
+.scouting-load-panel h2,
+.scouting-shadow-card h2,
+.scouting-list-card h2,
+.scouting-profile-head h2{
+margin: 0;
+color: #1d1d1f;
+line-height: 1.05;
+}
+.scouting-load-panel p,
+.scouting-shadow-card p,
+.scouting-muted{
+margin: 0;
+color: #6e6e73;
+line-height: 1.5;
+}
+.scouting-database-panel{
+display: grid;
+gap: 0.75rem;
+padding: 0.78rem;
+}
+.scouting-database-controls{
+display: grid;
+grid-template-columns: repeat(5, minmax(8rem, 1fr));
+gap: 0.58rem;
+}
+.scouting-database-controls label,
+.scouting-profile-actions label{
+display: grid;
+gap: 0.24rem;
+min-width: 0;
+color: #6e6e73;
+font-size: 0.68rem;
+font-weight: 850;
+letter-spacing: 0.04em;
+text-transform: uppercase;
+}
+.scouting-database-controls input,
+.scouting-database-controls select,
+.scouting-list-form input,
+.scouting-profile-actions select{
+width: 100%;
+min-width: 0;
+min-height: 2.42rem;
+padding: 0.5rem 0.62rem;
+border-radius: 8px;
+border: 1px solid rgba(29, 29, 31, 0.12);
+background: #ffffff;
+color: #1d1d1f;
+font: inherit;
+font-size: 0.82rem;
+font-weight: 760;
+}
+.scouting-result-summary{
+padding: 0.12rem 0.1rem;
+color: #5f665f;
+font-size: 0.82rem;
+font-weight: 850;
+}
+.scouting-record-grid{
+display: grid;
+grid-template-columns: repeat(3, minmax(0, 1fr));
+gap: 0.62rem;
+}
+.scouting-record-card{
+display: grid;
+gap: 0.72rem;
+min-height: 10.4rem;
+padding: 0.78rem;
+border-radius: 10px;
+background:
+linear-gradient(160deg, rgba(255, 255, 255, 0.98), rgba(242, 245, 240, 0.92)),
+#ffffff;
+border: 1px solid rgba(29, 29, 31, 0.08);
+box-shadow: 0 12px 28px rgba(31, 38, 44, 0.05);
+cursor: pointer;
+transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+.scouting-record-card:hover,
+.scouting-record-card:focus-visible{
+transform: translateY(-2px);
+border-color: rgba(39, 83, 64, 0.24);
+box-shadow: 0 18px 36px rgba(31, 38, 44, 0.1);
+outline: none;
+}
+.scouting-record-card-head,
+.scouting-record-card-meta,
+.scouting-record-card-score{
+display: flex;
+align-items: flex-start;
+justify-content: space-between;
+gap: 0.7rem;
+}
+.scouting-record-card-head strong{
+display: block;
+color: #1d1d1f;
+font-size: 1rem;
+line-height: 1.15;
+}
+.scouting-record-card-head span,
+.scouting-record-card-meta,
+.scouting-record-card-score span{
+color: #6e6e73;
+font-size: 0.78rem;
+line-height: 1.4;
+}
+.scouting-record-card-meta{
+flex-wrap: wrap;
+justify-content: flex-start;
+}
+.scouting-record-card-meta span{
+padding: 0.25rem 0.42rem;
+border-radius: 999px;
+background: rgba(29, 29, 31, 0.055);
+font-weight: 760;
+}
+.scouting-record-card-score{
+align-items: flex-end;
+margin-top: auto;
+}
+.scouting-record-card-score strong{
+color: #233b2d;
+font-size: 1.45rem;
+line-height: 1;
+}
+.scouting-star-button{
+min-width: 2.35rem;
+min-height: 2.35rem;
+border-radius: 999px;
+border: 1px solid rgba(29, 29, 31, 0.1);
+background: rgba(255, 255, 255, 0.9);
+color: #6e6e73;
+font-weight: 900;
+cursor: pointer;
+}
+.scouting-star-button.is-active{
+color: #825400;
+background: rgba(255, 214, 102, 0.28);
+border-color: rgba(181, 131, 22, 0.28);
+}
+.scouting-shadow-layout{
+display: grid;
+grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.34fr);
+gap: 0.85rem;
+align-items: stretch;
+}
+.scouting-shadow-pitch{
+position: relative;
+min-height: clamp(35rem, 62vw, 48rem);
+overflow: hidden;
+border-radius: 18px;
+background:
+radial-gradient(circle at 50% 10%, rgba(255, 255, 255, 0.18), transparent 20%),
+repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0 9%, rgba(255, 255, 255, 0.02) 9% 18%),
+linear-gradient(180deg, #244f3a, #153827);
+border: 1px solid rgba(255, 255, 255, 0.22);
+box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.18), 0 20px 48px rgba(31, 38, 44, 0.14);
+}
+.scouting-pitch-line{
+position: absolute;
+left: 8%;
+right: 8%;
+border: 1px solid rgba(255, 255, 255, 0.34);
+pointer-events: none;
+}
+.scouting-pitch-line.is-half{
+top: 50%;
+height: 0;
+}
+.scouting-pitch-line.is-box-top{
+top: 3%;
+height: 15%;
+border-radius: 0 0 18px 18px;
+border-top: 0;
+}
+.scouting-pitch-line.is-box-bottom{
+bottom: 3%;
+height: 15%;
+border-radius: 18px 18px 0 0;
+border-bottom: 0;
+}
+.scouting-shadow-slot{
+position: absolute;
+left: var(--x);
+top: var(--y);
+display: grid;
+gap: 0.14rem;
+width: min(10rem, 22vw);
+min-height: 4.35rem;
+padding: 0.55rem;
+border-radius: 14px;
+border: 1px solid rgba(255, 255, 255, 0.28);
+background: rgba(255, 255, 255, 0.16);
+color: #ffffff;
+box-shadow: 0 10px 26px rgba(0, 0, 0, 0.18);
+backdrop-filter: blur(8px);
+transform: translate(-50%, -50%);
+cursor: pointer;
+text-align: center;
+}
+.scouting-shadow-slot.is-filled{
+background: rgba(250, 250, 246, 0.92);
+color: #1d1d1f;
+border-color: rgba(255, 255, 255, 0.68);
+}
+.scouting-shadow-slot span,
+.scouting-shadow-slot em{
+font-size: 0.68rem;
+font-style: normal;
+font-weight: 850;
+letter-spacing: 0.05em;
+text-transform: uppercase;
+opacity: 0.76;
+}
+.scouting-shadow-slot strong{
+overflow: hidden;
+text-overflow: ellipsis;
+white-space: nowrap;
+font-size: 0.86rem;
+}
+.scouting-shadow-side{
+display: grid;
+gap: 0.75rem;
+}
+.scouting-shadow-card{
+display: grid;
+gap: 0.65rem;
+align-content: start;
+padding: 1rem;
+}
+.scouting-mini-list,
+.scouting-list-players{
+display: grid;
+gap: 0.42rem;
+}
+.scouting-mini-list button,
+.scouting-list-players button{
+display: flex;
+align-items: center;
+justify-content: space-between;
+gap: 0.75rem;
+width: 100%;
+padding: 0.55rem 0.62rem;
+border-radius: 9px;
+border: 1px solid rgba(29, 29, 31, 0.08);
+background: rgba(248, 249, 250, 0.92);
+color: #1d1d1f;
+font: inherit;
+font-weight: 820;
+cursor: pointer;
+}
+.scouting-mini-list button span,
+.scouting-list-players button span{
+color: #6e6e73;
+font-size: 0.72rem;
+font-weight: 760;
+}
+.scouting-lists-panel{
+display: grid;
+gap: 0.75rem;
+padding: 0.8rem;
+}
+.scouting-list-form{
+display: flex;
+gap: 0.5rem;
+align-items: center;
+}
+.scouting-list-form input{
+flex: 1;
+}
+.scouting-list-grid{
+display: grid;
+grid-template-columns: repeat(3, minmax(0, 1fr));
+gap: 0.72rem;
+}
+.scouting-list-card{
+display: grid;
+gap: 0.72rem;
+align-content: start;
+min-height: 16rem;
+padding: 0.9rem;
+border-radius: 11px;
+background: rgba(255, 255, 255, 0.94);
+border: 1px solid rgba(29, 29, 31, 0.08);
+}
+.scouting-list-card.is-featured{
+background:
+linear-gradient(155deg, rgba(255, 247, 214, 0.95), rgba(239, 246, 238, 0.95)),
+#fff8df;
+}
+.scouting-profile-backdrop{
+position: fixed;
+inset: 0;
+z-index: 70;
+display: grid;
+place-items: center;
+padding: clamp(0.8rem, 3vw, 2rem);
+background: rgba(11, 16, 24, 0.58);
+backdrop-filter: blur(8px);
+}
+.scouting-profile-modal{
+position: relative;
+display: grid;
+gap: 1rem;
+width: min(1180px, 100%);
+max-height: min(88vh, 58rem);
+overflow: auto;
+padding: clamp(1rem, 2vw, 1.35rem);
+border-radius: 18px;
+background:
+linear-gradient(160deg, rgba(255, 255, 255, 0.98), rgba(239, 244, 238, 0.96)),
+#ffffff;
+border: 1px solid rgba(255, 255, 255, 0.55);
+box-shadow: 0 28px 80px rgba(0, 0, 0, 0.28);
+}
+.scouting-profile-close{
+position: absolute;
+top: 0.9rem;
+right: 0.9rem;
+width: 2.25rem;
+height: 2.25rem;
+border-radius: 999px;
+border: 1px solid rgba(29, 29, 31, 0.1);
+background: rgba(255, 255, 255, 0.9);
+color: #1d1d1f;
+font-weight: 900;
+cursor: pointer;
+}
+.scouting-profile-head{
+display: grid;
+grid-template-columns: minmax(0, 1fr) auto;
+gap: 1rem;
+align-items: end;
+padding-right: 2.5rem;
+}
+.scouting-profile-head p{
+margin: 0.26rem 0 0;
+color: #6e6e73;
+}
+.scouting-profile-actions{
+display: flex;
+align-items: end;
+flex-wrap: wrap;
+gap: 0.45rem;
+}
+.scouting-profile-actions .scouting-primary-button,
+.scouting-profile-actions .scouting-star-button{
+min-height: 2.42rem;
+padding: 0.45rem 0.75rem;
+}
+.scouting-profile-grid{
+display: grid;
+grid-template-columns: minmax(16rem, 0.9fr) minmax(14rem, 0.72fr) minmax(14rem, 0.72fr);
+gap: 0.75rem;
+align-items: start;
+}
+.scouting-profile-radar,
+.scouting-profile-metrics,
+.scouting-season-table{
+border-radius: 12px;
+background: rgba(255, 255, 255, 0.74);
+border: 1px solid rgba(29, 29, 31, 0.08);
+padding: 0.85rem;
+}
+.scouting-profile-metrics h3,
+.scouting-season-table h3{
+margin: 0 0 0.65rem;
+color: #1d1d1f;
+}
+.scouting-radar{
+width: 100%;
+min-height: 20rem;
+}
+.scouting-radar-ring,
+.scouting-radar-axis{
+fill: none;
+stroke: rgba(35, 59, 45, 0.18);
+stroke-width: 1;
+}
+.scouting-radar-shape{
+fill: rgba(46, 109, 74, 0.24);
+stroke: #2e6d4a;
+stroke-width: 2.5;
+}
+.scouting-radar-dot{
+fill: #f4c95d;
+stroke: #203b2c;
+stroke-width: 1.4;
+}
+.scouting-radar-label{
+fill: #27352d;
+font-size: 0.52rem;
+font-weight: 850;
+text-anchor: middle;
+dominant-baseline: middle;
+}
+.scouting-radar-empty{
+display: grid;
+min-height: 18rem;
+place-items: center;
+color: #6e6e73;
+}
+.scouting-metric-stack{
+display: grid;
+gap: 0.45rem;
+}
+.scouting-metric-stack div{
+display: grid;
+grid-template-columns: minmax(0, 1fr) auto;
+gap: 0.18rem 0.5rem;
+padding: 0.52rem 0.58rem;
+border-radius: 9px;
+background: rgba(248, 249, 250, 0.86);
+}
+.scouting-metric-stack span,
+.scouting-metric-stack em{
+color: #6e6e73;
+font-size: 0.75rem;
+font-style: normal;
+}
+.scouting-metric-stack strong{
+color: #233b2d;
+}
+.scouting-metric-stack em{
+grid-column: 1 / -1;
+}
+.scouting-season-table{
+grid-column: 1 / -1;
+}
+.scouting-season-table div{
+overflow: auto;
+}
+.scouting-season-table table{
+width: 100%;
+border-collapse: collapse;
+font-size: 0.8rem;
+}
+.scouting-season-table th,
+.scouting-season-table td{
+padding: 0.52rem;
+border-bottom: 1px solid rgba(29, 29, 31, 0.08);
+text-align: left;
+white-space: nowrap;
+}
+.scouting-season-table th{
+color: #6e6e73;
+font-size: 0.68rem;
+letter-spacing: 0.05em;
+text-transform: uppercase;
+}
 @media (max-width: 980px){
 .scouting-hero,
 .scouting-command-bar{
@@ -18602,15 +19071,31 @@ grid-template-columns: 1fr;
 display: grid;
 }
 .scouting-metrics,
-.scouting-content,
+.scouting-record-grid,
+.scouting-database-controls,
+.scouting-shadow-layout,
+.scouting-list-grid,
+.scouting-profile-head,
+.scouting-profile-grid,
 .scouting-target-form{
 grid-template-columns: 1fr;
+}
+.scouting-list-form,
+.scouting-profile-actions{
+align-items: stretch;
+flex-direction: column;
 }
 .scouting-target-form textarea{
 grid-column: auto;
 }
 .scouting-tools input{
 width: 100%;
+}
+.scouting-shadow-pitch{
+min-height: 38rem;
+}
+.scouting-shadow-slot{
+width: 7.5rem;
 }
 }
 body.is-dark-mode{
@@ -18691,6 +19176,69 @@ body.is-dark-mode .scouting-target-actions select{
 background: rgba(30, 41, 59, 0.92);
 border-color: rgba(148, 163, 184, 0.22);
 color: var(--ink);
+}
+body.is-dark-mode .scouting-load-panel,
+body.is-dark-mode .scouting-database-panel,
+body.is-dark-mode .scouting-lists-panel,
+body.is-dark-mode .scouting-shadow-card,
+body.is-dark-mode .scouting-list-card,
+body.is-dark-mode .scouting-profile-modal,
+body.is-dark-mode .scouting-profile-radar,
+body.is-dark-mode .scouting-profile-metrics,
+body.is-dark-mode .scouting-season-table{
+background: rgba(15, 23, 42, 0.86);
+border-color: rgba(148, 163, 184, 0.2);
+color: var(--ink);
+}
+body.is-dark-mode .scouting-record-card{
+background: linear-gradient(160deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.92));
+border-color: rgba(148, 163, 184, 0.18);
+}
+body.is-dark-mode .scouting-database-controls input,
+body.is-dark-mode .scouting-database-controls select,
+body.is-dark-mode .scouting-list-form input,
+body.is-dark-mode .scouting-profile-actions select,
+body.is-dark-mode .scouting-profile-close,
+body.is-dark-mode .scouting-star-button,
+body.is-dark-mode .scouting-mini-list button,
+body.is-dark-mode .scouting-list-players button,
+body.is-dark-mode .scouting-metric-stack div{
+background: rgba(30, 41, 59, 0.92);
+border-color: rgba(148, 163, 184, 0.22);
+color: var(--ink);
+}
+body.is-dark-mode .scouting-load-panel h2,
+body.is-dark-mode .scouting-shadow-card h2,
+body.is-dark-mode .scouting-list-card h2,
+body.is-dark-mode .scouting-profile-head h2,
+body.is-dark-mode .scouting-profile-metrics h3,
+body.is-dark-mode .scouting-season-table h3,
+body.is-dark-mode .scouting-record-card-head strong,
+body.is-dark-mode .scouting-record-card-score strong,
+body.is-dark-mode .scouting-metric-stack strong{
+color: var(--ink);
+}
+body.is-dark-mode .scouting-load-panel p,
+body.is-dark-mode .scouting-shadow-card p,
+body.is-dark-mode .scouting-muted,
+body.is-dark-mode .scouting-result-summary,
+body.is-dark-mode .scouting-record-card-head span,
+body.is-dark-mode .scouting-record-card-meta,
+body.is-dark-mode .scouting-record-card-score span,
+body.is-dark-mode .scouting-mini-list button span,
+body.is-dark-mode .scouting-list-players button span,
+body.is-dark-mode .scouting-profile-head p,
+body.is-dark-mode .scouting-metric-stack span,
+body.is-dark-mode .scouting-metric-stack em,
+body.is-dark-mode .scouting-season-table th{
+color: var(--muted);
+}
+body.is-dark-mode .scouting-radar-ring,
+body.is-dark-mode .scouting-radar-axis{
+stroke: rgba(148, 163, 184, 0.28);
+}
+body.is-dark-mode .scouting-radar-label{
+fill: var(--ink);
 }
 body.is-dark-mode .scouting-target-main strong{
 color: var(--ink);
@@ -19222,4 +19770,403 @@ background: rgba(15, 23, 42, 0.9);
 }
 body.is-dark-mode .login-error{
 color: #fb7185;
+}
+
+/* Dark mode finish layer: keep late module CSS from leaking bright surfaces. */
+body.is-dark-mode{
+--dark-app-bg: #080c12;
+--dark-surface: rgba(13, 20, 28, 0.94);
+--dark-surface-soft: rgba(19, 29, 38, 0.88);
+--dark-surface-raised: rgba(24, 36, 46, 0.96);
+--dark-line: rgba(180, 199, 214, 0.18);
+--dark-line-strong: rgba(180, 199, 214, 0.32);
+--dark-text: #edf4f8;
+--dark-muted: #a9bac6;
+--dark-subtle: #7f93a2;
+--dark-green: #81d29f;
+--dark-blue: #9cc9ff;
+--dark-gold: #f8d36b;
+--bg: var(--dark-app-bg);
+--ink: var(--dark-text);
+--muted: var(--dark-muted);
+--line: var(--dark-line);
+background: var(--dark-app-bg);
+color: var(--dark-text);
+}
+body.is-dark-mode .coach-platform,
+body.is-dark-mode .platform-main,
+body.is-dark-mode .platform-content,
+body.is-dark-mode .platform-home-view,
+body.is-dark-mode .platform-placeholder-view,
+body.is-dark-mode .platform-medical-view,
+body.is-dark-mode .platform-player-profiles-view,
+body.is-dark-mode .platform-scouting-view,
+body.is-dark-mode .platform-schedule-view,
+body.is-dark-mode .platform-periodization-view,
+body.is-dark-mode .platform-session-view{
+background:
+radial-gradient(circle at 12% 0%, rgba(55, 118, 89, 0.14), transparent 28rem),
+linear-gradient(180deg, #080c12 0%, #0b121a 54%, #091018 100%) !important;
+color: var(--dark-text) !important;
+}
+body.is-dark-mode .top-icon-menu{
+background:
+linear-gradient(180deg, rgba(20, 30, 39, 0.94), rgba(11, 17, 24, 0.92)),
+rgba(11, 17, 24, 0.9) !important;
+border-color: var(--dark-line) !important;
+box-shadow: 0 18px 44px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+}
+body.is-dark-mode .top-icon-menu-item{
+color: rgba(222, 235, 242, 0.74) !important;
+background: transparent !important;
+}
+body.is-dark-mode .top-icon-menu-item:hover,
+body.is-dark-mode .top-icon-menu-item:focus-visible{
+color: #ffffff !important;
+background: rgba(255, 255, 255, 0.08) !important;
+box-shadow: 0 12px 30px rgba(0, 0, 0, 0.24) !important;
+}
+body.is-dark-mode .top-icon-menu-item.is-active{
+color: #c6f6d5 !important;
+background:
+linear-gradient(180deg, rgba(75, 141, 104, 0.32), rgba(40, 79, 66, 0.26)),
+rgba(255, 255, 255, 0.08) !important;
+box-shadow: inset 0 0 0 1px rgba(129, 210, 159, 0.34), 0 14px 34px rgba(0, 0, 0, 0.26) !important;
+}
+body.is-dark-mode .top-icon-menu-label{
+color: #07110d !important;
+background: #dff8e9 !important;
+box-shadow: 0 14px 30px rgba(0, 0, 0, 0.36) !important;
+}
+body.is-dark-mode .platform-title p,
+body.is-dark-mode .workspace-date,
+body.is-dark-mode .platform-account-copy small,
+body.is-dark-mode .profile-menu-head span{
+color: var(--dark-muted) !important;
+}
+body.is-dark-mode .platform-account-copy strong,
+body.is-dark-mode .profile-menu-head strong{
+color: var(--dark-text) !important;
+}
+body.is-dark-mode .dashboard-modal-backdrop{
+background: rgba(4, 8, 13, 0.68) !important;
+backdrop-filter: blur(16px) !important;
+}
+body.is-dark-mode .dashboard-modal-card{
+background:
+linear-gradient(180deg, rgba(24, 35, 44, 0.98), rgba(12, 19, 27, 0.98)),
+var(--dark-surface) !important;
+border-color: var(--dark-line-strong) !important;
+box-shadow: 0 34px 100px rgba(0, 0, 0, 0.62) !important;
+color: var(--dark-text) !important;
+}
+body.is-dark-mode .dashboard-modal-kicker,
+body.is-dark-mode .dashboard-modal-check,
+body.is-dark-mode .dashboard-tutorial-steps span,
+body.is-dark-mode .dashboard-news-list span{
+color: var(--dark-muted) !important;
+}
+body.is-dark-mode .dashboard-modal-head h2,
+body.is-dark-mode .dashboard-tutorial-steps strong{
+color: var(--dark-text) !important;
+}
+body.is-dark-mode .dashboard-tutorial-steps div,
+body.is-dark-mode .dashboard-news-list span{
+background: rgba(255, 255, 255, 0.06) !important;
+border: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+body.is-dark-mode .dashboard-modal-close,
+body.is-dark-mode .dashboard-modal-actions .secondary{
+color: var(--dark-text) !important;
+background: rgba(255, 255, 255, 0.08) !important;
+border-color: var(--dark-line) !important;
+}
+body.is-dark-mode :is(
+.player-profiles-hero,
+.medical-hero,
+.scouting-hero,
+.player-profile-id-card,
+.medical-selected-card,
+.medical-command-card-dark,
+.medical-huddle-brief,
+.medical-governance-summary,
+.medical-coach-handover-brief
+){
+background:
+radial-gradient(circle at 92% 0%, rgba(129, 210, 159, 0.18), transparent 17rem),
+linear-gradient(135deg, rgba(20, 34, 39, 0.98), rgba(10, 17, 24, 0.96)),
+#0f181f !important;
+border-color: var(--dark-line-strong) !important;
+box-shadow: 0 24px 68px rgba(0, 0, 0, 0.42) !important;
+color: var(--dark-text) !important;
+}
+body.is-dark-mode :is(
+.player-profile-metric,
+.player-profiles-toolbar,
+.player-profile-panel-card,
+.player-profile-empty-card,
+.player-profile-card,
+.player-profile-card-roles,
+.player-profile-medical-grid div,
+.player-profile-future-grid div,
+.player-profile-import-preview,
+.medical-date-strip,
+.medical-metric-card,
+.medical-command-card,
+.medical-huddle-card,
+.medical-security-card,
+.medical-governance-panel,
+.medical-governance-card,
+.medical-governance-foot,
+.medical-governance-check,
+.medical-bulk-panel,
+.medical-bulk-summary,
+.medical-bulk-share,
+.medical-player-card,
+.medical-side-card,
+.medical-empty-card,
+.medical-modal-card,
+.medical-modal-main-card,
+.medical-injury-plan-card,
+.medical-profile-summary-card,
+.medical-profile-summary-grid div,
+.medical-profile-summary-foot,
+.medical-check-row,
+.medical-coach-safe-grid div,
+.medical-plan-item,
+.medical-log-item,
+.medical-huddle-list button,
+.medical-mini-list button,
+.scouting-metrics,
+.scouting-command-bar,
+.scouting-target-form,
+.scouting-target-card,
+.scouting-empty-panel
+){
+background: var(--dark-surface-soft) !important;
+border-color: var(--dark-line) !important;
+box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24) !important;
+color: var(--dark-text) !important;
+}
+body.is-dark-mode :is(.player-profile-card:hover,.player-profile-card:focus-visible,.player-profile-card.is-selected,.medical-player-card:hover,.medical-player-card:focus-visible,.medical-player-card.is-selected,.medical-player-card.is-bulk-selected,.scouting-target-card:hover){
+background: var(--dark-surface-raised) !important;
+border-color: rgba(129, 210, 159, 0.36) !important;
+box-shadow: 0 18px 46px rgba(0, 0, 0, 0.34) !important;
+}
+body.is-dark-mode :is(
+.player-profiles-workspace,
+.medical-workspace,
+.scouting-workspace,
+.player-profiles-workspace h1,
+.player-profiles-workspace h2,
+.player-profiles-workspace h3,
+.player-profiles-workspace strong,
+.medical-workspace h1,
+.medical-workspace h2,
+.medical-workspace h3,
+.medical-workspace strong,
+.scouting-workspace h1,
+.scouting-workspace h2,
+.scouting-workspace h3,
+.scouting-workspace strong
+){
+color: var(--dark-text) !important;
+}
+body.is-dark-mode :is(
+.player-profiles-workspace p,
+.player-profiles-workspace span,
+.player-profiles-workspace small,
+.player-profiles-workspace label,
+.player-profile-card-top small,
+.player-profile-card-roles small,
+.player-profile-card-footer small,
+.player-profile-note-grid p,
+.player-profile-empty-card p,
+.medical-workspace p,
+.medical-workspace span,
+.medical-workspace small,
+.medical-workspace label,
+.medical-card-comment,
+.medical-card-footer,
+.medical-log-main small,
+.medical-log-main p,
+.medical-log-empty,
+.medical-empty-inline,
+.medical-profile-summary-note,
+.medical-coach-note,
+.scouting-workspace p,
+.scouting-workspace span,
+.scouting-workspace small,
+.scouting-note-line,
+.scouting-fit-line
+){
+color: var(--dark-muted) !important;
+}
+body.is-dark-mode :is(
+.player-profiles-hero,
+.player-profile-id-card,
+.medical-hero,
+.medical-selected-card,
+.medical-command-card-dark,
+.medical-huddle-brief,
+.medical-governance-summary,
+.medical-coach-handover-brief,
+.scouting-hero
+) :is(h1,h2,h3,strong,span,small,p,.placeholder-tag){
+color: inherit !important;
+}
+body.is-dark-mode :is(
+.player-profiles-tools input,
+.player-profiles-tools select,
+.player-profile-form input,
+.player-profile-form select,
+.player-profile-form textarea,
+.medical-date-strip input,
+.medical-roster-tools input,
+.medical-roster-tools select,
+.medical-profile-form input,
+.medical-profile-form select,
+.medical-profile-form textarea,
+.medical-import-form textarea,
+.medical-governance-form input,
+.medical-bulk-form input,
+.medical-bulk-form select,
+.scouting-tools input,
+.scouting-tools select,
+.scouting-target-form input,
+.scouting-target-form select,
+.scouting-target-form textarea,
+.scouting-target-actions select
+){
+background: rgba(6, 12, 18, 0.84) !important;
+border-color: var(--dark-line-strong) !important;
+color: var(--dark-text) !important;
+box-shadow: none !important;
+}
+body.is-dark-mode :is(input,textarea)::placeholder{
+color: var(--dark-subtle) !important;
+opacity: 1 !important;
+}
+body.is-dark-mode :is(
+.player-profile-form button,
+.player-profile-import-apply-button,
+.medical-profile-form button,
+.medical-import-form button,
+.medical-bulk-form button,
+.medical-governance-form button,
+.medical-coach-copy-button,
+.scouting-primary-button,
+.scouting-target-form button
+){
+background: linear-gradient(180deg, #2c8b62, #1c684e) !important;
+border-color: rgba(129, 210, 159, 0.34) !important;
+color: #ffffff !important;
+}
+body.is-dark-mode :is(
+.player-profile-import-preview-actions button,
+.player-profile-form .player-profile-danger-button,
+.medical-secondary-button,
+.medical-bulk-actions button,
+.medical-card-select-button,
+.medical-icon-button,
+.medical-today-button,
+.medical-window-day,
+.medical-duration-presets button,
+.medical-preset-button,
+.medical-actual-button,
+.scouting-tab,
+.scouting-target-actions button,
+.schedule-nav-button,
+.schedule-today-button,
+.periodization-toolbar .schedule-nav-button,
+.periodization-month-select
+){
+background: rgba(255, 255, 255, 0.07) !important;
+border-color: var(--dark-line) !important;
+color: var(--dark-text) !important;
+}
+body.is-dark-mode :is(
+.medical-duration-presets button.is-selected,
+.medical-duration-presets button:hover,
+.medical-preset-button:hover,
+.medical-actual-button:hover,
+.medical-preset-button.is-selected,
+.medical-actual-button.is-selected,
+.scouting-tab.is-active,
+.schedule-nav-button:hover,
+.schedule-today-button:hover
+){
+background: rgba(129, 210, 159, 0.18) !important;
+border-color: rgba(129, 210, 159, 0.38) !important;
+color: #f8fff9 !important;
+}
+body.is-dark-mode :is(
+.player-profile-status-chip.is-available,
+.medical-tone-full,
+.medical-card-select-button.is-selected,
+.medical-player-title-line .medical-temporary-badge,
+.medical-metric-card-full,
+.player-profile-metric-available,
+.medical-window-day.is-today:not(.is-active),
+.medical-message,
+.player-profile-message.is-success,
+.scouting-priority-chip
+){
+background: rgba(47, 143, 107, 0.2) !important;
+border-color: rgba(129, 210, 159, 0.35) !important;
+color: #c6f6d5 !important;
+}
+body.is-dark-mode :is(
+.player-profile-status-chip.is-managed,
+.medical-tone-modified,
+.medical-tone-controlled,
+.medical-tone-monitor,
+.medical-metric-card-modified,
+.player-profile-message.is-warning
+){
+background: rgba(190, 125, 35, 0.2) !important;
+border-color: rgba(248, 211, 107, 0.35) !important;
+color: #fde68a !important;
+}
+body.is-dark-mode :is(
+.player-profile-status-chip.is-rehab,
+.medical-tone-rehab
+){
+background: rgba(194, 103, 41, 0.22) !important;
+border-color: rgba(251, 146, 60, 0.34) !important;
+color: #fed7aa !important;
+}
+body.is-dark-mode :is(
+.player-profile-status-chip.is-unavailable,
+.medical-tone-unavailable,
+.medical-metric-card-unavailable,
+.player-profile-message.is-error,
+.medical-profile-form .medical-danger-button,
+.player-profile-form .player-profile-danger-button,
+.medical-log-delete,
+.scouting-target-actions button
+){
+background: rgba(150, 37, 37, 0.24) !important;
+border-color: rgba(248, 113, 113, 0.34) !important;
+color: #fecaca !important;
+}
+body.is-dark-mode :is(
+.player-profile-status-chip.is-loan,
+.medical-tone-unset
+){
+background: rgba(148, 163, 184, 0.16) !important;
+border-color: rgba(203, 213, 225, 0.24) !important;
+color: #cbd5e1 !important;
+}
+body.is-dark-mode .medical-window-day.is-active{
+background: linear-gradient(180deg, #2c8b62, #1d604a) !important;
+border-color: rgba(129, 210, 159, 0.46) !important;
+color: #ffffff !important;
+}
+body.is-dark-mode .medical-participation-track,
+body.is-dark-mode .medical-position-track{
+background: rgba(255, 255, 255, 0.12) !important;
+}
+body.is-dark-mode .medical-modal-backdrop{
+background: rgba(3, 7, 12, 0.72) !important;
 }

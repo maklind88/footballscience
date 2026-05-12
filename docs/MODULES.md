@@ -216,10 +216,12 @@ Current direction:
 
 - Scouting is a first-class module with workspace id `scouting`.
 - Current state key is `football-scouting-v1`, protected by the central app-state/data-safety contract.
-- The first live surface is a clean targets workspace with Targets, Shortlist, Reports, and Opposition tabs.
-- No fake scouting records should be seeded; empty views stay visually quiet.
+- The live surface now starts with Shadow XI, Database, Lists, Reports, and Opposition tabs.
+- `scouting-import-data.js` is generated from `/Users/maklind/Desktop/Womens Football (Stats).xlsx` and lazy-loaded only when Scouting opens.
+- The imported database contains player-season rows, league/season/position filters, Wyscout-style numeric metrics, percentile highlighting, player profiles, spider charts, favorites, named lists, and Shadow XI slot assignment.
+- No fake scouting records should be seeded; imported data must come from the real Excel/Wyscout source.
 - Platform Admin, Club Admin, Team Admin, Coach, Scout, and Analyst can view and edit.
-- Long-term data should move into `scouting_targets`, `scouting_reports`, and `scouting_shortlists`.
+- Long-term data should move into `scouting_players`, `scouting_player_metrics`, `scouting_lists`, `scouting_shadow_xi`, and `scouting_reports`.
 
 ## Squad
 

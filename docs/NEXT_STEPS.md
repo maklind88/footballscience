@@ -71,10 +71,10 @@
 
 ## Scouting
 
-- Keep Scouting empty by default until real targets/reports are added.
-- Build the next pass around target profile detail, report creation, shortlist workflow, and opposition scouting.
+- Scouting now has a first real pass: Shadow XI, lazy-loaded Excel/Wyscout database, filters, percentile highlights, player profile spider charts, favorites, named lists, and Shadow XI assignment.
+- Next pass: add editable scout notes, contract fields, valuation/availability fields, report creation, list management actions, and opposition scouting workflows.
 - Preserve `football-scouting-v1` through central app-state, backup, export, and restore.
-- Move long-term data into `scouting_targets`, `scouting_reports`, and `scouting_shortlists` only through an additive, dual-read rollout.
+- Move long-term data into `scouting_players`, `scouting_player_metrics`, `scouting_lists`, `scouting_shadow_xi`, and `scouting_reports` only through an additive, dual-read rollout.
 
 ## Game Simulator
 

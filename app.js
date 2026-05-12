@@ -22551,6 +22551,13 @@ function buildPlayerProfileImportFeedback(result = {}) {
     });
   }
 
+  const undoState = getPlayerProfileImportUndoState();
+  if (imported && undoState.canUndo && undoState.summary) {
+    lines.push(undoState.summary);
+  } else if (imported && undoState.canUndo === false && undoState.reason) {
+    lines.push(undoState.reason);
+  }
+
   return {
     status: errors.length ? "error" : warnings.length ? "warning" : "success",
     lines,
@@ -25337,6 +25344,16 @@ function getPlayerProfileImportUndoState() {
 
     return "";
   };
+
+  if (!canEditPlayerProfiles()) {
+    return {
+      canUndo: false,
+      reason: "Undo is disabled because your role is read-only.",
+      summary: "",
+      title: "Undo is disabled in read-only mode.",
+      label: "Undo import",
+    };
+  }
 
   if (!playerProfileLastImportSnapshot) {
     return {

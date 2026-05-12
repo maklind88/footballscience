@@ -21,6 +21,16 @@ git add <intended-files>
 npm run release:auto -- --commit "fix: concise message" --push --deploy
 ```
 
+For a dedicated fast/safe split:
+
+```bash
+# Fast changes (frontend/CSS/docs/low risk): fast validation
+npm run release:ship:fast -- --stage-all --commit "ui: polish dashboard widgets" --push --deploy
+
+# Safe changes (API/data/core/modules/security): full safety gate
+npm run release:ship:safe -- --stage-all --commit "server: tighten module contract checks" --push --deploy
+```
+
 The script runs QA before pushing, pushes the current branch, runs the release gate, deploys to Vercel production, and runs postdeploy verification. It stops before deployment if the working tree is dirty or any check fails.
 
 ### Manual Flow

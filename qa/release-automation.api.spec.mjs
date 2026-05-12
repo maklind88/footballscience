@@ -26,6 +26,7 @@ test("safe ship release automation owns the staging to production flow", () => {
   expect(shipSource).toContain('"qa"');
   expect(shipSource).toContain('"qa:browser"');
   expect(shipSource).toContain('"qa:contracts"');
+  expect(shipSource).toContain('"--force-with-lease"');
   expect(shipSource).toContain('"HEAD:staging"');
   expect(shipSource).toContain('"HEAD:main"');
   expect(shipSource).toContain('"Staging Deploy"');

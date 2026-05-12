@@ -244,7 +244,7 @@ function deployThroughGithub(options) {
   requireCleanWorkingTree("Deploy");
   const sha = git(["rev-parse", "HEAD"]);
 
-  run("git", ["push", "origin", "HEAD:staging"]);
+  run("git", ["push", "--force-with-lease", "origin", "HEAD:staging"]);
   if (!options.skipGithubWait) {
     waitForWorkflow("Staging Deploy", "staging", sha);
   }

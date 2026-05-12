@@ -2147,7 +2147,7 @@
             if (lookup?.email) { foundByUsername = true; email = lookup.email; }
           }
           try {
-            const loginResponse = await apiRequest(API_AUTH_LOGIN,{method:"POST",skipAuth:true,timeoutMs:15000,body:JSON.stringify({identifier:cleanIdentifier,email,password:cleanPassword})});
+            const loginResponse = await apiRequest(API_AUTH_LOGIN,{method:"POST",skipAuth:true,timeoutMs:15000,body:JSON.stringify({email,password:cleanPassword})});
             if (!loginResponse.ok) {
               const proxyReason = String(loginResponse.payload?.reason || "");
               const shouldTryDirectLogin = [0, 404, 405, 500, 502, 504].includes(Number(loginResponse.status)) ||
@@ -2174,11 +2174,9 @@
             }
             const session = loginResponse.payload?.session || null;
             if (!session?.access_token || !session?.refresh_token) return { ok: false, reason: "Could not start a session." };
-            try {
-              await authState.supabase.auth.setSession({access_token:session.access_token,refresh_token:session.refresh_token});
-            } catch (error) {
+            await authState.supabase.auth.setSession({access_token:session.access_token,refresh_token:session.refresh_token}).catch((error) => {
               console.warn("Supabase local session save failed after server login.", error);
-            }
+            });
         await hydrateCurrentUser(session, { waitForCentral: false, waitForProfile: false });
             if (isPausedAccount(authState.currentUser)) { await signOut(); return { ok: false, reason: "This account is paused. Contact an admin." }; }
             return { ok: true };

@@ -6653,12 +6653,13 @@ body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF 
 
 .session-library-item{
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.75rem;
-  align-items: start;
-  padding: 0.78rem;
-  border-radius: 20px;
-  background: rgba(246, 246, 248, 0.75);
+  grid-template-columns: minmax(10rem, 1fr) minmax(6.8rem, 0.36fr) auto;
+  gap: 0.48rem;
+  align-items: center;
+  min-height: 4.4rem;
+  padding: 0.58rem 0.65rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
   border: 1px solid rgba(29, 29, 31, 0.06);
 }
 
@@ -6674,11 +6675,11 @@ body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF 
 
 .session-library-item-main{
   display: grid;
-  gap: 0.18rem;
+  gap: 0.22rem;
   min-width: 0;
   padding: 0;
   border: 0;
-  border-radius: 14px;
+  border-radius: 8px;
   background: transparent;
   color: inherit;
   box-shadow: none;
@@ -6694,7 +6695,6 @@ body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF 
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-  margin-bottom: 0.18rem;
 }
 
 .session-library-tags span{
@@ -6736,10 +6736,12 @@ body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF 
 
 .session-library-item strong{
   display: block;
-  margin-top: 0.12rem;
-  font-size: 1rem;
-  letter-spacing: -0.03em;
-  overflow-wrap: anywhere;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.98rem;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .session-library-item p{
@@ -6758,13 +6760,18 @@ body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF 
   font-weight: 800;
 }
 
-.session-library-card-details{grid-template-columns:repeat(auto-fit,minmax(min(100%,11rem),1fr));margin-top:0.46rem;}
+.session-library-row-meta,
+.session-library-row-tags{min-width:0;display:flex;flex-wrap:wrap;gap:0.32rem;align-items:center;color:#6e6e73;font-size:0.74rem;font-weight:850;}
+
+.session-library-row-meta span{white-space:nowrap;}
+
+.session-library-row-tags span{max-width:8.4rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0.18rem 0.42rem;border-radius:999px;background:rgba(52,199,89,0.11);color:#1b6f33;}
+
+.session-library-row-muted{background:rgba(29,29,31,0.06)!important;color:#86868b!important;}
 
 .session-library-actions{
-  flex: 0 0 12rem;
-  width: min(12rem, 100%);
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.35rem;
   align-items: center;
   justify-content: flex-end;
@@ -6773,13 +6780,13 @@ body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF 
 .session-library-actions button,
 .session-library-preview-actions button{
   flex: 0 0 auto;
-  min-height: 2.3rem;
-  padding: 0 0.78rem;
+  min-height: 2.15rem;
+  padding: 0 0.64rem;
   border-radius: 999px;
   background: #1d1d1f;
   color: #fff;
   box-shadow: none;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
 }
 
 .session-library-secondary-button{
@@ -9520,7 +9527,7 @@ body:not([data-user-role="admin"]) .session-history-panel{ display: none !import
 .session-library-modal-grid{
   display: grid;
   gap: 0.65rem;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   min-width: 0;
   max-height: min(64vh, 680px);
@@ -9530,6 +9537,8 @@ body:not([data-user-role="admin"]) .session-history-panel{ display: none !import
 .session-library-edit-dialog-backdrop{position:fixed;inset:1rem;z-index:160;display:grid;place-items:center;padding:0.75rem;background:rgba(29,29,31,0.28);backdrop-filter:blur(12px);border-radius:30px;}
 
 .session-library-edit-dialog{width:min(880px,100%);max-height:calc(100vh - 3.5rem);overflow:auto;display:grid;gap:0.78rem;padding:0.86rem;border-radius:24px;background:rgba(255,255,255,0.96);border:1px solid rgba(255,255,255,0.8);box-shadow:0 30px 90px rgba(29,29,31,0.24);}
+
+.session-library-view-dialog{width:min(760px,100%);}
 
 .session-library-edit-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:0.75rem;}
 
@@ -14686,6 +14695,7 @@ select{
 
   .session-library-actions,
   .session-library-preview-actions{
+    flex-wrap: wrap;
     justify-content: flex-start;
   }
 

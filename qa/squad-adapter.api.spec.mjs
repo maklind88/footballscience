@@ -76,6 +76,16 @@ test("Squad selectors support filtering, counts, and cursor-friendly pages", () 
           rosterOrder: 3,
           idp: { status: "active", primaryFocus: "Switch play" },
         },
+        {
+          id: "academy-1",
+          name: "Academy Call-up",
+          position: "Forward",
+          primaryRole: "ST",
+          rosterType: "academy",
+          countsInSquad: false,
+          temporaryGroup: "Academy Training Group",
+          rosterOrder: 4,
+        },
       ],
     },
     { now, idFactory }
@@ -86,6 +96,8 @@ test("Squad selectors support filtering, counts, and cursor-friendly pages", () 
   ]);
   expect(createSquadCounts(state.players)).toMatchObject({
     players: 3,
+    temporaryPlayers: 1,
+    totalPlayers: 4,
     available: 3,
     activeIdps: 1,
     roleBalance: {
@@ -95,12 +107,19 @@ test("Squad selectors support filtering, counts, and cursor-friendly pages", () 
       forward: 0,
     },
   });
+  expect(filterSquadPlayers(state.players, { rosterType: "temporary" }).map((player) => player.id)).toEqual(["academy-1"]);
+  expect(filterSquadPlayers(state.players, { rosterType: "squad" }).map((player) => player.id)).toEqual([
+    "gk",
+    "cb",
+    "mid",
+  ]);
 
   const firstPage = selectSquadPlayerPage(state.players, { limit: 2 });
   expect(firstPage.items.map((player) => player.id)).toEqual(["gk", "cb"]);
   expect(firstPage.nextCursor).toBe("cb");
   expect(selectSquadPlayerPage(state.players, { limit: 2, cursor: firstPage.nextCursor }).items.map((player) => player.id)).toEqual([
     "mid",
+    "academy-1",
   ]);
 });
 
@@ -140,6 +159,9 @@ test("Squad roster draft maps legacy UI fields toward the Supabase schema", () =
         secondaryRoles: ["RW"],
         squadStatus: "important",
         status: "managed",
+        rosterType: "academy",
+        countsInSquad: false,
+        temporaryGroup: "Academy Training Group",
       },
       {
         organizationId: "org-1",
@@ -164,6 +186,11 @@ test("Squad roster draft maps legacy UI fields toward the Supabase schema", () =
       role_group: "forward",
       squad_status: "important",
       availability_status: "managed",
+      metadata: {
+        rosterType: "academy",
+        countsInSquad: false,
+        temporaryGroup: "Academy Training Group",
+      },
     },
   });
 });

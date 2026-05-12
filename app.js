@@ -2189,6 +2189,17 @@ const playerProfileSquadStatusOptions = [
   { key: "development", label: "Development" },
   { key: "loan", label: "Loan watch" },
 ];
+const playerProfileRosterTypeOptions = [
+  { key: "squad", label: "Squad player", shortLabel: "Squad", countsInSquad: true },
+  { key: "academy", label: "Academy training", shortLabel: "Academy", countsInSquad: false },
+  { key: "trialist", label: "Trialist", shortLabel: "Trial", countsInSquad: false },
+  { key: "guest", label: "Guest player", shortLabel: "Guest", countsInSquad: false },
+  { key: "loan", label: "Loan / external", shortLabel: "Loan", countsInSquad: false },
+];
+const playerProfileRosterFilterOptions = [
+  { key: "all", label: "All roster" },
+  ...playerProfileRosterTypeOptions,
+];
 const playerProfileCareerPhaseOptions = [
   { key: "developing", label: "Developing" },
   { key: "emerging", label: "Emerging" },
@@ -5973,6 +5984,7 @@ let medicalBulkSelectedPlayerIds = new Set();
 let playerProfilesState = null;
 let playerProfilesSearchQuery = "";
 let playerProfilesRoleGroupFilter = "all";
+let playerProfilesRosterFilter = "all";
 let playerProfileActiveTab = "overview";
 let playerProfileModalOpen = false;
 let playerProfileNewPlayerModalOpen = false;
@@ -18361,6 +18373,11 @@ function getSessionPlannerPlayerBoardSyncedPlayer(player = {}) {
     medicalPlayerId: player.id,
     squadStatus: profile.squadStatus,
     careerPhase: profile.careerPhase,
+    rosterType: profile.rosterType,
+    countsInSquad: profile.countsInSquad,
+    temporaryGroup: profile.temporaryGroup,
+    temporaryFrom: profile.temporaryFrom,
+    temporaryTo: profile.temporaryTo,
     primaryRole: profile.primaryRole,
     secondaryRoles: Array.isArray(profile.secondaryRoles) ? [...profile.secondaryRoles] : [],
     preferredSide: profile.preferredSide,
@@ -18421,6 +18438,7 @@ function getSessionPlannerPlayerBoardBridgeBestMatches(player = {}, limit = 3) {
 function getSessionPlannerPlayerBoardBridgeSummary(boardPlayers = []) {
   const linkedItems = boardPlayers.filter((item) => item.player?.profileId);
   const roleDnaItems = linkedItems.filter((item) => Object.keys(item.player?.roleFit || {}).length > 0);
+  const temporaryItems = boardPlayers.filter((item) => isTemporaryPlayerProfile(item.player));
   const roleCounts = linkedItems.reduce((counts, item) => {
     const role = getSessionPlannerPlayerBoardBridgeRoleLabel(item.player) || "Unset";
     counts[role] = (counts[role] || 0) + 1;
@@ -18436,6 +18454,7 @@ function getSessionPlannerPlayerBoardBridgeSummary(boardPlayers = []) {
     linkedCount: linkedItems.length,
     roleDnaCount: roleDnaItems.length,
     totalCount: boardPlayers.length,
+    temporaryCount: temporaryItems.length,
     roleSummary,
     linkedItems,
   };
@@ -18451,7 +18470,7 @@ function renderSessionPlannerSquadBridgeStrip(boardPlayers = []) {
     <div class="session-squad-bridge-strip">
       <span>Squad Bridge</span>
       <strong>${summary.linkedCount}/${summary.totalCount} linked</strong>
-      <small>${escapeHtml(summary.roleSummary || "No Squad role data yet")}</small>
+      <small>${escapeHtml(`${summary.roleSummary || "No Squad role data yet"}${summary.temporaryCount ? ` / ${summary.temporaryCount} temporary` : ""}`)}</small>
     </div>
   `;
 }
@@ -18478,6 +18497,7 @@ function renderSessionPlannerSquadBridgePanel(boardPlayers = []) {
       <div class="session-squad-bridge-metrics">
         <span><strong>${summary.linkedCount}</strong><small>Linked</small></span>
         <span><strong>${summary.roleDnaCount}</strong><small>Role DNA</small></span>
+        <span><strong>${summary.temporaryCount}</strong><small>Temporary</small></span>
         <span><strong>${summary.totalCount - summary.linkedCount}</strong><small>Fallback</small></span>
       </div>
       <div class="session-squad-bridge-role-list">
@@ -18849,7 +18869,7 @@ function isSessionPlannerPlayerVisibleForBoard(participation, rule) {
 
 function getSessionPlannerPlayerBoardPlayers(block = getSessionPlannerSelectedBlock()) {
   const rule = getSessionPlannerPlayerBoardRule(block);
-  return getMedicalAvailabilityItems(sessionPlannerState?.selectedDate)
+  return getSessionPlannerAvailabilityItems(sessionPlannerState?.selectedDate)
     .filter((item) => item.record && isSessionPlannerPlayerVisibleForBoard(item.participation, rule))
     .map((item) => ({
       ...item,
@@ -18860,11 +18880,13 @@ function getSessionPlannerPlayerBoardPlayers(block = getSessionPlannerSelectedBl
 
 function getSessionPlannerPlayerBoardSummary(block = getSessionPlannerSelectedBlock()) {
   const boardPlayers = getSessionPlannerPlayerBoardPlayers(block);
-  const availabilityItems = getMedicalAvailabilityItems(sessionPlannerState?.selectedDate);
+  const availabilityItems = getSessionPlannerAvailabilityItems(sessionPlannerState?.selectedDate);
   const rule = getSessionPlannerPlayerBoardRule(block);
+  const temporaryBoardCount = boardPlayers.filter((item) => isTemporaryPlayerProfile(item.player)).length;
   return {
     boardPlayers,
     rule,
+    temporaryBoardCount,
     belowLimitCount: availabilityItems.filter(
       (item) => item.record && item.participation > 0 && item.participation < rule.min
     ).length,
@@ -18875,7 +18897,7 @@ function getSessionPlannerPlayerBoardSummary(block = getSessionPlannerSelectedBl
 
 function getSessionPlannerPlayerBoardWarnings(block = getSessionPlannerSelectedBlock(), dateValue = sessionPlannerState?.selectedDate) {
   const rule = getSessionPlannerPlayerBoardRule(block);
-  const availabilityItems = getMedicalAvailabilityItems(dateValue);
+  const availabilityItems = getSessionPlannerAvailabilityItems(dateValue);
   const available = availabilityItems.filter((item) => item.record && isSessionPlannerPlayerVisibleForBoard(item.participation, rule));
   const belowLimit = availabilityItems.filter((item) => item.record && item.participation > 0 && item.participation < rule.min);
   const unavailable = availabilityItems.filter((item) => item.record && item.participation === 0);
@@ -20209,14 +20231,15 @@ function renderSessionPlannerPlayerBoardToken(item, index, block, total, labelMa
   const colorStyle = getSessionPlannerPlayerBoardColorStyle(customColor);
   const bridgeRole = getSessionPlannerPlayerBoardBridgeRoleLabel(item.player);
   const bridgeTitle = bridgeRole ? ` · Squad role ${bridgeRole}` : "";
+  const temporaryTitle = isTemporaryPlayerProfile(item.player) ? ` · ${getPlayerProfileRosterLabel(item.player)}` : "";
   return `
     <button
       type="button"
-      class="session-player-board-token is-${escapeHtml(tone)}${customColor ? " has-custom-color" : ""}${selectedPlayerIds.has(item.player.id) ? " is-selected" : ""}"
+      class="session-player-board-token is-${escapeHtml(tone)}${customColor ? " has-custom-color" : ""}${selectedPlayerIds.has(item.player.id) ? " is-selected" : ""}${isTemporaryPlayerProfile(item.player) ? " is-temporary" : ""}"
       data-session-player-board-token="${escapeHtml(item.player.id)}"
       style="left: ${position.x}%; top: ${position.y}%; ${colorStyle}"
-      title="${escapeHtml(`${item.player.name} · ${item.participation}%${bridgeTitle}`)}"
-      aria-label="${escapeHtml(`${item.player.name}, ${item.participation}% available${bridgeTitle}`)}"
+      title="${escapeHtml(`${item.player.name} · ${item.participation}%${bridgeTitle}${temporaryTitle}`)}"
+      aria-label="${escapeHtml(`${item.player.name}, ${item.participation}% available${bridgeTitle}${temporaryTitle}`)}"
     >
       <strong>${escapeHtml(label)}</strong>
       ${bridgeRole ? `<span>${escapeHtml(bridgeRole)}</span>` : ""}
@@ -20291,6 +20314,10 @@ function renderSessionPlannerPlayerBoardProfile(item, block, rule, totalPlayers)
         <div>
           <dt>Training date</dt>
           <dd>${escapeHtml(dateLabel)}</dd>
+        </div>
+        <div>
+          <dt>Roster type</dt>
+          <dd>${escapeHtml(isTemporaryPlayerProfile(player) ? getPlayerProfileRosterLabel(player) : "Squad player")}</dd>
         </div>
         <div>
           <dt>Board rule</dt>
@@ -20399,7 +20426,7 @@ function renderSessionPlannerPlayerBoardTools() {
 }
 
 function renderSessionPlannerPlayerBoard(block) {
-  const { boardPlayers, rule, belowLimitCount, hiddenZeroCount, unconfirmedCount } = getSessionPlannerPlayerBoardSummary(block);
+  const { boardPlayers, rule, temporaryBoardCount, belowLimitCount, hiddenZeroCount, unconfirmedCount } = getSessionPlannerPlayerBoardSummary(block);
   const labelMap = getSessionPlannerPlayerBoardInitialLabelMap(boardPlayers);
   const previewDensityClass =
     boardPlayers.length > 28 ? " is-ultra-dense" : boardPlayers.length > 18 ? " is-dense" : "";
@@ -20414,7 +20441,7 @@ function renderSessionPlannerPlayerBoard(block) {
         <span>${escapeHtml(rule.label)}</span>
         <strong>${escapeHtml(rule.valueLabel)}</strong>
         <small>
-          ${boardPlayers.length} available${belowLimitCount ? ` · ${belowLimitCount} below` : ""}${hiddenZeroCount ? ` · ${hiddenZeroCount} out` : ""}${unconfirmedCount ? ` · ${unconfirmedCount} not set` : ""}
+          ${boardPlayers.length} available${temporaryBoardCount ? ` · ${temporaryBoardCount} temporary` : ""}${belowLimitCount ? ` · ${belowLimitCount} below` : ""}${hiddenZeroCount ? ` · ${hiddenZeroCount} out` : ""}${unconfirmedCount ? ` · ${unconfirmedCount} not set` : ""}
         </small>
       </div>
       ${renderSessionPlannerPlayerBoardWarnings(block, { compact: true })}
@@ -20433,7 +20460,7 @@ function renderSessionPlannerPlayerBoard(block) {
                     const colorStyle = getSessionPlannerPlayerBoardColorStyle(customColor);
                     return `
                       <span
-                        class="session-player-board-preview-token is-${escapeHtml(tone)}${customColor ? " has-custom-color" : ""}"
+                        class="session-player-board-preview-token is-${escapeHtml(tone)}${customColor ? " has-custom-color" : ""}${isTemporaryPlayerProfile(item.player) ? " is-temporary" : ""}"
                         style="left: ${position.x}%; top: ${position.y}%; ${colorStyle}"
                       >${escapeHtml(labelMap.get(item.player.id) ?? getMedicalPlayerInitials(item.player))}</span>
                     `;
@@ -20761,8 +20788,17 @@ function getMedicalAvailabilityItems(dateValue = medicalState?.selectedDate) {
     });
 }
 
+function getSessionPlannerAvailabilityItems(dateValue = medicalState?.selectedDate) {
+  return getMedicalAvailabilityItems(dateValue).filter((item) => {
+    if (!isTemporaryPlayerProfile(item.player)) {
+      return true;
+    }
+    return Boolean(item.record);
+  });
+}
+
 function getSessionPlannerMedicalAvailability(dateValue) {
-  const items = getMedicalAvailabilityItems(dateValue);
+  const items = getSessionPlannerAvailabilityItems(dateValue);
 
   return {
     all: items,
@@ -22589,6 +22625,7 @@ function normalizeMedicalPlayer(player = {}) {
   }
 
   const rosterOrder = Number(player.rosterOrder);
+  const rosterType = normalizePlayerProfileRosterType(player.rosterType || player.playerType || player.squadType);
   return {
     id: player.id || createDashboardId("medical-player"),
     name,
@@ -22596,6 +22633,13 @@ function normalizeMedicalPlayer(player = {}) {
     position: String(player.position ?? "").trim(),
     photoUrl: String(player.photoUrl ?? "").trim(),
     sourceUrl: String(player.sourceUrl ?? "").trim(),
+    rosterType,
+    countsInSquad: typeof player.countsInSquad === "boolean"
+      ? player.countsInSquad
+      : playerProfileRosterTypeCountsInSquad(rosterType),
+    temporaryGroup: String(player.temporaryGroup ?? player.subGroup ?? player.trainingGroup ?? "").trim(),
+    temporaryFrom: normalizePlayerProfileTemporaryDate(player.temporaryFrom || player.startDate),
+    temporaryTo: normalizePlayerProfileTemporaryDate(player.temporaryTo || player.endDate),
     rosterOrder: Number.isFinite(rosterOrder) ? rosterOrder : null,
     createdAt: player.createdAt || new Date().toISOString(),
     updatedAt: player.updatedAt || new Date().toISOString(),
@@ -23008,6 +23052,51 @@ function getPlayerProfileOption(options, key, fallback = null) {
   return options.find((option) => option.key === key) ?? fallback ?? options[0];
 }
 
+function getPlayerProfileRosterTypeOption(value) {
+  return getPlayerProfileOption(playerProfileRosterTypeOptions, normalizePlayerProfileRosterType(value), playerProfileRosterTypeOptions[0]);
+}
+
+function normalizePlayerProfileRosterType(value, fallback = "squad") {
+  const cleanValue = String(value ?? "").trim().toLowerCase();
+  return playerProfileRosterTypeOptions.some((option) => option.key === cleanValue) ? cleanValue : fallback;
+}
+
+function playerProfileRosterTypeCountsInSquad(value) {
+  return getPlayerProfileRosterTypeOption(value).countsInSquad !== false;
+}
+
+function normalizePlayerProfileTemporaryDate(value) {
+  const cleanValue = String(value ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanValue)) {
+    return "";
+  }
+
+  const parsedDate = new Date(`${cleanValue}T00:00:00`);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "";
+  }
+
+  return cleanValue;
+}
+
+function playerProfileCountsInSquad(player = {}) {
+  if (typeof player.countsInSquad === "boolean") {
+    return player.countsInSquad;
+  }
+
+  return playerProfileRosterTypeCountsInSquad(player.rosterType);
+}
+
+function isTemporaryPlayerProfile(player = {}) {
+  return !playerProfileCountsInSquad(player);
+}
+
+function getPlayerProfileRosterLabel(player = {}) {
+  const option = getPlayerProfileRosterTypeOption(player.rosterType);
+  const group = String(player.temporaryGroup ?? "").trim();
+  return group ? `${option.shortLabel || option.label} / ${group}` : option.label;
+}
+
 function normalizePlayerProfileTab(tabKey) {
   return playerProfileTabOptions.some((tab) => tab.key === tabKey) ? tabKey : "overview";
 }
@@ -23187,6 +23276,11 @@ function normalizePlayerProfile(player = {}) {
   const squadStatus = playerProfileSquadStatusOptions.some((option) => option.key === player.squadStatus)
     ? player.squadStatus
     : getDefaultPlayerProfileSquadStatus(player);
+  const rosterType = normalizePlayerProfileRosterType(player.rosterType || player.playerType || player.squadType);
+  const countsInSquad =
+    typeof player.countsInSquad === "boolean"
+      ? player.countsInSquad
+      : playerProfileRosterTypeCountsInSquad(rosterType);
   const careerPhase = playerProfileCareerPhaseOptions.some((option) => option.key === player.careerPhase)
     ? player.careerPhase
     : getDefaultPlayerProfileCareerPhase(player);
@@ -23206,6 +23300,11 @@ function normalizePlayerProfile(player = {}) {
     coachNotes: String(player.coachNotes ?? "").trim(),
     status,
     squadStatus,
+    rosterType,
+    countsInSquad,
+    temporaryGroup: String(player.temporaryGroup ?? player.subGroup ?? player.trainingGroup ?? "").trim(),
+    temporaryFrom: normalizePlayerProfileTemporaryDate(player.temporaryFrom || player.startDate),
+    temporaryTo: normalizePlayerProfileTemporaryDate(player.temporaryTo || player.endDate),
     careerPhase,
     primaryRole,
     secondaryRoles: normalizePlayerProfileRoleList(player.secondaryRoles).filter((role) => role !== primaryRole),
@@ -23544,12 +23643,41 @@ function getPlayerProfileMedicalSnapshot(playerId, dateValue = formatScheduleDat
   };
 }
 
+function getPlayerProfilesRosterSummary(players = []) {
+  const squadPlayers = players.filter(playerProfileCountsInSquad);
+  const temporaryPlayers = players.filter((player) => !playerProfileCountsInSquad(player));
+  const temporaryGroups = Array.from(new Set(temporaryPlayers.map(getPlayerProfileRosterLabel).filter(Boolean)));
+  return {
+    squadCount: squadPlayers.length,
+    temporaryCount: temporaryPlayers.length,
+    totalCount: players.length,
+    temporaryGroups,
+  };
+}
+
+function matchesPlayerProfileRosterFilter(player = {}, filterValue = playerProfilesRosterFilter) {
+  const filterKey = String(filterValue || "all").trim().toLowerCase();
+  if (filterKey === "all") {
+    return true;
+  }
+  if (filterKey === "squad") {
+    return playerProfileCountsInSquad(player);
+  }
+  if (filterKey === "temporary") {
+    return !playerProfileCountsInSquad(player);
+  }
+  return normalizePlayerProfileRosterType(player.rosterType) === filterKey;
+}
+
 function getVisiblePlayerProfiles() {
   ensurePlayerProfilesState();
   const query = playerProfilesSearchQuery.trim().toLowerCase();
   return playerProfilesState.players.filter((player) => {
     const groupMatch = playerProfilesRoleGroupFilter === "all" || player.roleGroup === playerProfilesRoleGroupFilter;
     if (!groupMatch) {
+      return false;
+    }
+    if (!matchesPlayerProfileRosterFilter(player)) {
       return false;
     }
     if (!query) {
@@ -23565,6 +23693,8 @@ function getVisiblePlayerProfiles() {
       player.status,
       player.squadStatus,
       player.careerPhase,
+      player.rosterType,
+      player.temporaryGroup,
       player.idp?.primaryFocus,
       player.idp?.focusAreas,
     ]
@@ -23847,6 +23977,7 @@ function getSquadStatusRank(statusKey) {
 function getRoleDepthPlayers(role) {
   ensurePlayerProfilesState();
   return playerProfilesState.players
+    .filter(playerProfileCountsInSquad)
     .map((player) => ({
       player,
       fitScore: getPlayerProfileRoleFitScore(player, role),
@@ -23875,6 +24006,26 @@ function renderSquadRoleStack(player) {
   `;
 }
 
+function renderSquadRosterTypePill(player) {
+  const rosterOption = getPlayerProfileRosterTypeOption(player.rosterType);
+  const isTemporary = isTemporaryPlayerProfile(player);
+  const label = getPlayerProfileRosterLabel(player);
+  return `<span class="squad-roster-pill${isTemporary ? " is-temporary" : ""} is-${escapeHtml(rosterOption.key)}">${escapeHtml(label)}</span>`;
+}
+
+function renderSquadRosterMeta(player) {
+  if (!isTemporaryPlayerProfile(player)) {
+    return "";
+  }
+  const dates = [player.temporaryFrom, player.temporaryTo].filter(Boolean).join(" to ");
+  return `
+    <small class="squad-player-temporary-meta">
+      ${escapeHtml(getPlayerProfileRosterTypeOption(player.rosterType).shortLabel || "Temporary")}
+      ${dates ? ` / ${escapeHtml(dates)}` : ""}
+    </small>
+  `;
+}
+
 function renderSquadPlayerRow(player) {
   const medicalSnapshot = getPlayerProfileMedicalSnapshot(player.id);
   const isSelected = player.id === playerProfilesState.selectedPlayerId;
@@ -23882,7 +24033,7 @@ function renderSquadPlayerRow(player) {
 
   return `
     <tr
-      class="squad-player-row${isSelected ? " is-selected" : ""}"
+      class="squad-player-row${isSelected ? " is-selected" : ""}${isTemporaryPlayerProfile(player) ? " is-temporary" : ""}"
       data-player-profile-select="${escapeHtml(player.id)}"
       tabindex="0"
     >
@@ -23892,12 +24043,13 @@ function renderSquadPlayerRow(player) {
           <div>
             <strong>${escapeHtml(player.name)}</strong>
             <small>${escapeHtml([player.number ? `#${player.number}` : "", player.position || "Position not set"].filter(Boolean).join(" - "))}</small>
+            ${renderSquadRosterMeta(player)}
           </div>
         </div>
       </td>
       <td>${renderSquadRoleStack(player)}</td>
       <td>${renderSquadOptionPill(playerProfileRoleGroupOptions, player.roleGroup)}</td>
-      <td>${renderSquadOptionPill(playerProfileSquadStatusOptions, player.squadStatus)}</td>
+      <td><div class="squad-pill-stack">${renderSquadOptionPill(playerProfileSquadStatusOptions, player.squadStatus)}${renderSquadRosterTypePill(player)}</div></td>
       <td>${renderSquadOptionPill(playerProfileIdpStatusOptions, player.idp?.status || "none")}</td>
       <td>${renderPlayerProfileStatusChip(player.status)}</td>
       <td><span class="squad-medical-cell medical-tone-${escapeHtml(medicalSnapshot.tone)}">${escapeHtml(medicalSnapshot.currentAvailability)}</span></td>
@@ -24475,6 +24627,24 @@ function renderPlayerProfileSelectedPanel(player) {
                 ${renderPlayerProfileOptionSet(playerProfileCareerPhaseOptions, player.careerPhase)}
               </select>
             </label>
+            <label class="squad-tab-field-overview">
+              <span>Roster type</span>
+              <select name="rosterType" ${canEdit ? "" : "disabled"}>
+                ${renderPlayerProfileOptionSet(playerProfileRosterTypeOptions, player.rosterType)}
+              </select>
+            </label>
+            <label class="squad-tab-field-overview">
+              <span>Temporary group</span>
+              <input name="temporaryGroup" value="${escapeHtml(player.temporaryGroup)}" placeholder="Academy Training Group" ${canEdit ? "" : "disabled"} />
+            </label>
+            <label class="squad-tab-field-overview">
+              <span>Temporary from</span>
+              <input name="temporaryFrom" type="date" value="${escapeHtml(player.temporaryFrom)}" ${canEdit ? "" : "disabled"} />
+            </label>
+            <label class="squad-tab-field-overview">
+              <span>Temporary to</span>
+              <input name="temporaryTo" type="date" value="${escapeHtml(player.temporaryTo)}" ${canEdit ? "" : "disabled"} />
+            </label>
             <label class="squad-form-wide squad-tab-field-overview">
               <span>Image URL</span>
               <input name="photoUrl" value="${escapeHtml(player.photoUrl)}" ${canEdit ? "" : "disabled"} />
@@ -24636,6 +24806,24 @@ function renderPlayerProfileNewPlayerCard() {
               ${renderPlayerProfileRoleOptions("CB")}
             </select>
           </label>
+          <label>
+            <span>Roster type</span>
+            <select name="rosterType" ${canEdit ? "" : "disabled"}>
+              ${renderPlayerProfileOptionSet(playerProfileRosterTypeOptions, "squad")}
+            </select>
+          </label>
+          <label>
+            <span>Temporary group</span>
+            <input name="temporaryGroup" placeholder="Academy Training Group" ${canEdit ? "" : "disabled"} />
+          </label>
+          <label>
+            <span>Temporary from</span>
+            <input name="temporaryFrom" type="date" ${canEdit ? "" : "disabled"} />
+          </label>
+          <label>
+            <span>Temporary to</span>
+            <input name="temporaryTo" type="date" ${canEdit ? "" : "disabled"} />
+          </label>
         </div>
         <button type="submit" ${canEdit ? "" : "disabled"}>Add player</button>
       </form>
@@ -24794,6 +24982,7 @@ function getSquadMatrixAvailabilityLabel(player) {
 function getSquadMatrixCandidates(role) {
   ensurePlayerProfilesState();
   return playerProfilesState.players
+    .filter(playerProfileCountsInSquad)
     .map((player) => ({
       player,
       fit: getSquadMatrixPlayerFit(player, role),
@@ -24986,9 +25175,11 @@ function getSquadIntelligenceRoleSnapshot(role) {
   const candidates = getSquadMatrixCandidates(roleKey);
   const highFitCandidates = candidates.filter((candidate) => candidate.selectionScore >= 82);
   const depthCandidates = candidates.filter((candidate) => candidate.fit >= 66);
-  const naturalPlayers = playerProfilesState.players.filter((player) =>
-    player.primaryRole === roleKey || (Array.isArray(player.secondaryRoles) && player.secondaryRoles.includes(roleKey))
-  );
+  const naturalPlayers = playerProfilesState.players
+    .filter(playerProfileCountsInSquad)
+    .filter((player) =>
+      player.primaryRole === roleKey || (Array.isArray(player.secondaryRoles) && player.secondaryRoles.includes(roleKey))
+    );
   const topCandidate = candidates[0] ?? null;
   const secondCandidate = candidates[1] ?? null;
   let severity = "stable";
@@ -25067,7 +25258,8 @@ function buildSquadIntelligenceReport() {
       index === list.findIndex((entry) => entry.player.id === candidate.player.id && entry.role === candidate.role)
     )
     .slice(0, 5);
-  const medicalRisks = playerProfilesState.players
+  const squadPlayers = playerProfilesState.players.filter(playerProfileCountsInSquad);
+  const medicalRisks = squadPlayers
     .filter((player) => getSquadMatrixAvailabilityAdjustment(player) < 0)
     .map((player) => ({
       player,
@@ -25376,6 +25568,11 @@ function buildSquadSessionPlannerContracts() {
       roleGroup: player.roleGroup,
       status: player.status,
       squadStatus: player.squadStatus,
+      rosterType: player.rosterType,
+      countsInSquad: player.countsInSquad,
+      temporaryGroup: player.temporaryGroup,
+      temporaryFrom: player.temporaryFrom,
+      temporaryTo: player.temporaryTo,
       availability: medicalSnapshot.currentAvailability,
       rtpStatus: medicalSnapshot.rtpStatus,
       roleDnaScores: roleScores,
@@ -25411,7 +25608,21 @@ function buildSquadDataFoundationPayload() {
       sessionPlannerContract: "sessionPlanner.players.v2",
     },
     schema: {
-      players: ["id", "name", "number", "position", "photoUrl", "status", "squadStatus", "careerPhase"],
+      players: [
+        "id",
+        "name",
+        "number",
+        "position",
+        "photoUrl",
+        "status",
+        "squadStatus",
+        "careerPhase",
+        "rosterType",
+        "countsInSquad",
+        "temporaryGroup",
+        "temporaryFrom",
+        "temporaryTo",
+      ],
       roles: ["primaryRole", "secondaryRoles", "preferredSide", "roleGroup"],
       attributeRatings: playerProfileAttributeGroups.map((group) => group.key),
       roleDna: playerProfileRoleOptions,
@@ -25425,6 +25636,8 @@ function buildSquadDataFoundationPayload() {
       criticalFlags: dataQuality.criticalFlags,
       sessionPlannerReady: dataQuality.sessionPlannerReady,
       totalPlayers: playerProfilesState.players.length,
+      squadPlayers: getPlayerProfilesRosterSummary(playerProfilesState.players).squadCount,
+      temporaryPlayers: getPlayerProfilesRosterSummary(playerProfilesState.players).temporaryCount,
     },
     players: playerProfilesState.players.map((player) => ({
       id: player.id,
@@ -25436,6 +25649,11 @@ function buildSquadDataFoundationPayload() {
       status: player.status,
       squadStatus: player.squadStatus,
       careerPhase: player.careerPhase,
+      rosterType: player.rosterType,
+      countsInSquad: player.countsInSquad,
+      temporaryGroup: player.temporaryGroup,
+      temporaryFrom: player.temporaryFrom,
+      temporaryTo: player.temporaryTo,
       roles: {
         primaryRole: player.primaryRole,
         secondaryRoles: player.secondaryRoles,
@@ -25506,6 +25724,9 @@ function exportSquadSessionPlannerCsv() {
     "preferredSide",
     "roleGroup",
     "status",
+    "rosterType",
+    "countsInSquad",
+    "temporaryGroup",
     "availability",
     "bestRoleMatches",
   ];
@@ -25518,6 +25739,9 @@ function exportSquadSessionPlannerCsv() {
     player.preferredSide,
     player.roleGroup,
     player.status,
+    player.rosterType,
+    player.countsInSquad ? "true" : "false",
+    player.temporaryGroup,
     player.availability,
     player.bestRoleMatches.map((match) => `${match.role}:${match.score}`).join("|"),
   ]);
@@ -25553,6 +25777,11 @@ function normalizeImportedSquadPlayerProfile(source = {}, existingPlayer = {}) {
     secondaryRoles: source.secondaryRoles || roles.secondaryRoles || existingPlayer.secondaryRoles,
     preferredSide: source.preferredSide || roles.preferredSide || existingPlayer.preferredSide,
     roleGroup: source.roleGroup || roles.roleGroup || existingPlayer.roleGroup,
+    rosterType: source.rosterType || source.playerType || existingPlayer.rosterType,
+    countsInSquad: typeof source.countsInSquad === "boolean" ? source.countsInSquad : existingPlayer.countsInSquad,
+    temporaryGroup: source.temporaryGroup || source.subGroup || existingPlayer.temporaryGroup,
+    temporaryFrom: source.temporaryFrom || source.startDate || existingPlayer.temporaryFrom,
+    temporaryTo: source.temporaryTo || source.endDate || existingPlayer.temporaryTo,
     attributeRatings: source.attributeRatings || existingPlayer.attributeRatings,
     idp: source.idp || existingPlayer.idp,
     medicalSummary: source.medicalSummary || existingPlayer.medicalSummary,
@@ -25728,6 +25957,8 @@ function renderPlayerProfilesWorkspace(message = "") {
   ensureMedicalState();
   const visiblePlayers = getVisiblePlayerProfiles();
   const selectedPlayer = getSelectedPlayerProfile();
+  const rosterSummary = getPlayerProfilesRosterSummary(playerProfilesState.players);
+  const visibleSummary = getPlayerProfilesRosterSummary(visiblePlayers);
 
   ui.playerProfilesWorkspace.innerHTML = `
     <div class="squad-board-shell">
@@ -25748,7 +25979,10 @@ function renderPlayerProfilesWorkspace(message = "") {
           <div class="squad-command-list-summary">
             <div>
               <strong>Squad List</strong>
-              <span>${visiblePlayers.length}/${playerProfilesState.players.length} players</span>
+              <span>
+                ${visibleSummary.squadCount}/${rosterSummary.squadCount} squad
+                ${rosterSummary.temporaryCount ? `+ ${visibleSummary.temporaryCount}/${rosterSummary.temporaryCount} temporary` : ""}
+              </span>
             </div>
             <button
               type="button"
@@ -25771,6 +26005,9 @@ function renderPlayerProfilesWorkspace(message = "") {
             <select data-player-profile-role-group-filter aria-label="Filter by role group">
               <option value="all" ${playerProfilesRoleGroupFilter === "all" ? "selected" : ""}>All groups</option>
               ${renderPlayerProfileOptionSet(playerProfileRoleGroupOptions, playerProfilesRoleGroupFilter)}
+            </select>
+            <select data-player-profile-roster-filter aria-label="Filter by roster type">
+              ${renderPlayerProfileOptionSet(playerProfileRosterFilterOptions, playerProfilesRosterFilter)}
             </select>
           </div>
         </div>
@@ -25832,6 +26069,10 @@ function getPlayerProfileFormValues(form) {
     status: String(data.get("status") ?? "").trim(),
     squadStatus: String(data.get("squadStatus") ?? "").trim(),
     careerPhase: String(data.get("careerPhase") ?? "").trim(),
+    rosterType: String(data.get("rosterType") ?? "").trim(),
+    temporaryGroup: String(data.get("temporaryGroup") ?? "").trim(),
+    temporaryFrom: String(data.get("temporaryFrom") ?? "").trim(),
+    temporaryTo: String(data.get("temporaryTo") ?? "").trim(),
     primaryRole: String(data.get("primaryRole") ?? "").trim(),
     secondaryRoles: data.getAll("secondaryRoles").map((role) => String(role).trim()),
     preferredSide: String(data.get("preferredSide") ?? "").trim(),
@@ -25863,6 +26104,11 @@ function buildMedicalPlayerFromPlayerProfile(player = {}) {
     position: player.position,
     photoUrl: player.photoUrl,
     sourceUrl: player.sourceUrl,
+    rosterType: player.rosterType,
+    countsInSquad: player.countsInSquad,
+    temporaryGroup: player.temporaryGroup,
+    temporaryFrom: player.temporaryFrom,
+    temporaryTo: player.temporaryTo,
     rosterOrder: player.rosterOrder,
     createdAt,
     updatedAt,
@@ -25900,6 +26146,7 @@ function addPlayerProfile(values = {}) {
     { field: "Primary role", from: "-", to: player.primaryRole },
     { field: "Role group", from: "-", to: formatPlayerProfileChangeValue(player.roleGroup, { options: playerProfileRoleGroupOptions }) },
     { field: "Squad status", from: "-", to: formatPlayerProfileChangeValue(player.squadStatus, { options: playerProfileSquadStatusOptions }) },
+    { field: "Roster type", from: "-", to: formatPlayerProfileChangeValue(player.rosterType, { options: playerProfileRosterTypeOptions }) },
   ]);
   writePlayerProfilesState();
   syncMedicalPlayersFromPlayerProfiles([player]);
@@ -25990,6 +26237,11 @@ function createSessionPlannerPlayerProfileContract(player, dateValue = formatSch
     status: player.status,
     squadStatus: player.squadStatus,
     careerPhase: player.careerPhase,
+    rosterType: player.rosterType,
+    countsInSquad: player.countsInSquad,
+    temporaryGroup: player.temporaryGroup,
+    temporaryFrom: player.temporaryFrom,
+    temporaryTo: player.temporaryTo,
     roleGroup: player.roleGroup,
     primaryRole: player.primaryRole,
     secondaryRoles: [...player.secondaryRoles],
@@ -26311,6 +26563,13 @@ function renderMedicalPlayerAvatar(player, className = "medical-player-avatar") 
   }
 
   return `<span class="${className}">${escapeHtml(getMedicalPlayerInitials(player))}</span>`;
+}
+
+function renderMedicalTemporaryPlayerBadge(player = {}) {
+  if (!isTemporaryPlayerProfile(player)) {
+    return "";
+  }
+  return `<span class="medical-temporary-badge">${escapeHtml(getPlayerProfileRosterLabel(player))}</span>`;
 }
 
 function getMedicalDailyStats(dateValue = medicalState?.selectedDate) {
@@ -27300,6 +27559,7 @@ function renderMedicalSquadCard(player) {
           <div class="medical-player-title-line">
             <strong>${escapeHtml(player.name)}</strong>
             ${player.number ? `<span>#${escapeHtml(player.number)}</span>` : ""}
+            ${renderMedicalTemporaryPlayerBadge(player)}
           </div>
           <small>${escapeHtml(player.position || "Position")}</small>
         </div>
@@ -74431,12 +74691,17 @@ ui.playerProfilesWorkspace?.addEventListener("keydown", (event) => {
 
 ui.playerProfilesWorkspace?.addEventListener("change", (event) => {
   const roleGroupFilter = event.target.closest("[data-player-profile-role-group-filter]");
-  if (!roleGroupFilter) {
+  if (roleGroupFilter) {
+    playerProfilesRoleGroupFilter = roleGroupFilter.value;
+    renderPlayerProfilesWorkspace();
     return;
   }
 
-  playerProfilesRoleGroupFilter = roleGroupFilter.value;
-  renderPlayerProfilesWorkspace();
+  const rosterFilter = event.target.closest("[data-player-profile-roster-filter]");
+  if (rosterFilter) {
+    playerProfilesRosterFilter = rosterFilter.value;
+    renderPlayerProfilesWorkspace();
+  }
 });
 
 ui.playerProfilesWorkspace?.addEventListener("submit", (event) => {
@@ -74452,7 +74717,11 @@ ui.playerProfilesWorkspace?.addEventListener("submit", (event) => {
     if (player) {
       playerProfileNewPlayerModalOpen = false;
     }
-    renderPlayerProfilesWorkspace(player ? "Player added." : "Player name is required.");
+    renderPlayerProfilesWorkspace(
+      player
+        ? `${isTemporaryPlayerProfile(player) ? "Temporary player" : "Player"} added. Medical can now clear them for training dates.`
+        : "Player name is required."
+    );
     return;
   }
 

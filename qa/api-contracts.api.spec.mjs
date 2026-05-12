@@ -818,6 +818,109 @@ test("app-state preserves Squad position when a stale role save carries older pl
   }
 });
 
+test("app-state keeps temporary Squad player flags during stale profile saves", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const existingSquadState = {
+    selectedPlayerId: "player-1",
+    players: [
+      {
+        id: "player-1",
+        name: "Academy Player",
+        primaryRole: "ST",
+        roleGroup: "forward",
+        rosterType: "squad",
+        countsInSquad: true,
+        temporaryGroup: "",
+        updatedAt: "2026-05-07T12:00:00.000Z",
+      },
+    ],
+    changeLog: [],
+    updatedAt: "2026-05-07T12:00:00.000Z",
+  };
+  const staleTemporarySave = {
+    selectedPlayerId: "player-1",
+    players: [
+      {
+        id: "player-1",
+        name: "Academy Player",
+        primaryRole: "ST",
+        roleGroup: "forward",
+        rosterType: "academy",
+        countsInSquad: false,
+        temporaryGroup: "Academy Training Group",
+        temporaryFrom: "2026-05-08",
+        temporaryTo: "2026-05-12",
+        updatedAt: "2026-05-07T12:10:00.000Z",
+      },
+    ],
+    changeLog: [
+      {
+        id: "change-temporary",
+        type: "profile-updated",
+        playerId: "player-1",
+        summary: "Academy Player updated: Roster type",
+        changes: [
+          { field: "Roster type", from: "First team squad", to: "Academy call-up" },
+          { field: "Temporary group", from: "-", to: "Academy Training Group" },
+          { field: "Temporary from", from: "-", to: "2026-05-08" },
+          { field: "Temporary to", from: "-", to: "2026-05-12" },
+        ],
+        createdAt: "2026-05-07T12:10:01.000Z",
+      },
+    ],
+    updatedAt: "2026-05-07T12:10:00.000Z",
+  };
+  const storage = createAppStateFetchMock(
+    {
+      [workspaceHubPath]: createAppStateStorageEntry(workspaceHubKey, {
+        workspaceAccess: {
+          "player-profiles": { view: ["admin", "coach"], edit: ["admin", "coach"] },
+        },
+      }),
+      [playerProfilesPath]: {
+        ...createAppStateStorageEntry(playerProfilesKey, existingSquadState),
+        revision: 2,
+      },
+    },
+    "coach"
+  );
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        key: playerProfilesKey,
+        value: JSON.stringify(staleTemporarySave),
+        metadata: { baseRevision: 1 },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload.merged).toBe(true);
+    expect(JSON.parse(response.payload.value).players[0]).toMatchObject({
+      rosterType: "academy",
+      countsInSquad: false,
+      temporaryGroup: "Academy Training Group",
+      temporaryFrom: "2026-05-08",
+      temporaryTo: "2026-05-12",
+    });
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
 test("app-state preserves existing Squad player images when newer saves omit media fields", async () => {
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;

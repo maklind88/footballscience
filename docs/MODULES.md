@@ -116,9 +116,10 @@ Required direction:
 - Archive library exercises with confirmation, and restore them from Archive.
 - Filter/sort by Phase and Sub-Phase.
 - Phase/Sub-Phase multi-select with check marks.
-- Show exercise content and actions directly in the library cards, without a separate preview panel.
+- Show a compact one-exercise-per-row library overview with essential metadata and Use/View/Edit actions.
+- View opens a read-only detail popup for the full exercise content.
 - Duplicate and edit active library exercises without silently overwriting existing or archived entries.
-- Exercise edit mode opens as a nested popup in the library modal with explicit Save changes, Save as copy, and Cancel actions; Save as copy creates a new exercise variant while preserving the original.
+- Exercise edit mode opens as a nested popup in the library modal with explicit Save changes, Save as copy, and Cancel actions; save/cancel returns to the row overview and Save as copy creates a new exercise variant while preserving the original.
 - Keep lightweight version snapshots for library edits/replacements/duplicates.
 - Organize exercises with folders/collections stored separately from exercise records.
 - Support All Exercises, Team, Mine, and concrete folder views.
@@ -201,6 +202,8 @@ Current direction:
 - Squad List stays at the top.
 - Search, role-group filter, and add-player button live in one command bar.
 - Clicking a player opens the player profile in a modal.
+- Temporary players can be added as academy call-ups, trialists, or guest training players. They live in Squad and sync to Medical for clearance, but `countsInSquad=false` keeps them out of first-team totals, depth, and role balance.
+- Session Planner only sees a temporary player when Medical has logged an availability record or active availability plan for that training date.
 - Heavy sections below the list stay hidden until needed.
 - Long-term data moves from `football-player-profiles-v1` to the multi-tenant `squad_*` schema.
 

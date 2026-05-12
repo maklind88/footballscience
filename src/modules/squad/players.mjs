@@ -5,6 +5,7 @@ export const squadRoleGroups = Object.freeze(["goalkeeper", "defender", "midfiel
 export const squadStatusKeys = Object.freeze(["key", "important", "rotation", "squad", "depth", "development", "academy", "trial", "loan"]);
 export const squadAvailabilityKeys = Object.freeze(["available", "managed", "rehab", "unavailable", "loan", "unknown"]);
 export const squadIdpStatusKeys = Object.freeze(["active", "review", "monitor", "none"]);
+export const squadRosterTypeKeys = Object.freeze(["squad", "academy", "trial", "guest"]);
 
 const defaultPageLimit = 50;
 const maxPageLimit = 200;
@@ -42,6 +43,16 @@ function normalizeArray(value = []) {
 function normalizeStatus(value, allowedValues, fallback) {
   const status = normalizeKey(value || fallback);
   return allowedValues.includes(status) ? status : fallback;
+}
+
+function normalizeBoolean(value, fallback = false) {
+  if (value === true || value === "true" || value === "1" || value === "on") {
+    return true;
+  }
+  if (value === false || value === "false" || value === "0" || value === "off") {
+    return false;
+  }
+  return fallback;
 }
 
 export function parseSquadStatePayload(rawValue) {
@@ -121,6 +132,8 @@ export function normalizeSquadPlayer(player = {}, options = {}) {
   const secondaryRoles = normalizeSquadRoleList(player.secondaryRoles || player.secondary_roles).filter((role) => role !== primaryRole);
   const createdAt = normalizeText(player.createdAt || player.created_at) || normalizeText(options.now) || defaultNow();
   const updatedAt = normalizeText(player.updatedAt || player.updated_at) || createdAt;
+  const rosterType = normalizeStatus(player.rosterType || player.roster_type || player.playerType || player.player_type, squadRosterTypeKeys, "squad");
+  const countsInSquad = normalizeBoolean(player.countsInSquad ?? player.counts_in_squad, rosterType === "squad");
 
   return Object.freeze({
     id: normalizeText(player.id) || normalizeText(idFactory(player, index)),
@@ -132,6 +145,11 @@ export function normalizeSquadPlayer(player = {}, options = {}) {
     sourceUrl: normalizeText(player.sourceUrl || player.source_url),
     status: normalizeStatus(player.status || player.availabilityStatus || player.availability_status, squadAvailabilityKeys, "available"),
     squadStatus: normalizeStatus(player.squadStatus || player.squad_status, squadStatusKeys, "squad"),
+    rosterType,
+    countsInSquad,
+    temporaryGroup: countsInSquad ? "" : normalizeText(player.temporaryGroup || player.temporary_group || player.subGroup || player.sub_group),
+    temporaryFrom: countsInSquad ? "" : normalizeText(player.temporaryFrom || player.temporary_from || player.startDate || player.start_date),
+    temporaryTo: countsInSquad ? "" : normalizeText(player.temporaryTo || player.temporary_to || player.endDate || player.end_date),
     primaryRole,
     secondaryRoles: Object.freeze(secondaryRoles),
     roleGroup,
@@ -194,6 +212,8 @@ export function getSquadPlayerSearchText(player = {}) {
     player.roleGroup,
     player.status,
     player.squadStatus,
+    player.rosterType,
+    player.temporaryGroup,
     player.idp?.status,
     player.idp?.primaryFocus,
   ]
@@ -206,6 +226,7 @@ export function filterSquadPlayers(players = [], filters = {}) {
   const roleGroup = normalizeKey(filters.roleGroup || "all");
   const status = normalizeKey(filters.status || "all");
   const squadStatus = normalizeKey(filters.squadStatus || "all");
+  const rosterType = normalizeKey(filters.rosterType || "all");
 
   return Object.freeze(
     players.filter((player) => {
@@ -216,6 +237,15 @@ export function filterSquadPlayers(players = [], filters = {}) {
         return false;
       }
       if (squadStatus !== "all" && player.squadStatus !== squadStatus) {
+        return false;
+      }
+      if (rosterType === "squad" && player.countsInSquad === false) {
+        return false;
+      }
+      if (rosterType === "temporary" && player.countsInSquad !== false) {
+        return false;
+      }
+      if (!["all", "squad", "temporary"].includes(rosterType) && player.rosterType !== rosterType) {
         return false;
       }
       if (query && !getSquadPlayerSearchText(player).includes(query)) {
@@ -265,18 +295,22 @@ export function getSquadPlayerCompleteness(player = {}) {
 }
 
 export function createSquadCounts(players = []) {
+  const squadPlayers = players.filter((player) => player.countsInSquad !== false);
+  const temporaryPlayers = players.filter((player) => player.countsInSquad === false);
   const roleBalance = Object.fromEntries(squadRoleGroups.map((group) => [group, 0]));
-  players.forEach((player) => {
+  squadPlayers.forEach((player) => {
     if (roleBalance[player.roleGroup] !== undefined) {
       roleBalance[player.roleGroup] += 1;
     }
   });
 
   return Object.freeze({
-    players: players.length,
-    available: players.filter((player) => player.status === "available").length,
-    activeIdps: players.filter((player) => player.idp?.status && player.idp.status !== "none").length,
-    completeProfiles: players.filter((player) => getSquadPlayerCompleteness(player) >= 70).length,
+    players: squadPlayers.length,
+    temporaryPlayers: temporaryPlayers.length,
+    totalPlayers: players.length,
+    available: squadPlayers.filter((player) => player.status === "available").length,
+    activeIdps: squadPlayers.filter((player) => player.idp?.status && player.idp.status !== "none").length,
+    completeProfiles: squadPlayers.filter((player) => getSquadPlayerCompleteness(player) >= 70).length,
     roleBalance: Object.freeze(roleBalance),
   });
 }
@@ -291,6 +325,11 @@ export function createSquadRosterDraft(player = {}, context = {}) {
     legacyId: normalizedPlayer.id,
     photoUrl: normalizedPlayer.photoUrl,
     sourceUrl: normalizedPlayer.sourceUrl,
+    rosterType: normalizedPlayer.rosterType,
+    countsInSquad: normalizedPlayer.countsInSquad,
+    temporaryGroup: normalizedPlayer.temporaryGroup,
+    temporaryFrom: normalizedPlayer.temporaryFrom,
+    temporaryTo: normalizedPlayer.temporaryTo,
   };
 
   return Object.freeze({

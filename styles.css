@@ -7664,7 +7664,7 @@ body:not([data-user-role="admin"]) .session-history-panel{ display: none !import
 
 .session-squad-bridge-metrics{
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.42rem;
 }
 
@@ -8662,6 +8662,15 @@ body:not([data-user-role="admin"]) .session-history-panel{ display: none !import
 .session-player-board-preview-token.has-custom-color{
   color: var(--session-player-board-text);
   background: var(--session-player-board-color);
+}
+
+.session-player-board-token.is-temporary,
+.session-player-board-preview-token.is-temporary{
+  border-style: dashed;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    0 0 0 3px rgba(13, 79, 134, 0.12),
+    0 7px 14px rgba(29, 29, 31, 0.14);
 }
 
 .session-player-board-empty{
@@ -17102,7 +17111,7 @@ select{
 
 .squad-list-tools{
   display: grid;
-  grid-template-columns: minmax(12rem, 1fr) minmax(9rem, 0.45fr);
+  grid-template-columns: minmax(12rem, 1fr) minmax(9rem, 0.36fr) minmax(9rem, 0.36fr);
   gap: 0.4rem;
 }
 
@@ -17173,6 +17182,16 @@ select{
   background: rgba(232, 241, 238, 0.84);
 }
 
+.squad-player-row.is-temporary{
+  background: rgba(244, 248, 255, 0.62);
+}
+
+.squad-player-row.is-temporary:hover,
+.squad-player-row.is-temporary:focus-visible,
+.squad-player-row.is-temporary.is-selected{
+  background: rgba(220, 236, 255, 0.78);
+}
+
 .squad-player-cell{
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -17201,6 +17220,10 @@ select{
   color: #6e6e73;
   font-size: 0.66rem;
   font-weight: 850;
+}
+
+.squad-player-temporary-meta{
+  color: #0d4f86;
 }
 
 .squad-player-avatar,
@@ -17242,8 +17265,15 @@ select{
   gap: 0.24rem;
 }
 
+.squad-pill-stack{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
 .squad-role-stack span,
 .squad-option-pill,
+.squad-roster-pill,
 .squad-status-pill,
 .squad-medical-cell{
   display: inline-flex;
@@ -17269,6 +17299,21 @@ select{
 .squad-option-pill{
   color: #3d4147;
   background: #eceef1;
+}
+
+.squad-roster-pill{
+  color: #0d4f86;
+  background: #dcecff;
+}
+
+.squad-roster-pill.is-temporary{
+  color: #15436a;
+  background: #d7e8ff;
+}
+
+.squad-roster-pill.is-squad{
+  color: #11301f;
+  background: #d9f3e4;
 }
 
 .squad-status-pill.is-available{
@@ -18872,8 +18917,9 @@ select{
 
 .medical-squad-grid{
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(14.4rem, 1fr));
-  gap: 0.55rem;
+  grid-template-columns: repeat(auto-fill, minmax(13.35rem, 1fr));
+  gap: 0.5rem;
+  min-width: 0;
 }
 
 .medical-player-card,
@@ -19001,12 +19047,23 @@ select{
   font-weight: 800;
 }
 
+.medical-player-title-line .medical-temporary-badge{
+  max-width: 8rem;
+  padding: 0.16rem 0.38rem;
+  border-radius: 999px;
+  color: #0d4f86;
+  background: #dcecff;
+  font-size: 0.58rem;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
 .medical-status-chip{
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 0;
-  max-width: 5.8rem;
+  max-width: 5.55rem;
   min-height: 1.45rem;
   padding: 0.28rem 0.46rem;
   border-radius: 999px;

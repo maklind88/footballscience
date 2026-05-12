@@ -1159,6 +1159,10 @@ const PLAYER_PROFILE_CHANGE_FIELD_PATHS = {
   "Availability status": "status",
   "Squad status": "squadStatus",
   "Career phase": "careerPhase",
+  "Roster type": "rosterType",
+  "Temporary group": "temporaryGroup",
+  "Temporary from": "temporaryFrom",
+  "Temporary to": "temporaryTo",
   "Primary role": "primaryRole",
   "Secondary roles": "secondaryRoles",
   "Preferred side": "preferredSide",
@@ -1188,6 +1192,11 @@ const PLAYER_PROFILE_NON_DESTRUCTIVE_FIELDS = new Set([
   "portraitUrl",
   "primaryRole",
   "roleGroup",
+  "rosterType",
+  "countsInSquad",
+  "temporaryGroup",
+  "temporaryFrom",
+  "temporaryTo",
 ]);
 
 function getNestedPlayerProfileValue(source = {}, path = "") {
@@ -1383,6 +1392,9 @@ function mergeStalePlayerProfile(existingState = {}, incomingState = {}, existin
 
     setNestedPlayerProfileValue(mergedPlayer, path, incomingValue);
   });
+  if (changedPaths.has("rosterType") && Object.prototype.hasOwnProperty.call(incomingPlayer, "countsInSquad")) {
+    mergedPlayer.countsInSquad = incomingPlayer.countsInSquad;
+  }
 
   mergedPlayer.updatedAt = new Date(
     Math.max(getPlayerProfileTimestamp(existingPlayer), getPlayerProfileTimestamp(incomingPlayer), Date.now())

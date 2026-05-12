@@ -25297,6 +25297,47 @@ function createPlayerProfileImportUndoSnapshot(plan = {}) {
 }
 
 function getPlayerProfileImportUndoState() {
+  const relativeTimeLabel = (timestamp) => {
+    if (!timestamp) {
+      return "";
+    }
+
+    const parsed = new Date(timestamp).getTime();
+    if (!Number.isFinite(parsed)) {
+      return "";
+    }
+
+    const diffMs = Date.now() - parsed;
+    if (diffMs < 0) {
+      return "";
+    }
+
+    const absMinutes = Math.max(0, Math.floor(diffMs / 60000));
+    if (absMinutes < 1) {
+      return "just now";
+    }
+    if (absMinutes < 60) {
+      return `${absMinutes} minute${absMinutes === 1 ? "" : "s"} ago`;
+    }
+
+    const absHours = Math.floor(absMinutes / 60);
+    if (absHours < 24) {
+      return `${absHours} hour${absHours === 1 ? "" : "s"} ago`;
+    }
+
+    const absDays = Math.floor(absHours / 24);
+    if (absDays < 30) {
+      return `${absDays} day${absDays === 1 ? "" : "s"} ago`;
+    }
+
+    const absWeeks = Math.floor(absDays / 7);
+    if (absWeeks < 5) {
+      return `${absWeeks} week${absWeeks === 1 ? "" : "s"} ago`;
+    }
+
+    return "";
+  };
+
   if (!playerProfileLastImportSnapshot) {
     return {
       canUndo: false,
@@ -25326,6 +25367,7 @@ function getPlayerProfileImportUndoState() {
   const importedAt = playerProfileLastImportSnapshot.createdAt || "";
   const appliedAt = playerProfileLastImportSnapshot.appliedAt || importedAt;
   const appliedAtLabel = appliedAt ? new Date(appliedAt).toLocaleString() : "";
+  const appliedAgo = appliedAt ? relativeTimeLabel(appliedAt) : "";
 
   return {
     canUndo: true,
@@ -25333,7 +25375,9 @@ function getPlayerProfileImportUndoState() {
       + ` Applied by ${appliedBy}${appliedAtLabel ? ` • ${appliedAtLabel}` : ""}`,
     label: importedCount ? `Undo import (${importedCount})` : "Undo import",
     reason: "",
-    summary: `Undo is available for ${importedCount} records (${createdCount} created, ${updatedCount} updated).`,
+    summary: `Undo is available for ${importedCount} records (${createdCount} created, ${updatedCount} updated). Applied by ${appliedBy}${
+      appliedAtLabel ? ` at ${appliedAtLabel}` : ""
+    }${appliedAgo ? ` (${appliedAgo})` : ""}`,
   };
 }
 

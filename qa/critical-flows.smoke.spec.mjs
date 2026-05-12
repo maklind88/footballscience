@@ -389,7 +389,7 @@ test("Schedule week view shows daily operations and opens linked session", async
             time: "10:00",
             type: "training",
             title: "Training",
-            note: "QA week operations",
+            note: "Same imported training with a slightly different note",
           },
         ],
       })
@@ -460,7 +460,7 @@ test("Schedule week view shows daily operations and opens linked session", async
   await expect(page.locator("#sessionPlannerWorkspace")).toContainText("Training Session");
 });
 
-test("Schedule layers filter the board while conflict alerts stay visible", async ({ page }) => {
+test("Schedule keeps the board simple while the selected day shows all plans", async ({ page }) => {
   await page.addInitScript(({ scheduleKey, sessionPlannerKey, periodizationKey }) => {
     const realDate = Date;
     const fixedNow = new realDate("2026-05-10T12:00:00-04:00").getTime();
@@ -539,22 +539,18 @@ test("Schedule layers filter the board while conflict alerts stay visible", asyn
   await openWorkspace(page, "schedule");
 
   await expect(page.locator("#scheduleWeekGrid")).toBeVisible();
+  await expect(page.locator('[data-schedule-layer]')).toHaveCount(0);
   await expect(page.locator(".schedule-week-day.is-selected .schedule-week-event-summary")).toHaveText("3 plans");
-  await expect(page.locator(".schedule-week-day.is-selected")).toContainText("alert");
-  await expect(page.locator("#scheduleDayInsights")).toContainText("OFF mixed with active plan");
-  await expect(page.locator("#scheduleDayInsights")).toContainText("Time conflict at 10:00");
-
-  await page.locator('[data-schedule-layer="match"]').click();
-
-  await expect(page.locator('[data-schedule-layer="match"]')).toHaveClass(/is-active/);
-  await expect(page.locator('[data-schedule-layer="all"]')).not.toHaveClass(/is-active/);
-  await expect(page.locator(".schedule-week-day.is-selected .schedule-week-event-summary")).toHaveText("1 plan");
+  await expect(page.locator(".schedule-week-day.is-selected")).not.toContainText("alert");
   await expect(page.locator("#scheduleEventList")).toContainText("Training");
   await expect(page.locator("#scheduleEventList")).toContainText("QA Match");
   await expect(page.locator("#scheduleEventList")).toContainText("Off");
 
-  await page.locator('[data-schedule-layer="all"]').click();
-  await expect(page.locator(".schedule-week-day.is-selected .schedule-week-event-summary")).toHaveText("3 plans");
+  await page.locator("#scheduleMonthViewButton").click();
+  const selectedDay = page.locator(".schedule-day-button.is-selected");
+  await expect(selectedDay.locator(".schedule-event-pill")).toHaveCount(1);
+  await expect(selectedDay.locator(".schedule-event-pill")).toContainText("QA Match");
+  await expect(selectedDay.locator(".schedule-more-pill")).toHaveText("+2");
 });
 
 test("Periodization Today opens the real current date", async ({ page }) => {

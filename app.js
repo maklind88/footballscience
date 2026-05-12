@@ -98,7 +98,6 @@ const ui = {
   scheduleOverviewViewButton: document.getElementById("scheduleOverviewViewButton"),
   scheduleOverviewSpanControl: document.getElementById("scheduleOverviewSpanControl"),
   scheduleOverviewSpanButtons: Array.from(document.querySelectorAll("[data-schedule-span]")),
-  scheduleLayerButtons: Array.from(document.querySelectorAll("[data-schedule-layer]")),
   scheduleWeekdays: document.getElementById("scheduleWeekdays"),
   scheduleCalendarGrid: document.getElementById("scheduleCalendarGrid"),
   scheduleWeekGrid: document.getElementById("scheduleWeekGrid"),
@@ -5858,7 +5857,6 @@ function getScheduleEventDedupKey(event = {}) {
     event.time || "",
     event.type || "",
     normalizeScheduleTextForDedup(event.title),
-    normalizeScheduleTextForDedup(event.note),
   ].join("::");
 }
 function getUniqueScheduleEvents(events = []) {
@@ -6211,12 +6209,8 @@ function getScheduleEventsForDate(dateValue) {
   return getUniqueScheduleEvents(scheduleState.events.filter((event) => event.date === dateValue))
     .sort((a, b) => `${a.time || "99:99"} ${a.title}`.localeCompare(`${b.time || "99:99"} ${b.title}`));
 }
-function getScheduleVisibleEventTypes() {
-  return scheduleState ? normalizeScheduleVisibleEventTypes(scheduleState.visibleEventTypes) : [...scheduleLayerTypes];
-}
 function getScheduleVisibleEvents(events = []) {
-  const visibleTypes = new Set(getScheduleVisibleEventTypes());
-  return events.filter((event) => visibleTypes.has(event.type));
+  return getUniqueScheduleEvents(events);
 }
 function getScheduleVisibleEventsForDate(dateValue) {
   return getScheduleVisibleEvents(getScheduleEventsForDate(dateValue));
@@ -6339,33 +6333,6 @@ function setScheduleOverviewSpan(span) {
   const overviewSpan = Number(span);
   scheduleState.overviewSpan = [3, 6, 9, 12].includes(overviewSpan) ? overviewSpan : 6;
   scheduleState.viewMode = "overview";
-  writeScheduleState({ syncCentral: false });
-  renderScheduleWorkspace();
-}
-function setScheduleLayer(layer) {
-  if (!scheduleState) {
-    return;
-  }
-  const currentTypes = getScheduleVisibleEventTypes();
-  let nextTypes = [...currentTypes];
-  if (layer === "all") {
-    nextTypes = [...scheduleLayerTypes];
-  } else if (scheduleEventTypes[layer]) {
-    const currentlyShowingAll = currentTypes.length === scheduleLayerTypes.length;
-    const nextSet = currentlyShowingAll ? new Set([layer]) : new Set(currentTypes);
-    if (!currentlyShowingAll && nextSet.has(layer)) {
-      if (nextSet.size === 1) {
-        nextTypes = [...scheduleLayerTypes];
-      } else {
-        nextSet.delete(layer);
-        nextTypes = [...nextSet];
-      }
-    } else {
-      nextSet.add(layer);
-      nextTypes = [...nextSet];
-    }
-  }
-  scheduleState.visibleEventTypes = normalizeScheduleVisibleEventTypes(nextTypes);
   writeScheduleState({ syncCentral: false });
   renderScheduleWorkspace();
 }
@@ -6576,11 +6543,7 @@ function renderScheduleMonthDay(date, isCompact = false, visibleMonthIndex = sch
   const mainEvent = getScheduleMainEvent(events);
   const mainTone = mainEvent ? scheduleEventTypes[mainEvent.type]?.tone || "training" : "";
   const eventToneClass = mainTone ? ` is-main-${mainTone}` : "";
-  const warnings = getScheduleDayWarningsForDate(dateValue, allEvents);
-  const warningClass = warnings.length ? " has-warnings" : "";
-  const ariaLabel = warnings.length
-    ? `${getScheduleDateLabel(dateValue)}, ${warnings.length} alert${warnings.length === 1 ? "" : "s"}`
-    : getScheduleDateLabel(dateValue);
+  const ariaLabel = getScheduleDateLabel(dateValue);
   if (isCompact) {
     if (!isCurrentMonth) {
       return `<span class="schedule-overview-day-spacer" aria-hidden="true"></span>`;
@@ -6588,7 +6551,7 @@ function renderScheduleMonthDay(date, isCompact = false, visibleMonthIndex = sch
     return `
       <button
         type="button"
-        class="schedule-overview-day${isSelected ? " is-selected" : ""}${isToday ? " is-today" : ""}${warningClass}${events.length ? ` has-events${eventToneClass}` : ""}"
+        class="schedule-overview-day${isSelected ? " is-selected" : ""}${isToday ? " is-today" : ""}${events.length ? ` has-events${eventToneClass}` : ""}"
         data-schedule-date="${escapeHtml(dateValue)}"
         aria-label="${escapeHtml(ariaLabel)}"
       >
@@ -6596,12 +6559,12 @@ function renderScheduleMonthDay(date, isCompact = false, visibleMonthIndex = sch
       </button>
     `;
   }
-  const visibleEvents = events.slice(0, 3).map(renderScheduleEventPill).join("");
-  const overflow = events.length > 3 ? `<span class="schedule-more-pill">+${events.length - 3}</span>` : "";
+  const visibleEvents = mainEvent ? renderScheduleEventPill(mainEvent) : "";
+  const overflow = events.length > 1 ? `<span class="schedule-more-pill">+${events.length - 1}</span>` : "";
   return `
     <button
       type="button"
-      class="schedule-day-button${isCurrentMonth ? "" : " is-muted"}${isSelected ? " is-selected" : ""}${isToday ? " is-today" : ""}${warningClass}${events.length ? ` has-events${eventToneClass}` : ""}"
+      class="schedule-day-button${isCurrentMonth ? "" : " is-muted"}${isSelected ? " is-selected" : ""}${isToday ? " is-today" : ""}${events.length ? ` has-events${eventToneClass}` : ""}"
       data-schedule-date="${escapeHtml(dateValue)}"
       aria-label="${escapeHtml(ariaLabel)}"
     >
@@ -6646,13 +6609,9 @@ function renderScheduleWeekDay(date) {
   const eventSummary = events.length
     ? `<span class="schedule-week-event-summary">${events.length} plan${events.length === 1 ? "" : "s"}</span>`
     : `<span class="schedule-week-empty"></span>`;
-  const warnings = getScheduleDayWarningsForDate(dateValue, allEvents);
-  const warningSummary = warnings.length
-    ? `<span class="schedule-week-warning-chip">${warnings.length} alert${warnings.length === 1 ? "" : "s"}</span>`
-    : "";
 
   return `
-    <article class="schedule-week-day${dateValue === selectedDateValue ? " is-selected" : ""}${dateValue === todayValue ? " is-today" : ""}${warnings.length ? " has-warnings" : ""}${events.length ? ` has-events${eventToneClass}` : ""}" data-schedule-date="${escapeHtml(dateValue)}">
+    <article class="schedule-week-day${dateValue === selectedDateValue ? " is-selected" : ""}${dateValue === todayValue ? " is-today" : ""}${events.length ? ` has-events${eventToneClass}` : ""}" data-schedule-date="${escapeHtml(dateValue)}">
       <button type="button" class="schedule-week-day-head" data-schedule-date="${escapeHtml(dateValue)}">
         <span>${escapeHtml(weekdayLabel)}</span>
         <strong>${date.getDate()}</strong>
@@ -6660,7 +6619,6 @@ function renderScheduleWeekDay(date) {
       <div class="schedule-week-day-meta">
         ${periodizationLabel ? `<span>${escapeHtml(periodizationLabel)}</span>` : ""}
         ${sessionBlockCount ? `<span>${sessionBlockCount} blocks</span>` : ""}
-        ${warningSummary}
       </div>
       <div class="schedule-week-event-stack">
         ${eventSummary}
@@ -6759,7 +6717,6 @@ function renderScheduleDayInsights(dateValue, selectedEvents) {
   const periodizationLabel = getPeriodizationDayScheduleLabel(periodizationDay);
   const matchDayLabel = getPeriodizationMatchDayLabel(periodizationDay.matchDay);
   const sessionSnapshot = getScheduleSessionSnapshot(dateValue);
-  const warnings = getScheduleDayWarnings(selectedEvents, periodizationDay, sessionSnapshot);
   const phaseLabels = [
     ...(Array.isArray(periodizationDay.matchPhases) ? periodizationDay.matchPhases : []),
     ...(Array.isArray(periodizationDay.subPhases) ? periodizationDay.subPhases : []),
@@ -6786,15 +6743,6 @@ function renderScheduleDayInsights(dateValue, selectedEvents) {
           ${periodizationDetail ? `<small>${escapeHtml(periodizationDetail)}</small>` : ""}
         </article>
       </div>
-      ${
-        warnings.length
-          ? `
-            <div class="schedule-day-warning-list">
-              ${warnings.map((warning) => `<span>${escapeHtml(warning)}</span>`).join("")}
-            </div>
-          `
-          : ""
-      }
       <div class="schedule-day-link-actions">
         <button type="button" data-schedule-open-session-date="${escapeHtml(dateValue)}" data-schedule-create-session="${sessionSnapshot.hasSession ? "false" : "true"}">${escapeHtml(sessionAction)}</button>
         <button type="button" data-schedule-open-periodization-date="${escapeHtml(dateValue)}">Open Periodization</button>
@@ -6837,14 +6785,6 @@ function renderScheduleWorkspace() {
   ui.scheduleMonthViewButton?.setAttribute("aria-pressed", String(scheduleState.viewMode === "month"));
   ui.scheduleWeekViewButton?.setAttribute("aria-pressed", String(isWeek));
   ui.scheduleOverviewViewButton?.setAttribute("aria-pressed", String(isOverview));
-  const visibleEventTypes = getScheduleVisibleEventTypes();
-  const showingAllEventTypes = visibleEventTypes.length === scheduleLayerTypes.length;
-  ui.scheduleLayerButtons?.forEach((button) => {
-    const layer = button.dataset.scheduleLayer;
-    const isActive = layer === "all" ? showingAllEventTypes : visibleEventTypes.includes(layer);
-    button.classList.toggle("is-active", isActive);
-    button.setAttribute("aria-pressed", String(isActive));
-  });
   if (ui.scheduleOverviewSpanControl) {
     ui.scheduleOverviewSpanControl.hidden = !isOverview;
   }
@@ -30058,7 +29998,6 @@ function renderPeriodizationDayCard(date, monthIndex) {
   const dayScheduleLabel = getPeriodizationDayScheduleLabel(day);
   const matchDayLabel = getPeriodizationMatchDayLabel(day.matchDay);
   const loadLabel = isOffDay && loadTone === "off" ? "" : day.physicalLoad;
-  const loadScore = getPeriodizationLoadScore(day.physicalLoad);
   const pitchLabel = getPeriodizationPitchLabel(day.pitchSize);
   const preTrainingVideoLabel = day.preTrainingVideo || "";
   const phaseParts = [
@@ -30072,7 +30011,7 @@ function renderPeriodizationDayCard(date, monthIndex) {
 
   return `
     <article
-      class="periodization-day-card is-${escapeHtml(dayTone)} is-load-score-${loadScore}${isSelected ? " is-selected" : ""}${isOutsideMonth ? " is-outside-month" : ""}"
+      class="periodization-day-card is-${escapeHtml(dayTone)}${isSelected ? " is-selected" : ""}${isOutsideMonth ? " is-outside-month" : ""}"
       data-periodization-date="${escapeHtml(dateValue)}"
       role="button"
       tabindex="0"
@@ -30097,9 +30036,6 @@ function renderPeriodizationDayCard(date, monthIndex) {
         ${matchDayLabel ? `<i class="periodization-day-md">${escapeHtml(matchDayLabel)}</i>` : ""}
       </span>
       <span class="periodization-day-main${dayScheduleLabel ? "" : " is-empty"}">${escapeHtml(dayScheduleLabel)}</span>
-      <span class="periodization-day-load-strip" aria-hidden="true">
-        <i style="--periodization-load-width: ${Math.min(100, loadScore * 20)}%;"></i>
-      </span>
       <span class="periodization-day-details">
         ${renderPeriodizationCardDetail("Video", escapeHtml(preTrainingVideoLabel))}
         ${renderPeriodizationCardDetail("Phase", escapeHtml(phaseLabel))}
@@ -77394,14 +77330,6 @@ ui.scheduleOverviewSpanButtons?.forEach((button) => {
   button.addEventListener("click", () => {
     setScheduleOverviewSpan(button.dataset.scheduleSpan);
   });
-});
-
-ui.scheduleWorkspace?.addEventListener("click", (event) => {
-  const layerTrigger = event.target.closest("[data-schedule-layer]");
-  if (!layerTrigger) {
-    return;
-  }
-  setScheduleLayer(layerTrigger.dataset.scheduleLayer);
 });
 
 ui.dashboardChatWidgetRoot?.addEventListener("change", async (event) => {

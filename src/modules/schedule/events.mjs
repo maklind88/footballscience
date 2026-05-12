@@ -92,6 +92,27 @@ export function normalizeScheduleVisibleEventTypes(value) {
   return Object.freeze(visibleTypes.length ? visibleTypes : [...scheduleEventTypeKeys]);
 }
 
+function getScheduleEventDedupKey(event = {}) {
+  return [
+    normalizeText(event.date),
+    normalizeText(event.time),
+    normalizeScheduleEventType(event.type),
+    normalizeText(event.title).replace(/\s+/g, " ").toLowerCase(),
+  ].join("::");
+}
+
+function selectUniqueScheduleEvents(events = []) {
+  const seen = new Set();
+  return events.filter((event) => {
+    const key = getScheduleEventDedupKey(event);
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
 export function normalizeScheduleEvent(event = {}, options = {}) {
   const fallbackDate = normalizeText(options.selectedDate) || formatScheduleDateValue(options.now || defaultNow());
   const idFactory = typeof options.idFactory === "function" ? options.idFactory : defaultIdFactory;
@@ -114,20 +135,22 @@ export function normalizeScheduleState(rawValue, options = {}) {
   const selectedMonthIndex = Number.isFinite(rawMonthIndex) ? Math.min(11, Math.max(0, rawMonthIndex)) : now.getMonth();
   const selectedDate = normalizeText(source.selectedDate) || formatScheduleDateValue(new Date(selectedYear, selectedMonthIndex, 1));
   const overviewSpan = scheduleOverviewSpanOptions.includes(Number(source.overviewSpan)) ? Number(source.overviewSpan) : 6;
-  const events = (Array.isArray(source.events) ? source.events : [])
-    .map((event, index) =>
-      normalizeScheduleEvent(event, {
-        ...options,
-        selectedDate,
-        idFactory: event?.id
-          ? options.idFactory
-          : () =>
-              typeof options.idFactory === "function"
-                ? options.idFactory(event, index)
-                : defaultIdFactory(event, index),
-      })
-    )
-    .filter((event) => event.title);
+  const events = selectUniqueScheduleEvents(
+    (Array.isArray(source.events) ? source.events : [])
+      .map((event, index) =>
+        normalizeScheduleEvent(event, {
+          ...options,
+          selectedDate,
+          idFactory: event?.id
+            ? options.idFactory
+            : () =>
+                typeof options.idFactory === "function"
+                  ? options.idFactory(event, index)
+                  : defaultIdFactory(event, index),
+        })
+      )
+      .filter((event) => event.title)
+  );
 
   return Object.freeze({
     selectedYear,

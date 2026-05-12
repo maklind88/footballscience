@@ -33,8 +33,16 @@ test("Schedule adapter normalizes current schedule storage without changing the 
       },
       {
         date: "2026-05-07",
+        time: "10:00",
         type: "mystery",
         title: " Training ",
+      },
+      {
+        date: "2026-05-07",
+        time: "10:00",
+        type: "training",
+        title: "Training",
+        note: "Duplicate import note",
       },
       {
         date: "2026-05-09",

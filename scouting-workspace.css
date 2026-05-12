@@ -1,0 +1,819 @@
+.platform-scouting-view{
+background:
+linear-gradient(180deg, rgba(248, 249, 250, 0.98), rgba(235, 238, 241, 0.98)),
+#f5f5f7;
+}
+.scouting-workspace{
+width: min(1420px, 100%);
+margin: 0 auto;
+}
+.scouting-shell{
+display: grid;
+gap: 0.82rem;
+}
+.scouting-hero{
+display: flex;
+align-items: flex-end;
+justify-content: space-between;
+gap: 1rem;
+min-height: 6rem;
+padding: clamp(0.95rem, 2vw, 1.25rem);
+border-radius: 8px;
+color: #f9fafb;
+background:
+linear-gradient(135deg, rgba(20, 31, 28, 0.96), rgba(64, 75, 68, 0.94)),
+#1d2925;
+border: 1px solid rgba(255, 255, 255, 0.14);
+box-shadow: 0 18px 46px rgba(31, 38, 44, 0.14);
+}
+.scouting-hero h1{
+margin: 0.12rem 0 0;
+color: #ffffff;
+font-size: clamp(1.75rem, 3.2vw, 2.55rem);
+line-height: 1;
+letter-spacing: 0;
+}
+.scouting-hero .placeholder-tag{
+color: rgba(255, 255, 255, 0.68);
+}
+.scouting-metrics{
+display: grid;
+grid-template-columns: repeat(4, minmax(5.4rem, 1fr));
+gap: 0.5rem;
+width: min(32rem, 100%);
+}
+.scouting-metrics span{
+display: grid;
+gap: 0.18rem;
+min-height: 3.25rem;
+padding: 0.55rem 0.65rem;
+border-radius: 8px;
+color: rgba(255, 255, 255, 0.72);
+background: rgba(255, 255, 255, 0.1);
+border: 1px solid rgba(255, 255, 255, 0.14);
+font-size: 0.72rem;
+font-weight: 780;
+text-transform: uppercase;
+}
+.scouting-metrics strong{
+color: #ffffff;
+font-size: 1.05rem;
+}
+.scouting-board{
+display: grid;
+gap: 0.72rem;
+}
+.scouting-command-bar{
+display: grid;
+grid-template-columns: minmax(0, 1fr) auto;
+gap: 0.72rem;
+align-items: center;
+padding: 0.72rem;
+border-radius: 8px;
+background: rgba(255, 255, 255, 0.88);
+border: 1px solid rgba(29, 29, 31, 0.08);
+}
+.scouting-tabs,
+.scouting-tools{
+display: flex;
+align-items: center;
+flex-wrap: wrap;
+gap: 0.42rem;
+}
+.scouting-tab,
+.scouting-primary-button,
+.scouting-target-form button,
+.scouting-target-actions button{
+min-height: 2.35rem;
+border-radius: 8px;
+border: 1px solid rgba(29, 29, 31, 0.1);
+background: rgba(255, 255, 255, 0.9);
+color: #1d1d1f;
+font-weight: 850;
+cursor: pointer;
+}
+.scouting-tab{
+padding: 0.45rem 0.72rem;
+}
+.scouting-tab.is-active,
+.scouting-primary-button,
+.scouting-target-form button{
+color: #ffffff;
+background: #26362f;
+border-color: #26362f;
+}
+.scouting-tools input,
+.scouting-tools select,
+.scouting-target-form input,
+.scouting-target-form select,
+.scouting-target-form textarea,
+.scouting-target-actions select{
+min-height: 2.35rem;
+border-radius: 8px;
+border: 1px solid rgba(29, 29, 31, 0.12);
+background: #ffffff;
+color: #1d1d1f;
+font: inherit;
+font-size: 0.84rem;
+font-weight: 720;
+}
+.scouting-tools input,
+.scouting-tools select{
+padding: 0.48rem 0.65rem;
+}
+.scouting-tools input{
+width: min(16rem, 42vw);
+}
+.scouting-primary-button,
+.scouting-target-form button,
+.scouting-target-actions button{
+padding: 0.48rem 0.78rem;
+}
+.scouting-target-form{
+display: none;
+grid-template-columns: repeat(6, minmax(0, 1fr)) auto;
+gap: 0.5rem;
+align-items: start;
+padding: 0.72rem;
+border-radius: 8px;
+background: rgba(255, 255, 255, 0.92);
+border: 1px solid rgba(29, 29, 31, 0.08);
+}
+.scouting-target-form.is-open{
+display: grid;
+}
+.scouting-target-form input,
+.scouting-target-form select,
+.scouting-target-form textarea{
+width: 100%;
+min-width: 0;
+padding: 0.5rem 0.65rem;
+}
+.scouting-target-form textarea{
+grid-column: span 2;
+resize: vertical;
+}
+.scouting-content{
+display: grid;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+gap: 0.7rem;
+}
+.scouting-target-card,
+.scouting-empty-panel{
+min-height: 8.25rem;
+border-radius: 8px;
+background: rgba(255, 255, 255, 0.92);
+border: 1px solid rgba(29, 29, 31, 0.08);
+box-shadow: 0 12px 30px rgba(31, 38, 44, 0.05);
+}
+.scouting-target-card{
+display: grid;
+gap: 0.65rem;
+padding: 0.82rem;
+}
+.scouting-target-main,
+.scouting-target-actions{
+display: flex;
+align-items: flex-start;
+justify-content: space-between;
+gap: 0.75rem;
+}
+.scouting-target-main strong{
+display: block;
+color: #1d1d1f;
+font-size: 1rem;
+}
+.scouting-target-main span,
+.scouting-note-line,
+.scouting-fit-line{
+color: #6e6e73;
+font-size: 0.84rem;
+line-height: 1.45;
+}
+.scouting-target-badges{
+display: flex;
+align-items: center;
+gap: 0.42rem;
+white-space: nowrap;
+}
+.scouting-priority-chip{
+padding: 0.28rem 0.48rem;
+border-radius: 999px;
+color: #203b2c;
+background: rgba(111, 191, 139, 0.18);
+border: 1px solid rgba(37, 119, 72, 0.14);
+font-weight: 860;
+}
+.scouting-fit-line,
+.scouting-note-line{
+margin: 0;
+overflow-wrap: anywhere;
+}
+.scouting-target-actions{
+align-items: center;
+}
+.scouting-target-actions select{
+padding: 0.42rem 0.56rem;
+}
+.scouting-target-actions button{
+width: 2.35rem;
+padding: 0;
+color: #8a1f11;
+background: rgba(254, 226, 226, 0.72);
+border-color: rgba(220, 38, 38, 0.22);
+}
+.scouting-content{
+display: block;
+}
+.scouting-load-panel,
+.scouting-database-panel,
+.scouting-lists-panel,
+.scouting-shadow-card{
+border-radius: 10px;
+background: rgba(255, 255, 255, 0.92);
+border: 1px solid rgba(29, 29, 31, 0.08);
+box-shadow: 0 14px 34px rgba(31, 38, 44, 0.06);
+}
+.scouting-load-panel{
+display: grid;
+gap: 0.45rem;
+min-height: 12rem;
+place-items: center;
+text-align: center;
+padding: 1.5rem;
+}
+.scouting-load-panel h2,
+.scouting-shadow-card h2,
+.scouting-list-card h2,
+.scouting-profile-head h2{
+margin: 0;
+color: #1d1d1f;
+line-height: 1.05;
+}
+.scouting-load-panel p,
+.scouting-shadow-card p,
+.scouting-muted{
+margin: 0;
+color: #6e6e73;
+line-height: 1.5;
+}
+.scouting-database-panel{
+display: grid;
+gap: 0.75rem;
+padding: 0.78rem;
+}
+.scouting-database-controls{
+display: grid;
+grid-template-columns: repeat(5, minmax(8rem, 1fr));
+gap: 0.58rem;
+}
+.scouting-database-controls label,
+.scouting-profile-actions label{
+display: grid;
+gap: 0.24rem;
+min-width: 0;
+color: #6e6e73;
+font-size: 0.68rem;
+font-weight: 850;
+letter-spacing: 0.04em;
+text-transform: uppercase;
+}
+.scouting-database-controls input,
+.scouting-database-controls select,
+.scouting-list-form input,
+.scouting-profile-actions select{
+width: 100%;
+min-width: 0;
+min-height: 2.42rem;
+padding: 0.5rem 0.62rem;
+border-radius: 8px;
+border: 1px solid rgba(29, 29, 31, 0.12);
+background: #ffffff;
+color: #1d1d1f;
+font: inherit;
+font-size: 0.82rem;
+font-weight: 760;
+}
+.scouting-result-summary{
+padding: 0.12rem 0.1rem;
+color: #5f665f;
+font-size: 0.82rem;
+font-weight: 850;
+}
+.scouting-record-grid{
+display: grid;
+grid-template-columns: repeat(3, minmax(0, 1fr));
+gap: 0.62rem;
+}
+.scouting-record-card{
+display: grid;
+gap: 0.72rem;
+min-height: 10.4rem;
+padding: 0.78rem;
+border-radius: 10px;
+background:
+linear-gradient(160deg, rgba(255, 255, 255, 0.98), rgba(242, 245, 240, 0.92)),
+#ffffff;
+border: 1px solid rgba(29, 29, 31, 0.08);
+box-shadow: 0 12px 28px rgba(31, 38, 44, 0.05);
+cursor: pointer;
+transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+.scouting-record-card:hover,
+.scouting-record-card:focus-visible{
+transform: translateY(-2px);
+border-color: rgba(39, 83, 64, 0.24);
+box-shadow: 0 18px 36px rgba(31, 38, 44, 0.1);
+outline: none;
+}
+.scouting-record-card-head,
+.scouting-record-card-meta,
+.scouting-record-card-score{
+display: flex;
+align-items: flex-start;
+justify-content: space-between;
+gap: 0.7rem;
+}
+.scouting-record-card-head strong{
+display: block;
+color: #1d1d1f;
+font-size: 1rem;
+line-height: 1.15;
+}
+.scouting-record-card-head span,
+.scouting-record-card-meta,
+.scouting-record-card-score span{
+color: #6e6e73;
+font-size: 0.78rem;
+line-height: 1.4;
+}
+.scouting-record-card-meta{
+flex-wrap: wrap;
+justify-content: flex-start;
+}
+.scouting-record-card-meta span{
+padding: 0.25rem 0.42rem;
+border-radius: 999px;
+background: rgba(29, 29, 31, 0.055);
+font-weight: 760;
+}
+.scouting-record-card-score{
+align-items: flex-end;
+margin-top: auto;
+}
+.scouting-record-card-score strong{
+color: #233b2d;
+font-size: 1.45rem;
+line-height: 1;
+}
+.scouting-star-button{
+min-width: 2.35rem;
+min-height: 2.35rem;
+border-radius: 999px;
+border: 1px solid rgba(29, 29, 31, 0.1);
+background: rgba(255, 255, 255, 0.9);
+color: #6e6e73;
+font-weight: 900;
+cursor: pointer;
+}
+.scouting-star-button.is-active{
+color: #825400;
+background: rgba(255, 214, 102, 0.28);
+border-color: rgba(181, 131, 22, 0.28);
+}
+.scouting-shadow-layout{
+display: grid;
+grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.34fr);
+gap: 0.85rem;
+align-items: stretch;
+}
+.scouting-shadow-pitch{
+position: relative;
+min-height: clamp(35rem, 62vw, 48rem);
+overflow: hidden;
+border-radius: 18px;
+background:
+radial-gradient(circle at 50% 10%, rgba(255, 255, 255, 0.18), transparent 20%),
+repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0 9%, rgba(255, 255, 255, 0.02) 9% 18%),
+linear-gradient(180deg, #244f3a, #153827);
+border: 1px solid rgba(255, 255, 255, 0.22);
+box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.18), 0 20px 48px rgba(31, 38, 44, 0.14);
+}
+.scouting-pitch-line{
+position: absolute;
+left: 8%;
+right: 8%;
+border: 1px solid rgba(255, 255, 255, 0.34);
+pointer-events: none;
+}
+.scouting-pitch-line.is-half{
+top: 50%;
+height: 0;
+}
+.scouting-pitch-line.is-box-top{
+top: 3%;
+height: 15%;
+border-radius: 0 0 18px 18px;
+border-top: 0;
+}
+.scouting-pitch-line.is-box-bottom{
+bottom: 3%;
+height: 15%;
+border-radius: 18px 18px 0 0;
+border-bottom: 0;
+}
+.scouting-shadow-slot{
+position: absolute;
+left: var(--x);
+top: var(--y);
+display: grid;
+gap: 0.14rem;
+width: min(10rem, 22vw);
+min-height: 4.35rem;
+padding: 0.55rem;
+border-radius: 14px;
+border: 1px solid rgba(255, 255, 255, 0.28);
+background: rgba(255, 255, 255, 0.16);
+color: #ffffff;
+box-shadow: 0 10px 26px rgba(0, 0, 0, 0.18);
+backdrop-filter: blur(8px);
+transform: translate(-50%, -50%);
+cursor: pointer;
+text-align: center;
+}
+.scouting-shadow-slot.is-filled{
+background: rgba(250, 250, 246, 0.92);
+color: #1d1d1f;
+border-color: rgba(255, 255, 255, 0.68);
+}
+.scouting-shadow-slot span,
+.scouting-shadow-slot em{
+font-size: 0.68rem;
+font-style: normal;
+font-weight: 850;
+letter-spacing: 0.05em;
+text-transform: uppercase;
+opacity: 0.76;
+}
+.scouting-shadow-slot strong{
+overflow: hidden;
+text-overflow: ellipsis;
+white-space: nowrap;
+font-size: 0.86rem;
+}
+.scouting-shadow-side{
+display: grid;
+gap: 0.75rem;
+}
+.scouting-shadow-card{
+display: grid;
+gap: 0.65rem;
+align-content: start;
+padding: 1rem;
+}
+.scouting-mini-list,
+.scouting-list-players{
+display: grid;
+gap: 0.42rem;
+}
+.scouting-mini-list button,
+.scouting-list-players button{
+display: flex;
+align-items: center;
+justify-content: space-between;
+gap: 0.75rem;
+width: 100%;
+padding: 0.55rem 0.62rem;
+border-radius: 9px;
+border: 1px solid rgba(29, 29, 31, 0.08);
+background: rgba(248, 249, 250, 0.92);
+color: #1d1d1f;
+font: inherit;
+font-weight: 820;
+cursor: pointer;
+}
+.scouting-mini-list button span,
+.scouting-list-players button span{
+color: #6e6e73;
+font-size: 0.72rem;
+font-weight: 760;
+}
+.scouting-lists-panel{
+display: grid;
+gap: 0.75rem;
+padding: 0.8rem;
+}
+.scouting-list-form{
+display: flex;
+gap: 0.5rem;
+align-items: center;
+}
+.scouting-list-form input{
+flex: 1;
+}
+.scouting-list-grid{
+display: grid;
+grid-template-columns: repeat(3, minmax(0, 1fr));
+gap: 0.72rem;
+}
+.scouting-list-card{
+display: grid;
+gap: 0.72rem;
+align-content: start;
+min-height: 16rem;
+padding: 0.9rem;
+border-radius: 11px;
+background: rgba(255, 255, 255, 0.94);
+border: 1px solid rgba(29, 29, 31, 0.08);
+}
+.scouting-list-card.is-featured{
+background:
+linear-gradient(155deg, rgba(255, 247, 214, 0.95), rgba(239, 246, 238, 0.95)),
+#fff8df;
+}
+.scouting-profile-backdrop{
+position: fixed;
+inset: 0;
+z-index: 70;
+display: grid;
+place-items: center;
+padding: clamp(0.8rem, 3vw, 2rem);
+background: rgba(11, 16, 24, 0.58);
+backdrop-filter: blur(8px);
+}
+.scouting-profile-modal{
+position: relative;
+display: grid;
+gap: 1rem;
+width: min(1180px, 100%);
+max-height: min(88vh, 58rem);
+overflow: auto;
+padding: clamp(1rem, 2vw, 1.35rem);
+border-radius: 18px;
+background:
+linear-gradient(160deg, rgba(255, 255, 255, 0.98), rgba(239, 244, 238, 0.96)),
+#ffffff;
+border: 1px solid rgba(255, 255, 255, 0.55);
+box-shadow: 0 28px 80px rgba(0, 0, 0, 0.28);
+}
+.scouting-profile-close{
+position: absolute;
+top: 0.9rem;
+right: 0.9rem;
+width: 2.25rem;
+height: 2.25rem;
+border-radius: 999px;
+border: 1px solid rgba(29, 29, 31, 0.1);
+background: rgba(255, 255, 255, 0.9);
+color: #1d1d1f;
+font-weight: 900;
+cursor: pointer;
+}
+.scouting-profile-head{
+display: grid;
+grid-template-columns: minmax(0, 1fr) auto;
+gap: 1rem;
+align-items: end;
+padding-right: 2.5rem;
+}
+.scouting-profile-head p{
+margin: 0.26rem 0 0;
+color: #6e6e73;
+}
+.scouting-profile-actions{
+display: flex;
+align-items: end;
+flex-wrap: wrap;
+gap: 0.45rem;
+}
+.scouting-profile-actions .scouting-primary-button,
+.scouting-profile-actions .scouting-star-button{
+min-height: 2.42rem;
+padding: 0.45rem 0.75rem;
+}
+.scouting-profile-grid{
+display: grid;
+grid-template-columns: minmax(16rem, 0.9fr) minmax(14rem, 0.72fr) minmax(14rem, 0.72fr);
+gap: 0.75rem;
+align-items: start;
+}
+.scouting-profile-radar,
+.scouting-profile-metrics,
+.scouting-season-table{
+border-radius: 12px;
+background: rgba(255, 255, 255, 0.74);
+border: 1px solid rgba(29, 29, 31, 0.08);
+padding: 0.85rem;
+}
+.scouting-profile-metrics h3,
+.scouting-season-table h3{
+margin: 0 0 0.65rem;
+color: #1d1d1f;
+}
+.scouting-radar{
+width: 100%;
+min-height: 20rem;
+}
+.scouting-radar-ring,
+.scouting-radar-axis{
+fill: none;
+stroke: rgba(35, 59, 45, 0.18);
+stroke-width: 1;
+}
+.scouting-radar-shape{
+fill: rgba(46, 109, 74, 0.24);
+stroke: #2e6d4a;
+stroke-width: 2.5;
+}
+.scouting-radar-dot{
+fill: #f4c95d;
+stroke: #203b2c;
+stroke-width: 1.4;
+}
+.scouting-radar-label{
+fill: #27352d;
+font-size: 0.52rem;
+font-weight: 850;
+text-anchor: middle;
+dominant-baseline: middle;
+}
+.scouting-radar-empty{
+display: grid;
+min-height: 18rem;
+place-items: center;
+color: #6e6e73;
+}
+.scouting-metric-stack{
+display: grid;
+gap: 0.45rem;
+}
+.scouting-metric-stack div{
+display: grid;
+grid-template-columns: minmax(0, 1fr) auto;
+gap: 0.18rem 0.5rem;
+padding: 0.52rem 0.58rem;
+border-radius: 9px;
+background: rgba(248, 249, 250, 0.86);
+}
+.scouting-metric-stack span,
+.scouting-metric-stack em{
+color: #6e6e73;
+font-size: 0.75rem;
+font-style: normal;
+}
+.scouting-metric-stack strong{
+color: #233b2d;
+}
+.scouting-metric-stack em{
+grid-column: 1 / -1;
+}
+.scouting-season-table{
+grid-column: 1 / -1;
+}
+.scouting-season-table div{
+overflow: auto;
+}
+.scouting-season-table table{
+width: 100%;
+border-collapse: collapse;
+font-size: 0.8rem;
+}
+.scouting-season-table th,
+.scouting-season-table td{
+padding: 0.52rem;
+border-bottom: 1px solid rgba(29, 29, 31, 0.08);
+text-align: left;
+white-space: nowrap;
+}
+.scouting-season-table th{
+color: #6e6e73;
+font-size: 0.68rem;
+letter-spacing: 0.05em;
+text-transform: uppercase;
+}
+@media (max-width: 980px){
+.scouting-hero,
+.scouting-command-bar{
+grid-template-columns: 1fr;
+}
+.scouting-hero{
+display: grid;
+}
+.scouting-metrics,
+.scouting-record-grid,
+.scouting-database-controls,
+.scouting-shadow-layout,
+.scouting-list-grid,
+.scouting-profile-head,
+.scouting-profile-grid,
+.scouting-target-form{
+grid-template-columns: 1fr;
+}
+.scouting-list-form,
+.scouting-profile-actions{
+align-items: stretch;
+flex-direction: column;
+}
+.scouting-target-form textarea{
+grid-column: auto;
+}
+.scouting-tools input{
+width: 100%;
+}
+.scouting-shadow-pitch{
+min-height: 38rem;
+}
+.scouting-shadow-slot{
+width: 7.5rem;
+}
+}
+body.is-dark-mode .scouting-command-bar,
+body.is-dark-mode .scouting-target-form,
+body.is-dark-mode .scouting-target-card,
+body.is-dark-mode .scouting-empty-panel{
+background: rgba(15, 23, 42, 0.82);
+border-color: rgba(148, 163, 184, 0.2);
+color: var(--ink);
+}
+body.is-dark-mode .scouting-tab,
+body.is-dark-mode .scouting-tools input,
+body.is-dark-mode .scouting-tools select,
+body.is-dark-mode .scouting-target-form input,
+body.is-dark-mode .scouting-target-form select,
+body.is-dark-mode .scouting-target-form textarea,
+body.is-dark-mode .scouting-target-actions select{
+background: rgba(30, 41, 59, 0.92);
+border-color: rgba(148, 163, 184, 0.22);
+color: var(--ink);
+}
+body.is-dark-mode .scouting-load-panel,
+body.is-dark-mode .scouting-database-panel,
+body.is-dark-mode .scouting-lists-panel,
+body.is-dark-mode .scouting-shadow-card,
+body.is-dark-mode .scouting-list-card,
+body.is-dark-mode .scouting-profile-modal,
+body.is-dark-mode .scouting-profile-radar,
+body.is-dark-mode .scouting-profile-metrics,
+body.is-dark-mode .scouting-season-table{
+background: rgba(15, 23, 42, 0.86);
+border-color: rgba(148, 163, 184, 0.2);
+color: var(--ink);
+}
+body.is-dark-mode .scouting-record-card{
+background: linear-gradient(160deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.92));
+border-color: rgba(148, 163, 184, 0.18);
+}
+body.is-dark-mode .scouting-database-controls input,
+body.is-dark-mode .scouting-database-controls select,
+body.is-dark-mode .scouting-list-form input,
+body.is-dark-mode .scouting-profile-actions select,
+body.is-dark-mode .scouting-profile-close,
+body.is-dark-mode .scouting-star-button,
+body.is-dark-mode .scouting-mini-list button,
+body.is-dark-mode .scouting-list-players button,
+body.is-dark-mode .scouting-metric-stack div{
+background: rgba(30, 41, 59, 0.92);
+border-color: rgba(148, 163, 184, 0.22);
+color: var(--ink);
+}
+body.is-dark-mode .scouting-load-panel h2,
+body.is-dark-mode .scouting-shadow-card h2,
+body.is-dark-mode .scouting-list-card h2,
+body.is-dark-mode .scouting-profile-head h2,
+body.is-dark-mode .scouting-profile-metrics h3,
+body.is-dark-mode .scouting-season-table h3,
+body.is-dark-mode .scouting-record-card-head strong,
+body.is-dark-mode .scouting-record-card-score strong,
+body.is-dark-mode .scouting-metric-stack strong{
+color: var(--ink);
+}
+body.is-dark-mode .scouting-load-panel p,
+body.is-dark-mode .scouting-shadow-card p,
+body.is-dark-mode .scouting-muted,
+body.is-dark-mode .scouting-result-summary,
+body.is-dark-mode .scouting-record-card-head span,
+body.is-dark-mode .scouting-record-card-meta,
+body.is-dark-mode .scouting-record-card-score span,
+body.is-dark-mode .scouting-mini-list button span,
+body.is-dark-mode .scouting-list-players button span,
+body.is-dark-mode .scouting-profile-head p,
+body.is-dark-mode .scouting-metric-stack span,
+body.is-dark-mode .scouting-metric-stack em,
+body.is-dark-mode .scouting-season-table th{
+color: var(--muted);
+}
+body.is-dark-mode .scouting-radar-ring,
+body.is-dark-mode .scouting-radar-axis{
+stroke: rgba(148, 163, 184, 0.28);
+}
+body.is-dark-mode .scouting-radar-label{
+fill: var(--ink);
+}
+body.is-dark-mode .scouting-target-main strong{
+color: var(--ink);
+}
+body.is-dark-mode .scouting-target-main span,
+body.is-dark-mode .scouting-note-line,
+body.is-dark-mode .scouting-fit-line{
+color: var(--muted);
+}

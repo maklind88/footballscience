@@ -18369,735 +18369,6 @@ body.is-session-printing .session-print-document{position:static !important;disp
 body.is-session-printing .session-print-page{width:var(--session-print-width) !important;height:var(--session-print-height) !important;max-width:none !important;max-height:var(--session-print-height) !important;margin:0 !important;overflow:hidden !important;box-shadow:none !important;border-radius:0 !important;break-after:page;break-inside:avoid;page-break-after:always;page-break-inside:avoid}
 body.is-session-printing .session-print-page:last-child{break-after:auto;page-break-after:auto}
 }
-.platform-scouting-view{
-background:
-linear-gradient(180deg, rgba(248, 249, 250, 0.98), rgba(235, 238, 241, 0.98)),
-#f5f5f7;
-}
-.scouting-workspace{
-width: min(1420px, 100%);
-margin: 0 auto;
-}
-.scouting-shell{
-display: grid;
-gap: 0.82rem;
-}
-.scouting-hero{
-display: flex;
-align-items: flex-end;
-justify-content: space-between;
-gap: 1rem;
-min-height: 6rem;
-padding: clamp(0.95rem, 2vw, 1.25rem);
-border-radius: 8px;
-color: #f9fafb;
-background:
-linear-gradient(135deg, rgba(20, 31, 28, 0.96), rgba(64, 75, 68, 0.94)),
-#1d2925;
-border: 1px solid rgba(255, 255, 255, 0.14);
-box-shadow: 0 18px 46px rgba(31, 38, 44, 0.14);
-}
-.scouting-hero h1{
-margin: 0.12rem 0 0;
-color: #ffffff;
-font-size: clamp(1.75rem, 3.2vw, 2.55rem);
-line-height: 1;
-letter-spacing: 0;
-}
-.scouting-hero .placeholder-tag{
-color: rgba(255, 255, 255, 0.68);
-}
-.scouting-metrics{
-display: grid;
-grid-template-columns: repeat(4, minmax(5.4rem, 1fr));
-gap: 0.5rem;
-width: min(32rem, 100%);
-}
-.scouting-metrics span{
-display: grid;
-gap: 0.18rem;
-min-height: 3.25rem;
-padding: 0.55rem 0.65rem;
-border-radius: 8px;
-color: rgba(255, 255, 255, 0.72);
-background: rgba(255, 255, 255, 0.1);
-border: 1px solid rgba(255, 255, 255, 0.14);
-font-size: 0.72rem;
-font-weight: 780;
-text-transform: uppercase;
-}
-.scouting-metrics strong{
-color: #ffffff;
-font-size: 1.05rem;
-}
-.scouting-board{
-display: grid;
-gap: 0.72rem;
-}
-.scouting-command-bar{
-display: grid;
-grid-template-columns: minmax(0, 1fr) auto;
-gap: 0.72rem;
-align-items: center;
-padding: 0.72rem;
-border-radius: 8px;
-background: rgba(255, 255, 255, 0.88);
-border: 1px solid rgba(29, 29, 31, 0.08);
-}
-.scouting-tabs,
-.scouting-tools{
-display: flex;
-align-items: center;
-flex-wrap: wrap;
-gap: 0.42rem;
-}
-.scouting-tab,
-.scouting-primary-button,
-.scouting-target-form button,
-.scouting-target-actions button{
-min-height: 2.35rem;
-border-radius: 8px;
-border: 1px solid rgba(29, 29, 31, 0.1);
-background: rgba(255, 255, 255, 0.9);
-color: #1d1d1f;
-font-weight: 850;
-cursor: pointer;
-}
-.scouting-tab{
-padding: 0.45rem 0.72rem;
-}
-.scouting-tab.is-active,
-.scouting-primary-button,
-.scouting-target-form button{
-color: #ffffff;
-background: #26362f;
-border-color: #26362f;
-}
-.scouting-tools input,
-.scouting-tools select,
-.scouting-target-form input,
-.scouting-target-form select,
-.scouting-target-form textarea,
-.scouting-target-actions select{
-min-height: 2.35rem;
-border-radius: 8px;
-border: 1px solid rgba(29, 29, 31, 0.12);
-background: #ffffff;
-color: #1d1d1f;
-font: inherit;
-font-size: 0.84rem;
-font-weight: 720;
-}
-.scouting-tools input,
-.scouting-tools select{
-padding: 0.48rem 0.65rem;
-}
-.scouting-tools input{
-width: min(16rem, 42vw);
-}
-.scouting-primary-button,
-.scouting-target-form button,
-.scouting-target-actions button{
-padding: 0.48rem 0.78rem;
-}
-.scouting-target-form{
-display: none;
-grid-template-columns: repeat(6, minmax(0, 1fr)) auto;
-gap: 0.5rem;
-align-items: start;
-padding: 0.72rem;
-border-radius: 8px;
-background: rgba(255, 255, 255, 0.92);
-border: 1px solid rgba(29, 29, 31, 0.08);
-}
-.scouting-target-form.is-open{
-display: grid;
-}
-.scouting-target-form input,
-.scouting-target-form select,
-.scouting-target-form textarea{
-width: 100%;
-min-width: 0;
-padding: 0.5rem 0.65rem;
-}
-.scouting-target-form textarea{
-grid-column: span 2;
-resize: vertical;
-}
-.scouting-content{
-display: grid;
-grid-template-columns: repeat(2, minmax(0, 1fr));
-gap: 0.7rem;
-}
-.scouting-target-card,
-.scouting-empty-panel{
-min-height: 8.25rem;
-border-radius: 8px;
-background: rgba(255, 255, 255, 0.92);
-border: 1px solid rgba(29, 29, 31, 0.08);
-box-shadow: 0 12px 30px rgba(31, 38, 44, 0.05);
-}
-.scouting-target-card{
-display: grid;
-gap: 0.65rem;
-padding: 0.82rem;
-}
-.scouting-target-main,
-.scouting-target-actions{
-display: flex;
-align-items: flex-start;
-justify-content: space-between;
-gap: 0.75rem;
-}
-.scouting-target-main strong{
-display: block;
-color: #1d1d1f;
-font-size: 1rem;
-}
-.scouting-target-main span,
-.scouting-note-line,
-.scouting-fit-line{
-color: #6e6e73;
-font-size: 0.84rem;
-line-height: 1.45;
-}
-.scouting-target-badges{
-display: flex;
-align-items: center;
-gap: 0.42rem;
-white-space: nowrap;
-}
-.scouting-priority-chip{
-padding: 0.28rem 0.48rem;
-border-radius: 999px;
-color: #203b2c;
-background: rgba(111, 191, 139, 0.18);
-border: 1px solid rgba(37, 119, 72, 0.14);
-font-weight: 860;
-}
-.scouting-fit-line,
-.scouting-note-line{
-margin: 0;
-overflow-wrap: anywhere;
-}
-.scouting-target-actions{
-align-items: center;
-}
-.scouting-target-actions select{
-padding: 0.42rem 0.56rem;
-}
-.scouting-target-actions button{
-width: 2.35rem;
-padding: 0;
-color: #8a1f11;
-background: rgba(254, 226, 226, 0.72);
-border-color: rgba(220, 38, 38, 0.22);
-}
-.scouting-content{
-display: block;
-}
-.scouting-load-panel,
-.scouting-database-panel,
-.scouting-lists-panel,
-.scouting-shadow-card{
-border-radius: 10px;
-background: rgba(255, 255, 255, 0.92);
-border: 1px solid rgba(29, 29, 31, 0.08);
-box-shadow: 0 14px 34px rgba(31, 38, 44, 0.06);
-}
-.scouting-load-panel{
-display: grid;
-gap: 0.45rem;
-min-height: 12rem;
-place-items: center;
-text-align: center;
-padding: 1.5rem;
-}
-.scouting-load-panel h2,
-.scouting-shadow-card h2,
-.scouting-list-card h2,
-.scouting-profile-head h2{
-margin: 0;
-color: #1d1d1f;
-line-height: 1.05;
-}
-.scouting-load-panel p,
-.scouting-shadow-card p,
-.scouting-muted{
-margin: 0;
-color: #6e6e73;
-line-height: 1.5;
-}
-.scouting-database-panel{
-display: grid;
-gap: 0.75rem;
-padding: 0.78rem;
-}
-.scouting-database-controls{
-display: grid;
-grid-template-columns: repeat(5, minmax(8rem, 1fr));
-gap: 0.58rem;
-}
-.scouting-database-controls label,
-.scouting-profile-actions label{
-display: grid;
-gap: 0.24rem;
-min-width: 0;
-color: #6e6e73;
-font-size: 0.68rem;
-font-weight: 850;
-letter-spacing: 0.04em;
-text-transform: uppercase;
-}
-.scouting-database-controls input,
-.scouting-database-controls select,
-.scouting-list-form input,
-.scouting-profile-actions select{
-width: 100%;
-min-width: 0;
-min-height: 2.42rem;
-padding: 0.5rem 0.62rem;
-border-radius: 8px;
-border: 1px solid rgba(29, 29, 31, 0.12);
-background: #ffffff;
-color: #1d1d1f;
-font: inherit;
-font-size: 0.82rem;
-font-weight: 760;
-}
-.scouting-result-summary{
-padding: 0.12rem 0.1rem;
-color: #5f665f;
-font-size: 0.82rem;
-font-weight: 850;
-}
-.scouting-record-grid{
-display: grid;
-grid-template-columns: repeat(3, minmax(0, 1fr));
-gap: 0.62rem;
-}
-.scouting-record-card{
-display: grid;
-gap: 0.72rem;
-min-height: 10.4rem;
-padding: 0.78rem;
-border-radius: 10px;
-background:
-linear-gradient(160deg, rgba(255, 255, 255, 0.98), rgba(242, 245, 240, 0.92)),
-#ffffff;
-border: 1px solid rgba(29, 29, 31, 0.08);
-box-shadow: 0 12px 28px rgba(31, 38, 44, 0.05);
-cursor: pointer;
-transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
-}
-.scouting-record-card:hover,
-.scouting-record-card:focus-visible{
-transform: translateY(-2px);
-border-color: rgba(39, 83, 64, 0.24);
-box-shadow: 0 18px 36px rgba(31, 38, 44, 0.1);
-outline: none;
-}
-.scouting-record-card-head,
-.scouting-record-card-meta,
-.scouting-record-card-score{
-display: flex;
-align-items: flex-start;
-justify-content: space-between;
-gap: 0.7rem;
-}
-.scouting-record-card-head strong{
-display: block;
-color: #1d1d1f;
-font-size: 1rem;
-line-height: 1.15;
-}
-.scouting-record-card-head span,
-.scouting-record-card-meta,
-.scouting-record-card-score span{
-color: #6e6e73;
-font-size: 0.78rem;
-line-height: 1.4;
-}
-.scouting-record-card-meta{
-flex-wrap: wrap;
-justify-content: flex-start;
-}
-.scouting-record-card-meta span{
-padding: 0.25rem 0.42rem;
-border-radius: 999px;
-background: rgba(29, 29, 31, 0.055);
-font-weight: 760;
-}
-.scouting-record-card-score{
-align-items: flex-end;
-margin-top: auto;
-}
-.scouting-record-card-score strong{
-color: #233b2d;
-font-size: 1.45rem;
-line-height: 1;
-}
-.scouting-star-button{
-min-width: 2.35rem;
-min-height: 2.35rem;
-border-radius: 999px;
-border: 1px solid rgba(29, 29, 31, 0.1);
-background: rgba(255, 255, 255, 0.9);
-color: #6e6e73;
-font-weight: 900;
-cursor: pointer;
-}
-.scouting-star-button.is-active{
-color: #825400;
-background: rgba(255, 214, 102, 0.28);
-border-color: rgba(181, 131, 22, 0.28);
-}
-.scouting-shadow-layout{
-display: grid;
-grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.34fr);
-gap: 0.85rem;
-align-items: stretch;
-}
-.scouting-shadow-pitch{
-position: relative;
-min-height: clamp(35rem, 62vw, 48rem);
-overflow: hidden;
-border-radius: 18px;
-background:
-radial-gradient(circle at 50% 10%, rgba(255, 255, 255, 0.18), transparent 20%),
-repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0 9%, rgba(255, 255, 255, 0.02) 9% 18%),
-linear-gradient(180deg, #244f3a, #153827);
-border: 1px solid rgba(255, 255, 255, 0.22);
-box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.18), 0 20px 48px rgba(31, 38, 44, 0.14);
-}
-.scouting-pitch-line{
-position: absolute;
-left: 8%;
-right: 8%;
-border: 1px solid rgba(255, 255, 255, 0.34);
-pointer-events: none;
-}
-.scouting-pitch-line.is-half{
-top: 50%;
-height: 0;
-}
-.scouting-pitch-line.is-box-top{
-top: 3%;
-height: 15%;
-border-radius: 0 0 18px 18px;
-border-top: 0;
-}
-.scouting-pitch-line.is-box-bottom{
-bottom: 3%;
-height: 15%;
-border-radius: 18px 18px 0 0;
-border-bottom: 0;
-}
-.scouting-shadow-slot{
-position: absolute;
-left: var(--x);
-top: var(--y);
-display: grid;
-gap: 0.14rem;
-width: min(10rem, 22vw);
-min-height: 4.35rem;
-padding: 0.55rem;
-border-radius: 14px;
-border: 1px solid rgba(255, 255, 255, 0.28);
-background: rgba(255, 255, 255, 0.16);
-color: #ffffff;
-box-shadow: 0 10px 26px rgba(0, 0, 0, 0.18);
-backdrop-filter: blur(8px);
-transform: translate(-50%, -50%);
-cursor: pointer;
-text-align: center;
-}
-.scouting-shadow-slot.is-filled{
-background: rgba(250, 250, 246, 0.92);
-color: #1d1d1f;
-border-color: rgba(255, 255, 255, 0.68);
-}
-.scouting-shadow-slot span,
-.scouting-shadow-slot em{
-font-size: 0.68rem;
-font-style: normal;
-font-weight: 850;
-letter-spacing: 0.05em;
-text-transform: uppercase;
-opacity: 0.76;
-}
-.scouting-shadow-slot strong{
-overflow: hidden;
-text-overflow: ellipsis;
-white-space: nowrap;
-font-size: 0.86rem;
-}
-.scouting-shadow-side{
-display: grid;
-gap: 0.75rem;
-}
-.scouting-shadow-card{
-display: grid;
-gap: 0.65rem;
-align-content: start;
-padding: 1rem;
-}
-.scouting-mini-list,
-.scouting-list-players{
-display: grid;
-gap: 0.42rem;
-}
-.scouting-mini-list button,
-.scouting-list-players button{
-display: flex;
-align-items: center;
-justify-content: space-between;
-gap: 0.75rem;
-width: 100%;
-padding: 0.55rem 0.62rem;
-border-radius: 9px;
-border: 1px solid rgba(29, 29, 31, 0.08);
-background: rgba(248, 249, 250, 0.92);
-color: #1d1d1f;
-font: inherit;
-font-weight: 820;
-cursor: pointer;
-}
-.scouting-mini-list button span,
-.scouting-list-players button span{
-color: #6e6e73;
-font-size: 0.72rem;
-font-weight: 760;
-}
-.scouting-lists-panel{
-display: grid;
-gap: 0.75rem;
-padding: 0.8rem;
-}
-.scouting-list-form{
-display: flex;
-gap: 0.5rem;
-align-items: center;
-}
-.scouting-list-form input{
-flex: 1;
-}
-.scouting-list-grid{
-display: grid;
-grid-template-columns: repeat(3, minmax(0, 1fr));
-gap: 0.72rem;
-}
-.scouting-list-card{
-display: grid;
-gap: 0.72rem;
-align-content: start;
-min-height: 16rem;
-padding: 0.9rem;
-border-radius: 11px;
-background: rgba(255, 255, 255, 0.94);
-border: 1px solid rgba(29, 29, 31, 0.08);
-}
-.scouting-list-card.is-featured{
-background:
-linear-gradient(155deg, rgba(255, 247, 214, 0.95), rgba(239, 246, 238, 0.95)),
-#fff8df;
-}
-.scouting-profile-backdrop{
-position: fixed;
-inset: 0;
-z-index: 70;
-display: grid;
-place-items: center;
-padding: clamp(0.8rem, 3vw, 2rem);
-background: rgba(11, 16, 24, 0.58);
-backdrop-filter: blur(8px);
-}
-.scouting-profile-modal{
-position: relative;
-display: grid;
-gap: 1rem;
-width: min(1180px, 100%);
-max-height: min(88vh, 58rem);
-overflow: auto;
-padding: clamp(1rem, 2vw, 1.35rem);
-border-radius: 18px;
-background:
-linear-gradient(160deg, rgba(255, 255, 255, 0.98), rgba(239, 244, 238, 0.96)),
-#ffffff;
-border: 1px solid rgba(255, 255, 255, 0.55);
-box-shadow: 0 28px 80px rgba(0, 0, 0, 0.28);
-}
-.scouting-profile-close{
-position: absolute;
-top: 0.9rem;
-right: 0.9rem;
-width: 2.25rem;
-height: 2.25rem;
-border-radius: 999px;
-border: 1px solid rgba(29, 29, 31, 0.1);
-background: rgba(255, 255, 255, 0.9);
-color: #1d1d1f;
-font-weight: 900;
-cursor: pointer;
-}
-.scouting-profile-head{
-display: grid;
-grid-template-columns: minmax(0, 1fr) auto;
-gap: 1rem;
-align-items: end;
-padding-right: 2.5rem;
-}
-.scouting-profile-head p{
-margin: 0.26rem 0 0;
-color: #6e6e73;
-}
-.scouting-profile-actions{
-display: flex;
-align-items: end;
-flex-wrap: wrap;
-gap: 0.45rem;
-}
-.scouting-profile-actions .scouting-primary-button,
-.scouting-profile-actions .scouting-star-button{
-min-height: 2.42rem;
-padding: 0.45rem 0.75rem;
-}
-.scouting-profile-grid{
-display: grid;
-grid-template-columns: minmax(16rem, 0.9fr) minmax(14rem, 0.72fr) minmax(14rem, 0.72fr);
-gap: 0.75rem;
-align-items: start;
-}
-.scouting-profile-radar,
-.scouting-profile-metrics,
-.scouting-season-table{
-border-radius: 12px;
-background: rgba(255, 255, 255, 0.74);
-border: 1px solid rgba(29, 29, 31, 0.08);
-padding: 0.85rem;
-}
-.scouting-profile-metrics h3,
-.scouting-season-table h3{
-margin: 0 0 0.65rem;
-color: #1d1d1f;
-}
-.scouting-radar{
-width: 100%;
-min-height: 20rem;
-}
-.scouting-radar-ring,
-.scouting-radar-axis{
-fill: none;
-stroke: rgba(35, 59, 45, 0.18);
-stroke-width: 1;
-}
-.scouting-radar-shape{
-fill: rgba(46, 109, 74, 0.24);
-stroke: #2e6d4a;
-stroke-width: 2.5;
-}
-.scouting-radar-dot{
-fill: #f4c95d;
-stroke: #203b2c;
-stroke-width: 1.4;
-}
-.scouting-radar-label{
-fill: #27352d;
-font-size: 0.52rem;
-font-weight: 850;
-text-anchor: middle;
-dominant-baseline: middle;
-}
-.scouting-radar-empty{
-display: grid;
-min-height: 18rem;
-place-items: center;
-color: #6e6e73;
-}
-.scouting-metric-stack{
-display: grid;
-gap: 0.45rem;
-}
-.scouting-metric-stack div{
-display: grid;
-grid-template-columns: minmax(0, 1fr) auto;
-gap: 0.18rem 0.5rem;
-padding: 0.52rem 0.58rem;
-border-radius: 9px;
-background: rgba(248, 249, 250, 0.86);
-}
-.scouting-metric-stack span,
-.scouting-metric-stack em{
-color: #6e6e73;
-font-size: 0.75rem;
-font-style: normal;
-}
-.scouting-metric-stack strong{
-color: #233b2d;
-}
-.scouting-metric-stack em{
-grid-column: 1 / -1;
-}
-.scouting-season-table{
-grid-column: 1 / -1;
-}
-.scouting-season-table div{
-overflow: auto;
-}
-.scouting-season-table table{
-width: 100%;
-border-collapse: collapse;
-font-size: 0.8rem;
-}
-.scouting-season-table th,
-.scouting-season-table td{
-padding: 0.52rem;
-border-bottom: 1px solid rgba(29, 29, 31, 0.08);
-text-align: left;
-white-space: nowrap;
-}
-.scouting-season-table th{
-color: #6e6e73;
-font-size: 0.68rem;
-letter-spacing: 0.05em;
-text-transform: uppercase;
-}
-@media (max-width: 980px){
-.scouting-hero,
-.scouting-command-bar{
-grid-template-columns: 1fr;
-}
-.scouting-hero{
-display: grid;
-}
-.scouting-metrics,
-.scouting-record-grid,
-.scouting-database-controls,
-.scouting-shadow-layout,
-.scouting-list-grid,
-.scouting-profile-head,
-.scouting-profile-grid,
-.scouting-target-form{
-grid-template-columns: 1fr;
-}
-.scouting-list-form,
-.scouting-profile-actions{
-align-items: stretch;
-flex-direction: column;
-}
-.scouting-target-form textarea{
-grid-column: auto;
-}
-.scouting-tools input{
-width: 100%;
-}
-.scouting-shadow-pitch{
-min-height: 38rem;
-}
-.scouting-shadow-slot{
-width: 7.5rem;
-}
-}
 body.is-dark-mode{
 color-scheme: dark;
 --bg: #0b1020;
@@ -19157,96 +18428,6 @@ body.is-dark-mode .platform-title h1:hover,
 body.is-dark-mode .platform-title h1:focus-visible{
 color: #93c5fd;
 background: rgba(59, 130, 246, 0.18);
-}
-body.is-dark-mode .scouting-command-bar,
-body.is-dark-mode .scouting-target-form,
-body.is-dark-mode .scouting-target-card,
-body.is-dark-mode .scouting-empty-panel{
-background: rgba(15, 23, 42, 0.82);
-border-color: rgba(148, 163, 184, 0.2);
-color: var(--ink);
-}
-body.is-dark-mode .scouting-tab,
-body.is-dark-mode .scouting-tools input,
-body.is-dark-mode .scouting-tools select,
-body.is-dark-mode .scouting-target-form input,
-body.is-dark-mode .scouting-target-form select,
-body.is-dark-mode .scouting-target-form textarea,
-body.is-dark-mode .scouting-target-actions select{
-background: rgba(30, 41, 59, 0.92);
-border-color: rgba(148, 163, 184, 0.22);
-color: var(--ink);
-}
-body.is-dark-mode .scouting-load-panel,
-body.is-dark-mode .scouting-database-panel,
-body.is-dark-mode .scouting-lists-panel,
-body.is-dark-mode .scouting-shadow-card,
-body.is-dark-mode .scouting-list-card,
-body.is-dark-mode .scouting-profile-modal,
-body.is-dark-mode .scouting-profile-radar,
-body.is-dark-mode .scouting-profile-metrics,
-body.is-dark-mode .scouting-season-table{
-background: rgba(15, 23, 42, 0.86);
-border-color: rgba(148, 163, 184, 0.2);
-color: var(--ink);
-}
-body.is-dark-mode .scouting-record-card{
-background: linear-gradient(160deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.92));
-border-color: rgba(148, 163, 184, 0.18);
-}
-body.is-dark-mode .scouting-database-controls input,
-body.is-dark-mode .scouting-database-controls select,
-body.is-dark-mode .scouting-list-form input,
-body.is-dark-mode .scouting-profile-actions select,
-body.is-dark-mode .scouting-profile-close,
-body.is-dark-mode .scouting-star-button,
-body.is-dark-mode .scouting-mini-list button,
-body.is-dark-mode .scouting-list-players button,
-body.is-dark-mode .scouting-metric-stack div{
-background: rgba(30, 41, 59, 0.92);
-border-color: rgba(148, 163, 184, 0.22);
-color: var(--ink);
-}
-body.is-dark-mode .scouting-load-panel h2,
-body.is-dark-mode .scouting-shadow-card h2,
-body.is-dark-mode .scouting-list-card h2,
-body.is-dark-mode .scouting-profile-head h2,
-body.is-dark-mode .scouting-profile-metrics h3,
-body.is-dark-mode .scouting-season-table h3,
-body.is-dark-mode .scouting-record-card-head strong,
-body.is-dark-mode .scouting-record-card-score strong,
-body.is-dark-mode .scouting-metric-stack strong{
-color: var(--ink);
-}
-body.is-dark-mode .scouting-load-panel p,
-body.is-dark-mode .scouting-shadow-card p,
-body.is-dark-mode .scouting-muted,
-body.is-dark-mode .scouting-result-summary,
-body.is-dark-mode .scouting-record-card-head span,
-body.is-dark-mode .scouting-record-card-meta,
-body.is-dark-mode .scouting-record-card-score span,
-body.is-dark-mode .scouting-mini-list button span,
-body.is-dark-mode .scouting-list-players button span,
-body.is-dark-mode .scouting-profile-head p,
-body.is-dark-mode .scouting-metric-stack span,
-body.is-dark-mode .scouting-metric-stack em,
-body.is-dark-mode .scouting-season-table th{
-color: var(--muted);
-}
-body.is-dark-mode .scouting-radar-ring,
-body.is-dark-mode .scouting-radar-axis{
-stroke: rgba(148, 163, 184, 0.28);
-}
-body.is-dark-mode .scouting-radar-label{
-fill: var(--ink);
-}
-body.is-dark-mode .scouting-target-main strong{
-color: var(--ink);
-}
-body.is-dark-mode .scouting-target-main span,
-body.is-dark-mode .scouting-note-line,
-body.is-dark-mode .scouting-fit-line{
-color: var(--muted);
 }
 body.is-dark-mode .platform-nav-item{
 color: var(--ink);
@@ -19771,8 +18952,6 @@ background: rgba(15, 23, 42, 0.9);
 body.is-dark-mode .login-error{
 color: #fb7185;
 }
-
-/* Dark mode finish layer: keep late module CSS from leaking bright surfaces. */
 body.is-dark-mode{
 --dark-app-bg: #080c12;
 --dark-surface: rgba(13, 20, 28, 0.94);
@@ -20169,4 +19348,373 @@ background: rgba(255, 255, 255, 0.12) !important;
 }
 body.is-dark-mode .medical-modal-backdrop{
 background: rgba(3, 7, 12, 0.72) !important;
+}
+
+body.is-dark-mode .platform-player-profiles-view .squad-board-shell{
+color: var(--dark-text) !important;
+}
+body.is-dark-mode .platform-player-profiles-view :is(
+.squad-command-bar,
+.squad-command-tools,
+.squad-table-wrap,
+.squad-table th,
+.squad-profile-section,
+.squad-profile-identity,
+.squad-add-player-card,
+.squad-profile-tabs,
+.squad-profile-strip div,
+.squad-rating-grid label,
+.squad-idp-editor,
+.squad-data-editor,
+.squad-notes-editor,
+.squad-snapshot-grid div,
+.squad-change-history-grid section,
+.squad-change-row,
+.squad-change-diff span,
+.squad-depth-board,
+.squad-idp-overview,
+.squad-depth-lane,
+.squad-depth-lane button,
+.squad-idp-item,
+.squad-profile-modal,
+.player-role-dna-panel,
+.player-role-dna-card,
+.player-role-dna-match-list button,
+.player-role-dna-list li,
+.squad-intelligence-panel,
+.squad-risk-map span,
+.squad-intel-card,
+.squad-intel-role-chip,
+.squad-intel-dev-card,
+.squad-intel-actions li,
+.squad-intel-recruit-card,
+.squad-intel-empty,
+.squad-data-foundation-panel,
+.squad-data-metrics span,
+.squad-data-card,
+.squad-data-schema-list strong,
+.squad-data-contract-list strong,
+.squad-data-quality-row,
+.squad-data-import-note,
+.squad-data-import-history-row,
+.squad-data-empty,
+.squad-formation-panel,
+.squad-formation-scoreboard span,
+.squad-formation-insights span,
+.squad-formation-slot,
+.squad-formation-slot-meta span,
+.squad-formation-candidate,
+.squad-comparison-panel,
+.squad-compare-card,
+.squad-compare-facts span,
+.squad-compare-note span,
+.squad-comparison-panel,
+.squad-compare-controls select,
+.squad-compare-select select
+){
+background: var(--dark-surface-soft) !important;
+border-color: var(--dark-line) !important;
+box-shadow: 0 14px 34px rgba(0, 0, 0, 0.22) !important;
+color: var(--dark-text) !important;
+}
+body.is-dark-mode .platform-player-profiles-view :is(.squad-table td,.squad-player-row){
+background: rgba(13, 20, 28, 0.78) !important;
+border-color: var(--dark-line) !important;
+color: var(--dark-text) !important;
+}
+body.is-dark-mode .platform-player-profiles-view :is(.squad-player-row:hover,.squad-player-row:focus-visible,.squad-player-row.is-selected){
+background: rgba(33, 62, 50, 0.72) !important;
+}
+body.is-dark-mode .platform-player-profiles-view :is(
+.squad-command-bar h1,
+.squad-command-list-summary strong,
+.squad-section-head h2,
+.squad-board-section-head h2,
+.squad-player-cell strong,
+.squad-profile-identity h2,
+.squad-profile-strip strong,
+.squad-snapshot-grid strong,
+.squad-rating-grid strong,
+.squad-change-history-grid h3,
+.squad-change-row strong,
+.squad-change-diff small,
+.squad-idp-item strong,
+.player-role-dna-panel > header h2,
+.player-role-dna-bar strong,
+.squad-intelligence-panel > header h2,
+.squad-risk-map strong,
+.squad-intel-recruit-card strong,
+.squad-intel-dev-card strong,
+.squad-intel-actions strong,
+.squad-data-foundation-panel > header h2,
+.squad-data-metrics strong,
+.squad-data-quality-row strong,
+.squad-data-import-history-row strong,
+.squad-formation-panel > header h2,
+.squad-formation-slot h3,
+.squad-formation-slot-meta strong,
+.squad-formation-player strong,
+.squad-formation-fit strong,
+.squad-formation-scoreboard strong,
+.squad-formation-insights strong,
+.squad-comparison-panel > header h2,
+.squad-compare-card h3,
+.squad-compare-facts strong,
+.squad-compare-note strong
+){
+color: var(--dark-text) !important;
+}
+body.is-dark-mode .platform-player-profiles-view :is(
+.squad-command-bar p,
+.squad-command-bar span,
+.squad-command-list-summary span,
+.squad-section-head p,
+.squad-section-head span,
+.squad-board-section-head p,
+.squad-board-section-head span,
+.squad-player-cell small,
+.squad-completion-label,
+.squad-profile-identity p,
+.squad-profile-identity header span,
+.squad-profile-strip span,
+.squad-snapshot-grid span,
+.squad-note-grid p,
+.squad-change-row span,
+.squad-change-diff b,
+.squad-change-empty,
+.squad-depth-lane header span,
+.squad-depth-lane p,
+.squad-depth-lane button small,
+.squad-empty-row,
+.squad-idp-empty,
+.player-role-dna-panel > header p,
+.player-role-dna-panel > header span,
+.player-role-dna-card > span,
+.player-role-dna-bar small,
+.squad-intelligence-panel > header p,
+.squad-intelligence-panel > header span,
+.squad-risk-map span,
+.squad-intel-card > span,
+.squad-intel-role-chip span,
+.squad-intel-dev-card small,
+.squad-intel-recruit-card span,
+.squad-intel-recruit-card small,
+.squad-intel-actions span,
+.squad-intel-actions small,
+.squad-data-foundation-panel > header p,
+.squad-data-foundation-panel > header span,
+.squad-data-metrics span,
+.squad-data-card > span,
+.squad-data-quality-row span,
+.squad-data-import-note,
+.squad-data-import-history-row span,
+.squad-data-import-history-row small,
+.squad-data-empty,
+.squad-formation-panel > header p,
+.squad-formation-panel > header span,
+.squad-formation-picker span,
+.squad-formation-slot header span,
+.squad-formation-slot-meta span,
+.squad-formation-candidate small,
+.squad-formation-player small,
+.squad-formation-player em,
+.squad-formation-fit small,
+.squad-comparison-panel > header p,
+.squad-comparison-panel > header span,
+.squad-compare-card small,
+.squad-compare-controls span,
+.squad-compare-select span,
+.squad-compare-rating-row
+){
+color: var(--dark-muted) !important;
+}
+body.is-dark-mode .platform-player-profiles-view :is(.squad-list-tools input,.squad-list-tools select,.squad-profile-form input,.squad-profile-form select,.squad-profile-form textarea,.squad-formation-picker select,.squad-compare-controls select,.squad-compare-select select){
+background: rgba(6, 12, 18, 0.84) !important;
+border-color: var(--dark-line-strong) !important;
+color: var(--dark-text) !important;
+}
+body.is-dark-mode .platform-player-profiles-view :is(.squad-command-tabs,.squad-profile-tabs){
+background: rgba(255, 255, 255, 0.06) !important;
+}
+body.is-dark-mode .platform-player-profiles-view :is(.squad-command-tabs span:first-child,.squad-profile-tabs button.is-active,.squad-add-player-trigger,.squad-profile-form button,.squad-data-actions button,.squad-data-import-history-action){
+background: linear-gradient(180deg, #2c8b62, #1c684e) !important;
+border-color: rgba(129, 210, 159, 0.34) !important;
+color: #fff !important;
+}
+body.is-dark-mode .platform-player-profiles-view :is(.squad-role-stack span,.squad-option-pill,.squad-roster-pill,.squad-status-pill,.squad-medical-cell,.squad-player-temporary-meta){
+background: rgba(148, 163, 184, 0.14) !important;
+border-color: rgba(203, 213, 225, 0.2) !important;
+color: #d5e3ec !important;
+}
+body.is-dark-mode .platform-player-profiles-view :is(.squad-roster-pill.is-squad,.squad-status-pill.is-available){
+background: rgba(47, 143, 107, 0.2) !important;
+border-color: rgba(129, 210, 159, 0.34) !important;
+color: #c6f6d5 !important;
+}
+body.is-dark-mode .platform-player-profiles-view :is(.squad-status-pill.is-managed,.squad-status-pill.is-rehab){
+background: rgba(190, 125, 35, 0.2) !important;
+border-color: rgba(248, 211, 107, 0.34) !important;
+color: #fde68a !important;
+}
+body.is-dark-mode .platform-player-profiles-view .squad-status-pill.is-unavailable{
+background: rgba(150, 37, 37, 0.24) !important;
+border-color: rgba(248, 113, 113, 0.34) !important;
+color: #fecaca !important;
+}
+
+body.is-dark-mode .platform-schedule-view{
+--schedule-event-bg: rgba(112, 127, 145, 0.16);
+--schedule-event-bg-strong: rgba(148, 163, 184, 0.18);
+--schedule-event-border: rgba(203, 213, 225, 0.2);
+--schedule-event-solid: #9fb2c1;
+--schedule-event-text: #d7e8f2;
+}
+body.is-dark-mode .platform-schedule-view .is-main-training,
+body.is-dark-mode .platform-schedule-view .schedule-event-pill.is-training,
+body.is-dark-mode .platform-schedule-view .schedule-event-card.is-training{
+--schedule-event-bg: rgba(69, 139, 206, 0.24);
+--schedule-event-bg-strong: rgba(96, 165, 250, 0.22);
+--schedule-event-border: rgba(147, 197, 253, 0.34);
+--schedule-event-solid: #60a5fa;
+--schedule-event-text: #dbeafe;
+}
+body.is-dark-mode .platform-schedule-view .is-main-match,
+body.is-dark-mode .platform-schedule-view .schedule-event-pill.is-match,
+body.is-dark-mode .platform-schedule-view .schedule-event-card.is-match{
+--schedule-event-bg: rgba(190, 65, 65, 0.25);
+--schedule-event-bg-strong: rgba(248, 113, 113, 0.22);
+--schedule-event-border: rgba(248, 113, 113, 0.36);
+--schedule-event-solid: #f87171;
+--schedule-event-text: #fee2e2;
+}
+body.is-dark-mode .platform-schedule-view .is-main-meeting,
+body.is-dark-mode .platform-schedule-view .schedule-event-pill.is-meeting,
+body.is-dark-mode .platform-schedule-view .schedule-event-card.is-meeting{
+--schedule-event-bg: rgba(147, 93, 196, 0.25);
+--schedule-event-bg-strong: rgba(196, 181, 253, 0.2);
+--schedule-event-border: rgba(196, 181, 253, 0.34);
+--schedule-event-solid: #c4b5fd;
+--schedule-event-text: #ede9fe;
+}
+body.is-dark-mode .platform-schedule-view .is-main-travel,
+body.is-dark-mode .platform-schedule-view .schedule-event-pill.is-travel,
+body.is-dark-mode .platform-schedule-view .schedule-event-card.is-travel{
+--schedule-event-bg: rgba(190, 125, 35, 0.26);
+--schedule-event-bg-strong: rgba(251, 191, 36, 0.22);
+--schedule-event-border: rgba(251, 191, 36, 0.36);
+--schedule-event-solid: #fbbf24;
+--schedule-event-text: #fef3c7;
+}
+body.is-dark-mode .platform-schedule-view .is-main-recovery,
+body.is-dark-mode .platform-schedule-view .schedule-event-pill.is-recovery,
+body.is-dark-mode .platform-schedule-view .schedule-event-card.is-recovery{
+--schedule-event-bg: rgba(38, 145, 150, 0.24);
+--schedule-event-bg-strong: rgba(94, 234, 212, 0.18);
+--schedule-event-border: rgba(94, 234, 212, 0.34);
+--schedule-event-solid: #5eead4;
+--schedule-event-text: #ccfbf1;
+}
+body.is-dark-mode .platform-schedule-view :is(.schedule-board-card,.schedule-day-card,.schedule-overview-month,.schedule-week-day,.schedule-day-button,.schedule-day-summary-grid article,.schedule-event-form,.schedule-empty-state,.schedule-admin-actions button){
+background: var(--dark-surface-soft) !important;
+border-color: var(--dark-line) !important;
+box-shadow: 0 16px 40px rgba(0, 0, 0, 0.24) !important;
+color: var(--dark-text) !important;
+}
+body.is-dark-mode .platform-schedule-view :is(.schedule-week-day.has-events,.schedule-day-button.has-events,.schedule-overview-day.has-events){
+background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)), var(--schedule-event-bg) !important;
+border-color: var(--schedule-event-border) !important;
+color: var(--schedule-event-text) !important;
+}
+body.is-dark-mode .platform-schedule-view :is(.schedule-week-day.is-selected,.schedule-day-button.is-selected,.schedule-overview-day.is-selected){
+background: linear-gradient(180deg, rgba(47, 143, 107, 0.34), rgba(31, 80, 61, 0.3)) !important;
+border-color: rgba(129, 210, 159, 0.42) !important;
+color: #ffffff !important;
+}
+body.is-dark-mode .platform-schedule-view :is(.schedule-day-button.is-muted,.schedule-overview-day.is-muted){
+background: rgba(20, 28, 36, 0.62) !important;
+color: rgba(215, 232, 242, 0.55) !important;
+opacity: 0.78 !important;
+}
+body.is-dark-mode .platform-schedule-view :is(.schedule-weekdays,.schedule-overview-weekdays,.schedule-day-card-head .placeholder-tag,.schedule-day-summary-grid span,.schedule-day-summary-grid small,.schedule-event-card span,.schedule-event-card p,.schedule-event-form label){
+color: var(--dark-muted) !important;
+}
+body.is-dark-mode .platform-schedule-view :is(.schedule-title,.schedule-day-card h2,.schedule-overview-month h3,.schedule-day-summary-grid strong,.schedule-event-card strong,.schedule-day-number){
+color: var(--dark-text) !important;
+}
+body.is-dark-mode .platform-schedule-view :is(.schedule-event-pill,.schedule-more-pill,.schedule-week-event-summary,.schedule-event-card,.schedule-event-actions button,.schedule-day-link-actions button + button){
+background: rgba(255, 255, 255, 0.08) !important;
+border-color: var(--dark-line) !important;
+color: var(--schedule-event-text, var(--dark-text)) !important;
+}
+body.is-dark-mode .platform-schedule-view .schedule-day-link-actions button,
+body.is-dark-mode .platform-schedule-view .schedule-form-actions button[type="submit"]{
+background: linear-gradient(180deg, #2c8b62, #1c684e) !important;
+border-color: rgba(129, 210, 159, 0.34) !important;
+color: #ffffff !important;
+}
+body.is-dark-mode .platform-schedule-view :is(.schedule-event-form input,.schedule-event-form select,.schedule-event-form textarea){
+background: rgba(6, 12, 18, 0.84) !important;
+border-color: var(--dark-line-strong) !important;
+color: var(--dark-text) !important;
+}
+
+body.is-dark-mode .platform-periodization-view :is(.periodization-hero-card,.periodization-toolbar,.periodization-card,.periodization-board,.periodization-board-head,.periodization-microcycle-card,.periodization-day-panel,.periodization-picker-button,.periodization-day-view-hero > div,.periodization-view-section,.periodization-form-section,.periodization-field,.periodization-choice-menu,.periodization-edit-context){
+background: var(--dark-surface-soft) !important;
+border-color: var(--dark-line) !important;
+box-shadow: 0 16px 40px rgba(0, 0, 0, 0.24) !important;
+color: var(--dark-text) !important;
+}
+body.is-dark-mode .platform-periodization-view .periodization-hero-card{
+background:
+radial-gradient(circle at 86% 12%, rgba(129, 210, 159, 0.18), transparent 21rem),
+linear-gradient(135deg, rgba(19, 31, 39, 0.98), rgba(10, 16, 23, 0.96)) !important;
+}
+body.is-dark-mode .platform-periodization-view .periodization-microcycle-head{
+background: linear-gradient(135deg, #173a42, #0b1a25) !important;
+color: #fff !important;
+}
+body.is-dark-mode .platform-periodization-view .periodization-day-card{
+background: rgba(13, 20, 28, 0.88) !important;
+border-color: var(--dark-line) !important;
+color: var(--dark-text) !important;
+}
+body.is-dark-mode .platform-periodization-view .periodization-day-card.is-match{
+background: linear-gradient(180deg, rgba(150, 37, 37, 0.26), rgba(13, 20, 28, 0.9)) !important;
+}
+body.is-dark-mode .platform-periodization-view .periodization-day-card.is-travel{
+background: linear-gradient(180deg, rgba(190, 125, 35, 0.26), rgba(13, 20, 28, 0.9)) !important;
+}
+body.is-dark-mode .platform-periodization-view .periodization-day-card.is-off{
+background: linear-gradient(180deg, rgba(95, 108, 125, 0.24), rgba(13, 20, 28, 0.86)) !important;
+color: var(--dark-muted) !important;
+}
+body.is-dark-mode .platform-periodization-view :is(.periodization-day-card.is-recovery,.periodization-day-card.is-low){
+background: linear-gradient(180deg, rgba(38, 145, 150, 0.22), rgba(13, 20, 28, 0.9)) !important;
+}
+body.is-dark-mode .platform-periodization-view :is(.periodization-day-detail,.periodization-microcycle-metric,.periodization-microcycle-load-rail,.periodization-load-gauge,.periodization-field-multi,.periodization-multi-trigger,.periodization-choice-option,.periodization-view-item){
+background: rgba(255, 255, 255, 0.07) !important;
+border-color: var(--dark-line) !important;
+box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04) !important;
+color: var(--dark-text) !important;
+}
+body.is-dark-mode .platform-periodization-view :is(.periodization-window-label,.periodization-hero-copy,.periodization-board-head span,.periodization-board-head p,.periodization-microcycle-head span,.periodization-microcycle-head p,.periodization-day-panel-head span,.periodization-day-topline strong,.periodization-day-detail small,.periodization-card-muted,.periodization-field span,.periodization-view-item span,.periodization-picker-button span){
+color: var(--dark-muted) !important;
+}
+body.is-dark-mode .platform-periodization-view :is(.periodization-board-head h2,.periodization-day-panel-head h2,.periodization-day-main,.periodization-day-detail strong,.periodization-view-item strong,.periodization-microcycle-head strong,.periodization-microcycle-metric strong,.periodization-picker-button,.periodization-day-topline span){
+color: var(--dark-text) !important;
+}
+body.is-dark-mode .platform-periodization-view :is(.periodization-month-select,.periodization-field input,.periodization-field select,.periodization-field textarea){
+background: rgba(6, 12, 18, 0.84) !important;
+border-color: var(--dark-line-strong) !important;
+color: var(--dark-text) !important;
+}
+body.is-dark-mode .platform-periodization-view :is(.periodization-picker-button.is-active,.periodization-choice-option:has(input:checked)){
+background: rgba(129, 210, 159, 0.18) !important;
+border-color: rgba(129, 210, 159, 0.38) !important;
+color: #f8fff9 !important;
+}
+body.is-dark-mode .platform-session-view :is(.session-multiselect-trigger,.session-multiselect-menu,.session-multiselect-option){
+background: rgba(6, 12, 18, 0.84) !important;
+border-color: var(--dark-line-strong) !important;
+color: var(--dark-text) !important;
 }

@@ -71852,7 +71852,6 @@ function shouldIgnoreSimulatorTextOrModifierTarget(event) { const t = event?.tar
 
 async function ensureGameSimulatorControllers() {
   if (gameSimulatorWorkspaceController) return;
-
   if (!gameSimulatorControllersPromise) {
     gameSimulatorControllersPromise = import("./src/modules/game-simulator/controllers.mjs")
       .then(({ createSimulatorControllers }) => {
@@ -71869,10 +71868,7 @@ async function ensureGameSimulatorControllers() {
           getKeyboardActionMode: () => state.keyboardActionMode,
           hasActiveMetricTooltip: () => Boolean(activeMetricTooltipTarget && !ui.metricTooltip?.hidden),
           log: (message) => logEvent(message),
-          onActionModeChanged: () => {
-            updateModeButtons();
-            render();
-          },
+          onActionModeChanged: () => { updateModeButtons(); render(); },
           render,
           renderWorkspaceChrome,
           syncFullscreen: syncPitchFullscreenButton,
@@ -71891,9 +71887,7 @@ async function ensureGameSimulatorControllers() {
 
         gameSimulatorFullscreenController = controllers.fullscreenController;
         gameSimulatorKeyboardState = controllers.keyboardState; gameSimulatorWorkspaceController = controllers.workspaceController;
-
         controllers.controlBindings.bind();
-
         syncGameSimulatorIntroState();
         syncPitchFullscreenButton();
         updatePitchFullscreenHudLayout();
@@ -71903,7 +71897,6 @@ async function ensureGameSimulatorControllers() {
         throw error;
       });
   }
-
   return gameSimulatorControllersPromise;
 }
 

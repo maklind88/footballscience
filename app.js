@@ -25301,6 +25301,7 @@ function getPlayerProfileImportUndoState() {
     return {
       canUndo: false,
       reason: "No player profile import can be undone right now.",
+      summary: "",
       title: "No import available to undo.",
       label: "Undo import",
     };
@@ -25312,6 +25313,7 @@ function getPlayerProfileImportUndoState() {
     return {
       canUndo: false,
       reason: "Undo blocked because newer player profile changes were made after this import.",
+      summary: "",
       title: "Undo is no longer safe. Newer profile changes were made after the import.",
       label: "Undo import",
     };
@@ -25331,6 +25333,7 @@ function getPlayerProfileImportUndoState() {
       + ` Applied by ${appliedBy}${appliedAtLabel ? ` • ${appliedAtLabel}` : ""}`,
     label: importedCount ? `Undo import (${importedCount})` : "Undo import",
     reason: "",
+    summary: `Undo is available for ${importedCount} records (${createdCount} created, ${updatedCount} updated).`,
   };
 }
 
@@ -25748,6 +25751,8 @@ function renderSquadDataFoundationPanel() {
   const report = buildSquadDataQualityReport();
   const payload = buildSquadDataFoundationPayload();
   const importUndoState = getPlayerProfileImportUndoState();
+  const importUndoMeta = String(importUndoState.canUndo ? (importUndoState.summary || "") : (importUndoState.reason || "")).trim();
+  const importUndoMetaTone = importUndoState.canUndo ? "is-success" : "is-warning";
 
   return `
     <section class="squad-data-foundation-panel" aria-label="Squad data foundation">
@@ -25820,6 +25825,7 @@ function renderSquadDataFoundationPanel() {
             </button>
             <input type="file" accept="application/json,.json" data-squad-data-import-file hidden />
           </div>
+          ${importUndoMeta ? `<small class="squad-data-import-note ${importUndoMetaTone}">${escapeHtml(importUndoMeta)}</small>` : ""}
         </article>
       </div>
     </section>

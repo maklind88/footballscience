@@ -17052,6 +17052,30 @@ select{
   color: #1d1d1f;
 }
 
+.squad-data-import-note{
+  margin: 0.2rem 0 0;
+  padding: 0.55rem;
+  border: 1px solid rgba(29, 29, 31, 0.13);
+  border-radius: 8px;
+  background: rgba(245, 245, 247, 0.86);
+  color: #6e6e73;
+  font-size: 0.7rem;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.squad-data-import-note.is-warning{
+  border-color: rgba(217, 45, 32, 0.32);
+  background: rgba(255, 234, 232, 0.72);
+  color: #a61b12;
+}
+
+.squad-data-import-note.is-success{
+  border-color: rgba(16, 157, 89, 0.32);
+  background: rgba(225, 247, 234, 0.72);
+  color: #0c6e3f;
+}
+
 .squad-data-empty{
   display: block;
   padding: 0.62rem;

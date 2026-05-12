@@ -26,9 +26,27 @@ For a dedicated fast/safe split:
 ```bash
 # Fast changes (frontend/CSS/docs/low risk): fast validation
 npm run release:ship:fast -- --stage-all --commit "ui: polish dashboard widgets" --push --deploy
+  # or if files are already staged:
+  # npm run release:ship:fast:deploy
 
 # Safe changes (API/data/core/modules/security): full safety gate
 npm run release:ship:safe -- --stage-all --commit "server: tighten module contract checks" --push --deploy
+  # or if files are already staged:
+  # npm run release:ship:safe:deploy
+```
+
+If your day has only low-risk visual adjustments, a practical pattern is:
+
+```bash
+git add -A
+npm run release:ship:fast:deploy -- --commit "chore: fast release polish"
+```
+
+For higher-risk changes:
+
+```bash
+git add -A
+npm run release:ship:safe:deploy -- --commit "feat: release-safe module change"
 ```
 
 The script runs QA before pushing, pushes the current branch, runs the release gate, deploys to Vercel production, and runs postdeploy verification. It stops before deployment if the working tree is dirty or any check fails.

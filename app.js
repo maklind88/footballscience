@@ -1596,6 +1596,7 @@ const topIconMenuOrder = [
   "analysis-room",
   "staff",
   "medical-team",
+  "admin",
   "team-identity",
   "game-simulator",
 ];
@@ -9843,6 +9844,7 @@ function getTopIconLabel(workspace) {
     "analysis-room": "Analysis",
     staff: "Team",
     "medical-team": "Medical",
+    admin: "Admin",
     "team-identity": "Identity",
     "game-simulator": "Game",
   };
@@ -9854,7 +9856,7 @@ function renderTopIconMenu() {
   }
   const workspaces = topIconMenuOrder
     .map((workspaceId) => getWorkspaceById(workspaceId))
-    .filter((workspace) => workspace && (!workspace.hiddenFromNav || workspace.id === "home"));
+    .filter((workspace) => workspace && canCurrentUserAccessWorkspace(workspace) && (!workspace.hiddenFromNav || workspace.id === "home"));
   const hasHomeNotification = hasDashboardHomeNotifications();
   const nextMarkup = workspaces
     .map((workspace) => {

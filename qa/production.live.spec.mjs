@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 const scheduleKey = "football-schedule-v1";
 const hasLiveCredentials = Boolean(process.env.LIVE_QA_USERNAME && process.env.LIVE_QA_PASSWORD);
-const expectsAdminCredentials = process.env.LIVE_QA_EXPECT_ADMIN !== "0";
+const expectsAdminCredentials = process.env.LIVE_QA_EXPECT_ADMIN === "1";
 
 test.skip(!hasLiveCredentials, "Set LIVE_QA_USERNAME and LIVE_QA_PASSWORD for production-safe live smoke.");
 

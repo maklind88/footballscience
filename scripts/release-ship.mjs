@@ -136,6 +136,12 @@ function git(args) {
   return capture("git", args);
 }
 
+function currentBranch() {
+  const branch = git(["branch", "--show-current"]);
+  if (!branch) throw new Error("The current branch could not be resolved.");
+  return branch;
+}
+
 function statusLines() {
   const status = execFileSync("git", ["status", "--porcelain"], {
     cwd: rootDir,
@@ -151,6 +157,13 @@ function changedPaths() {
 
 function stagedPaths() {
   const output = tryCapture("git", ["diff", "--cached", "--name-only"]);
+  return output ? output.split("\n").filter(Boolean).sort() : [];
+}
+
+function branchDiffPaths() {
+  const baseRef = tryCapture("git", ["rev-parse", "--verify", "origin/main"]);
+  if (!baseRef) return [];
+  const output = tryCapture("git", ["diff", "--name-only", "origin/main...HEAD"]);
   return output ? output.split("\n").filter(Boolean).sort() : [];
 }
 
@@ -171,6 +184,17 @@ function classifyReleaseMode(paths, requestedMode) {
   return paths.some((file) => fullReleasePatterns.some((pattern) => pattern.test(file))) ? "full" : "quick";
 }
 
+function releasePaths(options) {
+  const localPaths = changedPaths();
+  if (localPaths.length) return localPaths;
+
+  const staged = stagedPaths();
+  if (staged.length) return staged;
+
+  if (options.push || options.deploy) return branchDiffPaths();
+  return [];
+}
+
 function runValidation(mode) {
   if (mode === "full") {
     run("npm", ["run", "qa"]);
@@ -183,14 +207,35 @@ function runValidation(mode) {
 }
 
 function pushCurrentBranch() {
-  const branch = git(["branch", "--show-current"]);
-  if (!branch) throw new Error("Cannot push because the current branch could not be resolved.");
-  const upstream = tryCapture("git", ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]);
-  if (upstream) {
-    run("git", ["push"]);
-  } else {
-    run("git", ["push", "-u", "origin", branch]);
+  const branch = currentBranch();
+  if (branch === "main") {
+    run("git", ["push", "origin", "HEAD:main"]);
+    return;
   }
+
+  run("git", ["push", "--force-with-lease", "origin", `HEAD:${branch}`]);
+}
+
+function syncReleaseBranchWithMain() {
+  requireCleanWorkingTree("Sync with main");
+  run("git", ["fetch", "origin"]);
+
+  const branch = currentBranch();
+  const behindMain = Number(tryCapture("git", ["rev-list", "--count", "HEAD..origin/main"]) || "0");
+  if (!behindMain) {
+    console.log("- main sync: already current");
+    return false;
+  }
+
+  if (branch === "main") {
+    run("git", ["merge", "--ff-only", "origin/main"]);
+    console.log("- main sync: fast-forwarded main");
+    return true;
+  }
+
+  run("git", ["rebase", "origin/main"]);
+  console.log(`- main sync: rebased ${branch} onto origin/main`);
+  return true;
 }
 
 function sleep(ms) {
@@ -275,19 +320,33 @@ async function main() {
 
   if (options.stageAll) run("git", ["add", "-A"]);
 
-  const paths = changedPaths();
-  const staged = stagedPaths();
-  const mode = classifyReleaseMode(paths.length ? paths : staged, options.mode);
+  if (options.deploy && !statusLines().length) {
+    syncReleaseBranchWithMain();
+  }
+
+  const paths = releasePaths(options);
+  const mode = classifyReleaseMode(paths, options.mode);
 
   console.log(`- mode: ${mode}`);
-  console.log(`- changed files: ${(paths.length ? paths : staged).length || 0}`);
-  (paths.length ? paths : staged).forEach((file) => console.log(`  - ${file}`));
+  console.log(`- changed files: ${paths.length || 0}`);
+  paths.forEach((file) => console.log(`  - ${file}`));
 
   runValidation(mode);
 
   if (options.commitMessage) {
     if (!hasStagedChanges()) throw new Error("No staged changes to commit. Use --stage-all or stage intended files first.");
     run("git", ["commit", "-m", options.commitMessage]);
+  }
+
+  if (options.deploy && !statusLines().length) {
+    const beforeSyncSha = git(["rev-parse", "HEAD"]);
+    if (syncReleaseBranchWithMain()) {
+      const afterSyncSha = git(["rev-parse", "HEAD"]);
+      if (afterSyncSha !== beforeSyncSha) {
+        console.log("- main sync changed the release commit; rerunning validation.");
+        runValidation(mode);
+      }
+    }
   }
 
   if (options.push) {

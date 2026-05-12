@@ -22,10 +22,15 @@ test("safe ship release automation owns the staging to production flow", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/release-automation.api.spec.mjs");
   expect(shipSource).toContain("Safe Ship release automation");
   expect(shipSource).toContain("classifyReleaseMode");
+  expect(shipSource).toContain("releasePaths");
+  expect(shipSource).toContain("branchDiffPaths");
+  expect(shipSource).toContain("syncReleaseBranchWithMain");
   expect(shipSource).toContain('"npm"');
   expect(shipSource).toContain('"qa"');
   expect(shipSource).toContain('"qa:browser"');
   expect(shipSource).toContain('"qa:contracts"');
+  expect(shipSource).toContain('"fetch"');
+  expect(shipSource).toContain('"rebase"');
   expect(shipSource).toContain('"--force-with-lease"');
   expect(shipSource).toContain('"HEAD:staging"');
   expect(shipSource).toContain('"HEAD:main"');

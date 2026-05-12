@@ -79,6 +79,18 @@ async function resolveLoginEmail(identifier) {
   return normalizeText(user?.email, MAX_IDENTIFIER_LENGTH).toLowerCase();
 }
 
+function readBuildId() {
+  return (
+    String(
+      process.env.VERCEL_GIT_COMMIT_SHA ||
+        process.env.VERCEL_DEPLOYMENT_ID ||
+        process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ||
+        process.env.VERCEL_GIT_COMMIT_REF ||
+        ""
+    ).trim() || "local"
+  );
+}
+
 async function handleLogin(req, res) {
   if (!checkLoginRateLimit(req)) {
     return sendJson(res, 429, { ok: false, reason: "Too many login attempts. Please wait a moment and try again." });
@@ -187,6 +199,7 @@ module.exports = async (req, res) => {
 
   return sendJson(res, 200, {
     ok: true,
+    buildId: readBuildId(),
     url,
     anonKey,
     hasServiceRoleKey: Boolean(serviceRoleKey),

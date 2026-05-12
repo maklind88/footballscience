@@ -6,8 +6,9 @@ const missing = required.filter((name) => !String(process.env[name] || "").trim(
 if (missing.length) {
   console.error("Authenticated live QA is missing required secret(s):");
   missing.forEach((name) => console.error(`- ${name}`));
-  console.error("\nSet these as GitHub repository secrets so production deploys verify real login before passing.");
+  console.error("\nSet these as GitHub repository secrets for an active admin account that can open Access & Users.");
   process.exitCode = 1;
 } else {
-  console.log("Authenticated live QA environment: ok");
+  console.log("Authenticated live QA admin environment: ok");
+  console.log("- LIVE_QA_USERNAME must belong to an active platform admin account.");
 }

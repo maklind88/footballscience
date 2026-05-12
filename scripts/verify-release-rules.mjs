@@ -65,6 +65,8 @@ requireText("scripts/verify-production-deploy.mjs", "Live app.js hash does not m
 requireText("scripts/verify-ci-release-env.mjs", "CRON_SECRET", "production CI must include the cron secret used for backup freshness checks");
 requireText("scripts/verify-vercel-token.mjs", "Vercel deployment token: ok", "CI must verify the Vercel token before deployment commands run");
 requireText("scripts/verify-incident-readiness.mjs", "Incident readiness verification: ok", "incident alerting must stay testable");
+requireText("qa/production.live.spec.mjs", "production admin account can open Access & Users", "live smoke must prove admin access");
+requireText("qa/production.live.spec.mjs", 'toBe("admin")', "live smoke must fail if the release QA account loses admin");
 
 requireText(".github/workflows/staging-deploy.yml", "branches:", "staging must deploy from the staging branch");
 requireText(".github/workflows/staging-deploy.yml", "- staging", "staging branch must remain explicit");

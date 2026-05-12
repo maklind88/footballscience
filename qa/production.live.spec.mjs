@@ -166,6 +166,18 @@ async function removeScheduleEventIfPresent(page, title) {
   }
 }
 
+test("production admin account can open Access & Users", async ({ page }) => {
+  await signIn(page);
+
+  await expect
+    .poll(() => page.evaluate(() => window.platformAuthStore?.getCurrentUser?.()?.role || ""), { timeout: 10_000 })
+    .toBe("admin");
+
+  await openWorkspace(page, "admin");
+  await expect(page.locator("#adminWorkspace")).toContainText("Access & Users");
+  await expect(page.locator("#adminWorkspace")).toContainText("Platform Admin");
+});
+
 test("production test account can save and reload a schedule record", async ({ page }) => {
   page.on("dialog", async (dialog) => {
     if (dialog.type() === "confirm") {

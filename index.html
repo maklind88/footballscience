@@ -3095,8 +3095,138 @@
       })();
     </script>
     <script type="module">
-      const v=window.__assetVersion||Date.now(),load=s=>new Promise(r=>{const e=document.createElement("script");e.src=s;e.onload=e.onerror=r;document.head.append(e)});
-      Promise.all([Promise.resolve(window.platformAuthReadyPromise).catch(()=>null),...["periodization-import-data.js","schedule-import-data.js"].map(f=>load(`${f}?v=${v}`))]).then(()=>import(`./app.js?v=${v}`).then(()=>window.platformMarkAppReady?.()).catch(e=>{document.body.dataset.appLoadError=e?.message||"Load failed";console.error(e)}));
+      (async () => {
+        const versionStorageKey = "footballscience-build-version";
+        const versionEndpoint = "/api/client-config";
+        const versionPollIntervalMs = 60 * 1000;
+        const maxBuildVersionLength = 80;
+
+        function sanitizeBuildVersion(value) {
+          return String(value || "").trim().slice(0, maxBuildVersionLength);
+        }
+
+        function readStoredBuildVersion() {
+          try {
+            return localStorage.getItem(versionStorageKey);
+          } catch {
+            return "";
+          }
+        }
+
+        function writeStoredBuildVersion(value) {
+          try {
+            localStorage.setItem(versionStorageKey, value);
+          } catch {
+            // Local storage is optional.
+          }
+        }
+
+        async function clearCacheStorage() {
+          if (!("caches" in window)) {
+            return;
+          }
+          try {
+            const keys = await caches.keys();
+            await Promise.all(keys.map((name) => caches.delete(name)));
+          } catch {
+            // Cache clear is best effort.
+          }
+        }
+
+        async function fetchBuildVersion() {
+          try {
+            const response = await fetch(`${versionEndpoint}?t=${Date.now()}`, {
+              credentials: "omit",
+              cache: "no-store",
+            });
+            if (!response.ok) {
+              return "";
+            }
+            const payload = await response.json();
+            return sanitizeBuildVersion(payload?.buildId);
+          } catch {
+            return "";
+          }
+        }
+
+        async function checkForDeploymentUpdate(currentVersion) {
+          const latestVersion = await fetchBuildVersion();
+          if (!latestVersion) {
+            return currentVersion;
+          }
+          if (currentVersion && currentVersion !== latestVersion && readStoredBuildVersion()) {
+            writeStoredBuildVersion(latestVersion);
+            await clearCacheStorage();
+            const nextUrl = new URL(location.href);
+            nextUrl.searchParams.set("_build", latestVersion);
+            location.replace(nextUrl.toString());
+            return latestVersion;
+          }
+          writeStoredBuildVersion(latestVersion);
+          return latestVersion;
+        }
+
+        const versionFromEndpoint = await fetchBuildVersion();
+        const cachedBuildVersion = readStoredBuildVersion();
+        const v = sanitizeBuildVersion(versionFromEndpoint || cachedBuildVersion || window.__assetVersion || Date.now());
+        window.__assetVersion = v;
+
+        const stylesheet = document.getElementById("s");
+        if (stylesheet) {
+          stylesheet.href = `styles.css?v=${v}`;
+        }
+
+        const latestVersion = await checkForDeploymentUpdate(cachedBuildVersion ? cachedBuildVersion : v);
+        if (latestVersion !== v) {
+          return;
+        }
+
+        const load = (scriptName) =>
+          new Promise((resolve) => {
+            const node = document.createElement("script");
+            node.src = scriptName;
+            node.onload = resolve;
+            node.onerror = resolve;
+            document.head.append(node);
+          });
+
+        const startPolling = () => {
+          let isChecking = false;
+          const poll = async () => {
+            if (isChecking || document.visibilityState === "hidden") {
+              return;
+            }
+            isChecking = true;
+            try {
+              await checkForDeploymentUpdate(v);
+            } finally {
+              isChecking = false;
+            }
+          };
+          window.setInterval(poll, versionPollIntervalMs);
+          window.addEventListener("visibilitychange", () => {
+            if (!document.hidden) {
+              poll();
+            }
+          });
+        };
+
+        Promise.all([
+          Promise.resolve(window.platformAuthReadyPromise).catch(() => null),
+          ...["periodization-import-data.js", "schedule-import-data.js"].map((scriptName) => load(`${scriptName}?v=${v}`)),
+        ])
+          .then(() =>
+            import(`./app.js?v=${v}`)
+              .then(() => {
+                window.platformMarkAppReady?.();
+                startPolling();
+              })
+              .catch((error) => {
+                document.body.dataset.appLoadError = error?.message || "Load failed";
+                console.error(error);
+              })
+          );
+      })();
     </script>
   </body>
 </html>

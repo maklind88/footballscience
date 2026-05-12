@@ -189,6 +189,8 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   expect(liveSpec).toContain("LIVE_QA_USERNAME");
   expect(liveSpec).toContain("LIVE_QA_PASSWORD");
   expect(liveSpec).toContain("production-safe live smoke");
+  expect(liveSpec).toContain("production admin account can open Access & Users");
+  expect(liveSpec).toContain('toBe("admin")');
   expect(performanceBudget).toContain("maxGzipBytes");
   expect(performanceBudget).toContain("targetGzipBytes");
   expect(vercelConfig.crons).toEqual(

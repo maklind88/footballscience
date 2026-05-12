@@ -187,10 +187,7 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
 
 async function bootCentralPage(browser, baseURL, centralStore, syncBodies, tabName, options = {}) {
   const context = await browser.newContext();
-  await installCentralRevisionRoutes(context, centralStore, syncBodies, {
-    sessionUser: options.sessionUser,
-    profileUser: options.profileUser,
-  });
+  await installCentralRevisionRoutes(context, centralStore, syncBodies, options);
   const page = await context.newPage();
   await page.addInitScript(() => {
     window.__footballScienceQaForceCentralState = true;
@@ -233,9 +230,7 @@ test("fresh server profile restores admin access when the stored Supabase sessio
 
   try {
     await expect
-      .poll(() => tab.page.evaluate(() => window.platformAuthStore?.getCurrentUser?.()?.role || ""), {
-        timeout: 10_000,
-      })
+      .poll(() => tab.page.evaluate(() => window.platformAuthStore?.getCurrentUser?.()?.role || ""), { timeout: 10_000 })
       .toBe("admin");
 
     await tab.page.evaluate(() => {

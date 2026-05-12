@@ -9895,7 +9895,16 @@ function getTopIconSvg(workspaceId) {
 function getTopIconLabel(workspace) {
   const labels = {
     home: "Home",
+    schedule: "Schedule",
+    periodization: "Period",
+    "session-planner": "Sessions",
     "player-profiles": "IDP",
+    scouting: "Scouting",
+    "analysis-room": "Analysis",
+    staff: "Team",
+    "medical-team": "Medical",
+    "team-identity": "Identity",
+    "game-simulator": "Game",
   };
   return labels[workspace?.id] ?? workspace?.title ?? "";
 }

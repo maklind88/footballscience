@@ -8433,7 +8433,8 @@ function mergeDashboardChatApiMessages(messages = [], options = {}) {
   const messageThread = options.thread || null;
   const existingMessages = readDashboardMessages();
   const existingThreadMessages = replaceThreadId ? existingMessages.filter((message) => message.threadId === replaceThreadId) : [];
-  const current = replaceThreadId
+  const keepThread = Boolean(options.keepThread);
+  const current = replaceThreadId && !keepThread
     ? existingMessages.filter((message) => message.threadId !== replaceThreadId || message.status === "pending" || message.status === "failed")
     : existingMessages;
   if (!messages.length) {
@@ -8479,12 +8480,16 @@ function mergeDashboardChatApiMessages(messages = [], options = {}) {
       return;
     }
     const message = normalizeDashboardApiMessage(sourceMessage, messageThread);
+    const existingMessage = byId.get(clientMessageId) || byId.get(message.id) || null;
+    const readBy = existingMessage ? Array.from(new Set([...(existingMessage.readBy || []), ...(message.readBy || [])].filter(Boolean))) : message.readBy;
     if (clientMessageId && byId.has(clientMessageId) && clientMessageId !== message.id) {
       byId.delete(clientMessageId);
     }
-    const resolvedMessage = replaceThreadId && message?.threadId !== replaceThreadId
-      ? { ...message, threadId: replaceThreadId }
-      : message;
+    const resolvedMessage = normalizeDashboardMessage({
+      ...message,
+      threadId: replaceThreadId && message?.threadId !== replaceThreadId ? replaceThreadId : message.threadId,
+      readBy,
+    });
     if (resolvedMessage?.text && resolvedMessage.userId && !deletedMessageIds.has(resolvedMessage.id)) {
       byId.set(resolvedMessage.id, resolvedMessage);
     }
@@ -8536,6 +8541,7 @@ function applyDashboardChatApiPayload(payload = {}, options = {}) {
     mergeDashboardChatApiMessages(payload.messages, {
       render: false,
       thread: payload.thread || null,
+      keepThread: Boolean(payload.nextCursor),
       replaceThreadId: options.replaceThread
         ? options.threadId || payload.thread?.threadId || payload.thread?.legacyThreadId || payload.thread?.metadata?.legacyThreadId
         : "",
@@ -8899,6 +8905,15 @@ async function createDashboardMessageWithApi(text, threadId = dashboardChatTeamT
   renderDashboardChatWidget();
   return null;
 }
+function markDashboardChatApiThreadRead(threadId) {
+  const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+  if (!normalizedThreadId) return;
+  updateDashboardChatApiThreads(
+    dashboardChatApiThreads.map((thread) =>
+      thread.threadId === normalizedThreadId ? { ...thread, unreadCount: 0, lastReadAt: new Date().toISOString() } : thread
+    )
+  );
+}
 function queueDashboardChatReadReceiptApi(threadId, messages = readDashboardMessages()) {
   const currentUser = getCurrentPlatformUser();
   const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
@@ -8920,13 +8935,7 @@ function queueDashboardChatReadReceiptApi(threadId, messages = readDashboardMess
     lastReadMessageId: latestMessage.id,
   }).then((result) => {
     if (result.ok) {
-      updateDashboardChatApiThreads(
-        dashboardChatApiThreads.map((thread) =>
-          thread.threadId === normalizedThreadId
-            ? { ...thread, unreadCount: 0, lastReadAt: new Date().toISOString() }
-            : thread
-        )
-      );
+      markDashboardChatApiThreadRead(normalizedThreadId);
       renderDashboardChatWidget();
       return;
     }
@@ -8959,8 +8968,11 @@ function markDashboardMessagesReadForCurrentUser(messages = readDashboardMessage
   if (changed) {
     writeDashboardMessages(nextMessages);
     if (normalizedThreadId) {
+      markDashboardChatApiThreadRead(normalizedThreadId);
       queueDashboardChatReadReceiptApi(normalizedThreadId, nextMessages);
     }
+  } else if (normalizedThreadId) {
+    markDashboardChatApiThreadRead(normalizedThreadId);
   }
   return nextMessages;
 }

@@ -1,7 +1,9 @@
 const { finishApiRequest } = require("./platform-security.js");
 
-const DEFAULT_ROLES = ["admin", "coach", "analyst", "performance", "medical", "guest"];
+const DEFAULT_ROLES = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
 const ROLE_LOOKUP = new Set(DEFAULT_ROLES);
+const DEFAULT_CLUB_ID = "club-ncc";
+const DEFAULT_TEAM_ID = "team-ncc-first";
 const MIN_PASSWORD_LENGTH = 6;
 const GENERATE_PASSWORD_TOKEN = ["true", "1", "yes", "on"];
 const MAX_METADATA_FIELD_LENGTH = 120;
@@ -134,7 +136,11 @@ function normalizeProfilePayload(values = {}) {
     role: normalizeRole(values.role),
     title: normalizeProfileValue(values.title || "Coach", MAX_METADATA_FIELD_LENGTH),
     department: normalizeProfileValue(values.department || "Football", MAX_METADATA_FIELD_LENGTH),
-    team: normalizeProfileValue(values.team || "North Carolina Courage", MAX_METADATA_FIELD_LENGTH),
+    clubId: normalizeProfileValue(values.clubId || values.club_id || DEFAULT_CLUB_ID, MAX_METADATA_FIELD_LENGTH),
+    clubName: normalizeProfileValue(values.clubName || values.club_name || "North Carolina Courage", MAX_METADATA_FIELD_LENGTH),
+    teamId: normalizeProfileValue(values.teamId || values.team_id || DEFAULT_TEAM_ID, MAX_METADATA_FIELD_LENGTH),
+    teamName: normalizeProfileValue(values.teamName || values.team_name || values.team || "North Carolina Courage", MAX_METADATA_FIELD_LENGTH),
+    team: normalizeProfileValue(values.team || values.teamName || values.team_name || "North Carolina Courage", MAX_METADATA_FIELD_LENGTH),
     status: normalizeStatus(values.status),
     profileImageUrl: normalizeProfileImageValue(values.profileImageUrl || values.profile_image_url),
   };
@@ -153,7 +159,11 @@ function normalizePlatformUser(user) {
     role: normalizeRole(appMetadata?.role || "coach"),
     title: normalizeProfileValue(metadata?.title || "Coach", MAX_METADATA_FIELD_LENGTH),
     department: normalizeProfileValue(metadata?.department || "Football", MAX_METADATA_FIELD_LENGTH),
-    team: normalizeProfileValue(metadata?.team || "North Carolina Courage", MAX_METADATA_FIELD_LENGTH),
+    clubId: normalizeProfileValue(metadata?.clubId || metadata?.club_id || DEFAULT_CLUB_ID, MAX_METADATA_FIELD_LENGTH),
+    clubName: normalizeProfileValue(metadata?.clubName || metadata?.club_name || "North Carolina Courage", MAX_METADATA_FIELD_LENGTH),
+    teamId: normalizeProfileValue(metadata?.teamId || metadata?.team_id || DEFAULT_TEAM_ID, MAX_METADATA_FIELD_LENGTH),
+    teamName: normalizeProfileValue(metadata?.teamName || metadata?.team_name || metadata?.team || "North Carolina Courage", MAX_METADATA_FIELD_LENGTH),
+    team: normalizeProfileValue(metadata?.team || metadata?.teamName || metadata?.team_name || "North Carolina Courage", MAX_METADATA_FIELD_LENGTH),
     status: normalizeStatus(appMetadata?.status),
     profileImageUrl: normalizeProfileImageValue(
       metadata?.profileImageUrl || metadata?.profile_image_url || metadata?.avatarUrl || metadata?.avatar_url,
@@ -597,6 +607,10 @@ async function updateAuthUser(id, values = {}) {
         role: currentUser.role || "",
         title: currentUser.title || "",
         department: currentUser.department || "",
+        clubId: currentUser.clubId || "",
+        clubName: currentUser.clubName || "",
+        teamId: currentUser.teamId || "",
+        teamName: currentUser.teamName || "",
         team: currentUser.team || "",
         status: currentUser.status || "",
         profileImageUrl: currentUser.profileImageUrl || "",

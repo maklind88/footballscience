@@ -224,7 +224,7 @@ async function closeCentralStateContext(context) {
     await context.close();
   } catch (error) {
     const message = String(error?.message || "");
-    if (message.includes("ENOENT") && message.includes(".network")) {
+    if (message.includes("ENOENT") && (message.includes(".network") || message.includes(".trace") || message.includes(".zip"))) {
       return;
     }
     throw error;

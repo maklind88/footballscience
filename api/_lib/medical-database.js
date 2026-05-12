@@ -5,7 +5,7 @@ const { appendAuditLog } = require("./audit-log.js");
 const MEDICAL_DATABASE_SCHEMA = "footballscience-medical-database-v1";
 const MEDICAL_SYNC_TABLE = "medical_state_sync_events";
 const MEDICAL_SOURCE_KEY = "football-medical-team-v1";
-const MEDICAL_WRITE_ROLES = new Set(["admin", "medical", "performance"]);
+const MEDICAL_WRITE_ROLES = new Set(["admin", "club-admin", "team-admin", "medical", "performance"]);
 const MEDICAL_DATABASE_MODE_VALUES = new Set([
   "database",
   "db",

@@ -32,6 +32,44 @@ function sanitizeRedirectTo(value) {
   return fallback;
 }
 
+function normalizeRole(value) {
+  const role = String(value || "").trim().toLowerCase();
+  return ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"].includes(role)
+    ? role
+    : "coach";
+}
+
+function scopeKey(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function sameClub(firstUser = {}, secondUser = {}) {
+  const firstKey = scopeKey(firstUser.clubId || firstUser.clubName || firstUser.team || "club-ncc");
+  const secondKey = scopeKey(secondUser.clubId || secondUser.clubName || secondUser.team || "club-ncc");
+  return Boolean(firstKey && firstKey === secondKey);
+}
+
+function sameTeam(firstUser = {}, secondUser = {}) {
+  const firstKey = scopeKey(firstUser.teamId || firstUser.teamName || firstUser.team || "team-ncc-first");
+  const secondKey = scopeKey(secondUser.teamId || secondUser.teamName || secondUser.team || "team-ncc-first");
+  return Boolean(firstKey && firstKey === secondKey);
+}
+
+function canSendPasswordReset(actor, target) {
+  const actorRole = normalizeRole(actor?.role);
+  const targetRole = normalizeRole(target?.role);
+  if (actorRole === "admin") {
+    return true;
+  }
+  if (actorRole === "club-admin") {
+    return sameClub(actor, target) && targetRole !== "admin" && targetRole !== "club-admin";
+  }
+  if (actorRole === "team-admin") {
+    return sameTeam(actor, target) && !["admin", "club-admin", "team-admin"].includes(targetRole);
+  }
+  return false;
+}
+
 module.exports = async (req, res) => {
   sendCorsHeaders(res);
 
@@ -48,10 +86,6 @@ module.exports = async (req, res) => {
   const actor = await getCurrentActor(req.headers?.authorization || req.headers?.Authorization);
   if (!actor) {
     return sendJson(res, 401, { ok: false, reason: "You must be signed in." });
-  }
-
-  if (actor.role !== "admin") {
-    return sendJson(res, 403, { ok: false, reason: "Admin access required." });
   }
 
   const security = guardApiRequest(req, res, {
@@ -85,6 +119,9 @@ module.exports = async (req, res) => {
   const target = await getAuthUserById(targetId);
   if (!target?.email) {
     return sendJson(res, 400, { ok: false, reason: "No user email on file." });
+  }
+  if (!canSendPasswordReset(actor, target)) {
+    return sendJson(res, 403, { ok: false, reason: "This user is outside your admin scope." });
   }
 
   const redirectTo = sanitizeRedirectTo(body?.redirectTo || `${new URL(req.url, "http://localhost").origin}/`);

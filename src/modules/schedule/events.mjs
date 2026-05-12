@@ -127,7 +127,7 @@ export function normalizeScheduleState(rawValue, options = {}) {
     selectedYear,
     selectedMonthIndex,
     selectedDate,
-    viewMode: source.viewMode === "overview" ? "overview" : "month",
+    viewMode: ["month", "week", "overview"].includes(source.viewMode) ? source.viewMode : "month",
     overviewSpan,
     importVersion: normalizeText(source.importVersion),
     events: Object.freeze(events),

@@ -24,8 +24,8 @@ const MAX_TEXT_FIELD_LENGTH = 240;
 const MAX_THREAD_TITLE_LENGTH = 80;
 const MAX_ID_LENGTH = 120;
 const MAX_REACTION_LENGTH = 32;
-const STAFF_ROLES = new Set(["admin", "coach", "analyst", "performance", "medical"]);
-const CHAT_MANAGER_ROLES = new Set(["admin", "coach"]);
+const STAFF_ROLES = new Set(["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"]);
+const CHAT_MANAGER_ROLES = new Set(["admin", "club-admin", "team-admin", "coach"]);
 const CHAT_ADMIN_ROLES = new Set(["admin"]);
 const CHAT_ACTIONS = new Set([
   "createThread",

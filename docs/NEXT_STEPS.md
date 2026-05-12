@@ -78,9 +78,10 @@
 
 ## Admin
 
-- Add an Admin workspace for role and visibility permissions.
-- My Team should be visible only to admin for now.
-- Add user management: edit email, reset/change password, remove users, role assignment.
+- Keep hardening the multi-scope admin model: Platform Admin, Club Admin, and Team Admin.
+- Move `football-platform-structure-v1` into database-backed clubs, teams, memberships, and audit tables.
+- Add focused QA for scoped admin behavior: club admin cannot affect other clubs, team admin cannot affect other teams, and only platform admin can change role access or view central audit.
+- Keep user management Supabase-first: edit email, reset/change password, remove users, role assignment, and club/team metadata.
 
 ## Medical Team
 

@@ -77,7 +77,14 @@ async function bootApp(page, options = {}) {
 
 async function openWorkspace(page, workspaceId, viewId = workspaceId) {
   await dismissDashboardModal(page);
-  await page.locator(`[data-open-workspace="${workspaceId}"]:visible`).first().click();
+  const visibleTrigger = page.locator(`[data-open-workspace="${workspaceId}"]:visible`).first();
+  if ((await visibleTrigger.count()) > 0) {
+    await visibleTrigger.click();
+  } else {
+    await page.evaluate((targetWorkspaceId) => {
+      window.dispatchEvent(new CustomEvent("platform:open-workspace", { detail: { workspaceId: targetWorkspaceId } }));
+    }, workspaceId);
+  }
   await dismissDashboardModal(page);
   await expect(page.locator(`[data-workspace-view="${viewId}"].is-active`)).toBeVisible();
 }
@@ -342,6 +349,106 @@ test("Schedule Today anchors overview to the real current date", async ({ page }
     });
 });
 
+test("Schedule week view shows daily operations and opens linked session", async ({ page }) => {
+  await page.addInitScript(({ scheduleKey, sessionPlannerKey, periodizationKey }) => {
+    const realDate = Date;
+    const fixedNow = new realDate("2026-05-09T12:00:00-04:00").getTime();
+    class FixedDate extends realDate {
+      constructor(...args) {
+        super(...(args.length ? args : [fixedNow]));
+      }
+      static now() {
+        return fixedNow;
+      }
+    }
+    FixedDate.UTC = realDate.UTC;
+    FixedDate.parse = realDate.parse;
+    FixedDate.prototype = realDate.prototype;
+    window.Date = FixedDate;
+    window.localStorage.setItem(
+      scheduleKey,
+      JSON.stringify({
+        selectedYear: 2026,
+        selectedMonthIndex: 4,
+        selectedDate: "2026-05-09",
+        viewMode: "month",
+        overviewSpan: 6,
+        importVersion: "ncc-2026-numbers-v1",
+        events: [
+          {
+            id: "qa-week-training",
+            date: "2026-05-09",
+            time: "10:00",
+            type: "training",
+            title: "Training",
+            note: "QA week operations",
+          },
+        ],
+      })
+    );
+    window.localStorage.setItem(
+      sessionPlannerKey,
+      JSON.stringify({
+        selectedDate: "2026-05-09",
+        sessions: {
+          "2026-05-09": {
+            id: "session-2026-05-09",
+            date: "2026-05-09",
+            title: "Training Session",
+            theme: "QA operations",
+            selectedBlockId: "warm-up",
+            blocks: [
+              {
+                id: "warm-up",
+                label: "Warm Up",
+                title: "Activation",
+                focus: "Ready the group",
+                minutes: 15,
+                intensity: 2,
+                pitchSize: "20m x 20m",
+                diagram: "build-up",
+              },
+            ],
+          },
+        },
+      })
+    );
+    window.localStorage.setItem(
+      periodizationKey,
+      JSON.stringify({
+        selectedYear: 2026,
+        selectedMonthIndex: 4,
+        selectedDate: "2026-05-09",
+        importVersion: "ncc-2026-periodization-v1",
+        days: {
+          "2026-05-09": {
+            seasonPhase: "Competition",
+            daySchedule: "Training",
+            matchDay: "MD-1",
+            matchPhases: ["In Possession"],
+            subPhases: ["Build-up"],
+          },
+        },
+      })
+    );
+  }, { scheduleKey, sessionPlannerKey, periodizationKey });
+
+  await bootApp(page);
+  await openWorkspace(page, "schedule");
+  await page.locator("#scheduleWeekViewButton").click();
+
+  await expect(page.locator("#scheduleWeekGrid")).toBeVisible();
+  await expect(page.locator(".schedule-week-day.is-selected")).toContainText("9");
+  await expect(page.locator("#scheduleDayInsights")).toContainText("1 blocks / 15 min");
+  await expect(page.locator("#scheduleDayInsights")).toContainText("Training");
+  await expect(page.locator("#scheduleDayInsights")).toContainText("MD-1");
+
+  await page.locator('[data-schedule-open-session-date="2026-05-09"]').click();
+
+  await expect(page.locator('[data-workspace-view="session-planner"].is-active')).toBeVisible();
+  await expect(page.locator("#sessionPlannerWorkspace")).toContainText("Training Session");
+});
+
 test("Periodization Today opens the real current date", async ({ page }) => {
   await page.addInitScript(({ key }) => {
     const realDate = Date;
@@ -366,9 +473,41 @@ test("Periodization Today opens the real current date", async ({ page }) => {
         selectedDate: "2026-01-15",
         importVersion: "ncc-2026-periodization-v1",
         days: {
+          "2026-05-04": {
+            seasonPhase: "Competition",
+            daySchedule: "Recovery",
+            matchDay: "MD+1",
+            physicalLoad: "Low",
+            pitchSize: "SSG",
+            matchPhases: ["Defensive Transition"],
+            subPhases: ["Immediate reaction after loss"],
+          },
+          "2026-05-05": {
+            seasonPhase: "Competition",
+            daySchedule: "Main tactical day",
+            matchDay: "MD-4",
+            physicalLoad: "Medium-High",
+            pitchSize: "Half pitch",
+            matchPhases: ["In Possession"],
+            subPhases: ["Build-up"],
+          },
+          "2026-05-06": {
+            seasonPhase: "Competition",
+            daySchedule: "Load day",
+            matchDay: "MD-3",
+            physicalLoad: "High",
+            pitchSize: "BSG",
+            matchPhases: ["Transition"],
+            subPhases: ["Counter-press"],
+          },
           "2026-05-09": {
             seasonPhase: "Competition",
-            daySchedule: "Travel Day",
+            daySchedule: "Matchday",
+            matchDay: "MD",
+            physicalLoad: "Match Load",
+            pitchSize: "Full pitch",
+            matchPhases: ["Full match"],
+            subPhases: ["All game states"],
             sessionNotes: "QA today anchor",
           },
         },
@@ -381,9 +520,15 @@ test("Periodization Today opens the real current date", async ({ page }) => {
   await page.locator("#periodizationTodayButton").click();
 
   await expect(page.locator("#periodizationHeading")).toHaveText("May 2026");
-  await expect(page.locator('[data-periodization-date="2026-05-09"]')).toHaveClass(/is-selected/);
+  const selectedCard = page.locator('[data-periodization-date="2026-05-09"]');
+  await expect(selectedCard).toHaveClass(/is-selected/);
+  await expect(selectedCard.locator(".periodization-day-md")).toHaveText("MD");
+  const microcycle = page.locator('[data-periodization-week-start="2026-05-04"]');
+  await expect(microcycle.locator(".periodization-microcycle-load-rail")).toBeVisible();
+  await expect(microcycle.locator(".periodization-microcycle-load-day")).toHaveCount(7);
   await expect(page.locator("[data-periodization-overlay]")).toBeVisible();
   await expect(page.locator("[data-periodization-overlay] h2").first()).toHaveText("Saturday, May 9");
+  await expect(page.locator("[data-periodization-overlay] .periodization-view-microcycle")).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate((key) => {

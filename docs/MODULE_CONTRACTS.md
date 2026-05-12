@@ -46,11 +46,11 @@ Rules:
 
 - `id`: `platform-shell`
 - `purpose`: navigation, account menu, active workspace, data safety surface.
-- `data`: `football-workspace-hub-v3`
-- `permissions`: visible to signed-in users; admin surfaces require admin.
+- `data`: `football-workspace-hub-v3`, `football-platform-structure-v1`
+- `permissions`: visible to signed-in users; platform controls require Platform Admin, while Club Admin and Team Admin are scoped to their own club/team surfaces.
 - `events`: workspace open, profile open, sign out, data safety status.
 - `qa`: localhost boots through dev auth and keeps Supabase config off the local path.
-- `migration`: keep shell state small and cache-friendly; do not mix product records into shell state.
+- `migration`: keep shell state small and cache-friendly; move clubs, teams, and memberships from `football-platform-structure-v1` into database tables before multi-club production use.
 
 ## Home
 
@@ -77,7 +77,7 @@ Rules:
 - `id`: `exercise-library`
 - `purpose`: reusable exercise catalog shared with the Session Planner.
 - `data`: `football-session-exercise-library-v1`, `football-session-exercise-library-backup-v1`, `football-session-exercise-library-folders-v1`, `football-session-exercise-library-folders-backup-v1`
-- `permissions`: admin/coach edit; planning roles view.
+- `permissions`: platform/club/team admin and coach edit; planning roles view.
 - `events`: exercise saved, exercise archived, exercise restored, folder created, exercise assigned to folder.
 - `qa`: existing library entries must stay protected and restorable; folder changes must never delete exercise records.
 - `migration`: migrate before Session Planner blocks where possible; use soft archive, folder membership tables, and versioning instead of hard deletes.
@@ -87,7 +87,7 @@ Rules:
 - `id`: `schedule`
 - `purpose`: season calendar and event source for planned training/matches/off days.
 - `data`: `football-schedule-v1`
-- `permissions`: admin/coach edit; broader staff view according to workspace access.
+- `permissions`: platform/club/team admin and coach edit; broader staff view according to workspace access.
 - `events`: date selected, event created, event updated, event removed.
 - `qa`: schedule edits persist after refresh.
 - `migration`: current app-state remains active while the database foundation is staged in `schedule_events`, `schedule_event_versions`, `schedule_state_sync_events`, and `schedule_audit_events`. Schedule has an inert read-only adapter boundary in `src/modules/schedule/schedule-adapter.mjs` plus a feature-flagged server adapter in `api/_lib/schedule-database.js`; writes stay server-owned, row-version checked, RLS protected, and blocked from direct authenticated client writes until migration is explicit.
@@ -97,7 +97,7 @@ Rules:
 - `id`: `periodization`
 - `purpose`: shared macrocycle, microcycle, and training day planning board.
 - `data`: `football-periodization-v2`
-- `permissions`: admin/coach/performance edit; other planning roles view as configured.
+- `permissions`: platform/club/team admin, coach, and performance edit; other planning roles view as configured.
 - `events`: day updated, selected date changed, periodization opened from sessions.
 - `qa`: periodization day notes persist after refresh.
 - `migration`: move to `periodization_days` after schedule and session foundations are stable.
@@ -107,7 +107,7 @@ Rules:
 - `id`: `session-planner`
 - `purpose`: build, edit, print, and review training sessions for one date at a time.
 - `data`: `football-session-planner-v3`, `football-session-exercise-library-v1`, `football-session-exercise-library-backup-v1`, `football-session-exercise-library-folders-v1`, `football-session-exercise-library-folders-backup-v1`
-- `permissions`: admin/coach edit; analyst/performance/medical view where configured.
+- `permissions`: platform/club/team admin and coach edit; analyst/performance/medical view where configured.
 - `events`: block updated, exercise saved, exercise archived, tactical image changed, medical availability read.
 - `qa`: session planner block edits persist after refresh.
 - `migration`: migrate exercise library before session blocks if possible; preserve library entries with soft archive, never destructive seed overwrite.
@@ -117,7 +117,7 @@ Rules:
 - `id`: `medical-team`
 - `purpose`: player availability, participation guidance, injury plans, and coach-safe summaries.
 - `data`: `football-medical-team-v1`, `football-player-profiles-v1`
-- `permissions`: medical/performance/admin edit medical details; coaches see coach-safe fields.
+- `permissions`: medical/performance/platform/club/team admin edit medical details; coaches see coach-safe fields.
 - `events`: availability updated, player selected, coach-safe note changed, session planner reads selected-date availability.
 - `qa`: medical recommendation edits persist after refresh.
 - `migration`: current app-state remains active while the database foundation is staged in `medical_*` tables. Clinical writes are server-owned; direct authenticated reads are limited to coach-safe availability columns/views, with private governance, consent, cases, internal notes, sign-offs, load gates, review tasks, and audit events protected by RLS for medical/performance/admin service workflows.
@@ -127,7 +127,7 @@ Rules:
 - `id`: `player-profiles`
 - `purpose`: roster identity, team/season squad context, player profile data, and profile-linked planning context.
 - `data`: `football-player-profiles-v1`
-- `permissions`: admin/coach edit; medical/performance access to relevant fields.
+- `permissions`: platform/club/team admin, coach, and scout edit; medical/performance access to relevant fields.
 - `events`: player updated, profile image changed, roster imported.
 - `qa`: protected by central state and backup contracts.
 - `migration`: move through the read-only Squad adapter first, then dual-read / dual-write into `squad_organizations`, `squad_clubs`, `squad_teams`, `squad_seasons`, `squad_players`, `squad_roster_memberships`, and supporting `squad_*` history/import/media tables. Preserve `football-player-profiles-v1` until database reads, backups, and rollback drills are verified.
@@ -137,7 +137,7 @@ Rules:
 - `id`: `game-simulator`
 - `purpose`: tactical sequence creation, sequence library, and replay.
 - `data`: `football-simulator-sequence-v1`, `football-simulator-sequence-library-v2`
-- `permissions`: admin/coach/analyst edit; performance view as configured.
+- `permissions`: platform/club/team admin, coach, scout, and analyst edit; performance view as configured.
 - `events`: sequence saved, sequence loaded, library item archived/restored.
 - `qa`: protected by central state and backup contracts.
 - `migration`: move large sequence payloads last, after export/import and restore drills are proven.

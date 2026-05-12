@@ -1,3 +1,43 @@
+import {
+  attackStylePresets,
+  autoBallProfiles,
+  autoDribbleProfiles,
+  ballRadiusMeters,
+  competitionPhysicalProfiles,
+  defaultFormations,
+  defaultKickoffTeamId,
+  defaultPhysicalProfileKey,
+  defaultScenarioInfo,
+  defaultTeamIdentities,
+  defenseStylePresets,
+  defensiveAggressionPresets,
+  defensiveAutopilotProfiles,
+  defensivePhaseProfiles,
+  firstTouchModes,
+  formationLayouts,
+  formationMagnetLabels,
+  gameRoleProfiles,
+  getAttackStyleRhythmProfile,
+  intelligenceLabelBoosts,
+  intelligenceRoleArchetypes,
+  matchPhaseModel,
+  offensiveAutopilotProfiles,
+  offensivePhaseProfiles,
+  pitch,
+  pitchSurfacePresets,
+  playerRadiusMeters,
+  playerTendencyTemplates,
+  possessionRhythmByAttackStyle,
+  possessionRhythmDefaults,
+  resolvePreferredFoot,
+  resolveWeakFootQuality,
+  setPiecePhaseProfiles,
+  sprintRoleArchetypes,
+  squadBlueprints,
+  teamRosterOrder,
+  teams,
+  weatherPresets,
+} from "./src/modules/game-simulator/model-data.mjs";
 import { createDashboardChatWidgetRenderer } from "./src/modules/chat/chat-widget-renderer.mjs";
 import { createDashboardChatAttachmentRenderer } from "./src/modules/chat/chat-attachment-renderer.mjs";
 import { createDashboardChatAttachmentPreview } from "./src/modules/chat/chat-attachment-preview.mjs";
@@ -52,11 +92,13 @@ const ui = {
   scheduleNextMonthButton: document.getElementById("scheduleNextMonthButton"),
   scheduleTodayButton: document.getElementById("scheduleTodayButton"),
   scheduleMonthViewButton: document.getElementById("scheduleMonthViewButton"),
+  scheduleWeekViewButton: document.getElementById("scheduleWeekViewButton"),
   scheduleOverviewViewButton: document.getElementById("scheduleOverviewViewButton"),
   scheduleOverviewSpanControl: document.getElementById("scheduleOverviewSpanControl"),
   scheduleOverviewSpanButtons: Array.from(document.querySelectorAll("[data-schedule-span]")),
   scheduleWeekdays: document.getElementById("scheduleWeekdays"),
   scheduleCalendarGrid: document.getElementById("scheduleCalendarGrid"),
+  scheduleWeekGrid: document.getElementById("scheduleWeekGrid"),
   scheduleOverviewGrid: document.getElementById("scheduleOverviewGrid"),
   scheduleDayCard: document.getElementById("scheduleDayCard"),
   scheduleDayEyebrow: document.getElementById("scheduleDayEyebrow"),
@@ -66,6 +108,7 @@ const ui = {
   scheduleCopyDayButton: document.getElementById("scheduleCopyDayButton"),
   schedulePasteDayButton: document.getElementById("schedulePasteDayButton"),
   scheduleEventList: document.getElementById("scheduleEventList"),
+  scheduleDayInsights: document.getElementById("scheduleDayInsights"),
   scheduleEventForm: document.getElementById("scheduleEventForm"),
   scheduleEventDate: document.getElementById("scheduleEventDate"),
   scheduleEventTime: document.getElementById("scheduleEventTime"),
@@ -162,202 +205,8 @@ const ui = {
 };
 let gameSimulatorControllersPromise = null;
 let gameSimulatorFullscreenController = null, gameSimulatorKeyboardState = null, gameSimulatorWorkspaceController = null;
-const pitch = {
-  length: 105,
-  width: 68,
-  inset: 2,
-};
-const teams = {
-  home: {
-    id: "home",
-    name: "Blue Team",
-    formation: "4-3-3",
-    color: "#0d355d",
-    accent: "#81b8ff",
-    identity: {
-      attackStyle: "control-possession",
-      defenseStyle: "mid-block",
-    },
-  },
-  away: {
-    id: "away",
-    name: "Red Team",
-    formation: "3-4-3",
-    color: "#a63333",
-    accent: "#ff9b9b",
-    identity: {
-      attackStyle: "vertical-play",
-      defenseStyle: "mid-block",
-    },
-  },
-};
-const defaultTeamIdentities = {
-  home: {
-    attackStyle: "control-possession",
-    defenseStyle: "mid-block",
-  },
-  away: {
-    attackStyle: "vertical-play",
-    defenseStyle: "mid-block",
-  },
-};
-const defaultPhysicalProfileKey = "elite-women";
-const competitionPhysicalProfiles = {
-  "elite-women": {
-    key: "elite-women",
-    label: "Elite Women",
-    maxSpeedMultiplier: 0.94,
-    accelerationMultiplier: 0.96,
-    reactionTimeMultiplier: 1.02,
-    dribbleSpeedMultiplier: 0.95,
-    ballPowerMultiplier: 0.96,
-    roleMultipliers: {
-      goalkeeper: { maxSpeedMultiplier: 0.96, accelerationMultiplier: 0.96, dribbleSpeedMultiplier: 0.92 },
-      "center-back": { maxSpeedMultiplier: 0.97, accelerationMultiplier: 0.97, dribbleSpeedMultiplier: 0.94 },
-      "full-back": { maxSpeedMultiplier: 0.98, accelerationMultiplier: 0.99, dribbleSpeedMultiplier: 0.97 },
-      "wing-back": { maxSpeedMultiplier: 0.99, accelerationMultiplier: 1, dribbleSpeedMultiplier: 0.98 },
-      winger: { maxSpeedMultiplier: 1.01, accelerationMultiplier: 1.01, dribbleSpeedMultiplier: 1 },
-      striker: { maxSpeedMultiplier: 1, accelerationMultiplier: 1.01, dribbleSpeedMultiplier: 0.98 },
-    },
-  },
-  "elite-men": {
-    key: "elite-men",
-    label: "Elite Men",
-    maxSpeedMultiplier: 1,
-    accelerationMultiplier: 1,
-    reactionTimeMultiplier: 1,
-    dribbleSpeedMultiplier: 1,
-    ballPowerMultiplier: 1,
-  },
-  "academy-women": {
-    key: "academy-women",
-    label: "Academy Women",
-    maxSpeedMultiplier: 0.88,
-    accelerationMultiplier: 0.9,
-    reactionTimeMultiplier: 1.08,
-    dribbleSpeedMultiplier: 0.9,
-    ballPowerMultiplier: 0.9,
-    roleMultipliers: {
-      winger: { maxSpeedMultiplier: 1.02, accelerationMultiplier: 1.02, dribbleSpeedMultiplier: 1.01 },
-      striker: { maxSpeedMultiplier: 1.01, accelerationMultiplier: 1.02, dribbleSpeedMultiplier: 0.99 },
-      "wing-back": { maxSpeedMultiplier: 1.01, accelerationMultiplier: 1.01, dribbleSpeedMultiplier: 1 },
-    },
-  },
-  "academy-men": {
-    key: "academy-men",
-    label: "Academy Men",
-    maxSpeedMultiplier: 0.94,
-    accelerationMultiplier: 0.95,
-    reactionTimeMultiplier: 1.04,
-    dribbleSpeedMultiplier: 0.94,
-    ballPowerMultiplier: 0.94,
-    roleMultipliers: {
-      winger: { maxSpeedMultiplier: 1.01, accelerationMultiplier: 1.01, dribbleSpeedMultiplier: 1 },
-      striker: { maxSpeedMultiplier: 1.01, accelerationMultiplier: 1.01, dribbleSpeedMultiplier: 0.98 },
-    },
-  },
-};
-const defaultKickoffTeamId = "home";
-const defaultFormations = {
-  home: "4-3-3",
-  away: "3-4-3",
-};
-const teamRosterOrder = {
-  home: ["H1", "H2", "H3", "H4", "H5", "H6", "H8", "H10", "H11", "H9", "H7"],
-  away: ["A1", "A2", "A3", "A4", "A5", "A6", "A8", "A7", "A11", "A9", "A10"],
-};
-const formationLayouts = {
-  "4-3-3": [
-    [7.5, 34],
-    [20, 11],
-    [18, 25],
-    [18, 43],
-    [20, 57],
-    [33, 34],
-    [40, 23],
-    [40, 45],
-    [55, 11],
-    [60, 34],
-    [55, 57],
-  ],
-  "4-1-4-1": [
-    [7.5, 34],
-    [20, 11],
-    [18, 25],
-    [18, 43],
-    [20, 57],
-    [31, 34],
-    [39, 26],
-    [39, 42],
-    [42, 14],
-    [49, 34],
-    [42, 54],
-  ],
-  "3-4-3": [
-    [7.5, 34],
-    [18, 18],
-    [18, 34],
-    [18, 50],
-    [34, 11],
-    [34, 25],
-    [34, 43],
-    [34, 57],
-    [56, 14],
-    [60, 34],
-    [56, 54],
-  ],
-  "4-4-2": [
-    [7.5, 34],
-    [20, 10],
-    [18, 24],
-    [18, 44],
-    [20, 58],
-    [36, 12],
-    [34, 28],
-    [34, 40],
-    [36, 56],
-    [55, 26],
-    [55, 42],
-  ],
-  "4-2-3-1": [
-    [7.5, 34],
-    [20, 10],
-    [18, 24],
-    [18, 44],
-    [20, 58],
-    [31, 28],
-    [31, 40],
-    [46, 12],
-    [47, 34],
-    [46, 56],
-    [60, 34],
-  ],
-  "3-5-2": [
-    [7.5, 34],
-    [18, 18],
-    [18, 34],
-    [18, 50],
-    [34, 10],
-    [34, 24],
-    [36, 34],
-    [34, 44],
-    [34, 58],
-    [58, 28],
-    [58, 40],
-  ],
-};
-const playerRadiusMeters = 1.2;
-const ballRadiusMeters = 0.58;
-const sequenceStorageKey = "football-simulator-sequence-v1";
-const sequenceLibraryStorageKey = "football-simulator-sequence-library-v2";
-const defaultScenarioInfo = {
-  title: "Scenario",
-  text:
-    "The starting point is a full-pitch setup with two formations. You can build your own tactical scenario by arranging the players, choosing where the ball travels next, and then reading how many metres each player can cover during the ball action.",
-  meta:
-    "Every pass, dribble or shot is saved automatically as a step that you can adjust, jump between and replay from the current position.",
-};
 const workspaceHubStorageKey = "football-workspace-hub-v3";
+const platformStructureStorageKey = "football-platform-structure-v1";
 const workspaceHubDefaultActiveWorkspaceId = "home";
 const workspaceLastActiveStorageKey = "football-workspace-last-active-local-v1";
 const periodizationStorageKey = "football-periodization-v2";
@@ -386,6 +235,8 @@ const sessionPlannerBlockMergeFields = Object.freeze([
   "principles",
   "diagram",
   "tacticalPitchMode",
+  "tacticalFrames",
+  "tacticalActiveFrameId",
   "playerBoardLayoutMode",
   "visualImage",
   "playerBoardPositions",
@@ -443,6 +294,8 @@ const dashboardNotificationSeenStorageKey = "football-dashboard-notification-see
 const dashboardTutorialPrefsStorageKey = "football-dashboard-tutorial-prefs-v1";
 const dashboardNewsSeenStorageKey = "football-dashboard-news-seen-v1";
 const medicalTeamStorageKey = "football-medical-team-v1";
+const sequenceStorageKey = "football-simulator-sequence-v1";
+const sequenceLibraryStorageKey = "football-simulator-sequence-library-v2";
 const dataSafetyStorageKey = "football-data-safety-v1";
 const dataSafetyExportSchema = "football-science-backup-v1";
 const dataSafetyDatabaseName = "football-science-data-safety-v1";
@@ -453,6 +306,7 @@ const dataSafetyLatestStoreName = "latest";
 const dataSafetyMaxSnapshots = 30;
 const dataSafetyProtectedStorageKeys = [
   workspaceHubStorageKey,
+  platformStructureStorageKey,
   periodizationStorageKey,
   scheduleStorageKey,
   sessionPlannerStorageKey,
@@ -472,6 +326,7 @@ const dataSafetyProtectedStorageKeys = [
 const dataSafetyProtectedStorageKeySet = new Set(dataSafetyProtectedStorageKeys);
 const dataSafetyStorageLabels = {
   [workspaceHubStorageKey]: "Workspace",
+  [platformStructureStorageKey]: "Club and Team Structure",
   [periodizationStorageKey]: "Periodization",
   [scheduleStorageKey]: "Schedule",
   [sessionPlannerStorageKey]: "Session Planner",
@@ -480,6 +335,7 @@ const dataSafetyStorageLabels = {
   [sessionPlannerExerciseLibraryFoldersStorageKey]: "Exercise Library Folders",
   [sessionPlannerExerciseLibraryFoldersBackupStorageKey]: "Exercise Library Folders Backup",
   [dashboardTaskStorageKey]: "Dashboard Tasks",
+  [dashboardChatStorageKey]: "Team Chat",
   [dashboardNotificationSeenStorageKey]: "Home Notifications",
   [dashboardTutorialPrefsStorageKey]: "Dashboard Preferences",
   [dashboardNewsSeenStorageKey]: "Dashboard News",
@@ -795,6 +651,9 @@ function queueCentralStateWrite(key, value, options = {}) {
     return;
   }
   const bridge = getCentralStateBridge();
+  if (typeof bridge?.isCentralKey === "function" && !bridge.isCentralKey(normalizedKey)) {
+    return;
+  }
   if (!getCurrentPlatformUser() || !bridge?.syncKey) {
     queueCentralStateStatus("Central sync is not available.");
     return;
@@ -1350,8 +1209,12 @@ const defaultScheduleState = {
   importVersion: "",
   events: [],
 };
-const importedNccScheduleVersion = "ncc-2026-numbers-v1";
-const importedNccScheduleEvents = [{"id":"ncc-2026-01-12-000","date":"2026-01-12","time":"","type":"travel","title":"Staff in Market","note":""},{"id":"ncc-2026-01-14-001","date":"2026-01-14","time":"","type":"meeting","title":"Staff Conference","note":"Report date"},{"id":"ncc-2026-01-15-002","date":"2026-01-15","time":"","type":"meeting","title":"Medical tests","note":""},{"id":"ncc-2026-01-16-003","date":"2026-01-16","time":"","type":"meeting","title":"Physical tests","note":""},{"id":"ncc-2026-01-19-004","date":"2026-01-19","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-01-20-005","date":"2026-01-20","time":"","type":"training","title":"Training x 2","note":""},{"id":"ncc-2026-01-22-006","date":"2026-01-22","time":"","type":"training","title":"Training/IDP + Lift","note":""},{"id":"ncc-2026-01-23-007","date":"2026-01-23","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-01-24-008","date":"2026-01-24","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-01-26-009","date":"2026-01-26","time":"","type":"training","title":"Lift","note":""},{"id":"ncc-2026-01-27-010","date":"2026-01-27","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-01-28-011","date":"2026-01-28","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-01-29-012","date":"2026-01-29","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-01-30-013","date":"2026-01-30","time":"","type":"training","title":"Lift + Training","note":""},{"id":"ncc-2026-02-03-014","date":"2026-02-03","time":"","type":"training","title":"Lift + Training/IDP","note":""},{"id":"ncc-2026-02-04-015","date":"2026-02-04","time":"","type":"training","title":"Training x 2","note":""},{"id":"ncc-2026-02-06-016","date":"2026-02-06","time":"","type":"training","title":"Lift + Training/IDP","note":""},{"id":"ncc-2026-02-07-017","date":"2026-02-07","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-02-08-018","date":"2026-02-08","time":"","type":"match","title":"NCC vs ECNL U15","note":""},{"id":"ncc-2026-02-10-019","date":"2026-02-10","time":"","type":"training","title":"Training/IDP + Lift","note":""},{"id":"ncc-2026-02-11-020","date":"2026-02-11","time":"","type":"training","title":"Training x 2","note":"Academy U15/U16"},{"id":"ncc-2026-02-12-021","date":"2026-02-12","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-02-13-022","date":"2026-02-13","time":"","type":"travel","title":"Training + Departure","note":"Departure Camp"},{"id":"ncc-2026-02-14-023","date":"2026-02-14","time":"","type":"travel","title":"Arrive Madrid","note":""},{"id":"ncc-2026-02-15-024","date":"2026-02-15","time":"","type":"training","title":"Training + Lift (Madrid)","note":""},{"id":"ncc-2026-02-16-025","date":"2026-02-16","time":"","type":"training","title":"Training + IDP (Marbella)","note":""},{"id":"ncc-2026-02-17-026","date":"2026-02-17","time":"","type":"match","title":"Rosenborg - NCC","note":""},{"id":"ncc-2026-02-19-027","date":"2026-02-19","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-02-20-028","date":"2026-02-20","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-02-21-029","date":"2026-02-21","time":"","type":"match","title":"Brann - NCC","note":""},{"id":"ncc-2026-02-22-030","date":"2026-02-22","time":"","type":"training","title":"Training/Lift","note":""},{"id":"ncc-2026-02-23-031","date":"2026-02-23","time":"","type":"travel","title":"Departure from Madrid","note":""},{"id":"ncc-2026-02-24-032","date":"2026-02-24","time":"","type":"training","title":"FIFA Window","note":""},{"id":"ncc-2026-02-25-033","date":"2026-02-25","time":"","type":"training","title":"Lift (Home)","note":""},{"id":"ncc-2026-02-26-034","date":"2026-02-26","time":"","type":"training","title":"Training x 2","note":""},{"id":"ncc-2026-02-27-035","date":"2026-02-27","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-02-28-036","date":"2026-02-28","time":"","type":"match","title":"Carolina Ascent - NCC","note":""},{"id":"ncc-2026-03-01-037","date":"2026-03-01","time":"","type":"training","title":"FIFA Window","note":""},{"id":"ncc-2026-03-02-038","date":"2026-03-02","time":"","type":"training","title":"Training/IDP + Lift","note":""},{"id":"ncc-2026-03-03-039","date":"2026-03-03","time":"","type":"training","title":"Training x 2","note":""},{"id":"ncc-2026-03-05-040","date":"2026-03-05","time":"","type":"training","title":"Training/IDP + Lift","note":""},{"id":"ncc-2026-03-06-041","date":"2026-03-06","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-03-07-042","date":"2026-03-07","time":"","type":"match","title":"Scrimmage / Friendly","note":""},{"id":"ncc-2026-03-09-043","date":"2026-03-09","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-03-10-044","date":"2026-03-10","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-03-12-045","date":"2026-03-12","time":"","type":"training","title":"Training/IDP + Lift","note":""},{"id":"ncc-2026-03-13-046","date":"2026-03-13","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-03-14-047","date":"2026-03-14","time":"","type":"match","title":"NCC - Racing Louisville (7PM ET)","note":""},{"id":"ncc-2026-03-16-048","date":"2026-03-16","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-03-17-049","date":"2026-03-17","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-03-19-050","date":"2026-03-19","time":"","type":"training","title":"Training/IDP + Lift","note":""},{"id":"ncc-2026-03-20-051","date":"2026-03-20","time":"","type":"travel","title":"Training + Departure","note":""},{"id":"ncc-2026-03-21-052","date":"2026-03-21","time":"","type":"match","title":"Gotham - NCC (6:30PM ET)","note":""},{"id":"ncc-2026-03-22-053","date":"2026-03-22","time":"","type":"travel","title":"Travelday","note":""},{"id":"ncc-2026-03-23-054","date":"2026-03-23","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-03-24-055","date":"2026-03-24","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-03-26-056","date":"2026-03-26","time":"","type":"training","title":"Training/IDP + Lift","note":""},{"id":"ncc-2026-03-27-057","date":"2026-03-27","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-03-28-058","date":"2026-03-28","time":"","type":"match","title":"NCC - Bay FC (7PM ET)","note":""},{"id":"ncc-2026-03-30-059","date":"2026-03-30","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-03-31-060","date":"2026-03-31","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-04-02-061","date":"2026-04-02","time":"","type":"training","title":"Training/IDP + Lift","note":""},{"id":"ncc-2026-04-03-062","date":"2026-04-03","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-04-04-063","date":"2026-04-04","time":"","type":"match","title":"NCC - Portland (6:30PM ET)","note":""},{"id":"ncc-2026-04-06-064","date":"2026-04-06","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-04-07-065","date":"2026-04-07","time":"","type":"training","title":"Training/IDP","note":"FIFA Window"},{"id":"ncc-2026-04-09-066","date":"2026-04-09","time":"","type":"training","title":"Training/IDP + Lift","note":""},{"id":"ncc-2026-04-10-067","date":"2026-04-10","time":"","type":"training","title":"Training (Interngame)","note":""},{"id":"ncc-2026-04-13-068","date":"2026-04-13","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-04-14-069","date":"2026-04-14","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-04-16-070","date":"2026-04-16","time":"","type":"training","title":"Training/Lift","note":""},{"id":"ncc-2026-04-17-071","date":"2026-04-17","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-04-18-072","date":"2026-04-18","time":"","type":"match","title":"NCC - Boys Academy","note":""},{"id":"ncc-2026-04-20-073","date":"2026-04-20","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-04-21-074","date":"2026-04-21","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-04-23-075","date":"2026-04-23","time":"","type":"training","title":"Training/Lift","note":""},{"id":"ncc-2026-04-24-076","date":"2026-04-24","time":"","type":"travel","title":"Training + Departure","note":"Whole Roster"},{"id":"ncc-2026-04-25-077","date":"2026-04-25","time":"","type":"match","title":"Houston Dash - NCC (8PM ET)","note":"Travelday/Charter"},{"id":"ncc-2026-04-26-078","date":"2026-04-26","time":"","type":"training","title":"Rehab/Lift","note":""},{"id":"ncc-2026-04-27-079","date":"2026-04-27","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-04-28-080","date":"2026-04-28","time":"","type":"travel","title":"Training + Departure","note":""},{"id":"ncc-2026-04-29-081","date":"2026-04-29","time":"","type":"match","title":"Boston - NCC (8PM ET)","note":"Travelday/Charter"},{"id":"ncc-2026-04-30-082","date":"2026-04-30","time":"","type":"recovery","title":"Optional Training/Lift/Recovery","note":"Afternoon"},{"id":"ncc-2026-05-01-083","date":"2026-05-01","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-05-02-084","date":"2026-05-02","time":"","type":"match","title":"NCC - Kansas City (6:30PM ET)","note":""},{"id":"ncc-2026-05-03-085","date":"2026-05-03","time":"","type":"recovery","title":"Optional Training/Lift/Recovery","note":""},{"id":"ncc-2026-05-05-086","date":"2026-05-05","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-05-06-087","date":"2026-05-06","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-05-07-088","date":"2026-05-07","time":"","type":"travel","title":"Training + Departure","note":""},{"id":"ncc-2026-05-08-089","date":"2026-05-08","time":"","type":"match","title":"Orlando Pride - NCC (8PM ET)","note":""},{"id":"ncc-2026-05-09-090","date":"2026-05-09","time":"","type":"travel","title":"Travelday","note":""},{"id":"ncc-2026-05-11-091","date":"2026-05-11","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-05-12-092","date":"2026-05-12","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-05-14-093","date":"2026-05-14","time":"","type":"training","title":"Training/Lift","note":""},{"id":"ncc-2026-05-15-094","date":"2026-05-15","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-05-16-095","date":"2026-05-16","time":"","type":"match","title":"NCC - Chicago Stars (6:30PM ET)","note":""},{"id":"ncc-2026-05-18-096","date":"2026-05-18","time":"","type":"training","title":"Training + Lift","note":"No office"},{"id":"ncc-2026-05-19-097","date":"2026-05-19","time":"","type":"training","title":"Training/IDP","note":"No office"},{"id":"ncc-2026-05-21-098","date":"2026-05-21","time":"","type":"training","title":"Training/Lift","note":"No office"},{"id":"ncc-2026-05-22-099","date":"2026-05-22","time":"","type":"travel","title":"Training + Departure","note":"No office"},{"id":"ncc-2026-05-23-100","date":"2026-05-23","time":"","type":"match","title":"Racing Louisville - NCC (4PM ET)","note":"Travelday"},{"id":"ncc-2026-05-26-101","date":"2026-05-26","time":"","type":"training","title":"Training + Lift","note":"Atletic Lab"},{"id":"ncc-2026-05-27-102","date":"2026-05-27","time":"","type":"training","title":"Training/IDP","note":"Atletic Lab"},{"id":"ncc-2026-05-29-103","date":"2026-05-29","time":"","type":"travel","title":"Training + Departure","note":"Atletic Lab"},{"id":"ncc-2026-05-30-104","date":"2026-05-30","time":"","type":"training","title":"Training in LA","note":""},{"id":"ncc-2026-05-31-105","date":"2026-05-31","time":"","type":"match","title":"Angel City - NCC (7PM ET)","note":""},{"id":"ncc-2026-06-01-106","date":"2026-06-01","time":"","type":"training","title":"FIFA Window","note":""},{"id":"ncc-2026-06-03-107","date":"2026-06-03","time":"","type":"training","title":"Training/IDP + Lift","note":""},{"id":"ncc-2026-06-04-108","date":"2026-06-04","time":"","type":"training","title":"Training / Benchmarking","note":""},{"id":"ncc-2026-06-05-109","date":"2026-06-05","time":"","type":"training","title":"Training / Benchmarking","note":""},{"id":"ncc-2026-06-08-110","date":"2026-06-08","time":"","type":"off","title":"Mid-Season Break","note":""},{"id":"ncc-2026-06-15-111","date":"2026-06-15","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-06-16-112","date":"2026-06-16","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-06-18-113","date":"2026-06-18","time":"","type":"training","title":"Training/IDP + Lift","note":""},{"id":"ncc-2026-06-19-114","date":"2026-06-19","time":"","type":"match","title":"Scrimmage / Friendly?","note":""},{"id":"ncc-2026-06-20-115","date":"2026-06-20","time":"","type":"training","title":"Poolparty KP?","note":""},{"id":"ncc-2026-06-22-116","date":"2026-06-22","time":"","type":"training","title":"Training/IDP + Lift","note":""},{"id":"ncc-2026-06-23-117","date":"2026-06-23","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-06-25-118","date":"2026-06-25","time":"","type":"training","title":"Training/IDP + Lift","note":""},{"id":"ncc-2026-06-26-119","date":"2026-06-26","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-06-27-120","date":"2026-06-27","time":"","type":"match","title":"Scrimmage / Friendly?","note":"Louiville?"},{"id":"ncc-2026-06-29-121","date":"2026-06-29","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-06-30-122","date":"2026-06-30","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-07-02-000","date":"2026-07-02","time":"","type":"training","title":"Training/Lift","note":""},{"id":"ncc-2026-07-03-001","date":"2026-07-03","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-07-04-002","date":"2026-07-04","time":"","type":"match","title":"NCC - Seattle Reign (6:30PM ET)","note":""},{"id":"ncc-2026-07-06-003","date":"2026-07-06","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-07-07-004","date":"2026-07-07","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-07-09-005","date":"2026-07-09","time":"","type":"training","title":"Training/Lift","note":""},{"id":"ncc-2026-07-10-006","date":"2026-07-10","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-07-11-007","date":"2026-07-11","time":"","type":"match","title":"NCC - Washington Spirit (6:30PM ET)","note":""},{"id":"ncc-2026-07-13-008","date":"2026-07-13","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-07-14-009","date":"2026-07-14","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-07-16-010","date":"2026-07-16","time":"","type":"travel","title":"Training + Departure","note":""},{"id":"ncc-2026-07-17-011","date":"2026-07-17","time":"","type":"training","title":"Training in Bay","note":""},{"id":"ncc-2026-07-18-012","date":"2026-07-18","time":"","type":"match","title":"Bay FC - NCC (4PM ET)","note":"Departure home?"},{"id":"ncc-2026-07-20-013","date":"2026-07-20","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-07-21-014","date":"2026-07-21","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-07-23-015","date":"2026-07-23","time":"","type":"training","title":"Training/Lift","note":""},{"id":"ncc-2026-07-24-016","date":"2026-07-24","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-07-25-017","date":"2026-07-25","time":"","type":"match","title":"NCC - Utah (7:45PM ET)","note":""},{"id":"ncc-2026-07-26-018","date":"2026-07-26","time":"","type":"recovery","title":"Recovery + Lift","note":""},{"id":"ncc-2026-07-28-019","date":"2026-07-28","time":"","type":"training","title":"Training/IDP + Lift","note":""},{"id":"ncc-2026-07-29-020","date":"2026-07-29","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-07-30-021","date":"2026-07-30","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-07-31-022","date":"2026-07-31","time":"","type":"match","title":"NCC - Orlanda (8PM ET)","note":""},{"id":"ncc-2026-08-02-023","date":"2026-08-02","time":"","type":"training","title":"Training/IDP + Lift","note":""},{"id":"ncc-2026-08-03-024","date":"2026-08-03","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-08-04-025","date":"2026-08-04","time":"","type":"travel","title":"Training + Departure","note":""},{"id":"ncc-2026-08-05-026","date":"2026-08-05","time":"","type":"match","title":"Denver - NCC (10PM ET)","note":""},{"id":"ncc-2026-08-06-027","date":"2026-08-06","time":"","type":"travel","title":"Departure + Training/Recovery","note":""},{"id":"ncc-2026-08-07-028","date":"2026-08-07","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-08-08-029","date":"2026-08-08","time":"","type":"match","title":"Washington - NCC (6:30PM ET)","note":""},{"id":"ncc-2026-08-10-030","date":"2026-08-10","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-08-11-031","date":"2026-08-11","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-08-12-032","date":"2026-08-12","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-08-14-033","date":"2026-08-14","time":"","type":"training","title":"Training/Lift","note":""},{"id":"ncc-2026-08-15-034","date":"2026-08-15","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-08-16-035","date":"2026-08-16","time":"","type":"match","title":"NCC - Houston (7PM ET)","note":""},{"id":"ncc-2026-08-17-036","date":"2026-08-17","time":"","type":"recovery","title":"Training/Recovery","note":""},{"id":"ncc-2026-08-19-037","date":"2026-08-19","time":"","type":"training","title":"Training/IDP + Lift","note":""},{"id":"ncc-2026-08-20-038","date":"2026-08-20","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-08-21-039","date":"2026-08-21","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-08-22-040","date":"2026-08-22","time":"","type":"match","title":"NCC - Boston (7:30 PM ET)","note":""},{"id":"ncc-2026-08-24-041","date":"2026-08-24","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-08-25-042","date":"2026-08-25","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-08-26-043","date":"2026-08-26","time":"","type":"match","title":"NCC - Angel City (6 PM ET)","note":""},{"id":"ncc-2026-08-27-044","date":"2026-08-27","time":"","type":"recovery","title":"Training / Recovery","note":""},{"id":"ncc-2026-08-28-045","date":"2026-08-28","time":"","type":"travel","title":"Training + Departure","note":""},{"id":"ncc-2026-08-29-046","date":"2026-08-29","time":"","type":"match","title":"Kansas - NCC (6:30PM ET)","note":""},{"id":"ncc-2026-08-31-047","date":"2026-08-31","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-09-01-048","date":"2026-09-01","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-09-03-049","date":"2026-09-03","time":"","type":"training","title":"Training/Lift","note":""},{"id":"ncc-2026-09-04-050","date":"2026-09-04","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-09-05-051","date":"2026-09-05","time":"","type":"travel","title":"Training + Departure","note":""},{"id":"ncc-2026-09-06-052","date":"2026-09-06","time":"","type":"match","title":"Chicago - NCC (4PM ET)","note":"Departure"},{"id":"ncc-2026-09-08-053","date":"2026-09-08","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-09-09-054","date":"2026-09-09","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-09-10-055","date":"2026-09-10","time":"","type":"travel","title":"Training + Departure","note":""},{"id":"ncc-2026-09-11-056","date":"2026-09-11","time":"","type":"training","title":"Training in San Diego","note":""},{"id":"ncc-2026-09-12-057","date":"2026-09-12","time":"","type":"match","title":"San Diego - NCC (6:30PM ET)","note":""},{"id":"ncc-2026-09-13-058","date":"2026-09-13","time":"","type":"travel","title":"Departure","note":""},{"id":"ncc-2026-09-14-059","date":"2026-09-14","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-09-15-060","date":"2026-09-15","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-09-17-061","date":"2026-09-17","time":"","type":"training","title":"Training/Lift","note":""},{"id":"ncc-2026-09-18-062","date":"2026-09-18","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-09-19-063","date":"2026-09-19","time":"","type":"match","title":"NCC - Gotham (PM ET)","note":""},{"id":"ncc-2026-09-21-064","date":"2026-09-21","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-09-22-065","date":"2026-09-22","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-09-24-066","date":"2026-09-24","time":"","type":"training","title":"Training/Lift","note":""},{"id":"ncc-2026-09-25-067","date":"2026-09-25","time":"","type":"travel","title":"Training + Departure","note":""},{"id":"ncc-2026-09-26-068","date":"2026-09-26","time":"","type":"training","title":"Training in Utah","note":""},{"id":"ncc-2026-09-27-069","date":"2026-09-27","time":"","type":"match","title":"Utah - NCC (7PM ET)","note":""},{"id":"ncc-2026-09-29-070","date":"2026-09-29","time":"","type":"training","title":"Training/IDP + Lift","note":""},{"id":"ncc-2026-09-30-071","date":"2026-09-30","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-10-01-072","date":"2026-10-01","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-10-02-073","date":"2026-10-02","time":"","type":"match","title":"Seattle - NCC (PM ET)","note":""},{"id":"ncc-2026-10-05-074","date":"2026-10-05","time":"","type":"training","title":"Training/IDP","note":"FIFA Window"},{"id":"ncc-2026-10-06-075","date":"2026-10-06","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-10-08-076","date":"2026-10-08","time":"","type":"training","title":"Training/IDP + Lift","note":""},{"id":"ncc-2026-10-09-077","date":"2026-10-09","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-10-10-078","date":"2026-10-10","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-10-12-079","date":"2026-10-12","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-10-13-080","date":"2026-10-13","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-10-15-081","date":"2026-10-15","time":"","type":"training","title":"Training/Lift","note":""},{"id":"ncc-2026-10-16-082","date":"2026-10-16","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-10-17-083","date":"2026-10-17","time":"","type":"match","title":"NCC - San Diego (7PM ET)","note":""},{"id":"ncc-2026-10-18-084","date":"2026-10-18","time":"","type":"recovery","title":"Training / Recovery","note":""},{"id":"ncc-2026-10-20-085","date":"2026-10-20","time":"","type":"training","title":"Training/IDP + Lift","note":""},{"id":"ncc-2026-10-21-086","date":"2026-10-21","time":"","type":"travel","title":"Training + Departure","note":""},{"id":"ncc-2026-10-22-087","date":"2026-10-22","time":"","type":"training","title":"Training in Portland","note":""},{"id":"ncc-2026-10-23-088","date":"2026-10-23","time":"","type":"match","title":"Portland - NCC (PM ET)","note":""},{"id":"ncc-2026-10-26-089","date":"2026-10-26","time":"","type":"training","title":"Training + Lift","note":""},{"id":"ncc-2026-10-27-090","date":"2026-10-27","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-10-28-091","date":"2026-10-28","time":"","type":"training","title":"Training/IDP","note":""},{"id":"ncc-2026-10-30-092","date":"2026-10-30","time":"","type":"training","title":"Training/Lift","note":""},{"id":"ncc-2026-10-31-093","date":"2026-10-31","time":"","type":"training","title":"Training","note":""},{"id":"ncc-2026-11-01-094","date":"2026-11-01","time":"","type":"match","title":"NCC - Denver (5 PM ET)","note":""},{"id":"ncc-2026-11-24-095","date":"2026-11-24","time":"","type":"training","title":"FIFA Window","note":""},{"id":"ncc-2026-12-01-096","date":"2026-12-01","time":"","type":"training","title":"FIFA Window","note":""}];
+const importedNccScheduleEvents = Array.isArray(window.__importedNccScheduleEvents)
+  ? window.__importedNccScheduleEvents
+  : [];
+const importedNccScheduleVersion = importedNccScheduleEvents.length
+  ? window.__importedNccScheduleVersion || "ncc-2026-numbers-v1"
+  : "";
 const defaultHubState = {
   activeWorkspaceId: "home",
   sidebarCollapsed: false,
@@ -1468,9 +1331,9 @@ const defaultHubState = {
     {
       id: "player-profiles",
       kind: "player-profiles",
-      title: "Squad",
-      meta: "Player profiles",
-      description: "Core player identity, role details, squad status and medical summary in one place.",
+      title: "IDP",
+      meta: "Player development",
+      description: "Individual development plans, role profiles and player growth work.",
       status: "Active",
       icon: "◔",
     },
@@ -1486,60 +1349,57 @@ const defaultHubState = {
   ],
 };
 const topIconMenuOrder = [
-  "home",
   "schedule",
   "periodization",
   "session-planner",
   "player-profiles",
   "analysis-room",
   "staff",
-  "medical-team",
-  "admin",
   "team-identity",
   "game-simulator",
 ];
 const defaultWorkspaceAccess = {
-  chat: ["admin", "coach", "analyst", "performance", "medical"],
-  schedule: ["admin", "coach", "analyst", "performance", "medical", "guest"],
-  periodization: ["admin", "coach", "analyst", "performance", "medical"],
-  "session-planner": ["admin", "coach", "analyst", "performance", "medical"],
-  "player-profiles": ["admin", "coach", "performance", "medical"],
-  "analysis-room": ["admin", "coach", "analyst"],
-  "medical-team": ["admin", "coach", "performance", "medical"],
+  chat: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
+  schedule: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"],
+  periodization: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
+  "session-planner": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
+  "player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout", "performance", "medical"],
+  "analysis-room": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
+  "medical-team": ["admin", "club-admin", "team-admin", "coach", "performance", "medical"],
   staff: ["admin"],
   admin: ["admin"],
-  "team-identity": ["admin", "coach"],
-  "game-simulator": ["admin", "coach", "analyst", "performance"],
+  "team-identity": ["admin", "club-admin", "team-admin", "coach"],
+  "game-simulator": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance"],
 };
 const defaultWorkspaceEditAccess = {
-  chat: ["admin", "coach", "analyst", "performance", "medical"],
-  schedule: ["admin", "coach"],
-  periodization: ["admin", "coach", "performance"],
-  "session-planner": ["admin", "coach"],
-  "player-profiles": ["admin", "coach"],
-  "analysis-room": ["admin", "analyst"],
-  "medical-team": ["admin", "medical", "performance"],
+  chat: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
+  schedule: ["admin", "club-admin", "team-admin", "coach"],
+  periodization: ["admin", "club-admin", "team-admin", "coach", "performance"],
+  "session-planner": ["admin", "club-admin", "team-admin", "coach"],
+  "player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout"],
+  "analysis-room": ["admin", "club-admin", "team-admin", "scout", "analyst"],
+  "medical-team": ["admin", "club-admin", "team-admin", "medical", "performance"],
   staff: ["admin"],
   admin: ["admin"],
-  "team-identity": ["admin", "coach"],
-  "game-simulator": ["admin", "coach", "analyst"],
+  "team-identity": ["admin", "club-admin", "team-admin", "coach"],
+  "game-simulator": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
 };
 const requiredWorkspaceAccess = {
   "session-planner": {
-    view: ["admin", "coach", "analyst", "performance", "medical"],
-    edit: ["admin", "coach"],
+    view: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
+    edit: ["admin", "club-admin", "team-admin", "coach"],
   },
   "player-profiles": {
-    view: ["admin", "coach", "performance", "medical"],
-    edit: ["admin", "coach"],
+    view: ["admin", "club-admin", "team-admin", "coach", "scout", "performance", "medical"],
+    edit: ["admin", "club-admin", "team-admin", "coach", "scout"],
   },
   "medical-team": {
-    view: ["admin", "coach", "performance", "medical"],
-    edit: ["admin", "medical", "performance"],
+    view: ["admin", "club-admin", "team-admin", "coach", "performance", "medical"],
+    edit: ["admin", "club-admin", "team-admin", "medical", "performance"],
   },
   "team-identity": {
-    view: ["admin", "coach"],
-    edit: ["admin", "coach"],
+    view: ["admin", "club-admin", "team-admin", "coach"],
+    edit: ["admin", "club-admin", "team-admin", "coach"],
   },
 };
 const medicalParticipationOptions = [0, 10, 25, 50, 75, 100];
@@ -2457,1771 +2317,6 @@ const periodizationOptionLibrary = {
   subPhases: Object.values(periodizationPhaseLibrary).flat(),
   teamPrinciples: Object.values(periodizationTeamPrinciplesBySubPhase).flat(),
   miniGamePrinciples: Object.values(periodizationMiniGamePrinciplesBySubPhase).flat(),
-};
-const squadBlueprints = [
-  { team: "home", id: "H1", shortLabel: "GK", role: "Goalkeeper", position: [7.5, 34], maxSpeed: 5.4, acceleration: 1.9, reactionTime: 0.38 },
-  { team: "home", id: "H2", shortLabel: "LB", role: "Left Back", position: [20, 11], maxSpeed: 8.1, acceleration: 2.8, reactionTime: 0.24 },
-  { team: "home", id: "H3", shortLabel: "LCB", role: "Left Center Back", position: [18, 25], maxSpeed: 7.2, acceleration: 2.4, reactionTime: 0.26 },
-  { team: "home", id: "H4", shortLabel: "RCB", role: "Right Center Back", position: [18, 43], maxSpeed: 7.2, acceleration: 2.4, reactionTime: 0.26 },
-  { team: "home", id: "H5", shortLabel: "RB", role: "Right Back", position: [20, 57], maxSpeed: 8.2, acceleration: 2.9, reactionTime: 0.24 },
-  { team: "home", id: "H6", shortLabel: "6", role: "Holding Midfielder", position: [33, 34], maxSpeed: 7.7, acceleration: 2.7, reactionTime: 0.2 },
-  { team: "home", id: "H8", shortLabel: "8", role: "Right No. 8", position: [40, 45], maxSpeed: 7.9, acceleration: 2.8, reactionTime: 0.18 },
-  { team: "home", id: "H10", shortLabel: "10", role: "Left No. 8", position: [40, 23], maxSpeed: 7.9, acceleration: 2.8, reactionTime: 0.18 },
-  { team: "home", id: "H11", shortLabel: "LW", role: "Left Winger", position: [55, 11], maxSpeed: 8.9, acceleration: 3.2, reactionTime: 0.16 },
-  { team: "home", id: "H9", shortLabel: "ST", role: "Striker", position: [60, 34], maxSpeed: 8.8, acceleration: 3.2, reactionTime: 0.16 },
-  { team: "home", id: "H7", shortLabel: "RW", role: "Right Winger", position: [55, 57], maxSpeed: 9, acceleration: 3.3, reactionTime: 0.16 },
-  { team: "away", id: "A1", shortLabel: "GK", role: "Goalkeeper", position: [97.5, 34], maxSpeed: 5.3, acceleration: 1.9, reactionTime: 0.38 },
-  { team: "away", id: "A2", shortLabel: "LCB", role: "Left Center Back", position: [86, 18], maxSpeed: 7.2, acceleration: 2.4, reactionTime: 0.26 },
-  { team: "away", id: "A3", shortLabel: "CB", role: "Center Back", position: [88, 34], maxSpeed: 7.1, acceleration: 2.3, reactionTime: 0.27 },
-  { team: "away", id: "A4", shortLabel: "RCB", role: "Right Center Back", position: [86, 50], maxSpeed: 7.2, acceleration: 2.4, reactionTime: 0.26 },
-  { team: "away", id: "A5", shortLabel: "LM", role: "Left Wing-Back", position: [70, 11], maxSpeed: 8.5, acceleration: 3, reactionTime: 0.22 },
-  { team: "away", id: "A6", shortLabel: "8", role: "Left Central Midfielder", position: [68, 24], maxSpeed: 7.8, acceleration: 2.8, reactionTime: 0.2 },
-  { team: "away", id: "A8", shortLabel: "6", role: "Right Central Midfielder", position: [68, 44], maxSpeed: 7.8, acceleration: 2.8, reactionTime: 0.2 },
-  { team: "away", id: "A7", shortLabel: "RM", role: "Right Wing-Back", position: [70, 57], maxSpeed: 8.5, acceleration: 3, reactionTime: 0.22 },
-  { team: "away", id: "A11", shortLabel: "LW", role: "Left Forward", position: [56, 14], maxSpeed: 8.8, acceleration: 3.1, reactionTime: 0.18 },
-  { team: "away", id: "A9", shortLabel: "ST", role: "Centre Forward", position: [54, 34], maxSpeed: 8.8, acceleration: 3.1, reactionTime: 0.18 },
-  { team: "away", id: "A10", shortLabel: "RW", role: "Right Forward", position: [56, 54], maxSpeed: 8.8, acceleration: 3.1, reactionTime: 0.18 },
-];
-const intelligenceRoleArchetypes = [
-  {
-    key: "goalkeeper",
-    test: (role) => /goalkeeper/i.test(role),
-    baseIntelligence: 72,
-    weights: {
-      perception: 0.96,
-      decisionSpeed: 0.82,
-      decisionQuality: 0.92,
-      tacticalDiscipline: 0.95,
-      technicalSecurity: 0.76,
-      pressResistance: 0.74,
-      composure: 0.92,
-    },
-  },
-  {
-    key: "holding-midfielder",
-    test: (role, shortLabel) => /holding midfielder/i.test(role) || shortLabel === "6",
-    baseIntelligence: 84,
-    weights: {
-      perception: 1,
-      decisionSpeed: 0.96,
-      decisionQuality: 0.98,
-      tacticalDiscipline: 0.96,
-      technicalSecurity: 0.86,
-      pressResistance: 0.88,
-      composure: 0.9,
-    },
-  },
-  {
-    key: "number-eight",
-    test: (role, shortLabel) =>
-      /no\. 8/i.test(role) || /central midfielder/i.test(role) || shortLabel === "8" || shortLabel === "10",
-    baseIntelligence: 80,
-    weights: {
-      perception: 0.9,
-      decisionSpeed: 0.9,
-      decisionQuality: 0.9,
-      tacticalDiscipline: 0.82,
-      technicalSecurity: 0.84,
-      pressResistance: 0.82,
-      composure: 0.84,
-    },
-  },
-  {
-    key: "center-back",
-    test: (role) => /center back/i.test(role),
-    baseIntelligence: 78,
-    weights: {
-      perception: 0.94,
-      decisionSpeed: 0.84,
-      decisionQuality: 0.9,
-      tacticalDiscipline: 1,
-      technicalSecurity: 0.72,
-      pressResistance: 0.8,
-      composure: 0.86,
-    },
-  },
-  {
-    key: "fullback",
-    test: (role) => /back/i.test(role) || /wing-back/i.test(role),
-    baseIntelligence: 75,
-    weights: {
-      perception: 0.82,
-      decisionSpeed: 0.86,
-      decisionQuality: 0.78,
-      tacticalDiscipline: 0.82,
-      technicalSecurity: 0.78,
-      pressResistance: 0.74,
-      composure: 0.76,
-    },
-  },
-  {
-    key: "striker",
-    test: (role) => /striker/i.test(role) || /centre forward/i.test(role),
-    baseIntelligence: 77,
-    weights: {
-      perception: 0.84,
-      decisionSpeed: 0.9,
-      decisionQuality: 0.84,
-      tacticalDiscipline: 0.72,
-      technicalSecurity: 0.82,
-      pressResistance: 0.8,
-      composure: 0.78,
-    },
-  },
-  {
-    key: "wide-forward",
-    test: (role) => /winger/i.test(role) || /forward/i.test(role),
-    baseIntelligence: 76,
-    weights: {
-      perception: 0.78,
-      decisionSpeed: 0.86,
-      decisionQuality: 0.76,
-      tacticalDiscipline: 0.66,
-      technicalSecurity: 0.84,
-      pressResistance: 0.78,
-      composure: 0.74,
-    },
-  },
-  {
-    key: "default",
-    test: () => true,
-    baseIntelligence: 75,
-    weights: {
-      perception: 0.82,
-      decisionSpeed: 0.82,
-      decisionQuality: 0.82,
-      tacticalDiscipline: 0.82,
-      technicalSecurity: 0.78,
-      pressResistance: 0.76,
-      composure: 0.78,
-    },
-  },
-];
-const sprintRoleArchetypes = [
-  {
-    key: "goalkeeper",
-    test: (role) => /goalkeeper/i.test(role),
-    accelerationFactor: 0.88,
-    maxSpeedFactor: 0.86,
-    burstDistance: 2.6,
-    shortBurstBoost: 0.02,
-  },
-  {
-    key: "center-back",
-    test: (role, shortLabel) => /center back/i.test(role) || /^(LCB|RCB|CB)$/i.test(shortLabel),
-    accelerationFactor: 0.95,
-    maxSpeedFactor: 0.94,
-    burstDistance: 3.7,
-    shortBurstBoost: 0.045,
-  },
-  {
-    key: "full-back",
-    test: (role, shortLabel) => /back/i.test(role) && !/wing-back/i.test(role) || /^(LB|RB)$/i.test(shortLabel),
-    accelerationFactor: 1.01,
-    maxSpeedFactor: 1.01,
-    burstDistance: 4.6,
-    shortBurstBoost: 0.09,
-  },
-  {
-    key: "wing-back",
-    test: (role, shortLabel) => /wing-back/i.test(role) || /^(LM|RM|WB)$/i.test(shortLabel),
-    accelerationFactor: 1.03,
-    maxSpeedFactor: 1.03,
-    burstDistance: 5,
-    shortBurstBoost: 0.11,
-  },
-  {
-    key: "holding-midfielder",
-    test: (role, shortLabel) => /holding midfielder/i.test(role) || shortLabel === "6",
-    accelerationFactor: 0.98,
-    maxSpeedFactor: 0.98,
-    burstDistance: 4,
-    shortBurstBoost: 0.06,
-  },
-  {
-    key: "number-eight",
-    test: (role, shortLabel) => /no\. 8/i.test(role) || /central midfielder/i.test(role) || shortLabel === "8",
-    accelerationFactor: 1,
-    maxSpeedFactor: 1,
-    burstDistance: 4.4,
-    shortBurstBoost: 0.075,
-  },
-  {
-    key: "attacking-midfielder",
-    test: (role, shortLabel) => /attacking midfielder/i.test(role) || shortLabel === "10",
-    accelerationFactor: 1.01,
-    maxSpeedFactor: 1,
-    burstDistance: 4.7,
-    shortBurstBoost: 0.09,
-  },
-  {
-    key: "striker",
-    test: (role, shortLabel) => /striker|centre forward/i.test(role) || /^(ST|9)$/i.test(shortLabel),
-    accelerationFactor: 1.04,
-    maxSpeedFactor: 1.02,
-    burstDistance: 5,
-    shortBurstBoost: 0.12,
-  },
-  {
-    key: "winger",
-    test: (role, shortLabel) => /winger|forward/i.test(role) || /^(LW|RW|W)$/i.test(shortLabel),
-    accelerationFactor: 1.05,
-    maxSpeedFactor: 1.04,
-    burstDistance: 5.2,
-    shortBurstBoost: 0.125,
-  },
-  {
-    key: "default",
-    test: () => true,
-    accelerationFactor: 1,
-    maxSpeedFactor: 1,
-    burstDistance: 4.2,
-    shortBurstBoost: 0.07,
-  },
-];
-const playerTendencyTemplates = {
-  balanced: {
-    label: "Balanced Profile",
-    dribble: 0.5,
-    passAndMove: 0.5,
-    earlyCross: 0.45,
-    overlap: 0.45,
-    lineBreakPass: 0.5,
-    retain: 0.5,
-    boxRun: 0.48,
-    switchPlay: 0.45,
-  },
-  "ball-retainer": {
-    label: "Ball Retainer",
-    dribble: 0.32,
-    passAndMove: 0.68,
-    earlyCross: 0.2,
-    overlap: 0.24,
-    lineBreakPass: 0.62,
-    retain: 0.9,
-    boxRun: 0.22,
-    switchPlay: 0.64,
-  },
-  "pass-and-move": {
-    label: "Pass & Move",
-    dribble: 0.48,
-    passAndMove: 0.9,
-    earlyCross: 0.32,
-    overlap: 0.44,
-    lineBreakPass: 0.72,
-    retain: 0.62,
-    boxRun: 0.52,
-    switchPlay: 0.48,
-  },
-  dribbler: {
-    label: "1v1 Dribbler",
-    dribble: 0.92,
-    passAndMove: 0.54,
-    earlyCross: 0.54,
-    overlap: 0.42,
-    lineBreakPass: 0.48,
-    retain: 0.42,
-    boxRun: 0.58,
-    switchPlay: 0.34,
-  },
-  "early-crosser": {
-    label: "Early Crosser",
-    dribble: 0.5,
-    passAndMove: 0.46,
-    earlyCross: 0.92,
-    overlap: 0.58,
-    lineBreakPass: 0.42,
-    retain: 0.36,
-    boxRun: 0.34,
-    switchPlay: 0.7,
-  },
-  "overlap-runner": {
-    label: "Overlap Runner",
-    dribble: 0.56,
-    passAndMove: 0.56,
-    earlyCross: 0.62,
-    overlap: 0.92,
-    lineBreakPass: 0.48,
-    retain: 0.42,
-    boxRun: 0.46,
-    switchPlay: 0.5,
-  },
-  "line-breaker": {
-    label: "Line Breaker",
-    dribble: 0.52,
-    passAndMove: 0.66,
-    earlyCross: 0.28,
-    overlap: 0.36,
-    lineBreakPass: 0.92,
-    retain: 0.5,
-    boxRun: 0.56,
-    switchPlay: 0.58,
-  },
-  "box-runner": {
-    label: "Box Runner",
-    dribble: 0.5,
-    passAndMove: 0.58,
-    earlyCross: 0.22,
-    overlap: 0.24,
-    lineBreakPass: 0.44,
-    retain: 0.34,
-    boxRun: 0.92,
-    switchPlay: 0.26,
-  },
-};
-const gameRoleProfiles = {
-  gk: {
-    label: "Sweeper Keeper",
-    strengths: { creator: 0.02, switcher: 0.04, receiver: -0.06, runner: -0.22, dribbler: -0.14, finisher: -0.32 },
-  },
-  rest: {
-    label: "Ball-Playing Defender",
-    strengths: { creator: 0.08, switcher: 0.08, receiver: 0.02, runner: -0.1, dribbler: -0.05, finisher: -0.16 },
-  },
-  wideBack: {
-    label: "Wing-Back",
-    strengths: { creator: 0.05, crosser: 0.1, runner: 0.1, receiver: 0.04, dribbler: 0.04, finisher: -0.06 },
-  },
-  pivot: {
-    label: "Deep-Lying Playmaker",
-    strengths: { creator: 0.1, switcher: 0.1, receiver: 0.06, runner: -0.04, dribbler: -0.02, finisher: -0.06 },
-  },
-  connector: {
-    label: "Box-to-Box Midfielder",
-    strengths: { creator: 0.08, receiver: 0.08, runner: 0.06, dribbler: 0.04, finisher: 0.04, switcher: 0.04 },
-  },
-  wideForward: {
-    label: "Winger / Inside Forward",
-    strengths: { dribbler: 0.12, runner: 0.12, crosser: 0.08, receiver: 0.06, finisher: 0.08, creator: 0.02 },
-  },
-  striker: {
-    label: "Advanced Forward",
-    strengths: { finisher: 0.14, runner: 0.1, receiver: 0.08, dribbler: 0.02, creator: -0.02, crosser: -0.06 },
-  },
-  secondStriker: {
-    label: "Second Striker",
-    strengths: { creator: 0.08, receiver: 0.1, runner: 0.08, finisher: 0.1, dribbler: 0.05, switcher: -0.02 },
-  },
-};
-const intelligenceLabelBoosts = {
-  "6": 2,
-  "8": 1,
-  "10": 2,
-  CB: 1,
-  ST: 1,
-};
-const formationMagnetLabels = {
-  "4-3-3": ["GK", "LB", "CB", "CB", "RB", "6", "8", "10", "W", "9", "W"],
-  "4-1-4-1": ["GK", "LB", "CB", "CB", "RB", "6", "8", "8", "W", "9", "W"],
-  "3-4-3": ["GK", "CB", "CB", "CB", "WB", "6", "8", "WB", "W", "9", "W"],
-  "4-4-2": ["GK", "LB", "CB", "CB", "RB", "W", "6", "8", "W", "9", "10"],
-  "4-2-3-1": ["GK", "LB", "CB", "CB", "RB", "6", "8", "W", "10", "W", "9"],
-  "3-5-2": ["GK", "CB", "CB", "CB", "WB", "8", "6", "8", "WB", "9", "9"],
-};
-const defensiveAutopilotProfiles = {
-  "4-3-3": {
-    blockWidth: 40,
-    ballSideShift: 0.46,
-    wideCompression: 0.86,
-    backToBall: 18,
-    backToMidfield: 10.5,
-    midfieldToForward: 10.5,
-    pressOffset: 1.8,
-    maxBackLineFromOwnGoal: 47,
-  },
-  "4-1-4-1": {
-    blockWidth: 38,
-    ballSideShift: 0.5,
-    wideCompression: 0.84,
-    backToBall: 17,
-    backToMidfield: 9.5,
-    midfieldToForward: 9.5,
-    pressOffset: 1.7,
-    maxBackLineFromOwnGoal: 45,
-  },
-  "3-4-3": {
-    blockWidth: 42,
-    ballSideShift: 0.44,
-    wideCompression: 0.88,
-    backToBall: 19,
-    backToMidfield: 11,
-    midfieldToForward: 11,
-    pressOffset: 1.9,
-    maxBackLineFromOwnGoal: 49,
-  },
-  "4-4-2": {
-    blockWidth: 38,
-    ballSideShift: 0.48,
-    wideCompression: 0.84,
-    backToBall: 17,
-    backToMidfield: 10,
-    midfieldToForward: 9,
-    pressOffset: 1.75,
-    maxBackLineFromOwnGoal: 45,
-  },
-  "4-2-3-1": {
-    blockWidth: 39,
-    ballSideShift: 0.47,
-    wideCompression: 0.85,
-    backToBall: 18,
-    backToMidfield: 10,
-    midfieldToForward: 10,
-    pressOffset: 1.8,
-    maxBackLineFromOwnGoal: 46,
-  },
-  "3-5-2": {
-    blockWidth: 42,
-    ballSideShift: 0.44,
-    wideCompression: 0.88,
-    backToBall: 19,
-    backToMidfield: 10.5,
-    midfieldToForward: 10.5,
-    pressOffset: 1.9,
-    maxBackLineFromOwnGoal: 49,
-  },
-};
-const offensiveAutopilotProfiles = {
-  "4-3-3": {
-    principleLabel: "triangles, high front three and overlapping width",
-    width: 58,
-    restBehind: 24,
-    pivotBehind: 9,
-    connectorAhead: 7,
-    frontAhead: 14,
-    wideDepthBoost: 7,
-    runnerBoost: 6,
-    wideBackAdvance: 1.05,
-    wideForwardNarrowing: 0.24,
-    connectorAdvance: 1.1,
-    centralOverload: 0.48,
-    pivotDrop: 1.4,
-    strikerPairSupport: 0,
-    runnerPreferences: {
-      wideForward: 2.4,
-      striker: 1.7,
-      connector: 0.8,
-      wideBack: 0.8,
-    },
-  },
-  "4-1-4-1": {
-    principleLabel: "4-3-3 conversion with wide midfielders released high",
-    width: 54,
-    restBehind: 23,
-    pivotBehind: 9,
-    connectorAhead: 6,
-    frontAhead: 12,
-    wideDepthBoost: 6,
-    runnerBoost: 5,
-    wideBackAdvance: 0.82,
-    wideForwardNarrowing: 0.22,
-    connectorAdvance: 1.8,
-    centralOverload: 0.5,
-    pivotDrop: 2.2,
-    strikerPairSupport: 0,
-    runnerPreferences: {
-      wideForward: 2,
-      connector: 1.4,
-      striker: 1.2,
-      wideBack: 0.4,
-    },
-  },
-  "3-4-3": {
-    principleLabel: "wing-backs high, double-pivot protection and front-three pinning",
-    width: 62,
-    restBehind: 25,
-    pivotBehind: 10,
-    connectorAhead: 7,
-    frontAhead: 14,
-    wideDepthBoost: 8,
-    runnerBoost: 6.5,
-    wideBackAdvance: 1.42,
-    wideForwardNarrowing: 0.38,
-    connectorAdvance: 0.55,
-    centralOverload: 0.34,
-    pivotDrop: 2.8,
-    strikerPairSupport: 0,
-    runnerPreferences: {
-      wideBack: 2.4,
-      wideForward: 2,
-      striker: 1.5,
-      connector: 0.4,
-    },
-  },
-  "4-4-2": {
-    principleLabel: "front-two occupation, wide counters and paired support",
-    width: 52,
-    restBehind: 24,
-    pivotBehind: 8,
-    connectorAhead: 6,
-    frontAhead: 13,
-    wideDepthBoost: 5,
-    runnerBoost: 5.5,
-    wideBackAdvance: 0.62,
-    wideForwardNarrowing: 0.08,
-    connectorAdvance: 0.3,
-    centralOverload: 0.2,
-    pivotDrop: 0.5,
-    strikerPairSupport: 1,
-    runnerPreferences: {
-      secondStriker: 2.3,
-      striker: 2,
-      wideForward: 1.4,
-      connector: 0.2,
-    },
-  },
-  "4-2-3-1": {
-    principleLabel: "double-pivot security with a 10 between lines",
-    width: 56,
-    restBehind: 24,
-    pivotBehind: 9,
-    connectorAhead: 7,
-    frontAhead: 13,
-    wideDepthBoost: 6.5,
-    runnerBoost: 6,
-    wideBackAdvance: 0.86,
-    wideForwardNarrowing: 0.26,
-    connectorAdvance: 1.55,
-    centralOverload: 0.58,
-    pivotDrop: 2.7,
-    strikerPairSupport: 0,
-    runnerPreferences: {
-      connector: 2.1,
-      wideForward: 1.8,
-      striker: 1.3,
-      wideBack: 0.8,
-    },
-  },
-  "3-5-2": {
-    principleLabel: "central overload, wing-back width and two-striker combinations",
-    width: 60,
-    restBehind: 25,
-    pivotBehind: 9,
-    connectorAhead: 7,
-    frontAhead: 13,
-    wideDepthBoost: 7,
-    runnerBoost: 5.5,
-    wideBackAdvance: 1.34,
-    wideForwardNarrowing: 0.1,
-    connectorAdvance: 0.95,
-    centralOverload: 0.64,
-    pivotDrop: 1.7,
-    strikerPairSupport: 1,
-    runnerPreferences: {
-      wideBack: 2.2,
-      striker: 2,
-      connector: 1.1,
-    },
-  },
-};
-const offensivePhaseProfiles = {
-  setPiece: {
-    label: "Set Piece",
-    widthMultiplier: 0.96,
-    restBehindOffset: 3,
-    supportCompactness: 0.1,
-    depthStretch: -1,
-    finalThirdPin: 0,
-  },
-  buildUp: {
-    label: "Build-Up",
-    widthMultiplier: 1.02,
-    restBehindOffset: 2,
-    supportCompactness: 0.18,
-    depthStretch: -2,
-    finalThirdPin: 0,
-  },
-  progression: {
-    label: "Progression",
-    widthMultiplier: 1,
-    restBehindOffset: 0,
-    supportCompactness: 0.12,
-    depthStretch: 0,
-    finalThirdPin: 1.5,
-  },
-  finalThird: {
-    label: "Final Third",
-    widthMultiplier: 0.9,
-    restBehindOffset: 4,
-    supportCompactness: 0.08,
-    depthStretch: 2.5,
-    finalThirdPin: 4,
-  },
-};
-const matchPhaseModel = {
-  inPossession: {
-    label: "In Possession",
-    description: "How the team creates structure and progresses while it owns the ball.",
-  },
-  outOfPossession: {
-    label: "Out of Possession",
-    description: "How the team defends space, presses and protects priority zones.",
-  },
-  transitionToAttack: {
-    label: "Transition to Attack",
-    description: "The first actions after winning the ball: secure, counter or release runners.",
-  },
-  transitionToDefend: {
-    label: "Transition to Defend",
-    description: "The first actions after losing the ball: counter-press, delay or recover shape.",
-  },
-  setPieces: {
-    label: "Set Pieces",
-    description: "Restarts such as kick-off, corners, free-kicks, throw-ins, goal-kicks and penalties.",
-  },
-};
-const setPiecePhaseProfiles = {
-  kickoff: {
-    label: "Kick-Off",
-    principleLabel: "secure the first pass, open support angles and prepare the next attacking pattern",
-    restartTeam: defaultKickoffTeamId,
-  },
-  corner: {
-    label: "Corner",
-    principleLabel: "attack priority zones, protect the second ball and secure rest defence",
-  },
-  freeKick: {
-    label: "Free-Kick",
-    principleLabel: "choose between direct threat, delivery, disguise or short restart",
-  },
-  throwIn: {
-    label: "Throw-In",
-    principleLabel: "create a safe first touch, third-player option and pressure escape",
-  },
-  goalKick: {
-    label: "Goal-Kick",
-    principleLabel: "build first line, invite or bypass pressure and keep rest defence connected",
-  },
-  penalty: {
-    label: "Penalty",
-    principleLabel: "isolate the execution moment and prepare rebound positions",
-  },
-};
-const attackStylePresets = {
-  balanced: {
-    label: "Balanced",
-    principleLabel: "balanced support, controlled progression and shared final-third responsibility",
-    widthMultiplier: 1,
-    restBehindOffset: 0,
-    frontAheadOffset: 0,
-    supportCompactnessMultiplier: 1,
-    directness: 0.5,
-    shortSupport: 0.55,
-    lineBreakBias: 0.5,
-    switchBias: 0.48,
-    crossBias: 0.46,
-    overlapBias: 0.48,
-    dribbleBias: 0.48,
-    shootBias: 0.48,
-    tempo: 0.5,
-    risk: 0.48,
-    firstTouchForwardBias: 0.5,
-  },
-  "control-possession": {
-    label: "Control Possession",
-    principleLabel: "patience, close support, third-player angles and fewer low-value long balls",
-    widthMultiplier: 1.03,
-    restBehindOffset: 2.2,
-    frontAheadOffset: -1.2,
-    supportCompactnessMultiplier: 1.12,
-    directness: 0.28,
-    shortSupport: 0.92,
-    lineBreakBias: 0.42,
-    switchBias: 0.5,
-    crossBias: 0.22,
-    overlapBias: 0.56,
-    dribbleBias: 0.38,
-    shootBias: 0.36,
-    tempo: 0.38,
-    risk: 0.32,
-    firstTouchForwardBias: 0.52,
-    carryBias: 0.48,
-  },
-  "tiki-taka": {
-    label: "Tiki-Taka",
-    principleLabel: "very short support, constant rotations and high-volume passing to move the block",
-    widthMultiplier: 1,
-    restBehindOffset: 2.6,
-    frontAheadOffset: -1.8,
-    supportCompactnessMultiplier: 1.24,
-    directness: 0.22,
-    shortSupport: 0.97,
-    lineBreakBias: 0.48,
-    switchBias: 0.34,
-    crossBias: 0.18,
-    overlapBias: 0.58,
-    dribbleBias: 0.32,
-    shootBias: 0.34,
-    tempo: 0.7,
-    risk: 0.34,
-    firstTouchForwardBias: 0.58,
-    passBias: 0.9,
-    carryBias: 0.4,
-    deliveryBias: 0.18,
-    routeOneBias: 0.02,
-  },
-  "fluid-combinations": {
-    label: "Fluid Combinations",
-    principleLabel: "pass-and-move, wall passes, rotations and receiving on the move",
-    widthMultiplier: 0.98,
-    restBehindOffset: 1,
-    frontAheadOffset: 0,
-    supportCompactnessMultiplier: 1.18,
-    directness: 0.4,
-    shortSupport: 0.86,
-    lineBreakBias: 0.58,
-    switchBias: 0.36,
-    crossBias: 0.3,
-    overlapBias: 0.6,
-    dribbleBias: 0.5,
-    shootBias: 0.42,
-    tempo: 0.68,
-    risk: 0.42,
-    firstTouchForwardBias: 0.74,
-  },
-  "vertical-tiki-taka": {
-    label: "Vertical Tiki-Taka",
-    principleLabel: "short combinations with a stronger forward punch through the next line",
-    widthMultiplier: 0.96,
-    restBehindOffset: 1.6,
-    frontAheadOffset: 1.2,
-    supportCompactnessMultiplier: 1.2,
-    directness: 0.58,
-    shortSupport: 0.82,
-    lineBreakBias: 0.84,
-    switchBias: 0.4,
-    crossBias: 0.28,
-    overlapBias: 0.56,
-    dribbleBias: 0.45,
-    shootBias: 0.44,
-    tempo: 0.82,
-    risk: 0.5,
-    firstTouchForwardBias: 0.84,
-    passBias: 0.82,
-    carryBias: 0.44,
-    deliveryBias: 0.28,
-    routeOneBias: 0.08,
-  },
-  "vertical-play": {
-    label: "Vertical Play",
-    principleLabel: "early forward support, line-breaking passes and fast receiving angles",
-    widthMultiplier: 1,
-    restBehindOffset: 0.5,
-    frontAheadOffset: 2.2,
-    supportCompactnessMultiplier: 0.92,
-    directness: 0.68,
-    shortSupport: 0.54,
-    lineBreakBias: 0.9,
-    switchBias: 0.5,
-    crossBias: 0.38,
-    overlapBias: 0.42,
-    dribbleBias: 0.48,
-    shootBias: 0.48,
-    tempo: 0.76,
-    risk: 0.58,
-    firstTouchForwardBias: 0.82,
-  },
-  gegenpress: {
-    label: "Gegenpress",
-    principleLabel: "win it back, attack quickly before the opponent can reset and keep runners close",
-    widthMultiplier: 0.98,
-    restBehindOffset: 1.4,
-    frontAheadOffset: 2,
-    supportCompactnessMultiplier: 1.05,
-    directness: 0.7,
-    shortSupport: 0.62,
-    lineBreakBias: 0.78,
-    switchBias: 0.42,
-    crossBias: 0.42,
-    overlapBias: 0.5,
-    dribbleBias: 0.56,
-    shootBias: 0.58,
-    tempo: 0.92,
-    risk: 0.64,
-    firstTouchForwardBias: 0.88,
-    passBias: 0.66,
-    carryBias: 0.58,
-    deliveryBias: 0.42,
-    routeOneBias: 0.12,
-  },
-  "wing-play": {
-    label: "Wing Play",
-    principleLabel: "wide isolation, switches, early deliveries and aggressive far-post runs",
-    widthMultiplier: 1.08,
-    restBehindOffset: 0.5,
-    frontAheadOffset: 0.8,
-    supportCompactnessMultiplier: 0.86,
-    directness: 0.54,
-    shortSupport: 0.46,
-    lineBreakBias: 0.48,
-    switchBias: 0.82,
-    crossBias: 0.88,
-    overlapBias: 0.68,
-    dribbleBias: 0.6,
-    shootBias: 0.4,
-    tempo: 0.62,
-    risk: 0.54,
-    firstTouchForwardBias: 0.62,
-  },
-  "overlap-wide": {
-    label: "Overlap Wide",
-    principleLabel: "wide overloads, full-back or wing-back runs and cut-backs before hopeful crosses",
-    widthMultiplier: 1.06,
-    restBehindOffset: 0.5,
-    frontAheadOffset: 0.4,
-    supportCompactnessMultiplier: 0.94,
-    directness: 0.48,
-    shortSupport: 0.58,
-    lineBreakBias: 0.52,
-    switchBias: 0.62,
-    crossBias: 0.68,
-    overlapBias: 0.94,
-    dribbleBias: 0.54,
-    shootBias: 0.38,
-    tempo: 0.6,
-    risk: 0.48,
-    firstTouchForwardBias: 0.66,
-  },
-  "direct-transition": {
-    label: "Direct Transition",
-    principleLabel: "fast forward play, early runners and fewer recycle passes after regains",
-    widthMultiplier: 1.02,
-    restBehindOffset: -1.2,
-    frontAheadOffset: 3.4,
-    supportCompactnessMultiplier: 0.78,
-    directness: 0.9,
-    shortSupport: 0.28,
-    lineBreakBias: 0.88,
-    switchBias: 0.44,
-    crossBias: 0.54,
-    overlapBias: 0.34,
-    dribbleBias: 0.52,
-    shootBias: 0.58,
-    tempo: 0.88,
-    risk: 0.74,
-    firstTouchForwardBias: 0.9,
-  },
-  "fluid-counter-attack": {
-    label: "Fluid Counter-Attack",
-    principleLabel: "secure the regain, release runners with support underneath and attack open space",
-    widthMultiplier: 1.02,
-    restBehindOffset: 0.4,
-    frontAheadOffset: 2.2,
-    supportCompactnessMultiplier: 0.9,
-    directness: 0.68,
-    shortSupport: 0.5,
-    lineBreakBias: 0.78,
-    switchBias: 0.6,
-    crossBias: 0.48,
-    overlapBias: 0.44,
-    dribbleBias: 0.66,
-    shootBias: 0.52,
-    tempo: 0.78,
-    risk: 0.54,
-    firstTouchForwardBias: 0.84,
-    passBias: 0.56,
-    carryBias: 0.68,
-    deliveryBias: 0.48,
-    routeOneBias: 0.18,
-  },
-  "counter-attack": {
-    label: "Counter Attack",
-    principleLabel: "protect first pass, release runners, attack open space and avoid slow circulation",
-    widthMultiplier: 1.04,
-    restBehindOffset: -0.5,
-    frontAheadOffset: 2.8,
-    supportCompactnessMultiplier: 0.82,
-    directness: 0.78,
-    shortSupport: 0.36,
-    lineBreakBias: 0.8,
-    switchBias: 0.56,
-    crossBias: 0.56,
-    overlapBias: 0.36,
-    dribbleBias: 0.68,
-    shootBias: 0.54,
-    tempo: 0.84,
-    risk: 0.62,
-    firstTouchForwardBias: 0.86,
-  },
-  "route-one": {
-    label: "Route One",
-    principleLabel: "play early into the forward line, win the first or second ball and attack territory",
-    widthMultiplier: 1,
-    restBehindOffset: -1.4,
-    frontAheadOffset: 4.2,
-    supportCompactnessMultiplier: 0.7,
-    directness: 0.97,
-    shortSupport: 0.18,
-    lineBreakBias: 0.62,
-    switchBias: 0.42,
-    crossBias: 0.78,
-    overlapBias: 0.26,
-    dribbleBias: 0.28,
-    shootBias: 0.56,
-    tempo: 0.72,
-    risk: 0.78,
-    firstTouchForwardBias: 0.9,
-    passBias: 0.42,
-    carryBias: 0.22,
-    deliveryBias: 0.72,
-    routeOneBias: 0.95,
-  },
-};
-const possessionRhythmDefaults = {
-  targetSeconds: 8.8,
-  progressionUrgency: 0.5,
-  sidewaysTolerance: 0.42,
-  recycleWindow: 0.5,
-};
-const possessionRhythmByAttackStyle = {
-  balanced: {
-    targetSeconds: 8.8,
-    progressionUrgency: 0.52,
-    sidewaysTolerance: 0.42,
-    recycleWindow: 0.5,
-  },
-  "control-possession": {
-    targetSeconds: 12.2,
-    progressionUrgency: 0.34,
-    sidewaysTolerance: 0.68,
-    recycleWindow: 0.76,
-  },
-  "tiki-taka": {
-    targetSeconds: 12,
-    progressionUrgency: 0.42,
-    sidewaysTolerance: 0.62,
-    recycleWindow: 0.8,
-  },
-  "fluid-combinations": {
-    targetSeconds: 10.5,
-    progressionUrgency: 0.54,
-    sidewaysTolerance: 0.5,
-    recycleWindow: 0.62,
-  },
-  "vertical-tiki-taka": {
-    targetSeconds: 9.2,
-    progressionUrgency: 0.66,
-    sidewaysTolerance: 0.38,
-    recycleWindow: 0.54,
-  },
-  "vertical-play": {
-    targetSeconds: 7.8,
-    progressionUrgency: 0.78,
-    sidewaysTolerance: 0.3,
-    recycleWindow: 0.38,
-  },
-  gegenpress: {
-    targetSeconds: 6.8,
-    progressionUrgency: 0.84,
-    sidewaysTolerance: 0.26,
-    recycleWindow: 0.36,
-  },
-  "wing-play": {
-    targetSeconds: 8.6,
-    progressionUrgency: 0.58,
-    sidewaysTolerance: 0.44,
-    recycleWindow: 0.42,
-  },
-  "overlap-wide": {
-    targetSeconds: 9.2,
-    progressionUrgency: 0.54,
-    sidewaysTolerance: 0.48,
-    recycleWindow: 0.46,
-  },
-  "direct-transition": {
-    targetSeconds: 6.2,
-    progressionUrgency: 0.9,
-    sidewaysTolerance: 0.18,
-    recycleWindow: 0.22,
-  },
-  "fluid-counter-attack": {
-    targetSeconds: 7.4,
-    progressionUrgency: 0.78,
-    sidewaysTolerance: 0.28,
-    recycleWindow: 0.34,
-  },
-  "counter-attack": {
-    targetSeconds: 6.7,
-    progressionUrgency: 0.84,
-    sidewaysTolerance: 0.22,
-    recycleWindow: 0.28,
-  },
-  "route-one": {
-    targetSeconds: 5.4,
-    progressionUrgency: 0.94,
-    sidewaysTolerance: 0.12,
-    recycleWindow: 0.16,
-  },
-};
-function getAttackStyleRhythmProfile(styleKey = "balanced") {
-  return {
-    ...possessionRhythmDefaults,
-    ...(possessionRhythmByAttackStyle[styleKey] ?? possessionRhythmByAttackStyle.balanced),
-  };
-}
-const defenseStylePresets = {
-  "balanced-block": {
-    label: "Balanced Block",
-    principleLabel: "compact first, press when the cue is clear",
-    preferredPhase: "balanced",
-    blockWidthMultiplier: 1,
-    ballSideShiftOffset: 0,
-    backToBallOffset: 0,
-    lineGapOffset: 0,
-    lineHeightOffset: 0,
-    pressOffsetMultiplier: 1,
-    pressingIntensity: 0.5,
-    tackleIntent: 0.48,
-  },
-  "high-press": {
-    label: "High Press",
-    principleLabel: "front-foot pressure, short distances and immediate access to the ball",
-    preferredPhase: "highPress",
-    blockWidthMultiplier: 0.96,
-    ballSideShiftOffset: 0.06,
-    backToBallOffset: 2.8,
-    lineGapOffset: -1.1,
-    lineHeightOffset: 7,
-    pressOffsetMultiplier: 0.72,
-    pressingIntensity: 0.88,
-    tackleIntent: 0.72,
-  },
-  gegenpress: {
-    label: "Gegenpress",
-    principleLabel: "counter-press after loss, squeeze the first pass and keep the block high",
-    preferredPhase: "highPress",
-    blockWidthMultiplier: 0.9,
-    ballSideShiftOffset: 0.1,
-    backToBallOffset: 4.2,
-    lineGapOffset: -1.7,
-    lineHeightOffset: 7.5,
-    pressOffsetMultiplier: 0.62,
-    pressingIntensity: 0.98,
-    tackleIntent: 0.82,
-  },
-  "mid-block": {
-    label: "Mid Block",
-    principleLabel: "protect central space, shift together and jump on predictable passes",
-    preferredPhase: "midBlock",
-    blockWidthMultiplier: 0.95,
-    ballSideShiftOffset: 0.03,
-    backToBallOffset: 0.4,
-    lineGapOffset: -0.5,
-    lineHeightOffset: 0,
-    pressOffsetMultiplier: 0.92,
-    pressingIntensity: 0.56,
-    tackleIntent: 0.54,
-  },
-  "low-block": {
-    label: "Low Block",
-    principleLabel: "deny central entries, keep the box protected and press only recoverable balls",
-    preferredPhase: "lowBlock",
-    blockWidthMultiplier: 0.88,
-    ballSideShiftOffset: 0.02,
-    backToBallOffset: -4.2,
-    lineGapOffset: -1.7,
-    lineHeightOffset: -8,
-    pressOffsetMultiplier: 1.16,
-    pressingIntensity: 0.34,
-    tackleIntent: 0.42,
-  },
-  "counter-press": {
-    label: "Counter Press",
-    principleLabel: "react immediately after losing the ball, crowd the first pass and secure rest defence",
-    preferredPhase: "highPress",
-    blockWidthMultiplier: 0.92,
-    ballSideShiftOffset: 0.08,
-    backToBallOffset: 3.4,
-    lineGapOffset: -1.4,
-    lineHeightOffset: 5,
-    pressOffsetMultiplier: 0.68,
-    pressingIntensity: 0.95,
-    tackleIntent: 0.78,
-  },
-  "press-trap-wide": {
-    label: "Wide Press Trap",
-    principleLabel: "show outside, compress the touchline and attack the pass into wide feet",
-    preferredPhase: "midBlock",
-    blockWidthMultiplier: 0.9,
-    ballSideShiftOffset: 0.1,
-    backToBallOffset: 1.4,
-    lineGapOffset: -0.9,
-    lineHeightOffset: 1.5,
-    pressOffsetMultiplier: 0.84,
-    pressingIntensity: 0.72,
-    tackleIntent: 0.66,
-  },
-  "protect-box": {
-    label: "Protect Box",
-    principleLabel: "keep defenders goal-side, protect the penalty spot and attack crosses late",
-    preferredPhase: "boxDefending",
-    blockWidthMultiplier: 0.82,
-    ballSideShiftOffset: -0.01,
-    backToBallOffset: -6,
-    lineGapOffset: -2.1,
-    lineHeightOffset: -10,
-    pressOffsetMultiplier: 1.25,
-    pressingIntensity: 0.28,
-    tackleIntent: 0.38,
-  },
-  catenaccio: {
-    label: "Catenaccio",
-    principleLabel: "protect the central lane, stay goal-side and break from secure regains",
-    preferredPhase: "lowBlock",
-    blockWidthMultiplier: 0.8,
-    ballSideShiftOffset: -0.02,
-    backToBallOffset: -5.6,
-    lineGapOffset: -2.3,
-    lineHeightOffset: -11,
-    pressOffsetMultiplier: 1.28,
-    pressingIntensity: 0.26,
-    tackleIntent: 0.46,
-  },
-  "park-the-bus": {
-    label: "Park The Bus",
-    principleLabel: "defend the box first, stay extremely compact and allow only low-value shots",
-    preferredPhase: "boxDefending",
-    blockWidthMultiplier: 0.72,
-    ballSideShiftOffset: -0.04,
-    backToBallOffset: -7.4,
-    lineGapOffset: -2.8,
-    lineHeightOffset: -13,
-    pressOffsetMultiplier: 1.42,
-    pressingIntensity: 0.18,
-    tackleIntent: 0.34,
-  },
-};
-const defensivePhaseProfiles = {
-  setPiece: {
-    label: "Set Piece",
-    blockWidth: 41,
-    minBlockWidth: 36,
-    maxBlockWidth: 45,
-    ballSideShift: 0.48,
-    wideCompression: 0.84,
-    backToBall: 18,
-    backToMidfield: 9,
-    midfieldToForward: 8,
-    minBackLineFromOwnGoal: 12,
-    maxBackLineFromOwnGoal: 52,
-    midfieldAheadOfBall: 2.5,
-    forwardAheadOfBall: 6,
-    pressOffset: 1.45,
-    pressInsideBias: 0.18,
-    formationWidthWeight: 0.5,
-    formationGapWeight: 0.4,
-    gkDepthMin: 6,
-    gkDepthMax: 12,
-    gkSweepStart: 34,
-    gkSweepFactor: 0.08,
-    lineWidthRatio: {
-      back: 0.96,
-      midfield: 0.88,
-      forward: 0.64,
-    },
-    playerGap: {
-      back: { min: 7.5, max: 12 },
-      midfield: { min: 7, max: 11 },
-      forward: { min: 7, max: 14 },
-    },
-  },
-  highPress: {
-    label: "High Press",
-    blockWidth: 43,
-    minBlockWidth: 38,
-    maxBlockWidth: 47,
-    ballSideShift: 0.58,
-    wideCompression: 0.8,
-    backToBall: 25.5,
-    backToMidfield: 9.5,
-    midfieldToForward: 8.5,
-    minBackLineFromOwnGoal: 33,
-    maxBackLineFromOwnGoal: 66,
-    midfieldAheadOfBall: 3,
-    forwardAheadOfBall: 7,
-    pressOffset: 1.15,
-    pressInsideBias: 0.12,
-    formationWidthWeight: 0.55,
-    formationGapWeight: 0.35,
-    gkDepthMin: 10.5,
-    gkDepthMax: 19,
-    gkSweepStart: 36,
-    gkSweepFactor: 0.15,
-    lineWidthRatio: {
-      back: 0.92,
-      midfield: 0.86,
-      forward: 0.72,
-    },
-    playerGap: {
-      back: { min: 8.5, max: 13 },
-      midfield: { min: 7.5, max: 12 },
-      forward: { min: 6.5, max: 14 },
-    },
-  },
-  midBlock: {
-    label: "Mid Block",
-    blockWidth: 40.1,
-    minBlockWidth: 36,
-    maxBlockWidth: 44,
-    ballSideShift: 0.5,
-    wideCompression: 0.84,
-    backToBall: 18,
-    backToMidfield: 10,
-    midfieldToForward: 9.5,
-    minBackLineFromOwnGoal: 13,
-    maxBackLineFromOwnGoal: 48,
-    midfieldAheadOfBall: 3,
-    forwardAheadOfBall: 8,
-    pressOffset: 1.65,
-    pressInsideBias: 0.18,
-    formationWidthWeight: 0.58,
-    formationGapWeight: 0.5,
-    gkDepthMin: 6.5,
-    gkDepthMax: 11,
-    gkSweepStart: 35,
-    gkSweepFactor: 0.08,
-    lineWidthRatio: {
-      back: 1,
-      midfield: 0.92,
-      forward: 0.68,
-    },
-    playerGap: {
-      back: { min: 8, max: 13 },
-      midfield: { min: 7.5, max: 11.5 },
-      forward: { min: 8, max: 16 },
-    },
-  },
-  lowBlock: {
-    label: "Low Block",
-    blockWidth: 32,
-    minBlockWidth: 24,
-    maxBlockWidth: 36,
-    ballSideShift: 0.62,
-    wideCompression: 0.78,
-    backToBall: 14.5,
-    backToMidfield: 10.5,
-    midfieldToForward: 15.5,
-    targetBlockHeight: 26,
-    targetBackToMidfield: 10.5,
-    unitPlayerGap: 8,
-    unitCompactnessWeight: 0.78,
-    minBackLineFromOwnGoal: 7,
-    maxBackLineFromOwnGoal: 34,
-    midfieldAheadOfBall: 2.2,
-    forwardAheadOfBall: 12,
-    pressOffset: 1.25,
-    pressInsideBias: 0.24,
-    formationWidthWeight: 0.42,
-    formationGapWeight: 0.38,
-    gkDepthMin: 4.5,
-    gkDepthMax: 8.5,
-    gkSweepStart: 24,
-    gkSweepFactor: 0.06,
-    lineWidthRatio: {
-      back: 0.95,
-      midfield: 0.9,
-      forward: 0.58,
-    },
-    playerGap: {
-      back: { min: 7.6, max: 8.4 },
-      midfield: { min: 7.6, max: 8.4 },
-      forward: { min: 7.6, max: 8.8 },
-    },
-  },
-  boxDefending: {
-    label: "Box Defending",
-    blockWidth: 32,
-    minBlockWidth: 24,
-    maxBlockWidth: 38,
-    ballSideShift: 0.7,
-    wideCompression: 0.74,
-    backToBall: 8.5,
-    backToMidfield: 6.5,
-    midfieldToForward: 7,
-    targetBlockHeight: 17,
-    targetBackToMidfield: 7.2,
-    unitPlayerGap: 7.5,
-    unitCompactnessWeight: 0.82,
-    minBackLineFromOwnGoal: 5.5,
-    maxBackLineFromOwnGoal: 17,
-    midfieldAheadOfBall: 1.5,
-    forwardAheadOfBall: 4,
-    pressOffset: 0.9,
-    pressInsideBias: 0.32,
-    formationWidthWeight: 0.3,
-    formationGapWeight: 0.25,
-    gkDepthMin: 2,
-    gkDepthMax: 5.5,
-    gkSweepStart: 12,
-    gkSweepFactor: 0.05,
-    lineWidthRatio: {
-      back: 0.88,
-      midfield: 0.82,
-      forward: 0.48,
-    },
-    playerGap: {
-      back: { min: 4.8, max: 8.5 },
-      midfield: { min: 5, max: 9 },
-      forward: { min: 6, max: 12 },
-    },
-  },
-};
-const defensiveAggressionPresets = {
-  conservative: {
-    label: "Conservative",
-    reachMultiplier: 0.84,
-    contactWindow: 0.8,
-    laneBehindWindow: 0.035,
-    laneAheadWindow: 0.11,
-    etaTolerance: 0.4,
-    laneScoreThreshold: 0.72,
-    marginThreshold: 0.09,
-    contestedMargin: 0.015,
-    scoreBonus: -0.06,
-  },
-  balanced: {
-    label: "Balanced",
-    reachMultiplier: 0.93,
-    contactWindow: 0.9,
-    laneBehindWindow: 0.045,
-    laneAheadWindow: 0.16,
-    etaTolerance: 0.5,
-    laneScoreThreshold: 0.6,
-    marginThreshold: 0.06,
-    contestedMargin: -0.005,
-    scoreBonus: -0.015,
-  },
-  aggressive: {
-    label: "Aggressive",
-    reachMultiplier: 1.05,
-    contactWindow: 1.06,
-    laneBehindWindow: 0.065,
-    laneAheadWindow: 0.23,
-    etaTolerance: 0.64,
-    laneScoreThreshold: 0.5,
-    marginThreshold: 0.03,
-    contestedMargin: -0.045,
-    scoreBonus: 0.025,
-  },
-};
-const pitchSurfacePresets = {
-  "natural-grass": {
-    key: "natural-grass",
-    label: "Natural Grass",
-    groundRollFactor: 0.94,
-    airCarryFactor: 0.99,
-    dribbleCarryFactor: 0.985,
-  },
-  "hybrid-grass": {
-    key: "hybrid-grass",
-    label: "Hybrid Grass",
-    groundRollFactor: 1,
-    airCarryFactor: 1,
-    dribbleCarryFactor: 1,
-  },
-  "football-turf": {
-    key: "football-turf",
-    label: "Football Turf",
-    groundRollFactor: 1.07,
-    airCarryFactor: 1.015,
-    dribbleCarryFactor: 1.015,
-  },
-};
-const weatherPresets = {
-  dry: {
-    key: "dry",
-    label: "Dry",
-    dribbleTractionFactor: 1.02,
-    dribbleControlFactor: 1,
-    ballRollFactor: 0.98,
-    ballSkidFactor: 0.96,
-  },
-  damp: {
-    key: "damp",
-    label: "Damp",
-    dribbleTractionFactor: 0.98,
-    dribbleControlFactor: 0.98,
-    ballRollFactor: 1,
-    ballSkidFactor: 1,
-  },
-  wet: {
-    key: "wet",
-    label: "Wet",
-    dribbleTractionFactor: 0.93,
-    dribbleControlFactor: 0.94,
-    ballRollFactor: 1.04,
-    ballSkidFactor: 1.08,
-  },
-};
-const firstTouchModes = {
-  auto: "Auto",
-  kill: "Kill",
-  forward: "Forward",
-  inside: "Inside",
-  outside: "Outside",
-  back: "Back",
-  across: "Across Body",
-};
-function resolvePreferredFoot(blueprint) {
-  const role = blueprint?.role?.toLowerCase() ?? "";
-  const shortLabel = blueprint?.shortLabel?.toUpperCase() ?? "";
-  if (/\bleft\b/.test(role) || shortLabel.startsWith("L")) {
-    return "left";
-  }
-  if (/\bright\b/.test(role) || shortLabel.startsWith("R")) {
-    return "right";
-  }
-  if (/goalkeeper|center back|holding midfielder/.test(role)) {
-    return "right";
-  }
-  if (/attacking midfielder|winger|forward|striker|centre forward/.test(role)) {
-    return blueprint.team === "away" && /10|11/.test(blueprint.id) ? "left" : "right";
-  }
-  return "right";
-}
-function resolveWeakFootQuality(blueprint) {
-  const role = blueprint?.role?.toLowerCase() ?? "";
-  const shortLabel = blueprint?.shortLabel?.toUpperCase() ?? "";
-  if (/goalkeeper/.test(role)) {
-    return 0.58;
-  }
-  if (/center back/.test(role) || /^(LCB|RCB|CB)$/.test(shortLabel)) {
-    return 0.62;
-  }
-  if (/winger|forward|striker|centre forward|attacking midfielder/.test(role)) {
-    return 0.78;
-  }
-  if (/holding midfielder|central midfielder|no\. 8/.test(role) || /^(6|8|10)$/.test(shortLabel)) {
-    return 0.74;
-  }
-  if (/back|wing-back/.test(role) || /^(LB|RB|LM|RM)$/.test(shortLabel)) {
-    return 0.7;
-  }
-  return 0.68;
-}
-const autoBallProfiles = {
-  "gk-short-build": {
-    key: "gk-short-build",
-    label: "GK Short Build-Up",
-    minDistance: 4,
-    maxDistance: 18,
-    averageSpeedRange: [7.2, 9.4],
-    launchMultiplierRange: [1.08, 1.16],
-    rollFloorRange: [1.0, 1.8],
-    flightStyle: "ground",
-    peakHeightRange: [0, 0],
-    controlHeightRange: [0.12, 0.12],
-    landingPhaseRange: [0.58, 0.58],
-  },
-  "short-feet": {
-    key: "short-feet",
-    label: "Short To Feet",
-    minDistance: 2,
-    maxDistance: 10,
-    averageSpeedRange: [7.8, 9.4],
-    launchMultiplierRange: [1.1, 1.16],
-    rollFloorRange: [1.1, 1.8],
-    flightStyle: "ground",
-    peakHeightRange: [0, 0],
-    controlHeightRange: [0.12, 0.12],
-    landingPhaseRange: [0.58, 0.58],
-  },
-  "firm-feet": {
-    key: "firm-feet",
-    label: "Firm To Feet",
-    minDistance: 8,
-    maxDistance: 18,
-    averageSpeedRange: [9.2, 11.2],
-    launchMultiplierRange: [1.13, 1.2],
-    rollFloorRange: [1.2, 2.0],
-    flightStyle: "ground",
-    peakHeightRange: [0, 0],
-    controlHeightRange: [0.12, 0.12],
-    landingPhaseRange: [0.58, 0.58],
-  },
-  "line-break": {
-    key: "line-break",
-    label: "Line-Breaking Pass",
-    minDistance: 10,
-    maxDistance: 24,
-    averageSpeedRange: [10.3, 12.8],
-    launchMultiplierRange: [1.15, 1.24],
-    rollFloorRange: [1.4, 2.2],
-    flightStyle: "ground",
-    peakHeightRange: [0, 0],
-    controlHeightRange: [0.12, 0.12],
-    landingPhaseRange: [0.58, 0.58],
-  },
-  "driven-feet": {
-    key: "driven-feet",
-    label: "Driven To Feet",
-    minDistance: 16,
-    maxDistance: 30,
-    averageSpeedRange: [11.4, 13.8],
-    launchMultiplierRange: [1.17, 1.28],
-    rollFloorRange: [1.6, 2.6],
-    flightStyle: "ground",
-    peakHeightRange: [0, 0],
-    controlHeightRange: [0.12, 0.12],
-    landingPhaseRange: [0.58, 0.58],
-  },
-  "onto-9": {
-    key: "onto-9",
-    label: "Pass Onto 9",
-    minDistance: 16,
-    maxDistance: 32,
-    averageSpeedRange: [11.6, 14.4],
-    launchMultiplierRange: [1.18, 1.3],
-    rollFloorRange: [1.7, 2.9],
-    flightStyle: "clipped",
-    peakHeightRange: [0.8, 2.1],
-    controlHeightRange: [0.32, 0.42],
-    landingPhaseRange: [0.72, 0.82],
-    curveRange: [0.25, 0.85],
-    spinRateRange: [1.8, 3.2],
-  },
-  "lead-space": {
-    key: "lead-space",
-    label: "Lead Pass",
-    minDistance: 4,
-    maxDistance: 14,
-    averageSpeedRange: [8.8, 10.7],
-    launchMultiplierRange: [1.13, 1.22],
-    rollFloorRange: [1.2, 2.1],
-    flightStyle: "ground",
-    peakHeightRange: [0, 0],
-    controlHeightRange: [0.12, 0.12],
-    landingPhaseRange: [0.58, 0.58],
-  },
-  "throw-in": {
-    key: "throw-in",
-    label: "Throw-In",
-    minDistance: 3,
-    maxDistance: 18,
-    averageSpeedRange: [6.2, 8.8],
-    launchMultiplierRange: [1.04, 1.16],
-    rollFloorRange: [0.8, 1.4],
-    flightStyle: "clipped",
-    peakHeightRange: [0.9, 2.2],
-    controlHeightRange: [0.32, 0.46],
-    landingPhaseRange: [0.68, 0.82],
-    curveRange: [0, 0.16],
-    spinRateRange: [0.8, 1.6],
-  },
-  "into-space": {
-    key: "into-space",
-    label: "Pass Into Space",
-    minDistance: 8,
-    maxDistance: 28,
-    averageSpeedRange: [10.4, 13.7],
-    launchMultiplierRange: [1.18, 1.28],
-    rollFloorRange: [1.5, 2.8],
-    flightStyle: "ground",
-    peakHeightRange: [0, 0],
-    controlHeightRange: [0.12, 0.12],
-    landingPhaseRange: [0.58, 0.58],
-  },
-  cutback: {
-    key: "cutback",
-    label: "Cutback",
-    minDistance: 6,
-    maxDistance: 18,
-    averageSpeedRange: [9.4, 11.8],
-    launchMultiplierRange: [1.14, 1.24],
-    rollFloorRange: [1.2, 2.2],
-    flightStyle: "ground",
-    peakHeightRange: [0, 0],
-    controlHeightRange: [0.12, 0.12],
-    landingPhaseRange: [0.58, 0.58],
-    curveRange: [0.08, 0.28],
-    spinRateRange: [1.4, 2.2],
-  },
-  cross: {
-    key: "cross",
-    label: "Cross",
-    minDistance: 12,
-    maxDistance: 30,
-    averageSpeedRange: [11.2, 15.4],
-    launchMultiplierRange: [1.18, 1.3],
-    rollFloorRange: [0.8, 1.5],
-    flightStyle: "lofted",
-    peakHeightRange: [3.4, 6.8],
-    controlHeightRange: [0.48, 0.68],
-    landingPhaseRange: [0.76, 0.88],
-    curveRange: [0.75, 2.1],
-    spinRateRange: [2.6, 4.8],
-  },
-  switch: {
-    key: "switch",
-    label: "Switch Of Play",
-    minDistance: 24,
-    maxDistance: 52,
-    averageSpeedRange: [13.2, 17.4],
-    launchMultiplierRange: [1.2, 1.34],
-    rollFloorRange: [1.0, 1.8],
-    flightStyle: "lofted",
-    peakHeightRange: [2.8, 5.5],
-    controlHeightRange: [0.42, 0.58],
-    landingPhaseRange: [0.74, 0.86],
-    curveRange: [0.85, 2.4],
-    spinRateRange: [2.2, 4.2],
-  },
-  shot: {
-    key: "shot",
-    label: "Shot",
-    minDistance: 6,
-    maxDistance: 35,
-    averageSpeedRange: [15, 24],
-    launchMultiplierRange: [1.22, 1.4],
-    rollFloorRange: [2.2, 5.2],
-    flightStyle: "driven",
-    peakHeightRange: [0.2, 1.2],
-    controlHeightRange: [0.24, 0.38],
-    landingPhaseRange: [0.68, 0.82],
-  },
-  "box-shot": {
-    key: "box-shot",
-    label: "Box Finish",
-    minDistance: 4,
-    maxDistance: 14,
-    averageSpeedRange: [14.5, 20.5],
-    launchMultiplierRange: [1.18, 1.3],
-    rollFloorRange: [2.2, 4.0],
-    flightStyle: "driven",
-    peakHeightRange: [0.18, 0.65],
-    controlHeightRange: [0.22, 0.34],
-    landingPhaseRange: [0.7, 0.82],
-  },
-  "edge-shot": {
-    key: "edge-shot",
-    label: "Edge-Box Shot",
-    minDistance: 12,
-    maxDistance: 24,
-    averageSpeedRange: [17.2, 22.8],
-    launchMultiplierRange: [1.24, 1.36],
-    rollFloorRange: [3.0, 5.0],
-    flightStyle: "driven",
-    peakHeightRange: [0.35, 1.15],
-    controlHeightRange: [0.24, 0.36],
-    landingPhaseRange: [0.68, 0.8],
-    curveRange: [0.12, 0.42],
-    spinRateRange: [3.2, 5.2],
-  },
-  "long-shot": {
-    key: "long-shot",
-    label: "Long Shot",
-    minDistance: 20,
-    maxDistance: 35,
-    averageSpeedRange: [19.2, 24.8],
-    launchMultiplierRange: [1.28, 1.42],
-    rollFloorRange: [3.6, 5.8],
-    flightStyle: "driven",
-    peakHeightRange: [0.55, 1.8],
-    controlHeightRange: [0.26, 0.42],
-    landingPhaseRange: [0.66, 0.78],
-    curveRange: [0.18, 0.65],
-    spinRateRange: [3.4, 5.8],
-  },
-};
-const autoDribbleProfiles = {
-  "gk-carry": {
-    key: "gk-carry",
-    label: "GK Carry",
-    tightSpeed: 1.85,
-    openSpeed: 3.25,
-    distanceBoost: [0, 0.18],
-    pressurePenalty: 0.2,
-    lanePressurePenalty: 0.14,
-    minSpeed: 1.75,
-    maxSpeed: 3.65,
-  },
-  "centre-back-carry": {
-    key: "centre-back-carry",
-    label: "Centre-Back Carry",
-    tightSpeed: 2.05,
-    openSpeed: 3.7,
-    distanceBoost: [0, 0.24],
-    pressurePenalty: 0.22,
-    lanePressurePenalty: 0.17,
-    minSpeed: 1.9,
-    maxSpeed: 4.2,
-  },
-  "six-carry": {
-    key: "six-carry",
-    label: "No. 6 Carry",
-    tightSpeed: 2.25,
-    openSpeed: 4.0,
-    distanceBoost: [0, 0.28],
-    pressurePenalty: 0.21,
-    lanePressurePenalty: 0.16,
-    minSpeed: 2.0,
-    maxSpeed: 4.55,
-  },
-  "eight-carry": {
-    key: "eight-carry",
-    label: "No. 8 Carry",
-    tightSpeed: 2.5,
-    openSpeed: 4.4,
-    distanceBoost: [0.03, 0.36],
-    pressurePenalty: 0.2,
-    lanePressurePenalty: 0.18,
-    minSpeed: 2.1,
-    maxSpeed: 4.95,
-  },
-  "ten-carry": {
-    key: "ten-carry",
-    label: "No. 10 Carry",
-    tightSpeed: 2.65,
-    openSpeed: 4.5,
-    distanceBoost: [0.02, 0.34],
-    pressurePenalty: 0.19,
-    lanePressurePenalty: 0.18,
-    minSpeed: 2.15,
-    maxSpeed: 5.05,
-  },
-  "fullback-carry": {
-    key: "fullback-carry",
-    label: "Fullback Carry",
-    tightSpeed: 2.45,
-    openSpeed: 4.7,
-    distanceBoost: [0.04, 0.42],
-    pressurePenalty: 0.2,
-    lanePressurePenalty: 0.2,
-    minSpeed: 2.1,
-    maxSpeed: 5.25,
-  },
-  "wingback-carry": {
-    key: "wingback-carry",
-    label: "Wing-Back Carry",
-    tightSpeed: 2.58,
-    openSpeed: 4.9,
-    distanceBoost: [0.05, 0.46],
-    pressurePenalty: 0.2,
-    lanePressurePenalty: 0.2,
-    minSpeed: 2.15,
-    maxSpeed: 5.45,
-  },
-  "winger-carry": {
-    key: "winger-carry",
-    label: "Winger Carry",
-    tightSpeed: 2.82,
-    openSpeed: 5.18,
-    distanceBoost: [0.06, 0.52],
-    pressurePenalty: 0.18,
-    lanePressurePenalty: 0.21,
-    minSpeed: 2.2,
-    maxSpeed: 5.85,
-  },
-  "striker-carry": {
-    key: "striker-carry",
-    label: "Striker Carry",
-    tightSpeed: 2.55,
-    openSpeed: 4.75,
-    distanceBoost: [0.04, 0.44],
-    pressurePenalty: 0.21,
-    lanePressurePenalty: 0.2,
-    minSpeed: 2.1,
-    maxSpeed: 5.35,
-  },
 };
 function getPlayerMagnetLabel(player) {
   if (!player) {
@@ -6008,6 +4103,7 @@ let sessionPlannerTacticalTool = "blue-player";
 let sessionPlannerTacticalColor = "#0d4f86";
 let sessionPlannerTacticalLineWidth = 1.1;
 let sessionPlannerTacticalLineStyle = "solid";
+let sessionPlannerTacticalSnapEnabled = true;
 let sessionPlannerTacticalPendingPoint = null;
 let sessionPlannerTacticalSelectedElementId = "";
 let sessionPlannerTacticalSelectedElementIds = [];
@@ -6060,6 +4156,8 @@ const sessionPlannerTacticalPitchModeOptions = [
   { key: "goalkeeper", label: "Goalkeeper box", dimensions: { x: 65, y: 33 }, landscape: false },
 ];
 const sessionPlannerTacticalPitchModeKeys = new Set(sessionPlannerTacticalPitchModeOptions.map((option) => option.key));
+const sessionPlannerTacticalSnapStep = 2.5;
+const sessionPlannerTacticalMaxFrames = 12;
 const sessionPlannerPrintPaperOptions = {
   letter: {
     label: "US Letter",
@@ -6097,7 +4195,27 @@ let adminAuditEntries = [];
 let adminAuditLoading = false;
 let adminAuditLoadedAt = 0;
 let adminAuditLoadError = "";
-const platformDefaultRoles = ["admin", "coach", "analyst", "performance", "medical", "guest"];
+const platformDefaultRoles = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
+const platformManagementRoleSet = new Set(["admin", "club-admin", "team-admin"]);
+const platformStaffRoleSet = new Set(["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"]);
+const adminTitleSuggestions = Object.freeze([
+  "Sporting Director",
+  "Head of Scouting",
+  "Scout",
+  "Recruitment Analyst",
+  "Opposition Analyst",
+  "Coach",
+]);
+const adminDepartmentSuggestions = Object.freeze([
+  "Football",
+  "Scouting",
+  "Recruitment",
+  "Analysis",
+  "Performance",
+  "Medical",
+]);
+const platformDefaultClubId = "club-north-carolina-courage";
+const platformDefaultTeamId = "team-north-carolina-courage";
 const dashboardPresenceHeartbeatMs = 25000;
 const dashboardPresencePollMs = 6000;
 const dashboardPresenceIdleMs = 90000;
@@ -6180,7 +4298,7 @@ function updatePlatformUserFromPayload(nextUser) {
 }
 function isCurrentPlatformUserAdmin() {
   const user = getCurrentPlatformUser();
-  return String(user?.role || "").trim().toLowerCase() === "admin";
+  return isPlatformManagementUser(user);
 }
 function getPlatformUsers() {
   return getPlatformAuthStore()?.getUsers?.() ?? [];
@@ -6188,12 +4306,12 @@ function getPlatformUsers() {
 function getPlatformRoles() {
   const roles = getPlatformAuthStore()?.roles;
   if (Array.isArray(roles)) {
-    return roles;
+    return Array.from(new Set([...platformDefaultRoles, ...roles]));
   }
   if (typeof roles === "function") {
     try {
       const nextRoles = roles();
-      return Array.isArray(nextRoles) ? nextRoles : platformDefaultRoles;
+      return Array.isArray(nextRoles) ? Array.from(new Set([...platformDefaultRoles, ...nextRoles])) : platformDefaultRoles;
     } catch {
       return platformDefaultRoles;
     }
@@ -6241,11 +4359,12 @@ function applyUserAvatar(element, user) {
     : escapeHtml(getUserInitials(user));
 }
 function getUserClub(user) {
-  return user?.team?.trim() || "Football Science";
+  const structure = getPlatformStructureState();
+  return getUserTeamName(user, structure) || getUserClubName(user, structure) || "Football Science";
 }
 function syncAccountMenu(user = getCurrentPlatformUser()) {
   const name = user ? formatUserName(user) : "Profile";
-  const club = getUserClub(user);
+  const club = normalizePlatformStructureText(user?.team || user?.teamName, "") || getUserClub(user);
   applyUserAvatar(ui.profileMenuAvatar, user);
   applyUserAvatar(ui.profileMenuPanelAvatar, user);
   const accountFields = [
@@ -6275,14 +4394,410 @@ function isProfileMenuOpen() {
 }
 function getRoleLabel(role) {
   const labels = {
-    admin: "Admin",
+    admin: "Platform Admin",
+    "club-admin": "Club Admin",
+    "team-admin": "Team Admin",
     coach: "Coach",
+    scout: "Scout",
     analyst: "Analyst",
     performance: "Performance",
     medical: "Medical",
     guest: "Guest",
   };
   return labels[role] ?? "Coach";
+}
+function normalizePlatformRole(role, fallback = "coach") {
+  const normalizedRole = String(role || "").trim().toLowerCase();
+  return platformDefaultRoles.includes(normalizedRole) ? normalizedRole : fallback;
+}
+function isPlatformAdminUser(user) {
+  return normalizePlatformRole(user?.role, "") === "admin";
+}
+function isPlatformManagementUser(user) {
+  return platformManagementRoleSet.has(normalizePlatformRole(user?.role, ""));
+}
+function isPlatformStaffUser(user) {
+  return platformStaffRoleSet.has(normalizePlatformRole(user?.role, ""));
+}
+function getAssignableRolesForUser(user = getCurrentPlatformUser()) {
+  const role = normalizePlatformRole(user?.role, "");
+  if (role === "admin") {
+    return platformDefaultRoles;
+  }
+  if (role === "club-admin") {
+    return ["team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
+  }
+  if (role === "team-admin") {
+    return ["coach", "scout", "analyst", "performance", "medical", "guest"];
+  }
+  return [];
+}
+const defaultPlatformStructureState = Object.freeze({
+  version: 1,
+  activeClubId: platformDefaultClubId,
+  activeTeamId: platformDefaultTeamId,
+  clubs: Object.freeze([
+    Object.freeze({
+      id: platformDefaultClubId,
+      name: "North Carolina Courage",
+      shortName: "NCC",
+      status: "active",
+    }),
+  ]),
+  teams: Object.freeze([
+    Object.freeze({
+      id: platformDefaultTeamId,
+      clubId: platformDefaultClubId,
+      name: "North Carolina Courage",
+      shortName: "NCC",
+      level: "First Team",
+      season: "2026",
+      status: "active",
+    }),
+  ]),
+  memberships: Object.freeze([]),
+});
+function cloneDefaultPlatformStructureState() {
+  return {
+    version: defaultPlatformStructureState.version,
+    activeClubId: defaultPlatformStructureState.activeClubId,
+    activeTeamId: defaultPlatformStructureState.activeTeamId,
+    clubs: defaultPlatformStructureState.clubs.map((club) => ({ ...club })),
+    teams: defaultPlatformStructureState.teams.map((team) => ({ ...team })),
+    memberships: [],
+  };
+}
+function normalizePlatformStructureText(value, fallback = "") {
+  return String(value || fallback).trim();
+}
+function slugifyPlatformStructureValue(value, fallback = "scope") {
+  return (
+    String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/&/g, " and ")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48) || fallback
+  );
+}
+function normalizePlatformStructureId(value, prefix, fallbackLabel) {
+  const raw = String(value || "").trim();
+  if (raw && raw.length <= 80 && /^[a-z0-9][a-z0-9._:-]*$/i.test(raw)) {
+    return raw.toLowerCase();
+  }
+  return `${prefix}-${slugifyPlatformStructureValue(fallbackLabel, prefix)}`;
+}
+function createPlatformStructureId(prefix, label, usedIds = new Set()) {
+  const baseId = normalizePlatformStructureId("", prefix, label);
+  let nextId = baseId;
+  let index = 2;
+  while (usedIds.has(nextId)) {
+    nextId = `${baseId}-${index}`;
+    index += 1;
+  }
+  return nextId;
+}
+function normalizePlatformClub(club = {}, fallback = {}) {
+  const name = normalizePlatformStructureText(club.name || club.clubName, fallback.name || "Club");
+  return {
+    id: normalizePlatformStructureId(club.id || club.clubId, "club", name),
+    name,
+    shortName: normalizePlatformStructureText(club.shortName || club.short_name, fallback.shortName || name),
+    status: String(club.status || fallback.status || "active").trim().toLowerCase() === "archived" ? "archived" : "active",
+  };
+}
+function normalizePlatformTeam(team = {}, fallback = {}) {
+  const name = normalizePlatformStructureText(team.name || team.teamName || team.team, fallback.name || "Team");
+  return {
+    id: normalizePlatformStructureId(team.id || team.teamId, "team", name),
+    clubId: normalizePlatformStructureId(team.clubId || team.club_id || fallback.clubId, "club", fallback.clubName || "Club"),
+    name,
+    shortName: normalizePlatformStructureText(team.shortName || team.short_name, fallback.shortName || name),
+    level: normalizePlatformStructureText(team.level || team.ageGroup || team.age_group, fallback.level || "First Team"),
+    season: normalizePlatformStructureText(team.season, fallback.season || "2026"),
+    status: String(team.status || fallback.status || "active").trim().toLowerCase() === "archived" ? "archived" : "active",
+  };
+}
+function normalizePlatformStructureState(candidate = {}) {
+  const fallback = cloneDefaultPlatformStructureState();
+  const sourceClubs = Array.isArray(candidate.clubs) && candidate.clubs.length ? candidate.clubs : fallback.clubs;
+  const clubIds = new Set();
+  const clubs = [];
+  sourceClubs.forEach((club) => {
+    const normalizedClub = normalizePlatformClub(club, fallback.clubs[0]);
+    if (clubIds.has(normalizedClub.id)) {
+      normalizedClub.id = createPlatformStructureId("club", normalizedClub.name, clubIds);
+    }
+    clubIds.add(normalizedClub.id);
+    clubs.push(normalizedClub);
+  });
+  if (!clubIds.has(platformDefaultClubId)) {
+    clubs.unshift({ ...fallback.clubs[0] });
+    clubIds.add(platformDefaultClubId);
+  }
+
+  const sourceTeams = Array.isArray(candidate.teams) && candidate.teams.length ? candidate.teams : fallback.teams;
+  const teamIds = new Set();
+  const teams = [];
+  sourceTeams.forEach((team) => {
+    const normalizedTeam = normalizePlatformTeam(team, fallback.teams[0]);
+    if (!clubIds.has(normalizedTeam.clubId)) {
+      normalizedTeam.clubId = platformDefaultClubId;
+    }
+    if (teamIds.has(normalizedTeam.id)) {
+      normalizedTeam.id = createPlatformStructureId("team", normalizedTeam.name, teamIds);
+    }
+    teamIds.add(normalizedTeam.id);
+    teams.push(normalizedTeam);
+  });
+  if (!teamIds.has(platformDefaultTeamId)) {
+    teams.unshift({ ...fallback.teams[0] });
+    teamIds.add(platformDefaultTeamId);
+  }
+
+  return {
+    version: 1,
+    activeClubId: clubIds.has(candidate.activeClubId) ? candidate.activeClubId : platformDefaultClubId,
+    activeTeamId: teamIds.has(candidate.activeTeamId) ? candidate.activeTeamId : platformDefaultTeamId,
+    clubs,
+    teams,
+    memberships: Array.isArray(candidate.memberships) ? candidate.memberships.filter(Boolean) : [],
+  };
+}
+function readPlatformStructureState() {
+  try {
+    const raw = window.localStorage.getItem(platformStructureStorageKey);
+    return normalizePlatformStructureState(raw ? JSON.parse(raw) : cloneDefaultPlatformStructureState());
+  } catch {
+    return cloneDefaultPlatformStructureState();
+  }
+}
+function writePlatformStructureState(nextState) {
+  try {
+    window.localStorage.setItem(platformStructureStorageKey, JSON.stringify(normalizePlatformStructureState(nextState)));
+  } catch {
+    logEvent("Club and team structure could not be written to local storage.");
+  }
+}
+function getPlatformStructureState() {
+  return readPlatformStructureState();
+}
+function getPlatformClubById(clubId, structure = getPlatformStructureState()) {
+  return structure.clubs.find((club) => club.id === clubId) ?? structure.clubs[0] ?? null;
+}
+function getPlatformTeamById(teamId, structure = getPlatformStructureState()) {
+  return structure.teams.find((team) => team.id === teamId) ?? structure.teams[0] ?? null;
+}
+function findPlatformTeamByName(teamName, structure = getPlatformStructureState()) {
+  const normalizedName = String(teamName || "").trim().toLowerCase();
+  return normalizedName ? structure.teams.find((team) => team.name.toLowerCase() === normalizedName) ?? null : null;
+}
+function syncPlatformStructureWithUsers(users = getPlatformUsers()) {
+  const structure = readPlatformStructureState();
+  const clubIds = new Set(structure.clubs.map((club) => club.id));
+  const teamIds = new Set(structure.teams.map((team) => team.id));
+  let changed = false;
+
+  users.forEach((user) => {
+    const clubName = normalizePlatformStructureText(user.clubName || user.club || "", "");
+    const fallbackClubId = clubName ? normalizePlatformStructureId(user.clubId, "club", clubName) : platformDefaultClubId;
+    const clubId = normalizePlatformStructureText(user.clubId, fallbackClubId);
+    if (clubId && !clubIds.has(clubId)) {
+      structure.clubs.push(normalizePlatformClub({ id: clubId, name: clubName || "Club", shortName: user.clubShortName || clubName || "Club" }));
+      clubIds.add(clubId);
+      changed = true;
+    }
+
+    const teamName = normalizePlatformStructureText(user.teamName || user.team || "", "");
+    const existingTeam = findPlatformTeamByName(teamName, structure);
+    const fallbackTeamId = existingTeam?.id || (teamName ? normalizePlatformStructureId(user.teamId, "team", teamName) : platformDefaultTeamId);
+    const teamId = normalizePlatformStructureText(user.teamId, fallbackTeamId);
+    if (teamId && !teamIds.has(teamId)) {
+      structure.teams.push(
+        normalizePlatformTeam({
+          id: teamId,
+          clubId,
+          name: teamName || "Team",
+          shortName: user.teamShortName || teamName || "Team",
+        })
+      );
+      teamIds.add(teamId);
+      changed = true;
+    }
+  });
+
+  const normalizedStructure = normalizePlatformStructureState(structure);
+  if (changed) {
+    writePlatformStructureState(normalizedStructure);
+  }
+  return normalizedStructure;
+}
+function getUserTeamId(user, structure = getPlatformStructureState()) {
+  const explicitTeamId = normalizePlatformStructureText(user?.teamId || user?.team_id, "");
+  if (explicitTeamId && getPlatformTeamById(explicitTeamId, structure)) {
+    return explicitTeamId;
+  }
+  const team = findPlatformTeamByName(user?.teamName || user?.team, structure);
+  return team?.id || platformDefaultTeamId;
+}
+function getUserClubId(user, structure = getPlatformStructureState()) {
+  const explicitClubId = normalizePlatformStructureText(user?.clubId || user?.club_id, "");
+  if (explicitClubId && getPlatformClubById(explicitClubId, structure)) {
+    return explicitClubId;
+  }
+  const team = getPlatformTeamById(getUserTeamId(user, structure), structure);
+  return team?.clubId || platformDefaultClubId;
+}
+function getUserTeamName(user, structure = getPlatformStructureState()) {
+  const explicitTeamName = normalizePlatformStructureText(user?.teamName || user?.team, "");
+  const explicitTeamId = normalizePlatformStructureText(user?.teamId || user?.team_id, "");
+  if (explicitTeamId) {
+    const team = getPlatformTeamById(explicitTeamId, structure);
+    if (team?.name) {
+      return team.name;
+    }
+  }
+  const matchedTeam = findPlatformTeamByName(explicitTeamName, structure);
+  if (matchedTeam?.name) {
+    return matchedTeam.name;
+  }
+  const fallbackTeam = getPlatformTeamById(platformDefaultTeamId, structure);
+  return explicitTeamName || fallbackTeam?.name || "Team";
+}
+function getUserClubName(user, structure = getPlatformStructureState()) {
+  const club = getPlatformClubById(getUserClubId(user, structure), structure);
+  return club?.name || normalizePlatformStructureText(user?.clubName || user?.club, "Club");
+}
+function getUserScopeLabel(user, structure = getPlatformStructureState()) {
+  const clubName = getUserClubName(user, structure);
+  const teamName = getUserTeamName(user, structure);
+  return clubName && teamName && clubName !== teamName ? `${clubName} · ${teamName}` : teamName || clubName;
+}
+function isSamePlatformClub(firstUser, secondUser, structure = getPlatformStructureState()) {
+  return getUserClubId(firstUser, structure) === getUserClubId(secondUser, structure);
+}
+function isSamePlatformTeam(firstUser, secondUser, structure = getPlatformStructureState()) {
+  return getUserTeamId(firstUser, structure) === getUserTeamId(secondUser, structure);
+}
+function canAdminViewUser(actor, targetUser, structure = getPlatformStructureState()) {
+  if (!actor || !targetUser) {
+    return false;
+  }
+  if (isPlatformAdminUser(actor) || actor.id === targetUser.id) {
+    return true;
+  }
+  const role = normalizePlatformRole(actor.role, "");
+  if (role === "club-admin") {
+    return isSamePlatformClub(actor, targetUser, structure);
+  }
+  if (role === "team-admin") {
+    return isSamePlatformTeam(actor, targetUser, structure);
+  }
+  return targetUser.status === "active" && isSamePlatformTeam(actor, targetUser, structure);
+}
+function canAdminManageUser(actor, targetUser, structure = getPlatformStructureState(), options = {}) {
+  if (!actor || !targetUser) {
+    return false;
+  }
+  if (isPlatformAdminUser(actor)) {
+    return options.remove ? actor.id !== targetUser.id : true;
+  }
+  if (actor.id === targetUser.id) {
+    return !options.remove;
+  }
+  if (!isPlatformManagementUser(actor)) {
+    return false;
+  }
+  const actorRole = normalizePlatformRole(actor.role, "");
+  const targetRole = normalizePlatformRole(targetUser.role, "");
+  if (actorRole === "club-admin") {
+    return isSamePlatformClub(actor, targetUser, structure) && targetRole !== "admin" && targetRole !== "club-admin";
+  }
+  if (actorRole === "team-admin") {
+    return isSamePlatformTeam(actor, targetUser, structure) && !platformManagementRoleSet.has(targetRole);
+  }
+  return false;
+}
+function getScopedPlatformUsers(users = getPlatformUsers(), actor = getCurrentPlatformUser(), structure = getPlatformStructureState()) {
+  return users.filter((user) => canAdminViewUser(actor, user, structure));
+}
+function getScopedPlatformClubs(actor = getCurrentPlatformUser(), structure = getPlatformStructureState()) {
+  if (isPlatformAdminUser(actor)) {
+    return structure.clubs;
+  }
+  const club = getPlatformClubById(getUserClubId(actor, structure), structure);
+  return club ? [club] : [];
+}
+function getScopedPlatformTeams(actor = getCurrentPlatformUser(), structure = getPlatformStructureState()) {
+  if (isPlatformAdminUser(actor)) {
+    return structure.teams;
+  }
+  const role = normalizePlatformRole(actor?.role, "");
+  if (role === "club-admin") {
+    const clubId = getUserClubId(actor, structure);
+    return structure.teams.filter((team) => team.clubId === clubId);
+  }
+  const team = getPlatformTeamById(getUserTeamId(actor, structure), structure);
+  return team ? [team] : [];
+}
+function renderAdminRoleOptions(actor, selectedRole = "coach") {
+  const allowedRoles = getAssignableRolesForUser(actor);
+  const roles = allowedRoles.includes(selectedRole) ? allowedRoles : [selectedRole, ...allowedRoles].filter(Boolean);
+  return Array.from(new Set(roles))
+    .map(
+      (role) =>
+        `<option value="${escapeHtml(role)}" ${role === selectedRole ? "selected" : ""}>${escapeHtml(getRoleLabel(role))}</option>`
+    )
+    .join("");
+}
+function renderAdminTeamOptions(actor, structure, selectedTeamId = "") {
+  const teams = getScopedPlatformTeams(actor, structure);
+  const selectedId = selectedTeamId || teams[0]?.id || platformDefaultTeamId;
+  return teams
+    .map((team) => {
+      const club = getPlatformClubById(team.clubId, structure);
+      const label = club?.name && club.name !== team.name ? `${club.name} / ${team.name}` : team.name;
+      return `<option value="${escapeHtml(team.id)}" ${team.id === selectedId ? "selected" : ""}>${escapeHtml(label)}</option>`;
+    })
+    .join("");
+}
+function normalizeAdminUserSubmissionValues(values = {}, actor = getCurrentPlatformUser(), existingUser = null, structure = getPlatformStructureState()) {
+  const allowedRoles = getAssignableRolesForUser(actor);
+  const fallbackRole = existingUser?.role || (allowedRoles.includes("coach") ? "coach" : allowedRoles[0] || "coach");
+  let role = normalizePlatformRole(values.role || fallbackRole, fallbackRole);
+  if (!allowedRoles.includes(role)) {
+    role = allowedRoles.includes(fallbackRole) ? fallbackRole : allowedRoles[0] || "coach";
+  }
+  if (existingUser?.id && existingUser.id === actor?.id) {
+    role = existingUser.role;
+  }
+
+  let status = String(values.status || existingUser?.status || "active").trim().toLowerCase() === "paused" ? "paused" : "active";
+  if (existingUser?.id && existingUser.id === actor?.id) {
+    status = existingUser.status || "active";
+  }
+
+  const allowedTeams = getScopedPlatformTeams(actor, structure);
+  const requestedTeamId = values.teamId || existingUser?.teamId || getUserTeamId(actor, structure);
+  const requestedTeamName = values.team || values.teamName || existingUser?.team || "";
+  const selectedTeam =
+    allowedTeams.find((team) => team.id === requestedTeamId) ||
+    allowedTeams.find((team) => team.name.toLowerCase() === String(requestedTeamName).trim().toLowerCase()) ||
+    allowedTeams[0] ||
+    getPlatformTeamById(platformDefaultTeamId, structure);
+  const selectedClub = getPlatformClubById(selectedTeam?.clubId, structure) || getPlatformClubById(platformDefaultClubId, structure);
+
+  return {
+    ...values,
+    role,
+    status,
+    clubId: selectedClub?.id || platformDefaultClubId,
+    clubName: selectedClub?.name || "North Carolina Courage",
+    teamId: selectedTeam?.id || platformDefaultTeamId,
+    teamName: selectedTeam?.name || "North Carolina Courage",
+    team: selectedTeam?.name || "North Carolina Courage",
+  };
 }
 function getAllWorkspacePool(sourceState = hubState) {
   return Array.isArray(sourceState?.workspaces) && sourceState.workspaces.length
@@ -6357,7 +4872,7 @@ function canUserAccessWorkspace(
     return true;
   }
   if (workspace.requiresAdmin) {
-    return false;
+    return isPlatformManagementUser(user);
   }
   const permission = normalizeWorkspaceAccessEntry(workspace.id, accessConfig[workspace.id]);
   if (!permission.view.length) {
@@ -6377,7 +4892,13 @@ function canUserEditWorkspace(
     return true;
   }
   const workspace = getWorkspaceByIdFromPool(workspaceId);
-  if (!workspace || workspace.requiresAdmin) {
+  if (!workspace) {
+    return false;
+  }
+  if (workspace.requiresAdmin) {
+    return isPlatformManagementUser(user);
+  }
+  if (!isPlatformStaffUser(user)) {
     return false;
   }
   const permission = normalizeWorkspaceAccessEntry(workspaceId, accessConfig[workspaceId]);
@@ -6420,6 +4941,11 @@ function mergeWorkspaceDefinitions(sourceWorkspaces = []) {
     if (defaultWorkspace.id === "session-planner" || defaultWorkspace.id === "player-profiles") {
       mergedWorkspace.kind = defaultWorkspace.kind;
       mergedWorkspace.status = defaultWorkspace.status;
+    }
+    if (defaultWorkspace.id === "player-profiles") {
+      mergedWorkspace.title = defaultWorkspace.title;
+      mergedWorkspace.meta = defaultWorkspace.meta;
+      mergedWorkspace.description = defaultWorkspace.description;
     }
     return mergedWorkspace;
   });
@@ -7059,7 +5585,7 @@ function cloneScheduleState(source = defaultScheduleState) {
     ? Math.min(11, Math.max(0, rawMonthIndex))
     : now.getMonth();
   const selectedDate = source.selectedDate || formatScheduleDateValue(new Date(selectedYear, selectedMonthIndex, 1));
-  const viewMode = source.viewMode === "overview" ? "overview" : "month";
+  const viewMode = ["month", "week", "overview"].includes(source.viewMode) ? source.viewMode : "month";
   const overviewSpanOptions = [3, 6, 9, 12];
   const overviewSpan = overviewSpanOptions.includes(Number(source.overviewSpan)) ? Number(source.overviewSpan) : 6;
   const events = Array.isArray(source.events)
@@ -7086,7 +5612,7 @@ function getScheduleEventSignature(event) {
 }
 function mergeImportedNccSchedule(state) {
   const mergedState = cloneScheduleState(state);
-  if (mergedState.importVersion === importedNccScheduleVersion) {
+  if (!importedNccScheduleVersion || mergedState.importVersion === importedNccScheduleVersion) {
     return mergedState;
   }
   const existingIds = new Set(mergedState.events.map((event) => event.id));
@@ -7236,10 +5762,22 @@ function getScheduleNavigationStep() {
   if (!scheduleState) {
     return 1;
   }
+  if (scheduleState.viewMode === "week") {
+    return 7;
+  }
   return scheduleState.viewMode === "overview" ? scheduleState.overviewSpan : 1;
 }
 function shiftScheduleMonth(delta) {
   if (!scheduleState) {
+    return;
+  }
+  if (scheduleState.viewMode === "week") {
+    const nextDate = addCalendarDays(parseScheduleDateValue(scheduleState.selectedDate), delta);
+    scheduleState.selectedYear = nextDate.getFullYear();
+    scheduleState.selectedMonthIndex = nextDate.getMonth();
+    scheduleState.selectedDate = formatScheduleDateValue(nextDate);
+    writeScheduleState({ syncCentral: false });
+    renderScheduleWorkspace();
     return;
   }
   const nextDate = new Date(scheduleState.selectedYear, scheduleState.selectedMonthIndex + delta, 1);
@@ -7253,7 +5791,10 @@ function setScheduleViewMode(viewMode) {
   if (!scheduleState) {
     return;
   }
-  scheduleState.viewMode = viewMode === "overview" ? "overview" : "month";
+  scheduleState.viewMode = ["month", "week", "overview"].includes(viewMode) ? viewMode : "month";
+  const selectedDate = parseScheduleDateValue(scheduleState.selectedDate);
+  scheduleState.selectedYear = selectedDate.getFullYear();
+  scheduleState.selectedMonthIndex = selectedDate.getMonth();
   writeScheduleState({ syncCentral: false });
   renderScheduleWorkspace();
 }
@@ -7268,7 +5809,12 @@ function setScheduleOverviewSpan(span) {
   renderScheduleWorkspace();
 }
 function scrollScheduleDateIntoView(dateValue) {
-  const root = scheduleState?.viewMode === "overview" ? ui.scheduleOverviewGrid : ui.scheduleCalendarGrid;
+  const root =
+    scheduleState?.viewMode === "overview"
+      ? ui.scheduleOverviewGrid
+      : scheduleState?.viewMode === "week"
+        ? ui.scheduleWeekGrid
+        : ui.scheduleCalendarGrid;
   if (!root || !dateValue) {
     return;
   }
@@ -7434,6 +5980,24 @@ function getScheduleOverviewLabel() {
   }
   return `${startLabel} - ${endLabel}`;
 }
+function getScheduleWeekDates(dateValue = scheduleState?.selectedDate) {
+  const selectedDate = parseScheduleDateValue(dateValue);
+  const mondayOffset = (selectedDate.getDay() + 6) % 7;
+  const weekStart = addCalendarDays(selectedDate, -mondayOffset);
+  return Array.from({ length: 7 }, (_, index) => addCalendarDays(weekStart, index));
+}
+function getScheduleWeekLabel() {
+  const weekDates = getScheduleWeekDates();
+  const startDate = weekDates[0];
+  const endDate = weekDates[6];
+  const startOptions =
+    startDate.getFullYear() === endDate.getFullYear()
+      ? { day: "numeric", month: "short" }
+      : { day: "numeric", month: "short", year: "numeric" };
+  const startLabel = new Intl.DateTimeFormat("en-GB", startOptions).format(startDate);
+  const endLabel = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(endDate);
+  return `${startLabel} - ${endLabel}`;
+}
 function renderScheduleMonthDay(date, isCompact = false, visibleMonthIndex = scheduleState?.selectedMonthIndex) {
   if (!scheduleState) {
     return "";
@@ -7496,6 +6060,36 @@ function renderScheduleOverviewMonth(monthDate) {
     </article>
   `;
 }
+function renderScheduleWeekDay(date) {
+  const dateValue = formatScheduleDateValue(date);
+  const selectedDateValue = scheduleState?.selectedDate || "";
+  const todayValue = formatScheduleDateValue(new Date());
+  const events = getScheduleEventsForDate(dateValue);
+  const mainEvent = getScheduleMainEvent(events);
+  const mainTone = mainEvent ? scheduleEventTypes[mainEvent.type]?.tone || "training" : "";
+  const eventToneClass = mainTone ? ` is-main-${mainTone}` : "";
+  const periodizationDay = getPeriodizationDay(dateValue);
+  const periodizationLabel = getPeriodizationDayScheduleLabel(periodizationDay);
+  const session = sessionPlannerState?.sessions?.[dateValue] || null;
+  const sessionBlockCount = Array.isArray(session?.blocks) ? session.blocks.length : 0;
+  const weekdayLabel = new Intl.DateTimeFormat("en-GB", { weekday: "short" }).format(date);
+
+  return `
+    <article class="schedule-week-day${dateValue === selectedDateValue ? " is-selected" : ""}${dateValue === todayValue ? " is-today" : ""}${events.length ? ` has-events${eventToneClass}` : ""}" data-schedule-date="${escapeHtml(dateValue)}">
+      <button type="button" class="schedule-week-day-head" data-schedule-date="${escapeHtml(dateValue)}">
+        <span>${escapeHtml(weekdayLabel)}</span>
+        <strong>${date.getDate()}</strong>
+      </button>
+      <div class="schedule-week-day-meta">
+        ${periodizationLabel ? `<span>${escapeHtml(periodizationLabel)}</span>` : ""}
+        ${sessionBlockCount ? `<span>${sessionBlockCount} blocks</span>` : ""}
+      </div>
+      <div class="schedule-week-event-stack">
+        ${events.length ? events.map((event) => renderScheduleEventPill(event)).join("") : `<span class="schedule-week-empty"></span>`}
+      </div>
+    </article>
+  `;
+}
 function renderScheduleEventCard(event, isAdmin) {
   const eventType = scheduleEventTypes[event.type] ?? scheduleEventTypes.training;
   const eventMeta = [event.time, eventType.label].filter(Boolean).join(" · ");
@@ -7518,6 +6112,100 @@ function renderScheduleEventCard(event, isAdmin) {
     </article>
   `;
 }
+function getScheduleSessionSnapshot(dateValue) {
+  if (!sessionPlannerState) {
+    sessionPlannerState = readSessionPlannerState();
+  }
+  const session = sessionPlannerState?.sessions?.[dateValue] || null;
+  const blocks = Array.isArray(session?.blocks) ? session.blocks : [];
+  return {
+    session,
+    blocks,
+    hasSession: blocks.length > 0,
+    minutes: blocks.reduce((total, block) => total + (Number(block.minutes) || 0), 0),
+  };
+}
+function getScheduleDayWarnings(events, periodizationDay, sessionSnapshot) {
+  const warnings = [];
+  const hasTraining = events.some((event) => isScheduleSessionEvent(event));
+  const hasOff = events.some((event) => event.type === "off");
+  const hasActivePlan = events.some((event) => event.type !== "off");
+  const periodizationLabel = getPeriodizationDayScheduleLabel(periodizationDay);
+
+  if (hasTraining && !sessionSnapshot.hasSession) {
+    warnings.push("Training without session plan");
+  }
+  if (periodizationLabel.toLowerCase() === "off" && hasActivePlan) {
+    warnings.push("Periodization says OFF");
+  }
+  if (hasOff && hasActivePlan) {
+    warnings.push("OFF mixed with active plan");
+  }
+
+  const timedEvents = events.filter((event) => event.time);
+  const duplicateTime = timedEvents.find(
+    (event, index) => timedEvents.findIndex((candidate) => candidate.time === event.time) !== index
+  );
+  if (duplicateTime) {
+    warnings.push(`Time conflict at ${duplicateTime.time}`);
+  }
+
+  return warnings;
+}
+function renderScheduleDayInsights(dateValue, selectedEvents) {
+  ensurePeriodizationState();
+  const mainEvent = getScheduleMainEvent(selectedEvents);
+  const periodizationDay = getPeriodizationDay(dateValue);
+  const periodizationLabel = getPeriodizationDayScheduleLabel(periodizationDay);
+  const matchDayLabel = getPeriodizationMatchDayLabel(periodizationDay.matchDay);
+  const sessionSnapshot = getScheduleSessionSnapshot(dateValue);
+  const warnings = getScheduleDayWarnings(selectedEvents, periodizationDay, sessionSnapshot);
+  const phaseLabels = [
+    ...(Array.isArray(periodizationDay.matchPhases) ? periodizationDay.matchPhases : []),
+    ...(Array.isArray(periodizationDay.subPhases) ? periodizationDay.subPhases : []),
+  ].slice(0, 3);
+  const canCreateSession = canEditSessionPlanner();
+  const sessionAction = sessionSnapshot.hasSession ? "Open Session" : canCreateSession ? "Create Session" : "Open Sessions";
+
+  return `
+    <section class="schedule-day-ops">
+      <div class="schedule-day-summary-grid">
+        <article>
+          <span>Main</span>
+          <strong>${escapeHtml(mainEvent?.title || periodizationLabel || "Open")}</strong>
+          ${mainEvent ? `<small>${escapeHtml([mainEvent.time, scheduleEventTypes[mainEvent.type]?.label].filter(Boolean).join(" / "))}</small>` : ""}
+        </article>
+        <article>
+          <span>Session</span>
+          <strong>${escapeHtml(sessionSnapshot.hasSession ? sessionSnapshot.session.title || "Training Session" : "Not built")}</strong>
+          ${
+            sessionSnapshot.hasSession
+              ? `<small>${sessionSnapshot.blocks.length} blocks${sessionSnapshot.minutes ? ` / ${sessionSnapshot.minutes} min` : ""}</small>`
+              : ""
+          }
+        </article>
+        <article>
+          <span>Periodization</span>
+          <strong>${escapeHtml([periodizationLabel, matchDayLabel].filter(Boolean).join(" / ") || "Open")}</strong>
+          ${phaseLabels.length ? `<small>${escapeHtml(phaseLabels.join(" / "))}</small>` : ""}
+        </article>
+      </div>
+      ${
+        warnings.length
+          ? `
+            <div class="schedule-day-warning-list">
+              ${warnings.map((warning) => `<span>${escapeHtml(warning)}</span>`).join("")}
+            </div>
+          `
+          : ""
+      }
+      <div class="schedule-day-link-actions">
+        <button type="button" data-schedule-open-session-date="${escapeHtml(dateValue)}" data-schedule-create-session="${sessionSnapshot.hasSession ? "false" : "true"}">${escapeHtml(sessionAction)}</button>
+        <button type="button" data-schedule-open-periodization-date="${escapeHtml(dateValue)}">Open Periodization</button>
+      </div>
+    </section>
+  `;
+}
 function renderScheduleWorkspace() {
   if (
     !scheduleState ||
@@ -7533,18 +6221,25 @@ function renderScheduleWorkspace() {
   const selectedMonthLabel = formatMonthLabel(selectedMonthDate);
   const selectedDateValue = scheduleState.selectedDate;
   const isOverview = scheduleState.viewMode === "overview";
+  const isWeek = scheduleState.viewMode === "week";
   const canEdit = canEditScheduleWorkspace();
+  ensurePeriodizationState();
+  if (!sessionPlannerState) {
+    sessionPlannerState = readSessionPlannerState();
+  }
   if (!canEdit) {
     scheduleEditingEventId = null;
     scheduleDayPanelMode = "view";
   }
   const isEditingDay = isScheduleDayEditing();
   const editingEvent = scheduleState.events.find((event) => event.id === scheduleEditingEventId) ?? null;
-  ui.scheduleMonthTitle.textContent = isOverview ? getScheduleOverviewLabel() : selectedMonthLabel;
-  ui.scheduleMonthTitle.hidden = isOverview;
-  ui.scheduleMonthViewButton?.classList.toggle("is-active", !isOverview);
+  ui.scheduleMonthTitle.textContent = isOverview ? getScheduleOverviewLabel() : isWeek ? getScheduleWeekLabel() : selectedMonthLabel;
+  ui.scheduleMonthTitle.hidden = false;
+  ui.scheduleMonthViewButton?.classList.toggle("is-active", scheduleState.viewMode === "month");
+  ui.scheduleWeekViewButton?.classList.toggle("is-active", isWeek);
   ui.scheduleOverviewViewButton?.classList.toggle("is-active", isOverview);
-  ui.scheduleMonthViewButton?.setAttribute("aria-pressed", String(!isOverview));
+  ui.scheduleMonthViewButton?.setAttribute("aria-pressed", String(scheduleState.viewMode === "month"));
+  ui.scheduleWeekViewButton?.setAttribute("aria-pressed", String(isWeek));
   ui.scheduleOverviewViewButton?.setAttribute("aria-pressed", String(isOverview));
   if (ui.scheduleOverviewSpanControl) {
     ui.scheduleOverviewSpanControl.hidden = !isOverview;
@@ -7560,10 +6255,13 @@ function renderScheduleWorkspace() {
     });
   }
   if (ui.scheduleWeekdays) {
-    ui.scheduleWeekdays.hidden = isOverview;
+    ui.scheduleWeekdays.hidden = isOverview || isWeek;
   }
   if (ui.scheduleCalendarGrid) {
-    ui.scheduleCalendarGrid.hidden = isOverview;
+    ui.scheduleCalendarGrid.hidden = isOverview || isWeek;
+  }
+  if (ui.scheduleWeekGrid) {
+    ui.scheduleWeekGrid.hidden = !isWeek;
   }
   if (ui.scheduleOverviewGrid) {
     ui.scheduleOverviewGrid.hidden = !isOverview;
@@ -7623,6 +6321,8 @@ function renderScheduleWorkspace() {
     ui.scheduleOverviewGrid.innerHTML = Array.from({ length: scheduleState.overviewSpan }, (_, index) =>
       renderScheduleOverviewMonth(new Date(scheduleState.selectedYear, scheduleState.selectedMonthIndex + index, 1))
     ).join("");
+  } else if (isWeek && ui.scheduleWeekGrid) {
+    ui.scheduleWeekGrid.innerHTML = getScheduleWeekDates().map(renderScheduleWeekDay).join("");
   } else {
     const days = getScheduleMonthGridDates(scheduleState.selectedYear, scheduleState.selectedMonthIndex);
     ui.scheduleCalendarGrid.innerHTML = days.map((date) => renderScheduleMonthDay(date)).join("");
@@ -7631,6 +6331,9 @@ function renderScheduleWorkspace() {
   ui.scheduleEventList.innerHTML = selectedEvents.length
     ? selectedEvents.map((event) => renderScheduleEventCard(event, isEditingDay)).join("")
     : `<p class="schedule-empty-state">No plans on this day yet.</p>`;
+  if (ui.scheduleDayInsights) {
+    ui.scheduleDayInsights.innerHTML = renderScheduleDayInsights(selectedDateValue, selectedEvents);
+  }
 }
 function cloneHubState(source = defaultHubState) {
   return {
@@ -10576,7 +9279,7 @@ function getTopIconSvg(workspaceId) {
 function getTopIconLabel(workspace) {
   const labels = {
     home: "Home",
-    "player-profiles": "Squad",
+    "player-profiles": "IDP",
   };
   return labels[workspace?.id] ?? workspace?.title ?? "";
 }
@@ -11048,6 +9751,49 @@ function createSessionPlannerStableId(prefix = "item") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function normalizeSessionPlannerTacticalFrameLabel(value = "", index = 0) {
+  const label = String(value || "").trim().replace(/\s+/g, " ");
+  return label || `Frame ${index + 1}`;
+}
+
+function cloneSessionPlannerTacticalFrame(frame = {}, index = 0) {
+  return {
+    id: String(frame.id || "").trim() || createSessionPlannerStableId("tactical-frame"),
+    label: normalizeSessionPlannerTacticalFrameLabel(frame.label, index),
+    elements: Array.isArray(frame.elements)
+      ? frame.elements.map(cloneSessionPlannerTacticalElement)
+      : [],
+  };
+}
+
+function normalizeSessionPlannerTacticalFrames(frames = []) {
+  if (!Array.isArray(frames)) {
+    return [];
+  }
+
+  const usedIds = new Set();
+  return frames
+    .filter((frame) => frame && typeof frame === "object" && !Array.isArray(frame))
+    .slice(0, sessionPlannerTacticalMaxFrames)
+    .map((frame, index) => {
+      const clonedFrame = cloneSessionPlannerTacticalFrame(frame, index);
+      let frameId = clonedFrame.id;
+      while (usedIds.has(frameId)) {
+        frameId = createSessionPlannerStableId("tactical-frame");
+      }
+      usedIds.add(frameId);
+      return {
+        ...clonedFrame,
+        id: frameId,
+      };
+    });
+}
+
+function normalizeSessionPlannerTacticalActiveFrameId(activeFrameId = "", frames = []) {
+  const normalizedId = String(activeFrameId || "").trim();
+  return frames.some((frame) => frame.id === normalizedId) ? normalizedId : frames[0]?.id || "";
+}
+
 function parseSessionPlannerTimestampMs(value) {
   const timestamp = typeof value === "number" ? value : new Date(value || 0).getTime();
   return Number.isFinite(timestamp) ? timestamp : 0;
@@ -11106,6 +9852,10 @@ function createSessionPlannerBlock(overrides = {}) {
   const now = new Date().toISOString();
   const createdAt = normalizeSessionPlannerTimestamp(overrides.createdAt) || now;
   const updatedAt = normalizeSessionPlannerTimestamp(overrides.updatedAt) || (overrides.id ? "" : now);
+  const tacticalFrames = normalizeSessionPlannerTacticalFrames(overrides.tacticalFrames);
+  const tacticalElements = Array.isArray(overrides.tacticalElements)
+    ? overrides.tacticalElements.map(cloneSessionPlannerTacticalElement)
+    : [];
 
   return {
     id: overrides.id || createSessionPlannerStableId("session-block"),
@@ -11128,13 +9878,13 @@ function createSessionPlannerBlock(overrides = {}) {
     principles: overrides.principles || "",
     diagram: isUntouchedNewExercise ? "empty" : overrides.diagram || "empty",
     tacticalPitchMode: normalizeSessionPlannerTacticalPitchMode(overrides.tacticalPitchMode),
+    tacticalFrames,
+    tacticalActiveFrameId: normalizeSessionPlannerTacticalActiveFrameId(overrides.tacticalActiveFrameId, tacticalFrames),
     playerBoardLayoutMode: overrides.playerBoardLayoutMode === "manual" ? "manual" : "auto",
     visualImage: overrides.visualImage || "",
     playerBoardPositions: normalizeSessionPlannerPlayerBoardPositions(overrides.playerBoardPositions),
     playerBoardColors: normalizeSessionPlannerPlayerBoardColors(overrides.playerBoardColors),
-    tacticalElements: Array.isArray(overrides.tacticalElements)
-      ? overrides.tacticalElements.map(cloneSessionPlannerTacticalElement)
-      : [],
+    tacticalElements,
   };
 }
 
@@ -11172,6 +9922,8 @@ function cloneSessionPlannerLibraryExercise(exercise = {}) {
     ...exercise,
     playerBoardPositions: normalizeSessionPlannerPlayerBoardPositions(exercise.playerBoardPositions),
     playerBoardColors: normalizeSessionPlannerPlayerBoardColors(exercise.playerBoardColors),
+    tacticalFrames: normalizeSessionPlannerTacticalFrames(exercise.tacticalFrames),
+    tacticalActiveFrameId: exercise.tacticalActiveFrameId || "",
     tacticalElements: Array.isArray(exercise.tacticalElements)
       ? exercise.tacticalElements.map(cloneSessionPlannerTacticalElement)
       : [],
@@ -12871,6 +11623,8 @@ function buildSessionPlannerLibraryExerciseFromBlock(block) {
     visualImage: block.visualImage || "",
     playerBoardPositions: normalizeSessionPlannerPlayerBoardPositions(block.playerBoardPositions),
     playerBoardColors: normalizeSessionPlannerPlayerBoardColors(block.playerBoardColors),
+    tacticalFrames: normalizeSessionPlannerTacticalFrames(block.tacticalFrames),
+    tacticalActiveFrameId: block.tacticalActiveFrameId || "",
     tacticalElements: Array.isArray(block.tacticalElements)
       ? block.tacticalElements.map(cloneSessionPlannerTacticalElement)
       : [],
@@ -14284,11 +13038,197 @@ function resetSessionPlannerPlayerBoardPositions() {
   showSessionPlannerToast("Players reset to starting positions and default buttons.");
 }
 
+function getSessionPlannerTacticalFrames(block = getSessionPlannerSelectedBlock()) {
+  if (!block) {
+    return [];
+  }
+
+  const frames = normalizeSessionPlannerTacticalFrames(block.tacticalFrames);
+  block.tacticalFrames = frames;
+  block.tacticalActiveFrameId = normalizeSessionPlannerTacticalActiveFrameId(block.tacticalActiveFrameId, frames);
+  return frames;
+}
+
+function getSessionPlannerTacticalActiveFrameId(block = getSessionPlannerSelectedBlock()) {
+  return normalizeSessionPlannerTacticalActiveFrameId(block?.tacticalActiveFrameId, getSessionPlannerTacticalFrames(block));
+}
+
+function ensureSessionPlannerTacticalFrames(block = getSessionPlannerSelectedBlock()) {
+  if (!block) {
+    return [];
+  }
+
+  const frames = getSessionPlannerTacticalFrames(block);
+  if (frames.length) {
+    return frames;
+  }
+
+  const firstFrame = cloneSessionPlannerTacticalFrame(
+    {
+      label: "Frame 1",
+      elements: Array.isArray(block.tacticalElements) ? block.tacticalElements : [],
+    },
+    0
+  );
+  block.tacticalFrames = [firstFrame];
+  block.tacticalActiveFrameId = firstFrame.id;
+  return block.tacticalFrames;
+}
+
+function syncSessionPlannerTacticalActiveFrame(block = getSessionPlannerSelectedBlock()) {
+  const frames = ensureSessionPlannerTacticalFrames(block);
+  const activeFrameId = getSessionPlannerTacticalActiveFrameId(block);
+  const activeFrame = frames.find((frame) => frame.id === activeFrameId);
+  if (activeFrame) {
+    activeFrame.elements = Array.isArray(block.tacticalElements)
+      ? block.tacticalElements.map(cloneSessionPlannerTacticalElement)
+      : [];
+  }
+  return frames;
+}
+
+function persistSessionPlannerTacticalElements(block = getSessionPlannerSelectedBlock()) {
+  if (!block) {
+    return;
+  }
+
+  const fields = ["tacticalElements"];
+  if (Array.isArray(block.tacticalFrames) && block.tacticalFrames.length) {
+    syncSessionPlannerTacticalActiveFrame(block);
+    fields.push("tacticalFrames", "tacticalActiveFrameId");
+  }
+  markSessionPlannerBlockFieldsUpdated(block, fields);
+  writeSessionPlannerState();
+}
+
+function commitSessionPlannerTacticalFrames(block, frames, activeFrameId) {
+  if (!block || !Array.isArray(frames) || !frames.length) {
+    return false;
+  }
+
+  const normalizedFrames = normalizeSessionPlannerTacticalFrames(frames);
+  const nextActiveFrameId = normalizeSessionPlannerTacticalActiveFrameId(activeFrameId, normalizedFrames);
+  const activeFrame = normalizedFrames.find((frame) => frame.id === nextActiveFrameId) ?? normalizedFrames[0];
+  block.tacticalFrames = normalizedFrames;
+  block.tacticalActiveFrameId = activeFrame.id;
+  block.tacticalElements = activeFrame.elements.map(cloneSessionPlannerTacticalElement);
+  sessionPlannerTacticalPendingPoint = null;
+  sessionPlannerTacticalDraftLineState = null;
+  sessionPlannerTacticalSelectionState = null;
+  clearSessionPlannerTacticalSelection();
+  markSessionPlannerBlockFieldsUpdated(block, ["tacticalElements", "tacticalFrames", "tacticalActiveFrameId"]);
+  writeSessionPlannerState();
+  renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+  return true;
+}
+
+function addSessionPlannerTacticalFrame() {
+  if (!canEditSessionPlanner()) {
+    return;
+  }
+
+  const block = getSessionPlannerSelectedBlock();
+  if (!block) {
+    return;
+  }
+
+  const frames = syncSessionPlannerTacticalActiveFrame(block);
+  if (frames.length >= sessionPlannerTacticalMaxFrames) {
+    showSessionPlannerToast(`Max ${sessionPlannerTacticalMaxFrames} frames per board.`, "warning");
+    return;
+  }
+
+  const nextFrame = cloneSessionPlannerTacticalFrame(
+    {
+      label: `Frame ${frames.length + 1}`,
+      elements: block.tacticalElements,
+    },
+    frames.length
+  );
+  commitSessionPlannerTacticalFrames(block, [...frames, nextFrame], nextFrame.id);
+}
+
+function selectSessionPlannerTacticalFrame(frameId) {
+  if (!canEditSessionPlanner()) {
+    return;
+  }
+
+  const block = getSessionPlannerSelectedBlock();
+  if (!block) {
+    return;
+  }
+
+  const frames = syncSessionPlannerTacticalActiveFrame(block);
+  const targetFrame = frames.find((frame) => frame.id === frameId);
+  if (!targetFrame || targetFrame.id === block.tacticalActiveFrameId) {
+    return;
+  }
+
+  commitSessionPlannerTacticalFrames(block, frames, targetFrame.id);
+}
+
+function duplicateSessionPlannerTacticalFrame() {
+  if (!canEditSessionPlanner()) {
+    return;
+  }
+
+  const block = getSessionPlannerSelectedBlock();
+  if (!block) {
+    return;
+  }
+
+  const frames = syncSessionPlannerTacticalActiveFrame(block);
+  if (frames.length >= sessionPlannerTacticalMaxFrames) {
+    showSessionPlannerToast(`Max ${sessionPlannerTacticalMaxFrames} frames per board.`, "warning");
+    return;
+  }
+
+  const activeFrameId = getSessionPlannerTacticalActiveFrameId(block);
+  const activeIndex = Math.max(0, frames.findIndex((frame) => frame.id === activeFrameId));
+  const sourceFrame = frames[activeIndex] ?? frames[0];
+  const duplicateFrame = cloneSessionPlannerTacticalFrame(
+    {
+      label: `Frame ${frames.length + 1}`,
+      elements: sourceFrame.elements,
+    },
+    frames.length
+  );
+  const nextFrames = [...frames];
+  nextFrames.splice(activeIndex + 1, 0, duplicateFrame);
+  commitSessionPlannerTacticalFrames(block, nextFrames, duplicateFrame.id);
+}
+
+function deleteSessionPlannerTacticalFrame() {
+  if (!canEditSessionPlanner()) {
+    return;
+  }
+
+  const block = getSessionPlannerSelectedBlock();
+  if (!block) {
+    return;
+  }
+
+  const frames = syncSessionPlannerTacticalActiveFrame(block);
+  if (frames.length <= 1) {
+    showSessionPlannerToast("Keep at least one frame on the board.", "warning");
+    return;
+  }
+
+  if (!window.confirm("Delete this tactical board frame?")) {
+    return;
+  }
+
+  const activeFrameId = getSessionPlannerTacticalActiveFrameId(block);
+  const activeIndex = Math.max(0, frames.findIndex((frame) => frame.id === activeFrameId));
+  const nextFrames = frames.filter((frame) => frame.id !== activeFrameId);
+  const nextFrame = nextFrames[Math.min(activeIndex, nextFrames.length - 1)] ?? nextFrames[0];
+  commitSessionPlannerTacticalFrames(block, nextFrames, nextFrame.id);
+}
+
 function refreshSessionPlannerTacticalboardCanvas(options = {}) {
   const block = getSessionPlannerSelectedBlock();
   if (options.persist) {
-    markSessionPlannerBlockFieldsUpdated(block, ["tacticalElements"]);
-    writeSessionPlannerState();
+    persistSessionPlannerTacticalElements(block);
   }
 
   const canvasWrap = ui.sessionPlannerWorkspace?.querySelector("[data-session-tactical-canvas-wrap]");
@@ -14447,9 +13387,7 @@ function updateSessionPlannerTacticalPlayerNumber(elementId, rawNumber) {
   const playerBadge = normalizeSessionPlannerTacticalPlayerBadge(rawNumber);
   element.playerNumber = playerBadge || null;
   sessionPlannerTacticalNumberPickerElementId = "";
-  markSessionPlannerBlockFieldsUpdated(getSessionPlannerSelectedBlock(), ["tacticalElements"]);
-  writeSessionPlannerState();
-  refreshSessionPlannerTacticalboardCanvas();
+  refreshSessionPlannerTacticalboardCanvas({ persist: true });
 }
 
 function updateSelectedSessionPlannerTacticalPlayerBadges(rawBadge) {
@@ -14473,9 +13411,7 @@ function updateSelectedSessionPlannerTacticalPlayerBadges(rawBadge) {
     element.playerNumber = playerBadge;
   });
   sessionPlannerTacticalNumberPickerElementId = "";
-  markSessionPlannerBlockFieldsUpdated(getSessionPlannerSelectedBlock(), ["tacticalElements"]);
-  writeSessionPlannerState();
-  refreshSessionPlannerTacticalboardCanvas();
+  refreshSessionPlannerTacticalboardCanvas({ persist: true });
   return true;
 }
 
@@ -14486,8 +13422,7 @@ function isSessionPlannerTacticalElementSelected(elementId) {
 function shouldDragSessionPlannerTacticalSelectionGroup(event, elementId) {
   const selectedIds = getSessionPlannerTacticalSelectedElementIds();
   return selectedIds.length > 1 &&
-    selectedIds.includes(elementId) &&
-    Boolean(event.shiftKey || event.metaKey || event.ctrlKey);
+    selectedIds.includes(elementId);
 }
 
 function getSessionPlannerTacticalDragElementIds(event, elementId) {
@@ -14653,19 +13588,45 @@ function addSessionPlannerTacticalElement(element) {
   refreshSessionPlannerTacticalboardCanvas({ persist: true });
 }
 
-function getSessionPlannerTacticalCanvasPoint(event, canvas) {
-  const rect = canvas.getBoundingClientRect();
-  return getSessionPlannerTacticalPointFromRect(event, rect);
+function snapSessionPlannerTacticalValue(value) {
+  return clamp(Math.round(Number(value) / sessionPlannerTacticalSnapStep) * sessionPlannerTacticalSnapStep, 0, 100);
 }
 
-function getSessionPlannerTacticalPointFromRect(event, rect) {
+function snapSessionPlannerTacticalPoint(point = {}) {
+  return {
+    x: snapSessionPlannerTacticalValue(point.x),
+    y: snapSessionPlannerTacticalValue(point.y),
+  };
+}
+
+function shouldSnapSessionPlannerTacticalEvent(event, options = {}) {
+  if (options.snap === false) {
+    return false;
+  }
+
+  if (options.snap === true) {
+    return true;
+  }
+
+  return Boolean(sessionPlannerTacticalSnapEnabled && !event?.altKey);
+}
+
+function getSessionPlannerTacticalCanvasPoint(event, canvas, options = {}) {
+  const rect = canvas.getBoundingClientRect();
+  return getSessionPlannerTacticalPointFromRect(event, rect, options);
+}
+
+function getSessionPlannerTacticalPointFromRect(event, rect, options = {}) {
   const width = rect.width || 1;
   const height = rect.height || 1;
-
-  return {
+  const point = {
     x: clamp(((event.clientX - rect.left) / width) * 100, 0, 100),
     y: clamp(((event.clientY - rect.top) / height) * 100, 0, 100),
   };
+
+  return shouldSnapSessionPlannerTacticalEvent(event, options)
+    ? snapSessionPlannerTacticalPoint(point)
+    : point;
 }
 
 function getSessionPlannerTacticalElementById(elementId) {
@@ -15015,6 +13976,106 @@ function moveSessionPlannerTacticalElements(elementIds = [], deltaX, deltaY) {
   });
 }
 
+function moveSessionPlannerTacticalElementByDelta(element, deltaX, deltaY) {
+  if (!element) {
+    return;
+  }
+
+  moveSessionPlannerTacticalElementFromInitial(
+    element,
+    cloneSessionPlannerTacticalElement(element),
+    deltaX,
+    deltaY
+  );
+}
+
+function getSessionPlannerTacticalBoundsCollection(elements = []) {
+  const items = elements
+    .map((element) => {
+      const bounds = getSessionPlannerTacticalElementBounds(element);
+      if (!bounds) {
+        return null;
+      }
+
+      return {
+        element,
+        bounds,
+        centerX: (bounds.left + bounds.right) / 2,
+        centerY: (bounds.top + bounds.bottom) / 2,
+      };
+    })
+    .filter(Boolean);
+
+  if (!items.length) {
+    return null;
+  }
+
+  return {
+    items,
+    left: Math.min(...items.map((item) => item.bounds.left)),
+    right: Math.max(...items.map((item) => item.bounds.right)),
+    top: Math.min(...items.map((item) => item.bounds.top)),
+    bottom: Math.max(...items.map((item) => item.bounds.bottom)),
+  };
+}
+
+function alignSelectedSessionPlannerTacticalElements(edge) {
+  if (!canEditSessionPlanner()) {
+    return;
+  }
+
+  const collection = getSessionPlannerTacticalBoundsCollection(getSelectedSessionPlannerTacticalElements());
+  if (!collection || collection.items.length < 2) {
+    showSessionPlannerToast("Select at least two items to align.", "warning");
+    return;
+  }
+
+  collection.items.forEach(({ element, bounds, centerX, centerY }) => {
+    let deltaX = 0;
+    let deltaY = 0;
+    if (edge === "left") deltaX = collection.left - bounds.left;
+    if (edge === "center") deltaX = (collection.left + collection.right) / 2 - centerX;
+    if (edge === "right") deltaX = collection.right - bounds.right;
+    if (edge === "top") deltaY = collection.top - bounds.top;
+    if (edge === "middle") deltaY = (collection.top + collection.bottom) / 2 - centerY;
+    if (edge === "bottom") deltaY = collection.bottom - bounds.bottom;
+    moveSessionPlannerTacticalElementByDelta(element, deltaX, deltaY);
+  });
+
+  refreshSessionPlannerTacticalboardCanvas({ persist: true });
+}
+
+function distributeSelectedSessionPlannerTacticalElements(axis) {
+  if (!canEditSessionPlanner()) {
+    return;
+  }
+
+  const collection = getSessionPlannerTacticalBoundsCollection(getSelectedSessionPlannerTacticalElements());
+  if (!collection || collection.items.length < 3) {
+    showSessionPlannerToast("Select at least three items to distribute.", "warning");
+    return;
+  }
+
+  const isHorizontal = axis === "x";
+  const sortedItems = [...collection.items].sort((a, b) =>
+    isHorizontal ? a.centerX - b.centerX : a.centerY - b.centerY
+  );
+  const firstCenter = isHorizontal ? sortedItems[0].centerX : sortedItems[0].centerY;
+  const lastCenter = isHorizontal
+    ? sortedItems.at(-1).centerX
+    : sortedItems.at(-1).centerY;
+  const step = (lastCenter - firstCenter) / (sortedItems.length - 1);
+
+  sortedItems.forEach((item, index) => {
+    const targetCenter = firstCenter + step * index;
+    const deltaX = isHorizontal ? targetCenter - item.centerX : 0;
+    const deltaY = isHorizontal ? 0 : targetCenter - item.centerY;
+    moveSessionPlannerTacticalElementByDelta(item.element, deltaX, deltaY);
+  });
+
+  refreshSessionPlannerTacticalboardCanvas({ persist: true });
+}
+
 function copySelectedSessionPlannerTacticalElements() {
   if (!canEditSessionPlanner()) {
     return false;
@@ -15170,11 +14231,13 @@ function addSessionPlannerTacticalPlacementElement(point) {
     return false;
   }
 
-  if (shouldSkipRepeatedSessionPlannerTacticalPlacement(point)) {
+  const placementPoint = snapSessionPlannerTacticalPoint(point);
+
+  if (shouldSkipRepeatedSessionPlannerTacticalPlacement(placementPoint)) {
     return false;
   }
 
-  const { x, y } = point;
+  const { x, y } = placementPoint;
 
   if (sessionPlannerTacticalTool === "text") {
     const label = window.prompt("Text on board", "Coaching point");
@@ -15437,7 +14500,7 @@ function startSessionPlannerTacticalDrag(event) {
     event.preventDefault();
     sessionPlannerTacticalNumberPickerElementId = "";
     const canvasRect = canvas.getBoundingClientRect();
-    const point = getSessionPlannerTacticalCanvasPoint(event, canvas);
+    const point = getSessionPlannerTacticalCanvasPoint(event, canvas, { snap: false });
     sessionPlannerTacticalPendingPoint = null;
     sessionPlannerTacticalDraftLineState = null;
     sessionPlannerTacticalSelectionState = {
@@ -15452,7 +14515,7 @@ function startSessionPlannerTacticalDrag(event) {
   if (sessionPlannerTacticalTool === "freehand") {
     event.preventDefault();
     const canvasRect = canvas.getBoundingClientRect();
-    const point = getSessionPlannerTacticalCanvasPoint(event, canvas);
+    const point = getSessionPlannerTacticalCanvasPoint(event, canvas, { snap: false });
     sessionPlannerTacticalFreehandState = {
       canvasRect,
       points: [point],
@@ -15499,7 +14562,7 @@ function updateSessionPlannerTacticalDrag(event) {
   }
 
   if (sessionPlannerTacticalSelectionState) {
-    const point = getSessionPlannerTacticalPointFromRect(event, sessionPlannerTacticalSelectionState.canvasRect);
+    const point = getSessionPlannerTacticalPointFromRect(event, sessionPlannerTacticalSelectionState.canvasRect, { snap: false });
     const distance = Math.hypot(
       point.x - sessionPlannerTacticalSelectionState.startPoint.x,
       point.y - sessionPlannerTacticalSelectionState.startPoint.y
@@ -15554,7 +14617,7 @@ function updateSessionPlannerTacticalDrag(event) {
   }
 
   if (sessionPlannerTacticalFreehandState) {
-    const point = getSessionPlannerTacticalPointFromRect(event, sessionPlannerTacticalFreehandState.canvasRect);
+    const point = getSessionPlannerTacticalPointFromRect(event, sessionPlannerTacticalFreehandState.canvasRect, { snap: false });
     const lastPoint = sessionPlannerTacticalFreehandState.points.at(-1);
     const distance = Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y);
 
@@ -16074,6 +15137,8 @@ function applySessionPlannerExercise(exerciseId) {
     visualImage: exercise.visualImage || "",
     playerBoardPositions: normalizeSessionPlannerPlayerBoardPositions(exercise.playerBoardPositions),
     playerBoardColors: normalizeSessionPlannerPlayerBoardColors(exercise.playerBoardColors),
+    tacticalFrames: normalizeSessionPlannerTacticalFrames(exercise.tacticalFrames),
+    tacticalActiveFrameId: exercise.tacticalActiveFrameId || "",
     tacticalElements: Array.isArray(exercise.tacticalElements)
       ? exercise.tacticalElements.map(cloneSessionPlannerTacticalElement)
       : [],
@@ -17938,6 +17003,21 @@ function renderSessionPlannerTacticalboardOverlay(block) {
     .join("");
   const pitchDimensions = getSessionPlannerTacticalPitchDimensionsForBlock(block);
   const pitchMeasurementLabel = `${pitchDimensions.x} x ${pitchDimensions.y} m`;
+  const tacticalFrames = ensureSessionPlannerTacticalFrames(block);
+  const activeFrameId = getSessionPlannerTacticalActiveFrameId(block);
+  const frameButtons = tacticalFrames
+    .map((frame, index) => `
+      <button
+        type="button"
+        class="session-tacticalboard-frame${frame.id === activeFrameId ? " is-active" : ""}"
+        data-session-tactical-frame="${escapeHtml(frame.id)}"
+        title="${escapeHtml(frame.label)}"
+      >
+        ${index + 1}
+      </button>
+    `)
+    .join("");
+  const frameStatusLabel = `${Math.max(1, tacticalFrames.findIndex((frame) => frame.id === activeFrameId) + 1)} / ${tacticalFrames.length || 1}`;
 
   return `
     <div class="session-library-overlay session-tacticalboard-overlay" data-session-tacticalboard-overlay>
@@ -17986,6 +17066,11 @@ function renderSessionPlannerTacticalboardOverlay(block) {
                 <span>Pitch view</span>
                 <select data-session-tactical-pitch-mode>${pitchModeOptions}</select>
               </label>
+              <label class="session-tacticalboard-toggle">
+                <input type="checkbox" data-session-tactical-snap ${sessionPlannerTacticalSnapEnabled ? "checked" : ""} />
+                <span>Snap</span>
+                <small>Alt for precision</small>
+              </label>
               <label>
                 <span>Colour</span>
                 <input type="color" value="${escapeHtml(sessionPlannerTacticalColor)}" data-session-tactical-color />
@@ -17999,9 +17084,39 @@ function renderSessionPlannerTacticalboardOverlay(block) {
                 <select data-session-tactical-style>${lineStyleOptions}</select>
               </label>
             </div>
+            <div class="session-tacticalboard-frames" aria-label="Frames">
+              <div class="session-tacticalboard-panel-head">
+                <span>Frames</span>
+                <small>${escapeHtml(frameStatusLabel)}</small>
+              </div>
+              <div class="session-tacticalboard-frame-list">
+                ${frameButtons}
+              </div>
+              <div class="session-tacticalboard-frame-actions">
+                <button type="button" data-session-add-tactical-frame>New</button>
+                <button type="button" data-session-duplicate-tactical-frame>Duplicate</button>
+                <button type="button" data-session-delete-tactical-frame ${tacticalFrames.length <= 1 ? "disabled" : ""}>Delete</button>
+              </div>
+            </div>
+            <div class="session-tacticalboard-arrange" aria-label="Arrange selected items">
+              <div class="session-tacticalboard-panel-head">
+                <span>Arrange</span>
+                <small>Selected</small>
+              </div>
+              <div class="session-tacticalboard-arrange-grid">
+                <button type="button" data-session-align-tactical="left">Left</button>
+                <button type="button" data-session-align-tactical="center">Center</button>
+                <button type="button" data-session-align-tactical="right">Right</button>
+                <button type="button" data-session-align-tactical="top">Top</button>
+                <button type="button" data-session-align-tactical="middle">Middle</button>
+                <button type="button" data-session-align-tactical="bottom">Bottom</button>
+                <button type="button" data-session-distribute-tactical="x">Distribute X</button>
+                <button type="button" data-session-distribute-tactical="y">Distribute Y</button>
+              </div>
+            </div>
             <div class="session-tacticalboard-hint">
               <strong>Sharp board mode</strong>
-              <span>Measurements use this view: ${escapeHtml(pitchMeasurementLabel)}. Cmd/Ctrl+C copies, Cmd/Ctrl+V pastes, Delete removes.</span>
+              <span>Measurements use this view: ${escapeHtml(pitchMeasurementLabel)}. Double-click places items. Alt gives precise movement while snap is on.</span>
             </div>
             <label class="session-media-upload-button session-tacticalboard-upload">
               ${renderSessionPlannerActionIcon("upload")}
@@ -21810,7 +20925,8 @@ function renderStaffWorkspace(message = "") {
   }
 
   const user = getCurrentPlatformUser();
-  const users = getPlatformUsers();
+  const structure = syncPlatformStructureWithUsers(getPlatformUsers());
+  const users = getScopedPlatformUsers(getPlatformUsers(), user, structure);
   const isAdmin = isCurrentPlatformUserAdmin();
   const selectedUser =
     users.find((staffUser) => staffUser.id === selectedStaffUserId) ??
@@ -21819,13 +20935,7 @@ function renderStaffWorkspace(message = "") {
     null;
   selectedStaffUserId = selectedUser?.id ?? null;
 
-  const roles = getPlatformRoles();
-  const roleOptions = roles
-    .map(
-      (role) =>
-        `<option value="${escapeHtml(role)}" ${role === "coach" ? "selected" : ""}>${escapeHtml(getRoleLabel(role))}</option>`
-    )
-    .join("");
+  const roleOptions = renderAdminRoleOptions(user, getAssignableRolesForUser(user).includes("coach") ? "coach" : getAssignableRolesForUser(user)[0]);
 
   const userRows = users
     .map((staffUser) => {
@@ -21838,6 +20948,7 @@ function renderStaffWorkspace(message = "") {
             <span>
               <strong>${escapeHtml(formatUserName(staffUser))}</strong>
               <small>${escapeHtml(staffUser.title)} · ${escapeHtml(getRoleLabel(staffUser.role))}</small>
+              <small>${escapeHtml(getUserScopeLabel(staffUser, structure))}</small>
             </span>
           </button>
           ${
@@ -21888,7 +20999,8 @@ function renderStaffWorkspace(message = "") {
                   <div><dt>Role</dt><dd>${escapeHtml(getRoleLabel(selectedUser.role))}</dd></div>
                   <div><dt>Title</dt><dd>${escapeHtml(selectedUser.title)}</dd></div>
                   <div><dt>Department</dt><dd>${escapeHtml(selectedUser.department)}</dd></div>
-                  <div><dt>Team</dt><dd>${escapeHtml(selectedUser.team)}</dd></div>
+                  <div><dt>Club</dt><dd>${escapeHtml(getUserClubName(selectedUser, structure))}</dd></div>
+                  <div><dt>Team</dt><dd>${escapeHtml(getUserTeamName(selectedUser, structure))}</dd></div>
                   <div><dt>Status</dt><dd>${escapeHtml(selectedUser.status)}</dd></div>
                 </dl>
               `
@@ -21939,8 +21051,8 @@ function renderStaffWorkspace(message = "") {
                 <input name="department" value="Football" />
               </label>
               <label class="profile-wide">
-                <span>Team</span>
-                <input name="team" value="North Carolina Courage" />
+                <span>Team scope</span>
+                <select name="teamId">${renderAdminTeamOptions(user, structure, getUserTeamId(user, structure))}</select>
               </label>
               <div class="profile-form-footer">
                 <span>Central Supabase account</span>
@@ -22059,6 +21171,151 @@ function renderAdminAuditLog() {
     .join("");
 }
 
+function renderAdminStructurePanel(currentUser, structure, visibleUsers) {
+  const scopedClubs = getScopedPlatformClubs(currentUser, structure);
+  const scopedTeams = getScopedPlatformTeams(currentUser, structure);
+  const canCreateClub = isPlatformAdminUser(currentUser);
+  const canCreateTeam = isPlatformAdminUser(currentUser) || normalizePlatformRole(currentUser?.role, "") === "club-admin";
+  const clubOptions = scopedClubs
+    .map((club) => `<option value="${escapeHtml(club.id)}">${escapeHtml(club.name)}</option>`)
+    .join("");
+  const teamRows = scopedTeams
+    .map((team) => {
+      const club = getPlatformClubById(team.clubId, structure);
+      return `
+        <article class="admin-scope-row">
+          <strong>${escapeHtml(team.name)}</strong>
+          <span>${escapeHtml(club?.name || "Club")}</span>
+        </article>
+      `;
+    })
+    .join("");
+
+  return `
+    <section class="admin-card admin-scope-card">
+      <div class="staff-card-head">
+        <div>
+          <h2>Club & Team Structure</h2>
+          <span>${escapeHtml(getRoleLabel(currentUser?.role))}</span>
+        </div>
+      </div>
+      <div class="admin-scope-metrics">
+        <div><span>Scope</span><strong>${escapeHtml(isPlatformAdminUser(currentUser) ? "Platform" : getUserScopeLabel(currentUser, structure))}</strong></div>
+        <div><span>Clubs</span><strong>${scopedClubs.length}</strong></div>
+        <div><span>Teams</span><strong>${scopedTeams.length}</strong></div>
+        <div><span>Users</span><strong>${visibleUsers.length}</strong></div>
+      </div>
+      <div class="admin-scope-layout">
+        <div class="admin-scope-list">${teamRows}</div>
+        ${
+          canCreateClub || canCreateTeam
+            ? `
+              <div class="admin-scope-forms">
+                ${
+                  canCreateClub
+                    ? `
+                      <form id="adminClubForm" class="admin-scope-form">
+                        <label>
+                          <span>New club</span>
+                          <input name="clubName" placeholder="Club name" required />
+                        </label>
+                        <button type="submit">Add club</button>
+                      </form>
+                    `
+                    : ""
+                }
+                ${
+                  canCreateTeam
+                    ? `
+                      <form id="adminTeamForm" class="admin-scope-form">
+                        <label>
+                          <span>Club</span>
+                          <select name="clubId">${clubOptions}</select>
+                        </label>
+                        <label>
+                          <span>New team</span>
+                          <input name="teamName" placeholder="Team name" required />
+                        </label>
+                        <button type="submit">Add team</button>
+                      </form>
+                    `
+                    : ""
+                }
+              </div>
+            `
+            : ""
+        }
+      </div>
+    </section>
+  `;
+}
+
+function createAdminClubFromForm(form) {
+  const currentUser = getCurrentPlatformUser();
+  if (!form || !isPlatformAdminUser(currentUser)) {
+    renderAdminWorkspace("Platform admin access required.");
+    return;
+  }
+  const values = getPlatformFormValues(form);
+  const clubName = normalizePlatformStructureText(values.clubName, "");
+  if (!clubName) {
+    renderAdminWorkspace("Club name is required.");
+    return;
+  }
+  const structure = readPlatformStructureState();
+  const existingClub = structure.clubs.find((club) => club.name.toLowerCase() === clubName.toLowerCase());
+  if (existingClub) {
+    renderAdminWorkspace("Club already exists.");
+    return;
+  }
+  const clubIds = new Set(structure.clubs.map((club) => club.id));
+  const club = normalizePlatformClub({
+    id: createPlatformStructureId("club", clubName, clubIds),
+    name: clubName,
+    shortName: clubName,
+  });
+  structure.clubs.push(club);
+  structure.activeClubId = club.id;
+  writePlatformStructureState(structure);
+  renderAdminWorkspace("Club added.");
+}
+
+function createAdminTeamFromForm(form) {
+  const currentUser = getCurrentPlatformUser();
+  if (!form || !(isPlatformAdminUser(currentUser) || normalizePlatformRole(currentUser?.role, "") === "club-admin")) {
+    renderAdminWorkspace("Club admin access required.");
+    return;
+  }
+  const values = getPlatformFormValues(form);
+  const structure = readPlatformStructureState();
+  const allowedClubs = getScopedPlatformClubs(currentUser, structure);
+  const club = allowedClubs.find((candidate) => candidate.id === values.clubId) || allowedClubs[0];
+  const teamName = normalizePlatformStructureText(values.teamName, "");
+  if (!club || !teamName) {
+    renderAdminWorkspace("Team name is required.");
+    return;
+  }
+  const existingTeam = structure.teams.find(
+    (team) => team.clubId === club.id && team.name.toLowerCase() === teamName.toLowerCase()
+  );
+  if (existingTeam) {
+    renderAdminWorkspace("Team already exists.");
+    return;
+  }
+  const teamIds = new Set(structure.teams.map((team) => team.id));
+  const team = normalizePlatformTeam({
+    id: createPlatformStructureId("team", `${club.name}-${teamName}`, teamIds),
+    clubId: club.id,
+    name: teamName,
+    shortName: teamName,
+  });
+  structure.teams.push(team);
+  structure.activeClubId = club.id;
+  structure.activeTeamId = team.id;
+  writePlatformStructureState(structure);
+  renderAdminWorkspace("Team added.");
+}
+
 async function loadAdminAuditLog(options = {}) {
   if (adminAuditLoading) {
     return;
@@ -22116,10 +21373,13 @@ function renderAdminWorkspace(message = "") {
     return;
   }
 
-  const users = getPlatformUsers();
+  const allUsers = getPlatformUsers();
   const currentUser = getCurrentPlatformUser();
+  const structure = syncPlatformStructureWithUsers(allUsers);
+  const users = getScopedPlatformUsers(allUsers, currentUser, structure);
+  const currentUserIsPlatformAdmin = isPlatformAdminUser(currentUser);
   const roles = getPlatformRoles();
-  if (!adminAuditLoadedAt && !adminAuditLoading) {
+  if (currentUserIsPlatformAdmin && !adminAuditLoadedAt && !adminAuditLoading) {
     loadAdminAuditLog().catch(() => {});
   }
   const selectedUser =
@@ -22129,23 +21389,19 @@ function renderAdminWorkspace(message = "") {
     null;
   selectedAdminUserId = selectedUser?.id ?? null;
   const selectedUserIsSelf = Boolean(selectedUser?.id && selectedUser.id === currentUser?.id);
+  const canManageSelectedUser = Boolean(selectedUser && canAdminManageUser(currentUser, selectedUser, structure));
+  const canRemoveSelectedUser = Boolean(selectedUser && canAdminManageUser(currentUser, selectedUser, structure, { remove: true }));
+  const selectedUserFieldDisabled = canManageSelectedUser ? "" : "disabled";
 
-  const roleOptions = roles
-    .map(
-      (role) =>
-        `<option value="${escapeHtml(role)}" ${role === selectedUser?.role ? "selected" : ""}>${escapeHtml(
-          getRoleLabel(role)
-        )}</option>`
-    )
-    .join("");
-  const createRoleOptions = roles
-    .map(
-      (role) =>
-        `<option value="${escapeHtml(role)}" ${role === "coach" ? "selected" : ""}>${escapeHtml(
-          getRoleLabel(role)
-        )}</option>`
-    )
-    .join("");
+  const roleOptions = renderAdminRoleOptions(currentUser, selectedUser?.role || "coach");
+  const createRoleOptions = renderAdminRoleOptions(
+    currentUser,
+    getAssignableRolesForUser(currentUser).includes("scout")
+      ? "scout"
+      : getAssignableRolesForUser(currentUser).includes("coach")
+        ? "coach"
+        : getAssignableRolesForUser(currentUser)[0]
+  );
   const statusOptions = ["active", "paused"]
     .map(
       (status) =>
@@ -22154,12 +21410,20 @@ function renderAdminWorkspace(message = "") {
         )}</option>`
     )
     .join("");
+  const titleSuggestionOptions = adminTitleSuggestions
+    .map((title) => `<option value="${escapeHtml(title)}"></option>`)
+    .join("");
+  const departmentSuggestionOptions = adminDepartmentSuggestions
+    .map((department) => `<option value="${escapeHtml(department)}"></option>`)
+    .join("");
 
   const userRows = users
     .map((adminUser) => {
       const isSelected = adminUser.id === selectedAdminUserId;
       const isSelf = adminUser.id === currentUser?.id;
       const statusLabel = adminUser.status === "paused" ? "Paused" : "Active";
+      const canManageAccount = canAdminManageUser(currentUser, adminUser, structure);
+      const canRemoveUser = canAdminManageUser(currentUser, adminUser, structure, { remove: true });
       return `
           <article class="admin-user-row${isSelected ? " is-selected" : ""}">
             <button type="button" class="admin-user-main" data-admin-select-user="${escapeHtml(adminUser.id)}">
@@ -22171,17 +21435,24 @@ function renderAdminWorkspace(message = "") {
                   <b class="is-${escapeHtml(adminUser.status === "paused" ? "paused" : "active")}">${escapeHtml(statusLabel)}</b>
                 </span>
                 <small>${escapeHtml(adminUser.title || "Staff")} · ${escapeHtml(adminUser.department || "Football")}</small>
+                <small>${escapeHtml(getUserScopeLabel(adminUser, structure))}</small>
                 <small>${escapeHtml(adminUser.email)}</small>
               </span>
             </button>
             <div class="admin-user-row-actions">
-              <button type="button" class="admin-send-button" data-admin-send-credentials="${escapeHtml(adminUser.id)}">
-                Send login
-              </button>
-              <button type="button" class="admin-send-button" data-admin-generate-password="${escapeHtml(adminUser.id)}">
-                Reset pass
-              </button>
-              ${isSelf ? "" : `<button type="button" class="staff-remove-button" data-admin-remove-user="${escapeHtml(adminUser.id)}">Remove</button>`}
+              ${
+                canManageAccount
+                  ? `
+                    <button type="button" class="admin-send-button" data-admin-send-credentials="${escapeHtml(adminUser.id)}">
+                      Send login
+                    </button>
+                    <button type="button" class="admin-send-button" data-admin-generate-password="${escapeHtml(adminUser.id)}">
+                      Reset pass
+                    </button>
+                  `
+                  : ""
+              }
+              ${canRemoveUser ? `<button type="button" class="staff-remove-button" data-admin-remove-user="${escapeHtml(adminUser.id)}">Remove</button>` : ""}
               ${isSelf ? `<span class="staff-self-pill">You</span>` : ""}
             </div>
           </article>
@@ -22189,44 +21460,46 @@ function renderAdminWorkspace(message = "") {
     })
     .join("");
 
-  const accessConfig = getWorkspaceAccessConfig();
-  const accessRows = getAdminManagedWorkspaces()
-    .map((workspace) => {
-      const permission = normalizeWorkspaceAccessEntry(workspace.id, accessConfig[workspace.id]);
-      const viewRoles = new Set(workspace.requiresAdmin ? ["admin"] : permission.view);
-      const editRoles = new Set(workspace.requiresAdmin ? ["admin"] : permission.edit);
-      const roleControls = roles
-        .map((role) => {
-          const isLocked = workspace.requiresAdmin && role !== "admin";
-          const value = isLocked ? "none" : editRoles.has(role) ? "edit" : viewRoles.has(role) ? "view" : "none";
+  const accessRows = currentUserIsPlatformAdmin
+    ? getAdminManagedWorkspaces()
+        .map((workspace) => {
+          const accessConfig = getWorkspaceAccessConfig();
+          const permission = normalizeWorkspaceAccessEntry(workspace.id, accessConfig[workspace.id]);
+          const viewRoles = new Set(workspace.requiresAdmin ? ["admin"] : permission.view);
+          const editRoles = new Set(workspace.requiresAdmin ? ["admin"] : permission.edit);
+          const roleControls = roles
+            .map((role) => {
+              const isLocked = workspace.requiresAdmin && role !== "admin";
+              const value = isLocked ? "none" : editRoles.has(role) ? "edit" : viewRoles.has(role) ? "view" : "none";
+              return `
+                <label class="admin-access-toggle admin-access-level${isLocked ? " is-locked" : ""}">
+                  <span>${escapeHtml(getRoleLabel(role))}</span>
+                  <select
+                    name="${escapeHtml(`${workspace.id}::${role}`)}"
+                    data-admin-access-workspace="${escapeHtml(workspace.id)}"
+                    data-admin-access-role="${escapeHtml(role)}"
+                    ${isLocked ? "disabled" : ""}
+                  >
+                    <option value="none"${value === "none" ? " selected" : ""}>Hidden</option>
+                    <option value="view"${value === "view" ? " selected" : ""}>View</option>
+                    <option value="edit"${value === "edit" ? " selected" : ""}>Edit</option>
+                  </select>
+                </label>
+              `;
+            })
+            .join("");
           return `
-            <label class="admin-access-toggle admin-access-level${isLocked ? " is-locked" : ""}">
-              <span>${escapeHtml(getRoleLabel(role))}</span>
-              <select
-                name="${escapeHtml(`${workspace.id}::${role}`)}"
-                data-admin-access-workspace="${escapeHtml(workspace.id)}"
-                data-admin-access-role="${escapeHtml(role)}"
-                ${isLocked ? "disabled" : ""}
-              >
-                <option value="none"${value === "none" ? " selected" : ""}>Hidden</option>
-                <option value="view"${value === "view" ? " selected" : ""}>View</option>
-                <option value="edit"${value === "edit" ? " selected" : ""}>Edit</option>
-              </select>
-            </label>
+            <article class="admin-access-row">
+              <div class="admin-access-title">
+                <strong>${escapeHtml(workspace.title)}</strong>
+                <small>${workspace.requiresAdmin ? "Admin only" : escapeHtml(workspace.meta ?? "Module")}</small>
+              </div>
+              <div class="admin-access-roles">${roleControls}</div>
+            </article>
           `;
         })
-        .join("");
-      return `
-        <article class="admin-access-row">
-          <div class="admin-access-title">
-            <strong>${escapeHtml(workspace.title)}</strong>
-            <small>${workspace.requiresAdmin ? "Admin only" : escapeHtml(workspace.meta ?? "Module")}</small>
-          </div>
-          <div class="admin-access-roles">${roleControls}</div>
-        </article>
-      `;
-    })
-    .join("");
+        .join("")
+    : "";
 
   ui.adminWorkspace.innerHTML = `
     <section class="admin-shell">
@@ -22239,6 +21512,8 @@ function renderAdminWorkspace(message = "") {
       </header>
 
       ${message ? `<p class="staff-message">${escapeHtml(message)}</p>` : ""}
+
+      ${renderAdminStructurePanel(currentUser, structure, users)}
 
       <section class="admin-layout">
         <article class="admin-card">
@@ -22261,35 +21536,35 @@ function renderAdminWorkspace(message = "") {
                 <form id="adminUserForm" class="platform-form admin-user-form">
                   <label>
                     <span>First name</span>
-                    <input name="firstName" value="${escapeHtml(selectedUser.firstName)}" required />
+                    <input name="firstName" value="${escapeHtml(selectedUser.firstName)}" ${selectedUserFieldDisabled} required />
                   </label>
                   <label>
                     <span>Last name</span>
-                    <input name="lastName" value="${escapeHtml(selectedUser.lastName)}" required />
+                    <input name="lastName" value="${escapeHtml(selectedUser.lastName)}" ${selectedUserFieldDisabled} required />
                   </label>
                   <label>
                     <span>Email</span>
-                    <input name="email" type="email" value="${escapeHtml(selectedUser.email)}" required />
+                    <input name="email" type="email" value="${escapeHtml(selectedUser.email)}" ${selectedUserFieldDisabled} required />
                   </label>
                   <label>
                     <span>Username</span>
-                    <input name="username" value="${escapeHtml(selectedUser.username)}" required />
+                    <input name="username" value="${escapeHtml(selectedUser.username)}" ${selectedUserFieldDisabled} required />
                   </label>
                   <label>
                     <span>Role</span>
-                    <select name="role" ${selectedUserIsSelf ? "disabled" : ""}>${roleOptions}</select>
+                    <select name="role" ${selectedUserIsSelf || !canManageSelectedUser ? "disabled" : ""}>${roleOptions}</select>
                   </label>
                   <label>
                     <span>Status</span>
-                    <select name="status" ${selectedUserIsSelf ? "disabled" : ""}>${statusOptions}</select>
+                    <select name="status" ${selectedUserIsSelf || !canManageSelectedUser ? "disabled" : ""}>${statusOptions}</select>
                   </label>
                   <label>
                     <span>Title</span>
-                    <input name="title" value="${escapeHtml(selectedUser.title)}" />
+                    <input name="title" list="adminTitleSuggestions" value="${escapeHtml(selectedUser.title)}" ${selectedUserFieldDisabled} />
                   </label>
                   <label>
                     <span>Department</span>
-                    <input name="department" value="${escapeHtml(selectedUser.department)}" />
+                    <input name="department" list="adminDepartmentSuggestions" value="${escapeHtml(selectedUser.department)}" ${selectedUserFieldDisabled} />
                   </label>
                   <label>
                     <span>Set password</span>
@@ -22300,16 +21575,19 @@ function renderAdminWorkspace(message = "") {
                     ${renderPasswordRevealInput("passwordConfirm", "Repeat new password")}
                   </label>
                   <label class="profile-wide">
-                    <span>Team</span>
-                    <input name="team" value="${escapeHtml(selectedUser.team)}" />
+                    <span>Team scope</span>
+                    <select name="teamId" ${selectedUserIsSelf || !canManageSelectedUser ? "disabled" : ""}>
+                      ${renderAdminTeamOptions(currentUser, structure, getUserTeamId(selectedUser, structure))}
+                    </select>
                   </label>
                   <div class="profile-form-footer">
                     <span>${selectedUserIsSelf ? "Your own admin role and status are protected." : "Save user sets this password in Supabase. Reset actions replace the old password."}</span>
                     <span class="admin-selected-user-actions">
-                      <button type="submit">Save</button>
-                      <button type="button" data-admin-reset-password="${escapeHtml(selectedUser.id)}">Reset email</button>
-                      <button type="button" data-admin-generate-selected-password="${escapeHtml(selectedUser.id)}">Reset pass</button>
-                      <button type="button" data-admin-send-selected="${escapeHtml(selectedUser.id)}">Send login</button>
+                      ${canManageSelectedUser ? `<button type="submit">Save</button>` : ""}
+                      ${canManageSelectedUser ? `<button type="button" data-admin-reset-password="${escapeHtml(selectedUser.id)}">Reset email</button>` : ""}
+                      ${canManageSelectedUser ? `<button type="button" data-admin-generate-selected-password="${escapeHtml(selectedUser.id)}">Reset pass</button>` : ""}
+                      ${canManageSelectedUser ? `<button type="button" data-admin-send-selected="${escapeHtml(selectedUser.id)}">Send login</button>` : ""}
+                      ${canRemoveSelectedUser ? `<button type="button" class="staff-remove-button" data-admin-remove-user="${escapeHtml(selectedUser.id)}">Remove</button>` : ""}
                     </span>
                   </div>
                 </form>
@@ -22357,7 +21635,7 @@ function renderAdminWorkspace(message = "") {
           </label>
           <label>
             <span>Title</span>
-            <input name="title" value="Coach" />
+            <input name="title" list="adminTitleSuggestions" value="Scout" />
           </label>
           <label>
             <span>Password</span>
@@ -22369,11 +21647,13 @@ function renderAdminWorkspace(message = "") {
           </label>
           <label>
             <span>Department</span>
-            <input name="department" value="Football" />
+            <input name="department" list="adminDepartmentSuggestions" value="Scouting" />
           </label>
+          <datalist id="adminTitleSuggestions">${titleSuggestionOptions}</datalist>
+          <datalist id="adminDepartmentSuggestions">${departmentSuggestionOptions}</datalist>
           <label class="profile-wide">
-            <span>Team</span>
-            <input name="team" value="North Carolina Courage" />
+            <span>Team scope</span>
+            <select name="teamId">${renderAdminTeamOptions(currentUser, structure, getUserTeamId(currentUser, structure))}</select>
           </label>
           <div class="profile-form-footer">
             <span>Admin creates and manages central account access.</span>
@@ -22382,28 +21662,34 @@ function renderAdminWorkspace(message = "") {
         </form>
       </details>
 
-      <form id="adminAccessForm" class="admin-card admin-access-card">
-        <div class="staff-card-head">
-          <h2>Role Access</h2>
-          <span>Sections</span>
-        </div>
-        <div class="admin-access-list">${accessRows}</div>
-        <div class="profile-form-footer admin-access-footer">
-          <span>Admin always keeps full access.</span>
-          <button type="submit">Save access</button>
-        </div>
-      </form>
+      ${
+        currentUserIsPlatformAdmin
+          ? `
+            <form id="adminAccessForm" class="admin-card admin-access-card">
+              <div class="staff-card-head">
+                <h2>Role Access</h2>
+                <span>Sections</span>
+              </div>
+              <div class="admin-access-list">${accessRows}</div>
+              <div class="profile-form-footer admin-access-footer">
+                <span>Platform admin always keeps full access.</span>
+                <button type="submit">Save access</button>
+              </div>
+            </form>
 
-      <article class="admin-card admin-audit-card">
-        <div class="staff-card-head">
-          <div>
-            <h2>Recent Admin Activity</h2>
-            <span>${adminAuditLoadedAt ? `Updated ${escapeHtml(formatAdminDateTime(adminAuditLoadedAt))}` : "Central audit log"}</span>
-          </div>
-          <button type="button" class="admin-send-button" data-admin-refresh-audit>Refresh</button>
-        </div>
-        <div class="admin-audit-list">${renderAdminAuditLog()}</div>
-      </article>
+            <article class="admin-card admin-audit-card">
+              <div class="staff-card-head">
+                <div>
+                  <h2>Recent Admin Activity</h2>
+                  <span>${adminAuditLoadedAt ? `Updated ${escapeHtml(formatAdminDateTime(adminAuditLoadedAt))}` : "Central audit log"}</span>
+                </div>
+                <button type="button" class="admin-send-button" data-admin-refresh-audit>Refresh</button>
+              </div>
+              <div class="admin-audit-list">${renderAdminAuditLog()}</div>
+            </article>
+          `
+          : ""
+      }
     </section>
   `;
 }
@@ -28666,6 +27952,12 @@ function getPeriodizationWeeksForMonth(year, monthIndex) {
   return weeks;
 }
 
+function getPeriodizationWeekDatesForDate(date) {
+  const dayOffset = (date.getDay() + 6) % 7;
+  const weekStart = addCalendarDays(date, -dayOffset);
+  return Array.from({ length: 7 }, (_, index) => addCalendarDays(weekStart, index));
+}
+
 function getPeriodizationLoadTone(value) {
   const key = String(value || "").toLowerCase();
   if (key.includes("match")) return "match";
@@ -29060,6 +28352,123 @@ function renderPeriodizationPitchIcon(pitchSize) {
   `;
 }
 
+function getPeriodizationLoadScore(value) {
+  const key = String(value || "").toLowerCase();
+  if (!key || key.includes("off")) return 0;
+  if (key.includes("hard") || key.includes("medium-high") || key.includes("medium high")) return 4;
+  if (key.includes("match") || key.includes("high")) return 5;
+  if (key.includes("moderate") || key === "medium") return 3;
+  if (key.includes("low")) return 2;
+  if (key.includes("recovery") || key.includes("light")) return 1;
+  return 3;
+}
+
+function getPeriodizationLoadScoreLabel(score) {
+  if (score >= 5) return "Peak";
+  if (score >= 4) return "High";
+  if (score >= 3) return "Mod";
+  if (score >= 2) return "Low";
+  if (score >= 1) return "Rec";
+  return "Off";
+}
+
+function getMostCommonPeriodizationValues(values = [], limit = 2) {
+  const counts = new Map();
+  values
+    .flatMap((value) => normalizePeriodizationMultiValue(value))
+    .filter(Boolean)
+    .forEach((value) => counts.set(value, (counts.get(value) || 0) + 1));
+
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([value]) => value);
+}
+
+function getPeriodizationMicrocycleModel(weekDates = []) {
+  const days = weekDates.map((date) => {
+    const dateValue = formatScheduleDateValue(date);
+    const day = getPeriodizationDay(dateValue);
+    const loadScore = getPeriodizationLoadScore(day.physicalLoad);
+    const matchDayLabel = getPeriodizationMatchDayLabel(day.matchDay);
+    return {
+      date,
+      dateValue,
+      day,
+      loadScore,
+      matchDayLabel,
+      isMatchDay:
+        matchDayLabel === "MD" ||
+        String(day.daySchedule || "").toLowerCase().includes("match") ||
+        String(day.sessionType || "").toLowerCase().includes("match"),
+      isOffDay: isPeriodizationOffDay(day),
+    };
+  });
+  const activeDays = days.filter((item) => !item.isOffDay);
+  const totalLoad = days.reduce((sum, item) => sum + item.loadScore, 0);
+  const peakLoad = days.reduce((peak, item) => Math.max(peak, item.loadScore), 0);
+  const highLoadCount = days.filter((item) => item.loadScore >= 4).length;
+  const matchDays = days.filter((item) => item.isMatchDay);
+  const focusValues = getMostCommonPeriodizationValues(days.map((item) => item.day.matchPhases), 2);
+  const subFocusValues = getMostCommonPeriodizationValues(days.map((item) => item.day.subPhases), 2);
+  const pitchValues = [...new Set(days.map((item) => getPeriodizationPitchLabel(item.day.pitchSize)).filter(Boolean))];
+  const rangeLabel = days.length
+    ? `${days[0].date.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${days[days.length - 1].date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+    : "";
+
+  return {
+    days,
+    activeDays,
+    totalLoad,
+    averageLoad: activeDays.length ? totalLoad / activeDays.length : 0,
+    peakLoad,
+    highLoadCount,
+    matchDays,
+    focusLabel: focusValues.length ? focusValues.join(" / ") : "",
+    subFocusLabel: subFocusValues.length ? subFocusValues.join(" / ") : "",
+    pitchLabel: pitchValues.slice(0, 3).join(" / "),
+    rangeLabel,
+  };
+}
+
+function renderPeriodizationMicrocycleMetric(label, value, tone = "") {
+  const cleanValue = String(value || "").trim();
+  if (!cleanValue) {
+    return "";
+  }
+
+  return `
+    <span class="periodization-microcycle-metric${tone ? ` is-${escapeHtml(tone)}` : ""}">
+      <small>${escapeHtml(label)}</small>
+      <strong>${escapeHtml(cleanValue)}</strong>
+    </span>
+  `;
+}
+
+function renderPeriodizationMicrocycleLoadRail(model) {
+  return `
+    <div class="periodization-microcycle-load-rail" aria-label="Microcycle load rhythm">
+      ${model.days
+        .map((item) => {
+          const score = item.loadScore;
+          const height = score ? 16 + score * 14 : 8;
+          const label = getPeriodizationLoadScoreLabel(score);
+          return `
+            <span
+              class="periodization-microcycle-load-day is-score-${score}${item.isMatchDay ? " is-match" : ""}${item.isOffDay ? " is-off" : ""}"
+              style="--periodization-load-height: ${height}%;"
+              title="${escapeHtml(`${item.date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}: ${label}`)}"
+            >
+              <i aria-hidden="true"></i>
+              <small>${escapeHtml(item.date.toLocaleDateString("en-US", { weekday: "short" }).slice(0, 2))}</small>
+            </span>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
 function renderPeriodizationDayCard(date, monthIndex) {
   const dateValue = formatScheduleDateValue(date);
   const day = getPeriodizationDay(dateValue);
@@ -29072,6 +28481,7 @@ function renderPeriodizationDayCard(date, monthIndex) {
   const dayScheduleLabel = getPeriodizationDayScheduleLabel(day);
   const matchDayLabel = getPeriodizationMatchDayLabel(day.matchDay);
   const loadLabel = isOffDay && loadTone === "off" ? "" : day.physicalLoad;
+  const loadScore = getPeriodizationLoadScore(day.physicalLoad);
   const pitchLabel = getPeriodizationPitchLabel(day.pitchSize);
   const preTrainingVideoLabel = day.preTrainingVideo || "";
   const phaseParts = [
@@ -29085,7 +28495,7 @@ function renderPeriodizationDayCard(date, monthIndex) {
 
   return `
     <article
-      class="periodization-day-card is-${escapeHtml(dayTone)}${isSelected ? " is-selected" : ""}${isOutsideMonth ? " is-outside-month" : ""}"
+      class="periodization-day-card is-${escapeHtml(dayTone)} is-load-score-${loadScore}${isSelected ? " is-selected" : ""}${isOutsideMonth ? " is-outside-month" : ""}"
       data-periodization-date="${escapeHtml(dateValue)}"
       role="button"
       tabindex="0"
@@ -29107,15 +28517,18 @@ function renderPeriodizationDayCard(date, monthIndex) {
       <span class="periodization-day-topline">
         <strong>${escapeHtml(date.toLocaleDateString("en-US", { weekday: "short" }))}</strong>
         <span>${date.getDate()}</span>
+        ${matchDayLabel ? `<i class="periodization-day-md">${escapeHtml(matchDayLabel)}</i>` : ""}
       </span>
       <span class="periodization-day-main${dayScheduleLabel ? "" : " is-empty"}">${escapeHtml(dayScheduleLabel)}</span>
+      <span class="periodization-day-load-strip" aria-hidden="true">
+        <i style="--periodization-load-width: ${Math.min(100, loadScore * 20)}%;"></i>
+      </span>
       <span class="periodization-day-details">
         ${renderPeriodizationCardDetail("Video", escapeHtml(preTrainingVideoLabel))}
         ${renderPeriodizationCardDetail("Phase", escapeHtml(phaseLabel))}
         ${renderPeriodizationCardDetail("Load", renderPeriodizationLoadMeter(loadLabel), "is-load")}
         ${renderPeriodizationCardDetail("Pitch", pitchValue, "is-pitch")}
       </span>
-      ${matchDayLabel ? `<span class="periodization-day-match">${renderPeriodizationChip(matchDayLabel, "match")}</span>` : ""}
     </article>
   `;
 }
@@ -29385,16 +28798,29 @@ function refreshPeriodizationBoardDependentFields(changedKey = "") {
 
 function renderPeriodizationWeek(weekDates, monthIndex) {
   const weekNumber = getIsoWeekNumber(weekDates[0]);
-  const rangeLabel = `${weekDates[0].toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${weekDates[6].toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+  const model = getPeriodizationMicrocycleModel(weekDates);
+  const matchLabel = model.matchDays.length
+    ? model.matchDays.map((item) => item.matchDayLabel || "Match").join(" / ")
+    : "";
+  const loadLabel = model.activeDays.length ? `${model.totalLoad} load` : "Recovery";
+  const peakLabel = model.peakLoad ? getPeriodizationLoadScoreLabel(model.peakLoad) : "";
 
   return `
-    <section class="periodization-microcycle-card">
+    <section class="periodization-microcycle-card" data-periodization-week-start="${escapeHtml(formatScheduleDateValue(weekDates[0]))}">
       <header class="periodization-microcycle-head">
         <div>
           <span>Microcycle</span>
           <strong>Week ${weekNumber}</strong>
         </div>
-        <p>${escapeHtml(rangeLabel)}</p>
+        <p>${escapeHtml(model.rangeLabel)}</p>
+        <div class="periodization-microcycle-summary">
+          ${renderPeriodizationMicrocycleMetric("Load", loadLabel, model.highLoadCount ? "hard" : "")}
+          ${renderPeriodizationMicrocycleMetric("Peak", peakLabel)}
+          ${renderPeriodizationMicrocycleMetric("Match", matchLabel, "match")}
+          ${renderPeriodizationMicrocycleMetric("Focus", model.focusLabel || model.subFocusLabel)}
+          ${renderPeriodizationMicrocycleMetric("Pitch", model.pitchLabel)}
+        </div>
+        ${renderPeriodizationMicrocycleLoadRail(model)}
       </header>
       <div class="periodization-week-grid">
         ${weekDates.map((date) => renderPeriodizationDayCard(date, monthIndex)).join("")}
@@ -29459,6 +28885,7 @@ function renderPeriodizationDayViewPanel(dateValue, { isOverlay = false } = {}) 
   const canEdit = canEditPeriodizationWorkspace();
   const matchDayLabel = getPeriodizationMatchDayLabel(day.matchDay) || "Not match day";
   const pitchLabel = getPeriodizationPitchLabel(day.pitchSize);
+  const microcycleModel = getPeriodizationMicrocycleModel(getPeriodizationWeekDatesForDate(date));
   const trainingBlocks = [
     ["Warm Up", day.warmUp],
     ["Block 1", day.block1],
@@ -29492,6 +28919,11 @@ function renderPeriodizationDayViewPanel(dateValue, { isOverlay = false } = {}) 
         <div class="periodization-view-pitch">
           <span>Pitch size</span>
           <strong>${pitchLabel ? `${renderPeriodizationPitchIcon(day.pitchSize)}${escapeHtml(pitchLabel)}` : "Not set"}</strong>
+        </div>
+        <div class="periodization-view-microcycle">
+          <span>Microcycle</span>
+          <strong>${escapeHtml(microcycleModel.rangeLabel)}</strong>
+          ${renderPeriodizationMicrocycleLoadRail(microcycleModel)}
         </div>
       </div>
 
@@ -29535,6 +28967,7 @@ function renderPeriodizationDayPanel(dateValue, { isOverlay = false, mode = "edi
 
   const date = parseScheduleDateValue(dateValue);
   const day = getPeriodizationDay(dateValue);
+  const microcycleModel = getPeriodizationMicrocycleModel(getPeriodizationWeekDatesForDate(date));
   const subPhaseOptions = getPeriodizationSubPhaseOptions(day);
   const teamPrincipleOptions = getPeriodizationPrincipleOptions(day, periodizationTeamPrinciplesBySubPhase);
   const miniGamePrincipleOptions = getPeriodizationPrincipleOptions(day, periodizationMiniGamePrinciplesBySubPhase);
@@ -29552,6 +28985,13 @@ function renderPeriodizationDayPanel(dateValue, { isOverlay = false, mode = "edi
           ${isOverlay ? `<button type="button" class="periodization-overlay-close" data-periodization-close aria-label="Close training day">&times;</button>` : ""}
         </div>
       </header>
+      <div class="periodization-edit-context">
+        ${renderPeriodizationMicrocycleMetric("Week", microcycleModel.rangeLabel)}
+        ${renderPeriodizationMicrocycleMetric("Load", microcycleModel.activeDays.length ? `${microcycleModel.totalLoad} load` : "Recovery")}
+        ${renderPeriodizationMicrocycleMetric("Peak", microcycleModel.peakLoad ? getPeriodizationLoadScoreLabel(microcycleModel.peakLoad) : "")}
+        ${renderPeriodizationMicrocycleMetric("Focus", microcycleModel.focusLabel || microcycleModel.subFocusLabel)}
+        ${renderPeriodizationMicrocycleLoadRail(microcycleModel)}
+      </div>
       <div class="periodization-form-grid">
         <section class="periodization-form-section">
           <h3>Day Setup</h3>
@@ -73630,6 +73070,11 @@ ui.staffWorkspace?.addEventListener("click", async (event) => {
   if (!staffUser) {
     return;
   }
+  const structure = syncPlatformStructureWithUsers(getPlatformUsers());
+  if (!canAdminManageUser(getCurrentPlatformUser(), staffUser, structure, { remove: true })) {
+    renderStaffWorkspace("This user is outside your admin scope.");
+    return;
+  }
 
   if (!window.confirm(`Remove ${formatUserName(staffUser)}?`)) {
     return;
@@ -73659,10 +73104,15 @@ ui.staffWorkspace?.addEventListener("submit", async (event) => {
     renderStaffWorkspace(passwordError);
     return;
   }
-  const submissionValues = stripPasswordConfirmation({
-    ...values,
-    status: "active",
-  });
+  const submissionValues = normalizeAdminUserSubmissionValues(
+    stripPasswordConfirmation({
+      ...values,
+      status: "active",
+    }),
+    getCurrentPlatformUser(),
+    null,
+    syncPlatformStructureWithUsers(getPlatformUsers())
+  );
   const result = await getPlatformAuthStore()?.createUser?.(submissionValues);
 
   if (!result?.ok) {
@@ -73715,7 +73165,12 @@ async function createAdminUserFromForm(createUserForm) {
     return;
   }
 
-  const submissionValues = stripPasswordConfirmation(values);
+  const submissionValues = normalizeAdminUserSubmissionValues(
+    stripPasswordConfirmation(values),
+    getCurrentPlatformUser(),
+    null,
+    syncPlatformStructureWithUsers(getPlatformUsers())
+  );
   setFormSubmitButtonState(createUserForm, { isSubmitting: true, submittingLabel: "Creating...", defaultLabel: "Create user" });
   try {
     const result = await authStore.createUser(submissionValues);
@@ -73775,6 +73230,10 @@ ui.adminWorkspace?.addEventListener("click", async (event) => {
 
   const refreshAuditButton = event.target.closest("[data-admin-refresh-audit]");
   if (refreshAuditButton) {
+    if (!isPlatformAdminUser(getCurrentPlatformUser())) {
+      renderAdminWorkspace("Platform admin access required.");
+      return;
+    }
     await loadAdminAuditLog({ force: true });
     return;
   }
@@ -73788,11 +73247,23 @@ ui.adminWorkspace?.addEventListener("click", async (event) => {
   if (!isCurrentPlatformUserAdmin()) {
     return;
   }
+  const currentAdminUser = getCurrentPlatformUser();
+  const adminActionStructure = syncPlatformStructureWithUsers(getPlatformUsers());
+  const canRunAdminUserAction = (adminUser, options = {}) => {
+    if (canAdminManageUser(currentAdminUser, adminUser, adminActionStructure, options)) {
+      return true;
+    }
+    renderAdminWorkspace("This user is outside your admin scope.");
+    return false;
+  };
 
   if (generatePasswordButton) {
     const userId = generatePasswordButton.dataset.adminGeneratePassword;
     const adminUser = getPlatformUsers().find((user) => user.id === userId);
     if (!adminUser) {
+      return;
+    }
+    if (!canRunAdminUserAction(adminUser)) {
       return;
     }
 
@@ -73825,6 +73296,9 @@ ui.adminWorkspace?.addEventListener("click", async (event) => {
     if (!adminUser) {
       return;
     }
+    if (!canRunAdminUserAction(adminUser)) {
+      return;
+    }
 
     const result = await getPlatformAuthStore()?.updateUser?.(adminUser.id, { generatePassword: true });
     if (!result?.ok) {
@@ -73855,6 +73329,9 @@ ui.adminWorkspace?.addEventListener("click", async (event) => {
     if (!adminUser) {
       return;
     }
+    if (!canRunAdminUserAction(adminUser)) {
+      return;
+    }
 
     const result = await getPlatformAuthStore()?.sendPasswordReset?.(adminUser.id);
     if (!result?.ok) {
@@ -73869,6 +73346,9 @@ ui.adminWorkspace?.addEventListener("click", async (event) => {
     const userId = sendButton.dataset.adminSendCredentials;
     const adminUser = getPlatformUsers().find((user) => user.id === userId);
     if (!adminUser) {
+      return;
+    }
+    if (!canRunAdminUserAction(adminUser)) {
       return;
     }
     if (!adminUser.email) {
@@ -73894,6 +73374,9 @@ ui.adminWorkspace?.addEventListener("click", async (event) => {
     const userId = sendSelectedButton.dataset.adminSendSelected;
     const adminUser = getPlatformUsers().find((user) => user.id === userId);
     if (!adminUser) {
+      return;
+    }
+    if (!canRunAdminUserAction(adminUser)) {
       return;
     }
     if (!adminUser.email) {
@@ -73924,6 +73407,9 @@ ui.adminWorkspace?.addEventListener("click", async (event) => {
   if (!adminUser) {
     return;
   }
+  if (!canRunAdminUserAction(adminUser, { remove: true })) {
+    return;
+  }
 
   if (!window.confirm(`Remove ${formatUserName(adminUser)}?`)) {
     return;
@@ -73941,6 +73427,20 @@ ui.adminWorkspace?.addEventListener("click", async (event) => {
 });
 
 ui.adminWorkspace?.addEventListener("submit", async (event) => {
+  const clubForm = event.target.closest("#adminClubForm");
+  if (clubForm) {
+    event.preventDefault();
+    createAdminClubFromForm(clubForm);
+    return;
+  }
+
+  const teamForm = event.target.closest("#adminTeamForm");
+  if (teamForm) {
+    event.preventDefault();
+    createAdminTeamFromForm(teamForm);
+    return;
+  }
+
   const createUserForm = event.target.closest("#adminCreateUserForm");
   if (createUserForm) {
     event.preventDefault();
@@ -73960,6 +73460,12 @@ ui.adminWorkspace?.addEventListener("submit", async (event) => {
     if (!selectedUser) {
       return;
     }
+    const currentAdminUser = getCurrentPlatformUser();
+    const structure = syncPlatformStructureWithUsers(getPlatformUsers());
+    if (!canAdminManageUser(currentAdminUser, selectedUser, structure)) {
+      renderAdminWorkspace("This user is outside your admin scope.");
+      return;
+    }
 
     const values = getPlatformFormValues(userForm);
     const passwordError = getPasswordValidationMessage(values);
@@ -73971,7 +73477,12 @@ ui.adminWorkspace?.addEventListener("submit", async (event) => {
       renderAdminWorkspace("Username or email already exists.");
       return;
     }
-    const submissionValues = stripPasswordConfirmation(values);
+    const submissionValues = normalizeAdminUserSubmissionValues(
+      stripPasswordConfirmation(values),
+      currentAdminUser,
+      selectedUser,
+      structure
+    );
 
     try {
       const authStore = getPlatformAuthStore();
@@ -74006,8 +73517,12 @@ ui.adminWorkspace?.addEventListener("submit", async (event) => {
   }
 
   const accessForm = event.target.closest("#adminAccessForm");
-  if (accessForm && isCurrentPlatformUserAdmin()) {
+  if (accessForm) {
     event.preventDefault();
+    if (!isPlatformAdminUser(getCurrentPlatformUser())) {
+      renderAdminWorkspace("Platform admin access required.");
+      return;
+    }
     const roles = getPlatformRoles();
     const controls = Array.from(accessForm.querySelectorAll("[data-admin-access-workspace][data-admin-access-role]"));
     const nextAccess = { ...getWorkspaceAccessConfig() };
@@ -74899,6 +74414,42 @@ ui.sessionPlannerWorkspace?.addEventListener("click", (event) => {
     return;
   }
 
+  const tacticalFrameButton = event.target.closest("[data-session-tactical-frame]");
+  if (tacticalFrameButton) {
+    selectSessionPlannerTacticalFrame(tacticalFrameButton.dataset.sessionTacticalFrame);
+    return;
+  }
+
+  const tacticalAddFrameButton = event.target.closest("[data-session-add-tactical-frame]");
+  if (tacticalAddFrameButton) {
+    addSessionPlannerTacticalFrame();
+    return;
+  }
+
+  const tacticalDuplicateFrameButton = event.target.closest("[data-session-duplicate-tactical-frame]");
+  if (tacticalDuplicateFrameButton) {
+    duplicateSessionPlannerTacticalFrame();
+    return;
+  }
+
+  const tacticalDeleteFrameButton = event.target.closest("[data-session-delete-tactical-frame]");
+  if (tacticalDeleteFrameButton) {
+    deleteSessionPlannerTacticalFrame();
+    return;
+  }
+
+  const tacticalAlignButton = event.target.closest("[data-session-align-tactical]");
+  if (tacticalAlignButton) {
+    alignSelectedSessionPlannerTacticalElements(tacticalAlignButton.dataset.sessionAlignTactical);
+    return;
+  }
+
+  const tacticalDistributeButton = event.target.closest("[data-session-distribute-tactical]");
+  if (tacticalDistributeButton) {
+    distributeSelectedSessionPlannerTacticalElements(tacticalDistributeButton.dataset.sessionDistributeTactical);
+    return;
+  }
+
   const tacticalToolButton = event.target.closest("[data-session-tactical-tool]");
   if (tacticalToolButton) {
     setSessionPlannerTacticalTool(tacticalToolButton.dataset.sessionTacticalTool);
@@ -75555,6 +75106,12 @@ ui.sessionPlannerWorkspace?.addEventListener("change", (event) => {
     return;
   }
 
+  const tacticalSnapField = event.target.closest("[data-session-tactical-snap]");
+  if (tacticalSnapField) {
+    sessionPlannerTacticalSnapEnabled = Boolean(tacticalSnapField.checked);
+    return;
+  }
+
   const tacticalPitchModeField = event.target.closest("[data-session-tactical-pitch-mode]");
   if (tacticalPitchModeField) {
     setSessionPlannerTacticalPitchMode(tacticalPitchModeField.value);
@@ -76062,6 +75619,10 @@ ui.scheduleMonthViewButton?.addEventListener("click", () => {
   setScheduleViewMode("month");
 });
 
+ui.scheduleWeekViewButton?.addEventListener("click", () => {
+  setScheduleViewMode("week");
+});
+
 ui.scheduleOverviewViewButton?.addEventListener("click", () => {
   setScheduleViewMode("overview");
 });
@@ -76098,7 +75659,57 @@ ui.scheduleOverviewGrid?.addEventListener("click", (event) => {
   selectScheduleDate(dateTrigger.dataset.scheduleDate);
 });
 
+ui.scheduleWeekGrid?.addEventListener("click", (event) => {
+  const dateTrigger = event.target.closest("[data-schedule-date]");
+  if (!dateTrigger) {
+    return;
+  }
+
+  selectScheduleDate(dateTrigger.dataset.scheduleDate);
+});
+
 ui.scheduleDayCard?.addEventListener("click", (event) => {
+  const sessionTrigger = event.target.closest("[data-schedule-open-session-date]");
+  if (sessionTrigger) {
+    const dateValue = sessionTrigger.dataset.scheduleOpenSessionDate;
+    if (!dateValue) {
+      return;
+    }
+
+    if (!sessionPlannerState) {
+      sessionPlannerState = readSessionPlannerState();
+    }
+    if (!sessionPlannerState.sessions) {
+      sessionPlannerState.sessions = {};
+    }
+    sessionPlannerState.selectedDate = dateValue;
+    if (
+      !sessionPlannerState.sessions[dateValue] &&
+      sessionTrigger.dataset.scheduleCreateSession === "true" &&
+      canEditSessionPlanner()
+    ) {
+      sessionPlannerState.sessions[dateValue] = createSessionPlannerEmptySession(dateValue);
+    }
+    writeSessionPlannerState();
+    setActiveWorkspace("session-planner");
+    renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+    return;
+  }
+
+  const periodizationTrigger = event.target.closest("[data-schedule-open-periodization-date]");
+  if (periodizationTrigger) {
+    const dateValue = periodizationTrigger.dataset.scheduleOpenPeriodizationDate;
+    if (!dateValue) {
+      return;
+    }
+
+    ensurePeriodizationState();
+    selectPeriodizationDate(dateValue, true, "view");
+    setActiveWorkspace("periodization");
+    renderPeriodizationWorkspace();
+    return;
+  }
+
   const editDayTrigger = event.target.closest("[data-schedule-edit-day]");
   if (!editDayTrigger || !canEditScheduleWorkspace()) {
     return;

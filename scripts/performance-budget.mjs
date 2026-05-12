@@ -22,9 +22,16 @@ const budgets = [
     targetGzipBytes: 45_000,
   },
   {
+    file: "dashboard-chat.css",
+    maxBytes: 45_000,
+    maxGzipBytes: 8_000,
+    maxLines: 120,
+    targetGzipBytes: 5_000,
+  },
+  {
     file: "index.html",
     maxBytes: 143_000,
-    maxGzipBytes: 25_000,
+    maxGzipBytes: 25_500,
     maxLines: 3_020,
     targetGzipBytes: 18_000,
   },

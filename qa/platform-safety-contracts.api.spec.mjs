@@ -15,6 +15,7 @@ function readJson(relativePath) {
 
 const protectedStorageKeys = [
   "football-workspace-hub-v3",
+  "football-platform-structure-v1",
   "football-periodization-v2",
   "football-schedule-v1",
   "football-session-planner-v3",

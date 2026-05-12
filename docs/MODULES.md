@@ -180,14 +180,22 @@ Current direction:
 
 ## Admin / My Team
 
-My Team should currently be admin-only. Admin area should control users, roles, email, password reset/change, and future page permissions.
+Admin/My Team is the management surface for users, roles, club/team scope, email, password reset/change, and page permissions.
+
+Current direction:
+
+- Platform Admin owns the full platform: club/team structure, role access matrix, central audit, and all users.
+- Club Admin is scoped to one club. They can view/manage users in that club, create teams inside that club, and assign team/admin staff roles below platform admin.
+- Team Admin is scoped to one team. They can view/manage users in that team and assign staff roles, but they cannot change platform structure, club scope, role access, or central audit.
+- Users carry `clubId`, `clubName`, `teamId`, `teamName`, role, email, title, department, and profile image metadata.
+- The local prototype stores club/team structure in `football-platform-structure-v1`; long-term this should move to database-backed clubs, teams, and memberships.
+- Supabase-backed admin actions should enforce the same scope server-side, not only in the UI.
 
 Future state:
 
-- Real auth.
-- Role-based permissions per module.
-- Admin can add, edit, remove users.
-- Users have profiles with image, name, club/team, role, email, title, department.
+- Database-backed organizations/clubs, teams, memberships, and audit logs.
+- Role-based permissions per module with clear platform-only controls.
+- Club/team switching if a future user belongs to multiple scopes.
 
 ## Analysis Room
 

@@ -76,6 +76,7 @@ Profile/account expectations:
 - The menu opens/closes reliably and stays above other UI.
 - Admin/account flows should stay central-first through Supabase where production auth/user data is involved.
 - Admin role/status on the current admin's own account is protected server-side so an admin cannot accidentally pause themselves or remove their own admin role from the Admin UI.
+- Admin/Auth now has a scoped management direction: Platform Admin owns global structure, role access, and audit; Club Admin manages only their club and can create teams in that club; Team Admin manages only their team and cannot affect platform structure. Users carry `clubId`, `clubName`, `teamId`, and `teamName`; the local structure prototype lives in `football-platform-structure-v1` until clubs/teams/memberships move into the database.
 
 ## Most Active Area
 

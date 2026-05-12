@@ -1,8 +1,10 @@
-const platformRoles = Object.freeze(["admin", "coach", "analyst", "performance", "medical", "guest"]);
-const staffRoles = Object.freeze(["admin", "coach", "analyst", "performance", "medical"]);
-const managerRoles = Object.freeze(["admin", "coach"]);
-const medicalWriteRoles = Object.freeze(["admin", "medical", "performance"]);
-const simulatorWriteRoles = Object.freeze(["admin", "coach", "analyst"]);
+const platformRoles = Object.freeze(["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"]);
+const staffRoles = Object.freeze(["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"]);
+const managerRoles = Object.freeze(["admin", "club-admin", "team-admin", "coach"]);
+const scopedAdminRoles = Object.freeze(["admin", "club-admin", "team-admin"]);
+const medicalAccessRoles = Object.freeze(["admin", "club-admin", "team-admin", "coach", "performance", "medical"]);
+const medicalWriteRoles = Object.freeze(["admin", "club-admin", "team-admin", "medical", "performance"]);
+const simulatorWriteRoles = Object.freeze(["admin", "club-admin", "team-admin", "coach", "scout", "analyst"]);
 const allAuthenticatedRoles = Object.freeze([...platformRoles]);
 const permissionActions = Object.freeze(["read", "write", "delete", "export", "restore", "admin", "observe"]);
 
@@ -35,7 +37,7 @@ const platformPermissionMatrix = Object.freeze([
     admin: ["admin"],
     observe: ["admin"],
   }, {
-    storageKeys: ["football-workspace-hub-v3"],
+    storageKeys: ["football-workspace-hub-v3", "football-platform-structure-v1"],
   }),
   moduleContract("home", "Home", "team", {
     read: allAuthenticatedRoles,
@@ -107,7 +109,7 @@ const platformPermissionMatrix = Object.freeze([
   }),
   moduleContract("periodization", "Periodization", "team", {
     read: staffRoles,
-    write: ["admin", "coach", "performance"],
+    write: ["admin", "club-admin", "team-admin", "coach", "performance"],
     delete: managerRoles,
     export: ["admin", "coach", "performance"],
     restore: ["admin", "coach"],
@@ -117,7 +119,7 @@ const platformPermissionMatrix = Object.freeze([
     storageKeys: ["football-periodization-v2"],
   }),
   moduleContract("medical-team", "Medical Team", "team", {
-    read: ["admin", "coach", "performance", "medical"],
+    read: medicalAccessRoles,
     write: medicalWriteRoles,
     delete: medicalWriteRoles,
     export: ["admin", "medical"],
@@ -129,24 +131,24 @@ const platformPermissionMatrix = Object.freeze([
     routes: ["/api/medical"],
   }),
   moduleContract("player-profiles", "Squad", "team", {
-    read: ["admin", "coach", "performance", "medical"],
-    write: managerRoles,
+    read: ["admin", "club-admin", "team-admin", "coach", "scout", "performance", "medical"],
+    write: ["admin", "club-admin", "team-admin", "coach", "scout"],
     delete: managerRoles,
-    export: ["admin", "coach"],
+    export: ["admin", "coach", "scout"],
     restore: ["admin", "coach"],
     admin: ["admin"],
-    observe: ["admin", "coach"],
+    observe: ["admin", "coach", "scout"],
   }, {
     storageKeys: ["football-player-profiles-v1"],
   }),
   moduleContract("game-simulator", "Game Simulator", "team", {
-    read: ["admin", "coach", "analyst", "performance"],
+    read: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance"],
     write: simulatorWriteRoles,
     delete: simulatorWriteRoles,
-    export: ["admin", "coach", "analyst"],
+    export: ["admin", "coach", "scout", "analyst"],
     restore: ["admin", "coach"],
     admin: ["admin"],
-    observe: ["admin", "coach", "analyst"],
+    observe: ["admin", "coach", "scout", "analyst"],
   }, {
     storageKeys: ["football-simulator-sequence-v1", "football-simulator-sequence-library-v2"],
   }),
@@ -164,11 +166,11 @@ const platformPermissionMatrix = Object.freeze([
   moduleContract("admin-users", "User Administration", "organization", {
     read: staffRoles,
     write: allAuthenticatedRoles,
-    delete: ["admin"],
+    delete: scopedAdminRoles,
     export: ["admin"],
     restore: ["admin"],
-    admin: ["admin"],
-    observe: ["admin"],
+    admin: scopedAdminRoles,
+    observe: scopedAdminRoles,
   }, {
     routes: ["/api/admin-users", "/api/send-reset", "/api/user-lookup"],
   }),

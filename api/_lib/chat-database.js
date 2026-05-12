@@ -2,8 +2,8 @@ const { parseJsonBody, readConfig, sendJson } = require("./supabase-admin.js");
 
 const CHAT_DATABASE_MODE_VALUES = new Set(["database", "db", "postgres", "supabase"]);
 const CHAT_LEGACY_MODE_VALUES = new Set(["legacy", "storage", "app-state", "appstate", "local", "off", "false", "0"]);
-const STAFF_ROLES = new Set(["admin", "coach", "analyst", "performance", "medical"]);
-const MANAGER_ROLES = new Set(["admin", "coach"]);
+const STAFF_ROLES = new Set(["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"]);
+const MANAGER_ROLES = new Set(["admin", "club-admin", "team-admin", "coach"]);
 const ADMIN_ROLES = new Set(["admin"]);
 const MAX_MESSAGE_LENGTH = 1600;
 const MAX_TEXT_LENGTH = 240;
@@ -563,7 +563,7 @@ async function readFirstMembership(actor) {
       "select=organization_id,team_id,user_id,role,status,relationship",
       `user_id=eq.${filterValue(actor.id)}`,
       "status=eq.active",
-      "role=in.(admin,coach,analyst,performance,medical)",
+      "role=in.(admin,club-admin,team-admin,coach,scout,analyst,performance,medical)",
       "limit=1",
     ].join("&")
   );
@@ -992,7 +992,7 @@ async function ensureThreadAccess(actor, thread, options = {}) {
   const membership = await readMembership(actor, thread.organization_id, thread.team_id);
 
   if (["team", "group", "medical", "matchday", "training", "announcement"].includes(type) && membership) {
-    if (type === "medical" && !["admin", "coach", "medical", "performance"].includes(String(membership.role || "").toLowerCase())) {
+    if (type === "medical" && !["admin", "club-admin", "team-admin", "coach", "medical", "performance"].includes(String(membership.role || "").toLowerCase())) {
       return { ok: false, status: 403, reason: "Medical chat access required." };
     }
     if (options.manager && !canManageByRole(membership.role) && actorRole(actor) !== "admin") {

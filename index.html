@@ -1,17 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Cache-Control" content="no-store" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
+    <meta charset=UTF-8>
+    <meta name=viewport content="width=device-width,initial-scale=1">
+    <meta http-equiv=Cache-Control content=no-store>
+    <meta http-equiv=Pragma content=no-cache>
+    <meta http-equiv=Expires content=0>
     <title>Football Science Coaching Platform</title>
     <style>body.is-booting{overflow:hidden}body.is-booting:before{content:"Loading...";position:fixed;inset:0;z-index:9999;display:grid;place-items:center;color:#242426;background:#f5f5f799;backdrop-filter:blur(18px);font-weight:800}</style>
-    <link id="appStylesheet" rel="stylesheet" />
+    <link id=s rel=stylesheet>
+    <link id=c rel=stylesheet>
     <script>
-      window.__assetVersion = Date.now().toString();
-      document.getElementById("appStylesheet").href = `./styles.css?v=${window.__assetVersion}`;
+      {const v=window.__assetVersion=Date.now(),d=document;d.getElementById("s").href=`styles.css?v=${v}`;d.getElementById("c").href=`dashboard-chat.css?v=${v}`}
     </script>
   </head>
   <body class="is-auth-locked is-booting">
@@ -170,6 +170,7 @@
                 <div class="schedule-toolbar" aria-label="Calendar navigation">
                   <div class="schedule-view-switch" aria-label="Schedule view">
                     <button id="scheduleMonthViewButton" type="button" class="schedule-view-button is-active">Month</button>
+                    <button id="scheduleWeekViewButton" type="button" class="schedule-view-button">Week</button>
                     <button id="scheduleOverviewViewButton" type="button" class="schedule-view-button">Overview</button>
                   </div>
                   <div id="scheduleOverviewSpanControl" class="schedule-span-select" aria-label="Overview months">
@@ -197,6 +198,7 @@
                     <span>Sun</span>
                   </div>
                   <div id="scheduleCalendarGrid" class="schedule-calendar-grid"></div>
+                  <div id="scheduleWeekGrid" class="schedule-week-agenda-grid" hidden></div>
                   <div id="scheduleOverviewGrid" class="schedule-overview-grid" hidden></div>
                 </article>
                 <aside id="scheduleDayCard" class="schedule-day-card">
@@ -219,6 +221,7 @@
                     </button>
                   </div>
                   <div id="scheduleEventList" class="schedule-event-list"></div>
+                  <div id="scheduleDayInsights" class="schedule-day-insights"></div>
                   <form id="scheduleEventForm" class="schedule-event-form">
                     <label>
                       <span>Date</span>
@@ -776,7 +779,9 @@
     </div>
     <script>
       (() => {
-        const DEFAULT_ROLES = ["admin", "coach", "analyst", "performance", "medical", "guest"];
+        const DEFAULT_ROLES = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
+        const DEFAULT_CLUB_ID = "club-ncc";
+        const DEFAULT_TEAM_ID = "team-ncc-first";
         const SUPABASE_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js";
         const API_CLIENT_CONFIG = "/api/client-config";
         const API_ADMIN_USERS = "/api/admin-users";
@@ -794,6 +799,7 @@
         const DEV_AUTH_SESSION_KEY = "football-science-dev-auth-session-v1";
         const DEV_AUTH_PASSWORD = "courage";
         const WORKSPACE_HUB_STATE_KEY = "football-workspace-hub-v3";
+        const PLATFORM_STRUCTURE_STATE_KEY = "football-platform-structure-v1";
         const SESSION_PLANNER_STATE_KEY = "football-session-planner-v3";
         const PLAYER_PROFILES_STATE_KEY = "football-player-profiles-v1";
         const MEDICAL_TEAM_STATE_KEY = "football-medical-team-v1";
@@ -828,6 +834,7 @@
         const SCHEDULE_STATE_KEY = "football-schedule-v1";
         const CENTRAL_STATE_KEYS = new Set([
           WORKSPACE_HUB_STATE_KEY,
+          PLATFORM_STRUCTURE_STATE_KEY,
           PERIODIZATION_STATE_KEY,
           SCHEDULE_STATE_KEY,
           SESSION_PLANNER_STATE_KEY,
@@ -902,7 +909,11 @@
             role: DEFAULT_ROLES.includes(role) ? role : "coach",
             title: String(meta.title || user.title || "Coach").trim(),
             department: String(meta.department || user.department || "Football").trim(),
-            team: String(meta.team || user.team || "North Carolina Courage").trim(),
+            clubId: String(meta.clubId || meta.club_id || user.clubId || user.club_id || DEFAULT_CLUB_ID).trim(),
+            clubName: String(meta.clubName || meta.club_name || user.clubName || user.club_name || "North Carolina Courage").trim(),
+            teamId: String(meta.teamId || meta.team_id || user.teamId || user.team_id || DEFAULT_TEAM_ID).trim(),
+            teamName: String(meta.teamName || meta.team_name || user.teamName || user.team_name || meta.team || user.team || "North Carolina Courage").trim(),
+            team: String(meta.team || user.team || meta.teamName || meta.team_name || user.teamName || user.team_name || "North Carolina Courage").trim(),
             status: status === "paused" ? "paused" : "active",
             profileImageUrl: normalizeProfileImageValue(
               meta.profileImageUrl ||
@@ -1034,6 +1045,10 @@
                 username: "mak",
                 title: "Head Coach",
                 department: "Football",
+                clubId: DEFAULT_CLUB_ID,
+                clubName: "North Carolina Courage",
+                teamId: DEFAULT_TEAM_ID,
+                teamName: "North Carolina Courage",
                 team: "North Carolina Courage",
               },
               app_metadata: {
@@ -2204,7 +2219,11 @@
               role: values.role || "coach",
               title: values.title || "Coach",
               department: values.department || "Football",
-              team: values.team || "North Carolina Courage",
+              clubId: values.clubId || DEFAULT_CLUB_ID,
+              clubName: values.clubName || "North Carolina Courage",
+              teamId: values.teamId || DEFAULT_TEAM_ID,
+              teamName: values.teamName || values.team || "North Carolina Courage",
+              team: values.team || values.teamName || "North Carolina Courage",
               status: values.status || "active",
               createdAt: now,
             });
@@ -2955,50 +2974,18 @@
             }
             notifyAuthChange(null);
           },
-          isAdmin: () => authState.currentUser?.role === "admin",
+          isAdmin: () => ["admin", "club-admin", "team-admin"].includes(authState.currentUser?.role),
           roles: authState.roles,
         };
-        window.footballScienceCentralState = {
-          hydrate: hydrateCentralState,
-          syncKey: syncCentralStateKey,
-          isHydrated: () => centralState.hydrated,
-          getStatus: () => ({ ...centralState }),
-        };
-        window.footballScienceAudit = {
-          record: recordAuditEvent,
-        };
-        window.footballScienceMedicalDatabase = {
-          record: recordMedicalDatabaseEvent,
-        };
-        window.platformAuthReadyPromise = bootAuth();
+        window.footballScienceCentralState={hydrate:hydrateCentralState,syncKey:syncCentralStateKey,isCentralKey:isCentralStateKey,isHydrated:()=>centralState.hydrated,getStatus:()=>({...centralState})};
+        window.footballScienceAudit={record:recordAuditEvent};
+        window.footballScienceMedicalDatabase={record:recordMedicalDatabaseEvent};
+        window.platformAuthReadyPromise=bootAuth();
       })();
     </script>
     <script type="module">
-      document.body.dataset.inlineReady = "true";
-      const assetVersion = window.__assetVersion || Date.now().toString();
-      const loadOptionalScript = (src) =>
-        new Promise((resolve) => {
-          const script = document.createElement("script");
-          script.src = src;
-          script.onload = resolve;
-          script.onerror = resolve;
-          document.head.appendChild(script);
-        });
-      const authReady = Promise.resolve(window.platformAuthReadyPromise).catch(() => null);
-      const importedPeriodizationReady = loadOptionalScript(`./periodization-import-data.js?v=${assetVersion}`);
-      Promise.all([authReady, importedPeriodizationReady])
-        .then(() => {
-          window.performance?.mark?.("footballscience:app-import-start");
-          import(`./app.js?v=${assetVersion}`)
-            .then(() => {
-              window.performance?.mark?.("footballscience:app-import-ready");
-              window.platformMarkAppReady?.();
-            })
-            .catch((error) => {
-              document.body.dataset.appLoadError = error?.message ?? "App script failed to load";
-              console.error(error);
-            });
-        });
+      const v=window.__assetVersion||Date.now(),load=s=>new Promise(r=>{const e=document.createElement("script");e.src=s;e.onload=e.onerror=r;document.head.append(e)});
+      Promise.all([Promise.resolve(window.platformAuthReadyPromise).catch(()=>null),...["periodization-import-data.js","schedule-import-data.js"].map(f=>load(`${f}?v=${v}`))]).then(()=>import(`./app.js?v=${v}`).then(()=>window.platformMarkAppReady?.()).catch(e=>{document.body.dataset.appLoadError=e?.message||"Load failed";console.error(e)}));
     </script>
   </body>
 </html>

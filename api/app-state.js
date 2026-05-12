@@ -77,51 +77,53 @@ const PERIODIZATION_MULTI_FIELDS = ["matchPhases", "subPhases", "teamPrinciples"
 const PERIODIZATION_FIELD_SET = new Set([...PERIODIZATION_SCALAR_FIELDS, ...PERIODIZATION_MULTI_FIELDS]);
 const CENTRAL_STATE_KEYS = new Set(dataSafetyRegistry.keys());
 const WORKSPACE_HUB_KEY = "football-workspace-hub-v3";
+const PLATFORM_STRUCTURE_KEY = "football-platform-structure-v1";
 const DEFAULT_WORKSPACE_ACCESS = {
-  chat: ["admin", "coach", "analyst", "performance", "medical"],
-  schedule: ["admin", "coach", "analyst", "performance", "medical", "guest"],
-  periodization: ["admin", "coach", "analyst", "performance", "medical"],
-  "session-planner": ["admin", "coach", "analyst", "performance", "medical"],
-  "player-profiles": ["admin", "coach", "performance", "medical"],
-  "analysis-room": ["admin", "coach", "analyst"],
-  "medical-team": ["admin", "coach", "performance", "medical"],
-  staff: ["admin"],
-  admin: ["admin"],
-  "team-identity": ["admin", "coach"],
-  "game-simulator": ["admin", "coach", "analyst", "performance"],
+  chat: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
+  schedule: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"],
+  periodization: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
+  "session-planner": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
+  "player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout", "performance", "medical"],
+  "analysis-room": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
+  "medical-team": ["admin", "club-admin", "team-admin", "coach", "performance", "medical"],
+  staff: ["admin", "club-admin", "team-admin"],
+  admin: ["admin", "club-admin", "team-admin"],
+  "team-identity": ["admin", "club-admin", "team-admin", "coach"],
+  "game-simulator": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance"],
 };
 const DEFAULT_WORKSPACE_EDIT_ACCESS = {
-  chat: ["admin", "coach", "analyst", "performance", "medical"],
-  schedule: ["admin", "coach"],
-  periodization: ["admin", "coach", "performance"],
-  "session-planner": ["admin", "coach"],
-  "player-profiles": ["admin", "coach"],
-  "analysis-room": ["admin", "analyst"],
-  "medical-team": ["admin", "medical", "performance"],
-  staff: ["admin"],
-  admin: ["admin"],
-  "team-identity": ["admin", "coach"],
-  "game-simulator": ["admin", "coach", "analyst"],
+  chat: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
+  schedule: ["admin", "club-admin", "team-admin", "coach"],
+  periodization: ["admin", "club-admin", "team-admin", "coach", "performance"],
+  "session-planner": ["admin", "club-admin", "team-admin", "coach"],
+  "player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout"],
+  "analysis-room": ["admin", "club-admin", "team-admin", "scout", "analyst"],
+  "medical-team": ["admin", "club-admin", "team-admin", "medical", "performance"],
+  staff: ["admin", "club-admin", "team-admin"],
+  admin: ["admin", "club-admin", "team-admin"],
+  "team-identity": ["admin", "club-admin", "team-admin", "coach"],
+  "game-simulator": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
 };
 const REQUIRED_WORKSPACE_ACCESS = {
   "session-planner": {
-    view: ["admin", "coach", "analyst", "performance", "medical"],
-    edit: ["admin", "coach"],
+    view: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
+    edit: ["admin", "club-admin", "team-admin", "coach"],
   },
   "player-profiles": {
-    view: ["admin", "coach", "performance", "medical"],
-    edit: ["admin", "coach"],
+    view: ["admin", "club-admin", "team-admin", "coach", "scout", "performance", "medical"],
+    edit: ["admin", "club-admin", "team-admin", "coach", "scout"],
   },
   "medical-team": {
-    view: ["admin", "coach", "performance", "medical"],
-    edit: ["admin", "medical", "performance"],
+    view: ["admin", "club-admin", "team-admin", "coach", "performance", "medical"],
+    edit: ["admin", "club-admin", "team-admin", "medical", "performance"],
   },
   "team-identity": {
-    view: ["admin", "coach"],
-    edit: ["admin", "coach"],
+    view: ["admin", "club-admin", "team-admin", "coach"],
+    edit: ["admin", "club-admin", "team-admin", "coach"],
   },
 };
 const STATE_KEY_WORKSPACE_EDIT_MAP = {
+  [PLATFORM_STRUCTURE_KEY]: "admin",
   "football-dashboard-chat-v1": "chat",
   "football-schedule-v1": "schedule",
   [PERIODIZATION_KEY]: "periodization",
@@ -136,7 +138,7 @@ const STATE_KEY_WORKSPACE_EDIT_MAP = {
   "football-simulator-sequence-library-v2": "game-simulator",
 };
 const ADMIN_ONLY_STATE_KEYS = new Set(["mak-coaching-platform-users-v1"]);
-const MEDICAL_PRIVATE_ROLES = new Set(["admin", "medical", "performance"]);
+const MEDICAL_PRIVATE_ROLES = new Set(["admin", "club-admin", "team-admin", "medical", "performance"]);
 const MEDICAL_PARTICIPATION_OPTIONS = new Set([0, 10, 25, 50, 75, 100]);
 const MEDICAL_STATUS_KEYS = new Set(["full", "modified", "controlled", "rehab", "unavailable", "monitor"]);
 const MEDICAL_RTP_PHASE_KEYS = new Set([
@@ -1824,6 +1826,16 @@ async function authorizeStateWrite(actor, key, rawValue, removed = false, contex
     return { ok: true, value: removed ? rawValue : await sanitizeWorkspaceHubWriteForActor(actor, rawValue) };
   }
 
+  if (key === PLATFORM_STRUCTURE_KEY) {
+    if (removed) {
+      return { ok: false, reason: "Club/team structure cannot be removed through central sync." };
+    }
+    if (!["admin", "club-admin"].includes(String(actor?.role || "").trim().toLowerCase())) {
+      return { ok: false, reason: "Only platform or club admins can sync club/team structure." };
+    }
+    return { ok: true, value: rawValue };
+  }
+
   const workspaceId = STATE_KEY_WORKSPACE_EDIT_MAP[key];
   if (!workspaceId) {
     return { ok: true, value: rawValue };
@@ -1867,6 +1879,11 @@ function filterStateEntriesForActor(actor, entries = {}) {
     }
 
     if (ADMIN_ONLY_STATE_KEYS.has(key)) {
+      return filtered;
+    }
+
+    if (key === PLATFORM_STRUCTURE_KEY && ["club-admin", "team-admin"].includes(String(actor?.role || "").trim().toLowerCase())) {
+      filtered[key] = value;
       return filtered;
     }
 

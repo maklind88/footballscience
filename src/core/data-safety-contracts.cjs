@@ -65,6 +65,12 @@ const dataSafetyContracts = Object.freeze([
     mergePolicy: dataSafetyMergePolicies.serverSanitized,
   }),
   freezeContract({
+    moduleId: "platform-shell",
+    key: "football-platform-structure-v1",
+    recordType: "club-team-structure",
+    mergePolicy: dataSafetyMergePolicies.serverSanitized,
+  }),
+  freezeContract({
     moduleId: "home",
     key: "football-dashboard-tasks-v1",
     recordType: "home-tasks",

@@ -1264,7 +1264,9 @@
             return null;
           }
           authState.session = session;
-          setCurrentUserFromSession(session.user || null);
+          if (!authState.currentUser?.id || authState.currentUser.id !== session.user?.id) {
+            setCurrentUserFromSession(session.user || null);
+          }
           return session.access_token;
         } catch (error) {
           console.warn("Supabase session read timed out; using cached session when available.", error);
@@ -1292,7 +1294,9 @@
               return null;
             }
             authState.session = refreshedSession;
-            setCurrentUserFromSession(refreshedSession.user || null);
+            if (!authState.currentUser?.id || authState.currentUser.id !== refreshedSession.user?.id) {
+              setCurrentUserFromSession(refreshedSession.user || null);
+            }
             return refreshedSession.access_token;
           } catch {
             return null;
@@ -2835,7 +2839,7 @@
           }
           if (data?.session) {
             authState.session = data.session;
-            await hydrateCurrentUser(data.session, { waitForCentral: false, waitForProfile: false });
+            await hydrateCurrentUser(data.session, { waitForCentral: false, waitForProfile: true });
             if (isPausedAccount(authState.currentUser)) {
               await signOut();
             }
@@ -3024,7 +3028,7 @@
           setLoginBusy(false);
           authState.supabase.auth.onAuthStateChange(async (event, session) => {
             if (session) {
-              await hydrateCurrentUser(session, { waitForCentral: false, waitForProfile: false });
+              await hydrateCurrentUser(session, { waitForCentral: false, waitForProfile: true });
               if (authState.currentUser) {
                 showPlatform(authState.currentUser);
               } else {

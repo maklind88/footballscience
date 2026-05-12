@@ -42,10 +42,10 @@ function createMetadata(revision, value) {
   };
 }
 
-function createFakeSupabaseScript() {
+function createFakeSupabaseScript(sessionUser = qaUser) {
   const session = {
     access_token: "qa-access-token",
-    user: qaUser,
+    user: sessionUser,
   };
 
   return `
@@ -66,12 +66,15 @@ function createFakeSupabaseScript() {
   `;
 }
 
-async function installCentralRevisionRoutes(context, centralStore, syncBodies) {
+async function installCentralRevisionRoutes(context, centralStore, syncBodies, options = {}) {
+  const sessionUser = options.sessionUser || qaUser;
+  const profileUser = options.profileUser || qaUser;
+
   await context.route("**/npm/@supabase/supabase-js@2/**", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "text/javascript",
-      body: createFakeSupabaseScript(),
+      body: createFakeSupabaseScript(sessionUser),
     });
   });
 
@@ -94,8 +97,8 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies) {
       status: 200,
       contentType: "application/json",
       body: JSON.stringify(url.searchParams.has("me")
-        ? { ok: true, user: qaUser }
-        : { ok: true, users: [qaUser], roles: ["admin", "coach", "analyst", "performance", "medical", "guest"] }),
+        ? { ok: true, user: profileUser }
+        : { ok: true, users: [profileUser], roles: ["admin", "coach", "analyst", "performance", "medical", "guest"] }),
     });
   });
 
@@ -184,7 +187,10 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies) {
 
 async function bootCentralPage(browser, baseURL, centralStore, syncBodies, tabName, options = {}) {
   const context = await browser.newContext();
-  await installCentralRevisionRoutes(context, centralStore, syncBodies);
+  await installCentralRevisionRoutes(context, centralStore, syncBodies, {
+    sessionUser: options.sessionUser,
+    profileUser: options.profileUser,
+  });
   const page = await context.newPage();
   await page.addInitScript(() => {
     window.__footballScienceQaForceCentralState = true;
@@ -206,6 +212,42 @@ async function bootCentralPage(browser, baseURL, centralStore, syncBodies, tabNa
     .toContain("Original central sequence");
   return { context, page };
 }
+
+test("fresh server profile restores admin access when the stored Supabase session has a stale role", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const centralStore = {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+  };
+  const staleSessionUser = {
+    ...qaUser,
+    app_metadata: {
+      role: "coach",
+      status: "active",
+    },
+  };
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "stale-admin-role", {
+    sessionUser: staleSessionUser,
+    profileUser: qaUser,
+  });
+
+  try {
+    await expect
+      .poll(() => tab.page.evaluate(() => window.platformAuthStore?.getCurrentUser?.()?.role || ""), {
+        timeout: 10_000,
+      })
+      .toBe("admin");
+
+    await tab.page.evaluate(() => {
+      window.dispatchEvent(new CustomEvent("platform:open-workspace", { detail: { workspaceId: "admin" } }));
+    });
+    await expect(tab.page.locator('[data-workspace-view="admin"].is-active')).toBeVisible();
+    await expect(tab.page.locator("#adminWorkspace")).toContainText("Access & Users");
+    await expect(tab.page.locator("#adminWorkspace")).toContainText("Platform Admin");
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
 
 async function writeRevisionValue(page, title) {
   await page.evaluate(

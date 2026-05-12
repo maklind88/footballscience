@@ -15577,6 +15577,130 @@ select{
   font-weight: 850;
 }
 
+.player-profile-message.is-success{
+  color: #125232;
+  background: rgba(220, 252, 231, 0.95);
+  border-color: rgba(22, 163, 74, 0.3);
+}
+
+.player-profile-message.is-warning{
+  color: #8a5a15;
+  background: rgba(255, 247, 215, 0.95);
+  border-color: rgba(217, 119, 6, 0.35);
+}
+
+.player-profile-message.is-error{
+  color: #8a1f11;
+  background: rgba(254, 226, 226, 0.95);
+  border-color: rgba(220, 38, 38, 0.35);
+}
+
+.player-profile-message ul{
+  margin: 1rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.player-profile-message li{
+  margin: 0.12rem 0;
+  overflow-wrap: anywhere;
+}
+
+.player-profile-import-preview{
+  display: grid;
+  gap: 0.72rem;
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 1px solid rgba(29, 29, 31, 0.12);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.player-profile-import-preview.is-success{
+  color: #123322;
+  border-color: rgba(30, 128, 88, 0.24);
+  background: rgba(220, 252, 231, 0.74);
+}
+
+.player-profile-import-preview.is-warning{
+  color: #8a5a15;
+  border-color: rgba(217, 119, 6, 0.35);
+  background: rgba(255, 247, 215, 0.74);
+}
+
+.player-profile-import-preview.is-error{
+  color: #8a1f11;
+  border-color: rgba(220, 38, 38, 0.35);
+  background: rgba(254, 226, 226, 0.74);
+}
+
+.player-profile-import-preview-head{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+  color: inherit;
+  font-weight: 800;
+}
+
+.player-profile-import-preview-head span{
+  text-transform: uppercase;
+  font-size: 0.74rem;
+  opacity: 0.8;
+}
+
+.player-profile-import-preview-list-wrap{
+  max-height: 14rem;
+  overflow: auto;
+  padding-right: 0.2rem;
+}
+
+.player-profile-import-preview-list-wrap ul{
+  margin: 0.2rem 0 0;
+  padding-left: 1.15rem;
+}
+
+.player-profile-import-preview-list-wrap li{
+  margin: 0.2rem 0;
+  overflow-wrap: anywhere;
+}
+
+.player-profile-import-preview-actions{
+  display: inline-flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.player-profile-import-apply-button,
+.player-profile-import-preview-actions button{
+  border: 0;
+  border-radius: 10px;
+  padding: 0.62rem 0.86rem;
+  color: #ffffff;
+  background: #1d2a32;
+  font: inherit;
+  cursor: pointer;
+}
+
+.player-profile-import-preview-actions button{
+  padding: 0.58rem 0.82rem;
+  color: #1d1d1f;
+  background: rgba(29, 42, 50, 0.1);
+}
+
+.player-profile-import-apply-button{
+  color: #ffffff;
+  background: #1d2a32;
+}
+
+.player-profile-import-apply-button:hover,
+.player-profile-import-preview-actions button:hover{
+  opacity: 0.9;
+}
+
+.player-profile-import-apply-button:disabled{
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .player-profile-metrics{
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));

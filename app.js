@@ -636,7 +636,16 @@ function applyCentralSyncedStateValue(write = {}, syncedValue) {
     return;
   }
   if (key === playerProfilesStorageKey) {
+    playerProfileLastImportSnapshot = null;
     playerProfilesState = readPlayerProfilesState();
+    if (hubState?.activeWorkspaceId === "player-profiles" && !shouldDeferCentralizedAppStateReload()) {
+      renderPlayerProfilesWorkspace();
+    }
+    return;
+  }
+  if (key === medicalTeamStorageKey) {
+    playerProfileLastImportSnapshot = null;
+    medicalState = readMedicalState();
     if (hubState?.activeWorkspaceId === "player-profiles" && !shouldDeferCentralizedAppStateReload()) {
       renderPlayerProfilesWorkspace();
     }
@@ -4031,6 +4040,8 @@ let playerProfilesRosterFilter = "all";
 let playerProfileActiveTab = "overview";
 let playerProfileModalOpen = false;
 let playerProfileNewPlayerModalOpen = false;
+let playerProfileLastImportSnapshot = null;
+let pendingPlayerProfileImportPlan = null;
 let squadComparisonRole = "8";
 let squadComparisonPlayerIds = ["", ""];
 let squadFormationFit = "4-3-3";
@@ -22327,6 +22338,265 @@ function getPlayerProfileRoleGroupForRole(role, position = "") {
   return "forward";
 }
 
+function normalizePlayerProfileName(value = "") {
+  return String(value)
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+function getPlayerProfileDuplicateCandidates(candidate = {}, players = [], options = {}) {
+  const ignorePlayerId = String(options.ignorePlayerId || "");
+  const normalizedName = normalizePlayerProfileName(candidate?.name || "");
+  const normalizedNumber = String(candidate?.number || "").trim();
+  const normalizedPosition = normalizePlayerProfileName(candidate?.position || "");
+
+  if (!normalizedName) {
+    return [];
+  }
+
+  const exactMatches = [];
+  const probableMatches = [];
+  players.forEach((player) => {
+    if (!player || player.id === ignorePlayerId) {
+      return;
+    }
+
+    if (normalizePlayerProfileName(player.name) !== normalizedName) {
+      return;
+    }
+
+    const existingNumber = String(player.number || "").trim();
+    const existingPosition = normalizePlayerProfileName(player.position || "");
+
+    if (normalizedNumber && existingNumber && existingNumber === normalizedNumber) {
+      exactMatches.push({ player, match: "same name and number" });
+      return;
+    }
+
+    if (!existingNumber || !normalizedNumber) {
+      if (!normalizedPosition || !existingPosition || normalizedPosition === existingPosition) {
+        probableMatches.push({ player, match: "same name" });
+      }
+      return;
+    }
+
+    if (existingNumber !== normalizedNumber) {
+      probableMatches.push({ player, match: "same name" });
+    }
+  });
+
+  if (exactMatches.length) {
+    return exactMatches;
+  }
+
+  if (probableMatches.length > 3) {
+    return probableMatches.slice(0, 3);
+  }
+
+  return probableMatches;
+}
+
+function validatePlayerProfileFormValues(values = {}, options = {}) {
+  const errors = [];
+  const warnings = [];
+  const existingPlayers = Array.isArray(options.existingPlayers) ? options.existingPlayers : [];
+  const blockDuplicate = options.blockDuplicate !== false;
+
+  const player = normalizePlayerProfile(values);
+  if (!player) {
+    return {
+      ok: false,
+      status: "error",
+      errors: ["Player name is required."],
+      warnings: [],
+      player: null,
+      duplicates: [],
+    };
+  }
+
+  const requestedFrom = String(values.temporaryFrom || "").trim();
+  const requestedTo = String(values.temporaryTo || "").trim();
+  const requestedReviewDate = String(values.idp?.reviewDate || "").trim();
+
+  const temporaryFrom = normalizePlayerProfileTemporaryDate(requestedFrom || player.temporaryFrom);
+  const temporaryTo = normalizePlayerProfileTemporaryDate(requestedTo || player.temporaryTo);
+
+  if (requestedFrom && !temporaryFrom) {
+    errors.push("Temporary from must be YYYY-MM-DD when provided.");
+  }
+  if (requestedTo && !temporaryTo) {
+    errors.push("Temporary to must be YYYY-MM-DD when provided.");
+  }
+  if (temporaryFrom && temporaryTo && temporaryFrom > temporaryTo) {
+    errors.push("Temporary from must not be after temporary to.");
+  }
+
+  if (!requestedReviewDate) {
+    // keep empty review dates explicit for clarity
+  } else if (!isMedicalDateValue(requestedReviewDate)) {
+    errors.push("IDP review date must be YYYY-MM-DD when entered.");
+  }
+
+  if (!player.position) {
+    warnings.push("Position is recommended for better role quality and matching.");
+  }
+  if (!player.primaryRole) {
+    warnings.push("Primary role is required.");
+  }
+  if (!player.preferredSide) {
+    warnings.push("Preferred side is recommended.");
+  }
+
+  const duplicates = getPlayerProfileDuplicateCandidates(player, existingPlayers, {
+    ignorePlayerId: options.ignorePlayerId || player.id,
+  });
+
+  if (blockDuplicate && duplicates.length) {
+    const duplicate = duplicates[0];
+    const existingName = String(duplicate.player?.name || player.name || "").trim();
+    errors.push(`A player already exists with ${player.name}: ${duplicate.match} (${existingName}).`);
+  }
+
+  if (!errors.length && warnings.length) {
+    return {
+      ok: true,
+      status: "warning",
+      errors,
+      warnings,
+      player,
+      duplicates,
+    };
+  }
+
+  return {
+    ok: !errors.length,
+    status: errors.length ? "error" : "success",
+    errors,
+    warnings,
+    player,
+    duplicates,
+  };
+}
+
+function buildPlayerProfileOperationFeedback(result = {}, successMessage = "") {
+  if (!result || typeof result !== "object") {
+    return successMessage || "";
+  }
+
+  const errors = Array.isArray(result.errors) ? result.errors : [];
+  const warnings = Array.isArray(result.warnings) ? result.warnings : [];
+
+  if (!result.ok) {
+    return {
+      status: errors.length ? "error" : warnings.length ? "warning" : "error",
+      lines: errors.length ? errors : [successMessage || "Action could not be completed."],
+      items: warnings.length ? warnings : [],
+    };
+  }
+
+  const lines = [];
+  if (successMessage) {
+    lines.push(successMessage);
+  }
+  if (warnings.length) {
+    lines.push("Quality notes:");
+  }
+
+  return {
+    status: warnings.length ? "warning" : "success",
+    lines,
+    items: warnings,
+  };
+}
+
+function buildPlayerProfileImportFeedback(result = {}) {
+  if (!result || typeof result !== "object") {
+    return "No changes imported.";
+  }
+
+  const errors = Array.isArray(result.errors) ? result.errors : [];
+  const warnings = Array.isArray(result.warnings) ? result.warnings : [];
+  const imported = result.importedCount || 0;
+  const created = result.createdCount || 0;
+  const updated = result.updatedCount || 0;
+  const skipped = result.skippedCount || 0;
+
+  const lines = [];
+  if (result.ok === false) {
+    return {
+      status: errors.length ? "error" : "warning",
+      lines: ["Import did not apply any player profiles."],
+      items: errors.map((entry) => `Row ${entry.row}: ${entry.message}`),
+    };
+  }
+
+  if (imported) {
+    lines.push(`${imported} player profile${imported === 1 ? "" : "s"} imported: ${created} added, ${updated} updated.`);
+  } else {
+    lines.push("No player profiles were imported.");
+  }
+
+  if (skipped) {
+    lines.push(`${skipped} row${skipped === 1 ? "" : "s"} skipped due to validation issues.`);
+  }
+
+  if (warnings.length) {
+    warnings.forEach((entry) => {
+      if (entry?.message) {
+        lines.push(`Warning (row ${entry.row || "?"}): ${entry.message}`);
+      } else if (typeof entry === "string") {
+        lines.push(entry);
+      }
+    });
+  }
+
+  return {
+    status: errors.length ? "error" : warnings.length ? "warning" : "success",
+    lines,
+    items: [
+      ...errors.map((entry) => `Row ${entry.row}: ${entry.message}`),
+      ...warnings.map((entry) => {
+        if (entry?.message) {
+          return `Row ${entry.row || "?"}: ${entry.message}`;
+        }
+        return typeof entry === "string" ? entry : "";
+      }).filter(Boolean),
+    ],
+  };
+}
+
+function renderPlayerProfilesWorkspaceMessage(message) {
+  if (!message) {
+    return "";
+  }
+
+  if (typeof message === "string") {
+    return `<div class="player-profile-message">${escapeHtml(message).replace(/\n/g, "<br>")}</div>`;
+  }
+
+  if (typeof message === "object") {
+    const lines = Array.isArray(message.lines) ? message.lines.filter(Boolean) : [];
+    const items = Array.isArray(message.items) ? message.items.filter(Boolean) : [];
+    const status = message.status === "error"
+      ? "is-error"
+      : message.status === "warning"
+      ? "is-warning"
+      : message.status === "success"
+      ? "is-success"
+      : "";
+    const body = [
+      ...lines.map((line) => `<p>${escapeHtml(line)}</p>`),
+      items.length
+        ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+        : "",
+    ].join("");
+    return `<div class="player-profile-message ${status}">${body || ""}</div>`;
+  }
+
+  return "";
+}
+
 function normalizePlayerProfileFutureData(futureData = {}) {
   return {
     matchData: Array.isArray(futureData.matchData) ? futureData.matchData : [],
@@ -24973,60 +25243,446 @@ function normalizeImportedSquadPlayerProfile(source = {}, existingPlayer = {}) {
   return normalized;
 }
 
-function importSquadDataFoundationPayload(payload = {}) {
-  ensurePlayerProfilesState();
-  const incomingPlayers = getImportedSquadPlayersFromPayload(payload);
-  if (!incomingPlayers.length) {
-    renderPlayerProfilesWorkspace("No players found in import file.");
-    return;
+function buildPlayerProfileImportPreviewMessage(plan = {}, options = {}) {
+  if (!plan || typeof plan !== "object") {
+    return {
+      status: "warning",
+      lines: ["No import plan was available."],
+      items: [],
+    };
   }
 
-  let importedCount = 0;
-  const profilesForMedicalSync = [];
-  incomingPlayers.forEach((incomingPlayer) => {
-    const incomingName = String(incomingPlayer.name ?? "").trim();
-    if (!incomingName) {
-      return;
-    }
+  const rows = Array.isArray(plan.rows) ? plan.rows : [];
+  const maxRows = Number.isFinite(options.maxRows) ? options.maxRows : 12;
+  const summary = [
+    `${rows.length} row${rows.length === 1 ? "" : "s"} evaluated.`,
+    `${plan.importedCount || 0} will be applied: ${plan.createdCount || 0} added, ${plan.updatedCount || 0} updated.`,
+    `${plan.skippedCount || 0} row${(plan.skippedCount || 0) === 1 ? "" : "s"} skipped.`,
+    `${plan.duplicateRowsCount || 0} duplicate row${(plan.duplicateRowsCount || 0) === 1 ? "" : "s"} skipped.`,
+  ];
 
-    const existingIndex = playerProfilesState.players.findIndex((player) =>
-      player.id === incomingPlayer.id ||
-      player.name.toLowerCase() === incomingName.toLowerCase()
-    );
-    const existingPlayer = existingIndex >= 0 ? playerProfilesState.players[existingIndex] : {};
-    const normalized = normalizeImportedSquadPlayerProfile(incomingPlayer, existingPlayer);
-    if (!normalized) {
-      return;
-    }
-
-    normalized.id = existingPlayer.id || normalized.id;
-    normalized.updatedAt = new Date().toISOString();
-    if (existingIndex >= 0) {
-      playerProfilesState.players[existingIndex] = normalized;
-    } else {
-      playerProfilesState.players.push(normalized);
-    }
-    profilesForMedicalSync.push(normalized);
-    importedCount += 1;
+  const rowSummary = rows.slice(0, maxRows).map((entry) => {
+    const action = String(entry.action || "skip").toUpperCase();
+    const playerName = String(entry.playerName || entry.name || "Unknown player");
+    const note = entry.message ? ` (${entry.message})` : "";
+    return `Row ${entry.row}: ${action} ${playerName}${note}`;
   });
 
-  playerProfilesState.players.sort(comparePlayerProfiles);
+  return {
+    status: plan.errors && plan.errors.length ? "warning" : "success",
+    lines: summary,
+    items: [
+      ...rowSummary,
+      ...(rows.length > maxRows ? [`... and ${rows.length - maxRows} more row(s).`] : []),
+    ],
+  };
+}
+
+function createPlayerProfileImportUndoSnapshot(plan = {}) {
+  ensurePlayerProfilesState();
+  ensureMedicalState();
+  return {
+    createdAt: new Date().toISOString(),
+    playerProfilesState: clonePlayerProfilesState(playerProfilesState),
+    medicalState: cloneMedicalState(medicalState),
+    preApplyChangeLogId: getRecentPlayerProfileChangeLog(1)[0]?.id || "",
+    plan: {
+      importedCount: Number(plan.importedCount) || 0,
+      createdCount: Number(plan.createdCount) || 0,
+      updatedCount: Number(plan.updatedCount) || 0,
+      sourceRows: Number(plan.sourceRows) || 0,
+    },
+    undoChangeLogId: "",
+  };
+}
+
+function getPlayerProfileImportUndoState() {
+  if (!playerProfileLastImportSnapshot) {
+    return {
+      canUndo: false,
+      reason: "No player profile import can be undone right now.",
+      title: "No import available to undo.",
+      label: "Undo import",
+    };
+  }
+
+  const expectedChangeLogHead = playerProfileLastImportSnapshot.undoChangeLogId || "";
+  const currentChangeLogHead = getRecentPlayerProfileChangeLog(1)[0]?.id || "";
+  if (expectedChangeLogHead && currentChangeLogHead && expectedChangeLogHead !== currentChangeLogHead) {
+    return {
+      canUndo: false,
+      reason: "Undo blocked because newer player profile changes were made after this import.",
+      title: "Undo is no longer safe. Newer profile changes were made after the import.",
+      label: "Undo import",
+    };
+  }
+
+  const importedCount = Number(playerProfileLastImportSnapshot.plan?.importedCount) || 0;
+  const createdCount = Number(playerProfileLastImportSnapshot.plan?.createdCount) || 0;
+  const updatedCount = Number(playerProfileLastImportSnapshot.plan?.updatedCount) || 0;
+  const appliedBy = String(playerProfileLastImportSnapshot.appliedBy || playerProfileLastImportSnapshot.actor || "Unknown");
+  const importedAt = playerProfileLastImportSnapshot.createdAt || "";
+  const appliedAt = playerProfileLastImportSnapshot.appliedAt || importedAt;
+  const appliedAtLabel = appliedAt ? new Date(appliedAt).toLocaleString() : "";
+
+  return {
+    canUndo: true,
+    title: `Undo last import (${importedCount} records, ${createdCount} added, ${updatedCount} updated).`
+      + ` Applied by ${appliedBy}${appliedAtLabel ? ` • ${appliedAtLabel}` : ""}`,
+    label: importedCount ? `Undo import (${importedCount})` : "Undo import",
+    reason: "",
+  };
+}
+
+function applyPlayerProfileImportUndo() {
+  if (!canEditPlayerProfiles()) {
+    return {
+      status: "warning",
+      lines: ["Your role cannot undo player profile imports."],
+    };
+  }
+
+  if (!playerProfileLastImportSnapshot || !playerProfileLastImportSnapshot.playerProfilesState) {
+    playerProfileLastImportSnapshot = null;
+    return {
+      status: "warning",
+      lines: ["No import undo state was available."],
+    };
+  }
+
+  const undoState = getPlayerProfileImportUndoState();
+  if (!undoState.canUndo) {
+    return {
+      status: "warning",
+      lines: [undoState.reason || "The last import cannot be undone at this time."],
+    };
+  }
+
+  const currentChangeLogHead = getRecentPlayerProfileChangeLog(1)[0]?.id || "";
+  const expectedChangeLogHead = playerProfileLastImportSnapshot.undoChangeLogId || "";
+  if (expectedChangeLogHead && currentChangeLogHead && currentChangeLogHead !== expectedChangeLogHead) {
+    return {
+      status: "warning",
+      lines: [
+        "Import cannot be undone because newer player profile changes were made after the import.",
+        "Re-import or revert manually from history.",
+      ],
+    };
+  }
+
+  playerProfilesState = clonePlayerProfilesState(playerProfileLastImportSnapshot.playerProfilesState);
+  medicalState = cloneMedicalState(playerProfileLastImportSnapshot.medicalState || {});
+  playerProfileLastImportSnapshot = null;
+  writePlayerProfilesState();
+  writeMedicalState();
+  return {
+    status: "success",
+    lines: ["Last player profile import was undone."],
+  };
+}
+
+function buildPlayerProfileImportPlan(payload = {}, options = {}) {
+  ensurePlayerProfilesState();
+  const incomingPlayers = getImportedSquadPlayersFromPayload(payload);
+  const sourceRows = Array.isArray(incomingPlayers) ? incomingPlayers.length : 0;
+
+  if (!incomingPlayers.length) {
+    return {
+      ok: false,
+      status: "error",
+      sourceRows,
+      importedCount: 0,
+      createdCount: 0,
+      updatedCount: 0,
+      skippedCount: 0,
+      duplicateRowsCount: 0,
+      errors: [{ row: 0, message: "No players found in import file." }],
+      warnings: [],
+      rows: [],
+      nextPlayers: [...playerProfilesState.players],
+      profilesForMedicalSync: [],
+      canApply: false,
+    };
+  }
+
+  let createdCount = 0;
+  let updatedCount = 0;
+  let skippedCount = 0;
+  let duplicateRowsCount = 0;
+  const warnings = [];
+  const errors = [];
+  const profilesForMedicalSync = [];
+  const nextPlayers = [...playerProfilesState.players];
+  const seenIncomingRows = new Map();
+  const rows = [];
+
+  incomingPlayers.forEach((incomingPlayer, rowIndex) => {
+    const row = rowIndex + 1;
+    if (!incomingPlayer || typeof incomingPlayer !== "object") {
+      errors.push({ row, message: "Import row must be an object." });
+      rows.push({
+        row,
+        action: "skip",
+        message: "Import row must be an object.",
+      });
+      skippedCount += 1;
+      return;
+    }
+
+    const incomingName = String(incomingPlayer.name ?? "").trim();
+    if (!incomingName) {
+      errors.push({ row, message: "Player name is required." });
+      rows.push({
+        row,
+        action: "skip",
+        message: "Player name is required.",
+      });
+      skippedCount += 1;
+      return;
+    }
+
+    const normalizedName = normalizePlayerProfileName(incomingName);
+    const normalizedNumber = String(incomingPlayer.number || "").trim();
+    const importIdentity = `${normalizedName}|${normalizedNumber}`;
+    const previousRow = seenIncomingRows.get(importIdentity);
+    if (previousRow) {
+      const message = `Duplicate row in import file for ${incomingName}. Keeping row ${previousRow} first.`;
+      warnings.push({ row, message });
+      rows.push({
+        row,
+        action: "skip",
+        message,
+      });
+      duplicateRowsCount += 1;
+      skippedCount += 1;
+      return;
+    }
+    seenIncomingRows.set(importIdentity, row);
+
+    const existingIndex = nextPlayers.findIndex((player) =>
+      (incomingPlayer.id && player.id === incomingPlayer.id) ||
+      String(player?.name ?? "").toLowerCase() === incomingName.toLowerCase()
+    );
+    const existingPlayer = existingIndex >= 0 ? nextPlayers[existingIndex] : {};
+
+    const normalized = normalizeImportedSquadPlayerProfile(incomingPlayer, existingPlayer);
+    if (!normalized) {
+      errors.push({ row, message: `Could not normalize ${incomingName}.` });
+      rows.push({
+        row,
+        action: "skip",
+        message: `Could not normalize ${incomingName}.`,
+      });
+      skippedCount += 1;
+      return;
+    }
+
+    const validation = validatePlayerProfileFormValues(
+      {
+        ...normalized,
+        id: existingPlayer.id || normalized.id || createDashboardId("player-profile"),
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        existingPlayers: nextPlayers,
+        ignorePlayerId: existingPlayer.id || "",
+        blockDuplicate: false,
+      }
+    );
+    if (!validation.ok) {
+      validation.errors.forEach((message) => errors.push({ row, message }));
+      rows.push({
+        row,
+        action: "skip",
+        message: validation.errors.join(", "),
+      });
+      skippedCount += 1;
+      return;
+    }
+
+    const nextPlayer = validation.player;
+    if (!nextPlayer) {
+      errors.push({ row, message: `Could not normalize ${incomingName}.` });
+      rows.push({
+        row,
+        action: "skip",
+        message: `Could not normalize ${incomingName}.`,
+      });
+      skippedCount += 1;
+      return;
+    }
+
+    validation.warnings.forEach((message) => warnings.push({ row, message }));
+
+    if (existingIndex >= 0) {
+      nextPlayers[existingIndex] = nextPlayer;
+      updatedCount += 1;
+    } else {
+      nextPlayers.push(nextPlayer);
+      createdCount += 1;
+    }
+    profilesForMedicalSync.push(nextPlayer);
+    rows.push({
+      row,
+      action: existingIndex >= 0 ? "update" : "create",
+      playerName: nextPlayer.name,
+      playerId: nextPlayer.id,
+      message: incomingPlayer.id ? `id ${nextPlayer.id}` : "new profile",
+      matchType: existingIndex >= 0 ? (incomingPlayer.id ? "id match" : "name match") : "new profile",
+    });
+  });
+
+  const importedCount = createdCount + updatedCount;
+  if (!importedCount) {
+    return {
+      ok: false,
+      status: errors.length ? "error" : "warning",
+      sourceRows,
+      importedCount,
+      createdCount,
+      updatedCount,
+      skippedCount,
+      duplicateRowsCount,
+      errors,
+      warnings,
+      rows,
+      nextPlayers,
+      profilesForMedicalSync,
+      canApply: false,
+    };
+  }
+
+  return {
+    ok: true,
+    status: errors.length ? "warning" : "success",
+    sourceRows,
+    importedCount,
+    createdCount,
+    updatedCount,
+    skippedCount,
+    duplicateRowsCount,
+    errors,
+    warnings,
+    rows,
+    nextPlayers,
+    profilesForMedicalSync,
+    canApply: importedCount > 0,
+  };
+}
+
+function importSquadDataFoundationPayload(payload = {}, options = {}) {
+  if (!canEditPlayerProfiles()) {
+    return {
+      ok: false,
+      status: "warning",
+      importedCount: 0,
+      createdCount: 0,
+      updatedCount: 0,
+      skippedCount: 0,
+      errors: [{ row: 0, message: "Your role cannot apply player profile imports." }],
+      warnings: [],
+      rows: [],
+      canApply: false,
+    };
+  }
+
+  const applyChanges = options.apply !== false;
+  const basePlan = options.plan || buildPlayerProfileImportPlan(payload, options);
+  if (!basePlan || typeof basePlan !== "object") {
+    return {
+      ok: false,
+      status: "error",
+      importedCount: 0,
+      createdCount: 0,
+      updatedCount: 0,
+      skippedCount: 0,
+      errors: [{ row: 0, message: "Unable to build import plan." }],
+      warnings: [],
+      rows: [],
+      canApply: false,
+    };
+  }
+
+  if (!applyChanges || !basePlan.canApply) {
+    return {
+      ...basePlan,
+      ok: basePlan.ok,
+      status: basePlan.status,
+    };
+  }
+
+  const preApplyChangeLogId = getRecentPlayerProfileChangeLog(1)[0]?.id || "";
+  if (options.playerProfilesImportLogHeadId && options.playerProfilesImportLogHeadId !== preApplyChangeLogId) {
+    return {
+      ok: false,
+      status: "warning",
+      importedCount: 0,
+      createdCount: 0,
+      updatedCount: 0,
+      skippedCount: 0,
+      errors: [{ row: 0, message: "Import preview is stale. Please re-run the import file and apply again." }],
+      warnings: [],
+      rows: [],
+      sourceRows: 0,
+      duplicateRowsCount: 0,
+      canApply: false,
+    };
+  }
+
+  const preApplySnapshot = createPlayerProfileImportUndoSnapshot(basePlan);
+  const importedCount = basePlan.importedCount || 0;
+  playerProfilesState.players = [...(Array.isArray(basePlan.nextPlayers) ? basePlan.nextPlayers : playerProfilesState.players)]
+    .sort(comparePlayerProfiles);
+
   if (!playerProfilesState.selectedPlayerId && playerProfilesState.players[0]) {
     playerProfilesState.selectedPlayerId = playerProfilesState.players[0].id;
   }
+
   if (importedCount) {
-    recordPlayerProfileChange("squad-import", null, Array.from({ length: importedCount }, (_, index) => ({
-      field: `Player ${index + 1}`,
-      from: "Import file",
-      to: "Squad profile",
-    })));
+    recordPlayerProfileChange(
+      "squad-import",
+      null,
+      Array.from({ length: importedCount }, (_, index) => ({
+        field: `Player ${index + 1}`,
+        from: "Import file",
+        to: "Squad profile",
+      }))
+    );
+    const latestLog = getRecentPlayerProfileChangeLog(1)[0];
+    preApplySnapshot.undoChangeLogId = latestLog?.id || "";
+    preApplySnapshot.appliedBy = latestLog?.actor || getCurrentSquadActorLabel();
+    preApplySnapshot.appliedAt = latestLog?.createdAt || new Date().toISOString();
   }
+  preApplySnapshot.actor = preApplySnapshot.appliedBy;
+  playerProfileLastImportSnapshot = preApplySnapshot;
   writePlayerProfilesState();
-  syncMedicalPlayersFromPlayerProfiles(profilesForMedicalSync);
-  renderPlayerProfilesWorkspace(`${importedCount} player profiles imported.`);
+  syncMedicalPlayersFromPlayerProfiles(basePlan.profilesForMedicalSync || []);
+  writeMedicalState();
+  return {
+    ok: basePlan.ok !== false,
+    status: basePlan.errors && basePlan.errors.length ? "warning" : "success",
+    importedCount: basePlan.importedCount || 0,
+    createdCount: basePlan.createdCount || 0,
+    updatedCount: basePlan.updatedCount || 0,
+    skippedCount: basePlan.skippedCount || 0,
+    errors: basePlan.errors || [],
+    warnings: basePlan.warnings || [],
+    rows: basePlan.rows || [],
+    sourceRows: basePlan.sourceRows || 0,
+    duplicateRowsCount: basePlan.duplicateRowsCount || 0,
+    canApply: false,
+  };
 }
 
 function importSquadDataFoundationFile(file) {
+  if (!canEditPlayerProfiles()) {
+    renderPlayerProfilesWorkspace({
+      status: "warning",
+      lines: ["Your role cannot import player profile changes."],
+    });
+    return;
+  }
+
   if (!file) {
     return;
   }
@@ -25034,9 +25690,34 @@ function importSquadDataFoundationFile(file) {
   const reader = new FileReader();
   reader.onload = () => {
     try {
-      importSquadDataFoundationPayload(JSON.parse(String(reader.result || "{}")));
+      const payload = JSON.parse(String(reader.result || "{}"));
+      const preview = importSquadDataFoundationPayload(payload, { apply: false });
+      if (!preview.canApply) {
+        pendingPlayerProfileImportPlan = null;
+        renderPlayerProfilesWorkspace(buildPlayerProfileImportFeedback(preview));
+        return;
+      }
+
+      const preApplyChangeLogId = getRecentPlayerProfileChangeLog(1)[0]?.id || "";
+      pendingPlayerProfileImportPlan = {
+        ...preview,
+        playerProfilesImportLogHeadId: preApplyChangeLogId,
+      };
+      const previewMessage = buildPlayerProfileImportPreviewMessage(preview, { maxRows: 20 });
+      renderPlayerProfilesWorkspace({
+        status: previewMessage.status || "success",
+        lines: [...previewMessage.lines, "Review changes then choose Apply or Cancel."],
+        items: [],
+      });
     } catch {
-      renderPlayerProfilesWorkspace("Import failed. Please use a valid Squad JSON export.");
+      pendingPlayerProfileImportPlan = null;
+      renderPlayerProfilesWorkspace(
+        buildPlayerProfileImportFeedback({
+          ok: false,
+          status: "error",
+          errors: [{ row: 0, message: "Import failed. Please use a valid Squad JSON export." }],
+        })
+      );
     }
   };
   reader.readAsText(file);
@@ -25066,6 +25747,7 @@ function renderSquadDataQualityRows(report) {
 function renderSquadDataFoundationPanel() {
   const report = buildSquadDataQualityReport();
   const payload = buildSquadDataFoundationPayload();
+  const importUndoState = getPlayerProfileImportUndoState();
 
   return `
     <section class="squad-data-foundation-panel" aria-label="Squad data foundation">
@@ -25120,10 +25802,63 @@ function renderSquadDataFoundationPanel() {
           <div class="squad-data-actions">
             <button type="button" data-squad-data-export>Export JSON</button>
             <button type="button" data-squad-session-export>Export planner CSV</button>
-            <button type="button" data-squad-data-import-open>Import JSON</button>
+            <button
+              type="button"
+              data-squad-data-import-open
+              ${canEditPlayerProfiles() ? "" : "disabled"}
+              title="${canEditPlayerProfiles() ? "Import from Squad JSON export" : "Read-only access"}"
+            >
+              Import JSON
+            </button>
+            <button
+              type="button"
+              data-player-profile-import-undo
+              ${importUndoState.canUndo ? "" : "disabled"}
+              title="${escapeHtml(importUndoState.title || "No import available to undo.")}"
+            >
+              ${escapeHtml(importUndoState.label || "Undo import")}
+            </button>
             <input type="file" accept="application/json,.json" data-squad-data-import-file hidden />
           </div>
         </article>
+      </div>
+    </section>
+  `;
+}
+
+function renderPendingPlayerProfileImport() {
+  if (!pendingPlayerProfileImportPlan) {
+    return "";
+  }
+
+  const preview = buildPlayerProfileImportPreviewMessage(pendingPlayerProfileImportPlan, { maxRows: 20 });
+  const statusClass = preview.status === "error"
+    ? "is-error"
+    : preview.status === "warning"
+    ? "is-warning"
+    : "is-success";
+  const rowItems = Array.isArray(preview.items) ? preview.items : [];
+  return `
+    <section class="player-profile-import-preview ${statusClass}">
+      <div class="player-profile-import-preview-head">
+        <strong>Import preview</strong>
+        <span>${escapeHtml(preview.status || "info")}</span>
+      </div>
+      <p>Source rows: ${pendingPlayerProfileImportPlan.sourceRows || 0}</p>
+      ${preview.lines.length ? `<p>${preview.lines.map((line) => escapeHtml(line)).join("</p><p>")}</p>` : ""}
+      ${rowItems.length
+        ? `<div class="player-profile-import-preview-list-wrap"><ul>${rowItems.map((rowItem) => `<li>${escapeHtml(rowItem)}</li>`).join("")}</ul></div>`
+        : ""}
+      <div class="player-profile-import-preview-actions">
+        <button
+          type="button"
+          class="player-profile-import-apply-button"
+          data-player-profile-import-apply
+          ${pendingPlayerProfileImportPlan.canApply && canEditPlayerProfiles() ? "" : "disabled"}
+        >
+          Apply previewed import
+        </button>
+        <button type="button" data-player-profile-import-cancel>Cancel import preview</button>
       </div>
     </section>
   `;
@@ -25194,7 +25929,8 @@ function renderPlayerProfilesWorkspace(message = "") {
         </div>
       </header>
 
-      ${message ? `<div class="player-profile-message">${escapeHtml(message)}</div>` : ""}
+      ${message ? renderPlayerProfilesWorkspaceMessage(message) : ""}
+      ${renderPendingPlayerProfileImport()}
 
       <section class="squad-workspace-layout squad-workspace-layout-list-first">
         <main class="squad-list-panel" aria-label="Squad overview">
@@ -25313,12 +26049,37 @@ function syncMedicalPlayersFromPlayerProfiles(players = []) {
 
 function addPlayerProfile(values = {}) {
   ensurePlayerProfilesState();
-  const player = normalizePlayerProfile({
-    ...values,
-    roleGroup: getPlayerProfileRoleGroupForRole(values.primaryRole, values.position),
-  });
+  const roleGroup = getPlayerProfileRoleGroupForRole(values.primaryRole, values.position);
+  const result = validatePlayerProfileFormValues(
+    {
+      ...values,
+      roleGroup,
+    },
+    {
+      existingPlayers: playerProfilesState.players,
+    }
+  );
+  if (!result.ok) {
+    return {
+      ok: false,
+      status: result.status || "error",
+      errors: result.errors,
+      warnings: result.warnings,
+      duplicates: result.duplicates,
+      player: null,
+    };
+  }
+
+  const player = result.player;
   if (!player) {
-    return null;
+    return {
+      ok: false,
+      status: "error",
+      errors: ["Player could not be normalized."],
+      warnings: [],
+      duplicates: [],
+      player: null,
+    };
   }
 
   playerProfilesState.players = [...playerProfilesState.players, player].sort(comparePlayerProfiles);
@@ -25331,14 +26092,28 @@ function addPlayerProfile(values = {}) {
   ]);
   writePlayerProfilesState();
   syncMedicalPlayersFromPlayerProfiles([player]);
-  return player;
+  return {
+    ok: true,
+    status: result.status || "success",
+    errors: [],
+    warnings: result.warnings,
+    duplicates: result.duplicates,
+    player,
+  };
 }
 
 function updatePlayerProfile(values = {}) {
   ensurePlayerProfilesState();
   const playerIndex = playerProfilesState.players.findIndex((player) => player.id === values.playerId);
   if (playerIndex < 0) {
-    return false;
+    return {
+      ok: false,
+      status: "error",
+      errors: ["Player profile could not be found."],
+      warnings: [],
+      duplicates: [],
+      player: null,
+    };
   }
 
   const currentPlayer = playerProfilesState.players[playerIndex];
@@ -25370,21 +26145,50 @@ function updatePlayerProfile(values = {}) {
     },
     updatedAt: new Date().toISOString(),
   });
-  if (!nextPlayer) {
-    return false;
+  const validation = validatePlayerProfileFormValues(nextPlayer, {
+    existingPlayers: playerProfilesState.players,
+    ignorePlayerId: currentPlayer.id,
+  });
+  if (!validation.ok) {
+    return {
+      ok: false,
+      status: validation.status || "error",
+      errors: validation.errors,
+      warnings: validation.warnings,
+      duplicates: validation.duplicates,
+      player: null,
+    };
+  }
+  if (!validation.player) {
+    return {
+      ok: false,
+      status: "error",
+      errors: ["Player could not be normalized."],
+      warnings: [],
+      duplicates: [],
+      player: null,
+    };
   }
 
-  const changes = getPlayerProfileChangeDiffs(currentPlayer, nextPlayer);
+  const normalizedNextPlayer = validation.player;
+  const changes = getPlayerProfileChangeDiffs(currentPlayer, normalizedNextPlayer);
   const nextPlayers = [...playerProfilesState.players];
-  nextPlayers[playerIndex] = nextPlayer;
+  nextPlayers[playerIndex] = normalizedNextPlayer;
   playerProfilesState.players = nextPlayers.sort(comparePlayerProfiles);
-  playerProfilesState.selectedPlayerId = nextPlayer.id;
+  playerProfilesState.selectedPlayerId = normalizedNextPlayer.id;
   if (changes.length) {
-    recordPlayerProfileChange("profile-updated", nextPlayer, changes);
+    recordPlayerProfileChange("profile-updated", normalizedNextPlayer, changes);
   }
   writePlayerProfilesState();
-  syncMedicalPlayersFromPlayerProfiles([nextPlayer]);
-  return true;
+  syncMedicalPlayersFromPlayerProfiles([normalizedNextPlayer]);
+  return {
+    ok: true,
+    status: validation.status || "success",
+    errors: [],
+    warnings: validation.warnings,
+    duplicates: validation.duplicates,
+    player: normalizedNextPlayer,
+  };
 }
 
 function removePlayerProfile(playerId) {
@@ -74063,7 +74867,62 @@ ui.playerProfilesWorkspace?.addEventListener("click", (event) => {
   }
 
   if (event.target.closest("[data-squad-data-import-open]")) {
+    if (!canEditPlayerProfiles()) {
+      renderPlayerProfilesWorkspace({
+        status: "warning",
+        lines: ["Your role cannot import player profile changes."],
+      });
+      return;
+    }
+
     ui.playerProfilesWorkspace.querySelector("[data-squad-data-import-file]")?.click();
+    return;
+  }
+
+  const applyImportButton = event.target.closest("[data-player-profile-import-apply]");
+  if (applyImportButton) {
+    if (!canEditPlayerProfiles()) {
+      renderPlayerProfilesWorkspace({
+        status: "warning",
+        lines: ["Your role cannot apply player profile imports."],
+      });
+      return;
+    }
+
+    const pendingImport = pendingPlayerProfileImportPlan;
+    pendingPlayerProfileImportPlan = null;
+    if (!pendingImport || !pendingImport.canApply) {
+      renderPlayerProfilesWorkspace({
+        status: "warning",
+        lines: ["No pending import was available to apply."],
+      });
+      return;
+    }
+
+    const result = importSquadDataFoundationPayload({}, { apply: true, plan: pendingImport });
+    renderPlayerProfilesWorkspace(buildPlayerProfileImportFeedback(result));
+    return;
+  }
+
+  const undoImportButton = event.target.closest("[data-player-profile-import-undo]");
+  if (undoImportButton) {
+    renderPlayerProfilesWorkspace(applyPlayerProfileImportUndo());
+    return;
+  }
+
+  const cancelImportButton = event.target.closest("[data-player-profile-import-cancel]");
+  if (cancelImportButton) {
+    const pendingImport = pendingPlayerProfileImportPlan;
+    pendingPlayerProfileImportPlan = null;
+    renderPlayerProfilesWorkspace({
+      status: "warning",
+      lines: ["Import preview cancelled before applying changes."],
+      items: pendingImport?.rows
+        ? pendingImport.rows.slice(0, 8).map(
+          (entry) => `Row ${entry.row}: ${String(entry.action || "skip").toUpperCase()} ${entry.playerName || "Unknown"} (${entry.message || "skipped"})`
+        )
+        : [],
+    });
     return;
   }
 
@@ -74187,16 +75046,20 @@ ui.playerProfilesWorkspace?.addEventListener("submit", (event) => {
       return;
     }
 
-    const player = addPlayerProfile(getPlatformFormValues(newPlayerForm));
-    newPlayerForm.reset();
-    if (player) {
+    const result = addPlayerProfile(getPlatformFormValues(newPlayerForm));
+    const player = result?.player ?? null;
+    renderPlayerProfilesWorkspace(
+      buildPlayerProfileOperationFeedback(
+        result,
+        player
+          ? `${isTemporaryPlayerProfile(player) ? "Temporary player" : "Player"} added. Medical can now clear them for training dates.`
+          : "Could not add player profile."
+      )
+    );
+    if (result?.ok) {
+      newPlayerForm.reset();
       playerProfileNewPlayerModalOpen = false;
     }
-    renderPlayerProfilesWorkspace(
-      player
-        ? `${isTemporaryPlayerProfile(player) ? "Temporary player" : "Player"} added. Medical can now clear them for training dates.`
-        : "Player name is required."
-    );
     return;
   }
 
@@ -74210,8 +75073,8 @@ ui.playerProfilesWorkspace?.addEventListener("submit", (event) => {
     return;
   }
 
-  const saved = updatePlayerProfile(getPlayerProfileFormValues(editForm));
-  renderPlayerProfilesWorkspace(saved ? "Player profile saved." : "Player profile could not be saved.");
+  const result = updatePlayerProfile(getPlayerProfileFormValues(editForm));
+  renderPlayerProfilesWorkspace(buildPlayerProfileOperationFeedback(result, "Player profile saved."));
 });
 
 ui.sessionPlannerWorkspace?.addEventListener("click", (event) => {

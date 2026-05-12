@@ -22711,7 +22711,9 @@ function sanitizeMedicalRecordForCoachView(record = {}) {
     ? record.status
     : getMedicalStatusForParticipation(participation);
   return {
-    ...record,
+    id: record.id,
+    playerId: record.playerId,
+    date: record.date,
     status: statusKey,
     participation,
     actualParticipation: medicalActualParticipationFallback,
@@ -22723,7 +22725,10 @@ function sanitizeMedicalRecordForCoachView(record = {}) {
       : getMedicalRtpPhaseForRecommendation(statusKey, participation),
     clearance: {},
     gates: {},
+    createdAt: record.createdAt,
     createdBy: "coach-safe",
+    source: record.source || "",
+    injuryPlanId: record.injuryPlanId || "",
   };
 }
 
@@ -22733,9 +22738,14 @@ function sanitizeMedicalInjuryPlanForCoachView(plan = {}) {
     ? plan.status
     : getMedicalStatusForParticipation(participation);
   return {
-    ...plan,
+    id: plan.id,
+    playerId: plan.playerId,
     injuryType: "Availability plan",
     bodyArea: "",
+    startDate: plan.startDate,
+    endDate: plan.endDate,
+    duration: plan.duration,
+    durationUnit: plan.durationUnit,
     status: statusKey,
     participation,
     reviewDate: "",
@@ -22748,6 +22758,8 @@ function sanitizeMedicalInjuryPlanForCoachView(plan = {}) {
     coachNote: plan.shareWithCoach ? String(plan.coachNote ?? "").trim() : "",
     shareWithCoach: normalizeMedicalShareValue(plan.shareWithCoach),
     comment: "",
+    createdAt: plan.createdAt,
+    updatedAt: plan.updatedAt,
     createdBy: "coach-safe",
   };
 }

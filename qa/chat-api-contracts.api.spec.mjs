@@ -1,7 +1,12 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const chatDatabaseSource = readFileSync(path.join(__dirname, "../api/_lib/chat-database.js"), "utf8");
 const chatApi = require("../api/chat.js");
 const {
   applyChatActionToState,
@@ -104,6 +109,13 @@ test("participant filtering protects dm threads", () => {
 
 test("message text trimming is stable", () => {
   expect(normalizeMessageText("  hello\r\nteam  ")).toBe("hello\nteam");
+});
+
+test("database read receipts resolve legacy thread ids before writing", () => {
+  expect(chatDatabaseSource).toContain("createIfMissing === false");
+  expect(chatDatabaseSource).toContain("body.thread_type");
+  expect(chatDatabaseSource).toContain("const thread = await resolveThreadForAction(actor, body, { createIfMissing: false });");
+  expect(chatDatabaseSource).toContain("const [threadSummary] = await enrichThreadSummaries(actor, [thread]);");
 });
 
 test("pin, priority, reactions, and read receipts follow server rules", () => {

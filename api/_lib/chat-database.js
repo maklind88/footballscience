@@ -952,7 +952,7 @@ async function ensureScopedThread(actor, body = {}, scope, options = {}) {
   return thread;
 }
 
-async function resolveThreadForAction(actor, body = {}) {
+async function resolveThreadForAction(actor, body = {}, options = {}) {
   const requestedThreadId = normalizeId(body.threadId || body.thread_id || body.id);
   if (isUuid(requestedThreadId)) {
     return readThread(requestedThreadId);
@@ -963,7 +963,17 @@ async function resolveThreadForAction(actor, body = {}) {
     return null;
   }
 
-  return ensureScopedThread(actor, body, scope);
+  if (options.createIfMissing === false) {
+    const inferredThreadType = requestedThreadId === "team" ? "team" : requestedThreadId.startsWith("dm:") ? "dm" : "group";
+    const type = normalizeThreadType(body.type || body.threadType || body.thread_type || inferredThreadType);
+    const canonicalThreadId = type === "dm" ? canonicalDirectThreadKey(actor, body, requestedThreadId) : requestedThreadId;
+    const legacyKey =
+      legacyThreadKey(canonicalThreadId || body.legacyThreadId || body.legacy_thread_id || type, type) ||
+      `${type}:${actor.id || "staff"}`;
+    return readThreadByLegacyKey(scope, legacyKey, type);
+  }
+
+  return ensureScopedThread(actor, body, scope, options);
 }
 
 async function isThreadParticipant(actor, threadId) {
@@ -1839,11 +1849,14 @@ async function markThreadRead(actor, body) {
     return { ok: false, status: 400, reason: "threadId is required." };
   }
 
-  const thread = await readThread(threadId);
+  const thread = await resolveThreadForAction(actor, body, { createIfMissing: false });
   const access = await ensureThreadAccess(actor, thread);
   if (!access.ok) {
     return access;
   }
+
+  const lastMessageAtMs = Date.parse(thread.last_message_at || "");
+  const lastReadAt = new Date(Math.max(Date.now(), Number.isFinite(lastMessageAtMs) ? lastMessageAtMs : 0)).toISOString();
 
   const payload = {
     thread_id: thread.id,
@@ -1851,7 +1864,7 @@ async function markThreadRead(actor, body) {
     team_id: thread.team_id,
     user_id: actor.id,
     last_read_message_id: lastReadMessageId || thread.last_message_id || null,
-    last_read_at: new Date().toISOString(),
+    last_read_at: lastReadAt,
   };
 
   await insertRows("chat_read_receipts", payload).catch(() => patchRows(
@@ -1863,7 +1876,8 @@ async function markThreadRead(actor, body) {
     }
   ));
 
-  return { ok: true, action: "markThreadRead", thread };
+  const [threadSummary] = await enrichThreadSummaries(actor, [thread]);
+  return { ok: true, action: "markThreadRead", thread: threadSummary || thread };
 }
 
 async function clearThread(actor, body) {

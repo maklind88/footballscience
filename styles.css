@@ -15593,9 +15593,12 @@ backdrop-filter: blur(16px);
 }
 .squad-profile-modal{
 position: relative;
+display: grid;
+grid-template-rows: auto minmax(0, 1fr);
+gap: 0.55rem;
 width: min(66rem, 100%);
 max-height: min(88vh, 58rem);
-overflow: auto;
+overflow: hidden;
 padding: 0.75rem;
 border-radius: 18px;
 background:
@@ -15604,11 +15607,14 @@ linear-gradient(180deg, rgba(250, 251, 252, 0.98), rgba(241, 243, 245, 0.98)),
 border: 1px solid rgba(255, 255, 255, 0.72);
 box-shadow: 0 28px 80px rgba(0, 0, 0, 0.24);
 }
+.squad-profile-modal:not(.squad-new-player-modal){ height: min(88vh, 58rem); }
+.squad-profile-modal-body{ min-height: 0; overflow: auto; padding-right: 0.12rem; }
 .squad-profile-modal .squad-player-workbench{
 position: static;
 }
 .squad-new-player-modal{
 width: min(42rem, 100%);
+height: auto;
 }
 .squad-new-player-modal .squad-add-player-card{
 padding: 0.15rem;
@@ -15617,16 +15623,13 @@ background: transparent;
 box-shadow: none;
 }
 .squad-profile-modal-close{
-position: sticky;
-top: 0;
-z-index: 2;
-float: right;
+justify-self: end;
 display: inline-flex;
 align-items: center;
 justify-content: center;
 width: 2.35rem;
 height: 2.35rem;
-margin: 0 0 0.45rem 0.65rem;
+margin: 0;
 border: 1px solid rgba(29, 29, 31, 0.1);
 border-radius: 999px;
 color: #1d1d1f;
@@ -16090,7 +16093,8 @@ width: min(10rem, 100%);
 }
 .squad-form-actions{
 display: grid;
-grid-template-columns: minmax(0, 1fr) auto;
+grid-template-columns: minmax(0, 1fr);
+justify-items: end;
 gap: 0.48rem;
 }
 .squad-profile-form button{

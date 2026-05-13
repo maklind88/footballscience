@@ -4285,6 +4285,7 @@ let playerProfilesRosterFilter = "all";
 let playerProfileActiveTab = "overview";
 let playerProfileModalOpen = false;
 let playerProfileNewPlayerModalOpen = false;
+let playerProfileAutosaveTimer = 0, playerProfileAutosaveLastSignature = "";
 const playerProfileImportUndoHistoryLimit = 3;
 let playerProfileImportUndoHistory = [];
 let playerProfileLastImportSnapshot = null;
@@ -23714,7 +23715,7 @@ function openPlayerProfileModal(playerId) {
   playerProfileModalOpen = true;
   playerProfileNewPlayerModalOpen = false;
   writePlayerProfilesState();
-  renderPlayerProfilesWorkspace();
+  renderPlayerProfilesWorkspace(); playerProfileAutosaveLastSignature = getPlayerProfileFormSignature(ui.playerProfilesWorkspace?.querySelector("#playerProfileEditForm"));
 }
 
 function closePlayerProfileModal() {
@@ -23722,7 +23723,7 @@ function closePlayerProfileModal() {
     return;
   }
 
-  playerProfileModalOpen = false;
+  flushPlayerProfileAutosave(); playerProfileModalOpen = false;
   renderPlayerProfilesWorkspace();
 }
 
@@ -24890,10 +24891,7 @@ function renderPlayerProfileSelectedPanel(player) {
             </div>
           </section>
 
-          <div class="squad-form-actions">
-            <button type="submit" ${canEdit ? "" : "disabled"}>Save profile</button>
-            <button type="button" class="squad-danger-button" data-player-profile-remove="${escapeHtml(player.id)}" ${canEdit ? "" : "disabled"}>Remove</button>
-          </div>
+          ${isCurrentPlatformUserAdmin() ? `<div class="squad-form-actions"><button type="button" class="squad-danger-button" data-player-profile-remove="${escapeHtml(player.id)}">Remove</button></div>` : ""}
         </form>
       </article>
       ${activeTab === "medical" ? renderPlayerProfileMedicalPanel(player) : ""}
@@ -24924,7 +24922,7 @@ function renderPlayerProfileModal(player) {
         >
           &times;
         </button>
-        ${renderPlayerProfileSelectedPanel(player)}
+        <div class="squad-profile-modal-body">${renderPlayerProfileSelectedPanel(player)}</div>
       </div>
     </div>
   `;
@@ -25006,7 +25004,7 @@ function renderPlayerProfileNewPlayerModal() {
         >
           &times;
         </button>
-        ${renderPlayerProfileNewPlayerCard()}
+        <div class="squad-profile-modal-body">${renderPlayerProfileNewPlayerCard()}</div>
       </div>
     </div>
   `;
@@ -26858,6 +26856,10 @@ function getPlayerProfileFormValues(form) {
   };
 }
 
+function getPlayerProfileFormSignature(form) { try { return form ? JSON.stringify(getPlayerProfileFormValues(form)) : ""; } catch { return ""; } }
+function savePlayerProfileEditForm(form) { if (!form || !canEditPlayerProfiles() || form.checkValidity?.() === false) return null; const signature = getPlayerProfileFormSignature(form); if (signature && signature === playerProfileAutosaveLastSignature) return { ok: true, skipped: true }; const result = updatePlayerProfile(getPlayerProfileFormValues(form)); if (result?.ok) playerProfileAutosaveLastSignature = getPlayerProfileFormSignature(form); return result; }
+function queuePlayerProfileAutosave(form, delayMs = 420) { if (!form || !canEditPlayerProfiles()) return; window.clearTimeout(playerProfileAutosaveTimer); playerProfileAutosaveTimer = window.setTimeout(() => { playerProfileAutosaveTimer = 0; savePlayerProfileEditForm(form); }, delayMs); } function flushPlayerProfileAutosave() { const form = ui.playerProfilesWorkspace?.querySelector("#playerProfileEditForm"); window.clearTimeout(playerProfileAutosaveTimer); playerProfileAutosaveTimer = 0; return savePlayerProfileEditForm(form); }
+
 function buildMedicalPlayerFromPlayerProfile(player = {}) {
   const now = new Date().toISOString();
   const createdAt = String(player.createdAt || "").trim() || now;
@@ -27040,6 +27042,7 @@ function updatePlayerProfile(values = {}) {
 }
 
 function removePlayerProfile(playerId) {
+  if (!isCurrentPlatformUserAdmin()) return false;
   ensurePlayerProfilesState();
   const removedPlayer = playerProfilesState.players.find((player) => player.id === playerId) ?? null;
   const nextPlayers = playerProfilesState.players.filter((player) => player.id !== playerId);
@@ -27054,6 +27057,7 @@ function removePlayerProfile(playerId) {
   if (removedPlayer) {
     removeMedicalPlayer(removedPlayer.id);
   }
+  return true;
 }
 
 function createSessionPlannerPlayerProfileContract(player, dateValue = formatScheduleDateValue(new Date())) {
@@ -75829,8 +75833,8 @@ ui.playerProfilesWorkspace?.addEventListener("click", (event) => {
 
   const tabButton = event.target.closest("[data-player-profile-tab]");
   if (tabButton) {
-    playerProfileActiveTab = normalizePlayerProfileTab(tabButton.dataset.playerProfileTab);
-    renderPlayerProfilesWorkspace();
+    flushPlayerProfileAutosave(); playerProfileActiveTab = normalizePlayerProfileTab(tabButton.dataset.playerProfileTab);
+    renderPlayerProfilesWorkspace(); playerProfileAutosaveLastSignature = getPlayerProfileFormSignature(ui.playerProfilesWorkspace?.querySelector("#playerProfileEditForm"));
     return;
   }
 
@@ -75935,31 +75939,29 @@ ui.playerProfilesWorkspace?.addEventListener("click", (event) => {
   }
 
   const removeButton = event.target.closest("[data-player-profile-remove]");
-  if (!removeButton || !canEditPlayerProfiles()) {
-    return;
-  }
+  if (!removeButton) return;
+  if (!isCurrentPlatformUserAdmin()) { renderPlayerProfilesWorkspace({ status: "warning", lines: ["Only team admins can remove players from Squad Room."] }); return; }
 
   ensurePlayerProfilesState();
   const player = playerProfilesState.players.find((candidate) => candidate.id === removeButton.dataset.playerProfileRemove);
   if (player && window.confirm(`Remove ${player.name} from Player Profiles?`)) {
-    removePlayerProfile(player.id);
+    const removed = removePlayerProfile(player.id);
     playerProfileModalOpen = false;
     playerProfileNewPlayerModalOpen = false;
-    renderPlayerProfilesWorkspace("Player removed.");
+    renderPlayerProfilesWorkspace(removed ? "Player removed." : { status: "warning", lines: ["Only team admins can remove players from Squad Room."] });
   }
 });
 
 ui.playerProfilesWorkspace?.addEventListener("input", (event) => {
   const searchInput = event.target.closest("[data-player-profile-search]");
-  if (!searchInput) {
-    return;
-  }
-
-  playerProfilesSearchQuery = searchInput.value;
-  renderPlayerProfilesWorkspace();
+  if (searchInput) { playerProfilesSearchQuery = searchInput.value; renderPlayerProfilesWorkspace(); return; }
+  const editForm = event.target.closest("#playerProfileEditForm");
+  if (editForm) { const label = event.target.type === "range" ? event.target.closest("label")?.querySelector("strong") : null; if (label) label.textContent = `${event.target.value}/5`; queuePlayerProfileAutosave(editForm); }
 });
 
 ui.playerProfilesWorkspace?.addEventListener("change", (event) => {
+  const editForm = event.target.closest("#playerProfileEditForm");
+  if (editForm) { queuePlayerProfileAutosave(editForm, 0); return; }
   const importInput = event.target.closest("[data-squad-data-import-file]");
   if (importInput) {
     const file = importInput.files?.[0] ?? null;
@@ -76066,8 +76068,8 @@ ui.playerProfilesWorkspace?.addEventListener("submit", (event) => {
     return;
   }
 
-  const result = updatePlayerProfile(getPlayerProfileFormValues(editForm));
-  renderPlayerProfilesWorkspace(buildPlayerProfileOperationFeedback(result, "Player profile saved."));
+  const result = savePlayerProfileEditForm(editForm);
+  if (result && !result.ok) renderPlayerProfilesWorkspace(buildPlayerProfileOperationFeedback(result, "Player profile could not be saved."));
 });
 
 ui.sessionPlannerWorkspace?.addEventListener("click", (event) => {

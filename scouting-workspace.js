@@ -1545,7 +1545,7 @@ function renderScoutingComparisonLabPanel() {
                 .map((entry) => {
                   const roleFit = getScoutingRoleFitScore(entry.record);
                   const bestSignal = getScoutingBestSignal(entry.record);
-                  return `
+                    return `
                     <article class="scouting-target-card">
                       <div class="scouting-target-main">
                         <strong>${escapeHtml(getScoutingRecordName(entry.record))}</strong>
@@ -1554,7 +1554,7 @@ function renderScoutingComparisonLabPanel() {
                       <p class="scouting-fit-line">${escapeHtml(metric?.label || "Metric")}: ${escapeHtml(formatScoutingNumber(entry.value))}${entry.percentile ? ` · P${escapeHtml(entry.percentile)}` : ""}</p>
                       <p class="scouting-note-line">Role fit ${escapeHtml(getScoutingRoleFitLabel(roleFit))} ${Number.isFinite(roleFit) ? `· P${escapeHtml(roleFit)}` : ""}</p>
                       <p class="scouting-note-line">Best signal: ${escapeHtml(bestSignal ? `${bestSignal.metric.label} · P${bestSignal.percentile}` : "No signal")}</p>
-                      <button type="button" class="scouting-secondary-button" data-open-scouting-record="${escapeHtml(entry.recordId)}">Open profile</button>
+                      <button type="button" class="scouting-secondary-button" data-open-scouting-record="${escapeHtml(getScoutingRecordId(entry.record))}">Open profile</button>
                     </article>
                   `;
                 })

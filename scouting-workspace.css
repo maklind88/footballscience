@@ -336,6 +336,18 @@ body.is-dark-mode .scouting-target-board-column{
 background: rgba(15, 23, 42, 0.86);
 border-color: rgba(148, 163, 184, 0.2);
 }
+body.is-dark-mode .scouting-target-board h2,
+body.is-dark-mode .scouting-comparison-lab h2,
+body.is-dark-mode .scouting-role-models h2,
+body.is-dark-mode .scouting-reports-form-card h2,
+body.is-dark-mode .scouting-reports-list h2,
+body.is-dark-mode .scouting-target-board-head h3,
+body.is-dark-mode .scouting-comparison-summary{
+color: var(--ink);
+}
+body.is-dark-mode .scouting-comparison-summary{
+color: var(--muted);
+}
 .scouting-content{
 display: block;
 }

@@ -2158,6 +2158,37 @@ function getScoutingRecordMiniRadarMarkup(record) {
   scoutingRecordMiniRadarCache.set(cacheKey, markup);
   return markup;
 }
+function hydrateScoutingRecordMiniRadarShell(shell = null) {
+  if (!shell || shell.dataset.scoutingMiniRadarLoaded === "1") {
+    return;
+  }
+  const shellRecordId = normalizeScoutingText(shell.dataset.scoutingMiniRadarShell, 160);
+  if (!shellRecordId) {
+    return;
+  }
+  const record = getScoutingRecordById(shellRecordId);
+  if (!record) {
+    return;
+  }
+  const popover = shell.querySelector("[role='img']");
+  if (!popover) {
+    return;
+  }
+  shell.dataset.scoutingMiniRadarLoaded = "1";
+  popover.innerHTML = getScoutingRecordMiniRadarMarkup(record);
+}
+function bindScoutingRecordMiniRadarShells() {
+  const nodes = ui.scoutingWorkspace?.querySelectorAll("[data-scouting-mini-radar-shell]") || [];
+  nodes.forEach((shell) => {
+    if (shell.dataset.scoutingMiniRadarBound === "1") {
+      return;
+    }
+    const hydrate = () => hydrateScoutingRecordMiniRadarShell(shell);
+    shell.addEventListener("mouseenter", hydrate, { passive: true });
+    shell.addEventListener("focusin", hydrate, { passive: true });
+    shell.dataset.scoutingMiniRadarBound = "1";
+  });
+}
 function getScoutingRecordSeason(record) {
   return normalizeScoutingText(record?.[scoutingRecordIndex.season], 80);
 }
@@ -4001,6 +4032,16 @@ function getFilteredScoutingDatabaseRecords() {
   const sortMetricId = filters.sortMetricId || metricFilterId || "minutes";
   const signalMode = filters.signalMode || "all";
   const marketStatus = filters.marketStatus || "all";
+  const isApiSimplePageView =
+    isApi &&
+    !Boolean(sortMetricId && !["minutes", "matches"].includes(sortMetricId)) &&
+    signalMode === "all" &&
+    marketStatus === "all" &&
+    !roleProfileId &&
+    !metricFilterId &&
+    !(Number.isFinite(roleFitMin) && roleFitMin > 0) &&
+    !(Number.isFinite(roleFloorMin) && roleFloorMin > 0) &&
+    !(Number.isFinite(metricMin) && metricMin > 0);
   const selectedRoleProfile = roleProfileId ? getScoutingRoleProfileById(roleProfileId) : null;
   const selectedRoleCategory = getScoutingRoleCategoryGroup(roleProfileId);
   const includeFavoritesFilter = signalMode === "favorites";
@@ -4047,6 +4088,14 @@ function getFilteredScoutingDatabaseRecords() {
   ].join("|");
   if (scoutingFilteredDatabaseCache.key === filterCacheKey) {
     return scoutingFilteredDatabaseCache.records;
+  }
+  if (isApiSimplePageView) {
+    const simpleRecords = Array.isArray(records) ? records : [];
+    scoutingFilteredDatabaseCache = {
+      key: filterCacheKey,
+      records: simpleRecords,
+    };
+    return simpleRecords;
   }
   const roleFitCache = needsRoleFit ? new Map() : null;
   const metricFilterCache = metricFilterId && Number.isFinite(metricMin) && metricMin > 0 ? new Map() : null;
@@ -8775,6 +8824,7 @@ function renderScoutingRecordCard(record, options = {}) {
   const lightweight = Boolean(options.lightweight);
   const state = ensureScoutingState();
   const recordId = getScoutingRecordId(record);
+  const filters = normalizeScoutingDatabaseFilters(state.databaseFilters);
   const selectedSlotId = getSelectedScoutingShadowSlotId(state);
   const selectedSlot = getScoutingShadowSlot(selectedSlotId);
   const inSelectedSlot = selectedSlotId ? getScoutingShadowSlotRecordIds(selectedSlotId, state).includes(recordId) : false;
@@ -8784,20 +8834,31 @@ function renderScoutingRecordCard(record, options = {}) {
   const percentile = metric && sortMetricId !== "minutes" && sortMetricId !== "matches" ? getScoutingComparablePercentile(record, sortMetricId) : null;
   const age = getScoutingRecordAge(record);
   const favorite = isScoutingRecordFavorited(recordId);
-  const roleFitScore = getScoutingRoleFitScore(record);
-  const recommendation = lightweight
-    ? {
-        score: roleFitScore,
-        label:
-          roleFitScore >= 82 ? "Strong fit" : roleFitScore >= 70 ? "Potential fit" : Number.isFinite(roleFitScore) ? "Watchlist" : "No signal",
-        detail: Number.isFinite(roleFitScore) ? `Role fit score ${roleFitScore}` : "Limited scouting profile data",
-      }
-    : getScoutingIntelligenceProfile(record, state).recommendation;
+  const roleProfileId = normalizeScoutingRoleProfileId(filters.roleProfileId, "all");
+  const signalMode = filters.signalMode || "all";
+  const metricId = filters.metricId || "all";
+  const roleFitMin = Number(filters.roleFitMin);
+  const roleFloorMin = Number(filters.roleFloorMin);
+  const metricMin = Number(filters.metricMin);
+  const shouldComputeFullSignal = sortMetricId === "role-fit" ||
+    roleProfileId !== "all" ||
+    (Number.isFinite(roleFitMin) && roleFitMin > 0) ||
+    (Number.isFinite(roleFloorMin) && roleFloorMin > 0) ||
+    ["priority", "decision-ready", "breakout", "value"].includes(signalMode) ||
+    (metricId !== "all" && Number.isFinite(metricMin) && metricMin > 0);
+  const roleFitScore = shouldComputeFullSignal ? getScoutingRoleFitScore(record, roleProfileId || "") : null;
+  const recommendation = shouldComputeFullSignal
+    ? getScoutingIntelligenceProfile(record, state, roleProfileId || "").recommendation
+    : {
+        score: null,
+        label: "No signal",
+        detail: "Open profile for full scouting recommendation and risk details.",
+      };
   const inCompareSet = isScoutingRecordInCompareSet(recordId, state);
   const isExpanded = normalizeScoutingText(state.databaseExpandedRecordId, 160) === recordId;
   const position = getScoutingRecordPosition(record) || "No position";
   const team = getScoutingRecordTeam(record) || "No club";
-  const role = getScoutingRecordBestRoleLabel(record);
+  const role = shouldComputeFullSignal ? getScoutingRecordBestRoleLabel(record) : getScoutingDefaultRoleProfile(record)?.label || "General";
   const nationality = getScoutingRecordNationalityMeta(record);
   const ageDisplay = Number.isFinite(age) ? `${formatScoutingNumber(age)} yrs` : "N/A";
   const recommendationTone = getScoutingRecommendationTone(recommendation.label);
@@ -8810,8 +8871,8 @@ function renderScoutingRecordCard(record, options = {}) {
     <article class="scouting-record-card${isExpanded ? " is-expanded" : ""}" data-open-scouting-record="${escapeHtml(recordId)}" tabindex="0" role="button">
       <div class="scouting-record-avatar-shell">
         ${renderScoutingRecordAvatar(record)}
-        <div class="scouting-record-mini-radar-popover" role="img" aria-label="Player role spider">
-          ${getScoutingRecordMiniRadarMarkup(record)}
+        <div class="scouting-record-mini-radar-popover" role="img" aria-label="Player role spider" data-scouting-mini-radar-shell="${escapeHtml(recordId)}">
+          <span class="scouting-mini-radar-placeholder" aria-hidden="true">◌</span>
         </div>
       </div>
       <div class="scouting-record-name-cell">
@@ -10527,6 +10588,7 @@ function renderScoutingWorkspace(options = {}) {
   `;
   restoreScoutingFocus(focusSnapshot);
   bindScoutingDragAndDrop();
+  bindScoutingRecordMiniRadarShells();
 }
 function refreshScoutingWorkspaceSummaryMetrics() {
   if (!ui.scoutingWorkspace) {
@@ -10575,6 +10637,7 @@ function rerenderScoutingActiveContent(options = {}) {
     restoreScoutingFocus(focusSnapshot);
   }
   bindScoutingDragAndDrop();
+  bindScoutingRecordMiniRadarShells();
   return true;
 }
 function refreshScoutingWorkspaceAfterLocalMutation(options = {}) {
@@ -10800,6 +10863,7 @@ function renderScoutingDatabaseResults() {
     ui.scoutingWorkspace?.querySelector("[data-scouting-database-paging]")?.remove();
     grid.insertAdjacentHTML("afterend", renderScoutingDatabasePagingControls(results.paging));
   }
+  bindScoutingRecordMiniRadarShells();
   loadScoutingImportHistory();
 }
 function scheduleScoutingDatabaseRefresh() {

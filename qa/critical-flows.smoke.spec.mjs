@@ -803,6 +803,18 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
   await expect(page.locator(".squad-table thead").first()).toContainText("IDP");
   await expect(page.locator(".squad-player-row").first()).toContainText("Goalkeeper");
   await expect(page.locator(".squad-player-row").first().locator(".squad-age-cell")).toHaveText(/^-|\d+$/);
+  await expect
+    .poll(async () => {
+      const playerCell = await page.locator(".squad-player-row").first().locator("td").nth(0).boundingBox();
+      return playerCell ? Math.round(playerCell.width) : 999;
+    })
+    .toBeLessThanOrEqual(290);
+  await expect
+    .poll(async () => {
+      const ageCell = await page.locator(".squad-player-row").first().locator("td").nth(1).boundingBox();
+      return ageCell ? Math.round(ageCell.width) : 999;
+    })
+    .toBeLessThanOrEqual(90);
   await expect(page.locator(".squad-player-row").first().locator(".squad-role-cell small")).toHaveCount(0);
   await expect(page.locator(".squad-player-row").first().locator(".squad-planning-cell small")).toHaveCount(0);
   await expect(page.locator(".squad-player-row").first().locator(".squad-idp-cell")).toContainText(/IDP|Review|Monitor/);

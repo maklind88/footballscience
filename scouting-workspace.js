@@ -4361,7 +4361,9 @@ function getScoutingShadowSlotRecordIds(slotId, state = ensureScoutingState()) {
   return normalizeScoutingRecordIds(Array.isArray(slotValue) ? slotValue : slotValue ? [slotValue] : []);
 }
 function getScoutingShadowSlotRecords(slotId, state = ensureScoutingState()) {
-  return getScoutingShadowSlotRecordIds(slotId, state).map(getScoutingRecordById).filter(Boolean);
+  return getScoutingShadowSlotRecordIds(slotId, state)
+    .map((recordId) => getScoutingRecordById(recordId) || getScoutingShadowFallbackRecord(slotId, recordId, state))
+    .filter(Boolean);
 }
 function getScoutingShadowMetaKey(slotId, recordId) {
   return `${normalizeScoutingText(slotId, 40)}:${normalizeScoutingText(recordId, 160)}`;
@@ -4373,7 +4375,32 @@ function getScoutingShadowRecordMeta(slotId, recordId, state = ensureScoutingSta
     tag: normalizeScoutingShadowTag(value.tag),
     note: normalizeScoutingText(value.note, 180),
     updatedAt: normalizeScoutingText(value.updatedAt, 40),
+    playerName: normalizeScoutingText(value.playerName, 180),
+    team: normalizeScoutingText(value.team, 180),
+    league: normalizeScoutingText(value.league, 180),
+    season: normalizeScoutingText(value.season, 80),
+    position: normalizeScoutingText(value.position, 120),
   };
+}
+function getScoutingShadowFallbackRecord(slotId, recordId, state = ensureScoutingState()) {
+  const id = normalizeScoutingText(recordId, 160);
+  if (!id) {
+    return null;
+  }
+  const meta = getScoutingShadowRecordMeta(slotId, id, state);
+  const record = [];
+  record[scoutingRecordIndex.id] = id;
+  record[scoutingRecordIndex.player] = meta.playerName || "Shortlisted player";
+  record[scoutingRecordIndex.team] = meta.team || "";
+  record[scoutingRecordIndex.teamWithinTimeframe] = meta.team || "";
+  record[scoutingRecordIndex.league] = meta.league || "";
+  record[scoutingRecordIndex.season] = meta.season || "";
+  record[scoutingRecordIndex.position] = meta.position || "";
+  record[scoutingRecordIndex.age] = "";
+  record[scoutingRecordIndex.matches] = "";
+  record[scoutingRecordIndex.minutes] = 0;
+  record[scoutingRecordIndex.metrics] = {};
+  return record;
 }
 function setScoutingShadowRecordMeta(slotId, recordId, patch = {}) {
   if (!canEditScoutingWorkspace()) {
@@ -8374,6 +8401,7 @@ function addScoutingRecordToShadow(recordId, slotId) {
   }
   const state = ensureScoutingState();
   const id = normalizeScoutingText(recordId, 160);
+  const record = getScoutingRecordById(id);
   const slot =
     getScoutingShadowSlot(slotId) ||
     getScoutingShadowSlot(state.shadowXi?.selectedSlotId) ||
@@ -8392,6 +8420,11 @@ function addScoutingRecordToShadow(recordId, slotId) {
     [getScoutingShadowMetaKey(slot.id, id)]: {
       ...getScoutingShadowRecordMeta(slot.id, id, state),
       tag: getScoutingRecordAge(getScoutingRecordById(id)) <= 23 ? "u23" : currentRecordIds.length ? "backup" : "first-choice",
+      playerName: record ? getScoutingRecordName(record) : "",
+      team: record ? getScoutingRecordTeam(record) : "",
+      league: record ? getScoutingRecordLeague(record) : "",
+      season: record ? getScoutingRecordSeason(record) : "",
+      position: record ? normalizeScoutingText(record?.[scoutingRecordIndex.position], 120) : "",
       updatedAt: new Date().toISOString(),
     },
   };

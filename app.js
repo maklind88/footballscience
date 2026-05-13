@@ -27070,934 +27070,934 @@ attentionPlayers.length
 <strong>${medicalState.players.length}</strong>
 </div>
 <div class="medical-position-load">
-          ${positionSummaries
-            .map(
-              (summary) => `
-                <div class="medical-position-row">
-                  <span>${escapeHtml(summary.position)}</span>
-                  <div class="medical-position-track">
-                    <span style="width: ${summary.average ?? 0}%"></span>
-                  </div>
-                  <strong>${summary.average === null ? "-" : `${summary.average}%`}</strong>
-                  <small>${summary.logged}/${summary.players}</small>
-                </div>
-              `
-            )
-            .join("")}
-        </div>
-      </article>
-      <article class="medical-command-card medical-review-card">
-        <div class="medical-command-head">
-          <span>Review Alerts</span>
-          <strong>${reviewAlerts.length}</strong>
-        </div>
-        <div class="medical-mini-list">
-          ${
-            reviewAlerts.length
-              ? reviewAlerts
-                  .slice(0, 5)
-                  .map(
-                    ({ player, plan, isOverdue }) => `
-                      <button type="button" data-medical-select-player="${escapeHtml(player.id)}" class="${isOverdue ? "is-overdue" : ""}">
-                        <span>${escapeHtml(player.name)}</span>
-                        <small>${escapeHtml(isOverdue ? "Overdue" : formatMedicalDateLabel(plan.reviewDate))} / ${escapeHtml(getMedicalRtpPhaseOption(plan.rtpPhase).label)}</small>
-                      </button>
-                    `
-                  )
-                  .join("")
-              : `<div class="medical-empty-inline">No medical reviews due in the next 7 days.</div>`
-          }
-        </div>
-      </article>
-    </section>
-  `;
+${positionSummaries
+.map(
+(summary) => `
+<div class="medical-position-row">
+<span>${escapeHtml(summary.position)}</span>
+<div class="medical-position-track">
+<span style="width: ${summary.average ?? 0}%"></span>
+</div>
+<strong>${summary.average === null ? "-" : `${summary.average}%`}</strong>
+<small>${summary.logged}/${summary.players}</small>
+</div>
+`
+)
+.join("")}
+</div>
+</article>
+<article class="medical-command-card medical-review-card">
+<div class="medical-command-head">
+<span>Review Alerts</span>
+<strong>${reviewAlerts.length}</strong>
+</div>
+<div class="medical-mini-list">
+${
+reviewAlerts.length
+? reviewAlerts
+.slice(0, 5)
+.map(
+({ player, plan, isOverdue }) => `
+<button type="button" data-medical-select-player="${escapeHtml(player.id)}" class="${isOverdue ? "is-overdue" : ""}">
+<span>${escapeHtml(player.name)}</span>
+<small>${escapeHtml(isOverdue ? "Overdue" : formatMedicalDateLabel(plan.reviewDate))} / ${escapeHtml(getMedicalRtpPhaseOption(plan.rtpPhase).label)}</small>
+</button>
+`
+)
+.join("")
+: `<div class="medical-empty-inline">No medical reviews due in the next 7 days.</div>`
+}
+</div>
+</article>
+</section>
+`;
 }
 function renderMedicalDateStrip() {
-  ensureMedicalState();
-  const todayValue = formatScheduleDateValue(new Date());
-  return `
-    <section class="medical-date-strip" aria-label="Medical recommendation dates">
-      <button type="button" class="medical-icon-button" data-medical-shift-date="-1" aria-label="Previous day">&larr;</button>
-      <input type="date" value="${escapeHtml(medicalState.selectedDate)}" data-medical-date-picker aria-label="Selected medical date" />
-      <button type="button" class="medical-today-button" data-medical-today>Today</button>
-      <button type="button" class="medical-icon-button" data-medical-shift-date="1" aria-label="Next day">&rarr;</button>
-      <div class="medical-window-days">
-        ${getMedicalWindowDates()
-          .map((dateValue) => {
-            const isActive = dateValue === medicalState.selectedDate;
-            const isToday = dateValue === todayValue;
-            return `
-              <button
-                type="button"
-                class="medical-window-day${isActive ? " is-active" : ""}${isToday ? " is-today" : ""}"
-                data-medical-set-date="${escapeHtml(dateValue)}"
-              >
-                <span>${escapeHtml(formatMedicalDateLabel(dateValue))}</span>
-                <small>${escapeHtml(getMedicalScheduleSummary(dateValue))}</small>
-              </button>
-            `;
-          })
-          .join("")}
-      </div>
-    </section>
-  `;
+ensureMedicalState();
+const todayValue = formatScheduleDateValue(new Date());
+return `
+<section class="medical-date-strip" aria-label="Medical recommendation dates">
+<button type="button" class="medical-icon-button" data-medical-shift-date="-1" aria-label="Previous day">&larr;</button>
+<input type="date" value="${escapeHtml(medicalState.selectedDate)}" data-medical-date-picker aria-label="Selected medical date" />
+<button type="button" class="medical-today-button" data-medical-today>Today</button>
+<button type="button" class="medical-icon-button" data-medical-shift-date="1" aria-label="Next day">&rarr;</button>
+<div class="medical-window-days">
+${getMedicalWindowDates()
+.map((dateValue) => {
+const isActive = dateValue === medicalState.selectedDate;
+const isToday = dateValue === todayValue;
+return `
+<button
+type="button"
+class="medical-window-day${isActive ? " is-active" : ""}${isToday ? " is-today" : ""}"
+data-medical-set-date="${escapeHtml(dateValue)}"
+>
+<span>${escapeHtml(formatMedicalDateLabel(dateValue))}</span>
+<small>${escapeHtml(getMedicalScheduleSummary(dateValue))}</small>
+</button>
+`;
+})
+.join("")}
+</div>
+</section>
+`;
 }
 function renderMedicalDayCell(player, dateValue) {
-  const record = getLatestMedicalRecord(player.id, dateValue);
-  const status = getMedicalRecordStatus(record);
-  const value = record ? `${record.participation}%` : "--";
-  return `
-    <span
-      class="medical-day-cell medical-tone-${escapeHtml(status.tone)}"
-      title="${escapeHtml(formatMedicalDateLabel(dateValue, "long"))}: ${escapeHtml(status.label)}"
-    >
-      ${escapeHtml(value)}
-    </span>
-  `;
+const record = getLatestMedicalRecord(player.id, dateValue);
+const status = getMedicalRecordStatus(record);
+const value = record ? `${record.participation}%` : "--";
+return `
+<span
+class="medical-day-cell medical-tone-${escapeHtml(status.tone)}"
+title="${escapeHtml(formatMedicalDateLabel(dateValue, "long"))}: ${escapeHtml(status.label)}"
+>
+${escapeHtml(value)}
+</span>
+`;
 }
 function renderMedicalSquadCard(player) {
-  const record = getLatestMedicalRecord(player.id, medicalState.selectedDate);
-  const status = getMedicalRecordStatus(record);
-  const isSelected = player.id === medicalState.selectedPlayerId;
-  const isBulkSelected = getMedicalValidBulkSelection().has(player.id);
-  const participationLabel = record ? `${record.participation}%` : "Not set";
-  const latestComment = getMedicalVisibleComment(record);
-  return `
-    <article
-      class="medical-player-card${isSelected && medicalPlayerModalOpen ? " is-selected" : ""}${isBulkSelected ? " is-bulk-selected" : ""}"
-      data-medical-select-player="${escapeHtml(player.id)}"
-      tabindex="0"
-      role="button"
-      aria-label="Open ${escapeHtml(player.name)} recommendation"
-    >
-      <div class="medical-player-card-head">
-        ${renderMedicalPlayerAvatar(player)}
-        <div class="medical-player-card-copy">
-          <div class="medical-player-title-line">
-            <strong>${escapeHtml(player.name)}</strong>
-            ${player.number ? `<span>#${escapeHtml(player.number)}</span>` : ""}
-            ${renderMedicalTemporaryPlayerBadge(player)}
-          </div>
-          <small>${escapeHtml(player.position || "Position")}</small>
-        </div>
-        <span class="medical-status-chip medical-tone-${escapeHtml(status.tone)}">${escapeHtml(status.label)}</span>
-      </div>
-      <button
-        type="button"
-        class="medical-card-select-button${isBulkSelected ? " is-selected" : ""}"
-        data-medical-bulk-toggle="${escapeHtml(player.id)}"
-        aria-pressed="${isBulkSelected ? "true" : "false"}"
-        ${canEditMedicalTeam() ? "" : "disabled"}
-      >${isBulkSelected ? "Selected" : "Select"}</button>
-      <div class="medical-participation-line">
-        <span class="medical-participation-value">${escapeHtml(participationLabel)}</span>
-        <span class="medical-participation-track">
-          <span style="width: ${record ? record.participation : 0}%"></span>
-        </span>
-      </div>
-      <div class="medical-card-days">
-        ${getMedicalWindowDates().map((dateValue) => renderMedicalDayCell(player, dateValue)).join("")}
-      </div>
-      <div class="medical-card-footer">
-        <span>${escapeHtml(record ? "Updated" : "Needs recommendation")}</span>
-        <strong>${canEditMedicalTeam() ? "Recommend" : "Open"}</strong>
-      </div>
-      ${latestComment ? `<p class="medical-card-comment">${escapeHtml(latestComment)}</p>` : ""}
-    </article>
-  `;
+const record = getLatestMedicalRecord(player.id, medicalState.selectedDate);
+const status = getMedicalRecordStatus(record);
+const isSelected = player.id === medicalState.selectedPlayerId;
+const isBulkSelected = getMedicalValidBulkSelection().has(player.id);
+const participationLabel = record ? `${record.participation}%` : "Not set";
+const latestComment = getMedicalVisibleComment(record);
+return `
+<article
+class="medical-player-card${isSelected && medicalPlayerModalOpen ? " is-selected" : ""}${isBulkSelected ? " is-bulk-selected" : ""}"
+data-medical-select-player="${escapeHtml(player.id)}"
+tabindex="0"
+role="button"
+aria-label="Open ${escapeHtml(player.name)} recommendation"
+>
+<div class="medical-player-card-head">
+${renderMedicalPlayerAvatar(player)}
+<div class="medical-player-card-copy">
+<div class="medical-player-title-line">
+<strong>${escapeHtml(player.name)}</strong>
+${player.number ? `<span>#${escapeHtml(player.number)}</span>` : ""}
+${renderMedicalTemporaryPlayerBadge(player)}
+</div>
+<small>${escapeHtml(player.position || "Position")}</small>
+</div>
+<span class="medical-status-chip medical-tone-${escapeHtml(status.tone)}">${escapeHtml(status.label)}</span>
+</div>
+<button
+type="button"
+class="medical-card-select-button${isBulkSelected ? " is-selected" : ""}"
+data-medical-bulk-toggle="${escapeHtml(player.id)}"
+aria-pressed="${isBulkSelected ? "true" : "false"}"
+${canEditMedicalTeam() ? "" : "disabled"}
+>${isBulkSelected ? "Selected" : "Select"}</button>
+<div class="medical-participation-line">
+<span class="medical-participation-value">${escapeHtml(participationLabel)}</span>
+<span class="medical-participation-track">
+<span style="width: ${record ? record.participation : 0}%"></span>
+</span>
+</div>
+<div class="medical-card-days">
+${getMedicalWindowDates().map((dateValue) => renderMedicalDayCell(player, dateValue)).join("")}
+</div>
+<div class="medical-card-footer">
+<span>${escapeHtml(record ? "Updated" : "Needs recommendation")}</span>
+<strong>${canEditMedicalTeam() ? "Recommend" : "Open"}</strong>
+</div>
+${latestComment ? `<p class="medical-card-comment">${escapeHtml(latestComment)}</p>` : ""}
+</article>
+`;
 }
 function renderMedicalRosterSetup() {
-  const canEdit = canEditMedicalTeam();
-  return `
-    <section class="medical-empty-state">
-      <article class="medical-empty-card">
-        <p class="placeholder-tag">Roster</p>
-        <h2>Medical availability starts with the squad.</h2>
-        <form id="medicalRosterImportForm" class="medical-import-form">
-          <label>
-            <span>Paste roster</span>
-            <textarea
-              name="rosterText"
-              rows="8"
-              placeholder="10 | Player Name | Forward | image URL"
-              ${canEdit ? "" : "disabled"}
-            ></textarea>
-          </label>
-          <button type="submit" ${canEdit ? "" : "disabled"}>Import roster</button>
-        </form>
-      </article>
-      ${renderMedicalNewPlayerCard()}
-    </section>
-  `;
+const canEdit = canEditMedicalTeam();
+return `
+<section class="medical-empty-state">
+<article class="medical-empty-card">
+<p class="placeholder-tag">Roster</p>
+<h2>Medical availability starts with the squad.</h2>
+<form id="medicalRosterImportForm" class="medical-import-form">
+<label>
+<span>Paste roster</span>
+<textarea
+name="rosterText"
+rows="8"
+placeholder="10 | Player Name | Forward | image URL"
+${canEdit ? "" : "disabled"}
+></textarea>
+</label>
+<button type="submit" ${canEdit ? "" : "disabled"}>Import roster</button>
+</form>
+</article>
+${renderMedicalNewPlayerCard()}
+</section>
+`;
 }
 function renderMedicalNewPlayerCard() {
-  const canEdit = canEditMedicalTeam();
-  return `
-    <article class="medical-side-card">
-      <div class="medical-card-headline">
-        <h2>Add Player</h2>
-        <span>Profile</span>
-      </div>
-      <form id="medicalNewPlayerForm" class="medical-profile-form">
-        <div class="medical-form-grid">
-          <label>
-            <span>Number</span>
-            <input name="number" inputmode="numeric" ${canEdit ? "" : "disabled"} />
-          </label>
-          <label>
-            <span>Name</span>
-            <input name="name" required ${canEdit ? "" : "disabled"} />
-          </label>
-          <label>
-            <span>Position</span>
-            <input name="position" ${canEdit ? "" : "disabled"} />
-          </label>
-          <label>
-            <span>Image URL</span>
-            <input name="photoUrl" type="url" ${canEdit ? "" : "disabled"} />
-          </label>
-        </div>
-        <button type="submit" ${canEdit ? "" : "disabled"}>Add player</button>
-      </form>
-    </article>
-  `;
+const canEdit = canEditMedicalTeam();
+return `
+<article class="medical-side-card">
+<div class="medical-card-headline">
+<h2>Add Player</h2>
+<span>Profile</span>
+</div>
+<form id="medicalNewPlayerForm" class="medical-profile-form">
+<div class="medical-form-grid">
+<label>
+<span>Number</span>
+<input name="number" inputmode="numeric" ${canEdit ? "" : "disabled"} />
+</label>
+<label>
+<span>Name</span>
+<input name="name" required ${canEdit ? "" : "disabled"} />
+</label>
+<label>
+<span>Position</span>
+<input name="position" ${canEdit ? "" : "disabled"} />
+</label>
+<label>
+<span>Image URL</span>
+<input name="photoUrl" type="url" ${canEdit ? "" : "disabled"} />
+</label>
+</div>
+<button type="submit" ${canEdit ? "" : "disabled"}>Add player</button>
+</form>
+</article>
+`;
 }
 function renderMedicalRosterPanel() {
-  const players = getFilteredMedicalPlayers();
-  return `
-    <section class="medical-roster-panel">
-      <div class="medical-section-head">
-        <div>
-          <p class="placeholder-tag">Squad Availability</p>
-          <h2>${escapeHtml(formatMedicalDateLabel(medicalState.selectedDate, "long"))}</h2>
-        </div>
-        <div class="medical-roster-tools">
-          <input
-            type="search"
-            value="${escapeHtml(medicalRosterSearchQuery)}"
-            placeholder="Search squad"
-            data-medical-roster-search
-            aria-label="Search squad"
-          />
-          <select data-medical-status-filter aria-label="Filter medical status">
-            <option value="all"${medicalStatusFilter === "all" ? " selected" : ""}>All</option>
-            ${medicalStatusOptions
-              .map(
-                (status) =>
-                  `<option value="${escapeHtml(status.key)}"${medicalStatusFilter === status.key ? " selected" : ""}>${escapeHtml(status.label)}</option>`
-              )
-              .join("")}
-            <option value="not-set"${medicalStatusFilter === "not-set" ? " selected" : ""}>Not set</option>
-          </select>
-        </div>
-      </div>
-      ${renderMedicalBulkUpdatePanel(players)}
-      <div class="medical-squad-grid">
-        ${
-          players.length
-            ? players.map(renderMedicalSquadCard).join("")
-            : `<div class="medical-empty-inline">No players match the current filter.</div>`
-        }
-      </div>
-    </section>
-  `;
+const players = getFilteredMedicalPlayers();
+return `
+<section class="medical-roster-panel">
+<div class="medical-section-head">
+<div>
+<p class="placeholder-tag">Squad Availability</p>
+<h2>${escapeHtml(formatMedicalDateLabel(medicalState.selectedDate, "long"))}</h2>
+</div>
+<div class="medical-roster-tools">
+<input
+type="search"
+value="${escapeHtml(medicalRosterSearchQuery)}"
+placeholder="Search squad"
+data-medical-roster-search
+aria-label="Search squad"
+/>
+<select data-medical-status-filter aria-label="Filter medical status">
+<option value="all"${medicalStatusFilter === "all" ? " selected" : ""}>All</option>
+${medicalStatusOptions
+.map(
+(status) =>
+`<option value="${escapeHtml(status.key)}"${medicalStatusFilter === status.key ? " selected" : ""}>${escapeHtml(status.label)}</option>`
+)
+.join("")}
+<option value="not-set"${medicalStatusFilter === "not-set" ? " selected" : ""}>Not set</option>
+</select>
+</div>
+</div>
+${renderMedicalBulkUpdatePanel(players)}
+<div class="medical-squad-grid">
+${
+players.length
+? players.map(renderMedicalSquadCard).join("")
+: `<div class="medical-empty-inline">No players match the current filter.</div>`
+}
+</div>
+</section>
+`;
 }
 function renderMedicalLog(player) {
-  const records = player ? getMedicalPlayerRecords(player.id) : [];
-  if (!records.length) {
-    return `<div class="medical-log-empty">No medical log yet.</div>`;
-  }
-  return records
-    .map((record) => {
-      const status = getMedicalStatusOption(record.status);
-      const actualText =
-        record.actualParticipation === medicalActualParticipationFallback
-          ? "Actual not logged"
-          : `Actual ${record.actualParticipation}%`;
-      return `
-        <article class="medical-log-item">
-          <div class="medical-log-main">
-            <span class="medical-status-chip medical-tone-${escapeHtml(status.tone)}">${escapeHtml(status.label)}</span>
-            <strong>${escapeHtml(formatMedicalDateLabel(record.date, "long"))}</strong>
-            <small>${record.participation}% recommended / ${escapeHtml(actualText)}</small>
-            ${record.comment ? `<p>${escapeHtml(record.comment)}</p>` : ""}
-          </div>
-          ${canEditMedicalTeam() ? `<button type="button" class="medical-log-delete" data-medical-delete-record="${escapeHtml(record.id)}" aria-label="Delete log entry">x</button>` : ""}
-        </article>
-      `;
-    })
-    .join("");
+const records = player ? getMedicalPlayerRecords(player.id) : [];
+if (!records.length) {
+return `<div class="medical-log-empty">No medical log yet.</div>`;
+}
+return records
+.map((record) => {
+const status = getMedicalStatusOption(record.status);
+const actualText =
+record.actualParticipation === medicalActualParticipationFallback
+? "Actual not logged"
+: `Actual ${record.actualParticipation}%`;
+return `
+<article class="medical-log-item">
+<div class="medical-log-main">
+<span class="medical-status-chip medical-tone-${escapeHtml(status.tone)}">${escapeHtml(status.label)}</span>
+<strong>${escapeHtml(formatMedicalDateLabel(record.date, "long"))}</strong>
+<small>${record.participation}% recommended / ${escapeHtml(actualText)}</small>
+${record.comment ? `<p>${escapeHtml(record.comment)}</p>` : ""}
+</div>
+${canEditMedicalTeam() ? `<button type="button" class="medical-log-delete" data-medical-delete-record="${escapeHtml(record.id)}" aria-label="Delete log entry">x</button>` : ""}
+</article>
+`;
+})
+.join("");
 }
 function renderMedicalRecommendationPresets(selectedParticipation, canEdit = canEditMedicalTeam()) {
-  const labels = {
-    0: "Out",
-    10: "Return",
-    25: "Rehab",
-    50: "Controlled",
-    75: "Modified",
-    100: "Full",
-  };
-  return `
-    <div class="medical-preset-grid" role="group" aria-label="Recommended participation">
-      ${medicalParticipationOptions
-        .map((participation) => {
-          const statusKey = getMedicalStatusForParticipation(participation);
-          return `
-            <button
-              type="button"
-              class="medical-preset-button${participation === selectedParticipation ? " is-selected" : ""}"
-              data-medical-recommendation-preset
-              data-medical-participation="${participation}"
-              data-medical-status="${escapeHtml(statusKey)}"
-              ${canEdit ? "" : "disabled"}
-            >
-              <strong>${participation}%</strong>
-              <span>${escapeHtml(labels[participation] ?? getMedicalStatusOption(statusKey).label)}</span>
-            </button>
-          `;
-        })
-        .join("")}
-    </div>
-  `;
+const labels = {
+0: "Out",
+10: "Return",
+25: "Rehab",
+50: "Controlled",
+75: "Modified",
+100: "Full",
+};
+return `
+<div class="medical-preset-grid" role="group" aria-label="Recommended participation">
+${medicalParticipationOptions
+.map((participation) => {
+const statusKey = getMedicalStatusForParticipation(participation);
+return `
+<button
+type="button"
+class="medical-preset-button${participation === selectedParticipation ? " is-selected" : ""}"
+data-medical-recommendation-preset
+data-medical-participation="${participation}"
+data-medical-status="${escapeHtml(statusKey)}"
+${canEdit ? "" : "disabled"}
+>
+<strong>${participation}%</strong>
+<span>${escapeHtml(labels[participation] ?? getMedicalStatusOption(statusKey).label)}</span>
+</button>
+`;
+})
+.join("")}
+</div>
+`;
 }
 function renderMedicalActualPresets(selectedValue, canEdit = canEditMedicalTeam()) {
-  const normalizedValue = normalizeMedicalActualParticipation(selectedValue);
-  const values = [medicalActualParticipationFallback, ...medicalParticipationOptions];
-  return `
-    <div class="medical-actual-grid" role="group" aria-label="Actual participation">
-      ${values
-        .map((value) => {
-          const isFallback = value === medicalActualParticipationFallback;
-          const isSelected = normalizedValue === value;
-          return `
-            <button
-              type="button"
-              class="medical-actual-button${isSelected ? " is-selected" : ""}"
-              data-medical-actual-value="${escapeHtml(value)}"
-              ${canEdit ? "" : "disabled"}
-            >
-              ${isFallback ? "Not logged" : `${value}%`}
-            </button>
-          `;
-        })
-        .join("")}
-    </div>
-  `;
+const normalizedValue = normalizeMedicalActualParticipation(selectedValue);
+const values = [medicalActualParticipationFallback, ...medicalParticipationOptions];
+return `
+<div class="medical-actual-grid" role="group" aria-label="Actual participation">
+${values
+.map((value) => {
+const isFallback = value === medicalActualParticipationFallback;
+const isSelected = normalizedValue === value;
+return `
+<button
+type="button"
+class="medical-actual-button${isSelected ? " is-selected" : ""}"
+data-medical-actual-value="${escapeHtml(value)}"
+${canEdit ? "" : "disabled"}
+>
+${isFallback ? "Not logged" : `${value}%`}
+</button>
+`;
+})
+.join("")}
+</div>
+`;
 }
 function renderMedicalInjuryPlanStatusOptions(selectedStatus = "unavailable") {
-  const currentStatus = medicalInjuryPlanStatusOptions.some((status) => status.key === selectedStatus)
-    ? selectedStatus
-    : "unavailable";
-  return medicalInjuryPlanStatusOptions
-    .map(
-      (status) =>
-        `<option value="${escapeHtml(status.key)}"${status.key === currentStatus ? " selected" : ""}>${escapeHtml(status.label)}</option>`
-    )
-    .join("");
+const currentStatus = medicalInjuryPlanStatusOptions.some((status) => status.key === selectedStatus)
+? selectedStatus
+: "unavailable";
+return medicalInjuryPlanStatusOptions
+.map(
+(status) =>
+`<option value="${escapeHtml(status.key)}"${status.key === currentStatus ? " selected" : ""}>${escapeHtml(status.label)}</option>`
+)
+.join("");
 }
 function renderMedicalInjuryPlanList(player) {
-  const plans = player ? getMedicalPlayerInjuryPlans(player.id) : [];
-  if (!plans.length) {
-    return `<div class="medical-log-empty">No active availability plan.</div>`;
-  }
-  return plans
-    .map((plan) => {
-      const status = getMedicalStatusOption(plan.status);
-      const isActive = isMedicalInjuryPlanActive(plan, medicalState.selectedDate);
-      const phase = getMedicalRtpPhaseOption(plan.rtpPhase);
-      const isCleared = isMedicalPlanCleared(plan);
-      return `
-        <article class="medical-plan-item${isActive ? " is-active" : ""}">
-          <div>
-            <span class="medical-status-chip medical-tone-${escapeHtml(status.tone)}">${escapeHtml(isActive ? "Active" : status.label)}</span>
-            <strong>${escapeHtml(plan.injuryType)}</strong>
-            <small>${escapeHtml(formatMedicalDateLabel(plan.startDate))} - ${escapeHtml(formatMedicalDateLabel(plan.endDate))} / ${plan.participation}%</small>
-            <small>${escapeHtml(phase.label)} / ${isCleared ? "cleared gates" : "clearance pending"}</small>
-            ${plan.bodyArea || plan.reviewDate ? `<small>${escapeHtml([plan.bodyArea, plan.reviewDate ? `Review ${formatMedicalDateLabel(plan.reviewDate)}` : ""].filter(Boolean).join(" / "))}</small>` : ""}
-            ${plan.comment ? `<p>${escapeHtml(plan.comment)}</p>` : ""}
-          </div>
-          ${canEditMedicalTeam() ? `<button type="button" class="medical-log-delete" data-medical-delete-injury-plan="${escapeHtml(plan.id)}" aria-label="Delete injury plan">x</button>` : ""}
-        </article>
-      `;
-    })
-    .join("");
+const plans = player ? getMedicalPlayerInjuryPlans(player.id) : [];
+if (!plans.length) {
+return `<div class="medical-log-empty">No active availability plan.</div>`;
+}
+return plans
+.map((plan) => {
+const status = getMedicalStatusOption(plan.status);
+const isActive = isMedicalInjuryPlanActive(plan, medicalState.selectedDate);
+const phase = getMedicalRtpPhaseOption(plan.rtpPhase);
+const isCleared = isMedicalPlanCleared(plan);
+return `
+<article class="medical-plan-item${isActive ? " is-active" : ""}">
+<div>
+<span class="medical-status-chip medical-tone-${escapeHtml(status.tone)}">${escapeHtml(isActive ? "Active" : status.label)}</span>
+<strong>${escapeHtml(plan.injuryType)}</strong>
+<small>${escapeHtml(formatMedicalDateLabel(plan.startDate))} - ${escapeHtml(formatMedicalDateLabel(plan.endDate))} / ${plan.participation}%</small>
+<small>${escapeHtml(phase.label)} / ${isCleared ? "cleared gates" : "clearance pending"}</small>
+${plan.bodyArea || plan.reviewDate ? `<small>${escapeHtml([plan.bodyArea, plan.reviewDate ? `Review ${formatMedicalDateLabel(plan.reviewDate)}` : ""].filter(Boolean).join(" / "))}</small>` : ""}
+${plan.comment ? `<p>${escapeHtml(plan.comment)}</p>` : ""}
+</div>
+${canEditMedicalTeam() ? `<button type="button" class="medical-log-delete" data-medical-delete-injury-plan="${escapeHtml(plan.id)}" aria-label="Delete injury plan">x</button>` : ""}
+</article>
+`;
+})
+.join("");
 }
 function renderMedicalInjuryPlanForm(player, canEdit) {
-  const defaultDate = medicalState.selectedDate;
-  return `
-    <article class="medical-modal-main-card medical-injury-plan-card">
-      <div class="medical-card-headline">
-        <h2>Availability Plan</h2>
-        <span>Auto-applies across date range</span>
-      </div>
-      <form id="medicalInjuryPlanForm" class="medical-profile-form">
-        <input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
-        <div class="medical-form-grid medical-plan-form-grid">
-          <label>
-            <span>Injury / reason</span>
-            <input name="injuryType" list="medicalInjuryTypes" placeholder="ACL injury" required ${canEdit ? "" : "disabled"} />
-          </label>
-          <label>
-            <span>Body area</span>
-            <input name="bodyArea" placeholder="Knee" ${canEdit ? "" : "disabled"} />
-          </label>
-          <label>
-            <span>Start</span>
-            <input name="startDate" type="date" value="${escapeHtml(defaultDate)}" ${canEdit ? "" : "disabled"} />
-          </label>
-          <label>
-            <span>Duration</span>
-            <div class="medical-duration-fields">
-              <input name="duration" type="number" min="1" value="4" ${canEdit ? "" : "disabled"} />
-              <select name="durationUnit" ${canEdit ? "" : "disabled"}>
-                <option value="weeks" selected>Weeks</option>
-                <option value="months">Months</option>
-                <option value="days">Days</option>
-              </select>
-            </div>
-          </label>
-          <label>
-            <span>Status</span>
-            <select name="status" ${canEdit ? "" : "disabled"}>
-              ${renderMedicalInjuryPlanStatusOptions("unavailable")}
-            </select>
-          </label>
-          <label>
-            <span>RTP phase</span>
-            <select name="rtpPhase" data-medical-plan-rtp-phase ${canEdit ? "" : "disabled"}>
-              ${renderMedicalRtpPhaseOptions("medical-restriction")}
-            </select>
-          </label>
-          <label>
-            <span>Recommended</span>
-            <select name="participation" data-medical-plan-participation ${canEdit ? "" : "disabled"}>
-              ${renderMedicalParticipationOptions(0)}
-            </select>
-          </label>
-          <label>
-            <span>Review date</span>
-            <input name="reviewDate" type="date" ${canEdit ? "" : "disabled"} />
-          </label>
-          <label>
-            <span>Treatment note</span>
-            <input name="phase" placeholder="Week 1-4 protected rehab" ${canEdit ? "" : "disabled"} />
-          </label>
-        </div>
-        <div class="medical-duration-presets" aria-label="Duration presets">
-          ${medicalInjuryDurationPresets
-            .map(
-              (preset) => `
-                <button
-                  type="button"
-                  data-medical-duration-preset
-                  data-medical-duration="${preset.duration}"
-                  data-medical-duration-unit="${escapeHtml(preset.unit)}"
-                  ${canEdit ? "" : "disabled"}
-                >${escapeHtml(preset.label)}</button>
-              `
-            )
-            .join("")}
-        </div>
-        <label>
-          <span>Internal clinical note</span>
-          <textarea name="comment" rows="3" ${canEdit ? "" : "disabled"}></textarea>
-        </label>
-        <label>
-          <span>Coach-safe comment</span>
-          <textarea name="coachNote" rows="2" placeholder="Shared note for coaches" ${canEdit ? "" : "disabled"}></textarea>
-        </label>
-        <label class="medical-inline-check">
-          <input type="checkbox" name="shareWithCoach" ${canEdit ? "" : "disabled"} />
-          <span>Approved to share with coaching staff</span>
-        </label>
-        <button type="submit" ${canEdit ? "" : "disabled"}>Create plan</button>
-      </form>
-      <datalist id="medicalInjuryTypes">
-        <option value="ACL injury"></option>
-        <option value="Hamstring injury"></option>
-        <option value="Adductor injury"></option>
-        <option value="Ankle sprain"></option>
-        <option value="Concussion protocol"></option>
-        <option value="Illness"></option>
-        <option value="Load management"></option>
-      </datalist>
-    </article>
-  `;
+const defaultDate = medicalState.selectedDate;
+return `
+<article class="medical-modal-main-card medical-injury-plan-card">
+<div class="medical-card-headline">
+<h2>Availability Plan</h2>
+<span>Auto-applies across date range</span>
+</div>
+<form id="medicalInjuryPlanForm" class="medical-profile-form">
+<input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
+<div class="medical-form-grid medical-plan-form-grid">
+<label>
+<span>Injury / reason</span>
+<input name="injuryType" list="medicalInjuryTypes" placeholder="ACL injury" required ${canEdit ? "" : "disabled"} />
+</label>
+<label>
+<span>Body area</span>
+<input name="bodyArea" placeholder="Knee" ${canEdit ? "" : "disabled"} />
+</label>
+<label>
+<span>Start</span>
+<input name="startDate" type="date" value="${escapeHtml(defaultDate)}" ${canEdit ? "" : "disabled"} />
+</label>
+<label>
+<span>Duration</span>
+<div class="medical-duration-fields">
+<input name="duration" type="number" min="1" value="4" ${canEdit ? "" : "disabled"} />
+<select name="durationUnit" ${canEdit ? "" : "disabled"}>
+<option value="weeks" selected>Weeks</option>
+<option value="months">Months</option>
+<option value="days">Days</option>
+</select>
+</div>
+</label>
+<label>
+<span>Status</span>
+<select name="status" ${canEdit ? "" : "disabled"}>
+${renderMedicalInjuryPlanStatusOptions("unavailable")}
+</select>
+</label>
+<label>
+<span>RTP phase</span>
+<select name="rtpPhase" data-medical-plan-rtp-phase ${canEdit ? "" : "disabled"}>
+${renderMedicalRtpPhaseOptions("medical-restriction")}
+</select>
+</label>
+<label>
+<span>Recommended</span>
+<select name="participation" data-medical-plan-participation ${canEdit ? "" : "disabled"}>
+${renderMedicalParticipationOptions(0)}
+</select>
+</label>
+<label>
+<span>Review date</span>
+<input name="reviewDate" type="date" ${canEdit ? "" : "disabled"} />
+</label>
+<label>
+<span>Treatment note</span>
+<input name="phase" placeholder="Week 1-4 protected rehab" ${canEdit ? "" : "disabled"} />
+</label>
+</div>
+<div class="medical-duration-presets" aria-label="Duration presets">
+${medicalInjuryDurationPresets
+.map(
+(preset) => `
+<button
+type="button"
+data-medical-duration-preset
+data-medical-duration="${preset.duration}"
+data-medical-duration-unit="${escapeHtml(preset.unit)}"
+${canEdit ? "" : "disabled"}
+>${escapeHtml(preset.label)}</button>
+`
+)
+.join("")}
+</div>
+<label>
+<span>Internal clinical note</span>
+<textarea name="comment" rows="3" ${canEdit ? "" : "disabled"}></textarea>
+</label>
+<label>
+<span>Coach-safe comment</span>
+<textarea name="coachNote" rows="2" placeholder="Shared note for coaches" ${canEdit ? "" : "disabled"}></textarea>
+</label>
+<label class="medical-inline-check">
+<input type="checkbox" name="shareWithCoach" ${canEdit ? "" : "disabled"} />
+<span>Approved to share with coaching staff</span>
+</label>
+<button type="submit" ${canEdit ? "" : "disabled"}>Create plan</button>
+</form>
+<datalist id="medicalInjuryTypes">
+<option value="ACL injury"></option>
+<option value="Hamstring injury"></option>
+<option value="Adductor injury"></option>
+<option value="Ankle sprain"></option>
+<option value="Concussion protocol"></option>
+<option value="Illness"></option>
+<option value="Load management"></option>
+</datalist>
+</article>
+`;
 }
 function renderMedicalClearanceChecklist(player, canEdit) {
-  const plan = getActiveMedicalInjuryPlan(player.id, medicalState.selectedDate) ?? getMedicalPlayerInjuryPlans(player.id)[0] ?? null;
-  if (!plan) {
-    return `
-      <article class="medical-side-card medical-clearance-card">
-        <div class="medical-card-headline">
-          <h2>Clearance Checklist</h2>
-          <span>No plan</span>
-        </div>
-        <div class="medical-empty-inline">Create an availability plan before collecting sign-off and load gates.</div>
-      </article>
-    `;
-  }
-  const clearance = normalizeMedicalClearance(plan.clearance);
-  const gates = normalizeMedicalLoadGates(plan.gates);
-  const cleared = isMedicalPlanCleared(plan);
-  return `
-    <article class="medical-side-card medical-clearance-card">
-      <div class="medical-card-headline">
-        <h2>Clearance Checklist</h2>
-        <span class="${cleared ? "is-cleared" : "is-pending"}">${cleared ? "Cleared" : "Pending"}</span>
-      </div>
-      <form id="medicalClearanceForm" class="medical-profile-form">
-        <input type="hidden" name="planId" value="${escapeHtml(plan.id)}" />
-        <label>
-          <span>RTP phase</span>
-          <select name="rtpPhase" ${canEdit ? "" : "disabled"}>
-            ${renderMedicalRtpPhaseOptions(plan.rtpPhase)}
-          </select>
-        </label>
-        <div class="medical-check-grid">
-          ${medicalClearanceRoles
-            .map(
-              (role) => `
-                <label class="medical-check-row">
-                  <input type="checkbox" name="clearance.${escapeHtml(role.key)}" ${clearance[role.key] ? "checked" : ""} ${canEdit ? "" : "disabled"} />
-                  <span>${escapeHtml(role.label)} sign-off</span>
-                </label>
-              `
-            )
-            .join("")}
-        </div>
-        <div class="medical-gate-grid">
-          ${medicalLoadGateOptions
-            .map(
-              (gate) => `
-                <label>
-                  <span>${escapeHtml(gate.label)}</span>
-                  <select name="gates.${escapeHtml(gate.key)}" ${canEdit ? "" : "disabled"}>
-                    ${renderMedicalGateOptions(gates[gate.key])}
-                  </select>
-                </label>
-              `
-            )
-            .join("")}
-        </div>
-        <button type="submit" ${canEdit ? "" : "disabled"}>Save clearance</button>
-      </form>
-    </article>
-  `;
+const plan = getActiveMedicalInjuryPlan(player.id, medicalState.selectedDate) ?? getMedicalPlayerInjuryPlans(player.id)[0] ?? null;
+if (!plan) {
+return `
+<article class="medical-side-card medical-clearance-card">
+<div class="medical-card-headline">
+<h2>Clearance Checklist</h2>
+<span>No plan</span>
+</div>
+<div class="medical-empty-inline">Create an availability plan before collecting sign-off and load gates.</div>
+</article>
+`;
+}
+const clearance = normalizeMedicalClearance(plan.clearance);
+const gates = normalizeMedicalLoadGates(plan.gates);
+const cleared = isMedicalPlanCleared(plan);
+return `
+<article class="medical-side-card medical-clearance-card">
+<div class="medical-card-headline">
+<h2>Clearance Checklist</h2>
+<span class="${cleared ? "is-cleared" : "is-pending"}">${cleared ? "Cleared" : "Pending"}</span>
+</div>
+<form id="medicalClearanceForm" class="medical-profile-form">
+<input type="hidden" name="planId" value="${escapeHtml(plan.id)}" />
+<label>
+<span>RTP phase</span>
+<select name="rtpPhase" ${canEdit ? "" : "disabled"}>
+${renderMedicalRtpPhaseOptions(plan.rtpPhase)}
+</select>
+</label>
+<div class="medical-check-grid">
+${medicalClearanceRoles
+.map(
+(role) => `
+<label class="medical-check-row">
+<input type="checkbox" name="clearance.${escapeHtml(role.key)}" ${clearance[role.key] ? "checked" : ""} ${canEdit ? "" : "disabled"} />
+<span>${escapeHtml(role.label)} sign-off</span>
+</label>
+`
+)
+.join("")}
+</div>
+<div class="medical-gate-grid">
+${medicalLoadGateOptions
+.map(
+(gate) => `
+<label>
+<span>${escapeHtml(gate.label)}</span>
+<select name="gates.${escapeHtml(gate.key)}" ${canEdit ? "" : "disabled"}>
+${renderMedicalGateOptions(gates[gate.key])}
+</select>
+</label>
+`
+)
+.join("")}
+</div>
+<button type="submit" ${canEdit ? "" : "disabled"}>Save clearance</button>
+</form>
+</article>
+`;
 }
 function renderMedicalCoachSafeModal(player, record, status) {
-  const coachComment = getMedicalCoachComment(record);
-  const phase = record ? getMedicalRtpPhaseOption(record.rtpPhase) : null;
-  return `
-    <div class="medical-modal-layer" role="presentation">
-      <button type="button" class="medical-modal-backdrop" data-medical-close-modal aria-label="Close recommendation"></button>
-      <section class="medical-modal-card medical-coach-modal" role="dialog" aria-modal="true" aria-labelledby="medicalModalTitle">
-        <header class="medical-modal-header">
-          <div class="medical-modal-player">
-            ${renderMedicalPlayerAvatar(player, "medical-modal-avatar")}
-            <div>
-              <p class="placeholder-tag">Coach Availability</p>
-              <h2 id="medicalModalTitle">${escapeHtml(player.name)}</h2>
-              <span>${player.number ? `#${escapeHtml(player.number)} / ` : ""}${escapeHtml(player.position || "Position")}</span>
-            </div>
-          </div>
-          <div class="medical-modal-current medical-tone-${escapeHtml(status.tone)}">
-            <strong>${record ? `${record.participation}%` : "Not set"}</strong>
-            <span>${escapeHtml(status.label)}</span>
-          </div>
-          <button type="button" class="medical-modal-close" data-medical-close-modal aria-label="Close recommendation">x</button>
-        </header>
-        <div class="medical-coach-safe-body">
-          <article class="medical-modal-main-card">
-            <div class="medical-card-headline">
-              <h2>Approved Share</h2>
-              <span>${escapeHtml(formatMedicalDateLabel(medicalState.selectedDate))}</span>
-            </div>
-            <div class="medical-coach-safe-grid">
-              <div><span>Availability</span><strong>${record ? `${record.participation}%` : "Not set"}</strong></div>
-              <div><span>Status</span><strong>${escapeHtml(status.label)}</strong></div>
-              <div><span>RTP</span><strong>${escapeHtml(phase?.label ?? "Not set")}</strong></div>
-            </div>
-            ${coachComment ? `<p class="medical-coach-note">${escapeHtml(coachComment)}</p>` : `<p class="medical-empty-inline">No coach-approved comment for this player.</p>`}
-          </article>
-          <article class="medical-modal-main-card">
-            <div class="medical-card-headline">
-              <h2>Next 7 Days</h2>
-              <span>Availability</span>
-            </div>
-            <div class="medical-coach-window">
-              ${getMedicalWindowDates()
-                .map((dateValue) => {
-                  const windowRecord = getLatestMedicalRecord(player.id, dateValue);
-                  const windowStatus = getMedicalRecordStatus(windowRecord);
-                  return `
-                    <div class="medical-coach-day medical-tone-${escapeHtml(windowStatus.tone)}">
-                      <span>${escapeHtml(formatMedicalDateLabel(dateValue))}</span>
-                      <strong>${windowRecord ? `${windowRecord.participation}%` : "--"}</strong>
-                    </div>
-                  `;
-                })
-                .join("")}
-            </div>
-          </article>
-        </div>
-      </section>
-    </div>
-  `;
+const coachComment = getMedicalCoachComment(record);
+const phase = record ? getMedicalRtpPhaseOption(record.rtpPhase) : null;
+return `
+<div class="medical-modal-layer" role="presentation">
+<button type="button" class="medical-modal-backdrop" data-medical-close-modal aria-label="Close recommendation"></button>
+<section class="medical-modal-card medical-coach-modal" role="dialog" aria-modal="true" aria-labelledby="medicalModalTitle">
+<header class="medical-modal-header">
+<div class="medical-modal-player">
+${renderMedicalPlayerAvatar(player, "medical-modal-avatar")}
+<div>
+<p class="placeholder-tag">Coach Availability</p>
+<h2 id="medicalModalTitle">${escapeHtml(player.name)}</h2>
+<span>${player.number ? `#${escapeHtml(player.number)} / ` : ""}${escapeHtml(player.position || "Position")}</span>
+</div>
+</div>
+<div class="medical-modal-current medical-tone-${escapeHtml(status.tone)}">
+<strong>${record ? `${record.participation}%` : "Not set"}</strong>
+<span>${escapeHtml(status.label)}</span>
+</div>
+<button type="button" class="medical-modal-close" data-medical-close-modal aria-label="Close recommendation">x</button>
+</header>
+<div class="medical-coach-safe-body">
+<article class="medical-modal-main-card">
+<div class="medical-card-headline">
+<h2>Approved Share</h2>
+<span>${escapeHtml(formatMedicalDateLabel(medicalState.selectedDate))}</span>
+</div>
+<div class="medical-coach-safe-grid">
+<div><span>Availability</span><strong>${record ? `${record.participation}%` : "Not set"}</strong></div>
+<div><span>Status</span><strong>${escapeHtml(status.label)}</strong></div>
+<div><span>RTP</span><strong>${escapeHtml(phase?.label ?? "Not set")}</strong></div>
+</div>
+${coachComment ? `<p class="medical-coach-note">${escapeHtml(coachComment)}</p>` : `<p class="medical-empty-inline">No coach-approved comment for this player.</p>`}
+</article>
+<article class="medical-modal-main-card">
+<div class="medical-card-headline">
+<h2>Next 7 Days</h2>
+<span>Availability</span>
+</div>
+<div class="medical-coach-window">
+${getMedicalWindowDates()
+.map((dateValue) => {
+const windowRecord = getLatestMedicalRecord(player.id, dateValue);
+const windowStatus = getMedicalRecordStatus(windowRecord);
+return `
+<div class="medical-coach-day medical-tone-${escapeHtml(windowStatus.tone)}">
+<span>${escapeHtml(formatMedicalDateLabel(dateValue))}</span>
+<strong>${windowRecord ? `${windowRecord.participation}%` : "--"}</strong>
+</div>
+`;
+})
+.join("")}
+</div>
+</article>
+</div>
+</section>
+</div>
+`;
 }
 function renderMedicalPlayerModal() {
-  if (!medicalPlayerModalOpen) {
-    return "";
-  }
-  const player = getSelectedMedicalPlayer();
-  if (!player) {
-    return "";
-  }
-  const canEdit = canEditMedicalTeam();
-  const record = getLatestMedicalRecord(player.id, medicalState.selectedDate);
-  const status = getMedicalRecordStatus(record);
-  const formParticipation = record?.participation ?? 100;
-  const formStatus = record?.status ?? getMedicalStatusForParticipation(formParticipation);
-  const formActual = record?.actualParticipation ?? medicalActualParticipationFallback;
-  const formRtpPhase = record?.rtpPhase ?? getMedicalRtpPhaseForRecommendation(formStatus, formParticipation);
-  if (!canEdit) {
-    return renderMedicalCoachSafeModal(player, record, status);
-  }
-  return `
-    <div class="medical-modal-layer" role="presentation">
-      <button type="button" class="medical-modal-backdrop" data-medical-close-modal aria-label="Close recommendation"></button>
-      <section class="medical-modal-card" role="dialog" aria-modal="true" aria-labelledby="medicalModalTitle">
-        <header class="medical-modal-header">
-          <div class="medical-modal-player">
-            ${renderMedicalPlayerAvatar(player, "medical-modal-avatar")}
-            <div>
-              <p class="placeholder-tag">Player Medical</p>
-              <h2 id="medicalModalTitle">${escapeHtml(player.name)}</h2>
-              <span>${player.number ? `#${escapeHtml(player.number)} / ` : ""}${escapeHtml(player.position || "Position")}</span>
-            </div>
-          </div>
-          <div class="medical-modal-current medical-tone-${escapeHtml(status.tone)}">
-            <strong>${record ? `${record.participation}%` : "Not set"}</strong>
-            <span>${escapeHtml(status.label)}</span>
-          </div>
-          <button type="button" class="medical-modal-close" data-medical-close-modal aria-label="Close recommendation">x</button>
-        </header>
-        <div class="medical-modal-body">
-          <div class="medical-modal-main">
-            <article class="medical-modal-main-card">
-              <div class="medical-card-headline">
-                <h2>Recommendation</h2>
-                <span data-medical-recommendation-preview>${formParticipation}% / ${escapeHtml(getMedicalStatusOption(formStatus).label)}</span>
-              </div>
-              <form id="medicalRecommendationForm" class="medical-profile-form medical-recommendation-form">
-                <input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
-                <input type="hidden" name="status" id="medicalRecommendationStatus" value="${escapeHtml(formStatus)}" />
-                <input type="hidden" name="participation" id="medicalRecommendationParticipation" value="${escapeHtml(formParticipation)}" />
-                <input type="hidden" name="actualParticipation" id="medicalActualParticipation" value="${escapeHtml(formActual)}" />
-                <div class="medical-form-grid">
-                  <label>
-                    <span>Date</span>
-                    <input name="date" type="date" value="${escapeHtml(medicalState.selectedDate)}" ${canEdit ? "" : "disabled"} />
-                  </label>
-                  <label>
-                    <span>RTP phase</span>
-                    <select name="rtpPhase" id="medicalRecommendationRtpPhase" ${canEdit ? "" : "disabled"}>
-                      ${renderMedicalRtpPhaseOptions(formRtpPhase)}
-                    </select>
-                  </label>
-                </div>
-                ${renderMedicalRecommendationPresets(formParticipation, canEdit)}
-                <div class="medical-form-block">
-                  <span>Actual participation</span>
-                  ${renderMedicalActualPresets(formActual, canEdit)}
-                </div>
-                <label>
-                  <span>Internal medical note</span>
-                  <textarea name="comment" rows="4" ${canEdit ? "" : "disabled"}>${escapeHtml(record?.comment ?? "")}</textarea>
-                </label>
-                <label>
-                  <span>Coach-safe comment</span>
-                  <textarea name="coachNote" rows="2" ${canEdit ? "" : "disabled"}>${escapeHtml(record?.coachNote ?? "")}</textarea>
-                </label>
-                <label class="medical-inline-check">
-                  <input type="checkbox" name="shareWithCoach" ${record?.shareWithCoach ? "checked" : ""} ${canEdit ? "" : "disabled"} />
-                  <span>Approved to share with coaching staff</span>
-                </label>
-                <div class="medical-form-actions">
-                  <button type="submit" ${canEdit ? "" : "disabled"}>Save status</button>
-                  <button type="button" class="secondary medical-secondary-button" data-medical-close-modal>Close</button>
-                </div>
-              </form>
-            </article>
-            ${renderMedicalInjuryPlanForm(player, canEdit)}
-          </div>
-          <aside class="medical-modal-side">
-            ${renderMedicalPlayerProfileSummary(player)}
-            <article class="medical-side-card">
-              <div class="medical-card-headline">
-                <h2>Profile</h2>
-                <span>IDP-ready</span>
-              </div>
-              <form id="medicalPlayerProfileForm" class="medical-profile-form">
-                <div class="medical-form-grid">
-                  <label>
-                    <span>Number</span>
-                    <input name="number" value="${escapeHtml(player.number)}" ${canEdit ? "" : "disabled"} />
-                  </label>
-                  <label>
-                    <span>Name</span>
-                    <input name="name" value="${escapeHtml(player.name)}" required ${canEdit ? "" : "disabled"} />
-                  </label>
-                  <label>
-                    <span>Position</span>
-                    <input name="position" value="${escapeHtml(player.position)}" ${canEdit ? "" : "disabled"} />
-                  </label>
-                  <label>
-                    <span>Image URL</span>
-                    <input name="photoUrl" type="url" value="${escapeHtml(player.photoUrl)}" ${canEdit ? "" : "disabled"} />
-                  </label>
-                </div>
-                <input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
-                <div class="medical-form-actions">
-                  <button type="submit" ${canEdit ? "" : "disabled"}>Save profile</button>
-                  <button type="button" class="medical-danger-button" data-medical-remove-player="${escapeHtml(player.id)}" ${canEdit ? "" : "disabled"}>Remove</button>
-                </div>
-              </form>
-            </article>
-            ${renderMedicalClearanceChecklist(player, canEdit)}
-            <article class="medical-side-card medical-plan-list-card">
-              <div class="medical-card-headline">
-                <h2>Availability Plans</h2>
-                <span>${getMedicalPlayerInjuryPlans(player.id).length}</span>
-              </div>
-              <div class="medical-plan-list">${renderMedicalInjuryPlanList(player)}</div>
-            </article>
-            <article class="medical-side-card medical-log-card">
-              <div class="medical-card-headline">
-                <h2>Medical Log</h2>
-                <span>${getMedicalPlayerRecords(player.id).length}</span>
-              </div>
-              <div class="medical-log-list">${renderMedicalLog(player)}</div>
-            </article>
-          </aside>
-        </div>
-      </section>
-    </div>
-  `;
+if (!medicalPlayerModalOpen) {
+return "";
+}
+const player = getSelectedMedicalPlayer();
+if (!player) {
+return "";
+}
+const canEdit = canEditMedicalTeam();
+const record = getLatestMedicalRecord(player.id, medicalState.selectedDate);
+const status = getMedicalRecordStatus(record);
+const formParticipation = record?.participation ?? 100;
+const formStatus = record?.status ?? getMedicalStatusForParticipation(formParticipation);
+const formActual = record?.actualParticipation ?? medicalActualParticipationFallback;
+const formRtpPhase = record?.rtpPhase ?? getMedicalRtpPhaseForRecommendation(formStatus, formParticipation);
+if (!canEdit) {
+return renderMedicalCoachSafeModal(player, record, status);
+}
+return `
+<div class="medical-modal-layer" role="presentation">
+<button type="button" class="medical-modal-backdrop" data-medical-close-modal aria-label="Close recommendation"></button>
+<section class="medical-modal-card" role="dialog" aria-modal="true" aria-labelledby="medicalModalTitle">
+<header class="medical-modal-header">
+<div class="medical-modal-player">
+${renderMedicalPlayerAvatar(player, "medical-modal-avatar")}
+<div>
+<p class="placeholder-tag">Player Medical</p>
+<h2 id="medicalModalTitle">${escapeHtml(player.name)}</h2>
+<span>${player.number ? `#${escapeHtml(player.number)} / ` : ""}${escapeHtml(player.position || "Position")}</span>
+</div>
+</div>
+<div class="medical-modal-current medical-tone-${escapeHtml(status.tone)}">
+<strong>${record ? `${record.participation}%` : "Not set"}</strong>
+<span>${escapeHtml(status.label)}</span>
+</div>
+<button type="button" class="medical-modal-close" data-medical-close-modal aria-label="Close recommendation">x</button>
+</header>
+<div class="medical-modal-body">
+<div class="medical-modal-main">
+<article class="medical-modal-main-card">
+<div class="medical-card-headline">
+<h2>Recommendation</h2>
+<span data-medical-recommendation-preview>${formParticipation}% / ${escapeHtml(getMedicalStatusOption(formStatus).label)}</span>
+</div>
+<form id="medicalRecommendationForm" class="medical-profile-form medical-recommendation-form">
+<input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
+<input type="hidden" name="status" id="medicalRecommendationStatus" value="${escapeHtml(formStatus)}" />
+<input type="hidden" name="participation" id="medicalRecommendationParticipation" value="${escapeHtml(formParticipation)}" />
+<input type="hidden" name="actualParticipation" id="medicalActualParticipation" value="${escapeHtml(formActual)}" />
+<div class="medical-form-grid">
+<label>
+<span>Date</span>
+<input name="date" type="date" value="${escapeHtml(medicalState.selectedDate)}" ${canEdit ? "" : "disabled"} />
+</label>
+<label>
+<span>RTP phase</span>
+<select name="rtpPhase" id="medicalRecommendationRtpPhase" ${canEdit ? "" : "disabled"}>
+${renderMedicalRtpPhaseOptions(formRtpPhase)}
+</select>
+</label>
+</div>
+${renderMedicalRecommendationPresets(formParticipation, canEdit)}
+<div class="medical-form-block">
+<span>Actual participation</span>
+${renderMedicalActualPresets(formActual, canEdit)}
+</div>
+<label>
+<span>Internal medical note</span>
+<textarea name="comment" rows="4" ${canEdit ? "" : "disabled"}>${escapeHtml(record?.comment ?? "")}</textarea>
+</label>
+<label>
+<span>Coach-safe comment</span>
+<textarea name="coachNote" rows="2" ${canEdit ? "" : "disabled"}>${escapeHtml(record?.coachNote ?? "")}</textarea>
+</label>
+<label class="medical-inline-check">
+<input type="checkbox" name="shareWithCoach" ${record?.shareWithCoach ? "checked" : ""} ${canEdit ? "" : "disabled"} />
+<span>Approved to share with coaching staff</span>
+</label>
+<div class="medical-form-actions">
+<button type="submit" ${canEdit ? "" : "disabled"}>Save status</button>
+<button type="button" class="secondary medical-secondary-button" data-medical-close-modal>Close</button>
+</div>
+</form>
+</article>
+${renderMedicalInjuryPlanForm(player, canEdit)}
+</div>
+<aside class="medical-modal-side">
+${renderMedicalPlayerProfileSummary(player)}
+<article class="medical-side-card">
+<div class="medical-card-headline">
+<h2>Profile</h2>
+<span>IDP-ready</span>
+</div>
+<form id="medicalPlayerProfileForm" class="medical-profile-form">
+<div class="medical-form-grid">
+<label>
+<span>Number</span>
+<input name="number" value="${escapeHtml(player.number)}" ${canEdit ? "" : "disabled"} />
+</label>
+<label>
+<span>Name</span>
+<input name="name" value="${escapeHtml(player.name)}" required ${canEdit ? "" : "disabled"} />
+</label>
+<label>
+<span>Position</span>
+<input name="position" value="${escapeHtml(player.position)}" ${canEdit ? "" : "disabled"} />
+</label>
+<label>
+<span>Image URL</span>
+<input name="photoUrl" type="url" value="${escapeHtml(player.photoUrl)}" ${canEdit ? "" : "disabled"} />
+</label>
+</div>
+<input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
+<div class="medical-form-actions">
+<button type="submit" ${canEdit ? "" : "disabled"}>Save profile</button>
+<button type="button" class="medical-danger-button" data-medical-remove-player="${escapeHtml(player.id)}" ${canEdit ? "" : "disabled"}>Remove</button>
+</div>
+</form>
+</article>
+${renderMedicalClearanceChecklist(player, canEdit)}
+<article class="medical-side-card medical-plan-list-card">
+<div class="medical-card-headline">
+<h2>Availability Plans</h2>
+<span>${getMedicalPlayerInjuryPlans(player.id).length}</span>
+</div>
+<div class="medical-plan-list">${renderMedicalInjuryPlanList(player)}</div>
+</article>
+<article class="medical-side-card medical-log-card">
+<div class="medical-card-headline">
+<h2>Medical Log</h2>
+<span>${getMedicalPlayerRecords(player.id).length}</span>
+</div>
+<div class="medical-log-list">${renderMedicalLog(player)}</div>
+</article>
+</aside>
+</div>
+</section>
+</div>
+`;
 }
 function renderMedicalSelectedPanel() {
-  const player = getSelectedMedicalPlayer();
-  const canEdit = canEditMedicalTeam();
-  if (!player) {
-    return `
-      <aside class="medical-detail-panel">
-        ${renderMedicalNewPlayerCard()}
-      </aside>
-    `;
-  }
-  const record = getLatestMedicalRecord(player.id, medicalState.selectedDate);
-  const status = getMedicalRecordStatus(record);
-  const formStatus = record?.status ?? status.key;
-  const formParticipation = record?.participation ?? getMedicalStatusOption(formStatus).defaultParticipation ?? 100;
-  return `
-    <aside class="medical-detail-panel">
-      <article class="medical-selected-card">
-        <div class="medical-selected-head">
-          ${renderMedicalPlayerAvatar(player, "medical-selected-avatar")}
-          <div>
-            <p class="placeholder-tag">Player Medical</p>
-            <h2>${escapeHtml(player.name)}</h2>
-            <span>${player.number ? `#${escapeHtml(player.number)} / ` : ""}${escapeHtml(player.position || "Position")}</span>
-          </div>
-        </div>
-        <div class="medical-selected-status medical-tone-${escapeHtml(status.tone)}">
-          <strong>${record ? `${record.participation}%` : "Not set"}</strong>
-          <span>${escapeHtml(status.label)}</span>
-        </div>
-      </article>
-      <article class="medical-side-card">
-        <div class="medical-card-headline">
-          <h2>Recommendation</h2>
-          <span>${escapeHtml(formatMedicalDateLabel(medicalState.selectedDate))}</span>
-        </div>
-        <form id="medicalRecommendationForm" class="medical-profile-form">
-          <input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
-          <div class="medical-form-grid">
-            <label>
-              <span>Date</span>
-              <input name="date" type="date" value="${escapeHtml(medicalState.selectedDate)}" ${canEdit ? "" : "disabled"} />
-            </label>
-            <label>
-              <span>Status</span>
-              <select name="status" id="medicalRecommendationStatus" ${canEdit ? "" : "disabled"}>
-                ${renderMedicalStatusOptions(formStatus)}
-              </select>
-            </label>
-            <label>
-              <span>Recommended</span>
-              <select name="participation" id="medicalRecommendationParticipation" ${canEdit ? "" : "disabled"}>
-                ${renderMedicalParticipationOptions(formParticipation)}
-              </select>
-            </label>
-            <label>
-              <span>Actual</span>
-              <select name="actualParticipation" ${canEdit ? "" : "disabled"}>
-                ${renderMedicalActualParticipationOptions(record?.actualParticipation)}
-              </select>
-            </label>
-          </div>
-          <label>
-            <span>Internal medical note</span>
-            <textarea name="comment" rows="4" ${canEdit ? "" : "disabled"}>${escapeHtml(record?.comment ?? "")}</textarea>
-          </label>
-          <button type="submit" ${canEdit ? "" : "disabled"}>Save status</button>
-        </form>
-      </article>
-      <article class="medical-side-card">
-        <div class="medical-card-headline">
-          <h2>Player Profile</h2>
-          <span>IDP-ready</span>
-        </div>
-        <form id="medicalPlayerProfileForm" class="medical-profile-form">
-          <input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
-          <div class="medical-form-grid">
-            <label>
-              <span>Number</span>
-              <input name="number" value="${escapeHtml(player.number)}" ${canEdit ? "" : "disabled"} />
-            </label>
-            <label>
-              <span>Name</span>
-              <input name="name" value="${escapeHtml(player.name)}" required ${canEdit ? "" : "disabled"} />
-            </label>
-            <label>
-              <span>Position</span>
-              <input name="position" value="${escapeHtml(player.position)}" ${canEdit ? "" : "disabled"} />
-            </label>
-            <label>
-              <span>Image URL</span>
-              <input name="photoUrl" type="url" value="${escapeHtml(player.photoUrl)}" ${canEdit ? "" : "disabled"} />
-            </label>
-          </div>
-          <div class="medical-form-actions">
-            <button type="submit" ${canEdit ? "" : "disabled"}>Save profile</button>
-            <button type="button" class="medical-danger-button" data-medical-remove-player="${escapeHtml(player.id)}" ${canEdit ? "" : "disabled"}>Remove</button>
-          </div>
-        </form>
-      </article>
-      <article class="medical-side-card medical-log-card">
-        <div class="medical-card-headline">
-          <h2>Medical Log</h2>
-          <span>${getMedicalPlayerRecords(player.id).length}</span>
-        </div>
-        <div class="medical-log-list">${renderMedicalLog(player)}</div>
-      </article>
-      ${renderMedicalNewPlayerCard()}
-    </aside>
-  `;
+const player = getSelectedMedicalPlayer();
+const canEdit = canEditMedicalTeam();
+if (!player) {
+return `
+<aside class="medical-detail-panel">
+${renderMedicalNewPlayerCard()}
+</aside>
+`;
+}
+const record = getLatestMedicalRecord(player.id, medicalState.selectedDate);
+const status = getMedicalRecordStatus(record);
+const formStatus = record?.status ?? status.key;
+const formParticipation = record?.participation ?? getMedicalStatusOption(formStatus).defaultParticipation ?? 100;
+return `
+<aside class="medical-detail-panel">
+<article class="medical-selected-card">
+<div class="medical-selected-head">
+${renderMedicalPlayerAvatar(player, "medical-selected-avatar")}
+<div>
+<p class="placeholder-tag">Player Medical</p>
+<h2>${escapeHtml(player.name)}</h2>
+<span>${player.number ? `#${escapeHtml(player.number)} / ` : ""}${escapeHtml(player.position || "Position")}</span>
+</div>
+</div>
+<div class="medical-selected-status medical-tone-${escapeHtml(status.tone)}">
+<strong>${record ? `${record.participation}%` : "Not set"}</strong>
+<span>${escapeHtml(status.label)}</span>
+</div>
+</article>
+<article class="medical-side-card">
+<div class="medical-card-headline">
+<h2>Recommendation</h2>
+<span>${escapeHtml(formatMedicalDateLabel(medicalState.selectedDate))}</span>
+</div>
+<form id="medicalRecommendationForm" class="medical-profile-form">
+<input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
+<div class="medical-form-grid">
+<label>
+<span>Date</span>
+<input name="date" type="date" value="${escapeHtml(medicalState.selectedDate)}" ${canEdit ? "" : "disabled"} />
+</label>
+<label>
+<span>Status</span>
+<select name="status" id="medicalRecommendationStatus" ${canEdit ? "" : "disabled"}>
+${renderMedicalStatusOptions(formStatus)}
+</select>
+</label>
+<label>
+<span>Recommended</span>
+<select name="participation" id="medicalRecommendationParticipation" ${canEdit ? "" : "disabled"}>
+${renderMedicalParticipationOptions(formParticipation)}
+</select>
+</label>
+<label>
+<span>Actual</span>
+<select name="actualParticipation" ${canEdit ? "" : "disabled"}>
+${renderMedicalActualParticipationOptions(record?.actualParticipation)}
+</select>
+</label>
+</div>
+<label>
+<span>Internal medical note</span>
+<textarea name="comment" rows="4" ${canEdit ? "" : "disabled"}>${escapeHtml(record?.comment ?? "")}</textarea>
+</label>
+<button type="submit" ${canEdit ? "" : "disabled"}>Save status</button>
+</form>
+</article>
+<article class="medical-side-card">
+<div class="medical-card-headline">
+<h2>Player Profile</h2>
+<span>IDP-ready</span>
+</div>
+<form id="medicalPlayerProfileForm" class="medical-profile-form">
+<input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
+<div class="medical-form-grid">
+<label>
+<span>Number</span>
+<input name="number" value="${escapeHtml(player.number)}" ${canEdit ? "" : "disabled"} />
+</label>
+<label>
+<span>Name</span>
+<input name="name" value="${escapeHtml(player.name)}" required ${canEdit ? "" : "disabled"} />
+</label>
+<label>
+<span>Position</span>
+<input name="position" value="${escapeHtml(player.position)}" ${canEdit ? "" : "disabled"} />
+</label>
+<label>
+<span>Image URL</span>
+<input name="photoUrl" type="url" value="${escapeHtml(player.photoUrl)}" ${canEdit ? "" : "disabled"} />
+</label>
+</div>
+<div class="medical-form-actions">
+<button type="submit" ${canEdit ? "" : "disabled"}>Save profile</button>
+<button type="button" class="medical-danger-button" data-medical-remove-player="${escapeHtml(player.id)}" ${canEdit ? "" : "disabled"}>Remove</button>
+</div>
+</form>
+</article>
+<article class="medical-side-card medical-log-card">
+<div class="medical-card-headline">
+<h2>Medical Log</h2>
+<span>${getMedicalPlayerRecords(player.id).length}</span>
+</div>
+<div class="medical-log-list">${renderMedicalLog(player)}</div>
+</article>
+${renderMedicalNewPlayerCard()}
+</aside>
+`;
 }
 function renderMedicalTeamWorkspace(message = "") {
-  if (!ui.medicalTeamWorkspace) {
-    return;
-  }
-  ensureMedicalState();
-  const stats = getMedicalDailyStats(medicalState.selectedDate);
-  const windowAverage = getMedicalWindowAverage();
-  ui.medicalTeamWorkspace.innerHTML = `
-    <div class="medical-shell">
-      <header class="medical-hero">
-        <div>
-          <p class="placeholder-tag">Medical Team</p>
-          <h1>Availability Control</h1>
-          <span class="medical-hero-meta">${escapeHtml(getMedicalScheduleSummary(medicalState.selectedDate))}</span>
-        </div>
-        <div class="medical-access-chip">${escapeHtml(getMedicalAccessLabel())}</div>
-      </header>
-      ${renderMedicalDateStrip()}
-      ${message ? `<div class="medical-message">${escapeHtml(message)}</div>` : ""}
-      <section class="medical-metrics-grid" aria-label="Medical availability summary">
-        ${renderMedicalMetric("Full", String(stats.fullCount), "effective 100%", "full")}
-        ${renderMedicalMetric("Modified", String(stats.modifiedCount), "10-75%", "modified")}
-        ${renderMedicalMetric("Unavailable", String(stats.unavailableCount), "0%", "unavailable")}
-        ${renderMedicalMetric("Not set", String(stats.unloggedCount), "no entry")}
-        ${renderMedicalMetric("Day average", stats.averageParticipation === null ? "-" : `${stats.averageParticipation}%`, `${stats.loggedCount}/${medicalState.players.length} filled`)}
-        ${renderMedicalMetric("7-day average", windowAverage === null ? "-" : `${windowAverage}%`, "selected window")}
-      </section>
-      ${
-        medicalState.players.length
-          ? `
-            <section class="medical-layout">
-              ${renderMedicalRosterPanel()}
-            </section>
-            ${renderMedicalDailyHuddle()}
-            ${renderMedicalCoachHandoverPanel()}
-            ${renderMedicalCommandBoard()}
-          `
-          : renderMedicalRosterSetup()
-      }
-      ${renderMedicalSecurityPanel()}
-      ${renderMedicalGovernancePanel()}
-      ${renderMedicalPlayerModal()}
-    </div>
-  `;
+if (!ui.medicalTeamWorkspace) {
+return;
+}
+ensureMedicalState();
+const stats = getMedicalDailyStats(medicalState.selectedDate);
+const windowAverage = getMedicalWindowAverage();
+ui.medicalTeamWorkspace.innerHTML = `
+<div class="medical-shell">
+<header class="medical-hero">
+<div>
+<p class="placeholder-tag">Medical Team</p>
+<h1>Availability Control</h1>
+<span class="medical-hero-meta">${escapeHtml(getMedicalScheduleSummary(medicalState.selectedDate))}</span>
+</div>
+<div class="medical-access-chip">${escapeHtml(getMedicalAccessLabel())}</div>
+</header>
+${renderMedicalDateStrip()}
+${message ? `<div class="medical-message">${escapeHtml(message)}</div>` : ""}
+<section class="medical-metrics-grid" aria-label="Medical availability summary">
+${renderMedicalMetric("Full", String(stats.fullCount), "effective 100%", "full")}
+${renderMedicalMetric("Modified", String(stats.modifiedCount), "10-75%", "modified")}
+${renderMedicalMetric("Unavailable", String(stats.unavailableCount), "0%", "unavailable")}
+${renderMedicalMetric("Not set", String(stats.unloggedCount), "no entry")}
+${renderMedicalMetric("Day average", stats.averageParticipation === null ? "-" : `${stats.averageParticipation}%`, `${stats.loggedCount}/${medicalState.players.length} filled`)}
+${renderMedicalMetric("7-day average", windowAverage === null ? "-" : `${windowAverage}%`, "selected window")}
+</section>
+${
+medicalState.players.length
+? `
+<section class="medical-layout">
+${renderMedicalRosterPanel()}
+</section>
+${renderMedicalDailyHuddle()}
+${renderMedicalCoachHandoverPanel()}
+${renderMedicalCommandBoard()}
+`
+: renderMedicalRosterSetup()
+}
+${renderMedicalSecurityPanel()}
+${renderMedicalGovernancePanel()}
+${renderMedicalPlayerModal()}
+</div>
+`;
 }
 function parseMedicalRosterLine(line) {
-  const cleanLine = String(line ?? "").trim();
-  if (!cleanLine) {
-    return null;
-  }
-  const delimitedParts = parseMedicalRosterLineParts(cleanLine);
-  if (delimitedParts.length >= 2) {
-    const photoUrl = delimitedParts.find((part) => /^https?:\/\//i.test(part)) || "";
-    const compactedParts = delimitedParts
-      .filter((part) => part !== photoUrl)
-      .map((part) => part.trim())
-      .filter(Boolean);
-    const numberIndex = compactedParts.findIndex((part) => /^\#?\d{1,3}$/.test(part));
-    if (numberIndex >= 0) {
-      const number = compactedParts[numberIndex].replace("#", "");
-      const numberIsFirst = numberIndex === 0;
-      const hasCommaName = compactedParts.length > 3;
-      const name = numberIsFirst
-        ? hasCommaName
-          ? compactedParts.slice(1, compactedParts.length - 1).join(", ")
-          : compactedParts[1] || ""
-        : compactedParts.slice(0, numberIndex).join(", ");
-      const position = numberIsFirst
-        ? hasCommaName
-          ? compactedParts[compactedParts.length - 1]
-          : compactedParts[2] || ""
-        : compactedParts[numberIndex + 1] || "";
-      return normalizeMedicalPlayer({ number, name, position, photoUrl });
-    }
-    return normalizeMedicalPlayer({
-      name: compactedParts[0],
-      position: compactedParts[1] || "",
-      photoUrl,
-    });
-  }
-  const numberMatch = cleanLine.match(/^\#?(\d{1,3})\s+(.+)$/);
-  if (numberMatch) {
-    return normalizeMedicalPlayer({
-      number: numberMatch[1],
-      name: numberMatch[2],
-    });
-  }
-  return normalizeMedicalPlayer({ name: cleanLine });
+const cleanLine = String(line ?? "").trim();
+if (!cleanLine) {
+return null;
+}
+const delimitedParts = parseMedicalRosterLineParts(cleanLine);
+if (delimitedParts.length >= 2) {
+const photoUrl = delimitedParts.find((part) => /^https?:\/\//i.test(part)) || "";
+const compactedParts = delimitedParts
+.filter((part) => part !== photoUrl)
+.map((part) => part.trim())
+.filter(Boolean);
+const numberIndex = compactedParts.findIndex((part) => /^\#?\d{1,3}$/.test(part));
+if (numberIndex >= 0) {
+const number = compactedParts[numberIndex].replace("#", "");
+const numberIsFirst = numberIndex === 0;
+const hasCommaName = compactedParts.length > 3;
+const name = numberIsFirst
+? hasCommaName
+? compactedParts.slice(1, compactedParts.length - 1).join(", ")
+: compactedParts[1] || ""
+: compactedParts.slice(0, numberIndex).join(", ");
+const position = numberIsFirst
+? hasCommaName
+? compactedParts[compactedParts.length - 1]
+: compactedParts[2] || ""
+: compactedParts[numberIndex + 1] || "";
+return normalizeMedicalPlayer({ number, name, position, photoUrl });
+}
+return normalizeMedicalPlayer({
+name: compactedParts[0],
+position: compactedParts[1] || "",
+photoUrl,
+});
+}
+const numberMatch = cleanLine.match(/^\#?(\d{1,3})\s+(.+)$/);
+if (numberMatch) {
+return normalizeMedicalPlayer({
+number: numberMatch[1],
+name: numberMatch[2],
+});
+}
+return normalizeMedicalPlayer({ name: cleanLine });
 }
 function parseMedicalRosterLineParts(line = "") {
-  const rawLine = String(line ?? "").trim();
-  if (!rawLine) {
-    return [];
-  }
-  if (rawLine.includes("\t")) {
-    return rawLine.split("\t").map((part) => part.trim()).filter(Boolean);
-  }
-  if (rawLine.includes("|")) {
-    return rawLine.split("|").map((part) => part.trim()).filter(Boolean);
-  }
-  if (rawLine.includes(";")) {
-    return rawLine.split(";").map((part) => part.trim()).filter(Boolean);
-  }
+const rawLine = String(line ?? "").trim();
+if (!rawLine) {
+return [];
+}
+if (rawLine.includes("\t")) {
+return rawLine.split("\t").map((part) => part.trim()).filter(Boolean);
+}
+if (rawLine.includes("|")) {
+return rawLine.split("|").map((part) => part.trim()).filter(Boolean);
+}
+if (rawLine.includes(";")) {
+return rawLine.split(";").map((part) => part.trim()).filter(Boolean);
+}
   return parseMedicalRosterCsvLine(rawLine);
 }
 function parseMedicalRosterCsvLine(line = "") {

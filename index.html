@@ -39,6 +39,20 @@
     <script>
       {const v=window.__assetVersion=Date.now(),d=document;d.getElementById("s").href=`styles.css?v=${v}`}
     </script>
+    <script>
+      (function () {
+        const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
+        if (location.protocol !== "https:" || localHosts.has(location.hostname)) return;
+        if (document.head.querySelector('script[src="/_vercel/speed-insights/script.js"]')) return;
+
+        const script = document.createElement("script");
+        script.defer = true;
+        script.src = "/_vercel/speed-insights/script.js";
+        script.dataset.sdkn = "@vercel/speed-insights";
+        script.dataset.sdkv = "2.0.0";
+        document.head.appendChild(script);
+      })();
+    </script>
   </head>
   <body class="is-auth-locked is-booting">
     <script>

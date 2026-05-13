@@ -140,7 +140,12 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   const incidentWorkflow = readProjectFile(".github/workflows/production-incident-alert.yml");
   const incidentReadiness = readProjectFile("scripts/verify-incident-readiness.mjs");
   const productionDeployWorkflow = readProjectFile(".github/workflows/production-deploy.yml");
+  const indexHtml = readProjectFile("index.html");
 
+  expect(packageJson.dependencies["@vercel/speed-insights"]).toBeTruthy();
+  expect(indexHtml).toContain("/_vercel/speed-insights/script.js");
+  expect(indexHtml).toContain("location.protocol !== \"https:\"");
+  expect(indexHtml).toContain("localHosts.has(location.hostname)");
   expect(packageJson.scripts["qa"]).toContain("npm run qa:perf");
   expect(packageJson.scripts["qa"]).toContain("npm run storage:guard");
   expect(packageJson.scripts["qa"]).toContain("npm run security:platform");

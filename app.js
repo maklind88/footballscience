@@ -294,6 +294,7 @@ const sessionPlannerLibrarySortOptions = [
   { value: "phase", label: "Phase" },
 ];
 const playerProfilesStorageKey = "football-player-profiles-v1";
+const playerProfileAgeCacheStorageKey = "football-player-profile-age-cache-v1";
 const dashboardTaskStorageKey = "football-dashboard-tasks-v1";
 const dashboardChatStorageKey = "football-dashboard-chat-v1";
 const dashboardChatDeletedMessageIdsStorageKey = "football-dashboard-chat-deleted-message-ids-v1";
@@ -4092,6 +4093,10 @@ let medicalStatusFilter = "all";
 let medicalPlayerModalOpen = false;
 let medicalBulkSelectedPlayerIds = new Set();
 let playerProfilesState = null;
+let playerProfileAgeCacheState = null;
+let playerProfileAgeHydrationTimer = 0;
+let playerProfileAgeHydrationPending = false;
+let playerProfileAgeHydrationLastFingerprint = "";
 let playerProfilesSearchQuery = "";
 let playerProfilesRoleGroupFilter = "all";
 let playerProfilesRosterFilter = "all";
@@ -4315,6 +4320,23 @@ let dashboardPresenceLastRenderedSignature = "";
 let dashboardPresenceInFlight = false;
 function getPlatformAuthStore() {
   return window.platformAuthStore ?? null;
+}
+async function getPlatformApiAccessToken() {
+  if (window.platformAuthReadyPromise instanceof Promise) {
+    try {
+      await window.platformAuthReadyPromise;
+    } catch {
+    }
+  }
+  const authStore = getPlatformAuthStore();
+  if (typeof authStore?.getAccessToken !== "function") {
+    return "";
+  }
+  try {
+    return String((await authStore.getAccessToken()) || "").trim();
+  } catch {
+    return "";
+  }
 }
 function syncPlatformUserFromAuth() {
   const authStore = getPlatformAuthStore();
@@ -21449,7 +21471,7 @@ function normalizePlayerProfileAgeValue(value) {
   return age >= 0 && age <= 99 ? String(age) : "";
 }
 function getPlayerProfileAgeValue(player = {}, referenceDate = new Date()) {
-  const birthDate = normalizePlayerProfileBirthDate(player.birthDate || player.dateOfBirth || player.dob);
+  const birthDate = normalizePlayerProfileBirthDate(player.birthDate || player.dateOfBirth || player.date_of_birth || player.dob);
   if (birthDate) {
     const [birthYear, birthMonth, birthDay] = birthDate.split("-").map(Number);
     if (Number.isFinite(birthYear) && Number.isFinite(birthMonth) && Number.isFinite(birthDay)) {
@@ -21464,6 +21486,110 @@ function getPlayerProfileAgeValue(player = {}, referenceDate = new Date()) {
     }
   }
   return normalizePlayerProfileAgeValue(player.age ?? player.playerAge);
+}
+function normalizePlayerProfileAgeLookupText(value = "") {
+  return String(value || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function getPlayerProfileAgeLookupSignature(player = {}) {
+  return [
+    normalizePlayerProfileAgeLookupText(player.id),
+    normalizePlayerProfileAgeLookupText(player.name),
+    normalizePlayerProfileAgeLookupText(player.number),
+    normalizePlayerProfileAgeLookupText(player.position),
+  ].join("|");
+}
+function getPlayerProfileAgeCacheKey(player = {}) {
+  const playerId = String(player.id || "").trim();
+  if (playerId) {
+    return playerId;
+  }
+  return getPlayerProfileAgeLookupSignature(player);
+}
+function normalizePlayerProfileAgeCacheEntry(entry = {}) {
+  const signature = String(entry.signature || "").trim();
+  return {
+    signature,
+    birthDate: normalizePlayerProfileBirthDate(entry.birthDate || entry.dateOfBirth || entry.date_of_birth),
+    age: normalizePlayerProfileAgeValue(entry.age),
+    databasePlayerId: String(entry.databasePlayerId || entry.playerId || "").trim(),
+    source: String(entry.source || "squad_players").trim(),
+    checkedAt: String(entry.checkedAt || "").trim(),
+  };
+}
+function readPlayerProfileAgeCache() {
+  try {
+    const raw = window.localStorage.getItem(playerProfileAgeCacheStorageKey);
+    const parsed = raw ? JSON.parse(raw) : {};
+    const sourcePlayers = parsed?.players && typeof parsed.players === "object" ? parsed.players : {};
+    const players = Object.entries(sourcePlayers).reduce((result, [key, entry]) => {
+      const normalizedKey = String(key || "").trim();
+      if (!normalizedKey) {
+        return result;
+      }
+      const normalizedEntry = normalizePlayerProfileAgeCacheEntry(entry);
+      if (normalizedEntry.signature || normalizedEntry.checkedAt || normalizedEntry.birthDate || normalizedEntry.age) {
+        result[normalizedKey] = normalizedEntry;
+      }
+      return result;
+    }, {});
+    return {
+      schemaVersion: "football-squad-age-cache-v1",
+      players,
+      updatedAt: String(parsed?.updatedAt || "").trim(),
+    };
+  } catch {
+    return { schemaVersion: "football-squad-age-cache-v1", players: {}, updatedAt: "" };
+  }
+}
+function ensurePlayerProfileAgeCache() {
+  if (!playerProfileAgeCacheState) {
+    playerProfileAgeCacheState = readPlayerProfileAgeCache();
+  }
+  return playerProfileAgeCacheState;
+}
+function writePlayerProfileAgeCache(cache = playerProfileAgeCacheState) {
+  if (!cache) {
+    return;
+  }
+  playerProfileAgeCacheState = {
+    schemaVersion: "football-squad-age-cache-v1",
+    players: cache.players && typeof cache.players === "object" ? cache.players : {},
+    updatedAt: new Date().toISOString(),
+  };
+  try {
+    window.localStorage.setItem(playerProfileAgeCacheStorageKey, JSON.stringify(playerProfileAgeCacheState));
+  } catch {
+    logEvent("Squad age cache could not be written to local storage.");
+  }
+}
+function getPlayerProfileAgeCacheEntry(player = {}, cache = ensurePlayerProfileAgeCache()) {
+  const key = getPlayerProfileAgeCacheKey(player);
+  const entry = key ? cache.players?.[key] : null;
+  if (!entry) {
+    return null;
+  }
+  const signature = getPlayerProfileAgeLookupSignature(player);
+  if (entry.signature && entry.signature !== signature) {
+    return null;
+  }
+  return entry;
+}
+function getPlayerProfileDisplayAgeValue(player = {}, referenceDate = new Date()) {
+  const directAge = getPlayerProfileAgeValue(player, referenceDate);
+  if (directAge) {
+    return directAge;
+  }
+  const cachedAge = getPlayerProfileAgeCacheEntry(player);
+  if (!cachedAge) {
+    return "";
+  }
+  return getPlayerProfileAgeValue({ birthDate: cachedAge.birthDate, age: cachedAge.age }, referenceDate);
 }
 function isPlayerProfileTemporaryActiveOnDate(player = {}, dateValue = "") {
   if (!isTemporaryPlayerProfile(player)) {
@@ -21918,7 +22044,7 @@ function normalizePlayerProfile(player = {}) {
     name,
     number: String(player.number ?? "").trim(),
     age: normalizePlayerProfileAgeValue(player.age ?? player.playerAge),
-    birthDate: normalizePlayerProfileBirthDate(player.birthDate || player.dateOfBirth || player.dob),
+    birthDate: normalizePlayerProfileBirthDate(player.birthDate || player.dateOfBirth || player.date_of_birth || player.dob),
     position: String(player.position ?? "").trim(),
     photoUrl: String(player.photoUrl ?? "").trim(),
     sourceUrl: String(player.sourceUrl ?? "").trim(),
@@ -22158,6 +22284,154 @@ function writePlayerProfilesState() {
   } catch {
     logEvent("Player Profiles data could not be written to local storage.");
   }
+}
+function getPlayerProfileAgeHydrationCandidates(players = []) {
+  const cache = ensurePlayerProfileAgeCache();
+  const seenKeys = new Set();
+  return (Array.isArray(players) ? players : [])
+    .filter((player) => player?.id && player?.name)
+    .filter((player) => {
+      if (getPlayerProfileAgeValue(player)) {
+        return false;
+      }
+      const cacheKey = getPlayerProfileAgeCacheKey(player);
+      if (!cacheKey || seenKeys.has(cacheKey)) {
+        return false;
+      }
+      const cachedEntry = getPlayerProfileAgeCacheEntry(player, cache);
+      if (cachedEntry?.checkedAt) {
+        return false;
+      }
+      seenKeys.add(cacheKey);
+      return true;
+    })
+    .map((player) => ({
+      profileId: player.id,
+      cacheKey: getPlayerProfileAgeCacheKey(player),
+      signature: getPlayerProfileAgeLookupSignature(player),
+      name: player.name,
+      number: player.number,
+      position: player.position,
+    }));
+}
+function buildPlayerProfileAgeHydrationPayload(candidates = []) {
+  const user = getCurrentPlatformUser();
+  const platformStructure = getPlatformStructureState();
+  const squadTeam = getPlatformTeamDisplayTeam(user, platformStructure);
+  const teamName = squadTeam?.name || getPlatformTeamDisplayName(user, platformStructure);
+  return {
+    schemaVersion: "football-squad-age-hydration-request-v1",
+    team: {
+      id: squadTeam?.id || user?.teamId || "",
+      name: teamName,
+      clubId: squadTeam?.clubId || user?.clubId || "",
+      clubName: user?.clubName || user?.club || "",
+    },
+    players: candidates.map((candidate) => ({
+      profileId: candidate.profileId,
+      name: candidate.name,
+      number: candidate.number,
+      position: candidate.position,
+    })),
+  };
+}
+function mergePlayerProfileAgeHydrationResult(candidates = [], payload = {}) {
+  const cache = ensurePlayerProfileAgeCache();
+  const now = new Date().toISOString();
+  const candidatesByProfileId = new Map(candidates.map((candidate) => [candidate.profileId, candidate]));
+  candidates.forEach((candidate) => {
+    if (!candidate.cacheKey) {
+      return;
+    }
+    cache.players[candidate.cacheKey] = {
+      ...(cache.players[candidate.cacheKey] || {}),
+      signature: candidate.signature,
+      checkedAt: now,
+      source: "squad_players",
+    };
+  });
+  const hydratedPlayers = Array.isArray(payload?.players) ? payload.players : [];
+  hydratedPlayers.forEach((entry) => {
+    const profileId = String(entry?.profileId || "").trim();
+    const candidate = candidatesByProfileId.get(profileId);
+    if (!candidate?.cacheKey) {
+      return;
+    }
+    const birthDate = normalizePlayerProfileBirthDate(entry.birthDate || entry.dateOfBirth || entry.date_of_birth);
+    const age = normalizePlayerProfileAgeValue(entry.age);
+    if (!birthDate && !age) {
+      return;
+    }
+    cache.players[candidate.cacheKey] = {
+      signature: candidate.signature,
+      birthDate,
+      age,
+      databasePlayerId: String(entry.databasePlayerId || entry.playerId || "").trim(),
+      source: String(entry.source || "squad_players").trim(),
+      checkedAt: now,
+    };
+  });
+  writePlayerProfileAgeCache(cache);
+  return hydratedPlayers.length > 0;
+}
+async function hydratePlayerProfileAgesOnce() {
+  if (playerProfileAgeHydrationPending || hubState?.activeWorkspaceId !== "player-profiles") {
+    return;
+  }
+  ensurePlayerProfilesState();
+  const candidates = getPlayerProfileAgeHydrationCandidates(playerProfilesState.players);
+  if (!candidates.length) {
+    return;
+  }
+  const fingerprint = candidates.map((candidate) => `${candidate.cacheKey}:${candidate.signature}`).join(";");
+  if (fingerprint && fingerprint === playerProfileAgeHydrationLastFingerprint) {
+    return;
+  }
+  playerProfileAgeHydrationLastFingerprint = fingerprint;
+  playerProfileAgeHydrationPending = true;
+  try {
+    const token = await getPlatformApiAccessToken();
+    if (!token) {
+      playerProfileAgeHydrationLastFingerprint = "";
+      return;
+    }
+    const response = await fetch("/api/squad-ages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(buildPlayerProfileAgeHydrationPayload(candidates)),
+    });
+    const text = await response.text();
+    let payload = {};
+    if (text) {
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        payload = {};
+      }
+    }
+    if (!response.ok || payload?.ok === false) {
+      playerProfileAgeHydrationLastFingerprint = "";
+      return;
+    }
+    const didHydrate = mergePlayerProfileAgeHydrationResult(candidates, payload);
+    if (didHydrate && hubState?.activeWorkspaceId === "player-profiles") {
+      renderPlayerProfilesRosterListOnly();
+    }
+  } catch {
+    playerProfileAgeHydrationLastFingerprint = "";
+  } finally {
+    playerProfileAgeHydrationPending = false;
+  }
+}
+function queuePlayerProfileAgeHydration() {
+  window.clearTimeout(playerProfileAgeHydrationTimer);
+  playerProfileAgeHydrationTimer = window.setTimeout(() => {
+    playerProfileAgeHydrationTimer = 0;
+    hydratePlayerProfileAgesOnce();
+  }, 80);
 }
 function ensurePlayerProfilesState() {
   if (!playerProfilesState) {
@@ -23065,7 +23339,7 @@ function renderSquadRoleCell(player) {
   return `<div class="squad-role-cell">${renderSquadRoleStack(player)}</div>`;
 }
 function renderSquadAgeCell(player) {
-  const age = getPlayerProfileAgeValue(player);
+  const age = getPlayerProfileDisplayAgeValue(player);
   return `<span class="squad-age-cell">${escapeHtml(age || "-")}</span>`;
 }
 function renderSquadPlanningCell(player) {
@@ -23283,6 +23557,7 @@ function renderPlayerProfilesRosterListOnly() {
     rosterSummary: getPlayerProfilesRosterSummary(playerProfilesState.players),
     visibleSummary: getPlayerProfilesRosterSummary(visiblePlayers),
   });
+  queuePlayerProfileAgeHydration();
 }
 function renderPlayerProfileRoleOptions(selectedRole = "") {
   return playerProfileRoleOptions
@@ -25664,6 +25939,7 @@ ${renderPlayerProfileModal(selectedPlayer)}
 ${renderPlayerProfileNewPlayerModal()}
 </div>
 `;
+queuePlayerProfileAgeHydration();
 }
 function getPlayerProfileFormValues(form) {
 const data = new FormData(form);

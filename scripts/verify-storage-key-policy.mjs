@@ -16,6 +16,7 @@ const approvedLocalOnlyStorageKeys = Object.freeze({
   "football-dashboard-chat-widget-notification-cursor-v1": "per-browser notification cursor",
   "football-dashboard-chat-widget-notification-state-v1": "per-browser notification UI state",
   "football-data-safety-v1": "internal browser cache manifest for the data safety layer",
+  "football-player-profile-age-cache-v1": "derived Squad age cache; Supabase remains source of truth and player profiles are not overwritten",
   "football-scouting-imported-database-v1": "per-browser Wyscout/Excel scouting import cache; user-controlled local dataset, not central app-state",
 });
 

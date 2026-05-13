@@ -140,6 +140,7 @@ const platformPermissionMatrix = Object.freeze([
     observe: ["admin", "coach", "scout"],
   }, {
     storageKeys: ["football-player-profiles-v1"],
+    routes: ["/api/squad-ages"],
   }),
   moduleContract("scouting", "Scouting", "team", {
     read: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
@@ -290,6 +291,12 @@ const apiRouteSecurity = Object.freeze({
     moduleId: "scouting",
     actions: Object.freeze({ GET: "read", POST: "write", PUT: "write", PATCH: "write", DELETE: "delete" }),
     rateLimits: Object.freeze({ read: 100, write: 35, delete: 10 }),
+    enforcePermission: true,
+  }),
+  "/api/squad-ages": Object.freeze({
+    moduleId: "player-profiles",
+    actions: Object.freeze({ POST: "read" }),
+    rateLimits: Object.freeze({ read: 30 }),
     enforcePermission: true,
   }),
   "/api/presence": Object.freeze({

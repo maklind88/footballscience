@@ -744,11 +744,38 @@ test("Medical recommendation edits persist after refresh", async ({ page }) => {
 
 test("Squad add creates a Medical roster slot and Session Planner placement", async ({ page }) => {
   const playerName = `QA Squad Placement ${Date.now()}`;
+  let squadAgeRequests = 0;
   await bootApp(page);
+  await page.route("**/api/squad-ages", async (route) => {
+    squadAgeRequests += 1;
+    const body = route.request().postDataJSON();
+    const players = Array.isArray(body?.players) ? body.players : [];
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        schema: "footballscience-squad-age-hydration-v1",
+        checkedAt: new Date().toISOString(),
+        checkedProfileIds: players.map((player) => player.profileId).filter(Boolean),
+        players: players
+          .filter((player) => player.name === "Madison White")
+          .map((player) => ({
+            profileId: player.profileId,
+            name: player.name,
+            birthDate: "2000-01-01",
+            databasePlayerId: "11111111-1111-4111-8111-111111111111",
+            source: "squad_players",
+          })),
+      }),
+    });
+  });
   await page.evaluate(() => {
     const store = window.platformAuthStore;
     const currentUser = store?.getCurrentUser?.();
     if (!store || !currentUser) return;
+    store.getAccessToken = async () => "qa-token";
+    window.localStorage.removeItem("football-player-profile-age-cache-v1");
     window.localStorage.setItem(
       "football-platform-structure-v1",
       JSON.stringify({
@@ -805,6 +832,12 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
   await expect(page.locator(".squad-table thead").first()).toContainText("IDP");
   await expect(page.locator(".squad-player-row").first()).toContainText("Goalkeeper");
   await expect(page.locator(".squad-player-row").first().locator(".squad-age-cell")).toHaveText(/^-|\d+$/);
+  await expect(page.locator('[data-player-profile-select="ncc-2026-madison-white"] .squad-age-cell')).toHaveText(/\d+/);
+  expect(squadAgeRequests).toBe(1);
+  await openWorkspace(page, "home");
+  await openWorkspace(page, "player-profiles");
+  await page.waitForTimeout(200);
+  expect(squadAgeRequests).toBe(1);
   await expect
     .poll(async () => {
       const playerCell = await page.locator(".squad-player-row").first().locator("td").nth(0).boundingBox();

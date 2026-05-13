@@ -8,6 +8,8 @@ let scoutingDatabaseLoadPromise = null;
 let scoutingDatabaseError = "";
 let scoutingDatabaseOptionCache = null;
 let scoutingPercentileCache = new Map();
+let scoutingMetricAliasCache = new Map();
+let scoutingRoleProfileCache = new Map();
 let preferredScoutingShadowSlotId = "";
 let scoutingDatabaseResultsFrame = 0;
 let scoutingImportedDatabaseLoaded = false;
@@ -103,6 +105,11 @@ function normalizeScoutingRecordIds(values = []) {
       return true;
     });
 }
+function resetScoutingComputedCaches() {
+  scoutingPercentileCache = new Map();
+  scoutingMetricAliasCache = new Map();
+  scoutingRoleProfileCache = new Map();
+}
 function cloneScoutingList(list = {}) {
   const name = normalizeScoutingText(list.name, 80) || "Scouting List";
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -193,7 +200,7 @@ function ensureScoutingDatabaseLoaded() {
           throw new Error("Scouting database did not register on window.");
         }
         scoutingDatabaseOptionCache = null;
-        scoutingPercentileCache = new Map();
+        resetScoutingComputedCaches();
         return database;
       })
       .catch((error) => {
@@ -460,10 +467,15 @@ function normalizeScoutingMetricAlias(value) {
     .trim();
 }
 function getScoutingMetricIdByLabels(labels = []) {
+  const cacheKey = labels.map((label) => normalizeScoutingMetricAlias(label)).filter(Boolean).join("|");
+  if (cacheKey && scoutingMetricAliasCache.has(cacheKey)) {
+    return scoutingMetricAliasCache.get(cacheKey);
+  }
   const indexedMetrics = getScoutingMetricOptions().map((metric) => ({
     metric,
     corpus: [metric.id, metric.key, metric.label].map(normalizeScoutingMetricAlias).filter(Boolean),
   }));
+  let resolvedMetricId = "";
   for (const label of labels) {
     const needle = normalizeScoutingMetricAlias(label);
     if (!needle) {
@@ -471,13 +483,15 @@ function getScoutingMetricIdByLabels(labels = []) {
     }
     const exactMatch = indexedMetrics.find((entry) => entry.corpus.some((value) => value === needle));
     if (exactMatch) {
-      return exactMatch.metric.id;
+      resolvedMetricId = exactMatch.metric.id;
+      break;
     }
     const containsMatch = indexedMetrics.find((entry) =>
       entry.corpus.some((value) => value.includes(needle) || needle.includes(value))
     );
     if (containsMatch) {
-      return containsMatch.metric.id;
+      resolvedMetricId = containsMatch.metric.id;
+      break;
     }
     const words = needle
       .split(" ")
@@ -487,10 +501,14 @@ function getScoutingMetricIdByLabels(labels = []) {
       : null;
     const match = wordMatch;
     if (match) {
-      return match.metric.id;
+      resolvedMetricId = match.metric.id;
+      break;
     }
   }
-  return "";
+  if (cacheKey) {
+    scoutingMetricAliasCache.set(cacheKey, resolvedMetricId);
+  }
+  return resolvedMetricId;
 }
 function getScoutingRecordId(record) {
   return normalizeScoutingText(record?.[scoutingRecordIndex.id], 160);
@@ -832,7 +850,7 @@ function applyScoutingImportDraft() {
   }
   window.__footballScienceImportedScoutingDatabase = database;
   scoutingDatabaseOptionCache = null;
-  scoutingPercentileCache = new Map();
+  resetScoutingComputedCaches();
   try {
     window.localStorage?.setItem(scoutingImportedDatabaseStorageKey, JSON.stringify(database));
   } catch {}
@@ -848,7 +866,7 @@ function clearScoutingImportedDatabase() {
   delete window.__footballScienceImportedScoutingDatabase;
   scoutingImportedDatabaseLoaded = true;
   scoutingDatabaseOptionCache = null;
-  scoutingPercentileCache = new Map();
+  resetScoutingComputedCaches();
   try {
     window.localStorage?.removeItem(scoutingImportedDatabaseStorageKey);
   } catch {}
@@ -1341,7 +1359,20 @@ function getScoutingBenchmarkValues(metricId, record, benchmarkMode = getScoutin
   const league = getScoutingRecordLeague(record);
   const season = getScoutingRecordSeason(record);
   const ageBand = getScoutingBenchmarkAgeBand(record);
-  const cacheKey = ["benchmark", normalizedMode, metricId, group, league, season, ageBand].join(":");
+  const cacheParts = ["benchmark", normalizedMode, metricId];
+  if (normalizedMode !== "all") {
+    cacheParts.push(group);
+  }
+  if (normalizedMode === "league-position" || normalizedMode === "league-season-position") {
+    cacheParts.push(league);
+  }
+  if (normalizedMode === "season-position" || normalizedMode === "league-season-position") {
+    cacheParts.push(season);
+  }
+  if (normalizedMode === "age-position") {
+    cacheParts.push(ageBand);
+  }
+  const cacheKey = cacheParts.join(":");
   if (scoutingPercentileCache.has(cacheKey)) {
     return scoutingPercentileCache.get(cacheKey);
   }
@@ -1446,18 +1477,21 @@ function getFilteredScoutingDatabaseRecords() {
   const sortMetricId = filters.sortMetricId || metricFilterId || "minutes";
   const signalMode = filters.signalMode || "all";
   const marketStatus = filters.marketStatus || "all";
+  const selectedRoleProfile = roleProfileId ? getScoutingRoleProfileById(roleProfileId) : null;
+  const needsRoleFit =
+    Boolean(roleProfileId) ||
+    (Number.isFinite(roleFitMin) && roleFitMin > 0) ||
+    ["priority", "breakout", "value"].includes(signalMode) ||
+    sortMetricId === "role-fit";
   const favoriteIds = new Set(normalizeScoutingRecordIds(state.favoriteRecordIds));
   const pipelineIds = new Set(getScoutingTargetedRecordIds(state));
   const shadowIds = new Set(getScoutingAllShadowRecordIds(state));
   return [...(database?.records || [])]
     .filter((record) => {
       const recordId = getScoutingRecordId(record);
-      const selectedRoleProfile = roleProfileId ? getScoutingRoleProfileById(roleProfileId) : null;
       if (selectedRoleProfile && !selectedRoleProfile.groups.includes(getScoutingPositionGroup(record))) {
         return false;
       }
-      const roleFitScore = getScoutingRoleFitScore(record, roleProfileId);
-      const marketInfo = marketStatus !== "all" ? getScoutingMarketInfo(recordId, state) : null;
       if (filters.league !== "all" && getScoutingRecordLeague(record) !== filters.league) {
         return false;
       }
@@ -1476,6 +1510,7 @@ function getFilteredScoutingDatabaseRecords() {
           return false;
         }
       }
+      const roleFitScore = needsRoleFit ? getScoutingRoleFitScore(record, roleProfileId) : null;
       if (metricFilterId && Number.isFinite(metricMin) && metricMin > 0) {
         const percentile = getScoutingPercentile(record, metricFilterId);
         if (!Number.isFinite(percentile) || percentile < metricMin) {
@@ -1507,6 +1542,7 @@ function getFilteredScoutingDatabaseRecords() {
         return false;
       }
       if (marketStatus !== "all") {
+        const marketInfo = getScoutingMarketInfo(recordId, state);
         if (marketStatus === "budgeted") {
           if (!marketInfo.estimatedFee && !marketInfo.salaryRange && !marketInfo.budgetImpact) {
             return false;
@@ -1528,7 +1564,7 @@ function getFilteredScoutingDatabaseRecords() {
         getScoutingRecordLeague(record),
         getScoutingRecordSeason(record),
         getScoutingRecordPosition(record),
-        query ? getScoutingRoleScores(record, 3).map((item) => item.profile.label).join(" ") : "",
+        query ? getScoutingRoleLabelsForGroup(record).join(" ") : "",
       ]
         .join(" ")
         .toLowerCase()
@@ -2055,6 +2091,24 @@ function getScoutingRoleProfileById(profileId) {
   const id = normalizeScoutingText(profileId, 120);
   return getScoutingRoleSpiderProfiles().find((profile) => profile.id === id) || null;
 }
+function getScoutingDefaultRoleProfile(record) {
+  const defaultProfileByGroup = {
+    GK: "gk-playmaker",
+    CB: "cb-playmaker",
+    FB: "running-fullback",
+    MID: "cm-playmaker",
+    WING: "wide-winger-dribbler",
+    CF: "target-forward",
+    OTHER: "general-player",
+  };
+  return getScoutingRoleProfileById(defaultProfileByGroup[getScoutingPositionGroup(record)] || defaultProfileByGroup.OTHER);
+}
+function getScoutingRoleLabelsForGroup(record) {
+  const group = getScoutingPositionGroup(record);
+  return getScoutingRoleSpiderProfiles()
+    .filter((profile) => profile.groups.includes(group))
+    .map((profile) => profile.label);
+}
 function normalizeScoutingRoleProfileId(value = "", fallback = "all") {
   const normalized = normalizeScoutingText(value, 120);
   if (!normalized || normalized === "all" || normalized === "auto") {
@@ -2087,6 +2141,11 @@ function renderScoutingRoleProfileOptions(selectedValue = "all", options = {}) {
   `;
 }
 function buildScoutingRadarTemplateFromProfile(record, profile, benchmarkMode = getScoutingActiveBenchmarkMode()) {
+  const cacheKey = `template:${getScoutingRecordId(record)}:${profile?.id || "none"}:${normalizeScoutingBenchmarkMode(benchmarkMode)}`;
+  if (scoutingRoleProfileCache.has(cacheKey)) {
+    const cachedTemplate = scoutingRoleProfileCache.get(cacheKey);
+    return cachedTemplate || null;
+  }
   const used = new Set();
   const axes = (profile.axes || [])
     .map((item) => {
@@ -2102,6 +2161,7 @@ function buildScoutingRadarTemplateFromProfile(record, profile, benchmarkMode = 
     .map((item) => getScoutingTemplatePercentile(record, item, benchmarkMode))
     .filter((value) => Number.isFinite(value));
   if (percentiles.length < 3) {
+    scoutingRoleProfileCache.set(cacheKey, null);
     return null;
   }
   axes.profileId = profile.id;
@@ -2109,11 +2169,16 @@ function buildScoutingRadarTemplateFromProfile(record, profile, benchmarkMode = 
   axes.profileDescription = profile.description;
   axes.profileCoverage = percentiles.length / Math.max((profile.axes || []).length, 1);
   axes.profileScore = Math.round(percentiles.reduce((sum, value) => sum + value, 0) / percentiles.length);
+  scoutingRoleProfileCache.set(cacheKey, axes);
   return axes;
 }
 function getScoutingRoleScores(record, limit = 6, benchmarkMode = getScoutingActiveBenchmarkMode()) {
+  const cacheKey = `scores:${getScoutingRecordId(record)}:${normalizeScoutingBenchmarkMode(benchmarkMode)}`;
+  if (scoutingRoleProfileCache.has(cacheKey)) {
+    return scoutingRoleProfileCache.get(cacheKey).slice(0, limit);
+  }
   const group = getScoutingPositionGroup(record);
-  return getScoutingRoleSpiderProfiles()
+  const scores = getScoutingRoleSpiderProfiles()
     .filter((profile) => profile.groups.includes(group))
     .map((profile) => {
       const template = buildScoutingRadarTemplateFromProfile(record, profile, benchmarkMode);
@@ -2127,8 +2192,9 @@ function getScoutingRoleScores(record, limit = 6, benchmarkMode = getScoutingAct
         : null;
     })
     .filter(Boolean)
-    .sort((a, b) => b.score - a.score || b.coverage - a.coverage)
-    .slice(0, limit);
+    .sort((a, b) => b.score - a.score || b.coverage - a.coverage);
+  scoutingRoleProfileCache.set(cacheKey, scores);
+  return scores.slice(0, limit);
 }
 function getScoutingRadarTemplate(record, roleProfileId = "", benchmarkMode = getScoutingActiveBenchmarkMode()) {
   const explicitProfile = getScoutingRoleProfileById(roleProfileId);
@@ -2138,9 +2204,12 @@ function getScoutingRadarTemplate(record, roleProfileId = "", benchmarkMode = ge
       return explicitTemplate;
     }
   }
-  const candidates = getScoutingRoleScores(record, 1, benchmarkMode).map((item) => item.template);
-  if (candidates.length) {
-    return candidates[0];
+  const defaultProfile = getScoutingDefaultRoleProfile(record);
+  if (defaultProfile) {
+    const defaultTemplate = buildScoutingRadarTemplateFromProfile(record, defaultProfile, benchmarkMode);
+    if (defaultTemplate) {
+      return defaultTemplate;
+    }
   }
   return (
     buildScoutingRadarTemplateFromProfile(
@@ -2490,6 +2559,9 @@ function getScoutingShadowSlotCounts(state = ensureScoutingState()) {
 }
 function getScoutingRoleFitScore(record, roleProfileId = "") {
   const template = getScoutingRadarTemplate(record, roleProfileId);
+  if (Number.isFinite(template.profileScore)) {
+    return template.profileScore;
+  }
   const percentiles = template
     .map((item) => getScoutingTemplatePercentile(record, item))
     .filter((value) => Number.isFinite(value));
@@ -4143,14 +4215,17 @@ function getScoutingRecruitmentAlerts(state = ensureScoutingState(), limit = 10)
     }
   });
   if (isScoutingDatabaseLoaded()) {
-    (getScoutingDatabase()?.records || [])
+    [...(getScoutingDatabase()?.records || [])]
+      .filter((record) => getScoutingRecordMinutes(record) >= 450)
+      .sort((a, b) => getScoutingRecordMinutes(b) - getScoutingRecordMinutes(a))
+      .slice(0, 450)
       .map((record) => ({
         record,
         recordId: getScoutingRecordId(record),
         fit: getScoutingRoleFitScore(record),
         minutes: getScoutingRecordMinutes(record),
       }))
-      .filter((item) => item.recordId && item.minutes >= 450 && Number.isFinite(item.fit) && item.fit >= 84)
+      .filter((item) => item.recordId && Number.isFinite(item.fit) && item.fit >= 84)
       .filter((item) => !targetedIds.has(item.recordId) && !shadowIds.has(item.recordId))
       .sort((a, b) => b.fit - a.fit || b.minutes - a.minutes)
       .slice(0, 4)

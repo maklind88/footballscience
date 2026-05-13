@@ -448,10 +448,13 @@ test("Schedule week view shows daily operations and opens linked session", async
   await expect(page.locator("#scheduleWeekGrid")).toBeVisible();
   await expect(page.locator(".schedule-week-day.is-selected")).toContainText("9");
   await expect(page.locator(".schedule-week-day.is-selected .schedule-week-event-summary")).toHaveText("1 plan");
-  await expect(page.locator("#scheduleEventList .schedule-event-card")).toHaveCount(1);
-  await expect(page.locator("#scheduleEventList")).toContainText("Training");
-  await expect(page.locator("#scheduleDayInsights")).toContainText("1 block / 15 min");
-  await expect(page.locator("#scheduleDayInsights")).toContainText("MD-1");
+  const trainingCard = page.locator("#scheduleEventList .schedule-event-card");
+  await expect(trainingCard).toHaveCount(1);
+  await expect(trainingCard).toContainText("Training (1 block / 15 min)");
+  await expect(trainingCard).toContainText("MD-1");
+  await expect(trainingCard).toContainText("In Possession / Build-up");
+  await expect(page.locator("#scheduleDayInsights .schedule-day-summary-grid")).toHaveCount(0);
+  await expect(page.locator("#scheduleDayInsights")).not.toContainText("1 block / 15 min");
   await expect(page.locator("#scheduleDayInsights")).not.toContainText("Training Session");
 
   await page.locator('[data-schedule-open-session-date="2026-05-09"]').click();

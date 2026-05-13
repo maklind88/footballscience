@@ -6627,9 +6627,34 @@ function renderScheduleWeekDay(date) {
     </article>
   `;
 }
-function renderScheduleEventCard(event, isAdmin) {
+function getScheduleSelectedDayContext(dateValue) {
+  ensurePeriodizationState();
+  const periodizationDay = getPeriodizationDay(dateValue);
+  const phaseLabels = [
+    ...(Array.isArray(periodizationDay.matchPhases) ? periodizationDay.matchPhases : []),
+    ...(Array.isArray(periodizationDay.subPhases) ? periodizationDay.subPhases : []),
+  ].slice(0, 3);
+
+  return {
+    sessionSnapshot: getScheduleSessionSnapshot(dateValue),
+    periodizationLabel: getPeriodizationDayScheduleLabel(periodizationDay),
+    matchDayLabel: getPeriodizationMatchDayLabel(periodizationDay.matchDay),
+    phaseSummary: phaseLabels.join(" / "),
+  };
+}
+function renderScheduleEventCard(event, isAdmin, dayContext = null) {
   const eventType = scheduleEventTypes[event.type] ?? scheduleEventTypes.training;
-  const eventMeta = [event.time, eventType.label].filter(Boolean).join(" · ");
+  const isLinkedSession = Boolean(dayContext?.sessionSnapshot?.hasSession && isScheduleSessionEvent(event));
+  const sessionSummary = isLinkedSession
+    ? formatScheduleBlockSummary(dayContext.sessionSnapshot.blocks.length, dayContext.sessionSnapshot.minutes)
+    : "";
+  const titleBase = String(event.title || eventType.label);
+  const eventTitle =
+    isLinkedSession && !titleBase.includes(`(${sessionSummary})`) ? `${titleBase} (${sessionSummary})` : titleBase;
+  const eventMeta = isLinkedSession
+    ? [event.time, dayContext.matchDayLabel || dayContext.periodizationLabel].filter(Boolean).join(" · ")
+    : [event.time, eventType.label].filter(Boolean).join(" · ");
+  const eventDetails = [event.note, isLinkedSession ? dayContext.phaseSummary : ""].filter(Boolean).join(" · ");
   const controls = isAdmin
     ? `
       <div class="schedule-event-actions">
@@ -6641,9 +6666,9 @@ function renderScheduleEventCard(event, isAdmin) {
   return `
     <article class="schedule-event-card is-${escapeHtml(eventType.tone)}">
       <div>
-        <span>${escapeHtml(eventMeta || eventType.label)}</span>
-        <strong>${escapeHtml(event.title)}</strong>
-        ${event.note ? `<p>${escapeHtml(event.note)}</p>` : ""}
+        <strong>${escapeHtml(eventTitle)}</strong>
+        ${eventMeta ? `<span>${escapeHtml(eventMeta)}</span>` : ""}
+        ${eventDetails ? `<p>${escapeHtml(eventDetails)}</p>` : ""}
       </div>
       ${controls}
     </article>
@@ -6712,40 +6737,15 @@ function getScheduleDayWarningsForDate(dateValue, events = getScheduleEventsForD
   ensurePeriodizationState();
   return getScheduleDayWarnings(events, getPeriodizationDay(dateValue), getScheduleSessionSnapshot(dateValue));
 }
-function renderScheduleDayInsights(dateValue, selectedEvents) {
-  ensurePeriodizationState();
-  const periodizationDay = getPeriodizationDay(dateValue);
-  const periodizationLabel = getPeriodizationDayScheduleLabel(periodizationDay);
-  const matchDayLabel = getPeriodizationMatchDayLabel(periodizationDay.matchDay);
-  const sessionSnapshot = getScheduleSessionSnapshot(dateValue);
-  const phaseLabels = [
-    ...(Array.isArray(periodizationDay.matchPhases) ? periodizationDay.matchPhases : []),
-    ...(Array.isArray(periodizationDay.subPhases) ? periodizationDay.subPhases : []),
-  ].slice(0, 3);
+function renderScheduleDayInsights(dateValue, selectedEvents = []) {
+  const dayContext = getScheduleSelectedDayContext(dateValue);
   const canCreateSession = canEditSessionPlanner();
-  const sessionAction = sessionSnapshot.hasSession ? "Open Session" : canCreateSession ? "Create Session" : "Open Sessions";
-  const sessionSummary = sessionSnapshot.hasSession
-    ? formatScheduleBlockSummary(sessionSnapshot.blocks.length, sessionSnapshot.minutes)
-    : "Not built";
-  const periodizationSummary = matchDayLabel || periodizationDay.physicalLoad || (selectedEvents.length ? "Set" : periodizationLabel || "Open");
-  const periodizationDetail = phaseLabels.length ? phaseLabels.join(" / ") : selectedEvents.length ? "Aligned to selected day" : "";
+  const sessionAction = dayContext.sessionSnapshot.hasSession ? "Open Session" : canCreateSession ? "Create Session" : "Open Sessions";
 
   return `
-    <section class="schedule-day-ops">
-      <div class="schedule-day-summary-grid">
-        <article>
-          <span>Session</span>
-          <strong>${escapeHtml(sessionSummary)}</strong>
-          ${sessionSnapshot.hasSession ? `<small>Built from selected day</small>` : ""}
-        </article>
-        <article>
-          <span>Periodization</span>
-          <strong>${escapeHtml(periodizationSummary)}</strong>
-          ${periodizationDetail ? `<small>${escapeHtml(periodizationDetail)}</small>` : ""}
-        </article>
-      </div>
+    <section class="schedule-day-ops${selectedEvents.length ? " is-compact" : ""}">
       <div class="schedule-day-link-actions">
-        <button type="button" data-schedule-open-session-date="${escapeHtml(dateValue)}" data-schedule-create-session="${sessionSnapshot.hasSession ? "false" : "true"}">${escapeHtml(sessionAction)}</button>
+        <button type="button" data-schedule-open-session-date="${escapeHtml(dateValue)}" data-schedule-create-session="${dayContext.sessionSnapshot.hasSession ? "false" : "true"}">${escapeHtml(sessionAction)}</button>
         <button type="button" data-schedule-open-periodization-date="${escapeHtml(dateValue)}">Open Periodization</button>
       </div>
     </section>
@@ -6873,8 +6873,9 @@ function renderScheduleWorkspace() {
     ui.scheduleCalendarGrid.innerHTML = days.map((date) => renderScheduleMonthDay(date)).join("");
   }
   const selectedEvents = getScheduleEventsForDate(selectedDateValue);
+  const selectedDayContext = getScheduleSelectedDayContext(selectedDateValue);
   ui.scheduleEventList.innerHTML = selectedEvents.length
-    ? selectedEvents.map((event) => renderScheduleEventCard(event, isEditingDay)).join("")
+    ? selectedEvents.map((event) => renderScheduleEventCard(event, isEditingDay, selectedDayContext)).join("")
     : `<p class="schedule-empty-state">No plans on this day yet.</p>`;
   if (ui.scheduleDayInsights) {
     ui.scheduleDayInsights.innerHTML = renderScheduleDayInsights(selectedDateValue, selectedEvents);

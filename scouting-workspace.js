@@ -644,14 +644,14 @@ function getScoutingApiQueryFromState() {
   const hasApiMetrics = existingDatabase?.source === "api" && Array.isArray(existingDatabase?.metrics) && existingDatabase.metrics.length > 0;
   return {
     action: "snapshot",
-    query: filters.query,
-    league: filters.league,
-    season: filters.season,
-    position: filters.position,
-    minMinutes: filters.minMinutes,
-    maxMinutes: filters.maxMinutes,
-    minAge: filters.minAge,
-    maxAge: filters.maxAge,
+    query: filters.query || "",
+    league: filters.league === "all" ? "" : filters.league,
+    season: filters.season === "all" ? "" : filters.season,
+    position: filters.position === "all" ? "" : filters.position,
+    minMinutes: filters.minMinutes || 0,
+    maxMinutes: filters.maxMinutes || 0,
+    minAge: filters.minAge || "",
+    maxAge: filters.maxAge || "",
     sortMetricId: filters.sortMetricId,
     offset,
     includeTotal: includeTotal ? "1" : "0",
@@ -8917,11 +8917,12 @@ function renderScoutingRecordCard(record, options = {}) {
           class="scouting-secondary-button${inCompareSet ? " is-active" : ""}"
           data-toggle-scouting-record-compare="${escapeHtml(recordId)}"
         >${inCompareSet ? "Compare ✓" : "Compare"}</button>
-        <button
-          type="button"
-          class="scouting-secondary-button"
-          data-toggle-scouting-record-details="${escapeHtml(recordId)}"
-        >${isExpanded ? "Hide" : "Quick view"}</button>
+      <button
+        type="button"
+        class="scouting-secondary-button"
+        data-open-scouting-record="${escapeHtml(recordId)}"
+        data-toggle-scouting-record-details="${escapeHtml(recordId)}"
+      >${isExpanded ? "Hide" : "Quick view"}</button>
         ${
           selectedSlot && canEditScoutingWorkspace()
             ? `

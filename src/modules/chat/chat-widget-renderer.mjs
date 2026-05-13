@@ -47,6 +47,28 @@ function formatDateSeparator(value) {
   }).format(date);
 }
 
+const MESSAGE_GROUP_WINDOW_MS = 5 * 60 * 1000;
+
+function shouldGroupWithPreviousMessage(message = {}, previousMessage = null, currentDateKey = "", previousDateKey = "") {
+  if (!previousMessage) {
+    return false;
+  }
+  if (currentDateKey && previousDateKey && currentDateKey !== previousDateKey) {
+    return false;
+  }
+  if (String(message.userId || "") !== String(previousMessage.userId || "")) {
+    return false;
+  }
+
+  const currentTime = Date.parse(message.createdAt || "");
+  const previousTime = Date.parse(previousMessage.createdAt || "");
+  if (!Number.isFinite(currentTime) || !Number.isFinite(previousTime)) {
+    return true;
+  }
+
+  return currentTime >= previousTime && currentTime - previousTime <= MESSAGE_GROUP_WINDOW_MS;
+}
+
 function formatFileSize(value) {
   const bytes = Number(value || 0);
   if (!Number.isFinite(bytes) || bytes <= 0) {
@@ -187,9 +209,10 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
   `;
   }
 
-  function renderMessage(message, users, currentUser) {
+  function renderMessage(message, users, currentUser, options = {}) {
     const isOwn = message.userId === currentUser?.id;
     const isMentioned = !isOwn && message.mentionedUserIds.includes(currentUser?.id);
+    const isGroupedWithPrevious = Boolean(options.groupedWithPrevious);
     const messageStatus = String(message.status || "sent").trim().toLowerCase().replace(/[^a-z-]/g, "");
     const user = users.find((candidate) => candidate.id === message.userId) ?? message.author ?? null;
     const userName = user ? formatUserName(user) : "Unknown";
@@ -204,16 +227,22 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const replyMarkup = replyMessage ? renderReplyReference(replyMessage, users, { compact: true }) : "";
     const priorityMarkup = renderMessagePriority(message);
     const reactionMarkup = renderMessageReactions(message, currentUser);
-
-    return `
-    <article class="dashboard-chat-message${isOwn ? " is-own" : ""}${isMentioned ? " is-mentioned" : ""}${message.pinnedAt ? " is-pinned" : ""}${messageStatus ? ` is-status-${escapeHtml(messageStatus)}` : ""}" data-dashboard-chat-message-id="${escapeHtml(message.id)}">
+    const timeLabel = formatTime(message.createdAt);
+    const metaMarkup = isGroupedWithPrevious
+      ? ""
+      : `
       <div class="dashboard-chat-meta">
         ${avatarMarkup}
         <span class="dashboard-chat-author">
           <strong>${escapeHtml(userName)}</strong>
-          <small>${escapeHtml(formatTime(message.createdAt))}</small>
+          <small>${escapeHtml(timeLabel)}</small>
         </span>
       </div>
+    `;
+
+    return `
+    <article class="dashboard-chat-message${isOwn ? " is-own" : ""}${isMentioned ? " is-mentioned" : ""}${message.pinnedAt ? " is-pinned" : ""}${isGroupedWithPrevious ? " is-grouped-with-previous" : ""}${messageStatus ? ` is-status-${escapeHtml(messageStatus)}` : ""}" data-dashboard-chat-message-id="${escapeHtml(message.id)}" aria-label="${escapeHtml(`${userName}${timeLabel ? `, ${timeLabel}` : ""}`)}">
+      ${metaMarkup}
       <div class="dashboard-chat-bubble">
         <details class="dashboard-chat-message-menu">
           <summary aria-label="Open message actions">
@@ -251,14 +280,18 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
 
   function renderMessagesWithDateSeparators(messages, users, currentUser) {
     let previousKey = "";
+    let previousMessage = null;
     return messages
       .map((message) => {
         const currentKey = dateSeparatorKey(message.createdAt);
-        const separator = currentKey && currentKey !== previousKey
+        const hasSeparator = Boolean(currentKey && currentKey !== previousKey);
+        const separator = hasSeparator
           ? `<div class="dashboard-chat-date-separator"><span>${escapeHtml(formatDateSeparator(message.createdAt))}</span></div>`
           : "";
+        const groupedWithPrevious = !hasSeparator && shouldGroupWithPreviousMessage(message, previousMessage, currentKey, previousKey);
         previousKey = currentKey || previousKey;
-        return `${separator}${renderMessage(message, users, currentUser)}`;
+        previousMessage = message;
+        return `${separator}${renderMessage(message, users, currentUser, { groupedWithPrevious })}`;
       })
       .join("");
   }

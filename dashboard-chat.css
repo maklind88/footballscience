@@ -896,3 +896,29 @@ body.is-dark-mode .dashboard-chat-input-shell,
 body.is-dark-mode .dashboard-chat-input{
   color: var(--chat-ink) !important;
 }
+
+.dashboard-chat-widget .dashboard-chat-message.is-grouped-with-previous{
+  margin-top: -0.72rem !important;
+}
+
+.dashboard-chat-widget .dashboard-chat-message.is-grouped-with-previous .dashboard-chat-bubble{
+  margin-top: 0 !important;
+}
+
+.dashboard-chat-widget .dashboard-chat-message.is-grouped-with-previous .dashboard-chat-bubble p{
+  border-top-left-radius: 12px !important;
+  border-top-right-radius: 12px !important;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.07) !important;
+}
+
+.dashboard-chat-widget .dashboard-chat-message.is-own.is-grouped-with-previous .dashboard-chat-bubble p{
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.15) !important;
+}
+
+.dashboard-chat-widget .dashboard-chat-message.is-grouped-with-previous .dashboard-chat-message-menu{
+  top: 0.32rem !important;
+}
+
+body.is-dark-mode .dashboard-chat-message.is-grouped-with-previous .dashboard-chat-bubble p{
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.34) !important;
+}

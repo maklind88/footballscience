@@ -1544,9 +1544,9 @@ const defaultHubState = {
     {
       id: "player-profiles",
       kind: "player-profiles",
-      title: "IDP",
-      meta: "Player development",
-      description: "Individual development plans, role profiles and player growth work.",
+      title: "Squad Room",
+      meta: "Roster and profiles",
+      description: "Squad roster, player profiles, roles and availability.",
       status: "Active",
       icon: "◔",
     },
@@ -9832,9 +9832,12 @@ function getTopIconSvg(workspaceId) {
     `,
     "player-profiles": `
       <svg viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="3" y="4" width="18" height="16" rx="2"/>
-        <path d="M12 4v16M3 10h18M7.5 14h3M13.5 14h3"/>
-        <circle cx="12" cy="10" r="1.8"/>
+        <rect x="3" y="4" width="18" height="16" rx="2.5"/>
+        <path d="M7 8.2h10M7 15.8h10"/>
+        <circle cx="8" cy="12" r="1.7"/>
+        <circle cx="12" cy="12" r="1.7"/>
+        <circle cx="16" cy="12" r="1.7"/>
+        <path d="M8 13.7v1.1M12 13.7v1.1M16 13.7v1.1"/>
       </svg>
     `,
     scouting: `
@@ -9889,7 +9892,7 @@ function getTopIconLabel(workspace) {
     schedule: "Schedule",
     periodization: "Period",
     "session-planner": "Sessions",
-    "player-profiles": "IDP",
+    "player-profiles": "Squad Room",
     scouting: "Scouting",
     "analysis-room": "Analysis",
     staff: "Team",

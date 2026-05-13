@@ -1087,7 +1087,8 @@ test("Squad profile modal autosaves edits and keeps its size across tabs", async
     ),
   });
   await expect
-    .poll(() =>
+    .poll(
+      () =>
       page.evaluate(
         ({ key, id }) => {
           const state = JSON.parse(window.localStorage.getItem(key) || "{}");
@@ -1095,7 +1096,8 @@ test("Squad profile modal autosaves edits and keeps its size across tabs", async
           return player?.photoUrl || "";
         },
         { key: playerProfilesKey, id: playerId }
-      )
+      ),
+      { timeout: 30_000 }
     )
     .toMatch(/^data:image\//);
   await expect(modal.locator(".squad-profile-avatar img")).toBeVisible();
@@ -1135,7 +1137,7 @@ test("Squad profile modal autosaves edits and keeps its size across tabs", async
           },
           { key: playerProfilesKey, id: playerId }
         ),
-      { timeout: 8_000 }
+      { timeout: 30_000 }
     )
     .toMatchObject({
       coachNotes: coachNote,

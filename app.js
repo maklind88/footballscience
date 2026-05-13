@@ -16937,47 +16937,191 @@ const sessionPlannerPlayerBoardPositionGroups = [
 { key: "midfielder", label: "Midfielders", shortLabel: "MID", order: 3, x: 58 },
 { key: "forward", label: "Forwards", shortLabel: "FWD", order: 4, x: 82 },
 ];
+
+function normalizeSessionPlannerPlayerBoardRoleGroupKey(value) {
+  const key = normalizeSessionPlannerPlayerBoardProfileKey(value);
+  if (!key) return "";
+  if (["gk", "goalkeeper", "keeper", "goalie", "malvakt", "målvakt"].includes(key)) return "goalkeeper";
+  if (["def", "defender", "defenders", "back", "backs", "defence", "defense"].includes(key)) return "defender";
+  if (["mid", "midfield", "midfielder", "midfielders", "mittfalt", "mittfält"].includes(key)) return "midfielder";
+  if (["fwd", "fw", "forward", "forwards", "attacker", "attack", "striker", "anfall"].includes(key)) return "forward";
+  return key;
+}
+
+function getSessionPlannerPlayerBoardRoleGroupForRole(roleKey) {
+  const key = normalizeSessionPlannerPlayerBoardProfileKey(roleKey);
+  if (!key) return "";
+  if (["gk", "goalkeeper", "keeper", "goalie"].includes(key)) return "goalkeeper";
+  if (
+    [
+      "cb",
+      "lcb",
+      "rcb",
+      "lb",
+      "rb",
+      "lwb",
+      "rwb",
+      "centerback",
+      "centreback",
+      "centraldefender",
+      "defender",
+      "fullback",
+      "wingback",
+    ].includes(key)
+  ) {
+    return "defender";
+  }
+  if (
+    [
+      "cm",
+      "dm",
+      "am",
+      "cdm",
+      "cam",
+      "lm",
+      "rm",
+      "midfielder",
+      "centralmidfielder",
+      "holdingmidfielder",
+      "attackingmidfielder",
+      "6",
+      "8",
+      "10",
+    ].includes(key)
+  ) {
+    return "midfielder";
+  }
+  if (
+    [
+      "st",
+      "cf",
+      "fw",
+      "fwd",
+      "lw",
+      "rw",
+      "winger",
+      "striker",
+      "forward",
+      "centerforward",
+      "centreforward",
+      "9",
+      "11",
+      "7",
+    ].includes(key)
+  ) {
+    return "forward";
+  }
+  return "";
+}
+
+function getSessionPlannerPlayerBoardSideForRole(roleKey) {
+  const key = normalizeSessionPlannerPlayerBoardProfileKey(roleKey);
+  if (
+    [
+      "lb",
+      "lcb",
+      "lwb",
+      "lm",
+      "lw",
+      "leftback",
+      "leftcenterback",
+      "leftcentreback",
+      "leftwingback",
+      "leftmidfielder",
+      "leftwing",
+      "leftforward",
+    ].includes(key)
+  ) {
+    return "left";
+  }
+  if (
+    [
+      "rb",
+      "rcb",
+      "rwb",
+      "rm",
+      "rw",
+      "rightback",
+      "rightcenterback",
+      "rightcentreback",
+      "rightwingback",
+      "rightmidfielder",
+      "rightwing",
+      "rightforward",
+    ].includes(key)
+  ) {
+    return "right";
+  }
+  if (["cb", "cm", "dm", "am", "cdm", "cam", "cf", "st", "gk", "goalkeeper", "keeper", "6", "8", "9", "10"].includes(key)) {
+    return "center";
+  }
+  return "";
+}
+
+function getSessionPlannerPlayerBoardExplicitRoles(player = {}) {
+  return [
+    player.primaryRole,
+    ...(Array.isArray(player.secondaryRoles) ? player.secondaryRoles : []),
+    player.position,
+    player.role,
+  ]
+    .map((role) => normalizePlayerProfileRole(role, ""))
+    .filter(Boolean);
+}
+
 function getSessionPlannerPlayerBoardPositionGroup(player = {}) {
-const explicitRoleGroup = String(player?.roleGroup ?? "").trim().toLowerCase();
-const explicitGroup = sessionPlannerPlayerBoardPositionGroups.find((group) => group.key === explicitRoleGroup);
-if (explicitGroup) {
-return explicitGroup;
-}
-const roleText = [
-player?.position,
-player?.primaryRole,
-player?.role,
-...(Array.isArray(player?.secondaryRoles) ? player.secondaryRoles : []),
-].join(" ");
-const position = String(roleText).toLowerCase();
-const normalizedPosition = position.replace(/[^a-z0-9åäö]/gi, " ");
-const positionParts = normalizedPosition.split(/\s+/).filter(Boolean);
-const hasPositionPart = (...parts) => parts.some((part) => positionParts.includes(part));
-if (
-position.includes("goal") ||
-position.includes("keeper") ||
-hasPositionPart("gk", "målvakt", "malvakt")
-) {
-return sessionPlannerPlayerBoardPositionGroups[0];
-}
-if (
-position.includes("def") ||
-position.includes("back") ||
-hasPositionPart("lb", "cb", "rb", "lcb", "rcb", "wb")
-) {
-return sessionPlannerPlayerBoardPositionGroups[1];
-}
-if (
-position.includes("forward") ||
-position.includes("striker") ||
-position.includes("winger") ||
-position.includes("attack") ||
-position.includes("anfall") ||
-hasPositionPart("st", "cf", "fw", "w", "lw", "rw", "9")
-) {
-return sessionPlannerPlayerBoardPositionGroups[3];
-}
-return sessionPlannerPlayerBoardPositionGroups[2];
+  const explicitRoleGroup = normalizeSessionPlannerPlayerBoardRoleGroupKey(player?.roleGroup);
+  const explicitGroup = sessionPlannerPlayerBoardPositionGroups.find((group) => group.key === explicitRoleGroup);
+  if (explicitGroup) {
+    return explicitGroup;
+  }
+
+  const explicitRoles = getSessionPlannerPlayerBoardExplicitRoles(player);
+  const explicitRoleGroupFromRole = explicitRoles
+    .map((role) => getSessionPlannerPlayerBoardRoleGroupForRole(role))
+    .find(Boolean);
+  const explicitRoleGroupMatch = sessionPlannerPlayerBoardPositionGroups.find(
+    (group) => group.key === explicitRoleGroupFromRole
+  );
+  if (explicitRoleGroupMatch) {
+    return explicitRoleGroupMatch;
+  }
+
+  const roleText = [
+    player?.position,
+    player?.primaryRole,
+    player?.role,
+    ...(Array.isArray(player?.secondaryRoles) ? player.secondaryRoles : []),
+  ].join(" ");
+  const position = String(roleText).toLowerCase();
+  const normalizedPosition = position.replace(/[^a-z0-9åäö]/gi, " ");
+  const positionParts = normalizedPosition.split(/\s+/).filter(Boolean);
+  const hasPositionPart = (...parts) => parts.some((part) => positionParts.includes(part));
+  if (
+    position.includes("goal") ||
+    position.includes("keeper") ||
+    hasPositionPart("gk", "målvakt", "malvakt")
+  ) {
+    return sessionPlannerPlayerBoardPositionGroups[0];
+  }
+  if (
+    position.includes("def") ||
+    position.includes("back") ||
+    hasPositionPart("lb", "cb", "rb", "lcb", "rcb", "wb", "lwb", "rwb")
+  ) {
+    return sessionPlannerPlayerBoardPositionGroups[1];
+  }
+  if (
+    position.includes("forward") ||
+    position.includes("striker") ||
+    position.includes("winger") ||
+    position.includes("attack") ||
+    position.includes("anfall") ||
+    hasPositionPart("st", "cf", "fw", "w", "lw", "rw", "9")
+  ) {
+    return sessionPlannerPlayerBoardPositionGroups[3];
+  }
+  return sessionPlannerPlayerBoardPositionGroups[2];
 }
 function normalizeSessionPlannerPlayerBoardProfileKey(value) {
 return String(value ?? "")
@@ -17028,15 +17172,33 @@ return numberMatches[0];
 }
 return null;
 }
+
+function normalizeSessionPlannerPlayerBoardSquadStatusKey(value) {
+  const key = normalizeSessionPlannerPlayerBoardProfileKey(value);
+  if (key === "squaddepth") return "depth";
+  if (key === "loanwatch") return "loan";
+  return key;
+}
+
 function getSessionPlannerPlayerBoardSquadStatusPriority(statusKey) {
-const priorityByStatus = {
-important: 100,
-rotation: 74,
-depth: 48,
-development: 32,
-loan: 12,
-};
-return priorityByStatus[String(statusKey ?? "").trim()] ?? null;
+  const priorityByStatus = {
+    important: 100,
+    rotation: 74,
+    depth: 48,
+    development: 32,
+    loan: 12,
+  };
+  return priorityByStatus[normalizeSessionPlannerPlayerBoardSquadStatusKey(statusKey)] ?? null;
+}
+
+function getSessionPlannerPlayerBoardCareerPhasePriority(phaseKey) {
+  const priorityByPhase = {
+    peak: 100,
+    experienced: 86,
+    emerging: 70,
+    developing: 54,
+  };
+  return priorityByPhase[normalizeSessionPlannerPlayerBoardProfileKey(phaseKey)] ?? null;
 }
 function getSessionPlannerPlayerBoardProfileRoleFitMap(profile = {}) {
 if (!profile) {
@@ -17083,44 +17245,48 @@ return directValue;
 return null;
 }
 function getSessionPlannerPlayerBoardSyncedPlayer(player = {}) {
-const profile = getSessionPlannerPlayerBoardProfileForPlayer(player);
-if (!profile) {
-return player;
-}
-const roleFit = getSessionPlannerPlayerBoardProfileRoleFitMap(profile);
-const futureMinutes = getSessionPlannerPlayerBoardFutureMinutesValue(profile.futureData?.minutes);
-const squadStatusPriority = getSessionPlannerPlayerBoardSquadStatusPriority(profile.squadStatus);
-return {
-...player,
-number: profile.number || player.number,
-name: profile.name || player.name,
-position: profile.position || player.position,
-photoUrl: profile.photoUrl || player.photoUrl,
-sourceUrl: profile.sourceUrl || player.sourceUrl,
-rosterOrder: Number.isFinite(Number(profile.rosterOrder)) ? Number(profile.rosterOrder) : player.rosterOrder,
-profileId: profile.id,
-medicalPlayerId: player.id,
-squadStatus: profile.squadStatus,
-careerPhase: profile.careerPhase,
-rosterType: profile.rosterType,
-countsInSquad: profile.countsInSquad,
-temporaryGroup: profile.temporaryGroup,
-temporaryFrom: profile.temporaryFrom,
-temporaryTo: profile.temporaryTo,
-primaryRole: profile.primaryRole,
-secondaryRoles: Array.isArray(profile.secondaryRoles) ? [...profile.secondaryRoles] : [],
-preferredSide: profile.preferredSide,
-roleGroup: profile.roleGroup,
-attributeRatings: profile.attributeRatings,
-idp: profile.idp,
-futureData: profile.futureData,
-coachNotes: profile.coachNotes,
-roleFit,
-rolePriority: roleFit,
-positionPriority: roleFit,
-squadImportance: squadStatusPriority,
-seasonMinutes: futureMinutes ?? player.seasonMinutes,
-};
+  const profile = getSessionPlannerPlayerBoardProfileForPlayer(player);
+  if (!profile) {
+    return player;
+  }
+
+  const roleFit = getSessionPlannerPlayerBoardProfileRoleFitMap(profile);
+  const futureMinutes = getSessionPlannerPlayerBoardFutureMinutesValue(profile.futureData?.minutes);
+  const squadStatusPriority = getSessionPlannerPlayerBoardSquadStatusPriority(profile.squadStatus);
+  const careerPhasePriority = getSessionPlannerPlayerBoardCareerPhasePriority(profile.careerPhase);
+
+  return {
+    ...player,
+    number: profile.number || player.number,
+    name: profile.name || player.name,
+    position: profile.position || player.position,
+    photoUrl: profile.photoUrl || player.photoUrl,
+    sourceUrl: profile.sourceUrl || player.sourceUrl,
+    rosterOrder: Number.isFinite(Number(profile.rosterOrder)) ? Number(profile.rosterOrder) : player.rosterOrder,
+    profileId: profile.id,
+    medicalPlayerId: player.id,
+    squadStatus: profile.squadStatus,
+    careerPhase: profile.careerPhase,
+    rosterType: profile.rosterType,
+    countsInSquad: profile.countsInSquad,
+    temporaryGroup: profile.temporaryGroup,
+    temporaryFrom: profile.temporaryFrom,
+    temporaryTo: profile.temporaryTo,
+    primaryRole: profile.primaryRole,
+    secondaryRoles: Array.isArray(profile.secondaryRoles) ? [...profile.secondaryRoles] : [],
+    preferredSide: profile.preferredSide,
+    roleGroup: profile.roleGroup,
+    attributeRatings: profile.attributeRatings,
+    idp: profile.idp,
+    futureData: profile.futureData,
+    coachNotes: profile.coachNotes,
+    roleFit,
+    rolePriority: roleFit,
+    positionPriority: roleFit,
+    squadImportance: squadStatusPriority,
+    careerPhasePriority,
+    seasonMinutes: futureMinutes ?? player.seasonMinutes,
+  };
 }
 function getSessionPlannerPlayerBoardBridgeContract(player = {}) {
 const profile = getSessionPlannerPlayerBoardProfileForPlayer(player);
@@ -17344,83 +17510,106 @@ return Math.min(formationCount, boardPlayers.length);
 return Math.min(boardPlayers.length, boardPlayers.length >= 12 ? 10 : boardPlayers.length);
 }
 function getSessionPlannerSelectionAssistantRoleScore(player = {}, targetRoles = []) {
-const roleFit = player.roleFit && typeof player.roleFit === "object" && !Array.isArray(player.roleFit)
-? player.roleFit
-: {};
-const directScore = targetRoles.reduce((best, role) => {
-const value = Number(roleFit[role]);
-return Number.isFinite(value) ? Math.max(best, value) : best;
-}, 0);
-if (directScore > 0) {
-return directScore;
-}
-const primaryRole = normalizePlayerProfileRole(player.primaryRole, "");
-if (targetRoles.includes(primaryRole)) {
-return 78;
-}
-const secondaryRoles = Array.isArray(player.secondaryRoles)
-? player.secondaryRoles.map((role) => normalizePlayerProfileRole(role, "")).filter(Boolean)
-: [];
-if (secondaryRoles.some((role) => targetRoles.includes(role))) {
-return 68;
-}
-const targetGroups = new Set(targetRoles.map((role) => getPlayerProfileRoleGroupForRole(role)));
-if (targetGroups.has(player.roleGroup)) {
-return 58;
-}
-return 48;
+  const roleFit = player.roleFit && typeof player.roleFit === "object" && !Array.isArray(player.roleFit)
+    ? player.roleFit
+    : {};
+  const directScore = targetRoles.reduce((best, role) => {
+    const value = Number(roleFit[role]);
+    return Number.isFinite(value) ? Math.max(best, value) : best;
+  }, 0);
+  if (directScore > 0) {
+    return directScore;
+  }
+
+  const primaryRole = normalizePlayerProfileRole(player.primaryRole, "");
+  if (targetRoles.includes(primaryRole)) {
+    return 78;
+  }
+  const secondaryRoles = Array.isArray(player.secondaryRoles)
+    ? player.secondaryRoles.map((role) => normalizePlayerProfileRole(role, "")).filter(Boolean)
+    : [];
+  if (secondaryRoles.some((role) => targetRoles.includes(role))) {
+    return 68;
+  }
+  const targetGroups = new Set(targetRoles.map((role) => getSessionPlannerPlayerBoardRoleGroupForRole(role)).filter(Boolean));
+  if (targetGroups.has(normalizeSessionPlannerPlayerBoardRoleGroupKey(player.roleGroup))) {
+    return 58;
+  }
+
+  return 48;
 }
 function getSessionPlannerSelectionAssistantReason(item, profile, roleScore) {
-const player = item?.player ?? {};
-const bestMatches = getSessionPlannerPlayerBoardBridgeBestMatches(player, 2);
-const primaryRole = normalizePlayerProfileRole(player.primaryRole, "");
-const secondaryRoles = Array.isArray(player.secondaryRoles) ? player.secondaryRoles : [];
-const reasons = [];
-if (bestMatches.length) {
-reasons.push(`Role DNA ${bestMatches[0].role} ${bestMatches[0].score}%`);
-} else if (primaryRole) {
-reasons.push(`Primary ${primaryRole}`);
-} else {
-reasons.push("Medical fallback profile");
-}
-if (profile.roles.includes(primaryRole)) {
-reasons.push(`Natural ${primaryRole}`);
-} else if (secondaryRoles.some((role) => profile.roles.includes(role))) {
-reasons.push("Secondary role fit");
-}
-if (item?.participation !== null && item?.participation !== undefined) {
-reasons.push(`${item.participation}% available`);
-}
-if (player.idp?.primaryFocus) {
-reasons.push(`IDP: ${player.idp.primaryFocus}`);
-}
-if (roleScore < 60) {
-reasons.push("Fallback selection");
-}
-return reasons.slice(0, 3).join(" / ");
+  const player = item?.player ?? {};
+  const bestMatches = getSessionPlannerPlayerBoardBridgeBestMatches(player, 2);
+  const primaryRole = normalizePlayerProfileRole(player.primaryRole, "");
+  const secondaryRoles = Array.isArray(player.secondaryRoles) ? player.secondaryRoles : [];
+  const reasons = [];
+
+  if (bestMatches.length) {
+    reasons.push(`Role DNA ${bestMatches[0].role} ${bestMatches[0].score}%`);
+  } else if (primaryRole) {
+    reasons.push(`Primary ${primaryRole}`);
+  } else {
+    reasons.push("Medical fallback profile");
+  }
+  if (profile.roles.includes(primaryRole)) {
+    reasons.push(`Natural ${primaryRole}`);
+  } else if (secondaryRoles.some((role) => profile.roles.includes(role))) {
+    reasons.push("Secondary role fit");
+  }
+  if (item?.participation !== null && item?.participation !== undefined) {
+    reasons.push(`${item.participation}% available`);
+  }
+  const squadStatus = normalizeSessionPlannerPlayerBoardSquadStatusKey(player.squadStatus);
+  if (squadStatus) {
+    reasons.push(`Squad ${squadStatus}`);
+  }
+  const careerPhase = normalizeSessionPlannerPlayerBoardProfileKey(player.careerPhase);
+  if (careerPhase) {
+    reasons.push(`Career ${careerPhase}`);
+  }
+  if (player.idp?.primaryFocus) {
+    reasons.push(`IDP: ${player.idp.primaryFocus}`);
+  }
+  if (roleScore < 60) {
+    reasons.push("Fallback selection");
+  }
+
+  return reasons.slice(0, 3).join(" / ");
 }
 function scoreSessionPlannerSelectionAssistantItem(item, profile) {
-const player = item?.player ?? {};
-const roleScore = getSessionPlannerSelectionAssistantRoleScore(player, profile.roles);
-const availabilityScore = Number.isFinite(Number(item?.participation)) ? Number(item.participation) : 0;
-const squadImportance = Number.isFinite(Number(player.squadImportance)) ? Number(player.squadImportance) : 45;
-const primaryRole = normalizePlayerProfileRole(player.primaryRole, "");
-const secondaryRoles = Array.isArray(player.secondaryRoles) ? player.secondaryRoles : [];
-const roleBonus =
-profile.roles.includes(primaryRole)
-? 8
-: secondaryRoles.some((role) => profile.roles.includes(role))
-? 5
-: 0;
-const linkedBonus = player.profileId ? 4 : 0;
-const score = Math.round(roleScore * 0.48 + availabilityScore * 0.34 + squadImportance * 0.08 + roleBonus + linkedBonus);
-return {
-item,
-score: clamp(score, 0, 100),
-roleScore: Math.round(roleScore),
-availabilityScore,
-reason: getSessionPlannerSelectionAssistantReason(item, profile, roleScore),
-};
+  const player = item?.player ?? {};
+  const roleScore = getSessionPlannerSelectionAssistantRoleScore(player, profile.roles);
+  const availabilityScore = Number.isFinite(Number(item?.participation)) ? Number(item.participation) : 0;
+  const squadImportance = getSessionPlannerPlayerBoardImportanceScore(player) ?? 45;
+  const careerScore = getSessionPlannerPlayerBoardCareerScore(player);
+  const minutesScore = getSessionPlannerPlayerBoardMinutesScore(player);
+  const primaryRole = normalizePlayerProfileRole(player.primaryRole, "");
+  const secondaryRoles = Array.isArray(player.secondaryRoles) ? player.secondaryRoles : [];
+  const roleBonus =
+    profile.roles.includes(primaryRole)
+      ? 8
+      : secondaryRoles.some((role) => profile.roles.includes(role))
+        ? 5
+        : 0;
+  const linkedBonus = player.profileId ? 4 : 0;
+  const score = Math.round(
+    roleScore * 0.5 +
+      availabilityScore * 0.26 +
+      squadImportance * 0.1 +
+      careerScore * 0.05 +
+      minutesScore * 0.006 +
+      roleBonus +
+      linkedBonus
+  );
+
+  return {
+    item,
+    score: clamp(score, 0, 100),
+    roleScore: Math.round(roleScore),
+    availabilityScore,
+    reason: getSessionPlannerSelectionAssistantReason(item, profile, roleScore),
+  };
 }
 function buildSessionPlannerSelectionAssistant(block, boardPlayers = getSessionPlannerPlayerBoardPlayers(block)) {
 const profile = getSessionPlannerSelectionAssistantProfile(block);
@@ -17799,49 +17988,54 @@ forward: 3,
 return orderByRole[roleKey] ?? 2;
 }
 function getSessionPlannerPlayerBoardPlayerRoleProfile(player = {}) {
-const position = [
-player.position,
-player.primaryRole,
-player.role,
-player.roleGroup,
-...(Array.isArray(player.secondaryRoles) ? player.secondaryRoles : []),
-]
-.join(" ")
-.toLowerCase();
-const normalizedPosition = position.replace(/[^a-z0-9åäö]/gi, " ");
-const parts = normalizedPosition.split(/\s+/).filter(Boolean);
-const hasPart = (...tokens) => tokens.some((token) => parts.includes(token));
-const group = getSessionPlannerPlayerBoardPositionGroup(player);
-const preferredSide = String(player.preferredSide ?? "").trim().toLowerCase();
-let side = ["left", "center", "right"].includes(preferredSide) ? preferredSide : "center";
-if (side === "center" && (
-position.includes("left") ||
-position.includes("vänster") ||
-position.includes("vanster") ||
-hasPart("lb", "lcb", "lm", "lw", "lwb")
-)) {
-side = "left";
-} else if (side === "center" && (
-position.includes("right") ||
-position.includes("höger") ||
-position.includes("hoger") ||
-hasPart("rb", "rcb", "rm", "rw", "rwb")
-)) {
-side = "right";
-} else if (side === "center" && (
-position.includes("center") ||
-position.includes("centre") ||
-position.includes("central") ||
-position.includes("mitt") ||
-hasPart("cb", "cm", "dm", "am", "cf", "st", "9", "6", "8", "10")
-)) {
-side = "center";
-}
-return {
-roleKey: group.key,
-roleOrder: getSessionPlannerPlayerBoardRoleOrder(group.key),
-side,
-};
+  const explicitRoles = getSessionPlannerPlayerBoardExplicitRoles(player);
+  const position = [
+    player.position,
+    player.primaryRole,
+    player.role,
+    player.roleGroup,
+    ...(Array.isArray(player.secondaryRoles) ? player.secondaryRoles : []),
+  ]
+    .join(" ")
+    .toLowerCase();
+  const normalizedPosition = position.replace(/[^a-z0-9åäö]/gi, " ");
+  const parts = normalizedPosition.split(/\s+/).filter(Boolean);
+  const hasPart = (...tokens) => tokens.some((token) => parts.includes(token));
+  const group = getSessionPlannerPlayerBoardPositionGroup(player);
+  const preferredSide = String(player.preferredSide ?? "").trim().toLowerCase();
+  let side =
+    explicitRoles.map((role) => getSessionPlannerPlayerBoardSideForRole(role)).find(Boolean) ||
+    (["left", "center", "right"].includes(preferredSide) ? preferredSide : "center");
+
+  if (side === "center" && (
+    position.includes("left") ||
+    position.includes("vänster") ||
+    position.includes("vanster") ||
+    hasPart("lb", "lcb", "lm", "lw", "lwb")
+  )) {
+    side = "left";
+  } else if (side === "center" && (
+    position.includes("right") ||
+    position.includes("höger") ||
+    position.includes("hoger") ||
+    hasPart("rb", "rcb", "rm", "rw", "rwb")
+  )) {
+    side = "right";
+  } else if (side === "center" && (
+    position.includes("center") ||
+    position.includes("centre") ||
+    position.includes("central") ||
+    position.includes("mitt") ||
+    hasPart("cb", "cm", "dm", "am", "cf", "st", "9", "6", "8", "10")
+  )) {
+    side = "center";
+  }
+
+  return {
+    roleKey: group.key,
+    roleOrder: getSessionPlannerPlayerBoardRoleOrder(group.key),
+    side,
+  };
 }
 function getSessionPlannerPlayerBoardFormationLineRole(lineIndex, lineTotal) {
 if (lineTotal <= 1) {
@@ -17929,8 +18123,11 @@ y: clamp(y, 14, 88),
 return slots;
 }
 function getSessionPlannerPlayerBoardNumericPriorityValue(value) {
-const numericValue = Number(value);
-return Number.isFinite(numericValue) ? numericValue : null;
+  if (value === "" || value === null || value === undefined) {
+    return null;
+  }
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : null;
 }
 function getSessionPlannerPlayerBoardRolePriorityKeys(slot = {}) {
 const roleKey = String(slot.roleKey ?? "").trim().toLowerCase();
@@ -18005,6 +18202,39 @@ return directValue;
 }
 return null;
 }
+
+function getSessionPlannerPlayerBoardDirectRoleFitScore(player = {}, slot = {}) {
+  const profile = getSessionPlannerPlayerBoardPlayerRoleProfile(player);
+  const slotRole = String(slot.roleKey ?? "").trim().toLowerCase();
+  const slotSide = String(slot.side ?? "center").trim().toLowerCase();
+  let score = profile.roleKey === slotRole ? 74 : 38;
+
+  if (profile.roleKey === slotRole) {
+    if (profile.side === slotSide) {
+      score += 14;
+    } else if (slotSide === "center" || profile.side === "center") {
+      score += 6;
+    } else {
+      score -= 10;
+    }
+  }
+
+  const primaryRole = normalizePlayerProfileRole(player.primaryRole, "");
+  const secondaryRoles = Array.isArray(player.secondaryRoles)
+    ? player.secondaryRoles.map((role) => normalizePlayerProfileRole(role, "")).filter(Boolean)
+    : [];
+  const slotKeys = getSessionPlannerPlayerBoardRolePriorityKeys(slot).map((key) =>
+    normalizeSessionPlannerPlayerBoardProfileKey(key)
+  );
+  if (slotKeys.includes(normalizeSessionPlannerPlayerBoardProfileKey(primaryRole))) {
+    score += 20;
+  } else if (secondaryRoles.some((role) => slotKeys.includes(normalizeSessionPlannerPlayerBoardProfileKey(role)))) {
+    score += 10;
+  }
+
+  return clamp(score, 0, 100);
+}
+
 function getSessionPlannerPlayerBoardImportanceScore(player = {}) {
 const statusPriority =
 getSessionPlannerPlayerBoardNumericPriorityValue(player.squadImportance) ??
@@ -18032,6 +18262,17 @@ return rawImportance * 10;
 }
 return clamp(rawImportance, 0, 100);
 }
+
+function getSessionPlannerPlayerBoardCareerScore(player = {}) {
+  const rawCareer =
+    getSessionPlannerPlayerBoardNumericPriorityValue(player.careerPhasePriority) ??
+    getSessionPlannerPlayerBoardCareerPhasePriority(player.careerPhase);
+  if (rawCareer !== null) {
+    return clamp(rawCareer, 0, 100);
+  }
+  return 60;
+}
+
 function getSessionPlannerPlayerBoardMinutesScore(player = {}) {
 return (
 getSessionPlannerPlayerBoardNumericPriorityValue(player.nwslMinutes) ??
@@ -18042,13 +18283,16 @@ getSessionPlannerPlayerBoardNumericPriorityValue(player.minutes) ??
 );
 }
 function getSessionPlannerPlayerBoardPriorityScore(item, slot) {
-const player = item?.player ?? {};
-const rolePriority = getSessionPlannerPlayerBoardRolePriorityValue(player, slot);
-const importanceScore = getSessionPlannerPlayerBoardImportanceScore(player) ?? 0;
-const minutesScore = getSessionPlannerPlayerBoardMinutesScore(player);
-const rosterOrder = Number(player.rosterOrder);
-const rosterScore = Number.isFinite(rosterOrder) ? Math.max(0, 1000 - rosterOrder) / 10 : 0;
-return (rolePriority ?? 0) * 100 + importanceScore * 10 + minutesScore * 0.05 + rosterScore;
+  const player = item?.player ?? {};
+  const rolePriority = getSessionPlannerPlayerBoardRolePriorityValue(player, slot);
+  const directRoleFit = getSessionPlannerPlayerBoardDirectRoleFitScore(player, slot);
+  const rolePriorityScore = rolePriority !== null && rolePriority > 0 ? rolePriority : directRoleFit;
+  const importanceScore = getSessionPlannerPlayerBoardImportanceScore(player) ?? 0;
+  const careerScore = getSessionPlannerPlayerBoardCareerScore(player);
+  const minutesScore = getSessionPlannerPlayerBoardMinutesScore(player);
+  const rosterOrder = Number(player.rosterOrder);
+  const rosterScore = Number.isFinite(rosterOrder) ? Math.max(0, 1000 - rosterOrder) / 10 : 0;
+  return rolePriorityScore * 95 + directRoleFit * 24 + importanceScore * 12 + careerScore * 4 + minutesScore * 0.04 + rosterScore;
 }
 function getSessionPlannerPlayerBoardItemPriorityScore(item) {
 const profile = getSessionPlannerPlayerBoardPlayerRoleProfile(item?.player);
@@ -18559,28 +18803,39 @@ showSessionPlannerToast(
 );
 }
 function scoreSessionPlannerPlayerBoardFormationFit(item, slot, options = {}) {
-const profile = getSessionPlannerPlayerBoardPlayerRoleProfile(item?.player);
-const roleDistance = Math.abs(profile.roleOrder - slot.roleOrder);
-const sideDistance = Math.abs(
-getSessionPlannerPlayerBoardFormationSideOrder(profile.side) -
-getSessionPlannerPlayerBoardFormationSideOrder(slot.side)
-);
-const rosterOrder = Number(item?.player?.rosterOrder) || 999;
-const rolePriority = getSessionPlannerPlayerBoardRolePriorityValue(item?.player, slot) ?? 0;
-const importanceScore = getSessionPlannerPlayerBoardImportanceScore(item?.player) ?? 0;
-const minutesScore = getSessionPlannerPlayerBoardMinutesScore(item?.player);
-const priorityScore = options.prioritize ? getSessionPlannerPlayerBoardPriorityScore(item, slot) : 0;
-const priorityAdjustment = priorityScore * 0.003;
-const rotationAdjustment = options.rotation ? priorityAdjustment : -priorityAdjustment;
-return (
-roleDistance * 120 +
-sideDistance * 28 -
-rolePriority * 0.22 -
-importanceScore * 0.18 -
-minutesScore * 0.012 +
-rosterOrder * 0.01 +
-rotationAdjustment
-);
+  const profile = getSessionPlannerPlayerBoardPlayerRoleProfile(item?.player);
+  const roleDistance = Math.abs(profile.roleOrder - slot.roleOrder);
+  const sideDistance = Math.abs(
+    getSessionPlannerPlayerBoardFormationSideOrder(profile.side) -
+      getSessionPlannerPlayerBoardFormationSideOrder(slot.side)
+  );
+  const rosterOrder = Number(item?.player?.rosterOrder) || 999;
+  const rolePriority = getSessionPlannerPlayerBoardRolePriorityValue(item?.player, slot) ?? 0;
+  const directRoleFit = getSessionPlannerPlayerBoardDirectRoleFitScore(item?.player, slot);
+  const importanceScore = getSessionPlannerPlayerBoardImportanceScore(item?.player) ?? 0;
+  const careerScore = getSessionPlannerPlayerBoardCareerScore(item?.player);
+  const minutesScore = getSessionPlannerPlayerBoardMinutesScore(item?.player);
+  const priorityScore = options.prioritize ? getSessionPlannerPlayerBoardPriorityScore(item, slot) : 0;
+  const priorityAdjustment = priorityScore * 0.003;
+  const rotationAdjustment = options.rotation ? priorityAdjustment : -priorityAdjustment;
+  const roleMismatchPenalty = profile.roleKey === slot.roleKey ? 0 : 280;
+  const sideMismatchPenalty =
+    profile.roleKey === slot.roleKey && profile.side !== "center" && slot.side !== "center" && profile.side !== slot.side
+      ? 36
+      : 0;
+
+  return (
+    roleDistance * 220 +
+    roleMismatchPenalty +
+    sideDistance * 28 -
+    sideMismatchPenalty -
+    Math.max(rolePriority, directRoleFit) * 0.42 -
+    importanceScore * 0.18 -
+    careerScore * 0.06 -
+    minutesScore * 0.01 +
+    rosterOrder * 0.01 +
+    rotationAdjustment
+  );
 }
 function assignSessionPlannerPlayerBoardFormationSlots(selectedItems, slots, options = {}) {
 const remainingItems = [...selectedItems];
@@ -19287,19 +19542,52 @@ return first.participation - second.participation;
 return compareMedicalPlayers(first.player, second.player);
 });
 }
-function getSessionPlannerAvailabilityItems(dateValue = medicalState?.selectedDate) {
-return getMedicalAvailabilityItems(dateValue)
-.filter((item) => !isTemporaryPlayerProfile(item.player) || isPlayerProfileTemporaryActiveOnDate(item.player, dateValue))
-.map((item) =>
-!isTemporaryPlayerProfile(item.player) || item.record
-? item
-: {
-...item,
-status: { key: "planning-guest", label: "Planning guest", tone: "full", defaultParticipation: 100 },
-participation: 100,
-planningOnly: true,
+
+function getSessionPlannerTemporaryProfileAvailabilityItems(dateValue = medicalState?.selectedDate, existingItems = []) {
+  const profileState = getSessionPlannerPlayerBoardProfileState();
+  const profiles = Array.isArray(profileState?.players) ? profileState.players : [];
+  if (!profiles.length) {
+    return [];
+  }
+
+  const existingIds = new Set(
+    existingItems
+      .map((item) => item?.player)
+      .flatMap((player) => [player?.id, player?.playerId, player?.profileId, player?.medicalPlayerId])
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean)
+  );
+
+  return profiles
+    .filter((profile) => isTemporaryPlayerProfile(profile))
+    .filter((profile) => isPlayerProfileTemporaryActiveOnDate(profile, dateValue))
+    .filter((profile) => !existingIds.has(String(profile.id ?? "").trim()))
+    .map((profile) => buildMedicalPlayerFromPlayerProfile(profile))
+    .filter((player) => player && player.id && player.name)
+    .map((player) => ({
+      player,
+      record: null,
+      status: { key: "planning-guest", label: "Planning guest", tone: "full", defaultParticipation: 100 },
+      participation: 100,
+      planningOnly: true,
+    }));
 }
-);
+
+function getSessionPlannerAvailabilityItems(dateValue = medicalState?.selectedDate) {
+  const medicalItems = getMedicalAvailabilityItems(dateValue)
+    .filter((item) => !isTemporaryPlayerProfile(item.player) || isPlayerProfileTemporaryActiveOnDate(item.player, dateValue))
+    .map((item) =>
+      !isTemporaryPlayerProfile(item.player) || item.record
+        ? item
+        : {
+            ...item,
+            status: { key: "planning-guest", label: "Planning guest", tone: "full", defaultParticipation: 100 },
+            participation: 100,
+            planningOnly: true,
+          }
+    );
+  const temporaryProfileItems = getSessionPlannerTemporaryProfileAvailabilityItems(dateValue, medicalItems);
+  return [...medicalItems, ...temporaryProfileItems];
 }
 function getSessionPlannerMedicalAvailability(dateValue) {
 const items = getSessionPlannerAvailabilityItems(dateValue);

@@ -5,6 +5,7 @@ let scoutingCoreMetricOptions = [];
 let scoutingStatusOptions = [];
 let scoutingPriorityOptions = [];
 let scoutingDatabaseLoadPromise = null;
+let scoutingDatabaseWorker = null;
 let scoutingDatabaseError = "";
 let scoutingDatabaseOptionCache = null;
 let scoutingPercentileCache = new Map();
@@ -183,6 +184,75 @@ function getScoutingDatabase() {
 function isScoutingDatabaseLoaded() {
   return Boolean(getScoutingDatabase());
 }
+function getScoutingAssetVersion() {
+  return encodeURIComponent(window.__assetVersion || "dev");
+}
+function loadScoutingDatabaseWithScript() {
+  return platformModuleLoader
+    .loadScript("scouting-import-data", "scouting-import-data.js", {
+      id: "scoutingImportDataScript",
+      required: true,
+      async: true,
+    })
+    .then(() => getScoutingDatabase());
+}
+function loadScoutingDatabaseWithWorker() {
+  if (typeof Worker !== "function") {
+    return loadScoutingDatabaseWithScript();
+  }
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const worker = new Worker(`scouting-database-worker.js?v=${getScoutingAssetVersion()}`);
+    scoutingDatabaseWorker = worker;
+    const timeoutId = window.setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      worker.terminate();
+      if (scoutingDatabaseWorker === worker) {
+        scoutingDatabaseWorker = null;
+      }
+      reject(new Error("Scouting player database timed out while loading."));
+    }, 45000);
+    const cleanup = () => {
+      window.clearTimeout(timeoutId);
+      worker.terminate();
+      if (scoutingDatabaseWorker === worker) {
+        scoutingDatabaseWorker = null;
+      }
+    };
+    worker.onmessage = (event) => {
+      if (settled) {
+        return;
+      }
+      if (event.data?.type === "database") {
+        settled = true;
+        window.__footballScienceScoutingDatabase = event.data.database;
+        cleanup();
+        resolve(getScoutingDatabase());
+        return;
+      }
+      if (event.data?.type === "error") {
+        settled = true;
+        cleanup();
+        reject(new Error(event.data.message || "Scouting player database could not be loaded."));
+      }
+    };
+    worker.onerror = (error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      reject(error instanceof Error ? error : new Error(error?.message || "Scouting player database worker failed."));
+    };
+    worker.postMessage({
+      type: "load",
+      scriptUrl: `scouting-import-data.js?v=${getScoutingAssetVersion()}`,
+    });
+  }).catch(() => loadScoutingDatabaseWithScript());
+}
 function ensureScoutingDatabaseLoaded() {
   const existingDatabase = getScoutingDatabase();
   if (existingDatabase) {
@@ -190,12 +260,7 @@ function ensureScoutingDatabaseLoaded() {
   }
   if (!scoutingDatabaseLoadPromise) {
     scoutingDatabaseError = "";
-    scoutingDatabaseLoadPromise = platformModuleLoader
-      .loadScript("scouting-import-data", "scouting-import-data.js", {
-        id: "scoutingImportDataScript",
-        required: true,
-        async: true,
-      })
+    scoutingDatabaseLoadPromise = loadScoutingDatabaseWithWorker()
       .then(() => {
         const database = getScoutingDatabase();
         if (!database) {
@@ -3537,6 +3602,33 @@ function renderScoutingProfileTabs(activeTab) {
     </nav>
   `;
 }
+function getScoutingProfileNavigation(record) {
+  const recordId = getScoutingRecordId(record);
+  const records = getFilteredScoutingDatabaseRecords();
+  const index = records.findIndex((item) => getScoutingRecordId(item) === recordId);
+  return {
+    index,
+    total: records.length,
+    previous: index > 0 ? records[index - 1] : null,
+    next: index >= 0 && index < records.length - 1 ? records[index + 1] : null,
+  };
+}
+function renderScoutingProfileNavigation(record) {
+  const navigation = getScoutingProfileNavigation(record);
+  if (navigation.index < 0 || navigation.total < 2) {
+    return "";
+  }
+  const previousId = navigation.previous ? getScoutingRecordId(navigation.previous) : "";
+  const nextId = navigation.next ? getScoutingRecordId(navigation.next) : "";
+  return `
+    <div class="scouting-profile-nav">
+      <span>${escapeHtml(navigation.index + 1)} / ${escapeHtml(navigation.total)} in current view</span>
+      <button type="button" ${previousId ? `data-open-scouting-record="${escapeHtml(previousId)}"` : "disabled"}>Previous</button>
+      <button type="button" ${nextId ? `data-open-scouting-record="${escapeHtml(nextId)}"` : "disabled"}>Next</button>
+      <button type="button" data-close-scouting-profile>Back to database</button>
+    </div>
+  `;
+}
 function renderScoutingProfileReportsTab(record, state) {
   const recordId = getScoutingRecordId(record);
   const target = findScoutingTargetByRecordId(recordId, state);
@@ -4883,14 +4975,20 @@ function renderScoutingDatabasePanel() {
           `
           : ""
       }
-      ${renderScoutingImportPanel()}
-      ${renderScoutingDatabaseControls()}
-      ${renderScoutingSavedViewsPanel()}
-      ${renderScoutingDataQualityPanel()}
-      ${renderScoutingMarketRadar(results.records)}
-      <div class="scouting-result-summary" data-scouting-result-summary>${escapeHtml(results.summary)}</div>
-      <div class="scouting-record-grid" data-scouting-record-grid>
-        ${results.html}
+      <div class="scouting-database-workbench">
+        <main class="scouting-database-main">
+          ${renderScoutingDatabaseControls()}
+          ${renderScoutingMarketRadar(results.records)}
+          <div class="scouting-result-summary" data-scouting-result-summary>${escapeHtml(results.summary)}</div>
+          <div class="scouting-record-grid" data-scouting-record-grid>
+            ${results.html}
+          </div>
+        </main>
+        <aside class="scouting-database-side" aria-label="Scouting database tools">
+          ${renderScoutingSavedViewsPanel()}
+          ${renderScoutingDataQualityPanel()}
+          ${renderScoutingImportPanel()}
+        </aside>
       </div>
     </section>
   `;
@@ -5706,6 +5804,7 @@ function renderScoutingProfileModal() {
             <p>${escapeHtml([getScoutingRecordPosition(record), getScoutingRecordTeam(record), getScoutingRecordAge(record) ? `${formatScoutingNumber(getScoutingRecordAge(record))} yrs` : ""].filter(Boolean).join(" / "))}</p>
           </div>
           <div class="scouting-profile-actions">
+            ${renderScoutingProfileNavigation(record)}
             <button type="button" class="scouting-star-button${favorite ? " is-active" : ""}" data-toggle-scouting-favorite="${escapeHtml(recordId)}" ${canEdit ? "" : "disabled"}>${favorite ? "Favorited" : "Favorite"}</button>
             <label>
               <span>Add to list</span>

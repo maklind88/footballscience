@@ -6096,7 +6096,7 @@ function normalizeScoutingComparisonLab(value = {}) {
   };
 }
 function cloneScoutingState(source = defaultScoutingState) {
-  const activeTab = "shadow-xi";
+  const activeTab = scoutingTabs.some((tab) => tab.id === source.activeTab) ? source.activeTab : "shadow-xi";
   const lists = Array.isArray(source.lists)
     ? source.lists.map(cloneScoutingList).filter((list) => list.name)
     : [];
@@ -6165,11 +6165,12 @@ function readScoutingState() {
   try {
     const raw = window.localStorage.getItem(scoutingStorageKey);
     const state = raw ? cloneScoutingState(JSON.parse(raw)) : cloneScoutingState(defaultScoutingState);
-    const normalizedValue = JSON.stringify(state);
+    const nextState = hubState?.activeWorkspaceId === "scouting" ? preserveScoutingTransientUiState(state, scoutingState) : state;
+    const normalizedValue = JSON.stringify(nextState);
     if (raw !== normalizedValue) {
-      setScoutingStateStorageValue(state, { syncCentral: false });
+      setScoutingStateStorageValue(nextState, { syncCentral: false });
     }
-    return state;
+    return nextState;
   } catch {
     const state = cloneScoutingState(defaultScoutingState);
     try {
@@ -9688,6 +9689,19 @@ function showDashboardTutorialModal(options = {}) {
   root.querySelector(".dashboard-modal-actions [data-dashboard-tutorial-save]")?.focus();
 }
 function showDashboardNewsModal() {
+  dashboardModalAfterClose = null;
+  closeDashboardModal(false);
+  if (document.body?.dataset.activeWorkspace && document.body.dataset.activeWorkspace !== "home") {
+    return;
+  }
+  const newsSeenMap = getDashboardNewsSeenMap();
+  const user = getCurrentPlatformUser();
+  if (user?.id && newsSeenMap[user.id] !== dashboardNewsVersion) {
+    markDashboardNewsSeen(user.id);
+  }
+  return;
+}
+function showDashboardNewsModalLegacy() {
   if (document.body?.dataset.activeWorkspace && document.body.dataset.activeWorkspace !== "home") {
     return;
   }
@@ -27282,7 +27296,16 @@ function getPlayerProfileFormValues(form) {
 }
 
 function getPlayerProfileFormSignature(form) { try { return form ? JSON.stringify(getPlayerProfileFormValues(form)) : ""; } catch { return ""; } }
-function savePlayerProfileEditForm(form) { if (!form || !canEditPlayerProfiles() || form.checkValidity?.() === false) return null; const signature = getPlayerProfileFormSignature(form); if (signature && signature === playerProfileAutosaveLastSignature) return { ok: true, skipped: true }; const result = updatePlayerProfile(getPlayerProfileFormValues(form)); if (result?.ok) playerProfileAutosaveLastSignature = getPlayerProfileFormSignature(form); return result; }
+function savePlayerProfileEditForm(form) {
+  if (!form || !canEditPlayerProfiles()) return null;
+  const values = getPlayerProfileFormValues(form);
+  if (!values.playerId) return null;
+  const signature = JSON.stringify(values);
+  if (signature && signature === playerProfileAutosaveLastSignature) return { ok: true, skipped: true };
+  const result = updatePlayerProfile(values);
+  if (result?.ok) playerProfileAutosaveLastSignature = getPlayerProfileFormSignature(form);
+  return result;
+}
 function queuePlayerProfileAutosave(form, delayMs = 420) { if (!form || !canEditPlayerProfiles()) return; window.clearTimeout(playerProfileAutosaveTimer); playerProfileAutosaveTimer = window.setTimeout(() => { playerProfileAutosaveTimer = 0; savePlayerProfileEditForm(form); }, delayMs); } function flushPlayerProfileAutosave() { const form = ui.playerProfilesWorkspace?.querySelector("#playerProfileEditForm"); window.clearTimeout(playerProfileAutosaveTimer); playerProfileAutosaveTimer = 0; return savePlayerProfileEditForm(form); }
 
 function buildMedicalPlayerFromPlayerProfile(player = {}) {

@@ -806,6 +806,12 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
     )
     .toMatch(/^data:image\//);
   await expect(page.locator(".squad-team-logo-mark img")).toBeVisible();
+  await expect
+    .poll(async () => {
+      const box = await page.locator(".squad-team-logo-mark").first().boundingBox();
+      return box ? Math.round(Math.min(box.width, box.height)) : 0;
+    })
+    .toBeGreaterThanOrEqual(68);
 
   await page.locator("[data-player-profile-new-open]").click();
   const form = page.locator("#playerProfileNewPlayerForm:visible").first();

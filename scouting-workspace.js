@@ -157,6 +157,7 @@ const scoutingImportSourcePresets = Object.freeze([
 const SCOUTING_IMPORT_MAX_RECORDS_PER_CHUNK = 10;
 const SCOUTING_IMPORT_MAX_CHUNK_PAYLOAD_CHARACTERS = 70000;
 const SCOUTING_IMPORT_MAX_CHUNK_BYTES = 200000;
+const SCOUTING_API_DATABASE_PAGE_LIMIT = 1000;
 const scoutingImportSupportedFileExts = Object.freeze(
   scoutingImportSupportedSourceTypes
     .flatMap((sourceType) => sourceType.extensions)
@@ -554,7 +555,7 @@ function normalizeScoutingDatabaseFilters(filters = {}) {
     league: normalizeScoutingLeague(filters.league) || "all",
     season: normalizeScoutingText(filters.season, 80) || "all",
     position: normalizeScoutingText(filters.position, 40) || "all",
-    minMinutes: Number.isFinite(minMinutes) && minMinutes >= 0 ? Math.round(minMinutes) : 450,
+    minMinutes: Number.isFinite(minMinutes) && minMinutes >= 0 ? Math.round(minMinutes) : 0,
     maxMinutes: Number.isFinite(maxMinutes) && maxMinutes >= 0 ? Math.round(maxMinutes) : 0,
     minAge: normalizeScoutingText(filters.minAge, 12),
     maxAge: normalizeScoutingText(filters.maxAge, 12),
@@ -647,8 +648,12 @@ function getScoutingApiQueryFromState() {
     maxAge: filters.maxAge,
     sortMetricId: filters.sortMetricId,
     offset: filters.offset,
-    limit: 750,
+    limit: SCOUTING_API_DATABASE_PAGE_LIMIT,
   };
+}
+function getScoutingApiOffset(value) {
+  const offset = Math.floor(Number(value));
+  return Number.isFinite(offset) && offset >= 0 ? offset : 0;
 }
 async function fetchScoutingApi(query = {}) {
   const token = await getScoutingApiAccessToken();
@@ -741,6 +746,19 @@ function applyScoutingApiDatabase(result = {}) {
   rememberScoutingDatabaseRecords(database);
   return database;
 }
+function dedupeScoutingRecords(records = [], existingIds = new Set()) {
+  const deduped = [];
+  const seen = new Set(existingIds);
+  for (const record of Array.isArray(records) ? records : []) {
+    const recordId = getScoutingRecordId(record);
+    if (!recordId || seen.has(recordId)) {
+      continue;
+    }
+    seen.add(recordId);
+    deduped.push(record);
+  }
+  return { deduped, seen };
+}
 function getScoutingDatabasePage() {
   const page = getScoutingDatabase()?.page;
   return page && typeof page === "object" && !Array.isArray(page)
@@ -755,7 +773,7 @@ function getScoutingDatabasePage() {
 }
 function renderScoutingDatabasePagingControls() {
   const page = getScoutingDatabasePage();
-  if (!page) {
+  if (!page || (page.hasMore === false && page.offset <= 0)) {
     return "";
   }
   const start = page.returned ? page.offset + 1 : 0;
@@ -961,11 +979,55 @@ function hydrateScoutingProfileApiDetails(recordId) {
     });
 }
 async function loadScoutingDatabaseWithApi() {
-  const response = await fetchScoutingApi(getScoutingApiQueryFromState());
+  const baseQuery = getScoutingApiQueryFromState();
+  const baseOffset = getScoutingApiOffset(baseQuery.offset);
+  const basePayload = { ...baseQuery, offset: baseOffset, limit: SCOUTING_API_DATABASE_PAGE_LIMIT };
+  let response = await fetchScoutingApi(basePayload);
   if (!response.ok) {
     throw new Error(response.reason || "Scouting API is not available.");
   }
-  const database = applyScoutingApiDatabase(response.result);
+  const seedResult = response.result || {};
+  let result = seedResult;
+  const { deduped: seedRecords, seen: seedSeen } = dedupeScoutingRecords(Array.isArray(seedResult.records) ? seedResult.records : [], new Set());
+  let records = [...seedRecords];
+  let seen = seedSeen;
+  let page = result.page || {};
+  let nextOffset = Math.floor(Number(page.nextOffset));
+  let cursor = Number.isFinite(nextOffset) ? nextOffset : baseOffset + records.length;
+  let guard = 0;
+
+  while (Boolean(page?.hasMore) && Number.isFinite(cursor) && cursor >= 0 && guard < 5000) {
+    guard += 1;
+    response = await fetchScoutingApi({ ...basePayload, offset: cursor });
+    if (!response.ok) {
+      throw new Error(response.reason || "Scouting API page fetch failed during full snapshot load.");
+    }
+    result = response.result || {};
+    const { deduped: pageRecords, seen: nextSeen } = dedupeScoutingRecords(Array.isArray(result.records) ? result.records : [], seen);
+    if (pageRecords.length) {
+      records = records.concat(pageRecords);
+    }
+    seen = nextSeen;
+    page = result.page || {};
+    const fallbackOffset = cursor + (Array.isArray(result.records) ? result.records.length : 0);
+    const resolvedNextOffset = Math.floor(Number(page.nextOffset));
+    const nextCursor = Number.isFinite(resolvedNextOffset) && resolvedNextOffset >= 0 ? resolvedNextOffset : fallbackOffset;
+    if (!page.hasMore || !Number.isFinite(nextCursor) || nextCursor <= cursor) {
+      break;
+    }
+    cursor = nextCursor;
+  }
+  const database = applyScoutingApiDatabase({
+    ...seedResult,
+    records,
+    page: {
+      limit: SCOUTING_API_DATABASE_PAGE_LIMIT,
+      offset: baseOffset,
+      returned: records.length,
+      nextOffset: null,
+      hasMore: false,
+    },
+  });
   if (!database) {
     throw new Error(response.result?.reason || "Scouting database API is not enabled.");
   }
@@ -5765,7 +5827,7 @@ function getScoutingMarketStatusFilterOptions() {
 function getScoutingAdvancedFilterCount(filters = {}) {
   return [
     filters.season && filters.season !== "all",
-    Number(filters.minMinutes) !== 450,
+    Number(filters.minMinutes) !== 0,
     Boolean(filters.maxMinutes),
     Boolean(filters.minAge),
     Boolean(filters.maxAge),

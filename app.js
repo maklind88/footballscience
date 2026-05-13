@@ -20350,7 +20350,6 @@ function renderSessionPlannerToolsPanel(block) {
 }
 
 function getMedicalAvailabilityItems(dateValue = medicalState?.selectedDate) {
-  ensurePlayerProfileModulePlacements();
   ensureMedicalState();
   return [...medicalState.players]
     .sort(compareMedicalPlayers)
@@ -20376,29 +20375,17 @@ function getMedicalAvailabilityItems(dateValue = medicalState?.selectedDate) {
 
 function getSessionPlannerAvailabilityItems(dateValue = medicalState?.selectedDate) {
   return getMedicalAvailabilityItems(dateValue)
-    .filter((item) => {
-      if (!isTemporaryPlayerProfile(item.player)) {
-        return true;
-      }
-      return isPlayerProfileTemporaryActiveOnDate(item.player, dateValue);
-    })
-    .map((item) => {
-      if (!isTemporaryPlayerProfile(item.player) || item.record) {
-        return item;
-      }
-
-      return {
-        ...item,
-        status: {
-          key: "planning-guest",
-          label: "Planning guest",
-          tone: "full",
-          defaultParticipation: 100,
-        },
-        participation: 100,
-        planningOnly: true,
-      };
-    });
+    .filter((item) => !isTemporaryPlayerProfile(item.player) || isPlayerProfileTemporaryActiveOnDate(item.player, dateValue))
+    .map((item) =>
+      !isTemporaryPlayerProfile(item.player) || item.record
+        ? item
+        : {
+            ...item,
+            status: { key: "planning-guest", label: "Planning guest", tone: "full", defaultParticipation: 100 },
+            participation: 100,
+            planningOnly: true,
+          }
+    );
 }
 
 function getSessionPlannerMedicalAvailability(dateValue) {
@@ -20408,7 +20395,7 @@ function getSessionPlannerMedicalAvailability(dateValue) {
     all: items,
     limited: items.filter((item) => item.record && item.participation < 100),
     available: items.filter((item) => item.participation === 100),
-    unconfirmed: items.filter((item) => !item.record),
+    unconfirmed: items.filter((item) => !item.record && !item.planningOnly),
   };
 }
 
@@ -22401,18 +22388,13 @@ function normalizeMedicalPlayer(player = {}) {
 
   const rosterOrder = Number(player.rosterOrder);
   const rosterType = normalizePlayerProfileRosterType(player.rosterType || player.playerType || player.squadType);
-  const profileId = String(
-    player.profileId ?? player.playerProfileId ?? player.squadProfileId ?? player.sourceProfileId ?? ""
-  ).trim();
   return {
     id: player.id || createDashboardId("medical-player"),
-    profileId,
     name,
     number: String(player.number ?? "").trim(),
     position: String(player.position ?? "").trim(),
     photoUrl: String(player.photoUrl ?? "").trim(),
     sourceUrl: String(player.sourceUrl ?? "").trim(),
-    sourceModule: String(player.sourceModule ?? "").trim(),
     rosterType,
     countsInSquad: typeof player.countsInSquad === "boolean"
       ? player.countsInSquad
@@ -22711,9 +22693,7 @@ function sanitizeMedicalRecordForCoachView(record = {}) {
     ? record.status
     : getMedicalStatusForParticipation(participation);
   return {
-    id: record.id,
-    playerId: record.playerId,
-    date: record.date,
+    ...record,
     status: statusKey,
     participation,
     actualParticipation: medicalActualParticipationFallback,
@@ -22725,10 +22705,7 @@ function sanitizeMedicalRecordForCoachView(record = {}) {
       : getMedicalRtpPhaseForRecommendation(statusKey, participation),
     clearance: {},
     gates: {},
-    createdAt: record.createdAt,
     createdBy: "coach-safe",
-    source: record.source || "",
-    injuryPlanId: record.injuryPlanId || "",
   };
 }
 
@@ -22738,14 +22715,9 @@ function sanitizeMedicalInjuryPlanForCoachView(plan = {}) {
     ? plan.status
     : getMedicalStatusForParticipation(participation);
   return {
-    id: plan.id,
-    playerId: plan.playerId,
+    ...plan,
     injuryType: "Availability plan",
     bodyArea: "",
-    startDate: plan.startDate,
-    endDate: plan.endDate,
-    duration: plan.duration,
-    durationUnit: plan.durationUnit,
     status: statusKey,
     participation,
     reviewDate: "",
@@ -22758,8 +22730,6 @@ function sanitizeMedicalInjuryPlanForCoachView(plan = {}) {
     coachNote: plan.shareWithCoach ? String(plan.coachNote ?? "").trim() : "",
     shareWithCoach: normalizeMedicalShareValue(plan.shareWithCoach),
     comment: "",
-    createdAt: plan.createdAt,
-    updatedAt: plan.updatedAt,
     createdBy: "coach-safe",
   };
 }
@@ -23708,19 +23678,10 @@ function getLatestManualMedicalLog(playerId) {
 }
 
 function getPlayerProfileMedicalSnapshot(playerId, dateValue = formatScheduleDateValue(new Date())) {
-  ensurePlayerProfilesState();
-  const profile = playerProfilesState.players.find((player) => player.id === playerId);
-  if (profile) {
-    ensurePlayerProfileModulePlacements([profile]);
-  } else {
-    ensureMedicalState();
-  }
   ensureMedicalState();
-  const medicalPlayer = resolveMedicalPlayerForPlayerProfileId(playerId);
-  const medicalPlayerId = medicalPlayer?.id || playerId;
-  const currentRecord = getLatestMedicalRecord(medicalPlayerId, dateValue);
-  const latestLog = getLatestManualMedicalLog(medicalPlayerId);
-  const activePlan = getActiveMedicalInjuryPlan(medicalPlayerId, dateValue);
+  const currentRecord = getLatestMedicalRecord(playerId, dateValue);
+  const latestLog = getLatestManualMedicalLog(playerId);
+  const activePlan = getActiveMedicalInjuryPlan(playerId, dateValue);
   const availabilityLabel = currentRecord
     ? `${getMedicalStatusOption(currentRecord.status).label} / ${currentRecord.participation}%`
     : "Not logged today";
@@ -24130,6 +24091,21 @@ function renderSquadRosterMeta(player) {
   `;
 }
 
+function renderSquadRoleCell(player) {
+  const roleGroup = getPlayerProfileOption(playerProfileRoleGroupOptions, player.roleGroup).label;
+  return `<div class="squad-role-cell">${renderSquadRoleStack(player)}<small>${escapeHtml(roleGroup)}</small></div>`;
+}
+
+function renderSquadPlanningCell(player) {
+  const careerPhase = getPlayerProfileOption(playerProfileCareerPhaseOptions, player.careerPhase).label;
+  const idpStatus = getPlayerProfileOption(playerProfileIdpStatusOptions, player.idp?.status || "none").label;
+  return `<div class="squad-planning-cell"><div class="squad-pill-stack">${renderSquadOptionPill(playerProfileSquadStatusOptions, player.squadStatus)}${renderSquadRosterTypePill(player)}</div><small>${escapeHtml(careerPhase)} / ${escapeHtml(idpStatus)}</small></div>`;
+}
+
+function renderSquadProfileProgressCell(completeness) {
+  return `<div class="squad-profile-progress-cell"><span class="squad-completion"><span style="width: ${completeness}%"></span></span><small class="squad-completion-label">${completeness}% complete</small></div>`;
+}
+
 function renderSquadPlayerRow(player) {
   const medicalSnapshot = getPlayerProfileMedicalSnapshot(player.id);
   const isSelected = player.id === playerProfilesState.selectedPlayerId;
@@ -24151,18 +24127,11 @@ function renderSquadPlayerRow(player) {
           </div>
         </div>
       </td>
-      <td>${renderSquadRoleStack(player)}</td>
-      <td>${renderSquadOptionPill(playerProfileRoleGroupOptions, player.roleGroup)}</td>
-      <td><div class="squad-pill-stack">${renderSquadOptionPill(playerProfileSquadStatusOptions, player.squadStatus)}${renderSquadRosterTypePill(player)}</div></td>
-      <td>${renderSquadOptionPill(playerProfileIdpStatusOptions, player.idp?.status || "none")}</td>
+      <td>${renderSquadRoleCell(player)}</td>
+      <td>${renderSquadPlanningCell(player)}</td>
       <td>${renderPlayerProfileStatusChip(player.status)}</td>
       <td><span class="squad-medical-cell medical-tone-${escapeHtml(medicalSnapshot.tone)}">${escapeHtml(medicalSnapshot.currentAvailability)}</span></td>
-      <td>
-        <span class="squad-completion">
-          <span style="width: ${completeness}%"></span>
-        </span>
-        <small class="squad-completion-label">${completeness}%</small>
-      </td>
+      <td>${renderSquadProfileProgressCell(completeness)}</td>
     </tr>
   `;
 }
@@ -25584,7 +25553,6 @@ function getSquadPlayerDataQualityFlags(player = {}) {
   );
   const baselineAttributes = attributeValues.every((value) => value === 3);
   const medicalSnapshot = player.id ? getPlayerProfileMedicalSnapshot(player.id) : null;
-  const modulePlacement = player.id ? getPlayerProfileModulePlacementState(player) : null;
 
   if (!player.primaryRole) {
     flags.push({ key: "missing-role", label: "Missing primary role", severity: "critical" });
@@ -25603,9 +25571,6 @@ function getSquadPlayerDataQualityFlags(player = {}) {
   }
   if (!medicalSnapshot || medicalSnapshot.latestLogSummary === "No medical log yet") {
     flags.push({ key: "medical-link", label: "No medical log linked", severity: "watch" });
-  }
-  if (!modulePlacement?.medicalRosterSlot) {
-    flags.push({ key: "module-placement", label: "Missing Medical/Planner placement", severity: "critical" });
   }
   if (completeness < 70) {
     flags.push({ key: "profile-complete", label: `Profile ${completeness}% complete`, severity: "critical" });
@@ -25685,7 +25650,6 @@ function buildSquadSessionPlannerContracts() {
       rtpStatus: medicalSnapshot.rtpStatus,
       roleDnaScores: roleScores,
       bestRoleMatches,
-      modulePlacement: getPlayerProfileModulePlacementState(player),
       dataQualityFlags: getSquadPlayerDataQualityFlags(player).map((flag) => flag.key),
       updatedAt: player.updatedAt,
     };
@@ -25737,7 +25701,6 @@ function buildSquadDataFoundationPayload() {
       roleDna: playerProfileRoleOptions,
       idp: ["status", "primaryFocus", "strengths", "focusAreas", "nextAction", "reviewDate"],
       medicalSummary: ["currentAvailability", "rtpStatus", "coachNote", "latestLogDate", "latestLogSummary"],
-      modulePlacement: ["medicalRosterSlot", "medicalPlayerId", "sessionPlannerVisible", "medicalClearanceRequired"],
       futureData: ["matchData", "load", "minutes", "performanceNotes", "scoutingNotes", "analysisNotes"],
       changeLog: ["id", "type", "playerId", "actor", "summary", "changes", "createdAt"],
     },
@@ -25784,7 +25747,6 @@ function buildSquadDataFoundationPayload() {
       },
       idp: player.idp,
       medicalSummary: getPlayerProfileMedicalSnapshot(player.id),
-      modulePlacement: getPlayerProfileModulePlacementState(player),
       futureData: player.futureData,
       coachNotes: player.coachNotes,
       dataQualityFlags: getSquadPlayerDataQualityFlags(player),
@@ -26683,7 +26645,7 @@ function renderPlayerProfilesWorkspace(message = "") {
   }
 
   ensurePlayerProfilesState();
-  ensurePlayerProfileModulePlacements();
+  ensureMedicalState();
   const visiblePlayers = getVisiblePlayerProfiles();
   const selectedPlayer = getSelectedPlayerProfile();
   const rosterSummary = getPlayerProfilesRosterSummary(playerProfilesState.players);
@@ -26695,13 +26657,13 @@ function renderPlayerProfilesWorkspace(message = "") {
         <div class="squad-module-mark" aria-hidden="true">SQ</div>
         <div>
           <p>Squad / Player Profiles</p>
-          <h1>Squad Board</h1>
-          <span>Roles, depth, IDP and player data.</span>
+          <h1>Squad Room</h1>
+          <span>Roster, training guests and player profiles.</span>
         </div>
-        <div class="squad-command-tabs" aria-label="Squad module sections">
-          <span>Squad</span>
-          <span>IDP</span>
-          <span>Reports</span>
+        <div class="squad-command-stats" aria-label="Squad roster summary">
+          <span><strong>${rosterSummary.squadCount}</strong> squad</span>
+          <span><strong>${rosterSummary.temporaryCount}</strong> temporary</span>
+          <span><strong>${visiblePlayers.length}</strong> visible</span>
         </div>
         <div class="squad-access-chip">${escapeHtml(getPlayerProfilesAccessLabel())}</div>
         <div class="squad-command-tools" aria-label="Squad list controls">
@@ -26753,9 +26715,7 @@ function renderPlayerProfilesWorkspace(message = "") {
                 <tr>
                   <th>Player</th>
                   <th>Roles</th>
-                  <th>Group</th>
                   <th>Squad</th>
-                  <th>IDP</th>
                   <th>Status</th>
                   <th>Medical</th>
                   <th>Profile</th>
@@ -26765,7 +26725,7 @@ function renderPlayerProfilesWorkspace(message = "") {
                 ${
                   visiblePlayers.length
                     ? visiblePlayers.map(renderSquadPlayerRow).join("")
-                    : `<tr><td colspan="8"><div class="squad-empty-row">No players found. Adjust search or role group filter.</div></td></tr>`
+                    : `<tr><td colspan="6"><div class="squad-empty-row">No players found. Adjust search or role group filter.</div></td></tr>`
                 }
               </tbody>
             </table>
@@ -26826,17 +26786,13 @@ function buildMedicalPlayerFromPlayerProfile(player = {}) {
   const now = new Date().toISOString();
   const createdAt = String(player.createdAt || "").trim() || now;
   const updatedAt = String(player.updatedAt || "").trim() || now;
-  const profileId = String(player.id || "").trim();
-
   return normalizeMedicalPlayer({
-    id: profileId || createDashboardId("medical-player"),
-    profileId,
+    id: player.id || createDashboardId("medical-player"),
     name: player.name,
     number: player.number,
     position: player.position,
     photoUrl: player.photoUrl,
     sourceUrl: player.sourceUrl,
-    sourceModule: "player-profiles",
     rosterType: player.rosterType,
     countsInSquad: player.countsInSquad,
     temporaryGroup: player.temporaryGroup,
@@ -26848,111 +26804,19 @@ function buildMedicalPlayerFromPlayerProfile(player = {}) {
   });
 }
 
-function getMedicalPlayerPlacementSignature(player = {}) {
-  const name = normalizePlayerProfileName(player.name || "");
-  if (!name) {
-    return "";
-  }
-
-  return `${String(player.number ?? "").trim().toLowerCase()}|${name}`;
-}
-
-function getMedicalPlayerProfileLinkId(player = {}) {
-  return String(
-    player.profileId ?? player.playerProfileId ?? player.squadProfileId ?? player.sourceProfileId ?? ""
-  ).trim();
-}
-
-function findMedicalPlayerForPlayerProfile(player = {}) {
-  ensureMedicalState();
-  const profileId = String(player.id || player.profileId || "").trim();
-  if (profileId) {
-    const linkedMatch = medicalState.players.find((medicalPlayer) =>
-      [medicalPlayer.id, getMedicalPlayerProfileLinkId(medicalPlayer)]
-        .map((value) => String(value ?? "").trim())
-        .includes(profileId)
-    );
-    if (linkedMatch) {
-      return linkedMatch;
-    }
-  }
-
-  const signature = getMedicalPlayerPlacementSignature(player);
-  if (!signature) {
-    return null;
-  }
-
-  return medicalState.players.find((medicalPlayer) => getMedicalPlayerPlacementSignature(medicalPlayer) === signature) ?? null;
-}
-
-function resolveMedicalPlayerForPlayerProfileId(playerId = "") {
-  ensurePlayerProfilesState();
-  ensureMedicalState();
-  const profileId = String(playerId || "").trim();
-  if (!profileId) {
-    return null;
-  }
-
-  const directMatch = medicalState.players.find((medicalPlayer) =>
-    medicalPlayer.id === profileId || getMedicalPlayerProfileLinkId(medicalPlayer) === profileId
-  );
-  if (directMatch) {
-    return directMatch;
-  }
-
-  const profile = playerProfilesState.players.find((player) => player.id === profileId);
-  return profile ? findMedicalPlayerForPlayerProfile(profile) : null;
-}
-
-function getPlayerProfileModulePlacementState(player = {}, dateValue = medicalState?.selectedDate) {
-  ensureMedicalState();
-  const medicalPlayer = findMedicalPlayerForPlayerProfile(player);
-  const medicalPlayerId = medicalPlayer?.id || "";
-  const countsInSquad = playerProfileCountsInSquad(player);
-  return {
-    profileId: String(player.id || "").trim(),
-    medicalPlayerId,
-    medicalRosterSlot: Boolean(medicalPlayer),
-    sessionPlannerVisible: countsInSquad
-      ? Boolean(medicalPlayer)
-      : Boolean(medicalPlayer && isPlayerProfileTemporaryActiveOnDate(player, dateValue)),
-    medicalClearanceRequired: countsInSquad,
-  };
-}
-
-function ensurePlayerProfileModulePlacements(players = null) {
-  ensurePlayerProfilesState();
-  ensureMedicalState();
-  const sourcePlayers = Array.isArray(players) ? players : playerProfilesState.players;
-  const medicalPlayers = sourcePlayers
-    .map(buildMedicalPlayerFromPlayerProfile)
-    .filter((player) => player && player.id && player.name);
-
-  if (!medicalPlayers.length) {
-    return {
-      created: 0,
-      updated: 0,
-      unchanged: 0,
-      total: 0,
-      changed: false,
-    };
-  }
-
-  return upsertMedicalPlayers(medicalPlayers);
-}
-
 function syncMedicalPlayersFromPlayerProfiles(players = []) {
   if (!Array.isArray(players) || !players.length) {
-    return {
-      created: 0,
-      updated: 0,
-      unchanged: 0,
-      total: 0,
-      changed: false,
-    };
+    return;
   }
 
-  return ensurePlayerProfileModulePlacements(players);
+  const medicalPlayers = players
+    .map(buildMedicalPlayerFromPlayerProfile)
+    .filter((player) => player && player.id && player.name);
+  if (!medicalPlayers.length) {
+    return;
+  }
+
+  upsertMedicalPlayers(medicalPlayers);
 }
 
 function addPlayerProfile(values = {}) {
@@ -29403,41 +29267,6 @@ function parseMedicalRosterText(text) {
   return parsed;
 }
 
-const medicalRosterPlacementFields = Object.freeze([
-  "profileId",
-  "name",
-  "number",
-  "position",
-  "photoUrl",
-  "sourceUrl",
-  "sourceModule",
-  "rosterType",
-  "countsInSquad",
-  "temporaryGroup",
-  "temporaryFrom",
-  "temporaryTo",
-  "rosterOrder",
-]);
-
-function normalizeMedicalRosterPlacementComparableValue(player = {}, field = "") {
-  if (field === "countsInSquad") {
-    return player.countsInSquad === false ? "false" : "true";
-  }
-  if (field === "rosterOrder") {
-    const rosterOrder = Number(player.rosterOrder);
-    return Number.isFinite(rosterOrder) ? String(rosterOrder) : "";
-  }
-  return String(player[field] ?? "").trim();
-}
-
-function shouldUpdateMedicalRosterPlacement(existingPlayer = {}, incomingPlayer = {}) {
-  return medicalRosterPlacementFields.some(
-    (field) =>
-      normalizeMedicalRosterPlacementComparableValue(existingPlayer, field) !==
-      normalizeMedicalRosterPlacementComparableValue(incomingPlayer, field)
-  );
-}
-
 function upsertMedicalPlayers(players) {
   ensureMedicalState();
   const existingById = new Map(
@@ -29446,65 +29275,30 @@ function upsertMedicalPlayers(players) {
       .map((player) => [String(player.id), player])
   );
   const existingBySignature = new Map(
-    medicalState.players
-      .map((player) => [getMedicalPlayerPlacementSignature(player), player])
-      .filter(([signature]) => Boolean(signature))
+    medicalState.players.map((player) => [`${player.number}|${player.name}`.toLowerCase(), player])
   );
   const nextPlayers = [...medicalState.players];
-  const result = {
-    created: 0,
-    updated: 0,
-    unchanged: 0,
-    total: Array.isArray(players) ? players.length : 0,
-    changed: false,
-  };
 
   players.forEach((player) => {
-    if (!player || !player.name) {
-      return;
-    }
-    const signature = getMedicalPlayerPlacementSignature(player);
+    const signature = `${String(player.number || "").trim()}|${String(player.name || "").trim().toLowerCase()}`;
     const playerId = String(player.id || "").trim();
     const existingPlayer = existingById.get(playerId) || existingBySignature.get(signature);
 
     if (existingPlayer) {
-      const mergedPlayer = {
+      Object.assign(existingPlayer, {
         ...existingPlayer,
         ...player,
         id: existingPlayer.id || player.id,
-      };
-      if (shouldUpdateMedicalRosterPlacement(existingPlayer, mergedPlayer)) {
-        Object.assign(existingPlayer, {
-          ...mergedPlayer,
-          updatedAt: new Date().toISOString(),
-        });
-        result.updated += 1;
-        result.changed = true;
-      } else {
-        result.unchanged += 1;
-      }
-      if (playerId) {
-        existingById.set(playerId, existingPlayer);
-      }
-      if (signature) {
-        existingBySignature.set(signature, existingPlayer);
-      }
+        updatedAt: new Date().toISOString(),
+      });
     } else {
       nextPlayers.push(player);
-      result.created += 1;
-      result.changed = true;
       if (playerId) {
         existingById.set(playerId, player);
       }
-      if (signature) {
-        existingBySignature.set(signature, player);
-      }
+      existingBySignature.set(signature, player);
     }
   });
-
-  if (!result.changed) {
-    return result;
-  }
 
   medicalState = cloneMedicalState({
     ...medicalState,
@@ -29512,7 +29306,6 @@ function upsertMedicalPlayers(players) {
     selectedPlayerId: medicalState.selectedPlayerId || nextPlayers[0]?.id || "",
   });
   writeMedicalState();
-  return result;
 }
 
 function addMedicalRecord(values) {

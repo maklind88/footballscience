@@ -14228,8 +14228,8 @@ color: #1d1d1f;
 display: grid;
 grid-template-columns: auto minmax(0, 1fr) auto auto;
 align-items: center;
-gap: 0.62rem 0.75rem;
-padding: 0.75rem;
+gap: 0.7rem 0.85rem;
+padding: 0.8rem;
 border-radius: 8px;
 background: rgba(255, 255, 255, 0.88);
 border: 1px solid rgba(29, 29, 31, 0.08);
@@ -14259,7 +14259,7 @@ text-transform: uppercase;
 .squad-command-bar h1{
 margin: 0.12rem 0 0;
 color: #1d1d1f;
-font-size: 1.35rem;
+font-size: 1.28rem;
 line-height: 1.05;
 letter-spacing: 0;
 }
@@ -14268,29 +14268,30 @@ color: #6e6e73;
 font-size: 0.78rem;
 font-weight: 800;
 }
-.squad-command-tabs{
+.squad-command-stats{
 display: inline-grid;
 grid-auto-flow: column;
-gap: 0.25rem;
-padding: 0.22rem;
-border-radius: 8px;
-background: rgba(29, 29, 31, 0.055);
+gap: 0.35rem;
+align-items: center;
 }
-.squad-command-tabs span{
+.squad-command-stats span{
 display: inline-flex;
-min-height: 1.9rem;
+min-height: 2.05rem;
 align-items: center;
 justify-content: center;
-padding: 0.35rem 0.58rem;
-border-radius: 6px;
-color: #3d4147;
-background: transparent;
-font-size: 0.72rem;
+gap: 0.28rem;
+padding: 0.35rem 0.55rem;
+border-radius: 8px;
+color: #4d5258;
+background: rgba(29, 29, 31, 0.055);
+border: 1px solid rgba(29, 29, 31, 0.055);
+font-size: 0.7rem;
 font-weight: 900;
+white-space: nowrap;
 }
-.squad-command-tabs span:first-child{
-color: #ffffff;
-background: #1d2a32;
+.squad-command-stats strong{
+color: #1d1d1f;
+font-size: 0.86rem;
 }
 .squad-access-chip{
 display: inline-flex;
@@ -14306,14 +14307,14 @@ font-weight: 950;
 white-space: nowrap;
 }
 .squad-command-tools{
-grid-column: 2 / -1;
+grid-column: 1 / -1;
 display: grid;
-grid-template-columns: minmax(10rem, 0.34fr) minmax(18rem, 0.66fr);
+grid-template-columns: minmax(13rem, 0.32fr) minmax(20rem, 0.68fr);
 align-items: center;
 gap: 0.65rem;
-padding: 0.55rem;
+padding: 0.58rem;
 border-radius: 8px;
-background: rgba(29, 29, 31, 0.045);
+background: rgba(246, 247, 248, 0.92);
 border: 1px solid rgba(29, 29, 31, 0.055);
 }
 .squad-command-list-summary{
@@ -15722,12 +15723,12 @@ border: 1px solid rgba(29, 29, 31, 0.08);
 }
 .squad-table{
 width: 100%;
-min-width: 58rem;
+min-width: 52rem;
 border-collapse: collapse;
 }
 .squad-table th,
 .squad-table td{
-padding: 0.55rem;
+padding: 0.62rem 0.68rem;
 border-bottom: 1px solid rgba(29, 29, 31, 0.06);
 text-align: left;
 vertical-align: middle;
@@ -15741,6 +15742,21 @@ background: #f6f7f8;
 font-size: 0.66rem;
 font-weight: 950;
 text-transform: uppercase;
+letter-spacing: 0;
+}
+.squad-table th:nth-child(1){
+width: 27%;
+}
+.squad-table th:nth-child(2){
+width: 15%;
+}
+.squad-table th:nth-child(3){
+width: 20%;
+}
+.squad-table th:nth-child(4),
+.squad-table th:nth-child(5),
+.squad-table th:nth-child(6){
+width: 12%;
 }
 .squad-player-row{
 cursor: pointer;
@@ -15786,6 +15802,22 @@ font-weight: 850;
 }
 .squad-player-temporary-meta{
 color: #0d4f86;
+}
+.squad-role-cell,
+.squad-planning-cell,
+.squad-profile-progress-cell{
+display: grid;
+gap: 0.25rem;
+min-width: 0;
+}
+.squad-role-cell small,
+.squad-planning-cell small{
+overflow: hidden;
+color: #6e6e73;
+font-size: 0.64rem;
+font-weight: 850;
+text-overflow: ellipsis;
+white-space: nowrap;
 }
 .squad-player-avatar,
 .squad-profile-avatar{
@@ -15886,7 +15918,7 @@ background: #eceef1;
 }
 .squad-completion{
 display: block;
-width: 4.4rem;
+width: min(5.2rem, 100%);
 height: 0.42rem;
 overflow: hidden;
 border-radius: 999px;
@@ -16258,6 +16290,7 @@ position: static;
 @media (max-width: 840px){
 .squad-command-bar,
 .squad-command-tools,
+.squad-command-stats,
 .squad-list-tools,
 .squad-profile-tabs,
 .squad-form-grid,
@@ -16269,11 +16302,13 @@ grid-template-columns: 1fr;
 .squad-profile-strip{
 grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-.squad-command-tabs{
-justify-self: start;
-}
+.squad-command-stats,
 .squad-access-chip{
 justify-self: start;
+}
+.squad-command-stats{
+grid-auto-flow: row;
+width: 100%;
 }
 .squad-command-tools{
 grid-column: 1;
@@ -19468,10 +19503,10 @@ background: rgba(6, 12, 18, 0.84) !important;
 border-color: var(--dark-line-strong) !important;
 color: var(--dark-text) !important;
 }
-body.is-dark-mode .platform-player-profiles-view :is(.squad-command-tabs,.squad-profile-tabs){
+body.is-dark-mode .platform-player-profiles-view :is(.squad-command-stats span,.squad-profile-tabs){
 background: rgba(255, 255, 255, 0.06) !important;
 }
-body.is-dark-mode .platform-player-profiles-view :is(.squad-command-tabs span:first-child,.squad-profile-tabs button.is-active,.squad-add-player-trigger,.squad-profile-form button,.squad-data-actions button,.squad-data-import-history-action){
+body.is-dark-mode .platform-player-profiles-view :is(.squad-profile-tabs button.is-active,.squad-add-player-trigger,.squad-profile-form button,.squad-data-actions button,.squad-data-import-history-action){
 background: linear-gradient(180deg, #2c8b62, #1c684e) !important;
 border-color: rgba(129, 210, 159, 0.34) !important;
 color: #fff !important;

@@ -742,8 +742,7 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
             : null;
           return player
             ? {
-                hasProfileId: Boolean(player.profileId),
-                sourceModule: player.sourceModule || "",
+                idMatchesProfile: Boolean(player.id),
                 countsInSquad: player.countsInSquad,
               }
             : null;
@@ -752,8 +751,7 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
       )
     )
     .toMatchObject({
-      hasProfileId: true,
-      sourceModule: "player-profiles",
+      idMatchesProfile: true,
       countsInSquad: true,
     });
 

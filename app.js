@@ -1693,7 +1693,6 @@ const defaultMedicalPlayers = [
     position: "Goalkeeper",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775662992/prd/assets/widgets/players/Roster%20Graphics/MADI-2_thi5br.png",
-    sourceUrl: "https://www.nccourage.com/players/f2079a38068b4d5cbb7d57a682968707/madison-white",
     rosterOrder: 1,
   },
   {
@@ -1703,7 +1702,6 @@ const defaultMedicalPlayers = [
     position: "Goalkeeper",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775663847/prd/assets/widgets/players/Roster%20Graphics/Kailen_g441wj.jpg",
-    sourceUrl: "https://www.nccourage.com/players/57a97c9a1be2471b9dde3f9a33421c12/kailen-sheridan",
     rosterOrder: 2,
   },
   {
@@ -1713,7 +1711,6 @@ const defaultMedicalPlayers = [
     position: "Goalkeeper",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775663410/prd/assets/widgets/players/Roster%20Graphics/Molly-2_f052xn.png",
-    sourceUrl: "https://www.nccourage.com/players/51e55030b6314f7ab6638d85e210a545/molly-pritchard",
     rosterOrder: 3,
   },
   {
@@ -1723,7 +1720,6 @@ const defaultMedicalPlayers = [
     position: "Defender",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775671691/prd/assets/widgets/players/Roster%20Graphics/Syd_ts9xe3.jpg",
-    sourceUrl: "https://www.nccourage.com/players/4d4f39aaef114243ad9c934cf44df801/sydney-schmidt",
     rosterOrder: 4,
   },
   {
@@ -1733,7 +1729,6 @@ const defaultMedicalPlayers = [
     position: "Defender",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775663505/prd/assets/widgets/players/Roster%20Graphics/Nat-3_ihfg38.png",
-    sourceUrl: "https://www.nccourage.com/players/1b5708ebf17641ce9bb6993a1dbde645/natalie-jacobs",
     rosterOrder: 5,
   },
   {
@@ -1743,7 +1738,6 @@ const defaultMedicalPlayers = [
     position: "Defender",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775665132/prd/assets/widgets/players/Roster%20Graphics/Cam_u7g3f5.jpg",
-    sourceUrl: "https://www.nccourage.com/players/9b5d78a592f24de5b9d5a829e371c821/cameron-brooks",
     rosterOrder: 6,
   },
   {
@@ -1753,7 +1747,6 @@ const defaultMedicalPlayers = [
     position: "Defender",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775671072/prd/assets/widgets/players/Roster%20Graphics/Ivy_ujs2bz.jpg",
-    sourceUrl: "https://www.nccourage.com/players/e018e84ab7dc484683eb26afad7bfb7a/ivy-younce",
     rosterOrder: 7,
   },
   {
@@ -1763,7 +1756,6 @@ const defaultMedicalPlayers = [
     position: "Defender",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775670950/prd/assets/widgets/players/Roster%20Graphics/Feli_fqlo1b.jpg",
-    sourceUrl: "https://www.nccourage.com/players/23d5a16742664974b92a5f28d93d0643/feli-rauch",
     rosterOrder: 8,
   },
   {
@@ -1773,7 +1765,6 @@ const defaultMedicalPlayers = [
     position: "Defender",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775663667/prd/assets/widgets/players/Roster%20Graphics/Talia_mfz0do.jpg",
-    sourceUrl: "https://www.nccourage.com/players/8f67e49ca6ca4af3b334ebdb824b61e3/natalia-staude",
     rosterOrder: 9,
   },
   {
@@ -1783,7 +1774,6 @@ const defaultMedicalPlayers = [
     position: "Defender",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775675125/prd/assets/widgets/players/Roster%20Graphics/Ryan_jhln6c.png",
-    sourceUrl: "https://www.nccourage.com/players/fb25bc0501704c28b087d1a55691bbeb/ryan-williams",
     rosterOrder: 10,
   },
   {
@@ -1793,7 +1783,6 @@ const defaultMedicalPlayers = [
     position: "Defender",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775663745/prd/assets/widgets/players/Roster%20Graphics/Uno_icyltj.jpg",
-    sourceUrl: "https://www.nccourage.com/players/3b585c338e1f40cfab4e466956552714/uno-shiragaki",
     rosterOrder: 11,
   },
   {
@@ -1803,7 +1792,6 @@ const defaultMedicalPlayers = [
     position: "Defender",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775664100/prd/assets/widgets/players/Roster%20Graphics/Maycee-3_cdwubh.png",
-    sourceUrl: "https://www.nccourage.com/players/b6acf019aeca461fa55cea988e0f1dfe/maycee-bell",
     rosterOrder: 12,
   },
   {
@@ -1813,7 +1801,6 @@ const defaultMedicalPlayers = [
     position: "Midfielder",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1772114185/prd/assets/widgets/players/Roster%20Graphics/Ashley-2_mg1hp0.png",
-    sourceUrl: "https://www.nccourage.com/players/74204067583a49deb99c4d0a9efe3343/ashley-sanchez",
     rosterOrder: 13,
   },
   {
@@ -1823,7 +1810,6 @@ const defaultMedicalPlayers = [
     position: "Midfielder",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775665313/prd/assets/widgets/players/Roster%20Graphics/Carly_tr1doy.jpg",
-    sourceUrl: "https://www.nccourage.com/players/164aba50b5a9482eac863cf2c5b3e38c/carly-wickenheiser",
     rosterOrder: 14,
   },
   {
@@ -1833,7 +1819,6 @@ const defaultMedicalPlayers = [
     position: "Midfielder",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775675251/prd/assets/widgets/players/Roster%20Graphics/Riley-2_xrz63r.png",
-    sourceUrl: "https://www.nccourage.com/players/bf9e1e8c97204813b1209cecd2b67cbd/riley-jackson",
     rosterOrder: 15,
   },
   {
@@ -1843,7 +1828,6 @@ const defaultMedicalPlayers = [
     position: "Midfielder",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775675343/prd/assets/widgets/players/Roster%20Graphics/Dani_u2hcdr.png",
-    sourceUrl: "https://www.nccourage.com/players/6ddb873c70834f79abe07d06eea2fd11/dani-weatherholt",
     rosterOrder: 16,
   },
   {
@@ -1853,7 +1837,6 @@ const defaultMedicalPlayers = [
     position: "Midfielder",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775675494/prd/assets/widgets/players/Roster%20Graphics/Shinomi_nvrlw0.png",
-    sourceUrl: "https://www.nccourage.com/players/e52e33d301024bce85c72a9c0a8733c4/shinomi-koyama",
     rosterOrder: 17,
   },
   {
@@ -1863,7 +1846,6 @@ const defaultMedicalPlayers = [
     position: "Midfielder",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775675672/prd/assets/widgets/players/Roster%20Graphics/MANAKA-2_foajf3.png",
-    sourceUrl: "https://www.nccourage.com/players/318d6da111a444efbc82951a22e85f09/manaka-matsukubo",
     rosterOrder: 18,
   },
   {
@@ -1873,7 +1855,6 @@ const defaultMedicalPlayers = [
     position: "Midfielder",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775675798/prd/assets/widgets/players/Roster%20Graphics/Oli_o4ad6k.png",
-    sourceUrl: "https://www.nccourage.com/players/305a55e0f13249ea84c17f0ada68f6be/oli-pe%C3%B1a",
     rosterOrder: 19,
   },
   {
@@ -1883,7 +1864,6 @@ const defaultMedicalPlayers = [
     position: "Forward",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775671158/prd/assets/widgets/players/Roster%20Graphics/LT_yqy2m3.jpg",
-    sourceUrl: "https://www.nccourage.com/players/a82eb00220f14403994247133cf58cd6/lauryn-thompson",
     rosterOrder: 20,
   },
   {
@@ -1893,7 +1873,6 @@ const defaultMedicalPlayers = [
     position: "Forward",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775671443/prd/assets/widgets/players/Roster%20Graphics/Chioma-4_zbdwyi.png",
-    sourceUrl: "https://www.nccourage.com/players/d9a89a8a67b44aea9853aaafcebb2c76/chioma-okafor",
     rosterOrder: 21,
   },
   {
@@ -1903,7 +1882,6 @@ const defaultMedicalPlayers = [
     position: "Forward",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775671897/prd/assets/widgets/players/Roster%20Graphics/Liv_dqtwwk.png",
-    sourceUrl: "https://www.nccourage.com/players/980b4318fe154fb8a8a7ccaaa9e68ae4/olivia-wingate",
     rosterOrder: 22,
   },
   {
@@ -1913,7 +1891,6 @@ const defaultMedicalPlayers = [
     position: "Forward",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775669406/prd/assets/widgets/players/Roster%20Graphics/Evelyn_pzrvkp.jpg",
-    sourceUrl: "https://www.nccourage.com/players/8ae8aeb412184a72baf1415f035334d2/evelyn-ijeh",
     rosterOrder: 23,
   },
   {
@@ -1923,7 +1900,6 @@ const defaultMedicalPlayers = [
     position: "Forward",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775589043/prd/assets/widgets/players/Roster%20Graphics/Payton_Crawford_Roster_Graphic_vjg046.png",
-    sourceUrl: "https://www.nccourage.com/players/fe9da1aa31b94aee8604fe3c029e7008/payton-linnehan",
     rosterOrder: 24,
   },
   {
@@ -1933,7 +1909,6 @@ const defaultMedicalPlayers = [
     position: "Forward",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775663847/prd/assets/widgets/players/Roster%20Graphics/Cortnee_alsutx.jpg",
-    sourceUrl: "https://www.nccourage.com/players/d521e8675bb84e8d9e3c0e7ec736cf4e/cortnee-vine",
     rosterOrder: 25,
   },
   {
@@ -1943,7 +1918,6 @@ const defaultMedicalPlayers = [
     position: "Forward",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775675578/prd/assets/widgets/players/Roster%20Graphics/Hannah-2_laqpcm.png",
-    sourceUrl: "https://www.nccourage.com/players/1003da49b36646f0aa5ea9418ac24812/hannah-betfort",
     rosterOrder: 26,
   },
   {
@@ -1953,153 +1927,10 @@ const defaultMedicalPlayers = [
     position: "Forward",
     photoUrl:
       "https://images.nccourage.com/image/private/t_q-best/v1775057295/prd/assets/widgets/players/Roster%20Graphics/Ally_hp7twm.jpg",
-    sourceUrl: "https://www.nccourage.com/players/41b5ba7ec3814941a7d8c04699a2c608/ally-schlegel",
     rosterOrder: 27,
   },
 ];
-const placeholderWorkspaceContent = {
-  "team-identity": {
-    tag: "Team Identity",
-    title: "Identity is under development",
-    description:
-      "This section is being designed as the home for the team's playing identity.",
-    modules: [
-      {
-        variant: "identity-development",
-        title: "This section is under development",
-        description:
-          "We are building a calm, structured workspace for the team's playing identity: the principles, phase behaviours, role language and style markers that should connect training, match planning and the simulator later.",
-        chip: "Under development",
-      },
-      {
-        title: "Game Model Structure",
-        description: "Planned space for phases, sub-phases, principles and preferred solutions.",
-        chip: "Foundation planned",
-      },
-      {
-        title: "Style Language",
-        description: "A clean way to define build-up, pressing, box defending and attacking space.",
-        chip: "Identity planned",
-      },
-      {
-        title: "Future Connections",
-        description: "Built to connect with sessions, periodization and the Game Simulator later.",
-        chip: "Engine-ready",
-      },
-    ],
-  },
-  "session-planner": {
-    tag: "Training Workspace",
-    title: "Session Planner",
-    description:
-      "This workspace will hold session design, daily objectives and how each exercise connects to the tactical problem you want to solve.",
-    modules: [
-      {
-        title: "Session Blocks",
-        description: "Warm-up, technical activation, tactical blocks, game-form and finishers.",
-        chip: "Daily work",
-      },
-      {
-        title: "Coaching Points",
-        description: "Keep the exact language, constraints and feedback focus close to the drill.",
-        chip: "Clarity",
-      },
-      {
-        title: "Load Logic",
-        description: "Connect tactical work to intensity, pitch size, duration and recovery.",
-        chip: "Performance",
-      },
-    ],
-  },
-  periodization: {
-    tag: "Planning Workspace",
-    title: "Periodization",
-    description:
-      "This will be rebuilt from scratch as a clean season-planning module: months, weeks, match rhythm, loading and tactical themes without the old clutter.",
-    modules: [
-      {
-        title: "Monthly Rhythm",
-        description: "Navigate months and build planning blocks without crowding the screen.",
-        chip: "Calendar",
-      },
-      {
-        title: "Week Structure",
-        description: "Connect MD rhythm, session type, load and tactical focus.",
-        chip: "Microcycle",
-      },
-      {
-        title: "References",
-        description: "Attach session plans, videos, GPS reports and review notes when the model is ready.",
-        chip: "Links",
-      },
-    ],
-  },
-  "player-profiles": {
-    tag: "IDP Lab",
-    title: "IDP is under development",
-    description:
-      "This section is being shaped into a calm, useful home for individual development plans.",
-    modules: [
-      {
-        variant: "idp-development",
-        title: "Development work in progress",
-        description:
-          "Role profiles, behaviours, development goals, staff notes and training links are getting their own proper workspace.",
-        chip: "Coming soon",
-      },
-      {
-        title: "Role Profile",
-        description: "Positions, responsibilities and the behaviours that should show up on the pitch.",
-        chip: "Roles",
-      },
-      {
-        title: "Growth Goals",
-        description: "Strengths, focus areas and notes that connect individual work to training content.",
-        chip: "IDP",
-      },
-      {
-        title: "Training Links",
-        description: "Connect each development focus to exercises, sessions and staff follow-up.",
-        chip: "Sessions",
-      },
-    ],
-  },
-  "analysis-room": {
-    tag: "Analysis Workspace",
-    title: "Analysis Room",
-    description: "Skunk Works building this.",
-    modules: [
-      {
-        variant: "skunk",
-        title: "Skunk Works building this",
-        description: "This room is intentionally parked while we decide what Analysis Room should become.",
-        chip: "In development",
-      },
-    ],
-  },
-  settings: {
-    tag: "Settings",
-    title: "Settings",
-    description: "Account, platform and workspace preferences will live here.",
-    modules: [
-      {
-        title: "Account",
-        description: "Profile, password and identity settings.",
-        chip: "Soon",
-      },
-      {
-        title: "Platform",
-        description: "Theme, notifications and workspace preferences.",
-        chip: "Soon",
-      },
-      {
-        title: "Security",
-        description: "Future login, roles and access controls.",
-        chip: "Future",
-      },
-    ],
-  },
-};
+const placeholderWorkspaceContent = {};
 const playerProfileRoleOptions = ["GK", "LB", "CB", "RB", "LWB", "RWB", "6", "8", "10", "LW", "RW", "ST"];
 const squadFormationOptions = [
   {
@@ -10238,99 +10069,7 @@ function renderPlaceholderWorkspace() {
   ui.placeholderTag.textContent = content.tag;
   ui.placeholderTitle.textContent = content.title;
   ui.placeholderDescription.textContent = content.description;
-  ui.placeholderModules.innerHTML = content.modules
-    .map((module) => {
-      if (module.variant === "skunk") {
-        return `
-          <article class="placeholder-module placeholder-module-skunk">
-            <div class="skunk-illustration" role="img" aria-label="Skunk illustration">
-              <svg viewBox="0 0 240 160" aria-hidden="true" focusable="false">
-                <path class="skunk-tail" d="M144 82C168 36 214 28 224 62C234 96 194 112 162 96C150 90 143 90 135 99" />
-                <path class="skunk-tail-stripe" d="M154 78C177 45 207 42 211 65C216 87 188 92 165 82" />
-                <ellipse class="skunk-body" cx="102" cy="105" rx="62" ry="33" />
-                <path class="skunk-back-stripe" d="M51 96C73 72 122 71 153 97C118 90 84 91 56 108Z" />
-                <circle class="skunk-head" cx="48" cy="94" r="27" />
-                <path class="skunk-face-stripe" d="M36 72C47 64 61 68 68 79C55 76 44 80 35 91Z" />
-                <path class="skunk-ear" d="M49 70L62 51L69 73Z" />
-                <circle class="skunk-eye" cx="41" cy="88" r="3" />
-                <circle class="skunk-nose" cx="25" cy="98" r="4.6" />
-                <path class="skunk-foot" d="M62 132H39" />
-                <path class="skunk-foot" d="M120 136H95" />
-              </svg>
-            </div>
-            <div class="skunk-copy">
-              <strong>${escapeHtml(module.title)}</strong>
-              <p>${escapeHtml(module.description)}</p>
-              <span class="placeholder-chip">${escapeHtml(module.chip)}</span>
-            </div>
-          </article>
-        `;
-      }
-      if (module.variant === "idp-development") {
-        return `
-          <article class="placeholder-module idp-development-card">
-            <div class="idp-development-copy">
-              <span class="placeholder-chip">${escapeHtml(module.chip)}</span>
-              <strong>${escapeHtml(module.title)}</strong>
-              <p>${escapeHtml(module.description)}</p>
-            </div>
-            <div class="idp-development-visual" aria-hidden="true">
-              <div class="idp-mini-pitch">
-                <span class="idp-pitch-line idp-pitch-line-mid"></span>
-                <span class="idp-pitch-circle"></span>
-                <span class="idp-pitch-box idp-pitch-box-left"></span>
-                <span class="idp-pitch-box idp-pitch-box-right"></span>
-                <span class="idp-token idp-token-player idp-token-one">7</span>
-                <span class="idp-token idp-token-player idp-token-two">10</span>
-                <span class="idp-token idp-token-coach">C</span>
-                <span class="idp-token idp-token-ball"></span>
-                <span class="idp-development-route"></span>
-              </div>
-              <div class="idp-development-notes">
-                <span>Role profile</span>
-                <span>Behaviours</span>
-                <span>Training link</span>
-              </div>
-            </div>
-          </article>
-        `;
-      }
-      if (module.variant === "identity-development") {
-        return `
-          <article class="placeholder-module identity-development-card">
-            <div class="identity-development-copy">
-              <span class="placeholder-chip">${escapeHtml(module.chip)}</span>
-              <strong>${escapeHtml(module.title)}</strong>
-              <p>${escapeHtml(module.description)}</p>
-            </div>
-            <div class="identity-development-visual" aria-hidden="true">
-              <div class="identity-dna-mark">
-                <span class="identity-dna-strand identity-dna-strand-left"></span>
-                <span class="identity-dna-strand identity-dna-strand-right"></span>
-                <span class="identity-dna-rung identity-dna-rung-one"></span>
-                <span class="identity-dna-rung identity-dna-rung-two"></span>
-                <span class="identity-dna-rung identity-dna-rung-three"></span>
-                <span class="identity-dna-rung identity-dna-rung-four"></span>
-              </div>
-              <div class="identity-development-map">
-                <span>Phases</span>
-                <span>Principles</span>
-                <span>Behaviours</span>
-                <span>Roles</span>
-              </div>
-            </div>
-          </article>
-        `;
-      }
-      return `
-        <article class="placeholder-module">
-          <strong>${escapeHtml(module.title)}</strong>
-          <p>${escapeHtml(module.description)}</p>
-          <span class="placeholder-chip">${escapeHtml(module.chip)}</span>
-        </article>
-      `;
-    })
-    .join("");
+  ui.placeholderModules.innerHTML = "";
 }
 const sessionPlannerDefaultExerciseLibrary = [
   {

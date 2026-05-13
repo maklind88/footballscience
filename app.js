@@ -5049,6 +5049,40 @@ async function uploadSquadTeamLogo(file) {
     renderPlayerProfilesWorkspace(message);
   }
 }
+async function uploadPlayerProfilePhoto(playerId, file) {
+  if (!canEditPlayerProfiles()) {
+    renderPlayerProfilesWorkspace({
+      status: "warning",
+      lines: ["Your role cannot update player images."],
+    });
+    return;
+  }
+  if (!file) {
+    return;
+  }
+  ensurePlayerProfilesState();
+  const player = playerProfilesState.players.find((candidate) => candidate.id === playerId);
+  if (!player) {
+    renderPlayerProfilesWorkspace({
+      status: "warning",
+      lines: ["Player profile could not be found for image upload."],
+    });
+    return;
+  }
+  try {
+    const photoUrl = await createProfileImageDataUrl(file);
+    const result = updatePlayerProfile({ ...player, playerId: player.id, photoUrl });
+    renderPlayerProfilesWorkspace(
+      buildPlayerProfileOperationFeedback(result, result?.ok ? "Player image saved." : "Player image could not be saved.")
+    );
+  } catch (error) {
+    const message =
+      error?.name === "QuotaExceededError"
+        ? "Player image could not be saved because local storage is full."
+        : String(error?.message || "Player image could not be saved.").replace(/profile image/gi, "player image");
+    renderPlayerProfilesWorkspace(message);
+  }
+}
 function getUserClubName(user, structure = getPlatformStructureState()) {
   const club = getPlatformClubById(getUserClubId(user, structure), structure);
   return club?.name || normalizePlatformStructureText(user?.clubName || user?.club, "Club");
@@ -22528,6 +22562,25 @@ function renderPlayerProfileAvatar(player, className = "player-profile-avatar") 
     </span>
   `;
 }
+function renderPlayerProfileAvatarUpload(player, canEdit = false) {
+  const avatar = renderPlayerProfileAvatar(player, "squad-profile-avatar");
+  if (!canEdit) {
+    return avatar;
+  }
+  const label = player.photoUrl ? "Change player image" : "Upload player image";
+  return `
+    <label class="squad-profile-avatar-upload" title="${escapeHtml(label)}">
+      ${avatar}
+      <input
+        type="file"
+        accept="image/*"
+        data-player-profile-photo-upload="${escapeHtml(player.id)}"
+        aria-label="${escapeHtml(`Upload image for ${player.name}`)}"
+      />
+      <span class="squad-profile-avatar-upload-dot" aria-hidden="true">+</span>
+    </label>
+  `;
+}
 function renderPlayerProfileStatusChip(statusKey) {
   const option = getPlayerProfileOption(playerProfileStatusOptions, statusKey, playerProfileStatusOptions[0]);
   return `<span class="squad-status-pill is-${escapeHtml(option.tone)}">${escapeHtml(option.label)}</span>`;
@@ -23667,11 +23720,34 @@ function renderPlayerProfileSelectedPanel(player) {
   const canEdit = canEditPlayerProfiles();
   const activeTab = normalizePlayerProfileTab(playerProfileActiveTab);
   const activeTabTitle = getPlayerProfileOption(playerProfileTabOptions, activeTab).label;
+  const isSquadPlayer = playerProfileCountsInSquad(player);
+  const temporaryRosterFields = isSquadPlayer
+    ? ""
+    : `
+            <label class="squad-tab-field-overview">
+              <span>Roster type</span>
+              <select name="rosterType" ${canEdit ? "" : "disabled"}>
+                ${renderPlayerProfileOptionSet(playerProfileRosterTypeOptions, player.rosterType)}
+              </select>
+            </label>
+            <label class="squad-tab-field-overview">
+              <span>Temporary group</span>
+              <input name="temporaryGroup" value="${escapeHtml(player.temporaryGroup)}" placeholder="Academy Training Group" ${canEdit ? "" : "disabled"} />
+            </label>
+            <label class="squad-tab-field-overview">
+              <span>Temporary from</span>
+              <input name="temporaryFrom" type="date" value="${escapeHtml(player.temporaryFrom)}" ${canEdit ? "" : "disabled"} />
+            </label>
+            <label class="squad-tab-field-overview">
+              <span>Temporary to</span>
+              <input name="temporaryTo" type="date" value="${escapeHtml(player.temporaryTo)}" ${canEdit ? "" : "disabled"} />
+            </label>
+          `;
   return `
     <aside class="squad-player-workbench" data-active-tab="${escapeHtml(activeTab)}" aria-label="Selected player profile">
       <article class="squad-profile-identity">
         <header>
-          ${renderPlayerProfileAvatar(player, "squad-profile-avatar")}
+          ${renderPlayerProfileAvatarUpload(player, canEdit)}
           <div>
             <p>Player Profile</p>
             <h2>${escapeHtml(player.name)}</h2>
@@ -23746,28 +23822,7 @@ function renderPlayerProfileSelectedPanel(player) {
                 ${renderPlayerProfileOptionSet(playerProfileCareerPhaseOptions, player.careerPhase)}
               </select>
             </label>
-            <label class="squad-tab-field-overview">
-              <span>Roster type</span>
-              <select name="rosterType" ${canEdit ? "" : "disabled"}>
-                ${renderPlayerProfileOptionSet(playerProfileRosterTypeOptions, player.rosterType)}
-              </select>
-            </label>
-            <label class="squad-tab-field-overview">
-              <span>Temporary group</span>
-              <input name="temporaryGroup" value="${escapeHtml(player.temporaryGroup)}" placeholder="Academy Training Group" ${canEdit ? "" : "disabled"} />
-            </label>
-            <label class="squad-tab-field-overview">
-              <span>Temporary from</span>
-              <input name="temporaryFrom" type="date" value="${escapeHtml(player.temporaryFrom)}" ${canEdit ? "" : "disabled"} />
-            </label>
-            <label class="squad-tab-field-overview">
-              <span>Temporary to</span>
-              <input name="temporaryTo" type="date" value="${escapeHtml(player.temporaryTo)}" ${canEdit ? "" : "disabled"} />
-            </label>
-            <label class="squad-form-wide squad-tab-field-overview">
-              <span>Image URL</span>
-              <input name="photoUrl" value="${escapeHtml(player.photoUrl)}" ${canEdit ? "" : "disabled"} />
-            </label>
+            ${temporaryRosterFields}
           </div>
           <div class="squad-rating-grid squad-tab-panel-roles" aria-label="Profile ratings">
             ${playerProfileAttributeGroups
@@ -25623,6 +25678,7 @@ function renderPlayerProfilesWorkspace(message = "") {
 }
 function getPlayerProfileFormValues(form) {
   const data = new FormData(form);
+  const hasField = (name) => Boolean(form?.querySelector(`[name="${name}"]`));
   const attributeRatings = playerProfileAttributeGroups.reduce((result, group) => {
     result[group.key] = normalizePlayerProfileNumber(data.get(`rating.${group.key}`), 3);
     return result;
@@ -25632,7 +25688,7 @@ function getPlayerProfileFormValues(form) {
     scoutingNotes: String(data.get("scoutingNotes") ?? "").trim(),
     analysisNotes: String(data.get("analysisNotes") ?? "").trim(),
   };
-  return {
+  const values = {
     playerId: String(data.get("playerId") ?? "").trim(),
     name: String(data.get("name") ?? "").trim(),
     number: String(data.get("number") ?? "").trim(),
@@ -25640,15 +25696,10 @@ function getPlayerProfileFormValues(form) {
     status: String(data.get("status") ?? "").trim(),
     squadStatus: String(data.get("squadStatus") ?? "").trim(),
     careerPhase: String(data.get("careerPhase") ?? "").trim(),
-    rosterType: String(data.get("rosterType") ?? "").trim(),
-    temporaryGroup: String(data.get("temporaryGroup") ?? "").trim(),
-    temporaryFrom: String(data.get("temporaryFrom") ?? "").trim(),
-    temporaryTo: String(data.get("temporaryTo") ?? "").trim(),
     primaryRole: String(data.get("primaryRole") ?? "").trim(),
     secondaryRoles: data.getAll("secondaryRoles").map((role) => String(role).trim()),
     preferredSide: String(data.get("preferredSide") ?? "").trim(),
     roleGroup: String(data.get("roleGroup") ?? "").trim(),
-    photoUrl: String(data.get("photoUrl") ?? "").trim(),
     coachNotes: String(data.get("coachNotes") ?? "").trim(),
     attributeRatings,
     idp: {
@@ -25661,6 +25712,12 @@ function getPlayerProfileFormValues(form) {
     },
     futureData,
   };
+  if (hasField("rosterType")) values.rosterType = String(data.get("rosterType") ?? "").trim();
+  if (hasField("temporaryGroup")) values.temporaryGroup = String(data.get("temporaryGroup") ?? "").trim();
+  if (hasField("temporaryFrom")) values.temporaryFrom = String(data.get("temporaryFrom") ?? "").trim();
+  if (hasField("temporaryTo")) values.temporaryTo = String(data.get("temporaryTo") ?? "").trim();
+  if (hasField("photoUrl")) values.photoUrl = String(data.get("photoUrl") ?? "").trim();
+  return values;
 }
 function getPlayerProfileFormSignature(form) { try { return form ? JSON.stringify(getPlayerProfileFormValues(form)) : ""; } catch { return ""; } }
 function savePlayerProfileEditForm(form) {
@@ -25782,11 +25839,45 @@ function updatePlayerProfile(values = {}) {
     (!submittedRoleGroup || submittedRoleGroup === currentPlayer.roleGroup) &&
     currentPlayer.roleGroup === currentNaturalRoleGroup &&
     nextNaturalRoleGroup !== currentPlayer.roleGroup;
+  const hasSubmittedValue = (key) => Object.prototype.hasOwnProperty.call(values, key);
+  const currentRosterType = normalizePlayerProfileRosterType(currentPlayer.rosterType, "squad");
+  const currentIsSquadPlayer = playerProfileCountsInSquad(currentPlayer);
+  const submittedRosterType = hasSubmittedValue("rosterType")
+    ? normalizePlayerProfileRosterType(values.rosterType, currentRosterType)
+    : currentRosterType;
+  const nextRosterType = currentIsSquadPlayer
+    ? playerProfileRosterTypeCountsInSquad(currentRosterType)
+      ? currentRosterType
+      : "squad"
+    : submittedRosterType;
+  const nextCountsInSquad = currentIsSquadPlayer || playerProfileRosterTypeCountsInSquad(nextRosterType);
+  const nextTemporaryGroup = nextCountsInSquad
+    ? ""
+    : hasSubmittedValue("temporaryGroup")
+      ? values.temporaryGroup
+      : currentPlayer.temporaryGroup;
+  const nextTemporaryFrom = nextCountsInSquad
+    ? ""
+    : hasSubmittedValue("temporaryFrom")
+      ? values.temporaryFrom
+      : currentPlayer.temporaryFrom;
+  const nextTemporaryTo = nextCountsInSquad
+    ? ""
+    : hasSubmittedValue("temporaryTo")
+      ? values.temporaryTo
+      : currentPlayer.temporaryTo;
+  const nextPhotoUrl = hasSubmittedValue("photoUrl") ? values.photoUrl : currentPlayer.photoUrl;
   const nextPlayer = normalizePlayerProfile({
     ...currentPlayer,
     ...values,
     primaryRole: nextPrimaryRole,
     roleGroup: shouldAutoAlignRoleGroup ? nextNaturalRoleGroup : submittedRoleGroup || nextNaturalRoleGroup,
+    rosterType: nextRosterType,
+    countsInSquad: nextCountsInSquad,
+    temporaryGroup: nextTemporaryGroup,
+    temporaryFrom: nextTemporaryFrom,
+    temporaryTo: nextTemporaryTo,
+    photoUrl: nextPhotoUrl,
     attributeRatings: {
       ...currentPlayer.attributeRatings,
       ...values.attributeRatings,
@@ -70236,6 +70327,14 @@ ui.playerProfilesWorkspace?.addEventListener("change", (event) => {
     const file = teamLogoInput.files?.[0] ?? null;
     teamLogoInput.value = "";
     void uploadSquadTeamLogo(file);
+    return;
+  }
+  const playerPhotoInput = event.target.closest("[data-player-profile-photo-upload]");
+  if (playerPhotoInput) {
+    const file = playerPhotoInput.files?.[0] ?? null;
+    const playerId = playerPhotoInput.dataset.playerProfilePhotoUpload || "";
+    playerPhotoInput.value = "";
+    void uploadPlayerProfilePhoto(playerId, file);
     return;
   }
   const editForm = event.target.closest("#playerProfileEditForm");

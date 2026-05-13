@@ -926,12 +926,82 @@ test("Squad profile modal autosaves edits and keeps its size across tabs", async
   await expect(modal.locator('button[type="submit"]')).toHaveCount(0);
   await expect(modal.locator("[data-player-profile-remove]")).toBeVisible();
   await expect(modal.locator(".squad-profile-strip")).toHaveCount(0);
+  await expect(modal.locator('input[name="photoUrl"]')).toHaveCount(0);
+  await expect(modal.locator('select[name="rosterType"]')).toHaveCount(0);
+  await expect(modal.locator('input[name="temporaryGroup"]')).toHaveCount(0);
+  await expect(modal.locator('input[name="temporaryFrom"]')).toHaveCount(0);
+  await expect(modal.locator('input[name="temporaryTo"]')).toHaveCount(0);
+
+  const playerId = await modal.locator('input[name="playerId"]').inputValue();
+  await page.evaluate(() => {
+    const form = document.querySelector("#playerProfileEditForm");
+    if (!form) return;
+    [
+      ["rosterType", "academy"],
+      ["temporaryGroup", "Injected academy group"],
+      ["temporaryFrom", "2026-05-01"],
+      ["temporaryTo", "2026-05-14"],
+    ].forEach(([name, value]) => {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = name;
+      input.value = value;
+      form.appendChild(input);
+    });
+    form.querySelector('input[name="rosterType"]')?.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        ({ key, id }) => {
+          const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+          const player = Array.isArray(state.players) ? state.players.find((candidate) => candidate.id === id) : null;
+          return player
+            ? {
+                countsInSquad: player.countsInSquad,
+                rosterType: player.rosterType || "",
+                temporaryGroup: player.temporaryGroup || "",
+                temporaryFrom: player.temporaryFrom || "",
+                temporaryTo: player.temporaryTo || "",
+              }
+            : null;
+        },
+        { key: playerProfilesKey, id: playerId }
+      )
+    )
+    .toMatchObject({
+      countsInSquad: true,
+      rosterType: "squad",
+      temporaryGroup: "",
+      temporaryFrom: "",
+      temporaryTo: "",
+    });
+  await modal.locator("[data-player-profile-photo-upload]").setInputFiles({
+    name: "player-photo.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQDwAFgwJ/lK3Q6wAAAABJRU5ErkJggg==",
+      "base64"
+    ),
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        ({ key, id }) => {
+          const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+          const player = Array.isArray(state.players) ? state.players.find((candidate) => candidate.id === id) : null;
+          return player?.photoUrl || "";
+        },
+        { key: playerProfilesKey, id: playerId }
+      )
+    )
+    .toMatch(/^data:image\//);
+  await expect(modal.locator(".squad-profile-avatar img")).toBeVisible();
 
   const overviewHeight = Math.round((await modal.boundingBox()).height);
   await modal.locator('[data-player-profile-tab="notes"]').click();
   await expect.poll(async () => Math.round((await modal.boundingBox()).height), { timeout: 5_000 }).toBe(overviewHeight);
 
-  const playerId = await modal.locator('input[name="playerId"]').inputValue();
   await modal.locator('textarea[name="coachNotes"]').fill(coachNote);
   await expect
     .poll(
@@ -940,13 +1010,29 @@ test("Squad profile modal autosaves edits and keeps its size across tabs", async
           ({ key, id }) => {
             const state = JSON.parse(window.localStorage.getItem(key) || "{}");
             const player = Array.isArray(state.players) ? state.players.find((candidate) => candidate.id === id) : null;
-            return player?.coachNotes || "";
+            return player
+              ? {
+                  coachNotes: player.coachNotes || "",
+                  countsInSquad: player.countsInSquad,
+                  photoUploaded: /^data:image\//.test(player.photoUrl || ""),
+                  rosterType: player.rosterType || "",
+                  temporaryFrom: player.temporaryFrom || "",
+                  temporaryTo: player.temporaryTo || "",
+                }
+              : null;
           },
           { key: playerProfilesKey, id: playerId }
         ),
       { timeout: 8_000 }
     )
-    .toBe(coachNote);
+    .toMatchObject({
+      coachNotes: coachNote,
+      countsInSquad: true,
+      photoUploaded: true,
+      rosterType: "squad",
+      temporaryFrom: "",
+      temporaryTo: "",
+    });
 
   await modal.locator("[data-player-profile-modal-close]").click();
   await page.reload({ waitUntil: "domcontentloaded" });

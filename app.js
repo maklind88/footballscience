@@ -23106,12 +23106,23 @@ function renderSquadRosterSection(section = {}) {
     </section>
   `;
 }
-function renderSquadRosterSections(visiblePlayers = []) {
+function getSquadRosterListSummary(visibleSummary = {}, rosterSummary = {}) {
+  const squadText = `${visibleSummary.squadCount || 0}/${rosterSummary.squadCount || 0} squad`;
+  const hasTemporaryPlayers = Boolean((visibleSummary.temporaryCount || 0) || (rosterSummary.temporaryCount || 0));
+  const temporaryText = hasTemporaryPlayers
+    ? ` + ${visibleSummary.temporaryCount || 0}/${rosterSummary.temporaryCount || 0} temporary`
+    : "";
+  return `${squadText}${temporaryText}`;
+}
+function renderSquadRosterSections(visiblePlayers = [], summaries = {}) {
+  const rosterSummary = summaries.rosterSummary || getPlayerProfilesRosterSummary(playerProfilesState.players);
+  const visibleSummary = summaries.visibleSummary || getPlayerProfilesRosterSummary(visiblePlayers);
+  const listSummary = getSquadRosterListSummary(visibleSummary, rosterSummary);
   if (!visiblePlayers.length) {
     return renderSquadRosterSection({
       key: "empty",
-      title: "Squad",
-      subtitle: "0 visible",
+      title: "Squad List",
+      subtitle: listSummary,
       players: [],
       emptyText: "No players found. Adjust search or role group filter.",
     });
@@ -23122,8 +23133,8 @@ function renderSquadRosterSections(visiblePlayers = []) {
     squadPlayers.length
       ? renderSquadRosterSection({
           key: "squad",
-          title: "Squad",
-          subtitle: `${squadPlayers.length} squad players`,
+          title: "Squad List",
+          subtitle: listSummary,
           players: squadPlayers,
         })
       : "",
@@ -25467,16 +25478,6 @@ function renderPlayerProfilesWorkspace(message = "") {
         <div class="squad-command-title">
           <p>Squad Room</p>
           <h1>${escapeHtml(squadTeamName)}</h1>
-          <div class="squad-command-list-summary squad-command-title-summary">
-            <div>
-              <strong>Squad List</strong>
-              <span>
-                ${visibleSummary.squadCount}/${rosterSummary.squadCount} squad
-                ${rosterSummary.temporaryCount ? `+ ${visibleSummary.temporaryCount}/${rosterSummary.temporaryCount} temporary` : ""}
-              </span>
-            </div>
-          </div>
-          <span>Player profiles, roles and training guests.</span>
         </div>
         <div class="squad-command-tools" aria-label="Squad list controls">
           <button
@@ -25510,7 +25511,7 @@ function renderPlayerProfilesWorkspace(message = "") {
       ${renderPendingPlayerProfileImport()}
       <section class="squad-workspace-layout squad-workspace-layout-list-first">
         <main class="squad-list-panel" aria-label="Squad overview">
-          ${renderSquadRosterSections(visiblePlayers)}
+          ${renderSquadRosterSections(visiblePlayers, { rosterSummary, visibleSummary })}
         </main>
       </section>
       ${renderPlayerProfileModal(selectedPlayer)}

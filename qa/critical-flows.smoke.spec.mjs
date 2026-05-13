@@ -789,7 +789,14 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
     "Squad Room"
   );
   await expect(page.locator(".squad-command-title h1")).toHaveText("Riverside FC");
-  await expect(page.locator(".squad-command-title .squad-command-list-summary")).toContainText("Squad List");
+  await expect(page.locator(".squad-command-title")).not.toContainText("Player profiles");
+  await expect(page.locator(".squad-command-title .squad-command-list-summary")).toHaveCount(0);
+  await expect(page.locator('[data-squad-roster-section="squad"] .squad-roster-section-head')).toContainText(
+    "Squad List"
+  );
+  await expect(page.locator('[data-squad-roster-section="squad"] .squad-roster-section-head')).toContainText(
+    /\d+\/\d+ squad/
+  );
   await expect(page.locator(".squad-command-tools .squad-command-list-summary")).toHaveCount(0);
   await expect(page.locator(".squad-player-row").first()).toContainText("Goalkeeper");
   await expect(page.locator(".squad-player-row").first().locator(".squad-role-cell small")).toHaveCount(0);

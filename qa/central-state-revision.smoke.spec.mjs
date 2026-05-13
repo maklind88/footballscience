@@ -234,8 +234,9 @@ test("fresh server profile restores admin access when the stored Supabase sessio
       .toBe("admin");
 
     await tab.page.evaluate(() => window.dispatchEvent(new Event("platform:user-change")));
-    await expect(tab.page.locator('[data-open-workspace="admin"]:visible').first()).toBeVisible({ timeout: 10_000 });
-    await tab.page.locator('[data-open-workspace="admin"]:visible').first().click();
+    const adminNavButton = tab.page.locator('.top-icon-menu-item[data-open-workspace="admin"]').first();
+    await expect(adminNavButton).toBeVisible({ timeout: 10_000 });
+    await adminNavButton.evaluate((button) => button.click());
     await expect(tab.page.locator('[data-workspace-view="admin"].is-active')).toBeVisible();
     await expect(tab.page.locator("#adminWorkspace")).toContainText("Access & Users");
     await expect(tab.page.locator("#adminWorkspace")).toContainText("Platform Admin");

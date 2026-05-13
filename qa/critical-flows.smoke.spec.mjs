@@ -784,6 +784,10 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
     store.setCurrentUser(nextUser.id);
   });
   await openWorkspace(page, "player-profiles");
+  await expect(page.locator('#topIconMenu [data-open-workspace="player-profiles"]')).toHaveAttribute(
+    "aria-label",
+    "Squad Room"
+  );
   await expect(page.locator(".squad-command-title h1")).toHaveText("Riverside FC");
   await expect(page.locator(".squad-command-title .squad-command-list-summary")).toContainText("Squad List");
   await expect(page.locator(".squad-command-tools .squad-command-list-summary")).toHaveCount(0);

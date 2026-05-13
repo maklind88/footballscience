@@ -819,6 +819,9 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
     .toBeLessThanOrEqual(90);
   await expect(page.locator(".squad-player-row").first().locator(".squad-role-cell small")).toHaveCount(0);
   await expect(page.locator(".squad-player-row").first().locator(".squad-planning-cell small")).toHaveCount(0);
+  await expect(page.locator(".squad-player-row").first().locator(".squad-planning-cell")).not.toContainText(
+    "Squad player"
+  );
   await expect(page.locator(".squad-player-row").first().locator(".squad-idp-cell")).toContainText(/IDP|Review|Monitor/);
   const squadSearch = page.locator("[data-player-profile-search]").first();
   await squadSearch.click();
@@ -932,7 +935,10 @@ test("Academy Squad add is available for session planning without Medical cleara
   const guestSection = page.locator('[data-squad-roster-section="temporary"]');
   await expect(squadSection).toBeVisible();
   await expect(guestSection).toBeVisible();
-  await expect(guestSection.locator(".squad-player-row", { hasText: playerName })).toBeVisible();
+  const guestRow = guestSection.locator(".squad-player-row", { hasText: playerName });
+  await expect(guestRow).toBeVisible();
+  await expect(guestRow.locator(".squad-planning-cell")).toContainText("Academy training");
+  await expect(guestRow.locator(".squad-planning-cell")).not.toContainText("Squad depth");
   await expect(squadSection.locator(".squad-player-row", { hasText: playerName })).toHaveCount(0);
   const squadBox = await squadSection.boundingBox();
   const guestBox = await guestSection.boundingBox();

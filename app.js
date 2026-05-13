@@ -23069,7 +23069,12 @@ function renderSquadAgeCell(player) {
   return `<span class="squad-age-cell">${escapeHtml(age || "-")}</span>`;
 }
 function renderSquadPlanningCell(player) {
-  return `<div class="squad-planning-cell"><div class="squad-pill-stack">${renderSquadOptionPill(playerProfileSquadStatusOptions, player.squadStatus)}${renderSquadRosterTypePill(player)}</div></div>`;
+  const isTemporary = isTemporaryPlayerProfile(player);
+  const pills = [
+    isTemporary ? "" : renderSquadOptionPill(playerProfileSquadStatusOptions, player.squadStatus),
+    isTemporary ? renderSquadRosterTypePill(player) : "",
+  ].join("");
+  return `<div class="squad-planning-cell"><div class="squad-pill-stack">${pills}</div></div>`;
 }
 function renderSquadIdpCell(player) {
   const statusOption = getPlayerProfileOption(playerProfileIdpStatusOptions, player.idp?.status || "none", playerProfileIdpStatusOptions[0]);

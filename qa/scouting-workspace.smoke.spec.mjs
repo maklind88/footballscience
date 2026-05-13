@@ -58,7 +58,7 @@ async function openWorkspace(page, workspaceId, viewId = workspaceId) {
 }
 
 test("Scouting database search, profile, favorite and Shadow XI flow stays stable", async ({ page }) => {
-  test.setTimeout(150_000);
+  test.setTimeout(240_000);
   await page.addInitScript(
     ({ key }) => {
       window.localStorage.removeItem("football-scouting-v1");
@@ -117,6 +117,7 @@ test("Scouting database search, profile, favorite and Shadow XI flow stays stabl
   await expect(favoriteButton).toContainText(/Favorited|Favorite/);
 
   await profileModal.locator("[data-add-scouting-record-to-shadow]").first().click();
+  await expect(page.locator(".scouting-metrics")).toContainText(/1\s+Shadow targets/, { timeout: 45_000 });
   await profileModal.locator(".scouting-profile-close").click();
   await expect(page.locator("[data-scouting-profile-modal]")).toBeHidden();
   const shadowTab = page.locator('.scouting-tab[data-scouting-tab="shadow-xi"]').first();

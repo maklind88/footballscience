@@ -220,8 +220,6 @@ const workspaceHubDefaultActiveWorkspaceId = "home";
 const workspaceLastActiveStorageKey = "football-workspace-last-active-local-v1";
 const periodizationStorageKey = "football-periodization-v2";
 const scheduleStorageKey = "football-schedule-v1";
-// Bump this when the session planner data shape changes so old browser storage
-// cannot make a new deployment render like a previous version.
 const sessionPlannerStorageKey = "football-session-planner-v3";
 const sessionPlannerBlockReductionGuardKey = "blockReductionGuard";
 const sessionPlannerBlockDeletionTombstoneKey = "blockDeletionTombstones";
@@ -523,7 +521,6 @@ function setPlatformThemeMode(rawMode = platformThemeModeDefault) {
   try {
     window.localStorage.setItem(platformThemeModeStorageKey, mode);
   } catch {
-    // Local storage may be unavailable in strict privacy mode.
   }
   if (ui.platformThemeModeSelect) {
     ui.platformThemeModeSelect.value = mode;
@@ -7562,7 +7559,6 @@ async function getDashboardChatApiAccessToken() {
     try {
       await window.platformAuthReadyPromise;
     } catch {
-      // Continue with any usable auth state already in memory.
     }
   }
   const authStore = getPlatformAuthStore();
@@ -8428,7 +8424,6 @@ function resetDashboardChatLocalCacheIfNeeded() {
     localStorage.setItem(dashboardChatWidgetNotificationStateStorageKey, "{}");
     localStorage.setItem(dashboardChatLocalCacheResetStorageKey, dashboardChatLocalCacheResetVersion);
   } catch {
-    // If localStorage is unavailable, the database-backed chat still remains the source of truth.
   }
 }
 function getDashboardChatThreadMessages(messages = readDashboardMessages(), threadId = dashboardChatTeamThreadId) {
@@ -8705,7 +8700,6 @@ async function pushDashboardPresence(statusOverride = "") {
       applyDashboardPresenceEntries(result.entries, { forceRender: true });
     }
   } catch {
-    // Presence is decorative; chat should keep working if the heartbeat misses.
   } finally {
     dashboardPresenceInFlight = false;
   }
@@ -8722,7 +8716,6 @@ async function refreshDashboardPresence(options = {}) {
       applyDashboardPresenceEntries(result.entries, { forceRender: Boolean(options.forceRender) });
     }
   } catch {
-    // Keep the last known presence state; stale users fall back to passive/offline visually.
   }
 }
 function startDashboardPresenceRuntime() {
@@ -12764,7 +12757,6 @@ async function findSessionPlannerStateInSnapshots(currentState) {
         recoveredState = mergeResult.state;
         recoveredSessions += mergeResult.recoveredSessions;
       } catch {
-        // Ignore malformed local backup snapshots.
       }
     });
     return recoveredSessions ? recoveredState : null;
@@ -20288,7 +20280,6 @@ async function openCredentialsMailto(user, temporaryPassword = "") {
       await window.navigator.clipboard.writeText(copyText);
       copied = true;
     } catch {
-      // Ignore copy failures and continue with the mail client fallback.
     }
   }
   window.location.href = mailto;
@@ -21714,7 +21705,6 @@ function validatePlayerProfileFormValues(values = {}, options = {}) {
     errors.push("Temporary from must not be after temporary to.");
   }
   if (!requestedReviewDate) {
-    // keep empty review dates explicit for clarity
   } else if (!isMedicalDateValue(requestedReviewDate)) {
     errors.push("IDP review date must be YYYY-MM-DD when entered.");
   }
@@ -35737,7 +35727,6 @@ function resolvePassTransitInterception(previousPosition, actionType) {
       passProgress >= 0.7 &&
       distance(lanePoint, receiverControlPoint) <= state.ball.controlRadius + 0.95
     ) {
-      // Near arrival, let the receiver duel/control the pass instead of creating cheap late interceptions.
       return;
     }
     const gap = distance(player.position, lanePoint);
@@ -60995,7 +60984,6 @@ function issueLooseBallRecoveryCommand(recovery) {
   state.ball.receiverPlayerId = null;
   state.ball.recoveryDuration = recovery.duration;
   applyAutopilotsForCurrentAction();
-  // Autopilot may shape the possession team, but the recovery runner must still attack the ball.
   player.position = cloneVector(targetPosition);
   player.bodyAngle = facingAngle;
   player.movementProgress = 0;
@@ -68972,7 +68960,6 @@ ui.profileWorkspace?.addEventListener("submit", async (event) => {
     try {
       await window.platformAuthReadyPromise;
     } catch {
-      // Continue with best-effort fallback: existing auth state may still be available.
     }
   }
   const todoForm = event.target.closest("#profileTodoForm");
@@ -69040,7 +69027,6 @@ ui.profileWorkspace?.addEventListener("change", async (event) => {
     try {
       await window.platformAuthReadyPromise;
     } catch {
-      // Continue with best-effort fallback: use existing auth state if present.
     }
   }
   const file = imageInput.files?.[0];
@@ -69090,7 +69076,6 @@ ui.profileWorkspace?.addEventListener("click", async (event) => {
       try {
         await window.platformAuthReadyPromise;
       } catch {
-        // Continue with best-effort fallback: use existing auth state if present.
       }
     }
     const user = getCurrentPlatformUser();
@@ -71408,16 +71393,18 @@ ui.periodizationBoard?.addEventListener("change", (event) => {
     if (!canEditPeriodizationWorkspace()) {
       return;
     }
+    const fieldKey = customField.dataset.periodizationCustomField;
     writePeriodizationDay(
       periodizationState.selectedDate,
       {
-        [customField.dataset.periodizationCustomField]: getPeriodizationCustomFieldValue(
+        [fieldKey]: getPeriodizationCustomFieldValue(
           customField,
           periodizationState.selectedDate
         ),
       },
-      true
+      false
     );
+    refreshPeriodizationBoardDependentFields(fieldKey);
     return;
   }
   const field = event.target.closest("[data-periodization-field]");
@@ -71428,7 +71415,7 @@ ui.periodizationBoard?.addEventListener("change", (event) => {
   const value = periodizationMultiFields.has(fieldKey)
     ? getPeriodizationMultiFieldValue(field, periodizationState.selectedDate)
     : field.value;
-  writePeriodizationDay(periodizationState.selectedDate, { [fieldKey]: value }, !periodizationMultiFields.has(fieldKey));
+  writePeriodizationDay(periodizationState.selectedDate, { [fieldKey]: value }, false);
   if (periodizationMultiFields.has(fieldKey)) {
     refreshPeriodizationBoardDependentFields(fieldKey);
   }

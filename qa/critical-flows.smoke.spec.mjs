@@ -684,6 +684,28 @@ test("Periodization day notes persist after refresh", async ({ page }) => {
   await expectStorageContains(page, periodizationKey, note);
 });
 
+test("Periodization edit overlay keeps scroll position while saving fields", async ({ page }) => {
+  const note = `QA Periodization Scroll ${Date.now()}`;
+  await bootApp(page);
+  await openWorkspace(page, "periodization");
+
+  await page.locator("#periodizationTodayButton").click();
+  await expect(page.locator("[data-periodization-overlay]")).toBeVisible();
+  await page.locator("[data-periodization-edit-selected]").click();
+  const panel = page.locator("[data-periodization-overlay] .periodization-day-panel").first();
+  await expect(panel).toBeVisible();
+  await panel.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  await expect.poll(() => panel.evaluate((element) => Math.round(element.scrollTop))).toBeGreaterThan(120);
+
+  const notesField = page.locator('textarea[data-periodization-field="sessionNotes"]').first();
+  await notesField.fill(note);
+  await notesField.blur();
+  await expectStorageContains(page, periodizationKey, note);
+  await expect.poll(() => panel.evaluate((element) => Math.round(element.scrollTop))).toBeGreaterThan(120);
+});
+
 test("Session Planner block edits persist after refresh", async ({ page }) => {
   const value = `QA Session ${Date.now()}`;
   await bootApp(page);

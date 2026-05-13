@@ -789,6 +789,23 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
   await expect(page.locator(".squad-command-tools .squad-command-list-summary")).toHaveCount(0);
   await expect(page.locator(".squad-player-row").first()).toContainText("Goalkeeper");
   await expect(page.locator(".squad-player-row").first().locator(".squad-role-cell small")).toHaveCount(0);
+  await page.locator("[data-squad-team-logo-upload]").setInputFiles({
+    name: "riverside-logo.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQDwAFgwJ/lK3Q6wAAAABJRU5ErkJggg==",
+      "base64"
+    ),
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const structure = JSON.parse(window.localStorage.getItem("football-platform-structure-v1") || "{}");
+        return structure.teams?.find((team) => team.id === "team-riverside-first")?.logoUrl || "";
+      })
+    )
+    .toMatch(/^data:image\//);
+  await expect(page.locator(".squad-team-logo-mark img")).toBeVisible();
 
   await page.locator("[data-player-profile-new-open]").click();
   const form = page.locator("#playerProfileNewPlayerForm:visible").first();

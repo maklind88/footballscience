@@ -4574,16 +4574,55 @@ function getUserInitials(user) {
 }
 function getUserProfileImageUrl(user) {
   const value = String(user?.profileImageUrl ?? "").trim();
-  if (!value) {
+  return normalizePlatformImageUrl(value);
+}
+function normalizePlatformImageUrl(value = "") {
+  const cleanValue = String(value ?? "").trim();
+  if (!cleanValue) {
     return "";
   }
-  if (value.startsWith("data:image/")) {
-    return value.length <= maxProfileImageUploadDataUrlLength ? value : "";
+  if (cleanValue.startsWith("data:image/")) {
+    return cleanValue.length <= maxProfileImageUploadDataUrlLength ? cleanValue : "";
   }
-  if (value.length > maxProfileImageUrlLength) {
+  if (cleanValue.length > maxProfileImageUrlLength) {
     return "";
   }
-  return value;
+  return cleanValue;
+}
+function getPlatformTeamLogoUrl(team) {
+  return normalizePlatformImageUrl(team?.logoUrl || team?.logo_url || team?.logo || team?.badgeUrl || team?.crestUrl || "");
+}
+function getPlatformTeamLogoInitials(team = {}, fallbackName = "Team") {
+  const shortName = normalizePlatformStructureText(team?.shortName || team?.short_name, "");
+  if (shortName && shortName.length <= 4) {
+    return shortName.toUpperCase();
+  }
+  const name = normalizePlatformStructureText(team?.name || fallbackName, "Team");
+  return (
+    name
+      .split(/\s+/)
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 3)
+      .toUpperCase() || "TM"
+  );
+}
+function renderPlatformTeamLogoMark(team = {}, options = {}) {
+  const teamName = normalizePlatformStructureText(team?.name || options.teamName, "Team");
+  const logoUrl = getPlatformTeamLogoUrl(team);
+  const canUpload = Boolean(options.canUpload);
+  const content = logoUrl
+    ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(`${teamName} logo`)}" />`
+    : `<strong>${escapeHtml(getPlatformTeamLogoInitials(team, teamName))}</strong>`;
+  const uploadInput = canUpload
+    ? `<input type="file" accept="image/*" data-squad-team-logo-upload aria-label="Upload team logo" />`
+    : "";
+  const uploadDot = canUpload ? `<span class="squad-team-logo-upload-dot" aria-hidden="true">+</span>` : "";
+  const className = `squad-module-mark squad-team-logo-mark${logoUrl ? " has-logo" : " is-empty"}${canUpload ? " can-upload" : ""}`;
+  const label = logoUrl ? `Change ${teamName} logo` : `Upload ${teamName} logo`;
+  return canUpload
+    ? `<label class="${className}" title="${escapeHtml(label)}">${content}${uploadInput}${uploadDot}</label>`
+    : `<span class="${className}" aria-label="${escapeHtml(`${teamName} logo`)}">${content}</span>`;
 }
 function renderUserAvatar(user, className) {
   const profileImageUrl = getUserProfileImageUrl(user);
@@ -4767,6 +4806,7 @@ function normalizePlatformTeam(team = {}, fallback = {}) {
     clubId: normalizePlatformStructureId(team.clubId || team.club_id || fallback.clubId, "club", fallback.clubName || "Club"),
     name,
     shortName: normalizePlatformStructureText(team.shortName || team.short_name, fallback.shortName || name),
+    logoUrl: getPlatformTeamLogoUrl(team) || getPlatformTeamLogoUrl(fallback),
     level: normalizePlatformStructureText(team.level || team.ageGroup || team.age_group, fallback.level || "First Team"),
     season: normalizePlatformStructureText(team.season, fallback.season || "2026"),
     status: String(team.status || fallback.status || "active").trim().toLowerCase() === "archived" ? "archived" : "active",
@@ -4933,26 +4973,81 @@ function getActivePlatformTeam(structure = getPlatformStructureState()) {
     null
   );
 }
-function getPlatformTeamDisplayName(user = getCurrentPlatformUser(), structure = getPlatformStructureState()) {
+function getPlatformTeamDisplayTeam(user = getCurrentPlatformUser(), structure = getPlatformStructureState()) {
   const currentAuthUser = getPlatformAuthStore()?.getCurrentUser?.() ?? null;
   const displayUser = currentAuthUser || user || {};
   const explicitTeamId = normalizePlatformStructureText(displayUser?.teamId || displayUser?.team_id, "");
   if (explicitTeamId) {
     const team = structure.teams.find((candidate) => candidate.id === explicitTeamId);
     if (team?.name && !isLegacyPlatformTeamPlaceholderName(team.name)) {
-      return team.name;
+      return team;
     }
   }
   const activeTeam = getActivePlatformTeam(structure);
   if (activeTeam?.name) {
-    return activeTeam.name;
+    return activeTeam;
   }
   const matchedTeam = findPlatformTeamByName(displayUser?.teamName || displayUser?.team, structure);
   if (matchedTeam?.name && !isLegacyPlatformTeamPlaceholderName(matchedTeam.name)) {
-    return matchedTeam.name;
+    return matchedTeam;
+  }
+  return null;
+}
+function getPlatformTeamDisplayName(user = getCurrentPlatformUser(), structure = getPlatformStructureState()) {
+  const currentAuthUser = getPlatformAuthStore()?.getCurrentUser?.() ?? null;
+  const displayUser = currentAuthUser || user || {};
+  const displayTeam = getPlatformTeamDisplayTeam(displayUser, structure);
+  if (displayTeam?.name) {
+    return displayTeam.name;
   }
   const explicitTeamName = normalizePlatformStructureText(displayUser?.teamName || displayUser?.team, "");
   return explicitTeamName && !isLegacyPlatformTeamPlaceholderName(explicitTeamName) ? explicitTeamName : "Team";
+}
+function writePlatformTeamLogo(teamId, logoUrl) {
+  const structure = readPlatformStructureState();
+  const targetTeam = structure.teams.find((team) => team.id === teamId);
+  if (!targetTeam) {
+    return null;
+  }
+  const nextLogoUrl = normalizePlatformImageUrl(logoUrl);
+  const nextStructure = {
+    ...structure,
+    teams: structure.teams.map((team) => (team.id === teamId ? { ...team, logoUrl: nextLogoUrl } : team)),
+  };
+  writePlatformStructureState(nextStructure);
+  return getPlatformTeamById(teamId, readPlatformStructureState());
+}
+async function uploadSquadTeamLogo(file) {
+  if (!canEditPlayerProfiles()) {
+    renderPlayerProfilesWorkspace({
+      status: "warning",
+      lines: ["Your role cannot update the team logo."],
+    });
+    return;
+  }
+  if (!file) {
+    return;
+  }
+  const structure = readPlatformStructureState();
+  const team = getPlatformTeamDisplayTeam(getCurrentPlatformUser(), structure);
+  if (!team?.id) {
+    renderPlayerProfilesWorkspace({
+      status: "warning",
+      lines: ["No active team was available for logo upload."],
+    });
+    return;
+  }
+  try {
+    const logoUrl = await createProfileImageDataUrl(file);
+    writePlatformTeamLogo(team.id, logoUrl);
+    renderPlayerProfilesWorkspace("Team logo saved.");
+  } catch (error) {
+    const message =
+      error?.name === "QuotaExceededError"
+        ? "Team logo could not be saved because local storage is full."
+        : String(error?.message || "Team logo could not be saved.").replace(/profile image/gi, "team logo");
+    renderPlayerProfilesWorkspace(message);
+  }
 }
 function getUserClubName(user, structure = getPlatformStructureState()) {
   const club = getPlatformClubById(getUserClubId(user, structure), structure);
@@ -25467,11 +25562,14 @@ function renderPlayerProfilesWorkspace(message = "") {
   const selectedPlayer = getSelectedPlayerProfile();
   const rosterSummary = getPlayerProfilesRosterSummary(playerProfilesState.players);
   const visibleSummary = getPlayerProfilesRosterSummary(visiblePlayers);
-  const squadTeamName = getPlatformTeamDisplayName(getCurrentPlatformUser());
+  const platformStructure = getPlatformStructureState();
+  const currentPlatformUser = getCurrentPlatformUser();
+  const squadTeam = getPlatformTeamDisplayTeam(currentPlatformUser, platformStructure);
+  const squadTeamName = squadTeam?.name || getPlatformTeamDisplayName(currentPlatformUser, platformStructure);
   ui.playerProfilesWorkspace.innerHTML = `
     <div class="squad-board-shell">
       <header class="squad-command-bar">
-        <div class="squad-module-mark" aria-hidden="true">SQ</div>
+        ${renderPlatformTeamLogoMark(squadTeam || { name: squadTeamName }, { teamName: squadTeamName, canUpload: canEditPlayerProfiles() })}
         <div class="squad-command-title">
           <p>Squad Room</p>
           <h1>${escapeHtml(squadTeamName)}</h1>
@@ -70156,6 +70254,13 @@ ui.playerProfilesWorkspace?.addEventListener("input", (event) => {
   }
 });
 ui.playerProfilesWorkspace?.addEventListener("change", (event) => {
+  const teamLogoInput = event.target.closest("[data-squad-team-logo-upload]");
+  if (teamLogoInput) {
+    const file = teamLogoInput.files?.[0] ?? null;
+    teamLogoInput.value = "";
+    void uploadSquadTeamLogo(file);
+    return;
+  }
   const editForm = event.target.closest("#playerProfileEditForm");
   if (editForm) { queuePlayerProfileAutosave(editForm, 0); return; }
   const importInput = event.target.closest("[data-squad-data-import-file]");

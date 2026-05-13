@@ -55,7 +55,7 @@ This runs:
 - Browser two-tab revision smoke in `qa/central-state-revision.smoke.spec.mjs`.
 - Browser smoke tests for Schedule, Periodization, Session Planner, and Medical Team refresh persistence.
 
-For deploy-specific shorthand:
+For deploy-specific full QA shorthand:
 
 ```bash
 npm run qa:deploy
@@ -91,16 +91,32 @@ Production Monitor runs `npm run release:backup`, `npm run release:restore-readi
 
 ## Release Routine
 
-1. Commit the release candidate and push it to the `staging` branch.
+Use the current deploy agreement:
+
+- `Deploy` and `Deploy fast` use `npm run deploy` unless the change is risky.
+- `Deploy safe` uses `npm run deploy:safe`.
+- Do not auto-deploy when work is merely finished.
+- Stop before deploy if the release would include unrelated or unfinished work from another chat.
+
+Fast routine:
+
+1. Inspect `git status --short`.
+2. Run focused validation for the touched area.
+3. Commit intended files only.
+4. Run `npm run deploy`.
+5. Verify production through `npm run release:postdeploy` and visible live behavior.
+
+Safe routine for auth, app-state/data, Supabase/API, backup/restore, migrations, security, or broad multi-module changes:
+
+1. Commit the release candidate and push it to the `staging` branch when staging proof is required.
 2. Let the Staging Deploy workflow run QA and authenticated staging smoke against an isolated staging backend.
 3. Move the verified change to `main`.
-4. Run `npm run release:gate`. The gate requires `main`, a clean tree, staging/live Supabase isolation, and an `origin/staging` tree that matches the production candidate.
+4. Run `npm run deploy:safe`.
 5. For changes under `supabase/migrations`, run `npm run qa:supabase:remote` with secure Supabase credentials or confirm the GitHub Actions Supabase migration workflow passed.
-6. Deploy to Vercel only after the gate passes.
-7. Run `npm run release:postdeploy`.
-8. Start the manual Production Smoke GitHub Action when a release touches auth, app-state, Schedule, or chat.
-9. Open a cache-busting live URL and verify the changed behavior.
-10. If live looks old, compare deployed `app.js` hash and check browser site data before assuming deployment failed.
+6. Run `npm run release:postdeploy`.
+7. Start the manual Production Smoke GitHub Action when a release touches auth, app-state, Schedule, or chat.
+8. Open a cache-busting live URL and verify the changed behavior.
+9. If live looks old, compare deployed `app.js` hash and check browser site data before assuming deployment failed.
 
 Normal releases should not deploy from a dirty or unpushed working tree. `RELEASE_ALLOW_DIRTY=1` and `RELEASE_ALLOW_UNPUSHED=1` are emergency-only hotfix overrides and must be paired with `RELEASE_ACK_EMERGENCY=1`.
 
@@ -119,7 +135,7 @@ Security automation now includes:
 - Restore-readiness monitoring verifies that latest app-state backup metadata covers every protected module key while keeping raw backup entries private.
 - Restore-drill monitoring verifies the latest backup can be parsed module-by-module without exposing entries or writing restored data.
 - Manual Production Rollback workflow. It requires the exact deployment URL/id plus `ROLLBACK`, then verifies postdeploy and live smoke after rollback.
-- Vercel Git production builds are ignored by default so production uses the gated GitHub workflow instead of an automatic push-to-live path.
+- Vercel Git production builds are ignored by default so production uses project deploy commands or the safe GitHub workflow instead of an automatic push-to-live path.
 - Central app-state content safety that rejects executable user content and prototype-pollution keys before module data is stored.
 - Production smoke workflow for live domain/API verification.
 - Vercel security headers in `vercel.json`.

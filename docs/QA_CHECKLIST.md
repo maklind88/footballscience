@@ -109,10 +109,11 @@ This smoke test also verifies localhost dev-auth does not call `/api/client-conf
 
 Before telling the user the site is updated:
 
-- Run `npm run qa:deploy` locally and require it to pass.
-- For normal releases, verify the change on staging before production.
-- Deploy with Vercel.
-- Alias deployment to `footballscience.xyz`.
+- Use `npm run deploy` for `Deploy` / `Deploy fast` unless the change is risky.
+- Use `npm run deploy:safe` for auth/login, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, or broad multi-module changes.
+- If running a manual fast readiness check before deploy, use `npm run release:ship -- --mode fast`.
+- If the release is safe/risky, verify the change on staging before production.
+- Deploy with the project deploy scripts, not ad hoc Vercel commands.
 - Open or request a cache-busting URL.
 - Confirm `/api/app-state-backup` returns `401` without authorization.
 - Confirm `/api/app-state-backup-status` returns `401` without authorization.

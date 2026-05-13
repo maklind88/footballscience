@@ -6,7 +6,9 @@ const isVercelGitDeployment = Boolean(process.env.VERCEL_GIT_PROVIDER || process
 const allowGitProduction = process.env.ALLOW_VERCEL_GIT_PRODUCTION === "1";
 
 if (isProduction && isVercelGitDeployment && !allowGitProduction) {
-  console.log("Ignoring automatic Vercel Git production build. Use the gated GitHub Production Deploy workflow.");
+  console.log(
+    "Ignoring automatic Vercel Git production build. Use project deploy commands: npm run deploy or npm run deploy:safe; the safe CI path remains GitHub Production Deploy.",
+  );
   process.exit(0);
 }
 

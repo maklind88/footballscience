@@ -6,22 +6,37 @@ Football Science is deployed to Vercel and aliased to `footballscience.xyz`.
 
 From `/Users/maklind/Documents/New project`:
 
-### Automated Safe Flow
+### Current Rule
 
-For normal Codex-driven releases, use the project release automation:
+Deploy only when the user explicitly says `Deploy`, `Deploy fast`, or `Deploy safe`.
+
+- `Deploy` and `Deploy fast` use the everyday fast path unless the change is risky.
+- `Deploy safe` uses the full safe path for auth/login, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, or broad multi-module changes.
+- Never deploy a bundle that includes unrelated or unfinished work from another parallel chat.
+
+### Everyday Fast Deploy
+
+For normal UI/UX/content/CSS/frontend polish and narrow low-risk fixes:
 
 ```bash
-npm run release:auto -- --stage-all --commit "fix: concise message" --push --deploy
+npm run deploy
 ```
 
-If unrelated local changes exist, stage only the intended files first and omit `--stage-all`:
+`npm run deploy` runs the fast release ship path: local isolation, syntax/check gates, release rules, storage guard, platform security, push, production Vercel deploy, and postdeploy verification.
+
+### Safe Deploy
+
+For risky releases:
 
 ```bash
-git add <intended-files>
-npm run release:auto -- --commit "fix: concise message" --push --deploy
+npm run deploy:safe
 ```
 
-For a dedicated fast/safe split:
+`npm run deploy:safe` runs the full QA/safety path and should be used for API, data, auth, security, Supabase, migration, backup/restore, or broad multi-module changes.
+
+### Advanced Release Automation
+
+Use direct `release:ship` commands only when you need explicit staging or commit control:
 
 ```bash
 # Fast changes (frontend/CSS/docs/low risk): fast validation
@@ -35,25 +50,20 @@ npm run release:ship:safe -- --stage-all --commit "server: tighten module contra
   # npm run release:ship:safe:deploy
 ```
 
-If your day has only low-risk visual adjustments, a practical pattern is:
+`release:auto` is legacy automation. Do not use it as the everyday deploy command unless you are intentionally maintaining that older flow.
+
+If unrelated local changes exist, stage only the intended files first and avoid `--stage-all`:
 
 ```bash
-git add -A
-npm run release:ship:fast:deploy -- --commit "chore: fast release polish"
+git add <intended-files>
+npm run release:ship -- --commit "fix: concise message" --push --deploy
 ```
 
-For higher-risk changes:
-
-```bash
-git add -A
-npm run release:ship:safe:deploy -- --commit "feat: release-safe module change"
-```
-
-The script runs QA before pushing, pushes the current branch, runs the release gate, deploys to Vercel production, and runs postdeploy verification. It stops before deployment if the working tree is dirty or any check fails.
+The release scripts stop before deployment if the working tree is dirty or any selected check fails.
 
 ### Manual Flow
 
-Use the manual flow only when you need direct control over a release step:
+Use the manual flow only when you need direct control over a safe release step:
 
 ```bash
 npm run release:gate
@@ -104,11 +114,11 @@ The same workflow also runs:
 
 CodeQL runs through `.github/workflows/codeql.yml`, and Dependabot is configured in `.github/dependabot.yml` for npm and GitHub Actions updates.
 
-Production deploys are CI-driven through `.github/workflows/production-deploy.yml`. The workflow starts after the `QA` workflow succeeds on `main`, requires the staging and production safety configuration, verifies staging smoke, deploys through Vercel CLI, runs `npm run release:postdeploy`, and then runs authenticated live QA. Manual dispatch uses the same gates.
+Safe production deploys can also run through `.github/workflows/production-deploy.yml`. The workflow starts after the `QA` workflow succeeds on `main`, requires the staging and production safety configuration, verifies staging smoke, deploys through Vercel CLI, runs `npm run release:postdeploy`, and then runs authenticated live QA. Manual dispatch uses the same gates.
 
-Production deploys must fail closed when required secrets or staging isolation are missing. Do not fall back to an ungated production deploy path.
+Safe production deploys must fail closed when required secrets or staging isolation are missing. Do not bypass the project deploy commands or CI workflow with ad hoc production deploys.
 
-Automatic Vercel Git production builds are blocked by `vercel.json` through `scripts/vercel-ignore-build.mjs`. Preview/staging builds continue, but production must go through the gated GitHub workflow or an explicitly acknowledged emergency path.
+Automatic Vercel Git production builds are blocked by `vercel.json` through `scripts/vercel-ignore-build.mjs`. Preview/staging builds continue, but production should go through `npm run deploy`, `npm run deploy:safe`, the safe GitHub workflow, or an explicitly acknowledged emergency path.
 
 Required GitHub repository secrets for CI deploy:
 

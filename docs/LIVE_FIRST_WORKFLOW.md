@@ -44,7 +44,8 @@ For every request, Codex should:
 - Use feature flags, additive migrations, dual-read / dual-write, or shadow mode when changing data foundations.
 - Validate with focused tests plus the required release checks.
 - Commit and push intended files only.
-- Deploy only after the release gates are green and no parallel work would be accidentally included.
+- Deploy only when the user explicitly asks for `Deploy`, `Deploy fast`, or `Deploy safe`.
+- Use the current fast/safe deploy split and never include unrelated parallel work.
 - Verify production after deployment and report what changed in user-facing terms.
 
 ## When Codex Should Stop
@@ -82,9 +83,11 @@ If multiple chats are active, each chat should say which module it owns and avoi
 
 - Live changes must be treated as production releases, even for small UI tweaks.
 - GitHub is the durable record.
+- `Deploy` and `Deploy fast` mean the everyday fast path: `npm run deploy`, unless the change is risky.
+- `Deploy safe` means the full safe path: `npm run deploy:safe`.
 - Staging should prove the same tree before production when the release includes risky or data-related work.
 - Do not deploy from a dirty working tree.
-- Do not weaken tests or gates to make a deploy easier.
+- Do not bypass the selected deploy path's checks to make a deploy easier.
 - If deployment is blocked by unrelated work, push the safe branch and report exactly what must be coordinated.
 
 ## User Guidance

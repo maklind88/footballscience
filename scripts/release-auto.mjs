@@ -6,7 +6,11 @@ import { fileURLToPath } from "node:url";
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 function printHelp() {
-  console.log(`Stable release automation
+  console.log(`Legacy stable release automation
+
+This script is kept for backwards compatibility. Prefer:
+  npm run deploy       # everyday fast deploy
+  npm run deploy:safe  # risky/auth/data/security deploy
 
 Usage:
   npm run release:auto -- --stage-all --commit "fix: message" --push --deploy

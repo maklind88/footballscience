@@ -117,7 +117,10 @@ Before final response after code changes:
 - Run `node --check app.js` when `app.js` changes.
 - Localhost/127.0.0.1 has a dev-auth fallback in `index.html` that auto-authenticates a local admin user (`mak`) without Supabase so browser testing can run against isolated localhost localStorage. This must stay local-only and never replace production Supabase auth.
 - Check relevant UI flows in browser when possible.
-- Deploy automatically after every code/design change unless the user explicitly says not to deploy.
+- Do not deploy automatically just because code/design work is finished.
+- Deploy only when the user explicitly says `Deploy`, `Deploy fast`, or `Deploy safe`.
+- Use `npm run deploy` for routine fast releases unless the change is risky.
+- Use `npm run deploy:safe` for auth/login, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, or broad multi-module changes.
 - If deploying, verify live `app.js` hash or visible behavior on `footballscience.xyz`.
 
 ## Deployment Note

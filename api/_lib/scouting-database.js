@@ -30,6 +30,11 @@ const SCOUTING_RECORD_INDEX = Object.freeze({
   sourceSystem: 15,
   playerSourceId: 16,
   sourceRecordId: 17,
+  imageUrl: 18,
+  playerIdentityId: 19,
+  sourceTrace: 20,
+  metricQuality: 21,
+  dateOfBirth: 22,
 });
 
 function normalizeString(value, maxLength = MAX_TEXT_LENGTH) {
@@ -63,6 +68,38 @@ function normalizeMetricKey(value, fallback = "metric") {
 
 function normalizeSortName(value) {
   return normalizeString(value, 180).toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function normalizeIdentityPart(value, maxLength = 180) {
+  return normalizeString(value, maxLength)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeDateValue(value = "") {
+  const raw = normalizeString(value, 40);
+  if (!raw) {
+    return "";
+  }
+  const iso = raw.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if (iso) {
+    return `${iso[1]}-${String(iso[2]).padStart(2, "0")}-${String(iso[3]).padStart(2, "0")}`;
+  }
+  const european = raw.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (european) {
+    return `${european[3]}-${String(european[2]).padStart(2, "0")}-${String(european[1]).padStart(2, "0")}`;
+  }
+  const parsed = Date.parse(raw);
+  return Number.isNaN(parsed) ? raw : new Date(parsed).toISOString().slice(0, 10);
+}
+
+function normalizeMetricQuality(value = "") {
+  const normalized = normalizeString(value, 20).toLowerCase();
+  return normalized === "trusted" || normalized === "estimated" || normalized === "missing" ? normalized : "trusted";
 }
 
 function recordValue(record = [], key) {
@@ -196,6 +233,7 @@ function metricToClient(row = {}) {
 }
 
 function seasonRowToClientRecord(row = {}) {
+  const metadata = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? row.metadata : {};
   return [
     normalizeString(row.record_key || row.id, MAX_ID_LENGTH),
     normalizeString(row.player_name, 180),
@@ -215,6 +253,11 @@ function seasonRowToClientRecord(row = {}) {
     normalizeString(row.source_system, 40) || null,
     normalizeString(row.source_player_id, 160) || null,
     normalizeString(row.source_record_id, 160) || null,
+    normalizeString(metadata.imageUrl || metadata.image_url, 220) || null,
+    normalizeString(row.player_identity_key || metadata.playerIdentityId || metadata.player_identity_key || row.source_player_id, 160) || null,
+    metadata.sourceTrace || metadata.source_trace || {},
+    metadata.metricQuality || metadata.metric_quality || {},
+    normalizeDateValue(row.date_of_birth || metadata.dateOfBirth || metadata.date_of_birth),
   ];
 }
 
@@ -223,8 +266,8 @@ function normalizeScoutingSourceSystem(record = {}) {
 }
 
 function normalizeScoutingSourcePlayerId(record = {}) {
-  const sourceSystem = normalizeScoutingSourceSystem(record);
   const explicit =
+    normalizeString(recordValue(record, "playerIdentityId"), 160) ||
     normalizeString(recordValue(record, "sourcePlayerId"), 160) ||
     normalizeString(recordValue(record, "playerSourceId"), 160) ||
     normalizeString(recordValue(record, "source_player_id"), 160);
@@ -232,14 +275,19 @@ function normalizeScoutingSourcePlayerId(record = {}) {
     return explicit;
   }
   const player = getClientRecordName(record);
+  const dateOfBirth = normalizeDateValue(recordValue(record, "dateOfBirth"));
   const birthCountry = normalizeString(recordValue(record, "birthCountry"), 120);
   const passportCountry = normalizeString(recordValue(record, "passportCountry"), 120);
-  const fallbackSeed = [player, birthCountry, passportCountry].filter(Boolean).join(" | ");
+  const fallbackSeed = [
+    normalizeIdentityPart(player),
+    normalizeIdentityPart(dateOfBirth),
+    normalizeIdentityPart(passportCountry || birthCountry),
+  ].filter(Boolean).join(" | ");
   if (fallbackSeed) {
     const hash = crypto.createHash("sha256").update(fallbackSeed.toLowerCase()).digest("hex").slice(0, 48);
-    return normalizeString(`${sourceSystem}::${hash}`, 160);
+    return normalizeString(`player-${hash}`, 160);
   }
-  return normalizeString(`player-${sourceSystem}`, 160);
+  return "player-unknown";
 }
 
 function normalizeScoutingSourceScopedId(value = "", sourceSystem = "file-import") {
@@ -257,10 +305,17 @@ function normalizeScoutingRecordSourceId(record = {}) {
     normalizeString(recordValue(record, "sourceRecordId"), 160) ||
     normalizeString(recordValue(record, "source_record_id"), 160) ||
     normalizeString(recordValue(record, "recordSourceId"), 160);
+  const sourcePlayerId = normalizeScoutingSourcePlayerId(record);
+  const mergeSeed = [
+    sourcePlayerId,
+    normalizeString(recordValue(record, "season"), 80),
+    normalizeScoutingLeague(recordValue(record, "league")),
+    normalizeString(recordValue(record, "team"), 180),
+  ].filter(Boolean).join("::");
   return (
     normalizeScoutingSourceScopedId(sourceRecordId, sourceSystem) ||
     normalizeScoutingSourceScopedId(getClientRecordId(record), sourceSystem) ||
-    normalizeScoutingSourceScopedId(getClientRecordName(record), sourceSystem) ||
+    normalizeScoutingSourceScopedId(crypto.createHash("sha1").update(mergeSeed || getClientRecordName(record)).digest("hex"), sourceSystem) ||
     normalizeScoutingSourceScopedId(`record-${Date.now()}`, sourceSystem)
   );
 }
@@ -269,6 +324,47 @@ function normalizeScoutingPlayerSourceKey(record = {}) {
   const sourceSystem = normalizeScoutingSourceSystem(record);
   const sourcePlayerId = normalizeScoutingSourcePlayerId(record);
   return `${sourceSystem}::${sourcePlayerId}`;
+}
+
+function getRecordSourceTrace(record = {}) {
+  const trace = recordValue(record, "sourceTrace");
+  return trace && typeof trace === "object" && !Array.isArray(trace) ? trace : {};
+}
+
+function getRecordMetricQualityMap(record = {}) {
+  const quality = recordValue(record, "metricQuality");
+  return quality && typeof quality === "object" && !Array.isArray(quality) ? quality : {};
+}
+
+function normalizeMetricPayload(metrics = {}, qualityMap = {}) {
+  if (!metrics || typeof metrics !== "object" || Array.isArray(metrics)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(metrics).map(([metricKey, entry]) => {
+      const value = entry && typeof entry === "object" && !Array.isArray(entry) ? entry.value : entry;
+      const quality = entry && typeof entry === "object" && !Array.isArray(entry)
+        ? normalizeMetricQuality(entry.quality)
+        : normalizeMetricQuality(qualityMap[metricKey]);
+      if (!Number.isFinite(Number(value))) {
+        return [metricKey, { value: null, quality: "missing" }];
+      }
+      return [metricKey, { value: Number(value), quality }];
+    })
+  );
+}
+
+function getMetricQualitySummary(metrics = {}) {
+  return Object.values(metrics || {}).reduce(
+    (summary, entry) => {
+      const quality = entry && typeof entry === "object" && !Array.isArray(entry)
+        ? normalizeMetricQuality(entry.quality)
+        : "trusted";
+      summary[quality] = (summary[quality] || 0) + 1;
+      return summary;
+    },
+    { trusted: 0, estimated: 0, missing: 0 }
+  );
 }
 
 function scoutingDatabaseStatus(actor = {}) {
@@ -353,7 +449,7 @@ function getSeasonOrder(query = {}) {
 async function fetchSeasonRows(query = {}) {
   const params = new URLSearchParams({
     select:
-      "id,record_key,player_name,team_name,team_within_timeframe,league_name,season_label,position_text,age,matches,minutes,birth_country,passport_country,height_cm,weight_kg,metrics,source_system,source_player_id,source_record_id,updated_at",
+      "id,record_key,player_name,team_name,team_within_timeframe,league_name,season_label,position_text,age,matches,minutes,birth_country,passport_country,height_cm,weight_kg,date_of_birth,metrics,source_system,source_player_id,source_record_id,player_identity_key,metadata,updated_at",
     order: getSeasonOrder(query),
     limit: String(asLimit(query.limit)),
     offset: String(asOffset(query.offset)),
@@ -413,7 +509,7 @@ async function fetchPlayerProfile(query = {}) {
   }
   const params = new URLSearchParams({
     select:
-      "id,record_key,player_name,team_name,team_within_timeframe,league_name,season_label,position_text,age,matches,minutes,birth_country,passport_country,height_cm,weight_kg,metrics,source_system,source_player_id,source_record_id,updated_at",
+      "id,record_key,player_name,team_name,team_within_timeframe,league_name,season_label,position_text,age,matches,minutes,birth_country,passport_country,height_cm,weight_kg,date_of_birth,metrics,source_system,source_player_id,source_record_id,player_identity_key,metadata,updated_at",
     or: `record_key.eq.${recordKey},source_record_id.eq.${recordKey}`,
     limit: "1",
   });
@@ -483,17 +579,29 @@ function normalizeImportPlayer(record = {}) {
   }
   const sourceSystem = normalizeScoutingSourceSystem(record);
   const sourcePlayerId = normalizeScoutingSourcePlayerId(record);
+  const dateOfBirth = normalizeDateValue(recordValue(record, "dateOfBirth"));
+  const sourceTrace = getRecordSourceTrace(record);
   return {
     canonical_name: name,
     sort_name: sortName,
+    player_identity_key: sourcePlayerId,
     source_system: sourceSystem,
     source_player_id: sourcePlayerId,
     birth_country: normalizeString(recordValue(record, "birthCountry"), 120) || null,
     passport_country: normalizeString(recordValue(record, "passportCountry"), 120) || null,
     height_cm: normalizeNumber(recordValue(record, "height"), null),
     weight_kg: normalizeNumber(recordValue(record, "weight"), null),
+    date_of_birth: dateOfBirth || null,
     status: "active",
-    metadata: {},
+    metadata: {
+      playerIdentityId: sourcePlayerId,
+      aliases: [
+        normalizeString(recordValue(record, "player"), 180),
+        normalizeString(recordValue(record, "sourcePlayerId"), 160),
+        normalizeString(sourceTrace.sourcePlayerAlias, 160),
+      ].filter(Boolean).filter((value, index, values) => values.indexOf(value) === index),
+      latestSourceSystem: sourceSystem,
+    },
   };
 }
 
@@ -507,10 +615,22 @@ function normalizeImportSeasonRecord(record = {}, playerId = null, importBatchId
   const sourceSystem = normalizeScoutingSourceSystem(record);
   const sourcePlayerId = normalizeScoutingSourcePlayerId(record);
   const sourceRecordId = normalizeScoutingRecordSourceId(record);
+  const sourceTrace = getRecordSourceTrace(record);
+  const importedMetricQuality = getRecordMetricQualityMap(record);
+  const metricPayload = normalizeMetricPayload(metrics, importedMetricQuality);
+  const dateOfBirth = normalizeDateValue(recordValue(record, "dateOfBirth"));
+  const mergeKey = [
+    sourceSystem,
+    sourcePlayerId,
+    normalizeString(recordValue(record, "season"), 80),
+    normalizeScoutingLeague(recordValue(record, "league")),
+    normalizeString(recordValue(record, "team"), 180),
+  ].filter(Boolean).join("|");
   return {
     import_batch_id: importBatchId || null,
     player_id: playerId,
     record_key: recordKey,
+    player_identity_key: sourcePlayerId,
     source_system: sourceSystem,
     source_player_id: sourcePlayerId,
     source_record_id: sourceRecordId,
@@ -528,9 +648,30 @@ function normalizeImportSeasonRecord(record = {}, playerId = null, importBatchId
     passport_country: normalizeString(recordValue(record, "passportCountry"), 120) || null,
     height_cm: normalizeNumber(recordValue(record, "height"), null),
     weight_kg: normalizeNumber(recordValue(record, "weight"), null),
-    metrics: metrics && typeof metrics === "object" && !Array.isArray(metrics) ? metrics : {},
+    date_of_birth: dateOfBirth || null,
+    metrics: metricPayload,
     status: "active",
-    metadata: {},
+    metadata: {
+      playerIdentityId: sourcePlayerId,
+      mergeKey,
+      sourceTrace: {
+        ...sourceTrace,
+        sourceSystem,
+        importBatchId: importBatchId || sourceTrace.importBatchId || "",
+        sourceFileName: normalizeString(sourceTrace.sourceFileName, 240),
+        sheetName: normalizeString(sourceTrace.sheetName, 160),
+        sourceRowNumber: normalizeNumber(sourceTrace.sourceRowNumber, null),
+        uploadedAt: normalizeString(sourceTrace.uploadedAt, 80) || null,
+        deletedAt: null,
+      },
+      metricQuality: {
+        ...Object.fromEntries(Object.entries(importedMetricQuality).map(([key, quality]) => [key, normalizeMetricQuality(quality)])),
+        ...Object.fromEntries(Object.entries(metricPayload).map(([key, entry]) => [key, normalizeMetricQuality(entry.quality)])),
+      },
+      metricQualitySummary: getMetricQualitySummary(metricPayload),
+      imageUrl: normalizeString(recordValue(record, "imageUrl"), 220) || null,
+      dateOfBirth,
+    },
   };
 }
 
@@ -563,11 +704,12 @@ async function upsertScoutingMetrics(metrics = []) {
 }
 
 async function upsertScoutingPlayers(records = []) {
-  const rows = uniqueBy(records.map(normalizeImportPlayer).filter(Boolean), (row) => `${row.source_system || "file-import"}::${row.source_player_id || "unknown"}`);
+  const rows = uniqueBy(records.map(normalizeImportPlayer).filter(Boolean), (row) => row.player_identity_key || `${row.source_system || "file-import"}::${row.source_player_id || "unknown"}`);
   if (!rows.length) {
     return new Map();
   }
-  const result = await dbRequest("/scouting_players?on_conflict=source_system,source_player_id", {
+  const sourceKeyByIdentity = new Map(rows.map((row) => [row.player_identity_key, `${row.source_system || "file-import"}::${row.source_player_id || "unknown"}`]));
+  const result = await dbRequest("/scouting_players?on_conflict=player_identity_key", {
     method: "POST",
     headers: { Prefer: "resolution=merge-duplicates,return=representation" },
     body: rows,
@@ -578,12 +720,12 @@ async function upsertScoutingPlayers(records = []) {
   return new Map(
     (Array.isArray(result.payload) ? result.payload : [])
       .map((row) => {
-        const sourceSystem = normalizeString(row.source_system, 40) || "file-import";
-        const sourcePlayerId = normalizeString(row.source_player_id, 160);
-        if (!sourceSystem || !sourcePlayerId) {
+        const identityKey = normalizeString(row.player_identity_key || row.source_player_id, 160);
+        const sourceKey = sourceKeyByIdentity.get(identityKey);
+        if (!sourceKey) {
           return null;
         }
-        return [`${sourceSystem}::${sourcePlayerId}`, row.id];
+        return [sourceKey, row.id];
       })
       .filter(Boolean)
   );

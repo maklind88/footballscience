@@ -92,8 +92,9 @@ test("Scouting database search, profile, favorite and Shadow XI flow stays stabl
     timeout: 45_000,
   });
 
-  const queryInput = page.locator('[data-scouting-filter="query"]').first();
+  const queryInput = page.locator('[data-scouting-database-search-form] input[name="query"]').first();
   await queryInput.fill("sam");
+  await queryInput.press("Enter");
   await expect(queryInput).toHaveValue("sam");
   await expect(page.locator(".scouting-tab.is-active")).toContainText("Database");
 

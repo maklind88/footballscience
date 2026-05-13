@@ -30,6 +30,7 @@ let scoutingImportParserPromise = null;
 let scoutingImportPdfParserPromise = null;
 let scoutingDragState = null;
 let scoutingDatabaseApiRefreshTimer = 0;
+let scoutingAdvancedDatabaseFiltersOpen = false;
 let scoutingOppositionFilters = { team: "", season: "all", minMinutes: 450 };
 let scoutingOppositionLatestSnapshot = null;
 const scoutingImportedDatabaseStorageKey = "football-scouting-imported-database-v1";
@@ -84,6 +85,10 @@ const scoutingRecordIndex = Object.freeze({
   playerSourceId: 16,
   sourceRecordId: 17,
   imageUrl: 18,
+  playerIdentityId: 19,
+  sourceTrace: 20,
+  metricQuality: 21,
+  dateOfBirth: 22,
 });
 const scoutingCountryCodeByName = Object.freeze({
   afghanistan: "AF",
@@ -204,6 +209,34 @@ function escapeHtml(value) {
 }
 function normalizeScoutingText(value, maxLength = 160) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+function normalizeScoutingIdentityPart(value = "", maxLength = 160) {
+  return normalizeScoutingText(value, maxLength)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function normalizeScoutingDateValue(value = "") {
+  const raw = normalizeScoutingText(value, 40);
+  if (!raw) {
+    return "";
+  }
+  const iso = raw.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if (iso) {
+    return `${iso[1]}-${String(iso[2]).padStart(2, "0")}-${String(iso[3]).padStart(2, "0")}`;
+  }
+  const european = raw.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (european) {
+    return `${european[3]}-${String(european[2]).padStart(2, "0")}-${String(european[1]).padStart(2, "0")}`;
+  }
+  const parsed = Date.parse(raw);
+  if (!Number.isNaN(parsed)) {
+    return new Date(parsed).toISOString().slice(0, 10);
+  }
+  return raw;
 }
 
 function normalizeScoutingLeague(value = "") {
@@ -619,7 +652,21 @@ async function publishScoutingExcelImportToDatabase(database = {}) {
   if (!importBatchId) {
     return { ok: false, reason: "Scouting import batch could not be created." };
   }
-  const chunkPlan = getScoutingImportPayloadChunks(database.records, database.metrics || []);
+  const recordsWithBatchTrace = (database.records || []).map((record) => {
+    const nextRecord = Array.isArray(record) ? record.slice() : record;
+    if (Array.isArray(nextRecord)) {
+      nextRecord[scoutingRecordIndex.sourceTrace] = {
+        ...getScoutingRecordSourceTrace(record),
+        importBatchId,
+      };
+    }
+    return nextRecord;
+  });
+  const databaseForPublish = {
+    ...database,
+    records: recordsWithBatchTrace,
+  };
+  const chunkPlan = getScoutingImportPayloadChunks(databaseForPublish.records, databaseForPublish.metrics || []);
   if (!chunkPlan.ok) {
     return chunkPlan;
   }
@@ -631,7 +678,7 @@ async function publishScoutingExcelImportToDatabase(database = {}) {
       importBatchId,
       chunkIndex: index,
       chunkCount: chunks.length,
-      metrics: chunkPlan.metricsFirstChunkIndex === index ? (database.metrics || []) : [],
+      metrics: chunkPlan.metricsFirstChunkIndex === index ? (databaseForPublish.metrics || []) : [],
       records: payloadRows,
     };
     scoutingImportDraft = {
@@ -651,8 +698,8 @@ async function publishScoutingExcelImportToDatabase(database = {}) {
   const finishResult = await sendScoutingApiAction({
     action: "finishExcelImport",
     importBatchId,
-    rowCount: database.records.length,
-    metricCount: database.metrics?.length || 0,
+    rowCount: databaseForPublish.records.length,
+    metricCount: databaseForPublish.metrics?.length || 0,
   });
   if (!finishResult.ok) {
     return {
@@ -671,8 +718,8 @@ async function publishScoutingExcelImportToDatabase(database = {}) {
     status: "published",
     databaseStored: true,
     batchId: importBatchId,
-    rowCount: database.records.length,
-    metricCount: database.metrics?.length || 0,
+    rowCount: databaseForPublish.records.length,
+    metricCount: databaseForPublish.metrics?.length || 0,
     updatedAt: new Date().toISOString(),
   };
   setScoutingImportLastUploadSummary(scoutingImportDraft.lastUploadSummary);
@@ -859,7 +906,7 @@ function getScoutingImportSourceFromFile(fileName = "") {
   );
 }
 function buildScoutingImportHash(value = "") {
-  const text = normalizeScoutingText(value, 240).toLowerCase();
+  const text = String(value ?? "").replace(/\s+/g, " ").trim().toLowerCase().slice(0, 50000);
   let hash = 2166136261;
   for (let index = 0; index < text.length; index += 1) {
     hash ^= text.charCodeAt(index);
@@ -887,14 +934,21 @@ function getScoutingImportSourceSystem(draft = scoutingImportDraft) {
 function buildScoutingPlayerSourceId(row = {}, map = {}) {
   const mapped = normalizeScoutingText(row?.[map.playerSourceId], 160);
   if (mapped) {
-    return mapped;
+    return buildScoutingImportRecordId(`federation ${mapped}`, "player", 140);
   }
   const player = normalizeScoutingText(row?.[map.player], 120);
+  const dateOfBirth = normalizeScoutingDateValue(row?.[map.dateOfBirth]);
   const birthCountry = normalizeScoutingText(row?.[map.birthCountry], 120);
   const passportCountry = normalizeScoutingText(row?.[map.passportCountry], 120);
+  const nationality = passportCountry || birthCountry;
   return buildScoutingImportRecordId(
-    `${player} ${birthCountry} ${passportCountry}`.trim(),
-    `player`
+    [
+      normalizeScoutingIdentityPart(player),
+      normalizeScoutingIdentityPart(dateOfBirth),
+      normalizeScoutingIdentityPart(nationality),
+    ].filter(Boolean).join("::"),
+    "player",
+    140
   );
 }
 function buildScoutingRecordSourceId(row = {}, map = {}, playerSourceId = "") {
@@ -905,10 +959,9 @@ function buildScoutingRecordSourceId(row = {}, map = {}, playerSourceId = "") {
   }
   const seed = [
     playerSourceId,
-    normalizeScoutingText(row?.[map.player], 120),
     normalizeScoutingText(scoutingImportDraft?.seasonOverride, 80) || normalizeScoutingText(row?.[map.season], 80),
+    normalizeScoutingLeague(row?.[map.league]),
     normalizeScoutingText(row?.[map.team], 120),
-    normalizeScoutingText(row?.[map.position], 40),
   ].join("::");
   return buildScoutingScopedId(buildScoutingImportRecordId(seed, `record`), sourceSystem);
 }
@@ -1385,6 +1438,33 @@ function getScoutingRecordLeague(record) {
 function getScoutingRecordImageUrl(record) {
   return normalizeScoutingText(record?.[scoutingRecordIndex.imageUrl], 220);
 }
+function getScoutingRecordPlayerSourceId(record) {
+  return normalizeScoutingText(record?.[scoutingRecordIndex.playerSourceId], 160);
+}
+function getScoutingRecordDateOfBirth(record) {
+  return normalizeScoutingDateValue(record?.[scoutingRecordIndex.dateOfBirth]);
+}
+function getScoutingRecordPlayerIdentityId(record) {
+  const stored =
+    normalizeScoutingText(record?.[scoutingRecordIndex.playerIdentityId], 160) ||
+    getScoutingRecordPlayerSourceId(record);
+  if (stored) {
+    return stored;
+  }
+  return buildScoutingImportRecordId(
+    [
+      normalizeScoutingIdentityPart(getScoutingRecordName(record)),
+      normalizeScoutingIdentityPart(getScoutingRecordDateOfBirth(record)),
+      normalizeScoutingIdentityPart(getScoutingRecordPassportCountry(record) || getScoutingRecordBirthCountry(record)),
+    ].filter(Boolean).join("::"),
+    "player",
+    140
+  );
+}
+function getScoutingRecordSourceTrace(record) {
+  const trace = record?.[scoutingRecordIndex.sourceTrace];
+  return trace && typeof trace === "object" && !Array.isArray(trace) ? trace : {};
+}
 function getScoutingRecordBirthCountry(record) {
   return normalizeScoutingText(record?.[scoutingRecordIndex.birthCountry], 120);
 }
@@ -1558,6 +1638,19 @@ function getScoutingRecordMinutes(record) {
   const value = Number(record?.[scoutingRecordIndex.minutes]);
   return Number.isFinite(value) ? value : 0;
 }
+function normalizeScoutingMetricQuality(value = "") {
+  const normalized = normalizeScoutingText(value, 20).toLowerCase();
+  return normalized === "trusted" || normalized === "estimated" || normalized === "missing" ? normalized : "trusted";
+}
+function getScoutingMetricRawEntry(record, metricId) {
+  const id = normalizeScoutingText(metricId, 120);
+  const metrics = record?.[scoutingRecordIndex.metrics];
+  return Array.isArray(metrics)
+    ? metrics[getScoutingMetricIndex(id)]
+    : metrics && typeof metrics === "object"
+      ? metrics[id]
+      : null;
+}
 function getScoutingMetricValue(record, metricId) {
   const id = normalizeScoutingText(metricId, 120);
   if (!record) {
@@ -1573,19 +1666,55 @@ function getScoutingMetricValue(record, metricId) {
   if (id === "age") {
     return getScoutingRecordAge(record);
   }
-  const metrics = record[scoutingRecordIndex.metrics];
-  const rawValue = Array.isArray(metrics)
-    ? metrics[getScoutingMetricIndex(id)]
-    : metrics && typeof metrics === "object"
-      ? metrics[id]
-      : null;
+  const rawEntry = getScoutingMetricRawEntry(record, id);
+  const rawValue = rawEntry && typeof rawEntry === "object" && !Array.isArray(rawEntry) ? rawEntry.value : rawEntry;
   const value = rawValue === null || rawValue === undefined || rawValue === "" ? NaN : Number(rawValue);
   return Number.isFinite(value) ? value : null;
+}
+function getScoutingMetricQuality(record, metricId) {
+  const id = normalizeScoutingText(metricId, 120);
+  if (!record) {
+    return "missing";
+  }
+  if (id === "minutes" || id === "matches" || id === "age") {
+    const value = getScoutingMetricValue(record, id);
+    return Number.isFinite(value) ? "trusted" : "missing";
+  }
+  const rawEntry = getScoutingMetricRawEntry(record, id);
+  if (rawEntry && typeof rawEntry === "object" && !Array.isArray(rawEntry)) {
+    const value = Number(rawEntry.value);
+    if (!Number.isFinite(value)) {
+      return "missing";
+    }
+    return normalizeScoutingMetricQuality(rawEntry.quality);
+  }
+  const qualityMap = record?.[scoutingRecordIndex.metricQuality];
+  if (qualityMap && typeof qualityMap === "object" && !Array.isArray(qualityMap) && qualityMap[id]) {
+    return normalizeScoutingMetricQuality(qualityMap[id]);
+  }
+  return Number.isFinite(Number(rawEntry)) ? "trusted" : "missing";
+}
+function getScoutingMetricConfidenceFactor(record, metricId) {
+  const quality = getScoutingMetricQuality(record, metricId);
+  if (quality === "missing") {
+    return 0;
+  }
+  let factor = quality === "estimated" ? 0.84 : 1;
+  const minutes = getScoutingRecordMinutes(record);
+  if (minutes > 0 && minutes < 180) {
+    factor *= 0.72;
+  } else if (minutes > 0 && minutes < 450) {
+    factor *= 0.86;
+  }
+  return Math.max(0, Math.min(1, factor));
 }
 function getScoutingRecordMetricValueCount(record) {
   const metrics = record?.[scoutingRecordIndex.metrics];
   const values = Array.isArray(metrics) ? metrics : Object.values(metrics || {});
-  return values.filter((value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value))).length;
+  return values.filter((entry) => {
+    const value = entry && typeof entry === "object" && !Array.isArray(entry) ? entry.value : entry;
+    return value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
+  }).length;
 }
 function getScoutingRecordLookupFingerprint(database = getScoutingDatabase()) {
   const records = Array.isArray(database?.records) ? database.records : [];
@@ -1744,6 +1873,7 @@ function getScoutingImportAutoMap(headers = []) {
     season: findScoutingImportHeader(headers, ["season", "year"]),
     position: findScoutingImportHeader(headers, ["position", "positions", "pos"]),
     age: findScoutingImportHeader(headers, ["age"]),
+    dateOfBirth: findScoutingImportHeader(headers, ["date of birth", "birth date", "dob", "birthday"]),
     matches: findScoutingImportHeader(headers, ["matches", "apps", "appearances"]),
     minutes: findScoutingImportHeader(headers, ["minutes", "mins", "played"]),
     birthCountry: findScoutingImportHeader(headers, ["birth country", "country of birth"]),
@@ -1878,6 +2008,7 @@ function setScoutingImportDraftPatch(patch = {}) {
   scoutingImportDraft = {
     ...scoutingImportDraft,
     ...patch,
+    importPreview: null,
   };
   if (patch.selectedSheet) {
     const selected = scoutingImportDraft.sheets?.find((sheet) => sheet.name === patch.selectedSheet);
@@ -1891,6 +2022,7 @@ function setScoutingImportMapField(field, value) {
   }
   scoutingImportDraft = {
     ...scoutingImportDraft,
+    importPreview: null,
     map: {
       ...(scoutingImportDraft.map || {}),
       [field]: normalizeScoutingText(value, 120),
@@ -1904,6 +2036,190 @@ function getScoutingImportMetricHeaders(headers = [], map = {}) {
 function getScoutingImportMetricDirection(header = "") {
   const label = normalizeScoutingText(header, 120).toLowerCase();
   return /(against|conceded|lost|errors|fouls|cards|turnovers|losses)/.test(label) ? "lower" : "higher";
+}
+function getScoutingImportMetricQuality(rawValue, minutes = 0) {
+  const text = normalizeScoutingText(rawValue, 120).toLowerCase();
+  if (!Number.isFinite(parseScoutingMetricValue(rawValue))) {
+    return "missing";
+  }
+  if (/(^|[^a-z])(est|estimated|estimate|approx|approximate)([^a-z]|$)|~/.test(text)) {
+    return "estimated";
+  }
+  return Number(minutes) > 0 && Number(minutes) < 450 ? "estimated" : "trusted";
+}
+function getScoutingImportMergeKey(sourceSystem = "", playerIdentityId = "", season = "", league = "", team = "") {
+  return [
+    normalizeScoutingIdentityPart(sourceSystem || "file-import", 40),
+    normalizeScoutingIdentityPart(playerIdentityId, 160),
+    normalizeScoutingIdentityPart(season, 80),
+    normalizeScoutingIdentityPart(normalizeScoutingLeague(league), 180),
+    normalizeScoutingIdentityPart(team, 180),
+  ].join("|");
+}
+function getScoutingRecordMergeKey(record) {
+  return getScoutingImportMergeKey(
+    normalizeScoutingText(record?.[scoutingRecordIndex.sourceSystem], 40) || "file-import",
+    getScoutingRecordPlayerIdentityId(record),
+    getScoutingRecordSeason(record),
+    getScoutingRecordLeague(record),
+    getScoutingRecordTeam(record)
+  );
+}
+function getScoutingMetricFingerprint(metrics = {}) {
+  if (Array.isArray(metrics)) {
+    return metrics
+      .map((entry) => {
+        const value = entry && typeof entry === "object" && !Array.isArray(entry) ? entry.value : entry;
+        return value === null || value === undefined || value === "" ? null : Number(value);
+      });
+  }
+  return Object.keys(metrics || {})
+    .sort((a, b) => a.localeCompare(b))
+    .map((key) => {
+      const entry = metrics[key];
+      const value = entry && typeof entry === "object" && !Array.isArray(entry) ? entry.value : entry;
+      const quality = entry && typeof entry === "object" && !Array.isArray(entry) ? normalizeScoutingMetricQuality(entry.quality) : "trusted";
+      return [key, Number.isFinite(Number(value)) ? Number(value) : null, quality];
+    });
+}
+function getScoutingRecordImportFingerprint(record) {
+  return JSON.stringify({
+    player: getScoutingRecordName(record),
+    team: getScoutingRecordTeam(record),
+    league: getScoutingRecordLeague(record),
+    season: getScoutingRecordSeason(record),
+    position: getScoutingRecordPosition(record),
+    age: getScoutingRecordAge(record),
+    matches: getScoutingMetricValue(record, "matches"),
+    minutes: getScoutingRecordMinutes(record),
+    birthCountry: getScoutingRecordBirthCountry(record),
+    passportCountry: getScoutingRecordPassportCountry(record),
+    height: normalizeScoutingText(record?.[scoutingRecordIndex.height], 40),
+    weight: normalizeScoutingText(record?.[scoutingRecordIndex.weight], 40),
+    metrics: getScoutingMetricFingerprint(record?.[scoutingRecordIndex.metrics]),
+  });
+}
+function preferScoutingImportRecord(nextRecord, currentRecord) {
+  if (!currentRecord) {
+    return nextRecord;
+  }
+  const nextScore = getScoutingRecordMetricValueCount(nextRecord) * 10000 + getScoutingRecordMinutes(nextRecord);
+  const currentScore = getScoutingRecordMetricValueCount(currentRecord) * 10000 + getScoutingRecordMinutes(currentRecord);
+  return nextScore >= currentScore ? nextRecord : currentRecord;
+}
+function mergeScoutingImportMetrics(existingMetrics = [], importedMetrics = []) {
+  const byId = new Map();
+  [...existingMetrics, ...importedMetrics].forEach((metric) => {
+    const id = normalizeScoutingText(metric?.id, 120);
+    if (id && !byId.has(id)) {
+      byId.set(id, metric);
+    }
+  });
+  return [...byId.values()];
+}
+function buildScoutingImportPreview(database = {}) {
+  const existingRecords = getScoutingDatabase()?.records || [];
+  const existingByMergeKey = new Map();
+  existingRecords.forEach((record) => {
+    const key = getScoutingRecordMergeKey(record);
+    if (key) {
+      existingByMergeKey.set(key, record);
+    }
+  });
+  const operationsByMergeKey = {};
+  const samples = [];
+  const metricQualityCounts = { trusted: 0, estimated: 0, missing: 0 };
+  const summary = {
+    incomingRows: database.records?.length || 0,
+    newRows: 0,
+    replaceRows: 0,
+    unchangedRows: 0,
+    duplicateRows: database.dedupeSummary?.incomingDuplicates || 0,
+    metricQualityCounts,
+    samples,
+    operationsByMergeKey,
+    signature: database.importSignature || "",
+  };
+  (database.records || []).forEach((record) => {
+    const key = getScoutingRecordMergeKey(record);
+    const existing = key ? existingByMergeKey.get(key) : null;
+    const operation = !existing
+      ? "new"
+      : getScoutingRecordImportFingerprint(existing) === getScoutingRecordImportFingerprint(record)
+        ? "unchanged"
+        : "replace";
+    operationsByMergeKey[key] = operation;
+    if (operation === "new") {
+      summary.newRows += 1;
+    } else if (operation === "replace") {
+      summary.replaceRows += 1;
+    } else {
+      summary.unchangedRows += 1;
+    }
+    const metricQuality = record?.[scoutingRecordIndex.metricQuality] || {};
+    Object.values(metricQuality).forEach((quality) => {
+      const normalized = normalizeScoutingMetricQuality(quality);
+      metricQualityCounts[normalized] += 1;
+    });
+    if (samples.length < 6 && operation !== "unchanged") {
+      samples.push({
+        operation,
+        name: getScoutingRecordName(record),
+        team: getScoutingRecordTeam(record),
+        league: getScoutingRecordLeague(record),
+        season: getScoutingRecordSeason(record),
+      });
+    }
+  });
+  return summary;
+}
+function getScoutingImportPublishDatabase(database = {}, preview = {}) {
+  const operations = preview.operationsByMergeKey || {};
+  return {
+    ...database,
+    records: (database.records || []).filter((record) => {
+      const operation = operations[getScoutingRecordMergeKey(record)];
+      return operation === "new" || operation === "replace";
+    }),
+  };
+}
+function mergeScoutingImportedDatabase(database = {}, preview = {}) {
+  const existing = getScoutingDatabase();
+  const incomingByMergeKey = new Map((database.records || []).map((record) => [getScoutingRecordMergeKey(record), record]));
+  const nextRecords = [
+    ...(existing?.records || []).filter((record) => !incomingByMergeKey.has(getScoutingRecordMergeKey(record))),
+    ...(database.records || []),
+  ];
+  return {
+    ...database,
+    records: nextRecords,
+    metrics: mergeScoutingImportMetrics(existing?.metrics || [], database.metrics || []),
+    preview,
+  };
+}
+function renderScoutingImportDiffPreview(preview = null) {
+  if (!preview?.signature) {
+    return "";
+  }
+  const quality = preview.metricQualityCounts || {};
+  return `
+    <div class="scouting-import-diff-preview">
+      <div class="scouting-import-diff-grid">
+        <article><span>New</span><strong>${escapeHtml(preview.newRows || 0)}</strong></article>
+        <article><span>Replace</span><strong>${escapeHtml(preview.replaceRows || 0)}</strong></article>
+        <article><span>Unchanged</span><strong>${escapeHtml(preview.unchangedRows || 0)}</strong></article>
+        <article><span>Deduped</span><strong>${escapeHtml(preview.duplicateRows || 0)}</strong></article>
+      </div>
+      <p>${escapeHtml(`Metric quality: ${quality.trusted || 0} trusted / ${quality.estimated || 0} estimated / ${quality.missing || 0} missing.`)}</p>
+      ${
+        preview.samples?.length
+          ? `<div class="scouting-import-diff-list">${preview.samples
+              .map((row) => `<span>${escapeHtml(`${row.operation.toUpperCase()} · ${row.name} · ${row.team || "No club"} · ${row.league || "No league"} · ${row.season || "No season"}`)}</span>`)
+              .join("")}</div>`
+          : `<p>${escapeHtml("No changed rows in this preview.")}</p>`
+      }
+    </div>
+  `;
 }
 function buildScoutingImportedDatabase() {
   if (!scoutingImportDraft || scoutingImportDraft.status !== "ready") {
@@ -1920,13 +2236,18 @@ function buildScoutingImportedDatabase() {
       id: `import_${getScoutingImportColumnId(header)}`,
       label: normalizeScoutingText(header, 120),
       direction: getScoutingImportMetricDirection(header),
+      sourceColumn: normalizeScoutingText(header, 160),
     }))
       .filter((metric, index, values) => metric.label && values.findIndex((item) => item.id === metric.id) === index);
-  const seenRecordIds = new Set();
-  const records = selected.rows
+  const importedAt = new Date().toISOString();
+  const sourceSystem = getScoutingImportSourceSystem();
+  let incomingDuplicates = 0;
+  const recordsByMergeKey = new Map();
+  selected.rows
     .map((row, index) => {
       const player = normalizeScoutingText(row[map.player], 160);
       const team = normalizeScoutingText(row[map.team], 160);
+      const league = normalizeScoutingLeague(row[map.league]);
       const season = normalizeScoutingText(scoutingImportDraft.seasonOverride || row[map.season], 80);
       const position = normalizeScoutingText(row[map.position], 80);
       if (!player && !team && !position) {
@@ -1934,48 +2255,92 @@ function buildScoutingImportedDatabase() {
       }
       const playerSourceId = buildScoutingPlayerSourceId(row, map);
       const sourceRecordId = buildScoutingRecordSourceId(row, map, playerSourceId);
-      if (seenRecordIds.has(sourceRecordId)) {
-        return null;
-      }
-      seenRecordIds.add(sourceRecordId);
+      const age = parseScoutingMetricValue(row[map.age]) || "";
+      const matches = parseScoutingMetricValue(row[map.matches]) || "";
+      const minutes = Math.max(0, Math.round(parseScoutingMetricValue(row[map.minutes]) || 0));
+      const dateOfBirth = normalizeScoutingDateValue(row[map.dateOfBirth]);
+      const mergeKey = getScoutingImportMergeKey(sourceSystem, playerSourceId, season, league, team);
       const metricValues = {};
+      const metricQuality = {};
       for (const metric of metrics) {
         const header = metric.label;
         const value = parseScoutingMetricValue(row[header]);
-        if (Number.isFinite(value)) {
-          metricValues[metric.id] = value;
+        const quality = getScoutingImportMetricQuality(row[header], minutes);
+        metricQuality[metric.id] = quality;
+        if (Number.isFinite(value) && quality !== "missing") {
+          metricValues[metric.id] = {
+            value,
+            quality,
+          };
         }
       }
+      const sourceTrace = {
+        sourceSystem,
+        sourceFileName: scoutingImportDraft.fileName || "",
+        sheetName: selected.name,
+        sourceRowNumber: index + 2,
+        uploadedAt: importedAt,
+        importedAt,
+        importBatchId: "",
+        playerIdentityId: playerSourceId,
+        sourceRecordId,
+        mergeKey,
+      };
       return [
         sourceRecordId,
         player,
         team,
         team,
-        normalizeScoutingLeague(row[map.league]),
+        league,
         season,
         position,
-        parseScoutingMetricValue(row[map.age]) || "",
-        parseScoutingMetricValue(row[map.matches]) || "",
-        Math.max(0, Math.round(parseScoutingMetricValue(row[map.minutes]) || 0)),
+        age,
+        matches,
+        minutes,
         normalizeScoutingText(row[map.birthCountry], 120),
         normalizeScoutingText(row[map.passportCountry], 120),
         normalizeScoutingText(row[map.height], 40),
         normalizeScoutingText(row[map.weight], 40),
         metricValues,
-        getScoutingImportSourceSystem(),
+        sourceSystem,
         playerSourceId,
         sourceRecordId,
         normalizeScoutingText(row[map.imageUrl], 220),
+        playerSourceId,
+        sourceTrace,
+        metricQuality,
+        dateOfBirth,
       ];
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .forEach((record) => {
+      const mergeKey = getScoutingRecordMergeKey(record);
+      if (recordsByMergeKey.has(mergeKey)) {
+        incomingDuplicates += 1;
+      }
+      recordsByMergeKey.set(mergeKey, preferScoutingImportRecord(record, recordsByMergeKey.get(mergeKey)));
+    });
+  const records = [...recordsByMergeKey.values()];
+  const importSignature = buildScoutingImportHash([
+    scoutingImportDraft.fileName,
+    selected.name,
+    sourceSystem,
+    records.length,
+    metrics.length,
+    records.map((record) => getScoutingRecordMergeKey(record)).join("~"),
+  ].join("::"));
   return {
     source: "ui-import",
     fileName: scoutingImportDraft.fileName,
-    importedAt: new Date().toISOString(),
+    importedAt,
     sheets: [selected.name],
     metrics,
     records,
+    importSignature,
+    dedupeSummary: {
+      incomingDuplicates,
+      mergeStrategy: "sourceSystem + playerId + season + league + team",
+    },
   };
 }
 function applyScoutingImportDraft() {
@@ -2007,12 +2372,57 @@ function applyScoutingImportDraft() {
     renderScoutingWorkspace({ preserveFocus: true });
     return;
   }
-  window.__footballScienceImportedScoutingDatabase = database;
+  const preview = buildScoutingImportPreview(database);
+  const previewAccepted = scoutingImportDraft?.importPreview?.signature === database.importSignature;
+  if (!previewAccepted) {
+    scoutingImportDraft = {
+      ...(scoutingImportDraft || {}),
+      importPreview: preview,
+      databaseUploadStatus: "Review import preview before commit.",
+      databaseUploadError: "",
+      importedCount: database.records.length,
+      metricCount: database.metrics.length,
+    };
+    renderScoutingWorkspace({ preserveFocus: true });
+    return;
+  }
+  const publishDatabase = getScoutingImportPublishDatabase(database, preview);
+  const mergedDatabase = mergeScoutingImportedDatabase(database, preview);
+  window.__footballScienceImportedScoutingDatabase = mergedDatabase;
   scoutingDatabaseOptionCache = null;
   resetScoutingComputedCaches();
   try {
-    window.localStorage?.setItem(scoutingImportedDatabaseStorageKey, JSON.stringify(database));
+    window.localStorage?.setItem(scoutingImportedDatabaseStorageKey, JSON.stringify(mergedDatabase));
   } catch {}
+  if (!publishDatabase.records.length) {
+    const unchangedSummary = {
+      status: "published",
+      fileName: database.fileName || "Uploaded file",
+      sourceSystem: scoutingImportDraft?.sourceSystem || getScoutingImportSourceSystem(),
+      sourceTypeLabel: scoutingImportDraft?.sourceTypeLabel || "",
+      rowCount: 0,
+      metricCount: database.metrics.length,
+      season: scoutingImportDraft?.seasonOverride || "",
+      startedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      databaseStored: true,
+      importPreview: preview,
+      databaseUploadStatus: "No changed rows to publish.",
+    };
+    scoutingImportDraft = {
+      ...scoutingImportDraft,
+      status: "imported",
+      databaseStored: true,
+      databaseUploadStatus: "No changed rows to publish.",
+      databaseUploadError: "",
+      lastUploadSummary: unchangedSummary,
+      importedCount: 0,
+      metricCount: database.metrics.length,
+    };
+    setScoutingImportLastUploadSummary(unchangedSummary);
+    renderScoutingWorkspace({ preserveFocus: true });
+    return;
+  }
   scoutingImportDraft = {
     ...scoutingImportDraft,
     status: "importing",
@@ -2024,18 +2434,19 @@ function applyScoutingImportDraft() {
       fileName: database.fileName || "Uploaded file",
       sourceSystem: scoutingImportDraft?.sourceSystem || getScoutingImportSourceSystem(),
       sourceTypeLabel: scoutingImportDraft?.sourceTypeLabel || "",
-      rowCount: database.records.length,
+      rowCount: publishDatabase.records.length,
       metricCount: database.metrics.length,
       season: scoutingImportDraft?.seasonOverride || "",
       startedAt: new Date().toISOString(),
       batchId: "",
       databaseStored: false,
+      importPreview: preview,
     },
-    importedCount: database.records.length,
+    importedCount: publishDatabase.records.length,
     metricCount: database.metrics.length,
   };
   setScoutingImportLastUploadSummary(scoutingImportDraft.lastUploadSummary);
-  void publishScoutingExcelImportToDatabase(database).then((result) => {
+  void publishScoutingExcelImportToDatabase(publishDatabase).then((result) => {
     if (!result || result.ok === false) {
       scoutingImportDraft = {
         ...(scoutingImportDraft || {}),
@@ -2086,6 +2497,7 @@ function applyScoutingImportDraft() {
         status: "published",
         databaseStored: true,
         batchId: result?.result?.importBatchId || scoutingImportDraft.lastUploadSummary?.batchId || "",
+        rowCount: publishDatabase.records.length,
         updatedAt: new Date().toISOString(),
       },
     };
@@ -3934,10 +4346,17 @@ function getScoutingBestSignal(record) {
       metric,
       value: getScoutingMetricValue(record, metric.id),
       percentile: getScoutingComparablePercentile(record, metric.id),
+      quality: getScoutingMetricQuality(record, metric.id),
+      confidence: getScoutingMetricConfidenceFactor(record, metric.id),
     }))
     .filter((item) => Number.isFinite(item.value) && Number.isFinite(item.percentile))
     .filter((item) => !["minutes", "matches", "age"].includes(normalizeScoutingText(item.metric?.id, 120)))
-    .sort((a, b) => b.percentile - a.percentile)[0] || null;
+    .map((item) => ({
+      ...item,
+      adjustedPercentile: Math.max(1, Math.min(99, Math.round(item.percentile * item.confidence))),
+    }))
+    .filter((item) => item.confidence > 0)
+    .sort((a, b) => b.adjustedPercentile - a.adjustedPercentile || b.percentile - a.percentile)[0] || null;
 }
 function getScoutingAllShadowRecordIds(state = ensureScoutingState()) {
   return normalizeScoutingRecordIds(scoutingShadowSlots.flatMap((slot) => getScoutingShadowSlotRecordIds(slot.id, state)));
@@ -3965,6 +4384,20 @@ function getScoutingMarketStatusFilterOptions() {
     { value: "budgeted", label: "Budget info added" },
     { value: "high-probability", label: "High deal probability" },
   ];
+}
+function getScoutingAdvancedFilterCount(filters = {}) {
+  return [
+    filters.season && filters.season !== "all",
+    Number(filters.minMinutes) !== 450,
+    Boolean(filters.maxAge),
+    filters.metricId && filters.metricId !== "all",
+    Boolean(filters.metricMin),
+    filters.signalMode && filters.signalMode !== "all",
+    filters.roleProfileId && filters.roleProfileId !== "all",
+    filters.benchmarkMode && filters.benchmarkMode !== "position",
+    Boolean(filters.roleFitMin),
+    filters.sortMetricId && filters.sortMetricId !== "minutes",
+  ].filter(Boolean).length;
 }
 function isScoutingHighDealProbability(value = "") {
   const normalized = normalizeScoutingText(value, 80).toLowerCase();
@@ -4067,7 +4500,7 @@ function getScoutingProfileRecommendation(record, state = ensureScoutingState())
     risk,
     question,
     status: targetStatusLabel ? `${targetStatusLabel}${priorityLabel ? ` / ${priorityLabel}` : ""}` : "Not in pipeline",
-    signal: bestSignal ? `${bestSignal.metric.label} P${bestSignal.percentile}` : "No standout signal yet",
+    signal: bestSignal ? `${bestSignal.metric.label} P${bestSignal.adjustedPercentile || bestSignal.percentile}${bestSignal.quality === "estimated" ? " (estimated)" : ""}` : "No standout signal yet",
   };
 }
 function getScoutingSeasonInsights(record, playerRows = []) {
@@ -5793,7 +6226,9 @@ function renderScoutingRecordCard(record) {
   const role = getScoutingRecordBestRoleLabel(record);
   const nationality = getScoutingRecordNationalityMeta(record);
   const ageDisplay = Number.isFinite(age) ? `${formatScoutingNumber(age)} yrs` : "N/A";
-  const recommendation = bestSignal ? `${bestSignal.metric.label} · P${bestSignal.percentile}` : "No standout metric";
+  const recommendation = bestSignal
+    ? `${bestSignal.metric.label} · P${bestSignal.adjustedPercentile || bestSignal.percentile}${bestSignal.quality === "estimated" ? " est." : ""}`
+    : "No standout metric";
   const scoreText =
     metric && sortMetricId !== "minutes" && sortMetricId !== "matches" && Number.isFinite(percentile)
       ? `P${percentile}`
@@ -5863,92 +6298,102 @@ function renderScoutingDatabaseControls() {
   const options = getScoutingDatabaseOptions();
   const metricOptions = getScoutingMetricOptions();
   const sortOptions = [{ id: "role-fit", label: "Role fit" }, ...metricOptions];
+  const advancedCount = getScoutingAdvancedFilterCount(filters);
   return `
     <div class="scouting-database-controls">
-      <label>
-        <span>Search</span>
-        <input type="search" value="${escapeHtml(filters.query)}" placeholder="Player, club, league, player type" data-scouting-filter="query" />
-      </label>
-      <label>
-        <span>League</span>
-        <select data-scouting-filter="league">
-          <option value="all">All leagues</option>
-          ${options.leagues.map((league) => `<option value="${escapeHtml(league)}" ${filters.league === league ? "selected" : ""}>${escapeHtml(league)}</option>`).join("")}
-        </select>
-      </label>
-      <label>
-        <span>Season</span>
-        <select data-scouting-filter="season">
-          <option value="all">All seasons</option>
-          ${options.seasons.map((season) => `<option value="${escapeHtml(season)}" ${filters.season === season ? "selected" : ""}>${escapeHtml(season)}</option>`).join("")}
-        </select>
-      </label>
-      <label>
-        <span>Position</span>
-        <select data-scouting-filter="position">
-          <option value="all">All positions</option>
-          ${options.positions.map((position) => `<option value="${escapeHtml(position)}" ${filters.position === position ? "selected" : ""}>${escapeHtml(position)}</option>`).join("")}
-        </select>
-      </label>
-      <label>
-        <span>Min minutes</span>
-        <input type="number" min="0" step="50" value="${escapeHtml(filters.minMinutes)}" data-scouting-filter="minMinutes" />
-      </label>
-      <label>
-        <span>Max age</span>
-        <input type="number" min="14" step="1" value="${escapeHtml(filters.maxAge)}" placeholder="Any" data-scouting-filter="maxAge" />
-      </label>
-      <label>
-        <span>Highlight metric</span>
-        <select data-scouting-filter="metricId">
-          <option value="all">No metric floor</option>
-          ${metricOptions.map((metric) => `<option value="${escapeHtml(metric.id)}" ${filters.metricId === metric.id ? "selected" : ""}>${escapeHtml(metric.label)}</option>`).join("")}
-        </select>
-      </label>
-      <label>
-        <span>Min percentile</span>
-        <input type="number" min="1" max="99" step="1" value="${escapeHtml(filters.metricMin)}" placeholder="75" data-scouting-filter="metricMin" />
-      </label>
-      <label>
-        <span>Decision lens</span>
-        <select data-scouting-filter="signalMode">
-          ${getScoutingDecisionLensOptions()
-            .map((option) => `<option value="${escapeHtml(option.value)}" ${filters.signalMode === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
-            .join("")}
-        </select>
-      </label>
-      <label>
-        <span>Player type</span>
-        <select data-scouting-filter="roleProfileId">
-          ${renderScoutingRoleProfileOptions(filters.roleProfileId)}
-        </select>
-      </label>
-      <label>
-        <span>Benchmark</span>
-        <select data-scouting-filter="benchmarkMode">
-          ${getScoutingBenchmarkModeOptions()
-            .map((option) => `<option value="${escapeHtml(option.value)}" ${filters.benchmarkMode === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
-            .join("")}
-        </select>
-      </label>
-      <label>
-        <span>Min role fit</span>
-        <input type="number" min="1" max="99" step="1" value="${escapeHtml(filters.roleFitMin)}" placeholder="70" data-scouting-filter="roleFitMin" />
-      </label>
-      <label>
-        <span>Market status</span>
-        <select data-scouting-filter="marketStatus">
-          ${getScoutingMarketStatusFilterOptions()
-            .map((option) => `<option value="${escapeHtml(option.value)}" ${filters.marketStatus === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
-            .join("")}
-        </select>
-      </label>
-      <label>
-        <span>Sort by</span>
-        <select data-scouting-filter="sortMetricId">
-          ${sortOptions.map((metric) => `<option value="${escapeHtml(metric.id)}" ${filters.sortMetricId === metric.id ? "selected" : ""}>${escapeHtml(metric.label)}</option>`).join("")}
-        </select>
-      </label>
+      <form class="scouting-database-search" data-scouting-database-search-form>
+        <label>
+          <span>Search</span>
+          <input type="search" name="query" value="${escapeHtml(filters.query)}" placeholder="Player, club, league, player type" />
+        </label>
+      </form>
+      <div class="scouting-database-quick-filters">
+        <label>
+          <span>League</span>
+          <select data-scouting-filter="league">
+            <option value="all">All leagues</option>
+            ${options.leagues.map((league) => `<option value="${escapeHtml(league)}" ${filters.league === league ? "selected" : ""}>${escapeHtml(league)}</option>`).join("")}
+          </select>
+        </label>
+        <label>
+          <span>Position</span>
+          <select data-scouting-filter="position">
+            <option value="all">All positions</option>
+            ${options.positions.map((position) => `<option value="${escapeHtml(position)}" ${filters.position === position ? "selected" : ""}>${escapeHtml(position)}</option>`).join("")}
+          </select>
+        </label>
+        <label>
+          <span>Market status</span>
+          <select data-scouting-filter="marketStatus">
+            ${getScoutingMarketStatusFilterOptions()
+              .map((option) => `<option value="${escapeHtml(option.value)}" ${filters.marketStatus === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
+              .join("")}
+          </select>
+        </label>
+        <button type="button" class="scouting-filter-toggle${scoutingAdvancedDatabaseFiltersOpen ? " is-open" : ""}" data-toggle-scouting-advanced-filters aria-expanded="${scoutingAdvancedDatabaseFiltersOpen ? "true" : "false"}">
+          ${escapeHtml(`Advanced filters${advancedCount ? ` (${advancedCount})` : ""}`)}
+        </button>
+      </div>
+      <div class="scouting-database-advanced-filters${scoutingAdvancedDatabaseFiltersOpen ? " is-open" : ""}" ${scoutingAdvancedDatabaseFiltersOpen ? "" : "hidden"}>
+        <label>
+          <span>Season</span>
+          <select data-scouting-filter="season">
+            <option value="all">All seasons</option>
+            ${options.seasons.map((season) => `<option value="${escapeHtml(season)}" ${filters.season === season ? "selected" : ""}>${escapeHtml(season)}</option>`).join("")}
+          </select>
+        </label>
+        <label>
+          <span>Min minutes</span>
+          <input type="number" min="0" step="50" value="${escapeHtml(filters.minMinutes)}" data-scouting-filter="minMinutes" />
+        </label>
+        <label>
+          <span>Max age</span>
+          <input type="number" min="14" step="1" value="${escapeHtml(filters.maxAge)}" placeholder="Any" data-scouting-filter="maxAge" />
+        </label>
+        <label>
+          <span>Highlight metric</span>
+          <select data-scouting-filter="metricId">
+            <option value="all">No metric floor</option>
+            ${metricOptions.map((metric) => `<option value="${escapeHtml(metric.id)}" ${filters.metricId === metric.id ? "selected" : ""}>${escapeHtml(metric.label)}</option>`).join("")}
+          </select>
+        </label>
+        <label>
+          <span>Min percentile</span>
+          <input type="number" min="1" max="99" step="1" value="${escapeHtml(filters.metricMin)}" placeholder="75" data-scouting-filter="metricMin" />
+        </label>
+        <label>
+          <span>Decision lens</span>
+          <select data-scouting-filter="signalMode">
+            ${getScoutingDecisionLensOptions()
+              .map((option) => `<option value="${escapeHtml(option.value)}" ${filters.signalMode === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
+              .join("")}
+          </select>
+        </label>
+        <label>
+          <span>Player type</span>
+          <select data-scouting-filter="roleProfileId">
+            ${renderScoutingRoleProfileOptions(filters.roleProfileId)}
+          </select>
+        </label>
+        <label>
+          <span>Benchmark</span>
+          <select data-scouting-filter="benchmarkMode">
+            ${getScoutingBenchmarkModeOptions()
+              .map((option) => `<option value="${escapeHtml(option.value)}" ${filters.benchmarkMode === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
+              .join("")}
+          </select>
+        </label>
+        <label>
+          <span>Min role fit</span>
+          <input type="number" min="1" max="99" step="1" value="${escapeHtml(filters.roleFitMin)}" placeholder="70" data-scouting-filter="roleFitMin" />
+        </label>
+        <label>
+          <span>Sort by</span>
+          <select data-scouting-filter="sortMetricId">
+            ${sortOptions.map((metric) => `<option value="${escapeHtml(metric.id)}" ${filters.sortMetricId === metric.id ? "selected" : ""}>${escapeHtml(metric.label)}</option>`).join("")}
+          </select>
+        </label>
+      </div>
     </div>
   `;
 }
@@ -5987,6 +6432,7 @@ function renderScoutingImportPanel() {
     ["season", "Season"],
     ["position", "Position"],
     ["age", "Age"],
+    ["dateOfBirth", "Date of birth"],
     ["matches", "Matches"],
     ["minutes", "Minutes"],
     ["birthCountry", "Birth country"],
@@ -6057,10 +6503,13 @@ function renderScoutingImportPanel() {
                         .join("")}
                     </div>
                     <div class="scouting-import-preview">
-                      <strong>Metric columns</strong>
-                      <p>${escapeHtml(`${getScoutingImportMetricHeaders(headers, draft.map || {}).length} unmapped columns will be imported as metrics.`)}</p>
-                      <button type="button" class="scouting-primary-button" data-apply-scouting-import>Update scouting database</button>
+                      <div>
+                        <strong>Metric columns</strong>
+                        <p>${escapeHtml(`${getScoutingImportMetricHeaders(headers, draft.map || {}).length} unmapped columns will be imported as metrics.`)}</p>
+                      </div>
+                      <button type="button" class="scouting-primary-button" data-apply-scouting-import>${escapeHtml(draft.importPreview?.signature ? "Commit preview" : "Preview update")}</button>
                     </div>
+                    ${renderScoutingImportDiffPreview(draft.importPreview)}
                   `
                   : ""
               }
@@ -6145,19 +6594,19 @@ function getScoutingDataQualitySummary() {
   const database = getScoutingDatabase();
   const records = database?.records || [];
   const options = getScoutingDatabaseOptions();
+  const metricOptions = getScoutingMetricOptions();
+  const metricOptionCount = metricOptions.length;
   const seenKeys = new Set();
   let duplicateRows = 0;
   let missingCore = 0;
   let missingAge = 0;
   let missingMinutes = 0;
   let metricValueCount = 0;
+  let trustedMetrics = 0;
+  let estimatedMetrics = 0;
+  let missingMetrics = 0;
   records.forEach((record) => {
-    const key = [
-      getScoutingRecordName(record).toLowerCase(),
-      getScoutingRecordTeam(record).toLowerCase(),
-      getScoutingRecordSeason(record).toLowerCase(),
-      getScoutingRecordPosition(record).toLowerCase(),
-    ].join("|");
+    const key = getScoutingRecordMergeKey(record);
     if (seenKeys.has(key)) {
       duplicateRows += 1;
     }
@@ -6171,7 +6620,28 @@ function getScoutingDataQualitySummary() {
     if (!getScoutingRecordMinutes(record)) {
       missingMinutes += 1;
     }
-    metricValueCount += getScoutingRecordMetricValueCount(record);
+    const rowMetricValueCount = getScoutingRecordMetricValueCount(record);
+    metricValueCount += rowMetricValueCount;
+    const metrics = record?.[scoutingRecordIndex.metrics];
+    const qualityMap = record?.[scoutingRecordIndex.metricQuality] || {};
+    const entries = Array.isArray(metrics)
+      ? metrics.map((entry, index) => [metricOptions[index]?.id || String(index), entry])
+      : Object.entries(metrics || {});
+    entries.forEach(([metricId, entry]) => {
+      const value = entry && typeof entry === "object" && !Array.isArray(entry) ? entry.value : entry;
+      if (!Number.isFinite(Number(value))) {
+        return;
+      }
+      const quality = entry && typeof entry === "object" && !Array.isArray(entry)
+        ? normalizeScoutingMetricQuality(entry.quality)
+        : normalizeScoutingMetricQuality(qualityMap[metricId]);
+      if (quality === "trusted") {
+        trustedMetrics += 1;
+      } else if (quality === "estimated") {
+        estimatedMetrics += 1;
+      }
+    });
+    missingMetrics += Math.max(0, metricOptionCount - rowMetricValueCount);
   });
   const metricAverage = records.length ? Math.round(metricValueCount / records.length) : 0;
   const coreCompleteness = records.length ? Math.round(((records.length - missingCore) / records.length) * 100) : 0;
@@ -6188,6 +6658,9 @@ function getScoutingDataQualitySummary() {
     missingMinutes,
     metricAverage,
     coreCompleteness,
+    trustedMetrics,
+    estimatedMetrics,
+    missingMetrics,
   };
 }
 function renderScoutingDataQualityPanel() {
@@ -6204,8 +6677,8 @@ function renderScoutingDataQualityPanel() {
         <article><span>Positions</span><strong>${escapeHtml(summary.positions)}</strong><em>Parsed role tokens</em></article>
         <article><span>Metric depth</span><strong>${escapeHtml(summary.metricAverage)}</strong><em>avg values/player</em></article>
         <article><span>Duplicates</span><strong>${escapeHtml(summary.duplicateRows)}</strong><em>same player/team/season</em></article>
-        <article><span>Missing age</span><strong>${escapeHtml(summary.missingAge)}</strong><em>rows to enrich</em></article>
-        <article><span>Missing minutes</span><strong>${escapeHtml(summary.missingMinutes)}</strong><em>sample risk</em></article>
+        <article><span>Trusted metrics</span><strong>${escapeHtml(summary.trustedMetrics)}</strong><em>${escapeHtml(summary.estimatedMetrics)} estimated</em></article>
+        <article><span>Missing metrics</span><strong>${escapeHtml(summary.missingMetrics)}</strong><em>${escapeHtml(summary.missingMinutes)} rows missing minutes</em></article>
       </div>
     </section>
   `;
@@ -7719,6 +8192,14 @@ export function handleClick(event, context) {
     renderScoutingWorkspace();
     return;
   }
+  const advancedFiltersTrigger = event.target.closest("[data-toggle-scouting-advanced-filters]");
+  if (advancedFiltersTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    scoutingAdvancedDatabaseFiltersOpen = !scoutingAdvancedDatabaseFiltersOpen;
+    renderScoutingWorkspace({ preserveFocus: true });
+    return;
+  }
   const openImportTrigger = event.target.closest("[data-scouting-import-open]");
   if (openImportTrigger) {
     if (!canEditScoutingWorkspace()) {
@@ -7853,6 +8334,7 @@ export function handleInput(event, context) {
       scoutingImportDraft = {
         ...scoutingImportDraft,
         seasonOverride: importSeasonInput.value,
+        importPreview: null,
       };
     }
     return;
@@ -7952,6 +8434,16 @@ export function handleChange(event, context) {
 }
 export function handleSubmit(event, context) {
   setScoutingContext(context);
+  const databaseSearchForm = event.target.closest("[data-scouting-database-search-form]");
+  if (databaseSearchForm) {
+    event.preventDefault();
+    const formData = new FormData(databaseSearchForm);
+    setScoutingDatabaseFilter("query", formData.get("query"));
+    if (isScoutingDatabaseLoaded()) {
+      scheduleScoutingDatabaseRefresh();
+    }
+    return;
+  }
   const savedViewForm = event.target.closest("[data-scouting-saved-view-form]");
   if (savedViewForm) {
     if (!canEditScoutingWorkspace()) {

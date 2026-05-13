@@ -5775,6 +5775,11 @@ function formatMonthLabel(date) {
     year: "numeric",
   }).format(date);
 }
+function formatScheduleMonthLabel(date) {
+  return new Intl.DateTimeFormat("en-GB", {
+    month: "long",
+  }).format(date);
+}
 function getSelectedPeriodizationDate() {
   if (!periodizationState) {
     return new Date(periodizationYear, 0, 1);
@@ -6503,11 +6508,8 @@ function getScheduleOverviewLabel() {
   }
   const startDate = new Date(scheduleState.selectedYear, scheduleState.selectedMonthIndex, 1);
   const endDate = new Date(scheduleState.selectedYear, scheduleState.selectedMonthIndex + scheduleState.overviewSpan - 1, 1);
-  const startLabel = new Intl.DateTimeFormat("en-GB", { month: "long" }).format(startDate);
-  const endLabel = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" }).format(endDate);
-  if (startDate.getFullYear() !== endDate.getFullYear()) {
-    return `${startLabel} ${startDate.getFullYear()} - ${endLabel}`;
-  }
+  const startLabel = formatScheduleMonthLabel(startDate);
+  const endLabel = formatScheduleMonthLabel(endDate);
   return `${startLabel} - ${endLabel}`;
 }
 function getScheduleWeekDates(dateValue = scheduleState?.selectedDate) {
@@ -6520,12 +6522,9 @@ function getScheduleWeekLabel() {
   const weekDates = getScheduleWeekDates();
   const startDate = weekDates[0];
   const endDate = weekDates[6];
-  const startOptions =
-    startDate.getFullYear() === endDate.getFullYear()
-      ? { day: "numeric", month: "short" }
-      : { day: "numeric", month: "short", year: "numeric" };
-  const startLabel = new Intl.DateTimeFormat("en-GB", startOptions).format(startDate);
-  const endLabel = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(endDate);
+  const weekLabelFormatter = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
+  const startLabel = weekLabelFormatter.format(startDate);
+  const endLabel = weekLabelFormatter.format(endDate);
   return `${startLabel} - ${endLabel}`;
 }
 function renderScheduleMonthDay(date, isCompact = false, visibleMonthIndex = scheduleState?.selectedMonthIndex) {
@@ -6575,7 +6574,7 @@ function renderScheduleMonthDay(date, isCompact = false, visibleMonthIndex = sch
   `;
 }
 function renderScheduleOverviewMonth(monthDate) {
-  const monthLabel = formatMonthLabel(monthDate);
+  const monthLabel = formatScheduleMonthLabel(monthDate);
   const dates = getScheduleMonthGridDates(monthDate.getFullYear(), monthDate.getMonth());
   const monthEvents = getScheduleVisibleMonthEvents(monthDate.getFullYear(), monthDate.getMonth());
   return `
@@ -6763,7 +6762,7 @@ function renderScheduleWorkspace() {
     return;
   }
   const selectedMonthDate = new Date(scheduleState.selectedYear, scheduleState.selectedMonthIndex, 1);
-  const selectedMonthLabel = formatMonthLabel(selectedMonthDate);
+  const selectedMonthLabel = formatScheduleMonthLabel(selectedMonthDate);
   const selectedDateValue = scheduleState.selectedDate;
   const isOverview = scheduleState.viewMode === "overview";
   const isWeek = scheduleState.viewMode === "week";

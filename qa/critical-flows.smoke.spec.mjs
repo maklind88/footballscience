@@ -330,8 +330,9 @@ test("Schedule Today anchors overview to the real current date", async ({ page }
   await openWorkspace(page, "schedule");
   await page.locator("#scheduleTodayButton").click();
 
+  await expect(page.locator("#scheduleMonthTitle")).toHaveText("May - October");
   await expect(page.locator("#scheduleSelectedDateLabel")).toHaveText("Saturday, 9 May 2026");
-  await expect(page.locator(".schedule-overview-month h3").first()).toHaveText("May 2026");
+  await expect(page.locator(".schedule-overview-month h3").first()).toHaveText("May");
   await expect(page.locator('[data-schedule-date="2026-05-09"]')).toHaveClass(/is-selected/);
   await expect
     .poll(() =>

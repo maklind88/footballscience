@@ -798,8 +798,12 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
     /\d+\/\d+ squad/
   );
   await expect(page.locator(".squad-command-tools .squad-command-list-summary")).toHaveCount(0);
+  await expect(page.locator(".squad-table thead").first()).not.toContainText("Medical");
+  await expect(page.locator(".squad-table thead").first()).toContainText("IDP");
   await expect(page.locator(".squad-player-row").first()).toContainText("Goalkeeper");
   await expect(page.locator(".squad-player-row").first().locator(".squad-role-cell small")).toHaveCount(0);
+  await expect(page.locator(".squad-player-row").first().locator(".squad-planning-cell small")).toHaveCount(0);
+  await expect(page.locator(".squad-player-row").first().locator(".squad-idp-cell")).toContainText(/IDP|Review|Monitor/);
   await page.locator("[data-squad-team-logo-upload]").setInputFiles({
     name: "riverside-logo.png",
     mimeType: "image/png",
@@ -1160,8 +1164,8 @@ test("Squad availability status is editable and Medical injury status overrides 
     page.locator(`[data-player-profile-select="${injuredPlayerId}"] .squad-status-pill`).first()
   ).toContainText("Injured");
   await expect(
-    page.locator(`[data-player-profile-select="${injuredPlayerId}"] .squad-medical-cell`).first()
-  ).toContainText(/Unavailable|Medical restriction/);
+    page.locator(`[data-player-profile-select="${injuredPlayerId}"] .squad-medical-cell`)
+  ).toHaveCount(0);
 
   await page.locator(`[data-player-profile-select="${manualPlayerId}"]`).click();
   const modal = page.locator(".squad-profile-modal:has(#playerProfileEditForm)").first();

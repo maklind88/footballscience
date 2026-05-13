@@ -23030,9 +23030,19 @@ function renderSquadRoleCell(player) {
   return `<div class="squad-role-cell">${renderSquadRoleStack(player)}</div>`;
 }
 function renderSquadPlanningCell(player) {
-  const careerPhase = getPlayerProfileOption(playerProfileCareerPhaseOptions, player.careerPhase).label;
-  const idpStatus = getPlayerProfileOption(playerProfileIdpStatusOptions, player.idp?.status || "none").label;
-  return `<div class="squad-planning-cell"><div class="squad-pill-stack">${renderSquadOptionPill(playerProfileSquadStatusOptions, player.squadStatus)}${renderSquadRosterTypePill(player)}</div><small>${escapeHtml(careerPhase)} / ${escapeHtml(idpStatus)}</small></div>`;
+  return `<div class="squad-planning-cell"><div class="squad-pill-stack">${renderSquadOptionPill(playerProfileSquadStatusOptions, player.squadStatus)}${renderSquadRosterTypePill(player)}</div></div>`;
+}
+function renderSquadIdpCell(player) {
+  const statusOption = getPlayerProfileOption(playerProfileIdpStatusOptions, player.idp?.status || "none", playerProfileIdpStatusOptions[0]);
+  const focus = String(player.idp?.primaryFocus || player.idp?.nextAction || "").trim();
+  const reviewDate = player.idp?.reviewDate ? `Review ${formatMedicalDateLabel(player.idp.reviewDate)}` : "";
+  const detail = focus || (statusOption.key === "none" ? "" : reviewDate);
+  return `
+    <div class="squad-idp-cell">
+      <span class="squad-option-pill is-idp-${escapeHtml(statusOption.key)}">${escapeHtml(statusOption.label)}</span>
+      ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
+    </div>
+  `;
 }
 function renderSquadProfileProgressCell(completeness) {
   return `<div class="squad-profile-progress-cell"><span class="squad-completion"><span style="width: ${completeness}%"></span></span><small class="squad-completion-label">${completeness}% complete</small></div>`;
@@ -23061,7 +23071,7 @@ function renderSquadPlayerRow(player) {
       <td>${renderSquadRoleCell(player)}</td>
       <td>${renderSquadPlanningCell(player)}</td>
       <td>${renderPlayerProfileStatusChip(effectiveStatus)}</td>
-      <td><span class="squad-medical-cell medical-tone-${escapeHtml(medicalSnapshot.tone)}">${escapeHtml(medicalSnapshot.currentAvailability)}</span></td>
+      <td>${renderSquadIdpCell(player)}</td>
       <td>${renderSquadProfileProgressCell(completeness)}</td>
     </tr>
   `;
@@ -23076,7 +23086,7 @@ function renderSquadPlayerTable(players = [], emptyText = "No players found. Adj
             <th>Roles</th>
             <th>Squad</th>
             <th>Status</th>
-            <th>Medical</th>
+            <th>IDP</th>
             <th>Profile</th>
           </tr>
         </thead>

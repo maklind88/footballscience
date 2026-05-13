@@ -45,6 +45,7 @@ requirePackageScript("release:monitor", "npm run release:monitor-postdeploy && n
 requirePackageScript("release:incident-alert", "node scripts/create-incident-alert.mjs");
 requirePackageScript("release:incident-readiness", "node scripts/verify-incident-readiness.mjs");
 requirePackageScript("release:rules", "node scripts/verify-release-rules.mjs");
+requirePackageScript("release:traffic", "node scripts/verify-vercel-release-traffic.mjs");
 requirePackageScript("release:vercel-token", "node scripts/verify-vercel-token.mjs");
 requirePackageScript("storage:guard", "node scripts/verify-storage-key-policy.mjs");
 requirePackageScript("security:platform", "node scripts/verify-platform-security.mjs");
@@ -73,6 +74,8 @@ requireText("scripts/verify-production-deploy.mjs", "Live app.js hash does not m
 requireText("scripts/verify-production-deploy.mjs", "RELEASE_ALLOW_LIVE_HASH_MISMATCH", "production monitor must verify live health even when main is ahead of live");
 requireText("scripts/verify-ci-release-env.mjs", "CRON_SECRET", "production CI must include the cron secret used for backup freshness checks");
 requireText("scripts/verify-vercel-token.mjs", "Vercel deployment token: ok", "CI must verify the Vercel token before deployment commands run");
+requireText("scripts/verify-vercel-release-traffic.mjs", "Production Deploy", "deploy tooling must avoid concurrent production deploy traffic");
+requireText("scripts/release-ship.mjs", "release:traffic", "deploy commands must check release traffic before calling Vercel");
 requireText("scripts/verify-incident-readiness.mjs", "Incident readiness verification: ok", "incident alerting must stay testable");
 requireText("qa/production.live.spec.mjs", "production admin account can open Access & Users", "live smoke must prove admin access");
 requireText("qa/production.live.spec.mjs", 'toBe("admin")', "live smoke must fail if the release QA account loses admin");

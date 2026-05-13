@@ -23,6 +23,7 @@ npm run deploy
 ```
 
 `npm run deploy` runs the fast release ship path: local isolation, syntax/check gates, release rules, storage guard, platform security, push, production Vercel deploy, and postdeploy verification.
+Before it calls Vercel, the release traffic guard checks GitHub Actions and stops if staging deploy, production deploy, or rollback is already active. This prevents parallel Codex chats from burning Vercel API/build/deploy limits at the same time.
 
 ### Safe Deploy
 
@@ -33,6 +34,7 @@ npm run deploy:safe
 ```
 
 `npm run deploy:safe` runs the full QA/safety path and should be used for API, data, auth, security, Supabase, migration, backup/restore, or broad multi-module changes.
+It uses the same release traffic guard before starting Vercel-facing deploy work.
 
 ### Advanced Release Automation
 

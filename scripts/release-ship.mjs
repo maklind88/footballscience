@@ -227,6 +227,10 @@ function runValidation(mode) {
   }
 }
 
+function verifyVercelReleaseTraffic() {
+  run("npm", ["run", "release:traffic"]);
+}
+
 function pushCurrentBranch() {
   const branch = currentBranch();
   if (branch === "main") {
@@ -392,6 +396,7 @@ async function main() {
   }
 
   if (options.deploy) {
+    verifyVercelReleaseTraffic();
     if (mode === "fast") {
       deployDirectProduction();
     } else {

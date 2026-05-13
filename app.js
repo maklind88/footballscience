@@ -23076,11 +23076,78 @@ function renderSquadPlanningCell(player) {
   ].join("");
   return `<div class="squad-planning-cell"><div class="squad-pill-stack">${pills}</div></div>`;
 }
+function getPlayerProfileDateDiffDays(fromDateValue, toDateValue) {
+  if (!isMedicalDateValue(fromDateValue) || !isMedicalDateValue(toDateValue)) {
+    return 0;
+  }
+  const fromDate = parseScheduleDateValue(fromDateValue);
+  const toDate = parseScheduleDateValue(toDateValue);
+  fromDate.setHours(0, 0, 0, 0);
+  toDate.setHours(0, 0, 0, 0);
+  return Math.round((toDate.getTime() - fromDate.getTime()) / 86400000);
+}
+function getPlayerProfileDateValueFromTimestamp(value = "") {
+  const parsedTime = Date.parse(value);
+  if (!Number.isFinite(parsedTime)) {
+    return "";
+  }
+  return formatScheduleDateValue(new Date(parsedTime));
+}
+function getPlayerProfileIdpReviewLabel(reviewDate = "", todayValue = formatScheduleDateValue(new Date())) {
+  if (!isMedicalDateValue(reviewDate)) {
+    return "";
+  }
+  const daysUntilReview = getPlayerProfileDateDiffDays(todayValue, reviewDate);
+  if (daysUntilReview < 0) {
+    return `Review overdue ${Math.abs(daysUntilReview)}d`;
+  }
+  if (daysUntilReview === 0) {
+    return "Review today";
+  }
+  if (daysUntilReview === 1) {
+    return "Review tomorrow";
+  }
+  if (daysUntilReview <= 14) {
+    return `Review in ${daysUntilReview}d`;
+  }
+  return `Review ${formatMedicalDateLabel(reviewDate)}`;
+}
+function getPlayerProfileIdpMissingFocusLabel(player, todayValue = formatScheduleDateValue(new Date())) {
+  const anchorDate =
+    getPlayerProfileDateValueFromTimestamp(player.updatedAt) ||
+    getPlayerProfileDateValueFromTimestamp(player.createdAt) ||
+    todayValue;
+  const daysWithoutFocus = Math.max(0, getPlayerProfileDateDiffDays(anchorDate, todayValue));
+  return `No IDP focus · ${daysWithoutFocus}d`;
+}
+function getPlayerProfileIdpFollowUpLabel(player, statusOption) {
+  const idp = player.idp || {};
+  const todayValue = formatScheduleDateValue(new Date());
+  const nextAction = String(idp.nextAction || "").trim();
+  const reviewLabel = getPlayerProfileIdpReviewLabel(idp.reviewDate, todayValue);
+  if (statusOption.key === "none") {
+    return "No active IDP";
+  }
+  if (!String(idp.primaryFocus || "").trim()) {
+    return getPlayerProfileIdpMissingFocusLabel(player, todayValue);
+  }
+  if (nextAction && reviewLabel) {
+    return `${nextAction} · ${reviewLabel}`;
+  }
+  if (reviewLabel) {
+    return reviewLabel;
+  }
+  if (nextAction) {
+    return `Next: ${nextAction}`;
+  }
+  if (statusOption.key === "review") {
+    return "Review needed";
+  }
+  return "Set follow-up date";
+}
 function renderSquadIdpCell(player) {
   const statusOption = getPlayerProfileOption(playerProfileIdpStatusOptions, player.idp?.status || "none", playerProfileIdpStatusOptions[0]);
-  const focus = String(player.idp?.primaryFocus || player.idp?.nextAction || "").trim();
-  const reviewDate = player.idp?.reviewDate ? `Review ${formatMedicalDateLabel(player.idp.reviewDate)}` : "";
-  const detail = focus || (statusOption.key === "none" ? "" : reviewDate);
+  const detail = getPlayerProfileIdpFollowUpLabel(player, statusOption);
   return `
     <div class="squad-idp-cell">
       <span class="squad-option-pill is-idp-${escapeHtml(statusOption.key)}">${escapeHtml(statusOption.label)}</span>

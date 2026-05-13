@@ -822,7 +822,10 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
   await expect(page.locator(".squad-player-row").first().locator(".squad-planning-cell")).not.toContainText(
     "Squad player"
   );
-  await expect(page.locator(".squad-player-row").first().locator(".squad-idp-cell")).toContainText(/IDP|Review|Monitor/);
+  const firstIdpCell = page.locator(".squad-player-row").first().locator(".squad-idp-cell");
+  await expect(firstIdpCell).toContainText(/IDP|Review|Monitor/);
+  await expect(firstIdpCell).toContainText(/Review|Next:|follow-up|No IDP focus|No active IDP/);
+  await expect(firstIdpCell).not.toContainText("Distribution, claiming");
   const squadSearch = page.locator("[data-player-profile-search]").first();
   await squadSearch.click();
   await page.keyboard.type("Mad");

@@ -34,9 +34,10 @@
     "release:ship": "node scripts/release-ship.mjs",
     "release:postdeploy": "node scripts/verify-production-deploy.mjs",
     "release:backup": "node scripts/verify-app-state-backup-freshness.mjs",
+    "release:backup:trigger": "node scripts/trigger-app-state-backup.mjs",
     "release:restore-readiness": "node scripts/verify-app-state-restore-readiness.mjs",
     "release:restore-drill": "node scripts/verify-app-state-restore-drill.mjs",
-    "release:monitor": "npm run release:postdeploy && npm run release:backup && npm run release:restore-readiness && npm run release:restore-drill && npm run qa:live:required",
+    "release:monitor": "npm run release:postdeploy && npm run release:backup:trigger && npm run release:backup && npm run release:restore-readiness && npm run release:restore-drill && npm run qa:live:required",
     "release:rules": "node scripts/verify-release-rules.mjs",
     "security:audit": "npm audit --audit-level=high"
   },

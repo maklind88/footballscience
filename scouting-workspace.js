@@ -31,12 +31,16 @@ let scoutingDatabaseApiRefreshTimer = 0;
 let scoutingOppositionFilters = { team: "", season: "all", minMinutes: 450 };
 let scoutingOppositionLatestSnapshot = null;
 const scoutingImportedDatabaseStorageKey = "football-scouting-imported-database-v1";
+const scoutingImportLastUploadStorageKey = "football-scouting-last-import-summary-v1";
 const scoutingImportSupportedSourceTypes = Object.freeze([
   { id: "xlsx", label: "Excel", extensions: [".xlsx", ".xls"], parser: "xlsx", supportsSheets: true },
   { id: "csv", label: "CSV / TSV", extensions: [".csv", ".tsv", ".txt"], parser: "csv", supportsSheets: false },
   { id: "json", label: "JSON", extensions: [".json"], parser: "json", supportsSheets: false },
   { id: "pdf", label: "PDF", extensions: [".pdf"], parser: "pdf", supportsSheets: false },
 ]);
+const SCOUTING_IMPORT_MAX_RECORDS_PER_CHUNK = 10;
+const SCOUTING_IMPORT_MAX_CHUNK_PAYLOAD_CHARACTERS = 70000;
+const SCOUTING_IMPORT_MAX_CHUNK_BYTES = 200000;
 const scoutingImportSupportedFileExts = Object.freeze(
   scoutingImportSupportedSourceTypes
     .flatMap((sourceType) => sourceType.extensions)
@@ -119,6 +123,82 @@ function escapeHtml(value) {
 }
 function normalizeScoutingText(value, maxLength = 160) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+function getScoutingImportLastUploadSummary() {
+  try {
+    const raw = window.localStorage?.getItem(scoutingImportLastUploadStorageKey);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+function setScoutingImportLastUploadSummary(summary = {}) {
+  if (!window.localStorage) {
+    return;
+  }
+  try {
+    const safe = typeof summary === "object" && summary ? summary : {};
+    window.localStorage.setItem(scoutingImportLastUploadStorageKey, JSON.stringify(safe));
+  } catch {}
+}
+function formatScoutingImportSummaryStatus(summary = {}) {
+  if (summary.status === "published") {
+    return "Published";
+  }
+  if (summary.status === "failed") {
+    return "Failed";
+  }
+  if (summary.status === "importing" || summary.status === "started") {
+    return "Uploading";
+  }
+  return "Pending";
+}
+function formatScoutingImportSummaryDate(value = "") {
+  const stamp = normalizeScoutingText(value, 120);
+  if (!stamp) {
+    return "";
+  }
+  const parsed = new Date(stamp);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+  return parsed.toLocaleString("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+function getScoutingImportLastUploadMarkup() {
+  const summary = scoutingImportDraft?.lastUploadSummary || getScoutingImportLastUploadSummary();
+  if (!summary || (!summary.status && !summary.fileName)) {
+    return `
+      <div class="scouting-import-last-upload">
+        <span>Latest scouting player database upload</span>
+        <strong>No uploads yet</strong>
+      </div>
+    `;
+  }
+  const uploadedAt = formatScoutingImportSummaryDate(summary.updatedAt || summary.createdAt || summary.startedAt);
+  const rows = Number.isFinite(Number(summary.rowCount)) ? Number(summary.rowCount).toLocaleString("en-US") : "0";
+  const metrics = Number.isFinite(Number(summary.metricCount)) ? Number(summary.metricCount).toLocaleString("en-US") : "0";
+  const status = formatScoutingImportSummaryStatus(summary);
+  const databaseStored = summary.databaseStored ? " · Database updated" : summary.databaseStored === false ? " · Local only" : "";
+  const sourceFile = normalizeScoutingText(summary.fileName || "", 140) || "Unknown file";
+  const batch = normalizeScoutingText(summary.batchId || "", 110);
+  const batchText = batch ? ` · batch ${batch}` : "";
+  return `
+    <div class="scouting-import-last-upload">
+      <span>${escapeHtml("Latest scouting player database upload")}</span>
+      <strong>${escapeHtml(sourceFile)}</strong>
+      <p>${escapeHtml(`${status}${uploadedAt ? ` · ${uploadedAt}` : ""} · ${rows} rows · ${metrics} metrics${databaseStored}${batchText}`)}</p>
+    </div>
+  `;
 }
 function normalizeScoutingRecordIds(values = []) {
   const seen = new Set();
@@ -376,7 +456,11 @@ function recordScoutingImportIntent(database = {}) {
     },
   }).catch(() => ({ ok: false }));
 }
-function getScoutingImportChunks(records = [], maxRecordsPerChunk = 25, maxPayloadCharacters = 180000) {
+function getScoutingImportChunks(
+  records = [],
+  maxRecordsPerChunk = SCOUTING_IMPORT_MAX_RECORDS_PER_CHUNK,
+  maxPayloadCharacters = SCOUTING_IMPORT_MAX_CHUNK_PAYLOAD_CHARACTERS
+) {
   const chunks = [];
   let current = [];
   let currentSize = 0;
@@ -397,7 +481,7 @@ function getScoutingImportChunks(records = [], maxRecordsPerChunk = 25, maxPaylo
 }
 async function publishScoutingExcelImportToDatabase(database = {}) {
   if (!database?.records?.length) {
-    return { ok: false };
+    return { ok: false, reason: "No scouting player rows to upload." };
   }
   const startResult = await sendScoutingApiAction({
     action: "startExcelImport",
@@ -422,22 +506,32 @@ async function publishScoutingExcelImportToDatabase(database = {}) {
   }
   const chunks = getScoutingImportChunks(database.records);
   for (let index = 0; index < chunks.length; index += 1) {
-    scoutingImportDraft = {
-      ...(scoutingImportDraft || {}),
-      databaseUploadStatus: `Uploading ${index + 1}/${chunks.length} to scouting player database`,
-      databaseImportBatchId: importBatchId,
-    };
-    renderScoutingWorkspace({ preserveFocus: true });
-    const chunkResult = await sendScoutingApiAction({
+    const chunkPayload = {
       action: "importExcelChunk",
       importBatchId,
       chunkIndex: index,
       chunkCount: chunks.length,
       metrics: index === 0 ? database.metrics || [] : [],
       records: chunks[index],
-    });
+    };
+    if (JSON.stringify(chunkPayload).length > SCOUTING_IMPORT_MAX_CHUNK_BYTES) {
+      return {
+        ok: false,
+        reason: "Upload chunk is too large for API limits. Please remove unused metric columns or split the file.",
+      };
+    }
+    scoutingImportDraft = {
+      ...(scoutingImportDraft || {}),
+      databaseUploadStatus: `Uploading ${index + 1}/${chunks.length} to scouting player database`,
+      databaseImportBatchId: importBatchId,
+    };
+    renderScoutingWorkspace({ preserveFocus: true });
+    const chunkResult = await sendScoutingApiAction(chunkPayload);
     if (!chunkResult.ok) {
-      throw new Error(chunkResult.reason || "Scouting player database chunk upload failed.");
+      return {
+        ok: false,
+        reason: chunkResult.reason || "Scouting player database chunk upload failed.",
+      };
     }
   }
   const finishResult = await sendScoutingApiAction({
@@ -447,7 +541,10 @@ async function publishScoutingExcelImportToDatabase(database = {}) {
     metricCount: database.metrics?.length || 0,
   });
   if (!finishResult.ok) {
-    throw new Error(finishResult.reason || "Scouting player database import could not be published.");
+    return {
+      ok: false,
+      reason: finishResult.reason || "Scouting player database import could not be published.",
+    };
   }
   scoutingImportDraft = {
     ...(scoutingImportDraft || {}),
@@ -455,6 +552,16 @@ async function publishScoutingExcelImportToDatabase(database = {}) {
     databaseUploadStatus: "Scouting player database updated",
     databaseImportBatchId: importBatchId,
   };
+  scoutingImportDraft.lastUploadSummary = {
+    ...(scoutingImportDraft.lastUploadSummary || {}),
+    status: "published",
+    databaseStored: true,
+    batchId: importBatchId,
+    rowCount: database.records.length,
+    metricCount: database.metrics?.length || 0,
+    updatedAt: new Date().toISOString(),
+  };
+  setScoutingImportLastUploadSummary(scoutingImportDraft.lastUploadSummary);
   renderScoutingWorkspace({ preserveFocus: true });
   return finishResult;
 }
@@ -1540,11 +1647,26 @@ function applyScoutingImportDraft() {
   }
   const database = buildScoutingImportedDatabase();
   if (!database?.records?.length) {
+    const failedSummary = {
+      status: "failed",
+      fileName: scoutingImportDraft?.fileName || "Uploaded file",
+      sourceSystem: scoutingImportDraft?.sourceSystem || getScoutingImportSourceSystem(),
+      sourceTypeLabel: scoutingImportDraft?.sourceTypeLabel || "",
+      rowCount: 0,
+      metricCount: 0,
+      season: scoutingImportDraft?.seasonOverride || "",
+      startedAt: scoutingImportDraft?.startedAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      databaseStored: false,
+      databaseUploadError: "No importable player rows found. Check column mapping.",
+    };
     scoutingImportDraft = {
       ...(scoutingImportDraft || {}),
       status: "error",
       error: "No importable player rows found. Check column mapping.",
+      lastUploadSummary: failedSummary,
     };
+    setScoutingImportLastUploadSummary(failedSummary);
     renderScoutingWorkspace({ preserveFocus: true });
     return;
   }
@@ -1554,20 +1676,101 @@ function applyScoutingImportDraft() {
   try {
     window.localStorage?.setItem(scoutingImportedDatabaseStorageKey, JSON.stringify(database));
   } catch {}
-  void publishScoutingExcelImportToDatabase(database).catch((error) => {
-    scoutingImportDraft = {
-      ...(scoutingImportDraft || {}),
-      databaseStored: false,
-      databaseUploadError: error?.message || "Scouting player database upload failed. Local import is still active.",
-    };
-    renderScoutingWorkspace({ preserveFocus: true });
-  });
   scoutingImportDraft = {
     ...scoutingImportDraft,
-    status: "imported",
+    status: "importing",
+    databaseStored: false,
+    databaseUploadStatus: "Uploading to scouting player database...",
+    databaseUploadError: "",
+    lastUploadSummary: {
+      status: "importing",
+      fileName: database.fileName || "Uploaded file",
+      sourceSystem: scoutingImportDraft?.sourceSystem || getScoutingImportSourceSystem(),
+      sourceTypeLabel: scoutingImportDraft?.sourceTypeLabel || "",
+      rowCount: database.records.length,
+      metricCount: database.metrics.length,
+      season: scoutingImportDraft?.seasonOverride || "",
+      startedAt: new Date().toISOString(),
+      batchId: "",
+      databaseStored: false,
+    },
     importedCount: database.records.length,
     metricCount: database.metrics.length,
   };
+  setScoutingImportLastUploadSummary(scoutingImportDraft.lastUploadSummary);
+  void publishScoutingExcelImportToDatabase(database).then((result) => {
+    if (!result || result.ok === false) {
+      scoutingImportDraft = {
+        ...(scoutingImportDraft || {}),
+        status: "error",
+        databaseStored: false,
+        databaseUploadError: result?.reason || "Scouting player database upload failed. Local import is still active.",
+      };
+      scoutingImportDraft.lastUploadSummary = {
+        ...(scoutingImportDraft.lastUploadSummary || {}),
+        status: "failed",
+        databaseStored: false,
+        updatedAt: new Date().toISOString(),
+        databaseUploadError: scoutingImportDraft.databaseUploadError,
+      };
+      setScoutingImportLastUploadSummary(scoutingImportDraft.lastUploadSummary);
+      renderScoutingWorkspace({ preserveFocus: true });
+      return;
+    }
+    if (result?.result?.enabled === false) {
+      scoutingImportDraft = {
+        ...(scoutingImportDraft || {}),
+        status: "imported",
+        databaseStored: false,
+        databaseUploadError:
+          result.result?.reason ||
+          "Scouting player database mode is disabled. Data is stored locally in your scouting database.",
+      };
+      scoutingImportDraft.lastUploadSummary = {
+        ...(scoutingImportDraft.lastUploadSummary || {}),
+        status: "published",
+        databaseStored: false,
+        updatedAt: new Date().toISOString(),
+      };
+      setScoutingImportLastUploadSummary(scoutingImportDraft.lastUploadSummary);
+      renderScoutingWorkspace({ preserveFocus: true });
+      return;
+    }
+    scoutingImportDraft = {
+      ...(scoutingImportDraft || {}),
+      status: "imported",
+      databaseStored: true,
+      databaseUploadStatus: "Scouting player database updated",
+      databaseUploadError: "",
+      importedCount: database.records.length,
+      metricCount: database.metrics.length,
+      lastUploadSummary: {
+        ...(scoutingImportDraft.lastUploadSummary || {}),
+        status: "published",
+        databaseStored: true,
+        batchId: result?.result?.importBatchId || scoutingImportDraft.lastUploadSummary?.batchId || "",
+        updatedAt: new Date().toISOString(),
+      },
+    };
+    setScoutingImportLastUploadSummary(scoutingImportDraft.lastUploadSummary);
+    renderScoutingWorkspace({ preserveFocus: true });
+  }).catch((error) => {
+    scoutingImportDraft = {
+      ...(scoutingImportDraft || {}),
+      status: "error",
+      databaseStored: false,
+      databaseUploadError: error?.message || "Scouting player database upload failed. Local import is still active.",
+    };
+    scoutingImportDraft.lastUploadSummary = {
+      ...(scoutingImportDraft.lastUploadSummary || {}),
+      status: "failed",
+      databaseStored: false,
+      updatedAt: new Date().toISOString(),
+      databaseUploadError: scoutingImportDraft.databaseUploadError,
+    };
+    setScoutingImportLastUploadSummary(scoutingImportDraft.lastUploadSummary);
+    renderScoutingWorkspace({ preserveFocus: true });
+  });
   renderScoutingWorkspace();
 }
 function clearScoutingImportedDatabase() {
@@ -5406,6 +5609,8 @@ function renderScoutingImportPanel() {
   const draftStatusLabel =
     draft?.status === "loading"
       ? "Reading workbook..."
+      : draft?.status === "importing"
+        ? "Uploading to scouting player database..."
       : draft?.databaseStored
         ? "Scouting player database updated"
         : draft?.status === "imported"
@@ -5449,10 +5654,11 @@ function renderScoutingImportPanel() {
           <p>${escapeHtml(isImported ? `${database.records.length.toLocaleString("en-US")} players / ${database.metrics.length} metrics / imported ${String(database.importedAt || "").slice(0, 10)}` : "Upload a scouting player database file, choose sheet, map columns and update the database without code.")}</p>
         </div>
         ${isImported ? `<button type="button" class="scouting-secondary-button" data-clear-scouting-import>Use built-in data</button>` : ""}
-      </div>
-      ${
-        draft
-          ? `
+        </div>
+        ${getScoutingImportLastUploadMarkup()}
+        ${
+          draft
+            ? `
             <div class="scouting-import-workbench">
               <div class="scouting-import-status">
                 <span>${escapeHtml("Scouting player database file")}</span>
@@ -7284,7 +7490,9 @@ export function handleChange(event, context) {
   setScoutingContext(context);
   const importFileInput = event.target.closest("[data-scouting-import-file]");
   if (importFileInput) {
-    loadScoutingImportFile(importFileInput.files?.[0]).catch(() => {});
+    const nextFile = importFileInput.files?.[0];
+    importFileInput.value = "";
+    loadScoutingImportFile(nextFile).catch(() => {});
     return;
   }
   const importSheetInput = event.target.closest("[data-scouting-import-sheet]");

@@ -594,7 +594,8 @@ align-items: center;
 .scouting-import-status span,
 .scouting-import-controls span,
 .scouting-import-map span,
-.scouting-import-preview strong{
+.scouting-import-preview strong,
+.scouting-import-last-upload span{
 color: #6e6e73;
 font-size: 0.66rem;
 font-weight: 900;
@@ -643,6 +644,25 @@ border-top: 1px solid rgba(35, 59, 45, 0.1);
 display: block;
 color: #1d1d1f;
 font-size: 1rem;
+}
+.scouting-import-last-upload{
+display: grid;
+gap: 0.22rem;
+padding: 0.58rem;
+border-radius: 12px;
+background: rgba(255, 255, 255, 0.72);
+border: 1px solid rgba(29, 29, 31, 0.1);
+}
+.scouting-import-last-upload strong{
+display: block;
+color: #1d1d1f;
+font-size: 0.95rem;
+}
+.scouting-import-last-upload p{
+margin: 0;
+color: #5f665f;
+font-size: 0.78rem;
+line-height: 1.4;
 }
 .scouting-import-controls,
 .scouting-import-map{
@@ -2528,10 +2548,17 @@ body.is-dark-mode .scouting-shadow-depth-player select,
 body.is-dark-mode .scouting-shadow-depth-player > div button,
 body.is-dark-mode .scouting-import-controls input,
 body.is-dark-mode .scouting-import-controls select,
-body.is-dark-mode .scouting-import-map select{
+body.is-dark-mode .scouting-import-map select,
+body.is-dark-mode .scouting-import-last-upload{
 background: rgba(6, 12, 18, 0.84);
 border-color: rgba(255, 255, 255, 0.14);
 color: #f4f0dc;
+}
+body.is-dark-mode .scouting-import-last-upload strong{
+color: #f4f0dc;
+}
+body.is-dark-mode .scouting-import-last-upload p{
+color: #cfd8d0;
 }
 body.is-dark-mode .scouting-shadow-depth-player,
 body.is-dark-mode .scouting-workflow-meta span,

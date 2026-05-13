@@ -29115,6 +29115,10 @@ function renderPeriodizationWorkspace() {
   ) {
     return;
   }
+  const wasPeriodizationOverlayOpen = periodizationDayOverlayOpen;
+  const previousPeriodizationOverlayScrollTop = wasPeriodizationOverlayOpen
+    ? ui.periodizationBoard.querySelector(".periodization-day-overlay .periodization-day-panel")?.scrollTop ?? 0
+    : 0;
   if (!canEditPeriodizationWorkspace() && periodizationDayOverlayMode === "edit") {
     periodizationDayOverlayMode = "view";
   }
@@ -29144,6 +29148,12 @@ function renderPeriodizationWorkspace() {
     </div>
     ${periodizationDayOverlayOpen ? renderPeriodizationDayOverlay(selectedDayValue) : ""}
   `;
+  if (wasPeriodizationOverlayOpen && periodizationDayOverlayOpen) {
+    const overlayPanel = ui.periodizationBoard.querySelector(".periodization-day-overlay .periodization-day-panel");
+    if (overlayPanel && Number.isFinite(previousPeriodizationOverlayScrollTop)) {
+      overlayPanel.scrollTop = previousPeriodizationOverlayScrollTop;
+    }
+  }
 }
 function isPitchFullscreenActive() { return gameSimulatorFullscreenController?.isActive() ?? false; }
 function syncPitchFullscreenButton() {

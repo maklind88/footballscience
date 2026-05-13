@@ -70094,7 +70094,15 @@ ui.playerProfilesWorkspace?.addEventListener("input", (event) => {
   const searchInput = event.target.closest("[data-player-profile-search]");
   if (searchInput) { playerProfilesSearchQuery = searchInput.value; renderPlayerProfilesWorkspace(); return; }
   const editForm = event.target.closest("#playerProfileEditForm");
-  if (editForm) { const label = event.target.type === "range" ? event.target.closest("label")?.querySelector("strong") : null; if (label) label.textContent = `${event.target.value}/5`; queuePlayerProfileAutosave(editForm); }
+  if (editForm) {
+    const label = event.target.type === "range" ? event.target.closest("label")?.querySelector("strong") : null;
+    if (label) label.textContent = `${event.target.value}/5`;
+    if (event.target.matches('textarea[name="coachNotes"]')) {
+      savePlayerProfileEditForm(editForm);
+    } else {
+      queuePlayerProfileAutosave(editForm);
+    }
+  }
 });
 ui.playerProfilesWorkspace?.addEventListener("change", (event) => {
   const editForm = event.target.closest("#playerProfileEditForm");

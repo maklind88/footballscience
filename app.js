@@ -23893,6 +23893,388 @@ function renderSquadOptionPill(options, key) {
   return `<span class="squad-option-pill">${escapeHtml(option.label)}</span>`;
 }
 
+const playerProfileScoutingDatabaseStorageKey = "football-scouting-imported-database-v1";
+const playerProfileScoutingRecordIndex = Object.freeze({
+  id: 0,
+  player: 1,
+  team: 2,
+  league: 4,
+  season: 5,
+  position: 6,
+  minutes: 9,
+  metrics: 14,
+});
+let playerProfileScoutingDatabaseLoadPromise = null;
+const playerProfileScoutingSpiderTemplates = Object.freeze({
+  GK: [
+    { label: "Exits", metricId: "exits-per-90" },
+    { label: "Save rate", metricId: "save-rate" },
+    { label: "Prevention", metricId: "prevented-goals-per-90" },
+    { label: "Accuracy", metricId: "accurate-passes" },
+    { label: "Short game", metricId: "average-pass-length-m", direction: "lower" },
+  ],
+  CB: [
+    { label: "Def actions", metricId: "successful-defensive-actions-per-90" },
+    { label: "Aerial", metricId: "aerial-duels-won" },
+    { label: "Interceptions", metricId: "padj-interceptions" },
+    { label: "Prog pass", metricId: "progressive-passes-per-90" },
+    { label: "Short game", metricId: "average-pass-length-m", direction: "lower" },
+  ],
+  FB: [
+    { label: "Prog runs", metricId: "progressive-runs-per-90" },
+    { label: "Crossing", metricId: "crosses-per-90" },
+    { label: "Def actions", metricId: "successful-defensive-actions-per-90" },
+    { label: "Key passes", metricId: "key-passes-per-90" },
+    { label: "xA", metricId: "xa-per-90" },
+  ],
+  MID: [
+    { label: "Pass volume", metricId: "passes-per-90" },
+    { label: "Prog pass", metricId: "progressive-passes-per-90" },
+    { label: "Receives", metricId: "received-passes-per-90" },
+    { label: "Def work", metricId: "successful-defensive-actions-per-90" },
+    { label: "Creativity", metricId: "smart-passes-per-90" },
+    { label: "Short game", metricId: "average-pass-length-m", direction: "lower" },
+  ],
+  WING: [
+    { label: "Prog runs", metricId: "progressive-runs-per-90" },
+    { label: "Dribbles", metricId: "dribbles-per-90" },
+    { label: "Dribble win", metricId: "successful-dribbles" },
+    { label: "Acceleration", metricId: "accelerations-per-90" },
+    { label: "Box threat", metricId: "touches-in-box-per-90" },
+    { label: "xA", metricId: "xa-per-90" },
+  ],
+  CF: [
+    { label: "Shots", metricId: "shots-per-90" },
+    { label: "xG", metricId: "xg-per-90" },
+    { label: "Box touches", metricId: "touches-in-box-per-90" },
+    { label: "Receives", metricId: "received-passes-per-90" },
+    { label: "Key passes", metricId: "key-passes-per-90" },
+  ],
+  OTHER: [
+    { label: "Passing", metricId: "accurate-passes" },
+    { label: "Progression", metricId: "progressive-passes-per-90" },
+    { label: "Duels", metricId: "duels-won" },
+    { label: "Def work", metricId: "successful-defensive-actions-per-90" },
+    { label: "Creation", metricId: "xa-per-90" },
+  ],
+});
+function normalizePlayerProfileScoutingText(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+function getPlayerProfileScoutingNameParts(value) {
+  return normalizePlayerProfileScoutingText(value).split(" ").filter(Boolean);
+}
+function doPlayerProfileScoutingNamesMatch(playerName, recordName) {
+  const playerText = normalizePlayerProfileScoutingText(playerName);
+  const recordText = normalizePlayerProfileScoutingText(recordName);
+  if (!playerText || !recordText) {
+    return false;
+  }
+  if (playerText === recordText || playerText.includes(recordText) || recordText.includes(playerText)) {
+    return true;
+  }
+  const playerParts = getPlayerProfileScoutingNameParts(playerName);
+  const recordParts = getPlayerProfileScoutingNameParts(recordName);
+  const playerLast = playerParts.at(-1);
+  const recordLast = recordParts.at(-1);
+  const playerFirst = playerParts[0] || "";
+  const recordFirst = recordParts[0] || "";
+  return Boolean(playerLast && recordLast && playerLast === recordLast && playerFirst[0] && playerFirst[0] === recordFirst[0]);
+}
+function getPlayerProfileScoutingDatabase() {
+  const importedDatabase = window.__footballScienceImportedScoutingDatabase;
+  if (importedDatabase && Array.isArray(importedDatabase.records) && Array.isArray(importedDatabase.metrics)) {
+    return importedDatabase;
+  }
+  const bundledDatabase = window.__footballScienceScoutingDatabase;
+  if (bundledDatabase && Array.isArray(bundledDatabase.records) && Array.isArray(bundledDatabase.metrics)) {
+    return bundledDatabase;
+  }
+  try {
+    const stored = window.localStorage?.getItem(playerProfileScoutingDatabaseStorageKey);
+    if (!stored) {
+      return null;
+    }
+    const parsed = JSON.parse(stored);
+    return parsed && Array.isArray(parsed.records) && Array.isArray(parsed.metrics) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+function queuePlayerProfileScoutingDatabaseLoad() {
+  if (getPlayerProfileScoutingDatabase() || playerProfileScoutingDatabaseLoadPromise || !platformModuleLoader?.loadScript) {
+    return;
+  }
+  playerProfileScoutingDatabaseLoadPromise = platformModuleLoader
+    .loadScript("scouting-import-data", "scouting-import-data.js", {
+      id: "scoutingImportDataScript",
+      required: false,
+      async: true,
+    })
+    .then(() => {
+      playerProfileScoutingDatabaseLoadPromise = null;
+      renderPlayerProfilesWorkspace();
+    })
+    .catch(() => {
+      playerProfileScoutingDatabaseLoadPromise = null;
+    });
+}
+function getPlayerProfileScoutingMetric(database, metricId) {
+  return (database?.metrics || []).find((metric) => metric.id === metricId) || null;
+}
+function getPlayerProfileScoutingMetricValue(record, metricId) {
+  const metrics = record?.[playerProfileScoutingRecordIndex.metrics];
+  const value = metrics && typeof metrics === "object" ? Number(metrics[metricId]) : NaN;
+  return Number.isFinite(value) ? value : null;
+}
+function getPlayerProfileScoutingMinutes(record) {
+  const minutes = Number(record?.[playerProfileScoutingRecordIndex.minutes]);
+  return Number.isFinite(minutes) ? minutes : 0;
+}
+function getPlayerProfileScoutingPositionGroup(recordOrPosition, player = null) {
+  const position = Array.isArray(recordOrPosition)
+    ? recordOrPosition[playerProfileScoutingRecordIndex.position]
+    : recordOrPosition || player?.position || player?.primaryRole || "";
+  const tokens = String(position ?? "")
+    .toUpperCase()
+    .split(/[^A-Z0-9]+/)
+    .filter(Boolean);
+  if (tokens.some((token) => token.includes("GK"))) {
+    return "GK";
+  }
+  if (tokens.some((token) => ["CB", "RCB", "LCB"].includes(token))) {
+    return "CB";
+  }
+  if (tokens.some((token) => ["RB", "LB", "RWB", "LWB", "WB"].includes(token))) {
+    return "FB";
+  }
+  if (tokens.some((token) => ["DMF", "CMF", "RCMF", "LCMF", "AMF", "MF", "8", "6", "10"].includes(token))) {
+    return "MID";
+  }
+  if (tokens.some((token) => ["RW", "LW", "RWF", "LWF", "WF", "W"].includes(token))) {
+    return "WING";
+  }
+  if (tokens.some((token) => ["CF", "ST", "FW", "F"].includes(token))) {
+    return "CF";
+  }
+  if (player?.roleGroup === "goalkeeper") {
+    return "GK";
+  }
+  if (player?.roleGroup === "defender") {
+    return "CB";
+  }
+  if (player?.roleGroup === "midfielder") {
+    return "MID";
+  }
+  if (player?.roleGroup === "forward") {
+    return "CF";
+  }
+  return "OTHER";
+}
+function isPlayerProfileNwslScoutingRecord(record) {
+  const league = normalizePlayerProfileScoutingText(record?.[playerProfileScoutingRecordIndex.league]);
+  return league.includes("nwsl") || league.includes("national women");
+}
+function findPlayerProfileNwslScoutingRecord(player) {
+  const database = getPlayerProfileScoutingDatabase();
+  const playerName = normalizePlayerProfileScoutingText(player?.name);
+  if (!database || !playerName) {
+    return null;
+  }
+  const candidates = database.records
+    .filter((record) => {
+      if (!isPlayerProfileNwslScoutingRecord(record)) {
+        return false;
+      }
+      return doPlayerProfileScoutingNamesMatch(playerName, record?.[playerProfileScoutingRecordIndex.player]);
+    })
+    .sort((first, second) => getPlayerProfileScoutingMinutes(second) - getPlayerProfileScoutingMinutes(first));
+  return candidates[0] || null;
+}
+function getPlayerProfileScoutingPercentile(record, metricId, direction = "higher") {
+  const database = getPlayerProfileScoutingDatabase();
+  const value = getPlayerProfileScoutingMetricValue(record, metricId);
+  const metric = getPlayerProfileScoutingMetric(database, metricId);
+  if (!database || !metric || !Number.isFinite(value)) {
+    return null;
+  }
+  const group = getPlayerProfileScoutingPositionGroup(record);
+  const values = database.records
+    .filter(
+      (candidate) =>
+        isPlayerProfileNwslScoutingRecord(candidate) &&
+        getPlayerProfileScoutingPositionGroup(candidate) === group &&
+        getPlayerProfileScoutingMinutes(candidate) >= 300
+    )
+    .map((candidate) => getPlayerProfileScoutingMetricValue(candidate, metricId))
+    .filter((candidateValue) => Number.isFinite(candidateValue))
+    .sort((a, b) => a - b);
+  if (values.length < 2) {
+    return 50;
+  }
+  let low = 0;
+  let high = values.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (values[middle] <= value) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+  const rawPercentile = Math.max(1, Math.min(99, Math.round((low / values.length) * 100)));
+  return direction === "lower" ? Math.max(1, Math.min(99, 101 - rawPercentile)) : rawPercentile;
+}
+function formatPlayerProfileScoutingNumber(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return "n/a";
+  }
+  return number.toLocaleString("en-US", { maximumFractionDigits: Math.abs(number) < 10 ? 2 : 1 });
+}
+function renderPlayerProfileNoDataSpider(message = "No data") {
+  return `
+    <svg class="player-profile-scouting-spider" viewBox="0 0 220 220" role="img" aria-label="${escapeHtml(message)}">
+      <circle class="player-profile-scouting-ring" cx="110" cy="110" r="74" />
+      <circle class="player-profile-scouting-ring" cx="110" cy="110" r="49" />
+      <circle class="player-profile-scouting-ring" cx="110" cy="110" r="25" />
+      <text class="player-profile-scouting-empty-text" x="110" y="108">${escapeHtml(message)}</text>
+      <text class="player-profile-scouting-empty-subtext" x="110" y="126">Wyscout/NWSL</text>
+    </svg>
+  `;
+}
+function renderPlayerProfileScoutingSpider(player) {
+  const database = getPlayerProfileScoutingDatabase();
+  if (!database) {
+    queuePlayerProfileScoutingDatabaseLoad();
+    return `
+      <article class="squad-profile-section player-profile-scouting-spider-card">
+        <header class="squad-section-head">
+          <div>
+            <p>NWSL data spider</p>
+            <h2>Performance Radar</h2>
+          </div>
+          <span>Loading data</span>
+        </header>
+        <div class="player-profile-scouting-spider-layout">
+          ${renderPlayerProfileNoDataSpider("No data")}
+          <p>Wyscout/NWSL data is being loaded. If no matching row exists after import, this stays as a clean no-data spider.</p>
+        </div>
+      </article>
+    `;
+  }
+  const record = findPlayerProfileNwslScoutingRecord(player);
+  if (!record) {
+    return `
+      <article class="squad-profile-section player-profile-scouting-spider-card">
+        <header class="squad-section-head">
+          <div>
+            <p>NWSL data spider</p>
+            <h2>Performance Radar</h2>
+          </div>
+          <span>No verified data</span>
+        </header>
+        <div class="player-profile-scouting-spider-layout">
+          ${renderPlayerProfileNoDataSpider("No data")}
+          <p>No linked NWSL/Wyscout row exists for this player yet. When imported data matches the profile name, this spider will become data-driven.</p>
+        </div>
+      </article>
+    `;
+  }
+  const group = getPlayerProfileScoutingPositionGroup(record, player);
+  const template = playerProfileScoutingSpiderTemplates[group] || playerProfileScoutingSpiderTemplates.OTHER;
+  const axes = template
+    .map((axis) => {
+      const value = getPlayerProfileScoutingMetricValue(record, axis.metricId);
+      const percentile = getPlayerProfileScoutingPercentile(record, axis.metricId, axis.direction || "higher");
+      const metric = getPlayerProfileScoutingMetric(database, axis.metricId);
+      return metric && Number.isFinite(value) && Number.isFinite(percentile)
+        ? { ...axis, value, percentile, metric }
+        : null;
+    })
+    .filter(Boolean);
+  if (axes.length < 3) {
+    return `
+      <article class="squad-profile-section player-profile-scouting-spider-card">
+        <header class="squad-section-head">
+          <div>
+            <p>NWSL data spider</p>
+            <h2>Performance Radar</h2>
+          </div>
+          <span>${escapeHtml(record[playerProfileScoutingRecordIndex.season] || "NWSL")}</span>
+        </header>
+        <div class="player-profile-scouting-spider-layout">
+          ${renderPlayerProfileNoDataSpider("No data")}
+          <p>NWSL row found, but not enough comparable KPI fields exist to draw a reliable spider.</p>
+        </div>
+      </article>
+    `;
+  }
+  const center = 110;
+  const radius = 74;
+  const angleOffset = -Math.PI / 2;
+  const points = axes.map((axis, index) => {
+    const angle = angleOffset + (index / axes.length) * Math.PI * 2;
+    const valueRadius = radius * (axis.percentile / 100);
+    return {
+      ...axis,
+      x: center + Math.cos(angle) * valueRadius,
+      y: center + Math.sin(angle) * valueRadius,
+      axisX: center + Math.cos(angle) * radius,
+      axisY: center + Math.sin(angle) * radius,
+      labelX: center + Math.cos(angle) * (radius + 26),
+      labelY: center + Math.sin(angle) * (radius + 26),
+    };
+  });
+  const polygon = points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
+  return `
+    <article class="squad-profile-section player-profile-scouting-spider-card">
+      <header class="squad-section-head">
+        <div>
+          <p>NWSL data spider</p>
+          <h2>Performance Radar</h2>
+        </div>
+        <span>${escapeHtml([record[playerProfileScoutingRecordIndex.team], record[playerProfileScoutingRecordIndex.season]].filter(Boolean).join(" / ") || "NWSL")}</span>
+      </header>
+      <div class="player-profile-scouting-spider-layout">
+        <svg class="player-profile-scouting-spider" viewBox="0 0 220 220" role="img" aria-label="NWSL performance spider">
+          <circle class="player-profile-scouting-ring" cx="${center}" cy="${center}" r="${radius}" />
+          <circle class="player-profile-scouting-ring" cx="${center}" cy="${center}" r="${radius * 0.66}" />
+          <circle class="player-profile-scouting-ring" cx="${center}" cy="${center}" r="${radius * 0.33}" />
+          ${points.map((point) => `<line class="player-profile-scouting-axis" x1="${center}" y1="${center}" x2="${point.axisX.toFixed(1)}" y2="${point.axisY.toFixed(1)}" />`).join("")}
+          <polygon class="player-profile-scouting-shape" points="${polygon}" />
+          ${points
+            .map(
+              (point) => `
+                <circle class="player-profile-scouting-dot" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="3.1" />
+                <text class="player-profile-scouting-label" x="${point.labelX.toFixed(1)}" y="${point.labelY.toFixed(1)}">${escapeHtml(point.label)}</text>
+              `
+            )
+            .join("")}
+        </svg>
+        <div class="player-profile-scouting-metrics">
+          ${axes
+            .map(
+              (axis) => `
+                <div>
+                  <span>${escapeHtml(axis.label)}</span>
+                  <strong>P${escapeHtml(axis.percentile)}</strong>
+                  <small>${escapeHtml(axis.metric.label)}: ${escapeHtml(formatPlayerProfileScoutingNumber(axis.value))}${axis.direction === "lower" ? " / low is good" : ""}</small>
+                </div>
+              `
+            )
+            .join("")}
+        </div>
+      </div>
+    </article>
+  `;
+}
+
 function getPlayerRoleDnaDefinition(role) {
   const roleKey = normalizePlayerProfileRole(role, "8");
   return playerRoleDnaDefinitions[roleKey] ?? playerRoleDnaDefinitions["8"];
@@ -24717,6 +25099,7 @@ function renderPlayerProfileSelectedPanel(player) {
         </div>
       </article>
       ${renderPlayerProfileTabs()}
+      ${activeTab === "overview" ? renderPlayerProfileScoutingSpider(player) : ""}
 
       <article class="squad-profile-section squad-editor-section">
         <header class="squad-section-head">

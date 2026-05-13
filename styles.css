@@ -19660,3 +19660,171 @@ background: rgba(6, 12, 18, 0.84) !important;
 border-color: var(--dark-line-strong) !important;
 color: var(--dark-text) !important;
 }
+
+/* Scouting role spiders */
+.scouting-radar-frame{
+display:grid;
+gap:0.72rem;
+justify-items:center;
+width:100%;
+}
+.scouting-radar-head{
+width:100%;
+display:grid;
+gap:0.18rem;
+padding:0.68rem 0.72rem;
+border-radius:14px;
+background:linear-gradient(135deg, rgba(232, 241, 238, 0.94), rgba(255, 255, 255, 0.86));
+border:1px solid rgba(29, 31, 29, 0.08);
+}
+.scouting-radar-head span{
+color:#5f6b62;
+font-size:0.66rem;
+font-weight:950;
+letter-spacing:0.08em;
+text-transform:uppercase;
+}
+.scouting-radar-head strong{
+color:#17251e;
+font-size:0.98rem;
+font-weight:950;
+line-height:1.08;
+}
+.scouting-radar-head small{
+color:#657168;
+font-size:0.72rem;
+font-weight:760;
+line-height:1.32;
+}
+
+/* Squad profile NWSL data spider */
+.player-profile-scouting-spider-card{
+display:grid;
+gap:0.72rem;
+background:linear-gradient(145deg, rgba(255,255,255,0.94), rgba(235,242,238,0.86));
+}
+.player-profile-scouting-spider-layout{
+display:grid;
+grid-template-columns:minmax(13rem, 0.78fr) minmax(13rem, 1fr);
+gap:0.78rem;
+align-items:center;
+}
+.player-profile-scouting-spider{
+width:100%;
+max-width:17rem;
+justify-self:center;
+overflow:visible;
+}
+.player-profile-scouting-ring,
+.player-profile-scouting-axis{
+fill:none;
+stroke:rgba(29, 42, 50, 0.16);
+stroke-width:1;
+}
+.player-profile-scouting-axis{
+stroke-dasharray:3 4;
+}
+.player-profile-scouting-shape{
+fill:rgba(30, 122, 88, 0.22);
+stroke:#1e7a58;
+stroke-width:2.4;
+stroke-linejoin:round;
+}
+.player-profile-scouting-dot{
+fill:#163d2b;
+stroke:#ffffff;
+stroke-width:1.8;
+}
+.player-profile-scouting-label{
+fill:#25332b;
+font-size:0.54rem;
+font-weight:950;
+text-anchor:middle;
+dominant-baseline:middle;
+}
+.player-profile-scouting-empty-text{
+fill:#1d2a32;
+font-size:0.92rem;
+font-weight:950;
+text-anchor:middle;
+dominant-baseline:middle;
+}
+.player-profile-scouting-empty-subtext{
+fill:#7a8580;
+font-size:0.58rem;
+font-weight:900;
+text-anchor:middle;
+dominant-baseline:middle;
+letter-spacing:0.08em;
+text-transform:uppercase;
+}
+.player-profile-scouting-metrics{
+display:grid;
+grid-template-columns:repeat(2, minmax(0, 1fr));
+gap:0.42rem;
+}
+.player-profile-scouting-metrics div{
+display:grid;
+gap:0.12rem;
+min-width:0;
+padding:0.48rem;
+border-radius:8px;
+background:rgba(255, 255, 255, 0.78);
+border:1px solid rgba(29, 31, 29, 0.07);
+}
+.player-profile-scouting-metrics span{
+color:#5f6b62;
+font-size:0.6rem;
+font-weight:950;
+text-transform:uppercase;
+}
+.player-profile-scouting-metrics strong{
+color:#173a29;
+font-size:0.94rem;
+font-weight:950;
+}
+.player-profile-scouting-metrics small,
+.player-profile-scouting-spider-layout p{
+margin:0;
+color:#657168;
+font-size:0.7rem;
+font-weight:760;
+line-height:1.35;
+}
+body.is-dark-mode .scouting-radar-head,
+body.is-dark-mode .player-profile-scouting-spider-card{
+background:linear-gradient(145deg, rgba(25, 38, 32, 0.96), rgba(16, 24, 20, 0.92));
+border-color:rgba(255,255,255,0.1);
+}
+body.is-dark-mode .scouting-radar-head strong,
+body.is-dark-mode .player-profile-scouting-empty-text,
+body.is-dark-mode .player-profile-scouting-label,
+body.is-dark-mode .player-profile-scouting-metrics strong{
+color:#ecfdf5;
+fill:#ecfdf5;
+}
+body.is-dark-mode .scouting-radar-head span,
+body.is-dark-mode .scouting-radar-head small,
+body.is-dark-mode .player-profile-scouting-empty-subtext,
+body.is-dark-mode .player-profile-scouting-metrics span,
+body.is-dark-mode .player-profile-scouting-metrics small,
+body.is-dark-mode .player-profile-scouting-spider-layout p{
+color:#b8c6bd;
+fill:#b8c6bd;
+}
+body.is-dark-mode .player-profile-scouting-ring,
+body.is-dark-mode .player-profile-scouting-axis{
+stroke:rgba(236, 253, 245, 0.18);
+}
+body.is-dark-mode .player-profile-scouting-metrics div{
+background:rgba(255,255,255,0.06);
+border-color:rgba(255,255,255,0.1);
+}
+@media (max-width: 760px){
+.player-profile-scouting-spider-layout{
+grid-template-columns:1fr;
+}
+.player-profile-scouting-metrics{
+grid-template-columns:1fr;
+}
+}

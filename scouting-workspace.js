@@ -1478,7 +1478,7 @@ function renderScoutingRecordAvatar(record) {
           />
           <span class="scouting-record-avatar-fallback" aria-hidden="true">${escapeHtml(initials)}</span>
         </span>`
-    : `<span class="scouting-record-avatar"><span class="scouting-record-avatar-fallback scouting-record-avatar-fallback--icon" aria-hidden="true">⚽</span></span>`;
+    : `<span class="scouting-record-avatar"><span class="scouting-record-avatar-fallback" aria-hidden="true">${escapeHtml(initials)}</span></span>`;
 }
 function getScoutingRecordBestRoleLabel(record) {
   const best = getScoutingRoleScores(record, 1)[0];
@@ -1541,7 +1541,14 @@ function getScoutingRecordSeason(record) {
   return normalizeScoutingText(record?.[scoutingRecordIndex.season], 80);
 }
 function getScoutingRecordPosition(record) {
-  return normalizeScoutingText(record?.[scoutingRecordIndex.position], 80);
+  const value = normalizeScoutingText(record?.[scoutingRecordIndex.position], 80);
+  if (!value) {
+    return "";
+  }
+  return value
+    .replace(/\s*[,/]+\s*/g, " / ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 function getScoutingRecordAge(record) {
   const value = Number(record?.[scoutingRecordIndex.age]);
@@ -3929,6 +3936,7 @@ function getScoutingBestSignal(record) {
       percentile: getScoutingComparablePercentile(record, metric.id),
     }))
     .filter((item) => Number.isFinite(item.value) && Number.isFinite(item.percentile))
+    .filter((item) => !["minutes", "matches", "age"].includes(normalizeScoutingText(item.metric?.id, 120)))
     .sort((a, b) => b.percentile - a.percentile)[0] || null;
 }
 function getScoutingAllShadowRecordIds(state = ensureScoutingState()) {

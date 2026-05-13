@@ -17853,11 +17853,153 @@ const sessionPlannerPlayerBoardPositionGroups = [
   { key: "forward", label: "Forwards", shortLabel: "FWD", order: 4, x: 82 },
 ];
 
+function normalizeSessionPlannerPlayerBoardRoleGroupKey(value) {
+  const key = normalizeSessionPlannerPlayerBoardProfileKey(value);
+  if (!key) return "";
+  if (["gk", "goalkeeper", "keeper", "goalie", "malvakt", "målvakt"].includes(key)) return "goalkeeper";
+  if (["def", "defender", "defenders", "back", "backs", "defence", "defense"].includes(key)) return "defender";
+  if (["mid", "midfield", "midfielder", "midfielders", "mittfalt", "mittfält"].includes(key)) return "midfielder";
+  if (["fwd", "fw", "forward", "forwards", "attacker", "attack", "striker", "anfall"].includes(key)) return "forward";
+  return key;
+}
+
+function getSessionPlannerPlayerBoardRoleGroupForRole(roleKey) {
+  const key = normalizeSessionPlannerPlayerBoardProfileKey(roleKey);
+  if (!key) return "";
+  if (["gk", "goalkeeper", "keeper", "goalie"].includes(key)) return "goalkeeper";
+  if (
+    [
+      "cb",
+      "lcb",
+      "rcb",
+      "lb",
+      "rb",
+      "lwb",
+      "rwb",
+      "centerback",
+      "centreback",
+      "centraldefender",
+      "defender",
+      "fullback",
+      "wingback",
+    ].includes(key)
+  ) {
+    return "defender";
+  }
+  if (
+    [
+      "cm",
+      "dm",
+      "am",
+      "cdm",
+      "cam",
+      "lm",
+      "rm",
+      "midfielder",
+      "centralmidfielder",
+      "holdingmidfielder",
+      "attackingmidfielder",
+      "6",
+      "8",
+      "10",
+    ].includes(key)
+  ) {
+    return "midfielder";
+  }
+  if (
+    [
+      "st",
+      "cf",
+      "fw",
+      "fwd",
+      "lw",
+      "rw",
+      "winger",
+      "striker",
+      "forward",
+      "centerforward",
+      "centreforward",
+      "9",
+      "11",
+      "7",
+    ].includes(key)
+  ) {
+    return "forward";
+  }
+  return "";
+}
+
+function getSessionPlannerPlayerBoardSideForRole(roleKey) {
+  const key = normalizeSessionPlannerPlayerBoardProfileKey(roleKey);
+  if (
+    [
+      "lb",
+      "lcb",
+      "lwb",
+      "lm",
+      "lw",
+      "leftback",
+      "leftcenterback",
+      "leftcentreback",
+      "leftwingback",
+      "leftmidfielder",
+      "leftwing",
+      "leftforward",
+    ].includes(key)
+  ) {
+    return "left";
+  }
+  if (
+    [
+      "rb",
+      "rcb",
+      "rwb",
+      "rm",
+      "rw",
+      "rightback",
+      "rightcenterback",
+      "rightcentreback",
+      "rightwingback",
+      "rightmidfielder",
+      "rightwing",
+      "rightforward",
+    ].includes(key)
+  ) {
+    return "right";
+  }
+  if (["cb", "cm", "dm", "am", "cdm", "cam", "cf", "st", "gk", "goalkeeper", "keeper", "6", "8", "9", "10"].includes(key)) {
+    return "center";
+  }
+  return "";
+}
+
+function getSessionPlannerPlayerBoardExplicitRoles(player = {}) {
+  return [
+    player.primaryRole,
+    ...(Array.isArray(player.secondaryRoles) ? player.secondaryRoles : []),
+    player.position,
+    player.role,
+  ]
+    .map((role) => normalizePlayerProfileRole(role, ""))
+    .filter(Boolean);
+}
+
 function getSessionPlannerPlayerBoardPositionGroup(player = {}) {
-  const explicitRoleGroup = String(player?.roleGroup ?? "").trim().toLowerCase();
+  const explicitRoleGroup = normalizeSessionPlannerPlayerBoardRoleGroupKey(player?.roleGroup);
   const explicitGroup = sessionPlannerPlayerBoardPositionGroups.find((group) => group.key === explicitRoleGroup);
   if (explicitGroup) {
     return explicitGroup;
+  }
+
+  const explicitRoles = getSessionPlannerPlayerBoardExplicitRoles(player);
+  const explicitRoleGroupFromRole = explicitRoles
+    .map((role) => getSessionPlannerPlayerBoardRoleGroupForRole(role))
+    .find(Boolean);
+  const explicitRoleGroupMatch = sessionPlannerPlayerBoardPositionGroups.find(
+    (group) => group.key === explicitRoleGroupFromRole
+  );
+  if (explicitRoleGroupMatch) {
+    return explicitRoleGroupMatch;
   }
 
   const roleText = [
@@ -17880,7 +18022,7 @@ function getSessionPlannerPlayerBoardPositionGroup(player = {}) {
   if (
     position.includes("def") ||
     position.includes("back") ||
-    hasPositionPart("lb", "cb", "rb", "lcb", "rcb", "wb")
+    hasPositionPart("lb", "cb", "rb", "lcb", "rcb", "wb", "lwb", "rwb")
   ) {
     return sessionPlannerPlayerBoardPositionGroups[1];
   }
@@ -17953,6 +18095,13 @@ function getSessionPlannerPlayerBoardProfileForPlayer(player = {}) {
   return null;
 }
 
+function normalizeSessionPlannerPlayerBoardSquadStatusKey(value) {
+  const key = normalizeSessionPlannerPlayerBoardProfileKey(value);
+  if (key === "squaddepth") return "depth";
+  if (key === "loanwatch") return "loan";
+  return key;
+}
+
 function getSessionPlannerPlayerBoardSquadStatusPriority(statusKey) {
   const priorityByStatus = {
     important: 100,
@@ -17961,7 +18110,17 @@ function getSessionPlannerPlayerBoardSquadStatusPriority(statusKey) {
     development: 32,
     loan: 12,
   };
-  return priorityByStatus[String(statusKey ?? "").trim()] ?? null;
+  return priorityByStatus[normalizeSessionPlannerPlayerBoardSquadStatusKey(statusKey)] ?? null;
+}
+
+function getSessionPlannerPlayerBoardCareerPhasePriority(phaseKey) {
+  const priorityByPhase = {
+    peak: 100,
+    experienced: 86,
+    emerging: 70,
+    developing: 54,
+  };
+  return priorityByPhase[normalizeSessionPlannerPlayerBoardProfileKey(phaseKey)] ?? null;
 }
 
 function getSessionPlannerPlayerBoardProfileRoleFitMap(profile = {}) {
@@ -18021,6 +18180,7 @@ function getSessionPlannerPlayerBoardSyncedPlayer(player = {}) {
   const roleFit = getSessionPlannerPlayerBoardProfileRoleFitMap(profile);
   const futureMinutes = getSessionPlannerPlayerBoardFutureMinutesValue(profile.futureData?.minutes);
   const squadStatusPriority = getSessionPlannerPlayerBoardSquadStatusPriority(profile.squadStatus);
+  const careerPhasePriority = getSessionPlannerPlayerBoardCareerPhasePriority(profile.careerPhase);
 
   return {
     ...player,
@@ -18051,6 +18211,7 @@ function getSessionPlannerPlayerBoardSyncedPlayer(player = {}) {
     rolePriority: roleFit,
     positionPriority: roleFit,
     squadImportance: squadStatusPriority,
+    careerPhasePriority,
     seasonMinutes: futureMinutes ?? player.seasonMinutes,
   };
 }
@@ -18320,8 +18481,8 @@ function getSessionPlannerSelectionAssistantRoleScore(player = {}, targetRoles =
   if (secondaryRoles.some((role) => targetRoles.includes(role))) {
     return 68;
   }
-  const targetGroups = new Set(targetRoles.map((role) => getPlayerProfileRoleGroupForRole(role)));
-  if (targetGroups.has(player.roleGroup)) {
+  const targetGroups = new Set(targetRoles.map((role) => getSessionPlannerPlayerBoardRoleGroupForRole(role)).filter(Boolean));
+  if (targetGroups.has(normalizeSessionPlannerPlayerBoardRoleGroupKey(player.roleGroup))) {
     return 58;
   }
 
@@ -18350,6 +18511,14 @@ function getSessionPlannerSelectionAssistantReason(item, profile, roleScore) {
   if (item?.participation !== null && item?.participation !== undefined) {
     reasons.push(`${item.participation}% available`);
   }
+  const squadStatus = normalizeSessionPlannerPlayerBoardSquadStatusKey(player.squadStatus);
+  if (squadStatus) {
+    reasons.push(`Squad ${squadStatus}`);
+  }
+  const careerPhase = normalizeSessionPlannerPlayerBoardProfileKey(player.careerPhase);
+  if (careerPhase) {
+    reasons.push(`Career ${careerPhase}`);
+  }
   if (player.idp?.primaryFocus) {
     reasons.push(`IDP: ${player.idp.primaryFocus}`);
   }
@@ -18364,7 +18533,9 @@ function scoreSessionPlannerSelectionAssistantItem(item, profile) {
   const player = item?.player ?? {};
   const roleScore = getSessionPlannerSelectionAssistantRoleScore(player, profile.roles);
   const availabilityScore = Number.isFinite(Number(item?.participation)) ? Number(item.participation) : 0;
-  const squadImportance = Number.isFinite(Number(player.squadImportance)) ? Number(player.squadImportance) : 45;
+  const squadImportance = getSessionPlannerPlayerBoardImportanceScore(player) ?? 45;
+  const careerScore = getSessionPlannerPlayerBoardCareerScore(player);
+  const minutesScore = getSessionPlannerPlayerBoardMinutesScore(player);
   const primaryRole = normalizePlayerProfileRole(player.primaryRole, "");
   const secondaryRoles = Array.isArray(player.secondaryRoles) ? player.secondaryRoles : [];
   const roleBonus =
@@ -18374,7 +18545,15 @@ function scoreSessionPlannerSelectionAssistantItem(item, profile) {
         ? 5
         : 0;
   const linkedBonus = player.profileId ? 4 : 0;
-  const score = Math.round(roleScore * 0.48 + availabilityScore * 0.34 + squadImportance * 0.08 + roleBonus + linkedBonus);
+  const score = Math.round(
+    roleScore * 0.5 +
+      availabilityScore * 0.26 +
+      squadImportance * 0.1 +
+      careerScore * 0.05 +
+      minutesScore * 0.006 +
+      roleBonus +
+      linkedBonus
+  );
 
   return {
     item,
@@ -18801,6 +18980,7 @@ function getSessionPlannerPlayerBoardRoleOrder(roleKey) {
 }
 
 function getSessionPlannerPlayerBoardPlayerRoleProfile(player = {}) {
+  const explicitRoles = getSessionPlannerPlayerBoardExplicitRoles(player);
   const position = [
     player.position,
     player.primaryRole,
@@ -18815,7 +18995,9 @@ function getSessionPlannerPlayerBoardPlayerRoleProfile(player = {}) {
   const hasPart = (...tokens) => tokens.some((token) => parts.includes(token));
   const group = getSessionPlannerPlayerBoardPositionGroup(player);
   const preferredSide = String(player.preferredSide ?? "").trim().toLowerCase();
-  let side = ["left", "center", "right"].includes(preferredSide) ? preferredSide : "center";
+  let side =
+    explicitRoles.map((role) => getSessionPlannerPlayerBoardSideForRole(role)).find(Boolean) ||
+    (["left", "center", "right"].includes(preferredSide) ? preferredSide : "center");
 
   if (side === "center" && (
     position.includes("left") ||
@@ -18949,6 +19131,9 @@ function createSessionPlannerPlayerBoardFormationSlots(formation, hasGoalkeeperS
 }
 
 function getSessionPlannerPlayerBoardNumericPriorityValue(value) {
+  if (value === "" || value === null || value === undefined) {
+    return null;
+  }
   const numericValue = Number(value);
   return Number.isFinite(numericValue) ? numericValue : null;
 }
@@ -19033,6 +19218,38 @@ function getSessionPlannerPlayerBoardRolePriorityValue(player = {}, slot = {}) {
   return null;
 }
 
+function getSessionPlannerPlayerBoardDirectRoleFitScore(player = {}, slot = {}) {
+  const profile = getSessionPlannerPlayerBoardPlayerRoleProfile(player);
+  const slotRole = String(slot.roleKey ?? "").trim().toLowerCase();
+  const slotSide = String(slot.side ?? "center").trim().toLowerCase();
+  let score = profile.roleKey === slotRole ? 74 : 38;
+
+  if (profile.roleKey === slotRole) {
+    if (profile.side === slotSide) {
+      score += 14;
+    } else if (slotSide === "center" || profile.side === "center") {
+      score += 6;
+    } else {
+      score -= 10;
+    }
+  }
+
+  const primaryRole = normalizePlayerProfileRole(player.primaryRole, "");
+  const secondaryRoles = Array.isArray(player.secondaryRoles)
+    ? player.secondaryRoles.map((role) => normalizePlayerProfileRole(role, "")).filter(Boolean)
+    : [];
+  const slotKeys = getSessionPlannerPlayerBoardRolePriorityKeys(slot).map((key) =>
+    normalizeSessionPlannerPlayerBoardProfileKey(key)
+  );
+  if (slotKeys.includes(normalizeSessionPlannerPlayerBoardProfileKey(primaryRole))) {
+    score += 20;
+  } else if (secondaryRoles.some((role) => slotKeys.includes(normalizeSessionPlannerPlayerBoardProfileKey(role)))) {
+    score += 10;
+  }
+
+  return clamp(score, 0, 100);
+}
+
 function getSessionPlannerPlayerBoardImportanceScore(player = {}) {
   const statusPriority =
     getSessionPlannerPlayerBoardNumericPriorityValue(player.squadImportance) ??
@@ -19063,6 +19280,16 @@ function getSessionPlannerPlayerBoardImportanceScore(player = {}) {
   return clamp(rawImportance, 0, 100);
 }
 
+function getSessionPlannerPlayerBoardCareerScore(player = {}) {
+  const rawCareer =
+    getSessionPlannerPlayerBoardNumericPriorityValue(player.careerPhasePriority) ??
+    getSessionPlannerPlayerBoardCareerPhasePriority(player.careerPhase);
+  if (rawCareer !== null) {
+    return clamp(rawCareer, 0, 100);
+  }
+  return 60;
+}
+
 function getSessionPlannerPlayerBoardMinutesScore(player = {}) {
   return (
     getSessionPlannerPlayerBoardNumericPriorityValue(player.nwslMinutes) ??
@@ -19076,11 +19303,14 @@ function getSessionPlannerPlayerBoardMinutesScore(player = {}) {
 function getSessionPlannerPlayerBoardPriorityScore(item, slot) {
   const player = item?.player ?? {};
   const rolePriority = getSessionPlannerPlayerBoardRolePriorityValue(player, slot);
+  const directRoleFit = getSessionPlannerPlayerBoardDirectRoleFitScore(player, slot);
+  const rolePriorityScore = rolePriority !== null && rolePriority > 0 ? rolePriority : directRoleFit;
   const importanceScore = getSessionPlannerPlayerBoardImportanceScore(player) ?? 0;
+  const careerScore = getSessionPlannerPlayerBoardCareerScore(player);
   const minutesScore = getSessionPlannerPlayerBoardMinutesScore(player);
   const rosterOrder = Number(player.rosterOrder);
   const rosterScore = Number.isFinite(rosterOrder) ? Math.max(0, 1000 - rosterOrder) / 10 : 0;
-  return (rolePriority ?? 0) * 100 + importanceScore * 10 + minutesScore * 0.05 + rosterScore;
+  return rolePriorityScore * 95 + directRoleFit * 24 + importanceScore * 12 + careerScore * 4 + minutesScore * 0.04 + rosterScore;
 }
 
 function getSessionPlannerPlayerBoardItemPriorityScore(item) {
@@ -19670,18 +19900,28 @@ function scoreSessionPlannerPlayerBoardFormationFit(item, slot, options = {}) {
   );
   const rosterOrder = Number(item?.player?.rosterOrder) || 999;
   const rolePriority = getSessionPlannerPlayerBoardRolePriorityValue(item?.player, slot) ?? 0;
+  const directRoleFit = getSessionPlannerPlayerBoardDirectRoleFitScore(item?.player, slot);
   const importanceScore = getSessionPlannerPlayerBoardImportanceScore(item?.player) ?? 0;
+  const careerScore = getSessionPlannerPlayerBoardCareerScore(item?.player);
   const minutesScore = getSessionPlannerPlayerBoardMinutesScore(item?.player);
   const priorityScore = options.prioritize ? getSessionPlannerPlayerBoardPriorityScore(item, slot) : 0;
   const priorityAdjustment = priorityScore * 0.003;
   const rotationAdjustment = options.rotation ? priorityAdjustment : -priorityAdjustment;
+  const roleMismatchPenalty = profile.roleKey === slot.roleKey ? 0 : 280;
+  const sideMismatchPenalty =
+    profile.roleKey === slot.roleKey && profile.side !== "center" && slot.side !== "center" && profile.side !== slot.side
+      ? 36
+      : 0;
 
   return (
-    roleDistance * 120 +
+    roleDistance * 220 +
+    roleMismatchPenalty +
     sideDistance * 28 -
-    rolePriority * 0.22 -
+    sideMismatchPenalty -
+    Math.max(rolePriority, directRoleFit) * 0.42 -
     importanceScore * 0.18 -
-    minutesScore * 0.012 +
+    careerScore * 0.06 -
+    minutesScore * 0.01 +
     rosterOrder * 0.01 +
     rotationAdjustment
   );
@@ -20455,8 +20695,38 @@ function getMedicalAvailabilityItems(dateValue = medicalState?.selectedDate) {
     });
 }
 
+function getSessionPlannerTemporaryProfileAvailabilityItems(dateValue = medicalState?.selectedDate, existingItems = []) {
+  const profileState = getSessionPlannerPlayerBoardProfileState();
+  const profiles = Array.isArray(profileState?.players) ? profileState.players : [];
+  if (!profiles.length) {
+    return [];
+  }
+
+  const existingIds = new Set(
+    existingItems
+      .map((item) => item?.player)
+      .flatMap((player) => [player?.id, player?.playerId, player?.profileId, player?.medicalPlayerId])
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean)
+  );
+
+  return profiles
+    .filter((profile) => isTemporaryPlayerProfile(profile))
+    .filter((profile) => isPlayerProfileTemporaryActiveOnDate(profile, dateValue))
+    .filter((profile) => !existingIds.has(String(profile.id ?? "").trim()))
+    .map((profile) => buildMedicalPlayerFromPlayerProfile(profile))
+    .filter((player) => player && player.id && player.name)
+    .map((player) => ({
+      player,
+      record: null,
+      status: { key: "planning-guest", label: "Planning guest", tone: "full", defaultParticipation: 100 },
+      participation: 100,
+      planningOnly: true,
+    }));
+}
+
 function getSessionPlannerAvailabilityItems(dateValue = medicalState?.selectedDate) {
-  return getMedicalAvailabilityItems(dateValue)
+  const medicalItems = getMedicalAvailabilityItems(dateValue)
     .filter((item) => !isTemporaryPlayerProfile(item.player) || isPlayerProfileTemporaryActiveOnDate(item.player, dateValue))
     .map((item) =>
       !isTemporaryPlayerProfile(item.player) || item.record
@@ -20468,6 +20738,8 @@ function getSessionPlannerAvailabilityItems(dateValue = medicalState?.selectedDa
             planningOnly: true,
           }
     );
+  const temporaryProfileItems = getSessionPlannerTemporaryProfileAvailabilityItems(dateValue, medicalItems);
+  return [...medicalItems, ...temporaryProfileItems];
 }
 
 function getSessionPlannerMedicalAvailability(dateValue) {

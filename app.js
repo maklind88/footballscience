@@ -1430,6 +1430,7 @@ const defaultScoutingState = {
     sortMetricId: "minutes",
   },
   targets: [],
+  roleModels: [],
   favoriteRecordIds: [],
   lists: [{ id: "main-shortlist", name: "Main Shortlist", recordIds: [] }],
   shadowXi: {
@@ -1439,6 +1440,11 @@ const defaultScoutingState = {
   },
   selectedRecordId: "",
   reports: [],
+  comparisonLab: {
+    slotId: "",
+    playerIds: ["", ""],
+    metricId: "minutes",
+  },
 };
 const importedNccScheduleEvents = Array.isArray(window.__importedNccScheduleEvents)
   ? window.__importedNccScheduleEvents
@@ -6005,10 +6011,12 @@ function cloneScoutingTarget(target = {}) {
   const createdAt = normalizeScoutingText(target.createdAt, 40) || now;
   return {
     id: normalizeScoutingText(target.id, 120) || `scouting-target-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    recordId: normalizeScoutingText(target.recordId, 160),
     name: normalizeScoutingText(target.name, 120),
     club: normalizeScoutingText(target.club, 120),
     position: normalizeScoutingText(target.position, 80),
     age: normalizeScoutingText(target.age, 12),
+    slotId: normalizeScoutingText(target.slotId, 40),
     status: normalizeScoutingStatus(target.status),
     priority: normalizeScoutingPriority(target.priority),
     fit: normalizeScoutingText(target.fit, 80),
@@ -6065,6 +6073,27 @@ function normalizeScoutingDatabaseFilters(filters = {}) {
     sortMetricId: normalizeScoutingText(filters.sortMetricId, 120) || "minutes",
   };
 }
+function normalizeScoutingRoleModel(model = {}) {
+  const minPercentile = Number(model.minPercentile);
+  return {
+    id: normalizeScoutingText(model.id, 120) || `scouting-role-model-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: normalizeScoutingText(model.name, 120) || "Custom role model",
+    slotId: normalizeScoutingText(model.slotId, 40),
+    metricId: normalizeScoutingText(model.metricId, 120) || "minutes",
+    minPercentile: Number.isFinite(minPercentile) ? Math.max(1, Math.min(99, Math.round(minPercentile))) : 60,
+    notes: normalizeScoutingText(model.notes, 900),
+    createdAt: normalizeScoutingText(model.createdAt, 40) || new Date().toISOString(),
+    updatedAt: normalizeScoutingText(model.updatedAt, 40) || normalizeScoutingText(model.createdAt, 40) || new Date().toISOString(),
+  };
+}
+function normalizeScoutingComparisonLab(value = {}) {
+  const normalizedPlayerIds = normalizeScoutingRecordIds(value.playerIds);
+  return {
+    slotId: normalizeScoutingText(value.slotId, 40),
+    playerIds: [normalizedPlayerIds[0] || "", normalizedPlayerIds[1] || ""],
+    metricId: normalizeScoutingText(value.metricId, 120) || "minutes",
+  };
+}
 function cloneScoutingState(source = defaultScoutingState) {
   const activeTab = scoutingTabs.some((tab) => tab.id === source.activeTab) ? source.activeTab : "shadow-xi";
   const lists = Array.isArray(source.lists)
@@ -6087,6 +6116,7 @@ function cloneScoutingState(source = defaultScoutingState) {
     targets: Array.isArray(source.targets)
       ? source.targets.map(cloneScoutingTarget).filter((target) => target.name)
       : [],
+    roleModels: Array.isArray(source.roleModels) ? source.roleModels.map(normalizeScoutingRoleModel).filter((model) => model.name) : [],
     favoriteRecordIds: normalizeScoutingRecordIds(source.favoriteRecordIds),
     lists: lists.length ? lists : [cloneScoutingList(defaultScoutingState.lists[0])],
     shadowXi: {
@@ -6098,6 +6128,7 @@ function cloneScoutingState(source = defaultScoutingState) {
     reports: Array.isArray(source.reports)
       ? source.reports.map(cloneScoutingReport).filter((report) => report.title || report.summary)
       : [],
+    comparisonLab: normalizeScoutingComparisonLab(source.comparisonLab),
   };
 }
 function setScoutingStateStorageValue(state = scoutingState, options = {}) {
@@ -6159,6 +6190,8 @@ function getScoutingWorkspaceContext() {
     tabs: scoutingTabs,
     shadowSlots: scoutingShadowSlots,
     coreMetricOptions: scoutingCoreMetricOptions,
+    scoutingStatusOptions,
+    scoutingPriorityOptions,
   };
 }
 function loadScoutingWorkspaceModule() {

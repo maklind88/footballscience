@@ -2,12 +2,25 @@ let activeContext = null;
 let scoutingTabs = [];
 let scoutingShadowSlots = [];
 let scoutingCoreMetricOptions = [];
+let scoutingStatusOptions = [];
+let scoutingPriorityOptions = [];
 let scoutingDatabaseLoadPromise = null;
 let scoutingDatabaseError = "";
 let scoutingDatabaseOptionCache = null;
 let scoutingPercentileCache = new Map();
 let preferredScoutingShadowSlotId = "";
 let scoutingDatabaseResultsFrame = 0;
+const scoutingStatusFallbackOptions = [
+  { value: "new", label: "New" },
+  { value: "monitoring", label: "Monitoring" },
+  { value: "shortlist", label: "Shortlist" },
+  { value: "archived", label: "Archived" },
+];
+const scoutingPriorityFallbackOptions = [
+  { value: "normal", label: "Normal" },
+  { value: "high", label: "High" },
+  { value: "urgent", label: "Urgent" },
+];
 const scoutingRecordIndex = Object.freeze({
   id: 0,
   player: 1,
@@ -30,6 +43,8 @@ function setScoutingContext(context) {
   scoutingTabs = context.tabs || [];
   scoutingShadowSlots = context.shadowSlots || [];
   scoutingCoreMetricOptions = context.coreMetricOptions || [];
+  scoutingStatusOptions = context.scoutingStatusOptions || scoutingStatusFallbackOptions;
+  scoutingPriorityOptions = context.scoutingPriorityOptions || scoutingPriorityFallbackOptions;
 }
 function ensureScoutingState() {
   return activeContext.ensureState();
@@ -139,6 +154,79 @@ function queueScoutingDatabaseLoad() {
 function getScoutingMetricOptions() {
   const database = getScoutingDatabase();
   return [...scoutingCoreMetricOptions, ...(database?.metrics || [])];
+}
+function getScoutingStatusOptions() {
+  return Array.isArray(scoutingStatusOptions) && scoutingStatusOptions.length
+    ? scoutingStatusOptions
+    : scoutingStatusFallbackOptions;
+}
+function getScoutingPriorityOptions() {
+  return Array.isArray(scoutingPriorityOptions) && scoutingPriorityOptions.length
+    ? scoutingPriorityOptions
+    : scoutingPriorityFallbackOptions;
+}
+function getScoutingOptionMarkup(options, currentValue) {
+  return options
+    .map((option) => `<option value="${escapeHtml(option.value)}" ${option.value === currentValue ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
+    .join("");
+}
+function normalizeScoutingTargetStatus(value = "") {
+  const normalized = normalizeScoutingText(value, 40);
+  const options = getScoutingStatusOptions();
+  return options.some((option) => option.value === normalized) ? normalized : options[0]?.value || "new";
+}
+function normalizeScoutingTargetPriority(value = "") {
+  const normalized = normalizeScoutingText(value, 40);
+  const options = getScoutingPriorityOptions();
+  return options.some((option) => option.value === normalized) ? normalized : options[0]?.value || "normal";
+}
+function getScoutingTargetRecord(target) {
+  return getScoutingRecordById(getScoutingTargetRecordId(target));
+}
+function getScoutingTargetRecordId(target) {
+  return normalizeScoutingText(target?.recordId, 160);
+}
+function findScoutingTargetByRecordId(recordId, state = ensureScoutingState()) {
+  const targetRecordId = getScoutingTargetRecordId({ recordId });
+  return state.targets.find((target) => getScoutingTargetRecordId(target) === targetRecordId) || null;
+}
+function findScoutingTargetById(targetId, state = ensureScoutingState()) {
+  const target = normalizeScoutingText(targetId, 120);
+  return state.targets.find((entry) => normalizeScoutingText(entry.id, 120) === target) || null;
+}
+function normalizeScoutingComparisonLab(value = {}) {
+  const playerIds = normalizeScoutingRecordIds(value.playerIds);
+  const metricId = normalizeScoutingText(value.metricId, 120);
+  const slotId = normalizeScoutingText(value.slotId, 40);
+  return {
+    slotId,
+    playerIds: [playerIds[0] || "", playerIds[1] || ""],
+    metricId: metricId || "minutes",
+  };
+}
+function getScoutingComparisonLab(state = ensureScoutingState()) {
+  return normalizeScoutingComparisonLab(state.comparisonLab);
+}
+function setScoutingComparisonLab(patch = {}) {
+  const state = ensureScoutingState();
+  state.comparisonLab = {
+    ...normalizeScoutingComparisonLab(state.comparisonLab),
+    ...normalizeScoutingComparisonLab(patch),
+  };
+  writeScoutingState();
+}
+function getScoutingRoleModels(state = ensureScoutingState()) {
+  return Array.isArray(state.roleModels)
+    ? state.roleModels.map((model) => ({
+        ...model,
+        id: normalizeScoutingText(model?.id, 120),
+      }))
+    : [];
+}
+function getScoutingReports(state = ensureScoutingState()) {
+  return Array.isArray(state.reports)
+    ? [...state.reports].sort((a, b) => (new Date(b.createdAt).getTime() || 0) - (new Date(a.createdAt).getTime() || 0))
+    : [];
 }
 function getScoutingMetric(metricId) {
   const id = normalizeScoutingText(metricId, 120);
@@ -284,6 +372,227 @@ function getScoutingRecordsForPlayer(record) {
   return (getScoutingDatabase()?.records || [])
     .filter((candidate) => getScoutingRecordName(candidate).toLowerCase() === name)
     .sort((a, b) => getScoutingRecordSeason(b).localeCompare(getScoutingRecordSeason(a)) || getScoutingRecordMinutes(b) - getScoutingRecordMinutes(a));
+}
+function getScoutingTargets(state = ensureScoutingState()) {
+  return Array.isArray(state.targets) ? state.targets : [];
+}
+function getScoutingTargetedRecordIds(state = ensureScoutingState()) {
+  return getScoutingTargets(state)
+    .map((target) => getScoutingTargetRecordId(target))
+    .filter(Boolean)
+    .filter((value, index, values) => values.indexOf(value) === index);
+}
+function getScoutingComparisonCandidatesForSlot(slotId) {
+  const database = getScoutingDatabase();
+  const slot = getScoutingShadowSlot(slotId);
+  if (!slot) {
+    return [];
+  }
+  return (database?.records || [])
+    .filter((record) => getScoutingPositionTokens(record).includes(slot.position) || getScoutingPositionTokens(record).includes(slot.label))
+    .sort((a, b) => (getScoutingRoleFitScore(b) || 0) - (getScoutingRoleFitScore(a) || 0));
+}
+function getScoutingSlotById(slotId) {
+  return getScoutingShadowSlot(slotId);
+}
+function createScoutingTarget(record, target = {}) {
+  const now = new Date().toISOString();
+  const recordId = getScoutingRecordId(record);
+  const roleFit = getScoutingRoleFitScore(record);
+  return {
+    id: normalizeScoutingText(target.id, 120) || `scouting-target-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    recordId,
+    name: getScoutingRecordName(record),
+    club: getScoutingRecordTeam(record),
+    position: getScoutingRecordPosition(record),
+    age: String(getScoutingRecordAge(record) || ""),
+    status: normalizeScoutingTargetStatus(target.status),
+    priority: normalizeScoutingTargetPriority(target.priority),
+    fit: Number.isFinite(roleFit) ? `P${roleFit}` : "n/a",
+    notes: normalizeScoutingText(target.notes, 900),
+    slotId: normalizeScoutingText(target.slotId, 40),
+    createdAt: normalizeScoutingText(target.createdAt, 40) || now,
+    updatedAt: normalizeScoutingText(target.updatedAt, 40) || now,
+  };
+}
+function saveScoutingTarget(recordId, patch = {}) {
+  const state = ensureScoutingState();
+  const record = getScoutingRecordById(recordId);
+  const now = new Date().toISOString();
+  if (!record) {
+    return;
+  }
+  const baseTarget = findScoutingTargetByRecordId(recordId, state);
+  const nextTarget = createScoutingTarget(record, {
+    ...(baseTarget || {}),
+    ...patch,
+    updatedAt: now,
+  });
+  if (baseTarget) {
+    state.targets = getScoutingTargets(state).map((target) => (target.id === baseTarget.id ? nextTarget : target));
+  } else {
+    state.targets = [nextTarget, ...getScoutingTargets(state)];
+  }
+  writeScoutingState();
+  renderScoutingWorkspace();
+}
+function updateScoutingTarget(targetId, patch = {}) {
+  const state = ensureScoutingState();
+  const target = findScoutingTargetById(targetId, state);
+  if (!target) {
+    return;
+  }
+  const record = getScoutingTargetRecord(target);
+  if (!record) {
+    return;
+  }
+  const nextTarget = createScoutingTarget(record, {
+    ...target,
+    ...patch,
+    updatedAt: normalizeScoutingText(patch.updatedAt, 40) || new Date().toISOString(),
+  });
+  state.targets = getScoutingTargets(state).map((entry) => (entry.id === target.id ? nextTarget : entry));
+  writeScoutingState();
+  renderScoutingWorkspace();
+}
+function removeScoutingTarget(targetId) {
+  const state = ensureScoutingState();
+  const id = normalizeScoutingText(targetId, 120);
+  if (!id) {
+    return;
+  }
+  const nextTargets = getScoutingTargets(state).filter((target) => normalizeScoutingText(target.id, 120) !== id);
+  if (nextTargets.length !== getScoutingTargets(state).length) {
+    state.targets = nextTargets;
+    writeScoutingState();
+    renderScoutingWorkspace();
+  }
+}
+function getScoutingReportTargetOptionMarkup() {
+  const state = ensureScoutingState();
+  const records = getScoutingTargets(state)
+    .map((target) => findScoutingTargetById(target.id, state))
+    .filter(Boolean);
+  return records
+    .map((target) => `<option value="${escapeHtml(target.id)}">${escapeHtml(target.name || "Unknown target")} (${escapeHtml(target.club || "No club")})</option>`)
+    .join("");
+}
+function getScoutingRoleModel(slotId = "", slotIndex = 0) {
+  const models = getScoutingRoleModels();
+  const model = models.find((entry) => {
+    const normalizedSlotId = normalizeScoutingText(entry.slotId, 40);
+    return normalizedSlotId === normalizeScoutingText(slotId, 40);
+  });
+  if (model) {
+    return model;
+  }
+  return models[slotIndex] || null;
+}
+function getScoutingRoleModelMatchScore(record, model) {
+  const metric = getScoutingMetric(model?.metricId);
+  if (!metric) {
+    return 0;
+  }
+  const metricPercentile = getScoutingPercentile(record, metric.id);
+  const minPercentile = Number(model?.minPercentile);
+  if (!Number.isFinite(minPercentile) || !Number.isFinite(metricPercentile)) {
+    return 0;
+  }
+  return metricPercentile >= minPercentile ? Math.max(0, metricPercentile - minPercentile) : 0;
+}
+function getScoutingRoleModelCandidates(model) {
+  if (!model) {
+    return [];
+  }
+  const slot = getScoutingSlotById(model.slotId) || getScoutingSlotById(scoutingShadowSlots[0]?.id || "");
+  if (!slot) {
+    return [];
+  }
+  const metric = getScoutingMetric(model.metricId);
+  if (!metric) {
+    return [];
+  }
+  return (getScoutingDatabase()?.records || [])
+    .filter((record) => getScoutingPositionTokens(record).includes(slot.position) || getScoutingPositionTokens(record).includes(slot.label))
+    .map((record) => ({
+      record,
+      score: getScoutingRoleModelMatchScore(record, model),
+      percentile: getScoutingPercentile(record, metric.id),
+      fit: getScoutingRoleFitScore(record),
+    }))
+    .filter((entry) => Number.isFinite(entry.percentile))
+    .sort((a, b) => (b.percentile - a.percentile) * 2 + (b.fit || 0) - (a.fit || 0));
+}
+function createScoutingRoleModel(model = {}) {
+  const now = new Date().toISOString();
+  const slot = getScoutingSlotById(model.slotId) || scoutingShadowSlots[0];
+  const metric = getScoutingMetric(model.metricId) || getScoutingMetricOptions()[0];
+  const nextModel = {
+    id: normalizeScoutingText(model.id, 120) || `scouting-role-model-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: normalizeScoutingText(model.name, 120) || "Role model",
+    slotId: normalizeScoutingText(slot?.id, 40),
+    metricId: normalizeScoutingText(metric?.id, 120) || "minutes",
+    minPercentile: Number.isFinite(Number(model.minPercentile)) ? Math.max(1, Math.min(99, Math.round(Number(model.minPercentile)))) : 60,
+    notes: normalizeScoutingText(model.notes, 900),
+    createdAt: now,
+    updatedAt: now,
+  };
+  const state = ensureScoutingState();
+  state.roleModels = [nextModel, ...getScoutingRoleModels(state).filter((entry) => entry.name).filter((entry) => entry.id !== nextModel.id)];
+  writeScoutingState();
+  renderScoutingWorkspace();
+}
+function removeScoutingRoleModel(roleModelId) {
+  const state = ensureScoutingState();
+  const id = normalizeScoutingText(roleModelId, 120);
+  if (!id) {
+    return;
+  }
+  const nextRoleModels = getScoutingRoleModels(state).filter((entry) => normalizeScoutingText(entry.id, 120) !== id);
+  if (nextRoleModels.length === getScoutingRoleModels(state).length) {
+    return;
+  }
+  state.roleModels = nextRoleModels;
+  writeScoutingState();
+  renderScoutingWorkspace();
+}
+function createScoutingReportFromForm(title, type, targetId, summary) {
+  const state = ensureScoutingState();
+  const safeTitle = normalizeScoutingText(title, 160);
+  const safeSummary = normalizeScoutingText(summary, 1200);
+  if (!safeTitle && !safeSummary) {
+    return;
+  }
+  const now = new Date().toISOString();
+  const safeType = type === "opposition" ? "opposition" : "player";
+  const safeTargetId = safeType === "player" ? normalizeScoutingText(targetId, 120) : "";
+  state.reports = [
+    {
+      id: `scouting-report-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      targetId: safeTargetId,
+      title: safeTitle || "Scouting report",
+      type: safeType,
+      summary: safeSummary || "No report summary yet.",
+      createdAt: now,
+    },
+    ...getScoutingReports(state),
+  ];
+  writeScoutingState();
+  renderScoutingWorkspace();
+}
+function deleteScoutingReport(reportId) {
+  const state = ensureScoutingState();
+  const id = normalizeScoutingText(reportId, 120);
+  if (!id) {
+    return;
+  }
+  const nextReports = getScoutingReports(state).filter((report) => normalizeScoutingText(report.id, 120) !== id);
+  if (nextReports.length === getScoutingReports(state).length) {
+    return;
+  }
+  state.reports = nextReports;
+  writeScoutingState();
+  renderScoutingWorkspace();
 }
 function getScoutingMetricValuesForGroup(metricId, positionGroup) {
   const metric = getScoutingMetric(metricId);
@@ -740,6 +1049,9 @@ function renderScoutingRecordCard(record) {
   const favorite = isScoutingRecordFavorited(recordId);
   const roleFitScore = getScoutingRoleFitScore(record);
   const bestSignal = getScoutingBestSignal(record);
+  const target = findScoutingTargetByRecordId(recordId, state);
+  const targetStatus = target?.status || getScoutingStatusOptions()[0]?.value || "new";
+  const targetPriority = target?.priority || getScoutingPriorityOptions()[0]?.value || "normal";
   const meta = [
     getScoutingRecordPosition(record),
     age ? `${formatScoutingNumber(age)} yrs` : "",
@@ -785,6 +1097,21 @@ function renderScoutingRecordCard(record) {
               data-scouting-shadow-slot-id="${escapeHtml(selectedSlot.id)}"
             >
               ${inSelectedSlot ? "In wishlist" : `Add to ${escapeHtml(selectedSlot.label)}`}
+            </button>
+          `
+          : ""
+      }
+      ${
+        canEditScoutingWorkspace()
+          ? `
+            <button
+              type="button"
+              class="scouting-secondary-button"
+              data-save-scouting-target="${escapeHtml(recordId)}"
+              data-scouting-target-status="${escapeHtml(targetStatus)}"
+              data-scouting-target-priority="${escapeHtml(targetPriority)}"
+            >
+              ${target ? "Update pipeline" : "Send to pipeline"}
             </button>
           `
           : ""
@@ -1088,14 +1415,309 @@ function renderScoutingListsPanel() {
           })
           .join("")}
       </div>
+  </section>
+  `;
+}
+function renderScoutingTargetCard(target) {
+  const state = ensureScoutingState();
+  const record = getScoutingTargetRecord(target);
+  const slot = getScoutingSlotById(target?.slotId);
+  const recordName = target?.name || (record ? getScoutingRecordName(record) : "Unknown target");
+  const recordClub = target?.club || (record ? getScoutingRecordTeam(record) : "Unknown club");
+  const targetRoleFit = record ? getScoutingRoleFitScore(record) : null;
+  const bestSignal = record ? getScoutingBestSignal(record) : null;
+  const minutes = record ? getScoutingRecordMinutes(record) : 0;
+  const age = target?.age || "";
+  return `
+    <article class="scouting-target-card">
+      <div class="scouting-target-main">
+        <strong>${escapeHtml(recordName)}</strong>
+        <span>${escapeHtml(slot ? slot.label : "Open")}</span>
+      </div>
+      <p class="scouting-note-line">${escapeHtml(recordClub)} · ${escapeHtml(target.position || "Unknown position")} · ${age ? `${escapeHtml(age)} yrs` : ""} · ${formatScoutingNumber(minutes)} min</p>
+      <p class="scouting-fit-line">${escapeHtml(target.fit || "n/a")} · ${escapeHtml(slot ? slot.position : "Open role")} · ${record ? `${escapeHtml(getScoutingRoleFitLabel(targetRoleFit))}` : "No profile score"}</p>
+      <p class="scouting-note-line">${escapeHtml(target.notes || "No notes yet")}</p>
+      <p class="scouting-note-line">${escapeHtml(bestSignal ? `${bestSignal.metric.label} · P${bestSignal.percentile}` : target.fit ? `Status: ${escapeHtml(target.fit)}` : "No standout signal")}</p>
+      <div class="scouting-target-actions">
+        <label>
+          <span>Status</span>
+          <select data-scouting-target-status="${escapeHtml(target.id)}">
+            ${getScoutingOptionMarkup(getScoutingStatusOptions(), target.status)}
+          </select>
+        </label>
+        <label>
+          <span>Priority</span>
+          <select data-scouting-target-priority="${escapeHtml(target.id)}">
+            ${getScoutingOptionMarkup(getScoutingPriorityOptions(), target.priority)}
+          </select>
+        </label>
+        ${record ? `<button type="button" class="scouting-primary-button" data-open-scouting-record="${escapeHtml(target.recordId)}">Open player</button>` : ""}
+        ${canEditScoutingWorkspace() ? `<button type="button" data-remove-scouting-target="${escapeHtml(target.id)}" class="scouting-secondary-button">Remove</button>` : ""}
+      </div>
+    </article>
+  `;
+}
+function renderScoutingTargetsPanel() {
+  const state = ensureScoutingState();
+  const targets = getScoutingTargets(state);
+  const statusOptions = getScoutingStatusOptions();
+  const sortedTargets = [...targets].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  const statusMap = statusOptions.map((statusOption) => {
+    const list = sortedTargets.filter((target) => target.status === statusOption.value);
+    return {
+      ...statusOption,
+      list,
+    };
+  });
+  return `
+    <section class="scouting-target-board">
+      <h2>Funnel</h2>
+      <div class="scouting-target-board-columns">
+        ${statusMap
+          .map(
+            (statusBucket) => `
+              <div class="scouting-target-board-column">
+                <div class="scouting-target-board-head">
+                  <h3>${escapeHtml(statusBucket.label)}</h3>
+                  <strong>${statusBucket.list.length}</strong>
+                </div>
+                <div class="scouting-target-board-list">
+                  ${
+                    statusBucket.list.length
+                      ? statusBucket.list.map(renderScoutingTargetCard).join("")
+                      : `<p class="scouting-muted">No targets in ${escapeHtml(statusBucket.label).toLowerCase()} yet.</p>`
+                  }
+                </div>
+              </div>
+            `
+          )
+          .join("")}
+      </div>
     </section>
+  `;
+}
+function renderScoutingComparisonLabPanel() {
+  const state = ensureScoutingState();
+  const lab = getScoutingComparisonLab(state);
+  const selectedSlot = getScoutingSlotById(lab.slotId) || getScoutingSlotById(scoutingShadowSlots[0]?.id || "");
+  const slotId = selectedSlot?.id || "";
+  const slotOptions = scoutingShadowSlots
+    .map((slot) => `<option value="${escapeHtml(slot.id)}" ${slotId === slot.id ? "selected" : ""}>${escapeHtml(slot.label)} · ${escapeHtml(slot.position)}</option>`)
+    .join("");
+  const metric = getScoutingMetric(lab.metricId) || getScoutingMetricOptions()[0];
+  const candidates = selectedSlot ? getScoutingComparisonCandidatesForSlot(slotId).slice(0, 80) : [];
+  const selectedPlayerA = normalizeScoutingText(lab.playerIds?.[0], 160);
+  const selectedPlayerB = normalizeScoutingText(lab.playerIds?.[1], 160);
+  const playerOptions = candidates
+    .map((record) => {
+      const recordId = getScoutingRecordId(record);
+      return `<option value="${escapeHtml(recordId)}" ${selectedPlayerA === recordId || selectedPlayerB === recordId ? "selected" : ""}>${escapeHtml(getScoutingRecordName(record))} · ${escapeHtml(getScoutingRecordTeam(record) || "No club")}</option>`;
+    })
+    .join("");
+  const uniquePlayerIds = Array.from(new Set(lab.playerIds.map((recordId) => normalizeScoutingText(recordId, 160)).filter(Boolean))).slice(0, 2);
+  const playerRecords = uniquePlayerIds
+    .map((recordId) => ({
+      recordId,
+      record: getScoutingRecordById(recordId),
+    }))
+    .filter(({ record }) => Boolean(record));
+  const canCompare = playerRecords.length === 2;
+  const comparisonSnapshot = canCompare
+    ? playerRecords.map(({ record }) => ({
+        record,
+        value: getScoutingMetricValue(record, metric?.id),
+        percentile: metric ? getScoutingPercentile(record, metric.id) : null,
+      }))
+    : [];
+  const metricDelta =
+    canCompare && comparisonSnapshot.every((entry) => Number.isFinite(entry.value) && Number.isFinite(entry.percentile))
+      ? `${comparisonSnapshot[0].percentile >= comparisonSnapshot[1].percentile ? `${escapeHtml(getScoutingRecordName(comparisonSnapshot[0].record))} leads` : `${escapeHtml(getScoutingRecordName(comparisonSnapshot[1].record))} leads`} by ${formatScoutingNumber(Math.abs((comparisonSnapshot[0].percentile || 0) - (comparisonSnapshot[1].percentile || 0)))} percentile points`
+      : "";
+  const canEdit = canEditScoutingWorkspace();
+  return `
+    <section class="scouting-comparison-lab">
+      <h2>Comparison lab</h2>
+      <form class="scouting-target-form is-open scouting-comparison-form" data-scouting-comparison-form>
+        <select name="slotId" data-scouting-comparison-slot ${canEdit ? "" : "disabled"}>
+          ${slotOptions}
+        </select>
+        <select name="metricId" data-scouting-comparison-metric ${canEdit ? "" : "disabled"}>
+          ${getScoutingMetricOptions().map((metricOption) => `<option value="${escapeHtml(metricOption.id)}" ${metricOption.id === metric.id ? "selected" : ""}>${escapeHtml(metricOption.label)}</option>`).join("")}
+        </select>
+        <select name="playerA" data-scouting-comparison-player="a" ${canEdit ? "" : "disabled"}>
+          <option value="">Player A</option>
+          ${playerOptions}
+        </select>
+        <select name="playerB" data-scouting-comparison-player="b" ${canEdit ? "" : "disabled"}>
+          <option value="">Player B</option>
+          ${playerOptions}
+        </select>
+      </form>
+      <p class="scouting-comparison-summary">
+        ${metric ? `Metric: ${escapeHtml(metric.label)}` : "Select a metric"} ${canCompare ? `· ${metricDelta}` : "· Pick two players to compare"}
+      </p>
+      <div class="scouting-comparison-results">
+        ${
+          canCompare
+            ? comparisonSnapshot
+                .map((entry) => {
+                  const roleFit = getScoutingRoleFitScore(entry.record);
+                  const bestSignal = getScoutingBestSignal(entry.record);
+                  return `
+                    <article class="scouting-target-card">
+                      <div class="scouting-target-main">
+                        <strong>${escapeHtml(getScoutingRecordName(entry.record))}</strong>
+                        <span>${escapeHtml(formatScoutingNumber(entry.value))}</span>
+                      </div>
+                      <p class="scouting-fit-line">${escapeHtml(metric?.label || "Metric")}: ${escapeHtml(formatScoutingNumber(entry.value))}${entry.percentile ? ` · P${escapeHtml(entry.percentile)}` : ""}</p>
+                      <p class="scouting-note-line">Role fit ${escapeHtml(getScoutingRoleFitLabel(roleFit))} ${Number.isFinite(roleFit) ? `· P${escapeHtml(roleFit)}` : ""}</p>
+                      <p class="scouting-note-line">Best signal: ${escapeHtml(bestSignal ? `${bestSignal.metric.label} · P${bestSignal.percentile}` : "No signal")}</p>
+                      <button type="button" class="scouting-secondary-button" data-open-scouting-record="${escapeHtml(entry.recordId)}">Open profile</button>
+                    </article>
+                  `;
+                })
+                .join("")
+            : `<p class="scouting-muted">Choose two players and a role to compare by role-relevant metric.</p>`
+        }
+      </div>
+    </section>
+  `;
+}
+function renderScoutingRoleModelsPanel() {
+  const state = ensureScoutingState();
+  const models = getScoutingRoleModels(state);
+  const slotOptions = scoutingShadowSlots
+    .map((slot) => `<option value="${escapeHtml(slot.id)}">${escapeHtml(slot.label)} - ${escapeHtml(slot.position)}</option>`)
+    .join("");
+  return `
+    <section class="scouting-role-models">
+      <h2>Role models</h2>
+      ${
+        canEditScoutingWorkspace()
+          ? `<form class="scouting-target-form is-open" data-scouting-role-model-form>
+              <input type="text" name="name" placeholder="Role model name" required />
+              <select name="slotId">${slotOptions}</select>
+              <select name="metricId">${getScoutingMetricOptions().map((metric) => `<option value="${escapeHtml(metric.id)}">${escapeHtml(metric.label)}</option>`).join("")}</select>
+              <input type="number" min="1" max="99" name="minPercentile" placeholder="Min percentile" />
+              <input type="text" name="notes" placeholder="Model notes" />
+              <button type="submit" class="scouting-primary-button">Save role model</button>
+            </form>`
+          : `<p class="scouting-muted">Role models editing is locked.</p>`
+      }
+      <div class="scouting-role-model-list">
+        ${
+          models.length
+            ? models
+                .map((model) => {
+                  const slot = getScoutingSlotById(model.slotId);
+                  const metric = getScoutingMetric(model.metricId);
+                  const candidates = getScoutingRoleModelCandidates(model).slice(0, 3);
+                  return `
+                    <article class="scouting-target-card">
+                      <div class="scouting-target-main">
+                        <strong>${escapeHtml(model.name || "Custom role model")}</strong>
+                        <span>${escapeHtml(slot ? `${slot.label} · ${slot.position}` : "Open role")}</span>
+                      </div>
+                      <p class="scouting-note-line">Benchmark: ${escapeHtml(metric?.label || "Minutes")} · P${escapeHtml(formatScoutingNumber(model.minPercentile))}</p>
+                      <p class="scouting-fit-line">${escapeHtml(model.notes || "No notes")}</p>
+                      <div class="scouting-target-actions">
+                        <p class="scouting-fit-line">Top matches:</p>
+                        ${
+                          candidates.length
+                            ? candidates
+                                .map(
+                                  (entry) => `
+                                    <button type="button" class="scouting-secondary-button" data-open-scouting-record="${escapeHtml(getScoutingRecordId(entry.record))}">
+                                      ${escapeHtml(getScoutingRecordName(entry.record))} · P${escapeHtml(formatScoutingNumber(entry.percentile))}
+                                    </button>
+                                  `
+                                )
+                                .join("")
+                            : `<p class="scouting-muted">No matching players found yet.</p>`
+                        }
+                        ${canEditScoutingWorkspace() ? `<button type="button" class="scouting-secondary-button" data-remove-scouting-role-model="${escapeHtml(model.id)}">Remove model</button>` : ""}
+                      </div>
+                    </article>
+                  `;
+                })
+                .join("")
+            : `<p class="scouting-muted">Create role models to build own recruitment archetypes.</p>`
+        }
+      </div>
+    </section>
+  `;
+}
+function renderScoutingReportsPanel() {
+  const state = ensureScoutingState();
+  const canEdit = canEditScoutingWorkspace();
+  const reports = getScoutingReports(state);
+  const targetOptions = getScoutingReportTargetOptionMarkup();
+  const reportTypeOptions = [
+    { value: "player", label: "Player report" },
+    { value: "opposition", label: "Opposition report" },
+  ];
+  return `
+    <div class="scouting-reports-grid">
+      <section class="scouting-reports-form-card">
+        <h2>Scout reports</h2>
+        <form class="scouting-target-form is-open" data-scouting-report-form>
+          <select name="type" required ${canEdit ? "" : "disabled"}>
+            ${reportTypeOptions.map((type) => `<option value="${escapeHtml(type.value)}">${escapeHtml(type.label)}</option>`).join("")}
+          </select>
+          <select name="targetId" ${targetOptions ? "" : "disabled"} ${canEdit ? "" : "disabled"}>
+            <option value="">Attach to player target</option>
+            ${targetOptions}
+          </select>
+          <input type="text" name="title" required placeholder="Report title" ${canEdit ? "" : "disabled"} />
+          <textarea name="summary" rows="5" placeholder="Recruitment assessment and notes" ${canEdit ? "" : "disabled"}></textarea>
+          <button type="submit" class="scouting-primary-button" ${canEdit ? "" : "disabled"}>Save report</button>
+        </form>
+      </section>
+      <section class="scouting-reports-list">
+        <h2>Saved reports</h2>
+        <div class="scouting-target-board-list">
+          ${
+            reports.length
+              ? reports
+                  .map((report) => {
+                    const target = state.targets.find((item) => item.id === report.targetId);
+                    const targetRecord = target ? getScoutingRecordById(target.recordId) : null;
+                    return `
+                      <article class="scouting-target-card">
+                        <div class="scouting-target-main">
+                          <strong>${escapeHtml(report.title || "Scouting report")}</strong>
+                          <span>${escapeHtml(report.type === "opposition" ? "Opposition" : "Player")}</span>
+                        </div>
+                        <p class="scouting-note-line">${escapeHtml(targetRecord ? getScoutingRecordName(targetRecord) : target?.name || "No attached target")}</p>
+                        <p class="scouting-fit-line">${escapeHtml(report.summary)}</p>
+                        <p class="scouting-fit-line">${new Date(report.createdAt).toLocaleString("en-US")}</p>
+                        ${canEdit ? `<button type="button" class="scouting-secondary-button" data-delete-scouting-report="${escapeHtml(report.id)}">Delete report</button>` : ""}
+                      </article>
+                    `;
+                  })
+                  .join("")
+              : `<p class="scouting-muted">Create a first scouting report from the funnel target list.</p>`
+          }
+        </div>
+      </section>
+    </div>
+  `;
+}
+function renderScoutingReportsHub() {
+  return `
+    <div class="scouting-reports-shell">
+      ${renderScoutingTargetsPanel()}
+      ${renderScoutingComparisonLabPanel()}
+      ${renderScoutingRoleModelsPanel()}
+      ${renderScoutingReportsPanel()}
+    </div>
   `;
 }
 function renderScoutingFuturePanel(type) {
   const copy =
     type === "opposition"
-      ? "Opposition workflows will connect team tendencies, player threats and match-plan notes."
-      : "Reports will turn shortlisted players into recruitment dossiers, role fit notes and decision memos.";
+      ? "Opposition scouting will connect team tendencies, player threats and match-plan notes."
+      : "Reports will turn shortlisted players into recruitment dossiers, role-fit notes and decision memos.";
   return `
     <section class="scouting-load-panel">
       <h2>${type === "opposition" ? "Opposition scouting" : "Scouting reports"}</h2>
@@ -1135,11 +1757,15 @@ function renderScoutingProfileModal() {
   const goalMetricId = getScoutingMetricIdByLabels(["Goals"]);
   const xgMetricId = getScoutingMetricIdByLabels(["xG"]);
   const assistMetricId = getScoutingMetricIdByLabels(["Assists"]);
+  const target = findScoutingTargetByRecordId(recordId, state);
   const listOptions = state.lists
     .map((list) => `<option value="${escapeHtml(list.id)}">${escapeHtml(list.name)}</option>`)
     .join("");
+  const targetStatus = target?.status || getScoutingStatusOptions()[0]?.value || "new";
+  const targetPriority = target?.priority || getScoutingPriorityOptions()[0]?.value || "normal";
+  const targetSlotId = target?.slotId || getSelectedScoutingShadowSlotId(state) || scoutingShadowSlots[0]?.id || "";
   const slotOptions = scoutingShadowSlots
-    .map((slot) => `<option value="${escapeHtml(slot.id)}" ${getSelectedScoutingShadowSlotId(state) === slot.id ? "selected" : ""}>${escapeHtml(slot.label)} - ${escapeHtml(slot.position)}</option>`)
+    .map((slot) => `<option value="${escapeHtml(slot.id)}" ${targetSlotId === slot.id ? "selected" : ""}>${escapeHtml(slot.label)} - ${escapeHtml(slot.position)}</option>`)
     .join("");
   return `
     <div class="scouting-profile-backdrop" data-close-scouting-profile>
@@ -1163,6 +1789,28 @@ function renderScoutingProfileModal() {
               <select data-scouting-profile-slot ${canEdit ? "" : "disabled"}>${slotOptions}</select>
             </label>
             <button type="button" class="scouting-primary-button" data-add-scouting-record-to-shadow="${escapeHtml(recordId)}" ${canEdit ? "" : "disabled"}>Add to wishlist</button>
+            <form
+              class="scouting-target-form is-open"
+              data-scouting-target-form="${escapeHtml(recordId)}"
+            >
+              <select name="status" ${canEdit ? "" : "disabled"}>
+                ${getScoutingOptionMarkup(getScoutingStatusOptions(), targetStatus)}
+              </select>
+              <select name="priority" ${canEdit ? "" : "disabled"}>
+                ${getScoutingOptionMarkup(getScoutingPriorityOptions(), targetPriority)}
+              </select>
+              <select name="slotId" ${canEdit ? "" : "disabled"}>${slotOptions}</select>
+              <input
+                type="text"
+                name="notes"
+                placeholder="Pipeline notes"
+                value="${escapeHtml(target?.notes || "")}"
+                ${canEdit ? "" : "disabled"}
+              />
+              <button type="submit" class="scouting-primary-button" ${canEdit ? "" : "disabled"}>
+                ${target ? "Update pipeline" : "Add pipeline"}
+              </button>
+            </form>
           </div>
         </header>
         <div class="scouting-profile-decision-strip">
@@ -1271,7 +1919,10 @@ function renderScoutingActiveContent() {
   if (state.activeTab === "lists") {
     return isScoutingDatabaseLoaded() ? renderScoutingListsPanel() : renderScoutingDatabasePanel();
   }
-  if (state.activeTab === "reports" || state.activeTab === "opposition") {
+  if (state.activeTab === "reports") {
+    return renderScoutingReportsHub();
+  }
+  if (state.activeTab === "opposition") {
     return renderScoutingFuturePanel(state.activeTab);
   }
   return isScoutingDatabaseLoaded() ? renderScoutingShadowXi() : renderScoutingDatabasePanel();
@@ -1503,6 +2154,38 @@ export function handleClick(event, context) {
     renderScoutingWorkspace();
     return;
   }
+  const saveTargetTrigger = event.target.closest("[data-save-scouting-target]");
+  if (saveTargetTrigger) {
+    saveScoutingTarget(saveTargetTrigger.dataset.saveScoutingTarget, {
+      status: saveTargetTrigger.dataset.scoutingTargetStatus,
+      priority: saveTargetTrigger.dataset.scoutingTargetPriority,
+    });
+    return;
+  }
+      const removeTargetTrigger = event.target.closest("[data-remove-scouting-target]");
+  if (removeTargetTrigger) {
+    if (!canEditScoutingWorkspace()) {
+      return;
+    }
+    removeScoutingTarget(removeTargetTrigger.dataset.removeScoutingTarget);
+    return;
+  }
+  const deleteReportTrigger = event.target.closest("[data-delete-scouting-report]");
+  if (deleteReportTrigger) {
+    if (!canEditScoutingWorkspace()) {
+      return;
+    }
+    deleteScoutingReport(deleteReportTrigger.dataset.deleteScoutingReport);
+    return;
+  }
+  const removeRoleModelTrigger = event.target.closest("[data-remove-scouting-role-model]");
+  if (removeRoleModelTrigger) {
+    if (!canEditScoutingWorkspace()) {
+      return;
+    }
+    removeScoutingRoleModel(removeRoleModelTrigger.dataset.removeScoutingRoleModel);
+    return;
+  }
   const favoriteTrigger = event.target.closest("[data-toggle-scouting-favorite]");
   if (favoriteTrigger) {
     event.stopPropagation();
@@ -1543,6 +2226,40 @@ export function handleInput(event, context) {
 }
 export function handleChange(event, context) {
   setScoutingContext(context);
+  const targetStatusTrigger = event.target.closest("[data-scouting-target-status]");
+  if (targetStatusTrigger) {
+    if (!canEditScoutingWorkspace()) {
+      return;
+    }
+    updateScoutingTarget(targetStatusTrigger.dataset.scoutingTargetStatus, {
+      status: normalizeScoutingTargetStatus(targetStatusTrigger.value),
+    });
+    return;
+  }
+  const targetPriorityTrigger = event.target.closest("[data-scouting-target-priority]");
+  if (targetPriorityTrigger) {
+    if (!canEditScoutingWorkspace()) {
+      return;
+    }
+    updateScoutingTarget(targetPriorityTrigger.dataset.scoutingTargetPriority, {
+      priority: normalizeScoutingTargetPriority(targetPriorityTrigger.value),
+    });
+    return;
+  }
+  const comparisonForm = event.target.closest("[data-scouting-comparison-form]");
+  if (comparisonForm) {
+    if (!canEditScoutingWorkspace()) {
+      return;
+    }
+    const formData = new FormData(comparisonForm);
+    setScoutingComparisonLab({
+      slotId: formData.get("slotId"),
+      metricId: formData.get("metricId"),
+      playerIds: [formData.get("playerA"), formData.get("playerB")],
+    });
+    renderScoutingWorkspace();
+    return;
+  }
   const filterInput = event.target.closest("[data-scouting-filter]");
   if (!filterInput) {
     return;
@@ -1554,6 +2271,57 @@ export function handleChange(event, context) {
 }
 export function handleSubmit(event, context) {
   setScoutingContext(context);
+  const targetForm = event.target.closest("[data-scouting-target-form]");
+  if (targetForm) {
+    if (!canEditScoutingWorkspace()) {
+      return;
+    }
+    event.preventDefault();
+    const recordId = targetForm.dataset.scoutingTargetForm;
+    const formData = new FormData(targetForm);
+    saveScoutingTarget(recordId, {
+      status: formData.get("status"),
+      priority: formData.get("priority"),
+      slotId: formData.get("slotId"),
+      notes: formData.get("notes"),
+    });
+    return;
+  }
+  const roleModelForm = event.target.closest("[data-scouting-role-model-form]");
+  if (roleModelForm) {
+    if (!canEditScoutingWorkspace()) {
+      return;
+    }
+    event.preventDefault();
+    const formData = new FormData(roleModelForm);
+    createScoutingRoleModel({
+      name: formData.get("name"),
+      slotId: formData.get("slotId"),
+      metricId: formData.get("metricId"),
+      minPercentile: formData.get("minPercentile"),
+      notes: formData.get("notes"),
+    });
+    roleModelForm.reset();
+    return;
+  }
+  const reportForm = event.target.closest("[data-scouting-report-form]");
+  if (reportForm) {
+    if (!canEditScoutingWorkspace()) {
+      return;
+    }
+    event.preventDefault();
+    const formData = new FormData(reportForm);
+    createScoutingReportFromForm(
+      formData.get("title"),
+      formData.get("type"),
+      formData.get("targetId"),
+      formData.get("summary")
+    );
+    if (reportForm.elements.type?.value !== "opposition") {
+      reportForm.reset();
+    }
+    return;
+  }
   const listForm = event.target.closest("[data-scouting-list-form]");
   if (!listForm) {
     return;

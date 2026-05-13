@@ -234,28 +234,22 @@ border-color: rgba(220, 38, 38, 0.22);
 }
 .scouting-reports-shell{
 display: grid;
-gap: 0.75rem;
-}
-.scouting-target-board,
-.scouting-comparison-lab,
-.scouting-role-models,
-.scouting-reports-form-card,
-.scouting-reports-list{
-display: grid;
 gap: 0.72rem;
-border-radius: 10px;
-padding: 0.85rem;
-background: rgba(255, 255, 255, 0.92);
+}
+.scouting-target-board{
+display: grid;
+gap: 0.56rem;
+padding: 0.72rem;
+border-radius: 12px;
+background: rgba(255, 255, 255, 0.94);
 border: 1px solid rgba(29, 29, 31, 0.08);
-box-shadow: 0 14px 34px rgba(31, 38, 44, 0.06);
 }
 .scouting-target-board h2,
 .scouting-comparison-lab h2,
-.scouting-role-models h2,
-.scouting-reports-form-card h2,
-.scouting-reports-list h2{
+.scouting-role-models h2{
 margin: 0;
 color: #1d1d1f;
+font-size: 1.06rem;
 line-height: 1.05;
 }
 .scouting-target-board-columns{
@@ -285,44 +279,62 @@ font-weight: 860;
 color: #233b2d;
 }
 .scouting-target-board-head strong{
-font-size: 1.15rem;
-color: #1d1d1f;
+display: inline-grid;
+min-height: 1.65rem;
+min-width: 1.65rem;
+padding: 0 0.25rem;
+place-items: center;
+border-radius: 999px;
+background: rgba(35, 59, 45, 0.09);
+color: #233b2d;
+font-size: 0.72rem;
 }
-.scouting-target-board-list,
-.scouting-role-model-list,
-.scouting-reports-list .scouting-target-board-list{
+.scouting-target-board-list{
 display: grid;
-gap: 0.42rem;
-min-height: 0;
-overflow: auto;
-max-height: 34rem;
-padding-right: 0.1rem;
+gap: 0.45rem;
 }
-.scouting-comparison-form.scouting-target-form{
-grid-template-columns: repeat(4, minmax(0, 1fr));
+.scouting-comparison-lab,
+.scouting-role-models,
+.scouting-reports-form-card,
+.scouting-reports-list{
+display: grid;
+gap: 0.58rem;
+padding: 0.72rem;
+border-radius: 12px;
+background: rgba(255, 255, 255, 0.94);
+border: 1px solid rgba(29, 29, 31, 0.08);
 }
 .scouting-comparison-summary{
-margin: 0;
 color: #5f665f;
-font-size: 0.82rem;
-font-weight: 850;
+margin: 0;
+font-size: 0.76rem;
+font-weight: 760;
 }
 .scouting-comparison-results{
 display: grid;
-grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-gap: 0.62rem;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+gap: 0.48rem;
 }
-.scouting-comparison-results .scouting-target-card{
-min-height: 9.4rem;
+.scouting-role-model-list{
+display: grid;
+gap: 0.45rem;
+}
+.scouting-reports-shell .scouting-target-card{
+min-height: 0;
 }
 .scouting-reports-grid{
 display: grid;
-grid-template-columns: 1.15fr 1fr;
+grid-template-columns: 1fr 1fr;
 gap: 0.72rem;
 }
-.scouting-reports-form-card,
-.scouting-reports-list{
-padding: 0.9rem;
+body.is-dark-mode .scouting-target-board,
+body.is-dark-mode .scouting-comparison-lab,
+body.is-dark-mode .scouting-role-models,
+body.is-dark-mode .scouting-reports-form-card,
+body.is-dark-mode .scouting-reports-list,
+body.is-dark-mode .scouting-target-board-column{
+background: rgba(15, 23, 42, 0.86);
+border-color: rgba(148, 163, 184, 0.2);
 }
 .scouting-content{
 display: block;
@@ -1176,6 +1188,11 @@ grid-template-columns: 1fr;
 .scouting-profile-actions{
 align-items: stretch;
 flex-direction: column;
+}
+.scouting-target-board-columns,
+.scouting-reports-grid,
+.scouting-comparison-results{
+grid-template-columns: 1fr;
 }
 .scouting-target-form textarea{
 grid-column: auto;

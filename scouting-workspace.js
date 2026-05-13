@@ -157,7 +157,7 @@ const scoutingImportSourcePresets = Object.freeze([
 const SCOUTING_IMPORT_MAX_RECORDS_PER_CHUNK = 10;
 const SCOUTING_IMPORT_MAX_CHUNK_PAYLOAD_CHARACTERS = 70000;
 const SCOUTING_IMPORT_MAX_CHUNK_BYTES = 200000;
-const SCOUTING_API_DATABASE_PAGE_LIMIT = 1000;
+const SCOUTING_API_DATABASE_PAGE_LIMIT = 50;
 const SCOUTING_DATABASE_PAGE_SIZE = 50;
 const scoutingImportSupportedFileExts = Object.freeze(
   scoutingImportSupportedSourceTypes
@@ -648,8 +648,7 @@ function getScoutingApiQueryFromState() {
     minAge: filters.minAge,
     maxAge: filters.maxAge,
     sortMetricId: filters.sortMetricId,
-    // Use a full snapshot load for stable UI pagination and client-side rendering.
-    offset: 0,
+    offset: filters.offset,
     limit: SCOUTING_API_DATABASE_PAGE_LIMIT,
   };
 }
@@ -783,8 +782,32 @@ function getScoutingDatabasePage() {
     : null;
 }
 function renderScoutingDatabasePagingControls(paging = {}) {
+  const isApi = paging?.mode === "api";
   const pageSize = Math.max(1, Math.floor(Number(paging.limit) || SCOUTING_DATABASE_PAGE_SIZE));
   const total = Math.max(0, Math.floor(Number(paging.total) || 0));
+  const returned = Math.max(0, Math.floor(Number(paging.returned) || 0));
+  const hasMore = isApi ? Boolean(paging.hasMore) : total > pageSize;
+  if (isApi) {
+    if (!returned) {
+      return "";
+    }
+    const apiOffset = Math.max(0, Math.floor(Number(paging.offset) || 0));
+    const start = apiOffset + 1;
+    const end = apiOffset + returned;
+    const previousOffset = Math.max(0, apiOffset - pageSize);
+    const nextOffset = Number.isFinite(Number(paging.nextOffset)) ? Number(paging.nextOffset) : apiOffset + returned;
+    const currentPage = Math.floor(apiOffset / pageSize) + 1;
+    const totalLabel = total ? ` of ${total.toLocaleString("en-US")}` : hasMore ? "" : ` of ${end.toLocaleString("en-US")}`;
+    return `
+      <div class="scouting-database-paging" data-scouting-database-paging>
+        <span>${escapeHtml(`Showing ${start.toLocaleString("en-US")}-${end.toLocaleString("en-US")}${totalLabel} · Page ${currentPage}`)}</span>
+        <div>
+          <button type="button" class="scouting-secondary-button" data-scouting-page-offset="${previousOffset}" ${apiOffset <= 0 ? "disabled" : ""}>Previous</button>
+          <button type="button" class="scouting-primary-button" data-scouting-page-offset="${nextOffset}" ${!hasMore ? "disabled" : ""}>Next page</button>
+        </div>
+      </div>
+    `;
+  }
   if (!total || total <= pageSize) {
     return "";
   }
@@ -995,55 +1018,12 @@ function hydrateScoutingProfileApiDetails(recordId) {
     });
 }
 async function loadScoutingDatabaseWithApi() {
-  const baseQuery = getScoutingApiQueryFromState();
-  const baseOffset = getScoutingApiOffset(baseQuery.offset);
-  const basePayload = { ...baseQuery, offset: baseOffset, limit: SCOUTING_API_DATABASE_PAGE_LIMIT };
-  let response = await fetchScoutingApi(basePayload);
+  const query = getScoutingApiQueryFromState();
+  const response = await fetchScoutingApi(query);
   if (!response.ok) {
     throw new Error(response.reason || "Scouting API is not available.");
   }
-  const seedResult = response.result || {};
-  let result = seedResult;
-  const { deduped: seedRecords, seen: seedSeen } = dedupeScoutingRecords(Array.isArray(seedResult.records) ? seedResult.records : [], new Set());
-  let records = [...seedRecords];
-  let seen = seedSeen;
-  let page = result.page || {};
-  let nextOffset = Math.floor(Number(page.nextOffset));
-  let cursor = Number.isFinite(nextOffset) ? nextOffset : baseOffset + records.length;
-  let guard = 0;
-
-  while (Boolean(page?.hasMore) && Number.isFinite(cursor) && cursor >= 0 && guard < 5000) {
-    guard += 1;
-    response = await fetchScoutingApi({ ...basePayload, offset: cursor });
-    if (!response.ok) {
-      throw new Error(response.reason || "Scouting API page fetch failed during full snapshot load.");
-    }
-    result = response.result || {};
-    const { deduped: pageRecords, seen: nextSeen } = dedupeScoutingRecords(Array.isArray(result.records) ? result.records : [], seen);
-    if (pageRecords.length) {
-      records = records.concat(pageRecords);
-    }
-    seen = nextSeen;
-    page = result.page || {};
-    const fallbackOffset = cursor + (Array.isArray(result.records) ? result.records.length : 0);
-    const resolvedNextOffset = Math.floor(Number(page.nextOffset));
-    const nextCursor = Number.isFinite(resolvedNextOffset) && resolvedNextOffset >= 0 ? resolvedNextOffset : fallbackOffset;
-    if (!page.hasMore || !Number.isFinite(nextCursor) || nextCursor <= cursor) {
-      break;
-    }
-    cursor = nextCursor;
-  }
-  const database = applyScoutingApiDatabase({
-    ...seedResult,
-    records,
-    page: {
-      limit: SCOUTING_API_DATABASE_PAGE_LIMIT,
-      offset: baseOffset,
-      returned: records.length,
-      nextOffset: null,
-      hasMore: false,
-    },
-  });
+  const database = applyScoutingApiDatabase(response.result || {});
   if (!database) {
     throw new Error(response.result?.reason || "Scouting database API is not enabled.");
   }
@@ -9256,21 +9236,35 @@ function renderScoutingDataQualityPanel() {
 }
 function getScoutingDatabaseResultsMarkup() {
   const records = getFilteredScoutingDatabaseRecords();
-  const pageOffset = getScoutingDatabasePageOffset(records.length);
-  const visibleRecords = records.slice(pageOffset, pageOffset + SCOUTING_DATABASE_PAGE_SIZE);
+  const apiPage = getScoutingDatabasePage();
+  const isApi = isScoutingApiDatabaseActive();
+  const pageOffset = isApi ? (apiPage?.offset || 0) : getScoutingDatabasePageOffset(records.length);
+  const visibleRecords = isApi
+    ? records
+    : records.slice(pageOffset, pageOffset + SCOUTING_DATABASE_PAGE_SIZE);
   const shownStart = visibleRecords.length ? pageOffset + 1 : 0;
   const shownEnd = visibleRecords.length ? pageOffset + visibleRecords.length : 0;
-  const total = records.length;
-  const summary = `${total.toLocaleString("en-US")} players match. ${
-    total ? `Showing ${shownStart.toLocaleString("en-US")}-${shownEnd.toLocaleString("en-US")} of ${total.toLocaleString("en-US")}.` : ""
-  }`;
+  const hasMore = isApi ? Boolean(apiPage?.hasMore) : false;
+  const knownTotal = isApi ? (hasMore ? 0 : pageOffset + records.length) : records.length;
+  const total = isApi ? Math.max(0, Number(knownTotal) || 0) : records.length;
+  const summary = isApi
+    ? total
+      ? `${total.toLocaleString("en-US")} players match. ${shownStart ? `Showing ${shownStart.toLocaleString("en-US")}-${shownEnd.toLocaleString("en-US")}.` : ""}`
+      : `${shownStart ? `Showing ${shownStart.toLocaleString("en-US")}-${shownEnd.toLocaleString("en-US")}.` : "No players found this page."}`
+    : `${total.toLocaleString("en-US")} players match. ${
+        total ? `Showing ${shownStart.toLocaleString("en-US")}-${shownEnd.toLocaleString("en-US")} of ${total.toLocaleString("en-US")}.` : ""
+      }`;
   return {
     records,
     summary,
     paging: {
       total,
       offset: pageOffset,
-      limit: SCOUTING_DATABASE_PAGE_SIZE,
+      limit: isApi ? (apiPage?.limit || SCOUTING_API_DATABASE_PAGE_LIMIT) : SCOUTING_DATABASE_PAGE_SIZE,
+      returned: isApi ? visibleRecords.length : records.length,
+      hasMore,
+      nextOffset: isApi ? apiPage?.nextOffset : null,
+      mode: isApi ? "api" : "local",
       shownStart,
       shownEnd,
     },
@@ -10578,6 +10572,20 @@ function setScoutingDatabaseFilter(field, value) {
 function setScoutingDatabasePageOffset(offset) {
   const nextOffset = getScoutingApiOffset(offset);
   const state = ensureScoutingState();
+  if (isScoutingApiDatabaseActive()) {
+    const offsetToSet = nextOffset;
+    if (getScoutingApiOffset(state.databaseFilters.offset) === offsetToSet) {
+      return;
+    }
+    state.databaseFilters = normalizeScoutingDatabaseFilters({
+      ...state.databaseFilters,
+      offset: offsetToSet,
+    });
+    scoutingFilteredDatabaseCache.key = "";
+    writeScoutingState({ syncCentral: false });
+    scheduleScoutingDatabaseRefresh();
+    return;
+  }
   const filtered = getFilteredScoutingDatabaseRecords();
   const total = Math.max(0, Math.floor(filtered.length));
   const lastPageStart = Math.max(0, Math.floor((total - 1) / SCOUTING_DATABASE_PAGE_SIZE) * SCOUTING_DATABASE_PAGE_SIZE);

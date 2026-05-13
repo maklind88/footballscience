@@ -1,4 +1,4 @@
-# Deployment + QA Chat
+# Deployment + QA Starter
 
 Paste this into a new Codex chat when deploying or verifying live behavior.
 

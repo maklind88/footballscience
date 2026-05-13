@@ -1,4 +1,4 @@
-# Deployment + QA Chat
+# Module Chat 15: Deployment + QA
 
 ```text
 Vi fortsatter Football Science-projektet.

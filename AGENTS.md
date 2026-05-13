@@ -21,7 +21,8 @@ This section overrides any older release wording below.
 - The user is the product owner and describes the desired live outcome. Codex owns the technical path: implementation, QA, GitHub, release safety, deploy, and production verification.
 - Treat `https://footballscience.xyz` as the product truth the user evaluates. Local files, branches, previews, and staging are engineering tools, not things the user should need to reason about.
 - Do not ask the user to choose technical implementation details when a safe engineering decision can be made from project context.
-- Do not ask "do you want me to run safe release/deploy?" after completed work that should be live. Run the safe release path automatically when gates allow. If release is blocked, explain the blocker and the safest next action in plain Swedish.
+- Do not ask "which deploy path should I use?" when the user's wording maps to the Current Deploy Agreement.
+- If release is blocked, explain the blocker and the safest next action in plain Swedish.
 - If the user gives a technical instruction that would weaken safety, interpret the underlying product goal and choose the safer path.
 - If the user says another chat owns a module, do not touch that module here unless the user explicitly redirects ownership.
 - Multiple Codex chats are allowed only when they own different modules or responsibilities. Use branches or worktrees to isolate parallel work, and never deploy a bundle that accidentally includes another chat's unfinished changes.
@@ -36,40 +37,40 @@ This section overrides any older release wording below.
 
 ## Required Release Order
 
-Use this order for finished work that should leave the machine:
+Use this order for finished work. Only push/deploy when the user asks for deploy or when the task specifically requires GitHub publication.
 
 1. Inspect local state: `git status --short`.
 2. Implement the change.
 3. Run validation:
    - `npm run check`
    - targeted Playwright/API tests for the touched area
-   - `npm run qa:browser` for UI flows
+   - `npm run release:ship -- --mode fast` for routine deploy readiness
+   - `npm run qa:browser` for UI flows when the touched area needs browser proof
    - `npx playwright test --config=qa/playwright.config.mjs --project=api-contracts` for API/data changes
 4. Stage only intended files.
 5. Commit with a clear message.
-6. Run the deploy gate before pushing when possible: `RELEASE_ALLOW_UNPUSHED=1 npm run release:gate`.
-7. Push the branch.
-8. Re-run preflight after push: `npm run release:preflight`.
-9. Deploy only after the gate and push are green: `npx --yes vercel@53.2.0 deploy --prod --yes`.
-10. Verify production: `npm run release:postdeploy`.
-11. Report the commit, push, deployment URL, and verification result.
+6. For `Deploy` / `Deploy fast`, run `npm run deploy`.
+7. For `Deploy safe`, run `npm run deploy:safe`.
+8. Verify production: `npm run release:postdeploy`.
+9. Report the commit, push, deployment URL, and verification result.
 
-For the automated local flow, prefer:
+For the current fast local deploy flow, prefer:
 
 ```bash
-npm run release:auto -- --stage-all --commit "type: concise message" --push --deploy
+npm run deploy
 ```
 
-If there are unrelated local changes, do not use `--stage-all`; stage the intended files manually, then run:
+For the full safe deploy flow, prefer:
 
 ```bash
-npm run release:auto -- --commit "type: concise message" --push --deploy
+npm run deploy:safe
 ```
 
 ## Deployment Safety
 
 - Do not deploy from a dirty working tree.
-- Prefer the GitHub `Production Deploy` workflow for normal production releases after `QA` passes on `main`.
+- Use `npm run deploy` for routine fast production releases.
+- Use `npm run deploy:safe` for risky production releases that need full QA/staging.
 - Do not use emergency overrides unless the user explicitly confirms an urgent hotfix.
 - Do not put secrets in source files. Vercel/GitHub/Supabase secrets stay in their respective dashboards.
 - After deployment, verify the live domain and protected backup endpoint through `npm run release:postdeploy`.

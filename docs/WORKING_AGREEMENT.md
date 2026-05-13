@@ -18,17 +18,17 @@ This section overrides any older release wording below.
 - Live-first product ownership: the user describes the desired live experience; Codex owns the technical path, implementation plan, QA, GitHub, deployment, and verification.
 - Treat `https://footballscience.xyz` as the product truth the user evaluates. Local files, previews, branches, and staging are engineering tools, not what the user should need to reason about.
 - Do not ask the user to choose technical details when a safe engineering decision can be made from project context.
-- Do not ask the user whether to run a safe release/deploy after finished work that should be live; run it automatically when gates allow and report blockers when they do not.
+- Do not ask the user which deploy path to use when the user's wording maps to the Current Deploy Agreement.
+- Do not auto-deploy just because work is finished.
 - If the user gives a technical instruction that would weaken safety, interpret the underlying product goal and choose the safer path.
 - Build one thing properly before moving to the next.
 - Keep the platform flexible and modular.
 - Avoid clutter and unnecessary copy.
 - Do not invent real coaching content unless explicitly asked. Use structure and sample placeholders only where useful.
 - Verify changes before saying they are done.
-- When a finished change should be visible on the public website, deploy it to Vercel, alias it to `footballscience.xyz`, and verify the live files before saying it is done.
-- In every Codex chat, follow the stable release order in `AGENTS.md`: validate, commit intended files only, push after QA, deploy only after the release gate, then run postdeploy verification.
-- For normal production releases, prefer GitHub Actions `Production Deploy` so QA, Vercel deploy, postdeploy checks, and authenticated live smoke run in one auditable path.
-- Production releases must fail closed when staging/live isolation, staging smoke, or exact staging-code matching cannot be proven.
+- When the user asks for deploy, deploy it to Vercel, alias it to `footballscience.xyz`, and verify the live files before saying it is done.
+- In every Codex chat, follow the current deploy policy in `AGENTS.md`: `Deploy` uses `npm run deploy`, while `Deploy safe` uses `npm run deploy:safe`.
+- Fast deploy is the everyday release path. Safe deploy is reserved for auth/login, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, or broad multi-module changes.
 - Production monitoring must stay automated. The scheduled `Production Monitor` workflow should keep postdeploy and authenticated live smoke running even on days with no feature work.
 - Rollbacks must use the `Production Rollback` workflow, require explicit `ROLLBACK` confirmation, and pass postdeploy/live smoke before the rollback is considered complete.
 - `npm run release:rules` is part of QA and protects the release train itself. Do not weaken it to make a deploy easier.

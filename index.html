@@ -2263,7 +2263,7 @@
                 if (directResult.error) {
                   loginResponse.payload = { reason: directResult.error.message || proxyReason || "Invalid username or password." };
                 } else if (directResult.data?.session) {
-            await hydrateCurrentUser(directResult.data.session, { waitForCentral: false, waitForProfile: false });
+                  await hydrateCurrentUser(directResult.data.session, { waitForCentral: false, waitForProfile: true });
                   if (isPausedAccount(authState.currentUser)) { await signOut(); return { ok: false, reason: "This account is paused. Contact an admin." }; }
                   return { ok: true };
                 }
@@ -2276,10 +2276,15 @@
             }
             const session = loginResponse.payload?.session || null;
             if (!session?.access_token || !session?.refresh_token) return { ok: false, reason: "Could not start a session." };
-            await authState.supabase.auth.setSession({access_token:session.access_token,refresh_token:session.refresh_token}).catch((error) => {
+            authState.session = session;
+            withTimeout(
+              authState.supabase.auth.setSession({access_token:session.access_token,refresh_token:session.refresh_token}),
+              5000,
+              "Supabase local session save took too long."
+            ).catch((error) => {
               console.warn("Supabase local session save failed after server login.", error);
             });
-        await hydrateCurrentUser(session, { waitForCentral: false, waitForProfile: false });
+            await hydrateCurrentUser(session, { waitForCentral: false, waitForProfile: true });
             if (isPausedAccount(authState.currentUser)) { await signOut(); return { ok: false, reason: "This account is paused. Contact an admin." }; }
             return { ok: true };
           } catch (error) {

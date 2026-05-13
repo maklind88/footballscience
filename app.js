@@ -23093,8 +23093,7 @@ function renderSquadRosterMeta(player) {
   `;
 }
 function renderSquadRoleCell(player) {
-  const roleGroup = getPlayerProfileOption(playerProfileRoleGroupOptions, player.roleGroup).label;
-  return `<div class="squad-role-cell">${renderSquadRoleStack(player)}<small>${escapeHtml(roleGroup)}</small></div>`;
+  return `<div class="squad-role-cell">${renderSquadRoleStack(player)}</div>`;
 }
 function renderSquadPlanningCell(player) {
   const careerPhase = getPlayerProfileOption(playerProfileCareerPhaseOptions, player.careerPhase).label;

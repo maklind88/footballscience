@@ -10549,9 +10549,11 @@ padding: 0.8rem;
 border-radius: 18px;
 color: #1d1d1f;
 }
+.schedule-event-card > div{
+min-width: 0;
+}
 .schedule-event-card span{
 display: block;
-margin-bottom: 0.16rem;
 color: #6e6e73;
 font-size: 0.74rem;
 font-weight: 780;
@@ -10559,6 +10561,11 @@ font-weight: 780;
 .schedule-event-card strong{
 display: block;
 font-size: 0.94rem;
+line-height: 1.18;
+overflow-wrap: anywhere;
+}
+.schedule-event-card strong + span{
+margin-top: 0.22rem;
 }
 .schedule-event-card p{
 margin: 0.28rem 0 0;

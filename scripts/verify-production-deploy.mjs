@@ -8,6 +8,7 @@ const baseUrl = new URL(process.env.LIVE_QA_BASE_URL || process.argv[2] || "http
 const cacheBust = `release-check=${Date.now()}`;
 const failures = [];
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const allowLiveHashMismatch = process.env.RELEASE_ALLOW_LIVE_HASH_MISMATCH === "1";
 
 function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -46,10 +47,12 @@ expect(app.response.ok, `app.js did not return 2xx: ${app.response.status}`);
 expect(app.text.includes("workspaceLastActiveStorageKey"), "app.js is missing refresh workspace persistence.");
 expect(app.text.includes("__lastRenderedMarkup"), "app.js is missing top menu rerender guard.");
 expect(app.text.includes("football-dashboard-chat-v1"), "app.js is missing chat storage contract key.");
-expect(
-  liveAppHash === expectedAppHash,
-  `Live app.js hash does not match this release. expected=${expectedAppHash} live=${liveAppHash}`
-);
+if (!allowLiveHashMismatch) {
+  expect(
+    liveAppHash === expectedAppHash,
+    `Live app.js hash does not match this release. expected=${expectedAppHash} live=${liveAppHash}`
+  );
+}
 
 const clientConfigResponse = await fetch(new URL("/api/client-config", baseUrl), { cache: "no-store" });
 const clientConfig = await clientConfigResponse.json().catch(() => ({}));
@@ -79,6 +82,9 @@ if (failures.length) {
   console.log("- home: ok");
   console.log("- app.js: ok");
   console.log(`- app.js hash: ${liveAppHash}`);
+  if (allowLiveHashMismatch && liveAppHash !== expectedAppHash) {
+    console.log(`- app.js release hash match: skipped for monitor mode (checkout=${expectedAppHash})`);
+  }
   console.log("- client config: ok");
   console.log("- backup protection: ok");
   console.log("- backup status protection: ok");

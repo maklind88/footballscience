@@ -87,7 +87,7 @@ The backup endpoint writes:
 - A timestamped full backup: `backups/app-state/YYYY-MM-DD/<timestamp>-<hash>.json`
 - A latest pointer: `backups/app-state/latest.json`
 
-Production Monitor runs `npm run release:backup`, `npm run release:restore-readiness`, and `npm run release:restore-drill` as part of `npm run release:monitor`. The checks fail if the latest pointer is missing, stale, does not match the backup object's content hash, lacks restore metadata for any protected Data Safety key, or cannot parse every present backup entry without writing data.
+Production Monitor runs `npm run release:monitor-postdeploy`, `npm run release:backup`, `npm run release:restore-readiness`, and `npm run release:restore-drill` as part of `npm run release:monitor`. The monitor postdeploy check verifies live health without requiring the current `main` checkout to match the live `app.js` hash, because `main` can now be ahead of Live until the user asks for deploy. The backup checks fail if the latest pointer is missing, stale, does not match the backup object's content hash, lacks restore metadata for any protected Data Safety key, or cannot parse every present backup entry without writing data.
 
 ## Release Routine
 

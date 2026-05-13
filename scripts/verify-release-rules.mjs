@@ -40,7 +40,8 @@ function requirePackageScript(name, expected) {
 requirePackageScript("release:backup", "node scripts/verify-app-state-backup-freshness.mjs");
 requirePackageScript("release:restore-readiness", "node scripts/verify-app-state-restore-readiness.mjs");
 requirePackageScript("release:restore-drill", "node scripts/verify-app-state-restore-drill.mjs");
-requirePackageScript("release:monitor", "npm run release:postdeploy && npm run release:backup && npm run release:restore-readiness && npm run release:restore-drill && npm run qa:live:required");
+requirePackageScript("release:monitor-postdeploy", "RELEASE_ALLOW_LIVE_HASH_MISMATCH=1 node scripts/verify-production-deploy.mjs");
+requirePackageScript("release:monitor", "npm run release:monitor-postdeploy && npm run release:backup && npm run release:restore-readiness && npm run release:restore-drill && npm run qa:live:required");
 requirePackageScript("release:incident-alert", "node scripts/create-incident-alert.mjs");
 requirePackageScript("release:incident-readiness", "node scripts/verify-incident-readiness.mjs");
 requirePackageScript("release:rules", "node scripts/verify-release-rules.mjs");
@@ -69,6 +70,7 @@ requireText("scripts/verify-app-state-restore-drill.mjs", "dryRun", "restore dri
 requireText("vercel.json", "/api/app-state-backup-status", "backup status route must reuse the existing backup function");
 requireText("scripts/verify-production-deploy.mjs", "/api/app-state-backup-status", "postdeploy must prove backup status endpoint is protected");
 requireText("scripts/verify-production-deploy.mjs", "Live app.js hash does not match this release", "postdeploy must prove production is serving the expected release asset");
+requireText("scripts/verify-production-deploy.mjs", "RELEASE_ALLOW_LIVE_HASH_MISMATCH", "production monitor must verify live health even when main is ahead of live");
 requireText("scripts/verify-ci-release-env.mjs", "CRON_SECRET", "production CI must include the cron secret used for backup freshness checks");
 requireText("scripts/verify-vercel-token.mjs", "Vercel deployment token: ok", "CI must verify the Vercel token before deployment commands run");
 requireText("scripts/verify-incident-readiness.mjs", "Incident readiness verification: ok", "incident alerting must stay testable");

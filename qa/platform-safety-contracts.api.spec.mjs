@@ -152,9 +152,11 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   expect(packageJson.scripts["qa:perf"]).toContain("scripts/performance-budget.mjs");
   expect(packageJson.scripts["qa:live"]).toContain("qa/live.playwright.config.mjs");
   expect(packageJson.scripts["release:gate"]).toContain("npm run release:safety");
+  expect(packageJson.scripts["release:monitor-postdeploy"]).toContain("RELEASE_ALLOW_LIVE_HASH_MISMATCH=1");
   expect(packageJson.scripts["release:monitor"]).toContain("npm run release:backup");
   expect(packageJson.scripts["release:monitor"]).toContain("npm run release:restore-readiness");
   expect(packageJson.scripts["release:monitor"]).toContain("npm run release:restore-drill");
+  expect(packageJson.scripts["release:monitor"]).toContain("npm run release:monitor-postdeploy");
   expect(packageJson.scripts["release:restore-readiness"]).toBe("node scripts/verify-app-state-restore-readiness.mjs");
   expect(packageJson.scripts["release:restore-drill"]).toBe("node scripts/verify-app-state-restore-drill.mjs");
   expect(fs.existsSync(path.join(rootDir, "scripts/verify-production-safety-gate.mjs"))).toBe(true);
@@ -189,6 +191,7 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   expect(productionDeployWorkflow).not.toContain("workflow_run:");
   expect(productionDeployWorkflow).toContain("npm run release:gate");
   expect(readProjectFile("scripts/verify-production-deploy.mjs")).toContain("Live app.js hash does not match this release");
+  expect(readProjectFile("scripts/verify-production-deploy.mjs")).toContain("RELEASE_ALLOW_LIVE_HASH_MISMATCH");
   expect(readProjectFile("scripts/verify-production-deploy.mjs")).toContain("crypto.createHash");
   expect(liveSpec).toContain("LIVE_QA_USERNAME");
   expect(liveSpec).toContain("LIVE_QA_PASSWORD");

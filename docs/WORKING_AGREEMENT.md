@@ -1,5 +1,18 @@
 # Working Agreement
 
+## Current Deploy Agreement
+
+This section overrides any older release wording below.
+
+- Deploy only when the user explicitly says `Deploy`, `Deploy fast`, or `Deploy safe`.
+- `Deploy` and `Deploy fast` use `npm run deploy` unless the change is risky.
+- `Deploy safe` uses `npm run deploy:safe`.
+- Do not ask the user which deploy path to use when the intent is clear.
+- Do not auto-deploy just because work is finished.
+- Use fast deploy for normal UI/UX/content/CSS/frontend polish and narrow low-risk fixes.
+- Use safe deploy for auth/login, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, or broad multi-module changes.
+- Stop before deploy if the release would include unrelated or unfinished work from another chat.
+
 ## How We Work
 
 - Live-first product ownership: the user describes the desired live experience; Codex owns the technical path, implementation plan, QA, GitHub, deployment, and verification.

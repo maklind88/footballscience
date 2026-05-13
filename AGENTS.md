@@ -2,6 +2,20 @@
 
 These rules apply to every Codex chat working in this repository.
 
+## Current Deploy Agreement
+
+This section overrides any older release wording below.
+
+- Deploy only when the user explicitly says `Deploy`, `Deploy fast`, or `Deploy safe`.
+- `Deploy` and `Deploy fast` mean the fast everyday path: `npm run deploy`, unless the change is risky.
+- `Deploy safe` means the full safe path: `npm run deploy:safe`.
+- Do not ask the user which deploy path to use when the intent is clear.
+- Do not auto-deploy just because work is finished.
+- Fast deploy is for normal UI/UX/content/CSS/frontend polish and narrow low-risk fixes.
+- Safe deploy is for auth/login, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, or broad multi-module changes.
+- If deploy would include unrelated or unfinished work from another chat, stop and explain the coordination issue in plain Swedish.
+- Live QA login is allowed when credentials are available in the current chat or environment, but never write passwords, tokens, or secrets into source files or docs.
+
 ## Live-First Product Ownership
 
 - The user is the product owner and describes the desired live outcome. Codex owns the technical path: implementation, QA, GitHub, release safety, deploy, and production verification.

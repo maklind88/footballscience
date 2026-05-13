@@ -9,6 +9,7 @@ Project path:
 /Users/maklind/Documents/New project
 
 Before doing anything, read:
+AGENTS.md
 docs/AI_HANDOFF.md
 docs/NEXT_STEPS.md
 docs/MODULES.md
@@ -19,6 +20,7 @@ Important:
 - Keep the UI clean, premium, Apple-like, and without unnecessary explanations.
 - Do not invent real coaching content unless I ask for it.
 - Verify before saying something works.
+- Deploy only when I say Deploy. Use fast deploy for normal changes and safe deploy only for risky data/auth/security changes.
 - Use the docs as the source of truth instead of relying on old chat history.
 
 After reading the docs, briefly confirm what area you are working on and then continue with my next instruction.

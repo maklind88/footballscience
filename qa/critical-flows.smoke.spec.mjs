@@ -766,6 +766,15 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
             season: "2026",
             status: "active",
           },
+          {
+            id: "team-football-science-live",
+            clubId: "club-riverside",
+            name: "Football Science Live",
+            shortName: "FSL",
+            level: "Legacy placeholder",
+            season: "2026",
+            status: "active",
+          },
         ],
         memberships: [],
       })
@@ -776,6 +785,8 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
   });
   await openWorkspace(page, "player-profiles");
   await expect(page.locator(".squad-command-title h1")).toHaveText("Riverside FC");
+  await expect(page.locator(".squad-command-title .squad-command-list-summary")).toContainText("Squad List");
+  await expect(page.locator(".squad-command-tools .squad-command-list-summary")).toHaveCount(0);
   await expect(page.locator(".squad-player-row").first()).toContainText("Goalkeeper");
 
   await page.locator("[data-player-profile-new-open]").click();

@@ -4913,27 +4913,46 @@ function getUserTeamName(user, structure = getPlatformStructureState()) {
   const fallbackTeam = getPlatformTeamById(platformDefaultTeamId, structure);
   return explicitTeamName || fallbackTeam?.name || "Team";
 }
+function isLegacyPlatformTeamPlaceholderName(value = "") {
+  return normalizePlatformStructureText(value, "").toLowerCase() === "football science live";
+}
 function getActivePlatformTeam(structure = getPlatformStructureState()) {
+  const activeTeam = structure.teams.find((team) => team.id === structure.activeTeamId && team.status !== "archived") ?? null;
+  if (activeTeam && !isLegacyPlatformTeamPlaceholderName(activeTeam.name)) {
+    return activeTeam;
+  }
+  const defaultTeam = structure.teams.find((team) => team.id === platformDefaultTeamId && team.status !== "archived") ?? null;
+  if (defaultTeam && !isLegacyPlatformTeamPlaceholderName(defaultTeam.name)) {
+    return defaultTeam;
+  }
   return (
-    structure.teams.find((team) => team.id === structure.activeTeamId && team.status !== "archived") ??
+    structure.teams.find((team) => team.status !== "archived" && !isLegacyPlatformTeamPlaceholderName(team.name)) ??
+    activeTeam ??
     structure.teams.find((team) => team.status !== "archived") ??
     structure.teams[0] ??
     null
   );
 }
 function getPlatformTeamDisplayName(user = getCurrentPlatformUser(), structure = getPlatformStructureState()) {
-  const explicitTeamId = normalizePlatformStructureText(user?.teamId || user?.team_id, "");
+  const currentAuthUser = getPlatformAuthStore()?.getCurrentUser?.() ?? null;
+  const displayUser = currentAuthUser || user || {};
+  const explicitTeamId = normalizePlatformStructureText(displayUser?.teamId || displayUser?.team_id, "");
   if (explicitTeamId) {
     const team = structure.teams.find((candidate) => candidate.id === explicitTeamId);
-    if (team?.name) {
+    if (team?.name && !isLegacyPlatformTeamPlaceholderName(team.name)) {
       return team.name;
     }
   }
-  const matchedTeam = findPlatformTeamByName(user?.teamName || user?.team, structure);
-  if (matchedTeam?.name) {
+  const activeTeam = getActivePlatformTeam(structure);
+  if (activeTeam?.name) {
+    return activeTeam.name;
+  }
+  const matchedTeam = findPlatformTeamByName(displayUser?.teamName || displayUser?.team, structure);
+  if (matchedTeam?.name && !isLegacyPlatformTeamPlaceholderName(matchedTeam.name)) {
     return matchedTeam.name;
   }
-  return getActivePlatformTeam(structure)?.name || "Team";
+  const explicitTeamName = normalizePlatformStructureText(displayUser?.teamName || displayUser?.team, "");
+  return explicitTeamName && !isLegacyPlatformTeamPlaceholderName(explicitTeamName) ? explicitTeamName : "Team";
 }
 function getUserClubName(user, structure = getPlatformStructureState()) {
   const club = getPlatformClubById(getUserClubId(user, structure), structure);
@@ -25457,10 +25476,7 @@ function renderPlayerProfilesWorkspace(message = "") {
         <div class="squad-command-title">
           <p>Squad Room</p>
           <h1>${escapeHtml(squadTeamName)}</h1>
-          <span>Player profiles, roles and training guests.</span>
-        </div>
-        <div class="squad-command-tools" aria-label="Squad list controls">
-          <div class="squad-command-list-summary">
+          <div class="squad-command-list-summary squad-command-title-summary">
             <div>
               <strong>Squad List</strong>
               <span>
@@ -25468,17 +25484,20 @@ function renderPlayerProfilesWorkspace(message = "") {
                 ${rosterSummary.temporaryCount ? `+ ${visibleSummary.temporaryCount}/${rosterSummary.temporaryCount} temporary` : ""}
               </span>
             </div>
-            <button
-              type="button"
-              class="squad-add-player-trigger"
-              data-player-profile-new-open
-              aria-label="Add player"
-              title="Add player"
-              ${canEditPlayerProfiles() ? "" : "disabled"}
-            >
-              +
-            </button>
           </div>
+          <span>Player profiles, roles and training guests.</span>
+        </div>
+        <div class="squad-command-tools" aria-label="Squad list controls">
+          <button
+            type="button"
+            class="squad-add-player-trigger"
+            data-player-profile-new-open
+            aria-label="Add player"
+            title="Add player"
+            ${canEditPlayerProfiles() ? "" : "disabled"}
+          >
+            +
+          </button>
           <div class="squad-list-tools">
             <input
               type="search"

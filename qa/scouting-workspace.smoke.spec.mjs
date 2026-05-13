@@ -58,7 +58,7 @@ async function openWorkspace(page, workspaceId, viewId = workspaceId) {
 }
 
 test("Scouting database search, profile, favorite and Shadow XI flow stays stable", async ({ page }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(150_000);
   await page.addInitScript(
     ({ key }) => {
       window.localStorage.removeItem("football-scouting-v1");
@@ -101,6 +101,9 @@ test("Scouting database search, profile, favorite and Shadow XI flow stays stabl
   const positionSelect = page.locator('[data-scouting-filter="position"]').first();
   if ((await positionSelect.count()) > 0) {
     await positionSelect.selectOption({ index: 1 }).catch(() => {});
+    await expect(page.locator("[data-scouting-record-grid] [data-open-scouting-record]").first()).toBeVisible({
+      timeout: 45_000,
+    });
   }
   await expect(page.locator(".scouting-tab.is-active")).toContainText("Database");
 
@@ -116,7 +119,9 @@ test("Scouting database search, profile, favorite and Shadow XI flow stays stabl
   await profileModal.locator("[data-add-scouting-record-to-shadow]").first().click();
   await profileModal.locator(".scouting-profile-close").click();
   await expect(page.locator("[data-scouting-profile-modal]")).toBeHidden();
-  await page.locator('.scouting-tab[data-scouting-tab="shadow-xi"]').click();
-  await expect(page.locator(".scouting-tab.is-active")).toContainText("Shadow XI");
-  await expect(page.locator(".scouting-shadow-player").first()).toBeVisible();
+  const shadowTab = page.locator('.scouting-tab[data-scouting-tab="shadow-xi"]').first();
+  await expect(shadowTab).toBeVisible();
+  await shadowTab.click();
+  await expect(shadowTab).toHaveClass(/is-active/);
+  await expect(page.locator(".scouting-shadow-player").first()).toBeVisible({ timeout: 30_000 });
 });

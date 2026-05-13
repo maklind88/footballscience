@@ -414,10 +414,10 @@ grant select on public.scouting_player_seasons to authenticated;
 grant select on public.scouting_metric_percentiles to authenticated;
 grant select on public.scouting_role_profiles to authenticated;
 grant select on public.scouting_role_profile_scores to authenticated;
-grant select, insert, update on public.scouting_lists to authenticated;
-grant select, insert, update on public.scouting_list_entries to authenticated;
-grant select, insert, update on public.scouting_shadow_entries to authenticated;
-grant select, insert, update on public.scouting_reports to authenticated;
+grant select on public.scouting_lists to authenticated;
+grant select on public.scouting_list_entries to authenticated;
+grant select on public.scouting_shadow_entries to authenticated;
+grant select on public.scouting_reports to authenticated;
 grant select on public.scouting_import_changes to authenticated;
 
 create policy "scouting import batches readable by scouting staff" on public.scouting_import_batches for select to authenticated using (app_private.can_access_scouting_scope(organization_id, team_id));

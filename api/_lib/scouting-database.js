@@ -36,6 +36,18 @@ function normalizeString(value, maxLength = MAX_TEXT_LENGTH) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
+function normalizeScoutingLeague(value = "") {
+  const normalized = normalizeString(value, 180);
+  if (!normalized) {
+    return "";
+  }
+  const fixedCountry = normalized.replace(/^scottland\b/i, "Scotland");
+  if (/^Scotland\s+SWPL\b/i.test(fixedCountry)) {
+    return "Scotland SWPL";
+  }
+  return fixedCountry;
+}
+
 function normalizeNumber(value, fallback = null) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
@@ -189,7 +201,7 @@ function seasonRowToClientRecord(row = {}) {
     normalizeString(row.player_name, 180),
     normalizeString(row.team_name, 180),
     normalizeString(row.team_within_timeframe || row.team_name, 180),
-    normalizeString(row.league_name, 180),
+    normalizeScoutingLeague(row.league_name),
     normalizeString(row.season_label, 80),
     normalizeString(row.position_text, 120),
     normalizeNumber(row.age, ""),
@@ -297,14 +309,18 @@ async function fetchMetrics() {
 function addSeasonFilters(params, query = {}) {
   params.set("status", "eq.active");
   params.set("deleted_at", "is.null");
-  const league = normalizeString(query.league, 180);
+  const league = normalizeScoutingLeague(query.league);
   const season = normalizeString(query.season, 80);
   const position = normalizeString(query.position, 80).toUpperCase();
   const minMinutes = normalizeNumber(query.minMinutes, null);
   const maxAge = normalizeNumber(query.maxAge, null);
   const textQuery = safeIlike(query.query);
   if (league && league !== "all") {
-    params.set("league_name", `eq.${league}`);
+    if (/^Scotland SWPL$/i.test(league)) {
+      params.set("league_name", "ilike.*Scotland SWPL*");
+    } else {
+      params.set("league_name", `eq.${league}`);
+    }
   }
   if (season && season !== "all") {
     params.set("season_label", `eq.${season}`);
@@ -355,7 +371,7 @@ function buildOptionsFromRows(rows = []) {
   const seasons = new Set();
   const positions = new Set();
   rows.forEach((row) => {
-    const league = normalizeString(row.league_name, 180);
+    const league = normalizeScoutingLeague(row.league_name);
     const season = normalizeString(row.season_label, 80);
     const position = normalizeString(row.position_text, 120).toUpperCase();
     if (league) leagues.add(league);
@@ -501,7 +517,7 @@ function normalizeImportSeasonRecord(record = {}, playerId = null, importBatchId
     player_name: playerName,
     team_name: normalizeString(recordValue(record, "team"), 180) || null,
     team_within_timeframe: normalizeString(recordValue(record, "teamWithinTimeframe"), 180) || normalizeString(recordValue(record, "team"), 180) || null,
-    league_name: normalizeString(recordValue(record, "league"), 180) || null,
+    league_name: normalizeScoutingLeague(recordValue(record, "league")) || null,
     season_label: normalizeString(recordValue(record, "season"), 80) || null,
     position_text: normalizeString(recordValue(record, "position"), 120) || null,
     position_group: getClientRecordPositionGroup(record),

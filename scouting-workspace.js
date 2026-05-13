@@ -33,7 +33,7 @@ let scoutingOppositionLatestSnapshot = null;
 const scoutingImportedDatabaseStorageKey = "football-scouting-imported-database-v1";
 const scoutingImportLastUploadStorageKey = "football-scouting-last-import-summary-v1";
 const scoutingImportSupportedSourceTypes = Object.freeze([
-  { id: "xlsx", label: "Excel", extensions: [".xlsx", ".xls"], parser: "xlsx", supportsSheets: true },
+  { id: "xlsx", label: "Excel", extensions: [".xlsx", ".xlsm", ".xlsb", ".xls"], parser: "xlsx", supportsSheets: true },
   { id: "csv", label: "CSV / TSV", extensions: [".csv", ".tsv", ".txt"], parser: "csv", supportsSheets: false },
   { id: "json", label: "JSON", extensions: [".json"], parser: "json", supportsSheets: false },
   { id: "pdf", label: "PDF", extensions: [".pdf"], parser: "pdf", supportsSheets: false },
@@ -123,6 +123,18 @@ function escapeHtml(value) {
 }
 function normalizeScoutingText(value, maxLength = 160) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
+function normalizeScoutingLeague(value = "") {
+  const normalized = normalizeScoutingText(value, 180);
+  if (!normalized) {
+    return "";
+  }
+  const fixedCountry = normalized.replace(/^scottland\b/i, "Scotland");
+  if (/^Scotland\s+SWPL\b/i.test(fixedCountry)) {
+    return "Scotland SWPL";
+  }
+  return fixedCountry;
 }
 function getScoutingImportLastUploadSummary() {
   try {
@@ -249,7 +261,7 @@ function normalizeScoutingDatabaseFilters(filters = {}) {
   const minMinutes = Number(filters.minMinutes);
   return {
     query: normalizeScoutingText(filters.query, 120),
-    league: normalizeScoutingText(filters.league, 120) || "all",
+    league: normalizeScoutingLeague(filters.league) || "all",
     season: normalizeScoutingText(filters.season, 80) || "all",
     position: normalizeScoutingText(filters.position, 40) || "all",
     minMinutes: Number.isFinite(minMinutes) && minMinutes >= 0 ? Math.round(minMinutes) : 450,
@@ -504,22 +516,21 @@ async function publishScoutingExcelImportToDatabase(database = {}) {
   if (!importBatchId) {
     return { ok: false, reason: "Scouting import batch could not be created." };
   }
-  const chunks = getScoutingImportChunks(database.records);
+  const chunkPlan = getScoutingImportPayloadChunks(database.records, database.metrics || []);
+  if (!chunkPlan.ok) {
+    return chunkPlan;
+  }
+  const chunks = chunkPlan.chunks;
   for (let index = 0; index < chunks.length; index += 1) {
+    const payloadRows = chunks[index];
     const chunkPayload = {
       action: "importExcelChunk",
       importBatchId,
       chunkIndex: index,
       chunkCount: chunks.length,
-      metrics: index === 0 ? database.metrics || [] : [],
-      records: chunks[index],
+      metrics: chunkPlan.metricsFirstChunkIndex === index ? (database.metrics || []) : [],
+      records: payloadRows,
     };
-    if (JSON.stringify(chunkPayload).length > SCOUTING_IMPORT_MAX_CHUNK_BYTES) {
-      return {
-        ok: false,
-        reason: "Upload chunk is too large for API limits. Please remove unused metric columns or split the file.",
-      };
-    }
     scoutingImportDraft = {
       ...(scoutingImportDraft || {}),
       databaseUploadStatus: `Uploading ${index + 1}/${chunks.length} to scouting player database`,
@@ -564,6 +575,58 @@ async function publishScoutingExcelImportToDatabase(database = {}) {
   setScoutingImportLastUploadSummary(scoutingImportDraft.lastUploadSummary);
   renderScoutingWorkspace({ preserveFocus: true });
   return finishResult;
+}
+function getScoutingImportPayloadChunks(records = [], metrics = []) {
+  const rawChunks = getScoutingImportChunks(records);
+  if (!rawChunks.length) {
+    return {
+      ok: true,
+      chunks: [],
+      metricsFirstChunkIndex: 0,
+    };
+  }
+  const chunks = [];
+  const queue = rawChunks.map((chunkRecords, index) => ({
+    rows: chunkRecords,
+    includeMetrics: index === 0,
+    source: `chunk-${index}`,
+  }));
+  while (queue.length) {
+    const current = queue.shift();
+    const payload = {
+      action: "importExcelChunk",
+      importBatchId: "",
+      chunkIndex: 0,
+      chunkCount: 1,
+      metrics: current.includeMetrics ? metrics : [],
+      records: current.rows,
+    };
+    if (JSON.stringify(payload).length <= SCOUTING_IMPORT_MAX_CHUNK_BYTES) {
+      chunks.push({
+        records: current.rows,
+        includeMetrics: current.includeMetrics,
+        source: current.source,
+      });
+      continue;
+    }
+    if (current.rows.length <= 1) {
+      return {
+        ok: false,
+        reason: "Import row is too large for API limits. Please remove unused metric columns and try again.",
+      };
+    }
+    const splitAt = Math.ceil(current.rows.length / 2);
+    const firstRows = current.rows.slice(0, splitAt);
+    const secondRows = current.rows.slice(splitAt);
+    queue.unshift({ rows: secondRows, includeMetrics: false, source: `${current.source}-b` });
+    queue.unshift({ rows: firstRows, includeMetrics: current.includeMetrics, source: `${current.source}-a` });
+  }
+  const metricsFirstChunkIndex = chunks.findIndex((chunk) => chunk.includeMetrics);
+  return {
+    ok: true,
+    chunks: chunks.map((chunk) => chunk.rows),
+    metricsFirstChunkIndex: metricsFirstChunkIndex === -1 ? 0 : metricsFirstChunkIndex,
+  };
 }
 function loadScoutingDatabaseWithScript() {
   return platformModuleLoader
@@ -1214,7 +1277,7 @@ function getScoutingRecordTeam(record) {
   return normalizeScoutingText(record?.[scoutingRecordIndex.team], 160);
 }
 function getScoutingRecordLeague(record) {
-  return normalizeScoutingText(record?.[scoutingRecordIndex.league], 160);
+  return normalizeScoutingLeague(record?.[scoutingRecordIndex.league]);
 }
 function getScoutingRecordSeason(record) {
   return normalizeScoutingText(record?.[scoutingRecordIndex.season], 80);
@@ -1476,22 +1539,29 @@ async function loadScoutingImportFile(file) {
   try {
     let sheets = [];
     if (sourceType.parser === "xlsx") {
-      await ensureScoutingSpreadsheetParserLoaded();
-      const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
-      sheets = workbook.SheetNames.map((sheetName) => {
-        const rows = getScoutingImportSheetRows(workbook.Sheets[sheetName]).slice(0, 50000);
-        const headers = Array.from(
-          rows.reduce((set, row) => {
-            Object.keys(row || {}).forEach((header) => set.add(header));
-            return set;
-          }, new Set())
-        );
-        return {
-          name: sheetName,
-          rows,
-          headers,
-        };
-      }).filter((sheet) => sheet.headers.length);
+      try {
+        await ensureScoutingSpreadsheetParserLoaded();
+        const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
+        sheets = workbook.SheetNames.map((sheetName) => {
+          const rows = getScoutingImportSheetRows(workbook.Sheets[sheetName]).slice(0, 50000);
+          const headers = Array.from(
+            rows.reduce((set, row) => {
+              Object.keys(row || {}).forEach((header) => set.add(header));
+              return set;
+            }, new Set())
+          );
+          return {
+            name: sheetName,
+            rows,
+            headers,
+          };
+        }).filter((sheet) => sheet.headers.length);
+        if (!sheets.length) {
+          throw new Error("No readable sheet found in the Excel workbook.");
+        }
+      } catch (error) {
+        throw new Error(error?.message || "Could not parse the selected Excel file. Try saving as .xlsx and retry.");
+      }
     } else if (sourceType.parser === "json") {
       const payload = JSON.parse(await readScoutingText(file));
       const parsed = parseScoutingJsonRows(payload);
@@ -1615,7 +1685,7 @@ function buildScoutingImportedDatabase() {
         player,
         team,
         team,
-        normalizeScoutingText(row[map.league], 160),
+        normalizeScoutingLeague(row[map.league]),
         season,
         position,
         parseScoutingMetricValue(row[map.age]) || "",

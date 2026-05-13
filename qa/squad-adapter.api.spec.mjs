@@ -30,14 +30,14 @@ test("Squad adapter normalizes legacy player profile state for the new module bo
           status: "managed",
           squadStatus: "rotation",
           idp: { status: "active", primaryFocus: "Counter-press timing" },
-          rosterOrder: 2,
+          rosterOrder: 1,
           updatedAt: "2026-05-06T12:00:00.000Z",
         },
         {
           name: "Ada Keeper",
           position: "Goalkeeper",
           status: "not-real",
-          rosterOrder: 1,
+          rosterOrder: 99,
           updatedAt: "2026-05-07T12:00:00.000Z",
         },
       ],
@@ -69,14 +69,14 @@ test("Squad selectors support filtering, counts, and cursor-friendly pages", () 
   const state = normalizeSquadState(
     {
       players: [
-        { id: "gk", name: "Goalkeeper One", position: "Goalkeeper", rosterOrder: 1 },
-        { id: "cb", name: "Defender One", position: "Defender", primaryRole: "CB", rosterOrder: 2 },
+        { id: "gk", name: "Goalkeeper One", position: "Goalkeeper", rosterOrder: 99 },
+        { id: "cb", name: "Defender One", position: "Defender", primaryRole: "CB", rosterOrder: 1 },
         {
           id: "mid",
           name: "Midfielder One",
           position: "Midfielder",
           primaryRole: "8",
-          rosterOrder: 3,
+          rosterOrder: 2,
           idp: { status: "active", primaryFocus: "Switch play" },
         },
         {
@@ -89,7 +89,7 @@ test("Squad selectors support filtering, counts, and cursor-friendly pages", () 
           temporaryGroup: "Academy Training Group",
           temporaryFrom: "2026-05-08",
           temporaryTo: "2026-05-12",
-          rosterOrder: 4,
+          rosterOrder: 0,
         },
       ],
     },

@@ -4916,6 +4916,28 @@ function getUserTeamName(user, structure = getPlatformStructureState()) {
   const fallbackTeam = getPlatformTeamById(platformDefaultTeamId, structure);
   return explicitTeamName || fallbackTeam?.name || "Team";
 }
+function getActivePlatformTeam(structure = getPlatformStructureState()) {
+  return (
+    structure.teams.find((team) => team.id === structure.activeTeamId && team.status !== "archived") ??
+    structure.teams.find((team) => team.status !== "archived") ??
+    structure.teams[0] ??
+    null
+  );
+}
+function getPlatformTeamDisplayName(user = getCurrentPlatformUser(), structure = getPlatformStructureState()) {
+  const explicitTeamId = normalizePlatformStructureText(user?.teamId || user?.team_id, "");
+  if (explicitTeamId) {
+    const team = structure.teams.find((candidate) => candidate.id === explicitTeamId);
+    if (team?.name) {
+      return team.name;
+    }
+  }
+  const matchedTeam = findPlatformTeamByName(user?.teamName || user?.team, structure);
+  if (matchedTeam?.name) {
+    return matchedTeam.name;
+  }
+  return getActivePlatformTeam(structure)?.name || "Team";
+}
 function getUserClubName(user, structure = getPlatformStructureState()) {
   const club = getPlatformClubById(getUserClubId(user, structure), structure);
   return club?.name || normalizePlatformStructureText(user?.clubName || user?.club, "Club");
@@ -22127,7 +22149,33 @@ function formatPlayerProfileChangeTime(value) {
   }).format(date);
 }
 function comparePlayerProfiles(first, second) {
+  const groupComparison = getPlayerProfileSquadSortGroup(first) - getPlayerProfileSquadSortGroup(second);
+  if (groupComparison !== 0) {
+    return groupComparison;
+  }
+  const roleComparison = getPlayerProfileRoleSortIndex(first) - getPlayerProfileRoleSortIndex(second);
+  if (roleComparison !== 0) {
+    return roleComparison;
+  }
   return compareMedicalPlayers(first, second);
+}
+function getPlayerProfileSquadSortGroup(player = {}) {
+  const group = String(player.roleGroup || "").trim().toLowerCase();
+  if (group === "goalkeeper") return 0;
+  if (group === "defender") return 1;
+  if (group === "midfielder") return 2;
+  if (group === "forward") return 3;
+  const position = String(player.position || "").trim().toLowerCase();
+  if (position.includes("goal")) return 0;
+  if (position.includes("def") || position.includes("back")) return 1;
+  if (position.includes("mid")) return 2;
+  if (position.includes("for") || position.includes("wing") || position.includes("strik")) return 3;
+  return 9;
+}
+function getPlayerProfileRoleSortIndex(player = {}) {
+  const role = normalizePlayerProfileRole(player.primaryRole, "");
+  const index = playerProfileRoleOptions.indexOf(role);
+  return index >= 0 ? index : playerProfileRoleOptions.length;
 }
 function clonePlayerProfilesState(source = {}) {
   const seededPlayers = defaultMedicalPlayers.map((player) =>
@@ -22344,7 +22392,7 @@ function getVisiblePlayerProfiles() {
       .join(" ")
       .toLowerCase()
       .includes(query);
-  });
+  }).sort(comparePlayerProfiles);
 }
 function getPlayerProfileCompleteness(player = {}) {
   const checks = [
@@ -25411,7 +25459,7 @@ function renderPlayerProfilesWorkspace(message = "") {
   const selectedPlayer = getSelectedPlayerProfile();
   const rosterSummary = getPlayerProfilesRosterSummary(playerProfilesState.players);
   const visibleSummary = getPlayerProfilesRosterSummary(visiblePlayers);
-  const squadTeamName = getUserTeamName(getCurrentPlatformUser());
+  const squadTeamName = getPlatformTeamDisplayName(getCurrentPlatformUser());
   ui.playerProfilesWorkspace.innerHTML = `
     <div class="squad-board-shell">
       <header class="squad-command-bar">

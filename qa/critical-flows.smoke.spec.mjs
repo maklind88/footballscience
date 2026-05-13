@@ -723,7 +723,38 @@ test("Medical recommendation edits persist after refresh", async ({ page }) => {
 test("Squad add creates a Medical roster slot and Session Planner placement", async ({ page }) => {
   const playerName = `QA Squad Placement ${Date.now()}`;
   await bootApp(page);
+  await page.evaluate(() => {
+    const store = window.platformAuthStore;
+    const currentUser = store?.getCurrentUser?.();
+    if (!store || !currentUser) return;
+    window.localStorage.setItem(
+      "football-platform-structure-v1",
+      JSON.stringify({
+        version: 1,
+        activeClubId: "club-riverside",
+        activeTeamId: "team-riverside-first",
+        clubs: [{ id: "club-riverside", name: "Riverside Club", shortName: "RC", status: "active" }],
+        teams: [
+          {
+            id: "team-riverside-first",
+            clubId: "club-riverside",
+            name: "Riverside FC",
+            shortName: "RFC",
+            level: "First Team",
+            season: "2026",
+            status: "active",
+          },
+        ],
+        memberships: [],
+      })
+    );
+    const nextUser = { ...currentUser, team: "Football Science Live", teamName: "Football Science Live", teamId: "" };
+    store.writeUsers([nextUser, ...store.getUsers().filter((user) => user.id !== nextUser.id)]);
+    store.setCurrentUser(nextUser.id);
+  });
   await openWorkspace(page, "player-profiles");
+  await expect(page.locator(".squad-command-title h1")).toHaveText("Riverside FC");
+  await expect(page.locator(".squad-player-row").first()).toContainText("Goalkeeper");
 
   await page.locator("[data-player-profile-new-open]").click();
   const form = page.locator("#playerProfileNewPlayerForm:visible").first();

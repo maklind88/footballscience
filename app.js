@@ -23199,6 +23199,19 @@ function renderSquadRosterSections(visiblePlayers = [], summaries = {}) {
       : "",
   ].join("");
 }
+function renderPlayerProfilesRosterListOnly() {
+  ensurePlayerProfilesState();
+  const listPanel = ui.playerProfilesWorkspace?.querySelector(".squad-list-panel");
+  if (!listPanel) {
+    renderPlayerProfilesWorkspace();
+    return;
+  }
+  const visiblePlayers = getVisiblePlayerProfiles();
+  listPanel.innerHTML = renderSquadRosterSections(visiblePlayers, {
+    rosterSummary: getPlayerProfilesRosterSummary(playerProfilesState.players),
+    visibleSummary: getPlayerProfilesRosterSummary(visiblePlayers),
+  });
+}
 function renderPlayerProfileRoleOptions(selectedRole = "") {
   return playerProfileRoleOptions
     .map((role) => `<option value="${escapeHtml(role)}" ${role === selectedRole ? "selected" : ""}>${escapeHtml(role)}</option>`)
@@ -70226,7 +70239,11 @@ ui.playerProfilesWorkspace?.addEventListener("click", (event) => {
 });
 ui.playerProfilesWorkspace?.addEventListener("input", (event) => {
   const searchInput = event.target.closest("[data-player-profile-search]");
-  if (searchInput) { playerProfilesSearchQuery = searchInput.value; renderPlayerProfilesWorkspace(); return; }
+  if (searchInput) {
+    playerProfilesSearchQuery = searchInput.value;
+    renderPlayerProfilesRosterListOnly();
+    return;
+  }
   const editForm = event.target.closest("#playerProfileEditForm");
   if (editForm) {
     const label = event.target.type === "range" ? event.target.closest("label")?.querySelector("strong") : null;

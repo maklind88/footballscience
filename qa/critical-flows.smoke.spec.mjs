@@ -818,6 +818,14 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
   await expect(page.locator(".squad-player-row").first().locator(".squad-role-cell small")).toHaveCount(0);
   await expect(page.locator(".squad-player-row").first().locator(".squad-planning-cell small")).toHaveCount(0);
   await expect(page.locator(".squad-player-row").first().locator(".squad-idp-cell")).toContainText(/IDP|Review|Monitor/);
+  const squadSearch = page.locator("[data-player-profile-search]").first();
+  await squadSearch.click();
+  await page.keyboard.type("Mad");
+  await expect(squadSearch).toHaveValue("Mad");
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.matches("[data-player-profile-search]") || false))
+    .toBe(true);
+  await squadSearch.fill("");
   await page.locator("[data-squad-team-logo-upload]").setInputFiles({
     name: "riverside-logo.png",
     mimeType: "image/png",

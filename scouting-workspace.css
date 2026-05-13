@@ -1058,6 +1058,19 @@ color: #5f665f;
 font-size: 0.82rem;
 font-weight: 850;
 }
+.scouting-database-paging{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  color: #5f665f;
+  font-size: 0.74rem;
+}
+.scouting-database-paging > div{
+  display: flex;
+  gap: 0.45rem;
+}
 .scouting-data-quality,
 .scouting-budget-board{
 display: grid;
@@ -3109,6 +3122,7 @@ body.is-dark-mode .scouting-load-panel p,
 body.is-dark-mode .scouting-shadow-card p,
 body.is-dark-mode .scouting-muted,
 body.is-dark-mode .scouting-result-summary,
+body.is-dark-mode .scouting-database-paging,
 body.is-dark-mode .scouting-record-table-cell,
 body.is-dark-mode .scouting-record-nationality,
 body.is-dark-mode .scouting-record-card-score span,

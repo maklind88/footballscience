@@ -158,6 +158,7 @@ const SCOUTING_IMPORT_MAX_RECORDS_PER_CHUNK = 10;
 const SCOUTING_IMPORT_MAX_CHUNK_PAYLOAD_CHARACTERS = 70000;
 const SCOUTING_IMPORT_MAX_CHUNK_BYTES = 200000;
 const SCOUTING_API_DATABASE_PAGE_LIMIT = 1000;
+const SCOUTING_DATABASE_PAGE_SIZE = 50;
 const scoutingImportSupportedFileExts = Object.freeze(
   scoutingImportSupportedSourceTypes
     .flatMap((sourceType) => sourceType.extensions)
@@ -647,13 +648,23 @@ function getScoutingApiQueryFromState() {
     minAge: filters.minAge,
     maxAge: filters.maxAge,
     sortMetricId: filters.sortMetricId,
-    offset: filters.offset,
+    // Use a full snapshot load for stable UI pagination and client-side rendering.
+    offset: 0,
     limit: SCOUTING_API_DATABASE_PAGE_LIMIT,
   };
 }
 function getScoutingApiOffset(value) {
   const offset = Math.floor(Number(value));
   return Number.isFinite(offset) && offset >= 0 ? offset : 0;
+}
+function getScoutingDatabasePageOffset(totalRecordCount = 0) {
+  const rawOffset = getScoutingApiOffset((ensureScoutingState().databaseFilters || {}).offset);
+  const total = Math.max(0, Math.floor(Number(totalRecordCount) || 0));
+  if (!total) {
+    return 0;
+  }
+  const lastPageStart = Math.max(0, Math.floor((total - 1) / SCOUTING_DATABASE_PAGE_SIZE) * SCOUTING_DATABASE_PAGE_SIZE);
+  return Math.max(0, Math.min(rawOffset, lastPageStart));
 }
 async function fetchScoutingApi(query = {}) {
   const token = await getScoutingApiAccessToken();
@@ -771,20 +782,25 @@ function getScoutingDatabasePage() {
       }
     : null;
 }
-function renderScoutingDatabasePagingControls() {
-  const page = getScoutingDatabasePage();
-  if (!page || (page.hasMore === false && page.offset <= 0)) {
+function renderScoutingDatabasePagingControls(paging = {}) {
+  const pageSize = Math.max(1, Math.floor(Number(paging.limit) || SCOUTING_DATABASE_PAGE_SIZE));
+  const total = Math.max(0, Math.floor(Number(paging.total) || 0));
+  if (!total || total <= pageSize) {
     return "";
   }
-  const start = page.returned ? page.offset + 1 : 0;
-  const end = page.offset + page.returned;
-  const previousOffset = Math.max(0, page.offset - page.limit);
+  const offset = Math.max(0, Math.floor(Number(paging.offset) || 0));
+  const start = Math.min(total, offset + 1);
+  const end = Math.min(total, offset + pageSize);
+  const previousOffset = Math.max(0, offset - pageSize);
+  const nextOffset = Math.min(total - 1, offset + pageSize);
+  const currentPage = Math.floor(offset / pageSize) + 1;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   return `
     <div class="scouting-database-paging" data-scouting-database-paging>
-      <span>${escapeHtml(`Showing ${start.toLocaleString("en-US")}-${end.toLocaleString("en-US")}`)}</span>
+      <span>${escapeHtml(`Showing ${start.toLocaleString("en-US")}-${end.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} · Page ${currentPage}/${totalPages}`)}</span>
       <div>
-        <button type="button" class="scouting-secondary-button" data-scouting-page-offset="${previousOffset}" ${page.offset <= 0 ? "disabled" : ""}>Previous</button>
-        <button type="button" class="scouting-primary-button" data-scouting-page-offset="${page.nextOffset ?? end}" ${page.hasMore ? "" : "disabled"}>Next page</button>
+        <button type="button" class="scouting-secondary-button" data-scouting-page-offset="${previousOffset}" ${currentPage <= 1 ? "disabled" : ""}>Previous</button>
+        <button type="button" class="scouting-primary-button" data-scouting-page-offset="${nextOffset}" ${currentPage >= totalPages ? "disabled" : ""}>Next page</button>
       </div>
     </div>
   `;
@@ -9240,11 +9256,24 @@ function renderScoutingDataQualityPanel() {
 }
 function getScoutingDatabaseResultsMarkup() {
   const records = getFilteredScoutingDatabaseRecords();
-  const visibleRecords = records.slice(0, 72);
-  const summary = `${records.length.toLocaleString("en-US")} players match. Showing ${visibleRecords.length.toLocaleString("en-US")}.`;
+  const pageOffset = getScoutingDatabasePageOffset(records.length);
+  const visibleRecords = records.slice(pageOffset, pageOffset + SCOUTING_DATABASE_PAGE_SIZE);
+  const shownStart = visibleRecords.length ? pageOffset + 1 : 0;
+  const shownEnd = visibleRecords.length ? pageOffset + visibleRecords.length : 0;
+  const total = records.length;
+  const summary = `${total.toLocaleString("en-US")} players match. ${
+    total ? `Showing ${shownStart.toLocaleString("en-US")}-${shownEnd.toLocaleString("en-US")} of ${total.toLocaleString("en-US")}.` : ""
+  }`;
   return {
     records,
     summary,
+    paging: {
+      total,
+      offset: pageOffset,
+      limit: SCOUTING_DATABASE_PAGE_SIZE,
+      shownStart,
+      shownEnd,
+    },
     html: visibleRecords.length
       ? visibleRecords.map((record) => renderScoutingRecordCard(record, { lightweight: true })).join("")
       : `<div class="scouting-empty-panel">No players match these filters yet.</div>`,
@@ -10547,10 +10576,23 @@ function setScoutingDatabaseFilter(field, value) {
   writeScoutingState({ syncCentral: false });
 }
 function setScoutingDatabasePageOffset(offset) {
-  setScoutingDatabaseFilter("offset", offset);
-  if (isScoutingDatabaseLoaded()) {
-    scheduleScoutingDatabaseRefresh();
+  const nextOffset = getScoutingApiOffset(offset);
+  const state = ensureScoutingState();
+  const filtered = getFilteredScoutingDatabaseRecords();
+  const total = Math.max(0, Math.floor(filtered.length));
+  const lastPageStart = Math.max(0, Math.floor((total - 1) / SCOUTING_DATABASE_PAGE_SIZE) * SCOUTING_DATABASE_PAGE_SIZE);
+  const desiredOffset = Math.max(0, Math.min(nextOffset, lastPageStart));
+  const offsetToSet = Number.isFinite(desiredOffset) ? desiredOffset : 0;
+  if (getScoutingApiOffset(state.databaseFilters.offset) === offsetToSet) {
+    return;
   }
+  state.databaseFilters = normalizeScoutingDatabaseFilters({
+    ...state.databaseFilters,
+    offset: offsetToSet,
+  });
+  scoutingFilteredDatabaseCache.key = "";
+  writeScoutingState({ syncCentral: false });
+  scheduleScoutingDatabaseResultsRender();
 }
 
 function scheduleScoutingDatabaseFilterRefresh() {
@@ -10673,7 +10715,7 @@ function renderScoutingDatabaseResults() {
   if (grid) {
     grid.innerHTML = results.html;
     ui.scoutingWorkspace?.querySelector("[data-scouting-database-paging]")?.remove();
-    grid.insertAdjacentHTML("afterend", renderScoutingDatabasePagingControls());
+    grid.insertAdjacentHTML("afterend", renderScoutingDatabasePagingControls(results.paging));
   }
   loadScoutingImportHistory();
 }

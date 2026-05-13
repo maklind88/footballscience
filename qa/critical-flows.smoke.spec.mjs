@@ -879,6 +879,17 @@ test("Academy Squad add is available for session planning without Medical cleara
   await form.locator('button[type="submit"]').click();
 
   await expectStorageContains(page, playerProfilesKey, playerName);
+  const squadSection = page.locator('[data-squad-roster-section="squad"]');
+  const guestSection = page.locator('[data-squad-roster-section="temporary"]');
+  await expect(squadSection).toBeVisible();
+  await expect(guestSection).toBeVisible();
+  await expect(guestSection.locator(".squad-player-row", { hasText: playerName })).toBeVisible();
+  await expect(squadSection.locator(".squad-player-row", { hasText: playerName })).toHaveCount(0);
+  const squadBox = await squadSection.boundingBox();
+  const guestBox = await guestSection.boundingBox();
+  expect(squadBox).not.toBeNull();
+  expect(guestBox).not.toBeNull();
+  expect(guestBox.y).toBeGreaterThan(squadBox.y);
   await expect
     .poll(() =>
       page.evaluate(
@@ -998,9 +1009,19 @@ test("Squad profile modal autosaves edits and keeps its size across tabs", async
     .toMatch(/^data:image\//);
   await expect(modal.locator(".squad-profile-avatar img")).toBeVisible();
 
-  const overviewHeight = Math.round((await modal.boundingBox()).height);
+  const readModalHeight = async () => {
+    await expect(modal).toBeVisible();
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const box = await modal.boundingBox();
+      if (box) return Math.round(box.height);
+      await page.waitForTimeout(100);
+    }
+    return 0;
+  };
+  const overviewHeight = await readModalHeight();
+  expect(overviewHeight).toBeGreaterThan(0);
   await modal.locator('[data-player-profile-tab="notes"]').click();
-  await expect.poll(async () => Math.round((await modal.boundingBox()).height), { timeout: 5_000 }).toBe(overviewHeight);
+  await expect.poll(readModalHeight, { timeout: 5_000 }).toBe(overviewHeight);
 
   await modal.locator('textarea[name="coachNotes"]').fill(coachNote);
   await expect

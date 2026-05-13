@@ -23279,6 +23279,77 @@ function renderSquadPlayerRow(player) {
     </tr>
   `;
 }
+function renderSquadPlayerTable(players = [], emptyText = "No players found. Adjust search or role group filter.") {
+  return `
+    <div class="squad-table-wrap">
+      <table class="squad-table">
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th>Roles</th>
+            <th>Squad</th>
+            <th>Status</th>
+            <th>Medical</th>
+            <th>Profile</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${
+            players.length
+              ? players.map(renderSquadPlayerRow).join("")
+              : `<tr><td colspan="6"><div class="squad-empty-row">${escapeHtml(emptyText)}</div></td></tr>`
+          }
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+function renderSquadRosterSection(section = {}) {
+  const players = Array.isArray(section.players) ? section.players : [];
+  const key = section.key || "squad";
+  return `
+    <section class="squad-roster-section is-${escapeHtml(key)}" data-squad-roster-section="${escapeHtml(key)}">
+      <header class="squad-roster-section-head">
+        <div>
+          <h2>${escapeHtml(section.title || "Squad")}</h2>
+          <span>${escapeHtml(section.subtitle || `${players.length} visible`)}</span>
+        </div>
+      </header>
+      ${renderSquadPlayerTable(players, section.emptyText)}
+    </section>
+  `;
+}
+function renderSquadRosterSections(visiblePlayers = []) {
+  if (!visiblePlayers.length) {
+    return renderSquadRosterSection({
+      key: "empty",
+      title: "Squad",
+      subtitle: "0 visible",
+      players: [],
+      emptyText: "No players found. Adjust search or role group filter.",
+    });
+  }
+  const squadPlayers = visiblePlayers.filter(playerProfileCountsInSquad);
+  const temporaryPlayers = visiblePlayers.filter(isTemporaryPlayerProfile);
+  return [
+    squadPlayers.length
+      ? renderSquadRosterSection({
+          key: "squad",
+          title: "Squad",
+          subtitle: `${squadPlayers.length} squad players`,
+          players: squadPlayers,
+        })
+      : "",
+    temporaryPlayers.length
+      ? renderSquadRosterSection({
+          key: "temporary",
+          title: "Training guests",
+          subtitle: `${temporaryPlayers.length} not counted in squad total`,
+          players: temporaryPlayers,
+        })
+      : "",
+  ].join("");
+}
 function renderPlayerProfileRoleOptions(selectedRole = "") {
   return playerProfileRoleOptions
     .map((role) => `<option value="${escapeHtml(role)}" ${role === selectedRole ? "selected" : ""}>${escapeHtml(role)}</option>`)
@@ -25648,27 +25719,7 @@ function renderPlayerProfilesWorkspace(message = "") {
       ${renderPendingPlayerProfileImport()}
       <section class="squad-workspace-layout squad-workspace-layout-list-first">
         <main class="squad-list-panel" aria-label="Squad overview">
-          <div class="squad-table-wrap">
-            <table class="squad-table">
-              <thead>
-                <tr>
-                  <th>Player</th>
-                  <th>Roles</th>
-                  <th>Squad</th>
-                  <th>Status</th>
-                  <th>Medical</th>
-                  <th>Profile</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${
-                  visiblePlayers.length
-                    ? visiblePlayers.map(renderSquadPlayerRow).join("")
-                    : `<tr><td colspan="6"><div class="squad-empty-row">No players found. Adjust search or role group filter.</div></td></tr>`
-                }
-              </tbody>
-            </table>
-          </div>
+          ${renderSquadRosterSections(visiblePlayers)}
         </main>
       </section>
       ${renderPlayerProfileModal(selectedPlayer)}

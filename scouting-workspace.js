@@ -33,6 +33,8 @@ let scoutingImportPdfParserPromise = null;
 let scoutingDragState = null;
 let scoutingDatabaseApiRefreshTimer = 0;
 let scoutingAdvancedDatabaseFiltersOpen = false;
+let scoutingImportHistoryCache = { status: "idle", imports: [], error: "", promise: null };
+let scoutingProfileApiCache = new Map();
 let scoutingOppositionFilters = { team: "", season: "all", minMinutes: 450 };
 let scoutingOppositionLatestSnapshot = null;
 const scoutingImportedDatabaseStorageKey = "football-scouting-imported-database-v1";
@@ -371,6 +373,7 @@ function resetScoutingComputedCaches() {
   scoutingRecordNameLookupCache = new Map();
   scoutingRecordLookupFingerprint = "";
   scoutingMarketIntelVersion = 0;
+  scoutingProfileApiCache = new Map();
   scoutingFilteredDatabaseCache = {
     key: "",
     records: [],
@@ -412,6 +415,7 @@ function normalizeScoutingDatabaseFilters(filters = {}) {
     signalMode: normalizeScoutingText(filters.signalMode, 40) || "all",
     marketStatus: normalizeScoutingText(filters.marketStatus, 40) || "all",
     sortMetricId: normalizeScoutingText(filters.sortMetricId, 120) || "minutes",
+    offset: Math.max(0, Math.floor(Number(filters.offset) || 0)),
   };
 }
 const platformModuleLoader = {
@@ -488,6 +492,7 @@ function getScoutingApiQueryFromState() {
     minMinutes: filters.minMinutes,
     maxAge: filters.maxAge,
     sortMetricId: filters.sortMetricId,
+    offset: filters.offset,
     limit: 750,
   };
 }
@@ -581,6 +586,225 @@ function applyScoutingApiDatabase(result = {}) {
   resetScoutingComputedCaches();
   rememberScoutingDatabaseRecords(database);
   return database;
+}
+function getScoutingDatabasePage() {
+  const page = getScoutingDatabase()?.page;
+  return page && typeof page === "object" && !Array.isArray(page)
+    ? {
+        limit: Math.max(1, Math.floor(Number(page.limit) || 750)),
+        offset: Math.max(0, Math.floor(Number(page.offset) || 0)),
+        returned: Math.max(0, Math.floor(Number(page.returned) || 0)),
+        nextOffset: Number.isFinite(Number(page.nextOffset)) ? Math.max(0, Math.floor(Number(page.nextOffset))) : null,
+        hasMore: Boolean(page.hasMore),
+      }
+    : null;
+}
+function renderScoutingDatabasePagingControls() {
+  const page = getScoutingDatabasePage();
+  if (!page) {
+    return "";
+  }
+  const start = page.returned ? page.offset + 1 : 0;
+  const end = page.offset + page.returned;
+  const previousOffset = Math.max(0, page.offset - page.limit);
+  return `
+    <div class="scouting-database-paging" data-scouting-database-paging>
+      <span>${escapeHtml(`Showing ${start.toLocaleString("en-US")}-${end.toLocaleString("en-US")}`)}</span>
+      <div>
+        <button type="button" class="scouting-secondary-button" data-scouting-page-offset="${previousOffset}" ${page.offset <= 0 ? "disabled" : ""}>Previous</button>
+        <button type="button" class="scouting-primary-button" data-scouting-page-offset="${page.nextOffset ?? end}" ${page.hasMore ? "" : "disabled"}>Next page</button>
+      </div>
+    </div>
+  `;
+}
+function renderScoutingImportHistoryPanel() {
+  const canEdit = canEditScoutingWorkspace();
+  const imports = Array.isArray(scoutingImportHistoryCache.imports) ? scoutingImportHistoryCache.imports : [];
+  const body =
+    scoutingImportHistoryCache.status === "loading"
+      ? `<p>Loading latest scouting player database imports...</p>`
+      : scoutingImportHistoryCache.error
+        ? `<p>${escapeHtml(scoutingImportHistoryCache.error)}</p>`
+        : imports.length
+          ? `
+            <div class="scouting-import-history-list">
+              ${imports
+                .slice(0, 8)
+                .map((item) => {
+                  const status = normalizeScoutingText(item.status, 40) || "unknown";
+                  const rows = Number.isFinite(Number(item.rowCount)) ? Number(item.rowCount).toLocaleString("en-US") : "0";
+                  const date = formatScoutingImportSummaryDate(item.publishedAt || item.updatedAt || item.createdAt);
+                  return `
+                    <article class="scouting-import-history-item">
+                      <div>
+                        <strong>${escapeHtml(item.sourceFileName || "Scouting player database import")}</strong>
+                        <span>${escapeHtml(`${status}${date ? ` · ${date}` : ""} · ${rows} rows`)}</span>
+                      </div>
+                      ${
+                        canEdit && item.id && status !== "archived"
+                          ? `<button type="button" class="scouting-secondary-button" data-rollback-scouting-import="${escapeHtml(item.id)}">Rollback</button>`
+                          : ""
+                      }
+                    </article>
+                  `;
+                })
+                .join("")}
+            </div>
+          `
+          : `<p>No import history yet.</p>`;
+  return `
+    <div class="scouting-side-panel scouting-import-history-panel" data-scouting-import-history-panel>
+      <div class="scouting-panel-head">
+        <div>
+          <p class="placeholder-tag">Data operations</p>
+          <h3>Import history</h3>
+        </div>
+        <button type="button" class="scouting-secondary-button" data-refresh-scouting-import-history>Refresh</button>
+      </div>
+      ${body}
+    </div>
+  `;
+}
+function renderScoutingImportHistoryPanelIntoDom() {
+  const side = ui.scoutingWorkspace?.querySelector(".scouting-database-side");
+  if (!side) {
+    return;
+  }
+  const existing = side.querySelector("[data-scouting-import-history-panel]");
+  if (existing) {
+    existing.outerHTML = renderScoutingImportHistoryPanel();
+  } else {
+    side.insertAdjacentHTML("beforeend", renderScoutingImportHistoryPanel());
+  }
+}
+function loadScoutingImportHistory({ force = false } = {}) {
+  if (!isScoutingApiDatabaseActive()) {
+    return;
+  }
+  if (scoutingImportHistoryCache.promise && !force) {
+    return;
+  }
+  if (scoutingImportHistoryCache.status === "ready" && !force) {
+    renderScoutingImportHistoryPanelIntoDom();
+    return;
+  }
+  scoutingImportHistoryCache = { ...scoutingImportHistoryCache, status: "loading", error: "" };
+  renderScoutingImportHistoryPanelIntoDom();
+  const promise = fetchScoutingApi({ action: "importHistory", limit: 12 })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(response.reason || "Could not load import history.");
+      }
+      scoutingImportHistoryCache = {
+        status: "ready",
+        imports: Array.isArray(response.result?.imports) ? response.result.imports : [],
+        error: "",
+        promise: null,
+      };
+    })
+    .catch((error) => {
+      scoutingImportHistoryCache = {
+        status: "error",
+        imports: [],
+        error: error?.message || "Could not load import history.",
+        promise: null,
+      };
+    })
+    .finally(renderScoutingImportHistoryPanelIntoDom);
+  scoutingImportHistoryCache.promise = promise;
+}
+function renderScoutingProfileApiPanel(profile = null, status = "loading", error = "") {
+  if (status === "loading") {
+    return `
+      <section class="scouting-profile-section" data-scouting-profile-api-panel>
+        <p class="placeholder-tag">Master player record</p>
+        <h3>Loading season history...</h3>
+      </section>
+    `;
+  }
+  if (error) {
+    return `
+      <section class="scouting-profile-section" data-scouting-profile-api-panel>
+        <p class="placeholder-tag">Master player record</p>
+        <h3>Season history unavailable</h3>
+        <p>${escapeHtml(error)}</p>
+      </section>
+    `;
+  }
+  const seasons = Array.isArray(profile?.seasons) ? profile.seasons : [];
+  const summary = profile?.profileSummary && typeof profile.profileSummary === "object" ? profile.profileSummary : {};
+  const player = profile?.player && typeof profile.player === "object" ? profile.player : {};
+  return `
+    <section class="scouting-profile-section" data-scouting-profile-api-panel>
+      <div class="scouting-panel-head">
+        <div>
+          <p class="placeholder-tag">Master player record</p>
+          <h3>${escapeHtml(player.canonicalName || getScoutingRecordName(profile?.record))}</h3>
+        </div>
+        <span>${escapeHtml(summary.playerIdentityId || player.playerIdentityId || "Identity pending")}</span>
+      </div>
+      <div class="scouting-profile-facts">
+        <span><strong>${escapeHtml(String(summary.seasonCount || seasons.length || 0))}</strong> seasons</span>
+        <span><strong>${escapeHtml(Number(summary.totalMinutes || 0).toLocaleString("en-US"))}</strong> total minutes</span>
+        <span><strong>${escapeHtml(String(summary.quality?.trusted || 0))}</strong> trusted metrics</span>
+      </div>
+      <div class="scouting-season-timeline">
+        ${
+          seasons.length
+            ? seasons
+                .slice(0, 8)
+                .map((seasonRecord) => {
+                  const minutes = Number(seasonRecord?.[scoutingRecordIndex.minutes] || 0).toLocaleString("en-US");
+                  const position = normalizeScoutingText(seasonRecord?.[scoutingRecordIndex.position], 80);
+                  return `
+                    <article class="scouting-season-timeline-item">
+                      <strong>${escapeHtml(getScoutingRecordSeason(seasonRecord) || "Unknown season")}</strong>
+                      <span>${escapeHtml(`${getScoutingRecordTeam(seasonRecord) || "Unknown club"} · ${getScoutingRecordLeague(seasonRecord) || "Unknown league"}`)}</span>
+                      <em>${escapeHtml(`${minutes} minutes · ${position || "Position unknown"}`)}</em>
+                    </article>
+                  `;
+                })
+                .join("")
+            : `<p>No linked seasons yet.</p>`
+        }
+      </div>
+    </section>
+  `;
+}
+function renderScoutingProfileApiPanelIntoDom(recordId, profile = null, status = "loading", error = "") {
+  const modal = ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]");
+  if (!modal) {
+    return;
+  }
+  const existing = modal.querySelector("[data-scouting-profile-api-panel]");
+  const markup = renderScoutingProfileApiPanel(profile, status, error);
+  if (existing) {
+    existing.outerHTML = markup;
+  } else {
+    modal.insertAdjacentHTML("beforeend", markup);
+  }
+}
+function hydrateScoutingProfileApiDetails(recordId) {
+  const id = normalizeScoutingText(recordId, 160);
+  if (!id || !isScoutingApiDatabaseActive()) {
+    return;
+  }
+  if (scoutingProfileApiCache.has(id)) {
+    renderScoutingProfileApiPanelIntoDom(id, scoutingProfileApiCache.get(id), "ready", "");
+    return;
+  }
+  renderScoutingProfileApiPanelIntoDom(id, null, "loading", "");
+  fetchScoutingApi({ action: "profile", recordId: id })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(response.reason || "Could not load master player record.");
+      }
+      scoutingProfileApiCache.set(id, response.result);
+      renderScoutingProfileApiPanelIntoDom(id, response.result, "ready", "");
+    })
+    .catch((error) => {
+      renderScoutingProfileApiPanelIntoDom(id, null, "error", error?.message || "Could not load master player record.");
+    });
 }
 async function loadScoutingDatabaseWithApi() {
   const response = await fetchScoutingApi(getScoutingApiQueryFromState());
@@ -7942,9 +8166,50 @@ function setScoutingDatabaseFilter(field, value) {
   state.databaseFilters = normalizeScoutingDatabaseFilters({
     ...state.databaseFilters,
     [field]: value,
+    offset: field === "offset" ? value : 0,
   });
   scoutingFilteredDatabaseCache.key = "";
   writeScoutingState({ syncCentral: false });
+}
+function setScoutingDatabasePageOffset(offset) {
+  setScoutingDatabaseFilter("offset", offset);
+  if (isScoutingDatabaseLoaded()) {
+    scheduleScoutingDatabaseRefresh();
+  }
+}
+function rollbackScoutingImport(importBatchId) {
+  if (!canEditScoutingWorkspace()) {
+    return;
+  }
+  const batchId = normalizeScoutingText(importBatchId, 80);
+  if (!batchId || !isScoutingApiDatabaseActive()) {
+    return;
+  }
+  scoutingImportHistoryCache = { ...scoutingImportHistoryCache, status: "loading", error: "" };
+  renderScoutingImportHistoryPanelIntoDom();
+  sendScoutingApiAction({ action: "rollbackImport", importBatchId: batchId })
+    .then((result) => {
+      if (!result?.ok) {
+        throw new Error(result?.reason || "Could not rollback import.");
+      }
+      scoutingDatabaseOptionCache = null;
+      resetScoutingComputedCaches();
+      scoutingImportHistoryCache = { status: "idle", imports: [], error: "", promise: null };
+      return loadScoutingDatabaseWithApi();
+    })
+    .then(() => {
+      renderScoutingDatabaseResults();
+      loadScoutingImportHistory({ force: true });
+    })
+    .catch((error) => {
+      scoutingImportHistoryCache = {
+        status: "error",
+        imports: [],
+        error: error?.message || "Could not rollback import.",
+        promise: null,
+      };
+      renderScoutingImportHistoryPanelIntoDom();
+    });
 }
 function createScoutingSavedView(name) {
   if (!canEditScoutingWorkspace()) {
@@ -8012,7 +8277,10 @@ function renderScoutingDatabaseResults() {
   }
   if (grid) {
     grid.innerHTML = results.html;
+    ui.scoutingWorkspace?.querySelector("[data-scouting-database-paging]")?.remove();
+    grid.insertAdjacentHTML("afterend", renderScoutingDatabasePagingControls());
   }
+  loadScoutingImportHistory();
 }
 function scheduleScoutingDatabaseRefresh() {
   if (!isScoutingApiDatabaseActive()) {
@@ -8045,6 +8313,7 @@ function openScoutingRecordProfile(recordId) {
   renderScoutingWorkspace();
   requestAnimationFrame(() => {
     ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]")?.focus?.({ preventScroll: true });
+    hydrateScoutingProfileApiDetails(state.selectedRecordId);
   });
 }
 function closeScoutingRecordProfile() {
@@ -8227,6 +8496,27 @@ export function handleClick(event, context) {
   if (loadDatabaseTrigger) {
     queueScoutingDatabaseLoad();
     renderScoutingWorkspace();
+    return;
+  }
+  const pageTrigger = event.target.closest("[data-scouting-page-offset]");
+  if (pageTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    setScoutingDatabasePageOffset(pageTrigger.dataset.scoutingPageOffset);
+    return;
+  }
+  const refreshImportHistoryTrigger = event.target.closest("[data-refresh-scouting-import-history]");
+  if (refreshImportHistoryTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    loadScoutingImportHistory({ force: true });
+    return;
+  }
+  const rollbackImportTrigger = event.target.closest("[data-rollback-scouting-import]");
+  if (rollbackImportTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    rollbackScoutingImport(rollbackImportTrigger.dataset.rollbackScoutingImport);
     return;
   }
   const advancedFiltersTrigger = event.target.closest("[data-toggle-scouting-advanced-filters]");

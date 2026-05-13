@@ -37,6 +37,10 @@ const SCOUTING_RECORD_INDEX = Object.freeze({
   dateOfBirth: 22,
 });
 
+const SCOUTING_OPTIONS_CACHE_MS = 5 * 60 * 1000;
+const SCOUTING_IMPORT_HISTORY_LIMIT = 20;
+let scoutingFilterOptionsCache = { updatedAt: 0, options: null };
+
 function normalizeString(value, maxLength = MAX_TEXT_LENGTH) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
@@ -218,6 +222,14 @@ function asOffset(value) {
   return Number.isFinite(offset) && offset > 0 ? offset : 0;
 }
 
+function asHistoryLimit(value) {
+  const limit = Math.floor(Number(value));
+  if (!Number.isFinite(limit) || limit <= 0) {
+    return SCOUTING_IMPORT_HISTORY_LIMIT;
+  }
+  return Math.min(limit, 100);
+}
+
 function safeIlike(value) {
   return normalizeString(value, 120).toLowerCase().replace(/[*,()]/g, " ").replace(/\s+/g, "%");
 }
@@ -259,6 +271,57 @@ function seasonRowToClientRecord(row = {}) {
     metadata.metricQuality || metadata.metric_quality || {},
     normalizeDateValue(row.date_of_birth || metadata.dateOfBirth || metadata.date_of_birth),
   ];
+}
+
+function importBatchToClient(row = {}) {
+  const metadata = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? row.metadata : {};
+  return {
+    id: normalizeString(row.id, 80),
+    status: normalizeString(row.status, 40),
+    sourceLabel: normalizeString(row.source_label, 120),
+    sourceFileName: normalizeString(row.source_file_name, 240),
+    sheetName: normalizeString(row.sheet_name, 160),
+    seasonLabel: normalizeString(row.season_label, 80),
+    rowCount: normalizeNumber(row.row_count, 0),
+    metricCount: normalizeNumber(row.metric_count, 0),
+    dataHash: normalizeString(row.data_hash, 120),
+    createdAt: normalizeString(row.created_at, 80),
+    updatedAt: normalizeString(row.updated_at, 80),
+    publishedAt: normalizeString(row.published_at, 80),
+    metadata,
+  };
+}
+
+function importChangeToClient(row = {}) {
+  return {
+    id: normalizeString(row.id, 80),
+    importBatchId: normalizeString(row.import_batch_id, 80),
+    seasonRecordId: normalizeString(row.season_record_id, 80),
+    changeType: normalizeString(row.change_type, 80),
+    beforeValue: row.before_value && typeof row.before_value === "object" && !Array.isArray(row.before_value) ? row.before_value : {},
+    afterValue: row.after_value && typeof row.after_value === "object" && !Array.isArray(row.after_value) ? row.after_value : {},
+    createdAt: normalizeString(row.created_at, 80),
+  };
+}
+
+function playerRowToClient(row = {}) {
+  const metadata = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? row.metadata : {};
+  return {
+    id: normalizeString(row.id, 80),
+    playerIdentityId: normalizeString(row.player_identity_key || row.source_player_id, 160),
+    canonicalName: normalizeString(row.canonical_name, 180),
+    sortName: normalizeString(row.sort_name, 180),
+    sourceSystem: normalizeString(row.source_system, 40),
+    sourcePlayerId: normalizeString(row.source_player_id, 160),
+    birthCountry: normalizeString(row.birth_country, 120),
+    passportCountry: normalizeString(row.passport_country, 120),
+    dateOfBirth: normalizeDateValue(row.date_of_birth),
+    height: normalizeNumber(row.height_cm, null),
+    weight: normalizeNumber(row.weight_kg, null),
+    status: normalizeString(row.status, 40),
+    aliases: Array.isArray(metadata.aliases) ? metadata.aliases.map((value) => normalizeString(value, 180)).filter(Boolean) : [],
+    metadata,
+  };
 }
 
 function normalizeScoutingSourceSystem(record = {}) {
@@ -449,7 +512,7 @@ function getSeasonOrder(query = {}) {
 async function fetchSeasonRows(query = {}) {
   const params = new URLSearchParams({
     select:
-      "id,record_key,player_name,team_name,team_within_timeframe,league_name,season_label,position_text,age,matches,minutes,birth_country,passport_country,height_cm,weight_kg,date_of_birth,metrics,source_system,source_player_id,source_record_id,player_identity_key,metadata,updated_at",
+      "id,record_key,import_batch_id,player_id,player_name,team_name,team_within_timeframe,league_name,season_label,position_text,age,matches,minutes,birth_country,passport_country,height_cm,weight_kg,date_of_birth,metrics,source_system,source_player_id,source_record_id,player_identity_key,metadata,updated_at",
     order: getSeasonOrder(query),
     limit: String(asLimit(query.limit)),
     offset: String(asOffset(query.offset)),
@@ -481,8 +544,75 @@ function buildOptionsFromRows(rows = []) {
   };
 }
 
+async function fetchDatabaseFilterOptions() {
+  const now = Date.now();
+  if (scoutingFilterOptionsCache.options && now - scoutingFilterOptionsCache.updatedAt < SCOUTING_OPTIONS_CACHE_MS) {
+    return scoutingFilterOptionsCache.options;
+  }
+  const params = new URLSearchParams({
+    select: "league_name,season_label,position_text",
+    status: "eq.active",
+    deleted_at: "is.null",
+    order: "league_name.asc,season_label.desc,position_text.asc",
+    limit: "10000",
+  });
+  const result = await dbRequest(`/scouting_player_seasons?${params.toString()}`);
+  if (!result.ok) {
+    throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
+  }
+  const options = buildOptionsFromRows(Array.isArray(result.payload) ? result.payload : []);
+  scoutingFilterOptionsCache = { updatedAt: now, options };
+  return options;
+}
+
+async function fetchImportHistory(query = {}) {
+  const params = new URLSearchParams({
+    select: "id,source_label,source_file_name,sheet_name,season_label,status,row_count,metric_count,data_hash,metadata,created_at,updated_at,published_at",
+    order: "created_at.desc",
+    limit: String(asHistoryLimit(query.limit)),
+  });
+  const result = await dbRequest(`/scouting_import_batches?${params.toString()}`);
+  if (!result.ok) {
+    throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
+  }
+  return {
+    ok: true,
+    schema: SCOUTING_DATABASE_SCHEMA,
+    mode: "database",
+    enabled: true,
+    imports: (Array.isArray(result.payload) ? result.payload : []).map(importBatchToClient),
+  };
+}
+
+async function fetchImportChanges(query = {}) {
+  const importBatchId = normalizeString(query.importBatchId || query.import_batch_id || query.id, 80);
+  if (!importBatchId) {
+    return { ok: false, status: 400, reason: "Missing scouting import batch id." };
+  }
+  const params = new URLSearchParams({
+    select: "id,import_batch_id,season_record_id,change_type,before_value,after_value,created_at",
+    import_batch_id: `eq.${importBatchId}`,
+    order: "created_at.desc",
+    limit: String(asHistoryLimit(query.limit)),
+  });
+  const result = await dbRequest(`/scouting_import_changes?${params.toString()}`);
+  if (!result.ok) {
+    throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
+  }
+  return {
+    ok: true,
+    schema: SCOUTING_DATABASE_SCHEMA,
+    mode: "database",
+    enabled: true,
+    importBatchId,
+    changes: (Array.isArray(result.payload) ? result.payload : []).map(importChangeToClient),
+  };
+}
+
 async function fetchDatabaseSnapshot(query = {}) {
-  const [metrics, rows] = await Promise.all([fetchMetrics(), fetchSeasonRows(query)]);
+  const [metrics, rows, options] = await Promise.all([fetchMetrics(), fetchSeasonRows(query), fetchDatabaseFilterOptions()]);
+  const limit = asLimit(query.limit);
+  const offset = asOffset(query.offset);
   return {
     ok: true,
     schema: SCOUTING_DATABASE_SCHEMA,
@@ -492,13 +622,91 @@ async function fetchDatabaseSnapshot(query = {}) {
     importedAt: new Date().toISOString(),
     metrics,
     records: rows.map(seasonRowToClientRecord),
-    options: buildOptionsFromRows(rows),
+    options,
     page: {
-      limit: asLimit(query.limit),
-      offset: asOffset(query.offset),
+      limit,
+      offset,
       returned: rows.length,
-      hasMore: rows.length === asLimit(query.limit),
+      nextOffset: rows.length === limit ? offset + rows.length : null,
+      hasMore: rows.length === limit,
     },
+  };
+}
+
+async function fetchPlayerRowByIdentity(playerIdentityKey = "") {
+  const identityKey = normalizeString(playerIdentityKey, 160);
+  if (!identityKey) {
+    return null;
+  }
+  const params = new URLSearchParams({
+    select:
+      "id,canonical_name,sort_name,player_identity_key,source_system,source_player_id,birth_country,passport_country,height_cm,weight_kg,date_of_birth,status,metadata,updated_at",
+    player_identity_key: `eq.${identityKey}`,
+    limit: "1",
+  });
+  const result = await dbRequest(`/scouting_players?${params.toString()}`);
+  if (!result.ok) {
+    throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
+  }
+  return Array.isArray(result.payload) ? result.payload[0] || null : null;
+}
+
+async function fetchPlayerSeasonHistory(row = {}) {
+  const playerId = normalizeString(row.player_id, 80);
+  const playerIdentityKey = normalizeString(row.player_identity_key, 160);
+  const params = new URLSearchParams({
+    select:
+      "id,record_key,import_batch_id,player_id,player_name,team_name,team_within_timeframe,league_name,season_label,position_text,age,matches,minutes,birth_country,passport_country,height_cm,weight_kg,date_of_birth,metrics,source_system,source_player_id,source_record_id,player_identity_key,metadata,updated_at",
+    status: "eq.active",
+    deleted_at: "is.null",
+    order: "season_label.desc,minutes.desc,updated_at.desc",
+    limit: "40",
+  });
+  if (playerId) {
+    params.set("player_id", `eq.${playerId}`);
+  } else if (playerIdentityKey) {
+    params.set("player_identity_key", `eq.${playerIdentityKey}`);
+  } else {
+    return [];
+  }
+  const result = await dbRequest(`/scouting_player_seasons?${params.toString()}`);
+  if (!result.ok) {
+    throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
+  }
+  return Array.isArray(result.payload) ? result.payload : [];
+}
+
+function buildPlayerProfileSummary(row = {}, seasonRows = []) {
+  const clientRows = seasonRows.map(seasonRowToClientRecord);
+  const clubs = uniqueBy(
+    seasonRows
+      .map((seasonRow) => ({
+        team: normalizeString(seasonRow.team_name, 180),
+        league: normalizeScoutingLeague(seasonRow.league_name),
+        season: normalizeString(seasonRow.season_label, 80),
+      }))
+      .filter((entry) => entry.team || entry.league || entry.season),
+    (entry) => `${entry.team}|${entry.league}|${entry.season}`
+  );
+  const importBatchIds = uniqueBy(
+    seasonRows
+      .map((seasonRow) => normalizeString(seasonRow.import_batch_id || seasonRow.metadata?.sourceTrace?.importBatchId, 80))
+      .filter(Boolean),
+    (value) => value
+  );
+  return {
+    playerIdentityId: normalizeString(row.player_identity_key, 160),
+    seasonCount: clientRows.length,
+    totalMinutes: seasonRows.reduce((sum, seasonRow) => sum + Math.max(0, Math.round(normalizeNumber(seasonRow.minutes, 0))), 0),
+    clubs,
+    importBatchIds,
+    quality: getMetricQualitySummary(
+      seasonRows.reduce((metrics, seasonRow) => {
+        const payload = seasonRow.metrics && typeof seasonRow.metrics === "object" && !Array.isArray(seasonRow.metrics) ? seasonRow.metrics : {};
+        Object.assign(metrics, payload);
+        return metrics;
+      }, {})
+    ),
   };
 }
 
@@ -509,7 +717,7 @@ async function fetchPlayerProfile(query = {}) {
   }
   const params = new URLSearchParams({
     select:
-      "id,record_key,player_name,team_name,team_within_timeframe,league_name,season_label,position_text,age,matches,minutes,birth_country,passport_country,height_cm,weight_kg,date_of_birth,metrics,source_system,source_player_id,source_record_id,player_identity_key,metadata,updated_at",
+      "id,record_key,import_batch_id,player_id,player_name,team_name,team_within_timeframe,league_name,season_label,position_text,age,matches,minutes,birth_country,passport_country,height_cm,weight_kg,date_of_birth,metrics,source_system,source_player_id,source_record_id,player_identity_key,metadata,updated_at",
     or: `record_key.eq.${recordKey},source_record_id.eq.${recordKey}`,
     limit: "1",
   });
@@ -521,11 +729,18 @@ async function fetchPlayerProfile(query = {}) {
   if (!row) {
     return { ok: false, status: 404, reason: "Scouting player was not found." };
   }
+  const [playerRow, seasonRows] = await Promise.all([
+    fetchPlayerRowByIdentity(row.player_identity_key || row.source_player_id),
+    fetchPlayerSeasonHistory(row),
+  ]);
   return {
     ok: true,
     schema: SCOUTING_DATABASE_SCHEMA,
     mode: "database",
     record: seasonRowToClientRecord(row),
+    player: playerRow ? playerRowToClient(playerRow) : null,
+    seasons: seasonRows.map(seasonRowToClientRecord),
+    profileSummary: buildPlayerProfileSummary(row, seasonRows),
     row,
   };
 }
@@ -687,6 +902,67 @@ function uniqueBy(items = [], keyFn = (item) => item) {
   });
 }
 
+async function fetchExistingSeasonBySource(sourceSystem = "", sourceRecordId = "") {
+  const normalizedSourceSystem = normalizeString(sourceSystem, 40);
+  const normalizedSourceRecordId = normalizeString(sourceRecordId, 160);
+  if (!normalizedSourceSystem || !normalizedSourceRecordId) {
+    return null;
+  }
+  const params = new URLSearchParams({
+    select: "id,record_key,source_system,source_record_id,player_identity_key,season_label,league_name,team_name,status,deleted_at,updated_at",
+    source_system: `eq.${normalizedSourceSystem}`,
+    source_record_id: `eq.${normalizedSourceRecordId}`,
+    limit: "1",
+  });
+  const result = await dbRequest(`/scouting_player_seasons?${params.toString()}`);
+  if (!result.ok) {
+    throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
+  }
+  return Array.isArray(result.payload) ? result.payload[0] || null : null;
+}
+
+async function previewScoutingImportRows(records = []) {
+  const rows = uniqueBy(records.slice(0, MAX_IMPORT_CHUNK_RECORDS).filter(Boolean), (record) =>
+    `${normalizeScoutingSourceSystem(record)}|${normalizeScoutingRecordSourceId(record)}`
+  );
+  const existingRows = await Promise.all(
+    rows.map((record) => fetchExistingSeasonBySource(normalizeScoutingSourceSystem(record), normalizeScoutingRecordSourceId(record)))
+  );
+  const changes = rows.map((record, index) => {
+    const existing = existingRows[index];
+    const sourceSystem = normalizeScoutingSourceSystem(record);
+    const sourceRecordId = normalizeScoutingRecordSourceId(record);
+    const playerIdentityId = normalizeScoutingSourcePlayerId(record);
+    const mergeKey = [
+      sourceSystem,
+      playerIdentityId,
+      normalizeString(recordValue(record, "season"), 80),
+      normalizeScoutingLeague(recordValue(record, "league")),
+      normalizeString(recordValue(record, "team"), 180),
+    ].filter(Boolean).join("|");
+    return {
+      sourceSystem,
+      sourceRecordId,
+      playerIdentityId,
+      playerName: getClientRecordName(record),
+      season: normalizeString(recordValue(record, "season"), 80),
+      league: normalizeScoutingLeague(recordValue(record, "league")),
+      team: normalizeString(recordValue(record, "team"), 180),
+      mergeKey,
+      status: existing ? "replace" : "new",
+      existingRecordKey: normalizeString(existing?.record_key, MAX_ID_LENGTH),
+      existingStatus: normalizeString(existing?.status, 40),
+      existingDeletedAt: normalizeString(existing?.deleted_at, 80),
+    };
+  });
+  return {
+    rowCount: rows.length,
+    newRows: changes.filter((change) => change.status === "new").length,
+    replacementRows: changes.filter((change) => change.status === "replace").length,
+    changes,
+  };
+}
+
 async function upsertScoutingMetrics(metrics = []) {
   const rows = uniqueBy(metrics.map(normalizeImportMetric).filter(Boolean), (row) => row.metric_key);
   if (!rows.length) {
@@ -749,6 +1025,47 @@ async function upsertScoutingSeasonRecords(records = [], playersBySourceId = new
   return Array.isArray(result.payload) ? result.payload : [];
 }
 
+async function appendImportChanges(importBatchId = "", preview = {}, seasonRows = []) {
+  const batchId = normalizeString(importBatchId, 80);
+  if (!batchId || !Array.isArray(preview.changes) || !preview.changes.length) {
+    return [];
+  }
+  const seasonBySourceRecordId = new Map(
+    (Array.isArray(seasonRows) ? seasonRows : [])
+      .map((row) => [normalizeString(row.source_record_id, 160), row])
+      .filter(([sourceRecordId]) => Boolean(sourceRecordId))
+  );
+  const rows = preview.changes.map((change) => {
+    const seasonRow = seasonBySourceRecordId.get(normalizeString(change.sourceRecordId, 160));
+    return {
+      import_batch_id: batchId,
+      season_record_id: seasonRow?.id || null,
+      change_type: change.status === "replace" ? "updated-player" : "new-season-row",
+      before_value: change.status === "replace" ? { recordKey: change.existingRecordKey, status: change.existingStatus } : {},
+      after_value: {
+        recordKey: seasonRow?.record_key || "",
+        sourceSystem: change.sourceSystem,
+        sourceRecordId: change.sourceRecordId,
+        playerIdentityId: change.playerIdentityId,
+        playerName: change.playerName,
+        season: change.season,
+        league: change.league,
+        team: change.team,
+        mergeKey: change.mergeKey,
+      },
+    };
+  });
+  const result = await dbRequest("/scouting_import_changes", {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: rows,
+  });
+  if (!result.ok) {
+    throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
+  }
+  return Array.isArray(result.payload) ? result.payload : [];
+}
+
 async function startExcelImport(body = {}, actor = {}) {
   if (!canWriteScoutingDatabase(actor)) {
     return { ok: false, status: 403, reason: "Scouting database imports require scouting write access." };
@@ -797,9 +1114,12 @@ async function importExcelChunk(body = {}, actor = {}) {
   if (!records.length) {
     return { ok: false, status: 400, reason: "Import chunk does not contain any player rows." };
   }
+  const preview = await previewScoutingImportRows(records);
   await upsertScoutingMetrics(metrics);
   const playersBySortName = await upsertScoutingPlayers(records);
   const seasonRows = await upsertScoutingSeasonRecords(records, playersBySortName, importBatchId || null);
+  const importChanges = await appendImportChanges(importBatchId, preview, seasonRows);
+  scoutingFilterOptionsCache = { updatedAt: 0, options: null };
   return {
     ok: true,
     schema: SCOUTING_DATABASE_SCHEMA,
@@ -812,6 +1132,28 @@ async function importExcelChunk(body = {}, actor = {}) {
     metricCount: metrics.length,
     recordCount: records.length,
     storedRecordCount: seasonRows.length,
+    preview,
+    importChangeCount: importChanges.length,
+  };
+}
+
+async function previewExcelImport(body = {}, actor = {}) {
+  if (!canWriteScoutingDatabase(actor)) {
+    return { ok: false, status: 403, reason: "Scouting database imports require scouting write access." };
+  }
+  if (!isScoutingDatabaseEnabled()) {
+    return { ok: true, schema: SCOUTING_DATABASE_SCHEMA, mode: "legacy", enabled: false, stored: false };
+  }
+  const records = Array.isArray(body.records) ? body.records.slice(0, MAX_IMPORT_CHUNK_RECORDS) : [];
+  if (!records.length) {
+    return { ok: false, status: 400, reason: "Import preview does not contain any player rows." };
+  }
+  return {
+    ok: true,
+    schema: SCOUTING_DATABASE_SCHEMA,
+    mode: "database",
+    enabled: true,
+    preview: await previewScoutingImportRows(records),
   };
 }
 
@@ -858,6 +1200,60 @@ async function finishExcelImport(body = {}, actor = {}) {
     importBatchId,
     status: "published",
     updatedAt: new Date().toISOString(),
+  };
+}
+
+async function rollbackScoutingImport(body = {}, actor = {}) {
+  const importBatchId = normalizeString(body.importBatchId || body.import_batch_id || body.id, 80);
+  if (!importBatchId) {
+    return { ok: false, status: 400, reason: "Missing scouting import batch id." };
+  }
+  if (!canWriteScoutingDatabase(actor)) {
+    return { ok: false, status: 403, reason: "Scouting database rollback requires scouting write access." };
+  }
+  if (!isScoutingDatabaseEnabled()) {
+    return { ok: true, schema: SCOUTING_DATABASE_SCHEMA, mode: "legacy", enabled: false, stored: false };
+  }
+  const now = new Date().toISOString();
+  const seasonResult = await dbRequest(`/scouting_player_seasons?import_batch_id=eq.${encodeURIComponent(importBatchId)}&deleted_at=is.null`, {
+    method: "PATCH",
+    headers: { Prefer: "return=representation" },
+    body: {
+      status: "inactive",
+      deleted_at: now,
+    },
+  });
+  if (!seasonResult.ok) {
+    throw Object.assign(new Error(seasonResult.reason), { status: seasonResult.status, payload: seasonResult.payload });
+  }
+  const batchResult = await dbRequest(`/scouting_import_batches?id=eq.${encodeURIComponent(importBatchId)}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=representation" },
+    body: {
+      status: "archived",
+    },
+  });
+  if (!batchResult.ok) {
+    throw Object.assign(new Error(batchResult.reason), { status: batchResult.status, payload: batchResult.payload });
+  }
+  scoutingFilterOptionsCache = { updatedAt: 0, options: null };
+  await appendAuditLog(actor, {
+    action: "scouting.database.import_rolled_back",
+    summary: "Rolled back scouting player database import",
+    details: {
+      importBatchId,
+      affectedSeasonRows: Array.isArray(seasonResult.payload) ? seasonResult.payload.length : 0,
+    },
+  });
+  return {
+    ok: true,
+    schema: SCOUTING_DATABASE_SCHEMA,
+    mode: "database",
+    enabled: true,
+    importBatchId,
+    status: "rolled-back",
+    affectedSeasonRows: Array.isArray(seasonResult.payload) ? seasonResult.payload.length : 0,
+    updatedAt: now,
   };
 }
 
@@ -926,6 +1322,22 @@ async function handleScoutingGet(req, res, actor) {
   if (["snapshot", "search", "database"].includes(action)) {
     return sendJson(res, 200, await fetchDatabaseSnapshot(query));
   }
+  if (action === "options") {
+    return sendJson(res, 200, {
+      ok: true,
+      schema: SCOUTING_DATABASE_SCHEMA,
+      mode: "database",
+      enabled: true,
+      options: await fetchDatabaseFilterOptions(),
+    });
+  }
+  if (action === "imports" || action === "importHistory") {
+    return sendJson(res, 200, await fetchImportHistory(query));
+  }
+  if (action === "importChanges") {
+    const result = await fetchImportChanges(query);
+    return sendJson(res, result.ok ? 200 : result.status || 400, result);
+  }
   if (action === "profile") {
     const result = await fetchPlayerProfile(query);
     return sendJson(res, result.ok ? 200 : result.status || 404, result);
@@ -944,8 +1356,16 @@ async function handleScoutingPost(req, res, actor) {
     const result = await importExcelChunk(body, actor);
     return sendJson(res, result.ok ? 200 : result.status || 400, result);
   }
+  if (action === "previewExcelImport") {
+    const result = await previewExcelImport(body, actor);
+    return sendJson(res, result.ok ? 200 : result.status || 400, result);
+  }
   if (action === "finishExcelImport") {
     const result = await finishExcelImport(body, actor);
+    return sendJson(res, result.ok ? 200 : result.status || 400, result);
+  }
+  if (action === "rollbackImport") {
+    const result = await rollbackScoutingImport(body, actor);
     return sendJson(res, result.ok ? 200 : result.status || 400, result);
   }
   if (action === "recordImportIntent") {
@@ -973,6 +1393,9 @@ module.exports = {
   _private: {
     addSeasonFilters,
     buildOptionsFromRows,
+    fetchDatabaseFilterOptions,
+    fetchImportHistory,
+    fetchPlayerProfile,
     getClientRecordPositionGroup,
     importExcelChunk,
     metricToClient,
@@ -980,6 +1403,8 @@ module.exports = {
     normalizeImportMetric,
     normalizeImportPlayer,
     normalizeImportSeasonRecord,
+    previewExcelImport,
+    rollbackScoutingImport,
     seasonRowToClientRecord,
     startExcelImport,
   },

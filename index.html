@@ -72,7 +72,6 @@
               return Boolean(mq.matches);
             }
           } catch {
-            // Fallback to schedule if matchMedia is unavailable.
           }
 
           const totalMinutes = new Date().getHours() * 60 + new Date().getMinutes();
@@ -87,7 +86,6 @@
             document.body.dataset.themeMode = useDarkMode ? "dark" : "light";
           }
         } catch {
-          // Ignore bootstrap-time theme init failures.
         }
       })();
     </script>

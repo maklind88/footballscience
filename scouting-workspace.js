@@ -10341,10 +10341,10 @@ function renderScoutingWorkspace(options = {}) {
           <h1>Shadow XI and recruitment intelligence</h1>
         </div>
         <div class="scouting-metrics" aria-label="Scouting summary">
-          <span><strong>${playerCount ? playerCount.toLocaleString("en-US") : "..."}</strong> Players</span>
-          <span><strong>${sheetCount ? sheetCount.toLocaleString("en-US") : "..."}</strong> Data sheets</span>
-          <span><strong>${state.favoriteRecordIds.length}</strong> Favorites</span>
-          <span><strong>${shadowCounts.playerCount}</strong> Shadow targets</span>
+          <span><strong data-scouting-summary-players>${playerCount ? playerCount.toLocaleString("en-US") : "..."}</strong> Players</span>
+          <span><strong data-scouting-summary-sheets>${sheetCount ? sheetCount.toLocaleString("en-US") : "..."}</strong> Data sheets</span>
+          <span><strong data-scouting-summary-favorites>${state.favoriteRecordIds.length}</strong> Favorites</span>
+          <span><strong data-scouting-summary-shadow-targets>${shadowCounts.playerCount}</strong> Shadow targets</span>
         </div>
       </header>
       <section class="scouting-board">
@@ -10358,15 +10358,78 @@ function renderScoutingWorkspace(options = {}) {
             ${renderScoutingImportLaunch()}
           </div>
         </div>
-        <div class="scouting-content">
-          ${renderScoutingActiveContent()}
-        </div>
+          <div class="scouting-content" data-scouting-active-content>
+            ${renderScoutingActiveContent()}
+          </div>
       </section>
     </section>
     ${renderScoutingProfileModal()}
   `;
   restoreScoutingFocus(focusSnapshot);
   bindScoutingDragAndDrop();
+}
+function refreshScoutingWorkspaceSummaryMetrics() {
+  if (!ui.scoutingWorkspace) {
+    return;
+  }
+  const state = ensureScoutingState();
+  const summary = ui.scoutingWorkspace.querySelector("[data-scouting-summary-metrics]");
+  if (!summary) {
+    return;
+  }
+  const database = getScoutingDatabase();
+  const shadowCounts = getScoutingShadowSlotCounts(state);
+  const hasLoadedDatabase = isScoutingDatabaseLoaded();
+  const summaryNodes = {
+    players: summary.querySelector("[data-scouting-summary-players]"),
+    sheets: summary.querySelector("[data-scouting-summary-sheets]"),
+    favorites: summary.querySelector("[data-scouting-summary-favorites]"),
+    shadowTargets: summary.querySelector("[data-scouting-summary-shadow-targets]"),
+  };
+  if (summaryNodes.players) {
+    const count = database?.records?.length || 0;
+    summaryNodes.players.textContent = hasLoadedDatabase && count ? count.toLocaleString("en-US") : "...";
+  }
+  if (summaryNodes.sheets) {
+    const count = database?.sheets?.length || 0;
+    summaryNodes.sheets.textContent = hasLoadedDatabase && count ? count.toLocaleString("en-US") : "...";
+  }
+  if (summaryNodes.favorites) {
+    summaryNodes.favorites.textContent = String(state.favoriteRecordIds.length);
+  }
+  if (summaryNodes.shadowTargets) {
+    summaryNodes.shadowTargets.textContent = String(shadowCounts.playerCount);
+  }
+}
+function rerenderScoutingActiveContent(options = {}) {
+  if (!ui.scoutingWorkspace) {
+    return false;
+  }
+  const content = ui.scoutingWorkspace.querySelector("[data-scouting-active-content]");
+  if (!content) {
+    return false;
+  }
+  const focusSnapshot = options.preserveFocus ? getScoutingFocusSnapshot() : null;
+  content.innerHTML = renderScoutingActiveContent();
+  if (options.preserveFocus) {
+    restoreScoutingFocus(focusSnapshot);
+  }
+  bindScoutingDragAndDrop();
+  return true;
+}
+function refreshScoutingWorkspaceAfterLocalMutation(options = {}) {
+  const state = ensureScoutingState();
+  const preserveFocus = options.preserveFocus !== false;
+  const activeProfileModal = Boolean(ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]"));
+  if (["database", "lists"].includes(state.activeTab) && !activeProfileModal) {
+    const updated = rerenderScoutingActiveContent({ preserveFocus });
+    if (updated) {
+      refreshScoutingWorkspaceSummaryMetrics();
+      return;
+    }
+  }
+  renderScoutingWorkspace({ preserveFocus });
+  refreshScoutingWorkspaceSummaryMetrics();
 }
 function renderScoutingAnalysisRoomWorkspace(options = {}) {
   if (!ui.scoutingWorkspace) {
@@ -10605,7 +10668,7 @@ function toggleScoutingFavorite(recordId) {
     ? state.favoriteRecordIds.filter((recordIdValue) => recordIdValue !== id)
     : [id, ...state.favoriteRecordIds];
   writeScoutingState();
-  renderScoutingWorkspace();
+  refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
 }
 function addScoutingRecordToList(recordId, listId) {
   if (!canEditScoutingWorkspace()) {
@@ -10623,7 +10686,7 @@ function addScoutingRecordToList(recordId, listId) {
       : list
   );
   writeScoutingState();
-  renderScoutingWorkspace();
+  refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
 }
 function createScoutingList(name) {
   if (!canEditScoutingWorkspace()) {
@@ -10674,7 +10737,7 @@ function addScoutingRecordToShadow(recordId, slotId) {
   state.shadowXi.selectedSlotId = slot.id;
   preferredScoutingShadowSlotId = slot.id;
   writeScoutingState();
-  renderScoutingWorkspace({ preserveFocus: state.activeTab === "database" });
+  refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: state.activeTab === "database" });
 }
 function removeScoutingRecordFromShadow(recordId, slotId) {
   if (!canEditScoutingWorkspace()) {
@@ -10703,7 +10766,7 @@ function removeScoutingRecordFromShadow(recordId, slotId) {
   state.shadowXi.selectedSlotId = slot.id;
   preferredScoutingShadowSlotId = slot.id;
   writeScoutingState();
-  renderScoutingWorkspace();
+  refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
 }
 export function render(context) {
   setScoutingContext(context);

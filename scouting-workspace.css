@@ -232,6 +232,98 @@ color: #8a1f11;
 background: rgba(254, 226, 226, 0.72);
 border-color: rgba(220, 38, 38, 0.22);
 }
+.scouting-reports-shell{
+display: grid;
+gap: 0.75rem;
+}
+.scouting-target-board,
+.scouting-comparison-lab,
+.scouting-role-models,
+.scouting-reports-form-card,
+.scouting-reports-list{
+display: grid;
+gap: 0.72rem;
+border-radius: 10px;
+padding: 0.85rem;
+background: rgba(255, 255, 255, 0.92);
+border: 1px solid rgba(29, 29, 31, 0.08);
+box-shadow: 0 14px 34px rgba(31, 38, 44, 0.06);
+}
+.scouting-target-board h2,
+.scouting-comparison-lab h2,
+.scouting-role-models h2,
+.scouting-reports-form-card h2,
+.scouting-reports-list h2{
+margin: 0;
+color: #1d1d1f;
+line-height: 1.05;
+}
+.scouting-target-board-columns{
+display: grid;
+grid-template-columns: repeat(4, minmax(0, 1fr));
+gap: 0.56rem;
+}
+.scouting-target-board-column{
+display: grid;
+gap: 0.42rem;
+align-content: start;
+padding: 0.56rem;
+border-radius: 10px;
+border: 1px solid rgba(29, 29, 31, 0.08);
+background: rgba(248, 249, 250, 0.72);
+}
+.scouting-target-board-head{
+display: flex;
+align-items: center;
+justify-content: space-between;
+gap: 0.75rem;
+}
+.scouting-target-board-head h3{
+margin: 0;
+font-size: 0.82rem;
+font-weight: 860;
+color: #233b2d;
+}
+.scouting-target-board-head strong{
+font-size: 1.15rem;
+color: #1d1d1f;
+}
+.scouting-target-board-list,
+.scouting-role-model-list,
+.scouting-reports-list .scouting-target-board-list{
+display: grid;
+gap: 0.42rem;
+min-height: 0;
+overflow: auto;
+max-height: 34rem;
+padding-right: 0.1rem;
+}
+.scouting-comparison-form.scouting-target-form{
+grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.scouting-comparison-summary{
+margin: 0;
+color: #5f665f;
+font-size: 0.82rem;
+font-weight: 850;
+}
+.scouting-comparison-results{
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+gap: 0.62rem;
+}
+.scouting-comparison-results .scouting-target-card{
+min-height: 9.4rem;
+}
+.scouting-reports-grid{
+display: grid;
+grid-template-columns: 1.15fr 1fr;
+gap: 0.72rem;
+}
+.scouting-reports-form-card,
+.scouting-reports-list{
+padding: 0.9rem;
+}
 .scouting-content{
 display: block;
 }

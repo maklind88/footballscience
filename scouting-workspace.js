@@ -12,16 +12,37 @@ let scoutingPercentileCache = new Map();
 let scoutingMetricAliasCache = new Map();
 let scoutingRoleProfileCache = new Map();
 let scoutingMetricIndexCache = { database: null, byId: new Map() };
+let scoutingRecordIdLookupCache = new Map();
+let scoutingRecordNameLookupCache = new Map();
+let scoutingRecordLookupFingerprint = "";
+let scoutingFilteredDatabaseCache = {
+  key: "",
+  records: [],
+};
+let scoutingMarketIntelVersion = 0;
 let preferredScoutingShadowSlotId = "";
 let scoutingDatabaseResultsFrame = 0;
 let scoutingImportedDatabaseLoaded = false;
 let scoutingImportDraft = null;
 let scoutingImportParserPromise = null;
+let scoutingImportPdfParserPromise = null;
 let scoutingDragState = null;
 let scoutingDatabaseApiRefreshTimer = 0;
 let scoutingOppositionFilters = { team: "", season: "all", minMinutes: 450 };
 let scoutingOppositionLatestSnapshot = null;
 const scoutingImportedDatabaseStorageKey = "football-scouting-imported-database-v1";
+const scoutingImportSupportedSourceTypes = Object.freeze([
+  { id: "xlsx", label: "Excel", extensions: [".xlsx", ".xls"], parser: "xlsx", supportsSheets: true },
+  { id: "csv", label: "CSV / TSV", extensions: [".csv", ".tsv", ".txt"], parser: "csv", supportsSheets: false },
+  { id: "json", label: "JSON", extensions: [".json"], parser: "json", supportsSheets: false },
+  { id: "pdf", label: "PDF", extensions: [".pdf"], parser: "pdf", supportsSheets: false },
+]);
+const scoutingImportSupportedFileExts = Object.freeze(
+  scoutingImportSupportedSourceTypes
+    .flatMap((sourceType) => sourceType.extensions)
+    .map((extension) => normalizeScoutingText(extension, 16).toLowerCase())
+    .join(",")
+);
 const scoutingStatusFallbackOptions = [
   { value: "new", label: "Longlist" },
   { value: "monitoring", label: "Monitoring" },
@@ -53,6 +74,9 @@ const scoutingRecordIndex = Object.freeze({
   height: 12,
   weight: 13,
   metrics: 14,
+  sourceSystem: 15,
+  playerSourceId: 16,
+  sourceRecordId: 17,
 });
 const scoutingWorkflowStatusOptions = Object.freeze([
   { value: "new", label: "Longlist" },
@@ -113,6 +137,14 @@ function resetScoutingComputedCaches() {
   scoutingMetricAliasCache = new Map();
   scoutingRoleProfileCache = new Map();
   scoutingMetricIndexCache = { database: null, byId: new Map() };
+  scoutingRecordIdLookupCache = new Map();
+  scoutingRecordNameLookupCache = new Map();
+  scoutingRecordLookupFingerprint = "";
+  scoutingMarketIntelVersion = 0;
+  scoutingFilteredDatabaseCache = {
+    key: "",
+    records: [],
+  };
 }
 function cloneScoutingList(list = {}) {
   const name = normalizeScoutingText(list.name, 80) || "Scouting List";
@@ -336,7 +368,9 @@ function recordScoutingImportIntent(database = {}) {
     rowCount: database.records.length,
     metricCount: database.metrics?.length || 0,
     metadata: {
-      source: "ui-import",
+      source: "scouting player database",
+      sourceSystem: getScoutingImportSourceSystem(),
+      sourceType: scoutingImportDraft?.sourceSystem || getScoutingImportSourceSystem(),
       importedAt: database.importedAt || new Date().toISOString(),
       sampleRecordIds: database.records.slice(0, 5).map(getScoutingRecordId),
     },
@@ -373,8 +407,10 @@ async function publishScoutingExcelImportToDatabase(database = {}) {
     rowCount: database.records.length,
     metricCount: database.metrics?.length || 0,
     metadata: {
-      source: "ui-excel-import",
+      source: "scouting player database",
+      sourceSystem: scoutingImportDraft?.sourceSystem || getScoutingImportSourceSystem(),
       importedAt: database.importedAt || new Date().toISOString(),
+      importedFrom: scoutingImportDraft?.sourceTypeLabel || scoutingImportDraft?.sourceSystem || "file-import",
     },
   });
   if (!startResult.ok || startResult.result?.enabled === false) {
@@ -542,6 +578,240 @@ function getScoutingStatusOptions() {
       label: customOption?.label && customOption.label !== "New" ? customOption.label : workflowOption.label,
     };
   });
+}
+function getScoutingImportSourceFromFile(fileName = "") {
+  const extension = normalizeScoutingText(fileName, 80).toLowerCase().match(/\.[a-z0-9]+$/)?.[0] || "";
+  return (
+    scoutingImportSupportedSourceTypes.find((sourceType) => sourceType.extensions.includes(extension)) || scoutingImportSupportedSourceTypes[0]
+  );
+}
+function buildScoutingImportHash(value = "") {
+  const text = normalizeScoutingText(value, 240).toLowerCase();
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+  return hash.toString(36);
+}
+function buildScoutingImportRecordId(seed = "", fallback = "record", maxLength = 160) {
+  const normalized = normalizeScoutingText(seed, 240).toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const hash = buildScoutingImportHash(seed);
+  const base = normalized || fallback;
+  return `${base.slice(0, Math.max(20, maxLength - hash.length - 1))}-${hash}`.slice(0, maxLength);
+}
+function buildScoutingScopedId(value = "", sourceSystem = "file-import") {
+  const source = normalizeScoutingText(sourceSystem, 40) || "file-import";
+  const normalized = normalizeScoutingText(value, 160);
+  if (!normalized) {
+    return "";
+  }
+  return normalized.includes("::") ? normalized : normalizeScoutingText(`${source}::${normalized}`, 160);
+}
+function getScoutingImportSourceSystem(draft = scoutingImportDraft) {
+  return normalizeScoutingText(draft?.sourceSystem, 40) || "file-import";
+}
+function buildScoutingPlayerSourceId(row = {}, map = {}) {
+  const mapped = normalizeScoutingText(row?.[map.playerSourceId], 160);
+  if (mapped) {
+    return mapped;
+  }
+  const player = normalizeScoutingText(row?.[map.player], 120);
+  const birthCountry = normalizeScoutingText(row?.[map.birthCountry], 120);
+  const passportCountry = normalizeScoutingText(row?.[map.passportCountry], 120);
+  return buildScoutingImportRecordId(
+    `${player} ${birthCountry} ${passportCountry}`.trim(),
+    `player`
+  );
+}
+function buildScoutingRecordSourceId(row = {}, map = {}, playerSourceId = "") {
+  const sourceSystem = getScoutingImportSourceSystem();
+  const mapped = normalizeScoutingText(row?.[map.sourceRecordId], 160);
+  if (mapped) {
+    return buildScoutingScopedId(mapped, sourceSystem);
+  }
+  const seed = [
+    playerSourceId,
+    normalizeScoutingText(row?.[map.player], 120),
+    normalizeScoutingText(scoutingImportDraft?.seasonOverride, 80) || normalizeScoutingText(row?.[map.season], 80),
+    normalizeScoutingText(row?.[map.team], 120),
+    normalizeScoutingText(row?.[map.position], 40),
+  ].join("::");
+  return buildScoutingScopedId(buildScoutingImportRecordId(seed, `record`), sourceSystem);
+}
+function parseScoutingMetricValue(value) {
+  const numeric = Number(String(value ?? "").replace(/,/g, ".").replace(/[^0-9.+-]/g, ""));
+  return Number.isFinite(numeric) ? numeric : null;
+}
+function readScoutingText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Could not read the selected file."));
+    reader.readAsText(file);
+  });
+}
+function parseScoutingSeparatedLine(line = "", delimiter = ",") {
+  const cells = [];
+  let current = "";
+  let inQuotes = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (char === delimiter && !inQuotes) {
+      cells.push(current);
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  cells.push(current);
+  return cells.map((item) => item.trim());
+}
+function detectScoutingImportDelimiter(lines = []) {
+  const candidates = [",", "\t", ";", "|"];
+  const counts = candidates.map((delimiter) => {
+    const count = lines.slice(0, 20).reduce((total, line) => {
+      return total + Math.max(0, line.split(delimiter).length - 1);
+    }, 0);
+    return { delimiter, count };
+  });
+  const winner = counts.sort((a, b) => b.count - a.count)[0];
+  return winner && winner.count > 0 ? winner.delimiter : ",";
+}
+function parseScoutingSeparatedRows(text = "", delimiter = ",") {
+  return String(text || "")
+    .split(/\r\n|\r|\n/)
+    .filter((line) => line.trim())
+    .map((line) => parseScoutingSeparatedLine(line, delimiter));
+}
+function parseScoutingTextRowsToRecords(rows = [], fallbackHeaders = []) {
+  if (!rows.length) {
+    return { headers: [], rows: [] };
+  }
+  const headers = rows[0]
+    .map((header) => String(header || "").trim())
+    .filter((header) => header.length > 0);
+  if (!headers.length) {
+    return { headers: fallbackHeaders, rows: [] };
+  }
+  const parsedRows = rows
+    .slice(1)
+    .map((row) => {
+      const record = {};
+      headers.forEach((header, index) => {
+        record[header] = row[index] ?? "";
+      });
+      return record;
+    })
+    .filter((record) => {
+      if (!record || typeof record !== "object") {
+        return false;
+      }
+      return Object.values(record).some((value) => normalizeScoutingText(value, 12));
+    });
+  return { headers, rows: parsedRows };
+}
+function parseScoutingJsonRows(payload = null) {
+  const records = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.records)
+      ? payload.records
+      : Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload?.players)
+          ? payload.players
+          : [];
+  if (!Array.isArray(records)) {
+    return { headers: [], rows: [] };
+  }
+  const headers = [...new Set(records.flatMap((row) => (row && typeof row === "object" && !Array.isArray(row) ? Object.keys(row) : [])))];
+  const rows = records
+    .filter((row) => row && typeof row === "object" && !Array.isArray(row))
+    .map((row) => {
+      const values = {};
+      headers.forEach((header) => {
+        values[header] = row?.[header] ?? "";
+      });
+      return values;
+    })
+    .filter((record) => Object.values(record).some((value) => normalizeScoutingText(value, 12)));
+  return { headers, rows };
+}
+function normalizeScoutingImportText(value = "") {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+function parseScoutingPdfSource(file, sourceType) {
+  return ensureScoutingPdfParserLoaded().then(async (pdfjs) => {
+    const buffer = await file.arrayBuffer();
+    const documentHandle = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise;
+    const tables = [];
+    const pageCount = Math.min(documentHandle.numPages, 16);
+    for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+      const page = await documentHandle.getPage(pageNumber);
+      const textContent = await page.getTextContent();
+      const lines = textContent.items
+        .map((item) => normalizeScoutingImportText(item?.str || ""))
+        .filter(Boolean);
+      const delimiter = detectScoutingImportDelimiter(lines);
+      const parsedRows = parseScoutingSeparatedRows(lines.join("\n"), delimiter);
+      const parsed = parseScoutingTextRowsToRecords(parsedRows);
+      if (parsed.headers.length > 1 && parsed.rows.length) {
+        tables.push({ name: `${sourceType.label} page ${pageNumber}`, headers: parsed.headers, rows: parsed.rows });
+      }
+    }
+    return tables;
+  });
+}
+function ensureScoutingPdfParserLoaded() {
+  if (scoutingImportPdfParserPromise) {
+    return scoutingImportPdfParserPromise;
+  }
+  scoutingImportPdfParserPromise = new Promise((resolve, reject) => {
+    if (window.pdfjsLib?.getDocument) {
+      resolve(window.pdfjsLib);
+      return;
+    }
+    const existing = document.getElementById("scoutingPdfParserScript");
+    if (existing) {
+      existing.addEventListener("load", () => {
+        if (!window.pdfjsLib?.getDocument) {
+          reject(new Error("PDF parser did not load."));
+          return;
+        }
+        resolve(window.pdfjsLib);
+      }, { once: true });
+      existing.addEventListener("error", () => reject(new Error("PDF parser could not be loaded.")), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.id = "scoutingPdfParserScript";
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    script.async = true;
+    script.onload = () => {
+      if (!window.pdfjsLib?.getDocument) {
+        reject(new Error("PDF parser did not load."));
+        return;
+      }
+      if (window.pdfjsLib.GlobalWorkerOptions) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      }
+      resolve(window.pdfjsLib);
+    };
+    script.onerror = () => reject(new Error("PDF parser could not be loaded."));
+    document.head.appendChild(script);
+  });
+  return scoutingImportPdfParserPromise;
 }
 function getScoutingPriorityOptions() {
   return Array.isArray(scoutingPriorityOptions) && scoutingPriorityOptions.length
@@ -882,6 +1152,49 @@ function getScoutingRecordMetricValueCount(record) {
   const values = Array.isArray(metrics) ? metrics : Object.values(metrics || {});
   return values.filter((value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value))).length;
 }
+function getScoutingRecordLookupFingerprint(database = getScoutingDatabase()) {
+  const records = Array.isArray(database?.records) ? database.records : [];
+  return [
+    normalizeScoutingText(database?.source, 40) || "local",
+    normalizeScoutingText(database?.importedAt, 40),
+    Array.isArray(database?.metrics) ? database.metrics.length : 0,
+    records.length,
+    records.length ? getScoutingRecordId(records[0]) : "",
+    records.length ? getScoutingRecordId(records[records.length - 1]) : "",
+  ].join("|");
+}
+function ensureScoutingRecordLookupsReady() {
+  const database = getScoutingDatabase();
+  const fingerprint = getScoutingRecordLookupFingerprint(database);
+  if (!fingerprint || fingerprint === scoutingRecordLookupFingerprint) {
+    return;
+  }
+  const records = Array.isArray(database?.records) ? database.records : [];
+  const nextIdLookup = new Map();
+  const nextNameLookup = new Map();
+  for (const record of records) {
+    const recordId = getScoutingRecordId(record);
+    if (recordId) {
+      nextIdLookup.set(recordId, record);
+    }
+    const recordName = getScoutingRecordName(record).toLowerCase();
+    if (!recordName) {
+      continue;
+    }
+    const bucket = nextNameLookup.get(recordName);
+    if (bucket) {
+      bucket.push(record);
+    } else {
+      nextNameLookup.set(recordName, [record]);
+    }
+  }
+  for (const bucket of nextNameLookup.values()) {
+    bucket.sort((a, b) => getScoutingRecordSeason(b).localeCompare(getScoutingRecordSeason(a)) || getScoutingRecordMinutes(b) - getScoutingRecordMinutes(a));
+  }
+  scoutingRecordIdLookupCache = nextIdLookup;
+  scoutingRecordNameLookupCache = nextNameLookup;
+  scoutingRecordLookupFingerprint = fingerprint;
+}
 function formatScoutingNumber(value, fallback = "n/a") {
   const number = Number(value);
   if (!Number.isFinite(number)) {
@@ -1002,6 +1315,8 @@ function getScoutingImportAutoMap(headers = []) {
     passportCountry: findScoutingImportHeader(headers, ["passport", "nationality"]),
     height: findScoutingImportHeader(headers, ["height"]),
     weight: findScoutingImportHeader(headers, ["weight"]),
+    playerSourceId: findScoutingImportHeader(headers, ["player source id", "player_id", "player id", "source_player_id", "external_id"]),
+    sourceRecordId: findScoutingImportHeader(headers, ["record id", "source record id", "source_record_id", "season record id"]),
   };
 }
 function getScoutingImportSheetRows(sheet) {
@@ -1034,37 +1349,70 @@ function ensureScoutingSpreadsheetParserLoaded() {
   return scoutingImportParserPromise;
 }
 async function loadScoutingImportFile(file) {
+  if (!canEditScoutingWorkspace()) {
+    return;
+  }
   if (!file) {
     return;
   }
+  const state = ensureScoutingState();
+  state.activeTab = "database";
+  writeScoutingState({ syncCentral: false });
+  const sourceType = getScoutingImportSourceFromFile(file.name);
   scoutingImportDraft = {
     status: "loading",
     fileName: normalizeScoutingText(file.name, 180),
+    sourceSystem: sourceType.id,
     error: "",
   };
   renderScoutingWorkspace({ preserveFocus: true });
   try {
-    await ensureScoutingSpreadsheetParserLoaded();
-    const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
-    const sheets = workbook.SheetNames.map((sheetName) => {
-      const rows = getScoutingImportSheetRows(workbook.Sheets[sheetName]).slice(0, 50000);
-      const headers = Array.from(
-        rows.reduce((set, row) => {
-          Object.keys(row || {}).forEach((header) => set.add(header));
-          return set;
-        }, new Set())
-      );
-      return {
-        name: sheetName,
-        rows,
-        headers,
-      };
-    }).filter((sheet) => sheet.headers.length);
+    let sheets = [];
+    if (sourceType.parser === "xlsx") {
+      await ensureScoutingSpreadsheetParserLoaded();
+      const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
+      sheets = workbook.SheetNames.map((sheetName) => {
+        const rows = getScoutingImportSheetRows(workbook.Sheets[sheetName]).slice(0, 50000);
+        const headers = Array.from(
+          rows.reduce((set, row) => {
+            Object.keys(row || {}).forEach((header) => set.add(header));
+            return set;
+          }, new Set())
+        );
+        return {
+          name: sheetName,
+          rows,
+          headers,
+        };
+      }).filter((sheet) => sheet.headers.length);
+    } else if (sourceType.parser === "json") {
+      const payload = JSON.parse(await readScoutingText(file));
+      const parsed = parseScoutingJsonRows(payload);
+      if (parsed.headers.length) {
+        sheets = [{ name: normalizeScoutingText(file.name, 120), rows: parsed.rows, headers: parsed.headers }];
+      }
+    } else if (sourceType.parser === "pdf") {
+      sheets = await parseScoutingPdfSource(file, sourceType);
+    } else {
+      const rawText = await readScoutingText(file);
+      const lines = rawText.split(/\r\n|\r|\n/);
+      const delimiter = detectScoutingImportDelimiter(lines);
+      const parsedRows = parseScoutingSeparatedRows(rawText, delimiter);
+      const parsed = parseScoutingTextRowsToRecords(parsedRows);
+      if (parsed.headers.length) {
+        sheets = [{ name: normalizeScoutingText(file.name, 120), rows: parsed.rows, headers: parsed.headers }];
+      }
+    }
     const selectedSheet = sheets[0]?.name || "";
     const selected = sheets.find((sheet) => sheet.name === selectedSheet);
+    if (!sheets.length || !selected) {
+      throw new Error("No readable data sheets/rows found in the selected file.");
+    }
     scoutingImportDraft = {
       status: "ready",
       fileName: normalizeScoutingText(file.name, 180),
+      sourceSystem: sourceType.id,
+      sourceTypeLabel: sourceType.label,
       sheets,
       selectedSheet,
       seasonOverride: "",
@@ -1130,7 +1478,8 @@ function buildScoutingImportedDatabase() {
       label: normalizeScoutingText(header, 120),
       direction: getScoutingImportMetricDirection(header),
     }))
-    .filter((metric, index, values) => metric.label && values.findIndex((item) => item.id === metric.id) === index);
+      .filter((metric, index, values) => metric.label && values.findIndex((item) => item.id === metric.id) === index);
+  const seenRecordIds = new Set();
   const records = selected.rows
     .map((row, index) => {
       const player = normalizeScoutingText(row[map.player], 160);
@@ -1140,31 +1489,39 @@ function buildScoutingImportedDatabase() {
       if (!player && !team && !position) {
         return null;
       }
+      const playerSourceId = buildScoutingPlayerSourceId(row, map);
+      const sourceRecordId = buildScoutingRecordSourceId(row, map, playerSourceId);
+      if (seenRecordIds.has(sourceRecordId)) {
+        return null;
+      }
+      seenRecordIds.add(sourceRecordId);
       const metricValues = {};
       for (const metric of metrics) {
         const header = metric.label;
-        const value = Number(String(row[header] ?? "").replace(",", ".").replace(/[^0-9.+-]/g, ""));
+        const value = parseScoutingMetricValue(row[header]);
         if (Number.isFinite(value)) {
           metricValues[metric.id] = value;
         }
       }
-      const idBits = [player, team, season, position, index].map((value) => getScoutingImportColumnId(value)).join("-");
       return [
-        `import-${idBits}`,
+        sourceRecordId,
         player,
         team,
         team,
         normalizeScoutingText(row[map.league], 160),
         season,
         position,
-        Number(row[map.age]) || "",
-        Number(row[map.matches]) || "",
-        Number(row[map.minutes]) || 0,
+        parseScoutingMetricValue(row[map.age]) || "",
+        parseScoutingMetricValue(row[map.matches]) || "",
+        Math.max(0, Math.round(parseScoutingMetricValue(row[map.minutes]) || 0)),
         normalizeScoutingText(row[map.birthCountry], 120),
         normalizeScoutingText(row[map.passportCountry], 120),
         normalizeScoutingText(row[map.height], 40),
         normalizeScoutingText(row[map.weight], 40),
         metricValues,
+        getScoutingImportSourceSystem(),
+        playerSourceId,
+        sourceRecordId,
       ];
     })
     .filter(Boolean);
@@ -1178,6 +1535,9 @@ function buildScoutingImportedDatabase() {
   };
 }
 function applyScoutingImportDraft() {
+  if (!canEditScoutingWorkspace()) {
+    return;
+  }
   const database = buildScoutingImportedDatabase();
   if (!database?.records?.length) {
     scoutingImportDraft = {
@@ -1211,6 +1571,9 @@ function applyScoutingImportDraft() {
   renderScoutingWorkspace();
 }
 function clearScoutingImportedDatabase() {
+  if (!canEditScoutingWorkspace()) {
+    return;
+  }
   delete window.__footballScienceImportedScoutingDatabase;
   scoutingImportedDatabaseLoaded = true;
   scoutingDatabaseOptionCache = null;
@@ -1222,17 +1585,17 @@ function clearScoutingImportedDatabase() {
   renderScoutingWorkspace();
 }
 function getScoutingRecordById(recordId) {
+  ensureScoutingRecordLookupsReady();
   const id = normalizeScoutingText(recordId, 160);
-  return (getScoutingDatabase()?.records || []).find((record) => getScoutingRecordId(record) === id) || null;
+  return scoutingRecordIdLookupCache.get(id) || null;
 }
 function getScoutingRecordsForPlayer(record) {
+  ensureScoutingRecordLookupsReady();
   const name = getScoutingRecordName(record).toLowerCase();
   if (!name) {
     return [];
   }
-  return (getScoutingDatabase()?.records || [])
-    .filter((candidate) => getScoutingRecordName(candidate).toLowerCase() === name)
-    .sort((a, b) => getScoutingRecordSeason(b).localeCompare(getScoutingRecordSeason(a)) || getScoutingRecordMinutes(b) - getScoutingRecordMinutes(a));
+  return (scoutingRecordNameLookupCache.get(name) || []).slice();
 }
 function getScoutingTargets(state = ensureScoutingState()) {
   return Array.isArray(state.targets) ? state.targets : [];
@@ -1813,8 +2176,10 @@ function getScoutingPercentile(record, metricId) {
 }
 function getFilteredScoutingDatabaseRecords() {
   const database = getScoutingDatabase();
+  const records = database?.records || [];
   const state = ensureScoutingState();
   const filters = normalizeScoutingDatabaseFilters(state.databaseFilters);
+  ensureScoutingRecordLookupsReady();
   const query = filters.query.toLowerCase();
   const minMinutes = Number(filters.minMinutes) || 0;
   const maxAge = Number(filters.maxAge);
@@ -1826,15 +2191,84 @@ function getFilteredScoutingDatabaseRecords() {
   const signalMode = filters.signalMode || "all";
   const marketStatus = filters.marketStatus || "all";
   const selectedRoleProfile = roleProfileId ? getScoutingRoleProfileById(roleProfileId) : null;
+  const includeFavoritesFilter = signalMode === "favorites";
+  const includePipelineFilter = signalMode === "pipeline";
+  const includeShadowFilter = signalMode === "shadow";
+  const favorites = includeFavoritesFilter ? normalizeScoutingRecordIds(state.favoriteRecordIds) : [];
+  const pipeline = includePipelineFilter ? getScoutingTargetedRecordIds(state) : [];
+  const shadow = includeShadowFilter ? getScoutingAllShadowRecordIds(state) : [];
   const needsRoleFit =
     Boolean(roleProfileId) ||
     (Number.isFinite(roleFitMin) && roleFitMin > 0) ||
     ["priority", "breakout", "value"].includes(signalMode) ||
     sortMetricId === "role-fit";
-  const favoriteIds = new Set(normalizeScoutingRecordIds(state.favoriteRecordIds));
-  const pipelineIds = new Set(getScoutingTargetedRecordIds(state));
-  const shadowIds = new Set(getScoutingAllShadowRecordIds(state));
-  return [...(database?.records || [])]
+  const favoriteIds = includeFavoritesFilter ? new Set(favorites) : null;
+  const pipelineIds = includePipelineFilter ? new Set(pipeline) : null;
+  const shadowIds = includeShadowFilter ? new Set(shadow) : null;
+  const filterCacheKey = [
+    scoutingRecordLookupFingerprint,
+    query,
+    filters.league,
+    filters.season,
+    filters.position,
+    filters.minMinutes,
+    filters.maxAge || "-",
+    sortMetricId,
+    metricFilterId || "all",
+    filters.metricMin || "-",
+    roleProfileId || "none",
+    filters.roleFitMin || "-",
+    signalMode,
+    marketStatus,
+    filters.benchmarkMode,
+    includeFavoritesFilter ? `fav:${favorites.join("|")}` : "fav-all",
+    includePipelineFilter ? `pipe:${pipeline.join("|")}` : "pipe-all",
+    includeShadowFilter ? `sh:${shadow.join("|")}` : "sh-all",
+    marketStatus === "all" ? "mv:none" : `mv:${scoutingMarketIntelVersion}`,
+  ].join("|");
+  if (scoutingFilteredDatabaseCache.key === filterCacheKey) {
+    return scoutingFilteredDatabaseCache.records;
+  }
+  const roleFitCache = needsRoleFit ? new Map() : null;
+  const metricFilterCache = metricFilterId && Number.isFinite(metricMin) && metricMin > 0 ? new Map() : null;
+  const sortPercentileCache = sortMetricId !== "minutes" && sortMetricId !== "matches" && sortMetricId !== "role-fit" ? new Map() : null;
+  const getCachedRoleFit = (record) => {
+    if (!roleFitCache) {
+      return getScoutingRoleFitScore(record, roleProfileId);
+    }
+    const recordId = getScoutingRecordId(record);
+    if (roleFitCache.has(recordId)) {
+      return roleFitCache.get(recordId);
+    }
+    const score = getScoutingRoleFitScore(record, roleProfileId);
+    roleFitCache.set(recordId, score);
+    return score;
+  };
+  const getCachedMetricPercentile = (record) => {
+    if (!metricFilterCache) {
+      return getScoutingPercentile(record, metricFilterId);
+    }
+    const recordId = getScoutingRecordId(record);
+    if (metricFilterCache.has(recordId)) {
+      return metricFilterCache.get(recordId);
+    }
+    const percentile = getScoutingPercentile(record, metricFilterId);
+    metricFilterCache.set(recordId, percentile);
+    return percentile;
+  };
+  const getCachedSortPercentile = (record) => {
+    if (!sortPercentileCache) {
+      return getScoutingPercentile(record, sortMetricId);
+    }
+    const recordId = getScoutingRecordId(record);
+    if (sortPercentileCache.has(recordId)) {
+      return sortPercentileCache.get(recordId);
+    }
+    const percentile = getScoutingPercentile(record, sortMetricId);
+    sortPercentileCache.set(recordId, percentile);
+    return percentile;
+  };
+  const nextRecords = [...records]
     .filter((record) => {
       const recordId = getScoutingRecordId(record);
       if (selectedRoleProfile && !selectedRoleProfile.groups.includes(getScoutingPositionGroup(record))) {
@@ -1858,9 +2292,9 @@ function getFilteredScoutingDatabaseRecords() {
           return false;
         }
       }
-      const roleFitScore = needsRoleFit ? getScoutingRoleFitScore(record, roleProfileId) : null;
+      const roleFitScore = needsRoleFit ? getCachedRoleFit(record) : null;
       if (metricFilterId && Number.isFinite(metricMin) && metricMin > 0) {
-        const percentile = getScoutingPercentile(record, metricFilterId);
+        const percentile = getCachedMetricPercentile(record);
         if (!Number.isFinite(percentile) || percentile < metricMin) {
           return false;
         }
@@ -1880,13 +2314,13 @@ function getFilteredScoutingDatabaseRecords() {
       if (signalMode === "value" && (!Number.isFinite(roleFitScore) || roleFitScore < 70 || getScoutingRecordMinutes(record) > 1600)) {
         return false;
       }
-      if (signalMode === "favorites" && !favoriteIds.has(recordId)) {
+      if (signalMode === "favorites" && favoriteIds && !favoriteIds.has(recordId)) {
         return false;
       }
-      if (signalMode === "pipeline" && !pipelineIds.has(recordId)) {
+      if (signalMode === "pipeline" && pipelineIds && !pipelineIds.has(recordId)) {
         return false;
       }
-      if (signalMode === "shadow" && !shadowIds.has(recordId)) {
+      if (signalMode === "shadow" && shadowIds && !shadowIds.has(recordId)) {
         return false;
       }
       if (marketStatus !== "all") {
@@ -1912,7 +2346,7 @@ function getFilteredScoutingDatabaseRecords() {
         getScoutingRecordLeague(record),
         getScoutingRecordSeason(record),
         getScoutingRecordPosition(record),
-        query ? getScoutingRoleLabelsForGroup(record).join(" ") : "",
+        getScoutingRoleLabelsForGroup(record).join(" "),
       ]
         .join(" ")
         .toLowerCase()
@@ -1920,14 +2354,19 @@ function getFilteredScoutingDatabaseRecords() {
     })
     .sort((a, b) => {
       if (sortMetricId === "role-fit") {
-        return (getScoutingRoleFitScore(b, roleProfileId) || 0) - (getScoutingRoleFitScore(a, roleProfileId) || 0);
+        return (getCachedRoleFit(b) || 0) - (getCachedRoleFit(a) || 0);
       }
       const metric = getScoutingMetric(sortMetricId);
       if (!metric || sortMetricId === "minutes" || sortMetricId === "matches") {
         return (getScoutingMetricValue(b, sortMetricId) || 0) - (getScoutingMetricValue(a, sortMetricId) || 0);
       }
-      return (getScoutingPercentile(b, sortMetricId) || 0) - (getScoutingPercentile(a, sortMetricId) || 0);
+      return (getCachedSortPercentile(b) || 0) - (getCachedSortPercentile(a) || 0);
     });
+  scoutingFilteredDatabaseCache = {
+    key: filterCacheKey,
+    records: nextRecords,
+  };
+  return nextRecords;
 }
 const scoutingRoleSpiderProfiles = Object.freeze([
   {
@@ -3673,6 +4112,7 @@ function saveScoutingMarketInfo(recordId, patch = {}) {
       updatedAt: new Date().toISOString(),
     }),
   };
+  scoutingMarketIntelVersion += 1;
   writeScoutingState();
   renderScoutingWorkspace();
 }
@@ -4955,6 +5395,9 @@ function renderScoutingDatabaseControls() {
   `;
 }
 function renderScoutingImportPanel() {
+  if (!canEditScoutingWorkspace()) {
+    return "";
+  }
   const database = getScoutingDatabase();
   const isImported = database?.source === "ui-import";
   const draft = scoutingImportDraft;
@@ -4974,7 +5417,9 @@ function renderScoutingImportPanel() {
     draft?.error ||
     draft?.databaseUploadError ||
     draft?.databaseUploadStatus ||
-    (selected ? `${selected.rows.length.toLocaleString("en-US")} preview rows / ${headers.length} columns` : "Choose a sheet.");
+    (selected
+      ? `${selected.rows.length.toLocaleString("en-US")} preview rows / ${headers.length} columns`
+      : "Choose a file and sheet if available.");
   const coreFields = [
     ["player", "Player"],
     ["team", "Team"],
@@ -4988,6 +5433,8 @@ function renderScoutingImportPanel() {
     ["passportCountry", "Passport country"],
     ["height", "Height"],
     ["weight", "Weight"],
+    ["playerSourceId", "Player source id (optional)"],
+    ["sourceRecordId", "Source record id (optional)"],
   ];
   const columnOptions = (currentValue) => `
     <option value="">Not mapped</option>
@@ -4995,16 +5442,12 @@ function renderScoutingImportPanel() {
   `;
   return `
     <section class="scouting-import-panel">
-      <div class="scouting-import-head">
+        <div class="scouting-import-head">
         <div>
           <span>Scouting player database</span>
           <h2>${escapeHtml(isImported ? "Imported scouting player database" : "Update scouting player database")}</h2>
           <p>${escapeHtml(isImported ? `${database.records.length.toLocaleString("en-US")} players / ${database.metrics.length} metrics / imported ${String(database.importedAt || "").slice(0, 10)}` : "Upload a scouting player database file, choose sheet, map columns and update the database without code.")}</p>
         </div>
-        <label class="scouting-import-upload">
-          <input type="file" accept=".xlsx,.xls" data-scouting-import-file />
-          <span>Choose database file</span>
-        </label>
         ${isImported ? `<button type="button" class="scouting-secondary-button" data-clear-scouting-import>Use built-in data</button>` : ""}
       </div>
       ${
@@ -5019,13 +5462,19 @@ function renderScoutingImportPanel() {
               ${
                 draft.status === "ready" || draft.status === "imported" || draft.status === "error"
                   ? `
-                    <div class="scouting-import-controls">
-                      <label>
-                        <span>Sheet</span>
-                        <select data-scouting-import-sheet>
-                          ${(draft.sheets || []).map((sheet) => `<option value="${escapeHtml(sheet.name)}" ${draft.selectedSheet === sheet.name ? "selected" : ""}>${escapeHtml(sheet.name)}</option>`).join("")}
-                        </select>
-                      </label>
+                  <div class="scouting-import-controls">
+                      ${
+                        draft.sheets.length > 1
+                          ? `
+                            <label>
+                              <span>Sheet</span>
+                              <select data-scouting-import-sheet>
+                                ${(draft.sheets || []).map((sheet) => `<option value="${escapeHtml(sheet.name)}" ${draft.selectedSheet === sheet.name ? "selected" : ""}>${escapeHtml(sheet.name)}</option>`).join("")}
+                              </select>
+                            </label>
+                          `
+                          : ""
+                      }
                       <label>
                         <span>Season override</span>
                         <input value="${escapeHtml(draft.seasonOverride || "")}" placeholder="Optional season label" data-scouting-import-season />
@@ -5058,6 +5507,23 @@ function renderScoutingImportPanel() {
           : ""
       }
     </section>
+  `;
+}
+function renderScoutingImportLaunch() {
+  if (!canEditScoutingWorkspace()) {
+    return "";
+  }
+  return `
+    <div class="scouting-import-launch">
+      <input
+        type="file"
+        class="scouting-import-file-input"
+        accept="${escapeHtml(scoutingImportSupportedFileExts)}"
+        data-scouting-import-file
+        style="display: none;"
+      />
+      <button type="button" class="scouting-secondary-button" data-scouting-import-open>Update scouting database</button>
+    </div>
   `;
 }
 function renderScoutingSavedViewsPanel() {
@@ -6323,6 +6789,7 @@ function renderScoutingWorkspace(options = {}) {
           <div class="scouting-tools">
             <span>${escapeHtml(state.shadowXi.formation)}</span>
             <span>${escapeHtml(state.lists.length)} lists</span>
+            ${renderScoutingImportLaunch()}
           </div>
         </div>
         <div class="scouting-content">
@@ -6384,6 +6851,7 @@ function setScoutingDatabaseFilter(field, value) {
     ...state.databaseFilters,
     [field]: value,
   });
+  scoutingFilteredDatabaseCache.key = "";
   writeScoutingState({ syncCentral: false });
 }
 function createScoutingSavedView(name) {
@@ -6663,6 +7131,17 @@ export function handleClick(event, context) {
   if (loadDatabaseTrigger) {
     queueScoutingDatabaseLoad();
     renderScoutingWorkspace();
+    return;
+  }
+  const openImportTrigger = event.target.closest("[data-scouting-import-open]");
+  if (openImportTrigger) {
+    if (!canEditScoutingWorkspace()) {
+      return;
+    }
+    const importFileInput = ui.scoutingWorkspace?.querySelector("[data-scouting-import-file]");
+    if (importFileInput) {
+      importFileInput.click();
+    }
     return;
   }
   const applyImportTrigger = event.target.closest("[data-apply-scouting-import]");

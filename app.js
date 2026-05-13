@@ -130,6 +130,7 @@ const ui = {
   medicalTeamWorkspace: document.getElementById("medicalTeamWorkspace"),
   playerProfilesWorkspace: document.getElementById("playerProfilesWorkspace"),
   scoutingWorkspace: document.getElementById("scoutingWorkspace"),
+  analysisRoomWorkspace: document.getElementById("analysisRoomWorkspace"),
   gameSimulatorWorkspace: document.querySelector('[data-workspace-view="game-simulator"]'),
   gameSimulatorIntro: document.getElementById("gameSimulatorIntro"),
   simulatorIntroEnterButton: document.getElementById("simulatorIntroEnterButton"),
@@ -1385,7 +1386,6 @@ const scoutingTabs = [
   { id: "database", label: "Database" },
   { id: "lists", label: "Lists" },
   { id: "reports", label: "Reports" },
-  { id: "opposition", label: "Opposition" },
 ];
 const scoutingShadowSlots = [
   { id: "gk", label: "GK", position: "GK", x: 50, y: 88 },
@@ -1579,13 +1579,13 @@ const defaultHubState = {
       kind: "scouting",
       title: "Scouting",
       meta: "Recruitment",
-      description: "Targets, reports, watchlists and opposition scouting.",
+      description: "Targets, reports, watchlists and role-fit analysis.",
       status: "New",
       icon: "◇",
     },
     {
       id: "analysis-room",
-      kind: "placeholder",
+      kind: "analysis-room",
       title: "Analysis Room",
       meta: "Review and opposition",
       description: "Clips, match review, opposition cues and tactical references.",
@@ -6194,6 +6194,16 @@ function getScoutingWorkspaceContext() {
     scoutingPriorityOptions,
   };
 }
+function getScoutingAnalysisRoomContext() {
+  const context = getScoutingWorkspaceContext();
+  return {
+    ...context,
+    ui: {
+      ...context.ui,
+      scoutingWorkspace: ui.analysisRoomWorkspace,
+    },
+  };
+}
 function loadScoutingWorkspaceModule() {
   if (scoutingWorkspaceModule) {
     return Promise.resolve(scoutingWorkspaceModule);
@@ -6245,6 +6255,35 @@ function renderScoutingWorkspace() {
     return;
   }
   scoutingWorkspaceModule.render(getScoutingWorkspaceContext());
+}
+function renderAnalysisRoomWorkspace() {
+  if (!ui.analysisRoomWorkspace) {
+    return;
+  }
+  if (!scoutingWorkspaceModule) {
+    ui.analysisRoomWorkspace.innerHTML = `
+      <section class="scouting-shell">
+        <section class="scouting-load-panel">
+          <h2>Loading Analysis Room</h2>
+          <p>Preparing opposition analysis workspace.</p>
+        </section>
+      </section>
+    `;
+    loadScoutingWorkspaceModule()
+      .then((module) => module.renderAnalysisRoom(getScoutingAnalysisRoomContext()))
+      .catch(() => {
+        ui.analysisRoomWorkspace.innerHTML = `
+          <section class="scouting-shell">
+            <section class="scouting-load-panel">
+              <h2>Analysis Room could not load</h2>
+              <p>Refresh and try again.</p>
+            </section>
+          </section>
+        `;
+      });
+    return;
+  }
+  scoutingWorkspaceModule.renderAnalysisRoom(getScoutingAnalysisRoomContext());
 }
 
 function getScheduleEventsForDate(dateValue) {
@@ -7034,6 +7073,9 @@ function getWorkspaceViewId(workspaceId) {
   }
   if (workspace.kind === "player-profiles") {
     return "player-profiles";
+  }
+  if (workspace.kind === "analysis-room") {
+    return "analysis-room";
   }
   if (workspace.kind === "scouting") {
     return "scouting";
@@ -30896,6 +30938,9 @@ function queueWorkspaceModulePreload(workspaceId = "") {
   if (viewId === "game-simulator") {
     queueGameSimulatorControllersLoad();
   }
+  if (viewId === "analysis-room") {
+    loadScoutingWorkspaceModule();
+  }
 }
 
 function preloadWorkspaceFromTrigger(trigger) {
@@ -31003,6 +31048,9 @@ function renderWorkspaceChrome() {
 
   if (activeViewId === "scouting") {
     renderScoutingWorkspace();
+  }
+  if (activeViewId === "analysis-room") {
+    renderAnalysisRoomWorkspace();
   }
 
   if (activeViewId === "schedule") {
@@ -77618,6 +77666,22 @@ ui.scoutingWorkspace?.addEventListener("change", (event) => {
 
 ui.scoutingWorkspace?.addEventListener("submit", (event) => {
   scoutingWorkspaceModule?.handleSubmit(event, getScoutingWorkspaceContext());
+});
+
+ui.analysisRoomWorkspace?.addEventListener("click", (event) => {
+  scoutingWorkspaceModule?.handleClick(event, getScoutingAnalysisRoomContext());
+});
+
+ui.analysisRoomWorkspace?.addEventListener("input", (event) => {
+  scoutingWorkspaceModule?.handleInput(event, getScoutingAnalysisRoomContext());
+});
+
+ui.analysisRoomWorkspace?.addEventListener("change", (event) => {
+  scoutingWorkspaceModule?.handleChange(event, getScoutingAnalysisRoomContext());
+});
+
+ui.analysisRoomWorkspace?.addEventListener("submit", (event) => {
+  scoutingWorkspaceModule?.handleSubmit(event, getScoutingAnalysisRoomContext());
 });
 
 ui.simulatorIntroEnterButton?.addEventListener("click", () => launchGameSimulatorFromIntro().catch(console.error));

@@ -10,6 +10,8 @@ let scoutingDatabaseOptionCache = null;
 let scoutingPercentileCache = new Map();
 let preferredScoutingShadowSlotId = "";
 let scoutingDatabaseResultsFrame = 0;
+let scoutingOppositionFilters = { team: "", season: "all", minMinutes: 450 };
+let scoutingOppositionLatestSnapshot = null;
 const scoutingStatusFallbackOptions = [
   { value: "new", label: "New" },
   { value: "monitoring", label: "Monitoring" },
@@ -143,13 +145,20 @@ function ensureScoutingDatabaseLoaded() {
   }
   return scoutingDatabaseLoadPromise;
 }
-function queueScoutingDatabaseLoad() {
-  if (isScoutingDatabaseLoaded() || scoutingDatabaseLoadPromise) {
+function queueScoutingDatabaseLoad(onReady = renderScoutingWorkspace) {
+  const scheduleRender = () => onReady({ preserveFocus: true });
+  if (typeof onReady !== "function") {
+    onReady = renderScoutingWorkspace;
+  }
+  if (isScoutingDatabaseLoaded()) {
+    scheduleRender();
     return;
   }
-  ensureScoutingDatabaseLoaded()
-    .then(() => renderScoutingWorkspace({ preserveFocus: true }))
-    .catch(() => renderScoutingWorkspace({ preserveFocus: true }));
+  if (scoutingDatabaseLoadPromise) {
+    scoutingDatabaseLoadPromise.then(scheduleRender).catch(scheduleRender);
+    return;
+  }
+  ensureScoutingDatabaseLoaded().then(scheduleRender).catch(scheduleRender);
 }
 function getScoutingMetricOptions() {
   const database = getScoutingDatabase();
@@ -375,6 +384,189 @@ function getScoutingRecordsForPlayer(record) {
 }
 function getScoutingTargets(state = ensureScoutingState()) {
   return Array.isArray(state.targets) ? state.targets : [];
+}
+function getScoutingOppositionTeamOptions() {
+  const database = getScoutingDatabase();
+  if (!database) {
+    return [];
+  }
+  const teams = new Set();
+  for (const record of database.records || []) {
+    const team = getScoutingRecordTeam(record);
+    if (team) {
+      teams.add(team);
+    }
+  }
+  return [...teams].sort((a, b) => a.localeCompare(b));
+}
+function getScoutingOppositionSeasonOptions(team) {
+  const database = getScoutingDatabase();
+  if (!database) {
+    return ["all"];
+  }
+  const normalizedTeam = normalizeScoutingText(team, 80);
+  const seasons = new Set(["all"]);
+  for (const record of database.records || []) {
+    if (normalizedTeam && getScoutingRecordTeam(record) !== normalizedTeam) {
+      continue;
+    }
+    const season = getScoutingRecordSeason(record);
+    if (season) {
+      seasons.add(season);
+    }
+  }
+  return [...seasons].sort((a, b) => String(b).localeCompare(String(a)));
+}
+function getScoutingOppositionContext() {
+  const teamOptions = getScoutingOppositionTeamOptions();
+  const selectedTeam = teamOptions.includes(normalizeScoutingText(scoutingOppositionFilters.team, 80))
+    ? normalizeScoutingText(scoutingOppositionFilters.team, 80)
+    : "";
+  const seasonOptions = getScoutingOppositionSeasonOptions(selectedTeam);
+  const normalizedSeason = normalizeScoutingText(scoutingOppositionFilters.season, 40) || "all";
+  const selectedSeason = seasonOptions.includes(normalizedSeason) ? normalizedSeason : "all";
+  const minMinutes = Number(scoutingOppositionFilters.minMinutes);
+  return {
+    teamOptions,
+    seasonOptions,
+    selectedTeam,
+    selectedSeason: selectedSeason || "all",
+    minMinutes: Number.isFinite(minMinutes) && minMinutes >= 0 ? Math.max(0, Math.floor(minMinutes)) : 450,
+  };
+}
+function setScoutingOppositionFilters(patch = {}) {
+  const teamOptions = getScoutingOppositionTeamOptions();
+  const nextTeam = teamOptions.includes(normalizeScoutingText(patch.team, 80)) ? normalizeScoutingText(patch.team, 80) : "";
+  const seasonOptions = getScoutingOppositionSeasonOptions(nextTeam);
+  const normalizedSeason = normalizeScoutingText(patch.season, 40);
+  const nextSeason = seasonOptions.includes(normalizedSeason) ? normalizedSeason : "all";
+  const min = Number(patch.minMinutes);
+  scoutingOppositionFilters = {
+    team: nextTeam,
+    season: nextSeason,
+    minMinutes: Number.isFinite(min) && min >= 0 ? Math.floor(min) : 450,
+  };
+  renderScoutingActiveContext({ preserveFocus: true });
+}
+function getScoutingOppositionTeamPlayers() {
+  const context = getScoutingOppositionContext();
+  const database = getScoutingDatabase();
+  if (!database) {
+    return [];
+  }
+  return (database.records || [])
+    .filter((record) => {
+      if (context.selectedTeam && getScoutingRecordTeam(record) !== context.selectedTeam) {
+        return false;
+      }
+      if (context.selectedSeason !== "all" && getScoutingRecordSeason(record) !== context.selectedSeason) {
+        return false;
+      }
+      return getScoutingRecordMinutes(record) >= context.minMinutes;
+    })
+    .sort((a, b) => (getScoutingRoleFitScore(b) || 0) - (getScoutingRoleFitScore(a) || 0));
+}
+function getScoutingOppositionThreatRows(records, metricLabels, fallbackLabel = "Role fit", limit = 4) {
+  const metricId = getScoutingMetricIdByLabels(metricLabels);
+  const fallbackMetricId = fallbackLabel === "Role fit" ? "minutes" : "";
+  const finalMetricId = metricId || getScoutingMetric(fallbackMetricId)?.id || "";
+  return records
+    .map((record) => {
+      const roleFit = getScoutingRoleFitScore(record);
+      const percentile = finalMetricId ? getScoutingPercentile(record, finalMetricId) : null;
+      const score = Number.isFinite(percentile) ? percentile : Number.isFinite(roleFit) ? roleFit : null;
+      const metric = getScoutingMetric(finalMetricId);
+      return score === null
+        ? null
+        : { record, score, metricLabel: metric?.label || fallbackLabel };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+function getScoutingOppositionMatchupRows(records, slotId, limit = 3) {
+  const slot = getScoutingSlotById(slotId);
+  if (!slot) {
+    return [];
+  }
+  return records
+    .filter((record) => {
+      const positionTokens = getScoutingPositionTokens(record);
+      return positionTokens.includes(slot.position) || positionTokens.includes(slot.label);
+    })
+    .map((record) => {
+      const fit = getScoutingRoleFitScore(record);
+      return Number.isFinite(fit) ? { record, fit } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.fit - a.fit)
+    .slice(0, limit);
+}
+function getScoutingOppositionSummaryText() {
+  const context = getScoutingOppositionContext();
+  const players = getScoutingOppositionTeamPlayers();
+  if (!players.length) {
+    return `No opposition pool found for ${context.selectedTeam || "all teams"}${context.selectedSeason === "all" ? "" : ` (${context.selectedSeason})`}.`;
+  }
+  const attackRow = getScoutingOppositionThreatRows(players, ["xG", "Goals", "Shots"], "Role fit", 1)[0];
+  const duelRow = getScoutingOppositionThreatRows(players, ["Duels", "Aerial duels"], "Role fit", 1)[0];
+  return `${context.selectedTeam || "All teams"}${context.selectedSeason === "all" ? "" : ` (${context.selectedSeason})`}: ${
+    players.length
+  } profiles · top threat ${attackRow ? getScoutingRecordName(attackRow.record) : "unavailable"} (${attackRow ? attackRow.metricLabel : "Role fit"})${duelRow ? ` · duel threat ${getScoutingRecordName(duelRow.record)}` : ""}.`;
+}
+function getScoutingOppositionReportText() {
+  const context = getScoutingOppositionContext();
+  const players = getScoutingOppositionTeamPlayers();
+  const teamLabel = context.selectedTeam || "All teams";
+  const seasonLabel = context.selectedSeason === "all" ? "all seasons" : context.selectedSeason;
+  const attackThreats = getScoutingOppositionThreatRows(players, ["xG", "Goals", "Shots"], "Role fit", 4);
+  const creatorThreats = getScoutingOppositionThreatRows(players, ["xA", "Assists", "Key passes"], "Role fit", 4);
+  const aerialThreats = getScoutingOppositionThreatRows(players, ["Aerial duels won", "Aerial duels"], "Role fit", 4);
+  const slotThreats = scoutingShadowSlots
+    .map((slot) => ({
+      slot,
+      records: getScoutingOppositionMatchupRows(players, slot.id, 2),
+    }))
+    .filter((entry) => entry.records.length);
+  return [
+    `Opposition scan: ${teamLabel} (${seasonLabel})`,
+    `Players screened: ${players.length} · Min minutes: ${context.minMinutes}`,
+    "",
+    "Attack threat:",
+    attackThreats.length
+      ? attackThreats.map((entry) => `- ${getScoutingRecordName(entry.record)} · ${entry.metricLabel} ${formatScoutingNumber(entry.score)}`).join("\n")
+      : "- No clear attack threat in this filter.",
+    "",
+    "Chance creation threat:",
+    creatorThreats.length
+      ? creatorThreats.map((entry) => `- ${getScoutingRecordName(entry.record)} · ${entry.metricLabel} ${formatScoutingNumber(entry.score)}`).join("\n")
+      : "- No clear creator threat in this filter.",
+    "",
+    "Aerial / set-piece threat:",
+    aerialThreats.length
+      ? aerialThreats.map((entry) => `- ${getScoutingRecordName(entry.record)} · ${entry.metricLabel} ${formatScoutingNumber(entry.score)}`).join("\n")
+      : "- No clear aerial threat in this filter.",
+    "",
+    "Role matchups:",
+    slotThreats.length
+      ? slotThreats
+          .map(
+            (entry) =>
+              `${entry.slot.label} (${entry.slot.position}): ${entry.records
+                .map((item) => `${getScoutingRecordName(item.record)} (${formatScoutingNumber(item.fit)})`)
+                .join(", ")}`
+          )
+          .join("\n")
+      : "- No role-specific matchups in this scope.",
+    "",
+    "Next action: Open profiles and assign pipeline status manually after scouting visit.",
+  ].join("\n");
+}
+function renderScoutingActiveContext(options = {}) {
+  if (ui.scoutingWorkspace?.id === "analysisRoomWorkspace") {
+    return renderScoutingAnalysisRoomWorkspace(options);
+  }
+  return renderScoutingWorkspace(options);
 }
 function getScoutingTargetedRecordIds(state = ensureScoutingState()) {
   return getScoutingTargets(state)
@@ -1695,14 +1887,179 @@ function renderScoutingReportsHub() {
     </div>
   `;
 }
+function renderScoutingOppositionPanel() {
+  if (!isScoutingDatabaseLoaded()) {
+    return `
+      <section class="scouting-load-panel">
+        <h2>Opposition scouting</h2>
+        <p>Waiting for scouting data before analysis can run.</p>
+      </section>
+    `;
+  }
+  const context = getScoutingOppositionContext();
+  const players = getScoutingOppositionTeamPlayers();
+  const teamOptions = context.teamOptions;
+  const seasonOptions = context.seasonOptions;
+  const seasonLabel = context.selectedSeason === "all" ? "All seasons" : context.selectedSeason;
+  const topAttackThreats = getScoutingOppositionThreatRows(players, ["xG", "Goals", "Shots"], "Role fit", 4);
+  const topCreativeThreats = getScoutingOppositionThreatRows(players, ["xA", "Assists", "Key passes"], "Role fit", 4);
+  const topAerialThreats = getScoutingOppositionThreatRows(players, ["Aerial duels won", "Aerial duels"], "Role fit", 4);
+  const slotThreats = scoutingShadowSlots
+    .map((slot) => ({
+      slot,
+      records: getScoutingOppositionMatchupRows(players, slot.id, 2),
+    }))
+    .filter((entry) => entry.records.length);
+  const summaryText = getScoutingOppositionSummaryText();
+  const reportText = getScoutingOppositionReportText();
+  scoutingOppositionLatestSnapshot = {
+    team: context.selectedTeam || "All teams",
+    season: context.selectedSeason,
+    seasonLabel,
+    totalPlayers: players.length,
+    minMinutes: context.minMinutes,
+    summary: summaryText,
+    memo: reportText,
+  };
+  return `
+    <section class="scouting-opposition-shell">
+      <article class="scouting-opposition-controls">
+        <h2>Opposition command</h2>
+        <form class="scouting-target-form is-open scouting-opposition-form" data-scouting-opposition-form>
+          <select name="team">
+            <option value="">All teams</option>
+            ${teamOptions
+              .map((team) => `<option value="${escapeHtml(team)}" ${context.selectedTeam === team ? "selected" : ""}>${escapeHtml(team)}</option>`)
+              .join("")}
+          </select>
+          <select name="season">
+            ${seasonOptions
+              .map(
+                (season) =>
+                  `<option value="${escapeHtml(season)}" ${context.selectedSeason === season ? "selected" : ""}>${season === "all" ? "All seasons" : escapeHtml(season)}</option>`
+              )
+              .join("")}
+          </select>
+          <input type="number" name="minMinutes" min="0" max="10000" value="${escapeHtml(String(context.minMinutes))}" placeholder="Minimum minutes" />
+          <button type="submit" class="scouting-primary-button">Update scan</button>
+          <button type="button" class="scouting-secondary-button" data-create-scouting-opposition-report ${players.length ? "" : "disabled"}>
+            Save opposition memo
+          </button>
+        </form>
+        <p class="scouting-opposition-summary">${escapeHtml(summaryText)}</p>
+        <p class="scouting-muted">
+          Team: ${escapeHtml(context.selectedTeam || "All teams")} · Season: ${escapeHtml(seasonLabel)} · Players: ${players.length.toLocaleString("en-US")} · Min minutes: ${escapeHtml(
+    formatScoutingNumber(context.minMinutes)
+  )}
+        </p>
+      </article>
+      <section class="scouting-opposition-grid">
+        <article class="scouting-opposition-block">
+          <h3>Attack threat</h3>
+          ${
+            topAttackThreats.length
+              ? topAttackThreats
+                  .map(
+                    (entry) => `
+                      <article class="scouting-target-card">
+                        <div class="scouting-target-main">
+                          <strong>${escapeHtml(getScoutingRecordName(entry.record))}</strong>
+                          <span>${escapeHtml(entry.metricLabel)} · P${escapeHtml(formatScoutingNumber(entry.score))}</span>
+                        </div>
+                        <p class="scouting-note-line">${escapeHtml(getScoutingRecordTeam(entry.record))} · ${escapeHtml(getScoutingRecordPosition(entry.record))}</p>
+                        <button type="button" class="scouting-secondary-button" data-open-scouting-record="${escapeHtml(getScoutingRecordId(entry.record))}">Open profile</button>
+                      </article>
+                    `
+                  )
+                  .join("")
+              : `<p class="scouting-muted">No clear attack threats for this set.</p>`
+          }
+        </article>
+        <article class="scouting-opposition-block">
+          <h3>Chance creator threat</h3>
+          ${
+            topCreativeThreats.length
+              ? topCreativeThreats
+                  .map(
+                    (entry) => `
+                      <article class="scouting-target-card">
+                        <div class="scouting-target-main">
+                          <strong>${escapeHtml(getScoutingRecordName(entry.record))}</strong>
+                          <span>${escapeHtml(entry.metricLabel)} · P${escapeHtml(formatScoutingNumber(entry.score))}</span>
+                        </div>
+                        <p class="scouting-note-line">${escapeHtml(getScoutingRecordTeam(entry.record))} · ${escapeHtml(getScoutingRecordPosition(entry.record))}</p>
+                        <button type="button" class="scouting-secondary-button" data-open-scouting-record="${escapeHtml(getScoutingRecordId(entry.record))}">Open profile</button>
+                      </article>
+                    `
+                  )
+                  .join("")
+              : `<p class="scouting-muted">No clear creator threats for this set.</p>`
+          }
+        </article>
+        <article class="scouting-opposition-block">
+          <h3>Aerial / set-piece threat</h3>
+          ${
+            topAerialThreats.length
+              ? topAerialThreats
+                  .map(
+                    (entry) => `
+                      <article class="scouting-target-card">
+                        <div class="scouting-target-main">
+                          <strong>${escapeHtml(getScoutingRecordName(entry.record))}</strong>
+                          <span>${escapeHtml(entry.metricLabel)} · P${escapeHtml(formatScoutingNumber(entry.score))}</span>
+                        </div>
+                        <p class="scouting-note-line">${escapeHtml(getScoutingRecordTeam(entry.record))} · ${escapeHtml(getScoutingRecordPosition(entry.record))}</p>
+                        <button type="button" class="scouting-secondary-button" data-open-scouting-record="${escapeHtml(getScoutingRecordId(entry.record))}">Open profile</button>
+                      </article>
+                    `
+                  )
+                  .join("")
+              : `<p class="scouting-muted">No clear aerial threats for this set.</p>`
+          }
+        </article>
+      </section>
+      <section class="scouting-opposition-block">
+        <h3>Role-risk matchups</h3>
+        ${
+          slotThreats.length
+            ? `
+              <div class="scouting-opposition-slot-grid">
+                ${slotThreats
+                  .map(
+                    (entry) => `
+                      <article class="scouting-target-card">
+                        <div class="scouting-target-main">
+                          <strong>${escapeHtml(entry.slot.label)} (${escapeHtml(entry.slot.position)})</strong>
+                          <span>${entry.records.length} matched players</span>
+                        </div>
+                        ${entry.records
+                          .map(
+                            (item) => `
+                              <p class="scouting-note-line">${escapeHtml(getScoutingRecordName(item.record))} · P${escapeHtml(formatScoutingNumber(item.fit))}</p>
+                              <button type="button" class="scouting-secondary-button" data-open-scouting-record="${escapeHtml(getScoutingRecordId(item.record))}">Open profile</button>
+                            `
+                          )
+                          .join("")}
+                      </article>
+                    `
+                  )
+                  .join("")}
+              </div>
+            `
+            : `<p class="scouting-muted">No role-specific opposition matchups yet.</p>`
+        }
+      </section>
+    </section>
+  `;
+}
 function renderScoutingFuturePanel(type) {
-  const copy =
-    type === "opposition"
-      ? "Opposition scouting will connect team tendencies, player threats and match-plan notes."
-      : "Reports will turn shortlisted players into recruitment dossiers, role-fit notes and decision memos.";
+  if (type === "opposition") {
+    return renderScoutingOppositionPanel();
+  }
+  const copy = "Reports will turn shortlisted players into recruitment dossiers, role-fit notes and decision memos.";
   return `
     <section class="scouting-load-panel">
-      <h2>${type === "opposition" ? "Opposition scouting" : "Scouting reports"}</h2>
+      <h2>Scouting reports</h2>
       <p>${escapeHtml(copy)}</p>
     </section>
   `;
@@ -1915,6 +2272,10 @@ function renderScoutingWorkspace(options = {}) {
   }
   const focusSnapshot = options.preserveFocus ? getScoutingFocusSnapshot() : null;
   const state = ensureScoutingState();
+  if (!scoutingTabs.some((tab) => tab.id === state.activeTab)) {
+    state.activeTab = "shadow-xi";
+    writeScoutingState({ syncCentral: false });
+  }
   if (["shadow-xi", "database", "lists"].includes(state.activeTab)) {
     queueScoutingDatabaseLoad();
   }
@@ -1948,6 +2309,39 @@ function renderScoutingWorkspace(options = {}) {
         </div>
         <div class="scouting-content">
           ${renderScoutingActiveContent()}
+        </div>
+      </section>
+    </section>
+    ${renderScoutingProfileModal()}
+  `;
+  restoreScoutingFocus(focusSnapshot);
+}
+function renderScoutingAnalysisRoomWorkspace(options = {}) {
+  if (!ui.scoutingWorkspace) {
+    return;
+  }
+  if (!isScoutingDatabaseLoaded()) {
+    queueScoutingDatabaseLoad(renderScoutingAnalysisRoomWorkspace);
+  }
+  const focusSnapshot = options.preserveFocus ? getScoutingFocusSnapshot() : null;
+  const database = getScoutingDatabase();
+  const playerCount = database?.records?.length || 0;
+  const sheetCount = database?.sheets?.length || 0;
+  ui.scoutingWorkspace.innerHTML = `
+    <section class="scouting-shell">
+      <header class="scouting-hero">
+        <div>
+          <p class="placeholder-tag">Analysis Room</p>
+          <h1>Opposition intelligence</h1>
+        </div>
+        <div class="scouting-metrics" aria-label="Analysis summary">
+          <span><strong>${playerCount ? playerCount.toLocaleString("en-US") : "..."}</strong> Players</span>
+          <span><strong>${sheetCount ? sheetCount.toLocaleString("en-US") : "..."}</strong> Data sheets</span>
+        </div>
+      </header>
+      <section class="scouting-board">
+        <div class="scouting-content">
+          ${renderScoutingOppositionPanel()}
         </div>
       </section>
     </section>
@@ -2098,6 +2492,10 @@ export function render(context) {
   setScoutingContext(context);
   renderScoutingWorkspace();
 }
+export function renderAnalysisRoom(context) {
+  setScoutingContext(context);
+  renderScoutingAnalysisRoomWorkspace();
+}
 export function handleClick(event, context) {
   setScoutingContext(context);
   const closeProfileTrigger = event.target.closest("[data-close-scouting-profile]");
@@ -2158,6 +2556,20 @@ export function handleClick(event, context) {
       return;
     }
     deleteScoutingReport(deleteReportTrigger.dataset.deleteScoutingReport);
+    return;
+  }
+  const createOppositionReportTrigger = event.target.closest("[data-create-scouting-opposition-report]");
+  if (createOppositionReportTrigger) {
+    if (!canEditScoutingWorkspace()) {
+      return;
+    }
+    const snapshot = scoutingOppositionLatestSnapshot || getScoutingOppositionContext();
+    const title = `Opposition memo: ${snapshot.team || "Scouting analysis"}`;
+    const summary =
+      scoutingOppositionLatestSnapshot?.memo ||
+      getScoutingOppositionReportText() ||
+      `Opposition memo generated from current analysis (${snapshot.team || "all teams"}, ${snapshot.season === "all" ? "All seasons" : snapshot.season}).`;
+    createScoutingReportFromForm(title, "opposition", "", summary);
     return;
   }
   const removeRoleModelTrigger = event.target.closest("[data-remove-scouting-role-model]");
@@ -2240,6 +2652,16 @@ export function handleChange(event, context) {
       playerIds: [formData.get("playerA"), formData.get("playerB")],
     });
     renderScoutingWorkspace();
+    return;
+  }
+  const oppositionForm = event.target.closest("[data-scouting-opposition-form]");
+  if (oppositionForm) {
+    const formData = new FormData(oppositionForm);
+    setScoutingOppositionFilters({
+      team: formData.get("team"),
+      season: formData.get("season"),
+      minMinutes: formData.get("minMinutes"),
+    });
     return;
   }
   const filterInput = event.target.closest("[data-scouting-filter]");

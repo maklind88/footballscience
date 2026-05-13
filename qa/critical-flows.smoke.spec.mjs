@@ -925,6 +925,7 @@ test("Squad profile modal autosaves edits and keeps its size across tabs", async
   await expect(modal).toBeVisible();
   await expect(modal.locator('button[type="submit"]')).toHaveCount(0);
   await expect(modal.locator("[data-player-profile-remove]")).toBeVisible();
+  await expect(modal.locator(".squad-profile-strip")).toHaveCount(0);
 
   const overviewHeight = Math.round((await modal.boundingBox()).height);
   await modal.locator('[data-player-profile-tab="notes"]').click();

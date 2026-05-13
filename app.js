@@ -23667,7 +23667,6 @@ function renderPlayerProfileSelectedPanel(player) {
   const canEdit = canEditPlayerProfiles();
   const activeTab = normalizePlayerProfileTab(playerProfileActiveTab);
   const activeTabTitle = getPlayerProfileOption(playerProfileTabOptions, activeTab).label;
-  const completeness = getPlayerProfileCompleteness(player);
   return `
     <aside class="squad-player-workbench" data-active-tab="${escapeHtml(activeTab)}" aria-label="Selected player profile">
       <article class="squad-profile-identity">
@@ -23680,28 +23679,6 @@ function renderPlayerProfileSelectedPanel(player) {
           </div>
           ${renderPlayerProfileStatusChip(player.status)}
         </header>
-        <div class="squad-profile-strip">
-          <div>
-            <span>Primary role</span>
-            <strong>${escapeHtml(player.primaryRole)}</strong>
-          </div>
-          <div>
-            <span>Secondary</span>
-            <strong>${escapeHtml(player.secondaryRoles.length ? player.secondaryRoles.join(" / ") : "-")}</strong>
-          </div>
-          <div>
-            <span>Side</span>
-            <strong>${escapeHtml(getPlayerProfileOption(playerProfilePreferredSideOptions, player.preferredSide).label)}</strong>
-          </div>
-          <div>
-            <span>IDP</span>
-            <strong>${escapeHtml(getPlayerProfileOption(playerProfileIdpStatusOptions, player.idp?.status || "none").label)}</strong>
-          </div>
-          <div>
-            <span>Complete</span>
-            <strong>${completeness}%</strong>
-          </div>
-        </div>
       </article>
       ${renderPlayerProfileTabs()}
       ${activeTab === "overview" ? renderPlayerProfileScoutingSpider(player) : ""}

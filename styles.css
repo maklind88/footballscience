@@ -318,14 +318,13 @@ margin-left: auto;
 }
 .top-icon-menu{
 display: flex;
-align-items: stretch;
+align-items: center;
 min-width: 0;
-max-width: min(58rem, 100%);
+max-width: min(54rem, 100%);
 overflow-x: auto;
-overflow-y: hidden;
 scrollbar-width: none;
-gap: 0.28rem;
-padding: 0.32rem;
+gap: 0.36rem;
+padding: 0.35rem;
 border-radius: 999px;
 background:
 linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 248, 250, 0.82)),
@@ -342,15 +341,13 @@ display: none;
 .top-icon-menu-item{
 position: relative;
 flex: 0 0 auto;
-width: 4.65rem;
-min-height: 3.72rem;
+width: 4.3rem;
+height: 3.7rem;
 display: inline-flex;
-flex-direction: column;
 align-items: center;
 justify-content: center;
-gap: 0.22rem;
 border: 0;
-border-radius: 1.5rem;
+border-radius: 1.65rem;
 color: rgba(29, 29, 31, 0.62);
 background: transparent;
 box-shadow: none;
@@ -392,12 +389,11 @@ box-shadow:
 0 6px 14px rgba(255, 59, 48, 0.28);
 }
 .top-icon-menu-graphic{
-width: 1.5rem;
-height: 1.5rem;
+width: 2.12rem;
+height: 2.12rem;
 display: inline-flex;
 align-items: center;
 justify-content: center;
-flex: 0 0 auto;
 }
 .top-icon-menu-graphic svg{
 width: 100%;
@@ -409,17 +405,32 @@ stroke-linecap: round;
 stroke-linejoin: round;
 }
 .top-icon-menu-label{
-display: block;
-width: 100%;
-min-width: 0;
-padding: 0 0.12rem;
-color: currentColor;
-font-size: 0.6rem;
-font-weight: 800;
-line-height: 1.05;
+display: none;
+}
+.top-icon-menu-floating-label{
+position: fixed;
+z-index: 240;
+max-width: min(14rem, calc(100vw - 1.25rem));
+padding: 0.42rem 0.62rem;
+border-radius: 999px;
+color: #fff;
+background: rgba(29, 29, 31, 0.94);
+box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+font-size: 0.72rem;
+font-weight: 750;
+line-height: 1;
 text-align: center;
-white-space: normal;
+white-space: nowrap;
+opacity: 0;
 pointer-events: none;
+transform: translateY(-0.24rem);
+transition:
+opacity 140ms ease,
+transform 140ms ease;
+}
+.top-icon-menu-floating-label.is-visible{
+opacity: 1;
+transform: translateY(0);
 }
 .workspace-switcher-label{
 display: inline-flex;
@@ -13326,13 +13337,13 @@ order: 2;
 width: 100%;
 }
 .top-icon-menu-item{
-width: 4.35rem;
-min-height: 3.55rem;
+width: 3.65rem;
+height: 3.25rem;
 flex: 0 0 auto;
 }
 .top-icon-menu-graphic{
-width: 1.46rem;
-height: 1.46rem;
+width: 1.85rem;
+height: 1.85rem;
 }
 .schedule-hero-card{
 align-items: stretch;
@@ -18229,23 +18240,22 @@ grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
 padding: 0.8rem;
 }
 .top-icon-menu{
-justify-content: flex-start;
+justify-content: center;
 overflow-x: auto;
 gap: 0.22rem;
 padding: 0.28rem;
 }
 .top-icon-menu-item{
-width: 4.05rem;
-min-height: 3.35rem;
+width: 2.25rem;
+height: 2.35rem;
 border-radius: 1rem;
 }
 .top-icon-menu-graphic{
-width: 1.26rem;
-height: 1.26rem;
+width: 1.45rem;
+height: 1.45rem;
 }
 .top-icon-menu-label{
-display: block;
-font-size: 0.56rem;
+display: none;
 }
 .medical-metrics-grid{
 grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -18937,10 +18947,10 @@ linear-gradient(180deg, rgba(103, 181, 132, 0.36), rgba(37, 83, 67, 0.3)),
 rgba(255, 255, 255, 0.08) !important;
 box-shadow: inset 0 0 0 1px rgba(129, 210, 159, 0.34), 0 14px 34px rgba(0, 0, 0, 0.26) !important;
 }
-body.is-dark-mode .top-icon-menu-label{
-color: currentColor !important;
-background: transparent !important;
-box-shadow: none !important;
+body.is-dark-mode .top-icon-menu-floating-label{
+color: #07110d !important;
+background: #dff8e9 !important;
+box-shadow: 0 14px 30px rgba(0, 0, 0, 0.36) !important;
 }
 body.is-dark-mode .platform-title p,
 body.is-dark-mode .workspace-date,

@@ -4182,7 +4182,7 @@ function createInitialState() {
     eventLog: [
       "Kick-off loaded: Blue Team starts from the centre mark.",
       "Sandbox loaded: drag players, the ball, or box-select players while the simulation is paused.",
-      "Hold P, D or S, or arm a mode button, then click the pitch to set the target. Press Enter or Start to play it. With offensive autopilot on, Space starts or pauses auto play.",
+      "Press P, D or S, or arm a mode button, then click the pitch to set the target. Press Enter or Start to play it. With offensive autopilot on, Space starts or pauses auto play.",
     ],
     scenario: { ...defaultScenarioInfo },
     example: null,
@@ -9850,6 +9850,47 @@ function getTopIconLabel(workspace) {
   };
   return labels[workspace?.id] ?? workspace?.title ?? "";
 }
+function getTopIconTriggerLabel(trigger) {
+  return trigger?.querySelector(".top-icon-menu-label")?.textContent?.trim() || trigger?.getAttribute("aria-label") || "";
+}
+function ensureTopIconTooltip() {
+  let tooltip = document.querySelector(".top-icon-menu-floating-label");
+  if (!tooltip) {
+    tooltip = document.createElement("div");
+    tooltip.className = "top-icon-menu-floating-label";
+    tooltip.setAttribute("role", "tooltip");
+    document.body.append(tooltip);
+  }
+  return tooltip;
+}
+function showTopIconTooltip(trigger) {
+  const label = getTopIconTriggerLabel(trigger);
+  if (!trigger || !label) {
+    hideTopIconTooltip();
+    return;
+  }
+
+  const tooltip = ensureTopIconTooltip();
+  tooltip.textContent = label;
+  tooltip.classList.add("is-visible");
+
+  const triggerRect = trigger.getBoundingClientRect();
+  const tooltipRect = tooltip.getBoundingClientRect();
+  const edgeGap = 10;
+  const left = Math.min(
+    Math.max(triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2, edgeGap),
+    window.innerWidth - tooltipRect.width - edgeGap
+  );
+  tooltip.style.left = `${left}px`;
+  tooltip.style.top = `${Math.round(triggerRect.bottom + 8)}px`;
+}
+function hideTopIconTooltip() {
+  const tooltip = document.querySelector(".top-icon-menu-floating-label");
+  if (!tooltip) {
+    return;
+  }
+  tooltip.classList.remove("is-visible");
+}
 function renderTopIconMenu() {
   if (!ui.topIconMenu || !hubState) {
     return;
@@ -9869,7 +9910,6 @@ function renderTopIconMenu() {
           class="top-icon-menu-item${isActive ? " is-active" : ""}${hasNotification ? " has-notification" : ""}"
           data-open-workspace="${escapeHtml(workspace.id)}"
           aria-label="${escapeHtml(hasNotification ? `${label}, new activity` : label)}"
-          title="${escapeHtml(label)}"
         >
           <span class="top-icon-menu-graphic">${getTopIconSvg(workspace.id)}</span>
           <span class="top-icon-menu-label">${escapeHtml(label)}</span>
@@ -69677,7 +69717,7 @@ function issueBallCommand(targetPoint, forcedMode = null) {
   const actionMode = forcedMode ?? getRequestedActionMode();
 
   if (actionMode === null) {
-    logEvent("Hold P, D or S, or arm a mode button, before placing a ball action.");
+    logEvent("Press P, D or S, or arm a mode button, before placing a ball action.");
     return;
   }
 
@@ -72595,7 +72635,8 @@ function handlePointerDown(event) {
   }
 
   const activeActionMode = getPointerRequestedActionMode();
-  if (activeActionMode && !isBallHit(point)) {
+  const hasPlannedBallAction = hasBallAction() || state.draftStep;
+  if (activeActionMode && !hasPlannedBallAction && !isBallHit(point)) {
     const player = pickPlayer(point);
 
     if (activeActionMode === "pass" && player) {
@@ -73794,11 +73835,38 @@ ui.topIconMenu?.addEventListener("click", (event) => {
 });
 
 ui.topIconMenu?.addEventListener("mouseover", (event) => {
-  preloadWorkspaceFromTrigger(event.target.closest("[data-open-workspace]"));
+  const trigger = event.target.closest("[data-open-workspace]");
+  preloadWorkspaceFromTrigger(trigger);
+  showTopIconTooltip(trigger);
+});
+
+ui.topIconMenu?.addEventListener("mouseout", (event) => {
+  const trigger = event.target.closest("[data-open-workspace]");
+  if (trigger && !trigger.contains(event.relatedTarget)) {
+    hideTopIconTooltip();
+  }
 });
 
 ui.topIconMenu?.addEventListener("focusin", (event) => {
-  preloadWorkspaceFromTrigger(event.target.closest("[data-open-workspace]"));
+  const trigger = event.target.closest("[data-open-workspace]");
+  preloadWorkspaceFromTrigger(trigger);
+  showTopIconTooltip(trigger);
+});
+
+ui.topIconMenu?.addEventListener("focusout", (event) => {
+  const trigger = event.target.closest("[data-open-workspace]");
+  if (trigger && !trigger.contains(event.relatedTarget)) {
+    hideTopIconTooltip();
+  }
+});
+
+window.addEventListener("scroll", hideTopIconTooltip, { passive: true });
+window.addEventListener("resize", hideTopIconTooltip);
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    hideTopIconTooltip();
+  }
 });
 
 ui.workspaceTitle?.addEventListener("click", () => {

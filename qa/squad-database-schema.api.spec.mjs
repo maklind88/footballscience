@@ -86,7 +86,7 @@ test("squad database migration includes scale indexes for search, roster pages, 
 
 test("squad database migration keeps current UI values compatible during rollout", () => {
   expect(migration).toContain("'key', 'important', 'rotation', 'squad', 'depth', 'development', 'academy', 'trial', 'loan'");
-  expect(migration).toContain("'available', 'managed', 'rehab', 'unavailable', 'loan', 'unknown'");
+  expect(migration).toContain("'available', 'injured', 'managed', 'rehab', 'unavailable', 'national-team', 'vacation', 'personal', 'suspended', 'loan', 'unknown'");
   expect(migration).toContain("squad_staff_org_user_unique_idx");
   expect(migration).toContain("squad_staff_club_user_unique_idx");
   expect(migration).toContain("squad_staff_team_user_unique_idx");

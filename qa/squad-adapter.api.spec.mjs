@@ -169,7 +169,7 @@ test("Squad roster draft maps legacy UI fields toward the Supabase schema", () =
         primaryRole: "ST",
         secondaryRoles: ["RW"],
         squadStatus: "important",
-        status: "managed",
+        status: "national-team",
         rosterType: "academy",
         countsInSquad: false,
         temporaryGroup: "Academy Training Group",
@@ -196,7 +196,7 @@ test("Squad roster draft maps legacy UI fields toward the Supabase schema", () =
       secondary_roles: ["RW"],
       role_group: "forward",
       squad_status: "important",
-      availability_status: "managed",
+      availability_status: "national-team",
       metadata: {
         rosterType: "academy",
         countsInSquad: false,

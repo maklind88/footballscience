@@ -2215,9 +2215,14 @@ const playerProfileRoleGroupOptions = [
 ];
 const playerProfileStatusOptions = [
   { key: "available", label: "Available", tone: "available" },
+  { key: "injured", label: "Injured", tone: "injured" },
   { key: "managed", label: "Managed load", tone: "managed" },
   { key: "rehab", label: "Rehab", tone: "rehab" },
   { key: "unavailable", label: "Unavailable", tone: "unavailable" },
+  { key: "national-team", label: "International duty", tone: "national-team" },
+  { key: "vacation", label: "Vacation", tone: "vacation" },
+  { key: "personal", label: "Personal leave", tone: "personal" },
+  { key: "suspended", label: "Suspended", tone: "suspended" },
   { key: "loan", label: "Loan / external", tone: "loan" },
 ];
 const playerProfileSquadStatusOptions = [
@@ -22445,19 +22450,55 @@ function getLatestManualMedicalLog(playerId) {
       return new Date(second.createdAt) - new Date(first.createdAt);
     })[0] ?? null;
 }
+function getPlayerProfileMedicalStatusOverride(snapshot = {}) {
+  const statusKey = String(snapshot.medicalStatusKey || snapshot.tone || "").trim();
+  const participation = Number(snapshot.participation);
+  if (snapshot.hasActivePlan && Number.isFinite(participation) && participation < 100) {
+    return "injured";
+  }
+  if (statusKey === "unavailable" || statusKey === "rehab") {
+    return "injured";
+  }
+  if (statusKey === "modified" || statusKey === "controlled") {
+    return "managed";
+  }
+  return "";
+}
+function getPlayerProfileEffectiveStatusFromSnapshot(player = {}, snapshot = {}) {
+  return getPlayerProfileMedicalStatusOverride(snapshot) || player.status || "available";
+}
+function getPlayerProfileEffectiveStatus(player = {}, dateValue = formatScheduleDateValue(new Date())) {
+  return getPlayerProfileEffectiveStatusFromSnapshot(player, getPlayerProfileMedicalSnapshot(player.id, dateValue));
+}
 function getPlayerProfileMedicalSnapshot(playerId, dateValue = formatScheduleDateValue(new Date())) {
   ensureMedicalState();
   const currentRecord = getLatestMedicalRecord(playerId, dateValue);
   const latestLog = getLatestManualMedicalLog(playerId);
   const activePlan = getActiveMedicalInjuryPlan(playerId, dateValue);
+  const openEndedLog =
+    !currentRecord &&
+    !activePlan &&
+    latestLog &&
+    latestLog.date <= dateValue &&
+    ["unavailable", "rehab", "modified", "controlled"].includes(latestLog.status)
+      ? latestLog
+      : null;
+  const medicalStatusKey = currentRecord?.status || activePlan?.status || openEndedLog?.status || "";
+  const participation = currentRecord?.participation ?? activePlan?.participation ?? openEndedLog?.participation ?? null;
   const availabilityLabel = currentRecord
     ? `${getMedicalStatusOption(currentRecord.status).label} / ${currentRecord.participation}%`
+    : activePlan
+      ? `${getMedicalRtpPhaseOption(activePlan.rtpPhase).label} / ${activePlan.participation}%`
+      : openEndedLog
+        ? `${getMedicalStatusOption(openEndedLog.status).label} / ${openEndedLog.participation}% ongoing`
     : "Not logged today";
   const rtpStatus = activePlan
     ? getMedicalRtpPhaseOption(activePlan.rtpPhase).label
     : currentRecord
       ? getMedicalRtpPhaseOption(currentRecord.rtpPhase).label
-      : "No RTP restriction";
+      : openEndedLog
+        ? getMedicalRtpPhaseOption(openEndedLog.rtpPhase).label
+        : "No RTP restriction";
   const coachNote = currentRecord?.coachNote || activePlan?.coachNote || latestLog?.coachNote || "";
   const latestLogSummary = latestLog
     ? `${formatMedicalDateLabel(latestLog.date)} - ${getMedicalStatusOption(latestLog.status).label} / ${latestLog.participation}%`
@@ -22470,8 +22511,11 @@ function getPlayerProfileMedicalSnapshot(playerId, dateValue = formatScheduleDat
     coachNote,
     latestLogDate: latestLog?.date || "",
     latestLogSummary,
-    tone: currentRecord?.status || activePlan?.status || "unset",
-    participation: currentRecord?.participation ?? activePlan?.participation ?? null,
+    tone: medicalStatusKey || "unset",
+    participation,
+    medicalStatusKey,
+    hasActivePlan: Boolean(activePlan),
+    isOpenEndedMedicalStatus: Boolean(openEndedLog),
   };
 }
 function getPlayerProfilesRosterSummary(players = []) {
@@ -23253,6 +23297,7 @@ function renderSquadProfileProgressCell(completeness) {
 }
 function renderSquadPlayerRow(player) {
   const medicalSnapshot = getPlayerProfileMedicalSnapshot(player.id);
+  const effectiveStatus = getPlayerProfileEffectiveStatusFromSnapshot(player, medicalSnapshot);
   const isSelected = player.id === playerProfilesState.selectedPlayerId;
   const completeness = getPlayerProfileCompleteness(player);
   return `
@@ -23273,7 +23318,7 @@ function renderSquadPlayerRow(player) {
       </td>
       <td>${renderSquadRoleCell(player)}</td>
       <td>${renderSquadPlanningCell(player)}</td>
-      <td>${renderPlayerProfileStatusChip(player.status)}</td>
+      <td>${renderPlayerProfileStatusChip(effectiveStatus)}</td>
       <td><span class="squad-medical-cell medical-tone-${escapeHtml(medicalSnapshot.tone)}">${escapeHtml(medicalSnapshot.currentAvailability)}</span></td>
       <td>${renderSquadProfileProgressCell(completeness)}</td>
     </tr>
@@ -23791,6 +23836,8 @@ function renderPlayerProfileSelectedPanel(player) {
   const canEdit = canEditPlayerProfiles();
   const activeTab = normalizePlayerProfileTab(playerProfileActiveTab);
   const activeTabTitle = getPlayerProfileOption(playerProfileTabOptions, activeTab).label;
+  const medicalSnapshot = getPlayerProfileMedicalSnapshot(player.id);
+  const effectiveStatus = getPlayerProfileEffectiveStatusFromSnapshot(player, medicalSnapshot);
   const isSquadPlayer = playerProfileCountsInSquad(player);
   const temporaryRosterFields = isSquadPlayer
     ? ""
@@ -23824,7 +23871,7 @@ function renderPlayerProfileSelectedPanel(player) {
             <h2>${escapeHtml(player.name)}</h2>
             <span>${escapeHtml([player.number ? `#${player.number}` : "", player.position || "Position not set"].filter(Boolean).join(" - "))}</span>
           </div>
-          ${renderPlayerProfileStatusChip(player.status)}
+          ${renderPlayerProfileStatusChip(effectiveStatus)}
         </header>
       </article>
       ${renderPlayerProfileTabs()}
@@ -24725,6 +24772,7 @@ function buildSquadSessionPlannerContracts() {
       label: match.definition.label,
     }));
     const medicalSnapshot = getPlayerProfileMedicalSnapshot(player.id);
+    const effectiveStatus = getPlayerProfileEffectiveStatusFromSnapshot(player, medicalSnapshot);
     return {
       id: player.id,
       name: player.name,
@@ -24734,7 +24782,8 @@ function buildSquadSessionPlannerContracts() {
       secondaryRoles: player.secondaryRoles,
       preferredSide: player.preferredSide,
       roleGroup: player.roleGroup,
-      status: player.status,
+      status: effectiveStatus,
+      profileStatus: player.status,
       squadStatus: player.squadStatus,
       rosterType: player.rosterType,
       countsInSquad: player.countsInSquad,
@@ -26010,12 +26059,14 @@ function createSessionPlannerPlayerProfileContract(player, dateValue = formatSch
     return null;
   }
   const medicalSnapshot = getPlayerProfileMedicalSnapshot(player.id, dateValue);
+  const effectiveStatus = getPlayerProfileEffectiveStatusFromSnapshot(player, medicalSnapshot);
   return {
     id: player.id,
     name: player.name,
     number: player.number,
     position: player.position,
-    status: player.status,
+    status: effectiveStatus,
+    profileStatus: player.status,
     squadStatus: player.squadStatus,
     careerPhase: player.careerPhase,
     rosterType: player.rosterType,
@@ -26042,7 +26093,9 @@ function createSessionPlannerPlayerProfileContract(player, dateValue = formatSch
       coachNote: medicalSnapshot.coachNote,
       latestLogSummary: medicalSnapshot.latestLogSummary,
       participation: medicalSnapshot.participation,
+      status: medicalSnapshot.medicalStatusKey,
       tone: medicalSnapshot.tone,
+      hasActivePlan: medicalSnapshot.hasActivePlan,
     },
   };
 }

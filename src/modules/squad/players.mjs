@@ -3,7 +3,19 @@ export const squadStorageKey = "football-player-profiles-v1";
 export const squadRoleOptions = Object.freeze(["GK", "LB", "CB", "RB", "LWB", "RWB", "6", "8", "10", "LW", "RW", "ST"]);
 export const squadRoleGroups = Object.freeze(["goalkeeper", "defender", "midfielder", "forward"]);
 export const squadStatusKeys = Object.freeze(["key", "important", "rotation", "squad", "depth", "development", "academy", "trial", "loan"]);
-export const squadAvailabilityKeys = Object.freeze(["available", "managed", "rehab", "unavailable", "loan", "unknown"]);
+export const squadAvailabilityKeys = Object.freeze([
+  "available",
+  "injured",
+  "managed",
+  "rehab",
+  "unavailable",
+  "national-team",
+  "vacation",
+  "personal",
+  "suspended",
+  "loan",
+  "unknown",
+]);
 export const squadIdpStatusKeys = Object.freeze(["active", "review", "monitor", "none"]);
 export const squadRosterTypeKeys = Object.freeze(["squad", "academy", "trial", "guest"]);
 

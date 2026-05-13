@@ -173,7 +173,7 @@ create table if not exists public.squad_roster_memberships (
   role_group text check (role_group is null or role_group in ('goalkeeper', 'defender', 'midfielder', 'forward')),
   preferred_side text check (preferred_side is null or preferred_side in ('left', 'center', 'right', 'both')),
   squad_status text not null default 'squad' check (squad_status in ('key', 'important', 'rotation', 'squad', 'depth', 'development', 'academy', 'trial', 'loan')),
-  availability_status text not null default 'available' check (availability_status in ('available', 'managed', 'rehab', 'unavailable', 'loan', 'unknown')),
+  availability_status text not null default 'available' check (availability_status in ('available', 'injured', 'managed', 'rehab', 'unavailable', 'national-team', 'vacation', 'personal', 'suspended', 'loan', 'unknown')),
   joined_on date,
   left_on date,
   status text not null default 'active' check (status in ('active', 'inactive', 'archived')),

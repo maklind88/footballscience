@@ -96,7 +96,8 @@ create table if not exists public.squad_roster_memberships (
   role_group text,
   preferred_side text,
   squad_status text not null default 'squad',
-  availability_status text not null default 'available',
+  availability_status text not null default 'available'
+    check (availability_status in ('available', 'injured', 'managed', 'rehab', 'unavailable', 'national-team', 'vacation', 'personal', 'suspended', 'loan', 'unknown')),
   joined_on date,
   left_on date,
   status text not null default 'active',

@@ -1061,6 +1061,118 @@ test("Squad profile modal autosaves edits and keeps its size across tabs", async
   await expectStorageContains(page, playerProfilesKey, coachNote);
 });
 
+test("Squad availability status is editable and Medical injury status overrides the roster", async ({ page }) => {
+  await bootApp(page);
+  await openWorkspace(page, "player-profiles");
+
+  const injuredPlayerRow = page.locator("[data-player-profile-select]").first();
+  const manualPlayerRow = page.locator("[data-player-profile-select]").nth(1);
+  const injuredPlayerId = await injuredPlayerRow.getAttribute("data-player-profile-select");
+  const manualPlayerId = await manualPlayerRow.getAttribute("data-player-profile-select");
+  expect(injuredPlayerId).toBeTruthy();
+  expect(manualPlayerId).toBeTruthy();
+
+  await page.evaluate(
+    ({ medicalStorageKey, playerStorageKey, playerId }) => {
+      const profiles = JSON.parse(window.localStorage.getItem(playerStorageKey) || "{}");
+      const player = Array.isArray(profiles.players)
+        ? profiles.players.find((candidate) => candidate.id === playerId)
+        : null;
+      if (!player) return;
+
+      const now = new Date().toISOString();
+      const medical = JSON.parse(window.localStorage.getItem(medicalStorageKey) || "{}");
+      const medicalPlayer = {
+        id: player.id,
+        name: player.name,
+        number: player.number || "",
+        position: player.position || "",
+        photoUrl: player.photoUrl || "",
+        sourceUrl: player.sourceUrl || "",
+        rosterType: player.rosterType || "squad",
+        countsInSquad: player.countsInSquad !== false,
+        temporaryGroup: player.temporaryGroup || "",
+        temporaryFrom: player.temporaryFrom || "",
+        temporaryTo: player.temporaryTo || "",
+        rosterOrder: player.rosterOrder ?? null,
+        createdAt: player.createdAt || now,
+        updatedAt: now,
+      };
+
+      medical.players = [
+        medicalPlayer,
+        ...(Array.isArray(medical.players) ? medical.players.filter((candidate) => candidate.id !== player.id) : []),
+      ];
+      medical.injuryPlans = [
+        {
+          id: "qa-active-squad-injury-plan",
+          playerId: player.id,
+          injuryType: "QA availability restriction",
+          bodyArea: "",
+          startDate: "2026-01-01",
+          endDate: "2099-12-31",
+          duration: 1,
+          durationUnit: "weeks",
+          status: "unavailable",
+          participation: 0,
+          reviewDate: "",
+          rtpPhase: "medical-restriction",
+          phase: "Medical restriction",
+          clearance: { doctor: false, physio: false, performance: false },
+          gates: {},
+          coachNote: "Unavailable until cleared by Medical.",
+          shareWithCoach: true,
+          comment: "",
+          createdAt: now,
+          updatedAt: now,
+          createdBy: "qa",
+        },
+        ...(Array.isArray(medical.injuryPlans)
+          ? medical.injuryPlans.filter((plan) => plan.id !== "qa-active-squad-injury-plan" && plan.playerId !== player.id)
+          : []),
+      ];
+      window.localStorage.setItem(medicalStorageKey, JSON.stringify(medical));
+    },
+    { medicalStorageKey: medicalKey, playerStorageKey: playerProfilesKey, playerId: injuredPlayerId }
+  );
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.locator("#hubShell")).toBeVisible();
+  await openWorkspace(page, "player-profiles");
+  await expect(
+    page.locator(`[data-player-profile-select="${injuredPlayerId}"] .squad-status-pill`).first()
+  ).toContainText("Injured");
+  await expect(
+    page.locator(`[data-player-profile-select="${injuredPlayerId}"] .squad-medical-cell`).first()
+  ).toContainText(/Unavailable|Medical restriction/);
+
+  await page.locator(`[data-player-profile-select="${manualPlayerId}"]`).click();
+  const modal = page.locator(".squad-profile-modal:has(#playerProfileEditForm)").first();
+  await expect(modal).toBeVisible();
+  const statusSelect = modal.locator('select[name="status"]');
+  await expect(statusSelect).toContainText("International duty");
+  await expect(statusSelect).toContainText("Vacation");
+  await statusSelect.selectOption("national-team");
+
+  await expect
+    .poll(() =>
+      page.evaluate(
+        ({ key, id }) => {
+          const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+          const player = Array.isArray(state.players) ? state.players.find((candidate) => candidate.id === id) : null;
+          return player?.status || "";
+        },
+        { key: playerProfilesKey, id: manualPlayerId }
+      )
+    )
+    .toBe("national-team");
+
+  await modal.locator("[data-player-profile-modal-close]").click();
+  await expect(
+    page.locator(`[data-player-profile-select="${manualPlayerId}"] .squad-status-pill`).first()
+  ).toContainText("International duty");
+});
+
 test("Squad profile remove is hidden for coach editors", async ({ page }) => {
   await bootApp(page);
   await page.evaluate(() => {

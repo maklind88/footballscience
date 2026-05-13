@@ -26650,22 +26650,17 @@ function renderPlayerProfilesWorkspace(message = "") {
   const selectedPlayer = getSelectedPlayerProfile();
   const rosterSummary = getPlayerProfilesRosterSummary(playerProfilesState.players);
   const visibleSummary = getPlayerProfilesRosterSummary(visiblePlayers);
+  const squadTeamName = getUserTeamName(getCurrentPlatformUser());
 
   ui.playerProfilesWorkspace.innerHTML = `
     <div class="squad-board-shell">
       <header class="squad-command-bar">
         <div class="squad-module-mark" aria-hidden="true">SQ</div>
-        <div>
-          <p>Squad / Player Profiles</p>
-          <h1>Squad Room</h1>
-          <span>Roster, training guests and player profiles.</span>
+        <div class="squad-command-title">
+          <p>Squad Room</p>
+          <h1>${escapeHtml(squadTeamName)}</h1>
+          <span>Player profiles, roles and training guests.</span>
         </div>
-        <div class="squad-command-stats" aria-label="Squad roster summary">
-          <span><strong>${rosterSummary.squadCount}</strong> squad</span>
-          <span><strong>${rosterSummary.temporaryCount}</strong> temporary</span>
-          <span><strong>${visiblePlayers.length}</strong> visible</span>
-        </div>
-        <div class="squad-access-chip">${escapeHtml(getPlayerProfilesAccessLabel())}</div>
         <div class="squad-command-tools" aria-label="Squad list controls">
           <div class="squad-command-list-summary">
             <div>

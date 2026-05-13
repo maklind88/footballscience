@@ -828,3 +828,69 @@ test("Academy Squad add is available for session planning without Medical cleara
     page.locator(`.session-player-board-token[aria-label^="${playerName}, 100% available"]`)
   ).toBeVisible();
 });
+
+test("Squad profile modal autosaves edits and keeps its size across tabs", async ({ page }) => {
+  const coachNote = `QA autosave note ${Date.now()}`;
+  await bootApp(page);
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent("platform:open-workspace", { detail: { workspaceId: "player-profiles" } }));
+  });
+  await dismissDashboardModal(page);
+  await expect(page.locator('[data-workspace-view="player-profiles"].is-active')).toBeVisible();
+
+  await page.locator("[data-player-profile-select]").first().click();
+  const modal = page.locator(".squad-profile-modal:has(#playerProfileEditForm)").first();
+  await expect(modal).toBeVisible();
+  await expect(modal.locator('button[type="submit"]')).toHaveCount(0);
+  await expect(modal.locator("[data-player-profile-remove]")).toBeVisible();
+
+  const overviewHeight = Math.round((await modal.boundingBox()).height);
+  await modal.locator('[data-player-profile-tab="notes"]').click();
+  await expect.poll(async () => Math.round((await modal.boundingBox()).height), { timeout: 5_000 }).toBe(overviewHeight);
+
+  const playerId = await modal.locator('input[name="playerId"]').inputValue();
+  await modal.locator('textarea[name="coachNotes"]').fill(coachNote);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          ({ key, id }) => {
+            const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+            const player = Array.isArray(state.players) ? state.players.find((candidate) => candidate.id === id) : null;
+            return player?.coachNotes || "";
+          },
+          { key: playerProfilesKey, id: playerId }
+        ),
+      { timeout: 8_000 }
+    )
+    .toBe(coachNote);
+
+  await modal.locator("[data-player-profile-modal-close]").click();
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.locator("#hubShell")).toBeVisible();
+  await expectStorageContains(page, playerProfilesKey, coachNote);
+});
+
+test("Squad profile remove is hidden for coach editors", async ({ page }) => {
+  await bootApp(page);
+  await page.evaluate(() => {
+    const store = window.platformAuthStore;
+    const currentUser = store?.getCurrentUser?.();
+    if (!store || !currentUser) return;
+    const coachUser = { ...currentUser, id: "qa-squad-coach-editor", email: "qa-squad-coach-editor@footballscience.local", firstName: "QA", lastName: "Coach", username: "qa-squad-coach-editor", role: "coach", title: "Coach" };
+    store.writeUsers([coachUser, ...store.getUsers().filter((user) => user.id !== coachUser.id)]);
+    store.setCurrentUser(coachUser.id);
+  });
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent("platform:open-workspace", { detail: { workspaceId: "player-profiles" } }));
+  });
+  await dismissDashboardModal(page);
+  await expect(page.locator('[data-workspace-view="player-profiles"].is-active')).toBeVisible();
+
+  await page.locator("[data-player-profile-select]").first().click();
+  const modal = page.locator(".squad-profile-modal:has(#playerProfileEditForm)").first();
+  await expect(modal).toBeVisible();
+  await expect(modal.locator('input[name="position"]')).toBeEnabled();
+  await expect(modal.locator('button[type="submit"]')).toHaveCount(0);
+  await expect(modal.locator("[data-player-profile-remove]")).toHaveCount(0);
+});

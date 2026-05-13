@@ -73453,6 +73453,46 @@ function setKeyboardActionMode(mode) {
   render();
 }
 
+function getGameSimulatorShortcutActionMode(event) {
+  const key = String(event?.key || "").toLowerCase();
+  if (key === "p") return "pass";
+  if (key === "d") return "dribble";
+  if (key === "s") return "shot";
+  return null;
+}
+
+function handleGameSimulatorKeyboardShortcut(event) {
+  if (!isGameSimulatorWorkspaceActive() || shouldIgnoreSimulatorTextOrModifierTarget(event)) {
+    return;
+  }
+
+  const key = String(event?.key || "").toLowerCase();
+  const isSpace = event?.code === "Space" || key === " ";
+  if (isSpace && state.offensiveAutopilot) {
+    event.preventDefault();
+    if (!event.repeat) {
+      toggleSpaceAutopilotPlayback();
+    }
+    return;
+  }
+
+  if (key === "enter") {
+    event.preventDefault();
+    executePlannedAction();
+    return;
+  }
+
+  const shortcutActionMode = getGameSimulatorShortcutActionMode(event);
+  if (shortcutActionMode) {
+    event.preventDefault();
+    state.keyboardActionMode = shortcutActionMode;
+    state.keyboardActionGraceMode = null;
+    state.keyboardActionGraceUntil = 0;
+    updateModeButtons();
+    render();
+  }
+}
+
 function toggleActionMode(mode) {
   state.actionMode = state.actionMode === mode ? null : mode;
   updateModeButtons();
@@ -78073,6 +78113,7 @@ canvas.addEventListener("pointermove", handlePointerMove);
 canvas.addEventListener("pointerup", handlePointerUp);
 canvas.addEventListener("pointercancel", handlePointerCancel);
 canvas.addEventListener("dblclick", handleCanvasDoubleClick);
+window.addEventListener("keydown", handleGameSimulatorKeyboardShortcut);
 
 ui.playbackSpeedLabel.textContent = `${state.playbackSpeed.toFixed(2)}x`;
 syncBallSpeedControls();

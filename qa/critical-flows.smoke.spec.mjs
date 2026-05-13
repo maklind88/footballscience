@@ -4,6 +4,7 @@ const scheduleKey = "football-schedule-v1";
 const periodizationKey = "football-periodization-v2";
 const sessionPlannerKey = "football-session-planner-v3";
 const medicalKey = "football-medical-team-v1";
+const playerProfilesKey = "football-player-profiles-v1";
 const dashboardChatKey = "football-dashboard-chat-v1";
 const workspaceHubKey = "football-workspace-hub-v3";
 const workspaceLastActiveKey = "football-workspace-last-active-local-v1";
@@ -717,4 +718,113 @@ test("Medical recommendation edits persist after refresh", async ({ page }) => {
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.locator("#hubShell")).toBeVisible();
   await expectStorageContains(page, medicalKey, comment);
+});
+
+test("Squad add creates a Medical roster slot and Session Planner placement", async ({ page }) => {
+  const playerName = `QA Squad Placement ${Date.now()}`;
+  await bootApp(page);
+  await openWorkspace(page, "player-profiles");
+
+  await page.locator("[data-player-profile-new-open]").click();
+  const form = page.locator("#playerProfileNewPlayerForm:visible").first();
+  await expect(form).toBeVisible();
+  await form.locator('input[name="name"]').fill(playerName);
+  await form.locator('input[name="number"]').fill("88");
+  await form.locator('input[name="position"]').fill("Midfielder");
+  await form.locator('select[name="primaryRole"]').selectOption("8");
+  await form.locator('button[type="submit"]').click();
+
+  await expectStorageContains(page, playerProfilesKey, playerName);
+  await expectStorageContains(page, medicalKey, playerName);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        ({ storageKey, name }) => {
+          const state = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+          const player = Array.isArray(state.players)
+            ? state.players.find((candidate) => candidate.name === name)
+            : null;
+          return player
+            ? {
+                idMatchesProfile: Boolean(player.id),
+                countsInSquad: player.countsInSquad,
+              }
+            : null;
+        },
+        { storageKey: medicalKey, name: playerName }
+      )
+    )
+    .toMatchObject({
+      idMatchesProfile: true,
+      countsInSquad: true,
+    });
+
+  await openWorkspace(page, "session-planner");
+  await expect(
+    page.locator('[data-workspace-view="session-planner"].is-active .session-player-board-warning-row.is-unset small')
+  ).toContainText(playerName);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        ({ storageKey, name }) => {
+          const state = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+          const player = Array.isArray(state.players)
+            ? state.players.find((candidate) => candidate.name === name)
+            : null;
+          return player
+            ? Boolean((state.records || []).some((record) => record.playerId === player.id))
+            : true;
+        },
+        { storageKey: medicalKey, name: playerName }
+      )
+    )
+    .toBe(false);
+});
+
+test("Academy Squad add is available for session planning without Medical clearance", async ({ page }) => {
+  const playerName = `QA Academy Planner ${Date.now()}`;
+  await bootApp(page);
+  await openWorkspace(page, "player-profiles");
+
+  await page.locator("[data-player-profile-new-open]").click();
+  const form = page.locator("#playerProfileNewPlayerForm:visible").first();
+  await expect(form).toBeVisible();
+  await form.locator('input[name="name"]').fill(playerName);
+  await form.locator('input[name="number"]').fill("89");
+  await form.locator('input[name="position"]').fill("Forward");
+  await form.locator('select[name="primaryRole"]').selectOption("ST");
+  await form.locator('select[name="rosterType"]').selectOption("academy");
+  await form.locator('button[type="submit"]').click();
+
+  await expectStorageContains(page, playerProfilesKey, playerName);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        ({ storageKey, name }) => {
+          const state = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+          const player = Array.isArray(state.players)
+            ? state.players.find((candidate) => candidate.name === name)
+            : null;
+          return player
+            ? {
+                countsInSquad: player.countsInSquad,
+                rosterType: player.rosterType || "",
+                hasMedicalRecord: Boolean((state.records || []).some((record) => record.playerId === player.id)),
+              }
+            : null;
+        },
+        { storageKey: medicalKey, name: playerName }
+      )
+    )
+    .toMatchObject({
+      countsInSquad: false,
+      rosterType: "academy",
+      hasMedicalRecord: false,
+    });
+
+  await openWorkspace(page, "session-planner");
+  await page.locator("[data-session-open-player-board]").click();
+  await expect(
+    page.locator(`.session-player-board-token[aria-label^="${playerName}, 100% available"]`)
+  ).toBeVisible();
 });

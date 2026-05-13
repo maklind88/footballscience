@@ -18449,7 +18449,7 @@ function isSessionPlannerPlayerVisibleForBoard(participation, rule) {
 function getSessionPlannerPlayerBoardPlayers(block = getSessionPlannerSelectedBlock()) {
   const rule = getSessionPlannerPlayerBoardRule(block);
   return getSessionPlannerAvailabilityItems(sessionPlannerState?.selectedDate)
-    .filter((item) => item.record && isSessionPlannerPlayerVisibleForBoard(item.participation, rule))
+    .filter((item) => (item.record || item.planningOnly) && isSessionPlannerPlayerVisibleForBoard(item.participation, rule))
     .map((item) => ({
       ...item,
       player: getSessionPlannerPlayerBoardSyncedPlayer(item.player),
@@ -18470,17 +18470,19 @@ function getSessionPlannerPlayerBoardSummary(block = getSessionPlannerSelectedBl
       (item) => item.record && item.participation > 0 && item.participation < rule.min
     ).length,
     hiddenZeroCount: availabilityItems.filter((item) => item.record && item.participation === 0).length,
-    unconfirmedCount: availabilityItems.filter((item) => !item.record).length,
+    unconfirmedCount: availabilityItems.filter((item) => !item.record && !item.planningOnly).length,
   };
 }
 
 function getSessionPlannerPlayerBoardWarnings(block = getSessionPlannerSelectedBlock(), dateValue = sessionPlannerState?.selectedDate) {
   const rule = getSessionPlannerPlayerBoardRule(block);
   const availabilityItems = getSessionPlannerAvailabilityItems(dateValue);
-  const available = availabilityItems.filter((item) => item.record && isSessionPlannerPlayerVisibleForBoard(item.participation, rule));
+  const available = availabilityItems.filter((item) =>
+    (item.record || item.planningOnly) && isSessionPlannerPlayerVisibleForBoard(item.participation, rule)
+  );
   const belowLimit = availabilityItems.filter((item) => item.record && item.participation > 0 && item.participation < rule.min);
   const unavailable = availabilityItems.filter((item) => item.record && item.participation === 0);
-  const unconfirmed = availabilityItems.filter((item) => !item.record);
+  const unconfirmed = availabilityItems.filter((item) => !item.record && !item.planningOnly);
 
   return {
     rule,
@@ -19843,7 +19845,11 @@ function renderSessionPlannerPlayerBoardProfile(item, block, rule, totalPlayers)
   const actualLabel = actualParticipation === medicalActualParticipationFallback ? "Not logged" : `${actualParticipation}%`;
   const rtpPhase = record?.rtpPhase ? getMedicalRtpPhaseOption(record.rtpPhase).label : "Not set";
   const coachNote = getMedicalCoachComment(record);
-  const sourceLabel = record?.source === "injury-plan" ? "Availability plan" : "Daily medical log";
+  const sourceLabel = item.planningOnly
+    ? "Planning guest"
+    : record?.source === "injury-plan"
+      ? "Availability plan"
+      : "Daily medical log";
   const dateLabel = formatMedicalDateLabel(sessionPlannerState?.selectedDate, "long");
   const squadContract = getSessionPlannerPlayerBoardBridgeContract(player);
   const squadPrimaryRole = squadContract?.primaryRole || getSessionPlannerPlayerBoardBridgeRoleLabel(player) || "Not linked";
@@ -20368,12 +20374,18 @@ function getMedicalAvailabilityItems(dateValue = medicalState?.selectedDate) {
 }
 
 function getSessionPlannerAvailabilityItems(dateValue = medicalState?.selectedDate) {
-  return getMedicalAvailabilityItems(dateValue).filter((item) => {
-    if (!isTemporaryPlayerProfile(item.player)) {
-      return true;
-    }
-    return isPlayerProfileTemporaryActiveOnDate(item.player, dateValue) && Boolean(item.record);
-  });
+  return getMedicalAvailabilityItems(dateValue)
+    .filter((item) => !isTemporaryPlayerProfile(item.player) || isPlayerProfileTemporaryActiveOnDate(item.player, dateValue))
+    .map((item) =>
+      !isTemporaryPlayerProfile(item.player) || item.record
+        ? item
+        : {
+            ...item,
+            status: { key: "planning-guest", label: "Planning guest", tone: "full", defaultParticipation: 100 },
+            participation: 100,
+            planningOnly: true,
+          }
+    );
 }
 
 function getSessionPlannerMedicalAvailability(dateValue) {
@@ -20383,7 +20395,7 @@ function getSessionPlannerMedicalAvailability(dateValue) {
     all: items,
     limited: items.filter((item) => item.record && item.participation < 100),
     available: items.filter((item) => item.participation === 100),
-    unconfirmed: items.filter((item) => !item.record),
+    unconfirmed: items.filter((item) => !item.record && !item.planningOnly),
   };
 }
 
@@ -24079,6 +24091,21 @@ function renderSquadRosterMeta(player) {
   `;
 }
 
+function renderSquadRoleCell(player) {
+  const roleGroup = getPlayerProfileOption(playerProfileRoleGroupOptions, player.roleGroup).label;
+  return `<div class="squad-role-cell">${renderSquadRoleStack(player)}<small>${escapeHtml(roleGroup)}</small></div>`;
+}
+
+function renderSquadPlanningCell(player) {
+  const careerPhase = getPlayerProfileOption(playerProfileCareerPhaseOptions, player.careerPhase).label;
+  const idpStatus = getPlayerProfileOption(playerProfileIdpStatusOptions, player.idp?.status || "none").label;
+  return `<div class="squad-planning-cell"><div class="squad-pill-stack">${renderSquadOptionPill(playerProfileSquadStatusOptions, player.squadStatus)}${renderSquadRosterTypePill(player)}</div><small>${escapeHtml(careerPhase)} / ${escapeHtml(idpStatus)}</small></div>`;
+}
+
+function renderSquadProfileProgressCell(completeness) {
+  return `<div class="squad-profile-progress-cell"><span class="squad-completion"><span style="width: ${completeness}%"></span></span><small class="squad-completion-label">${completeness}% complete</small></div>`;
+}
+
 function renderSquadPlayerRow(player) {
   const medicalSnapshot = getPlayerProfileMedicalSnapshot(player.id);
   const isSelected = player.id === playerProfilesState.selectedPlayerId;
@@ -24100,18 +24127,11 @@ function renderSquadPlayerRow(player) {
           </div>
         </div>
       </td>
-      <td>${renderSquadRoleStack(player)}</td>
-      <td>${renderSquadOptionPill(playerProfileRoleGroupOptions, player.roleGroup)}</td>
-      <td><div class="squad-pill-stack">${renderSquadOptionPill(playerProfileSquadStatusOptions, player.squadStatus)}${renderSquadRosterTypePill(player)}</div></td>
-      <td>${renderSquadOptionPill(playerProfileIdpStatusOptions, player.idp?.status || "none")}</td>
+      <td>${renderSquadRoleCell(player)}</td>
+      <td>${renderSquadPlanningCell(player)}</td>
       <td>${renderPlayerProfileStatusChip(player.status)}</td>
       <td><span class="squad-medical-cell medical-tone-${escapeHtml(medicalSnapshot.tone)}">${escapeHtml(medicalSnapshot.currentAvailability)}</span></td>
-      <td>
-        <span class="squad-completion">
-          <span style="width: ${completeness}%"></span>
-        </span>
-        <small class="squad-completion-label">${completeness}%</small>
-      </td>
+      <td>${renderSquadProfileProgressCell(completeness)}</td>
     </tr>
   `;
 }
@@ -26637,13 +26657,13 @@ function renderPlayerProfilesWorkspace(message = "") {
         <div class="squad-module-mark" aria-hidden="true">SQ</div>
         <div>
           <p>Squad / Player Profiles</p>
-          <h1>Squad Board</h1>
-          <span>Roles, depth, IDP and player data.</span>
+          <h1>Squad Room</h1>
+          <span>Roster, training guests and player profiles.</span>
         </div>
-        <div class="squad-command-tabs" aria-label="Squad module sections">
-          <span>Squad</span>
-          <span>IDP</span>
-          <span>Reports</span>
+        <div class="squad-command-stats" aria-label="Squad roster summary">
+          <span><strong>${rosterSummary.squadCount}</strong> squad</span>
+          <span><strong>${rosterSummary.temporaryCount}</strong> temporary</span>
+          <span><strong>${visiblePlayers.length}</strong> visible</span>
         </div>
         <div class="squad-access-chip">${escapeHtml(getPlayerProfilesAccessLabel())}</div>
         <div class="squad-command-tools" aria-label="Squad list controls">
@@ -26695,9 +26715,7 @@ function renderPlayerProfilesWorkspace(message = "") {
                 <tr>
                   <th>Player</th>
                   <th>Roles</th>
-                  <th>Group</th>
                   <th>Squad</th>
-                  <th>IDP</th>
                   <th>Status</th>
                   <th>Medical</th>
                   <th>Profile</th>
@@ -26707,7 +26725,7 @@ function renderPlayerProfilesWorkspace(message = "") {
                 ${
                   visiblePlayers.length
                     ? visiblePlayers.map(renderSquadPlayerRow).join("")
-                    : `<tr><td colspan="8"><div class="squad-empty-row">No players found. Adjust search or role group filter.</div></td></tr>`
+                    : `<tr><td colspan="6"><div class="squad-empty-row">No players found. Adjust search or role group filter.</div></td></tr>`
                 }
               </tbody>
             </table>
@@ -26768,7 +26786,6 @@ function buildMedicalPlayerFromPlayerProfile(player = {}) {
   const now = new Date().toISOString();
   const createdAt = String(player.createdAt || "").trim() || now;
   const updatedAt = String(player.updatedAt || "").trim() || now;
-
   return normalizeMedicalPlayer({
     id: player.id || createDashboardId("medical-player"),
     name: player.name,
@@ -75946,7 +75963,7 @@ ui.playerProfilesWorkspace?.addEventListener("submit", (event) => {
       buildPlayerProfileOperationFeedback(
         result,
         player
-          ? `${isTemporaryPlayerProfile(player) ? "Temporary player" : "Player"} added. Medical can now clear them for training dates.`
+          ? `${isTemporaryPlayerProfile(player) ? "Temporary player added. Planner placement is ready without Medical clearance." : "Player added. Medical roster slot and planner placement are ready for clearance."}`
           : "Could not add player profile."
       )
     );

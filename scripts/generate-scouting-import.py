@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Generate the lazy-loaded Scouting database from the Wyscout Excel export."""
+"""Generate the lazy-loaded Scouting player database."""
 
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -11,7 +12,6 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 
-DEFAULT_SOURCE = Path("/Users/maklind/Desktop/Womens Football (Stats).xlsx")
 DEFAULT_OUTPUT = Path("scouting-import-data.js")
 
 CORE_HEADERS = {
@@ -115,7 +115,10 @@ def rounded_number(value):
 
 
 def main():
-    source = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_SOURCE
+    source_arg = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("SCOUTING_PLAYER_DATABASE_SOURCE", "")
+    if not source_arg:
+        raise SystemExit("Pass scouting player database source as the first argument or set SCOUTING_PLAYER_DATABASE_SOURCE.")
+    source = Path(source_arg)
     output = Path(sys.argv[2]) if len(sys.argv) > 2 else DEFAULT_OUTPUT
     workbook = load_workbook(source, read_only=True, data_only=True)
 
@@ -225,8 +228,9 @@ def main():
 
     payload = {
         "schema": "football-science-scouting-import",
-        "version": f"excel-womens-football-v1-{len(records)}-{len(metric_defs)}",
-        "source": source.name,
+        "version": f"scouting-player-database-v1-{len(records)}-{len(metric_defs)}",
+        "source": "Scouting player database",
+        "metricEncoding": "metric-index-array-v1",
         "recordColumns": [
             "id",
             "player",
@@ -248,6 +252,11 @@ def main():
         "sheets": sheet_summaries,
         "records": records,
     }
+
+    metric_ids = [metric["id"] for metric in metric_defs]
+    for record in records:
+        metric_values = record[-1]
+        record[-1] = [metric_values.get(metric_id) for metric_id in metric_ids]
 
     output.write_text(
         "window.__footballScienceScoutingDatabase="

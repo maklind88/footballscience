@@ -23905,6 +23905,7 @@ const playerProfileScoutingRecordIndex = Object.freeze({
   metrics: 14,
 });
 let playerProfileScoutingDatabaseLoadPromise = null;
+let playerProfileScoutingMetricIndexCache = { database: null, byId: new Map() };
 const playerProfileScoutingSpiderTemplates = Object.freeze({
   GK: [
     { label: "Exits", metricId: "exits-per-90" },
@@ -24027,9 +24028,28 @@ function queuePlayerProfileScoutingDatabaseLoad() {
 function getPlayerProfileScoutingMetric(database, metricId) {
   return (database?.metrics || []).find((metric) => metric.id === metricId) || null;
 }
+function getPlayerProfileScoutingMetricIndex(database, metricId) {
+  if (!database) {
+    return -1;
+  }
+  if (playerProfileScoutingMetricIndexCache.database !== database) {
+    playerProfileScoutingMetricIndexCache = {
+      database,
+      byId: new Map((database.metrics || []).map((metric, index) => [metric.id, index])),
+    };
+  }
+  const index = playerProfileScoutingMetricIndexCache.byId.get(metricId);
+  return Number.isInteger(index) ? index : -1;
+}
 function getPlayerProfileScoutingMetricValue(record, metricId) {
+  const database = getPlayerProfileScoutingDatabase();
   const metrics = record?.[playerProfileScoutingRecordIndex.metrics];
-  const value = metrics && typeof metrics === "object" ? Number(metrics[metricId]) : NaN;
+  const rawValue = Array.isArray(metrics)
+    ? metrics[getPlayerProfileScoutingMetricIndex(database, metricId)]
+    : metrics && typeof metrics === "object"
+      ? metrics[metricId]
+      : null;
+  const value = rawValue === null || rawValue === undefined || rawValue === "" ? NaN : Number(rawValue);
   return Number.isFinite(value) ? value : null;
 }
 function getPlayerProfileScoutingMinutes(record) {
@@ -24144,7 +24164,7 @@ function renderPlayerProfileNoDataSpider(message = "No data") {
       <circle class="player-profile-scouting-ring" cx="110" cy="110" r="49" />
       <circle class="player-profile-scouting-ring" cx="110" cy="110" r="25" />
       <text class="player-profile-scouting-empty-text" x="110" y="108">${escapeHtml(message)}</text>
-      <text class="player-profile-scouting-empty-subtext" x="110" y="126">Wyscout/NWSL</text>
+      <text class="player-profile-scouting-empty-subtext" x="110" y="126">Scouting data</text>
     </svg>
   `;
 }
@@ -24163,7 +24183,7 @@ function renderPlayerProfileScoutingSpider(player) {
         </header>
         <div class="player-profile-scouting-spider-layout">
           ${renderPlayerProfileNoDataSpider("No data")}
-          <p>Wyscout/NWSL data is being loaded. If no matching row exists after import, this stays as a clean no-data spider.</p>
+          <p>Scouting player database data is being loaded. If no matching row exists after import, this stays as a clean no-data spider.</p>
         </div>
       </article>
     `;
@@ -24181,7 +24201,7 @@ function renderPlayerProfileScoutingSpider(player) {
         </header>
         <div class="player-profile-scouting-spider-layout">
           ${renderPlayerProfileNoDataSpider("No data")}
-          <p>No linked NWSL/Wyscout row exists for this player yet. When imported data matches the profile name, this spider will become data-driven.</p>
+          <p>No linked scouting player database row exists for this player yet. When imported data matches the profile name, this spider will become data-driven.</p>
         </div>
       </article>
     `;

@@ -10,6 +10,7 @@ let scoutingDatabaseOptionCache = null;
 let scoutingPercentileCache = new Map();
 let scoutingMetricAliasCache = new Map();
 let scoutingRoleProfileCache = new Map();
+let scoutingMetricIndexCache = { database: null, byId: new Map() };
 let preferredScoutingShadowSlotId = "";
 let scoutingDatabaseResultsFrame = 0;
 let scoutingImportedDatabaseLoaded = false;
@@ -109,6 +110,7 @@ function resetScoutingComputedCaches() {
   scoutingPercentileCache = new Map();
   scoutingMetricAliasCache = new Map();
   scoutingRoleProfileCache = new Map();
+  scoutingMetricIndexCache = { database: null, byId: new Map() };
 }
 function cloneScoutingList(list = {}) {
   const name = normalizeScoutingText(list.name, 80) || "Scouting List";
@@ -457,6 +459,20 @@ function getScoutingMetric(metricId) {
   const id = normalizeScoutingText(metricId, 120);
   return getScoutingMetricOptions().find((metric) => metric.id === id) || null;
 }
+function getScoutingMetricIndex(metricId) {
+  const database = getScoutingDatabase();
+  if (!database) {
+    return -1;
+  }
+  if (scoutingMetricIndexCache.database !== database) {
+    scoutingMetricIndexCache = {
+      database,
+      byId: new Map((database.metrics || []).map((metric, index) => [metric.id, index])),
+    };
+  }
+  const index = scoutingMetricIndexCache.byId.get(metricId);
+  return Number.isInteger(index) ? index : -1;
+}
 function normalizeScoutingMetricAlias(value) {
   return normalizeScoutingText(value, 180)
     .toLowerCase()
@@ -552,8 +568,18 @@ function getScoutingMetricValue(record, metricId) {
     return getScoutingRecordAge(record);
   }
   const metrics = record[scoutingRecordIndex.metrics];
-  const value = metrics && typeof metrics === "object" ? Number(metrics[id]) : NaN;
+  const rawValue = Array.isArray(metrics)
+    ? metrics[getScoutingMetricIndex(id)]
+    : metrics && typeof metrics === "object"
+      ? metrics[id]
+      : null;
+  const value = rawValue === null || rawValue === undefined || rawValue === "" ? NaN : Number(rawValue);
   return Number.isFinite(value) ? value : null;
+}
+function getScoutingRecordMetricValueCount(record) {
+  const metrics = record?.[scoutingRecordIndex.metrics];
+  const values = Array.isArray(metrics) ? metrics : Object.values(metrics || {});
+  return values.filter((value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value))).length;
 }
 function formatScoutingNumber(value, fallback = "n/a") {
   const number = Number(value);
@@ -2725,7 +2751,7 @@ function getScoutingProfileRecommendation(record, state = ensureScoutingState())
         ? "Age curve: check contract length and physical durability."
         : Number.isFinite(roleFitScore) && roleFitScore < 58
           ? "Role-fit risk: only pursue if tactical context explains the gap."
-          : "No obvious data red flag from current Wyscout profile.";
+          : "No obvious data red flag from current scouting player database profile.";
   const question =
     getScoutingPositionGroup(record) === "GK"
       ? "Can she solve pressure, distribution and box control against our league tempo?"
@@ -4607,13 +4633,13 @@ function renderScoutingImportPanel() {
     <section class="scouting-import-panel">
       <div class="scouting-import-head">
         <div>
-          <span>Excel import</span>
-          <h2>${escapeHtml(isImported ? `Imported: ${database.fileName || "Custom scouting database"}` : "Upload Wyscout workbook")}</h2>
-          <p>${escapeHtml(isImported ? `${database.records.length.toLocaleString("en-US")} players / ${database.metrics.length} metrics / imported ${String(database.importedAt || "").slice(0, 10)}` : "Upload .xlsx, choose sheet, map columns and update the scouting database without code.")}</p>
+          <span>Scouting player database</span>
+          <h2>${escapeHtml(isImported ? `Imported: ${database.fileName || "Scouting player database"}` : "Update scouting player database")}</h2>
+          <p>${escapeHtml(isImported ? `${database.records.length.toLocaleString("en-US")} players / ${database.metrics.length} metrics / imported ${String(database.importedAt || "").slice(0, 10)}` : "Upload a scouting player database file, choose sheet, map columns and update the database without code.")}</p>
         </div>
         <label class="scouting-import-upload">
           <input type="file" accept=".xlsx,.xls" data-scouting-import-file />
-          <span>Choose Excel file</span>
+          <span>Choose database file</span>
         </label>
         ${isImported ? `<button type="button" class="scouting-secondary-button" data-clear-scouting-import>Use built-in data</button>` : ""}
       </div>
@@ -4753,7 +4779,7 @@ function getScoutingDataQualitySummary() {
     if (!getScoutingRecordMinutes(record)) {
       missingMinutes += 1;
     }
-    metricValueCount += Object.values(record[scoutingRecordIndex.metrics] || {}).filter((value) => Number.isFinite(Number(value))).length;
+    metricValueCount += getScoutingRecordMetricValueCount(record);
   });
   const metricAverage = records.length ? Math.round(metricValueCount / records.length) : 0;
   const coreCompleteness = records.length ? Math.round(((records.length - missingCore) / records.length) * 100) : 0;
@@ -4816,9 +4842,20 @@ function renderScoutingDatabasePanel() {
   }
   const database = getScoutingDatabase();
   if (!database) {
+    const isLoading = Boolean(scoutingDatabaseLoadPromise);
     return `
       <section class="scouting-load-panel">
-        <h2>Loading the scouting database</h2>
+        <h2>${isLoading ? "Loading the scouting database" : "Scouting database is ready"}</h2>
+        <p>${
+          isLoading
+            ? "The scouting player database is being prepared. The rest of Scouting stays responsive while it loads."
+            : "Load the full scouting player database when you want to search, filter and open player profiles."
+        }</p>
+        ${
+          isLoading
+            ? ""
+            : `<button type="button" class="scouting-primary-button" data-scouting-load-database>Load scouting player database</button>`
+        }
       </section>
     `;
   }
@@ -5877,7 +5914,7 @@ function renderScoutingActiveContent() {
   if (state.activeTab === "opposition") {
     return renderScoutingFuturePanel(state.activeTab);
   }
-  return isScoutingDatabaseLoaded() ? renderScoutingShadowXi() : renderScoutingDatabasePanel();
+  return renderScoutingShadowXi();
 }
 function renderScoutingWorkspace(options = {}) {
   if (!ui.scoutingWorkspace) {
@@ -5888,9 +5925,6 @@ function renderScoutingWorkspace(options = {}) {
   if (!scoutingTabs.some((tab) => tab.id === state.activeTab)) {
     state.activeTab = "shadow-xi";
     writeScoutingState({ syncCentral: false });
-  }
-  if (["shadow-xi", "database", "lists"].includes(state.activeTab) && !isScoutingDatabaseLoaded()) {
-    queueScoutingDatabaseLoad();
   }
   const database = getScoutingDatabase();
   const playerCount = database?.records?.length || 0;
@@ -6232,6 +6266,12 @@ export function handleClick(event, context) {
   const retryDatabaseTrigger = event.target.closest("[data-scouting-retry-database]");
   if (retryDatabaseTrigger) {
     scoutingDatabaseError = "";
+    queueScoutingDatabaseLoad();
+    renderScoutingWorkspace();
+    return;
+  }
+  const loadDatabaseTrigger = event.target.closest("[data-scouting-load-database]");
+  if (loadDatabaseTrigger) {
     queueScoutingDatabaseLoad();
     renderScoutingWorkspace();
     return;

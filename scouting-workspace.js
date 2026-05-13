@@ -1434,18 +1434,22 @@ function getScoutingCountryFlagEmoji(code = "") {
   return String.fromCodePoint(base + first, base + second);
 }
 function getScoutingRecordNationality(record) {
+  const nationality = getScoutingRecordNationalityMeta(record);
+  return nationality.flag ? `${nationality.flag} ${nationality.code}` : nationality.code;
+}
+function getScoutingRecordNationalityMeta(record) {
   const passport = getScoutingRecordPassportCountry(record);
   const birth = getScoutingRecordBirthCountry(record);
   const source = passport || birth;
-  const code = getScoutingCountryCode(source || passport);
+  const code = getScoutingCountryCode(source);
   const flag = getScoutingCountryFlagEmoji(code);
-  if (!source && !code) {
-    return "N/A";
-  }
-  if (code) {
-    return `${flag ? `${flag} ${code}` : code}`;
-  }
-  return source;
+  const label = normalizeScoutingText(source, 160);
+  const fallback = code || (label ? label.slice(0, 3).toUpperCase() : "N/A");
+  return {
+    label: label || "N/A",
+    code: fallback,
+    flag,
+  };
 }
 function getScoutingRecordInitials(record) {
   const parts = getScoutingRecordName(record)
@@ -1472,9 +1476,9 @@ function renderScoutingRecordAvatar(record) {
             loading="lazy"
             onerror="this.style.display='none'; const fallback = this.nextElementSibling; if (fallback) { fallback.style.display = 'grid'; }"
           />
-          <span class="scouting-record-avatar-fallback">${escapeHtml(initials)}</span>
+          <span class="scouting-record-avatar-fallback" aria-hidden="true">${escapeHtml(initials)}</span>
         </span>`
-    : `<span class="scouting-record-avatar"><span class="scouting-record-avatar-fallback">${escapeHtml(initials)}</span></span>`;
+    : `<span class="scouting-record-avatar"><span class="scouting-record-avatar-fallback scouting-record-avatar-fallback--icon" aria-hidden="true">⚽</span></span>`;
 }
 function getScoutingRecordBestRoleLabel(record) {
   const best = getScoutingRoleScores(record, 1)[0];
@@ -5779,8 +5783,8 @@ function renderScoutingRecordCard(record) {
   const position = getScoutingRecordPosition(record) || "No position";
   const team = getScoutingRecordTeam(record) || "No club";
   const role = getScoutingRecordBestRoleLabel(record);
-  const nationality = getScoutingRecordNationality(record);
-  const ageDisplay = Number.isFinite(age) ? `${formatScoutingNumber(age)} yrs` : "Age N/A";
+  const nationality = getScoutingRecordNationalityMeta(record);
+  const ageDisplay = Number.isFinite(age) ? `${formatScoutingNumber(age)} yrs` : "N/A";
   const recommendation = bestSignal ? `${bestSignal.metric.label} · P${bestSignal.percentile}` : "No standout metric";
   const scoreText =
     metric && sortMetricId !== "minutes" && sortMetricId !== "matches" && Number.isFinite(percentile)
@@ -5794,16 +5798,17 @@ function renderScoutingRecordCard(record) {
           ${getScoutingRecordMiniRadarMarkup(record)}
         </div>
       </div>
-      <div class="scouting-record-card-head">
+      <div class="scouting-record-name-cell">
         <strong>${escapeHtml(getScoutingRecordName(record))}</strong>
-        <div class="scouting-record-card-meta">
-          <span>${escapeHtml(position)}</span>
-          <span>${escapeHtml(ageDisplay)}</span>
-          <span>${escapeHtml(team)}</span>
-          <span>${escapeHtml(nationality)}</span>
-        </div>
       </div>
-      <div class="scouting-record-card-meta-cell">
+      <div class="scouting-record-table-cell scouting-record-position">${escapeHtml(position)}</div>
+      <div class="scouting-record-table-cell scouting-record-age">${escapeHtml(ageDisplay)}</div>
+      <div class="scouting-record-table-cell scouting-record-club">${escapeHtml(team)}</div>
+      <div class="scouting-record-table-cell scouting-record-nationality" title="${escapeHtml(nationality.label)}">
+        ${nationality.flag ? `<span class="scouting-record-flag" aria-hidden="true">${escapeHtml(nationality.flag)}</span>` : ""}
+        <span>${escapeHtml(nationality.code)}</span>
+      </div>
+      <div class="scouting-record-card-meta-cell scouting-record-best-role">
         <span>Best role</span>
         <strong>${escapeHtml(role)}</strong>
       </div>
@@ -5818,27 +5823,29 @@ function renderScoutingRecordCard(record) {
       <span class="scouting-record-rolefit-badge is-${escapeHtml(getScoutingRoleFitTier(roleFitScore))}">
         ${escapeHtml(getScoutingRoleFitLabel(roleFitScore))}
       </span>
-      <button
-        type="button"
-        class="scouting-star-button${favorite ? " is-active" : ""}"
-        data-toggle-scouting-favorite="${escapeHtml(recordId)}"
-        aria-pressed="${favorite ? "true" : "false"}"
-        aria-label="${favorite ? "Remove favorite" : "Favorite player"}"
-      >${favorite ? "★" : "☆"}</button>
-      ${
-        selectedSlot && canEditScoutingWorkspace()
-          ? `
-            <button
-              type="button"
-              class="scouting-record-shadow-add${inSelectedSlot ? " is-added" : ""}"
-              data-add-scouting-record-to-shadow="${escapeHtml(recordId)}"
-              data-scouting-shadow-slot-id="${escapeHtml(selectedSlot.id)}"
-            >
-              ${inSelectedSlot ? "In wishlist" : `Add to ${escapeHtml(selectedSlot.label)}`}
-            </button>
-          `
-          : ""
-      }
+      <div class="scouting-record-actions">
+        <button
+          type="button"
+          class="scouting-star-button${favorite ? " is-active" : ""}"
+          data-toggle-scouting-favorite="${escapeHtml(recordId)}"
+          aria-pressed="${favorite ? "true" : "false"}"
+          aria-label="${favorite ? "Remove favorite" : "Favorite player"}"
+        >${favorite ? "★" : "☆"}</button>
+        ${
+          selectedSlot && canEditScoutingWorkspace()
+            ? `
+              <button
+                type="button"
+                class="scouting-record-shadow-add${inSelectedSlot ? " is-added" : ""}"
+                data-add-scouting-record-to-shadow="${escapeHtml(recordId)}"
+                data-scouting-shadow-slot-id="${escapeHtml(selectedSlot.id)}"
+              >
+                ${inSelectedSlot ? "In wishlist" : `Add to ${escapeHtml(selectedSlot.label)}`}
+              </button>
+            `
+            : ""
+        }
+      </div>
     </article>
   `;
 }
@@ -6216,6 +6223,10 @@ function renderScoutingRecordListHeader() {
     <div class="scouting-record-table-head" aria-hidden="true">
       <span class="scouting-record-head-cell scouting-record-head-cell--spacer"></span>
       <span class="scouting-record-head-cell">Player</span>
+      <span class="scouting-record-head-cell">Position</span>
+      <span class="scouting-record-head-cell">Age</span>
+      <span class="scouting-record-head-cell">Club</span>
+      <span class="scouting-record-head-cell">Nationality</span>
       <span class="scouting-record-head-cell">Best role</span>
       <span class="scouting-record-head-cell">${escapeHtml(scoreLabel)}</span>
       <span class="scouting-record-head-cell">Recommendation</span>

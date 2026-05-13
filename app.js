@@ -1435,6 +1435,7 @@ const defaultScoutingState = {
   shadowXi: {
     formation: "4-3-3",
     slots: {},
+    selectedSlotId: "",
   },
   selectedRecordId: "",
   reports: [],
@@ -6038,6 +6039,9 @@ function normalizeScoutingRecordIds(values = []) {
       return true;
     });
 }
+function normalizeScoutingShadowSlotRecordIds(value) {
+  return normalizeScoutingRecordIds(Array.isArray(value) ? value : value ? [value] : []);
+}
 function cloneScoutingList(list = {}) {
   const name = normalizeScoutingText(list.name, 80) || "Scouting List";
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -6070,9 +6074,10 @@ function cloneScoutingState(source = defaultScoutingState) {
   const sourceSlots = source.shadowXi && typeof source.shadowXi.slots === "object" ? source.shadowXi.slots : {};
   const slots = Object.fromEntries(
     Object.entries(sourceSlots)
-      .map(([slotId, recordId]) => [normalizeScoutingText(slotId, 40), normalizeScoutingText(recordId, 160)])
-      .filter(([slotId, recordId]) => slotIds.has(slotId) && recordId)
+      .map(([slotId, recordIds]) => [normalizeScoutingText(slotId, 40), normalizeScoutingShadowSlotRecordIds(recordIds)])
+      .filter(([slotId, recordIds]) => slotIds.has(slotId) && recordIds.length)
   );
+  const selectedSlotId = normalizeScoutingText(source.shadowXi?.selectedSlotId, 40);
   return {
     activeTab,
     databaseFilters: normalizeScoutingDatabaseFilters({
@@ -6087,6 +6092,7 @@ function cloneScoutingState(source = defaultScoutingState) {
     shadowXi: {
       formation: normalizeScoutingText(source.shadowXi?.formation, 40) || "4-3-3",
       slots,
+      selectedSlotId: slotIds.has(selectedSlotId) ? selectedSlotId : "",
     },
     selectedRecordId: normalizeScoutingText(source.selectedRecordId, 160),
     reports: Array.isArray(source.reports)

@@ -117,6 +117,7 @@ For each stage:
 
 1. Add tests first or in the same commit.
 2. Keep old data paths active.
-3. Deploy only after QA passes.
-4. Verify production endpoints.
-5. Keep rollback simple: revert code first, restore data only if a migration actually changed production data.
+3. Deploy only when requested, using the current fast/safe deploy agreement.
+4. Require QA to pass before any production deploy.
+5. Verify production endpoints.
+6. Keep rollback simple: revert code first, restore data only if a migration actually changed production data.

@@ -22,6 +22,13 @@ function requireText(relativePath, text, reason) {
   }
 }
 
+function forbidText(relativePath, text, reason) {
+  const content = read(relativePath);
+  if (content.includes(text)) {
+    failures.push(`${relativePath} must not contain ${JSON.stringify(text)} (${reason}).`);
+  }
+}
+
 function requirePackageScript(name, expected) {
   const packageJson = JSON.parse(read("package.json") || "{}");
   const actual = packageJson.scripts?.[name] || "";
@@ -75,8 +82,8 @@ requireText(".github/workflows/staging-deploy.yml", "npm run qa:staging:required
 requireText(".github/workflows/staging-deploy.yml", "npm run release:vercel-token", "staging must fail closed when the Vercel token is invalid");
 requireText(".github/workflows/staging-deploy.yml", "api.vercel.com/v2/deployments", "staging alias should use the API path that works for subdomains");
 
-requireText(".github/workflows/production-deploy.yml", "workflows:", "production deploy must be triggered by QA");
-requireText(".github/workflows/production-deploy.yml", "- QA", "production deploy must wait for QA");
+requireText(".github/workflows/production-deploy.yml", "workflow_dispatch:", "production deploy must be manually triggered by deploy tooling");
+forbidText(".github/workflows/production-deploy.yml", "workflow_run:", "production deploy must not auto-run after every main QA success");
 requireText(".github/workflows/production-deploy.yml", "npm run release:safety", "production deploy must keep the safety gate");
 requireText(".github/workflows/production-deploy.yml", "npm run qa:staging:required", "production deploy must verify staging first");
 requireText(".github/workflows/production-deploy.yml", "npm run release:vercel-token", "production must fail closed when the Vercel token is invalid");

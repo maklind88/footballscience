@@ -114,7 +114,7 @@ The same workflow also runs:
 
 CodeQL runs through `.github/workflows/codeql.yml`, and Dependabot is configured in `.github/dependabot.yml` for npm and GitHub Actions updates.
 
-Safe production deploys can also run through `.github/workflows/production-deploy.yml`. The workflow starts after the `QA` workflow succeeds on `main`, requires the staging and production safety configuration, verifies staging smoke, deploys through Vercel CLI, runs `npm run release:postdeploy`, and then runs authenticated live QA. Manual dispatch uses the same gates.
+Safe production deploys can also run through `.github/workflows/production-deploy.yml`. The workflow is manual-only so a push to `main` can run QA without automatically deploying live. `npm run deploy:safe` dispatches this workflow after its safe release steps, and the workflow requires the staging and production safety configuration, verifies staging smoke, deploys through Vercel CLI, runs `npm run release:postdeploy`, and then runs authenticated live QA.
 
 Safe production deploys must fail closed when required secrets or staging isolation are missing. Do not bypass the project deploy commands or CI workflow with ad hoc production deploys.
 

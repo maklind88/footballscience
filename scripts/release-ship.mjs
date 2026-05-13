@@ -318,6 +318,7 @@ function deployThroughGithub(options) {
   run("git", ["push", "origin", "HEAD:main"]);
   if (!options.skipGithubWait) {
     waitForWorkflow("QA", "main", sha);
+    run("gh", ["workflow", "run", "production-deploy.yml", "--ref", "main"]);
     waitForWorkflow("Production Deploy", "main", sha);
   }
 

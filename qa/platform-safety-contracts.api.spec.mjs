@@ -139,6 +139,7 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   const restoreDrill = readProjectFile("scripts/verify-app-state-restore-drill.mjs");
   const incidentWorkflow = readProjectFile(".github/workflows/production-incident-alert.yml");
   const incidentReadiness = readProjectFile("scripts/verify-incident-readiness.mjs");
+  const productionDeployWorkflow = readProjectFile(".github/workflows/production-deploy.yml");
 
   expect(packageJson.scripts["qa"]).toContain("npm run qa:perf");
   expect(packageJson.scripts["qa"]).toContain("npm run storage:guard");
@@ -184,6 +185,9 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   expect(incidentWorkflow).toContain("issues: write");
   expect(incidentWorkflow).toContain("npm run release:incident-alert");
   expect(incidentReadiness).toContain("Incident readiness verification: ok");
+  expect(productionDeployWorkflow).toContain("workflow_dispatch:");
+  expect(productionDeployWorkflow).not.toContain("workflow_run:");
+  expect(productionDeployWorkflow).toContain("npm run release:gate");
   expect(readProjectFile("scripts/verify-production-deploy.mjs")).toContain("Live app.js hash does not match this release");
   expect(readProjectFile("scripts/verify-production-deploy.mjs")).toContain("crypto.createHash");
   expect(liveSpec).toContain("LIVE_QA_USERNAME");

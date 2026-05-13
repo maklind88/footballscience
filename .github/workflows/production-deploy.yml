@@ -1,11 +1,6 @@
 name: Production Deploy
 
 on:
-  workflow_run:
-    workflows:
-      - QA
-    types:
-      - completed
   workflow_dispatch:
 
 permissions:
@@ -17,7 +12,6 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-latest
     env:
       LIVE_QA_BASE_URL: ${{ vars.LIVE_QA_BASE_URL || 'https://footballscience.xyz' }}
@@ -35,14 +29,7 @@ jobs:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
-      - name: Checkout QA commit
-        if: ${{ github.event_name == 'workflow_run' }}
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-
       - name: Checkout current commit
-        if: ${{ github.event_name != 'workflow_run' }}
         uses: actions/checkout@v6
 
       - uses: actions/setup-node@v6
@@ -57,13 +44,8 @@ jobs:
 
       - run: npx playwright install --with-deps chromium
 
-      - name: Verify manual release gate
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+      - name: Verify release gate
         run: npm run release:gate
-
-      - name: Verify QA release preflight
-        if: ${{ github.event_name == 'workflow_run' }}
-        run: npm run release:preflight
 
       - name: Verify production safety gate
         run: npm run release:safety

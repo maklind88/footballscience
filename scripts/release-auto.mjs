@@ -20,7 +20,7 @@ Usage:
 Options:
   --stage-all          Stage all current changes with git add -A.
   --commit, -m TEXT   Commit staged changes with TEXT.
-  --push              Push the current branch after QA passes.
+  --push              Push the current branch after selected checks pass.
   --deploy            Push if needed, run release gate, deploy to Vercel production, then verify.
                       The release gate requires main, staging/live isolation, and a matching staging tree.
   --help              Show this help.

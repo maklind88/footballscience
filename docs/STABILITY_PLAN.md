@@ -126,6 +126,7 @@ Security automation now includes:
 - CodeQL static analysis.
 - Dependabot for npm and GitHub Actions.
 - Staging Deploy and Staging Smoke workflows with separate `STAGING_*` secrets and Supabase-ref isolation checks.
+- Manual-only Production Deploy workflow, dispatched by `npm run deploy:safe` or by an intentional GitHub workflow dispatch, so successful `main` QA does not automatically publish live.
 - Production safety gate that fails closed if staging/live are not isolated or the staging branch does not match the production candidate.
 - Release rules verification through `npm run release:rules` so future edits cannot silently remove staging, production monitor, rollback, live smoke, or the Vercel production-build blocker.
 - Platform security verification through `npm run security:platform` so future routes, modules, and database tables cannot silently bypass tenant scope, the permission matrix, rate limits, or security observability.

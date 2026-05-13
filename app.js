@@ -25551,10 +25551,10 @@ function renderPlayerProfilesWorkspace(message = "") {
           <p>Squad Room</p>
           <h1>${escapeHtml(squadTeamName)}</h1>
         </div>
-        <div class="squad-command-tools" aria-label="Squad list controls">
+        <div class="squad-command-actions">
           <button
             type="button"
-            class="squad-add-player-trigger"
+            class="squad-add-player-trigger squad-add-player-trigger-header"
             data-player-profile-new-open
             aria-label="Add player"
             title="Add player"
@@ -25562,6 +25562,8 @@ function renderPlayerProfilesWorkspace(message = "") {
           >
             +
           </button>
+        </div>
+        <div class="squad-command-tools" aria-label="Squad list controls">
           <div class="squad-list-tools">
             <input
               type="search"

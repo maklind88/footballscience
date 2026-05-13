@@ -5697,7 +5697,7 @@ function renderScoutingProfileModal() {
   const activeProfileTab = normalizeScoutingProfileTab(state.profileTab);
   return `
     <div class="scouting-profile-backdrop" data-close-scouting-profile>
-      <article class="scouting-profile-modal" data-scouting-profile-modal>
+      <article class="scouting-profile-modal" data-scouting-profile-modal tabindex="-1">
         <button type="button" class="scouting-profile-close" data-close-scouting-profile aria-label="Close scouting profile">x</button>
         <header class="scouting-profile-head">
           <div>
@@ -6099,6 +6099,9 @@ function openScoutingRecordProfile(recordId) {
   state.profileRoleProfileId = "auto";
   writeScoutingState({ syncCentral: false });
   renderScoutingWorkspace();
+  requestAnimationFrame(() => {
+    ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]")?.focus?.({ preventScroll: true });
+  });
 }
 function closeScoutingRecordProfile() {
   const state = ensureScoutingState();

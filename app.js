@@ -9623,6 +9623,9 @@ function closeDashboardModal(runAfterClose = true) {
   }
 }
 function showDashboardTutorialModal(options = {}) {
+  if (document.body?.dataset.activeWorkspace && document.body.dataset.activeWorkspace !== "home") {
+    return;
+  }
   const user = getCurrentPlatformUser();
   if (!user) {
     return;
@@ -9669,6 +9672,9 @@ function showDashboardTutorialModal(options = {}) {
   root.querySelector(".dashboard-modal-actions [data-dashboard-tutorial-save]")?.focus();
 }
 function showDashboardNewsModal() {
+  if (document.body?.dataset.activeWorkspace && document.body.dataset.activeWorkspace !== "home") {
+    return;
+  }
   const user = getCurrentPlatformUser();
   if (!user || hasSeenDashboardNews(user.id)) {
     return;
@@ -31410,6 +31416,8 @@ function renderWorkspaceChrome() {
 
   if (activeWorkspace.id === "home") {
     markDashboardHomeSeenForCurrentUser();
+  } else {
+    closeDashboardModal(false);
   }
 
   renderWorkspaceList();

@@ -10,6 +10,7 @@ const MAX_TEXT_LENGTH = 240;
 const MAX_ID_LENGTH = 180;
 const MAX_LIMIT = 1000;
 const DEFAULT_LIMIT = 500;
+const SCOUTING_METRICS_CACHE_MS = 5 * 60 * 1000;
 const MAX_IMPORT_CHUNK_RECORDS = 80;
 const SCOUTING_RECORD_INDEX = Object.freeze({
   id: 0,
@@ -39,6 +40,7 @@ const SCOUTING_RECORD_INDEX = Object.freeze({
 
 const SCOUTING_OPTIONS_CACHE_MS = 5 * 60 * 1000;
 const SCOUTING_IMPORT_HISTORY_LIMIT = 20;
+let scoutingMetricsCache = { updatedAt: 0, metrics: null };
 let scoutingFilterOptionsCache = { updatedAt: 0, options: null };
 
 function normalizeString(value, maxLength = MAX_TEXT_LENGTH) {
@@ -187,14 +189,38 @@ async function parseResponse(response) {
   }
 }
 
+function parseScoutingDbCount(responseHeaders) {
+  if (!responseHeaders || typeof responseHeaders.get !== "function") {
+    return null;
+  }
+  const contentRange = responseHeaders.get("content-range");
+  if (!contentRange) {
+    return null;
+  }
+  const match = String(contentRange).match(/\/(\*|[0-9]+)\s*$/);
+  if (!match) {
+    return null;
+  }
+  if (match[1] === "*") {
+    return null;
+  }
+  const total = Number(match[1]);
+  return Number.isFinite(total) ? total : null;
+}
+
 async function dbRequest(path, options = {}) {
   const base = restBaseUrl();
   if (!base) {
     return { ok: false, status: 500, reason: "Missing Supabase database configuration." };
   }
+  const headers = restHeaders(base.serviceRoleKey, options.headers || {});
+  if (options.includeCount) {
+    const existingPrefer = String(headers.Prefer || headers.prefer || "").trim();
+    headers.Prefer = existingPrefer ? `${existingPrefer},count=exact` : "count=exact";
+  }
   const response = await fetch(`${base.url}${path}`, {
     method: options.method || "GET",
-    headers: restHeaders(base.serviceRoleKey, options.headers || {}),
+    headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
   const payload = await parseResponse(response);
@@ -206,7 +232,12 @@ async function dbRequest(path, options = {}) {
       reason: payload?.message || payload?.hint || payload?.details || `Database request failed (${response.status}).`,
     };
   }
-  return { ok: true, status: response.status, payload };
+  return {
+    ok: true,
+    status: response.status,
+    payload,
+    count: parseScoutingDbCount(response.headers),
+  };
 }
 
 function asLimit(value, fallback = DEFAULT_LIMIT) {
@@ -495,6 +526,10 @@ function scoutingDatabaseStatus(actor = {}) {
 }
 
 async function fetchMetrics() {
+  const now = Date.now();
+  if (scoutingMetricsCache.metrics && now - scoutingMetricsCache.updatedAt < SCOUTING_METRICS_CACHE_MS) {
+    return scoutingMetricsCache.metrics;
+  }
   const params = new URLSearchParams({
     select: "metric_key,label,direction,unit,category,display_order,status",
     status: "eq.active",
@@ -505,7 +540,11 @@ async function fetchMetrics() {
   if (!result.ok) {
     throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
   }
-  return Array.isArray(result.payload) ? result.payload.map(metricToClient).filter((metric) => metric.id && metric.label) : [];
+  const metrics = Array.isArray(result.payload)
+    ? result.payload.map(metricToClient).filter((metric) => metric.id && metric.label)
+    : [];
+  scoutingMetricsCache = { updatedAt: now, metrics };
+  return metrics;
 }
 
 function addSeasonFilters(params, query = {}) {
@@ -569,11 +608,16 @@ async function fetchSeasonRows(query = {}) {
     offset: String(asOffset(query.offset)),
   });
   addSeasonFilters(params, query);
-  const result = await dbRequest(`/scouting_player_seasons?${params.toString()}`);
+  const result = await dbRequest(`/scouting_player_seasons?${params.toString()}`, {
+    includeCount: normalizeString(query.includeTotal, 80) !== "0",
+  });
   if (!result.ok) {
     throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
   }
-  return Array.isArray(result.payload) ? result.payload : [];
+  return {
+    rows: Array.isArray(result.payload) ? result.payload : [],
+    total: Number.isFinite(Number(result.count)) ? Number(result.count) : null,
+  };
 }
 
 function buildOptionsFromRows(rows = []) {
@@ -661,9 +705,18 @@ async function fetchImportChanges(query = {}) {
 }
 
 async function fetchDatabaseSnapshot(query = {}) {
-  const [metrics, rows, options] = await Promise.all([fetchMetrics(), fetchSeasonRows(query), fetchDatabaseFilterOptions()]);
+  const includeMetrics = ["1", "true", "yes"].includes(normalizeString(query.includeMetrics, 20).toLowerCase());
+  const includeOptions = ["1", "true", "yes"].includes(normalizeString(query.includeOptions, 20).toLowerCase());
+  const [metrics, rowsPayload, options] = await Promise.all([
+    includeMetrics ? fetchMetrics() : Promise.resolve(null),
+    fetchSeasonRows(query),
+    includeOptions ? fetchDatabaseFilterOptions() : Promise.resolve(null),
+  ]);
   const limit = asLimit(query.limit);
   const offset = asOffset(query.offset);
+  const rows = rowsPayload.rows || [];
+  const total = Number.isFinite(Number(rowsPayload.total)) ? Math.max(0, Number(rowsPayload.total)) : null;
+  const hasMore = rows.length === limit && (!Number.isFinite(total) || offset + rows.length < total);
   return {
     ok: true,
     schema: SCOUTING_DATABASE_SCHEMA,
@@ -671,15 +724,16 @@ async function fetchDatabaseSnapshot(query = {}) {
     enabled: true,
     source: "api",
     importedAt: new Date().toISOString(),
-    metrics,
+    metrics: Array.isArray(metrics) ? metrics : null,
     records: rows.map(seasonRowToClientRecord),
     options,
     page: {
       limit,
       offset,
       returned: rows.length,
-      nextOffset: rows.length === limit ? offset + rows.length : null,
-      hasMore: rows.length === limit,
+      total,
+      nextOffset: hasMore ? offset + rows.length : null,
+      hasMore,
     },
   };
 }

@@ -8,6 +8,7 @@ let scoutingDatabaseLoadPromise = null;
 let scoutingDatabaseWorker = null;
 let scoutingDatabaseError = "";
 let scoutingDatabaseOptionCache = null;
+let scoutingDatabaseOptionLoadPromise = null;
 let scoutingPercentileCache = new Map();
 let scoutingMetricAliasCache = new Map();
 let scoutingRoleProfileCache = new Map();
@@ -637,6 +638,10 @@ async function getScoutingApiAccessToken() {
 function getScoutingApiQueryFromState() {
   const state = ensureScoutingState();
   const filters = normalizeScoutingDatabaseFilters(state.databaseFilters);
+  const existingDatabase = getScoutingDatabase();
+  const offset = getScoutingApiOffset(filters.offset);
+  const includeTotal = offset === 0;
+  const hasApiMetrics = existingDatabase?.source === "api" && Array.isArray(existingDatabase?.metrics) && existingDatabase.metrics.length > 0;
   return {
     action: "snapshot",
     query: filters.query,
@@ -648,7 +653,9 @@ function getScoutingApiQueryFromState() {
     minAge: filters.minAge,
     maxAge: filters.maxAge,
     sortMetricId: filters.sortMetricId,
-    offset: filters.offset,
+    offset,
+    includeTotal: includeTotal ? "1" : "0",
+    includeMetrics: hasApiMetrics ? "0" : "1",
     limit: SCOUTING_API_DATABASE_PAGE_LIMIT,
   };
 }
@@ -739,15 +746,18 @@ async function sendScoutingApiAction(payload = {}) {
   }
 }
 function applyScoutingApiDatabase(result = {}) {
-  if (!result.enabled || !Array.isArray(result.records) || !Array.isArray(result.metrics)) {
+  const existing = getScoutingDatabase();
+  if (!result.enabled || !Array.isArray(result.records)) {
     return null;
   }
+  const nextMetrics = Array.isArray(result.metrics) ? result.metrics : Array.isArray(existing?.metrics) ? existing.metrics : [];
+  const nextOptions = result.options || existing?.options || null;
   const database = {
     source: "api",
     importedAt: result.importedAt || new Date().toISOString(),
-    metrics: result.metrics,
+    metrics: nextMetrics,
     records: result.records,
-    options: result.options || null,
+    options: nextOptions,
     page: result.page || null,
   };
   window.__footballScienceScoutingDatabase = database;
@@ -777,6 +787,7 @@ function getScoutingDatabasePage() {
         offset: Math.max(0, Math.floor(Number(page.offset) || 0)),
         returned: Math.max(0, Math.floor(Number(page.returned) || 0)),
         nextOffset: Number.isFinite(Number(page.nextOffset)) ? Math.max(0, Math.floor(Number(page.nextOffset))) : null,
+        total: Number.isFinite(Number(page.total)) ? Math.max(0, Math.floor(Number(page.total))) : null,
         hasMore: Boolean(page.hasMore),
       }
     : null;
@@ -1027,7 +1038,61 @@ async function loadScoutingDatabaseWithApi() {
   if (!database) {
     throw new Error(response.result?.reason || "Scouting database API is not enabled.");
   }
+  if (!scoutingDatabaseOptionCache && !response.result?.options) {
+    void loadScoutingDatabaseFilterOptions().then(() => {
+      if (ui.scoutingWorkspace) {
+        renderScoutingWorkspace({ preserveFocus: true });
+      }
+    });
+  }
   return database;
+}
+function loadScoutingDatabaseFilterOptions() {
+  if (!isScoutingApiDatabaseActive()) {
+    return Promise.resolve(scoutingDatabaseOptionCache || { leagues: ["all"], seasons: ["all"], positions: ["ALL"] });
+  }
+  if (scoutingDatabaseOptionCache) {
+    return Promise.resolve(scoutingDatabaseOptionCache);
+  }
+  if (scoutingDatabaseOptionLoadPromise) {
+    return scoutingDatabaseOptionLoadPromise;
+  }
+  const promise = fetchScoutingApi({ action: "options" })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(response.reason || "Could not load scouting database filter options.");
+      }
+      const payload = response.result || {};
+      const rawOptions = payload.options || {};
+      const leagues = Array.isArray(rawOptions.leagues) ? rawOptions.leagues.filter(Boolean) : [];
+      const seasons = Array.isArray(rawOptions.seasons) ? rawOptions.seasons.filter(Boolean) : [];
+      const positions = Array.isArray(rawOptions.positions) ? rawOptions.positions.filter(Boolean) : [];
+      const normalized = {
+        leagues: [...new Set(leagues.map((item) => String(item).trim()).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b))),
+        seasons: [...new Set(seasons.map((item) => String(item).trim()).filter(Boolean))].sort((a, b) => String(b).localeCompare(String(a))),
+        positions: [...new Set(positions.map((item) => String(item).trim()).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b))),
+      };
+      scoutingDatabaseOptionCache = normalized;
+      const loadedDatabase = getScoutingDatabase();
+      if (loadedDatabase && loadedDatabase.source === "api" && !loadedDatabase.options) {
+        loadedDatabase.options = normalized;
+      }
+      return normalized;
+    })
+    .catch((error) => {
+      scoutingDatabaseOptionLoadPromise = null;
+      scoutingDatabaseOptionCache = scoutingDatabaseOptionCache || {
+        leagues: ["all"],
+        seasons: ["all"],
+        positions: ["ALL"],
+      };
+      return scoutingDatabaseOptionCache;
+    })
+    .finally(() => {
+      scoutingDatabaseOptionLoadPromise = null;
+    });
+  scoutingDatabaseOptionLoadPromise = promise;
+  return promise;
 }
 function recordScoutingImportIntent(database = {}) {
   if (!database?.records?.length) {
@@ -3921,6 +3986,7 @@ function getFilteredScoutingDatabaseRecords() {
   const records = database?.records || [];
   const state = ensureScoutingState();
   const filters = normalizeScoutingDatabaseFilters(state.databaseFilters);
+  const isApi = isScoutingApiDatabaseActive();
   ensureScoutingRecordLookupsReady();
   const query = filters.query.toLowerCase();
   const minMinutes = Number(filters.minMinutes) || 0;
@@ -3977,6 +4043,7 @@ function getFilteredScoutingDatabaseRecords() {
     includePipelineFilter ? `pipe:${pipeline.join("|")}` : "pipe-all",
     includeShadowFilter ? `sh:${shadow.join("|")}` : "sh-all",
     marketStatus === "all" ? "mv:none" : `mv:${scoutingMarketIntelVersion}`,
+    isApi ? `offset:${getScoutingApiOffset(filters.offset)}` : "offset:local",
   ].join("|");
   if (scoutingFilteredDatabaseCache.key === filterCacheKey) {
     return scoutingFilteredDatabaseCache.records;
@@ -9245,8 +9312,11 @@ function getScoutingDatabaseResultsMarkup() {
   const shownStart = visibleRecords.length ? pageOffset + 1 : 0;
   const shownEnd = visibleRecords.length ? pageOffset + visibleRecords.length : 0;
   const hasMore = isApi ? Boolean(apiPage?.hasMore) : false;
-  const knownTotal = isApi ? (hasMore ? 0 : pageOffset + records.length) : records.length;
-  const total = isApi ? Math.max(0, Number(knownTotal) || 0) : records.length;
+  const knownTotal =
+    isApi && Number.isFinite(Number(apiPage?.total)) ? Math.max(0, Math.floor(Number(apiPage.total))) : Number.isFinite(Number(apiPage?.returned))
+      ? Math.max(pageOffset + Math.floor(Number(apiPage.returned)), pageOffset)
+      : null;
+  const total = isApi ? knownTotal : records.length;
   const summary = isApi
     ? total
       ? `${total.toLocaleString("en-US")} players match. ${shownStart ? `Showing ${shownStart.toLocaleString("en-US")}-${shownEnd.toLocaleString("en-US")}.` : ""}`
@@ -10415,7 +10485,12 @@ function renderScoutingWorkspace(options = {}) {
     writeScoutingState({ syncCentral: false });
   }
   const database = getScoutingDatabase();
-  const playerCount = database?.records?.length || 0;
+  const isApiDatabase = isScoutingApiDatabaseActive();
+  const playerCount = isApiDatabase
+    ? Number.isFinite(Number(database?.page?.total)) && Number(database.page.total) >= 0
+      ? Math.max(0, Math.floor(Number(database.page.total)))
+      : database?.records?.length || 0
+    : database?.records?.length || 0;
   const sheetCount = database?.sheets?.length || 0;
   const shadowCounts = getScoutingShadowSlotCounts(state);
   ui.scoutingWorkspace.innerHTML = `

@@ -38,6 +38,22 @@ async function waitForAuthReady(page) {
   await page.evaluate(() => window.platformAuthReadyPromise);
 }
 
+async function waitForAppReady(page) {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const loadError = document.body.dataset.appLoadError || "";
+          if (loadError) {
+            return `error: ${loadError}`;
+          }
+          return window.__footballScienceAppReady ? "ready" : "loading";
+        }),
+      { timeout: 75_000 }
+    )
+    .toBe("ready");
+}
+
 async function waitForCentralStateReady(page) {
   await expect
     .poll(
@@ -54,6 +70,7 @@ async function waitForCentralStateReady(page) {
 async function signIn(page) {
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await waitForAuthReady(page);
+  await waitForAppReady(page);
   if (await page.locator("#loginScreen:visible").count()) {
     await expect(page.locator('#loginForm button[type="submit"]')).toBeEnabled();
     await page.locator("#loginUsername").fill(process.env.LIVE_QA_USERNAME);

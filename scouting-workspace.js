@@ -15,6 +15,8 @@ let scoutingMetricIndexCache = { database: null, byId: new Map() };
 let scoutingRecordIdLookupCache = new Map();
 let scoutingRecordNameLookupCache = new Map();
 let scoutingRecordLookupFingerprint = "";
+let scoutingLeagueQualityCache = new Map();
+let scoutingRecordMiniRadarCache = new Map();
 let scoutingFilteredDatabaseCache = {
   key: "",
   records: [],
@@ -81,7 +83,86 @@ const scoutingRecordIndex = Object.freeze({
   sourceSystem: 15,
   playerSourceId: 16,
   sourceRecordId: 17,
+  imageUrl: 18,
 });
+const scoutingCountryCodeByName = Object.freeze({
+  afghanistan: "AF",
+  albania: "AL",
+  algeria: "DZ",
+  argentina: "AR",
+  australia: "AU",
+  austria: "AT",
+  belgium: "BE",
+  bosnia: "BA",
+  "bosnia and herzegovina": "BA",
+  brazil: "BR",
+  bulgaria: "BG",
+  canada: "CA",
+  chile: "CL",
+  china: "CN",
+  colombia: "CO",
+  croatia: "HR",
+  czech: "CZ",
+  czechia: "CZ",
+  denmark: "DK",
+  england: "GB",
+  estonia: "EE",
+  ethiopia: "ET",
+  finland: "FI",
+  france: "FR",
+  georgia: "GE",
+  germany: "DE",
+  ghana: "GH",
+  greece: "GR",
+  hungary: "HU",
+  iceland: "IS",
+  ireland: "IE",
+  israel: "IL",
+  italy: "IT",
+  japan: "JP",
+  korea: "KR",
+  kenya: "KE",
+  latvia: "LV",
+  lithuania: "LT",
+  luxembourg: "LU",
+  mexico: "MX",
+  morocco: "MA",
+  netherlands: "NL",
+  "new zealand": "NZ",
+  nigeria: "NG",
+  norway: "NO",
+  paraguay: "PY",
+  peru: "PE",
+  poland: "PL",
+  portugal: "PT",
+  qatar: "QA",
+  romania: "RO",
+  russia: "RU",
+  scotland: "GB",
+  serbia: "RS",
+  slovakia: "SK",
+  slovenia: "SI",
+  "south africa": "ZA",
+  "south korea": "KR",
+  spain: "ES",
+  sweden: "SE",
+  switzerland: "CH",
+  turkey: "TR",
+  ukraine: "UA",
+  uruguay: "UY",
+  usa: "US",
+  "united states": "US",
+  "united kingdom": "GB",
+  wales: "GB",
+  "ivory coast": "CI",
+  tunis: "TN",
+});
+const scoutingLeagueQualityProfiles = Object.freeze([
+  { patterns: ["nwsl", "wsl", "women's super league", "fa women's super league", "ligue 1", "ligue i"], factor: 1 },
+  { patterns: ["superliga", "d1", "division 1", "ligue 1 feminine", "damallsvenskan", "bundesliga", "serie a", "süper lig", "seriea"], factor: 0.98 },
+  { patterns: ["scotland swpl", "women's cup", "cup", "playoff", "division 2", "second division", "u23"], factor: 0.9 },
+]);
+const scoutingDefaultLeagueQualityFactor = 0.95;
 const scoutingWorkflowStatusOptions = Object.freeze([
   { value: "new", label: "Longlist" },
   { value: "monitoring", label: "Monitoring" },
@@ -130,11 +211,32 @@ function normalizeScoutingLeague(value = "") {
   if (!normalized) {
     return "";
   }
-  const fixedCountry = normalized.replace(/^scottland\b/i, "Scotland");
+  const fixedCountry = normalized.replace(/^scottland\b/i, "Scotland").replace(/\bSWPL\s*\d+\b/i, "SWPL").trim();
   if (/^Scotland\s+SWPL\b/i.test(fixedCountry)) {
     return "Scotland SWPL";
   }
   return fixedCountry;
+}
+function getScoutingLeagueQualityFactor(value = "") {
+  const normalized = normalizeScoutingLeague(value).toLowerCase();
+  if (!normalized) {
+    return scoutingDefaultLeagueQualityFactor;
+  }
+  if (scoutingLeagueQualityCache.has(normalized)) {
+    return scoutingLeagueQualityCache.get(normalized);
+  }
+  const profile = scoutingLeagueQualityProfiles.find((item) => item.patterns.some((pattern) => normalized.includes(pattern)));
+  const factor = profile ? profile.factor : scoutingDefaultLeagueQualityFactor;
+  scoutingLeagueQualityCache.set(normalized, factor);
+  return factor;
+}
+function getScoutingLeagueAdjustedPercentile(record, metricId) {
+  const percentile = getScoutingPercentile(record, metricId);
+  if (!Number.isFinite(percentile)) {
+    return null;
+  }
+  const factor = Math.max(0.7, Math.min(1.05, getScoutingLeagueQualityFactor(getScoutingRecordLeague(record))));
+  return Math.max(1, Math.min(99, Math.round(percentile * factor)));
 }
 function getScoutingImportLastUploadSummary() {
   try {
@@ -226,6 +328,7 @@ function normalizeScoutingRecordIds(values = []) {
 }
 function resetScoutingComputedCaches() {
   scoutingPercentileCache = new Map();
+  scoutingRecordMiniRadarCache = new Map();
   scoutingMetricAliasCache = new Map();
   scoutingRoleProfileCache = new Map();
   scoutingMetricIndexCache = { database: null, byId: new Map() };
@@ -1279,6 +1382,157 @@ function getScoutingRecordTeam(record) {
 function getScoutingRecordLeague(record) {
   return normalizeScoutingLeague(record?.[scoutingRecordIndex.league]);
 }
+function getScoutingRecordImageUrl(record) {
+  return normalizeScoutingText(record?.[scoutingRecordIndex.imageUrl], 220);
+}
+function getScoutingRecordBirthCountry(record) {
+  return normalizeScoutingText(record?.[scoutingRecordIndex.birthCountry], 120);
+}
+function getScoutingRecordPassportCountry(record) {
+  return normalizeScoutingText(record?.[scoutingRecordIndex.passportCountry], 120);
+}
+function getScoutingCountryCode(value = "") {
+  const normalized = normalizeScoutingText(value, 120).toLowerCase();
+  if (!normalized) {
+    return "";
+  }
+  const tokens = normalized
+    .split(/[;,/]/)
+    .map((entry) => normalizeScoutingText(entry, 120).toLowerCase())
+    .filter(Boolean);
+  for (const token of tokens.length ? tokens : [normalized]) {
+    const direct = scoutingCountryCodeByName[token];
+    if (direct) {
+      return direct;
+    }
+    const cleaned = token
+      .replace(/\([^)]*\)/g, " ")
+      .replace(/[^a-z0-9\s-]/g, " ")
+      .trim()
+      .replace(/\s+/g, " ");
+    if (cleaned && scoutingCountryCodeByName[cleaned]) {
+      return scoutingCountryCodeByName[cleaned];
+    }
+    const short = cleaned.replace(/\s/g, "");
+    if (/^[a-z]{2}$/.test(short)) {
+      return short.toUpperCase();
+    }
+  }
+  return "";
+}
+function getScoutingCountryFlagEmoji(code = "") {
+  const normalized = normalizeScoutingText(code, 2).toUpperCase();
+  if (!/^[A-Z]{2}$/.test(normalized)) {
+    return "";
+  }
+  const base = 127397;
+  const first = normalized.codePointAt(0) - 65;
+  const second = normalized.codePointAt(1) - 65;
+  if (first < 0 || first > 25 || second < 0 || second > 25) {
+    return "";
+  }
+  return String.fromCodePoint(base + first, base + second);
+}
+function getScoutingRecordNationality(record) {
+  const passport = getScoutingRecordPassportCountry(record);
+  const birth = getScoutingRecordBirthCountry(record);
+  const source = passport || birth;
+  const code = getScoutingCountryCode(source || passport);
+  const flag = getScoutingCountryFlagEmoji(code);
+  if (!source && !code) {
+    return "N/A";
+  }
+  if (code) {
+    return `${flag ? `${flag} ${code}` : code}`;
+  }
+  return source;
+}
+function getScoutingRecordInitials(record) {
+  const parts = getScoutingRecordName(record)
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => part[0]?.toUpperCase());
+  if (!parts.length) {
+    return "SP";
+  }
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2);
+  }
+  return `${parts[0]}${parts[1]}`;
+}
+function renderScoutingRecordAvatar(record) {
+  const imageUrl = getScoutingRecordImageUrl(record);
+  const initials = getScoutingRecordInitials(record);
+  return imageUrl
+    ? `<span class="scouting-record-avatar">
+          <img
+            src="${escapeHtml(imageUrl)}"
+            alt=""
+            loading="lazy"
+            onerror="this.style.display='none'; const fallback = this.nextElementSibling; if (fallback) { fallback.style.display = 'grid'; }"
+          />
+          <span class="scouting-record-avatar-fallback">${escapeHtml(initials)}</span>
+        </span>`
+    : `<span class="scouting-record-avatar"><span class="scouting-record-avatar-fallback">${escapeHtml(initials)}</span></span>`;
+}
+function getScoutingRecordBestRoleLabel(record) {
+  const best = getScoutingRoleScores(record, 1)[0];
+  if (best?.profile?.label) {
+    return best.profile.label;
+  }
+  const fallbackProfile = getScoutingDefaultRoleProfile(record);
+  return fallbackProfile?.label || "General";
+}
+function getScoutingComparablePercentile(record, metricId) {
+  const adjustedPercentile = getScoutingLeagueAdjustedPercentile(record, metricId);
+  return Number.isFinite(adjustedPercentile) ? adjustedPercentile : getScoutingPercentile(record, metricId);
+}
+function getScoutingRecordMiniRadarMarkup(record) {
+  const recordId = getScoutingRecordId(record);
+  const benchmarkMode = getScoutingActiveBenchmarkMode();
+  const cacheKey = `${recordId}:${benchmarkMode}`;
+  if (scoutingRecordMiniRadarCache.has(cacheKey)) {
+    return scoutingRecordMiniRadarCache.get(cacheKey);
+  }
+  const template = getScoutingRadarTemplate(record, "", benchmarkMode);
+  if (!template.length) {
+    const empty = `<div class="scouting-mini-radar-empty">No data</div>`;
+    scoutingRecordMiniRadarCache.set(cacheKey, empty);
+    return empty;
+  }
+  const points = template.slice(0, 6).map((item, index, templateItems) => {
+    const percentile = getScoutingTemplatePercentile(record, item, benchmarkMode) || 1;
+    const angle = -Math.PI / 2 + (index / templateItems.length) * (Math.PI * 2);
+    const radius = 30;
+    const center = 36;
+    const valueRadius = (radius * percentile) / 100;
+    return {
+      x: center + Math.cos(angle) * valueRadius,
+      y: center + Math.sin(angle) * valueRadius,
+      axisX: center + Math.cos(angle) * radius,
+      axisY: center + Math.sin(angle) * radius,
+    };
+  });
+  const polygon = points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
+  const markup = `
+    <div class="scouting-mini-radar">
+      <svg class="scouting-mini-radar-svg" viewBox="0 0 72 72" role="img" aria-label="Role spider">
+        ${points
+          .map(
+            (point) =>
+              `<line class="scouting-radar-axis" x1="36" y1="36" x2="${point.axisX.toFixed(1)}" y2="${point.axisY.toFixed(1)}" />`
+          )
+          .join("")}
+        <circle class="scouting-radar-ring" cx="36" cy="36" r="30" />
+        <polygon class="scouting-radar-shape" points="${polygon}" />
+        ${points.map((point) => `<circle class="scouting-radar-dot" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="1.6" />`).join("")}
+      </svg>
+    </div>
+  `;
+  scoutingRecordMiniRadarCache.set(cacheKey, markup);
+  return markup;
+}
 function getScoutingRecordSeason(record) {
   return normalizeScoutingText(record?.[scoutingRecordIndex.season], 80);
 }
@@ -1483,6 +1737,7 @@ function getScoutingImportAutoMap(headers = []) {
     minutes: findScoutingImportHeader(headers, ["minutes", "mins", "played"]),
     birthCountry: findScoutingImportHeader(headers, ["birth country", "country of birth"]),
     passportCountry: findScoutingImportHeader(headers, ["passport", "nationality"]),
+    imageUrl: findScoutingImportHeader(headers, ["image", "image url", "photo", "photo url", "avatar", "headshot", "headshot url"]),
     height: findScoutingImportHeader(headers, ["height"]),
     weight: findScoutingImportHeader(headers, ["weight"]),
     playerSourceId: findScoutingImportHeader(headers, ["player source id", "player_id", "player id", "source_player_id", "external_id"]),
@@ -1699,6 +1954,7 @@ function buildScoutingImportedDatabase() {
         getScoutingImportSourceSystem(),
         playerSourceId,
         sourceRecordId,
+        normalizeScoutingText(row[map.imageUrl], 220),
       ];
     })
     .filter(Boolean);
@@ -2519,25 +2775,25 @@ function getFilteredScoutingDatabaseRecords() {
   };
   const getCachedMetricPercentile = (record) => {
     if (!metricFilterCache) {
-      return getScoutingPercentile(record, metricFilterId);
+      return getScoutingComparablePercentile(record, metricFilterId);
     }
     const recordId = getScoutingRecordId(record);
     if (metricFilterCache.has(recordId)) {
       return metricFilterCache.get(recordId);
     }
-    const percentile = getScoutingPercentile(record, metricFilterId);
+    const percentile = getScoutingComparablePercentile(record, metricFilterId);
     metricFilterCache.set(recordId, percentile);
     return percentile;
   };
   const getCachedSortPercentile = (record) => {
     if (!sortPercentileCache) {
-      return getScoutingPercentile(record, sortMetricId);
+      return getScoutingComparablePercentile(record, sortMetricId);
     }
     const recordId = getScoutingRecordId(record);
     if (sortPercentileCache.has(recordId)) {
       return sortPercentileCache.get(recordId);
     }
-    const percentile = getScoutingPercentile(record, sortMetricId);
+    const percentile = getScoutingComparablePercentile(record, sortMetricId);
     sortPercentileCache.set(recordId, percentile);
     return percentile;
   };
@@ -3666,7 +3922,7 @@ function getScoutingBestSignal(record) {
     .map((metric) => ({
       metric,
       value: getScoutingMetricValue(record, metric.id),
-      percentile: getScoutingPercentile(record, metric.id),
+      percentile: getScoutingComparablePercentile(record, metric.id),
     }))
     .filter((item) => Number.isFinite(item.value) && Number.isFinite(item.percentile))
     .sort((a, b) => b.percentile - a.percentile)[0] || null;
@@ -5515,46 +5771,60 @@ function renderScoutingRecordCard(record) {
   const sortMetricId = state.databaseFilters.sortMetricId || (state.databaseFilters.metricId !== "all" ? state.databaseFilters.metricId : "minutes");
   const metric = getScoutingMetric(sortMetricId);
   const metricValue = getScoutingMetricValue(record, sortMetricId);
-  const percentile = metric && sortMetricId !== "minutes" && sortMetricId !== "matches" ? getScoutingPercentile(record, sortMetricId) : null;
+  const percentile = metric && sortMetricId !== "minutes" && sortMetricId !== "matches" ? getScoutingComparablePercentile(record, sortMetricId) : null;
   const age = getScoutingRecordAge(record);
   const favorite = isScoutingRecordFavorited(recordId);
   const roleFitScore = getScoutingRoleFitScore(record);
   const bestSignal = getScoutingBestSignal(record);
-  const meta = [
-    getScoutingRecordPosition(record),
-    age ? `${formatScoutingNumber(age)} yrs` : "",
-    `${formatScoutingNumber(getScoutingRecordMinutes(record))} min`,
-  ]
-    .filter(Boolean)
-    .join(" / ");
+  const position = getScoutingRecordPosition(record) || "No position";
+  const team = getScoutingRecordTeam(record) || "No club";
+  const role = getScoutingRecordBestRoleLabel(record);
+  const nationality = getScoutingRecordNationality(record);
+  const ageDisplay = Number.isFinite(age) ? `${formatScoutingNumber(age)} yrs` : "Age N/A";
+  const recommendation = bestSignal ? `${bestSignal.metric.label} · P${bestSignal.percentile}` : "No standout metric";
+  const scoreText =
+    metric && sortMetricId !== "minutes" && sortMetricId !== "matches" && Number.isFinite(percentile)
+      ? `P${percentile}`
+      : formatScoutingNumber(metricValue);
   return `
     <article class="scouting-record-card" data-open-scouting-record="${escapeHtml(recordId)}" tabindex="0" role="button">
-      <div class="scouting-record-card-head">
-        <div>
-          <strong>${escapeHtml(getScoutingRecordName(record))}</strong>
-          <span>${escapeHtml(meta)}</span>
+      <div class="scouting-record-avatar-shell">
+        ${renderScoutingRecordAvatar(record)}
+        <div class="scouting-record-mini-radar-popover" role="img" aria-label="Player role spider">
+          ${getScoutingRecordMiniRadarMarkup(record)}
         </div>
-        <button
-          type="button"
-          class="scouting-star-button${favorite ? " is-active" : ""}"
-          data-toggle-scouting-favorite="${escapeHtml(recordId)}"
-          aria-pressed="${favorite ? "true" : "false"}"
-          aria-label="${favorite ? "Remove favorite" : "Favorite player"}"
-        >${favorite ? "★" : "☆"}</button>
       </div>
-      <div class="scouting-record-card-meta">
-        <span>${escapeHtml(getScoutingRecordTeam(record) || "No club")}</span>
-        <span>${escapeHtml(getScoutingRecordLeague(record))}</span>
-        <span>${escapeHtml(getScoutingRecordSeason(record))}</span>
+      <div class="scouting-record-card-head">
+        <strong>${escapeHtml(getScoutingRecordName(record))}</strong>
+        <div class="scouting-record-card-meta">
+          <span>${escapeHtml(position)}</span>
+          <span>${escapeHtml(ageDisplay)}</span>
+          <span>${escapeHtml(team)}</span>
+          <span>${escapeHtml(nationality)}</span>
+        </div>
+      </div>
+      <div class="scouting-record-card-meta-cell">
+        <span>Best role</span>
+        <strong>${escapeHtml(role)}</strong>
       </div>
       <div class="scouting-record-card-score">
         <span>${escapeHtml(metric?.label || "Minutes")}</span>
-        <strong>${percentile ? `P${percentile}` : formatScoutingNumber(metricValue)}</strong>
+        <strong>${escapeHtml(scoreText)}</strong>
       </div>
-      <div class="scouting-record-decision">
-        <span class="is-${escapeHtml(getScoutingRoleFitTier(roleFitScore))}">${escapeHtml(getScoutingRoleFitLabel(roleFitScore))}${Number.isFinite(roleFitScore) ? ` · P${escapeHtml(roleFitScore)}` : ""}</span>
-        <em>${escapeHtml(bestSignal ? `${bestSignal.metric.label} P${bestSignal.percentile}` : "Need more comparable metrics")}</em>
+      <div class="scouting-record-card-meta-cell scouting-record-card-recommendation">
+        <span>Recommendation</span>
+        <strong title="${escapeHtml(recommendation)}">${escapeHtml(recommendation)}</strong>
       </div>
+      <span class="scouting-record-rolefit-badge is-${escapeHtml(getScoutingRoleFitTier(roleFitScore))}">
+        ${escapeHtml(getScoutingRoleFitLabel(roleFitScore))}
+      </span>
+      <button
+        type="button"
+        class="scouting-star-button${favorite ? " is-active" : ""}"
+        data-toggle-scouting-favorite="${escapeHtml(recordId)}"
+        aria-pressed="${favorite ? "true" : "false"}"
+        aria-label="${favorite ? "Remove favorite" : "Favorite player"}"
+      >${favorite ? "★" : "☆"}</button>
       ${
         selectedSlot && canEditScoutingWorkspace()
           ? `
@@ -5706,6 +5976,7 @@ function renderScoutingImportPanel() {
     ["minutes", "Minutes"],
     ["birthCountry", "Birth country"],
     ["passportCountry", "Passport country"],
+    ["imageUrl", "Player image URL (optional)"],
     ["height", "Height"],
     ["weight", "Weight"],
     ["playerSourceId", "Player source id (optional)"],
@@ -5936,6 +6207,23 @@ function getScoutingDatabaseResultsMarkup() {
       : `<div class="scouting-empty-panel">No players match these filters yet.</div>`,
   };
 }
+function renderScoutingRecordListHeader() {
+  const state = ensureScoutingState();
+  const sortMetricId = state.databaseFilters.sortMetricId || (state.databaseFilters.metricId !== "all" ? state.databaseFilters.metricId : "minutes");
+  const metric = getScoutingMetric(sortMetricId);
+  const scoreLabel = metric?.label || "Minutes";
+  return `
+    <div class="scouting-record-table-head" aria-hidden="true">
+      <span class="scouting-record-head-cell scouting-record-head-cell--spacer"></span>
+      <span class="scouting-record-head-cell">Player</span>
+      <span class="scouting-record-head-cell">Best role</span>
+      <span class="scouting-record-head-cell">${escapeHtml(scoreLabel)}</span>
+      <span class="scouting-record-head-cell">Recommendation</span>
+      <span class="scouting-record-head-cell">Role fit</span>
+      <span class="scouting-record-head-cell">Actions</span>
+    </div>
+  `;
+}
 function renderScoutingDatabasePanel() {
   if (scoutingDatabaseError) {
     return `
@@ -5994,8 +6282,11 @@ function renderScoutingDatabasePanel() {
           ${renderScoutingDatabaseControls()}
           ${renderScoutingMarketRadar(results.records)}
           <div class="scouting-result-summary" data-scouting-result-summary>${escapeHtml(results.summary)}</div>
-          <div class="scouting-record-grid" data-scouting-record-grid>
-            ${results.html}
+          <div class="scouting-record-table">
+            ${renderScoutingRecordListHeader()}
+            <div class="scouting-record-grid" data-scouting-record-grid>
+              ${results.html}
+            </div>
           </div>
         </main>
         <aside class="scouting-database-side" aria-label="Scouting database tools">

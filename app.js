@@ -6215,7 +6215,7 @@ function loadScoutingWorkspaceModule() {
         id: "scoutingWorkspaceStylesheet",
         required: true,
       }),
-      platformModuleLoader.loadModule("scouting-workspace", () => import("./scouting-workspace.js")),
+      platformModuleLoader.loadModule("scouting-workspace", () => import(`./scouting-workspace.js?v=${encodeURIComponent(platformAssetVersion)}`)),
     ])
       .then(([, module]) => {
         scoutingWorkspaceModule = module;

@@ -76,6 +76,9 @@ requireText("scripts/verify-ci-release-env.mjs", "CRON_SECRET", "production CI m
 requireText("scripts/verify-vercel-token.mjs", "Vercel deployment token: ok", "CI must verify the Vercel token before deployment commands run");
 requireText("scripts/verify-vercel-release-traffic.mjs", "Production Deploy", "deploy tooling must avoid concurrent production deploy traffic");
 requireText("scripts/release-ship.mjs", "release:traffic", "deploy commands must check release traffic before calling Vercel");
+requireText("scripts/release-ship.mjs", "requireCanonicalVercelProjectLink", "fast deploys must fail closed when a worktree is linked to the wrong Vercel project");
+requireText("scripts/release-ship.mjs", "footballscience", "fast deploys must target the canonical Vercel project");
+requireText("scripts/release-auto.mjs", "requireCanonicalVercelProjectLink", "legacy deploys must fail closed when a worktree is linked to the wrong Vercel project");
 requireText("scripts/verify-incident-readiness.mjs", "Incident readiness verification: ok", "incident alerting must stay testable");
 requireText("qa/production.live.spec.mjs", "production admin account can open Access & Users", "live smoke must prove admin access");
 requireText("qa/production.live.spec.mjs", 'toBe("admin")', "live smoke must fail if the release QA account loses admin");

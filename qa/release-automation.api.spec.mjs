@@ -25,6 +25,9 @@ test("safe ship release automation owns the staging to production flow", () => {
   expect(shipSource).toContain("releasePaths");
   expect(shipSource).toContain("branchDiffPaths");
   expect(shipSource).toContain("syncReleaseBranchWithMain");
+  expect(shipSource).toContain("requireCanonicalVercelProjectLink");
+  expect(shipSource).toContain(".vercel");
+  expect(shipSource).toContain("footballscience");
   expect(shipSource).toContain('"npm"');
   expect(shipSource).toContain('"qa"');
   expect(shipSource).toContain('"qa:browser"');

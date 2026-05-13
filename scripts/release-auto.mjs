@@ -1,9 +1,11 @@
 import { execFileSync, spawnSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const canonicalVercelProjectName = "footballscience";
 
 function printHelp() {
   console.log(`Legacy stable release automation
@@ -150,6 +152,33 @@ function extractDeploymentUrl(output) {
   return matches?.[matches.length - 1] || "";
 }
 
+function requireCanonicalVercelProjectLink() {
+  const projectFile = path.join(rootDir, ".vercel", "project.json");
+  if (!fs.existsSync(projectFile)) {
+    throw new Error(
+      `Deploy requires .vercel/project.json linked to ${canonicalVercelProjectName}. ` +
+        `Run "vercel link --project ${canonicalVercelProjectName}" or copy the canonical .vercel/project.json before deploying.`,
+    );
+  }
+
+  let project;
+  try {
+    project = JSON.parse(fs.readFileSync(projectFile, "utf8"));
+  } catch (error) {
+    throw new Error(`Deploy could not read .vercel/project.json: ${error.message}`);
+  }
+
+  const projectName = String(project?.projectName || "").trim();
+  if (projectName !== canonicalVercelProjectName) {
+    throw new Error(
+      `Deploy requires Vercel project ${canonicalVercelProjectName}, but this worktree is linked to ${projectName || "unknown"}. ` +
+        `Fix the Vercel link before deploying.`,
+    );
+  }
+
+  console.log(`- vercel project: ${projectName}`);
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
@@ -187,6 +216,7 @@ async function main() {
   if (options.deploy) {
     requireCleanWorkingTree("Production deploy");
     run("npm", ["run", "release:gate"]);
+    requireCanonicalVercelProjectLink();
     const deployOutput = run("npx", ["--yes", "vercel@53.2.0", "deploy", "--prod", "--yes"], { capture: true });
     const deploymentUrl = extractDeploymentUrl(deployOutput);
     if (deploymentUrl) {

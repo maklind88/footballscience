@@ -1,9 +1,11 @@
 import { execFileSync, spawnSync } from "node:child_process";
+import fs from "node:fs";
 import process from "node:process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const canonicalVercelProjectName = "footballscience";
 const fullReleasePatterns = [
   /^\.github\//,
   /^api\//,
@@ -231,6 +233,33 @@ function verifyVercelReleaseTraffic() {
   run("npm", ["run", "release:traffic"]);
 }
 
+function requireCanonicalVercelProjectLink() {
+  const projectFile = path.join(rootDir, ".vercel", "project.json");
+  if (!fs.existsSync(projectFile)) {
+    throw new Error(
+      `Deploy requires .vercel/project.json linked to ${canonicalVercelProjectName}. ` +
+        `Run "vercel link --project ${canonicalVercelProjectName}" or copy the canonical .vercel/project.json before deploying.`,
+    );
+  }
+
+  let project;
+  try {
+    project = JSON.parse(fs.readFileSync(projectFile, "utf8"));
+  } catch (error) {
+    throw new Error(`Deploy could not read .vercel/project.json: ${error.message}`);
+  }
+
+  const projectName = String(project?.projectName || "").trim();
+  if (projectName !== canonicalVercelProjectName) {
+    throw new Error(
+      `Deploy requires Vercel project ${canonicalVercelProjectName}, but this worktree is linked to ${projectName || "unknown"}. ` +
+        `Fix the Vercel link before deploying.`,
+    );
+  }
+
+  console.log(`- vercel project: ${projectName}`);
+}
+
 function pushCurrentBranch() {
   const branch = currentBranch();
   if (branch === "main") {
@@ -336,6 +365,7 @@ function extractDeploymentUrl(output) {
 
 function deployDirectProduction() {
   requireCleanWorkingTree("Fast production deploy");
+  requireCanonicalVercelProjectLink();
   const deployOutput = run("npx", ["--yes", "vercel@53.2.0", "deploy", "--prod", "--yes"], { capture: true });
   const deploymentUrl = extractDeploymentUrl(deployOutput);
   if (deploymentUrl) {

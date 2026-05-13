@@ -2107,6 +2107,7 @@ const playerProfileChangeLogLimit = 250;
 const playerProfileChangeFieldDefinitions = [
   { key: "name", label: "Name" },
   { key: "number", label: "Number" },
+  { key: "age", label: "Age" },
   { key: "position", label: "Position" },
   { key: "status", label: "Availability status", options: playerProfileStatusOptions },
   { key: "squadStatus", label: "Squad status", options: playerProfileSquadStatusOptions },
@@ -21432,6 +21433,38 @@ function normalizePlayerProfileTemporaryDate(value) {
   }
   return cleanValue;
 }
+function normalizePlayerProfileBirthDate(value) {
+  return normalizePlayerProfileTemporaryDate(value);
+}
+function normalizePlayerProfileAgeValue(value) {
+  const cleanValue = String(value ?? "").trim();
+  if (!cleanValue) {
+    return "";
+  }
+  const numericValue = Number(cleanValue);
+  if (!Number.isFinite(numericValue)) {
+    return "";
+  }
+  const age = Math.floor(numericValue);
+  return age >= 0 && age <= 99 ? String(age) : "";
+}
+function getPlayerProfileAgeValue(player = {}, referenceDate = new Date()) {
+  const birthDate = normalizePlayerProfileBirthDate(player.birthDate || player.dateOfBirth || player.dob);
+  if (birthDate) {
+    const [birthYear, birthMonth, birthDay] = birthDate.split("-").map(Number);
+    if (Number.isFinite(birthYear) && Number.isFinite(birthMonth) && Number.isFinite(birthDay)) {
+      let age = referenceDate.getFullYear() - birthYear;
+      const monthDiff = referenceDate.getMonth() + 1 - birthMonth;
+      if (monthDiff < 0 || (monthDiff === 0 && referenceDate.getDate() < birthDay)) {
+        age -= 1;
+      }
+      if (age >= 0 && age <= 99) {
+        return String(age);
+      }
+    }
+  }
+  return normalizePlayerProfileAgeValue(player.age ?? player.playerAge);
+}
 function isPlayerProfileTemporaryActiveOnDate(player = {}, dateValue = "") {
   if (!isTemporaryPlayerProfile(player)) {
     return true;
@@ -21884,6 +21917,8 @@ function normalizePlayerProfile(player = {}) {
     id: player.id || createDashboardId("player-profile"),
     name,
     number: String(player.number ?? "").trim(),
+    age: normalizePlayerProfileAgeValue(player.age ?? player.playerAge),
+    birthDate: normalizePlayerProfileBirthDate(player.birthDate || player.dateOfBirth || player.dob),
     position: String(player.position ?? "").trim(),
     photoUrl: String(player.photoUrl ?? "").trim(),
     sourceUrl: String(player.sourceUrl ?? "").trim(),
@@ -23029,6 +23064,10 @@ function renderSquadRosterMeta(player) {
 function renderSquadRoleCell(player) {
   return `<div class="squad-role-cell">${renderSquadRoleStack(player)}</div>`;
 }
+function renderSquadAgeCell(player) {
+  const age = getPlayerProfileAgeValue(player);
+  return `<span class="squad-age-cell">${escapeHtml(age || "-")}</span>`;
+}
 function renderSquadPlanningCell(player) {
   return `<div class="squad-planning-cell"><div class="squad-pill-stack">${renderSquadOptionPill(playerProfileSquadStatusOptions, player.squadStatus)}${renderSquadRosterTypePill(player)}</div></div>`;
 }
@@ -23068,6 +23107,7 @@ function renderSquadPlayerRow(player) {
           </div>
         </div>
       </td>
+      <td>${renderSquadAgeCell(player)}</td>
       <td>${renderSquadRoleCell(player)}</td>
       <td>${renderSquadPlanningCell(player)}</td>
       <td>${renderPlayerProfileStatusChip(effectiveStatus)}</td>
@@ -23083,6 +23123,7 @@ function renderSquadPlayerTable(players = [], emptyText = "No players found. Adj
         <thead>
           <tr>
             <th>Player</th>
+            <th>Age</th>
             <th>Roles</th>
             <th>Squad</th>
             <th>Status</th>
@@ -23094,7 +23135,7 @@ function renderSquadPlayerTable(players = [], emptyText = "No players found. Adj
           ${
             players.length
               ? players.map(renderSquadPlayerRow).join("")
-              : `<tr><td colspan="6"><div class="squad-empty-row">${escapeHtml(emptyText)}</div></td></tr>`
+              : `<tr><td colspan="7"><div class="squad-empty-row">${escapeHtml(emptyText)}</div></td></tr>`
           }
         </tbody>
       </table>
@@ -23658,6 +23699,10 @@ function renderPlayerProfileSelectedPanel(player) {
               <input name="number" value="${escapeHtml(player.number)}" ${canEdit ? "" : "disabled"} />
             </label>
             <label class="squad-tab-field-overview">
+              <span>Age</span>
+              <input name="age" type="number" min="0" max="99" value="${escapeHtml(getPlayerProfileAgeValue(player) || player.age || "")}" ${canEdit ? "" : "disabled"} />
+            </label>
+            <label class="squad-tab-field-overview">
               <span>Position</span>
               <input name="position" value="${escapeHtml(player.position)}" ${canEdit ? "" : "disabled"} />
             </label>
@@ -23840,6 +23885,10 @@ function renderPlayerProfileNewPlayerCard() {
           <label>
             <span>Number</span>
             <input name="number" placeholder="#" ${canEdit ? "" : "disabled"} />
+          </label>
+          <label>
+            <span>Age</span>
+            <input name="age" type="number" min="0" max="99" placeholder="Age" ${canEdit ? "" : "disabled"} />
           </label>
           <label>
             <span>Position</span>
@@ -25545,6 +25594,7 @@ function getPlayerProfileFormValues(form) {
     playerId: String(data.get("playerId") ?? "").trim(),
     name: String(data.get("name") ?? "").trim(),
     number: String(data.get("number") ?? "").trim(),
+    age: String(data.get("age") ?? "").trim(),
     position: String(data.get("position") ?? "").trim(),
     status: String(data.get("status") ?? "").trim(),
     squadStatus: String(data.get("squadStatus") ?? "").trim(),

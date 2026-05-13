@@ -74,6 +74,19 @@ function normalizeBoolean(value, fallback = false) {
   return fallback;
 }
 
+function normalizeSquadAgeValue(value) {
+  const cleanValue = normalizeText(value);
+  if (!cleanValue) {
+    return "";
+  }
+  const numericValue = Number(cleanValue);
+  if (!Number.isFinite(numericValue)) {
+    return "";
+  }
+  const age = Math.floor(numericValue);
+  return age >= 0 && age <= 99 ? String(age) : "";
+}
+
 export function normalizeSquadDateValue(value) {
   const cleanValue = normalizeText(value);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanValue)) {
@@ -194,6 +207,8 @@ export function normalizeSquadPlayer(player = {}, options = {}) {
     name,
     sortName: normalizeText(player.sortName || player.sort_name) || name.toLowerCase(),
     number: normalizeText(player.number || player.shirtNumber || player.shirt_number),
+    age: normalizeSquadAgeValue(player.age ?? player.playerAge ?? player.player_age),
+    birthDate: normalizeSquadDateValue(player.birthDate ?? player.birth_date ?? player.dateOfBirth ?? player.date_of_birth ?? player.dob),
     position: normalizeText(player.position || player.positionLabel || player.position_label),
     photoUrl: normalizeText(player.photoUrl || player.photo_url),
     sourceUrl: normalizeText(player.sourceUrl || player.source_url),
@@ -278,6 +293,7 @@ export function getSquadPlayerSearchText(player = {}) {
     player.name,
     player.sortName,
     player.number,
+    player.age,
     player.position,
     player.primaryRole,
     ...(Array.isArray(player.secondaryRoles) ? player.secondaryRoles : []),

@@ -798,9 +798,11 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
     /\d+\/\d+ squad/
   );
   await expect(page.locator(".squad-command-tools .squad-command-list-summary")).toHaveCount(0);
+  await expect(page.locator(".squad-table thead").first()).toContainText("Age");
   await expect(page.locator(".squad-table thead").first()).not.toContainText("Medical");
   await expect(page.locator(".squad-table thead").first()).toContainText("IDP");
   await expect(page.locator(".squad-player-row").first()).toContainText("Goalkeeper");
+  await expect(page.locator(".squad-player-row").first().locator(".squad-age-cell")).toHaveText(/^-|\d+$/);
   await expect(page.locator(".squad-player-row").first().locator(".squad-role-cell small")).toHaveCount(0);
   await expect(page.locator(".squad-player-row").first().locator(".squad-planning-cell small")).toHaveCount(0);
   await expect(page.locator(".squad-player-row").first().locator(".squad-idp-cell")).toContainText(/IDP|Review|Monitor/);
@@ -833,11 +835,15 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
   await expect(form).toBeVisible();
   await form.locator('input[name="name"]').fill(playerName);
   await form.locator('input[name="number"]').fill("88");
+  await form.locator('input[name="age"]').fill("21");
   await form.locator('input[name="position"]').fill("Midfielder");
   await form.locator('select[name="primaryRole"]').selectOption("8");
   await form.locator('button[type="submit"]').click();
 
   await expectStorageContains(page, playerProfilesKey, playerName);
+  await expect(
+    page.locator(".squad-player-row", { hasText: playerName }).first().locator(".squad-age-cell")
+  ).toHaveText("21");
   await expectStorageContains(page, medicalKey, playerName);
   await expect
     .poll(() =>

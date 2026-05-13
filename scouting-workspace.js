@@ -1049,9 +1049,6 @@ function renderScoutingRecordCard(record) {
   const favorite = isScoutingRecordFavorited(recordId);
   const roleFitScore = getScoutingRoleFitScore(record);
   const bestSignal = getScoutingBestSignal(record);
-  const target = findScoutingTargetByRecordId(recordId, state);
-  const targetStatus = target?.status || getScoutingStatusOptions()[0]?.value || "new";
-  const targetPriority = target?.priority || getScoutingPriorityOptions()[0]?.value || "normal";
   const meta = [
     getScoutingRecordPosition(record),
     age ? `${formatScoutingNumber(age)} yrs` : "",
@@ -1097,21 +1094,6 @@ function renderScoutingRecordCard(record) {
               data-scouting-shadow-slot-id="${escapeHtml(selectedSlot.id)}"
             >
               ${inSelectedSlot ? "In wishlist" : `Add to ${escapeHtml(selectedSlot.label)}`}
-            </button>
-          `
-          : ""
-      }
-      ${
-        canEditScoutingWorkspace()
-          ? `
-            <button
-              type="button"
-              class="scouting-secondary-button"
-              data-save-scouting-target="${escapeHtml(recordId)}"
-              data-scouting-target-status="${escapeHtml(targetStatus)}"
-              data-scouting-target-priority="${escapeHtml(targetPriority)}"
-            >
-              ${target ? "Update pipeline" : "Send to pipeline"}
             </button>
           `
           : ""

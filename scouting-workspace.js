@@ -11,6 +11,7 @@ let scoutingDatabaseOptionCache = null;
 let scoutingPercentileCache = new Map();
 let scoutingMetricAliasCache = new Map();
 let scoutingRoleProfileCache = new Map();
+let scoutingRecordIntelligenceCache = new Map();
 let scoutingMetricIndexCache = { database: null, byId: new Map() };
 let scoutingRecordIdLookupCache = new Map();
 let scoutingRecordNameLookupCache = new Map();
@@ -32,7 +33,9 @@ let scoutingImportParserPromise = null;
 let scoutingImportPdfParserPromise = null;
 let scoutingDragState = null;
 let scoutingDatabaseApiRefreshTimer = 0;
+let scoutingDatabaseFilterDebounceTimer = 0;
 let scoutingAdvancedDatabaseFiltersOpen = false;
+let scoutingIntelligenceCacheVersion = 0;
 let scoutingImportHistoryCache = { status: "idle", imports: [], error: "", promise: null };
 let scoutingProfileApiCache = new Map();
 let scoutingOppositionFilters = { team: "", season: "all", minMinutes: 450 };
@@ -44,6 +47,112 @@ const scoutingImportSupportedSourceTypes = Object.freeze([
   { id: "csv", label: "CSV / TSV", extensions: [".csv", ".tsv", ".txt"], parser: "csv", supportsSheets: false },
   { id: "json", label: "JSON", extensions: [".json"], parser: "json", supportsSheets: false },
   { id: "pdf", label: "PDF", extensions: [".pdf"], parser: "pdf", supportsSheets: false },
+]);
+const scoutingImportSourcePresets = Object.freeze([
+  {
+    id: "wyscout",
+    sourceSystem: "wyscout",
+    label: "Apply Wyscout",
+    map: {
+      player: ["player", "player name", "full name", "name", "player name latin"],
+      team: ["team", "club", "squad", "club name"],
+      league: ["league", "competition", "comp", "league name", "competition name"],
+      season: ["season", "season label", "season year", "year"],
+      position: ["position", "positions", "pos", "best role", "primary position"],
+      age: ["age", "player age"],
+      dateOfBirth: ["date of birth", "dob", "birth date", "birthday", "dateofbirth"],
+      matches: ["matches", "apps", "appearances"],
+      minutes: ["minutes", "mins", "minutes played", "played min"],
+      birthCountry: ["birth country", "country of birth", "birthplace"],
+      passportCountry: ["passport country", "nationality", "passport"],
+      imageUrl: ["image", "image url", "photo", "photo url", "avatar", "headshot", "headshot url", "player image"],
+      height: ["height", "height cm", "player height"],
+      weight: ["weight", "weight kg", "player weight"],
+      playerIdentityId: ["player id", "playerid", "id", "player id (wyscout)", "wyscout player id"],
+      sourceIdentityId: ["source id", "source player id", "external id", "external_id"],
+      wyscoutId: ["wyscout id", "wyscout_id", "wyscoutid", "wyscout player id"],
+      sourceRecordId: ["record id", "source record id", "record", "wyscout record id", "player season id"],
+    },
+  },
+  {
+    id: "fbref",
+    sourceSystem: "fbref",
+    label: "Apply FBref",
+    map: {
+      player: ["player", "player name", "name", "player short"],
+      team: ["squad", "team", "club", "team name"],
+      league: ["league", "competition", "comp", "competition name", "division"],
+      season: ["season", "year", "comp season", "season year"],
+      position: ["position", "pos", "positions", "primary position"],
+      age: ["age", "age (years)"],
+      dateOfBirth: ["date of birth", "dob", "birth date", "birthday"],
+      matches: ["matches", "apps", "appearances", "played"],
+      minutes: ["minutes", "mins", "minutes played", "min"],
+      birthCountry: ["birth country", "country of birth"],
+      passportCountry: ["nation", "nationality", "country"],
+      imageUrl: ["image", "image url", "photo", "photo url"],
+      height: ["height", "height cm", "height(cm)"],
+      weight: ["weight", "weight kg", "weight(kg)"],
+      playerIdentityId: ["player id", "fbref id", "fbref_id", "player_id", "id"],
+      sourceIdentityId: ["source id", "external id", "external_id"],
+      fbrefId: ["fbref id", "fbref_id", "fbref player id", "fbref player_id"],
+      sourceRecordId: ["record id", "source record id", "match id", "player season id"],
+    },
+  },
+  {
+    id: "transfermarkt",
+    sourceSystem: "transfermarkt",
+    label: "Apply Transfermarkt",
+    map: {
+      player: ["player", "player name", "name", "name with accents"],
+      team: ["team", "club", "club name", "squad"],
+      league: ["league", "league name", "competition", "division"],
+      season: ["season", "season label", "year"],
+      position: ["position", "positions", "main position", "pos"],
+      age: ["age", "age in years"],
+      dateOfBirth: ["date of birth", "dob", "birthday", "born"],
+      matches: ["appearances", "apps", "matches"],
+      minutes: ["minutes", "mins", "minutes played"],
+      birthCountry: ["citizenship", "nationality", "country"],
+      passportCountry: ["nationality", "country"],
+      imageUrl: ["image", "image url", "photo", "player image", "image_url"],
+      height: ["height", "height (cm)", "height cm", "player height"],
+      weight: ["weight", "weight (kg)", "weight kg", "player weight"],
+      playerIdentityId: ["player id", "tm id", "tm player id", "transfermarkt id", "transfermarkt_id", "id"],
+      sourceIdentityId: ["source id", "external id", "external_id", "transfermarkt source id"],
+      transfermarktId: ["transfermarkt id", "transfermarkt_id", "tm id", "tm_id", "transfermarkt player id", "player_id"],
+      sourceRecordId: ["record id", "source record id", "season record id", "player season id"],
+    },
+  },
+  {
+    id: "generic",
+    sourceSystem: "file-import",
+    label: "Apply Generic CSV/JSON/PDF",
+    map: {
+      player: ["player", "player name", "name"],
+      team: ["team", "club", "squad"],
+      league: ["league", "competition", "division", "tournament"],
+      season: ["season", "year"],
+      position: ["position", "positions", "pos"],
+      age: ["age"],
+      dateOfBirth: ["date of birth", "dob", "birth date", "birthday", "date"],
+      matches: ["matches", "apps", "appearances"],
+      minutes: ["minutes", "mins", "played", "played min"],
+      birthCountry: ["birth country", "country of birth", "birth place", "birthplace"],
+      passportCountry: ["passport country", "nationality", "passport", "nation"],
+      imageUrl: ["image", "image url", "photo", "avatar", "headshot", "player image"],
+      height: ["height", "height cm", "height(m)"],
+      weight: ["weight", "weight kg", "weight(kg)"],
+      playerIdentityId: ["player identity id", "player id", "playerid", "source player id", "id"],
+      sourceIdentityId: ["source identity id", "source id", "external id", "external_id"],
+      wyscoutId: ["wyscout id", "wyscout_id", "wyscoutid"],
+      fbrefId: ["fbref id", "fbref_id", "fbrefid"],
+      transfermarktId: ["transfermarkt id", "transfermarkt_id", "transfermarktid", "tm id", "tm_id"],
+      federationId: ["federation id", "federation_id", "federationid"],
+      playerSourceId: ["player source id", "player_id", "player id", "source_player_id", "external_id"],
+      sourceRecordId: ["record id", "source record id", "source_record_id", "season record id", "row id"],
+    },
+  },
 ]);
 const SCOUTING_IMPORT_MAX_RECORDS_PER_CHUNK = 10;
 const SCOUTING_IMPORT_MAX_CHUNK_PAYLOAD_CHARACTERS = 70000;
@@ -171,7 +280,11 @@ const scoutingLeagueQualityProfiles = Object.freeze([
   { patterns: ["superliga", "d1", "division 1", "ligue 1 feminine", "damallsvenskan", "bundesliga", "serie a", "süper lig", "seriea"], factor: 0.98 },
   { patterns: ["scotland swpl", "women's cup", "cup", "playoff", "division 2", "second division", "u23"], factor: 0.9 },
 ]);
-const scoutingDefaultLeagueQualityFactor = 0.95;
+const scoutingDefaultLeagueQualityFactor = 1;
+const scoutingLeagueQualityFactorBounds = Object.freeze({
+  min: 0.6,
+  max: 1.25,
+});
 const scoutingWorkflowStatusOptions = Object.freeze([
   { value: "new", label: "Longlist" },
   { value: "monitoring", label: "Monitoring" },
@@ -267,13 +380,42 @@ function getScoutingLeagueQualityFactor(value = "") {
   scoutingLeagueQualityCache.set(normalized, factor);
   return factor;
 }
+function getScoutingLeagueQualityFactorForMetric(record, metricId, benchmarkMode = "position") {
+  const leagueFactor = getScoutingLeagueQualityFactor(getScoutingRecordLeague(record));
+  const normalizedMode = normalizeScoutingBenchmarkMode(benchmarkMode);
+  const sampleMode = normalizedMode === "all" ? "position" : normalizedMode || "position";
+  const sample = getScoutingBenchmarkSampleSize(record, metricId, sampleMode);
+  const sampleFactor = Number.isFinite(sample)
+    ? sample >= 40
+      ? 1
+      : sample >= 24
+        ? 0.93
+        : sample >= 16
+          ? 0.88
+          : sample >= 10
+            ? 0.82
+            : sample >= 6
+              ? 0.76
+              : 0.7
+    : 0.7;
+  return Math.max(scoutingLeagueQualityFactorBounds.min, Math.min(scoutingLeagueQualityFactorBounds.max, leagueFactor * sampleFactor));
+}
 function getScoutingLeagueAdjustedPercentile(record, metricId) {
-  const percentile = getScoutingPercentile(record, metricId);
+  const percentile = getScoutingBenchmarkPercentile(record, metricId, "position", "metric");
   if (!Number.isFinite(percentile)) {
     return null;
   }
-  const factor = Math.max(0.7, Math.min(1.05, getScoutingLeagueQualityFactor(getScoutingRecordLeague(record))));
-  return Math.max(1, Math.min(99, Math.round(percentile * factor)));
+  const factor = getScoutingLeagueQualityFactorForMetric(record, metricId, "position");
+  return applyScoutingLeagueQualityDampening(percentile, record, factor);
+}
+function applyScoutingLeagueQualityDampening(percentile, record, factor = null) {
+  if (!Number.isFinite(percentile)) {
+    return null;
+  }
+  const safeFactor = Number.isFinite(factor)
+    ? Math.max(scoutingLeagueQualityFactorBounds.min, Math.min(scoutingLeagueQualityFactorBounds.max, factor))
+    : Math.max(scoutingLeagueQualityFactorBounds.min, Math.min(scoutingLeagueQualityFactorBounds.max, getScoutingLeagueQualityFactor(getScoutingRecordLeague(record))));
+  return Math.max(1, Math.min(99, Math.round(50 + (percentile - 50) * safeFactor)));
 }
 function getScoutingImportLastUploadSummary() {
   try {
@@ -368,6 +510,7 @@ function resetScoutingComputedCaches() {
   scoutingRecordMiniRadarCache = new Map();
   scoutingMetricAliasCache = new Map();
   scoutingRoleProfileCache = new Map();
+  scoutingRecordIntelligenceCache = new Map();
   scoutingMetricIndexCache = { database: null, byId: new Map() };
   scoutingRecordIdLookupCache = new Map();
   scoutingRecordNameLookupCache = new Map();
@@ -378,6 +521,11 @@ function resetScoutingComputedCaches() {
     key: "",
     records: [],
   };
+}
+
+function touchScoutingIntelligenceCache() {
+  scoutingIntelligenceCacheVersion += 1;
+  scoutingRecordIntelligenceCache = new Map();
 }
 function cloneScoutingList(list = {}) {
   const name = normalizeScoutingText(list.name, 80) || "Scouting List";
@@ -400,18 +548,22 @@ function cloneScoutingSavedView(view = {}) {
 }
 function normalizeScoutingDatabaseFilters(filters = {}) {
   const minMinutes = Number(filters.minMinutes);
+  const maxMinutes = Number(filters.maxMinutes);
   return {
     query: normalizeScoutingText(filters.query, 120),
     league: normalizeScoutingLeague(filters.league) || "all",
     season: normalizeScoutingText(filters.season, 80) || "all",
     position: normalizeScoutingText(filters.position, 40) || "all",
     minMinutes: Number.isFinite(minMinutes) && minMinutes >= 0 ? Math.round(minMinutes) : 450,
+    maxMinutes: Number.isFinite(maxMinutes) && maxMinutes >= 0 ? Math.round(maxMinutes) : 0,
+    minAge: normalizeScoutingText(filters.minAge, 12),
     maxAge: normalizeScoutingText(filters.maxAge, 12),
     metricId: normalizeScoutingText(filters.metricId, 120) || "all",
     metricMin: normalizeScoutingText(filters.metricMin, 12),
     roleProfileId: normalizeScoutingRoleProfileId(filters.roleProfileId, "all"),
     benchmarkMode: normalizeScoutingBenchmarkMode(filters.benchmarkMode),
     roleFitMin: normalizeScoutingText(filters.roleFitMin, 12),
+    roleFloorMin: normalizeScoutingText(filters.roleFloorMin, 12),
     signalMode: normalizeScoutingText(filters.signalMode, 40) || "all",
     marketStatus: normalizeScoutingText(filters.marketStatus, 40) || "all",
     sortMetricId: normalizeScoutingText(filters.sortMetricId, 120) || "minutes",
@@ -490,6 +642,8 @@ function getScoutingApiQueryFromState() {
     season: filters.season,
     position: filters.position,
     minMinutes: filters.minMinutes,
+    maxMinutes: filters.maxMinutes,
+    minAge: filters.minAge,
     maxAge: filters.maxAge,
     sortMetricId: filters.sortMetricId,
     offset: filters.offset,
@@ -1164,9 +1318,9 @@ function getScoutingImportSourceSystem(draft = scoutingImportDraft) {
   return normalizeScoutingText(draft?.sourceSystem, 40) || "file-import";
 }
 function buildScoutingPlayerSourceId(row = {}, map = {}) {
-  const mapped = normalizeScoutingText(row?.[map.playerSourceId], 160);
-  if (mapped) {
-    return buildScoutingImportRecordId(`federation ${mapped}`, "player", 140);
+  const primary = getScoutingImportIdentityCandidates(row, map)[0];
+  if (primary?.value) {
+    return buildScoutingImportRecordId(`federation ${primary.value}`, "player", 140);
   }
   const player = normalizeScoutingText(row?.[map.player], 120);
   const dateOfBirth = normalizeScoutingDateValue(row?.[map.dateOfBirth]);
@@ -1196,6 +1350,25 @@ function buildScoutingRecordSourceId(row = {}, map = {}, playerSourceId = "") {
     normalizeScoutingText(row?.[map.team], 120),
   ].join("::");
   return buildScoutingScopedId(buildScoutingImportRecordId(seed, `record`), sourceSystem);
+}
+function getScoutingImportIdentityCandidates(row = {}, map = {}) {
+  const candidates = [
+    { key: "playerIdentityId", label: "player identity id", header: map.playerIdentityId },
+    { key: "sourceIdentityId", label: "source identity id", header: map.sourceIdentityId },
+    { key: "federationId", label: "federation id", header: map.federationId },
+    { key: "wyscoutId", label: "Wyscout ID", header: map.wyscoutId },
+    { key: "fbrefId", label: "FBref ID", header: map.fbrefId },
+    { key: "transfermarktId", label: "Transfermarkt ID", header: map.transfermarktId },
+    { key: "playerSourceId", label: "player source id", header: map.playerSourceId },
+  ];
+  const seen = new Set();
+  return candidates
+    .map((candidate) => ({
+      key: candidate.key,
+      label: candidate.label,
+      value: normalizeScoutingText(row?.[candidate.header], 160),
+    }))
+    .filter((candidate) => candidate.value && !seen.has(candidate.value) && seen.add(candidate.value));
 }
 function parseScoutingMetricValue(value) {
   const numeric = Number(String(value ?? "").replace(/,/g, ".").replace(/[^0-9.+-]/g, ""));
@@ -1542,6 +1715,7 @@ function createScoutingContactLogEntry(recordId, entry = {}) {
           })
         : item
     );
+    touchScoutingIntelligenceCache();
   }
   writeScoutingState();
   renderScoutingWorkspace({ preserveFocus: true });
@@ -1801,8 +1975,8 @@ function getScoutingRecordBestRoleLabel(record) {
   return fallbackProfile?.label || "General";
 }
 function getScoutingComparablePercentile(record, metricId) {
-  const adjustedPercentile = getScoutingLeagueAdjustedPercentile(record, metricId);
-  return Number.isFinite(adjustedPercentile) ? adjustedPercentile : getScoutingPercentile(record, metricId);
+  const calibratedPercentile = getScoutingCalibratedPercentile(record, metricId, "metric", getScoutingActiveBenchmarkMode());
+  return Number.isFinite(calibratedPercentile) ? calibratedPercentile : getScoutingPercentile(record, metricId);
 }
 function getScoutingRecordMiniRadarMarkup(record) {
   const recordId = getScoutingRecordId(record);
@@ -1831,6 +2005,10 @@ function getScoutingRecordMiniRadarMarkup(record) {
     };
   });
   const polygon = points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
+  const topRows = getScoutingRoleMetricRows(record, template, benchmarkMode)
+    .filter((row) => Number.isFinite(row.percentile))
+    .sort((a, b) => (b.weightedScore || 0) - (a.weightedScore || 0))
+    .slice(0, 3);
   const markup = `
     <div class="scouting-mini-radar">
       <svg class="scouting-mini-radar-svg" viewBox="0 0 72 72" role="img" aria-label="Role spider">
@@ -1844,6 +2022,14 @@ function getScoutingRecordMiniRadarMarkup(record) {
         <polygon class="scouting-radar-shape" points="${polygon}" />
         ${points.map((point) => `<circle class="scouting-radar-dot" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="1.6" />`).join("")}
       </svg>
+      <div class="scouting-mini-radar-tooltip">
+        <strong>${escapeHtml(template.profileLabel || "Role spider")}</strong>
+        ${
+          topRows.length
+            ? topRows.map((row) => `<span>${escapeHtml(row.label)} P${escapeHtml(row.percentile)} - weighted role driver</span>`).join("")
+            : `<span>No standout role metrics yet</span>`
+        }
+      </div>
     </div>
   `;
   scoutingRecordMiniRadarCache.set(cacheKey, markup);
@@ -2113,9 +2299,78 @@ function getScoutingImportAutoMap(headers = []) {
     imageUrl: findScoutingImportHeader(headers, ["image", "image url", "photo", "photo url", "avatar", "headshot", "headshot url"]),
     height: findScoutingImportHeader(headers, ["height"]),
     weight: findScoutingImportHeader(headers, ["weight"]),
+    playerIdentityId: findScoutingImportHeader(headers, [
+      "player identity id",
+      "player_identity_id",
+      "playeridentityid",
+      "identity id",
+    ]),
+    sourceIdentityId: findScoutingImportHeader(headers, [
+      "source identity id",
+      "source_identity_id",
+      "source id",
+      "external id",
+      "external_id",
+    ]),
+    wyscoutId: findScoutingImportHeader(headers, ["wyscout id", "wyscout_id", "wyscoutid", "wyscout player id"]),
+    fbrefId: findScoutingImportHeader(headers, ["fbref id", "fbref_id", "fbrefid", "fbref player id"]),
+    transfermarktId: findScoutingImportHeader(headers, [
+      "transfermarkt id",
+      "transfermarkt_id",
+      "transfermarktid",
+      "tm id",
+      "tm_id",
+      "transfermarkt player id",
+    ]),
+    federationId: findScoutingImportHeader(headers, ["federation id", "federation_id", "federationid"]),
     playerSourceId: findScoutingImportHeader(headers, ["player source id", "player_id", "player id", "source_player_id", "external_id"]),
     sourceRecordId: findScoutingImportHeader(headers, ["record id", "source record id", "source_record_id", "season record id"]),
   };
+}
+function buildScoutingImportPresetMap(presetId = "", headers = [], map = {}) {
+  const normalizedPresetId = normalizeScoutingText(presetId, 40);
+  if (!normalizedPresetId) {
+    return map || {};
+  }
+  const preset = scoutingImportSourcePresets.find((item) => normalizeScoutingText(item.id, 40) === normalizedPresetId);
+  if (!preset) {
+    return map || {};
+  }
+  const nextMap = {
+    ...(map || {}),
+  };
+  const presetMap = preset.map || {};
+  Object.entries(presetMap).forEach(([field, aliases]) => {
+    const header = findScoutingImportHeader(headers, Array.isArray(aliases) ? aliases : []);
+    if (header) {
+      nextMap[field] = header;
+    }
+  });
+  return nextMap;
+}
+function applyScoutingImportSourcePreset(presetId = "") {
+  if (!canEditScoutingWorkspace() || !scoutingImportDraft) {
+    return;
+  }
+  const selected = scoutingImportDraft.sheets?.find((sheet) => sheet.name === scoutingImportDraft.selectedSheet);
+  if (!selected) {
+    return;
+  }
+  const normalizedPresetId = normalizeScoutingText(presetId, 40);
+  if (!normalizedPresetId) {
+    return;
+  }
+  const preset = scoutingImportSourcePresets.find((item) => normalizeScoutingText(item.id, 40) === normalizedPresetId);
+  if (!preset) {
+    return;
+  }
+  scoutingImportDraft = {
+    ...scoutingImportDraft,
+    sourceSystem: preset.sourceSystem || scoutingImportDraft.sourceSystem,
+    map: buildScoutingImportPresetMap(preset.id, selected.headers || [], scoutingImportDraft.map || {}),
+    importPreview: null,
+  };
+  renderScoutingWorkspace({ preserveFocus: true });
 }
 function getScoutingImportSheetRows(sheet) {
   if (!window.XLSX || !sheet) {
@@ -2331,6 +2586,20 @@ function getScoutingRecordImportFingerprint(record) {
     metrics: getScoutingMetricFingerprint(record?.[scoutingRecordIndex.metrics]),
   });
 }
+function getScoutingImportIdentitySignature(record) {
+  return [
+    normalizeScoutingIdentityPart(getScoutingRecordName(record), 120),
+    normalizeScoutingIdentityPart(getScoutingRecordDateOfBirth(record), 40),
+    normalizeScoutingIdentityPart(getScoutingRecordPassportCountry(record) || getScoutingRecordBirthCountry(record), 120),
+  ]
+    .filter(Boolean)
+    .join("|");
+}
+function getScoutingImportIdentityLabel(record) {
+  const dateOfBirth = getScoutingRecordDateOfBirth(record);
+  const nationality = getScoutingRecordPassportCountry(record) || getScoutingRecordBirthCountry(record);
+  return [getScoutingRecordName(record), dateOfBirth, nationality].filter(Boolean).join(" / ") || "Unknown player";
+}
 function preferScoutingImportRecord(nextRecord, currentRecord) {
   if (!currentRecord) {
     return nextRecord;
@@ -2352,14 +2621,31 @@ function mergeScoutingImportMetrics(existingMetrics = [], importedMetrics = []) 
 function buildScoutingImportPreview(database = {}) {
   const existingRecords = getScoutingDatabase()?.records || [];
   const existingByMergeKey = new Map();
+  const existingByIdentityId = new Map();
+  const existingByIdentitySignature = new Map();
   existingRecords.forEach((record) => {
     const key = getScoutingRecordMergeKey(record);
     if (key) {
       existingByMergeKey.set(key, record);
     }
+    const identityId = getScoutingRecordPlayerIdentityId(record);
+    if (identityId) {
+      if (!existingByIdentityId.has(identityId)) {
+        existingByIdentityId.set(identityId, []);
+      }
+      existingByIdentityId.get(identityId).push(record);
+    }
+    const identitySignature = getScoutingImportIdentitySignature(record);
+    if (identitySignature) {
+      if (!existingByIdentitySignature.has(identitySignature)) {
+        existingByIdentitySignature.set(identitySignature, []);
+      }
+      existingByIdentitySignature.get(identitySignature).push(record);
+    }
   });
   const operationsByMergeKey = {};
   const samples = [];
+  const identityWarnings = [];
   const metricQualityCounts = { trusted: 0, estimated: 0, missing: 0 };
   const summary = {
     incomingRows: database.records?.length || 0,
@@ -2367,6 +2653,10 @@ function buildScoutingImportPreview(database = {}) {
     replaceRows: 0,
     unchangedRows: 0,
     duplicateRows: database.dedupeSummary?.incomingDuplicates || 0,
+    duplicateSamples: database.dedupeSummary?.duplicateSamples || [],
+    identityWarningRows: 0,
+    criticalIdentityRows: 0,
+    identityWarnings,
     metricQualityCounts,
     samples,
     operationsByMergeKey,
@@ -2388,6 +2678,60 @@ function buildScoutingImportPreview(database = {}) {
     } else {
       summary.unchangedRows += 1;
     }
+    const identityId = getScoutingRecordPlayerIdentityId(record);
+    const sourceTrace = getScoutingRecordSourceTrace(record);
+    const identitySource = normalizeScoutingText(sourceTrace.identitySource, 40) || "unknown";
+    const identitySourceMapped = identitySource !== "derived";
+    const identitySignature = getScoutingImportIdentitySignature(record);
+    const identityIssueLabels = [];
+    const hasDateOfBirth = Boolean(getScoutingRecordDateOfBirth(record));
+    const hasNationality = Boolean(getScoutingRecordPassportCountry(record) || getScoutingRecordBirthCountry(record));
+    const existingIdentityRows = existingByIdentityId.get(identityId) || [];
+    const conflictingIdentity = existingIdentityRows.find((existingRecord) => {
+      const existingSignature = getScoutingImportIdentitySignature(existingRecord);
+      return existingSignature && identitySignature && existingSignature !== identitySignature;
+    });
+    const possibleAlias = identitySignature
+      ? (existingByIdentitySignature.get(identitySignature) || []).find((existingRecord) => getScoutingRecordPlayerIdentityId(existingRecord) !== identityId)
+      : null;
+    if (!identitySourceMapped) {
+      identityIssueLabels.push(hasDateOfBirth && hasNationality ? "Derived identity" : "Weak identity");
+    }
+    if (!hasDateOfBirth) {
+      identityIssueLabels.push("Missing DOB");
+    }
+    if (!hasNationality) {
+      identityIssueLabels.push("Missing nationality");
+    }
+    if (conflictingIdentity) {
+      identityIssueLabels.push("Identity conflict");
+    }
+    if (possibleAlias) {
+      identityIssueLabels.push("Possible alias");
+    }
+    if (identityIssueLabels.length) {
+      const isCriticalIdentityIssue = identityIssueLabels.includes("Identity conflict") || identityIssueLabels.includes("Possible alias");
+      summary.identityWarningRows += 1;
+      if (isCriticalIdentityIssue) {
+        summary.criticalIdentityRows += 1;
+      }
+      if (identityWarnings.length < 8) {
+        identityWarnings.push({
+          labels: Array.from(new Set(identityIssueLabels)),
+          name: getScoutingRecordName(record),
+          detail: conflictingIdentity
+            ? `Same player ID already exists as ${getScoutingImportIdentityLabel(conflictingIdentity)}.`
+            : possibleAlias
+              ? `Same DOB/nationality profile exists under another player ID: ${getScoutingRecordPlayerIdentityId(possibleAlias)}.`
+              : !identitySourceMapped
+                ? "No mapped source player ID found. Merge is based on derived name/DOB/nationality identity."
+                : "Identity data should be completed before commit.",
+          team: getScoutingRecordTeam(record),
+          league: getScoutingRecordLeague(record),
+          season: getScoutingRecordSeason(record),
+        });
+      }
+    }
     const metricQuality = record?.[scoutingRecordIndex.metricQuality] || {};
     Object.values(metricQuality).forEach((quality) => {
       const normalized = normalizeScoutingMetricQuality(quality);
@@ -2403,6 +2747,30 @@ function buildScoutingImportPreview(database = {}) {
       });
     }
   });
+  summary.importSafety =
+    summary.criticalIdentityRows > 0
+      ? {
+          tone: "danger",
+          label: "Stop and review identity",
+          detail: `${summary.criticalIdentityRows} player rows may collide with an existing player identity. Check aliases before commit.`,
+        }
+      : summary.identityWarningRows > 0
+        ? {
+            tone: "warning",
+            label: "Review before commit",
+            detail: `${summary.identityWarningRows} player rows use derived or incomplete identity. Commit only if name, DOB and nationality look correct.`,
+          }
+        : summary.replaceRows > 0 || summary.newRows > 0
+          ? {
+              tone: "safe",
+              label: "Safe to commit",
+              detail: "No identity conflicts detected in this preview. New and replaced rows will keep source trace metadata.",
+            }
+          : {
+              tone: "neutral",
+              label: "No changes detected",
+              detail: "This import does not change the scouting player database.",
+            };
   return summary;
 }
 function getScoutingImportPublishDatabase(database = {}, preview = {}) {
@@ -2434,15 +2802,51 @@ function renderScoutingImportDiffPreview(preview = null) {
     return "";
   }
   const quality = preview.metricQualityCounts || {};
+  const safety = preview.importSafety || {};
   return `
     <div class="scouting-import-diff-preview">
+      <div class="scouting-import-safety is-${escapeHtml(safety.tone || "neutral")}">
+        <strong>${escapeHtml(safety.label || "Import preview")}</strong>
+        <p>${escapeHtml(safety.detail || "Review the changed rows before commit.")}</p>
+      </div>
       <div class="scouting-import-diff-grid">
         <article><span>New</span><strong>${escapeHtml(preview.newRows || 0)}</strong></article>
         <article><span>Replace</span><strong>${escapeHtml(preview.replaceRows || 0)}</strong></article>
         <article><span>Unchanged</span><strong>${escapeHtml(preview.unchangedRows || 0)}</strong></article>
         <article><span>Deduped</span><strong>${escapeHtml(preview.duplicateRows || 0)}</strong></article>
+        <article><span>Review flags</span><strong>${escapeHtml(preview.identityWarningRows || 0)}</strong></article>
       </div>
       <p>${escapeHtml(`Metric quality: ${quality.trusted || 0} trusted / ${quality.estimated || 0} estimated / ${quality.missing || 0} missing.`)}</p>
+      ${
+        preview.identityWarnings?.length
+          ? `<div class="scouting-import-risk-list">${preview.identityWarnings
+              .map(
+                (row) => `
+                  <article>
+                    <strong>${escapeHtml(`${row.labels.join(" + ")} · ${row.name || "Unknown player"}`)}</strong>
+                    <p>${escapeHtml(row.detail || "Review identity before commit.")}</p>
+                    <span>${escapeHtml(`${row.team || "No club"} · ${row.league || "No league"} · ${row.season || "No season"}`)}</span>
+                  </article>
+                `
+              )
+              .join("")}</div>`
+          : ""
+      }
+      ${
+        preview.duplicateSamples?.length
+          ? `<div class="scouting-import-risk-list is-muted">${preview.duplicateSamples
+              .map(
+                (row) => `
+                  <article>
+                    <strong>${escapeHtml(`Deduped · ${row.name || "Unknown player"}`)}</strong>
+                    <p>${escapeHtml(`Kept strongest row by metric coverage/minutes. Minutes kept: ${row.keptMinutes || 0}; dropped: ${row.droppedMinutes || 0}.`)}</p>
+                    <span>${escapeHtml(`${row.team || "No club"} · ${row.league || "No league"} · ${row.season || "No season"}`)}</span>
+                  </article>
+                `
+              )
+              .join("")}</div>`
+          : ""
+      }
       ${
         preview.samples?.length
           ? `<div class="scouting-import-diff-list">${preview.samples
@@ -2474,6 +2878,7 @@ function buildScoutingImportedDatabase() {
   const importedAt = new Date().toISOString();
   const sourceSystem = getScoutingImportSourceSystem();
   let incomingDuplicates = 0;
+  const duplicateSamples = [];
   const recordsByMergeKey = new Map();
   selected.rows
     .map((row, index) => {
@@ -2485,6 +2890,8 @@ function buildScoutingImportedDatabase() {
       if (!player && !team && !position) {
         return null;
       }
+      const identityCandidates = getScoutingImportIdentityCandidates(row, map);
+      const mappedPlayerSourceId = identityCandidates[0]?.value || "";
       const playerSourceId = buildScoutingPlayerSourceId(row, map);
       const sourceRecordId = buildScoutingRecordSourceId(row, map, playerSourceId);
       const age = parseScoutingMetricValue(row[map.age]) || "";
@@ -2515,6 +2922,12 @@ function buildScoutingImportedDatabase() {
         importedAt,
         importBatchId: "",
         playerIdentityId: playerSourceId,
+        sourcePlayerAlias: player,
+        identitySource: mappedPlayerSourceId ? identityCandidates[0]?.key || "playerSourceId" : "derived",
+        identitySourceLabel: mappedPlayerSourceId ? identityCandidates[0]?.label || "mapped source id" : "name + date of birth + nationality",
+        identityCandidateCount: identityCandidates.length || 0,
+        identityCandidates: identityCandidates.map((candidate) => ({ key: candidate.key, label: candidate.label, value: candidate.value })),
+        identityBasis: mappedPlayerSourceId ? `mapped ${identityCandidates[0]?.label || "player id"}` : "name + date of birth + nationality",
         sourceRecordId,
         mergeKey,
       };
@@ -2549,6 +2962,18 @@ function buildScoutingImportedDatabase() {
       const mergeKey = getScoutingRecordMergeKey(record);
       if (recordsByMergeKey.has(mergeKey)) {
         incomingDuplicates += 1;
+        if (duplicateSamples.length < 6) {
+          const kept = preferScoutingImportRecord(record, recordsByMergeKey.get(mergeKey));
+          const dropped = kept === record ? recordsByMergeKey.get(mergeKey) : record;
+          duplicateSamples.push({
+            name: getScoutingRecordName(record),
+            team: getScoutingRecordTeam(record),
+            league: getScoutingRecordLeague(record),
+            season: getScoutingRecordSeason(record),
+            keptMinutes: getScoutingRecordMinutes(kept),
+            droppedMinutes: getScoutingRecordMinutes(dropped),
+          });
+        }
       }
       recordsByMergeKey.set(mergeKey, preferScoutingImportRecord(record, recordsByMergeKey.get(mergeKey)));
     });
@@ -2571,6 +2996,7 @@ function buildScoutingImportedDatabase() {
     importSignature,
     dedupeSummary: {
       incomingDuplicates,
+      duplicateSamples,
       mergeStrategy: "sourceSystem + playerId + season + league + team",
     },
   };
@@ -2611,6 +3037,19 @@ function applyScoutingImportDraft() {
       ...(scoutingImportDraft || {}),
       importPreview: preview,
       databaseUploadStatus: "Review import preview before commit.",
+      databaseUploadError: "",
+      importedCount: database.records.length,
+      metricCount: database.metrics.length,
+    };
+    renderScoutingWorkspace({ preserveFocus: true });
+    return;
+  }
+  if (preview.criticalIdentityRows > 0 && scoutingImportDraft?.criticalImportOverrideSignature !== database.importSignature) {
+    scoutingImportDraft = {
+      ...(scoutingImportDraft || {}),
+      importPreview: preview,
+      criticalImportOverrideSignature: database.importSignature,
+      databaseUploadStatus: "Critical identity review required. Check the flagged rows, then press commit again if this import is intentional.",
       databaseUploadError: "",
       importedCount: database.records.length,
       metricCount: database.metrics.length,
@@ -3054,6 +3493,7 @@ function saveScoutingTarget(recordId, patch = {}) {
   } else {
     state.targets = [nextTarget, ...getScoutingTargets(state)];
   }
+  touchScoutingIntelligenceCache();
   writeScoutingState();
   renderScoutingWorkspace();
 }
@@ -3073,6 +3513,7 @@ function updateScoutingTarget(targetId, patch = {}) {
     updatedAt: normalizeScoutingText(patch.updatedAt, 40) || new Date().toISOString(),
   });
   state.targets = getScoutingTargets(state).map((entry) => (entry.id === target.id ? nextTarget : entry));
+  touchScoutingIntelligenceCache();
   writeScoutingState();
   renderScoutingWorkspace();
 }
@@ -3085,6 +3526,7 @@ function removeScoutingTarget(targetId) {
   const nextTargets = getScoutingTargets(state).filter((target) => normalizeScoutingText(target.id, 120) !== id);
   if (nextTargets.length !== getScoutingTargets(state).length) {
     state.targets = nextTargets;
+    touchScoutingIntelligenceCache();
     writeScoutingState();
     renderScoutingWorkspace();
   }
@@ -3343,16 +3785,49 @@ function getScoutingRawPercentile(record, metricId, benchmarkMode = getScoutingA
   }
   return Math.max(1, Math.min(99, Math.round((low / values.length) * 100)));
 }
-function getScoutingDirectionalPercentile(record, metricId, desiredDirection = "higher", benchmarkMode = getScoutingActiveBenchmarkMode()) {
-  const direction = normalizeScoutingText(desiredDirection, 20).toLowerCase();
-  if (direction === "metric") {
-    return getScoutingPercentile(record, metricId);
-  }
+function getScoutingBenchmarkPercentile(record, metricId, benchmarkMode = getScoutingActiveBenchmarkMode(), desiredDirection = "metric") {
+  const metric = getScoutingMetric(metricId);
+  const direction = normalizeScoutingText(desiredDirection, 20).toLowerCase() === "metric"
+    ? normalizeScoutingText(metric?.direction || "higher", 20).toLowerCase()
+    : normalizeScoutingText(desiredDirection, 20).toLowerCase();
   const rawPercentile = getScoutingRawPercentile(record, metricId, benchmarkMode);
   if (!Number.isFinite(rawPercentile)) {
     return null;
   }
   return direction === "lower" ? Math.max(1, Math.min(99, 101 - rawPercentile)) : rawPercentile;
+}
+function getScoutingBenchmarkSampleSize(record, metricId, benchmarkMode = getScoutingActiveBenchmarkMode()) {
+  return getScoutingBenchmarkValues(metricId, record, benchmarkMode).length;
+}
+function getScoutingCalibratedPercentile(record, metricId, desiredDirection = "metric", benchmarkMode = getScoutingActiveBenchmarkMode()) {
+  const normalizedMode = normalizeScoutingBenchmarkMode(benchmarkMode);
+  const metricFactor =
+    typeof getScoutingLeagueQualityFactorForMetric === "function"
+      ? getScoutingLeagueQualityFactorForMetric(record, metricId, normalizedMode)
+      : getScoutingLeagueQualityFactor(getScoutingRecordLeague(record));
+  const broadPercentile = getScoutingBenchmarkPercentile(record, metricId, "position", desiredDirection);
+  const localModes = normalizedMode === "position"
+    ? ["league-season-position", "league-position", "season-position"]
+    : [normalizedMode, "league-season-position", "league-position", "season-position"];
+  const localCandidate = localModes
+    .map((mode) => ({
+      mode,
+      sample: getScoutingBenchmarkSampleSize(record, metricId, mode),
+      percentile: getScoutingBenchmarkPercentile(record, metricId, mode, desiredDirection),
+    }))
+    .find((candidate) => Number.isFinite(candidate.percentile) && candidate.sample >= (candidate.mode === "league-season-position" ? 8 : 12));
+  if (!localCandidate) {
+    return applyScoutingLeagueQualityDampening(broadPercentile, record, metricFactor);
+  }
+  const sampleWeight = Math.max(0.28, Math.min(0.76, (localCandidate.sample - 6) / 30));
+  const blended = Number.isFinite(broadPercentile)
+    ? localCandidate.percentile * sampleWeight + broadPercentile * (1 - sampleWeight)
+    : localCandidate.percentile;
+  return applyScoutingLeagueQualityDampening(blended, record, metricFactor);
+}
+function getScoutingDirectionalPercentile(record, metricId, desiredDirection = "higher", benchmarkMode = getScoutingActiveBenchmarkMode()) {
+  const direction = normalizeScoutingText(desiredDirection, 20).toLowerCase();
+  return getScoutingCalibratedPercentile(record, metricId, direction || "higher", benchmarkMode);
 }
 function getScoutingTemplatePercentile(record, item, benchmarkMode = getScoutingActiveBenchmarkMode()) {
   return getScoutingDirectionalPercentile(record, item?.metricId, item?.direction || item?.desiredDirection || "higher", benchmarkMode);
@@ -3391,25 +3866,32 @@ function getFilteredScoutingDatabaseRecords() {
   ensureScoutingRecordLookupsReady();
   const query = filters.query.toLowerCase();
   const minMinutes = Number(filters.minMinutes) || 0;
+  const maxMinutes = Number(filters.maxMinutes);
+  const minAge = Number(filters.minAge);
   const maxAge = Number(filters.maxAge);
   const metricMin = Number(filters.metricMin);
   const roleFitMin = Number(filters.roleFitMin);
+  const roleFloorMin = Number(filters.roleFloorMin);
   const metricFilterId = filters.metricId !== "all" ? filters.metricId : "";
   const roleProfileId = filters.roleProfileId !== "all" ? filters.roleProfileId : "";
   const sortMetricId = filters.sortMetricId || metricFilterId || "minutes";
   const signalMode = filters.signalMode || "all";
   const marketStatus = filters.marketStatus || "all";
   const selectedRoleProfile = roleProfileId ? getScoutingRoleProfileById(roleProfileId) : null;
+  const selectedRoleCategory = getScoutingRoleCategoryGroup(roleProfileId);
   const includeFavoritesFilter = signalMode === "favorites";
   const includePipelineFilter = signalMode === "pipeline";
   const includeShadowFilter = signalMode === "shadow";
   const favorites = includeFavoritesFilter ? normalizeScoutingRecordIds(state.favoriteRecordIds) : [];
   const pipeline = includePipelineFilter ? getScoutingTargetedRecordIds(state) : [];
   const shadow = includeShadowFilter ? getScoutingAllShadowRecordIds(state) : [];
+  const shouldUseDecisionPrecheck = signalMode === "decision-ready" || signalMode === "value";
+  const decisionPrecheckCache = shouldUseDecisionPrecheck ? new Map() : null;
   const needsRoleFit =
     Boolean(roleProfileId) ||
     (Number.isFinite(roleFitMin) && roleFitMin > 0) ||
-    ["priority", "breakout", "value"].includes(signalMode) ||
+    (Number.isFinite(roleFloorMin) && roleFloorMin > 0) ||
+    ["priority", "decision-ready", "breakout", "value"].includes(signalMode) ||
     sortMetricId === "role-fit";
   const favoriteIds = includeFavoritesFilter ? new Set(favorites) : null;
   const pipelineIds = includePipelineFilter ? new Set(pipeline) : null;
@@ -3421,12 +3903,15 @@ function getFilteredScoutingDatabaseRecords() {
     filters.season,
     filters.position,
     filters.minMinutes,
+    filters.maxMinutes || "-",
+    filters.minAge || "-",
     filters.maxAge || "-",
     sortMetricId,
     metricFilterId || "all",
     filters.metricMin || "-",
     roleProfileId || "none",
     filters.roleFitMin || "-",
+    filters.roleFloorMin || "-",
     signalMode,
     marketStatus,
     filters.benchmarkMode,
@@ -3477,10 +3962,29 @@ function getFilteredScoutingDatabaseRecords() {
     sortPercentileCache.set(recordId, percentile);
     return percentile;
   };
+  const getDecisionPrecheck = (record, roleFitScore, recordAge) => {
+    const recordId = getScoutingRecordId(record);
+    if (!decisionPrecheckCache || decisionPrecheckCache.has(recordId)) {
+      return decisionPrecheckCache?.get(recordId) || null;
+    }
+    const age = Number.isFinite(recordAge) ? recordAge : getScoutingRecordAge(record);
+    const minutes = getScoutingRecordMinutes(record);
+    const precheck = {
+      age,
+      minutes,
+      sampleConfidence: getScoutingSampleConfidenceScore(record),
+    };
+    decisionPrecheckCache.set(recordId, precheck);
+    return precheck;
+  };
   const nextRecords = [...records]
     .filter((record) => {
       const recordId = getScoutingRecordId(record);
+      const group = getScoutingPositionGroup(record);
       if (selectedRoleProfile && !selectedRoleProfile.groups.includes(getScoutingPositionGroup(record))) {
+        return false;
+      }
+      if (selectedRoleCategory && selectedRoleCategory !== group) {
         return false;
       }
       if (filters.league !== "all" && getScoutingRecordLeague(record) !== filters.league) {
@@ -3492,12 +3996,21 @@ function getFilteredScoutingDatabaseRecords() {
       if (filters.position !== "all" && !getScoutingPositionTokens(record).includes(filters.position.toUpperCase())) {
         return false;
       }
-      if (getScoutingRecordMinutes(record) < minMinutes) {
+      const recordMinutes = getScoutingRecordMinutes(record);
+      const recordAge = getScoutingRecordAge(record);
+      if (recordMinutes < minMinutes) {
         return false;
       }
+      if (Number.isFinite(maxMinutes) && maxMinutes > 0 && recordMinutes > maxMinutes) {
+        return false;
+      }
+      if (Number.isFinite(minAge) && minAge > 0) {
+        if (!Number.isFinite(recordAge) || recordAge < minAge) {
+          return false;
+        }
+      }
       if (Number.isFinite(maxAge) && maxAge > 0) {
-        const age = getScoutingRecordAge(record);
-        if (!Number.isFinite(age) || age > maxAge) {
+        if (!Number.isFinite(recordAge) || recordAge > maxAge) {
           return false;
         }
       }
@@ -3511,17 +4024,53 @@ function getFilteredScoutingDatabaseRecords() {
       if (Number.isFinite(roleFitMin) && roleFitMin > 0 && (!Number.isFinite(roleFitScore) || roleFitScore < roleFitMin)) {
         return false;
       }
-      if (signalMode === "priority" && (!Number.isFinite(roleFitScore) || roleFitScore < 82)) {
-        return false;
-      }
-      if (signalMode === "breakout") {
-        const age = getScoutingRecordAge(record);
-        if (!Number.isFinite(age) || age > 23 || !Number.isFinite(roleFitScore) || roleFitScore < 70) {
+      if (Number.isFinite(roleFloorMin) && roleFloorMin > 0) {
+        const roleFloor = getScoutingRoleMetricFloor(record, roleProfileId);
+        if (!Number.isFinite(roleFloor) || roleFloor < roleFloorMin) {
           return false;
         }
       }
-      if (signalMode === "value" && (!Number.isFinite(roleFitScore) || roleFitScore < 70 || getScoutingRecordMinutes(record) > 1600)) {
+      if (signalMode === "priority" && (!Number.isFinite(roleFitScore) || roleFitScore < 82)) {
         return false;
+      }
+      if (signalMode === "decision-ready") {
+        const precheck = getDecisionPrecheck(record, roleFitScore, recordAge);
+        if (!precheck || !Number.isFinite(roleFitScore) || roleFitScore < 74 || precheck.sampleConfidence < 66) {
+          return false;
+        }
+        const decisionRoleFloor = getScoutingRoleMetricFloor(record, roleProfileId);
+        if (!Number.isFinite(decisionRoleFloor) || decisionRoleFloor < 50) {
+          return false;
+        }
+        const intelligence = getScoutingIntelligenceProfile(record, state, roleProfileId);
+        if (
+          !Number.isFinite(intelligence.floor.score) ||
+          intelligence.floor.score < 50 ||
+          !Number.isFinite(intelligence.confidence.score) ||
+          intelligence.confidence.score < 82
+        ) {
+          return false;
+        }
+      }
+      if (signalMode === "breakout") {
+        if (!Number.isFinite(recordAge) || recordAge > 23 || !Number.isFinite(roleFitScore) || roleFitScore < 70) {
+          return false;
+        }
+      }
+      if (signalMode === "value") {
+        const precheck = getDecisionPrecheck(record, roleFitScore, recordAge);
+        if (!Number.isFinite(roleFitScore) || roleFitScore < 80 || precheck.minutes > 900 || precheck.sampleConfidence < 66) {
+          return false;
+        }
+        const intelligence = getScoutingIntelligenceProfile(record, state, roleProfileId);
+        if (
+          !Number.isFinite(intelligence.confidence.score) ||
+          intelligence.confidence.score < 66 ||
+          !Number.isFinite(precheck.age) ||
+          precheck.age > 23
+        ) {
+          return false;
+        }
       }
       if (signalMode === "favorites" && favoriteIds && !favoriteIds.has(recordId)) {
         return false;
@@ -4080,12 +4629,192 @@ const scoutingAdditionalRoleSpiderProfiles = Object.freeze([
     ],
   },
 ]);
+const scoutingRoleCategoryProfiles = Object.freeze([
+  { id: "role-goalkeeper", group: "GK", label: "Målvakt" },
+  { id: "role-centre-back", group: "CB", label: "Mittback" },
+  { id: "role-fullback", group: "FB", label: "Ytterback" },
+  { id: "role-centre-midfielder", group: "MID", label: "Central mittfältare" },
+  { id: "role-wing", group: "WING", label: "Winge (yttermittfältare)" },
+  { id: "role-forward", group: "CF", label: "Anfallare" },
+]);
+const scoutingRoleCategoryById = Object.freeze(
+  scoutingRoleCategoryProfiles.reduce((acc, item) => {
+    acc[item.id] = item.group;
+    return acc;
+  }, {})
+);
+const scoutingRoleScoringProfiles = Object.freeze({
+  GK: {
+    label: "Goalkeeper",
+    minMinutes: 420,
+    axes: [
+      { metricId: "exits-per-90", weight: 1.15, direction: "higher" },
+      { metricId: "aerial-duels-per-90", weight: 1.12, direction: "higher" },
+      { metricId: "aerial-duels-won", weight: 1.2, direction: "higher" },
+      { metricId: "accurate-passes", weight: 0.96, direction: "higher" },
+      { metricId: "average-pass-length-m", weight: 0.9, direction: "lower" },
+    ],
+  },
+  CB: {
+    label: "Centre-back",
+    minMinutes: 540,
+    axes: [
+      { metricId: "aerial-duels-per-90", weight: 1.14, direction: "higher" },
+      { metricId: "aerial-duels-won", weight: 1.2, direction: "higher" },
+      { metricId: "defensive-duels-won", weight: 1.08, direction: "higher" },
+      { metricId: "passes-per-90", weight: 0.9, direction: "higher" },
+      { metricId: "accurate-passes", weight: 1.02, direction: "higher" },
+      { metricId: "passes-to-final-third-per-90", weight: 1.06, direction: "higher" },
+      { metricId: "interceptions-per-90", weight: 1.04, direction: "higher" },
+      { metricId: "average-pass-length-m", weight: 0.78, direction: "lower" },
+      { metricId: "padj-interceptions", weight: 1.06, direction: "higher" },
+    ],
+  },
+  FB: {
+    label: "Fullback",
+    minMinutes: 450,
+    axes: [
+      { metricId: "progressive-runs-per-90", weight: 1.16, direction: "higher" },
+      { metricId: "crosses-per-90", weight: 1.12, direction: "higher" },
+      { metricId: "successful-defensive-actions-per-90", weight: 1.02, direction: "higher" },
+      { metricId: "successful-attacking-actions-per-90", weight: 0.98, direction: "higher" },
+      { metricId: "accelerations-per-90", weight: 1.05, direction: "higher" },
+      { metricId: "received-passes-per-90", weight: 0.84, direction: "higher" },
+    ],
+  },
+  MID: {
+    label: "Central midfielder",
+    minMinutes: 540,
+    axes: [
+      { metricId: "passes-per-90", weight: 1.06, direction: "higher" },
+      { metricId: "progressive-passes-per-90", weight: 1.16, direction: "higher" },
+      { metricId: "received-passes-per-90", weight: 1.02, direction: "higher" },
+      { metricId: "accurate-passes", weight: 1.04, direction: "higher" },
+      { metricId: "through-passes-per-90", weight: 1.12, direction: "higher" },
+      { metricId: "xa-per-90", weight: 1.08, direction: "higher" },
+      { metricId: "short-medium-passes-per-90", weight: 0.98, direction: "higher" },
+      { metricId: "passes-to-final-third-per-90", weight: 1.06, direction: "higher" },
+      { metricId: "smart-passes-per-90", weight: 1.01, direction: "higher" },
+      { metricId: "average-pass-length-m", weight: 0.9, direction: "lower" },
+    ],
+  },
+  WING: {
+    label: "Winger",
+    minMinutes: 450,
+    axes: [
+      { metricId: "progressive-runs-per-90", weight: 1.12, direction: "higher" },
+      { metricId: "dribbles-per-90", weight: 1.18, direction: "higher" },
+      { metricId: "successful-dribbles", weight: 1.12, direction: "higher" },
+      { metricId: "accelerations-per-90", weight: 1.08, direction: "higher" },
+      { metricId: "crosses-per-90", weight: 1.03, direction: "higher" },
+      { metricId: "received-passes-per-90", weight: 1.02, direction: "higher" },
+      { metricId: "xa-per-90", weight: 1.01, direction: "higher" },
+    ],
+  },
+  CF: {
+    label: "Forward",
+    minMinutes: 540,
+    axes: [
+      { metricId: "received-long-passes-per-90", weight: 1.18, direction: "higher" },
+      { metricId: "received-passes-per-90", weight: 1.02, direction: "higher" },
+      { metricId: "head-goals-per-90", weight: 1.2, direction: "higher" },
+      { metricId: "shots-per-90", weight: 1.08, direction: "higher" },
+      { metricId: "xg-per-90", weight: 1.01, direction: "higher" },
+      { metricId: "back-passes-per-90", weight: 0.82, direction: "higher" },
+      { metricId: "touches-in-box-per-90", weight: 1.14, direction: "higher" },
+      { metricId: "key-passes-per-90", weight: 1.06, direction: "higher" },
+      { metricId: "xa-per-90", weight: 1.04, direction: "higher" },
+      { metricId: "dribbles-per-90", weight: 1.02, direction: "higher" },
+    ],
+  },
+  OTHER: {
+    label: "General",
+    minMinutes: 360,
+    axes: [
+      { metricId: "passes-per-90", weight: 1.0, direction: "higher" },
+      { metricId: "accurate-passes", weight: 0.95, direction: "higher" },
+      { metricId: "progressive-runs-per-90", weight: 1.0, direction: "higher" },
+      { metricId: "xa-per-90", weight: 0.92, direction: "higher" },
+    ],
+  },
+});
+function getScoutingRoleSignalProfile(profile = {}, record = null) {
+  const profileGroups = Array.isArray(profile?.groups) ? profile.groups : ["OTHER"];
+  const recordGroup = getScoutingPositionGroup(record);
+  const group = profileGroups.includes(recordGroup) ? recordGroup : profileGroups[0] || "OTHER";
+  return scoutingRoleScoringProfiles[group] || scoutingRoleScoringProfiles.OTHER;
+}
+function getScoutingRoleSignalAxis(profile = {}, item = {}, index = 0, record = null) {
+  if (typeof index === "object" && index !== null && !Array.isArray(index) && record === null) {
+    record = index;
+    index = 0;
+  }
+  const signalProfile = getScoutingRoleSignalProfile(profile, record);
+  const metricId = getScoutingMetricIdByLabels(item.labels || []);
+  if (!metricId) {
+    return null;
+  }
+  const direct = signalProfile?.axes?.find((axis) => axis.metricId === metricId);
+  if (direct) {
+    return direct;
+  }
+  const fallbackByMetricText = signalProfile?.axes?.find((axis) => normalizeScoutingText(axis.metricId, 120) === normalizeScoutingText(metricId, 120));
+  if (fallbackByMetricText) {
+    return fallbackByMetricText;
+  }
+  if (Array.isArray(signalProfile?.axes)) {
+    return signalProfile.axes[index % signalProfile.axes.length] || null;
+  }
+  return null;
+}
 function getScoutingRoleSpiderProfiles() {
   return [...scoutingRoleSpiderProfiles, ...scoutingAdditionalRoleSpiderProfiles];
 }
 function getScoutingRoleProfileById(profileId) {
   const id = normalizeScoutingText(profileId, 120);
   return getScoutingRoleSpiderProfiles().find((profile) => profile.id === id) || null;
+}
+function getScoutingRoleCategoryGroup(roleProfileId = "") {
+  return scoutingRoleCategoryById[normalizeScoutingText(roleProfileId, 120)] || "";
+}
+function getScoutingRoleAxisWeight(profile = {}, item = {}, index = 0, record = null) {
+  if (typeof index === "object" && index !== null && !Array.isArray(index) && record === null) {
+    record = index;
+    index = 0;
+  }
+  const roleAxis = getScoutingRoleSignalAxis(profile, item, index, record);
+  if (roleAxis?.weight && Number.isFinite(Number(roleAxis.weight))) {
+    return Math.max(0.45, Math.min(1.85, Number(roleAxis.weight)));
+  }
+  const explicitWeight = Number(item.weight);
+  if (Number.isFinite(explicitWeight) && explicitWeight > 0) {
+    return Math.max(0.45, Math.min(1.85, explicitWeight));
+  }
+  const baseWeights = [1.34, 1.22, 1.08, 0.96, 0.86, 0.78, 0.72];
+  const haystack = normalizeScoutingMetricAlias(
+    [profile.id, profile.label, item.label, ...(Array.isArray(item.labels) ? item.labels : [])].filter(Boolean).join(" ")
+  );
+  const tokens = record ? getScoutingPositionTokens(record) : [];
+  let multiplier = 1;
+  if (/playmaker|connector|inverted|false nine/.test(haystack) && /pass|accuracy|receive|short|progressive|through|smart|final/.test(haystack)) {
+    multiplier += 0.16;
+  }
+  if (/dribbler|winger|wide|carrier|mobile/.test(haystack) && /dribble|progressive runs|acceleration|carry|cross/.test(haystack)) {
+    multiplier += 0.16;
+  }
+  if (/aerial|target|claiming/.test(haystack) && /aerial|long|head|box|exit/.test(haystack)) {
+    multiplier += 0.18;
+  }
+  if (/worker|press|defensive|holding|no nonsense|cover/.test(haystack) && /defensive|interception|duel|block|foul/.test(haystack)) {
+    multiplier += 0.15;
+  }
+  if (tokens.some((token) => ["LCB", "RCB"].includes(token)) && /progressive|dribble|pass|receive/.test(haystack)) {
+    multiplier += 0.08;
+  }
+  if (tokens.some((token) => ["RB", "LB", "RWB", "LWB"].includes(token)) && /progressive runs|cross|acceleration|defensive/.test(haystack)) {
+    multiplier += 0.08;
+  }
+  return Math.max(0.5, Math.min(1.75, (baseWeights[index] || 0.72) * multiplier));
 }
 function getScoutingDefaultRoleProfile(record) {
   const defaultProfileByGroup = {
@@ -4110,21 +4839,27 @@ function normalizeScoutingRoleProfileId(value = "", fallback = "all") {
   if (!normalized || normalized === "all" || normalized === "auto") {
     return fallback;
   }
+  if (getScoutingRoleCategoryGroup(normalized)) {
+    return normalized;
+  }
   return getScoutingRoleProfileById(normalized) ? normalized : fallback;
 }
 function renderScoutingRoleProfileOptions(selectedValue = "all", options = {}) {
   const selected = normalizeScoutingRoleProfileId(selectedValue, options.auto ? "auto" : "all");
   const groups = [
-    ["GK", "Goalkeepers"],
-    ["CB", "Centre-backs"],
-    ["FB", "Fullbacks / wingbacks"],
-    ["MID", "Midfielders"],
-    ["WING", "Wingers / wide forwards"],
-    ["CF", "Forwards"],
+    ["GK", "Målvakt"],
+    ["CB", "Mittback"],
+    ["FB", "Ytterback"],
+    ["MID", "Central mittfältare"],
+    ["WING", "Winge (yttermittfältare)"],
+    ["CF", "Anfallare"],
   ];
   const allProfiles = getScoutingRoleSpiderProfiles();
   return `
     ${options.auto ? `<option value="auto" ${selected === "auto" ? "selected" : ""}>Auto best role</option>` : `<option value="all" ${selected === "all" ? "selected" : ""}>Auto best role</option>`}
+    ${scoutingRoleCategoryProfiles
+      .map((category) => `<option value="${escapeHtml(category.id)}" ${selected === category.id ? "selected" : ""}>${escapeHtml(category.label)}</option>`)
+      .join("")}
     ${groups
       .map(([group, label]) => {
         const profileOptions = allProfiles
@@ -4143,28 +4878,48 @@ function buildScoutingRadarTemplateFromProfile(record, profile, benchmarkMode = 
     return cachedTemplate || null;
   }
   const used = new Set();
+  const missingMetricLabels = [];
   const axes = (profile.axes || [])
-    .map((item) => {
+    .map((item, index) => {
       const metricId = getScoutingMetricIdByLabels(item.labels);
       if (!metricId || used.has(metricId)) {
+        missingMetricLabels.push(item.label);
         return null;
       }
       used.add(metricId);
-      return { ...item, metricId };
+      const axis = getScoutingRoleSignalAxis(profile, item, index, record);
+      return {
+        ...item,
+        metricId,
+        direction: axis?.direction || item.direction || "higher",
+        desiredDirection: axis?.direction || item.direction || item.desiredDirection || "higher",
+        weight: getScoutingRoleAxisWeight(profile, item, index, record),
+      };
     })
     .filter(Boolean);
-  const percentiles = axes
-    .map((item) => getScoutingTemplatePercentile(record, item, benchmarkMode))
-    .filter((value) => Number.isFinite(value));
-  if (percentiles.length < 3) {
+  const rows = axes
+    .map((item) => ({
+      item,
+      percentile: getScoutingTemplatePercentile(record, item, benchmarkMode),
+      confidence: getScoutingMetricConfidenceFactor(record, item.metricId),
+    }))
+    .filter((row) => Number.isFinite(row.percentile));
+  if (rows.length < 3) {
     scoutingRoleProfileCache.set(cacheKey, null);
     return null;
   }
+  const weightedTotal = rows.reduce((sum, row) => sum + row.percentile * row.item.weight, 0);
+  const totalWeight = rows.reduce((sum, row) => sum + row.item.weight, 0);
   axes.profileId = profile.id;
   axes.profileLabel = profile.label;
   axes.profileDescription = profile.description;
-  axes.profileCoverage = percentiles.length / Math.max((profile.axes || []).length, 1);
-  axes.profileScore = Math.round(percentiles.reduce((sum, value) => sum + value, 0) / percentiles.length);
+  axes.profileCoverage = rows.length / Math.max((profile.axes || []).length, 1);
+  axes.profileScore = Math.round(weightedTotal / Math.max(totalWeight, 0.1));
+  axes.profileExpectedAxes = (profile.axes || []).length;
+  axes.profileMissingMetrics = missingMetricLabels;
+  axes.profileConfidence = Math.round(
+    (rows.reduce((sum, row) => sum + row.confidence, 0) / Math.max(rows.length, 1)) * axes.profileCoverage * 100
+  );
   scoutingRoleProfileCache.set(cacheKey, axes);
   return axes;
 }
@@ -4194,7 +4949,12 @@ function getScoutingRoleScores(record, limit = 6, benchmarkMode = getScoutingAct
 }
 function getScoutingRadarTemplate(record, roleProfileId = "", benchmarkMode = getScoutingActiveBenchmarkMode()) {
   const explicitProfile = getScoutingRoleProfileById(roleProfileId);
-  if (explicitProfile && explicitProfile.groups.includes(getScoutingPositionGroup(record))) {
+  const roleCategoryGroup = getScoutingRoleCategoryGroup(roleProfileId);
+  const recordGroup = getScoutingPositionGroup(record);
+  if (roleCategoryGroup && roleCategoryGroup !== recordGroup) {
+    return [];
+  }
+  if (explicitProfile && explicitProfile.groups.includes(recordGroup)) {
     const explicitTemplate = buildScoutingRadarTemplateFromProfile(record, explicitProfile, benchmarkMode);
     if (explicitTemplate) {
       return explicitTemplate;
@@ -4217,23 +4977,22 @@ function getScoutingRadarTemplate(record, roleProfileId = "", benchmarkMode = ge
   );
 }
 function getScoutingRoleExplanation(record, template) {
-  const metricRows = (template || [])
-    .map((item) => ({
-      item,
-      metric: getScoutingMetric(item.metricId),
-      value: getScoutingMetricValue(record, item.metricId),
-      percentile: getScoutingTemplatePercentile(record, item),
-    }))
-    .filter((row) => row.metric && Number.isFinite(row.percentile));
-  const strengths = [...metricRows].sort((a, b) => b.percentile - a.percentile).slice(0, 3);
+  const metricRows = getScoutingRoleMetricRows(record, template).filter((row) => Number.isFinite(row.percentile));
+  const roleScore = getScoutingWeightedScoreFromRows(metricRows);
+  const strengths = [...metricRows].sort((a, b) => (b.weightedScore || 0) - (a.weightedScore || 0)).slice(0, 3);
   const watch = [...metricRows].sort((a, b) => a.percentile - b.percentile).slice(0, 2);
+  const over = [...metricRows]
+    .filter((row) => Number.isFinite(roleScore) && row.percentile >= roleScore + 10)
+    .sort((a, b) => b.percentile - a.percentile)
+    .slice(0, 2);
   return {
     title: template.profileLabel || "Role profile",
     summary: strengths.length
-      ? `Profiles as ${template.profileLabel || "this role"} because the strongest role signals are ${strengths.map((row) => `${row.item.label} (P${row.percentile})`).join(", ")}.`
+      ? `Profiles as ${template.profileLabel || "this role"} because weighted role signals are ${strengths.map((row) => `${row.label} (P${row.percentile}, w${formatScoutingNumber(row.weight)})`).join(", ")}.`
       : "Not enough comparable role signals yet.",
     strengths,
     watch,
+    over,
   };
 }
 function renderScoutingRoleExplanation(record, template) {
@@ -4252,14 +5011,15 @@ function renderScoutingRoleExplanation(record, template) {
         <article>
           <span>Strength drivers</span>
           ${explanation.strengths
-            .map((row) => `<strong>${escapeHtml(row.item.label)} P${escapeHtml(row.percentile)}</strong>`)
+            .map((row) => `<strong>${escapeHtml(row.label)} P${escapeHtml(row.percentile)} / w${escapeHtml(formatScoutingNumber(row.weight))}</strong>`)
             .join("")}
         </article>
         <article>
           <span>Watch points</span>
           ${explanation.watch
-            .map((row) => `<strong>${escapeHtml(row.item.label)} P${escapeHtml(row.percentile)}</strong>`)
+            .map((row) => `<strong>${escapeHtml(row.label)} P${escapeHtml(row.percentile)}</strong>`)
             .join("")}
+          ${explanation.over.length ? `<strong>${escapeHtml(`Over role expectation: ${explanation.over.map((row) => `${row.label} P${row.percentile}`).join(", ")}`)}</strong>` : ""}
         </article>
       </div>
     </section>
@@ -4295,8 +5055,21 @@ function renderScoutingRoleFitStack(record) {
 function renderScoutingRadar(record, roleProfileId = "") {
   const template = getScoutingRadarTemplate(record, roleProfileId);
   if (!template.length) {
-    return `<div class="scouting-radar-empty">No comparable metric profile yet.</div>`;
+    const dataNeeds = getScoutingRoleDataNeeds(record, roleProfileId);
+    return `
+      <div class="scouting-radar-empty">
+        <strong>No data</strong>
+        <span>${escapeHtml(dataNeeds.length ? `Needs: ${dataNeeds.join(", ")}` : "Needs role-specific metric columns for this player type.")}</span>
+      </div>
+    `;
   }
+  const metricRows = getScoutingRoleMetricRows(record, template);
+  const roleScore = getScoutingWeightedScoreFromRows(metricRows);
+  const overPerformance = metricRows
+    .filter((row) => Number.isFinite(row.percentile) && Number.isFinite(roleScore) && row.percentile >= roleScore + 10)
+    .sort((a, b) => b.percentile - a.percentile)
+    .slice(0, 2);
+  const dataNeeds = getScoutingRoleDataNeeds(record, template.profileId);
   const center = 110;
   const radius = 74;
   const angleOffset = -Math.PI / 2;
@@ -4321,6 +5094,13 @@ function renderScoutingRadar(record, roleProfileId = "") {
         <span>Role spider</span>
         <strong>${escapeHtml(template.profileLabel || "Player profile")}</strong>
         ${template.profileDescription ? `<small>${escapeHtml(template.profileDescription)}</small>` : ""}
+        <small>${escapeHtml(
+          overPerformance.length
+            ? `Over expectation: ${overPerformance.map((row) => `${row.label} P${row.percentile}`).join(", ")}`
+            : dataNeeds.length
+              ? `Data needs: ${dataNeeds.join(", ")}`
+              : `Weighted role fit ${Number.isFinite(roleScore) ? `P${roleScore}` : "n/a"}`
+        )}</small>
       </div>
       <svg class="scouting-radar" viewBox="0 0 220 220" role="img" aria-label="Player spider profile">
         <circle class="scouting-radar-ring" cx="${center}" cy="${center}" r="${radius}" />
@@ -4585,13 +5365,7 @@ function getScoutingRoleFitScore(record, roleProfileId = "") {
   if (Number.isFinite(template.profileScore)) {
     return template.profileScore;
   }
-  const percentiles = template
-    .map((item) => getScoutingTemplatePercentile(record, item))
-    .filter((value) => Number.isFinite(value));
-  if (!percentiles.length) {
-    return null;
-  }
-  return Math.round(percentiles.reduce((sum, value) => sum + value, 0) / percentiles.length);
+  return getScoutingWeightedScoreFromRows(getScoutingRoleMetricRows(record, template));
 }
 function getScoutingRoleFitTier(score) {
   if (!Number.isFinite(score)) {
@@ -4624,6 +5398,324 @@ function getScoutingRoleFitLabel(score) {
   }
   return "No score";
 }
+function getScoutingRecommendationTone(label = "") {
+  const normalized = normalizeScoutingText(label, 80);
+  if (normalized === "strong fit") {
+    return "strong-fit";
+  }
+  if (normalized === "potential fit") {
+    return "potential-fit";
+  }
+  if (normalized === "watchlist") {
+    return "watchlist";
+  }
+  return "no-signal";
+}
+function getScoutingRoleMetricRows(record, template = getScoutingRadarTemplate(record), benchmarkMode = getScoutingActiveBenchmarkMode()) {
+  return (template || [])
+    .map((item) => {
+      const metric = getScoutingMetric(item.metricId);
+      const percentile = getScoutingTemplatePercentile(record, item, benchmarkMode);
+      const value = getScoutingMetricValue(record, item.metricId);
+      const confidence = getScoutingMetricConfidenceFactor(record, item.metricId);
+      const weight = Number.isFinite(Number(item.weight)) ? Number(item.weight) : 1;
+      return {
+        ...item,
+        metric,
+        value,
+        percentile,
+        confidence,
+        weight,
+        weightedScore: Number.isFinite(percentile) ? percentile * weight : null,
+        quality: getScoutingMetricQuality(record, item.metricId),
+      };
+    })
+    .filter((row) => row.metric);
+}
+function getScoutingWeightedScoreFromRows(rows = []) {
+  const validRows = rows.filter((row) => Number.isFinite(row.percentile) && Number.isFinite(row.weight));
+  if (!validRows.length) {
+    return null;
+  }
+  const weightedTotal = validRows.reduce((sum, row) => sum + row.percentile * row.weight, 0);
+  const totalWeight = validRows.reduce((sum, row) => sum + row.weight, 0);
+  return Math.round(weightedTotal / Math.max(totalWeight, 0.1));
+}
+function getScoutingRoleMetricFloor(record, roleProfileId = "") {
+  const rows = getScoutingRoleMetricRows(record, getScoutingRadarTemplate(record, roleProfileId)).filter((row) =>
+    Number.isFinite(row.percentile)
+  );
+  if (!rows.length) {
+    return null;
+  }
+  return Math.min(...rows.map((row) => row.percentile));
+}
+function getScoutingRoleMetricFloorLabel(floor) {
+  if (!Number.isFinite(floor)) {
+    return "No floor";
+  }
+  if (floor >= 65) {
+    return "Complete profile";
+  }
+  if (floor >= 50) {
+    return "Balanced enough";
+  }
+  if (floor >= 35) {
+    return "One watch point";
+  }
+  return "Critical gap";
+}
+function getScoutingRoleDataNeeds(record, roleProfileId = "") {
+  const profile =
+    getScoutingRoleProfileById(roleProfileId) ||
+    getScoutingDefaultRoleProfile(record) ||
+    scoutingFallbackSpiderProfiles[getScoutingPositionGroup(record)] ||
+    null;
+  if (!profile) {
+    return [];
+  }
+  return (profile.axes || [])
+    .map((item) => {
+      const metricId = getScoutingMetricIdByLabels(item.labels);
+      const metric = metricId ? getScoutingMetric(metricId) : null;
+      const value = metricId ? getScoutingMetricValue(record, metricId) : null;
+      if (!metricId || !metric) {
+        return `${item.label} column`;
+      }
+      if (!Number.isFinite(value)) {
+        return metric.label || item.label;
+      }
+      return "";
+    })
+    .filter(Boolean)
+    .slice(0, 6);
+}
+function getScoutingSampleConfidenceScore(record) {
+  const minutes = getScoutingRecordMinutes(record);
+  if (minutes >= 1800) {
+    return 96;
+  }
+  if (minutes >= 1200) {
+    return 88;
+  }
+  if (minutes >= 900) {
+    return 80;
+  }
+  if (minutes >= 450) {
+    return 66;
+  }
+  if (minutes >= 180) {
+    return 48;
+  }
+  return minutes > 0 ? 34 : 22;
+}
+function getScoutingBenchmarkConfidenceScore(record, rows = []) {
+  const samples = rows
+    .map((row) => getScoutingBenchmarkSampleSize(record, row.metricId, "league-season-position"))
+    .filter((value) => Number.isFinite(value));
+  if (!samples.length) {
+    return 44;
+  }
+  const average = samples.reduce((sum, value) => sum + value, 0) / samples.length;
+  if (average >= 40) {
+    return 96;
+  }
+  if (average >= 24) {
+    return 84;
+  }
+  if (average >= 12) {
+    return 68;
+  }
+  return 50;
+}
+function getScoutingTrendDirectionLabel(delta, sampleWeight = 1) {
+  if (!Number.isFinite(delta)) {
+    return "No trend";
+  }
+  const weightedDelta = delta * Math.max(0.35, Math.min(1, sampleWeight));
+  if (weightedDelta >= 7) {
+    return `Rising +${formatScoutingNumber(delta)}`;
+  }
+  if (weightedDelta <= -7) {
+    return `Dropping ${formatScoutingNumber(delta)}`;
+  }
+  return `Stable ${delta >= 0 ? "+" : ""}${formatScoutingNumber(delta)}`;
+}
+function getScoutingIntelligenceProfile(record, state = ensureScoutingState(), roleProfileId = "") {
+  const roleProfile = getScoutingRoleProfileById(roleProfileId) || getScoutingDefaultRoleProfile(record);
+  const recordId = getScoutingRecordId(record);
+  const cacheKey = [
+    recordId,
+    normalizeScoutingBenchmarkMode(getScoutingActiveBenchmarkMode()),
+    normalizeScoutingText(roleProfile?.id || roleProfileId, 120) || "auto",
+    scoutingIntelligenceCacheVersion,
+  ].join(":");
+  if (scoutingRecordIntelligenceCache.has(cacheKey)) {
+    return scoutingRecordIntelligenceCache.get(cacheKey);
+  }
+  const template = getScoutingRadarTemplate(record, roleProfile?.id || roleProfileId);
+  const rows = getScoutingRoleMetricRows(record, template);
+  const validRows = rows.filter((row) => Number.isFinite(row.percentile));
+  const roleFitScore = getScoutingWeightedScoreFromRows(validRows);
+  const bestRoleLabel = template?.profileLabel || roleProfile?.label || getScoutingRecordBestRoleLabel(record);
+  const target = findScoutingTargetByRecordId(getScoutingRecordId(record), state);
+  const dateOfBirth = getScoutingRecordDateOfBirth(record);
+  const nationality = getScoutingRecordNationalityMeta(record);
+  const identityId = getScoutingRecordPlayerIdentityId(record);
+  const profileRows = getScoutingRecordsForPlayer(record);
+  const seasons = profileRows.map((candidate) => getScoutingRecordSeason(candidate)).filter(Boolean);
+  const uniqueSeasons = new Set(seasons);
+  const seasonRecency = Math.min(100, uniqueSeasons.size * 24 + 20);
+  const identitySignals = {
+    flags: [
+      !identityId ? "missing player identity id" : "",
+      !dateOfBirth ? "missing date of birth" : "",
+      !nationality?.code || nationality.code === "N/A" ? "missing nationality" : "",
+    ].filter(Boolean),
+  };
+  const rawPositionRows = validRows
+    .map((row) => ({
+      ...row,
+      rawPercentile: getScoutingBenchmarkPercentile(record, row.metricId, "position", row.direction || row.desiredDirection || "higher"),
+      localPercentile: getScoutingBenchmarkPercentile(record, row.metricId, "league-season-position", row.direction || row.desiredDirection || "higher"),
+      localSample: getScoutingBenchmarkSampleSize(record, row.metricId, "league-season-position"),
+      leagueQualityFactor: typeof getScoutingLeagueQualityFactorForMetric === "function"
+        ? getScoutingLeagueQualityFactorForMetric(record, row.metricId, getScoutingActiveBenchmarkMode())
+        : getScoutingLeagueQualityFactor(getScoutingRecordLeague(record)),
+    }))
+    .filter((row) => Number.isFinite(row.rawPercentile));
+  const rawRoleFitScore = getScoutingWeightedScoreFromRows(
+    rawPositionRows.map((row) => ({
+      ...row,
+      percentile: row.rawPercentile,
+    }))
+  );
+  const topDrivers = [...validRows].sort((a, b) => (b.weightedScore || 0) - (a.weightedScore || 0)).slice(0, 3);
+  const weakDrivers = [...validRows].sort((a, b) => (a.percentile || 0) - (b.percentile || 0)).slice(0, 2);
+  const dataNeeds = getScoutingRoleDataNeeds(record, roleProfile?.id || roleProfileId || template.profileId);
+  const minutes = getScoutingRecordMinutes(record);
+  const age = getScoutingRecordAge(record);
+  const expectedAxes = Number.isFinite(Number(template?.profileExpectedAxes))
+    ? Number(template.profileExpectedAxes)
+    : Math.max((template?.length || 0), 1);
+  const coverage = expectedAxes ? validRows.length / Math.max(expectedAxes, 1) : 0;
+  const roleFloor = getScoutingRoleMetricFloor(record, roleProfileId);
+  const trustedShare = validRows.length
+    ? validRows.filter((row) => row.quality === "trusted").length / validRows.length
+    : 0;
+  const sampleShare = Math.min(1, uniqueSeasons.size / 3);
+  const confidenceScore = Math.round(
+    getScoutingSampleConfidenceScore(record) * 0.34 +
+      Math.min(100, coverage * 100) * 0.26 +
+      Math.round(trustedShare * 100) * 0.18 +
+      getScoutingBenchmarkConfidenceScore(record, validRows) * 0.14 +
+      sampleShare * 14 +
+      seasonRecency * 0.08 +
+      Math.max(0, (identitySignals.flags.length - 2) * -16)
+  );
+  const clampedConfidence = Math.max(1, Math.min(99, confidenceScore));
+  const confidenceLabel = clampedConfidence >= 82 ? "High confidence" : clampedConfidence >= 66 ? "Medium confidence" : "Low confidence";
+  const leagueFactors = rawPositionRows
+    .map((row) => row.leagueQualityFactor)
+    .filter((value) => Number.isFinite(value));
+  const leagueFactor = leagueFactors.length
+    ? leagueFactors.reduce((sum, value) => sum + value, 0) / leagueFactors.length
+    : getScoutingLeagueQualityFactor(getScoutingRecordLeague(record));
+  const localSampleAverage = rawPositionRows.length
+    ? Math.round(rawPositionRows.reduce((sum, row) => sum + (row.localSample || 0), 0) / rawPositionRows.length)
+    : 0;
+  const calibrationDelta =
+    Number.isFinite(roleFitScore) && Number.isFinite(rawRoleFitScore) ? Math.round(roleFitScore - rawRoleFitScore) : null;
+  const valueAlert =
+    Number.isFinite(roleFitScore) && roleFitScore >= 80 && minutes <= 900 && Number.isFinite(age) && age <= 23
+      ? "Value case alert: high role fit, lower minutes and U23 profile."
+      : "";
+  const signalHeadline = topDrivers.length
+    ? `${bestRoleLabel}: ${topDrivers.map((row) => `${row.label} P${row.percentile}`).join(" / ")}`
+    : "No standout role signal yet";
+  const confidenceDetail = `${Math.round(coverage * 100)}% role data coverage / ${validRows.length} weighted metrics / ${minutes ? `${formatScoutingNumber(minutes)} minutes` : "minutes missing"}.`;
+  const roleFitConfidenceBonus = Number.isFinite(roleFitScore) && roleFitScore >= 82 ? 8 : 0;
+  const minutesPenalty = minutes <= 180 ? 10 : minutes <= 450 ? 6 : 0;
+  const identityPenalty = identitySignals.flags.length * 2;
+  const riskReasons = [
+    minutes < 450 ? "small sample" : "",
+    dataNeeds.length ? `${dataNeeds.length} missing role metric${dataNeeds.length === 1 ? "" : "s"}` : "",
+    leagueFactor < 0.94 ? "league-quality dampened" : "",
+    validRows.some((row) => row.quality === "estimated") ? "estimated values present" : "",
+    Number.isFinite(roleFloor) && roleFloor < 35 ? `critical role-floor gap P${roleFloor}` : "",
+    weakDrivers[0] && weakDrivers[0].percentile < 35 ? `${weakDrivers[0].label} under role benchmark` : "",
+    identitySignals.flags.length ? `identity signal: ${identitySignals.flags.slice(0, 2).join(", ")}` : "",
+  ].filter(Boolean);
+  const riskPenalty = riskReasons.length * 6;
+  const samplePenalty = roleFloor < 35 ? 8 : roleFloor < 45 ? 4 : 0;
+  const recommendationScore = Number.isFinite(roleFitScore)
+    ? Math.max(1, Math.min(99, Math.round(roleFitScore * 0.62 + clampedConfidence * 0.24 + 12 + roleFitConfidenceBonus - minutesPenalty - identityPenalty - riskPenalty - samplePenalty)))
+    : null;
+  const isMinutesRiskLow = minutes > 250 && minutes < 2200;
+  const recommendationLabel = !Number.isFinite(recommendationScore)
+    ? "No signal"
+    : recommendationScore >= 82 && roleFitScore >= 82 && isMinutesRiskLow
+      ? "Strong fit"
+      : recommendationScore >= 72 && clampedConfidence >= 66
+        ? "Potential fit"
+        : "Watchlist";
+  const riskFlags = [
+    weakDrivers[0] && weakDrivers[0].percentile < 30 ? `${weakDrivers[0].label} below role floor` : "",
+    minutes > 0 && minutes <= 240 ? "very low minutes" : "",
+    leagueFactor < 0.75 ? "low league sample quality" : "",
+    identitySignals.flags.length ? `identity: ${identitySignals.flags.slice(0, 2).join(", ")}` : "",
+    dataNeeds.length ? `${dataNeeds.length} missing role metric${dataNeeds.length === 1 ? "" : "s"}` : "",
+  ].filter(Boolean);
+  const intelligence = {
+    roleFitScore,
+    roleLabel: bestRoleLabel,
+    signal: {
+      headline: valueAlert || signalHeadline,
+      detail: topDrivers.length
+        ? `Weighted role drivers: ${topDrivers.map((row) => `${row.metric.label} (${row.label}, P${row.percentile})`).join(", ")}.`
+        : "The player needs more role-specific data before a strong signal can be trusted.",
+      drivers: topDrivers,
+    },
+    confidence: {
+      score: clampedConfidence,
+      label: confidenceLabel,
+      detail: target ? `${confidenceDetail} Pipeline context included.` : confidenceDetail,
+    },
+    recommendation: {
+      score: recommendationScore,
+      label: recommendationLabel,
+      detail: riskFlags.length ? `Signals: ${riskFlags.slice(0, 3).join(" · ")}` : "Stable role fit profile with limited risk flags.",
+    },
+    calibration: {
+      benchmark: "league/season + position blended with broader position baseline",
+      leagueFactor,
+      localSampleAverage,
+      rawRoleFitScore,
+      delta: calibrationDelta,
+      label:
+        leagueFactor < 0.94
+          ? "League-quality dampened"
+          : localSampleAverage >= 24
+            ? "Strong local benchmark"
+            : localSampleAverage >= 12
+              ? "Usable local benchmark"
+              : "Broad benchmark fallback",
+    },
+    floor: {
+      score: roleFloor,
+      label: getScoutingRoleMetricFloorLabel(roleFloor),
+    },
+    risk: {
+      label: riskReasons.length ? "Risk flags" : "Clean initial read",
+      detail: riskReasons.length
+        ? `Check ${riskReasons.join(", ")} before moving the player up.`
+        : "No major data-quality, sample-size or league calibration red flag in this profile.",
+      needs: dataNeeds,
+    },
+  };
+  scoutingRecordIntelligenceCache.set(cacheKey, intelligence);
+  return intelligence;
+}
 function getScoutingBestSignal(record) {
   return getScoutingMetricOptions()
     .map((metric) => ({
@@ -4649,6 +5741,7 @@ function getScoutingDecisionLensOptions() {
   return [
     { value: "all", label: "All players" },
     { value: "priority", label: "Priority fits P82+" },
+    { value: "decision-ready", label: "Decision ready" },
     { value: "breakout", label: "U23 breakout" },
     { value: "value", label: "High fit / lower minutes" },
     { value: "favorites", label: "Favorites only" },
@@ -4673,6 +5766,8 @@ function getScoutingAdvancedFilterCount(filters = {}) {
   return [
     filters.season && filters.season !== "all",
     Number(filters.minMinutes) !== 450,
+    Boolean(filters.maxMinutes),
+    Boolean(filters.minAge),
     Boolean(filters.maxAge),
     filters.metricId && filters.metricId !== "all",
     Boolean(filters.metricMin),
@@ -4680,6 +5775,7 @@ function getScoutingAdvancedFilterCount(filters = {}) {
     filters.roleProfileId && filters.roleProfileId !== "all",
     filters.benchmarkMode && filters.benchmarkMode !== "position",
     Boolean(filters.roleFitMin),
+    Boolean(filters.roleFloorMin),
     filters.sortMetricId && filters.sortMetricId !== "minutes",
   ].filter(Boolean).length;
 }
@@ -4731,9 +5827,19 @@ function getScoutingSavedViewPresets() {
       filters: { signalMode: "priority", roleFitMin: "82" },
     },
     {
+      id: "decision-ready",
+      name: "Decision Ready",
+      filters: { signalMode: "decision-ready", roleFitMin: "74", roleFloorMin: "50", sortMetricId: "role-fit" },
+    },
+    {
       id: "value-cases",
       name: "Value Cases",
-      filters: { signalMode: "value", roleFitMin: "70" },
+      filters: { signalMode: "value", roleFitMin: "80", maxAge: "23", maxMinutes: 900 },
+    },
+    {
+      id: "complete-role-profiles",
+      name: "Complete Role Profiles",
+      filters: { roleFitMin: "74", roleFloorMin: "55", sortMetricId: "role-fit" },
     },
     {
       id: "free-agents",
@@ -4748,8 +5854,8 @@ function getScoutingSavedViewPresets() {
   ];
 }
 function getScoutingProfileRecommendation(record, state = ensureScoutingState()) {
-  const roleFitScore = getScoutingRoleFitScore(record);
-  const bestSignal = getScoutingBestSignal(record);
+  const intelligence = getScoutingIntelligenceProfile(record, state);
+  const roleFitScore = intelligence.roleFitScore;
   const minutes = getScoutingRecordMinutes(record);
   const age = getScoutingRecordAge(record);
   const target = findScoutingTargetByRecordId(getScoutingRecordId(record), state);
@@ -4784,8 +5890,199 @@ function getScoutingProfileRecommendation(record, state = ensureScoutingState())
     risk,
     question,
     status: targetStatusLabel ? `${targetStatusLabel}${priorityLabel ? ` / ${priorityLabel}` : ""}` : "Not in pipeline",
-    signal: bestSignal ? `${bestSignal.metric.label} P${bestSignal.adjustedPercentile || bestSignal.percentile}${bestSignal.quality === "estimated" ? " (estimated)" : ""}` : "No standout signal yet",
+    signal: intelligence.signal.headline,
+    signalDetail: intelligence.signal.detail,
+    confidence: `${intelligence.confidence.label} (${intelligence.confidence.score}/99)`,
+    confidenceDetail: intelligence.confidence.detail,
+    riskDetail: intelligence.risk.detail,
+    dataNeeds: intelligence.risk.needs,
   };
+}
+function getScoutingCompareRecordIds(state = ensureScoutingState()) {
+  return normalizeScoutingRecordIds(state.compareRecordIds).slice(0, 5);
+}
+function isScoutingRecordInCompareSet(recordId, state = ensureScoutingState()) {
+  return getScoutingCompareRecordIds(state).includes(normalizeScoutingText(recordId, 160));
+}
+function toggleScoutingCompareRecord(recordId) {
+  const state = ensureScoutingState();
+  const id = normalizeScoutingText(recordId, 160);
+  if (!id) {
+    return;
+  }
+  const current = getScoutingCompareRecordIds(state);
+  state.compareRecordIds = current.includes(id) ? current.filter((candidateId) => candidateId !== id) : [id, ...current].slice(0, 5);
+  writeScoutingState({ syncCentral: false });
+  renderScoutingWorkspace({ preserveFocus: true });
+}
+function clearScoutingCompareSet() {
+  const state = ensureScoutingState();
+  state.compareRecordIds = [];
+  writeScoutingState({ syncCentral: false });
+  renderScoutingWorkspace({ preserveFocus: true });
+}
+function createScoutingCompareSetReport() {
+  if (!canEditScoutingWorkspace()) {
+    return;
+  }
+  const state = ensureScoutingState();
+  const records = getScoutingCompareRecordIds(state).map(getScoutingRecordById).filter(Boolean);
+  if (!records.length) {
+    return;
+  }
+  const rows = records
+    .map((record) => {
+      const intelligence = getScoutingIntelligenceProfile(record, state);
+      const market = getScoutingMarketIntelligence(record, state);
+      const topDriver = intelligence.signal.drivers?.[0];
+      return `${getScoutingRecordName(record)}: ${intelligence.roleLabel}, role fit P${intelligence.roleFitScore || "n/a"}, ${intelligence.confidence.label} ${intelligence.confidence.score}/99, risk ${intelligence.risk.label}, top driver ${topDriver ? `${topDriver.label} P${topDriver.percentile}` : "n/a"}, ${formatScoutingNumber(getScoutingRecordMinutes(record))} minutes, market ${market.segment}.`;
+    })
+    .join(" ");
+  const leader = [...records]
+    .map((record) => ({ record, fit: getScoutingRoleFitScore(record), confidence: getScoutingIntelligenceProfile(record, state).confidence.score }))
+    .sort((a, b) => (b.fit || 0) - (a.fit || 0) || (b.confidence || 0) - (a.confidence || 0))[0];
+  state.activeTab = "reports";
+  createScoutingReport({
+    title: `Compare set memo: ${records.map(getScoutingRecordName).slice(0, 3).join(" vs ")}`,
+    type: "player",
+    summary: normalizeScoutingText(
+      [
+        `Comparison set generated from scouting player database. Players: ${records.map(getScoutingRecordName).join(", ")}.`,
+        leader ? `Current leader: ${getScoutingRecordName(leader.record)} with role fit P${leader.fit || "n/a"} and confidence ${leader.confidence || "n/a"}/99.` : "",
+        rows,
+        "Decision prompt: validate the leader live/video, check due diligence gaps, and decide whether the value case belongs in Shadow XI or active pipeline.",
+      ].join(" "),
+      1200
+    ),
+    recommendation: leader?.fit >= 82 ? "shortlist" : "monitor",
+    confidence: leader?.confidence >= 82 ? 4 : 3,
+    technical: leader?.fit ? Math.max(2, Math.min(5, Math.round(leader.fit / 20))) : 3,
+    tactical: leader?.fit ? Math.max(2, Math.min(5, Math.round(leader.fit / 20))) : 3,
+    physical: 3,
+    psychological: 3,
+    scoutType: "Compare set",
+    createdAt: new Date().toISOString(),
+  });
+}
+function renderScoutingCompareSetMatrix(records = [], state = ensureScoutingState()) {
+  const rows = records
+    .map((record) => {
+      const intelligence = getScoutingIntelligenceProfile(record, state);
+      const market = getScoutingMarketIntelligence(record, state);
+      const topDriver = intelligence.signal.drivers?.[0];
+      const dueKnown = market.dueDiligence.filter((item) => item.status === "known").length;
+      return {
+        record,
+        recordId: getScoutingRecordId(record),
+        intelligence,
+        topDriver,
+        roleFloor: intelligence.floor.score,
+        dueKnown,
+        dueTotal: market.dueDiligence.length,
+        minutes: getScoutingRecordMinutes(record),
+        age: getScoutingRecordAge(record),
+      };
+    })
+    .sort((a, b) => (b.intelligence.roleFitScore || 0) - (a.intelligence.roleFitScore || 0));
+  if (!rows.length) {
+    return "";
+  }
+  const bestFit = rows[0]?.recordId;
+  const bestConfidence = [...rows].sort((a, b) => (b.intelligence.confidence.score || 0) - (a.intelligence.confidence.score || 0))[0]?.recordId;
+  const bestFloor = [...rows].sort((a, b) => (b.roleFloor || 0) - (a.roleFloor || 0))[0]?.recordId;
+  const bestValue = [...rows]
+    .sort(
+      (a, b) =>
+        (b.intelligence.roleFitScore || 0) +
+        (b.intelligence.confidence.score || 0) * 0.35 -
+        Math.min(b.minutes || 0, 2200) / 80 -
+        ((b.age || 26) - 21) * 1.5 -
+        ((a.intelligence.roleFitScore || 0) + (a.intelligence.confidence.score || 0) * 0.35 - Math.min(a.minutes || 0, 2200) / 80 - ((a.age || 26) - 21) * 1.5)
+    )[0]?.recordId;
+  return `
+    <div class="scouting-compare-matrix">
+      <div class="scouting-compare-matrix-head">
+        <span>Decision matrix</span>
+        <strong>${escapeHtml(rows.length === 1 ? "Add another player for comparison" : "Compare role fit, evidence and risk")}</strong>
+      </div>
+      <div class="scouting-compare-matrix-table">
+        ${rows
+          .map((row) => {
+            const badges = [
+              row.recordId === bestFit ? "Best fit" : "",
+              row.recordId === bestConfidence ? "Best evidence" : "",
+              row.recordId === bestFloor ? "Best floor" : "",
+              row.recordId === bestValue ? "Value angle" : "",
+            ].filter(Boolean);
+            return `
+              <button type="button" data-open-scouting-record="${escapeHtml(row.recordId)}">
+                <strong>${escapeHtml(getScoutingRecordName(row.record))}</strong>
+                <span>${escapeHtml(`${row.intelligence.roleLabel} / P${row.intelligence.roleFitScore || "n/a"}`)}</span>
+                <span>${escapeHtml(`${row.intelligence.confidence.label} ${row.intelligence.confidence.score}/99`)}</span>
+                <span>${escapeHtml(`${row.intelligence.floor.label} ${Number.isFinite(row.roleFloor) ? `P${row.roleFloor}` : "n/a"}`)}</span>
+                <span>${escapeHtml(row.topDriver ? `${row.topDriver.label} P${row.topDriver.percentile}` : "No top driver")}</span>
+                <span>${escapeHtml(`${formatScoutingNumber(row.minutes)} min / ${Number.isFinite(row.age) ? `${formatScoutingNumber(row.age)} yrs` : "age n/a"}`)}</span>
+                <span>${escapeHtml(`${row.dueKnown}/${row.dueTotal} DD known`)}</span>
+                <em>${escapeHtml(badges.length ? badges.join(" / ") : row.intelligence.risk.label)}</em>
+              </button>
+            `;
+          })
+          .join("")}
+      </div>
+    </div>
+  `;
+}
+function toggleScoutingRecordQuickView(recordId) {
+  const state = ensureScoutingState();
+  const id = normalizeScoutingText(recordId, 160);
+  state.databaseExpandedRecordId = state.databaseExpandedRecordId === id ? "" : id;
+  writeScoutingState({ syncCentral: false });
+  renderScoutingWorkspace({ preserveFocus: true });
+}
+function renderScoutingCompareSetPanel(state = ensureScoutingState()) {
+  const records = getScoutingCompareRecordIds(state).map(getScoutingRecordById).filter(Boolean);
+  if (!records.length) {
+    return `
+      <section class="scouting-compare-set is-empty">
+        <div>
+          <span>Compare set</span>
+          <strong>No players selected</strong>
+          <p>Add up to five players from the database list to compare role fit, signal, confidence and risk.</p>
+        </div>
+      </section>
+    `;
+  }
+  const best = [...records]
+    .map((record) => ({
+      record,
+      intelligence: getScoutingIntelligenceProfile(record, state),
+    }))
+    .sort((a, b) => (b.intelligence.roleFitScore || 0) - (a.intelligence.roleFitScore || 0))[0];
+  return `
+    <section class="scouting-compare-set">
+      <div>
+        <span>Compare set</span>
+        <strong>${escapeHtml(`${records.length}/5 selected${best ? ` / leader ${getScoutingRecordName(best.record)} P${best.intelligence.roleFitScore || "n/a"}` : ""}`)}</strong>
+        <p>${escapeHtml(best ? best.intelligence.signal.headline : "Use compare to separate similar profiles before shortlisting.")}</p>
+      </div>
+      <div class="scouting-compare-pills">
+        ${records
+          .map((record) => {
+            const intelligence = getScoutingIntelligenceProfile(record, state);
+            return `
+              <button type="button" data-open-scouting-record="${escapeHtml(getScoutingRecordId(record))}">
+                <strong>${escapeHtml(getScoutingRecordName(record))}</strong>
+                <span>${escapeHtml(`${intelligence.roleLabel} / P${intelligence.roleFitScore || "n/a"} / ${intelligence.confidence.label}`)}</span>
+              </button>
+            `;
+          })
+          .join("")}
+        <button type="button" class="scouting-secondary-button" data-clear-scouting-compare-set>Clear</button>
+        <button type="button" class="scouting-primary-button" data-create-scouting-compare-report>Create compare memo</button>
+      </div>
+      ${renderScoutingCompareSetMatrix(records, state)}
+    </section>
+  `;
 }
 function getScoutingSeasonInsights(record, playerRows = []) {
   const rows = (playerRows.length ? playerRows : getScoutingRecordsForPlayer(record))
@@ -4827,6 +6124,444 @@ function getScoutingSeasonInsights(record, playerRows = []) {
     bestSeason: best ? `${best.season || "Unknown season"} / ${best.team || "No club"}${Number.isFinite(best.fit) ? ` / P${best.fit}` : ""}` : "No season profile",
     seasonCount: rows.length,
   };
+}
+function getScoutingSeasonSortValue(record) {
+  const season = getScoutingRecordSeason(record);
+  const years = (season.match(/\d{4}/g) || []).map((value) => Number(value)).filter((value) => Number.isFinite(value));
+  if (years.length) {
+    return Math.max(...years);
+  }
+  const updated = Date.parse(normalizeScoutingText(record?.updatedAt || record?.updated_at, 80));
+  return Number.isFinite(updated) ? updated : 0;
+}
+function getScoutingTrendRows(record, template, playerRows = []) {
+  const rows = (playerRows.length ? playerRows : getScoutingRecordsForPlayer(record))
+    .slice()
+    .sort((a, b) => getScoutingSeasonSortValue(a) - getScoutingSeasonSortValue(b))
+    .slice(-5);
+  if (rows.length < 2 || !template?.length) {
+    return [];
+  }
+  return getScoutingRoleMetricRows(record, template)
+    .filter((row) => Number.isFinite(row.percentile))
+    .sort((a, b) => (b.weightedScore || 0) - (a.weightedScore || 0))
+    .slice(0, 4)
+    .map((metricRow) => {
+      const points = rows
+        .map((row) => ({
+          season: getScoutingRecordSeason(row) || "Season",
+          minutes: getScoutingRecordMinutes(row),
+          value: getScoutingMetricValue(row, metricRow.metricId),
+          percentile: getScoutingTemplatePercentile(row, metricRow, "league-season-position"),
+        }))
+        .filter((point) => Number.isFinite(point.percentile));
+      if (points.length < 2) {
+        return null;
+      }
+      const first = points[0];
+      const last = points[points.length - 1];
+      const delta = last.percentile - first.percentile;
+      const sampleWeight = Math.min(1, points.reduce((sum, point) => sum + Math.min(point.minutes || 0, 900), 0) / Math.max(points.length * 900, 1));
+      return {
+        ...metricRow,
+        points,
+        delta,
+        sampleWeight,
+        label: getScoutingTrendDirectionLabel(delta, sampleWeight),
+      };
+    })
+    .filter(Boolean);
+}
+function renderScoutingTrendSparkline(points = []) {
+  if (points.length < 2) {
+    return "";
+  }
+  const width = 132;
+  const height = 34;
+  const coordinates = points.map((point, index) => {
+    const x = points.length === 1 ? width / 2 : (index / (points.length - 1)) * width;
+    const y = height - (Math.max(1, Math.min(99, point.percentile)) / 100) * height;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  return `
+    <svg class="scouting-trend-sparkline" viewBox="0 0 ${width} ${height}" role="img" aria-label="Metric trend">
+      <polyline points="${coordinates.join(" ")}" />
+      ${coordinates.map((point) => {
+        const [x, y] = point.split(",");
+        return `<circle cx="${x}" cy="${y}" r="2.2" />`;
+      }).join("")}
+    </svg>
+  `;
+}
+function renderScoutingTrendPanel(record, template, playerRows = []) {
+  const trends = getScoutingTrendRows(record, template, playerRows);
+  return `
+    <section class="scouting-profile-metrics scouting-trend-panel">
+      <h3>Role metric trends</h3>
+      <div class="scouting-trend-grid">
+        ${
+          trends.length
+            ? trends
+                .map(
+                  (trend) => `
+                    <article>
+                      <div>
+                        <span>${escapeHtml(trend.metric.label)}</span>
+                        <strong>${escapeHtml(trend.label)}</strong>
+                        <em>${escapeHtml(`${trend.points.length} seasons / sample-weight ${Math.round(trend.sampleWeight * 100)}%`)}</em>
+                      </div>
+                      ${renderScoutingTrendSparkline(trend.points)}
+                    </article>
+                  `
+                )
+                .join("")
+            : `<p class="scouting-muted">Need at least two seasons with role metric data to show trend flags.</p>`
+        }
+      </div>
+    </section>
+  `;
+}
+function renderScoutingCalibrationPanel(record, state = ensureScoutingState(), roleProfileId = "") {
+  const intelligence = getScoutingIntelligenceProfile(record, state, roleProfileId);
+  const template = getScoutingRadarTemplate(record, roleProfileId);
+  const rows = getScoutingRoleMetricRows(record, template)
+    .filter((row) => Number.isFinite(row.percentile))
+    .sort((a, b) => (b.weightedScore || 0) - (a.weightedScore || 0))
+    .slice(0, 6);
+  return `
+    <section class="scouting-profile-metrics scouting-calibration-panel">
+      <h3>Calibration and benchmark</h3>
+      <div class="scouting-calibration-summary">
+        <article>
+          <span>Calibration read</span>
+          <strong>${escapeHtml(intelligence.calibration.label)}</strong>
+          <em>${escapeHtml(intelligence.calibration.benchmark)}</em>
+        </article>
+        <article>
+          <span>League factor</span>
+          <strong>${escapeHtml(formatScoutingNumber(intelligence.calibration.leagueFactor))}</strong>
+          <em>${escapeHtml(getScoutingRecordLeague(record) || "League unknown")}</em>
+        </article>
+        <article>
+          <span>Role fit movement</span>
+          <strong>${escapeHtml(Number.isFinite(intelligence.calibration.delta) ? `${intelligence.calibration.delta >= 0 ? "+" : ""}${intelligence.calibration.delta}` : "n/a")}</strong>
+          <em>${escapeHtml(`Raw P${intelligence.calibration.rawRoleFitScore || "n/a"} -> calibrated P${intelligence.roleFitScore || "n/a"}`)}</em>
+        </article>
+        <article>
+          <span>Local sample</span>
+          <strong>${escapeHtml(intelligence.calibration.localSampleAverage || "n/a")}</strong>
+          <em>average league/season/position rows</em>
+        </article>
+      </div>
+      <div class="scouting-calibration-rows">
+        ${
+          rows.length
+            ? rows
+                .map((row) => {
+                  const raw = getScoutingBenchmarkPercentile(record, row.metricId, "position", row.direction || row.desiredDirection || "higher");
+                  const local = getScoutingBenchmarkPercentile(record, row.metricId, "league-season-position", row.direction || row.desiredDirection || "higher");
+                  const sample = getScoutingBenchmarkSampleSize(record, row.metricId, "league-season-position");
+                  return `
+                    <p>
+                      <strong>${escapeHtml(row.metric.label)}</strong>
+                      <span>${escapeHtml(`calibrated P${row.percentile} / raw P${Number.isFinite(raw) ? raw : "n/a"} / local P${Number.isFinite(local) ? local : "n/a"} / sample ${sample}`)}</span>
+                    </p>
+                  `;
+                })
+                .join("")
+            : `<p class="scouting-muted">No calibrated role metrics available yet.</p>`
+        }
+      </div>
+    </section>
+  `;
+}
+function getScoutingDataReadinessStatus(score) {
+  if (score >= 82) {
+    return "Decision ready";
+  }
+  if (score >= 64) {
+    return "Scouting ready";
+  }
+  if (score >= 42) {
+    return "Needs verification";
+  }
+  return "Data light";
+}
+function getScoutingPlayerDataReadiness(record, state = ensureScoutingState(), roleProfileId = "") {
+  const intelligence = getScoutingIntelligenceProfile(record, state, roleProfileId);
+  const market = getScoutingMarketIntelligence(record, state);
+  const marketKnown = market.dueDiligence.filter((item) => item.status === "known").length;
+  const sourceTrace = getScoutingRecordSourceTrace(record);
+  const sourceId = getScoutingRecordPlayerSourceId(record) || normalizeScoutingText(sourceTrace.sourcePlayerId || sourceTrace.source_player_id, 160);
+  const identitySource = normalizeScoutingText(sourceTrace.identitySource, 40);
+  const hasMappedSourceId = Boolean(sourceId && identitySource !== "derived");
+  const identityId = getScoutingRecordPlayerIdentityId(record);
+  const dateOfBirth = getScoutingRecordDateOfBirth(record);
+  const nationality = getScoutingRecordNationalityMeta(record);
+  const seasonRows = getScoutingRecordsForPlayer(record);
+  const roleNeeds = intelligence.risk.needs || [];
+  const itemScores = [
+    {
+      label: "Player identity",
+      score: identityId && dateOfBirth && nationality.code !== "N/A" ? 100 : identityId ? 68 : 28,
+      detail: identityId && dateOfBirth ? `ID ${identityId} / DOB ${dateOfBirth} / ${nationality.code}` : "Needs player ID, date of birth and nationality lock.",
+    },
+    {
+      label: "Source IDs",
+      score: hasMappedSourceId ? 100 : sourceId ? 58 : 42,
+      detail: hasMappedSourceId
+        ? `Mapped source ID ${sourceId}`
+        : sourceId
+          ? "Identity is derived. Add an external player/source ID so weekly imports merge safely."
+          : "Add source IDs so future imports merge safely.",
+    },
+    {
+      label: "Role metrics",
+      score: roleNeeds.length ? Math.max(30, 100 - roleNeeds.length * 18) : 100,
+      detail: roleNeeds.length ? `Missing: ${roleNeeds.slice(0, 4).join(", ")}` : "Role spider has the required metric columns.",
+    },
+    {
+      label: "Season trend",
+      score: seasonRows.length >= 3 ? 100 : seasonRows.length >= 2 ? 70 : 34,
+      detail: `${seasonRows.length} season row${seasonRows.length === 1 ? "" : "s"} linked to this player.`,
+    },
+    {
+      label: "Market due diligence",
+      score: Math.round((marketKnown / Math.max(market.dueDiligence.length, 1)) * 100),
+      detail: `${marketKnown}/${market.dueDiligence.length} market checks known.`,
+    },
+    {
+      label: "Calibration sample",
+      score:
+        intelligence.calibration.localSampleAverage >= 24
+          ? 100
+          : intelligence.calibration.localSampleAverage >= 12
+            ? 72
+            : 44,
+      detail: `${intelligence.calibration.label}. Local sample ${intelligence.calibration.localSampleAverage || "n/a"}.`,
+    },
+  ];
+  const score = Math.round(itemScores.reduce((sum, item) => sum + item.score, 0) / Math.max(itemScores.length, 1));
+  const weakest = [...itemScores].sort((a, b) => a.score - b.score)[0] || null;
+  return {
+    score,
+    label: getScoutingDataReadinessStatus(score),
+    weakest,
+    items: itemScores.map((item) => ({
+      ...item,
+      status: item.score >= 82 ? "ready" : item.score >= 58 ? "partial" : "missing",
+    })),
+  };
+}
+function getScoutingDecisionGate(record, state = ensureScoutingState(), roleProfileId = "") {
+  const intelligence = getScoutingIntelligenceProfile(record, state, roleProfileId);
+  const readiness = getScoutingPlayerDataReadiness(record, state, roleProfileId);
+  const market = getScoutingMarketIntelligence(record, state);
+  const target = findScoutingTargetByRecordId(getScoutingRecordId(record), state);
+  const marketKnown = market.dueDiligence.filter((item) => item.status === "known").length;
+  const marketReady = marketKnown >= 4 || ["shortlist", "contacted", "negotiation"].includes(target?.status || "");
+  const roleReady =
+    Number.isFinite(intelligence.roleFitScore) &&
+    intelligence.roleFitScore >= 74 &&
+    Number.isFinite(intelligence.floor.score) &&
+    intelligence.floor.score >= 50;
+  const evidenceReady = intelligence.confidence.score >= 82 && readiness.score >= 72;
+  const highUpside = intelligence.roleFitScore >= 80 && intelligence.confidence.score >= 66;
+  if (roleReady && evidenceReady && marketReady) {
+    return {
+      tone: "ready",
+      label: "Decision gate",
+      title: "Ready for decision meeting",
+      action: "Prepare final recommendation and confirm commercial terms.",
+      blocker: "No major data blocker.",
+      nextStep: "Create report memo and move to decision meeting.",
+    };
+  }
+  if (roleReady && evidenceReady && !marketReady) {
+    return {
+      tone: "market",
+      label: "Decision gate",
+      title: "Sporting case ready, market blocked",
+      action: "Verify contract, agent, wage band and transfer pathway before decision.",
+      blocker: "Market due diligence is incomplete.",
+      nextStep: "Complete due diligence checklist.",
+    };
+  }
+  if (highUpside && intelligence.floor.score < 50) {
+    return {
+      tone: "watch",
+      label: "Decision gate",
+      title: "High upside, role-floor risk",
+      action: "Scout the weakest role KPI before shortlisting.",
+      blocker: `Role floor ${Number.isFinite(intelligence.floor.score) ? `P${intelligence.floor.score}` : "missing"}.`,
+      nextStep: "Open quick view and validate the watch point on video.",
+    };
+  }
+  if (highUpside && intelligence.confidence.score < 82) {
+    return {
+      tone: "evidence",
+      label: "Decision gate",
+      title: "Promising but needs evidence",
+      action: "Increase sample confidence before pushing to decision.",
+      blocker: intelligence.confidence.detail,
+      nextStep: "Add more match data, trend history or live scout notes.",
+    };
+  }
+  if (readiness.score < 64) {
+    return {
+      tone: "data",
+      label: "Decision gate",
+      title: "Data not decision-safe",
+      action: "Fix identity/source/role metric gaps first.",
+      blocker: readiness.weakest ? `${readiness.weakest.label}: ${readiness.weakest.detail}` : "Data readiness is low.",
+      nextStep: "Complete missing data before compare or report.",
+    };
+  }
+  return {
+    tone: "monitor",
+    label: "Decision gate",
+    title: "Monitor, not decision-ready",
+    action: "Keep in database watch unless tactical context changes.",
+    blocker: intelligence.risk.detail,
+    nextStep: "Use saved view or compare set if the role need becomes active.",
+  };
+}
+function renderScoutingDecisionGateCard(record, state = ensureScoutingState(), roleProfileId = "") {
+  const gate = getScoutingDecisionGate(record, state, roleProfileId);
+  return `
+    <article class="scouting-decision-gate is-${escapeHtml(gate.tone)}">
+      <span>${escapeHtml(gate.label)}</span>
+      <strong>${escapeHtml(gate.title)}</strong>
+      <p>${escapeHtml(gate.action)}</p>
+      <em>${escapeHtml(`Blocker: ${gate.blocker}`)}</em>
+      <small>${escapeHtml(gate.nextStep)}</small>
+    </article>
+  `;
+}
+function renderScoutingDataReadinessPanel(record, state = ensureScoutingState(), roleProfileId = "") {
+  const readiness = getScoutingPlayerDataReadiness(record, state, roleProfileId);
+  return `
+    <section class="scouting-profile-metrics scouting-data-readiness">
+      <h3>Data readiness</h3>
+      <div class="scouting-data-readiness-head">
+        <div>
+          <span>Readiness score</span>
+          <strong>${escapeHtml(`${readiness.label} / ${readiness.score}%`)}</strong>
+          <em>${escapeHtml(readiness.weakest ? `Next data need: ${readiness.weakest.label}` : "No major data need")}</em>
+        </div>
+      </div>
+      <div class="scouting-data-readiness-grid">
+        ${readiness.items
+          .map(
+            (item) => `
+              <article class="is-${escapeHtml(item.status)}">
+                <span>${escapeHtml(item.label)}</span>
+                <strong>${escapeHtml(item.status === "ready" ? "OK" : item.status === "partial" ? "Partial" : "Missing")}</strong>
+                <p>${escapeHtml(item.detail)}</p>
+              </article>
+            `
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+function getScoutingPlayerIdentityAudit(record) {
+  const trace = getScoutingRecordSourceTrace(record);
+  const identityId = getScoutingRecordPlayerIdentityId(record);
+  const sourceId = getScoutingRecordPlayerSourceId(record) || normalizeScoutingText(trace.sourcePlayerId || trace.source_player_id, 160);
+  const identitySource = normalizeScoutingText(trace.identitySource, 40);
+  const dateOfBirth = getScoutingRecordDateOfBirth(record);
+  const nationality = getScoutingRecordNationalityMeta(record);
+  const sourceRecordId = getScoutingRecordSourceId(record);
+  const sourceFileName = normalizeScoutingText(trace.sourceFileName, 180);
+  const batchId = normalizeScoutingText(trace.importBatchId, 100);
+  const rowNumber = normalizeScoutingText(trace.sourceRowNumber, 40);
+  const importedAt = formatScoutingImportSummaryDate(trace.importedAt || trace.uploadedAt || "");
+  const warnings = [];
+  if (!dateOfBirth) {
+    warnings.push("Missing date of birth");
+  }
+  if (!nationality.code || nationality.code === "N/A") {
+    warnings.push("Missing nationality");
+  }
+  if (identitySource === "derived" || !identitySource) {
+    warnings.push("Derived player identity");
+  }
+  if (!sourceRecordId) {
+    warnings.push("Missing season/source row key");
+  }
+  const tone = warnings.length ? (warnings.length >= 3 ? "risk" : "watch") : "ready";
+  const label = tone === "ready" ? "Identity locked" : tone === "risk" ? "Identity risk" : "Identity needs review";
+  return {
+    tone,
+    label,
+    detail:
+      tone === "ready"
+        ? "This player has enough identity and row lineage to merge future imports safely."
+        : "Complete identity fields before relying on this profile for weekly database updates.",
+    warnings,
+    items: [
+      {
+        label: "Player identity",
+        value: identityId || "Missing",
+        detail: identitySource === "derived" ? "Derived from name, date of birth and nationality." : "Mapped identity key.",
+      },
+      {
+        label: "External source ID",
+        value: sourceId && identitySource !== "derived" ? "Mapped" : "Not mapped",
+        detail: sourceId && identitySource !== "derived" ? sourceId : "Add a stable external player ID when available.",
+      },
+      {
+        label: "DOB / nationality",
+        value: `${dateOfBirth || "No DOB"} / ${nationality.code || "N/A"}`,
+        detail: nationality.label || "Nationality is missing.",
+      },
+      {
+        label: "Season row key",
+        value: sourceRecordId || "Missing",
+        detail: "Used with season, league and team to replace the correct row.",
+      },
+      {
+        label: "Import batch",
+        value: batchId || "Local / pending",
+        detail: importedAt || "No uploaded timestamp found.",
+      },
+      {
+        label: "Database row trace",
+        value: rowNumber ? `Row ${rowNumber}` : "No row number",
+        detail: sourceFileName ? "Scouting player database upload trace available." : "No upload trace available.",
+      },
+    ],
+  };
+}
+function renderScoutingIdentityAuditPanel(record) {
+  const audit = getScoutingPlayerIdentityAudit(record);
+  return `
+    <section class="scouting-profile-metrics scouting-identity-audit is-${escapeHtml(audit.tone)}">
+      <div class="scouting-identity-audit-head">
+        <div>
+          <span>Identity & lineage</span>
+          <strong>${escapeHtml(audit.label)}</strong>
+          <p>${escapeHtml(audit.detail)}</p>
+        </div>
+        <em>${escapeHtml(audit.warnings.length ? audit.warnings.join(" / ") : "No identity warnings")}</em>
+      </div>
+      <div class="scouting-identity-audit-grid">
+        ${audit.items
+          .map(
+            (item) => `
+              <article>
+                <span>${escapeHtml(item.label)}</span>
+                <strong>${escapeHtml(item.value)}</strong>
+                <p>${escapeHtml(item.detail)}</p>
+              </article>
+            `
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
 }
 function getScoutingComparablePlayers(record, limit = 4) {
   const recordId = getScoutingRecordId(record);
@@ -5150,9 +6885,320 @@ function renderScoutingMarketRadar(records) {
     </section>
   `;
 }
+function getScoutingDatabaseBriefCards(records = [], state = ensureScoutingState()) {
+  const reports = getScoutingReports(state);
+  const reportTargetIds = new Set(reports.map((report) => normalizeScoutingText(report.targetId, 120)).filter(Boolean));
+  const pool = records.slice(0, 180).map((record) => {
+    const recordId = getScoutingRecordId(record);
+    const intelligence = getScoutingIntelligenceProfile(record, state);
+    const target = findScoutingTargetByRecordId(recordId, state);
+    const market = getScoutingMarketIntelligence(record, state);
+    const gate = getScoutingDecisionGate(record, state);
+    return {
+      record,
+      recordId,
+      intelligence,
+      target,
+      market,
+      gate,
+      age: getScoutingRecordAge(record),
+      minutes: getScoutingRecordMinutes(record),
+      dataNeedCount: intelligence.risk.needs.length,
+      hasReport: target ? reportTargetIds.has(target.id) : false,
+    };
+  });
+  const valueCases = pool
+    .filter(
+      (item) =>
+        Number.isFinite(item.intelligence.roleFitScore) &&
+        item.intelligence.roleFitScore >= 80 &&
+        item.intelligence.confidence.score >= 66 &&
+        Number.isFinite(item.age) &&
+        item.age <= 23 &&
+        item.minutes <= 900
+    )
+    .sort((a, b) => b.intelligence.roleFitScore - a.intelligence.roleFitScore || b.intelligence.confidence.score - a.intelligence.confidence.score);
+  const trapWatch = pool
+    .filter((item) => item.intelligence.roleFitScore >= 76 && item.intelligence.confidence.score < 66)
+    .sort((a, b) => b.intelligence.roleFitScore - a.intelligence.roleFitScore || a.intelligence.confidence.score - b.intelligence.confidence.score);
+  const dataGaps = pool
+    .filter((item) => item.dataNeedCount >= 2 && item.intelligence.roleFitScore >= 68)
+    .sort((a, b) => b.dataNeedCount - a.dataNeedCount || b.intelligence.roleFitScore - a.intelligence.roleFitScore);
+  const completeProfiles = pool
+    .filter(
+      (item) =>
+        Number.isFinite(item.intelligence.roleFitScore) &&
+        item.intelligence.roleFitScore >= 74 &&
+        Number.isFinite(item.intelligence.floor.score) &&
+        item.intelligence.floor.score >= 55 &&
+        item.intelligence.confidence.score >= 66
+    )
+    .sort((a, b) => b.intelligence.roleFitScore - a.intelligence.roleFitScore || b.intelligence.floor.score - a.intelligence.floor.score);
+  const decisionGates = pool
+    .filter((item) => item.gate.tone === "ready" || item.gate.tone === "market")
+    .sort(
+      (a, b) =>
+        (a.gate.tone === "ready" ? -1 : 0) - (b.gate.tone === "ready" ? -1 : 0) ||
+        b.intelligence.roleFitScore - a.intelligence.roleFitScore
+    );
+  const reportQueue = pool
+    .filter((item) => item.target && !item.hasReport && item.intelligence.roleFitScore >= 70)
+    .sort((a, b) => b.intelligence.roleFitScore - a.intelligence.roleFitScore || b.intelligence.confidence.score - a.intelligence.confidence.score);
+  return [
+    {
+      tone: "opportunity",
+      label: "Value cases",
+      title: valueCases.length ? `${valueCases.length} undervalued profile${valueCases.length === 1 ? "" : "s"}` : "No value case in this view",
+      detail: valueCases[0]
+        ? `${getScoutingRecordName(valueCases[0].record)}: P${valueCases[0].intelligence.roleFitScore}, ${valueCases[0].confidence?.label || valueCases[0].intelligence.confidence.label}, ${formatScoutingNumber(valueCases[0].minutes)} min.`
+        : "Try U23, low minutes and high role-fit filters.",
+      item: valueCases[0],
+      action: "Compare",
+    },
+    {
+      tone: "warning",
+      label: "Trap watch",
+      title: trapWatch.length ? `${trapWatch.length} high-fit / low-confidence case${trapWatch.length === 1 ? "" : "s"}` : "No obvious trap in this view",
+      detail: trapWatch[0]
+        ? `${getScoutingRecordName(trapWatch[0].record)} needs evidence: ${trapWatch[0].intelligence.confidence.detail}`
+        : "Confidence, sample-size and data-quality look acceptable.",
+      item: trapWatch[0],
+      action: "Open",
+    },
+    {
+      tone: "risk",
+      label: "Data gaps",
+      title: dataGaps.length ? `${dataGaps.length} useful profile${dataGaps.length === 1 ? "" : "s"} need data` : "No major role-data gaps",
+      detail: dataGaps[0]
+        ? `${getScoutingRecordName(dataGaps[0].record)} needs ${dataGaps[0].intelligence.risk.needs.slice(0, 3).join(", ")}.`
+        : "Role spiders have enough columns for this result set.",
+      item: dataGaps[0],
+      action: "Quick view",
+    },
+    {
+      tone: "opportunity",
+      label: "Complete profiles",
+      title: completeProfiles.length ? `${completeProfiles.length} balanced role fit${completeProfiles.length === 1 ? "" : "s"}` : "No complete profile in this view",
+      detail: completeProfiles[0]
+        ? `${getScoutingRecordName(completeProfiles[0].record)}: role fit P${completeProfiles[0].intelligence.roleFitScore}, floor P${completeProfiles[0].intelligence.floor.score}.`
+        : "Use the complete role profile preset or lower min role floor.",
+      item: completeProfiles[0],
+      action: "Compare",
+    },
+    {
+      tone: decisionGates[0]?.gate.tone === "market" ? "warning" : "opportunity",
+      label: "Decision gate",
+      title: decisionGates.length ? `${decisionGates.length} decision case${decisionGates.length === 1 ? "" : "s"}` : "No decision-ready case",
+      detail: decisionGates[0]
+        ? `${getScoutingRecordName(decisionGates[0].record)}: ${decisionGates[0].gate.title}.`
+        : "Need stronger evidence, role floor or market due diligence.",
+      item: decisionGates[0],
+      action: decisionGates[0]?.gate.tone === "market" ? "Quick view" : "Create memo",
+    },
+    {
+      tone: "urgent",
+      label: "Report queue",
+      title: reportQueue.length ? `${reportQueue.length} pipeline target${reportQueue.length === 1 ? "" : "s"} need memo` : "No missing pipeline memos",
+      detail: reportQueue[0]
+        ? `${getScoutingRecordName(reportQueue[0].record)} is ${reportQueue[0].target.status}/${reportQueue[0].target.priority} without a report draft.`
+        : "Active pipeline targets in this view have memo coverage.",
+      item: reportQueue[0],
+      action: "Create memo",
+    },
+  ];
+}
+function renderScoutingDatabaseIntelligenceBrief(records = [], state = ensureScoutingState()) {
+  const cards = getScoutingDatabaseBriefCards(records, state);
+  return `
+    <section class="scouting-intelligence-brief" data-scouting-intelligence-brief>
+      <div class="scouting-intelligence-brief-head">
+        <span>Database intelligence brief</span>
+        <strong>${escapeHtml(`${records.length.toLocaleString("en-US")} players in current view`)}</strong>
+      </div>
+      <div class="scouting-intelligence-brief-grid">
+        ${cards
+          .map((card) => {
+            const recordId = card.item?.recordId || "";
+            const actionAttribute =
+              card.action === "Create memo" && recordId
+                ? `data-create-scouting-profile-report="${escapeHtml(recordId)}"`
+                : card.action === "Compare" && recordId
+                  ? `data-toggle-scouting-record-compare="${escapeHtml(recordId)}"`
+                  : card.action === "Quick view" && recordId
+                    ? `data-toggle-scouting-record-details="${escapeHtml(recordId)}"`
+                    : recordId
+                      ? `data-open-scouting-record="${escapeHtml(recordId)}"`
+                      : "disabled";
+            return `
+              <button type="button" class="is-${escapeHtml(card.tone)}" ${actionAttribute}>
+                <span>${escapeHtml(card.label)}</span>
+                <strong>${escapeHtml(card.title)}</strong>
+                <em>${escapeHtml(card.detail)}</em>
+                <small>${escapeHtml(recordId ? card.action : "No action")}</small>
+              </button>
+            `;
+          })
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+function getScoutingDatabaseActionQueue(records = [], state = ensureScoutingState(), limit = 8) {
+  const seen = new Set();
+  return records
+    .slice(0, 220)
+    .map((record) => {
+      const recordId = getScoutingRecordId(record);
+      const gate = getScoutingDecisionGate(record, state);
+      const intelligence = getScoutingIntelligenceProfile(record, state);
+      const readiness = getScoutingPlayerDataReadiness(record, state);
+      const target = findScoutingTargetByRecordId(recordId, state);
+      const priority =
+        gate.tone === "ready"
+          ? 98
+          : gate.tone === "market"
+            ? 92
+            : gate.tone === "evidence"
+              ? 82
+              : gate.tone === "watch"
+                ? 76
+                : gate.tone === "data"
+                  ? 70
+                  : 52;
+      const action =
+        gate.tone === "ready"
+          ? "Create decision memo"
+          : gate.tone === "market"
+            ? "Complete market check"
+            : gate.tone === "evidence"
+              ? "Assign scout evidence"
+              : gate.tone === "watch"
+                ? "Verify weak KPI"
+                : gate.tone === "data"
+                  ? "Fix data identity"
+                  : "Keep monitoring";
+      const actionType =
+        gate.tone === "ready"
+          ? "report"
+          : gate.tone === "market" || gate.tone === "evidence" || gate.tone === "watch" || gate.tone === "data"
+            ? "quick"
+            : "open";
+      return {
+        record,
+        recordId,
+        gate,
+        intelligence,
+        readiness,
+        target,
+        action,
+        actionType,
+        score: priority + (target ? 4 : 0) + Math.min(8, Math.max(0, (intelligence.roleFitScore || 0) - 74) / 2),
+      };
+    })
+    .filter((item) => item.recordId && item.action !== "Keep monitoring")
+    .filter((item) => {
+      if (seen.has(item.recordId)) {
+        return false;
+      }
+      seen.add(item.recordId);
+      return true;
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+function renderScoutingDatabaseActionQueue(records = [], state = ensureScoutingState()) {
+  const queue = getScoutingDatabaseActionQueue(records, state, 8);
+  return `
+    <section class="scouting-action-queue" data-scouting-action-queue>
+      <div class="scouting-action-queue-head">
+        <div>
+          <span>Scout action queue</span>
+          <strong>${escapeHtml(queue.length ? `${queue.length} next task${queue.length === 1 ? "" : "s"}` : "No urgent scout tasks")}</strong>
+        </div>
+        <p>${escapeHtml(queue.length ? "Prioritised from decision gate, data readiness and market blockers." : "Current view has no high-priority blockers.")}</p>
+      </div>
+      <div class="scouting-action-queue-list">
+        ${
+          queue.length
+            ? queue
+                .map((item) => {
+                  const actionAttribute =
+                    item.actionType === "report"
+                      ? `data-create-scouting-profile-report="${escapeHtml(item.recordId)}"`
+                      : item.actionType === "quick"
+                        ? `data-toggle-scouting-record-details="${escapeHtml(item.recordId)}"`
+                        : `data-open-scouting-record="${escapeHtml(item.recordId)}"`;
+                  return `
+                    <button type="button" class="is-${escapeHtml(item.gate.tone)}" ${actionAttribute}>
+                      <span>${escapeHtml(item.action)}</span>
+                      <strong>${escapeHtml(getScoutingRecordName(item.record))}</strong>
+                      <em>${escapeHtml(`${item.gate.title} / ${item.intelligence.roleLabel} P${item.intelligence.roleFitScore || "n/a"}`)}</em>
+                      <small>${escapeHtml(item.gate.blocker)}</small>
+                    </button>
+                  `;
+                })
+                .join("")
+            : `<p class="scouting-muted">Try a narrower role, lower minutes, U23 or market-status filter to surface tasks.</p>`
+        }
+      </div>
+    </section>
+  `;
+}
+function renderScoutingRecordQuickPanel(record, state = ensureScoutingState()) {
+  const recordId = getScoutingRecordId(record);
+  const intelligence = getScoutingIntelligenceProfile(record, state);
+  const market = getScoutingMarketIntelligence(record, state);
+  const target = findScoutingTargetByRecordId(recordId, state);
+  const roleRows = getScoutingRoleMetricRows(record, getScoutingRadarTemplate(record))
+    .filter((row) => Number.isFinite(row.percentile))
+    .sort((a, b) => (b.weightedScore || 0) - (a.weightedScore || 0))
+    .slice(0, 3);
+  const dueKnown = market.dueDiligence.filter((item) => item.status === "known").length;
+  return `
+    <section class="scouting-record-quick-panel">
+      <article class="is-primary">
+        <span>Intelligence read</span>
+        <strong>${escapeHtml(intelligence.signal.headline)}</strong>
+        <p>${escapeHtml(`${intelligence.confidence.label} ${intelligence.confidence.score}/99. ${intelligence.risk.detail}`)}</p>
+      </article>
+      ${renderScoutingDecisionGateCard(record, state)}
+      <article>
+        <span>Top role drivers</span>
+        ${
+          roleRows.length
+            ? roleRows.map((row) => `<strong>${escapeHtml(`${row.label} P${row.percentile} / w${formatScoutingNumber(row.weight)}`)}</strong>`).join("")
+            : `<p class="scouting-muted">No role metric drivers yet.</p>`
+        }
+      </article>
+      <article>
+        <span>Pipeline and due diligence</span>
+        <strong>${escapeHtml(target ? `${target.status} / ${target.priority}` : "Not in pipeline")}</strong>
+        <p>${escapeHtml(`${dueKnown}/${market.dueDiligence.length} due-diligence checks known. ${market.availability}`)}</p>
+      </article>
+      <article>
+        <span>Role floor</span>
+        <strong>${escapeHtml(`${intelligence.floor.label}${Number.isFinite(intelligence.floor.score) ? ` / P${intelligence.floor.score}` : ""}`)}</strong>
+        <p>${escapeHtml("Lowest weighted role KPI. Use this to catch hidden weaknesses before shortlisting.")}</p>
+      </article>
+      <article>
+        <span>Calibration</span>
+        <strong>${escapeHtml(intelligence.calibration.label)}</strong>
+        <p>${escapeHtml(`Raw P${intelligence.calibration.rawRoleFitScore || "n/a"} / calibrated ${Number.isFinite(intelligence.calibration.delta) ? `${intelligence.calibration.delta >= 0 ? "+" : ""}${intelligence.calibration.delta}` : "n/a"} / sample ${intelligence.calibration.localSampleAverage}`)}</p>
+      </article>
+      <article class="scouting-record-quick-actions">
+        <button type="button" class="scouting-secondary-button" data-open-scouting-record="${escapeHtml(recordId)}">Open full profile</button>
+        <button type="button" class="scouting-primary-button" data-create-scouting-profile-report="${escapeHtml(recordId)}">Pipeline + report</button>
+        <button type="button" class="scouting-secondary-button" data-toggle-scouting-record-compare="${escapeHtml(recordId)}">
+          ${isScoutingRecordInCompareSet(recordId, state) ? "Remove compare" : "Add compare"}
+        </button>
+      </article>
+    </section>
+  `;
+}
 function renderScoutingProfileDossier(record, state, playerRows) {
   const recommendation = getScoutingProfileRecommendation(record, state);
   const seasonInsights = getScoutingSeasonInsights(record, playerRows);
+  const readiness = getScoutingPlayerDataReadiness(record, state);
   const comparablePlayers = getScoutingComparablePlayers(record, 4);
   return `
     <section class="scouting-profile-dossier">
@@ -5161,20 +7207,31 @@ function renderScoutingProfileDossier(record, state, playerRows) {
         <strong>${escapeHtml(recommendation.action)}</strong>
         <p>${escapeHtml(recommendation.question)}</p>
       </article>
+      ${renderScoutingDecisionGateCard(record, state)}
       <article class="scouting-action-card">
-        <span>Pipeline status</span>
-        <strong>${escapeHtml(recommendation.status)}</strong>
-        <p>${escapeHtml(recommendation.signal)}</p>
+        <span>Signal</span>
+        <strong>${escapeHtml(recommendation.signal)}</strong>
+        <p>${escapeHtml(recommendation.signalDetail || recommendation.status)}</p>
       </article>
       <article class="scouting-action-card">
-        <span>Risk read</span>
-        <strong>${escapeHtml(seasonInsights.reliability)}</strong>
-        <p>${escapeHtml(recommendation.risk)}</p>
+        <span>Confidence</span>
+        <strong>${escapeHtml(recommendation.confidence || seasonInsights.reliability)}</strong>
+        <p>${escapeHtml(recommendation.confidenceDetail || seasonInsights.reliability)}</p>
+      </article>
+      <article class="scouting-action-card">
+        <span>Risk</span>
+        <strong>${escapeHtml(recommendation.risk)}</strong>
+        <p>${escapeHtml(recommendation.riskDetail || "No major data red flag in current profile.")}</p>
       </article>
       <article class="scouting-action-card">
         <span>Season trajectory</span>
         <strong>${escapeHtml(seasonInsights.trendLabel)}</strong>
         <p>${escapeHtml(`Best: ${seasonInsights.bestSeason}. Seasons: ${seasonInsights.seasonCount}.`)}</p>
+      </article>
+      <article class="scouting-action-card">
+        <span>Data readiness</span>
+        <strong>${escapeHtml(`${readiness.label} / ${readiness.score}%`)}</strong>
+        <p>${escapeHtml(readiness.weakest ? `Next data need: ${readiness.weakest.label}. ${readiness.weakest.detail}` : "No major data need.")}</p>
       </article>
       <article class="scouting-similar-profiles">
         <div>
@@ -5271,12 +7328,45 @@ function getScoutingMarketIntelligence(record, state = ensureScoutingState()) {
         ? "Distribution and pressure profile on video"
         : "Role translation against stronger opposition",
   ];
+  const dueDiligence = [
+    {
+      label: "Contract",
+      status: saved.contractStatus !== "unknown" || saved.contractEnd ? "known" : "missing",
+      detail: saved.contractEnd ? `Ends ${saved.contractEnd}` : "Contract end and club option unverified",
+    },
+    {
+      label: "Agent",
+      status: saved.agent ? "known" : "missing",
+      detail: saved.agent || "Agent/agency not verified",
+    },
+    {
+      label: "Wages",
+      status: saved.wageBand || saved.salaryRange ? "known" : "missing",
+      detail: saved.wageBand || saved.salaryRange || "Wage band not verified",
+    },
+    {
+      label: "Injury/load",
+      status: saved.medicalLoad ? "known" : "missing",
+      detail: saved.medicalLoad || "Injury and match-load check required",
+    },
+    {
+      label: "Role translation",
+      status: saved.roleTranslation ? "known" : "missing",
+      detail: saved.roleTranslation || "Needs video/live validation against our model",
+    },
+    {
+      label: "Transfer heatmap",
+      status: saved.transferStatus || saved.dealProbability ? "known" : "missing",
+      detail: saved.transferStatus || saved.dealProbability || "Club stance and deal probability unknown",
+    },
+  ];
   return {
     segment,
     urgency,
     availability,
     negotiationAngle,
     checks,
+    dueDiligence,
     saved,
     completeness: getScoutingMarketCompleteness(saved),
     bestSignal: bestSignal ? `${bestSignal.metric.label} P${bestSignal.percentile}` : "No standout signal",
@@ -5285,6 +7375,9 @@ function getScoutingMarketIntelligence(record, state = ensureScoutingState()) {
 function getScoutingProfileReportDraft(record, state = ensureScoutingState()) {
   const playerRows = getScoutingRecordsForPlayer(record).slice(0, 10);
   const recommendation = getScoutingProfileRecommendation(record, state);
+  const intelligence = getScoutingIntelligenceProfile(record, state);
+  const readiness = getScoutingPlayerDataReadiness(record, state);
+  const gate = getScoutingDecisionGate(record, state);
   const market = getScoutingMarketIntelligence(record, state);
   const savedMarket = market.saved;
   const seasonInsights = getScoutingSeasonInsights(record, playerRows);
@@ -5298,6 +7391,12 @@ function getScoutingProfileReportDraft(record, state = ensureScoutingState()) {
     [
       `${getScoutingRecordName(record)} - ${getScoutingRecordPosition(record)} / ${getScoutingRecordTeam(record) || "No club"}.`,
       `Decision: ${recommendation.action}. Role fit ${Number.isFinite(roleFitScore) ? `P${roleFitScore}` : "n/a"} (${getScoutingRoleFitLabel(roleFitScore)}).`,
+      `Decision gate: ${gate.title}. Next step: ${gate.nextStep}. Blocker: ${gate.blocker}.`,
+      `Signal: ${intelligence.signal.headline}. ${intelligence.signal.detail}`,
+      `Confidence: ${intelligence.confidence.label} ${intelligence.confidence.score}/99. ${intelligence.confidence.detail}`,
+      `Risk: ${intelligence.risk.label}. ${intelligence.risk.detail}`,
+      `Data needs: ${intelligence.risk.needs.length ? intelligence.risk.needs.join(", ") : "none for selected role spider"}.`,
+      `Data readiness: ${readiness.label} ${readiness.score}%. Next data need: ${readiness.weakest?.label || "none"}.`,
       `Best data signal: ${bestSignal ? `${bestSignal.metric.label} P${bestSignal.percentile}` : "No standout signal"}.`,
       `Market lens: ${market.segment}. Availability: ${market.availability}. Urgency: ${market.urgency}.`,
       `Contract/agent detail: status ${getScoutingContractStatusLabel(savedMarket.contractStatus)}; end ${savedMarket.contractEnd || "unknown"}; option ${savedMarket.optionYears || "unknown"}; agent ${savedMarket.agent || "unknown"}; wage band ${savedMarket.wageBand || "unknown"}; fee ${savedMarket.estimatedFee || "unknown"}; salary ${savedMarket.salaryRange || "unknown"}; deal probability ${savedMarket.dealProbability || "unknown"}; budget impact ${savedMarket.budgetImpact || "unknown"}; transfer status ${savedMarket.transferStatus || "unknown"}.`,
@@ -5405,8 +7504,11 @@ function createScoutingReportForRecord(recordId) {
       updatedAt: now,
     });
     state.targets = [target, ...getScoutingTargets(state)];
+    touchScoutingIntelligenceCache();
   }
   const roleFit = getScoutingRoleFitScore(record);
+  state.selectedRecordId = normalizedRecordId;
+  state.profileTab = "reports";
   createScoutingReport({
     title: `${getScoutingRecordName(record)} recruitment report`,
     type: "player",
@@ -5449,7 +7551,18 @@ function renderScoutingMarketIntelligencePanel(record, state) {
       </article>
       <article class="scouting-due-diligence">
         <span>Due diligence</span>
-        ${market.checks.map((check) => `<p>${escapeHtml(check)}</p>`).join("")}
+        <div class="scouting-due-diligence-grid">
+          ${market.dueDiligence
+            .map(
+              (item) => `
+                <p class="is-${escapeHtml(item.status)}">
+                  <strong>${escapeHtml(item.label)}</strong>
+                  <span>${escapeHtml(item.detail)}</span>
+                </p>
+              `
+            )
+            .join("")}
+        </div>
       </article>
       <article class="scouting-market-editor">
         <div>
@@ -5520,7 +7633,7 @@ function renderScoutingMarketIntelligencePanel(record, state) {
           <p>Creates a player report draft from role-fit, trend, market lens and due-diligence checklist.</p>
         </div>
         <button type="button" class="scouting-primary-button" data-create-scouting-profile-report="${escapeHtml(recordId)}">
-          Create report draft
+          Add to pipeline + report draft
         </button>
       </article>
     </section>
@@ -6311,6 +8424,48 @@ function getScoutingRecruitmentAlerts(state = ensureScoutingState(), limit = 10)
           recordId: item.recordId,
         });
       });
+    [...(getScoutingDatabase()?.records || [])]
+      .filter((record) => {
+        const age = getScoutingRecordAge(record);
+        return Number.isFinite(age) && age <= 23 && getScoutingRecordMinutes(record) <= 900;
+      })
+      .slice(0, 650)
+      .map((record) => {
+        const recordId = getScoutingRecordId(record);
+        const intelligence = getScoutingIntelligenceProfile(record, state);
+        return {
+          record,
+          recordId,
+          fit: intelligence.roleFitScore,
+          confidence: intelligence.confidence.score,
+          risk: intelligence.risk.label,
+          age: getScoutingRecordAge(record),
+          minutes: getScoutingRecordMinutes(record),
+        };
+      })
+      .filter(
+        (item) =>
+          item.recordId &&
+          Number.isFinite(item.fit) &&
+          item.fit >= 80 &&
+          Number.isFinite(item.confidence) &&
+          item.confidence >= 66 &&
+          Number.isFinite(item.age) &&
+          item.age <= 23 &&
+          item.minutes <= 900 &&
+          !targetedIds.has(item.recordId)
+      )
+      .sort((a, b) => b.fit - a.fit || b.confidence - a.confidence || a.minutes - b.minutes)
+      .slice(0, 4)
+      .forEach((item) => {
+        alerts.push({
+          tone: "opportunity",
+          label: "Value case alert",
+          title: `${getScoutingRecordName(item.record)} looks undervalued`,
+          detail: `Role fit P${item.fit}, confidence ${item.confidence}/99, ${formatScoutingNumber(item.minutes)} min, age ${formatScoutingNumber(item.age)}. Risk: ${item.risk}.`,
+          recordId: item.recordId,
+        });
+      });
   }
   return alerts.slice(0, limit);
 }
@@ -6491,7 +8646,8 @@ function restoreScoutingFocus(snapshot) {
     nextField.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
   }
 }
-function renderScoutingRecordCard(record) {
+function renderScoutingRecordCard(record, options = {}) {
+  const lightweight = Boolean(options.lightweight);
   const state = ensureScoutingState();
   const recordId = getScoutingRecordId(record);
   const selectedSlotId = getSelectedScoutingShadowSlotId(state);
@@ -6504,21 +8660,29 @@ function renderScoutingRecordCard(record) {
   const age = getScoutingRecordAge(record);
   const favorite = isScoutingRecordFavorited(recordId);
   const roleFitScore = getScoutingRoleFitScore(record);
-  const bestSignal = getScoutingBestSignal(record);
+  const recommendation = lightweight
+    ? {
+        score: roleFitScore,
+        label:
+          roleFitScore >= 82 ? "Strong fit" : roleFitScore >= 70 ? "Potential fit" : Number.isFinite(roleFitScore) ? "Watchlist" : "No signal",
+        detail: Number.isFinite(roleFitScore) ? `Role fit score ${roleFitScore}` : "Limited scouting profile data",
+      }
+    : getScoutingIntelligenceProfile(record, state).recommendation;
+  const inCompareSet = isScoutingRecordInCompareSet(recordId, state);
+  const isExpanded = normalizeScoutingText(state.databaseExpandedRecordId, 160) === recordId;
   const position = getScoutingRecordPosition(record) || "No position";
   const team = getScoutingRecordTeam(record) || "No club";
   const role = getScoutingRecordBestRoleLabel(record);
   const nationality = getScoutingRecordNationalityMeta(record);
   const ageDisplay = Number.isFinite(age) ? `${formatScoutingNumber(age)} yrs` : "N/A";
-  const recommendation = bestSignal
-    ? `${bestSignal.metric.label} · P${bestSignal.adjustedPercentile || bestSignal.percentile}${bestSignal.quality === "estimated" ? " est." : ""}`
-    : "No standout metric";
+  const recommendationTone = getScoutingRecommendationTone(recommendation.label);
+  const recommendationText = recommendation.label || "No signal";
   const scoreText =
     metric && sortMetricId !== "minutes" && sortMetricId !== "matches" && Number.isFinite(percentile)
       ? `P${percentile}`
       : formatScoutingNumber(metricValue);
   return `
-    <article class="scouting-record-card" data-open-scouting-record="${escapeHtml(recordId)}" tabindex="0" role="button">
+    <article class="scouting-record-card${isExpanded ? " is-expanded" : ""}" data-open-scouting-record="${escapeHtml(recordId)}" tabindex="0" role="button">
       <div class="scouting-record-avatar-shell">
         ${renderScoutingRecordAvatar(record)}
         <div class="scouting-record-mini-radar-popover" role="img" aria-label="Player role spider">
@@ -6545,7 +8709,11 @@ function renderScoutingRecordCard(record) {
       </div>
       <div class="scouting-record-card-meta-cell scouting-record-card-recommendation">
         <span>Recommendation</span>
-        <strong title="${escapeHtml(recommendation)}">${escapeHtml(recommendation)}</strong>
+        <strong class="scouting-record-card-recommendation-badge is-${escapeHtml(recommendationTone)}" title="${escapeHtml(
+    `${recommendationText}${recommendation.score ? ` · ${recommendation.score}` : ""} · ${recommendation.detail || ""}`
+  )}">
+          ${escapeHtml(recommendationText)}
+        </strong>
       </div>
       <span class="scouting-record-rolefit-badge is-${escapeHtml(getScoutingRoleFitTier(roleFitScore))}">
         ${escapeHtml(getScoutingRoleFitLabel(roleFitScore))}
@@ -6558,6 +8726,16 @@ function renderScoutingRecordCard(record) {
           aria-pressed="${favorite ? "true" : "false"}"
           aria-label="${favorite ? "Remove favorite" : "Favorite player"}"
         >${favorite ? "★" : "☆"}</button>
+        <button
+          type="button"
+          class="scouting-secondary-button${inCompareSet ? " is-active" : ""}"
+          data-toggle-scouting-record-compare="${escapeHtml(recordId)}"
+        >${inCompareSet ? "Compare ✓" : "Compare"}</button>
+        <button
+          type="button"
+          class="scouting-secondary-button"
+          data-toggle-scouting-record-details="${escapeHtml(recordId)}"
+        >${isExpanded ? "Hide" : "Quick view"}</button>
         ${
           selectedSlot && canEditScoutingWorkspace()
             ? `
@@ -6573,6 +8751,7 @@ function renderScoutingRecordCard(record) {
             : ""
         }
       </div>
+      ${isExpanded ? renderScoutingRecordQuickPanel(record, state) : ""}
     </article>
   `;
 }
@@ -6631,6 +8810,14 @@ function renderScoutingDatabaseControls() {
           <input type="number" min="0" step="50" value="${escapeHtml(filters.minMinutes)}" data-scouting-filter="minMinutes" />
         </label>
         <label>
+          <span>Max minutes</span>
+          <input type="number" min="0" step="50" value="${escapeHtml(filters.maxMinutes || "")}" placeholder="Any" data-scouting-filter="maxMinutes" />
+        </label>
+        <label>
+          <span>Min age</span>
+          <input type="number" min="14" step="1" value="${escapeHtml(filters.minAge)}" placeholder="Any" data-scouting-filter="minAge" />
+        </label>
+        <label>
           <span>Max age</span>
           <input type="number" min="14" step="1" value="${escapeHtml(filters.maxAge)}" placeholder="Any" data-scouting-filter="maxAge" />
         </label>
@@ -6670,6 +8857,10 @@ function renderScoutingDatabaseControls() {
         <label>
           <span>Min role fit</span>
           <input type="number" min="1" max="99" step="1" value="${escapeHtml(filters.roleFitMin)}" placeholder="70" data-scouting-filter="roleFitMin" />
+        </label>
+        <label>
+          <span>Min role floor</span>
+          <input type="number" min="1" max="99" step="1" value="${escapeHtml(filters.roleFloorMin)}" placeholder="45" data-scouting-filter="roleFloorMin" />
         </label>
         <label>
           <span>Sort by</span>
@@ -6724,6 +8915,12 @@ function renderScoutingImportPanel() {
     ["imageUrl", "Player image URL (optional)"],
     ["height", "Height"],
     ["weight", "Weight"],
+    ["playerIdentityId", "Player identity id (optional)"],
+    ["sourceIdentityId", "Source identity id (optional)"],
+    ["wyscoutId", "Wyscout ID (optional)"],
+    ["fbrefId", "FBref ID (optional)"],
+    ["transfermarktId", "Transfermarkt ID (optional)"],
+    ["federationId", "Federation ID (optional)"],
     ["playerSourceId", "Player source id (optional)"],
     ["sourceRecordId", "Source record id (optional)"],
   ];
@@ -6731,6 +8928,12 @@ function renderScoutingImportPanel() {
     <option value="">Not mapped</option>
     ${headers.map((header) => `<option value="${escapeHtml(header)}" ${currentValue === header ? "selected" : ""}>${escapeHtml(header)}</option>`).join("")}
   `;
+  const presetButtons = scoutingImportSourcePresets
+    .map(
+      (preset) =>
+        `<button type="button" class="scouting-import-preset-button" data-scouting-import-preset="${escapeHtml(preset.id)}">${escapeHtml(preset.label)}</button>`
+    )
+    .join("");
   return `
     <section class="scouting-import-panel">
         <div class="scouting-import-head">
@@ -6755,6 +8958,12 @@ function renderScoutingImportPanel() {
                 draft.status === "ready" || draft.status === "imported" || draft.status === "error"
                   ? `
                   <div class="scouting-import-controls">
+                    <div class="scouting-import-presets">
+                      <span>Quick map</span>
+                      <div class="scouting-import-preset-list">
+                        ${presetButtons}
+                      </div>
+                    </div>
                       ${
                         draft.sheets.length > 1
                           ? `
@@ -6975,7 +9184,7 @@ function getScoutingDatabaseResultsMarkup() {
     records,
     summary,
     html: visibleRecords.length
-      ? visibleRecords.map(renderScoutingRecordCard).join("")
+      ? visibleRecords.map((record) => renderScoutingRecordCard(record, { lightweight: true })).join("")
       : `<div class="scouting-empty-panel">No players match these filters yet.</div>`,
   };
 }
@@ -7056,6 +9265,9 @@ function renderScoutingDatabasePanel() {
       <div class="scouting-database-workbench">
         <main class="scouting-database-main">
           ${renderScoutingDatabaseControls()}
+          ${renderScoutingCompareSetPanel(state)}
+          ${renderScoutingDatabaseIntelligenceBrief(results.records, state)}
+          ${renderScoutingDatabaseActionQueue(results.records, state)}
           ${renderScoutingMarketRadar(results.records)}
           <div class="scouting-result-summary" data-scouting-result-summary>${escapeHtml(results.summary)}</div>
           <div class="scouting-record-table">
@@ -7840,24 +10052,19 @@ function renderScoutingProfileModal() {
   const profileRoleProfileId = normalizeScoutingRoleProfileId(state.profileRoleProfileId, "auto");
   const selectedProfileRoleId = profileRoleProfileId === "auto" ? "" : profileRoleProfileId;
   const radarTemplate = getScoutingRadarTemplate(record, selectedProfileRoleId);
-  const profileMetrics = radarTemplate
-    .map((item) => {
-      const value = getScoutingMetricValue(record, item.metricId);
-      const percentile = getScoutingTemplatePercentile(record, item);
-      return { ...item, value, percentile, metric: getScoutingMetric(item.metricId) };
-    })
-    .filter((item) => item.metric);
+  const profileMetrics = getScoutingRoleMetricRows(record, radarTemplate);
   const topMetrics = getScoutingMetricOptions()
     .map((metric) => ({
       metric,
       value: getScoutingMetricValue(record, metric.id),
-      percentile: getScoutingPercentile(record, metric.id),
+      percentile: getScoutingComparablePercentile(record, metric.id),
     }))
     .filter((item) => Number.isFinite(item.value) && Number.isFinite(item.percentile))
     .sort((a, b) => b.percentile - a.percentile)
     .slice(0, 10);
   const playerRows = getScoutingRecordsForPlayer(record).slice(0, 10);
   const roleFitScore = getScoutingRoleFitScore(record, selectedProfileRoleId);
+  const intelligence = getScoutingIntelligenceProfile(record, state, selectedProfileRoleId);
   const bestSignal = getScoutingBestSignal(record);
   const shadowRoles = scoutingShadowSlots.filter((slot) => getScoutingShadowSlotRecordIds(slot.id, state).includes(recordId));
   const goalMetricId = getScoutingMetricIdByLabels(["Goals"]);
@@ -7951,6 +10158,9 @@ function renderScoutingProfileModal() {
                 ${target ? "Update pipeline" : "Add pipeline"}
               </button>
             </form>
+            <button type="button" class="scouting-primary-button" data-create-scouting-profile-report="${escapeHtml(recordId)}" ${canEdit ? "" : "disabled"}>
+              Add pipeline + report draft
+            </button>
           </div>
         </header>
         ${renderScoutingProfileTabs(activeProfileTab)}
@@ -7963,9 +10173,14 @@ function renderScoutingProfileModal() {
               <em>${escapeHtml([getScoutingRoleFitLabel(roleFitScore), radarTemplate.profileLabel].filter(Boolean).join(" / "))}</em>
             </div>
             <div>
+              <span>Role floor</span>
+              <strong>${escapeHtml(Number.isFinite(intelligence.floor.score) ? `P${intelligence.floor.score}` : "n/a")}</strong>
+              <em>${escapeHtml(intelligence.floor.label)}</em>
+            </div>
+            <div>
               <span>Best signal</span>
-              <strong>${escapeHtml(bestSignal ? `P${bestSignal.percentile}` : "n/a")}</strong>
-              <em>${escapeHtml(bestSignal?.metric?.label || "No standout metric")}</em>
+              <strong>${escapeHtml(intelligence.confidence.label)}</strong>
+              <em>${escapeHtml(intelligence.signal.headline)}</em>
             </div>
             <div>
               <span>Role stack</span>
@@ -7996,21 +10211,29 @@ function renderScoutingProfileModal() {
           <section class="scouting-profile-metrics">
             <h3>Role spider metrics</h3>
             <div class="scouting-metric-stack">
-              ${profileMetrics
-                .map(
-                  (item) => `
+              ${
+                profileMetrics.length
+                  ? profileMetrics
+                      .map(
+                        (item) => `
                     <div>
                       <span>${escapeHtml(item.label)}</span>
                       <strong>P${escapeHtml(item.percentile ?? "n/a")}</strong>
-                      <em>${escapeHtml(item.metric.label)}: ${escapeHtml(formatScoutingNumber(item.value))}${item.direction === "lower" ? " / low value is positive" : ""}</em>
+                      <em>${escapeHtml(`${item.metric.label}: ${formatScoutingNumber(item.value)} / weight ${formatScoutingNumber(item.weight)} / ${item.quality}${item.direction === "lower" ? " / low value is positive" : ""}`)}</em>
                     </div>
                   `
-                )
-                .join("")}
+                      )
+                      .join("")
+                  : `<p class="scouting-muted">No data. Needs: ${escapeHtml((intelligence.risk.needs || []).join(", ") || "role metrics")}</p>`
+              }
             </div>
           </section>
           ${renderScoutingRoleFitStack(record)}
           ${renderScoutingRoleExplanation(record, radarTemplate)}
+          ${renderScoutingTrendPanel(record, radarTemplate, playerRows)}
+          ${renderScoutingCalibrationPanel(record, state, selectedProfileRoleId)}
+          ${renderScoutingDataReadinessPanel(record, state, selectedProfileRoleId)}
+          ${renderScoutingIdentityAuditPanel(record)}
           <section class="scouting-profile-metrics">
             <h3>Best percentile signals</h3>
             <div class="scouting-metric-stack">
@@ -8204,6 +10427,18 @@ function setScoutingDatabasePageOffset(offset) {
     scheduleScoutingDatabaseRefresh();
   }
 }
+
+function scheduleScoutingDatabaseFilterRefresh() {
+  if (isScoutingApiDatabaseActive()) {
+    scheduleScoutingDatabaseRefresh();
+    return;
+  }
+  window.clearTimeout(scoutingDatabaseFilterDebounceTimer);
+  scoutingDatabaseFilterDebounceTimer = window.setTimeout(() => {
+    scoutingDatabaseFilterDebounceTimer = 0;
+    scheduleScoutingDatabaseResultsRender();
+  }, 120);
+}
 function rollbackScoutingImport(importBatchId) {
   if (!canEditScoutingWorkspace()) {
     return;
@@ -8294,8 +10529,16 @@ function deleteScoutingSavedView(viewId) {
 function renderScoutingDatabaseResults() {
   const results = getScoutingDatabaseResultsMarkup();
   const market = ui.scoutingWorkspace?.querySelector("[data-scouting-market-radar]");
+  const brief = ui.scoutingWorkspace?.querySelector("[data-scouting-intelligence-brief]");
+  const queue = ui.scoutingWorkspace?.querySelector("[data-scouting-action-queue]");
   const summary = ui.scoutingWorkspace?.querySelector("[data-scouting-result-summary]");
   const grid = ui.scoutingWorkspace?.querySelector("[data-scouting-record-grid]");
+  if (brief) {
+    brief.outerHTML = renderScoutingDatabaseIntelligenceBrief(results.records, ensureScoutingState());
+  }
+  if (queue) {
+    queue.outerHTML = renderScoutingDatabaseActionQueue(results.records, ensureScoutingState());
+  }
   if (market) {
     market.outerHTML = renderScoutingMarketRadar(results.records);
   }
@@ -8576,6 +10819,11 @@ export function handleClick(event, context) {
     applyScoutingImportDraft();
     return;
   }
+  const presetImportTrigger = event.target.closest("[data-scouting-import-preset]");
+  if (presetImportTrigger) {
+    applyScoutingImportSourcePreset(presetImportTrigger.dataset.scoutingImportPreset);
+    return;
+  }
   const clearImportTrigger = event.target.closest("[data-clear-scouting-import]");
   if (clearImportTrigger) {
     clearScoutingImportedDatabase();
@@ -8651,6 +10899,28 @@ export function handleClick(event, context) {
     createScoutingReportForRecord(createProfileReportTrigger.dataset.createScoutingProfileReport);
     return;
   }
+  const compareRecordTrigger = event.target.closest("[data-toggle-scouting-record-compare]");
+  if (compareRecordTrigger) {
+    event.stopPropagation();
+    toggleScoutingCompareRecord(compareRecordTrigger.dataset.toggleScoutingRecordCompare);
+    return;
+  }
+  const clearCompareTrigger = event.target.closest("[data-clear-scouting-compare-set]");
+  if (clearCompareTrigger) {
+    clearScoutingCompareSet();
+    return;
+  }
+  const createCompareReportTrigger = event.target.closest("[data-create-scouting-compare-report]");
+  if (createCompareReportTrigger) {
+    createScoutingCompareSetReport();
+    return;
+  }
+  const quickViewTrigger = event.target.closest("[data-toggle-scouting-record-details]");
+  if (quickViewTrigger) {
+    event.stopPropagation();
+    toggleScoutingRecordQuickView(quickViewTrigger.dataset.toggleScoutingRecordDetails);
+    return;
+  }
   const removeRoleModelTrigger = event.target.closest("[data-remove-scouting-role-model]");
   if (removeRoleModelTrigger) {
     if (!canEditScoutingWorkspace()) {
@@ -8667,6 +10937,7 @@ export function handleClick(event, context) {
   }
   const addToListTrigger = event.target.closest("[data-add-scouting-record-to-list]");
   if (addToListTrigger) {
+    event.stopPropagation();
     const listSelect = ui.scoutingWorkspace?.querySelector("[data-scouting-profile-list]");
     addScoutingRecordToList(addToListTrigger.dataset.addScoutingRecordToList, listSelect?.value);
     return;
@@ -8703,9 +10974,12 @@ export function handleInput(event, context) {
   if (!filterInput) {
     return;
   }
+  if (filterInput.dataset.scoutingFilter === "query") {
+    return;
+  }
   setScoutingDatabaseFilter(filterInput.dataset.scoutingFilter, filterInput.value);
   if (isScoutingDatabaseLoaded()) {
-    scheduleScoutingDatabaseRefresh();
+    scheduleScoutingDatabaseFilterRefresh();
   }
 }
 export function handleChange(event, context) {
@@ -8789,7 +11063,7 @@ export function handleChange(event, context) {
   }
   setScoutingDatabaseFilter(filterInput.dataset.scoutingFilter, filterInput.value);
   if (isScoutingDatabaseLoaded()) {
-    scheduleScoutingDatabaseRefresh();
+    scheduleScoutingDatabaseFilterRefresh();
   }
 }
 export function handleSubmit(event, context) {
@@ -8800,7 +11074,7 @@ export function handleSubmit(event, context) {
     const formData = new FormData(databaseSearchForm);
     setScoutingDatabaseFilter("query", formData.get("query"));
     if (isScoutingDatabaseLoaded()) {
-      scheduleScoutingDatabaseRefresh();
+      scheduleScoutingDatabaseFilterRefresh();
     }
     return;
   }

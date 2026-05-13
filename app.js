@@ -728,12 +728,8 @@ function applyCentralSyncedStateValue(write = {}, syncedValue) {
   if (centralStateWriteQueue.has(key) || rawDataSafetyGetItem(key) !== write.value || syncedValue === write.value) {
     return;
   }
-  const valueToApply =
-    key === scheduleStorageKey
-      ? mergeScheduleStatePreservingLocalUi(rawDataSafetyGetItem(key), syncedValue)
-      : key === periodizationStorageKey
-        ? mergePeriodizationStatePreservingLocalUi(rawDataSafetyGetItem(key), syncedValue)
-      : syncedValue;
+  const localValue = rawDataSafetyGetItem(key);
+  const valueToApply = key === scheduleStorageKey ? mergeScheduleStatePreservingLocalUi(localValue, syncedValue) : key === periodizationStorageKey ? mergePeriodizationStatePreservingLocalUi(localValue, syncedValue) : key === scoutingStorageKey ? mergeScoutingStatePreservingLocalUi(localValue, syncedValue) : syncedValue;
   window.__footballScienceCentralHydrating = true;
   try {
     rawDataSafetySetItem(key, valueToApply);
@@ -1427,6 +1423,7 @@ const defaultScoutingState = {
     maxAge: "",
     metricId: "all",
     metricMin: "",
+    roleFitMin: "", signalMode: "all",
     sortMetricId: "minutes",
   },
   targets: [],
@@ -6071,6 +6068,7 @@ function normalizeScoutingDatabaseFilters(filters = {}) {
     maxAge: normalizeScoutingText(filters.maxAge, 12),
     metricId: normalizeScoutingText(filters.metricId, 120) || "all",
     metricMin: normalizeScoutingText(filters.metricMin, 12),
+    roleFitMin: normalizeScoutingText(filters.roleFitMin, 12), signalMode: normalizeScoutingText(filters.signalMode, 40) || "all",
     sortMetricId: normalizeScoutingText(filters.sortMetricId, 120) || "minutes",
   };
 }
@@ -6131,6 +6129,12 @@ function cloneScoutingState(source = defaultScoutingState) {
       : [],
     comparisonLab: normalizeScoutingComparisonLab(source.comparisonLab),
   };
+}
+function mergeScoutingStatePreservingLocalUi(localValue, centralValue) {
+  try {
+    const localState = localValue ? JSON.parse(localValue) : null, centralStateValue = centralValue ? JSON.parse(centralValue) : null;
+    return !localState || typeof localState !== "object" || !centralStateValue || typeof centralStateValue !== "object" ? centralValue : JSON.stringify({ ...centralStateValue, activeTab: localState.activeTab ?? centralStateValue.activeTab, databaseFilters: { ...(centralStateValue.databaseFilters || {}), ...(localState.databaseFilters || {}) }, selectedRecordId: localState.selectedRecordId ?? centralStateValue.selectedRecordId, comparisonLab: localState.comparisonLab ?? centralStateValue.comparisonLab, shadowXi: { ...(centralStateValue.shadowXi || {}), selectedSlotId: localState.shadowXi?.selectedSlotId ?? centralStateValue.shadowXi?.selectedSlotId } });
+  } catch { return centralValue; }
 }
 function setScoutingStateStorageValue(state = scoutingState, options = {}) {
   const shouldSyncCentral = options.syncCentral !== false;

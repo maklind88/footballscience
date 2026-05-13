@@ -6096,7 +6096,7 @@ function normalizeScoutingComparisonLab(value = {}) {
   };
 }
 function cloneScoutingState(source = defaultScoutingState) {
-  const activeTab = scoutingTabs.some((tab) => tab.id === source.activeTab) ? source.activeTab : "shadow-xi";
+  const activeTab = "shadow-xi";
   const lists = Array.isArray(source.lists)
     ? source.lists.map(cloneScoutingList).filter((list) => list.name)
     : [];
@@ -6131,6 +6131,22 @@ function cloneScoutingState(source = defaultScoutingState) {
       : [],
     comparisonLab: normalizeScoutingComparisonLab(source.comparisonLab),
   };
+}
+function preserveScoutingTransientUiState(nextState, previousState) {
+  if (!previousState || !nextState) {
+    return nextState;
+  }
+  if (scoutingTabs.some((tab) => tab.id === previousState.activeTab)) {
+    nextState.activeTab = previousState.activeTab;
+  }
+  nextState.selectedRecordId = normalizeScoutingText(previousState.selectedRecordId, 160);
+  nextState.profileTab = normalizeScoutingText(previousState.profileTab, 40);
+  nextState.profileRoleProfileId = normalizeScoutingText(previousState.profileRoleProfileId, 120);
+  const selectedSlotId = normalizeScoutingText(previousState.shadowXi?.selectedSlotId, 40);
+  if (scoutingShadowSlots.some((slot) => slot.id === selectedSlotId)) {
+    nextState.shadowXi.selectedSlotId = selectedSlotId;
+  }
+  return nextState;
 }
 function setScoutingStateStorageValue(state = scoutingState, options = {}) {
   const shouldSyncCentral = options.syncCentral !== false;
@@ -78533,7 +78549,7 @@ window.addEventListener("storage", (event) => {
     event.key === scoutingStorageKey
   ) {
     if (event.key === scoutingStorageKey && hubState?.activeWorkspaceId === "scouting") {
-      scoutingState = readScoutingState();
+      scoutingState = preserveScoutingTransientUiState(readScoutingState(), scoutingState);
       renderScoutingWorkspace();
       return;
     }

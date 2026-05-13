@@ -6263,6 +6263,8 @@ export function handleClick(event, context) {
   }
   const tabTrigger = event.target.closest("[data-scouting-tab]");
   if (tabTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
     setScoutingActiveTab(tabTrigger.dataset.scoutingTab);
     return;
   }

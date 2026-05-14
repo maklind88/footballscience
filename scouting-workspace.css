@@ -1550,6 +1550,20 @@ outline: none;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.scouting-record-name-button{
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.scouting-record-name-button:focus-visible{
+  outline: 2px solid rgba(39, 83, 64, 0.34);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
 .scouting-record-card-score span{
   color: #6e6e73;
   font-size: 0.68rem;

@@ -7181,13 +7181,14 @@ function getScoutingDatabaseBriefCards(records = [], state = ensureScoutingState
     },
   ];
 }
-function renderScoutingDatabaseIntelligenceBrief(records = [], state = ensureScoutingState()) {
+function renderScoutingDatabaseIntelligenceBrief(records = [], state = ensureScoutingState(), options = {}) {
   const cards = getScoutingDatabaseBriefCards(records, state);
+  const totalCount = Math.max(records.length, Math.floor(Number(options.totalCount) || 0));
   return `
     <section class="scouting-intelligence-brief" data-scouting-intelligence-brief>
       <div class="scouting-intelligence-brief-head">
         <span>Database intelligence brief</span>
-        <strong>${escapeHtml(`${records.length.toLocaleString("en-US")} players in current view`)}</strong>
+        <strong>${escapeHtml(`${totalCount.toLocaleString("en-US")} players in current view`)}</strong>
       </div>
       <div class="scouting-intelligence-brief-grid">
         ${cards
@@ -8868,7 +8869,7 @@ function renderScoutingRecordCard(record, options = {}) {
       ? `P${percentile}`
       : formatScoutingNumber(metricValue);
   return `
-    <article class="scouting-record-card${isExpanded ? " is-expanded" : ""}" data-open-scouting-record="${escapeHtml(recordId)}" tabindex="0" role="button">
+    <article class="scouting-record-card${isExpanded ? " is-expanded" : ""}" data-scouting-record-row="${escapeHtml(recordId)}" tabindex="0" role="button">
       <div class="scouting-record-avatar-shell">
         ${renderScoutingRecordAvatar(record)}
         <div class="scouting-record-mini-radar-popover" role="img" aria-label="Player role spider" data-scouting-mini-radar-shell="${escapeHtml(recordId)}">
@@ -8876,7 +8877,9 @@ function renderScoutingRecordCard(record, options = {}) {
         </div>
       </div>
       <div class="scouting-record-name-cell">
-        <strong>${escapeHtml(getScoutingRecordName(record))}</strong>
+        <button type="button" class="scouting-record-name-button" data-open-scouting-record="${escapeHtml(recordId)}">
+          <strong>${escapeHtml(getScoutingRecordName(record))}</strong>
+        </button>
       </div>
       <div class="scouting-record-table-cell scouting-record-position">${escapeHtml(position)}</div>
       <div class="scouting-record-table-cell scouting-record-age">${escapeHtml(ageDisplay)}</div>
@@ -8920,7 +8923,6 @@ function renderScoutingRecordCard(record, options = {}) {
       <button
         type="button"
         class="scouting-secondary-button"
-        data-open-scouting-record="${escapeHtml(recordId)}"
         data-toggle-scouting-record-details="${escapeHtml(recordId)}"
       >${isExpanded ? "Hide" : "Quick view"}</button>
         ${
@@ -9388,6 +9390,7 @@ function getScoutingDatabaseResultsMarkup() {
       }`;
   return {
     records,
+    visibleRecords,
     summary,
     paging: {
       total,
@@ -9483,9 +9486,9 @@ function renderScoutingDatabasePanel() {
         <main class="scouting-database-main">
           ${renderScoutingDatabaseControls()}
           ${renderScoutingCompareSetPanel(state)}
-          ${renderScoutingDatabaseIntelligenceBrief(results.records, state)}
-          ${renderScoutingDatabaseActionQueue(results.records, state)}
-          ${renderScoutingMarketRadar(results.records)}
+          ${renderScoutingDatabaseIntelligenceBrief(results.visibleRecords, state, { totalCount: results.records.length })}
+          ${renderScoutingDatabaseActionQueue(results.visibleRecords, state)}
+          ${renderScoutingMarketRadar(results.visibleRecords)}
           <div class="scouting-result-summary" data-scouting-result-summary>${escapeHtml(results.summary)}</div>
           <div class="scouting-record-table">
             ${renderScoutingRecordListHeader()}
@@ -10848,13 +10851,13 @@ function renderScoutingDatabaseResults() {
   const summary = ui.scoutingWorkspace?.querySelector("[data-scouting-result-summary]");
   const grid = ui.scoutingWorkspace?.querySelector("[data-scouting-record-grid]");
   if (brief) {
-    brief.outerHTML = renderScoutingDatabaseIntelligenceBrief(results.records, ensureScoutingState());
+    brief.outerHTML = renderScoutingDatabaseIntelligenceBrief(results.visibleRecords, ensureScoutingState(), { totalCount: results.records.length });
   }
   if (queue) {
-    queue.outerHTML = renderScoutingDatabaseActionQueue(results.records, ensureScoutingState());
+    queue.outerHTML = renderScoutingDatabaseActionQueue(results.visibleRecords, ensureScoutingState());
   }
   if (market) {
-    market.outerHTML = renderScoutingMarketRadar(results.records);
+    market.outerHTML = renderScoutingMarketRadar(results.visibleRecords);
   }
   if (summary) {
     summary.textContent = results.summary;
@@ -11270,6 +11273,11 @@ export function handleClick(event, context) {
   const recordTrigger = event.target.closest("[data-open-scouting-record]");
   if (recordTrigger) {
     openScoutingRecordProfile(recordTrigger.dataset.openScoutingRecord);
+    return;
+  }
+  const recordRowTrigger = event.target.closest("[data-scouting-record-row]");
+  if (recordRowTrigger && !event.target.closest("button, a, input, select, textarea")) {
+    openScoutingRecordProfile(recordRowTrigger.dataset.scoutingRecordRow);
   }
 }
 export function handleInput(event, context) {

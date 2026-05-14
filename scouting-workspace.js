@@ -1970,6 +1970,20 @@ function getScoutingRecordImageUrl(record) {
 function getScoutingRecordPlayerSourceId(record) {
   return normalizeScoutingText(record?.[scoutingRecordIndex.playerSourceId], 160);
 }
+function getScoutingRecordSourceSystem(record) {
+  return normalizeScoutingText(record?.[scoutingRecordIndex.sourceSystem], 40) || "file-import";
+}
+function getScoutingRecordSourceId(record) {
+  const trace = getScoutingRecordSourceTrace(record);
+  const direct =
+    normalizeScoutingText(record?.[scoutingRecordIndex.sourceRecordId], 160) ||
+    normalizeScoutingText(trace.sourceRecordId || trace.source_record_id || trace.recordSourceId, 160);
+  const sourceSystem = getScoutingRecordSourceSystem(record);
+  if (direct) {
+    return buildScoutingScopedId(direct, sourceSystem);
+  }
+  return buildScoutingScopedId(getScoutingRecordId(record) || getScoutingRecordMergeKey(record), sourceSystem);
+}
 function getScoutingRecordDateOfBirth(record) {
   return normalizeScoutingDateValue(record?.[scoutingRecordIndex.dateOfBirth]);
 }

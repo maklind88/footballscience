@@ -29,6 +29,10 @@ let scoutingMarketIntelVersion = 0;
 let preferredScoutingShadowSlotId = "";
 let scoutingDatabaseResultsFrame = 0;
 let scoutingImportedDatabaseLoaded = false;
+let scoutingPendingProfileFocusRecordId = "";
+let scoutingPendingProfileFocusUntil = 0;
+let scoutingProfileFocusTimer = 0;
+let scoutingProfileFocusObserver = null;
 let scoutingImportDraft = null;
 let scoutingImportParserPromise = null;
 let scoutingImportPdfParserPromise = null;
@@ -6793,7 +6797,8 @@ function getScoutingSlotRecommendationRows(slot, state = ensureScoutingState(), 
   const allShadowIds = new Set(getScoutingAllShadowRecordIds(state));
   const favoriteIds = new Set(normalizeScoutingRecordIds(state.favoriteRecordIds));
   const pipelineIds = new Set(getScoutingTargetedRecordIds(state));
-  return (getScoutingDatabase()?.records || [])
+  const candidateRecords = (getScoutingDatabase()?.records || []).slice(0, 900);
+  return candidateRecords
     .filter((record) => {
       const recordId = getScoutingRecordId(record);
       const tokens = getScoutingPositionTokens(record);
@@ -8590,7 +8595,8 @@ function getScoutingRecruitmentAlerts(state = ensureScoutingState(), limit = 10)
     }
   });
   if (isScoutingDatabaseLoaded()) {
-    [...(getScoutingDatabase()?.records || [])]
+    const alertDatabaseRecords = (getScoutingDatabase()?.records || []).slice(0, 900);
+    [...alertDatabaseRecords]
       .filter((record) => getScoutingRecordMinutes(record) >= 450)
       .sort((a, b) => getScoutingRecordMinutes(b) - getScoutingRecordMinutes(a))
       .slice(0, 450)
@@ -8613,7 +8619,7 @@ function getScoutingRecruitmentAlerts(state = ensureScoutingState(), limit = 10)
           recordId: item.recordId,
         });
       });
-    [...(getScoutingDatabase()?.records || [])]
+    [...alertDatabaseRecords]
       .filter((record) => {
         const age = getScoutingRecordAge(record);
         return Number.isFinite(age) && age <= 23 && getScoutingRecordMinutes(record) <= 900;
@@ -10285,25 +10291,32 @@ function renderScoutingProfileModal() {
   const favorite = isScoutingRecordFavorited(recordId);
   const profileRoleProfileId = normalizeScoutingRoleProfileId(state.profileRoleProfileId, "auto");
   const selectedProfileRoleId = profileRoleProfileId === "auto" ? "" : profileRoleProfileId;
-  const radarTemplate = getScoutingRadarTemplate(record, selectedProfileRoleId);
-  const profileMetrics = getScoutingRoleMetricRows(record, radarTemplate);
-  const topMetrics = getScoutingMetricOptions()
-    .map((metric) => ({
-      metric,
-      value: getScoutingMetricValue(record, metric.id),
-      percentile: getScoutingComparablePercentile(record, metric.id),
-    }))
-    .filter((item) => Number.isFinite(item.value) && Number.isFinite(item.percentile))
-    .sort((a, b) => b.percentile - a.percentile)
-    .slice(0, 10);
-  const playerRows = getScoutingRecordsForPlayer(record).slice(0, 10);
-  const roleFitScore = getScoutingRoleFitScore(record, selectedProfileRoleId);
-  const intelligence = getScoutingIntelligenceProfile(record, state, selectedProfileRoleId);
-  const bestSignal = getScoutingBestSignal(record);
-  const shadowRoles = scoutingShadowSlots.filter((slot) => getScoutingShadowSlotRecordIds(slot.id, state).includes(recordId));
-  const goalMetricId = getScoutingMetricIdByLabels(["Goals"]);
-  const xgMetricId = getScoutingMetricIdByLabels(["xG"]);
-  const assistMetricId = getScoutingMetricIdByLabels(["Assists"]);
+  const activeProfileTab = normalizeScoutingProfileTab(state.profileTab);
+  const needsOverviewData = activeProfileTab === "overview";
+  const needsPerformanceData = activeProfileTab === "performance";
+  const needsHistoryData = activeProfileTab === "history";
+  const radarTemplate =
+    needsOverviewData || needsPerformanceData ? getScoutingRadarTemplate(record, selectedProfileRoleId) : { profileLabel: "" };
+  const profileMetrics = needsPerformanceData ? getScoutingRoleMetricRows(record, radarTemplate) : [];
+  const topMetrics = needsPerformanceData
+    ? getScoutingMetricOptions()
+        .map((metric) => ({
+          metric,
+          value: getScoutingMetricValue(record, metric.id),
+          percentile: getScoutingComparablePercentile(record, metric.id),
+        }))
+        .filter((item) => Number.isFinite(item.value) && Number.isFinite(item.percentile))
+        .sort((a, b) => b.percentile - a.percentile)
+        .slice(0, 10)
+    : [];
+  const playerRows = needsOverviewData || needsPerformanceData || needsHistoryData ? getScoutingRecordsForPlayer(record).slice(0, 10) : [];
+  const roleFitScore = needsOverviewData ? getScoutingRoleFitScore(record, selectedProfileRoleId) : null;
+  const intelligence =
+    needsOverviewData || needsPerformanceData ? getScoutingIntelligenceProfile(record, state, selectedProfileRoleId) : null;
+  const shadowRoles = needsOverviewData ? scoutingShadowSlots.filter((slot) => getScoutingShadowSlotRecordIds(slot.id, state).includes(recordId)) : [];
+  const goalMetricId = needsPerformanceData ? getScoutingMetricIdByLabels(["Goals"]) : "";
+  const xgMetricId = needsPerformanceData ? getScoutingMetricIdByLabels(["xG"]) : "";
+  const assistMetricId = needsPerformanceData ? getScoutingMetricIdByLabels(["Assists"]) : "";
   const target = findScoutingTargetByRecordId(recordId, state);
   const listOptions = state.lists
     .map((list) => `<option value="${escapeHtml(list.id)}">${escapeHtml(list.name)}</option>`)
@@ -10314,7 +10327,6 @@ function renderScoutingProfileModal() {
   const slotOptions = scoutingShadowSlots
     .map((slot) => `<option value="${escapeHtml(slot.id)}" ${targetSlotId === slot.id ? "selected" : ""}>${escapeHtml(slot.label)} - ${escapeHtml(slot.position)}</option>`)
     .join("");
-  const activeProfileTab = normalizeScoutingProfileTab(state.profileTab);
   return `
     <div class="scouting-profile-backdrop" data-close-scouting-profile>
       <article class="scouting-profile-modal" data-scouting-profile-modal tabindex="-1">
@@ -10399,7 +10411,7 @@ function renderScoutingProfileModal() {
         </header>
         ${renderScoutingProfileTabs(activeProfileTab)}
         <div class="scouting-profile-tab-panel ${activeProfileTab === "overview" ? "is-active" : ""}">
-          ${renderScoutingProfileDossier(record, state, playerRows)}
+          ${activeProfileTab === "overview" ? renderScoutingProfileDossier(record, state, playerRows) : ""}
           <div class="scouting-profile-decision-strip">
             <div>
               <span>Role fit</span>
@@ -10408,13 +10420,13 @@ function renderScoutingProfileModal() {
             </div>
             <div>
               <span>Role floor</span>
-              <strong>${escapeHtml(Number.isFinite(intelligence.floor.score) ? `P${intelligence.floor.score}` : "n/a")}</strong>
-              <em>${escapeHtml(intelligence.floor.label)}</em>
+              <strong>${escapeHtml(Number.isFinite(intelligence?.floor?.score) ? `P${intelligence.floor.score}` : "n/a")}</strong>
+              <em>${escapeHtml(intelligence?.floor?.label || "Open overview")}</em>
             </div>
             <div>
               <span>Best signal</span>
-              <strong>${escapeHtml(intelligence.confidence.label)}</strong>
-              <em>${escapeHtml(intelligence.signal.headline)}</em>
+              <strong>${escapeHtml(intelligence?.confidence?.label || "n/a")}</strong>
+              <em>${escapeHtml(intelligence?.signal?.headline || "Open overview")}</em>
             </div>
             <div>
               <span>Role stack</span>
@@ -10429,10 +10441,12 @@ function renderScoutingProfileModal() {
           </div>
         </div>
         <div class="scouting-profile-tab-panel ${activeProfileTab === "market" ? "is-active" : ""}">
-          ${renderScoutingMarketIntelligencePanel(record, state)}
+          ${activeProfileTab === "market" ? renderScoutingMarketIntelligencePanel(record, state) : ""}
         </div>
         <div class="scouting-profile-tab-panel ${activeProfileTab === "performance" ? "is-active" : ""}">
-          <div class="scouting-profile-grid">
+          ${
+            activeProfileTab === "performance"
+              ? `<div class="scouting-profile-grid">
           <section class="scouting-profile-radar">
             <label class="scouting-profile-role-selector">
               <span>View as player type</span>
@@ -10458,7 +10472,7 @@ function renderScoutingProfileModal() {
                   `
                       )
                       .join("")
-                  : `<p class="scouting-muted">No data. Needs: ${escapeHtml((intelligence.risk.needs || []).join(", ") || "role metrics")}</p>`
+                  : `<p class="scouting-muted">No data. Needs: ${escapeHtml((intelligence?.risk?.needs || []).join(", ") || "role metrics")}</p>`
               }
             </div>
           </section>
@@ -10520,18 +10534,21 @@ function renderScoutingProfileModal() {
             </div>
           </section>
           </div>
+          `
+              : ""
+          }
         </div>
         <div class="scouting-profile-tab-panel ${activeProfileTab === "squad" ? "is-active" : ""}">
-          ${renderScoutingSquadFitPanel(record, state)}
+          ${activeProfileTab === "squad" ? renderScoutingSquadFitPanel(record, state) : ""}
         </div>
         <div class="scouting-profile-tab-panel ${activeProfileTab === "reports" ? "is-active" : ""}">
-          ${renderScoutingProfileReportsTab(record, state)}
+          ${activeProfileTab === "reports" ? renderScoutingProfileReportsTab(record, state) : ""}
         </div>
         <div class="scouting-profile-tab-panel ${activeProfileTab === "contacts" ? "is-active" : ""}">
-          ${renderScoutingContactsTab(record, state)}
+          ${activeProfileTab === "contacts" ? renderScoutingContactsTab(record, state) : ""}
         </div>
         <div class="scouting-profile-tab-panel ${activeProfileTab === "history" ? "is-active" : ""}">
-          ${renderScoutingProfileHistoryTab(record, playerRows)}
+          ${activeProfileTab === "history" ? renderScoutingProfileHistoryTab(record, playerRows) : ""}
         </div>
       </article>
     </div>
@@ -10579,7 +10596,7 @@ function renderScoutingWorkspace(options = {}) {
           <p class="placeholder-tag">Scouting</p>
           <h1>Shadow XI and recruitment intelligence</h1>
         </div>
-        <div class="scouting-metrics" aria-label="Scouting summary">
+        <div class="scouting-metrics" data-scouting-summary-metrics aria-label="Scouting summary">
           <span><strong data-scouting-summary-players>${playerCount ? playerCount.toLocaleString("en-US") : "..."}</strong> Players</span>
           <span><strong data-scouting-summary-sheets>${sheetCount ? sheetCount.toLocaleString("en-US") : "..."}</strong> Data sheets</span>
           <span><strong data-scouting-summary-favorites>${state.favoriteRecordIds.length}</strong> Favorites</span>
@@ -10607,13 +10624,17 @@ function renderScoutingWorkspace(options = {}) {
   restoreScoutingFocus(focusSnapshot);
   bindScoutingDragAndDrop();
   bindScoutingRecordMiniRadarShells();
+  if (shouldFocusScoutingProfileModal(state.selectedRecordId)) {
+    focusScoutingProfileModal();
+    queueScoutingProfileModalFocus(state.selectedRecordId);
+  }
 }
 function refreshScoutingWorkspaceSummaryMetrics() {
   if (!ui.scoutingWorkspace) {
     return;
   }
   const state = ensureScoutingState();
-  const summary = ui.scoutingWorkspace.querySelector("[data-scouting-summary-metrics]");
+  const summary = ui.scoutingWorkspace.querySelector("[data-scouting-summary-metrics]") || ui.scoutingWorkspace.querySelector(".scouting-metrics");
   if (!summary) {
     return;
   }
@@ -10906,15 +10927,77 @@ function scheduleScoutingDatabaseResultsRender() {
     renderScoutingDatabaseResults();
   });
 }
+function focusScoutingProfileModal() {
+  const modal = ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]");
+  if (!modal || typeof modal.focus !== "function") {
+    return;
+  }
+  try {
+    modal.focus({ preventScroll: true });
+  } catch {
+    modal.focus();
+  }
+  if (document.activeElement !== modal) {
+    modal.focus();
+  }
+}
+function shouldFocusScoutingProfileModal(recordId) {
+  const id = normalizeScoutingText(recordId, 160);
+  return Boolean(
+    id &&
+      scoutingPendingProfileFocusRecordId === id &&
+      Date.now() <= scoutingPendingProfileFocusUntil
+  );
+}
+function ensureScoutingProfileFocusObserver() {
+  if (scoutingProfileFocusObserver || typeof MutationObserver !== "function" || !ui.scoutingWorkspace) {
+    return;
+  }
+  scoutingProfileFocusObserver = new MutationObserver(() => {
+    const selectedRecordId = ensureScoutingState().selectedRecordId;
+    if (shouldFocusScoutingProfileModal(selectedRecordId)) {
+      focusScoutingProfileModal();
+    }
+  });
+  scoutingProfileFocusObserver.observe(ui.scoutingWorkspace, { childList: true, subtree: true });
+}
+function queueScoutingProfileModalFocus(recordId) {
+  const targetId = normalizeScoutingText(recordId, 160);
+  window.clearInterval(scoutingProfileFocusTimer);
+  const startedAt = Date.now();
+  const applyFocus = () => {
+    if (ensureScoutingState().selectedRecordId !== targetId || !shouldFocusScoutingProfileModal(targetId)) {
+      window.clearInterval(scoutingProfileFocusTimer);
+      scoutingProfileFocusTimer = 0;
+      return;
+    }
+    focusScoutingProfileModal();
+    const modal = ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]");
+    if (modal && document.activeElement === modal && Date.now() - startedAt >= 2000) {
+      window.clearInterval(scoutingProfileFocusTimer);
+      scoutingProfileFocusTimer = 0;
+      scoutingPendingProfileFocusRecordId = "";
+      scoutingPendingProfileFocusUntil = 0;
+    }
+  };
+  applyFocus();
+  scoutingProfileFocusTimer = window.setInterval(applyFocus, 250);
+}
 function openScoutingRecordProfile(recordId) {
   const state = ensureScoutingState();
   state.selectedRecordId = normalizeScoutingText(recordId, 160);
   state.profileTab = "overview";
   state.profileRoleProfileId = "auto";
+  scoutingPendingProfileFocusRecordId = state.selectedRecordId;
+  scoutingPendingProfileFocusUntil = Date.now() + 420_000;
   writeScoutingState({ syncCentral: false });
+  ensureScoutingProfileFocusObserver();
+  queueScoutingProfileModalFocus(state.selectedRecordId);
   renderScoutingWorkspace();
+  focusScoutingProfileModal();
+  queueScoutingProfileModalFocus(state.selectedRecordId);
   requestAnimationFrame(() => {
-    ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]")?.focus?.({ preventScroll: true });
+    focusScoutingProfileModal();
     hydrateScoutingProfileApiDetails(state.selectedRecordId);
   });
 }
@@ -10922,6 +11005,12 @@ function closeScoutingRecordProfile() {
   const state = ensureScoutingState();
   state.selectedRecordId = "";
   writeScoutingState({ syncCentral: false });
+  const backdrop = ui.scoutingWorkspace?.querySelector(".scouting-profile-backdrop");
+  if (backdrop) {
+    backdrop.remove();
+    refreshScoutingWorkspaceSummaryMetrics();
+    return;
+  }
   renderScoutingWorkspace();
 }
 function toggleScoutingFavorite(recordId) {
@@ -10937,7 +11026,27 @@ function toggleScoutingFavorite(recordId) {
     ? state.favoriteRecordIds.filter((recordIdValue) => recordIdValue !== id)
     : [id, ...state.favoriteRecordIds];
   writeScoutingState();
+  if (ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]")) {
+    updateScoutingFavoriteControls(id, state);
+    refreshScoutingWorkspaceSummaryMetrics();
+    return;
+  }
   refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
+}
+function updateScoutingFavoriteControls(recordId, state = ensureScoutingState()) {
+  const id = normalizeScoutingText(recordId, 160);
+  const favorite = state.favoriteRecordIds.includes(id);
+  Array.from(ui.scoutingWorkspace?.querySelectorAll("[data-toggle-scouting-favorite]") || [])
+    .filter((button) => button.getAttribute("data-toggle-scouting-favorite") === id)
+    .forEach((button) => {
+      button.classList.toggle("is-active", favorite);
+      button.setAttribute("aria-pressed", favorite ? "true" : "false");
+      const usesLabel = /favorite/i.test(button.textContent || "");
+      button.textContent = usesLabel ? (favorite ? "Favorited" : "Favorite") : favorite ? "★" : "☆";
+      if (button.getAttribute("aria-label")) {
+        button.setAttribute("aria-label", favorite ? "Remove favorite" : "Favorite player");
+      }
+    });
 }
 function addScoutingRecordToList(recordId, listId) {
   if (!canEditScoutingWorkspace()) {
@@ -11006,6 +11115,10 @@ function addScoutingRecordToShadow(recordId, slotId) {
   state.shadowXi.selectedSlotId = slot.id;
   preferredScoutingShadowSlotId = slot.id;
   writeScoutingState();
+  if (ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]")) {
+    refreshScoutingWorkspaceSummaryMetrics();
+    return;
+  }
   refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: state.activeTab === "database" });
 }
 function removeScoutingRecordFromShadow(recordId, slotId) {

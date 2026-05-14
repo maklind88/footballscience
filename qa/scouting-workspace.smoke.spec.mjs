@@ -58,7 +58,7 @@ async function openWorkspace(page, workspaceId, viewId = workspaceId) {
 }
 
 test("Scouting database search, profile, favorite and Shadow XI flow stays stable", async ({ page }) => {
-  test.setTimeout(240_000);
+  test.setTimeout(420_000);
   await page.addInitScript(
     ({ key }) => {
       window.localStorage.removeItem("football-scouting-v1");

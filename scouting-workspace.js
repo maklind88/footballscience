@@ -9533,8 +9533,6 @@ function renderScoutingShadowXi() {
   const selectedSlotId = getSelectedScoutingShadowSlotId(state);
   const shadowCounts = getScoutingShadowSlotCounts(state);
   return `
-    ${renderScoutingRecruitmentCockpit(state)}
-    ${renderScoutingRecruitmentAlerts(state)}
     <section class="scouting-shadow-layout">
       <div class="scouting-shadow-pitch" aria-label="Shadow eleven ${escapeHtml(state.shadowXi.formation)}">
         <span class="scouting-pitch-line is-half"></span>
@@ -9554,18 +9552,31 @@ function renderScoutingShadowXi() {
                 <div class="scouting-shadow-stack">
                   ${
                     records.length
-                      ? records
+                  ? records
                           .slice(0, 2)
-                          .map((record, index) => {
-                            const recordId = getScoutingRecordId(record);
-                            const meta = getScoutingShadowRecordMeta(slot.id, recordId, state);
-                            const tagLabel = getScoutingShadowTagOptions().find((option) => option.value === meta.tag)?.label || "Monitor";
-                            return `
+                            .map((record, index) => {
+                              const recordId = getScoutingRecordId(record);
+                              return `
                               <div class="scouting-shadow-player-row" style="--stack:${index};">
-                                <button type="button" class="scouting-shadow-player" data-open-scouting-record="${escapeHtml(recordId)}">
-                                  <strong>${escapeHtml(getScoutingRecordName(record))}</strong>
-                                  <span>${escapeHtml(tagLabel)} / ${escapeHtml(getScoutingRecordTeam(record) || getScoutingRecordLeague(record))}</span>
-                                </button>
+                                <article
+                                  class="scouting-shadow-player"
+                                  data-scouting-drag-shadow-record="${escapeHtml(recordId)}"
+                                  data-scouting-shadow-slot="${escapeHtml(slot.id)}"
+                                  data-scouting-shadow-drop-slot="${escapeHtml(slot.id)}"
+                                  data-scouting-shadow-drop-before="${escapeHtml(recordId)}"
+                                >
+                                  ${renderScoutingRecordAvatar(record)}
+                                  <div class="scouting-shadow-player-copy">
+                                    <button
+                                      type="button"
+                                      class="scouting-shadow-player-name"
+                                      data-open-scouting-record="${escapeHtml(recordId)}"
+                                    >
+                                      ${escapeHtml(getScoutingRecordName(record))}
+                                    </button>
+                                    <span>${escapeHtml(getScoutingRecordTeam(record) || getScoutingRecordLeague(record))}</span>
+                                  </div>
+                                </article>
                                 ${
                                   canEdit
                                     ? `<button type="button" class="scouting-shadow-remove" data-remove-scouting-shadow-slot="${escapeHtml(slot.id)}" data-remove-scouting-shadow-record="${escapeHtml(recordId)}" aria-label="Remove ${escapeHtml(getScoutingRecordName(record))} from ${escapeHtml(slot.label)}">x</button>`
@@ -9663,6 +9674,8 @@ function renderScoutingShadowXi() {
         </div>
       </aside>
     </section>
+    ${renderScoutingRecruitmentCockpit(state)}
+    ${renderScoutingRecruitmentAlerts(state)}
   `;
 }
 function renderScoutingListsPanel() {

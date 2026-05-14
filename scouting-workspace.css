@@ -2281,30 +2281,60 @@ cursor: pointer;
 }
 .scouting-shadow-player{
 display: grid;
-gap: 0.02rem;
+grid-template-columns: auto minmax(0, 1fr);
+align-items: center;
+gap: 0.45rem;
 min-width: 0;
-padding: 0.28rem 0.38rem;
-border-radius: 9px;
+padding: 0.4rem;
+border-radius: 12px;
 border: 1px solid rgba(29, 29, 31, 0.08);
 background: rgba(255, 255, 255, 0.82);
 color: #1d1d1f;
 box-shadow: 0 7px 14px rgba(0, 0, 0, 0.08);
 text-align: left;
 }
-.scouting-shadow-player strong,
-.scouting-shadow-player span{
+.scouting-shadow-player-copy{
+display: grid;
+gap: 0.08rem;
+min-width: 0;
+text-align: left;
+}
+.scouting-shadow-player-copy span,
+.scouting-shadow-player-name{
 overflow: hidden;
 text-overflow: ellipsis;
 white-space: nowrap;
+color: #1d1d1f;
+text-align: left;
+font: inherit;
 }
-.scouting-shadow-player strong{
+.scouting-shadow-player-name{
+padding: 0;
+margin: 0;
+border: 0;
+background: transparent;
 font-size: 0.72rem;
+font-weight: 900;
 line-height: 1.05;
+cursor: pointer;
+display: block;
+max-width: 100%;
 }
-.scouting-shadow-player span{
+.scouting-shadow-player-copy span{
 color: #6e6e73;
 font-size: 0.62rem;
 font-weight: 760;
+}
+.scouting-shadow-player .scouting-record-avatar-shell{
+width: 1.95rem;
+height: 1.95rem;
+}
+.scouting-shadow-player .scouting-record-avatar{
+width: 1.95rem;
+height: 1.95rem;
+}
+.scouting-shadow-player .scouting-record-avatar-fallback{
+font-size: 0.66rem;
 }
 .scouting-shadow-remove{
 width: 1.42rem;

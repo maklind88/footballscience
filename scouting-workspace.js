@@ -40,6 +40,7 @@ let scoutingDragState = null;
 let scoutingDatabaseApiRefreshTimer = 0;
 let scoutingDatabaseFilterDebounceTimer = 0;
 let scoutingAdvancedDatabaseFiltersOpen = false;
+let scoutingDatabaseAdvancedMode = false;
 let scoutingIntelligenceCacheVersion = 0;
 let scoutingImportHistoryCache = { status: "idle", imports: [], error: "", promise: null };
 let scoutingProfileApiCache = new Map();
@@ -8841,8 +8842,20 @@ function restoreScoutingFocus(snapshot) {
     nextField.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
   }
 }
+function isScoutingDatabaseAdvancedMode() {
+  return Boolean(scoutingDatabaseAdvancedMode);
+}
+function setScoutingDatabaseAdvancedMode(enabled) {
+  const nextMode = Boolean(enabled);
+  if (nextMode === scoutingDatabaseAdvancedMode) {
+    return;
+  }
+  scoutingDatabaseAdvancedMode = nextMode;
+  renderScoutingWorkspace({ preserveFocus: true });
+}
 function renderScoutingRecordCard(record, options = {}) {
   const lightweight = Boolean(options.lightweight);
+  const compactRow = options.compactMode === true || (lightweight && !isScoutingDatabaseAdvancedMode());
   const state = ensureScoutingState();
   const recordId = getScoutingRecordId(record);
   const filters = normalizeScoutingDatabaseFilters(state.databaseFilters);
@@ -8861,12 +8874,14 @@ function renderScoutingRecordCard(record, options = {}) {
   const roleFitMin = Number(filters.roleFitMin);
   const roleFloorMin = Number(filters.roleFloorMin);
   const metricMin = Number(filters.metricMin);
-  const shouldComputeFullSignal = sortMetricId === "role-fit" ||
+  const shouldComputeFullSignal = !compactRow && (
+    sortMetricId === "role-fit" ||
     roleProfileId !== "all" ||
     (Number.isFinite(roleFitMin) && roleFitMin > 0) ||
     (Number.isFinite(roleFloorMin) && roleFloorMin > 0) ||
     ["priority", "decision-ready", "breakout", "value"].includes(signalMode) ||
-    (metricId !== "all" && Number.isFinite(metricMin) && metricMin > 0);
+    (metricId !== "all" && Number.isFinite(metricMin) && metricMin > 0)
+  );
   const roleFitScore = shouldComputeFullSignal ? getScoutingRoleFitScore(record, roleProfileId || "") : null;
   const recommendation = shouldComputeFullSignal
     ? getScoutingIntelligenceProfile(record, state, roleProfileId || "").recommendation
@@ -8892,9 +8907,11 @@ function renderScoutingRecordCard(record, options = {}) {
     <article class="scouting-record-card${isExpanded ? " is-expanded" : ""}" data-scouting-record-row="${escapeHtml(recordId)}" tabindex="0" role="button">
       <div class="scouting-record-avatar-shell">
         ${renderScoutingRecordAvatar(record)}
-        <div class="scouting-record-mini-radar-popover" role="img" aria-label="Player role spider" data-scouting-mini-radar-shell="${escapeHtml(recordId)}">
-          <span class="scouting-mini-radar-placeholder" aria-hidden="true">◌</span>
-        </div>
+        ${compactRow
+          ? ""
+          : `<div class="scouting-record-mini-radar-popover" role="img" aria-label="Player role spider" data-scouting-mini-radar-shell="${escapeHtml(recordId)}">
+              <span class="scouting-mini-radar-placeholder" aria-hidden="true">◌</span>
+            </div>`}
       </div>
       <div class="scouting-record-name-cell">
         <button type="button" class="scouting-record-name-button" data-open-scouting-record="${escapeHtml(recordId)}">
@@ -9004,6 +9021,9 @@ function renderScoutingDatabaseControls() {
         </label>
         <button type="button" class="scouting-filter-toggle${scoutingAdvancedDatabaseFiltersOpen ? " is-open" : ""}" data-toggle-scouting-advanced-filters aria-expanded="${scoutingAdvancedDatabaseFiltersOpen ? "true" : "false"}">
           ${escapeHtml(`Advanced filters${advancedCount ? ` (${advancedCount})` : ""}`)}
+        </button>
+        <button type="button" class="scouting-filter-toggle${isScoutingDatabaseAdvancedMode() ? " is-open" : ""}" data-toggle-scouting-database-mode aria-pressed="${isScoutingDatabaseAdvancedMode() ? "true" : "false"}">
+          ${escapeHtml(isScoutingDatabaseAdvancedMode() ? "Quick mode" : "Advanced mode")}
         </button>
       </div>
       <div class="scouting-database-advanced-filters${scoutingAdvancedDatabaseFiltersOpen ? " is-open" : ""}" ${scoutingAdvancedDatabaseFiltersOpen ? "" : "hidden"}>
@@ -9424,7 +9444,14 @@ function getScoutingDatabaseResultsMarkup() {
       shownEnd,
     },
     html: visibleRecords.length
-      ? visibleRecords.map((record) => renderScoutingRecordCard(record, { lightweight: true })).join("")
+      ? visibleRecords
+          .map((record) =>
+            renderScoutingRecordCard(record, {
+              lightweight: true,
+              compactMode: !isScoutingDatabaseAdvancedMode(),
+            })
+          )
+          .join("")
       : `<div class="scouting-empty-panel">No players match these filters yet.</div>`,
   };
 }
@@ -9505,10 +9532,10 @@ function renderScoutingDatabasePanel() {
       <div class="scouting-database-workbench">
         <main class="scouting-database-main">
           ${renderScoutingDatabaseControls()}
-          ${renderScoutingCompareSetPanel(state)}
-          ${renderScoutingDatabaseIntelligenceBrief(results.visibleRecords, state, { totalCount: results.records.length })}
-          ${renderScoutingDatabaseActionQueue(results.visibleRecords, state)}
-          ${renderScoutingMarketRadar(results.visibleRecords)}
+          ${isScoutingDatabaseAdvancedMode() ? renderScoutingCompareSetPanel(state) : ""}
+          ${isScoutingDatabaseAdvancedMode() ? renderScoutingDatabaseIntelligenceBrief(results.visibleRecords, state, { totalCount: results.records.length }) : ""}
+          ${isScoutingDatabaseAdvancedMode() ? renderScoutingDatabaseActionQueue(results.visibleRecords, state) : ""}
+          ${isScoutingDatabaseAdvancedMode() ? renderScoutingMarketRadar(results.visibleRecords) : ""}
           <div class="scouting-result-summary" data-scouting-result-summary>${escapeHtml(results.summary)}</div>
           <div class="scouting-record-table">
             ${renderScoutingRecordListHeader()}
@@ -9519,8 +9546,8 @@ function renderScoutingDatabasePanel() {
         </main>
         <aside class="scouting-database-side" aria-label="Scouting database tools">
           ${renderScoutingSavedViewsPanel()}
-          ${renderScoutingDataQualityPanel()}
-          ${renderScoutingImportPanel()}
+          ${isScoutingDatabaseAdvancedMode() ? renderScoutingDataQualityPanel() : ""}
+          ${isScoutingDatabaseAdvancedMode() ? renderScoutingImportPanel() : ""}
         </aside>
       </div>
     </section>
@@ -10636,7 +10663,10 @@ function renderScoutingWorkspace(options = {}) {
   `;
   restoreScoutingFocus(focusSnapshot);
   bindScoutingDragAndDrop();
-  bindScoutingRecordMiniRadarShells();
+  if (state.activeTab === "database" && isScoutingDatabaseAdvancedMode()) {
+    bindScoutingRecordMiniRadarShells();
+    loadScoutingImportHistory();
+  }
   if (shouldFocusScoutingProfileModal(state.selectedRecordId)) {
     focusScoutingProfileModal();
     queueScoutingProfileModalFocus(state.selectedRecordId);
@@ -10893,9 +10923,10 @@ function deleteScoutingSavedView(viewId) {
 }
 function renderScoutingDatabaseResults() {
   const results = getScoutingDatabaseResultsMarkup();
-  const market = ui.scoutingWorkspace?.querySelector("[data-scouting-market-radar]");
-  const brief = ui.scoutingWorkspace?.querySelector("[data-scouting-intelligence-brief]");
-  const queue = ui.scoutingWorkspace?.querySelector("[data-scouting-action-queue]");
+  const isAdvancedMode = isScoutingDatabaseAdvancedMode();
+  const market = isAdvancedMode ? ui.scoutingWorkspace?.querySelector("[data-scouting-market-radar]") : null;
+  const brief = isAdvancedMode ? ui.scoutingWorkspace?.querySelector("[data-scouting-intelligence-brief]") : null;
+  const queue = isAdvancedMode ? ui.scoutingWorkspace?.querySelector("[data-scouting-action-queue]") : null;
   const summary = ui.scoutingWorkspace?.querySelector("[data-scouting-result-summary]");
   const grid = ui.scoutingWorkspace?.querySelector("[data-scouting-record-grid]");
   if (brief) {
@@ -10915,8 +10946,10 @@ function renderScoutingDatabaseResults() {
     ui.scoutingWorkspace?.querySelector("[data-scouting-database-paging]")?.remove();
     grid.insertAdjacentHTML("afterend", renderScoutingDatabasePagingControls(results.paging));
   }
-  bindScoutingRecordMiniRadarShells();
-  loadScoutingImportHistory();
+  if (isAdvancedMode) {
+    bindScoutingRecordMiniRadarShells();
+    loadScoutingImportHistory();
+  }
 }
 function scheduleScoutingDatabaseRefresh() {
   if (!isScoutingApiDatabaseActive()) {
@@ -11259,6 +11292,13 @@ export function handleClick(event, context) {
     event.stopPropagation();
     scoutingAdvancedDatabaseFiltersOpen = !scoutingAdvancedDatabaseFiltersOpen;
     renderScoutingWorkspace({ preserveFocus: true });
+    return;
+  }
+  const advancedModeTrigger = event.target.closest("[data-toggle-scouting-database-mode]");
+  if (advancedModeTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    setScoutingDatabaseAdvancedMode(!isScoutingDatabaseAdvancedMode());
     return;
   }
   const openImportTrigger = event.target.closest("[data-scouting-import-open]");

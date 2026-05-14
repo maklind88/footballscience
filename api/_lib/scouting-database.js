@@ -10,6 +10,7 @@ const MAX_TEXT_LENGTH = 240;
 const MAX_ID_LENGTH = 180;
 const MAX_LIMIT = 1000;
 const DEFAULT_LIMIT = 500;
+const SCOUTING_METRICS_CACHE_MS = 5 * 60 * 1000;
 const MAX_IMPORT_CHUNK_RECORDS = 80;
 const SCOUTING_RECORD_INDEX = Object.freeze({
   id: 0,
@@ -39,6 +40,7 @@ const SCOUTING_RECORD_INDEX = Object.freeze({
 
 const SCOUTING_OPTIONS_CACHE_MS = 5 * 60 * 1000;
 const SCOUTING_IMPORT_HISTORY_LIMIT = 20;
+let scoutingMetricsCache = { updatedAt: 0, metrics: null };
 let scoutingFilterOptionsCache = { updatedAt: 0, options: null };
 
 function normalizeString(value, maxLength = MAX_TEXT_LENGTH) {
@@ -187,14 +189,38 @@ async function parseResponse(response) {
   }
 }
 
+function parseScoutingDbCount(responseHeaders) {
+  if (!responseHeaders || typeof responseHeaders.get !== "function") {
+    return null;
+  }
+  const contentRange = responseHeaders.get("content-range");
+  if (!contentRange) {
+    return null;
+  }
+  const match = String(contentRange).match(/\/(\*|[0-9]+)\s*$/);
+  if (!match) {
+    return null;
+  }
+  if (match[1] === "*") {
+    return null;
+  }
+  const total = Number(match[1]);
+  return Number.isFinite(total) ? total : null;
+}
+
 async function dbRequest(path, options = {}) {
   const base = restBaseUrl();
   if (!base) {
     return { ok: false, status: 500, reason: "Missing Supabase database configuration." };
   }
+  const headers = restHeaders(base.serviceRoleKey, options.headers || {});
+  if (options.includeCount) {
+    const existingPrefer = String(headers.Prefer || headers.prefer || "").trim();
+    headers.Prefer = existingPrefer ? `${existingPrefer},count=exact` : "count=exact";
+  }
   const response = await fetch(`${base.url}${path}`, {
     method: options.method || "GET",
-    headers: restHeaders(base.serviceRoleKey, options.headers || {}),
+    headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
   const payload = await parseResponse(response);
@@ -206,7 +232,12 @@ async function dbRequest(path, options = {}) {
       reason: payload?.message || payload?.hint || payload?.details || `Database request failed (${response.status}).`,
     };
   }
-  return { ok: true, status: response.status, payload };
+  return {
+    ok: true,
+    status: response.status,
+    payload,
+    count: parseScoutingDbCount(response.headers),
+  };
 }
 
 function asLimit(value, fallback = DEFAULT_LIMIT) {
@@ -328,12 +359,55 @@ function normalizeScoutingSourceSystem(record = {}) {
   return normalizeString(recordValue(record, "sourceSystem"), 40) || normalizeString(recordValue(record, "source_system"), 40) || "file-import";
 }
 
+function getScoutingSourceIdentityKeys() {
+  return [
+    "playerIdentityId",
+    "playerIdentityKey",
+    "player_identity_key",
+    "sourcePlayerId",
+    "source_player_id",
+    "playerSourceId",
+    "source_id",
+    "sourceId",
+    "federationId",
+    "federation_id",
+    "wyscoutId",
+    "wyscout_id",
+    "fbrefId",
+    "fbref_id",
+    "transfermarktId",
+    "transfermarkt_id",
+    "sofascoreId",
+    "sofascore_id",
+  ];
+}
+
+function getScoutingSourceIdentityAliases(record = {}) {
+  const directAliases = getScoutingSourceIdentityKeys()
+    .map((key) => normalizeString(recordValue(record, key), 160))
+    .filter(Boolean);
+  const trace = getRecordSourceTrace(record);
+  const traceAliases = [];
+  const identityCandidates = Array.isArray(trace?.identityCandidates) ? trace.identityCandidates : [];
+  identityCandidates.forEach((candidate) => {
+    const value = normalizeString(candidate?.value, 160);
+    if (value) {
+      traceAliases.push(value);
+    }
+  });
+  if (trace?.playerIdentityId) {
+    const traceIdentityId = normalizeString(trace.playerIdentityId, 160);
+    if (traceIdentityId) {
+      traceAliases.push(traceIdentityId);
+    }
+  }
+  return [...directAliases, ...traceAliases]
+    .filter(Boolean)
+    .filter((value, index, values) => values.indexOf(value) === index);
+}
+
 function normalizeScoutingSourcePlayerId(record = {}) {
-  const explicit =
-    normalizeString(recordValue(record, "playerIdentityId"), 160) ||
-    normalizeString(recordValue(record, "sourcePlayerId"), 160) ||
-    normalizeString(recordValue(record, "playerSourceId"), 160) ||
-    normalizeString(recordValue(record, "source_player_id"), 160);
+  const explicit = getScoutingSourceIdentityAliases(record)[0];
   if (explicit) {
     return explicit;
   }
@@ -452,6 +526,10 @@ function scoutingDatabaseStatus(actor = {}) {
 }
 
 async function fetchMetrics() {
+  const now = Date.now();
+  if (scoutingMetricsCache.metrics && now - scoutingMetricsCache.updatedAt < SCOUTING_METRICS_CACHE_MS) {
+    return scoutingMetricsCache.metrics;
+  }
   const params = new URLSearchParams({
     select: "metric_key,label,direction,unit,category,display_order,status",
     status: "eq.active",
@@ -462,7 +540,11 @@ async function fetchMetrics() {
   if (!result.ok) {
     throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
   }
-  return Array.isArray(result.payload) ? result.payload.map(metricToClient).filter((metric) => metric.id && metric.label) : [];
+  const metrics = Array.isArray(result.payload)
+    ? result.payload.map(metricToClient).filter((metric) => metric.id && metric.label)
+    : [];
+  scoutingMetricsCache = { updatedAt: now, metrics };
+  return metrics;
 }
 
 function addSeasonFilters(params, query = {}) {
@@ -472,6 +554,8 @@ function addSeasonFilters(params, query = {}) {
   const season = normalizeString(query.season, 80);
   const position = normalizeString(query.position, 80).toUpperCase();
   const minMinutes = normalizeNumber(query.minMinutes, null);
+  const maxMinutes = normalizeNumber(query.maxMinutes, null);
+  const minAge = normalizeNumber(query.minAge, null);
   const maxAge = normalizeNumber(query.maxAge, null);
   const textQuery = safeIlike(query.query);
   if (league && league !== "all") {
@@ -490,8 +574,14 @@ function addSeasonFilters(params, query = {}) {
   if (Number.isFinite(minMinutes) && minMinutes > 0) {
     params.set("minutes", `gte.${Math.round(minMinutes)}`);
   }
+  if (Number.isFinite(maxMinutes) && maxMinutes > 0) {
+    params.append("minutes", `lte.${Math.round(maxMinutes)}`);
+  }
+  if (Number.isFinite(minAge) && minAge > 0) {
+    params.set("age", `gte.${minAge}`);
+  }
   if (Number.isFinite(maxAge) && maxAge > 0) {
-    params.set("age", `lte.${maxAge}`);
+    params.append("age", `lte.${maxAge}`);
   }
   if (textQuery) {
     params.set("search_text", `ilike.*${textQuery}*`);
@@ -518,11 +608,16 @@ async function fetchSeasonRows(query = {}) {
     offset: String(asOffset(query.offset)),
   });
   addSeasonFilters(params, query);
-  const result = await dbRequest(`/scouting_player_seasons?${params.toString()}`);
+  const result = await dbRequest(`/scouting_player_seasons?${params.toString()}`, {
+    includeCount: normalizeString(query.includeTotal, 80) !== "0",
+  });
   if (!result.ok) {
     throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
   }
-  return Array.isArray(result.payload) ? result.payload : [];
+  return {
+    rows: Array.isArray(result.payload) ? result.payload : [],
+    total: Number.isFinite(Number(result.count)) ? Number(result.count) : null,
+  };
 }
 
 function buildOptionsFromRows(rows = []) {
@@ -610,9 +705,18 @@ async function fetchImportChanges(query = {}) {
 }
 
 async function fetchDatabaseSnapshot(query = {}) {
-  const [metrics, rows, options] = await Promise.all([fetchMetrics(), fetchSeasonRows(query), fetchDatabaseFilterOptions()]);
+  const includeMetrics = ["1", "true", "yes"].includes(normalizeString(query.includeMetrics, 20).toLowerCase());
+  const includeOptions = ["1", "true", "yes"].includes(normalizeString(query.includeOptions, 20).toLowerCase());
+  const [metrics, rowsPayload, options] = await Promise.all([
+    includeMetrics ? fetchMetrics() : Promise.resolve(null),
+    fetchSeasonRows(query),
+    includeOptions ? fetchDatabaseFilterOptions() : Promise.resolve(null),
+  ]);
   const limit = asLimit(query.limit);
   const offset = asOffset(query.offset);
+  const rows = rowsPayload.rows || [];
+  const total = Number.isFinite(Number(rowsPayload.total)) ? Math.max(0, Number(rowsPayload.total)) : null;
+  const hasMore = rows.length === limit && (!Number.isFinite(total) || offset + rows.length < total);
   return {
     ok: true,
     schema: SCOUTING_DATABASE_SCHEMA,
@@ -620,15 +724,16 @@ async function fetchDatabaseSnapshot(query = {}) {
     enabled: true,
     source: "api",
     importedAt: new Date().toISOString(),
-    metrics,
+    metrics: Array.isArray(metrics) ? metrics : null,
     records: rows.map(seasonRowToClientRecord),
     options,
     page: {
       limit,
       offset,
       returned: rows.length,
-      nextOffset: rows.length === limit ? offset + rows.length : null,
-      hasMore: rows.length === limit,
+      total,
+      nextOffset: hasMore ? offset + rows.length : null,
+      hasMore,
     },
   };
 }
@@ -794,6 +899,7 @@ function normalizeImportPlayer(record = {}) {
   }
   const sourceSystem = normalizeScoutingSourceSystem(record);
   const sourcePlayerId = normalizeScoutingSourcePlayerId(record);
+  const aliasIdentityKeys = getScoutingSourceIdentityAliases(record);
   const dateOfBirth = normalizeDateValue(recordValue(record, "dateOfBirth"));
   const sourceTrace = getRecordSourceTrace(record);
   return {
@@ -810,10 +916,11 @@ function normalizeImportPlayer(record = {}) {
     status: "active",
     metadata: {
       playerIdentityId: sourcePlayerId,
+      sourceIdentityAliases: aliasIdentityKeys,
       aliases: [
         normalizeString(recordValue(record, "player"), 180),
-        normalizeString(recordValue(record, "sourcePlayerId"), 160),
         normalizeString(sourceTrace.sourcePlayerAlias, 160),
+        ...aliasIdentityKeys,
       ].filter(Boolean).filter((value, index, values) => values.indexOf(value) === index),
       latestSourceSystem: sourceSystem,
     },
@@ -834,6 +941,7 @@ function normalizeImportSeasonRecord(record = {}, playerId = null, importBatchId
   const importedMetricQuality = getRecordMetricQualityMap(record);
   const metricPayload = normalizeMetricPayload(metrics, importedMetricQuality);
   const dateOfBirth = normalizeDateValue(recordValue(record, "dateOfBirth"));
+  const aliasIdentityKeys = getScoutingSourceIdentityAliases(record);
   const mergeKey = [
     sourceSystem,
     sourcePlayerId,
@@ -886,6 +994,9 @@ function normalizeImportSeasonRecord(record = {}, playerId = null, importBatchId
       metricQualitySummary: getMetricQualitySummary(metricPayload),
       imageUrl: normalizeString(recordValue(record, "imageUrl"), 220) || null,
       dateOfBirth,
+      sourceIdentityAliases: aliasIdentityKeys,
+      sourceIdentitySignature: mergeKey,
+      identitySourceKey: sourcePlayerId,
     },
   };
 }
@@ -921,12 +1032,51 @@ async function fetchExistingSeasonBySource(sourceSystem = "", sourceRecordId = "
   return Array.isArray(result.payload) ? result.payload[0] || null : null;
 }
 
+async function fetchExistingSeasonByMergeKey(sourceSystem = "", playerIdentityKey = "", season = "", league = "", team = "") {
+  const normalizedSourceSystem = normalizeString(sourceSystem, 40);
+  const normalizedPlayerIdentityKey = normalizeString(playerIdentityKey, 160);
+  const normalizedSeason = normalizeString(season, 80);
+  const normalizedLeague = normalizeScoutingLeague(league);
+  const normalizedTeam = normalizeString(team, 180);
+  if (!normalizedSourceSystem || !normalizedPlayerIdentityKey || !normalizedSeason || !normalizedLeague || !normalizedTeam) {
+    return null;
+  }
+  const params = new URLSearchParams({
+    select: "id,record_key,source_system,source_record_id,player_identity_key,season_label,league_name,team_name,status,deleted_at,updated_at",
+    source_system: `eq.${normalizedSourceSystem}`,
+    player_identity_key: `eq.${normalizedPlayerIdentityKey}`,
+    season_label: `eq.${normalizedSeason}`,
+    league_name: `eq.${normalizedLeague}`,
+    team_name: `eq.${normalizedTeam}`,
+    status: "eq.active",
+    deleted_at: "is.null",
+    limit: "1",
+  });
+  const result = await dbRequest(`/scouting_player_seasons?${params.toString()}`);
+  if (!result.ok) {
+    throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
+  }
+  return Array.isArray(result.payload) ? result.payload[0] || null : null;
+}
+
 async function previewScoutingImportRows(records = []) {
   const rows = uniqueBy(records.slice(0, MAX_IMPORT_CHUNK_RECORDS).filter(Boolean), (record) =>
     `${normalizeScoutingSourceSystem(record)}|${normalizeScoutingRecordSourceId(record)}`
   );
   const existingRows = await Promise.all(
-    rows.map((record) => fetchExistingSeasonBySource(normalizeScoutingSourceSystem(record), normalizeScoutingRecordSourceId(record)))
+    rows.map(async (record) => {
+      const sourceSystem = normalizeScoutingSourceSystem(record);
+      const sourceRecordId = normalizeScoutingRecordSourceId(record);
+      const directMatch = await fetchExistingSeasonBySource(sourceSystem, sourceRecordId);
+      if (directMatch) {
+        return directMatch;
+      }
+      const playerIdentityId = normalizeScoutingSourcePlayerId(record);
+      const season = normalizeString(recordValue(record, "season"), 80);
+      const league = normalizeScoutingLeague(recordValue(record, "league"));
+      const team = normalizeString(recordValue(record, "team"), 180);
+      return fetchExistingSeasonByMergeKey(sourceSystem, playerIdentityId, season, league, team);
+    })
   );
   const changes = rows.map((record, index) => {
     const existing = existingRows[index];
@@ -1008,9 +1158,39 @@ async function upsertScoutingPlayers(records = []) {
 }
 
 async function upsertScoutingSeasonRecords(records = [], playersBySourceId = new Map(), importBatchId = null) {
-  const rows = records
-    .map((record) => normalizeImportSeasonRecord(record, playersBySourceId.get(normalizeScoutingPlayerSourceKey(record)), importBatchId))
-    .filter(Boolean);
+  const rows = (
+    await Promise.all(
+      records.map(async (record) => {
+        const normalizedRecord = normalizeImportSeasonRecord(
+          record,
+          playersBySourceId.get(normalizeScoutingPlayerSourceKey(record)),
+          importBatchId
+        );
+        if (!normalizedRecord || normalizedRecord.source_record_id === "record-unknown") {
+          return null;
+        }
+        const matchedByMergeKey = await fetchExistingSeasonByMergeKey(
+          normalizedRecord.source_system,
+          normalizedRecord.player_identity_key,
+          normalizedRecord.season_label,
+          normalizedRecord.league_name,
+          normalizedRecord.team_name
+        );
+        if (matchedByMergeKey?.source_record_id) {
+          normalizedRecord.source_record_id = matchedByMergeKey.source_record_id;
+          normalizedRecord.record_key = matchedByMergeKey.record_key || normalizedRecord.record_key;
+          normalizedRecord.metadata = {
+            ...normalizedRecord.metadata,
+            sourceTrace: {
+              ...normalizedRecord.metadata?.sourceTrace,
+              sourceRecordMatch: "merge-key",
+            },
+          };
+        }
+        return normalizedRecord;
+      })
+    )
+  ).filter(Boolean);
   if (!rows.length) {
     return [];
   }

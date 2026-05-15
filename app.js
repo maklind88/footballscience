@@ -19155,6 +19155,151 @@ return `
     </div>
   `;
 }
+function getSessionPlannerPlayerBoardDataObject(value) {
+return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+function hasSessionPlannerPlayerBoardTeamData(block = {}) {
+const colors = getSessionPlannerPlayerBoardDataObject(block.playerBoardColors);
+const positions = getSessionPlannerPlayerBoardDataObject(block.playerBoardPositions);
+return Boolean(Object.keys(colors).length || Object.keys(positions).length);
+}
+function getSessionPlannerPlayerBoardSourceBlocks(targetBlock = getSessionPlannerSelectedBlock()) {
+const session = getSessionPlannerSelectedSession();
+const blocks = Array.isArray(session?.blocks) ? session.blocks : [];
+return blocks
+.map((block, index) => ({ block, index }))
+.filter(({ block }) => block?.id && block.id !== targetBlock?.id && hasSessionPlannerPlayerBoardTeamData(block));
+}
+function getSessionPlannerPlayerBoardSourceLabel(block, index) {
+const title = String(block?.title || block?.label || "Exercise").trim();
+return `Block ${index + 1}: ${title}`;
+}
+function renderSessionPlannerPlayerBoardCopyTools(block) {
+const sourceBlocks = getSessionPlannerPlayerBoardSourceBlocks(block);
+const sourceOptions = sourceBlocks
+.map(({ block: sourceBlock, index }) => {
+const colors = Object.keys(getSessionPlannerPlayerBoardDataObject(sourceBlock.playerBoardColors)).length;
+const positions = Object.keys(getSessionPlannerPlayerBoardDataObject(sourceBlock.playerBoardPositions)).length;
+const detail = [colors ? `${colors} colours` : "", positions ? `${positions} positions` : ""].filter(Boolean).join(", ");
+return `<option value="${escapeHtml(sourceBlock.id)}">${escapeHtml(`${getSessionPlannerPlayerBoardSourceLabel(sourceBlock, index)}${detail ? ` (${detail})` : ""}`)}</option>`;
+})
+.join("");
+return `
+      <form class="session-player-board-copy-tools" data-session-player-board-copy-form>
+        <label>
+          <span>Copy teams</span>
+          <select data-session-player-board-copy-source aria-label="Copy teams from block" ${sourceBlocks.length ? "" : "disabled"}>
+            ${sourceBlocks.length ? sourceOptions : `<option value="">No team setup yet</option>`}
+          </select>
+        </label>
+        <button type="submit" class="session-player-board-tool-button is-copy" data-session-player-board-copy-teams ${sourceBlocks.length ? "" : "disabled"}>Copy</button>
+	      </form>
+	  `;
+}
+function copySessionPlannerPlayerBoardTeamsFromBlock(sourceBlockId) {
+if (!canEditSessionPlanner()) {
+return;
+}
+const session = getSessionPlannerSelectedSession();
+const targetBlock = getSessionPlannerSelectedBlock();
+if (!session || !targetBlock || !sourceBlockId) {
+showSessionPlannerToast("Choose a block to copy teams from.", "error");
+return;
+}
+const blocks = Array.isArray(session.blocks) ? session.blocks : [];
+const sourceEntry = blocks
+.map((block, index) => ({ block, index }))
+.find(({ block }) => block?.id === sourceBlockId);
+const sourceBlock = sourceEntry?.block;
+if (!sourceBlock || sourceBlock.id === targetBlock.id) {
+showSessionPlannerToast("Choose another block from this session.", "error");
+return;
+}
+const targetPlayers = getSessionPlannerPlayerBoardPlayers(targetBlock);
+const visibleIds = new Set(targetPlayers.map((item) => item.player.id));
+if (!visibleIds.size) {
+showSessionPlannerToast("No visible players in this block yet.", "error");
+return;
+}
+const sourceColors = getSessionPlannerPlayerBoardDataObject(sourceBlock.playerBoardColors);
+const sourcePositions = getSessionPlannerPlayerBoardDataObject(sourceBlock.playerBoardPositions);
+const sourceColorIds = Object.keys(sourceColors);
+const sourcePositionIds = Object.keys(sourcePositions);
+const shouldCopyColors = sourceColorIds.length > 0;
+const shouldCopyPositions = sourcePositionIds.length > 0;
+if (!shouldCopyColors && !shouldCopyPositions) {
+showSessionPlannerToast("That block has no team setup to copy yet.", "error");
+return;
+}
+const sourcePlayerIds = new Set([...sourceColorIds, ...sourcePositionIds]);
+const nextColors = { ...getSessionPlannerPlayerBoardDataObject(targetBlock.playerBoardColors) };
+const nextPositions = { ...getSessionPlannerPlayerBoardDataObject(targetBlock.playerBoardPositions) };
+if (shouldCopyColors) {
+visibleIds.forEach((playerId) => delete nextColors[playerId]);
+}
+if (shouldCopyPositions) {
+visibleIds.forEach((playerId) => delete nextPositions[playerId]);
+}
+const copiedPlayerIds = new Set();
+let copiedColors = 0;
+let copiedPositions = 0;
+let skippedPlayers = 0;
+sourcePlayerIds.forEach((playerId) => {
+if (!visibleIds.has(playerId)) {
+skippedPlayers += 1;
+return;
+}
+let copiedForPlayer = false;
+const sourceColor = shouldCopyColors ? normalizeTacticalColor(sourceColors[playerId], "") : "";
+if (sourceColor) {
+nextColors[playerId] = sourceColor;
+copiedColors += 1;
+copiedForPlayer = true;
+}
+const sourcePosition = shouldCopyPositions ? sourcePositions[playerId] : null;
+const x = Number(sourcePosition?.x);
+const y = Number(sourcePosition?.y);
+if (Number.isFinite(x) && Number.isFinite(y)) {
+nextPositions[playerId] = {
+x: clamp(x, 0, 100),
+y: clamp(y, 0, 100),
+};
+copiedPositions += 1;
+copiedForPlayer = true;
+}
+if (copiedForPlayer) {
+copiedPlayerIds.add(playerId);
+}
+});
+if (!copiedPlayerIds.size) {
+showSessionPlannerToast("No matching players found in this block.", "error");
+return;
+}
+const changedFields = [];
+if (shouldCopyColors) {
+targetBlock.playerBoardColors = nextColors;
+changedFields.push("playerBoardColors");
+}
+if (shouldCopyPositions) {
+targetBlock.playerBoardPositions = nextPositions;
+if (copiedPositions) {
+targetBlock.playerBoardLayoutMode = "manual";
+changedFields.push("playerBoardLayoutMode");
+}
+changedFields.push("playerBoardPositions");
+}
+markSessionPlannerBlockFieldsUpdated(targetBlock, changedFields);
+writeSessionPlannerState();
+renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+const sourceLabel = getSessionPlannerPlayerBoardSourceLabel(sourceBlock, sourceEntry.index);
+const copiedDetails = [
+copiedColors ? `${copiedColors} colour${copiedColors === 1 ? "" : "s"}` : "",
+copiedPositions ? `${copiedPositions} position${copiedPositions === 1 ? "" : "s"}` : "",
+].filter(Boolean).join(" and ");
+showSessionPlannerToast(
+`Copied ${copiedDetails || `${copiedPlayerIds.size} player${copiedPlayerIds.size === 1 ? "" : "s"}`} from ${sourceLabel}${skippedPlayers ? ` (${skippedPlayers} not visible here)` : ""}.`
+);
+}
 function renderSessionPlannerPlayerBoardTools() {
 const selectedCount = getSessionPlannerPlayerBoardSelectedColorIds().length;
 const block = getSessionPlannerSelectedBlock();
@@ -19188,6 +19333,7 @@ return `
         <label><span>Auto</span><select data-session-player-board-auto-mode aria-label="Auto select mode">${autoModeOptions}</select></label>
         <button type="submit" class="session-player-board-tool-button is-auto" data-session-player-board-auto-select ${autoTargetCount ? "" : "disabled"}>Auto Select</button>
       </form>
+      ${renderSessionPlannerPlayerBoardCopyTools(block)}
       <button type="button" class="session-player-board-tool-button is-assistant" data-session-selection-assistant-open ${playersDisabled}>Assistant</button>
       <form class="session-player-board-formation-tools" data-session-player-board-formation-form>
         <label class="session-player-board-formation-field">
@@ -72253,6 +72399,13 @@ const autoModeField = playerBoardAutoForm.querySelector("[data-session-player-bo
 sessionPlannerPlayerBoardTeamCount = normalizeSessionPlannerPlayerBoardTeamCount(teamCountField?.value);
 sessionPlannerPlayerBoardAutoMode = normalizeSessionPlannerPlayerBoardAutoMode(autoModeField?.value);
 applySessionPlannerPlayerBoardAutoSelect();
+return;
+}
+const playerBoardCopyForm = event.target.closest?.("[data-session-player-board-copy-form]");
+if (playerBoardCopyForm) {
+event.preventDefault();
+const sourceField = playerBoardCopyForm.querySelector("[data-session-player-board-copy-source]");
+copySessionPlannerPlayerBoardTeamsFromBlock(sourceField?.value);
 return;
 }
 const playerBoardFormationForm = event.target.closest?.("[data-session-player-board-formation-form]");

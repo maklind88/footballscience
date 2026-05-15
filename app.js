@@ -27983,6 +27983,7 @@ ${medicalStatusOptions
 </div>
 </div>
 ${renderMedicalBulkUpdatePanel(players)}
+${renderMedicalCommandBoard()}
 <div class="medical-position-overview">
 ${
 players.length
@@ -28622,7 +28623,6 @@ ${renderMedicalRosterPanel()}
 </section>
 ${renderMedicalDailyHuddle()}
 ${renderMedicalCoachHandoverPanel()}
-${renderMedicalCommandBoard()}
 `
 : renderMedicalRosterSetup()
 }

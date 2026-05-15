@@ -28,6 +28,10 @@
   box-shadow: 0 10px 24px rgba(12, 24, 20, 0.055);
 }
 
+.medical-roster-panel > .medical-command-board {
+  margin-top: 0.08rem;
+}
+
 .medical-position-group {
   display: grid;
   gap: 0.55rem;

@@ -873,6 +873,19 @@ test("Medical roster overview groups by position and supports row quick recommen
   const positionGroups = page.locator(".medical-position-group");
   await expect(positionGroups.first()).toContainText("Goalkeeper");
   await expect(positionGroups.nth(1)).toContainText("Defender");
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const bulkPanel = document.querySelector(".medical-bulk-panel");
+        const commandBoard = document.querySelector(".medical-roster-panel > .medical-command-board");
+        const positionOverview = document.querySelector(".medical-position-overview");
+        if (!bulkPanel || !commandBoard || !positionOverview) return "";
+        const commandAfterBulk = Boolean(bulkPanel.compareDocumentPosition(commandBoard) & Node.DOCUMENT_POSITION_FOLLOWING);
+        const overviewAfterCommand = Boolean(commandBoard.compareDocumentPosition(positionOverview) & Node.DOCUMENT_POSITION_FOLLOWING);
+        return commandAfterBulk && overviewAfterCommand ? "bulk-command-list" : "wrong-order";
+      })
+    )
+    .toBe("bulk-command-list");
 
   const goalkeeperRow = page.locator('[data-medical-roster-row="qa-gk"]');
   await expect(goalkeeperRow).toBeVisible();

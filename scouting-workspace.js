@@ -386,6 +386,8 @@ const scoutingProfileTabs = Object.freeze([
   { value: "reports", label: "Reports" },
   { value: "history", label: "History" },
 ]);
+let scoutingDatabaseSearchDraft = null;
+let scoutingMyTeamDropPreviewKey = "";
 function setScoutingContext(context) {
   activeContext = context;
   scoutingTabs = context.tabs || [];
@@ -2202,68 +2204,68 @@ function getScoutingMyTeamSlotPitchPosition(slot, formation = "4-3-3") {
   const layouts = {
     "4-3-3": {
       GK: [50, 90],
-      LB: [19, 73],
+      LB: [13, 73],
       LCB: [38, 77],
       RCB: [62, 77],
-      RB: [81, 73],
+      RB: [87, 73],
       DMF: [50, 59],
       LCMF: [32, 45],
       RCMF: [68, 45],
-      LW: [20, 25],
-      CF: [50, 18],
-      RW: [80, 25],
+      LW: [12, 19],
+      CF: [50, 10],
+      RW: [88, 19],
     },
     "4-2-3-1": {
       GK: [50, 90],
-      LB: [19, 73],
+      LB: [13, 73],
       LCB: [38, 77],
       RCB: [62, 77],
-      RB: [81, 73],
+      RB: [87, 73],
       DMF: [42, 58],
       LCMF: [58, 58],
       RCMF: [50, 40],
-      LW: [20, 34],
-      CF: [50, 18],
-      RW: [80, 34],
+      LW: [12, 31],
+      CF: [50, 11],
+      RW: [88, 31],
     },
     "3-4-3": {
       GK: [50, 90],
       LCB: [30, 76],
       RCB: [70, 76],
       DMF: [50, 78],
-      LB: [18, 52],
-      RB: [82, 52],
+      LB: [11, 52],
+      RB: [89, 52],
       LCMF: [40, 48],
       RCMF: [60, 48],
-      LW: [22, 24],
-      CF: [50, 18],
-      RW: [78, 24],
+      LW: [12, 20],
+      CF: [50, 10],
+      RW: [88, 20],
     },
     "3-5-2": {
       GK: [50, 90],
       LCB: [30, 76],
       RCB: [70, 76],
       DMF: [50, 78],
-      LB: [18, 52],
-      RB: [82, 52],
+      LB: [11, 52],
+      RB: [89, 52],
       LCMF: [37, 43],
       RCMF: [63, 43],
-      LW: [35, 23],
-      CF: [50, 18],
-      RW: [65, 23],
+      LW: [34, 17],
+      CF: [50, 10],
+      RW: [66, 17],
     },
     "4-4-2": {
       GK: [50, 90],
-      LB: [19, 73],
+      LB: [13, 73],
       LCB: [38, 77],
       RCB: [62, 77],
-      RB: [81, 73],
+      RB: [87, 73],
       LCMF: [40, 50],
       RCMF: [60, 50],
       DMF: [50, 55],
-      LW: [20, 43],
-      RW: [80, 43],
-      CF: [42, 20],
+      LW: [12, 39],
+      RW: [88, 39],
+      CF: [42, 11],
     },
   };
   const coordinates = layouts[normalizeScoutingFormation(formation)]?.[role] || [Number(slot?.x) || 50, Number(slot?.y) || 50];
@@ -6602,6 +6604,7 @@ function getScoutingDragPayload(event) {
   }
 }
 function clearScoutingMyTeamDropPreview(root = ui.scoutingWorkspace) {
+  scoutingMyTeamDropPreviewKey = "";
   if (!root) {
     return;
   }
@@ -6612,18 +6615,29 @@ function clearScoutingMyTeamDropPreview(root = ui.scoutingWorkspace) {
     .forEach((node) => node.classList.remove("is-drop-before", "is-drag-over"));
 }
 function updateScoutingMyTeamDropPreview(event, root, dragPayload) {
-  clearScoutingMyTeamDropPreview(root);
   const beforeEntry = event.target.closest("[data-scouting-my-team-drop-before]");
   const slotTarget = event.target.closest(".scouting-my-team-slot[data-scouting-my-team-drop-slot]");
   const benchTarget = event.target.closest("[data-scouting-my-team-bench-drop]");
   const draggingId = normalizeScoutingText(dragPayload?.playerId, 160);
-  if (beforeEntry && root.contains(beforeEntry) && beforeEntry.dataset.scoutingMyTeamDropBefore !== draggingId) {
+  const beforeId =
+    beforeEntry && root.contains(beforeEntry) && beforeEntry.dataset.scoutingMyTeamDropBefore !== draggingId
+      ? beforeEntry.dataset.scoutingMyTeamDropBefore || ""
+      : "";
+  const slotId = slotTarget && root.contains(slotTarget) ? slotTarget.dataset.scoutingMyTeamDropSlot || "" : "";
+  const benchId = benchTarget && root.contains(benchTarget) && !slotTarget ? "bench" : "";
+  const nextPreviewKey = [draggingId, slotId, beforeId, benchId].join("|");
+  if (nextPreviewKey === scoutingMyTeamDropPreviewKey) {
+    return;
+  }
+  clearScoutingMyTeamDropPreview(root);
+  scoutingMyTeamDropPreviewKey = nextPreviewKey;
+  if (beforeId) {
     beforeEntry.classList.add("is-drop-before");
   }
-  if (slotTarget && root.contains(slotTarget)) {
+  if (slotId) {
     slotTarget.classList.add("is-drag-over");
   }
-  if (benchTarget && root.contains(benchTarget) && !slotTarget) {
+  if (benchId) {
     benchTarget.classList.add("is-drag-over");
   }
 }
@@ -10403,6 +10417,7 @@ function renderScoutingRecordCard(record, options = {}) {
 function renderScoutingDatabaseControls() {
   const state = ensureScoutingState();
   const filters = normalizeScoutingDatabaseFilters(state.databaseFilters);
+  const searchValue = scoutingDatabaseSearchDraft === null ? filters.query : scoutingDatabaseSearchDraft;
   const options = getScoutingDatabaseOptions();
   const metricOptions = getScoutingMetricOptions();
   const sortOptions = [{ id: "role-fit", label: "Role fit" }, ...metricOptions];
@@ -10428,7 +10443,7 @@ function renderScoutingDatabaseControls() {
       <form class="scouting-database-search" data-scouting-database-search-form>
         <label>
           <span>Search</span>
-          <input type="search" name="query" value="${escapeHtml(filters.query)}" placeholder="Player, club, league, player type" />
+          <input type="search" name="query" value="${escapeHtml(searchValue)}" placeholder="Player, club, league, player type" data-scouting-database-search-input />
         </label>
         <button type="submit" class="scouting-primary-button">Search</button>
       </form>
@@ -10786,9 +10801,9 @@ function renderScoutingSavedViewsOverlay() {
               <form class="scouting-saved-view-save" data-scouting-saved-view-form>
                 <label>
                   Save current filter as
-                  <input name="name" placeholder="Example: U23 attacking fullbacks" required />
+                  <input name="name" placeholder="Example: U23 attacking fullbacks" required data-scouting-saved-view-name />
                 </label>
-                <button type="submit" class="scouting-primary-button">Save current view</button>
+                <button type="button" class="scouting-primary-button" data-save-scouting-current-view>Save current view</button>
               </form>
             `
             : ""
@@ -11245,7 +11260,7 @@ function renderScoutingMyTeam() {
     1,
     ...scoutingShadowSlots.map((slot) => normalizeScoutingMyTeamSlotPlayerIds(myTeam.slots[slot.id]).length)
   );
-  const pitchHeightRem = Math.round(Math.min(142, Math.max(104, 88 + maxSlotDepth * 8 + assignedIds.size * 0.35)));
+  const pitchHeightRem = Math.round(Math.min(92, Math.max(70, 58 + maxSlotDepth * 4.6 + assignedIds.size * 0.18)));
   return `
     <section class="scouting-shadow-layout scouting-my-team-layout">
       <div class="scouting-shadow-pitch scouting-my-team-pitch ${escapeHtml(getScoutingPitchFormationClass(myTeam.formation))}" style="--my-team-pitch-height:${pitchHeightRem}rem;" aria-label="My Team ${escapeHtml(myTeam.formation)}">
@@ -12503,80 +12518,64 @@ function renderScoutingProfileModal() {
           <span aria-hidden="true">×</span>
         </button>
         <header class="scouting-profile-head">
-          <div>
-            <p class="placeholder-tag">${escapeHtml(getScoutingRecordLeague(record))} / ${escapeHtml(getScoutingRecordSeason(record))}</p>
+          <div class="scouting-profile-identity">
             <h2>${escapeHtml(getScoutingRecordName(record))}</h2>
-            <p>${escapeHtml([getScoutingRecordPosition(record), getScoutingRecordTeam(record), getScoutingRecordAge(record) ? `${formatScoutingNumber(getScoutingRecordAge(record))} yrs` : ""].filter(Boolean).join(" / "))}</p>
+            <div class="scouting-profile-identity-meta">
+              <span><strong>Age</strong>${escapeHtml(getScoutingRecordAge(record) ? `${formatScoutingNumber(getScoutingRecordAge(record))} yrs` : "Unknown")}</span>
+              <span><strong>Club</strong>${escapeHtml(getScoutingRecordTeam(record) || "Unknown club")}</span>
+            </div>
           </div>
           <div class="scouting-profile-actions">
-            <button type="button" class="scouting-star-button${favorite ? " is-active" : ""}" data-toggle-scouting-favorite="${escapeHtml(recordId)}" ${canEdit ? "" : "disabled"}>${favorite ? "Favorited" : "Favorite"}</button>
-            <label>
-              <span>Add to list</span>
-              <select data-scouting-profile-list ${canEdit ? "" : "disabled"}>${listOptions}</select>
-            </label>
-            <button type="button" class="scouting-primary-button" data-add-scouting-record-to-list="${escapeHtml(recordId)}" ${canEdit ? "" : "disabled"}>Add</button>
-            <label>
-              <span>Shadow slot</span>
-              <select data-scouting-profile-slot ${canEdit ? "" : "disabled"}>${slotOptions}</select>
-            </label>
-            <button type="button" class="scouting-primary-button" data-add-scouting-record-to-shadow="${escapeHtml(recordId)}" ${canEdit ? "" : "disabled"}>Add to wishlist</button>
-            <form
-              class="scouting-target-form is-open"
-              data-scouting-target-form="${escapeHtml(recordId)}"
-            >
-              <select name="status" ${canEdit ? "" : "disabled"}>
-                ${getScoutingOptionMarkup(getScoutingStatusOptions(), targetStatus)}
-              </select>
-              <select name="priority" ${canEdit ? "" : "disabled"}>
-                ${getScoutingOptionMarkup(getScoutingPriorityOptions(), targetPriority)}
-              </select>
-              <select name="slotId" ${canEdit ? "" : "disabled"}>${slotOptions}</select>
-              <input
-                type="text"
-                name="notes"
-                placeholder="Pipeline notes"
-                value="${escapeHtml(target?.notes || "")}"
-                ${canEdit ? "" : "disabled"}
-              />
-              <input
-                type="text"
-                name="owner"
-                placeholder="Owner / scout"
-                value="${escapeHtml(target?.owner || "")}"
-                ${canEdit ? "" : "disabled"}
-              />
-              <input
-                type="text"
-                name="nextAction"
-                placeholder="Next action"
-                value="${escapeHtml(target?.nextAction || "")}"
-                ${canEdit ? "" : "disabled"}
-              />
-              <input
-                type="date"
-                name="nextActionDate"
-                value="${escapeHtml(target?.nextActionDate || "")}"
-                ${canEdit ? "" : "disabled"}
-              />
-              <input
-                type="date"
-                name="lastContact"
-                value="${escapeHtml(target?.lastContact || "")}"
-                ${canEdit ? "" : "disabled"}
-              />
-              <input
-                type="date"
-                name="decisionDeadline"
-                value="${escapeHtml(target?.decisionDeadline || "")}"
-                ${canEdit ? "" : "disabled"}
-              />
-              <button type="submit" class="scouting-primary-button" ${canEdit ? "" : "disabled"}>
-                ${target ? "Update pipeline" : "Add pipeline"}
-              </button>
-            </form>
-            <button type="button" class="scouting-primary-button" data-create-scouting-profile-report="${escapeHtml(recordId)}" ${canEdit ? "" : "disabled"}>
-              Add pipeline + report draft
-            </button>
+            <details class="scouting-profile-action-menu">
+              <summary>Player actions</summary>
+              <div class="scouting-profile-action-menu-panel">
+                <section>
+                  <p class="placeholder-tag">Quick actions</p>
+                  <div class="scouting-profile-action-row">
+                    <button type="button" class="scouting-star-button${favorite ? " is-active" : ""}" data-toggle-scouting-favorite="${escapeHtml(recordId)}" ${canEdit ? "" : "disabled"}>${favorite ? "Favorited" : "Favorite"}</button>
+                    <button type="button" class="scouting-primary-button" data-create-scouting-profile-report="${escapeHtml(recordId)}" ${canEdit ? "" : "disabled"}>
+                      Add pipeline + report draft
+                    </button>
+                  </div>
+                </section>
+                <section>
+                  <p class="placeholder-tag">Lists and Shadow XI</p>
+                  <div class="scouting-profile-action-grid">
+                    <label>
+                      <span>Add to list</span>
+                      <select data-scouting-profile-list ${canEdit ? "" : "disabled"}>${listOptions}</select>
+                    </label>
+                    <button type="button" class="scouting-primary-button" data-add-scouting-record-to-list="${escapeHtml(recordId)}" ${canEdit ? "" : "disabled"}>Add</button>
+                    <label>
+                      <span>Shadow slot</span>
+                      <select data-scouting-profile-slot ${canEdit ? "" : "disabled"}>${slotOptions}</select>
+                    </label>
+                    <button type="button" class="scouting-primary-button" data-add-scouting-record-to-shadow="${escapeHtml(recordId)}" ${canEdit ? "" : "disabled"}>Add to wishlist</button>
+                  </div>
+                </section>
+                <section>
+                  <p class="placeholder-tag">Pipeline</p>
+                  <form class="scouting-target-form is-open" data-scouting-target-form="${escapeHtml(recordId)}">
+                    <select name="status" ${canEdit ? "" : "disabled"}>
+                      ${getScoutingOptionMarkup(getScoutingStatusOptions(), targetStatus)}
+                    </select>
+                    <select name="priority" ${canEdit ? "" : "disabled"}>
+                      ${getScoutingOptionMarkup(getScoutingPriorityOptions(), targetPriority)}
+                    </select>
+                    <select name="slotId" ${canEdit ? "" : "disabled"}>${slotOptions}</select>
+                    <input type="text" name="notes" placeholder="Pipeline notes" value="${escapeHtml(target?.notes || "")}" ${canEdit ? "" : "disabled"} />
+                    <input type="text" name="owner" placeholder="Owner / scout" value="${escapeHtml(target?.owner || "")}" ${canEdit ? "" : "disabled"} />
+                    <input type="text" name="nextAction" placeholder="Next action" value="${escapeHtml(target?.nextAction || "")}" ${canEdit ? "" : "disabled"} />
+                    <input type="date" name="nextActionDate" value="${escapeHtml(target?.nextActionDate || "")}" ${canEdit ? "" : "disabled"} />
+                    <input type="date" name="lastContact" value="${escapeHtml(target?.lastContact || "")}" ${canEdit ? "" : "disabled"} />
+                    <input type="date" name="decisionDeadline" value="${escapeHtml(target?.decisionDeadline || "")}" ${canEdit ? "" : "disabled"} />
+                    <button type="submit" class="scouting-primary-button" ${canEdit ? "" : "disabled"}>
+                      ${target ? "Update pipeline" : "Add pipeline"}
+                    </button>
+                  </form>
+                </section>
+              </div>
+            </details>
           </div>
         </header>
         ${renderScoutingProfileTabs(activeProfileTab)}
@@ -12994,6 +12993,7 @@ function createScoutingSavedView(name) {
     filters: state.databaseFilters,
   });
   state.savedViews = [view, ...getScoutingSavedViews(state).filter((item) => item.name.toLowerCase() !== safeName.toLowerCase())];
+  scoutingSavedViewsOpen = true;
   writeScoutingState();
   renderScoutingWorkspace({ preserveFocus: true });
 }
@@ -13526,6 +13526,15 @@ export function handleClick(event, context) {
     closeScoutingSavedViews();
     return;
   }
+  const saveCurrentViewTrigger = event.target.closest("[data-save-scouting-current-view]");
+  if (saveCurrentViewTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    const form = saveCurrentViewTrigger.closest("[data-scouting-saved-view-form]");
+    const input = form?.querySelector("[data-scouting-saved-view-name]");
+    createScoutingSavedView(input?.value || "");
+    return;
+  }
   const savedViewsOverlay = event.target.closest("[data-scouting-saved-views-overlay]");
   if (savedViewsOverlay && event.target === savedViewsOverlay) {
     closeScoutingSavedViews();
@@ -13791,6 +13800,11 @@ export function handleInput(event, context) {
     renderScoutingWorkspace({ preserveFocus: true });
     return;
   }
+  const databaseSearchInput = event.target.closest("[data-scouting-database-search-input]");
+  if (databaseSearchInput) {
+    scoutingDatabaseSearchDraft = databaseSearchInput.value;
+    return;
+  }
   const filterInput = event.target.closest("[data-scouting-filter]");
   if (!filterInput) {
     return;
@@ -13928,7 +13942,9 @@ export function handleSubmit(event, context) {
   if (databaseSearchForm) {
     event.preventDefault();
     const formData = new FormData(databaseSearchForm);
-    setScoutingDatabaseFilter("query", formData.get("query"));
+    const query = formData.get("query");
+    scoutingDatabaseSearchDraft = null;
+    setScoutingDatabaseFilter("query", query);
     if (isScoutingDatabaseLoaded()) {
       scheduleScoutingDatabaseFilterRefresh();
     }

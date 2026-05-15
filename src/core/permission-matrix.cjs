@@ -58,6 +58,8 @@ const platformPermissionMatrix = Object.freeze([
     restore: ["admin"],
     admin: ["admin"],
     observe: ["admin"],
+  }, {
+    routes: ["/api/platform-identity"],
   }),
   moduleContract("home", "Home", "team", {
     read: allAuthenticatedRoles,
@@ -305,6 +307,12 @@ const apiRouteSecurity = Object.freeze({
     moduleId: "platform-readiness",
     actions: Object.freeze({ GET: "observe" }),
     rateLimits: Object.freeze({ observe: 40 }),
+    enforcePermission: true,
+  }),
+  "/api/platform-identity": Object.freeze({
+    moduleId: "platform-identity",
+    actions: Object.freeze({ GET: "read" }),
+    rateLimits: Object.freeze({ read: 60 }),
     enforcePermission: true,
   }),
   "/api/medical": Object.freeze({

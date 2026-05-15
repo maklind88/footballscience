@@ -8,15 +8,15 @@ Do not rewrite the platform in one large move. Build a server-owned spine beside
 
 Current isolated branch/worktree:
 
-- Branch: `codex/platform-scale-foundation`
-- Worktree: `/Users/maklind/Documents/New project-scale-foundation`
+- Branch: `codex/platform-scale-foundation-clean`
+- Worktree: `/Users/maklind/Documents/New project-scale-foundation-clean`
 - Original working tree has unrelated Scouting changes and must not be used for platform foundation deploys until coordinated.
 
 ## Program Status
 
 | Stream | Status | Current Contract | Next Build Step | Release Risk |
 | --- | --- | --- | --- | --- |
-| Multi-tenant auth/users/org/team | Foundation started | `public.platform_*` identity migration | Add server API/read adapter for current actor tenant scope | Safe deploy only |
+| Multi-tenant auth/users/org/team | Scope API started | `public.platform_*` identity migration + `/api/platform-identity` | Add admin-only tenant bootstrap/write APIs after read scope is proven | Safe deploy only |
 | App-state module migrations | Tracked | `platform_module_migration_checkpoints` | Promote Chat to server-first with app-state fallback compare | Safe deploy only |
 | `app.js` module extraction | Started before program | Module loader + existing lazy Scouting/Game Simulator boundaries | Extract one module boundary per release, no UI behavior change first | Safe deploy for broad moves |
 | Chat server-first | Schema exists, app-state fallback still active | `chat_*` tables and `/api/chat` | Make chat API primary for reads/writes, retain compatibility cache | Safe deploy only |
@@ -55,6 +55,9 @@ Added in this branch:
 
 - `supabase/migrations/20260515045748_platform_identity_foundation.sql`
 - `qa/platform-identity-schema.api.spec.mjs`
+- `api/platform-identity.js`
+- `api/_lib/platform-identity.js`
+- `qa/platform-identity-api.api.spec.mjs`
 - `platform-identity` module contract in core platform/readiness/permission metadata
 
 The migration creates:
@@ -68,16 +71,15 @@ The migration creates:
 - `platform_module_migration_checkpoints`
 - `platform_membership_events`
 
-The current app still uses the existing live paths. This foundation is intentionally inert until a server API and module adapter are added.
+The current app still uses the existing live paths. This foundation is intentionally inert: `/api/platform-identity` only returns the signed-in actor's server-owned scope and migration fallback status. It does not change UI routing, app-state ownership, or module read/write paths.
 
-## Next Phase: Actor Scope API
+## Next Phase: Tenant Bootstrap API
 
-Build `/api/platform-identity` or extend the admin/user surface with a guarded server endpoint that returns the signed-in actor's canonical platform scope:
+Build admin-only write/bootstrap endpoints after the read-only actor scope endpoint is proven:
 
-- organization, club, team ids
-- role and scope
-- manageable child scopes
-- membership status
-- app-state fallback mapping
+- create/link organization, club, team rows
+- link existing `chat_*` and `squad_*` tenants through `platform_tenant_links`
+- backfill `platform_memberships` from existing server-owned records
+- keep app-state fallback mapping active until each module passes shadow/dual-read checks
 
-This endpoint must not trust `user_metadata`. Authorization must come from server-owned membership rows and/or server-owned `app_metadata` bootstrap role.
+Write authorization must not trust `user_metadata`. Authorization must come from server-owned membership rows and/or server-owned `app_metadata` bootstrap role.

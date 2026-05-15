@@ -57,7 +57,7 @@ export const platformReadinessAreas = Object.freeze([
 export const platformModuleImplementationStages = Object.freeze({
   "platform-shell": "legacy-shell",
   "platform-readiness": "core-contract",
-  "platform-identity": "database-foundation",
+  "platform-identity": "server-scope-api",
   home: "modular-renderer",
   chat: "database-backed-module",
   schedule: "hybrid-adapter",

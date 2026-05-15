@@ -63,7 +63,7 @@ test("platform module map exposes data ownership, api routes, permissions, and i
     scope: "organization",
   });
   expect(modules.find((module) => module.id === "platform-identity")).toMatchObject({
-    implementation: "database-foundation",
+    implementation: "server-scope-api",
     scope: "organization",
     status: platformReadinessStatuses.pass,
   });

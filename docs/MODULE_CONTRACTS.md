@@ -67,10 +67,11 @@ Rules:
 - `id`: `platform-identity`
 - `purpose`: canonical multi-tenant identity spine for organizations, clubs, teams, users, memberships, tenant links, and module migration checkpoints.
 - `data`: no browser storage key; database tables are `platform_organizations`, `platform_clubs`, `platform_teams`, `platform_user_profiles`, `platform_memberships`, `platform_tenant_links`, `platform_module_migration_checkpoints`, and `platform_membership_events`.
+- `api`: `/api/platform-identity` returns the signed-in actor's server-owned platform profile, memberships, manageable scopes, and app-state fallback checkpoints.
 - `permissions`: signed-in users can read their own active tenant scope; Platform Admin manages global structure, Club Admin manages their club scope, Team Admin manages their team scope. Writes must go through guarded server APIs/service-role paths.
 - `permissionMatrix`: `platform-identity` must remain present in `src/core/permission-matrix.cjs` and `public.platform_permission_matrix`.
 - `events`: tenant created, membership changed, scope changed.
-- `qa`: `qa/platform-identity-schema.api.spec.mjs` locks RLS, app-metadata authorization, server-write-first access, soft-delete, membership events, and migration checkpoints.
+- `qa`: `qa/platform-identity-schema.api.spec.mjs` locks RLS, app-metadata authorization, server-write-first access, soft-delete, membership events, and migration checkpoints. `qa/platform-identity-api.api.spec.mjs` locks the read-only Actor Scope API and prevents user metadata from becoming an authorization source.
 - `migration`: current `football-platform-structure-v1`, chat tenant tables, and squad tenant tables remain active until each module is linked through `platform_tenant_links` and proven through shadow/dual-read checks.
 - `dataSafety`: the identity foundation is database-owned and does not add a browser storage key. App-state modules continue using their Data Safety Contracts until database-primary migration is explicit.
 

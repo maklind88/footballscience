@@ -22,6 +22,7 @@ let scoutingKnownRecordLookupFingerprint = "";
 let scoutingRecordLookupFingerprint = "";
 let scoutingShadowFavoriteSearchQuery = "";
 let scoutingReportBuilderOpen = false;
+let scoutingReportsExpandedPanels = new Set();
 let scoutingRoleModelBuilderOpen = false;
 let scoutingRoleModelEditId = "";
 let scoutingSavedViewsOpen = false;
@@ -392,6 +393,17 @@ function ensureScoutingState() {
 function writeScoutingState(options = {}) {
   return activeContext.writeState(options);
 }
+let scoutingDeferredStateWriteTimer = 0;
+function deferScoutingStateWrite(options = {}, beforeWrite = null) {
+  window.clearTimeout(scoutingDeferredStateWriteTimer);
+  scoutingDeferredStateWriteTimer = window.setTimeout(() => {
+    scoutingDeferredStateWriteTimer = 0;
+    if (typeof beforeWrite === "function") {
+      beforeWrite();
+    }
+    writeScoutingState(options);
+  }, 0);
+}
 function canEditScoutingWorkspace() {
   return activeContext.canEdit();
 }
@@ -612,7 +624,7 @@ function getScoutingPlayerSnapshots(state = null) {
       .map((snapshot) => [snapshot.recordId, snapshot])
   );
 }
-function createScoutingPlayerSnapshot(record) {
+function createScoutingPlayerSnapshot(record, options = {}) {
   if (!record) {
     return null;
   }
@@ -620,8 +632,9 @@ function createScoutingPlayerSnapshot(record) {
   if (!recordId) {
     return null;
   }
-  const roleFit = getScoutingRoleFitScore(record);
-  const signal = getScoutingBestSignal(record);
+  const includeAnalysis = options.includeAnalysis !== false;
+  const roleFit = includeAnalysis ? getScoutingRoleFitScore(record) : null;
+  const signal = includeAnalysis ? getScoutingBestSignal(record) : null;
   return normalizeScoutingPlayerSnapshot({
     recordId,
     name: getScoutingRecordName(record),
@@ -636,8 +649,8 @@ function createScoutingPlayerSnapshot(record) {
     signalPercentile: Number.isFinite(signal?.percentile) ? String(signal.percentile) : "",
   });
 }
-function rememberScoutingRecordSnapshot(record, state = ensureScoutingState()) {
-  const snapshot = createScoutingPlayerSnapshot(record);
+function rememberScoutingRecordSnapshot(record, state = ensureScoutingState(), options = {}) {
+  const snapshot = createScoutingPlayerSnapshot(record, options);
   if (!snapshot) {
     return null;
   }
@@ -7681,13 +7694,14 @@ function renderScoutingRecruitmentQueue(state) {
     </div>
   `;
 }
-function renderScoutingNextActionCenter(state) {
+function renderScoutingNextActionCenter(state, options = {}) {
+  const includeRecommendations = options.includeRecommendations !== false;
   const targets = getScoutingTargets(state);
   const urgentTargets = targets
     .map((target) => ({ target, record: getScoutingTargetRecord(target) }))
     .filter((item) => item.record && ["urgent", "high"].includes(item.target.priority))
     .slice(0, 3);
-  const queueRows = getScoutingGlobalRecruitmentQueue(state, 4);
+  const queueRows = includeRecommendations ? getScoutingGlobalRecruitmentQueue(state, 4) : [];
   const openSlots = scoutingShadowSlots.filter((slot) => !getScoutingShadowSlotRecordIds(slot.id, state).length);
   const targetCount = targets.length;
   return `
@@ -7708,8 +7722,14 @@ function renderScoutingNextActionCenter(state) {
       </article>
       <article>
         <span>Best next add</span>
-        <h2>${escapeHtml(queueRows[0] ? getScoutingRecordName(queueRows[0].record) : "None")}</h2>
-        <p>${escapeHtml(queueRows[0] ? `${queueRows[0].slot.label} / P${queueRows[0].fit}` : "Add filters or load database recommendations.")}</p>
+        <h2>${escapeHtml(queueRows[0] ? getScoutingRecordName(queueRows[0].record) : includeRecommendations ? "None" : "Shadow XI")}</h2>
+        <p>${escapeHtml(
+          queueRows[0]
+            ? `${queueRows[0].slot.label} / P${queueRows[0].fit}`
+            : includeRecommendations
+              ? "Add filters or load database recommendations."
+              : "Open Shadow XI for live recommendations."
+        )}</p>
       </article>
       <div class="scouting-next-action-list">
         ${
@@ -11625,15 +11645,44 @@ function renderScoutingReportsPanel() {
     </div>
   `;
 }
+function renderScoutingReportsLazyPanel(panelId, title, detail, actionLabel, renderer) {
+  const id = normalizeScoutingText(panelId, 80);
+  if (scoutingReportsExpandedPanels.has(id)) {
+    return renderer();
+  }
+  return `
+    <section class="scouting-role-models scouting-role-model-launcher" data-scouting-reports-lazy-panel="${escapeHtml(id)}">
+      <div class="scouting-role-model-head">
+        <div>
+          <p class="placeholder-tag">${escapeHtml(detail)}</p>
+          <h2>${escapeHtml(title)}</h2>
+        </div>
+        <div class="scouting-role-model-toolbar">
+          <button type="button" class="scouting-primary-button" data-expand-scouting-reports-panel="${escapeHtml(id)}">${escapeHtml(actionLabel)}</button>
+        </div>
+      </div>
+    </section>
+  `;
+}
+function expandScoutingReportsPanel(panelId) {
+  const id = normalizeScoutingText(panelId, 80);
+  if (!["comparison-lab", "targets"].includes(id)) {
+    return;
+  }
+  scoutingReportsExpandedPanels = new Set([...scoutingReportsExpandedPanels, id]);
+  if (!rerenderScoutingActiveContent({ preserveFocus: true })) {
+    renderScoutingWorkspace({ preserveFocus: true });
+  }
+}
 function renderScoutingReportsHub() {
   const state = ensureScoutingState();
   return `
     <div class="scouting-reports-shell">
-      ${renderScoutingNextActionCenter(state)}
+      ${renderScoutingNextActionCenter(state, { includeRecommendations: false })}
       ${renderScoutingReportsPanel()}
-      ${renderScoutingComparisonLabPanel()}
+      ${renderScoutingReportsLazyPanel("comparison-lab", "Comparison lab", "Player comparison", "Load comparison lab", renderScoutingComparisonLabPanel)}
       ${renderScoutingRoleModelsPanel()}
-      ${renderScoutingTargetsPanel()}
+      ${renderScoutingReportsLazyPanel("targets", "Funnel", "Pipeline board", "Load funnel", renderScoutingTargetsPanel)}
       ${renderScoutingBudgetBoard(state)}
     </div>
   `;
@@ -12280,6 +12329,9 @@ function setScoutingActiveTab(tabId) {
     preferredScoutingShadowSlotId = "";
     state.shadowXi.selectedSlotId = "";
   }
+  if (tabId !== "reports" && scoutingReportsExpandedPanels.size) {
+    scoutingReportsExpandedPanels = new Set();
+  }
   writeScoutingState({ syncCentral: false });
   renderScoutingWorkspace();
 }
@@ -12569,6 +12621,13 @@ function closeScoutingRecordProfile() {
   renderScoutingWorkspace();
 }
 function toggleScoutingFavorite(recordId) {
+  const debugTimings = window.__footballScienceScoutingPerfDebug ? [] : null;
+  const markDebugTiming = (label) => {
+    if (debugTimings) {
+      debugTimings.push({ label, at: performance.now() });
+    }
+  };
+  markDebugTiming("start");
   if (!canEditScoutingWorkspace()) {
     return;
   }
@@ -12577,20 +12636,50 @@ function toggleScoutingFavorite(recordId) {
   if (!id) {
     return;
   }
-  const record = getScoutingRecordById(id);
-  if (record) {
-    rememberScoutingRecordSnapshot(record, state);
-  }
+  markDebugTiming("state-ready");
+  const hasProfileModal = Boolean(ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]"));
   state.favoriteRecordIds = state.favoriteRecordIds.includes(id)
     ? state.favoriteRecordIds.filter((recordIdValue) => recordIdValue !== id)
     : [id, ...state.favoriteRecordIds];
-  writeScoutingState();
-  if (ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]")) {
+  markDebugTiming("favorite-state-updated");
+  if (hasProfileModal) {
     updateScoutingFavoriteControls(id, state);
+    markDebugTiming("favorite-controls-updated");
     refreshScoutingWorkspaceSummaryMetrics();
+    markDebugTiming("summary-updated");
+    deferScoutingStateWrite({}, () => {
+      const record = getScoutingRecordById(id);
+      if (record) {
+        rememberScoutingRecordSnapshot(record, state, { includeAnalysis: false });
+      }
+    });
+    markDebugTiming("write-deferred");
+    if (debugTimings) {
+      const base = debugTimings[0]?.at || 0;
+      console.log(
+        "[scouting-favorite-performance]",
+        JSON.stringify(debugTimings.map((item) => ({ label: item.label, ms: Math.round(item.at - base) })))
+      );
+    }
     return;
   }
+  const record = getScoutingRecordById(id);
+  markDebugTiming("record-ready");
+  if (record) {
+    rememberScoutingRecordSnapshot(record, state);
+  }
+  markDebugTiming("snapshot-ready");
+  writeScoutingState();
+  markDebugTiming("state-written");
   refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
+  markDebugTiming("workspace-refreshed");
+  if (debugTimings) {
+    const base = debugTimings[0]?.at || 0;
+    console.log(
+      "[scouting-favorite-performance]",
+      JSON.stringify(debugTimings.map((item) => ({ label: item.label, ms: Math.round(item.at - base) })))
+    );
+  }
 }
 function updateScoutingFavoriteControls(recordId, state = ensureScoutingState()) {
   const id = normalizeScoutingText(recordId, 160);
@@ -12658,7 +12747,7 @@ function addScoutingRecordToShadow(recordId, slotId) {
     return;
   }
   if (record) {
-    rememberScoutingRecordSnapshot(record, state);
+    rememberScoutingRecordSnapshot(record, state, { includeAnalysis: false });
   }
   const currentRecordIds = getScoutingShadowSlotRecordIds(slot.id, state);
   state.shadowXi.slots = {
@@ -12669,7 +12758,7 @@ function addScoutingRecordToShadow(recordId, slotId) {
     ...(state.shadowXi.meta && typeof state.shadowXi.meta === "object" ? state.shadowXi.meta : {}),
     [getScoutingShadowMetaKey(slot.id, id)]: {
       ...getScoutingShadowRecordMeta(slot.id, id, state),
-      tag: getScoutingRecordAge(getScoutingRecordById(id)) <= 23 ? "u23" : currentRecordIds.length ? "backup" : "first-choice",
+      tag: getScoutingRecordAge(record) <= 23 ? "u23" : currentRecordIds.length ? "backup" : "first-choice",
       playerName: record ? getScoutingRecordName(record) : "",
       team: record ? getScoutingRecordTeam(record) : "",
       league: record ? getScoutingRecordLeague(record) : "",
@@ -12927,6 +13016,13 @@ export function handleClick(event, context) {
     event.preventDefault();
     event.stopPropagation();
     closeScoutingReportBuilder();
+    return;
+  }
+  const expandReportsPanelTrigger = event.target.closest("[data-expand-scouting-reports-panel]");
+  if (expandReportsPanelTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    expandScoutingReportsPanel(expandReportsPanelTrigger.dataset.expandScoutingReportsPanel);
     return;
   }
   const reportBuilderOverlay = event.target.closest("[data-scouting-report-builder-overlay]");

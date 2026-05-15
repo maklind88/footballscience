@@ -1,0 +1,463 @@
+.medical-position-overview {
+  display: grid;
+  gap: 0.72rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.medical-bulk-panel.is-collapsed {
+  display: flex;
+  justify-content: flex-start;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.medical-bulk-panel.is-collapsed .medical-bulk-summary {
+  width: auto;
+  min-width: min(18rem, 100%);
+  justify-items: start;
+  padding: 0.62rem 0.82rem;
+  border: 1px solid rgba(29, 31, 29, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.82);
+  text-align: left;
+  box-shadow: 0 10px 24px rgba(12, 24, 20, 0.055);
+}
+
+.medical-position-group {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0.62rem;
+  border: 1px solid rgba(29, 31, 29, 0.08);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(241, 246, 243, 0.86)),
+    rgba(255, 255, 255, 0.9);
+  box-shadow: 0 16px 40px rgba(12, 24, 20, 0.07);
+}
+
+.medical-position-group-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.85rem;
+  padding: 0.1rem 0.18rem 0.24rem;
+}
+
+.medical-position-group-head div {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+
+.medical-position-group-head span,
+.medical-roster-list-head,
+.medical-roster-player-meta,
+.medical-roster-current-cell small,
+.medical-row-comment {
+  color: #66716c;
+  font-size: 0.68rem;
+  font-weight: 850;
+  line-height: 1.15;
+}
+
+.medical-position-group-head span,
+.medical-roster-list-head {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.medical-position-group-head strong {
+  color: #12231b;
+  font-size: 1.08rem;
+  font-weight: 950;
+  line-height: 1.05;
+}
+
+.medical-position-group-head p {
+  max-width: 42rem;
+  margin: 0;
+  color: #5f6b66;
+  font-size: 0.76rem;
+  font-weight: 780;
+  line-height: 1.25;
+  text-align: right;
+}
+
+.medical-roster-list {
+  display: grid;
+  gap: 0.38rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 0.08rem;
+  scrollbar-width: thin;
+}
+
+.medical-roster-list-head,
+.medical-roster-row {
+  display: grid;
+  grid-template-columns:
+    minmax(15rem, 1.15fr)
+    minmax(8.4rem, 0.58fr)
+    minmax(13rem, 0.88fr)
+    minmax(18.5rem, 1.22fr)
+    minmax(6.2rem, 0.42fr);
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 64rem;
+}
+
+.medical-roster-list-head {
+  padding: 0 0.72rem;
+}
+
+.medical-roster-row {
+  width: 100%;
+  min-height: 4.15rem;
+  padding: 0.55rem 0.62rem;
+  border: 1px solid rgba(29, 31, 29, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 10px 26px rgba(12, 24, 20, 0.045);
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.medical-roster-row:hover,
+.medical-roster-row:focus-visible {
+  border-color: rgba(26, 115, 85, 0.28);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 14px 32px rgba(12, 24, 20, 0.08);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.medical-roster-row.is-selected,
+.medical-roster-row.is-bulk-selected {
+  border-color: rgba(0, 113, 227, 0.36);
+  background:
+    linear-gradient(135deg, rgba(229, 242, 255, 0.82), rgba(255, 255, 255, 0.94)),
+    #fff;
+}
+
+.medical-roster-player-cell {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.58rem;
+  min-width: 0;
+}
+
+.medical-roster-player-cell .medical-player-avatar {
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 10px;
+  box-shadow: 0 8px 18px rgba(12, 24, 20, 0.12);
+}
+
+.medical-roster-player-copy {
+  display: grid;
+  gap: 0.16rem;
+  min-width: 0;
+}
+
+.medical-roster-player-copy strong,
+.medical-roster-player-meta span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.medical-roster-player-copy strong {
+  color: #111f18;
+  font-size: 0.9rem;
+  font-weight: 950;
+  line-height: 1.12;
+}
+
+.medical-roster-player-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.36rem;
+  min-width: 0;
+}
+
+.medical-roster-current-cell {
+  display: grid;
+  align-content: center;
+  gap: 0.17rem;
+  min-width: 0;
+}
+
+.medical-roster-current-cell .medical-status-chip {
+  justify-self: start;
+  max-width: 100%;
+}
+
+.medical-roster-current-main {
+  display: grid;
+  grid-template-columns: minmax(3.3rem, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 0.48rem;
+  min-width: 0;
+}
+
+.medical-roster-current-main strong {
+  color: #101f18;
+  font-size: 0.98rem;
+  font-weight: 950;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.medical-roster-window-cell {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(1.75rem, 1fr));
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.medical-roster-window-cell .medical-day-cell {
+  min-width: 0;
+  min-height: 1.72rem;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.medical-roster-quick-cell {
+  min-width: 0;
+}
+
+.medical-quick-rec-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(2.35rem, 1fr));
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.medical-quick-rec-button {
+  min-width: 0;
+  height: 1.86rem;
+  padding: 0 0.28rem;
+  border: 1px solid rgba(29, 31, 29, 0.1);
+  border-radius: 8px;
+  background: rgba(246, 248, 247, 0.92);
+  color: #1a2a22;
+  box-shadow: none;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 950;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
+}
+
+.medical-quick-rec-button:hover,
+.medical-quick-rec-button:focus-visible {
+  background: #ecf7f1;
+  border-color: rgba(31, 122, 69, 0.28);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.medical-quick-rec-button.is-active {
+  background: #13241c;
+  border-color: #13241c;
+  color: #fff;
+}
+
+.medical-quick-unavailable:not(.is-active) {
+  color: #a22525;
+  background: rgba(255, 236, 236, 0.92);
+}
+
+.medical-quick-rehab:not(.is-active),
+.medical-quick-controlled:not(.is-active),
+.medical-quick-modified:not(.is-active) {
+  color: #8a4b0f;
+  background: rgba(255, 246, 225, 0.96);
+}
+
+.medical-quick-full:not(.is-active) {
+  color: #14613f;
+  background: rgba(223, 247, 231, 0.94);
+}
+
+.medical-roster-actions-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.34rem;
+  min-width: 0;
+}
+
+.medical-row-select-button,
+.medical-row-open-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.9rem;
+  max-width: 100%;
+  padding: 0 0.62rem;
+  border-radius: 999px;
+  border: 1px solid rgba(29, 31, 29, 0.1);
+  background: rgba(246, 248, 247, 0.94);
+  color: #17251e;
+  box-shadow: none;
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.medical-row-select-button {
+  cursor: pointer;
+}
+
+.medical-row-select-button.is-selected {
+  border-color: rgba(0, 113, 227, 0.32);
+  background: rgba(226, 241, 255, 0.96);
+  color: #0755a0;
+}
+
+.medical-row-open-button {
+  color: #62706a;
+}
+
+.medical-row-comment {
+  grid-column: 1 / -1;
+  margin: -0.12rem 0 0;
+  padding: 0.44rem 0.55rem;
+  border-radius: 8px;
+  background: rgba(20, 37, 29, 0.045);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.is-dark-mode .medical-position-group {
+  border-color: var(--dark-line);
+  background:
+    linear-gradient(135deg, rgba(23, 36, 31, 0.96), rgba(13, 20, 28, 0.94)),
+    var(--dark-surface-soft);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.24);
+}
+
+body.is-dark-mode .medical-bulk-panel.is-collapsed .medical-bulk-summary {
+  border-color: var(--dark-line);
+  background: rgba(13, 20, 28, 0.84);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+}
+
+body.is-dark-mode .medical-position-group-head strong,
+body.is-dark-mode .medical-roster-player-copy strong,
+body.is-dark-mode .medical-roster-current-main strong {
+  color: var(--dark-text);
+}
+
+body.is-dark-mode .medical-position-group-head span,
+body.is-dark-mode .medical-position-group-head p,
+body.is-dark-mode .medical-roster-list-head,
+body.is-dark-mode .medical-roster-player-meta,
+body.is-dark-mode .medical-roster-current-cell small,
+body.is-dark-mode .medical-row-comment,
+body.is-dark-mode .medical-row-open-button {
+  color: var(--dark-muted);
+}
+
+body.is-dark-mode .medical-roster-row {
+  border-color: var(--dark-line);
+  background: rgba(13, 20, 28, 0.82);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+}
+
+body.is-dark-mode .medical-roster-row:hover,
+body.is-dark-mode .medical-roster-row:focus-visible,
+body.is-dark-mode .medical-roster-row.is-selected,
+body.is-dark-mode .medical-roster-row.is-bulk-selected {
+  border-color: rgba(129, 210, 159, 0.36);
+  background: rgba(29, 50, 43, 0.88);
+}
+
+body.is-dark-mode .medical-quick-rec-button,
+body.is-dark-mode .medical-row-select-button,
+body.is-dark-mode .medical-row-open-button,
+body.is-dark-mode .medical-row-comment {
+  border-color: rgba(203, 213, 225, 0.18);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--dark-text);
+}
+
+body.is-dark-mode .medical-quick-rec-button.is-active,
+body.is-dark-mode .medical-row-select-button.is-selected {
+  border-color: rgba(129, 210, 159, 0.38);
+  background: linear-gradient(180deg, #2c8b62, #1c684e);
+  color: #fff;
+}
+
+@media (max-width: 1120px) {
+  .medical-roster-list-head,
+  .medical-roster-row {
+    grid-template-columns:
+      minmax(14rem, 1.1fr)
+      minmax(7.8rem, 0.55fr)
+      minmax(11.5rem, 0.78fr)
+      minmax(16.4rem, 1fr)
+      minmax(5.8rem, 0.4fr);
+    min-width: 58rem;
+  }
+}
+
+@media (max-width: 760px) {
+  .medical-position-group {
+    border-radius: 14px;
+    padding: 0.5rem;
+  }
+
+  .medical-position-group-head {
+    align-items: start;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .medical-position-group-head p {
+    text-align: left;
+  }
+
+  .medical-bulk-panel.is-collapsed {
+    width: 100%;
+  }
+
+  .medical-bulk-panel.is-collapsed .medical-bulk-summary {
+    width: 100%;
+  }
+
+  .medical-roster-list-head,
+  .medical-roster-row {
+    grid-template-columns:
+      minmax(12.5rem, 1.05fr)
+      minmax(7.4rem, 0.55fr)
+      minmax(10.5rem, 0.78fr)
+      minmax(15rem, 1fr)
+      minmax(5.6rem, 0.4fr);
+    min-width: 52rem;
+  }
+}

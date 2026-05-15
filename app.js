@@ -27378,6 +27378,32 @@ const bulkDate = isMedicalDateValue(dateValue) ? dateValue : formatScheduleDateV
 medicalBulkRecommendationOpen = true;
 setMedicalBulkSelection(players.filter((player) => !getLatestMedicalRecord(player.id, bulkDate)).map((player) => player.id));
 }
+function applyMedicalQuickRecommendation(playerId, participationValue) {
+ensureMedicalState();
+const player = medicalState.players.find((candidate) => candidate.id === playerId);
+if (!player) {
+return { player: null, record: null, blockReason: "Player could not be found." };
+}
+const dateValue = medicalState.selectedDate;
+const participation = normalizeMedicalParticipation(participationValue, 75);
+const status = getMedicalStatusForParticipation(participation);
+const blockReason = getMedicalRecommendationBlockReason(player.id, participation, dateValue);
+if (blockReason) {
+return { player, record: null, blockReason };
+}
+const record = addMedicalRecord({
+playerId: player.id,
+date: dateValue,
+status,
+participation,
+actualParticipation: medicalActualParticipationFallback,
+comment: "",
+coachNote: "",
+shareWithCoach: false,
+rtpPhase: getMedicalRtpPhaseForRecommendation(status, participation),
+});
+return { player, record, blockReason: "" };
+}
 function applyMedicalBulkRecommendation(values = {}) {
 ensureMedicalState();
 const selectedPlayers = getMedicalBulkSelectedPlayers();
@@ -27724,55 +27750,150 @@ ${escapeHtml(value)}
 </span>
 `;
 }
-function renderMedicalSquadCard(player) {
+function getMedicalRosterPositionGroups(players = []) {
+const groups = new Map();
+players
+.slice()
+.sort((first, second) => {
+const positionComparison = getMedicalPlayerPositionRank(first) - getMedicalPlayerPositionRank(second);
+return positionComparison || compareMedicalPlayers(first, second);
+})
+.forEach((player) => {
+const position = player.position || "Unassigned";
+const group = groups.get(position) ?? { position, players: [] };
+group.players.push(player);
+groups.set(position, group);
+});
+return Array.from(groups.values()).sort((first, second) => {
+const positionComparison = (medicalPositionOrder[first.position] ?? 99) - (medicalPositionOrder[second.position] ?? 99);
+return positionComparison || first.position.localeCompare(second.position);
+});
+}
+function getMedicalRosterPositionStats(players = []) {
+return players.reduce(
+(stats, player) => {
+const record = getLatestMedicalRecord(player.id, medicalState.selectedDate);
+stats.total += 1;
+if (!record) {
+stats.missing += 1;
+return stats;
+}
+stats.logged += 1;
+if (record.participation === 100) {
+stats.full += 1;
+} else if (record.participation === 0) {
+stats.unavailable += 1;
+} else {
+stats.modified += 1;
+}
+return stats;
+},
+{ total: 0, logged: 0, full: 0, modified: 0, unavailable: 0, missing: 0 }
+);
+}
+function renderMedicalQuickRecommendationButtons(player, record) {
+const canEdit = canEditMedicalTeam();
+return `
+<div class="medical-quick-rec-row" role="group" aria-label="Quick recommendation for ${escapeHtml(player.name)}">
+${medicalParticipationOptions
+.map((participation) => {
+const statusKey = getMedicalStatusForParticipation(participation);
+return `
+<button
+type="button"
+class="medical-quick-rec-button medical-quick-${escapeHtml(statusKey)}${record?.participation === participation ? " is-active" : ""}"
+data-medical-quick-recommend="${escapeHtml(player.id)}"
+data-medical-quick-participation="${participation}"
+aria-label="${escapeHtml(player.name)} ${participation}% recommendation"
+${canEdit ? "" : "disabled"}
+>${participation}%</button>
+`;
+})
+.join("")}
+</div>
+`;
+}
+function renderMedicalRosterRow(player) {
 const record = getLatestMedicalRecord(player.id, medicalState.selectedDate);
 const status = getMedicalRecordStatus(record);
 const isSelected = player.id === medicalState.selectedPlayerId;
 const isBulkSelected = getMedicalValidBulkSelection().has(player.id);
 const participationLabel = record ? `${record.participation}%` : "Not set";
 const latestComment = getMedicalVisibleComment(record);
+const phaseLabel = record ? getMedicalRtpPhaseOption(record.rtpPhase).label : "No RTP phase";
+const selectedLabel = isBulkSelected ? "Selected" : "Select";
 return `
 <article
-class="medical-player-card${isSelected && medicalPlayerModalOpen ? " is-selected" : ""}${isBulkSelected ? " is-bulk-selected" : ""}"
+class="medical-roster-row medical-tone-${escapeHtml(status.tone)}${isSelected && medicalPlayerModalOpen ? " is-selected" : ""}${isBulkSelected ? " is-bulk-selected" : ""}"
 data-medical-select-player="${escapeHtml(player.id)}"
+data-medical-roster-row="${escapeHtml(player.id)}"
 tabindex="0"
 role="button"
 aria-label="Open ${escapeHtml(player.name)} recommendation"
 >
-<div class="medical-player-card-head">
+<div class="medical-roster-player-cell">
 ${renderMedicalPlayerAvatar(player)}
-<div class="medical-player-card-copy">
-<div class="medical-player-title-line">
+<div class="medical-roster-player-copy">
 <strong>${escapeHtml(player.name)}</strong>
+<div class="medical-roster-player-meta">
 ${player.number ? `<span>#${escapeHtml(player.number)}</span>` : ""}
+<span>${escapeHtml(player.position || "Position")}</span>
 ${renderMedicalTemporaryPlayerBadge(player)}
 </div>
-<small>${escapeHtml(player.position || "Position")}</small>
 </div>
+</div>
+<div class="medical-roster-current-cell">
 <span class="medical-status-chip medical-tone-${escapeHtml(status.tone)}">${escapeHtml(status.label)}</span>
-</div>
-<button
-type="button"
-class="medical-card-select-button${isBulkSelected ? " is-selected" : ""}"
-data-medical-bulk-toggle="${escapeHtml(player.id)}"
-aria-pressed="${isBulkSelected ? "true" : "false"}"
-${canEditMedicalTeam() ? "" : "disabled"}
->${isBulkSelected ? "Selected" : "Select"}</button>
-<div class="medical-participation-line">
-<span class="medical-participation-value">${escapeHtml(participationLabel)}</span>
+<div class="medical-roster-current-main">
+<strong>${escapeHtml(participationLabel)}</strong>
 <span class="medical-participation-track">
 <span style="width: ${record ? record.participation : 0}%"></span>
 </span>
 </div>
-<div class="medical-card-days">
+<small>${escapeHtml(phaseLabel)}</small>
+</div>
+<div class="medical-roster-window-cell" aria-label="Recommendation window">
 ${getMedicalWindowDates().map((dateValue) => renderMedicalDayCell(player, dateValue)).join("")}
 </div>
-<div class="medical-card-footer">
-<span>${escapeHtml(record ? "Updated" : "Needs recommendation")}</span>
-<strong>${canEditMedicalTeam() ? "Recommend" : "Open"}</strong>
+<div class="medical-roster-quick-cell">
+${renderMedicalQuickRecommendationButtons(player, record)}
 </div>
-${latestComment ? `<p class="medical-card-comment">${escapeHtml(latestComment)}</p>` : ""}
+<div class="medical-roster-actions-cell">
+<button
+type="button"
+class="medical-row-select-button${isBulkSelected ? " is-selected" : ""}"
+data-medical-bulk-toggle="${escapeHtml(player.id)}"
+aria-pressed="${isBulkSelected ? "true" : "false"}"
+${canEditMedicalTeam() ? "" : "disabled"}
+>${selectedLabel}</button>
+<span class="medical-row-open-button">${canEditMedicalTeam() ? "Open" : "View"}</span>
+</div>
+${latestComment ? `<p class="medical-row-comment">${escapeHtml(latestComment)}</p>` : ""}
 </article>
+`;
+}
+function renderMedicalPositionGroup(group) {
+const stats = getMedicalRosterPositionStats(group.players);
+return `
+<section class="medical-position-group">
+<header class="medical-position-group-head">
+<div>
+<span>Position</span>
+<strong>${escapeHtml(group.position)}</strong>
+</div>
+<p>${stats.total} players / ${stats.full} full / ${stats.modified} modified / ${stats.unavailable} unavailable / ${stats.missing} not set</p>
+</header>
+<div class="medical-roster-list">
+<div class="medical-roster-list-head" aria-hidden="true">
+<span>Player</span>
+<span>Status</span>
+<span>7 days</span>
+<span>Quick recommendation</span>
+<span>Action</span>
+</div>
+${group.players.map(renderMedicalRosterRow).join("")}
+</div>
+</section>
 `;
 }
 function renderMedicalRosterSetup() {
@@ -27833,6 +27954,7 @@ return `
 }
 function renderMedicalRosterPanel() {
 const players = getFilteredMedicalPlayers();
+const positionGroups = getMedicalRosterPositionGroups(players);
 return `
 <section class="medical-roster-panel">
 <div class="medical-section-head">
@@ -27861,10 +27983,10 @@ ${medicalStatusOptions
 </div>
 </div>
 ${renderMedicalBulkUpdatePanel(players)}
-<div class="medical-squad-grid">
+<div class="medical-position-overview">
 ${
 players.length
-? players.map(renderMedicalSquadCard).join("")
+? positionGroups.map(renderMedicalPositionGroup).join("")
 : `<div class="medical-empty-inline">No players match the current filter.</div>`
 }
 </div>
@@ -70417,6 +70539,28 @@ return;
 const copyHandoverButton = event.target.closest("[data-medical-copy-handover]");
 if (copyHandoverButton) {
 copyMedicalCoachHandoverToClipboard();
+return;
+}
+const quickRecommendationButton = event.target.closest("[data-medical-quick-recommend]");
+if (quickRecommendationButton) {
+event.preventDefault();
+event.stopPropagation();
+if (!canEditMedicalTeam()) {
+return;
+}
+const result = applyMedicalQuickRecommendation(
+quickRecommendationButton.dataset.medicalQuickRecommend,
+quickRecommendationButton.dataset.medicalQuickParticipation
+);
+if (result.record) {
+void recordMedicalDatabaseSyncEvent("recommendation-saved", {
+playerId: result.record.playerId,
+record: result.record,
+idempotencyKey: `recommendation-saved:${result.record.id}`,
+});
+}
+const playerName = result.player?.name || "Player";
+renderMedicalTeamWorkspace(result.record ? `${playerName}: ${result.record.participation}% recommendation saved.` : result.blockReason || "Recommendation could not be saved.");
 return;
 }
 const bulkToggleButton = event.target.closest("[data-medical-bulk-toggle]");

@@ -848,6 +848,48 @@ test("Medical bulk recommendation opens as a compact dated action row", async ({
     .toEqual(["bulk-one:100", "bulk-two:25"]);
 });
 
+test("Medical roster overview groups by position and supports row quick recommendations", async ({ page }) => {
+  await page.addInitScript(({ storageKey }) => {
+    window.localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        selectedDate: "2026-05-15",
+        selectedPlayerId: "qa-gk",
+        rosterVersion: "qa-medical-roster-overview-v1",
+        players: [
+          { id: "qa-def", name: "QA Defender", position: "Defender", rosterOrder: 2 },
+          { id: "qa-gk", name: "QA Goalkeeper", position: "Goalkeeper", rosterOrder: 1 },
+          { id: "qa-mid", name: "QA Midfielder", position: "Midfielder", rosterOrder: 3 },
+        ],
+        records: [],
+        injuryPlans: [],
+      })
+    );
+  }, { storageKey: medicalKey });
+
+  await bootApp(page);
+  await openWorkspace(page, "medical-team");
+
+  const positionGroups = page.locator(".medical-position-group");
+  await expect(positionGroups.first()).toContainText("Goalkeeper");
+  await expect(positionGroups.nth(1)).toContainText("Defender");
+
+  const goalkeeperRow = page.locator('[data-medical-roster-row="qa-gk"]');
+  await expect(goalkeeperRow).toBeVisible();
+  await expect(goalkeeperRow.locator(".medical-quick-rec-button")).toHaveCount(6);
+  await goalkeeperRow.locator('[data-medical-quick-participation="25"]').click();
+
+  await expect
+    .poll(() =>
+      page.evaluate((storageKey) => {
+        const state = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+        const record = (state.records || []).find((entry) => entry.playerId === "qa-gk" && entry.date === "2026-05-15");
+        return record ? `${record.participation}:${record.rtpPhase}` : "";
+      }, medicalKey)
+    )
+    .toBe("25:rehab");
+});
+
 test("Squad add creates a Medical roster slot and Session Planner placement", async ({ page }) => {
   const playerName = `QA Squad Placement ${Date.now()}`;
   let squadAgeRequests = 0;

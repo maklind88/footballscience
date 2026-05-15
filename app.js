@@ -4274,6 +4274,15 @@ let adminAuditEntries = [];
 let adminAuditLoading = false;
 let adminAuditLoadedAt = 0;
 let adminAuditLoadError = "";
+let platformReadinessReport = null;
+let platformReadinessLoading = false;
+let platformReadinessLoadedAt = 0;
+let platformReadinessLoadError = "";
+const platformReadinessStatusLabels = Object.freeze({
+pass: "Ready",
+warning: "Needs attention",
+missing: "Missing",
+});
 const platformDefaultRoles = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
 const platformManagementRoleSet = new Set(["admin", "club-admin", "team-admin"]);
 const platformStaffRoleSet = new Set(["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"]);
@@ -6199,6 +6208,7 @@ return {
 ui,
 platformModuleLoader,
 escapeHtml,
+teamName: getUserTeamName(getCurrentPlatformUser()),
 ensureState: ensureScoutingState,
 writeState: writeScoutingState,
 canEdit: canEditScoutingWorkspace,
@@ -20657,6 +20667,190 @@ renderAdminWorkspace();
 }
 }
 }
+function normalizePlatformReadinessStatus(status) {
+return ["pass", "warning", "missing"].includes(status) ? status : "warning";
+}
+function renderPlatformReadinessStatus(status) {
+const normalizedStatus = normalizePlatformReadinessStatus(status);
+return `<span class="pr-status is-${escapeHtml(normalizedStatus)}">${escapeHtml(
+platformReadinessStatusLabels[normalizedStatus] || normalizedStatus
+)}</span>`;
+}
+function renderPlatformReadinessEmptyState() {
+if (platformReadinessLoading) {
+return `<div class="pr-empty">Loading platform readiness...</div>`;
+}
+if (platformReadinessLoadError) {
+return `<div class="pr-empty is-error">${escapeHtml(platformReadinessLoadError)}</div>`;
+}
+return `<div class="pr-empty">Readiness data will load from the secure admin API.</div>`;
+}
+function createPlatformReadinessFallbackReport() {
+return {
+summary: {
+readySections: 0,
+totalSections: 0,
+totalModules: 0,
+legacyModules: 0,
+},
+sections: [],
+modules: [],
+environment: [],
+observabilitySignals: [],
+};
+}
+function renderPlatformReadinessDashboard() {
+const report = platformReadinessReport || createPlatformReadinessFallbackReport();
+const sections = Array.isArray(report.sections) ? report.sections : [];
+const modules = Array.isArray(report.modules) ? report.modules : [];
+const environment = Array.isArray(report.environment) ? report.environment : [];
+const signals = Array.isArray(report.observabilitySignals) ? report.observabilitySignals : [];
+const score = report.summary ? `${report.summary.readySections}/${report.summary.totalSections}` : "0/0";
+const sectionCards = sections
+.map(
+(section) => `
+        <article class="pr-section is-${escapeHtml(normalizePlatformReadinessStatus(section.status))}">
+          <div>
+            <strong>${escapeHtml(section.label)}</strong>
+            <p>${escapeHtml(section.details)}</p>
+          </div>
+          ${renderPlatformReadinessStatus(section.status)}
+        </article>
+      `
+)
+.join("");
+const moduleRows = modules
+.slice(0, 14)
+.map(
+(module) => `
+        <article class="pr-module-row">
+          <div>
+            <strong>${escapeHtml(module.label || module.id)}</strong>
+            <small>${escapeHtml(module.id)} · ${escapeHtml(module.implementation || "unclassified")}</small>
+          </div>
+          <span>${escapeHtml(module.scope || "scope")}</span>
+          ${renderPlatformReadinessStatus(module.status)}
+        </article>
+      `
+)
+.join("");
+const environmentRows = environment
+.map(
+(entry) => `
+        <article class="pr-env-row is-${escapeHtml(normalizePlatformReadinessStatus(entry.status))}">
+          <div>
+            <strong>${escapeHtml(entry.label)}</strong>
+            <small>${escapeHtml(entry.location)}</small>
+          </div>
+          <span>${escapeHtml(entry.missing?.length ? entry.missing.join(", ") : "Configured")}</span>
+          ${renderPlatformReadinessStatus(entry.status)}
+        </article>
+      `
+)
+.join("");
+const signalRows = signals
+.map(
+(signal) => `
+        <article class="pr-signal-row">
+          <strong>${escapeHtml(signal.label)}</strong>
+          <span>${escapeHtml(signal.source)}</span>
+        </article>
+      `
+)
+.join("");
+return `
+    <article class="admin-card pr-card">
+      <div class="staff-card-head">
+        <div>
+          <h2>Platform Readiness</h2>
+          <span>${platformReadinessLoadedAt ? `Updated ${escapeHtml(formatAdminDateTime(platformReadinessLoadedAt))}` : "Admin system status"}</span>
+        </div>
+        <button type="button" class="admin-send-button" data-pr-refresh>Refresh</button>
+      </div>
+      ${
+        !platformReadinessReport && (platformReadinessLoading || platformReadinessLoadError)
+          ? renderPlatformReadinessEmptyState()
+          : `
+      <div class="pr-score-grid">
+        <div>
+          <span>Readiness</span>
+          <strong>${escapeHtml(score)}</strong>
+        </div>
+        <div>
+          <span>Modules</span>
+          <strong>${escapeHtml(String(report.summary?.totalModules || modules.length))}</strong>
+        </div>
+        <div>
+          <span>Legacy</span>
+          <strong>${escapeHtml(String(report.summary?.legacyModules || 0))}</strong>
+        </div>
+        <div>
+          <span>Signals</span>
+          <strong>${escapeHtml(String(signals.length))}</strong>
+        </div>
+      </div>
+      <section class="pr-section-grid">${sectionCards}</section>
+      <section class="pr-detail-grid">
+        <div>
+          <h3>Module Map</h3>
+          <div class="pr-list">${moduleRows}</div>
+        </div>
+        <div>
+          <h3>Secrets & Staging</h3>
+          <div class="pr-list">${environmentRows}</div>
+        </div>
+        <div>
+          <h3>Observability</h3>
+          <div class="pr-list">${signalRows}</div>
+        </div>
+      </section>
+      `
+      }
+    </article>
+  `;
+}
+async function loadPlatformReadinessReport(options = {}) {
+if (platformReadinessLoading) {
+return;
+}
+const force = Boolean(options.force);
+if (!force && platformReadinessLoadedAt && Date.now() - platformReadinessLoadedAt < 60000) {
+return;
+}
+platformReadinessLoading = true;
+platformReadinessLoadError = "";
+const token = await getPlatformApiAccessToken();
+if (!token) {
+platformReadinessLoadError = "Platform readiness requires an authenticated admin session.";
+platformReadinessLoading = false;
+if (hubState?.activeWorkspaceId === "admin") {
+renderAdminWorkspace();
+}
+return;
+}
+try {
+const response = await fetch("/api/pr", {
+headers: {
+Authorization: `Bearer ${token}`,
+},
+cache: "no-store",
+});
+const payload = await response.json().catch(() => ({}));
+if (!response.ok || payload?.ok === false) {
+platformReadinessLoadError = payload?.reason || `Platform readiness failed (${response.status}).`;
+return;
+}
+platformReadinessReport = payload.report || null;
+platformReadinessLoadedAt = Date.now();
+} catch (error) {
+platformReadinessLoadError = error?.message || "Platform readiness could not be loaded.";
+} finally {
+platformReadinessLoading = false;
+if (hubState?.activeWorkspaceId === "admin") {
+renderAdminWorkspace();
+}
+}
+}
 function renderAdminWorkspace(message = "") {
 if (!ui.adminWorkspace) {
 return;
@@ -20683,6 +20877,9 @@ const currentUserIsPlatformAdmin = isPlatformAdminUser(currentUser);
 const roles = getPlatformRoles();
 if (currentUserIsPlatformAdmin && !adminAuditLoadedAt && !adminAuditLoading) {
 loadAdminAuditLog().catch(() => {});
+}
+if (currentUserIsPlatformAdmin && !platformReadinessLoadedAt && !platformReadinessLoading && !platformReadinessLoadError) {
+loadPlatformReadinessReport().catch(() => {});
 }
 const selectedUser =
 users.find((adminUser) => adminUser.id === selectedAdminUserId) ??
@@ -20810,6 +21007,7 @@ ui.adminWorkspace.innerHTML = `
       </header>
       ${message ? `<p class="staff-message">${escapeHtml(message)}</p>` : ""}
       ${renderAdminStructurePanel(currentUser, structure, users)}
+      ${currentUserIsPlatformAdmin ? renderPlatformReadinessDashboard() : ""}
       <section class="admin-layout">
         <article class="admin-card">
           <div class="staff-card-head">
@@ -69752,6 +69950,15 @@ renderAdminWorkspace("Platform admin access required.");
 return;
 }
 await loadAdminAuditLog({ force: true });
+return;
+}
+const refreshReadinessButton = event.target.closest("[data-pr-refresh]");
+if (refreshReadinessButton) {
+if (!isPlatformAdminUser(getCurrentPlatformUser())) {
+renderAdminWorkspace("Platform admin access required.");
+return;
+}
+await loadPlatformReadinessReport({ force: true });
 return;
 }
 const removeButton = event.target.closest("[data-admin-remove-user]");

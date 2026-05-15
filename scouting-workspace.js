@@ -342,6 +342,9 @@ function canEditScoutingWorkspace() {
 function escapeHtml(value) {
   return activeContext.escapeHtml(value);
 }
+function getScoutingWorkspaceTitle() {
+  return normalizeScoutingText(activeContext?.teamName) || "Shadow XI and recruitment intelligence";
+}
 function normalizeScoutingText(value, maxLength = 160) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
@@ -3795,17 +3798,77 @@ function getScoutingRoleModel(slotId = "", slotIndex = 0) {
   }
   return models[slotIndex] || null;
 }
-function getScoutingRoleModelMatchScore(record, model) {
-  const metric = getScoutingMetric(model?.metricId);
+function normalizeScoutingRoleModelSignal(signal = {}, fallback = {}) {
+  const rawSignal = typeof signal === "string" ? { metricId: signal } : signal || {};
+  const fallbackMetricId = fallback.metricId || getScoutingMetricOptions()[0]?.id || "minutes";
+  const metric = getScoutingMetric(rawSignal.metricId || rawSignal.id || fallbackMetricId) || getScoutingMetric(fallbackMetricId) || getScoutingMetricOptions()[0];
   if (!metric) {
+    return null;
+  }
+  const minPercentile = Number(rawSignal.minPercentile ?? rawSignal.threshold ?? fallback.minPercentile ?? 70);
+  const weight = Number(rawSignal.weight ?? fallback.weight ?? 3);
+  return {
+    metricId: normalizeScoutingText(metric.id, 120),
+    minPercentile: Number.isFinite(minPercentile) ? Math.max(1, Math.min(99, Math.round(minPercentile))) : 70,
+    weight: Number.isFinite(weight) ? Math.max(1, Math.min(5, Math.round(weight))) : 3,
+    direction: normalizeScoutingText(rawSignal.direction || fallback.direction || "higher", 20).toLowerCase() === "lower" ? "lower" : "higher",
+  };
+}
+function getScoutingRoleModelSignals(model = {}) {
+  const rawSignals = Array.isArray(model?.metrics) && model.metrics.length
+    ? model.metrics
+    : model?.metricId
+      ? [{ metricId: model.metricId, minPercentile: model.minPercentile, weight: 3, direction: model.direction || "higher" }]
+      : [{ metricId: getScoutingMetricOptions()[0]?.id || "minutes", minPercentile: model?.minPercentile || 70, weight: 3, direction: "higher" }];
+  const signalsByMetric = new Map();
+  rawSignals.forEach((signal) => {
+    const normalized = normalizeScoutingRoleModelSignal(signal, {
+      metricId: model?.metricId,
+      minPercentile: model?.minPercentile,
+      direction: model?.direction,
+    });
+    if (normalized?.metricId && !signalsByMetric.has(normalized.metricId)) {
+      signalsByMetric.set(normalized.metricId, normalized);
+    }
+  });
+  return Array.from(signalsByMetric.values());
+}
+function getScoutingRoleModelSignalScore(record, signal = {}) {
+  const percentile = getScoutingPercentile(record, signal.metricId);
+  if (!Number.isFinite(percentile)) {
+    return null;
+  }
+  return signal.direction === "lower" ? Math.max(0, Math.min(99, 100 - percentile)) : percentile;
+}
+function formatScoutingRoleModelSignal(signal = {}) {
+  const metric = getScoutingMetric(signal.metricId);
+  return `${metric?.label || signal.metricId} · ${signal.direction === "lower" ? "lower is better" : "higher is better"} · P${formatScoutingNumber(signal.minPercentile)} · x${formatScoutingNumber(signal.weight)}`;
+}
+function getScoutingRoleModelMatchScore(record, model) {
+  const signals = getScoutingRoleModelSignals(model);
+  if (!signals.length) {
     return 0;
   }
-  const metricPercentile = getScoutingPercentile(record, metric.id);
-  const minPercentile = Number(model?.minPercentile);
-  if (!Number.isFinite(minPercentile) || !Number.isFinite(metricPercentile)) {
+  let weightedScore = 0;
+  let totalWeight = 0;
+  let coveredSignals = 0;
+  signals.forEach((signal) => {
+    const signalScore = getScoutingRoleModelSignalScore(record, signal);
+    if (!Number.isFinite(signalScore)) {
+      return;
+    }
+    const weight = Math.max(1, Number(signal.weight) || 1);
+    const threshold = Number(signal.minPercentile) || 70;
+    const adjustedScore = signalScore >= threshold ? signalScore : Math.max(0, signalScore - (threshold - signalScore) * 0.75);
+    weightedScore += adjustedScore * weight;
+    totalWeight += weight;
+    coveredSignals += 1;
+  });
+  if (!totalWeight) {
     return 0;
   }
-  return metricPercentile >= minPercentile ? Math.max(0, metricPercentile - minPercentile) : 0;
+  const coverageFactor = Math.max(0.55, coveredSignals / Math.max(1, signals.length));
+  return Math.round((weightedScore / totalWeight) * coverageFactor);
 }
 function getScoutingRoleModelCandidates(model) {
   if (!model) {
@@ -3815,31 +3878,48 @@ function getScoutingRoleModelCandidates(model) {
   if (!slot) {
     return [];
   }
-  const metric = getScoutingMetric(model.metricId);
-  if (!metric) {
+  const signals = getScoutingRoleModelSignals(model);
+  if (!signals.length) {
     return [];
   }
   return (getScoutingDatabase()?.records || [])
     .filter((record) => getScoutingPositionTokens(record).includes(slot.position) || getScoutingPositionTokens(record).includes(slot.label))
-    .map((record) => ({
-      record,
-      score: getScoutingRoleModelMatchScore(record, model),
-      percentile: getScoutingPercentile(record, metric.id),
-      fit: getScoutingRoleFitScore(record),
-    }))
-    .filter((entry) => Number.isFinite(entry.percentile))
-    .sort((a, b) => (b.percentile - a.percentile) * 2 + (b.fit || 0) - (a.fit || 0));
+    .map((record) => {
+      const signalScores = signals
+        .map((signal) => ({
+          signal,
+          score: getScoutingRoleModelSignalScore(record, signal),
+        }))
+        .filter((entry) => Number.isFinite(entry.score));
+      const bestSignal = signalScores.sort((a, b) => b.score - a.score)[0] || null;
+      return {
+        record,
+        score: getScoutingRoleModelMatchScore(record, model),
+        percentile: bestSignal?.score ?? null,
+        bestSignal: bestSignal?.signal || null,
+        fit: getScoutingRoleFitScore(record),
+      };
+    })
+    .filter((entry) => Number.isFinite(entry.score) && entry.score > 0)
+    .sort((a, b) => (b.score || 0) - (a.score || 0) || (b.fit || 0) - (a.fit || 0));
 }
 function createScoutingRoleModel(model = {}) {
   const now = new Date().toISOString();
   const slot = getScoutingSlotById(model.slotId) || scoutingShadowSlots[0];
-  const metric = getScoutingMetric(model.metricId) || getScoutingMetricOptions()[0];
+  const signals = getScoutingRoleModelSignals({
+    metricId: model.metricId,
+    minPercentile: model.minPercentile,
+    metrics: model.metrics,
+  });
+  const primaryMetric = getScoutingMetric(signals[0]?.metricId || model.metricId) || getScoutingMetricOptions()[0];
   const nextModel = {
     id: normalizeScoutingText(model.id, 120) || `scouting-role-model-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     name: normalizeScoutingText(model.name, 120) || "Role model",
     slotId: normalizeScoutingText(slot?.id, 40),
-    metricId: normalizeScoutingText(metric?.id, 120) || "minutes",
-    minPercentile: Number.isFinite(Number(model.minPercentile)) ? Math.max(1, Math.min(99, Math.round(Number(model.minPercentile)))) : 60,
+    metricId: normalizeScoutingText(primaryMetric?.id, 120) || "minutes",
+    minPercentile: Number.isFinite(Number(model.minPercentile)) ? Math.max(1, Math.min(99, Math.round(Number(model.minPercentile)))) : signals[0]?.minPercentile || 70,
+    metrics: signals,
+    searchIntent: normalizeScoutingText(model.searchIntent, 500),
     notes: normalizeScoutingText(model.notes, 900),
     createdAt: now,
     updatedAt: now,
@@ -9059,41 +9139,6 @@ function renderScoutingRecruitmentCockpit(state) {
         <strong>${state.favoriteRecordIds.length}</strong>
         <em>Ready for list or XI</em>
       </article>
-      <div class="scouting-cockpit-roles">
-        ${roleRows
-          .map(
-            (row) => `
-              <button type="button" class="${row.records.length ? "has-depth" : "is-empty"}" data-select-scouting-shadow-slot="${escapeHtml(row.slot.id)}">
-                <span>${escapeHtml(row.slot.label)}</span>
-                <strong>${escapeHtml(row.need)}</strong>
-                <em>${
-                  row.topCandidate
-                    ? `${escapeHtml(getScoutingRecordName(row.topCandidate.record))} · P${escapeHtml(row.topCandidate.score ?? "-")}`
-                    : "No candidates"
-                }</em>
-              </button>
-            `
-          )
-          .join("")}
-      </div>
-      <div class="scouting-cockpit-hotlist">
-        <h3>Hot role fits</h3>
-        ${
-          hotCandidates.length
-            ? hotCandidates
-                .map(
-                  (item) => `
-                    <button type="button" data-open-scouting-record="${escapeHtml(getScoutingRecordId(item.record))}">
-                      <span>${escapeHtml(item.slot.label)}</span>
-                      <strong>${escapeHtml(getScoutingRecordName(item.record))}</strong>
-                      <em>${escapeHtml(getScoutingRoleFitLabel(item.score))} · P${escapeHtml(item.score ?? "-")}</em>
-                    </button>
-                  `
-                )
-                .join("")
-            : `<p class="scouting-muted">Add players to Shadow XI positions to build a hotlist.</p>`
-        }
-      </div>
       ${renderScoutingRecruitmentQueue(state)}
     </section>
   `;
@@ -9952,63 +9997,6 @@ function renderScoutingShadowXi() {
       </div>
       <aside class="scouting-shadow-side">
         <div class="scouting-shadow-card">
-          <p class="placeholder-tag">Squad planning</p>
-          <h2>${shadowCounts.playerCount} players across ${shadowCounts.filledSlots}/11 roles</h2>
-          <p>Build each position as a wishlist with several players stacked behind the first choice.</p>
-          <button type="button" class="scouting-primary-button" data-scouting-tab="database">Open database</button>
-        </div>
-        <div class="scouting-shadow-card">
-          <p class="placeholder-tag">Position wishlists</p>
-          <div class="scouting-shadow-depth-list">
-            ${scoutingShadowSlots
-              .map((slot) => {
-                const records = getScoutingShadowSlotRecords(slot.id, state);
-                return `
-                  <details class="scouting-shadow-depth" data-scouting-shadow-drop-slot="${escapeHtml(slot.id)}" ${records.length ? "open" : ""}>
-                    <summary><span>${escapeHtml(slot.label)} / coverage ${escapeHtml(getScoutingShadowCoverageScore(slot.id, state))}</span><strong>${records.length}</strong></summary>
-                    <div>
-                      ${
-                        records.length
-                          ? records
-                              .map((record, index) => {
-                                const recordId = getScoutingRecordId(record);
-                                const meta = getScoutingShadowRecordMeta(slot.id, recordId, state);
-                                return `
-                                  <article
-                                    class="scouting-shadow-depth-player"
-                                    draggable="true"
-                                    data-scouting-drag-shadow-record="${escapeHtml(recordId)}"
-                                    data-scouting-shadow-slot="${escapeHtml(slot.id)}"
-                                    data-scouting-shadow-drop-slot="${escapeHtml(slot.id)}"
-                                    data-scouting-shadow-drop-before="${escapeHtml(recordId)}"
-                                  >
-                                    <button type="button" data-open-scouting-record="${escapeHtml(recordId)}">
-                                      ${escapeHtml(index + 1)}. ${escapeHtml(getScoutingRecordName(record))}
-                                      <span>${escapeHtml(getScoutingRecordTeam(record) || getScoutingRecordPosition(record))}</span>
-                                    </button>
-                                    <div>
-                                      <select data-scouting-shadow-tag="${escapeHtml(recordId)}" data-scouting-shadow-slot="${escapeHtml(slot.id)}" ${canEdit ? "" : "disabled"}>
-                                        ${getScoutingShadowTagOptions()
-                                          .map((option) => `<option value="${escapeHtml(option.value)}" ${meta.tag === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
-                                          .join("")}
-                                      </select>
-                                      <button type="button" data-move-scouting-shadow-record="${escapeHtml(recordId)}" data-scouting-shadow-slot="${escapeHtml(slot.id)}" data-scouting-shadow-direction="up" ${canEdit ? "" : "disabled"}>Up</button>
-                                      <button type="button" data-move-scouting-shadow-record="${escapeHtml(recordId)}" data-scouting-shadow-slot="${escapeHtml(slot.id)}" data-scouting-shadow-direction="down" ${canEdit ? "" : "disabled"}>Down</button>
-                                    </div>
-                                  </article>
-                                `;
-                              })
-                              .join("")
-                          : `<p class="scouting-muted">No players yet.</p>`
-                      }
-                    </div>
-                  </details>
-                `;
-              })
-              .join("")}
-          </div>
-        </div>
-        <div class="scouting-shadow-card">
           <p class="placeholder-tag">Favorites ready for XI</p>
           <div class="scouting-mini-list">
             ${
@@ -10029,8 +10017,6 @@ function renderScoutingShadowXi() {
         </div>
       </aside>
     </section>
-    ${renderScoutingRecruitmentCockpit(state)}
-    ${renderScoutingRecruitmentAlerts(state)}
   `;
 }
 function renderScoutingListsPanel() {
@@ -10217,6 +10203,28 @@ function renderScoutingComparisonLabPanel() {
     canCompare && comparisonLeader
       ? `${escapeHtml(getScoutingRecordName(comparisonLeader.record))} leads ${escapeHtml(metric?.label || "selected metric")} at P${escapeHtml(comparisonLeader.percentile)}`
       : "";
+  const roleModel = selectedSlot ? getScoutingRoleModel(slotId) : null;
+  const roleModelName = roleModel?.name || (selectedSlot ? `${selectedSlot.label} search model` : "Selected role");
+  const comparisonDecisionRows = canCompare
+    ? playerRecords
+        .map(({ record }) => {
+          const roleFit = getScoutingRoleFitScore(record);
+          const modelScore = roleModel ? getScoutingRoleModelMatchScore(record, roleModel) : roleFit;
+          const intelligence = getScoutingIntelligenceProfile(record, state);
+          const selectedValue = getScoutingMetricValue(record, metric?.id);
+          const selectedPercentile = metric ? getScoutingPercentile(record, metric.id) : null;
+          return {
+            record,
+            roleFit,
+            modelScore,
+            intelligence,
+            selectedValue,
+            selectedPercentile,
+          };
+        })
+        .sort((a, b) => (b.modelScore || 0) - (a.modelScore || 0) || (b.roleFit || 0) - (a.roleFit || 0))
+    : [];
+  const comparisonRecommendation = comparisonDecisionRows[0];
   const comparisonMetricRows = canCompare
     ? getScoutingRadarTemplate(playerRecords[0].record)
         .map((item) => {
@@ -10239,62 +10247,165 @@ function renderScoutingComparisonLabPanel() {
         })
         .filter(Boolean)
     : [];
+  const comparisonTableMetrics = canCompare
+    ? Array.from(
+        new Map(
+          [
+            metric ? { metricId: metric.id, label: metric.label } : null,
+            ...getScoutingRadarTemplate(playerRecords[0].record).map((item) => ({ metricId: item.metricId, label: item.label })),
+            ...getScoutingRoleModelSignals(roleModel).map((signal) => ({
+              metricId: signal.metricId,
+              label: getScoutingMetric(signal.metricId)?.label || signal.metricId,
+            })),
+          ]
+            .filter((item) => item?.metricId)
+            .map((item) => [item.metricId, item])
+        ).values()
+      ).slice(0, 12)
+    : [];
   const canEdit = canEditScoutingWorkspace();
   return `
-    <section class="scouting-comparison-lab">
-      <h2>Comparison lab</h2>
-      <form class="scouting-target-form is-open scouting-comparison-form" data-scouting-comparison-form>
-        <select name="slotId" data-scouting-comparison-slot ${canEdit ? "" : "disabled"}>
-          ${slotOptions}
-        </select>
-        <select name="metricId" data-scouting-comparison-metric ${canEdit ? "" : "disabled"}>
-          ${getScoutingMetricOptions().map((metricOption) => `<option value="${escapeHtml(metricOption.id)}" ${metricOption.id === metric.id ? "selected" : ""}>${escapeHtml(metricOption.label)}</option>`).join("")}
-        </select>
-        <select name="playerA" data-scouting-comparison-player="a" ${canEdit ? "" : "disabled"}>
-          <option value="">Player A</option>
-          ${getPlayerOptions(selectedPlayerIds[0])}
-        </select>
-        <select name="playerB" data-scouting-comparison-player="b" ${canEdit ? "" : "disabled"}>
-          <option value="">Player B</option>
-          ${getPlayerOptions(selectedPlayerIds[1])}
-        </select>
-        <select name="playerC" data-scouting-comparison-player="c" ${canEdit ? "" : "disabled"}>
-          <option value="">Player C</option>
-          ${getPlayerOptions(selectedPlayerIds[2])}
-        </select>
-        <select name="playerD" data-scouting-comparison-player="d" ${canEdit ? "" : "disabled"}>
-          <option value="">Player D</option>
-          ${getPlayerOptions(selectedPlayerIds[3])}
-        </select>
+    <section class="scouting-comparison-lab scouting-comparison-studio">
+      <div class="scouting-comparison-head">
+        <div>
+          <p class="placeholder-tag">Player comparison</p>
+          <h2>Comparison lab</h2>
+          <p>Search the scouting player database by role, compare two to four players and separate the best fit with spiders, role-fit and KPI evidence.</p>
+        </div>
+        <span>${escapeHtml(candidates.length)} searchable players</span>
+      </div>
+      <form class="scouting-comparison-form scouting-comparison-search" data-scouting-comparison-form>
+        <label>
+          Role filter
+          <select name="slotId" data-scouting-comparison-slot ${canEdit ? "" : "disabled"}>
+            ${slotOptions}
+          </select>
+        </label>
+        <label>
+          Spotlight metric
+          <select name="metricId" data-scouting-comparison-metric ${canEdit ? "" : "disabled"}>
+            ${getScoutingMetricOptions().map((metricOption) => `<option value="${escapeHtml(metricOption.id)}" ${metricOption.id === metric.id ? "selected" : ""}>${escapeHtml(metricOption.label)}</option>`).join("")}
+          </select>
+        </label>
+        <label>
+          Player A
+          <select name="playerA" data-scouting-comparison-player="a" ${canEdit ? "" : "disabled"}>
+            <option value="">Search player A</option>
+            ${getPlayerOptions(selectedPlayerIds[0])}
+          </select>
+        </label>
+        <label>
+          Player B
+          <select name="playerB" data-scouting-comparison-player="b" ${canEdit ? "" : "disabled"}>
+            <option value="">Search player B</option>
+            ${getPlayerOptions(selectedPlayerIds[1])}
+          </select>
+        </label>
+        <label>
+          Player C
+          <select name="playerC" data-scouting-comparison-player="c" ${canEdit ? "" : "disabled"}>
+            <option value="">Optional player C</option>
+            ${getPlayerOptions(selectedPlayerIds[2])}
+          </select>
+        </label>
+        <label>
+          Player D
+          <select name="playerD" data-scouting-comparison-player="d" ${canEdit ? "" : "disabled"}>
+            <option value="">Optional player D</option>
+            ${getPlayerOptions(selectedPlayerIds[3])}
+          </select>
+        </label>
       </form>
       <p class="scouting-comparison-summary">
-        ${metric ? `Metric: ${escapeHtml(metric.label)}` : "Select a metric"} ${canCompare ? `· ${metricDelta}` : "· Pick at least two players to compare"}
+        ${metric ? `Spotlight: ${escapeHtml(metric.label)}` : "Select a metric"} ${canCompare ? `· ${metricDelta}` : "· Pick at least two players to compare"} · Model: ${escapeHtml(roleModelName)}
       </p>
+      ${
+        canCompare && comparisonRecommendation
+          ? `
+            <div class="scouting-comparison-decision">
+              <div>
+                <span>Current leader</span>
+                <strong>${escapeHtml(getScoutingRecordName(comparisonRecommendation.record))}</strong>
+                <p>${escapeHtml(comparisonRecommendation.intelligence?.signal?.headline || "Best weighted comparison fit in this selection.")}</p>
+              </div>
+              <div>
+                <span>Blueprint match</span>
+                <strong>P${escapeHtml(formatScoutingNumber(comparisonRecommendation.modelScore))}</strong>
+                <p>${escapeHtml(roleModel ? "Based on saved role model metrics." : "Based on role fit until a role model is saved.")}</p>
+              </div>
+              <div>
+                <span>Risk / confidence</span>
+                <strong>${escapeHtml(comparisonRecommendation.intelligence?.confidence?.label || "Unknown")} / ${escapeHtml(comparisonRecommendation.intelligence?.risk?.label || "Unknown")}</strong>
+                <p>Use this before shortlisting or report draft.</p>
+              </div>
+            </div>
+          `
+          : ""
+      }
       ${canCompare ? renderScoutingComparisonRadarOverlay(playerRecords) : ""}
       <div class="scouting-comparison-results">
         ${
           canCompare
-            ? comparisonSnapshot
+            ? comparisonDecisionRows
                 .map((entry) => {
-                  const roleFit = getScoutingRoleFitScore(entry.record);
                   const bestSignal = getScoutingBestSignal(entry.record);
                     return `
                     <article class="scouting-target-card">
                       <div class="scouting-target-main">
                         <strong>${escapeHtml(getScoutingRecordName(entry.record))}</strong>
-                        <span>${escapeHtml(formatScoutingNumber(entry.value))}</span>
+                        <span>Match P${escapeHtml(formatScoutingNumber(entry.modelScore))}</span>
                       </div>
-                      <p class="scouting-fit-line">${escapeHtml(metric?.label || "Metric")}: ${escapeHtml(formatScoutingNumber(entry.value))}${entry.percentile ? ` · P${escapeHtml(entry.percentile)}` : ""}</p>
-                      <p class="scouting-note-line">Role fit ${escapeHtml(getScoutingRoleFitLabel(roleFit))} ${Number.isFinite(roleFit) ? `· P${escapeHtml(roleFit)}` : ""}</p>
+                      <p class="scouting-fit-line">${escapeHtml(getScoutingRecordTeam(entry.record) || "No club")} · ${escapeHtml(getScoutingRecordPosition(entry.record) || "No position")} · ${escapeHtml(formatScoutingNumber(getScoutingRecordMinutes(entry.record)))} minutes</p>
+                      <p class="scouting-fit-line">${escapeHtml(metric?.label || "Metric")}: ${escapeHtml(formatScoutingNumber(entry.selectedValue))}${entry.selectedPercentile ? ` · P${escapeHtml(entry.selectedPercentile)}` : ""}</p>
+                      <p class="scouting-note-line">Role fit ${escapeHtml(getScoutingRoleFitLabel(entry.roleFit))} ${Number.isFinite(entry.roleFit) ? `· P${escapeHtml(entry.roleFit)}` : ""}</p>
                       <p class="scouting-note-line">Best signal: ${escapeHtml(bestSignal ? `${bestSignal.metric.label} · P${bestSignal.percentile}` : "No signal")}</p>
                       <button type="button" class="scouting-secondary-button" data-open-scouting-record="${escapeHtml(getScoutingRecordId(entry.record))}">Open profile</button>
                     </article>
                   `;
                 })
                 .join("")
-            : `<p class="scouting-muted">Choose two players and a role to compare by role-relevant metric.</p>`
+            : `<p class="scouting-muted">Choose a role, then search and select at least two players from the database.</p>`
         }
       </div>
+      ${
+        canCompare && comparisonTableMetrics.length
+          ? `
+            <div class="scouting-comparison-table">
+              <div class="scouting-comparison-table-head">
+                <span>Metric</span>
+                ${playerRecords.map(({ record }) => `<span>${escapeHtml(getScoutingRecordName(record))}</span>`).join("")}
+                <span>Winner</span>
+              </div>
+              ${comparisonTableMetrics
+                .map((tableMetric) => {
+                  const values = playerRecords.map(({ record }) => ({
+                    record,
+                    value: getScoutingMetricValue(record, tableMetric.metricId),
+                    percentile: getScoutingPercentile(record, tableMetric.metricId),
+                  }));
+                  const winner = values.filter((entry) => Number.isFinite(entry.percentile)).sort((a, b) => b.percentile - a.percentile)[0];
+                  return `
+                    <div class="scouting-comparison-table-row">
+                      <strong>${escapeHtml(tableMetric.label)}</strong>
+                      ${values
+                        .map(
+                          (entry) => `
+                            <span>
+                              ${escapeHtml(formatScoutingNumber(entry.value))}
+                              ${Number.isFinite(entry.percentile) ? `<em>P${escapeHtml(entry.percentile)}</em>` : `<em>No data</em>`}
+                            </span>
+                          `
+                        )
+                        .join("")}
+                      <span>${escapeHtml(winner ? getScoutingRecordName(winner.record) : "No data")}</span>
+                    </div>
+                  `;
+                })
+                .join("")}
+            </div>
+          `
+          : ""
+      }
       ${
         canCompare
           ? `
@@ -10323,21 +10434,84 @@ function renderScoutingComparisonLabPanel() {
 function renderScoutingRoleModelsPanel() {
   const state = ensureScoutingState();
   const models = getScoutingRoleModels(state);
+  const metricOptions = getScoutingMetricOptions();
   const slotOptions = scoutingShadowSlots
     .map((slot) => `<option value="${escapeHtml(slot.id)}">${escapeHtml(slot.label)} - ${escapeHtml(slot.position)}</option>`)
     .join("");
+  const metricBlueprintRows = metricOptions
+    .map(
+      (metric, index) => `
+        <label class="scouting-role-metric-row">
+          <input type="checkbox" name="metricIds" value="${escapeHtml(metric.id)}" ${index < 4 ? "checked" : ""} />
+          <span>${escapeHtml(metric.label)}</span>
+          <select name="metricDirection:${escapeHtml(metric.id)}">
+            <option value="higher">Higher is better</option>
+            <option value="lower">Lower is better</option>
+          </select>
+          <input type="number" name="metricThreshold:${escapeHtml(metric.id)}" min="1" max="99" value="70" aria-label="Minimum percentile for ${escapeHtml(metric.label)}" />
+          <select name="metricWeight:${escapeHtml(metric.id)}" aria-label="Weight for ${escapeHtml(metric.label)}">
+            <option value="5">Key x5</option>
+            <option value="4">High x4</option>
+            <option value="3" selected>Normal x3</option>
+            <option value="2">Support x2</option>
+            <option value="1">Tie-breaker x1</option>
+          </select>
+        </label>
+      `
+    )
+    .join("");
   return `
-    <section class="scouting-role-models">
-      <h2>Role models</h2>
+    <section class="scouting-role-models scouting-role-model-builder">
+      <div class="scouting-role-model-head">
+        <div>
+          <p class="placeholder-tag">Search blueprint</p>
+          <h2>Role models</h2>
+          <p>Choose the metrics that define a position profile. The model ranks players in the same position by weighted metric fit.</p>
+        </div>
+        <span>${escapeHtml(metricOptions.length)} available metrics</span>
+      </div>
       ${
         canEditScoutingWorkspace()
-          ? `<form class="scouting-target-form is-open" data-scouting-role-model-form>
-              <input type="text" name="name" placeholder="Role model name" required />
-              <select name="slotId">${slotOptions}</select>
-              <select name="metricId">${getScoutingMetricOptions().map((metric) => `<option value="${escapeHtml(metric.id)}">${escapeHtml(metric.label)}</option>`).join("")}</select>
-              <input type="number" min="1" max="99" name="minPercentile" placeholder="Min percentile" />
-              <input type="text" name="notes" placeholder="Model notes" />
-              <button type="submit" class="scouting-primary-button">Save role model</button>
+          ? `<form class="scouting-role-model-form" data-scouting-role-model-form>
+              <div class="scouting-role-model-setup">
+                <label>
+                  Role model name
+                  <input type="text" name="name" placeholder="Example: Progressive wide back" required />
+                </label>
+                <label>
+                  Position / role
+                  <select name="slotId">${slotOptions}</select>
+                </label>
+                <label>
+                  Default threshold
+                  <input type="number" min="1" max="99" name="minPercentile" value="70" />
+                </label>
+                <label class="is-wide">
+                  Search intent
+                  <input type="text" name="searchIntent" placeholder="Describe what this role should find, e.g. ball-carrying fullback with crossing volume." />
+                </label>
+              </div>
+              <details class="scouting-role-metric-picker" open>
+                <summary>
+                  <span>Metric blueprint</span>
+                  <em>Select KPI, direction, threshold and weight.</em>
+                </summary>
+                <div class="scouting-role-metric-head">
+                  <span>Use</span>
+                  <span>Metric</span>
+                  <span>Direction</span>
+                  <span>Min P</span>
+                  <span>Weight</span>
+                </div>
+                <div class="scouting-role-metric-list">
+                  ${metricBlueprintRows}
+                </div>
+              </details>
+              <label class="scouting-role-model-notes">
+                Model notes
+                <textarea name="notes" rows="4" placeholder="Add scouting language, video cues, or role-specific context that should guide the search."></textarea>
+              </label>
+              <button type="submit" class="scouting-primary-button">Save role model blueprint</button>
             </form>`
           : `<p class="scouting-muted">Role models editing is locked.</p>`
       }
@@ -10347,15 +10521,22 @@ function renderScoutingRoleModelsPanel() {
             ? models
                 .map((model) => {
                   const slot = getScoutingSlotById(model.slotId);
-                  const metric = getScoutingMetric(model.metricId);
+                  const signals = getScoutingRoleModelSignals(model);
                   const candidates = getScoutingRoleModelCandidates(model).slice(0, 3);
                   return `
-                    <article class="scouting-target-card">
+                    <article class="scouting-target-card scouting-role-model-card">
                       <div class="scouting-target-main">
                         <strong>${escapeHtml(model.name || "Custom role model")}</strong>
                         <span>${escapeHtml(slot ? `${slot.label} · ${slot.position}` : "Open role")}</span>
                       </div>
-                      <p class="scouting-note-line">Benchmark: ${escapeHtml(metric?.label || "Minutes")} · P${escapeHtml(formatScoutingNumber(model.minPercentile))}</p>
+                      <p class="scouting-note-line">${escapeHtml(model.searchIntent || "Position-specific player search blueprint.")}</p>
+                      <div class="scouting-role-model-signal-pills">
+                        ${
+                          signals.length
+                            ? signals.map((signal) => `<span>${escapeHtml(formatScoutingRoleModelSignal(signal))}</span>`).join("")
+                            : `<span>No metric blueprint</span>`
+                        }
+                      </div>
                       <p class="scouting-fit-line">${escapeHtml(model.notes || "No notes")}</p>
                       <div class="scouting-target-actions">
                         <p class="scouting-fit-line">Top matches:</p>
@@ -10365,7 +10546,7 @@ function renderScoutingRoleModelsPanel() {
                                 .map(
                                   (entry) => `
                                     <button type="button" class="scouting-secondary-button" data-open-scouting-record="${escapeHtml(getScoutingRecordId(entry.record))}">
-                                      ${escapeHtml(getScoutingRecordName(entry.record))} · P${escapeHtml(formatScoutingNumber(entry.percentile))}
+                                      ${escapeHtml(getScoutingRecordName(entry.record))} · Match P${escapeHtml(formatScoutingNumber(entry.score))}
                                     </button>
                                   `
                                 )
@@ -10395,28 +10576,92 @@ function renderScoutingReportsPanel() {
   ];
   return `
     <div class="scouting-reports-grid">
-      <section class="scouting-reports-form-card">
-        <h2>Scout reports</h2>
-        <form class="scouting-target-form is-open" data-scouting-report-form>
-          <select name="type" required ${canEdit ? "" : "disabled"}>
-            ${reportTypeOptions.map((type) => `<option value="${escapeHtml(type.value)}">${escapeHtml(type.label)}</option>`).join("")}
-          </select>
-          <select name="targetId" ${targetOptions ? "" : "disabled"} ${canEdit ? "" : "disabled"}>
-            <option value="">Attach to player target</option>
-            ${targetOptions}
-          </select>
-          <select name="recommendation" ${canEdit ? "" : "disabled"}>
-            ${getScoutingReportRecommendationOptions().map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`).join("")}
-          </select>
-          <input type="number" name="confidence" min="1" max="5" value="3" placeholder="Confidence 1-5" ${canEdit ? "" : "disabled"} />
-          <input type="number" name="technical" min="1" max="5" value="3" placeholder="Technical 1-5" ${canEdit ? "" : "disabled"} />
-          <input type="number" name="tactical" min="1" max="5" value="3" placeholder="Tactical 1-5" ${canEdit ? "" : "disabled"} />
-          <input type="number" name="physical" min="1" max="5" value="3" placeholder="Physical 1-5" ${canEdit ? "" : "disabled"} />
-          <input type="number" name="psychological" min="1" max="5" value="3" placeholder="Psychological 1-5" ${canEdit ? "" : "disabled"} />
-          <input type="text" name="scoutType" placeholder="Live / video / data" ${canEdit ? "" : "disabled"} />
-          <input type="text" name="title" required placeholder="Report title" ${canEdit ? "" : "disabled"} />
-          <textarea name="summary" rows="5" placeholder="Recruitment assessment and notes" ${canEdit ? "" : "disabled"}></textarea>
-          <button type="submit" class="scouting-primary-button" ${canEdit ? "" : "disabled"}>Save report</button>
+      <section class="scouting-reports-form-card scouting-report-builder-card">
+        <div class="scouting-report-builder-head">
+          <div>
+            <p class="placeholder-tag">Report builder</p>
+            <h2>Scout reports</h2>
+            <p>Build a structured recruitment memo from live, video or data scouting.</p>
+          </div>
+          <span>1-5 grading scale</span>
+        </div>
+        <form class="scouting-target-form scouting-report-form is-open" data-scouting-report-form>
+          <div class="scouting-report-section is-wide">
+            <span>1. Report setup</span>
+            <label>
+              Report type
+              <select name="type" required ${canEdit ? "" : "disabled"}>
+                ${reportTypeOptions.map((type) => `<option value="${escapeHtml(type.value)}">${escapeHtml(type.label)}</option>`).join("")}
+              </select>
+            </label>
+            <label>
+              Player / target
+              <select name="targetId" ${targetOptions ? "" : "disabled"} ${canEdit ? "" : "disabled"}>
+                <option value="">Attach to player target</option>
+                ${targetOptions}
+              </select>
+            </label>
+            <label>
+              Recommendation
+              <select name="recommendation" ${canEdit ? "" : "disabled"}>
+                ${getScoutingReportRecommendationOptions().map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`).join("")}
+              </select>
+            </label>
+            <label>
+              Scouting source
+              <input type="text" name="scoutType" placeholder="Live, video, data or mixed" ${canEdit ? "" : "disabled"} />
+            </label>
+            <label class="scouting-report-title-field">
+              Report title
+              <input type="text" name="title" required placeholder="Example: High-upside winger for right side" ${canEdit ? "" : "disabled"} />
+            </label>
+          </div>
+          <div class="scouting-report-section">
+            <span>2. Core grades</span>
+            <label>
+              Confidence
+              <input type="number" name="confidence" min="1" max="5" value="3" ${canEdit ? "" : "disabled"} />
+            </label>
+            <label>
+              Technical
+              <input type="number" name="technical" min="1" max="5" value="3" ${canEdit ? "" : "disabled"} />
+            </label>
+            <label>
+              Tactical
+              <input type="number" name="tactical" min="1" max="5" value="3" ${canEdit ? "" : "disabled"} />
+            </label>
+            <label>
+              Physical
+              <input type="number" name="physical" min="1" max="5" value="3" ${canEdit ? "" : "disabled"} />
+            </label>
+            <label>
+              Mental
+              <input type="number" name="psychological" min="1" max="5" value="3" ${canEdit ? "" : "disabled"} />
+            </label>
+          </div>
+          <div class="scouting-report-section is-wide">
+            <span>3. Recruitment assessment</span>
+            <label class="scouting-report-summary-field">
+              Main assessment
+              <textarea name="summary" rows="6" placeholder="Role fit, match context, player usage, and why this matters for our squad." ${canEdit ? "" : "disabled"}></textarea>
+            </label>
+            <label>
+              Top strengths
+              <textarea name="strengths" rows="3" placeholder="What stands out positively? Link it to role and metrics." ${canEdit ? "" : "disabled"}></textarea>
+            </label>
+            <label>
+              Risks / questions
+              <textarea name="risks" rows="3" placeholder="Data risk, league context, injury/load, tactical translation, contract unknowns." ${canEdit ? "" : "disabled"}></textarea>
+            </label>
+            <label>
+              Recommended next step
+              <textarea name="nextStep" rows="3" placeholder="Example: second video review, live watch, agent check, compare against shortlist." ${canEdit ? "" : "disabled"}></textarea>
+            </label>
+          </div>
+          <div class="scouting-report-actions">
+            <p>Reports should answer: why this player, why now, what risk, and what decision comes next.</p>
+            <button type="submit" class="scouting-primary-button" ${canEdit ? "" : "disabled"}>Save structured report</button>
+          </div>
         </form>
       </section>
       <section class="scouting-reports-list">
@@ -10462,7 +10707,6 @@ function renderScoutingReportsHub() {
   return `
     <div class="scouting-reports-shell">
       ${renderScoutingNextActionCenter(state)}
-      ${renderScoutingRecruitmentAlerts(state)}
       ${renderScoutingBudgetBoard(state)}
       ${renderScoutingTargetsPanel()}
       ${renderScoutingComparisonLabPanel()}
@@ -10917,18 +11161,17 @@ function renderScoutingWorkspace(options = {}) {
       ? Math.max(0, Math.floor(Number(database.page.total)))
       : database?.records?.length || 0
     : database?.records?.length || 0;
-  const sheetCount = database?.sheets?.length || 0;
   const shadowCounts = getScoutingShadowSlotCounts(state);
+  const workspaceTitle = getScoutingWorkspaceTitle();
   ui.scoutingWorkspace.innerHTML = `
     <section class="scouting-shell">
       <header class="scouting-hero">
         <div>
           <p class="placeholder-tag">Scouting</p>
-          <h1>Shadow XI and recruitment intelligence</h1>
+          <h1>${escapeHtml(workspaceTitle)}</h1>
         </div>
         <div class="scouting-metrics" data-scouting-summary-metrics aria-label="Scouting summary">
-          <span><strong data-scouting-summary-players>${playerCount ? playerCount.toLocaleString("en-US") : "..."}</strong> Players</span>
-          <span><strong data-scouting-summary-sheets>${sheetCount ? sheetCount.toLocaleString("en-US") : "..."}</strong> Data sheets</span>
+          <span><strong data-scouting-summary-players>${playerCount ? playerCount.toLocaleString("en-US") : "..."}</strong> Players in Database</span>
           <span><strong data-scouting-summary-favorites>${state.favoriteRecordIds.length}</strong> Favorites</span>
           <span><strong data-scouting-summary-shadow-targets>${shadowCounts.playerCount}</strong> Shadow targets</span>
         </div>
@@ -11987,11 +12230,20 @@ export function handleSubmit(event, context) {
     }
     event.preventDefault();
     const formData = new FormData(roleModelForm);
+    const selectedMetricIds = formData.getAll("metricIds").map((metricId) => normalizeScoutingText(metricId, 120)).filter(Boolean);
+    const roleMetrics = selectedMetricIds.map((metricId) => ({
+      metricId,
+      direction: formData.get(`metricDirection:${metricId}`),
+      minPercentile: formData.get(`metricThreshold:${metricId}`) || formData.get("minPercentile"),
+      weight: formData.get(`metricWeight:${metricId}`),
+    }));
     createScoutingRoleModel({
       name: formData.get("name"),
       slotId: formData.get("slotId"),
-      metricId: formData.get("metricId"),
+      metricId: selectedMetricIds[0],
       minPercentile: formData.get("minPercentile"),
+      metrics: roleMetrics,
+      searchIntent: formData.get("searchIntent"),
       notes: formData.get("notes"),
     });
     roleModelForm.reset();
@@ -12004,11 +12256,23 @@ export function handleSubmit(event, context) {
     }
     event.preventDefault();
     const formData = new FormData(reportForm);
+    const summaryParts = [
+      ["Assessment", formData.get("summary")],
+      ["Strengths", formData.get("strengths")],
+      ["Risks / questions", formData.get("risks")],
+      ["Next step", formData.get("nextStep")],
+    ]
+      .map(([label, value]) => {
+        const text = normalizeScoutingText(value, 500);
+        return text ? `${label}: ${text}` : "";
+      })
+      .filter(Boolean)
+      .join("\n\n");
     createScoutingReport({
       title: formData.get("title"),
       type: formData.get("type"),
       targetId: formData.get("targetId"),
-      summary: formData.get("summary"),
+      summary: summaryParts || formData.get("summary"),
       recommendation: formData.get("recommendation"),
       confidence: formData.get("confidence"),
       technical: formData.get("technical"),

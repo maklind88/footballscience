@@ -37,6 +37,7 @@ const protectedStorageKeys = [
 
 const moduleContractIds = [
   "platform-shell",
+  "platform-readiness",
   "home",
   "chat",
   "schedule",
@@ -60,6 +61,7 @@ const coreFiles = [
   "src/core/events.mjs",
   "src/core/storage-adapters.mjs",
   "src/core/index.mjs",
+  "src/core/platform-readiness-contracts.mjs",
   "src/modules/manifest.mjs",
   "src/modules/home/tasks.mjs",
   "src/modules/home/tasks-adapter.mjs",
@@ -235,6 +237,7 @@ test("core module contracts are covered by dedicated QA", () => {
   const packageJson = readJson("package.json");
   const modularCoreSpec = readProjectFile("qa/modular-core.api.spec.mjs");
   const platformSecuritySpec = readProjectFile("qa/platform-security-contracts.api.spec.mjs");
+  const platformReadinessSpec = readProjectFile("qa/platform-readiness.api.spec.mjs");
   const dataSafetySpec = readProjectFile("qa/data-safety-contracts.api.spec.mjs");
   const homeTasksSpec = readProjectFile("qa/home-tasks-adapter.api.spec.mjs");
   const homeChatSpec = readProjectFile("qa/home-chat-adapter.api.spec.mjs");
@@ -252,11 +255,14 @@ test("core module contracts are covered by dedicated QA", () => {
 
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-safety-contracts.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-security-contracts.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-readiness.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/incident-alert-contracts.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/data-safety-contracts.api.spec.mjs");
   expect(platformSecuritySpec).toContain("permission matrix covers every module action");
   expect(platformSecuritySpec).toContain("API guard rate limits abusive public requests");
   expect(platformSecuritySpec).toContain("tenant isolation and permission matrix are enforced");
+  expect(platformReadinessSpec).toContain("platform readiness contract covers every requested operating area");
+  expect(platformReadinessSpec).toContain("observability covers deploy, api, saves, backup, auth, and performance signals");
   expect(dataSafetySpec).toContain("data safety registry covers every protected module storage key");
   expect(dataSafetySpec).toContain("central app-state rejects stale versioned writes");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-tasks-adapter.api.spec.mjs");

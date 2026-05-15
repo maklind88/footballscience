@@ -49,10 +49,15 @@ requirePackageScript("release:traffic", "node scripts/verify-vercel-release-traf
 requirePackageScript("release:vercel-token", "node scripts/verify-vercel-token.mjs");
 requirePackageScript("storage:guard", "node scripts/verify-storage-key-policy.mjs");
 requirePackageScript("security:platform", "node scripts/verify-platform-security.mjs");
+requirePackageScript("platform:readiness", "node scripts/verify-platform-readiness.mjs");
 
 requireText("vercel.json", "scripts/vercel-ignore-build.mjs", "automatic Vercel production builds must stay blocked");
 requireText("package.json", "npm run storage:guard", "full QA must include the storage key policy gate");
 requireText("package.json", "npm run security:platform", "full QA must include the platform security control-plane gate");
+requireText("package.json", "npm run platform:readiness", "full QA must include the platform readiness contract");
+requireText("src/core/platform-readiness-contracts.mjs", "PLATFORM_READINESS_SCHEMA", "platform readiness must have a stable schema");
+requireText("api/platform-readiness.js", "/api/platform-readiness", "admin dashboard must load readiness through the secured API");
+requireText("app.js", "Platform Readiness", "admin must expose a platform readiness dashboard");
 requireText("scripts/verify-storage-key-policy.mjs", "approvedLocalOnlyStorageKeys", "new local-only storage keys must be explicitly justified");
 requireText("scripts/verify-platform-security.mjs", "Platform security verification: ok", "platform tenant isolation and permission matrix must stay testable");
 requireText("src/core/permission-matrix.cjs", "platformPermissionMatrix", "backend permissions must live in the central permission matrix");

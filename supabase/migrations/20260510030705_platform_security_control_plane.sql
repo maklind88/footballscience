@@ -126,6 +126,14 @@ values
   ('platform-shell', 'admin', array['admin'], 'organization', true, false, 'Administer platform shell.'),
   ('platform-shell', 'observe', array['admin'], 'organization', true, false, 'Observe platform shell health.'),
 
+  ('platform-readiness', 'read', array['admin'], 'organization', true, false, 'Read platform readiness status.'),
+  ('platform-readiness', 'write', array['admin'], 'organization', true, false, 'Update readiness metadata.'),
+  ('platform-readiness', 'delete', array['admin'], 'organization', true, false, 'Archive readiness metadata.'),
+  ('platform-readiness', 'export', array['admin'], 'organization', true, false, 'Export readiness metadata.'),
+  ('platform-readiness', 'restore', array['admin'], 'organization', true, false, 'Restore readiness metadata.'),
+  ('platform-readiness', 'admin', array['admin'], 'organization', true, false, 'Administer platform readiness.'),
+  ('platform-readiness', 'observe', array['admin'], 'organization', true, false, 'Observe platform readiness health.'),
+
   ('home', 'read', array['admin','coach','analyst','performance','medical','guest'], 'team', true, true, 'View Home dashboard.'),
   ('home', 'write', array['admin','coach','analyst','performance','medical'], 'team', true, true, 'Create and update dashboard tasks and alerts.'),
   ('home', 'delete', array['admin','coach'], 'team', true, true, 'Remove dashboard tasks and alerts.'),

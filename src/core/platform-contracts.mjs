@@ -51,6 +51,17 @@ export const platformModules = Object.freeze([
     consumes: Object.freeze(["data-safety.changed"]),
   }),
   Object.freeze({
+    id: "platform-readiness",
+    label: "Platform Readiness",
+    stage: "core",
+    storageKeys: Object.freeze([]),
+    futureTables: Object.freeze(["platform_release_checks", "platform_observability_signals"]),
+    viewRoles: Object.freeze(["admin"]),
+    editRoles: Object.freeze(["admin"]),
+    emits: Object.freeze(["platform.readiness-viewed", "platform.readiness-refreshed"]),
+    consumes: Object.freeze(["release.status", "backup.status", "data-safety.changed", "permission.changed"]),
+  }),
+  Object.freeze({
     id: "home",
     label: "Home",
     stage: "module",

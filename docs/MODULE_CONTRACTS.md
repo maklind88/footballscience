@@ -52,6 +52,16 @@ Rules:
 - `qa`: localhost boots through dev auth and keeps Supabase config off the local path.
 - `migration`: keep shell state small and cache-friendly; move clubs, teams, and memberships from `football-platform-structure-v1` into database tables before multi-club production use.
 
+## Platform Readiness
+
+- `id`: `platform-readiness`
+- `purpose`: admin-only health map for GitHub, Vercel, Supabase, staging, release, module ownership, data safety, design system, and observability readiness.
+- `data`: no user content; generated from contracts, environment presence checks, package scripts, and release signals.
+- `permissions`: Platform Admin only.
+- `events`: readiness viewed, readiness refreshed.
+- `qa`: `qa/platform-readiness.api.spec.mjs` and `npm run platform:readiness` must prove the readiness contract remains wired.
+- `migration`: keep as a core contract/dashboard first; if history is needed later, write snapshots to `platform_release_checks` and `platform_observability_signals` with organization scope and no secret values.
+
 ## Home
 
 - `id`: `home`

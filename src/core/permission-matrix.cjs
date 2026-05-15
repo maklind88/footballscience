@@ -39,6 +39,17 @@ const platformPermissionMatrix = Object.freeze([
   }, {
     storageKeys: ["football-workspace-hub-v3", "football-platform-structure-v1"],
   }),
+  moduleContract("platform-readiness", "Platform Readiness", "organization", {
+    read: ["admin"],
+    write: ["admin"],
+    delete: ["admin"],
+    export: ["admin"],
+    restore: ["admin"],
+    admin: ["admin"],
+    observe: ["admin"],
+  }, {
+    routes: ["/api/platform-readiness"],
+  }),
   moduleContract("home", "Home", "team", {
     read: allAuthenticatedRoles,
     write: staffRoles,
@@ -280,6 +291,12 @@ const apiRouteSecurity = Object.freeze({
     actions: Object.freeze({ GET: "read", POST: "write" }),
     rateLimits: Object.freeze({ read: 80, write: 12 }),
     enforcePermission: false,
+  }),
+  "/api/platform-readiness": Object.freeze({
+    moduleId: "platform-readiness",
+    actions: Object.freeze({ GET: "observe" }),
+    rateLimits: Object.freeze({ observe: 40 }),
+    enforcePermission: true,
   }),
   "/api/medical": Object.freeze({
     moduleId: "medical-team",

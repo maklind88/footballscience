@@ -4275,7 +4275,11 @@ sessionPlannerPrintSectionOptions.map((option) => [option.key, true])
 let activeMetricTooltipTarget = null;
 let pinnedMetricTooltipTarget = null;
 let selectedStaffUserId = null;
+let staffCreateUserEditorOpen = false;
 let selectedAdminUserId = null;
+let adminUserEditorOpen = false;
+let adminCreateUserEditorOpen = false;
+let adminCreateUserTeamId = "";
 let adminAuditEntries = [];
 let adminAuditLoading = false;
 let adminAuditLoadedAt = 0;
@@ -20376,6 +20380,68 @@ return `
       `;
 })
 .join("");
+const staffCreateUserEditor =
+isAdmin && staffCreateUserEditorOpen
+? `
+      <div class="admin-user-editor-overlay" data-staff-create-user-overlay role="dialog" aria-modal="true" aria-label="Add user">
+        <article class="admin-card admin-user-editor-modal staff-create-user-modal">
+          <div class="staff-card-head admin-user-editor-head">
+            <div>
+              <h2>Add user</h2>
+              <span>${escapeHtml(getUserScopeLabel(user, structure))}</span>
+            </div>
+            <button type="button" class="admin-send-button admin-user-editor-close" data-staff-close-create-user>Close</button>
+          </div>
+          <form id="staffUserForm" class="platform-form staff-create-form">
+            <label>
+              <span>First name</span>
+              <input name="firstName" required />
+            </label>
+            <label>
+              <span>Last name</span>
+              <input name="lastName" required />
+            </label>
+            <label>
+              <span>Email</span>
+              <input name="email" type="email" required />
+            </label>
+            <label>
+              <span>Username</span>
+              <input name="username" required />
+            </label>
+            <label>
+              <span>Password</span>
+              ${renderPasswordRevealInput("password", "Optional; leave empty for temporary")}
+            </label>
+            <label>
+              <span>Confirm password</span>
+              ${renderPasswordRevealInput("passwordConfirm", "Repeat password")}
+            </label>
+            <label>
+              <span>Role</span>
+              <select name="role">${roleOptions}</select>
+            </label>
+            <label>
+              <span>Title</span>
+              <input name="title" value="Coach" />
+            </label>
+            <label>
+              <span>Department</span>
+              <input name="department" value="Football" />
+            </label>
+            <label class="profile-wide">
+              <span>Team scope</span>
+              <select name="teamId">${renderAdminTeamOptions(user, structure, getUserTeamId(user, structure))}</select>
+            </label>
+            <div class="profile-form-footer">
+              <span>Creates a central Supabase account in this team scope.</span>
+              <button type="submit">Add user</button>
+            </div>
+          </form>
+        </article>
+      </div>
+    `
+: "";
 ui.staffWorkspace.innerHTML = `
     <section class="staff-shell">
       <header class="staff-hero-card">
@@ -20391,6 +20457,7 @@ ui.staffWorkspace.innerHTML = `
           <div class="staff-card-head">
             <h2>Users</h2>
             <span>${users.length}</span>
+            ${isAdmin ? `<button type="button" class="admin-send-button staff-open-create-user" data-staff-open-create-user>Add user</button>` : ""}
           </div>
           <div class="staff-user-list">${userRows}</div>
         </div>
@@ -20418,59 +20485,8 @@ ${renderUserAvatar(selectedUser, "profile-avatar")}
           }
         </div>
       </section>
-      ${
-        isAdmin
-          ? `
-<form id="staffUserForm" class="platform-form staff-create-card">
-<h2>Add user</h2>
-<label>
-<span>First name</span>
-<input name="firstName" required />
-</label>
-<label>
-<span>Last name</span>
-<input name="lastName" required />
-</label>
-<label>
-<span>Email</span>
-<input name="email" type="email" required />
-</label>
-<label>
-<span>Username</span>
-<input name="username" required />
-</label>
-<label>
-<span>Password</span>
-${renderPasswordRevealInput("password", "Optional; leave empty for temporary")}
-</label>
-<label>
-<span>Confirm password</span>
-${renderPasswordRevealInput("passwordConfirm", "Repeat password")}
-</label>
-<label>
-<span>Role</span>
-<select name="role">${roleOptions}</select>
-</label>
-<label>
-<span>Title</span>
-<input name="title" value="Coach" />
-</label>
-<label>
-<span>Department</span>
-<input name="department" value="Football" />
-</label>
-<label class="profile-wide">
-<span>Team scope</span>
-<select name="teamId">${renderAdminTeamOptions(user, structure, getUserTeamId(user, structure))}</select>
-</label>
-<div class="profile-form-footer">
-<span>Central Supabase account</span>
-<button type="submit">Add</button>
-</div>
-</form>
-`
-          : `<div class="staff-create-card"><h2>Admin only</h2></div>`
-      }
+      ${staffCreateUserEditor}
+      ${isAdmin ? "" : `<div class="staff-create-card"><h2>Admin only</h2></div>`}
     </section>
   `;
 }
@@ -20566,6 +20582,135 @@ return `
 })
 .join("");
 }
+function getAdminUsersForTeam(users = [], teamId = "", structure = getPlatformStructureState()) {
+const normalizedTeamId = normalizePlatformStructureText(teamId, "");
+return users.filter((user) => getUserTeamId(user, structure) === normalizedTeamId);
+}
+function getAdminActiveUserCount(users = []) {
+return users.filter((user) => user.status !== "paused").length;
+}
+function getAdminUserInitials(user = {}) {
+const name = formatUserName(user);
+const first = normalizePlatformStructureText(user.firstName || name.split(" ")[0], "");
+const last = normalizePlatformStructureText(user.lastName || name.split(" ").slice(-1)[0], "");
+return `${first[0] || "U"}${last[0] || ""}`.toUpperCase();
+}
+function renderAdminMiniUserStack(users = []) {
+const visibleUsers = users.slice(0, 5);
+if (!visibleUsers.length) {
+return `<span class="admin-org-empty">No users assigned</span>`;
+}
+const extraCount = Math.max(0, users.length - visibleUsers.length);
+return `
+    <div class="admin-org-user-stack" aria-label="${escapeHtml(`${users.length} users`)}">
+      ${visibleUsers
+        .map(
+          (user) => `
+            <button type="button" title="${escapeHtml(formatUserName(user))}" data-admin-select-user="${escapeHtml(user.id)}">
+              ${escapeHtml(getAdminUserInitials(user))}
+            </button>
+          `
+        )
+        .join("")}
+      ${extraCount ? `<span>+${extraCount}</span>` : ""}
+    </div>
+  `;
+}
+function renderAdminUserRow(adminUser, currentUser, structure) {
+const isSelected = adminUser.id === selectedAdminUserId;
+const isSelf = adminUser.id === currentUser?.id;
+const statusLabel = adminUser.status === "paused" ? "Paused" : "Active";
+const canManageAccount = canAdminManageUser(currentUser, adminUser, structure);
+const canRemoveUser = canAdminManageUser(currentUser, adminUser, structure, { remove: true });
+return `
+          <article class="admin-user-row${isSelected ? " is-selected" : ""}">
+            <button type="button" class="admin-user-main" data-admin-select-user="${escapeHtml(adminUser.id)}">
+              ${renderUserAvatar(adminUser, "staff-user-avatar")}
+              <span class="admin-user-copy">
+                <span class="admin-user-name-line">
+                  <strong>${escapeHtml(formatUserName(adminUser))}</strong>
+                  <em>${escapeHtml(getRoleLabel(adminUser.role))}</em>
+                  <b class="is-${escapeHtml(adminUser.status === "paused" ? "paused" : "active")}">${escapeHtml(statusLabel)}</b>
+                </span>
+                <small>${escapeHtml(adminUser.title || "Staff")} · ${escapeHtml(adminUser.department || "Football")}</small>
+                <small>${escapeHtml(getUserScopeLabel(adminUser, structure))}</small>
+                <small>${escapeHtml(adminUser.email)}</small>
+              </span>
+            </button>
+            <div class="admin-user-row-actions">
+              <button type="button" class="admin-send-button admin-edit-user-button" data-admin-select-user="${escapeHtml(adminUser.id)}">
+Edit
+</button>
+              ${
+                canManageAccount
+                  ? `
+<button type="button" class="admin-send-button" data-admin-send-credentials="${escapeHtml(adminUser.id)}">
+Send login
+</button>
+<button type="button" class="admin-send-button" data-admin-generate-password="${escapeHtml(adminUser.id)}">
+Reset pass
+</button>
+`
+                  : ""
+              }
+              ${canRemoveUser ? `<button type="button" class="staff-remove-button" data-admin-remove-user="${escapeHtml(adminUser.id)}">Remove</button>` : ""}
+              ${isSelf ? `<span class="staff-self-pill">You</span>` : ""}
+            </div>
+          </article>
+        `;
+}
+function renderAdminGroupedUsers(users, currentUser, structure) {
+const scopedTeams = getScopedPlatformTeams(currentUser, structure);
+const teamGroups = scopedTeams
+.map((team) => ({
+team,
+club: getPlatformClubById(team.clubId, structure),
+users: getAdminUsersForTeam(users, team.id, structure),
+}))
+.filter((group) => group.users.length);
+const groupedIds = new Set(teamGroups.flatMap((group) => group.users.map((user) => user.id)));
+const unassignedUsers = users.filter((user) => !groupedIds.has(user.id));
+const groupMarkup = teamGroups
+.map(
+(group) => `
+      <section class="admin-user-team-group">
+        <header>
+          <div>
+            <strong>${escapeHtml(group.team.name)}</strong>
+            <span>${escapeHtml(group.club?.name || "Club")} · ${escapeHtml(group.team.level || "Team")}</span>
+          </div>
+          <div class="admin-user-team-actions">
+            <b>${group.users.length}</b>
+            <button type="button" class="admin-send-button admin-add-user-button" data-admin-open-create-user="${escapeHtml(group.team.id)}">
+Add user
+</button>
+          </div>
+        </header>
+        <div class="admin-user-team-list">
+          ${group.users.map((adminUser) => renderAdminUserRow(adminUser, currentUser, structure)).join("")}
+        </div>
+      </section>
+    `
+)
+.join("");
+const unassignedMarkup = unassignedUsers.length
+? `
+      <section class="admin-user-team-group is-unassigned">
+        <header>
+          <div>
+            <strong>Unassigned users</strong>
+            <span>Needs team scope review</span>
+          </div>
+          <b>${unassignedUsers.length}</b>
+        </header>
+        <div class="admin-user-team-list">
+          ${unassignedUsers.map((adminUser) => renderAdminUserRow(adminUser, currentUser, structure)).join("")}
+        </div>
+      </section>
+    `
+: "";
+return groupMarkup || unassignedMarkup ? `${groupMarkup}${unassignedMarkup}` : `<p class="staff-message">No users in this admin scope.</p>`;
+}
 function renderAdminStructurePanel(currentUser, structure, visibleUsers) {
 const scopedClubs = getScopedPlatformClubs(currentUser, structure);
 const scopedTeams = getScopedPlatformTeams(currentUser, structure);
@@ -20577,10 +20722,77 @@ const clubOptions = scopedClubs
 const teamRows = scopedTeams
 .map((team) => {
 const club = getPlatformClubById(team.clubId, structure);
+const teamUsers = getAdminUsersForTeam(visibleUsers, team.id, structure);
+const activeCount = getAdminActiveUserCount(teamUsers);
 return `
-        <article class="admin-scope-row">
-          <strong>${escapeHtml(team.name)}</strong>
-          <span>${escapeHtml(club?.name || "Club")}</span>
+        <article class="admin-org-team-card">
+          <div class="admin-org-team-head">
+            ${renderPlatformTeamLogoMark(team)}
+            <div>
+              <strong>${escapeHtml(team.name)}</strong>
+              <span>${escapeHtml(club?.name || "Club")} · ${escapeHtml(team.level || "Team")} · ${escapeHtml(team.season || "Season")}</span>
+            </div>
+          </div>
+          <div class="admin-org-team-metrics">
+            <span>${teamUsers.length} users</span>
+            <span>${activeCount} active</span>
+            <span>${escapeHtml(team.status || "active")}</span>
+          </div>
+          <div class="admin-org-team-users">
+            ${renderAdminMiniUserStack(teamUsers)}
+            <button type="button" class="admin-send-button admin-add-user-button" data-admin-open-create-user="${escapeHtml(team.id)}">
+Add user
+</button>
+          </div>
+        </article>
+      `;
+})
+.join("");
+const clubCards = scopedClubs
+.map((club) => {
+const clubTeams = scopedTeams.filter((team) => team.clubId === club.id);
+const clubUsers = visibleUsers.filter((user) => getUserClubId(user, structure) === club.id);
+return `
+        <article class="admin-org-club-card">
+          <header>
+            <div>
+              <span class="placeholder-tag">Club</span>
+              <h3>${escapeHtml(club.name)}</h3>
+              <p>${escapeHtml(club.shortName || club.name)} · ${escapeHtml(club.status || "active")}</p>
+            </div>
+            <div class="admin-org-club-stats">
+              <span><strong>${clubTeams.length}</strong> teams</span>
+              <span><strong>${clubUsers.length}</strong> users</span>
+            </div>
+          </header>
+          <div class="admin-org-team-grid">
+            ${
+              clubTeams.length
+                ? clubTeams
+                    .map((team) => {
+                      const teamUsers = getAdminUsersForTeam(visibleUsers, team.id, structure);
+                      return `
+                        <section class="admin-org-team-line">
+                          <div>
+                            ${renderPlatformTeamLogoMark(team)}
+                            <span>
+                              <strong>${escapeHtml(team.name)}</strong>
+                              <small>${escapeHtml(team.level || "Team")} · ${escapeHtml(team.season || "Season")}</small>
+                            </span>
+                          </div>
+                          <div class="admin-org-team-users">
+                            ${renderAdminMiniUserStack(teamUsers)}
+                            <button type="button" class="admin-send-button admin-add-user-button" data-admin-open-create-user="${escapeHtml(team.id)}">
+Add user
+</button>
+                          </div>
+                        </section>
+                      `;
+                    })
+                    .join("")
+                : `<p class="admin-org-empty">No teams in this club yet.</p>`
+            }
+          </div>
         </article>
       `;
 })
@@ -20590,7 +20802,7 @@ return `
       <div class="staff-card-head">
         <div>
           <h2>Club & Team Structure</h2>
-          <span>${escapeHtml(getRoleLabel(currentUser?.role))}</span>
+          <span>${escapeHtml(getRoleLabel(currentUser?.role))} · grouped by club, team and users</span>
         </div>
       </div>
       <div class="admin-scope-metrics">
@@ -20600,11 +20812,12 @@ return `
         <div><span>Users</span><strong>${visibleUsers.length}</strong></div>
       </div>
       <div class="admin-scope-layout">
+        <div class="admin-org-overview">${clubCards}</div>
         <div class="admin-scope-list">${teamRows}</div>
         ${
           canCreateClub || canCreateTeam
             ? `
-<div class="admin-scope-forms">
+<div class="admin-scope-forms admin-org-create-panel">
 ${
 canCreateClub
 ? `
@@ -20901,7 +21114,7 @@ renderAdminWorkspace();
 return;
 }
 try {
-const response = await fetch("/api/pr", {
+const response = await fetch("/api/platform-readiness", {
 headers: {
 Authorization: `Bearer ${token}`,
 },
@@ -20986,118 +21199,21 @@ const titleSuggestionOptions = adminTitleSuggestions
 const departmentSuggestionOptions = adminDepartmentSuggestions
 .map((department) => `<option value="${escapeHtml(department)}"></option>`)
 .join("");
-const userRows = users
-.map((adminUser) => {
-const isSelected = adminUser.id === selectedAdminUserId;
-const isSelf = adminUser.id === currentUser?.id;
-const statusLabel = adminUser.status === "paused" ? "Paused" : "Active";
-const canManageAccount = canAdminManageUser(currentUser, adminUser, structure);
-const canRemoveUser = canAdminManageUser(currentUser, adminUser, structure, { remove: true });
-return `
-          <article class="admin-user-row${isSelected ? " is-selected" : ""}">
-            <button type="button" class="admin-user-main" data-admin-select-user="${escapeHtml(adminUser.id)}">
-              ${renderUserAvatar(adminUser, "staff-user-avatar")}
-              <span class="admin-user-copy">
-                <span class="admin-user-name-line">
-                  <strong>${escapeHtml(formatUserName(adminUser))}</strong>
-                  <em>${escapeHtml(getRoleLabel(adminUser.role))}</em>
-                  <b class="is-${escapeHtml(adminUser.status === "paused" ? "paused" : "active")}">${escapeHtml(statusLabel)}</b>
-                </span>
-                <small>${escapeHtml(adminUser.title || "Staff")} · ${escapeHtml(adminUser.department || "Football")}</small>
-                <small>${escapeHtml(getUserScopeLabel(adminUser, structure))}</small>
-                <small>${escapeHtml(adminUser.email)}</small>
-              </span>
-            </button>
-            <div class="admin-user-row-actions">
-              ${
-                canManageAccount
-                  ? `
-<button type="button" class="admin-send-button" data-admin-send-credentials="${escapeHtml(adminUser.id)}">
-Send login
-</button>
-<button type="button" class="admin-send-button" data-admin-generate-password="${escapeHtml(adminUser.id)}">
-Reset pass
-</button>
-`
-                  : ""
-              }
-              ${canRemoveUser ? `<button type="button" class="staff-remove-button" data-admin-remove-user="${escapeHtml(adminUser.id)}">Remove</button>` : ""}
-              ${isSelf ? `<span class="staff-self-pill">You</span>` : ""}
+const userRows = renderAdminGroupedUsers(users, currentUser, structure);
+const selectedUserEditor =
+selectedUser && adminUserEditorOpen
+? `
+      <div class="admin-user-editor-overlay" data-admin-user-editor-overlay role="dialog" aria-modal="true" aria-label="${escapeHtml(`Edit ${formatUserName(selectedUser)}`)}">
+        <article class="admin-card admin-user-editor-modal">
+          <div class="staff-card-head admin-user-editor-head">
+            <div>
+              <h2>Edit User</h2>
+              <span>${escapeHtml(formatUserName(selectedUser))} · ${escapeHtml(getRoleLabel(selectedUser.role))}</span>
             </div>
-          </article>
-        `;
-})
-.join("");
-const accessRows = currentUserIsPlatformAdmin
-? getAdminManagedWorkspaces()
-.map((workspace) => {
-const accessConfig = getWorkspaceAccessConfig();
-const permission = normalizeWorkspaceAccessEntry(workspace.id, accessConfig[workspace.id]);
-const viewRoles = new Set(workspace.requiresAdmin ? ["admin"] : permission.view);
-const editRoles = new Set(workspace.requiresAdmin ? ["admin"] : permission.edit);
-const roleControls = roles
-.map((role) => {
-const isLocked = workspace.requiresAdmin && role !== "admin";
-const value = isLocked ? "none" : editRoles.has(role) ? "edit" : viewRoles.has(role) ? "view" : "none";
-return `
-                <label class="admin-access-toggle admin-access-level${isLocked ? " is-locked" : ""}">
-                  <span>${escapeHtml(getRoleLabel(role))}</span>
-                  <select
-                    name="${escapeHtml(`${workspace.id}::${role}`)}"
-                    data-admin-access-workspace="${escapeHtml(workspace.id)}"
-                    data-admin-access-role="${escapeHtml(role)}"
-                    ${isLocked ? "disabled" : ""}
-                  >
-                    <option value="none"${value === "none" ? " selected" : ""}>Hidden</option>
-                    <option value="view"${value === "view" ? " selected" : ""}>View</option>
-                    <option value="edit"${value === "edit" ? " selected" : ""}>Edit</option>
-                  </select>
-                </label>
-              `;
-})
-.join("");
-return `
-            <article class="admin-access-row">
-              <div class="admin-access-title">
-                <strong>${escapeHtml(workspace.title)}</strong>
-                <small>${workspace.requiresAdmin ? "Admin only" : escapeHtml(workspace.meta ?? "Module")}</small>
-              </div>
-              <div class="admin-access-roles">${roleControls}</div>
-            </article>
-          `;
-})
-.join("")
-: "";
-ui.adminWorkspace.innerHTML = `
-    <section class="admin-shell">
-      <header class="admin-hero-card">
-        <div>
-          <p class="placeholder-tag">Admin</p>
-          <h1 class="profile-title">Access & Users</h1>
-        </div>
-        <span class="profile-role-pill">Admin</span>
-      </header>
-      ${message ? `<p class="staff-message">${escapeHtml(message)}</p>` : ""}
-      ${renderAdminStructurePanel(currentUser, structure, users)}
-      ${currentUserIsPlatformAdmin ? renderPlatformReadinessDashboard() : ""}
-      <section class="admin-layout">
-        <article class="admin-card">
-          <div class="staff-card-head">
-            <h2>Users</h2>
-            <span>${users.length}</span>
+            <button type="button" class="admin-send-button admin-user-editor-close" data-admin-close-user-editor>Close</button>
           </div>
-          <div class="admin-user-list">${userRows}</div>
-        </article>
-        <article class="admin-card">
-          <div class="staff-card-head">
-            <h2>Selected User</h2>
-            <span>${selectedUser ? escapeHtml(getRoleLabel(selectedUser.role)) : ""}</span>
-          </div>
-          ${
-            selectedUser
-              ? `
-${renderAdminAccountSummary(selectedUser)}
-<form id="adminUserForm" class="platform-form admin-user-form">
+          ${renderAdminAccountSummary(selectedUser)}
+          <form id="adminUserForm" class="platform-form admin-user-form">
 <label>
 <span>First name</span>
 <input name="firstName" value="${escapeHtml(selectedUser.firstName)}" ${selectedUserFieldDisabled} required />
@@ -21155,75 +21271,149 @@ ${canRemoveSelectedUser ? `<button type="button" class="staff-remove-button" dat
 </span>
 </div>
 </form>
-`
-              : `<p class="staff-message">No user selected.</p>`
-          }
+        </article>
+      </div>
+    `
+: "";
+const adminSuggestionDatalists = `
+      <datalist id="adminTitleSuggestions">${titleSuggestionOptions}</datalist>
+      <datalist id="adminDepartmentSuggestions">${departmentSuggestionOptions}</datalist>
+    `;
+const createUserTeamId = adminCreateUserTeamId || getUserTeamId(currentUser, structure);
+const createUserTeam = getPlatformTeamById(createUserTeamId, structure);
+const createUserClub = createUserTeam ? getPlatformClubById(createUserTeam.clubId, structure) : null;
+const createUserEditor = adminCreateUserEditorOpen
+? `
+      <div class="admin-user-editor-overlay" data-admin-create-user-overlay role="dialog" aria-modal="true" aria-label="Create user">
+        <article class="admin-card admin-user-editor-modal admin-create-user-modal">
+          <div class="staff-card-head admin-user-editor-head">
+            <div>
+              <h2>New User</h2>
+              <span>${escapeHtml(createUserTeam ? `${createUserClub?.name || "Club"} · ${createUserTeam.name}` : "Choose team scope")}</span>
+            </div>
+            <button type="button" class="admin-send-button admin-user-editor-close" data-admin-close-create-user>Close</button>
+          </div>
+          <form id="adminCreateUserForm" class="platform-form admin-user-form admin-create-form">
+            <label>
+              <span>First name</span>
+              <input name="firstName" required />
+            </label>
+            <label>
+              <span>Last name</span>
+              <input name="lastName" required />
+            </label>
+            <label>
+              <span>Email</span>
+              <input name="email" type="email" required />
+            </label>
+            <label>
+              <span>Username</span>
+              <input name="username" required />
+            </label>
+            <label>
+              <span>Role</span>
+              <select name="role">${createRoleOptions}</select>
+            </label>
+            <label>
+              <span>Status</span>
+              <select name="status">
+                <option value="active" selected>Active</option>
+                <option value="paused">Paused</option>
+              </select>
+            </label>
+            <label>
+              <span>Title</span>
+              <input name="title" list="adminTitleSuggestions" value="Scout" />
+            </label>
+            <label>
+              <span>Password</span>
+              ${renderPasswordRevealInput("password", "Optional; leave empty for temporary")}
+            </label>
+            <label>
+              <span>Confirm password</span>
+              ${renderPasswordRevealInput("passwordConfirm", "Repeat password")}
+            </label>
+            <label>
+              <span>Department</span>
+              <input name="department" list="adminDepartmentSuggestions" value="Scouting" />
+            </label>
+            <label class="profile-wide">
+              <span>Team scope</span>
+              <select name="teamId">${renderAdminTeamOptions(currentUser, structure, createUserTeamId)}</select>
+            </label>
+            <div class="profile-form-footer">
+              <span>Creates the account directly in this team's admin scope.</span>
+              <button type="button" data-admin-create-user-submit>Create user</button>
+            </div>
+          </form>
+        </article>
+      </div>
+    `
+: "";
+const accessRows = currentUserIsPlatformAdmin
+? getAdminManagedWorkspaces()
+.map((workspace) => {
+const accessConfig = getWorkspaceAccessConfig();
+const permission = normalizeWorkspaceAccessEntry(workspace.id, accessConfig[workspace.id]);
+const viewRoles = new Set(workspace.requiresAdmin ? ["admin"] : permission.view);
+const editRoles = new Set(workspace.requiresAdmin ? ["admin"] : permission.edit);
+const roleControls = roles
+.map((role) => {
+const isLocked = workspace.requiresAdmin && role !== "admin";
+const value = isLocked ? "none" : editRoles.has(role) ? "edit" : viewRoles.has(role) ? "view" : "none";
+return `
+                <label class="admin-access-toggle admin-access-level${isLocked ? " is-locked" : ""}">
+                  <span>${escapeHtml(getRoleLabel(role))}</span>
+                  <select
+                    name="${escapeHtml(`${workspace.id}::${role}`)}"
+                    data-admin-access-workspace="${escapeHtml(workspace.id)}"
+                    data-admin-access-role="${escapeHtml(role)}"
+                    ${isLocked ? "disabled" : ""}
+                  >
+                    <option value="none"${value === "none" ? " selected" : ""}>Hidden</option>
+                    <option value="view"${value === "view" ? " selected" : ""}>View</option>
+                    <option value="edit"${value === "edit" ? " selected" : ""}>Edit</option>
+                  </select>
+                </label>
+              `;
+})
+.join("");
+return `
+            <article class="admin-access-row">
+              <div class="admin-access-title">
+                <strong>${escapeHtml(workspace.title)}</strong>
+                <small>${workspace.requiresAdmin ? "Admin only" : escapeHtml(workspace.meta ?? "Module")}</small>
+              </div>
+              <div class="admin-access-roles">${roleControls}</div>
+            </article>
+          `;
+})
+.join("")
+: "";
+ui.adminWorkspace.innerHTML = `
+    <section class="admin-shell">
+      <header class="admin-hero-card">
+        <div>
+          <p class="placeholder-tag">Admin</p>
+          <h1 class="profile-title">Access & Users</h1>
+        </div>
+        <span class="profile-role-pill">Admin</span>
+      </header>
+      ${message ? `<p class="staff-message">${escapeHtml(message)}</p>` : ""}
+      ${renderAdminStructurePanel(currentUser, structure, users)}
+      ${currentUserIsPlatformAdmin ? renderPlatformReadinessDashboard() : ""}
+      <section class="admin-layout is-users-only">
+        <article class="admin-card">
+          <div class="staff-card-head">
+            <h2>Users</h2>
+            <span>${users.length}</span>
+          </div>
+          <div class="admin-user-list">${userRows}</div>
         </article>
       </section>
-      <details class="admin-card admin-create-card">
-        <summary>
-          <span>
-            <strong>New User</strong>
-            <small>Create a login for staff or collaborators.</small>
-          </span>
-          <b>+</b>
-        </summary>
-        <form id="adminCreateUserForm" class="platform-form admin-user-form admin-create-form">
-          <label>
-            <span>First name</span>
-            <input name="firstName" required />
-          </label>
-          <label>
-            <span>Last name</span>
-            <input name="lastName" required />
-          </label>
-          <label>
-            <span>Email</span>
-            <input name="email" type="email" required />
-          </label>
-          <label>
-            <span>Username</span>
-            <input name="username" required />
-          </label>
-          <label>
-            <span>Role</span>
-            <select name="role">${createRoleOptions}</select>
-          </label>
-          <label>
-            <span>Status</span>
-            <select name="status">
-              <option value="active" selected>Active</option>
-              <option value="paused">Paused</option>
-            </select>
-          </label>
-          <label>
-            <span>Title</span>
-            <input name="title" list="adminTitleSuggestions" value="Scout" />
-          </label>
-          <label>
-            <span>Password</span>
-            ${renderPasswordRevealInput("password", "Optional; leave empty for temporary")}
-          </label>
-          <label>
-            <span>Confirm password</span>
-            ${renderPasswordRevealInput("passwordConfirm", "Repeat password")}
-          </label>
-          <label>
-            <span>Department</span>
-            <input name="department" list="adminDepartmentSuggestions" value="Scouting" />
-          </label>
-          <datalist id="adminTitleSuggestions">${titleSuggestionOptions}</datalist>
-          <datalist id="adminDepartmentSuggestions">${departmentSuggestionOptions}</datalist>
-          <label class="profile-wide">
-            <span>Team scope</span>
-            <select name="teamId">${renderAdminTeamOptions(currentUser, structure, getUserTeamId(currentUser, structure))}</select>
-          </label>
-          <div class="profile-form-footer">
-            <span>Admin creates and manages central account access.</span>
-            <button type="button" data-admin-create-user-submit>Create user</button>
-          </div>
-        </form>
-      </details>
+      ${selectedUserEditor}
+      ${createUserEditor}
+      ${adminSuggestionDatalists}
       ${
         currentUserIsPlatformAdmin
           ? `
@@ -69860,9 +70050,28 @@ if (passwordToggle) {
 togglePasswordInputVisibility(passwordToggle);
 return;
 }
+const openCreateUserButton = event.target.closest("[data-staff-open-create-user]");
+if (openCreateUserButton) {
+staffCreateUserEditorOpen = true;
+renderStaffWorkspace();
+return;
+}
+const closeCreateUserButton = event.target.closest("[data-staff-close-create-user]");
+if (closeCreateUserButton) {
+staffCreateUserEditorOpen = false;
+renderStaffWorkspace();
+return;
+}
+const createUserOverlay = event.target.closest("[data-staff-create-user-overlay]");
+if (createUserOverlay && event.target === createUserOverlay) {
+staffCreateUserEditorOpen = false;
+renderStaffWorkspace();
+return;
+}
 const selectButton = event.target.closest("[data-staff-select-user]");
 if (selectButton) {
 selectedStaffUserId = selectButton.dataset.staffSelectUser;
+staffCreateUserEditorOpen = false;
 renderStaffWorkspace();
 return;
 }
@@ -69919,6 +70128,7 @@ renderStaffWorkspace(result?.reason ?? "User could not be added.");
 return;
 }
 selectedStaffUserId = result.user?.id ?? null;
+staffCreateUserEditorOpen = false;
 form.reset();
 renderWorkspaceChrome();
 const generatedPassword = result.generatedPassword || "";
@@ -69972,6 +70182,8 @@ renderAdminWorkspace(result?.reason ?? "User could not be created.");
 return;
 }
 selectedAdminUserId = result.user?.id ?? null;
+adminCreateUserEditorOpen = false;
+adminUserEditorOpen = Boolean(selectedAdminUserId);
 createUserForm.reset();
 renderWorkspaceChrome();
 const generatedPassword = result.generatedPassword || "";
@@ -70003,15 +70215,49 @@ if (passwordToggle) {
 togglePasswordInputVisibility(passwordToggle);
 return;
 }
+const openCreateUserButton = event.target.closest("[data-admin-open-create-user]");
+if (openCreateUserButton) {
+adminCreateUserTeamId = openCreateUserButton.dataset.adminOpenCreateUser || getUserTeamId(getCurrentPlatformUser(), getPlatformStructureState());
+adminCreateUserEditorOpen = true;
+adminUserEditorOpen = false;
+renderAdminWorkspace();
+return;
+}
+const closeCreateUserButton = event.target.closest("[data-admin-close-create-user]");
+if (closeCreateUserButton) {
+adminCreateUserEditorOpen = false;
+renderAdminWorkspace();
+return;
+}
+const createUserOverlay = event.target.closest("[data-admin-create-user-overlay]");
+if (createUserOverlay && event.target === createUserOverlay) {
+adminCreateUserEditorOpen = false;
+renderAdminWorkspace();
+return;
+}
 const createUserButton = event.target.closest("[data-admin-create-user-submit]");
 if (createUserButton) {
 event.preventDefault();
 await createAdminUserFromForm(createUserButton.closest("#adminCreateUserForm"));
 return;
 }
+const closeUserEditorButton = event.target.closest("[data-admin-close-user-editor]");
+if (closeUserEditorButton) {
+adminUserEditorOpen = false;
+renderAdminWorkspace();
+return;
+}
+const userEditorOverlay = event.target.closest("[data-admin-user-editor-overlay]");
+if (userEditorOverlay && event.target === userEditorOverlay) {
+adminUserEditorOpen = false;
+renderAdminWorkspace();
+return;
+}
 const selectButton = event.target.closest("[data-admin-select-user]");
 if (selectButton) {
 selectedAdminUserId = selectButton.dataset.adminSelectUser;
+adminUserEditorOpen = true;
+adminCreateUserEditorOpen = false;
 renderAdminWorkspace();
 return;
 }

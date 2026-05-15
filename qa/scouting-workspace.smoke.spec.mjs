@@ -240,3 +240,43 @@ test("Scouting profile favorite and Shadow XI actions stay stable", async ({ pag
   await expect(shadowTab).toHaveClass(/is-active/);
   await expect(page.locator(".scouting-shadow-player").first()).toBeVisible({ timeout: 30_000 });
 });
+
+test("Scouting My Team formation and squad placement stay stable", async ({ page }) => {
+  test.setTimeout(120_000);
+  await seedScoutingAccess(page);
+  const boot = await bootApp(page);
+  expect(boot.pageErrors).toEqual([]);
+
+  await openWorkspace(page, "scouting");
+  const myTeamTab = page.locator('.scouting-tab[data-scouting-tab="my-team"]').first();
+  await expect(myTeamTab).toBeVisible();
+  await myTeamTab.click();
+  await expect(myTeamTab).toHaveClass(/is-active/);
+
+  const formationSelect = page.locator("[data-scouting-my-team-formation]").first();
+  await expect(formationSelect).toBeEnabled({ timeout: 15_000 });
+  await formationSelect.selectOption("3-5-2");
+  await expect(formationSelect).toHaveValue("3-5-2");
+  await expect(page.locator(".scouting-my-team-pitch").first()).toHaveAttribute("aria-label", /3-5-2/);
+
+  const benchPlayer = page.locator(".scouting-my-team-player:not(.is-compact)").first();
+  await expect(benchPlayer).toBeVisible({ timeout: 15_000 });
+  const playerName = (await benchPlayer.locator("strong").first().innerText()).trim();
+  await benchPlayer.click();
+  await expect(benchPlayer).toHaveClass(/is-selected/);
+
+  const gkSlot = page.locator('[data-scouting-my-team-drop-slot="gk"]').first();
+  await gkSlot.click();
+  await expect(gkSlot.locator(".scouting-my-team-player.is-compact")).toContainText(playerName);
+
+  const nextBenchPlayer = page.locator(".scouting-my-team-player:not(.is-compact)").first();
+  await expect(nextBenchPlayer).toBeVisible({ timeout: 15_000 });
+  const draggedPlayerName = (await nextBenchPlayer.locator("strong").first().innerText()).trim();
+  const rbSlot = page.locator('[data-scouting-my-team-drop-slot="rb"]').first();
+  await nextBenchPlayer.dragTo(rbSlot);
+  await expect(rbSlot.locator(".scouting-my-team-player.is-compact")).toContainText(draggedPlayerName);
+
+  await page.locator('.scouting-tab[data-scouting-tab="shadow-xi"]').first().click();
+  await myTeamTab.click();
+  await expect(page.locator("[data-scouting-my-team-formation]").first()).toHaveValue("3-5-2");
+});

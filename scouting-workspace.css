@@ -2196,6 +2196,59 @@ letter-spacing: -0.01em;
   display: flex;
   gap: 0.45rem;
 }
+.scouting-database-results-footer{
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.72rem;
+  padding: 0.68rem 0.78rem;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(35, 59, 45, 0.08), rgba(255, 255, 255, 0.94));
+  border: 1px solid rgba(35, 59, 45, 0.1);
+}
+.scouting-database-results-footer:empty{
+  display: none;
+}
+.scouting-database-results-footer .scouting-database-paging{
+  width: 100%;
+  justify-content: flex-end;
+}
+.scouting-database-page-jump{
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  margin: 0;
+  padding: 0.2rem 0.34rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(35, 59, 45, 0.1);
+}
+.scouting-database-page-jump span{
+  color: #5f665f;
+  font-size: 0.74rem;
+  font-weight: 850;
+}
+.scouting-database-page-jump input{
+  width: 4.1rem;
+  min-height: 1.78rem;
+  padding: 0.18rem 0.38rem;
+  border-radius: 999px;
+  border: 1px solid rgba(29, 29, 31, 0.1);
+  background: #ffffff;
+  color: #233b2d;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-align: center;
+}
+.scouting-database-results-footer{
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.72rem;
+  padding: 0.72rem 0.82rem;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(35, 59, 45, 0.06), rgba(255, 255, 255, 0.86));
+  border: 1px solid rgba(35, 59, 45, 0.08);
+}
 .scouting-data-quality,
 .scouting-budget-board{
 display: grid;
@@ -2885,6 +2938,17 @@ outline: none;
 .scouting-record-best-role:focus-within .scouting-record-mini-radar-popover{
   transform: translate(-50%, calc(-100% - 0.78rem)) scale(1);
 }
+.scouting-record-best-role:hover .scouting-record-mini-radar-popover{
+  opacity: 0;
+  transform: translate(-50%, calc(-100% - 0.62rem)) scale(0.94);
+}
+.scouting-record-best-role > span:hover ~ .scouting-record-mini-radar-popover,
+.scouting-record-best-role > strong:hover ~ .scouting-record-mini-radar-popover,
+.scouting-record-best-role:focus-within .scouting-record-mini-radar-popover,
+.scouting-record-best-role .scouting-record-mini-radar-popover:hover{
+  opacity: 1;
+  transform: translate(-50%, calc(-100% - 0.78rem)) scale(1);
+}
 .scouting-mini-radar{
   display: grid;
   gap: 0.26rem;
@@ -2913,6 +2977,7 @@ outline: none;
   font-size: 0.62rem;
   font-weight: 760;
   text-align: center;
+  display: none;
 }
 .scouting-mini-radar-tooltip{
   display: none;
@@ -2941,6 +3006,7 @@ outline: none;
   width: 100%;
   height: auto;
   aspect-ratio: 1 / 1;
+  overflow: visible;
 }
 .scouting-record-best-role .scouting-mini-radar-svg{
   width: 9.6rem;
@@ -2954,6 +3020,20 @@ outline: none;
   fill: #0f5132;
   stroke: #ffffff;
   stroke-width: 1.2;
+}
+.scouting-radar-label{
+  fill: #647267;
+  font-size: 3.05px;
+  font-weight: 850;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+}
+.scouting-radar-label tspan:last-child{
+  fill: #233b2d;
+  font-size: 2.8px;
+  font-weight: 950;
 }
 .scouting-mini-radar-empty{
   width: 5rem;
@@ -3808,15 +3888,15 @@ font-weight: 760;
 }
 .scouting-my-team-layout{
 grid-template-columns: minmax(0, 1fr) minmax(13rem, 0.27fr);
-height: clamp(22rem, 53vh, 34rem);
-min-height: 22rem;
-max-height: 34rem;
+height: clamp(28rem, 64vh, 44rem);
+min-height: 28rem;
+max-height: 44rem;
 }
 .scouting-my-team-pitch{
 width: min(100%, 66rem);
-height: clamp(22rem, 53vh, 34rem);
-min-height: 22rem;
-max-height: 34rem;
+height: clamp(28rem, 64vh, 44rem);
+min-height: 28rem;
+max-height: 44rem;
 border-radius: 22px;
 background:
 radial-gradient(circle at 50% 11%, rgba(255, 255, 255, 0.26), transparent 20%),
@@ -3829,9 +3909,17 @@ inset 0 0 0 2px rgba(255, 255, 255, 0.34),
 inset 0 0 80px rgba(255, 255, 255, 0.08),
 0 20px 42px rgba(12, 34, 27, 0.2);
 }
+.scouting-my-team-pitch::before{
+content: "";
+position: absolute;
+inset: 5% 8%;
+border: 1.5px solid rgba(255, 255, 255, 0.34);
+border-radius: 16px;
+pointer-events: none;
+}
 .scouting-my-team-side{
-height: clamp(22rem, 53vh, 34rem);
-max-height: 34rem;
+height: clamp(28rem, 64vh, 44rem);
+max-height: 44rem;
 }
 .scouting-my-team-tools{
 gap: 0.62rem;
@@ -3862,6 +3950,10 @@ box-shadow: 0 8px 18px rgba(20, 28, 34, 0.055);
 }
 .scouting-my-team-player:active{
 cursor: grabbing;
+}
+.scouting-my-team-player.is-selected{
+border-color: rgba(255, 214, 102, 0.9);
+box-shadow: 0 0 0 3px rgba(255, 214, 102, 0.24), 0 10px 22px rgba(20, 28, 34, 0.12);
 }
 .scouting-my-team-player.is-compact{
 grid-template-columns: auto minmax(0, 1fr) auto;
@@ -3927,6 +4019,11 @@ overflow: visible;
 .scouting-my-team-slot.is-filled{
 background: transparent;
 box-shadow: none;
+}
+.scouting-my-team-slot.is-ready-to-drop .scouting-my-team-drop-card,
+.scouting-my-team-slot.is-ready-to-drop .scouting-my-team-slot-card{
+outline: 2px solid rgba(255, 214, 102, 0.7);
+outline-offset: 3px;
 }
 .scouting-my-team-slot-pin{
 position: absolute;
@@ -4962,6 +5059,7 @@ body.is-dark-mode .scouting-shadow-card p,
 body.is-dark-mode .scouting-muted,
 body.is-dark-mode .scouting-result-summary,
 body.is-dark-mode .scouting-database-paging,
+body.is-dark-mode .scouting-database-page-jump span,
 body.is-dark-mode .scouting-record-table-cell,
 body.is-dark-mode .scouting-record-nationality,
 body.is-dark-mode .scouting-record-card-score span,

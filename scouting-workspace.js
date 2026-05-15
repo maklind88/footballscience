@@ -6,6 +6,7 @@ let scoutingStatusOptions = [];
 let scoutingPriorityOptions = [];
 let scoutingDatabaseLoadPromise = null;
 let scoutingDatabaseWorker = null;
+let scoutingDatabaseWorkerRequestId = 0;
 let scoutingDatabaseError = "";
 let scoutingDatabaseOptionCache = null;
 let scoutingDatabaseOptionLoadPromise = null;
@@ -22,6 +23,7 @@ let scoutingKnownRecordLookupFingerprint = "";
 let scoutingRecordLookupFingerprint = "";
 let scoutingShadowFavoriteSearchQuery = "";
 let scoutingReportBuilderOpen = false;
+let scoutingReportsExpandedPanels = new Set();
 let scoutingRoleModelBuilderOpen = false;
 let scoutingRoleModelEditId = "";
 let scoutingSavedViewsOpen = false;
@@ -48,6 +50,7 @@ let scoutingImportDraft = null;
 let scoutingImportParserPromise = null;
 let scoutingImportPdfParserPromise = null;
 let scoutingDragState = null;
+let scoutingMyTeamSelectedPlayerId = "";
 let scoutingDragAndDropDelegatesBound = false;
 let scoutingDragAndDropDelegateRoot = null;
 let scoutingDatabaseApiRefreshTimer = 0;
@@ -61,6 +64,7 @@ let scoutingProfileOverviewPanelHydrateInProgress = new Set();
 let scoutingOppositionFilters = { team: "", season: "all", minMinutes: 450 };
 let scoutingOppositionLatestSnapshot = null;
 let scoutingDataQualitySummaryCache = { key: "", value: null };
+const scoutingDatabaseWorkerRequests = new Map();
 const scoutingImportedDatabaseStorageKey = "football-scouting-imported-database-v1";
 const scoutingImportLastUploadStorageKey = "football-scouting-last-import-summary-v1";
 const scoutingImportSupportedSourceTypes = Object.freeze([
@@ -392,6 +396,17 @@ function ensureScoutingState() {
 function writeScoutingState(options = {}) {
   return activeContext.writeState(options);
 }
+let scoutingDeferredStateWriteTimer = 0;
+function deferScoutingStateWrite(options = {}, beforeWrite = null) {
+  window.clearTimeout(scoutingDeferredStateWriteTimer);
+  scoutingDeferredStateWriteTimer = window.setTimeout(() => {
+    scoutingDeferredStateWriteTimer = 0;
+    if (typeof beforeWrite === "function") {
+      beforeWrite();
+    }
+    writeScoutingState(options);
+  }, 0);
+}
 function canEditScoutingWorkspace() {
   return activeContext.canEdit();
 }
@@ -612,7 +627,7 @@ function getScoutingPlayerSnapshots(state = null) {
       .map((snapshot) => [snapshot.recordId, snapshot])
   );
 }
-function createScoutingPlayerSnapshot(record) {
+function createScoutingPlayerSnapshot(record, options = {}) {
   if (!record) {
     return null;
   }
@@ -620,8 +635,9 @@ function createScoutingPlayerSnapshot(record) {
   if (!recordId) {
     return null;
   }
-  const roleFit = getScoutingRoleFitScore(record);
-  const signal = getScoutingBestSignal(record);
+  const includeAnalysis = options.includeAnalysis !== false;
+  const roleFit = includeAnalysis ? getScoutingRoleFitScore(record) : null;
+  const signal = includeAnalysis ? getScoutingBestSignal(record) : null;
   return normalizeScoutingPlayerSnapshot({
     recordId,
     name: getScoutingRecordName(record),
@@ -636,8 +652,8 @@ function createScoutingPlayerSnapshot(record) {
     signalPercentile: Number.isFinite(signal?.percentile) ? String(signal.percentile) : "",
   });
 }
-function rememberScoutingRecordSnapshot(record, state = ensureScoutingState()) {
-  const snapshot = createScoutingPlayerSnapshot(record);
+function rememberScoutingRecordSnapshot(record, state = ensureScoutingState(), options = {}) {
+  const snapshot = createScoutingPlayerSnapshot(record, options);
   if (!snapshot) {
     return null;
   }
@@ -832,6 +848,13 @@ function isScoutingDatabaseLoaded() {
 function isScoutingApiDatabaseActive() {
   return getScoutingDatabase()?.source === "api";
 }
+function isScoutingWorkerDatabaseActive() {
+  return getScoutingDatabase()?.source === "worker";
+}
+function isScoutingPagedDatabaseActive() {
+  const source = getScoutingDatabase()?.source;
+  return source === "api" || source === "worker";
+}
 function getScoutingAssetVersion() {
   return encodeURIComponent(window.__assetVersion || "dev");
 }
@@ -859,7 +882,8 @@ function getScoutingApiQueryFromState() {
   const existingDatabase = getScoutingDatabase();
   const offset = getScoutingApiOffset(filters.offset);
   const includeTotal = offset === 0;
-  const hasApiMetrics = existingDatabase?.source === "api" && Array.isArray(existingDatabase?.metrics) && existingDatabase.metrics.length > 0;
+  const hasPagedMetrics =
+    ["api", "worker"].includes(existingDatabase?.source) && Array.isArray(existingDatabase?.metrics) && existingDatabase.metrics.length > 0;
   return {
     action: "snapshot",
     query: filters.query || "",
@@ -873,8 +897,14 @@ function getScoutingApiQueryFromState() {
     sortMetricId: filters.sortMetricId,
     offset,
     includeTotal: includeTotal ? "1" : "0",
-    includeMetrics: hasApiMetrics ? "0" : "1",
+    includeMetrics: hasPagedMetrics ? "0" : "1",
     limit: SCOUTING_API_DATABASE_PAGE_LIMIT,
+  };
+}
+function getScoutingWorkerQueryFromState() {
+  return {
+    ...getScoutingApiQueryFromState(),
+    includeOptions: "1",
   };
 }
 function getScoutingApiOffset(value) {
@@ -1026,10 +1056,16 @@ function renderScoutingDatabasePagingControls(paging = {}) {
     const previousOffset = Math.max(0, apiOffset - pageSize);
     const nextOffset = Number.isFinite(Number(paging.nextOffset)) ? Number(paging.nextOffset) : apiOffset + returned;
     const currentPage = Math.floor(apiOffset / pageSize) + 1;
+    const totalPages = total ? Math.max(1, Math.ceil(total / pageSize)) : "";
     const totalLabel = total ? ` of ${total.toLocaleString("en-US")}` : hasMore ? "" : ` of ${end.toLocaleString("en-US")}`;
     return `
       <div class="scouting-database-paging" data-scouting-database-paging>
-        <span>${escapeHtml(`Showing ${start.toLocaleString("en-US")}-${end.toLocaleString("en-US")}${totalLabel} · Page ${currentPage}`)}</span>
+        <span>${escapeHtml(`Showing ${start.toLocaleString("en-US")}-${end.toLocaleString("en-US")}${totalLabel}`)}</span>
+        <form class="scouting-database-page-jump" data-scouting-page-jump-form data-scouting-page-size="${pageSize}">
+          <span>Page</span>
+          <input type="number" min="1" ${totalPages ? `max="${totalPages}"` : ""} name="page" value="${currentPage}" aria-label="Jump to scouting database page" title="Type a page number and press Enter" />
+          ${totalPages ? `<span>/ ${totalPages}</span>` : ""}
+        </form>
         <div>
           <button type="button" class="scouting-secondary-button" data-scouting-page-offset="${previousOffset}" ${apiOffset <= 0 ? "disabled" : ""}>Previous 50</button>
           <button type="button" class="scouting-primary-button" data-scouting-page-offset="${nextOffset}" ${!hasMore ? "disabled" : ""}>Next 50</button>
@@ -1049,7 +1085,12 @@ function renderScoutingDatabasePagingControls(paging = {}) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   return `
     <div class="scouting-database-paging" data-scouting-database-paging>
-      <span>${escapeHtml(`Showing ${start.toLocaleString("en-US")}-${end.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} · Page ${currentPage}/${totalPages}`)}</span>
+      <span>${escapeHtml(`Showing ${start.toLocaleString("en-US")}-${end.toLocaleString("en-US")} of ${total.toLocaleString("en-US")}`)}</span>
+      <form class="scouting-database-page-jump" data-scouting-page-jump-form data-scouting-page-size="${pageSize}">
+        <span>Page</span>
+        <input type="number" min="1" max="${totalPages}" name="page" value="${currentPage}" aria-label="Jump to scouting database page" title="Type a page number and press Enter" />
+        <span>/ ${totalPages}</span>
+      </form>
       <div>
         <button type="button" class="scouting-secondary-button" data-scouting-page-offset="${previousOffset}" ${currentPage <= 1 ? "disabled" : ""}>Previous 50</button>
         <button type="button" class="scouting-primary-button" data-scouting-page-offset="${nextOffset}" ${currentPage >= totalPages ? "disabled" : ""}>Next 50</button>
@@ -1967,49 +2008,49 @@ function getScoutingPitchFormationClass(formation = "") {
 function getScoutingShadowSlotPitchPosition(slot = {}, formation = "4-3-3") {
   const role = normalizeScoutingText(slot.label, 20).toUpperCase();
   const base = {
-    GK: [50, 89],
-    RB: [82, 72],
-    RCB: [61, 74],
-    LCB: [39, 74],
-    LB: [18, 72],
-    DMF: [50, 58],
-    RCMF: [65, 43],
-    LCMF: [35, 43],
-    RW: [78, 26],
+    GK: [50, 84],
+    RB: [82, 70],
+    RCB: [61, 72],
+    LCB: [39, 72],
+    LB: [18, 70],
+    DMF: [50, 56],
+    RCMF: [64, 43],
+    LCMF: [36, 43],
+    RW: [80, 26],
     CF: [50, 18],
-    LW: [22, 26],
+    LW: [20, 26],
   };
   const formations = {
     "4-3-3": base,
     "4-2-3-1": {
       ...base,
-      DMF: [42, 57],
-      RCMF: [58, 57],
-      LCMF: [50, 40],
-      RW: [78, 32],
-      LW: [22, 32],
+      DMF: [42, 55],
+      RCMF: [58, 55],
+      LCMF: [50, 39],
+      RW: [80, 30],
+      LW: [20, 30],
       CF: [50, 18],
     },
     "3-4-3": {
-      GK: [50, 89],
-      RB: [50, 74],
-      RCB: [66, 74],
-      LCB: [34, 74],
-      LB: [18, 52],
-      DMF: [42, 53],
-      RCMF: [58, 53],
-      LCMF: [82, 52],
-      RW: [76, 27],
+      GK: [50, 84],
+      RB: [50, 72],
+      RCB: [68, 72],
+      LCB: [32, 72],
+      LB: [20, 51],
+      DMF: [42, 52],
+      RCMF: [58, 52],
+      LCMF: [80, 51],
+      RW: [78, 27],
       CF: [50, 18],
-      LW: [24, 27],
+      LW: [22, 27],
     },
     "3-5-2": {
-      GK: [50, 89],
-      RB: [50, 74],
-      RCB: [66, 74],
-      LCB: [34, 74],
+      GK: [50, 84],
+      RB: [50, 72],
+      RCB: [68, 72],
+      LCB: [32, 72],
       LB: [18, 51],
-      DMF: [50, 58],
+      DMF: [50, 56],
       RCMF: [64, 43],
       LCMF: [36, 43],
       RW: [82, 51],
@@ -2017,15 +2058,15 @@ function getScoutingShadowSlotPitchPosition(slot = {}, formation = "4-3-3") {
       LW: [42, 20],
     },
     "4-4-2": {
-      GK: [50, 89],
-      RB: [82, 72],
-      RCB: [61, 74],
-      LCB: [39, 74],
-      LB: [18, 72],
-      DMF: [63, 48],
-      RCMF: [37, 48],
-      LCMF: [18, 43],
-      RW: [82, 43],
+      GK: [50, 84],
+      RB: [82, 70],
+      RCB: [61, 72],
+      LCB: [39, 72],
+      LB: [18, 70],
+      DMF: [60, 48],
+      RCMF: [40, 48],
+      LCMF: [20, 46],
+      RW: [80, 46],
       CF: [58, 20],
       LW: [42, 20],
     },
@@ -2107,8 +2148,9 @@ function renderScoutingMyTeamPlayerCard(player, options = {}) {
   const status = normalizeScoutingText(player.status, 80);
   const age = formatScoutingMyTeamAge(player.age);
   const metaLine = getScoutingMyTeamMetaLine(player);
+  const selected = !compact && scoutingMyTeamSelectedPlayerId === id;
   return `
-    <article class="scouting-my-team-player${compact ? " is-compact" : ""}" draggable="${canEditScoutingWorkspace() ? "true" : "false"}" data-scouting-drag-my-team-player="${escapeHtml(id)}">
+    <article class="scouting-my-team-player${compact ? " is-compact" : ""}${selected ? " is-selected" : ""}" draggable="${canEditScoutingWorkspace() ? "true" : "false"}" data-scouting-drag-my-team-player="${escapeHtml(id)}" data-select-scouting-my-team-player="${escapeHtml(id)}">
       <span class="scouting-my-team-avatar">${escapeHtml(getScoutingMyTeamInitials(player.name))}</span>
       <div class="scouting-my-team-player-copy">
         <strong>${escapeHtml(player.name || "Unnamed player")}</strong>
@@ -2141,7 +2183,10 @@ function assignScoutingMyTeamPlayerToSlot(playerId, slotId) {
   myTeam.slots = Object.fromEntries(Object.entries(myTeam.slots).filter(([, currentPlayerId]) => currentPlayerId !== id));
   myTeam.slots[slot.id] = id;
   state.myTeam = myTeam;
-  writeScoutingState({ syncCentral: false });
+  if (scoutingMyTeamSelectedPlayerId === id) {
+    scoutingMyTeamSelectedPlayerId = "";
+  }
+  writeScoutingState();
   renderScoutingWorkspace({ preserveFocus: true });
 }
 function removeScoutingMyTeamPlayerFromSlot(slotId) {
@@ -2167,7 +2212,8 @@ function setScoutingMyTeamFormation(value) {
   const myTeam = getScoutingMyTeamState(state);
   myTeam.formation = normalizeScoutingFormation(value);
   state.myTeam = myTeam;
-  writeScoutingState({ syncCentral: false });
+  state.activeTab = "my-team";
+  writeScoutingState();
   renderScoutingWorkspace({ preserveFocus: true });
 }
 function getScoutingTargetRecord(target) {
@@ -2557,6 +2603,24 @@ function getScoutingComparablePercentile(record, metricId) {
   const calibratedPercentile = getScoutingCalibratedPercentile(record, metricId, "metric", getScoutingActiveBenchmarkMode());
   return Number.isFinite(calibratedPercentile) ? calibratedPercentile : getScoutingPercentile(record, metricId);
 }
+function getScoutingMiniRadarShortLabel(label = "") {
+  const cleaned = normalizeScoutingText(label, 80)
+    .replace(/\b(per|p90|90|min|minutes|weighted|role|driver|use|volume)\b/gi, "")
+    .replace(/[()%]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const words = (cleaned || normalizeScoutingText(label, 80)).split(/[\s/-]+/).filter(Boolean);
+  if (!words.length) {
+    return "Metric";
+  }
+  if (words.length === 1) {
+    return words[0].slice(0, 10);
+  }
+  return words
+    .slice(0, 2)
+    .map((word) => word.slice(0, 5))
+    .join(" ");
+}
 function getScoutingRecordMiniRadarMarkup(record) {
   const recordId = getScoutingRecordId(record);
   const benchmarkMode = getScoutingActiveBenchmarkMode();
@@ -2577,20 +2641,26 @@ function getScoutingRecordMiniRadarMarkup(record) {
     const radius = 30;
     const center = 36;
     const valueRadius = (radius * percentile) / 100;
+    const labelRadius = 36;
+    const labelX = center + Math.cos(angle) * labelRadius;
+    const labelY = center + Math.sin(angle) * labelRadius;
     return {
       label,
+      shortLabel: getScoutingMiniRadarShortLabel(label),
       percentile,
       x: center + Math.cos(angle) * valueRadius,
       y: center + Math.sin(angle) * valueRadius,
       axisX: center + Math.cos(angle) * radius,
       axisY: center + Math.sin(angle) * radius,
+      labelX,
+      labelY,
     };
   });
   const polygon = points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
   const markup = `
     <div class="scouting-mini-radar">
       <strong class="scouting-mini-radar-title">${escapeHtml(template.profileLabel || "Role spider")}</strong>
-      <svg class="scouting-mini-radar-svg" viewBox="0 0 72 72" role="img" aria-label="Role spider">
+      <svg class="scouting-mini-radar-svg" viewBox="-8 -8 88 88" role="img" aria-label="Role spider">
         ${points
           .map(
             (point) =>
@@ -2599,6 +2669,16 @@ function getScoutingRecordMiniRadarMarkup(record) {
           .join("")}
         <circle class="scouting-radar-ring" cx="36" cy="36" r="30" />
         <polygon class="scouting-radar-shape" points="${polygon}" />
+        ${points
+          .map(
+            (point) => `
+              <text class="scouting-radar-label" x="${point.labelX.toFixed(1)}" y="${point.labelY.toFixed(1)}">
+                <tspan x="${point.labelX.toFixed(1)}">${escapeHtml(point.shortLabel)}</tspan>
+                <tspan x="${point.labelX.toFixed(1)}" dy="4.4">P${escapeHtml(point.percentile)}</tspan>
+              </text>
+            `
+          )
+          .join("")}
         ${points
           .map(
             (point) => `
@@ -2616,7 +2696,6 @@ function getScoutingRecordMiniRadarMarkup(record) {
           )
           .join("")}
       </svg>
-      <span class="scouting-mini-radar-hint">Hover points for metric values</span>
     </div>
   `;
   scoutingRecordMiniRadarCache.set(cacheKey, markup);
@@ -6189,6 +6268,21 @@ function setScoutingTargetStatusByDrag(targetId, status) {
   const safeStatus = normalizeScoutingTargetStatus(status);
   updateScoutingTarget(targetId, { status: safeStatus });
 }
+function getScoutingDragPayload(event) {
+  if (scoutingDragState) {
+    return scoutingDragState;
+  }
+  const textPayload = event?.dataTransfer?.getData?.("text/plain");
+  if (!textPayload) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(textPayload);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
 function bindScoutingDragAndDrop() {
   const root = ui.scoutingWorkspace;
   if (!root) {
@@ -6242,45 +6336,50 @@ function bindScoutingDragAndDrop() {
     }
   });
   root.addEventListener("dragover", (event) => {
-    if (scoutingDragState?.type === "my-team" && event.target.closest("[data-scouting-my-team-drop-slot]")) {
+    const dragPayload = getScoutingDragPayload(event);
+    if ((dragPayload?.type === "my-team" || !dragPayload?.type) && event.target.closest("[data-scouting-my-team-drop-slot]")) {
+      event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "move";
+      }
+    }
+    if (["shadow", "favorite"].includes(dragPayload?.type) && event.target.closest("[data-scouting-shadow-drop-slot], [data-scouting-shadow-drop-before]")) {
       event.preventDefault();
     }
-    if (["shadow", "favorite"].includes(scoutingDragState?.type) && event.target.closest("[data-scouting-shadow-drop-slot], [data-scouting-shadow-drop-before]")) {
-      event.preventDefault();
-    }
-    if (scoutingDragState?.type === "target" && event.target.closest("[data-scouting-target-drop-status]")) {
+    if (dragPayload?.type === "target" && event.target.closest("[data-scouting-target-drop-status]")) {
       event.preventDefault();
     }
   });
   root.addEventListener("drop", (event) => {
+    const dragPayload = getScoutingDragPayload(event);
     const myTeamDrop = event.target.closest("[data-scouting-my-team-drop-slot]");
-    if (scoutingDragState?.type === "my-team" && myTeamDrop && root.contains(myTeamDrop)) {
+    if (dragPayload?.type === "my-team" && myTeamDrop && root.contains(myTeamDrop)) {
       event.preventDefault();
-      assignScoutingMyTeamPlayerToSlot(scoutingDragState.playerId, myTeamDrop.dataset.scoutingMyTeamDropSlot);
+      assignScoutingMyTeamPlayerToSlot(dragPayload.playerId, myTeamDrop.dataset.scoutingMyTeamDropSlot);
       scoutingDragState = null;
       return;
     }
     const shadowDrop = event.target.closest("[data-scouting-shadow-drop-slot], [data-scouting-shadow-drop-before]");
-    if (scoutingDragState?.type === "favorite" && shadowDrop && root.contains(shadowDrop)) {
+    if (dragPayload?.type === "favorite" && shadowDrop && root.contains(shadowDrop)) {
       event.preventDefault();
-      addScoutingRecordToShadow(scoutingDragState.recordId, shadowDrop.dataset.scoutingShadowDropSlot || "");
+      addScoutingRecordToShadow(dragPayload.recordId, shadowDrop.dataset.scoutingShadowDropSlot || "");
       scoutingDragState = null;
       return;
     }
-    if (scoutingDragState?.type === "shadow" && shadowDrop && root.contains(shadowDrop)) {
+    if (dragPayload?.type === "shadow" && shadowDrop && root.contains(shadowDrop)) {
       event.preventDefault();
       reorderScoutingShadowRecord(
-        shadowDrop.dataset.scoutingShadowDropSlot || scoutingDragState.slotId,
-        scoutingDragState.recordId,
+        shadowDrop.dataset.scoutingShadowDropSlot || dragPayload.slotId,
+        dragPayload.recordId,
         shadowDrop.dataset.scoutingShadowDropBefore || ""
       );
       scoutingDragState = null;
       return;
     }
     const targetDrop = event.target.closest("[data-scouting-target-drop-status]");
-    if (scoutingDragState?.type === "target" && targetDrop && root.contains(targetDrop)) {
+    if (dragPayload?.type === "target" && targetDrop && root.contains(targetDrop)) {
       event.preventDefault();
-      setScoutingTargetStatusByDrag(scoutingDragState.targetId, targetDrop.dataset.scoutingTargetDropStatus);
+      setScoutingTargetStatusByDrag(dragPayload.targetId, targetDrop.dataset.scoutingTargetDropStatus);
       scoutingDragState = null;
     }
   });
@@ -7681,13 +7780,14 @@ function renderScoutingRecruitmentQueue(state) {
     </div>
   `;
 }
-function renderScoutingNextActionCenter(state) {
+function renderScoutingNextActionCenter(state, options = {}) {
+  const includeRecommendations = options.includeRecommendations !== false;
   const targets = getScoutingTargets(state);
   const urgentTargets = targets
     .map((target) => ({ target, record: getScoutingTargetRecord(target) }))
     .filter((item) => item.record && ["urgent", "high"].includes(item.target.priority))
     .slice(0, 3);
-  const queueRows = getScoutingGlobalRecruitmentQueue(state, 4);
+  const queueRows = includeRecommendations ? getScoutingGlobalRecruitmentQueue(state, 4) : [];
   const openSlots = scoutingShadowSlots.filter((slot) => !getScoutingShadowSlotRecordIds(slot.id, state).length);
   const targetCount = targets.length;
   return `
@@ -7708,8 +7808,14 @@ function renderScoutingNextActionCenter(state) {
       </article>
       <article>
         <span>Best next add</span>
-        <h2>${escapeHtml(queueRows[0] ? getScoutingRecordName(queueRows[0].record) : "None")}</h2>
-        <p>${escapeHtml(queueRows[0] ? `${queueRows[0].slot.label} / P${queueRows[0].fit}` : "Add filters or load database recommendations.")}</p>
+        <h2>${escapeHtml(queueRows[0] ? getScoutingRecordName(queueRows[0].record) : includeRecommendations ? "None" : "Shadow XI")}</h2>
+        <p>${escapeHtml(
+          queueRows[0]
+            ? `${queueRows[0].slot.label} / P${queueRows[0].fit}`
+            : includeRecommendations
+              ? "Add filters or load database recommendations."
+              : "Open Shadow XI for live recommendations."
+        )}</p>
       </article>
       <div class="scouting-next-action-list">
         ${
@@ -10569,6 +10675,9 @@ function renderScoutingDatabasePanel() {
               ${results.html}
             </div>
           </div>
+          <div class="scouting-database-results-footer">
+            ${renderScoutingDatabasePagingControls(results.paging)}
+          </div>
         </main>
         ${
           isScoutingDatabaseAdvancedMode()
@@ -10747,7 +10856,7 @@ function renderScoutingMyTeam() {
             const pitchPosition = getScoutingShadowSlotPitchPosition(slot, myTeam.formation);
             const player = getScoutingMyTeamPlayerById(myTeam.slots[slot.id], players);
             return `
-              <article class="scouting-shadow-slot scouting-my-team-slot${player ? " is-filled" : ""}" style="--x:${pitchPosition.x}%;--y:${pitchPosition.y}%;" data-scouting-my-team-drop-slot="${escapeHtml(slot.id)}">
+              <article class="scouting-shadow-slot scouting-my-team-slot${player ? " is-filled" : ""}${scoutingMyTeamSelectedPlayerId ? " is-ready-to-drop" : ""}" style="--x:${pitchPosition.x}%;--y:${pitchPosition.y}%;" data-scouting-my-team-drop-slot="${escapeHtml(slot.id)}" data-assign-scouting-my-team-slot="${escapeHtml(slot.id)}">
                 <span class="scouting-my-team-slot-pin" aria-hidden="true"></span>
                 ${
                   player
@@ -10772,7 +10881,7 @@ function renderScoutingMyTeam() {
                       </div>
                     `
                     : `
-                      <button type="button" class="scouting-my-team-drop-card" aria-label="Drop squad player on ${escapeHtml(slot.label)}">
+                      <button type="button" class="scouting-my-team-drop-card" data-assign-scouting-my-team-slot="${escapeHtml(slot.id)}" aria-label="Drop squad player on ${escapeHtml(slot.label)}">
                         <span>${escapeHtml(slot.label)}</span>
                         <strong>Drop player</strong>
                       </button>
@@ -11625,16 +11734,58 @@ function renderScoutingReportsPanel() {
     </div>
   `;
 }
+function renderScoutingReportsLazyPanel(panelId, title, detail, actionLabel, renderer) {
+  const id = normalizeScoutingText(panelId, 80);
+  if (scoutingReportsExpandedPanels.has(id)) {
+    return renderer();
+  }
+  return `
+    <section class="scouting-role-models scouting-role-model-launcher" data-scouting-reports-lazy-panel="${escapeHtml(id)}">
+      <div class="scouting-role-model-head">
+        <div>
+          <p class="placeholder-tag">${escapeHtml(detail)}</p>
+          <h2>${escapeHtml(title)}</h2>
+        </div>
+        <div class="scouting-role-model-toolbar">
+          <button type="button" class="scouting-primary-button" data-expand-scouting-reports-panel="${escapeHtml(id)}">${escapeHtml(actionLabel)}</button>
+        </div>
+      </div>
+    </section>
+  `;
+}
+function expandScoutingReportsPanel(panelId) {
+  const id = normalizeScoutingText(panelId, 80);
+  if (!["comparison-lab", "targets"].includes(id)) {
+    return;
+  }
+  scoutingReportsExpandedPanels = new Set([...scoutingReportsExpandedPanels, id]);
+  if (!rerenderScoutingActiveContent({ preserveFocus: true })) {
+    renderScoutingWorkspace({ preserveFocus: true });
+  }
+}
 function renderScoutingReportsHub() {
   const state = ensureScoutingState();
+  const renderSection = (label, renderer) => {
+    if (!window.__footballScienceScoutingPerfDebug) {
+      return renderer();
+    }
+    const startedAt = performance.now();
+    const html = renderer();
+    console.log(`[scouting-render-performance] ${label}: ${Math.round(performance.now() - startedAt)}ms`);
+    return html;
+  };
   return `
     <div class="scouting-reports-shell">
-      ${renderScoutingNextActionCenter(state)}
-      ${renderScoutingReportsPanel()}
-      ${renderScoutingComparisonLabPanel()}
-      ${renderScoutingRoleModelsPanel()}
-      ${renderScoutingTargetsPanel()}
-      ${renderScoutingBudgetBoard(state)}
+      ${renderSection("reports.next-action", () => renderScoutingNextActionCenter(state, { includeRecommendations: false }))}
+      ${renderSection("reports.panel", () => renderScoutingReportsPanel())}
+      ${renderSection("reports.comparison-lab", () =>
+        renderScoutingReportsLazyPanel("comparison-lab", "Comparison lab", "Player comparison", "Load comparison lab", renderScoutingComparisonLabPanel)
+      )}
+      ${renderSection("reports.role-models", () => renderScoutingRoleModelsPanel())}
+      ${renderSection("reports.targets", () =>
+        renderScoutingReportsLazyPanel("targets", "Funnel", "Pipeline board", "Load funnel", renderScoutingTargetsPanel)
+      )}
+      ${renderSection("reports.budget", () => renderScoutingBudgetBoard(state))}
     </div>
   `;
 }
@@ -12280,6 +12431,9 @@ function setScoutingActiveTab(tabId) {
     preferredScoutingShadowSlotId = "";
     state.shadowXi.selectedSlotId = "";
   }
+  if (tabId !== "reports" && scoutingReportsExpandedPanels.size) {
+    scoutingReportsExpandedPanels = new Set();
+  }
   writeScoutingState({ syncCentral: false });
   renderScoutingWorkspace();
 }
@@ -12299,7 +12453,7 @@ function setScoutingDatabaseFilter(field, value) {
     ...nextPatch,
   });
   scoutingFilteredDatabaseCache.key = "";
-  writeScoutingState({ syncCentral: false });
+  deferScoutingStateWrite({ syncCentral: false });
 }
 function setScoutingDatabasePageOffset(offset) {
   const nextOffset = getScoutingApiOffset(offset);
@@ -12333,6 +12487,18 @@ function setScoutingDatabasePageOffset(offset) {
   scoutingFilteredDatabaseCache.key = "";
   writeScoutingState({ syncCentral: false });
   scheduleScoutingDatabaseResultsRender();
+}
+function setScoutingDatabasePageNumber(pageNumber) {
+  const pageSize = isScoutingApiDatabaseActive()
+    ? Math.max(1, Math.floor(Number(getScoutingDatabasePage()?.limit) || SCOUTING_API_DATABASE_PAGE_LIMIT))
+    : SCOUTING_DATABASE_PAGE_SIZE;
+  const requestedPage = Math.max(1, Math.floor(Number(pageNumber) || 1));
+  const total = isScoutingApiDatabaseActive()
+    ? Math.max(0, Math.floor(Number(getScoutingDatabasePage()?.total) || 0))
+    : getFilteredScoutingDatabaseRecords().length;
+  const totalPages = total ? Math.max(1, Math.ceil(total / pageSize)) : requestedPage;
+  const safePage = Math.min(requestedPage, totalPages);
+  setScoutingDatabasePageOffset((safePage - 1) * pageSize);
 }
 
 function scheduleScoutingDatabaseFilterRefresh() {
@@ -12441,7 +12607,9 @@ function renderScoutingDatabaseResults() {
   const queue = isAdvancedMode ? ui.scoutingWorkspace?.querySelector("[data-scouting-action-queue]") : null;
   const summary = ui.scoutingWorkspace?.querySelector("[data-scouting-result-summary]");
   const resultsActions = ui.scoutingWorkspace?.querySelector(".scouting-database-results-actions");
+  const resultsFooter = ui.scoutingWorkspace?.querySelector(".scouting-database-results-footer");
   const grid = ui.scoutingWorkspace?.querySelector("[data-scouting-record-grid]");
+  const pagingHtml = renderScoutingDatabasePagingControls(results.paging);
   if (brief) {
     brief.outerHTML = renderScoutingDatabaseIntelligenceBrief(results.visibleRecords, ensureScoutingState(), { totalCount: results.records.length });
   }
@@ -12456,13 +12624,16 @@ function renderScoutingDatabaseResults() {
   }
   if (resultsActions) {
     resultsActions.querySelector("[data-scouting-database-paging]")?.remove();
-    resultsActions.insertAdjacentHTML("beforeend", renderScoutingDatabasePagingControls(results.paging));
+    resultsActions.insertAdjacentHTML("beforeend", pagingHtml);
+  }
+  if (resultsFooter) {
+    resultsFooter.innerHTML = pagingHtml;
   }
   if (grid) {
     grid.innerHTML = results.html;
-    if (!resultsActions) {
+    if (!resultsActions && !resultsFooter) {
       ui.scoutingWorkspace?.querySelector("[data-scouting-database-paging]")?.remove();
-      grid.insertAdjacentHTML("afterend", renderScoutingDatabasePagingControls(results.paging));
+      grid.insertAdjacentHTML("afterend", pagingHtml);
     }
   }
   if (isAdvancedMode) {
@@ -12569,6 +12740,13 @@ function closeScoutingRecordProfile() {
   renderScoutingWorkspace();
 }
 function toggleScoutingFavorite(recordId) {
+  const debugTimings = window.__footballScienceScoutingPerfDebug ? [] : null;
+  const markDebugTiming = (label) => {
+    if (debugTimings) {
+      debugTimings.push({ label, at: performance.now() });
+    }
+  };
+  markDebugTiming("start");
   if (!canEditScoutingWorkspace()) {
     return;
   }
@@ -12577,20 +12755,50 @@ function toggleScoutingFavorite(recordId) {
   if (!id) {
     return;
   }
-  const record = getScoutingRecordById(id);
-  if (record) {
-    rememberScoutingRecordSnapshot(record, state);
-  }
+  markDebugTiming("state-ready");
+  const hasProfileModal = Boolean(ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]"));
   state.favoriteRecordIds = state.favoriteRecordIds.includes(id)
     ? state.favoriteRecordIds.filter((recordIdValue) => recordIdValue !== id)
     : [id, ...state.favoriteRecordIds];
-  writeScoutingState();
-  if (ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]")) {
+  markDebugTiming("favorite-state-updated");
+  if (hasProfileModal) {
     updateScoutingFavoriteControls(id, state);
+    markDebugTiming("favorite-controls-updated");
     refreshScoutingWorkspaceSummaryMetrics();
+    markDebugTiming("summary-updated");
+    deferScoutingStateWrite({}, () => {
+      const record = getScoutingRecordById(id);
+      if (record) {
+        rememberScoutingRecordSnapshot(record, state, { includeAnalysis: false });
+      }
+    });
+    markDebugTiming("write-deferred");
+    if (debugTimings) {
+      const base = debugTimings[0]?.at || 0;
+      console.log(
+        "[scouting-favorite-performance]",
+        JSON.stringify(debugTimings.map((item) => ({ label: item.label, ms: Math.round(item.at - base) })))
+      );
+    }
     return;
   }
+  const record = getScoutingRecordById(id);
+  markDebugTiming("record-ready");
+  if (record) {
+    rememberScoutingRecordSnapshot(record, state);
+  }
+  markDebugTiming("snapshot-ready");
+  writeScoutingState();
+  markDebugTiming("state-written");
   refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
+  markDebugTiming("workspace-refreshed");
+  if (debugTimings) {
+    const base = debugTimings[0]?.at || 0;
+    console.log(
+      "[scouting-favorite-performance]",
+      JSON.stringify(debugTimings.map((item) => ({ label: item.label, ms: Math.round(item.at - base) })))
+    );
+  }
 }
 function updateScoutingFavoriteControls(recordId, state = ensureScoutingState()) {
   const id = normalizeScoutingText(recordId, 160);
@@ -12658,7 +12866,7 @@ function addScoutingRecordToShadow(recordId, slotId) {
     return;
   }
   if (record) {
-    rememberScoutingRecordSnapshot(record, state);
+    rememberScoutingRecordSnapshot(record, state, { includeAnalysis: false });
   }
   const currentRecordIds = getScoutingShadowSlotRecordIds(slot.id, state);
   state.shadowXi.slots = {
@@ -12669,7 +12877,7 @@ function addScoutingRecordToShadow(recordId, slotId) {
     ...(state.shadowXi.meta && typeof state.shadowXi.meta === "object" ? state.shadowXi.meta : {}),
     [getScoutingShadowMetaKey(slot.id, id)]: {
       ...getScoutingShadowRecordMeta(slot.id, id, state),
-      tag: getScoutingRecordAge(getScoutingRecordById(id)) <= 23 ? "u23" : currentRecordIds.length ? "backup" : "first-choice",
+      tag: getScoutingRecordAge(record) <= 23 ? "u23" : currentRecordIds.length ? "backup" : "first-choice",
       playerName: record ? getScoutingRecordName(record) : "",
       team: record ? getScoutingRecordTeam(record) : "",
       league: record ? getScoutingRecordLeague(record) : "",
@@ -12929,6 +13137,13 @@ export function handleClick(event, context) {
     closeScoutingReportBuilder();
     return;
   }
+  const expandReportsPanelTrigger = event.target.closest("[data-expand-scouting-reports-panel]");
+  if (expandReportsPanelTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    expandScoutingReportsPanel(expandReportsPanelTrigger.dataset.expandScoutingReportsPanel);
+    return;
+  }
   const reportBuilderOverlay = event.target.closest("[data-scouting-report-builder-overlay]");
   if (reportBuilderOverlay && event.target === reportBuilderOverlay) {
     closeScoutingReportBuilder();
@@ -13020,6 +13235,33 @@ export function handleClick(event, context) {
   if (removeMyTeamSlotTrigger) {
     event.stopPropagation();
     removeScoutingMyTeamPlayerFromSlot(removeMyTeamSlotTrigger.dataset.removeScoutingMyTeamSlot);
+    return;
+  }
+  const selectMyTeamPlayerTrigger = event.target.closest("[data-select-scouting-my-team-player]");
+  if (selectMyTeamPlayerTrigger && !event.target.closest("button, details, summary, a, input, select, textarea")) {
+    if (!canEditScoutingWorkspace()) {
+      return;
+    }
+    scoutingMyTeamSelectedPlayerId = selectMyTeamPlayerTrigger.dataset.selectScoutingMyTeamPlayer || "";
+    ui.scoutingWorkspace?.querySelectorAll("[data-select-scouting-my-team-player].is-selected").forEach((playerNode) => {
+      playerNode.classList.remove("is-selected");
+    });
+    selectMyTeamPlayerTrigger.classList.add("is-selected");
+    ui.scoutingWorkspace?.querySelectorAll(".scouting-my-team-slot").forEach((slotNode) => {
+      slotNode.classList.toggle("is-ready-to-drop", Boolean(scoutingMyTeamSelectedPlayerId));
+    });
+    return;
+  }
+  const assignMyTeamSlotTrigger = event.target.closest("[data-assign-scouting-my-team-slot]");
+  if (assignMyTeamSlotTrigger) {
+    if (event.target.closest("details, summary, [data-open-scouting-role-models], [data-remove-scouting-my-team-slot], .scouting-my-team-info-trigger")) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    if (scoutingMyTeamSelectedPlayerId) {
+      assignScoutingMyTeamPlayerToSlot(scoutingMyTeamSelectedPlayerId, assignMyTeamSlotTrigger.dataset.assignScoutingMyTeamSlot);
+    }
     return;
   }
   const favoriteTrigger = event.target.closest("[data-toggle-scouting-favorite]");
@@ -13195,6 +13437,13 @@ export function handleChange(event, context) {
 }
 export function handleSubmit(event, context) {
   setScoutingContext(context);
+  const pageJumpForm = event.target.closest("[data-scouting-page-jump-form]");
+  if (pageJumpForm) {
+    event.preventDefault();
+    const formData = new FormData(pageJumpForm);
+    setScoutingDatabasePageNumber(formData.get("page"));
+    return;
+  }
   const databaseSearchForm = event.target.closest("[data-scouting-database-search-form]");
   if (databaseSearchForm) {
     event.preventDefault();

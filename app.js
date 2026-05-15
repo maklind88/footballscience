@@ -19349,15 +19349,14 @@ return `<button type="button" class="session-player-board-color-button" data-ses
 .join("");
 return `
     <div class="session-player-board-tools" data-session-player-board-tools>
-      <form class="session-player-board-team-tools" data-session-player-board-auto-form>
-        <label><span>Teams</span><select data-session-player-board-team-count aria-label="Number of teams">${teamOptions}</select></label>
-        <label><span>Auto</span><select data-session-player-board-auto-mode aria-label="Auto select mode">${autoModeOptions}</select></label>
-        <button type="submit" class="session-player-board-tool-button is-auto" data-session-player-board-auto-select ${autoTargetCount ? "" : "disabled"}>Auto Select</button>
-      </form>
-      ${renderSessionPlannerPlayerBoardCopyTools(block)}
-      <button type="button" class="session-player-board-tool-button is-assistant" data-session-selection-assistant-open ${playersDisabled}>Assistant</button>
-      <form class="session-player-board-formation-tools" data-session-player-board-formation-form>
-        <label class="session-player-board-formation-field">
+	      <form class="session-player-board-team-tools" data-session-player-board-auto-form>
+	        <label><span>Teams</span><select data-session-player-board-team-count aria-label="Number of teams">${teamOptions}</select></label>
+	        <label><span>Auto</span><select data-session-player-board-auto-mode aria-label="Auto select mode">${autoModeOptions}</select></label>
+	        <button type="submit" class="session-player-board-tool-button is-auto" data-session-player-board-auto-select ${autoTargetCount ? "" : "disabled"}>Auto Select</button>
+	      </form>
+	      <button type="button" class="session-player-board-tool-button is-assistant" data-session-selection-assistant-open ${playersDisabled}>Assistant</button>
+	      <form class="session-player-board-formation-tools" data-session-player-board-formation-form>
+	        <label class="session-player-board-formation-field">
           <span class="session-player-board-formation-label">Formation</span>
           <small data-session-player-board-selected-count>${selectedCount} selected</small>
           <input type="text" inputmode="numeric" autocomplete="off" value="${escapeHtml(sessionPlannerPlayerBoardFormationInput)}" placeholder="Set formation" aria-label="Set formation, for example 3-3-1" data-session-player-board-formation-input />
@@ -19445,12 +19444,19 @@ return `
             ${renderSessionPlannerPlayerBoardTools()}
             <button type="button" class="session-library-close-button" data-session-close-player-board aria-label="Close Player Board">Close</button>
           </div>
-        </header>
-        <div class="session-player-board-modal-layout">
-          <div class="session-player-board-stage${warnings.hasWarnings ? " has-warnings" : ""}">
-            ${warnings.hasWarnings ? renderSessionPlannerPlayerBoardWarnings(block) : ""}
-            <div class="session-player-board" data-session-player-board>
-              ${renderSessionPlannerPlayerBoardLines()}
+	        </header>
+	        <div class="session-player-board-modal-layout">
+	          <div class="session-player-board-stage${warnings.hasWarnings ? " has-warnings" : ""}">
+	            <div class="session-player-board-boardbar${warnings.hasWarnings ? " has-warnings" : ""}">
+	              <div class="session-player-board-boardbar-warning">
+	                ${warnings.hasWarnings ? renderSessionPlannerPlayerBoardWarnings(block) : ""}
+	              </div>
+	              <div class="session-player-board-boardbar-actions">
+	                ${renderSessionPlannerPlayerBoardCopyTools(block)}
+	              </div>
+	            </div>
+	            <div class="session-player-board" data-session-player-board>
+	              ${renderSessionPlannerPlayerBoardLines()}
               ${renderSessionPlannerPlayerBoardPositionLabels()}
               <div class="session-player-board-selection-box" data-session-player-board-selection-box></div>
               ${

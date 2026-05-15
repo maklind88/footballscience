@@ -16,6 +16,24 @@ This section overrides any older release wording below.
 - If deploy would include unrelated or unfinished work from another chat, stop and explain the coordination issue in plain Swedish.
 - Live QA login is allowed when credentials are available in the current chat or environment, but never write passwords, tokens, or secrets into source files or docs.
 
+## Sync Live Codeword
+
+When the user writes `Synka live` or `synka live`, run the full update flow that makes branch information, `main`, GitHub, and production agree.
+
+The expected flow is:
+
+1. Check `git status --short` and confirm only relevant changes are present.
+2. Run the appropriate validation for the touched area.
+3. Commit relevant uncommitted changes if any exist.
+4. Push the current branch.
+5. Merge or fast-forward the current branch changes into `main`.
+6. Push `main`.
+7. Deploy live with the correct deploy path for the risk level.
+8. Run production verification.
+9. Report commit, push, deployment URL, verification result, and whether branch information is clean/up to date.
+
+If the current branch contains unrelated or unfinished work from another chat, stop and explain the coordination issue in plain Swedish before merging or deploying.
+
 ## Live-First Product Ownership
 
 - The user is the product owner and describes the desired live outcome. Codex owns the technical path: implementation, QA, GitHub, release safety, deploy, and production verification.

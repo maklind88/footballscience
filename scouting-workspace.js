@@ -1014,6 +1014,27 @@ function applyScoutingApiDatabase(result = {}) {
   rememberScoutingDatabaseRecords(database);
   return database;
 }
+function applyScoutingWorkerDatabase(result = {}) {
+  const existing = getScoutingDatabase();
+  if (!Array.isArray(result.records)) {
+    return null;
+  }
+  const database = {
+    source: "worker",
+    importedAt: result.importedAt || existing?.importedAt || new Date().toISOString(),
+    fileName: result.fileName || existing?.fileName || "",
+    sheets: Array.isArray(result.sheets) ? result.sheets : Array.isArray(existing?.sheets) ? existing.sheets : [],
+    metrics: Array.isArray(result.metrics) ? result.metrics : Array.isArray(existing?.metrics) ? existing.metrics : [],
+    records: result.records,
+    options: result.options || existing?.options || null,
+    page: result.page || null,
+  };
+  window.__footballScienceScoutingDatabase = database;
+  scoutingDatabaseOptionCache = null;
+  resetScoutingComputedCaches();
+  rememberScoutingDatabaseRecords(database);
+  return database;
+}
 function dedupeScoutingRecords(records = [], existingIds = new Set()) {
   const deduped = [];
   const seen = new Set(existingIds);
@@ -1040,13 +1061,20 @@ function getScoutingDatabasePage() {
       }
     : null;
 }
+function getScoutingDatabaseTotalCount(database = getScoutingDatabase()) {
+  const total = Number(database?.page?.total);
+  if (Number.isFinite(total) && total >= 0) {
+    return Math.max(0, Math.floor(total));
+  }
+  return Array.isArray(database?.records) ? database.records.length : 0;
+}
 function renderScoutingDatabasePagingControls(paging = {}) {
-  const isApi = paging?.mode === "api";
+  const isPaged = paging?.mode === "api" || paging?.mode === "worker";
   const pageSize = Math.max(1, Math.floor(Number(paging.limit) || SCOUTING_DATABASE_PAGE_SIZE));
   const total = Math.max(0, Math.floor(Number(paging.total) || 0));
   const returned = Math.max(0, Math.floor(Number(paging.returned) || 0));
-  const hasMore = isApi ? Boolean(paging.hasMore) : total > pageSize;
-  if (isApi) {
+  const hasMore = isPaged ? Boolean(paging.hasMore) : total > pageSize;
+  if (isPaged) {
     if (!returned) {
       return "";
     }
@@ -1555,62 +1583,83 @@ function loadScoutingDatabaseWithScript() {
     })
     .then(() => getScoutingDatabase());
 }
-function loadScoutingDatabaseWithWorker() {
-  if (typeof Worker !== "function") {
-    return loadScoutingDatabaseWithScript();
+function rejectPendingScoutingDatabaseWorkerRequests(error) {
+  const requestError = error instanceof Error ? error : new Error(error?.message || "Scouting player database worker failed.");
+  for (const request of scoutingDatabaseWorkerRequests.values()) {
+    window.clearTimeout(request.timeoutId);
+    request.reject(requestError);
   }
+  scoutingDatabaseWorkerRequests.clear();
+}
+function getOrCreateScoutingDatabaseWorker() {
+  if (scoutingDatabaseWorker) {
+    return scoutingDatabaseWorker;
+  }
+  if (typeof Worker !== "function") {
+    return null;
+  }
+  const worker = new Worker(`scouting-database-worker.js?v=${getScoutingAssetVersion()}`);
+  scoutingDatabaseWorker = worker;
+  worker.onmessage = (event) => {
+    const message = event.data || {};
+    const requestId = Number(message.requestId) || 0;
+    const request = scoutingDatabaseWorkerRequests.get(requestId);
+    if (!request) {
+      return;
+    }
+    scoutingDatabaseWorkerRequests.delete(requestId);
+    window.clearTimeout(request.timeoutId);
+    if (message.type === "database") {
+      request.resolve(message.database || null);
+      return;
+    }
+    request.reject(new Error(message.message || "Scouting player database could not be loaded."));
+  };
+  worker.onerror = (error) => {
+    if (scoutingDatabaseWorker === worker) {
+      scoutingDatabaseWorker = null;
+    }
+    worker.terminate();
+    rejectPendingScoutingDatabaseWorkerRequests(error);
+  };
+  return worker;
+}
+function requestScoutingDatabaseWorkerQuery(options = {}) {
+  const worker = getOrCreateScoutingDatabaseWorker();
+  if (!worker) {
+    return Promise.reject(new Error("Scouting player database worker is unavailable."));
+  }
+  const requestId = (scoutingDatabaseWorkerRequestId += 1);
+  const timeoutMs = Math.max(1000, Math.floor(Number(options.timeoutMs) || 45000));
   return new Promise((resolve, reject) => {
-    let settled = false;
-    const worker = new Worker(`scouting-database-worker.js?v=${getScoutingAssetVersion()}`);
-    scoutingDatabaseWorker = worker;
     const timeoutId = window.setTimeout(() => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      worker.terminate();
+      scoutingDatabaseWorkerRequests.delete(requestId);
       if (scoutingDatabaseWorker === worker) {
         scoutingDatabaseWorker = null;
       }
+      worker.terminate();
       reject(new Error("Scouting player database timed out while loading."));
-    }, 45000);
-    const cleanup = () => {
-      window.clearTimeout(timeoutId);
-      worker.terminate();
-      if (scoutingDatabaseWorker === worker) {
-        scoutingDatabaseWorker = null;
-      }
-    };
-    worker.onmessage = (event) => {
-      if (settled) {
-        return;
-      }
-      if (event.data?.type === "database") {
-        settled = true;
-        window.__footballScienceScoutingDatabase = event.data.database;
-        cleanup();
-        resolve(getScoutingDatabase());
-        return;
-      }
-      if (event.data?.type === "error") {
-        settled = true;
-        cleanup();
-        reject(new Error(event.data.message || "Scouting player database could not be loaded."));
-      }
-    };
-    worker.onerror = (error) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      cleanup();
-      reject(error instanceof Error ? error : new Error(error?.message || "Scouting player database worker failed."));
-    };
+      rejectPendingScoutingDatabaseWorkerRequests(new Error("Scouting player database timed out while loading."));
+    }, timeoutMs);
+    scoutingDatabaseWorkerRequests.set(requestId, { resolve, reject, timeoutId });
     worker.postMessage({
-      type: "load",
+      type: "query",
+      requestId,
       scriptUrl: `scouting-import-data.js?v=${getScoutingAssetVersion()}`,
+      query: getScoutingWorkerQueryFromState(),
     });
-  }).catch(() => loadScoutingDatabaseWithScript());
+  });
+}
+function loadScoutingDatabaseWithWorker() {
+  return requestScoutingDatabaseWorkerQuery({ timeoutMs: 45000 })
+    .then((database) => {
+      const appliedDatabase = applyScoutingWorkerDatabase(database);
+      if (!appliedDatabase) {
+        throw new Error("Scouting player database worker returned no records.");
+      }
+      return appliedDatabase;
+    })
+    .catch(() => loadScoutingDatabaseWithScript());
 }
 function ensureScoutingDatabaseLoaded() {
   const existingDatabase = getScoutingDatabase();
@@ -4773,7 +4822,10 @@ function getFilteredScoutingDatabaseRecords() {
   const records = database?.records || [];
   const state = ensureScoutingState();
   const filters = normalizeScoutingDatabaseFilters(state.databaseFilters);
-  const isApi = isScoutingApiDatabaseActive();
+  const databaseSource = normalizeScoutingText(database?.source, 40);
+  const isApi = databaseSource === "api";
+  const isWorker = databaseSource === "worker";
+  const isPaged = isApi || isWorker;
   ensureScoutingRecordLookupsReady();
   const query = filters.query.toLowerCase();
   const hasQuery = Boolean(query);
@@ -4810,8 +4862,8 @@ function getFilteredScoutingDatabaseRecords() {
   const hasRoleFitMin = Number.isFinite(roleFitMin) && roleFitMin > 0;
   const hasRoleFloorMin = Number.isFinite(roleFloorMin) && roleFloorMin > 0;
   const sortNeedsSimpleFilter = sortMetricId === "minutes" || sortMetricId === "matches";
-  const isApiSimplePageView =
-    isApi &&
+  const isPagedSimplePageView =
+    isPaged &&
     sortNeedsSimpleFilter &&
     !hasQuery &&
     signalMode === "all" &&
@@ -4871,12 +4923,12 @@ function getFilteredScoutingDatabaseRecords() {
     includePipelineFilter ? `pipe:${pipeline.join("|")}` : "pipe-all",
     includeShadowFilter ? `sh:${shadow.join("|")}` : "sh-all",
     marketStatus === "all" ? "mv:none" : `mv:${scoutingMarketIntelVersion}`,
-    isApi ? `offset:${getScoutingApiOffset(filters.offset)}` : "offset:local",
+    isPaged ? `offset:${getScoutingApiOffset(filters.offset)}` : "offset:local",
   ].join("|");
   if (scoutingFilteredDatabaseCache.key === filterCacheKey) {
     return scoutingFilteredDatabaseCache.records;
   }
-  if (isApiSimplePageView) {
+  if (isPagedSimplePageView) {
     const simpleRecords = Array.isArray(records) ? records : [];
     scoutingFilteredDatabaseCache = {
       key: filterCacheKey,
@@ -10540,20 +10592,21 @@ function renderScoutingDataQualityPanel() {
 function getScoutingDatabaseResultsMarkup() {
   const records = getFilteredScoutingDatabaseRecords();
   const apiPage = getScoutingDatabasePage();
-  const isApi = isScoutingApiDatabaseActive();
-  const pageOffset = isApi ? (apiPage?.offset || 0) : getScoutingDatabasePageOffset(records.length);
-  const visibleRecords = isApi
+  const databaseSource = normalizeScoutingText(getScoutingDatabase()?.source, 40);
+  const isPaged = databaseSource === "api" || databaseSource === "worker";
+  const pageOffset = isPaged ? apiPage?.offset || 0 : getScoutingDatabasePageOffset(records.length);
+  const visibleRecords = isPaged
     ? records
     : records.slice(pageOffset, pageOffset + SCOUTING_DATABASE_PAGE_SIZE);
   const shownStart = visibleRecords.length ? pageOffset + 1 : 0;
   const shownEnd = visibleRecords.length ? pageOffset + visibleRecords.length : 0;
-  const hasMore = isApi ? Boolean(apiPage?.hasMore) : false;
+  const hasMore = isPaged ? Boolean(apiPage?.hasMore) : false;
   const knownTotal =
-    isApi && Number.isFinite(Number(apiPage?.total)) ? Math.max(0, Math.floor(Number(apiPage.total))) : Number.isFinite(Number(apiPage?.returned))
+    isPaged && Number.isFinite(Number(apiPage?.total)) ? Math.max(0, Math.floor(Number(apiPage.total))) : Number.isFinite(Number(apiPage?.returned))
       ? Math.max(pageOffset + Math.floor(Number(apiPage.returned)), pageOffset)
       : null;
-  const total = isApi ? knownTotal : records.length;
-  const summary = isApi
+  const total = isPaged ? knownTotal : records.length;
+  const summary = isPaged
     ? total
       ? `${total.toLocaleString("en-US")} players match.`
       : "No players found this page."
@@ -10569,11 +10622,11 @@ function getScoutingDatabaseResultsMarkup() {
     paging: {
       total,
       offset: pageOffset,
-      limit: isApi ? (apiPage?.limit || SCOUTING_API_DATABASE_PAGE_LIMIT) : SCOUTING_DATABASE_PAGE_SIZE,
-      returned: isApi ? visibleRecords.length : records.length,
+      limit: isPaged ? apiPage?.limit || SCOUTING_API_DATABASE_PAGE_LIMIT : SCOUTING_DATABASE_PAGE_SIZE,
+      returned: isPaged ? visibleRecords.length : records.length,
       hasMore,
-      nextOffset: isApi ? apiPage?.nextOffset : null,
-      mode: isApi ? "api" : "local",
+      nextOffset: isPaged ? apiPage?.nextOffset : null,
+      mode: isPaged ? databaseSource : "local",
       shownStart,
       shownEnd,
     },
@@ -12232,12 +12285,7 @@ function renderScoutingWorkspace(options = {}) {
     writeScoutingState({ syncCentral: false });
   }
   const database = getScoutingDatabase();
-  const isApiDatabase = isScoutingApiDatabaseActive();
-  const playerCount = isApiDatabase
-    ? Number.isFinite(Number(database?.page?.total)) && Number(database.page.total) >= 0
-      ? Math.max(0, Math.floor(Number(database.page.total)))
-      : database?.records?.length || 0
-    : database?.records?.length || 0;
+  const playerCount = getScoutingDatabaseTotalCount(database);
   const shadowCounts = getScoutingShadowSlotCounts(state);
   const workspaceTitle = getScoutingWorkspaceTitle();
   ui.scoutingWorkspace.innerHTML = `
@@ -12296,7 +12344,7 @@ function refreshScoutingWorkspaceSummaryMetrics() {
     shadowTargets: summary.querySelector("[data-scouting-summary-shadow-targets]"),
   };
   if (summaryNodes.players) {
-    const count = database?.records?.length || 0;
+    const count = getScoutingDatabaseTotalCount(database);
     summaryNodes.players.textContent = hasLoadedDatabase && count ? count.toLocaleString("en-US") : "...";
   }
   if (summaryNodes.sheets) {
@@ -12396,7 +12444,7 @@ function renderScoutingAnalysisRoomWorkspace(options = {}) {
   }
   const focusSnapshot = options.preserveFocus ? getScoutingFocusSnapshot() : null;
   const database = getScoutingDatabase();
-  const playerCount = database?.records?.length || 0;
+  const playerCount = getScoutingDatabaseTotalCount(database);
   const sheetCount = database?.sheets?.length || 0;
   ui.scoutingWorkspace.innerHTML = `
     <section class="scouting-shell">
@@ -12458,7 +12506,7 @@ function setScoutingDatabaseFilter(field, value) {
 function setScoutingDatabasePageOffset(offset) {
   const nextOffset = getScoutingApiOffset(offset);
   const state = ensureScoutingState();
-  if (isScoutingApiDatabaseActive()) {
+  if (isScoutingPagedDatabaseActive()) {
     const offsetToSet = nextOffset;
     if (getScoutingApiOffset(state.databaseFilters.offset) === offsetToSet) {
       return;
@@ -12489,11 +12537,12 @@ function setScoutingDatabasePageOffset(offset) {
   scheduleScoutingDatabaseResultsRender();
 }
 function setScoutingDatabasePageNumber(pageNumber) {
-  const pageSize = isScoutingApiDatabaseActive()
+  const isPaged = isScoutingPagedDatabaseActive();
+  const pageSize = isPaged
     ? Math.max(1, Math.floor(Number(getScoutingDatabasePage()?.limit) || SCOUTING_API_DATABASE_PAGE_LIMIT))
     : SCOUTING_DATABASE_PAGE_SIZE;
   const requestedPage = Math.max(1, Math.floor(Number(pageNumber) || 1));
-  const total = isScoutingApiDatabaseActive()
+  const total = isPaged
     ? Math.max(0, Math.floor(Number(getScoutingDatabasePage()?.total) || 0))
     : getFilteredScoutingDatabaseRecords().length;
   const totalPages = total ? Math.max(1, Math.ceil(total / pageSize)) : requestedPage;
@@ -12502,7 +12551,7 @@ function setScoutingDatabasePageNumber(pageNumber) {
 }
 
 function scheduleScoutingDatabaseFilterRefresh() {
-  if (isScoutingApiDatabaseActive()) {
+  if (isScoutingPagedDatabaseActive()) {
     scheduleScoutingDatabaseRefresh();
     return;
   }
@@ -12642,17 +12691,28 @@ function renderScoutingDatabaseResults() {
   }
 }
 function scheduleScoutingDatabaseRefresh() {
-  if (!isScoutingApiDatabaseActive()) {
+  const isApi = isScoutingApiDatabaseActive();
+  const isWorker = isScoutingWorkerDatabaseActive();
+  if (!isApi && !isWorker) {
     scheduleScoutingDatabaseResultsRender();
     return;
   }
   window.clearTimeout(scoutingDatabaseApiRefreshTimer);
   scoutingDatabaseApiRefreshTimer = window.setTimeout(() => {
     scoutingDatabaseApiRefreshTimer = 0;
-    loadScoutingDatabaseWithApi()
+    const refreshPromise = isApi
+      ? loadScoutingDatabaseWithApi()
+      : requestScoutingDatabaseWorkerQuery({ timeoutMs: 15000 }).then((database) => {
+          const appliedDatabase = applyScoutingWorkerDatabase(database);
+          if (!appliedDatabase) {
+            throw new Error("Scouting player database worker returned no records.");
+          }
+          return appliedDatabase;
+        });
+    refreshPromise
       .then(() => renderScoutingDatabaseResults())
       .catch(() => scheduleScoutingDatabaseResultsRender());
-  }, 260);
+  }, isApi ? 260 : 80);
 }
 function scheduleScoutingDatabaseResultsRender() {
   if (scoutingDatabaseResultsFrame) {

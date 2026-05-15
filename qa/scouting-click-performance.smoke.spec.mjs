@@ -3,15 +3,15 @@ import { expect, test } from "@playwright/test";
 const workspaceHubKey = "football-workspace-hub-v3";
 
 const budgets = {
-  openWorkspace: 2500,
-  switchTab: 1500,
-  loadDatabase: 75000,
-  searchDatabase: 4000,
-  filterDatabase: 3500,
-  openProfile: 3500,
-  favoriteToggle: 1200,
-  addToShadow: 2500,
-  closeProfile: 1200,
+  openWorkspace: 1200,
+  switchTab: 1000,
+  loadDatabase: 5000,
+  searchDatabase: 1000,
+  filterDatabase: 1000,
+  openProfile: 1000,
+  favoriteToggle: 500,
+  addToShadow: 1000,
+  closeProfile: 500,
 };
 
 async function dismissDashboardModal(page) {
@@ -275,6 +275,17 @@ test("Scouting critical clicks stay within interaction budgets", async ({ page }
       await waitForScoutingRows(page, { timeout: budgets.loadDatabase });
     }
   );
+  const fallbackDatabase = await page.evaluate(() => {
+    const database = window.__footballScienceScoutingDatabase || {};
+    return {
+      source: database.source || "",
+      records: Array.isArray(database.records) ? database.records.length : 0,
+      total: Number(database.page?.total) || 0,
+    };
+  });
+  expect(fallbackDatabase.source).toBe("worker");
+  expect(fallbackDatabase.records).toBeLessThanOrEqual(50);
+  expect(fallbackDatabase.total).toBeGreaterThan(fallbackDatabase.records);
 
   const firstRow = await waitForScoutingRows(page);
   const searchTerm = await getStableSearchTerm(firstRow);

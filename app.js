@@ -21665,13 +21665,13 @@ const state = sanitizeMedicalStateForCurrentUser(cloneMedicalState(parsed));
 const shouldPersistSeededRoster =
 !raw || (!parsed?.rosterVersion && Array.isArray(parsed?.players) && parsed.players.length === 0);
 if (shouldPersistSeededRoster) {
-setMedicalStateStorageValue(state, !canViewPrivateMedicalDetails());
+setMedicalStateStorageValue(state, true);
 }
 return state;
 } catch {
 const state = sanitizeMedicalStateForCurrentUser(cloneMedicalState({}));
 try {
-setMedicalStateStorageValue(state, !canViewPrivateMedicalDetails());
+setMedicalStateStorageValue(state, true);
 } catch {
 logEvent("Medical Team data could not be written to local storage.");
 }

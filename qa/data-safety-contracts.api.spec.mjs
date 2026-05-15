@@ -463,3 +463,63 @@ test("central app-state rejects unversioned deletes once module data exists", as
     restoreEnv(env);
   }
 });
+
+test("central app-state blocks empty Medical saves from wiping clinical history", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const key = "football-medical-team-v1";
+  const path = `global/${key}.json`;
+  const existingMedicalState = {
+    selectedDate: "2026-05-15",
+    players: [{ id: "player-1", name: "Protected Player" }],
+    records: [{ id: "record-1", playerId: "player-1", date: "2026-05-15", participation: 25 }],
+    injuryPlans: [{ id: "plan-1", playerId: "player-1", startDate: "2026-05-01", endDate: "2026-06-01" }],
+  };
+  const storage = createAppStateFetchMock(
+    {
+      [path]: createAppStateStorageEntry(key, existingMedicalState, { revision: 0 }),
+    },
+    "admin"
+  );
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        key,
+        value: JSON.stringify({
+          selectedDate: "2026-05-15",
+          players: [{ id: "player-1", name: "Protected Player" }],
+          records: [],
+          injuryPlans: [],
+        }),
+        metadata: {
+          baseRevision: 0,
+        },
+      }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(response.payload).toMatchObject({
+      ok: false,
+      clinicalReductionBlocked: true,
+    });
+    expect(response.payload.reason).toContain("remove all clinical records");
+    expect(storage.writes.some((write) => write.objectPath === path)).toBe(false);
+    expect(JSON.parse(storage.objects.get(path).value).records).toHaveLength(1);
+    expect(JSON.parse(storage.objects.get(path).value).injuryPlans).toHaveLength(1);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});

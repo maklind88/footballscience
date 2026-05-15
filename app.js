@@ -27229,6 +27229,14 @@ return isCurrentPlatformUserAdmin() ? "Admin oversight" : "Medical edit access";
 }
 return "Coach view";
 }
+function getMedicalHeroTeamName() {
+const user = getCurrentPlatformUser();
+const teamName = getPlatformTeamDisplayName(user, getPlatformStructureState());
+if (teamName && teamName !== "Team") {
+return teamName;
+}
+return normalizePlatformStructureText(user?.team || user?.teamName || user?.clubName || user?.club, "") || "Medical Team";
+}
 function getSelectedMedicalPlayer() {
 ensureMedicalState();
 return medicalState.players.find((player) => player.id === medicalState.selectedPlayerId) ?? medicalState.players[0] ?? null;
@@ -28129,21 +28137,21 @@ ${medicalBulkRecommendationOpen ? `
 <button type="button" data-medical-bulk-clear ${canEdit && selectedCount ? "" : "disabled"}>Clear</button>
 </div>
 <form id="medicalBulkRecommendationForm" class="medical-bulk-form" data-medical-bulk-recommendation-form>
-<label>
+<label class="medical-bulk-date-field">
 <span>Date</span>
 <input name="date" type="date" value="${escapeHtml(defaultDate)}" data-medical-bulk-date ${canEdit ? "" : "disabled"} />
 </label>
-<label>
+<label class="medical-bulk-select-field">
 <span>Select</span>
 <input type="button" value="Select Not Set" data-medical-bulk-select-not-set ${canEdit && players.length ? "" : "disabled"} />
 </label>
-<label>
+<label class="medical-bulk-recommend-field">
 <span>Recommend</span>
 <select name="participation" data-medical-bulk-participation ${canEdit ? "" : "disabled"}>
 ${renderMedicalParticipationOptions(defaultParticipation)}
 </select>
 </label>
-<label>
+<label class="medical-bulk-rtp-field">
 <span>RTP phase</span>
 <input type="text" value="${escapeHtml(defaultPhaseLabel)}" data-medical-bulk-rtp-preview disabled />
 </label>
@@ -29842,12 +29850,13 @@ ensureMedicalState();
 const stats = getMedicalDailyStats(medicalState.selectedDate);
 const windowAverage = getMedicalWindowAverage();
 const monthStats = getMedicalMonthAverageStats();
+const teamName = getMedicalHeroTeamName();
 ui.medicalTeamWorkspace.innerHTML = `
 <div class="medical-shell">
 <header class="medical-hero">
 <div>
 <p class="placeholder-tag">Medical Team</p>
-<h1>Availability Control</h1>
+<h1>${escapeHtml(teamName)}</h1>
 <span class="medical-hero-meta">${escapeHtml(getMedicalScheduleSummary(medicalState.selectedDate))}</span>
 </div>
 <div class="medical-access-chip">${escapeHtml(getMedicalAccessLabel())}</div>

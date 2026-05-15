@@ -28,6 +28,25 @@
   box-shadow: 0 10px 24px rgba(12, 24, 20, 0.055);
 }
 
+.medical-bulk-form {
+  grid-template-columns:
+    minmax(6.2rem, 0.68fr)
+    minmax(6.8rem, 0.78fr)
+    minmax(4.6rem, 0.5fr)
+    minmax(6.8rem, 0.82fr)
+    minmax(8.8rem, 1.25fr)
+    minmax(8.8rem, 1.25fr);
+}
+
+.medical-bulk-date-field input,
+.medical-bulk-recommend-field select {
+  padding-inline: 0.5rem;
+}
+
+.medical-bulk-date-field input {
+  font-size: 0.86rem;
+}
+
 .medical-roster-panel > .medical-command-board {
   margin-top: 0.08rem;
 }
@@ -891,6 +910,14 @@ body.is-dark-mode .medical-ops-stat-clear {
     min-width: 58rem;
   }
 
+  .medical-bulk-form {
+    grid-template-columns: minmax(6.1rem, 0.82fr) minmax(6.7rem, 0.95fr) minmax(4.6rem, 0.62fr);
+  }
+
+  .medical-bulk-form button {
+    grid-column: auto;
+  }
+
   .medical-ops-overview,
   .medical-ops-season {
     grid-template-columns: 1fr 1fr;
@@ -924,6 +951,10 @@ body.is-dark-mode .medical-ops-stat-clear {
 
   .medical-bulk-panel.is-collapsed .medical-bulk-summary {
     width: 100%;
+  }
+
+  .medical-bulk-form {
+    grid-template-columns: 1fr;
   }
 
   .medical-roster-list-head,

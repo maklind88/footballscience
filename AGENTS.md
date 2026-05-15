@@ -56,6 +56,10 @@ If the current branch contains unrelated or unfinished work from another chat, s
 - Keep edits scoped to the user's request and the existing project patterns.
 - If any check fails, stop before push or deploy and report the failure.
 
+## Easy File Access
+
+- In every Codex chat for this repository, keep `index.html` easy for the user to find. When reporting completed work or giving status, include a clickable reference to `/Users/maklind/Documents/New project/index.html` even if the file was not edited, unless the answer is only a tiny one-line confirmation.
+
 ## Required Release Order
 
 Use this order for finished work. Only push/deploy when the user asks for deploy or when the task specifically requires GitHub publication.

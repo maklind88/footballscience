@@ -729,6 +729,7 @@ test("Medical recommendation edits persist after refresh", async ({ page }) => {
   const comment = `QA Medical ${Date.now()}`;
   await bootApp(page);
   await openWorkspace(page, "medical-team");
+  await expect(page.locator(".medical-hero h1")).toHaveText("North Carolina Courage");
 
   await page.locator("[data-medical-select-player]:visible").first().click();
   const form = page.locator("#medicalRecommendationForm:visible").first();
@@ -832,6 +833,23 @@ test("Medical bulk recommendation opens as a compact dated action row", async ({
 
   const bulkForm = page.locator("#medicalBulkRecommendationForm");
   await expect(bulkForm).toBeVisible();
+  const bulkColumnWidths = await bulkForm.evaluate((form) => {
+    const dateField = form.querySelector(".medical-bulk-date-field");
+    const selectField = form.querySelector(".medical-bulk-select-field");
+    const recommendField = form.querySelector(".medical-bulk-recommend-field");
+    return {
+      formClient: form.clientWidth,
+      formScroll: form.scrollWidth,
+      date: dateField?.getBoundingClientRect().width ?? 0,
+      select: selectField?.getBoundingClientRect().width ?? 0,
+      recommend: recommendField?.getBoundingClientRect().width ?? 0,
+    };
+  });
+  expect(bulkColumnWidths.formScroll).toBeLessThanOrEqual(bulkColumnWidths.formClient + 2);
+  expect(bulkColumnWidths.date).toBeGreaterThan(0);
+  expect(bulkColumnWidths.date).toBeLessThan(bulkColumnWidths.select);
+  expect(bulkColumnWidths.recommend).toBeGreaterThan(0);
+  expect(bulkColumnWidths.recommend).toBeLessThan(bulkColumnWidths.date * 0.85);
   await expect(bulkForm.locator("[data-medical-bulk-date]")).toHaveValue("2026-05-15");
   await bulkForm.locator("[data-medical-bulk-select-not-set]").click();
   await expect(page.locator("[data-medical-bulk-menu-toggle]")).toContainText("1 selected");

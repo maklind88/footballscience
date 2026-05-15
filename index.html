@@ -36,8 +36,9 @@
       }
     </style>
     <link id=s rel=stylesheet>
+    <link id=m rel=stylesheet>
     <script>
-      {const v=window.__assetVersion=Date.now(),d=document;d.getElementById("s").href=`styles.css?v=${v}`}
+      {const v=window.__assetVersion=Date.now(),d=document;d.getElementById("s").href=`styles.css?v=${v}`;d.getElementById("m").href=`medical-roster-overview.css?v=${v}`}
     </script>
     <script>
       (function () {
@@ -3116,6 +3117,7 @@
         const L=String((await g())||s()||window.__assetVersion||Date.now()).trim().slice(0,m);
         window.__assetVersion=L;
         const styleEl=document.getElementById("s"); if(styleEl) styleEl.href=`styles.css?v=${L}`;
+        const r=document.getElementById("m"); if(r) r.href=`medical-roster-overview.css?v=${L}`;
         const latest=await u(s()||L); if(latest!==L) return;
         const load=(f)=>new Promise((r)=>{const n=document.createElement("script");n.src=f;n.onload=r;n.onerror=r;document.head.append(n)});
         const start=()=>{let w=!1;const f=async()=>{if(w||document.hidden)return;w=!0;try{await u(L)}finally{w=!1}};setInterval(f,n);addEventListener("visibilitychange",()=>{if(!document.hidden)f()})};

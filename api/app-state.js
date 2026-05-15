@@ -1769,6 +1769,30 @@ function summarizeMedicalStateForAudit(rawValue) {
   };
 }
 
+function protectMedicalStateValue(rawValue, context = {}) {
+  const incomingState = safeParseJson(rawValue, null);
+  if (!incomingState || typeof incomingState !== "object" || Array.isArray(incomingState)) {
+    return { ok: false, status: 400, reason: "Medical Team data is invalid and was not saved." };
+  }
+
+  const previousSummary = summarizeMedicalStateForAudit(context.previousEntry?.value || "");
+  const incomingSummary = summarizeMedicalStateForAudit(rawValue);
+  const previousClinicalCount = previousSummary.recordCount + previousSummary.planCount;
+  const incomingClinicalCount = incomingSummary.recordCount + incomingSummary.planCount;
+
+  if (previousClinicalCount > 0 && incomingClinicalCount === 0) {
+    return {
+      ok: false,
+      status: 409,
+      clinicalReductionBlocked: true,
+      reason:
+        "Medical Team data was not saved because it would remove all clinical records and injury plans. Use an explicit Medical reset or restore flow.",
+    };
+  }
+
+  return { ok: true, value: rawValue };
+}
+
 async function appendMedicalStateAudit(actor, rawValue) {
   await appendAuditLog(actor, {
     action: "medical.updated",
@@ -1813,6 +1837,10 @@ async function authorizeStateWrite(actor, key, rawValue, removed = false, contex
 
     if (key === PLAYER_PROFILES_KEY && !removed) {
       return protectPlayerProfilesStateValue(rawValue, context);
+    }
+
+    if (key === MEDICAL_TEAM_KEY && !removed) {
+      return protectMedicalStateValue(rawValue, context);
     }
 
     if (key === WORKSPACE_HUB_KEY && !removed) {
@@ -1868,6 +1896,10 @@ async function authorizeStateWrite(actor, key, rawValue, removed = false, contex
 
   if (key === PLAYER_PROFILES_KEY && !removed) {
     return protectPlayerProfilesStateValue(rawValue, context);
+  }
+
+  if (key === MEDICAL_TEAM_KEY && !removed) {
+    return protectMedicalStateValue(rawValue, context);
   }
 
   return { ok: true, value: rawValue };
@@ -1991,7 +2023,11 @@ async function applyStateEntries(actor, entries = {}, metadata = {}) {
       clientBaseRevision,
     });
     if (!authorization.ok) {
-      return { ok: false, reason: authorization.reason || `Could not sync ${normalizedKey}.` };
+      return {
+        ok: false,
+        ...authorization,
+        reason: authorization.reason || `Could not sync ${normalizedKey}.`,
+      };
     }
 
     const contentSafety = validateCentralStateContent(normalizedKey, authorization.value, contract);
@@ -2116,7 +2152,7 @@ module.exports = async (req, res) => {
         clientBaseRevision,
       });
       if (!authorization.ok) {
-        return sendJson(res, 403, { ok: false, reason: authorization.reason || "You do not have edit access." });
+        return sendJson(res, authorization.status || 403, { ok: false, ...authorization });
       }
 
       const staleWrite = getStaleWriteRejection(
@@ -2145,7 +2181,7 @@ module.exports = async (req, res) => {
       clientBaseRevision,
     });
     if (!authorization.ok) {
-      return sendJson(res, 403, { ok: false, reason: authorization.reason || "You do not have edit access." });
+      return sendJson(res, authorization.status || 403, { ok: false, ...authorization });
     }
 
     const contentSafety = validateCentralStateContent(key, authorization.value, contract);

@@ -1360,6 +1360,7 @@ events: [],
 };
 const scoutingTabs = [
 { id: "shadow-xi", label: "Shadow XI" },
+{ id: "my-team", label: "My Team" },
 { id: "database", label: "Database" },
 { id: "lists", label: "Lists" },
 { id: "reports", label: "Reports" },
@@ -1415,6 +1416,10 @@ shadowXi: {
 formation: "4-3-3",
 slots: {},
 selectedSlotId: "",
+},
+myTeam: {
+formation: "4-3-3",
+slots: {},
 },
 selectedRecordId: "",
 reports: [],
@@ -6055,6 +6060,20 @@ seen.add(value);
 return true;
 });
 }
+function normalizeScoutingFormationValue(value = "") {
+const formation = normalizeScoutingText(value, 40);
+return ["4-3-3", "4-2-3-1", "3-4-3", "3-5-2", "4-4-2"].includes(formation) ? formation : "4-3-3";
+}
+function normalizeScoutingMyTeamSlots(value = {}, slotIds = new Set()) {
+if (!value || typeof value !== "object") {
+return {};
+}
+return Object.fromEntries(
+Object.entries(value)
+.map(([slotId, playerId]) => [normalizeScoutingText(slotId, 40), normalizeScoutingText(playerId, 160)])
+.filter(([slotId, playerId]) => slotIds.has(slotId) && playerId)
+);
+}
 function normalizeScoutingPlayerSnapshot(snapshot = {}) {
 const recordId = normalizeScoutingText(snapshot.recordId || snapshot.id, 160);
 if (!recordId) {
@@ -6158,6 +6177,7 @@ Object.entries(sourceSlots)
 .filter(([slotId, recordIds]) => slotIds.has(slotId) && recordIds.length)
 );
 const selectedSlotId = normalizeScoutingText(source.shadowXi?.selectedSlotId, 40);
+const sourceMyTeam = source.myTeam && typeof source.myTeam === "object" ? source.myTeam : {};
 return {
 activeTab,
 databaseFilters: normalizeScoutingDatabaseFilters({
@@ -6175,6 +6195,10 @@ shadowXi: {
 formation: normalizeScoutingText(source.shadowXi?.formation, 40) || "4-3-3",
 slots,
 selectedSlotId: slotIds.has(selectedSlotId) ? selectedSlotId : "",
+},
+myTeam: {
+formation: normalizeScoutingFormationValue(sourceMyTeam.formation),
+slots: normalizeScoutingMyTeamSlots(sourceMyTeam.slots, slotIds),
 },
 selectedRecordId: normalizeScoutingText(source.selectedRecordId, 160),
 reports: Array.isArray(source.reports)
@@ -6253,7 +6277,10 @@ return {
 ui,
 platformModuleLoader,
 escapeHtml,
-teamName: getUserTeamName(getCurrentPlatformUser()),
+teamName: (() => {
+const currentUser = getCurrentPlatformUser();
+return normalizePlatformStructureText(currentUser?.team || currentUser?.teamName || currentUser?.clubName || currentUser?.club, "") || getUserTeamName(currentUser);
+})(),
 ensureState: ensureScoutingState,
 writeState: writeScoutingState,
 canEdit: canEditScoutingWorkspace,

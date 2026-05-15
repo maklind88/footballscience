@@ -63,10 +63,13 @@ test("platform module map exposes data ownership, api routes, permissions, and i
     scope: "organization",
   });
   expect(modules.find((module) => module.id === "platform-identity")).toMatchObject({
-    implementation: "server-scope-api",
+    implementation: "tenant-bootstrap-api",
     scope: "organization",
     status: platformReadinessStatuses.pass,
   });
+  expect(modules.find((module) => module.id === "platform-identity")?.apiRoutes).toEqual(
+    expect.arrayContaining(["/api/platform-identity", "/api/platform-tenant-bootstrap"])
+  );
 });
 
 test("staging and secret requirements are explicit without exposing secret values", () => {

@@ -16,7 +16,7 @@ Current isolated branch/worktree:
 
 | Stream | Status | Current Contract | Next Build Step | Release Risk |
 | --- | --- | --- | --- | --- |
-| Multi-tenant auth/users/org/team | Scope API started | `public.platform_*` identity migration + `/api/platform-identity` | Add admin-only tenant bootstrap/write APIs after read scope is proven | Safe deploy only |
+| Multi-tenant auth/users/org/team | Tenant bootstrap API started | `public.platform_*` identity migration + `/api/platform-identity` + `/api/platform-tenant-bootstrap` | Backfill existing tenants and memberships through explicit admin operations | Safe deploy only |
 | App-state module migrations | Tracked | `platform_module_migration_checkpoints` | Promote Chat to server-first with app-state fallback compare | Safe deploy only |
 | `app.js` module extraction | Started before program | Module loader + existing lazy Scouting/Game Simulator boundaries | Extract one module boundary per release, no UI behavior change first | Safe deploy for broad moves |
 | Chat server-first | Schema exists, app-state fallback still active | `chat_*` tables and `/api/chat` | Make chat API primary for reads/writes, retain compatibility cache | Safe deploy only |
@@ -58,6 +58,9 @@ Added in this branch:
 - `api/platform-identity.js`
 - `api/_lib/platform-identity.js`
 - `qa/platform-identity-api.api.spec.mjs`
+- `api/platform-tenant-bootstrap.js`
+- `api/_lib/platform-tenant-bootstrap.js`
+- `qa/platform-tenant-bootstrap.api.spec.mjs`
 - `platform-identity` module contract in core platform/readiness/permission metadata
 
 The migration creates:
@@ -71,15 +74,21 @@ The migration creates:
 - `platform_module_migration_checkpoints`
 - `platform_membership_events`
 
-The current app still uses the existing live paths. This foundation is intentionally inert: `/api/platform-identity` only returns the signed-in actor's server-owned scope and migration fallback status. It does not change UI routing, app-state ownership, or module read/write paths.
+The current app still uses the existing live paths. This foundation is intentionally inert for UI behavior: `/api/platform-identity` only returns the signed-in actor's server-owned scope and migration fallback status, while `/api/platform-tenant-bootstrap` is admin-only and creates or reuses canonical tenant/profile/membership/link rows. Neither endpoint changes UI routing, app-state ownership, or module read/write paths.
 
-## Next Phase: Tenant Bootstrap API
+## Tenant Bootstrap API
 
-Build admin-only write/bootstrap endpoints after the read-only actor scope endpoint is proven:
+The bootstrap endpoint is server-first and conservative:
 
 - create/link organization, club, team rows
 - link existing `chat_*` and `squad_*` tenants through `platform_tenant_links`
-- backfill `platform_memberships` from existing server-owned records
+- backfill `platform_user_profiles` and `platform_memberships` for existing Auth users
+- support dry-run planning without writes
+- refuse automatic relinking when a module record already belongs to another tenant
 - keep app-state fallback mapping active until each module passes shadow/dual-read checks
 
 Write authorization must not trust `user_metadata`. Authorization must come from server-owned membership rows and/or server-owned `app_metadata` bootstrap role.
+
+## Next Phase: Controlled Backfill
+
+Use the bootstrap endpoint behind explicit admin operations to seed production/staging tenant rows. After that, promote one module at a time into shadow reads with app-state fallback comparison still active.

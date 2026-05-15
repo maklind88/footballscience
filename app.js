@@ -4098,6 +4098,7 @@ let medicalRosterSearchQuery = "";
 let medicalStatusFilter = "all";
 let medicalPlayerModalOpen = false;
 let medicalBulkSelectedPlayerIds = new Set();
+let medicalBulkRecommendationOpen = false;
 let playerProfilesState = null;
 let playerProfileAgeCacheState = null;
 let playerProfileAgeHydrationTimer = 0;
@@ -27372,6 +27373,11 @@ const validIds = new Set(medicalState.players.map((player) => player.id));
 medicalBulkSelectedPlayerIds = new Set(playerIds.filter((playerId) => validIds.has(playerId)));
 renderMedicalTeamWorkspace();
 }
+function setMedicalBulkNotSetSelection(dateValue = formatScheduleDateValue(new Date()), players = getFilteredMedicalPlayers()) {
+const bulkDate = isMedicalDateValue(dateValue) ? dateValue : formatScheduleDateValue(new Date());
+medicalBulkRecommendationOpen = true;
+setMedicalBulkSelection(players.filter((player) => !getLatestMedicalRecord(player.id, bulkDate)).map((player) => player.id));
+}
 function applyMedicalBulkRecommendation(values = {}) {
 ensureMedicalState();
 const selectedPlayers = getMedicalBulkSelectedPlayers();
@@ -27408,6 +27414,7 @@ savedRecords.push(record);
 });
 medicalState.selectedDate = dateValue;
 medicalBulkSelectedPlayerIds = new Set();
+medicalBulkRecommendationOpen = false;
 writeMedicalState();
 return {
 savedCount,
@@ -27420,51 +27427,44 @@ function renderMedicalBulkUpdatePanel(players = getFilteredMedicalPlayers()) {
 const canEdit = canEditMedicalTeam();
 const selectedPlayers = getMedicalBulkSelectedPlayers();
 const selectedCount = selectedPlayers.length;
+const defaultDate = formatScheduleDateValue(new Date());
 const defaultParticipation = 75;
 const defaultStatus = getMedicalStatusForParticipation(defaultParticipation);
 const defaultRtpPhase = getMedicalRtpPhaseForRecommendation(defaultStatus, defaultParticipation);
+const defaultPhaseLabel = getMedicalRtpPhaseOption(defaultRtpPhase).label;
 return `
-<section class="medical-bulk-panel" aria-label="Bulk medical recommendation">
-<div class="medical-bulk-summary">
+<section class="medical-bulk-panel${medicalBulkRecommendationOpen ? " is-open" : " is-collapsed"}" aria-label="Bulk medical recommendation"${medicalBulkRecommendationOpen ? "" : ` style="grid-template-columns:1fr;grid-template-areas:'summary';"`}>
+<button type="button" class="medical-bulk-summary" data-medical-bulk-menu-toggle aria-expanded="${medicalBulkRecommendationOpen ? "true" : "false"}" ${canEdit ? "" : "disabled"}>
 <span>Bulk Recommendation</span>
 <strong>${selectedCount} selected</strong>
-<small>${players.length} visible</small>
-</div>
+<small>${players.length} visible${medicalBulkRecommendationOpen ? "" : " / open"}</small>
+</button>
+${medicalBulkRecommendationOpen ? `
 <div class="medical-bulk-actions">
-<button type="button" data-medical-bulk-select-visible ${canEdit && players.length ? "" : "disabled"}>Select visible</button>
 <button type="button" data-medical-bulk-clear ${canEdit && selectedCount ? "" : "disabled"}>Clear</button>
 </div>
-<form id="medicalBulkRecommendationForm" class="medical-bulk-form">
+<form id="medicalBulkRecommendationForm" class="medical-bulk-form" data-medical-bulk-recommendation-form>
 <label>
 <span>Date</span>
-<input name="date" type="date" value="${escapeHtml(medicalState.selectedDate)}" ${canEdit ? "" : "disabled"} />
+<input name="date" type="date" value="${escapeHtml(defaultDate)}" data-medical-bulk-date ${canEdit ? "" : "disabled"} />
 </label>
 <label>
-<span>Recommended</span>
+<span>Select</span>
+<input type="button" value="Select Not Set" data-medical-bulk-select-not-set ${canEdit && players.length ? "" : "disabled"} />
+</label>
+<label>
+<span>Recommend</span>
 <select name="participation" data-medical-bulk-participation ${canEdit ? "" : "disabled"}>
 ${renderMedicalParticipationOptions(defaultParticipation)}
 </select>
 </label>
 <label>
 <span>RTP phase</span>
-<select name="rtpPhase" data-medical-bulk-rtp-phase ${canEdit ? "" : "disabled"}>
-${renderMedicalRtpPhaseOptions(defaultRtpPhase)}
-</select>
+<input type="text" value="${escapeHtml(defaultPhaseLabel)}" data-medical-bulk-rtp-preview disabled />
 </label>
-<label class="medical-bulk-wide">
-<span>Coach-safe note</span>
-<input name="coachNote" placeholder="Example: modified team only, no finishing volume" ${canEdit ? "" : "disabled"} />
-</label>
-<label class="medical-bulk-wide">
-<span>Internal medical note</span>
-<input name="comment" placeholder="Internal medical note" ${canEdit ? "" : "disabled"} />
-</label>
-<label class="medical-inline-check medical-bulk-share">
-<input type="checkbox" name="shareWithCoach" ${canEdit ? "" : "disabled"} />
-<span>Share note with coaches</span>
-</label>
-<button type="submit" ${canEdit && selectedCount ? "" : "disabled"}>Apply to selected</button>
+<button type="submit" ${canEdit && selectedCount ? "" : "disabled"}>Apply Selected</button>
 </form>
+` : ""}
 </section>
 `;
 }
@@ -70426,9 +70426,22 @@ event.stopPropagation();
 toggleMedicalBulkPlayer(bulkToggleButton.dataset.medicalBulkToggle);
 return;
 }
+const bulkMenuToggleButton = event.target.closest("[data-medical-bulk-menu-toggle]");
+if (bulkMenuToggleButton && canEditMedicalTeam()) {
+medicalBulkRecommendationOpen = !medicalBulkRecommendationOpen;
+renderMedicalTeamWorkspace();
+return;
+}
 const bulkSelectVisibleButton = event.target.closest("[data-medical-bulk-select-visible]");
 if (bulkSelectVisibleButton && canEditMedicalTeam()) {
 setMedicalBulkSelection(getFilteredMedicalPlayers().map((player) => player.id));
+return;
+}
+const bulkSelectNotSetButton = event.target.closest("[data-medical-bulk-select-not-set]");
+if (bulkSelectNotSetButton && canEditMedicalTeam()) {
+const form = bulkSelectNotSetButton.closest("#medicalBulkRecommendationForm");
+const dateValue = form?.querySelector("[data-medical-bulk-date]")?.value;
+setMedicalBulkNotSetSelection(dateValue, getFilteredMedicalPlayers());
 return;
 }
 const bulkClearButton = event.target.closest("[data-medical-bulk-clear]");
@@ -70572,9 +70585,18 @@ const bulkParticipation = event.target.closest("[data-medical-bulk-participation
 if (bulkParticipation) {
 const form = bulkParticipation.closest("#medicalBulkRecommendationForm");
 const phaseSelect = form?.querySelector("[data-medical-bulk-rtp-phase]");
+const phasePreview = form?.querySelector("[data-medical-bulk-rtp-preview]");
 const participation = normalizeMedicalParticipation(bulkParticipation.value, 75);
+const phaseKey = getMedicalRtpPhaseForRecommendation(getMedicalStatusForParticipation(participation), participation);
 if (phaseSelect) {
-phaseSelect.value = getMedicalRtpPhaseForRecommendation(getMedicalStatusForParticipation(participation), participation);
+phaseSelect.value = phaseKey;
+}
+if (phasePreview) {
+if ("value" in phasePreview) {
+phasePreview.value = getMedicalRtpPhaseOption(phaseKey).label;
+} else {
+phasePreview.textContent = getMedicalRtpPhaseOption(phaseKey).label;
+}
 }
 return;
 }

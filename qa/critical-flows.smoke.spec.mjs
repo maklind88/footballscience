@@ -787,6 +787,67 @@ test("Medical metrics use current-month and trailing 7-day averages", async ({ p
   await expect(metricCards.filter({ hasText: "7-day average" })).toContainText("last 7 days");
 });
 
+test("Medical bulk recommendation opens as a compact dated action row", async ({ page }) => {
+  await page.addInitScript(({ storageKey }) => {
+    const fixedNow = new Date("2026-05-15T12:00:00Z").valueOf();
+    const NativeDate = Date;
+    class FixedDate extends NativeDate {
+      constructor(...args) {
+        super(...(args.length ? args : [fixedNow]));
+      }
+
+      static now() {
+        return fixedNow;
+      }
+    }
+    FixedDate.UTC = NativeDate.UTC;
+    FixedDate.parse = NativeDate.parse;
+    window.Date = FixedDate;
+    window.localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        selectedDate: "2026-05-14",
+        selectedPlayerId: "bulk-one",
+        rosterVersion: "qa-medical-bulk-v1",
+        players: [
+          { id: "bulk-one", name: "Bulk One", position: "Forward", rosterOrder: 1 },
+          { id: "bulk-two", name: "Bulk Two", position: "Midfielder", rosterOrder: 2 },
+        ],
+        records: [
+          { id: "existing-today", playerId: "bulk-one", date: "2026-05-15", participation: 100, createdAt: "2026-05-15T08:00:00.000Z" },
+        ],
+        injuryPlans: [],
+      })
+    );
+  }, { storageKey: medicalKey });
+
+  await bootApp(page);
+  await openWorkspace(page, "medical-team");
+
+  const bulkToggle = page.locator("[data-medical-bulk-menu-toggle]");
+  await expect(bulkToggle).toContainText("Bulk Recommendation");
+  await expect(page.locator("#medicalBulkRecommendationForm")).toHaveCount(0);
+  await bulkToggle.click();
+
+  const bulkForm = page.locator("#medicalBulkRecommendationForm");
+  await expect(bulkForm).toBeVisible();
+  await expect(bulkForm.locator("[data-medical-bulk-date]")).toHaveValue("2026-05-15");
+  await bulkForm.locator("[data-medical-bulk-select-not-set]").click();
+  await expect(page.locator("[data-medical-bulk-menu-toggle]")).toContainText("1 selected");
+  await bulkForm.locator("[data-medical-bulk-participation]").selectOption("25");
+  await expect(bulkForm.locator("[data-medical-bulk-rtp-preview]")).toHaveValue("Rehab");
+  await bulkForm.locator('button[type="submit"]').click();
+
+  await expect
+    .poll(() =>
+      page.evaluate((storageKey) => {
+        const state = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+        return (state.records || []).filter((record) => record.date === "2026-05-15").map((record) => `${record.playerId}:${record.participation}`).sort();
+      }, medicalKey)
+    )
+    .toEqual(["bulk-one:100", "bulk-two:25"]);
+});
+
 test("Squad add creates a Medical roster slot and Session Planner placement", async ({ page }) => {
   const playerName = `QA Squad Placement ${Date.now()}`;
   let squadAgeRequests = 0;

@@ -2,7 +2,7 @@
 
 Read this file first when starting a new thread on Football Science.
 
-Also read `AGENTS.md` and `docs/LIVE_FIRST_WORKFLOW.md`. The durable working model is live-first: the user describes the desired product outcome on `https://footballscience.xyz`, and Codex owns the technical implementation path, QA, GitHub, deploy discipline, and production verification.
+Also read `AGENTS.md` and `docs/LIVE_FIRST_WORKFLOW.md`. Read `docs/PLATFORM_SCALE_PROGRAM.md` when working on multi-tenant identity, app-state migrations, `app.js` extraction, Chat server-first, or Scouting server-first. The durable working model is live-first: the user describes the desired product outcome on `https://footballscience.xyz`, and Codex owns the technical implementation path, QA, GitHub, deploy discipline, and production verification.
 
 ## Product
 
@@ -46,6 +46,17 @@ Design should feel clean, Apple/Mac-like, calm, professional, and modular. Avoid
   - `football-medical-team-v1`
   - `football-player-profiles-v1`
   - `football-scouting-v1`
+
+## Platform Scale Program
+
+The scale modernization is tracked in `docs/PLATFORM_SCALE_PROGRAM.md`.
+
+Current scale-foundation branch/worktree:
+
+- Branch: `codex/platform-scale-foundation`
+- Worktree: `/Users/maklind/Documents/New project-scale-foundation`
+
+The first foundation adds canonical `platform_*` tenant identity tables and migration checkpoints while keeping the existing app-state/module paths active. Do not treat the database foundation as production-primary until the relevant server API, adapter, QA, and fallback comparison are green.
 
 ## Current Navigation Order
 

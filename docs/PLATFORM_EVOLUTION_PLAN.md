@@ -49,6 +49,8 @@ Current inert skeleton:
 
 These files are not loaded by `index.html` yet. They exist so future refactors have a safe destination and a tested contract before product logic moves.
 
+The scale program now has a dedicated tracker in `docs/PLATFORM_SCALE_PROGRAM.md`. The first active foundation branch is `codex/platform-scale-foundation`, which adds canonical `platform_*` tenant identity tables and migration checkpoints without switching any module away from the current production path.
+
 First adapter boundary:
 
 - Home Tasks has a read-only adapter for the existing `football-dashboard-tasks-v1` payload.
@@ -74,10 +76,13 @@ First adapter boundary:
 
 Move from global JSON objects toward relational tables:
 
-- organizations
-- teams
-- profiles
-- memberships
+- platform_organizations
+- platform_clubs
+- platform_teams
+- platform_user_profiles
+- platform_memberships
+- platform_tenant_links
+- platform_module_migration_checkpoints
 - schedule_events
 - sessions
 - session_blocks

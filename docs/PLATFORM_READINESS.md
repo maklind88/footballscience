@@ -10,6 +10,7 @@ Platform Admins can open Admin and see the Platform Readiness panel. It reads fr
 
 The dashboard shows:
 
+- Platform identity: canonical organizations, clubs, teams, memberships, tenant links, and migration checkpoints.
 - Workspace hygiene: local changes must be intentional before release.
 - Platform map: current modules, implementation stage, data ownership, future tables, and API routes.
 - Staging mirror: separate staging host, staging QA login, and staging Supabase project.

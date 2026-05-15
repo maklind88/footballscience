@@ -13,6 +13,8 @@ Football Science treats live data as tenant-owned production data. UI state can 
 
 Every tenant-owned table must include `organization_id`. Team-scoped records must also include `team_id` unless the table itself is a root tenant/team table. RLS policies must prove one organization cannot read another organization through direct authenticated database access.
 
+Canonical tenant identity starts in `public.platform_organizations`, `public.platform_clubs`, `public.platform_teams`, `public.platform_user_profiles`, `public.platform_memberships`, and `public.platform_tenant_links`. Existing `squad_*`, `chat_*`, and app-state paths remain active until linked and migrated one module at a time.
+
 The platform verifier fails when a new public table is added without tenant scope, RLS, revocation from `anon`/`authenticated`, and an explicit module contract.
 
 ## Backend Permission Rule

@@ -91,6 +91,12 @@ requireText("api/_lib/supabase-admin.js", "finishApiRequest", "sendJson must clo
 
 const migrationFile = "supabase/migrations/20260510030705_platform_security_control_plane.sql";
 const migration = read(migrationFile);
+const migrationsDir = path.join(rootDir, "supabase", "migrations");
+const allMigrations = fs
+  .readdirSync(migrationsDir)
+  .filter((file) => file.endsWith(".sql"))
+  .map((entry) => fs.readFileSync(path.join(migrationsDir, entry), "utf8"))
+  .join("\n");
 [
   "create table if not exists public.platform_permission_matrix",
   "create table if not exists public.platform_security_events",
@@ -108,17 +114,23 @@ const migration = read(migrationFile);
 });
 
 for (const contract of platformPermissionMatrix) {
-  if (!migration.includes(`('${contract.moduleId}', 'read'`)) {
-    failures.push(`${migrationFile} must seed ${contract.moduleId} read permission.`);
+  if (!allMigrations.includes(`('${contract.moduleId}', 'read'`)) {
+    failures.push(`Supabase migrations must seed ${contract.moduleId} read permission.`);
   }
-  if (!migration.includes(`('${contract.moduleId}', 'write'`)) {
-    failures.push(`${migrationFile} must seed ${contract.moduleId} write permission.`);
+  if (!allMigrations.includes(`('${contract.moduleId}', 'write'`)) {
+    failures.push(`Supabase migrations must seed ${contract.moduleId} write permission.`);
   }
 }
 
-const migrationsDir = path.join(rootDir, "supabase", "migrations");
-const tenantRootTables = new Set(["chat_organizations", "squad_organizations", "platform_permission_matrix"]);
-const teamRootTables = new Set(["chat_teams", "squad_teams"]);
+const tenantRootTables = new Set([
+  "chat_organizations",
+  "squad_organizations",
+  "platform_organizations",
+  "platform_user_profiles",
+  "platform_module_migration_checkpoints",
+  "platform_permission_matrix",
+]);
+const teamRootTables = new Set(["chat_teams", "squad_teams", "platform_teams"]);
 const organizationScopedEntityTables = new Set(["squad_players", "squad_player_external_ids", "squad_player_media"]);
 for (const entry of fs.readdirSync(migrationsDir).filter((file) => file.endsWith(".sql"))) {
   const source = fs.readFileSync(path.join(migrationsDir, entry), "utf8");

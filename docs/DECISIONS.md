@@ -13,6 +13,7 @@
 | 2026-05-03 | Periodization empty fields should render blank. | Reduces visual noise in week view. |
 | 2026-05-03 | Game Simulator should open through tutorial then fullscreen. | The old embedded view is too cluttered. |
 | 2026-05-03 | Tacticalboard belongs inside Session Planner for exercise visuals. | Coaches need one flow to create session content and diagrams. |
+| 2026-05-15 | Run scale modernization from an isolated `codex/platform-scale-foundation` worktree and add canonical `platform_*` identity before module migrations. | Multi-tenant auth/users/org/team must be server-owned before app-state modules, Chat, Scouting, and `app.js` can be safely modernized. |
 
 ## Principles
 

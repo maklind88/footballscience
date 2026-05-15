@@ -129,7 +129,9 @@ Before final response after code changes:
 - Localhost/127.0.0.1 has a dev-auth fallback in `index.html` that auto-authenticates a local admin user (`mak`) without Supabase so browser testing can run against isolated localhost localStorage. This must stay local-only and never replace production Supabase auth.
 - Check relevant UI flows in browser when possible.
 - Do not deploy automatically just because code/design work is finished.
-- Deploy only when the user explicitly says `Deploy`, `Deploy fast`, or `Deploy safe`.
+- Deploy only when the user explicitly says `Deploy`, `Deploy fast`, `Deploy safe`, or the standalone codeword `Live`.
+- `Live` means the full sync-to-production flow: commit/push intended work, align branch/main/GitHub when safe, deploy with the correct fast/safe path, and run postdeploy verification.
+- Treat `Live` as a release codeword only when it is a standalone command, not when the word appears inside ordinary product discussion.
 - Use `npm run deploy` for routine fast releases unless the change is risky.
 - Use `npm run deploy:safe` for auth/login, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, or broad multi-module changes.
 - If deploying, verify live `app.js` hash or visible behavior on `footballscience.xyz`.

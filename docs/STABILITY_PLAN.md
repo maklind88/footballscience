@@ -95,6 +95,7 @@ Use the current deploy agreement:
 
 - `Deploy` and `Deploy fast` use `npm run deploy` unless the change is risky.
 - `Deploy safe` uses `npm run deploy:safe`.
+- Standalone `Live` is the short sync-to-production codeword: commit/push intended work, align branch/main/GitHub when safe, deploy with the correct fast/safe path, and run postdeploy verification.
 - Do not auto-deploy when work is merely finished.
 - Stop before deploy if the release would include unrelated or unfinished work from another chat.
 

@@ -44,7 +44,9 @@ For every request, Codex should:
 - Use feature flags, additive migrations, dual-read / dual-write, or shadow mode when changing data foundations.
 - Validate with focused tests plus the required release checks.
 - Commit and push intended files only.
-- Deploy only when the user explicitly asks for `Deploy`, `Deploy fast`, or `Deploy safe`.
+- Deploy only when the user explicitly asks for `Deploy`, `Deploy fast`, `Deploy safe`, or the standalone codeword `Live`.
+- `Live` is the short sync-to-production codeword: commit/push intended work, align branch/main/GitHub when safe, deploy with the correct fast/safe path, and run postdeploy verification.
+- Treat `Live` as this codeword only when it is a standalone command, not when the word appears inside normal product discussion.
 - Use the current fast/safe deploy split and never include unrelated parallel work.
 - Verify production after deployment and report what changed in user-facing terms.
 
@@ -85,6 +87,7 @@ If multiple chats are active, each chat should say which module it owns and avoi
 - GitHub is the durable record.
 - `Deploy` and `Deploy fast` mean the everyday fast path: `npm run deploy`, unless the change is risky.
 - `Deploy safe` means the full safe path: `npm run deploy:safe`.
+- `Live` means run the full sync-to-production flow and then verify production.
 - Staging should prove the same tree before production when the release includes risky or data-related work.
 - Do not deploy from a dirty working tree.
 - Do not bypass the selected deploy path's checks to make a deploy easier.

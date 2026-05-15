@@ -111,6 +111,7 @@ Before telling the user the site is updated:
 
 - Use `npm run deploy` for `Deploy` / `Deploy fast` unless the change is risky.
 - Use `npm run deploy:safe` for auth/login, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, or broad multi-module changes.
+- Use standalone `Live` as the short sync-to-production codeword: commit/push intended work, align branch/main/GitHub when safe, deploy with the correct fast/safe path, and run postdeploy verification.
 - If running a manual fast readiness check before deploy, use `npm run release:ship -- --mode fast`.
 - If the release is safe/risky, verify the change on staging before production.
 - Deploy with the project deploy scripts, not ad hoc Vercel commands.

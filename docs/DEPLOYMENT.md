@@ -8,10 +8,12 @@ From `/Users/maklind/Documents/New project`:
 
 ### Current Rule
 
-Deploy only when the user explicitly says `Deploy`, `Deploy fast`, or `Deploy safe`.
+Deploy only when the user explicitly says `Deploy`, `Deploy fast`, `Deploy safe`, or the standalone codeword `Live`.
 
 - `Deploy` and `Deploy fast` use the everyday fast path unless the change is risky.
 - `Deploy safe` uses the full safe path for auth/login, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, or broad multi-module changes.
+- `Live` is the short sync-to-production codeword. It means commit/push intended work, align the release branch with `main` when safe, deploy with the correct fast/safe path for the risk level, run postdeploy verification, and report branch/GitHub/production status.
+- Treat `Live` as the codeword only when it is a standalone command, not when the word appears inside normal discussion.
 - Never deploy a bundle that includes unrelated or unfinished work from another parallel chat.
 
 ### Everyday Fast Deploy

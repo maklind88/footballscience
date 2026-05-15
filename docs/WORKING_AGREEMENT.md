@@ -4,9 +4,11 @@
 
 This section overrides any older release wording below.
 
-- Deploy only when the user explicitly says `Deploy`, `Deploy fast`, or `Deploy safe`.
+- Deploy only when the user explicitly says `Deploy`, `Deploy fast`, `Deploy safe`, or the standalone codeword `Live`.
 - `Deploy` and `Deploy fast` use `npm run deploy` unless the change is risky.
 - `Deploy safe` uses `npm run deploy:safe`.
+- `Live` is the short sync-to-production codeword: commit/push intended work, align the branch/main/GitHub state when safe, deploy with the correct fast/safe path, run postdeploy verification, and report the release status.
+- Treat `Live` as this codeword only when it is a standalone command, not when it appears inside ordinary discussion.
 - Do not ask the user which deploy path to use when the intent is clear.
 - Do not auto-deploy just because work is finished.
 - Use fast deploy for normal UI/UX/content/CSS/frontend polish and narrow low-risk fixes.
@@ -27,7 +29,7 @@ This section overrides any older release wording below.
 - Do not invent real coaching content unless explicitly asked. Use structure and sample placeholders only where useful.
 - Verify changes before saying they are done.
 - When the user asks for deploy, deploy it to Vercel, alias it to `footballscience.xyz`, and verify the live files before saying it is done.
-- In every Codex chat, follow the current deploy policy in `AGENTS.md`: `Deploy` uses `npm run deploy`, while `Deploy safe` uses `npm run deploy:safe`.
+- In every Codex chat, follow the current deploy policy in `AGENTS.md`: `Deploy` uses `npm run deploy`, `Deploy safe` uses `npm run deploy:safe`, and standalone `Live` runs the full sync-to-production flow.
 - Fast deploy is the everyday release path. Safe deploy is reserved for auth/login, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, or broad multi-module changes.
 - Production monitoring must stay automated. The scheduled `Production Monitor` workflow should keep postdeploy and authenticated live smoke running even on days with no feature work.
 - Rollbacks must use the `Production Rollback` workflow, require explicit `ROLLBACK` confirmation, and pass postdeploy/live smoke before the rollback is considered complete.

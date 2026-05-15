@@ -6,9 +6,10 @@ These rules apply to every Codex chat working in this repository.
 
 This section overrides any older release wording below.
 
-- Deploy only when the user explicitly says `Deploy`, `Deploy fast`, or `Deploy safe`.
+- Deploy only when the user explicitly says `Deploy`, `Deploy fast`, `Deploy safe`, or the standalone codeword `Live`.
 - `Deploy` and `Deploy fast` mean the fast everyday path: `npm run deploy`, unless the change is risky.
 - `Deploy safe` means the full safe path: `npm run deploy:safe`.
+- `Live` means the full sync-to-production flow below: make branch information, `main`, GitHub, production deploy, and postdeploy verification agree.
 - Do not ask the user which deploy path to use when the intent is clear.
 - Do not auto-deploy just because work is finished.
 - Fast deploy is for normal UI/UX/content/CSS/frontend polish and narrow low-risk fixes.
@@ -16,9 +17,11 @@ This section overrides any older release wording below.
 - If deploy would include unrelated or unfinished work from another chat, stop and explain the coordination issue in plain Swedish.
 - Live QA login is allowed when credentials are available in the current chat or environment, but never write passwords, tokens, or secrets into source files or docs.
 
-## Sync Live Codeword
+## Live Codeword
 
-When the user writes `Synka live` or `synka live`, run the full update flow that makes branch information, `main`, GitHub, and production agree.
+When the user writes `Live` as a standalone command, run the full update flow that makes branch information, `main`, GitHub, and production agree.
+
+Only treat `Live` as this codeword when it is the user's standalone command, not when the word appears inside ordinary product discussion such as "jag tittar på live".
 
 The expected flow is:
 

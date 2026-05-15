@@ -36,7 +36,7 @@ Each phase is only complete when all of these are true:
 - Permission matrix and docs are updated in the same phase.
 - Focused API/contract tests pass before release.
 - `npm run qa:supabase`, `npm run security:platform`, and `npm run check` pass before any deploy touching auth/data/API.
-- Production deploy happens only after explicit `Deploy`, `Deploy fast`, or `Deploy safe`.
+- Production deploy happens only after explicit `Deploy`, `Deploy fast`, `Deploy safe`, or the standalone `Live` sync-to-production codeword.
 
 ## Migration Order
 

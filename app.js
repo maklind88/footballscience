@@ -28485,7 +28485,7 @@ ui.medicalTeamWorkspace.innerHTML = `
 ${renderMedicalDateStrip()}
 ${message ? `<div class="medical-message">${escapeHtml(message)}</div>` : ""}
 <section class="medical-metrics-grid" aria-label="Medical availability summary">
-${renderMedicalMetric("Full", String(stats.fullCount), "effective 100%", "full")}
+${renderMedicalMetric("Full", String(stats.fullCount), "100%", "full")}
 ${renderMedicalMetric("Modified", String(stats.modifiedCount), "10-75%", "modified")}
 ${renderMedicalMetric("Unavailable", String(stats.unavailableCount), "0%", "unavailable")}
 ${renderMedicalMetric("Not set", String(stats.unloggedCount), "no entry")}

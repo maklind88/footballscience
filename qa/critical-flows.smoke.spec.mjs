@@ -888,6 +888,16 @@ test("Medical roster overview groups by position and supports row quick recommen
     )
     .toBe("bulk-command-list");
 
+  const searchInput = page.locator("[data-medical-roster-search]");
+  await searchInput.click();
+  await page.keyboard.type("Goal");
+  await expect(searchInput).toHaveValue("Goal");
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.matches("[data-medical-roster-search]") ?? false))
+    .toBe(true);
+  await expect(page.locator('[data-medical-roster-row="qa-gk"]')).toBeVisible();
+  await expect(page.locator('[data-medical-roster-row="qa-def"]')).toHaveCount(0);
+
   const goalkeeperRow = page.locator('[data-medical-roster-row="qa-gk"]');
   await expect(goalkeeperRow).toBeVisible();
   await expect(goalkeeperRow.locator(".medical-quick-rec-button")).toHaveCount(6);

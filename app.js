@@ -28779,7 +28779,7 @@ ${renderMedicalNewPlayerCard()}
 </aside>
 `;
 }
-function renderMedicalTeamWorkspace(message = "") {
+function renderMedicalTeamWorkspace(message = "", options = {}) {
 if (!ui.medicalTeamWorkspace) {
 return;
 }
@@ -28823,6 +28823,18 @@ ${renderMedicalGovernancePanel()}
 ${renderMedicalPlayerModal()}
 </div>
 `;
+if (options.focusRosterSearch) {
+const searchInput = ui.medicalTeamWorkspace.querySelector("[data-medical-roster-search]");
+if (searchInput) {
+searchInput.focus({ preventScroll: true });
+const valueLength = searchInput.value.length;
+const selectionStart = Math.min(Number(options.searchSelectionStart ?? valueLength), valueLength);
+const selectionEnd = Math.min(Number(options.searchSelectionEnd ?? selectionStart), valueLength);
+if (typeof searchInput.setSelectionRange === "function") {
+searchInput.setSelectionRange(selectionStart, selectionEnd);
+}
+}
+}
 }
 function parseMedicalRosterLine(line) {
 const cleanLine = String(line ?? "").trim();
@@ -70927,8 +70939,14 @@ const searchInput = event.target.closest("[data-medical-roster-search]");
 if (!searchInput) {
 return;
 }
+const selectionStart = searchInput.selectionStart ?? searchInput.value.length;
+const selectionEnd = searchInput.selectionEnd ?? selectionStart;
 medicalRosterSearchQuery = searchInput.value;
-renderMedicalTeamWorkspace();
+renderMedicalTeamWorkspace("", {
+focusRosterSearch: true,
+searchSelectionStart: selectionStart,
+searchSelectionEnd: selectionEnd,
+});
 });
 ui.medicalTeamWorkspace?.addEventListener("change", (event) => {
 const datePicker = event.target.closest("[data-medical-date-picker]");

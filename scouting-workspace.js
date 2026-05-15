@@ -13,6 +13,7 @@ let scoutingPercentileCache = new Map();
 let scoutingMetricAliasCache = new Map();
 let scoutingRoleProfileCache = new Map();
 let scoutingRecordIntelligenceCache = new Map();
+let scoutingRecordSearchCorpusCache = new Map();
 let scoutingMetricIndexCache = { database: null, byId: new Map() };
 let scoutingRecordIdLookupCache = new Map();
 let scoutingRecordNameLookupCache = new Map();
@@ -24,6 +25,11 @@ let scoutingRecordMiniRadarCache = new Map();
 let scoutingFilteredDatabaseCache = {
   key: "",
   records: [],
+};
+let scoutingFilteredDatabaseNavigationCache = {
+  key: "",
+  ids: [],
+  indexById: new Map(),
 };
 let scoutingMarketIntelVersion = 0;
 let preferredScoutingShadowSlotId = "";
@@ -37,6 +43,8 @@ let scoutingImportDraft = null;
 let scoutingImportParserPromise = null;
 let scoutingImportPdfParserPromise = null;
 let scoutingDragState = null;
+let scoutingDragAndDropDelegatesBound = false;
+let scoutingDragAndDropDelegateRoot = null;
 let scoutingDatabaseApiRefreshTimer = 0;
 let scoutingDatabaseFilterDebounceTimer = 0;
 let scoutingAdvancedDatabaseFiltersOpen = false;
@@ -44,8 +52,10 @@ let scoutingDatabaseAdvancedMode = false;
 let scoutingIntelligenceCacheVersion = 0;
 let scoutingImportHistoryCache = { status: "idle", imports: [], error: "", promise: null };
 let scoutingProfileApiCache = new Map();
+let scoutingProfileOverviewPanelHydrateInProgress = new Set();
 let scoutingOppositionFilters = { team: "", season: "all", minMinutes: 450 };
 let scoutingOppositionLatestSnapshot = null;
+let scoutingDataQualitySummaryCache = { key: "", value: null };
 const scoutingImportedDatabaseStorageKey = "football-scouting-imported-database-v1";
 const scoutingImportLastUploadStorageKey = "football-scouting-last-import-summary-v1";
 const scoutingImportSupportedSourceTypes = Object.freeze([
@@ -516,6 +526,7 @@ function normalizeScoutingRecordIds(values = []) {
 function resetScoutingComputedCaches() {
   scoutingPercentileCache = new Map();
   scoutingRecordMiniRadarCache = new Map();
+  scoutingRecordSearchCorpusCache = new Map();
   scoutingMetricAliasCache = new Map();
   scoutingRoleProfileCache = new Map();
   scoutingRecordIntelligenceCache = new Map();
@@ -525,10 +536,50 @@ function resetScoutingComputedCaches() {
   scoutingRecordLookupFingerprint = "";
   scoutingMarketIntelVersion = 0;
   scoutingProfileApiCache = new Map();
+  scoutingProfileOverviewPanelHydrateInProgress.clear();
+  scoutingDataQualitySummaryCache = { key: "", value: null };
+  scoutingFilteredDatabaseNavigationCache = {
+    key: "",
+    ids: [],
+    indexById: new Map(),
+  };
   scoutingFilteredDatabaseCache = {
     key: "",
     records: [],
   };
+}
+
+function hydrateScoutingFilteredDatabaseNavigationCache(records = [], cacheKey = "") {
+  if (!Array.isArray(records) || !cacheKey) {
+    scoutingFilteredDatabaseNavigationCache = {
+      key: cacheKey || "",
+      ids: [],
+      indexById: new Map(),
+    };
+    return scoutingFilteredDatabaseNavigationCache;
+  }
+  if (scoutingFilteredDatabaseNavigationCache.key === cacheKey) {
+    return scoutingFilteredDatabaseNavigationCache;
+  }
+  const indexById = new Map();
+  const ids = [];
+  for (let i = 0; i < records.length; i += 1) {
+    const recordId = getScoutingRecordId(records[i]);
+    if (!recordId) {
+      continue;
+    }
+    if (indexById.has(recordId)) {
+      continue;
+    }
+    indexById.set(recordId, ids.length);
+    ids.push(recordId);
+  }
+  scoutingFilteredDatabaseNavigationCache = {
+    key: cacheKey,
+    ids,
+    indexById,
+  };
+  return scoutingFilteredDatabaseNavigationCache;
 }
 
 function touchScoutingIntelligenceCache() {
@@ -2327,10 +2378,25 @@ function ensureScoutingRecordLookupsReady() {
   const records = Array.isArray(database?.records) ? database.records : [];
   const nextIdLookup = new Map();
   const nextNameLookup = new Map();
+  const nextSearchCorpus = new Map();
   for (const record of records) {
     const recordId = getScoutingRecordId(record);
     if (recordId) {
       nextIdLookup.set(recordId, record);
+      const searchCorpus = [
+        getScoutingRecordName(record),
+        getScoutingRecordTeam(record),
+        getScoutingRecordLeague(record),
+        getScoutingRecordSeason(record),
+        getScoutingRecordPosition(record),
+        ...getScoutingRoleLabelsForGroup(record),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (searchCorpus) {
+        nextSearchCorpus.set(recordId, normalizeScoutingText(searchCorpus, 220).toLowerCase());
+      }
     }
     const recordName = getScoutingRecordName(record).toLowerCase();
     if (!recordName) {
@@ -2348,7 +2414,12 @@ function ensureScoutingRecordLookupsReady() {
   }
   scoutingRecordIdLookupCache = nextIdLookup;
   scoutingRecordNameLookupCache = nextNameLookup;
+  scoutingRecordSearchCorpusCache = nextSearchCorpus;
   scoutingRecordLookupFingerprint = fingerprint;
+}
+function getScoutingRecordSearchCorpus(record) {
+  const recordId = getScoutingRecordId(record);
+  return recordId ? scoutingRecordSearchCorpusCache.get(recordId) || "" : "";
 }
 function formatScoutingNumber(value, fallback = "n/a") {
   const number = Number(value);
@@ -4039,6 +4110,7 @@ function getFilteredScoutingDatabaseRecords() {
   const isApi = isScoutingApiDatabaseActive();
   ensureScoutingRecordLookupsReady();
   const query = filters.query.toLowerCase();
+  const hasQuery = Boolean(query);
   const minMinutes = Number(filters.minMinutes) || 0;
   const maxMinutes = Number(filters.maxMinutes);
   const minAge = Number(filters.minAge);
@@ -4051,30 +4123,55 @@ function getFilteredScoutingDatabaseRecords() {
   const sortMetricId = filters.sortMetricId || metricFilterId || "minutes";
   const signalMode = filters.signalMode || "all";
   const marketStatus = filters.marketStatus || "all";
-  const isApiSimplePageView =
-    isApi &&
-    !Boolean(sortMetricId && !["minutes", "matches"].includes(sortMetricId)) &&
-    signalMode === "all" &&
-    marketStatus === "all" &&
-    !roleProfileId &&
-    !metricFilterId &&
-    !(Number.isFinite(roleFitMin) && roleFitMin > 0) &&
-    !(Number.isFinite(roleFloorMin) && roleFloorMin > 0) &&
-    !(Number.isFinite(metricMin) && metricMin > 0);
   const selectedRoleProfile = roleProfileId ? getScoutingRoleProfileById(roleProfileId) : null;
   const selectedRoleCategory = getScoutingRoleCategoryGroup(roleProfileId);
+  const selectedRoleGroups = selectedRoleProfile && selectedRoleProfile.groups ? new Set(selectedRoleProfile.groups) : null;
   const includeFavoritesFilter = signalMode === "favorites";
   const includePipelineFilter = signalMode === "pipeline";
   const includeShadowFilter = signalMode === "shadow";
   const favorites = includeFavoritesFilter ? normalizeScoutingRecordIds(state.favoriteRecordIds) : [];
   const pipeline = includePipelineFilter ? getScoutingTargetedRecordIds(state) : [];
   const shadow = includeShadowFilter ? getScoutingAllShadowRecordIds(state) : [];
+  const hasFavoritesFilter = favorites.length > 0 && includeFavoritesFilter;
+  const hasPipelineFilter = pipeline.length > 0 && includePipelineFilter;
+  const hasShadowFilter = shadow.length > 0 && includeShadowFilter;
+  const hasMetricMin = Number.isFinite(metricMin) && metricMin > 0;
+  const hasRoleFitMin = Number.isFinite(roleFitMin) && roleFitMin > 0;
+  const hasRoleFloorMin = Number.isFinite(roleFloorMin) && roleFloorMin > 0;
+  const sortNeedsSimpleFilter = sortMetricId === "minutes" || sortMetricId === "matches";
+  const isApiSimplePageView =
+    isApi &&
+    sortNeedsSimpleFilter &&
+    !hasQuery &&
+    signalMode === "all" &&
+    marketStatus === "all" &&
+    !roleProfileId &&
+    !metricFilterId &&
+    !hasRoleFitMin &&
+    !hasRoleFloorMin &&
+    !hasMetricMin;
+  const isLocalSimplePageView =
+    !isApi &&
+    !hasQuery &&
+    signalMode === "all" &&
+    marketStatus === "all" &&
+    !roleProfileId &&
+    !metricFilterId &&
+    !selectedRoleProfile &&
+    !selectedRoleCategory &&
+    !hasRoleFitMin &&
+    !hasRoleFloorMin &&
+    !hasMetricMin &&
+    !hasFavoritesFilter &&
+    !hasPipelineFilter &&
+    !hasShadowFilter &&
+    sortNeedsSimpleFilter;
   const shouldUseDecisionPrecheck = signalMode === "decision-ready" || signalMode === "value";
   const decisionPrecheckCache = shouldUseDecisionPrecheck ? new Map() : null;
   const needsRoleFit =
     Boolean(roleProfileId) ||
-    (Number.isFinite(roleFitMin) && roleFitMin > 0) ||
-    (Number.isFinite(roleFloorMin) && roleFloorMin > 0) ||
+    hasRoleFitMin ||
+    hasRoleFloorMin ||
     ["priority", "decision-ready", "breakout", "value"].includes(signalMode) ||
     sortMetricId === "role-fit";
   const favoriteIds = includeFavoritesFilter ? new Set(favorites) : null;
@@ -4116,9 +4213,46 @@ function getFilteredScoutingDatabaseRecords() {
     };
     return simpleRecords;
   }
+  if (isLocalSimplePageView) {
+    const sortBy = sortMetricId === "matches" ? "matches" : "minutes";
+    const nextRecords = [...records]
+      .filter((record) => {
+        if (filters.league !== "all" && getScoutingRecordLeague(record) !== filters.league) {
+          return false;
+        }
+        if (filters.season !== "all" && getScoutingRecordSeason(record) !== filters.season) {
+          return false;
+        }
+        if (filters.position !== "all" && !getScoutingPositionTokens(record).includes(filters.position.toUpperCase())) {
+          return false;
+        }
+        const recordMinutes = getScoutingRecordMinutes(record);
+        const recordAge = getScoutingRecordAge(record);
+        if (recordMinutes < minMinutes) {
+          return false;
+        }
+        if (Number.isFinite(maxMinutes) && maxMinutes > 0 && recordMinutes > maxMinutes) {
+          return false;
+        }
+        if (Number.isFinite(minAge) && minAge > 0 && (!Number.isFinite(recordAge) || recordAge < minAge)) {
+          return false;
+        }
+        if (Number.isFinite(maxAge) && maxAge > 0 && (!Number.isFinite(recordAge) || recordAge > maxAge)) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => (getScoutingMetricValue(b, sortBy) || 0) - (getScoutingMetricValue(a, sortBy) || 0));
+    scoutingFilteredDatabaseCache = {
+      key: filterCacheKey,
+      records: nextRecords,
+    };
+    return nextRecords;
+  }
   const roleFitCache = needsRoleFit ? new Map() : null;
   const metricFilterCache = metricFilterId && Number.isFinite(metricMin) && metricMin > 0 ? new Map() : null;
   const sortPercentileCache = sortMetricId !== "minutes" && sortMetricId !== "matches" && sortMetricId !== "role-fit" ? new Map() : null;
+  const roleFloorCache = Number.isFinite(roleFloorMin) && roleFloorMin > 0 ? new Map() : null;
   const getCachedRoleFit = (record) => {
     if (!roleFitCache) {
       return getScoutingRoleFitScore(record, roleProfileId);
@@ -4155,6 +4289,18 @@ function getFilteredScoutingDatabaseRecords() {
     sortPercentileCache.set(recordId, percentile);
     return percentile;
   };
+  const getCachedRoleFloor = (record) => {
+    if (!roleFloorCache) {
+      return getScoutingRoleMetricFloor(record, roleProfileId);
+    }
+    const recordId = getScoutingRecordId(record);
+    if (roleFloorCache.has(recordId)) {
+      return roleFloorCache.get(recordId);
+    }
+    const floor = getScoutingRoleMetricFloor(record, roleProfileId);
+    roleFloorCache.set(recordId, floor);
+    return floor;
+  };
   const getDecisionPrecheck = (record, roleFitScore, recordAge) => {
     const recordId = getScoutingRecordId(record);
     if (!decisionPrecheckCache || decisionPrecheckCache.has(recordId)) {
@@ -4174,7 +4320,7 @@ function getFilteredScoutingDatabaseRecords() {
     .filter((record) => {
       const recordId = getScoutingRecordId(record);
       const group = getScoutingPositionGroup(record);
-      if (selectedRoleProfile && !selectedRoleProfile.groups.includes(getScoutingPositionGroup(record))) {
+      if (selectedRoleGroups && !selectedRoleGroups.has(group)) {
         return false;
       }
       if (selectedRoleCategory && selectedRoleCategory !== group) {
@@ -4194,31 +4340,31 @@ function getFilteredScoutingDatabaseRecords() {
       if (recordMinutes < minMinutes) {
         return false;
       }
-      if (Number.isFinite(maxMinutes) && maxMinutes > 0 && recordMinutes > maxMinutes) {
+      if (maxMinutes > 0 && recordMinutes > maxMinutes) {
         return false;
       }
-      if (Number.isFinite(minAge) && minAge > 0) {
+      if (minAge > 0) {
         if (!Number.isFinite(recordAge) || recordAge < minAge) {
           return false;
         }
       }
-      if (Number.isFinite(maxAge) && maxAge > 0) {
+      if (maxAge > 0) {
         if (!Number.isFinite(recordAge) || recordAge > maxAge) {
           return false;
         }
       }
       const roleFitScore = needsRoleFit ? getCachedRoleFit(record) : null;
-      if (metricFilterId && Number.isFinite(metricMin) && metricMin > 0) {
+      if (metricFilterId && hasMetricMin) {
         const percentile = getCachedMetricPercentile(record);
         if (!Number.isFinite(percentile) || percentile < metricMin) {
           return false;
         }
       }
-      if (Number.isFinite(roleFitMin) && roleFitMin > 0 && (!Number.isFinite(roleFitScore) || roleFitScore < roleFitMin)) {
+      if (hasRoleFitMin && (!Number.isFinite(roleFitScore) || roleFitScore < roleFitMin)) {
         return false;
       }
-      if (Number.isFinite(roleFloorMin) && roleFloorMin > 0) {
-        const roleFloor = getScoutingRoleMetricFloor(record, roleProfileId);
+      if (hasRoleFloorMin) {
+        const roleFloor = getCachedRoleFloor(record);
         if (!Number.isFinite(roleFloor) || roleFloor < roleFloorMin) {
           return false;
         }
@@ -4226,12 +4372,12 @@ function getFilteredScoutingDatabaseRecords() {
       if (signalMode === "priority" && (!Number.isFinite(roleFitScore) || roleFitScore < 82)) {
         return false;
       }
-      if (signalMode === "decision-ready") {
-        const precheck = getDecisionPrecheck(record, roleFitScore, recordAge);
+        if (signalMode === "decision-ready") {
+          const precheck = getDecisionPrecheck(record, roleFitScore, recordAge);
         if (!precheck || !Number.isFinite(roleFitScore) || roleFitScore < 74 || precheck.sampleConfidence < 66) {
           return false;
         }
-        const decisionRoleFloor = getScoutingRoleMetricFloor(record, roleProfileId);
+        const decisionRoleFloor = getCachedRoleFloor(record);
         if (!Number.isFinite(decisionRoleFloor) || decisionRoleFloor < 50) {
           return false;
         }
@@ -4291,17 +4437,7 @@ function getFilteredScoutingDatabaseRecords() {
       if (!query) {
         return true;
       }
-      return [
-        getScoutingRecordName(record),
-        getScoutingRecordTeam(record),
-        getScoutingRecordLeague(record),
-        getScoutingRecordSeason(record),
-        getScoutingRecordPosition(record),
-        getScoutingRoleLabelsForGroup(record).join(" "),
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(query);
+      return getScoutingRecordSearchCorpus(record).includes(query);
     })
     .sort((a, b) => {
       if (sortMetricId === "role-fit") {
@@ -5245,8 +5381,8 @@ function renderScoutingRoleFitStack(record) {
     </section>
   `;
 }
-function renderScoutingRadar(record, roleProfileId = "") {
-  const template = getScoutingRadarTemplate(record, roleProfileId);
+function renderScoutingRadar(record, roleProfileId = "", precomputedTemplate = null, precomputedMetricRows = null) {
+  const template = precomputedTemplate || getScoutingRadarTemplate(record, roleProfileId);
   if (!template.length) {
     const dataNeeds = getScoutingRoleDataNeeds(record, roleProfileId);
     return `
@@ -5256,7 +5392,8 @@ function renderScoutingRadar(record, roleProfileId = "") {
       </div>
     `;
   }
-  const metricRows = getScoutingRoleMetricRows(record, template);
+  const metricRows = Array.isArray(precomputedMetricRows) ? precomputedMetricRows : getScoutingRoleMetricRows(record, template);
+  const percentileByMetricId = new Map(metricRows.map((row) => [row.metricId, row.percentile]));
   const roleScore = getScoutingWeightedScoreFromRows(metricRows);
   const overPerformance = metricRows
     .filter((row) => Number.isFinite(row.percentile) && Number.isFinite(roleScore) && row.percentile >= roleScore + 10)
@@ -5267,7 +5404,7 @@ function renderScoutingRadar(record, roleProfileId = "") {
   const radius = 74;
   const angleOffset = -Math.PI / 2;
   const points = template.map((item, index) => {
-    const percentile = getScoutingTemplatePercentile(record, item) || 1;
+    const percentile = percentileByMetricId.get(item.metricId) || 1;
     const angle = angleOffset + (index / template.length) * Math.PI * 2;
     const valueRadius = radius * (percentile / 100);
     return {
@@ -5396,7 +5533,7 @@ function setScoutingShadowRecordMeta(slotId, recordId, patch = {}) {
     },
   };
   writeScoutingState();
-  renderScoutingWorkspace({ preserveFocus: true });
+  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: true }, id);
 }
 function moveScoutingShadowRecord(slotId, recordId, direction) {
   if (!canEditScoutingWorkspace()) {
@@ -5424,7 +5561,7 @@ function moveScoutingShadowRecord(slotId, recordId, direction) {
   state.shadowXi.selectedSlotId = slot.id;
   preferredScoutingShadowSlotId = slot.id;
   writeScoutingState();
-  renderScoutingWorkspace({ preserveFocus: true });
+  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: true }, id);
 }
 function reorderScoutingShadowRecord(slotId, recordId, beforeRecordId = "") {
   if (!canEditScoutingWorkspace()) {
@@ -5448,7 +5585,7 @@ function reorderScoutingShadowRecord(slotId, recordId, beforeRecordId = "") {
   state.shadowXi.selectedSlotId = slot.id;
   preferredScoutingShadowSlotId = slot.id;
   writeScoutingState();
-  renderScoutingWorkspace({ preserveFocus: true });
+  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: true }, id);
 }
 function setScoutingTargetStatusByDrag(targetId, status) {
   if (!canEditScoutingWorkspace()) {
@@ -5462,62 +5599,62 @@ function bindScoutingDragAndDrop() {
   if (!root) {
     return;
   }
-  root.querySelectorAll("[data-scouting-drag-shadow-record]").forEach((element) => {
-    element.draggable = true;
-    element.ondragstart = (event) => {
+  if (scoutingDragAndDropDelegatesBound && scoutingDragAndDropDelegateRoot === root) {
+    return;
+  }
+  scoutingDragAndDropDelegatesBound = true;
+  scoutingDragAndDropDelegateRoot = root;
+  root.addEventListener("dragstart", (event) => {
+    const shadowElement = event.target.closest("[data-scouting-drag-shadow-record]");
+    if (shadowElement && root.contains(shadowElement)) {
       scoutingDragState = {
         type: "shadow",
-        recordId: element.dataset.scoutingDragShadowRecord,
-        slotId: element.dataset.scoutingShadowSlot,
+        recordId: shadowElement.dataset.scoutingDragShadowRecord,
+        slotId: shadowElement.dataset.scoutingShadowSlot,
       };
       event.dataTransfer?.setData("text/plain", JSON.stringify(scoutingDragState));
-      event.dataTransfer?.setDragImage?.(element, 12, 12);
-    };
-  });
-  root.querySelectorAll("[data-scouting-shadow-drop-slot], [data-scouting-shadow-drop-before]").forEach((element) => {
-    element.ondragover = (event) => {
-      if (scoutingDragState?.type === "shadow") {
-        event.preventDefault();
-      }
-    };
-    element.ondrop = (event) => {
-      if (scoutingDragState?.type !== "shadow") {
-        return;
-      }
-      event.preventDefault();
-      reorderScoutingShadowRecord(
-        element.dataset.scoutingShadowDropSlot || scoutingDragState.slotId,
-        scoutingDragState.recordId,
-        element.dataset.scoutingShadowDropBefore || ""
-      );
-      scoutingDragState = null;
-    };
-  });
-  root.querySelectorAll("[data-scouting-drag-target]").forEach((element) => {
-    element.draggable = true;
-    element.ondragstart = (event) => {
+      event.dataTransfer?.setDragImage?.(shadowElement, 12, 12);
+      return;
+    }
+    const targetElement = event.target.closest("[data-scouting-drag-target]");
+    if (targetElement && root.contains(targetElement)) {
       scoutingDragState = {
         type: "target",
-        targetId: element.dataset.scoutingDragTarget,
+        targetId: targetElement.dataset.scoutingDragTarget,
       };
       event.dataTransfer?.setData("text/plain", JSON.stringify(scoutingDragState));
-      event.dataTransfer?.setDragImage?.(element, 12, 12);
-    };
+      event.dataTransfer?.setDragImage?.(targetElement, 12, 12);
+    }
   });
-  root.querySelectorAll("[data-scouting-target-drop-status]").forEach((element) => {
-    element.ondragover = (event) => {
-      if (scoutingDragState?.type === "target") {
-        event.preventDefault();
-      }
-    };
-    element.ondrop = (event) => {
-      if (scoutingDragState?.type !== "target") {
-        return;
-      }
+  root.addEventListener("dragover", (event) => {
+    if (scoutingDragState?.type === "shadow" && event.target.closest("[data-scouting-shadow-drop-slot], [data-scouting-shadow-drop-before]")) {
       event.preventDefault();
-      setScoutingTargetStatusByDrag(scoutingDragState.targetId, element.dataset.scoutingTargetDropStatus);
+    }
+    if (scoutingDragState?.type === "target" && event.target.closest("[data-scouting-target-drop-status]")) {
+      event.preventDefault();
+    }
+  });
+  root.addEventListener("drop", (event) => {
+    const shadowDrop = event.target.closest("[data-scouting-shadow-drop-slot], [data-scouting-shadow-drop-before]");
+    if (scoutingDragState?.type === "shadow" && shadowDrop && root.contains(shadowDrop)) {
+      event.preventDefault();
+      reorderScoutingShadowRecord(
+        shadowDrop.dataset.scoutingShadowDropSlot || scoutingDragState.slotId,
+        scoutingDragState.recordId,
+        shadowDrop.dataset.scoutingShadowDropBefore || ""
+      );
       scoutingDragState = null;
-    };
+      return;
+    }
+    const targetDrop = event.target.closest("[data-scouting-target-drop-status]");
+    if (scoutingDragState?.type === "target" && targetDrop && root.contains(targetDrop)) {
+      event.preventDefault();
+      setScoutingTargetStatusByDrag(scoutingDragState.targetId, targetDrop.dataset.scoutingTargetDropStatus);
+      scoutingDragState = null;
+    }
+  });
+  root.addEventListener("dragend", () => {
+    scoutingDragState = null;
   });
 }
 function getScoutingShadowCoverageScore(slotId, state = ensureScoutingState()) {
@@ -7840,16 +7977,174 @@ function normalizeScoutingProfileTab(value) {
 }
 function setScoutingProfileTab(tabId) {
   const state = ensureScoutingState();
-  state.profileTab = normalizeScoutingProfileTab(tabId);
+  const nextTab = normalizeScoutingProfileTab(tabId);
+  state.profileTab = nextTab;
   writeScoutingState({ syncCentral: false });
-  renderScoutingWorkspace({ preserveFocus: true });
+  if (ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]")) {
+    renderScoutingProfileModalIntoDom(state.selectedRecordId);
+  } else {
+    renderScoutingWorkspace({ preserveFocus: true });
+  }
+  if (nextTab === "history" && state.selectedRecordId) {
+    requestAnimationFrame(() => {
+      hydrateScoutingProfileApiDetails(state.selectedRecordId);
+    });
+  }
 }
 function setScoutingProfileRoleProfile(roleProfileId) {
   const state = ensureScoutingState();
   state.profileRoleProfileId = normalizeScoutingRoleProfileId(roleProfileId, "auto");
   writeScoutingState({ syncCentral: false });
-  renderScoutingWorkspace({ preserveFocus: true });
+  if (ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]")) {
+    renderScoutingProfileModalIntoDom(state.selectedRecordId);
+  } else {
+    renderScoutingWorkspace({ preserveFocus: true });
+  }
 }
+
+function renderScoutingProfileOverviewPanelShell(record) {
+  const recordId = getScoutingRecordId(record);
+  const nationality = getScoutingRecordNationalityMeta(record);
+  return `<section class="scouting-profile-dossier" data-scouting-profile-overview-shell="${escapeHtml(recordId)}">
+    <article class="scouting-action-card is-primary">
+      <span>Profile summary</span>
+      <strong>${escapeHtml(getScoutingRecordName(record))}</strong>
+      <p>${escapeHtml([getScoutingRecordPosition(record), getScoutingRecordTeam(record), getScoutingRecordLeague(record)].filter(Boolean).join(" / "))}</p>
+    </article>
+    <article class="scouting-action-card">
+      <span>Current row</span>
+      <strong>${escapeHtml(formatScoutingNumber(getScoutingRecordMinutes(record)))} min</strong>
+      <p>${escapeHtml([getScoutingRecordSeason(record) || "Season n/a", Number.isFinite(getScoutingRecordAge(record)) ? `${formatScoutingNumber(getScoutingRecordAge(record))} yrs` : "Age n/a"].join(" / "))}</p>
+    </article>
+    <article class="scouting-action-card">
+      <span>Nationality</span>
+      <strong>${escapeHtml([nationality.flag, nationality.code].filter(Boolean).join(" "))}</strong>
+      <p>${escapeHtml(nationality.label || "N/A")}</p>
+    </article>
+  </section>`;
+}
+
+function hydrateScoutingProfileOverviewPanel(recordId) {
+  const normalizedId = normalizeScoutingText(recordId, 160);
+  if (!normalizedId) {
+    return;
+  }
+  const state = ensureScoutingState();
+  if (state.selectedRecordId !== normalizedId || normalizeScoutingProfileTab(state.profileTab) !== "overview") {
+    return;
+  }
+  if (scoutingProfileOverviewPanelHydrateInProgress.has(normalizedId)) {
+    return;
+  }
+  const modal = ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]");
+  if (!modal) {
+    return;
+  }
+  const record = getScoutingRecordById(normalizedId);
+  if (!record) {
+    return;
+  }
+  scoutingProfileOverviewPanelHydrateInProgress.add(normalizedId);
+  const scheduleHydration = typeof window.requestIdleCallback === "function"
+    ? (callback) => window.requestIdleCallback(callback, { timeout: 1200 })
+    : (callback) => window.setTimeout(callback, 80);
+  scheduleHydration(() => {
+    try {
+      const latestState = ensureScoutingState();
+      if (latestState.selectedRecordId !== normalizedId || normalizeScoutingProfileTab(latestState.profileTab) !== "overview") {
+        return;
+      }
+      const latestModal = ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]");
+      if (!latestModal) {
+        return;
+      }
+      const profileRoleProfileId = normalizeScoutingRoleProfileId(latestState.profileRoleProfileId, "auto");
+      const selectedProfileRoleId = profileRoleProfileId === "auto" ? "" : profileRoleProfileId;
+      const roleFitScore = getScoutingRoleFitScore(record, selectedProfileRoleId);
+      const intelligence = getScoutingIntelligenceProfile(record, latestState, selectedProfileRoleId);
+      const shadowRoles = scoutingShadowSlots.filter((slot) => getScoutingShadowSlotRecordIds(slot.id, latestState).includes(normalizedId));
+      const dossierNode = Array.from(latestModal.querySelectorAll("[data-scouting-profile-overview-shell]")).find((entry) => entry.dataset.scoutingProfileOverviewShell === normalizedId);
+      if (dossierNode) {
+        const profileRows = getScoutingRecordsForPlayer(record).slice(0, 10);
+        dossierNode.outerHTML = renderScoutingProfileDossier(record, latestState, profileRows);
+      }
+      const decisionStrip = latestModal.querySelector("[data-scouting-profile-decision-strip]");
+      if (decisionStrip) {
+        const roleFit = decisionStrip.querySelector("[data-scouting-profile-role-fit]");
+        const roleFitLabel = decisionStrip.querySelector("[data-scouting-profile-role-fit-label]");
+        const roleFloor = decisionStrip.querySelector("[data-scouting-profile-role-floor]");
+        const roleFloorLabel = decisionStrip.querySelector("[data-scouting-profile-role-floor-label]");
+        const confidence = decisionStrip.querySelector("[data-scouting-profile-confidence]");
+        const signalLabel = decisionStrip.querySelector("[data-scouting-profile-best-signal]");
+        const roleStack = decisionStrip.querySelector("[data-scouting-profile-role-stack]");
+        const roleStackLabel = decisionStrip.querySelector("[data-scouting-profile-role-stack-label]");
+        if (roleFit) {
+          roleFit.className = `is-${escapeHtml(getScoutingRoleFitTier(roleFitScore))}`;
+          roleFit.textContent = Number.isFinite(roleFitScore) ? `P${escapeHtml(formatScoutingNumber(roleFitScore))}` : "n/a";
+        }
+        if (roleFitLabel) {
+          roleFitLabel.textContent = escapeHtml([getScoutingRoleFitLabel(roleFitScore), intelligence?.roleLabel].filter(Boolean).join(" / "));
+        }
+        if (roleFloor) {
+          roleFloor.textContent = Number.isFinite(intelligence?.floor?.score) ? `P${escapeHtml(formatScoutingNumber(intelligence.floor.score))}` : "n/a";
+        }
+        if (roleFloorLabel) {
+          roleFloorLabel.textContent = escapeHtml(intelligence?.floor?.label || "No floor signal");
+        }
+        if (confidence) {
+          confidence.textContent = escapeHtml(intelligence?.confidence?.label || "n/a");
+        }
+        if (signalLabel) {
+          signalLabel.textContent = escapeHtml(intelligence?.signal?.headline || "No standout role signal yet");
+        }
+        if (roleStack) {
+          roleStack.textContent = String(shadowRoles.length);
+        }
+        if (roleStackLabel) {
+          roleStackLabel.textContent = escapeHtml(shadowRoles.length ? shadowRoles.map((slot) => slot.label).join(", ") : "Not in Shadow XI");
+        }
+      }
+    } finally {
+      scoutingProfileOverviewPanelHydrateInProgress.delete(normalizedId);
+    }
+  });
+}
+
+function renderScoutingProfileModalIntoDom(recordId) {
+  const state = ensureScoutingState();
+  const normalizedId = normalizeScoutingText(recordId, 160) || normalizeScoutingText(state.selectedRecordId, 160);
+  if (!normalizedId) {
+    return false;
+  }
+  const workspace = ui.scoutingWorkspace;
+  if (!workspace) {
+    return false;
+  }
+  state.selectedRecordId = normalizedId;
+  const modalMarkup = renderScoutingProfileModal();
+  if (!modalMarkup) {
+    const existingBackdrop = workspace.querySelector(".scouting-profile-backdrop");
+    if (existingBackdrop) {
+      existingBackdrop.remove();
+    }
+    return false;
+  }
+  const parser = document.createElement("template");
+  parser.innerHTML = modalMarkup;
+  const nextBackdrop = parser.content.firstElementChild;
+  if (!nextBackdrop) {
+    return false;
+  }
+  const existingBackdrop = workspace.querySelector(".scouting-profile-backdrop");
+  if (existingBackdrop) {
+    existingBackdrop.replaceWith(nextBackdrop);
+  } else {
+    workspace.insertAdjacentHTML("beforeend", modalMarkup);
+  }
+  bindScoutingRecordMiniRadarShells();
+  return true;
+}
+
 function renderScoutingProfileTabs(activeTab) {
   return `
     <nav class="scouting-profile-tabs" aria-label="Scouting profile sections">
@@ -7867,13 +8162,27 @@ function renderScoutingProfileTabs(activeTab) {
 }
 function getScoutingProfileNavigation(record) {
   const recordId = getScoutingRecordId(record);
-  const records = getFilteredScoutingDatabaseRecords();
-  const index = records.findIndex((item) => getScoutingRecordId(item) === recordId);
+  let cache = scoutingFilteredDatabaseNavigationCache;
+  if (!cache.indexById.has(recordId) && scoutingFilteredDatabaseCache.key && scoutingFilteredDatabaseCache.records.length) {
+    cache = hydrateScoutingFilteredDatabaseNavigationCache(
+      scoutingFilteredDatabaseCache.records.slice(0, SCOUTING_DATABASE_PAGE_SIZE),
+      `${scoutingFilteredDatabaseCache.key}:profile-visible`
+    );
+  }
+  const index = cache.indexById.get(recordId);
+  if (!Number.isFinite(index)) {
+    return {
+      index: -1,
+      total: cache.ids.length,
+      previous: null,
+      next: null,
+    };
+  }
   return {
     index,
-    total: records.length,
-    previous: index > 0 ? records[index - 1] : null,
-    next: index >= 0 && index < records.length - 1 ? records[index + 1] : null,
+    total: cache.ids.length,
+    previous: index > 0 ? getScoutingRecordById(cache.ids[index - 1]) : null,
+    next: index >= 0 && index < cache.ids.length - 1 ? getScoutingRecordById(cache.ids[index + 1]) : null,
   };
 }
 function renderScoutingProfileNavigation(record) {
@@ -8995,6 +9304,7 @@ function renderScoutingDatabaseControls() {
           <span>Search</span>
           <input type="search" name="query" value="${escapeHtml(filters.query)}" placeholder="Player, club, league, player type" />
         </label>
+        <button type="submit" class="scouting-primary-button">Search</button>
       </form>
       <div class="scouting-database-quick-filters">
         <label>
@@ -9318,6 +9628,16 @@ function getScoutingDataQualitySummary() {
   const options = getScoutingDatabaseOptions();
   const metricOptions = getScoutingMetricOptions();
   const metricOptionCount = metricOptions.length;
+  const cacheKey = [
+    getScoutingRecordLookupFingerprint(database),
+    metricOptionCount,
+    options.seasons.length,
+    options.leagues.length,
+    options.positions.length,
+  ].join("|");
+  if (scoutingDataQualitySummaryCache.key === cacheKey && scoutingDataQualitySummaryCache.value) {
+    return scoutingDataQualitySummaryCache.value;
+  }
   const seenKeys = new Set();
   let duplicateRows = 0;
   let missingCore = 0;
@@ -9367,7 +9687,7 @@ function getScoutingDataQualitySummary() {
   });
   const metricAverage = records.length ? Math.round(metricValueCount / records.length) : 0;
   const coreCompleteness = records.length ? Math.round(((records.length - missingCore) / records.length) * 100) : 0;
-  return {
+  const summary = {
     records: records.length,
     sheets: database?.sheets?.length || 0,
     metrics: database?.metrics?.length || 0,
@@ -9384,6 +9704,8 @@ function getScoutingDataQualitySummary() {
     estimatedMetrics,
     missingMetrics,
   };
+  scoutingDataQualitySummaryCache = { key: cacheKey, value: summary };
+  return summary;
 }
 function renderScoutingDataQualityPanel() {
   const summary = getScoutingDataQualitySummary();
@@ -9428,6 +9750,10 @@ function getScoutingDatabaseResultsMarkup() {
     : `${total.toLocaleString("en-US")} players match. ${
         total ? `Showing ${shownStart.toLocaleString("en-US")}-${shownEnd.toLocaleString("en-US")} of ${total.toLocaleString("en-US")}.` : ""
       }`;
+  hydrateScoutingFilteredDatabaseNavigationCache(
+    visibleRecords,
+    `${scoutingFilteredDatabaseCache.key}:visible:${pageOffset}:${visibleRecords.length}`
+  );
   return {
     records,
     visibleRecords,
@@ -9587,6 +9913,7 @@ function renderScoutingShadowXi() {
                               <div class="scouting-shadow-player-row" style="--stack:${index};">
                                 <article
                                   class="scouting-shadow-player"
+                                  draggable="true"
                                   data-scouting-drag-shadow-record="${escapeHtml(recordId)}"
                                   data-scouting-shadow-slot="${escapeHtml(slot.id)}"
                                   data-scouting-shadow-drop-slot="${escapeHtml(slot.id)}"
@@ -9649,6 +9976,7 @@ function renderScoutingShadowXi() {
                                 return `
                                   <article
                                     class="scouting-shadow-depth-player"
+                                    draggable="true"
                                     data-scouting-drag-shadow-record="${escapeHtml(recordId)}"
                                     data-scouting-shadow-slot="${escapeHtml(slot.id)}"
                                     data-scouting-shadow-drop-slot="${escapeHtml(slot.id)}"
@@ -9776,7 +10104,7 @@ function renderScoutingTargetCard(target) {
   const minutes = record ? getScoutingRecordMinutes(record) : 0;
   const age = target?.age || "";
   return `
-    <article class="scouting-target-card" data-scouting-drag-target="${escapeHtml(target.id)}">
+    <article class="scouting-target-card" draggable="true" data-scouting-drag-target="${escapeHtml(target.id)}">
       <div class="scouting-target-main">
         <strong>${escapeHtml(recordName)}</strong>
         <span>${escapeHtml(slot ? slot.label : "Open")}</span>
@@ -10332,31 +10660,15 @@ function renderScoutingProfileModal() {
   const profileRoleProfileId = normalizeScoutingRoleProfileId(state.profileRoleProfileId, "auto");
   const selectedProfileRoleId = profileRoleProfileId === "auto" ? "" : profileRoleProfileId;
   const activeProfileTab = normalizeScoutingProfileTab(state.profileTab);
-  const needsOverviewData = activeProfileTab === "overview";
   const needsPerformanceData = activeProfileTab === "performance";
   const needsHistoryData = activeProfileTab === "history";
-  const radarTemplate =
-    needsOverviewData || needsPerformanceData ? getScoutingRadarTemplate(record, selectedProfileRoleId) : { profileLabel: "" };
+  const radarTemplate = needsPerformanceData ? getScoutingRadarTemplate(record, selectedProfileRoleId) : { profileLabel: "" };
   const profileMetrics = needsPerformanceData ? getScoutingRoleMetricRows(record, radarTemplate) : [];
-  const topMetrics = needsPerformanceData
-    ? getScoutingMetricOptions()
-        .map((metric) => ({
-          metric,
-          value: getScoutingMetricValue(record, metric.id),
-          percentile: getScoutingComparablePercentile(record, metric.id),
-        }))
-        .filter((item) => Number.isFinite(item.value) && Number.isFinite(item.percentile))
-        .sort((a, b) => b.percentile - a.percentile)
-        .slice(0, 10)
-    : [];
-  const playerRows = needsOverviewData || needsPerformanceData || needsHistoryData ? getScoutingRecordsForPlayer(record).slice(0, 10) : [];
-  const roleFitScore = needsOverviewData ? getScoutingRoleFitScore(record, selectedProfileRoleId) : null;
-  const intelligence =
-    needsOverviewData || needsPerformanceData ? getScoutingIntelligenceProfile(record, state, selectedProfileRoleId) : null;
-  const shadowRoles = needsOverviewData ? scoutingShadowSlots.filter((slot) => getScoutingShadowSlotRecordIds(slot.id, state).includes(recordId)) : [];
+  const playerRows = needsPerformanceData || needsHistoryData ? getScoutingRecordsForPlayer(record).slice(0, 10) : [];
   const goalMetricId = needsPerformanceData ? getScoutingMetricIdByLabels(["Goals"]) : "";
   const xgMetricId = needsPerformanceData ? getScoutingMetricIdByLabels(["xG"]) : "";
   const assistMetricId = needsPerformanceData ? getScoutingMetricIdByLabels(["Assists"]) : "";
+  const shadowRoles = activeProfileTab === "overview" ? scoutingShadowSlots.filter((slot) => getScoutingShadowSlotRecordIds(slot.id, state).includes(recordId)) : [];
   const target = findScoutingTargetByRecordId(recordId, state);
   const listOptions = state.lists
     .map((list) => `<option value="${escapeHtml(list.id)}">${escapeHtml(list.name)}</option>`)
@@ -10451,27 +10763,27 @@ function renderScoutingProfileModal() {
         </header>
         ${renderScoutingProfileTabs(activeProfileTab)}
         <div class="scouting-profile-tab-panel ${activeProfileTab === "overview" ? "is-active" : ""}">
-          ${activeProfileTab === "overview" ? renderScoutingProfileDossier(record, state, playerRows) : ""}
-          <div class="scouting-profile-decision-strip">
+          ${activeProfileTab === "overview" ? renderScoutingProfileOverviewPanelShell(record) : ""}
+          <div class="scouting-profile-decision-strip" data-scouting-profile-decision-strip>
             <div>
               <span>Role fit</span>
-              <strong class="is-${escapeHtml(getScoutingRoleFitTier(roleFitScore))}">${Number.isFinite(roleFitScore) ? `P${escapeHtml(roleFitScore)}` : "n/a"}</strong>
-              <em>${escapeHtml([getScoutingRoleFitLabel(roleFitScore), radarTemplate.profileLabel].filter(Boolean).join(" / "))}</em>
+              <strong class="is-unknown" data-scouting-profile-role-fit>n/a</strong>
+              <em data-scouting-profile-role-fit-label>Open Performance</em>
             </div>
             <div>
               <span>Role floor</span>
-              <strong>${escapeHtml(Number.isFinite(intelligence?.floor?.score) ? `P${intelligence.floor.score}` : "n/a")}</strong>
-              <em>${escapeHtml(intelligence?.floor?.label || "Open overview")}</em>
+              <strong data-scouting-profile-role-floor>n/a</strong>
+              <em data-scouting-profile-role-floor-label>Open Performance</em>
             </div>
             <div>
               <span>Best signal</span>
-              <strong>${escapeHtml(intelligence?.confidence?.label || "n/a")}</strong>
-              <em>${escapeHtml(intelligence?.signal?.headline || "Open overview")}</em>
+              <strong data-scouting-profile-confidence>n/a</strong>
+              <em data-scouting-profile-best-signal>Open Performance</em>
             </div>
             <div>
               <span>Role stack</span>
-              <strong>${shadowRoles.length}</strong>
-              <em>${escapeHtml(shadowRoles.length ? shadowRoles.map((slot) => slot.label).join(", ") : "Not in Shadow XI")}</em>
+              <strong data-scouting-profile-role-stack>${shadowRoles.length}</strong>
+              <em data-scouting-profile-role-stack-label>${escapeHtml(shadowRoles.length ? shadowRoles.map((slot) => slot.label).join(", ") : "Not in Shadow XI")}</em>
             </div>
             <div>
               <span>Minutes</span>
@@ -10494,7 +10806,7 @@ function renderScoutingProfileModal() {
                 ${renderScoutingRoleProfileOptions(profileRoleProfileId, { auto: true })}
               </select>
             </label>
-            ${renderScoutingRadar(record, selectedProfileRoleId)}
+            ${renderScoutingRadar(record, selectedProfileRoleId, radarTemplate, profileMetrics)}
           </section>
           <section class="scouting-profile-metrics">
             <h3>Role spider metrics</h3>
@@ -10512,30 +10824,8 @@ function renderScoutingProfileModal() {
                   `
                       )
                       .join("")
-                  : `<p class="scouting-muted">No data. Needs: ${escapeHtml((intelligence?.risk?.needs || []).join(", ") || "role metrics")}</p>`
+                  : `<p class="scouting-muted">No data. Needs role metrics.</p>`
               }
-            </div>
-          </section>
-          ${renderScoutingRoleFitStack(record)}
-          ${renderScoutingRoleExplanation(record, radarTemplate)}
-          ${renderScoutingTrendPanel(record, radarTemplate, playerRows)}
-          ${renderScoutingCalibrationPanel(record, state, selectedProfileRoleId)}
-          ${renderScoutingDataReadinessPanel(record, state, selectedProfileRoleId)}
-          ${renderScoutingIdentityAuditPanel(record)}
-          <section class="scouting-profile-metrics">
-            <h3>Best percentile signals</h3>
-            <div class="scouting-metric-stack">
-              ${topMetrics
-                .map(
-                  (item) => `
-                    <div>
-                      <span>${escapeHtml(item.metric.label)}</span>
-                      <strong>P${escapeHtml(item.percentile)}</strong>
-                      <em>${escapeHtml(formatScoutingNumber(item.value))}</em>
-                    </div>
-                  `
-                )
-                .join("")}
             </div>
           </section>
           <section class="scouting-season-table">
@@ -10705,6 +10995,52 @@ function refreshScoutingWorkspaceSummaryMetrics() {
     summaryNodes.shadowTargets.textContent = String(shadowCounts.playerCount);
   }
 }
+function refreshScoutingProfileShadowSummary(recordId) {
+  const normalizedRecordId = normalizeScoutingText(recordId, 160);
+  if (!normalizedRecordId) {
+    return;
+  }
+  const modal = ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]");
+  if (!modal) {
+    return;
+  }
+  const decisionStrip = modal.querySelector("[data-scouting-profile-decision-strip]");
+  if (!decisionStrip) {
+    return;
+  }
+  const state = ensureScoutingState();
+  const shadowRoles = scoutingShadowSlots.filter((slot) => getScoutingShadowSlotRecordIds(slot.id, state).includes(normalizedRecordId));
+  const roleStack = decisionStrip.querySelector("[data-scouting-profile-role-stack]");
+  const roleStackLabel = decisionStrip.querySelector("[data-scouting-profile-role-stack-label]");
+  if (roleStack) {
+    roleStack.textContent = String(shadowRoles.length);
+  }
+  if (roleStackLabel) {
+    roleStackLabel.textContent = shadowRoles.length ? shadowRoles.map((slot) => slot.label).join(", ") : "Not in Shadow XI";
+  }
+}
+function refreshScoutingWorkspaceAfterShadowMutation(options = {}, recordId = "") {
+  const state = ensureScoutingState();
+  const preserveFocus = options.preserveFocus !== false;
+  const hasProfileModal = Boolean(ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]"));
+  if (hasProfileModal && recordId) {
+    refreshScoutingProfileShadowSummary(recordId);
+  }
+  if (!ui.scoutingWorkspace) {
+    return;
+  }
+  refreshScoutingWorkspaceSummaryMetrics();
+  if (hasProfileModal) {
+    return;
+  }
+  if (["database", "lists", "shadow-xi", "opposition", "reports"].includes(state.activeTab)) {
+    const updated = rerenderScoutingActiveContent({ preserveFocus });
+    if (updated) {
+      return;
+    }
+  }
+  renderScoutingWorkspace({ preserveFocus });
+}
 function rerenderScoutingActiveContent(options = {}) {
   if (!ui.scoutingWorkspace) {
     return false;
@@ -10776,6 +11112,10 @@ function setScoutingActiveTab(tabId) {
     return;
   }
   state.activeTab = tabId;
+  if (tabId === "shadow-xi") {
+    preferredScoutingShadowSlotId = "";
+    state.shadowXi.selectedSlotId = "";
+  }
   writeScoutingState({ syncCentral: false });
   renderScoutingWorkspace();
 }
@@ -10996,56 +11336,46 @@ function shouldFocusScoutingProfileModal(recordId) {
   );
 }
 function ensureScoutingProfileFocusObserver() {
-  if (scoutingProfileFocusObserver || typeof MutationObserver !== "function" || !ui.scoutingWorkspace) {
-    return;
-  }
-  scoutingProfileFocusObserver = new MutationObserver(() => {
-    const selectedRecordId = ensureScoutingState().selectedRecordId;
-    if (shouldFocusScoutingProfileModal(selectedRecordId)) {
-      focusScoutingProfileModal();
-    }
-  });
-  scoutingProfileFocusObserver.observe(ui.scoutingWorkspace, { childList: true, subtree: true });
+  return;
 }
 function queueScoutingProfileModalFocus(recordId) {
   const targetId = normalizeScoutingText(recordId, 160);
-  window.clearInterval(scoutingProfileFocusTimer);
-  const startedAt = Date.now();
+  window.clearTimeout(scoutingProfileFocusTimer);
   const applyFocus = () => {
     if (ensureScoutingState().selectedRecordId !== targetId || !shouldFocusScoutingProfileModal(targetId)) {
-      window.clearInterval(scoutingProfileFocusTimer);
+      window.clearTimeout(scoutingProfileFocusTimer);
       scoutingProfileFocusTimer = 0;
       return;
     }
     focusScoutingProfileModal();
-    const modal = ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]");
-    if (modal && document.activeElement === modal && Date.now() - startedAt >= 2000) {
-      window.clearInterval(scoutingProfileFocusTimer);
-      scoutingProfileFocusTimer = 0;
-      scoutingPendingProfileFocusRecordId = "";
-      scoutingPendingProfileFocusUntil = 0;
-    }
+    scoutingProfileFocusTimer = 0;
+    scoutingPendingProfileFocusRecordId = "";
+    scoutingPendingProfileFocusUntil = 0;
   };
-  applyFocus();
-  scoutingProfileFocusTimer = window.setInterval(applyFocus, 250);
+  scoutingProfileFocusTimer = window.setTimeout(applyFocus, 40);
 }
 function openScoutingRecordProfile(recordId) {
   const state = ensureScoutingState();
-  state.selectedRecordId = normalizeScoutingText(recordId, 160);
+  const normalizedRecordId = normalizeScoutingText(recordId, 160);
+  if (!normalizedRecordId) {
+    return;
+  }
+  const modalExists = Boolean(ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]"));
+  const isSamePlayer = state.selectedRecordId === normalizedRecordId;
+  if (modalExists && isSamePlayer) {
+    queueScoutingProfileModalFocus(normalizedRecordId);
+    return;
+  }
+  state.selectedRecordId = normalizedRecordId;
   state.profileTab = "overview";
   state.profileRoleProfileId = "auto";
   scoutingPendingProfileFocusRecordId = state.selectedRecordId;
-  scoutingPendingProfileFocusUntil = Date.now() + 420_000;
+  scoutingPendingProfileFocusUntil = Date.now() + 1500;
   writeScoutingState({ syncCentral: false });
   ensureScoutingProfileFocusObserver();
-  queueScoutingProfileModalFocus(state.selectedRecordId);
-  renderScoutingWorkspace();
+  renderScoutingProfileModalIntoDom(state.selectedRecordId);
   focusScoutingProfileModal();
   queueScoutingProfileModalFocus(state.selectedRecordId);
-  requestAnimationFrame(() => {
-    focusScoutingProfileModal();
-    hydrateScoutingProfileApiDetails(state.selectedRecordId);
-  });
 }
 function closeScoutingRecordProfile() {
   const state = ensureScoutingState();
@@ -11161,11 +11491,7 @@ function addScoutingRecordToShadow(recordId, slotId) {
   state.shadowXi.selectedSlotId = slot.id;
   preferredScoutingShadowSlotId = slot.id;
   writeScoutingState();
-  if (ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]")) {
-    refreshScoutingWorkspaceSummaryMetrics();
-    return;
-  }
-  refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: state.activeTab === "database" });
+  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: state.activeTab === "database" }, id);
 }
 function removeScoutingRecordFromShadow(recordId, slotId) {
   if (!canEditScoutingWorkspace()) {
@@ -11194,7 +11520,7 @@ function removeScoutingRecordFromShadow(recordId, slotId) {
   state.shadowXi.selectedSlotId = slot.id;
   preferredScoutingShadowSlotId = slot.id;
   writeScoutingState();
-  refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
+  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: true }, id);
 }
 export function render(context) {
   setScoutingContext(context);

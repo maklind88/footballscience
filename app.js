@@ -1359,8 +1359,8 @@ importVersion: "",
 events: [],
 };
 const scoutingTabs = [
-{ id: "shadow-xi", label: "Shadow XI" },
 { id: "my-team", label: "My Team" },
+{ id: "shadow-xi", label: "Shadow XI" },
 { id: "database", label: "Database" },
 { id: "lists", label: "Lists" },
 { id: "reports", label: "Reports" },

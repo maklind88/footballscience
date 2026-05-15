@@ -1687,6 +1687,13 @@ const medicalInjuryDurationPresets = [
 const medicalActualParticipationFallback = "not-logged";
 const medicalWindowLength = 7;
 const medicalDefaultRosterVersion = "ncc-2026-roster-v1";
+const medicalOperationsTabOptions = [
+{ key: "overview", label: "Overview" },
+{ key: "signals", label: "Risk Signals" },
+{ key: "cases", label: "Active Cases" },
+{ key: "history", label: "History" },
+{ key: "season", label: "Season" },
+];
 const medicalPositionOrder = {
 Goalkeeper: 1,
 Defender: 2,
@@ -4097,6 +4104,7 @@ let scheduleDayPanelMode = "view";
 let medicalState = null;
 let medicalRosterSearchQuery = "";
 let medicalStatusFilter = "all";
+let medicalOperationsTab = "overview";
 let medicalPlayerModalOpen = false;
 let medicalBulkSelectedPlayerIds = new Set();
 let medicalBulkRecommendationOpen = false;
@@ -27899,6 +27907,594 @@ reviewAlerts.length
 </section>
 `;
 }
+function normalizeMedicalOperationsTab(tabKey) {
+return medicalOperationsTabOptions.some((tab) => tab.key === tabKey) ? tabKey : "overview";
+}
+function getMedicalPlanTotalDays(plan) {
+if (!plan) {
+return 0;
+}
+return getMedicalDaySpan(plan.startDate, plan.endDate) ?? 0;
+}
+function getMedicalPlanElapsedDays(plan, dateValue = medicalState?.selectedDate) {
+if (!plan || !isMedicalDateValue(dateValue) || plan.startDate > dateValue) {
+return 0;
+}
+const endDate = plan.endDate < dateValue ? plan.endDate : dateValue;
+return getMedicalDaySpan(plan.startDate, endDate) ?? 0;
+}
+function getMedicalPlanDaysRemaining(plan, dateValue = medicalState?.selectedDate) {
+if (!plan || !isMedicalDateValue(dateValue) || plan.endDate < dateValue) {
+return 0;
+}
+const startDate = plan.startDate > dateValue ? plan.startDate : dateValue;
+return getMedicalDaySpan(startDate, plan.endDate) ?? 0;
+}
+function getMedicalPlanSeverity(plan) {
+const totalDays = getMedicalPlanTotalDays(plan);
+if (plan?.participation === 0 && totalDays >= 28) {
+return { key: "major", label: "Major", tone: "high", weight: 4 };
+}
+if (plan?.participation === 0 || totalDays >= 14) {
+return { key: "moderate", label: "Moderate", tone: "medium", weight: 3 };
+}
+if (plan?.participation < 100 || totalDays >= 7) {
+return { key: "minor", label: "Minor", tone: "low", weight: 2 };
+}
+return { key: "light", label: "Light", tone: "clear", weight: 1 };
+}
+function getMedicalPlanClearanceSummary(plan) {
+const clearance = normalizeMedicalClearance(plan?.clearance);
+const gates = normalizeMedicalLoadGates(plan?.gates);
+const signOffCount = medicalClearanceRoles.filter((role) => clearance[role.key]).length;
+const gatePassCount = medicalLoadGateOptions.filter((gate) => gates[gate.key] === "pass").length;
+const gateFailCount = medicalLoadGateOptions.filter((gate) => gates[gate.key] === "fail").length;
+const gateMonitorCount = medicalLoadGateOptions.filter((gate) => gates[gate.key] === "monitor").length;
+return {
+signOffCount,
+gatePassCount,
+gateFailCount,
+gateMonitorCount,
+isCleared: isMedicalPlanCleared(plan),
+};
+}
+function getMedicalPlanReviewState(plan, dateValue = medicalState?.selectedDate) {
+if (!plan?.reviewDate || !isMedicalDateValue(dateValue)) {
+return { key: "none", label: "No review date", severity: 0 };
+}
+const reviewDate = plan.reviewDate;
+const daysUntil = Math.round((parseScheduleDateValue(reviewDate) - parseScheduleDateValue(dateValue)) / (24 * 60 * 60 * 1000));
+if (daysUntil < 0) {
+return { key: "overdue", label: "Review overdue", severity: 3, daysUntil };
+}
+if (daysUntil <= 7) {
+return { key: "due", label: `Review ${formatMedicalDateLabel(reviewDate)}`, severity: 2, daysUntil };
+}
+return { key: "scheduled", label: `Review ${formatMedicalDateLabel(reviewDate)}`, severity: 0, daysUntil };
+}
+function getMedicalTrailingRecommendationSummary(playerId, dateValue = medicalState?.selectedDate) {
+const records = getMedicalPastWindowDates(dateValue)
+.map((windowDate) => getLatestMedicalRecord(playerId, windowDate))
+.filter(Boolean);
+const modifiedDays = records.filter((record) => record.participation > 0 && record.participation < 100).length;
+const unavailableDays = records.filter((record) => record.participation === 0).length;
+const loggedActual = records.filter((record) => record.actualParticipation !== medicalActualParticipationFallback);
+const exceededCount = loggedActual.filter((record) => Number(record.actualParticipation) > record.participation).length;
+return {
+records,
+modifiedDays,
+unavailableDays,
+exceededCount,
+average: records.length
+? Math.round(records.reduce((sum, record) => sum + record.participation, 0) / records.length)
+: null,
+};
+}
+function getMedicalSeasonWindow(dateValue = medicalState?.selectedDate) {
+const selected = isMedicalDateValue(dateValue) ? parseScheduleDateValue(dateValue) : new Date();
+const yearStart = new Date(selected.getFullYear(), 0, 1);
+return {
+startDate: formatScheduleDateValue(yearStart),
+endDate: formatScheduleDateValue(selected),
+};
+}
+function medicalPlanOverlapsWindow(plan, startDate, endDate) {
+return Boolean(plan && plan.startDate <= endDate && plan.endDate >= startDate);
+}
+function getMedicalSeasonPlans(dateValue = medicalState?.selectedDate) {
+ensureMedicalState();
+const { startDate, endDate } = getMedicalSeasonWindow(dateValue);
+return medicalState.injuryPlans.filter((plan) => medicalPlanOverlapsWindow(plan, startDate, endDate));
+}
+function getMedicalActiveCaseItems(dateValue = medicalState?.selectedDate) {
+ensureMedicalState();
+return medicalState.injuryPlans
+.filter((plan) => isMedicalInjuryPlanActive(plan, dateValue))
+.map((plan) => ({
+plan,
+player: medicalState.players.find((player) => player.id === plan.playerId) ?? null,
+severity: getMedicalPlanSeverity(plan),
+clearance: getMedicalPlanClearanceSummary(plan),
+daysRemaining: getMedicalPlanDaysRemaining(plan, dateValue),
+elapsedDays: getMedicalPlanElapsedDays(plan, dateValue),
+review: getMedicalPlanReviewState(plan, dateValue),
+}))
+.filter((item) => item.player)
+.sort((first, second) => {
+if (first.severity.weight !== second.severity.weight) {
+return second.severity.weight - first.severity.weight;
+}
+if (first.review.severity !== second.review.severity) {
+return second.review.severity - first.review.severity;
+}
+return first.plan.endDate.localeCompare(second.plan.endDate);
+});
+}
+function getMedicalHistoryEvents(limit = 40) {
+ensureMedicalState();
+const playerById = new Map(medicalState.players.map((player) => [player.id, player]));
+const recommendationEvents = medicalState.records.map((record) => {
+const player = playerById.get(record.playerId) ?? null;
+return {
+id: record.id,
+date: record.date,
+sortTime: record.createdAt || `${record.date}T00:00:00.000Z`,
+player,
+type: "Recommendation",
+title: `${record.participation}% / ${getMedicalStatusOption(record.status).label}`,
+detail: record.actualParticipation === medicalActualParticipationFallback
+? getMedicalRtpPhaseOption(record.rtpPhase).label
+: `Actual ${record.actualParticipation}%`,
+coachShared: record.shareWithCoach,
+};
+});
+const caseEvents = medicalState.injuryPlans.map((plan) => {
+const player = playerById.get(plan.playerId) ?? null;
+return {
+id: plan.id,
+date: plan.startDate,
+sortTime: plan.createdAt || `${plan.startDate}T00:00:00.000Z`,
+player,
+type: "Case opened",
+title: plan.injuryType,
+detail: `${getMedicalRtpPhaseOption(plan.rtpPhase).label} / ${plan.participation}% / ${getMedicalPlanTotalDays(plan)} days`,
+coachShared: plan.shareWithCoach,
+};
+});
+return [...recommendationEvents, ...caseEvents]
+.filter((event) => event.player)
+.sort((first, second) => {
+const dateComparison = second.date.localeCompare(first.date);
+if (dateComparison !== 0) {
+return dateComparison;
+}
+return new Date(second.sortTime) - new Date(first.sortTime);
+})
+.slice(0, limit);
+}
+function getMedicalSeasonSummary(dateValue = medicalState?.selectedDate) {
+const plans = getMedicalSeasonPlans(dateValue);
+const summary = {
+plans,
+major: 0,
+moderate: 0,
+minor: 0,
+light: 0,
+activeCount: 0,
+returnedCount: 0,
+managedDays: 0,
+unavailableDays: 0,
+playerDays: new Map(),
+};
+plans.forEach((plan) => {
+const severity = getMedicalPlanSeverity(plan);
+summary[severity.key] += 1;
+if (isMedicalInjuryPlanActive(plan, dateValue)) {
+summary.activeCount += 1;
+}
+if (plan.endDate < dateValue) {
+summary.returnedCount += 1;
+}
+const elapsedDays = getMedicalPlanElapsedDays(plan, dateValue);
+summary.managedDays += elapsedDays;
+if (plan.participation === 0) {
+summary.unavailableDays += elapsedDays;
+}
+summary.playerDays.set(plan.playerId, (summary.playerDays.get(plan.playerId) ?? 0) + elapsedDays);
+});
+summary.topPlayerDays = Array.from(summary.playerDays.entries())
+.map(([playerId, days]) => ({
+player: medicalState.players.find((player) => player.id === playerId) ?? null,
+days,
+}))
+.filter((item) => item.player)
+.sort((first, second) => second.days - first.days)
+.slice(0, 5);
+return summary;
+}
+function getMedicalPlayerRiskSignal(player, dateValue = medicalState?.selectedDate) {
+const record = getLatestMedicalRecord(player.id, dateValue);
+const status = getMedicalRecordStatus(record);
+const activePlan = getActiveMedicalInjuryPlan(player.id, dateValue);
+const playerPlans = getMedicalPlayerInjuryPlans(player.id);
+const trailing = getMedicalTrailingRecommendationSummary(player.id, dateValue);
+const drivers = [];
+if (record?.participation === 0) {
+drivers.push({ label: "Unavailable today", severity: 3 });
+} else if (record && record.participation < 100) {
+drivers.push({ label: `${record.participation}% recommendation`, severity: 2 });
+}
+if (record && record.actualParticipation !== medicalActualParticipationFallback && Number(record.actualParticipation) > record.participation) {
+drivers.push({ label: "Actual exceeded recommendation", severity: 3 });
+}
+if (activePlan) {
+drivers.push({ label: activePlan.injuryType, severity: activePlan.participation === 0 ? 3 : 2 });
+const review = getMedicalPlanReviewState(activePlan, dateValue);
+if (review.severity) {
+drivers.push({ label: review.label, severity: review.severity });
+}
+const clearance = getMedicalPlanClearanceSummary(activePlan);
+if (!clearance.isCleared) {
+drivers.push({ label: "Clearance incomplete", severity: activePlan.participation >= 100 ? 3 : 2 });
+}
+if (clearance.gateFailCount) {
+drivers.push({ label: `${clearance.gateFailCount} failed load gate${clearance.gateFailCount === 1 ? "" : "s"}`, severity: 3 });
+}
+if (clearance.gateMonitorCount) {
+drivers.push({ label: `${clearance.gateMonitorCount} monitored load gate${clearance.gateMonitorCount === 1 ? "" : "s"}`, severity: 2 });
+}
+}
+if (trailing.exceededCount) {
+drivers.push({ label: `${trailing.exceededCount} actual > recommendation`, severity: 3 });
+}
+if (trailing.unavailableDays >= 3) {
+drivers.push({ label: `${trailing.unavailableDays}/7 unavailable days`, severity: 2 });
+} else if (trailing.modifiedDays >= 3) {
+drivers.push({ label: `${trailing.modifiedDays}/7 managed days`, severity: 1 });
+}
+if (playerPlans.length >= 2) {
+drivers.push({ label: `${playerPlans.length} medical cases`, severity: 1 });
+}
+const highestSeverity = drivers.reduce((highest, driver) => Math.max(highest, driver.severity), 0);
+const score = Math.min(100, drivers.reduce((sum, driver) => sum + driver.severity * 18, 0));
+const tone = highestSeverity >= 3 ? "high" : highestSeverity === 2 ? "medium" : highestSeverity === 1 ? "low" : "clear";
+const label = tone === "high" ? "Review now" : tone === "medium" ? "Monitor" : tone === "low" ? "Watch" : "Clear";
+return {
+player,
+record,
+status,
+activePlan,
+trailing,
+drivers,
+highestSeverity,
+score,
+tone,
+label,
+primaryDriver: drivers[0]?.label || "No medical signal",
+};
+}
+function getMedicalRiskSignals(dateValue = medicalState?.selectedDate) {
+ensureMedicalState();
+return medicalState.players
+.map((player) => getMedicalPlayerRiskSignal(player, dateValue))
+.sort((first, second) => {
+if (first.highestSeverity !== second.highestSeverity) {
+return second.highestSeverity - first.highestSeverity;
+}
+if (first.score !== second.score) {
+return second.score - first.score;
+}
+const firstParticipation = first.record?.participation ?? -1;
+const secondParticipation = second.record?.participation ?? -1;
+if (firstParticipation !== secondParticipation) {
+return firstParticipation - secondParticipation;
+}
+return compareMedicalPlayers(first.player, second.player);
+});
+}
+function getMedicalOperationsSummary(dateValue = medicalState?.selectedDate) {
+const signals = getMedicalRiskSignals(dateValue);
+const activeCases = getMedicalActiveCaseItems(dateValue);
+const clearanceBlockers = activeCases.filter((item) => !item.clearance.isCleared);
+const reviewNow = signals.filter((signal) => signal.highestSeverity >= 3).length;
+const actualMissing = getMedicalAvailabilityItems(dateValue).filter(
+(item) => item.record && item.record.actualParticipation === medicalActualParticipationFallback
+).length;
+return {
+signals,
+activeCases,
+clearanceBlockers,
+reviewNow,
+actualMissing,
+season: getMedicalSeasonSummary(dateValue),
+};
+}
+function renderMedicalOpsStat(label, value, meta = "", tone = "") {
+return `
+<article class="medical-ops-stat${tone ? ` medical-ops-stat-${escapeHtml(tone)}` : ""}">
+<span>${escapeHtml(label)}</span>
+<strong>${escapeHtml(value)}</strong>
+${meta ? `<small>${escapeHtml(meta)}</small>` : ""}
+</article>
+`;
+}
+function renderMedicalSignalDrivers(signal, limit = 3) {
+const drivers = signal.drivers.slice(0, limit);
+if (!drivers.length) {
+return `<span class="medical-ops-chip medical-ops-chip-clear">Clear</span>`;
+}
+return drivers
+.map((driver) => `<span class="medical-ops-chip medical-ops-chip-${driver.severity >= 3 ? "high" : driver.severity === 2 ? "medium" : "low"}">${escapeHtml(driver.label)}</span>`)
+.join("");
+}
+function renderMedicalOperationsTabs() {
+return `
+<nav class="medical-ops-tabs" aria-label="Medical operations tabs">
+${medicalOperationsTabOptions
+.map(
+(tab) => `
+<button
+type="button"
+class="${medicalOperationsTab === tab.key ? "is-active" : ""}"
+data-medical-ops-tab="${escapeHtml(tab.key)}"
+aria-pressed="${medicalOperationsTab === tab.key ? "true" : "false"}"
+>${escapeHtml(tab.label)}</button>
+`
+)
+.join("")}
+</nav>
+`;
+}
+function renderMedicalOperationsOverview(summary) {
+const urgentSignals = summary.signals.filter((signal) => signal.highestSeverity > 0).slice(0, 5);
+const briefing = summary.reviewNow
+? `${summary.reviewNow} player${summary.reviewNow === 1 ? "" : "s"} need medical review before the next football decision.`
+: summary.activeCases.length
+? `${summary.activeCases.length} active case${summary.activeCases.length === 1 ? "" : "s"} under control.`
+: "No active medical blockers for the selected date.";
+return `
+<div class="medical-ops-overview">
+<article class="medical-ops-brief">
+<span>Medical Briefing</span>
+<strong>${escapeHtml(briefing)}</strong>
+<small>${escapeHtml(formatMedicalDateLabel(medicalState.selectedDate, "long"))}</small>
+</article>
+<div class="medical-ops-stats">
+${renderMedicalOpsStat("Review now", String(summary.reviewNow), "medical signal", summary.reviewNow ? "high" : "clear")}
+${renderMedicalOpsStat("Active cases", String(summary.activeCases.length), "current plans", summary.activeCases.length ? "medium" : "clear")}
+${renderMedicalOpsStat("Clearance blockers", String(summary.clearanceBlockers.length), "sign-off / gates", summary.clearanceBlockers.length ? "high" : "clear")}
+${renderMedicalOpsStat("Actual missing", String(summary.actualMissing), "today's participation", summary.actualMissing ? "low" : "clear")}
+${renderMedicalOpsStat("GPS / match load", "Pending", "Performance Room bridge", "neutral")}
+</div>
+<article class="medical-ops-card">
+<div class="medical-command-head">
+<span>Top Review Signals</span>
+<strong>${urgentSignals.length}</strong>
+</div>
+<div class="medical-ops-signal-list">
+${urgentSignals.length
+? urgentSignals
+.map(
+(signal) => `
+<button type="button" data-medical-select-player="${escapeHtml(signal.player.id)}" class="medical-ops-signal-row medical-ops-tone-${escapeHtml(signal.tone)}">
+<span>${escapeHtml(signal.player.name)}</span>
+<strong>${escapeHtml(signal.label)}</strong>
+<small>${escapeHtml(signal.primaryDriver)}</small>
+</button>
+`
+)
+.join("")
+: `<div class="medical-empty-inline">No review signals for the selected date.</div>`}
+</div>
+</article>
+<article class="medical-ops-card">
+<div class="medical-command-head">
+<span>Active Case Board</span>
+<strong>${summary.activeCases.length}</strong>
+</div>
+<div class="medical-ops-case-list">
+${summary.activeCases.length
+? summary.activeCases
+.slice(0, 5)
+.map(
+({ player, plan, severity, daysRemaining, clearance }) => `
+<button type="button" data-medical-select-player="${escapeHtml(player.id)}" class="medical-ops-case-row medical-ops-tone-${escapeHtml(severity.tone)}">
+<span>${escapeHtml(player.name)}</span>
+<strong>${escapeHtml(plan.injuryType)}</strong>
+<small>${escapeHtml(getMedicalRtpPhaseOption(plan.rtpPhase).label)} / ${plan.participation}% / ${daysRemaining} days left</small>
+<small>${clearance.signOffCount}/${medicalClearanceRoles.length} sign-off / ${clearance.gatePassCount}/${medicalLoadGateOptions.length} gates</small>
+</button>
+`
+)
+.join("")
+: `<div class="medical-empty-inline">No active availability plans today.</div>`}
+</div>
+</article>
+</div>
+`;
+}
+function renderMedicalOperationsSignals(summary) {
+return `
+<div class="medical-ops-table medical-ops-signals-table">
+<div class="medical-ops-table-head" aria-hidden="true">
+<span>Player</span>
+<span>Availability</span>
+<span>Case / RTP</span>
+<span>Signals</span>
+<span>Action</span>
+</div>
+${summary.signals
+.map((signal) => {
+const planLabel = signal.activePlan
+? `${signal.activePlan.injuryType} / ${getMedicalRtpPhaseOption(signal.activePlan.rtpPhase).label}`
+: "No active case";
+return `
+<button type="button" data-medical-select-player="${escapeHtml(signal.player.id)}" class="medical-ops-table-row medical-ops-tone-${escapeHtml(signal.tone)}">
+<span>${escapeHtml(signal.player.name)}<small>${escapeHtml(signal.player.position || "Position")}</small></span>
+<strong>${signal.record ? `${signal.record.participation}%` : "Not set"}<small>${escapeHtml(signal.status.label)}</small></strong>
+<span>${escapeHtml(planLabel)}<small>${signal.trailing.average === null ? "No 7-day trend" : `${signal.trailing.average}% trailing average`}</small></span>
+<span class="medical-ops-driver-cell">${renderMedicalSignalDrivers(signal, 4)}</span>
+<strong>${escapeHtml(signal.label)}<small>${signal.score ? `${signal.score}/100 signal score` : "No action"}</small></strong>
+</button>
+`;
+})
+.join("")}
+</div>
+`;
+}
+function renderMedicalOperationsCases(summary) {
+return `
+<div class="medical-ops-table medical-ops-cases-table">
+<div class="medical-ops-table-head" aria-hidden="true">
+<span>Player</span>
+<span>Case</span>
+<span>Window</span>
+<span>RTP / Recommendation</span>
+<span>Clearance</span>
+</div>
+${summary.activeCases.length
+? summary.activeCases
+.map(
+({ player, plan, severity, daysRemaining, elapsedDays, review, clearance }) => `
+<button type="button" data-medical-select-player="${escapeHtml(player.id)}" class="medical-ops-table-row medical-ops-tone-${escapeHtml(severity.tone)}">
+<span>${escapeHtml(player.name)}<small>${escapeHtml(player.position || "Position")}</small></span>
+<strong>${escapeHtml(plan.injuryType)}<small>${escapeHtml([plan.bodyArea, severity.label].filter(Boolean).join(" / "))}</small></strong>
+<span>${escapeHtml(formatMedicalDateLabel(plan.startDate))} - ${escapeHtml(formatMedicalDateLabel(plan.endDate))}<small>${elapsedDays} done / ${daysRemaining} left</small></span>
+<strong>${escapeHtml(getMedicalRtpPhaseOption(plan.rtpPhase).label)}<small>${plan.participation}% recommended</small></strong>
+<span>${clearance.signOffCount}/${medicalClearanceRoles.length} sign-off<small>${clearance.gatePassCount}/${medicalLoadGateOptions.length} gates / ${escapeHtml(review.label)}</small></span>
+</button>
+`
+)
+.join("")
+: `<div class="medical-empty-inline">No active availability plans today.</div>`}
+</div>
+`;
+}
+function renderMedicalOperationsHistory() {
+const events = getMedicalHistoryEvents();
+return `
+<div class="medical-ops-table medical-ops-history-table">
+<div class="medical-ops-table-head" aria-hidden="true">
+<span>Date</span>
+<span>Player</span>
+<span>Type</span>
+<span>Detail</span>
+<span>Share</span>
+</div>
+${events.length
+? events
+.map(
+(event) => `
+<button type="button" data-medical-select-player="${escapeHtml(event.player.id)}" class="medical-ops-table-row">
+<span>${escapeHtml(formatMedicalDateLabel(event.date))}</span>
+<strong>${escapeHtml(event.player.name)}<small>${escapeHtml(event.player.position || "Position")}</small></strong>
+<span>${escapeHtml(event.type)}</span>
+<span>${escapeHtml(event.title)}<small>${escapeHtml(event.detail)}</small></span>
+<strong>${event.coachShared ? "Approved" : "Private"}<small>${event.coachShared ? "coach-safe" : "medical only"}</small></strong>
+</button>
+`
+)
+.join("")
+: `<div class="medical-empty-inline">No medical history yet.</div>`}
+</div>
+`;
+}
+function renderMedicalOperationsSeason(summary) {
+const season = summary.season;
+return `
+<div class="medical-ops-season">
+<div class="medical-ops-stats">
+${renderMedicalOpsStat("Season cases", String(season.plans.length), "medical plans", season.plans.length ? "medium" : "clear")}
+${renderMedicalOpsStat("Active now", String(season.activeCount), "current cases", season.activeCount ? "medium" : "clear")}
+${renderMedicalOpsStat("Returned", String(season.returnedCount), "closed windows", "clear")}
+${renderMedicalOpsStat("Managed days", String(season.managedDays), `${season.unavailableDays} unavailable`, season.managedDays ? "low" : "clear")}
+</div>
+<article class="medical-ops-card">
+<div class="medical-command-head">
+<span>Case Severity</span>
+<strong>${season.plans.length}</strong>
+</div>
+<div class="medical-ops-severity-grid">
+<div><span>Major</span><strong>${season.major}</strong></div>
+<div><span>Moderate</span><strong>${season.moderate}</strong></div>
+<div><span>Minor</span><strong>${season.minor}</strong></div>
+<div><span>Light</span><strong>${season.light}</strong></div>
+</div>
+</article>
+<article class="medical-ops-card">
+<div class="medical-command-head">
+<span>Most Managed Days</span>
+<strong>${season.topPlayerDays.length}</strong>
+</div>
+<div class="medical-ops-signal-list">
+${season.topPlayerDays.length
+? season.topPlayerDays
+.map(
+({ player, days }) => `
+<button type="button" data-medical-select-player="${escapeHtml(player.id)}" class="medical-ops-signal-row">
+<span>${escapeHtml(player.name)}</span>
+<strong>${days} days</strong>
+<small>${escapeHtml(player.position || "Position")}</small>
+</button>
+`
+)
+.join("")
+: `<div class="medical-empty-inline">No managed medical days this season.</div>`}
+</div>
+</article>
+</div>
+`;
+}
+function renderMedicalCoachSafeOperationsSummary() {
+const items = getMedicalCoachHandoverItems(medicalState.selectedDate);
+const stats = getMedicalDailyStats(medicalState.selectedDate);
+return `
+<section class="medical-operations-system is-coach-safe" data-medical-operations-system>
+<header class="medical-ops-header">
+<div>
+<p class="placeholder-tag">Medical Operations</p>
+<h2>Coach-Safe Summary</h2>
+</div>
+<span class="medical-ops-boundary">Approved share only</span>
+</header>
+<div class="medical-ops-stats">
+${renderMedicalOpsStat("Full", String(stats.fullCount), "100%", "clear")}
+${renderMedicalOpsStat("Modified", String(stats.modifiedCount), "10-75%", stats.modifiedCount ? "medium" : "clear")}
+${renderMedicalOpsStat("Unavailable", String(stats.unavailableCount), "0%", stats.unavailableCount ? "high" : "clear")}
+${renderMedicalOpsStat("Coach notes", String(items.length), "approved", items.length ? "low" : "clear")}
+</div>
+</section>
+`;
+}
+function renderMedicalOperationsSystem() {
+if (!canViewPrivateMedicalDetails()) {
+return renderMedicalCoachSafeOperationsSummary();
+}
+medicalOperationsTab = normalizeMedicalOperationsTab(medicalOperationsTab);
+const summary = getMedicalOperationsSummary(medicalState.selectedDate);
+const body =
+medicalOperationsTab === "signals"
+? renderMedicalOperationsSignals(summary)
+: medicalOperationsTab === "cases"
+? renderMedicalOperationsCases(summary)
+: medicalOperationsTab === "history"
+? renderMedicalOperationsHistory(summary)
+: medicalOperationsTab === "season"
+? renderMedicalOperationsSeason(summary)
+: renderMedicalOperationsOverview(summary);
+return `
+<section class="medical-operations-system" data-medical-operations-system>
+<header class="medical-ops-header">
+<div>
+<p class="placeholder-tag">Medical Operations</p>
+<h2>Intelligence Board</h2>
+</div>
+${renderMedicalOperationsTabs()}
+</header>
+${body}
+</section>
+`;
+}
 function renderMedicalDateStrip() {
 ensureMedicalState();
 const todayValue = formatScheduleDateValue(new Date());
@@ -28815,6 +29411,7 @@ ${renderMedicalRosterPanel()}
 </section>
 ${renderMedicalDailyHuddle()}
 ${renderMedicalCoachHandoverPanel()}
+${renderMedicalOperationsSystem()}
 `
 : renderMedicalRosterSetup()
 }
@@ -70851,6 +71448,12 @@ return;
 const bulkClearButton = event.target.closest("[data-medical-bulk-clear]");
 if (bulkClearButton && canEditMedicalTeam()) {
 setMedicalBulkSelection([]);
+return;
+}
+const operationsTabButton = event.target.closest("[data-medical-ops-tab]");
+if (operationsTabButton) {
+medicalOperationsTab = normalizeMedicalOperationsTab(operationsTabButton.dataset.medicalOpsTab);
+renderMedicalTeamWorkspace();
 return;
 }
 const selectPlayerCard = event.target.closest("[data-medical-select-player]");

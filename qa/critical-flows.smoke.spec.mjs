@@ -914,6 +914,96 @@ test("Medical roster overview groups by position and supports row quick recommen
     .toBe("25:rehab");
 });
 
+test("Medical operations board separates signals, cases, history and season views", async ({ page }) => {
+  await page.addInitScript(({ storageKey }) => {
+    window.localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        selectedDate: "2026-05-15",
+        selectedPlayerId: "qa-risk",
+        rosterVersion: "qa-medical-ops-v1",
+        players: [
+          { id: "qa-risk", name: "QA Risk Player", position: "Forward", rosterOrder: 1 },
+          { id: "qa-clear", name: "QA Clear Player", position: "Midfielder", rosterOrder: 2 },
+        ],
+        records: [
+          {
+            id: "qa-risk-record",
+            playerId: "qa-risk",
+            date: "2026-05-15",
+            status: "modified",
+            participation: 75,
+            actualParticipation: 100,
+            rtpPhase: "modified-team",
+            createdAt: "2026-05-15T08:00:00.000Z",
+          },
+          {
+            id: "qa-clear-record",
+            playerId: "qa-clear",
+            date: "2026-05-15",
+            status: "full",
+            participation: 100,
+            actualParticipation: 100,
+            rtpPhase: "full-training",
+            createdAt: "2026-05-15T08:05:00.000Z",
+          },
+        ],
+        injuryPlans: [
+          {
+            id: "qa-active-case",
+            playerId: "qa-risk",
+            injuryType: "ACL injury",
+            bodyArea: "Knee",
+            startDate: "2026-05-01",
+            endDate: "2026-08-31",
+            duration: 4,
+            durationUnit: "months",
+            status: "modified",
+            participation: 75,
+            reviewDate: "2026-05-14",
+            rtpPhase: "modified-team",
+            phase: "Modified team integration",
+            clearance: { doctor: false, physio: true, performance: false },
+            gates: {
+              strength: "monitor",
+              gpsLoad: "pending",
+              painResponse: "pass",
+              wellness: "pass",
+              psychologicalReadiness: "pending",
+            },
+            createdAt: "2026-05-01T08:00:00.000Z",
+          },
+        ],
+      })
+    );
+  }, { storageKey: medicalKey });
+
+  await bootApp(page);
+  await openWorkspace(page, "medical-team");
+
+  const operations = page.locator("[data-medical-operations-system]");
+  await expect(operations).toBeVisible();
+  await expect(operations).toContainText("Intelligence Board");
+  await expect(operations).toContainText("Review now");
+  await expect(operations).toContainText("ACL injury");
+
+  await page.locator('[data-medical-ops-tab="signals"]').click();
+  await expect(operations).toContainText("Actual exceeded recommendation");
+  await expect(operations).toContainText("QA Risk Player");
+
+  await page.locator('[data-medical-ops-tab="cases"]').click();
+  await expect(operations).toContainText("Review overdue");
+  await expect(operations).toContainText("1/3 sign-off");
+
+  await page.locator('[data-medical-ops-tab="history"]').click();
+  await expect(operations).toContainText("Case opened");
+  await expect(operations).toContainText("Recommendation");
+
+  await page.locator('[data-medical-ops-tab="season"]').click();
+  await expect(operations).toContainText("Managed days");
+  await expect(operations).toContainText("Major");
+});
+
 test("Squad add creates a Medical roster slot and Session Planner placement", async ({ page }) => {
   const playerName = `QA Squad Placement ${Date.now()}`;
   let squadAgeRequests = 0;

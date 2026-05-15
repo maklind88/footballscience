@@ -357,6 +357,392 @@
   white-space: nowrap;
 }
 
+.medical-operations-system {
+  display: grid;
+  gap: 0.72rem;
+  width: 100%;
+  min-width: 0;
+  margin-top: 0.86rem;
+}
+
+.medical-ops-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.9rem;
+  min-width: 0;
+}
+
+.medical-ops-header h2 {
+  margin: 0;
+  color: #10231b;
+  font-size: clamp(1.12rem, 2vw, 1.45rem);
+  font-weight: 950;
+  line-height: 1;
+}
+
+.medical-ops-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.36rem;
+  min-width: 0;
+}
+
+.medical-ops-tabs button,
+.medical-ops-boundary {
+  min-height: 2.28rem;
+  padding: 0 0.78rem;
+  border-radius: 999px;
+  border: 1px solid rgba(29, 31, 29, 0.1);
+  background: rgba(255, 255, 255, 0.78);
+  color: #25332b;
+  box-shadow: 0 8px 20px rgba(12, 24, 20, 0.055);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.medical-ops-tabs button {
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
+}
+
+.medical-ops-tabs button:hover,
+.medical-ops-tabs button:focus-visible {
+  background: #eff8f3;
+  border-color: rgba(31, 122, 69, 0.28);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.medical-ops-tabs button.is-active {
+  background: #13241c;
+  border-color: #13241c;
+  color: #fff;
+}
+
+.medical-ops-overview,
+.medical-ops-season {
+  display: grid;
+  grid-template-columns: minmax(15rem, 0.82fr) minmax(18rem, 1fr) minmax(18rem, 1fr);
+  gap: 0.72rem;
+  min-width: 0;
+}
+
+.medical-ops-brief,
+.medical-ops-card,
+.medical-ops-stat {
+  border: 1px solid rgba(29, 31, 29, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 16px 40px rgba(12, 24, 20, 0.07);
+}
+
+.medical-ops-brief {
+  display: grid;
+  align-content: space-between;
+  gap: 0.7rem;
+  min-height: 13.5rem;
+  padding: 1rem;
+  color: #fff;
+  background:
+    radial-gradient(circle at 82% 18%, rgba(129, 210, 159, 0.3), transparent 12rem),
+    linear-gradient(135deg, #12201a, #20313a);
+}
+
+.medical-ops-brief span,
+.medical-ops-brief small,
+.medical-ops-card .medical-command-head span,
+.medical-ops-table-head,
+.medical-ops-table-row small,
+.medical-ops-stat span,
+.medical-ops-stat small,
+.medical-ops-severity-grid span,
+.medical-ops-signal-row small,
+.medical-ops-case-row small {
+  color: #64716b;
+  font-size: 0.68rem;
+  font-weight: 850;
+  line-height: 1.16;
+}
+
+.medical-ops-brief span,
+.medical-ops-card .medical-command-head span,
+.medical-ops-table-head,
+.medical-ops-stat span,
+.medical-ops-severity-grid span {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.medical-ops-brief span,
+.medical-ops-brief small {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.medical-ops-brief strong {
+  display: block;
+  max-width: 24rem;
+  color: #fff;
+  font-size: clamp(1.32rem, 2.5vw, 2rem);
+  font-weight: 950;
+  line-height: 1.05;
+}
+
+.medical-ops-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.8rem, 1fr));
+  gap: 0.58rem;
+  min-width: 0;
+}
+
+.medical-ops-overview > .medical-ops-stats {
+  align-content: start;
+}
+
+.medical-ops-stat {
+  display: grid;
+  gap: 0.18rem;
+  min-height: 5.6rem;
+  padding: 0.78rem;
+}
+
+.medical-ops-stat strong {
+  color: #10231b;
+  font-size: 1.62rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.medical-ops-stat-high {
+  border-color: rgba(225, 78, 78, 0.28);
+  background: linear-gradient(135deg, rgba(255, 241, 241, 0.94), rgba(255, 255, 255, 0.9));
+}
+
+.medical-ops-stat-medium {
+  border-color: rgba(221, 152, 48, 0.28);
+  background: linear-gradient(135deg, rgba(255, 247, 228, 0.96), rgba(255, 255, 255, 0.9));
+}
+
+.medical-ops-stat-low {
+  border-color: rgba(0, 113, 227, 0.18);
+  background: linear-gradient(135deg, rgba(232, 244, 255, 0.88), rgba(255, 255, 255, 0.9));
+}
+
+.medical-ops-stat-clear {
+  border-color: rgba(31, 122, 69, 0.2);
+  background: linear-gradient(135deg, rgba(228, 248, 234, 0.86), rgba(255, 255, 255, 0.9));
+}
+
+.medical-ops-card {
+  display: grid;
+  align-content: start;
+  gap: 0.62rem;
+  min-width: 0;
+  min-height: 13.5rem;
+  padding: 0.86rem;
+}
+
+.medical-ops-signal-list,
+.medical-ops-case-list {
+  display: grid;
+  gap: 0.42rem;
+  min-width: 0;
+}
+
+.medical-ops-signal-row,
+.medical-ops-case-row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 1fr) minmax(6rem, auto);
+  gap: 0.16rem 0.5rem;
+  min-width: 0;
+  padding: 0.6rem;
+  border: 1px solid rgba(29, 31, 29, 0.08);
+  border-radius: 12px;
+  background: rgba(246, 248, 247, 0.86);
+  color: #17251e;
+  text-align: left;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.medical-ops-case-row {
+  grid-template-columns: minmax(7rem, 1fr);
+}
+
+.medical-ops-signal-row span,
+.medical-ops-case-row span,
+.medical-ops-table-row > span,
+.medical-ops-table-row > strong {
+  min-width: 0;
+}
+
+.medical-ops-signal-row strong,
+.medical-ops-case-row strong {
+  color: #10231b;
+  font-size: 0.84rem;
+  font-weight: 950;
+  line-height: 1.08;
+}
+
+.medical-ops-signal-row small,
+.medical-ops-case-row small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.medical-ops-tone-high {
+  border-color: rgba(225, 78, 78, 0.22);
+  background: rgba(255, 241, 241, 0.9);
+}
+
+.medical-ops-tone-medium {
+  border-color: rgba(221, 152, 48, 0.24);
+  background: rgba(255, 248, 231, 0.9);
+}
+
+.medical-ops-tone-low {
+  border-color: rgba(0, 113, 227, 0.16);
+  background: rgba(236, 247, 255, 0.86);
+}
+
+.medical-ops-tone-clear {
+  border-color: rgba(31, 122, 69, 0.16);
+  background: rgba(238, 249, 241, 0.86);
+}
+
+.medical-ops-table {
+  display: grid;
+  gap: 0.42rem;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0.62rem;
+  border: 1px solid rgba(29, 31, 29, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 16px 40px rgba(12, 24, 20, 0.06);
+  scrollbar-width: thin;
+}
+
+.medical-ops-table-head,
+.medical-ops-table-row {
+  display: grid;
+  align-items: center;
+  gap: 0.52rem;
+  min-width: 66rem;
+}
+
+.medical-ops-signals-table .medical-ops-table-head,
+.medical-ops-signals-table .medical-ops-table-row,
+.medical-ops-cases-table .medical-ops-table-head,
+.medical-ops-cases-table .medical-ops-table-row {
+  grid-template-columns: minmax(12rem, 1fr) minmax(9rem, 0.72fr) minmax(12rem, 0.95fr) minmax(18rem, 1.45fr) minmax(9rem, 0.72fr);
+}
+
+.medical-ops-history-table .medical-ops-table-head,
+.medical-ops-history-table .medical-ops-table-row {
+  grid-template-columns: minmax(7rem, 0.55fr) minmax(12rem, 1fr) minmax(9rem, 0.7fr) minmax(18rem, 1.5fr) minmax(8rem, 0.62fr);
+}
+
+.medical-ops-table-head {
+  padding: 0 0.58rem;
+}
+
+.medical-ops-table-row {
+  width: 100%;
+  min-height: 4.1rem;
+  padding: 0.56rem 0.58rem;
+  border: 1px solid rgba(29, 31, 29, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.84);
+  color: #17251e;
+  text-align: left;
+  box-shadow: 0 8px 20px rgba(12, 24, 20, 0.04);
+  cursor: pointer;
+}
+
+.medical-ops-table-row strong,
+.medical-ops-table-row span {
+  display: grid;
+  gap: 0.16rem;
+  color: #10231b;
+  font-size: 0.82rem;
+  font-weight: 920;
+  line-height: 1.12;
+}
+
+.medical-ops-driver-cell {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.26rem;
+}
+
+.medical-ops-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 1.5rem;
+  padding: 0 0.46rem;
+  border-radius: 999px;
+  color: #17251e;
+  background: rgba(29, 31, 29, 0.06);
+  font-size: 0.64rem;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.medical-ops-chip-high {
+  color: #962525;
+  background: rgba(255, 226, 226, 0.94);
+}
+
+.medical-ops-chip-medium {
+  color: #8a4b0f;
+  background: rgba(255, 242, 210, 0.94);
+}
+
+.medical-ops-chip-low {
+  color: #0755a0;
+  background: rgba(226, 241, 255, 0.94);
+}
+
+.medical-ops-chip-clear {
+  color: #14613f;
+  background: rgba(223, 247, 231, 0.94);
+}
+
+.medical-ops-severity-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.46rem;
+}
+
+.medical-ops-severity-grid div {
+  display: grid;
+  gap: 0.18rem;
+  min-height: 4.7rem;
+  padding: 0.62rem;
+  border-radius: 12px;
+  background: rgba(246, 248, 247, 0.86);
+  border: 1px solid rgba(29, 31, 29, 0.08);
+}
+
+.medical-ops-severity-grid strong {
+  color: #10231b;
+  font-size: 1.35rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
 body.is-dark-mode .medical-position-group {
   border-color: var(--dark-line);
   background:
@@ -417,6 +803,82 @@ body.is-dark-mode .medical-row-select-button.is-selected {
   color: #fff;
 }
 
+body.is-dark-mode .medical-ops-header h2,
+body.is-dark-mode .medical-ops-stat strong,
+body.is-dark-mode .medical-ops-card .medical-command-head strong,
+body.is-dark-mode .medical-ops-signal-row strong,
+body.is-dark-mode .medical-ops-case-row strong,
+body.is-dark-mode .medical-ops-table-row strong,
+body.is-dark-mode .medical-ops-table-row span,
+body.is-dark-mode .medical-ops-severity-grid strong {
+  color: var(--dark-text);
+}
+
+body.is-dark-mode .medical-ops-tabs button,
+body.is-dark-mode .medical-ops-boundary,
+body.is-dark-mode .medical-ops-brief,
+body.is-dark-mode .medical-ops-card,
+body.is-dark-mode .medical-ops-stat,
+body.is-dark-mode .medical-ops-table,
+body.is-dark-mode .medical-ops-table-row,
+body.is-dark-mode .medical-ops-signal-row,
+body.is-dark-mode .medical-ops-case-row,
+body.is-dark-mode .medical-ops-severity-grid div {
+  border-color: var(--dark-line);
+  background: rgba(13, 20, 28, 0.82);
+  color: var(--dark-text);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+}
+
+body.is-dark-mode .medical-ops-brief {
+  background:
+    radial-gradient(circle at 82% 18%, rgba(129, 210, 159, 0.24), transparent 12rem),
+    linear-gradient(135deg, #111c17, #152430);
+}
+
+body.is-dark-mode .medical-ops-tabs button.is-active {
+  border-color: rgba(129, 210, 159, 0.44);
+  background: linear-gradient(180deg, #2c8b62, #1c684e);
+  color: #fff;
+}
+
+body.is-dark-mode .medical-ops-brief span,
+body.is-dark-mode .medical-ops-brief small,
+body.is-dark-mode .medical-ops-card .medical-command-head span,
+body.is-dark-mode .medical-ops-table-head,
+body.is-dark-mode .medical-ops-table-row small,
+body.is-dark-mode .medical-ops-stat span,
+body.is-dark-mode .medical-ops-stat small,
+body.is-dark-mode .medical-ops-severity-grid span,
+body.is-dark-mode .medical-ops-signal-row small,
+body.is-dark-mode .medical-ops-case-row small {
+  color: var(--dark-muted);
+}
+
+body.is-dark-mode .medical-ops-tone-high,
+body.is-dark-mode .medical-ops-stat-high {
+  border-color: rgba(248, 113, 113, 0.32);
+  background: rgba(73, 23, 23, 0.82);
+}
+
+body.is-dark-mode .medical-ops-tone-medium,
+body.is-dark-mode .medical-ops-stat-medium {
+  border-color: rgba(251, 191, 36, 0.28);
+  background: rgba(70, 48, 14, 0.74);
+}
+
+body.is-dark-mode .medical-ops-tone-low,
+body.is-dark-mode .medical-ops-stat-low {
+  border-color: rgba(96, 165, 250, 0.28);
+  background: rgba(18, 47, 77, 0.74);
+}
+
+body.is-dark-mode .medical-ops-tone-clear,
+body.is-dark-mode .medical-ops-stat-clear {
+  border-color: rgba(129, 210, 159, 0.3);
+  background: rgba(19, 57, 38, 0.7);
+}
+
 @media (max-width: 1120px) {
   .medical-roster-list-head,
   .medical-roster-row {
@@ -427,6 +889,16 @@ body.is-dark-mode .medical-row-select-button.is-selected {
       minmax(16.4rem, 1fr)
       minmax(5.8rem, 0.4fr);
     min-width: 58rem;
+  }
+
+  .medical-ops-overview,
+  .medical-ops-season {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .medical-ops-brief {
+    grid-column: 1 / -1;
+    min-height: 10.5rem;
   }
 }
 
@@ -463,5 +935,41 @@ body.is-dark-mode .medical-row-select-button.is-selected {
       minmax(15rem, 1fr)
       minmax(5.6rem, 0.4fr);
     min-width: 52rem;
+  }
+
+  .medical-ops-header {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .medical-ops-tabs {
+    justify-content: flex-start;
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 0.1rem;
+  }
+
+  .medical-ops-tabs button {
+    flex: 0 0 auto;
+  }
+
+  .medical-ops-overview,
+  .medical-ops-season {
+    grid-template-columns: 1fr;
+  }
+
+  .medical-ops-brief,
+  .medical-ops-card {
+    min-height: auto;
+  }
+
+  .medical-ops-table-head,
+  .medical-ops-table-row {
+    min-width: 54rem;
+  }
+
+  .medical-ops-severity-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

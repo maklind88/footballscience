@@ -116,7 +116,7 @@ test("Scouting database search, profile, favorite and Shadow XI flow stays stabl
   await expect(favoriteButton).toContainText(/Favorited|Favorite/);
 
   await profileModal.locator("[data-add-scouting-record-to-shadow]").first().click();
-  await expect(page.locator(".scouting-metrics")).toContainText(/1\s+Shadow targets/, { timeout: 45_000 });
+  await expect(profileModal.locator("[data-scouting-profile-role-stack]")).toContainText("1", { timeout: 45_000 });
   await profileModal.locator(".scouting-profile-close").click();
   await expect(page.locator("[data-scouting-profile-modal]")).toBeHidden();
   const shadowTab = page.locator('.scouting-tab[data-scouting-tab="shadow-xi"]').first();

@@ -2336,7 +2336,7 @@ function renderScoutingMyTeamPlayerCard(player, options = {}) {
     </article>
   `;
 }
-function assignScoutingMyTeamPlayerToSlot(playerId, slotId) {
+function assignScoutingMyTeamPlayerToSlot(playerId, slotId, beforePlayerId = "") {
   if (!canEditScoutingWorkspace()) {
     return;
   }
@@ -2348,6 +2348,11 @@ function assignScoutingMyTeamPlayerToSlot(playerId, slotId) {
     return;
   }
   const id = getScoutingMyTeamPlayerId(player);
+  const beforeId = normalizeScoutingText(beforePlayerId, 160);
+  const currentSlotId = Object.entries(myTeam.slots).find(([, currentPlayerIds]) => normalizeScoutingMyTeamSlotPlayerIds(currentPlayerIds).includes(id))?.[0] || "";
+  if (currentSlotId === slot.id && beforeId === id) {
+    return;
+  }
   const nextSlots = {};
   Object.entries(myTeam.slots).forEach(([currentSlotId, currentPlayerIds]) => {
     const filteredIds = normalizeScoutingMyTeamSlotPlayerIds(currentPlayerIds).filter((currentPlayerId) => currentPlayerId !== id);
@@ -2357,7 +2362,12 @@ function assignScoutingMyTeamPlayerToSlot(playerId, slotId) {
   });
   const targetStack = normalizeScoutingMyTeamSlotPlayerIds(nextSlots[slot.id]);
   if (!targetStack.includes(id)) {
-    targetStack.push(id);
+    const beforeIndex = beforeId && beforeId !== id ? targetStack.indexOf(beforeId) : -1;
+    if (beforeIndex >= 0) {
+      targetStack.splice(beforeIndex, 0, id);
+    } else {
+      targetStack.push(id);
+    }
   }
   nextSlots[slot.id] = targetStack;
   myTeam.slots = nextSlots;
@@ -2366,6 +2376,31 @@ function assignScoutingMyTeamPlayerToSlot(playerId, slotId) {
     scoutingMyTeamSelectedPlayerId = "";
   }
   writeScoutingState();
+  renderScoutingWorkspace({ preserveFocus: true });
+}
+function removeScoutingMyTeamPlayerFromAllSlots(playerId = "") {
+  if (!canEditScoutingWorkspace()) {
+    return;
+  }
+  const normalizedPlayerId = normalizeScoutingText(playerId, 160);
+  if (!normalizedPlayerId) {
+    return;
+  }
+  const state = ensureScoutingState();
+  const myTeam = getScoutingMyTeamState(state);
+  const nextSlots = {};
+  Object.entries(myTeam.slots).forEach(([slotId, playerIds]) => {
+    const filteredIds = normalizeScoutingMyTeamSlotPlayerIds(playerIds).filter((currentPlayerId) => currentPlayerId !== normalizedPlayerId);
+    if (filteredIds.length) {
+      nextSlots[slotId] = filteredIds;
+    }
+  });
+  myTeam.slots = nextSlots;
+  state.myTeam = myTeam;
+  if (scoutingMyTeamSelectedPlayerId === normalizedPlayerId) {
+    scoutingMyTeamSelectedPlayerId = "";
+  }
+  writeScoutingState({ syncCentral: false });
   renderScoutingWorkspace({ preserveFocus: true });
 }
 function removeScoutingMyTeamPlayerFromSlot(slotId, playerId = "") {
@@ -6503,17 +6538,25 @@ function reorderScoutingShadowRecord(slotId, recordId, beforeRecordId = "") {
   const slot = getScoutingShadowSlot(slotId);
   const id = normalizeScoutingText(recordId, 160);
   const beforeId = normalizeScoutingText(beforeRecordId, 160);
-  const current = slot ? getScoutingShadowSlotRecordIds(slot.id, state) : [];
-  if (!slot || !current.includes(id)) {
+  if (!slot || !id) {
     return;
   }
-  const next = current.filter((item) => item !== id);
+  const sourceSlotId = Object.keys(state.shadowXi.slots || {}).find((currentSlotId) => getScoutingShadowSlotRecordIds(currentSlotId, state).includes(id)) || "";
+  if (!sourceSlotId || (sourceSlotId === slot.id && beforeId === id)) {
+    return;
+  }
+  const nextSlots = {};
+  Object.entries(state.shadowXi.slots || {}).forEach(([currentSlotId, recordIds]) => {
+    const filteredIds = normalizeScoutingShadowSlotRecordIds(recordIds).filter((item) => item !== id);
+    if (filteredIds.length) {
+      nextSlots[currentSlotId] = filteredIds;
+    }
+  });
+  const next = normalizeScoutingShadowSlotRecordIds(nextSlots[slot.id]);
   const beforeIndex = beforeId ? next.indexOf(beforeId) : -1;
   next.splice(beforeIndex >= 0 ? beforeIndex : next.length, 0, id);
-  state.shadowXi.slots = {
-    ...state.shadowXi.slots,
-    [slot.id]: next,
-  };
+  nextSlots[slot.id] = next;
+  state.shadowXi.slots = nextSlots;
   state.shadowXi.selectedSlotId = slot.id;
   preferredScoutingShadowSlotId = slot.id;
   writeScoutingState();
@@ -6595,7 +6638,7 @@ function bindScoutingDragAndDrop() {
   });
   root.addEventListener("dragover", (event) => {
     const dragPayload = getScoutingDragPayload(event);
-    if ((dragPayload?.type === "my-team" || !dragPayload?.type) && event.target.closest("[data-scouting-my-team-drop-slot]")) {
+    if ((dragPayload?.type === "my-team" || !dragPayload?.type) && event.target.closest("[data-scouting-my-team-drop-slot], [data-scouting-my-team-bench-drop]")) {
       event.preventDefault();
       if (event.dataTransfer) {
         event.dataTransfer.dropEffect = "move";
@@ -6610,10 +6653,22 @@ function bindScoutingDragAndDrop() {
   });
   root.addEventListener("drop", (event) => {
     const dragPayload = getScoutingDragPayload(event);
+    const myTeamBenchDrop = event.target.closest("[data-scouting-my-team-bench-drop]");
+    if (dragPayload?.type === "my-team" && myTeamBenchDrop && root.contains(myTeamBenchDrop) && !event.target.closest("[data-scouting-my-team-drop-slot]")) {
+      event.preventDefault();
+      removeScoutingMyTeamPlayerFromAllSlots(dragPayload.playerId);
+      scoutingDragState = null;
+      return;
+    }
+    const myTeamBeforeDrop = event.target.closest("[data-scouting-my-team-drop-before]");
     const myTeamDrop = event.target.closest("[data-scouting-my-team-drop-slot]");
     if (dragPayload?.type === "my-team" && myTeamDrop && root.contains(myTeamDrop)) {
       event.preventDefault();
-      assignScoutingMyTeamPlayerToSlot(dragPayload.playerId, myTeamDrop.dataset.scoutingMyTeamDropSlot);
+      assignScoutingMyTeamPlayerToSlot(
+        dragPayload.playerId,
+        myTeamDrop.dataset.scoutingMyTeamDropSlot,
+        myTeamBeforeDrop?.dataset.scoutingMyTeamDropBefore || ""
+      );
       scoutingDragState = null;
       return;
     }
@@ -10999,23 +11054,21 @@ function renderScoutingShadowXi() {
           .map((slot) => {
             const pitchPosition = getScoutingShadowSlotPitchPosition(slot, state.shadowXi.formation);
             const records = getScoutingShadowSlotRecords(slot.id, state);
-            const hiddenCount = Math.max(0, getScoutingShadowSlotRecordIds(slot.id, state).length - records.slice(0, 2).length);
             return `
               <article class="scouting-shadow-slot${records.length ? " is-filled" : ""}${selectedSlotId === slot.id ? " is-selected" : ""}" style="--x:${pitchPosition.x}%;--y:${pitchPosition.y}%;" data-scouting-shadow-drop-slot="${escapeHtml(slot.id)}">
-                <div class="scouting-shadow-slot-head">
+                <button type="button" class="scouting-shadow-slot-head" data-select-scouting-shadow-slot="${escapeHtml(slot.id)}">
                   <span>${escapeHtml(slot.label)}</span>
                   <strong>${records.length ? `${records.length} target${records.length === 1 ? "" : "s"}` : "Wishlist"}</strong>
                   <em>${escapeHtml(slot.position)}</em>
-                </div>
+                </button>
                 <div class="scouting-shadow-stack">
                   ${
                     records.length
                   ? records
-                          .slice(0, 2)
                             .map((record, index) => {
                               const recordId = getScoutingRecordId(record);
                               return `
-                              <div class="scouting-shadow-player-row" style="--stack:${index};">
+                              <div class="scouting-shadow-player-row" style="--stack:${index};" data-scouting-shadow-drop-slot="${escapeHtml(slot.id)}" data-scouting-shadow-drop-before="${escapeHtml(recordId)}">
                                 <article
                                   class="scouting-shadow-player"
                                   draggable="true"
@@ -11047,7 +11100,6 @@ function renderScoutingShadowXi() {
                           .join("")
                       : `<p class="scouting-shadow-empty">Choose this role, then add players from profiles.</p>`
                   }
-                  ${hiddenCount ? `<span class="scouting-shadow-more">+${hiddenCount} more in this role</span>` : ""}
                 </div>
                 <button type="button" class="scouting-shadow-add" data-select-scouting-shadow-slot="${escapeHtml(slot.id)}" ${canEdit ? "" : "disabled"}>+ Add player</button>
               </article>
@@ -11140,7 +11192,7 @@ function renderScoutingMyTeam() {
                             .map((player) => {
                               const playerId = getScoutingMyTeamPlayerId(player);
                               return `
-                                <div class="scouting-my-team-slot-entry">
+                                <div class="scouting-my-team-slot-entry" data-scouting-my-team-drop-slot="${escapeHtml(slot.id)}" data-scouting-my-team-drop-before="${escapeHtml(playerId)}">
                                   ${renderScoutingMyTeamPlayerCard(player, { compact: true, slot })}
                                   <div class="scouting-my-team-slot-actions">
                                     <details class="scouting-my-team-menu">
@@ -11184,7 +11236,7 @@ function renderScoutingMyTeam() {
             <p class="placeholder-tag">Squad players</p>
             <span>${players.length}</span>
           </div>
-          <div class="scouting-my-team-player-list">
+          <div class="scouting-my-team-player-list" data-scouting-my-team-bench-drop>
             ${
               benchPlayers.length
                 ? benchPlayers.map((player) => renderScoutingMyTeamPlayerCard(player)).join("")

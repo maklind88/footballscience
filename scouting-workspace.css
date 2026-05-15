@@ -6208,3 +6208,289 @@ flex-direction:column;
 grid-template-columns:1fr;
 }
 }
+
+/* My Team board polish: compact draggable lanes, persistent roster bench drop zone */
+.scouting-my-team-layout{
+  grid-template-columns:minmax(0,1fr) minmax(14rem,17rem);
+  height:clamp(44rem,96vh,72rem);
+  min-height:44rem;
+  max-height:none;
+  align-items:start;
+}
+.scouting-my-team-pitch{
+  width:100%;
+  height:clamp(44rem,96vh,72rem);
+  min-height:44rem;
+  max-height:none;
+  overflow:visible;
+}
+.scouting-my-team-side{
+  height:clamp(44rem,96vh,72rem);
+  max-height:none;
+}
+.scouting-my-team-pitch .scouting-my-team-slot{
+  width:clamp(10.8rem,11.2vw,13.15rem);
+  transform:translate(-50%,-50%);
+}
+.scouting-my-team-slot-card{
+  width:100%;
+  min-width:0;
+  padding:.28rem;
+  gap:.2rem;
+  border-radius:15px;
+  background:linear-gradient(180deg,rgba(242,248,246,.93),rgba(219,235,229,.88));
+  border:1px solid rgba(255,255,255,.62);
+  box-shadow:0 14px 30px rgba(7,29,21,.18);
+  backdrop-filter:blur(10px);
+}
+.scouting-my-team-slot-head{
+  min-height:1rem;
+}
+.scouting-my-team-slot-head small{
+  font-size:.52rem;
+  letter-spacing:.05em;
+  opacity:.78;
+}
+.scouting-my-team-slot-stack{
+  gap:.2rem;
+  max-height:7.7rem;
+  overflow:auto;
+  padding:.04rem .08rem .04rem 0;
+  scrollbar-width:thin;
+}
+.scouting-my-team-slot-entry{
+  grid-template-columns:minmax(0,1fr) 1.45rem;
+  gap:.14rem;
+  border-radius:12px;
+}
+.scouting-my-team-slot-entry:hover{
+  background:rgba(24,63,46,.08);
+}
+.scouting-my-team-player.is-compact{
+  grid-template-columns:1.44rem minmax(0,1fr);
+  min-height:2.22rem;
+  padding:.22rem .28rem;
+  gap:.3rem;
+  border-radius:11px;
+  box-shadow:0 7px 16px rgba(6,21,14,.1);
+}
+.scouting-my-team-player.is-compact .scouting-my-team-avatar{
+  width:1.38rem;
+  height:1.38rem;
+  font-size:.52rem;
+}
+.scouting-my-team-player.is-compact .scouting-my-team-player-copy{
+  gap:.01rem;
+  line-height:1.02;
+}
+.scouting-my-team-player.is-compact .scouting-my-team-player-copy strong{
+  font-size:.68rem;
+}
+.scouting-my-team-player.is-compact .scouting-my-team-player-copy em{
+  font-size:.55rem;
+  font-weight:850;
+  color:#3f604b;
+}
+.scouting-my-team-slot-actions{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.scouting-my-team-menu summary{
+  width:1.34rem;
+  height:1.34rem;
+  background:rgba(236,244,239,.86);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.66);
+}
+.scouting-my-team-add-to-slot{
+  display:none!important;
+}
+.scouting-my-team-drop-card{
+  min-height:2.75rem;
+  border-radius:14px;
+  background:rgba(255,255,255,.12);
+}
+.scouting-my-team-drop-card strong{
+  font-size:.62rem;
+}
+.scouting-my-team-player-list[data-scouting-my-team-bench-drop]{
+  min-height:8rem;
+  max-height:calc(100vh - 17rem);
+  padding:.24rem;
+  border:1px dashed rgba(24,63,46,.18);
+  border-radius:16px;
+  background:linear-gradient(180deg,rgba(24,63,46,.035),rgba(24,63,46,.01));
+}
+.scouting-my-team-player-list[data-scouting-my-team-bench-drop] .scouting-my-team-player{
+  border-radius:14px;
+}
+body.is-dark-mode .scouting-my-team-slot-card{
+  background:linear-gradient(180deg,rgba(24,37,31,.94),rgba(14,26,20,.9));
+  border-color:rgba(255,255,255,.16);
+}
+body.is-dark-mode .scouting-my-team-slot-entry:hover{
+  background:rgba(255,255,255,.08);
+}
+@media (max-width:980px){
+  .scouting-my-team-layout,
+  .scouting-my-team-pitch,
+  .scouting-my-team-side{
+    height:auto;
+    min-height:0;
+  }
+  .scouting-my-team-pitch{
+    height:64rem;
+    min-height:64rem;
+  }
+  .scouting-my-team-pitch .scouting-my-team-slot{
+    width:10.4rem;
+  }
+}
+
+/* Shadow XI aligned with My Team board: visible stacks and draggable target tiles */
+.scouting-shadow-layout:not(.scouting-my-team-layout){
+  grid-template-columns:minmax(0,1fr) minmax(14rem,17rem);
+  gap:clamp(.85rem,1.4vw,1.15rem);
+  align-items:start;
+}
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-pitch{
+  width:100%;
+  height:clamp(36rem,76vh,54rem);
+  min-height:36rem;
+  max-height:none;
+  overflow:visible;
+  border-radius:24px;
+}
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-slot{
+  width:clamp(10.8rem,11.2vw,13.15rem);
+  min-height:0;
+  padding:0;
+  border:0;
+  background:transparent;
+  box-shadow:none;
+  backdrop-filter:none;
+  overflow:visible;
+  transform:translate(-50%,-50%);
+}
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-slot.is-filled{
+  background:transparent;
+  box-shadow:none;
+}
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-slot-head{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:.36rem;
+  min-height:1.42rem;
+  padding:.16rem .28rem;
+  border:1px solid rgba(255,255,255,.5);
+  border-radius:999px;
+  background:rgba(12,42,31,.7);
+  color:#fff;
+  font:inherit;
+  text-align:left;
+  box-shadow:0 10px 22px rgba(4,19,13,.16);
+  cursor:pointer;
+}
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-slot-head span,
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-slot-head strong{
+  font-size:.56rem;
+  font-weight:950;
+  letter-spacing:.05em;
+  text-transform:uppercase;
+  opacity:1;
+}
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-slot-head strong{
+  max-width:6.8rem;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  color:#e9f8ef;
+}
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-stack{
+  display:grid;
+  gap:.2rem;
+  max-height:8.3rem;
+  min-height:2.5rem;
+  overflow:auto;
+  padding:.24rem .08rem .04rem 0;
+  scrollbar-width:thin;
+}
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-player-row{
+  grid-template-columns:minmax(0,1fr) 1.32rem;
+  gap:.14rem;
+  transform:none;
+  align-items:center;
+  border-radius:12px;
+}
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-player-row:hover{
+  background:rgba(255,255,255,.12);
+}
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-player{
+  grid-template-columns:1.42rem minmax(0,1fr);
+  min-height:2.25rem;
+  padding:.22rem .28rem;
+  gap:.3rem;
+  border-radius:11px;
+  background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(238,245,241,.95));
+  box-shadow:0 8px 17px rgba(4,20,13,.13);
+  cursor:grab;
+}
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-player:active{
+  cursor:grabbing;
+}
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-player .scouting-record-avatar-shell,
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-player .scouting-record-avatar{
+  width:1.38rem;
+  height:1.38rem;
+}
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-player-name{
+  font-size:.68rem;
+  font-weight:950;
+}
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-player-copy span{
+  font-size:.55rem;
+  color:#496252;
+  font-weight:820;
+}
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-remove{
+  width:1.26rem;
+  height:1.26rem;
+  font-size:.66rem;
+  background:rgba(254,226,226,.92);
+}
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-slot.is-filled .scouting-shadow-add{
+  display:none!important;
+}
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-add{
+  min-height:1.55rem;
+  padding:.24rem .38rem;
+  border-radius:999px;
+  background:rgba(255,255,255,.14);
+  font-size:.6rem;
+}
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-empty{
+  min-height:2.5rem;
+  display:grid;
+  place-items:center;
+  margin:0;
+  padding:.34rem;
+  border:1px dashed rgba(255,255,255,.38);
+  border-radius:13px;
+  background:rgba(255,255,255,.1);
+  font-size:.58rem;
+  line-height:1.2;
+}
+@media (max-width:980px){
+  .scouting-shadow-layout:not(.scouting-my-team-layout){
+    grid-template-columns:1fr;
+  }
+  .scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-pitch{
+    height:56rem;
+    min-height:56rem;
+  }
+  .scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-slot{
+    width:10.4rem;
+  }
+}

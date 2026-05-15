@@ -6494,3 +6494,250 @@ body.is-dark-mode .scouting-my-team-slot-entry:hover{
     width:10.4rem;
   }
 }
+
+/* Profile modal navigation sits in the top-right chrome beside close */
+.scouting-profile-top-actions{
+  position:absolute;
+  top:.9rem;
+  right:3.55rem;
+  z-index:4;
+  display:flex;
+  justify-content:flex-end;
+  max-width:calc(100% - 7.5rem);
+}
+.scouting-profile-top-actions:empty{
+  display:none;
+}
+.scouting-profile-top-actions .scouting-profile-nav{
+  padding:.28rem .34rem;
+  gap:.28rem;
+  border-radius:999px;
+  background:rgba(255,255,255,.92);
+  border-color:rgba(29,29,31,.1);
+  box-shadow:0 12px 28px rgba(16,24,20,.12);
+  backdrop-filter:blur(12px);
+}
+.scouting-profile-top-actions .scouting-profile-nav span{
+  font-size:.62rem;
+  white-space:nowrap;
+}
+.scouting-profile-top-actions .scouting-profile-nav button{
+  min-height:1.72rem;
+  padding:.26rem .52rem;
+  font-size:.68rem;
+}
+.scouting-profile-top-actions .scouting-profile-nav button[data-close-scouting-profile]{
+  background:rgba(29,29,31,.08);
+  color:#1d1d1f;
+}
+@media (max-width:760px){
+  .scouting-profile-top-actions{
+    position:static;
+    order:-1;
+    max-width:none;
+    padding-right:2.8rem;
+  }
+  .scouting-profile-top-actions .scouting-profile-nav{
+    width:100%;
+    justify-content:flex-start;
+    border-radius:14px;
+  }
+}
+
+/* Polished close control for scouting profile modal */
+.scouting-profile-close{
+  z-index:5;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(239,244,240,.96));
+  border:1px solid rgba(24,63,46,.14);
+  box-shadow:0 12px 28px rgba(14,27,20,.14),inset 0 1px 0 rgba(255,255,255,.92);
+  transition:transform .16s ease,box-shadow .16s ease,background .16s ease,border-color .16s ease;
+}
+.scouting-profile-close span{
+  display:block;
+  color:#173327;
+  font-size:1.32rem;
+  font-weight:850;
+  line-height:1;
+  transform:translateY(-.04rem);
+}
+.scouting-profile-close:hover,
+.scouting-profile-close:focus-visible{
+  transform:translateY(-1px) scale(1.03);
+  background:linear-gradient(180deg,#ffffff,#eef6f1);
+  border-color:rgba(24,63,46,.28);
+  box-shadow:0 16px 34px rgba(14,27,20,.18),0 0 0 4px rgba(47,143,107,.13),inset 0 1px 0 rgba(255,255,255,.95);
+  outline:0;
+}
+.scouting-profile-close:active{
+  transform:translateY(0) scale(.98);
+}
+body.is-dark-mode .scouting-profile-close{
+  background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.08));
+  border-color:rgba(255,255,255,.2);
+  box-shadow:0 14px 30px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.16);
+}
+body.is-dark-mode .scouting-profile-close span{
+  color:#ecfdf5;
+}
+
+/* My Team slot header: keep position label beside player count */
+.scouting-my-team-slot-card .scouting-my-team-slot-head{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:.24rem;
+  min-height:1.08rem;
+  padding:0 .08rem .08rem;
+}
+.scouting-my-team-slot-card .scouting-my-team-slot-role{
+  position:static;
+  top:auto;
+  left:auto;
+  min-width:1.5rem;
+  height:1rem;
+  padding:0 .32rem;
+  font-size:.52rem;
+  line-height:1;
+  box-shadow:none;
+}
+.scouting-my-team-slot-card .scouting-my-team-slot-head small{
+  line-height:1;
+  transform:none;
+}
+
+/* My Team drag/drop: player tiles behave like reorderable bricks */
+.scouting-my-team-slot-entry{
+  position:relative;
+  transition:margin 160ms ease,transform 160ms ease,background 160ms ease;
+}
+.scouting-my-team-slot-entry.is-drop-before{
+  margin-top:2.55rem;
+}
+.scouting-my-team-slot-entry.is-drop-before::before{
+  content:"";
+  position:absolute;
+  left:.08rem;
+  right:.08rem;
+  top:-2.1rem;
+  height:1.72rem;
+  border:1px dashed rgba(236,245,228,.86);
+  border-radius:.78rem;
+  background:linear-gradient(135deg,rgba(255,255,255,.2),rgba(207,229,219,.12));
+  box-shadow:inset 0 0 0 1px rgba(20,50,37,.08),0 .7rem 1.6rem rgba(9,36,28,.16);
+  pointer-events:none;
+}
+.scouting-my-team-slot-entry.is-drop-before::after{
+  content:"Drop here";
+  position:absolute;
+  left:50%;
+  top:-1.55rem;
+  transform:translateX(-50%);
+  color:rgba(255,255,255,.84);
+  font-size:.52rem;
+  font-weight:900;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  pointer-events:none;
+}
+.scouting-my-team-slot.is-drag-over .scouting-my-team-slot-card,
+.scouting-my-team-slot.is-drag-over .scouting-my-team-drop-card{
+  outline:2px solid rgba(255,224,120,.78);
+  outline-offset:4px;
+  box-shadow:0 1.1rem 2.4rem rgba(7,35,28,.26);
+}
+.scouting-my-team-player-list.is-drag-over{
+  outline:2px dashed rgba(24,63,46,.28);
+  outline-offset:4px;
+  background:rgba(24,63,46,.04);
+}
+.scouting-my-team-player.is-compact{
+  display:grid;
+  grid-template-columns:1.34rem minmax(0,1fr) 1.4rem;
+  column-gap:.34rem;
+  align-items:center;
+}
+.scouting-my-team-player.is-compact .scouting-my-team-player-copy{
+  min-width:0;
+}
+.scouting-my-team-player.is-compact .scouting-my-team-menu{
+  justify-self:end;
+  align-self:center;
+  margin:0;
+}
+.scouting-my-team-player.is-compact .scouting-my-team-menu summary{
+  width:1.24rem;
+  height:1.24rem;
+  min-width:1.24rem;
+  border-radius:999px;
+  background:rgba(255,255,255,.64);
+  border:1px solid rgba(24,63,46,.12);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.74);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+.scouting-my-team-player.is-dragging{
+  opacity:.58;
+  transform:scale(.98);
+  box-shadow:0 1rem 2rem rgba(6,31,24,.22);
+}
+
+/* My Team pitch needs to grow with stacked squads so position cards never collide */
+.scouting-my-team-pitch{
+  height:var(--my-team-pitch-height,112rem);
+  min-height:var(--my-team-pitch-height,112rem);
+  max-height:none;
+  overflow:visible;
+}
+.scouting-my-team-pitch .scouting-my-team-slot{
+  width:clamp(13.8rem,14vw,16.4rem);
+}
+.scouting-my-team-slot-card{
+  min-width:13.8rem;
+}
+.scouting-my-team-slot-stack{
+  max-height:none;
+  overflow:visible;
+}
+.scouting-my-team-pitch .scouting-my-team-slot[data-my-team-slot-role="CF"],
+.scouting-my-team-pitch .scouting-my-team-slot[data-my-team-slot-role="LW"],
+.scouting-my-team-pitch .scouting-my-team-slot[data-my-team-slot-role="RW"]{
+  transform:translate(-50%,-16%);
+}
+.scouting-my-team-pitch .scouting-my-team-slot[data-my-team-slot-role="LCMF"],
+.scouting-my-team-pitch .scouting-my-team-slot[data-my-team-slot-role="RCMF"]{
+  transform:translate(-50%,-42%);
+}
+.scouting-my-team-pitch .scouting-my-team-slot[data-my-team-slot-role="DMF"]{
+  transform:translate(-50%,-50%);
+}
+.scouting-my-team-pitch .scouting-my-team-slot[data-my-team-slot-role="LB"],
+.scouting-my-team-pitch .scouting-my-team-slot[data-my-team-slot-role="LCB"],
+.scouting-my-team-pitch .scouting-my-team-slot[data-my-team-slot-role="RCB"],
+.scouting-my-team-pitch .scouting-my-team-slot[data-my-team-slot-role="RB"]{
+  transform:translate(-50%,-76%);
+}
+.scouting-my-team-pitch .scouting-my-team-slot[data-my-team-slot-role="GK"]{
+  transform:translate(-50%,-94%);
+}
+@media (max-width:1180px){
+  .scouting-my-team-pitch{
+    height:var(--my-team-pitch-height,108rem);
+    min-height:var(--my-team-pitch-height,108rem);
+  }
+}
+@media (max-width:760px){
+  .scouting-my-team-pitch{
+    height:var(--my-team-pitch-height,96rem);
+    min-height:var(--my-team-pitch-height,96rem);
+  }
+  .scouting-my-team-pitch .scouting-my-team-slot{
+    width:12rem;
+  }
+  .scouting-my-team-slot-card{
+    min-width:12rem;
+  }
+}

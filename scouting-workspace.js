@@ -24,6 +24,7 @@ let scoutingRecordLookupFingerprint = "";
 let scoutingShadowFavoriteSearchQuery = "";
 let scoutingReportBuilderOpen = false;
 let scoutingReportsExpandedPanels = new Set();
+let scoutingOpenRecordActionMenuId = "";
 let scoutingRoleModelBuilderOpen = false;
 let scoutingRoleModelEditId = "";
 let scoutingSavedViewsOpen = false;
@@ -794,6 +795,7 @@ function normalizeScoutingDatabaseFilters(filters = {}) {
     season: normalizeScoutingText(filters.season, 80) || "all",
     position: normalizeScoutingText(filters.position, 40) || "all",
     minMinutes: Number.isFinite(minMinutes) && minMinutes >= 0 ? Math.round(minMinutes) : 0,
+    minMinutesIntentional: Boolean(filters.minMinutesIntentional),
     maxMinutes: Number.isFinite(maxMinutes) && maxMinutes >= 0 ? Math.round(maxMinutes) : 0,
     minAge: normalizeScoutingText(filters.minAge, 12),
     maxAge: normalizeScoutingText(filters.maxAge, 12),
@@ -2277,6 +2279,12 @@ function getScoutingMyTeamInitials(name = "") {
 function getScoutingMyTeamMetaLine(player = {}) {
   return [player.team || "Current squad", player.position || "No position"].filter(Boolean).join(" / ");
 }
+function getScoutingMyTeamBestRoleLine(player = {}) {
+  return normalizeScoutingText(
+    player.bestRole || player.best_role || player.roleModel || player.tacticalRole || player.scoutingRole || player.primaryRole || player.position,
+    120
+  ) || "Best role pending";
+}
 function formatScoutingMyTeamAge(value) {
   const raw = normalizeScoutingText(value, 20);
   const number = Number(raw);
@@ -2315,7 +2323,7 @@ function renderScoutingMyTeamPlayerCard(player, options = {}) {
   const slot = options.slot || null;
   const status = normalizeScoutingText(player.status, 80);
   const age = formatScoutingMyTeamAge(player.age);
-  const metaLine = getScoutingMyTeamMetaLine(player);
+  const metaLine = compact ? getScoutingMyTeamBestRoleLine(player) : getScoutingMyTeamMetaLine(player);
   const selected = !compact && scoutingMyTeamSelectedPlayerId === id;
   return `
     <article class="scouting-my-team-player${compact ? " is-compact" : ""}${selected ? " is-selected" : ""}" draggable="${canEditScoutingWorkspace() ? "true" : "false"}" data-scouting-drag-my-team-player="${escapeHtml(id)}" data-select-scouting-my-team-player="${escapeHtml(id)}">
@@ -2325,14 +2333,6 @@ function renderScoutingMyTeamPlayerCard(player, options = {}) {
         <em>${escapeHtml(metaLine)}</em>
         ${compact ? "" : `<span>${escapeHtml([age, status].filter(Boolean).join(" / ") || "Ready for placement")}</span>`}
       </div>
-      ${
-        compact
-          ? `
-            <button type="button" class="scouting-my-team-info-trigger" aria-label="Show ${escapeHtml(player.name || "player")} info">i</button>
-            ${renderScoutingMyTeamInfoPanel(player, slot)}
-          `
-          : ""
-      }
     </article>
   `;
 }
@@ -7084,7 +7084,7 @@ function getScoutingAdvancedFilterCount(filters = {}) {
   const hasMetricSelection = (Array.isArray(filters.metricIds) && filters.metricIds.length) || (filters.metricId && filters.metricId !== "all");
   return [
     filters.season && filters.season !== "all",
-    Number(filters.minMinutes) !== 0,
+    Number(filters.minMinutes) > 0,
     Number(filters.maxMinutes) > 0 && Number(filters.maxMinutes) < 5000,
     Number(filters.minAge) > 14,
     Number(filters.maxAge) > 0 && Number(filters.maxAge) < 45,
@@ -7354,6 +7354,7 @@ function renderScoutingCompareSetMatrix(records = [], state = ensureScoutingStat
 function toggleScoutingRecordQuickView(recordId) {
   const state = ensureScoutingState();
   const id = normalizeScoutingText(recordId, 160);
+  scoutingOpenRecordActionMenuId = id;
   state.databaseExpandedRecordId = state.databaseExpandedRecordId === id ? "" : id;
   writeScoutingState({ syncCentral: false });
   renderScoutingWorkspace({ preserveFocus: true });
@@ -9523,6 +9524,10 @@ function getScoutingInternalSquadPlayers() {
     .map((player, index) => {
       const name = normalizeScoutingText(player.name || player.player || player.playerName || player.fullName || player.displayName, 160);
       const position = normalizeScoutingText(player.position || player.primaryPosition || player.role || player.positions, 80);
+      const bestRole = normalizeScoutingText(
+        player.bestRole || player.best_role || player.roleModel || player.tacticalRole || player.scoutingRole || player.primaryRole || position,
+        120
+      );
       const ratingValue = Number(player.rating ?? player.overall ?? player.score ?? player.currentAbility ?? player.performanceScore);
       const ageValue = Number(player.age);
       const id = normalizeScoutingText(player.id || player.playerId || `${name}-${position}-${index}`, 160);
@@ -9530,6 +9535,7 @@ function getScoutingInternalSquadPlayers() {
         id,
         name,
         position,
+        bestRole,
         team: normalizeScoutingText(player.team || player.club || player.squad || "Current squad", 120),
         age: Number.isFinite(ageValue) ? ageValue : null,
         rating: Number.isFinite(ratingValue) ? Math.max(1, Math.min(99, ratingValue <= 5 ? ratingValue * 20 : ratingValue)) : null,
@@ -10219,8 +10225,8 @@ function renderScoutingRecordCard(record, options = {}) {
           aria-pressed="${favorite ? "true" : "false"}"
           aria-label="${favorite ? "Remove favorite" : "Favorite player"}"
         >${favorite ? "★" : "☆"}</button>
-        <details class="scouting-record-more-menu">
-          <summary aria-label="More actions for ${escapeHtml(getScoutingRecordName(record))}">•••</summary>
+        <details class="scouting-record-more-menu" data-scouting-record-more-menu="${escapeHtml(recordId)}" ${scoutingOpenRecordActionMenuId === recordId ? "open" : ""}>
+          <summary data-toggle-scouting-record-more-menu="${escapeHtml(recordId)}" aria-label="More actions for ${escapeHtml(getScoutingRecordName(record))}">•••</summary>
           <div>
             <button
               type="button"
@@ -10273,6 +10279,9 @@ function renderScoutingDatabaseControls() {
   const metricMinValue = Number(filters.metricMin) > 0 ? Math.max(1, Math.min(99, Math.round(Number(filters.metricMin)))) : 75;
   const roleFitValue = Number(filters.roleFitMin) > 0 ? Math.max(1, Math.min(99, Math.round(Number(filters.roleFitMin)))) : 70;
   const roleFloorValue = Number(filters.roleFloorMin) > 0 ? Math.max(1, Math.min(99, Math.round(Number(filters.roleFloorMin)))) : 45;
+  const hasMetricFloor = selectedMetricIds.length && Number(filters.metricMin) > 0;
+  const hasRoleFitFloor = Number(filters.roleFitMin) > 0;
+  const hasRoleFloor = Number(filters.roleFloorMin) > 0;
   return `
     <div class="scouting-database-controls">
       <form class="scouting-database-search" data-scouting-database-search-form>
@@ -10323,7 +10332,7 @@ function renderScoutingDatabaseControls() {
         <label>
           <span>Min minutes</span>
           <div class="scouting-range-filter">
-            <strong>${escapeHtml(formatScoutingNumber(minutesMinValue))}+</strong>
+            <strong>${escapeHtml(minutesMinValue > 0 ? `${formatScoutingNumber(minutesMinValue)}+` : "Any")}</strong>
             <input type="range" min="0" max="5000" step="50" value="${escapeHtml(minutesMinValue)}" data-scouting-filter="minMinutes" aria-label="Minimum minutes" />
           </div>
         </label>
@@ -10337,7 +10346,7 @@ function renderScoutingDatabaseControls() {
         <label>
           <span>Min age</span>
           <div class="scouting-range-filter">
-            <strong>${escapeHtml(`${ageMinValue}+`)}</strong>
+            <strong>${escapeHtml(Number(filters.minAge) > 14 ? `${ageMinValue}+` : "Any")}</strong>
             <input type="range" min="14" max="45" step="1" value="${escapeHtml(ageMinValue)}" data-scouting-filter="minAge" aria-label="Minimum age" />
           </div>
         </label>
@@ -10372,7 +10381,7 @@ function renderScoutingDatabaseControls() {
         <label>
           <span>Metric percentile</span>
           <div class="scouting-range-filter">
-            <strong>P${escapeHtml(metricMinValue)}</strong>
+            <strong>${escapeHtml(hasMetricFloor ? `P${metricMinValue}` : "Any")}</strong>
             <input type="range" min="1" max="99" step="1" value="${escapeHtml(metricMinValue)}" data-scouting-filter="metricMin" aria-label="Minimum metric percentile" ${selectedMetricIds.length ? "" : "disabled"} />
           </div>
         </label>
@@ -10401,14 +10410,14 @@ function renderScoutingDatabaseControls() {
         <label>
           <span>Min role fit</span>
           <div class="scouting-range-filter">
-            <strong>P${escapeHtml(roleFitValue)}</strong>
+            <strong>${escapeHtml(hasRoleFitFloor ? `P${roleFitValue}` : "Any")}</strong>
             <input type="range" min="1" max="99" step="1" value="${escapeHtml(roleFitValue)}" data-scouting-filter="roleFitMin" aria-label="Minimum role fit percentile" />
           </div>
         </label>
         <label>
           <span>Min role floor</span>
           <div class="scouting-range-filter">
-            <strong>P${escapeHtml(roleFloorValue)}</strong>
+            <strong>${escapeHtml(hasRoleFloor ? `P${roleFloorValue}` : "Any")}</strong>
             <input type="range" min="1" max="99" step="1" value="${escapeHtml(roleFloorValue)}" data-scouting-filter="roleFloorMin" aria-label="Minimum role floor percentile" />
           </div>
         </label>
@@ -11141,11 +11150,6 @@ function renderScoutingMyTeam() {
                                         <button type="button" data-remove-scouting-my-team-slot="${escapeHtml(slot.id)}" data-remove-scouting-my-team-player="${escapeHtml(playerId)}">Remove player</button>
                                       </div>
                                     </details>
-                                    ${
-                                      canEdit
-                                        ? `<button type="button" class="scouting-my-team-trash" data-remove-scouting-my-team-slot="${escapeHtml(slot.id)}" data-remove-scouting-my-team-player="${escapeHtml(playerId)}" aria-label="Remove ${escapeHtml(player.name)} from ${escapeHtml(slot.label)}">&#128465;</button>`
-                                        : ""
-                                    }
                                   </div>
                                 </div>
                               `;
@@ -12804,6 +12808,9 @@ function setScoutingDatabaseFilter(field, value) {
     nextPatch.metricIds = metricIds;
     nextPatch.metricId = metricIds[0] || "all";
   }
+  if (field === "minMinutes") {
+    nextPatch.minMinutesIntentional = Number(value) > 0;
+  }
   state.databaseFilters = normalizeScoutingDatabaseFilters({
     ...nextPatch,
   });
@@ -13297,6 +13304,22 @@ export function renderAnalysisRoom(context) {
 }
 export function handleClick(event, context) {
   setScoutingContext(context);
+  const recordMoreMenuTrigger = event.target.closest("[data-toggle-scouting-record-more-menu]");
+  if (recordMoreMenuTrigger) {
+    const menu = recordMoreMenuTrigger.closest(".scouting-record-more-menu");
+    const recordId = normalizeScoutingText(recordMoreMenuTrigger.dataset.toggleScoutingRecordMoreMenu, 160);
+    scoutingOpenRecordActionMenuId = menu?.open ? "" : recordId;
+    ui.scoutingWorkspace?.querySelectorAll(".scouting-record-more-menu[open]").forEach((openMenu) => {
+      if (openMenu !== menu) {
+        openMenu.removeAttribute("open");
+      }
+    });
+    return;
+  }
+  if (scoutingOpenRecordActionMenuId && !event.target.closest(".scouting-record-more-menu")) {
+    scoutingOpenRecordActionMenuId = "";
+    ui.scoutingWorkspace?.querySelectorAll(".scouting-record-more-menu[open]").forEach((openMenu) => openMenu.removeAttribute("open"));
+  }
   const closeProfileTrigger = event.target.closest("[data-close-scouting-profile]");
   if (closeProfileTrigger && (!event.target.closest("[data-scouting-profile-modal]") || closeProfileTrigger.tagName === "BUTTON")) {
     closeScoutingRecordProfile();
@@ -13975,6 +13998,17 @@ export function handleSubmit(event, context) {
     if (reportForm.elements.type?.value !== "opposition") {
       reportForm.reset();
     }
+    return;
+  }
+  const oppositionForm = event.target.closest("[data-scouting-opposition-form]");
+  if (oppositionForm) {
+    event.preventDefault();
+    const formData = new FormData(oppositionForm);
+    setScoutingOppositionFilters({
+      team: formData.get("team"),
+      season: formData.get("season"),
+      minMinutes: formData.get("minMinutes"),
+    });
     return;
   }
   const listForm = event.target.closest("[data-scouting-list-form]");

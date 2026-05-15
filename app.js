@@ -1401,7 +1401,8 @@ query: "",
 league: "all",
 season: "all",
 position: "all",
-minMinutes: 450,
+minMinutes: 0,
+minMinutesIntentional: false,
 maxAge: "",
 metricId: "all",
 metricMin: "",
@@ -6151,7 +6152,8 @@ query: normalizeScoutingText(filters.query, 120),
 league: normalizeScoutingText(filters.league, 120) || "all",
 season: normalizeScoutingText(filters.season, 80) || "all",
 position: normalizeScoutingText(filters.position, 40) || "all",
-minMinutes: Number.isFinite(minMinutes) && minMinutes >= 0 ? Math.round(minMinutes) : 450,
+minMinutes: Number.isFinite(minMinutes) && minMinutes >= 0 ? Math.round(minMinutes) : 0,
+minMinutesIntentional: Boolean(filters.minMinutesIntentional),
 maxAge: normalizeScoutingText(filters.maxAge, 12),
 metricId: normalizeScoutingText(filters.metricId, 120) || "all",
 metricMin: normalizeScoutingText(filters.metricMin, 12),
@@ -6205,12 +6207,16 @@ Object.entries(sourceSlots)
 );
 const selectedSlotId = normalizeScoutingText(source.shadowXi?.selectedSlotId, 40);
 const sourceMyTeam = source.myTeam && typeof source.myTeam === "object" ? source.myTeam : {};
-return {
-activeTab,
-databaseFilters: normalizeScoutingDatabaseFilters({
+const databaseFilters = normalizeScoutingDatabaseFilters({
 ...source.databaseFilters,
 query: source.databaseFilters?.query ?? source.searchQuery ?? "",
-}),
+});
+if (Number(source.databaseFilters?.minMinutes) === 450 && !source.databaseFilters?.minMinutesIntentional) {
+databaseFilters.minMinutes = 0;
+}
+return {
+activeTab,
+databaseFilters,
 targets: Array.isArray(source.targets)
 ? source.targets.map(cloneScoutingTarget).filter((target) => target.name)
 : [],

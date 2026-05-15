@@ -1,6 +1,24 @@
 import { expect, test } from "@playwright/test";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const workspaceHubKey = "football-workspace-hub-v3";
+const qaDir = path.dirname(fileURLToPath(import.meta.url));
+const projectRoot = path.dirname(qaDir);
+
+function getFallbackCompareRecordOutsideFirstPage() {
+  const importSource = fs.readFileSync(path.join(projectRoot, "scouting-import-data.js"), "utf8");
+  const jsonText = importSource.trim().replace(/^window\.__footballScienceScoutingDatabase=/, "").replace(/;$/, "");
+  const database = JSON.parse(jsonText);
+  const records = Array.isArray(database.records) ? database.records : [];
+  const sortedRecords = [...records].sort((a, b) => (Number(b?.[9]) || 0) - (Number(a?.[9]) || 0) || String(a?.[1] || "").localeCompare(String(b?.[1] || "")));
+  const record = sortedRecords[120] || sortedRecords[records.length - 1];
+  return {
+    id: String(record?.[0] || ""),
+    name: String(record?.[1] || ""),
+  };
+}
 
 async function dismissDashboardModal(page) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -57,10 +75,13 @@ async function openWorkspace(page, workspaceId, viewId = workspaceId) {
   await expect(page.locator(`[data-workspace-view="${viewId}"].is-active`)).toBeVisible();
 }
 
-async function seedScoutingAccess(page) {
+async function seedScoutingAccess(page, scoutingState = null) {
   await page.addInitScript(
-    ({ key }) => {
+    ({ key, state }) => {
       window.localStorage.removeItem("football-scouting-v1");
+      if (state) {
+        window.localStorage.setItem("football-scouting-v1", JSON.stringify(state));
+      }
       window.localStorage.setItem(
         key,
         JSON.stringify({
@@ -72,7 +93,7 @@ async function seedScoutingAccess(page) {
         })
       );
     },
-    { key: workspaceHubKey }
+    { key: workspaceHubKey, state: scoutingState }
   );
 }
 
@@ -239,6 +260,27 @@ test("Scouting profile favorite and Shadow XI actions stay stable", async ({ pag
   await shadowTab.click();
   await expect(shadowTab).toHaveClass(/is-active/);
   await expect(page.locator(".scouting-shadow-player").first()).toBeVisible({ timeout: 30_000 });
+});
+
+test("Scouting compare set hydrates saved players outside the current worker page", async ({ page }) => {
+  test.setTimeout(180_000);
+  const offPageRecord = getFallbackCompareRecordOutsideFirstPage();
+  expect(offPageRecord.id).toBeTruthy();
+  expect(offPageRecord.name).toBeTruthy();
+  await seedScoutingAccess(page, {
+    activeTab: "shadow-xi",
+    compareRecordIds: [offPageRecord.id],
+    databaseFilters: {
+      offset: 0,
+      sortMetricId: "minutes",
+    },
+  });
+  await prepareScoutingDatabase(page);
+
+  const modeToggle = page.locator("[data-toggle-scouting-database-mode]").first();
+  await expect(modeToggle).toBeEnabled({ timeout: 15_000 });
+  await modeToggle.click();
+  await expect(page.locator(".scouting-compare-set").first()).toContainText(offPageRecord.name, { timeout: 30_000 });
 });
 
 test("Scouting My Team formation and squad placement stay stable", async ({ page }) => {

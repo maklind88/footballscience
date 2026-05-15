@@ -342,13 +342,40 @@ function getDatabasePage(query = {}) {
   };
 }
 
+function getRecordsByIds(recordIds = []) {
+  const wantedIds = new Set((Array.isArray(recordIds) ? recordIds : []).map((id) => normalizeText(id, 160)).filter(Boolean));
+  if (!wantedIds.size) {
+    return [];
+  }
+  const matches = [];
+  for (const record of loadedDatabase?.records || []) {
+    const recordId = getRecordId(record);
+    if (wantedIds.has(recordId)) {
+      matches.push(record);
+      wantedIds.delete(recordId);
+      if (!wantedIds.size) {
+        break;
+      }
+    }
+  }
+  return matches;
+}
+
 self.addEventListener("message", (event) => {
-  if (event.data?.type !== "query") {
+  if (!["query", "recordsByIds"].includes(event.data?.type)) {
     return;
   }
   const requestId = Number(event.data.requestId) || 0;
   try {
     loadDatabase(event.data.scriptUrl);
+    if (event.data.type === "recordsByIds") {
+      self.postMessage({
+        type: "records",
+        requestId,
+        records: getRecordsByIds(event.data.recordIds || []),
+      });
+      return;
+    }
     self.postMessage({
       type: "database",
       requestId,

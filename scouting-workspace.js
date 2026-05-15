@@ -65,6 +65,9 @@ let scoutingOppositionFilters = { team: "", season: "all", minMinutes: 450 };
 let scoutingOppositionLatestSnapshot = null;
 let scoutingDataQualitySummaryCache = { key: "", value: null };
 const scoutingDatabaseWorkerRequests = new Map();
+const scoutingWorkerRecordHydrationQueue = new Set();
+const scoutingWorkerRecordHydrationInFlight = new Set();
+let scoutingWorkerRecordHydrationTimer = 0;
 const scoutingImportedDatabaseStorageKey = "football-scouting-imported-database-v1";
 const scoutingImportLastUploadStorageKey = "football-scouting-last-import-summary-v1";
 const scoutingImportSupportedSourceTypes = Object.freeze([
@@ -1613,6 +1616,10 @@ function getOrCreateScoutingDatabaseWorker() {
       request.resolve(message.database || null);
       return;
     }
+    if (message.type === "records") {
+      request.resolve(Array.isArray(message.records) ? message.records : []);
+      return;
+    }
     request.reject(new Error(message.message || "Scouting player database could not be loaded."));
   };
   worker.onerror = (error) => {
@@ -1643,11 +1650,23 @@ function requestScoutingDatabaseWorkerQuery(options = {}) {
     }, timeoutMs);
     scoutingDatabaseWorkerRequests.set(requestId, { resolve, reject, timeoutId });
     worker.postMessage({
-      type: "query",
+      type: options.type || "query",
       requestId,
       scriptUrl: `scouting-import-data.js?v=${getScoutingAssetVersion()}`,
       query: getScoutingWorkerQueryFromState(),
+      recordIds: Array.isArray(options.recordIds) ? options.recordIds : [],
     });
+  });
+}
+function requestScoutingDatabaseWorkerRecords(recordIds = [], options = {}) {
+  const ids = normalizeScoutingRecordIds(recordIds);
+  if (!ids.length) {
+    return Promise.resolve([]);
+  }
+  return requestScoutingDatabaseWorkerQuery({
+    type: "recordsByIds",
+    recordIds: ids,
+    timeoutMs: options.timeoutMs || 8000,
   });
 }
 function loadScoutingDatabaseWithWorker() {
@@ -4019,10 +4038,76 @@ function clearScoutingImportedDatabase() {
   scoutingImportDraft = null;
   renderScoutingWorkspace();
 }
+function refreshScoutingAfterWorkerRecordHydration() {
+  if (!ui.scoutingWorkspace) {
+    return;
+  }
+  const state = ensureScoutingState();
+  if (state.selectedRecordId && ui.scoutingWorkspace.querySelector("[data-scouting-profile-modal]")) {
+    renderScoutingProfileModalIntoDom(state.selectedRecordId);
+    return;
+  }
+  const updated = rerenderScoutingActiveContent({ preserveFocus: true });
+  if (!updated) {
+    renderScoutingWorkspace({ preserveFocus: true });
+  }
+}
+function processScoutingWorkerRecordHydrationQueue() {
+  scoutingWorkerRecordHydrationTimer = 0;
+  if (!isScoutingWorkerDatabaseActive() || !scoutingWorkerRecordHydrationQueue.size) {
+    return;
+  }
+  const ids = Array.from(scoutingWorkerRecordHydrationQueue).slice(0, 80);
+  ids.forEach((id) => {
+    scoutingWorkerRecordHydrationQueue.delete(id);
+    scoutingWorkerRecordHydrationInFlight.add(id);
+  });
+  requestScoutingDatabaseWorkerRecords(ids)
+    .then((records) => {
+      if (records.length) {
+        rememberScoutingDatabaseRecords({
+          source: "worker-record-hydration",
+          importedAt: getScoutingDatabase()?.importedAt || "",
+          records,
+        });
+        refreshScoutingAfterWorkerRecordHydration();
+      }
+    })
+    .catch(() => {})
+    .finally(() => {
+      ids.forEach((id) => scoutingWorkerRecordHydrationInFlight.delete(id));
+      if (scoutingWorkerRecordHydrationQueue.size) {
+        window.clearTimeout(scoutingWorkerRecordHydrationTimer);
+        scoutingWorkerRecordHydrationTimer = window.setTimeout(processScoutingWorkerRecordHydrationQueue, 0);
+      }
+    });
+}
+function queueScoutingWorkerRecordHydration(recordIds = []) {
+  if (!isScoutingWorkerDatabaseActive()) {
+    return;
+  }
+  const ids = normalizeScoutingRecordIds(recordIds).filter((id) => {
+    if (!id || scoutingWorkerRecordHydrationInFlight.has(id) || scoutingWorkerRecordHydrationQueue.has(id)) {
+      return false;
+    }
+    return !scoutingRecordIdLookupCache.has(id) && !scoutingKnownRecordLookupCache.has(id);
+  });
+  if (!ids.length) {
+    return;
+  }
+  ids.forEach((id) => scoutingWorkerRecordHydrationQueue.add(id));
+  window.clearTimeout(scoutingWorkerRecordHydrationTimer);
+  scoutingWorkerRecordHydrationTimer = window.setTimeout(processScoutingWorkerRecordHydrationQueue, 0);
+}
 function getScoutingRecordById(recordId) {
   ensureScoutingRecordLookupsReady();
   const id = normalizeScoutingText(recordId, 160);
-  return scoutingRecordIdLookupCache.get(id) || scoutingKnownRecordLookupCache.get(id) || getScoutingSnapshotFallbackRecord(id) || null;
+  const record = scoutingRecordIdLookupCache.get(id) || scoutingKnownRecordLookupCache.get(id);
+  if (record) {
+    return record;
+  }
+  queueScoutingWorkerRecordHydration([id]);
+  return getScoutingSnapshotFallbackRecord(id) || null;
 }
 function rememberScoutingDatabaseRecords(database = {}) {
   const records = Array.isArray(database.records) ? database.records : [];
@@ -11149,8 +11234,17 @@ function renderScoutingComparisonLabPanel() {
       `
     )
     .join("");
-  const candidates = selectedSlot ? getScoutingComparisonCandidatesForSlot(slotId).slice(0, 80) : [];
   const selectedPlayerIds = (lab.playerIds || []).map((recordId) => normalizeScoutingText(recordId, 160));
+  const selectedRecords = selectedPlayerIds.map(getScoutingRecordById).filter(Boolean);
+  const candidateRecords = selectedSlot ? getScoutingComparisonCandidatesForSlot(slotId).slice(0, 80) : [];
+  const candidateMap = new Map();
+  [...selectedRecords, ...candidateRecords].forEach((record) => {
+    const recordId = getScoutingRecordId(record);
+    if (recordId && !candidateMap.has(recordId)) {
+      candidateMap.set(recordId, record);
+    }
+  });
+  const candidates = Array.from(candidateMap.values());
   const getPlayerOptions = (currentValue) =>
     candidates
       .map((record) => {

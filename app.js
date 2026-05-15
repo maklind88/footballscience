@@ -1410,6 +1410,7 @@ sortMetricId: "minutes",
 targets: [],
 roleModels: [],
 favoriteRecordIds: [],
+compareRecordIds: [],
 playerSnapshots: {},
 lists: [{ id: "main-shortlist", name: "Main Shortlist", recordIds: [] }],
 shadowXi: {
@@ -6194,6 +6195,7 @@ targets: Array.isArray(source.targets)
 : [],
 roleModels: Array.isArray(source.roleModels) ? source.roleModels.map(normalizeScoutingRoleModel).filter((model) => model.name) : [],
 favoriteRecordIds: normalizeScoutingRecordIds(source.favoriteRecordIds),
+compareRecordIds: normalizeScoutingRecordIds(source.compareRecordIds).slice(0, 5),
 playerSnapshots: normalizeScoutingPlayerSnapshots(source.playerSnapshots),
 lists: lists.length ? lists : [cloneScoutingList(defaultScoutingState.lists[0])],
 shadowXi: {

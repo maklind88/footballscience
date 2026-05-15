@@ -3,6 +3,7 @@
 ## Highest Priority
 
 - Use the live-first workflow in `AGENTS.md` and `docs/LIVE_FIRST_WORKFLOW.md`: the user describes the desired live outcome, Codex handles implementation, QA, GitHub, deployment discipline, and production verification.
+- Use `docs/PLATFORM_SCALE_PROGRAM.md` for the long-running scale program: multi-tenant identity, app-state migrations, `app.js` extraction, Chat server-first, and Scouting server-first.
 - Keep parallel Codex chats separated by module ownership so unfinished work does not leak into production releases.
 - Keep improving Session Planner and Tacticalboard.
 - Keep Profile, Account Menu, admin user accounts, and Supabase-backed user data stable before expanding account features.
@@ -99,7 +100,8 @@
 
 ## Future Backend
 
-- Replace localStorage with real auth and database storage.
+- Continue the Platform Scale Program from `codex/platform-scale-foundation`: canonical `platform_*` identity first, then one module at a time with app-state fallback.
+- Replace localStorage/app-state compatibility paths with real database storage only after shadow/dual-read/dual-write verification is green for the specific module.
 - Move the data-safety layer from browser-local protection to real server persistence with version history/backups.
 - Add real file/image uploads for Tacticalboard and exercises.
 - Prepare codebase for eventual mobile app wrapper.

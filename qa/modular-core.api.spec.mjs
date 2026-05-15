@@ -32,7 +32,7 @@ test("modular core covers protected storage keys without loading the current UI"
 });
 
 test("migration order starts with low-risk modules and keeps deep planning modules later", () => {
-  expect(platformModuleMigrationOrder.slice(0, 2)).toEqual(["home", "chat"]);
+  expect(platformModuleMigrationOrder.slice(0, 3)).toEqual(["platform-identity", "home", "chat"]);
   expect(platformModuleMigrationOrder.indexOf("session-planner")).toBeGreaterThan(
     platformModuleMigrationOrder.indexOf("exercise-library")
   );

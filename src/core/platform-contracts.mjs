@@ -27,6 +27,7 @@ export const protectedStorageKeys = Object.freeze([
 ]);
 
 export const platformModuleMigrationOrder = Object.freeze([
+  "platform-identity",
   "home",
   "chat",
   "schedule",
@@ -60,6 +61,24 @@ export const platformModules = Object.freeze([
     editRoles: Object.freeze(["admin"]),
     emits: Object.freeze(["platform.readiness-viewed", "platform.readiness-refreshed"]),
     consumes: Object.freeze(["release.status", "backup.status", "data-safety.changed", "permission.changed"]),
+  }),
+  Object.freeze({
+    id: "platform-identity",
+    label: "Platform Identity",
+    stage: "core",
+    storageKeys: Object.freeze([]),
+    futureTables: Object.freeze([
+      "platform_organizations",
+      "platform_clubs",
+      "platform_teams",
+      "platform_user_profiles",
+      "platform_memberships",
+      "platform_tenant_links",
+    ]),
+    viewRoles: Object.freeze(platformRoles),
+    editRoles: Object.freeze(["admin", "club-admin", "team-admin"]),
+    emits: Object.freeze(["tenant.created", "membership.changed", "scope.changed"]),
+    consumes: Object.freeze(["auth.signed-in", "profile.updated", "permission.changed"]),
   }),
   Object.freeze({
     id: "home",

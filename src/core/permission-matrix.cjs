@@ -50,6 +50,15 @@ const platformPermissionMatrix = Object.freeze([
   }, {
     routes: ["/api/platform-readiness"],
   }),
+  moduleContract("platform-identity", "Platform Identity", "organization", {
+    read: allAuthenticatedRoles,
+    write: scopedAdminRoles,
+    delete: ["admin"],
+    export: ["admin"],
+    restore: ["admin"],
+    admin: ["admin"],
+    observe: ["admin"],
+  }),
   moduleContract("home", "Home", "team", {
     read: allAuthenticatedRoles,
     write: staffRoles,

@@ -38,6 +38,7 @@ const protectedStorageKeys = [
 const moduleContractIds = [
   "platform-shell",
   "platform-readiness",
+  "platform-identity",
   "home",
   "chat",
   "schedule",

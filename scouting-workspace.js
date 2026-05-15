@@ -2067,18 +2067,62 @@ function getScoutingMyTeamInitials(name = "") {
   const parts = normalizeScoutingText(name, 120).split(" ").filter(Boolean);
   return (parts[0]?.[0] || "P") + (parts.length > 1 ? parts[parts.length - 1][0] : "");
 }
+function getScoutingMyTeamMetaLine(player = {}) {
+  return [player.team || "Current squad", player.position || "No position"].filter(Boolean).join(" / ");
+}
+function formatScoutingMyTeamAge(value) {
+  const raw = normalizeScoutingText(value, 20);
+  const number = Number(raw);
+  return raw && Number.isFinite(number) && number > 0 ? `${Math.round(number)} yrs` : "";
+}
+function renderScoutingMyTeamInfoPanel(player = {}, slot = null) {
+  const age = formatScoutingMyTeamAge(player.age) || "Age unknown";
+  const status = normalizeScoutingText(player.status, 80) || "Current squad";
+  const role = slot?.position || player.position || "Role";
+  return `
+    <aside class="scouting-my-team-info-panel" role="tooltip">
+      <div>
+        <strong>${escapeHtml(player.name || "Unnamed player")}</strong>
+        <span>${escapeHtml(role)} baseline</span>
+      </div>
+      <div class="scouting-my-team-mini-spider" aria-hidden="true">
+        <span style="--axis:0;--score:72%"></span>
+        <span style="--axis:1;--score:58%"></span>
+        <span style="--axis:2;--score:66%"></span>
+        <span style="--axis:3;--score:49%"></span>
+        <span style="--axis:4;--score:61%"></span>
+      </div>
+      <dl>
+        <div><dt>Club</dt><dd>${escapeHtml(player.team || "Current squad")}</dd></div>
+        <div><dt>Age</dt><dd>${escapeHtml(age)}</dd></div>
+        <div><dt>Status</dt><dd>${escapeHtml(status)}</dd></div>
+      </dl>
+    </aside>
+  `;
+}
 function renderScoutingMyTeamPlayerCard(player, options = {}) {
   const id = getScoutingMyTeamPlayerId(player);
   const compact = Boolean(options.compact);
+  const slot = options.slot || null;
   const status = normalizeScoutingText(player.status, 80);
+  const age = formatScoutingMyTeamAge(player.age);
+  const metaLine = getScoutingMyTeamMetaLine(player);
   return `
     <article class="scouting-my-team-player${compact ? " is-compact" : ""}" draggable="${canEditScoutingWorkspace() ? "true" : "false"}" data-scouting-drag-my-team-player="${escapeHtml(id)}">
       <span class="scouting-my-team-avatar">${escapeHtml(getScoutingMyTeamInitials(player.name))}</span>
-      <div>
+      <div class="scouting-my-team-player-copy">
         <strong>${escapeHtml(player.name || "Unnamed player")}</strong>
-        <em>${escapeHtml(player.position || "No position")} / ${escapeHtml(player.team || "Current squad")}</em>
-        ${compact ? "" : `<span>${escapeHtml([Number.isFinite(player.age) ? `${player.age} yrs` : "", status].filter(Boolean).join(" / ") || "Ready for placement")}</span>`}
+        <em>${escapeHtml(metaLine)}</em>
+        ${compact ? "" : `<span>${escapeHtml([age, status].filter(Boolean).join(" / ") || "Ready for placement")}</span>`}
       </div>
+      ${
+        compact
+          ? `
+            <button type="button" class="scouting-my-team-info-trigger" aria-label="Show ${escapeHtml(player.name || "player")} info">i</button>
+            ${renderScoutingMyTeamInfoPanel(player, slot)}
+          `
+          : ""
+      }
     </article>
   `;
 }
@@ -2444,7 +2488,7 @@ function getScoutingCountryFlagEmoji(code = "") {
   if (!/^[A-Z]{2}$/.test(normalized)) {
     return "";
   }
-  const base = 127397;
+  const base = 127462;
   const first = normalized.codePointAt(0) - 65;
   const second = normalized.codePointAt(1) - 65;
   if (first < 0 || first > 25 || second < 0 || second > 25) {
@@ -2528,11 +2572,14 @@ function getScoutingRecordMiniRadarMarkup(record) {
   }
   const points = template.slice(0, 6).map((item, index, templateItems) => {
     const percentile = getScoutingTemplatePercentile(record, item, benchmarkMode) || 1;
+    const label = normalizeScoutingText(item.label || item.metric || item.id, 80) || `Metric ${index + 1}`;
     const angle = -Math.PI / 2 + (index / templateItems.length) * (Math.PI * 2);
     const radius = 30;
     const center = 36;
     const valueRadius = (radius * percentile) / 100;
     return {
+      label,
+      percentile,
       x: center + Math.cos(angle) * valueRadius,
       y: center + Math.sin(angle) * valueRadius,
       axisX: center + Math.cos(angle) * radius,
@@ -2540,12 +2587,9 @@ function getScoutingRecordMiniRadarMarkup(record) {
     };
   });
   const polygon = points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
-  const topRows = getScoutingRoleMetricRows(record, template, benchmarkMode)
-    .filter((row) => Number.isFinite(row.percentile))
-    .sort((a, b) => (b.weightedScore || 0) - (a.weightedScore || 0))
-    .slice(0, 3);
   const markup = `
     <div class="scouting-mini-radar">
+      <strong class="scouting-mini-radar-title">${escapeHtml(template.profileLabel || "Role spider")}</strong>
       <svg class="scouting-mini-radar-svg" viewBox="0 0 72 72" role="img" aria-label="Role spider">
         ${points
           .map(
@@ -2555,16 +2599,24 @@ function getScoutingRecordMiniRadarMarkup(record) {
           .join("")}
         <circle class="scouting-radar-ring" cx="36" cy="36" r="30" />
         <polygon class="scouting-radar-shape" points="${polygon}" />
-        ${points.map((point) => `<circle class="scouting-radar-dot" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="1.6" />`).join("")}
+        ${points
+          .map(
+            (point) => `
+              <circle
+                class="scouting-radar-dot"
+                cx="${point.x.toFixed(1)}"
+                cy="${point.y.toFixed(1)}"
+                r="2.15"
+                tabindex="0"
+                aria-label="${escapeHtml(`${point.label}: P${point.percentile}`)}"
+              >
+                <title>${escapeHtml(`${point.label}: P${point.percentile}`)}</title>
+              </circle>
+            `
+          )
+          .join("")}
       </svg>
-      <div class="scouting-mini-radar-tooltip">
-        <strong>${escapeHtml(template.profileLabel || "Role spider")}</strong>
-        ${
-          topRows.length
-            ? topRows.map((row) => `<span>${escapeHtml(row.label)} P${escapeHtml(row.percentile)} - weighted role driver</span>`).join("")
-            : `<span>No standout role metrics yet</span>`
-        }
-      </div>
+      <span class="scouting-mini-radar-hint">Hover points for metric values</span>
     </div>
   `;
   scoutingRecordMiniRadarCache.set(cacheKey, markup);
@@ -9773,9 +9825,9 @@ function renderScoutingRecordCard(record, options = {}) {
           <strong>${escapeHtml(getScoutingRecordName(record))}</strong>
         </button>
       </div>
+      <div class="scouting-record-table-cell scouting-record-position">${escapeHtml(position)}</div>
       <div class="scouting-record-table-cell scouting-record-age">${escapeHtml(ageDisplay)}</div>
       <div class="scouting-record-table-cell scouting-record-club">${escapeHtml(team)}</div>
-      <div class="scouting-record-table-cell scouting-record-position">${escapeHtml(position)}</div>
       <div class="scouting-record-table-cell scouting-record-nationality" title="${escapeHtml(nationality.label)}">
         ${nationality.flag ? `<span class="scouting-record-flag" aria-hidden="true">${escapeHtml(nationality.flag)}</span>` : `<span class="scouting-record-flag is-empty" aria-hidden="true"></span>`}
         <span>${escapeHtml(nationality.code)}</span>
@@ -10397,11 +10449,9 @@ function getScoutingDatabaseResultsMarkup() {
   const total = isApi ? knownTotal : records.length;
   const summary = isApi
     ? total
-      ? `${total.toLocaleString("en-US")} players match. ${shownStart ? `Showing ${shownStart.toLocaleString("en-US")}-${shownEnd.toLocaleString("en-US")}.` : ""}`
-      : `${shownStart ? `Showing ${shownStart.toLocaleString("en-US")}-${shownEnd.toLocaleString("en-US")}.` : "No players found this page."}`
-    : `${total.toLocaleString("en-US")} players match. ${
-        total ? `Showing ${shownStart.toLocaleString("en-US")}-${shownEnd.toLocaleString("en-US")} of ${total.toLocaleString("en-US")}.` : ""
-      }`;
+      ? `${total.toLocaleString("en-US")} players match.`
+      : "No players found this page."
+    : `${total.toLocaleString("en-US")} players match.`;
   hydrateScoutingFilteredDatabaseNavigationCache(
     visibleRecords,
     `${scoutingFilteredDatabaseCache.key}:visible:${pageOffset}:${visibleRecords.length}`
@@ -10438,9 +10488,9 @@ function renderScoutingRecordListHeader() {
     <div class="scouting-record-table-head" aria-hidden="true">
       <span class="scouting-record-head-cell scouting-record-head-cell--spacer"></span>
       <span class="scouting-record-head-cell">Player</span>
+      <span class="scouting-record-head-cell">Position</span>
       <span class="scouting-record-head-cell">Age</span>
       <span class="scouting-record-head-cell">Club</span>
-      <span class="scouting-record-head-cell">Position</span>
       <span class="scouting-record-head-cell">Nationality</span>
       <span class="scouting-record-head-cell">Best role</span>
       <span class="scouting-record-head-cell">Recommendation</span>
@@ -10698,27 +10748,36 @@ function renderScoutingMyTeam() {
             const player = getScoutingMyTeamPlayerById(myTeam.slots[slot.id], players);
             return `
               <article class="scouting-shadow-slot scouting-my-team-slot${player ? " is-filled" : ""}" style="--x:${pitchPosition.x}%;--y:${pitchPosition.y}%;" data-scouting-my-team-drop-slot="${escapeHtml(slot.id)}">
-                <div class="scouting-shadow-slot-head">
-                  <span>${escapeHtml(slot.label)}</span>
-                  <strong>${escapeHtml(player ? player.name : "Drop player")}</strong>
-                  <em>${escapeHtml(slot.position)}</em>
-                </div>
-                <div class="scouting-shadow-stack">
-                  ${
-                    player
-                      ? `
-                        <div class="scouting-shadow-player-row">
-                          ${renderScoutingMyTeamPlayerCard(player, { compact: true })}
+                <span class="scouting-my-team-slot-pin" aria-hidden="true"></span>
+                ${
+                  player
+                    ? `
+                      <div class="scouting-my-team-slot-card">
+                        <span class="scouting-my-team-slot-role">${escapeHtml(slot.label)}</span>
+                        ${renderScoutingMyTeamPlayerCard(player, { compact: true, slot })}
+                        <div class="scouting-my-team-slot-actions">
+                          <details class="scouting-my-team-menu">
+                            <summary aria-label="Open actions for ${escapeHtml(player.name || "player")}">...</summary>
+                            <div>
+                              <button type="button" data-open-scouting-role-models>Role baseline</button>
+                              <button type="button" data-remove-scouting-my-team-slot="${escapeHtml(slot.id)}">Remove from pitch</button>
+                            </div>
+                          </details>
                           ${
                             canEdit
-                              ? `<button type="button" class="scouting-shadow-remove" data-remove-scouting-my-team-slot="${escapeHtml(slot.id)}" aria-label="Remove ${escapeHtml(player.name)} from ${escapeHtml(slot.label)}">x</button>`
+                              ? `<button type="button" class="scouting-my-team-trash" data-remove-scouting-my-team-slot="${escapeHtml(slot.id)}" aria-label="Remove ${escapeHtml(player.name)} from ${escapeHtml(slot.label)}">&#128465;</button>`
                               : ""
                           }
                         </div>
-                      `
-                      : `<p class="scouting-shadow-empty">Drag a squad player here.</p>`
-                  }
-                </div>
+                      </div>
+                    `
+                    : `
+                      <button type="button" class="scouting-my-team-drop-card" aria-label="Drop squad player on ${escapeHtml(slot.label)}">
+                        <span>${escapeHtml(slot.label)}</span>
+                        <strong>Drop player</strong>
+                      </button>
+                    `
+                }
               </article>
             `;
           })
@@ -10730,7 +10789,6 @@ function renderScoutingMyTeam() {
             <p class="placeholder-tag">Team baseline</p>
             <span>${roleModelCount}</span>
           </div>
-          <p class="scouting-muted">Role models define how squad players and scouting targets are benchmarked by position.</p>
           <button type="button" class="scouting-primary-button" data-open-scouting-role-models>${roleModelCount ? "Manage role models" : "Create role model"}</button>
         </div>
         <div class="scouting-shadow-card">
@@ -10738,7 +10796,6 @@ function renderScoutingMyTeam() {
             <p class="placeholder-tag">Squad players</p>
             <span>${players.length}</span>
           </div>
-          <p class="scouting-muted">Drag players onto the pitch to build your team shape.</p>
           <div class="scouting-my-team-player-list">
             ${
               benchPlayers.length
@@ -12383,6 +12440,7 @@ function renderScoutingDatabaseResults() {
   const brief = isAdvancedMode ? ui.scoutingWorkspace?.querySelector("[data-scouting-intelligence-brief]") : null;
   const queue = isAdvancedMode ? ui.scoutingWorkspace?.querySelector("[data-scouting-action-queue]") : null;
   const summary = ui.scoutingWorkspace?.querySelector("[data-scouting-result-summary]");
+  const resultsActions = ui.scoutingWorkspace?.querySelector(".scouting-database-results-actions");
   const grid = ui.scoutingWorkspace?.querySelector("[data-scouting-record-grid]");
   if (brief) {
     brief.outerHTML = renderScoutingDatabaseIntelligenceBrief(results.visibleRecords, ensureScoutingState(), { totalCount: results.records.length });
@@ -12396,10 +12454,16 @@ function renderScoutingDatabaseResults() {
   if (summary) {
     summary.textContent = results.summary;
   }
+  if (resultsActions) {
+    resultsActions.querySelector("[data-scouting-database-paging]")?.remove();
+    resultsActions.insertAdjacentHTML("beforeend", renderScoutingDatabasePagingControls(results.paging));
+  }
   if (grid) {
     grid.innerHTML = results.html;
-    ui.scoutingWorkspace?.querySelector("[data-scouting-database-paging]")?.remove();
-    grid.insertAdjacentHTML("afterend", renderScoutingDatabasePagingControls(results.paging));
+    if (!resultsActions) {
+      ui.scoutingWorkspace?.querySelector("[data-scouting-database-paging]")?.remove();
+      grid.insertAdjacentHTML("afterend", renderScoutingDatabasePagingControls(results.paging));
+    }
   }
   if (isAdvancedMode) {
     bindScoutingRecordMiniRadarShells();

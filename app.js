@@ -6082,10 +6082,23 @@ function normalizeScoutingMyTeamSlots(value = {}, slotIds = new Set()) {
 if (!value || typeof value !== "object") {
 return {};
 }
+const normalizeSlotPlayerIds = (slotValue) => {
+const rawIds = Array.isArray(slotValue) ? slotValue : [slotValue];
+const seen = new Set();
+return rawIds
+.map((playerId) => normalizeScoutingText(playerId, 160))
+.filter((playerId) => {
+if (!playerId || seen.has(playerId)) {
+return false;
+}
+seen.add(playerId);
+return true;
+});
+};
 return Object.fromEntries(
 Object.entries(value)
-.map(([slotId, playerId]) => [normalizeScoutingText(slotId, 40), normalizeScoutingText(playerId, 160)])
-.filter(([slotId, playerId]) => slotIds.has(slotId) && playerId)
+.map(([slotId, playerIds]) => [normalizeScoutingText(slotId, 40), normalizeSlotPlayerIds(playerIds)])
+.filter(([slotId, playerIds]) => slotIds.has(slotId) && playerIds.length)
 );
 }
 function normalizeScoutingPlayerSnapshot(snapshot = {}) {

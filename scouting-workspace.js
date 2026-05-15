@@ -2145,15 +2145,41 @@ function getScoutingShadowSlotPitchPosition(slot = {}, formation = "4-3-3") {
 function getScoutingMyTeamState(state = ensureScoutingState()) {
   const source = state.myTeam && typeof state.myTeam === "object" ? state.myTeam : {};
   const slotIds = new Set(scoutingShadowSlots.map((slot) => slot.id));
+  const normalizeSlotPlayerIds = (slotValue) => {
+    const rawIds = Array.isArray(slotValue) ? slotValue : [slotValue];
+    const seen = new Set();
+    return rawIds
+      .map((playerId) => normalizeScoutingText(playerId, 160))
+      .filter((playerId) => {
+        if (!playerId || seen.has(playerId)) {
+          return false;
+        }
+        seen.add(playerId);
+        return true;
+      });
+  };
   state.myTeam = {
     formation: normalizeScoutingFormation(source.formation),
     slots: Object.fromEntries(
       Object.entries(source.slots && typeof source.slots === "object" ? source.slots : {})
-        .map(([slotId, playerId]) => [normalizeScoutingText(slotId, 40), normalizeScoutingText(playerId, 160)])
-        .filter(([slotId, playerId]) => slotIds.has(slotId) && playerId)
+        .map(([slotId, playerIds]) => [normalizeScoutingText(slotId, 40), normalizeSlotPlayerIds(playerIds)])
+        .filter(([slotId, playerIds]) => slotIds.has(slotId) && playerIds.length)
     ),
   };
   return state.myTeam;
+}
+function normalizeScoutingMyTeamSlotPlayerIds(slotValue) {
+  const rawIds = Array.isArray(slotValue) ? slotValue : [slotValue];
+  const seen = new Set();
+  return rawIds
+    .map((playerId) => normalizeScoutingText(playerId, 160))
+    .filter((playerId) => {
+      if (!playerId || seen.has(playerId)) {
+        return false;
+      }
+      seen.add(playerId);
+      return true;
+    });
 }
 function getScoutingMyTeamPlayerId(player = {}) {
   return normalizeScoutingText(player.id || player.playerId || player.name, 160);
@@ -2169,8 +2195,80 @@ function getScoutingMyTeamPlayerById(playerId, players = getScoutingMyTeamPlayer
   const id = normalizeScoutingText(playerId, 160);
   return players.find((player) => getScoutingMyTeamPlayerId(player) === id) || null;
 }
+function getScoutingMyTeamSlotPitchPosition(slot, formation = "4-3-3") {
+  const role = normalizeScoutingText(slot?.label || slot?.id, 40).toUpperCase();
+  const layouts = {
+    "4-3-3": {
+      GK: [50, 90],
+      LB: [19, 73],
+      LCB: [38, 77],
+      RCB: [62, 77],
+      RB: [81, 73],
+      DMF: [50, 59],
+      LCMF: [32, 45],
+      RCMF: [68, 45],
+      LW: [20, 25],
+      CF: [50, 18],
+      RW: [80, 25],
+    },
+    "4-2-3-1": {
+      GK: [50, 90],
+      LB: [19, 73],
+      LCB: [38, 77],
+      RCB: [62, 77],
+      RB: [81, 73],
+      DMF: [42, 58],
+      LCMF: [58, 58],
+      RCMF: [50, 40],
+      LW: [20, 34],
+      CF: [50, 18],
+      RW: [80, 34],
+    },
+    "3-4-3": {
+      GK: [50, 90],
+      LCB: [30, 76],
+      RCB: [70, 76],
+      DMF: [50, 78],
+      LB: [18, 52],
+      RB: [82, 52],
+      LCMF: [40, 48],
+      RCMF: [60, 48],
+      LW: [22, 24],
+      CF: [50, 18],
+      RW: [78, 24],
+    },
+    "3-5-2": {
+      GK: [50, 90],
+      LCB: [30, 76],
+      RCB: [70, 76],
+      DMF: [50, 78],
+      LB: [18, 52],
+      RB: [82, 52],
+      LCMF: [37, 43],
+      RCMF: [63, 43],
+      LW: [35, 23],
+      CF: [50, 18],
+      RW: [65, 23],
+    },
+    "4-4-2": {
+      GK: [50, 90],
+      LB: [19, 73],
+      LCB: [38, 77],
+      RCB: [62, 77],
+      RB: [81, 73],
+      LCMF: [40, 50],
+      RCMF: [60, 50],
+      DMF: [50, 55],
+      LW: [20, 43],
+      RW: [80, 43],
+      CF: [42, 20],
+    },
+  };
+  const coordinates = layouts[normalizeScoutingFormation(formation)]?.[role] || [Number(slot?.x) || 50, Number(slot?.y) || 50];
+  return { x: coordinates[0], y: coordinates[1] };
+}
 function getScoutingMyTeamAssignedIds(state = ensureScoutingState()) {
-  return new Set(Object.values(getScoutingMyTeamState(state).slots).map((value) => normalizeScoutingText(value, 160)).filter(Boolean));
+  return new Set(Object.values(getScoutingMyTeamState(state).slots).flatMap(normalizeScoutingMyTeamSlotPlayerIds).filter(Boolean));
 }
 function getScoutingMyTeamInitials(name = "") {
   const parts = normalizeScoutingText(name, 120).split(" ").filter(Boolean);
@@ -2195,11 +2293,13 @@ function renderScoutingMyTeamInfoPanel(player = {}, slot = null) {
         <span>${escapeHtml(role)} baseline</span>
       </div>
       <div class="scouting-my-team-mini-spider" aria-hidden="true">
-        <span style="--axis:0;--score:72%"></span>
-        <span style="--axis:1;--score:58%"></span>
-        <span style="--axis:2;--score:66%"></span>
-        <span style="--axis:3;--score:49%"></span>
-        <span style="--axis:4;--score:61%"></span>
+        <svg class="player-profile-scouting-spider" viewBox="0 0 220 220" role="img" aria-label="Player profile spider">
+          <circle class="player-profile-scouting-ring" cx="110" cy="110" r="74" />
+          <circle class="player-profile-scouting-ring" cx="110" cy="110" r="49" />
+          <circle class="player-profile-scouting-ring" cx="110" cy="110" r="25" />
+          <text class="player-profile-scouting-empty-text" x="110" y="108">No data</text>
+          <text class="player-profile-scouting-empty-subtext" x="110" y="126">Profile spider</text>
+        </svg>
       </div>
       <dl>
         <div><dt>Club</dt><dd>${escapeHtml(player.team || "Current squad")}</dd></div>
@@ -2248,8 +2348,19 @@ function assignScoutingMyTeamPlayerToSlot(playerId, slotId) {
     return;
   }
   const id = getScoutingMyTeamPlayerId(player);
-  myTeam.slots = Object.fromEntries(Object.entries(myTeam.slots).filter(([, currentPlayerId]) => currentPlayerId !== id));
-  myTeam.slots[slot.id] = id;
+  const nextSlots = {};
+  Object.entries(myTeam.slots).forEach(([currentSlotId, currentPlayerIds]) => {
+    const filteredIds = normalizeScoutingMyTeamSlotPlayerIds(currentPlayerIds).filter((currentPlayerId) => currentPlayerId !== id);
+    if (filteredIds.length) {
+      nextSlots[currentSlotId] = filteredIds;
+    }
+  });
+  const targetStack = normalizeScoutingMyTeamSlotPlayerIds(nextSlots[slot.id]);
+  if (!targetStack.includes(id)) {
+    targetStack.push(id);
+  }
+  nextSlots[slot.id] = targetStack;
+  myTeam.slots = nextSlots;
   state.myTeam = myTeam;
   if (scoutingMyTeamSelectedPlayerId === id) {
     scoutingMyTeamSelectedPlayerId = "";
@@ -2257,7 +2368,7 @@ function assignScoutingMyTeamPlayerToSlot(playerId, slotId) {
   writeScoutingState();
   renderScoutingWorkspace({ preserveFocus: true });
 }
-function removeScoutingMyTeamPlayerFromSlot(slotId) {
+function removeScoutingMyTeamPlayerFromSlot(slotId, playerId = "") {
   if (!canEditScoutingWorkspace()) {
     return;
   }
@@ -2267,7 +2378,17 @@ function removeScoutingMyTeamPlayerFromSlot(slotId) {
   if (!slot) {
     return;
   }
-  delete myTeam.slots[slot.id];
+  const normalizedPlayerId = normalizeScoutingText(playerId, 160);
+  if (normalizedPlayerId) {
+    const filteredIds = normalizeScoutingMyTeamSlotPlayerIds(myTeam.slots[slot.id]).filter((currentPlayerId) => currentPlayerId !== normalizedPlayerId);
+    if (filteredIds.length) {
+      myTeam.slots[slot.id] = filteredIds;
+    } else {
+      delete myTeam.slots[slot.id];
+    }
+  } else {
+    delete myTeam.slots[slot.id];
+  }
   state.myTeam = myTeam;
   writeScoutingState({ syncCentral: false });
   renderScoutingWorkspace({ preserveFocus: true });
@@ -10991,31 +11112,47 @@ function renderScoutingMyTeam() {
         <span class="scouting-pitch-line is-box-bottom"></span>
         ${scoutingShadowSlots
           .map((slot) => {
-            const pitchPosition = getScoutingShadowSlotPitchPosition(slot, myTeam.formation);
-            const player = getScoutingMyTeamPlayerById(myTeam.slots[slot.id], players);
+            const pitchPosition = getScoutingMyTeamSlotPitchPosition(slot, myTeam.formation);
+            const slotPlayerIds = normalizeScoutingMyTeamSlotPlayerIds(myTeam.slots[slot.id]);
+            const slotPlayers = slotPlayerIds.map((playerId) => getScoutingMyTeamPlayerById(playerId, players)).filter(Boolean);
             return `
-              <article class="scouting-shadow-slot scouting-my-team-slot${player ? " is-filled" : ""}${scoutingMyTeamSelectedPlayerId ? " is-ready-to-drop" : ""}" style="--x:${pitchPosition.x}%;--y:${pitchPosition.y}%;" data-scouting-my-team-drop-slot="${escapeHtml(slot.id)}" data-assign-scouting-my-team-slot="${escapeHtml(slot.id)}">
+              <article class="scouting-shadow-slot scouting-my-team-slot${slotPlayers.length ? " is-filled" : ""}${scoutingMyTeamSelectedPlayerId ? " is-ready-to-drop" : ""}" style="--x:${pitchPosition.x}%;--y:${pitchPosition.y}%;" data-scouting-my-team-drop-slot="${escapeHtml(slot.id)}" data-assign-scouting-my-team-slot="${escapeHtml(slot.id)}">
                 <span class="scouting-my-team-slot-pin" aria-hidden="true"></span>
                 ${
-                  player
+                  slotPlayers.length
                     ? `
                       <div class="scouting-my-team-slot-card">
-                        <span class="scouting-my-team-slot-role">${escapeHtml(slot.label)}</span>
-                        ${renderScoutingMyTeamPlayerCard(player, { compact: true, slot })}
-                        <div class="scouting-my-team-slot-actions">
-                          <details class="scouting-my-team-menu">
-                            <summary aria-label="Open actions for ${escapeHtml(player.name || "player")}">...</summary>
-                            <div>
-                              <button type="button" data-open-scouting-role-models>Role baseline</button>
-                              <button type="button" data-remove-scouting-my-team-slot="${escapeHtml(slot.id)}">Remove from pitch</button>
-                            </div>
-                          </details>
-                          ${
-                            canEdit
-                              ? `<button type="button" class="scouting-my-team-trash" data-remove-scouting-my-team-slot="${escapeHtml(slot.id)}" aria-label="Remove ${escapeHtml(player.name)} from ${escapeHtml(slot.label)}">&#128465;</button>`
-                              : ""
-                          }
+                        <div class="scouting-my-team-slot-head">
+                          <span class="scouting-my-team-slot-role">${escapeHtml(slot.label)}</span>
+                          <small>${slotPlayers.length} ${slotPlayers.length === 1 ? "player" : "players"}</small>
                         </div>
+                        <div class="scouting-my-team-slot-stack">
+                          ${slotPlayers
+                            .map((player) => {
+                              const playerId = getScoutingMyTeamPlayerId(player);
+                              return `
+                                <div class="scouting-my-team-slot-entry">
+                                  ${renderScoutingMyTeamPlayerCard(player, { compact: true, slot })}
+                                  <div class="scouting-my-team-slot-actions">
+                                    <details class="scouting-my-team-menu">
+                                      <summary aria-label="Open actions for ${escapeHtml(player.name || "player")}">...</summary>
+                                      <div>
+                                        <button type="button" data-open-scouting-role-models>Role baseline</button>
+                                        <button type="button" data-remove-scouting-my-team-slot="${escapeHtml(slot.id)}" data-remove-scouting-my-team-player="${escapeHtml(playerId)}">Remove player</button>
+                                      </div>
+                                    </details>
+                                    ${
+                                      canEdit
+                                        ? `<button type="button" class="scouting-my-team-trash" data-remove-scouting-my-team-slot="${escapeHtml(slot.id)}" data-remove-scouting-my-team-player="${escapeHtml(playerId)}" aria-label="Remove ${escapeHtml(player.name)} from ${escapeHtml(slot.label)}">&#128465;</button>`
+                                        : ""
+                                    }
+                                  </div>
+                                </div>
+                              `;
+                            })
+                            .join("")}
+                        </div>
+                        ${canEdit ? `<button type="button" class="scouting-my-team-add-to-slot" data-assign-scouting-my-team-slot="${escapeHtml(slot.id)}">+ Add player</button>` : ""}
                       </div>
                     `
                     : `
@@ -11511,6 +11648,15 @@ function openScoutingRoleModels(roleModelId = "") {
   scoutingRoleModelBuilderOpen = true;
   scoutingRoleModelEditId = normalizeScoutingText(roleModelId, 120);
   renderScoutingWorkspace({ preserveFocus: true });
+  if (!isScoutingDatabaseLoaded()) {
+    ensureScoutingDatabaseLoaded()
+      .then(() => {
+        if (scoutingRoleModelBuilderOpen) {
+          renderScoutingWorkspace({ preserveFocus: true });
+        }
+      })
+      .catch(() => {});
+  }
 }
 function closeScoutingRoleModels() {
   scoutingRoleModelBuilderOpen = false;
@@ -11537,9 +11683,12 @@ function renderScoutingRoleModelMetricRows(metricOptions, activeModel = null) {
       const threshold = Number.isFinite(Number(signal?.minPercentile)) ? Math.max(1, Math.min(99, Math.round(Number(signal.minPercentile)))) : defaultThreshold;
       const weight = Number.isFinite(Number(signal?.weight)) ? Math.max(1, Math.min(5, Math.round(Number(signal.weight)))) : 3;
       return `
-        <label class="scouting-role-metric-row">
-          <input type="checkbox" name="metricIds" value="${escapeHtml(metric.id)}" ${checked ? "checked" : ""} />
-          <span>${escapeHtml(metric.label)}</span>
+        <div class="scouting-role-metric-row${checked ? " is-selected" : ""}" data-role-model-metric-row data-metric-id="${escapeHtml(metric.id)}" data-metric-label="${escapeHtml([metric.label, metric.group, metric.id].filter(Boolean).join(" "))}">
+          <label class="scouting-role-metric-use">
+            <input type="checkbox" name="metricIds" value="${escapeHtml(metric.id)}" ${checked ? "checked" : ""} data-role-model-metric-checkbox />
+            <span>Use</span>
+          </label>
+          <strong>${escapeHtml(metric.label)}</strong>
           <select name="metricDirection:${escapeHtml(metric.id)}">
             <option value="higher" ${direction === "higher" ? "selected" : ""}>Higher is better</option>
             <option value="lower" ${direction === "lower" ? "selected" : ""}>Lower is better</option>
@@ -11552,10 +11701,63 @@ function renderScoutingRoleModelMetricRows(metricOptions, activeModel = null) {
             <option value="2" ${weight === 2 ? "selected" : ""}>Support x2</option>
             <option value="1" ${weight === 1 ? "selected" : ""}>Tie-breaker x1</option>
           </select>
-        </label>
+          <button type="button" data-remove-role-model-metric="${escapeHtml(metric.id)}" aria-label="Remove ${escapeHtml(metric.label)}">Remove</button>
+        </div>
       `;
     })
     .join("");
+}
+function setScoutingRoleModelMetricRowSelected(row, selected = true) {
+  const checkbox = row?.querySelector("[data-role-model-metric-checkbox]");
+  if (!row || !checkbox) {
+    return false;
+  }
+  checkbox.checked = Boolean(selected);
+  row.classList.toggle("is-selected", Boolean(selected));
+  return true;
+}
+function addScoutingRoleModelMetricFromPicker(form) {
+  const searchInput = form?.querySelector("[data-scouting-role-model-metric-search]");
+  const query = normalizeScoutingText(searchInput?.value, 180).toLowerCase();
+  if (!query) {
+    searchInput?.focus();
+    return false;
+  }
+  const rows = Array.from(form.querySelectorAll("[data-role-model-metric-row]"));
+  const exactRow =
+    rows.find((row) => normalizeScoutingText(row.dataset.metricId, 120).toLowerCase() === query) ||
+    rows.find((row) => normalizeScoutingText(row.querySelector("strong")?.textContent, 180).toLowerCase() === query);
+  const metricRow = exactRow || rows.find((row) => normalizeScoutingText(row.dataset.metricLabel, 260).toLowerCase().includes(query));
+  if (!metricRow) {
+    searchInput?.classList.add("is-invalid");
+    searchInput?.focus();
+    return false;
+  }
+  setScoutingRoleModelMetricRowSelected(metricRow, true);
+  searchInput.value = "";
+  searchInput.classList.remove("is-invalid");
+  metricRow.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  return true;
+}
+function renderScoutingRoleModelMetricPicker(metricOptions, activeModel = null) {
+  const selectedIds = new Set(
+    (activeModel ? getScoutingRoleModelSignals(activeModel).map((signal) => signal.metricId) : metricOptions.slice(0, 4).map((metric) => metric.id))
+      .map((metricId) => normalizeScoutingText(metricId, 120))
+      .filter(Boolean)
+  );
+  return `
+    <div class="scouting-role-metric-search">
+      <label>
+        Add metric
+        <input type="search" list="scouting-role-model-metric-options" placeholder="Search metric, e.g. progressive runs, xA, duels..." data-scouting-role-model-metric-search />
+      </label>
+      <button type="button" class="scouting-secondary-button" data-add-scouting-role-model-metric>Add metric</button>
+      <datalist id="scouting-role-model-metric-options">
+        ${metricOptions.map((metric) => `<option value="${escapeHtml(metric.label)}">${escapeHtml(metric.group || metric.id)}</option>`).join("")}
+      </datalist>
+      <span>${escapeHtml(metricOptions.length)} metrics available · ${escapeHtml(selectedIds.size)} selected</span>
+    </div>
+  `;
 }
 function renderScoutingRoleModelForm(canEdit, metricOptions, activeModel = null) {
   const modelName = activeModel?.name || "";
@@ -11585,14 +11787,16 @@ function renderScoutingRoleModelForm(canEdit, metricOptions, activeModel = null)
         <details class="scouting-role-metric-picker" open>
           <summary>
             <span>Metric blueprint</span>
-            <em>Select KPI, direction, threshold and weight.</em>
+            <em>Search the database metrics, add KPI, then set direction, threshold and weight.</em>
           </summary>
+          ${renderScoutingRoleModelMetricPicker(metricOptions, activeModel)}
           <div class="scouting-role-metric-head">
             <span>Use</span>
             <span>Metric</span>
             <span>Direction</span>
             <span>Min P</span>
             <span>Weight</span>
+            <span></span>
           </div>
           <div class="scouting-role-metric-list">
             ${renderScoutingRoleModelMetricRows(metricOptions, activeModel)}
@@ -11611,38 +11815,47 @@ function renderScoutingRoleModelCard(model, canEdit) {
   const signals = getScoutingRoleModelSignals(model);
   const candidates = getScoutingRoleModelCandidates(model).slice(0, 3);
   return `
-    <article class="scouting-target-card scouting-role-model-card${scoutingRoleModelEditId === model.id ? " is-active" : ""}">
-      <div class="scouting-target-main">
-        <strong>${escapeHtml(model.name || "Custom role model")}</strong>
-        <span>${escapeHtml(slot ? `${slot.label} · ${slot.position}` : "Open role")}</span>
-      </div>
-      <p class="scouting-note-line">${escapeHtml(model.searchIntent || "Position-specific player search blueprint.")}</p>
-      <div class="scouting-role-model-signal-pills">
+    <article class="scouting-role-model-card${scoutingRoleModelEditId === model.id ? " is-active" : ""}">
+      <header class="scouting-role-model-card-head">
+        <div>
+          <span class="placeholder-tag">Role model</span>
+          <strong>${escapeHtml(model.name || "Custom role model")}</strong>
+        </div>
+        <em>${escapeHtml(slot ? `${slot.label} · ${slot.position}` : "Open role")}</em>
+      </header>
+      <p class="scouting-role-model-intent">${escapeHtml(model.searchIntent || "Position-specific player search blueprint.")}</p>
+      <div class="scouting-role-model-signal-pills" aria-label="Metric blueprint">
         ${
           signals.length
             ? signals.map((signal) => `<span>${escapeHtml(formatScoutingRoleModelSignal(signal))}</span>`).join("")
             : `<span>No metric blueprint</span>`
         }
       </div>
-      <p class="scouting-fit-line">${escapeHtml(model.notes || "No notes")}</p>
-      <div class="scouting-target-actions">
-        <p class="scouting-fit-line">Top matches:</p>
+      <div class="scouting-role-model-card-notes">
+        <span>Notes</span>
+        <p>${escapeHtml(model.notes || "No notes added yet.")}</p>
+      </div>
+      <div class="scouting-role-model-card-matches">
+        <span>Top matches</span>
         ${
           candidates.length
-            ? candidates
+            ? `<div>${candidates
                 .map(
                   (entry) => `
-                    <button type="button" class="scouting-secondary-button" data-open-scouting-record="${escapeHtml(getScoutingRecordId(entry.record))}">
-                      ${escapeHtml(getScoutingRecordName(entry.record))} · Match P${escapeHtml(formatScoutingNumber(entry.score))}
+                    <button type="button" data-open-scouting-record="${escapeHtml(getScoutingRecordId(entry.record))}">
+                      <strong>${escapeHtml(getScoutingRecordName(entry.record))}</strong>
+                      <small>Match P${escapeHtml(formatScoutingNumber(entry.score))}</small>
                     </button>
                   `
                 )
-                .join("")
-            : `<p class="scouting-muted">No matching players found yet.</p>`
+                .join("")}</div>`
+            : `<p>No matching players found yet.</p>`
         }
+      </div>
+      <footer class="scouting-role-model-card-actions">
         ${canEdit ? `<button type="button" class="scouting-secondary-button" data-edit-scouting-role-model="${escapeHtml(model.id)}">Edit model</button>` : ""}
         ${canEdit ? `<button type="button" class="scouting-secondary-button" data-remove-scouting-role-model="${escapeHtml(model.id)}">Remove model</button>` : ""}
-      </div>
+      </footer>
     </article>
   `;
 }
@@ -13372,6 +13585,20 @@ export function handleClick(event, context) {
     openScoutingRoleModels(editRoleModelTrigger.dataset.editScoutingRoleModel);
     return;
   }
+  const addRoleModelMetricTrigger = event.target.closest("[data-add-scouting-role-model-metric]");
+  if (addRoleModelMetricTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    addScoutingRoleModelMetricFromPicker(addRoleModelMetricTrigger.closest("[data-scouting-role-model-form]"));
+    return;
+  }
+  const removeRoleModelMetricTrigger = event.target.closest("[data-remove-role-model-metric]");
+  if (removeRoleModelMetricTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    setScoutingRoleModelMetricRowSelected(removeRoleModelMetricTrigger.closest("[data-role-model-metric-row]"), false);
+    return;
+  }
   const roleModelOverlay = event.target.closest("[data-scouting-role-model-overlay]");
   if (roleModelOverlay && event.target === roleModelOverlay) {
     closeScoutingRoleModels();
@@ -13388,7 +13615,7 @@ export function handleClick(event, context) {
   const removeMyTeamSlotTrigger = event.target.closest("[data-remove-scouting-my-team-slot]");
   if (removeMyTeamSlotTrigger) {
     event.stopPropagation();
-    removeScoutingMyTeamPlayerFromSlot(removeMyTeamSlotTrigger.dataset.removeScoutingMyTeamSlot);
+    removeScoutingMyTeamPlayerFromSlot(removeMyTeamSlotTrigger.dataset.removeScoutingMyTeamSlot, removeMyTeamSlotTrigger.dataset.removeScoutingMyTeamPlayer || "");
     return;
   }
   const selectMyTeamPlayerTrigger = event.target.closest("[data-select-scouting-my-team-player]");
@@ -13484,6 +13711,11 @@ export function handleInput(event, context) {
 }
 export function handleChange(event, context) {
   setScoutingContext(context);
+  const roleModelMetricCheckbox = event.target.closest("[data-role-model-metric-checkbox]");
+  if (roleModelMetricCheckbox) {
+    setScoutingRoleModelMetricRowSelected(roleModelMetricCheckbox.closest("[data-role-model-metric-row]"), roleModelMetricCheckbox.checked);
+    return;
+  }
   const importFileInput = event.target.closest("[data-scouting-import-file]");
   if (importFileInput) {
     const nextFile = importFileInput.files?.[0];

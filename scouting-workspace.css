@@ -249,6 +249,23 @@ font-weight: 820;
 .scouting-target-actions{
 align-items: center;
 }
+.scouting-target-card.is-list-backed{
+background: linear-gradient(135deg, rgba(247, 249, 246, 0.98), rgba(255, 255, 255, 0.9));
+border-style: dashed;
+}
+.scouting-list-backed-badge{
+display: inline-flex;
+align-items: center;
+justify-content: center;
+min-height: 2rem;
+padding: 0.36rem 0.58rem;
+border-radius: 999px;
+background: rgba(35, 59, 45, 0.08);
+color: #233b2d;
+font-size: 0.72rem;
+font-weight: 900;
+white-space: nowrap;
+}
 .scouting-target-actions select{
 padding: 0.42rem 0.56rem;
 }

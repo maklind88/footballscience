@@ -1409,6 +1409,7 @@ sortMetricId: "minutes",
 targets: [],
 roleModels: [],
 favoriteRecordIds: [],
+playerSnapshots: {},
 lists: [{ id: "main-shortlist", name: "Main Shortlist", recordIds: [] }],
 shadowXi: {
 formation: "4-3-3",
@@ -6054,6 +6055,37 @@ seen.add(value);
 return true;
 });
 }
+function normalizeScoutingPlayerSnapshot(snapshot = {}) {
+const recordId = normalizeScoutingText(snapshot.recordId || snapshot.id, 160);
+if (!recordId) {
+return null;
+}
+return {
+recordId,
+name: normalizeScoutingText(snapshot.name, 180),
+club: normalizeScoutingText(snapshot.club || snapshot.team, 180),
+position: normalizeScoutingText(snapshot.position, 120),
+age: normalizeScoutingText(snapshot.age, 20),
+minutes: normalizeScoutingText(snapshot.minutes, 24),
+league: normalizeScoutingText(snapshot.league, 180),
+season: normalizeScoutingText(snapshot.season, 80),
+fit: normalizeScoutingText(snapshot.fit, 40),
+signalLabel: normalizeScoutingText(snapshot.signalLabel, 120),
+signalPercentile: normalizeScoutingText(snapshot.signalPercentile, 20),
+updatedAt: normalizeScoutingText(snapshot.updatedAt, 40) || new Date().toISOString(),
+};
+}
+function normalizeScoutingPlayerSnapshots(value = {}) {
+if (!value || typeof value !== "object") {
+return {};
+}
+return Object.fromEntries(
+Object.values(value)
+.map(normalizeScoutingPlayerSnapshot)
+.filter(Boolean)
+.map((snapshot) => [snapshot.recordId, snapshot])
+);
+}
 function normalizeScoutingShadowSlotRecordIds(value) {
 return normalizeScoutingRecordIds(Array.isArray(value) ? value : value ? [value] : []);
 }
@@ -6082,12 +6114,24 @@ sortMetricId: normalizeScoutingText(filters.sortMetricId, 120) || "minutes",
 }
 function normalizeScoutingRoleModel(model = {}) {
 const minPercentile = Number(model.minPercentile);
+const metrics = Array.isArray(model.metrics)
+? model.metrics
+.map((metric) => ({
+metricId: normalizeScoutingText(metric?.metricId || metric?.id, 120),
+minPercentile: Number.isFinite(Number(metric?.minPercentile)) ? Math.max(1, Math.min(99, Math.round(Number(metric.minPercentile)))) : 70,
+weight: Number.isFinite(Number(metric?.weight)) ? Math.max(1, Math.min(5, Math.round(Number(metric.weight)))) : 3,
+direction: normalizeScoutingText(metric?.direction, 20).toLowerCase() === "lower" ? "lower" : "higher",
+}))
+.filter((metric) => metric.metricId)
+: [];
 return {
 id: normalizeScoutingText(model.id, 120) || `scouting-role-model-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
 name: normalizeScoutingText(model.name, 120) || "Custom role model",
 slotId: normalizeScoutingText(model.slotId, 40),
 metricId: normalizeScoutingText(model.metricId, 120) || "minutes",
 minPercentile: Number.isFinite(minPercentile) ? Math.max(1, Math.min(99, Math.round(minPercentile))) : 60,
+metrics,
+searchIntent: normalizeScoutingText(model.searchIntent, 500),
 notes: normalizeScoutingText(model.notes, 900),
 createdAt: normalizeScoutingText(model.createdAt, 40) || new Date().toISOString(),
 updatedAt: normalizeScoutingText(model.updatedAt, 40) || normalizeScoutingText(model.createdAt, 40) || new Date().toISOString(),
@@ -6097,7 +6141,7 @@ function normalizeScoutingComparisonLab(value = {}) {
 const normalizedPlayerIds = normalizeScoutingRecordIds(value.playerIds);
 return {
 slotId: normalizeScoutingText(value.slotId, 40),
-playerIds: [normalizedPlayerIds[0] || "", normalizedPlayerIds[1] || ""],
+playerIds: [normalizedPlayerIds[0] || "", normalizedPlayerIds[1] || "", normalizedPlayerIds[2] || "", normalizedPlayerIds[3] || ""],
 metricId: normalizeScoutingText(value.metricId, 120) || "minutes",
 };
 }
@@ -6125,6 +6169,7 @@ targets: Array.isArray(source.targets)
 : [],
 roleModels: Array.isArray(source.roleModels) ? source.roleModels.map(normalizeScoutingRoleModel).filter((model) => model.name) : [],
 favoriteRecordIds: normalizeScoutingRecordIds(source.favoriteRecordIds),
+playerSnapshots: normalizeScoutingPlayerSnapshots(source.playerSnapshots),
 lists: lists.length ? lists : [cloneScoutingList(defaultScoutingState.lists[0])],
 shadowXi: {
 formation: normalizeScoutingText(source.shadowXi?.formation, 40) || "4-3-3",

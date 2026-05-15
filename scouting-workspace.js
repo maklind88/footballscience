@@ -526,6 +526,102 @@ function normalizeScoutingRecordIds(values = []) {
       return true;
     });
 }
+function normalizeScoutingPlayerSnapshot(snapshot = {}) {
+  const recordId = normalizeScoutingText(snapshot.recordId || snapshot.id, 160);
+  if (!recordId) {
+    return null;
+  }
+  return {
+    recordId,
+    name: normalizeScoutingText(snapshot.name, 180),
+    club: normalizeScoutingText(snapshot.club || snapshot.team, 180),
+    position: normalizeScoutingText(snapshot.position, 120),
+    age: normalizeScoutingText(snapshot.age, 20),
+    minutes: normalizeScoutingText(snapshot.minutes, 24),
+    league: normalizeScoutingText(snapshot.league, 180),
+    season: normalizeScoutingText(snapshot.season, 80),
+    fit: normalizeScoutingText(snapshot.fit, 40),
+    signalLabel: normalizeScoutingText(snapshot.signalLabel, 120),
+    signalPercentile: normalizeScoutingText(snapshot.signalPercentile, 20),
+    updatedAt: normalizeScoutingText(snapshot.updatedAt, 40) || new Date().toISOString(),
+  };
+}
+function getScoutingPlayerSnapshots(state = null) {
+  const sourceState = state || (activeContext ? ensureScoutingState() : null);
+  const snapshots = sourceState?.playerSnapshots && typeof sourceState.playerSnapshots === "object" ? sourceState.playerSnapshots : {};
+  return Object.fromEntries(
+    Object.values(snapshots)
+      .map(normalizeScoutingPlayerSnapshot)
+      .filter(Boolean)
+      .map((snapshot) => [snapshot.recordId, snapshot])
+  );
+}
+function createScoutingPlayerSnapshot(record) {
+  if (!record) {
+    return null;
+  }
+  const recordId = getScoutingRecordId(record);
+  if (!recordId) {
+    return null;
+  }
+  const roleFit = getScoutingRoleFitScore(record);
+  const signal = getScoutingBestSignal(record);
+  return normalizeScoutingPlayerSnapshot({
+    recordId,
+    name: getScoutingRecordName(record),
+    club: getScoutingRecordTeam(record),
+    position: getScoutingRecordPosition(record),
+    age: String(getScoutingRecordAge(record) || ""),
+    minutes: String(getScoutingRecordMinutes(record) || ""),
+    league: getScoutingRecordLeague(record),
+    season: getScoutingRecordSeason(record),
+    fit: Number.isFinite(roleFit) ? `P${roleFit}` : "",
+    signalLabel: signal?.metric?.label || "",
+    signalPercentile: Number.isFinite(signal?.percentile) ? String(signal.percentile) : "",
+  });
+}
+function rememberScoutingRecordSnapshot(record, state = ensureScoutingState()) {
+  const snapshot = createScoutingPlayerSnapshot(record);
+  if (!snapshot) {
+    return null;
+  }
+  const snapshots = getScoutingPlayerSnapshots(state);
+  const previous = snapshots[snapshot.recordId] || {};
+  state.playerSnapshots = {
+    ...snapshots,
+    [snapshot.recordId]: Object.fromEntries(
+      Object.entries({
+        ...previous,
+        ...snapshot,
+        updatedAt: new Date().toISOString(),
+      }).map(([key, value]) => [key, value || previous[key] || ""])
+    ),
+  };
+  return state.playerSnapshots[snapshot.recordId];
+}
+function getScoutingRecordSnapshot(recordId, state = null) {
+  const id = normalizeScoutingText(recordId, 160);
+  return id ? getScoutingPlayerSnapshots(state)[id] || null : null;
+}
+function getScoutingSnapshotFallbackRecord(recordId, state = null) {
+  const snapshot = getScoutingRecordSnapshot(recordId, state);
+  if (!snapshot) {
+    return null;
+  }
+  const record = [];
+  record[scoutingRecordIndex.id] = snapshot.recordId;
+  record[scoutingRecordIndex.player] = snapshot.name || "Saved player";
+  record[scoutingRecordIndex.team] = snapshot.club || "";
+  record[scoutingRecordIndex.teamWithinTimeframe] = snapshot.club || "";
+  record[scoutingRecordIndex.league] = snapshot.league || "";
+  record[scoutingRecordIndex.season] = snapshot.season || "";
+  record[scoutingRecordIndex.position] = snapshot.position || "";
+  record[scoutingRecordIndex.age] = snapshot.age || "";
+  record[scoutingRecordIndex.matches] = "";
+  record[scoutingRecordIndex.minutes] = snapshot.minutes || 0;
+  record[scoutingRecordIndex.metrics] = {};
+  return record;
+}
 function resetScoutingComputedCaches() {
   scoutingPercentileCache = new Map();
   scoutingRecordMiniRadarCache = new Map();
@@ -3457,7 +3553,7 @@ function clearScoutingImportedDatabase() {
 function getScoutingRecordById(recordId) {
   ensureScoutingRecordLookupsReady();
   const id = normalizeScoutingText(recordId, 160);
-  return scoutingRecordIdLookupCache.get(id) || scoutingKnownRecordLookupCache.get(id) || null;
+  return scoutingRecordIdLookupCache.get(id) || scoutingKnownRecordLookupCache.get(id) || getScoutingSnapshotFallbackRecord(id) || null;
 }
 function rememberScoutingDatabaseRecords(database = {}) {
   const records = Array.isArray(database.records) ? database.records : [];
@@ -3684,6 +3780,65 @@ function getScoutingTargetedRecordIds(state = ensureScoutingState()) {
     .filter(Boolean)
     .filter((value, index, values) => values.indexOf(value) === index);
 }
+function createScoutingListBackedTarget(recordId, sourceLabel, sourceId, state = ensureScoutingState()) {
+  const id = normalizeScoutingText(recordId, 160);
+  if (!id) {
+    return null;
+  }
+  const record = getScoutingRecordById(id);
+  const snapshot = getScoutingRecordSnapshot(id, state);
+  const roleFit = record ? getScoutingRoleFitScore(record) : null;
+  const signal = record ? getScoutingBestSignal(record) : null;
+  return {
+    id: `scouting-list-backed-${normalizeScoutingText(sourceId, 80)}-${id}`,
+    recordId: id,
+    name: record ? getScoutingRecordName(record) : snapshot?.name || "Saved list player",
+    club: record ? getScoutingRecordTeam(record) : snapshot?.club || "Saved list",
+    position: record ? getScoutingRecordPosition(record) : snapshot?.position || "Unknown position",
+    age: record ? String(getScoutingRecordAge(record) || "") : snapshot?.age || "",
+    status: "longlist",
+    priority: "normal",
+    fit: Number.isFinite(roleFit) ? `P${roleFit}` : snapshot?.fit || "n/a",
+    notes: `From ${normalizeScoutingText(sourceLabel, 80) || "saved list"}. Activate pipeline when this becomes a real recruitment case.`,
+    slotId: "",
+    owner: "",
+    nextAction: "Activate pipeline",
+    nextActionDate: "",
+    lastContact: "",
+    decisionDeadline: "",
+    createdAt: snapshot?.updatedAt || new Date().toISOString(),
+    updatedAt: snapshot?.updatedAt || new Date().toISOString(),
+    isListBacked: true,
+    sourceLabel,
+    sourceId,
+    signalLabel: signal?.metric?.label || snapshot?.signalLabel || "",
+    signalPercentile: Number.isFinite(signal?.percentile) ? String(signal.percentile) : snapshot?.signalPercentile || "",
+  };
+}
+function getScoutingListBackedTargets(state = ensureScoutingState()) {
+  const existing = new Set(getScoutingTargetedRecordIds(state));
+  const rows = [];
+  const seen = new Set(existing);
+  const addRow = (recordId, sourceLabel, sourceId) => {
+    const id = normalizeScoutingText(recordId, 160);
+    if (!id || seen.has(id)) {
+      return;
+    }
+    const target = createScoutingListBackedTarget(id, sourceLabel, sourceId, state);
+    if (target) {
+      rows.push(target);
+      seen.add(id);
+    }
+  };
+  normalizeScoutingRecordIds(state.favoriteRecordIds).forEach((recordId) => addRow(recordId, "Favorites", "favorites"));
+  (Array.isArray(state.lists) ? state.lists : []).forEach((list) => {
+    normalizeScoutingRecordIds(list.recordIds).forEach((recordId) => addRow(recordId, list.name || "Scouting list", list.id || "list"));
+  });
+  return rows;
+}
+function getScoutingPipelineTargets(state = ensureScoutingState()) {
+  return [...getScoutingTargets(state), ...getScoutingListBackedTargets(state)];
+}
 function getScoutingComparisonCandidatesForSlot(slotId) {
   const database = getScoutingDatabase();
   const slot = getScoutingShadowSlot(slotId);
@@ -3729,6 +3884,7 @@ function saveScoutingTarget(recordId, patch = {}) {
   if (!record) {
     return;
   }
+  rememberScoutingRecordSnapshot(record, state);
   const baseTarget = findScoutingTargetByRecordId(recordId, state);
   const nextTarget = createScoutingTarget(record, {
     ...(baseTarget || {}),
@@ -3754,6 +3910,7 @@ function updateScoutingTarget(targetId, patch = {}) {
   if (!record) {
     return;
   }
+  rememberScoutingRecordSnapshot(record, state);
   const nextTarget = createScoutingTarget(record, {
     ...target,
     ...patch,
@@ -10089,16 +10246,17 @@ function renderScoutingTargetCard(target) {
   const bestSignal = record ? getScoutingBestSignal(record) : null;
   const minutes = record ? getScoutingRecordMinutes(record) : 0;
   const age = target?.age || "";
+  const isListBacked = Boolean(target?.isListBacked);
   return `
-    <article class="scouting-target-card" draggable="true" data-scouting-drag-target="${escapeHtml(target.id)}">
+    <article class="scouting-target-card${isListBacked ? " is-list-backed" : ""}" draggable="${isListBacked ? "false" : "true"}" ${isListBacked ? "" : `data-scouting-drag-target="${escapeHtml(target.id)}"`}>
       <div class="scouting-target-main">
         <strong>${escapeHtml(recordName)}</strong>
-        <span>${escapeHtml(slot ? slot.label : "Open")}</span>
+        <span>${escapeHtml(isListBacked ? target.sourceLabel || "Saved list" : slot ? slot.label : "Open")}</span>
       </div>
       <p class="scouting-note-line">${escapeHtml(recordClub)} · ${escapeHtml(target.position || "Unknown position")} · ${age ? `${escapeHtml(age)} yrs` : ""} · ${formatScoutingNumber(minutes)} min</p>
       <p class="scouting-fit-line">${escapeHtml(target.fit || "n/a")} · ${escapeHtml(slot ? slot.position : "Open role")} · ${record ? `${escapeHtml(getScoutingRoleFitLabel(targetRoleFit))}` : "No profile score"}</p>
       <p class="scouting-note-line">${escapeHtml(target.notes || "No notes yet")}</p>
-      <p class="scouting-note-line">${escapeHtml(bestSignal ? `${bestSignal.metric.label} · P${bestSignal.percentile}` : target.fit ? `Status: ${escapeHtml(target.fit)}` : "No standout signal")}</p>
+      <p class="scouting-note-line">${escapeHtml(bestSignal ? `${bestSignal.metric.label} · P${bestSignal.percentile}` : target.signalLabel ? `${target.signalLabel} · P${target.signalPercentile || "-"}` : target.fit ? `Status: ${target.fit}` : "No standout signal")}</p>
       <div class="scouting-workflow-meta">
         <span>Owner: ${escapeHtml(target.owner || "Unassigned")}</span>
         <span>Next: ${escapeHtml(target.nextAction || "No next action")}</span>
@@ -10106,27 +10264,34 @@ function renderScoutingTargetCard(target) {
         <span>Contact: ${escapeHtml(target.lastContact || "No contact logged")}</span>
       </div>
       <div class="scouting-target-actions">
-        <label>
-          <span>Status</span>
-          <select data-scouting-target-status="${escapeHtml(target.id)}">
-            ${getScoutingOptionMarkup(getScoutingStatusOptions(), target.status)}
-          </select>
-        </label>
-        <label>
-          <span>Priority</span>
-          <select data-scouting-target-priority="${escapeHtml(target.id)}">
-            ${getScoutingOptionMarkup(getScoutingPriorityOptions(), target.priority)}
-          </select>
-        </label>
+        ${
+          isListBacked
+            ? `<span class="scouting-list-backed-badge">List-backed</span>`
+            : `
+              <label>
+                <span>Status</span>
+                <select data-scouting-target-status="${escapeHtml(target.id)}">
+                  ${getScoutingOptionMarkup(getScoutingStatusOptions(), target.status)}
+                </select>
+              </label>
+              <label>
+                <span>Priority</span>
+                <select data-scouting-target-priority="${escapeHtml(target.id)}">
+                  ${getScoutingOptionMarkup(getScoutingPriorityOptions(), target.priority)}
+                </select>
+              </label>
+            `
+        }
         ${record ? `<button type="button" class="scouting-primary-button" data-open-scouting-record="${escapeHtml(target.recordId)}">Open player</button>` : ""}
-        ${canEditScoutingWorkspace() ? `<button type="button" data-remove-scouting-target="${escapeHtml(target.id)}" class="scouting-secondary-button">Remove</button>` : ""}
+        ${isListBacked && canEditScoutingWorkspace() ? `<button type="button" class="scouting-secondary-button" data-save-scouting-target="${escapeHtml(target.recordId)}" data-scouting-target-status="longlist" data-scouting-target-priority="normal">Activate pipeline</button>` : ""}
+        ${!isListBacked && canEditScoutingWorkspace() ? `<button type="button" data-remove-scouting-target="${escapeHtml(target.id)}" class="scouting-secondary-button">Remove</button>` : ""}
       </div>
     </article>
   `;
 }
 function renderScoutingTargetsPanel() {
   const state = ensureScoutingState();
-  const targets = getScoutingTargets(state);
+  const targets = getScoutingPipelineTargets(state);
   const statusOptions = getScoutingStatusOptions();
   const sortedTargets = [...targets].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   const statusMap = statusOptions.map((statusOption) => {
@@ -11641,6 +11806,10 @@ function toggleScoutingFavorite(recordId) {
   if (!id) {
     return;
   }
+  const record = getScoutingRecordById(id);
+  if (record) {
+    rememberScoutingRecordSnapshot(record, state);
+  }
   state.favoriteRecordIds = state.favoriteRecordIds.includes(id)
     ? state.favoriteRecordIds.filter((recordIdValue) => recordIdValue !== id)
     : [id, ...state.favoriteRecordIds];
@@ -11674,6 +11843,10 @@ function addScoutingRecordToList(recordId, listId) {
   const state = ensureScoutingState();
   const id = normalizeScoutingText(recordId, 160);
   const targetListId = normalizeScoutingText(listId, 120) || state.lists[0]?.id;
+  const record = getScoutingRecordById(id);
+  if (record) {
+    rememberScoutingRecordSnapshot(record, state);
+  }
   state.lists = state.lists.map((list) =>
     list.id === targetListId
       ? cloneScoutingList({
@@ -11712,6 +11885,9 @@ function addScoutingRecordToShadow(recordId, slotId) {
     scoutingShadowSlots[0];
   if (!id || !slot) {
     return;
+  }
+  if (record) {
+    rememberScoutingRecordSnapshot(record, state);
   }
   const currentRecordIds = getScoutingShadowSlotRecordIds(slot.id, state);
   state.shadowXi.slots = {

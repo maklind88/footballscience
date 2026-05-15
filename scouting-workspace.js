@@ -7179,7 +7179,7 @@ function renderScoutingNextActionCenter(state) {
                   `;
                 })
                 .join("")
-            : `<p class="scouting-muted">Build the Shadow XI and pipeline to unlock next actions.</p>`
+            : ""
         }
       </div>
     </section>

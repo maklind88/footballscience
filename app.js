@@ -27159,7 +27159,7 @@ return `
 <section class="medical-huddle" aria-label="Daily Medical Huddle">
 <article class="medical-huddle-brief">
 <span>Daily Huddle</span>
-<strong>${stats.fullCount}/${medicalState.players.length} full</strong>
+<strong>${stats.fullCount}/${medicalState.players.length}</strong>
 <div class="medical-huddle-kpis">
 <small>${huddle.restricted.length} managed</small>
 <small>${huddle.needsRecommendation.length} open</small>

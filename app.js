@@ -26705,6 +26705,19 @@ return Array.from({ length: medicalWindowLength }, (_, index) =>
 formatScheduleDateValue(addCalendarDays(startDate, index))
 );
 }
+function getMedicalPastWindowDates(dateValue = medicalState?.selectedDate) {
+ensureMedicalState();
+const endDate = parseScheduleDateValue(dateValue);
+return Array.from({ length: medicalWindowLength }, (_, index) =>
+formatScheduleDateValue(addCalendarDays(endDate, index - medicalWindowLength + 1))
+);
+}
+function getMedicalMonthToDateDates(referenceDate = new Date()) {
+const today = new Date(referenceDate);
+const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+const dayCount = getMedicalDaySpan(formatScheduleDateValue(monthStart), formatScheduleDateValue(today)) ?? 1;
+return Array.from({ length: dayCount }, (_, index) => formatScheduleDateValue(addCalendarDays(monthStart, index)));
+}
 function formatMedicalDateLabel(dateValue, variant = "short") {
 const date = parseScheduleDateValue(dateValue);
 const options = variant === "long"
@@ -26826,19 +26839,29 @@ loggedCount,
 }
 function getMedicalWindowAverage() {
 ensureMedicalState();
-const windowRecords = [];
-getMedicalWindowDates().forEach((dateValue) => {
+return getMedicalParticipationAverageForDates(getMedicalPastWindowDates()).averageParticipation;
+}
+function getMedicalParticipationAverageForDates(dateValues = []) {
+ensureMedicalState();
+const records = [];
+dateValues.forEach((dateValue) => {
 medicalState.players.forEach((player) => {
 const record = getLatestMedicalRecord(player.id, dateValue);
 if (record) {
-windowRecords.push(record);
+records.push(record);
 }
 });
 });
-if (!windowRecords.length) {
-return null;
+return {
+averageParticipation: records.length
+? Math.round(records.reduce((sum, record) => sum + record.participation, 0) / records.length)
+: null,
+loggedCount: records.length,
+slotCount: Math.max(0, dateValues.length * medicalState.players.length),
+};
 }
-return Math.round(windowRecords.reduce((sum, record) => sum + record.participation, 0) / windowRecords.length);
+function getMedicalMonthAverageStats() {
+return getMedicalParticipationAverageForDates(getMedicalMonthToDateDates(new Date()));
 }
 function getMedicalAttentionPlayers(dateValue = medicalState?.selectedDate) {
 ensureMedicalState();
@@ -27205,7 +27228,7 @@ const manualRecords = getMedicalPlayerRecords(player.id);
 const plans = getMedicalPlayerInjuryPlans(player.id);
 const activePlan = getActiveMedicalInjuryPlan(player.id, dateValue);
 const primaryPlan = activePlan ?? plans[0] ?? null;
-const windowRecords = getMedicalWindowDates()
+const windowRecords = getMedicalPastWindowDates(dateValue)
 .map((windowDate) => getLatestMedicalRecord(player.id, windowDate))
 .filter(Boolean);
 const windowAverage = windowRecords.length
@@ -28448,6 +28471,7 @@ return;
 ensureMedicalState();
 const stats = getMedicalDailyStats(medicalState.selectedDate);
 const windowAverage = getMedicalWindowAverage();
+const monthStats = getMedicalMonthAverageStats();
 ui.medicalTeamWorkspace.innerHTML = `
 <div class="medical-shell">
 <header class="medical-hero">
@@ -28465,8 +28489,8 @@ ${renderMedicalMetric("Full", String(stats.fullCount), "effective 100%", "full")
 ${renderMedicalMetric("Modified", String(stats.modifiedCount), "10-75%", "modified")}
 ${renderMedicalMetric("Unavailable", String(stats.unavailableCount), "0%", "unavailable")}
 ${renderMedicalMetric("Not set", String(stats.unloggedCount), "no entry")}
-${renderMedicalMetric("Day average", stats.averageParticipation === null ? "-" : `${stats.averageParticipation}%`, `${stats.loggedCount}/${medicalState.players.length} filled`)}
-${renderMedicalMetric("7-day average", windowAverage === null ? "-" : `${windowAverage}%`, "selected window")}
+${renderMedicalMetric("Month average", monthStats.averageParticipation === null ? "-" : `${monthStats.averageParticipation}%`, `${monthStats.loggedCount}/${monthStats.slotCount} filled`)}
+${renderMedicalMetric("7-day average", windowAverage === null ? "-" : `${windowAverage}%`, "last 7 days")}
 </section>
 ${
 medicalState.players.length

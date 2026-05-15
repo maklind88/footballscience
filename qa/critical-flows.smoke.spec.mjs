@@ -742,6 +742,51 @@ test("Medical recommendation edits persist after refresh", async ({ page }) => {
   await expectStorageContains(page, medicalKey, comment);
 });
 
+test("Medical metrics use current-month and trailing 7-day averages", async ({ page }) => {
+  await page.addInitScript(({ storageKey }) => {
+    const fixedNow = new Date("2026-05-15T12:00:00Z").valueOf();
+    const NativeDate = Date;
+    class FixedDate extends NativeDate {
+      constructor(...args) {
+        super(...(args.length ? args : [fixedNow]));
+      }
+
+      static now() {
+        return fixedNow;
+      }
+    }
+    FixedDate.UTC = NativeDate.UTC;
+    FixedDate.parse = NativeDate.parse;
+    window.Date = FixedDate;
+    window.localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        selectedDate: "2026-05-14",
+        selectedPlayerId: "qa-player",
+        rosterVersion: "qa-medical-average-v1",
+        players: [{ id: "qa-player", name: "QA Player", position: "Forward", rosterOrder: 1 }],
+        records: [
+          { id: "month-start", playerId: "qa-player", date: "2026-05-01", participation: 10, createdAt: "2026-05-01T08:00:00.000Z" },
+          { id: "trailing-start", playerId: "qa-player", date: "2026-05-08", participation: 25, createdAt: "2026-05-08T08:00:00.000Z" },
+          { id: "selected-day", playerId: "qa-player", date: "2026-05-14", participation: 50, createdAt: "2026-05-14T08:00:00.000Z" },
+          { id: "today", playerId: "qa-player", date: "2026-05-15", participation: 75, createdAt: "2026-05-15T08:00:00.000Z" },
+          { id: "future", playerId: "qa-player", date: "2026-05-20", participation: 100, createdAt: "2026-05-20T08:00:00.000Z" },
+        ],
+        injuryPlans: [],
+      })
+    );
+  }, { storageKey: medicalKey });
+
+  await bootApp(page);
+  await openWorkspace(page, "medical-team");
+
+  const metricCards = page.locator(".medical-metric-card");
+  await expect(metricCards.filter({ hasText: "Month average" })).toContainText("40%");
+  await expect(metricCards.filter({ hasText: "Month average" })).toContainText("4/15 filled");
+  await expect(metricCards.filter({ hasText: "7-day average" })).toContainText("38%");
+  await expect(metricCards.filter({ hasText: "7-day average" })).toContainText("last 7 days");
+});
+
 test("Squad add creates a Medical roster slot and Session Planner placement", async ({ page }) => {
   const playerName = `QA Squad Placement ${Date.now()}`;
   let squadAgeRequests = 0;

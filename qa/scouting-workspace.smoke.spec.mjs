@@ -57,8 +57,7 @@ async function openWorkspace(page, workspaceId, viewId = workspaceId) {
   await expect(page.locator(`[data-workspace-view="${viewId}"].is-active`)).toBeVisible();
 }
 
-test("Scouting database search, profile, favorite and Shadow XI flow stays stable", async ({ page }) => {
-  test.setTimeout(420_000);
+async function seedScoutingAccess(page) {
   await page.addInitScript(
     ({ key }) => {
       window.localStorage.removeItem("football-scouting-v1");
@@ -75,7 +74,52 @@ test("Scouting database search, profile, favorite and Shadow XI flow stays stabl
     },
     { key: workspaceHubKey }
   );
+}
 
+async function nextPaint(page) {
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+}
+
+async function waitForScoutingRows(page, { timeout = 60_000 } = {}) {
+  await page.waitForFunction(
+    () => {
+      const workspace = document.querySelector('[data-workspace-view="scouting"].is-active');
+      if (!workspace) {
+        return false;
+      }
+      const grid = workspace.querySelector("[data-scouting-record-grid]");
+      if (!grid) {
+        return false;
+      }
+      const isVisible = (node) => {
+        const rect = node.getBoundingClientRect();
+        const style = window.getComputedStyle(node);
+        return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+      };
+      const rows = Array.from(grid.querySelectorAll("[data-open-scouting-record]")).filter((node) => !node.disabled && isVisible(node));
+      const retry = workspace.querySelector("[data-scouting-retry-database]");
+      const loader = workspace.querySelector(".scouting-database-loader");
+      return rows.length > 0 && !retry && !loader;
+    },
+    null,
+    { timeout }
+  );
+  await nextPaint(page);
+  const firstRow = page.locator('[data-workspace-view="scouting"].is-active [data-scouting-record-grid] [data-open-scouting-record]:visible').first();
+  await expect(firstRow).toBeEnabled({ timeout: 15_000 });
+  return firstRow;
+}
+
+async function loadScoutingDatabase(page) {
+  const loadButton = page.locator("[data-scouting-load-database], [data-scouting-retry-database]").first();
+  if ((await loadButton.count()) > 0) {
+    await expect(loadButton).toBeEnabled({ timeout: 15_000 });
+    await loadButton.click();
+  }
+  return waitForScoutingRows(page, { timeout: 75_000 });
+}
+
+async function prepareScoutingDatabase(page) {
   const boot = await bootApp(page);
   expect(boot.pageErrors).toEqual([]);
 
@@ -87,36 +131,107 @@ test("Scouting database search, profile, favorite and Shadow XI flow stays stabl
   await expect(page.locator(".scouting-tab.is-active")).toContainText("Database");
   await expect(page.locator("#dashboardModalRoot")).toBeHidden();
 
-  await page.locator("[data-scouting-load-database]").click();
-  await expect(page.locator("[data-scouting-record-grid] [data-open-scouting-record]").first()).toBeVisible({
-    timeout: 45_000,
-  });
+  return loadScoutingDatabase(page);
+}
 
+async function getStableSearchTerm(firstRow) {
+  const rowText = await firstRow.innerText();
+  return rowText
+    .split(/\s+/)
+    .map((part) => part.replace(/[^a-z0-9]/gi, ""))
+    .find((part) => part.length >= 3)
+    ?.slice(0, 4)
+    .toLowerCase() || "a";
+}
+
+async function selectMatchingPositionFilter(page) {
+  return page.evaluate(() => {
+    const workspace = document.querySelector('[data-workspace-view="scouting"].is-active');
+    const select = workspace?.querySelector('[data-scouting-filter="position"]');
+    const row = workspace?.querySelector("[data-scouting-record-row]");
+    const positionText = row?.querySelector(".scouting-record-position")?.textContent?.trim() || "";
+    if (!select || !positionText) {
+      return "";
+    }
+    const option = Array.from(select.options).find((entry) => {
+      const value = entry.value?.trim();
+      return value && value !== "all" && (positionText === value || positionText.includes(value) || value.includes(positionText));
+    });
+    return option?.value || "";
+  });
+}
+
+async function openFirstScoutingProfile(page) {
+  const firstRow = await waitForScoutingRows(page);
+  const recordId = await firstRow.getAttribute("data-open-scouting-record");
+  await firstRow.click();
+  const profileModal = page.locator("[data-scouting-profile-modal]").first();
+  await expect(profileModal).toBeVisible({ timeout: 30_000 });
+  await page.waitForFunction(
+    (targetRecordId) => {
+      const modal = document.querySelector("[data-scouting-profile-modal]");
+      if (!modal) {
+        return false;
+      }
+      const rect = modal.getBoundingClientRect();
+      const controls = Array.from(modal.querySelectorAll("[data-toggle-scouting-favorite], [data-add-scouting-record-to-shadow]"));
+      const expectedControls = targetRecordId
+        ? controls.filter((control) => control.getAttribute("data-toggle-scouting-favorite") === targetRecordId || control.getAttribute("data-add-scouting-record-to-shadow") === targetRecordId)
+        : controls;
+      return rect.width > 0 && rect.height > 0 && expectedControls.length >= 2 && expectedControls.every((control) => !control.disabled);
+    },
+    recordId,
+    { timeout: 30_000 }
+  );
+  await expect(profileModal).toHaveAttribute("tabindex", "-1");
+  return { profileModal, recordId };
+}
+
+test("Scouting database load, search and position filter stay stable", async ({ page }) => {
+  test.setTimeout(180_000);
+  await seedScoutingAccess(page);
+  const firstRow = await prepareScoutingDatabase(page);
+  const searchTerm = await getStableSearchTerm(firstRow);
   const queryInput = page.locator('[data-scouting-database-search-form] input[name="query"]').first();
-  await queryInput.fill("sam");
+  await expect(queryInput).toBeEnabled({ timeout: 15_000 });
+  await queryInput.fill(searchTerm);
   await queryInput.press("Enter");
-  await expect(queryInput).toHaveValue("sam");
+  await expect(queryInput).toHaveValue(searchTerm);
+  await waitForScoutingRows(page, { timeout: 45_000 });
   await expect(page.locator(".scouting-tab.is-active")).toContainText("Database");
 
   const positionSelect = page.locator('[data-scouting-filter="position"]').first();
-  if ((await positionSelect.count()) > 0) {
-    await positionSelect.selectOption({ index: 1 }).catch(() => {});
-    await expect(page.locator("[data-scouting-record-grid] [data-open-scouting-record]").first()).toBeVisible({
-      timeout: 45_000,
-    });
+  const matchingPosition = await selectMatchingPositionFilter(page);
+  if ((await positionSelect.count()) > 0 && matchingPosition) {
+    await expect(positionSelect).toBeEnabled({ timeout: 15_000 });
+    await positionSelect.selectOption(matchingPosition);
+    await waitForScoutingRows(page, { timeout: 45_000 });
   }
   await expect(page.locator(".scouting-tab.is-active")).toContainText("Database");
+});
 
-  await page.locator("[data-scouting-record-grid] [data-open-scouting-record]").first().click();
-  const profileModal = page.locator("[data-scouting-profile-modal]").first();
-  await expect(profileModal).toBeVisible();
-  await expect(profileModal).toHaveAttribute("tabindex", "-1");
+test("Scouting profile favorite and Shadow XI actions stay stable", async ({ page }) => {
+  test.setTimeout(180_000);
+  await seedScoutingAccess(page);
+  await prepareScoutingDatabase(page);
+  const { profileModal } = await openFirstScoutingProfile(page);
   const favoriteButton = profileModal.locator("[data-toggle-scouting-favorite]").first();
-  await favoriteButton.click();
-  await expect(favoriteButton).toContainText(/Favorited|Favorite/);
+  await expect(favoriteButton).toBeEnabled({ timeout: 15_000 });
+  if (!/Favorited/i.test(await favoriteButton.innerText())) {
+    await favoriteButton.click();
+    await expect(favoriteButton).toContainText("Favorited");
+  }
 
-  await profileModal.locator("[data-add-scouting-record-to-shadow]").first().click();
-  await expect(profileModal.locator("[data-scouting-profile-role-stack]")).toContainText("1", { timeout: 45_000 });
+  const addToShadowButton = profileModal.locator("[data-add-scouting-record-to-shadow]").first();
+  const roleStack = profileModal.locator("[data-scouting-profile-role-stack]").first();
+  await expect(addToShadowButton).toBeEnabled({ timeout: 15_000 });
+  const currentRoleCount = Number((await roleStack.innerText()).trim()) || 0;
+  if (currentRoleCount < 1) {
+    await addToShadowButton.click();
+  }
+  await expect
+    .poll(async () => Number((await roleStack.innerText()).trim()) || 0, { timeout: 45_000 })
+    .toBeGreaterThan(0);
   await profileModal.locator(".scouting-profile-close").click();
   await expect(page.locator("[data-scouting-profile-modal]")).toBeHidden();
   const shadowTab = page.locator('.scouting-tab[data-scouting-tab="shadow-xi"]').first();

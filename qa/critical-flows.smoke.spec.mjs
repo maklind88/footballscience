@@ -881,12 +881,12 @@ test("Medical roster overview groups by position and supports row quick recommen
         const commandBoard = document.querySelector(".medical-roster-panel > .medical-command-board");
         const positionOverview = document.querySelector(".medical-position-overview");
         if (!bulkPanel || !commandBoard || !positionOverview) return "";
-        const commandAfterBulk = Boolean(bulkPanel.compareDocumentPosition(commandBoard) & Node.DOCUMENT_POSITION_FOLLOWING);
-        const overviewAfterCommand = Boolean(commandBoard.compareDocumentPosition(positionOverview) & Node.DOCUMENT_POSITION_FOLLOWING);
-        return commandAfterBulk && overviewAfterCommand ? "bulk-command-list" : "wrong-order";
+        const bulkAfterCommand = Boolean(commandBoard.compareDocumentPosition(bulkPanel) & Node.DOCUMENT_POSITION_FOLLOWING);
+        const overviewAfterBulk = Boolean(bulkPanel.compareDocumentPosition(positionOverview) & Node.DOCUMENT_POSITION_FOLLOWING);
+        return bulkAfterCommand && overviewAfterBulk ? "command-bulk-list" : "wrong-order";
       })
     )
-    .toBe("bulk-command-list");
+    .toBe("command-bulk-list");
 
   const searchInput = page.locator("[data-medical-roster-search]");
   await searchInput.click();

@@ -28174,8 +28174,8 @@ ${medicalStatusOptions
 </select>
 </div>
 </div>
-${renderMedicalBulkUpdatePanel(players)}
 ${renderMedicalCommandBoard()}
+${renderMedicalBulkUpdatePanel(players)}
 <div class="medical-position-overview">
 ${
 players.length

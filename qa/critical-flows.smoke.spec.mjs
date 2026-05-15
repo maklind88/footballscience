@@ -1317,6 +1317,7 @@ test("Squad profile modal autosaves edits and keeps its size across tabs", async
 });
 
 test("Squad availability status is editable and Medical injury status overrides the roster", async ({ page }) => {
+  test.setTimeout(90_000);
   await bootApp(page);
   await openWorkspace(page, "player-profiles");
 

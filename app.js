@@ -1653,6 +1653,24 @@ const medicalStatusOptions = [
 { key: "unavailable", label: "Unavailable", tone: "unavailable", defaultParticipation: 0 },
 { key: "monitor", label: "Monitor", tone: "monitor", defaultParticipation: 100 },
 ];
+const medicalStatusActivityLabels = {
+training: {
+full: "Full Training",
+modified: "Modified Training",
+controlled: "Controlled Training",
+rehab: "Rehab / Individual",
+unavailable: "Unavailable",
+monitor: "Monitor",
+},
+match: {
+full: "Match Available",
+modified: "Modified Match",
+controlled: "Controlled Match",
+rehab: "Match Restricted",
+unavailable: "Unavailable",
+monitor: "Match Available",
+},
+};
 const medicalInjuryPlanStatusOptions = medicalStatusOptions;
 const medicalRtpPhaseOptions = [
 { key: "medical-restriction", label: "Medical restriction", status: "unavailable", participation: 0 },
@@ -22002,6 +22020,24 @@ return formatScheduleDateValue(parsedDate) === dateValue;
 function getMedicalStatusOption(statusKey) {
 return medicalStatusOptions.find((status) => status.key === statusKey) ?? medicalStatusOptions[0];
 }
+function getMedicalStatusActivityType(dateValue, rtpPhase = "") {
+const activityContext = getMedicalRecommendationActivityContext(dateValue);
+if (activityContext.type === "match" || activityContext.type === "training") {
+return activityContext.type;
+}
+if (rtpPhase === "match-available") {
+return "match";
+}
+return "training";
+}
+function getMedicalStatusOptionForActivity(statusKey, activityType = "training") {
+const status = getMedicalStatusOption(statusKey);
+const label = medicalStatusActivityLabels[activityType]?.[status.key] ?? status.label;
+return { ...status, label, activityType };
+}
+function getMedicalStatusOptionForDate(statusKey, dateValue = medicalState?.selectedDate, rtpPhase = "") {
+return getMedicalStatusOptionForActivity(statusKey, getMedicalStatusActivityType(dateValue, rtpPhase));
+}
 function getMedicalRtpPhaseOption(phaseKey) {
 return medicalRtpPhaseOptions.find((phase) => phase.key === phaseKey) ?? medicalRtpPhaseOptions[0];
 }
@@ -23600,11 +23636,11 @@ latestLog.date <= dateValue &&
 const medicalStatusKey = currentRecord?.status || activePlan?.status || openEndedLog?.status || "";
 const participation = currentRecord?.participation ?? activePlan?.participation ?? openEndedLog?.participation ?? null;
 const availabilityLabel = currentRecord
-? `${getMedicalStatusOption(currentRecord.status).label} / ${currentRecord.participation}%`
+? `${getMedicalRecordStatus(currentRecord).label} / ${currentRecord.participation}%`
 : activePlan
 ? `${getMedicalRtpPhaseOption(activePlan.rtpPhase).label} / ${activePlan.participation}%`
 : openEndedLog
-? `${getMedicalStatusOption(openEndedLog.status).label} / ${openEndedLog.participation}% ongoing`
+? `${getMedicalRecordStatus(openEndedLog).label} / ${openEndedLog.participation}% ongoing`
 : "Not logged today";
 const rtpStatus = activePlan
 ? getMedicalRtpPhaseOption(activePlan.rtpPhase).label
@@ -23615,7 +23651,7 @@ const rtpStatus = activePlan
 : "No RTP restriction";
 const coachNote = currentRecord?.coachNote || activePlan?.coachNote || latestLog?.coachNote || "";
 const latestLogSummary = latestLog
-? `${formatMedicalDateLabel(latestLog.date)} - ${getMedicalStatusOption(latestLog.status).label} / ${latestLog.participation}%`
+? `${formatMedicalDateLabel(latestLog.date)} - ${getMedicalRecordStatus(latestLog).label} / ${latestLog.participation}%`
 : activePlan
 ? `${formatMedicalDateLabel(dateValue)} - ${getMedicalRtpPhaseOption(activePlan.rtpPhase).label}`
 : "No medical log yet";
@@ -27576,7 +27612,7 @@ tone: "unset",
 defaultParticipation: null,
 };
 }
-return getMedicalStatusOption(record.status);
+return getMedicalStatusOptionForDate(record.status, record.date, record.rtpPhase);
 }
 function renderMedicalParticipationOptions(selectedValue) {
 const selectedParticipation = normalizeMedicalParticipation(selectedValue);
@@ -27597,12 +27633,12 @@ return [
 ),
 ].join("");
 }
-function renderMedicalStatusOptions(selectedStatus) {
+function renderMedicalStatusOptions(selectedStatus, dateValue = medicalState?.selectedDate) {
 const currentStatus = getMedicalStatusOption(selectedStatus).key;
 return medicalStatusOptions
 .map(
 (status) =>
-`<option value="${escapeHtml(status.key)}"${status.key === currentStatus ? " selected" : ""}>${escapeHtml(status.label)}</option>`
+`<option value="${escapeHtml(status.key)}"${status.key === currentStatus ? " selected" : ""}>${escapeHtml(getMedicalStatusOptionForDate(status.key, dateValue).label)}</option>`
 )
 .join("");
 }
@@ -28734,7 +28770,7 @@ date: record.date,
 sortTime: record.createdAt || `${record.date}T00:00:00.000Z`,
 player,
 type: "Recommendation",
-title: `${record.participation}% / ${getMedicalStatusOption(record.status).label}`,
+title: `${record.participation}% / ${getMedicalRecordStatus(record).label}`,
 detail: record.actualParticipation === medicalActualParticipationFallback
 ? getMedicalRtpPhaseOption(record.rtpPhase).label
 : `Actual ${record.actualParticipation}%`,
@@ -29517,7 +29553,7 @@ aria-label="Search squad"
 ${medicalStatusOptions
 .map(
 (status) =>
-`<option value="${escapeHtml(status.key)}"${medicalStatusFilter === status.key ? " selected" : ""}>${escapeHtml(status.label)}</option>`
+`<option value="${escapeHtml(status.key)}"${medicalStatusFilter === status.key ? " selected" : ""}>${escapeHtml(getMedicalStatusOptionForDate(status.key, medicalState.selectedDate).label)}</option>`
 )
 .join("")}
 <option value="not-set"${medicalStatusFilter === "not-set" ? " selected" : ""}>Not set</option>
@@ -29543,7 +29579,7 @@ return `<div class="medical-log-empty">No medical log yet.</div>`;
 }
 return records
 .map((record) => {
-const status = getMedicalStatusOption(record.status);
+const status = getMedicalRecordStatus(record);
 const actualText =
 record.actualParticipation === medicalActualParticipationFallback
 ? "Actual not logged"
@@ -29896,6 +29932,7 @@ const formParticipation = record?.participation ?? 100;
 const formStatus = record?.status ?? getMedicalStatusForParticipation(formParticipation);
 const formActual = record?.actualParticipation ?? medicalActualParticipationFallback;
 const formRtpPhase = record?.rtpPhase ?? getMedicalRtpPhaseForRecommendation(formStatus, formParticipation, activityContext.type);
+const formStatusLabel = getMedicalStatusOptionForDate(formStatus, medicalState.selectedDate, formRtpPhase).label;
 if (!canEdit) {
 return renderMedicalCoachSafeModal(player, record, status);
 }
@@ -29923,7 +29960,7 @@ ${renderMedicalPlayerAvatar(player, "medical-modal-avatar")}
 <article class="medical-modal-main-card">
 <div class="medical-card-headline">
 <h2>${escapeHtml(activityContext.recommendationLabel)}</h2>
-<span data-medical-recommendation-preview>${formParticipation}% / ${escapeHtml(getMedicalStatusOption(formStatus).label)}</span>
+<span data-medical-recommendation-preview>${formParticipation}% / ${escapeHtml(formStatusLabel)}</span>
 </div>
 ${activityContext.isRecommendable ? "" : `<div class="medical-activity-lock">${escapeHtml(activityContext.blockReason)} Select a training or match day to add a recommendation.</div>`}
 <form id="medicalRecommendationForm" class="medical-profile-form medical-recommendation-form">
@@ -30067,7 +30104,7 @@ ${renderMedicalPlayerAvatar(player, "medical-selected-avatar")}
 <label>
 <span>Status</span>
 <select name="status" id="medicalRecommendationStatus" ${canEdit ? "" : "disabled"}>
-${renderMedicalStatusOptions(formStatus)}
+${renderMedicalStatusOptions(formStatus, medicalState.selectedDate)}
 </select>
 </label>
 <label>
@@ -72094,6 +72131,7 @@ const participation = normalizeMedicalParticipation(recommendationPreset.dataset
 const status = getMedicalStatusOption(recommendationPreset.dataset.medicalStatus);
 const activityContext = getMedicalRecommendationActivityContext(dateInput?.value || medicalState.selectedDate);
 const phase = getMedicalRtpPhaseOption(getMedicalRtpPhaseForRecommendation(status.key, participation, activityContext.type));
+const displayStatus = getMedicalStatusOptionForDate(status.key, dateInput?.value || medicalState.selectedDate, phase.key);
 if (participationInput && statusInput) {
 participationInput.value = String(participation);
 statusInput.value = status.key;
@@ -72104,7 +72142,7 @@ form.querySelectorAll("[data-medical-recommendation-preset]").forEach((button) =
 button.classList.toggle("is-selected", button === recommendationPreset);
 });
 if (preview) {
-preview.textContent = `${participation}% / ${status.label}`;
+preview.textContent = `${participation}% / ${displayStatus.label}`;
 }
 }
 return;
@@ -72312,10 +72350,19 @@ return;
 }
 const recommendationStatus = event.target.closest("#medicalRecommendationStatus");
 if (recommendationStatus) {
-const participationSelect = ui.medicalTeamWorkspace.querySelector("#medicalRecommendationParticipation");
+const form = recommendationStatus.closest("#medicalRecommendationForm");
+const participationSelect = form?.querySelector("#medicalRecommendationParticipation") ??
+ui.medicalTeamWorkspace.querySelector("#medicalRecommendationParticipation");
+const preview = form?.querySelector("[data-medical-recommendation-preview]") ??
+ui.medicalTeamWorkspace.querySelector("[data-medical-recommendation-preview]");
+const dateInput = form?.querySelector("[name='date']");
 const status = getMedicalStatusOption(recommendationStatus.value);
 if (participationSelect && status.defaultParticipation !== null) {
 participationSelect.value = String(status.defaultParticipation);
+}
+if (preview) {
+const participation = normalizeMedicalParticipation(participationSelect?.value, status.defaultParticipation ?? 100);
+preview.textContent = `${participation}% / ${getMedicalStatusOptionForDate(status.key, dateInput?.value || medicalState.selectedDate).label}`;
 }
 }
 const recommendationRtpPhase = event.target.closest("#medicalRecommendationRtpPhase");
@@ -72323,6 +72370,7 @@ if (recommendationRtpPhase) {
 const form = recommendationRtpPhase.closest("#medicalRecommendationForm");
 const participationInput = form?.querySelector("#medicalRecommendationParticipation");
 const statusInput = form?.querySelector("#medicalRecommendationStatus");
+const dateInput = form?.querySelector("[name='date']");
 const preview = form?.querySelector("[data-medical-recommendation-preview]") ??
 ui.medicalTeamWorkspace.querySelector("[data-medical-recommendation-preview]");
 const phase = getMedicalRtpPhaseOption(recommendationRtpPhase.value);
@@ -72336,7 +72384,7 @@ normalizeMedicalParticipation(button.dataset.medicalParticipation) === phase.par
 );
 });
 if (preview) {
-preview.textContent = `${phase.participation}% / ${getMedicalStatusOption(phase.status).label}`;
+preview.textContent = `${phase.participation}% / ${getMedicalStatusOptionForDate(phase.status, dateInput?.value || medicalState.selectedDate, phase.key).label}`;
 }
 }
 return;

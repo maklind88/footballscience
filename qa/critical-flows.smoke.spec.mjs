@@ -929,6 +929,13 @@ test("Medical recommendations use match context and lock non-activity days", asy
       }, medicalKey)
     )
     .toBe("100:match-available");
+  await expect(playerRow.locator(".medical-status-chip")).toHaveText("Match Available");
+  await expect(playerRow).not.toContainText("Full Training");
+
+  await playerRow.click();
+  await expect(page.locator(".medical-modal-current")).toContainText("Match Available");
+  await expect(page.locator("[data-medical-recommendation-preview]")).toHaveText("100% / Match Available");
+  await page.locator(".medical-modal-close").click();
 
   await page.locator("[data-medical-date-picker]").evaluate((input) => {
     input.value = "2026-05-17";

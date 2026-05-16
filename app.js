@@ -1324,6 +1324,270 @@ saveSnapshot: saveDataSafetySnapshot,
 };
 }
 installFootballDataSafety();
+const platformOverlayStabilityRootSelectors = [
+'[role="dialog"][aria-modal="true"]',
+'[data-session-library-overlay]',
+'[data-session-save-conflict-overlay]',
+'[data-session-visual-preview-overlay]',
+'[data-session-tacticalboard-overlay]',
+'[data-session-player-board-overlay]',
+'[data-session-player-board-profile-overlay]',
+'[data-session-selection-assistant-overlay]',
+'[data-session-periodization-overlay]',
+'[data-periodization-overlay]',
+'[data-staff-create-user-overlay]',
+'[data-admin-create-user-overlay]',
+'[data-admin-user-editor-overlay]',
+'[data-player-profile-modal-overlay]',
+'[data-player-profile-new-modal-overlay]',
+'.dashboard-modal-root:not([hidden])',
+'.medical-modal-layer',
+'.scouting-profile-modal',
+];
+const platformOverlayStabilityClosestSelector = platformOverlayStabilityRootSelectors.join(",");
+const platformOverlayStabilityState = {
+active: false,
+rootScrollTop: 0,
+rootScrollLeft: 0,
+backgroundScroller: null,
+scrollPositions: new Map(),
+restoreFrame: 0,
+syncFrame: 0,
+observer: null,
+installed: false,
+};
+function getPlatformContentScroller() {
+const contentScroller = document.querySelector(".platform-content");
+if (contentScroller instanceof Element && contentScroller.scrollHeight > contentScroller.clientHeight + 1) {
+return contentScroller;
+}
+return document.scrollingElement || document.documentElement;
+}
+function isPlatformOverlayElementVisible(node) {
+if (!(node instanceof Element) || node.hidden || node.closest("[hidden]")) {
+return false;
+}
+const style = window.getComputedStyle(node);
+if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") {
+return false;
+}
+const rect = node.getBoundingClientRect();
+return rect.width > 0 && rect.height > 0;
+}
+function normalizePlatformOverlayRoot(node) {
+if (!(node instanceof Element)) {
+return null;
+}
+const dialog = node.matches('[role="dialog"][aria-modal="true"]')
+? node
+: node.querySelector?.('[role="dialog"][aria-modal="true"]');
+return dialog instanceof Element ? dialog : node;
+}
+function getPlatformActiveOverlayRoots() {
+const roots = new Set();
+document.querySelectorAll(platformOverlayStabilityClosestSelector).forEach((node) => {
+const root = normalizePlatformOverlayRoot(node);
+if (root && isPlatformOverlayElementVisible(root)) {
+roots.add(root);
+}
+});
+return Array.from(roots);
+}
+function getPlatformOverlayRootForNode(node) {
+if (!(node instanceof Element)) {
+return null;
+}
+const root = normalizePlatformOverlayRoot(node.closest(platformOverlayStabilityClosestSelector));
+return root && isPlatformOverlayElementVisible(root) ? root : null;
+}
+function getPlatformOverlayDataIdentity(node) {
+if (!(node instanceof Element)) {
+return "";
+}
+const dataAttribute = Array.from(node.attributes).find((attribute) => {
+const name = attribute.name.toLowerCase();
+return name.startsWith("data-") && (name.includes("overlay") || name.includes("modal") || name.includes("dialog"));
+});
+if (dataAttribute) {
+return `${dataAttribute.name}:${dataAttribute.value || "1"}`;
+}
+return "";
+}
+function getPlatformOverlayIdentity(root) {
+if (!(root instanceof Element)) {
+return "overlay";
+}
+const ownDataIdentity = getPlatformOverlayDataIdentity(root);
+if (ownDataIdentity) {
+return ownDataIdentity;
+}
+const wrapperDataIdentity = getPlatformOverlayDataIdentity(root.closest(platformOverlayStabilityClosestSelector));
+if (wrapperDataIdentity) {
+return wrapperDataIdentity;
+}
+return [
+root.id ? `id:${root.id}` : "",
+root.getAttribute("aria-labelledby") ? `labelledby:${root.getAttribute("aria-labelledby")}` : "",
+root.getAttribute("aria-label") ? `label:${root.getAttribute("aria-label")}` : "",
+root.className ? `class:${String(root.className).trim().split(/\s+/).slice(0, 3).join(".")}` : "",
+].filter(Boolean).join("|") || "overlay";
+}
+function getPlatformOverlayNodePath(node, root) {
+if (!(node instanceof Element) || !(root instanceof Element) || node === root) {
+return "root";
+}
+const parts = [];
+let current = node;
+while (current && current !== root && parts.length < 6) {
+const parent = current.parentElement;
+if (!parent) {
+break;
+}
+const tag = current.tagName.toLowerCase();
+const dataIdentity = getPlatformOverlayDataIdentity(current);
+const classIdentity = current.className
+? String(current.className).trim().split(/\s+/).filter(Boolean).slice(0, 2).join(".")
+: "";
+const siblings = Array.from(parent.children).filter((child) => child.tagName === current.tagName);
+const index = Math.max(siblings.indexOf(current), 0);
+parts.unshift(`${tag}${dataIdentity ? `[${dataIdentity}]` : ""}${classIdentity ? `.${classIdentity}` : ""}:${index}`);
+current = parent;
+}
+return parts.join(">") || "root";
+}
+function getPlatformOverlayScrollerKey(scroller, root) {
+return `${getPlatformOverlayIdentity(root)}::${getPlatformOverlayNodePath(scroller, root)}`;
+}
+function isPlatformOverlayScrollableNode(node) {
+if (!(node instanceof Element) || !isPlatformOverlayElementVisible(node)) {
+return false;
+}
+const style = window.getComputedStyle(node);
+const verticalScroll = /(auto|scroll|overlay)/.test(style.overflowY) || node.scrollHeight > node.clientHeight + 1;
+const horizontalScroll = /(auto|scroll|overlay)/.test(style.overflowX) || node.scrollWidth > node.clientWidth + 1;
+return verticalScroll || horizontalScroll;
+}
+function rememberPlatformOverlayScroll(node) {
+const root = getPlatformOverlayRootForNode(node);
+if (!root || !isPlatformOverlayScrollableNode(node)) {
+return;
+}
+platformOverlayStabilityState.scrollPositions.set(getPlatformOverlayScrollerKey(node, root), {
+top: node.scrollTop,
+left: node.scrollLeft,
+});
+}
+function getPlatformOverlayScrollableNodes(root) {
+if (!(root instanceof Element)) {
+return [];
+}
+return [root, ...Array.from(root.querySelectorAll("*"))].filter(isPlatformOverlayScrollableNode).slice(0, 120);
+}
+function restorePlatformOverlayScrollPositions() {
+platformOverlayStabilityState.restoreFrame = 0;
+const activeRoots = getPlatformActiveOverlayRoots();
+const contentScroller = platformOverlayStabilityState.backgroundScroller || getPlatformContentScroller();
+if (platformOverlayStabilityState.active && contentScroller) {
+contentScroller.scrollTop = platformOverlayStabilityState.rootScrollTop;
+contentScroller.scrollLeft = platformOverlayStabilityState.rootScrollLeft;
+}
+activeRoots.forEach((root) => {
+getPlatformOverlayScrollableNodes(root).forEach((node) => {
+const position = platformOverlayStabilityState.scrollPositions.get(getPlatformOverlayScrollerKey(node, root));
+if (!position) {
+return;
+}
+if (Math.abs(node.scrollTop - position.top) > 1) {
+node.scrollTop = position.top;
+}
+if (Math.abs(node.scrollLeft - position.left) > 1) {
+node.scrollLeft = position.left;
+}
+});
+});
+}
+function schedulePlatformOverlayStabilityRestore() {
+if (platformOverlayStabilityState.restoreFrame || typeof requestAnimationFrame !== "function") {
+return;
+}
+platformOverlayStabilityState.restoreFrame = requestAnimationFrame(() => {
+requestAnimationFrame(restorePlatformOverlayScrollPositions);
+});
+}
+function syncPlatformOverlayStability() {
+platformOverlayStabilityState.syncFrame = 0;
+const activeRoots = getPlatformActiveOverlayRoots();
+const contentScroller = getPlatformContentScroller();
+if (activeRoots.length && !platformOverlayStabilityState.active) {
+platformOverlayStabilityState.active = true;
+platformOverlayStabilityState.backgroundScroller = contentScroller;
+platformOverlayStabilityState.rootScrollTop = contentScroller?.scrollTop || 0;
+platformOverlayStabilityState.rootScrollLeft = contentScroller?.scrollLeft || 0;
+document.body.classList.add("has-platform-overlay-open");
+}
+if (!activeRoots.length && platformOverlayStabilityState.active) {
+const lockedScroller = platformOverlayStabilityState.backgroundScroller || contentScroller;
+if (lockedScroller) {
+lockedScroller.scrollTop = platformOverlayStabilityState.rootScrollTop;
+lockedScroller.scrollLeft = platformOverlayStabilityState.rootScrollLeft;
+}
+platformOverlayStabilityState.active = false;
+platformOverlayStabilityState.backgroundScroller = null;
+document.body.classList.remove("has-platform-overlay-open");
+return;
+}
+if (activeRoots.length) {
+schedulePlatformOverlayStabilityRestore();
+}
+}
+function schedulePlatformOverlayStabilitySync() {
+if (platformOverlayStabilityState.syncFrame || typeof requestAnimationFrame !== "function") {
+return;
+}
+platformOverlayStabilityState.syncFrame = requestAnimationFrame(syncPlatformOverlayStability);
+}
+function installPlatformOverlayStability() {
+if (platformOverlayStabilityState.installed || typeof document === "undefined" || !document.body) {
+return;
+}
+platformOverlayStabilityState.installed = true;
+document.addEventListener(
+"scroll",
+(event) => {
+if (!platformOverlayStabilityState.active) {
+return;
+}
+const target = event.target === document ? platformOverlayStabilityState.backgroundScroller || getPlatformContentScroller() : event.target;
+if (!(target instanceof Element)) {
+return;
+}
+if (target === (platformOverlayStabilityState.backgroundScroller || getPlatformContentScroller())) {
+target.scrollTop = platformOverlayStabilityState.rootScrollTop;
+target.scrollLeft = platformOverlayStabilityState.rootScrollLeft;
+return;
+}
+rememberPlatformOverlayScroll(target);
+},
+true
+);
+document.addEventListener("focusin", schedulePlatformOverlayStabilityRestore, true);
+window.addEventListener("resize", schedulePlatformOverlayStabilityRestore);
+platformOverlayStabilityState.observer = new MutationObserver(schedulePlatformOverlayStabilitySync);
+platformOverlayStabilityState.observer.observe(document.body, {
+childList: true,
+subtree: true,
+attributes: true,
+attributeFilter: ["hidden", "class", "style", "aria-hidden"],
+});
+window.footballScienceOverlayStability = {
+capture: rememberPlatformOverlayScroll,
+getBackgroundScroller: getPlatformContentScroller,
+restore: restorePlatformOverlayScrollPositions,
+sync: syncPlatformOverlayStability,
+};
+syncPlatformOverlayStability();
+}
+installPlatformOverlayStability();
 const dashboardNewsVersion = "home-dashboard-personal-todo-v2";
 const dashboardNewsItems = [
 "Home is now a cleaner staff workspace.",

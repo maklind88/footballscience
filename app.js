@@ -28469,59 +28469,6 @@ updatedBy: getCurrentPlatformUser()?.id || "",
 writeMedicalState();
 return true;
 }
-function renderMedicalGovernancePanel() {
-if (!canViewPrivateMedicalDetails()) {
-return "";
-}
-const status = getMedicalGovernanceStatus();
-const policy = status.policy;
-const updatedLabel = policy.updatedAt ? formatAdminDateTime(policy.updatedAt) : "Not saved";
-return `
-<section class="medical-governance-panel" aria-label="Medical governance controls">
-<article class="medical-governance-summary">
-<span>Governance</span>
-<strong>${status.reviewDue ? "Review due" : "Policy current"}</strong>
-<small>${status.daysSinceReview === null ? "No review date" : `${status.daysSinceReview} days since review`}</small>
-</article>
-<article class="medical-governance-card">
-<span>Data Boundary</span>
-<strong>Private medical</strong>
-<small>${status.coachSharedItems} coach-approved shares / ${status.privateRecordCount} private notes</small>
-</article>
-<form id="medicalGovernanceForm" class="medical-governance-form">
-<label>
-<span>Retention</span>
-<input name="retentionMonths" type="number" min="1" max="120" value="${escapeHtml(policy.retentionMonths)}" />
-</label>
-<label>
-<span>Review every</span>
-<input name="reviewCadenceDays" type="number" min="1" max="90" value="${escapeHtml(policy.reviewCadenceDays)}" />
-</label>
-<label>
-<span>Last reviewed</span>
-<input name="lastReviewed" type="date" value="${escapeHtml(policy.lastReviewed)}" />
-</label>
-<label>
-<span>Owner</span>
-<input name="policyOwner" value="${escapeHtml(policy.policyOwner)}" />
-</label>
-<label>
-<span>Incident contact</span>
-<input name="incidentContact" value="${escapeHtml(policy.incidentContact)}" />
-</label>
-<label class="medical-inline-check medical-governance-check">
-<input type="checkbox" name="consentRequired" ${policy.consentRequired ? "checked" : ""} />
-<span>Consent required</span>
-</label>
-<button type="submit">Save policy</button>
-</form>
-<article class="medical-governance-foot">
-<span>Last update</span>
-<strong>${escapeHtml(updatedLabel)}</strong>
-</article>
-</section>
-`;
-}
 function renderMedicalCommandBoard() {
 const attentionPlayers = getMedicalAttentionPlayers(medicalState.selectedDate).slice(0, 6);
 const positionSummaries = getMedicalPositionSummaries(medicalState.selectedDate);
@@ -30158,7 +30105,6 @@ ui.medicalTeamWorkspace.innerHTML = `
 </header>
 ${renderMedicalOperationsTopMenu()}
 ${showAvailabilityWorkspace ? renderMedicalAvailabilityWorkspace(message) : `${message ? `<div class="medical-message">${escapeHtml(message)}</div>` : ""}${renderMedicalOperationsSystem()}`}
-${renderMedicalGovernancePanel()}
 ${renderMedicalPlayerModal()}
 </div>
 `;

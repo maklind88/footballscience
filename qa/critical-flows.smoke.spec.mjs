@@ -1092,20 +1092,24 @@ test("Medical operations board separates signals, cases, history and season view
 
   const operationsMenu = page.locator("[data-medical-ops-top-menu]");
   await expect(operationsMenu).toBeVisible();
-  await expect(operationsMenu).toContainText("Intelligence Board");
+  await expect(operationsMenu).not.toContainText("Intelligence Board");
   await expect(operationsMenu.locator("[data-medical-ops-tab]")).toHaveCount(5);
   const operations = page.locator("[data-medical-operations-system]");
   await expect(operations).toBeVisible();
   await expect(operations.locator("[data-medical-ops-tab]")).toHaveCount(0);
   const menuPlacement = await page.evaluate(() => {
     const menu = document.querySelector("[data-medical-ops-top-menu]");
+    const firstTab = menu?.querySelector("[data-medical-ops-tab]");
     const operationsSystem = document.querySelector("[data-medical-operations-system]");
     return {
       menuTop: menu?.getBoundingClientRect().top ?? 0,
+      menuLeft: menu?.getBoundingClientRect().left ?? 0,
+      firstTabLeft: firstTab?.getBoundingClientRect().left ?? 0,
       operationsTop: operationsSystem?.getBoundingClientRect().top ?? 0,
     };
   });
   expect(menuPlacement.menuTop).toBeLessThan(menuPlacement.operationsTop);
+  expect(menuPlacement.firstTabLeft - menuPlacement.menuLeft).toBeLessThan(20);
   await expect(operations).toContainText("Review now");
   await expect(operations).toContainText("ACL injury");
 

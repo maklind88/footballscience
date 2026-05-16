@@ -28945,10 +28945,6 @@ return "";
 medicalOperationsTab = normalizeMedicalOperationsTab(medicalOperationsTab);
 return `
 <section class="medical-ops-top-menu" data-medical-ops-top-menu aria-label="Medical operations menu">
-<div class="medical-ops-top-copy">
-<span>Medical Operations</span>
-<strong>Intelligence Board</strong>
-</div>
 ${renderMedicalOperationsTabs("medical-ops-tabs-top")}
 </section>
 `;

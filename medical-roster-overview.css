@@ -47,6 +47,54 @@
   font-size: 0.86rem;
 }
 
+.medical-ops-top-menu {
+  position: sticky;
+  top: 0.62rem;
+  z-index: 24;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.72rem;
+  min-width: 0;
+  padding: 0.56rem 0.62rem;
+  border: 1px solid rgba(29, 31, 29, 0.1);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(239, 247, 243, 0.92)),
+    rgba(255, 255, 255, 0.9);
+  box-shadow: 0 18px 42px rgba(12, 24, 20, 0.12);
+  backdrop-filter: blur(22px);
+}
+
+.medical-ops-top-copy {
+  display: grid;
+  gap: 0.04rem;
+  min-width: 0;
+}
+
+.medical-ops-top-copy span {
+  color: #5f6b62;
+  font-size: 0.64rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.medical-ops-top-copy strong {
+  overflow: hidden;
+  color: #10231b;
+  font-size: clamp(1rem, 1.7vw, 1.28rem);
+  font-weight: 950;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.medical-ops-top-menu .medical-ops-tabs {
+  justify-content: flex-end;
+}
+
 .medical-roster-panel > .medical-command-board {
   margin-top: 0.08rem;
 }
@@ -822,6 +870,7 @@ body.is-dark-mode .medical-row-select-button.is-selected {
   color: #fff;
 }
 
+body.is-dark-mode .medical-ops-top-copy strong,
 body.is-dark-mode .medical-ops-header h2,
 body.is-dark-mode .medical-ops-stat strong,
 body.is-dark-mode .medical-ops-card .medical-command-head strong,
@@ -833,6 +882,7 @@ body.is-dark-mode .medical-ops-severity-grid strong {
   color: var(--dark-text);
 }
 
+body.is-dark-mode .medical-ops-top-menu,
 body.is-dark-mode .medical-ops-tabs button,
 body.is-dark-mode .medical-ops-boundary,
 body.is-dark-mode .medical-ops-brief,
@@ -855,6 +905,12 @@ body.is-dark-mode .medical-ops-brief {
     linear-gradient(135deg, #111c17, #152430);
 }
 
+body.is-dark-mode .medical-ops-top-menu {
+  background:
+    radial-gradient(circle at 86% 0%, rgba(129, 210, 159, 0.18), transparent 12rem),
+    linear-gradient(135deg, rgba(17, 28, 23, 0.96), rgba(13, 20, 28, 0.92));
+}
+
 body.is-dark-mode .medical-ops-tabs button.is-active {
   border-color: rgba(129, 210, 159, 0.44);
   background: linear-gradient(180deg, #2c8b62, #1c684e);
@@ -863,6 +919,7 @@ body.is-dark-mode .medical-ops-tabs button.is-active {
 
 body.is-dark-mode .medical-ops-brief span,
 body.is-dark-mode .medical-ops-brief small,
+body.is-dark-mode .medical-ops-top-copy span,
 body.is-dark-mode .medical-ops-card .medical-command-head span,
 body.is-dark-mode .medical-ops-table-head,
 body.is-dark-mode .medical-ops-table-row small,
@@ -955,6 +1012,24 @@ body.is-dark-mode .medical-ops-stat-clear {
 
   .medical-bulk-form {
     grid-template-columns: 1fr;
+  }
+
+  .medical-ops-top-menu {
+    position: static;
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .medical-ops-top-menu .medical-ops-tabs {
+    justify-content: flex-start;
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 0.1rem;
+  }
+
+  .medical-ops-top-menu .medical-ops-tabs button {
+    flex: 0 0 auto;
   }
 
   .medical-roster-list-head,

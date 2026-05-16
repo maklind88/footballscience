@@ -28726,9 +28726,10 @@ return drivers
 .map((driver) => `<span class="medical-ops-chip medical-ops-chip-${driver.severity >= 3 ? "high" : driver.severity === 2 ? "medium" : "low"}">${escapeHtml(driver.label)}</span>`)
 .join("");
 }
-function renderMedicalOperationsTabs() {
+function renderMedicalOperationsTabs(extraClass = "") {
+const className = ["medical-ops-tabs", extraClass].filter(Boolean).join(" ");
 return `
-<nav class="medical-ops-tabs" aria-label="Medical operations tabs">
+<nav class="${escapeHtml(className)}" aria-label="Medical operations tabs">
 ${medicalOperationsTabOptions
 .map(
 (tab) => `
@@ -28742,6 +28743,21 @@ aria-pressed="${medicalOperationsTab === tab.key ? "true" : "false"}"
 )
 .join("")}
 </nav>
+`;
+}
+function renderMedicalOperationsTopMenu() {
+if (!canViewPrivateMedicalDetails()) {
+return "";
+}
+medicalOperationsTab = normalizeMedicalOperationsTab(medicalOperationsTab);
+return `
+<section class="medical-ops-top-menu" data-medical-ops-top-menu aria-label="Medical operations menu">
+<div class="medical-ops-top-copy">
+<span>Medical Operations</span>
+<strong>Intelligence Board</strong>
+</div>
+${renderMedicalOperationsTabs("medical-ops-tabs-top")}
+</section>
 `;
 }
 function renderMedicalOperationsOverview(summary) {
@@ -28982,14 +28998,7 @@ medicalOperationsTab === "signals"
 ? renderMedicalOperationsSeason(summary)
 : renderMedicalOperationsOverview(summary);
 return `
-<section class="medical-operations-system" data-medical-operations-system>
-<header class="medical-ops-header">
-<div>
-<p class="placeholder-tag">Medical Operations</p>
-<h2>Intelligence Board</h2>
-</div>
-${renderMedicalOperationsTabs()}
-</header>
+<section class="medical-operations-system" data-medical-operations-system aria-label="Medical operations intelligence board">
 ${body}
 </section>
 `;
@@ -29893,6 +29902,7 @@ ui.medicalTeamWorkspace.innerHTML = `
 </div>
 <div class="medical-access-chip">${escapeHtml(getMedicalAccessLabel())}</div>
 </header>
+${renderMedicalOperationsTopMenu()}
 ${renderMedicalDateStrip()}
 ${message ? `<div class="medical-message">${escapeHtml(message)}</div>` : ""}
 <section class="medical-metrics-grid" aria-label="Medical availability summary">

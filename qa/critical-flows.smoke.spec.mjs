@@ -999,25 +999,38 @@ test("Medical operations board separates signals, cases, history and season view
   await bootApp(page);
   await openWorkspace(page, "medical-team");
 
+  const operationsMenu = page.locator("[data-medical-ops-top-menu]");
+  await expect(operationsMenu).toBeVisible();
+  await expect(operationsMenu).toContainText("Intelligence Board");
+  await expect(operationsMenu.locator("[data-medical-ops-tab]")).toHaveCount(5);
   const operations = page.locator("[data-medical-operations-system]");
   await expect(operations).toBeVisible();
-  await expect(operations).toContainText("Intelligence Board");
+  await expect(operations.locator("[data-medical-ops-tab]")).toHaveCount(0);
+  const menuPlacement = await page.evaluate(() => {
+    const menu = document.querySelector("[data-medical-ops-top-menu]");
+    const operationsSystem = document.querySelector("[data-medical-operations-system]");
+    return {
+      menuTop: menu?.getBoundingClientRect().top ?? 0,
+      operationsTop: operationsSystem?.getBoundingClientRect().top ?? 0,
+    };
+  });
+  expect(menuPlacement.menuTop).toBeLessThan(menuPlacement.operationsTop);
   await expect(operations).toContainText("Review now");
   await expect(operations).toContainText("ACL injury");
 
-  await page.locator('[data-medical-ops-tab="signals"]').click();
+  await operationsMenu.locator('[data-medical-ops-tab="signals"]').click();
   await expect(operations).toContainText("Actual exceeded recommendation");
   await expect(operations).toContainText("QA Risk Player");
 
-  await page.locator('[data-medical-ops-tab="cases"]').click();
+  await operationsMenu.locator('[data-medical-ops-tab="cases"]').click();
   await expect(operations).toContainText("Review overdue");
   await expect(operations).toContainText("1/3 sign-off");
 
-  await page.locator('[data-medical-ops-tab="history"]').click();
+  await operationsMenu.locator('[data-medical-ops-tab="history"]').click();
   await expect(operations).toContainText("Case opened");
   await expect(operations).toContainText("Recommendation");
 
-  await page.locator('[data-medical-ops-tab="season"]').click();
+  await operationsMenu.locator('[data-medical-ops-tab="season"]').click();
   await expect(operations).toContainText("Managed days");
   await expect(operations).toContainText("Major");
 });

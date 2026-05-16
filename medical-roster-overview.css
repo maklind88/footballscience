@@ -5,6 +5,12 @@
   min-width: 0;
 }
 
+.medical-availability-workspace {
+  display: grid;
+  gap: 0.72rem;
+  min-width: 0;
+}
+
 .medical-bulk-panel.is-collapsed {
   display: flex;
   justify-content: flex-start;
@@ -164,9 +170,9 @@
   position: sticky;
   top: 0.62rem;
   z-index: 24;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 0.72rem;
   min-width: 0;
   padding: 0.56rem 0.62rem;
@@ -179,33 +185,9 @@
   backdrop-filter: blur(22px);
 }
 
-.medical-ops-top-copy {
-  display: grid;
-  gap: 0.04rem;
-  min-width: 0;
-}
-
-.medical-ops-top-copy span {
-  color: #5f6b62;
-  font-size: 0.64rem;
-  font-weight: 950;
-  letter-spacing: 0.08em;
-  line-height: 1;
-  text-transform: uppercase;
-}
-
-.medical-ops-top-copy strong {
-  overflow: hidden;
-  color: #10231b;
-  font-size: clamp(1rem, 1.7vw, 1.28rem);
-  font-weight: 950;
-  line-height: 1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .medical-ops-top-menu .medical-ops-tabs {
-  justify-content: flex-end;
+  justify-content: flex-start;
+  width: 100%;
 }
 
 .medical-roster-panel > .medical-command-board {
@@ -1019,7 +1001,6 @@ body.is-dark-mode .medical-row-select-button.is-selected {
   color: #fff;
 }
 
-body.is-dark-mode .medical-ops-top-copy strong,
 body.is-dark-mode .medical-ops-header h2,
 body.is-dark-mode .medical-ops-stat strong,
 body.is-dark-mode .medical-ops-card .medical-command-head strong,
@@ -1068,7 +1049,6 @@ body.is-dark-mode .medical-ops-tabs button.is-active {
 
 body.is-dark-mode .medical-ops-brief span,
 body.is-dark-mode .medical-ops-brief small,
-body.is-dark-mode .medical-ops-top-copy span,
 body.is-dark-mode .medical-ops-card .medical-command-head span,
 body.is-dark-mode .medical-ops-table-head,
 body.is-dark-mode .medical-ops-table-row small,
@@ -1184,7 +1164,6 @@ body.is-dark-mode .medical-ops-stat-clear {
 
   .medical-ops-top-menu {
     position: static;
-    grid-template-columns: 1fr;
     align-items: start;
   }
 

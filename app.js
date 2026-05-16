@@ -1692,6 +1692,7 @@ const medicalWindowLength = 7;
 const medicalDefaultRosterVersion = "ncc-2026-roster-v1";
 const medicalOperationsTabOptions = [
 { key: "overview", label: "Overview" },
+{ key: "availability", label: "Availability" },
 { key: "signals", label: "Risk Signals" },
 { key: "cases", label: "Active Cases" },
 { key: "history", label: "History" },
@@ -29177,7 +29178,9 @@ return renderMedicalCoachSafeOperationsSummary();
 medicalOperationsTab = normalizeMedicalOperationsTab(medicalOperationsTab);
 const summary = getMedicalOperationsSummary(medicalState.selectedDate);
 const body =
-medicalOperationsTab === "signals"
+medicalOperationsTab === "availability"
+? renderMedicalOperationsOverview(summary)
+: medicalOperationsTab === "signals"
 ? renderMedicalOperationsSignals(summary)
 : medicalOperationsTab === "cases"
 ? renderMedicalOperationsCases(summary)

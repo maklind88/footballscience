@@ -958,6 +958,7 @@ test("Medical roster overview groups by position and supports row quick recommen
           { id: "qa-def", name: "QA Defender", position: "Defender", rosterOrder: 2 },
           { id: "qa-gk", name: "QA Goalkeeper", position: "Goalkeeper", rosterOrder: 1 },
           { id: "qa-mid", name: "QA Midfielder", position: "Midfielder", rosterOrder: 3 },
+          { id: "qa-fwd", name: "QA Forward Alias", position: "F", primaryRole: "ST", roleGroup: "forward", rosterOrder: 4 },
         ],
         records: [],
         injuryPlans: [],
@@ -971,6 +972,17 @@ test("Medical roster overview groups by position and supports row quick recommen
   const positionGroups = page.locator(".medical-position-group");
   await expect(positionGroups.first()).toContainText("Goalkeeper");
   await expect(positionGroups.nth(1)).toContainText("Defender");
+  await expect(positionGroups.nth(2)).toContainText("Midfielder");
+  await expect(positionGroups.nth(3)).toContainText("Forward");
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Array.from(document.querySelectorAll(".medical-position-group-head strong")).map((element) =>
+          element.textContent?.trim()
+        )
+      )
+    )
+    .toEqual(["Goalkeeper", "Defender", "Midfielder", "Forward"]);
   await expect
     .poll(() =>
       page.evaluate(() => {

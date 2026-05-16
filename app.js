@@ -1703,6 +1703,51 @@ Defender: 2,
 Midfielder: 3,
 Forward: 4,
 };
+const medicalPositionAliases = {
+Goalkeeper: ["goalkeeper", "goalie", "keeper", "gk", "goal", "malvakt", "mv"],
+Defender: [
+"defender",
+"defence",
+"defense",
+"def",
+"d",
+"df",
+"back",
+"fullback",
+"wingback",
+"centerback",
+"centreback",
+"cb",
+"lcb",
+"rcb",
+"lb",
+"rb",
+"lwb",
+"rwb",
+],
+Midfielder: ["midfielder", "midfield", "mid", "m", "mf", "cm", "cdm", "dm", "am", "cam", "pivot", "6", "8", "10"],
+Forward: [
+"forward",
+"forwards",
+"for",
+"f",
+"fw",
+"fwd",
+"attacker",
+"attack",
+"striker",
+"st",
+"cf",
+"winger",
+"wing",
+"w",
+"lw",
+"rw",
+"9",
+"anfall",
+"anfallare",
+],
+};
 const defaultMedicalPlayers = [
 {
 id: "ncc-2026-madison-white",
@@ -22006,6 +22051,46 @@ return medicalActualParticipationFallback;
 const numericValue = Number(value);
 return medicalParticipationOptions.includes(numericValue) ? numericValue : medicalActualParticipationFallback;
 }
+function normalizeMedicalPositionText(value) {
+return String(value ?? "")
+.trim()
+.toLowerCase()
+.normalize("NFD")
+.replace(/[\u0300-\u036f]/g, "")
+.replace(/[^a-z0-9]+/g, " ")
+.trim();
+}
+function getMedicalCanonicalPositionFromText(value) {
+const normalizedText = normalizeMedicalPositionText(value);
+if (!normalizedText) {
+return "";
+}
+const compactText = normalizedText.replace(/\s+/g, "");
+const parts = normalizedText.split(/\s+/).filter(Boolean);
+return (
+Object.entries(medicalPositionAliases).find(([, aliases]) =>
+aliases.some((alias) => compactText === alias || parts.includes(alias) || (alias.length >= 4 && compactText.includes(alias)))
+)?.[0] || ""
+);
+}
+function normalizeMedicalPlayerPosition(value, player = {}) {
+const fields = [
+value,
+player.position,
+player.roleGroup,
+player.primaryRole,
+player.role,
+player.squadRole,
+...(Array.isArray(player.secondaryRoles) ? player.secondaryRoles : []),
+];
+for (const field of fields) {
+const position = getMedicalCanonicalPositionFromText(field);
+if (position) {
+return position;
+}
+}
+return "Midfielder";
+}
 function normalizeMedicalPlayer(player = {}) {
 const name = String(player.name ?? "").trim();
 if (!name) {
@@ -22013,11 +22098,12 @@ return null;
 }
 const rosterOrder = Number(player.rosterOrder);
 const rosterType = normalizePlayerProfileRosterType(player.rosterType || player.playerType || player.squadType);
+const position = normalizeMedicalPlayerPosition(player.position, player);
 return {
 id: player.id || createDashboardId("medical-player"),
 name,
 number: String(player.number ?? "").trim(),
-position: String(player.position ?? "").trim(),
+position,
 photoUrl: String(player.photoUrl ?? "").trim(),
 sourceUrl: String(player.sourceUrl ?? "").trim(),
 rosterType,
@@ -22027,6 +22113,9 @@ countsInSquad: typeof player.countsInSquad === "boolean"
 temporaryGroup: String(player.temporaryGroup ?? player.subGroup ?? player.trainingGroup ?? "").trim(),
 temporaryFrom: normalizePlayerProfileTemporaryDate(player.temporaryFrom || player.startDate),
 temporaryTo: normalizePlayerProfileTemporaryDate(player.temporaryTo || player.endDate),
+primaryRole: normalizePlayerProfileRole(player.primaryRole, ""),
+secondaryRoles: normalizePlayerProfileRoleList(player.secondaryRoles),
+roleGroup: String(player.roleGroup ?? "").trim(),
 rosterOrder: Number.isFinite(rosterOrder) ? rosterOrder : null,
 createdAt: player.createdAt || new Date().toISOString(),
 updatedAt: player.updatedAt || new Date().toISOString(),
@@ -22218,7 +22307,7 @@ const rosterOrder = Number(player?.rosterOrder);
 return Number.isFinite(rosterOrder) ? rosterOrder : null;
 }
 function getMedicalPlayerPositionRank(player) {
-return medicalPositionOrder[player?.position] ?? 99;
+return medicalPositionOrder[normalizeMedicalPlayerPosition(player?.position, player)] ?? 99;
 }
 function compareMedicalPlayers(first, second) {
 const firstNumber = getMedicalPlayerNumberRank(first);
@@ -26979,6 +27068,9 @@ id: player.id || createDashboardId("medical-player"),
 name: player.name,
 number: player.number,
 position: player.position,
+primaryRole: player.primaryRole,
+secondaryRoles: player.secondaryRoles,
+roleGroup: player.roleGroup,
 photoUrl: player.photoUrl,
 sourceUrl: player.sourceUrl,
 rosterType: player.rosterType,
@@ -27630,7 +27722,7 @@ function getMedicalPositionSummaries(dateValue = medicalState?.selectedDate) {
 ensureMedicalState();
 const summaries = new Map();
 medicalState.players.forEach((player) => {
-const position = player.position || "Unassigned";
+const position = normalizeMedicalPlayerPosition(player.position, player);
 const currentSummary = summaries.get(position) ?? {
 position,
 players: 0,
@@ -29176,7 +29268,7 @@ const positionComparison = getMedicalPlayerPositionRank(first) - getMedicalPlaye
 return positionComparison || compareMedicalPlayers(first, second);
 })
 .forEach((player) => {
-const position = player.position || "Unassigned";
+const position = normalizeMedicalPlayerPosition(player.position, player);
 const group = groups.get(position) ?? { position, players: [] };
 group.players.push(player);
 groups.set(position, group);

@@ -21977,7 +21977,7 @@ return "modified";
 }
 return "full";
 }
-function getMedicalRtpPhaseForRecommendation(statusKey, participation) {
+function getMedicalRtpPhaseForRecommendation(statusKey, participation, activityType = "training") {
 if (statusKey === "unavailable" || participation === 0) {
 return "medical-restriction";
 }
@@ -21988,6 +21988,9 @@ if (statusKey === "modified" || statusKey === "controlled" || participation < 10
 return "modified-team";
 }
 if (statusKey === "monitor") {
+return "match-available";
+}
+if (activityType === "match" && participation === 100) {
 return "match-available";
 }
 return "full-training";
@@ -22080,7 +22083,11 @@ coachNote: String(record.coachNote ?? "").trim(),
 shareWithCoach: normalizeMedicalShareValue(record.shareWithCoach),
 rtpPhase: medicalRtpPhaseOptions.some((phase) => phase.key === record.rtpPhase)
 ? record.rtpPhase
-: getMedicalRtpPhaseForRecommendation(statusKey, participation),
+: getMedicalRtpPhaseForRecommendation(
+statusKey,
+participation,
+getMedicalRecommendationActivityContext(date).type
+),
 createdAt: record.createdAt || new Date().toISOString(),
 createdBy: record.createdBy || getCurrentPlatformUser()?.id || "",
 };
@@ -22296,7 +22303,11 @@ coachNote: record.shareWithCoach ? String(record.coachNote ?? "").trim() : "",
 shareWithCoach: normalizeMedicalShareValue(record.shareWithCoach),
 rtpPhase: medicalRtpPhaseOptions.some((phase) => phase.key === record.rtpPhase)
 ? record.rtpPhase
-: getMedicalRtpPhaseForRecommendation(statusKey, participation),
+: getMedicalRtpPhaseForRecommendation(
+statusKey,
+participation,
+getMedicalRecommendationActivityContext(record.date).type
+),
 clearance: {},
 gates: {},
 createdBy: "coach-safe",
@@ -27312,9 +27323,15 @@ medicalLoadGateOptions.every((gate) => gates[gate.key] === "pass")
 );
 }
 function getMedicalRecommendationBlockReason(playerId, participation, dateValue) {
+const activityContext = getMedicalRecommendationActivityContext(dateValue);
+if (!activityContext.isRecommendable) {
+return activityContext.blockReason;
+}
 const activePlan = getActiveMedicalInjuryPlan(playerId, dateValue);
 if (participation === 100 && activePlan && !isMedicalPlanCleared(activePlan)) {
-return "Clearance checklist required before full training.";
+return activityContext.type === "match"
+? "Clearance checklist required before match availability."
+: "Clearance checklist required before full training.";
 }
 return "";
 }
@@ -27432,6 +27449,30 @@ if (!mainEvent) {
 return "No team event";
 }
 return mainEvent.title || scheduleEventTypes[mainEvent.type]?.label || "Team event";
+}
+function getMedicalRecommendationActivityContext(dateValue = medicalState?.selectedDate) {
+const cleanDate = isMedicalDateValue(dateValue) ? dateValue : formatScheduleDateValue(new Date());
+const events = getScheduleEventsForDate(cleanDate);
+const mainEvent = getScheduleMainEvent(events);
+const rawType = mainEvent?.type || "none";
+const isMatch = rawType === "match";
+const isTraining = rawType === "training";
+const isRecommendable = isMatch || isTraining;
+const scheduleLabel = mainEvent?.title || scheduleEventTypes[rawType]?.label || "No team event";
+const activityLabel = isMatch ? "Match" : isTraining ? "Training" : "No team activity";
+return {
+date: cleanDate,
+type: isRecommendable ? rawType : "none",
+rawType,
+mainEvent,
+scheduleLabel,
+isRecommendable,
+activityLabel,
+availabilityLabel: isRecommendable ? `${activityLabel} Availability` : "No Team Activity",
+recommendationLabel: isRecommendable ? `${activityLabel} Recommendation` : "No Team Recommendation",
+quickLabel: isRecommendable ? `Quick ${activityLabel.toLowerCase()} recommendation` : "Locked",
+blockReason: isRecommendable ? "" : "No scheduled training or match for this date.",
+};
 }
 function getMedicalRecordStatus(record) {
 if (!record) {
@@ -28074,7 +28115,13 @@ renderMedicalTeamWorkspace();
 }
 function setMedicalBulkNotSetSelection(dateValue = formatScheduleDateValue(new Date()), players = getFilteredMedicalPlayers()) {
 const bulkDate = isMedicalDateValue(dateValue) ? dateValue : formatScheduleDateValue(new Date());
+const activityContext = getMedicalRecommendationActivityContext(bulkDate);
 medicalBulkRecommendationOpen = true;
+if (!activityContext.isRecommendable) {
+medicalBulkSelectedPlayerIds = new Set();
+renderMedicalTeamWorkspace(activityContext.blockReason);
+return;
+}
 setMedicalBulkSelection(players.filter((player) => !getLatestMedicalRecord(player.id, bulkDate)).map((player) => player.id));
 }
 function applyMedicalQuickRecommendation(playerId, participationValue) {
@@ -28099,7 +28146,11 @@ actualParticipation: medicalActualParticipationFallback,
 comment: "",
 coachNote: "",
 shareWithCoach: false,
-rtpPhase: getMedicalRtpPhaseForRecommendation(status, participation),
+rtpPhase: getMedicalRtpPhaseForRecommendation(
+status,
+participation,
+getMedicalRecommendationActivityContext(dateValue).type
+),
 });
 return { player, record, blockReason: "" };
 }
@@ -28109,9 +28160,19 @@ const selectedPlayers = getMedicalBulkSelectedPlayers();
 const dateValue = isMedicalDateValue(values.date) ? values.date : medicalState.selectedDate;
 const participation = normalizeMedicalParticipation(values.participation, 75);
 const status = getMedicalStatusForParticipation(participation);
+const activityContext = getMedicalRecommendationActivityContext(dateValue);
+if (!activityContext.isRecommendable) {
+return {
+savedCount: 0,
+records: [],
+blockedCount: selectedPlayers.length,
+blockedNames: selectedPlayers.map((player) => player.name),
+blockReason: activityContext.blockReason,
+};
+}
 const rtpPhase = medicalRtpPhaseOptions.some((phase) => phase.key === values.rtpPhase)
 ? values.rtpPhase
-: getMedicalRtpPhaseForRecommendation(status, participation);
+: getMedicalRtpPhaseForRecommendation(status, participation, activityContext.type);
 const blockedPlayers = [];
 const savedRecords = [];
 let savedCount = 0;
@@ -28152,10 +28213,12 @@ function renderMedicalBulkUpdatePanel(players = getFilteredMedicalPlayers()) {
 const canEdit = canEditMedicalTeam();
 const selectedPlayers = getMedicalBulkSelectedPlayers();
 const selectedCount = selectedPlayers.length;
-const defaultDate = formatScheduleDateValue(new Date());
+const defaultDate = medicalState.selectedDate;
+const activityContext = getMedicalRecommendationActivityContext(defaultDate);
+const canRecommend = canEdit && activityContext.isRecommendable;
 const defaultParticipation = 75;
 const defaultStatus = getMedicalStatusForParticipation(defaultParticipation);
-const defaultRtpPhase = getMedicalRtpPhaseForRecommendation(defaultStatus, defaultParticipation);
+const defaultRtpPhase = getMedicalRtpPhaseForRecommendation(defaultStatus, defaultParticipation, activityContext.type);
 const defaultPhaseLabel = getMedicalRtpPhaseOption(defaultRtpPhase).label;
 return `
 <section class="medical-bulk-panel${medicalBulkRecommendationOpen ? " is-open" : " is-collapsed"}" aria-label="Bulk medical recommendation"${medicalBulkRecommendationOpen ? "" : ` style="grid-template-columns:1fr;grid-template-areas:'summary';"`}>
@@ -28175,11 +28238,11 @@ ${medicalBulkRecommendationOpen ? `
 </label>
 <label class="medical-bulk-select-field">
 <span>Select</span>
-<input type="button" value="Select Not Set" data-medical-bulk-select-not-set ${canEdit && players.length ? "" : "disabled"} />
+<input type="button" value="Select Not Set" data-medical-bulk-select-not-set ${canRecommend && players.length ? "" : "disabled"} />
 </label>
 <label class="medical-bulk-recommend-field">
 <span>Recommend</span>
-<select name="participation" data-medical-bulk-participation ${canEdit ? "" : "disabled"}>
+<select name="participation" data-medical-bulk-participation ${canRecommend ? "" : "disabled"}>
 ${renderMedicalParticipationOptions(defaultParticipation)}
 </select>
 </label>
@@ -28187,11 +28250,49 @@ ${renderMedicalParticipationOptions(defaultParticipation)}
 <span>RTP phase</span>
 <input type="text" value="${escapeHtml(defaultPhaseLabel)}" data-medical-bulk-rtp-preview disabled />
 </label>
-<button type="submit" ${canEdit && selectedCount ? "" : "disabled"}>Apply Selected</button>
+<small class="medical-bulk-activity-label${activityContext.isRecommendable ? "" : " is-locked"}" data-medical-bulk-activity-label>${escapeHtml(activityContext.isRecommendable ? `${activityContext.activityLabel} / ${activityContext.scheduleLabel}` : activityContext.blockReason)}</small>
+<button type="submit" ${canRecommend && selectedCount ? "" : "disabled"}>Apply Selected</button>
 </form>
 ` : ""}
 </section>
 `;
+}
+function updateMedicalBulkActivityControls(form) {
+if (!form) {
+return;
+}
+const dateValue = form.querySelector("[data-medical-bulk-date]")?.value;
+const participationControl = form.querySelector("[data-medical-bulk-participation]");
+const phasePreview = form.querySelector("[data-medical-bulk-rtp-preview]");
+const activityLabel = form.querySelector("[data-medical-bulk-activity-label]");
+const selectNotSetButton = form.querySelector("[data-medical-bulk-select-not-set]");
+const submitButton = form.querySelector('button[type="submit"]');
+const activityContext = getMedicalRecommendationActivityContext(dateValue);
+const canRecommend = canEditMedicalTeam() && activityContext.isRecommendable;
+const participation = normalizeMedicalParticipation(participationControl?.value, 75);
+const phaseKey = getMedicalRtpPhaseForRecommendation(
+getMedicalStatusForParticipation(participation),
+participation,
+activityContext.type
+);
+if (participationControl) {
+participationControl.disabled = !canRecommend;
+}
+if (phasePreview) {
+phasePreview.value = getMedicalRtpPhaseOption(phaseKey).label;
+}
+if (activityLabel) {
+activityLabel.textContent = activityContext.isRecommendable
+? `${activityContext.activityLabel} / ${activityContext.scheduleLabel}`
+: activityContext.blockReason;
+activityLabel.classList.toggle("is-locked", !activityContext.isRecommendable);
+}
+if (selectNotSetButton) {
+selectNotSetButton.disabled = !canRecommend || !getFilteredMedicalPlayers().length;
+}
+if (submitButton) {
+submitButton.disabled = !canRecommend || !getMedicalBulkSelectedPlayers().length;
+}
 }
 function renderMedicalMetric(label, value, meta = "", tone = "") {
 const toneClass = tone ? ` medical-metric-card-${escapeHtml(tone)}` : "";
@@ -29033,6 +29134,26 @@ data-medical-set-date="${escapeHtml(dateValue)}"
 </section>
 `;
 }
+function renderMedicalActivityContextPanel() {
+const activityContext = getMedicalRecommendationActivityContext(medicalState.selectedDate);
+const modifier = activityContext.isRecommendable ? ` is-${activityContext.type}` : " is-locked";
+const statusLabel = activityContext.isRecommendable
+? `${activityContext.activityLabel} recommendations enabled`
+: "Recommendations locked";
+const detailLabel = activityContext.isRecommendable
+? `${formatMedicalDateLabel(activityContext.date, "long")} / ${activityContext.scheduleLabel}`
+: `${formatMedicalDateLabel(activityContext.date, "long")} / no training or match`;
+return `
+<section class="medical-activity-context${modifier}" data-medical-activity-context>
+<div>
+<span>Recommendation target</span>
+<strong>${escapeHtml(activityContext.recommendationLabel)}</strong>
+<small>${escapeHtml(detailLabel)}</small>
+</div>
+<p>${escapeHtml(statusLabel)}</p>
+</section>
+`;
+}
 function renderMedicalDayCell(player, dateValue) {
 const record = getLatestMedicalRecord(player.id, dateValue);
 const status = getMedicalRecordStatus(record);
@@ -29089,8 +29210,10 @@ return stats;
 }
 function renderMedicalQuickRecommendationButtons(player, record) {
 const canEdit = canEditMedicalTeam();
+const activityContext = getMedicalRecommendationActivityContext(medicalState.selectedDate);
+const canRecommend = canEdit && activityContext.isRecommendable;
 return `
-<div class="medical-quick-rec-row" role="group" aria-label="Quick recommendation for ${escapeHtml(player.name)}">
+<div class="medical-quick-rec-row" role="group" aria-label="${escapeHtml(activityContext.quickLabel)} for ${escapeHtml(player.name)}">
 ${medicalParticipationOptions
 .map((participation) => {
 const statusKey = getMedicalStatusForParticipation(participation);
@@ -29100,8 +29223,8 @@ type="button"
 class="medical-quick-rec-button medical-quick-${escapeHtml(statusKey)}${record?.participation === participation ? " is-active" : ""}"
 data-medical-quick-recommend="${escapeHtml(player.id)}"
 data-medical-quick-participation="${participation}"
-aria-label="${escapeHtml(player.name)} ${participation}% recommendation"
-${canEdit ? "" : "disabled"}
+aria-label="${escapeHtml(player.name)} ${participation}% ${escapeHtml(activityContext.activityLabel.toLowerCase())} recommendation"
+${canRecommend ? "" : "disabled"}
 >${participation}%</button>
 `;
 })
@@ -29112,6 +29235,7 @@ ${canEdit ? "" : "disabled"}
 function renderMedicalRosterRow(player) {
 const record = getLatestMedicalRecord(player.id, medicalState.selectedDate);
 const status = getMedicalRecordStatus(record);
+const activityContext = getMedicalRecommendationActivityContext(medicalState.selectedDate);
 const isSelected = player.id === medicalState.selectedPlayerId;
 const isBulkSelected = getMedicalValidBulkSelection().has(player.id);
 const participationLabel = record ? `${record.participation}%` : "Not set";
@@ -29160,7 +29284,7 @@ type="button"
 class="medical-row-select-button${isBulkSelected ? " is-selected" : ""}"
 data-medical-bulk-toggle="${escapeHtml(player.id)}"
 aria-pressed="${isBulkSelected ? "true" : "false"}"
-${canEditMedicalTeam() ? "" : "disabled"}
+${canEditMedicalTeam() && activityContext.isRecommendable ? "" : "disabled"}
 >${selectedLabel}</button>
 <span class="medical-row-open-button">${canEditMedicalTeam() ? "Open" : "View"}</span>
 </div>
@@ -29170,6 +29294,7 @@ ${latestComment ? `<p class="medical-row-comment">${escapeHtml(latestComment)}</
 }
 function renderMedicalPositionGroup(group) {
 const stats = getMedicalRosterPositionStats(group.players);
+const activityContext = getMedicalRecommendationActivityContext(medicalState.selectedDate);
 return `
 <section class="medical-position-group">
 <header class="medical-position-group-head">
@@ -29184,7 +29309,7 @@ return `
 <span>Player</span>
 <span>Status</span>
 <span>7 days</span>
-<span>Quick recommendation</span>
+<span>${escapeHtml(activityContext.quickLabel)}</span>
 <span>Action</span>
 </div>
 ${group.players.map(renderMedicalRosterRow).join("")}
@@ -29251,11 +29376,12 @@ return `
 function renderMedicalRosterPanel() {
 const players = getFilteredMedicalPlayers();
 const positionGroups = getMedicalRosterPositionGroups(players);
+const activityContext = getMedicalRecommendationActivityContext(medicalState.selectedDate);
 return `
 <section class="medical-roster-panel">
 <div class="medical-section-head">
 <div>
-<p class="placeholder-tag">Squad Availability</p>
+<p class="placeholder-tag">${escapeHtml(activityContext.availabilityLabel)}</p>
 <h2>${escapeHtml(formatMedicalDateLabel(medicalState.selectedDate, "long"))}</h2>
 </div>
 <div class="medical-roster-tools">
@@ -29642,12 +29768,14 @@ if (!player) {
 return "";
 }
 const canEdit = canEditMedicalTeam();
+const activityContext = getMedicalRecommendationActivityContext(medicalState.selectedDate);
+const canRecommend = canEdit && activityContext.isRecommendable;
 const record = getLatestMedicalRecord(player.id, medicalState.selectedDate);
 const status = getMedicalRecordStatus(record);
 const formParticipation = record?.participation ?? 100;
 const formStatus = record?.status ?? getMedicalStatusForParticipation(formParticipation);
 const formActual = record?.actualParticipation ?? medicalActualParticipationFallback;
-const formRtpPhase = record?.rtpPhase ?? getMedicalRtpPhaseForRecommendation(formStatus, formParticipation);
+const formRtpPhase = record?.rtpPhase ?? getMedicalRtpPhaseForRecommendation(formStatus, formParticipation, activityContext.type);
 if (!canEdit) {
 return renderMedicalCoachSafeModal(player, record, status);
 }
@@ -29674,9 +29802,10 @@ ${renderMedicalPlayerAvatar(player, "medical-modal-avatar")}
 <div class="medical-modal-main">
 <article class="medical-modal-main-card">
 <div class="medical-card-headline">
-<h2>Recommendation</h2>
+<h2>${escapeHtml(activityContext.recommendationLabel)}</h2>
 <span data-medical-recommendation-preview>${formParticipation}% / ${escapeHtml(getMedicalStatusOption(formStatus).label)}</span>
 </div>
+${activityContext.isRecommendable ? "" : `<div class="medical-activity-lock">${escapeHtml(activityContext.blockReason)} Select a training or match day to add a recommendation.</div>`}
 <form id="medicalRecommendationForm" class="medical-profile-form medical-recommendation-form">
 <input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
 <input type="hidden" name="status" id="medicalRecommendationStatus" value="${escapeHtml(formStatus)}" />
@@ -29689,30 +29818,30 @@ ${renderMedicalPlayerAvatar(player, "medical-modal-avatar")}
 </label>
 <label>
 <span>RTP phase</span>
-<select name="rtpPhase" id="medicalRecommendationRtpPhase" ${canEdit ? "" : "disabled"}>
+<select name="rtpPhase" id="medicalRecommendationRtpPhase" ${canRecommend ? "" : "disabled"}>
 ${renderMedicalRtpPhaseOptions(formRtpPhase)}
 </select>
 </label>
 </div>
-${renderMedicalRecommendationPresets(formParticipation, canEdit)}
+${renderMedicalRecommendationPresets(formParticipation, canRecommend)}
 <div class="medical-form-block">
 <span>Actual participation</span>
-${renderMedicalActualPresets(formActual, canEdit)}
+${renderMedicalActualPresets(formActual, canRecommend)}
 </div>
 <label>
 <span>Internal medical note</span>
-<textarea name="comment" rows="4" ${canEdit ? "" : "disabled"}>${escapeHtml(record?.comment ?? "")}</textarea>
+<textarea name="comment" rows="4" ${canRecommend ? "" : "disabled"}>${escapeHtml(record?.comment ?? "")}</textarea>
 </label>
 <label>
 <span>Coach-safe comment</span>
-<textarea name="coachNote" rows="2" ${canEdit ? "" : "disabled"}>${escapeHtml(record?.coachNote ?? "")}</textarea>
+<textarea name="coachNote" rows="2" ${canRecommend ? "" : "disabled"}>${escapeHtml(record?.coachNote ?? "")}</textarea>
 </label>
 <label class="medical-inline-check">
-<input type="checkbox" name="shareWithCoach" ${record?.shareWithCoach ? "checked" : ""} ${canEdit ? "" : "disabled"} />
+<input type="checkbox" name="shareWithCoach" ${record?.shareWithCoach ? "checked" : ""} ${canRecommend ? "" : "disabled"} />
 <span>Approved to share with coaching staff</span>
 </label>
 <div class="medical-form-actions">
-<button type="submit" ${canEdit ? "" : "disabled"}>Save status</button>
+<button type="submit" ${canRecommend ? "" : "disabled"}>Save status</button>
 <button type="button" class="secondary medical-secondary-button" data-medical-close-modal>Close</button>
 </div>
 </form>
@@ -29904,6 +30033,7 @@ ui.medicalTeamWorkspace.innerHTML = `
 </header>
 ${renderMedicalOperationsTopMenu()}
 ${renderMedicalDateStrip()}
+${renderMedicalActivityContextPanel()}
 ${message ? `<div class="medical-message">${escapeHtml(message)}</div>` : ""}
 <section class="medical-metrics-grid" aria-label="Medical availability summary">
 ${renderMedicalMetric("Full", String(stats.fullCount), "100%", "full")}
@@ -30103,6 +30233,10 @@ const participation = normalizeMedicalParticipation(values.participation);
 const status = medicalStatusOptions.some((option) => option.key === values.status)
 ? values.status
 : getMedicalStatusForParticipation(participation);
+const activityContext = getMedicalRecommendationActivityContext(values.date);
+if (!activityContext.isRecommendable) {
+return null;
+}
 const record = normalizeMedicalRecord({
 playerId,
 date: values.date,
@@ -71857,11 +71991,13 @@ const form = recommendationPreset.closest("#medicalRecommendationForm");
 const participationInput = form?.querySelector("#medicalRecommendationParticipation");
 const statusInput = form?.querySelector("#medicalRecommendationStatus");
 const rtpSelect = form?.querySelector("#medicalRecommendationRtpPhase");
+const dateInput = form?.querySelector("[name='date']");
 const preview = form?.querySelector("[data-medical-recommendation-preview]") ??
 ui.medicalTeamWorkspace.querySelector("[data-medical-recommendation-preview]");
 const participation = normalizeMedicalParticipation(recommendationPreset.dataset.medicalParticipation);
 const status = getMedicalStatusOption(recommendationPreset.dataset.medicalStatus);
-const phase = getMedicalRtpPhaseOption(getMedicalRtpPhaseForRecommendation(status.key, participation));
+const activityContext = getMedicalRecommendationActivityContext(dateInput?.value || medicalState.selectedDate);
+const phase = getMedicalRtpPhaseOption(getMedicalRtpPhaseForRecommendation(status.key, participation, activityContext.type));
 if (participationInput && statusInput) {
 participationInput.value = String(participation);
 statusInput.value = status.key;
@@ -72073,6 +72209,11 @@ medicalStatusFilter = statusFilter.value;
 renderMedicalTeamWorkspace();
 return;
 }
+const bulkDate = event.target.closest("[data-medical-bulk-date]");
+if (bulkDate) {
+updateMedicalBulkActivityControls(bulkDate.closest("#medicalBulkRecommendationForm"));
+return;
+}
 const recommendationStatus = event.target.closest("#medicalRecommendationStatus");
 if (recommendationStatus) {
 const participationSelect = ui.medicalTeamWorkspace.querySelector("#medicalRecommendationParticipation");
@@ -72109,8 +72250,10 @@ if (bulkParticipation) {
 const form = bulkParticipation.closest("#medicalBulkRecommendationForm");
 const phaseSelect = form?.querySelector("[data-medical-bulk-rtp-phase]");
 const phasePreview = form?.querySelector("[data-medical-bulk-rtp-preview]");
+const dateValue = form?.querySelector("[data-medical-bulk-date]")?.value || medicalState.selectedDate;
+const activityContext = getMedicalRecommendationActivityContext(dateValue);
 const participation = normalizeMedicalParticipation(bulkParticipation.value, 75);
-const phaseKey = getMedicalRtpPhaseForRecommendation(getMedicalStatusForParticipation(participation), participation);
+const phaseKey = getMedicalRtpPhaseForRecommendation(getMedicalStatusForParticipation(participation), participation, activityContext.type);
 if (phaseSelect) {
 phaseSelect.value = phaseKey;
 }
@@ -72209,10 +72352,15 @@ date: result.records[0]?.date || medicalState.selectedDate,
 idempotencyKey: `bulk-recommendation-saved:${result.records.map((record) => record.id).join("|")}`,
 });
 }
-const skippedText = result.blockedCount
+const skippedText = result.blockReason
+? ` ${result.blockReason}`
+: result.blockedCount
 ? ` ${result.blockedCount} skipped for clearance: ${result.blockedNames.slice(0, 3).join(", ")}${result.blockedNames.length > 3 ? "..." : ""}.`
 : "";
-renderMedicalTeamWorkspace(`${result.savedCount} bulk recommendation${result.savedCount === 1 ? "" : "s"} saved.${skippedText}`);
+const bulkMessage = result.savedCount
+? `${result.savedCount} bulk recommendation${result.savedCount === 1 ? "" : "s"} saved.${skippedText}`
+: result.blockReason || "No bulk recommendations saved.";
+renderMedicalTeamWorkspace(bulkMessage);
 return;
 }
 const newPlayerForm = event.target.closest("#medicalNewPlayerForm");

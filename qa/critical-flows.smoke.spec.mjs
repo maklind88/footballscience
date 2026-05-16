@@ -808,7 +808,7 @@ test("Medical bulk recommendation opens as a compact dated action row", async ({
     window.localStorage.setItem(
       storageKey,
       JSON.stringify({
-        selectedDate: "2026-05-14",
+        selectedDate: "2026-05-15",
         selectedPlayerId: "bulk-one",
         rosterVersion: "qa-medical-bulk-v1",
         players: [
@@ -865,6 +865,85 @@ test("Medical bulk recommendation opens as a compact dated action row", async ({
       }, medicalKey)
     )
     .toEqual(["bulk-one:100", "bulk-two:25"]);
+});
+
+test("Medical recommendations use match context and lock non-activity days", async ({ page }) => {
+  await page.addInitScript(({ medicalStorageKey, scheduleStorageKey }) => {
+    const fixedNow = new Date("2026-05-16T12:00:00Z").valueOf();
+    const NativeDate = Date;
+    class FixedDate extends NativeDate {
+      constructor(...args) {
+        super(...(args.length ? args : [fixedNow]));
+      }
+
+      static now() {
+        return fixedNow;
+      }
+    }
+    FixedDate.UTC = NativeDate.UTC;
+    FixedDate.parse = NativeDate.parse;
+    window.Date = FixedDate;
+    window.localStorage.setItem(
+      scheduleStorageKey,
+      JSON.stringify({
+        selectedYear: 2026,
+        selectedMonthIndex: 4,
+        selectedDate: "2026-05-16",
+        viewMode: "month",
+        overviewSpan: 6,
+        visibleEventTypes: ["training", "match", "meeting", "travel", "recovery", "off"],
+        importVersion: "qa-medical-activity-context-v1",
+        events: [
+          { id: "qa-training", date: "2026-05-15", time: "10:00", type: "training", title: "Training", note: "" },
+          { id: "qa-match", date: "2026-05-16", time: "18:30", type: "match", title: "QA Match Day", note: "" },
+          { id: "qa-off", date: "2026-05-17", time: "", type: "off", title: "Squad Off", note: "" },
+        ],
+      })
+    );
+    window.localStorage.setItem(
+      medicalStorageKey,
+      JSON.stringify({
+        selectedDate: "2026-05-16",
+        selectedPlayerId: "qa-match-player",
+        rosterVersion: "qa-medical-activity-context-v1",
+        players: [{ id: "qa-match-player", name: "QA Match Player", position: "Forward", rosterOrder: 1 }],
+        records: [],
+        injuryPlans: [],
+      })
+    );
+  }, { medicalStorageKey: medicalKey, scheduleStorageKey: scheduleKey });
+
+  await bootApp(page);
+  await openWorkspace(page, "medical-team");
+
+  await expect(page.locator("[data-medical-activity-context]")).toContainText("Match Recommendation");
+  const playerRow = page.locator('[data-medical-roster-row="qa-match-player"]');
+  await playerRow.locator('[data-medical-quick-participation="100"]').click();
+  await expect
+    .poll(() =>
+      page.evaluate((storageKey) => {
+        const state = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+        const record = (state.records || []).find((entry) => entry.playerId === "qa-match-player" && entry.date === "2026-05-16");
+        return record ? `${record.participation}:${record.rtpPhase}` : "";
+      }, medicalKey)
+    )
+    .toBe("100:match-available");
+
+  await page.locator("[data-medical-date-picker]").evaluate((input) => {
+    input.value = "2026-05-17";
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await expect(page.locator("[data-medical-activity-context]")).toContainText("No Team Recommendation");
+  await expect(page.locator('[data-medical-roster-row="qa-match-player"] [data-medical-quick-participation="100"]')).toBeDisabled();
+
+  await page.locator("[data-medical-bulk-menu-toggle]").click();
+  const bulkForm = page.locator("#medicalBulkRecommendationForm");
+  await expect(bulkForm.locator("[data-medical-bulk-participation]")).toBeDisabled();
+  await expect(bulkForm.locator('button[type="submit"]')).toBeDisabled();
+
+  await page.locator('[data-medical-roster-row="qa-match-player"]').click();
+  await expect(page.locator(".medical-activity-lock")).toContainText("No scheduled training or match");
+  await expect(page.locator('#medicalRecommendationForm button[type="submit"]')).toBeDisabled();
 });
 
 test("Medical roster overview groups by position and supports row quick recommendations", async ({ page }) => {

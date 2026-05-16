@@ -47,6 +47,119 @@
   font-size: 0.86rem;
 }
 
+.medical-bulk-activity-label {
+  align-self: end;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0.62rem 0.7rem;
+  border: 1px solid rgba(29, 31, 29, 0.08);
+  border-radius: 12px;
+  color: #496057;
+  background: rgba(238, 248, 243, 0.72);
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.08;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.medical-bulk-activity-label.is-locked {
+  color: #9b2f2f;
+  background: rgba(255, 236, 236, 0.82);
+  border-color: rgba(222, 82, 82, 0.2);
+}
+
+.medical-activity-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.78rem 0.9rem;
+  border: 1px solid rgba(29, 31, 29, 0.09);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(238, 250, 244, 0.96), rgba(255, 255, 255, 0.9)),
+    rgba(255, 255, 255, 0.92);
+  box-shadow: 0 14px 34px rgba(12, 24, 20, 0.07);
+}
+
+.medical-activity-context.is-match {
+  background:
+    linear-gradient(135deg, rgba(255, 239, 239, 0.96), rgba(255, 255, 255, 0.92)),
+    rgba(255, 255, 255, 0.92);
+  border-color: rgba(192, 74, 74, 0.18);
+}
+
+.medical-activity-context.is-locked {
+  background:
+    linear-gradient(135deg, rgba(245, 246, 248, 0.96), rgba(255, 255, 255, 0.9)),
+    rgba(255, 255, 255, 0.92);
+}
+
+.medical-activity-context div {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+
+.medical-activity-context span,
+.medical-activity-context small {
+  color: #64716b;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  line-height: 1.08;
+  text-transform: uppercase;
+}
+
+.medical-activity-context small {
+  overflow: hidden;
+  max-width: 42rem;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.medical-activity-context strong {
+  color: #10231b;
+  font-size: clamp(1rem, 1.6vw, 1.28rem);
+  font-weight: 950;
+  line-height: 1;
+}
+
+.medical-activity-context p {
+  margin: 0;
+  flex: 0 0 auto;
+  padding: 0.52rem 0.72rem;
+  border-radius: 999px;
+  color: #123c2b;
+  background: rgba(29, 126, 82, 0.12);
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.medical-activity-context.is-match p {
+  color: #8d2626;
+  background: rgba(192, 74, 74, 0.12);
+}
+
+.medical-activity-context.is-locked p {
+  color: #6b7280;
+  background: rgba(107, 114, 128, 0.12);
+}
+
+.medical-activity-lock {
+  padding: 0.68rem 0.78rem;
+  border: 1px solid rgba(222, 82, 82, 0.2);
+  border-radius: 14px;
+  color: #9b2f2f;
+  background: rgba(255, 236, 236, 0.82);
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
 .medical-ops-top-menu {
   position: sticky;
   top: 0.62rem;
@@ -824,6 +937,49 @@ body.is-dark-mode .medical-bulk-panel.is-collapsed .medical-bulk-summary {
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
 }
 
+body.is-dark-mode .medical-activity-context,
+body.is-dark-mode .medical-activity-context.is-match,
+body.is-dark-mode .medical-activity-context.is-locked {
+  border-color: var(--dark-line);
+  background:
+    linear-gradient(135deg, rgba(23, 36, 31, 0.96), rgba(13, 20, 28, 0.94)),
+    var(--dark-surface-soft);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.24);
+}
+
+body.is-dark-mode .medical-activity-context span,
+body.is-dark-mode .medical-activity-context small {
+  color: var(--dark-muted);
+}
+
+body.is-dark-mode .medical-activity-context strong {
+  color: var(--dark-text);
+}
+
+body.is-dark-mode .medical-activity-context p {
+  color: #c6f6d5;
+  background: rgba(47, 143, 107, 0.24);
+}
+
+body.is-dark-mode .medical-activity-context.is-match p {
+  color: #fecaca;
+  background: rgba(150, 37, 37, 0.32);
+}
+
+body.is-dark-mode .medical-activity-context.is-locked p,
+body.is-dark-mode .medical-bulk-activity-label.is-locked,
+body.is-dark-mode .medical-activity-lock {
+  color: #fecaca;
+  background: rgba(150, 37, 37, 0.28);
+  border-color: rgba(248, 113, 113, 0.26);
+}
+
+body.is-dark-mode .medical-bulk-activity-label {
+  color: #c6f6d5;
+  background: rgba(47, 143, 107, 0.18);
+  border-color: rgba(129, 210, 159, 0.22);
+}
+
 body.is-dark-mode .medical-position-group-head strong,
 body.is-dark-mode .medical-roster-player-copy strong,
 body.is-dark-mode .medical-roster-current-main strong {
@@ -971,6 +1127,10 @@ body.is-dark-mode .medical-ops-stat-clear {
     grid-template-columns: minmax(6.1rem, 0.82fr) minmax(6.7rem, 0.95fr) minmax(4.6rem, 0.62fr);
   }
 
+  .medical-bulk-activity-label {
+    grid-column: auto;
+  }
+
   .medical-bulk-form button {
     grid-column: auto;
   }
@@ -1012,6 +1172,21 @@ body.is-dark-mode .medical-ops-stat-clear {
 
   .medical-bulk-form {
     grid-template-columns: 1fr;
+  }
+
+  .medical-activity-context {
+    align-items: start;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .medical-activity-context p {
+    width: 100%;
+    text-align: center;
+  }
+
+  .medical-activity-context small {
+    white-space: normal;
   }
 
   .medical-ops-top-menu {

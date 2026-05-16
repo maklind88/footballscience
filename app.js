@@ -28433,36 +28433,6 @@ ${meta ? `<small>${escapeHtml(meta)}</small>` : ""}
 </article>
 `;
 }
-function renderMedicalSecurityPanel() {
-const currentUser = getCurrentPlatformUser();
-const canSeePrivate = canViewPrivateMedicalDetails();
-const handoverCount = getMedicalCoachHandoverItems(medicalState.selectedDate).length;
-const roleLabel = getRoleLabel(currentUser?.role || "guest");
-return `
-<section class="medical-security-panel" aria-label="Medical data security">
-<article class="medical-security-card medical-security-card-dark">
-<span>Security Layer</span>
-<strong>${canSeePrivate ? "Private medical workspace" : "Coach-safe view"}</strong>
-<small>${escapeHtml(roleLabel)} / ${canSeePrivate ? "full clinical fields" : "approved availability only"}</small>
-</article>
-<article class="medical-security-card">
-<span>Shared Data</span>
-<strong>${canSeePrivate ? `${handoverCount} coach-safe items` : "No internal notes"}</strong>
-<small>${canSeePrivate ? "Only approved notes leave medical" : "Clinical notes are stripped server-side"}</small>
-</article>
-<article class="medical-security-card">
-<span>Audit Trail</span>
-<strong>Medical writes logged</strong>
-<small>Handover copy logs counts, not note text</small>
-</article>
-<article class="medical-security-card">
-<span>RTP Controls</span>
-<strong>Sign-off gates</strong>
-<small>Doctor / physio / performance before full training</small>
-</article>
-</section>
-`;
-}
 function getMedicalGovernanceStatus() {
 const policy = normalizeMedicalGovernancePolicy(medicalState.policy);
 const todayValue = formatScheduleDateValue(new Date());
@@ -30188,7 +30158,6 @@ ui.medicalTeamWorkspace.innerHTML = `
 </header>
 ${renderMedicalOperationsTopMenu()}
 ${showAvailabilityWorkspace ? renderMedicalAvailabilityWorkspace(message) : `${message ? `<div class="medical-message">${escapeHtml(message)}</div>` : ""}${renderMedicalOperationsSystem()}`}
-${renderMedicalSecurityPanel()}
 ${renderMedicalGovernancePanel()}
 ${renderMedicalPlayerModal()}
 </div>

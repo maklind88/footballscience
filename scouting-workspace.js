@@ -28,6 +28,7 @@ let scoutingOpenRecordActionMenuId = "";
 let scoutingRoleModelBuilderOpen = false;
 let scoutingRoleModelEditId = "";
 let scoutingSavedViewsOpen = false;
+let scoutingSavedViewNameDraft = "";
 let scoutingLeagueQualityCache = new Map();
 let scoutingRecordMiniRadarCache = new Map();
 let scoutingFilteredDatabaseCache = {
@@ -917,6 +918,14 @@ function getScoutingWorkerQueryFromState() {
 function getScoutingApiOffset(value) {
   const offset = Math.floor(Number(value));
   return Number.isFinite(offset) && offset >= 0 ? offset : 0;
+}
+function getScoutingDatabaseLiveSearchQuery(fallbackQuery = "") {
+  if (scoutingDatabaseSearchDraft !== null) {
+    return normalizeScoutingText(scoutingDatabaseSearchDraft, 120);
+  }
+  const searchInput = ui.scoutingWorkspace?.querySelector("[data-scouting-database-search-input]");
+  const liveQuery = normalizeScoutingText(searchInput?.value, 120);
+  return liveQuery || normalizeScoutingText(fallbackQuery, 120);
 }
 function getScoutingDatabasePageOffset(totalRecordCount = 0) {
   const rawOffset = getScoutingApiOffset((ensureScoutingState().databaseFilters || {}).offset);
@@ -2223,7 +2232,7 @@ function getScoutingMyTeamSlotPitchPosition(slot, formation = "4-3-3") {
       RB: [87, 73],
       DMF: [42, 58],
       LCMF: [58, 58],
-      RCMF: [50, 40],
+      RCMF: [50, 36],
       LW: [12, 31],
       CF: [50, 11],
       RW: [88, 31],
@@ -2232,11 +2241,11 @@ function getScoutingMyTeamSlotPitchPosition(slot, formation = "4-3-3") {
       GK: [50, 90],
       LCB: [30, 76],
       RCB: [70, 76],
-      DMF: [50, 78],
+      DMF: [50, 77],
       LB: [11, 52],
       RB: [89, 52],
-      LCMF: [40, 48],
-      RCMF: [60, 48],
+      LCMF: [42, 50],
+      RCMF: [58, 50],
       LW: [12, 20],
       CF: [50, 10],
       RW: [88, 20],
@@ -2245,14 +2254,14 @@ function getScoutingMyTeamSlotPitchPosition(slot, formation = "4-3-3") {
       GK: [50, 90],
       LCB: [30, 76],
       RCB: [70, 76],
-      DMF: [50, 78],
+      DMF: [50, 77],
       LB: [11, 52],
       RB: [89, 52],
-      LCMF: [37, 43],
-      RCMF: [63, 43],
-      LW: [34, 17],
-      CF: [50, 10],
-      RW: [66, 17],
+      LCMF: [38, 48],
+      RCMF: [62, 48],
+      LW: [58, 13],
+      CF: [42, 13],
+      RW: [50, 34],
     },
     "4-4-2": {
       GK: [50, 90],
@@ -2260,12 +2269,12 @@ function getScoutingMyTeamSlotPitchPosition(slot, formation = "4-3-3") {
       LCB: [38, 77],
       RCB: [62, 77],
       RB: [87, 73],
-      LCMF: [40, 50],
-      RCMF: [60, 50],
-      DMF: [50, 55],
+      LCMF: [40, 46],
+      RCMF: [60, 46],
+      DMF: [56, 12],
       LW: [12, 39],
       RW: [88, 39],
-      CF: [42, 11],
+      CF: [44, 12],
     },
   };
   const coordinates = layouts[normalizeScoutingFormation(formation)]?.[role] || [Number(slot?.x) || 50, Number(slot?.y) || 50];
@@ -6380,12 +6389,6 @@ function renderScoutingRadar(record, roleProfileId = "", precomputedTemplate = n
   }
   const metricRows = Array.isArray(precomputedMetricRows) ? precomputedMetricRows : getScoutingRoleMetricRows(record, template);
   const percentileByMetricId = new Map(metricRows.map((row) => [row.metricId, row.percentile]));
-  const roleScore = getScoutingWeightedScoreFromRows(metricRows);
-  const overPerformance = metricRows
-    .filter((row) => Number.isFinite(row.percentile) && Number.isFinite(roleScore) && row.percentile >= roleScore + 10)
-    .sort((a, b) => b.percentile - a.percentile)
-    .slice(0, 2);
-  const dataNeeds = getScoutingRoleDataNeeds(record, template.profileId);
   const center = 110;
   const radius = 74;
   const angleOffset = -Math.PI / 2;
@@ -6406,18 +6409,6 @@ function renderScoutingRadar(record, roleProfileId = "", precomputedTemplate = n
   const polygon = points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
   return `
     <div class="scouting-radar-frame">
-      <div class="scouting-radar-head">
-        <span>Role spider</span>
-        <strong>${escapeHtml(template.profileLabel || "Player profile")}</strong>
-        ${template.profileDescription ? `<small>${escapeHtml(template.profileDescription)}</small>` : ""}
-        <small>${escapeHtml(
-          overPerformance.length
-            ? `Over expectation: ${overPerformance.map((row) => `${row.label} P${row.percentile}`).join(", ")}`
-            : dataNeeds.length
-              ? `Data needs: ${dataNeeds.join(", ")}`
-              : `Weighted role fit ${Number.isFinite(roleScore) ? `P${roleScore}` : "n/a"}`
-        )}</small>
-      </div>
       <svg class="scouting-radar" viewBox="0 0 220 220" role="img" aria-label="Player spider profile">
         <circle class="scouting-radar-ring" cx="${center}" cy="${center}" r="${radius}" />
         <circle class="scouting-radar-ring" cx="${center}" cy="${center}" r="${radius * 0.66}" />
@@ -6441,6 +6432,31 @@ function renderScoutingRadar(record, roleProfileId = "", precomputedTemplate = n
     </div>
   `;
 }
+function renderScoutingRoleSpiderSummary(record, template = [], metricRows = []) {
+  if (!template.length) {
+    return "";
+  }
+  const roleScore = getScoutingWeightedScoreFromRows(metricRows);
+  const overPerformance = metricRows
+    .filter((row) => Number.isFinite(row.percentile) && Number.isFinite(roleScore) && row.percentile >= roleScore + 10)
+    .sort((a, b) => b.percentile - a.percentile)
+    .slice(0, 2);
+  const dataNeeds = getScoutingRoleDataNeeds(record, template.profileId);
+  return `
+    <div class="scouting-radar-head scouting-radar-head-summary">
+      <span>Role spider</span>
+      <strong>${escapeHtml(template.profileLabel || "Player profile")}</strong>
+      ${template.profileDescription ? `<small>${escapeHtml(template.profileDescription)}</small>` : ""}
+      <small>${escapeHtml(
+        overPerformance.length
+          ? `Over expectation: ${overPerformance.map((row) => `${row.label} P${row.percentile}`).join(", ")}`
+          : dataNeeds.length
+            ? `Data needs: ${dataNeeds.join(", ")}`
+            : `Weighted role fit ${Number.isFinite(roleScore) ? `P${roleScore}` : "n/a"}`
+      )}</small>
+    </div>
+  `;
+}
 function renderScoutingTabButton(tab) {
   const active = ensureScoutingState().activeTab === tab.id;
   return `
@@ -6460,6 +6476,38 @@ function getScoutingShadowSlotRecords(slotId, state = ensureScoutingState()) {
   return getScoutingShadowSlotRecordIds(slotId, state)
     .map((recordId) => getScoutingRecordById(recordId) || getScoutingShadowFallbackRecord(slotId, recordId, state))
     .filter(Boolean);
+}
+function getScoutingStoredPlayerRecord(recordId, state = ensureScoutingState()) {
+  const id = normalizeScoutingText(recordId, 160);
+  if (!id) {
+    return null;
+  }
+  const record = getScoutingRecordById(id) || getScoutingSnapshotFallbackRecord(id, state);
+  if (record) {
+    return record;
+  }
+  const fallbackRecord = [];
+  fallbackRecord[scoutingRecordIndex.id] = id;
+  fallbackRecord[scoutingRecordIndex.player] = "Saved player";
+  fallbackRecord[scoutingRecordIndex.position] = "";
+  fallbackRecord[scoutingRecordIndex.team] = "";
+  fallbackRecord[scoutingRecordIndex.metrics] = {};
+  return fallbackRecord;
+}
+function renderScoutingStoredPlayerButton(recordId, state = ensureScoutingState(), secondary = "position") {
+  const id = normalizeScoutingText(recordId, 160);
+  if (!id) {
+    return "";
+  }
+  const record = getScoutingStoredPlayerRecord(id, state);
+  const name = record ? getScoutingRecordName(record) : "Saved player";
+  const secondaryText =
+    record && secondary === "team"
+      ? getScoutingRecordTeam(record) || getScoutingRecordLeague(record) || "Team scouting"
+      : record
+        ? getScoutingRecordPosition(record) || getScoutingRecordTeam(record) || "Team scouting"
+        : "Stored in team scouting";
+  return `<button type="button" data-open-scouting-record="${escapeHtml(id)}">${escapeHtml(name)}<span>${escapeHtml(secondaryText)}</span></button>`;
 }
 function getScoutingShadowMetaKey(slotId, recordId) {
   return `${normalizeScoutingText(slotId, 40)}:${normalizeScoutingText(recordId, 160)}`;
@@ -9237,6 +9285,7 @@ function renderScoutingProfileModalIntoDom(recordId) {
   if (!workspace) {
     return false;
   }
+  const scrollSnapshot = getScoutingScrollSnapshot();
   state.selectedRecordId = normalizedId;
   const modalMarkup = renderScoutingProfileModal();
   if (!modalMarkup) {
@@ -9259,6 +9308,7 @@ function renderScoutingProfileModalIntoDom(recordId) {
     workspace.insertAdjacentHTML("beforeend", modalMarkup);
   }
   bindScoutingRecordMiniRadarShells();
+  restoreScoutingScrollSnapshot(scrollSnapshot);
   return true;
 }
 
@@ -9830,6 +9880,7 @@ function renderScoutingProfileRoleSpiderGrid(record, selectedProfileRoleId, prof
         ${renderScoutingRadar(record, selectedProfileRoleId, radarTemplate, profileMetrics)}
       </section>
       <section class="scouting-profile-metrics">
+        ${renderScoutingRoleSpiderSummary(record, radarTemplate, profileMetrics)}
         <h3>Role spider metrics</h3>
         <div class="scouting-metric-stack">
           ${
@@ -10254,26 +10305,66 @@ function getScoutingFocusSnapshot() {
   if (!activeElement || !ui.scoutingWorkspace?.contains(activeElement)) {
     return null;
   }
-  const filterField = activeElement.closest?.("[data-scouting-filter], [data-scouting-shadow-favorite-search]");
-  if (!filterField) {
+  const field = activeElement.closest?.("input, textarea, select, [contenteditable='true']");
+  if (!field || !ui.scoutingWorkspace.contains(field)) {
     return null;
   }
+  const fields = getScoutingFocusableFields();
+  const selector = getScoutingFocusSelector(field);
+  const matches = selector ? Array.from(ui.scoutingWorkspace.querySelectorAll(selector)) : [];
   return {
-    field: filterField.dataset.scoutingFilter || "shadowFavoriteSearch",
-    selectionStart: typeof filterField.selectionStart === "number" ? filterField.selectionStart : null,
-    selectionEnd: typeof filterField.selectionEnd === "number" ? filterField.selectionEnd : null,
+    selector,
+    selectorIndex: matches.indexOf(field),
+    fieldIndex: fields.indexOf(field),
+    selectionStart: typeof field.selectionStart === "number" ? field.selectionStart : null,
+    selectionEnd: typeof field.selectionEnd === "number" ? field.selectionEnd : null,
   };
 }
+function getScoutingFocusableFields(root = ui.scoutingWorkspace) {
+  return Array.from(root?.querySelectorAll("input, textarea, select, [contenteditable='true']") || []);
+}
+function getScoutingFocusSelector(field) {
+  if (!field) {
+    return "";
+  }
+  const dataset = field.dataset || {};
+  const dataEntry = Object.entries(dataset).find(([key]) => key.startsWith("scouting"));
+  if (dataEntry) {
+    const [key, value] = dataEntry;
+    const attrName = key.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`);
+    const attrValue = normalizeScoutingText(value, 200);
+    return attrValue ? `[data-${attrName}="${escapeScoutingCssAttribute(attrValue)}"]` : `[data-${attrName}]`;
+  }
+  const tag = String(field.tagName || "").toLowerCase();
+  if (!tag) {
+    return "";
+  }
+  const name = normalizeScoutingText(field.getAttribute("name"), 120);
+  if (name) {
+    return `${tag}[name="${escapeScoutingCssAttribute(name)}"]`;
+  }
+  const placeholder = normalizeScoutingText(field.getAttribute("placeholder"), 120);
+  if (placeholder) {
+    return `${tag}[placeholder="${escapeScoutingCssAttribute(placeholder)}"]`;
+  }
+  return tag;
+}
+function escapeScoutingCssAttribute(value) {
+  return String(value || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
 function restoreScoutingFocus(snapshot) {
-  if (!snapshot?.field) {
+  if (!snapshot) {
     return;
   }
-  const fields = Array.from(ui.scoutingWorkspace?.querySelectorAll("[data-scouting-filter], [data-scouting-shadow-favorite-search]") || []);
-  const nextField = fields.find((field) => (field.dataset.scoutingFilter || "shadowFavoriteSearch") === snapshot.field);
+  const fields = getScoutingFocusableFields();
+  const selectorMatches = snapshot.selector ? Array.from(ui.scoutingWorkspace?.querySelectorAll(snapshot.selector) || []) : [];
+  const nextField =
+    selectorMatches[snapshot.selectorIndex >= 0 ? snapshot.selectorIndex : 0] ||
+    fields[snapshot.fieldIndex >= 0 ? snapshot.fieldIndex : -1];
   if (!nextField) {
     return;
   }
-  nextField.focus({ preventScroll: true });
+  focusScoutingElementWithoutScroll(nextField);
   if (
     typeof nextField.setSelectionRange === "function" &&
     Number.isInteger(snapshot.selectionStart) &&
@@ -10281,6 +10372,52 @@ function restoreScoutingFocus(snapshot) {
   ) {
     nextField.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
   }
+}
+function focusScoutingElementWithoutScroll(element) {
+  if (!element || typeof element.focus !== "function") {
+    return;
+  }
+  try {
+    element.focus({ preventScroll: true });
+  } catch {
+    element.focus();
+  }
+}
+function getScoutingScrollSnapshot() {
+  const selectors = [
+    ".scouting-profile-backdrop",
+    "[data-scouting-profile-modal]",
+    "[data-scouting-role-model-overlay]",
+    ".scouting-role-model-modal",
+    "[data-scouting-report-builder-overlay]",
+    ".scouting-report-builder-card.is-overlay",
+    "[data-scouting-saved-views-overlay]",
+    ".scouting-saved-views-modal",
+    "[data-scouting-active-content]",
+  ];
+  return {
+    windowX: window.scrollX || 0,
+    windowY: window.scrollY || 0,
+    elements: selectors
+      .map((selector) => {
+        const element = ui.scoutingWorkspace?.querySelector(selector);
+        return element ? { selector, scrollTop: element.scrollTop || 0, scrollLeft: element.scrollLeft || 0 } : null;
+      })
+      .filter(Boolean),
+  };
+}
+function restoreScoutingScrollSnapshot(snapshot) {
+  if (!snapshot) {
+    return;
+  }
+  for (const item of snapshot.elements || []) {
+    const element = ui.scoutingWorkspace?.querySelector(item.selector);
+    if (element) {
+      element.scrollTop = item.scrollTop;
+      element.scrollLeft = item.scrollLeft;
+    }
+  }
+  window.scrollTo(snapshot.windowX || 0, snapshot.windowY || 0);
 }
 function isScoutingDatabaseAdvancedMode() {
   return Boolean(scoutingDatabaseAdvancedMode);
@@ -10766,6 +10903,7 @@ function openScoutingSavedViews() {
 }
 function closeScoutingSavedViews() {
   scoutingSavedViewsOpen = false;
+  scoutingSavedViewNameDraft = "";
   renderScoutingWorkspace({ preserveFocus: true });
 }
 function renderScoutingSavedViewsButton() {
@@ -10801,7 +10939,7 @@ function renderScoutingSavedViewsOverlay() {
               <form class="scouting-saved-view-save" data-scouting-saved-view-form>
                 <label>
                   Save current filter as
-                  <input name="name" placeholder="Example: U23 attacking fullbacks" required data-scouting-saved-view-name />
+                  <input name="name" value="${escapeHtml(scoutingSavedViewNameDraft)}" placeholder="Example: U23 attacking fullbacks" required data-scouting-saved-view-name />
                 </label>
                 <button type="button" class="scouting-primary-button" data-save-scouting-current-view>Save current view</button>
               </form>
@@ -11121,7 +11259,10 @@ function renderScoutingShadowXi() {
   const state = ensureScoutingState();
   const canEdit = canEditScoutingWorkspace();
   const favoriteSearchQuery = normalizeScoutingText(scoutingShadowFavoriteSearchQuery, 80).toLowerCase();
-  const allFavoriteRecords = state.favoriteRecordIds.map(getScoutingRecordById).filter(Boolean);
+  const favoriteRecordIds = normalizeScoutingRecordIds(state.favoriteRecordIds);
+  const allFavoriteRecords = favoriteRecordIds
+    .map((recordId) => getScoutingStoredPlayerRecord(recordId, state))
+    .filter(Boolean);
   const favoriteRecords = allFavoriteRecords
     .filter((record) => {
       if (!favoriteSearchQuery) {
@@ -11212,7 +11353,7 @@ function renderScoutingShadowXi() {
         <div class="scouting-shadow-card">
           <div class="scouting-shadow-card-head">
             <p class="placeholder-tag">Favorites ready for XI</p>
-            <span>${allFavoriteRecords.length}</span>
+            <span>${favoriteRecordIds.length}</span>
           </div>
           <input
             class="scouting-shadow-favorite-search"
@@ -11240,7 +11381,7 @@ function renderScoutingShadowXi() {
                       }
                     )
                     .join("")
-                : `<p class="scouting-muted">${allFavoriteRecords.length ? "No favorites match this search." : "Favorite players from the database, then drag them into Shadow XI."}</p>`
+                : `<p class="scouting-muted">${favoriteRecordIds.length ? "No favorites match this search." : "Favorite players from the database, then drag them into Shadow XI."}</p>`
             }
           </div>
         </div>
@@ -11260,7 +11401,7 @@ function renderScoutingMyTeam() {
     1,
     ...scoutingShadowSlots.map((slot) => normalizeScoutingMyTeamSlotPlayerIds(myTeam.slots[slot.id]).length)
   );
-  const pitchHeightRem = Math.round(Math.min(92, Math.max(70, 58 + maxSlotDepth * 4.6 + assignedIds.size * 0.18)));
+  const pitchHeightRem = Math.round(Math.min(84, Math.max(66, 52 + maxSlotDepth * 4.2 + assignedIds.size * 0.12)));
   return `
     <section class="scouting-shadow-layout scouting-my-team-layout">
       <div class="scouting-shadow-pitch scouting-my-team-pitch ${escapeHtml(getScoutingPitchFormationClass(myTeam.formation))}" style="--my-team-pitch-height:${pitchHeightRem}rem;" aria-label="My Team ${escapeHtml(myTeam.formation)}">
@@ -11350,7 +11491,7 @@ function renderScoutingMyTeam() {
 function renderScoutingListsPanel() {
   const state = ensureScoutingState();
   const canEdit = canEditScoutingWorkspace();
-  const favoriteRecords = state.favoriteRecordIds.map(getScoutingRecordById).filter(Boolean);
+  const favoriteRecordIds = normalizeScoutingRecordIds(state.favoriteRecordIds);
   return `
     <section class="scouting-lists-panel">
       ${
@@ -11367,14 +11508,14 @@ function renderScoutingListsPanel() {
         <article class="scouting-list-card is-featured">
           <div>
             <p class="placeholder-tag">Favorites</p>
-            <h2>${favoriteRecords.length} players</h2>
+            <h2>${favoriteRecordIds.length} players</h2>
           </div>
           <div class="scouting-list-players">
             ${
-              favoriteRecords.length
-                ? favoriteRecords
+              favoriteRecordIds.length
+                ? favoriteRecordIds
                     .slice(0, 16)
-                    .map((record) => `<button type="button" data-open-scouting-record="${escapeHtml(getScoutingRecordId(record))}">${escapeHtml(getScoutingRecordName(record))}<span>${escapeHtml(getScoutingRecordPosition(record))}</span></button>`)
+                    .map((recordId) => renderScoutingStoredPlayerButton(recordId, state, "position"))
                     .join("")
                 : `<p class="scouting-muted">Favorites become your master live watchlist.</p>`
             }
@@ -11382,19 +11523,33 @@ function renderScoutingListsPanel() {
         </article>
         ${state.lists
           .map((list) => {
-            const records = list.recordIds.map(getScoutingRecordById).filter(Boolean);
+            const recordIds = normalizeScoutingRecordIds(list.recordIds);
             return `
               <article class="scouting-list-card">
-                <div>
-                  <p class="placeholder-tag">${records.length} players</p>
-                  <h2>${escapeHtml(list.name)}</h2>
+                <div class="scouting-list-card-head">
+                  <div>
+                    <p class="placeholder-tag">${recordIds.length} players</p>
+                    <h2>${escapeHtml(list.name)}</h2>
+                  </div>
+                  ${
+                    canEdit
+                      ? `
+                        <details class="scouting-list-menu">
+                          <summary aria-label="List actions for ${escapeHtml(list.name)}">•••</summary>
+                          <div>
+                            <button type="button" data-delete-scouting-list="${escapeHtml(list.id)}">Delete list</button>
+                          </div>
+                        </details>
+                      `
+                      : ""
+                  }
                 </div>
                 <div class="scouting-list-players">
                   ${
-                    records.length
-                      ? records
+                    recordIds.length
+                      ? recordIds
                           .slice(0, 16)
-                          .map((record) => `<button type="button" data-open-scouting-record="${escapeHtml(getScoutingRecordId(record))}">${escapeHtml(getScoutingRecordName(record))}<span>${escapeHtml(getScoutingRecordTeam(record))}</span></button>`)
+                          .map((recordId) => renderScoutingStoredPlayerButton(recordId, state, "team"))
                           .join("")
                       : `<p class="scouting-muted">Add players from a scouting profile.</p>`
                   }
@@ -12505,6 +12660,7 @@ function renderScoutingProfileModal() {
   const targetStatus = target?.status || getScoutingStatusOptions()[0]?.value || "new";
   const targetPriority = target?.priority || getScoutingPriorityOptions()[0]?.value || "normal";
   const targetSlotId = target?.slotId || getSelectedScoutingShadowSlotId(state) || scoutingShadowSlots[0]?.id || "";
+  const nationality = getScoutingRecordNationalityMeta(record);
   const slotOptions = scoutingShadowSlots
     .map((slot) => `<option value="${escapeHtml(slot.id)}" ${targetSlotId === slot.id ? "selected" : ""}>${escapeHtml(slot.label)} - ${escapeHtml(slot.position)}</option>`)
     .join("");
@@ -12521,11 +12677,16 @@ function renderScoutingProfileModal() {
           <div class="scouting-profile-identity">
             <h2>${escapeHtml(getScoutingRecordName(record))}</h2>
             <div class="scouting-profile-identity-meta">
+              <span><strong>Nation</strong>${nationality.flag ? `<i aria-hidden="true">${escapeHtml(nationality.flag)}</i>` : ""}${escapeHtml([nationality.code, nationality.label].filter(Boolean).join(" · ") || "Unknown")}</span>
               <span><strong>Age</strong>${escapeHtml(getScoutingRecordAge(record) ? `${formatScoutingNumber(getScoutingRecordAge(record))} yrs` : "Unknown")}</span>
               <span><strong>Club</strong>${escapeHtml(getScoutingRecordTeam(record) || "Unknown club")}</span>
             </div>
           </div>
           <div class="scouting-profile-actions">
+            <div class="scouting-profile-quick-actions">
+              <button type="button" class="scouting-star-button${favorite ? " is-active" : ""}" data-toggle-scouting-favorite="${escapeHtml(recordId)}" ${canEdit ? "" : "disabled"}>${favorite ? "Favorited" : "Favorite"}</button>
+              <button type="button" class="scouting-primary-button" data-add-scouting-record-to-shadow="${escapeHtml(recordId)}" ${canEdit ? "" : "disabled"}>Add to wishlist</button>
+            </div>
             <details class="scouting-profile-action-menu">
               <summary>Player actions</summary>
               <div class="scouting-profile-action-menu-panel">
@@ -12660,6 +12821,7 @@ function renderScoutingWorkspace(options = {}) {
     return;
   }
   const focusSnapshot = options.preserveFocus ? getScoutingFocusSnapshot() : null;
+  const scrollSnapshot = options.preserveFocus ? getScoutingScrollSnapshot() : null;
   const state = ensureScoutingState();
   if (!scoutingTabs.some((tab) => tab.id === state.activeTab)) {
     state.activeTab = "shadow-xi";
@@ -12705,6 +12867,7 @@ function renderScoutingWorkspace(options = {}) {
     focusScoutingProfileModal();
     queueScoutingProfileModalFocus(state.selectedRecordId);
   }
+  restoreScoutingScrollSnapshot(scrollSnapshot);
 }
 function refreshScoutingWorkspaceSummaryMetrics() {
   if (!ui.scoutingWorkspace) {
@@ -12794,12 +12957,14 @@ function rerenderScoutingActiveContent(options = {}) {
     return false;
   }
   const focusSnapshot = options.preserveFocus ? getScoutingFocusSnapshot() : null;
+  const scrollSnapshot = options.preserveFocus ? getScoutingScrollSnapshot() : null;
   content.innerHTML = renderScoutingActiveContent();
   if (options.preserveFocus) {
     restoreScoutingFocus(focusSnapshot);
   }
   bindScoutingDragAndDrop();
   bindScoutingRecordMiniRadarShells();
+  restoreScoutingScrollSnapshot(scrollSnapshot);
   return true;
 }
 function refreshScoutingWorkspaceAfterLocalMutation(options = {}) {
@@ -12824,6 +12989,7 @@ function renderScoutingAnalysisRoomWorkspace(options = {}) {
     queueScoutingDatabaseLoad(renderScoutingAnalysisRoomWorkspace);
   }
   const focusSnapshot = options.preserveFocus ? getScoutingFocusSnapshot() : null;
+  const scrollSnapshot = options.preserveFocus ? getScoutingScrollSnapshot() : null;
   const database = getScoutingDatabase();
   const playerCount = getScoutingDatabaseTotalCount(database);
   const sheetCount = database?.sheets?.length || 0;
@@ -12849,6 +13015,7 @@ function renderScoutingAnalysisRoomWorkspace(options = {}) {
   `;
   restoreScoutingFocus(focusSnapshot);
   bindScoutingDragAndDrop();
+  restoreScoutingScrollSnapshot(scrollSnapshot);
 }
 function setScoutingActiveTab(tabId) {
   const state = ensureScoutingState();
@@ -12892,11 +13059,17 @@ function setScoutingDatabasePageOffset(offset) {
   const state = ensureScoutingState();
   if (isScoutingPagedDatabaseActive()) {
     const offsetToSet = nextOffset;
-    if (getScoutingApiOffset(state.databaseFilters.offset) === offsetToSet) {
+    const currentFilters = normalizeScoutingDatabaseFilters(state.databaseFilters || {});
+    const liveQuery = getScoutingDatabaseLiveSearchQuery(currentFilters.query);
+    if (
+      getScoutingApiOffset(currentFilters.offset) === offsetToSet &&
+      normalizeScoutingText(currentFilters.query, 120) === liveQuery
+    ) {
       return;
     }
     state.databaseFilters = normalizeScoutingDatabaseFilters({
-      ...state.databaseFilters,
+      ...currentFilters,
+      query: liveQuery,
       offset: offsetToSet,
     });
     scoutingFilteredDatabaseCache.key = "";
@@ -12988,6 +13161,7 @@ function createScoutingSavedView(name) {
   if (!safeName) {
     return;
   }
+  scoutingSavedViewNameDraft = "";
   const view = cloneScoutingSavedView({
     name: safeName,
     filters: state.databaseFilters,
@@ -13113,13 +13287,16 @@ function focusScoutingProfileModal() {
   if (!modal || typeof modal.focus !== "function") {
     return;
   }
+  if (modal.contains(document.activeElement) && document.activeElement?.matches?.("input, textarea, select, [contenteditable='true']")) {
+    return;
+  }
   try {
     modal.focus({ preventScroll: true });
   } catch {
     modal.focus();
   }
   if (document.activeElement !== modal) {
-    modal.focus();
+    focusScoutingElementWithoutScroll(modal);
   }
 }
 function shouldFocusScoutingProfileModal(recordId) {
@@ -13294,6 +13471,24 @@ function createScoutingList(name) {
   state.lists = [cloneScoutingList({ name: listName, recordIds: [] }), ...state.lists];
   writeScoutingState();
   renderScoutingWorkspace();
+}
+function deleteScoutingList(listId) {
+  if (!canEditScoutingWorkspace()) {
+    return;
+  }
+  const state = ensureScoutingState();
+  const id = normalizeScoutingText(listId, 120);
+  const list = state.lists.find((item) => item.id === id);
+  if (!id || !list) {
+    return;
+  }
+  const confirmed = window.confirm(`Delete scouting list "${list.name}"? Players stay in the scouting database.`);
+  if (!confirmed) {
+    return;
+  }
+  state.lists = state.lists.filter((item) => item.id !== id);
+  writeScoutingState();
+  refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
 }
 function addScoutingRecordToShadow(recordId, slotId) {
   if (!canEditScoutingWorkspace()) {
@@ -13558,6 +13753,13 @@ export function handleClick(event, context) {
     deleteScoutingSavedView(deleteSavedViewTrigger.dataset.deleteScoutingSavedView);
     return;
   }
+  const deleteListTrigger = event.target.closest("[data-delete-scouting-list]");
+  if (deleteListTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    deleteScoutingList(deleteListTrigger.dataset.deleteScoutingList);
+    return;
+  }
   const deleteContactTrigger = event.target.closest("[data-delete-scouting-contact]");
   if (deleteContactTrigger) {
     event.stopPropagation();
@@ -13803,6 +14005,11 @@ export function handleInput(event, context) {
   const databaseSearchInput = event.target.closest("[data-scouting-database-search-input]");
   if (databaseSearchInput) {
     scoutingDatabaseSearchDraft = databaseSearchInput.value;
+    return;
+  }
+  const savedViewNameInput = event.target.closest("[data-scouting-saved-view-name]");
+  if (savedViewNameInput) {
+    scoutingSavedViewNameDraft = savedViewNameInput.value;
     return;
   }
   const filterInput = event.target.closest("[data-scouting-filter]");

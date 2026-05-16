@@ -30114,7 +30114,6 @@ ui.medicalTeamWorkspace.innerHTML = `
 <div>
 <p class="placeholder-tag">Medical Team</p>
 <h1>${escapeHtml(teamName)}</h1>
-<span class="medical-hero-meta">${escapeHtml(getMedicalScheduleSummary(medicalState.selectedDate))}</span>
 </div>
 <div class="medical-access-chip">${escapeHtml(getMedicalAccessLabel())}</div>
 </header>

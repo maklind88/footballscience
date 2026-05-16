@@ -730,6 +730,7 @@ test("Medical recommendation edits persist after refresh", async ({ page }) => {
   await bootApp(page);
   await openWorkspace(page, "medical-team");
   await expect(page.locator(".medical-hero h1")).toHaveText("North Carolina Courage");
+  await expect(page.locator(".medical-hero-meta")).toHaveCount(0);
 
   await page.locator("[data-medical-select-player]:visible").first().click();
   const form = page.locator("#medicalRecommendationForm:visible").first();

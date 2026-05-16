@@ -4153,7 +4153,7 @@ let scheduleDayPanelMode = "view";
 let medicalState = null;
 let medicalRosterSearchQuery = "";
 let medicalStatusFilter = "all";
-let medicalOperationsTab = "overview";
+let medicalOperationsTab = "availability";
 let medicalPlayerModalOpen = false;
 let medicalBulkSelectedPlayerIds = new Set();
 let medicalBulkRecommendationOpen = false;
@@ -28601,7 +28601,7 @@ reviewAlerts.length
 `;
 }
 function normalizeMedicalOperationsTab(tabKey) {
-return medicalOperationsTabOptions.some((tab) => tab.key === tabKey) ? tabKey : "overview";
+return medicalOperationsTabOptions.some((tab) => tab.key === tabKey) ? tabKey : "availability";
 }
 function getMedicalPlanTotalDays(plan) {
 if (!plan) {
@@ -29178,9 +29178,7 @@ return renderMedicalCoachSafeOperationsSummary();
 medicalOperationsTab = normalizeMedicalOperationsTab(medicalOperationsTab);
 const summary = getMedicalOperationsSummary(medicalState.selectedDate);
 const body =
-medicalOperationsTab === "availability"
-? renderMedicalOperationsOverview(summary)
-: medicalOperationsTab === "signals"
+medicalOperationsTab === "signals"
 ? renderMedicalOperationsSignals(summary)
 : medicalOperationsTab === "cases"
 ? renderMedicalOperationsCases(summary)
@@ -29192,6 +29190,38 @@ medicalOperationsTab === "availability"
 return `
 <section class="medical-operations-system" data-medical-operations-system aria-label="Medical operations intelligence board">
 ${body}
+</section>
+`;
+}
+function renderMedicalAvailabilityWorkspace(message = "") {
+const stats = getMedicalDailyStats(medicalState.selectedDate);
+const windowAverage = getMedicalWindowAverage();
+const monthStats = getMedicalMonthAverageStats();
+return `
+<section class="medical-availability-workspace" data-medical-availability-workspace aria-label="Medical availability recommendations">
+${renderMedicalDateStrip()}
+${renderMedicalActivityContextPanel()}
+${message ? `<div class="medical-message">${escapeHtml(message)}</div>` : ""}
+<section class="medical-metrics-grid" aria-label="Medical availability summary">
+${renderMedicalMetric("Full", String(stats.fullCount), "100%", "full")}
+${renderMedicalMetric("Modified", String(stats.modifiedCount), "10-75%", "modified")}
+${renderMedicalMetric("Unavailable", String(stats.unavailableCount), "0%", "unavailable")}
+${renderMedicalMetric("Not set", String(stats.unloggedCount), "no entry")}
+${renderMedicalMetric("Month average", monthStats.averageParticipation === null ? "-" : `${monthStats.averageParticipation}%`)}
+${renderMedicalMetric("7-day average", windowAverage === null ? "-" : `${windowAverage}%`, "last 7 days")}
+</section>
+${
+medicalState.players.length
+? `
+<section class="medical-layout">
+${renderMedicalRosterPanel()}
+</section>
+${renderMedicalDailyHuddle()}
+${renderMedicalCoachHandoverPanel()}
+${canViewPrivateMedicalDetails() ? "" : renderMedicalOperationsSystem()}
+`
+: renderMedicalRosterSetup()
+}
 </section>
 `;
 }
@@ -30107,10 +30137,9 @@ if (!ui.medicalTeamWorkspace) {
 return;
 }
 ensureMedicalState();
-const stats = getMedicalDailyStats(medicalState.selectedDate);
-const windowAverage = getMedicalWindowAverage();
-const monthStats = getMedicalMonthAverageStats();
 const teamName = getMedicalHeroTeamName();
+medicalOperationsTab = normalizeMedicalOperationsTab(medicalOperationsTab);
+const showAvailabilityWorkspace = !canViewPrivateMedicalDetails() || medicalOperationsTab === "availability";
 ui.medicalTeamWorkspace.innerHTML = `
 <div class="medical-shell">
 <header class="medical-hero">
@@ -30121,29 +30150,7 @@ ui.medicalTeamWorkspace.innerHTML = `
 <div class="medical-access-chip">${escapeHtml(getMedicalAccessLabel())}</div>
 </header>
 ${renderMedicalOperationsTopMenu()}
-${renderMedicalDateStrip()}
-${renderMedicalActivityContextPanel()}
-${message ? `<div class="medical-message">${escapeHtml(message)}</div>` : ""}
-<section class="medical-metrics-grid" aria-label="Medical availability summary">
-${renderMedicalMetric("Full", String(stats.fullCount), "100%", "full")}
-${renderMedicalMetric("Modified", String(stats.modifiedCount), "10-75%", "modified")}
-${renderMedicalMetric("Unavailable", String(stats.unavailableCount), "0%", "unavailable")}
-${renderMedicalMetric("Not set", String(stats.unloggedCount), "no entry")}
-${renderMedicalMetric("Month average", monthStats.averageParticipation === null ? "-" : `${monthStats.averageParticipation}%`)}
-${renderMedicalMetric("7-day average", windowAverage === null ? "-" : `${windowAverage}%`, "last 7 days")}
-</section>
-${
-medicalState.players.length
-? `
-<section class="medical-layout">
-${renderMedicalRosterPanel()}
-</section>
-${renderMedicalDailyHuddle()}
-${renderMedicalCoachHandoverPanel()}
-${renderMedicalOperationsSystem()}
-`
-: renderMedicalRosterSetup()
-}
+${showAvailabilityWorkspace ? renderMedicalAvailabilityWorkspace(message) : `${message ? `<div class="medical-message">${escapeHtml(message)}</div>` : ""}${renderMedicalOperationsSystem()}`}
 ${renderMedicalSecurityPanel()}
 ${renderMedicalGovernancePanel()}
 ${renderMedicalPlayerModal()}

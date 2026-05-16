@@ -5,6 +5,12 @@
   min-width: 0;
 }
 
+.medical-availability-workspace {
+  display: grid;
+  gap: 0.72rem;
+  min-width: 0;
+}
+
 .medical-bulk-panel.is-collapsed {
   display: flex;
   justify-content: flex-start;

@@ -1096,9 +1096,16 @@ test("Medical operations board separates signals, cases, history and season view
   await expect(operationsMenu).not.toContainText("Intelligence Board");
   await expect(operationsMenu.locator("[data-medical-ops-tab]")).toHaveCount(6);
   await expect(operationsMenu.locator('[data-medical-ops-tab="availability"]')).toHaveText("Availability");
+  await expect(operationsMenu.locator('[data-medical-ops-tab="availability"]')).toHaveClass(/is-active/);
+  await expect(page.locator("[data-medical-availability-workspace]")).toBeVisible();
+  await expect(page.locator(".medical-position-overview")).toBeVisible();
+  await expect(page.locator("[data-medical-operations-system]")).toHaveCount(0);
+
+  await operationsMenu.locator('[data-medical-ops-tab="overview"]').click();
   const operations = page.locator("[data-medical-operations-system]");
   await expect(operations).toBeVisible();
   await expect(operations.locator("[data-medical-ops-tab]")).toHaveCount(0);
+  await expect(page.locator("[data-medical-availability-workspace]")).toHaveCount(0);
   const menuPlacement = await page.evaluate(() => {
     const menu = document.querySelector("[data-medical-ops-top-menu]");
     const firstTab = menu?.querySelector("[data-medical-ops-tab]");
@@ -1117,7 +1124,9 @@ test("Medical operations board separates signals, cases, history and season view
 
   await operationsMenu.locator('[data-medical-ops-tab="availability"]').click();
   await expect(operationsMenu.locator('[data-medical-ops-tab="availability"]')).toHaveClass(/is-active/);
-  await expect(operations).toContainText("Review now");
+  await expect(page.locator("[data-medical-availability-workspace]")).toBeVisible();
+  await expect(page.locator(".medical-position-overview")).toBeVisible();
+  await expect(page.locator("[data-medical-operations-system]")).toHaveCount(0);
 
   await operationsMenu.locator('[data-medical-ops-tab="signals"]').click();
   await expect(operations).toContainText("Actual exceeded recommendation");

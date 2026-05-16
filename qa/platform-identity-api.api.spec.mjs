@@ -24,6 +24,7 @@ test("platform identity API is registered, guarded, and read-only", () => {
     enforcePermission: true,
   });
   expect(permissionMatrix.getApiActionForMethod("/api/platform-identity", "GET")).toBe("read");
+  expect(permissionMatrix.getApiActionForMethod("/api/platform-identity", "POST")).toBeNull();
   expect(permissionMatrix.platformPermissionMatrixByModule["platform-identity"].routes).toContain("/api/platform-identity");
 
   const routeSource = readProjectFile("api/platform-identity.js");

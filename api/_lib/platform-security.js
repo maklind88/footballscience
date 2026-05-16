@@ -89,7 +89,8 @@ function createApiRequestContext(req, options = {}) {
   const route = normalizeRoute(options.route || req?.url || "");
   const method = normalizeText(req?.method || "GET", 12).toUpperCase();
   const routeConfig = getApiRouteSecurityConfig(route) || {};
-  const action = normalizeAction(options.action || getApiActionForMethod(route, method));
+  const resolvedAction = options.action ?? getApiActionForMethod(route, method);
+  const action = resolvedAction ? normalizeAction(resolvedAction) : "";
   const moduleId = normalizeText(options.moduleId || routeConfig.moduleId || "unknown", 80);
   const actor = options.actor || null;
 
@@ -185,12 +186,24 @@ function sendSecurityJson(res, status, payload) {
 function guardApiRequest(req, res, options = {}) {
   const route = normalizeRoute(options.route || req?.url || "");
   const routeConfig = getApiRouteSecurityConfig(route) || {};
+  const resolvedAction = options.action ?? getApiActionForMethod(route, req?.method);
   const context = attachApiRequestContext(req, res, {
     ...options,
     route,
     moduleId: options.moduleId || routeConfig.moduleId,
-    action: options.action || getApiActionForMethod(route, req?.method),
+    action: resolvedAction,
   });
+
+  if (routeConfig.moduleId && !resolvedAction) {
+    logSecurityEvent(context, {
+      eventType: "api.method_not_allowed",
+      status: 405,
+      reason: "Method not allowed.",
+      ms: Date.now() - context.startedAt,
+    });
+    sendSecurityJson(res, 405, { ok: false, reason: "Method not allowed." });
+    return { ok: false, status: 405, reason: "method_not_allowed" };
+  }
 
   const rateLimit = checkApiRateLimit(context, routeConfig);
   res.setHeader("X-RateLimit-Limit", String(rateLimit.limit));

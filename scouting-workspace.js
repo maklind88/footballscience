@@ -1193,15 +1193,17 @@ function renderScoutingImportHistoryPanel() {
   `;
 }
 function renderScoutingImportHistoryPanelIntoDom() {
-  const side = ui.scoutingWorkspace?.querySelector(".scouting-database-side");
-  if (!side) {
+  const container =
+    ui.scoutingWorkspace?.querySelector("[data-scouting-settings-data-tools]") ||
+    ui.scoutingWorkspace?.querySelector(".scouting-database-side");
+  if (!container) {
     return;
   }
-  const existing = side.querySelector("[data-scouting-import-history-panel]");
+  const existing = container.querySelector("[data-scouting-import-history-panel]");
   if (existing) {
     existing.outerHTML = renderScoutingImportHistoryPanel();
   } else {
-    side.insertAdjacentHTML("beforeend", renderScoutingImportHistoryPanel());
+    container.insertAdjacentHTML("beforeend", renderScoutingImportHistoryPanel());
   }
 }
 function loadScoutingImportHistory({ force = false } = {}) {
@@ -7604,16 +7606,22 @@ function toggleScoutingCompareRecord(recordId) {
   if (!id) {
     return;
   }
+  const record = getScoutingRecordById(id);
+  if (record) {
+    rememberScoutingRecordSnapshot(record, state);
+  }
   const current = getScoutingCompareRecordIds(state);
   state.compareRecordIds = current.includes(id) ? current.filter((candidateId) => candidateId !== id) : [id, ...current].slice(0, 5);
-  writeScoutingState({ syncCentral: false });
-  renderScoutingWorkspace({ preserveFocus: true });
+  writeScoutingState();
+  renderScoutingCompareSetPanelIntoDom();
+  updateScoutingCompareControls();
 }
 function clearScoutingCompareSet() {
   const state = ensureScoutingState();
   state.compareRecordIds = [];
-  writeScoutingState({ syncCentral: false });
-  renderScoutingWorkspace({ preserveFocus: true });
+  writeScoutingState();
+  renderScoutingCompareSetPanelIntoDom();
+  updateScoutingCompareControls();
 }
 function createScoutingCompareSetReport() {
   if (!canEditScoutingWorkspace()) {
@@ -7735,10 +7743,10 @@ function toggleScoutingRecordQuickView(recordId) {
   renderScoutingWorkspace({ preserveFocus: true });
 }
 function renderScoutingCompareSetPanel(state = ensureScoutingState()) {
-  const records = getScoutingCompareRecordIds(state).map(getScoutingRecordById).filter(Boolean);
+  const records = getScoutingCompareRecordIds(state).map((recordId) => getScoutingStoredPlayerRecord(recordId, state)).filter(Boolean);
   if (!records.length) {
     return `
-      <section class="scouting-compare-set is-empty">
+      <section class="scouting-compare-set is-empty" data-scouting-compare-set>
         <div>
           <span>Compare set</span>
           <strong>No players selected</strong>
@@ -7754,7 +7762,7 @@ function renderScoutingCompareSetPanel(state = ensureScoutingState()) {
     }))
     .sort((a, b) => (b.intelligence.roleFitScore || 0) - (a.intelligence.roleFitScore || 0))[0];
   return `
-    <section class="scouting-compare-set">
+    <section class="scouting-compare-set" data-scouting-compare-set>
       <div>
         <span>Compare set</span>
         <strong>${escapeHtml(`${records.length}/5 selected${best ? ` / leader ${getScoutingRecordName(best.record)} P${best.intelligence.roleFitScore || "n/a"}` : ""}`)}</strong>
@@ -7778,6 +7786,23 @@ function renderScoutingCompareSetPanel(state = ensureScoutingState()) {
       ${renderScoutingCompareSetMatrix(records, state)}
     </section>
   `;
+}
+function renderScoutingCompareSetPanelIntoDom() {
+  const panel = ui.scoutingWorkspace?.querySelector("[data-scouting-compare-set]");
+  if (!panel) {
+    return;
+  }
+  panel.outerHTML = renderScoutingCompareSetPanel(ensureScoutingState());
+}
+function updateScoutingCompareControls() {
+  const state = ensureScoutingState();
+  ui.scoutingWorkspace
+    ?.querySelectorAll(".scouting-record-actions [data-toggle-scouting-record-compare]")
+    ?.forEach((button) => {
+      const active = isScoutingRecordInCompareSet(button.dataset.toggleScoutingRecordCompare, state);
+      button.classList.toggle("is-active", active);
+      button.textContent = active ? "Compare ✓" : "Compare";
+    });
 }
 function getScoutingSeasonInsights(record, playerRows = []) {
   const rows = (playerRows.length ? playerRows : getScoutingRecordsForPlayer(record))
@@ -8300,7 +8325,7 @@ function getScoutingSlotRecommendationRows(slot, state = ensureScoutingState(), 
   const allShadowIds = new Set(getScoutingAllShadowRecordIds(state));
   const favoriteIds = new Set(normalizeScoutingRecordIds(state.favoriteRecordIds));
   const pipelineIds = new Set(getScoutingTargetedRecordIds(state));
-  const candidateRecords = (getScoutingDatabase()?.records || []).slice(0, 900);
+  const candidateRecords = getScoutingDatabase()?.records || [];
   return candidateRecords
     .filter((record) => {
       const recordId = getScoutingRecordId(record);
@@ -10329,7 +10354,7 @@ function getScoutingRecruitmentAlerts(state = ensureScoutingState(), limit = 10)
     }
   });
   if (isScoutingDatabaseLoaded()) {
-    const alertDatabaseRecords = (getScoutingDatabase()?.records || []).slice(0, 900);
+    const alertDatabaseRecords = getScoutingDatabase()?.records || [];
     [...alertDatabaseRecords]
       .filter((record) => getScoutingRecordMinutes(record) >= 450)
       .sort((a, b) => getScoutingRecordMinutes(b) - getScoutingRecordMinutes(a))
@@ -10830,6 +10855,77 @@ function renderScoutingRecordCard(record, options = {}) {
     </article>
   `;
 }
+function getScoutingRangeFilterDisplay(field, value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return "";
+  }
+  if (field === "minMinutes") {
+    return numericValue > 0 ? `${formatScoutingNumber(numericValue)}+` : "";
+  }
+  if (field === "maxMinutes") {
+    return numericValue > 0 && numericValue < 5000 ? formatScoutingNumber(numericValue) : "";
+  }
+  if (field === "minAge") {
+    return numericValue > 14 ? `${Math.round(numericValue)}+` : "";
+  }
+  if (field === "maxAge") {
+    return numericValue > 0 && numericValue < 45 ? String(Math.round(numericValue)) : "";
+  }
+  if (field === "metricMin" || field === "roleFitMin" || field === "roleFloorMin") {
+    return numericValue > 0 ? `P${Math.round(numericValue)}` : "";
+  }
+  return "";
+}
+function getScoutingRangeFilterResetValue(field) {
+  if (field === "minMinutes") {
+    return 0;
+  }
+  if (field === "maxMinutes") {
+    return 0;
+  }
+  return "";
+}
+function renderScoutingRangeFilter({ field, value, min, max, step, ariaLabel, disabled = false, active = null }) {
+  const display = active === false ? "" : getScoutingRangeFilterDisplay(field, value);
+  const isActive = Boolean(display);
+  return `
+    <div class="scouting-range-filter${isActive ? " is-active" : " is-any"}">
+      <div class="scouting-range-filter-topline">
+        <button type="button" class="scouting-range-any-button${isActive ? "" : " is-active"}" data-reset-scouting-range-filter="${escapeHtml(field)}" aria-pressed="${isActive ? "false" : "true"}">Any</button>
+        <strong data-scouting-range-value>${escapeHtml(display)}</strong>
+      </div>
+      <input type="range" min="${escapeHtml(min)}" max="${escapeHtml(max)}" step="${escapeHtml(step)}" value="${escapeHtml(value)}" data-scouting-filter="${escapeHtml(field)}" aria-label="${escapeHtml(ariaLabel)}" ${disabled ? "disabled" : ""} />
+    </div>
+  `;
+}
+function updateScoutingRangeFilterDisplay(rangeInput) {
+  const wrap = rangeInput?.closest?.(".scouting-range-filter");
+  if (!wrap) {
+    return;
+  }
+  const field = rangeInput.dataset.scoutingFilter;
+  const display = getScoutingRangeFilterDisplay(field, rangeInput.value);
+  const anyButton = wrap.querySelector("[data-reset-scouting-range-filter]");
+  const valueLabel = wrap.querySelector("[data-scouting-range-value]");
+  wrap.classList.toggle("is-active", Boolean(display));
+  wrap.classList.toggle("is-any", !display);
+  if (anyButton) {
+    anyButton.classList.toggle("is-active", !display);
+    anyButton.setAttribute("aria-pressed", display ? "false" : "true");
+  }
+  if (valueLabel) {
+    valueLabel.textContent = display;
+  }
+}
+function resetScoutingRangeFilter(field) {
+  const resetValue = getScoutingRangeFilterResetValue(field);
+  setScoutingDatabaseFilter(field, resetValue);
+  renderScoutingWorkspace({ preserveFocus: true });
+  if (isScoutingDatabaseLoaded()) {
+    scheduleScoutingDatabaseFilterRefresh();
+  }
+}
 function renderScoutingDatabaseControls() {
   const state = ensureScoutingState();
   const filters = normalizeScoutingDatabaseFilters(state.databaseFilters);
@@ -10913,31 +11009,19 @@ function renderScoutingDatabaseControls() {
         </label>
         <label>
           <span>Min minutes</span>
-          <div class="scouting-range-filter">
-            <strong>${escapeHtml(minutesMinValue > 0 ? `${formatScoutingNumber(minutesMinValue)}+` : "Any")}</strong>
-            <input type="range" min="0" max="5000" step="50" value="${escapeHtml(minutesMinValue)}" data-scouting-filter="minMinutes" aria-label="Minimum minutes" />
-          </div>
+          ${renderScoutingRangeFilter({ field: "minMinutes", value: minutesMinValue, min: 0, max: 5000, step: 50, ariaLabel: "Minimum minutes" })}
         </label>
         <label>
           <span>Max minutes</span>
-          <div class="scouting-range-filter">
-            <strong>${escapeHtml(minutesMaxValue >= 5000 ? "Any" : formatScoutingNumber(minutesMaxValue))}</strong>
-            <input type="range" min="0" max="5000" step="50" value="${escapeHtml(minutesMaxValue)}" data-scouting-filter="maxMinutes" aria-label="Maximum minutes" />
-          </div>
+          ${renderScoutingRangeFilter({ field: "maxMinutes", value: minutesMaxValue, min: 0, max: 5000, step: 50, ariaLabel: "Maximum minutes" })}
         </label>
         <label>
           <span>Min age</span>
-          <div class="scouting-range-filter">
-            <strong>${escapeHtml(Number(filters.minAge) > 14 ? `${ageMinValue}+` : "Any")}</strong>
-            <input type="range" min="14" max="45" step="1" value="${escapeHtml(ageMinValue)}" data-scouting-filter="minAge" aria-label="Minimum age" />
-          </div>
+          ${renderScoutingRangeFilter({ field: "minAge", value: ageMinValue, min: 14, max: 45, step: 1, ariaLabel: "Minimum age" })}
         </label>
         <label>
           <span>Max age</span>
-          <div class="scouting-range-filter">
-            <strong>${escapeHtml(ageMaxValue >= 45 ? "Any" : ageMaxValue)}</strong>
-            <input type="range" min="14" max="45" step="1" value="${escapeHtml(ageMaxValue)}" data-scouting-filter="maxAge" aria-label="Maximum age" />
-          </div>
+          ${renderScoutingRangeFilter({ field: "maxAge", value: ageMaxValue, min: 14, max: 45, step: 1, ariaLabel: "Maximum age" })}
         </label>
         <div class="scouting-filter-multi">
           <span>Highlight metrics</span>
@@ -10962,10 +11046,7 @@ function renderScoutingDatabaseControls() {
         </div>
         <label>
           <span>Metric percentile</span>
-          <div class="scouting-range-filter">
-            <strong>${escapeHtml(hasMetricFloor ? `P${metricMinValue}` : "Any")}</strong>
-            <input type="range" min="1" max="99" step="1" value="${escapeHtml(metricMinValue)}" data-scouting-filter="metricMin" aria-label="Minimum metric percentile" ${selectedMetricIds.length ? "" : "disabled"} />
-          </div>
+          ${renderScoutingRangeFilter({ field: "metricMin", value: metricMinValue, min: 1, max: 99, step: 1, ariaLabel: "Minimum metric percentile", disabled: !selectedMetricIds.length, active: Boolean(hasMetricFloor) })}
         </label>
         <label>
           <span>Decision lens</span>
@@ -10991,17 +11072,11 @@ function renderScoutingDatabaseControls() {
         </label>
         <label>
           <span>Min role fit</span>
-          <div class="scouting-range-filter">
-            <strong>${escapeHtml(hasRoleFitFloor ? `P${roleFitValue}` : "Any")}</strong>
-            <input type="range" min="1" max="99" step="1" value="${escapeHtml(roleFitValue)}" data-scouting-filter="roleFitMin" aria-label="Minimum role fit percentile" />
-          </div>
+          ${renderScoutingRangeFilter({ field: "roleFitMin", value: roleFitValue, min: 1, max: 99, step: 1, ariaLabel: "Minimum role fit percentile", active: hasRoleFitFloor })}
         </label>
         <label>
           <span>Min role floor</span>
-          <div class="scouting-range-filter">
-            <strong>${escapeHtml(hasRoleFloor ? `P${roleFloorValue}` : "Any")}</strong>
-            <input type="range" min="1" max="99" step="1" value="${escapeHtml(roleFloorValue)}" data-scouting-filter="roleFloorMin" aria-label="Minimum role floor percentile" />
-          </div>
+          ${renderScoutingRangeFilter({ field: "roleFloorMin", value: roleFloorValue, min: 1, max: 99, step: 1, ariaLabel: "Minimum role floor percentile", active: hasRoleFloor })}
         </label>
         <label>
           <span>Sort by</span>
@@ -11154,7 +11229,7 @@ function renderScoutingImportPanel() {
     </section>
   `;
 }
-function renderScoutingImportLaunch() {
+function renderScoutingImportLaunch({ label = "Update scouting database" } = {}) {
   if (!canEditScoutingWorkspace()) {
     return "";
   }
@@ -11167,7 +11242,7 @@ function renderScoutingImportLaunch() {
         data-scouting-import-file
         style="display: none;"
       />
-      <button type="button" class="scouting-secondary-button" data-scouting-import-open>Update scouting database</button>
+      <button type="button" class="scouting-secondary-button" data-scouting-import-open>${escapeHtml(label)}</button>
     </div>
   `;
 }
@@ -11181,7 +11256,20 @@ function renderScoutingSettingsMenu() {
       <div class="scouting-settings-panel">
         <strong>Scouting settings</strong>
         <p>Database import and admin tools.</p>
-        ${renderScoutingImportLaunch()}
+        <details class="scouting-datasource-settings" data-scouting-datasource-settings>
+          <summary data-scouting-datasource-toggle>
+            <span>Update datasource</span>
+            <small>Uploads, import history and data foundation</small>
+          </summary>
+          <div class="scouting-datasource-settings-body" data-scouting-settings-data-tools>
+            <div class="scouting-datasource-actions">
+              ${renderScoutingImportLaunch({ label: "Upload new datasource" })}
+            </div>
+            ${renderScoutingDataQualityPanel()}
+            ${renderScoutingImportHistoryPanel()}
+            ${renderScoutingImportPanel()}
+          </div>
+        </details>
       </div>
     </details>
   `;
@@ -11530,16 +11618,6 @@ function renderScoutingDatabasePanel() {
             ${renderScoutingDatabasePagingControls(results.paging)}
           </div>
         </main>
-        ${
-          isScoutingDatabaseAdvancedMode()
-            ? `
-              <aside class="scouting-database-side" aria-label="Scouting database tools">
-                ${renderScoutingDataQualityPanel()}
-                ${renderScoutingImportPanel()}
-              </aside>
-            `
-            : ""
-        }
       </div>
     </section>
   `;
@@ -13318,6 +13396,9 @@ function setScoutingActiveTab(tabId) {
 }
 function setScoutingDatabaseFilter(field, value) {
   const state = ensureScoutingState();
+  if (field === "query") {
+    scoutingDatabaseSearchDraft = null;
+  }
   const nextPatch = {
     ...state.databaseFilters,
     [field]: value,
@@ -13460,6 +13541,7 @@ function applyScoutingPresetView(presetId) {
     return;
   }
   const state = ensureScoutingState();
+  scoutingDatabaseSearchDraft = null;
   state.databaseFilters = normalizeScoutingDatabaseFilters({
     ...normalizeScoutingDatabaseFilters({}),
     ...preset.filters,
@@ -13475,6 +13557,7 @@ function applyScoutingSavedView(viewId) {
   if (!view) {
     return;
   }
+  scoutingDatabaseSearchDraft = null;
   state.databaseFilters = normalizeScoutingDatabaseFilters(view.filters);
   state.activeTab = "database";
   writeScoutingState({ syncCentral: false });
@@ -13496,6 +13579,7 @@ function renderScoutingDatabaseResults() {
   const market = isAdvancedMode ? ui.scoutingWorkspace?.querySelector("[data-scouting-market-radar]") : null;
   const brief = isAdvancedMode ? ui.scoutingWorkspace?.querySelector("[data-scouting-intelligence-brief]") : null;
   const queue = isAdvancedMode ? ui.scoutingWorkspace?.querySelector("[data-scouting-action-queue]") : null;
+  const compare = isAdvancedMode ? ui.scoutingWorkspace?.querySelector("[data-scouting-compare-set]") : null;
   const summary = ui.scoutingWorkspace?.querySelector("[data-scouting-result-summary]");
   const resultsActions = ui.scoutingWorkspace?.querySelector(".scouting-database-results-actions");
   const resultsFooter = ui.scoutingWorkspace?.querySelector(".scouting-database-results-footer");
@@ -13506,6 +13590,9 @@ function renderScoutingDatabaseResults() {
   }
   if (queue) {
     queue.outerHTML = renderScoutingDatabaseActionQueue(results.visibleRecords, ensureScoutingState());
+  }
+  if (compare) {
+    compare.outerHTML = renderScoutingCompareSetPanel(ensureScoutingState());
   }
   if (market) {
     market.outerHTML = renderScoutingMarketRadar(results.visibleRecords);
@@ -13968,6 +14055,13 @@ export function handleClick(event, context) {
     setScoutingDatabaseAdvancedMode(!isScoutingDatabaseAdvancedMode());
     return;
   }
+  const resetRangeFilterTrigger = event.target.closest("[data-reset-scouting-range-filter]");
+  if (resetRangeFilterTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    resetScoutingRangeFilter(resetRangeFilterTrigger.dataset.resetScoutingRangeFilter);
+    return;
+  }
   const openImportTrigger = event.target.closest("[data-scouting-import-open]");
   if (openImportTrigger) {
     if (!canEditScoutingWorkspace()) {
@@ -13978,6 +14072,10 @@ export function handleClick(event, context) {
       importFileInput.click();
     }
     return;
+  }
+  const datasourceToggle = event.target.closest("[data-scouting-datasource-toggle]");
+  if (datasourceToggle) {
+    window.setTimeout(() => loadScoutingImportHistory(), 0);
   }
   const applyImportTrigger = event.target.closest("[data-apply-scouting-import]");
   if (applyImportTrigger) {
@@ -14305,6 +14403,9 @@ export function handleInput(event, context) {
   }
   if (filterInput.dataset.scoutingFilter === "query") {
     return;
+  }
+  if (filterInput.type === "range") {
+    updateScoutingRangeFilterDisplay(filterInput);
   }
   setScoutingDatabaseFilter(filterInput.dataset.scoutingFilter, filterInput.value);
   if (isScoutingDatabaseLoaded()) {

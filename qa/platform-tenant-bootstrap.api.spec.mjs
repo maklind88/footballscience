@@ -45,7 +45,7 @@ test("platform tenant bootstrap API is admin-only, guarded, and write-only", () 
     enforcePermission: true,
   });
   expect(permissionMatrix.getApiActionForMethod("/api/platform-tenant-bootstrap", "POST")).toBe("admin");
-  expect(permissionMatrix.getApiActionForMethod("/api/platform-tenant-bootstrap", "GET")).toBe("read");
+  expect(permissionMatrix.getApiActionForMethod("/api/platform-tenant-bootstrap", "GET")).toBeNull();
   expect(permissionMatrix.platformPermissionMatrixByModule["platform-identity"].routes).toEqual(
     expect.arrayContaining(["/api/platform-identity", "/api/platform-tenant-bootstrap"])
   );

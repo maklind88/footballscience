@@ -69,7 +69,9 @@ Use this order for finished work. Only push/deploy when the user asks for deploy
 3. Run validation:
    - `npm run check`
    - targeted Playwright/API tests for the touched area
+   - prefer `npm run qa:api` for API/data contract coverage instead of typing the full Playwright command
    - `npm run release:ship -- --mode fast` for routine deploy readiness
+   - `npm run release:gate` when you need the full preflight + safety + deploy QA gate before release work
    - `npm run qa:browser` for UI flows when the touched area needs browser proof
    - `npx playwright test --config=qa/playwright.config.mjs --project=api-contracts` for API/data changes
 4. Stage only intended files.
@@ -99,3 +101,4 @@ npm run deploy:safe
 - Do not use emergency overrides unless the user explicitly confirms an urgent hotfix.
 - Do not put secrets in source files. Vercel/GitHub/Supabase secrets stay in their respective dashboards.
 - After deployment, verify the live domain and protected backup endpoint through `npm run release:postdeploy`.
+- For recurring live health monitoring or manual postdeploy follow-up, use `npm run release:monitor`; it runs postdeploy verification, backup freshness/readiness checks, restore drill, and authenticated live smoke.

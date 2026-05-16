@@ -432,7 +432,11 @@ function getApiRouteSecurityConfig(route) {
 function getApiActionForMethod(route, method) {
   const config = getApiRouteSecurityConfig(route);
   const normalizedMethod = String(method || "GET").toUpperCase();
-  return normalizeAction(config?.actions?.[normalizedMethod] || actionForMethod(normalizedMethod));
+  if (config) {
+    const configuredAction = config.actions?.[normalizedMethod];
+    return configuredAction ? normalizeAction(configuredAction) : null;
+  }
+  return actionForMethod(normalizedMethod);
 }
 
 module.exports = {

@@ -9353,7 +9353,7 @@ function setScoutingProfileTab(tabId) {
   state.profileTab = nextTab;
   writeScoutingState({ syncCentral: false });
   if (ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]")) {
-    renderScoutingProfileModalIntoDom(state.selectedRecordId);
+    renderScoutingProfileModalIntoDom(state.selectedRecordId, { resetScroll: true });
   } else {
     renderScoutingWorkspace({ preserveFocus: true });
   }
@@ -9464,7 +9464,7 @@ function hydrateScoutingProfileOverviewPanel(recordId) {
   });
 }
 
-function renderScoutingProfileModalIntoDom(recordId) {
+function renderScoutingProfileModalIntoDom(recordId, options = {}) {
   const state = ensureScoutingState();
   const normalizedId = normalizeScoutingText(recordId, 160) || normalizeScoutingText(state.selectedRecordId, 160);
   if (!normalizedId) {
@@ -9475,7 +9475,8 @@ function renderScoutingProfileModalIntoDom(recordId) {
     return false;
   }
   const focusSnapshot = getScoutingFocusSnapshot();
-  const scrollSnapshot = getScoutingScrollSnapshot();
+  const scrollSnapshot = options.resetScroll ? null : getScoutingScrollSnapshot();
+  const disclosureSnapshot = getScoutingDisclosureSnapshot();
   state.selectedRecordId = normalizedId;
   const modalMarkup = renderScoutingProfileModal();
   if (!modalMarkup) {
@@ -9498,9 +9499,33 @@ function renderScoutingProfileModalIntoDom(recordId) {
     workspace.insertAdjacentHTML("beforeend", modalMarkup);
   }
   bindScoutingRecordMiniRadarShells();
+  restoreScoutingDisclosureSnapshot(disclosureSnapshot);
   restoreScoutingFocus(focusSnapshot);
-  restoreScoutingScrollSnapshot(scrollSnapshot);
+  if (options.resetScroll) {
+    resetScoutingProfileModalScroll();
+  } else {
+    restoreScoutingScrollSnapshot(scrollSnapshot);
+  }
   return true;
+}
+function resetScoutingProfileModalScroll() {
+  const applyReset = () => {
+    const backdrop = ui.scoutingWorkspace?.querySelector(".scouting-profile-backdrop");
+    const modal = ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]");
+    if (backdrop) {
+      backdrop.scrollTop = 0;
+      backdrop.scrollLeft = 0;
+    }
+    if (modal) {
+      modal.scrollTop = 0;
+      modal.scrollLeft = 0;
+    }
+  };
+  applyReset();
+  requestAnimationFrame(() => {
+    applyReset();
+    requestAnimationFrame(applyReset);
+  });
 }
 
 function renderScoutingProfileTabs(activeTab) {
@@ -10626,6 +10651,26 @@ function getScoutingScrollSnapshot() {
       .filter(Boolean),
   };
 }
+function getScoutingDisclosureSnapshot(root = ui.scoutingWorkspace) {
+  return Array.from(root?.querySelectorAll(".scouting-profile-action-menu") || [])
+    .map((element, index) => ({
+      selector: ".scouting-profile-action-menu",
+      index,
+      open: Boolean(element.open),
+    }))
+    .filter((item) => item.open);
+}
+function restoreScoutingDisclosureSnapshot(snapshot = []) {
+  for (const item of snapshot || []) {
+    if (!item?.open || !item.selector) {
+      continue;
+    }
+    const element = Array.from(ui.scoutingWorkspace?.querySelectorAll(item.selector) || [])[item.index || 0];
+    if (element) {
+      element.open = true;
+    }
+  }
+}
 function restoreScoutingScrollSnapshot(snapshot) {
   if (!snapshot) {
     return;
@@ -10645,6 +10690,13 @@ function restoreScoutingScrollSnapshot(snapshot) {
     applySnapshot();
     requestAnimationFrame(applySnapshot);
   });
+}
+function hasOpenScoutingOverlay(root = ui.scoutingWorkspace) {
+  return Boolean(
+    root?.querySelector(
+      ".scouting-profile-backdrop,[data-scouting-role-model-overlay],[data-scouting-report-builder-overlay],[data-scouting-saved-views-overlay]"
+    )
+  );
 }
 function isScoutingDatabaseAdvancedMode() {
   return Boolean(scoutingDatabaseAdvancedMode);
@@ -12937,10 +12989,14 @@ function renderScoutingProfileModal() {
         <div class="scouting-profile-tabs-row">
           ${renderScoutingProfileTabs(activeProfileTab)}
           <div class="scouting-profile-tabs-actions">
-            <span class="scouting-profile-shadow-count" title="${escapeHtml(shadowRoles.length ? shadowRoles.map((slot) => slot.label).join(", ") : "Not in Shadow XI")}">
-              <strong data-scouting-profile-role-stack>${escapeHtml(String(shadowRoles.length))}</strong>
-              <em data-scouting-profile-role-stack-label>${escapeHtml(shadowRoles.length ? "Shadow XI" : "Not added")}</em>
-            </span>
+            ${
+              shadowRoles.length
+                ? `<span class="scouting-profile-shadow-count" title="${escapeHtml(shadowRoles.map((slot) => slot.label).join(", "))}">
+                    <strong data-scouting-profile-role-stack>${escapeHtml(String(shadowRoles.length))}</strong>
+                    <em data-scouting-profile-role-stack-label>Shadow XI</em>
+                  </span>`
+                : `<span class="scouting-sr-only" data-scouting-profile-role-stack>0</span>`
+            }
             <details class="scouting-profile-action-menu">
               <summary>Player actions</summary>
               <div class="scouting-profile-action-menu-panel">
@@ -13046,8 +13102,10 @@ function renderScoutingWorkspace(options = {}) {
   if (!ui.scoutingWorkspace) {
     return;
   }
-  const focusSnapshot = options.preserveFocus ? getScoutingFocusSnapshot() : null;
-  const scrollSnapshot = options.preserveFocus ? getScoutingScrollSnapshot() : null;
+  const preserveOverlayState = options.preserveFocus || hasOpenScoutingOverlay();
+  const focusSnapshot = preserveOverlayState ? getScoutingFocusSnapshot() : null;
+  const scrollSnapshot = preserveOverlayState ? getScoutingScrollSnapshot() : null;
+  const disclosureSnapshot = getScoutingDisclosureSnapshot();
   const state = ensureScoutingState();
   if (!scoutingTabs.some((tab) => tab.id === state.activeTab)) {
     state.activeTab = "shadow-xi";
@@ -13081,6 +13139,7 @@ function renderScoutingWorkspace(options = {}) {
     ${renderScoutingRoleModelsOverlay()}
     ${renderScoutingSavedViewsOverlay()}
   `;
+  restoreScoutingDisclosureSnapshot(disclosureSnapshot);
   restoreScoutingFocus(focusSnapshot);
   bindScoutingDragAndDrop();
   if (state.activeTab === "database") {
@@ -13178,10 +13237,11 @@ function rerenderScoutingActiveContent(options = {}) {
   if (!content) {
     return false;
   }
-  const focusSnapshot = options.preserveFocus ? getScoutingFocusSnapshot() : null;
-  const scrollSnapshot = options.preserveFocus ? getScoutingScrollSnapshot() : null;
+  const preserveOverlayState = options.preserveFocus || hasOpenScoutingOverlay();
+  const focusSnapshot = preserveOverlayState ? getScoutingFocusSnapshot() : null;
+  const scrollSnapshot = preserveOverlayState ? getScoutingScrollSnapshot() : null;
   content.innerHTML = renderScoutingActiveContent();
-  if (options.preserveFocus) {
+  if (preserveOverlayState) {
     restoreScoutingFocus(focusSnapshot);
   }
   bindScoutingDragAndDrop();
@@ -13210,8 +13270,9 @@ function renderScoutingAnalysisRoomWorkspace(options = {}) {
   if (!isScoutingDatabaseLoaded()) {
     queueScoutingDatabaseLoad(renderScoutingAnalysisRoomWorkspace);
   }
-  const focusSnapshot = options.preserveFocus ? getScoutingFocusSnapshot() : null;
-  const scrollSnapshot = options.preserveFocus ? getScoutingScrollSnapshot() : null;
+  const preserveOverlayState = options.preserveFocus || hasOpenScoutingOverlay();
+  const focusSnapshot = preserveOverlayState ? getScoutingFocusSnapshot() : null;
+  const scrollSnapshot = preserveOverlayState ? getScoutingScrollSnapshot() : null;
   const database = getScoutingDatabase();
   const playerCount = getScoutingDatabaseTotalCount(database);
   const sheetCount = database?.sheets?.length || 0;

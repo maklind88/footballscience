@@ -492,8 +492,7 @@
   min-width: 0;
 }
 
-.medical-row-select-button,
-.medical-row-open-button {
+.medical-row-select-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -520,10 +519,6 @@
   border-color: rgba(0, 113, 227, 0.32);
   background: rgba(226, 241, 255, 0.96);
   color: #0755a0;
-}
-
-.medical-row-open-button {
-  color: #62706a;
 }
 
 .medical-row-comment {
@@ -991,8 +986,7 @@ body.is-dark-mode .medical-position-group-head p,
 body.is-dark-mode .medical-roster-list-head,
 body.is-dark-mode .medical-roster-player-meta,
 body.is-dark-mode .medical-roster-current-cell small,
-body.is-dark-mode .medical-row-comment,
-body.is-dark-mode .medical-row-open-button {
+body.is-dark-mode .medical-row-comment {
   color: var(--dark-muted);
 }
 
@@ -1012,7 +1006,6 @@ body.is-dark-mode .medical-roster-row.is-bulk-selected {
 
 body.is-dark-mode .medical-quick-rec-button,
 body.is-dark-mode .medical-row-select-button,
-body.is-dark-mode .medical-row-open-button,
 body.is-dark-mode .medical-row-comment {
   border-color: rgba(203, 213, 225, 0.18);
   background: rgba(255, 255, 255, 0.07);

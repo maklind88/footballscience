@@ -29286,7 +29286,6 @@ data-medical-bulk-toggle="${escapeHtml(player.id)}"
 aria-pressed="${isBulkSelected ? "true" : "false"}"
 ${canEditMedicalTeam() && activityContext.isRecommendable ? "" : "disabled"}
 >${selectedLabel}</button>
-<span class="medical-row-open-button">${canEditMedicalTeam() ? "Open" : "View"}</span>
 </div>
 ${latestComment ? `<p class="medical-row-comment">${escapeHtml(latestComment)}</p>` : ""}
 </article>
@@ -29310,7 +29309,7 @@ return `
 <span>Status</span>
 <span>7 days</span>
 <span>${escapeHtml(activityContext.quickLabel)}</span>
-<span>Action</span>
+<span>Select</span>
 </div>
 ${group.players.map(renderMedicalRosterRow).join("")}
 </div>

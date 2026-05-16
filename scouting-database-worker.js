@@ -163,13 +163,18 @@ function buildOptions(records = []) {
     return optionCache;
   }
   const leagues = new Set();
+  const teams = new Set();
   const seasons = new Set();
   const positions = new Set();
   records.forEach((record) => {
     const league = getRecordLeague(record);
+    const team = getRecordTeam(record);
     const season = getRecordSeason(record);
     if (league) {
       leagues.add(league);
+    }
+    if (team) {
+      teams.add(team);
     }
     if (season) {
       seasons.add(season);
@@ -178,6 +183,7 @@ function buildOptions(records = []) {
   });
   optionCache = {
     leagues: [...leagues].sort((a, b) => a.localeCompare(b)),
+    teams: [...teams].sort((a, b) => a.localeCompare(b)),
     seasons: [...seasons].sort((a, b) => String(b).localeCompare(String(a))),
     positions: [...positions].sort((a, b) => a.localeCompare(b)),
   };
@@ -210,6 +216,7 @@ function normalizeQuery(query = {}) {
   return {
     query: normalizeText(query.query, 120).toLowerCase(),
     league: normalizeLeague(query.league || "all") || "all",
+    team: normalizeText(query.team || "all", 160) || "all",
     season: normalizeText(query.season || "all", 80) || "all",
     position: normalizeText(query.position || "all", 80).toUpperCase() || "ALL",
     minMinutes: Math.max(0, Math.round(normalizeNumber(query.minMinutes, 0))),
@@ -224,6 +231,9 @@ function normalizeQuery(query = {}) {
 
 function recordMatchesQuery(record, query) {
   if (query.league && query.league !== "all" && getRecordLeague(record) !== query.league) {
+    return false;
+  }
+  if (query.team && query.team !== "all" && getRecordTeam(record) !== query.team) {
     return false;
   }
   if (query.season && query.season !== "all" && getRecordSeason(record) !== query.season) {
@@ -285,6 +295,7 @@ function getFilteredRecordCacheKey(query) {
   return [
     query.query,
     query.league,
+    query.team,
     query.season,
     query.position,
     query.minMinutes,

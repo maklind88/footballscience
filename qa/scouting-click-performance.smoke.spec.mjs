@@ -368,6 +368,9 @@ test("Scouting critical clicks stay within interaction budgets", async ({ page }
     }
   );
 
+  const playerActionsSummary = profileModal.locator(".scouting-profile-action-menu > summary").first();
+  await expect(playerActionsSummary).toBeVisible({ timeout: 15_000 });
+  await playerActionsSummary.click();
   const addToShadowButton = profileModal.locator("[data-add-scouting-record-to-shadow]").first();
   const roleStack = profileModal.locator("[data-scouting-profile-role-stack]").first();
   const roleCountBefore = Number((await roleStack.innerText()).trim()) || 0;

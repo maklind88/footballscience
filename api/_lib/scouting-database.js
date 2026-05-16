@@ -551,6 +551,7 @@ function addSeasonFilters(params, query = {}) {
   params.set("status", "eq.active");
   params.set("deleted_at", "is.null");
   const league = normalizeScoutingLeague(query.league);
+  const team = normalizeString(query.team, 180);
   const season = normalizeString(query.season, 80);
   const position = normalizeString(query.position, 80).toUpperCase();
   const minMinutes = normalizeNumber(query.minMinutes, null);
@@ -567,6 +568,9 @@ function addSeasonFilters(params, query = {}) {
   }
   if (season && season !== "all") {
     params.set("season_label", `eq.${season}`);
+  }
+  if (team && team !== "all") {
+    params.set("team_name", `eq.${team}`);
   }
   if (position && position !== "ALL") {
     params.set("position_text", `ilike.*${position}*`);
@@ -622,18 +626,22 @@ async function fetchSeasonRows(query = {}) {
 
 function buildOptionsFromRows(rows = []) {
   const leagues = new Set();
+  const teams = new Set();
   const seasons = new Set();
   const positions = new Set();
   rows.forEach((row) => {
     const league = normalizeScoutingLeague(row.league_name);
+    const team = normalizeString(row.team_name, 180);
     const season = normalizeString(row.season_label, 80);
     const position = normalizeString(row.position_text, 120).toUpperCase();
     if (league) leagues.add(league);
+    if (team) teams.add(team);
     if (season) seasons.add(season);
     position.split(/[^A-Z0-9]+/).filter(Boolean).forEach((token) => positions.add(token));
   });
   return {
     leagues: [...leagues].sort((a, b) => a.localeCompare(b)),
+    teams: [...teams].sort((a, b) => a.localeCompare(b)),
     seasons: [...seasons].sort((a, b) => String(b).localeCompare(String(a))),
     positions: [...positions].sort((a, b) => a.localeCompare(b)),
   };
@@ -645,7 +653,7 @@ async function fetchDatabaseFilterOptions() {
     return scoutingFilterOptionsCache.options;
   }
   const params = new URLSearchParams({
-    select: "league_name,season_label,position_text",
+    select: "league_name,team_name,season_label,position_text",
     status: "eq.active",
     deleted_at: "is.null",
     order: "league_name.asc,season_label.desc,position_text.asc",

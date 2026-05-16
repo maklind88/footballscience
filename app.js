@@ -1395,6 +1395,8 @@ const scoutingPriorityOptions = [
 { value: "urgent", label: "Urgent" },
 ];
 const defaultScoutingState = {
+contactLog: [],
+savedViews: [],
 activeTab: "shadow-xi",
 databaseFilters: {
 query: "",
@@ -6193,6 +6195,18 @@ playerIds: [normalizedPlayerIds[0] || "", normalizedPlayerIds[1] || "", normaliz
 metricId: normalizeScoutingText(value.metricId, 120) || "minutes",
 };
 }
+function cloneScoutingSavedViewState(view = {}) {
+const name = normalizeScoutingText(view.name, 120);
+if (!name) {
+return null;
+}
+return {
+id: normalizeScoutingText(view.id, 120) || `scouting-saved-view-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+name,
+filters: view.filters && typeof view.filters === "object" ? { ...view.filters } : {},
+createdAt: normalizeScoutingText(view.createdAt, 40) || new Date().toISOString(),
+};
+}
 function cloneScoutingState(source = defaultScoutingState) {
 const activeTab = scoutingTabs.some((tab) => tab.id === source.activeTab) ? source.activeTab : "shadow-xi";
 const lists = Array.isArray(source.lists)
@@ -6237,6 +6251,24 @@ slots: normalizeScoutingMyTeamSlots(sourceMyTeam.slots, slotIds),
 selectedRecordId: normalizeScoutingText(source.selectedRecordId, 160),
 reports: Array.isArray(source.reports)
 ? source.reports.map(cloneScoutingReport).filter((report) => report.title || report.summary)
+: [],
+savedViews: Array.isArray(source.savedViews)
+? source.savedViews.map(cloneScoutingSavedViewState).filter(Boolean)
+: [],
+contactLog: Array.isArray(source.contactLog)
+? source.contactLog
+.map((entry) => ({
+id: normalizeScoutingText(entry?.id, 120),
+recordId: normalizeScoutingText(entry?.recordId, 160),
+date: normalizeScoutingText(entry?.date, 40),
+type: normalizeScoutingText(entry?.type, 40),
+contact: normalizeScoutingText(entry?.contact, 120),
+outcome: normalizeScoutingText(entry?.outcome, 160),
+nextStep: normalizeScoutingText(entry?.nextStep, 180),
+notes: normalizeScoutingText(entry?.notes, 700),
+createdAt: normalizeScoutingText(entry?.createdAt, 40),
+}))
+.filter((entry) => entry.recordId)
 : [],
 comparisonLab: normalizeScoutingComparisonLab(source.comparisonLab),
 };

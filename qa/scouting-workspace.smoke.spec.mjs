@@ -243,6 +243,9 @@ test("Scouting profile favorite and Shadow XI actions stay stable", async ({ pag
     await expect(favoriteButton).toContainText("Favorited");
   }
 
+  const playerActionsSummary = profileModal.locator(".scouting-profile-action-menu > summary").first();
+  await expect(playerActionsSummary).toBeVisible({ timeout: 15_000 });
+  await playerActionsSummary.click();
   const addToShadowButton = profileModal.locator("[data-add-scouting-record-to-shadow]").first();
   const roleStack = profileModal.locator("[data-scouting-profile-role-stack]").first();
   await expect(addToShadowButton).toBeEnabled({ timeout: 15_000 });
@@ -277,7 +280,10 @@ test("Scouting compare set hydrates saved players outside the current worker pag
   });
   await prepareScoutingDatabase(page);
 
-  const modeToggle = page.locator("[data-toggle-scouting-database-mode]").first();
+  const advancedFiltersToggle = page.locator("[data-toggle-scouting-advanced-filters]").first();
+  await expect(advancedFiltersToggle).toBeEnabled({ timeout: 15_000 });
+  await advancedFiltersToggle.click();
+  const modeToggle = page.locator(".scouting-database-advanced-filters [data-toggle-scouting-database-mode]").first();
   await expect(modeToggle).toBeEnabled({ timeout: 15_000 });
   await modeToggle.click();
   await expect(page.locator(".scouting-compare-set").first()).toContainText(offPageRecord.name, { timeout: 30_000 });

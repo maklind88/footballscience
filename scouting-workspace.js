@@ -29,6 +29,7 @@ let scoutingRoleModelBuilderOpen = false;
 let scoutingRoleModelEditId = "";
 let scoutingSavedViewsOpen = false;
 let scoutingSavedViewNameDraft = "";
+let scoutingSettingsPanel = "";
 let scoutingLeagueQualityCache = new Map();
 let scoutingRecordMiniRadarCache = new Map();
 let scoutingFilteredDatabaseCache = {
@@ -616,6 +617,9 @@ function normalizeScoutingPlayerSnapshot(snapshot = {}) {
     position: normalizeScoutingText(snapshot.position, 120),
     age: normalizeScoutingText(snapshot.age, 20),
     minutes: normalizeScoutingText(snapshot.minutes, 24),
+    birthCountry: normalizeScoutingText(snapshot.birthCountry, 120),
+    passportCountry: normalizeScoutingText(snapshot.passportCountry || snapshot.nationality, 120),
+    imageUrl: normalizeScoutingText(snapshot.imageUrl, 300),
     league: normalizeScoutingText(snapshot.league, 180),
     season: normalizeScoutingText(snapshot.season, 80),
     fit: normalizeScoutingText(snapshot.fit, 40),
@@ -652,6 +656,9 @@ function createScoutingPlayerSnapshot(record, options = {}) {
     position: getScoutingRecordPosition(record),
     age: String(getScoutingRecordAge(record) || ""),
     minutes: String(getScoutingRecordMinutes(record) || ""),
+    birthCountry: normalizeScoutingText(record?.[scoutingRecordIndex.birthCountry], 120),
+    passportCountry: normalizeScoutingText(record?.[scoutingRecordIndex.passportCountry], 120),
+    imageUrl: getScoutingRecordImageUrl(record),
     league: getScoutingRecordLeague(record),
     season: getScoutingRecordSeason(record),
     fit: Number.isFinite(roleFit) ? `P${roleFit}` : "",
@@ -698,6 +705,9 @@ function getScoutingSnapshotFallbackRecord(recordId, state = null) {
   record[scoutingRecordIndex.age] = snapshot.age || "";
   record[scoutingRecordIndex.matches] = "";
   record[scoutingRecordIndex.minutes] = snapshot.minutes || 0;
+  record[scoutingRecordIndex.birthCountry] = snapshot.birthCountry || "";
+  record[scoutingRecordIndex.passportCountry] = snapshot.passportCountry || "";
+  record[scoutingRecordIndex.imageUrl] = snapshot.imageUrl || "";
   record[scoutingRecordIndex.metrics] = {};
   return record;
 }
@@ -2210,8 +2220,8 @@ function getScoutingMyTeamState(state = ensureScoutingState()) {
                 return [
                   normalizedSlotId,
                   {
-                    x: Math.max(6, Math.min(94, Math.round(x * 10) / 10)),
-                    y: Math.max(6, Math.min(94, Math.round(y * 10) / 10)),
+                    x: normalizeScoutingMyTeamPitchCoordinate(x),
+                    y: normalizeScoutingMyTeamPitchCoordinate(y),
                   },
                 ];
               })
@@ -2336,6 +2346,32 @@ function getScoutingMyTeamSlotPitchPosition(slot, formation = "4-3-3") {
   };
   const coordinates = layouts[normalizedFormation]?.[role] || [Number(slot?.x) || 50, Number(slot?.y) || 50];
   return { x: coordinates[0], y: coordinates[1] };
+}
+function normalizeScoutingMyTeamPitchCoordinate(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return null;
+  }
+  return Math.max(4, Math.min(96, Math.round(number * 100) / 100));
+}
+function getScoutingMyTeamPointerPitchPosition(event, pitchElement) {
+  const rect = pitchElement?.getBoundingClientRect?.();
+  if (!rect?.width || !rect?.height) {
+    return null;
+  }
+  const x = normalizeScoutingMyTeamPitchCoordinate(((event.clientX - rect.left) / rect.width) * 100);
+  const y = normalizeScoutingMyTeamPitchCoordinate(((event.clientY - rect.top) / rect.height) * 100);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+  return { x, y };
+}
+function previewScoutingMyTeamSlotPitchPosition(slotElement, coordinates) {
+  if (!slotElement || !coordinates) {
+    return;
+  }
+  slotElement.style.setProperty("--x", `${coordinates.x}%`);
+  slotElement.style.setProperty("--y", `${coordinates.y}%`);
 }
 function getScoutingMyTeamAssignedIds(state = ensureScoutingState()) {
   return new Set(Object.values(getScoutingMyTeamState(state).slots).flatMap(normalizeScoutingMyTeamSlotPlayerIds).filter(Boolean));
@@ -2567,8 +2603,8 @@ function setScoutingMyTeamSlotPitchPosition(slotId = "", xValue, yValue) {
   const state = ensureScoutingState();
   const myTeam = getScoutingMyTeamState(state);
   const formation = normalizeScoutingFormation(myTeam.formation);
-  const x = Math.max(6, Math.min(94, Math.round(Number(xValue) * 10) / 10));
-  const y = Math.max(6, Math.min(94, Math.round(Number(yValue) * 10) / 10));
+  const x = normalizeScoutingMyTeamPitchCoordinate(xValue);
+  const y = normalizeScoutingMyTeamPitchCoordinate(yValue);
   if (!Number.isFinite(x) || !Number.isFinite(y)) {
     return;
   }
@@ -6615,7 +6651,7 @@ function getScoutingShadowSlotRecordIds(slotId, state = ensureScoutingState()) {
 }
 function getScoutingShadowSlotRecords(slotId, state = ensureScoutingState()) {
   return getScoutingShadowSlotRecordIds(slotId, state)
-    .map((recordId) => getScoutingRecordById(recordId) || getScoutingShadowFallbackRecord(slotId, recordId, state))
+    .map((recordId) => getScoutingRecordById(recordId) || getScoutingSnapshotFallbackRecord(recordId, state) || getScoutingShadowFallbackRecord(slotId, recordId, state))
     .filter(Boolean);
 }
 function getScoutingStoredPlayerRecord(recordId, state = ensureScoutingState()) {
@@ -6623,7 +6659,9 @@ function getScoutingStoredPlayerRecord(recordId, state = ensureScoutingState()) 
   if (!id) {
     return null;
   }
-  const record = getScoutingRecordById(id) || getScoutingSnapshotFallbackRecord(id, state);
+  const shadowSlotId = Object.keys(state?.shadowXi?.slots || {}).find((slotId) => getScoutingShadowSlotRecordIds(slotId, state).includes(id));
+  const shadowFallback = shadowSlotId ? getScoutingShadowFallbackRecord(shadowSlotId, id, state) : null;
+  const record = getScoutingRecordById(id) || getScoutingSnapshotFallbackRecord(id, state) || shadowFallback;
   if (record) {
     return record;
   }
@@ -6675,7 +6713,7 @@ function getScoutingShadowFallbackRecord(slotId, recordId, state = ensureScoutin
   const meta = getScoutingShadowRecordMeta(slotId, id, state);
   const record = [];
   record[scoutingRecordIndex.id] = id;
-  record[scoutingRecordIndex.player] = meta.playerName || "Shortlisted player";
+  record[scoutingRecordIndex.player] = meta.playerName || "Saved target";
   record[scoutingRecordIndex.team] = meta.team || "";
   record[scoutingRecordIndex.teamWithinTimeframe] = meta.team || "";
   record[scoutingRecordIndex.league] = meta.league || "";
@@ -6840,6 +6878,62 @@ function bindScoutingDragAndDrop() {
   }
   scoutingDragAndDropDelegatesBound = true;
   scoutingDragAndDropDelegateRoot = root;
+  let myTeamSlotPositionDrag = null;
+  const finishMyTeamSlotPositionDrag = (event, cancel = false) => {
+    if (!myTeamSlotPositionDrag || event.pointerId !== myTeamSlotPositionDrag.pointerId) {
+      return;
+    }
+    const drag = myTeamSlotPositionDrag;
+    myTeamSlotPositionDrag = null;
+    drag.slotElement?.classList.remove("is-position-dragging");
+    try {
+      drag.handle?.releasePointerCapture?.(event.pointerId);
+    } catch {
+      // Pointer capture can already be released by the browser.
+    }
+    if (!cancel && drag.lastPosition) {
+      setScoutingMyTeamSlotPitchPosition(drag.slotId, drag.lastPosition.x, drag.lastPosition.y);
+    }
+  };
+  root.addEventListener("pointerdown", (event) => {
+    const myTeamSlotHandle = event.target.closest("[data-scouting-drag-my-team-slot]");
+    if (!myTeamSlotHandle || !root.contains(myTeamSlotHandle) || !canEditScoutingWorkspace()) {
+      return;
+    }
+    const slotElement = myTeamSlotHandle.closest(".scouting-my-team-slot");
+    const pitchElement = myTeamSlotHandle.closest(".scouting-my-team-pitch");
+    const position = getScoutingMyTeamPointerPitchPosition(event, pitchElement);
+    if (!slotElement || !pitchElement || !position) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    myTeamSlotPositionDrag = {
+      pointerId: event.pointerId,
+      slotId: myTeamSlotHandle.dataset.scoutingDragMyTeamSlot,
+      handle: myTeamSlotHandle,
+      slotElement,
+      pitchElement,
+      lastPosition: position,
+    };
+    slotElement.classList.add("is-position-dragging");
+    previewScoutingMyTeamSlotPitchPosition(slotElement, position);
+    myTeamSlotHandle.setPointerCapture?.(event.pointerId);
+  });
+  root.addEventListener("pointermove", (event) => {
+    if (!myTeamSlotPositionDrag || event.pointerId !== myTeamSlotPositionDrag.pointerId) {
+      return;
+    }
+    event.preventDefault();
+    const position = getScoutingMyTeamPointerPitchPosition(event, myTeamSlotPositionDrag.pitchElement);
+    if (!position) {
+      return;
+    }
+    myTeamSlotPositionDrag.lastPosition = position;
+    previewScoutingMyTeamSlotPitchPosition(myTeamSlotPositionDrag.slotElement, position);
+  });
+  root.addEventListener("pointerup", (event) => finishMyTeamSlotPositionDrag(event));
+  root.addEventListener("pointercancel", (event) => finishMyTeamSlotPositionDrag(event, true));
   root.addEventListener("dragstart", (event) => {
     const myTeamSlotHandle = event.target.closest("[data-scouting-drag-my-team-slot]");
     if (myTeamSlotHandle && root.contains(myTeamSlotHandle)) {
@@ -10663,6 +10757,8 @@ function getScoutingScrollSnapshot() {
     ".scouting-report-builder-card.is-overlay",
     "[data-scouting-saved-views-overlay]",
     ".scouting-saved-views-modal",
+    "[data-scouting-settings-overlay]",
+    ".scouting-settings-modal",
     "[data-scouting-active-content]",
   ];
   return {
@@ -10719,7 +10815,7 @@ function restoreScoutingScrollSnapshot(snapshot) {
 function hasOpenScoutingOverlay(root = ui.scoutingWorkspace) {
   return Boolean(
     root?.querySelector(
-      ".scouting-profile-backdrop,[data-scouting-role-model-overlay],[data-scouting-report-builder-overlay],[data-scouting-saved-views-overlay]"
+      ".scouting-profile-backdrop,[data-scouting-role-model-overlay],[data-scouting-report-builder-overlay],[data-scouting-saved-views-overlay],[data-scouting-settings-overlay]"
     )
   );
 }
@@ -11254,24 +11350,82 @@ function renderScoutingSettingsMenu() {
     <details class="scouting-settings-menu">
       <summary aria-label="Open scouting settings" title="Scouting settings">⚙</summary>
       <div class="scouting-settings-panel">
-        <strong>Scouting settings</strong>
-        <p>Database import and admin tools.</p>
-        <details class="scouting-datasource-settings" data-scouting-datasource-settings>
-          <summary data-scouting-datasource-toggle>
-            <span>Update datasource</span>
-            <small>Uploads, import history and data foundation</small>
-          </summary>
-          <div class="scouting-datasource-settings-body" data-scouting-settings-data-tools>
-            <div class="scouting-datasource-actions">
-              ${renderScoutingImportLaunch({ label: "Upload new datasource" })}
-            </div>
-            ${renderScoutingDataQualityPanel()}
-            ${renderScoutingImportHistoryPanel()}
-            ${renderScoutingImportPanel()}
-          </div>
-        </details>
+        <div class="scouting-settings-panel-head">
+          <span>Scouting settings</span>
+          <strong>Control centre</strong>
+          <p>Choose the area you want to manage.</p>
+        </div>
+        <div class="scouting-settings-option-grid">
+          <button type="button" class="scouting-settings-option" data-open-scouting-settings-panel="datasource">
+            <span>Datasource & imports</span>
+            <strong>Update scouting player database</strong>
+            <small>Upload files, review import history and inspect data foundation.</small>
+          </button>
+          <button type="button" class="scouting-settings-option" data-open-scouting-role-models>
+            <span>Role models</span>
+            <strong>Manage search blueprints</strong>
+            <small>Edit the baselines used for My Team and scouting recommendations.</small>
+          </button>
+          <button type="button" class="scouting-settings-option" data-open-scouting-saved-views>
+            <span>Database views</span>
+            <strong>Saved filters</strong>
+            <small>Open saved searches and reusable scouting database views.</small>
+          </button>
+        </div>
       </div>
     </details>
+  `;
+}
+function openScoutingSettingsPanel(panelId) {
+  const id = normalizeScoutingText(panelId, 80);
+  if (!canEditScoutingWorkspace() || id !== "datasource") {
+    return;
+  }
+  scoutingSettingsPanel = id;
+  loadScoutingImportHistory();
+  renderScoutingWorkspace({ preserveFocus: true });
+}
+function closeScoutingSettingsPanel() {
+  scoutingSettingsPanel = "";
+  renderScoutingWorkspace({ preserveFocus: true });
+}
+function renderScoutingSettingsOverlay() {
+  if (!scoutingSettingsPanel || !canEditScoutingWorkspace()) {
+    return "";
+  }
+  if (scoutingSettingsPanel !== "datasource") {
+    return "";
+  }
+  return `
+    <div class="scouting-settings-overlay" data-scouting-settings-overlay role="dialog" aria-modal="true" aria-label="Datasource and imports">
+      <section class="scouting-settings-modal" data-scouting-settings-data-tools>
+        <header class="scouting-settings-modal-head">
+          <div>
+            <p class="placeholder-tag">Settings</p>
+            <h2>Datasource & imports</h2>
+            <p>Manage uploads, import history and the scouting player database foundation from one clean workspace.</p>
+          </div>
+          <button type="button" class="scouting-report-builder-close" data-close-scouting-settings-panel aria-label="Close scouting settings">Close</button>
+        </header>
+        <div class="scouting-settings-modal-grid">
+          <section class="scouting-settings-modal-card scouting-settings-upload-card">
+            <div>
+              <p class="placeholder-tag">Update</p>
+              <h3>Upload datasource</h3>
+              <p>Add a new scouting player database file, preview changes and commit only when the import looks right.</p>
+            </div>
+            ${renderScoutingImportLaunch({ label: "Upload datasource" })}
+          </section>
+          <div class="scouting-settings-foundation">
+            ${renderScoutingDataQualityPanel()}
+            ${renderScoutingImportHistoryPanel()}
+          </div>
+          <div class="scouting-settings-import-workspace">
+            ${renderScoutingImportPanel()}
+          </div>
+        </div>
+      </section>
+    </div>
   `;
 }
 function openScoutingSavedViews() {
@@ -11687,7 +11841,7 @@ function renderScoutingShadowXi() {
                                   data-scouting-shadow-drop-slot="${escapeHtml(slot.id)}"
                                   data-scouting-shadow-drop-before="${escapeHtml(recordId)}"
                                 >
-                                  ${renderScoutingRecordAvatar(record)}
+                                  ${renderScoutingShadowPlayerProfileButton(record, recordId)}
                                   <div class="scouting-shadow-player-copy">
                                     <button
                                       type="button"
@@ -11698,12 +11852,8 @@ function renderScoutingShadowXi() {
                                     </button>
                                     <span>${escapeHtml(getScoutingRecordTeam(record) || getScoutingRecordLeague(record))}</span>
                                   </div>
+                                  ${renderScoutingShadowPlayerMenu(record, slot, recordId)}
                                 </article>
-                                ${
-                                  canEdit
-                                    ? `<button type="button" class="scouting-shadow-remove" data-remove-scouting-shadow-slot="${escapeHtml(slot.id)}" data-remove-scouting-shadow-record="${escapeHtml(recordId)}" aria-label="Remove ${escapeHtml(getScoutingRecordName(record))} from ${escapeHtml(slot.label)}">x</button>`
-                                    : ""
-                                }
                               </div>
                             `;
                           })
@@ -11793,7 +11943,7 @@ function renderScoutingMyTeam() {
             const slotPlayers = slotPlayerIds.map((playerId) => getScoutingMyTeamPlayerById(playerId, players)).filter(Boolean);
             return `
               <article class="scouting-shadow-slot scouting-my-team-slot${slotPlayers.length ? " is-filled" : ""}${scoutingMyTeamSelectedPlayerId ? " is-ready-to-drop" : ""}" style="--x:${pitchPosition.x}%;--y:${pitchPosition.y}%;" data-my-team-slot-role="${escapeHtml(slot.id)}" data-scouting-my-team-drop-slot="${escapeHtml(slot.id)}" data-assign-scouting-my-team-slot="${escapeHtml(slot.id)}">
-                <span class="scouting-my-team-slot-pin" draggable="${canEdit ? "true" : "false"}" data-scouting-drag-my-team-slot="${escapeHtml(slot.id)}" aria-label="Move ${escapeHtml(slot.label)} position"></span>
+                <span class="scouting-my-team-slot-pin" draggable="false" data-scouting-drag-my-team-slot="${escapeHtml(slot.id)}" aria-label="Move ${escapeHtml(slot.label)} position"></span>
                 ${
                   slotPlayers.length
                     ? `
@@ -11997,7 +12147,10 @@ function renderScoutingTargetsPanel() {
   });
   return `
     <section class="scouting-target-board">
-      <h2>Funnel</h2>
+      <div class="scouting-target-board-title">
+        <h2>Funnel</h2>
+        <button type="button" class="scouting-secondary-button" data-collapse-scouting-reports-panel="targets">Göm</button>
+      </div>
       <div class="scouting-target-board-columns">
         ${statusMap
           .map(
@@ -12377,7 +12530,9 @@ function renderScoutingRoleModelMetricRows(metricOptions, activeModel = null) {
             <option value="2" ${weight === 2 ? "selected" : ""}>Support x2</option>
             <option value="1" ${weight === 1 ? "selected" : ""}>Tie-breaker x1</option>
           </select>
-          <button type="button" data-remove-role-model-metric="${escapeHtml(metric.id)}" aria-label="Remove ${escapeHtml(metric.label)}">Remove</button>
+          <button type="button" class="scouting-role-metric-remove" data-remove-role-model-metric="${escapeHtml(metric.id)}" aria-label="Remove ${escapeHtml(metric.label)}">
+            <span aria-hidden="true">🗑</span>
+          </button>
         </div>
       `;
     })
@@ -12390,7 +12545,16 @@ function setScoutingRoleModelMetricRowSelected(row, selected = true) {
   }
   checkbox.checked = Boolean(selected);
   row.classList.toggle("is-selected", Boolean(selected));
+  updateScoutingRoleModelMetricSelectedCount(row.closest("[data-scouting-role-model-form]"));
   return true;
+}
+function updateScoutingRoleModelMetricSelectedCount(form) {
+  const counter = form?.querySelector("[data-scouting-role-model-metric-selected-count]");
+  if (!counter) {
+    return;
+  }
+  const selectedCount = form.querySelectorAll("[data-role-model-metric-checkbox]:checked").length;
+  counter.textContent = `${selectedCount} selected`;
 }
 function addScoutingRoleModelMetricFromPicker(form) {
   const searchInput = form?.querySelector("[data-scouting-role-model-metric-search]");
@@ -12431,7 +12595,7 @@ function renderScoutingRoleModelMetricPicker(metricOptions, activeModel = null) 
       <datalist id="scouting-role-model-metric-options">
         ${metricOptions.map((metric) => `<option value="${escapeHtml(metric.label)}">${escapeHtml(metric.group || metric.id)}</option>`).join("")}
       </datalist>
-      <span>${escapeHtml(metricOptions.length)} metrics available · ${escapeHtml(selectedIds.size)} selected</span>
+      <span>${escapeHtml(metricOptions.length)} metrics available · <strong data-scouting-role-model-metric-selected-count>${escapeHtml(selectedIds.size)} selected</strong></span>
     </div>
   `;
 }
@@ -12554,8 +12718,6 @@ function renderScoutingRoleModelsOverlay() {
             <p>Build the baseline that grades your own squad and ranks new players against the same position profile.</p>
           </div>
           <div class="scouting-role-model-toolbar">
-            <span>${escapeHtml(metricOptions.length)} available metrics</span>
-            ${canEdit ? `<button type="button" class="scouting-secondary-button" data-new-scouting-role-model>New model</button>` : ""}
             <button type="button" class="scouting-report-builder-close" data-close-scouting-role-models aria-label="Close role models">Close</button>
           </div>
         </div>
@@ -12799,6 +12961,16 @@ function expandScoutingReportsPanel(panelId) {
     renderScoutingWorkspace({ preserveFocus: true });
   }
 }
+function collapseScoutingReportsPanel(panelId) {
+  const id = normalizeScoutingText(panelId, 80);
+  if (!scoutingReportsExpandedPanels.has(id)) {
+    return;
+  }
+  scoutingReportsExpandedPanels = new Set([...scoutingReportsExpandedPanels].filter((panel) => panel !== id));
+  if (!rerenderScoutingActiveContent({ preserveFocus: true })) {
+    renderScoutingWorkspace({ preserveFocus: true });
+  }
+}
 function renderScoutingReportsHub() {
   const state = ensureScoutingState();
   const renderSection = (label, renderer) => {
@@ -12814,9 +12986,6 @@ function renderScoutingReportsHub() {
     <div class="scouting-reports-shell">
       ${renderSection("reports.next-action", () => renderScoutingNextActionCenter(state, { includeRecommendations: false }))}
       ${renderSection("reports.panel", () => renderScoutingReportsPanel())}
-      ${renderSection("reports.comparison-lab", () =>
-        renderScoutingReportsLazyPanel("comparison-lab", "Comparison lab", "Player comparison", "Load comparison lab", renderScoutingComparisonLabPanel)
-      )}
       ${renderSection("reports.role-models", () => renderScoutingRoleModelsPanel())}
       ${renderSection("reports.targets", () =>
         renderScoutingReportsLazyPanel("targets", "Funnel", "Pipeline board", "Load funnel", renderScoutingTargetsPanel)
@@ -13002,9 +13171,32 @@ function renderScoutingFuturePanel(type) {
     </section>
   `;
 }
+function renderScoutingShadowPlayerProfileButton(record, recordId) {
+  return `
+    <button type="button" class="scouting-shadow-profile-trigger" data-open-scouting-record="${escapeHtml(recordId)}" aria-label="Open profile for ${escapeHtml(getScoutingRecordName(record))}">
+      ${renderScoutingRecordAvatar(record)}
+    </button>
+  `;
+}
+function renderScoutingShadowPlayerMenu(record, slot, recordId) {
+  if (!canEditScoutingWorkspace()) {
+    return "";
+  }
+  return `
+    <details class="scouting-shadow-player-menu">
+      <summary aria-label="More actions for ${escapeHtml(getScoutingRecordName(record))}">...</summary>
+      <div>
+        <button type="button" class="is-danger" data-remove-scouting-shadow-slot="${escapeHtml(slot.id)}" data-remove-scouting-shadow-record="${escapeHtml(recordId)}">
+          <span aria-hidden="true">🗑</span>
+          Remove
+        </button>
+      </div>
+    </details>
+  `;
+}
 function renderScoutingProfileModal() {
   const state = ensureScoutingState();
-  const record = getScoutingRecordById(state.selectedRecordId);
+  const record = getScoutingStoredPlayerRecord(state.selectedRecordId, state);
   if (!record) {
     return "";
   }
@@ -13168,6 +13360,9 @@ function renderScoutingActiveContent() {
   if (state.activeTab === "lists") {
     return isScoutingDatabaseLoaded() ? renderScoutingListsPanel() : renderScoutingDatabasePanel();
   }
+  if (state.activeTab === "comparison") {
+    return renderScoutingComparisonLabPanel();
+  }
   if (state.activeTab === "reports") {
     return renderScoutingReportsHub();
   }
@@ -13216,6 +13411,7 @@ function renderScoutingWorkspace(options = {}) {
     ${renderScoutingProfileModal()}
     ${renderScoutingRoleModelsOverlay()}
     ${renderScoutingSavedViewsOverlay()}
+    ${renderScoutingSettingsOverlay()}
   `;
   restoreScoutingDisclosureSnapshot(disclosureSnapshot);
   restoreScoutingFocus(focusSnapshot);
@@ -13299,7 +13495,7 @@ function refreshScoutingWorkspaceAfterShadowMutation(options = {}, recordId = ""
   if (hasProfileModal) {
     return;
   }
-  if (["database", "lists", "shadow-xi", "opposition", "reports"].includes(state.activeTab)) {
+  if (["database", "lists", "comparison", "shadow-xi", "opposition", "reports"].includes(state.activeTab)) {
     const updated = rerenderScoutingActiveContent({ preserveFocus });
     if (updated) {
       return;
@@ -14073,6 +14269,25 @@ export function handleClick(event, context) {
     }
     return;
   }
+  const openSettingsPanelTrigger = event.target.closest("[data-open-scouting-settings-panel]");
+  if (openSettingsPanelTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    openScoutingSettingsPanel(openSettingsPanelTrigger.dataset.openScoutingSettingsPanel);
+    return;
+  }
+  const closeSettingsPanelTrigger = event.target.closest("[data-close-scouting-settings-panel]");
+  if (closeSettingsPanelTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    closeScoutingSettingsPanel();
+    return;
+  }
+  const settingsOverlay = event.target.closest("[data-scouting-settings-overlay]");
+  if (settingsOverlay && event.target === settingsOverlay) {
+    closeScoutingSettingsPanel();
+    return;
+  }
   const datasourceToggle = event.target.closest("[data-scouting-datasource-toggle]");
   if (datasourceToggle) {
     window.setTimeout(() => loadScoutingImportHistory(), 0);
@@ -14199,6 +14414,13 @@ export function handleClick(event, context) {
     event.preventDefault();
     event.stopPropagation();
     expandScoutingReportsPanel(expandReportsPanelTrigger.dataset.expandScoutingReportsPanel);
+    return;
+  }
+  const collapseReportsPanelTrigger = event.target.closest("[data-collapse-scouting-reports-panel]");
+  if (collapseReportsPanelTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    collapseScoutingReportsPanel(collapseReportsPanelTrigger.dataset.collapseScoutingReportsPanel);
     return;
   }
   const reportBuilderOverlay = event.target.closest("[data-scouting-report-builder-overlay]");

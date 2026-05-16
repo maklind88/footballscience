@@ -382,6 +382,18 @@ color: #1d1d1f;
 font-size: 1.06rem;
 line-height: 1.05;
 }
+.scouting-target-board-title{
+display:flex;
+align-items:center;
+justify-content:space-between;
+gap:.75rem;
+}
+.scouting-target-board-title .scouting-secondary-button{
+min-height:2rem;
+padding:.34rem .7rem;
+border-radius:999px;
+font-size:.72rem;
+}
 .scouting-target-board-columns{
 display: grid;
 grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -983,6 +995,37 @@ border: 1px solid rgba(29, 29, 31, 0.07);
 color: #1d1d1f;
 font-size: 0.78rem;
 font-weight: 840;
+}
+.scouting-role-metric-list .scouting-role-metric-row:not(.is-selected){
+display: none;
+}
+.scouting-role-metric-list .scouting-role-metric-row.is-selected{
+grid-template-columns:3.5rem minmax(10rem,1fr) minmax(8rem,.82fr) 5.2rem minmax(7rem,.62fr) 2.8rem;
+align-items:center;
+}
+.scouting-role-metric-remove{
+justify-self:end;
+align-self:end;
+width:2.1rem;
+height:2.1rem;
+min-height:2.1rem!important;
+display:inline-flex;
+align-items:center;
+justify-content:center;
+padding:0!important;
+border-radius:999px!important;
+background:#fff5f3!important;
+border:1px solid rgba(217,45,32,.18)!important;
+color:#b42318!important;
+font-size:.88rem!important;
+line-height:1;
+box-shadow:none!important;
+}
+.scouting-role-metric-remove:hover,
+.scouting-role-metric-remove:focus-visible{
+background:#fee4e2!important;
+box-shadow:0 0 0 3px rgba(217,45,32,.12)!important;
+outline:0;
 }
 .scouting-role-metric-row input[type="checkbox"]{
 justify-self: center;
@@ -6666,7 +6709,7 @@ body.is-dark-mode .scouting-my-team-slot-entry:hover{
   scrollbar-width:thin;
 }
 .scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-player-row{
-  grid-template-columns:minmax(0,1fr) 1.32rem;
+  grid-template-columns:minmax(0,1fr);
   gap:.14rem;
   transform:none;
   align-items:center;
@@ -6676,7 +6719,7 @@ body.is-dark-mode .scouting-my-team-slot-entry:hover{
   background:rgba(255,255,255,.12);
 }
 .scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-player{
-  grid-template-columns:1.42rem minmax(0,1fr);
+  grid-template-columns:1.42rem minmax(0,1fr) 1.44rem;
   min-height:2.25rem;
   padding:.22rem .28rem;
   gap:.3rem;
@@ -6688,10 +6731,92 @@ body.is-dark-mode .scouting-my-team-slot-entry:hover{
 .scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-player:active{
   cursor:grabbing;
 }
+.scouting-shadow-profile-trigger{
+  width:1.42rem;
+  height:1.42rem;
+  display:inline-grid;
+  place-items:center;
+  padding:0;
+  border:0;
+  border-radius:999px;
+  background:transparent;
+  box-shadow:none;
+  cursor:pointer;
+}
+.scouting-shadow-profile-trigger:hover,
+.scouting-shadow-profile-trigger:focus-visible{
+  outline:0;
+  box-shadow:0 0 0 3px rgba(31,122,69,.18);
+}
 .scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-player .scouting-record-avatar-shell,
-.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-player .scouting-record-avatar{
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-player .scouting-record-avatar,
+.scouting-shadow-profile-trigger .scouting-record-avatar{
   width:1.38rem;
   height:1.38rem;
+}
+.scouting-shadow-player-menu{
+  position:relative;
+  min-width:0;
+}
+.scouting-shadow-player-menu summary{
+  width:1.36rem;
+  height:1.36rem;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border:1px solid rgba(29,29,31,.08);
+  border-radius:999px;
+  background:rgba(29,29,31,.045);
+  color:#183f2e;
+  font-size:.78rem;
+  font-weight:950;
+  line-height:1;
+  list-style:none;
+  cursor:pointer;
+}
+.scouting-shadow-player-menu summary::-webkit-details-marker{
+  display:none;
+}
+.scouting-shadow-player-menu div{
+  position:absolute;
+  right:0;
+  top:calc(100% + .28rem);
+  z-index:95;
+  min-width:8.6rem;
+  display:grid;
+  gap:.18rem;
+  padding:.3rem;
+  border-radius:12px;
+  background:#fffffff8;
+  border:1px solid rgba(23,37,30,.12);
+  box-shadow:0 18px 42px rgba(4,20,13,.22);
+}
+.scouting-shadow-player-menu:not([open]) div{
+  display:none;
+}
+.scouting-shadow-player-menu button{
+  width:100%;
+  display:flex;
+  align-items:center;
+  gap:.42rem;
+  min-height:2rem;
+  padding:.38rem .52rem;
+  border:0;
+  border-radius:10px;
+  background:transparent;
+  color:#17251e;
+  font:inherit;
+  font-size:.68rem;
+  font-weight:900;
+  text-align:left;
+  box-shadow:none;
+  cursor:pointer;
+}
+.scouting-shadow-player-menu button:hover{
+  background:rgba(24,63,46,.1);
+}
+.scouting-shadow-player-menu button.is-danger{
+  color:#b42318;
 }
 .scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-player-name{
   font-size:.68rem;
@@ -7339,10 +7464,13 @@ body.is-dark-mode .scouting-shadow-slot-pin{
 
 /* My Team stack stability: cards should fill the slot without drag jitter */
 .scouting-my-team-pitch .scouting-my-team-slot{
-  transform:translate(-50%,-50%)!important;
+  transform:translate(-50%,calc(-100% - .18rem))!important;
+  will-change:left,top;
 }
 .scouting-my-team-slot-pin{
   cursor:grab;
+  touch-action:none;
+  user-select:none;
   transition:transform 140ms ease,background 140ms ease,box-shadow 140ms ease;
 }
 .scouting-my-team-slot-pin:hover,
@@ -7357,6 +7485,12 @@ body.is-dark-mode .scouting-shadow-slot-pin{
 }
 .scouting-my-team-slot.is-position-dragging{
   z-index:60;
+}
+.scouting-my-team-slot.is-position-dragging .scouting-my-team-slot-pin{
+  cursor:grabbing;
+  transform:translate(-50%,0) scale(1.22);
+  background:#ffe078;
+  box-shadow:0 0 0 5px rgba(255,224,120,.28),0 .85rem 1.6rem rgba(5,24,17,.24);
 }
 .scouting-my-team-slot.is-position-dragging .scouting-my-team-slot-card,
 .scouting-my-team-slot.is-position-dragging .scouting-my-team-drop-card{
@@ -7685,7 +7819,185 @@ body.is-dark-mode .scouting-my-team-spider-panel dl div{
     grid-template-columns:1fr;
   }
   .scouting-datasource-settings-body .scouting-import-panel,
-  .scouting-datasource-settings-body .scouting-import-history-panel{
+.scouting-datasource-settings-body .scouting-import-history-panel{
+    grid-column:1;
+    grid-row:auto;
+  }
+}
+
+/* Scouting settings: compact launcher menu + proper modal workspaces. */
+.scouting-settings-menu .scouting-settings-panel{
+  width:min(22rem,calc(100vw - 2rem))!important;
+  max-height:none!important;
+  overflow:visible!important;
+  padding:.82rem!important;
+  border-radius:1.15rem!important;
+  background:rgba(255,255,255,.98)!important;
+  box-shadow:0 24px 60px rgba(20,28,34,.24)!important;
+}
+.scouting-settings-panel-head{
+  display:grid;
+  gap:.18rem;
+  padding:.18rem .16rem .42rem;
+}
+.scouting-settings-panel-head span{
+  color:#647067;
+  font-size:.64rem;
+  font-weight:950;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+.scouting-settings-panel-head strong{
+  color:#173529;
+  font-size:1.05rem;
+  line-height:1;
+}
+.scouting-settings-panel-head p{
+  margin:0;
+  color:#66736a;
+  font-size:.78rem;
+  font-weight:760;
+}
+.scouting-settings-option-grid{
+  display:grid;
+  gap:.48rem;
+}
+.scouting-settings-option{
+  appearance:none;
+  width:100%;
+  display:grid;
+  gap:.18rem;
+  padding:.7rem .76rem;
+  text-align:left;
+  border:1px solid rgba(23,53,41,.1);
+  border-radius:.88rem;
+  background:linear-gradient(135deg,rgba(244,247,242,.98),rgba(255,255,255,.98));
+  color:#173529;
+  cursor:pointer;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.88);
+}
+.scouting-settings-option:hover,
+.scouting-settings-option:focus-visible{
+  outline:0;
+  border-color:rgba(23,53,41,.28);
+  box-shadow:0 10px 28px rgba(23,53,41,.12),inset 0 1px 0 rgba(255,255,255,.9);
+  transform:translateY(-1px);
+}
+.scouting-settings-option span{
+  color:#657066;
+  font-size:.62rem;
+  font-weight:950;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+.scouting-settings-option strong{
+  color:#173529;
+  font-size:.9rem;
+  line-height:1.05;
+}
+.scouting-settings-option small{
+  color:#66736a;
+  font-size:.72rem;
+  font-weight:740;
+  line-height:1.28;
+}
+.scouting-settings-overlay{
+  position:fixed;
+  inset:0;
+  z-index:2600;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:clamp(1rem,3vw,2.4rem);
+  background:rgba(18,29,24,.48);
+  backdrop-filter:blur(10px);
+}
+.scouting-settings-modal{
+  width:min(78rem,calc(100vw - 2rem));
+  max-height:min(86vh,52rem);
+  overflow:auto;
+  overscroll-behavior:contain;
+  display:grid;
+  gap:1rem;
+  padding:1rem;
+  border-radius:1.35rem;
+  background:linear-gradient(135deg,rgba(255,255,255,.99),rgba(244,248,245,.97));
+  border:1px solid rgba(255,255,255,.72);
+  box-shadow:0 34px 90px rgba(7,20,14,.34);
+}
+.scouting-settings-modal-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:1rem;
+  padding:.2rem .12rem .34rem;
+}
+.scouting-settings-modal-head h2{
+  margin:.08rem 0 .18rem;
+  color:#173529;
+  font-size:clamp(1.45rem,2.5vw,2.15rem);
+  line-height:.96;
+}
+.scouting-settings-modal-head p:not(.placeholder-tag){
+  max-width:42rem;
+  margin:0;
+  color:#66736a;
+  font-size:.9rem;
+  font-weight:780;
+}
+.scouting-settings-modal-grid{
+  display:grid;
+  grid-template-columns:minmax(18rem,.72fr) minmax(0,1.4fr);
+  gap:.9rem;
+  align-items:start;
+}
+.scouting-settings-modal-card,
+.scouting-settings-foundation,
+.scouting-settings-import-workspace{
+  min-width:0;
+}
+.scouting-settings-modal-card{
+  display:grid;
+  gap:.8rem;
+  padding:.95rem;
+  border-radius:1.05rem;
+  border:1px solid rgba(23,53,41,.1);
+  background:rgba(255,255,255,.88);
+}
+.scouting-settings-modal-card h3{
+  margin:.1rem 0 .18rem;
+  color:#173529;
+  font-size:1.2rem;
+  line-height:1;
+}
+.scouting-settings-modal-card p:not(.placeholder-tag){
+  margin:0;
+  color:#66736a;
+  font-size:.82rem;
+  font-weight:760;
+  line-height:1.35;
+}
+.scouting-settings-upload-card .scouting-import-launch,
+.scouting-settings-upload-card .scouting-import-launch button{
+  width:100%;
+}
+.scouting-settings-foundation{
+  display:grid;
+  gap:.8rem;
+}
+.scouting-settings-import-workspace{
+  grid-column:2;
+  grid-row:1 / span 2;
+}
+.scouting-settings-import-workspace .scouting-import-panel,
+.scouting-settings-foundation .scouting-side-panel{
+  margin:0;
+}
+@media (max-width:960px){
+  .scouting-settings-modal-grid{
+    grid-template-columns:1fr;
+  }
+  .scouting-settings-import-workspace{
     grid-column:1;
     grid-row:auto;
   }

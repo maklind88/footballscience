@@ -1627,6 +1627,7 @@ const scoutingTabs = [
 { id: "shadow-xi", label: "Shadow XI" },
 { id: "database", label: "Database" },
 { id: "lists", label: "Lists" },
+{ id: "comparison", label: "Compare" },
 { id: "reports", label: "Reports" },
 ];
 const scoutingShadowSlots = [

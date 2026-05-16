@@ -30039,7 +30039,7 @@ ${renderMedicalMetric("Full", String(stats.fullCount), "100%", "full")}
 ${renderMedicalMetric("Modified", String(stats.modifiedCount), "10-75%", "modified")}
 ${renderMedicalMetric("Unavailable", String(stats.unavailableCount), "0%", "unavailable")}
 ${renderMedicalMetric("Not set", String(stats.unloggedCount), "no entry")}
-${renderMedicalMetric("Month average", monthStats.averageParticipation === null ? "-" : `${monthStats.averageParticipation}%`, `${monthStats.loggedCount}/${monthStats.slotCount} filled`)}
+${renderMedicalMetric("Month average", monthStats.averageParticipation === null ? "-" : `${monthStats.averageParticipation}%`)}
 ${renderMedicalMetric("7-day average", windowAverage === null ? "-" : `${windowAverage}%`, "last 7 days")}
 </section>
 ${

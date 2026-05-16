@@ -783,7 +783,7 @@ test("Medical metrics use current-month and trailing 7-day averages", async ({ p
 
   const metricCards = page.locator(".medical-metric-card");
   await expect(metricCards.filter({ hasText: "Month average" })).toContainText("40%");
-  await expect(metricCards.filter({ hasText: "Month average" })).toContainText("4/15 filled");
+  await expect(metricCards.filter({ hasText: "Month average" })).not.toContainText("filled");
   await expect(metricCards.filter({ hasText: "7-day average" })).toContainText("38%");
   await expect(metricCards.filter({ hasText: "7-day average" })).toContainText("last 7 days");
   await expect(page.locator(".medical-huddle-brief strong")).toHaveText("0/1");

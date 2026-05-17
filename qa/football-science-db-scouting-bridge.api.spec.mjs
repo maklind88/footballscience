@@ -21,7 +21,14 @@ test("Scouting database view can search Football Science DB through the server A
   expect(workspace).toContain("renderScoutingFootballScienceDbPanel");
   expect(workspace).toContain("renderFootballScienceDbQualityPanel");
   expect(workspace).toContain('action: "quality"');
+  expect(workspace).toContain('action: "profile"');
   expect(workspace).toContain("data-refresh-fsdb-quality");
+  expect(workspace).toContain("data-open-fsdb-profile");
+  expect(workspace).toContain("data-load-fsdb-profile");
+  expect(workspace).toContain("scoutingFootballScienceDbProfileCache");
+  expect(workspace).toContain("Football Science DB profile");
+  expect(workspace).toContain("Roster history");
+  expect(workspace).toContain("Season stats");
   expect(workspace).toContain("Spider stays locked until trusted stats exist");
   expect(workspace).toContain('class="scouting-secondary-button" data-scouting-load-fsdb');
 });

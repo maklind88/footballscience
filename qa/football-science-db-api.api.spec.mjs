@@ -178,6 +178,45 @@ test("Football Science DB readiness only unlocks spider data with metric depth",
   });
 });
 
+test("Football Science DB profile review explains identity and Spider gaps", () => {
+  const review = fsdb.getFootballScienceDbProfileReview({
+    fsdb_id: "fsdb_preview",
+    canonical_name: "A. Example",
+    name_quality: "initial",
+    source_link_count: 0,
+    roster_entry_count: 0,
+    season_stat_count: 0,
+    metric_count: 1,
+  });
+
+  expect(review).toMatchObject({
+    status: "needs_identity_review",
+    label: "Needs identity review",
+  });
+  expect(review.reasons.map((reason) => reason.code)).toEqual(
+    expect.arrayContaining(["full_name", "dedupe_key", "date_of_birth", "spider_metrics"])
+  );
+
+  const spiderReady = fsdb.getFootballScienceDbProfileReview({
+    fsdb_id: "fsdb_ready",
+    canonical_name: "Ada Example",
+    name_quality: "full",
+    dedupe_key: "name:ada example|dob:2001-04-12|country:norway|gender:women",
+    date_of_birth: "2001-04-12",
+    nationality: "Norway",
+    position_group: "FW",
+    current_team_name: "Example FC",
+    source_link_count: 2,
+    roster_entry_count: 1,
+    season_stat_count: 1,
+    metric_count: 6,
+  });
+  expect(spiderReady).toMatchObject({
+    status: "spider_ready",
+    reasons: [],
+  });
+});
+
 test("Football Science DB quality summary stays aggregate and review-first", () => {
   const summary = fsdb.buildFootballScienceDbQualitySummary(
     {

@@ -421,6 +421,7 @@ async function countFsdbPlayers(filters = {}) {
 }
 
 function qualityPlayerReviewToClient(row = {}) {
+  const review = getFootballScienceDbProfileReview(row);
   return {
     id: normalizeText(row.id, 80),
     fsdbId: normalizeText(row.fsdb_id, 80),
@@ -437,6 +438,9 @@ function qualityPlayerReviewToClient(row = {}) {
     rosterEntryCount: normalizeNumber(row.roster_entry_count, 0),
     metricCount: normalizeNumber(row.metric_count, 0),
     dedupeKeyPresent: Boolean(normalizeText(row.dedupe_key, 260)),
+    reviewStatus: review.status,
+    reviewLabel: review.label,
+    reviewReasons: review.reasons,
     updatedAt: normalizeText(row.updated_at, 40),
   };
 }
@@ -582,6 +586,68 @@ function getPlayerDataReadiness(row = {}) {
     seasonStats,
     metrics,
     missing,
+  };
+}
+
+function getFootballScienceDbProfileReview(row = {}) {
+  const readiness = getPlayerDataReadiness(row);
+  const reasons = [];
+  const addReason = (code, label, priority = "medium") => {
+    reasons.push({ code, label, priority });
+  };
+  const nameQuality = normalizeText(row.name_quality, 40) || getPlayerNameQuality(row.canonical_name || row.full_name || row.display_name);
+  const sourceLinks = Math.max(0, Math.floor(normalizeNumber(row.source_link_count, 0)));
+  const rosterEntries = Math.max(0, Math.floor(normalizeNumber(row.roster_entry_count, 0)));
+  const seasonStats = Math.max(0, Math.floor(normalizeNumber(row.season_stat_count, 0)));
+  const metrics = Math.max(0, Math.floor(normalizeNumber(row.metric_count, 0)));
+
+  if (nameQuality !== "full") {
+    addReason("full_name", "Full name needs confirmation", "high");
+  }
+  if (!normalizeText(row.dedupe_key, 260)) {
+    addReason("dedupe_key", "Strong duplicate key missing", "high");
+  }
+  if (!normalizeText(row.date_of_birth, 40) && !Number.isFinite(Number(row.birth_year))) {
+    addReason("date_of_birth", "Date of birth missing", "high");
+  }
+  if (!normalizeText(row.nationality || row.birth_country, 120)) {
+    addReason("nationality", "Nationality missing", "medium");
+  }
+  if (!normalizeText(row.primary_position || row.position_group, 120)) {
+    addReason("position", "Position missing", "medium");
+  }
+  if (sourceLinks < 1) {
+    addReason("source_link", "No source link attached", "medium");
+  }
+  if (rosterEntries < 1 && !normalizeText(row.current_team_name, 180)) {
+    addReason("roster", "Roster history missing", "medium");
+  }
+  if (seasonStats < 1 && metrics < 1) {
+    addReason("season_stats", "Season stats missing", "medium");
+  }
+  if (metrics < 4) {
+    addReason("spider_metrics", "Spider needs at least four metrics", "low");
+  }
+
+  const status = reasons.some((reason) => reason.priority === "high")
+    ? "needs_identity_review"
+    : reasons.length
+      ? "needs_data_depth"
+      : readiness.spiderReady
+        ? "spider_ready"
+        : "ready";
+
+  return {
+    status,
+    label:
+      status === "needs_identity_review"
+        ? "Needs identity review"
+        : status === "needs_data_depth"
+          ? "Needs data depth"
+          : status === "spider_ready"
+            ? "Spider ready"
+            : "Ready",
+    reasons,
   };
 }
 
@@ -852,6 +918,7 @@ async function fetchPlayerProfile(query = {}) {
     ok: true,
     schema: FOOTBALL_SCIENCE_DB_SCHEMA,
     player: playerToClient(row),
+    review: getFootballScienceDbProfileReview(row),
     aliases: (Array.isArray(aliases.payload) ? aliases.payload : []).map(aliasToClient),
     sourceLinks: (Array.isArray(sourceLinks.payload) ? sourceLinks.payload : []).map(sourceLinkToClient),
     rosters: (Array.isArray(rosters.payload) ? rosters.payload : []).map(rosterEntryToClient),
@@ -1267,6 +1334,7 @@ module.exports = {
   fetchFootballScienceProfileForScoutingRecord,
   fetchPlayerProfile,
   footballScienceDbStatus,
+  getFootballScienceDbProfileReview,
   getFootballScienceDbQuality,
   getPlayerDataReadiness,
   getPlayerNameQuality,

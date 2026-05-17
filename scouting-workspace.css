@@ -1648,6 +1648,13 @@ margin: 0;
 color: #6e6e73;
 line-height: 1.5;
 }
+.scouting-load-actions{
+display: flex;
+align-items: center;
+justify-content: center;
+flex-wrap: wrap;
+gap: 0.55rem;
+}
 @media (prefers-reduced-motion: reduce){
   .scouting-loader-leg.is-right,
   .scouting-loader-ball,

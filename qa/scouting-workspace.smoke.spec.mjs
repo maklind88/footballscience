@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const workspaceHubKey = "football-workspace-hub-v3";
+const scoutingAccessRoles = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"];
 const qaDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.dirname(qaDir);
 
@@ -95,6 +96,52 @@ async function seedScoutingAccess(page, scoutingState = null) {
     },
     { key: workspaceHubKey, state: scoutingState }
   );
+}
+
+async function seedScoutingAccessForRoles(page, roles = scoutingAccessRoles, scoutingState = null) {
+  await page.addInitScript(
+    ({ key, accessRoles, state }) => {
+      window.localStorage.removeItem("football-scouting-v1");
+      if (state) {
+        window.localStorage.setItem("football-scouting-v1", JSON.stringify(state));
+      }
+      window.localStorage.setItem(
+        key,
+        JSON.stringify({
+          activeWorkspaceId: "home",
+          workspaceAccess: {
+            home: { view: accessRoles, edit: accessRoles },
+            scouting: { view: accessRoles, edit: accessRoles },
+          },
+        })
+      );
+    },
+    { key: workspaceHubKey, accessRoles: roles, state: scoutingState }
+  );
+}
+
+async function setQaCurrentRole(page, role) {
+  await page.evaluate((nextRole) => {
+    const user = {
+      id: `qa-${nextRole}`,
+      email: `${nextRole}@footballscience.test`,
+      firstName: "QA",
+      lastName: nextRole,
+      username: `qa-${nextRole}`,
+      role: nextRole,
+      title: "QA",
+      department: "Football",
+      clubId: "club-ncc",
+      clubName: "North Carolina Courage",
+      teamId: "team-ncc-first",
+      teamName: "North Carolina Courage",
+      team: "North Carolina Courage",
+      status: "active",
+    };
+    window.platformAuthStore?.writeUsers?.([user]);
+    window.platformAuthStore?.setCurrentUser?.(user.id);
+  }, role);
+  await expect.poll(() => page.evaluate(() => document.body.dataset.userRole || ""), { timeout: 10_000 }).toBe(role);
 }
 
 async function nextPaint(page) {
@@ -229,6 +276,31 @@ test("Scouting database load, search and position filter stay stable", async ({ 
     await waitForScoutingRows(page, { timeout: 45_000 });
   }
   await expect(page.locator(".scouting-tab.is-active")).toContainText("Database");
+});
+
+test("Every Scouting access role can visually reach Football Science DB", async ({ page }) => {
+  test.setTimeout(120_000);
+  await seedScoutingAccessForRoles(page, scoutingAccessRoles, {
+    activeTab: "database",
+    databaseFilters: {
+      source: "scouting",
+    },
+  });
+  const boot = await bootApp(page);
+  expect(boot.pageErrors).toEqual([]);
+
+  for (const role of scoutingAccessRoles) {
+    await setQaCurrentRole(page, role);
+    await openWorkspace(page, "scouting");
+    const databaseTab = page.locator('.scouting-tab[data-scouting-tab="database"]').first();
+    await expect(databaseTab).toBeVisible({ timeout: 15_000 });
+    await databaseTab.click();
+    await expect(page.locator(".scouting-tab.is-active")).toContainText("Database");
+    const fsdbButton = page.locator("[data-scouting-load-fsdb]").first();
+    await expect(fsdbButton, role).toBeVisible({ timeout: 15_000 });
+    await expect(fsdbButton, role).toBeEnabled();
+    await expect(fsdbButton, role).toContainText("Football Science DB");
+  }
 });
 
 test("Scouting profile favorite and Shadow XI actions stay stable", async ({ page }) => {

@@ -12539,7 +12539,12 @@ function renderScoutingDatabasePanel() {
             ? ""
             : isFootballScienceDb
               ? `<button type="button" class="scouting-primary-button" data-scouting-load-fsdb>Load Football Science DB</button>`
-              : `<button type="button" class="scouting-primary-button" data-scouting-load-database>Load scouting player database</button>`
+              : `
+                <div class="scouting-load-actions">
+                  <button type="button" class="scouting-primary-button" data-scouting-load-database>Load scouting player database</button>
+                  <button type="button" class="scouting-secondary-button" data-scouting-load-fsdb>Load Football Science DB</button>
+                </div>
+              `
         }
         ${isFootballScienceDb ? renderFootballScienceDbQualityPanel() : ""}
       </section>

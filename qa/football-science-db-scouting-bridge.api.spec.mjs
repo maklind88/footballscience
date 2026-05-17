@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 const fsdb = require("../api/_lib/football-science-db.js");
+const permissionMatrix = require("../src/core/permission-matrix.cjs");
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
 
@@ -22,6 +23,7 @@ test("Scouting database view can search Football Science DB through the server A
   expect(workspace).toContain('action: "quality"');
   expect(workspace).toContain("data-refresh-fsdb-quality");
   expect(workspace).toContain("Spider stays locked until trusted stats exist");
+  expect(workspace).toContain('class="scouting-secondary-button" data-scouting-load-fsdb');
 });
 
 test("Scouting database loader resets stale source promises before FSDB loads", () => {
@@ -45,6 +47,16 @@ test("Football Science DB retries once with a refreshed auth token after server 
   expect(workspace).toContain("options.forceRefresh");
   expect(workspace).toContain("getScoutingApiAccessToken({ forceRefresh: attempt > 0 })");
   expect(workspace).toContain("response.status === 401 && attempt === 0");
+});
+
+test("Every Scouting reader role can read Football Science DB", () => {
+  const scoutingReadRoles = permissionMatrix.platformPermissionMatrixByModule.scouting.permissions.read;
+  const fsdbReadRoles = permissionMatrix.platformPermissionMatrixByModule["football-science-db"].permissions.read;
+
+  for (const role of scoutingReadRoles) {
+    expect(fsdbReadRoles, role).toContain(role);
+    expect(fsdb.canReadFootballScienceDb({ role }), role).toBe(true);
+  }
 });
 
 test("Scouting bridge exposes safe FSDB identity helpers for server linking", () => {

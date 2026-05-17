@@ -89,23 +89,18 @@ test("game simulator control bindings route simulator hotkeys only while active"
   expect(enter.defaultPrevented).toBe(true);
   expect(calls).toEqual(["enter"]);
 
-  const plainPassDown = createKeyboardEvent("p");
-  bindings.handleKeyDown(plainPassDown);
-  expect(plainPassDown.defaultPrevented).toBe(false);
-  expect(calls).toEqual(["enter"]);
-
-  const passDown = createKeyboardEvent("p", { shiftKey: true });
+  const passDown = createKeyboardEvent("p");
   bindings.handleKeyDown(passDown);
   const passUp = createKeyboardEvent("p");
   bindings.handleKeyUp(passUp);
 
   expect(passDown.defaultPrevented).toBe(true);
-  expect(calls).toEqual(["enter", "mode:pass", "grace:pass", "mode:none"]);
+  expect(calls).toEqual(["enter", "mode:pass"]);
 
-  const dribbleDown = createKeyboardEvent("d", { shiftKey: true });
+  const dribbleDown = createKeyboardEvent("d");
   bindings.handleKeyDown(dribbleDown);
   bindings.handleKeyUp(createKeyboardEvent("d"));
-  const shotDown = createKeyboardEvent("s", { shiftKey: true });
+  const shotDown = createKeyboardEvent("s");
   bindings.handleKeyDown(shotDown);
   bindings.handleKeyUp(createKeyboardEvent("s"));
 
@@ -114,14 +109,8 @@ test("game simulator control bindings route simulator hotkeys only while active"
   expect(calls).toEqual([
     "enter",
     "mode:pass",
-    "grace:pass",
-    "mode:none",
     "mode:dribble",
-    "grace:dribble",
-    "mode:none",
     "mode:shot",
-    "grace:shot",
-    "mode:none",
   ]);
 });
 

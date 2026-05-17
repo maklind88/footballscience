@@ -1986,6 +1986,11 @@ const medicalOperationsTabOptions = [
 { key: "history", label: "History" },
 { key: "season", label: "Season" },
 ];
+const medicalPlayerModalTabOptions = [
+{ key: "availability", label: "Availability" },
+{ key: "profile", label: "Medical Profile" },
+{ key: "plan", label: "Medical Plan" },
+];
 const medicalPositionOrder = {
 Goalkeeper: 1,
 Defender: 2,
@@ -4443,6 +4448,7 @@ let medicalRosterSearchQuery = "";
 let medicalStatusFilter = "all";
 let medicalOperationsTab = "availability";
 let medicalPlayerModalOpen = false;
+let medicalPlayerModalTab = "availability";
 let medicalBulkSelectedPlayerIds = new Set();
 let medicalBulkRecommendationOpen = false;
 let playerProfilesState = null;
@@ -28828,6 +28834,9 @@ reviewAlerts.length
 function normalizeMedicalOperationsTab(tabKey) {
 return medicalOperationsTabOptions.some((tab) => tab.key === tabKey) ? tabKey : "availability";
 }
+function normalizeMedicalPlayerModalTab(tabKey) {
+return medicalPlayerModalTabOptions.some((tab) => tab.key === tabKey) ? tabKey : "availability";
+}
 function getMedicalPlanTotalDays(plan) {
 if (!plan) {
 return 0;
@@ -30109,48 +30118,42 @@ return `
 </div>
 `;
 }
-function renderMedicalPlayerModal() {
-if (!medicalPlayerModalOpen) {
-return "";
-}
-const player = getSelectedMedicalPlayer();
-if (!player) {
-return "";
-}
-const canEdit = canEditMedicalTeam();
-const activityContext = getMedicalRecommendationActivityContext(medicalState.selectedDate);
-const canRecommend = canEdit && activityContext.isRecommendable;
-const record = getLatestMedicalRecord(player.id, medicalState.selectedDate);
-const status = getMedicalRecordStatus(record);
-const formParticipation = record?.participation ?? 100;
-const formStatus = record?.status ?? getMedicalStatusForParticipation(formParticipation);
-const formActual = record?.actualParticipation ?? medicalActualParticipationFallback;
-const formRtpPhase = record?.rtpPhase ?? getMedicalRtpPhaseForRecommendation(formStatus, formParticipation, activityContext.type);
-const formStatusLabel = getMedicalStatusOptionForDate(formStatus, medicalState.selectedDate, formRtpPhase).label;
-if (!canEdit) {
-return renderMedicalCoachSafeModal(player, record, status);
-}
+function renderMedicalPlayerModalTabs(activeTab = medicalPlayerModalTab) {
+const normalizedTab = normalizeMedicalPlayerModalTab(activeTab);
 return `
-<div class="medical-modal-layer" role="presentation">
-<button type="button" class="medical-modal-backdrop" data-medical-close-modal aria-label="Close recommendation"></button>
-<section class="medical-modal-card" role="dialog" aria-modal="true" aria-labelledby="medicalModalTitle">
-<header class="medical-modal-header">
-<div class="medical-modal-player">
-${renderMedicalPlayerAvatar(player, "medical-modal-avatar")}
-<div>
-<p class="placeholder-tag">Player Medical</p>
-<h2 id="medicalModalTitle">${escapeHtml(player.name)}</h2>
-<span>${player.number ? `#${escapeHtml(player.number)} / ` : ""}${escapeHtml(player.position || "Position")}</span>
-</div>
-</div>
-<div class="medical-modal-current medical-tone-${escapeHtml(status.tone)}">
-<strong>${record ? `${record.participation}%` : "Not set"}</strong>
-<span>${escapeHtml(status.label)}</span>
-</div>
-<button type="button" class="medical-modal-close" data-medical-close-modal aria-label="Close recommendation">x</button>
-</header>
-<div class="medical-modal-body">
-<div class="medical-modal-main">
+<nav class="medical-modal-tabs" role="tablist" aria-label="Player medical tabs">
+${medicalPlayerModalTabOptions
+.map(
+(tab) => `
+<button
+type="button"
+role="tab"
+id="medicalModalTab${escapeHtml(tab.key)}"
+class="medical-modal-tab${normalizedTab === tab.key ? " is-active" : ""}"
+data-medical-modal-tab="${escapeHtml(tab.key)}"
+aria-selected="${normalizedTab === tab.key ? "true" : "false"}"
+aria-controls="medicalModalPanel"
+>${escapeHtml(tab.label)}</button>
+`
+)
+.join("")}
+</nav>
+`;
+}
+function renderMedicalRecommendationModalCard(context) {
+const {
+player,
+canEdit,
+canRecommend,
+activityContext,
+record,
+formParticipation,
+formStatus,
+formActual,
+formRtpPhase,
+formStatusLabel,
+} = context;
+return `
 <article class="medical-modal-main-card">
 <div class="medical-card-headline">
 <h2>${escapeHtml(activityContext.recommendationLabel)}</h2>
@@ -30197,11 +30200,10 @@ ${renderMedicalActualPresets(formActual, canRecommend)}
 </div>
 </form>
 </article>
-${renderMedicalInjuryPlanForm(player, canEdit)}
-</div>
-<aside class="medical-modal-side">
-${renderMedicalPlayerProfileSummary(player)}
-${renderMedicalClearanceChecklist(player, canEdit)}
+`;
+}
+function renderMedicalPlanListCard(player) {
+return `
 <article class="medical-side-card medical-plan-list-card">
 <div class="medical-card-headline">
 <h2>Availability Plans</h2>
@@ -30209,6 +30211,10 @@ ${renderMedicalClearanceChecklist(player, canEdit)}
 </div>
 <div class="medical-plan-list">${renderMedicalInjuryPlanList(player)}</div>
 </article>
+`;
+}
+function renderMedicalLogCard(player) {
+return `
 <article class="medical-side-card medical-log-card">
 <div class="medical-card-headline">
 <h2>Medical Log</h2>
@@ -30216,8 +30222,98 @@ ${renderMedicalClearanceChecklist(player, canEdit)}
 </div>
 <div class="medical-log-list">${renderMedicalLog(player)}</div>
 </article>
+`;
+}
+function renderMedicalPlayerModalBody(context) {
+const activeTab = normalizeMedicalPlayerModalTab(medicalPlayerModalTab);
+const activeTabLabel = medicalPlayerModalTabOptions.find((tab) => tab.key === activeTab)?.label ?? "Availability";
+const { player, canEdit } = context;
+if (activeTab === "profile") {
+return `
+<div id="medicalModalPanel" class="medical-modal-body medical-modal-body-profile" role="tabpanel" aria-label="${escapeHtml(activeTabLabel)}">
+<div class="medical-modal-main">
+${renderMedicalPlayerProfileSummary(player)}
+</div>
+<aside class="medical-modal-side">
+${renderMedicalLogCard(player)}
 </aside>
 </div>
+`;
+}
+if (activeTab === "plan") {
+return `
+<div id="medicalModalPanel" class="medical-modal-body medical-modal-body-plan" role="tabpanel" aria-label="${escapeHtml(activeTabLabel)}">
+<div class="medical-modal-main">
+${renderMedicalInjuryPlanForm(player, canEdit)}
+</div>
+<aside class="medical-modal-side">
+${renderMedicalClearanceChecklist(player, canEdit)}
+${renderMedicalPlanListCard(player)}
+</aside>
+</div>
+`;
+}
+return `
+<div id="medicalModalPanel" class="medical-modal-body medical-modal-body-availability" role="tabpanel" aria-label="${escapeHtml(activeTabLabel)}">
+<div class="medical-modal-main medical-modal-main-wide">
+${renderMedicalRecommendationModalCard(context)}
+</div>
+</div>
+`;
+}
+function renderMedicalPlayerModal() {
+if (!medicalPlayerModalOpen) {
+return "";
+}
+const player = getSelectedMedicalPlayer();
+if (!player) {
+return "";
+}
+const canEdit = canEditMedicalTeam();
+const activityContext = getMedicalRecommendationActivityContext(medicalState.selectedDate);
+const canRecommend = canEdit && activityContext.isRecommendable;
+const record = getLatestMedicalRecord(player.id, medicalState.selectedDate);
+const status = getMedicalRecordStatus(record);
+const formParticipation = record?.participation ?? 100;
+const formStatus = record?.status ?? getMedicalStatusForParticipation(formParticipation);
+const formActual = record?.actualParticipation ?? medicalActualParticipationFallback;
+const formRtpPhase = record?.rtpPhase ?? getMedicalRtpPhaseForRecommendation(formStatus, formParticipation, activityContext.type);
+const formStatusLabel = getMedicalStatusOptionForDate(formStatus, medicalState.selectedDate, formRtpPhase).label;
+if (!canEdit) {
+return renderMedicalCoachSafeModal(player, record, status);
+}
+return `
+<div class="medical-modal-layer" role="presentation">
+<button type="button" class="medical-modal-backdrop" data-medical-close-modal aria-label="Close recommendation"></button>
+<section class="medical-modal-card" role="dialog" aria-modal="true" aria-labelledby="medicalModalTitle">
+<header class="medical-modal-header">
+<div class="medical-modal-player">
+${renderMedicalPlayerAvatar(player, "medical-modal-avatar")}
+<div>
+<p class="placeholder-tag">Player Medical</p>
+<h2 id="medicalModalTitle">${escapeHtml(player.name)}</h2>
+<span>${player.number ? `#${escapeHtml(player.number)} / ` : ""}${escapeHtml(player.position || "Position")}</span>
+</div>
+</div>
+<div class="medical-modal-current medical-tone-${escapeHtml(status.tone)}">
+<strong>${record ? `${record.participation}%` : "Not set"}</strong>
+<span>${escapeHtml(status.label)}</span>
+</div>
+<button type="button" class="medical-modal-close" data-medical-close-modal aria-label="Close recommendation">x</button>
+</header>
+${renderMedicalPlayerModalTabs(medicalPlayerModalTab)}
+${renderMedicalPlayerModalBody({
+player,
+canEdit,
+canRecommend,
+activityContext,
+record,
+formParticipation,
+formStatus,
+formActual,
+formRtpPhase,
+formStatusLabel,
+})}
 </section>
 </div>
 `;
@@ -30658,11 +30754,13 @@ return;
 }
 medicalState.selectedPlayerId = playerId;
 medicalPlayerModalOpen = true;
+medicalPlayerModalTab = "availability";
 writeMedicalState();
 renderMedicalTeamWorkspace();
 }
 function closeMedicalPlayerModal(message = "") {
 medicalPlayerModalOpen = false;
+medicalPlayerModalTab = "availability";
 renderMedicalTeamWorkspace(message);
 }
 function setMedicalSelectedDate(dateValue) {
@@ -72279,6 +72377,12 @@ if (closeModalButton) {
 closeMedicalPlayerModal();
 return;
 }
+const modalTabButton = event.target.closest("[data-medical-modal-tab]");
+if (modalTabButton) {
+medicalPlayerModalTab = normalizeMedicalPlayerModalTab(modalTabButton.dataset.medicalModalTab);
+renderMedicalTeamWorkspace();
+return;
+}
 const recommendationPreset = event.target.closest("[data-medical-recommendation-preset]");
 if (recommendationPreset) {
 const form = recommendationPreset.closest("[data-medical-recommendation-form]");
@@ -74467,6 +74571,7 @@ ui.profileMenuButton?.focus();
 }
 if (event.key === "Escape" && medicalPlayerModalOpen) {
 medicalPlayerModalOpen = false;
+medicalPlayerModalTab = "availability";
 renderMedicalTeamWorkspace();
 }
 if (event.key === "Escape" && playerProfileModalOpen) {

@@ -1299,3 +1299,107 @@ body.is-dark-mode .medical-ops-stat-clear {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.medical-modal-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.34rem;
+  padding: 0.34rem;
+  border-radius: 14px;
+  background: rgba(243, 246, 245, 0.92);
+  border: 1px solid rgba(29, 31, 29, 0.08);
+}
+
+.medical-modal-tab {
+  min-width: 0;
+  min-height: 2.42rem;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: #324139;
+  box-shadow: none;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 930;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+.medical-modal-tab:hover,
+.medical-modal-tab:focus-visible {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(29, 31, 29, 0.1);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.medical-modal-tab.is-active {
+  color: #fff;
+  background: linear-gradient(135deg, #14241c, #27483a);
+  border-color: rgba(20, 36, 28, 0.2);
+  box-shadow: 0 10px 24px rgba(12, 24, 20, 0.16);
+}
+
+.medical-modal-body-availability {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.medical-modal-main-wide {
+  width: 100%;
+}
+
+.medical-modal-body-profile {
+  grid-template-columns: minmax(0, 0.92fr) minmax(20rem, 0.78fr);
+}
+
+.medical-modal-body-plan {
+  grid-template-columns: minmax(0, 1.18fr) minmax(20rem, 0.75fr);
+}
+
+.medical-modal-body-profile .medical-profile-summary-card,
+.medical-modal-body-profile .medical-log-card,
+.medical-modal-body-plan .medical-clearance-card,
+.medical-modal-body-plan .medical-plan-list-card {
+  height: 100%;
+}
+
+body.is-dark-mode .medical-modal-tabs {
+  background: rgba(15, 23, 42, 0.78);
+  border-color: var(--dark-line);
+}
+
+body.is-dark-mode .medical-modal-tab {
+  color: var(--dark-muted);
+}
+
+body.is-dark-mode .medical-modal-tab:hover,
+body.is-dark-mode .medical-modal-tab:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(203, 213, 225, 0.18);
+  color: var(--dark-text);
+}
+
+body.is-dark-mode .medical-modal-tab.is-active {
+  color: #062013;
+  background: linear-gradient(180deg, #c6f6d5, #81d29f);
+  border-color: rgba(129, 210, 159, 0.38);
+}
+
+@media (max-width: 900px) {
+  .medical-modal-body-profile,
+  .medical-modal-body-plan {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .medical-modal-tabs {
+    grid-template-columns: 1fr;
+  }
+}

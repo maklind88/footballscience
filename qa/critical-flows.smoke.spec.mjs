@@ -958,9 +958,25 @@ test("Medical recommendations use match context and lock non-activity days", asy
 
   await playerRow.click();
   await expect(page.locator(".medical-modal-current")).toContainText("Match Available");
+  const modalTabs = page.locator(".medical-modal-tabs");
+  await expect(modalTabs.getByRole("tab", { name: "Availability" })).toHaveAttribute("aria-selected", "true");
+  await expect(modalTabs.getByRole("tab", { name: "Medical Profile" })).toBeVisible();
+  await expect(modalTabs.getByRole("tab", { name: "Medical Plan" })).toBeVisible();
   await expect(page.locator("[data-medical-recommendation-preview]")).toHaveText("100% / Match Available");
   await expect(page.locator(".medical-modal-card #medicalPlayerProfileForm")).toHaveCount(0);
   await expect(page.locator(".medical-modal-card")).not.toContainText("Save profile");
+  await modalTabs.getByRole("tab", { name: "Medical Profile" }).click();
+  await expect(modalTabs.getByRole("tab", { name: "Medical Profile" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator(".medical-modal-body-profile")).toContainText("Medical Profile");
+  await expect(page.locator(".medical-modal-body-profile")).toContainText("Medical Log");
+  await expect(page.locator("[data-medical-recommendation-preview]")).toHaveCount(0);
+  await modalTabs.getByRole("tab", { name: "Medical Plan" }).click();
+  await expect(modalTabs.getByRole("tab", { name: "Medical Plan" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator(".medical-modal-body-plan")).toContainText("Availability Plan");
+  await expect(page.locator(".medical-modal-body-plan")).toContainText("Clearance Checklist");
+  await expect(page.locator(".medical-modal-body-plan")).toContainText("Availability Plans");
+  await modalTabs.getByRole("tab", { name: "Availability" }).click();
+  await expect(page.locator("[data-medical-recommendation-preview]")).toHaveText("100% / Match Available");
   await page.locator(".medical-modal-close").click();
 
   await page.locator("[data-medical-date-picker]").evaluate((input) => {

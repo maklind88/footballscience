@@ -31777,6 +31777,7 @@ const pitchValue = pitchLabel
 return `
     <article
       class="periodization-day-card is-${escapeHtml(dayTone)}${matchDayLabel ? " has-matchday" : ""}${isSelected ? " is-selected" : ""}${isOutsideMonth ? " is-outside-month" : ""}"
+      ${matchDayLabel ? `style="grid-template-rows:auto minmax(2.35rem,auto) auto 1fr"` : ""}
       data-periodization-date="${escapeHtml(dateValue)}"
       role="button"
       tabindex="0"

@@ -11505,6 +11505,7 @@ function renderScoutingRecordCard(record, options = {}) {
   const compactRow = options.compactMode === true || (lightweight && !isScoutingDatabaseAdvancedMode());
   const state = ensureScoutingState();
   const recordId = getScoutingRecordId(record);
+  const canSendToTransferRoom = canSendScoutingRecordToTransferRoom();
   const filters = normalizeScoutingDatabaseFilters(state.databaseFilters);
   const selectedSlotId = getSelectedScoutingShadowSlotId(state);
   const selectedSlot = getScoutingShadowSlot(selectedSlotId);
@@ -11601,6 +11602,15 @@ function renderScoutingRecordCard(record, options = {}) {
               class="scouting-secondary-button"
               data-toggle-scouting-record-details="${escapeHtml(recordId)}"
             >${isExpanded ? "Hide quick view" : "Quick view"}</button>
+            ${
+              canSendToTransferRoom
+                ? `<button
+                    type="button"
+                    class="scouting-secondary-button"
+                    data-send-scouting-record-to-transfer-room="${escapeHtml(recordId)}"
+                  >Send to Transfer Room</button>`
+                : ""
+            }
             ${
               selectedSlot && canEditScoutingWorkspace()
                 ? `
@@ -14099,6 +14109,7 @@ function renderScoutingProfileModal() {
   }
   const recordId = getScoutingRecordId(record);
   const canEdit = canEditScoutingWorkspace();
+  const canSendToTransferRoom = canSendScoutingRecordToTransferRoom();
   const favorite = isScoutingRecordFavorited(recordId);
   const profileRoleProfileId = normalizeScoutingRoleProfileId(state.profileRoleProfileId, "auto");
   const selectedProfileRoleId = profileRoleProfileId === "auto" ? "" : profileRoleProfileId;
@@ -14173,6 +14184,9 @@ function renderScoutingProfileModal() {
                     <button type="button" class="scouting-star-button${favorite ? " is-active" : ""}" data-toggle-scouting-favorite="${escapeHtml(recordId)}" ${canEdit ? "" : "disabled"}>${favorite ? "Favorited" : "Favorite"}</button>
                     <button type="button" class="scouting-primary-button" data-create-scouting-profile-report="${escapeHtml(recordId)}" ${canEdit ? "" : "disabled"}>
                       Add pipeline + report draft
+                    </button>
+                    <button type="button" class="scouting-secondary-button" data-send-scouting-record-to-transfer-room="${escapeHtml(recordId)}" ${canSendToTransferRoom ? "" : "disabled"}>
+                      Send to Transfer Room
                     </button>
                   </div>
                 </section>
@@ -15052,6 +15066,29 @@ function addScoutingRecordToShadow(recordId, slotId) {
   writeScoutingState();
   refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: state.activeTab === "database" }, id);
 }
+function canSendScoutingRecordToTransferRoom() {
+  return typeof activeContext?.sendToTransferRoom === "function" && activeContext.canSendToTransferRoom?.() === true;
+}
+function sendScoutingRecordToTransferRoom(recordId) {
+  if (!canSendScoutingRecordToTransferRoom()) {
+    return;
+  }
+  const state = ensureScoutingState();
+  const id = normalizeScoutingText(recordId, 160);
+  if (!id) {
+    return;
+  }
+  const record = getScoutingStoredPlayerRecord(id, state);
+  const snapshot = record ? rememberScoutingRecordSnapshot(record, state, { includeAnalysis: true }) : getScoutingRecordSnapshot(id, state);
+  if (!snapshot) {
+    return;
+  }
+  activeContext.sendToTransferRoom(snapshot, {
+    source: "scouting",
+    recordId: snapshot.recordId,
+  });
+  writeScoutingState();
+}
 function removeScoutingRecordFromShadow(recordId, slotId) {
   if (!canEditScoutingWorkspace()) {
     return;
@@ -15088,6 +15125,12 @@ export function render(context) {
 export function renderAnalysisRoom(context) {
   setScoutingContext(context);
   renderScoutingAnalysisRoomWorkspace();
+}
+export function openRecord(recordId, context = activeContext) {
+  if (context) {
+    setScoutingContext(context);
+  }
+  openScoutingRecordProfile(recordId);
 }
 export function handleClick(event, context) {
   setScoutingContext(context);
@@ -15590,6 +15633,13 @@ export function handleClick(event, context) {
     event.stopPropagation();
     const listSelect = ui.scoutingWorkspace?.querySelector("[data-scouting-profile-list]");
     addScoutingRecordToList(addToListTrigger.dataset.addScoutingRecordToList, listSelect?.value);
+    return;
+  }
+  const sendToTransferRoomTrigger = event.target.closest("[data-send-scouting-record-to-transfer-room]");
+  if (sendToTransferRoomTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    sendScoutingRecordToTransferRoom(sendToTransferRoomTrigger.dataset.sendScoutingRecordToTransferRoom);
     return;
   }
   const addToShadowTrigger = event.target.closest("[data-add-scouting-record-to-shadow]");

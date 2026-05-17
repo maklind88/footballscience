@@ -141,6 +141,7 @@ adminWorkspace: document.getElementById("adminWorkspace"),
 medicalTeamWorkspace: document.getElementById("medicalTeamWorkspace"),
 playerProfilesWorkspace: document.getElementById("playerProfilesWorkspace"),
 scoutingWorkspace: document.getElementById("scoutingWorkspace"),
+transferRoomWorkspace: document.getElementById("transferRoomWorkspace"),
 analysisRoomWorkspace: document.getElementById("analysisRoomWorkspace"),
 gameSimulatorWorkspace: document.querySelector('[data-workspace-view="game-simulator"]'),
 gameSimulatorIntro: document.getElementById("gameSimulatorIntro"),
@@ -344,6 +345,7 @@ const dashboardNewsSeenStorageKey = "football-dashboard-news-seen-v1";
 const platformAppearanceStorageKey = "football-platform-appearance-v1";
 const medicalTeamStorageKey = "football-medical-team-v1";
 const scoutingStorageKey = "football-scouting-v1";
+const transferRoomStorageKey = "football-transfer-room-v1";
 const sequenceStorageKey = "football-simulator-sequence-v1";
 const sequenceLibraryStorageKey = "football-simulator-sequence-library-v2";
 const dataSafetyStorageKey = "football-data-safety-v1";
@@ -372,6 +374,7 @@ dashboardNewsSeenStorageKey,
 platformAppearanceStorageKey,
 medicalTeamStorageKey,
 scoutingStorageKey,
+transferRoomStorageKey,
 sequenceStorageKey,
 sequenceLibraryStorageKey,
 ];
@@ -395,6 +398,7 @@ const dataSafetyStorageLabels = {
 [medicalTeamStorageKey]: "Medical Room",
 [playerProfilesStorageKey]: "Player Profiles",
 [scoutingStorageKey]: "Scouting",
+[transferRoomStorageKey]: "Transfer Room",
 [sequenceStorageKey]: "Current Simulator Sequence",
 [sequenceLibraryStorageKey]: "Simulator Sequence Library",
 };
@@ -809,6 +813,13 @@ if (key === scoutingStorageKey) {
 scoutingState = readScoutingState();
 if (hubState?.activeWorkspaceId === "scouting" && !shouldDeferCentralizedAppStateReload()) {
 renderScoutingWorkspace();
+}
+return;
+}
+if (key === transferRoomStorageKey) {
+transferRoomState = readTransferRoomState();
+if (hubState?.activeWorkspaceId === "transfer-room" && !shouldDeferCentralizedAppStateReload()) {
+renderTransferRoomWorkspace();
 }
 }
 }
@@ -1874,6 +1885,15 @@ status: "New",
 icon: "◇",
 },
 {
+id: "transfer-room",
+kind: "transfer-room",
+title: "Transfer Room",
+meta: "Confidential planning",
+description: "Squad decisions, scouted targets, budgets and league-rule checks.",
+status: "New",
+icon: "◍",
+},
+{
 id: "analysis-room",
 kind: "analysis-room",
 title: "Analysis Room",
@@ -1890,6 +1910,7 @@ const topIconMenuOrder = [
 "session-planner",
 "player-profiles",
 "scouting",
+"transfer-room",
 "analysis-room",
 "staff",
 "medical-team",
@@ -1904,6 +1925,7 @@ periodization: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"
 "session-planner": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
 "player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout", "performance", "medical"],
 scouting: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
+"transfer-room": ["admin", "team-admin"],
 "analysis-room": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
 "medical-team": ["admin", "club-admin", "team-admin", "coach", "performance", "medical"],
 staff: ["admin"],
@@ -1918,6 +1940,7 @@ periodization: ["admin", "club-admin", "team-admin", "coach", "performance"],
 "session-planner": ["admin", "club-admin", "team-admin", "coach"],
 "player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout"],
 scouting: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
+"transfer-room": ["admin", "team-admin"],
 "analysis-room": ["admin", "club-admin", "team-admin", "scout", "analyst"],
 "medical-team": ["admin", "club-admin", "team-admin", "medical", "performance"],
 staff: ["admin"],
@@ -1941,6 +1964,10 @@ edit: ["admin", "club-admin", "team-admin", "medical", "performance"],
 scouting: {
 view: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
 edit: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
+},
+"transfer-room": {
+view: ["admin", "team-admin"],
+edit: ["admin", "team-admin"],
 },
 "team-identity": {
 view: ["admin", "club-admin", "team-admin", "coach"],
@@ -4509,6 +4536,7 @@ let squadComparisonRole = "8";
 let squadComparisonPlayerIds = ["", ""];
 let squadFormationFit = "4-3-3";
 let scoutingState = null;
+let transferRoomState = null;
 let sessionPlannerState = null;
 let sessionPlannerExerciseLibrary = null;
 let sessionPlannerExerciseLibraryFolders = null;
@@ -5813,6 +5841,9 @@ const normalizedRole = normalizePlatformRole(user?.role, "guest");
 if (normalizedRole === "admin") {
 return true;
 }
+if (workspace.id === "transfer-room") {
+return canUserAccessTransferRoom(user);
+}
 if (workspace.requiresAdmin) {
 return isPlatformManagementUser(user);
 }
@@ -5837,6 +5868,9 @@ return true;
 const workspace = getWorkspaceByIdFromPool(workspaceId);
 if (!workspace) {
 return false;
+}
+if (workspaceId === "transfer-room") {
+return canUserEditTransferRoom(user);
 }
 if (workspace.requiresAdmin) {
 return isPlatformManagementUser(user);
@@ -6968,6 +7002,610 @@ scoutingState = readScoutingState();
 }
 return scoutingState;
 }
+const transferRoomSchemaVersion = 1;
+const transferRoomDefaultCurrency = "USD";
+const transferRoomDefaultWagePeriod = "year";
+const transferRoomCurrencyOptions = Object.freeze([
+{ value: "USD", label: "USD" },
+{ value: "EUR", label: "EUR" },
+{ value: "GBP", label: "GBP" },
+{ value: "SEK", label: "SEK" },
+{ value: "CAD", label: "CAD" },
+{ value: "AUD", label: "AUD" },
+]);
+const transferRoomWagePeriodOptions = Object.freeze([
+{ value: "year", label: "Per year", multiplier: 1 },
+{ value: "month", label: "Per month", multiplier: 12 },
+{ value: "week", label: "Per week", multiplier: 52 },
+]);
+const transferRoomSquadStatuses = new Set(["keep", "review", "sell", "loan", "release", "renew"]);
+const transferRoomTargetStages = new Set(["monitoring", "shortlist", "contact", "negotiation", "approved", "paused"]);
+const transferRoomDefaultLeagueProfiles = Object.freeze({
+"nwsl-2026": Object.freeze({
+id: "nwsl-2026",
+label: "NWSL 2026",
+country: "United States",
+league: "NWSL",
+season: "2026",
+currency: "USD",
+wagePeriod: "year",
+baseSalaryCap: 3500000,
+revenueShareMinimum: 200000,
+salaryCap: 3700000,
+sourceLabel: "NWSLPA CBA and NWSL 2026 Competition Rules",
+sourceUrl: "https://www.nwslplayers.com/cba",
+competitionRulesUrl: "https://www.nwslsoccer.com/rules-and-policies",
+rules: Object.freeze([
+{
+id: "salary-cap-base",
+label: "Base team salary cap",
+amount: 3500000,
+type: "money",
+severity: "cap",
+},
+{
+id: "revenue-share-floor",
+label: "Minimum revenue-share addition",
+amount: 200000,
+type: "money",
+severity: "cap",
+},
+{
+id: "player-consent",
+label: "Trade requires player consent",
+type: "check",
+severity: "legal",
+},
+{
+id: "guaranteed-contracts",
+label: "Guaranteed player contracts",
+type: "check",
+severity: "legal",
+},
+{
+id: "free-agency",
+label: "Free agency after contract expiry",
+type: "check",
+severity: "roster",
+},
+]),
+}),
+});
+function normalizeTransferRoomText(value, maxLength = 240) {
+return String(value ?? "").trim().slice(0, maxLength);
+}
+function normalizeTransferRoomComparable(value = "") {
+return normalizeTransferRoomText(value, 240).toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+}
+function normalizeTransferRoomMoney(value) {
+if (value === "" || value === null || value === undefined) {
+return "";
+}
+const numericValue = Number(String(value).replace(/[$,\s]/g, ""));
+return Number.isFinite(numericValue) && numericValue >= 0 ? Math.round(numericValue) : "";
+}
+function normalizeTransferRoomCurrency(value) {
+const currency = normalizeTransferRoomText(value, 12).toUpperCase();
+return transferRoomCurrencyOptions.some((option) => option.value === currency) ? currency : transferRoomDefaultCurrency;
+}
+function normalizeTransferRoomWagePeriod(value) {
+const period = normalizeTransferRoomText(value, 20).toLowerCase();
+return transferRoomWagePeriodOptions.some((option) => option.value === period) ? period : transferRoomDefaultWagePeriod;
+}
+function getTransferRoomCurrentTeam() {
+const structure = getPlatformStructureState();
+const currentUser = getCurrentPlatformUser();
+const team =
+getPlatformTeamById(getUserTeamId(currentUser, structure), structure) ||
+getPlatformTeamById(platformDefaultTeamId, structure) ||
+{ id: platformDefaultTeamId, name: platformDefaultTeamName, shortName: platformDefaultClubShortName, clubId: platformDefaultClubId };
+return {
+id: team.id || platformDefaultTeamId,
+clubId: team.clubId || platformDefaultClubId,
+name: team.name || platformDefaultTeamName,
+shortName: team.shortName || platformDefaultClubShortName,
+season: team.season || "2026",
+country: team.country || "United States",
+league: team.league || "NWSL",
+leagueProfileId: team.leagueProfileId || "nwsl-2026",
+};
+}
+function normalizeTransferRoomLeagueProfile(profile = {}, fallback = transferRoomDefaultLeagueProfiles["nwsl-2026"]) {
+const id = normalizeTransferRoomText(profile.id || fallback.id, 120) || fallback.id;
+return {
+...fallback,
+...profile,
+id,
+label: normalizeTransferRoomText(profile.label || fallback.label, 120),
+country: normalizeTransferRoomText(profile.country || fallback.country, 120),
+league: normalizeTransferRoomText(profile.league || fallback.league, 120),
+season: normalizeTransferRoomText(profile.season || fallback.season, 40),
+currency: normalizeTransferRoomCurrency(profile.currency || fallback.currency),
+wagePeriod: normalizeTransferRoomWagePeriod(profile.wagePeriod || fallback.wagePeriod),
+baseSalaryCap: normalizeTransferRoomMoney(profile.baseSalaryCap ?? fallback.baseSalaryCap),
+revenueShareMinimum: normalizeTransferRoomMoney(profile.revenueShareMinimum ?? fallback.revenueShareMinimum),
+salaryCap: normalizeTransferRoomMoney(profile.salaryCap ?? fallback.salaryCap),
+rules: Array.isArray(profile.rules) && profile.rules.length ? profile.rules : [...fallback.rules],
+};
+}
+function getTransferRoomLeagueProfiles(sourceProfiles = {}) {
+const profiles = { ...transferRoomDefaultLeagueProfiles };
+if (sourceProfiles && typeof sourceProfiles === "object" && !Array.isArray(sourceProfiles)) {
+Object.entries(sourceProfiles).forEach(([profileId, profile]) => {
+const fallback = transferRoomDefaultLeagueProfiles[profileId] || transferRoomDefaultLeagueProfiles["nwsl-2026"];
+profiles[profileId] = normalizeTransferRoomLeagueProfile({ id: profileId, ...(profile || {}) }, fallback);
+});
+}
+return profiles;
+}
+function normalizeTransferRoomTeam(team = getTransferRoomCurrentTeam()) {
+const fallbackTeam = getTransferRoomCurrentTeam();
+const id = normalizeTransferRoomText(team.id || team.teamId || fallbackTeam.id, 180) || fallbackTeam.id;
+const name = normalizeTransferRoomText(team.name || team.teamName || fallbackTeam.name, 180) || fallbackTeam.name;
+return {
+id,
+clubId: normalizeTransferRoomText(team.clubId || fallbackTeam.clubId, 180),
+name,
+shortName: normalizeTransferRoomText(team.shortName || fallbackTeam.shortName, 24),
+season: normalizeTransferRoomText(team.season || fallbackTeam.season, 40),
+country: normalizeTransferRoomText(team.country || fallbackTeam.country, 80),
+league: normalizeTransferRoomText(team.league || fallbackTeam.league, 80),
+leagueProfileId: normalizeTransferRoomText(team.leagueProfileId || fallbackTeam.leagueProfileId, 120),
+};
+}
+function normalizeTransferRoomAccessByTeam(source = {}, teams = [getTransferRoomCurrentTeam()]) {
+const normalized = {};
+teams.forEach((team) => {
+const teamId = normalizeTransferRoomText(team.id, 180);
+if (teamId) {
+normalized[teamId] = { userIds: [] };
+}
+});
+if (source && typeof source === "object" && !Array.isArray(source)) {
+Object.entries(source).forEach(([teamId, access]) => {
+const normalizedTeamId = normalizeTransferRoomText(teamId, 180);
+if (!normalizedTeamId) {
+return;
+}
+const userIds = Array.isArray(access?.userIds) ? access.userIds : Array.isArray(access) ? access : [];
+normalized[normalizedTeamId] = {
+userIds: Array.from(new Set(userIds.map((userId) => normalizeTransferRoomText(userId, 180)).filter(Boolean))),
+};
+});
+}
+return normalized;
+}
+function getTransferRoomSquadPlayers() {
+const state = playerProfilesState || readPlayerProfilesState();
+return (Array.isArray(state.players) ? state.players : [])
+.map((player) => ({
+id: normalizeTransferRoomText(player.id, 180),
+name: normalizeTransferRoomText(player.name, 180),
+number: normalizeTransferRoomText(player.number, 20),
+position: normalizeTransferRoomText(player.position || player.primaryRole || player.roleGroup, 120),
+roleGroup: normalizeTransferRoomText(player.roleGroup || "", 80),
+status: normalizeTransferRoomText(player.status || player.squadStatus || "", 80),
+photoUrl: normalizeTransferRoomText(player.photoUrl || player.profileImageUrl || player.avatarUrl || "", 1800),
+contractEnd: normalizeTransferRoomText(player.contractEnd || player.contractUntil || player.futureData?.contractEnd || "", 40),
+rosterOrder: Number.isFinite(Number(player.rosterOrder)) ? Number(player.rosterOrder) : Number.MAX_SAFE_INTEGER,
+}))
+.filter((player) => player.id && player.name)
+.sort((first, second) => {
+if (first.rosterOrder !== second.rosterOrder) {
+return first.rosterOrder - second.rosterOrder;
+}
+return first.name.localeCompare(second.name);
+});
+}
+function normalizeTransferRoomSquadPlan(plan = {}, player = {}) {
+const playerId = normalizeTransferRoomText(plan.playerId || player.id, 180);
+const status = normalizeTransferRoomText(plan.status || plan.transferStatus || "keep", 40);
+return {
+playerId,
+name: normalizeTransferRoomText(plan.name || player.name, 180),
+position: normalizeTransferRoomText(plan.position || player.position, 120),
+status: transferRoomSquadStatuses.has(status) ? status : "keep",
+salary: normalizeTransferRoomMoney(plan.salary),
+wagePeriod: normalizeTransferRoomWagePeriod(plan.wagePeriod || transferRoomDefaultWagePeriod),
+estimatedValue: normalizeTransferRoomMoney(plan.estimatedValue || plan.value),
+contractEnd: normalizeTransferRoomText(plan.contractEnd || player.contractEnd, 40),
+notes: normalizeTransferRoomText(plan.notes, 900),
+updatedAt: normalizeTransferRoomText(plan.updatedAt, 40),
+};
+}
+function normalizeTransferRoomSnapshot(snapshot = {}) {
+const recordId = normalizeTransferRoomText(snapshot.recordId || snapshot.id, 180);
+if (!recordId) {
+return null;
+}
+return {
+recordId,
+name: normalizeTransferRoomText(snapshot.name || snapshot.playerName, 180),
+club: normalizeTransferRoomText(snapshot.club || snapshot.team, 180),
+position: normalizeTransferRoomText(snapshot.position, 120),
+age: normalizeTransferRoomText(snapshot.age, 24),
+minutes: normalizeTransferRoomText(snapshot.minutes, 30),
+birthCountry: normalizeTransferRoomText(snapshot.birthCountry, 120),
+passportCountry: normalizeTransferRoomText(snapshot.passportCountry || snapshot.nationality, 120),
+imageUrl: normalizeTransferRoomText(snapshot.imageUrl, 600),
+league: normalizeTransferRoomText(snapshot.league, 180),
+season: normalizeTransferRoomText(snapshot.season, 80),
+fit: normalizeTransferRoomText(snapshot.fit, 40),
+signalLabel: normalizeTransferRoomText(snapshot.signalLabel, 120),
+signalPercentile: normalizeTransferRoomText(snapshot.signalPercentile, 24),
+sourceSlotId: normalizeTransferRoomText(snapshot.sourceSlotId || snapshot.slotId, 60),
+updatedAt: normalizeTransferRoomText(snapshot.updatedAt, 40) || new Date().toISOString(),
+};
+}
+function normalizeTransferRoomTargetPlan(plan = {}, snapshot = {}) {
+const recordId = normalizeTransferRoomText(plan.recordId || snapshot.recordId, 180);
+const stage = normalizeTransferRoomText(plan.stage || plan.status || "monitoring", 40);
+return {
+recordId,
+name: normalizeTransferRoomText(plan.name || snapshot.name, 180),
+position: normalizeTransferRoomText(plan.position || snapshot.position, 120),
+club: normalizeTransferRoomText(plan.club || snapshot.club, 180),
+stage: transferRoomTargetStages.has(stage) ? stage : "monitoring",
+fee: normalizeTransferRoomMoney(plan.fee || plan.estimatedFee),
+wage: normalizeTransferRoomMoney(plan.wage || plan.salary),
+wagePeriod: normalizeTransferRoomWagePeriod(plan.wagePeriod || transferRoomDefaultWagePeriod),
+replacementFor: normalizeTransferRoomText(plan.replacementFor, 180),
+priority: normalizeTransferRoomText(plan.priority || "normal", 40),
+source: normalizeTransferRoomText(plan.source || "scouting", 80),
+notes: normalizeTransferRoomText(plan.notes, 900),
+updatedAt: normalizeTransferRoomText(plan.updatedAt, 40),
+};
+}
+function syncTransferRoomSquadPlans(state) {
+const players = getTransferRoomSquadPlayers();
+const squadPlans = state.squadPlans && typeof state.squadPlans === "object" && !Array.isArray(state.squadPlans)
+? { ...state.squadPlans }
+: {};
+players.forEach((player) => {
+squadPlans[player.id] = normalizeTransferRoomSquadPlan(squadPlans[player.id] || {}, player);
+});
+state.squadPlans = squadPlans;
+return players;
+}
+function getTransferRoomShadowRecordsFromScouting(state = ensureScoutingState()) {
+const slots = state?.shadowXi?.slots && typeof state.shadowXi.slots === "object" ? state.shadowXi.slots : {};
+const meta = state?.shadowXi?.meta && typeof state.shadowXi.meta === "object" ? state.shadowXi.meta : {};
+const snapshots = state?.playerSnapshots && typeof state.playerSnapshots === "object" ? state.playerSnapshots : {};
+const records = [];
+Object.entries(slots).forEach(([slotId, value]) => {
+const ids = Array.isArray(value) ? value : value ? [value] : [];
+ids.forEach((recordIdValue) => {
+const recordId = normalizeTransferRoomText(recordIdValue, 180);
+if (!recordId) {
+return;
+}
+const metaEntry = meta[`${slotId}:${recordId}`] || {};
+const snapshot = normalizeTransferRoomSnapshot({
+recordId,
+sourceSlotId: slotId,
+...(snapshots[recordId] || {}),
+name: snapshots[recordId]?.name || metaEntry.playerName || metaEntry.name,
+club: snapshots[recordId]?.club || metaEntry.team,
+league: snapshots[recordId]?.league || metaEntry.league,
+season: snapshots[recordId]?.season || metaEntry.season,
+position: snapshots[recordId]?.position || metaEntry.position,
+});
+if (snapshot) {
+records.push(snapshot);
+}
+});
+});
+return records;
+}
+function syncTransferRoomTargetsFromScouting(state) {
+if (!state || typeof state !== "object") {
+return;
+}
+const targetPlans = state.targetPlans && typeof state.targetPlans === "object" && !Array.isArray(state.targetPlans)
+? { ...state.targetPlans }
+: {};
+const targetSnapshots = state.targetSnapshots && typeof state.targetSnapshots === "object" && !Array.isArray(state.targetSnapshots)
+? { ...state.targetSnapshots }
+: {};
+getTransferRoomShadowRecordsFromScouting().forEach((snapshot) => {
+targetSnapshots[snapshot.recordId] = {
+...(targetSnapshots[snapshot.recordId] || {}),
+...snapshot,
+source: "shadow-xi",
+};
+targetPlans[snapshot.recordId] = normalizeTransferRoomTargetPlan(
+{
+...(targetPlans[snapshot.recordId] || {}),
+recordId: snapshot.recordId,
+source: targetPlans[snapshot.recordId]?.source || "shadow-xi",
+},
+targetSnapshots[snapshot.recordId]
+);
+});
+state.targetPlans = targetPlans;
+state.targetSnapshots = targetSnapshots;
+}
+function cloneTransferRoomState(source = {}) {
+const currentTeam = getTransferRoomCurrentTeam();
+const teams = Array.isArray(source.teams) && source.teams.length
+? source.teams.map(normalizeTransferRoomTeam)
+: [normalizeTransferRoomTeam(currentTeam)];
+const leagueProfiles = getTransferRoomLeagueProfiles(source.leagueProfiles);
+const activeTeamId = normalizeTransferRoomText(source.activeTeamId || source.settings?.activeTeamId || currentTeam.id, 180);
+const activeTeam = teams.find((team) => team.id === activeTeamId) || teams[0] || normalizeTransferRoomTeam(currentTeam);
+const leagueProfileId = normalizeTransferRoomText(
+source.settings?.leagueProfileId || source.leagueProfileId || activeTeam.leagueProfileId || "nwsl-2026",
+120
+);
+const leagueProfile = leagueProfiles[leagueProfileId] || leagueProfiles["nwsl-2026"];
+const settings = {
+currency: normalizeTransferRoomCurrency(source.settings?.currency || source.currency || leagueProfile.currency),
+wagePeriod: normalizeTransferRoomWagePeriod(source.settings?.wagePeriod || source.wagePeriod || leagueProfile.wagePeriod),
+leagueProfileId: leagueProfile.id,
+activeTeamId: activeTeam.id,
+salaryCap: normalizeTransferRoomMoney(source.settings?.salaryCap ?? source.salaryCap ?? leagueProfile.salaryCap),
+capBuffer: normalizeTransferRoomMoney(source.settings?.capBuffer),
+};
+const targetSnapshots = {};
+if (source.targetSnapshots && typeof source.targetSnapshots === "object" && !Array.isArray(source.targetSnapshots)) {
+Object.values(source.targetSnapshots).forEach((snapshot) => {
+const normalizedSnapshot = normalizeTransferRoomSnapshot(snapshot);
+if (normalizedSnapshot) {
+targetSnapshots[normalizedSnapshot.recordId] = normalizedSnapshot;
+}
+});
+}
+const targetPlans = {};
+const sourceTargetPlans = Array.isArray(source.targetPlans)
+? source.targetPlans
+: Object.values(source.targetPlans && typeof source.targetPlans === "object" ? source.targetPlans : {});
+sourceTargetPlans.forEach((plan) => {
+const normalizedPlan = normalizeTransferRoomTargetPlan(plan, targetSnapshots[plan?.recordId] || {});
+if (normalizedPlan.recordId) {
+targetPlans[normalizedPlan.recordId] = normalizedPlan;
+}
+});
+const state = {
+schemaVersion: transferRoomSchemaVersion,
+activeTab: normalizeTransferRoomText(source.activeTab || "overview", 40),
+activeTeamId: activeTeam.id,
+settings,
+teams,
+leagueProfiles,
+accessByTeam: normalizeTransferRoomAccessByTeam(source.accessByTeam || source.access, teams),
+squadPlans: source.squadPlans && typeof source.squadPlans === "object" && !Array.isArray(source.squadPlans) ? { ...source.squadPlans } : {},
+targetPlans,
+targetSnapshots,
+windows: Array.isArray(source.windows) ? source.windows : [],
+updatedAt: source.updatedAt || new Date().toISOString(),
+};
+syncTransferRoomSquadPlans(state);
+syncTransferRoomTargetsFromScouting(state);
+return state;
+}
+function setTransferRoomStateStorageValue(state = transferRoomState, options = {}) {
+const shouldSyncCentral = options.syncCentral !== false;
+if (!shouldSyncCentral) {
+centralStateWriteSuppressionKeys.add(transferRoomStorageKey);
+}
+try {
+window.localStorage.setItem(transferRoomStorageKey, JSON.stringify(state));
+} finally {
+if (!shouldSyncCentral) {
+centralStateWriteSuppressionKeys.delete(transferRoomStorageKey);
+}
+}
+}
+function readTransferRoomState() {
+try {
+const raw = window.localStorage.getItem(transferRoomStorageKey);
+const state = cloneTransferRoomState(raw ? JSON.parse(raw) : {});
+const normalizedValue = JSON.stringify(state);
+if (raw !== normalizedValue) {
+setTransferRoomStateStorageValue(state, { syncCentral: false });
+}
+return state;
+} catch {
+const state = cloneTransferRoomState({});
+try {
+setTransferRoomStateStorageValue(state, { syncCentral: false });
+} catch {}
+return state;
+}
+}
+function ensureTransferRoomState() {
+if (!transferRoomState) {
+transferRoomState = readTransferRoomState();
+}
+syncTransferRoomSquadPlans(transferRoomState);
+syncTransferRoomTargetsFromScouting(transferRoomState);
+return transferRoomState;
+}
+function writeTransferRoomState(options = {}) {
+if (!transferRoomState) {
+return;
+}
+try {
+transferRoomState.updatedAt = new Date().toISOString();
+setTransferRoomStateStorageValue(transferRoomState, options);
+} catch {
+logEvent("Transfer Room could not be written to local storage.");
+}
+}
+function getTransferRoomStateForAccess() {
+if (transferRoomState) {
+return transferRoomState;
+}
+try {
+const raw = window.localStorage.getItem(transferRoomStorageKey);
+return raw ? cloneTransferRoomState(JSON.parse(raw)) : null;
+} catch {
+return null;
+}
+}
+function getTransferRoomTeamAccessIds(user = getCurrentPlatformUser()) {
+const currentTeam = getTransferRoomCurrentTeam();
+return Array.from(
+new Set([
+currentTeam.id,
+currentTeam.name,
+user?.teamId,
+user?.team_id,
+user?.teamName,
+user?.team,
+platformDefaultTeamId,
+platformDefaultTeamName,
+"team-ncc-first",
+].map(normalizeTransferRoomComparable).filter(Boolean))
+);
+}
+function isTransferRoomSelectedUser(user = getCurrentPlatformUser(), state = getTransferRoomStateForAccess()) {
+if (!user?.id || !state?.accessByTeam) {
+return false;
+}
+const teamAliases = getTransferRoomTeamAccessIds(user);
+return Object.entries(state.accessByTeam).some(([teamId, access]) => {
+if (!teamAliases.includes(normalizeTransferRoomComparable(teamId))) {
+return false;
+}
+const userIds = Array.isArray(access?.userIds) ? access.userIds : [];
+return userIds.map((userId) => normalizeTransferRoomText(userId, 180)).includes(user.id);
+});
+}
+function canUserAccessTransferRoom(user = getCurrentPlatformUser()) {
+const role = normalizePlatformRole(user?.role, "guest");
+if (role === "admin" || role === "team-admin") {
+return true;
+}
+return isTransferRoomSelectedUser(user);
+}
+function canUserEditTransferRoom(user = getCurrentPlatformUser()) {
+return canUserAccessTransferRoom(user);
+}
+function canCurrentUserManageTransferRoomAccess() {
+const user = getCurrentPlatformUser();
+const role = normalizePlatformRole(user?.role, "guest");
+return (role === "admin" || role === "team-admin") && canUserAccessTransferRoom(user);
+}
+function setTransferRoomActiveTab(tabId) {
+const state = ensureTransferRoomState();
+state.activeTab = normalizeTransferRoomText(tabId, 40) || "overview";
+writeTransferRoomState();
+renderTransferRoomWorkspace();
+}
+function updateTransferRoomSettings(patch = {}) {
+if (!canUserEditTransferRoom()) {
+return;
+}
+const state = ensureTransferRoomState();
+state.settings = {
+...state.settings,
+...patch,
+currency: normalizeTransferRoomCurrency(patch.currency || state.settings.currency),
+wagePeriod: normalizeTransferRoomWagePeriod(patch.wagePeriod || state.settings.wagePeriod),
+salaryCap: normalizeTransferRoomMoney(patch.salaryCap ?? state.settings.salaryCap),
+capBuffer: normalizeTransferRoomMoney(patch.capBuffer ?? state.settings.capBuffer),
+};
+writeTransferRoomState();
+renderTransferRoomWorkspace();
+}
+function updateTransferRoomSquadPlan(playerId, patch = {}) {
+if (!canUserEditTransferRoom()) {
+return;
+}
+const state = ensureTransferRoomState();
+const id = normalizeTransferRoomText(playerId, 180);
+if (!id) {
+return;
+}
+state.squadPlans[id] = normalizeTransferRoomSquadPlan({
+...(state.squadPlans[id] || {}),
+...patch,
+playerId: id,
+updatedAt: new Date().toISOString(),
+});
+writeTransferRoomState();
+renderTransferRoomWorkspace();
+}
+function updateTransferRoomTargetPlan(recordId, patch = {}) {
+if (!canUserEditTransferRoom()) {
+return;
+}
+const state = ensureTransferRoomState();
+const id = normalizeTransferRoomText(recordId, 180);
+if (!id) {
+return;
+}
+const snapshot = state.targetSnapshots[id] || {};
+state.targetPlans[id] = normalizeTransferRoomTargetPlan({
+...(state.targetPlans[id] || {}),
+...patch,
+recordId: id,
+updatedAt: new Date().toISOString(),
+}, snapshot);
+writeTransferRoomState();
+renderTransferRoomWorkspace();
+}
+function removeTransferRoomTarget(recordId) {
+if (!canUserEditTransferRoom()) {
+return;
+}
+const state = ensureTransferRoomState();
+const id = normalizeTransferRoomText(recordId, 180);
+if (!id) {
+return;
+}
+delete state.targetPlans[id];
+delete state.targetSnapshots[id];
+writeTransferRoomState();
+renderTransferRoomWorkspace();
+}
+function toggleTransferRoomAccessUser(userId, isSelected) {
+if (!canCurrentUserManageTransferRoomAccess()) {
+return;
+}
+const state = ensureTransferRoomState();
+const teamId = state.activeTeamId || getTransferRoomCurrentTeam().id;
+const cleanUserId = normalizeTransferRoomText(userId, 180);
+if (!cleanUserId) {
+return;
+}
+const access = state.accessByTeam[teamId] || { userIds: [] };
+const selected = new Set(Array.isArray(access.userIds) ? access.userIds : []);
+if (isSelected) {
+selected.add(cleanUserId);
+} else {
+selected.delete(cleanUserId);
+}
+state.accessByTeam[teamId] = { userIds: Array.from(selected) };
+writeTransferRoomState();
+renderTransferRoomWorkspace();
+}
+function addTransferRoomTargetFromScoutingSnapshot(snapshot = {}, options = {}) {
+if (!canUserEditTransferRoom()) {
+return false;
+}
+const state = ensureTransferRoomState();
+const normalizedSnapshot = normalizeTransferRoomSnapshot({
+...snapshot,
+sourceSlotId: options.slotId || snapshot.sourceSlotId || snapshot.slotId,
+});
+if (!normalizedSnapshot) {
+return false;
+}
+state.targetSnapshots[normalizedSnapshot.recordId] = normalizedSnapshot;
+state.targetPlans[normalizedSnapshot.recordId] = normalizeTransferRoomTargetPlan({
+...(state.targetPlans[normalizedSnapshot.recordId] || {}),
+recordId: normalizedSnapshot.recordId,
+stage: options.stage || state.targetPlans[normalizedSnapshot.recordId]?.stage || "shortlist",
+source: options.source || "scouting",
+}, normalizedSnapshot);
+writeTransferRoomState();
+if (hubState?.activeWorkspaceId === "transfer-room") {
+renderTransferRoomWorkspace();
+}
+return true;
+}
 let scoutingWorkspaceModulePromise = null;
 let scoutingWorkspaceModule = null;
 function getScoutingWorkspaceContext() {
@@ -6982,6 +7620,8 @@ return normalizePlatformStructureText(currentUser?.team || currentUser?.teamName
 ensureState: ensureScoutingState,
 writeState: writeScoutingState,
 canEdit: canEditScoutingWorkspace,
+canSendToTransferRoom: canUserEditTransferRoom,
+sendToTransferRoom: addTransferRoomTargetFromScoutingSnapshot,
 tabs: scoutingTabs,
 shadowSlots: scoutingShadowSlots,
 coreMetricOptions: scoutingCoreMetricOptions,
@@ -7079,6 +7719,102 @@ ui.analysisRoomWorkspace.innerHTML = `
 return;
 }
 scoutingWorkspaceModule.renderAnalysisRoom(getScoutingAnalysisRoomContext());
+}
+let transferRoomWorkspaceModulePromise = null;
+let transferRoomWorkspaceModule = null;
+function getTransferRoomWorkspaceContext() {
+const state = ensureTransferRoomState();
+return {
+ui: {
+transferRoomWorkspace: ui.transferRoomWorkspace,
+},
+escapeHtml,
+state,
+team: state.teams.find((team) => team.id === state.activeTeamId) || getTransferRoomCurrentTeam(),
+users: getPlatformUsers(),
+currentUser: getCurrentPlatformUser(),
+squadPlayers: getTransferRoomSquadPlayers(),
+currencyOptions: transferRoomCurrencyOptions,
+wagePeriodOptions: transferRoomWagePeriodOptions,
+canEdit: canUserEditTransferRoom,
+canManageAccess: canCurrentUserManageTransferRoomAccess,
+setActiveTab: setTransferRoomActiveTab,
+updateSettings: updateTransferRoomSettings,
+updateSquadPlan: updateTransferRoomSquadPlan,
+updateTargetPlan: updateTransferRoomTargetPlan,
+removeTarget: removeTransferRoomTarget,
+toggleAccessUser: toggleTransferRoomAccessUser,
+openScoutingRecord: (recordId) => {
+setActiveWorkspace("scouting");
+loadScoutingWorkspaceModule()
+.then((module) => module.openRecord?.(recordId, getScoutingWorkspaceContext()))
+.catch(() => {});
+},
+openWorkspace: setActiveWorkspace,
+};
+}
+function loadTransferRoomWorkspaceModule() {
+if (transferRoomWorkspaceModule) {
+return Promise.resolve(transferRoomWorkspaceModule);
+}
+if (!transferRoomWorkspaceModulePromise) {
+transferRoomWorkspaceModulePromise = Promise.all([
+platformModuleLoader.loadStylesheet("transfer-room", "transfer-room.css", {
+id: "transferRoomStylesheet",
+required: true,
+}),
+platformModuleLoader.loadModule("transfer-room", () => import(`./transfer-room.js?v=${encodeURIComponent(platformAssetVersion)}`)),
+])
+.then(([, module]) => {
+transferRoomWorkspaceModule = module;
+return module;
+})
+.catch((error) => {
+transferRoomWorkspaceModulePromise = null;
+throw error;
+});
+}
+return transferRoomWorkspaceModulePromise;
+}
+function renderTransferRoomWorkspace() {
+if (!ui.transferRoomWorkspace) {
+return;
+}
+if (!canUserAccessTransferRoom()) {
+ui.transferRoomWorkspace.innerHTML = `
+      <section class="transfer-room-shell">
+        <section class="transfer-room-load-panel">
+          <h2>Transfer Room is locked</h2>
+          <p>Only selected people for this team can access transfer planning.</p>
+        </section>
+      </section>
+    `;
+return;
+}
+if (!transferRoomWorkspaceModule) {
+ui.transferRoomWorkspace.innerHTML = `
+      <section class="transfer-room-shell">
+        <section class="transfer-room-load-panel">
+          <h2>Loading Transfer Room</h2>
+          <p>Preparing squad plans, target snapshots and league-rule checks.</p>
+        </section>
+      </section>
+    `;
+loadTransferRoomWorkspaceModule()
+.then((module) => module.render(getTransferRoomWorkspaceContext()))
+.catch(() => {
+ui.transferRoomWorkspace.innerHTML = `
+          <section class="transfer-room-shell">
+            <section class="transfer-room-load-panel">
+              <h2>Transfer Room could not load</h2>
+              <p>Refresh and try again.</p>
+            </section>
+          </section>
+        `;
+});
+return;
+}
+transferRoomWorkspaceModule.render(getTransferRoomWorkspaceContext());
 }
 function getScheduleEventsForDate(dateValue) {
 if (!scheduleState) {
@@ -7864,6 +8600,9 @@ return "player-profiles";
 }
 if (workspace.kind === "analysis-room") {
 return "analysis-room";
+}
+if (workspace.kind === "transfer-room") {
+return "transfer-room";
 }
 if (workspace.kind === "scouting") {
 return "scouting";
@@ -10665,6 +11404,13 @@ scouting: `
         <path d="M8.5 11h5M11 8.5v5"/>
       </svg>
     `,
+"transfer-room": `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="3.5" y="5" width="17" height="14" rx="2.2"/>
+        <path d="M7 9h10M7 13h6"/>
+        <path d="M16 14.5 19 17l-3 2.5"/>
+      </svg>
+    `,
 "analysis-room": `
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <rect x="3" y="4" width="18" height="14" rx="2"/>
@@ -10712,6 +11458,7 @@ periodization: "Period",
 "session-planner": "Sessions",
 "player-profiles": "Squad Room",
 scouting: "Scouting",
+"transfer-room": "Transfers",
 "analysis-room": "Analysis",
 staff: "Team",
 "medical-team": "Medical",
@@ -32542,6 +33289,14 @@ return;
 }
 if (viewId === "scouting") {
 ensureScoutingState();
+return;
+}
+if (viewId === "transfer-room") {
+ensureTransferRoomState();
+if (!playerProfilesState) {
+playerProfilesState = readPlayerProfilesState();
+}
+ensureScoutingState();
 }
 }
 function queueWorkspaceModulePreload(workspaceId = "") {
@@ -32552,6 +33307,9 @@ queueGameSimulatorControllersLoad();
 }
 if (viewId === "analysis-room") {
 loadScoutingWorkspaceModule();
+}
+if (viewId === "transfer-room") {
+loadTransferRoomWorkspaceModule();
 }
 }
 function preloadWorkspaceFromTrigger(trigger) {
@@ -32646,6 +33404,9 @@ renderPlayerProfilesWorkspace();
 }
 if (activeViewId === "scouting") {
 renderScoutingWorkspace();
+}
+if (activeViewId === "transfer-room") {
+renderTransferRoomWorkspace();
 }
 if (activeViewId === "analysis-room") {
 renderAnalysisRoomWorkspace();
@@ -75071,6 +75832,18 @@ scoutingWorkspaceModule?.handleChange(event, getScoutingWorkspaceContext());
 ui.scoutingWorkspace?.addEventListener("submit", (event) => {
 scoutingWorkspaceModule?.handleSubmit(event, getScoutingWorkspaceContext());
 });
+ui.transferRoomWorkspace?.addEventListener("click", (event) => {
+transferRoomWorkspaceModule?.handleClick(event, getTransferRoomWorkspaceContext());
+});
+ui.transferRoomWorkspace?.addEventListener("input", (event) => {
+transferRoomWorkspaceModule?.handleInput(event, getTransferRoomWorkspaceContext());
+});
+ui.transferRoomWorkspace?.addEventListener("change", (event) => {
+transferRoomWorkspaceModule?.handleChange(event, getTransferRoomWorkspaceContext());
+});
+ui.transferRoomWorkspace?.addEventListener("submit", (event) => {
+transferRoomWorkspaceModule?.handleSubmit(event, getTransferRoomWorkspaceContext());
+});
 ui.analysisRoomWorkspace?.addEventListener("click", (event) => {
 scoutingWorkspaceModule?.handleClick(event, getScoutingAnalysisRoomContext());
 });
@@ -75447,11 +76220,17 @@ if (
 event.key === dashboardTaskStorageKey ||
 event.key === dashboardNotificationSeenStorageKey ||
 event.key === playerProfilesStorageKey ||
-event.key === scoutingStorageKey
+event.key === scoutingStorageKey ||
+event.key === transferRoomStorageKey
 ) {
 if (event.key === scoutingStorageKey && hubState?.activeWorkspaceId === "scouting") {
 scoutingState = preserveScoutingTransientUiState(readScoutingState(), scoutingState);
 renderScoutingWorkspace();
+return;
+}
+if (event.key === transferRoomStorageKey && hubState?.activeWorkspaceId === "transfer-room") {
+transferRoomState = readTransferRoomState();
+renderTransferRoomWorkspace();
 return;
 }
 if (event.key === playerProfilesStorageKey && hubState?.activeWorkspaceId === "player-profiles") {

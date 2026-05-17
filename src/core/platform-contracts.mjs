@@ -3,6 +3,7 @@ const staffRoles = Object.freeze(["admin", "club-admin", "team-admin", "coach", 
 const managerRoles = Object.freeze(["admin", "club-admin", "team-admin", "coach"]);
 const medicalAccessRoles = Object.freeze(["admin", "club-admin", "team-admin", "coach", "performance", "medical"]);
 const medicalEditRoles = Object.freeze(["admin", "club-admin", "team-admin", "medical", "performance"]);
+const transferRoomAdminRoles = Object.freeze(["admin", "team-admin"]);
 
 export const protectedStorageKeys = Object.freeze([
   "football-workspace-hub-v3",
@@ -23,6 +24,7 @@ export const protectedStorageKeys = Object.freeze([
   "football-medical-team-v1",
   "football-player-profiles-v1",
   "football-scouting-v1",
+  "football-transfer-room-v1",
   "football-simulator-sequence-v1",
   "football-simulator-sequence-library-v2",
 ]);
@@ -39,6 +41,7 @@ export const platformModuleMigrationOrder = Object.freeze([
   "medical-team",
   "football-science-db",
   "scouting",
+  "transfer-room",
   "game-simulator",
 ]);
 
@@ -230,6 +233,24 @@ export const platformModules = Object.freeze([
     editRoles: Object.freeze(["admin", "club-admin", "team-admin", "coach", "scout", "analyst"]),
     emits: Object.freeze(["scouting.target-created", "scouting.report-created", "scouting.shortlist-updated"]),
     consumes: Object.freeze(["profile.updated", "schedule.event-updated"]),
+  }),
+  Object.freeze({
+    id: "transfer-room",
+    label: "Transfer Room",
+    stage: "module",
+    storageKeys: Object.freeze(["football-transfer-room-v1"]),
+    futureTables: Object.freeze([
+      "transfer_room_access_grants",
+      "transfer_room_rule_profiles",
+      "transfer_room_squad_plans",
+      "transfer_room_target_plans",
+      "transfer_room_window_plans",
+      "transfer_room_decision_events",
+    ]),
+    viewRoles: transferRoomAdminRoles,
+    editRoles: transferRoomAdminRoles,
+    emits: Object.freeze(["transfer-room.plan-updated", "transfer-room.target-added", "transfer-room.access-updated"]),
+    consumes: Object.freeze(["profile.updated", "scouting.shortlist-updated", "scouting.target-created"]),
   }),
   Object.freeze({
     id: "game-simulator",

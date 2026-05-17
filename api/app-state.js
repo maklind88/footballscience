@@ -27,6 +27,7 @@ const SESSION_EXERCISE_LIBRARY_FOLDERS_KEY = "football-session-exercise-library-
 const MEDICAL_TEAM_KEY = "football-medical-team-v1";
 const PLAYER_PROFILES_KEY = "football-player-profiles-v1";
 const SCOUTING_KEY = "football-scouting-v1";
+const TRANSFER_ROOM_KEY = "football-transfer-room-v1";
 const SESSION_PLANNER_REDUCTION_GUARD_KEY = "blockReductionGuard";
 const SESSION_PLANNER_BLOCK_DELETION_TOMBSTONE_KEY = "blockDeletionTombstones";
 const SESSION_PLANNER_REDUCTION_WINDOW_MS = 30 * 60 * 1000;
@@ -94,6 +95,7 @@ const DEFAULT_WORKSPACE_ACCESS = {
   "session-planner": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   "player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout", "performance", "medical"],
   scouting: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
+  "transfer-room": ["admin", "team-admin"],
   "analysis-room": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
   "medical-team": ["admin", "club-admin", "team-admin", "coach", "performance", "medical"],
   staff: ["admin", "club-admin", "team-admin"],
@@ -108,6 +110,7 @@ const DEFAULT_WORKSPACE_EDIT_ACCESS = {
   "session-planner": ["admin", "club-admin", "team-admin", "coach"],
   "player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout"],
   scouting: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
+  "transfer-room": ["admin", "team-admin"],
   "analysis-room": ["admin", "club-admin", "team-admin", "scout", "analyst"],
   "medical-team": ["admin", "club-admin", "team-admin", "medical", "performance"],
   staff: ["admin", "club-admin", "team-admin"],
@@ -132,6 +135,10 @@ const REQUIRED_WORKSPACE_ACCESS = {
     view: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
     edit: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
   },
+  "transfer-room": {
+    view: ["admin", "team-admin"],
+    edit: ["admin", "team-admin"],
+  },
   "team-identity": {
     view: ["admin", "club-admin", "team-admin", "coach"],
     edit: ["admin", "club-admin", "team-admin", "coach"],
@@ -150,11 +157,13 @@ const STATE_KEY_WORKSPACE_EDIT_MAP = {
   [MEDICAL_TEAM_KEY]: "medical-team",
   [PLAYER_PROFILES_KEY]: "player-profiles",
   [SCOUTING_KEY]: "scouting",
+  [TRANSFER_ROOM_KEY]: "transfer-room",
   "football-simulator-sequence-v1": "game-simulator",
   "football-simulator-sequence-library-v2": "game-simulator",
 };
 const ADMIN_ONLY_STATE_KEYS = new Set(["mak-coaching-platform-users-v1", PLATFORM_APPEARANCE_KEY]);
 const MEDICAL_PRIVATE_ROLES = new Set(["admin", "club-admin", "team-admin", "medical", "performance"]);
+const TRANSFER_ROOM_ACCESS_ADMIN_ROLES = new Set(["admin", "team-admin"]);
 const MEDICAL_PARTICIPATION_OPTIONS = new Set([0, 10, 25, 50, 75, 100]);
 const MEDICAL_STATUS_KEYS = new Set(["full", "modified", "controlled", "rehab", "unavailable", "monitor"]);
 const MEDICAL_RTP_PHASE_KEYS = new Set([
@@ -1949,6 +1958,185 @@ async function appendPlatformAppearanceAudit(actor, previousEntry, nextValue) {
   });
 }
 
+function normalizeActorRole(actor) {
+  const role = String(actor?.role || "guest").trim().toLowerCase();
+  return DEFAULT_ROLES.includes(role) ? role : "guest";
+}
+
+function normalizeTransferRoomText(value, maxLength = 240) {
+  return String(value ?? "").trim().slice(0, maxLength);
+}
+
+function normalizeTransferRoomComparable(value = "") {
+  return normalizeTransferRoomText(value, 240).toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function parseTransferRoomStateValue(rawValue) {
+  const state = safeParseJson(rawValue, null);
+  return state && typeof state === "object" && !Array.isArray(state) ? state : null;
+}
+
+function getActorTransferRoomTeamAliases(actor = {}) {
+  const aliases = [
+    actor?.teamId,
+    actor?.team_id,
+    actor?.teamName,
+    actor?.team,
+    actor?.clubName,
+    actor?.club,
+    "team-north-carolina-courage",
+    "team-ncc-first",
+    "north carolina courage",
+  ];
+  return Array.from(new Set(aliases.map(normalizeTransferRoomComparable).filter(Boolean)));
+}
+
+function getTransferRoomTeamRecords(state = {}) {
+  if (Array.isArray(state?.teams) && state.teams.length) {
+    return state.teams.filter((team) => team && typeof team === "object");
+  }
+
+  const byId = state?.teamsById && typeof state.teamsById === "object" && !Array.isArray(state.teamsById)
+    ? Object.entries(state.teamsById).map(([id, team]) => ({ id, ...(team && typeof team === "object" ? team : {}) }))
+    : [];
+  if (byId.length) {
+    return byId;
+  }
+
+  const teamId = normalizeTransferRoomText(state?.teamId || state?.activeTeamId || "", 180);
+  const teamName = normalizeTransferRoomText(state?.teamName || "", 180);
+  return teamId || teamName ? [{ id: teamId, name: teamName }] : [];
+}
+
+function isTransferRoomTeamVisibleToActor(team = {}, actor = {}) {
+  const aliases = getActorTransferRoomTeamAliases(actor);
+  if (!aliases.length) {
+    return false;
+  }
+
+  const teamValues = [
+    team?.id,
+    team?.teamId,
+    team?.name,
+    team?.teamName,
+    team?.shortName,
+    team?.clubName,
+  ].map(normalizeTransferRoomComparable).filter(Boolean);
+  return !teamValues.length || teamValues.some((value) => aliases.includes(value));
+}
+
+function getTransferRoomAccessBuckets(state = {}) {
+  const candidates = [
+    state?.accessByTeam,
+    state?.access,
+    state?.selectedAccessByTeam,
+  ];
+  return candidates.filter((candidate) => candidate && typeof candidate === "object" && !Array.isArray(candidate));
+}
+
+function getTransferRoomSelectedUserIdsForActorTeam(state = {}, actor = {}) {
+  const aliases = getActorTransferRoomTeamAliases(actor);
+  const buckets = getTransferRoomAccessBuckets(state);
+  const selectedUserIds = new Set();
+
+  buckets.forEach((bucket) => {
+    Object.entries(bucket).forEach(([teamId, access]) => {
+      if (!aliases.includes(normalizeTransferRoomComparable(teamId))) {
+        return;
+      }
+      const userIds = Array.isArray(access?.userIds) ? access.userIds : Array.isArray(access) ? access : [];
+      userIds.forEach((userId) => {
+        const normalizedUserId = normalizeTransferRoomText(userId, 180);
+        if (normalizedUserId) {
+          selectedUserIds.add(normalizedUserId);
+        }
+      });
+    });
+  });
+
+  return selectedUserIds;
+}
+
+function canActorViewTransferRoom(actor, rawValue) {
+  const role = normalizeActorRole(actor);
+  if (role === "admin") {
+    return true;
+  }
+
+  const state = parseTransferRoomStateValue(rawValue) || {};
+  if (role === "team-admin") {
+    const teams = getTransferRoomTeamRecords(state);
+    return !teams.length || teams.some((team) => isTransferRoomTeamVisibleToActor(team, actor));
+  }
+
+  const actorId = normalizeTransferRoomText(actor?.id, 180);
+  return Boolean(actorId && getTransferRoomSelectedUserIdsForActorTeam(state, actor).has(actorId));
+}
+
+function canActorManageTransferRoomAccess(actor, rawValue = "") {
+  const role = normalizeActorRole(actor);
+  if (!TRANSFER_ROOM_ACCESS_ADMIN_ROLES.has(role)) {
+    return false;
+  }
+  return canActorViewTransferRoom(actor, rawValue);
+}
+
+function protectTransferRoomStateValue(rawValue, context = {}) {
+  const incomingState = parseTransferRoomStateValue(rawValue);
+  if (!incomingState) {
+    return { ok: false, status: 400, reason: "Transfer Room data is invalid and was not saved." };
+  }
+
+  const actor = context.actor || {};
+  const existingState = parseTransferRoomStateValue(context.previousEntry?.value || "") || {};
+  const nextState = {
+    ...incomingState,
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (!canActorManageTransferRoomAccess(actor, context.previousEntry?.value || rawValue)) {
+    nextState.accessByTeam = existingState.accessByTeam && typeof existingState.accessByTeam === "object"
+      ? existingState.accessByTeam
+      : incomingState.accessByTeam || {};
+  }
+
+  return { ok: true, value: JSON.stringify(nextState) };
+}
+
+function summarizeTransferRoomStateForAudit(rawValue) {
+  const state = parseTransferRoomStateValue(rawValue) || {};
+  const teams = getTransferRoomTeamRecords(state);
+  const squadPlans = state?.squadPlans && typeof state.squadPlans === "object" && !Array.isArray(state.squadPlans)
+    ? state.squadPlans
+    : {};
+  const targetPlans = state?.targetPlans && typeof state.targetPlans === "object" && !Array.isArray(state.targetPlans)
+    ? state.targetPlans
+    : {};
+  const accessByTeam = state?.accessByTeam && typeof state.accessByTeam === "object" && !Array.isArray(state.accessByTeam)
+    ? state.accessByTeam
+    : {};
+  return {
+    teamCount: teams.length,
+    squadPlanCount: Object.keys(squadPlans).length,
+    targetPlanCount: Object.keys(targetPlans).length,
+    accessGrantCount: Object.values(accessByTeam).reduce((count, access) => {
+      const userIds = Array.isArray(access?.userIds) ? access.userIds : Array.isArray(access) ? access : [];
+      return count + userIds.length;
+    }, 0),
+    activeTeamId: normalizeTransferRoomText(state?.activeTeamId || state?.teamId || "", 180),
+    activeLeagueProfileId: normalizeTransferRoomText(state?.settings?.leagueProfileId || state?.leagueProfileId || "", 120),
+    activeWindowId: normalizeTransferRoomText(state?.activeWindowId || "", 120),
+  };
+}
+
+async function appendTransferRoomStateAudit(actor, rawValue) {
+  await appendAuditLog(actor, {
+    action: "transfer-room.updated",
+    summary: "Updated Transfer Room state",
+    details: summarizeTransferRoomStateForAudit(rawValue),
+  });
+}
+
 async function appendDataSafetyWriteAudit(actor, previousEntry, nextEntry, merged = false) {
   if (!nextEntry?.key) {
     return;
@@ -1999,6 +2187,10 @@ async function authorizeStateWrite(actor, key, rawValue, removed = false, contex
       return protectMedicalStateValue(rawValue, context);
     }
 
+    if (key === TRANSFER_ROOM_KEY && !removed) {
+      return protectTransferRoomStateValue(rawValue, { ...context, actor });
+    }
+
     if (key === WORKSPACE_HUB_KEY && !removed) {
       return { ok: true, value: await sanitizeWorkspaceHubWriteForActor(actor, rawValue) };
     }
@@ -2024,6 +2216,21 @@ async function authorizeStateWrite(actor, key, rawValue, removed = false, contex
     }
     if (!["admin", "club-admin"].includes(String(actor?.role || "").trim().toLowerCase())) {
       return { ok: false, reason: "Only platform or club admins can sync club/team structure." };
+    }
+    return { ok: true, value: rawValue };
+  }
+
+  if (key === TRANSFER_ROOM_KEY) {
+    const previousValue = context.previousEntry?.value || "";
+    const accessSourceValue = previousValue || (TRANSFER_ROOM_ACCESS_ADMIN_ROLES.has(normalizeActorRole(actor)) ? rawValue : "");
+    if (!canActorViewTransferRoom(actor, accessSourceValue)) {
+      return { ok: false, status: 403, reason: "You do not have access to Transfer Room." };
+    }
+    if (removed && !canActorManageTransferRoomAccess(actor, accessSourceValue)) {
+      return { ok: false, status: 403, reason: "Only team admins can remove Transfer Room state." };
+    }
+    if (!removed) {
+      return protectTransferRoomStateValue(rawValue, { ...context, actor });
     }
     return { ok: true, value: rawValue };
   }
@@ -2066,6 +2273,13 @@ function filterStateEntriesForActor(actor, entries = {}) {
   return Object.entries(entries).reduce((filtered, [key, value]) => {
     if (key === WORKSPACE_HUB_KEY) {
       filtered[key] = sanitizeWorkspaceHubRead(value, accessConfig);
+      return filtered;
+    }
+
+    if (key === TRANSFER_ROOM_KEY) {
+      if (canActorViewTransferRoom(actor, value)) {
+        filtered[key] = value;
+      }
       return filtered;
     }
 
@@ -2229,6 +2443,9 @@ async function applyStateEntries(actor, entries = {}, metadata = {}) {
     }
     if (normalizedKey === MEDICAL_TEAM_KEY) {
       await appendMedicalStateAudit(actor, authorization.value);
+    }
+    if (normalizedKey === TRANSFER_ROOM_KEY) {
+      await appendTransferRoomStateAudit(actor, authorization.value);
     }
     results.push({
       key: entry.key,
@@ -2403,6 +2620,10 @@ module.exports = async (req, res) => {
 
     if (key === MEDICAL_TEAM_KEY) {
       await appendMedicalStateAudit(actor, authorization.value);
+    }
+
+    if (key === TRANSFER_ROOM_KEY) {
+      await appendTransferRoomStateAudit(actor, authorization.value);
     }
 
     return sendJson(res, 200, {

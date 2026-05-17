@@ -198,6 +198,17 @@ const dataSafetyContracts = Object.freeze([
     },
   }),
   freezeContract({
+    moduleId: "transfer-room",
+    key: "football-transfer-room-v1",
+    recordType: "transfer-room-confidential-planning",
+    mergePolicy: dataSafetyMergePolicies.revisionGuardedLastWrite,
+    scope: {
+      teamScoped: true,
+      financial: true,
+      recruitment: true,
+    },
+  }),
+  freezeContract({
     moduleId: "game-simulator",
     key: "football-simulator-sequence-v1",
     recordType: "simulator-active-sequence",

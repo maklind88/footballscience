@@ -5,6 +5,7 @@ const scopedAdminRoles = Object.freeze(["admin", "club-admin", "team-admin"]);
 const medicalAccessRoles = Object.freeze(["admin", "club-admin", "team-admin", "coach", "performance", "medical"]);
 const medicalWriteRoles = Object.freeze(["admin", "club-admin", "team-admin", "medical", "performance"]);
 const simulatorWriteRoles = Object.freeze(["admin", "club-admin", "team-admin", "coach", "scout", "analyst"]);
+const transferRoomAdminRoles = Object.freeze(["admin", "team-admin"]);
 const allAuthenticatedRoles = Object.freeze([...platformRoles]);
 const permissionActions = Object.freeze(["read", "write", "delete", "export", "restore", "admin", "observe"]);
 
@@ -186,6 +187,18 @@ const platformPermissionMatrix = Object.freeze([
   }, {
     storageKeys: ["football-scouting-v1"],
     routes: ["/api/scouting"],
+  }),
+  moduleContract("transfer-room", "Transfer Room", "team", {
+    read: transferRoomAdminRoles,
+    write: transferRoomAdminRoles,
+    delete: transferRoomAdminRoles,
+    export: transferRoomAdminRoles,
+    restore: transferRoomAdminRoles,
+    admin: transferRoomAdminRoles,
+    observe: transferRoomAdminRoles,
+  }, {
+    storageKeys: ["football-transfer-room-v1"],
+    routes: ["/api/app-state"],
   }),
   moduleContract("football-science-db", "Football Science DB", "global", {
     read: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],

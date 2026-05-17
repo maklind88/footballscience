@@ -1,0 +1,508 @@
+.transfer-room-workspace {
+  min-height: 100%;
+  background: #f6f7f4;
+  color: #172019;
+}
+
+.transfer-room-shell {
+  width: min(1500px, 100%);
+  margin: 0 auto;
+  padding: clamp(18px, 3vw, 34px);
+  display: grid;
+  gap: 18px;
+}
+
+.transfer-room-hero {
+  min-height: 220px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 430px);
+  align-items: stretch;
+  gap: 18px;
+}
+
+.transfer-room-hero-main,
+.transfer-room-cap-board,
+.transfer-room-panel,
+.transfer-room-table-shell,
+.transfer-room-target-card,
+.transfer-room-settings,
+.transfer-room-access,
+.transfer-room-empty {
+  border: 1px solid rgba(23, 32, 25, 0.12);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 18px 44px rgba(27, 38, 32, 0.08);
+}
+
+.transfer-room-hero-main {
+  padding: clamp(22px, 3vw, 38px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.transfer-room-hero-main p,
+.transfer-room-section-head p,
+.transfer-room-settings p {
+  margin: 0;
+  color: #677268;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.transfer-room-hero-main h1 {
+  max-width: 860px;
+  margin: 12px 0 24px;
+  font-size: clamp(2.4rem, 5vw, 5.8rem);
+  line-height: 0.95;
+  letter-spacing: 0;
+}
+
+.transfer-room-hero-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.transfer-room-hero-tags span,
+.transfer-room-tabs button,
+.transfer-room-section-head > span,
+.transfer-room-target-meta span,
+.transfer-room-rule-list div,
+.transfer-room-rule-list article {
+  border: 1px solid rgba(23, 32, 25, 0.12);
+  background: #ffffff;
+}
+
+.transfer-room-hero-tags span {
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.transfer-room-cap-board {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  background: #172019;
+  color: #f9fbf6;
+}
+
+.transfer-room-cap-board span,
+.transfer-room-cap-board small {
+  color: rgba(249, 251, 246, 0.72);
+  font-weight: 800;
+}
+
+.transfer-room-cap-board strong {
+  font-size: clamp(2rem, 4vw, 4rem);
+  line-height: 1;
+}
+
+.transfer-room-cap-board.is-warn {
+  background: #6b4f16;
+}
+
+.transfer-room-cap-board.is-danger {
+  background: #6f1d22;
+}
+
+.transfer-room-cap-track {
+  height: 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.transfer-room-cap-track i {
+  display: block;
+  height: 100%;
+  background: #d6f27a;
+}
+
+.transfer-room-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.transfer-room-tabs button,
+.transfer-room-section-head button,
+.transfer-room-target-card button,
+.transfer-room-target-strip button {
+  min-height: 40px;
+  border: 1px solid rgba(23, 32, 25, 0.16);
+  background: #ffffff;
+  color: #172019;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.transfer-room-tabs button {
+  padding: 0 14px;
+}
+
+.transfer-room-tabs button.is-active {
+  background: #172019;
+  color: #ffffff;
+}
+
+.transfer-room-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.transfer-room-kpis article {
+  min-height: 112px;
+  padding: 18px;
+  border: 1px solid rgba(23, 32, 25, 0.12);
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.transfer-room-kpis span,
+.transfer-room-kpis small,
+.transfer-room-panel-head span,
+.transfer-room-target-card span,
+.transfer-room-access-user small {
+  color: #657065;
+  font-weight: 750;
+}
+
+.transfer-room-kpis strong {
+  font-size: 1.5rem;
+}
+
+.transfer-room-overview,
+.transfer-room-rules-layout {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 0.9fr;
+  gap: 14px;
+}
+
+.transfer-room-panel,
+.transfer-room-table-shell,
+.transfer-room-access {
+  padding: 18px;
+}
+
+.transfer-room-panel-head,
+.transfer-room-section-head,
+.transfer-room-target-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.transfer-room-panel-head strong {
+  font-size: 1.8rem;
+}
+
+.transfer-room-decision-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.transfer-room-decision-grid div,
+.transfer-room-rule-list div {
+  min-height: 72px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.transfer-room-decision-grid span,
+.transfer-room-rule-list span {
+  color: #667166;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.transfer-room-target-strip {
+  margin-top: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.transfer-room-target-strip button {
+  padding: 12px;
+  text-align: left;
+  display: grid;
+  gap: 4px;
+}
+
+.transfer-room-rule-list {
+  margin-top: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.transfer-room-table-shell {
+  overflow-x: auto;
+}
+
+.transfer-room-section-head {
+  margin-bottom: 14px;
+}
+
+.transfer-room-section-head h2 {
+  margin: 4px 0 0;
+  font-size: 1.45rem;
+}
+
+.transfer-room-section-head > span {
+  padding: 8px 10px;
+  font-weight: 800;
+}
+
+.transfer-room-squad-table {
+  min-width: 1020px;
+  display: grid;
+  gap: 8px;
+}
+
+.transfer-room-squad-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.45fr) 140px 130px 130px 150px minmax(180px, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  background: #fbfcf8;
+  border: 1px solid rgba(23, 32, 25, 0.08);
+}
+
+.transfer-room-squad-row.is-head {
+  background: transparent;
+  border: 0;
+  color: #667166;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.transfer-room-player-cell {
+  display: grid;
+  gap: 3px;
+}
+
+.transfer-room-player-cell span {
+  color: #687268;
+  font-size: 0.82rem;
+}
+
+.transfer-room-squad-row input,
+.transfer-room-squad-row select,
+.transfer-room-target-fields input,
+.transfer-room-target-fields select,
+.transfer-room-target-card textarea,
+.transfer-room-settings input,
+.transfer-room-settings select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid rgba(23, 32, 25, 0.16);
+  background: #ffffff;
+  color: #172019;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 0.88rem;
+}
+
+.transfer-room-targets {
+  display: grid;
+  gap: 14px;
+}
+
+.transfer-room-target-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.transfer-room-target-card {
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.transfer-room-target-avatar {
+  width: 54px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #d6f27a;
+  color: #172019;
+  font-weight: 900;
+}
+
+.transfer-room-target-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.transfer-room-target-card-head > div:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 4px;
+}
+
+.transfer-room-target-card-head strong,
+.transfer-room-target-card-head span {
+  overflow-wrap: anywhere;
+}
+
+.transfer-room-target-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.transfer-room-target-meta span {
+  padding: 6px 8px;
+  font-size: 0.76rem;
+}
+
+.transfer-room-target-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.transfer-room-target-fields label,
+.transfer-room-settings label {
+  display: grid;
+  gap: 5px;
+  color: #657065;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.transfer-room-target-card textarea {
+  resize: vertical;
+}
+
+.transfer-room-danger {
+  justify-self: start;
+  color: #9a1f28 !important;
+}
+
+.transfer-room-rules-layout {
+  grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
+}
+
+.transfer-room-settings {
+  padding: 18px;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.transfer-room-rule-list.is-large {
+  margin: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.transfer-room-rule-list.is-large article {
+  min-height: 120px;
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.transfer-room-rule-list.is-large strong {
+  font-size: 1.05rem;
+}
+
+.transfer-room-rule-list.is-large em {
+  font-style: normal;
+  font-weight: 900;
+}
+
+.transfer-room-access-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.transfer-room-access-user {
+  min-height: 72px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  background: #fbfcf8;
+}
+
+.transfer-room-access-user input {
+  width: 18px;
+  height: 18px;
+}
+
+.transfer-room-access-user span {
+  display: grid;
+  gap: 3px;
+}
+
+.transfer-room-empty {
+  min-height: 180px;
+  padding: 22px;
+  display: grid;
+  place-items: center;
+  color: #657065;
+  font-weight: 800;
+}
+
+.transfer-room-load-panel {
+  min-height: 360px;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+@media (max-width: 1100px) {
+  .transfer-room-hero,
+  .transfer-room-overview,
+  .transfer-room-rules-layout,
+  .transfer-room-target-grid,
+  .transfer-room-access-list {
+    grid-template-columns: 1fr;
+  }
+
+  .transfer-room-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .transfer-room-shell {
+    padding: 14px;
+  }
+
+  .transfer-room-hero-main h1 {
+    font-size: 2.4rem;
+  }
+
+  .transfer-room-kpis,
+  .transfer-room-target-fields,
+  .transfer-room-decision-grid,
+  .transfer-room-rule-list.is-large {
+    grid-template-columns: 1fr;
+  }
+}

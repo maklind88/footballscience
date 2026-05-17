@@ -105,6 +105,8 @@ const playerProfilesKey = "football-player-profiles-v1";
 const playerProfilesPath = `global/${playerProfilesKey}.json`;
 const medicalTeamKey = "football-medical-team-v1";
 const medicalTeamPath = `global/${medicalTeamKey}.json`;
+const transferRoomKey = "football-transfer-room-v1";
+const transferRoomPath = `global/${transferRoomKey}.json`;
 
 function createAppStateStorageEntry(key, value, updatedAt = "2026-05-07T00:00:00.000Z") {
   return {
@@ -406,6 +408,134 @@ test("app-state keeps required team data visible to coaches even when workspace 
     expect(hubState.workspaceAccess["player-profiles"].view).toContain("coach");
     expect(hubState.workspaceAccess["medical-team"].view).toContain("coach");
     expect(hubState.workspaceAccess["team-identity"].view).toContain("coach");
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state hides Transfer Room from non-selected staff", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const storage = createAppStateFetchMock(
+    {
+      [transferRoomPath]: createAppStateStorageEntry(transferRoomKey, {
+        activeTeamId: "team-ncc-first",
+        teams: [{ id: "team-ncc-first", name: "North Carolina Courage" }],
+        accessByTeam: { "team-ncc-first": { userIds: ["sporting-director-1"] } },
+        targetPlans: {
+          "target-1": { recordId: "target-1", wage: 100000 },
+        },
+      }),
+    },
+    "coach"
+  );
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "GET",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload.entries[transferRoomKey]).toBeUndefined();
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state lets selected Transfer Room staff edit content without changing access grants", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const existingTransferRoomState = {
+    activeTeamId: "team-ncc-first",
+    teams: [{ id: "team-ncc-first", name: "North Carolina Courage" }],
+    accessByTeam: { "team-ncc-first": { userIds: ["coach-1"] } },
+    targetPlans: {},
+  };
+  const storage = createAppStateFetchMock(
+    {
+      [transferRoomPath]: createAppStateStorageEntry(transferRoomKey, existingTransferRoomState),
+    },
+    "coach"
+  );
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        key: transferRoomKey,
+        metadata: { revision: 1 },
+        value: JSON.stringify({
+          ...existingTransferRoomState,
+          accessByTeam: { "team-ncc-first": { userIds: [] } },
+          targetPlans: { "target-1": { recordId: "target-1", wage: 100000 } },
+        }),
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const savedEntry = storage.writes.find((write) => write.objectPath === transferRoomPath)?.entry;
+    const savedValue = JSON.parse(savedEntry.value);
+    expect(savedValue.targetPlans["target-1"].wage).toBe(100000);
+    expect(savedValue.accessByTeam["team-ncc-first"].userIds).toEqual(["coach-1"]);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state blocks staff from granting themselves new Transfer Room access", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const storage = createAppStateFetchMock({}, "coach");
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        key: transferRoomKey,
+        value: JSON.stringify({
+          activeTeamId: "team-ncc-first",
+          teams: [{ id: "team-ncc-first", name: "North Carolina Courage" }],
+          accessByTeam: { "team-ncc-first": { userIds: ["coach-1"] } },
+        }),
+      }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(response.payload.reason).toContain("Transfer Room");
+    expect(storage.writes).toHaveLength(0);
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);

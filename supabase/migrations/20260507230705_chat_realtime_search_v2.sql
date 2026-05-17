@@ -69,7 +69,7 @@ create index if not exists chat_threads_legacy_thread_idx
 
 create index if not exists chat_messages_body_trgm_idx
   on public.chat_messages
-  using gin (body gin_trgm_ops)
+  using gin (body extensions.gin_trgm_ops)
   where deleted_at is null;
 
 create index if not exists chat_messages_thread_cursor_idx

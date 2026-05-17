@@ -106,6 +106,19 @@ function normalizeNumber(value, fallback = null) {
   return Number.isFinite(number) ? number : fallback;
 }
 
+function normalizeBirthYear(value) {
+  const year = Math.round(normalizeNumber(value, NaN));
+  return Number.isFinite(year) && year >= 1800 && year <= 2100 ? year : null;
+}
+
+function normalizeDateOfBirth(value = "") {
+  const date = normalizeText(value, 40);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return null;
+  }
+  return normalizeBirthYear(date.slice(0, 4)) ? date : null;
+}
+
 function getPrimaryIdentityCountry(record = {}) {
   const passports = Array.isArray(record.passportCountries || record.passport_countries)
     ? record.passportCountries || record.passport_countries
@@ -1014,8 +1027,10 @@ function normalizePlayerRecord(record = {}) {
     return null;
   }
   const originalCanonicalName = normalizeText(record.canonicalName || record.canonical_name || record.name, 180);
-  const dateOfBirth = normalizeText(record.dateOfBirth || record.date_of_birth, 40);
-  const birthYear = normalizeNumber(record.birthYear || record.birth_year || (dateOfBirth.match(/^\d{4}/)?.[0]), null);
+  const dateOfBirth = normalizeDateOfBirth(record.dateOfBirth || record.date_of_birth);
+  const explicitBirthYear = normalizeBirthYear(record.birthYear || record.birth_year);
+  const dateBirthYear = normalizeBirthYear(dateOfBirth?.slice(0, 4));
+  const birthYear = explicitBirthYear ?? dateBirthYear;
   const sourceLinks = Array.isArray(record.sourceLinks || record.source_links) ? record.sourceLinks || record.source_links : [];
   const directSourceSystem = normalizeSourceSystem(record.sourceSystem || record.source_system);
   const directSourceId = normalizeText(record.sourceEntityId || record.sourceId || record.source_entity_id, 180);
@@ -1031,8 +1046,8 @@ function normalizePlayerRecord(record = {}) {
     display_name: normalizeText(record.displayName || record.display_name || canonicalName, 180),
     dedupe_key: dedupeKey,
     name_quality: getPlayerNameQuality(canonicalName),
-    date_of_birth: /^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) ? dateOfBirth : null,
-    birth_year: Number.isFinite(birthYear) ? Math.round(birthYear) : null,
+    date_of_birth: dateOfBirth,
+    birth_year: birthYear,
     gender_segment: normalizeGenderSegment(record.genderSegment || record.gender_segment) || "unknown",
     nationality: normalizeText(record.nationality, 120) || null,
     birth_country: normalizeText(record.birthCountry || record.birth_country, 120) || null,

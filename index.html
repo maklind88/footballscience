@@ -1273,6 +1273,16 @@
         }
       async function getActiveAccessToken() {
         if (authState.session?.access_token) {
+          if (shouldRefreshAccessToken(authState.session)) {
+            const refreshedToken = await refreshAccessToken();
+            if (refreshedToken) {
+              return refreshedToken;
+            }
+            if (isAuthSessionExpired(authState.session)) {
+              authState.session = null;
+              return null;
+            }
+          }
           return authState.session.access_token;
         }
         if (!authState.supabase) {
@@ -1294,6 +1304,26 @@
           return authState.session?.access_token || null;
         }
       }
+        function getAuthSessionExpiresAtMs(session = null) {
+          const expiresAt = Number(session?.expires_at);
+          if (Number.isFinite(expiresAt) && expiresAt > 0) {
+            return expiresAt * 1000;
+          }
+          const expiresIn = Number(session?.expires_in);
+          const createdAt = Date.parse(session?.created_at || session?.createdAt || "");
+          if (Number.isFinite(expiresIn) && expiresIn > 0 && Number.isFinite(createdAt)) {
+            return createdAt + expiresIn * 1000;
+          }
+          return 0;
+        }
+        function shouldRefreshAccessToken(session = null, skewMs = 90 * 1000) {
+          const expiresAtMs = getAuthSessionExpiresAtMs(session);
+          return Boolean(session?.access_token && expiresAtMs && expiresAtMs <= Date.now() + skewMs);
+        }
+        function isAuthSessionExpired(session = null) {
+          const expiresAtMs = getAuthSessionExpiresAtMs(session);
+          return Boolean(session?.access_token && expiresAtMs && expiresAtMs <= Date.now());
+        }
         function isAuthTokenOversized(token) {
           return String(token || "").length > MAX_AUTH_ACCESS_TOKEN_LENGTH;
         }
@@ -3091,6 +3121,7 @@
           updatePresence,
           getUsers: () => authState.users,
           getAccessToken: getActiveAccessToken,
+          refreshAccessToken,
           getSupabaseClient: () => authState.supabase,
           isDevMode: () => Boolean(authState.devMode),
           writeUsers: (users) => {

@@ -1073,7 +1073,7 @@ function isScoutingPagedDatabaseActive() {
 function getScoutingAssetVersion() {
   return encodeURIComponent(window.__assetVersion || "dev");
 }
-async function getScoutingApiAccessToken() {
+async function getScoutingApiAccessToken(options = {}) {
   if (window.platformAuthReadyPromise instanceof Promise) {
     try {
       await window.platformAuthReadyPromise;
@@ -1086,6 +1086,12 @@ async function getScoutingApiAccessToken() {
     return "";
   }
   try {
+    if (options.forceRefresh && typeof authStore.refreshAccessToken === "function") {
+      const refreshedToken = normalizeScoutingText(await authStore.refreshAccessToken(), 2400);
+      if (refreshedToken) {
+        return refreshedToken;
+      }
+    }
     return normalizeScoutingText(await authStore.getAccessToken(), 2400);
   } catch {
     return "";
@@ -1145,42 +1151,48 @@ function getScoutingDatabasePageOffset(totalRecordCount = 0) {
   return Math.max(0, Math.min(rawOffset, lastPageStart));
 }
 async function fetchScoutingApi(query = {}) {
-  const token = await getScoutingApiAccessToken();
-  if (!token) {
-    return { ok: false, status: 401, reason: "Scouting API requires an authenticated session." };
-  }
   const params = new URLSearchParams();
   Object.entries(query).forEach(([key, value]) => {
     if (value !== undefined && value !== null && String(value).trim()) {
       params.set(key, String(value));
     }
   });
-  try {
-    const response = await fetch(`/api/scouting${params.toString() ? `?${params.toString()}` : ""}`, {
-      method: "GET",
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
-    const text = await response.text();
-    let result = {};
-    if (text) {
-      try {
-        result = JSON.parse(text);
-      } catch {
-        result = { reason: text.slice(0, 240) };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const token = await getScoutingApiAccessToken({ forceRefresh: attempt > 0 });
+    if (!token) {
+      return { ok: false, status: 401, reason: "Scouting API requires an authenticated session." };
+    }
+    try {
+      const response = await fetch(`/api/scouting${params.toString() ? `?${params.toString()}` : ""}`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      const text = await response.text();
+      let result = {};
+      if (text) {
+        try {
+          result = JSON.parse(text);
+        } catch {
+          result = { reason: text.slice(0, 240) };
+        }
       }
+      if (response.status === 401 && attempt === 0) {
+        continue;
+      }
+      if (!response.ok || result?.ok === false) {
+        return {
+          ok: false,
+          status: response.status,
+          reason: result?.reason || result?.message || `Scouting API failed (${response.status}).`,
+        };
+      }
+      return { ok: true, status: response.status, result };
+    } catch (error) {
+      return { ok: false, status: 0, reason: error?.message || "Scouting API could not be reached." };
     }
-    if (!response.ok || result?.ok === false) {
-      return {
-        ok: false,
-        status: response.status,
-        reason: result?.reason || result?.message || `Scouting API failed (${response.status}).`,
-      };
-    }
-    return { ok: true, status: response.status, result };
-  } catch (error) {
-    return { ok: false, status: 0, reason: error?.message || "Scouting API could not be reached." };
   }
+  return { ok: false, status: 401, reason: "Scouting API requires a fresh authenticated session." };
 }
 function mapScoutingPositionToFootballScienceDbGroup(position = "") {
   const normalized = normalizeScoutingText(position, 40).toUpperCase();
@@ -1207,42 +1219,48 @@ function getFootballScienceDbQueryFromState() {
   };
 }
 async function fetchFootballScienceDbApi(query = {}) {
-  const token = await getScoutingApiAccessToken();
-  if (!token) {
-    return { ok: false, status: 401, reason: "Football Science DB requires an authenticated session." };
-  }
   const params = new URLSearchParams();
   Object.entries(query).forEach(([key, value]) => {
     if (value !== undefined && value !== null && String(value).trim()) {
       params.set(key, String(value));
     }
   });
-  try {
-    const response = await fetch(`/api/football-science-db${params.toString() ? `?${params.toString()}` : ""}`, {
-      method: "GET",
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
-    const text = await response.text();
-    let result = {};
-    if (text) {
-      try {
-        result = JSON.parse(text);
-      } catch {
-        result = { reason: text.slice(0, 240) };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const token = await getScoutingApiAccessToken({ forceRefresh: attempt > 0 });
+    if (!token) {
+      return { ok: false, status: 401, reason: "Football Science DB requires an authenticated session." };
+    }
+    try {
+      const response = await fetch(`/api/football-science-db${params.toString() ? `?${params.toString()}` : ""}`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      const text = await response.text();
+      let result = {};
+      if (text) {
+        try {
+          result = JSON.parse(text);
+        } catch {
+          result = { reason: text.slice(0, 240) };
+        }
       }
+      if (response.status === 401 && attempt === 0) {
+        continue;
+      }
+      if (!response.ok || result?.ok === false) {
+        return {
+          ok: false,
+          status: response.status,
+          reason: result?.reason || result?.message || `Football Science DB failed (${response.status}).`,
+        };
+      }
+      return { ok: true, status: response.status, result };
+    } catch (error) {
+      return { ok: false, status: 0, reason: error?.message || "Football Science DB could not be reached." };
     }
-    if (!response.ok || result?.ok === false) {
-      return {
-        ok: false,
-        status: response.status,
-        reason: result?.reason || result?.message || `Football Science DB failed (${response.status}).`,
-      };
-    }
-    return { ok: true, status: response.status, result };
-  } catch (error) {
-    return { ok: false, status: 0, reason: error?.message || "Football Science DB could not be reached." };
   }
+  return { ok: false, status: 401, reason: "Football Science DB requires a fresh authenticated session." };
 }
 function calculateScoutingAgeFromBirthDate(dateOfBirth = "", birthYear = null) {
   const iso = normalizeScoutingDateValue(dateOfBirth);
@@ -1463,39 +1481,45 @@ function queueFootballScienceDbQualityLoad(options = {}) {
     .catch(() => renderScoutingWorkspace({ preserveFocus: true }));
 }
 async function sendScoutingApiAction(payload = {}) {
-  const token = await getScoutingApiAccessToken();
-  if (!token) {
-    return { ok: false, status: 401, reason: "Scouting API requires an authenticated session." };
-  }
-  try {
-    const response = await fetch("/api/scouting", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
-    const text = await response.text();
-    let result = {};
-    if (text) {
-      try {
-        result = JSON.parse(text);
-      } catch {
-        result = { reason: text.slice(0, 240) };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const token = await getScoutingApiAccessToken({ forceRefresh: attempt > 0 });
+    if (!token) {
+      return { ok: false, status: 401, reason: "Scouting API requires an authenticated session." };
+    }
+    try {
+      const response = await fetch("/api/scouting", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const text = await response.text();
+      let result = {};
+      if (text) {
+        try {
+          result = JSON.parse(text);
+        } catch {
+          result = { reason: text.slice(0, 240) };
+        }
       }
+      if (response.status === 401 && attempt === 0) {
+        continue;
+      }
+      if (!response.ok || result?.ok === false) {
+        return {
+          ok: false,
+          status: response.status,
+          reason: result?.reason || result?.message || `Scouting API failed (${response.status}).`,
+        };
+      }
+      return { ok: true, status: response.status, result };
+    } catch (error) {
+      return { ok: false, status: 0, reason: error?.message || "Scouting API could not be reached." };
     }
-    if (!response.ok || result?.ok === false) {
-      return {
-        ok: false,
-        status: response.status,
-        reason: result?.reason || result?.message || `Scouting API failed (${response.status}).`,
-      };
-    }
-    return { ok: true, status: response.status, result };
-  } catch (error) {
-    return { ok: false, status: 0, reason: error?.message || "Scouting API could not be reached." };
   }
+  return { ok: false, status: 401, reason: "Scouting API requires a fresh authenticated session." };
 }
 function applyScoutingApiDatabase(result = {}) {
   const existing = getScoutingDatabase();

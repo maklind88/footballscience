@@ -35,6 +35,18 @@ test("Scouting database loader resets stale source promises before FSDB loads", 
   expect(workspace).toContain("Retry Football Science DB");
 });
 
+test("Football Science DB retries once with a refreshed auth token after server 401", () => {
+  const workspace = readFileSync(resolve(projectRoot, "scouting-workspace.js"), "utf8");
+  const app = readFileSync(resolve(projectRoot, "index.html"), "utf8");
+
+  expect(app).toContain("shouldRefreshAccessToken(authState.session)");
+  expect(app).toContain("refreshAccessToken,");
+  expect(workspace).toContain("getScoutingApiAccessToken(options = {})");
+  expect(workspace).toContain("options.forceRefresh");
+  expect(workspace).toContain("getScoutingApiAccessToken({ forceRefresh: attempt > 0 })");
+  expect(workspace).toContain("response.status === 401 && attempt === 0");
+});
+
 test("Scouting bridge exposes safe FSDB identity helpers for server linking", () => {
   expect(typeof fsdb.fetchFootballScienceProfileForScoutingRecord).toBe("function");
   expect(fsdb.normalizePersonNameForMatch("Álex Morgan")).toBe("alex morgan");

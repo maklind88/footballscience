@@ -30,6 +30,9 @@ let scoutingRoleModelEditId = "";
 let scoutingSavedViewsOpen = false;
 let scoutingSavedViewNameDraft = "";
 let scoutingSettingsPanel = "";
+let scoutingComparisonMetricMenuOpen = false;
+let scoutingComparisonMetricFilterQuery = "";
+let scoutingComparisonCandidatesOpen = false;
 let scoutingLeagueQualityCache = new Map();
 let scoutingRecordMiniRadarCache = new Map();
 let scoutingFilteredDatabaseCache = {
@@ -59,6 +62,8 @@ let scoutingDragAndDropDelegateRoot = null;
 let scoutingDatabaseApiRefreshTimer = 0;
 let scoutingDatabaseFilterDebounceTimer = 0;
 let scoutingAdvancedDatabaseFiltersOpen = false;
+let scoutingDatabaseMetricFilterOpen = false;
+let scoutingDatabaseMetricFilterQuery = "";
 let scoutingDatabaseAdvancedMode = false;
 let scoutingIntelligenceCacheVersion = 0;
 let scoutingImportHistoryCache = { status: "idle", imports: [], error: "", promise: null };
@@ -402,6 +407,9 @@ function ensureScoutingState() {
   return activeContext.ensureState();
 }
 function writeScoutingState(options = {}) {
+  if (options.syncShadowBoard !== false) {
+    syncScoutingActiveShadowBoard();
+  }
   return activeContext.writeState(options);
 }
 let scoutingDeferredStateWriteTimer = 0;
@@ -454,6 +462,172 @@ function normalizeScoutingDateValue(value = "") {
     return new Date(parsed).toISOString().slice(0, 10);
   }
   return raw;
+}
+function normalizeScoutingShadowBoardVisibility(value = "") {
+  const normalized = normalizeScoutingText(value, 40).toLowerCase();
+  return ["private", "colleague", "team", "all"].includes(normalized) ? normalized : "private";
+}
+function getScoutingShadowBoardVisibilityOptions() {
+  return [
+    { value: "private", label: "Only me" },
+    { value: "colleague", label: "Shared with colleague" },
+    { value: "team", label: "Shared with team" },
+    { value: "all", label: "Shared with all" },
+  ];
+}
+function getScoutingShadowBoardVisibilityLabel(value = "") {
+  const normalized = normalizeScoutingShadowBoardVisibility(value);
+  return getScoutingShadowBoardVisibilityOptions().find((option) => option.value === normalized)?.label || "Only me";
+}
+function cloneScoutingShadowSlotMap(slots = {}) {
+  return Object.fromEntries(
+    Object.entries(slots && typeof slots === "object" ? slots : {})
+      .map(([slotId, recordIds]) => [normalizeScoutingText(slotId, 40), normalizeScoutingRecordIds(Array.isArray(recordIds) ? recordIds : recordIds ? [recordIds] : [])])
+      .filter(([slotId, recordIds]) => slotId && recordIds.length)
+  );
+}
+function cloneScoutingShadowMetaMap(meta = {}) {
+  return Object.fromEntries(
+    Object.entries(meta && typeof meta === "object" ? meta : {})
+      .map(([key, value]) => [normalizeScoutingText(key, 220), value && typeof value === "object" ? { ...value } : {}])
+      .filter(([key]) => key)
+  );
+}
+function cloneScoutingShadowPositionMap(positions = {}) {
+  return Object.fromEntries(
+    Object.entries(positions && typeof positions === "object" ? positions : {})
+      .map(([formation, formationPositions]) => [
+        normalizeScoutingFormation(formation),
+        Object.fromEntries(
+          Object.entries(formationPositions && typeof formationPositions === "object" ? formationPositions : {})
+            .map(([slotId, value]) => {
+              const x = Number(value?.x);
+              const y = Number(value?.y);
+              return [normalizeScoutingText(slotId, 40), { x: Number.isFinite(x) ? x : 50, y: Number.isFinite(y) ? y : 50 }];
+            })
+            .filter(([slotId]) => slotId)
+        ),
+      ])
+      .filter(([formation]) => formation)
+  );
+}
+function buildScoutingShadowBoardFromCurrent(state = ensureScoutingState(), base = {}) {
+  const now = new Date().toISOString();
+  const id = normalizeScoutingText(base.id || state.shadowXi?.activeBoardId, 100) || "default-shadow-xi";
+  return {
+    id,
+    name: normalizeScoutingText(base.name, 100) || "My Shadow XI",
+    visibility: normalizeScoutingShadowBoardVisibility(base.visibility),
+    ownerName: normalizeScoutingText(base.ownerName, 120) || "You",
+    formation: normalizeScoutingFormation(state.shadowXi?.formation),
+    slots: cloneScoutingShadowSlotMap(state.shadowXi?.slots),
+    positions: cloneScoutingShadowPositionMap(state.shadowXi?.positions),
+    meta: cloneScoutingShadowMetaMap(state.shadowXi?.meta),
+    createdAt: normalizeScoutingText(base.createdAt, 40) || now,
+    updatedAt: now,
+  };
+}
+function getScoutingShadowBoards(state = ensureScoutingState()) {
+  const sourceBoards = Array.isArray(state.shadowXi?.boards) ? state.shadowXi.boards : [];
+  const boards = sourceBoards
+    .map((board) => ({
+      id: normalizeScoutingText(board?.id, 100),
+      name: normalizeScoutingText(board?.name, 100) || "Shadow XI",
+      visibility: normalizeScoutingShadowBoardVisibility(board?.visibility),
+      ownerName: normalizeScoutingText(board?.ownerName, 120) || "You",
+      formation: normalizeScoutingFormation(board?.formation),
+      slots: cloneScoutingShadowSlotMap(board?.slots),
+      positions: cloneScoutingShadowPositionMap(board?.positions),
+      meta: cloneScoutingShadowMetaMap(board?.meta),
+      createdAt: normalizeScoutingText(board?.createdAt, 40) || new Date().toISOString(),
+      updatedAt: normalizeScoutingText(board?.updatedAt, 40) || normalizeScoutingText(board?.createdAt, 40) || new Date().toISOString(),
+    }))
+    .filter((board) => board.id);
+  const activeId = normalizeScoutingText(state.shadowXi?.activeBoardId, 100) || boards[0]?.id || "default-shadow-xi";
+  if (!boards.some((board) => board.id === activeId)) {
+    boards.unshift(buildScoutingShadowBoardFromCurrent(state, { id: activeId, name: "My Shadow XI" }));
+  }
+  return boards;
+}
+function syncScoutingActiveShadowBoard() {
+  const state = ensureScoutingState();
+  if (!state?.shadowXi) {
+    return;
+  }
+  const activeId = normalizeScoutingText(state.shadowXi.activeBoardId, 100) || "default-shadow-xi";
+  const boards = getScoutingShadowBoards(state);
+  const existing = boards.find((board) => board.id === activeId);
+  const activeBoard = buildScoutingShadowBoardFromCurrent(state, existing || { id: activeId, name: "My Shadow XI" });
+  state.shadowXi.activeBoardId = activeBoard.id;
+  state.shadowXi.boards = boards.map((board) => (board.id === activeBoard.id ? activeBoard : board));
+  if (!state.shadowXi.boards.some((board) => board.id === activeBoard.id)) {
+    state.shadowXi.boards.unshift(activeBoard);
+  }
+}
+function setScoutingActiveShadowBoard(boardId) {
+  const state = ensureScoutingState();
+  syncScoutingActiveShadowBoard();
+  const board = getScoutingShadowBoards(state).find((item) => item.id === normalizeScoutingText(boardId, 100));
+  if (!board) {
+    return;
+  }
+  state.shadowXi.activeBoardId = board.id;
+  state.shadowXi.formation = board.formation || "4-3-3";
+  state.shadowXi.slots = cloneScoutingShadowSlotMap(board.slots);
+  state.shadowXi.positions = cloneScoutingShadowPositionMap(board.positions);
+  state.shadowXi.meta = cloneScoutingShadowMetaMap(board.meta);
+  state.shadowXi.selectedSlotId = "";
+  writeScoutingState({ syncShadowBoard: false });
+  renderScoutingWorkspace({ preserveFocus: true });
+}
+function createScoutingShadowBoard(name = "") {
+  const state = ensureScoutingState();
+  if (!canEditScoutingWorkspace()) {
+    return;
+  }
+  syncScoutingActiveShadowBoard();
+  const boards = getScoutingShadowBoards(state);
+  const now = new Date().toISOString();
+  const board = {
+    id: `shadow-xi-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: normalizeScoutingText(name, 100) || `Shadow XI ${boards.length + 1}`,
+    visibility: "private",
+    ownerName: "You",
+    formation: normalizeScoutingFormation(state.shadowXi?.formation),
+    slots: {},
+    positions: {},
+    meta: {},
+    createdAt: now,
+    updatedAt: now,
+  };
+  state.shadowXi.boards = [...boards, board];
+  state.shadowXi.activeBoardId = board.id;
+  state.shadowXi.formation = board.formation;
+  state.shadowXi.slots = {};
+  state.shadowXi.positions = {};
+  state.shadowXi.meta = {};
+  state.shadowXi.selectedSlotId = "";
+  writeScoutingState({ syncShadowBoard: false });
+  renderScoutingWorkspace({ preserveFocus: true });
+}
+function setScoutingShadowBoardVisibility(boardId, visibility) {
+  const state = ensureScoutingState();
+  if (!canEditScoutingWorkspace()) {
+    return;
+  }
+  syncScoutingActiveShadowBoard();
+  const id = normalizeScoutingText(boardId, 100);
+  state.shadowXi.boards = getScoutingShadowBoards(state).map((board) =>
+    board.id === id
+      ? {
+          ...board,
+          visibility: normalizeScoutingShadowBoardVisibility(visibility),
+          updatedAt: new Date().toISOString(),
+        }
+      : board
+  );
+  writeScoutingState({ syncShadowBoard: false });
+  renderScoutingWorkspace({ preserveFocus: true });
 }
 
 function normalizeScoutingLeague(value = "") {
@@ -2659,6 +2833,32 @@ function setScoutingComparisonLab(patch = {}) {
     ...normalizeScoutingComparisonLab(patch),
   };
   writeScoutingState();
+}
+function addScoutingComparisonPlayer(recordId) {
+  const id = normalizeScoutingText(recordId, 160);
+  if (!id || !canEditScoutingWorkspace()) {
+    return;
+  }
+  const lab = getScoutingComparisonLab();
+  const nextPlayerIds = lab.playerIds.filter(Boolean).filter((playerId) => playerId !== id);
+  if (nextPlayerIds.length >= 4) {
+    return;
+  }
+  nextPlayerIds.push(id);
+  setScoutingComparisonLab({ ...lab, playerIds: nextPlayerIds });
+  scoutingComparisonCandidatesOpen = true;
+  renderScoutingWorkspace({ preserveFocus: true });
+}
+function removeScoutingComparisonPlayer(recordId) {
+  const id = normalizeScoutingText(recordId, 160);
+  if (!id || !canEditScoutingWorkspace()) {
+    return;
+  }
+  const lab = getScoutingComparisonLab();
+  const nextPlayerIds = lab.playerIds.map((playerId) => (playerId === id ? "" : playerId));
+  setScoutingComparisonLab({ ...lab, playerIds: nextPlayerIds });
+  scoutingComparisonCandidatesOpen = true;
+  renderScoutingWorkspace({ preserveFocus: true });
 }
 function getScoutingRoleModels(state = ensureScoutingState()) {
   return Array.isArray(state.roleModels)
@@ -9894,7 +10094,17 @@ function renderScoutingContactsTab(record, state = ensureScoutingState()) {
                           <strong>${escapeHtml(entry.contact || entry.outcome || "Contact")}</strong>
                           <p>${escapeHtml([entry.outcome, entry.nextStep ? `Next: ${entry.nextStep}` : "", entry.notes].filter(Boolean).join(" / ") || "No notes")}</p>
                         </div>
-                        ${canEdit ? `<button type="button" data-delete-scouting-contact="${escapeHtml(entry.id)}">x</button>` : ""}
+                        ${
+                          canEdit
+                            ? `<button type="button" class="scouting-contact-delete-button" data-delete-scouting-contact="${escapeHtml(entry.id)}" aria-label="Remove contact entry">
+                                <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+                                  <path d="M9 4h6l1 2h4v2H4V6h4l1-2Z"></path>
+                                  <path d="M7 10h2l.4 9h5.2l.4-9h2l-.5 10.4A1.8 1.8 0 0 1 14.7 22H9.3a1.8 1.8 0 0 1-1.8-1.6L7 10Z"></path>
+                                  <path d="M10.4 11h1.5v8h-1.5v-8Zm3.7 0h1.5v8h-1.5v-8Z"></path>
+                                </svg>
+                              </button>`
+                            : ""
+                        }
                       </article>
                     `
                   )
@@ -11036,6 +11246,13 @@ function renderScoutingDatabaseControls() {
       ? [filters.metricId]
       : [];
   const selectedMetricLabels = selectedMetricIds.map((metricId) => getScoutingMetric(metricId)?.label || metricId).filter(Boolean);
+  const selectedMetricSummary = selectedMetricLabels.length > 2
+    ? `${selectedMetricLabels.slice(0, 2).join(", ")} +${selectedMetricLabels.length - 2}`
+    : selectedMetricLabels.join(", ");
+  const metricFilterQuery = scoutingDatabaseMetricFilterQuery.toLowerCase();
+  const filteredMetricOptions = metricFilterQuery
+    ? metricOptions.filter((metric) => `${metric.label} ${metric.id}`.toLowerCase().includes(metricFilterQuery))
+    : metricOptions;
   const minutesMinValue = Math.max(0, Math.min(5000, Math.round(Number(filters.minMinutes) || 0)));
   const minutesMaxValue = Number(filters.maxMinutes) > 0 ? Math.max(0, Math.min(5000, Math.round(Number(filters.maxMinutes)))) : 5000;
   const ageMinValue = Number(filters.minAge) > 0 ? Math.max(14, Math.min(45, Math.round(Number(filters.minAge)))) : 14;
@@ -11121,13 +11338,21 @@ function renderScoutingDatabaseControls() {
         </label>
         <div class="scouting-filter-multi">
           <span>Highlight metrics</span>
-          <details>
-            <summary>
-              <strong>${escapeHtml(selectedMetricLabels.length ? selectedMetricLabels.join(", ") : "No metric floor")}</strong>
+          <details ${scoutingDatabaseMetricFilterOpen ? "open" : ""} data-scouting-metric-filter-details>
+            <summary data-scouting-metric-filter-summary>
+              <strong title="${escapeHtml(selectedMetricLabels.join(", "))}">${escapeHtml(selectedMetricSummary || "No metric floor")}</strong>
               <em>${escapeHtml(selectedMetricLabels.length)} selected</em>
             </summary>
+            <div class="scouting-filter-multi-search">
+              <input
+                type="search"
+                value="${escapeHtml(scoutingDatabaseMetricFilterQuery)}"
+                placeholder="Search metric..."
+                data-scouting-metric-filter-search
+              />
+            </div>
             <div class="scouting-filter-multi-options">
-              ${metricOptions
+              ${filteredMetricOptions.length ? filteredMetricOptions
                 .map(
                   (metric) => `
                     <label>
@@ -11136,7 +11361,7 @@ function renderScoutingDatabaseControls() {
                     </label>
                   `
                 )
-                .join("")}
+                .join("") : `<p class="scouting-filter-multi-empty">No metrics match this search.</p>`}
             </div>
           </details>
         </div>
@@ -11797,9 +12022,14 @@ function renderScoutingShadowXi() {
     .slice(0, 30);
   const selectedSlotId = getSelectedScoutingShadowSlotId(state);
   const shadowCounts = getScoutingShadowSlotCounts(state);
+  const shadowBoards = getScoutingShadowBoards(state);
+  const activeShadowBoardId = normalizeScoutingText(state.shadowXi?.activeBoardId, 100) || shadowBoards[0]?.id || "default-shadow-xi";
+  const shadowSlotDepths = scoutingShadowSlots.map((slot) => getScoutingShadowSlotRecordIds(slot.id, state).length);
+  const totalShadowTargets = shadowSlotDepths.reduce((sum, count) => sum + count, 0);
+  const shadowPitchHeightRem = Math.round(Math.min(84, Math.max(58, 52 + Math.max(1, ...shadowSlotDepths) * 4.2 + totalShadowTargets * 0.08)));
   return `
     <section class="scouting-shadow-layout">
-      <div class="scouting-shadow-pitch ${escapeHtml(getScoutingPitchFormationClass(state.shadowXi.formation))}" aria-label="Shadow eleven ${escapeHtml(state.shadowXi.formation)}">
+      <div class="scouting-shadow-pitch ${escapeHtml(getScoutingPitchFormationClass(state.shadowXi.formation))}" style="--scouting-shadow-pitch-height:${shadowPitchHeightRem}rem;" aria-label="Shadow eleven ${escapeHtml(state.shadowXi.formation)}">
         <div class="scouting-pitch-toolbar">
           <label>
             <span>Formation</span>
@@ -11858,7 +12088,7 @@ function renderScoutingShadowXi() {
                             `;
                           })
                           .join("")
-                      : `<p class="scouting-shadow-empty">Choose this role, then add players from profiles.</p>`
+                      : `<p class="scouting-shadow-empty"><strong>Drop target</strong><span>Drag a favorite or add from player profile.</span></p>`
                   }
                 </div>
                 <button type="button" class="scouting-shadow-add" data-select-scouting-shadow-slot="${escapeHtml(slot.id)}" ${canEdit ? "" : "disabled"}>+ Add player</button>
@@ -11868,6 +12098,35 @@ function renderScoutingShadowXi() {
           .join("")}
       </div>
       <aside class="scouting-shadow-side">
+        <div class="scouting-shadow-card scouting-shadow-board-card">
+          <div class="scouting-shadow-card-head">
+            <p class="placeholder-tag">Shadow XI boards</p>
+            <span>${shadowBoards.length}</span>
+          </div>
+          <form class="scouting-shadow-board-form" data-create-scouting-shadow-board-form>
+            <input name="name" placeholder="Name new Shadow XI..." ${canEdit ? "" : "disabled"} />
+            <button type="submit" ${canEdit ? "" : "disabled"}>Create</button>
+          </form>
+          <div class="scouting-shadow-board-list">
+            ${shadowBoards
+              .map(
+                (board) => `
+                  <article class="scouting-shadow-board-item${board.id === activeShadowBoardId ? " is-active" : ""}">
+                    <button type="button" data-select-scouting-shadow-board="${escapeHtml(board.id)}">
+                      <strong>${escapeHtml(board.name)}</strong>
+                      <span>${escapeHtml(board.ownerName)} · ${escapeHtml(getScoutingShadowBoardVisibilityLabel(board.visibility))}</span>
+                    </button>
+                    <select data-scouting-shadow-board-visibility="${escapeHtml(board.id)}" ${canEdit ? "" : "disabled"}>
+                      ${getScoutingShadowBoardVisibilityOptions()
+                        .map((option) => `<option value="${escapeHtml(option.value)}" ${normalizeScoutingShadowBoardVisibility(board.visibility) === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
+                        .join("")}
+                    </select>
+                  </article>
+                `
+              )
+              .join("")}
+          </div>
+        </div>
         <div class="scouting-shadow-card">
           <div class="scouting-shadow-card-head">
             <p class="placeholder-tag">Favorites ready for XI</p>
@@ -12190,7 +12449,16 @@ function renderScoutingComparisonLabPanel() {
   const comparisonMetricIds = selectedMetricIds.length ? selectedMetricIds : [metricOptions[0]?.id || "minutes"].filter(Boolean);
   const selectedMetricOptions = comparisonMetricIds.map((metricId) => getScoutingMetric(metricId)).filter(Boolean);
   const metric = selectedMetricOptions[0] || metricOptions[0];
-  const metricChoiceMarkup = metricOptions
+  const comparisonMetricQuery = scoutingComparisonMetricFilterQuery.toLowerCase();
+  const comparisonMetricChoices = comparisonMetricQuery
+    ? metricOptions.filter((metricOption) => `${metricOption.label} ${metricOption.id}`.toLowerCase().includes(comparisonMetricQuery))
+    : metricOptions;
+  const comparisonMetricChoiceIds = new Set([
+    ...comparisonMetricIds,
+    ...comparisonMetricChoices.map((metricOption) => metricOption.id),
+  ]);
+  const visibleComparisonMetricOptions = metricOptions.filter((metricOption) => comparisonMetricChoiceIds.has(metricOption.id));
+  const metricChoiceMarkup = visibleComparisonMetricOptions
     .map(
       (metricOption, index) => `
         <label>
@@ -12219,6 +12487,7 @@ function renderScoutingComparisonLabPanel() {
       })
       .join("");
   const uniquePlayerIds = Array.from(new Set(selectedPlayerIds.filter(Boolean))).slice(0, 4);
+  const selectedComparisonPlayerSet = new Set(uniquePlayerIds);
   const playerRecords = uniquePlayerIds
     .map((recordId) => ({
       recordId,
@@ -12301,6 +12570,37 @@ function renderScoutingComparisonLabPanel() {
       ).slice(0, 12)
     : [];
   const canEdit = canEditScoutingWorkspace();
+  const comparisonCandidateList = scoutingComparisonCandidatesOpen
+    ? `
+      <div class="scouting-comparison-candidate-drawer" data-scouting-comparison-candidate-area>
+        ${
+          candidates.length
+            ? candidates
+                .map((record) => {
+                  const recordId = getScoutingRecordId(record);
+                  const selected = selectedComparisonPlayerSet.has(recordId);
+                  const addDisabled = !canEdit || (!selected && uniquePlayerIds.length >= 4);
+                  return `
+                    <article class="scouting-comparison-candidate-card${selected ? " is-selected" : ""}">
+                      ${renderScoutingRecordAvatar(record)}
+                      <button type="button" class="scouting-comparison-candidate-main" data-open-scouting-record="${escapeHtml(recordId)}">
+                        <strong>${escapeHtml(getScoutingRecordName(record))}</strong>
+                        <span>${escapeHtml(getScoutingRecordPosition(record) || "No position")} · ${escapeHtml(getScoutingRecordTeam(record) || getScoutingRecordLeague(record) || "No club")}</span>
+                      </button>
+                      ${
+                        selected
+                          ? `<button type="button" class="scouting-secondary-button" data-remove-scouting-comparison-player="${escapeHtml(recordId)}" ${canEdit ? "" : "disabled"}>Remove</button>`
+                          : `<button type="button" class="scouting-secondary-button" data-add-scouting-comparison-player="${escapeHtml(recordId)}" ${addDisabled ? "disabled" : ""}>Compare</button>`
+                      }
+                    </article>
+                  `;
+                })
+                .join("")
+            : `<p class="scouting-muted">No searchable players found for this role yet.</p>`
+        }
+      </div>
+    `
+    : "";
   return `
     <section class="scouting-comparison-lab scouting-comparison-studio">
       <div class="scouting-comparison-head">
@@ -12308,8 +12608,11 @@ function renderScoutingComparisonLabPanel() {
           <p class="placeholder-tag">Player comparison</p>
           <h2>Comparison lab</h2>
         </div>
-        <span>${escapeHtml(candidates.length)} searchable players</span>
+        <button type="button" class="scouting-comparison-candidate-toggle${scoutingComparisonCandidatesOpen ? " is-open" : ""}" data-toggle-scouting-comparison-candidates>
+          ${escapeHtml(candidates.length)} searchable players
+        </button>
       </div>
+      ${comparisonCandidateList}
       <form class="scouting-comparison-form scouting-comparison-search" data-scouting-comparison-form>
         <label>
           Role filter
@@ -12319,13 +12622,21 @@ function renderScoutingComparisonLabPanel() {
         </label>
         <fieldset class="scouting-comparison-metric-choice">
           <legend>Metrics</legend>
-          <details>
-            <summary>
+          <details data-scouting-comparison-metric-details ${scoutingComparisonMetricMenuOpen ? "open" : ""}>
+            <summary data-scouting-comparison-metric-summary>
               <span>${escapeHtml(selectedMetricOptions.length ? selectedMetricOptions.map((item) => item.label).join(", ") : "Choose metrics")}</span>
               <em>${escapeHtml(selectedMetricOptions.length || 0)} selected</em>
             </summary>
+            <div class="scouting-comparison-metric-search">
+              <input
+                type="search"
+                value="${escapeHtml(scoutingComparisonMetricFilterQuery)}"
+                placeholder="Search metric..."
+                data-scouting-comparison-metric-search
+              />
+            </div>
             <div class="scouting-comparison-metric-options">
-              ${metricChoiceMarkup || `<p class="scouting-muted">No metrics available yet.</p>`}
+              ${metricChoiceMarkup || `<p class="scouting-muted">No metrics match this search.</p>`}
             </div>
           </details>
         </fieldset>
@@ -14140,6 +14451,38 @@ export function renderAnalysisRoom(context) {
 }
 export function handleClick(event, context) {
   setScoutingContext(context);
+  const comparisonMetricSummary = event.target.closest("[data-scouting-comparison-metric-summary]");
+  if (comparisonMetricSummary) {
+    const details = comparisonMetricSummary.closest("[data-scouting-comparison-metric-details]");
+    scoutingComparisonMetricMenuOpen = !details?.open;
+    return;
+  }
+  if (scoutingComparisonMetricMenuOpen && !event.target.closest("[data-scouting-comparison-metric-details]")) {
+    scoutingComparisonMetricMenuOpen = false;
+    ui.scoutingWorkspace?.querySelector("[data-scouting-comparison-metric-details]")?.removeAttribute("open");
+  }
+  const comparisonCandidatesTrigger = event.target.closest("[data-toggle-scouting-comparison-candidates]");
+  if (comparisonCandidatesTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    scoutingComparisonCandidatesOpen = !scoutingComparisonCandidatesOpen;
+    renderScoutingWorkspace({ preserveFocus: true });
+    return;
+  }
+  const addComparisonPlayerTrigger = event.target.closest("[data-add-scouting-comparison-player]");
+  if (addComparisonPlayerTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    addScoutingComparisonPlayer(addComparisonPlayerTrigger.dataset.addScoutingComparisonPlayer);
+    return;
+  }
+  const removeComparisonPlayerTrigger = event.target.closest("[data-remove-scouting-comparison-player]");
+  if (removeComparisonPlayerTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    removeScoutingComparisonPlayer(removeComparisonPlayerTrigger.dataset.removeScoutingComparisonPlayer);
+    return;
+  }
   const recordMoreMenuTrigger = event.target.closest("[data-toggle-scouting-record-more-menu]");
   if (recordMoreMenuTrigger) {
     const menu = recordMoreMenuTrigger.closest(".scouting-record-more-menu");
@@ -14174,6 +14517,13 @@ export function handleClick(event, context) {
   const clearShadowSlotTrigger = event.target.closest("[data-clear-scouting-shadow-slot-selection]");
   if (clearShadowSlotTrigger) {
     clearScoutingShadowSlotSelection();
+    return;
+  }
+  const selectShadowBoardTrigger = event.target.closest("[data-select-scouting-shadow-board]");
+  if (selectShadowBoardTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    setScoutingActiveShadowBoard(selectShadowBoardTrigger.dataset.selectScoutingShadowBoard);
     return;
   }
   const removeShadowRecordTrigger = event.target.closest("[data-remove-scouting-shadow-record]");
@@ -14241,6 +14591,9 @@ export function handleClick(event, context) {
     event.preventDefault();
     event.stopPropagation();
     scoutingAdvancedDatabaseFiltersOpen = !scoutingAdvancedDatabaseFiltersOpen;
+    if (!scoutingAdvancedDatabaseFiltersOpen) {
+      scoutingDatabaseMetricFilterOpen = false;
+    }
     renderScoutingWorkspace({ preserveFocus: true });
     return;
   }
@@ -14249,6 +14602,12 @@ export function handleClick(event, context) {
     event.preventDefault();
     event.stopPropagation();
     setScoutingDatabaseAdvancedMode(!isScoutingDatabaseAdvancedMode());
+    return;
+  }
+  const metricFilterSummary = event.target.closest("[data-scouting-metric-filter-summary]");
+  if (metricFilterSummary) {
+    const details = metricFilterSummary.closest("[data-scouting-metric-filter-details]");
+    scoutingDatabaseMetricFilterOpen = !details?.open;
     return;
   }
   const resetRangeFilterTrigger = event.target.closest("[data-reset-scouting-range-filter]");
@@ -14609,6 +14968,13 @@ export function handleInput(event, context) {
     renderScoutingWorkspace({ preserveFocus: true });
     return;
   }
+  const comparisonMetricSearchInput = event.target.closest("[data-scouting-comparison-metric-search]");
+  if (comparisonMetricSearchInput) {
+    scoutingComparisonMetricMenuOpen = true;
+    scoutingComparisonMetricFilterQuery = normalizeScoutingText(comparisonMetricSearchInput.value, 80);
+    renderScoutingWorkspace({ preserveFocus: true });
+    return;
+  }
   const databaseSearchInput = event.target.closest("[data-scouting-database-search-input]");
   if (databaseSearchInput) {
     scoutingDatabaseSearchDraft = databaseSearchInput.value;
@@ -14617,6 +14983,13 @@ export function handleInput(event, context) {
   const savedViewNameInput = event.target.closest("[data-scouting-saved-view-name]");
   if (savedViewNameInput) {
     scoutingSavedViewNameDraft = savedViewNameInput.value;
+    return;
+  }
+  const metricFilterSearchInput = event.target.closest("[data-scouting-metric-filter-search]");
+  if (metricFilterSearchInput) {
+    scoutingDatabaseMetricFilterOpen = true;
+    scoutingDatabaseMetricFilterQuery = normalizeScoutingText(metricFilterSearchInput.value, 80);
+    renderScoutingWorkspace({ preserveFocus: true });
     return;
   }
   const filterInput = event.target.closest("[data-scouting-filter]");
@@ -14683,11 +15056,17 @@ export function handleChange(event, context) {
     setScoutingProfileRoleProfile(profileRoleTemplateTrigger.value);
     return;
   }
+  const shadowBoardVisibilityTrigger = event.target.closest("[data-scouting-shadow-board-visibility]");
+  if (shadowBoardVisibilityTrigger) {
+    setScoutingShadowBoardVisibility(shadowBoardVisibilityTrigger.dataset.scoutingShadowBoardVisibility, shadowBoardVisibilityTrigger.value);
+    return;
+  }
   const comparisonForm = event.target.closest("[data-scouting-comparison-form]");
   if (comparisonForm) {
     if (!canEditScoutingWorkspace()) {
       return;
     }
+    scoutingComparisonMetricMenuOpen = Boolean(event.target.closest(".scouting-comparison-metric-choice"));
     const formData = new FormData(comparisonForm);
     const metricIds = formData.getAll("metricIds").map((metricId) => normalizeScoutingText(metricId, 120)).filter(Boolean);
     setScoutingComparisonLab({
@@ -14728,10 +15107,19 @@ export function handleChange(event, context) {
   }
   const metricFilterChoice = event.target.closest("[data-scouting-metric-filter]");
   if (metricFilterChoice) {
-    const selectedMetricIds = Array.from(ui.scoutingWorkspace?.querySelectorAll("[data-scouting-metric-filter]:checked") || [])
-      .map((input) => normalizeScoutingText(input.value, 120))
-      .filter(Boolean);
-    setScoutingDatabaseFilter("metricIds", selectedMetricIds);
+    scoutingDatabaseMetricFilterOpen = true;
+    const filters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
+    const selectedMetricIds = new Set(Array.isArray(filters.metricIds) ? filters.metricIds : []);
+    const metricId = normalizeScoutingText(metricFilterChoice.value, 120);
+    if (metricId) {
+      if (metricFilterChoice.checked) {
+        selectedMetricIds.add(metricId);
+      } else {
+        selectedMetricIds.delete(metricId);
+      }
+    }
+    setScoutingDatabaseFilter("metricIds", Array.from(selectedMetricIds));
+    renderScoutingWorkspace({ preserveFocus: true });
     if (isScoutingDatabaseLoaded()) {
       scheduleScoutingDatabaseFilterRefresh();
     }
@@ -14748,6 +15136,14 @@ export function handleChange(event, context) {
 }
 export function handleSubmit(event, context) {
   setScoutingContext(context);
+  const createShadowBoardForm = event.target.closest("[data-create-scouting-shadow-board-form]");
+  if (createShadowBoardForm) {
+    event.preventDefault();
+    const formData = new FormData(createShadowBoardForm);
+    createScoutingShadowBoard(formData.get("name"));
+    createShadowBoardForm.reset();
+    return;
+  }
   const pageJumpForm = event.target.closest("[data-scouting-page-jump-form]");
   if (pageJumpForm) {
     event.preventDefault();

@@ -37,8 +37,9 @@
     </style>
     <link id=s rel=stylesheet>
     <link id=m rel=stylesheet>
+    <link id=a rel=stylesheet>
     <script>
-      {const v=window.__assetVersion=Date.now(),d=document;d.getElementById("s").href=`styles.css?v=${v}`;d.getElementById("m").href=`medical-roster-overview.css?v=${v}`}
+      {const v=window.__assetVersion=Date.now(),d=document;d.getElementById("s").href=`styles.css?v=${v}`;d.getElementById("m").href=`medical-roster-overview.css?v=${v}`;d.getElementById("a").href=`appearance-governance.css?v=${v}`}
     </script>
     <script>
       (function () {
@@ -898,6 +899,7 @@
         const DEV_AUTH_PASSWORD = "courage";
         const WORKSPACE_HUB_STATE_KEY = "football-workspace-hub-v3";
         const PLATFORM_STRUCTURE_STATE_KEY = "football-platform-structure-v1";
+        const PLATFORM_APPEARANCE_STATE_KEY = "football-platform-appearance-v1";
         const SESSION_PLANNER_STATE_KEY = "football-session-planner-v3";
         const PLAYER_PROFILES_STATE_KEY = "football-player-profiles-v1";
         const MEDICAL_TEAM_STATE_KEY = "football-medical-team-v1";
@@ -934,6 +936,7 @@
         const CENTRAL_STATE_KEYS = new Set([
           WORKSPACE_HUB_STATE_KEY,
           PLATFORM_STRUCTURE_STATE_KEY,
+          PLATFORM_APPEARANCE_STATE_KEY,
           PERIODIZATION_STATE_KEY,
           SCHEDULE_STATE_KEY,
           SESSION_PLANNER_STATE_KEY,

@@ -7,6 +7,7 @@ const medicalEditRoles = Object.freeze(["admin", "club-admin", "team-admin", "me
 export const protectedStorageKeys = Object.freeze([
   "football-workspace-hub-v3",
   "football-platform-structure-v1",
+  "football-platform-appearance-v1",
   "football-periodization-v2",
   "football-schedule-v1",
   "football-session-planner-v3",
@@ -30,6 +31,7 @@ export const platformModuleMigrationOrder = Object.freeze([
   "platform-identity",
   "home",
   "chat",
+  "platform-appearance",
   "schedule",
   "exercise-library",
   "session-planner",
@@ -62,6 +64,17 @@ export const platformModules = Object.freeze([
     editRoles: Object.freeze(["admin"]),
     emits: Object.freeze(["platform.readiness-viewed", "platform.readiness-refreshed"]),
     consumes: Object.freeze(["release.status", "backup.status", "data-safety.changed", "permission.changed"]),
+  }),
+  Object.freeze({
+    id: "platform-appearance",
+    label: "Platform Appearance",
+    stage: "core",
+    storageKeys: Object.freeze(["football-platform-appearance-v1"]),
+    futureTables: Object.freeze(["platform_appearance_configs", "platform_appearance_versions"]),
+    viewRoles: Object.freeze(["admin"]),
+    editRoles: Object.freeze(["admin"]),
+    emits: Object.freeze(["appearance.previewed", "appearance.published", "appearance.rolled-back"]),
+    consumes: Object.freeze(["data-safety.changed", "permission.changed"]),
   }),
   Object.freeze({
     id: "platform-identity",

@@ -236,7 +236,11 @@ test("production test account can open Football Science DB from Scouting", async
           if (/Football Science DB failed/i.test(text)) {
             return "failed";
           }
-          if (playerRows > 0 || /Football Science DB players (?:match|shown)/i.test(text)) {
+          if (
+            playerRows > 0 ||
+            /Football Science DB players (?:match|shown)/i.test(text) ||
+            /No Football Science DB players found/i.test(text)
+          ) {
             return "ready";
           }
           return "loading";

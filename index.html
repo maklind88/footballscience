@@ -242,15 +242,9 @@
           <section class="workspace-view platform-player-profiles-view" data-workspace-view="player-profiles">
             <div id="playerProfilesWorkspace" class="player-profiles-workspace platform-module-shell"></div>
           </section>
-          <section class="workspace-view platform-scouting-view" data-workspace-view="scouting">
-            <div id="scoutingWorkspace" class="scouting-workspace platform-module-shell"></div>
-          </section>
-          <section class="workspace-view platform-transfer-room-view" data-workspace-view="transfer-room">
-            <div id="transferRoomWorkspace" class="transfer-room-workspace platform-module-shell"></div>
-          </section>
-          <section class="workspace-view platform-analysis-room-view" data-workspace-view="analysis-room">
-            <div id="analysisRoomWorkspace" class="analysis-room-workspace platform-module-shell"></div>
-          </section>
+          <section class="workspace-view platform-scouting-view" data-workspace-view=scouting><div id=scoutingWorkspace class=scouting-workspace></div></section>
+          <section class=workspace-view data-workspace-view=transfer-room><div id=transferRoomWorkspace class=transfer-room-workspace></div></section>
+          <section class="workspace-view platform-analysis-room-view" data-workspace-view=analysis-room><div id=analysisRoomWorkspace class=analysis-room-workspace></div></section>
           <section class="workspace-view platform-schedule-view" data-workspace-view="schedule">
             <div id="scheduleWorkspace" class="schedule-workspace platform-module-shell">
               <header class="schedule-hero-card">
@@ -905,7 +899,6 @@
         const PLAYER_PROFILES_STATE_KEY = "football-player-profiles-v1";
         const MEDICAL_TEAM_STATE_KEY = "football-medical-team-v1";
         const SCOUTING_STATE_KEY = "football-scouting-v1";
-        const TRANSFER_ROOM_STATE_KEY = "football-transfer-room-v1";
         const SESSION_PLANNER_REDUCTION_GUARD_KEY = "blockReductionGuard";
         const SESSION_PLANNER_REDUCTION_WINDOW_MS = 30 * 60 * 1000;
         const SESSION_PLANNER_BLOCK_FIELD_META_KEY = "fieldUpdatedAt";
@@ -953,7 +946,7 @@
           MEDICAL_TEAM_STATE_KEY,
           PLAYER_PROFILES_STATE_KEY,
           SCOUTING_STATE_KEY,
-          TRANSFER_ROOM_STATE_KEY,
+          "football-transfer-room-v1",
           "football-simulator-sequence-v1",
           "football-simulator-sequence-library-v2",
         ]);
@@ -3134,7 +3127,7 @@
         const L=String((await g())||s()||window.__assetVersion||Date.now()).trim().slice(0,m);
         window.__assetVersion=L;
         for(const[i,f]of[["s","styles.css"],["m","medical-roster-overview.css"]]){const e=document.getElementById(i);if(e)e.href=`${f}?v=${L}`}
-        const latest=await u(s()||L); if(latest!==L) return;
+        const latest=await u(s()||L);if(latest!==L)return;
         const load=(f)=>new Promise((r)=>{const n=document.createElement("script");n.src=f;n.onload=r;n.onerror=r;document.head.append(n)});
         const start=()=>{let w=!1;const f=async()=>{if(w||document.hidden)return;w=!0;try{await u(L)}finally{w=!1}};setInterval(f,n);addEventListener("visibilitychange",()=>{if(!document.hidden)f()})};
         Promise.all([window.platformAuthReadyPromise?.catch(()=>0),...["periodization-import-data.js","schedule-import-data.js"].map(q=>load(`${q}?v=${L}`))]).then(()=>import(`./app.js?v=${L}`).then(()=>{window.platformMarkAppReady?.();start()},err=>{document.body.dataset.appLoadError=err?.message||"Load failed";console.error(err)}));

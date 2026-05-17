@@ -674,7 +674,7 @@ function seasonStatsToClient(row = {}) {
 async function searchPlayers(query = {}) {
   const { params, limit } = buildPlayerSearchParams(query);
   const includeTotal = ["1", "true", "yes"].includes(normalizeText(query.includeTotal, 20).toLowerCase());
-  const result = await dbRequest(`/fsdb_players?${params.toString()}`, { includeCount: includeTotal });
+  const result = await dbRequest(`/fsdb_players?${params.toString()}`, { includeCount: includeTotal, countStrategy: "planned" });
   if (!result.ok) {
     throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
   }

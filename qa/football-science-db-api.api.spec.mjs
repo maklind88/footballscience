@@ -1,9 +1,14 @@
 import { expect, test } from "@playwright/test";
 import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 const fsdb = require("../api/_lib/football-science-db.js");
 const reepImporterPromise = import("../scripts/import-football-science-db-reep.mjs");
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const projectRoot = resolve(__dirname, "..");
 
 test("Football Science DB API caps pages and uses cursor pagination", () => {
   expect(fsdb.asLimit(5000)).toBe(50);
@@ -29,6 +34,12 @@ test("Football Science DB API caps pages and uses cursor pagination", () => {
   expect(params.get("current_team_name")).toBe("ilike.*San Diego*");
   expect(params.get("id")).toBe("gt.11111111-1111-4111-8111-111111111111");
   expect(params.has("offset")).toBe(false);
+});
+
+test("Football Science DB player search uses planned counts for first-page totals", () => {
+  const source = readFileSync(resolve(projectRoot, "api/_lib/football-science-db.js"), "utf8");
+
+  expect(source).toContain('dbRequest(`/fsdb_players?${params.toString()}`, { includeCount: includeTotal, countStrategy: "planned" })');
 });
 
 test("Football Science DB normalizes source records without leaking raw provider shape", () => {

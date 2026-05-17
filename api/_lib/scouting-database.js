@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const { parseJsonBody, readConfig, sendJson } = require("./supabase-admin.js");
 const { appendAuditLog } = require("./audit-log.js");
+const { fetchFootballScienceProfileForScoutingRecord } = require("./football-science-db.js");
 
 const SCOUTING_DATABASE_SCHEMA = "footballscience-scouting-database-v1";
 const SCOUTING_WRITE_ROLES = new Set(["admin", "club-admin", "team-admin", "coach", "scout", "analyst"]);
@@ -842,9 +843,14 @@ async function fetchPlayerProfile(query = {}) {
   if (!row) {
     return { ok: false, status: 404, reason: "Scouting player was not found." };
   }
-  const [playerRow, seasonRows] = await Promise.all([
+  const [playerRow, seasonRows, footballScienceDb] = await Promise.all([
     fetchPlayerRowByIdentity(row.player_identity_key || row.source_player_id),
     fetchPlayerSeasonHistory(row),
+    fetchFootballScienceProfileForScoutingRecord(row).catch((error) => ({
+      ok: false,
+      linkStatus: "unavailable",
+      reason: error?.message || "Football Science DB link is unavailable.",
+    })),
   ]);
   return {
     ok: true,
@@ -854,6 +860,7 @@ async function fetchPlayerProfile(query = {}) {
     player: playerRow ? playerRowToClient(playerRow) : null,
     seasons: seasonRows.map(seasonRowToClientRecord),
     profileSummary: buildPlayerProfileSummary(row, seasonRows),
+    footballScienceDb,
     row,
   };
 }

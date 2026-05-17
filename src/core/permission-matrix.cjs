@@ -176,6 +176,17 @@ const platformPermissionMatrix = Object.freeze([
     storageKeys: ["football-scouting-v1"],
     routes: ["/api/scouting"],
   }),
+  moduleContract("football-science-db", "Football Science DB", "global", {
+    read: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
+    write: ["admin", "club-admin", "team-admin", "scout", "analyst"],
+    delete: ["admin"],
+    export: ["admin", "scout", "analyst"],
+    restore: ["admin"],
+    admin: ["admin"],
+    observe: ["admin", "scout", "analyst"],
+  }, {
+    routes: ["/api/football-science-db"],
+  }),
   moduleContract("game-simulator", "Game Simulator", "team", {
     read: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance"],
     write: simulatorWriteRoles,
@@ -331,6 +342,12 @@ const apiRouteSecurity = Object.freeze({
     moduleId: "scouting",
     actions: Object.freeze({ GET: "read", POST: "write", PUT: "write", PATCH: "write", DELETE: "delete" }),
     rateLimits: Object.freeze({ read: 100, write: 35, delete: 10 }),
+    enforcePermission: true,
+  }),
+  "/api/football-science-db": Object.freeze({
+    moduleId: "football-science-db",
+    actions: Object.freeze({ GET: "read", POST: "write", PUT: "write", PATCH: "write", DELETE: "delete" }),
+    rateLimits: Object.freeze({ read: 120, write: 20, delete: 4 }),
     enforcePermission: true,
   }),
   "/api/squad-ages": Object.freeze({

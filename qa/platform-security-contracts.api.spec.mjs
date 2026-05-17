@@ -47,6 +47,7 @@ test("permission matrix covers every module action with conservative roles", () 
     "audit-log",
     "auth",
     "chat",
+    "football-science-db",
     "home",
     "medical-team",
     "player-profiles",
@@ -66,6 +67,9 @@ test("permission matrix covers every module action with conservative roles", () 
   expect(permissionMatrix.hasModulePermission({ role: "coach" }, "chat", "write")).toBe(true);
   expect(permissionMatrix.hasModulePermission({ role: "coach" }, "medical-team", "write")).toBe(false);
   expect(permissionMatrix.hasModulePermission({ role: "medical" }, "medical-team", "write")).toBe(true);
+  expect(permissionMatrix.hasModulePermission({ role: "coach" }, "football-science-db", "read")).toBe(true);
+  expect(permissionMatrix.hasModulePermission({ role: "coach" }, "football-science-db", "write")).toBe(false);
+  expect(permissionMatrix.hasModulePermission({ role: "scout" }, "football-science-db", "write")).toBe(true);
   expect(permissionMatrix.hasModulePermission({ role: "coach" }, "app-state", "restore")).toBe(false);
   expect(permissionMatrix.hasModulePermission({ role: "admin" }, "app-state", "restore")).toBe(true);
 });

@@ -76,6 +76,7 @@
 - Next pass: add editable scout notes, contract fields, valuation/availability fields, report creation, list management actions, and opposition scouting workflows.
 - Preserve `football-scouting-v1` through central app-state, backup, export, and restore.
 - Move long-term data into `scouting_players`, `scouting_player_metrics`, `scouting_lists`, `scouting_shadow_xi`, and `scouting_reports` only through an additive, dual-read rollout.
+- Football Science DB is the new global player foundation. Keep it server-first through `fsdb_*` tables and `/api/football-science-db`; do not ship global player data as a frontend JS blob. First source import is Reep identity/crosswalk data, then provider/user-owned roster and performance imports.
 
 ## Game Simulator
 

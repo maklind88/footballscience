@@ -20,6 +20,7 @@ Current isolated branch/worktree:
 | App-state module migrations | Tracked | `platform_module_migration_checkpoints` | Promote Chat to server-first with app-state fallback compare | Safe deploy only |
 | `app.js` module extraction | Started before program | Module loader + existing lazy Scouting/Game Simulator boundaries | Extract one module boundary per release, no UI behavior change first | Safe deploy for broad moves |
 | Chat server-first | Schema exists, app-state fallback still active | `chat_*` tables and `/api/chat` | Make chat API primary for reads/writes, retain compatibility cache | Safe deploy only |
+| Football Science DB | Foundation started | `fsdb_*` global player identity tables and `/api/football-science-db` | Import Reep identity data, then connect roster/stat providers without frontend blobs | Safe deploy only |
 | Scouting server-first | Schema/API foundation exists, client still heavy | `scouting_*` tables and `/api/scouting` | Server-side search/filter/profile pages before loading client blobs | Safe deploy only |
 
 ## Non-Negotiable Definition Of Done
@@ -42,12 +43,13 @@ Each phase is only complete when all of these are true:
 
 1. Platform Identity: canonical organizations, clubs, teams, memberships, profiles, tenant links, and migration checkpoints.
 2. Chat: server-first messages, threads, receipts, reactions, attachments, pagination, and realtime-safe RLS.
-3. Scouting: server-first player database search, profile hydration, import publishing, lists, reports, and Shadow XI state.
-4. Home Tasks: database-backed personal/delegated tasks.
-5. Schedule: promote staged `schedule_events` after shadow/dual-write verification.
-6. Exercise Library: preserve every existing exercise; migrate folders and versions before sessions.
-7. Sessions: migrate sessions and blocks after library safety is proven.
-8. Squad/Medical/Periodization/Game Simulator: migrate after identity and module-specific restore drills are proven.
+3. Football Science DB: global player identity, source links, team/competition/roster/stat foundations with server-side search and cursor pagination.
+4. Scouting: server-first player database search, profile hydration, import publishing, lists, reports, and Shadow XI state.
+5. Home Tasks: database-backed personal/delegated tasks.
+6. Schedule: promote staged `schedule_events` after shadow/dual-write verification.
+7. Exercise Library: preserve every existing exercise; migrate folders and versions before sessions.
+8. Sessions: migrate sessions and blocks after library safety is proven.
+9. Squad/Medical/Periodization/Game Simulator: migrate after identity and module-specific restore drills are proven.
 
 ## Current Phase: Platform Identity Foundation
 

@@ -1666,13 +1666,23 @@ activeTab: "shadow-xi",
 databaseFilters: {
 query: "",
 league: "all",
+team: "all",
 season: "all",
 position: "all",
 minMinutes: 0,
 minMinutesIntentional: false,
+maxMinutes: "",
+minAge: "",
 maxAge: "",
 metricId: "all",
+metricIds: [],
 metricMin: "",
+roleProfileId: "all",
+benchmarkMode: "position",
+roleFitMin: "",
+roleFloorMin: "",
+signalMode: "all",
+marketStatus: "all",
 sortMetricId: "minutes",
 },
 targets: [],
@@ -1685,10 +1695,15 @@ shadowXi: {
 formation: "4-3-3",
 slots: {},
 selectedSlotId: "",
+positions: {},
+meta: {},
+activeBoardId: "default-shadow-xi",
+boards: [],
 },
 myTeam: {
 formation: "4-3-3",
 slots: {},
+positions: {},
 },
 selectedRecordId: "",
 reports: [],
@@ -4676,6 +4691,32 @@ const adminDepartmentSuggestions = Object.freeze([
 ]);
 const platformDefaultClubId = "club-north-carolina-courage";
 const platformDefaultTeamId = "team-north-carolina-courage";
+const platformDefaultClubName = "North Carolina Courage";
+const platformDefaultClubShortName = "NCC";
+const platformDefaultTeamName = "North Carolina Courage";
+const platformDefaultTeamLevel = "First Team";
+const legacyPlatformStructureValues = new Set([
+"football science live",
+"club football science live",
+"team football science live",
+"football-science-live",
+"club-football-science-live",
+"team-football-science-live",
+"fsl",
+]);
+const canonicalPlatformClubValues = new Set([
+"north carolina courage",
+"club north carolina courage",
+"club-north-carolina-courage",
+"ncc",
+]);
+const canonicalPlatformTeamValues = new Set([
+"north carolina courage",
+"team north carolina courage",
+"team-north-carolina-courage",
+"first team",
+"ncc",
+]);
 const dashboardPresenceHeartbeatMs = 25000;
 const dashboardPresencePollMs = 6000;
 const dashboardPresenceIdleMs = 90000;
@@ -4880,7 +4921,8 @@ return getUserTeamName(user, structure) || getUserClubName(user, structure) || "
 }
 function syncAccountMenu(user = getCurrentPlatformUser()) {
 const name = user ? formatUserName(user) : "Profile";
-const club = normalizePlatformStructureText(user?.team || user?.teamName, "") || getUserClub(user);
+const rawTeamLabel = normalizePlatformStructureText(user?.team || user?.teamName, "");
+const club = rawTeamLabel && !isLegacyPlatformStructureValue(rawTeamLabel) ? rawTeamLabel : getUserClub(user);
 applyUserAvatar(ui.profileMenuAvatar, user);
 applyUserAvatar(ui.profileMenuPanelAvatar, user);
 const accountFields = [
@@ -4993,6 +5035,81 @@ memberships: [],
 function normalizePlatformStructureText(value, fallback = "") {
 return String(value || fallback).trim();
 }
+function normalizePlatformStructureComparable(value = "") {
+return normalizePlatformStructureText(value, "").toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+}
+function isLegacyPlatformStructureValue(value = "") {
+const normalized = normalizePlatformStructureComparable(value);
+return Boolean(normalized && (legacyPlatformStructureValues.has(normalized) || normalized.includes("football science live")));
+}
+function isCanonicalPlatformClubValue(value = "") {
+const normalized = normalizePlatformStructureComparable(value);
+return Boolean(normalized && canonicalPlatformClubValues.has(normalized));
+}
+function isCanonicalPlatformTeamValue(value = "") {
+const normalized = normalizePlatformStructureComparable(value);
+return Boolean(normalized && canonicalPlatformTeamValues.has(normalized));
+}
+function isLegacyPlatformClub(candidate = {}) {
+return [
+candidate.id,
+candidate.clubId,
+candidate.club_id,
+candidate.name,
+candidate.clubName,
+candidate.club,
+candidate.shortName,
+candidate.slug,
+].some(isLegacyPlatformStructureValue);
+}
+function isLegacyPlatformTeam(candidate = {}) {
+return [
+candidate.id,
+candidate.teamId,
+candidate.team_id,
+candidate.name,
+candidate.teamName,
+candidate.team,
+candidate.shortName,
+candidate.slug,
+].some(isLegacyPlatformStructureValue);
+}
+function isCanonicalPlatformClub(candidate = {}) {
+return [
+candidate.id,
+candidate.clubId,
+candidate.club_id,
+candidate.name,
+candidate.clubName,
+candidate.club,
+candidate.shortName,
+candidate.slug,
+].some(isCanonicalPlatformClubValue);
+}
+function isCanonicalPlatformTeam(candidate = {}) {
+return [
+candidate.id,
+candidate.teamId,
+candidate.team_id,
+candidate.name,
+candidate.teamName,
+candidate.team,
+candidate.shortName,
+candidate.slug,
+].some(isCanonicalPlatformTeamValue);
+}
+function hasPlatformWorkspaceScope(user = {}) {
+return [
+user.clubId,
+user.club_id,
+user.clubName,
+user.club,
+user.teamId,
+user.team_id,
+user.teamName,
+user.team,
+].some(isLegacyPlatformStructureValue);
+}
 function slugifyPlatformStructureValue(value, fallback = "scope") {
 return (
 String(value || "")
@@ -5047,11 +5164,46 @@ function normalizePlatformStructureState(candidate = {}) {
 const fallback = cloneDefaultPlatformStructureState();
 const sourceClubs = Array.isArray(candidate.clubs) && candidate.clubs.length ? candidate.clubs : fallback.clubs;
 const clubIds = new Set();
+const clubIdRedirects = new Map();
 const clubs = [];
 sourceClubs.forEach((club) => {
 const normalizedClub = normalizePlatformClub(club, fallback.clubs[0]);
+const originalClubId = normalizePlatformStructureText(club?.id || club?.clubId || club?.club_id || normalizedClub.id, "");
+if (isLegacyPlatformClub(club) || isLegacyPlatformClub(normalizedClub)) {
+if (originalClubId) {
+clubIdRedirects.set(originalClubId, platformDefaultClubId);
+}
+return;
+}
+if (isCanonicalPlatformClub(club) || isCanonicalPlatformClub(normalizedClub)) {
+if (originalClubId) {
+clubIdRedirects.set(originalClubId, platformDefaultClubId);
+}
+normalizedClub.id = platformDefaultClubId;
+normalizedClub.name = platformDefaultClubName;
+normalizedClub.shortName = platformDefaultClubShortName;
+normalizedClub.status = "active";
+}
+const existingByName = clubs.findIndex((candidateClub) => candidateClub.name.toLowerCase() === normalizedClub.name.toLowerCase());
+if (existingByName >= 0) {
+if (originalClubId) {
+clubIdRedirects.set(originalClubId, clubs[existingByName].id);
+}
+clubs[existingByName] = {
+...clubs[existingByName],
+...normalizedClub,
+id: clubs[existingByName].id,
+name: clubs[existingByName].name,
+shortName: clubs[existingByName].shortName || normalizedClub.shortName,
+logoUrl: normalizedClub.logoUrl || clubs[existingByName].logoUrl,
+};
+return;
+}
 if (clubIds.has(normalizedClub.id)) {
 normalizedClub.id = createPlatformStructureId("club", normalizedClub.name, clubIds);
+}
+if (originalClubId) {
+clubIdRedirects.set(originalClubId, normalizedClub.id);
 }
 clubIds.add(normalizedClub.id);
 clubs.push(normalizedClub);
@@ -5062,14 +5214,59 @@ clubIds.add(platformDefaultClubId);
 }
 const sourceTeams = Array.isArray(candidate.teams) && candidate.teams.length ? candidate.teams : fallback.teams;
 const teamIds = new Set();
+const teamIdRedirects = new Map();
 const teams = [];
 sourceTeams.forEach((team) => {
 const normalizedTeam = normalizePlatformTeam(team, fallback.teams[0]);
+const originalTeamId = normalizePlatformStructureText(team?.id || team?.teamId || team?.team_id || normalizedTeam.id, "");
+if (isLegacyPlatformTeam(team) || isLegacyPlatformTeam(normalizedTeam)) {
+if (originalTeamId) {
+teamIdRedirects.set(originalTeamId, platformDefaultTeamId);
+}
+return;
+}
+if (clubIdRedirects.has(normalizedTeam.clubId)) {
+normalizedTeam.clubId = clubIdRedirects.get(normalizedTeam.clubId);
+}
 if (!clubIds.has(normalizedTeam.clubId)) {
 normalizedTeam.clubId = platformDefaultClubId;
 }
+if (isCanonicalPlatformTeam(team) || isCanonicalPlatformTeam(normalizedTeam)) {
+if (originalTeamId) {
+teamIdRedirects.set(originalTeamId, platformDefaultTeamId);
+}
+normalizedTeam.id = platformDefaultTeamId;
+normalizedTeam.clubId = platformDefaultClubId;
+normalizedTeam.name = platformDefaultTeamName;
+normalizedTeam.shortName = platformDefaultClubShortName;
+normalizedTeam.level = platformDefaultTeamLevel;
+normalizedTeam.status = "active";
+}
+const existingByName = teams.findIndex(
+(candidateTeam) =>
+candidateTeam.clubId === normalizedTeam.clubId &&
+candidateTeam.name.toLowerCase() === normalizedTeam.name.toLowerCase()
+);
+if (existingByName >= 0) {
+if (originalTeamId) {
+teamIdRedirects.set(originalTeamId, teams[existingByName].id);
+}
+teams[existingByName] = {
+...teams[existingByName],
+...normalizedTeam,
+id: teams[existingByName].id,
+clubId: teams[existingByName].clubId,
+name: teams[existingByName].name,
+shortName: teams[existingByName].shortName || normalizedTeam.shortName,
+logoUrl: normalizedTeam.logoUrl || teams[existingByName].logoUrl,
+};
+return;
+}
 if (teamIds.has(normalizedTeam.id)) {
 normalizedTeam.id = createPlatformStructureId("team", normalizedTeam.name, teamIds);
+}
+if (originalTeamId) {
+teamIdRedirects.set(originalTeamId, normalizedTeam.id);
 }
 teamIds.add(normalizedTeam.id);
 teams.push(normalizedTeam);
@@ -5078,13 +5275,54 @@ if (!teamIds.has(platformDefaultTeamId)) {
 teams.unshift({ ...fallback.teams[0] });
 teamIds.add(platformDefaultTeamId);
 }
+const memberships = Array.isArray(candidate.memberships)
+? candidate.memberships
+.filter(Boolean)
+.map((membership) => {
+if (!membership || typeof membership !== "object") {
+return membership;
+}
+const nextMembership = { ...membership };
+const rawClubId = normalizePlatformStructureText(nextMembership.clubId || nextMembership.club_id, "");
+const rawTeamId = normalizePlatformStructureText(nextMembership.teamId || nextMembership.team_id, "");
+const mappedTeamId =
+teamIdRedirects.get(rawTeamId) ||
+(isLegacyPlatformStructureValue(rawTeamId) ? platformDefaultTeamId : rawTeamId);
+const mappedTeam = teams.find((team) => team.id === mappedTeamId) || teams.find((team) => team.id === platformDefaultTeamId);
+const mappedClubId =
+clubIdRedirects.get(rawClubId) ||
+mappedTeam?.clubId ||
+(isLegacyPlatformStructureValue(rawClubId) ? platformDefaultClubId : rawClubId);
+if (mappedTeam?.id) {
+nextMembership.teamId = mappedTeam.id;
+if ("team_id" in nextMembership) {
+nextMembership.team_id = mappedTeam.id;
+}
+}
+if (mappedClubId) {
+nextMembership.clubId = mappedClubId;
+if ("club_id" in nextMembership) {
+nextMembership.club_id = mappedClubId;
+}
+}
+return nextMembership;
+})
+: [];
 return {
 version: 1,
-activeClubId: clubIds.has(candidate.activeClubId) ? candidate.activeClubId : platformDefaultClubId,
-activeTeamId: teamIds.has(candidate.activeTeamId) ? candidate.activeTeamId : platformDefaultTeamId,
+activeClubId:
+clubIdRedirects.get(candidate.activeClubId) ||
+(clubIds.has(candidate.activeClubId) && !isLegacyPlatformStructureValue(candidate.activeClubId)
+? candidate.activeClubId
+: platformDefaultClubId),
+activeTeamId:
+teamIdRedirects.get(candidate.activeTeamId) ||
+(teamIds.has(candidate.activeTeamId) && !isLegacyPlatformStructureValue(candidate.activeTeamId)
+? candidate.activeTeamId
+: platformDefaultTeamId),
 clubs,
 teams,
-memberships: Array.isArray(candidate.memberships) ? candidate.memberships.filter(Boolean) : [],
+memberships,
 };
 }
 function readPlatformStructureState() {
@@ -5113,7 +5351,9 @@ return structure.teams.find((team) => team.id === teamId) ?? structure.teams[0] 
 }
 function findPlatformTeamByName(teamName, structure = getPlatformStructureState()) {
 const normalizedName = String(teamName || "").trim().toLowerCase();
-return normalizedName ? structure.teams.find((team) => team.name.toLowerCase() === normalizedName) ?? null : null;
+return normalizedName && !isLegacyPlatformStructureValue(normalizedName)
+? structure.teams.find((team) => team.name.toLowerCase() === normalizedName) ?? null
+: null;
 }
 function syncPlatformStructureWithUsers(users = getPlatformUsers()) {
 const structure = readPlatformStructureState();
@@ -5121,18 +5361,36 @@ const clubIds = new Set(structure.clubs.map((club) => club.id));
 const teamIds = new Set(structure.teams.map((team) => team.id));
 let changed = false;
 users.forEach((user) => {
-const clubName = normalizePlatformStructureText(user.clubName || user.club || "", "");
-const fallbackClubId = clubName ? normalizePlatformStructureId(user.clubId, "club", clubName) : platformDefaultClubId;
-const clubId = normalizePlatformStructureText(user.clubId, fallbackClubId);
+const rawClubName = normalizePlatformStructureText(user.clubName || user.club || "", "");
+const rawClubId = normalizePlatformStructureText(user.clubId || user.club_id || "", "");
+const useDefaultClub =
+isLegacyPlatformStructureValue(rawClubName) ||
+isLegacyPlatformStructureValue(rawClubId) ||
+isCanonicalPlatformClub({ id: rawClubId, name: rawClubName });
+const clubName = useDefaultClub ? platformDefaultClubName : rawClubName;
+const fallbackClubId = useDefaultClub
+? platformDefaultClubId
+: clubName
+? normalizePlatformStructureId(user.clubId, "club", clubName)
+: platformDefaultClubId;
+const clubId = useDefaultClub ? platformDefaultClubId : normalizePlatformStructureText(user.clubId, fallbackClubId);
 if (clubId && !clubIds.has(clubId)) {
 structure.clubs.push(normalizePlatformClub({ id: clubId, name: clubName || "Club", shortName: user.clubShortName || clubName || "Club" }));
 clubIds.add(clubId);
 changed = true;
 }
-const teamName = normalizePlatformStructureText(user.teamName || user.team || "", "");
+const rawTeamName = normalizePlatformStructureText(user.teamName || user.team || "", "");
+const rawTeamId = normalizePlatformStructureText(user.teamId || user.team_id || "", "");
+const useDefaultTeam =
+isLegacyPlatformStructureValue(rawTeamName) ||
+isLegacyPlatformStructureValue(rawTeamId) ||
+isCanonicalPlatformTeam({ id: rawTeamId, name: rawTeamName });
+const teamName = useDefaultTeam ? platformDefaultTeamName : rawTeamName;
 const existingTeam = findPlatformTeamByName(teamName, structure);
-const fallbackTeamId = existingTeam?.id || (teamName ? normalizePlatformStructureId(user.teamId, "team", teamName) : platformDefaultTeamId);
-const teamId = normalizePlatformStructureText(user.teamId, fallbackTeamId);
+const fallbackTeamId = useDefaultTeam
+? platformDefaultTeamId
+: existingTeam?.id || (teamName ? normalizePlatformStructureId(user.teamId, "team", teamName) : platformDefaultTeamId);
+const teamId = useDefaultTeam ? platformDefaultTeamId : normalizePlatformStructureText(user.teamId, fallbackTeamId);
 if (teamId && !teamIds.has(teamId)) {
 structure.teams.push(
 normalizePlatformTeam({
@@ -5154,7 +5412,10 @@ return normalizedStructure;
 }
 function getUserTeamId(user, structure = getPlatformStructureState()) {
 const explicitTeamId = normalizePlatformStructureText(user?.teamId || user?.team_id, "");
-if (explicitTeamId && getPlatformTeamById(explicitTeamId, structure)) {
+if (isLegacyPlatformStructureValue(explicitTeamId)) {
+return platformDefaultTeamId;
+}
+if (explicitTeamId && structure.teams.some((team) => team.id === explicitTeamId)) {
 return explicitTeamId;
 }
 const team = findPlatformTeamByName(user?.teamName || user?.team, structure);
@@ -5162,7 +5423,10 @@ return team?.id || platformDefaultTeamId;
 }
 function getUserClubId(user, structure = getPlatformStructureState()) {
 const explicitClubId = normalizePlatformStructureText(user?.clubId || user?.club_id, "");
-if (explicitClubId && getPlatformClubById(explicitClubId, structure)) {
+if (isLegacyPlatformStructureValue(explicitClubId)) {
+return platformDefaultClubId;
+}
+if (explicitClubId && structure.clubs.some((club) => club.id === explicitClubId)) {
 return explicitClubId;
 }
 const team = getPlatformTeamById(getUserTeamId(user, structure), structure);
@@ -5172,6 +5436,9 @@ function getUserTeamName(user, structure = getPlatformStructureState()) {
 const explicitTeamName = normalizePlatformStructureText(user?.teamName || user?.team, "");
 const explicitTeamId = normalizePlatformStructureText(user?.teamId || user?.team_id, "");
 if (explicitTeamId) {
+if (isLegacyPlatformStructureValue(explicitTeamId)) {
+return platformDefaultTeamName;
+}
 const team = getPlatformTeamById(explicitTeamId, structure);
 if (team?.name) {
 return team.name;
@@ -5182,10 +5449,12 @@ if (matchedTeam?.name) {
 return matchedTeam.name;
 }
 const fallbackTeam = getPlatformTeamById(platformDefaultTeamId, structure);
-return explicitTeamName || fallbackTeam?.name || "Team";
+return explicitTeamName && !isLegacyPlatformStructureValue(explicitTeamName)
+? explicitTeamName
+: fallbackTeam?.name || platformDefaultTeamName;
 }
 function isLegacyPlatformTeamPlaceholderName(value = "") {
-return normalizePlatformStructureText(value, "").toLowerCase() === "football science live";
+return isLegacyPlatformStructureValue(value);
 }
 function getActivePlatformTeam(structure = getPlatformStructureState()) {
 const activeTeam = structure.teams.find((team) => team.id === structure.activeTeamId && team.status !== "archived") ?? null;
@@ -5319,6 +5588,9 @@ const club = getPlatformClubById(getUserClubId(user, structure), structure);
 return club?.name || normalizePlatformStructureText(user?.clubName || user?.club, "Club");
 }
 function getUserScopeLabel(user, structure = getPlatformStructureState()) {
+if (hasPlatformWorkspaceScope(user)) {
+return "Football Science Live · Platform";
+}
 const clubName = getUserClubName(user, structure);
 const teamName = getUserTeamName(user, structure);
 return clubName && teamName && clubName !== teamName ? `${clubName} · ${teamName}` : teamName || clubName;
@@ -6444,6 +6716,43 @@ Object.entries(value)
 .filter(([slotId, playerIds]) => slotIds.has(slotId) && playerIds.length)
 );
 }
+function normalizeScoutingMyTeamPositions(value = {}, slotIds = new Set()) {
+if (!value || typeof value !== "object") {
+return {};
+}
+const formationIds = new Set(["4-3-3", "4-2-3-1", "3-4-3", "3-5-2", "4-4-2"]);
+const normalizeCoordinate = (coordinate) => {
+const number = Number(coordinate);
+if (!Number.isFinite(number)) {
+return null;
+}
+return Math.max(4, Math.min(96, Math.round(number * 100) / 100));
+};
+return Object.fromEntries(
+Object.entries(value)
+.map(([formationId, formationPositions]) => {
+const formation = normalizeScoutingFormationValue(formationId);
+if (!formationIds.has(formation) || !formationPositions || typeof formationPositions !== "object") {
+return null;
+}
+const positions = Object.fromEntries(
+Object.entries(formationPositions)
+.map(([slotId, coordinates]) => {
+const normalizedSlotId = normalizeScoutingText(slotId, 40);
+const x = normalizeCoordinate(coordinates?.x);
+const y = normalizeCoordinate(coordinates?.y);
+if (!slotIds.has(normalizedSlotId) || !Number.isFinite(x) || !Number.isFinite(y)) {
+return null;
+}
+return [normalizedSlotId, { x, y }];
+})
+.filter(Boolean)
+);
+return Object.keys(positions).length ? [formation, positions] : null;
+})
+.filter(Boolean)
+);
+}
 function normalizeScoutingPlayerSnapshot(snapshot = {}) {
 const recordId = normalizeScoutingText(snapshot.recordId || snapshot.id, 160);
 if (!recordId) {
@@ -6456,6 +6765,9 @@ club: normalizeScoutingText(snapshot.club || snapshot.team, 180),
 position: normalizeScoutingText(snapshot.position, 120),
 age: normalizeScoutingText(snapshot.age, 20),
 minutes: normalizeScoutingText(snapshot.minutes, 24),
+birthCountry: normalizeScoutingText(snapshot.birthCountry, 120),
+passportCountry: normalizeScoutingText(snapshot.passportCountry || snapshot.nationality, 120),
+imageUrl: normalizeScoutingText(snapshot.imageUrl, 300),
 league: normalizeScoutingText(snapshot.league, 180),
 season: normalizeScoutingText(snapshot.season, 80),
 fit: normalizeScoutingText(snapshot.fit, 40),
@@ -6489,17 +6801,93 @@ recordIds: normalizeScoutingRecordIds(list.recordIds),
 }
 function normalizeScoutingDatabaseFilters(filters = {}) {
 const minMinutes = Number(filters.minMinutes);
+const maxMinutes = Number(filters.maxMinutes);
+const metricId = normalizeScoutingText(filters.metricId, 120);
+const metricIds = Array.isArray(filters.metricIds)
+? filters.metricIds.map((item) => normalizeScoutingText(item, 120)).filter((item) => item && item !== "all")
+: metricId && metricId !== "all"
+? [metricId]
+: [];
 return {
 query: normalizeScoutingText(filters.query, 120),
 league: normalizeScoutingText(filters.league, 120) || "all",
+team: normalizeScoutingText(filters.team, 160) || "all",
 season: normalizeScoutingText(filters.season, 80) || "all",
 position: normalizeScoutingText(filters.position, 40) || "all",
 minMinutes: Number.isFinite(minMinutes) && minMinutes >= 0 ? Math.round(minMinutes) : 0,
 minMinutesIntentional: Boolean(filters.minMinutesIntentional),
+maxMinutes: Number.isFinite(maxMinutes) && maxMinutes >= 0 ? Math.round(maxMinutes) : 0,
+minAge: normalizeScoutingText(filters.minAge, 12),
 maxAge: normalizeScoutingText(filters.maxAge, 12),
-metricId: normalizeScoutingText(filters.metricId, 120) || "all",
+metricId: metricIds[0] || metricId || "all",
+metricIds: Array.from(new Set(metricIds)).slice(0, 20),
 metricMin: normalizeScoutingText(filters.metricMin, 12),
+roleProfileId: normalizeScoutingText(filters.roleProfileId, 80) || "all",
+benchmarkMode: normalizeScoutingText(filters.benchmarkMode, 40) || "position",
+roleFitMin: normalizeScoutingText(filters.roleFitMin, 12),
+roleFloorMin: normalizeScoutingText(filters.roleFloorMin, 12),
+signalMode: normalizeScoutingText(filters.signalMode, 40) || "all",
+marketStatus: normalizeScoutingText(filters.marketStatus, 40) || "all",
 sortMetricId: normalizeScoutingText(filters.sortMetricId, 120) || "minutes",
+offset: Math.max(0, Math.floor(Number(filters.offset) || 0)),
+};
+}
+function normalizeScoutingShadowMeta(value = {}, slotIds = new Set()) {
+if (!value || typeof value !== "object") {
+return {};
+}
+return Object.fromEntries(
+Object.entries(value)
+.map(([key, meta]) => {
+const [rawSlotId, ...rawRecordParts] = String(key || "").split(":");
+const slotId = normalizeScoutingText(rawSlotId, 40);
+const recordId = normalizeScoutingText(rawRecordParts.join(":"), 160);
+if (!slotIds.has(slotId) || !recordId || !meta || typeof meta !== "object") {
+return null;
+}
+return [
+`${slotId}:${recordId}`,
+{
+tag: normalizeScoutingText(meta.tag, 40) || "monitor",
+note: normalizeScoutingText(meta.note, 180),
+updatedAt: normalizeScoutingText(meta.updatedAt, 40),
+playerName: normalizeScoutingText(meta.playerName, 180),
+team: normalizeScoutingText(meta.team, 180),
+league: normalizeScoutingText(meta.league, 180),
+season: normalizeScoutingText(meta.season, 80),
+position: normalizeScoutingText(meta.position, 120),
+},
+];
+})
+.filter(Boolean)
+);
+}
+function normalizeScoutingShadowBoardVisibility(value = "") {
+const normalized = normalizeScoutingText(value, 40).toLowerCase();
+return ["private", "colleague", "team", "all"].includes(normalized) ? normalized : "private";
+}
+function normalizeScoutingShadowBoard(board = {}, slotIds = new Set()) {
+const id = normalizeScoutingText(board.id, 100);
+if (!id) {
+return null;
+}
+const sourceSlots = board.slots && typeof board.slots === "object" ? board.slots : {};
+const slots = Object.fromEntries(
+Object.entries(sourceSlots)
+.map(([slotId, recordIds]) => [normalizeScoutingText(slotId, 40), normalizeScoutingShadowSlotRecordIds(recordIds)])
+.filter(([slotId, recordIds]) => slotIds.has(slotId) && recordIds.length)
+);
+return {
+id,
+name: normalizeScoutingText(board.name, 100) || "Shadow XI",
+visibility: normalizeScoutingShadowBoardVisibility(board.visibility),
+ownerName: normalizeScoutingText(board.ownerName, 120) || "You",
+formation: normalizeScoutingFormationValue(board.formation),
+slots,
+positions: normalizeScoutingMyTeamPositions(board.positions, slotIds),
+meta: normalizeScoutingShadowMeta(board.meta, slotIds),
+createdAt: normalizeScoutingText(board.createdAt, 40) || new Date().toISOString(),
+updatedAt: normalizeScoutingText(board.updatedAt, 40) || normalizeScoutingText(board.createdAt, 40) || new Date().toISOString(),
 };
 }
 function normalizeScoutingRoleModel(model = {}) {
@@ -6553,14 +6941,42 @@ const lists = Array.isArray(source.lists)
 ? source.lists.map(cloneScoutingList).filter((list) => list.name)
 : [];
 const slotIds = new Set(scoutingShadowSlots.map((slot) => slot.id));
-const sourceSlots = source.shadowXi && typeof source.shadowXi.slots === "object" ? source.shadowXi.slots : {};
+const sourceShadowXi = source.shadowXi && typeof source.shadowXi === "object" ? source.shadowXi : {};
+const sourceSlots = sourceShadowXi.slots && typeof sourceShadowXi.slots === "object" ? sourceShadowXi.slots : {};
 const slots = Object.fromEntries(
 Object.entries(sourceSlots)
 .map(([slotId, recordIds]) => [normalizeScoutingText(slotId, 40), normalizeScoutingShadowSlotRecordIds(recordIds)])
 .filter(([slotId, recordIds]) => slotIds.has(slotId) && recordIds.length)
 );
-const selectedSlotId = normalizeScoutingText(source.shadowXi?.selectedSlotId, 40);
+const selectedSlotId = normalizeScoutingText(sourceShadowXi.selectedSlotId, 40);
 const sourceMyTeam = source.myTeam && typeof source.myTeam === "object" ? source.myTeam : {};
+const existingShadowBoards = Array.isArray(sourceShadowXi.boards)
+? sourceShadowXi.boards.map((board) => normalizeScoutingShadowBoard(board, slotIds)).filter(Boolean)
+: [];
+const requestedShadowBoardId = normalizeScoutingText(sourceShadowXi.activeBoardId, 100) || existingShadowBoards[0]?.id || "default-shadow-xi";
+const existingActiveShadowBoard = existingShadowBoards.find((board) => board.id === requestedShadowBoardId);
+const activeShadowBoard =
+normalizeScoutingShadowBoard(
+{
+...(existingActiveShadowBoard || {}),
+id: requestedShadowBoardId,
+name: existingActiveShadowBoard?.name || normalizeScoutingText(sourceShadowXi.boardName, 100) || "My Shadow XI",
+visibility: existingActiveShadowBoard?.visibility || sourceShadowXi.visibility || "private",
+ownerName: existingActiveShadowBoard?.ownerName || sourceShadowXi.ownerName || "You",
+formation: sourceShadowXi.formation,
+slots,
+positions: sourceShadowXi.positions,
+meta: sourceShadowXi.meta,
+createdAt: existingActiveShadowBoard?.createdAt || sourceShadowXi.createdAt,
+updatedAt: sourceShadowXi.updatedAt || new Date().toISOString(),
+},
+slotIds
+) || normalizeScoutingShadowBoard({ id: "default-shadow-xi", name: "My Shadow XI" }, slotIds);
+const shadowBoardMap = new Map(existingShadowBoards.map((board) => [board.id, board]));
+if (activeShadowBoard) {
+shadowBoardMap.set(activeShadowBoard.id, activeShadowBoard);
+}
+const shadowBoards = Array.from(shadowBoardMap.values());
 const databaseFilters = normalizeScoutingDatabaseFilters({
 ...source.databaseFilters,
 query: source.databaseFilters?.query ?? source.searchQuery ?? "",
@@ -6580,13 +6996,18 @@ compareRecordIds: normalizeScoutingRecordIds(source.compareRecordIds).slice(0, 5
 playerSnapshots: normalizeScoutingPlayerSnapshots(source.playerSnapshots),
 lists: lists.length ? lists : [cloneScoutingList(defaultScoutingState.lists[0])],
 shadowXi: {
-formation: normalizeScoutingText(source.shadowXi?.formation, 40) || "4-3-3",
+formation: normalizeScoutingFormationValue(sourceShadowXi.formation),
 slots,
 selectedSlotId: slotIds.has(selectedSlotId) ? selectedSlotId : "",
+positions: normalizeScoutingMyTeamPositions(sourceShadowXi.positions, slotIds),
+meta: normalizeScoutingShadowMeta(sourceShadowXi.meta, slotIds),
+activeBoardId: activeShadowBoard?.id || "default-shadow-xi",
+boards: shadowBoards.length ? shadowBoards : [activeShadowBoard].filter(Boolean),
 },
 myTeam: {
 formation: normalizeScoutingFormationValue(sourceMyTeam.formation),
 slots: normalizeScoutingMyTeamSlots(sourceMyTeam.slots, slotIds),
+positions: normalizeScoutingMyTeamPositions(sourceMyTeam.positions, slotIds),
 },
 selectedRecordId: normalizeScoutingText(source.selectedRecordId, 160),
 reports: Array.isArray(source.reports)
@@ -21426,7 +21847,7 @@ return `
 }
 function getAdminUsersForTeam(users = [], teamId = "", structure = getPlatformStructureState()) {
 const normalizedTeamId = normalizePlatformStructureText(teamId, "");
-return users.filter((user) => getUserTeamId(user, structure) === normalizedTeamId);
+return users.filter((user) => !hasPlatformWorkspaceScope(user) && getUserTeamId(user, structure) === normalizedTeamId);
 }
 function getAdminActiveUserCount(users = []) {
 return users.filter((user) => user.status !== "paused").length;
@@ -21502,7 +21923,11 @@ Reset pass
         `;
 }
 function renderAdminGroupedUsers(users, currentUser, structure) {
-const scopedTeams = getScopedPlatformTeams(currentUser, structure);
+const platformScopedUsers = users.filter((user) => hasPlatformWorkspaceScope(user));
+const platformScopedUserIds = new Set(platformScopedUsers.map((user) => user.id));
+const scopedTeams = getScopedPlatformTeams(currentUser, structure).filter(
+(team) => !isLegacyPlatformTeam(team) && !isLegacyPlatformTeamPlaceholderName(team.name)
+);
 const teamGroups = scopedTeams
 .map((team) => ({
 team,
@@ -21511,7 +21936,23 @@ users: getAdminUsersForTeam(users, team.id, structure),
 }))
 .filter((group) => group.users.length);
 const groupedIds = new Set(teamGroups.flatMap((group) => group.users.map((user) => user.id)));
-const unassignedUsers = users.filter((user) => !groupedIds.has(user.id));
+const unassignedUsers = users.filter((user) => !groupedIds.has(user.id) && !platformScopedUserIds.has(user.id));
+const platformMarkup = platformScopedUsers.length
+? `
+      <section class="admin-user-team-group is-platform-scope">
+        <header>
+          <div>
+            <strong>Football Science Live</strong>
+            <span>Platform operators and system admins</span>
+          </div>
+          <b>${platformScopedUsers.length}</b>
+        </header>
+        <div class="admin-user-team-list">
+          ${platformScopedUsers.map((adminUser) => renderAdminUserRow(adminUser, currentUser, structure)).join("")}
+        </div>
+      </section>
+    `
+: "";
 const groupMarkup = teamGroups
 .map(
 (group) => `
@@ -21551,11 +21992,17 @@ const unassignedMarkup = unassignedUsers.length
       </section>
     `
 : "";
-return groupMarkup || unassignedMarkup ? `${groupMarkup}${unassignedMarkup}` : `<p class="staff-message">No users in this admin scope.</p>`;
+return platformMarkup || groupMarkup || unassignedMarkup
+? `${platformMarkup}${groupMarkup}${unassignedMarkup}`
+: `<p class="staff-message">No users in this admin scope.</p>`;
 }
 function renderAdminStructurePanel(currentUser, structure, visibleUsers) {
 const scopedClubs = getScopedPlatformClubs(currentUser, structure);
-const scopedTeams = getScopedPlatformTeams(currentUser, structure);
+const scopedTeams = getScopedPlatformTeams(currentUser, structure).filter(
+(team) => !isLegacyPlatformTeam(team) && !isLegacyPlatformTeamPlaceholderName(team.name)
+);
+const platformScopedUsers = visibleUsers.filter((user) => hasPlatformWorkspaceScope(user));
+const platformScopedActiveCount = getAdminActiveUserCount(platformScopedUsers);
 const canCreateClub = isPlatformAdminUser(currentUser);
 const canCreateTeam = isPlatformAdminUser(currentUser) || normalizePlatformRole(currentUser?.role, "") === "club-admin";
 const clubOptions = scopedClubs
@@ -21590,10 +22037,30 @@ Add user
       `;
 })
 .join("");
+const platformCard = platformScopedUsers.length
+? `
+        <article class="admin-org-platform-card">
+          <header>
+            <div>
+              <span class="placeholder-tag">Platform</span>
+              <h3>Football Science Live</h3>
+              <p>System owner scope · not a club or team</p>
+            </div>
+            <div class="admin-org-club-stats">
+              <span><strong>${platformScopedUsers.length}</strong> users</span>
+              <span><strong>${platformScopedActiveCount}</strong> active</span>
+            </div>
+          </header>
+          <div class="admin-org-team-users">
+            ${renderAdminMiniUserStack(platformScopedUsers)}
+          </div>
+        </article>
+      `
+: "";
 const clubCards = scopedClubs
 .map((club) => {
 const clubTeams = scopedTeams.filter((team) => team.clubId === club.id);
-const clubUsers = visibleUsers.filter((user) => getUserClubId(user, structure) === club.id);
+const clubUsers = visibleUsers.filter((user) => !hasPlatformWorkspaceScope(user) && getUserClubId(user, structure) === club.id);
 return `
         <article class="admin-org-club-card">
           <header>
@@ -21654,7 +22121,7 @@ return `
         <div><span>Users</span><strong>${visibleUsers.length}</strong></div>
       </div>
       <div class="admin-scope-layout">
-        <div class="admin-org-overview">${clubCards}</div>
+        <div class="admin-org-overview">${platformCard}${clubCards}</div>
         <div class="admin-scope-list">${teamRows}</div>
         ${
           canCreateClub || canCreateTeam
@@ -21663,9 +22130,14 @@ return `
 ${
 canCreateClub
 ? `
-                      <form id="adminClubForm" class="admin-scope-form">
+                      <form id="adminClubForm" class="admin-scope-form admin-scope-create-card">
+                        <div class="admin-scope-create-copy">
+                          <span>Club setup</span>
+                          <strong>Create club</strong>
+                          <small>Add a new club organisation to the platform.</small>
+                        </div>
                         <label>
-                          <span>New club</span>
+                          <span>Club name</span>
                           <input name="clubName" placeholder="Club name" required />
                         </label>
                         <button type="submit">Add club</button>
@@ -21676,13 +22148,18 @@ canCreateClub
 ${
 canCreateTeam
 ? `
-                      <form id="adminTeamForm" class="admin-scope-form">
+                      <form id="adminTeamForm" class="admin-scope-form admin-scope-create-card">
+                        <div class="admin-scope-create-copy">
+                          <span>Team setup</span>
+                          <strong>Create team</strong>
+                          <small>Add a squad under the selected club.</small>
+                        </div>
                         <label>
                           <span>Club</span>
                           <select name="clubId">${clubOptions}</select>
                         </label>
                         <label>
-                          <span>New team</span>
+                          <span>Team name</span>
                           <input name="teamName" placeholder="Team name" required />
                         </label>
                         <button type="submit">Add team</button>
@@ -21708,6 +22185,10 @@ const values = getPlatformFormValues(form);
 const clubName = normalizePlatformStructureText(values.clubName, "");
 if (!clubName) {
 renderAdminWorkspace("Club name is required.");
+return;
+}
+if (isLegacyPlatformStructureValue(clubName)) {
+renderAdminWorkspace("Football Science Live is a legacy workspace label, not a club.");
 return;
 }
 const structure = readPlatformStructureState();
@@ -21740,6 +22221,10 @@ const club = allowedClubs.find((candidate) => candidate.id === values.clubId) ||
 const teamName = normalizePlatformStructureText(values.teamName, "");
 if (!club || !teamName) {
 renderAdminWorkspace("Team name is required.");
+return;
+}
+if (isLegacyPlatformStructureValue(teamName)) {
+renderAdminWorkspace("Football Science Live is a legacy workspace label, not a team.");
 return;
 }
 const existingTeam = structure.teams.find(
@@ -31313,9 +31798,15 @@ ${renderSessionPlannerActionIcon("pencil")}
       <span class="periodization-day-topline">
         <strong>${escapeHtml(date.toLocaleDateString("en-US", { weekday: "short" }))}</strong>
         <span>${date.getDate()}</span>
-        ${matchDayLabel ? `<i class="periodization-day-md">${escapeHtml(matchDayLabel)}</i>` : ""}
+        ${matchDayLabel ? `<strong>${escapeHtml(dayScheduleLabel)}</strong>` : ""}
       </span>
-      <span class="periodization-day-main${dayScheduleLabel ? "" : " is-empty"}">${escapeHtml(dayScheduleLabel)}</span>
+      <span class="periodization-day-main${matchDayLabel ? "" : dayScheduleLabel ? "" : " is-empty"}">
+        ${
+          matchDayLabel
+            ? `<i class="periodization-day-md">${escapeHtml(matchDayLabel)}</i>`
+            : escapeHtml(dayScheduleLabel)
+        }
+      </span>
       <span class="periodization-day-details">
         ${renderPeriodizationCardDetail("Video", escapeHtml(preTrainingVideoLabel))}
         ${renderPeriodizationCardDetail("Phase", escapeHtml(phaseLabel))}

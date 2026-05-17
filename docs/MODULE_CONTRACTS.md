@@ -166,6 +166,17 @@ Rules:
 - `qa`: protected by central state, permission matrix, and migration contracts.
 - `migration`: move through app-state first, then dual-read / dual-write into `scouting_players`, `scouting_player_metrics`, `scouting_lists`, `scouting_shadow_xi`, and `scouting_reports`.
 
+## Football Science DB
+
+- `id`: `football-science-db`
+- `purpose`: global player identity, source links, rosters, teams, competitions, and season stat foundations for both women's and men's football.
+- `data`: server-first Supabase tables with `fsdb_*` prefix; no browser storage key.
+- `permissions`: staff roles can read through the guarded API; import/write is limited to platform/club/team admin, scout, and analyst roles; destructive actions are admin-only and schema-protected against hard deletes.
+- `source direction`: start with open identity/crosswalk data such as Reep, then connect licensed/API/provider and user-owned imports for current rosters and performance data.
+- `api`: `/api/football-science-db` owns status, paginated player search, player profile hydration, and chunked server imports.
+- `qa`: `qa/football-science-db-schema.api.spec.mjs` and `qa/football-science-db-api.api.spec.mjs` protect RLS, grants, scale indexes, max page size, cursor pagination, and importer normalization.
+- `migration`: Scouting should consume this server-first database instead of shipping huge player blobs to the browser. Keep the existing Scouting app-state/import paths active until the FSDB read path is proven live.
+
 ## Game Simulator
 
 - `id`: `game-simulator`

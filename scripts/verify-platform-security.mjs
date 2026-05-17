@@ -124,6 +124,15 @@ for (const contract of platformPermissionMatrix) {
 
 const tenantRootTables = new Set([
   "chat_organizations",
+  "fsdb_competitions",
+  "fsdb_import_batches",
+  "fsdb_import_errors",
+  "fsdb_player_aliases",
+  "fsdb_player_season_stats",
+  "fsdb_player_source_links",
+  "fsdb_players",
+  "fsdb_roster_entries",
+  "fsdb_teams",
   "squad_organizations",
   "platform_organizations",
   "platform_user_profiles",

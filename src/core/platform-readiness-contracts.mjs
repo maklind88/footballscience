@@ -66,6 +66,7 @@ export const platformModuleImplementationStages = Object.freeze({
   periodization: "legacy-monolith",
   "medical-team": "hybrid-secured-module",
   "player-profiles": "hybrid-adapter",
+  "football-science-db": "server-first-foundation",
   scouting: "lazy-module",
   "game-simulator": "modular-runtime",
 });

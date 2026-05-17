@@ -350,8 +350,8 @@ create table if not exists public.fsdb_import_errors (
 );
 
 create index if not exists fsdb_import_batches_source_status_idx on public.fsdb_import_batches (source_system, status, created_at desc);
-create index if not exists fsdb_players_search_trgm_idx on public.fsdb_players using gin (search_text gin_trgm_ops);
-create index if not exists fsdb_players_name_trgm_idx on public.fsdb_players using gin (sort_name gin_trgm_ops);
+create index if not exists fsdb_players_search_trgm_idx on public.fsdb_players using gin (search_text extensions.gin_trgm_ops);
+create index if not exists fsdb_players_name_trgm_idx on public.fsdb_players using gin (sort_name extensions.gin_trgm_ops);
 create index if not exists fsdb_players_filter_idx on public.fsdb_players (gender_segment, position_group, active_status, last_seen_at desc, id);
 create index if not exists fsdb_players_birth_idx on public.fsdb_players (date_of_birth, birth_year);
 create index if not exists fsdb_players_nationality_idx on public.fsdb_players (nationality, current_country);
@@ -364,25 +364,25 @@ create unique index if not exists fsdb_players_dedupe_key_unique_idx
   where dedupe_key is not null and identity_status <> 'duplicate' and active_status <> 'archived';
 create index if not exists fsdb_players_readiness_idx
   on public.fsdb_players (name_quality, roster_entry_count, season_stat_count, metric_count, updated_at desc);
-create index if not exists fsdb_player_aliases_search_trgm_idx on public.fsdb_player_aliases using gin (search_text gin_trgm_ops);
+create index if not exists fsdb_player_aliases_search_trgm_idx on public.fsdb_player_aliases using gin (search_text extensions.gin_trgm_ops);
 create index if not exists fsdb_player_aliases_player_idx on public.fsdb_player_aliases (player_id, status);
 create unique index if not exists fsdb_player_aliases_player_alias_unique_idx
   on public.fsdb_player_aliases (player_id, lower(alias), coalesce(source_system, 'manual'));
 create index if not exists fsdb_player_source_links_player_idx on public.fsdb_player_source_links (player_id, verified_status);
 create index if not exists fsdb_player_source_links_source_idx on public.fsdb_player_source_links (source_system, source_entity_id);
-create index if not exists fsdb_teams_search_trgm_idx on public.fsdb_teams using gin (search_text gin_trgm_ops);
+create index if not exists fsdb_teams_search_trgm_idx on public.fsdb_teams using gin (search_text extensions.gin_trgm_ops);
 create index if not exists fsdb_teams_filter_idx on public.fsdb_teams (gender_segment, country, active_status, canonical_name);
-create index if not exists fsdb_competitions_search_trgm_idx on public.fsdb_competitions using gin (search_text gin_trgm_ops);
+create index if not exists fsdb_competitions_search_trgm_idx on public.fsdb_competitions using gin (search_text extensions.gin_trgm_ops);
 create index if not exists fsdb_competitions_filter_idx on public.fsdb_competitions (gender_segment, country, competition_type, tier);
 create index if not exists fsdb_roster_entries_player_idx on public.fsdb_roster_entries (player_id, season_label desc, roster_status);
 create index if not exists fsdb_roster_entries_team_idx on public.fsdb_roster_entries (team_id, season_label desc, roster_status);
 create index if not exists fsdb_roster_entries_competition_idx on public.fsdb_roster_entries (competition_id, season_label desc, roster_status);
-create index if not exists fsdb_roster_entries_search_trgm_idx on public.fsdb_roster_entries using gin (search_text gin_trgm_ops) where deleted_at is null;
+create index if not exists fsdb_roster_entries_search_trgm_idx on public.fsdb_roster_entries using gin (search_text extensions.gin_trgm_ops) where deleted_at is null;
 create index if not exists fsdb_player_season_stats_player_idx on public.fsdb_player_season_stats (player_id, season_label desc, minutes desc);
 create index if not exists fsdb_player_season_stats_team_idx on public.fsdb_player_season_stats (team_id, season_label desc, minutes desc);
 create index if not exists fsdb_player_season_stats_competition_idx on public.fsdb_player_season_stats (competition_id, season_label desc, minutes desc);
 create index if not exists fsdb_player_season_stats_metrics_gin_idx on public.fsdb_player_season_stats using gin (metrics jsonb_path_ops) where deleted_at is null;
-create index if not exists fsdb_player_season_stats_search_trgm_idx on public.fsdb_player_season_stats using gin (search_text gin_trgm_ops) where deleted_at is null;
+create index if not exists fsdb_player_season_stats_search_trgm_idx on public.fsdb_player_season_stats using gin (search_text extensions.gin_trgm_ops) where deleted_at is null;
 create index if not exists fsdb_import_errors_batch_idx on public.fsdb_import_errors (import_batch_id, created_at desc);
 
 drop trigger if exists fsdb_import_batches_touch_updated_at on public.fsdb_import_batches;

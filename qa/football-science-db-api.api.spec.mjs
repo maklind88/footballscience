@@ -66,6 +66,30 @@ test("Football Science DB normalizes source records without leaking raw provider
   expect(record.dedupe_key).toContain("name:ada lovelace example");
 });
 
+test("Football Science DB keeps real historic players and drops implausible dates", () => {
+  const historic = fsdb.normalizePlayerRecord({
+    name: "A. G. Guillemard",
+    dateOfBirth: "1845-12-18",
+    nationality: "United Kingdom",
+    sourceSystem: "reep",
+  });
+  expect(historic).toMatchObject({
+    date_of_birth: "1845-12-18",
+    birth_year: 1845,
+  });
+
+  const implausible = fsdb.normalizePlayerRecord({
+    name: "Archive Error",
+    dateOfBirth: "0099-01-01",
+    nationality: "Unknown",
+    sourceSystem: "reep",
+  });
+  expect(implausible).toMatchObject({
+    date_of_birth: null,
+    birth_year: null,
+  });
+});
+
 test("Football Science DB dedupe does not trust initial-only scouting names", () => {
   expect(fsdb.isInitialOnlyName("A. Morgan")).toBe(true);
   expect(fsdb.isInitialOnlyName("A Morgan")).toBe(true);

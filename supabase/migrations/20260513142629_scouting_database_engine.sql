@@ -297,11 +297,11 @@ create table if not exists public.scouting_import_changes (
 );
 
 create index if not exists scouting_import_batches_status_created_idx on public.scouting_import_batches (status, created_at desc);
-create index if not exists scouting_metrics_label_trgm_idx on public.scouting_metrics using gin (label gin_trgm_ops);
-create index if not exists scouting_players_sort_trgm_idx on public.scouting_players using gin (sort_name gin_trgm_ops);
+create index if not exists scouting_metrics_label_trgm_idx on public.scouting_metrics using gin (label extensions.gin_trgm_ops);
+create index if not exists scouting_players_sort_trgm_idx on public.scouting_players using gin (sort_name extensions.gin_trgm_ops);
 create index if not exists scouting_player_seasons_filter_idx on public.scouting_player_seasons (league_name, season_label, position_group, minutes desc) where deleted_at is null and status = 'active';
 create index if not exists scouting_player_seasons_player_idx on public.scouting_player_seasons (player_id, season_label desc, minutes desc) where deleted_at is null;
-create index if not exists scouting_player_seasons_search_trgm_idx on public.scouting_player_seasons using gin (search_text gin_trgm_ops) where deleted_at is null;
+create index if not exists scouting_player_seasons_search_trgm_idx on public.scouting_player_seasons using gin (search_text extensions.gin_trgm_ops) where deleted_at is null;
 create index if not exists scouting_player_seasons_metrics_gin_idx on public.scouting_player_seasons using gin (metrics jsonb_path_ops) where deleted_at is null;
 create index if not exists scouting_metric_percentiles_metric_idx on public.scouting_metric_percentiles (metric_id, benchmark_scope, percentile desc);
 create index if not exists scouting_role_scores_profile_idx on public.scouting_role_profile_scores (role_profile_id, score desc);

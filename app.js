@@ -28690,8 +28690,9 @@ submitButton.disabled = !canRecommend || !getMedicalBulkSelectedPlayers().length
 }
 function renderMedicalMetric(label, value, meta = "", tone = "") {
 const toneClass = tone ? ` medical-metric-card-${escapeHtml(tone)}` : "";
+const noMetaClass = meta ? "" : " medical-metric-card-no-meta";
 return `
-<article class="medical-metric-card${toneClass}">
+<article class="medical-metric-card${toneClass}${noMetaClass}">
 <span>${escapeHtml(label)}</span>
 <strong>${escapeHtml(value)}</strong>
 ${meta ? `<small>${escapeHtml(meta)}</small>` : ""}

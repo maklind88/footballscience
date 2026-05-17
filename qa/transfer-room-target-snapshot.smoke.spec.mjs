@@ -124,11 +124,48 @@ async function seedTransferRoomTarget(page) {
               name: "Maya Snapshot",
               position: "CM",
               club: "Snapshot United",
-              stage: "shortlist",
+              stage: "negotiation",
+              dealType: "transfer",
               fee: 125000,
               wage: 95000,
               wagePeriod: "year",
+              contractStatus: "Under contract through 2027",
+              agent: "Snapshot Sports",
+              riskLevel: "medium",
+              valuationConfidence: "high",
+              decisionOwner: "Sporting Director",
+              plannedWindow: "Summer 2026",
+              nextAction: "Confirm agent availability",
+              nextActionDate: "2026-06-01",
+              whyThisPlayer: "Progressive passer who fits the Courage midfield succession plan.",
               source: "scouting",
+            },
+            "qa-target-incomplete": {
+              recordId: "qa-target-incomplete",
+              name: "Incomplete Target",
+              position: "FW",
+              club: "Gate FC",
+              stage: "shortlist",
+              dealType: "transfer",
+              fee: "",
+              wage: "",
+              wagePeriod: "year",
+              riskLevel: "unknown",
+              valuationConfidence: "unknown",
+              source: "scouting",
+            },
+          },
+          squadPlans: {
+            "qa-outgoing-1": {
+              playerId: "qa-outgoing-1",
+              name: "Outgoing Player",
+              position: "CM",
+              status: "sell",
+              salary: 50000,
+              wagePeriod: "year",
+              estimatedValue: 75000,
+              contractEnd: "2026-12-31",
+              notes: "Scenario outgoing value",
             },
           },
           targetSnapshots: {
@@ -160,6 +197,19 @@ async function seedTransferRoomTarget(page) {
               ],
               updatedAt: "2026-05-17T12:00:00.000Z",
             },
+            "qa-target-incomplete": {
+              recordId: "qa-target-incomplete",
+              name: "Incomplete Target",
+              club: "Gate FC",
+              position: "FW",
+              age: "22",
+              league: "NWSL",
+              season: "2026",
+              fit: "P72",
+              signalLabel: "Shot volume",
+              summary: "Incomplete target used for stage-gate checks",
+              updatedAt: "2026-05-17T12:00:00.000Z",
+            },
           },
         })
       );
@@ -176,15 +226,97 @@ test("Transfer Room opens a saved target profile without loading scouting databa
   await openWorkspace(page, "transfer-room");
 
   await expect(page.locator("body")).toHaveAttribute("data-active-workspace", "transfer-room");
+  await expect(page.locator(".transfer-room-pipeline")).toContainText("Negotiation");
+  await expect(page.locator(".transfer-room-pipeline")).toContainText("2 active");
   await expect(page.locator(".transfer-room-target-card").first()).toContainText("Maya Snapshot");
+  await expect(page.locator(".transfer-room-target-card").first()).toContainText("Confirm agent availability");
+
+  const incompleteStage = page.locator('select[data-transfer-record-id="qa-target-incomplete"][data-transfer-target-field="stage"]');
+  await incompleteStage.selectOption("approved");
+  await expect(page.locator(".transfer-room-notice")).toContainText("Stage gate blocked");
+  await expect(incompleteStage).toHaveValue("shortlist");
+  await expect
+    .poll(() =>
+      page.evaluate((key) => {
+        const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+        return {
+          stage: state.targetPlans?.["qa-target-incomplete"]?.stage,
+          hasBlockedAudit: (state.auditEvents || []).some((event) => event.type === "stage-blocked"),
+        };
+      }, transferRoomKey)
+    )
+    .toEqual({ stage: "shortlist", hasBlockedAudit: true });
+
+  await page.locator('[data-transfer-room-tab="overview"]').click();
+  await expect(page.locator(".transfer-room-scenario")).toContainText("Scenario planner");
+  await expect(page.locator(".transfer-room-scenario")).toContainText("Maya Snapshot");
+  await expect(page.locator(".transfer-room-scenario")).toContainText("Confirm agent availability");
+  await expect(page.locator(".transfer-room-rule-check")).toContainText("Rule check");
+  await expect(page.locator(".transfer-room-rule-check")).toContainText("Deal data");
+
+  await page.locator('[data-transfer-room-tab="targets"]').click();
   await page.locator('[data-transfer-open-target-profile="qa-target-snapshot-1"]').click();
 
   const dialog = page.locator(".transfer-room-target-profile-dialog").first();
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("Maya Snapshot");
   await expect(dialog).toContainText("Snapshot United");
+  await expect(dialog.locator(".transfer-room-deal-summary")).toContainText("Deal Summary");
+  await expect(dialog.locator(".transfer-room-deal-summary")).toContainText("Total exposure");
+  await expect(dialog.locator(".transfer-room-deal-summary")).toContainText("Confirm agent availability");
+  await expect(dialog.locator('[data-transfer-target-field="stage"]')).toHaveValue("negotiation");
+  await expect(dialog.locator('[data-transfer-target-field="agent"]')).toHaveValue("Snapshot Sports");
+  await expect(dialog.locator('[data-transfer-target-field="contractStatus"]')).toHaveValue("Under contract through 2027");
+  await expect(dialog.locator('[data-transfer-target-field="valuationConfidence"]')).toHaveValue("high");
+  await expect(dialog).toContainText("Progressive passer who fits the Courage midfield succession plan.");
   await expect(dialog).toContainText("Progressive passes per 90");
   await expect(dialog).toContainText("Snapshot kept in Transfer Room");
+  await expect(dialog).toContainText("Approvals");
+  await dialog.locator('[data-transfer-approval-role="sportingDirector"][data-transfer-approval-action="approved"]').click();
+  await dialog.locator('[data-transfer-approval-role="headOfScouting"][data-transfer-approval-action="approved"]').click();
+  await dialog.locator('[data-transfer-approval-role="headCoach"][data-transfer-approval-action="approved"]').click();
+  await expect(dialog).toContainText("3/3 approvals");
+  await dialog.locator('[data-transfer-target-field="stage"]').selectOption("approved");
+  await expect(dialog.locator('[data-transfer-target-field="stage"]')).toHaveValue("approved");
+  await expect(page.locator(".transfer-room-notice")).toContainText("Maya Snapshot moved to approved");
+  await expect(dialog).toContainText("Stage gate");
+  await expect(dialog).toContainText("Target activity");
+  await expect
+    .poll(() =>
+      page.evaluate((key) => {
+        const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+        const target = state.targetPlans?.["qa-target-snapshot-1"] || {};
+        return {
+          stage: target.stage,
+          approvals: Object.values(target.approvals || {}).filter((approval) => approval.status === "approved").length,
+          hasApprovalAudit: (state.auditEvents || []).some((event) => event.type === "target-approval-updated"),
+        };
+      }, transferRoomKey)
+    )
+    .toEqual({ stage: "approved", approvals: 3, hasApprovalAudit: true });
+
+  await page.locator('[data-transfer-close-target-profile]').click();
+  await page.locator('[data-transfer-room-tab="scenarios"]').click();
+  await expect(page.locator(".transfer-room-scenarios")).toContainText("Scenario versions");
+  await expect(page.locator(".transfer-room-scenario-compare")).toContainText("Current plan");
+  await expect(page.locator(".transfer-room-scenario-compare")).toContainText("Cap space");
+  await page.locator('[data-transfer-scenario-field="name"]').fill("Summer approval plan");
+  await page.locator('[data-transfer-scenario-field="notes"]').fill("Approved target scenario");
+  await page.locator("[data-transfer-save-scenario]").click();
+  await expect(page.locator(".transfer-room-scenario-version-grid")).toContainText("Summer approval plan");
+  await expect(page.locator(".transfer-room-scenario-compare")).toContainText("Summer approval plan");
+  await expect
+    .poll(() =>
+      page.evaluate((key) => {
+        const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+        return {
+          count: (state.scenarios || []).length,
+          activeName: (state.scenarios || []).find((scenario) => scenario.id === state.activeScenarioId)?.name || "",
+        };
+      }, transferRoomKey)
+    )
+    .toEqual({ count: 1, activeName: "Summer approval plan" });
+
   await expect(page.locator("body")).toHaveAttribute("data-active-workspace", "transfer-room");
   await expect(page.locator('[data-workspace-view="scouting"].is-active')).toHaveCount(0);
   await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), scoutingDatabaseKey)).toBeNull();

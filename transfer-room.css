@@ -25,6 +25,9 @@
 .transfer-room-panel,
 .transfer-room-table-shell,
 .transfer-room-target-card,
+.transfer-room-rule-check,
+.transfer-room-audit,
+.transfer-room-scenarios,
 .transfer-room-settings,
 .transfer-room-access,
 .transfer-room-empty {
@@ -189,8 +192,534 @@
 
 .transfer-room-panel,
 .transfer-room-table-shell,
+.transfer-room-rule-check,
+.transfer-room-audit,
+.transfer-room-scenarios,
 .transfer-room-access {
   padding: 18px;
+}
+
+.transfer-room-notice {
+  padding: 14px 16px;
+  border: 1px solid rgba(23, 32, 25, 0.14);
+  background: #ffffff;
+}
+
+.transfer-room-notice.is-success {
+  border-color: rgba(54, 114, 79, 0.32);
+  background: #f1f8ec;
+}
+
+.transfer-room-notice.is-warning {
+  border-color: rgba(107, 79, 22, 0.32);
+  background: #fff8e4;
+}
+
+.transfer-room-notice.is-error {
+  border-color: rgba(111, 29, 34, 0.34);
+  background: #fff1f2;
+}
+
+.transfer-room-notice div {
+  display: grid;
+  gap: 4px;
+}
+
+.transfer-room-notice strong {
+  color: #172019;
+  font-size: 0.96rem;
+}
+
+.transfer-room-notice span {
+  color: #657065;
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
+.transfer-room-scenario,
+.transfer-room-pipeline,
+.transfer-room-rule-check,
+.transfer-room-audit,
+.transfer-room-scenarios {
+  display: grid;
+  gap: 12px;
+}
+
+.transfer-room-scenario .transfer-room-section-head,
+.transfer-room-pipeline .transfer-room-section-head,
+.transfer-room-rule-check .transfer-room-section-head,
+.transfer-room-audit .transfer-room-section-head,
+.transfer-room-scenarios .transfer-room-section-head {
+  margin-bottom: 0;
+}
+
+.transfer-room-scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.transfer-room-scenario-grid article {
+  min-height: 110px;
+  padding: 16px;
+  border: 1px solid rgba(23, 32, 25, 0.12);
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.transfer-room-scenario-grid article.is-good {
+  background: #172019;
+  color: #ffffff;
+}
+
+.transfer-room-scenario-grid article.is-warn {
+  background: #6b4f16;
+  color: #ffffff;
+}
+
+.transfer-room-scenario-grid article.is-danger {
+  background: #6f1d22;
+  color: #ffffff;
+}
+
+.transfer-room-scenario-grid span,
+.transfer-room-scenario-grid small,
+.transfer-room-scenario-lanes > article > span,
+.transfer-room-pipeline-grid span {
+  color: #657065;
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.transfer-room-scenario-grid article.is-good span,
+.transfer-room-scenario-grid article.is-good small,
+.transfer-room-scenario-grid article.is-warn span,
+.transfer-room-scenario-grid article.is-warn small,
+.transfer-room-scenario-grid article.is-danger span,
+.transfer-room-scenario-grid article.is-danger small {
+  color: rgba(255, 255, 255, 0.74);
+}
+
+.transfer-room-scenario-grid strong {
+  font-size: 1.45rem;
+  overflow-wrap: anywhere;
+}
+
+.transfer-room-scenario-lanes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.transfer-room-scenario-lanes > article {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  background: #ffffff;
+  display: grid;
+  gap: 10px;
+}
+
+.transfer-room-scenario-lanes > article.is-warn {
+  border-color: rgba(107, 79, 22, 0.36);
+  background: #fff9e8;
+}
+
+.transfer-room-scenario-lanes > article.is-clear {
+  border-color: rgba(54, 114, 79, 0.2);
+  background: #f6fbf2;
+}
+
+.transfer-room-scenario-lanes ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.transfer-room-scenario-lanes li {
+  min-height: 58px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid rgba(23, 32, 25, 0.08);
+  background: #fbfcf8;
+}
+
+.transfer-room-scenario-lanes li div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.transfer-room-scenario-lanes li strong,
+.transfer-room-scenario-lanes li span {
+  overflow-wrap: anywhere;
+}
+
+.transfer-room-scenario-lanes li span {
+  color: #657065;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.transfer-room-scenario-lanes li em {
+  flex: 0 0 auto;
+  color: #172019;
+  font-size: 0.82rem;
+  font-style: normal;
+  font-weight: 900;
+  text-align: right;
+}
+
+.transfer-room-pipeline-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.transfer-room-pipeline-grid article {
+  min-height: 86px;
+  padding: 12px;
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  background: #ffffff;
+  display: grid;
+  align-content: space-between;
+  gap: 8px;
+}
+
+.transfer-room-pipeline-grid article.has-count {
+  border-color: rgba(23, 32, 25, 0.24);
+  background: #eef7dc;
+}
+
+.transfer-room-pipeline-grid strong {
+  font-size: 1.65rem;
+}
+
+.transfer-room-rule-check-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.transfer-room-rule-check-grid article {
+  min-height: 132px;
+  padding: 14px;
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  background: #fbfcf8;
+  display: grid;
+  align-content: space-between;
+  gap: 10px;
+}
+
+.transfer-room-rule-check-grid article.is-blocker {
+  border-color: rgba(111, 29, 34, 0.34);
+  background: #fff1f2;
+}
+
+.transfer-room-rule-check-grid article.is-warning {
+  border-color: rgba(107, 79, 22, 0.34);
+  background: #fff8e4;
+}
+
+.transfer-room-rule-check-grid article.is-clear {
+  border-color: rgba(54, 114, 79, 0.2);
+  background: #f5fbef;
+}
+
+.transfer-room-rule-check-grid article div {
+  display: grid;
+  gap: 4px;
+}
+
+.transfer-room-rule-check-grid span,
+.transfer-room-stage-gate span,
+.transfer-room-audit time,
+.transfer-room-audit article span {
+  color: #657065;
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.transfer-room-rule-check-grid strong,
+.transfer-room-rule-check-grid em,
+.transfer-room-stage-gate strong,
+.transfer-room-audit strong {
+  color: #172019;
+  overflow-wrap: anywhere;
+}
+
+.transfer-room-rule-check-grid em {
+  font-size: 1.05rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.transfer-room-rule-check-grid p,
+.transfer-room-audit p {
+  margin: 0;
+  color: #465148;
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.transfer-room-audit-list,
+.transfer-room-stage-gate ul {
+  display: grid;
+  gap: 8px;
+}
+
+.transfer-room-audit-list article {
+  min-height: 62px;
+  padding: 10px;
+  border: 1px solid rgba(23, 32, 25, 0.08);
+  background: #fbfcf8;
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.transfer-room-audit article div {
+  display: grid;
+  gap: 3px;
+}
+
+.transfer-room-stage-gate {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  background: #fbfcf8;
+}
+
+.transfer-room-stage-gate.is-blocked {
+  border-color: rgba(111, 29, 34, 0.34);
+  background: #fff1f2;
+}
+
+.transfer-room-stage-gate.is-clear {
+  border-color: rgba(54, 114, 79, 0.2);
+  background: #f5fbef;
+}
+
+.transfer-room-stage-gate ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.transfer-room-stage-gate li {
+  display: grid;
+  gap: 3px;
+}
+
+.transfer-room-approval-panel {
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.transfer-room-approval-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.transfer-room-approval-grid article {
+  min-height: 128px;
+  padding: 10px;
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  background: #fbfcf8;
+  display: grid;
+  gap: 10px;
+}
+
+.transfer-room-approval-grid article.is-approved {
+  border-color: rgba(54, 114, 79, 0.24);
+  background: #f5fbef;
+}
+
+.transfer-room-approval-grid article.is-rejected {
+  border-color: rgba(111, 29, 34, 0.3);
+  background: #fff1f2;
+}
+
+.transfer-room-approval-grid article > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.transfer-room-approval-grid span,
+.transfer-room-approval-grid small,
+.transfer-room-scenario-version-grid span,
+.transfer-room-scenario-version-grid small {
+  color: #657065;
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.transfer-room-approval-actions,
+.transfer-room-scenario-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.transfer-room-approval-actions button,
+.transfer-room-scenario-actions button,
+.transfer-room-scenario-form button {
+  min-height: 34px;
+  border: 1px solid rgba(23, 32, 25, 0.16);
+  background: #ffffff;
+  color: #172019;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.transfer-room-scenario-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(240px, 1.2fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  background: #fbfcf8;
+}
+
+.transfer-room-scenario-compare {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  background: #ffffff;
+}
+
+.transfer-room-scenario-compare-head,
+.transfer-room-scenario-compare-grid .is-head,
+.transfer-room-scenario-compare-grid article {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) repeat(5, minmax(86px, 1fr));
+  gap: 10px;
+  align-items: center;
+}
+
+.transfer-room-scenario-compare-head {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.transfer-room-scenario-compare-head div,
+.transfer-room-scenario-compare-grid article div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.transfer-room-scenario-compare-head span,
+.transfer-room-scenario-compare-head small,
+.transfer-room-scenario-compare-grid span,
+.transfer-room-scenario-compare-grid article div span {
+  color: #657065;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.transfer-room-scenario-compare-head strong,
+.transfer-room-scenario-compare-grid article strong,
+.transfer-room-scenario-compare-grid article em {
+  color: #172019;
+  overflow-wrap: anywhere;
+}
+
+.transfer-room-scenario-compare-grid {
+  display: grid;
+  gap: 6px;
+  overflow-x: auto;
+}
+
+.transfer-room-scenario-compare-grid .is-head {
+  min-width: 840px;
+  padding: 0 10px;
+  color: #657065;
+}
+
+.transfer-room-scenario-compare-grid article {
+  min-width: 840px;
+  min-height: 68px;
+  padding: 10px;
+  border: 1px solid rgba(23, 32, 25, 0.08);
+  background: #fbfcf8;
+}
+
+.transfer-room-scenario-compare-grid article.is-current {
+  border-color: rgba(23, 32, 25, 0.18);
+  background: #eef7dc;
+}
+
+.transfer-room-scenario-compare-grid article.is-blocked {
+  border-color: rgba(111, 29, 34, 0.3);
+  background: #fff1f2;
+}
+
+.transfer-room-scenario-compare-grid article.is-watch {
+  border-color: rgba(107, 79, 22, 0.3);
+  background: #fff8e4;
+}
+
+.transfer-room-scenario-compare-grid article.is-ready:not(.is-current) {
+  border-color: rgba(54, 114, 79, 0.18);
+}
+
+.transfer-room-scenario-compare-grid article em {
+  font-style: normal;
+  font-weight: 900;
+}
+
+.transfer-room-scenario-version-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.transfer-room-scenario-version-grid article {
+  min-height: 150px;
+  padding: 14px;
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  background: #ffffff;
+  display: grid;
+  align-content: space-between;
+  gap: 10px;
+}
+
+.transfer-room-scenario-version-grid article.is-active {
+  border-color: rgba(54, 114, 79, 0.26);
+  background: #f5fbef;
+}
+
+.transfer-room-scenario-version-grid article div:first-child {
+  display: grid;
+  gap: 5px;
+}
+
+.transfer-room-scenario-version-grid p {
+  margin: 0;
+  color: #465148;
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .transfer-room-panel-head,
@@ -307,6 +836,10 @@
 .transfer-room-target-fields input,
 .transfer-room-target-fields select,
 .transfer-room-target-card textarea,
+.transfer-room-target-profile-deal-grid input,
+.transfer-room-target-profile-deal-grid select,
+.transfer-room-target-profile-deal-grid textarea,
+.transfer-room-scenario-form input,
 .transfer-room-settings input,
 .transfer-room-settings select {
   width: 100%;
@@ -376,6 +909,17 @@
   font-size: 0.76rem;
 }
 
+.transfer-room-target-meta span.is-clear {
+  border-color: rgba(54, 114, 79, 0.24);
+  background: #f5fbef;
+}
+
+.transfer-room-target-meta span.is-blocked {
+  border-color: rgba(111, 29, 34, 0.3);
+  background: #fff1f2;
+  color: #6f1d22;
+}
+
 .transfer-room-target-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -383,6 +927,8 @@
 }
 
 .transfer-room-target-fields label,
+.transfer-room-target-profile-deal-grid label,
+.transfer-room-scenario-form label,
 .transfer-room-settings label {
   display: grid;
   gap: 5px;
@@ -393,6 +939,20 @@
 }
 
 .transfer-room-target-card textarea {
+  resize: vertical;
+}
+
+.transfer-room-target-profile-deal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.transfer-room-target-profile-deal-grid .is-wide {
+  grid-column: 1 / -1;
+}
+
+.transfer-room-target-profile-deal-grid textarea {
   resize: vertical;
 }
 
@@ -568,6 +1128,89 @@
   line-height: 1.45;
 }
 
+.transfer-room-deal-summary {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.4fr);
+  gap: 12px;
+  border-color: rgba(23, 32, 25, 0.14) !important;
+  background: #ffffff !important;
+}
+
+.transfer-room-deal-summary-status {
+  min-width: 0;
+  padding: 14px;
+  display: grid;
+  align-content: space-between;
+  gap: 14px;
+  background: #172019;
+  color: #ffffff;
+}
+
+.transfer-room-deal-summary.is-blocked .transfer-room-deal-summary-status {
+  background: #6f1d22;
+}
+
+.transfer-room-deal-summary.is-watch .transfer-room-deal-summary-status {
+  background: #6b4f16;
+}
+
+.transfer-room-deal-summary-status div {
+  display: grid;
+  gap: 4px;
+}
+
+.transfer-room-deal-summary-status span,
+.transfer-room-deal-summary-status small {
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.transfer-room-deal-summary-status strong {
+  font-size: 1.65rem;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+.transfer-room-deal-summary-status p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 0.88rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.transfer-room-deal-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.transfer-room-deal-summary-grid article {
+  min-height: 112px;
+  padding: 12px;
+  border: 1px solid rgba(23, 32, 25, 0.08);
+  background: #fbfcf8;
+  display: grid;
+  align-content: space-between;
+  gap: 8px;
+}
+
+.transfer-room-deal-summary-grid span,
+.transfer-room-deal-summary-grid small {
+  color: #657065;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.transfer-room-deal-summary-grid strong {
+  color: #172019;
+  font-size: 0.98rem;
+  overflow-wrap: anywhere;
+}
+
 .transfer-room-target-profile-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
@@ -678,16 +1321,24 @@
   .transfer-room-hero,
   .transfer-room-overview,
   .transfer-room-rules-layout,
+  .transfer-room-scenario-lanes,
   .transfer-room-target-grid,
+  .transfer-room-scenario-version-grid,
+  .transfer-room-deal-summary,
   .transfer-room-access-list {
     grid-template-columns: 1fr;
   }
 
-  .transfer-room-kpis {
+  .transfer-room-kpis,
+  .transfer-room-scenario-grid,
+  .transfer-room-rule-check-grid,
+  .transfer-room-pipeline-grid,
+  .transfer-room-deal-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .transfer-room-target-profile-layout,
+  .transfer-room-approval-grid,
   .transfer-room-target-profile-metrics {
     grid-template-columns: 1fr;
   }
@@ -703,9 +1354,15 @@
   }
 
   .transfer-room-kpis,
+  .transfer-room-scenario-grid,
+  .transfer-room-rule-check-grid,
+  .transfer-room-pipeline-grid,
   .transfer-room-target-fields,
+  .transfer-room-scenario-form,
   .transfer-room-decision-grid,
   .transfer-room-rule-list.is-large,
+  .transfer-room-target-profile-deal-grid,
+  .transfer-room-deal-summary-grid,
   .transfer-room-target-profile-facts {
     grid-template-columns: 1fr;
   }
@@ -721,5 +1378,9 @@
   .transfer-room-target-profile-head button {
     grid-column: 1 / -1;
     justify-self: start;
+  }
+
+  .transfer-room-audit-list article {
+    grid-template-columns: 1fr;
   }
 }

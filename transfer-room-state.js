@@ -12,11 +12,33 @@ export const transferRoomWagePeriodOptions = Object.freeze([
   { value: "month", label: "Per month", multiplier: 12 },
   { value: "week", label: "Per week", multiplier: 52 },
 ]);
+export const transferRoomApprovalRoles = Object.freeze([
+  { id: "sportingDirector", label: "Sporting Director" },
+  { id: "headOfScouting", label: "Head of Scouting" },
+  { id: "headCoach", label: "Head Coach" },
+]);
 
 const transferRoomSchemaVersion = 1;
 const transferRoomDefaultCurrency = "USD";
 const transferRoomSquadStatuses = new Set(["keep", "review", "sell", "loan", "release", "renew"]);
-const transferRoomTargetStages = new Set(["monitoring", "shortlist", "contact", "negotiation", "approved", "paused"]);
+const transferRoomTargetStages = new Set([
+  "monitoring",
+  "shortlist",
+  "internal-approved",
+  "contact",
+  "negotiation",
+  "medical-admin",
+  "approved",
+  "signed",
+  "lost",
+  "paused",
+]);
+const transferRoomTargetRiskLevels = new Set(["unknown", "low", "medium", "high"]);
+const transferRoomTargetConfidenceLevels = new Set(["unknown", "low", "medium", "high"]);
+const transferRoomTargetDealTypes = new Set(["transfer", "loan", "free-agent", "trade", "extension", "unknown"]);
+const transferRoomBudgetActiveStages = new Set(["shortlist", "internal-approved", "contact", "negotiation", "medical-admin", "approved", "signed"]);
+const transferRoomTransferFeeDealTypes = new Set(["transfer", "extension", "unknown"]);
+const transferRoomApprovalStatuses = new Set(["pending", "approved", "rejected"]);
 const transferRoomDefaultLeagueProfiles = Object.freeze({
   "nwsl-2026": Object.freeze({
     id: "nwsl-2026",
@@ -66,6 +88,85 @@ export function normalizeTransferRoomCurrency(value) {
 export function normalizeTransferRoomWagePeriod(value) {
   const period = normalizeTransferRoomText(value, 20).toLowerCase();
   return transferRoomWagePeriodOptions.some((option) => option.value === period) ? period : transferRoomDefaultWagePeriod;
+}
+
+function normalizeTransferRoomSetValue(value, allowedValues, fallback) {
+  const normalized = normalizeTransferRoomText(value, 60).toLowerCase().replace(/[\s_]+/g, "-");
+  return allowedValues.has(normalized) ? normalized : fallback;
+}
+
+function normalizeTransferRoomNotice(notice = {}) {
+  const message = normalizeTransferRoomText(notice.message, 300);
+  if (!message) {
+    return null;
+  }
+  return {
+    id: normalizeTransferRoomText(notice.id, 80) || `transfer-notice-${Date.now()}`,
+    type: normalizeTransferRoomSetValue(notice.type, new Set(["info", "success", "warning", "error"]), "info"),
+    message,
+    detail: normalizeTransferRoomText(notice.detail, 600),
+    recordId: normalizeTransferRoomText(notice.recordId, 180),
+    createdAt: normalizeTransferRoomText(notice.createdAt, 40) || new Date().toISOString(),
+  };
+}
+
+function normalizeTransferRoomAuditEvent(event = {}) {
+  const message = normalizeTransferRoomText(event.message, 320);
+  if (!message) {
+    return null;
+  }
+  return {
+    id: normalizeTransferRoomText(event.id, 100) || `transfer-audit-${Date.now()}-${Math.round(Math.random() * 100000)}`,
+    type: normalizeTransferRoomText(event.type || "transfer-room-update", 80),
+    teamId: normalizeTransferRoomText(event.teamId, 180),
+    targetRecordId: normalizeTransferRoomText(event.targetRecordId || event.recordId, 180),
+    playerId: normalizeTransferRoomText(event.playerId, 180),
+    subjectLabel: normalizeTransferRoomText(event.subjectLabel, 180),
+    actorId: normalizeTransferRoomText(event.actorId, 180),
+    actorName: normalizeTransferRoomText(event.actorName, 180),
+    actorRole: normalizeTransferRoomText(event.actorRole, 80),
+    message,
+    detail: normalizeTransferRoomText(event.detail, 800),
+    changes: Array.isArray(event.changes)
+      ? event.changes
+          .map((change) => ({
+            field: normalizeTransferRoomText(change.field, 80),
+            label: normalizeTransferRoomText(change.label || change.field, 120),
+            before: normalizeTransferRoomText(change.before, 180),
+            after: normalizeTransferRoomText(change.after, 180),
+          }))
+          .filter((change) => change.field)
+          .slice(0, 8)
+      : [],
+    createdAt: normalizeTransferRoomText(event.createdAt, 40) || new Date().toISOString(),
+  };
+}
+
+function normalizeTransferRoomApproval(approval = {}, role = {}) {
+  const status = normalizeTransferRoomSetValue(approval.status, transferRoomApprovalStatuses, "pending");
+  return {
+    roleId: role.id,
+    label: role.label,
+    status,
+    actorId: normalizeTransferRoomText(approval.actorId, 180),
+    actorName: normalizeTransferRoomText(approval.actorName, 180),
+    actorRole: normalizeTransferRoomText(approval.actorRole, 80),
+    decidedAt: normalizeTransferRoomText(approval.decidedAt, 40),
+    note: normalizeTransferRoomText(approval.note, 400),
+  };
+}
+
+function normalizeTransferRoomApprovals(source = {}) {
+  return Object.fromEntries(
+    transferRoomApprovalRoles.map((role) => [role.id, normalizeTransferRoomApproval(source?.[role.id] || {}, role)])
+  );
+}
+
+function normalizeTransferRoomScenarioDraft(draft = {}) {
+  return {
+    name: normalizeTransferRoomText(draft.name, 120),
+    notes: normalizeTransferRoomText(draft.notes, 700),
+  };
 }
 
 function normalizeTransferRoomLeagueProfile(profile = {}, fallback = transferRoomDefaultLeagueProfiles["nwsl-2026"]) {
@@ -248,22 +349,293 @@ function mergeTransferRoomSnapshot(previousSnapshot = {}, incomingSnapshot = {})
 
 export function normalizeTransferRoomTargetPlan(plan = {}, snapshot = {}) {
   const recordId = normalizeTransferRoomText(plan.recordId || snapshot.recordId, 180);
-  const stage = normalizeTransferRoomText(plan.stage || plan.status || "monitoring", 40);
   return {
     recordId,
     name: normalizeTransferRoomText(plan.name || snapshot.name, 180),
     position: normalizeTransferRoomText(plan.position || snapshot.position, 120),
     club: normalizeTransferRoomText(plan.club || snapshot.club, 180),
-    stage: transferRoomTargetStages.has(stage) ? stage : "monitoring",
+    stage: normalizeTransferRoomSetValue(plan.stage || plan.status, transferRoomTargetStages, "monitoring"),
     fee: normalizeTransferRoomMoney(plan.fee || plan.estimatedFee),
     wage: normalizeTransferRoomMoney(plan.wage || plan.salary),
     wagePeriod: normalizeTransferRoomWagePeriod(plan.wagePeriod || transferRoomDefaultWagePeriod),
     replacementFor: normalizeTransferRoomText(plan.replacementFor, 180),
     priority: normalizeTransferRoomText(plan.priority || "normal", 40),
+    dealType: normalizeTransferRoomSetValue(plan.dealType || plan.type, transferRoomTargetDealTypes, "transfer"),
+    contractStatus: normalizeTransferRoomText(plan.contractStatus || plan.contract || plan.contractContext, 180),
+    agent: normalizeTransferRoomText(plan.agent || plan.representative || plan.intermediary, 180),
+    riskLevel: normalizeTransferRoomSetValue(plan.riskLevel || plan.risk, transferRoomTargetRiskLevels, "unknown"),
+    valuationConfidence: normalizeTransferRoomSetValue(plan.valuationConfidence || plan.confidence, transferRoomTargetConfidenceLevels, "unknown"),
+    decisionOwner: normalizeTransferRoomText(plan.decisionOwner || plan.owner, 180),
+    plannedWindow: normalizeTransferRoomText(plan.plannedWindow || plan.window, 120),
+    nextAction: normalizeTransferRoomText(plan.nextAction || plan.action, 260),
+    nextActionDate: normalizeTransferRoomText(plan.nextActionDate || plan.actionDate, 40),
+    whyThisPlayer: normalizeTransferRoomText(plan.whyThisPlayer || plan.rationale || plan.why, 900),
+    approvals: normalizeTransferRoomApprovals(plan.approvals || plan.approvalStatus || {}),
     source: normalizeTransferRoomText(plan.source || "scouting", 80),
     notes: normalizeTransferRoomText(plan.notes, 900),
     updatedAt: normalizeTransferRoomText(plan.updatedAt, 40),
   };
+}
+
+function getTransferRoomMoneyNumber(value) {
+  const numericValue = Number(String(value ?? "").replace(/[$,\s]/g, ""));
+  return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
+function getTransferRoomWageMultiplier(period = transferRoomDefaultWagePeriod) {
+  return transferRoomWagePeriodOptions.find((option) => option.value === period)?.multiplier || 1;
+}
+
+function getTransferRoomAnnualMoney(value, period = transferRoomDefaultWagePeriod) {
+  return getTransferRoomMoneyNumber(value) * getTransferRoomWageMultiplier(period);
+}
+
+function getTransferRoomProjectedCapSpace(state = {}, previewTarget = {}) {
+  const settings = state.settings || {};
+  const profile = state.leagueProfiles?.[settings.leagueProfileId] || transferRoomDefaultLeagueProfiles["nwsl-2026"];
+  const cap = getTransferRoomMoneyNumber(settings.salaryCap || profile.salaryCap);
+  const buffer = getTransferRoomMoneyNumber(settings.capBuffer);
+  const squadPlans = Object.values(state.squadPlans || {}).filter((plan) => plan?.playerId);
+  const targetPlans = {
+    ...(state.targetPlans || {}),
+    [previewTarget.recordId]: previewTarget,
+  };
+  const currentCommitment = squadPlans.reduce((sum, plan) => sum + getTransferRoomAnnualMoney(plan.salary, plan.wagePeriod), 0);
+  const outgoingRelief = squadPlans
+    .filter((plan) => ["sell", "loan", "release"].includes(plan.status))
+    .reduce((sum, plan) => sum + getTransferRoomAnnualMoney(plan.salary, plan.wagePeriod), 0);
+  const incomingWages = Object.values(targetPlans)
+    .filter((plan) => plan?.recordId && transferRoomBudgetActiveStages.has(plan.stage || "monitoring"))
+    .reduce((sum, plan) => sum + getTransferRoomAnnualMoney(plan.wage, plan.wagePeriod), 0);
+  const projectedCommitment = Math.max(0, currentCommitment - outgoingRelief + incomingWages);
+  return cap - buffer - projectedCommitment;
+}
+
+function getTransferRoomStageRequiredFields(stage = "monitoring", plan = {}) {
+  const requiresFee = transferRoomTransferFeeDealTypes.has(plan.dealType || "transfer");
+  if (stage === "contact") {
+    return [
+      { field: "decisionOwner", label: "Owner", type: "text" },
+      { field: "nextAction", label: "Next action", type: "text" },
+    ];
+  }
+  if (stage === "negotiation") {
+    return [
+      requiresFee ? { field: "fee", label: "Fee", type: "money" } : null,
+      { field: "wage", label: "Wage", type: "money" },
+      { field: "contractStatus", label: "Contract", type: "text" },
+      { field: "agent", label: "Agent", type: "text" },
+      { field: "riskLevel", label: "Risk", type: "known" },
+      { field: "valuationConfidence", label: "Confidence", type: "known" },
+      { field: "decisionOwner", label: "Owner", type: "text" },
+      { field: "nextAction", label: "Next action", type: "text" },
+    ].filter(Boolean);
+  }
+  if (stage === "medical-admin") {
+    return [
+      ...getTransferRoomStageRequiredFields("negotiation", plan),
+      { field: "plannedWindow", label: "Window", type: "text" },
+      { field: "nextActionDate", label: "Action date", type: "text" },
+    ];
+  }
+  if (stage === "approved" || stage === "signed") {
+    return [
+      ...getTransferRoomStageRequiredFields("medical-admin", plan),
+      { field: "whyThisPlayer", label: "Why this player", type: "text" },
+    ];
+  }
+  return [];
+}
+
+function getTransferRoomApprovalGateIssues(plan = {}) {
+  if (plan.stage !== "approved" && plan.stage !== "signed") {
+    return [];
+  }
+  return transferRoomApprovalRoles
+    .map((role) => ({ role, approval: plan.approvals?.[role.id] || {} }))
+    .filter(({ approval }) => approval.status !== "approved")
+    .map(({ role, approval }) => ({
+      field: `approval:${role.id}`,
+      label: role.label,
+      severity: "blocker",
+      message:
+        approval.status === "rejected"
+          ? `${role.label} rejected this approval.`
+          : `${role.label} approval is required before ${plan.stage}.`,
+    }));
+}
+
+function isTransferRoomRequirementMet(plan = {}, requirement = {}) {
+  if (requirement.type === "money") {
+    return getTransferRoomMoneyNumber(plan[requirement.field]) > 0;
+  }
+  if (requirement.type === "known") {
+    return Boolean(plan[requirement.field] && plan[requirement.field] !== "unknown");
+  }
+  return Boolean(normalizeTransferRoomText(plan[requirement.field], 900));
+}
+
+export function getTransferRoomTargetStageGateIssues(plan = {}, state = {}) {
+  const normalizedPlan = normalizeTransferRoomTargetPlan(plan, state.targetSnapshots?.[plan.recordId] || {});
+  const requirements = getTransferRoomStageRequiredFields(normalizedPlan.stage, normalizedPlan);
+  const issues = requirements
+    .filter((requirement) => !isTransferRoomRequirementMet(normalizedPlan, requirement))
+    .map((requirement) => ({
+      field: requirement.field,
+      label: requirement.label,
+      severity: "blocker",
+      message: `${requirement.label} is required before ${normalizedPlan.stage.replace(/-/g, " ")}.`,
+    }));
+  issues.push(...getTransferRoomApprovalGateIssues(normalizedPlan));
+  if ((normalizedPlan.stage === "approved" || normalizedPlan.stage === "signed") && getTransferRoomProjectedCapSpace(state, normalizedPlan) < 0) {
+    issues.push({
+      field: "salaryCap",
+      label: "Salary cap",
+      severity: "blocker",
+      message: "Projected cap space must be positive before approval.",
+    });
+  }
+  return issues;
+}
+
+export function setTransferRoomNotice(state, notice = {}) {
+  state.lastNotice = normalizeTransferRoomNotice(notice);
+  return Boolean(state.lastNotice);
+}
+
+export function clearTransferRoomNotice(state) {
+  state.lastNotice = null;
+}
+
+export function appendTransferRoomAuditEvent(state, event = {}) {
+  const normalizedEvent = normalizeTransferRoomAuditEvent(event);
+  if (!normalizedEvent) {
+    return false;
+  }
+  const events = Array.isArray(state.auditEvents) ? state.auditEvents : [];
+  state.auditEvents = [...events, normalizedEvent].slice(-160);
+  return true;
+}
+
+function cloneTransferRoomPlainValue(value) {
+  try {
+    return JSON.parse(JSON.stringify(value || {}));
+  } catch {
+    return {};
+  }
+}
+
+function normalizeTransferRoomScenario(scenario = {}) {
+  const id = normalizeTransferRoomText(scenario.id, 120);
+  if (!id) {
+    return null;
+  }
+  const targetPlans = {};
+  const scenarioTargetPlans = scenario.targetPlans && typeof scenario.targetPlans === "object" && !Array.isArray(scenario.targetPlans)
+    ? Object.values(scenario.targetPlans)
+    : [];
+  scenarioTargetPlans.forEach((plan) => {
+    const normalizedPlan = normalizeTransferRoomTargetPlan(plan);
+    if (normalizedPlan.recordId) {
+      targetPlans[normalizedPlan.recordId] = normalizedPlan;
+    }
+  });
+  const squadPlans = {};
+  const scenarioSquadPlans = scenario.squadPlans && typeof scenario.squadPlans === "object" && !Array.isArray(scenario.squadPlans)
+    ? Object.values(scenario.squadPlans)
+    : [];
+  scenarioSquadPlans.forEach((plan) => {
+    const normalizedPlan = normalizeTransferRoomSquadPlan(plan);
+    if (normalizedPlan.playerId) {
+      squadPlans[normalizedPlan.playerId] = normalizedPlan;
+    }
+  });
+  return {
+    id,
+    name: normalizeTransferRoomText(scenario.name, 120) || "Transfer scenario",
+    notes: normalizeTransferRoomText(scenario.notes, 700),
+    settings: {
+      currency: normalizeTransferRoomCurrency(scenario.settings?.currency || transferRoomDefaultCurrency),
+      wagePeriod: normalizeTransferRoomWagePeriod(scenario.settings?.wagePeriod || transferRoomDefaultWagePeriod),
+      leagueProfileId: normalizeTransferRoomText(scenario.settings?.leagueProfileId || "nwsl-2026", 120),
+      activeTeamId: normalizeTransferRoomText(scenario.settings?.activeTeamId, 180),
+      salaryCap: normalizeTransferRoomMoney(scenario.settings?.salaryCap),
+      capBuffer: normalizeTransferRoomMoney(scenario.settings?.capBuffer),
+    },
+    squadPlans,
+    targetPlans,
+    createdAt: normalizeTransferRoomText(scenario.createdAt, 40) || new Date().toISOString(),
+    updatedAt: normalizeTransferRoomText(scenario.updatedAt, 40) || normalizeTransferRoomText(scenario.createdAt, 40) || new Date().toISOString(),
+  };
+}
+
+export function applyTransferRoomScenarioDraftPatch(state, patch = {}) {
+  state.scenarioDraft = normalizeTransferRoomScenarioDraft({
+    ...(state.scenarioDraft || {}),
+    ...patch,
+  });
+  return true;
+}
+
+export function saveTransferRoomCurrentScenario(state, options = {}) {
+  const now = new Date().toISOString();
+  const existing = Array.isArray(state.scenarios) ? state.scenarios : [];
+  const draft = normalizeTransferRoomScenarioDraft({
+    ...(state.scenarioDraft || {}),
+    ...options,
+  });
+  const scenarioNumber = existing.length + 1;
+  const scenario = normalizeTransferRoomScenario({
+    id: `scenario-${Date.now()}-${Math.round(Math.random() * 10000)}`,
+    name: draft.name || `Scenario ${scenarioNumber}`,
+    notes: draft.notes,
+    settings: cloneTransferRoomPlainValue(state.settings),
+    squadPlans: cloneTransferRoomPlainValue(state.squadPlans),
+    targetPlans: cloneTransferRoomPlainValue(state.targetPlans),
+    createdAt: now,
+    updatedAt: now,
+  });
+  if (!scenario) {
+    return null;
+  }
+  state.scenarios = [...existing, scenario].slice(-24);
+  state.activeScenarioId = scenario.id;
+  state.scenarioDraft = { name: "", notes: "" };
+  return scenario;
+}
+
+export function activateTransferRoomScenario(state, scenarioId) {
+  const id = normalizeTransferRoomText(scenarioId, 120);
+  const scenario = (Array.isArray(state.scenarios) ? state.scenarios : []).find((item) => item.id === id);
+  if (!scenario) {
+    return null;
+  }
+  state.settings = {
+    ...state.settings,
+    ...scenario.settings,
+    currency: normalizeTransferRoomCurrency(scenario.settings?.currency || state.settings?.currency),
+    wagePeriod: normalizeTransferRoomWagePeriod(scenario.settings?.wagePeriod || state.settings?.wagePeriod),
+    salaryCap: normalizeTransferRoomMoney(scenario.settings?.salaryCap ?? state.settings?.salaryCap),
+    capBuffer: normalizeTransferRoomMoney(scenario.settings?.capBuffer ?? state.settings?.capBuffer),
+  };
+  state.squadPlans = cloneTransferRoomPlainValue(scenario.squadPlans);
+  state.targetPlans = cloneTransferRoomPlainValue(scenario.targetPlans);
+  state.activeScenarioId = scenario.id;
+  return scenario;
+}
+
+export function removeTransferRoomScenario(state, scenarioId) {
+  const id = normalizeTransferRoomText(scenarioId, 120);
+  const scenarios = Array.isArray(state.scenarios) ? state.scenarios : [];
+  const scenario = scenarios.find((item) => item.id === id);
+  if (!scenario) {
+    return null;
+  }
+  state.scenarios = scenarios.filter((item) => item.id !== id);
+  if (state.activeScenarioId === id) {
+    state.activeScenarioId = "";
+  }
+  return scenario;
 }
 
 export function syncTransferRoomSquadPlans(state, players = []) {
@@ -415,6 +787,18 @@ export function cloneTransferRoomState(source = {}, options = {}) {
     squadPlans: source.squadPlans && typeof source.squadPlans === "object" && !Array.isArray(source.squadPlans) ? { ...source.squadPlans } : {},
     targetPlans,
     targetSnapshots,
+    auditEvents: (Array.isArray(source.auditEvents) ? source.auditEvents : [])
+      .map(normalizeTransferRoomAuditEvent)
+      .filter(Boolean)
+      .slice(-160),
+    lastNotice: normalizeTransferRoomNotice(source.lastNotice || {}),
+    approvalsRequired: transferRoomApprovalRoles.map((role) => role.id),
+    scenarioDraft: normalizeTransferRoomScenarioDraft(source.scenarioDraft || {}),
+    scenarios: (Array.isArray(source.scenarios) ? source.scenarios : [])
+      .map(normalizeTransferRoomScenario)
+      .filter(Boolean)
+      .slice(-24),
+    activeScenarioId: normalizeTransferRoomText(source.activeScenarioId, 120),
     windows: Array.isArray(source.windows) ? source.windows : [],
     updatedAt: source.updatedAt || new Date().toISOString(),
   };

@@ -1,17 +1,26 @@
 import {
   addTransferRoomTargetSnapshot,
+  activateTransferRoomScenario,
+  appendTransferRoomAuditEvent,
+  applyTransferRoomScenarioDraftPatch,
   applyTransferRoomSettingsPatch,
   applyTransferRoomSquadPlanPatch,
   applyTransferRoomTargetPlanPatch,
+  clearTransferRoomNotice,
   cloneTransferRoomState,
   getTransferRoomSquadPlayersFromProfiles,
   getTransferRoomTeamAccessIds,
+  getTransferRoomTargetStageGateIssues,
   isTransferRoomSelectedUser,
   normalizeTransferRoomText,
+  removeTransferRoomScenario,
   removeTransferRoomTargetFromState,
+  saveTransferRoomCurrentScenario,
+  setTransferRoomNotice,
   setTransferRoomAccessUser,
   syncTransferRoomSquadPlans,
   syncTransferRoomTargetsFromScouting,
+  transferRoomApprovalRoles,
   transferRoomCurrencyOptions,
   transferRoomWagePeriodOptions,
 } from "./transfer-room-state.js";
@@ -143,6 +152,77 @@ export function createTransferRoomRuntime(deps = {}) {
     return (role === "admin" || role === "team-admin") && canAccess(user);
   }
 
+  function getActorMeta() {
+    const user = getCurrentUser();
+    return {
+      actorId: normalizeTransferRoomText(user.id || user.email, 180),
+      actorName: normalizeTransferRoomText([user.firstName, user.lastName].filter(Boolean).join(" ") || user.username || user.email || "Transfer Room user", 180),
+      actorRole: normalizeTransferRoomText(getRole(user), 80),
+    };
+  }
+
+  function getAuditTeamId(state = getState()) {
+    return normalizeTransferRoomText(state?.activeTeamId || getCurrentTeam().id, 180);
+  }
+
+  function getAuditFieldLabel(field = "") {
+    const labels = {
+      activeTeamId: "Team",
+      agent: "Agent",
+      capBuffer: "Internal buffer",
+      contractEnd: "Contract end",
+      contractStatus: "Contract",
+      currency: "Currency",
+      dealType: "Deal",
+      decisionOwner: "Owner",
+      estimatedValue: "Value",
+      fee: "Fee",
+      nextAction: "Next action",
+      nextActionDate: "Action date",
+      notes: "Notes",
+      plannedWindow: "Window",
+      replacementFor: "Replacement",
+      riskLevel: "Risk",
+      salary: "Salary",
+      salaryCap: "Salary cap",
+      scenarioName: "Scenario name",
+      scenarioNotes: "Scenario notes",
+      stage: "Stage",
+      status: "Decision",
+      valuationConfidence: "Confidence",
+      wage: "Wage",
+      wagePeriod: "Wage period",
+      whyThisPlayer: "Why this player",
+    };
+    return labels[field] || field;
+  }
+
+  function formatAuditValue(value) {
+    if (value === "" || value === null || value === undefined) {
+      return "empty";
+    }
+    return normalizeTransferRoomText(value, 180);
+  }
+
+  function getAuditChanges(previous = {}, next = {}, patch = {}) {
+    return Object.keys(patch)
+      .filter((field) => formatAuditValue(previous[field]) !== formatAuditValue(next[field]))
+      .map((field) => ({
+        field,
+        label: getAuditFieldLabel(field),
+        before: formatAuditValue(previous[field]),
+        after: formatAuditValue(next[field]),
+      }));
+  }
+
+  function writeAuditEvent(state, event = {}) {
+    appendTransferRoomAuditEvent(state, {
+      ...getActorMeta(),
+      teamId: getAuditTeamId(state),
+      ...event,
+    });
+  }
+
   function afterMutation() {
     writeState();
     render();
@@ -158,21 +238,218 @@ export function createTransferRoomRuntime(deps = {}) {
     if (!canAccess()) {
       return;
     }
-    applyTransferRoomSettingsPatch(ensureState(), patch);
+    const state = ensureState();
+    const previous = { ...(state.settings || {}) };
+    applyTransferRoomSettingsPatch(state, patch);
+    const changes = getAuditChanges(previous, state.settings, patch);
+    if (changes.length) {
+      clearTransferRoomNotice(state);
+      writeAuditEvent(state, {
+        type: "settings-updated",
+        subjectLabel: "Transfer Room settings",
+        message: "Updated Transfer Room settings.",
+        changes,
+      });
+    }
     afterMutation();
   }
 
   function updateSquadPlan(playerId, patch = {}) {
-    if (!canAccess() || !applyTransferRoomSquadPlanPatch(ensureState(), playerId, patch)) {
+    const state = ensureState();
+    const id = normalizeTransferRoomText(playerId, 180);
+    if (!canAccess() || !id) {
       return;
+    }
+    const previous = { ...(state.squadPlans?.[id] || {}) };
+    if (!applyTransferRoomSquadPlanPatch(state, id, patch)) {
+      return;
+    }
+    const next = state.squadPlans?.[id] || {};
+    const changes = getAuditChanges(previous, next, patch);
+    if (changes.length) {
+      clearTransferRoomNotice(state);
+      writeAuditEvent(state, {
+        type: "squad-plan-updated",
+        playerId: id,
+        subjectLabel: next.name || previous.name || "Squad player",
+        message: `Updated squad plan for ${next.name || previous.name || "squad player"}.`,
+        changes,
+      });
     }
     afterMutation();
   }
 
   function updateTargetPlan(recordId, patch = {}) {
-    if (!canAccess() || !applyTransferRoomTargetPlanPatch(ensureState(), recordId, patch)) {
+    const state = ensureState();
+    const id = normalizeTransferRoomText(recordId, 180);
+    if (!canAccess() || !id) {
       return;
     }
+    const previous = { ...(state.targetPlans?.[id] || {}) };
+    if (!previous.recordId) {
+      return;
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, "stage") && patch.stage !== previous.stage) {
+      const preview = { ...previous, ...patch, recordId: id };
+      const issues = getTransferRoomTargetStageGateIssues(preview, state);
+      if (issues.length) {
+        const issueLabels = issues.map((issue) => issue.label).join(", ");
+        setTransferRoomNotice(state, {
+          type: "error",
+          recordId: id,
+          message: `Stage gate blocked: ${previous.name || "target"} cannot move to ${String(patch.stage || "").replace(/-/g, " ")}.`,
+          detail: `Missing or blocked: ${issueLabels}.`,
+        });
+        writeAuditEvent(state, {
+          type: "stage-blocked",
+          targetRecordId: id,
+          subjectLabel: previous.name || "Transfer target",
+          message: `Blocked stage move for ${previous.name || "transfer target"}.`,
+          detail: `Requested ${patch.stage}. Missing or blocked: ${issueLabels}.`,
+          changes: [{ field: "stage", label: "Stage", before: previous.stage, after: patch.stage }],
+        });
+        afterMutation();
+        return;
+      }
+    }
+    if (!applyTransferRoomTargetPlanPatch(state, id, patch)) {
+      return;
+    }
+    const next = state.targetPlans?.[id] || {};
+    const changes = getAuditChanges(previous, next, patch);
+    if (changes.length) {
+      if (Object.prototype.hasOwnProperty.call(patch, "stage")) {
+        setTransferRoomNotice(state, {
+          type: "success",
+          recordId: id,
+          message: `${next.name || "Target"} moved to ${String(next.stage || "").replace(/-/g, " ")}.`,
+        });
+      } else {
+        clearTransferRoomNotice(state);
+      }
+      writeAuditEvent(state, {
+        type: "target-plan-updated",
+        targetRecordId: id,
+        subjectLabel: next.name || previous.name || "Transfer target",
+        message: `Updated transfer plan for ${next.name || previous.name || "transfer target"}.`,
+        changes,
+      });
+    }
+    afterMutation();
+  }
+
+  function setTargetApproval(recordId, roleId, status = "approved") {
+    const state = ensureState();
+    const id = normalizeTransferRoomText(recordId, 180);
+    const role = transferRoomApprovalRoles.find((item) => item.id === roleId);
+    if (!canAccess() || !id || !role || !state.targetPlans?.[id]) {
+      return;
+    }
+    const previous = { ...(state.targetPlans[id] || {}) };
+    const actor = getActorMeta();
+    const nextStatus = status === "rejected" ? "rejected" : status === "pending" ? "pending" : "approved";
+    const approvals = {
+      ...(previous.approvals || {}),
+      [role.id]: {
+        roleId: role.id,
+        label: role.label,
+        status: nextStatus,
+        actorId: nextStatus === "pending" ? "" : actor.actorId,
+        actorName: nextStatus === "pending" ? "" : actor.actorName,
+        actorRole: nextStatus === "pending" ? "" : actor.actorRole,
+        decidedAt: nextStatus === "pending" ? "" : new Date().toISOString(),
+      },
+    };
+    if (!applyTransferRoomTargetPlanPatch(state, id, { approvals })) {
+      return;
+    }
+    const next = state.targetPlans[id] || {};
+    setTransferRoomNotice(state, {
+      type: nextStatus === "rejected" ? "warning" : nextStatus === "pending" ? "info" : "success",
+      recordId: id,
+      message: `${role.label} ${nextStatus === "pending" ? "reset" : nextStatus} for ${next.name || previous.name || "target"}.`,
+    });
+    writeAuditEvent(state, {
+      type: "target-approval-updated",
+      targetRecordId: id,
+      subjectLabel: next.name || previous.name || "Transfer target",
+      message: `${role.label} approval ${nextStatus} for ${next.name || previous.name || "transfer target"}.`,
+      changes: [{
+        field: `approval:${role.id}`,
+        label: role.label,
+        before: previous.approvals?.[role.id]?.status || "pending",
+        after: nextStatus,
+      }],
+    });
+    afterMutation();
+  }
+
+  function updateScenarioDraft(patch = {}) {
+    const state = ensureState();
+    if (!canAccess()) {
+      return;
+    }
+    applyTransferRoomScenarioDraftPatch(state, patch);
+    afterMutation();
+  }
+
+  function saveScenario(options = {}) {
+    const state = ensureState();
+    if (!canAccess()) {
+      return;
+    }
+    if (options.name || options.notes) {
+      applyTransferRoomScenarioDraftPatch(state, options);
+    }
+    const scenario = saveTransferRoomCurrentScenario(state);
+    if (!scenario) {
+      return;
+    }
+    setTransferRoomNotice(state, {
+      type: "success",
+      message: `${scenario.name} saved.`,
+    });
+    writeAuditEvent(state, {
+      type: "scenario-saved",
+      subjectLabel: scenario.name,
+      message: `Saved scenario ${scenario.name}.`,
+    });
+    afterMutation();
+  }
+
+  function activateScenario(scenarioId) {
+    const state = ensureState();
+    if (!canAccess()) {
+      return;
+    }
+    const scenario = activateTransferRoomScenario(state, scenarioId);
+    if (!scenario) {
+      return;
+    }
+    clearTransferRoomNotice(state);
+    writeAuditEvent(state, {
+      type: "scenario-activated",
+      subjectLabel: scenario.name,
+      message: `Activated scenario ${scenario.name}.`,
+    });
+    afterMutation();
+  }
+
+  function removeScenario(scenarioId) {
+    const state = ensureState();
+    if (!canAccess()) {
+      return;
+    }
+    const scenario = removeTransferRoomScenario(state, scenarioId);
+    if (!scenario) {
+      return;
+    }
+    clearTransferRoomNotice(state);
+    writeAuditEvent(state, {
+      type: "scenario-removed",
+      subjectLabel: scenario.name,
+      message: `Removed scenario ${scenario.name}.`,
+    });
     afterMutation();
   }
 
@@ -200,12 +477,21 @@ export function createTransferRoomRuntime(deps = {}) {
 
   function removeTarget(recordId) {
     const state = ensureState();
-    if (!canAccess() || !removeTransferRoomTargetFromState(state, recordId)) {
+    const id = normalizeTransferRoomText(recordId, 180);
+    const previous = id ? state.targetPlans?.[id] : null;
+    if (!canAccess() || !removeTransferRoomTargetFromState(state, id)) {
       return;
     }
-    if (state.activeTargetProfileRecordId === normalizeTransferRoomText(recordId, 180)) {
+    if (state.activeTargetProfileRecordId === id) {
       state.activeTargetProfileRecordId = "";
     }
+    clearTransferRoomNotice(state);
+    writeAuditEvent(state, {
+      type: "target-removed",
+      targetRecordId: id,
+      subjectLabel: previous?.name || "Transfer target",
+      message: `Removed ${previous?.name || "transfer target"} from Target board.`,
+    });
     afterMutation();
   }
 
@@ -217,6 +503,13 @@ export function createTransferRoomRuntime(deps = {}) {
     if (!setTransferRoomAccessUser(state, state.activeTeamId || getCurrentTeam().id, userId, isSelected)) {
       return;
     }
+    clearTransferRoomNotice(state);
+    writeAuditEvent(state, {
+      type: "access-updated",
+      subjectLabel: "Transfer Room access",
+      message: `${isSelected ? "Granted" : "Removed"} selected-person access.`,
+      changes: [{ field: "access", label: "Access", before: isSelected ? "not selected" : "selected", after: isSelected ? "selected" : "not selected" }],
+    });
     afterMutation();
   }
 
@@ -224,9 +517,19 @@ export function createTransferRoomRuntime(deps = {}) {
     if (!canAccess()) {
       return false;
     }
-    if (!addTransferRoomTargetSnapshot(ensureState(), snapshot, options)) {
+    const state = ensureState();
+    if (!addTransferRoomTargetSnapshot(state, snapshot, options)) {
       return false;
     }
+    const recordId = normalizeTransferRoomText(snapshot.recordId || snapshot.id || options.recordId, 180);
+    const plan = state.targetPlans?.[recordId] || {};
+    clearTransferRoomNotice(state);
+    writeAuditEvent(state, {
+      type: "target-added",
+      targetRecordId: recordId,
+      subjectLabel: plan.name || snapshot.name || "Transfer target",
+      message: `Added ${plan.name || snapshot.name || "transfer target"} to Target board.`,
+    });
     writeState();
     if (isActiveWorkspace()) {
       render();
@@ -252,6 +555,11 @@ export function createTransferRoomRuntime(deps = {}) {
       updateSettings,
       updateSquadPlan,
       updateTargetPlan,
+      setTargetApproval,
+      updateScenarioDraft,
+      saveScenario,
+      activateScenario,
+      removeScenario,
       openTargetProfile,
       closeTargetProfile,
       removeTarget,
@@ -327,6 +635,11 @@ export function createTransferRoomRuntime(deps = {}) {
     updateSettings,
     updateSquadPlan,
     updateTargetPlan,
+    setTargetApproval,
+    updateScenarioDraft,
+    saveScenario,
+    activateScenario,
+    removeScenario,
     openTargetProfile,
     closeTargetProfile,
     removeTarget,

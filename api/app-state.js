@@ -48,6 +48,8 @@ const SESSION_PLANNER_BLOCK_MERGE_FIELDS = [
   "playerBoardPositions",
   "playerBoardColors",
   "tacticalElements",
+  "tacticalFrames",
+  "tacticalActiveFrameId",
 ];
 const SESSION_PLANNER_BLOCK_MERGE_FIELD_SET = new Set(SESSION_PLANNER_BLOCK_MERGE_FIELDS);
 const PERIODIZATION_FIELD_META_KEY = "fieldUpdatedAt";

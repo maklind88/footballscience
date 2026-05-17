@@ -1177,6 +1177,124 @@ test("app-state merges concurrent Session Planner edits by field timestamps", as
   }
 });
 
+test("app-state preserves newest Session Planner tactical frame state during stale saves", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const existingState = {
+    selectedDate: "2026-05-05",
+    sessions: {
+      "2026-05-05": {
+        date: "2026-05-05",
+        selectedBlockId: "block-1",
+        blocks: [
+          {
+            id: "block-1",
+            title: "Rondo",
+            organization: "Old organization",
+            tacticalElements: [{ id: "current-line", type: "line" }],
+            tacticalFrames: [
+              {
+                id: "frame-current",
+                label: "Current board",
+                elements: [{ id: "current-cone", type: "cone" }],
+              },
+            ],
+            tacticalActiveFrameId: "frame-current",
+            fieldUpdatedAt: {
+              organization: "2026-05-07T13:00:00.000Z",
+              tacticalElements: "2026-05-07T16:00:00.000Z",
+              tacticalFrames: "2026-05-07T16:00:00.000Z",
+              tacticalActiveFrameId: "2026-05-07T16:00:00.000Z",
+            },
+            updatedAt: "2026-05-07T16:00:00.000Z",
+          },
+        ],
+      },
+    },
+  };
+  const staleIncomingState = {
+    selectedDate: "2026-05-05",
+    sessions: {
+      "2026-05-05": {
+        date: "2026-05-05",
+        selectedBlockId: "block-1",
+        blocks: [
+          {
+            id: "block-1",
+            title: "Rondo",
+            organization: "Fresh organization from another coach",
+            tacticalElements: [{ id: "stale-line", type: "line" }],
+            tacticalFrames: [
+              {
+                id: "frame-stale",
+                label: "Stale board",
+                elements: [{ id: "stale-cone", type: "cone" }],
+              },
+            ],
+            tacticalActiveFrameId: "frame-stale",
+            fieldUpdatedAt: {
+              organization: "2026-05-07T17:00:00.000Z",
+              tacticalElements: "2026-05-07T15:00:00.000Z",
+              tacticalFrames: "2026-05-07T15:00:00.000Z",
+              tacticalActiveFrameId: "2026-05-07T15:00:00.000Z",
+            },
+            updatedAt: "2026-05-07T17:00:00.000Z",
+          },
+        ],
+      },
+    },
+  };
+  const storage = createAppStateFetchMock({
+    [appStateSessionPlannerPath]: {
+      ...createAppStateStorageEntry(appStateSessionPlannerKey, existingState),
+      revision: 2,
+    },
+  });
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        key: appStateSessionPlannerKey,
+        value: JSON.stringify(staleIncomingState),
+        metadata: { baseRevision: 1 },
+      }),
+    });
+    expect(response.status).toBe(200);
+    expect(response.payload).toMatchObject({
+      ok: true,
+      key: appStateSessionPlannerKey,
+      merged: true,
+    });
+
+    const storedState = JSON.parse(storage.objects.get(appStateSessionPlannerPath).value);
+    const storedBlock = storedState.sessions["2026-05-05"].blocks[0];
+    expect(storedBlock.organization).toBe("Fresh organization from another coach");
+    expect(storedBlock.tacticalElements).toEqual([{ id: "current-line", type: "line" }]);
+    expect(storedBlock.tacticalFrames).toEqual([
+      {
+        id: "frame-current",
+        label: "Current board",
+        elements: [{ id: "current-cone", type: "cone" }],
+      },
+    ]);
+    expect(storedBlock.tacticalActiveFrameId).toBe("frame-current");
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
 test("app-state merges stale Periodization day edits by field timestamps", async () => {
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;

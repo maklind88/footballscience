@@ -837,6 +837,16 @@ test("Medical bulk recommendation opens as a compact dated action row", async ({
   await bootApp(page);
   await openWorkspace(page, "medical-team");
 
+  const rowBulkToggle = page.locator('[data-medical-bulk-toggle="bulk-two"]');
+  await expect(rowBulkToggle).toHaveText("");
+  await expect(rowBulkToggle).toHaveAttribute("aria-label", "Select Bulk Two for bulk recommendation");
+  await rowBulkToggle.click();
+  await expect(rowBulkToggle).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("[data-medical-bulk-menu-toggle]")).toContainText("1 selected");
+  await rowBulkToggle.click();
+  await expect(rowBulkToggle).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator("[data-medical-bulk-menu-toggle]")).toContainText("0 selected");
+
   const bulkToggle = page.locator("[data-medical-bulk-menu-toggle]");
   await expect(bulkToggle).toContainText("Bulk Recommendation");
   await expect(page.locator("#medicalBulkRecommendationForm")).toHaveCount(0);

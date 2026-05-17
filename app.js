@@ -29587,7 +29587,10 @@ const isBulkSelected = getMedicalValidBulkSelection().has(player.id);
 const participationLabel = record ? `${record.participation}%` : "Not set";
 const latestComment = getMedicalVisibleComment(record);
 const phaseLabel = record ? getMedicalRtpPhaseOption(record.rtpPhase).label : "No RTP phase";
-const selectedLabel = isBulkSelected ? "Selected" : "Select";
+const canBulkSelect = canEditMedicalTeam() && activityContext.isRecommendable;
+const bulkToggleLabel = isBulkSelected
+? `Remove ${player.name} from bulk recommendation`
+: `Select ${player.name} for bulk recommendation`;
 return `
 <article
 class="medical-roster-row medical-tone-${escapeHtml(status.tone)}${isSelected && medicalPlayerModalOpen ? " is-selected" : ""}${isBulkSelected ? " is-bulk-selected" : ""}"
@@ -29630,8 +29633,10 @@ type="button"
 class="medical-row-select-button${isBulkSelected ? " is-selected" : ""}"
 data-medical-bulk-toggle="${escapeHtml(player.id)}"
 aria-pressed="${isBulkSelected ? "true" : "false"}"
-${canEditMedicalTeam() && activityContext.isRecommendable ? "" : "disabled"}
->${selectedLabel}</button>
+aria-label="${escapeHtml(bulkToggleLabel)}"
+title="${escapeHtml(bulkToggleLabel)}"
+${canBulkSelect ? "" : "disabled"}
+><span aria-hidden="true"></span></button>
 </div>
 ${latestComment ? `<p class="medical-row-comment">${escapeHtml(latestComment)}</p>` : ""}
 </article>

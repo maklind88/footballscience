@@ -275,14 +275,18 @@
     minmax(8.4rem, 0.58fr)
     minmax(13rem, 0.88fr)
     minmax(18.5rem, 1.22fr)
-    minmax(6.2rem, 0.42fr);
+    minmax(3.4rem, 0.24fr);
   align-items: center;
   gap: 0.55rem;
-  min-width: 64rem;
+  min-width: 61rem;
 }
 
 .medical-roster-list-head {
   padding: 0 0.72rem;
+}
+
+.medical-roster-list-head span:last-child {
+  text-align: center;
 }
 
 .medical-roster-row {
@@ -469,7 +473,7 @@
 .medical-roster-actions-cell {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 0.34rem;
   min-width: 0;
 }
@@ -478,29 +482,80 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 1.9rem;
-  max-width: 100%;
-  padding: 0 0.62rem;
-  border-radius: 999px;
+  position: relative;
+  width: 2.05rem;
+  height: 2.05rem;
+  min-width: 2.05rem;
+  min-height: 2.05rem;
+  padding: 0;
+  border-radius: 10px;
   border: 1px solid rgba(29, 31, 29, 0.1);
   background: rgba(246, 248, 247, 0.94);
-  color: #17251e;
+  color: transparent;
   box-shadow: none;
   font: inherit;
-  font-size: 0.68rem;
+  font-size: 0;
   font-weight: 900;
   line-height: 1;
   white-space: nowrap;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
 }
 
 .medical-row-select-button {
   cursor: pointer;
 }
 
+.medical-row-select-button::before {
+  content: "";
+  width: 0.92rem;
+  height: 0.92rem;
+  border: 2px solid rgba(23, 37, 30, 0.34);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: inset 0 1px 1px rgba(12, 24, 20, 0.08);
+}
+
+.medical-row-select-button:hover,
+.medical-row-select-button:focus-visible {
+  border-color: rgba(20, 97, 63, 0.28);
+  background: rgba(237, 248, 242, 0.96);
+  box-shadow: 0 8px 18px rgba(12, 24, 20, 0.08);
+  outline: none;
+  transform: translateY(-1px);
+}
+
 .medical-row-select-button.is-selected {
-  border-color: rgba(0, 113, 227, 0.32);
-  background: rgba(226, 241, 255, 0.96);
-  color: #0755a0;
+  border-color: rgba(20, 97, 63, 0.34);
+  background: rgba(223, 247, 231, 0.94);
+  color: transparent;
+}
+
+.medical-row-select-button.is-selected::before {
+  border-color: #14613f;
+  background: #14613f;
+  box-shadow: 0 0 0 3px rgba(20, 97, 63, 0.12);
+}
+
+.medical-row-select-button.is-selected::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 47%;
+  width: 0.34rem;
+  height: 0.62rem;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: translate(-50%, -56%) rotate(45deg);
+}
+
+.medical-row-select-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  transform: none;
 }
 
 .medical-row-comment {
@@ -1001,6 +1056,24 @@ body.is-dark-mode .medical-row-select-button.is-selected {
   color: #fff;
 }
 
+body.is-dark-mode .medical-row-select-button {
+  color: transparent;
+}
+
+body.is-dark-mode .medical-row-select-button::before {
+  border-color: rgba(226, 232, 240, 0.42);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+body.is-dark-mode .medical-row-select-button.is-selected::before {
+  border-color: #b8f2ce;
+  background: #b8f2ce;
+}
+
+body.is-dark-mode .medical-row-select-button.is-selected::after {
+  border-color: #163726;
+}
+
 body.is-dark-mode .medical-ops-header h2,
 body.is-dark-mode .medical-ops-stat strong,
 body.is-dark-mode .medical-ops-card .medical-command-head strong,
@@ -1092,8 +1165,8 @@ body.is-dark-mode .medical-ops-stat-clear {
       minmax(7.8rem, 0.55fr)
       minmax(11.5rem, 0.78fr)
       minmax(16.4rem, 1fr)
-      minmax(5.8rem, 0.4fr);
-    min-width: 58rem;
+      minmax(3.35rem, 0.24fr);
+    min-width: 55rem;
   }
 
   .medical-bulk-form {
@@ -1186,8 +1259,8 @@ body.is-dark-mode .medical-ops-stat-clear {
       minmax(7.4rem, 0.55fr)
       minmax(10.5rem, 0.78fr)
       minmax(15rem, 1fr)
-      minmax(5.6rem, 0.4fr);
-    min-width: 52rem;
+      minmax(3.25rem, 0.24fr);
+    min-width: 49.5rem;
   }
 
   .medical-ops-header {

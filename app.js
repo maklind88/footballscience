@@ -31776,7 +31776,7 @@ const pitchValue = pitchLabel
 : "";
 return `
     <article
-      class="periodization-day-card is-${escapeHtml(dayTone)}${isSelected ? " is-selected" : ""}${isOutsideMonth ? " is-outside-month" : ""}"
+      class="periodization-day-card is-${escapeHtml(dayTone)}${matchDayLabel ? " has-matchday" : ""}${isSelected ? " is-selected" : ""}${isOutsideMonth ? " is-outside-month" : ""}"
       data-periodization-date="${escapeHtml(dateValue)}"
       role="button"
       tabindex="0"
@@ -31798,11 +31798,11 @@ ${renderSessionPlannerActionIcon("pencil")}
       <span class="periodization-day-topline">
         <strong>${escapeHtml(date.toLocaleDateString("en-US", { weekday: "short" }))}</strong>
         <span>${date.getDate()}</span>
-        ${matchDayLabel ? `<i class="periodization-day-md">${escapeHtml(matchDayLabel)}</i>` : ""}
       </span>
       <span class="periodization-day-main${dayScheduleLabel ? "" : " is-empty"}">
         ${escapeHtml(dayScheduleLabel)}
       </span>
+      ${matchDayLabel ? `<span class="periodization-day-md-row"><i class="periodization-day-md">${escapeHtml(matchDayLabel)}</i></span>` : ""}
       <span class="periodization-day-details">
         ${renderPeriodizationCardDetail("Video", escapeHtml(preTrainingVideoLabel))}
         ${renderPeriodizationCardDetail("Phase", escapeHtml(phaseLabel))}

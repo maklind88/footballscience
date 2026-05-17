@@ -940,6 +940,10 @@ test("Medical recommendations use match context and lock non-activity days", asy
     )
     .toBe("100:match-available");
   await expect(playerRow.locator(".medical-status-chip")).toHaveText("Match Available");
+  await expect(playerRow).toHaveClass(/medical-tone-full/);
+  await expect(playerRow).not.toHaveClass(/medical-tone-monitor/);
+  await expect(playerRow.locator(".medical-status-chip")).toHaveClass(/medical-tone-full/);
+  await expect(playerRow.locator(".medical-day-cell").filter({ hasText: "100%" }).first()).toHaveClass(/medical-tone-full/);
   await expect(playerRow).not.toContainText("Full Training");
 
   await playerRow.click();

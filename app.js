@@ -1936,6 +1936,11 @@ unavailable: "Unavailable",
 monitor: "Match Available",
 },
 };
+const medicalStatusActivityTones = {
+match: {
+monitor: "full",
+},
+};
 const medicalInjuryPlanStatusOptions = medicalStatusOptions;
 const medicalRtpPhaseOptions = [
 { key: "medical-restriction", label: "Medical restriction", status: "unavailable", participation: 0 },
@@ -22298,7 +22303,8 @@ return "training";
 function getMedicalStatusOptionForActivity(statusKey, activityType = "training") {
 const status = getMedicalStatusOption(statusKey);
 const label = medicalStatusActivityLabels[activityType]?.[status.key] ?? status.label;
-return { ...status, label, activityType };
+const tone = medicalStatusActivityTones[activityType]?.[status.key] ?? status.tone;
+return { ...status, label, tone, activityType };
 }
 function getMedicalStatusOptionForDate(statusKey, dateValue = medicalState?.selectedDate, rtpPhase = "") {
 return getMedicalStatusOptionForActivity(statusKey, getMedicalStatusActivityType(dateValue, rtpPhase));

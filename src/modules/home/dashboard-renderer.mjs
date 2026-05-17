@@ -1,3 +1,9 @@
+import {
+  getHomeAppearanceConfig,
+  getHomeAppearanceSections,
+  getHomeSectionAppearance,
+} from "../../core/appearance-governance.mjs";
+
 export function createDashboardHomeCardsRenderer(dependencies = {}) {
   const {
     escapeHtml = (value) => String(value ?? ""),
@@ -77,19 +83,30 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
   `;
   }
 
-  function renderTopTasksRow(context) {
+  function getSectionClasses(sectionAppearance, baseClass) {
+    return `${baseClass} dashboard-appearance-density-${escapeHtml(sectionAppearance.density)} dashboard-appearance-tone-${escapeHtml(sectionAppearance.tone)}`;
+  }
+
+  function renderPanelHeader(sectionAppearance, countMarkup = "") {
+    return `
+        <header class="dashboard-panel-head">
+          <div>
+            <p class="dashboard-card-kicker">${escapeHtml(sectionAppearance.eyebrow)}</p>
+            <h2>${escapeHtml(sectionAppearance.title)}</h2>
+          </div>
+          ${countMarkup}
+        </header>
+    `;
+  }
+
+  function renderTopTasksRow(context, appearanceConfig = {}) {
     const topPriorityTasks = getDashboardTopPriorityTasks(context, 3);
+    const sectionAppearance = getHomeSectionAppearance(appearanceConfig, "topTasks");
 
     return `
     <section class="dashboard-top-task-band" aria-label="Top tasks">
-      <article class="dashboard-panel dashboard-top-task-panel">
-        <header class="dashboard-panel-head">
-          <div>
-            <p class="dashboard-card-kicker">Top 3</p>
-            <h2>Priority Tasks</h2>
-          </div>
-          <span class="dashboard-panel-count">Today</span>
-        </header>
+      <article class="${getSectionClasses(sectionAppearance, "dashboard-panel dashboard-top-task-panel")}" data-dashboard-appearance-type="${escapeHtml(sectionAppearance.componentType)}">
+        ${renderPanelHeader(sectionAppearance, '<span class="dashboard-panel-count">Today</span>')}
         <div class="dashboard-top-task-list">
           ${
             topPriorityTasks.length
@@ -108,20 +125,20 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
   `;
   }
 
-  function renderTodoCommand(context, staffOptions) {
+  function renderTodoCommand(context, staffOptions, appearanceConfig = {}) {
+    const sectionAppearance = getHomeSectionAppearance(appearanceConfig, "todo");
     return `
-    <article class="dashboard-panel dashboard-todo-command">
-      <header class="dashboard-panel-head">
-        <div>
-          <p class="dashboard-card-kicker">Coach To-Do</p>
-          <h2>Work Queue</h2>
-        </div>
+    <article class="${getSectionClasses(sectionAppearance, "dashboard-panel dashboard-todo-command")}" data-dashboard-appearance-type="${escapeHtml(sectionAppearance.componentType)}">
+      ${renderPanelHeader(
+        sectionAppearance,
+        `
         <div class="dashboard-summary-strip" aria-label="Task overview">
           <span><strong>${context.myOpenTasks.length}</strong><small>Mine</small></span>
           <span><strong>${context.delegatedOpenTasks.length}</strong><small>Delegated</small></span>
           <span><strong>${context.personalOpenTasks.length}</strong><small>Personal</small></span>
         </div>
-      </header>
+        `
+      )}
       <div class="dashboard-todo-columns">
         <section>
           <h3>My Work</h3>
@@ -155,18 +172,13 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
   `;
   }
 
-  function renderAlertsCard(context) {
+  function renderAlertsCard(context, appearanceConfig = {}) {
     const alerts = context.alerts ?? [];
+    const sectionAppearance = getHomeSectionAppearance(appearanceConfig, "alerts");
 
     return `
-    <article class="dashboard-panel dashboard-alerts-card">
-      <header class="dashboard-panel-head">
-        <div>
-          <p class="dashboard-card-kicker">Player / Team Alerts</p>
-          <h2>Attention</h2>
-        </div>
-        <span class="dashboard-panel-count">${alerts.length}</span>
-      </header>
+    <article class="${getSectionClasses(sectionAppearance, "dashboard-panel dashboard-alerts-card")}" data-dashboard-appearance-type="${escapeHtml(sectionAppearance.componentType)}">
+      ${renderPanelHeader(sectionAppearance, `<span class="dashboard-panel-count">${alerts.length}</span>`)}
       <div class="dashboard-alert-list">
         ${
           alerts
@@ -202,15 +214,38 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
   `;
   }
 
-  function render(context, staffOptions) {
+  function renderHomeSection(section, context, staffOptions, appearanceConfig) {
+    if (section.id === "topTasks") {
+      return renderTopTasksRow(context, appearanceConfig);
+    }
+    if (section.id === "todo") {
+      return renderTodoCommand(context, staffOptions, appearanceConfig);
+    }
+    if (section.id === "alerts") {
+      return renderAlertsCard(context, appearanceConfig);
+    }
+    return "";
+  }
+
+  function render(context, staffOptions, appearanceConfig = {}) {
+    const homeAppearance = getHomeAppearanceConfig(appearanceConfig);
+    const sections = getHomeAppearanceSections(appearanceConfig);
+    const mainSections = sections
+      .filter((section) => section.id === "topTasks")
+      .map((section) => renderHomeSection(section, context, staffOptions, appearanceConfig))
+      .join("");
+    const operationSections = sections
+      .filter((section) => section.id !== "topTasks")
+      .map((section) => renderHomeSection(section, context, staffOptions, appearanceConfig))
+      .join("");
+
     return `
-    <section class="dashboard-workspace-layout dashboard-home-ops" aria-label="Home dashboard">
+    <section class="dashboard-workspace-layout dashboard-home-ops dashboard-home-density-${escapeHtml(homeAppearance.density)} dashboard-home-theme-${escapeHtml(homeAppearance.theme)}" aria-label="Home dashboard">
       <section class="dashboard-home-grid" aria-label="Coach workspace">
         <section class="dashboard-home-main" aria-label="Work queue and alerts">
-          ${renderTopTasksRow(context)}
+          ${mainSections}
           <section class="dashboard-symmetric-row" aria-label="Coach operations">
-            ${renderTodoCommand(context, staffOptions)}
-            ${renderAlertsCard(context)}
+            ${operationSections}
           </section>
         </section>
       </section>

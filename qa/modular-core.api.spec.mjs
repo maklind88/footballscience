@@ -25,6 +25,7 @@ test("modular core covers protected storage keys without loading the current UI"
     saveEndpoint: "/api/app-state",
     localPersistence: "cache-only",
   });
+  expect(registry.ownersForStorageKey("football-platform-appearance-v1")).toEqual(["platform-appearance"]);
   expect(registry.ownersForStorageKey("football-session-exercise-library-backup-v1")).toEqual(["exercise-library"]);
   expect(registry.ownersForStorageKey("football-scouting-v1")).toEqual(["scouting"]);
   expect(platformModuleRegistry.ids()).toContain("session-planner");

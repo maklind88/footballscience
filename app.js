@@ -45,6 +45,17 @@ import { uploadDashboardChatAttachmentFile as uploadDashboardChatAttachmentFileW
 import { createDashboardHomeCardsRenderer } from "./src/modules/home/dashboard-renderer.mjs";
 import { selectHomeTaskQueues } from "./src/modules/home/tasks.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
+import {
+createDefaultPlatformAppearanceConfig,
+getHomeAppearanceImpactSummary,
+normalizePlatformAppearanceConfig,
+normalizePlatformAppearanceValue,
+platformAppearanceDensityOptions,
+platformAppearanceHomeComponentTypeIds,
+platformAppearanceHomeSectionDefaults,
+platformAppearanceThemeOptions,
+platformAppearanceToneOptions,
+} from "./src/core/appearance-governance.mjs";
 const canvas = document.getElementById("pitchCanvas");
 const ctx = canvas.getContext("2d");
 const ui = {
@@ -330,6 +341,7 @@ const dashboardChatAdvancedThreadTemplates = [
 const dashboardNotificationSeenStorageKey = "football-dashboard-notification-seen-v1";
 const dashboardTutorialPrefsStorageKey = "football-dashboard-tutorial-prefs-v1";
 const dashboardNewsSeenStorageKey = "football-dashboard-news-seen-v1";
+const platformAppearanceStorageKey = "football-platform-appearance-v1";
 const medicalTeamStorageKey = "football-medical-team-v1";
 const scoutingStorageKey = "football-scouting-v1";
 const sequenceStorageKey = "football-simulator-sequence-v1";
@@ -357,6 +369,7 @@ dashboardTaskStorageKey,
 dashboardNotificationSeenStorageKey,
 dashboardTutorialPrefsStorageKey,
 dashboardNewsSeenStorageKey,
+platformAppearanceStorageKey,
 medicalTeamStorageKey,
 scoutingStorageKey,
 sequenceStorageKey,
@@ -378,6 +391,7 @@ const dataSafetyStorageLabels = {
 [dashboardNotificationSeenStorageKey]: "Home Notifications",
 [dashboardTutorialPrefsStorageKey]: "Dashboard Preferences",
 [dashboardNewsSeenStorageKey]: "Dashboard News",
+[platformAppearanceStorageKey]: "Platform Appearance",
 [medicalTeamStorageKey]: "Medical Room",
 [playerProfilesStorageKey]: "Player Profiles",
 [scoutingStorageKey]: "Scouting",
@@ -761,6 +775,15 @@ if (key === dashboardChatDeletedMessageIdsStorageKey) {
 purgeDashboardDeletedMessagesFromStorage();
 renderDashboardChatWidget();
 renderTopIconMenu();
+return;
+}
+if (key === platformAppearanceStorageKey) {
+if (hubState?.activeWorkspaceId === "home") {
+renderDashboardCards();
+}
+if (hubState?.activeWorkspaceId === "admin") {
+renderAdminWorkspace();
+}
 return;
 }
 if (key === playerProfilesStorageKey) {
@@ -10466,6 +10489,24 @@ delegatedOpenTasks: taskQueues.delegatedOpenTasks,
 context.alerts = getDashboardAlerts(context);
 return context;
 }
+function readPlatformAppearanceState() {
+return normalizePlatformAppearanceConfig(rawDataSafetyGetItem(platformAppearanceStorageKey) || {});
+}
+function writePlatformAppearanceState(config) {
+const currentUser = getCurrentPlatformUser();
+const normalizedValue = normalizePlatformAppearanceValue(config, {
+updatedAt: new Date().toISOString(),
+updatedBy: currentUser?.id || "",
+});
+localStorage.setItem(platformAppearanceStorageKey, normalizedValue);
+return JSON.parse(normalizedValue);
+}
+function getPlatformAppearanceMetadata() {
+return getCentralStateBridge()?.getStatus?.()?.metadata?.[platformAppearanceStorageKey] || {};
+}
+function getHomeAppearanceState() {
+return readPlatformAppearanceState().modules.home;
+}
 function getDashboardTutorialPrefs() {
 const parsed = readDashboardJson(dashboardTutorialPrefsStorageKey, {});
 return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
@@ -10973,6 +11014,7 @@ return;
 const users = getPlatformUsers().filter((user) => user.status === "active");
 const tasks = readDashboardTasks();
 const context = getDashboardHomeContext(currentUser, users, tasks);
+const appearance = readPlatformAppearanceState();
 const staffOptions = users
 .map(
 (user) =>
@@ -10980,7 +11022,7 @@ const staffOptions = users
 )
 .join("");
 ui.dashboardGrid.innerHTML = `
-    ${dashboardHomeCardsRenderer.render(context, staffOptions)}
+    ${dashboardHomeCardsRenderer.render(context, staffOptions, appearance)}
   `;
 syncDashboardChatWidgetNotificationCursor();
 }
@@ -22463,6 +22505,213 @@ renderAdminWorkspace();
 }
 }
 }
+function renderPlatformAppearanceSelect(name, options, selectedValue, labelMap = {}) {
+return `
+    <select name="${escapeHtml(name)}">
+      ${options
+        .map(
+          (option) =>
+            `<option value="${escapeHtml(option)}" ${option === selectedValue ? "selected" : ""}>${escapeHtml(labelMap[option] || option)}</option>`
+        )
+        .join("")}
+    </select>
+  `;
+}
+function formatPlatformAppearanceImpact(impact) {
+if (!impact?.count) {
+return `
+    <div class="appearance-impact-summary appearance-impact-empty">
+      <strong>0 linked</strong>
+      <small>No registered Home components use this type yet.</small>
+    </div>
+  `;
+}
+const componentLabel = impact.count === 1 ? "component" : "components";
+const affectedItems = impact.sections
+.map(
+(section) => `
+      <span class="appearance-impact-chip">
+        ${escapeHtml(section.label)}
+        ${section.enabled ? "" : '<em>Hidden</em>'}
+      </span>
+    `
+)
+.join("");
+return `
+    <div class="appearance-impact-summary">
+      <strong>${escapeHtml(impact.enabledCount)} active / ${escapeHtml(impact.count)} ${componentLabel}</strong>
+      <div class="appearance-impact-list">${affectedItems}</div>
+    </div>
+  `;
+}
+function renderPlatformAppearanceGovernancePanel() {
+const appearance = readPlatformAppearanceState();
+const home = appearance.modules.home;
+const metadata = getPlatformAppearanceMetadata();
+const densityLabels = { compact: "Compact", normal: "Normal", airy: "Airy" };
+const toneLabels = { default: "Default", calm: "Calm", pitch: "Pitch", contrast: "Contrast" };
+const themeLabels = { system: "Follow app theme", light: "Light", dark: "Dark" };
+const impactByType = Object.fromEntries(getHomeAppearanceImpactSummary(appearance).map((impact) => [impact.componentType, impact]));
+const componentTypeRows = platformAppearanceHomeComponentTypeIds
+.map((typeId) => {
+const defaults = home.componentTypes[typeId];
+const impact = impactByType[typeId];
+return `
+        <article class="appearance-type-row">
+          <div>
+            <strong>${escapeHtml(defaults.label)}</strong>
+            <small>Applies to every Home element of this type.</small>
+          </div>
+          ${formatPlatformAppearanceImpact(impact)}
+          <label>
+            <span>Density</span>
+            ${renderPlatformAppearanceSelect(`componentType.${typeId}.density`, platformAppearanceDensityOptions, defaults.density, densityLabels)}
+          </label>
+          <label>
+            <span>Tone</span>
+            ${renderPlatformAppearanceSelect(`componentType.${typeId}.tone`, platformAppearanceToneOptions, defaults.tone, toneLabels)}
+          </label>
+        </article>
+      `;
+})
+.join("");
+const sectionRows = platformAppearanceHomeSectionDefaults
+.map((section) => {
+const value = home.sections[section.id] || section;
+return `
+        <article class="appearance-section-row">
+          <label class="appearance-section-visible">
+            <input type="checkbox" name="section.${escapeHtml(section.id)}.enabled" ${value.enabled ? "checked" : ""} />
+            <span>${escapeHtml(section.label)}</span>
+          </label>
+          <label>
+            <span>Order</span>
+            <input name="section.${escapeHtml(section.id)}.order" type="number" min="1" max="99" value="${escapeHtml(value.order)}" />
+          </label>
+          <label>
+            <span>Kicker</span>
+            <input name="section.${escapeHtml(section.id)}.eyebrow" value="${escapeHtml(value.eyebrow)}" maxlength="36" />
+          </label>
+          <label>
+            <span>Title</span>
+            <input name="section.${escapeHtml(section.id)}.title" value="${escapeHtml(value.title)}" maxlength="58" />
+          </label>
+        </article>
+      `;
+})
+.join("");
+return `
+    <form id="platformAppearanceForm" class="admin-card appearance-governance-card">
+      <div class="staff-card-head">
+        <div>
+          <h2>Appearance Governance</h2>
+          <span>Platform Admin only · Live-safe layout settings</span>
+        </div>
+        <span class="profile-role-pill">Home v1</span>
+      </div>
+      <div class="appearance-governance-summary">
+        <div>
+          <span>Revision</span>
+          <strong>${escapeHtml(metadata.revision || "local")}</strong>
+        </div>
+        <div>
+          <span>Updated</span>
+          <strong>${escapeHtml(metadata.updatedAt ? formatAdminDateTime(metadata.updatedAt) : "Not published")}</strong>
+        </div>
+        <div>
+          <span>Rule</span>
+          <strong>Same type once</strong>
+        </div>
+      </div>
+      <section class="appearance-governance-block">
+        <div class="appearance-block-head">
+          <h3>Home defaults</h3>
+          <p>These settings affect the Home dashboard as a whole.</p>
+        </div>
+        <div class="appearance-home-defaults">
+          <label>
+            <span>Home density</span>
+            ${renderPlatformAppearanceSelect("home.density", platformAppearanceDensityOptions, home.density, densityLabels)}
+          </label>
+          <label>
+            <span>Theme scope</span>
+            ${renderPlatformAppearanceSelect("home.theme", platformAppearanceThemeOptions, home.theme, themeLabels)}
+          </label>
+        </div>
+      </section>
+      <section class="appearance-governance-block">
+        <div class="appearance-block-head">
+          <h3>Same-type rules</h3>
+          <p>Change one type and every matching card follows it.</p>
+        </div>
+        <div class="appearance-type-list">${componentTypeRows}</div>
+      </section>
+      <section class="appearance-governance-block">
+        <div class="appearance-block-head">
+          <h3>Home sections</h3>
+          <p>Show, hide and sort the registered Home sections without touching code.</p>
+        </div>
+        <div class="appearance-section-list">${sectionRows}</div>
+      </section>
+      <div class="profile-form-footer admin-access-footer">
+        <span>No free CSS or scripts are accepted. Backend sanitizes this before publish.</span>
+        <span class="appearance-actions">
+          <button type="button" class="admin-send-button" data-platform-appearance-reset>Reset defaults</button>
+          <button type="submit">Publish appearance</button>
+        </span>
+      </div>
+    </form>
+  `;
+}
+function buildPlatformAppearanceConfigFromForm(form) {
+const formData = new FormData(form);
+const current = readPlatformAppearanceState();
+const componentTypes = Object.fromEntries(
+platformAppearanceHomeComponentTypeIds.map((typeId) => [
+typeId,
+{
+...(current.modules.home.componentTypes[typeId] || {}),
+density: String(formData.get(`componentType.${typeId}.density`) || ""),
+tone: String(formData.get(`componentType.${typeId}.tone`) || ""),
+},
+])
+);
+const sections = Object.fromEntries(
+platformAppearanceHomeSectionDefaults.map((section) => [
+section.id,
+{
+...(current.modules.home.sections[section.id] || section),
+enabled: formData.get(`section.${section.id}.enabled`) === "on",
+order: String(formData.get(`section.${section.id}.order`) || section.order),
+eyebrow: String(formData.get(`section.${section.id}.eyebrow`) || ""),
+title: String(formData.get(`section.${section.id}.title`) || ""),
+},
+])
+);
+return normalizePlatformAppearanceConfig({
+...current,
+modules: {
+...current.modules,
+home: {
+...current.modules.home,
+density: String(formData.get("home.density") || ""),
+theme: String(formData.get("home.theme") || ""),
+componentTypes,
+sections,
+},
+},
+});
+}
+async function publishPlatformAppearanceConfig(config, message = "Appearance published.") {
+if (!isPlatformAdminUser(getCurrentPlatformUser())) {
+renderAdminWorkspace("Platform admin access required.");
+return;
+}
+writePlatformAppearanceState(config);
+await flushCentralStateWrites();
+renderDashboardCards();
+renderAdminWorkspace(message);
+}
 function renderAdminWorkspace(message = "") {
 if (!ui.adminWorkspace) {
 return;
@@ -22729,6 +22978,7 @@ ui.adminWorkspace.innerHTML = `
       ${message ? `<p class="staff-message">${escapeHtml(message)}</p>` : ""}
       ${renderAdminStructurePanel(currentUser, structure, users)}
       ${currentUserIsPlatformAdmin ? renderPlatformReadinessDashboard() : ""}
+      ${currentUserIsPlatformAdmin ? renderPlatformAppearanceGovernancePanel() : ""}
       <section class="admin-layout is-users-only">
         <article class="admin-card">
           <div class="staff-card-head">
@@ -72560,6 +72810,21 @@ return;
 await loadPlatformReadinessReport({ force: true });
 return;
 }
+const appearanceResetButton = event.target.closest("[data-platform-appearance-reset]");
+if (appearanceResetButton) {
+if (!isPlatformAdminUser(getCurrentPlatformUser())) {
+renderAdminWorkspace("Platform admin access required.");
+return;
+}
+await publishPlatformAppearanceConfig(
+createDefaultPlatformAppearanceConfig({
+updatedAt: new Date().toISOString(),
+updatedBy: getCurrentPlatformUser()?.id || "",
+}),
+"Appearance reset to defaults."
+);
+return;
+}
 const removeButton = event.target.closest("[data-admin-remove-user]");
 const sendButton = event.target.closest("[data-admin-send-credentials]");
 const sendSelectedButton = event.target.closest("[data-admin-send-selected]");
@@ -72751,6 +73016,27 @@ const createUserForm = event.target.closest("#adminCreateUserForm");
 if (createUserForm) {
 event.preventDefault();
 await createAdminUserFromForm(createUserForm);
+return;
+}
+const appearanceForm = event.target.closest("#platformAppearanceForm");
+if (appearanceForm) {
+event.preventDefault();
+if (!isPlatformAdminUser(getCurrentPlatformUser())) {
+renderAdminWorkspace("Platform admin access required.");
+return;
+}
+setFormSubmitButtonState(appearanceForm, {
+isSubmitting: true,
+submittingLabel: "Publishing...",
+defaultLabel: "Publish appearance",
+});
+try {
+await publishPlatformAppearanceConfig(buildPlatformAppearanceConfigFromForm(appearanceForm));
+} catch (error) {
+renderAdminWorkspace(error?.message || "Appearance settings could not be published.");
+} finally {
+setFormSubmitButtonState(appearanceForm, { isSubmitting: false, defaultLabel: "Publish appearance" });
+}
 return;
 }
 const userForm = event.target.closest("#adminUserForm");

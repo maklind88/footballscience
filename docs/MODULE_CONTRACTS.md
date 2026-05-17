@@ -62,6 +62,17 @@ Rules:
 - `qa`: `qa/platform-readiness.api.spec.mjs` and `npm run platform:readiness` must prove the readiness contract remains wired.
 - `migration`: keep as a core contract/dashboard first; if history is needed later, write snapshots to `platform_release_checks` and `platform_observability_signals` with organization scope and no secret values.
 
+## Platform Appearance
+
+- `id`: `platform-appearance`
+- `purpose`: Platform Admin-owned visual governance for safe Home layout, density, tone, and section labels so same-type UI changes apply consistently without one-off edits.
+- `data`: `football-platform-appearance-v1`
+- `permissions`: Platform Admin only for read/write/delete/export/restore/admin/observe; UI can expose controls only after backend permission checks allow the actor.
+- `events`: appearance published, appearance reset to defaults, Home layout rerendered.
+- `qa`: `qa/platform-appearance-governance.api.spec.mjs` and `qa/home-dashboard-renderer.api.spec.mjs` must prove same-type rules are sanitized, centrally saved, and applied by the Home renderer.
+- `migration`: keep as a central app-state contract first. If appearance history or multi-surface theming grows, move revisions into `platform_appearance_versions` with organization scope and audit snapshots.
+- `dataSafety`: saved through `/api/app-state` only; localStorage is cache. Server sanitizes text and enum values, stamps revision metadata, blocks non-admin writes, and records audit summaries.
+
 ## Platform Identity
 
 - `id`: `platform-identity`

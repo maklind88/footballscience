@@ -10,6 +10,11 @@ const { appendAuditLog } = require("./_lib/audit-log.js");
 const { appendSessionPlannerHistory } = require("./_lib/session-history.js");
 const { guardApiRequest } = require("./_lib/platform-security.js");
 const { dataSafetyRegistry } = require("../src/core/data-safety-contracts.cjs");
+const {
+  PLATFORM_APPEARANCE_STORAGE_KEY,
+  normalizePlatformAppearanceValue,
+  summarizePlatformAppearanceChange,
+} = require("../src/core/appearance-governance.cjs");
 const crypto = require("crypto");
 
 const STATE_BUCKET = "footballscience-app-state";
@@ -79,6 +84,7 @@ const PERIODIZATION_FIELD_SET = new Set([...PERIODIZATION_SCALAR_FIELDS, ...PERI
 const CENTRAL_STATE_KEYS = new Set(dataSafetyRegistry.keys());
 const WORKSPACE_HUB_KEY = "football-workspace-hub-v3";
 const PLATFORM_STRUCTURE_KEY = "football-platform-structure-v1";
+const PLATFORM_APPEARANCE_KEY = PLATFORM_APPEARANCE_STORAGE_KEY;
 const DEFAULT_WORKSPACE_ACCESS = {
   chat: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   schedule: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"],
@@ -145,7 +151,7 @@ const STATE_KEY_WORKSPACE_EDIT_MAP = {
   "football-simulator-sequence-v1": "game-simulator",
   "football-simulator-sequence-library-v2": "game-simulator",
 };
-const ADMIN_ONLY_STATE_KEYS = new Set(["mak-coaching-platform-users-v1"]);
+const ADMIN_ONLY_STATE_KEYS = new Set(["mak-coaching-platform-users-v1", PLATFORM_APPEARANCE_KEY]);
 const MEDICAL_PRIVATE_ROLES = new Set(["admin", "club-admin", "team-admin", "medical", "performance"]);
 const MEDICAL_PARTICIPATION_OPTIONS = new Set([0, 10, 25, 50, 75, 100]);
 const MEDICAL_STATUS_KEYS = new Set(["full", "modified", "controlled", "rehab", "unavailable", "monitor"]);
@@ -1801,6 +1807,30 @@ async function appendMedicalStateAudit(actor, rawValue) {
   });
 }
 
+function protectPlatformAppearanceStateValue(rawValue, context = {}) {
+  try {
+    const normalizedValue = normalizePlatformAppearanceValue(rawValue, {
+      updatedAt: new Date().toISOString(),
+      updatedBy: context.actor?.id || "",
+    });
+    return { ok: true, value: normalizedValue };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 400,
+      reason: error?.message || "Platform Appearance settings are invalid and were not saved.",
+    };
+  }
+}
+
+async function appendPlatformAppearanceAudit(actor, previousEntry, nextValue) {
+  await appendAuditLog(actor, {
+    action: "appearance.updated",
+    summary: "Published Platform Appearance settings",
+    details: summarizePlatformAppearanceChange(previousEntry?.value || "", nextValue),
+  });
+}
+
 async function appendDataSafetyWriteAudit(actor, previousEntry, nextEntry, merged = false) {
   if (!nextEntry?.key) {
     return;
@@ -1822,7 +1852,15 @@ async function appendDataSafetyWriteAudit(actor, previousEntry, nextEntry, merge
 }
 
 async function authorizeStateWrite(actor, key, rawValue, removed = false, context = {}) {
+  if (key === PLATFORM_APPEARANCE_KEY && removed) {
+    return { ok: false, status: 403, reason: "Platform Appearance settings cannot be removed. Publish defaults instead." };
+  }
+
   if (actor?.role === "admin") {
+    if (key === PLATFORM_APPEARANCE_KEY && !removed) {
+      return protectPlatformAppearanceStateValue(rawValue, { ...context, actor });
+    }
+
     if (key === SESSION_PLANNER_KEY && !removed) {
       return protectSessionPlannerStateValue(rawValue);
     }
@@ -2055,6 +2093,9 @@ async function applyStateEntries(actor, entries = {}, metadata = {}) {
       return { ok: false, reason: result.reason || `Could not sync ${entry.key}.` };
     }
     await appendDataSafetyWriteAudit(actor, previousEntry, entry, authorization.merged);
+    if (normalizedKey === PLATFORM_APPEARANCE_KEY) {
+      await appendPlatformAppearanceAudit(actor, previousEntry, authorization.value);
+    }
     if (normalizedKey === SESSION_PLANNER_KEY) {
       await appendSessionPlannerHistory(actor, previousEntry?.value || "", authorization.value);
     }
@@ -2206,6 +2247,10 @@ module.exports = async (req, res) => {
     }
 
     await appendDataSafetyWriteAudit(actor, previousEntry, entry, authorization.merged);
+
+    if (key === PLATFORM_APPEARANCE_KEY) {
+      await appendPlatformAppearanceAudit(actor, previousEntry, authorization.value);
+    }
 
     if (key === SESSION_PLANNER_KEY) {
       const historyEntries = await appendSessionPlannerHistory(actor, previousEntry?.value || "", authorization.value);

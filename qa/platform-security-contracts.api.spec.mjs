@@ -50,6 +50,7 @@ test("permission matrix covers every module action with conservative roles", () 
     "football-science-db",
     "home",
     "medical-team",
+    "platform-appearance",
     "player-profiles",
     "schedule",
     "scouting",
@@ -72,6 +73,8 @@ test("permission matrix covers every module action with conservative roles", () 
   expect(permissionMatrix.hasModulePermission({ role: "scout" }, "football-science-db", "write")).toBe(true);
   expect(permissionMatrix.hasModulePermission({ role: "coach" }, "app-state", "restore")).toBe(false);
   expect(permissionMatrix.hasModulePermission({ role: "admin" }, "app-state", "restore")).toBe(true);
+  expect(permissionMatrix.hasModulePermission({ role: "coach" }, "platform-appearance", "write")).toBe(false);
+  expect(permissionMatrix.hasModulePermission({ role: "admin" }, "platform-appearance", "write")).toBe(true);
 });
 
 test("all public API routes are registered and guarded", () => {

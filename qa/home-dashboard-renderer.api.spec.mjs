@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createDashboardHomeCardsRenderer } from "../src/modules/home/dashboard-renderer.mjs";
+import { normalizePlatformAppearanceConfig } from "../src/core/appearance-governance.mjs";
 
 function normalizeUserId(userId) {
   return String(userId ?? "").trim();
@@ -45,4 +46,44 @@ test("home dashboard renderer emits top-level cards and keeps task ranking seman
   expect(ranked.map((task) => task.id)).toContain("1");
   expect(ranked.map((task) => task.id)).toContain("4");
   expect(ranked.map((task) => task.id)).toContain("2");
+});
+
+test("home dashboard renderer applies safe same-type appearance rules", () => {
+  const renderer = createDashboardHomeCardsRenderer({
+    escapeHtml: (value) => String(value ?? ""),
+    renderTaskList: () => "<div></div>",
+    resolveUserLabel: renderTestUserLabel,
+  });
+  const context = {
+    currentUser: { id: "u1" },
+    users: [{ id: "u1" }],
+    myOpenTasks: [],
+    personalOpenTasks: [],
+    delegatedOpenTasks: [],
+    alerts: [],
+    todayValue: "2026-01-01",
+  };
+  const appearance = normalizePlatformAppearanceConfig({
+    modules: {
+      home: {
+        density: "compact",
+        componentTypes: {
+          "home.task-panel": { density: "airy", tone: "contrast" },
+          "home.alert-panel": { density: "compact", tone: "pitch" },
+        },
+        sections: {
+          topTasks: { enabled: false },
+          todo: { order: 20, title: "Tasks", eyebrow: "Work" },
+          alerts: { order: 10, title: "Signals", eyebrow: "Team" },
+        },
+      },
+    },
+  });
+
+  const rendered = renderer.render(context, "", appearance);
+  expect(rendered).not.toContain("Priority Tasks");
+  expect(rendered.indexOf("Signals")).toBeLessThan(rendered.indexOf("Tasks"));
+  expect(rendered).toContain("dashboard-appearance-density-airy");
+  expect(rendered).toContain("dashboard-appearance-tone-contrast");
+  expect(rendered).toContain('data-dashboard-appearance-type="home.task-panel"');
 });

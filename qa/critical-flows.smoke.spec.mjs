@@ -632,6 +632,7 @@ test("Periodization Today opens the real current date", async ({ page }) => {
   const selectedCard = page.locator('[data-periodization-date="2026-05-09"]');
   await expect(selectedCard).toHaveClass(/is-selected/);
   await expect(selectedCard.locator(".periodization-day-md")).toHaveText("MD");
+  await expect(selectedCard.locator(".periodization-day-main")).toHaveText("Matchday");
   const microcycle = page.locator('[data-periodization-week-start="2026-05-04"]');
   await expect(microcycle.locator(".periodization-microcycle-load-rail")).toBeVisible();
   await expect(microcycle.locator(".periodization-microcycle-load-day")).toHaveCount(7);

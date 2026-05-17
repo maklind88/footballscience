@@ -31798,14 +31798,10 @@ ${renderSessionPlannerActionIcon("pencil")}
       <span class="periodization-day-topline">
         <strong>${escapeHtml(date.toLocaleDateString("en-US", { weekday: "short" }))}</strong>
         <span>${date.getDate()}</span>
-        ${matchDayLabel ? `<strong>${escapeHtml(dayScheduleLabel)}</strong>` : ""}
+        ${matchDayLabel ? `<i class="periodization-day-md">${escapeHtml(matchDayLabel)}</i>` : ""}
       </span>
-      <span class="periodization-day-main${matchDayLabel ? "" : dayScheduleLabel ? "" : " is-empty"}">
-        ${
-          matchDayLabel
-            ? `<i class="periodization-day-md">${escapeHtml(matchDayLabel)}</i>`
-            : escapeHtml(dayScheduleLabel)
-        }
+      <span class="periodization-day-main${dayScheduleLabel ? "" : " is-empty"}">
+        ${escapeHtml(dayScheduleLabel)}
       </span>
       <span class="periodization-day-details">
         ${renderPeriodizationCardDetail("Video", escapeHtml(preTrainingVideoLabel))}

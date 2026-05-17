@@ -5923,176 +5923,6 @@ try {
 window.localStorage.setItem(workspaceLastActiveStorageKey, safeWorkspaceId);
 } catch {}
 }
-const defaultPeriodizationDayTemplates = [
-{
-dayLabel: "Monday",
-shortDay: "Mon",
-daySchedule: "Recovery + unit detail",
-matchDay: "MD+1",
-sessionType: "Recovery / Unit",
-physicalLoad: "Low",
-pitchSize: "Gym + small area",
-preTrainingVideo: "Match review clips",
-preTrainingNotes: "Reconnect the group to the key match moments and the week theme.",
-psychologicalFocus: "Reset and refocus",
-psychologicalNotes: "Lower emotional noise and reset competitive focus.",
-matchPhases: "Defensive Transition",
-subPhases: "Immediate reaction after loss",
-teamPrinciples: "Protect central space and secure second balls",
-miniGamePrinciples: "Short distances, quick restarts, compact support",
-gkFocus: "Handling rhythm and recovery distribution",
-warmUp: "Mobility, activation and technical touch",
-block1: "Recovery circuits",
-block2: "Unit walkthrough",
-block3: "Small positional game",
-block4: "Optional finishing",
-sessionNotes: "Keep legs fresh and reintroduce tactical language.",
-},
-{
-dayLabel: "Tuesday",
-shortDay: "Tue",
-daySchedule: "Main tactical day",
-matchDay: "MD-4",
-sessionType: "Team Tactical",
-physicalLoad: "Medium-High",
-pitchSize: "Half to three-quarter pitch",
-preTrainingVideo: "Opposition and game-model clips",
-preTrainingNotes: "Prime the session with the main tactical references.",
-psychologicalFocus: "Collective clarity",
-psychologicalNotes: "Make the group feel the plan and their role in it.",
-matchPhases: "In Possession / Out of Possession",
-subPhases: "Build-up, pressing, compactness",
-teamPrinciples: "Distances, angles, support and protection behind the ball",
-miniGamePrinciples: "Play forward with protection; press with cover",
-gkFocus: "Support angles and restart speed",
-warmUp: "Rondo and movement prep",
-block1: "Tactical positioning",
-block2: "Phase-of-play game",
-block3: "Conditioned game",
-block4: "Set-piece walkthrough",
-sessionNotes: "Main teaching load of the week.",
-},
-{
-dayLabel: "Wednesday",
-shortDay: "Wed",
-daySchedule: "Load day",
-matchDay: "MD-3",
-sessionType: "Tactical + Physical",
-physicalLoad: "High",
-pitchSize: "Three-quarter to full pitch",
-preTrainingVideo: "Short tactical reminder",
-preTrainingNotes: "Keep the video concise and action-based.",
-psychologicalFocus: "Competitive edge",
-psychologicalNotes: "Push intensity while staying connected to role discipline.",
-matchPhases: "Transition / Final Third",
-subPhases: "Counter-press, attacks to box, recovery runs",
-teamPrinciples: "Aggressive actions with rest-defence behind them",
-miniGamePrinciples: "Win the next action fast and arrive together",
-gkFocus: "Starting position and box command",
-warmUp: "Acceleration prep with the ball",
-block1: "Transitional games",
-block2: "Phase-to-goal",
-block3: "Competition game",
-block4: "Finishing or speed exposures",
-sessionNotes: "Highest intensity point of the week.",
-},
-{
-dayLabel: "Thursday",
-shortDay: "Thu",
-daySchedule: "Refinement day",
-matchDay: "MD-2",
-sessionType: "Tactical Refinement",
-physicalLoad: "Medium",
-pitchSize: "Half pitch to match strips",
-preTrainingVideo: "Clips on key opponent cues",
-preTrainingNotes: "Narrow the information to a few decisive references.",
-psychologicalFocus: "Calm conviction",
-psychologicalNotes: "Simplify the message and sharpen role trust.",
-matchPhases: "Out of Possession / Set Plays",
-subPhases: "Block shape, box defending, restarts",
-teamPrinciples: "Compactness, timing and communication",
-miniGamePrinciples: "Protect the middle, lock the side, finish the duel",
-gkFocus: "Cross management and organisation",
-warmUp: "Passing sequence + activation",
-block1: "Shape work",
-block2: "Set-piece detail",
-block3: "Short tactical game",
-block4: "Unit extras",
-sessionNotes: "Keep detail sharp without overloading.",
-},
-{
-dayLabel: "Friday",
-shortDay: "Fri",
-daySchedule: "Pre-match",
-matchDay: "MD-1",
-sessionType: "Activation",
-physicalLoad: "Low",
-pitchSize: "Small to half pitch",
-preTrainingVideo: "Final reminders",
-preTrainingNotes: "Only final cues and confidence triggers.",
-psychologicalFocus: "Confidence and simplicity",
-psychologicalNotes: "Leave the group with clear pictures and belief.",
-matchPhases: "Match-specific reminders",
-subPhases: "Restarts, first actions, key triggers",
-teamPrinciples: "Be clear, compact and aggressive in the right moments",
-miniGamePrinciples: "Fast feet, clear cues, clean execution",
-gkFocus: "Communication and restart detail",
-warmUp: "Light activation",
-block1: "Sharp technical sequence",
-block2: "Team shape",
-block3: "Set-piece run-through",
-block4: "Fun competitive finish",
-sessionNotes: "Finish short, clear and upbeat.",
-},
-{
-dayLabel: "Saturday",
-shortDay: "Sat",
-daySchedule: "Matchday",
-matchDay: "MD",
-sessionType: "Match",
-physicalLoad: "Match Load",
-pitchSize: "Full pitch",
-preTrainingVideo: "Opponent triggers and own reminders",
-preTrainingNotes: "Use only final tactical cues if needed.",
-psychologicalFocus: "Competitive presence",
-psychologicalNotes: "Channel emotion into clear first actions.",
-matchPhases: "Full match",
-subPhases: "All game states",
-teamPrinciples: "Compete through the game model",
-miniGamePrinciples: "Win moments, protect rest defence, attack together",
-gkFocus: "Communication, command and distribution choices",
-warmUp: "Match warm-up",
-block1: "Match",
-block2: "-",
-block3: "-",
-block4: "-",
-sessionNotes: "Matchday execution.",
-},
-{
-dayLabel: "Sunday",
-shortDay: "Sun",
-daySchedule: "Recovery / off",
-matchDay: "MD+1 / Off",
-sessionType: "Recovery / Regeneration",
-physicalLoad: "Low",
-pitchSize: "Gym / recovery space",
-preTrainingVideo: "None",
-preTrainingNotes: "Optional individual review only.",
-psychologicalFocus: "Recovery",
-psychologicalNotes: "Decompress and reset for the next cycle.",
-matchPhases: "Recovery",
-subPhases: "Individual follow-up",
-teamPrinciples: "Restore and prepare the next cycle",
-miniGamePrinciples: "None",
-gkFocus: "Recovery",
-warmUp: "Mobility",
-block1: "Recovery modalities",
-block2: "Individual work",
-block3: "-",
-block4: "-",
-sessionNotes: "Recovery and staff review.",
-},
-];
 const periodizationFieldUpdatedAtKey = "fieldUpdatedAt";
 const periodizationScalarFields = Object.freeze("seasonPhase|daySchedule|matchDay|sessionType|physicalLoad|pitchSize|preTrainingVideo|preTrainingNotes|psychologicalFocus|psychologicalNotes|mainFocus|gkFocus|warmUp|block1|block2|block3|block4|sessionNotes|sessionPlanLink|sessionVideoLink|sessionGpsReportLink".split("|"));
 const periodizationMultiFields = new Set("matchPhases|subPhases|teamPrinciples|miniGamePrinciples".split("|"));
@@ -6135,13 +5965,26 @@ normalized[periodizationFieldUpdatedAtKey] = fieldUpdatedAt;
 }
 return normalized;
 }
+function getPeriodizationAutoMd(dateValue) {
+if (!scheduleState) {
+scheduleState = readScheduleState();
+}
+const targetDay = Date.parse(`${dateValue}T00:00:00Z`) / 864e5;
+let best = 9;
+for (const event of scheduleState.events || []) {
+const offset = event.type === "match" ? targetDay - Date.parse(`${event.date}T00:00:00Z`) / 864e5 : 9;
+if (offset >= -5 && offset <= 3 && (Math.abs(offset) < Math.abs(best) || (Math.abs(offset) === Math.abs(best) && offset < best))) {
+best = offset;
+}
+}
+return best === 9 ? "" : `Match Day${best ? ` ${best > 0 ? "+" : ""}${best}` : ""}`;
+}
 function getPeriodizationScheduleDefaults(dateValue) {
-const events = scheduleState ? getScheduleEventsForDate(dateValue) : [];
+const events = getScheduleEventsForDate(dateValue);
 const mainEvent = events[0] ?? null;
 if (!mainEvent) {
 return {
 daySchedule: "Off",
-matchDay: "",
 sessionType: "Off",
 physicalLoad: "Off",
 pitchSize: "",
@@ -6151,7 +5994,6 @@ const type = mainEvent.type;
 const label = scheduleEventTypes[type]?.label ?? "Training";
 return {
 daySchedule: type === "travel" ? "Travel Day" : label,
-matchDay: type === "match" ? "Match Day" : "",
 sessionType:
 type === "training"
 ? "Training"
@@ -6182,10 +6024,14 @@ matchDay: "",
 });
 }
 function getPeriodizationDay(dateValue) {
-return normalizePeriodizationDay({
+const savedDay = periodizationState?.days?.[dateValue] ?? {};
+const day = normalizePeriodizationDay({
 ...getDefaultPeriodizationDay(dateValue),
-...(periodizationState?.days?.[dateValue] ?? {}),
+...savedDay,
 });
+return getPeriodizationFieldUpdatedAtMs(savedDay, "matchDay")
+? day
+: { ...day, matchDay: getPeriodizationAutoMd(dateValue) };
 }
 function ensurePeriodizationState() {
 if (!periodizationState) {
@@ -31776,7 +31622,8 @@ const pitchValue = pitchLabel
 : "";
 return `
     <article
-      class="periodization-day-card is-${escapeHtml(dayTone)}${matchDayLabel ? " has-matchday" : ""}${isSelected ? " is-selected" : ""}${isOutsideMonth ? " is-outside-month" : ""}"
+      class="periodization-day-card is-${escapeHtml(dayTone)}${isSelected ? " is-selected" : ""}${isOutsideMonth ? " is-outside-month" : ""}"
+      ${matchDayLabel ? `style="grid-template-rows:auto minmax(2.35rem,auto) auto 1fr"` : ""}
       data-periodization-date="${escapeHtml(dateValue)}"
       role="button"
       tabindex="0"
@@ -31802,7 +31649,7 @@ ${renderSessionPlannerActionIcon("pencil")}
       <span class="periodization-day-main${dayScheduleLabel ? "" : " is-empty"}">
         ${escapeHtml(dayScheduleLabel)}
       </span>
-      ${matchDayLabel ? `<span class="periodization-day-md-row"><i class="periodization-day-md">${escapeHtml(matchDayLabel)}</i></span>` : ""}
+      ${matchDayLabel ? `<span><i class="periodization-day-md">${escapeHtml(matchDayLabel)}</i></span>` : ""}
       <span class="periodization-day-details">
         ${renderPeriodizationCardDetail("Video", escapeHtml(preTrainingVideoLabel))}
         ${renderPeriodizationCardDetail("Phase", escapeHtml(phaseLabel))}

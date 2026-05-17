@@ -631,7 +631,7 @@ test("Periodization Today opens the real current date", async ({ page }) => {
   await expect(page.locator("#periodizationHeading")).toHaveText("May 2026");
   const selectedCard = page.locator('[data-periodization-date="2026-05-09"]');
   await expect(selectedCard).toHaveClass(/is-selected/);
-  await expect(selectedCard.locator(".periodization-day-md")).toHaveText("MD");
+  await expect(selectedCard.locator(".periodization-day-md")).toHaveText("Match Day +1");
   await expect(selectedCard.locator(".periodization-day-main")).toHaveText("Matchday");
   const activityBox = await selectedCard.locator(".periodization-day-main").boundingBox();
   const matchDayBox = await selectedCard.locator(".periodization-day-md").boundingBox();
@@ -658,6 +658,83 @@ test("Periodization Today opens the real current date", async ({ page }) => {
       selectedMonthIndex: 4,
       note: "QA today anchor",
     });
+});
+
+test("Periodization derives match day tags from schedule while preserving manual overrides", async ({ page }) => {
+  await page.addInitScript(({ scheduleKey, periodizationKey }) => {
+    if (window.localStorage.getItem("qa-periodization-auto-matchday-seeded") === "1") {
+      return;
+    }
+    window.localStorage.setItem("qa-periodization-auto-matchday-seeded", "1");
+    window.localStorage.setItem(
+      scheduleKey,
+      JSON.stringify({
+        selectedYear: 2026,
+        selectedMonthIndex: 4,
+        selectedDate: "2026-05-08",
+        viewMode: "month",
+        overviewSpan: 6,
+        visibleEventTypes: ["training", "match", "meeting", "travel", "recovery", "off"],
+        importVersion: "ncc-2026-numbers-v1",
+        events: [
+          { id: "qa-auto-training", date: "2026-05-08", time: "10:00", type: "training", title: "Training", note: "" },
+          { id: "qa-auto-match", date: "2026-05-10", time: "19:00", type: "match", title: "QA Match", note: "" },
+        ],
+      })
+    );
+    window.localStorage.setItem(
+      periodizationKey,
+      JSON.stringify({
+        selectedYear: 2026,
+        selectedMonthIndex: 4,
+        selectedDate: "2026-05-08",
+        importVersion: "ncc-2026-periodization-v1",
+        days: {
+          "2026-05-08": {
+            daySchedule: "Training",
+            sessionType: "Training",
+          },
+          "2026-05-07": {
+            daySchedule: "Training",
+            matchDay: "Match Day +3",
+            fieldUpdatedAt: {
+              matchDay: "2026-05-01T12:00:00.000Z",
+            },
+          },
+        },
+      })
+    );
+  }, { scheduleKey, periodizationKey });
+
+  await bootApp(page);
+  await openWorkspace(page, "periodization");
+
+  await expect(page.locator('[data-periodization-date="2026-05-08"] .periodization-day-md')).toHaveText("Match Day -2");
+  await expect(page.locator('[data-periodization-date="2026-05-07"] .periodization-day-md')).toHaveText("Match Day +3");
+
+  await page.locator('[data-periodization-date="2026-05-08"]').click();
+  await expect(page.locator("[data-periodization-overlay]")).toBeVisible();
+  await page.locator("[data-periodization-edit-selected]").click();
+  const matchDayField = page.locator('input[data-periodization-field="matchDay"]').first();
+  await expect(matchDayField).toHaveValue("Match Day -2");
+  await matchDayField.fill("Match Day +1");
+  await matchDayField.blur();
+  await expect
+    .poll(() =>
+      page.evaluate((key) => {
+        const day = JSON.parse(window.localStorage.getItem(key) || "{}").days?.["2026-05-08"] || {};
+        return {
+          matchDay: day.matchDay || "",
+          hasManualTimestamp: Boolean(day.fieldUpdatedAt?.matchDay),
+        };
+      }, periodizationKey)
+    )
+    .toEqual({ matchDay: "Match Day +1", hasManualTimestamp: true });
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.locator("#hubShell")).toBeVisible();
+  await openWorkspace(page, "periodization");
+  await expect(page.locator('[data-periodization-date="2026-05-08"] .periodization-day-md')).toHaveText("Match Day +1");
 });
 
 test("Periodization day notes persist after refresh", async ({ page }) => {

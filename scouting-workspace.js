@@ -5,6 +5,7 @@ let scoutingCoreMetricOptions = [];
 let scoutingStatusOptions = [];
 let scoutingPriorityOptions = [];
 let scoutingDatabaseLoadPromise = null;
+let scoutingDatabaseLoadSource = "";
 let scoutingDatabaseWorker = null;
 let scoutingDatabaseWorkerRequestId = 0;
 let scoutingDatabaseError = "";
@@ -2245,13 +2246,18 @@ function ensureScoutingDatabaseLoaded() {
   if (existingDatabase) {
     return Promise.resolve(existingDatabase);
   }
+  const filters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
+  if (scoutingDatabaseLoadPromise && scoutingDatabaseLoadSource !== filters.source) {
+    scoutingDatabaseLoadPromise = null;
+    scoutingDatabaseLoadSource = "";
+  }
   if (!scoutingDatabaseLoadPromise) {
-    const filters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
     scoutingDatabaseError = "";
+    scoutingDatabaseLoadSource = filters.source;
     const loader = filters.source === "fsdb"
       ? loadFootballScienceDbDatabase()
       : loadScoutingDatabaseWithApi().catch(() => loadScoutingDatabaseWithWorker());
-    scoutingDatabaseLoadPromise = loader
+    const loadPromise = loader
       .then(() => {
         const database = getScoutingDatabase();
         if (!database) {
@@ -2259,13 +2265,23 @@ function ensureScoutingDatabaseLoaded() {
         }
         scoutingDatabaseOptionCache = null;
         resetScoutingComputedCaches();
+        if (scoutingDatabaseLoadPromise === loadPromise) {
+          scoutingDatabaseLoadPromise = null;
+          scoutingDatabaseLoadSource = "";
+        }
         return database;
       })
       .catch((error) => {
-        scoutingDatabaseLoadPromise = null;
-        scoutingDatabaseError = filters.source === "fsdb" ? "Football Science DB could not be loaded." : "Scouting database could not be loaded.";
+        if (scoutingDatabaseLoadPromise === loadPromise) {
+          scoutingDatabaseLoadPromise = null;
+          scoutingDatabaseLoadSource = "";
+        }
+        scoutingDatabaseError =
+          error?.message ||
+          (filters.source === "fsdb" ? "Football Science DB could not be loaded." : "Scouting database could not be loaded.");
         throw error;
       });
+    scoutingDatabaseLoadPromise = loadPromise;
   }
   return scoutingDatabaseLoadPromise;
 }
@@ -12447,11 +12463,14 @@ function renderScoutingRecordListHeader() {
 }
 function renderScoutingDatabasePanel() {
   if (scoutingDatabaseError) {
+    const filters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
+    const isFootballScienceDb = filters.source === "fsdb";
+    const isAuthError = /sign(?:ed)? in|authenticated|session/i.test(scoutingDatabaseError);
     return `
       <section class="scouting-load-panel">
-        <h2>Scouting database failed to load</h2>
+        <h2>${escapeHtml(isFootballScienceDb ? (isAuthError ? "Football Science DB needs sign-in" : "Football Science DB failed to load") : "Scouting database failed to load")}</h2>
         <p>${escapeHtml(scoutingDatabaseError)}</p>
-        <button type="button" class="scouting-primary-button" data-scouting-retry-database>Retry database</button>
+        <button type="button" class="scouting-primary-button" data-scouting-retry-database>${escapeHtml(isFootballScienceDb ? "Retry Football Science DB" : "Retry database")}</button>
       </section>
     `;
   }
@@ -12481,7 +12500,7 @@ function renderScoutingDatabasePanel() {
             `
             : ""
         }
-        <h2>${isLoading ? (isFootballScienceDb ? "Loading Football Science DB" : "Loading the scouting database") : isFootballScienceDb ? "Football Science DB is ready" : "Scouting database is ready"}</h2>
+        <h2>${isLoading ? (isFootballScienceDb ? "Loading Football Science DB" : "Loading the scouting database") : isFootballScienceDb ? "Football Science DB" : "Scouting database is ready"}</h2>
         <p>${
           isLoading
             ? isFootballScienceDb
@@ -14455,6 +14474,8 @@ function setScoutingDatabaseFilter(field, value) {
   }
   if (field === "source") {
     scoutingDatabaseError = "";
+    scoutingDatabaseLoadPromise = null;
+    scoutingDatabaseLoadSource = "";
   }
   if (field === "metricIds") {
     const metricIds = Array.isArray(value) ? value.map((item) => normalizeScoutingText(item, 120)).filter(Boolean) : [];

@@ -24,6 +24,17 @@ test("Scouting database view can search Football Science DB through the server A
   expect(workspace).toContain("Spider stays locked until trusted stats exist");
 });
 
+test("Scouting database loader resets stale source promises before FSDB loads", () => {
+  const workspace = readFileSync(resolve(projectRoot, "scouting-workspace.js"), "utf8");
+
+  expect(workspace).toContain('let scoutingDatabaseLoadSource = "";');
+  expect(workspace).toContain("scoutingDatabaseLoadSource !== filters.source");
+  expect(workspace).toContain("scoutingDatabaseLoadPromise === loadPromise");
+  expect(workspace).toContain('scoutingDatabaseLoadSource = "";');
+  expect(workspace).toContain("Football Science DB needs sign-in");
+  expect(workspace).toContain("Retry Football Science DB");
+});
+
 test("Scouting bridge exposes safe FSDB identity helpers for server linking", () => {
   expect(typeof fsdb.fetchFootballScienceProfileForScoutingRecord).toBe("function");
   expect(fsdb.normalizePersonNameForMatch("Álex Morgan")).toBe("alex morgan");

@@ -50,14 +50,26 @@ function requireEnv(name) {
   }
 }
 
+function shortRef(value) {
+  return clean(value).slice(0, 7) || "unknown";
+}
+
+function isAncestor(baseRef, targetRef) {
+  if (!baseRef || !targetRef) return false;
+  return runGit(["merge-base", "--is-ancestor", baseRef, targetRef]);
+}
+
 function ensureStagingTreeMatchesReleaseCandidate() {
   if (skipStagingTreeCheck) {
     warnings.push("Skipped staging tree check because RELEASE_SKIP_STAGING_TREE_CHECK=1.");
     return;
   }
 
-  runGit(["fetch", "--quiet", "origin", "staging"]);
+  runGit(["fetch", "--quiet", "origin", "main", "staging"]);
+  const releaseCommit = tryGit(["rev-parse", "HEAD"]);
   const releaseTree = tryGit(["rev-parse", "HEAD^{tree}"]);
+  const mainCommit = tryGit(["rev-parse", "origin/main"]);
+  const stagingCommit = tryGit(["rev-parse", "origin/staging"]);
   const stagingTree = tryGit(["rev-parse", "origin/staging^{tree}"]);
 
   if (!stagingTree) {
@@ -66,7 +78,31 @@ function ensureStagingTreeMatchesReleaseCandidate() {
   }
 
   if (releaseTree && stagingTree && releaseTree !== stagingTree) {
-    failures.push("The production candidate tree does not match origin/staging. Verify the exact same code on staging before production.");
+    const details = [
+      `release=${shortRef(releaseCommit)}`,
+      `main=${shortRef(mainCommit)}`,
+      `staging=${shortRef(stagingCommit)}`,
+    ].join(", ");
+    if (stagingCommit && mainCommit && isAncestor(stagingCommit, mainCommit)) {
+      failures.push(
+        `The production candidate tree does not match origin/staging (${details}). ` +
+          "Staging appears behind main. Push the exact main candidate to staging, let Staging Deploy finish, then retry production."
+      );
+      return;
+    }
+
+    if (mainCommit && stagingCommit && isAncestor(mainCommit, stagingCommit)) {
+      failures.push(
+        `The production candidate tree does not match origin/staging (${details}). ` +
+          "Staging contains a different or newer tree than main. Re-align staging to the exact production candidate before retrying."
+      );
+      return;
+    }
+
+    failures.push(
+      `The production candidate tree does not match origin/staging (${details}). ` +
+        "Main and staging have diverged. Verify the exact same code on staging before production."
+    );
   }
 }
 

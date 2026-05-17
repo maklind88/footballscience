@@ -171,7 +171,8 @@ const dataSafetyContracts = Object.freeze([
     moduleId: "medical-team",
     key: "football-medical-team-v1",
     recordType: "medical-team-compatibility-state",
-    mergePolicy: dataSafetyMergePolicies.serverSanitized,
+    mergePolicy: dataSafetyMergePolicies.recordTimestampMerge,
+    staleWriteStrategy: "merge",
     scope: {
       teamScoped: true,
       clinical: true,

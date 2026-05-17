@@ -1895,6 +1895,112 @@
             changed: true,
           };
         }
+        function getCentralMedicalEntityKey(item = {}, fallbackFields = []) {
+          const id = String(item?.id || "").trim();
+          if (id) {
+            return `id:${id}`;
+          }
+          const values = fallbackFields.map((field) => String(item?.[field] || "").trim());
+          return values.every(Boolean) ? `fields:${values.join("|")}` : "";
+        }
+        function getCentralMedicalTimestamp(item = {}) {
+          const timestamps = ["updatedAt", "createdAt", "date", "startDate"]
+            .map((field) => Date.parse(String(item?.[field] || "")))
+            .filter((timestamp) => Number.isFinite(timestamp));
+          return timestamps.length ? Math.max(...timestamps) : 0;
+        }
+        function mergeCentralMedicalEntity(centralItem = {}, localItem = {}, options = {}) {
+          const centralTimestamp = getCentralMedicalTimestamp(centralItem);
+          const localTimestamp = getCentralMedicalTimestamp(localItem);
+          const merged = localTimestamp >= centralTimestamp
+            ? { ...centralItem, ...localItem }
+            : { ...localItem, ...centralItem };
+          if (options.preserveMedia) {
+            return preserveCentralStateMediaFields(merged, localItem).record;
+          }
+          return merged;
+        }
+        function mergeCentralMedicalList(localItems = [], centralItems = [], fallbackFields = [], options = {}) {
+          const merged = new Map();
+          const order = [];
+          const append = (item, source) => {
+            if (!item || typeof item !== "object" || Array.isArray(item)) {
+              return;
+            }
+            const key = getCentralMedicalEntityKey(item, fallbackFields) || `unkeyed:${source}:${order.length}`;
+            if (!merged.has(key)) {
+              order.push(key);
+              merged.set(key, item);
+              return;
+            }
+            const current = merged.get(key);
+            merged.set(
+              key,
+              source === "local"
+                ? mergeCentralMedicalEntity(current, item, options)
+                : mergeCentralMedicalEntity(item, current, options)
+            );
+          };
+          centralItems.forEach((item) => append(item, "central"));
+          localItems.forEach((item) => append(item, "local"));
+          return order.map((key) => merged.get(key)).filter(Boolean);
+        }
+        function mergeCentralMedicalPolicy(localPolicy = {}, centralPolicy = {}) {
+          const local = localPolicy && typeof localPolicy === "object" && !Array.isArray(localPolicy) ? localPolicy : {};
+          const central = centralPolicy && typeof centralPolicy === "object" && !Array.isArray(centralPolicy) ? centralPolicy : {};
+          if (!Object.keys(local).length) {
+            return central;
+          }
+          if (!Object.keys(central).length) {
+            return local;
+          }
+          return getCentralMedicalTimestamp(local) >= getCentralMedicalTimestamp(central)
+            ? { ...central, ...local }
+            : { ...local, ...central };
+        }
+        function mergeCentralMedicalStateValues(localValue, centralValue) {
+          const localState = parseCentralObjectStateValue(localValue);
+          const centralStateValue = parseCentralObjectStateValue(centralValue);
+          if (!localState || !centralStateValue) {
+            return { value: centralValue, changed: false };
+          }
+          const players = mergeCentralMedicalList(
+            Array.isArray(localState.players) ? localState.players : [],
+            Array.isArray(centralStateValue.players) ? centralStateValue.players : [],
+            ["name"],
+            { preserveMedia: true }
+          );
+          const playerIds = new Set(players.map((player) => String(player?.id || "").trim()).filter(Boolean));
+          const selectedPlayerId = playerIds.has(String(localState.selectedPlayerId || "").trim())
+            ? localState.selectedPlayerId
+            : playerIds.has(String(centralStateValue.selectedPlayerId || "").trim())
+              ? centralStateValue.selectedPlayerId
+              : players[0]?.id || "";
+          const records = mergeCentralMedicalList(
+            Array.isArray(localState.records) ? localState.records : [],
+            Array.isArray(centralStateValue.records) ? centralStateValue.records : [],
+            ["playerId", "date", "createdAt"]
+          ).sort((first, second) => getCentralMedicalTimestamp(second) - getCentralMedicalTimestamp(first));
+          const injuryPlans = mergeCentralMedicalList(
+            Array.isArray(localState.injuryPlans) ? localState.injuryPlans : [],
+            Array.isArray(centralStateValue.injuryPlans) ? centralStateValue.injuryPlans : [],
+            ["playerId", "startDate", "endDate", "injuryType"]
+          ).sort((first, second) => {
+            const startComparison = String(second?.startDate || "").localeCompare(String(first?.startDate || ""));
+            return startComparison || getCentralMedicalTimestamp(second) - getCentralMedicalTimestamp(first);
+          });
+          const mergedState = {
+            ...centralStateValue,
+            selectedDate: localState.selectedDate || centralStateValue.selectedDate,
+            selectedPlayerId,
+            players,
+            records,
+            injuryPlans,
+            policy: mergeCentralMedicalPolicy(localState.policy, centralStateValue.policy),
+          };
+          const mergedValue = JSON.stringify(mergedState);
+          return { value: mergedValue, changed: mergedValue !== centralValue };
+        }
         function sanitizeWorkspaceHubStateValue(value) {
           const state = parseCentralObjectStateValue(value);
           if (!state) {
@@ -1950,8 +2056,17 @@
                 if (mergedValue.changed) {
                   writeBackEntries.push([key, valueToApply]);
                 }
-              } else if (!options.forceApply && (key === PLAYER_PROFILES_STATE_KEY || key === MEDICAL_TEAM_STATE_KEY)) {
+              } else if (!options.forceApply && key === PLAYER_PROFILES_STATE_KEY) {
                 const mergedValue = mergeCentralStateMediaValues(window.localStorage.getItem(key), value);
+                valueToApply = mergedValue.value;
+                if (mergedValue.changed) {
+                  writeBackEntries.push([key, valueToApply]);
+                }
+              } else if (key === MEDICAL_TEAM_STATE_KEY) {
+                const shouldPreserveLocalMedical = Boolean(pendingEntry?.pendingCentralSync) || Boolean(options.forceApply);
+                const mergedValue = shouldPreserveLocalMedical
+                  ? mergeCentralMedicalStateValues(window.localStorage.getItem(key), value)
+                  : mergeCentralStateMediaValues(window.localStorage.getItem(key), value);
                 valueToApply = mergedValue.value;
                 if (mergedValue.changed) {
                   writeBackEntries.push([key, valueToApply]);

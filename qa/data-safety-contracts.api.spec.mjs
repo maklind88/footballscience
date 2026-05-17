@@ -523,3 +523,106 @@ test("central app-state blocks empty Medical saves from wiping clinical history"
     restoreEnv(env);
   }
 });
+
+test("central app-state merges stale Medical saves without dropping availability plans", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const key = "football-medical-team-v1";
+  const path = `global/${key}.json`;
+  const existingMedicalState = {
+    selectedDate: "2026-05-16",
+    selectedPlayerId: "player-1",
+    players: [{ id: "player-1", name: "Protected Player", updatedAt: "2026-05-07T12:05:00.000Z" }],
+    records: [
+      {
+        id: "record-central",
+        playerId: "player-1",
+        date: "2026-05-16",
+        participation: 75,
+        updatedAt: "2026-05-07T12:05:00.000Z",
+      },
+    ],
+    injuryPlans: [
+      {
+        id: "plan-central",
+        playerId: "player-1",
+        injuryType: "Central protected plan",
+        startDate: "2026-05-01",
+        endDate: "2026-05-21",
+        updatedAt: "2026-05-07T12:05:00.000Z",
+      },
+    ],
+  };
+  const staleIncomingMedicalState = {
+    selectedDate: "2026-05-17",
+    selectedPlayerId: "player-1",
+    players: [{ id: "player-1", name: "Protected Player", updatedAt: "2026-05-07T12:00:00.000Z" }],
+    records: [
+      {
+        id: "record-new",
+        playerId: "player-1",
+        date: "2026-05-17",
+        participation: 50,
+        updatedAt: "2026-05-07T12:10:00.000Z",
+      },
+    ],
+    injuryPlans: [
+      {
+        id: "plan-new",
+        playerId: "player-1",
+        injuryType: "New medical plan from stale tab",
+        startDate: "2026-05-17",
+        endDate: "2026-06-14",
+        updatedAt: "2026-05-07T12:10:00.000Z",
+      },
+    ],
+  };
+  const storage = createAppStateFetchMock(
+    {
+      [path]: createAppStateStorageEntry(key, existingMedicalState, { revision: 3 }),
+    },
+    "medical"
+  );
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        key,
+        value: JSON.stringify(staleIncomingMedicalState),
+        metadata: {
+          baseRevision: 2,
+        },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload).toMatchObject({
+      ok: true,
+      key,
+      merged: true,
+    });
+    expect(response.payload.metadata).toMatchObject({
+      revision: 4,
+      mergePolicy: "record-timestamp-merge",
+    });
+
+    const storedState = JSON.parse(storage.objects.get(path).value);
+    expect(storedState.records.map((record) => record.id).sort()).toEqual(["record-central", "record-new"]);
+    expect(storedState.injuryPlans.map((plan) => plan.id).sort()).toEqual(["plan-central", "plan-new"]);
+    expect(storedState.selectedDate).toBe("2026-05-17");
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});

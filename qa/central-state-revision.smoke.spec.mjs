@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 const revisionStateKey = "football-simulator-sequence-v1";
 const periodizationStateKey = "football-periodization-v2";
 const scheduleStateKey = "football-schedule-v1";
+const medicalTeamStateKey = "football-medical-team-v1";
 const qaUser = {
   id: "qa-user-1",
   email: "qa@footballscience.test",
@@ -490,6 +491,95 @@ test("central Periodization hydration preserves the local selected day", async (
         selectedDate: "2026-05-09",
         selectedMonthIndex: 4,
         note: "Fresh local note after central load",
+      });
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("central Medical hydration preserves pending local availability plans", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const centralMedicalState = {
+    selectedDate: "2026-05-16",
+    selectedPlayerId: "player-1",
+    players: [{ id: "player-1", name: "QA Player", updatedAt: "2026-05-07T12:04:00.000Z" }],
+    records: [],
+    injuryPlans: [
+      {
+        id: "plan-central",
+        playerId: "player-1",
+        injuryType: "Central plan",
+        startDate: "2026-05-01",
+        endDate: "2026-05-21",
+        updatedAt: "2026-05-07T12:04:00.000Z",
+      },
+    ],
+  };
+  const localMedicalState = {
+    selectedDate: "2026-05-17",
+    selectedPlayerId: "player-1",
+    players: [{ id: "player-1", name: "QA Player", updatedAt: "2026-05-07T12:05:00.000Z" }],
+    records: [],
+    injuryPlans: [
+      {
+        id: "plan-local",
+        playerId: "player-1",
+        injuryType: "Pending local plan",
+        startDate: "2026-05-17",
+        endDate: "2026-06-14",
+        updatedAt: "2026-05-07T12:05:00.000Z",
+      },
+    ],
+  };
+  const centralStore = {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+    entries: {
+      [medicalTeamStateKey]: JSON.stringify(centralMedicalState),
+    },
+    metadataEntries: {
+      [medicalTeamStateKey]: {
+        ...createMetadata(4, JSON.stringify(centralMedicalState)),
+        moduleId: "medical-team",
+        mergePolicy: "record-timestamp-merge",
+        updatedAt: "2026-05-07T12:06:00.000Z",
+      },
+    },
+  };
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "medical-pending-plan", {
+    initScript: ({ key, value }) => {
+      window.localStorage.setItem(key, value);
+      window.localStorage.setItem(
+        "football-data-safety-v1",
+        JSON.stringify({
+          entries: {
+            [key]: {
+              label: "Medical Room",
+              pendingCentralSync: true,
+              updatedAt: "2026-05-07T12:05:30.000Z",
+            },
+          },
+        })
+      );
+    },
+    initArg: { key: medicalTeamStateKey, value: JSON.stringify(localMedicalState) },
+  });
+
+  try {
+    await expect
+      .poll(() =>
+        tab.page.evaluate((key) => {
+          const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+          return {
+            selectedDate: state.selectedDate,
+            planIds: (state.injuryPlans || []).map((plan) => plan.id).sort(),
+          };
+        }, medicalTeamStateKey),
+        { timeout: 10_000 }
+      )
+      .toEqual({
+        selectedDate: "2026-05-17",
+        planIds: ["plan-central", "plan-local"],
       });
   } finally {
     await closeCentralStateContext(tab.context);

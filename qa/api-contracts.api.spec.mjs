@@ -606,7 +606,7 @@ test("app-state returns coach-safe medical data to coaches", async () => {
     expect(response.payload.metadata[medicalTeamKey]).toMatchObject({
       revision: 1,
       moduleId: "medical-team",
-      mergePolicy: "server-sanitized",
+      mergePolicy: "record-timestamp-merge",
     });
   } finally {
     global.fetch = originalFetch;

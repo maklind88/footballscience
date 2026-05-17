@@ -727,6 +727,16 @@ test("Session Planner block edits persist after refresh", async ({ page }) => {
 
 test("Medical recommendation edits persist after refresh", async ({ page }) => {
   const comment = `QA Medical ${Date.now()}`;
+  await page.addInitScript(({ storageKey }) => {
+    const current = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+    window.localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        ...current,
+        selectedDate: "2026-05-16",
+      })
+    );
+  }, { storageKey: medicalKey });
   await bootApp(page);
   await openWorkspace(page, "medical-team");
   await expect(page.locator(".medical-hero h1")).toHaveText("North Carolina Courage");

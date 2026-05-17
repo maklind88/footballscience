@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 
 import crypto from "node:crypto";
+import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 
 const DEFAULT_REEP_PEOPLE_URL = "https://raw.githubusercontent.com/withqwerty/reep/main/data/people.csv";
 const DEFAULT_BATCH_SIZE = 250;
 const SOURCE_SYSTEM = "reep";
+const require = createRequire(import.meta.url);
+const { normalizePlayerRecord } = require("../api/_lib/football-science-db.js");
 
 function envValue(primary, alternatives = []) {
   for (const key of [primary, ...alternatives]) {
@@ -31,13 +34,21 @@ function parseArgs(argv = process.argv.slice(2)) {
     sourceUrl: DEFAULT_REEP_PEOPLE_URL,
     batchSize: DEFAULT_BATCH_SIZE,
     limit: 0,
-    dryRun: false,
+    dryRun: true,
+    write: false,
+    confirmFullImport: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--dry-run") {
       options.dryRun = true;
+      options.write = false;
+    } else if (arg === "--write") {
+      options.dryRun = false;
+      options.write = true;
+    } else if (arg === "--confirm-full-import") {
+      options.confirmFullImport = true;
     } else if (arg === "--source-url") {
       options.sourceUrl = argv[index + 1] || options.sourceUrl;
       index += 1;
@@ -207,24 +218,27 @@ function playerFromReepRow(row = {}) {
   };
 }
 
+function playerRowForImport(player = {}) {
+  return normalizePlayerRecord({
+    ...player,
+    sourceSystem: player.source_priority || SOURCE_SYSTEM,
+    sourceConfidence: player.source_confidence,
+    sourceLinkCount: Array.isArray(player.sourceLinks) ? player.sourceLinks.length : player.source_link_count,
+  });
+}
+
 function getBestDryRunName(player = {}) {
-  return normalizeText(player.full_name, 240) || normalizeText(player.canonical_name, 180) || normalizeText(player.display_name, 180);
+  const importRow = playerRowForImport(player) || {};
+  return (
+    normalizeText(importRow.canonical_name || importRow.full_name || importRow.display_name, 240) ||
+    normalizeText(player.full_name, 240) ||
+    normalizeText(player.canonical_name, 180) ||
+    normalizeText(player.display_name, 180)
+  );
 }
 
 function buildDryRunDedupeKey(player = {}) {
-  const name = getBestDryRunName(player);
-  const dateOfBirth = normalizeText(player.date_of_birth, 40);
-  const nationality = normalizeText(player.nationality, 120);
-  const gender = normalizeText(player.gender_segment, 20) || "unknown";
-  if (!isUsableFullName(name) || !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) || !nationality) {
-    return "";
-  }
-  return [
-    `name:${normalizeIdentityText(name)}`,
-    `dob:${dateOfBirth}`,
-    `country:${normalizeIdentityText(nationality, 120)}`,
-    `gender:${gender}`,
-  ].join("|");
+  return normalizeText(playerRowForImport(player)?.dedupe_key, 500);
 }
 
 function pct(part, total) {
@@ -240,6 +254,90 @@ function samplePlayer(player = {}) {
     genderSegment: normalizeText(player.gender_segment, 20) || "unknown",
     dateOfBirth: normalizeText(player.date_of_birth, 40),
     sourceLinks: Array.isArray(player.sourceLinks) ? player.sourceLinks.length : 0,
+  };
+}
+
+function sourceLinkIdentity(link = {}) {
+  const source = normalizeSourceSystem(link.source_system || link.sourceSystem);
+  const entityId = normalizeText(link.source_entity_id || link.sourceEntityId || link.sourceId, 180);
+  return source && entityId ? `${source}:${entityId}` : "";
+}
+
+function mergeSourceLinks(existingLinks = [], incomingLinks = []) {
+  const byIdentity = new Map();
+  for (const link of [...existingLinks, ...incomingLinks]) {
+    const identity = sourceLinkIdentity(link);
+    if (!identity) continue;
+    byIdentity.set(identity, link);
+  }
+  return [...byIdentity.values()];
+}
+
+function mergeDuplicatePlayer(primary = {}, duplicate = {}) {
+  const primaryLinks = Array.isArray(primary.sourceLinks) ? primary.sourceLinks : [];
+  const duplicateLinks = Array.isArray(duplicate.sourceLinks) ? duplicate.sourceLinks : [];
+  const primaryMetadata = primary.metadata && typeof primary.metadata === "object" ? primary.metadata : {};
+  const duplicateMetadata = duplicate.metadata && typeof duplicate.metadata === "object" ? duplicate.metadata : {};
+  const primarySourceRows = Math.max(1, Number(primaryMetadata.mergedSourceRows) || 1);
+  const duplicateSourceRows = Math.max(1, Number(duplicateMetadata.mergedSourceRows) || 1);
+  const mergedReepIds = [
+    ...(Array.isArray(primaryMetadata.mergedReepIds) ? primaryMetadata.mergedReepIds : []),
+    primaryMetadata.reepId,
+    duplicateMetadata.reepId,
+    ...(Array.isArray(duplicateMetadata.mergedReepIds) ? duplicateMetadata.mergedReepIds : []),
+  ].filter(Boolean);
+  const merged = {
+    ...primary,
+    full_name: isUsableFullName(primary.full_name) ? primary.full_name : duplicate.full_name || primary.full_name,
+    canonical_name: isUsableFullName(primary.canonical_name) ? primary.canonical_name : duplicate.canonical_name || primary.canonical_name,
+    gender_segment: primary.gender_segment !== "unknown" ? primary.gender_segment : duplicate.gender_segment || primary.gender_segment,
+    primary_position: primary.primary_position || duplicate.primary_position || null,
+    position_group: primary.position_group || duplicate.position_group || null,
+    position_detail: primary.position_detail || duplicate.position_detail || null,
+    height_cm: primary.height_cm || duplicate.height_cm || null,
+    metadata: {
+      ...primaryMetadata,
+      duplicateMerge: true,
+      mergedSourceRows: primarySourceRows + duplicateSourceRows,
+      mergedReepIds: [...new Set(mergedReepIds)].slice(0, 40),
+    },
+    sourceLinks: mergeSourceLinks(primaryLinks, duplicateLinks),
+  };
+  merged.display_name = merged.display_name || merged.canonical_name;
+  merged.sort_name = normalizeText(merged.sort_name || merged.canonical_name, 180).toLowerCase();
+  return merged;
+}
+
+function preparePlayersForImport(players = []) {
+  const prepared = [];
+  const dedupeKeyIndex = new Map();
+  const duplicateGroups = new Set();
+  let collapsedDuplicatePlayers = 0;
+
+  for (const player of players) {
+    const dedupeKey = buildDryRunDedupeKey(player);
+    if (!dedupeKey) {
+      prepared.push(player);
+      continue;
+    }
+
+    const existingIndex = dedupeKeyIndex.get(dedupeKey);
+    if (existingIndex === undefined) {
+      dedupeKeyIndex.set(dedupeKey, prepared.length);
+      prepared.push(player);
+      continue;
+    }
+
+    prepared[existingIndex] = mergeDuplicatePlayer(prepared[existingIndex], player);
+    duplicateGroups.add(dedupeKey);
+    collapsedDuplicatePlayers += 1;
+  }
+
+  return {
+    sourcePlayers: players.length,
+    players: prepared,
+    collapsedDuplicatePlayers,
+    duplicateGroupsMerged: duplicateGroups.size,
   };
 }
 
@@ -272,20 +370,23 @@ function buildDryRunReport(players = []) {
   };
 
   players.forEach((player) => {
-    const gender = normalizeText(player.gender_segment, 20);
+    const importRow = playerRowForImport(player) || {};
+    const gender = normalizeText(importRow.gender_segment || player.gender_segment, 20);
     if (gender === "women") report.womenTagged += 1;
     else if (gender === "men") report.menTagged += 1;
     else report.unknownGender += 1;
 
     const name = getBestDryRunName(player);
-    if (isUsableFullName(name)) report.fullNames += 1;
-    if (isInitialOnlyName(name)) {
+    if (importRow.name_quality === "full" || isUsableFullName(name)) report.fullNames += 1;
+    if (importRow.name_quality === "initial" || isInitialOnlyName(name)) {
       report.initialNames += 1;
       if (report.review.initialNames.length < 8) report.review.initialNames.push(samplePlayer(player));
     }
-    if (normalizeText(player.date_of_birth, 40)) report.birthDateKnown += 1;
-    if (normalizeText(player.nationality, 120)) report.nationalityKnown += 1;
-    if (normalizeText(player.position_group || player.primary_position, 120)) report.positionKnown += 1;
+    if (normalizeText(importRow.date_of_birth || player.date_of_birth, 40)) report.birthDateKnown += 1;
+    if (normalizeText(importRow.nationality || player.nationality, 120)) report.nationalityKnown += 1;
+    if (normalizeText(importRow.position_group || importRow.primary_position || player.position_group || player.primary_position, 120)) {
+      report.positionKnown += 1;
+    }
 
     const sourceLinks = Array.isArray(player.sourceLinks) ? player.sourceLinks : [];
     if (sourceLinks.length) report.sourceLinkedPlayers += 1;
@@ -452,7 +553,7 @@ async function importPlayers(players, options) {
   const chunks = chunkArray(players, options.batchSize);
 
   for (const [chunkIndex, chunk] of chunks.entries()) {
-    const playerRows = chunk.map(({ sourceLinks: _sourceLinks, ...player }) => player);
+    const playerRows = chunk.map(playerRowForImport).filter(Boolean);
     const insertedPlayers = await restRequest("/fsdb_players?on_conflict=fsdb_id", {
       method: "POST",
       headers: { Prefer: "resolution=merge-duplicates,return=representation" },
@@ -478,19 +579,30 @@ async function importPlayers(players, options) {
 
 async function main() {
   const options = parseArgs();
+  if (options.write && !options.limit && !options.confirmFullImport) {
+    throw new Error("Full write imports require --confirm-full-import. Use --limit for a smaller controlled write.");
+  }
   const players = await readReepPlayers(options.sourceUrl, options.limit);
-  console.log(`[fsdb:reep] prepared players=${players.length} dryRun=${options.dryRun ? "yes" : "no"}`);
+  const importPlan = preparePlayersForImport(players);
+  console.log(
+    `[fsdb:reep] prepared players=${importPlan.players.length} sourceRows=${importPlan.sourcePlayers} dryRun=${options.dryRun ? "yes" : "no"}`
+  );
+  if (importPlan.collapsedDuplicatePlayers) {
+    console.log(
+      `[fsdb:reep] duplicate plan: collapsedPlayers=${importPlan.collapsedDuplicatePlayers} duplicateGroups=${importPlan.duplicateGroupsMerged}`
+    );
+  }
 
   if (options.dryRun) {
-    const report = buildDryRunReport(players);
+    const report = buildDryRunReport(importPlan.players);
     formatDryRunReport(report).forEach((line) => console.log(line));
     return;
   }
 
   let batchId = "";
   try {
-    batchId = await createImportBatch(options, players.length);
-    const counts = await importPlayers(players, options);
+    batchId = await createImportBatch(options, importPlan.players.length);
+    const counts = await importPlayers(importPlan.players, options);
     await finishImportBatch(batchId, "published", { playerCount: counts.imported });
     console.log(`[fsdb:reep] finished batch=${batchId} players=${counts.imported} sourceLinks=${counts.sourceLinks}`);
   } catch (error) {
@@ -510,8 +622,10 @@ if (import.meta.url === entryPoint) {
 export {
   buildDryRunDedupeKey,
   buildDryRunReport,
+  preparePlayersForImport,
   formatDryRunReport,
   isInitialOnlyName,
   isUsableFullName,
+  playerRowForImport,
   playerFromReepRow,
 };

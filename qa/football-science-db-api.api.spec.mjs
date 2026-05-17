@@ -244,4 +244,19 @@ test("Reep importer dry run reports dedupe and name quality before writes", asyn
   expect(report.review.initialNames[0].name).toBe("A. Example");
   expect(report.review.duplicateCandidates[0].count).toBe(2);
   expect(importer.formatDryRunReport(report).join("\n")).toContain("duplicateStrongKeys=1");
+
+  const importPlan = importer.preparePlayersForImport(players);
+  expect(importPlan).toMatchObject({
+    sourcePlayers: 3,
+    collapsedDuplicatePlayers: 1,
+    duplicateGroupsMerged: 1,
+  });
+  expect(importPlan.players).toHaveLength(2);
+
+  const adaImportRow = importer.playerRowForImport(importPlan.players.find((player) => player.canonical_name === "Ada Example"));
+  expect(adaImportRow).toMatchObject({
+    name_quality: "full",
+    source_link_count: 2,
+  });
+  expect(adaImportRow.dedupe_key).toContain("name:ada example");
 });

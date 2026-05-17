@@ -42,6 +42,15 @@ test("Football Science DB player search uses planned counts for first-page total
   expect(source).toContain('dbRequest(`/fsdb_players?${params.toString()}`, { includeCount: includeTotal, countStrategy: "planned" })');
 });
 
+test("Football Science DB database requests time out instead of leaving the UI loading", () => {
+  const source = readFileSync(resolve(projectRoot, "api/_lib/football-science-db.js"), "utf8");
+
+  expect(source).toContain("const timeoutMs = Math.max(1000");
+  expect(source).toContain("controller.abort()");
+  expect(source).toContain("Football Science DB request timed out");
+  expect(source).toContain("status: timedOut ? 504 : 502");
+});
+
 test("Football Science DB normalizes source records without leaking raw provider shape", () => {
   const record = fsdb.normalizePlayerRecord({
     reepId: "reep_pabc12345",

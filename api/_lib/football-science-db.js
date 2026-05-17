@@ -263,12 +263,32 @@ async function dbRequest(path, options = {}) {
     headers.Prefer = existingPrefer ? `${existingPrefer},count=${countStrategy}` : `count=${countStrategy}`;
   }
 
-  const response = await fetch(`${base.url}${path}`, {
-    method: options.method || "GET",
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-  const payload = await parseResponse(response);
+  const timeoutMs = Math.max(1000, Math.floor(Number(options.timeoutMs) || 12000));
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let response;
+  let payload;
+  try {
+    response = await fetch(`${base.url}${path}`, {
+      method: options.method || "GET",
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      signal: controller.signal,
+    });
+    payload = await parseResponse(response);
+  } catch (error) {
+    const timedOut = error?.name === "AbortError";
+    return {
+      ok: false,
+      status: timedOut ? 504 : 502,
+      reason: timedOut
+        ? `Football Science DB request timed out after ${timeoutMs}ms.`
+        : error?.message || "Football Science DB request could not be completed.",
+    };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
   if (!response.ok) {
     return {
       ok: false,

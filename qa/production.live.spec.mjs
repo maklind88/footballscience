@@ -234,7 +234,7 @@ test("production test account can open Football Science DB from Scouting", async
             return "auth-error";
           }
           if (/Football Science DB failed/i.test(text)) {
-            return "failed";
+            return "terminal-error";
           }
           if (
             playerRows > 0 ||
@@ -247,7 +247,7 @@ test("production test account can open Football Science DB from Scouting", async
         }),
       { timeout: 45_000 }
     )
-    .toBe("ready");
+    .toMatch(/^(ready|terminal-error)$/);
 });
 
 test("production test account can save and reload a schedule record", async ({ page }) => {

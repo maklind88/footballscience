@@ -959,6 +959,8 @@ test("Medical recommendations use match context and lock non-activity days", asy
   await playerRow.click();
   await expect(page.locator(".medical-modal-current")).toContainText("Match Available");
   await expect(page.locator("[data-medical-recommendation-preview]")).toHaveText("100% / Match Available");
+  await expect(page.locator(".medical-modal-card #medicalPlayerProfileForm")).toHaveCount(0);
+  await expect(page.locator(".medical-modal-card")).not.toContainText("Save profile");
   await page.locator(".medical-modal-close").click();
 
   await page.locator("[data-medical-date-picker]").evaluate((input) => {

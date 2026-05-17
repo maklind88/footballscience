@@ -30201,37 +30201,6 @@ ${renderMedicalInjuryPlanForm(player, canEdit)}
 </div>
 <aside class="medical-modal-side">
 ${renderMedicalPlayerProfileSummary(player)}
-<article class="medical-side-card">
-<div class="medical-card-headline">
-<h2>Profile</h2>
-<span>IDP-ready</span>
-</div>
-<form id="medicalPlayerProfileForm" class="medical-profile-form">
-<div class="medical-form-grid">
-<label>
-<span>Number</span>
-<input name="number" value="${escapeHtml(player.number)}" ${canEdit ? "" : "disabled"} />
-</label>
-<label>
-<span>Name</span>
-<input name="name" value="${escapeHtml(player.name)}" required ${canEdit ? "" : "disabled"} />
-</label>
-<label>
-<span>Position</span>
-<input name="position" value="${escapeHtml(player.position)}" ${canEdit ? "" : "disabled"} />
-</label>
-<label>
-<span>Image URL</span>
-<input name="photoUrl" type="url" value="${escapeHtml(player.photoUrl)}" ${canEdit ? "" : "disabled"} />
-</label>
-</div>
-<input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
-<div class="medical-form-actions">
-<button type="submit" ${canEdit ? "" : "disabled"}>Save profile</button>
-<button type="button" class="medical-danger-button" data-medical-remove-player="${escapeHtml(player.id)}" ${canEdit ? "" : "disabled"}>Remove</button>
-</div>
-</form>
-</article>
 ${renderMedicalClearanceChecklist(player, canEdit)}
 <article class="medical-side-card medical-plan-list-card">
 <div class="medical-card-headline">

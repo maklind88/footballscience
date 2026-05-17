@@ -223,6 +223,21 @@ Current direction:
 - Platform Admin, Club Admin, Team Admin, Coach, Scout, and Analyst can view and edit.
 - Long-term data should move into `scouting_players`, `scouting_player_metrics`, `scouting_lists`, `scouting_shadow_xi`, and `scouting_reports`.
 
+## Gameplan
+
+Purpose: match-week alignment for the staff, with one clear match plan, owner-specific responsibilities, and a separate Player Brief that can be shared only with selected squad players.
+
+Current direction:
+
+- Gameplan is a first-class module with workspace id `gameplan`.
+- Current state key is `football-gameplan-v1`, protected by central app-state, data safety, backup, and permission contracts.
+- Gameplans are created from Schedule matches so match metadata stays connected to the season calendar.
+- Staff view owns tactical intent, opponent plan, matchday checklist, and staff responsibilities.
+- Player Brief is intentionally separate from staff responsibilities. It contains only player-facing headline, message, team focus, phase notes, individual focus, selected audience, and publish timestamp.
+- Each selected player gets an individual `player-brief` portal URL. Production links are signed through `/api/gameplan-player-brief`, expire, render only player-facing brief content, block players not in the audience, and record opened/acknowledged receipts back into `football-gameplan-v1`.
+- Platform Admin, Club Admin, Team Admin, Coach, Scout, and Analyst can edit; Performance and Medical can view staff-safe preparation context.
+- Long-term data should move into `gameplan_match_plans`, `gameplan_staff_roles`, and `gameplan_player_briefs`.
+
 ## Squad
 
 The old Player Profiles workspace is now `Squad` in product language. Keep the first screen focused on the squad list, player-profile modal, and compact add-player flow. IDP content can return later inside the player profile when it has a clear workflow.

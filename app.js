@@ -143,6 +143,7 @@ adminWorkspace: document.getElementById("adminWorkspace"),
 medicalTeamWorkspace: document.getElementById("medicalTeamWorkspace"),
 playerProfilesWorkspace: document.getElementById("playerProfilesWorkspace"),
 scoutingWorkspace: document.getElementById("scoutingWorkspace"),
+gameplanWorkspace: document.getElementById("gameplanWorkspace"),
 transferRoomWorkspace: document.getElementById("transferRoomWorkspace"),
 analysisRoomWorkspace: document.getElementById("analysisRoomWorkspace"),
 gameSimulatorWorkspace: document.querySelector('[data-workspace-view="game-simulator"]'),
@@ -347,6 +348,7 @@ const dashboardNewsSeenStorageKey = "football-dashboard-news-seen-v1";
 const platformAppearanceStorageKey = "football-platform-appearance-v1";
 const medicalTeamStorageKey = "football-medical-team-v1";
 const scoutingStorageKey = "football-scouting-v1";
+const gameplanStorageKey = "football-gameplan-v1";
 const transferRoomStorageKey = "football-transfer-room-v1";
 const sequenceStorageKey = "football-simulator-sequence-v1";
 const sequenceLibraryStorageKey = "football-simulator-sequence-library-v2";
@@ -376,6 +378,7 @@ dashboardNewsSeenStorageKey,
 platformAppearanceStorageKey,
 medicalTeamStorageKey,
 scoutingStorageKey,
+gameplanStorageKey,
 transferRoomStorageKey,
 sequenceStorageKey,
 sequenceLibraryStorageKey,
@@ -1793,6 +1796,15 @@ status: "New",
 icon: "□",
 },
 {
+id: "gameplan",
+kind: "gameplan",
+title: "Gameplan",
+meta: "Match",
+description: "Match prep.",
+status: "New",
+icon: "▤",
+},
+{
 id: "my-profile",
 kind: "profile",
 title: "Profile",
@@ -1908,6 +1920,7 @@ icon: "◈",
 };
 const topIconMenuOrder = [
 "schedule",
+"gameplan",
 "periodization",
 "session-planner",
 "player-profiles",
@@ -1923,6 +1936,7 @@ const topIconMenuOrder = [
 const defaultWorkspaceAccess = {
 chat: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
 schedule: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"],
+gameplan: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
 periodization: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
 "session-planner": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
 "player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout", "performance", "medical"],
@@ -1938,6 +1952,7 @@ admin: ["admin"],
 const defaultWorkspaceEditAccess = {
 chat: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
 schedule: ["admin", "club-admin", "team-admin", "coach"],
+gameplan: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
 periodization: ["admin", "club-admin", "team-admin", "coach", "performance"],
 "session-planner": ["admin", "club-admin", "team-admin", "coach"],
 "player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout"],
@@ -7045,6 +7060,45 @@ function canUserEditTransferRoom(user = getCurrentPlatformUser()) { return trans
 function addTransferRoomTargetFromScoutingSnapshot(snapshot = {}, options = {}) {
 return transferRoomRuntime.addTargetFromScoutingSnapshot(snapshot, options);
 }
+let gpModule = null;
+function getGameplanContext() {
+return {
+users: getPlatformUsers(),
+canEdit: () => canCurrentUserEditWorkspace("gameplan"),
+getAuthToken: getPlatformApiAccessToken,
+};
+}
+function loadGameplanModule() {
+if (gpModule) {
+return Promise.resolve(gpModule);
+}
+return Promise.all([
+platformModuleLoader.loadStylesheet("gameplan", "gameplan.css", {
+id: "gameplanStylesheet",
+required: true,
+}),
+platformModuleLoader.loadModule("gameplan", () => import(`./gameplan.js?v=${encodeURIComponent(platformAssetVersion)}`)),
+])
+.then(([, module]) => {
+gpModule = module;
+return module;
+});
+}
+function renderGameplanWorkspace() {
+if (!ui.gameplanWorkspace) {
+return;
+}
+if (!gpModule) {
+ui.gameplanWorkspace.textContent = "Loading Gameplan";
+loadGameplanModule()
+.then((module) => module.render(getGameplanContext()))
+.catch(() => {
+ui.gameplanWorkspace.textContent = "Gameplan could not load";
+});
+return;
+}
+gpModule.render(getGameplanContext());
+}
 let scoutingWorkspaceModulePromise = null;
 let scoutingWorkspaceModule = null;
 function getScoutingWorkspaceContext() {
@@ -7955,6 +8009,9 @@ return "scouting";
 }
 if (workspace.kind === "schedule") {
 return "schedule";
+}
+if (workspace.kind === "gameplan") {
+return "gameplan";
 }
 if (workspace.kind === "periodization") {
 return "periodization";
@@ -32640,6 +32697,9 @@ renderPlayerProfilesWorkspace();
 }
 if (activeViewId === "scouting") {
 renderScoutingWorkspace();
+}
+if (activeViewId === "gameplan") {
+renderGameplanWorkspace();
 }
 if (activeViewId === "transfer-room") {
 renderTransferRoomWorkspace();
@@ -75067,6 +75127,11 @@ scoutingWorkspaceModule?.handleChange(event, getScoutingWorkspaceContext());
 });
 ui.scoutingWorkspace?.addEventListener("submit", (event) => {
 scoutingWorkspaceModule?.handleSubmit(event, getScoutingWorkspaceContext());
+});
+["click", "input", "change", "submit"].forEach((type) => {
+ui.gameplanWorkspace?.addEventListener(type, (event) =>
+gpModule?.[`handle${type[0].toUpperCase()}${type.slice(1)}`]?.(event, getGameplanContext())
+);
 });
 ui.transferRoomWorkspace?.addEventListener("click", (event) => {
 transferRoomRuntime.workspaceModule?.handleClick(event, getTransferRoomWorkspaceContext());

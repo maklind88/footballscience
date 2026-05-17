@@ -113,6 +113,18 @@ const platformPermissionMatrix = Object.freeze([
     storageKeys: ["football-schedule-v1"],
     routes: ["/api/app-state"],
   }),
+  moduleContract("gameplan", "Gameplan", "team", {
+    read: staffRoles,
+    write: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
+    delete: managerRoles,
+    export: ["admin", "coach", "analyst"],
+    restore: ["admin", "coach"],
+    admin: ["admin"],
+    observe: ["admin", "coach", "analyst"],
+  }, {
+    storageKeys: ["football-gameplan-v1"],
+    routes: ["/api/app-state", "/api/gameplan-player-brief"],
+  }),
   moduleContract("exercise-library", "Exercise Library", "team", {
     read: staffRoles,
     write: managerRoles,
@@ -330,6 +342,13 @@ const apiRouteSecurity = Object.freeze({
     actions: Object.freeze({ GET: "read", POST: "write" }),
     rateLimits: Object.freeze({ read: 120, write: 90 }),
     enforcePermission: true,
+  }),
+  "/api/gameplan-player-brief": Object.freeze({
+    moduleId: "gameplan",
+    public: true,
+    actions: Object.freeze({ GET: "read", POST: "write" }),
+    rateLimits: Object.freeze({ read: 90, write: 45 }),
+    enforcePermission: false,
   }),
   "/api/client-config": Object.freeze({
     moduleId: "auth",

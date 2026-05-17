@@ -1,0 +1,815 @@
+.gameplan-workspace {
+  min-height: calc(100vh - 72px);
+  color: #172018;
+}
+
+.gameplan-shell {
+  display: grid;
+  grid-template-columns: minmax(15rem, 20rem) minmax(0, 1fr);
+  gap: 1rem;
+  min-height: calc(100vh - 72px);
+  padding: clamp(1rem, 2.4vw, 1.5rem);
+}
+
+.gameplan-sidebar,
+.gameplan-card,
+.gameplan-delivery-panel,
+.gameplan-player-audience,
+.gameplan-player-preview-card,
+.gameplan-status-board {
+  border: 1px solid rgba(29, 29, 31, 0.12);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 18px 46px rgba(20, 30, 24, 0.08);
+  backdrop-filter: blur(20px);
+}
+
+.gameplan-sidebar {
+  position: sticky;
+  top: 5.7rem;
+  align-self: start;
+  display: grid;
+  gap: 0.85rem;
+  max-height: calc(100vh - 7rem);
+  overflow: auto;
+  padding: 0.8rem;
+  border-radius: 18px;
+}
+
+.gameplan-sidebar-head,
+.gameplan-card header,
+.gameplan-delivery-panel header,
+.gameplan-player-audience header,
+.gameplan-staff-top,
+.gameplan-hero,
+.gameplan-meta-row,
+.gameplan-check-item {
+  display: flex;
+  align-items: center;
+}
+
+.gameplan-sidebar-head,
+.gameplan-card header,
+.gameplan-delivery-panel header,
+.gameplan-player-audience header {
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.gameplan-sidebar-head span,
+.gameplan-card header span,
+.gameplan-delivery-panel header span,
+.gameplan-player-audience header span,
+.gameplan-field span,
+.gameplan-staff-card label span,
+.gameplan-status-board label span,
+.gameplan-player-preview-card section span,
+.gameplan-player-portal-card section span,
+.gameplan-create-panel > span {
+  color: #66716a;
+  font-size: 0.69rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.gameplan-plan-list,
+.gameplan-match-list,
+.gameplan-staff-list,
+.gameplan-check-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.gameplan-plan-card,
+.gameplan-match-list button,
+.gameplan-tabs button,
+.gameplan-card header button,
+.gameplan-player-audience button,
+.gameplan-delivery-row button,
+.gameplan-delivery-row a,
+.gameplan-player-portal-card button,
+.gameplan-staff-card button,
+.gameplan-check-item button {
+  min-height: 2.35rem;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(24, 46, 34, 0.08);
+  color: #172018;
+  font: inherit;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.gameplan-plan-card {
+  display: grid;
+  gap: 0.12rem;
+  width: 100%;
+  padding: 0.72rem;
+  text-align: left;
+}
+
+.gameplan-plan-card span,
+.gameplan-plan-card small {
+  overflow: hidden;
+  color: #718079;
+  font-size: 0.72rem;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gameplan-plan-card strong {
+  overflow: hidden;
+  font-size: 0.94rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gameplan-plan-card.is-active,
+.gameplan-plan-card:hover,
+.gameplan-tabs button.is-active,
+.gameplan-tabs button:hover {
+  background: #183729;
+  color: #fff;
+}
+
+.gameplan-plan-card.is-active span,
+.gameplan-plan-card.is-active small {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.gameplan-create-panel {
+  display: grid;
+  gap: 0.48rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid rgba(29, 29, 31, 0.1);
+}
+
+.gameplan-match-list button {
+  width: 100%;
+  padding: 0.65rem;
+  text-align: left;
+}
+
+.gameplan-main {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 0.9rem;
+}
+
+.gameplan-hero {
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+  padding: clamp(1rem, 2.4vw, 1.35rem);
+  border-radius: 24px;
+  background: linear-gradient(135deg, #f7faf8, #ffffff);
+  border: 1px solid rgba(29, 29, 31, 0.1);
+  box-shadow: 0 20px 48px rgba(18, 28, 23, 0.08);
+}
+
+.gameplan-hero-main {
+  min-width: 0;
+}
+
+.gameplan-hero-main p {
+  margin: 0 0 0.18rem;
+  color: #66716a;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.gameplan-hero h1 {
+  margin: 0;
+  font-size: clamp(1.6rem, 3vw, 2.45rem);
+  line-height: 0.98;
+  letter-spacing: 0;
+}
+
+.gameplan-meta-row {
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.7rem;
+}
+
+.gameplan-meta-row span,
+.gameplan-status-board > div,
+.gameplan-player-preview-card footer span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.85rem;
+  padding: 0 0.62rem;
+  border-radius: 999px;
+  background: rgba(24, 46, 34, 0.09);
+  color: #25392f;
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.gameplan-status-board {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1.2fr) 1fr 1fr;
+  gap: 0.55rem;
+  min-width: min(29rem, 100%);
+  padding: 0.62rem;
+  border-radius: 18px;
+}
+
+.gameplan-status-board label,
+.gameplan-status-board > div {
+  display: grid;
+  gap: 0.18rem;
+  min-height: 4rem;
+  padding: 0.62rem;
+  border-radius: 14px;
+  background: rgba(247, 250, 248, 0.9);
+}
+
+.gameplan-status-board > div {
+  align-content: center;
+}
+
+.gameplan-status-board strong {
+  font-size: 1.12rem;
+}
+
+.gameplan-status-board select {
+  width: 100%;
+}
+
+.gameplan-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+  padding: 0.36rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(29, 29, 31, 0.08);
+}
+
+.gameplan-tabs button {
+  min-width: 7rem;
+  padding: 0 0.9rem;
+  border-radius: 999px;
+}
+
+.gameplan-panel,
+.gameplan-plan-grid,
+.gameplan-player-layout {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.gameplan-plan-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.gameplan-card-span {
+  grid-column: 1 / -1;
+}
+
+.gameplan-card,
+.gameplan-delivery-panel,
+.gameplan-player-audience,
+.gameplan-player-preview-card {
+  display: grid;
+  gap: 0.8rem;
+  padding: clamp(0.85rem, 2vw, 1rem);
+  border-radius: 18px;
+}
+
+.gameplan-form-grid,
+.gameplan-phase-grid,
+.gameplan-staff-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.68rem;
+}
+
+.gameplan-phase-grid {
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+
+.gameplan-field,
+.gameplan-staff-card label {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.gameplan-field.is-wide {
+  grid-column: 1 / -1;
+}
+
+.gameplan-field textarea,
+.gameplan-staff-card textarea,
+.gameplan-staff-card input,
+.gameplan-staff-card select,
+.gameplan-delivery-row input,
+.gameplan-check-item input,
+.gameplan-check-item select,
+.gameplan-status-board select {
+  width: 100%;
+  min-height: 2.45rem;
+  border: 1px solid rgba(29, 29, 31, 0.14);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #172018;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  outline: 0;
+}
+
+.gameplan-field textarea,
+.gameplan-staff-card textarea {
+  resize: vertical;
+  padding: 0.75rem;
+  line-height: 1.35;
+}
+
+.gameplan-staff-card input,
+.gameplan-staff-card select,
+.gameplan-delivery-row input,
+.gameplan-check-item input,
+.gameplan-check-item select,
+.gameplan-status-board select {
+  padding: 0 0.7rem;
+}
+
+.gameplan-field textarea:focus,
+.gameplan-staff-card textarea:focus,
+.gameplan-staff-card input:focus,
+.gameplan-staff-card select:focus,
+.gameplan-delivery-row input:focus,
+.gameplan-check-item input:focus,
+.gameplan-check-item select:focus,
+.gameplan-status-board select:focus {
+  border-color: rgba(24, 55, 41, 0.45);
+  box-shadow: 0 0 0 3px rgba(24, 55, 41, 0.13);
+}
+
+.gameplan-field textarea:disabled,
+.gameplan-staff-card textarea:disabled,
+.gameplan-staff-card input:disabled,
+.gameplan-staff-card select:disabled,
+.gameplan-delivery-row input:disabled,
+.gameplan-check-item input:disabled,
+.gameplan-check-item select:disabled,
+.gameplan-status-board select:disabled,
+.gameplan-player-pill input:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+}
+
+.gameplan-staff-card {
+  display: grid;
+  gap: 0.62rem;
+  padding: 0.78rem;
+  border-radius: 16px;
+  background: rgba(247, 250, 248, 0.82);
+  border: 1px solid rgba(29, 29, 31, 0.1);
+}
+
+.gameplan-staff-top {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) minmax(9rem, 0.8fr) auto;
+  gap: 0.55rem;
+}
+
+.gameplan-player-layout {
+  grid-template-columns: minmax(0, 1.25fr) minmax(16rem, 0.75fr);
+}
+
+.gameplan-player-layout .gameplan-player-preview {
+  grid-column: 1 / -1;
+}
+
+.gameplan-delivery-panel {
+  grid-column: 1 / -1;
+}
+
+.gameplan-delivery-panel header > div {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.gameplan-delivery-panel header strong {
+  font-size: 0.98rem;
+}
+
+.gameplan-delivery-panel header small {
+  color: #66716a;
+  font-weight: 850;
+}
+
+.gameplan-delivery-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.gameplan-delivery-row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 0.95fr) minmax(12rem, 1.4fr) auto auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.58rem;
+  border-radius: 14px;
+  background: rgba(247, 250, 248, 0.82);
+  border: 1px solid rgba(29, 29, 31, 0.1);
+}
+
+.gameplan-delivery-row > div {
+  display: grid;
+  gap: 0.16rem;
+  min-width: 0;
+}
+
+.gameplan-delivery-row strong,
+.gameplan-delivery-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gameplan-delivery-row span {
+  color: #66716a;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.gameplan-delivery-row input {
+  min-width: 0;
+}
+
+.gameplan-delivery-row a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.2rem;
+  padding: 0 0.75rem;
+  text-decoration: none;
+}
+
+.gameplan-delivery-row a.is-disabled {
+  pointer-events: none;
+  opacity: 0.52;
+}
+
+.gameplan-delivery-row[data-gameplan-link-error]::after {
+  grid-column: 2 / -1;
+  content: attr(data-gameplan-link-error);
+  color: #9a3412;
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.gameplan-player-list {
+  display: grid;
+  gap: 0.42rem;
+  max-height: 28rem;
+  overflow: auto;
+}
+
+.gameplan-player-pill {
+  display: grid;
+  grid-template-columns: auto minmax(2.2rem, auto) minmax(0, 1fr) minmax(4rem, auto);
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0.52rem;
+  border-radius: 12px;
+  background: rgba(24, 46, 34, 0.07);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.gameplan-player-pill strong,
+.gameplan-player-pill small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gameplan-player-pill small {
+  color: #718079;
+}
+
+.gameplan-player-preview-card {
+  color: #f8fbf8;
+  background: linear-gradient(135deg, #172018, #244538);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.gameplan-player-preview-card p,
+.gameplan-player-preview-card h2,
+.gameplan-player-preview-card strong {
+  margin: 0;
+}
+
+.gameplan-player-preview-card h2 {
+  font-size: clamp(1.4rem, 2.4vw, 2.1rem);
+}
+
+.gameplan-player-preview-card > p,
+.gameplan-player-preview-card section span {
+  color: rgba(255, 255, 255, 0.66);
+}
+
+.gameplan-player-preview-card > strong,
+.gameplan-player-preview-card section p {
+  color: rgba(255, 255, 255, 0.92);
+  line-height: 1.4;
+}
+
+.gameplan-player-preview-phases {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.55rem;
+}
+
+.gameplan-player-preview-card section {
+  display: grid;
+  gap: 0.22rem;
+  padding: 0.7rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.gameplan-player-preview-card footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.38rem;
+}
+
+.gameplan-player-preview-card footer span {
+  background: rgba(255, 255, 255, 0.13);
+  color: #fff;
+}
+
+.gameplan-player-portal {
+  min-height: calc(100vh - 72px);
+  display: grid;
+  place-items: center;
+  padding: clamp(1rem, 4vw, 2rem);
+  background: radial-gradient(circle at top left, rgba(34, 80, 61, 0.12), transparent 32%),
+    linear-gradient(135deg, #f7faf8, #ffffff);
+}
+
+.gameplan-player-portal-card {
+  display: grid;
+  gap: 0.95rem;
+  width: min(58rem, 100%);
+  padding: clamp(1rem, 3vw, 1.6rem);
+  border: 1px solid rgba(29, 29, 31, 0.12);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 24px 70px rgba(20, 30, 24, 0.12);
+}
+
+.gameplan-player-portal-card header,
+.gameplan-player-portal-card footer,
+.gameplan-player-portal-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.gameplan-player-portal-card header p,
+.gameplan-player-portal-card h1,
+.gameplan-player-portal-card > strong,
+.gameplan-player-portal-card section p {
+  margin: 0;
+}
+
+.gameplan-player-portal-card header p {
+  color: #66716a;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.gameplan-player-portal-card h1 {
+  max-width: 15ch;
+  font-size: clamp(2rem, 5vw, 4.2rem);
+  line-height: 0.98;
+  letter-spacing: 0;
+}
+
+.gameplan-player-portal-card > strong {
+  max-width: 62ch;
+  color: #25392f;
+  font-size: clamp(1rem, 2vw, 1.25rem);
+  line-height: 1.45;
+}
+
+.gameplan-player-portal-card section,
+.gameplan-player-portal-meta span,
+.gameplan-player-portal-card footer > span {
+  border-radius: 14px;
+  background: rgba(24, 46, 34, 0.08);
+}
+
+.gameplan-player-portal-card section {
+  display: grid;
+  gap: 0.24rem;
+  padding: 0.85rem;
+}
+
+.gameplan-player-portal-card section p {
+  color: #25392f;
+  line-height: 1.45;
+}
+
+.gameplan-player-portal-meta {
+  justify-content: flex-start;
+}
+
+.gameplan-player-portal-meta span,
+.gameplan-player-portal-card footer > span {
+  min-height: 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.68rem;
+  color: #25392f;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.gameplan-player-portal-phases {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.55rem;
+}
+
+.gameplan-player-portal-card.is-empty {
+  max-width: 34rem;
+  text-align: center;
+}
+
+.gameplan-check-item {
+  display: grid;
+  grid-template-columns: auto minmax(4rem, 0.32fr) minmax(0, 1fr) minmax(9rem, 0.55fr) auto;
+  gap: 0.5rem;
+  padding: 0.58rem;
+  border-radius: 14px;
+  background: rgba(247, 250, 248, 0.82);
+  border: 1px solid rgba(29, 29, 31, 0.1);
+}
+
+.gameplan-check-item.is-done {
+  opacity: 0.68;
+}
+
+.gameplan-check-item > input[type="checkbox"] {
+  width: 1.1rem;
+  min-height: 1.1rem;
+  align-self: center;
+}
+
+.gameplan-empty,
+.gameplan-empty-small {
+  display: grid;
+  place-items: center;
+  min-height: 10rem;
+  padding: 1rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px dashed rgba(29, 29, 31, 0.16);
+  color: #66716a;
+  text-align: center;
+  font-weight: 800;
+}
+
+.gameplan-empty-small {
+  min-height: 4rem;
+  font-size: 0.78rem;
+}
+
+body.is-dark-mode .gameplan-workspace {
+  color: var(--ink);
+}
+
+body.is-dark-mode .gameplan-sidebar,
+body.is-dark-mode .gameplan-card,
+body.is-dark-mode .gameplan-delivery-panel,
+body.is-dark-mode .gameplan-player-audience,
+body.is-dark-mode .gameplan-status-board,
+body.is-dark-mode .gameplan-empty,
+body.is-dark-mode .gameplan-empty-small {
+  background: rgba(15, 23, 42, 0.78);
+  border-color: rgba(148, 163, 184, 0.28);
+  color: var(--ink);
+}
+
+body.is-dark-mode .gameplan-hero {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.9));
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+body.is-dark-mode .gameplan-meta-row span,
+body.is-dark-mode .gameplan-status-board > div,
+body.is-dark-mode .gameplan-status-board label,
+body.is-dark-mode .gameplan-staff-card,
+body.is-dark-mode .gameplan-check-item,
+body.is-dark-mode .gameplan-player-pill,
+body.is-dark-mode .gameplan-delivery-row {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+body.is-dark-mode .gameplan-field textarea,
+body.is-dark-mode .gameplan-staff-card textarea,
+body.is-dark-mode .gameplan-staff-card input,
+body.is-dark-mode .gameplan-staff-card select,
+body.is-dark-mode .gameplan-delivery-row input,
+body.is-dark-mode .gameplan-check-item input,
+body.is-dark-mode .gameplan-check-item select,
+body.is-dark-mode .gameplan-status-board select {
+  background: rgba(2, 6, 23, 0.55);
+  color: var(--ink);
+  border-color: rgba(148, 163, 184, 0.32);
+}
+
+body.is-dark-mode .gameplan-tabs {
+  background: rgba(15, 23, 42, 0.66);
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+body.is-dark-mode .gameplan-player-portal {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.92));
+}
+
+body.is-dark-mode .gameplan-player-portal-card {
+  background: rgba(15, 23, 42, 0.88);
+  border-color: rgba(148, 163, 184, 0.28);
+  color: var(--ink);
+}
+
+body.is-dark-mode .gameplan-player-portal-card > strong,
+body.is-dark-mode .gameplan-player-portal-card section p,
+body.is-dark-mode .gameplan-player-portal-meta span,
+body.is-dark-mode .gameplan-player-portal-card footer > span {
+  color: var(--ink);
+}
+
+body.is-dark-mode .gameplan-player-portal-card section,
+body.is-dark-mode .gameplan-player-portal-meta span,
+body.is-dark-mode .gameplan-player-portal-card footer > span {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 1120px) {
+  .gameplan-shell,
+  .gameplan-player-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .gameplan-sidebar {
+    position: static;
+    max-height: none;
+  }
+
+  .gameplan-plan-list,
+  .gameplan-match-list {
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .gameplan-shell {
+    padding: 0.75rem;
+  }
+
+  .gameplan-hero,
+  .gameplan-status-board,
+  .gameplan-form-grid,
+  .gameplan-staff-fields,
+  .gameplan-staff-top,
+  .gameplan-delivery-row,
+  .gameplan-check-item {
+    grid-template-columns: 1fr;
+  }
+
+  .gameplan-hero {
+    display: grid;
+  }
+
+  .gameplan-status-board {
+    min-width: 0;
+  }
+
+  .gameplan-tabs {
+    border-radius: 16px;
+  }
+
+  .gameplan-tabs button {
+    flex: 1 1 8rem;
+  }
+}

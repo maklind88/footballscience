@@ -27,7 +27,7 @@ Production release should have these configured outside source code:
 
 - GitHub Secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `LIVE_QA_USERNAME`, `LIVE_QA_PASSWORD`, `CRON_SECRET`
 - GitHub Variables: `LIVE_QA_BASE_URL`, `SUPABASE_PROJECT_REF`
-- Vercel Production Environment: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+- Vercel Production Environment: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GAMEPLAN_PLAYER_BRIEF_SECRET`
 - Supabase migration secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_REF`
 
 Staging should be a separate mirror:

@@ -27,6 +27,7 @@ const SESSION_EXERCISE_LIBRARY_FOLDERS_KEY = "football-session-exercise-library-
 const MEDICAL_TEAM_KEY = "football-medical-team-v1";
 const PLAYER_PROFILES_KEY = "football-player-profiles-v1";
 const SCOUTING_KEY = "football-scouting-v1";
+const GAMEPLAN_KEY = "football-gameplan-v1";
 const TRANSFER_ROOM_KEY = "football-transfer-room-v1";
 const SESSION_PLANNER_REDUCTION_GUARD_KEY = "blockReductionGuard";
 const SESSION_PLANNER_BLOCK_DELETION_TOMBSTONE_KEY = "blockDeletionTombstones";
@@ -91,6 +92,8 @@ const PLATFORM_APPEARANCE_KEY = PLATFORM_APPEARANCE_STORAGE_KEY;
 const DEFAULT_WORKSPACE_ACCESS = {
   chat: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   schedule: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"],
+  gameplan: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
+  "player-brief": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"],
   periodization: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   "session-planner": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   "player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout", "performance", "medical"],
@@ -106,6 +109,8 @@ const DEFAULT_WORKSPACE_ACCESS = {
 const DEFAULT_WORKSPACE_EDIT_ACCESS = {
   chat: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   schedule: ["admin", "club-admin", "team-admin", "coach"],
+  gameplan: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
+  "player-brief": ["admin"],
   periodization: ["admin", "club-admin", "team-admin", "coach", "performance"],
   "session-planner": ["admin", "club-admin", "team-admin", "coach"],
   "player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout"],
@@ -157,6 +162,7 @@ const STATE_KEY_WORKSPACE_EDIT_MAP = {
   [MEDICAL_TEAM_KEY]: "medical-team",
   [PLAYER_PROFILES_KEY]: "player-profiles",
   [SCOUTING_KEY]: "scouting",
+  [GAMEPLAN_KEY]: "gameplan",
   [TRANSFER_ROOM_KEY]: "transfer-room",
   "football-simulator-sequence-v1": "game-simulator",
   "football-simulator-sequence-library-v2": "game-simulator",

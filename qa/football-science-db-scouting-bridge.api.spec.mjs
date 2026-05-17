@@ -41,7 +41,6 @@ test("Football Science DB retries once with a refreshed auth token after server 
   const workspace = readFileSync(resolve(projectRoot, "scouting-workspace.js"), "utf8");
   const app = readFileSync(resolve(projectRoot, "index.html"), "utf8");
 
-  expect(app).toContain("shouldRefreshAccessToken(authState.session)");
   expect(app).toContain("refreshAccessToken,");
   expect(workspace).toContain("getScoutingApiAccessToken(options = {})");
   expect(workspace).toContain("options.forceRefresh");

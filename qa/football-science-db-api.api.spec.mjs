@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const fsdb = require("../api/_lib/football-science-db.js");
+const reepImporterPromise = import("../scripts/import-football-science-db-reep.mjs");
 
 test("Football Science DB API caps pages and uses cursor pagination", () => {
   expect(fsdb.asLimit(5000)).toBe(50);
@@ -194,4 +195,53 @@ test("Football Science DB route permissions separate readers from import writers
     canRead: false,
     canWrite: false,
   });
+});
+
+test("Reep importer dry run reports dedupe and name quality before writes", async () => {
+  const importer = await reepImporterPromise;
+  const players = [
+    importer.playerFromReepRow({
+      type: "player",
+      reep_id: "reep_1",
+      name: "A. Example",
+      date_of_birth: "2001-04-12",
+      nationality: "Norway",
+      position: "Forward",
+      key_wikidata: "Q1",
+    }),
+    importer.playerFromReepRow({
+      type: "player",
+      reep_id: "reep_2",
+      name: "Ada Example",
+      full_name: "Ada Example",
+      date_of_birth: "2001-04-12",
+      nationality: "Norway",
+      position: "Forward",
+      key_wikidata: "Q2",
+    }),
+    importer.playerFromReepRow({
+      type: "player",
+      reep_id: "reep_3",
+      name: "Ada Example",
+      full_name: "Ada Example",
+      date_of_birth: "2001-04-12",
+      nationality: "Norway",
+      position: "Forward",
+      key_wikidata: "Q3",
+    }),
+  ].filter(Boolean);
+
+  const report = importer.buildDryRunReport(players);
+  expect(report).toMatchObject({
+    players: 3,
+    fullNames: 2,
+    initialNames: 1,
+    dedupeReady: 2,
+    duplicateFsdbIds: 0,
+    duplicateStrongDedupeKeys: 1,
+    sourceLinks: 3,
+  });
+  expect(report.review.initialNames[0].name).toBe("A. Example");
+  expect(report.review.duplicateCandidates[0].count).toBe(2);
+  expect(importer.formatDryRunReport(report).join("\n")).toContain("duplicateStrongKeys=1");
 });

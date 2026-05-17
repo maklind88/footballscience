@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import crypto from "node:crypto";
+import { pathToFileURL } from "node:url";
 
 const DEFAULT_REEP_PEOPLE_URL = "https://raw.githubusercontent.com/withqwerty/reep/main/data/people.csv";
 const DEFAULT_BATCH_SIZE = 250;
@@ -85,6 +86,17 @@ function normalizeText(value, maxLength = 240) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
+function normalizeIdentityText(value = "", maxLength = 240) {
+  return normalizeText(value, maxLength)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength);
+}
+
 function normalizeSourceSystem(value = "") {
   return normalizeText(value, 60)
     .toLowerCase()
@@ -96,6 +108,28 @@ function normalizeSourceSystem(value = "") {
 function normalizeNumber(value, fallback = null) {
   const number = Number(String(value || "").replace(",", "."));
   return Number.isFinite(number) ? number : fallback;
+}
+
+function getNameTokens(value = "") {
+  return normalizeText(value, 240).split(/\s+/).filter(Boolean);
+}
+
+function isNameInitialToken(token = "") {
+  return /^[A-Za-z]$/.test(String(token || "").replace(/\./g, ""));
+}
+
+function isInitialOnlyName(value = "") {
+  const raw = normalizeText(value, 240);
+  if (!raw) return false;
+  if (/^(?:[A-Za-z]\.\s*){1,4}\S+/.test(raw)) return true;
+  const tokens = getNameTokens(raw.replace(/\./g, " "));
+  if (tokens.length < 2) return false;
+  return tokens.slice(0, -1).every(isNameInitialToken);
+}
+
+function isUsableFullName(value = "") {
+  const tokens = getNameTokens(value);
+  return tokens.length >= 2 && !isInitialOnlyName(value) && tokens.some((token) => token.replace(/[^A-Za-z]/g, "").length > 1);
 }
 
 function fsdbIdFromReepId(reepId = "") {
@@ -171,6 +205,141 @@ function playerFromReepRow(row = {}) {
     },
     sourceLinks,
   };
+}
+
+function getBestDryRunName(player = {}) {
+  return normalizeText(player.full_name, 240) || normalizeText(player.canonical_name, 180) || normalizeText(player.display_name, 180);
+}
+
+function buildDryRunDedupeKey(player = {}) {
+  const name = getBestDryRunName(player);
+  const dateOfBirth = normalizeText(player.date_of_birth, 40);
+  const nationality = normalizeText(player.nationality, 120);
+  const gender = normalizeText(player.gender_segment, 20) || "unknown";
+  if (!isUsableFullName(name) || !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) || !nationality) {
+    return "";
+  }
+  return [
+    `name:${normalizeIdentityText(name)}`,
+    `dob:${dateOfBirth}`,
+    `country:${normalizeIdentityText(nationality, 120)}`,
+    `gender:${gender}`,
+  ].join("|");
+}
+
+function pct(part, total) {
+  return total ? Math.round((Math.max(0, part) / total) * 100) : 0;
+}
+
+function samplePlayer(player = {}) {
+  return {
+    fsdbId: normalizeText(player.fsdb_id, 80),
+    name: getBestDryRunName(player),
+    team: normalizeText(player.current_team_name, 180),
+    nationality: normalizeText(player.nationality, 120),
+    genderSegment: normalizeText(player.gender_segment, 20) || "unknown",
+    dateOfBirth: normalizeText(player.date_of_birth, 40),
+    sourceLinks: Array.isArray(player.sourceLinks) ? player.sourceLinks.length : 0,
+  };
+}
+
+function buildDryRunReport(players = []) {
+  const fsdbIds = new Map();
+  const dedupeKeys = new Map();
+  const sourceSystems = new Map();
+  const report = {
+    players: players.length,
+    womenTagged: 0,
+    menTagged: 0,
+    unknownGender: 0,
+    fullNames: 0,
+    initialNames: 0,
+    birthDateKnown: 0,
+    nationalityKnown: 0,
+    positionKnown: 0,
+    sourceLinkedPlayers: 0,
+    sourceLinks: 0,
+    dedupeReady: 0,
+    duplicateFsdbIds: 0,
+    duplicateStrongDedupeKeys: 0,
+    sourceSystems: {},
+    coverage: {},
+    review: {
+      initialNames: [],
+      weakIdentity: [],
+      duplicateCandidates: [],
+    },
+  };
+
+  players.forEach((player) => {
+    const gender = normalizeText(player.gender_segment, 20);
+    if (gender === "women") report.womenTagged += 1;
+    else if (gender === "men") report.menTagged += 1;
+    else report.unknownGender += 1;
+
+    const name = getBestDryRunName(player);
+    if (isUsableFullName(name)) report.fullNames += 1;
+    if (isInitialOnlyName(name)) {
+      report.initialNames += 1;
+      if (report.review.initialNames.length < 8) report.review.initialNames.push(samplePlayer(player));
+    }
+    if (normalizeText(player.date_of_birth, 40)) report.birthDateKnown += 1;
+    if (normalizeText(player.nationality, 120)) report.nationalityKnown += 1;
+    if (normalizeText(player.position_group || player.primary_position, 120)) report.positionKnown += 1;
+
+    const sourceLinks = Array.isArray(player.sourceLinks) ? player.sourceLinks : [];
+    if (sourceLinks.length) report.sourceLinkedPlayers += 1;
+    report.sourceLinks += sourceLinks.length;
+    sourceLinks.forEach((link) => {
+      const source = normalizeSourceSystem(link.source_system);
+      if (source) sourceSystems.set(source, (sourceSystems.get(source) || 0) + 1);
+    });
+
+    const fsdbId = normalizeText(player.fsdb_id, 80);
+    if (fsdbId) fsdbIds.set(fsdbId, (fsdbIds.get(fsdbId) || 0) + 1);
+
+    const dedupeKey = buildDryRunDedupeKey(player);
+    if (dedupeKey) {
+      report.dedupeReady += 1;
+      const entries = dedupeKeys.get(dedupeKey) || [];
+      entries.push(player);
+      dedupeKeys.set(dedupeKey, entries);
+    } else if (report.review.weakIdentity.length < 8) {
+      report.review.weakIdentity.push(samplePlayer(player));
+    }
+  });
+
+  report.duplicateFsdbIds = [...fsdbIds.values()].filter((count) => count > 1).length;
+  const duplicateDedupeGroups = [...dedupeKeys.entries()].filter(([, entries]) => entries.length > 1);
+  report.duplicateStrongDedupeKeys = duplicateDedupeGroups.length;
+  report.review.duplicateCandidates = duplicateDedupeGroups.slice(0, 8).map(([key, entries]) => ({
+    key,
+    count: entries.length,
+    players: entries.slice(0, 4).map(samplePlayer),
+  }));
+  report.sourceSystems = Object.fromEntries([...sourceSystems.entries()].sort((a, b) => b[1] - a[1]));
+  report.coverage = {
+    fullNamePct: pct(report.fullNames, report.players),
+    dedupeReadyPct: pct(report.dedupeReady, report.players),
+    birthDatePct: pct(report.birthDateKnown, report.players),
+    nationalityPct: pct(report.nationalityKnown, report.players),
+    positionPct: pct(report.positionKnown, report.players),
+    sourceLinkedPct: pct(report.sourceLinkedPlayers, report.players),
+  };
+  return report;
+}
+
+function formatDryRunReport(report = {}) {
+  const sourceSystemSummary = Object.entries(report.sourceSystems || {})
+    .slice(0, 6)
+    .map(([source, count]) => `${source}:${count}`)
+    .join(" ");
+  return [
+    `[fsdb:reep] dry run: womenTagged=${report.womenTagged || 0} menTagged=${report.menTagged || 0} unknownGender=${report.unknownGender || 0}`,
+    `[fsdb:reep] dry run quality: fullNames=${report.fullNames || 0} initialNames=${report.initialNames || 0} dedupeReady=${report.dedupeReady || 0} duplicateFsdbIds=${report.duplicateFsdbIds || 0} duplicateStrongKeys=${report.duplicateStrongDedupeKeys || 0}`,
+    `[fsdb:reep] dry run coverage: birthDate=${report.coverage?.birthDatePct || 0}% nationality=${report.coverage?.nationalityPct || 0}% position=${report.coverage?.positionPct || 0}% sourceLinked=${report.coverage?.sourceLinkedPct || 0}% sourceLinks=${report.sourceLinks || 0}`,
+    sourceSystemSummary ? `[fsdb:reep] dry run sources: ${sourceSystemSummary}` : "",
+  ].filter(Boolean);
 }
 
 async function readReepPlayers(sourceUrl, limit = 0) {
@@ -313,8 +482,8 @@ async function main() {
   console.log(`[fsdb:reep] prepared players=${players.length} dryRun=${options.dryRun ? "yes" : "no"}`);
 
   if (options.dryRun) {
-    const womenTagged = players.filter((player) => player.gender_segment === "women").length;
-    console.log(`[fsdb:reep] dry run: womenTagged=${womenTagged} unknownGender=${players.length - womenTagged}`);
+    const report = buildDryRunReport(players);
+    formatDryRunReport(report).forEach((line) => console.log(line));
     return;
   }
 
@@ -330,7 +499,19 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(`[fsdb:reep] ${error.message}`);
-  process.exitCode = 1;
-});
+const entryPoint = process.argv[1] ? pathToFileURL(process.argv[1]).href : "";
+if (import.meta.url === entryPoint) {
+  main().catch((error) => {
+    console.error(`[fsdb:reep] ${error.message}`);
+    process.exitCode = 1;
+  });
+}
+
+export {
+  buildDryRunDedupeKey,
+  buildDryRunReport,
+  formatDryRunReport,
+  isInitialOnlyName,
+  isUsableFullName,
+  playerFromReepRow,
+};

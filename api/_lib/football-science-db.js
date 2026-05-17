@@ -244,7 +244,10 @@ async function dbRequest(path, options = {}) {
   const headers = restHeaders(base.serviceRoleKey, options.headers || {});
   if (options.includeCount) {
     const existingPrefer = String(headers.Prefer || headers.prefer || "").trim();
-    headers.Prefer = existingPrefer ? `${existingPrefer},count=exact` : "count=exact";
+    const countStrategy = ["exact", "planned", "estimated"].includes(normalizeText(options.countStrategy, 20))
+      ? normalizeText(options.countStrategy, 20)
+      : "exact";
+    headers.Prefer = existingPrefer ? `${existingPrefer},count=${countStrategy}` : `count=${countStrategy}`;
   }
 
   const response = await fetch(`${base.url}${path}`, {
@@ -290,6 +293,166 @@ function footballScienceDbStatus(actor = {}) {
       importErrors: "fsdb_import_errors",
     },
   };
+}
+
+function fsdbPercent(part, total) {
+  const numerator = Math.max(0, Number(part) || 0);
+  const denominator = Math.max(0, Number(total) || 0);
+  return denominator ? Math.round((numerator / denominator) * 100) : 0;
+}
+
+function normalizeQualityCountMap(counts = {}) {
+  const result = {};
+  Object.entries(counts || {}).forEach(([key, value]) => {
+    const number = Number(value);
+    result[key] = Number.isFinite(number) && number > 0 ? Math.floor(number) : 0;
+  });
+  return result;
+}
+
+function buildFootballScienceDbQualitySummary(counts = {}, reviewQueues = {}) {
+  const safeCounts = normalizeQualityCountMap(counts);
+  const total = safeCounts.total || 0;
+  const knownGender = (safeCounts.women || 0) + (safeCounts.men || 0) + (safeCounts.mixed || 0);
+  const fullNames = safeCounts.fullNames || 0;
+  const dedupeReady = safeCounts.dedupeReady || 0;
+  const sourceLinked = safeCounts.sourceLinked || 0;
+  const rosterLinked = safeCounts.rosterLinked || 0;
+  const statsLinked = safeCounts.statsLinked || 0;
+  const spiderMetricDepth = safeCounts.spiderMetricDepth || 0;
+  const profileSignals = [
+    fsdbPercent(safeCounts.birthDateKnown, total),
+    fsdbPercent(safeCounts.nationalityKnown, total),
+    fsdbPercent(safeCounts.positionKnown, total),
+    fsdbPercent(fullNames, total),
+    fsdbPercent(dedupeReady, total),
+  ];
+  const profileCompleteness = total ? Math.round(profileSignals.reduce((sum, value) => sum + value, 0) / profileSignals.length) : 0;
+
+  return {
+    ok: true,
+    schema: FOOTBALL_SCIENCE_DB_SCHEMA,
+    generatedAt: new Date().toISOString(),
+    countStrategy: "planned",
+    totals: {
+      players: total,
+      women: safeCounts.women || 0,
+      men: safeCounts.men || 0,
+      mixed: safeCounts.mixed || 0,
+      unknownGender: Math.max(0, total - knownGender),
+    },
+    coverage: {
+      profileCompleteness,
+      fullNamePct: fsdbPercent(fullNames, total),
+      dedupePct: fsdbPercent(dedupeReady, total),
+      sourceLinkPct: fsdbPercent(sourceLinked, total),
+      rosterPct: fsdbPercent(rosterLinked, total),
+      statsPct: fsdbPercent(statsLinked, total),
+      spiderMetricPct: fsdbPercent(spiderMetricDepth, total),
+      birthDatePct: fsdbPercent(safeCounts.birthDateKnown, total),
+      nationalityPct: fsdbPercent(safeCounts.nationalityKnown, total),
+      positionPct: fsdbPercent(safeCounts.positionKnown, total),
+    },
+    counts: {
+      ...safeCounts,
+      missingFullName: Math.max(0, total - fullNames),
+      missingDedupe: Math.max(0, total - dedupeReady),
+      missingSourceLink: Math.max(0, total - sourceLinked),
+      missingRoster: Math.max(0, total - rosterLinked),
+      missingStats: Math.max(0, total - statsLinked),
+      missingSpiderMetrics: Math.max(0, total - spiderMetricDepth),
+    },
+    reviewQueues: {
+      weakIdentity: Array.isArray(reviewQueues.weakIdentity) ? reviewQueues.weakIdentity.slice(0, 8) : [],
+      initialNames: Array.isArray(reviewQueues.initialNames) ? reviewQueues.initialNames.slice(0, 8) : [],
+    },
+  };
+}
+
+async function countFsdbPlayers(filters = {}) {
+  const params = new URLSearchParams({
+    select: "id",
+    active_status: "neq.archived",
+    limit: "1",
+  });
+  Object.entries(filters || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim()) {
+      params.set(key, String(value));
+    }
+  });
+  const result = await dbRequest(`/fsdb_players?${params.toString()}`, { includeCount: true, countStrategy: "planned" });
+  if (!result.ok) {
+    throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
+  }
+  return Number.isFinite(Number(result.count)) ? Math.max(0, Math.floor(Number(result.count))) : 0;
+}
+
+function qualityPlayerReviewToClient(row = {}) {
+  return {
+    id: normalizeText(row.id, 80),
+    fsdbId: normalizeText(row.fsdb_id, 80),
+    name: normalizeText(row.canonical_name || row.full_name || row.display_name, 180),
+    dateOfBirth: normalizeText(row.date_of_birth, 40),
+    birthYear: Number.isFinite(Number(row.birth_year)) ? Number(row.birth_year) : null,
+    genderSegment: normalizeGenderSegment(row.gender_segment) || "unknown",
+    nationality: normalizeText(row.nationality || row.birth_country, 120),
+    team: normalizeText(row.current_team_name, 180),
+    position: normalizeText(row.primary_position || row.position_group, 120),
+    nameQuality: normalizeText(row.name_quality, 40) || getPlayerNameQuality(row.canonical_name || row.full_name),
+    sourceConfidence: normalizeNumber(row.source_confidence, 0),
+    sourceLinkCount: normalizeNumber(row.source_link_count, 0),
+    rosterEntryCount: normalizeNumber(row.roster_entry_count, 0),
+    metricCount: normalizeNumber(row.metric_count, 0),
+    dedupeKeyPresent: Boolean(normalizeText(row.dedupe_key, 260)),
+    updatedAt: normalizeText(row.updated_at, 40),
+  };
+}
+
+async function fetchQualityReviewQueue(filters = {}) {
+  const params = new URLSearchParams({
+    select:
+      "id,fsdb_id,canonical_name,full_name,display_name,date_of_birth,birth_year,gender_segment,nationality,birth_country,primary_position,position_group,current_team_name,source_confidence,source_link_count,roster_entry_count,metric_count,name_quality,dedupe_key,updated_at",
+    active_status: "neq.archived",
+    order: "source_confidence.asc,updated_at.desc",
+    limit: "8",
+  });
+  Object.entries(filters || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim()) {
+      params.set(key, String(value));
+    }
+  });
+  const result = await dbRequest(`/fsdb_players?${params.toString()}`);
+  if (!result.ok) {
+    throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
+  }
+  return (Array.isArray(result.payload) ? result.payload : []).map(qualityPlayerReviewToClient);
+}
+
+async function getFootballScienceDbQuality() {
+  const countRequests = [
+    ["total", {}],
+    ["women", { gender_segment: "eq.women" }],
+    ["men", { gender_segment: "eq.men" }],
+    ["mixed", { gender_segment: "eq.mixed" }],
+    ["fullNames", { name_quality: "eq.full" }],
+    ["initialNames", { name_quality: "eq.initial" }],
+    ["unknownNames", { name_quality: "eq.unknown" }],
+    ["dedupeReady", { dedupe_key: "not.is.null" }],
+    ["sourceLinked", { source_link_count: "gte.1" }],
+    ["birthDateKnown", { date_of_birth: "not.is.null" }],
+    ["nationalityKnown", { nationality: "not.is.null" }],
+    ["positionKnown", { position_group: "not.is.null" }],
+    ["rosterLinked", { roster_entry_count: "gte.1" }],
+    ["statsLinked", { season_stat_count: "gte.1" }],
+    ["metricLinked", { metric_count: "gte.1" }],
+    ["spiderMetricDepth", { metric_count: "gte.4" }],
+  ];
+  const [countPairs, weakIdentity, initialNames] = await Promise.all([
+    Promise.all(countRequests.map(async ([key, filters]) => [key, await countFsdbPlayers(filters)])),
+    fetchQualityReviewQueue({ dedupe_key: "is.null" }),
+    fetchQualityReviewQueue({ name_quality: "eq.initial" }),
+  ]);
+  return buildFootballScienceDbQualitySummary(Object.fromEntries(countPairs), { weakIdentity, initialNames });
 }
 
 function addPlayerSearchFilters(params, query = {}) {
@@ -1024,6 +1187,10 @@ async function handleFootballScienceDbRequest(req, res, actor = {}) {
     if (action === "status") {
       return sendJson(res, 200, footballScienceDbStatus(actor));
     }
+    if (action === "quality" || action === "health") {
+      const result = await getFootballScienceDbQuality();
+      return sendJson(res, 200, result);
+    }
     if (action === "player" || action === "profile") {
       const result = await fetchPlayerProfile(query);
       return sendJson(res, result.ok ? 200 : result.status || 404, result);
@@ -1056,6 +1223,7 @@ module.exports = {
   asLimit,
   buildPlayerSearchParams,
   buildStrongPlayerDedupeKey,
+  buildFootballScienceDbQualitySummary,
   canReadFootballScienceDb,
   canWriteFootballScienceDb,
   chooseBestPlayerName,
@@ -1064,6 +1232,7 @@ module.exports = {
   fetchFootballScienceProfileForScoutingRecord,
   fetchPlayerProfile,
   footballScienceDbStatus,
+  getFootballScienceDbQuality,
   getPlayerDataReadiness,
   getPlayerNameQuality,
   handleFootballScienceDbRequest,

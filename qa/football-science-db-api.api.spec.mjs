@@ -133,6 +133,53 @@ test("Football Science DB readiness only unlocks spider data with metric depth",
   });
 });
 
+test("Football Science DB quality summary stays aggregate and review-first", () => {
+  const summary = fsdb.buildFootballScienceDbQualitySummary(
+    {
+      total: 1000,
+      women: 430,
+      men: 520,
+      fullNames: 840,
+      dedupeReady: 760,
+      sourceLinked: 900,
+      birthDateKnown: 700,
+      nationalityKnown: 880,
+      positionKnown: 920,
+      rosterLinked: 640,
+      statsLinked: 280,
+      spiderMetricDepth: 120,
+    },
+    {
+      weakIdentity: [{ fsdbId: "fsdb_pweak", name: "A. Example" }],
+      initialNames: [{ fsdbId: "fsdb_pinitial", name: "B. Player" }],
+    }
+  );
+
+  expect(summary).toMatchObject({
+    ok: true,
+    countStrategy: "planned",
+    totals: {
+      players: 1000,
+      women: 430,
+      men: 520,
+      unknownGender: 50,
+    },
+    coverage: {
+      fullNamePct: 84,
+      dedupePct: 76,
+      sourceLinkPct: 90,
+      spiderMetricPct: 12,
+    },
+    counts: {
+      missingFullName: 160,
+      missingDedupe: 240,
+      missingSpiderMetrics: 880,
+    },
+  });
+  expect(summary.reviewQueues.weakIdentity).toHaveLength(1);
+  expect(summary.reviewQueues.initialNames).toHaveLength(1);
+});
+
 test("Football Science DB route permissions separate readers from import writers", () => {
   expect(fsdb.footballScienceDbStatus({ role: "coach" })).toMatchObject({
     canRead: true,

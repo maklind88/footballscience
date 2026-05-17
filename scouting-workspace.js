@@ -67,6 +67,7 @@ let scoutingDatabaseMetricFilterQuery = "";
 let scoutingDatabaseAdvancedMode = false;
 let scoutingIntelligenceCacheVersion = 0;
 let scoutingImportHistoryCache = { status: "idle", imports: [], error: "", promise: null };
+let scoutingFootballScienceDbQualityCache = { status: "idle", summary: null, error: "", promise: null };
 let scoutingProfileApiCache = new Map();
 let scoutingProfileOverviewPanelHydrateInProgress = new Set();
 let scoutingOppositionFilters = { team: "", season: "all", minMinutes: 450 };
@@ -1346,6 +1347,7 @@ function applyFootballScienceDbDatabase(result = {}) {
   window.__footballScienceScoutingDatabase = database;
   resetScoutingComputedCaches();
   rememberScoutingDatabaseRecords(database);
+  queueFootballScienceDbQualityLoad();
   return database;
 }
 async function loadFootballScienceDbDatabase() {
@@ -1359,6 +1361,105 @@ async function loadFootballScienceDbDatabase() {
     throw new Error(response.result?.reason || "Football Science DB returned no players.");
   }
   return database;
+}
+function normalizeFootballScienceDbQualityNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? Math.floor(number) : 0;
+}
+function normalizeFootballScienceDbQualityPlayer(player = {}) {
+  return {
+    fsdbId: normalizeScoutingText(player.fsdbId || player.id, 160),
+    name: normalizeScoutingText(player.name, 180) || "Unknown player",
+    team: normalizeScoutingText(player.team, 180),
+    position: normalizeScoutingText(player.position, 80),
+    genderSegment: normalizeScoutingText(player.genderSegment, 40) || "unknown",
+    nationality: normalizeScoutingText(player.nationality, 120),
+    nameQuality: normalizeScoutingText(player.nameQuality, 40) || "unknown",
+    sourceConfidence: normalizeFootballScienceDbQualityNumber(player.sourceConfidence),
+    sourceLinkCount: normalizeFootballScienceDbQualityNumber(player.sourceLinkCount),
+    rosterEntryCount: normalizeFootballScienceDbQualityNumber(player.rosterEntryCount),
+    metricCount: normalizeFootballScienceDbQualityNumber(player.metricCount),
+    dedupeKeyPresent: Boolean(player.dedupeKeyPresent),
+  };
+}
+function normalizeFootballScienceDbQualitySummary(summary = {}) {
+  const totals = summary?.totals && typeof summary.totals === "object" && !Array.isArray(summary.totals) ? summary.totals : {};
+  const coverage = summary?.coverage && typeof summary.coverage === "object" && !Array.isArray(summary.coverage) ? summary.coverage : {};
+  const counts = summary?.counts && typeof summary.counts === "object" && !Array.isArray(summary.counts) ? summary.counts : {};
+  const reviewQueues = summary?.reviewQueues && typeof summary.reviewQueues === "object" && !Array.isArray(summary.reviewQueues) ? summary.reviewQueues : {};
+  return {
+    generatedAt: normalizeScoutingText(summary.generatedAt, 80),
+    countStrategy: normalizeScoutingText(summary.countStrategy, 40) || "planned",
+    totals: {
+      players: normalizeFootballScienceDbQualityNumber(totals.players),
+      women: normalizeFootballScienceDbQualityNumber(totals.women),
+      men: normalizeFootballScienceDbQualityNumber(totals.men),
+      mixed: normalizeFootballScienceDbQualityNumber(totals.mixed),
+      unknownGender: normalizeFootballScienceDbQualityNumber(totals.unknownGender),
+    },
+    coverage: {
+      profileCompleteness: normalizeFootballScienceDbQualityNumber(coverage.profileCompleteness),
+      fullNamePct: normalizeFootballScienceDbQualityNumber(coverage.fullNamePct),
+      dedupePct: normalizeFootballScienceDbQualityNumber(coverage.dedupePct),
+      sourceLinkPct: normalizeFootballScienceDbQualityNumber(coverage.sourceLinkPct),
+      rosterPct: normalizeFootballScienceDbQualityNumber(coverage.rosterPct),
+      statsPct: normalizeFootballScienceDbQualityNumber(coverage.statsPct),
+      spiderMetricPct: normalizeFootballScienceDbQualityNumber(coverage.spiderMetricPct),
+      birthDatePct: normalizeFootballScienceDbQualityNumber(coverage.birthDatePct),
+      nationalityPct: normalizeFootballScienceDbQualityNumber(coverage.nationalityPct),
+      positionPct: normalizeFootballScienceDbQualityNumber(coverage.positionPct),
+    },
+    counts: Object.fromEntries(
+      Object.entries(counts).map(([key, value]) => [key, normalizeFootballScienceDbQualityNumber(value)])
+    ),
+    reviewQueues: {
+      weakIdentity: Array.isArray(reviewQueues.weakIdentity) ? reviewQueues.weakIdentity.map(normalizeFootballScienceDbQualityPlayer) : [],
+      initialNames: Array.isArray(reviewQueues.initialNames) ? reviewQueues.initialNames.map(normalizeFootballScienceDbQualityPlayer) : [],
+    },
+  };
+}
+async function loadFootballScienceDbQuality(options = {}) {
+  const force = Boolean(options.force);
+  if (!force && scoutingFootballScienceDbQualityCache.status === "ready" && scoutingFootballScienceDbQualityCache.summary) {
+    return scoutingFootballScienceDbQualityCache.summary;
+  }
+  if (!force && scoutingFootballScienceDbQualityCache.promise) {
+    return scoutingFootballScienceDbQualityCache.promise;
+  }
+  scoutingFootballScienceDbQualityCache = {
+    ...scoutingFootballScienceDbQualityCache,
+    status: "loading",
+    error: "",
+  };
+  const promise = fetchFootballScienceDbApi({ action: "quality" })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(response.reason || "Football Science DB quality snapshot failed.");
+      }
+      const summary = normalizeFootballScienceDbQualitySummary(response.result || {});
+      scoutingFootballScienceDbQualityCache = { status: "ready", summary, error: "", promise: null };
+      return summary;
+    })
+    .catch((error) => {
+      scoutingFootballScienceDbQualityCache = {
+        status: "error",
+        summary: scoutingFootballScienceDbQualityCache.summary,
+        error: error?.message || "Football Science DB quality snapshot failed.",
+        promise: null,
+      };
+      throw error;
+    });
+  scoutingFootballScienceDbQualityCache.promise = promise;
+  return promise;
+}
+function queueFootballScienceDbQualityLoad(options = {}) {
+  const force = Boolean(options.force);
+  if (!force && ["loading", "ready"].includes(scoutingFootballScienceDbQualityCache.status)) {
+    return;
+  }
+  loadFootballScienceDbQuality({ force })
+    .then(() => renderScoutingWorkspace({ preserveFocus: true }))
+    .catch(() => renderScoutingWorkspace({ preserveFocus: true }));
 }
 async function sendScoutingApiAction(payload = {}) {
   const token = await getScoutingApiAccessToken();
@@ -12181,6 +12282,93 @@ function renderScoutingDataQualityPanel() {
     </section>
   `;
 }
+function renderFootballScienceDbQualityPlayerList(players = [], emptyLabel = "No review cases in this queue.") {
+  if (!players.length) {
+    return `<p class="scouting-muted">${escapeHtml(emptyLabel)}</p>`;
+  }
+  return `
+    <div class="scouting-fsdb-quality-list">
+      ${players
+        .slice(0, 6)
+        .map((player) => {
+          const detail = [
+            player.team,
+            player.position,
+            player.nationality,
+            player.genderSegment && player.genderSegment !== "unknown" ? player.genderSegment : "",
+          ].filter(Boolean).join(" / ");
+          const signals = [
+            player.dedupeKeyPresent ? "dedupe key" : "no dedupe",
+            `${player.sourceLinkCount} sources`,
+            `${player.metricCount} metrics`,
+          ].join(" · ");
+          return `
+            <article>
+              <strong>${escapeHtml(player.name)}</strong>
+              <span>${escapeHtml(detail || "Identity details missing")}</span>
+              <em>${escapeHtml(signals)}</em>
+            </article>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+function renderFootballScienceDbQualityPanel() {
+  const cache = scoutingFootballScienceDbQualityCache;
+  const summary = cache.summary;
+  const status = normalizeScoutingText(cache.status, 40) || "idle";
+  const isLoading = status === "loading";
+  const total = normalizeFootballScienceDbQualityNumber(summary?.totals?.players);
+  const coverage = summary?.coverage || {};
+  const counts = summary?.counts || {};
+  const totals = summary?.totals || {};
+  const generatedAt = summary?.generatedAt ? formatScoutingImportSummaryDate(summary.generatedAt) : "";
+  if (!summary && status === "idle") {
+    queueFootballScienceDbQualityLoad();
+  }
+  return `
+    <section class="scouting-data-quality scouting-fsdb-quality${isLoading ? " is-loading" : ""}" data-scouting-fsdb-quality-panel>
+      <div>
+        <span>Football Science DB</span>
+        <strong>${summary ? `${coverage.profileCompleteness || 0}% profile coverage` : isLoading ? "Loading quality snapshot" : "Quality snapshot"}</strong>
+        <p>${escapeHtml(
+          cache.error ||
+            (summary
+              ? `${total.toLocaleString("en-US")} global players tracked${generatedAt ? ` / updated ${generatedAt}` : ""}`
+              : "Server-side quality snapshot for identity, duplicate risk and spider readiness.")
+        )}</p>
+      </div>
+      <div class="scouting-data-quality-grid scouting-fsdb-quality-grid">
+        <article><span>Players</span><strong>${escapeHtml(summary ? total.toLocaleString("en-US") : "...")}</strong><em>${escapeHtml(summary ? `${totals.women || 0} women / ${totals.men || 0} men` : "planned count")}</em></article>
+        <article><span>Full names</span><strong>${escapeHtml(summary ? `${coverage.fullNamePct || 0}%` : "...")}</strong><em>${escapeHtml(summary ? `${counts.missingFullName || 0} need names` : "name quality")}</em></article>
+        <article><span>Dedupe safe</span><strong>${escapeHtml(summary ? `${coverage.dedupePct || 0}%` : "...")}</strong><em>${escapeHtml(summary ? `${counts.missingDedupe || 0} weak identities` : "strong key")}</em></article>
+        <article><span>Source links</span><strong>${escapeHtml(summary ? `${coverage.sourceLinkPct || 0}%` : "...")}</strong><em>${escapeHtml(summary ? `${counts.missingSourceLink || 0} source gaps` : "provenance")}</em></article>
+        <article><span>Roster / stats</span><strong>${escapeHtml(summary ? `${coverage.rosterPct || 0}% / ${coverage.statsPct || 0}%` : "...")}</strong><em>${escapeHtml(summary ? `${counts.missingStats || 0} missing stats` : "depth")}</em></article>
+        <article><span>Spider ready</span><strong>${escapeHtml(summary ? `${coverage.spiderMetricPct || 0}%` : "...")}</strong><em>${escapeHtml(summary ? `${counts.spiderMetricDepth || 0} metric-rich` : "4+ metrics")}</em></article>
+      </div>
+      <div class="scouting-fsdb-quality-review">
+        <article>
+          <div>
+            <span>Weak identity queue</span>
+            <strong>${escapeHtml(counts.missingDedupe || 0)}</strong>
+          </div>
+          ${renderFootballScienceDbQualityPlayerList(summary?.reviewQueues?.weakIdentity || [], "No weak identity cases in the current snapshot.")}
+        </article>
+        <article>
+          <div>
+            <span>Initial-name queue</span>
+            <strong>${escapeHtml(counts.initialNames || 0)}</strong>
+          </div>
+          ${renderFootballScienceDbQualityPlayerList(summary?.reviewQueues?.initialNames || [], "No initial-only player names in the current snapshot.")}
+        </article>
+      </div>
+      <button type="button" class="scouting-secondary-button" data-refresh-fsdb-quality ${isLoading ? "disabled" : ""}>
+        ${escapeHtml(isLoading ? "Refreshing..." : "Refresh FSDB quality")}
+      </button>
+    </section>
+  `;
+}
 function getScoutingDatabaseResultsMarkup() {
   const records = getFilteredScoutingDatabaseRecords();
   const apiPage = getScoutingDatabasePage();
@@ -12310,11 +12498,16 @@ function renderScoutingDatabasePanel() {
               ? `<button type="button" class="scouting-primary-button" data-scouting-load-fsdb>Load Football Science DB</button>`
               : `<button type="button" class="scouting-primary-button" data-scouting-load-database>Load scouting player database</button>`
         }
+        ${isFootballScienceDb ? renderFootballScienceDbQualityPanel() : ""}
       </section>
     `;
   }
   const results = getScoutingDatabaseResultsMarkup();
   const state = ensureScoutingState();
+  const isFootballScienceDb = normalizeScoutingText(database.source, 40) === "fsdb";
+  if (isFootballScienceDb) {
+    queueFootballScienceDbQualityLoad();
+  }
   return `
     <section class="scouting-database-panel">
       <div class="scouting-database-workbench">
@@ -12341,6 +12534,7 @@ function renderScoutingDatabasePanel() {
             ${renderScoutingDatabasePagingControls(results.paging)}
           </div>
         </main>
+        ${isFootballScienceDb ? `<aside class="scouting-database-side">${renderFootballScienceDbQualityPanel()}</aside>` : ""}
       </div>
     </section>
   `;
@@ -14964,8 +15158,17 @@ export function handleClick(event, context) {
   const loadFootballScienceDbTrigger = event.target.closest("[data-scouting-load-fsdb]");
   if (loadFootballScienceDbTrigger) {
     setScoutingDatabaseFilter("source", "fsdb");
+    queueFootballScienceDbQualityLoad();
     queueScoutingDatabaseLoad();
     renderScoutingWorkspace();
+    return;
+  }
+  const refreshFootballScienceDbQualityTrigger = event.target.closest("[data-refresh-fsdb-quality]");
+  if (refreshFootballScienceDbQualityTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    queueFootballScienceDbQualityLoad({ force: true });
+    renderScoutingWorkspace({ preserveFocus: true });
     return;
   }
   const pageTrigger = event.target.closest("[data-scouting-page-offset]");

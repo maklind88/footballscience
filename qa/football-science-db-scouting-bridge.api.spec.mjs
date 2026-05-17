@@ -18,6 +18,9 @@ test("Scouting database view can search Football Science DB through the server A
   expect(workspace).toContain('data-scouting-load-fsdb');
   expect(workspace).toContain('data-scouting-page-cursor');
   expect(workspace).toContain("renderScoutingFootballScienceDbPanel");
+  expect(workspace).toContain("renderFootballScienceDbQualityPanel");
+  expect(workspace).toContain('action: "quality"');
+  expect(workspace).toContain("data-refresh-fsdb-quality");
   expect(workspace).toContain("Spider stays locked until trusted stats exist");
 });
 

@@ -2587,6 +2587,69 @@ font-weight: 760;
 text-overflow: ellipsis;
 white-space: nowrap;
 }
+.scouting-fsdb-quality{
+gap:0.72rem;
+position:sticky;
+top:1rem;
+}
+.scouting-fsdb-quality > div:first-child{
+align-items:center;
+}
+.scouting-fsdb-quality .scouting-secondary-button{
+min-height:2.15rem;
+padding:0.38rem 0.58rem;
+}
+.scouting-fsdb-quality-grid{
+grid-template-columns:repeat(2,minmax(0,1fr));
+}
+.scouting-fsdb-quality-review{
+display:grid;
+gap:0.38rem;
+padding-top:0.08rem;
+}
+.scouting-fsdb-quality-review > article,
+.scouting-fsdb-quality-list article{
+display:grid;
+gap:0.08rem;
+padding:0.52rem 0.58rem;
+border-radius:10px;
+background:rgba(248,249,250,0.88);
+border:1px solid rgba(29,29,31,0.08);
+}
+.scouting-fsdb-quality-review > article{
+gap:0.46rem;
+}
+.scouting-fsdb-quality-review > article > div{
+display:flex;
+align-items:center;
+justify-content:space-between;
+gap:0.58rem;
+}
+.scouting-fsdb-quality-list{
+display:grid;
+gap:0.32rem;
+}
+.scouting-fsdb-quality-review strong,
+.scouting-fsdb-quality-review em,
+.scouting-fsdb-quality-review span,
+.scouting-fsdb-quality-review p{
+overflow:hidden;
+margin:0;
+text-overflow:ellipsis;
+white-space:nowrap;
+}
+.scouting-fsdb-quality-review strong{
+color:#1d1d1f;
+font-size:0.78rem;
+font-weight:930;
+}
+.scouting-fsdb-quality-review em,
+.scouting-fsdb-quality-review p{
+color:#6e6e73;
+font-size:0.72rem;
+font-style:normal;
+font-weight:760;
+}
 .scouting-cockpit{
 display: grid;
 grid-template-columns: 1.25fr repeat(3, minmax(8rem, 0.42fr));
@@ -6107,11 +6170,19 @@ color: #f4f0dc;
 body.is-dark-mode .scouting-data-quality,
 body.is-dark-mode .scouting-budget-board,
 body.is-dark-mode .scouting-data-quality-grid article,
+body.is-dark-mode .scouting-fsdb-quality-review article,
 body.is-dark-mode .scouting-budget-grid button,
 body.is-dark-mode .scouting-import-panel,
 body.is-dark-mode .scouting-import-preview{
 background: rgba(34, 34, 36, 0.94);
 border-color: rgba(255, 255, 255, 0.1);
+}
+body.is-dark-mode .scouting-fsdb-quality-review strong{
+color:#f4f0dc;
+}
+body.is-dark-mode .scouting-fsdb-quality-review em,
+body.is-dark-mode .scouting-fsdb-quality-review p{
+color:#aab4af;
 }
 body.is-dark-mode .scouting-preset-view-list button{
 background: rgba(129, 210, 159, 0.14);
@@ -6485,7 +6556,7 @@ color:#b8c6bd;
 }
 .scouting-database-workbench{
 display:grid;
-grid-template-columns:minmax(0, 1fr);
+grid-template-columns:minmax(0,1fr) minmax(18rem,0.34fr);
 gap:1rem;
 align-items:start;
 }

@@ -66,6 +66,7 @@ export function createSimulatorWorkspaceController(options = {}) {
 
     workspace.classList.remove(introClassName);
     workspace.classList.add(launchedClassName);
+    documentRef.activeElement?.blur?.();
     render();
 
     try {
@@ -82,8 +83,10 @@ export function createSimulatorWorkspaceController(options = {}) {
         throw new Error("Fullscreen could not be opened.");
       }
     } catch {
-      log("Fullscreen mode is not available from this browser context.");
-      resetIntro();
+      log("Fullscreen mode is not available here, so the simulator opened in normal mode.");
+      requestFrame(() => {
+        getPitchStageElement()?.scrollIntoView?.({ block: "start", inline: "nearest" });
+      });
       renderWorkspaceChrome();
     } finally {
       syncFullscreen();

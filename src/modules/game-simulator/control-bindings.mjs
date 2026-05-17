@@ -9,11 +9,7 @@ function getKey(event) {
   return String(event?.key || "").toLowerCase();
 }
 
-function getShiftActionMode(event) {
-  if (!event?.shiftKey) {
-    return null;
-  }
-
+function getShortcutActionMode(event) {
   const key = getKey(event);
   if (key === "p") {
     return "pass";
@@ -117,6 +113,10 @@ export function createSimulatorControlBindings(options = {}) {
       return;
     }
 
+    if (event.defaultPrevented) {
+      return;
+    }
+
     const key = getKey(event);
     if (isSpaceKey(event) && getOffensiveAutopilotEnabled() && !shouldIgnoreSpaceAutopilotHotkey(event)) {
       event.preventDefault();
@@ -136,35 +136,16 @@ export function createSimulatorControlBindings(options = {}) {
       return;
     }
 
-    const shiftActionMode = getShiftActionMode(event);
-    if (shiftActionMode) {
+    const shortcutActionMode = getShortcutActionMode(event);
+    if (shortcutActionMode) {
       event.preventDefault();
-      setKeyboardActionMode(shiftActionMode);
+      setKeyboardActionMode(shortcutActionMode);
     }
   }
 
   function handleKeyUp(event) {
     if (!isActiveWorkspace()) {
       return;
-    }
-
-    const key = getKey(event);
-    const currentMode = getKeyboardActionMode();
-    if (key === "p" && currentMode === "pass") {
-      armKeyboardActionGrace("pass");
-      setKeyboardActionMode(null);
-      return;
-    }
-
-    if (key === "d" && currentMode === "dribble") {
-      armKeyboardActionGrace("dribble");
-      setKeyboardActionMode(null);
-      return;
-    }
-
-    if (key === "s" && currentMode === "shot") {
-      armKeyboardActionGrace("shot");
-      setKeyboardActionMode(null);
     }
   }
 

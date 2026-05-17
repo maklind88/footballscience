@@ -14,8 +14,12 @@ function createElement(initialClasses = []) {
   return {
     classList: createClassList(initialClasses),
     focusCalls: 0,
+    scrollCalls: [],
     focus() {
       this.focusCalls += 1;
+    },
+    scrollIntoView(options) {
+      this.scrollCalls.push(options);
     },
   };
 }
@@ -43,7 +47,14 @@ test("game simulator workspace controller resets intro state without touching ap
 
 test("game simulator workspace controller launches fullscreen and reports fallback cleanly", async () => {
   const workspace = createElement(["is-simulator-intro"]);
+  const activeElement = {
+    blurCalls: 0,
+    blur() {
+      this.blurCalls += 1;
+    },
+  };
   const documentRef = { fullscreenElement: null };
+  documentRef.activeElement = activeElement;
   const pitchStage = {
     async requestFullscreen() {
       documentRef.fullscreenElement = pitchStage;
@@ -63,16 +74,18 @@ test("game simulator workspace controller launches fullscreen and reports fallba
 
   expect(workspace.classList.contains("is-simulator-intro")).toBe(false);
   expect(workspace.classList.contains("is-simulator-launched")).toBe(true);
+  expect(activeElement.blurCalls).toBe(1);
   expect(calls).toEqual(["render", "sync"]);
 });
 
-test("game simulator workspace controller returns to intro when fullscreen fails", async () => {
+test("game simulator workspace controller keeps simulator open when fullscreen fails", async () => {
   const workspace = createElement(["is-simulator-intro"]);
+  const pitchStage = createElement();
   const logs = [];
   const calls = [];
   const controller = createSimulatorWorkspaceController({
     getWorkspaceElement: () => workspace,
-    getPitchStageElement: () => ({}),
+    getPitchStageElement: () => pitchStage,
     getIsActiveWorkspace: () => true,
     documentRef: { fullscreenElement: null },
     requestAnimationFrame: (callback) => {
@@ -87,8 +100,9 @@ test("game simulator workspace controller returns to intro when fullscreen fails
 
   await controller.launchFromIntro();
 
-  expect(workspace.classList.contains("is-simulator-intro")).toBe(true);
-  expect(workspace.classList.contains("is-simulator-launched")).toBe(false);
+  expect(workspace.classList.contains("is-simulator-intro")).toBe(false);
+  expect(workspace.classList.contains("is-simulator-launched")).toBe(true);
   expect(calls).toEqual(["render", "chrome", "sync"]);
-  expect(logs[0]).toContain("Fullscreen mode is not available");
+  expect(pitchStage.scrollCalls).toEqual([{ block: "start", inline: "nearest" }]);
+  expect(logs[0]).toContain("simulator opened in normal mode");
 });

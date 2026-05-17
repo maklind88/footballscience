@@ -391,7 +391,7 @@ const dataSafetyStorageLabels = {
 [dashboardNotificationSeenStorageKey]: "Home Notifications",
 [dashboardTutorialPrefsStorageKey]: "Dashboard Preferences",
 [dashboardNewsSeenStorageKey]: "Dashboard News",
-[platformAppearanceStorageKey]: "Platform Appearance",
+[platformAppearanceStorageKey]: "Appearance",
 [medicalTeamStorageKey]: "Medical Room",
 [playerProfilesStorageKey]: "Player Profiles",
 [scoutingStorageKey]: "Scouting",
@@ -6052,9 +6052,11 @@ const day = normalizePeriodizationDay({
 ...getDefaultPeriodizationDay(dateValue),
 ...savedDay,
 });
-return getPeriodizationFieldUpdatedAtMs(savedDay, "matchDay")
-? day
-: { ...day, matchDay: getPeriodizationAutoMd(dateValue) };
+const autoMatchDay = getPeriodizationAutoMd(dateValue);
+if (getPeriodizationFieldUpdatedAtMs(savedDay, "matchDay") || !autoMatchDay) {
+return day;
+}
+return { ...day, matchDay: autoMatchDay };
 }
 function ensurePeriodizationState() {
 if (!periodizationState) {
@@ -10346,9 +10348,6 @@ updatedBy: currentUser?.id || "",
 });
 localStorage.setItem(platformAppearanceStorageKey, normalizedValue);
 return JSON.parse(normalizedValue);
-}
-function getPlatformAppearanceMetadata() {
-return getCentralStateBridge()?.getStatus?.()?.metadata?.[platformAppearanceStorageKey] || {};
 }
 function getHomeAppearanceState() {
 return readPlatformAppearanceState().modules.home;
@@ -22066,7 +22065,7 @@ canCreateTeam
 function createAdminClubFromForm(form) {
 const currentUser = getCurrentPlatformUser();
 if (!form || !isPlatformAdminUser(currentUser)) {
-renderAdminWorkspace("Platform admin access required.");
+renderAdminWorkspace("Platform admin required.");
 return;
 }
 const values = getPlatformFormValues(form);
@@ -22365,35 +22364,17 @@ return `
 }
 function formatPlatformAppearanceImpact(impact) {
 if (!impact?.count) {
-return `
-    <div class="appearance-impact-summary appearance-impact-empty">
-      <strong>0 linked</strong>
-      <small>No registered Home components use this type yet.</small>
-    </div>
-  `;
+return `<div class="appearance-impact-summary appearance-impact-empty"><strong>0</strong></div>`;
 }
-const componentLabel = impact.count === 1 ? "component" : "components";
-const affectedItems = impact.sections
-.map(
-(section) => `
-      <span class="appearance-impact-chip">
-        ${escapeHtml(section.label)}
-        ${section.enabled ? "" : '<em>Hidden</em>'}
-      </span>
-    `
-)
-.join("");
 return `
     <div class="appearance-impact-summary">
-      <strong>${escapeHtml(impact.enabledCount)} active / ${escapeHtml(impact.count)} ${componentLabel}</strong>
-      <div class="appearance-impact-list">${affectedItems}</div>
+      <strong>${escapeHtml(impact.enabledCount)} / ${escapeHtml(impact.count)}</strong>
     </div>
   `;
 }
 function renderPlatformAppearanceGovernancePanel() {
 const appearance = readPlatformAppearanceState();
 const home = appearance.modules.home;
-const metadata = getPlatformAppearanceMetadata();
 const densityLabels = { compact: "Compact", normal: "Normal", airy: "Airy" };
 const toneLabels = { default: "Default", calm: "Calm", pitch: "Pitch", contrast: "Contrast" };
 const themeLabels = { system: "Follow app theme", light: "Light", dark: "Dark" };
@@ -22406,7 +22387,6 @@ return `
         <article class="appearance-type-row">
           <div>
             <strong>${escapeHtml(defaults.label)}</strong>
-            <small>Applies to every Home element of this type.</small>
           </div>
           ${formatPlatformAppearanceImpact(impact)}
           <label>
@@ -22450,29 +22430,14 @@ return `
     <form id="platformAppearanceForm" class="admin-card appearance-governance-card">
       <div class="staff-card-head">
         <div>
-          <h2>Appearance Governance</h2>
-          <span>Platform Admin only · Live-safe layout settings</span>
+          <h2>Appearance</h2>
+          <span>Platform Admin</span>
         </div>
-        <span class="profile-role-pill">Home v1</span>
-      </div>
-      <div class="appearance-governance-summary">
-        <div>
-          <span>Revision</span>
-          <strong>${escapeHtml(metadata.revision || "local")}</strong>
-        </div>
-        <div>
-          <span>Updated</span>
-          <strong>${escapeHtml(metadata.updatedAt ? formatAdminDateTime(metadata.updatedAt) : "Not published")}</strong>
-        </div>
-        <div>
-          <span>Rule</span>
-          <strong>Same type once</strong>
-        </div>
+        <span class="profile-role-pill">Home</span>
       </div>
       <section class="appearance-governance-block">
         <div class="appearance-block-head">
           <h3>Home defaults</h3>
-          <p>These settings affect the Home dashboard as a whole.</p>
         </div>
         <div class="appearance-home-defaults">
           <label>
@@ -22487,23 +22452,20 @@ return `
       </section>
       <section class="appearance-governance-block">
         <div class="appearance-block-head">
-          <h3>Same-type rules</h3>
-          <p>Change one type and every matching card follows it.</p>
+          <h3>Type rules</h3>
         </div>
         <div class="appearance-type-list">${componentTypeRows}</div>
       </section>
       <section class="appearance-governance-block">
         <div class="appearance-block-head">
           <h3>Home sections</h3>
-          <p>Show, hide and sort the registered Home sections without touching code.</p>
         </div>
         <div class="appearance-section-list">${sectionRows}</div>
       </section>
       <div class="profile-form-footer admin-access-footer">
-        <span>No free CSS or scripts are accepted. Backend sanitizes this before publish.</span>
         <span class="appearance-actions">
-          <button type="button" class="admin-send-button" data-platform-appearance-reset>Reset defaults</button>
-          <button type="submit">Publish appearance</button>
+          <button type="button" class="admin-send-button" data-platform-appearance-reset>Reset</button>
+          <button type="submit">Publish</button>
         </span>
       </div>
     </form>
@@ -22548,9 +22510,9 @@ sections,
 },
 });
 }
-async function publishPlatformAppearanceConfig(config, message = "Appearance published.") {
+async function publishPlatformAppearanceConfig(config, message = "Published.") {
 if (!isPlatformAdminUser(getCurrentPlatformUser())) {
-renderAdminWorkspace("Platform admin access required.");
+renderAdminWorkspace("Platform admin required.");
 return;
 }
 writePlatformAppearanceState(config);
@@ -72641,7 +72603,7 @@ return;
 const refreshAuditButton = event.target.closest("[data-admin-refresh-audit]");
 if (refreshAuditButton) {
 if (!isPlatformAdminUser(getCurrentPlatformUser())) {
-renderAdminWorkspace("Platform admin access required.");
+renderAdminWorkspace("Platform admin required.");
 return;
 }
 await loadAdminAuditLog({ force: true });
@@ -72650,7 +72612,7 @@ return;
 const refreshReadinessButton = event.target.closest("[data-pr-refresh]");
 if (refreshReadinessButton) {
 if (!isPlatformAdminUser(getCurrentPlatformUser())) {
-renderAdminWorkspace("Platform admin access required.");
+renderAdminWorkspace("Platform admin required.");
 return;
 }
 await loadPlatformReadinessReport({ force: true });
@@ -72659,7 +72621,7 @@ return;
 const appearanceResetButton = event.target.closest("[data-platform-appearance-reset]");
 if (appearanceResetButton) {
 if (!isPlatformAdminUser(getCurrentPlatformUser())) {
-renderAdminWorkspace("Platform admin access required.");
+renderAdminWorkspace("Platform admin required.");
 return;
 }
 await publishPlatformAppearanceConfig(
@@ -72667,7 +72629,7 @@ createDefaultPlatformAppearanceConfig({
 updatedAt: new Date().toISOString(),
 updatedBy: getCurrentPlatformUser()?.id || "",
 }),
-"Appearance reset to defaults."
+"Defaults reset."
 );
 return;
 }
@@ -72868,20 +72830,20 @@ const appearanceForm = event.target.closest("#platformAppearanceForm");
 if (appearanceForm) {
 event.preventDefault();
 if (!isPlatformAdminUser(getCurrentPlatformUser())) {
-renderAdminWorkspace("Platform admin access required.");
+renderAdminWorkspace("Platform admin required.");
 return;
 }
 setFormSubmitButtonState(appearanceForm, {
 isSubmitting: true,
 submittingLabel: "Publishing...",
-defaultLabel: "Publish appearance",
+defaultLabel: "Publish",
 });
 try {
 await publishPlatformAppearanceConfig(buildPlatformAppearanceConfigFromForm(appearanceForm));
 } catch (error) {
-renderAdminWorkspace(error?.message || "Appearance settings could not be published.");
+renderAdminWorkspace(error?.message || "Could not publish.");
 } finally {
-setFormSubmitButtonState(appearanceForm, { isSubmitting: false, defaultLabel: "Publish appearance" });
+setFormSubmitButtonState(appearanceForm, { isSubmitting: false, defaultLabel: "Publish" });
 }
 return;
 }
@@ -72952,7 +72914,7 @@ const accessForm = event.target.closest("#adminAccessForm");
 if (accessForm) {
 event.preventDefault();
 if (!isPlatformAdminUser(getCurrentPlatformUser())) {
-renderAdminWorkspace("Platform admin access required.");
+renderAdminWorkspace("Platform admin required.");
 return;
 }
 const roles = getPlatformRoles();

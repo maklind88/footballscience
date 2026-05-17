@@ -30145,7 +30145,7 @@ ${renderMedicalPlayerAvatar(player, "medical-modal-avatar")}
 <span data-medical-recommendation-preview>${formParticipation}% / ${escapeHtml(formStatusLabel)}</span>
 </div>
 ${activityContext.isRecommendable ? "" : `<div class="medical-activity-lock">${escapeHtml(activityContext.blockReason)} Select a training or match day to add a recommendation.</div>`}
-<form id="medicalRecommendationForm" class="medical-profile-form medical-recommendation-form">
+<form id="medicalRecommendationForm" class="medical-profile-form medical-recommendation-form" data-medical-recommendation-form>
 <input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
 <input type="hidden" name="status" id="medicalRecommendationStatus" value="${escapeHtml(formStatus)}" />
 <input type="hidden" name="participation" id="medicalRecommendationParticipation" value="${escapeHtml(formParticipation)}" />
@@ -30276,7 +30276,7 @@ ${renderMedicalPlayerAvatar(player, "medical-selected-avatar")}
 <h2>Recommendation</h2>
 <span>${escapeHtml(formatMedicalDateLabel(medicalState.selectedDate))}</span>
 </div>
-<form id="medicalRecommendationForm" class="medical-profile-form">
+<form id="medicalSidebarRecommendationForm" class="medical-profile-form" data-medical-recommendation-form>
 <input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
 <div class="medical-form-grid">
 <label>
@@ -72300,7 +72300,7 @@ return;
 }
 const recommendationPreset = event.target.closest("[data-medical-recommendation-preset]");
 if (recommendationPreset) {
-const form = recommendationPreset.closest("#medicalRecommendationForm");
+const form = recommendationPreset.closest("[data-medical-recommendation-form]");
 const participationInput = form?.querySelector("#medicalRecommendationParticipation");
 const statusInput = form?.querySelector("#medicalRecommendationStatus");
 const rtpSelect = form?.querySelector("#medicalRecommendationRtpPhase");
@@ -72329,7 +72329,7 @@ return;
 }
 const actualPreset = event.target.closest("[data-medical-actual-value]");
 if (actualPreset) {
-const form = actualPreset.closest("#medicalRecommendationForm");
+const form = actualPreset.closest("[data-medical-recommendation-form]");
 const actualInput = form?.querySelector("#medicalActualParticipation");
 if (actualInput) {
 actualInput.value = actualPreset.dataset.medicalActualValue;
@@ -72530,7 +72530,7 @@ return;
 }
 const recommendationStatus = event.target.closest("#medicalRecommendationStatus");
 if (recommendationStatus) {
-const form = recommendationStatus.closest("#medicalRecommendationForm");
+const form = recommendationStatus.closest("[data-medical-recommendation-form]");
 const participationSelect = form?.querySelector("#medicalRecommendationParticipation") ??
 ui.medicalTeamWorkspace.querySelector("#medicalRecommendationParticipation");
 const preview = form?.querySelector("[data-medical-recommendation-preview]") ??
@@ -72547,7 +72547,7 @@ preview.textContent = `${participation}% / ${getMedicalStatusOptionForDate(statu
 }
 const recommendationRtpPhase = event.target.closest("#medicalRecommendationRtpPhase");
 if (recommendationRtpPhase) {
-const form = recommendationRtpPhase.closest("#medicalRecommendationForm");
+const form = recommendationRtpPhase.closest("[data-medical-recommendation-form]");
 const participationInput = form?.querySelector("#medicalRecommendationParticipation");
 const statusInput = form?.querySelector("#medicalRecommendationStatus");
 const dateInput = form?.querySelector("[name='date']");
@@ -72725,7 +72725,7 @@ idempotencyKey: `availability-plan-created:${plan.id}`,
 renderMedicalTeamWorkspace(plan ? "Availability plan created." : "Availability plan could not be created.");
 return;
 }
-const recommendationForm = event.target.closest("#medicalRecommendationForm");
+const recommendationForm = event.target.closest("[data-medical-recommendation-form]");
 if (recommendationForm) {
 event.preventDefault();
 if (!canEditMedicalTeam()) {

@@ -29109,7 +29109,7 @@ const activeCases = getMedicalActiveCaseItems(dateValue);
 const clearanceBlockers = activeCases.filter((item) => !item.clearance.isCleared);
 const reviewNow = signals.filter((signal) => signal.highestSeverity >= 3).length;
 const actualMissing = getMedicalAvailabilityItems(dateValue).filter(
-(item) => item.record && item.record.actualParticipation === medicalActualParticipationFallback
+(item) => item.record && item.record.participation > 0 && item.record.actualParticipation === medicalActualParticipationFallback
 ).length;
 return {
 signals,

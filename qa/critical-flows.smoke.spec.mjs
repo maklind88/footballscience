@@ -1162,6 +1162,80 @@ test("Medical operations board separates signals, cases, history and season view
   await expect(operations).toContainText("Major");
 });
 
+test("Medical operations actual missing counts only players expected to participate", async ({ page }) => {
+  await page.addInitScript(({ medicalStorageKey, scheduleStorageKey }) => {
+    window.localStorage.setItem(
+      scheduleStorageKey,
+      JSON.stringify({
+        selectedYear: 2026,
+        selectedMonthIndex: 4,
+        selectedDate: "2026-05-15",
+        viewMode: "month",
+        overviewSpan: 6,
+        visibleEventTypes: ["training", "match", "meeting", "travel", "recovery", "off"],
+        importVersion: "qa-medical-actual-missing-v1",
+        events: [{ id: "qa-training", date: "2026-05-15", time: "10:00", type: "training", title: "Training", note: "" }],
+      })
+    );
+    window.localStorage.setItem(
+      medicalStorageKey,
+      JSON.stringify({
+        selectedDate: "2026-05-15",
+        selectedPlayerId: "qa-positive-missing",
+        rosterVersion: "qa-medical-actual-missing-v1",
+        players: [
+          { id: "qa-positive-missing", name: "QA Positive Missing", position: "Forward", rosterOrder: 1 },
+          { id: "qa-unavailable", name: "QA Unavailable", position: "Defender", rosterOrder: 2 },
+          { id: "qa-not-set", name: "QA Not Set", position: "Midfielder", rosterOrder: 3 },
+          { id: "qa-logged", name: "QA Logged", position: "Goalkeeper", rosterOrder: 4 },
+        ],
+        records: [
+          {
+            id: "qa-positive-missing-record",
+            playerId: "qa-positive-missing",
+            date: "2026-05-15",
+            status: "modified",
+            participation: 75,
+            actualParticipation: "not-logged",
+            rtpPhase: "modified-team",
+            createdAt: "2026-05-15T08:00:00.000Z",
+          },
+          {
+            id: "qa-unavailable-record",
+            playerId: "qa-unavailable",
+            date: "2026-05-15",
+            status: "unavailable",
+            participation: 0,
+            actualParticipation: "not-logged",
+            rtpPhase: "medical-restriction",
+            createdAt: "2026-05-15T08:01:00.000Z",
+          },
+          {
+            id: "qa-logged-record",
+            playerId: "qa-logged",
+            date: "2026-05-15",
+            status: "full",
+            participation: 100,
+            actualParticipation: 100,
+            rtpPhase: "full-training",
+            createdAt: "2026-05-15T08:02:00.000Z",
+          },
+        ],
+        injuryPlans: [],
+      })
+    );
+  }, { medicalStorageKey: medicalKey, scheduleStorageKey: scheduleKey });
+
+  await bootApp(page);
+  await openWorkspace(page, "medical-team");
+
+  const operationsMenu = page.locator("[data-medical-ops-top-menu]");
+  await operationsMenu.locator('[data-medical-ops-tab="overview"]').click();
+  const actualMissingStat = page.locator(".medical-ops-stat").filter({ hasText: "Actual missing" });
+  await expect(actualMissingStat).toContainText("1");
+  await expect(actualMissingStat).toContainText("today's participation");
+});
+
 test("Squad add creates a Medical roster slot and Session Planner placement", async ({ page }) => {
   const playerName = `QA Squad Placement ${Date.now()}`;
   let squadAgeRequests = 0;

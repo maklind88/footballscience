@@ -176,9 +176,35 @@ export function createTransferRoomRuntime(deps = {}) {
     afterMutation();
   }
 
-  function removeTarget(recordId) {
-    if (!canAccess() || !removeTransferRoomTargetFromState(ensureState(), recordId)) {
+  function openTargetProfile(recordId) {
+    if (!canAccess()) {
       return;
+    }
+    const state = ensureState();
+    const id = normalizeTransferRoomText(recordId, 180);
+    if (!id || !state.targetPlans?.[id]) {
+      return;
+    }
+    state.activeTargetProfileRecordId = id;
+    afterMutation();
+  }
+
+  function closeTargetProfile() {
+    const state = ensureState();
+    if (!state.activeTargetProfileRecordId) {
+      return;
+    }
+    state.activeTargetProfileRecordId = "";
+    afterMutation();
+  }
+
+  function removeTarget(recordId) {
+    const state = ensureState();
+    if (!canAccess() || !removeTransferRoomTargetFromState(state, recordId)) {
+      return;
+    }
+    if (state.activeTargetProfileRecordId === normalizeTransferRoomText(recordId, 180)) {
+      state.activeTargetProfileRecordId = "";
     }
     afterMutation();
   }
@@ -226,6 +252,8 @@ export function createTransferRoomRuntime(deps = {}) {
       updateSettings,
       updateSquadPlan,
       updateTargetPlan,
+      openTargetProfile,
+      closeTargetProfile,
       removeTarget,
       toggleAccessUser,
       openScoutingRecord: (recordId) => {
@@ -299,6 +327,8 @@ export function createTransferRoomRuntime(deps = {}) {
     updateSettings,
     updateSquadPlan,
     updateTargetPlan,
+    openTargetProfile,
+    closeTargetProfile,
     removeTarget,
     ensureState,
     writeState,

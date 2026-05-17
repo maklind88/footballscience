@@ -236,7 +236,7 @@ function renderOverview() {
 function renderCompactTarget(plan) {
   const snapshot = getTargetSnapshot(plan.recordId);
   return `
-    <button type="button" data-transfer-open-scouting="${escapeHtml(plan.recordId)}">
+    <button type="button" data-transfer-open-target-profile="${escapeHtml(plan.recordId)}">
       <strong>${escapeHtml(plan.name || snapshot.name || "Saved target")}</strong>
       <span>${escapeHtml([plan.position || snapshot.position, plan.club || snapshot.club].filter(Boolean).join(" / ") || "Scouted player")}</span>
     </button>
@@ -338,7 +338,7 @@ function renderTargetCard(plan) {
           <strong>${escapeHtml(plan.name || snapshot.name || "Saved target")}</strong>
           <span>${escapeHtml([plan.position || snapshot.position, plan.club || snapshot.club].filter(Boolean).join(" / ") || "Scouted player")}</span>
         </div>
-        <button type="button" data-transfer-open-scouting="${escapeHtml(plan.recordId)}" aria-label="Open scouting profile">Open</button>
+        <button type="button" data-transfer-open-target-profile="${escapeHtml(plan.recordId)}" aria-label="Open saved transfer target profile">Open</button>
       </div>
       <div class="transfer-room-target-meta">
         <span>${escapeHtml(snapshot.league || "League unknown")}</span>
@@ -376,6 +376,170 @@ function renderTargetCard(plan) {
       <textarea rows="3" placeholder="Decision notes" data-transfer-target-field="notes" data-transfer-record-id="${escapeHtml(plan.recordId)}" ${canEdit ? "" : "disabled"}>${escapeHtml(plan.notes || "")}</textarea>
       <button type="button" class="transfer-room-danger" data-transfer-remove-target="${escapeHtml(plan.recordId)}" ${canEdit ? "" : "disabled"}>Remove</button>
     </article>
+  `;
+}
+
+function getTargetProfileInitials(name = "") {
+  const parts = String(name || "T")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.slice(0, 1).toUpperCase());
+  return (parts.length > 1 ? `${parts[0]}${parts[1]}` : parts[0] || "T").slice(0, 2);
+}
+
+function getTargetProfilePeriodLabel(period = getWagePeriod()) {
+  return (activeContext?.wagePeriodOptions || []).find((item) => item.value === period)?.label || "Per year";
+}
+
+function formatOptionalMoney(value) {
+  if (value === "" || value === null || value === undefined) {
+    return "Not set";
+  }
+  return formatMoney(toNumber(value));
+}
+
+function formatTargetMetricPercentile(value) {
+  const text = String(value ?? "").trim();
+  if (!text) {
+    return "";
+  }
+  return text.toLowerCase().startsWith("p") ? text.toUpperCase() : `P${text}`;
+}
+
+function getTargetProfileFacts(plan = {}, snapshot = {}) {
+  const nationality = [snapshot.nationalityCode, snapshot.nationalityLabel].filter(Boolean).join(" / ") || snapshot.passportCountry || snapshot.birthCountry;
+  const coreFacts = [
+    { label: "Club", value: plan.club || snapshot.club },
+    { label: "Position", value: plan.position || snapshot.position },
+    { label: "Age", value: snapshot.age },
+    { label: "Nationality", value: nationality },
+    { label: "League", value: [snapshot.league, snapshot.season].filter(Boolean).join(" / ") },
+    { label: "Minutes", value: snapshot.minutes },
+    { label: "Best role", value: snapshot.bestRole },
+    { label: "Role fit", value: snapshot.fit },
+    { label: "Date of birth", value: snapshot.dateOfBirth },
+    { label: "Height", value: snapshot.height },
+    { label: "Weight", value: snapshot.weight },
+    { label: "Source", value: plan.source || snapshot.source },
+  ];
+  const seenLabels = new Set();
+  return [...coreFacts, ...(Array.isArray(snapshot.facts) ? snapshot.facts : [])]
+    .map((fact) => ({
+      label: String(fact.label || "").trim(),
+      value: String(fact.value || "").trim(),
+    }))
+    .filter((fact) => fact.label && fact.value)
+    .filter((fact) => {
+      const key = fact.label.toLowerCase();
+      if (seenLabels.has(key)) {
+        return false;
+      }
+      seenLabels.add(key);
+      return true;
+    })
+    .slice(0, 14);
+}
+
+function renderTargetProfileFact(fact) {
+  return `
+    <div>
+      <span>${escapeHtml(fact.label)}</span>
+      <strong>${escapeHtml(fact.value)}</strong>
+    </div>
+  `;
+}
+
+function renderTargetProfileMetric(metric = {}) {
+  const percentile = formatTargetMetricPercentile(metric.percentile);
+  return `
+    <article class="transfer-room-target-profile-metric">
+      <div>
+        <span>${escapeHtml(metric.group || metric.quality || "Scouting metric")}</span>
+        <strong>${escapeHtml(metric.label || "Metric")}</strong>
+      </div>
+      <div>
+        ${metric.value ? `<small>${escapeHtml(metric.value)}</small>` : ""}
+        ${percentile ? `<em>${escapeHtml(percentile)}</em>` : ""}
+      </div>
+    </article>
+  `;
+}
+
+function renderTargetProfilePlan(plan = {}) {
+  const wageLabel = plan.wage === "" || plan.wage === null || plan.wage === undefined
+    ? "Not set"
+    : `${formatMoney(toNumber(plan.wage))} / ${getTargetProfilePeriodLabel(plan.wagePeriod)}`;
+  const replacementName = (activeContext?.squadPlayers || []).find((player) => player.id === plan.replacementFor)?.name || "Unassigned";
+  const items = [
+    ["Stage", plan.stage || "monitoring"],
+    ["Fee", formatOptionalMoney(plan.fee)],
+    ["Wage", wageLabel],
+    ["Replacement", replacementName],
+  ];
+  return `
+    <section class="transfer-room-target-profile-plan">
+      ${items.map(([label, value]) => renderTargetProfileFact({ label, value })).join("")}
+    </section>
+  `;
+}
+
+function renderTargetProfileModal() {
+  const state = getState();
+  const recordId = state.activeTargetProfileRecordId;
+  const plan = recordId ? state.targetPlans?.[recordId] : null;
+  if (!recordId || !plan) {
+    return "";
+  }
+  const snapshot = getTargetSnapshot(recordId);
+  const name = plan.name || snapshot.name || "Saved target";
+  const subtitle = [plan.position || snapshot.position, plan.club || snapshot.club].filter(Boolean).join(" / ") || "Saved Transfer Room target";
+  const facts = getTargetProfileFacts(plan, snapshot);
+  const metrics = Array.isArray(snapshot.metrics) ? snapshot.metrics : [];
+  return `
+    <div class="transfer-room-target-profile-overlay" data-transfer-target-profile-overlay>
+      <article class="transfer-room-target-profile-dialog" role="dialog" aria-modal="true" aria-label="${escapeHtml(`${name} transfer target profile`)}">
+        <header class="transfer-room-target-profile-head">
+          <div class="transfer-room-target-profile-avatar">
+            ${snapshot.imageUrl ? `<img src="${escapeHtml(snapshot.imageUrl)}" alt="" />` : escapeHtml(getTargetProfileInitials(name))}
+          </div>
+          <div>
+            <p>Saved target snapshot</p>
+            <h2>${escapeHtml(name)}</h2>
+            <span>${escapeHtml(subtitle)}</span>
+          </div>
+          <button type="button" data-transfer-close-target-profile aria-label="Close transfer target profile">Close</button>
+        </header>
+        ${snapshot.summary ? `<p class="transfer-room-target-profile-summary">${escapeHtml(snapshot.summary)}</p>` : ""}
+        <div class="transfer-room-target-profile-layout">
+          <section>
+            <div class="transfer-room-target-profile-section-head">
+              <span>Player profile</span>
+              <strong>${escapeHtml(snapshot.updatedAt ? "Snapshot saved" : "Local snapshot")}</strong>
+            </div>
+            <div class="transfer-room-target-profile-facts">
+              ${facts.length ? facts.map(renderTargetProfileFact).join("") : `<div><span>Profile</span><strong>Identity saved in Transfer Room</strong></div>`}
+            </div>
+          </section>
+          <section>
+            <div class="transfer-room-target-profile-section-head">
+              <span>Transfer plan</span>
+              <strong>${escapeHtml(getCurrency())}</strong>
+            </div>
+            ${renderTargetProfilePlan(plan)}
+          </section>
+        </div>
+        <section>
+          <div class="transfer-room-target-profile-section-head">
+            <span>Scouting signals</span>
+            <strong>${escapeHtml(snapshot.signalLabel || snapshot.bestRole || "Saved read")}</strong>
+          </div>
+          <div class="transfer-room-target-profile-metrics">
+            ${metrics.length ? metrics.map(renderTargetProfileMetric).join("") : `<article class="transfer-room-target-profile-metric"><div><span>Snapshot</span><strong>No metric detail saved yet</strong></div><div><em>${escapeHtml(snapshot.fit || "Pending")}</em></div></article>`}
+          </div>
+        </section>
+      </article>
+    </div>
   `;
 }
 
@@ -503,6 +667,7 @@ export function render(context = {}) {
         ${renderTabButton("access", "Access")}
       </nav>
       ${renderBody()}
+      ${renderTargetProfileModal()}
     </section>
   `;
 }
@@ -520,6 +685,20 @@ export function handleClick(event, context = activeContext) {
   if (openWorkspaceTrigger) {
     event.preventDefault();
     activeContext?.openWorkspace?.(openWorkspaceTrigger.dataset.transferOpenWorkspace);
+    return;
+  }
+
+  const closeTargetProfileTrigger = event.target.closest("[data-transfer-close-target-profile]");
+  if (closeTargetProfileTrigger || event.target.matches("[data-transfer-target-profile-overlay]")) {
+    event.preventDefault();
+    activeContext?.closeTargetProfile?.();
+    return;
+  }
+
+  const openTargetProfileTrigger = event.target.closest("[data-transfer-open-target-profile]");
+  if (openTargetProfileTrigger) {
+    event.preventDefault();
+    activeContext?.openTargetProfile?.(openTargetProfileTrigger.dataset.transferOpenTargetProfile);
     return;
   }
 

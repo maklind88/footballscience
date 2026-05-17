@@ -153,6 +153,35 @@ export function normalizeTransferRoomSquadPlan(plan = {}, player = {}) {
   };
 }
 
+function normalizeTransferRoomSnapshotFact(fact = {}) {
+  const label = normalizeTransferRoomText(fact.label || fact.key, 80);
+  const value = normalizeTransferRoomText(fact.value ?? fact.text, 220);
+  if (!label || !value) {
+    return null;
+  }
+  return {
+    label,
+    value,
+    tone: normalizeTransferRoomText(fact.tone, 40),
+  };
+}
+
+function normalizeTransferRoomSnapshotMetric(metric = {}) {
+  const label = normalizeTransferRoomText(metric.label || metric.name, 120);
+  const value = normalizeTransferRoomText(metric.value ?? metric.rawValue, 80);
+  const percentile = normalizeTransferRoomText(metric.percentile ?? metric.score, 24);
+  if (!label || (!value && !percentile)) {
+    return null;
+  }
+  return {
+    label,
+    value,
+    percentile,
+    quality: normalizeTransferRoomText(metric.quality, 40),
+    group: normalizeTransferRoomText(metric.group || metric.profile, 120),
+  };
+}
+
 export function normalizeTransferRoomSnapshot(snapshot = {}) {
   const recordId = normalizeTransferRoomText(snapshot.recordId || snapshot.id, 180);
   if (!recordId) {
@@ -167,15 +196,54 @@ export function normalizeTransferRoomSnapshot(snapshot = {}) {
     minutes: normalizeTransferRoomText(snapshot.minutes, 30),
     birthCountry: normalizeTransferRoomText(snapshot.birthCountry, 120),
     passportCountry: normalizeTransferRoomText(snapshot.passportCountry || snapshot.nationality, 120),
+    nationalityCode: normalizeTransferRoomText(snapshot.nationalityCode, 20),
+    nationalityLabel: normalizeTransferRoomText(snapshot.nationalityLabel, 120),
+    dateOfBirth: normalizeTransferRoomText(snapshot.dateOfBirth, 40),
+    height: normalizeTransferRoomText(snapshot.height, 40),
+    weight: normalizeTransferRoomText(snapshot.weight, 40),
     imageUrl: normalizeTransferRoomText(snapshot.imageUrl, 600),
     league: normalizeTransferRoomText(snapshot.league, 180),
     season: normalizeTransferRoomText(snapshot.season, 80),
+    bestRole: normalizeTransferRoomText(snapshot.bestRole || snapshot.role, 120),
     fit: normalizeTransferRoomText(snapshot.fit, 40),
     signalLabel: normalizeTransferRoomText(snapshot.signalLabel, 120),
     signalPercentile: normalizeTransferRoomText(snapshot.signalPercentile, 24),
+    summary: normalizeTransferRoomText(snapshot.summary, 700),
+    facts: (Array.isArray(snapshot.facts) ? snapshot.facts : [])
+      .map(normalizeTransferRoomSnapshotFact)
+      .filter(Boolean)
+      .slice(0, 14),
+    metrics: (Array.isArray(snapshot.metrics) ? snapshot.metrics : [])
+      .map(normalizeTransferRoomSnapshotMetric)
+      .filter(Boolean)
+      .slice(0, 12),
+    source: normalizeTransferRoomText(snapshot.source, 80),
     sourceSlotId: normalizeTransferRoomText(snapshot.sourceSlotId || snapshot.slotId, 60),
     updatedAt: normalizeTransferRoomText(snapshot.updatedAt, 40) || new Date().toISOString(),
   };
+}
+
+function mergeTransferRoomSnapshotValue(value, previousValue) {
+  if (Array.isArray(value)) {
+    return value.length ? value : Array.isArray(previousValue) ? previousValue : [];
+  }
+  return value || previousValue || "";
+}
+
+function mergeTransferRoomSnapshot(previousSnapshot = {}, incomingSnapshot = {}) {
+  const normalizedSnapshot = normalizeTransferRoomSnapshot({
+    ...previousSnapshot,
+    ...incomingSnapshot,
+    facts: incomingSnapshot.facts?.length ? incomingSnapshot.facts : previousSnapshot.facts,
+    metrics: incomingSnapshot.metrics?.length ? incomingSnapshot.metrics : previousSnapshot.metrics,
+    summary: incomingSnapshot.summary || previousSnapshot.summary,
+  });
+  if (!normalizedSnapshot) {
+    return null;
+  }
+  return Object.fromEntries(
+    Object.entries(normalizedSnapshot).map(([key, value]) => [key, mergeTransferRoomSnapshotValue(value, previousSnapshot[key])])
+  );
 }
 
 export function normalizeTransferRoomTargetPlan(plan = {}, snapshot = {}) {
@@ -273,18 +341,22 @@ export function syncTransferRoomTargetsFromScouting(state, scoutingState = {}) {
     ? { ...state.targetSnapshots }
     : {};
   getTransferRoomShadowRecordsFromScouting(scoutingState).forEach((snapshot) => {
-    targetSnapshots[snapshot.recordId] = {
-      ...(targetSnapshots[snapshot.recordId] || {}),
+    const previousSnapshot = targetSnapshots[snapshot.recordId] || {};
+    const nextSnapshot = mergeTransferRoomSnapshot(previousSnapshot, {
       ...snapshot,
       source: "shadow-xi",
-    };
+    });
+    if (!nextSnapshot) {
+      return;
+    }
+    targetSnapshots[snapshot.recordId] = nextSnapshot;
     targetPlans[snapshot.recordId] = normalizeTransferRoomTargetPlan(
       {
         ...(targetPlans[snapshot.recordId] || {}),
         recordId: snapshot.recordId,
         source: targetPlans[snapshot.recordId]?.source || "shadow-xi",
       },
-      targetSnapshots[snapshot.recordId]
+      nextSnapshot
     );
   });
   state.targetPlans = targetPlans;
@@ -334,6 +406,7 @@ export function cloneTransferRoomState(source = {}, options = {}) {
   const state = {
     schemaVersion: transferRoomSchemaVersion,
     activeTab: normalizeTransferRoomText(source.activeTab || "overview", 40),
+    activeTargetProfileRecordId: normalizeTransferRoomText(source.activeTargetProfileRecordId, 180),
     activeTeamId: activeTeam.id,
     settings,
     teams,
@@ -446,9 +519,12 @@ export function setTransferRoomAccessUser(state, teamId, userId, isSelected) {
 }
 
 export function addTransferRoomTargetSnapshot(state, snapshot = {}, options = {}) {
-  const normalizedSnapshot = normalizeTransferRoomSnapshot({
+  const recordId = normalizeTransferRoomText(snapshot.recordId || snapshot.id || options.recordId, 180);
+  const previousSnapshot = recordId ? state.targetSnapshots[recordId] || {} : {};
+  const normalizedSnapshot = mergeTransferRoomSnapshot(previousSnapshot, {
     ...snapshot,
-    sourceSlotId: options.slotId || snapshot.sourceSlotId || snapshot.slotId,
+    source: options.source || snapshot.source || previousSnapshot.source,
+    sourceSlotId: options.slotId || snapshot.sourceSlotId || snapshot.slotId || previousSnapshot.sourceSlotId,
   });
   if (!normalizedSnapshot) {
     return false;

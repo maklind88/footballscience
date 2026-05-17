@@ -46,6 +46,7 @@ import { createDashboardHomeCardsRenderer } from "./src/modules/home/dashboard-r
 import { selectHomeTaskQueues } from "./src/modules/home/tasks.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
+import { getTopIconSvg } from "./top-icons.js";
 import {
 createDefaultPlatformAppearanceConfig,
 getHomeAppearanceImpactSummary,
@@ -10684,9 +10685,6 @@ return `
       </label>
     </div>
   `;
-}
-function getTopIconSvg(workspaceId) {
-return `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M8 12h8M12 8v8"/></svg>`;
 }
 function getTopIconLabel(workspace) {
 const labels = {

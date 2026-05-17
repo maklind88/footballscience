@@ -795,13 +795,55 @@ function normalizeScoutingPlayerSnapshot(snapshot = {}) {
     minutes: normalizeScoutingText(snapshot.minutes, 24),
     birthCountry: normalizeScoutingText(snapshot.birthCountry, 120),
     passportCountry: normalizeScoutingText(snapshot.passportCountry || snapshot.nationality, 120),
+    nationalityCode: normalizeScoutingText(snapshot.nationalityCode, 20),
+    nationalityLabel: normalizeScoutingText(snapshot.nationalityLabel, 120),
+    dateOfBirth: normalizeScoutingText(snapshot.dateOfBirth, 40),
+    height: normalizeScoutingText(snapshot.height, 40),
+    weight: normalizeScoutingText(snapshot.weight, 40),
     imageUrl: normalizeScoutingText(snapshot.imageUrl, 300),
     league: normalizeScoutingText(snapshot.league, 180),
     season: normalizeScoutingText(snapshot.season, 80),
+    bestRole: normalizeScoutingText(snapshot.bestRole || snapshot.role, 120),
     fit: normalizeScoutingText(snapshot.fit, 40),
     signalLabel: normalizeScoutingText(snapshot.signalLabel, 120),
     signalPercentile: normalizeScoutingText(snapshot.signalPercentile, 20),
+    summary: normalizeScoutingText(snapshot.summary, 700),
+    facts: (Array.isArray(snapshot.facts) ? snapshot.facts : [])
+      .map(normalizeScoutingPlayerSnapshotFact)
+      .filter(Boolean)
+      .slice(0, 14),
+    metrics: (Array.isArray(snapshot.metrics) ? snapshot.metrics : [])
+      .map(normalizeScoutingPlayerSnapshotMetric)
+      .filter(Boolean)
+      .slice(0, 12),
     updatedAt: normalizeScoutingText(snapshot.updatedAt, 40) || new Date().toISOString(),
+  };
+}
+function normalizeScoutingPlayerSnapshotFact(fact = {}) {
+  const label = normalizeScoutingText(fact.label || fact.key, 80);
+  const value = normalizeScoutingText(fact.value ?? fact.text, 220);
+  if (!label || !value) {
+    return null;
+  }
+  return {
+    label,
+    value,
+    tone: normalizeScoutingText(fact.tone, 40),
+  };
+}
+function normalizeScoutingPlayerSnapshotMetric(metric = {}) {
+  const label = normalizeScoutingText(metric.label || metric.name, 120);
+  const value = normalizeScoutingText(metric.value ?? metric.rawValue, 80);
+  const percentile = normalizeScoutingText(metric.percentile ?? metric.score, 20);
+  if (!label || (!value && !percentile)) {
+    return null;
+  }
+  return {
+    label,
+    value,
+    percentile,
+    quality: normalizeScoutingText(metric.quality, 40),
+    group: normalizeScoutingText(metric.group || metric.profile, 120),
   };
 }
 function getScoutingPlayerSnapshots(state = null) {
@@ -814,6 +856,68 @@ function getScoutingPlayerSnapshots(state = null) {
       .map((snapshot) => [snapshot.recordId, snapshot])
   );
 }
+function formatScoutingSnapshotPhysicalValue(value, unit) {
+  const text = normalizeScoutingText(value, 40);
+  if (!text) {
+    return "";
+  }
+  return /[a-z]/i.test(text) ? text : `${text} ${unit}`;
+}
+function formatScoutingSnapshotMetricValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+  return formatScoutingNumber(value, "");
+}
+function createScoutingSnapshotFacts(record, options = {}) {
+  const minutes = getScoutingRecordMinutes(record);
+  const age = getScoutingRecordAge(record);
+  const nationality = options.nationality || getScoutingRecordNationalityMeta(record);
+  const leagueSeason = [getScoutingRecordLeague(record), getScoutingRecordSeason(record)].filter(Boolean).join(" / ");
+  return [
+    { label: "Club", value: getScoutingRecordTeam(record) },
+    { label: "Position", value: getScoutingRecordPosition(record) },
+    { label: "Age", value: Number.isFinite(age) ? `${formatScoutingNumber(age)} yrs` : "" },
+    { label: "Nationality", value: [nationality.code, nationality.label].filter(Boolean).join(" / ") },
+    { label: "League", value: leagueSeason },
+    { label: "Minutes", value: minutes ? formatScoutingNumber(minutes) : "" },
+    { label: "Best role", value: options.bestRole || "" },
+    { label: "Role fit", value: Number.isFinite(options.roleFit) ? `P${Math.round(options.roleFit)}` : "" },
+    { label: "Date of birth", value: getScoutingRecordDateOfBirth(record) },
+    { label: "Height", value: formatScoutingSnapshotPhysicalValue(record?.[scoutingRecordIndex.height], "cm") },
+    { label: "Weight", value: formatScoutingSnapshotPhysicalValue(record?.[scoutingRecordIndex.weight], "kg") },
+  ].map(normalizeScoutingPlayerSnapshotFact).filter(Boolean);
+}
+function createScoutingSnapshotMetrics(record, template = [], signal = null) {
+  const profileLabel = normalizeScoutingText(template.profileLabel, 120) || getScoutingRecordBestRoleLabel(record);
+  const rows = getScoutingRoleMetricRows(record, template)
+    .filter((row) => Number.isFinite(row.percentile))
+    .sort((first, second) => (second.weightedScore || 0) - (first.weightedScore || 0))
+    .slice(0, 8)
+    .map((row) => ({
+      label: row.metric?.label || row.label || row.metricId,
+      value: formatScoutingSnapshotMetricValue(row.value),
+      percentile: String(Math.round(row.percentile)),
+      quality: row.quality,
+      group: profileLabel,
+    }));
+  const bestSignal = signal && Number.isFinite(signal.percentile)
+    ? [
+        {
+          label: signal.metric?.label || "Best signal",
+          value: formatScoutingSnapshotMetricValue(signal.value),
+          percentile: String(Math.round(signal.percentile)),
+          quality: signal.quality,
+          group: "Best signal",
+        },
+      ]
+    : [];
+  const signalLabel = normalizeScoutingText(bestSignal[0]?.label, 120).toLowerCase();
+  return [...bestSignal, ...rows.filter((row) => normalizeScoutingText(row.label, 120).toLowerCase() !== signalLabel)]
+    .map(normalizeScoutingPlayerSnapshotMetric)
+    .filter(Boolean)
+    .slice(0, 12);
+}
 function createScoutingPlayerSnapshot(record, options = {}) {
   if (!record) {
     return null;
@@ -825,6 +929,17 @@ function createScoutingPlayerSnapshot(record, options = {}) {
   const includeAnalysis = options.includeAnalysis !== false;
   const roleFit = includeAnalysis ? getScoutingRoleFitScore(record) : null;
   const signal = includeAnalysis ? getScoutingBestSignal(record) : null;
+  const template = includeAnalysis ? getScoutingRadarTemplate(record) : [];
+  const bestRole = includeAnalysis ? getScoutingRecordBestRoleLabel(record) : "";
+  const nationality = getScoutingRecordNationalityMeta(record);
+  const signalPercentile = Number.isFinite(signal?.percentile) ? Math.round(signal.percentile) : null;
+  const summary = includeAnalysis
+    ? [
+        bestRole ? `Best role: ${bestRole}` : "",
+        Number.isFinite(roleFit) ? `Role fit P${Math.round(roleFit)}` : "",
+        signal?.metric?.label && Number.isFinite(signalPercentile) ? `Best signal: ${signal.metric.label} P${signalPercentile}` : "",
+      ].filter(Boolean).join(". ")
+    : "";
   return normalizeScoutingPlayerSnapshot({
     recordId,
     name: getScoutingRecordName(record),
@@ -832,15 +947,30 @@ function createScoutingPlayerSnapshot(record, options = {}) {
     position: getScoutingRecordPosition(record),
     age: String(getScoutingRecordAge(record) || ""),
     minutes: String(getScoutingRecordMinutes(record) || ""),
-    birthCountry: normalizeScoutingText(record?.[scoutingRecordIndex.birthCountry], 120),
-    passportCountry: normalizeScoutingText(record?.[scoutingRecordIndex.passportCountry], 120),
+    birthCountry: getScoutingRecordBirthCountry(record),
+    passportCountry: getScoutingRecordPassportCountry(record),
+    nationalityCode: nationality.code,
+    nationalityLabel: nationality.label,
+    dateOfBirth: getScoutingRecordDateOfBirth(record),
+    height: formatScoutingSnapshotPhysicalValue(record?.[scoutingRecordIndex.height], "cm"),
+    weight: formatScoutingSnapshotPhysicalValue(record?.[scoutingRecordIndex.weight], "kg"),
     imageUrl: getScoutingRecordImageUrl(record),
     league: getScoutingRecordLeague(record),
     season: getScoutingRecordSeason(record),
+    bestRole,
     fit: Number.isFinite(roleFit) ? `P${roleFit}` : "",
     signalLabel: signal?.metric?.label || "",
-    signalPercentile: Number.isFinite(signal?.percentile) ? String(signal.percentile) : "",
+    signalPercentile: Number.isFinite(signalPercentile) ? String(signalPercentile) : "",
+    summary,
+    facts: createScoutingSnapshotFacts(record, { nationality, bestRole, roleFit }),
+    metrics: includeAnalysis ? createScoutingSnapshotMetrics(record, template, signal) : [],
   });
+}
+function mergeScoutingSnapshotValue(value, previousValue) {
+  if (Array.isArray(value)) {
+    return value.length ? value : Array.isArray(previousValue) ? previousValue : [];
+  }
+  return value || previousValue || "";
 }
 function rememberScoutingRecordSnapshot(record, state = ensureScoutingState(), options = {}) {
   const snapshot = createScoutingPlayerSnapshot(record, options);
@@ -856,7 +986,7 @@ function rememberScoutingRecordSnapshot(record, state = ensureScoutingState(), o
         ...previous,
         ...snapshot,
         updatedAt: new Date().toISOString(),
-      }).map(([key, value]) => [key, value || previous[key] || ""])
+      }).map(([key, value]) => [key, mergeScoutingSnapshotValue(value, previous[key])])
     ),
   };
   return state.playerSnapshots[snapshot.recordId];
@@ -15041,7 +15171,7 @@ function addScoutingRecordToShadow(recordId, slotId) {
     return;
   }
   if (record) {
-    rememberScoutingRecordSnapshot(record, state, { includeAnalysis: false });
+    rememberScoutingRecordSnapshot(record, state, { includeAnalysis: true });
   }
   const currentRecordIds = getScoutingShadowSlotRecordIds(slot.id, state);
   state.shadowXi.slots = {

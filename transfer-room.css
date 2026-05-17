@@ -476,6 +476,204 @@
   text-align: center;
 }
 
+.transfer-room-target-profile-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  padding: clamp(14px, 3vw, 32px);
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  background: rgba(10, 14, 12, 0.62);
+}
+
+.transfer-room-target-profile-dialog {
+  width: min(1040px, 100%);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  padding: clamp(18px, 3vw, 28px);
+  border: 1px solid rgba(23, 32, 25, 0.16);
+  background: #fbfcf8;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.26);
+  display: grid;
+  gap: 18px;
+}
+
+.transfer-room-target-profile-head {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+}
+
+.transfer-room-target-profile-avatar {
+  width: 88px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #172019;
+  color: #d6f27a;
+  font-size: 1.4rem;
+  font-weight: 900;
+}
+
+.transfer-room-target-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.transfer-room-target-profile-head p,
+.transfer-room-target-profile-section-head span {
+  margin: 0;
+  color: #657065;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.transfer-room-target-profile-head h2 {
+  margin: 2px 0 6px;
+  font-size: clamp(1.8rem, 4vw, 3.5rem);
+  line-height: 0.98;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.transfer-room-target-profile-head > div:nth-child(2) > span {
+  color: #657065;
+  font-weight: 800;
+}
+
+.transfer-room-target-profile-head button {
+  min-height: 40px;
+  border: 1px solid rgba(23, 32, 25, 0.16);
+  background: #172019;
+  color: #ffffff;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.transfer-room-target-profile-summary {
+  margin: 0;
+  max-width: 820px;
+  color: #364139;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.transfer-room-target-profile-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+  gap: 14px;
+}
+
+.transfer-room-target-profile-layout > section,
+.transfer-room-target-profile-dialog > section {
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  background: #ffffff;
+  padding: 16px;
+}
+
+.transfer-room-target-profile-section-head {
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.transfer-room-target-profile-section-head strong {
+  color: #172019;
+  font-size: 0.86rem;
+  font-weight: 900;
+  text-align: right;
+}
+
+.transfer-room-target-profile-facts,
+.transfer-room-target-profile-plan {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.transfer-room-target-profile-plan {
+  grid-template-columns: 1fr;
+}
+
+.transfer-room-target-profile-facts div,
+.transfer-room-target-profile-plan div {
+  min-height: 68px;
+  padding: 10px;
+  display: grid;
+  align-content: space-between;
+  gap: 6px;
+  border: 1px solid rgba(23, 32, 25, 0.08);
+  background: #fbfcf8;
+}
+
+.transfer-room-target-profile-facts span,
+.transfer-room-target-profile-plan span,
+.transfer-room-target-profile-metric span {
+  color: #657065;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.transfer-room-target-profile-facts strong,
+.transfer-room-target-profile-plan strong {
+  color: #172019;
+  font-size: 0.94rem;
+  overflow-wrap: anywhere;
+}
+
+.transfer-room-target-profile-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.transfer-room-target-profile-metric {
+  min-height: 96px;
+  padding: 12px;
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  background: #fbfcf8;
+  display: grid;
+  gap: 12px;
+}
+
+.transfer-room-target-profile-metric strong {
+  display: block;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+
+.transfer-room-target-profile-metric > div:last-child {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.transfer-room-target-profile-metric small {
+  color: #657065;
+  font-weight: 850;
+}
+
+.transfer-room-target-profile-metric em {
+  color: #172019;
+  font-size: 1.35rem;
+  font-style: normal;
+  font-weight: 950;
+}
+
 @media (max-width: 1100px) {
   .transfer-room-hero,
   .transfer-room-overview,
@@ -487,6 +685,11 @@
 
   .transfer-room-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .transfer-room-target-profile-layout,
+  .transfer-room-target-profile-metrics {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -502,7 +705,21 @@
   .transfer-room-kpis,
   .transfer-room-target-fields,
   .transfer-room-decision-grid,
-  .transfer-room-rule-list.is-large {
+  .transfer-room-rule-list.is-large,
+  .transfer-room-target-profile-facts {
     grid-template-columns: 1fr;
+  }
+
+  .transfer-room-target-profile-head {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .transfer-room-target-profile-avatar {
+    width: 64px;
+  }
+
+  .transfer-room-target-profile-head button {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 }

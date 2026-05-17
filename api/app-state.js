@@ -1769,18 +1769,134 @@ function summarizeMedicalStateForAudit(rawValue) {
   };
 }
 
+function parseMedicalTeamStateValue(rawValue) {
+  const state = safeParseJson(rawValue, null);
+  return state && typeof state === "object" && !Array.isArray(state) ? state : null;
+}
+
+function getMedicalEntityMergeKey(item = {}, fallbackFields = []) {
+  const id = normalizeMedicalText(item.id, 180);
+  if (id) {
+    return `id:${id}`;
+  }
+
+  const values = fallbackFields.map((field) => normalizeMedicalText(item?.[field], 180));
+  return values.every(Boolean) ? `fields:${values.join("|")}` : "";
+}
+
+function getMedicalEntityTimestamp(item = {}) {
+  const timestamps = ["updatedAt", "createdAt", "date", "startDate"]
+    .map((field) => Date.parse(String(item?.[field] || "")))
+    .filter((timestamp) => Number.isFinite(timestamp));
+  return timestamps.length ? Math.max(...timestamps) : 0;
+}
+
+function mergeMedicalEntity(existingItem = {}, incomingItem = {}) {
+  const existingTimestamp = getMedicalEntityTimestamp(existingItem);
+  const incomingTimestamp = getMedicalEntityTimestamp(incomingItem);
+  return incomingTimestamp >= existingTimestamp
+    ? { ...existingItem, ...incomingItem }
+    : { ...incomingItem, ...existingItem };
+}
+
+function mergeMedicalEntityList(existingItems = [], incomingItems = [], fallbackFields = []) {
+  const merged = new Map();
+  const order = [];
+  const append = (item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      return;
+    }
+    const key = getMedicalEntityMergeKey(item, fallbackFields) || `unkeyed:${order.length}`;
+    if (!merged.has(key)) {
+      order.push(key);
+      merged.set(key, item);
+      return;
+    }
+    merged.set(key, mergeMedicalEntity(merged.get(key), item));
+  };
+
+  existingItems.forEach(append);
+  incomingItems.forEach(append);
+  return order.map((key) => merged.get(key)).filter(Boolean);
+}
+
+function mergeMedicalPolicy(existingPolicy = {}, incomingPolicy = {}) {
+  const existing = existingPolicy && typeof existingPolicy === "object" && !Array.isArray(existingPolicy) ? existingPolicy : {};
+  const incoming = incomingPolicy && typeof incomingPolicy === "object" && !Array.isArray(incomingPolicy) ? incomingPolicy : {};
+  if (!Object.keys(existing).length) {
+    return incoming;
+  }
+  if (!Object.keys(incoming).length) {
+    return existing;
+  }
+  return getMedicalEntityTimestamp(incoming) >= getMedicalEntityTimestamp(existing)
+    ? { ...existing, ...incoming }
+    : { ...incoming, ...existing };
+}
+
+function mergeMedicalStatesPreservingClinical(existingState = {}, incomingState = {}) {
+  const players = mergeMedicalEntityList(
+    Array.isArray(existingState.players) ? existingState.players : [],
+    Array.isArray(incomingState.players) ? incomingState.players : [],
+    ["name"]
+  ).sort((first, second) => String(first?.name || "").localeCompare(String(second?.name || "")));
+  const playerIds = new Set(players.map((player) => normalizeMedicalText(player?.id, 180)).filter(Boolean));
+  const selectedPlayerId = playerIds.has(normalizeMedicalText(incomingState.selectedPlayerId, 180))
+    ? incomingState.selectedPlayerId
+    : playerIds.has(normalizeMedicalText(existingState.selectedPlayerId, 180))
+      ? existingState.selectedPlayerId
+      : players[0]?.id || "";
+  const records = mergeMedicalEntityList(
+    Array.isArray(existingState.records) ? existingState.records : [],
+    Array.isArray(incomingState.records) ? incomingState.records : [],
+    ["playerId", "date", "createdAt"]
+  ).sort((first, second) => getMedicalEntityTimestamp(second) - getMedicalEntityTimestamp(first));
+  const injuryPlans = mergeMedicalEntityList(
+    Array.isArray(existingState.injuryPlans) ? existingState.injuryPlans : [],
+    Array.isArray(incomingState.injuryPlans) ? incomingState.injuryPlans : [],
+    ["playerId", "startDate", "endDate", "injuryType"]
+  ).sort((first, second) => {
+    const startComparison = String(second?.startDate || "").localeCompare(String(first?.startDate || ""));
+    return startComparison || getMedicalEntityTimestamp(second) - getMedicalEntityTimestamp(first);
+  });
+
+  return {
+    ...existingState,
+    ...incomingState,
+    selectedPlayerId,
+    players,
+    records,
+    injuryPlans,
+    policy: mergeMedicalPolicy(existingState.policy, incomingState.policy),
+  };
+}
+
+function isStaleMedicalStateWrite(context = {}) {
+  const previousRevision = getStateEntryRevision(context.previousEntry);
+  const incomingBaseRevision = parseClientRevision(context.clientBaseRevision);
+  return incomingBaseRevision !== null && previousRevision > 0 && incomingBaseRevision < previousRevision;
+}
+
 function protectMedicalStateValue(rawValue, context = {}) {
-  const incomingState = safeParseJson(rawValue, null);
+  const incomingState = parseMedicalTeamStateValue(rawValue);
   if (!incomingState || typeof incomingState !== "object" || Array.isArray(incomingState)) {
     return { ok: false, status: 400, reason: "Medical Team data is invalid and was not saved." };
   }
 
+  let protectedValue = rawValue;
+  let merged = false;
+  const existingState = parseMedicalTeamStateValue(context.previousEntry?.value || "");
+  if (existingState && isStaleMedicalStateWrite(context)) {
+    protectedValue = JSON.stringify(mergeMedicalStatesPreservingClinical(existingState, incomingState));
+    merged = true;
+  }
+
   const previousSummary = summarizeMedicalStateForAudit(context.previousEntry?.value || "");
-  const incomingSummary = summarizeMedicalStateForAudit(rawValue);
+  const incomingSummary = summarizeMedicalStateForAudit(protectedValue);
   const previousClinicalCount = previousSummary.recordCount + previousSummary.planCount;
   const incomingClinicalCount = incomingSummary.recordCount + incomingSummary.planCount;
 
-  if (previousClinicalCount > 0 && incomingClinicalCount === 0) {
+  if (!merged && previousClinicalCount > 0 && incomingClinicalCount === 0) {
     return {
       ok: false,
       status: 409,
@@ -1790,7 +1906,7 @@ function protectMedicalStateValue(rawValue, context = {}) {
     };
   }
 
-  return { ok: true, value: rawValue };
+  return { ok: true, value: protectedValue, merged };
 }
 
 async function appendMedicalStateAudit(actor, rawValue) {

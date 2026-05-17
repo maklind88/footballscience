@@ -198,6 +198,54 @@ test("production admin account can open Access & Users", async ({ page }) => {
   await expect(page.locator("#adminWorkspace")).toContainText("Platform Admin");
 });
 
+test("production test account can open Football Science DB from Scouting", async ({ page }) => {
+  await signIn(page);
+
+  const endpointBase = new URL("/", page.url()).origin;
+  const token = await page.evaluate(() => window.platformAuthStore?.getAccessToken?.() || "");
+  expect(token).toBeTruthy();
+
+  const statusResponse = await page.request.get(`${endpointBase}/api/football-science-db?action=status`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  expect(statusResponse.ok()).toBeTruthy();
+  const statusPayload = await statusResponse.json();
+  expect(statusPayload.canRead).toBe(true);
+
+  await openWorkspace(page, "scouting");
+  const databaseTab = page.locator('.scouting-tab[data-scouting-tab="database"]').first();
+  await expect(databaseTab).toBeVisible({ timeout: 15_000 });
+  await databaseTab.click();
+
+  const loadButton = page.locator("[data-scouting-load-fsdb]").first();
+  await expect(loadButton).toBeVisible({ timeout: 15_000 });
+  await loadButton.click();
+
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(() => {
+          const workspace = document.querySelector('[data-workspace-view="scouting"].is-active');
+          const text = workspace?.innerText || "";
+          const playerRows = workspace?.querySelectorAll("[data-open-scouting-record]").length || 0;
+          if (/must be signed in|needs sign-in|requires an authenticated session/i.test(text)) {
+            return "auth-error";
+          }
+          if (/Football Science DB failed/i.test(text)) {
+            return "failed";
+          }
+          if (playerRows > 0 || /Football Science DB players (?:match|shown)/i.test(text)) {
+            return "ready";
+          }
+          return "loading";
+        }),
+      { timeout: 45_000 }
+    )
+    .toBe("ready");
+});
+
 test("production test account can save and reload a schedule record", async ({ page }) => {
   page.on("dialog", async (dialog) => {
     if (dialog.type() === "confirm") {

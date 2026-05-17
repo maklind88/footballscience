@@ -33,8 +33,9 @@ test("Scouting database loader resets stale source promises before FSDB loads", 
   expect(workspace).toContain("scoutingDatabaseLoadSource !== filters.source");
   expect(workspace).toContain("scoutingDatabaseLoadPromise === loadPromise");
   expect(workspace).toContain('scoutingDatabaseLoadSource = "";');
-  expect(workspace).toContain("Football Science DB needs sign-in");
-  expect(workspace).toContain("Retry Football Science DB");
+  expect(workspace).toContain("Football Science DB needs an active session");
+  expect(workspace).toContain("data-scouting-sign-in");
+  expect(workspace).toContain("Sign in again");
 });
 
 test("Football Science DB retries once with a refreshed auth token after server 401", () => {
@@ -42,10 +43,14 @@ test("Football Science DB retries once with a refreshed auth token after server 
   const app = readFileSync(resolve(projectRoot, "index.html"), "utf8");
 
   expect(app).toContain("refreshAccessToken,");
+  expect(app).toContain("getSupabaseClient");
   expect(workspace).toContain("getScoutingApiAccessToken(options = {})");
   expect(workspace).toContain("options.forceRefresh");
   expect(workspace).toContain("getScoutingApiAccessToken({ forceRefresh: attempt > 0 })");
   expect(workspace).toContain("response.status === 401 && attempt === 0");
+  expect(workspace).toContain("requestScoutingSignIn");
+  expect(workspace).toContain('signOut({ scope: "local" })');
+  expect(workspace).toContain("window.location.reload()");
 });
 
 test("Every Scouting reader role can read Football Science DB", () => {

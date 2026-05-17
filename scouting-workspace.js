@@ -1227,6 +1227,21 @@ async function getScoutingApiAccessToken(options = {}) {
     return "";
   }
 }
+function requestScoutingSignIn() {
+  const authStore = window.platformAuthStore;
+  const supabase = typeof authStore?.getSupabaseClient === "function" ? authStore.getSupabaseClient() : null;
+  if (typeof supabase?.auth?.signOut === "function") {
+    supabase.auth.signOut({ scope: "local" }).catch(() => {}).finally(() => window.location.reload());
+    return true;
+  }
+  if (typeof authStore?.clearCurrentUser === "function") {
+    authStore.clearCurrentUser();
+    window.location.reload();
+    return true;
+  }
+  window.location.reload();
+  return true;
+}
 function getScoutingApiQueryFromState() {
   const state = ensureScoutingState();
   const filters = normalizeScoutingDatabaseFilters(state.databaseFilters);
@@ -12632,9 +12647,13 @@ function renderScoutingDatabasePanel() {
     const isAuthError = /sign(?:ed)? in|authenticated|session/i.test(scoutingDatabaseError);
     return `
       <section class="scouting-load-panel">
-        <h2>${escapeHtml(isFootballScienceDb ? (isAuthError ? "Football Science DB needs sign-in" : "Football Science DB failed to load") : "Scouting database failed to load")}</h2>
+        <h2>${escapeHtml(isFootballScienceDb ? (isAuthError ? "Football Science DB needs an active session" : "Football Science DB failed to load") : "Scouting database failed to load")}</h2>
         <p>${escapeHtml(scoutingDatabaseError)}</p>
-        <button type="button" class="scouting-primary-button" data-scouting-retry-database>${escapeHtml(isFootballScienceDb ? "Retry Football Science DB" : "Retry database")}</button>
+        ${
+          isFootballScienceDb && isAuthError
+            ? `<button type="button" class="scouting-primary-button" data-scouting-sign-in>Sign in again</button>`
+            : `<button type="button" class="scouting-primary-button" data-scouting-retry-database>${escapeHtml(isFootballScienceDb ? "Retry Football Science DB" : "Retry database")}</button>`
+        }
       </section>
     `;
   }
@@ -15370,6 +15389,13 @@ export function handleClick(event, context) {
     scoutingDatabaseError = "";
     queueScoutingDatabaseLoad();
     renderScoutingWorkspace();
+    return;
+  }
+  const signInTrigger = event.target.closest("[data-scouting-sign-in]");
+  if (signInTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    requestScoutingSignIn();
     return;
   }
   const loadDatabaseTrigger = event.target.closest("[data-scouting-load-database]");

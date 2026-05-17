@@ -958,6 +958,8 @@ test("Medical recommendations use match context and lock non-activity days", asy
 
   await playerRow.click();
   await expect(page.locator(".medical-modal-current")).toContainText("Match Available");
+  await expect(page.locator(".medical-modal-close")).toHaveText("");
+  await expect(page.locator(".medical-modal-close")).toHaveAttribute("aria-label", "Close recommendation");
   const modalTabs = page.locator(".medical-modal-tabs");
   await expect(modalTabs.getByRole("tab", { name: "Availability" })).toHaveAttribute("aria-selected", "true");
   await expect(modalTabs.getByRole("tab", { name: "Medical Profile" })).toBeVisible();

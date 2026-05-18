@@ -517,6 +517,19 @@ function renderScenarioLine(plan = {}, type = "target") {
   const value = isTarget
     ? `${formatOptionalMoney(plan.fee)} fee`
     : `${formatOptionalMoney(plan.estimatedValue)} value`;
+  if (isTarget && plan.recordId) {
+    return `
+      <li class="is-action">
+        <button type="button" data-transfer-open-target-profile="${escapeHtml(plan.recordId)}">
+          <div>
+            <strong>${escapeHtml(name)}</strong>
+            <span>${escapeHtml(meta)}</span>
+          </div>
+          <em>${escapeHtml(value)}</em>
+        </button>
+      </li>
+    `;
+  }
   if (!isTarget && plan.playerId) {
     const focusField = plan.estimatedValue === "" || plan.estimatedValue === null || plan.estimatedValue === undefined ? "estimatedValue" : "status";
     return `

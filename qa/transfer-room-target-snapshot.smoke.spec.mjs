@@ -303,6 +303,12 @@ test("Transfer Room opens a saved target profile without loading scouting databa
   await expect(focusedSquadRow).toHaveClass(/is-focused/);
   await expect(focusedSquadRow.locator('[data-transfer-squad-field="estimatedValue"]')).toBeFocused();
   await page.locator('[data-transfer-room-tab="overview"]').click();
+  await page.locator('[data-transfer-open-target-profile="qa-target-snapshot-1"]').first().click();
+  let dialog = page.locator(".transfer-room-target-profile-dialog").first();
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("Maya Snapshot");
+  await expect(dialog).toContainText("Snapshot United");
+  await page.locator('[data-transfer-close-target-profile]').click();
   const auditPanel = page.locator(".transfer-room-audit").first();
   await expect(auditPanel).toContainText("Latest activity");
   await expect(auditPanel).toHaveClass(/is-collapsed/);
@@ -318,7 +324,7 @@ test("Transfer Room opens a saved target profile without loading scouting databa
   await page.locator('[data-transfer-room-tab="targets"]').click();
   await page.locator('[data-transfer-open-target-profile="qa-target-snapshot-1"]').click();
 
-  const dialog = page.locator(".transfer-room-target-profile-dialog").first();
+  dialog = page.locator(".transfer-room-target-profile-dialog").first();
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("Maya Snapshot");
   await expect(dialog).toContainText("Snapshot United");

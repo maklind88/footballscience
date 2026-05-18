@@ -454,9 +454,6 @@ function renderBudgetHero() {
       <div class="transfer-room-hero-main">
         <p>Confidential Transfer Room</p>
         <h1>${escapeHtml(team.name || "Transfer Room")}</h1>
-        <div class="transfer-room-hero-tags">
-          <span>Selected access</span>
-        </div>
       </div>
       <div class="transfer-room-cap-board ${capTone}">
         <span>Projected cap space</span>

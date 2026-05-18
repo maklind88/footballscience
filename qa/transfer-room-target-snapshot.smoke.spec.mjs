@@ -218,6 +218,120 @@ async function seedTransferRoomTarget(page) {
   );
 }
 
+async function seedShadowBoardTransferTarget(page) {
+  await page.addInitScript(
+    ({ hubKey, roomKey, scoutKey, scoutDbKey }) => {
+      window.localStorage.removeItem(scoutDbKey);
+      window.localStorage.setItem(
+        hubKey,
+        JSON.stringify({
+          workspaceAccess: {
+            home: { view: ["admin"], edit: ["admin"] },
+            "transfer-room": { view: ["admin"], edit: ["admin"] },
+            scouting: { view: ["admin"], edit: ["admin"] },
+          },
+        })
+      );
+      window.localStorage.setItem(
+        roomKey,
+        JSON.stringify({
+          activeTab: "targets",
+          activeTeamId: "team-ncc-first",
+          settings: {
+            currency: "USD",
+            wagePeriod: "year",
+            leagueProfileId: "nwsl-2026",
+            activeTeamId: "team-ncc-first",
+            salaryCap: 3700000,
+            capBuffer: 0,
+          },
+          teams: [
+            {
+              id: "team-ncc-first",
+              clubId: "club-ncc",
+              name: "North Carolina Courage",
+              shortName: "NCC",
+              season: "2026",
+              country: "United States",
+              league: "NWSL",
+              leagueProfileId: "nwsl-2026",
+            },
+          ],
+          accessByTeam: {
+            "team-ncc-first": { userIds: ["qa-admin"] },
+          },
+          targetPlans: {},
+          targetSnapshots: {},
+        })
+      );
+      window.localStorage.setItem(
+        scoutKey,
+        JSON.stringify({
+          activeTab: "shadow-xi",
+          playerSnapshots: {
+            "qa-shadow-board-target": {
+              recordId: "qa-shadow-board-target",
+              name: "Board Snapshot",
+              club: "Board FC",
+              position: "DM",
+              age: "25",
+              league: "NWSL",
+              season: "2026",
+              bestRole: "Holding midfielder",
+              fit: "P81",
+              signalLabel: "Ball recoveries",
+              signalPercentile: "88",
+              summary: "Shadow XI board snapshot with enough profile data for Transfer Room.",
+              metrics: [{ label: "Ball recoveries", value: "9.1", percentile: "88", quality: "trusted", group: "Defensive midfield" }],
+              updatedAt: "2026-05-17T12:00:00.000Z",
+            },
+          },
+          shadowXi: {
+            formation: "4-3-3",
+            slots: {},
+            selectedSlotId: "",
+            activeBoardId: "default-shadow-xi",
+            boards: [
+              {
+                id: "default-shadow-xi",
+                name: "My Shadow XI",
+                visibility: "private",
+                ownerName: "QA",
+                formation: "4-3-3",
+                slots: {},
+                meta: {},
+                createdAt: "2026-05-17T12:00:00.000Z",
+                updatedAt: "2026-05-17T12:00:00.000Z",
+              },
+              {
+                id: "qa-shadow-board",
+                name: "Summer Shadow XI",
+                visibility: "private",
+                ownerName: "QA",
+                formation: "4-3-3",
+                slots: { dmf: ["qa-shadow-board-target"] },
+                meta: {
+                  "dmf:qa-shadow-board-target": {
+                    playerName: "Board Snapshot",
+                    team: "Board FC",
+                    league: "NWSL",
+                    season: "2026",
+                    position: "DM",
+                    updatedAt: "2026-05-17T12:00:00.000Z",
+                  },
+                },
+                createdAt: "2026-05-17T12:00:00.000Z",
+                updatedAt: "2026-05-17T12:00:00.000Z",
+              },
+            ],
+          },
+        })
+      );
+    },
+    { hubKey: workspaceHubKey, roomKey: transferRoomKey, scoutKey: scoutingKey, scoutDbKey: scoutingDatabaseKey }
+  );
+}
+
 test("Transfer Room opens a saved target profile without loading scouting database", async ({ page }) => {
   await seedTransferRoomTarget(page);
   const boot = await bootApp(page);
@@ -320,4 +434,35 @@ test("Transfer Room opens a saved target profile without loading scouting databa
   await expect(page.locator("body")).toHaveAttribute("data-active-workspace", "transfer-room");
   await expect(page.locator('[data-workspace-view="scouting"].is-active')).toHaveCount(0);
   await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), scoutingDatabaseKey)).toBeNull();
+});
+
+test("Transfer Room reads Shadow XI boards and keeps dismissed targets removed", async ({ page }) => {
+  await seedShadowBoardTransferTarget(page);
+  const boot = await bootApp(page);
+  expect(boot.pageErrors).toEqual([]);
+  await setQaCurrentRole(page, "admin");
+  await openWorkspace(page, "transfer-room");
+
+  await expect(page.locator(".transfer-room-target-card")).toContainText("Board Snapshot");
+  await expect(page.locator(".transfer-room-target-card")).toContainText("Snapshot partial");
+
+  await page.locator('[data-transfer-remove-target="qa-shadow-board-target"]').click();
+  await expect(page.locator(".transfer-room-target-card")).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.evaluate((key) => {
+        const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+        return {
+          dismissed: Boolean(state.dismissedTargetIds?.["qa-shadow-board-target"]),
+          hasTarget: Boolean(state.targetPlans?.["qa-shadow-board-target"]),
+          hasSnapshot: Boolean(state.targetSnapshots?.["qa-shadow-board-target"]),
+        };
+      }, transferRoomKey)
+    )
+    .toEqual({ dismissed: true, hasTarget: false, hasSnapshot: false });
+
+  await page.locator('[data-transfer-room-tab="overview"]').click();
+  await page.locator('[data-transfer-room-tab="targets"]').click();
+  await expect(page.locator(".transfer-room-target-card")).toHaveCount(0);
+  await expect(page.locator(".transfer-room-targets")).toContainText("No scouting targets");
 });

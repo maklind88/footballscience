@@ -156,6 +156,48 @@ function getRuleStatusLabel(status = "clear") {
   return "Clear";
 }
 
+function getTargetDisplayName(plan = {}, snapshot = {}) {
+  return plan.name || snapshot.name || `Incomplete snapshot ${String(plan.recordId || snapshot.recordId || "").slice(0, 10)}`;
+}
+
+function getTargetSnapshotHealth(plan = {}, snapshot = {}) {
+  const checks = [
+    plan.name || snapshot.name,
+    plan.position || snapshot.position,
+    plan.club || snapshot.club,
+    snapshot.league,
+    snapshot.summary,
+    Array.isArray(snapshot.metrics) && snapshot.metrics.length,
+  ];
+  const completeCount = checks.filter(Boolean).length;
+  const score = Math.round((completeCount / checks.length) * 100);
+  return {
+    score,
+    tone: score >= 84 ? "ready" : score >= 50 ? "watch" : "blocked",
+    label: score >= 84 ? "Snapshot strong" : score >= 50 ? "Snapshot partial" : "Snapshot weak",
+  };
+}
+
+function getTargetReadiness(plan = {}) {
+  const snapshot = getTargetSnapshot(plan.recordId);
+  const snapshotHealth = getTargetSnapshotHealth(plan, snapshot);
+  const gateIssues = getTargetGateIssues(plan);
+  const approvalSummary = getTargetApprovalSummary(plan);
+  const hasDealData = Boolean(toNumber(plan.wage) && (["free-agent", "loan", "trade"].includes(plan.dealType) || toNumber(plan.fee)));
+  const hasOwner = Boolean(plan.decisionOwner && plan.nextAction);
+  const approvalsScore = Math.round((approvalSummary.approvedCount / Math.max(1, approvalSummary.total)) * 100);
+  const dataScore = (snapshotHealth.score * 0.35) + (hasDealData ? 25 : 0) + (hasOwner ? 20 : 0) + (approvalsScore * 0.2);
+  const score = Math.max(0, Math.min(100, Math.round(dataScore - gateIssues.length * 18 - approvalSummary.rejectedCount * 30)));
+  return {
+    score,
+    snapshotHealth,
+    gateIssues,
+    approvalSummary,
+    tone: gateIssues.length || approvalSummary.rejectedCount ? "blocked" : score >= 76 ? "ready" : score >= 48 ? "watch" : "blocked",
+    label: gateIssues.length ? `${gateIssues.length} blocker${gateIssues.length === 1 ? "" : "s"}` : score >= 76 ? "Decision ready" : score >= 48 ? "Build case" : "Needs data",
+  };
+}
+
 function getTargetApprovalSummary(plan = {}) {
   const approvals = plan.approvals || {};
   const approvedCount = transferRoomApprovalRoles.filter((role) => approvals[role.id]?.status === "approved").length;
@@ -428,6 +470,84 @@ function calculateRuleCheck() {
     blockerCount: checks.filter((check) => check.status === "blocker").length,
     warningCount: checks.filter((check) => check.status === "warning").length,
   };
+}
+
+function calculateDecisionIntelligence() {
+  const scenario = calculateScenarioPlanner();
+  const ruleCheck = calculateRuleCheck();
+  const activeTargets = scenario.activeTargets || [];
+  const readinessEntries = getTargetPlans()
+    .map((plan) => ({ plan, readiness: getTargetReadiness(plan), snapshot: getTargetSnapshot(plan.recordId) }))
+    .sort((first, second) => second.readiness.score - first.readiness.score);
+  const bestTarget = readinessEntries.find((entry) => isTargetBudgetActive(entry.plan)) || readinessEntries[0] || null;
+  const incompleteSnapshots = readinessEntries.filter((entry) => entry.readiness.snapshotHealth.score < 50).length;
+  const outgoingPlans = scenario.outgoingPlans || [];
+  const coveredOutgoingIds = new Set(activeTargets.map((plan) => plan.replacementFor).filter(Boolean));
+  const openOutgoing = outgoingPlans.filter((plan) => !coveredOutgoingIds.has(plan.playerId));
+  const firstRuleIssue = ruleCheck.checks.find((check) => check.status === "blocker") || ruleCheck.checks.find((check) => check.status === "warning");
+  const decisionCards = [
+    {
+      tone: scenario.capSpace < 0 ? "blocked" : scenario.warnings.length ? "watch" : "ready",
+      label: "Budget command",
+      value: formatMoney(scenario.capSpace),
+      detail: scenario.capSpace < 0 ? "Cap plan must be corrected before approval." : scenario.warnings[0] || "Cap plan is inside the current league profile.",
+    },
+    {
+      tone: firstRuleIssue?.status === "blocker" ? "blocked" : firstRuleIssue ? "watch" : "ready",
+      label: "Next blocker",
+      value: firstRuleIssue ? firstRuleIssue.title : "Clear",
+      detail: firstRuleIssue?.detail || "No active rule blocker in the current plan.",
+    },
+    {
+      tone: bestTarget?.readiness.tone || "watch",
+      label: "Priority target",
+      value: bestTarget ? getTargetDisplayName(bestTarget.plan, bestTarget.snapshot) : "No target",
+      detail: bestTarget ? `${bestTarget.readiness.score}% readiness / ${bestTarget.readiness.label}` : "Send a scout profile or Shadow XI player into Transfer Room.",
+    },
+    {
+      tone: openOutgoing.length ? "watch" : "ready",
+      label: "Squad gaps",
+      value: openOutgoing.length ? `${openOutgoing.length} uncovered` : "Covered",
+      detail: openOutgoing.length
+        ? `${openOutgoing.slice(0, 2).map((plan) => plan.name || plan.position || "Outgoing player").join(", ")} need replacement mapping.`
+        : "Outgoing decisions have replacement coverage or no outgoing plan exists.",
+    },
+    {
+      tone: incompleteSnapshots ? "blocked" : "ready",
+      label: "Data integrity",
+      value: incompleteSnapshots ? `${incompleteSnapshots} weak` : "Strong",
+      detail: incompleteSnapshots ? "Some targets lack identity/profile snapshot data." : "Target profiles have usable saved snapshots.",
+    },
+  ];
+  return { decisionCards, readinessEntries };
+}
+
+function renderDecisionIntelligence() {
+  const intelligence = calculateDecisionIntelligence();
+  return `
+    <section class="transfer-room-intelligence">
+      <div class="transfer-room-section-head">
+        <div>
+          <p>Decision intelligence</p>
+          <h2>Elite command checks</h2>
+        </div>
+        <span>${escapeHtml(intelligence.decisionCards.filter((card) => card.tone !== "ready").length ? "Needs action" : "Ready")}</span>
+      </div>
+      <div class="transfer-room-intelligence-grid">
+        ${intelligence.decisionCards
+          .map(
+            (card) => `
+              <article class="is-${escapeHtml(card.tone)}">
+                <span>${escapeHtml(card.label)}</span>
+                <strong>${escapeHtml(card.value)}</strong>
+                <p>${escapeHtml(card.detail)}</p>
+              </article>
+            `
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
 }
 
 function renderOptionList(options = [], selectedValue = "") {
@@ -836,6 +956,7 @@ function renderOverview() {
   }, {});
   return `
     ${renderKpiGrid()}
+    ${renderDecisionIntelligence()}
     ${renderScenarioPlanner()}
     ${renderRuleCheckPanel()}
     <section class="transfer-room-overview">
@@ -877,7 +998,7 @@ function renderCompactTarget(plan) {
   const snapshot = getTargetSnapshot(plan.recordId);
   return `
     <button type="button" data-transfer-open-target-profile="${escapeHtml(plan.recordId)}">
-      <strong>${escapeHtml(plan.name || snapshot.name || "Saved target")}</strong>
+      <strong>${escapeHtml(getTargetDisplayName(plan, snapshot))}</strong>
       <span>${escapeHtml([plan.position || snapshot.position, plan.club || snapshot.club].filter(Boolean).join(" / ") || "Scouted player")}</span>
     </button>
   `;
@@ -957,6 +1078,7 @@ function renderTargets() {
         </div>
         <button type="button" data-transfer-open-workspace="scouting">Open Scouting</button>
       </div>
+      ${renderDecisionIntelligence()}
       ${renderDealPipeline()}
       <div class="transfer-room-target-grid">
         ${targets.length ? targets.map(renderTargetCard).join("") : `<article class="transfer-room-empty">No scouting targets have been sent or placed in Shadow XI yet.</article>`}
@@ -969,6 +1091,7 @@ function renderTargetCard(plan) {
   const snapshot = getTargetSnapshot(plan.recordId);
   const canEdit = getCanEdit();
   const gateIssues = getTargetGateIssues(plan);
+  const readiness = getTargetReadiness(plan);
   const approvalSummary = getTargetApprovalSummary(plan);
   const squadOptions = (activeContext?.squadPlayers || [])
     .map((player) => `<option value="${escapeHtml(player.id)}" ${plan.replacementFor === player.id ? "selected" : ""}>${escapeHtml(player.name)}</option>`)
@@ -978,9 +1101,10 @@ function renderTargetCard(plan) {
       <div class="transfer-room-target-card-head">
         <div class="transfer-room-target-avatar">${snapshot.imageUrl ? `<img src="${escapeHtml(snapshot.imageUrl)}" alt="" />` : escapeHtml((plan.name || snapshot.name || "T").slice(0, 1))}</div>
         <div>
-          <strong>${escapeHtml(plan.name || snapshot.name || "Saved target")}</strong>
+          <strong>${escapeHtml(getTargetDisplayName(plan, snapshot))}</strong>
           <span>${escapeHtml([plan.position || snapshot.position, plan.club || snapshot.club].filter(Boolean).join(" / ") || "Scouted player")}</span>
         </div>
+        <em class="transfer-room-target-readiness is-${escapeHtml(readiness.tone)}">${escapeHtml(`${readiness.score}% / ${readiness.label}`)}</em>
         <button type="button" data-transfer-open-target-profile="${escapeHtml(plan.recordId)}" aria-label="Open saved transfer target profile">Open</button>
       </div>
       <div class="transfer-room-target-meta">
@@ -989,6 +1113,7 @@ function renderTargetCard(plan) {
         <span>${escapeHtml(`${getRiskLabel(plan.riskLevel)} risk`)}</span>
         <span class="${approvalSummary.rejectedCount ? "is-blocked" : approvalSummary.approvedCount === approvalSummary.total ? "is-clear" : ""}">${escapeHtml(approvalSummary.label)}</span>
         <span class="${gateIssues.length ? "is-blocked" : "is-clear"}">${escapeHtml(gateIssues.length ? `${gateIssues.length} gate blockers` : "Gate clear")}</span>
+        <span class="${readiness.snapshotHealth.tone === "ready" ? "is-clear" : readiness.snapshotHealth.tone === "blocked" ? "is-blocked" : ""}">${escapeHtml(readiness.snapshotHealth.label)}</span>
         <span>${escapeHtml(snapshot.league || "League unknown")}</span>
         <span>${escapeHtml(snapshot.fit || "Fit pending")}</span>
         <span>${escapeHtml(plan.nextAction || snapshot.signalLabel || "Next action pending")}</span>

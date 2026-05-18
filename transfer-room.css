@@ -25,6 +25,7 @@
 .transfer-room-panel,
 .transfer-room-table-shell,
 .transfer-room-target-card,
+.transfer-room-intelligence,
 .transfer-room-rule-check,
 .transfer-room-audit,
 .transfer-room-scenarios,
@@ -192,6 +193,7 @@
 
 .transfer-room-panel,
 .transfer-room-table-shell,
+.transfer-room-intelligence,
 .transfer-room-rule-check,
 .transfer-room-audit,
 .transfer-room-scenarios,
@@ -238,6 +240,7 @@
 
 .transfer-room-scenario,
 .transfer-room-pipeline,
+.transfer-room-intelligence,
 .transfer-room-rule-check,
 .transfer-room-audit,
 .transfer-room-scenarios {
@@ -247,6 +250,7 @@
 
 .transfer-room-scenario .transfer-room-section-head,
 .transfer-room-pipeline .transfer-room-section-head,
+.transfer-room-intelligence .transfer-room-section-head,
 .transfer-room-rule-check .transfer-room-section-head,
 .transfer-room-audit .transfer-room-section-head,
 .transfer-room-scenarios .transfer-room-section-head {
@@ -257,6 +261,58 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
+}
+
+.transfer-room-intelligence-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.transfer-room-intelligence-grid article {
+  min-height: 132px;
+  padding: 14px;
+  border: 1px solid rgba(23, 32, 25, 0.1);
+  background: #fbfcf8;
+  display: grid;
+  align-content: space-between;
+  gap: 10px;
+}
+
+.transfer-room-intelligence-grid article.is-ready {
+  border-color: rgba(54, 114, 79, 0.22);
+  background: #f5fbef;
+}
+
+.transfer-room-intelligence-grid article.is-watch {
+  border-color: rgba(107, 79, 22, 0.34);
+  background: #fff8e4;
+}
+
+.transfer-room-intelligence-grid article.is-blocked {
+  border-color: rgba(111, 29, 34, 0.34);
+  background: #fff1f2;
+}
+
+.transfer-room-intelligence-grid span {
+  color: #657065;
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.transfer-room-intelligence-grid strong {
+  color: #172019;
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+.transfer-room-intelligence-grid p {
+  margin: 0;
+  color: #465148;
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .transfer-room-scenario-grid article {
@@ -893,6 +949,36 @@
   gap: 4px;
 }
 
+.transfer-room-target-readiness {
+  flex: 0 0 auto;
+  max-width: 132px;
+  padding: 7px 9px;
+  border: 1px solid rgba(23, 32, 25, 0.12);
+  background: #fbfcf8;
+  color: #172019;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.transfer-room-target-readiness.is-ready {
+  border-color: rgba(54, 114, 79, 0.24);
+  background: #f5fbef;
+}
+
+.transfer-room-target-readiness.is-watch {
+  border-color: rgba(107, 79, 22, 0.34);
+  background: #fff8e4;
+}
+
+.transfer-room-target-readiness.is-blocked {
+  border-color: rgba(111, 29, 34, 0.34);
+  background: #fff1f2;
+  color: #6f1d22;
+}
+
 .transfer-room-target-card-head strong,
 .transfer-room-target-card-head span {
   overflow-wrap: anywhere;
@@ -1331,6 +1417,7 @@
 
   .transfer-room-kpis,
   .transfer-room-scenario-grid,
+  .transfer-room-intelligence-grid,
   .transfer-room-rule-check-grid,
   .transfer-room-pipeline-grid,
   .transfer-room-deal-summary-grid {
@@ -1355,6 +1442,7 @@
 
   .transfer-room-kpis,
   .transfer-room-scenario-grid,
+  .transfer-room-intelligence-grid,
   .transfer-room-rule-check-grid,
   .transfer-room-pipeline-grid,
   .transfer-room-target-fields,

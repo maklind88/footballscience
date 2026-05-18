@@ -1427,7 +1427,7 @@
           if (key === MEDICAL_TEAM_STATE_KEY) {
             return true;
           }
-          if (options.forceApply || !pendingEntry?.pendingCentralSync) {
+          if (options.forceApply || !pendingEntry?.pendingCentralSync || key === MEDICAL_TEAM_STATE_KEY) {
             return true;
           }
           const centralHash = String(metadataEntry.hash || "").trim();

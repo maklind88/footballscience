@@ -848,7 +848,7 @@ if (typeof bridge?.isCentralKey === "function" && !bridge.isCentralKey(normalize
 return;
 }
 if (!getCurrentPlatformUser() || !bridge?.syncKey) {
-queueCentralStateStatus("Central sync is not available.");
+queueCentralStateStatus("Central sync unavailable.");
 return;
 }
 setCentralSyncPendingState(normalizedKey, true, Boolean(options.removed));
@@ -880,7 +880,7 @@ baseRevision: write.baseRevision,
 if (!result?.ok) {
 if (result?.conflict || result?.status === 409) {
 setCentralSyncPendingState(write.key, false, write.removed);
-queueCentralStateStatus(result?.reason || "Central state is newer. Local cache was refreshed.");
+queueCentralStateStatus(result?.reason || "Central newer.");
 await bridge.hydrate?.({ forceApply: true }).catch(() => {});
 continue;
 }
@@ -888,12 +888,12 @@ for (let retryIndex = index; retryIndex < writes.length; retryIndex += 1) {
 const retryWrite = writes[retryIndex];
 centralStateWriteQueue.set(retryWrite.key, retryWrite);
 }
-queueCentralStateStatus(result?.reason || "Central sync failed.");
+queueCentralStateStatus(result?.reason || "Sync failed.");
 return;
 }
 applyCentralSyncedStateValue(write, result.value);
 if (result?.merged && write.key === sessionPlannerStorageKey && hubState?.activeWorkspaceId === "session-planner") {
-showSessionPlannerToast("Central sync merged another coach's latest Session Planner changes.", "warning");
+showSessionPlannerToast("Central sync merged.", "warning");
 }
 setCentralSyncPendingState(write.key, false, write.removed);
 }
@@ -928,7 +928,7 @@ queueCentralStateWrite(normalizedKey, textValue, options);
 queueDataSafetyStatusRefresh();
 }
 function handleDataSafetyWriteError(key, error) {
-const message = error?.message || "Local save failed.";
+const message = error?.message || "Save failed.";
 dataSafetyRuntimeStatus.lastError = message;
 mutateDataSafetyManifest((manifest) => {
 manifest.lastKey = String(key || "");
@@ -1095,7 +1095,7 @@ ui.dataSafetyStatus.classList.toggle(
 Boolean((centralStatus.lastSyncedAt || manifest.lastCentralSyncedAt) && !hasPendingCentralSync && !error && !centralError)
 );
 if (centralError) {
-ui.dataSafetyStatus.textContent = "Central sync needs attention";
+ui.dataSafetyStatus.textContent = "Sync needs attention";
 ui.dataSafetyStatus.title = centralError;
 return;
 }
@@ -1134,10 +1134,10 @@ ui.dataSafetyStatus.title = snapshotWarning
 : "Waiting for central sync.";
 return;
 }
-ui.dataSafetyStatus.textContent = "Central sync ready";
+ui.dataSafetyStatus.textContent = "Sync ready";
 ui.dataSafetyStatus.title = snapshotWarning
 ? `Supabase sync is ready. Browser cache snapshot issue: ${snapshotWarning}`
-: "Central sync starts after login.";
+: "Sync starts after login.";
 }
 function queueDataSafetyStatusRefresh() {
 if (dataSafetyStatusTimer) {
@@ -5657,6 +5657,12 @@ error?.name === "QuotaExceededError"
 : String(error?.message || "Player image could not be saved.").replace(/profile image/gi, "player image");
 renderPlayerProfilesWorkspace(message);
 }
+}
+function handlePhotoInput(playerPhotoInput) {
+if (!playerPhotoInput) return;
+const file = playerPhotoInput.files?.[0] ?? null;
+playerPhotoInput.value = "";
+void uploadPlayerProfilePhoto(playerPhotoInput.dataset.playerProfilePhotoUpload || "", file);
 }
 function getUserClubName(user, structure = getPlatformStructureState()) {
 const club = getPlatformClubById(getUserClubId(user, structure), structure);
@@ -32924,9 +32930,13 @@ document.visibilityState === "hidden" ||
 ) {
 return;
 }
-if (hasPendingCentralStateWrites()) return retryCentral();
-bridge.hydrate().catch((error) => {
-queueCentralStateStatus(error?.message || `Central ${reason} failed.`);
+const retryAfterHydrate = hasPendingCentralStateWrites();
+bridge.hydrate().then(() => {
+if (retryAfterHydrate) {
+retryCentral();
+}
+}).catch((error) => {
+queueCentralStateStatus(error?.message || `${reason} failed.`);
 });
 }
 function canEditScenario() {
@@ -73720,6 +73730,11 @@ renderPlayerProfilesWorkspace(removed ? "Player removed." : { status: "warning",
 }
 });
 ui.playerProfilesWorkspace?.addEventListener("input", (event) => {
+const playerPhotoInput = event.target.closest("[data-player-profile-photo-upload]");
+if (playerPhotoInput) {
+handlePhotoInput(playerPhotoInput);
+return;
+}
 const searchInput = event.target.closest("[data-player-profile-search]");
 if (searchInput) {
 playerProfilesSearchQuery = searchInput.value;
@@ -73747,10 +73762,7 @@ return;
 }
 const playerPhotoInput = event.target.closest("[data-player-profile-photo-upload]");
 if (playerPhotoInput) {
-const file = playerPhotoInput.files?.[0] ?? null;
-const playerId = playerPhotoInput.dataset.playerProfilePhotoUpload || "";
-playerPhotoInput.value = "";
-void uploadPlayerProfilePhoto(playerId, file);
+handlePhotoInput(playerPhotoInput);
 return;
 }
 const editForm = event.target.closest("#playerProfileEditForm");
@@ -75529,7 +75541,6 @@ scheduleDashboardLoginPopups();
 });
 window.addEventListener("footballscience:central-state-ready", () => {
 dataSafetyRuntimeStatus.lastError = "";
-queueCentralStateStatus("");
 retryCentral();
 flushCentralStateWrites();
 startDashboardPresenceRuntime();

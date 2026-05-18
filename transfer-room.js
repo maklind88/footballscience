@@ -448,7 +448,6 @@ function renderStatusOption(value, label, selectedValue) {
 function renderBudgetHero() {
   const state = getState();
   const team = activeContext?.team || {};
-  const profile = getLeagueProfile();
   const budget = calculateBudget();
   const capTone = budget.capSpace < 0 ? "is-danger" : budget.capSpace < budget.cap * 0.08 ? "is-warn" : "is-good";
   return `
@@ -457,7 +456,6 @@ function renderBudgetHero() {
         <p>Confidential Transfer Room</p>
         <h1>${escapeHtml(team.name || "Transfer Room")}</h1>
         <div class="transfer-room-hero-tags">
-          <span>${escapeHtml(profile.label || "League profile")}</span>
           <span>${escapeHtml(state.settings?.currency || "USD")} / ${escapeHtml((activeContext?.wagePeriodOptions || []).find((item) => item.value === state.settings?.wagePeriod)?.label || "Per year")}</span>
           <span>Selected access</span>
         </div>

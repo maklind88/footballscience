@@ -22560,24 +22560,20 @@ await flushCentralStateWrites();
 renderDashboardCards();
 renderAdminWorkspace(message);
 }
-function getAdminTransferRoomAccessTeam(state = ensureTransferRoomState(), structure = getPlatformStructureState()) {
+function getAdminTransferRoomAccessTeamId(state = ensureTransferRoomState(), structure = getPlatformStructureState()) {
 const fallbackTeamId = state.activeTeamId || state.settings?.activeTeamId || platformDefaultTeamId;
 const team =
 (state.teams || []).find((item) => item.id === fallbackTeamId) ||
 getPlatformTeamById(fallbackTeamId, structure) ||
 (state.teams || [])[0] ||
 {};
-return {
-teamId: team.id || fallbackTeamId,
-teamName: team.name || platformDefaultTeamName,
-};
+return team.id || fallbackTeamId;
 }
 function renderAdminTransferRoomAccessPanel(users = [], structure = getPlatformStructureState()) {
 const state = ensureTransferRoomState();
-const { teamId, teamName } = getAdminTransferRoomAccessTeam(state, structure);
+const teamId = getAdminTransferRoomAccessTeamId(state, structure);
 const selectedIds = new Set(state.accessByTeam?.[teamId]?.userIds || []);
 const activeUsers = users.filter((user) => user && user.status !== "paused");
-const selectedCount = activeUsers.filter((user) => selectedIds.has(user.id)).length;
 const userRows = activeUsers.length
 ? activeUsers
 .map((user) => {
@@ -22585,7 +22581,6 @@ const role = normalizePlatformRole(user.role, "coach");
 const isAutomatic = role === "admin" || role === "team-admin";
 const checked = isAutomatic || selectedIds.has(user.id);
 const name = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username || user.email || "User";
-const label = isAutomatic ? `${getRoleLabel(role)} · automatic` : getRoleLabel(role);
 return `
               <label class="admin-access-toggle admin-access-level${isAutomatic ? " is-locked" : ""}">
                 <input
@@ -22594,31 +22589,18 @@ return `
                   ${checked ? "checked" : ""}
                   ${isAutomatic ? "disabled" : ""}
                 />
-                <span>${escapeHtml(name)} <small>${escapeHtml(label)}</small></span>
+                <span>${escapeHtml(name)}</span>
               </label>
             `;
 })
 .join("")
-: `<p class="pr-empty">No active users found for this team.</p>`;
+: `<p class="pr-empty">No active users.</p>`;
 return `
 <form id="adminTransferRoomAccessForm" class="admin-card admin-access-card">
-<div class="staff-card-head">
-<div>
-<h2>Transfer Room Access</h2>
-<span>Selected people for ${escapeHtml(teamName)}</span>
-</div>
-<span>${escapeHtml(String(selectedCount))} selected</span>
-</div>
-<article class="admin-access-row">
-<div class="admin-access-title">
-<strong>Selected-person access</strong>
-<small>Admins and team admins are automatic. Everyone else is selected here.</small>
-</div>
+<h2>Transfer Room</h2>
 <div class="admin-access-roles">${userRows}</div>
-</article>
 <div class="profile-form-footer admin-access-footer">
-<span>This controls who can open Transfer Room for ${escapeHtml(teamName)}.</span>
-<button type="submit">Save Transfer Room access</button>
+<button type="submit">Save</button>
 </div>
 </form>
 `;
@@ -73047,7 +73029,7 @@ controls
 .filter(Boolean)
 );
 const state = ensureTransferRoomState();
-const { teamId } = getAdminTransferRoomAccessTeam(state, getPlatformStructureState());
+const teamId = getAdminTransferRoomAccessTeamId(state, getPlatformStructureState());
 const currentSelectedIds = new Set(state.accessByTeam?.[teamId]?.userIds || []);
 let hasChanges = false;
 currentSelectedIds.forEach((userId) => {

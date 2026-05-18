@@ -13,6 +13,8 @@ const MAX_LIMIT = 1000;
 const DEFAULT_LIMIT = 500;
 const SCOUTING_METRICS_CACHE_MS = 5 * 60 * 1000;
 const MAX_IMPORT_CHUNK_RECORDS = 80;
+const SCOUTING_PLAYER_IDENTITY_SELECT =
+  "id,canonical_name,sort_name,player_identity_key,source_system,source_player_id,source_aliases,birth_country,passport_country,height_cm,weight_kg,date_of_birth,external_refs,status,metadata,updated_at";
 const SCOUTING_RECORD_INDEX = Object.freeze({
   id: 0,
   player: 1,
@@ -474,6 +476,145 @@ function getRecordMetricQualityMap(record = {}) {
   return quality && typeof quality === "object" && !Array.isArray(quality) ? quality : {};
 }
 
+function isInitialOnlyScoutingName(name = "") {
+  const parts = normalizeIdentityPart(name).split(" ").filter(Boolean);
+  return parts.length >= 2 && parts[0].length === 1;
+}
+
+function getScoutingLastName(name = "") {
+  const parts = normalizeIdentityPart(name).split(" ").filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : "";
+}
+
+function getScoutingCountryTokens(record = {}) {
+  return [
+    normalizeIdentityPart(recordValue(record, "passportCountry"), 120),
+    normalizeIdentityPart(recordValue(record, "birthCountry"), 120),
+  ].filter(Boolean);
+}
+
+function getStoredPlayerCountryTokens(row = {}) {
+  return [
+    normalizeIdentityPart(row.passport_country, 120),
+    normalizeIdentityPart(row.birth_country, 120),
+  ].filter(Boolean);
+}
+
+function getScoutingStrongIdentitySignature(record = {}) {
+  const name = normalizeIdentityPart(getClientRecordName(record));
+  const dateOfBirth = normalizeDateValue(recordValue(record, "dateOfBirth"));
+  const country = getScoutingCountryTokens(record)[0] || "";
+  if (!name || !dateOfBirth || !country || isInitialOnlyScoutingName(getClientRecordName(record))) {
+    return "";
+  }
+  const seed = `${name}|${dateOfBirth}|${country}`;
+  return `strong:${crypto.createHash("sha256").update(seed).digest("hex").slice(0, 48)}`;
+}
+
+function getStoredPlayerIdentityAliases(row = {}) {
+  const metadata = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? row.metadata : {};
+  const externalRefs = row.external_refs && typeof row.external_refs === "object" && !Array.isArray(row.external_refs) ? row.external_refs : {};
+  return [
+    normalizeString(row.player_identity_key, 160),
+    normalizeString(row.source_player_id, 160),
+    ...(Array.isArray(row.source_aliases) ? row.source_aliases.map((value) => normalizeString(value, 160)) : []),
+    ...(Array.isArray(metadata.sourceIdentityAliases) ? metadata.sourceIdentityAliases.map((value) => normalizeString(value, 160)) : []),
+    ...(Array.isArray(metadata.aliases) ? metadata.aliases.map((value) => normalizeString(value, 180)) : []),
+    ...Object.values(externalRefs).map((value) => normalizeString(value, 160)),
+  ].filter(Boolean).filter((value, index, values) => values.indexOf(value) === index);
+}
+
+function getScoutingIdentityLookupKeys(record = {}) {
+  return [
+    ...getScoutingSourceIdentityAliases(record),
+    getScoutingStrongIdentitySignature(record),
+  ].filter(Boolean).filter((value, index, values) => values.indexOf(value) === index);
+}
+
+function hasSharedScoutingIdentityAlias(record = {}, row = {}) {
+  const incoming = new Set(getScoutingIdentityLookupKeys(record));
+  return getStoredPlayerIdentityAliases(row).some((alias) => incoming.has(alias));
+}
+
+function isStrongScoutingPlayerMatch(record = {}, row = {}) {
+  if (hasSharedScoutingIdentityAlias(record, row)) {
+    return true;
+  }
+  const incomingName = getClientRecordName(record);
+  const incomingSortName = normalizeSortName(incomingName);
+  const storedSortName = normalizeSortName(row.canonical_name || row.sort_name);
+  const incomingDob = normalizeDateValue(recordValue(record, "dateOfBirth"));
+  const storedDob = normalizeDateValue(row.date_of_birth);
+  if (!incomingDob || !storedDob || incomingDob !== storedDob) {
+    return false;
+  }
+  const incomingCountries = new Set(getScoutingCountryTokens(record));
+  const storedCountries = getStoredPlayerCountryTokens(row);
+  const countryMatch = !incomingCountries.size || !storedCountries.length || storedCountries.some((country) => incomingCountries.has(country));
+  if (!countryMatch) {
+    return false;
+  }
+  if (incomingSortName && storedSortName && incomingSortName === storedSortName) {
+    return true;
+  }
+  const incomingLastName = getScoutingLastName(incomingName);
+  const storedLastName = getScoutingLastName(row.canonical_name || row.sort_name);
+  return Boolean(incomingLastName && storedLastName && incomingLastName === storedLastName);
+}
+
+function preferScoutingCanonicalName(incomingName = "", existingName = "") {
+  const incoming = normalizeString(incomingName, 180);
+  const existing = normalizeString(existingName, 180);
+  if (!incoming) {
+    return existing;
+  }
+  if (!existing) {
+    return incoming;
+  }
+  if (isInitialOnlyScoutingName(incoming) && !isInitialOnlyScoutingName(existing)) {
+    return existing;
+  }
+  if (!isInitialOnlyScoutingName(incoming) && isInitialOnlyScoutingName(existing)) {
+    return incoming;
+  }
+  return incoming.length >= existing.length ? incoming : existing;
+}
+
+function setScoutingRecordValue(record = {}, key = "", value = "") {
+  if (Array.isArray(record)) {
+    record[SCOUTING_RECORD_INDEX[key]] = value;
+  } else {
+    record[key] = value;
+  }
+}
+
+function applyScoutingMasterIdentity(record = {}, playerRow = null) {
+  const playerIdentityId = normalizeString(playerRow?.player_identity_key || playerRow?.source_player_id, 160);
+  if (!playerIdentityId) {
+    return record;
+  }
+  const next = Array.isArray(record) ? record.slice() : { ...record };
+  const existingName = normalizeString(playerRow?.canonical_name, 180);
+  const preferredName = preferScoutingCanonicalName(getClientRecordName(record), existingName);
+  const originalSourcePlayerId = normalizeString(recordValue(record, "playerSourceId"), 160);
+  const originalPlayerIdentityId = normalizeString(recordValue(record, "playerIdentityId"), 160) || normalizeScoutingSourcePlayerId(record);
+  const sourceTrace = getRecordSourceTrace(record);
+  setScoutingRecordValue(next, "player", preferredName);
+  setScoutingRecordValue(next, "playerSourceId", playerIdentityId);
+  setScoutingRecordValue(next, "playerIdentityId", playerIdentityId);
+  setScoutingRecordValue(next, "sourceTrace", {
+    ...sourceTrace,
+    originalSourcePlayerId,
+    originalPlayerIdentityId,
+    resolvedPlayerIdentityId: playerIdentityId,
+    resolvedCanonicalName: preferredName,
+    resolvedSourceSystem: normalizeString(playerRow?.source_system, 40),
+    identityResolution: "existing-scouting-player",
+    identityAliases: getScoutingIdentityLookupKeys(record),
+  });
+  return next;
+}
+
 function normalizeMetricPayload(metrics = {}, qualityMap = {}) {
   if (!metrics || typeof metrics !== "object" || Array.isArray(metrics)) {
     return {};
@@ -753,8 +894,7 @@ async function fetchPlayerRowByIdentity(playerIdentityKey = "") {
     return null;
   }
   const params = new URLSearchParams({
-    select:
-      "id,canonical_name,sort_name,player_identity_key,source_system,source_player_id,birth_country,passport_country,height_cm,weight_kg,date_of_birth,status,metadata,updated_at",
+    select: SCOUTING_PLAYER_IDENTITY_SELECT,
     player_identity_key: `eq.${identityKey}`,
     limit: "1",
   });
@@ -763,6 +903,68 @@ async function fetchPlayerRowByIdentity(playerIdentityKey = "") {
     throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
   }
   return Array.isArray(result.payload) ? result.payload[0] || null : null;
+}
+
+async function fetchPlayerRowsByIdentityField(field = "", value = "") {
+  const normalizedField = field === "source_player_id" ? "source_player_id" : "player_identity_key";
+  const normalizedValue = normalizeString(value, 160);
+  if (!normalizedValue) {
+    return [];
+  }
+  const params = new URLSearchParams({
+    select: SCOUTING_PLAYER_IDENTITY_SELECT,
+    [normalizedField]: `eq.${normalizedValue}`,
+    status: "eq.active",
+    limit: "5",
+  });
+  const result = await dbRequest(`/scouting_players?${params.toString()}`);
+  if (!result.ok) {
+    throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
+  }
+  return Array.isArray(result.payload) ? result.payload : [];
+}
+
+async function fetchPlayerRowsByDateOfBirth(dateOfBirth = "") {
+  const normalizedDate = normalizeDateValue(dateOfBirth);
+  if (!normalizedDate) {
+    return [];
+  }
+  const params = new URLSearchParams({
+    select: SCOUTING_PLAYER_IDENTITY_SELECT,
+    date_of_birth: `eq.${normalizedDate}`,
+    status: "eq.active",
+    limit: "30",
+  });
+  const result = await dbRequest(`/scouting_players?${params.toString()}`);
+  if (!result.ok) {
+    throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
+  }
+  return Array.isArray(result.payload) ? result.payload : [];
+}
+
+async function fetchExistingScoutingPlayerForRecord(record = {}) {
+  const lookupKeys = getScoutingIdentityLookupKeys(record);
+  for (const key of lookupKeys) {
+    const directRows = [
+      ...(await fetchPlayerRowsByIdentityField("player_identity_key", key)),
+      ...(await fetchPlayerRowsByIdentityField("source_player_id", key)),
+    ];
+    const directMatch = directRows.find((row) => isStrongScoutingPlayerMatch(record, row));
+    if (directMatch) {
+      return directMatch;
+    }
+  }
+  const birthDateRows = await fetchPlayerRowsByDateOfBirth(recordValue(record, "dateOfBirth"));
+  return birthDateRows.find((row) => isStrongScoutingPlayerMatch(record, row)) || null;
+}
+
+async function resolveScoutingRecordIdentities(records = []) {
+  return Promise.all(
+    records.map(async (record) => {
+      const existingPlayer = await fetchExistingScoutingPlayerForRecord(record);
+      return existingPlayer ? applyScoutingMasterIdentity(record, existingPlayer) : record;
+    })
+  );
 }
 
 async function fetchPlayerSeasonHistory(row = {}) {
@@ -917,17 +1119,27 @@ function normalizeImportPlayer(record = {}) {
   const aliasIdentityKeys = getScoutingSourceIdentityAliases(record);
   const dateOfBirth = normalizeDateValue(recordValue(record, "dateOfBirth"));
   const sourceTrace = getRecordSourceTrace(record);
+  const playerSourceSystem = normalizeString(sourceTrace.resolvedSourceSystem, 40) || sourceSystem;
   return {
     canonical_name: name,
     sort_name: sortName,
     player_identity_key: sourcePlayerId,
-    source_system: sourceSystem,
+    source_system: playerSourceSystem,
     source_player_id: sourcePlayerId,
+    source_aliases: getScoutingIdentityLookupKeys(record),
     birth_country: normalizeString(recordValue(record, "birthCountry"), 120) || null,
     passport_country: normalizeString(recordValue(record, "passportCountry"), 120) || null,
     height_cm: normalizeNumber(recordValue(record, "height"), null),
     weight_kg: normalizeNumber(recordValue(record, "weight"), null),
     date_of_birth: dateOfBirth || null,
+    external_refs: {
+      ...Object.fromEntries(
+        aliasIdentityKeys
+          .filter((value) => value && value !== sourcePlayerId)
+          .slice(0, 12)
+          .map((value, index) => [`alias_${index + 1}`, value])
+      ),
+    },
     status: "active",
     metadata: {
       playerIdentityId: sourcePlayerId,
@@ -938,6 +1150,7 @@ function normalizeImportPlayer(record = {}) {
         ...aliasIdentityKeys,
       ].filter(Boolean).filter((value, index, values) => values.indexOf(value) === index),
       latestSourceSystem: sourceSystem,
+      masterSourceSystem: playerSourceSystem,
     },
   };
 }
@@ -1074,8 +1287,34 @@ async function fetchExistingSeasonByMergeKey(sourceSystem = "", playerIdentityKe
   return Array.isArray(result.payload) ? result.payload[0] || null : null;
 }
 
-async function previewScoutingImportRows(records = []) {
-  const rows = uniqueBy(records.slice(0, MAX_IMPORT_CHUNK_RECORDS).filter(Boolean), (record) =>
+async function fetchExistingSeasonByPlayerSeasonKey(playerIdentityKey = "", season = "", league = "", team = "") {
+  const normalizedPlayerIdentityKey = normalizeString(playerIdentityKey, 160);
+  const normalizedSeason = normalizeString(season, 80);
+  const normalizedLeague = normalizeScoutingLeague(league);
+  const normalizedTeam = normalizeString(team, 180);
+  if (!normalizedPlayerIdentityKey || !normalizedSeason || !normalizedLeague || !normalizedTeam) {
+    return null;
+  }
+  const params = new URLSearchParams({
+    select: "id,record_key,source_system,source_record_id,player_identity_key,season_label,league_name,team_name,status,deleted_at,updated_at",
+    player_identity_key: `eq.${normalizedPlayerIdentityKey}`,
+    season_label: `eq.${normalizedSeason}`,
+    league_name: `eq.${normalizedLeague}`,
+    team_name: `eq.${normalizedTeam}`,
+    status: "eq.active",
+    deleted_at: "is.null",
+    limit: "1",
+  });
+  const result = await dbRequest(`/scouting_player_seasons?${params.toString()}`);
+  if (!result.ok) {
+    throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
+  }
+  return Array.isArray(result.payload) ? result.payload[0] || null : null;
+}
+
+async function previewScoutingImportRows(records = [], options = {}) {
+  const rowsToPreview = options.resolveIdentities === false ? records : await resolveScoutingRecordIdentities(records);
+  const rows = uniqueBy(rowsToPreview.slice(0, MAX_IMPORT_CHUNK_RECORDS).filter(Boolean), (record) =>
     `${normalizeScoutingSourceSystem(record)}|${normalizeScoutingRecordSourceId(record)}`
   );
   const existingRows = await Promise.all(
@@ -1090,7 +1329,10 @@ async function previewScoutingImportRows(records = []) {
       const season = normalizeString(recordValue(record, "season"), 80);
       const league = normalizeScoutingLeague(recordValue(record, "league"));
       const team = normalizeString(recordValue(record, "team"), 180);
-      return fetchExistingSeasonByMergeKey(sourceSystem, playerIdentityId, season, league, team);
+      return (
+        (await fetchExistingSeasonByPlayerSeasonKey(playerIdentityId, season, league, team)) ||
+        (await fetchExistingSeasonByMergeKey(sourceSystem, playerIdentityId, season, league, team))
+      );
     })
   );
   const changes = rows.map((record, index) => {
@@ -1144,12 +1386,23 @@ async function upsertScoutingMetrics(metrics = []) {
   return Array.isArray(result.payload) ? result.payload : [];
 }
 
-async function upsertScoutingPlayers(records = []) {
-  const rows = uniqueBy(records.map(normalizeImportPlayer).filter(Boolean), (row) => row.player_identity_key || `${row.source_system || "file-import"}::${row.source_player_id || "unknown"}`);
+async function upsertScoutingPlayers(records = [], options = {}) {
+  const recordsToUpsert = options.resolveIdentities === false ? records : await resolveScoutingRecordIdentities(records);
+  const rows = uniqueBy(recordsToUpsert.map(normalizeImportPlayer).filter(Boolean), (row) => row.player_identity_key || `${row.source_system || "file-import"}::${row.source_player_id || "unknown"}`);
   if (!rows.length) {
     return new Map();
   }
-  const sourceKeyByIdentity = new Map(rows.map((row) => [row.player_identity_key, `${row.source_system || "file-import"}::${row.source_player_id || "unknown"}`]));
+  const sourceKeysByIdentity = recordsToUpsert.reduce((map, record) => {
+    const identityKey = normalizeScoutingSourcePlayerId(record);
+    const sourceKey = normalizeScoutingPlayerSourceKey(record);
+    if (!identityKey || !sourceKey) {
+      return map;
+    }
+    const existing = map.get(identityKey) || [];
+    existing.push(sourceKey);
+    map.set(identityKey, existing);
+    return map;
+  }, new Map());
   const result = await dbRequest("/scouting_players?on_conflict=player_identity_key", {
     method: "POST",
     headers: { Prefer: "resolution=merge-duplicates,return=representation" },
@@ -1160,13 +1413,9 @@ async function upsertScoutingPlayers(records = []) {
   }
   return new Map(
     (Array.isArray(result.payload) ? result.payload : [])
-      .map((row) => {
+      .flatMap((row) => {
         const identityKey = normalizeString(row.player_identity_key || row.source_player_id, 160);
-        const sourceKey = sourceKeyByIdentity.get(identityKey);
-        if (!sourceKey) {
-          return null;
-        }
-        return [sourceKey, row.id];
+        return (sourceKeysByIdentity.get(identityKey) || []).map((sourceKey) => [sourceKey, row.id]);
       })
       .filter(Boolean)
   );
@@ -1184,21 +1433,31 @@ async function upsertScoutingSeasonRecords(records = [], playersBySourceId = new
         if (!normalizedRecord || normalizedRecord.source_record_id === "record-unknown") {
           return null;
         }
-        const matchedByMergeKey = await fetchExistingSeasonByMergeKey(
+        const matchedByMergeKey = (await fetchExistingSeasonByPlayerSeasonKey(
+          normalizedRecord.player_identity_key,
+          normalizedRecord.season_label,
+          normalizedRecord.league_name,
+          normalizedRecord.team_name
+        )) || (await fetchExistingSeasonByMergeKey(
           normalizedRecord.source_system,
           normalizedRecord.player_identity_key,
           normalizedRecord.season_label,
           normalizedRecord.league_name,
           normalizedRecord.team_name
-        );
+        ));
         if (matchedByMergeKey?.source_record_id) {
+          const incomingSourceSystem = normalizedRecord.source_system;
+          const incomingSourceRecordId = normalizedRecord.source_record_id;
+          normalizedRecord.source_system = matchedByMergeKey.source_system || normalizedRecord.source_system;
           normalizedRecord.source_record_id = matchedByMergeKey.source_record_id;
           normalizedRecord.record_key = matchedByMergeKey.record_key || normalizedRecord.record_key;
           normalizedRecord.metadata = {
             ...normalizedRecord.metadata,
             sourceTrace: {
               ...normalizedRecord.metadata?.sourceTrace,
-              sourceRecordMatch: "merge-key",
+              sourceRecordMatch: matchedByMergeKey.source_system === incomingSourceSystem ? "merge-key" : "player-season-key",
+              incomingSourceSystem,
+              incomingSourceRecordId,
             },
           };
         }
@@ -1230,8 +1489,15 @@ async function appendImportChanges(importBatchId = "", preview = {}, seasonRows 
       .map((row) => [normalizeString(row.source_record_id, 160), row])
       .filter(([sourceRecordId]) => Boolean(sourceRecordId))
   );
+  const seasonByRecordKey = new Map(
+    (Array.isArray(seasonRows) ? seasonRows : [])
+      .map((row) => [normalizeString(row.record_key, MAX_ID_LENGTH), row])
+      .filter(([recordKey]) => Boolean(recordKey))
+  );
   const rows = preview.changes.map((change) => {
-    const seasonRow = seasonBySourceRecordId.get(normalizeString(change.sourceRecordId, 160));
+    const seasonRow =
+      seasonBySourceRecordId.get(normalizeString(change.sourceRecordId, 160)) ||
+      seasonByRecordKey.get(normalizeString(change.existingRecordKey, MAX_ID_LENGTH));
     return {
       import_batch_id: batchId,
       season_record_id: seasonRow?.id || null,
@@ -1309,10 +1575,11 @@ async function importExcelChunk(body = {}, actor = {}) {
   if (!records.length) {
     return { ok: false, status: 400, reason: "Import chunk does not contain any player rows." };
   }
-  const preview = await previewScoutingImportRows(records);
+  const resolvedRecords = await resolveScoutingRecordIdentities(records);
+  const preview = await previewScoutingImportRows(resolvedRecords, { resolveIdentities: false });
   await upsertScoutingMetrics(metrics);
-  const playersBySortName = await upsertScoutingPlayers(records);
-  const seasonRows = await upsertScoutingSeasonRecords(records, playersBySortName, importBatchId || null);
+  const playersBySortName = await upsertScoutingPlayers(resolvedRecords, { resolveIdentities: false });
+  const seasonRows = await upsertScoutingSeasonRecords(resolvedRecords, playersBySortName, importBatchId || null);
   const importChanges = await appendImportChanges(importBatchId, preview, seasonRows);
   scoutingFilterOptionsCache = { updatedAt: 0, options: null };
   return {
@@ -1587,6 +1854,7 @@ module.exports = {
   isScoutingDatabaseEnabled,
   _private: {
     addSeasonFilters,
+    applyScoutingMasterIdentity,
     buildOptionsFromRows,
     fetchDatabaseFilterOptions,
     fetchImportHistory,
@@ -1598,6 +1866,7 @@ module.exports = {
     normalizeImportMetric,
     normalizeImportPlayer,
     normalizeImportSeasonRecord,
+    preferScoutingCanonicalName,
     previewExcelImport,
     rollbackScoutingImport,
     seasonRowToClientRecord,

@@ -6,22 +6,23 @@ import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 const fsdb = require("../api/_lib/football-science-db.js");
+const scoutingDatabase = require("../api/_lib/scouting-database.js");
 const permissionMatrix = require("../src/core/permission-matrix.cjs");
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
 
-test("Scouting database view can search Football Science DB through the server API", () => {
+test("Scouting database keeps source enrichment behind one visual player database", () => {
   const workspace = readFileSync(resolve(projectRoot, "scouting-workspace.js"), "utf8");
 
   expect(workspace).toContain("/api/football-science-db");
   expect(workspace).toContain("footballSciencePlayerToScoutingRecord");
-  expect(workspace).toContain('source: "fsdb"');
-  expect(workspace).toContain('data-scouting-load-fsdb');
-  expect(workspace).toContain('data-fsdb-gender-segment="women"');
-  expect(workspace).toContain('data-fsdb-gender-segment="men"');
+  expect(workspace).toContain("SCOUTING_STANDALONE_FSDB_DATABASE_ENABLED = false");
+  expect(workspace).toContain("Source enrichment stays attached inside each player profile.");
+  expect(workspace).not.toContain('data-scouting-load-fsdb');
+  expect(workspace).not.toContain("data-fsdb-gender-segment");
   expect(workspace).toContain("fsdbGenderSegment");
   expect(workspace).toContain("genderSegment: filters.fsdbGenderSegment");
-  expect(workspace).toContain("Choose Football Science DB segment");
+  expect(workspace).not.toContain("Choose Football Science DB segment");
   expect(workspace).toContain('data-scouting-page-cursor');
   expect(workspace).toContain("renderScoutingFootballScienceDbPanel");
   expect(workspace).toContain("renderFootballScienceDbQualityPanel");
@@ -31,11 +32,11 @@ test("Scouting database view can search Football Science DB through the server A
   expect(workspace).toContain("data-open-fsdb-profile");
   expect(workspace).toContain("data-load-fsdb-profile");
   expect(workspace).toContain("scoutingFootballScienceDbProfileCache");
-  expect(workspace).toContain("Football Science DB profile");
+  expect(workspace).toContain("Source enrichment profile");
+  expect(workspace).toContain("Source enrichment linked");
   expect(workspace).toContain("Roster history");
   expect(workspace).toContain("Season stats");
   expect(workspace).toContain("Spider stays locked until trusted stats exist");
-  expect(workspace).toContain('class="scouting-secondary-button" data-scouting-load-fsdb');
 });
 
 test("Scouting database loader resets stale source promises before FSDB loads", () => {
@@ -76,7 +77,7 @@ test("Scouting API auth preserves long Supabase access tokens", () => {
   expect(workspace).not.toContain("normalizeScoutingText(await authStore.refreshAccessToken(), 2400)");
 });
 
-test("Every Scouting reader role can read Football Science DB", () => {
+test("Every Scouting reader role can read source enrichment", () => {
   const scoutingReadRoles = permissionMatrix.platformPermissionMatrixByModule.scouting.permissions.read;
   const fsdbReadRoles = permissionMatrix.platformPermissionMatrixByModule["football-science-db"].permissions.read;
 
@@ -84,6 +85,33 @@ test("Every Scouting reader role can read Football Science DB", () => {
     expect(fsdbReadRoles, role).toContain(role);
     expect(fsdb.canReadFootballScienceDb({ role }), role).toBe(true);
   }
+});
+
+test("Scouting imports promote source rows onto existing master players", () => {
+  const record = [];
+  record[1] = "A. Example";
+  record[10] = "Norway";
+  record[15] = "external-source";
+  record[16] = "external-ada";
+  record[19] = "external-ada";
+  record[20] = { identityCandidates: [{ key: "sourcePlayerId", value: "external-ada" }] };
+  record[22] = "2001-04-12";
+
+  const resolved = scoutingDatabase._private.applyScoutingMasterIdentity(record, {
+    player_identity_key: "master-ada-example",
+    source_player_id: "master-ada-example",
+    canonical_name: "Ada Lovelace Example",
+    date_of_birth: "2001-04-12",
+    passport_country: "Norway",
+    metadata: {},
+  });
+
+  expect(resolved[1]).toBe("Ada Lovelace Example");
+  expect(resolved[16]).toBe("master-ada-example");
+  expect(resolved[19]).toBe("master-ada-example");
+  expect(resolved[20].originalPlayerIdentityId).toBe("external-ada");
+  expect(resolved[20].identityResolution).toBe("existing-scouting-player");
+  expect(scoutingDatabase._private.preferScoutingCanonicalName("A. Example", "Ada Lovelace Example")).toBe("Ada Lovelace Example");
 });
 
 test("Scouting bridge exposes safe FSDB identity helpers for server linking", () => {

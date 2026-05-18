@@ -198,7 +198,7 @@ test("production admin account can open Access & Users", async ({ page }) => {
   await expect(page.locator("#adminWorkspace")).toContainText("Platform Admin");
 });
 
-test("production test account can open Football Science DB from Scouting", async ({ page }) => {
+test("production test account can open the unified Scouting database", async ({ page }) => {
   await signIn(page);
 
   const endpointBase = new URL("/", page.url()).origin;
@@ -219,7 +219,8 @@ test("production test account can open Football Science DB from Scouting", async
   await expect(databaseTab).toBeVisible({ timeout: 15_000 });
   await databaseTab.click();
 
-  const loadButton = page.locator('[data-scouting-load-fsdb][data-fsdb-gender-segment="women"]').first();
+  await expect(page.locator("[data-scouting-load-fsdb]")).toHaveCount(0);
+  const loadButton = page.locator("[data-scouting-load-database], [data-scouting-retry-database]").first();
   await expect(loadButton).toBeVisible({ timeout: 15_000 });
   await loadButton.click();
 
@@ -233,13 +234,13 @@ test("production test account can open Football Science DB from Scouting", async
           if (/must be signed in|needs sign-in|requires an authenticated session/i.test(text)) {
             return "auth-error";
           }
-          if (/Football Science DB failed/i.test(text)) {
+          if (/Scouting database failed/i.test(text)) {
             return "terminal-error";
           }
           if (
             playerRows > 0 ||
-            /Football Science DB players (?:match|shown)/i.test(text) ||
-            /No Football Science DB players found/i.test(text)
+            /players match/i.test(text) ||
+            /No players found this page/i.test(text)
           ) {
             return "ready";
           }

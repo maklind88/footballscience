@@ -171,26 +171,13 @@ function mockFootballScienceDb(route) {
   });
 }
 
-test("Football Science DB profile and identity queue open from Scouting", async ({ page }) => {
+test("Source enrichment stays behind the unified Scouting database", async ({ page }) => {
   await page.route("**/api/football-science-db**", mockFootballScienceDb);
   await bootApp(page);
   await openWorkspace(page, "scouting");
 
   await page.locator('.scouting-tab[data-scouting-tab="database"]').click();
-  await page.locator('[data-scouting-load-fsdb][data-fsdb-gender-segment="women"]').first().click();
-
-  await expect(page.locator("[data-scouting-record-grid]")).toContainText("Ada Lovelace Example", { timeout: 15_000 });
-  await page.locator('[data-open-scouting-record="fsdb:fsdb_padaexample"]').first().click();
-
-  const profileModal = page.locator("[data-scouting-profile-modal]").first();
-  await expect(profileModal).toContainText("Football Science DB profile", { timeout: 15_000 });
-  await expect(profileModal).toContainText("Sources");
-  await expect(profileModal).toContainText("Roster history");
-  await expect(profileModal).toContainText("Season stats");
-  await expect(profileModal).toContainText("Football Science Spider");
-
-  await profileModal.locator(".scouting-profile-close").click();
-  await expect(page.locator("[data-open-fsdb-profile]").first()).toBeVisible({ timeout: 15_000 });
-  await page.locator("[data-open-fsdb-profile]").first().click();
-  await expect(page.locator("[data-scouting-profile-modal]").first()).toContainText("Ada Lovelace Example", { timeout: 15_000 });
+  await expect(page.locator("[data-scouting-load-fsdb]")).toHaveCount(0);
+  await expect(page.locator("[data-scouting-load-database]").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator(".scouting-load-panel").first()).toContainText("Source enrichment stays attached inside each player profile.");
 });

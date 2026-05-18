@@ -199,6 +199,7 @@ const SCOUTING_IMPORT_MAX_CHUNK_PAYLOAD_CHARACTERS = 70000;
 const SCOUTING_IMPORT_MAX_CHUNK_BYTES = 200000;
 const SCOUTING_API_DATABASE_PAGE_LIMIT = 50;
 const SCOUTING_DATABASE_PAGE_SIZE = 50;
+const SCOUTING_STANDALONE_FSDB_DATABASE_ENABLED = false;
 const SCOUTING_FSDB_GENDER_SEGMENT_OPTIONS = Object.freeze([
   { id: "women", label: "Women's players", shortLabel: "Women's" },
   { id: "men", label: "Men's players", shortLabel: "Men's" },
@@ -1136,7 +1137,7 @@ function normalizeScoutingDatabaseFilters(filters = {}) {
     signalMode: normalizeScoutingText(filters.signalMode, 40) || "all",
     marketStatus: normalizeScoutingText(filters.marketStatus, 40) || "all",
     sortMetricId: normalizeScoutingText(filters.sortMetricId, 120) || "minutes",
-    source: normalizeScoutingText(filters.source, 40) === "fsdb" ? "fsdb" : "scouting",
+    source: SCOUTING_STANDALONE_FSDB_DATABASE_ENABLED && normalizeScoutingText(filters.source, 40) === "fsdb" ? "fsdb" : "scouting",
     fsdbGenderSegment: normalizeFootballScienceDbGenderSegment(filters.fsdbGenderSegment || filters.genderSegment),
     fsdbCursor: normalizeScoutingText(filters.fsdbCursor, 400),
     fsdbCursorStack: Array.isArray(filters.fsdbCursorStack)
@@ -1864,7 +1865,7 @@ function renderFootballScienceDbHydratedProfilePanel(record, profile) {
     <section class="scouting-profile-section scouting-fsdb-profile" data-scouting-profile-fsdb-panel>
       <div class="scouting-panel-head">
         <div>
-          <p class="placeholder-tag">Football Science DB profile</p>
+          <p class="placeholder-tag">Source enrichment profile</p>
           <h3>${escapeHtml(player.fullName || player.name || getScoutingRecordName(record))}</h3>
         </div>
         <span>${escapeHtml(review.label || readiness.label || "Review")}</span>
@@ -2352,7 +2353,7 @@ function renderScoutingProfileApiPanel(profile = null, status = "loading", error
     ? `
       <div class="scouting-season-timeline">
         <article class="scouting-season-timeline-item">
-          <strong>${escapeHtml(fsdbLinkStatus === "linked" ? "Football Science DB linked" : fsdbLinkStatus === "ambiguous" ? "Football Science DB needs review" : "Football Science DB not linked")}</strong>
+          <strong>${escapeHtml(fsdbLinkStatus === "linked" ? "Source enrichment linked" : fsdbLinkStatus === "ambiguous" ? "Source enrichment needs review" : "Source enrichment not linked")}</strong>
           <span>${escapeHtml(
             fsdbLinkStatus === "linked"
               ? `${fsdbResolvedName || "Resolved player"} · ${fsdbReadiness?.label || "Identity ready"}`
@@ -10676,7 +10677,7 @@ function renderScoutingFootballScienceDbPanel(record) {
   }
   const readiness = getScoutingRecordFootballScienceDbReadiness(record) || { label: "Identity only", spiderReady: false, statsReady: false };
   const spiderText = readiness.spiderReady
-    ? "Spider can use FS DB metrics"
+    ? "Spider can use trusted source metrics"
     : readiness.statsReady
       ? "Spider needs more metric depth"
       : "Spider stays locked until trusted stats exist";
@@ -10687,8 +10688,8 @@ function renderScoutingFootballScienceDbPanel(record) {
     <section class="scouting-profile-section scouting-fsdb-profile" data-scouting-profile-fsdb-panel>
       <div class="scouting-panel-head">
         <div>
-          <p class="placeholder-tag">Football Science DB</p>
-          <h3>${escapeHtml(isLoading ? "Loading full FS DB profile" : readiness.label)}</h3>
+          <p class="placeholder-tag">Source enrichment</p>
+          <h3>${escapeHtml(isLoading ? "Loading source profile" : readiness.label)}</h3>
         </div>
         <span>${escapeHtml(fsdb.fsdbId || fsdb.id || "Identity pending")}</span>
       </div>
@@ -10705,7 +10706,7 @@ function renderScoutingFootballScienceDbPanel(record) {
         class="scouting-secondary-button"
         data-load-fsdb-profile="${escapeHtml(getScoutingRecordId(record))}"
         ${isLoading ? "disabled" : ""}
-      >${escapeHtml(isLoading ? "Loading profile..." : error ? "Retry full FS DB profile" : "Load full FS DB profile")}</button>
+      >${escapeHtml(isLoading ? "Loading profile..." : error ? "Retry source profile" : "Load source profile")}</button>
     </section>
   `;
 }
@@ -12302,27 +12303,6 @@ function renderScoutingDatabaseControls() {
       </form>
       <div class="scouting-database-quick-filters">
         <label>
-          <span>Source</span>
-          <select data-scouting-filter="source">
-            <option value="scouting" ${filters.source === "scouting" ? "selected" : ""}>Scouting data</option>
-            <option value="fsdb" ${filters.source === "fsdb" ? "selected" : ""}>Football Science DB</option>
-          </select>
-        </label>
-        ${
-          filters.source === "fsdb"
-            ? `
-              <label>
-                <span>Player segment</span>
-                <select data-scouting-filter="fsdbGenderSegment">
-                  ${SCOUTING_FSDB_GENDER_SEGMENT_OPTIONS.map(
-                    (option) => `<option value="${escapeHtml(option.id)}" ${filters.fsdbGenderSegment === option.id ? "selected" : ""}>${escapeHtml(option.label)}</option>`
-                  ).join("")}
-                </select>
-              </label>
-            `
-            : ""
-        }
-        <label>
           <span>League</span>
           <select data-scouting-filter="league">
             <option value="all">All leagues</option>
@@ -12958,7 +12938,7 @@ function renderFootballScienceDbQualityPanel() {
   return `
     <section class="scouting-data-quality scouting-fsdb-quality${isLoading ? " is-loading" : ""}" data-scouting-fsdb-quality-panel>
       <div>
-        <span>Football Science DB</span>
+        <span>Source enrichment</span>
         <strong>${summary ? `${coverage.profileCompleteness || 0}% profile coverage` : isLoading ? "Loading quality snapshot" : "Quality snapshot"}</strong>
         <p>${escapeHtml(
           cache.error ||
@@ -12992,26 +12972,9 @@ function renderFootballScienceDbQualityPanel() {
         </article>
       </div>
       <button type="button" class="scouting-secondary-button" data-refresh-fsdb-quality ${isLoading ? "disabled" : ""}>
-        ${escapeHtml(isLoading ? "Refreshing..." : "Refresh FSDB quality")}
+        ${escapeHtml(isLoading ? "Refreshing..." : "Refresh source quality")}
       </button>
     </section>
-  `;
-}
-function renderFootballScienceDbSegmentLoadActions(selectedSegment = "") {
-  const normalizedSegment = normalizeFootballScienceDbGenderSegment(selectedSegment);
-  return `
-    <div class="scouting-fsdb-segment-actions" aria-label="Choose Football Science DB player segment">
-      ${SCOUTING_FSDB_GENDER_SEGMENT_OPTIONS.map(
-        (option) => `
-          <button
-            type="button"
-            class="scouting-primary-button${normalizedSegment === option.id ? " is-active" : ""}"
-            data-scouting-load-fsdb
-            data-fsdb-gender-segment="${escapeHtml(option.id)}"
-          >${escapeHtml(`Load ${option.label}`)}</button>
-        `
-      ).join("")}
-    </div>
   `;
 }
 function getScoutingDatabaseResultsMarkup() {
@@ -13136,7 +13099,7 @@ function renderScoutingDatabasePanel() {
             `
             : ""
         }
-        <h2>${isLoading ? (isFootballScienceDb ? `Loading ${fsdbSegmentLabel} Football Science DB` : "Loading the scouting database") : isFootballScienceDb ? "Choose Football Science DB segment" : "Scouting database is ready"}</h2>
+        <h2>${isLoading ? (isFootballScienceDb ? `Loading ${fsdbSegmentLabel} source enrichment` : "Loading the scouting database") : isFootballScienceDb ? "Source enrichment is handled inside Scouting" : "Scouting database is ready"}</h2>
         <p>${
           isLoading
             ? isFootballScienceDb
@@ -13144,18 +13107,16 @@ function renderScoutingDatabasePanel() {
               : "The scouting player database is being prepared. The rest of Scouting stays responsive while it loads."
             : isFootballScienceDb
               ? "Select women's or men's players before the database loads. Football Science DB keeps the segments separate in the server query."
-              : "Load the full scouting player database when you want to search, filter and open player profiles."
+              : "Load the full scouting player database when you want to search, filter and open player profiles. Source enrichment stays attached inside each player profile."
         }</p>
         ${
           isLoading
             ? ""
             : isFootballScienceDb
-              ? renderFootballScienceDbSegmentLoadActions(filters.fsdbGenderSegment)
+              ? ""
               : `
                 <div class="scouting-load-actions">
                   <button type="button" class="scouting-primary-button" data-scouting-load-database>Load scouting player database</button>
-                  <button type="button" class="scouting-secondary-button" data-scouting-load-fsdb data-fsdb-gender-segment="women">Load women's Football Science DB</button>
-                  <button type="button" class="scouting-secondary-button" data-scouting-load-fsdb data-fsdb-gender-segment="men">Load men's Football Science DB</button>
                 </div>
               `
         }
@@ -15858,18 +15819,6 @@ export function handleClick(event, context) {
   }
   const loadDatabaseTrigger = event.target.closest("[data-scouting-load-database]");
   if (loadDatabaseTrigger) {
-    queueScoutingDatabaseLoad();
-    renderScoutingWorkspace();
-    return;
-  }
-  const loadFootballScienceDbTrigger = event.target.closest("[data-scouting-load-fsdb]");
-  if (loadFootballScienceDbTrigger) {
-    const selectedSegment = normalizeFootballScienceDbGenderSegment(loadFootballScienceDbTrigger.dataset.fsdbGenderSegment);
-    setScoutingDatabaseFilter("source", "fsdb");
-    if (selectedSegment) {
-      setScoutingDatabaseFilter("fsdbGenderSegment", selectedSegment);
-    }
-    queueFootballScienceDbQualityLoad();
     queueScoutingDatabaseLoad();
     renderScoutingWorkspace();
     return;

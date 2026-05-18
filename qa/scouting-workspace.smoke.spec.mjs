@@ -278,12 +278,13 @@ test("Scouting database load, search and position filter stay stable", async ({ 
   await expect(page.locator(".scouting-tab.is-active")).toContainText("Database");
 });
 
-test("Every Scouting access role can visually reach Football Science DB", async ({ page }) => {
+test("Every Scouting access role can visually reach the unified scouting database", async ({ page }) => {
   test.setTimeout(120_000);
   await seedScoutingAccessForRoles(page, scoutingAccessRoles, {
     activeTab: "database",
     databaseFilters: {
-      source: "scouting",
+      source: "fsdb",
+      fsdbGenderSegment: "women",
     },
   });
   const boot = await bootApp(page);
@@ -296,14 +297,11 @@ test("Every Scouting access role can visually reach Football Science DB", async 
     await expect(databaseTab).toBeVisible({ timeout: 15_000 });
     await databaseTab.click();
     await expect(page.locator(".scouting-tab.is-active")).toContainText("Database");
-    const womenFsdbButton = page.locator('[data-scouting-load-fsdb][data-fsdb-gender-segment="women"]').first();
-    const menFsdbButton = page.locator('[data-scouting-load-fsdb][data-fsdb-gender-segment="men"]').first();
-    await expect(womenFsdbButton, role).toBeVisible({ timeout: 15_000 });
-    await expect(menFsdbButton, role).toBeVisible({ timeout: 15_000 });
-    await expect(womenFsdbButton, role).toBeEnabled();
-    await expect(menFsdbButton, role).toBeEnabled();
-    await expect(womenFsdbButton, role).toContainText("Football Science DB");
-    await expect(menFsdbButton, role).toContainText("Football Science DB");
+    await expect(page.locator("[data-scouting-load-fsdb]"), role).toHaveCount(0);
+    const loadDatabaseButton = page.locator("[data-scouting-load-database]").first();
+    await expect(loadDatabaseButton, role).toBeVisible({ timeout: 15_000 });
+    await expect(loadDatabaseButton, role).toBeEnabled();
+    await expect(loadDatabaseButton, role).toContainText("Load scouting player database");
   }
 });
 

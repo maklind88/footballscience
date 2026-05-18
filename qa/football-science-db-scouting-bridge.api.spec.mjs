@@ -114,6 +114,129 @@ test("Scouting imports promote source rows onto existing master players", () => 
   expect(scoutingDatabase._private.preferScoutingCanonicalName("A. Example", "Ada Lovelace Example")).toBe("Ada Lovelace Example");
 });
 
+test("Scouting imports merge exact same player names across season sources", () => {
+  const record = [];
+  record[1] = "J. Rybrink";
+  record[2] = "Tottenham Hotspur";
+  record[4] = "England WSL";
+  record[5] = "2026";
+  record[10] = "Sweden";
+  record[11] = "Sweden";
+  record[15] = "season-file";
+  record[16] = "tottenham-rybrink-2026";
+  record[19] = "tottenham-rybrink-2026";
+
+  const masterPlayer = {
+    id: "11111111-1111-4111-8111-111111111111",
+    player_identity_key: "master-j-rybrink",
+    source_player_id: "master-j-rybrink",
+    canonical_name: "J. Rybrink",
+    sort_name: "j rybrink",
+    birth_country: "Sweden",
+    passport_country: "Sweden",
+    metadata: {},
+  };
+
+  expect(scoutingDatabase._private.isExactNameScoutingPlayerMatch(record, masterPlayer)).toBe(true);
+
+  const resolved = scoutingDatabase._private.applyScoutingMasterIdentity(record, masterPlayer);
+  expect(resolved[1]).toBe("J. Rybrink");
+  expect(resolved[16]).toBe("master-j-rybrink");
+  expect(resolved[19]).toBe("master-j-rybrink");
+  expect(resolved[20]).toMatchObject({
+    originalPlayerIdentityId: "tottenham-rybrink-2026",
+    resolvedPlayerIdentityId: "master-j-rybrink",
+    identityResolution: "existing-scouting-player",
+  });
+});
+
+test("Scouting exact-name dedupe refuses known identity conflicts", () => {
+  const record = [];
+  record[1] = "J. Rybrink";
+  record[10] = "Sweden";
+  record[11] = "Sweden";
+  record[22] = "1998-01-01";
+
+  expect(
+    scoutingDatabase._private.isExactNameScoutingPlayerMatch(record, {
+      canonical_name: "J. Rybrink",
+      sort_name: "j rybrink",
+      passport_country: "Norway",
+      date_of_birth: "1998-01-01",
+    })
+  ).toBe(false);
+
+  expect(
+    scoutingDatabase._private.isExactNameScoutingPlayerMatch(record, {
+      canonical_name: "J. Rybrink",
+      sort_name: "j rybrink",
+      passport_country: "Sweden",
+      date_of_birth: "1999-01-01",
+    })
+  ).toBe(false);
+});
+
+test("Scouting duplicate repair plans move seasons to one master player", () => {
+  const primaryId = "11111111-1111-4111-8111-111111111111";
+  const duplicateId = "22222222-2222-4222-8222-222222222222";
+  const group = [
+    {
+      id: primaryId,
+      canonical_name: "J. Rybrink",
+      sort_name: "j rybrink",
+      player_identity_key: "master-j-rybrink",
+      source_player_id: "master-j-rybrink",
+      passport_country: "Sweden",
+      source_aliases: ["hacken-rybrink"],
+      external_refs: {},
+      metadata: {},
+      status: "active",
+      updated_at: "2026-05-17T12:00:00.000Z",
+    },
+    {
+      id: duplicateId,
+      canonical_name: "J. Rybrink",
+      sort_name: "j rybrink",
+      player_identity_key: "tottenham-rybrink",
+      source_player_id: "tottenham-rybrink",
+      passport_country: "Sweden",
+      source_aliases: ["tottenham-rybrink"],
+      external_refs: {},
+      metadata: {},
+      status: "active",
+      updated_at: "2026-05-18T12:00:00.000Z",
+    },
+  ];
+  const grouped = scoutingDatabase._private.groupExactNameDuplicatePlayers(group);
+  expect(grouped).toHaveLength(1);
+
+  const plan = scoutingDatabase._private.buildScoutingPlayerMergePlan(group, [
+    { id: "season-1", player_id: primaryId },
+    { id: "season-2", player_id: duplicateId },
+    { id: "season-3", player_id: duplicateId },
+  ], { now: "2026-05-18T00:00:00.000Z" });
+
+  expect(plan.primary.id).toBe(duplicateId);
+  expect(plan.seasonPatch).toMatchObject({
+    player_id: duplicateId,
+    player_identity_key: "tottenham-rybrink",
+    source_player_id: "tottenham-rybrink",
+    player_name: "J. Rybrink",
+  });
+  expect(plan.seasonMoves).toEqual(["season-1"]);
+  expect(plan.primaryPatch.source_aliases).toEqual(expect.arrayContaining(["hacken-rybrink", "tottenham-rybrink"]));
+  expect(plan.duplicatePatches[0]).toMatchObject({
+    id: primaryId,
+    patch: {
+      status: "archived",
+      metadata: {
+        duplicateOfPlayerId: duplicateId,
+        duplicateMergeReason: "exact-name",
+      },
+    },
+  });
+});
+
 test("Scouting bridge exposes safe FSDB identity helpers for server linking", () => {
   expect(typeof fsdb.fetchFootballScienceProfileForScoutingRecord).toBe("function");
   expect(fsdb.normalizePersonNameForMatch("Álex Morgan")).toBe("alex morgan");

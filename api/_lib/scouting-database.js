@@ -13,6 +13,8 @@ const MAX_LIMIT = 1000;
 const DEFAULT_LIMIT = 500;
 const SCOUTING_METRICS_CACHE_MS = 5 * 60 * 1000;
 const MAX_IMPORT_CHUNK_RECORDS = 80;
+const SCOUTING_DEDUPE_PAGE_SIZE = 1000;
+const SCOUTING_DEDUPE_MAX_GROUPS = 25;
 const SCOUTING_PLAYER_IDENTITY_SELECT =
   "id,canonical_name,sort_name,player_identity_key,source_system,source_player_id,source_aliases,birth_country,passport_country,height_cm,weight_kg,date_of_birth,external_refs,status,metadata,updated_at";
 const SCOUTING_RECORD_INDEX = Object.freeze({
@@ -500,6 +502,66 @@ function getStoredPlayerCountryTokens(row = {}) {
   ].filter(Boolean);
 }
 
+function getExactNameParts(name = "") {
+  return normalizeSortName(name).split(" ").filter(Boolean);
+}
+
+function isMergeableExactScoutingName(name = "") {
+  const parts = getExactNameParts(name);
+  if (parts.length < 2) {
+    return false;
+  }
+  const lastName = parts[parts.length - 1] || "";
+  return lastName.length >= 3;
+}
+
+function hasScoutingDateOfBirthConflict(record = {}, row = {}) {
+  const incomingDob = normalizeDateValue(recordValue(record, "dateOfBirth"));
+  const storedDob = normalizeDateValue(row.date_of_birth);
+  return Boolean(incomingDob && storedDob && incomingDob !== storedDob);
+}
+
+function hasScoutingCountryConflict(record = {}, row = {}) {
+  const incomingCountries = new Set(getScoutingCountryTokens(record));
+  const storedCountries = getStoredPlayerCountryTokens(row);
+  if (!incomingCountries.size || !storedCountries.length) {
+    return false;
+  }
+  return !storedCountries.some((country) => incomingCountries.has(country));
+}
+
+function isExactNameScoutingPlayerMatch(record = {}, row = {}) {
+  const incomingName = getClientRecordName(record);
+  const incomingSortName = normalizeSortName(incomingName);
+  const storedSortName = normalizeSortName(row.canonical_name || row.sort_name);
+  if (!incomingSortName || incomingSortName !== storedSortName || !isMergeableExactScoutingName(incomingName)) {
+    return false;
+  }
+  if (hasScoutingDateOfBirthConflict(record, row) || hasScoutingCountryConflict(record, row)) {
+    return false;
+  }
+  return true;
+}
+
+function areScoutingPlayerRowsMergeCompatible(left = {}, right = {}) {
+  const leftSortName = normalizeSortName(left.canonical_name || left.sort_name);
+  const rightSortName = normalizeSortName(right.canonical_name || right.sort_name);
+  if (!leftSortName || leftSortName !== rightSortName || !isMergeableExactScoutingName(leftSortName)) {
+    return false;
+  }
+  const leftDob = normalizeDateValue(left.date_of_birth);
+  const rightDob = normalizeDateValue(right.date_of_birth);
+  if (leftDob && rightDob && leftDob !== rightDob) {
+    return false;
+  }
+  const leftCountries = getStoredPlayerCountryTokens(left);
+  const rightCountries = getStoredPlayerCountryTokens(right);
+  if (leftCountries.length && rightCountries.length && !leftCountries.some((country) => rightCountries.includes(country))) {
+    return false;
+  }
+  return true;
+}
+
 function getScoutingStrongIdentitySignature(record = {}) {
   const name = normalizeIdentityPart(getClientRecordName(record));
   const dateOfBirth = normalizeDateValue(recordValue(record, "dateOfBirth"));
@@ -538,6 +600,9 @@ function hasSharedScoutingIdentityAlias(record = {}, row = {}) {
 
 function isStrongScoutingPlayerMatch(record = {}, row = {}) {
   if (hasSharedScoutingIdentityAlias(record, row)) {
+    return true;
+  }
+  if (isExactNameScoutingPlayerMatch(record, row)) {
     return true;
   }
   const incomingName = getClientRecordName(record);
@@ -942,6 +1007,25 @@ async function fetchPlayerRowsByDateOfBirth(dateOfBirth = "") {
   return Array.isArray(result.payload) ? result.payload : [];
 }
 
+async function fetchPlayerRowsByExactSortName(name = "") {
+  const sortName = normalizeSortName(name);
+  if (!sortName || !isMergeableExactScoutingName(sortName)) {
+    return [];
+  }
+  const params = new URLSearchParams({
+    select: SCOUTING_PLAYER_IDENTITY_SELECT,
+    sort_name: `eq.${sortName}`,
+    status: "eq.active",
+    order: "updated_at.desc",
+    limit: "20",
+  });
+  const result = await dbRequest(`/scouting_players?${params.toString()}`);
+  if (!result.ok) {
+    throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
+  }
+  return Array.isArray(result.payload) ? result.payload : [];
+}
+
 async function fetchExistingScoutingPlayerForRecord(record = {}) {
   const lookupKeys = getScoutingIdentityLookupKeys(record);
   for (const key of lookupKeys) {
@@ -954,6 +1038,11 @@ async function fetchExistingScoutingPlayerForRecord(record = {}) {
       return directMatch;
     }
   }
+  const exactNameRows = await fetchPlayerRowsByExactSortName(getClientRecordName(record));
+  const exactNameMatch = exactNameRows.find((row) => isExactNameScoutingPlayerMatch(record, row));
+  if (exactNameMatch) {
+    return exactNameMatch;
+  }
   const birthDateRows = await fetchPlayerRowsByDateOfBirth(recordValue(record, "dateOfBirth"));
   return birthDateRows.find((row) => isStrongScoutingPlayerMatch(record, row)) || null;
 }
@@ -965,6 +1054,311 @@ async function resolveScoutingRecordIdentities(records = []) {
       return existingPlayer ? applyScoutingMasterIdentity(record, existingPlayer) : record;
     })
   );
+}
+
+function uniqueNormalized(values = [], maxLength = 180) {
+  return values
+    .map((value) => normalizeString(value, maxLength))
+    .filter(Boolean)
+    .filter((value, index, list) => list.indexOf(value) === index);
+}
+
+function groupExactNameDuplicatePlayers(players = []) {
+  const bySortName = new Map();
+  players.forEach((row) => {
+    if (normalizeString(row.status, 40) && normalizeString(row.status, 40) !== "active") {
+      return;
+    }
+    const sortName = normalizeSortName(row.sort_name || row.canonical_name);
+    if (!sortName || !isMergeableExactScoutingName(sortName)) {
+      return;
+    }
+    const entries = bySortName.get(sortName) || [];
+    entries.push(row);
+    bySortName.set(sortName, entries);
+  });
+
+  const groups = [];
+  for (const rows of bySortName.values()) {
+    if (rows.length < 2) {
+      continue;
+    }
+    const compatibleGroups = [];
+    for (const row of rows) {
+      const group = compatibleGroups.find((candidateGroup) =>
+        candidateGroup.every((candidate) => areScoutingPlayerRowsMergeCompatible(candidate, row))
+      );
+      if (group) {
+        group.push(row);
+      } else {
+        compatibleGroups.push([row]);
+      }
+    }
+    compatibleGroups.filter((group) => group.length > 1).forEach((group) => groups.push(group));
+  }
+  return groups;
+}
+
+function chooseScoutingPrimaryPlayer(rows = [], seasonRows = []) {
+  const seasonCounts = seasonRows.reduce((map, row) => {
+    const playerId = normalizeString(row.player_id, 80);
+    if (playerId) {
+      map.set(playerId, (map.get(playerId) || 0) + 1);
+    }
+    return map;
+  }, new Map());
+  return [...rows].sort((left, right) => {
+    const leftScore =
+      (seasonCounts.get(normalizeString(left.id, 80)) || 0) * 100 +
+      (isInitialOnlyScoutingName(left.canonical_name) ? 0 : 20) +
+      (normalizeDateValue(left.date_of_birth) ? 10 : 0) +
+      getStoredPlayerCountryTokens(left).length * 4 +
+      getStoredPlayerIdentityAliases(left).length;
+    const rightScore =
+      (seasonCounts.get(normalizeString(right.id, 80)) || 0) * 100 +
+      (isInitialOnlyScoutingName(right.canonical_name) ? 0 : 20) +
+      (normalizeDateValue(right.date_of_birth) ? 10 : 0) +
+      getStoredPlayerCountryTokens(right).length * 4 +
+      getStoredPlayerIdentityAliases(right).length;
+    if (rightScore !== leftScore) {
+      return rightScore - leftScore;
+    }
+    return String(right.updated_at || "").localeCompare(String(left.updated_at || ""));
+  })[0] || null;
+}
+
+function mergeScoutingExternalRefs(rows = []) {
+  const merged = {};
+  rows.forEach((row, rowIndex) => {
+    const refs = row.external_refs && typeof row.external_refs === "object" && !Array.isArray(row.external_refs) ? row.external_refs : {};
+    Object.entries(refs).forEach(([key, value]) => {
+      const normalizedKey = normalizeMetricKey(key, `ref_${rowIndex + 1}`);
+      const normalizedValue = normalizeString(value, 180);
+      if (normalizedKey && normalizedValue && !merged[normalizedKey]) {
+        merged[normalizedKey] = normalizedValue;
+      }
+    });
+    const identityKey = normalizeString(row.player_identity_key, 160);
+    if (identityKey && !Object.values(merged).includes(identityKey)) {
+      merged[`merged_identity_${rowIndex + 1}`] = identityKey;
+    }
+  });
+  return merged;
+}
+
+function buildScoutingPlayerMergePlan(rows = [], seasonRows = [], options = {}) {
+  const primary = chooseScoutingPrimaryPlayer(rows, seasonRows);
+  if (!primary) {
+    return null;
+  }
+  const now = normalizeString(options.now, 80) || new Date().toISOString();
+  const duplicates = rows.filter((row) => normalizeString(row.id, 80) !== normalizeString(primary.id, 80));
+  const primaryIdentityKey = normalizeString(primary.player_identity_key || primary.source_player_id, 160);
+  const primaryName = preferScoutingCanonicalName(
+    primary.canonical_name,
+    duplicates.map((row) => normalizeString(row.canonical_name, 180)).sort((left, right) => right.length - left.length)[0] || ""
+  );
+  const duplicateIds = duplicates.map((row) => normalizeString(row.id, 80)).filter(Boolean);
+  const duplicateIdentityKeys = duplicates.map((row) => normalizeString(row.player_identity_key || row.source_player_id, 160)).filter(Boolean);
+  const primaryMetadata = primary.metadata && typeof primary.metadata === "object" && !Array.isArray(primary.metadata) ? primary.metadata : {};
+  const primaryPatch = {
+    canonical_name: primaryName,
+    sort_name: normalizeSortName(primaryName),
+    source_aliases: uniqueNormalized(
+      [
+        ...getStoredPlayerIdentityAliases(primary),
+        ...duplicates.flatMap((row) => getStoredPlayerIdentityAliases(row)),
+        ...duplicateIdentityKeys,
+      ],
+      180
+    ).slice(0, 60),
+    birth_country: normalizeString(primary.birth_country, 120) || duplicates.map((row) => normalizeString(row.birth_country, 120)).find(Boolean) || null,
+    passport_country:
+      normalizeString(primary.passport_country, 120) ||
+      duplicates.map((row) => normalizeString(row.passport_country, 120)).find(Boolean) ||
+      null,
+    date_of_birth: normalizeDateValue(primary.date_of_birth) || duplicates.map((row) => normalizeDateValue(row.date_of_birth)).find(Boolean) || null,
+    external_refs: mergeScoutingExternalRefs([primary, ...duplicates]),
+    metadata: {
+      ...primaryMetadata,
+      exactNameDedupe: {
+        method: "exact-name",
+        mergedAt: now,
+        duplicatePlayerIds: duplicateIds,
+        duplicateIdentityKeys,
+      },
+    },
+  };
+  const seasonMoves = seasonRows
+    .filter((row) => duplicateIds.includes(normalizeString(row.player_id, 80)))
+    .map((row) => normalizeString(row.id, 80))
+    .filter(Boolean);
+  return {
+    primary,
+    duplicates,
+    primaryPatch,
+    duplicatePatches: duplicates.map((row) => ({
+      id: normalizeString(row.id, 80),
+      patch: {
+        status: "archived",
+        metadata: {
+          ...(row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? row.metadata : {}),
+          duplicateOfPlayerId: normalizeString(primary.id, 80),
+          duplicateOfPlayerIdentityKey: primaryIdentityKey,
+          duplicateMergeReason: "exact-name",
+          duplicateMergedAt: now,
+        },
+      },
+    })),
+    seasonPatch: {
+      player_id: normalizeString(primary.id, 80),
+      player_identity_key: primaryIdentityKey,
+      source_player_id: primaryIdentityKey,
+      player_name: primaryName,
+    },
+    seasonMoves,
+  };
+}
+
+async function fetchActiveScoutingPlayersPage(offset = 0, limit = SCOUTING_DEDUPE_PAGE_SIZE) {
+  const params = new URLSearchParams({
+    select: `${SCOUTING_PLAYER_IDENTITY_SELECT},created_at`,
+    status: "eq.active",
+    order: "sort_name.asc,updated_at.desc",
+    limit: String(Math.min(Math.max(1, Math.round(Number(limit) || SCOUTING_DEDUPE_PAGE_SIZE)), SCOUTING_DEDUPE_PAGE_SIZE)),
+    offset: String(Math.max(0, Math.round(Number(offset) || 0))),
+  });
+  const result = await dbRequest(`/scouting_players?${params.toString()}`);
+  if (!result.ok) {
+    throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
+  }
+  return Array.isArray(result.payload) ? result.payload : [];
+}
+
+async function fetchScoutingSeasonRowsByPlayerIds(playerIds = []) {
+  const ids = uniqueNormalized(playerIds, 80).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+  if (!ids.length) {
+    return [];
+  }
+  const params = new URLSearchParams({
+    select: "id,player_id,player_identity_key,player_name,season_label,team_name,league_name,status,deleted_at,updated_at",
+    player_id: `in.(${ids.join(",")})`,
+    status: "eq.active",
+    deleted_at: "is.null",
+    order: "season_label.desc,updated_at.desc",
+    limit: "1000",
+  });
+  const result = await dbRequest(`/scouting_player_seasons?${params.toString()}`);
+  if (!result.ok) {
+    throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
+  }
+  return Array.isArray(result.payload) ? result.payload : [];
+}
+
+async function fetchExactNameDuplicatePlayerGroups(options = {}) {
+  const maxPlayers = Math.min(Math.max(1000, Math.round(Number(options.maxPlayers) || 50000)), 100000);
+  const players = [];
+  for (let offset = 0; offset < maxPlayers; offset += SCOUTING_DEDUPE_PAGE_SIZE) {
+    const page = await fetchActiveScoutingPlayersPage(offset);
+    players.push(...page);
+    if (page.length < SCOUTING_DEDUPE_PAGE_SIZE) {
+      break;
+    }
+  }
+  return groupExactNameDuplicatePlayers(players);
+}
+
+function summarizeScoutingMergePlan(plan = null) {
+  if (!plan) {
+    return null;
+  }
+  return {
+    primaryPlayerId: normalizeString(plan.primary?.id, 80),
+    primaryIdentityKey: normalizeString(plan.primary?.player_identity_key || plan.primary?.source_player_id, 160),
+    primaryName: normalizeString(plan.primaryPatch?.canonical_name || plan.primary?.canonical_name, 180),
+    duplicatePlayerIds: plan.duplicates.map((row) => normalizeString(row.id, 80)).filter(Boolean),
+    duplicateIdentityKeys: plan.duplicates.map((row) => normalizeString(row.player_identity_key || row.source_player_id, 160)).filter(Boolean),
+    seasonMoveCount: plan.seasonMoves.length,
+  };
+}
+
+async function repairScoutingPlayerDuplicates(body = {}, actor = {}) {
+  if (!canWriteScoutingDatabase(actor)) {
+    return { ok: false, status: 403, reason: "Scouting duplicate repair requires scouting write access." };
+  }
+  if (!isScoutingDatabaseEnabled()) {
+    return { ok: true, schema: SCOUTING_DATABASE_SCHEMA, mode: "legacy", enabled: false, repaired: false };
+  }
+  const dryRun = body.dryRun !== false && body.dry_run !== false;
+  const maxGroups = Math.min(Math.max(1, Math.round(normalizeNumber(body.maxGroups || body.max_groups, 10))), SCOUTING_DEDUPE_MAX_GROUPS);
+  const groups = (await fetchExactNameDuplicatePlayerGroups(body)).slice(0, maxGroups);
+  const plans = [];
+  for (const group of groups) {
+    const seasonRows = await fetchScoutingSeasonRowsByPlayerIds(group.map((row) => row.id));
+    const plan = buildScoutingPlayerMergePlan(group, seasonRows);
+    if (plan) {
+      plans.push(plan);
+    }
+  }
+  if (dryRun) {
+    return {
+      ok: true,
+      schema: SCOUTING_DATABASE_SCHEMA,
+      mode: "database",
+      enabled: true,
+      dryRun: true,
+      groupCount: plans.length,
+      plans: plans.map(summarizeScoutingMergePlan),
+    };
+  }
+
+  for (const plan of plans) {
+    const primaryId = normalizeString(plan.primary?.id, 80);
+    const duplicateIds = plan.duplicates.map((row) => normalizeString(row.id, 80)).filter(Boolean);
+    if (!primaryId || !duplicateIds.length) {
+      continue;
+    }
+    const primaryResult = await dbRequest(`/scouting_players?id=eq.${encodeURIComponent(primaryId)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=representation" },
+      body: plan.primaryPatch,
+    });
+    if (!primaryResult.ok) {
+      throw Object.assign(new Error(primaryResult.reason), { status: primaryResult.status, payload: primaryResult.payload });
+    }
+    if (plan.seasonMoves.length) {
+      const seasonResult = await dbRequest(`/scouting_player_seasons?player_id=in.(${duplicateIds.join(",")})&status=eq.active&deleted_at=is.null`, {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: plan.seasonPatch,
+      });
+      if (!seasonResult.ok) {
+        throw Object.assign(new Error(seasonResult.reason), { status: seasonResult.status, payload: seasonResult.payload });
+      }
+    }
+    for (const duplicate of plan.duplicatePatches) {
+      const duplicateResult = await dbRequest(`/scouting_players?id=eq.${encodeURIComponent(duplicate.id)}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: duplicate.patch,
+      });
+      if (!duplicateResult.ok) {
+        throw Object.assign(new Error(duplicateResult.reason), { status: duplicateResult.status, payload: duplicateResult.payload });
+      }
+    }
+  }
+  scoutingFilterOptionsCache = { updatedAt: 0, options: null };
+  return {
+    ok: true,
+    schema: SCOUTING_DATABASE_SCHEMA,
+    mode: "database",
+    enabled: true,
+    dryRun: false,
+    repaired: true,
+    groupCount: plans.length,
+    seasonMoveCount: plans.reduce((sum, plan) => sum + plan.seasonMoves.length, 0),
+    plans: plans.map(summarizeScoutingMergePlan),
+  };
 }
 
 async function fetchPlayerSeasonHistory(row = {}) {
@@ -1830,6 +2224,13 @@ async function handleScoutingPost(req, res, actor) {
     const result = await rollbackScoutingImport(body, actor);
     return sendJson(res, result.ok ? 200 : result.status || 400, result);
   }
+  if (action === "previewDuplicateScoutingPlayers" || action === "repairScoutingPlayerDuplicates") {
+    const result = await repairScoutingPlayerDuplicates(
+      action === "previewDuplicateScoutingPlayers" ? { ...body, dryRun: true } : body,
+      actor
+    );
+    return sendJson(res, result.ok ? 200 : result.status || 400, result);
+  }
   if (action === "recordImportIntent") {
     const result = await recordImportIntent(body, actor);
     return sendJson(res, result.ok ? 200 : result.status || 400, result);
@@ -1856,11 +2257,14 @@ module.exports = {
     addSeasonFilters,
     applyScoutingMasterIdentity,
     buildOptionsFromRows,
+    buildScoutingPlayerMergePlan,
     fetchDatabaseFilterOptions,
     fetchImportHistory,
     fetchPlayerProfile,
+    groupExactNameDuplicatePlayers,
     getClientRecordPositionGroup,
     importExcelChunk,
+    isExactNameScoutingPlayerMatch,
     metricToClient,
     normalizeImportIntent,
     normalizeImportMetric,

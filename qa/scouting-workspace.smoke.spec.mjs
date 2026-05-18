@@ -296,10 +296,14 @@ test("Every Scouting access role can visually reach Football Science DB", async 
     await expect(databaseTab).toBeVisible({ timeout: 15_000 });
     await databaseTab.click();
     await expect(page.locator(".scouting-tab.is-active")).toContainText("Database");
-    const fsdbButton = page.locator("[data-scouting-load-fsdb]").first();
-    await expect(fsdbButton, role).toBeVisible({ timeout: 15_000 });
-    await expect(fsdbButton, role).toBeEnabled();
-    await expect(fsdbButton, role).toContainText("Football Science DB");
+    const womenFsdbButton = page.locator('[data-scouting-load-fsdb][data-fsdb-gender-segment="women"]').first();
+    const menFsdbButton = page.locator('[data-scouting-load-fsdb][data-fsdb-gender-segment="men"]').first();
+    await expect(womenFsdbButton, role).toBeVisible({ timeout: 15_000 });
+    await expect(menFsdbButton, role).toBeVisible({ timeout: 15_000 });
+    await expect(womenFsdbButton, role).toBeEnabled();
+    await expect(menFsdbButton, role).toBeEnabled();
+    await expect(womenFsdbButton, role).toContainText("Football Science DB");
+    await expect(menFsdbButton, role).toContainText("Football Science DB");
   }
 });
 

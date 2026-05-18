@@ -199,6 +199,10 @@ const SCOUTING_IMPORT_MAX_CHUNK_PAYLOAD_CHARACTERS = 70000;
 const SCOUTING_IMPORT_MAX_CHUNK_BYTES = 200000;
 const SCOUTING_API_DATABASE_PAGE_LIMIT = 50;
 const SCOUTING_DATABASE_PAGE_SIZE = 50;
+const SCOUTING_FSDB_GENDER_SEGMENT_OPTIONS = Object.freeze([
+  { id: "women", label: "Women's players", shortLabel: "Women's" },
+  { id: "men", label: "Men's players", shortLabel: "Men's" },
+]);
 const scoutingImportSupportedFileExts = Object.freeze(
   scoutingImportSupportedSourceTypes
     .flatMap((sourceType) => sourceType.extensions)
@@ -1133,6 +1137,7 @@ function normalizeScoutingDatabaseFilters(filters = {}) {
     marketStatus: normalizeScoutingText(filters.marketStatus, 40) || "all",
     sortMetricId: normalizeScoutingText(filters.sortMetricId, 120) || "minutes",
     source: normalizeScoutingText(filters.source, 40) === "fsdb" ? "fsdb" : "scouting",
+    fsdbGenderSegment: normalizeFootballScienceDbGenderSegment(filters.fsdbGenderSegment || filters.genderSegment),
     fsdbCursor: normalizeScoutingText(filters.fsdbCursor, 400),
     fsdbCursorStack: Array.isArray(filters.fsdbCursorStack)
       ? filters.fsdbCursorStack.map((cursor) => normalizeScoutingText(cursor, 400)).filter(Boolean).slice(0, 50)
@@ -1151,10 +1156,18 @@ const ui = {
   },
 };
 function getScoutingDatabase() {
-  const selectedSource = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters).source;
+  const activeFilters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
+  const selectedSource = activeFilters.source;
   const activeDatabase = window.__footballScienceScoutingDatabase;
   if (selectedSource === "fsdb") {
-    if (activeDatabase?.source === "fsdb" && Array.isArray(activeDatabase.records) && Array.isArray(activeDatabase.metrics)) {
+    const databaseSegment = normalizeFootballScienceDbGenderSegment(activeDatabase?.page?.genderSegment);
+    if (
+      activeDatabase?.source === "fsdb" &&
+      activeFilters.fsdbGenderSegment &&
+      databaseSegment === activeFilters.fsdbGenderSegment &&
+      Array.isArray(activeDatabase.records) &&
+      Array.isArray(activeDatabase.metrics)
+    ) {
       rememberScoutingDatabaseRecords(activeDatabase);
       return activeDatabase;
     }
@@ -1212,6 +1225,21 @@ function normalizeScoutingApiAccessToken(value = "") {
     return "";
   }
   return token;
+}
+function normalizeFootballScienceDbGenderSegment(value = "") {
+  const normalized = normalizeScoutingText(value, 20).toLowerCase();
+  return SCOUTING_FSDB_GENDER_SEGMENT_OPTIONS.some((option) => option.id === normalized) ? normalized : "";
+}
+function getFootballScienceDbGenderSegmentOption(value = "") {
+  const normalized = normalizeFootballScienceDbGenderSegment(value);
+  return SCOUTING_FSDB_GENDER_SEGMENT_OPTIONS.find((option) => option.id === normalized) || null;
+}
+function getFootballScienceDbGenderSegmentLabel(value = "", options = {}) {
+  const segment = getFootballScienceDbGenderSegmentOption(value);
+  if (!segment) {
+    return options.fallback || "selected";
+  }
+  return options.short ? segment.shortLabel : segment.label;
 }
 async function getScoutingApiAccessToken(options = {}) {
   if (window.platformAuthReadyPromise instanceof Promise) {
@@ -1368,6 +1396,7 @@ function getFootballScienceDbQueryFromState() {
     currentTeam: filters.team === "all" ? "" : filters.team,
     currentCompetition: filters.league === "all" ? "" : filters.league,
     positionGroup: filters.position === "all" ? "" : mapScoutingPositionToFootballScienceDbGroup(filters.position),
+    genderSegment: filters.fsdbGenderSegment,
     cursor: filters.fsdbCursor || "",
     includeTotal: filters.fsdbCursor ? "0" : "1",
     limit: SCOUTING_API_DATABASE_PAGE_LIMIT,
@@ -1502,6 +1531,7 @@ function applyFootballScienceDbDatabase(result = {}) {
   }
   const existing = window.__footballScienceScoutingDatabase;
   const page = result.page && typeof result.page === "object" ? result.page : {};
+  const filters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
   const database = {
     source: "fsdb",
     importedAt: new Date().toISOString(),
@@ -1511,7 +1541,8 @@ function applyFootballScienceDbDatabase(result = {}) {
     page: {
       mode: "fsdb",
       limit: Math.max(1, Math.floor(Number(page.limit) || SCOUTING_API_DATABASE_PAGE_LIMIT)),
-      cursor: normalizeScoutingText(normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters).fsdbCursor, 400),
+      cursor: normalizeScoutingText(filters.fsdbCursor, 400),
+      genderSegment: filters.fsdbGenderSegment,
       nextCursor: normalizeScoutingText(page.nextCursor, 400),
       returned: Math.max(0, Math.floor(Number(page.returned) || 0)),
       total: Number.isFinite(Number(page.total)) ? Math.max(0, Math.floor(Number(page.total))) : null,
@@ -1526,6 +1557,9 @@ function applyFootballScienceDbDatabase(result = {}) {
 }
 async function loadFootballScienceDbDatabase() {
   const query = getFootballScienceDbQueryFromState();
+  if (!normalizeFootballScienceDbGenderSegment(query.genderSegment)) {
+    throw new Error("Choose Women's or Men's players before loading Football Science DB.");
+  }
   const response = await fetchFootballScienceDbApi(query);
   if (!response.ok) {
     throw new Error(response.reason || "Football Science DB is not available.");
@@ -12274,6 +12308,20 @@ function renderScoutingDatabaseControls() {
             <option value="fsdb" ${filters.source === "fsdb" ? "selected" : ""}>Football Science DB</option>
           </select>
         </label>
+        ${
+          filters.source === "fsdb"
+            ? `
+              <label>
+                <span>Player segment</span>
+                <select data-scouting-filter="fsdbGenderSegment">
+                  ${SCOUTING_FSDB_GENDER_SEGMENT_OPTIONS.map(
+                    (option) => `<option value="${escapeHtml(option.id)}" ${filters.fsdbGenderSegment === option.id ? "selected" : ""}>${escapeHtml(option.label)}</option>`
+                  ).join("")}
+                </select>
+              </label>
+            `
+            : ""
+        }
         <label>
           <span>League</span>
           <select data-scouting-filter="league">
@@ -12949,11 +12997,30 @@ function renderFootballScienceDbQualityPanel() {
     </section>
   `;
 }
+function renderFootballScienceDbSegmentLoadActions(selectedSegment = "") {
+  const normalizedSegment = normalizeFootballScienceDbGenderSegment(selectedSegment);
+  return `
+    <div class="scouting-fsdb-segment-actions" aria-label="Choose Football Science DB player segment">
+      ${SCOUTING_FSDB_GENDER_SEGMENT_OPTIONS.map(
+        (option) => `
+          <button
+            type="button"
+            class="scouting-primary-button${normalizedSegment === option.id ? " is-active" : ""}"
+            data-scouting-load-fsdb
+            data-fsdb-gender-segment="${escapeHtml(option.id)}"
+          >${escapeHtml(`Load ${option.label}`)}</button>
+        `
+      ).join("")}
+    </div>
+  `;
+}
 function getScoutingDatabaseResultsMarkup() {
   const records = getFilteredScoutingDatabaseRecords();
   const apiPage = getScoutingDatabasePage();
   const databaseSource = normalizeScoutingText(getScoutingDatabase()?.source, 40);
   const isFootballScienceDb = databaseSource === "fsdb";
+  const activeFilters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
+  const fsdbSegmentLabel = getFootballScienceDbGenderSegmentLabel(activeFilters.fsdbGenderSegment, { short: true });
   const isPaged = databaseSource === "api" || databaseSource === "worker" || isFootballScienceDb;
   const pageOffset = isPaged ? apiPage?.offset || 0 : getScoutingDatabasePageOffset(records.length);
   const visibleRecords = isPaged
@@ -12969,10 +13036,10 @@ function getScoutingDatabaseResultsMarkup() {
   const total = isPaged ? knownTotal : records.length;
   const summary = isFootballScienceDb
     ? total
-      ? `${total.toLocaleString("en-US")} Football Science DB players match.`
+      ? `${total.toLocaleString("en-US")} ${fsdbSegmentLabel} Football Science DB players match.`
       : visibleRecords.length
-        ? `${visibleRecords.length.toLocaleString("en-US")} Football Science DB players shown.`
-        : "No Football Science DB players found this page."
+        ? `${visibleRecords.length.toLocaleString("en-US")} ${fsdbSegmentLabel} Football Science DB players shown.`
+        : `No ${fsdbSegmentLabel} Football Science DB players found this page.`
     : isPaged
     ? total
       ? `${total.toLocaleString("en-US")} players match.`
@@ -13048,6 +13115,7 @@ function renderScoutingDatabasePanel() {
     const filters = normalizeScoutingDatabaseFilters(state.databaseFilters);
     const isFootballScienceDb = filters.source === "fsdb";
     const isLoading = Boolean(scoutingDatabaseLoadPromise);
+    const fsdbSegmentLabel = getFootballScienceDbGenderSegmentLabel(filters.fsdbGenderSegment);
     return `
       <section class="scouting-load-panel${isLoading ? " is-loading" : ""}">
         ${
@@ -13068,25 +13136,26 @@ function renderScoutingDatabasePanel() {
             `
             : ""
         }
-        <h2>${isLoading ? (isFootballScienceDb ? "Loading Football Science DB" : "Loading the scouting database") : isFootballScienceDb ? "Football Science DB" : "Scouting database is ready"}</h2>
+        <h2>${isLoading ? (isFootballScienceDb ? `Loading ${fsdbSegmentLabel} Football Science DB` : "Loading the scouting database") : isFootballScienceDb ? "Choose Football Science DB segment" : "Scouting database is ready"}</h2>
         <p>${
           isLoading
             ? isFootballScienceDb
-              ? "The global player identity database is loading through the server so the browser stays light."
+              ? `${fsdbSegmentLabel} are loading through the server so the browser stays light.`
               : "The scouting player database is being prepared. The rest of Scouting stays responsive while it loads."
             : isFootballScienceDb
-              ? "Load Football Science DB when you want to search the global player identity layer."
+              ? "Select women's or men's players before the database loads. Football Science DB keeps the segments separate in the server query."
               : "Load the full scouting player database when you want to search, filter and open player profiles."
         }</p>
         ${
           isLoading
             ? ""
             : isFootballScienceDb
-              ? `<button type="button" class="scouting-primary-button" data-scouting-load-fsdb>Load Football Science DB</button>`
+              ? renderFootballScienceDbSegmentLoadActions(filters.fsdbGenderSegment)
               : `
                 <div class="scouting-load-actions">
                   <button type="button" class="scouting-primary-button" data-scouting-load-database>Load scouting player database</button>
-                  <button type="button" class="scouting-secondary-button" data-scouting-load-fsdb>Load Football Science DB</button>
+                  <button type="button" class="scouting-secondary-button" data-scouting-load-fsdb data-fsdb-gender-segment="women">Load women's Football Science DB</button>
+                  <button type="button" class="scouting-secondary-button" data-scouting-load-fsdb data-fsdb-gender-segment="men">Load men's Football Science DB</button>
                 </div>
               `
         }
@@ -15795,7 +15864,11 @@ export function handleClick(event, context) {
   }
   const loadFootballScienceDbTrigger = event.target.closest("[data-scouting-load-fsdb]");
   if (loadFootballScienceDbTrigger) {
+    const selectedSegment = normalizeFootballScienceDbGenderSegment(loadFootballScienceDbTrigger.dataset.fsdbGenderSegment);
     setScoutingDatabaseFilter("source", "fsdb");
+    if (selectedSegment) {
+      setScoutingDatabaseFilter("fsdbGenderSegment", selectedSegment);
+    }
     queueFootballScienceDbQualityLoad();
     queueScoutingDatabaseLoad();
     renderScoutingWorkspace();
@@ -16281,6 +16354,14 @@ export function handleInput(event, context) {
   setScoutingDatabaseFilter(filterField, filterInput.value);
   if (filterField === "source") {
     renderScoutingWorkspace({ preserveFocus: true });
+    const nextFilters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
+    if (nextFilters.source === "fsdb" && nextFilters.fsdbGenderSegment) {
+      queueScoutingDatabaseLoad(renderScoutingWorkspace);
+    }
+    return;
+  }
+  if (filterField === "fsdbGenderSegment") {
+    renderScoutingWorkspace({ preserveFocus: true });
     if (normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters).source === "fsdb") {
       queueScoutingDatabaseLoad(renderScoutingWorkspace);
     }
@@ -16415,6 +16496,14 @@ export function handleChange(event, context) {
   const filterField = filterInput.dataset.scoutingFilter;
   setScoutingDatabaseFilter(filterField, filterInput.value);
   if (filterField === "source") {
+    renderScoutingWorkspace({ preserveFocus: true });
+    const nextFilters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
+    if (nextFilters.source === "fsdb" && nextFilters.fsdbGenderSegment) {
+      queueScoutingDatabaseLoad(renderScoutingWorkspace);
+    }
+    return;
+  }
+  if (filterField === "fsdbGenderSegment") {
     renderScoutingWorkspace({ preserveFocus: true });
     if (normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters).source === "fsdb") {
       queueScoutingDatabaseLoad(renderScoutingWorkspace);

@@ -219,7 +219,7 @@ test("production test account can open Football Science DB from Scouting", async
   await expect(databaseTab).toBeVisible({ timeout: 15_000 });
   await databaseTab.click();
 
-  const loadButton = page.locator("[data-scouting-load-fsdb]").first();
+  const loadButton = page.locator('[data-scouting-load-fsdb][data-fsdb-gender-segment="women"]').first();
   await expect(loadButton).toBeVisible({ timeout: 15_000 });
   await loadButton.click();
 

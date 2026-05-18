@@ -1655,6 +1655,18 @@ justify-content: center;
 flex-wrap: wrap;
 gap: 0.55rem;
 }
+.scouting-fsdb-segment-actions{
+display: grid;
+grid-template-columns: repeat(2, minmax(11rem, 1fr));
+gap: 0.55rem;
+width: min(32rem, 100%);
+}
+.scouting-fsdb-segment-actions button{
+width: 100%;
+}
+.scouting-fsdb-segment-actions button.is-active{
+box-shadow: 0 0 0 3px rgba(35, 59, 45, 0.16);
+}
 @media (prefers-reduced-motion: reduce){
   .scouting-loader-leg.is-right,
   .scouting-loader-ball,
@@ -1985,7 +1997,7 @@ align-items: end;
 }
 .scouting-database-quick-filters{
 display: grid;
-grid-template-columns: repeat(4, minmax(7.2rem, 1fr)) auto;
+grid-template-columns: repeat(auto-fit, minmax(7.2rem, 1fr));
 gap: 0.42rem;
 align-items: end;
 }
@@ -5568,6 +5580,9 @@ grid-template-columns: 1fr;
 }
 .scouting-database-quick-filters,
 .scouting-database-advanced-filters{
+grid-template-columns: 1fr;
+}
+.scouting-fsdb-segment-actions{
 grid-template-columns: 1fr;
 }
 .scouting-list-form,

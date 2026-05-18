@@ -177,7 +177,7 @@ test("Football Science DB profile and identity queue open from Scouting", async 
   await openWorkspace(page, "scouting");
 
   await page.locator('.scouting-tab[data-scouting-tab="database"]').click();
-  await page.locator("[data-scouting-load-fsdb]").first().click();
+  await page.locator('[data-scouting-load-fsdb][data-fsdb-gender-segment="women"]').first().click();
 
   await expect(page.locator("[data-scouting-record-grid]")).toContainText("Ada Lovelace Example", { timeout: 15_000 });
   await page.locator('[data-open-scouting-record="fsdb:fsdb_padaexample"]').first().click();

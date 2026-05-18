@@ -17,6 +17,11 @@ test("Scouting database view can search Football Science DB through the server A
   expect(workspace).toContain("footballSciencePlayerToScoutingRecord");
   expect(workspace).toContain('source: "fsdb"');
   expect(workspace).toContain('data-scouting-load-fsdb');
+  expect(workspace).toContain('data-fsdb-gender-segment="women"');
+  expect(workspace).toContain('data-fsdb-gender-segment="men"');
+  expect(workspace).toContain("fsdbGenderSegment");
+  expect(workspace).toContain("genderSegment: filters.fsdbGenderSegment");
+  expect(workspace).toContain("Choose Football Science DB segment");
   expect(workspace).toContain('data-scouting-page-cursor');
   expect(workspace).toContain("renderScoutingFootballScienceDbPanel");
   expect(workspace).toContain("renderFootballScienceDbQualityPanel");

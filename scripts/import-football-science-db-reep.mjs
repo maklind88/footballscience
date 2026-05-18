@@ -7,6 +7,8 @@ import { pathToFileURL } from "node:url";
 const DEFAULT_REEP_PEOPLE_URL = "https://raw.githubusercontent.com/withqwerty/reep/main/data/people.csv";
 const DEFAULT_BATCH_SIZE = 250;
 const SOURCE_SYSTEM = "reep";
+const WRITABLE_GENDER_SEGMENTS = new Set(["women", "men"]);
+const IMPORT_GENDER_SEGMENTS = new Set(["women", "men", "unknown"]);
 const require = createRequire(import.meta.url);
 const { normalizePlayerRecord } = require("../api/_lib/football-science-db.js");
 
@@ -37,6 +39,8 @@ function parseArgs(argv = process.argv.slice(2)) {
     dryRun: true,
     write: false,
     confirmFullImport: false,
+    genderSegment: "",
+    onlyGenderSegment: "",
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -57,6 +61,22 @@ function parseArgs(argv = process.argv.slice(2)) {
       index += 1;
     } else if (arg === "--limit") {
       options.limit = Math.max(0, Number(argv[index + 1]) || 0);
+      index += 1;
+    } else if (arg === "--gender-segment") {
+      const incomingSegment = argv[index + 1] || "";
+      const normalizedSegment = normalizeImportGenderSegment(incomingSegment);
+      if (!normalizedSegment) {
+        throw new Error("--gender-segment must be women, men, or unknown.");
+      }
+      options.genderSegment = normalizedSegment;
+      index += 1;
+    } else if (arg === "--only-gender-segment") {
+      const incomingSegment = argv[index + 1] || "";
+      const normalizedSegment = normalizeImportGenderSegment(incomingSegment);
+      if (!WRITABLE_GENDER_SEGMENTS.has(normalizedSegment)) {
+        throw new Error("--only-gender-segment must be women or men.");
+      }
+      options.onlyGenderSegment = normalizedSegment;
       index += 1;
     }
   }
@@ -114,6 +134,11 @@ function normalizeSourceSystem(value = "") {
     .replace(/[^a-z0-9_-]+/g, "_")
     .replace(/^_+|_+$/g, "")
     .slice(0, 60);
+}
+
+function normalizeImportGenderSegment(value = "") {
+  const normalized = normalizeText(value, 20).toLowerCase();
+  return IMPORT_GENDER_SEGMENTS.has(normalized) ? normalized : "";
 }
 
 function normalizeNumber(value, fallback = null) {
@@ -176,7 +201,7 @@ function sourceLinksFromRow(row = {}) {
   return links;
 }
 
-function playerFromReepRow(row = {}) {
+function playerFromReepRow(row = {}, options = {}) {
   if (normalizeText(row.type, 20) !== "player") {
     return null;
   }
@@ -187,6 +212,9 @@ function playerFromReepRow(row = {}) {
   }
   const sourceLinks = sourceLinksFromRow(row);
   const hasSoccerdonna = sourceLinks.some((link) => link.source_system === "soccerdonna");
+  const optionGenderSegment = normalizeImportGenderSegment(options.genderSegment);
+  const inferredGenderSegment = hasSoccerdonna ? "women" : "unknown";
+  const genderSegment = optionGenderSegment || inferredGenderSegment;
   const dateOfBirth = normalizeText(row.date_of_birth, 40);
   const birthYear = /^\d{4}/.test(dateOfBirth) ? Number(dateOfBirth.slice(0, 4)) : null;
 
@@ -198,7 +226,7 @@ function playerFromReepRow(row = {}) {
     display_name: canonicalName,
     date_of_birth: /^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) ? dateOfBirth : null,
     birth_year: birthYear,
-    gender_segment: hasSoccerdonna ? "women" : "unknown",
+    gender_segment: genderSegment,
     nationality: normalizeText(row.nationality, 120) || null,
     primary_position: normalizeText(row.position, 80) || null,
     position_group: positionGroupFromPosition(row.position) || null,
@@ -212,7 +240,7 @@ function playerFromReepRow(row = {}) {
       reepId,
       source: SOURCE_SYSTEM,
       sourceLinkCount: sourceLinks.length,
-      importedGenderInference: hasSoccerdonna ? "soccerdonna-link" : "unknown",
+      importedGenderInference: optionGenderSegment ? "cli-gender-segment" : hasSoccerdonna ? "soccerdonna-link" : "unknown",
     },
     sourceLinks,
   };
@@ -341,6 +369,19 @@ function preparePlayersForImport(players = []) {
   };
 }
 
+function filterPlayersByGenderSegment(players = [], genderSegment = "") {
+  const normalizedSegment = normalizeImportGenderSegment(genderSegment);
+  if (!WRITABLE_GENDER_SEGMENTS.has(normalizedSegment)) {
+    return { players, skippedPlayers: 0, genderSegment: "" };
+  }
+  const filtered = players.filter((player) => normalizeImportGenderSegment(player.gender_segment) === normalizedSegment);
+  return {
+    players: filtered,
+    skippedPlayers: Math.max(0, players.length - filtered.length),
+    genderSegment: normalizedSegment,
+  };
+}
+
 function buildDryRunReport(players = []) {
   const fsdbIds = new Map();
   const dedupeKeys = new Map();
@@ -443,7 +484,29 @@ function formatDryRunReport(report = {}) {
   ].filter(Boolean);
 }
 
-async function readReepPlayers(sourceUrl, limit = 0) {
+function assertSafeWriteGenderPlan(report = {}, options = {}) {
+  const womenTagged = Number(report.womenTagged) || 0;
+  const menTagged = Number(report.menTagged) || 0;
+  const unknownGender = Number(report.unknownGender) || 0;
+  if (options.genderSegment === "unknown") {
+    throw new Error("Write imports cannot use --gender-segment unknown. Choose women or men before writing.");
+  }
+  if (womenTagged > 0 && menTagged > 0) {
+    throw new Error("Refusing to write a mixed women/men Football Science DB import batch.");
+  }
+  if (unknownGender > 0) {
+    throw new Error("Refusing to write players with unknown gender_segment. Use --gender-segment women|men or improve source mapping first.");
+  }
+  if (!womenTagged && !menTagged) {
+    throw new Error("Refusing to write a Football Science DB import without a women or men segment.");
+  }
+  const writtenSegment = womenTagged ? "women" : "men";
+  if (options.genderSegment && WRITABLE_GENDER_SEGMENTS.has(options.genderSegment) && options.genderSegment !== writtenSegment) {
+    throw new Error(`Import plan segment mismatch: requested ${options.genderSegment}, prepared ${writtenSegment}.`);
+  }
+}
+
+async function readReepPlayers(sourceUrl, limit = 0, options = {}) {
   const response = await fetch(sourceUrl);
   if (!response.ok) {
     throw new Error(`Could not download Reep people CSV (${response.status}).`);
@@ -456,7 +519,7 @@ async function readReepPlayers(sourceUrl, limit = 0) {
   for (const line of lines) {
     const values = parseCsvLine(line);
     const row = Object.fromEntries(headers.map((header, index) => [header, values[index] || ""]));
-    const player = playerFromReepRow(row);
+    const player = playerFromReepRow(row, options);
     if (!player) continue;
     players.push(player);
     if (limit > 0 && players.length >= limit) {
@@ -506,6 +569,8 @@ async function createImportBatch(options, rowCount) {
       metadata: {
         importer: "scripts/import-football-science-db-reep.mjs",
         limit: options.limit || null,
+        genderSegment: options.genderSegment || null,
+        onlyGenderSegment: options.onlyGenderSegment || null,
       },
     },
   });
@@ -582,11 +647,16 @@ async function main() {
   if (options.write && !options.limit && !options.confirmFullImport) {
     throw new Error("Full write imports require --confirm-full-import. Use --limit for a smaller controlled write.");
   }
-  const players = await readReepPlayers(options.sourceUrl, options.limit);
-  const importPlan = preparePlayersForImport(players);
+  const sourcePlayers = await readReepPlayers(options.sourceUrl, options.limit, options);
+  const genderFilterPlan = filterPlayersByGenderSegment(sourcePlayers, options.onlyGenderSegment);
+  const importPlan = preparePlayersForImport(genderFilterPlan.players);
+  const report = buildDryRunReport(importPlan.players);
   console.log(
-    `[fsdb:reep] prepared players=${importPlan.players.length} sourceRows=${importPlan.sourcePlayers} dryRun=${options.dryRun ? "yes" : "no"}`
+    `[fsdb:reep] prepared players=${importPlan.players.length} sourceRows=${sourcePlayers.length} genderSegment=${options.genderSegment || "source-inferred"} onlyGenderSegment=${options.onlyGenderSegment || "none"} dryRun=${options.dryRun ? "yes" : "no"}`
   );
+  if (genderFilterPlan.skippedPlayers) {
+    console.log(`[fsdb:reep] segment filter: kept=${importPlan.sourcePlayers} skipped=${genderFilterPlan.skippedPlayers}`);
+  }
   if (importPlan.collapsedDuplicatePlayers) {
     console.log(
       `[fsdb:reep] duplicate plan: collapsedPlayers=${importPlan.collapsedDuplicatePlayers} duplicateGroups=${importPlan.duplicateGroupsMerged}`
@@ -594,10 +664,10 @@ async function main() {
   }
 
   if (options.dryRun) {
-    const report = buildDryRunReport(importPlan.players);
     formatDryRunReport(report).forEach((line) => console.log(line));
     return;
   }
+  assertSafeWriteGenderPlan(report, options);
 
   let batchId = "";
   try {
@@ -624,8 +694,12 @@ export {
   buildDryRunReport,
   preparePlayersForImport,
   formatDryRunReport,
+  filterPlayersByGenderSegment,
+  assertSafeWriteGenderPlan,
   isInitialOnlyName,
   isUsableFullName,
+  normalizeImportGenderSegment,
   playerRowForImport,
   playerFromReepRow,
+  readReepPlayers,
 };

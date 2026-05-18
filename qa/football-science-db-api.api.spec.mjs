@@ -343,3 +343,86 @@ test("Reep importer dry run reports dedupe and name quality before writes", asyn
   });
   expect(adaImportRow.dedupe_key).toContain("name:ada example");
 });
+
+test("Reep importer requires a clean women or men segment before writes", async () => {
+  const importer = await reepImporterPromise;
+  const unknownPlayers = [
+    importer.playerFromReepRow({
+      type: "player",
+      reep_id: "reep_unknown",
+      name: "Casey Example",
+      full_name: "Casey Example",
+      date_of_birth: "2001-04-12",
+      nationality: "Norway",
+      position: "Forward",
+      key_wikidata: "Q10",
+    }),
+  ].filter(Boolean);
+  expect(importer.buildDryRunReport(unknownPlayers)).toMatchObject({ unknownGender: 1 });
+  expect(() => importer.assertSafeWriteGenderPlan(importer.buildDryRunReport(unknownPlayers), { genderSegment: "" })).toThrow(
+    /unknown gender_segment/
+  );
+
+  const womenPlayers = [
+    importer.playerFromReepRow({
+      type: "player",
+      reep_id: "reep_women",
+      name: "Ada Example",
+      full_name: "Ada Example",
+      date_of_birth: "2001-04-12",
+      nationality: "Norway",
+      position: "Forward",
+      key_wikidata: "Q11",
+    }, { genderSegment: "women" }),
+  ].filter(Boolean);
+  const womenReport = importer.buildDryRunReport(womenPlayers);
+  expect(womenReport).toMatchObject({ womenTagged: 1, menTagged: 0, unknownGender: 0 });
+  expect(() => importer.assertSafeWriteGenderPlan(womenReport, { genderSegment: "women" })).not.toThrow();
+
+  const mixedReport = importer.buildDryRunReport([
+    ...womenPlayers,
+    importer.playerFromReepRow({
+      type: "player",
+      reep_id: "reep_men",
+      name: "Alex Example",
+      full_name: "Alex Example",
+      date_of_birth: "2000-04-12",
+      nationality: "Sweden",
+      position: "Midfielder",
+      key_wikidata: "Q12",
+    }, { genderSegment: "men" }),
+  ].filter(Boolean));
+  expect(() => importer.assertSafeWriteGenderPlan(mixedReport, { genderSegment: "" })).toThrow(/mixed women\/men/);
+});
+
+test("Reep importer can keep only a trusted gender segment before import", async () => {
+  const importer = await reepImporterPromise;
+  const players = [
+    importer.playerFromReepRow({
+      type: "player",
+      reep_id: "reep_source_women",
+      name: "Ada Example",
+      full_name: "Ada Example",
+      date_of_birth: "2001-04-12",
+      nationality: "Norway",
+      position: "Forward",
+      key_soccerdonna: "sd-1",
+      key_wikidata: "Q20",
+    }),
+    importer.playerFromReepRow({
+      type: "player",
+      reep_id: "reep_source_unknown",
+      name: "Casey Example",
+      full_name: "Casey Example",
+      date_of_birth: "2000-04-12",
+      nationality: "Sweden",
+      position: "Midfielder",
+      key_wikidata: "Q21",
+    }),
+  ].filter(Boolean);
+
+  const plan = importer.filterPlayersByGenderSegment(players, "women");
+  expect(plan).toMatchObject({ skippedPlayers: 1, genderSegment: "women" });
+  expect(plan.players).toHaveLength(1);
+  expect(importer.buildDryRunReport(plan.players)).toMatchObject({ womenTagged: 1, unknownGender: 0 });
+});

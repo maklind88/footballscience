@@ -18,7 +18,7 @@ export const transferRoomApprovalRoles = Object.freeze([
   { id: "headCoach", label: "Head Coach" },
 ]);
 
-const transferRoomSchemaVersion = 1;
+const transferRoomSchemaVersion = 2;
 const transferRoomDefaultCurrency = "USD";
 const transferRoomSquadStatuses = new Set(["keep", "review", "sell", "loan", "release", "renew"]);
 const transferRoomTargetStages = new Set([
@@ -167,6 +167,30 @@ function normalizeTransferRoomScenarioDraft(draft = {}) {
     name: normalizeTransferRoomText(draft.name, 120),
     notes: normalizeTransferRoomText(draft.notes, 700),
   };
+}
+
+function normalizeTransferRoomDismissedTargets(source = {}) {
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(source)
+      .map(([recordId, dismissal]) => {
+        const normalizedRecordId = normalizeTransferRoomText(recordId || dismissal?.recordId, 180);
+        if (!normalizedRecordId) {
+          return null;
+        }
+        return [
+          normalizedRecordId,
+          {
+            recordId: normalizedRecordId,
+            removedAt: normalizeTransferRoomText(dismissal?.removedAt, 40) || new Date().toISOString(),
+            source: normalizeTransferRoomText(dismissal?.source || "transfer-room", 80),
+          },
+        ];
+      })
+      .filter(Boolean)
+  );
 }
 
 function normalizeTransferRoomLeagueProfile(profile = {}, fallback = transferRoomDefaultLeagueProfiles["nwsl-2026"]) {
@@ -320,6 +344,8 @@ export function normalizeTransferRoomSnapshot(snapshot = {}) {
       .slice(0, 12),
     source: normalizeTransferRoomText(snapshot.source, 80),
     sourceSlotId: normalizeTransferRoomText(snapshot.sourceSlotId || snapshot.slotId, 60),
+    sourceBoardId: normalizeTransferRoomText(snapshot.sourceBoardId || snapshot.boardId, 120),
+    sourceBoardName: normalizeTransferRoomText(snapshot.sourceBoardName || snapshot.boardName, 120),
     updatedAt: normalizeTransferRoomText(snapshot.updatedAt, 40) || new Date().toISOString(),
   };
 }
@@ -671,11 +697,10 @@ export function getTransferRoomSquadPlayersFromProfiles(profileState = {}) {
     });
 }
 
-function getTransferRoomShadowRecordsFromScouting(state = {}) {
-  const slots = state?.shadowXi?.slots && typeof state.shadowXi.slots === "object" ? state.shadowXi.slots : {};
-  const meta = state?.shadowXi?.meta && typeof state.shadowXi.meta === "object" ? state.shadowXi.meta : {};
+function addTransferRoomShadowRecordsFromSlots(recordsById, state = {}, board = {}) {
+  const slots = board.slots && typeof board.slots === "object" ? board.slots : {};
+  const meta = board.meta && typeof board.meta === "object" ? board.meta : {};
   const snapshots = state?.playerSnapshots && typeof state.playerSnapshots === "object" ? state.playerSnapshots : {};
-  const records = [];
   Object.entries(slots).forEach(([slotId, value]) => {
     const ids = Array.isArray(value) ? value : value ? [value] : [];
     ids.forEach((recordIdValue) => {
@@ -693,13 +718,35 @@ function getTransferRoomShadowRecordsFromScouting(state = {}) {
         league: snapshots[recordId]?.league || metaEntry.league,
         season: snapshots[recordId]?.season || metaEntry.season,
         position: snapshots[recordId]?.position || metaEntry.position,
+        sourceBoardId: board.id,
+        sourceBoardName: board.name,
       });
       if (snapshot) {
-        records.push(snapshot);
+        const previous = recordsById.get(snapshot.recordId) || {};
+        recordsById.set(snapshot.recordId, mergeTransferRoomSnapshot(previous, snapshot) || snapshot);
       }
     });
   });
-  return records;
+}
+
+function getTransferRoomShadowRecordsFromScouting(state = {}) {
+  const recordsById = new Map();
+  const shadowXi = state?.shadowXi && typeof state.shadowXi === "object" ? state.shadowXi : {};
+  addTransferRoomShadowRecordsFromSlots(recordsById, state, {
+    id: normalizeTransferRoomText(shadowXi.activeBoardId || "active-shadow-xi", 120),
+    name: normalizeTransferRoomText((Array.isArray(shadowXi.boards) ? shadowXi.boards : []).find((board) => board?.id === shadowXi.activeBoardId)?.name || "Active Shadow XI", 120),
+    slots: shadowXi.slots,
+    meta: shadowXi.meta,
+  });
+  (Array.isArray(shadowXi.boards) ? shadowXi.boards : []).forEach((board) => {
+    addTransferRoomShadowRecordsFromSlots(recordsById, state, {
+      id: normalizeTransferRoomText(board?.id, 120),
+      name: normalizeTransferRoomText(board?.name, 120),
+      slots: board?.slots,
+      meta: board?.meta,
+    });
+  });
+  return Array.from(recordsById.values()).filter(Boolean);
 }
 
 export function syncTransferRoomTargetsFromScouting(state, scoutingState = {}) {
@@ -712,7 +759,11 @@ export function syncTransferRoomTargetsFromScouting(state, scoutingState = {}) {
   const targetSnapshots = state.targetSnapshots && typeof state.targetSnapshots === "object" && !Array.isArray(state.targetSnapshots)
     ? { ...state.targetSnapshots }
     : {};
+  const dismissedTargetIds = normalizeTransferRoomDismissedTargets(state.dismissedTargetIds || {});
   getTransferRoomShadowRecordsFromScouting(scoutingState).forEach((snapshot) => {
+    if (dismissedTargetIds[snapshot.recordId]) {
+      return;
+    }
     const previousSnapshot = targetSnapshots[snapshot.recordId] || {};
     const nextSnapshot = mergeTransferRoomSnapshot(previousSnapshot, {
       ...snapshot,
@@ -733,6 +784,7 @@ export function syncTransferRoomTargetsFromScouting(state, scoutingState = {}) {
   });
   state.targetPlans = targetPlans;
   state.targetSnapshots = targetSnapshots;
+  state.dismissedTargetIds = dismissedTargetIds;
 }
 
 export function cloneTransferRoomState(source = {}, options = {}) {
@@ -787,6 +839,7 @@ export function cloneTransferRoomState(source = {}, options = {}) {
     squadPlans: source.squadPlans && typeof source.squadPlans === "object" && !Array.isArray(source.squadPlans) ? { ...source.squadPlans } : {},
     targetPlans,
     targetSnapshots,
+    dismissedTargetIds: normalizeTransferRoomDismissedTargets(source.dismissedTargetIds || {}),
     auditEvents: (Array.isArray(source.auditEvents) ? source.auditEvents : [])
       .map(normalizeTransferRoomAuditEvent)
       .filter(Boolean)
@@ -882,6 +935,14 @@ export function removeTransferRoomTargetFromState(state, recordId) {
   }
   delete state.targetPlans[id];
   delete state.targetSnapshots[id];
+  state.dismissedTargetIds = {
+    ...normalizeTransferRoomDismissedTargets(state.dismissedTargetIds || {}),
+    [id]: {
+      recordId: id,
+      removedAt: new Date().toISOString(),
+      source: "transfer-room",
+    },
+  };
   return true;
 }
 
@@ -912,6 +973,11 @@ export function addTransferRoomTargetSnapshot(state, snapshot = {}, options = {}
   });
   if (!normalizedSnapshot) {
     return false;
+  }
+  if (state.dismissedTargetIds?.[normalizedSnapshot.recordId]) {
+    const nextDismissedTargetIds = { ...state.dismissedTargetIds };
+    delete nextDismissedTargetIds[normalizedSnapshot.recordId];
+    state.dismissedTargetIds = nextDismissedTargetIds;
   }
   state.targetSnapshots[normalizedSnapshot.recordId] = normalizedSnapshot;
   state.targetPlans[normalizedSnapshot.recordId] = normalizeTransferRoomTargetPlan({

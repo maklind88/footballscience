@@ -963,6 +963,36 @@
   gap: 4px;
 }
 
+.transfer-room-target-readiness {
+  flex: 0 0 auto;
+  max-width: 132px;
+  padding: 7px 9px;
+  border: 1px solid rgba(23, 32, 25, 0.12);
+  background: #fbfcf8;
+  color: #172019;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.transfer-room-target-readiness.is-ready {
+  border-color: rgba(54, 114, 79, 0.24);
+  background: #f5fbef;
+}
+
+.transfer-room-target-readiness.is-watch {
+  border-color: rgba(107, 79, 22, 0.34);
+  background: #fff8e4;
+}
+
+.transfer-room-target-readiness.is-blocked {
+  border-color: rgba(111, 29, 34, 0.34);
+  background: #fff1f2;
+  color: #6f1d22;
+}
+
 .transfer-room-target-card-head strong,
 .transfer-room-target-card-head span {
   overflow-wrap: anywhere;

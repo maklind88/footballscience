@@ -161,6 +161,48 @@ function getRuleStatusLabel(status = "clear") {
   return "Clear";
 }
 
+function getTargetDisplayName(plan = {}, snapshot = {}) {
+  return plan.name || snapshot.name || `Incomplete snapshot ${String(plan.recordId || snapshot.recordId || "").slice(0, 10)}`;
+}
+
+function getTargetSnapshotHealth(plan = {}, snapshot = {}) {
+  const checks = [
+    plan.name || snapshot.name,
+    plan.position || snapshot.position,
+    plan.club || snapshot.club,
+    snapshot.league,
+    snapshot.summary,
+    Array.isArray(snapshot.metrics) && snapshot.metrics.length,
+  ];
+  const completeCount = checks.filter(Boolean).length;
+  const score = Math.round((completeCount / checks.length) * 100);
+  return {
+    score,
+    tone: score >= 84 ? "ready" : score >= 50 ? "watch" : "blocked",
+    label: score >= 84 ? "Snapshot strong" : score >= 50 ? "Snapshot partial" : "Snapshot weak",
+  };
+}
+
+function getTargetReadiness(plan = {}) {
+  const snapshot = getTargetSnapshot(plan.recordId);
+  const snapshotHealth = getTargetSnapshotHealth(plan, snapshot);
+  const gateIssues = getTargetGateIssues(plan);
+  const approvalSummary = getTargetApprovalSummary(plan);
+  const hasDealData = Boolean(toNumber(plan.wage) && (["free-agent", "loan", "trade"].includes(plan.dealType) || toNumber(plan.fee)));
+  const hasOwner = Boolean(plan.decisionOwner && plan.nextAction);
+  const approvalsScore = Math.round((approvalSummary.approvedCount / Math.max(1, approvalSummary.total)) * 100);
+  const dataScore = (snapshotHealth.score * 0.35) + (hasDealData ? 25 : 0) + (hasOwner ? 20 : 0) + (approvalsScore * 0.2);
+  const score = Math.max(0, Math.min(100, Math.round(dataScore - gateIssues.length * 18 - approvalSummary.rejectedCount * 30)));
+  return {
+    score,
+    snapshotHealth,
+    gateIssues,
+    approvalSummary,
+    tone: gateIssues.length || approvalSummary.rejectedCount ? "blocked" : score >= 76 ? "ready" : score >= 48 ? "watch" : "blocked",
+    label: gateIssues.length ? `${gateIssues.length} blocker${gateIssues.length === 1 ? "" : "s"}` : score >= 76 ? "Decision ready" : score >= 48 ? "Build case" : "Needs data",
+  };
+}
+
 function getTargetApprovalSummary(plan = {}) {
   const approvals = plan.approvals || {};
   const approvedCount = transferRoomApprovalRoles.filter((role) => approvals[role.id]?.status === "approved").length;
@@ -1016,6 +1058,7 @@ function renderTargetCard(plan) {
   const snapshot = getTargetSnapshot(plan.recordId);
   const canEdit = getCanEdit();
   const gateIssues = getTargetGateIssues(plan);
+  const readiness = getTargetReadiness(plan);
   const approvalSummary = getTargetApprovalSummary(plan);
   const squadOptions = (activeContext?.squadPlayers || [])
     .map((player) => `<option value="${escapeHtml(player.id)}" ${plan.replacementFor === player.id ? "selected" : ""}>${escapeHtml(player.name)}</option>`)
@@ -1025,9 +1068,10 @@ function renderTargetCard(plan) {
       <div class="transfer-room-target-card-head">
         <div class="transfer-room-target-avatar">${snapshot.imageUrl ? `<img src="${escapeHtml(snapshot.imageUrl)}" alt="" />` : escapeHtml((plan.name || snapshot.name || "T").slice(0, 1))}</div>
         <div>
-          <strong>${escapeHtml(plan.name || snapshot.name || "Saved target")}</strong>
+          <strong>${escapeHtml(getTargetDisplayName(plan, snapshot))}</strong>
           <span>${escapeHtml([plan.position || snapshot.position, plan.club || snapshot.club].filter(Boolean).join(" / ") || "Scouted player")}</span>
         </div>
+        <em class="transfer-room-target-readiness is-${escapeHtml(readiness.tone)}">${escapeHtml(`${readiness.score}% / ${readiness.label}`)}</em>
         <button type="button" data-transfer-open-target-profile="${escapeHtml(plan.recordId)}" aria-label="Open saved transfer target profile">Open</button>
       </div>
       <div class="transfer-room-target-meta">
@@ -1036,6 +1080,7 @@ function renderTargetCard(plan) {
         <span>${escapeHtml(`${getRiskLabel(plan.riskLevel)} risk`)}</span>
         <span class="${approvalSummary.rejectedCount ? "is-blocked" : approvalSummary.approvedCount === approvalSummary.total ? "is-clear" : ""}">${escapeHtml(approvalSummary.label)}</span>
         <span class="${gateIssues.length ? "is-blocked" : "is-clear"}">${escapeHtml(gateIssues.length ? `${gateIssues.length} gate blockers` : "Gate clear")}</span>
+        <span class="${readiness.snapshotHealth.tone === "ready" ? "is-clear" : readiness.snapshotHealth.tone === "blocked" ? "is-blocked" : ""}">${escapeHtml(readiness.snapshotHealth.label)}</span>
         <span>${escapeHtml(snapshot.league || "League unknown")}</span>
         <span>${escapeHtml(snapshot.fit || "Fit pending")}</span>
         <span>${escapeHtml(plan.nextAction || snapshot.signalLabel || "Next action pending")}</span>

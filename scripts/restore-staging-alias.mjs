@@ -64,15 +64,26 @@ async function getDeployment(host) {
 async function assignAlias(deploymentId, aliasHost) {
   const aliasUrl = new URL(`https://api.vercel.com/v2/deployments/${deploymentId}/aliases`);
   aliasUrl.searchParams.set("teamId", teamId);
-  await fetchJson(
-    aliasUrl,
-    {
-      method: "POST",
-      headers: vercelHeaders,
-      body: JSON.stringify({ alias: aliasHost }),
-    },
-    `assign ${aliasHost}`,
-  );
+  try {
+    await fetchJson(
+      aliasUrl,
+      {
+        method: "POST",
+        headers: vercelHeaders,
+        body: JSON.stringify({ alias: aliasHost }),
+      },
+      `assign ${aliasHost}`,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message.includes("already associated with this deployment")) {
+      console.log(`Staging alias already restored: ${aliasHost}.`);
+      return;
+    }
+
+    throw error;
+  }
 }
 
 async function fetchJson(url, options, label) {

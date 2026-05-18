@@ -129,7 +129,7 @@ Rules:
 ## Gameplan
 
 - `id`: `gameplan`
-- `purpose`: match-specific command room for staff alignment, tactical intent, decision scenarios, evidence, live observations, checklist readiness, post-match learning, and a separate Player Brief for selected squad players.
+- `purpose`: compact match command room for staff alignment, top decision triggers, evidence chips, matchday observations, checklist readiness, post-match learning, and a separate Player Brief for selected squad players.
 - `data`: `football-gameplan-v1`
 - `api`: `/api/gameplan-player-brief` signs expiring Player Brief links for staff and serves public, token-gated player payloads without staff/opponent-plan fields.
 - `permissions`: platform/club/team admin, coach, scout, and analyst edit; performance and medical can read staff-safe preparation context.

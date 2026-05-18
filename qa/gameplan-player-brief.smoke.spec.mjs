@@ -48,6 +48,10 @@ test("Gameplan Player Brief portal is audience-gated and records player receipts
   await bootApp(page);
   await openWorkspace(page, "gameplan");
   await expect(page.locator("#gameplanWorkspace .gameplan-shell")).toBeVisible();
+  await expect(page.locator("#gameplanWorkspace [data-gameplan-tab]")).toHaveCount(4);
+  await expect(page.locator("#gameplanWorkspace")).toContainText("Match Command");
+  await page.locator('[data-gameplan-tab="matchday"]').click();
+  await expect(page.locator("#gameplanWorkspace")).toContainText("Coach Mode");
 
   await page.locator('[data-gameplan-tab="player-brief"]').click();
   await expect(page.locator(".gameplan-player-layout")).toBeVisible();

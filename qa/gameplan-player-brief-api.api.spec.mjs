@@ -195,7 +195,7 @@ test("Gameplan state carries elite workflow sections", async () => {
   );
   const result = JSON.parse(output.trim().split("\n").at(-1));
 
-  expect(result.activeTab).toBe("live");
+  expect(result.activeTab).toBe("matchday");
   expect(result.agenda).toContain("Opponent identity");
   expect(result.decisions).toBe("Press trigger approved.");
   expect(result.scenario).toEqual(expect.objectContaining({ title: "Protect lead", status: "ready" }));

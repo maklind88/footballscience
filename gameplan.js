@@ -501,7 +501,15 @@ function setActiveGameplan(gameplanId = "") {
 
 function setGameplanActiveTab(tabId = "") {
   const state = getState();
-  state.activeTab = gameplanActiveTabs.includes(tabId) ? tabId : "plan";
+  if (gameplanActiveTabs.includes(tabId)) {
+    state.activeTab = tabId;
+  } else if (tabId === "scenarios" || tabId === "evidence") {
+    state.activeTab = "plan";
+  } else if (tabId === "live" || tabId === "review" || tabId === "checklist") {
+    state.activeTab = "matchday";
+  } else {
+    state.activeTab = "plan";
+  }
   writeGameplanState({ syncCentral: false });
 }
 
@@ -951,12 +959,8 @@ function renderTabs() {
   const tabs = [
     ["plan", "Plan"],
     ["staff", "Staff"],
-    ["scenarios", "Scenarios"],
-    ["evidence", "Evidence"],
     ["player-brief", "Player Brief"],
-    ["live", "Live"],
-    ["review", "Review"],
-    ["checklist", "Checklist"],
+    ["matchday", "Matchday"],
   ];
   return `
     <nav class="gameplan-tabs" aria-label="Gameplan sections">
@@ -970,34 +974,122 @@ function renderTabs() {
   `;
 }
 
-function renderPlanTab(plan) {
+function renderEvidenceChips(plan) {
+  const evidence = plan.evidence || [];
   return `
-    <section class="gameplan-panel gameplan-plan-grid">
+    <div class="gameplan-evidence-chips">
+      ${
+        evidence.length
+          ? evidence
+              .slice(0, 4)
+              .map((item) => {
+                const label = item.title || item.source || "Evidence";
+                const meta = [item.source, item.confidence].filter(Boolean).join(" · ");
+                const content = `
+                  <strong>${escapeHtml(label)}</strong>
+                  ${meta ? `<span>${escapeHtml(meta)}</span>` : ""}
+                `;
+                return item.url
+                  ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener" class="gameplan-evidence-chip">${content}</a>`
+                  : `<span class="gameplan-evidence-chip">${content}</span>`;
+              })
+              .join("")
+          : `<span class="gameplan-evidence-chip is-empty">No evidence linked</span>`
+      }
+    </div>
+  `;
+}
+
+function renderEvidenceQuickEditor(plan) {
+  const evidence = plan.evidence || [];
+  const disabled = !canEditPlan();
+  if (!evidence.length) {
+    return "";
+  }
+  return `
+    <div class="gameplan-evidence-quick-list">
+      ${evidence
+        .slice(0, 4)
+        .map(
+          (item) => `
+            <article class="gameplan-evidence-quick-row">
+              <input value="${escapeHtml(item.title)}" data-gameplan-evidence="${escapeHtml(item.id)}" data-gameplan-evidence-field="title" ${disabled ? "disabled" : ""} aria-label="Evidence title">
+              <input value="${escapeHtml(item.url)}" data-gameplan-evidence="${escapeHtml(item.id)}" data-gameplan-evidence-field="url" ${disabled ? "disabled" : ""} aria-label="Evidence URL">
+              <select data-gameplan-evidence="${escapeHtml(item.id)}" data-gameplan-evidence-field="confidence" ${disabled ? "disabled" : ""} aria-label="Evidence confidence">
+                ${renderOptions(gameplanEvidenceConfidenceOptions, item.confidence || "medium")}
+              </select>
+              <button type="button" data-gameplan-remove-evidence="${escapeHtml(item.id)}" ${disabled ? "disabled" : ""}>Remove</button>
+            </article>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderCommandScenarioCard(item, index) {
+  const disabled = !canEditPlan();
+  return `
+    <article class="gameplan-command-trigger">
+      <div class="gameplan-command-trigger-head">
+        <strong>${index + 1}</strong>
+        <input value="${escapeHtml(item.title)}" data-gameplan-scenario="${escapeHtml(item.id)}" data-gameplan-scenario-field="title" ${disabled ? "disabled" : ""} aria-label="Decision trigger title">
+        <select data-gameplan-scenario="${escapeHtml(item.id)}" data-gameplan-scenario-field="status" ${disabled ? "disabled" : ""} aria-label="Decision trigger status">
+          ${renderOptions(gameplanScenarioStatusOptions, item.status || "open")}
+        </select>
+      </div>
+      <div class="gameplan-command-trigger-body">
+        <label>
+          <span>If</span>
+          <textarea rows="2" data-gameplan-scenario="${escapeHtml(item.id)}" data-gameplan-scenario-field="trigger" ${disabled ? "disabled" : ""}>${escapeHtml(item.trigger)}</textarea>
+        </label>
+        <label>
+          <span>Then</span>
+          <textarea rows="2" data-gameplan-scenario="${escapeHtml(item.id)}" data-gameplan-scenario-field="staffAction" ${disabled ? "disabled" : ""}>${escapeHtml(item.staffAction)}</textarea>
+        </label>
+      </div>
+    </article>
+  `;
+}
+
+function renderPlanTab(plan) {
+  const scenarioCards = (plan.scenarioCards || []).slice(0, 3);
+  const canAddTrigger = canEditPlan() && (plan.scenarioCards || []).length < 3;
+  return `
+    <section class="gameplan-panel gameplan-command-grid">
+      <section class="gameplan-card gameplan-card-span gameplan-command-card">
+        <header>
+          <span>Match Command</span>
+          <button type="button" data-gameplan-add-evidence ${!canEditPlan() ? "disabled" : ""}>Add evidence</button>
+        </header>
+        <div class="gameplan-command-summary">
+          ${renderField("summary.objective", "Match objective", plan.summary?.objective, { rows: 2 })}
+          ${renderField("summary.nonNegotiables", "3 non-negotiables", plan.summary?.nonNegotiables, { rows: 2 })}
+          ${renderField("opponentPlan.threats", "Key opponent threat", plan.opponentPlan?.threats, { rows: 2 })}
+          ${renderField("opponentPlan.weakZones", "Our main advantage", plan.opponentPlan?.weakZones, { rows: 2 })}
+        </div>
+        ${renderEvidenceChips(plan)}
+        ${renderEvidenceQuickEditor(plan)}
+      </section>
       <section class="gameplan-card gameplan-card-span">
-        <header><span>Match Brief</span></header>
-        <div class="gameplan-form-grid">
-          ${renderField("summary.objective", "Match objective", plan.summary?.objective, { rows: 3 })}
-          ${renderField("summary.matchStory", "Expected match story", plan.summary?.matchStory, { rows: 3 })}
-          ${renderField("summary.nonNegotiables", "Non-negotiables", plan.summary?.nonNegotiables, { rows: 3, wide: true })}
+        <header>
+          <span>Top 3 Decision Triggers</span>
+          <button type="button" data-gameplan-add-scenario ${!canAddTrigger ? "disabled" : ""}>Add trigger</button>
+        </header>
+        <div class="gameplan-command-triggers">
+          ${
+            scenarioCards.length
+              ? scenarioCards.map(renderCommandScenarioCard).join("")
+              : `<div class="gameplan-empty-small">No decision triggers yet.</div>`
+          }
         </div>
       </section>
       <section class="gameplan-card gameplan-card-span">
-        <header><span>Tactical Intent</span></header>
-        <div class="gameplan-phase-grid">
-          ${gameplanPhaseKeys
-            .map((key) => renderField(`tactical.${key}`, gameplanPhaseLabels[key], plan.tactical?.[key], { rows: 4 }))
+        <header><span>Phase Notes</span></header>
+        <div class="gameplan-phase-grid gameplan-phase-grid-compact">
+          ${["inPossession", "outOfPossession", "setPieces"]
+            .map((key) => renderField(`tactical.${key}`, gameplanPhaseLabels[key], plan.tactical?.[key], { rows: 3 }))
             .join("")}
-        </div>
-      </section>
-      <section class="gameplan-card gameplan-card-span">
-        <header><span>Opponent Plan</span></header>
-        <div class="gameplan-form-grid">
-          ${renderField("opponentPlan.shape", "Shape", plan.opponentPlan?.shape, { rows: 2 })}
-          ${renderField("opponentPlan.threats", "Threats", plan.opponentPlan?.threats, { rows: 3 })}
-          ${renderField("opponentPlan.weakZones", "Weak zones", plan.opponentPlan?.weakZones, { rows: 3 })}
-          ${renderField("opponentPlan.keyPlayers", "Key players", plan.opponentPlan?.keyPlayers, { rows: 3 })}
-          ${renderField("opponentPlan.pressingCues", "Pressing cues", plan.opponentPlan?.pressingCues, { rows: 3 })}
-          ${renderField("opponentPlan.setPieces", "Set-piece risk", plan.opponentPlan?.setPieces, { rows: 3 })}
         </div>
       </section>
     </section>
@@ -1046,6 +1138,7 @@ function renderStaffResponsibilityCard(item) {
 function renderStaffTab(plan) {
   return `
     <section class="gameplan-panel">
+      ${renderMeetingPanel(plan)}
       <section class="gameplan-card">
         <header>
           <span>Staff Responsibilities</span>
@@ -1053,68 +1146,6 @@ function renderStaffTab(plan) {
         </header>
         <div class="gameplan-staff-list">
           ${(plan.staffResponsibilities || []).map(renderStaffResponsibilityCard).join("")}
-        </div>
-      </section>
-    </section>
-  `;
-}
-
-function renderScenarioCard(item) {
-  const disabled = !canEditPlan();
-  return `
-    <article class="gameplan-staff-card gameplan-decision-card">
-      <div class="gameplan-staff-top">
-        <label>
-          <span>Owner</span>
-          <select data-gameplan-scenario="${escapeHtml(item.id)}" data-gameplan-scenario-field="ownerUserId" ${disabled ? "disabled" : ""}>
-            ${renderUserOptions(item.ownerUserId)}
-          </select>
-        </label>
-        <label>
-          <span>Status</span>
-          <select data-gameplan-scenario="${escapeHtml(item.id)}" data-gameplan-scenario-field="status" ${disabled ? "disabled" : ""}>
-            ${renderOptions(gameplanScenarioStatusOptions, item.status || "open")}
-          </select>
-        </label>
-        <button type="button" data-gameplan-remove-scenario="${escapeHtml(item.id)}" ${disabled ? "disabled" : ""}>Remove</button>
-      </div>
-      <label>
-        <span>Scenario</span>
-        <input value="${escapeHtml(item.title)}" data-gameplan-scenario="${escapeHtml(item.id)}" data-gameplan-scenario-field="title" ${disabled ? "disabled" : ""}>
-      </label>
-      <div class="gameplan-staff-fields">
-        <label>
-          <span>Trigger</span>
-          <textarea rows="3" data-gameplan-scenario="${escapeHtml(item.id)}" data-gameplan-scenario-field="trigger" ${disabled ? "disabled" : ""}>${escapeHtml(item.trigger)}</textarea>
-        </label>
-        <label>
-          <span>Staff action</span>
-          <textarea rows="3" data-gameplan-scenario="${escapeHtml(item.id)}" data-gameplan-scenario-field="staffAction" ${disabled ? "disabled" : ""}>${escapeHtml(item.staffAction)}</textarea>
-        </label>
-        <label class="is-wide">
-          <span>Player message</span>
-          <textarea rows="3" data-gameplan-scenario="${escapeHtml(item.id)}" data-gameplan-scenario-field="playerMessage" ${disabled ? "disabled" : ""}>${escapeHtml(item.playerMessage)}</textarea>
-        </label>
-      </div>
-    </article>
-  `;
-}
-
-function renderScenariosTab(plan) {
-  const scenarioCards = plan.scenarioCards || [];
-  return `
-    <section class="gameplan-panel">
-      <section class="gameplan-card">
-        <header>
-          <span>Decision Scenarios</span>
-          <button type="button" data-gameplan-add-scenario ${!canEditPlan() ? "disabled" : ""}>Add scenario</button>
-        </header>
-        <div class="gameplan-decision-list">
-          ${
-            scenarioCards.length
-              ? scenarioCards.map(renderScenarioCard).join("")
-              : `<div class="gameplan-empty-small">No decision cards yet.</div>`
-          }
         </div>
       </section>
     </section>
@@ -1137,63 +1168,6 @@ function renderMeetingPanel(plan) {
         <strong>${meeting.approvedAt ? "Approved" : "Not approved"}</strong>
         <span>${meeting.approvedAt ? escapeHtml(formatTimestamp(meeting.approvedAt)) : "Head Coach sign-off needed before sharing final brief."}</span>
       </div>
-    </section>
-  `;
-}
-
-function renderEvidenceCard(item) {
-  const disabled = !canEditPlan();
-  return `
-    <article class="gameplan-evidence-card">
-      <div class="gameplan-evidence-top">
-        <label>
-          <span>Title</span>
-          <input value="${escapeHtml(item.title)}" data-gameplan-evidence="${escapeHtml(item.id)}" data-gameplan-evidence-field="title" ${disabled ? "disabled" : ""}>
-        </label>
-        <label>
-          <span>Source</span>
-          <input value="${escapeHtml(item.source)}" data-gameplan-evidence="${escapeHtml(item.id)}" data-gameplan-evidence-field="source" ${disabled ? "disabled" : ""}>
-        </label>
-        <label>
-          <span>Confidence</span>
-          <select data-gameplan-evidence="${escapeHtml(item.id)}" data-gameplan-evidence-field="confidence" ${disabled ? "disabled" : ""}>
-            ${renderOptions(gameplanEvidenceConfidenceOptions, item.confidence || "medium")}
-          </select>
-        </label>
-        <button type="button" data-gameplan-remove-evidence="${escapeHtml(item.id)}" ${disabled ? "disabled" : ""}>Remove</button>
-      </div>
-      <div class="gameplan-form-grid">
-        <label class="gameplan-field">
-          <span>Phase</span>
-          <input value="${escapeHtml(item.phase)}" data-gameplan-evidence="${escapeHtml(item.id)}" data-gameplan-evidence-field="phase" ${disabled ? "disabled" : ""}>
-        </label>
-        <label class="gameplan-field">
-          <span>Clip / report URL</span>
-          <input value="${escapeHtml(item.url)}" data-gameplan-evidence="${escapeHtml(item.id)}" data-gameplan-evidence-field="url" ${disabled ? "disabled" : ""}>
-        </label>
-        <label class="gameplan-field is-wide">
-          <span>Why it matters</span>
-          <textarea rows="3" data-gameplan-evidence="${escapeHtml(item.id)}" data-gameplan-evidence-field="note" ${disabled ? "disabled" : ""}>${escapeHtml(item.note)}</textarea>
-        </label>
-      </div>
-    </article>
-  `;
-}
-
-function renderEvidenceTab(plan) {
-  const evidence = plan.evidence || [];
-  return `
-    <section class="gameplan-panel">
-      ${renderMeetingPanel(plan)}
-      <section class="gameplan-card">
-        <header>
-          <span>Evidence Library</span>
-          <button type="button" data-gameplan-add-evidence ${!canEditPlan() ? "disabled" : ""}>Add evidence</button>
-        </header>
-        <div class="gameplan-evidence-list">
-          ${evidence.length ? evidence.map(renderEvidenceCard).join("") : `<div class="gameplan-empty-small">No clips, reports or proof points connected yet.</div>`}
-        </div>
-      </section>
     </section>
   `;
 }
@@ -1530,59 +1504,35 @@ function renderObservationCard(item) {
   `;
 }
 
-function renderLiveTab(plan) {
+function renderMatchdayTab(plan) {
   const live = plan.live || {};
   const halftime = live.halftime || {};
   const observations = live.observations || [];
+  const review = plan.review || {};
+  const disabled = !canEditPlan();
   return `
-    <section class="gameplan-panel">
+    <section class="gameplan-panel gameplan-matchday-grid">
       <section class="gameplan-card">
-        <header><span>Halftime Board</span></header>
+        <header><span>Coach Mode</span></header>
         <div class="gameplan-form-grid">
-          ${renderField("live.halftime.keyMessage", "Key message", halftime.keyMessage, { rows: 3 })}
-          ${renderField("live.halftime.adjustments", "Adjustments", halftime.adjustments, { rows: 3 })}
-          ${renderField("live.halftime.risks", "Risks to control", halftime.risks, { rows: 3, wide: true })}
+          ${renderField("live.halftime.keyMessage", "Halftime message", halftime.keyMessage, { rows: 2 })}
+          ${renderField("live.halftime.adjustments", "Adjustments", halftime.adjustments, { rows: 2 })}
+          ${renderField("live.halftime.risks", "Risks", halftime.risks, { rows: 2, wide: true })}
         </div>
       </section>
       <section class="gameplan-card">
         <header>
-          <span>Live Observations</span>
-          <button type="button" data-gameplan-add-observation ${!canEditPlan() ? "disabled" : ""}>Add observation</button>
+          <span>Observations</span>
+          <button type="button" data-gameplan-add-observation ${disabled ? "disabled" : ""}>Add observation</button>
         </header>
         <div class="gameplan-observation-list">
           ${
             observations.length
               ? observations.map(renderObservationCard).join("")
-              : `<div class="gameplan-empty-small">No live observations captured yet.</div>`
+              : `<div class="gameplan-empty-small">No matchday observations yet.</div>`
           }
         </div>
       </section>
-    </section>
-  `;
-}
-
-function renderReviewTab(plan) {
-  const review = plan.review || {};
-  return `
-    <section class="gameplan-panel">
-      <section class="gameplan-card">
-        <header><span>Post-Match Learning Loop</span></header>
-        <div class="gameplan-form-grid">
-          ${renderField("review.outcome", "Outcome", review.outcome, { rows: 3 })}
-          ${renderField("review.planWorked", "Plan worked / failed because", review.planWorked, { rows: 3 })}
-          ${renderField("review.lessons", "Lessons", review.lessons, { rows: 4, wide: true })}
-          ${renderField("review.trainingCarryover", "Training carryover", review.trainingCarryover, { rows: 3 })}
-          ${renderField("review.scoutingCarryover", "Scouting / analysis carryover", review.scoutingCarryover, { rows: 3 })}
-        </div>
-      </section>
-    </section>
-  `;
-}
-
-function renderChecklistTab(plan) {
-  const disabled = !canEditPlan();
-  return `
-    <section class="gameplan-panel">
       <section class="gameplan-card">
         <header>
           <span>Matchday Checklist</span>
@@ -1606,6 +1556,14 @@ function renderChecklistTab(plan) {
             .join("")}
         </div>
       </section>
+      <section class="gameplan-card">
+        <header><span>After Action</span></header>
+        <div class="gameplan-form-grid">
+          ${renderField("review.outcome", "Outcome", review.outcome, { rows: 2 })}
+          ${renderField("review.lessons", "Lessons", review.lessons, { rows: 2 })}
+          ${renderField("review.trainingCarryover", "Training carryover", review.trainingCarryover, { rows: 2, wide: true })}
+        </div>
+      </section>
     </section>
   `;
 }
@@ -1613,12 +1571,8 @@ function renderChecklistTab(plan) {
 function renderActiveTab(plan) {
   const tab = getState().activeTab || "plan";
   if (tab === "staff") return renderStaffTab(plan);
-  if (tab === "scenarios") return renderScenariosTab(plan);
-  if (tab === "evidence") return renderEvidenceTab(plan);
   if (tab === "player-brief") return renderPlayerBriefTab(plan);
-  if (tab === "live") return renderLiveTab(plan);
-  if (tab === "review") return renderReviewTab(plan);
-  if (tab === "checklist") return renderChecklistTab(plan);
+  if (tab === "matchday") return renderMatchdayTab(plan);
   return renderPlanTab(plan);
 }
 

@@ -58,7 +58,7 @@ const defaultStaffResponsibilityTemplates = Object.freeze([
 
 export const gameplanPhaseKeys = defaultPhaseKeys;
 export const gameplanPhaseLabels = defaultPhaseLabels;
-export const gameplanActiveTabs = Object.freeze(["plan", "staff", "scenarios", "evidence", "player-brief", "live", "review", "checklist"]);
+export const gameplanActiveTabs = Object.freeze(["plan", "staff", "player-brief", "matchday"]);
 export const gameplanStatusOptions = Object.freeze([
   { value: "draft", label: "Draft" },
   { value: "staff-review", label: "Staff review" },
@@ -107,6 +107,20 @@ function normalizeOption(value, options, fallback) {
 function normalizeDate(value) {
   const text = normalizeGameplanText(value, 20);
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "";
+}
+
+function normalizeGameplanActiveTab(value) {
+  const tab = normalizeGameplanText(value, 40);
+  if (gameplanActiveTabs.includes(tab)) {
+    return tab;
+  }
+  if (tab === "scenarios" || tab === "evidence") {
+    return "plan";
+  }
+  if (tab === "live" || tab === "review" || tab === "checklist") {
+    return "matchday";
+  }
+  return "plan";
 }
 
 function normalizeGameplanPerson(entry = {}) {
@@ -400,9 +414,7 @@ export function cloneGameplanState(source = {}, options = {}) {
   }
   const selectedId = normalizeGameplanText(source.activeGameplanId, 180);
   const activeGameplanId = gameplans.some((plan) => plan.id === selectedId) ? selectedId : gameplans[0]?.id || "";
-  const activeTab = gameplanActiveTabs.includes(source.activeTab)
-    ? source.activeTab
-    : "plan";
+  const activeTab = normalizeGameplanActiveTab(source.activeTab);
   return {
     schemaVersion: gameplanSchemaVersion,
     activeGameplanId,

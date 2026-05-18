@@ -81,7 +81,10 @@
 .gameplan-decision-list,
 .gameplan-evidence-list,
 .gameplan-observation-list,
-.gameplan-individual-note-list {
+.gameplan-individual-note-list,
+.gameplan-command-triggers,
+.gameplan-evidence-chips,
+.gameplan-evidence-quick-list {
   display: grid;
   gap: 0.5rem;
 }
@@ -97,6 +100,7 @@
 .gameplan-staff-card button,
 .gameplan-evidence-card button,
 .gameplan-observation-card button,
+.gameplan-evidence-quick-row button,
 .gameplan-check-item button {
   min-height: 2.35rem;
   border: 0;
@@ -266,7 +270,9 @@
 
 .gameplan-panel,
 .gameplan-plan-grid,
-.gameplan-player-layout {
+.gameplan-player-layout,
+.gameplan-command-grid,
+.gameplan-matchday-grid {
   display: grid;
   gap: 0.9rem;
 }
@@ -324,6 +330,11 @@
 .gameplan-observation-card textarea,
 .gameplan-observation-card input,
 .gameplan-observation-card select,
+.gameplan-command-trigger textarea,
+.gameplan-command-trigger input,
+.gameplan-command-trigger select,
+.gameplan-evidence-quick-row input,
+.gameplan-evidence-quick-row select,
 .gameplan-delivery-row input,
 .gameplan-check-item input,
 .gameplan-check-item select,
@@ -343,7 +354,8 @@
 .gameplan-field textarea,
 .gameplan-staff-card textarea,
 .gameplan-evidence-card textarea,
-.gameplan-observation-card textarea {
+.gameplan-observation-card textarea,
+.gameplan-command-trigger textarea {
   resize: vertical;
   padding: 0.75rem;
   line-height: 1.35;
@@ -355,6 +367,10 @@
 .gameplan-evidence-card select,
 .gameplan-observation-card input,
 .gameplan-observation-card select,
+.gameplan-command-trigger input,
+.gameplan-command-trigger select,
+.gameplan-evidence-quick-row input,
+.gameplan-evidence-quick-row select,
 .gameplan-delivery-row input,
 .gameplan-check-item input,
 .gameplan-check-item select,
@@ -372,6 +388,11 @@
 .gameplan-observation-card textarea:focus,
 .gameplan-observation-card input:focus,
 .gameplan-observation-card select:focus,
+.gameplan-command-trigger textarea:focus,
+.gameplan-command-trigger input:focus,
+.gameplan-command-trigger select:focus,
+.gameplan-evidence-quick-row input:focus,
+.gameplan-evidence-quick-row select:focus,
 .gameplan-delivery-row input:focus,
 .gameplan-check-item input:focus,
 .gameplan-check-item select:focus,
@@ -390,6 +411,11 @@
 .gameplan-observation-card textarea:disabled,
 .gameplan-observation-card input:disabled,
 .gameplan-observation-card select:disabled,
+.gameplan-command-trigger textarea:disabled,
+.gameplan-command-trigger input:disabled,
+.gameplan-command-trigger select:disabled,
+.gameplan-evidence-quick-row input:disabled,
+.gameplan-evidence-quick-row select:disabled,
 .gameplan-delivery-row input:disabled,
 .gameplan-check-item input:disabled,
 .gameplan-check-item select:disabled,
@@ -401,7 +427,8 @@
 
 .gameplan-staff-card,
 .gameplan-evidence-card,
-.gameplan-observation-card {
+.gameplan-observation-card,
+.gameplan-command-trigger {
   display: grid;
   gap: 0.62rem;
   padding: 0.78rem;
@@ -445,6 +472,95 @@
 .gameplan-inline-status span {
   color: #66716a;
   font-size: 0.84rem;
+}
+
+.gameplan-command-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.68rem;
+}
+
+.gameplan-phase-grid-compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.gameplan-evidence-chips {
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.gameplan-evidence-chip {
+  display: grid;
+  gap: 0.08rem;
+  min-height: 3.1rem;
+  padding: 0.62rem 0.7rem;
+  border-radius: 14px;
+  background: rgba(24, 46, 34, 0.08);
+  color: #25392f;
+  text-decoration: none;
+}
+
+.gameplan-evidence-chip strong,
+.gameplan-evidence-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gameplan-evidence-chip span {
+  color: #66716a;
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.gameplan-evidence-chip.is-empty {
+  place-content: center;
+  color: #66716a;
+  font-weight: 850;
+}
+
+.gameplan-evidence-quick-row {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1fr) minmax(10rem, 1.1fr) minmax(7rem, 0.45fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.gameplan-command-trigger-head,
+.gameplan-command-trigger-body {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.gameplan-command-trigger-head {
+  grid-template-columns: auto minmax(0, 1fr) minmax(8rem, 0.3fr);
+  align-items: center;
+}
+
+.gameplan-command-trigger-head strong {
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 999px;
+  background: #183729;
+  color: #fff;
+}
+
+.gameplan-command-trigger-body {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.gameplan-command-trigger label {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.gameplan-command-trigger label span {
+  color: #66716a;
+  font-size: 0.69rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .gameplan-player-layout {
@@ -785,6 +901,8 @@ body.is-dark-mode .gameplan-status-board label,
 body.is-dark-mode .gameplan-staff-card,
 body.is-dark-mode .gameplan-evidence-card,
 body.is-dark-mode .gameplan-observation-card,
+body.is-dark-mode .gameplan-command-trigger,
+body.is-dark-mode .gameplan-evidence-chip,
 body.is-dark-mode .gameplan-inline-status,
 body.is-dark-mode .gameplan-check-item,
 body.is-dark-mode .gameplan-player-pill,
@@ -804,6 +922,11 @@ body.is-dark-mode .gameplan-evidence-card select,
 body.is-dark-mode .gameplan-observation-card textarea,
 body.is-dark-mode .gameplan-observation-card input,
 body.is-dark-mode .gameplan-observation-card select,
+body.is-dark-mode .gameplan-command-trigger textarea,
+body.is-dark-mode .gameplan-command-trigger input,
+body.is-dark-mode .gameplan-command-trigger select,
+body.is-dark-mode .gameplan-evidence-quick-row input,
+body.is-dark-mode .gameplan-evidence-quick-row select,
 body.is-dark-mode .gameplan-delivery-row input,
 body.is-dark-mode .gameplan-check-item input,
 body.is-dark-mode .gameplan-check-item select,
@@ -865,6 +988,11 @@ body.is-dark-mode .gameplan-player-portal-card footer > span {
 
   .gameplan-hero,
   .gameplan-status-board,
+  .gameplan-command-summary,
+  .gameplan-command-trigger-head,
+  .gameplan-command-trigger-body,
+  .gameplan-phase-grid-compact,
+  .gameplan-evidence-quick-row,
   .gameplan-form-grid,
   .gameplan-staff-fields,
   .gameplan-staff-top,

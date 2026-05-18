@@ -873,29 +873,12 @@ function renderScenarioVersions() {
 }
 
 function renderOverview() {
-  const profile = getLeagueProfile();
   return `
     ${renderKpiGrid()}
     ${renderScenarioPlanner()}
     ${renderRuleCheckPanel()}
-    <section class="transfer-room-overview">
-      <article class="transfer-room-panel transfer-room-rules-panel">
-        <div class="transfer-room-panel-head">
-          <span>${escapeHtml(profile.label || "Rules")}</span>
-          <strong>${formatMoney(profile.salaryCap || 0)}</strong>
-        </div>
-        <div class="transfer-room-rule-list">
-          ${(profile.rules || []).slice(0, 5).map(renderRulePill).join("")}
-        </div>
-      </article>
-    </section>
     ${renderAuditTimeline("", "Latest activity")}
   `;
-}
-
-function renderRulePill(rule = {}) {
-  const value = rule.type === "money" ? formatMoney(rule.amount || 0) : "Required";
-  return `<div><span>${escapeHtml(rule.label || "Rule")}</span><strong>${escapeHtml(value)}</strong></div>`;
 }
 
 function renderSquadPlan() {

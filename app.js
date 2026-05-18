@@ -720,25 +720,11 @@ return true;
 }
 return Object.values(readDataSafetyManifest().entries || {}).some((entry) => entry?.pendingCentralSync);
 }
-function retryCentralWrites() {
-if (
-centralStateWriteTimer ||
-centralStateWriteQueue.size ||
-window.__footballScienceCentralHydrating ||
-!getCurrentPlatformUser() ||
-!getCentralStateBridge()?.syncKey
-) {
-return;
-}
+function retryCentral() {
+if (centralStateWriteTimer || centralStateWriteQueue.size || window.__footballScienceCentralHydrating || !getCurrentPlatformUser() || !getCentralStateBridge()?.syncKey) return;
 for (const [key, entry] of Object.entries(readDataSafetyManifest().entries)) {
-if (!entry?.pendingCentralSync || !isDataSafetyProtectedStorageKey(key)) {
-continue;
-}
-const removed = !!entry.deletedAt;
 const value = rawDataSafetyGetItem(key);
-if (removed || value !== null) {
-queueCentralStateWrite(key, value ?? "", { removed });
-}
+if (entry?.pendingCentralSync && (entry.deletedAt || value !== null)) queueCentralStateWrite(key, value ?? "", { removed: !!entry.deletedAt });
 }
 }
 function applyCentralSyncedStateValue(write = {}, syncedValue) {
@@ -1133,25 +1119,25 @@ return;
 }
 if (centralTime) {
 ui.dataSafetyStatus.textContent = `Central sync ${centralTime}`;
-ui.dataSafetyStatus.title = "Football Science data is synced centrally through Supabase.";
+ui.dataSafetyStatus.title = "Synced centrally.";
 return;
 }
 if (snapshotTime) {
 ui.dataSafetyStatus.textContent = `Central cache ${snapshotTime}`;
-ui.dataSafetyStatus.title = "A browser cache snapshot exists, but Supabase remains the source of truth.";
+ui.dataSafetyStatus.title = "Browser cache snapshot exists.";
 return;
 }
 if (savedTime) {
 ui.dataSafetyStatus.textContent = `Waiting for central sync ${savedTime}`;
 ui.dataSafetyStatus.title = snapshotWarning
 ? `Supabase is the source of truth. Browser cache snapshot issue: ${snapshotWarning}`
-: "Supabase is the source of truth. The browser cache is only used after central sync is ready.";
+: "Waiting for central sync.";
 return;
 }
 ui.dataSafetyStatus.textContent = "Central sync ready";
 ui.dataSafetyStatus.title = snapshotWarning
 ? `Supabase sync is ready. Browser cache snapshot issue: ${snapshotWarning}`
-: "Schedule, Periodization, Sessions, Player Profiles, Exercise Library, Medical, Simulator and Dashboard sync centrally after login.";
+: "Central sync starts after login.";
 }
 function queueDataSafetyStatusRefresh() {
 if (dataSafetyStatusTimer) {
@@ -32938,10 +32924,7 @@ document.visibilityState === "hidden" ||
 ) {
 return;
 }
-if (hasPendingCentralStateWrites()) {
-retryCentralWrites();
-return;
-}
+if (hasPendingCentralStateWrites()) return retryCentral();
 bridge.hydrate().catch((error) => {
 queueCentralStateStatus(error?.message || `Central ${reason} failed.`);
 });
@@ -75547,7 +75530,7 @@ scheduleDashboardLoginPopups();
 window.addEventListener("footballscience:central-state-ready", () => {
 dataSafetyRuntimeStatus.lastError = "";
 queueCentralStateStatus("");
-retryCentralWrites();
+retryCentral();
 flushCentralStateWrites();
 startDashboardPresenceRuntime();
 refreshDashboardPresence({ forceRender: true }).catch(() => {});

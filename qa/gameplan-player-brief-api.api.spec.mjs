@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -32,7 +33,12 @@ function sampleGameplanState() {
           headline: "Press together",
           message: "Player-facing only.",
           focus: "Protect the rest defence.",
-          individualFocus: "Scan before receiving.",
+          positionGroupFocus: "Midfield screen first.",
+          individualFocus: "Default individual note.",
+          individualNotes: {
+            "player-1": "Scan before receiving.",
+            "player-2": "Blocked player private detail.",
+          },
           audiencePlayerIds: ["player-1"],
           publishedAt: "2026-05-17T12:00:00.000Z",
           phases: {
@@ -92,8 +98,12 @@ test("Gameplan Player Brief payload returns only player-facing fields", () => {
   });
   expect(payload.ok).toBe(true);
   expect(payload.brief.headline).toBe("Press together");
+  expect(payload.brief.positionGroupFocus).toBe("Midfield screen first.");
+  expect(payload.brief.individualFocus).toBe("Scan before receiving.");
   expect(payload.player.name).toBe("Selected Player");
   expect(JSON.stringify(payload)).not.toContain("Staff-only");
+  expect(JSON.stringify(payload)).not.toContain("Blocked player private detail");
+  expect(JSON.stringify(payload)).not.toContain("individualNotes");
   expect(JSON.stringify(payload)).not.toContain("staffResponsibilities");
   expect(JSON.stringify(payload)).not.toContain("opponentPlan");
 });
@@ -132,4 +142,65 @@ test("Gameplan Player Brief API is registered as a public signed route with staf
       enforcePermission: false,
     })
   );
+});
+
+test("Gameplan state carries elite workflow sections", async () => {
+  const output = execFileSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `
+        const { cloneGameplanState, createGameplanFromMatch } = await import("./gameplan-state.js");
+        const plan = createGameplanFromMatch({
+          id: "match-1",
+          title: "Rivals FC",
+          date: "2026-05-20",
+          time: "19:00",
+        });
+        const state = cloneGameplanState({
+          activeGameplanId: plan.id,
+          activeTab: "live",
+          gameplans: [{
+            ...plan,
+            meeting: { decisions: "Press trigger approved." },
+            scenarioCards: [{ title: "Protect lead", trigger: "75+", staffAction: "Control rest defence", status: "ready" }],
+            evidence: [{ title: "Opponent build-up clip", source: "Analysis", confidence: "high", url: "https://example.com/clip" }],
+            playerBrief: {
+              ...plan.playerBrief,
+              positionGroupFocus: "Midfield screen first.",
+              individualNotes: { "player-1": "Scan before receiving." },
+            },
+            live: {
+              observations: [{ minute: "33", phase: "Out of Possession", observation: "Their six is free.", status: "reported" }],
+              halftime: { keyMessage: "Protect central access." },
+            },
+            review: { lessons: "Trigger worked after first adjustment." },
+          }],
+        });
+        const active = state.gameplans[0];
+        console.log(JSON.stringify({
+          activeTab: state.activeTab,
+          agenda: active.meeting.agenda,
+          decisions: active.meeting.decisions,
+          scenario: active.scenarioCards[0],
+          evidence: active.evidence[0],
+          playerNote: active.playerBrief.individualNotes["player-1"],
+          observation: active.live.observations[0],
+          lessons: active.review.lessons,
+        }));
+      `,
+    ],
+    { cwd: process.cwd(), encoding: "utf8" }
+  );
+  const result = JSON.parse(output.trim().split("\n").at(-1));
+
+  expect(result.activeTab).toBe("live");
+  expect(result.agenda).toContain("Opponent identity");
+  expect(result.decisions).toBe("Press trigger approved.");
+  expect(result.scenario).toEqual(expect.objectContaining({ title: "Protect lead", status: "ready" }));
+  expect(result.evidence).toEqual(expect.objectContaining({ confidence: "high" }));
+  expect(result.playerNote).toBe("Scan before receiving.");
+  expect(result.observation).toEqual(expect.objectContaining({ minute: "33", status: "reported" }));
+  expect(result.lessons).toContain("Trigger worked");
 });

@@ -7064,8 +7064,13 @@ let gpModule = null;
 function getGameplanContext() {
 return {
 users: getPlatformUsers(),
+currentUser: getCurrentPlatformUser(),
+getScheduleState: () => scheduleState || readScheduleState(),
+getPlayerProfilesState: () => playerProfilesState || readPlayerProfilesState(),
 canEdit: () => canCurrentUserEditWorkspace("gameplan"),
 getAuthToken: getPlatformApiAccessToken,
+suppressCentralWrites: (key) => centralStateWriteSuppressionKeys.add(key),
+unsuppressCentralWrites: (key) => centralStateWriteSuppressionKeys.delete(key),
 };
 }
 function loadGameplanModule() {

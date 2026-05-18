@@ -354,6 +354,10 @@ function resolvePlayerBriefPayload(gameplanState = {}, playerProfilesState = {},
     return { ok: false, status: 403, reason: "This brief is not assigned to this player." };
   }
 
+  const individualNotes =
+    brief.individualNotes && typeof brief.individualNotes === "object" && !Array.isArray(brief.individualNotes) ? brief.individualNotes : {};
+  const playerSpecificFocus = normalizeText(individualNotes[playerId], 900) || normalizeText(brief.individualFocus, 900);
+
   return {
     ok: true,
     plan: {
@@ -370,7 +374,8 @@ function resolvePlayerBriefPayload(gameplanState = {}, playerProfilesState = {},
       headline: normalizeText(brief.headline, 180),
       message: normalizeText(brief.message, 900),
       focus: normalizeText(brief.focus, 900),
-      individualFocus: normalizeText(brief.individualFocus, 900),
+      positionGroupFocus: normalizeText(brief.positionGroupFocus, 900),
+      individualFocus: playerSpecificFocus,
       phases: normalizePhaseMap(brief.phases),
       publishedAt: normalizeText(brief.publishedAt, 40),
     },

@@ -80,10 +80,10 @@
 
 ## Gameplan
 
-- First foundation is in place: Schedule-created gameplans, staff responsibilities, tactical/opponent plan, checklist, selected-player Player Brief publishing, signed Player Brief links, token-gated player portal payloads, and opened/acknowledged receipts.
-- Next pass: add match meeting agenda export, reminder/notification flow for unread player briefs, link-expiry controls, and tighter links from Analysis Room/Scouting into opponent-plan fields.
+- Elite foundation is in place: Schedule-created gameplans, staff responsibilities, tactical/opponent plan, decision scenarios, evidence links, staff meeting agenda/approval, live observation/halftime board, post-match learning loop, selected-player Player Brief publishing, signed Player Brief links, token-gated player portal payloads, and opened/acknowledged receipts.
+- Next pass: add match meeting agenda export, reminder/notification flow for unread player briefs, link-expiry controls, and tighter links from Analysis Room/Scouting into opponent-plan/evidence fields.
 - Preserve `football-gameplan-v1` through central app-state, backup, export, restore, permission matrix, and the Supabase permission seed.
-- Move long-term data into `gameplan_match_plans`, `gameplan_staff_roles`, and `gameplan_player_briefs` only after app-state fallback and player-brief audience checks are proven.
+- Move long-term data into `gameplan_match_plans`, `gameplan_staff_roles`, `gameplan_player_briefs`, `gameplan_scenarios`, `gameplan_evidence`, and `gameplan_observations` only after app-state fallback and player-brief audience checks are proven.
 
 ## Game Simulator
 

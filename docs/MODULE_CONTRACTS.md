@@ -129,13 +129,13 @@ Rules:
 ## Gameplan
 
 - `id`: `gameplan`
-- `purpose`: match-specific command room for staff alignment, tactical intent, observation responsibilities, checklist readiness, and a separate Player Brief for selected squad players.
+- `purpose`: match-specific command room for staff alignment, tactical intent, decision scenarios, evidence, live observations, checklist readiness, post-match learning, and a separate Player Brief for selected squad players.
 - `data`: `football-gameplan-v1`
 - `api`: `/api/gameplan-player-brief` signs expiring Player Brief links for staff and serves public, token-gated player payloads without staff/opponent-plan fields.
 - `permissions`: platform/club/team admin, coach, scout, and analyst edit; performance and medical can read staff-safe preparation context.
 - `events`: gameplan updated, player brief published.
-- `qa`: protected by central state, Data Safety Contracts, permission matrix, Supabase permission seed, signed-link API contracts, and browser proof that Player Brief publishing does not leak staff responsibility text. `qa/gameplan-player-brief-api.api.spec.mjs` verifies token signing, expiry, sanitization, audience gates, and receipt mutation. `qa/gameplan-player-brief.smoke.spec.mjs` verifies selected-player portal access, blocked non-audience access, and read receipts.
-- `migration`: move later into `gameplan_match_plans`, `gameplan_staff_roles`, and `gameplan_player_briefs` with team scope, revision checks, soft archive, and explicit audience membership.
+- `qa`: protected by central state, Data Safety Contracts, permission matrix, Supabase permission seed, signed-link API contracts, and browser proof that Player Brief publishing does not leak staff responsibility text. `qa/gameplan-player-brief-api.api.spec.mjs` verifies token signing, expiry, sanitization, audience gates, individual Player Brief payloads, receipt mutation, and elite workflow state normalization. `qa/gameplan-player-brief.smoke.spec.mjs` verifies selected-player portal access, blocked non-audience access, and read receipts.
+- `migration`: move later into `gameplan_match_plans`, `gameplan_staff_roles`, `gameplan_player_briefs`, `gameplan_scenarios`, `gameplan_evidence`, and `gameplan_observations` with team scope, revision checks, soft archive, and explicit audience membership.
 
 ## Periodization
 

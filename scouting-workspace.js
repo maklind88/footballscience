@@ -2561,7 +2561,7 @@ async function publishScoutingExcelImportToDatabase(database = {}) {
   const startResult = await sendScoutingApiAction({
     action: "startExcelImport",
     sourceFileName: database.fileName || "",
-    sheetName: database.sheets?.[0] || "",
+    sheetName: Array.isArray(database.sheets) ? database.sheets.join(", ") : "",
     seasonLabel: scoutingImportDraft?.seasonOverride || "",
     rowCount: database.records.length,
     metricCount: database.metrics?.length || 0,
@@ -4522,6 +4522,164 @@ function getScoutingRecordSearchCorpus(record) {
   const recordId = getScoutingRecordId(record);
   return recordId ? scoutingRecordSearchCorpusCache.get(recordId) || "" : "";
 }
+function getScoutingRecordStoredIdentityId(record) {
+  return normalizeScoutingText(record?.[scoutingRecordIndex.playerIdentityId], 160);
+}
+function getScoutingRecordPersonNameKey(record) {
+  return normalizeScoutingIdentityPart(getScoutingRecordName(record).replace(/\./g, " "), 140);
+}
+function getScoutingRecordPersonNationalityKey(record) {
+  const nationality = getScoutingRecordNationalityMeta(record);
+  const code = nationality.code && nationality.code !== "N/A" ? nationality.code : "";
+  return normalizeScoutingIdentityPart(code || nationality.label, 80);
+}
+function getScoutingRecordSeasonYearValue(record) {
+  const season = getScoutingRecordSeason(record);
+  const years = season.match(/\b(?:19|20)\d{2}\b/g);
+  if (!years?.length) {
+    return 0;
+  }
+  return Math.max(...years.map((year) => Number(year)).filter(Number.isFinite));
+}
+function getScoutingRecordStrongPersonKey(record) {
+  const sourceSystem = normalizeScoutingIdentityPart(getScoutingRecordSourceSystem(record), 40);
+  const sourcePlayerId = normalizeScoutingIdentityPart(getScoutingRecordPlayerSourceId(record), 160);
+  if (sourcePlayerId) {
+    return `source:${sourceSystem}:${sourcePlayerId}`;
+  }
+  const nameKey = getScoutingRecordPersonNameKey(record);
+  const nationalityKey = getScoutingRecordPersonNationalityKey(record);
+  const dateOfBirth = normalizeScoutingIdentityPart(getScoutingRecordDateOfBirth(record), 40);
+  if (nameKey && nationalityKey && dateOfBirth) {
+    return `dob:${nameKey}:${dateOfBirth}:${nationalityKey}`;
+  }
+  const storedIdentityId = normalizeScoutingIdentityPart(getScoutingRecordStoredIdentityId(record), 160);
+  const sourceTrace = getScoutingRecordSourceTrace(record);
+  const identitySource = normalizeScoutingText(sourceTrace.identitySource, 40).toLowerCase();
+  if (storedIdentityId && identitySource && !["derived", "name", "name + date of birth + nationality"].includes(identitySource)) {
+    return `identity:${sourceSystem}:${storedIdentityId}`;
+  }
+  return "";
+}
+function areScoutingNationalitiesCompatible(firstRecord, secondRecord) {
+  const first = getScoutingRecordPersonNationalityKey(firstRecord);
+  const second = getScoutingRecordPersonNationalityKey(secondRecord);
+  return !first || !second || first === second;
+}
+function areScoutingBirthDatesCompatible(firstRecord, secondRecord) {
+  const first = getScoutingRecordDateOfBirth(firstRecord);
+  const second = getScoutingRecordDateOfBirth(secondRecord);
+  return !first || !second || first === second;
+}
+function areScoutingAgesSeasonCompatible(firstRecord, secondRecord) {
+  const firstAge = getScoutingRecordAge(firstRecord);
+  const secondAge = getScoutingRecordAge(secondRecord);
+  if (!Number.isFinite(firstAge) || !Number.isFinite(secondAge)) {
+    return true;
+  }
+  const ageSpread = Math.abs(firstAge - secondAge);
+  const firstYear = getScoutingRecordSeasonYearValue(firstRecord);
+  const secondYear = getScoutingRecordSeasonYearValue(secondRecord);
+  if (firstYear && secondYear) {
+    const seasonSpread = Math.abs(firstYear - secondYear);
+    return ageSpread <= Math.max(3, seasonSpread + 2);
+  }
+  return ageSpread <= 4;
+}
+function areScoutingClubSeasonSignalsCompatible(firstRecord, secondRecord) {
+  const firstTeam = normalizeScoutingIdentityPart(getScoutingRecordTeam(firstRecord), 180);
+  const secondTeam = normalizeScoutingIdentityPart(getScoutingRecordTeam(secondRecord), 180);
+  if (!firstTeam || !secondTeam || firstTeam === secondTeam) {
+    return true;
+  }
+  const firstSeason = normalizeScoutingIdentityPart(getScoutingRecordSeason(firstRecord), 80);
+  const secondSeason = normalizeScoutingIdentityPart(getScoutingRecordSeason(secondRecord), 80);
+  if (firstSeason && secondSeason && firstSeason === secondSeason) {
+    const firstAge = getScoutingRecordAge(firstRecord);
+    const secondAge = getScoutingRecordAge(secondRecord);
+    if (Number.isFinite(firstAge) && Number.isFinite(secondAge) && Math.abs(firstAge - secondAge) > 1) {
+      return false;
+    }
+  }
+  return true;
+}
+function areScoutingPositionsCompatibleForWeakIdentity(firstRecord, secondRecord) {
+  const firstGroup = getScoutingPositionGroup(firstRecord);
+  const secondGroup = getScoutingPositionGroup(secondRecord);
+  if (!firstGroup || !secondGroup || firstGroup === secondGroup) {
+    return true;
+  }
+  if (firstGroup === "GK" || secondGroup === "GK") {
+    return false;
+  }
+  return true;
+}
+function areScoutingRecordsLikelySamePerson(firstRecord, secondRecord) {
+  if (!firstRecord || !secondRecord) {
+    return false;
+  }
+  if (firstRecord === secondRecord) {
+    return true;
+  }
+  const firstStrongKey = getScoutingRecordStrongPersonKey(firstRecord);
+  const secondStrongKey = getScoutingRecordStrongPersonKey(secondRecord);
+  if (firstStrongKey && secondStrongKey) {
+    return firstStrongKey === secondStrongKey;
+  }
+  if (getScoutingRecordPersonNameKey(firstRecord) !== getScoutingRecordPersonNameKey(secondRecord)) {
+    return false;
+  }
+  return (
+    areScoutingNationalitiesCompatible(firstRecord, secondRecord) &&
+    areScoutingBirthDatesCompatible(firstRecord, secondRecord) &&
+    areScoutingAgesSeasonCompatible(firstRecord, secondRecord) &&
+    areScoutingClubSeasonSignalsCompatible(firstRecord, secondRecord) &&
+    areScoutingPositionsCompatibleForWeakIdentity(firstRecord, secondRecord)
+  );
+}
+function getScoutingRepresentativeRecordScore(record, filters = {}) {
+  const selectedSeason = normalizeScoutingText(filters.season, 80);
+  const seasonYear = getScoutingRecordSeasonYearValue(record);
+  const selectedSeasonBonus = selectedSeason && selectedSeason !== "all" && getScoutingRecordSeason(record) === selectedSeason ? 1000000000 : 0;
+  const metricsScore = getScoutingRecordMetricValueCount(record) * 1000;
+  const minutesScore = Math.min(9999, getScoutingRecordMinutes(record));
+  return selectedSeasonBonus + seasonYear * 100000 + metricsScore + minutesScore;
+}
+function chooseScoutingRepresentativeRecord(records = [], filters = {}) {
+  return [...records].sort((first, second) => {
+    const scoreDelta = getScoutingRepresentativeRecordScore(second, filters) - getScoutingRepresentativeRecordScore(first, filters);
+    if (scoreDelta) {
+      return scoreDelta;
+    }
+    return getScoutingRecordName(first).localeCompare(getScoutingRecordName(second));
+  })[0] || null;
+}
+function groupScoutingDatabaseRecordsByPerson(records = [], filters = {}) {
+  const clusters = [];
+  for (const record of Array.isArray(records) ? records : []) {
+    const strongKey = getScoutingRecordStrongPersonKey(record);
+    let cluster = strongKey
+      ? clusters.find((item) => item.strongKey && item.strongKey === strongKey)
+      : null;
+    if (!cluster) {
+      cluster = clusters.find((item) => {
+        if (strongKey && item.strongKey && item.strongKey !== strongKey) {
+          return false;
+        }
+        return item.records.every((candidate) => areScoutingRecordsLikelySamePerson(record, candidate));
+      });
+    }
+    if (cluster) {
+      cluster.records.push(record);
+      if (strongKey && !cluster.strongKey) {
+        cluster.strongKey = strongKey;
+      }
+    } else {
+      clusters.push({ strongKey, records: [record] });
+    }
+  }
+  return clusters.map((cluster) => chooseScoutingRepresentativeRecord(cluster.records, filters)).filter(Boolean);
+}
 function formatScoutingNumber(value, fallback = "n/a") {
   const number = Number(value);
   if (!Number.isFinite(number)) {
@@ -4754,6 +4912,95 @@ function ensureScoutingSpreadsheetParserLoaded() {
   }
   return scoutingImportParserPromise;
 }
+
+function getScoutingImportStepState(draft = scoutingImportDraft) {
+  if (!draft) {
+    return { current: "upload", done: [] };
+  }
+  if (draft.status === "error") {
+    const current = draft.importPreview?.signature ? "publish" : draft.sheets?.length ? "preview" : "upload";
+    const done = draft.importPreview?.signature ? ["upload", "preview"] : draft.sheets?.length ? ["upload"] : [];
+    return { current, done, error: true };
+  }
+  if (draft.status === "loading") {
+    return { current: "upload", done: [] };
+  }
+  if (draft.status === "importing") {
+    return { current: "publish", done: ["upload", "preview"] };
+  }
+  if (draft.databaseStored || draft.status === "imported") {
+    return { current: "publish", done: ["upload", "preview", "publish"] };
+  }
+  if (draft.importPreview?.signature) {
+    return { current: "publish", done: ["upload", "preview"] };
+  }
+  return { current: "preview", done: ["upload"] };
+}
+
+function getScoutingImportPrimaryActionLabel(draft = scoutingImportDraft) {
+  if (draft?.importPreview?.signature) {
+    return "Commit to scouting player database";
+  }
+  return "Build import preview";
+}
+
+function getScoutingImportActionHelp(draft = scoutingImportDraft) {
+  if (draft?.importPreview?.signature) {
+    return "Publishes only new or changed rows. Matching player-season rows are replaced and unchanged rows are skipped.";
+  }
+  return "Builds a safe preview first. Nothing is published until you commit the preview.";
+}
+
+function renderScoutingImportStepTracker(draft = scoutingImportDraft) {
+  const state = getScoutingImportStepState(draft);
+  const steps = [
+    { id: "upload", label: "Upload file", detail: draft?.fileName || "Choose workbook" },
+    { id: "preview", label: "Review changes", detail: draft?.importPreview?.signature ? "Preview ready" : "Build preview" },
+    {
+      id: "publish",
+      label: "Publish",
+      detail: draft?.databaseStored || draft?.status === "imported" ? "Database updated" : "Commit after review",
+    },
+  ];
+  return `<div class="scouting-import-steps" aria-label="Scouting import progress">
+    ${steps.map((step, index) => {
+      const done = state.done.includes(step.id);
+      const active = state.current === step.id;
+      const error = active && state.error;
+      return `<span class="scouting-import-step ${done ? "is-done" : ""} ${active ? "is-active" : ""} ${error ? "is-error" : ""}">
+        <b>${done ? "✓" : index + 1}</b>
+        <span>
+          <strong>${escapeHtml(step.label)}</strong>
+          <small>${escapeHtml(step.detail)}</small>
+        </span>
+      </span>`;
+    }).join("")}
+  </div>`;
+}
+
+function setScoutingImportDraftFailure(error, fileName = "") {
+  const message = error?.message || "Import failed before the workbook could be read.";
+  scoutingImportDraft = {
+    status: "error",
+    fileName: normalizeScoutingText(fileName || "Uploaded file", 180),
+    sourceSystem: getScoutingImportSourceSystem(),
+    sourceTypeLabel: "Weekly database upload",
+    error: message,
+    databaseUploadError: message,
+  };
+  renderScoutingWorkspace({ preserveFocus: true });
+}
+
+function queueScoutingImportPreview(fileName = "") {
+  window.setTimeout(() => {
+    const stillSameDraft = !fileName || scoutingImportDraft?.fileName === fileName;
+    if (!stillSameDraft || scoutingImportDraft?.status !== "ready" || scoutingImportDraft?.importPreview?.signature) {
+      return;
+    }
+    applyScoutingImportDraft();
+  }, 0);
+}
+
 async function loadScoutingImportFile(file) {
   if (!canEditScoutingWorkspace()) {
     return;
@@ -4772,6 +5019,8 @@ async function loadScoutingImportFile(file) {
     error: "",
   };
   renderScoutingWorkspace({ preserveFocus: true });
+  let shouldAutoPreview = false;
+  const loadedFileName = normalizeScoutingText(file.name, 180);
   try {
     let sheets = [];
     if (sourceType.parser === "xlsx") {
@@ -4823,7 +5072,7 @@ async function loadScoutingImportFile(file) {
     }
     scoutingImportDraft = {
       status: "ready",
-      fileName: normalizeScoutingText(file.name, 180),
+      fileName: loadedFileName,
       sourceSystem: sourceType.id,
       sourceTypeLabel: sourceType.label,
       sheets,
@@ -4831,15 +5080,23 @@ async function loadScoutingImportFile(file) {
       seasonOverride: "",
       map: getScoutingImportAutoMap(selected?.headers || []),
       error: "",
+      databaseUploadStatus: "File loaded. Building import preview so you can review changes before publishing.",
     };
+    shouldAutoPreview = true;
   } catch (error) {
     scoutingImportDraft = {
       status: "error",
-      fileName: normalizeScoutingText(file.name, 180),
+      fileName: loadedFileName,
+      sourceSystem: sourceType.id,
+      sourceTypeLabel: sourceType.label,
       error: error?.message || "Import failed.",
+      databaseUploadError: error?.message || "Import failed.",
     };
   }
   renderScoutingWorkspace({ preserveFocus: true });
+  if (shouldAutoPreview) {
+    queueScoutingImportPreview(loadedFileName);
+  }
 }
 function setScoutingImportDraftPatch(patch = {}) {
   if (!scoutingImportDraft) {
@@ -4872,6 +5129,22 @@ function setScoutingImportMapField(field, value) {
 function getScoutingImportMetricHeaders(headers = [], map = {}) {
   const coreHeaders = new Set(Object.values(map).filter(Boolean));
   return headers.filter((header) => !coreHeaders.has(header));
+}
+function getScoutingImportSheetsForBatch(draft = scoutingImportDraft) {
+  return (Array.isArray(draft?.sheets) ? draft.sheets : []).filter((sheet) => Array.isArray(sheet?.rows) && sheet.rows.length);
+}
+function getScoutingImportHeadersForBatch(sheets = []) {
+  const seen = new Set();
+  return (Array.isArray(sheets) ? sheets : [])
+    .flatMap((sheet) => (Array.isArray(sheet?.headers) ? sheet.headers : []))
+    .filter((header) => {
+      const normalized = normalizeScoutingText(header, 160);
+      if (!normalized || seen.has(normalized)) {
+        return false;
+      }
+      seen.add(normalized);
+      return true;
+    });
 }
 function getScoutingImportMetricDirection(header = "") {
   const label = normalizeScoutingText(header, 120).toLowerCase();
@@ -5215,11 +5488,13 @@ function buildScoutingImportedDatabase() {
     return null;
   }
   const selected = scoutingImportDraft.sheets.find((sheet) => sheet.name === scoutingImportDraft.selectedSheet);
-  if (!selected) {
+  const sheets = getScoutingImportSheetsForBatch(scoutingImportDraft);
+  if (!selected || !sheets.length) {
     return null;
   }
   const map = scoutingImportDraft.map || {};
-  const metricHeaders = getScoutingImportMetricHeaders(selected.headers, map);
+  const batchHeaders = getScoutingImportHeadersForBatch(sheets);
+  const metricHeaders = getScoutingImportMetricHeaders(batchHeaders, map);
   const metrics = metricHeaders
     .map((header) => ({
       id: `import_${getScoutingImportColumnId(header)}`,
@@ -5233,8 +5508,15 @@ function buildScoutingImportedDatabase() {
   let incomingDuplicates = 0;
   const duplicateSamples = [];
   const recordsByMergeKey = new Map();
-  selected.rows
-    .map((row, index) => {
+  sheets
+    .flatMap((sheet) =>
+      sheet.rows.map((row, index) => ({
+        row,
+        rowIndex: index,
+        sheetName: sheet.name,
+      }))
+    )
+    .map(({ row, rowIndex, sheetName }) => {
       const player = normalizeScoutingText(row[map.player], 160);
       const team = normalizeScoutingText(row[map.team], 160);
       const league = normalizeScoutingLeague(row[map.league]);
@@ -5269,8 +5551,8 @@ function buildScoutingImportedDatabase() {
       const sourceTrace = {
         sourceSystem,
         sourceFileName: scoutingImportDraft.fileName || "",
-        sheetName: selected.name,
-        sourceRowNumber: index + 2,
+        sheetName,
+        sourceRowNumber: rowIndex + 2,
         uploadedAt: importedAt,
         importedAt,
         importBatchId: "",
@@ -5333,7 +5615,7 @@ function buildScoutingImportedDatabase() {
   const records = [...recordsByMergeKey.values()];
   const importSignature = buildScoutingImportHash([
     scoutingImportDraft.fileName,
-    selected.name,
+    sheets.map((sheet) => sheet.name).join("~"),
     sourceSystem,
     records.length,
     metrics.length,
@@ -5343,7 +5625,7 @@ function buildScoutingImportedDatabase() {
     source: "ui-import",
     fileName: scoutingImportDraft.fileName,
     importedAt,
-    sheets: [selected.name],
+    sheets: sheets.map((sheet) => sheet.name),
     metrics,
     records,
     importSignature,
@@ -5389,7 +5671,7 @@ function applyScoutingImportDraft() {
     scoutingImportDraft = {
       ...(scoutingImportDraft || {}),
       importPreview: preview,
-      databaseUploadStatus: "Review import preview before commit.",
+      databaseUploadStatus: "Preview ready. Review new, replaced, unchanged and flagged rows before publishing.",
       databaseUploadError: "",
       importedCount: database.records.length,
       metricCount: database.metrics.length,
@@ -5526,6 +5808,7 @@ function applyScoutingImportDraft() {
       },
     };
     setScoutingImportLastUploadSummary(scoutingImportDraft.lastUploadSummary);
+    void loadScoutingImportHistory();
     renderScoutingWorkspace({ preserveFocus: true });
   }).catch((error) => {
     scoutingImportDraft = {
@@ -5662,7 +5945,9 @@ function getScoutingRecordsForPlayer(record) {
   if (!name) {
     return [];
   }
-  return (scoutingRecordNameLookupCache.get(name) || []).slice();
+  return (scoutingRecordNameLookupCache.get(name) || [])
+    .filter((candidate) => areScoutingRecordsLikelySamePerson(record, candidate))
+    .slice();
 }
 function getScoutingTargets(state = ensureScoutingState()) {
   return Array.isArray(state.targets) ? state.targets : [];
@@ -6539,7 +6824,7 @@ function getFilteredScoutingDatabaseRecords() {
     return scoutingFilteredDatabaseCache.records;
   }
   if (isPagedSimplePageView) {
-    const simpleRecords = Array.isArray(records) ? records : [];
+    const simpleRecords = groupScoutingDatabaseRecordsByPerson(Array.isArray(records) ? records : [], filters);
     scoutingFilteredDatabaseCache = {
       key: filterCacheKey,
       records: simpleRecords,
@@ -6579,11 +6864,12 @@ function getFilteredScoutingDatabaseRecords() {
         return true;
       })
       .sort((a, b) => (getScoutingMetricValue(b, sortBy) || 0) - (getScoutingMetricValue(a, sortBy) || 0));
+    const groupedRecords = groupScoutingDatabaseRecordsByPerson(nextRecords, filters);
     scoutingFilteredDatabaseCache = {
       key: filterCacheKey,
-      records: nextRecords,
+      records: groupedRecords,
     };
-    return nextRecords;
+    return groupedRecords;
   }
   const roleFitCache = needsRoleFit ? new Map() : null;
   const metricFilterCache = metricFilterIds.length && Number.isFinite(metricMin) && metricMin > 0 ? new Map() : null;
@@ -6791,11 +7077,12 @@ function getFilteredScoutingDatabaseRecords() {
       }
       return (getCachedSortPercentile(b) || 0) - (getCachedSortPercentile(a) || 0);
     });
+  const groupedRecords = groupScoutingDatabaseRecordsByPerson(nextRecords, filters);
   scoutingFilteredDatabaseCache = {
     key: filterCacheKey,
-    records: nextRecords,
+    records: groupedRecords,
   };
-  return nextRecords;
+  return groupedRecords;
 }
 const scoutingRoleSpiderProfiles = Object.freeze([
   {
@@ -9109,6 +9396,203 @@ function getScoutingSeasonInsights(record, playerRows = []) {
     seasonCount: rows.length,
   };
 }
+function normalizeScoutingProfileSpiderSeasonMode(value) {
+  const normalized = normalizeScoutingText(value, 40).toLowerCase();
+  return normalized === "average" || normalized === "season" ? normalized : "latest";
+}
+function getScoutingProfileSpiderSeasonSelectValue(context = {}) {
+  if (context.mode === "average") {
+    return "average";
+  }
+  if (context.mode === "season" && context.season) {
+    return `season::${context.season}`;
+  }
+  return "latest";
+}
+function getScoutingProfileSpiderSeasonOptions(rows = [], context = {}) {
+  const selected = getScoutingProfileSpiderSeasonSelectValue(context);
+  const seasons = Array.from(
+    new Set(
+      rows
+        .slice()
+        .sort((a, b) => getScoutingSeasonSortValue(b) - getScoutingSeasonSortValue(a))
+        .map((row) => getScoutingRecordSeason(row))
+        .filter(Boolean)
+    )
+  );
+  const options = [
+    { value: "latest", label: "Latest season" },
+    { value: "average", label: "All seasons average" },
+    ...seasons.map((season) => ({ value: `season::${season}`, label: season })),
+  ];
+  return options
+    .map(
+      (option) =>
+        `<option value="${escapeHtml(option.value)}" ${selected === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`
+    )
+    .join("");
+}
+function getScoutingProfileSpiderRows(record, playerRows = []) {
+  return (playerRows.length ? playerRows : getScoutingRecordsForPlayer(record))
+    .filter(Boolean)
+    .sort((a, b) => getScoutingSeasonSortValue(b) - getScoutingSeasonSortValue(a) || getScoutingRecordMinutes(b) - getScoutingRecordMinutes(a));
+}
+function getScoutingWeightedAverageValue(rows = [], getter, weightGetter = getScoutingRecordMinutes) {
+  const samples = rows
+    .map((row) => {
+      const value = Number(getter(row));
+      const weight = Math.max(1, Number(weightGetter(row)) || 0);
+      return Number.isFinite(value) ? { value, weight } : null;
+    })
+    .filter(Boolean);
+  if (!samples.length) {
+    return null;
+  }
+  const weightTotal = samples.reduce((sum, sample) => sum + sample.weight, 0);
+  return samples.reduce((sum, sample) => sum + sample.value * sample.weight, 0) / Math.max(weightTotal, 1);
+}
+function getScoutingAverageMetricQuality(rows = [], metricId) {
+  const qualities = rows
+    .filter((row) => Number.isFinite(Number(getScoutingMetricValue(row, metricId))))
+    .map((row) => getScoutingMetricQuality(row, metricId))
+    .filter((quality) => quality !== "missing");
+  if (!qualities.length) {
+    return "missing";
+  }
+  return qualities.includes("estimated") ? "estimated" : "trusted";
+}
+function getScoutingAverageMetricIds(rows = []) {
+  const ids = new Set(["minutes", "matches", "age"]);
+  scoutingCoreMetricOptions.forEach((metric) => {
+    const id = normalizeScoutingText(metric?.id, 120);
+    if (id) {
+      ids.add(id);
+    }
+  });
+  rows.forEach((row) => {
+    const metrics = row?.[scoutingRecordIndex.metrics];
+    if (Array.isArray(metrics)) {
+      metrics.forEach((entry, index) => {
+        if (entry !== null && entry !== undefined && scoutingCoreMetricOptions[index]?.id) {
+          ids.add(scoutingCoreMetricOptions[index].id);
+        }
+      });
+      return;
+    }
+    if (metrics && typeof metrics === "object") {
+      Object.keys(metrics).forEach((id) => ids.add(id));
+    }
+  });
+  return Array.from(ids);
+}
+function buildScoutingMinutesWeightedAverageRecord(rows = [], fallbackRecord = null) {
+  const sourceRows = rows.filter(Boolean);
+  const latest = sourceRows[0] || fallbackRecord;
+  if (!latest) {
+    return fallbackRecord;
+  }
+  const averageRecord = Array.isArray(latest) ? latest.slice() : { ...latest };
+  const metricIds = getScoutingAverageMetricIds(sourceRows);
+  const averagedMetrics = {};
+  const averagedQuality = {};
+  metricIds.forEach((metricId) => {
+    const id = normalizeScoutingText(metricId, 120);
+    if (!id || id === "minutes" || id === "matches" || id === "age") {
+      return;
+    }
+    const value = getScoutingWeightedAverageValue(sourceRows, (row) => getScoutingMetricValue(row, id));
+    if (Number.isFinite(value)) {
+      const quality = getScoutingAverageMetricQuality(sourceRows, id);
+      averagedMetrics[id] = { value, quality };
+      averagedQuality[id] = quality;
+    }
+  });
+  const averageMinutes = getScoutingWeightedAverageValue(sourceRows, getScoutingRecordMinutes);
+  const averageMatches = getScoutingWeightedAverageValue(sourceRows, (row) => Number(row?.[scoutingRecordIndex.matches]));
+  averageRecord[scoutingRecordIndex.season] = "All seasons average";
+  averageRecord[scoutingRecordIndex.metrics] = averagedMetrics;
+  averageRecord[scoutingRecordIndex.metricQuality] = {
+    ...(latest?.[scoutingRecordIndex.metricQuality] || {}),
+    ...averagedQuality,
+  };
+  if (Number.isFinite(averageMinutes)) {
+    averageRecord[scoutingRecordIndex.minutes] = Math.round(averageMinutes);
+  }
+  if (Number.isFinite(averageMatches)) {
+    averageRecord[scoutingRecordIndex.matches] = Math.round(averageMatches * 10) / 10;
+  }
+  averageRecord[scoutingRecordIndex.sourceTrace] = {
+    ...(latest?.[scoutingRecordIndex.sourceTrace] || {}),
+    spiderSeasonMode: "all-seasons-average",
+    seasonCount: sourceRows.length,
+    weightedBy: "minutes",
+  };
+  return averageRecord;
+}
+function getScoutingProfileSpiderTrend(rows = [], roleProfileId = "") {
+  const points = rows
+    .slice()
+    .sort((a, b) => getScoutingSeasonSortValue(a) - getScoutingSeasonSortValue(b))
+    .map((row) => ({
+      season: getScoutingRecordSeason(row) || "Season",
+      minutes: getScoutingRecordMinutes(row),
+      fit: getScoutingRoleFitScore(row, roleProfileId),
+    }))
+    .filter((point) => Number.isFinite(point.fit));
+  if (points.length < 2) {
+    return {
+      label: "No trend yet",
+      detail: rows.length ? `${rows.length} season${rows.length === 1 ? "" : "s"} available` : "Needs more seasons",
+      direction: "flat",
+    };
+  }
+  const first = points[0];
+  const last = points[points.length - 1];
+  const delta = last.fit - first.fit;
+  const direction = delta > 5 ? "up" : delta < -5 ? "down" : "flat";
+  return {
+    label:
+      direction === "up"
+        ? `Trending up +${formatScoutingNumber(delta)}`
+        : direction === "down"
+          ? `Trending down ${formatScoutingNumber(delta)}`
+          : `Stable ${delta >= 0 ? "+" : ""}${formatScoutingNumber(delta)}`,
+    detail: `${first.season} P${formatScoutingNumber(first.fit)} → ${last.season} P${formatScoutingNumber(last.fit)} · ${points.length} seasons`,
+    direction,
+  };
+}
+function getScoutingProfileSpiderContext(record, playerRows = [], roleProfileId = "") {
+  const state = ensureScoutingState();
+  const rows = getScoutingProfileSpiderRows(record, playerRows);
+  const latest = rows[0] || record;
+  const storedMode = normalizeScoutingProfileSpiderSeasonMode(state.profileSpiderSeasonMode);
+  const storedSeason = normalizeScoutingText(state.profileSpiderSeasonValue, 80);
+  const selectedSeasonRow = storedMode === "season" ? rows.find((row) => getScoutingRecordSeason(row) === storedSeason) : null;
+  const mode = storedMode === "season" && !selectedSeasonRow ? "latest" : storedMode;
+  const sourceRecord =
+    mode === "average"
+      ? buildScoutingMinutesWeightedAverageRecord(rows, latest)
+      : mode === "season"
+        ? selectedSeasonRow
+        : latest;
+  const seasonLabel =
+    mode === "average"
+      ? "All seasons average"
+      : mode === "season"
+        ? getScoutingRecordSeason(sourceRecord) || storedSeason
+        : getScoutingRecordSeason(sourceRecord) || "Latest season";
+  return {
+    mode,
+    season: mode === "season" ? seasonLabel : "",
+    record: sourceRecord || record,
+    rows,
+    trend: getScoutingProfileSpiderTrend(rows, roleProfileId),
+    sampleLabel:
+      mode === "average"
+        ? `${rows.length} season${rows.length === 1 ? "" : "s"} · minutes-weighted`
+        : `${seasonLabel}${getScoutingRecordMinutes(sourceRecord) ? ` · ${formatScoutingNumber(getScoutingRecordMinutes(sourceRecord))} minutes` : ""}`,
+  };
+}
 function getScoutingSeasonSortValue(record) {
   const season = getScoutingRecordSeason(record);
   const years = (season.match(/\d{4}/g) || []).map((value) => Number(value)).filter((value) => Number.isFinite(value));
@@ -10665,6 +11149,26 @@ function setScoutingProfileRoleProfile(roleProfileId) {
     renderScoutingWorkspace({ preserveFocus: true });
   }
 }
+function setScoutingProfileSpiderSeason(value) {
+  const state = ensureScoutingState();
+  const rawValue = normalizeScoutingText(value, 120);
+  if (rawValue === "average") {
+    state.profileSpiderSeasonMode = "average";
+    state.profileSpiderSeasonValue = "";
+  } else if (rawValue.startsWith("season::")) {
+    state.profileSpiderSeasonMode = "season";
+    state.profileSpiderSeasonValue = normalizeScoutingText(rawValue.replace(/^season::/, ""), 80);
+  } else {
+    state.profileSpiderSeasonMode = "latest";
+    state.profileSpiderSeasonValue = "";
+  }
+  writeScoutingState({ syncCentral: false });
+  if (ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]")) {
+    renderScoutingProfileModalIntoDom(state.selectedRecordId);
+  } else {
+    renderScoutingWorkspace({ preserveFocus: true });
+  }
+}
 
 function renderScoutingFootballScienceDbPanel(record) {
   const fsdb = getScoutingRecordFootballScienceDbMeta(record);
@@ -11430,20 +11934,34 @@ function renderScoutingProfileHistoryTab(record, playerRows) {
     </section>
   `;
 }
-function renderScoutingProfileRoleSpiderGrid(record, selectedProfileRoleId, profileRoleProfileId, radarTemplate, profileMetrics) {
+function renderScoutingProfileRoleSpiderGrid(record, selectedProfileRoleId, profileRoleProfileId, radarTemplate, profileMetrics, spiderContext = {}) {
+  const trend = spiderContext.trend || { label: "No trend yet", detail: "Needs more seasons", direction: "flat" };
   return `
     <div class="scouting-profile-grid scouting-profile-role-spider-grid">
       <section class="scouting-profile-radar">
-        <label class="scouting-profile-role-selector">
-          <span>View as player type</span>
-          <select data-scouting-profile-role-template>
-            ${renderScoutingRoleProfileOptions(profileRoleProfileId, { auto: true })}
-          </select>
-        </label>
+        <div class="scouting-profile-role-controls">
+          <label class="scouting-profile-role-selector">
+            <span>View as player type</span>
+            <select data-scouting-profile-role-template>
+              ${renderScoutingRoleProfileOptions(profileRoleProfileId, { auto: true })}
+            </select>
+          </label>
+          <label class="scouting-profile-role-selector scouting-profile-season-selector">
+            <span>Spider data</span>
+            <select data-scouting-profile-spider-season>
+              ${getScoutingProfileSpiderSeasonOptions(spiderContext.rows || [record], spiderContext)}
+            </select>
+          </label>
+        </div>
         ${renderScoutingRadar(record, selectedProfileRoleId, radarTemplate, profileMetrics)}
       </section>
       <section class="scouting-profile-metrics">
         ${renderScoutingRoleSpiderSummary(record, radarTemplate, profileMetrics)}
+        <div class="scouting-profile-spider-context is-${escapeHtml(trend.direction || "flat")}">
+          <span>${escapeHtml(spiderContext.sampleLabel || "Latest season")}</span>
+          <strong>${escapeHtml(trend.label)}</strong>
+          <em>${escapeHtml(trend.detail)}</em>
+        </div>
         <h3>Role spider metrics</h3>
         <div class="scouting-metric-stack">
           ${
@@ -12446,7 +12964,12 @@ function renderScoutingImportPanel() {
   const isImported = database?.source === "ui-import";
   const draft = scoutingImportDraft;
   const selected = draft?.sheets?.find((sheet) => sheet.name === draft.selectedSheet);
-  const headers = selected?.headers || [];
+  const batchSheets = getScoutingImportSheetsForBatch(draft);
+  const batchRowCount = batchSheets.reduce((sum, sheet) => sum + (sheet.rows?.length || 0), 0);
+  const headers = batchSheets.length ? getScoutingImportHeadersForBatch(batchSheets) : selected?.headers || [];
+  const importStepState = getScoutingImportStepState(draft);
+  const importPrimaryActionLabel = getScoutingImportPrimaryActionLabel(draft);
+  const importActionHelp = getScoutingImportActionHelp(draft);
   const draftStatusLabel =
     draft?.status === "loading"
       ? "Reading workbook..."
@@ -12464,7 +12987,7 @@ function renderScoutingImportPanel() {
     draft?.databaseUploadError ||
     draft?.databaseUploadStatus ||
     (selected
-      ? `${selected.rows.length.toLocaleString("en-US")} preview rows / ${headers.length} columns`
+      ? `${batchRowCount.toLocaleString("en-US")} preview rows / ${batchSheets.length.toLocaleString("en-US")} sheet${batchSheets.length === 1 ? "" : "s"} / ${headers.length} columns`
       : "Choose a file and sheet if available.");
   const coreFields = [
     ["player", "Player"],
@@ -12511,11 +13034,12 @@ function renderScoutingImportPanel() {
         ${isImported ? `<button type="button" class="scouting-secondary-button" data-clear-scouting-import>Use built-in data</button>` : ""}
         </div>
         ${getScoutingImportLastUploadMarkup()}
+        ${renderScoutingImportStepTracker(draft)}
         ${
           draft
             ? `
             <div class="scouting-import-workbench">
-              <div class="scouting-import-status">
+              <div class="scouting-import-status ${importStepState.error ? "is-error" : ""}" aria-live="polite">
                 <span>${escapeHtml("Scouting player database file")}</span>
                 <strong>${escapeHtml(draftStatusLabel)}</strong>
                 <p>${escapeHtml(draftStatusDetail)}</p>
@@ -12534,7 +13058,7 @@ function renderScoutingImportPanel() {
                         draft.sheets.length > 1
                           ? `
                             <label>
-                              <span>Sheet</span>
+                              <span>Mapping sheet</span>
                               <select data-scouting-import-sheet>
                                 ${(draft.sheets || []).map((sheet) => `<option value="${escapeHtml(sheet.name)}" ${draft.selectedSheet === sheet.name ? "selected" : ""}>${escapeHtml(sheet.name)}</option>`).join("")}
                               </select>
@@ -12566,7 +13090,10 @@ function renderScoutingImportPanel() {
                         <strong>Metric columns</strong>
                         <p>${escapeHtml(`${getScoutingImportMetricHeaders(headers, draft.map || {}).length} unmapped columns will be imported as metrics.`)}</p>
                       </div>
-                      <button type="button" class="scouting-primary-button" data-apply-scouting-import>${escapeHtml(draft.importPreview?.signature ? "Commit preview" : "Preview update")}</button>
+                      <div class="scouting-import-action-stack">
+                        <button type="button" class="scouting-primary-button scouting-import-primary-action" data-apply-scouting-import>${escapeHtml(importPrimaryActionLabel)}</button>
+                        <small>${escapeHtml(importActionHelp)}</small>
+                      </div>
                     </div>
                     ${renderScoutingImportDiffPreview(draft.importPreview)}
                   `
@@ -12996,7 +13523,11 @@ function getScoutingDatabaseResultsMarkup() {
     isPaged && Number.isFinite(Number(apiPage?.total)) ? Math.max(0, Math.floor(Number(apiPage.total))) : Number.isFinite(Number(apiPage?.returned))
       ? Math.max(pageOffset + Math.floor(Number(apiPage.returned)), pageOffset)
       : null;
-  const total = isPaged ? knownTotal : records.length;
+  const total = isPaged
+    ? !apiPage?.hasMore && Number.isFinite(Number(knownTotal)) && records.length < knownTotal
+      ? records.length
+      : knownTotal
+    : records.length;
   const summary = isFootballScienceDb
     ? total
       ? `${total.toLocaleString("en-US")} ${fsdbSegmentLabel} Football Science DB players match.`
@@ -14680,10 +15211,11 @@ function renderScoutingProfileModal() {
   const activeProfileTab = normalizeScoutingProfileTab(state.profileTab);
   const needsPerformanceData = activeProfileTab === "performance";
   const needsRoleSpiderData = activeProfileTab === "overview" || activeProfileTab === "performance";
-  const needsHistoryData = activeProfileTab === "history";
-  const radarTemplate = needsRoleSpiderData ? getScoutingRadarTemplate(record, selectedProfileRoleId) : { profileLabel: "" };
-  const profileMetrics = needsRoleSpiderData ? getScoutingRoleMetricRows(record, radarTemplate) : [];
-  const playerRows = needsHistoryData ? getScoutingRecordsForPlayer(record).slice(0, 10) : [];
+  const playerRows = getScoutingRecordsForPlayer(record).slice(0, 20);
+  const spiderContext = needsRoleSpiderData ? getScoutingProfileSpiderContext(record, playerRows, selectedProfileRoleId) : null;
+  const spiderRecord = spiderContext?.record || record;
+  const radarTemplate = needsRoleSpiderData ? getScoutingRadarTemplate(spiderRecord, selectedProfileRoleId) : { profileLabel: "" };
+  const profileMetrics = needsRoleSpiderData ? getScoutingRoleMetricRows(spiderRecord, radarTemplate) : [];
   const shadowRoles = scoutingShadowSlots.filter((slot) => getScoutingShadowSlotRecordIds(slot.id, state).includes(recordId));
   const target = findScoutingTargetByRecordId(recordId, state);
   const listOptions = state.lists
@@ -14795,7 +15327,7 @@ function renderScoutingProfileModal() {
           </div>
         </div>
         <div class="scouting-profile-tab-panel ${activeProfileTab === "overview" ? "is-active" : ""}">
-          ${activeProfileTab === "overview" ? renderScoutingProfileRoleSpiderGrid(record, selectedProfileRoleId, profileRoleProfileId, radarTemplate, profileMetrics) : ""}
+          ${activeProfileTab === "overview" ? renderScoutingProfileRoleSpiderGrid(spiderRecord, selectedProfileRoleId, profileRoleProfileId, radarTemplate, profileMetrics, spiderContext) : ""}
           ${activeProfileTab === "overview" ? renderScoutingProfileOverviewPanelShell(record) : ""}
         </div>
         <div class="scouting-profile-tab-panel ${activeProfileTab === "market" ? "is-active" : ""}">
@@ -14804,7 +15336,7 @@ function renderScoutingProfileModal() {
         <div class="scouting-profile-tab-panel ${activeProfileTab === "performance" ? "is-active" : ""}">
           ${
             activeProfileTab === "performance"
-              ? renderScoutingProfileRoleSpiderGrid(record, selectedProfileRoleId, profileRoleProfileId, radarTemplate, profileMetrics)
+              ? renderScoutingProfileRoleSpiderGrid(spiderRecord, selectedProfileRoleId, profileRoleProfileId, radarTemplate, profileMetrics, spiderContext)
               : ""
           }
         </div>
@@ -15439,6 +15971,8 @@ function openScoutingRecordProfile(recordId) {
   state.selectedRecordId = normalizedRecordId;
   state.profileTab = "overview";
   state.profileRoleProfileId = "auto";
+  state.profileSpiderSeasonMode = "latest";
+  state.profileSpiderSeasonValue = "";
   scoutingPendingProfileFocusRecordId = state.selectedRecordId;
   scoutingPendingProfileFocusUntil = Date.now() + 1500;
   writeScoutingState({ syncCentral: false });
@@ -16331,7 +16865,9 @@ export function handleChange(event, context) {
   if (importFileInput) {
     const nextFile = importFileInput.files?.[0];
     importFileInput.value = "";
-    loadScoutingImportFile(nextFile).catch(() => {});
+    loadScoutingImportFile(nextFile).catch((error) => {
+      setScoutingImportDraftFailure(error, nextFile?.name || "");
+    });
     return;
   }
   const importSheetInput = event.target.closest("[data-scouting-import-sheet]");
@@ -16367,6 +16903,11 @@ export function handleChange(event, context) {
   const profileRoleTemplateTrigger = event.target.closest("[data-scouting-profile-role-template]");
   if (profileRoleTemplateTrigger) {
     setScoutingProfileRoleProfile(profileRoleTemplateTrigger.value);
+    return;
+  }
+  const profileSpiderSeasonTrigger = event.target.closest("[data-scouting-profile-spider-season]");
+  if (profileSpiderSeasonTrigger) {
+    setScoutingProfileSpiderSeason(profileSpiderSeasonTrigger.value);
     return;
   }
   const shadowBoardVisibilityTrigger = event.target.closest("[data-scouting-shadow-board-visibility]");

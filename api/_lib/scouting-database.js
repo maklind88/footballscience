@@ -970,6 +970,37 @@ async function fetchPlayerRowByIdentity(playerIdentityKey = "") {
   return Array.isArray(result.payload) ? result.payload[0] || null : null;
 }
 
+async function fetchPlayerRowsByIdentityKeys(playerIdentityKeys = []) {
+  const identityKeys = uniqueBy(
+    (Array.isArray(playerIdentityKeys) ? playerIdentityKeys : [])
+      .map((value) => normalizeString(value, 160))
+      .filter(Boolean),
+    (value) => value
+  );
+  if (!identityKeys.length) {
+    return [];
+  }
+  const chunks = [];
+  for (let index = 0; index < identityKeys.length; index += 80) {
+    chunks.push(identityKeys.slice(index, index + 80));
+  }
+  const rows = [];
+  for (const chunk of chunks) {
+    const params = new URLSearchParams({
+      select: SCOUTING_PLAYER_IDENTITY_SELECT,
+      player_identity_key: `in.(${chunk.map((value) => `"${value.replace(/"/g, '\\"')}"`).join(",")})`,
+      status: "eq.active",
+      limit: String(chunk.length),
+    });
+    const result = await dbRequest(`/scouting_players?${params.toString()}`);
+    if (!result.ok) {
+      throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
+    }
+    rows.push(...(Array.isArray(result.payload) ? result.payload : []));
+  }
+  return rows;
+}
+
 async function fetchPlayerRowsByIdentityField(field = "", value = "") {
   const normalizedField = field === "source_player_id" ? "source_player_id" : "player_identity_key";
   const normalizedValue = normalizeString(value, 160);
@@ -1797,16 +1828,31 @@ async function upsertScoutingPlayers(records = [], options = {}) {
     map.set(identityKey, existing);
     return map;
   }, new Map());
-  const result = await dbRequest("/scouting_players?on_conflict=player_identity_key", {
-    method: "POST",
-    headers: { Prefer: "resolution=merge-duplicates,return=representation" },
-    body: rows,
-  });
-  if (!result.ok) {
-    throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
+  const existingRows = await fetchPlayerRowsByIdentityKeys(rows.map((row) => row.player_identity_key));
+  const existingIdentityKeys = new Set(existingRows.map((row) => normalizeString(row.player_identity_key || row.source_player_id, 160)).filter(Boolean));
+  const insertRows = rows.filter((row) => !existingIdentityKeys.has(normalizeString(row.player_identity_key, 160)));
+  let insertedRows = [];
+  if (insertRows.length) {
+    const result = await dbRequest("/scouting_players?on_conflict=player_identity_key", {
+      method: "POST",
+      headers: { Prefer: "resolution=ignore-duplicates,return=representation" },
+      body: insertRows,
+    });
+    if (!result.ok) {
+      throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
+    }
+    insertedRows = Array.isArray(result.payload) ? result.payload : [];
+  }
+  let playerRows = [...existingRows, ...insertedRows];
+  const resolvedIdentityKeys = new Set(playerRows.map((row) => normalizeString(row.player_identity_key || row.source_player_id, 160)).filter(Boolean));
+  const missingIdentityKeys = rows
+    .map((row) => normalizeString(row.player_identity_key, 160))
+    .filter((identityKey) => identityKey && !resolvedIdentityKeys.has(identityKey));
+  if (missingIdentityKeys.length) {
+    playerRows = [...playerRows, ...(await fetchPlayerRowsByIdentityKeys(missingIdentityKeys))];
   }
   return new Map(
-    (Array.isArray(result.payload) ? result.payload : [])
+    playerRows
       .flatMap((row) => {
         const identityKey = normalizeString(row.player_identity_key || row.source_player_id, 160);
         return (sourceKeysByIdentity.get(identityKey) || []).map((sourceKey) => [sourceKey, row.id]);

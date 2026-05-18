@@ -6355,6 +6355,9 @@ color: #c6f6d5;
 }
 
 @media (max-width: 900px){
+  .scouting-profile-role-controls{
+  grid-template-columns:1fr;
+  }
   .scouting-cockpit{
   grid-template-columns: 1fr;
   }
@@ -6457,10 +6460,15 @@ color: #c6f6d5;
 }
 
 /* Role Profiling Engine v2 */
+.scouting-profile-role-controls{
+display:grid;
+grid-template-columns:repeat(2,minmax(0,1fr));
+gap:.5rem;
+margin-bottom:.72rem;
+}
 .scouting-profile-role-selector{
 display:grid;
 gap:0.32rem;
-margin-bottom:0.72rem;
 }
 .scouting-profile-role-selector span{
 color:#6e6e73;
@@ -6481,6 +6489,33 @@ font:inherit;
 font-size:0.78rem;
 font-weight:760;
 outline:none;
+}
+.scouting-profile-spider-context{
+display:grid;
+gap:.12rem;
+margin:.62rem 0 .72rem;
+padding:.58rem .68rem;
+border-radius:12px;
+background:linear-gradient(135deg,rgba(35,59,45,.08),rgba(255,214,102,.12));
+border:1px solid rgba(35,59,45,.1);
+}
+.scouting-profile-spider-context span,
+.scouting-profile-spider-context em{
+color:#5f665f;
+font-size:.7rem;
+font-style:normal;
+font-weight:820;
+}
+.scouting-profile-spider-context strong{
+color:#203b2c;
+font-size:.94rem;
+line-height:1.12;
+}
+.scouting-profile-spider-context.is-up strong{
+color:#1f6f43;
+}
+.scouting-profile-spider-context.is-down strong{
+color:#a6503b;
 }
 .scouting-radar-frame{
 display:grid;
@@ -6578,6 +6613,7 @@ font-weight:780;
 }
 body.is-dark-mode .scouting-profile-role-selector select,
 body.is-dark-mode .scouting-radar-head,
+body.is-dark-mode .scouting-profile-spider-context,
 body.is-dark-mode .scouting-role-fit-stack,
 body.is-dark-mode .scouting-role-explanation,
 body.is-dark-mode .scouting-role-fit-stack article,
@@ -6606,10 +6642,12 @@ border-color:rgba(255,255,255,0.1);
 color:#f4f0dc;
 }
 body.is-dark-mode .scouting-role-fit-stack article:first-child,
-body.is-dark-mode .scouting-radar-head{
+body.is-dark-mode .scouting-radar-head,
+body.is-dark-mode .scouting-profile-spider-context{
 background:linear-gradient(145deg, rgba(25,38,32,0.96), rgba(16,24,20,0.92));
 }
 body.is-dark-mode .scouting-radar-head strong,
+body.is-dark-mode .scouting-profile-spider-context strong,
 body.is-dark-mode .scouting-role-fit-stack strong,
 body.is-dark-mode .scouting-role-explanation strong,
 body.is-dark-mode .scouting-trend-grid strong,
@@ -6634,6 +6672,8 @@ color:#f4f0dc;
 body.is-dark-mode .scouting-radar-head span,
 body.is-dark-mode .scouting-radar-head small,
 body.is-dark-mode .scouting-profile-role-selector span,
+body.is-dark-mode .scouting-profile-spider-context span,
+body.is-dark-mode .scouting-profile-spider-context em,
 body.is-dark-mode .scouting-role-fit-stack span,
 body.is-dark-mode .scouting-role-fit-stack em,
 body.is-dark-mode .scouting-role-explanation span,
@@ -8719,4 +8759,129 @@ body.is-dark-mode .scouting-my-team-spider-panel dl div{
   font:inherit;
   font-size:.72rem;
   font-weight:840;
+}
+.scouting-import-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0.9rem 0 1rem;
+}
+
+.scouting-import-step {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(27, 60, 50, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  color: rgba(20, 33, 28, 0.7);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+.scouting-import-step b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 999px;
+  background: rgba(27, 60, 50, 0.1);
+  color: #19392f;
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.scouting-import-step span {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.scouting-import-step strong,
+.scouting-import-step small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scouting-import-step strong {
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #17362d;
+}
+
+.scouting-import-step small {
+  font-size: 0.75rem;
+  font-weight: 750;
+  color: rgba(20, 33, 28, 0.58);
+}
+
+.scouting-import-step.is-active {
+  border-color: rgba(28, 83, 67, 0.36);
+  background: linear-gradient(135deg, rgba(236, 245, 240, 0.96), rgba(255, 255, 255, 0.88));
+  box-shadow: 0 12px 28px rgba(17, 41, 34, 0.1);
+}
+
+.scouting-import-step.is-active b {
+  background: #1f4a3c;
+  color: #fff;
+}
+
+.scouting-import-step.is-done b {
+  background: #2d765f;
+  color: #fff;
+}
+
+.scouting-import-step.is-error {
+  border-color: rgba(177, 53, 53, 0.34);
+  background: rgba(255, 246, 246, 0.92);
+}
+
+.scouting-import-step.is-error b {
+  background: #b13535;
+  color: #fff;
+}
+
+.scouting-import-status.is-error {
+  border-color: rgba(177, 53, 53, 0.3);
+  background: rgba(255, 246, 246, 0.9);
+}
+
+.scouting-import-action-stack {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: end;
+  min-width: min(21rem, 100%);
+}
+
+.scouting-import-action-stack small {
+  max-width: 24rem;
+  color: rgba(20, 33, 28, 0.62);
+  font-size: 0.76rem;
+  font-weight: 750;
+  line-height: 1.35;
+  text-align: right;
+}
+
+.scouting-import-primary-action {
+  width: 100%;
+  min-height: 2.65rem;
+}
+
+@media (max-width: 860px) {
+  .scouting-import-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .scouting-import-action-stack {
+    justify-items: stretch;
+  }
+
+  .scouting-import-action-stack small {
+    text-align: left;
+  }
 }

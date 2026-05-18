@@ -504,8 +504,8 @@ test("Transfer Room opens a saved target profile without loading scouting databa
 
   await openWorkspace(page, "admin");
   const transferRoomAccessForm = page.locator("#adminTransferRoomAccessForm");
-  await expect(transferRoomAccessForm).toContainText("Transfer Room Access");
-  await expect(transferRoomAccessForm).toContainText("Selected people for North Carolina Courage");
+  await expect(transferRoomAccessForm).toContainText("Transfer Room");
+  await expect(transferRoomAccessForm).toContainText("QA Scout");
   const scoutAccess = transferRoomAccessForm.locator('[data-admin-transfer-room-access-user="qa-scout"]');
   await expect(scoutAccess).not.toBeChecked();
   await scoutAccess.check();

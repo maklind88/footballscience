@@ -874,21 +874,11 @@ function renderScenarioVersions() {
 
 function renderOverview() {
   const profile = getLeagueProfile();
-  const targetPlans = getTargetPlans();
   return `
     ${renderKpiGrid()}
     ${renderScenarioPlanner()}
     ${renderRuleCheckPanel()}
     <section class="transfer-room-overview">
-      <article class="transfer-room-panel">
-        <div class="transfer-room-panel-head">
-          <span>Target board</span>
-          <strong>${targetPlans.length}</strong>
-        </div>
-        <div class="transfer-room-target-strip">
-          ${targetPlans.slice(0, 5).map(renderCompactTarget).join("") || `<p>No targets in Transfer Room yet.</p>`}
-        </div>
-      </article>
       <article class="transfer-room-panel transfer-room-rules-panel">
         <div class="transfer-room-panel-head">
           <span>${escapeHtml(profile.label || "Rules")}</span>
@@ -900,16 +890,6 @@ function renderOverview() {
       </article>
     </section>
     ${renderAuditTimeline("", "Latest activity")}
-  `;
-}
-
-function renderCompactTarget(plan) {
-  const snapshot = getTargetSnapshot(plan.recordId);
-  return `
-    <button type="button" data-transfer-open-target-profile="${escapeHtml(plan.recordId)}">
-      <strong>${escapeHtml(plan.name || snapshot.name || "Saved target")}</strong>
-      <span>${escapeHtml([plan.position || snapshot.position, plan.club || snapshot.club].filter(Boolean).join(" / ") || "Scouted player")}</span>
-    </button>
   `;
 }
 

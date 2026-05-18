@@ -133,8 +133,7 @@
 
 .transfer-room-tabs button,
 .transfer-room-section-head button,
-.transfer-room-target-card button,
-.transfer-room-target-strip button {
+.transfer-room-target-card button {
   min-height: 40px;
   border: 1px solid rgba(23, 32, 25, 0.16);
   background: #ffffff;
@@ -191,7 +190,7 @@
 }
 
 .transfer-room-overview {
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.9fr);
+  grid-template-columns: 1fr;
 }
 
 .transfer-room-panel,
@@ -814,19 +813,6 @@
   font-size: 0.74rem;
   font-weight: 800;
   text-transform: uppercase;
-}
-
-.transfer-room-target-strip {
-  margin-top: 18px;
-  display: grid;
-  gap: 8px;
-}
-
-.transfer-room-target-strip button {
-  padding: 12px;
-  text-align: left;
-  display: grid;
-  gap: 4px;
 }
 
 .transfer-room-rule-list {

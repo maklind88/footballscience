@@ -37,6 +37,8 @@ const transferRoomTargetDealTypeOptions = Object.freeze([
 const transferRoomTabs = new Set(["overview", "squad", "targets", "scenarios", "rules"]);
 const transferRoomBudgetActiveStages = new Set(["shortlist", "internal-approved", "contact", "negotiation", "medical-admin", "approved", "signed"]);
 const transferRoomOutgoingStatuses = new Set(["sell", "loan", "release"]);
+const auditTimelinePageSize = 10;
+const auditTimelineUiState = new Map();
 
 function setContext(context = {}) {
   activeContext = context;
@@ -654,43 +656,92 @@ function formatAuditTime(value = "") {
   }).format(date);
 }
 
+function getAuditTimestamp(event = {}) {
+  const timestamp = new Date(event.createdAt).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
 function getAuditEvents(recordId = "") {
   const events = Array.isArray(getState().auditEvents) ? getState().auditEvents : [];
   return events
     .filter((event) => !recordId || event.targetRecordId === recordId)
-    .slice(-8)
-    .reverse();
+    .slice()
+    .sort((a, b) => getAuditTimestamp(b) - getAuditTimestamp(a));
+}
+
+function getAuditTimelineKey(recordId = "", title = "Latest activity") {
+  return recordId ? `target:${recordId}` : `room:${title}`;
+}
+
+function getAuditTimelineState(key) {
+  if (!auditTimelineUiState.has(key)) {
+    auditTimelineUiState.set(key, { isExpanded: false, page: 0 });
+  }
+  return auditTimelineUiState.get(key);
+}
+
+function renderAuditEvent(event = {}) {
+  return `
+    <article>
+      <time>${escapeHtml(formatAuditTime(event.createdAt))}</time>
+      <div>
+        <strong>${escapeHtml(event.message)}</strong>
+        <span>${escapeHtml([event.actorName, event.actorRole].filter(Boolean).join(" / ") || "Transfer Room user")}</span>
+        ${event.detail ? `<p>${escapeHtml(event.detail)}</p>` : ""}
+      </div>
+    </article>
+  `;
 }
 
 function renderAuditTimeline(recordId = "", title = "Latest activity") {
   const events = getAuditEvents(recordId);
+  const timelineKey = getAuditTimelineKey(recordId, title);
+  const uiState = getAuditTimelineState(timelineKey);
+  const totalPages = Math.max(1, Math.ceil(events.length / auditTimelinePageSize));
+  const page = Math.min(Math.max(Number(uiState.page) || 0, 0), totalPages - 1);
+  uiState.page = page;
+  const pageStart = page * auditTimelinePageSize;
+  const pageEvents = events.slice(pageStart, pageStart + auditTimelinePageSize);
   return `
-    <section class="transfer-room-audit">
+    <section class="transfer-room-audit ${uiState.isExpanded ? "is-expanded" : "is-collapsed"}">
       <div class="transfer-room-section-head">
         <div>
           <p>Audit trail</p>
           <h2>${escapeHtml(title)}</h2>
         </div>
-        <span>${escapeHtml(String(events.length))} events</span>
+        <div class="transfer-room-audit-actions">
+          <span>${escapeHtml(String(events.length))} events</span>
+          <button type="button" data-transfer-audit-toggle="${escapeHtml(timelineKey)}" aria-expanded="${uiState.isExpanded ? "true" : "false"}">
+            ${uiState.isExpanded ? "Hide" : "Show"}
+          </button>
+        </div>
       </div>
-      <div class="transfer-room-audit-list">
-        ${events.length
-          ? events
-              .map(
-                (event) => `
-                  <article>
-                    <time>${escapeHtml(formatAuditTime(event.createdAt))}</time>
+      ${
+        uiState.isExpanded
+          ? `
+            <div class="transfer-room-audit-list">
+              ${
+                pageEvents.length
+                  ? pageEvents.map(renderAuditEvent).join("")
+                  : `<article><time>Now</time><div><strong>No audited changes yet</strong><span>Transfer Room will log edits here.</span></div></article>`
+              }
+            </div>
+            ${
+              events.length > auditTimelinePageSize
+                ? `
+                  <div class="transfer-room-audit-pagination">
+                    <span>${pageStart + 1}-${Math.min(pageStart + auditTimelinePageSize, events.length)} of ${events.length}</span>
                     <div>
-                      <strong>${escapeHtml(event.message)}</strong>
-                      <span>${escapeHtml([event.actorName, event.actorRole].filter(Boolean).join(" / ") || "Transfer Room user")}</span>
-                      ${event.detail ? `<p>${escapeHtml(event.detail)}</p>` : ""}
+                      <button type="button" data-transfer-audit-page="${escapeHtml(timelineKey)}" data-transfer-audit-page-direction="-1" ${page <= 0 ? "disabled" : ""}>Previous</button>
+                      <button type="button" data-transfer-audit-page="${escapeHtml(timelineKey)}" data-transfer-audit-page-direction="1" ${page >= totalPages - 1 ? "disabled" : ""}>Next</button>
                     </div>
-                  </article>
+                  </div>
                 `
-              )
-              .join("")
-          : `<article><time>Now</time><div><strong>No audited changes yet</strong><span>Transfer Room will log edits here.</span></div></article>`}
-      </div>
+                : ""
+            }
+          `
+          : ""
+      }
     </section>
   `;
 }
@@ -1448,6 +1499,28 @@ export function handleClick(event, context = activeContext) {
   if (tabTrigger) {
     event.preventDefault();
     activeContext?.setActiveTab?.(tabTrigger.dataset.transferRoomTab);
+    return;
+  }
+
+  const auditToggle = event.target.closest("[data-transfer-audit-toggle]");
+  if (auditToggle) {
+    event.preventDefault();
+    const auditState = getAuditTimelineState(auditToggle.dataset.transferAuditToggle);
+    auditState.isExpanded = !auditState.isExpanded;
+    if (auditState.isExpanded) {
+      auditState.page = 0;
+    }
+    render(activeContext);
+    return;
+  }
+
+  const auditPageTrigger = event.target.closest("[data-transfer-audit-page]");
+  if (auditPageTrigger) {
+    event.preventDefault();
+    const auditState = getAuditTimelineState(auditPageTrigger.dataset.transferAuditPage);
+    auditState.page = Math.max(0, (Number(auditState.page) || 0) + (Number(auditPageTrigger.dataset.transferAuditPageDirection) || 0));
+    auditState.isExpanded = true;
+    render(activeContext);
     return;
   }
 

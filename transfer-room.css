@@ -245,6 +245,10 @@
   gap: 12px;
 }
 
+.transfer-room-audit.is-collapsed {
+  gap: 0;
+}
+
 .transfer-room-scenario .transfer-room-section-head,
 .transfer-room-pipeline .transfer-room-section-head,
 .transfer-room-rule-check .transfer-room-section-head,
@@ -492,6 +496,55 @@
 .transfer-room-audit article div {
   display: grid;
   gap: 3px;
+}
+
+.transfer-room-audit-actions,
+.transfer-room-audit-pagination,
+.transfer-room-audit-pagination div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.transfer-room-audit-actions {
+  justify-content: flex-end;
+}
+
+.transfer-room-audit-actions span,
+.transfer-room-audit-pagination span {
+  padding: 8px 10px;
+  border: 1px solid rgba(23, 32, 25, 0.12);
+  background: #ffffff;
+  color: #172019;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.transfer-room-audit-actions button,
+.transfer-room-audit-pagination button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(23, 32, 25, 0.16);
+  background: #ffffff;
+  color: #172019;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.transfer-room-audit-actions button:hover,
+.transfer-room-audit-pagination button:hover {
+  background: #f1f5ed;
+}
+
+.transfer-room-audit-pagination {
+  justify-content: space-between;
+}
+
+.transfer-room-audit-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .transfer-room-stage-gate {
@@ -1378,6 +1431,23 @@
   .transfer-room-target-profile-head button {
     grid-column: 1 / -1;
     justify-self: start;
+  }
+
+  .transfer-room-audit .transfer-room-section-head,
+  .transfer-room-audit-actions,
+  .transfer-room-audit-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .transfer-room-audit-actions,
+  .transfer-room-audit-pagination div {
+    width: 100%;
+  }
+
+  .transfer-room-audit-actions button,
+  .transfer-room-audit-pagination button {
+    flex: 1 1 auto;
   }
 
   .transfer-room-audit-list article {

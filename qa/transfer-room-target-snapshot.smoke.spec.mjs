@@ -244,6 +244,14 @@ async function seedTransferRoomTarget(page) {
               updatedAt: "2026-05-17T12:00:00.000Z",
             },
           },
+          auditEvents: Array.from({ length: 12 }, (_, index) => ({
+            id: `qa-audit-${index + 1}`,
+            type: "qa-seeded",
+            message: `Seeded audit activity ${index + 1}`,
+            actorName: "QA Audit",
+            actorRole: "admin",
+            createdAt: new Date(Date.UTC(2026, 4, 17, 11, index)).toISOString(),
+          })),
         })
       );
     },
@@ -287,6 +295,17 @@ test("Transfer Room opens a saved target profile without loading scouting databa
   await expect(page.locator(".transfer-room-scenario")).toContainText("Confirm agent availability");
   await expect(page.locator(".transfer-room-rule-check")).toContainText("Rule check");
   await expect(page.locator(".transfer-room-rule-check")).toContainText("Deal data");
+  const auditPanel = page.locator(".transfer-room-audit").first();
+  await expect(auditPanel).toContainText("Latest activity");
+  await expect(auditPanel).toHaveClass(/is-collapsed/);
+  await expect(auditPanel.locator(".transfer-room-audit-list article")).toHaveCount(0);
+  await auditPanel.locator("[data-transfer-audit-toggle]").click();
+  await expect(auditPanel).toHaveClass(/is-expanded/);
+  await expect(auditPanel.locator(".transfer-room-audit-list article")).toHaveCount(10);
+  await expect(auditPanel.locator(".transfer-room-audit-pagination")).toContainText("1-10 of 13");
+  await auditPanel.locator('[data-transfer-audit-page-direction="1"]').click();
+  await expect(auditPanel.locator(".transfer-room-audit-list article")).toHaveCount(3);
+  await expect(auditPanel.locator(".transfer-room-audit-pagination")).toContainText("11-13 of 13");
 
   await page.locator('[data-transfer-room-tab="targets"]').click();
   await page.locator('[data-transfer-open-target-profile="qa-target-snapshot-1"]').click();

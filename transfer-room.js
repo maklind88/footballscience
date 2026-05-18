@@ -874,28 +874,12 @@ function renderScenarioVersions() {
 
 function renderOverview() {
   const profile = getLeagueProfile();
-  const squadPlans = getSquadPlans();
   const targetPlans = getTargetPlans();
-  const statusCounts = squadPlans.reduce((counts, plan) => {
-    counts[plan.status] = (counts[plan.status] || 0) + 1;
-    return counts;
-  }, {});
   return `
     ${renderKpiGrid()}
     ${renderScenarioPlanner()}
     ${renderRuleCheckPanel()}
     <section class="transfer-room-overview">
-      <article class="transfer-room-panel">
-        <div class="transfer-room-panel-head">
-          <span>Squad decisions</span>
-          <strong>${squadPlans.length}</strong>
-        </div>
-        <div class="transfer-room-decision-grid">
-          ${["keep", "review", "renew", "sell", "loan", "release"]
-            .map((status) => `<div><span>${escapeHtml(status)}</span><strong>${escapeHtml(String(statusCounts[status] || 0))}</strong></div>`)
-            .join("")}
-        </div>
-      </article>
       <article class="transfer-room-panel">
         <div class="transfer-room-panel-head">
           <span>Target board</span>

@@ -190,6 +190,10 @@
   gap: 14px;
 }
 
+.transfer-room-overview {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.9fr);
+}
+
 .transfer-room-panel,
 .transfer-room-table-shell,
 .transfer-room-rule-check,

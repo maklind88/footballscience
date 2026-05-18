@@ -189,16 +189,16 @@ async function seedTransferRoomTarget(page) {
             },
           },
           squadPlans: {
-            "qa-outgoing-1": {
-              playerId: "qa-outgoing-1",
-              name: "Outgoing Player",
-              position: "CM",
-              status: "sell",
+            "ncc-2026-madison-white": {
+              playerId: "ncc-2026-madison-white",
+              name: "Madison White",
+              position: "Goalkeeper",
+              status: "loan",
               salary: 50000,
               wagePeriod: "year",
-              estimatedValue: 75000,
+              estimatedValue: "",
               contractEnd: "2026-12-31",
-              notes: "Scenario outgoing value",
+              notes: "Scenario outgoing value needs review",
             },
           },
           targetSnapshots: {
@@ -295,6 +295,14 @@ test("Transfer Room opens a saved target profile without loading scouting databa
   await expect(page.locator(".transfer-room-scenario")).toContainText("Confirm agent availability");
   await expect(page.locator(".transfer-room-rule-check")).toContainText("Rule check");
   await expect(page.locator(".transfer-room-rule-check")).toContainText("Deal data");
+  const outgoingDecision = page.locator('[data-transfer-open-squad-plan-player="ncc-2026-madison-white"]');
+  await expect(outgoingDecision).toContainText("Not set value");
+  await outgoingDecision.click();
+  await expect(page.locator('[data-transfer-room-tab="squad"]')).toHaveClass(/is-active/);
+  const focusedSquadRow = page.locator('[data-transfer-squad-player-row="ncc-2026-madison-white"]');
+  await expect(focusedSquadRow).toHaveClass(/is-focused/);
+  await expect(focusedSquadRow.locator('[data-transfer-squad-field="estimatedValue"]')).toBeFocused();
+  await page.locator('[data-transfer-room-tab="overview"]').click();
   const auditPanel = page.locator(".transfer-room-audit").first();
   await expect(auditPanel).toContainText("Latest activity");
   await expect(auditPanel).toHaveClass(/is-collapsed/);

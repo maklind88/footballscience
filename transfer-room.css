@@ -354,6 +354,32 @@
   background: #fbfcf8;
 }
 
+.transfer-room-scenario-lanes li.is-action {
+  padding: 0;
+}
+
+.transfer-room-scenario-lanes li.is-action button {
+  width: 100%;
+  min-height: 58px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.transfer-room-scenario-lanes li.is-action button:hover,
+.transfer-room-scenario-lanes li.is-action button:focus-visible {
+  background: #eef5ec;
+  outline: 0;
+}
+
 .transfer-room-scenario-lanes li div {
   min-width: 0;
   display: grid;
@@ -848,6 +874,12 @@
   padding: 10px;
   background: #fbfcf8;
   border: 1px solid rgba(23, 32, 25, 0.08);
+}
+
+.transfer-room-squad-row.is-focused {
+  border-color: rgba(54, 114, 79, 0.52);
+  background: #f4faef;
+  box-shadow: inset 4px 0 0 #36724f;
 }
 
 .transfer-room-squad-row.is-head {

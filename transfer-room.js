@@ -39,6 +39,7 @@ const transferRoomBudgetActiveStages = new Set(["shortlist", "internal-approved"
 const transferRoomOutgoingStatuses = new Set(["sell", "loan", "release"]);
 const auditTimelinePageSize = 10;
 const auditTimelineUiState = new Map();
+let squadPlanFocus = null;
 
 function setContext(context = {}) {
   activeContext = context;
@@ -516,6 +517,20 @@ function renderScenarioLine(plan = {}, type = "target") {
   const value = isTarget
     ? `${formatOptionalMoney(plan.fee)} fee`
     : `${formatOptionalMoney(plan.estimatedValue)} value`;
+  if (!isTarget && plan.playerId) {
+    const focusField = plan.estimatedValue === "" || plan.estimatedValue === null || plan.estimatedValue === undefined ? "estimatedValue" : "status";
+    return `
+      <li class="is-action">
+        <button type="button" data-transfer-open-squad-plan-player="${escapeHtml(plan.playerId)}" data-transfer-open-squad-plan-field="${escapeHtml(focusField)}">
+          <div>
+            <strong>${escapeHtml(name)}</strong>
+            <span>${escapeHtml(meta)}</span>
+          </div>
+          <em>${escapeHtml(value)}</em>
+        </button>
+      </li>
+    `;
+  }
   return `
     <li>
       <div>
@@ -525,6 +540,31 @@ function renderScenarioLine(plan = {}, type = "target") {
       <em>${escapeHtml(value)}</em>
     </li>
   `;
+}
+
+function focusSquadPlanField() {
+  const focus = squadPlanFocus;
+  const root = activeContext?.ui?.transferRoomWorkspace;
+  if (!focus || !root) {
+    return;
+  }
+  const row = Array.from(root.querySelectorAll("[data-transfer-squad-player-row]")).find(
+    (candidate) => candidate.dataset.transferSquadPlayerRow === focus.playerId
+  );
+  if (!row) {
+    return;
+  }
+  row.scrollIntoView({ block: "center", behavior: "smooth" });
+  const field =
+    Array.from(row.querySelectorAll("[data-transfer-squad-field]")).find(
+      (candidate) => candidate.dataset.transferSquadField === focus.field
+    ) || row.querySelector("[data-transfer-squad-field]");
+  if (field) {
+    field.focus({ preventScroll: true });
+    if (typeof field.select === "function" && field.tagName !== "SELECT") {
+      field.select();
+    }
+  }
 }
 
 function renderScenarioPlanner() {
@@ -907,8 +947,9 @@ function renderSquadPlan() {
 }
 
 function renderSquadRow(player, plan, canEdit) {
+  const isFocused = squadPlanFocus?.playerId === player.id;
   return `
-    <article class="transfer-room-squad-row">
+    <article class="transfer-room-squad-row ${isFocused ? "is-focused" : ""}" data-transfer-squad-player-row="${escapeHtml(player.id)}">
       <div class="transfer-room-player-cell">
         <strong>${escapeHtml(player.name)}</strong>
         <span>${escapeHtml([player.number && `#${player.number}`, player.position].filter(Boolean).join(" / ") || "Squad player")}</span>
@@ -1468,6 +1509,18 @@ export function handleClick(event, context = activeContext) {
     auditState.page = Math.max(0, (Number(auditState.page) || 0) + (Number(auditPageTrigger.dataset.transferAuditPageDirection) || 0));
     auditState.isExpanded = true;
     render(activeContext);
+    return;
+  }
+
+  const squadPlanTrigger = event.target.closest("[data-transfer-open-squad-plan-player]");
+  if (squadPlanTrigger) {
+    event.preventDefault();
+    squadPlanFocus = {
+      playerId: squadPlanTrigger.dataset.transferOpenSquadPlanPlayer || "",
+      field: squadPlanTrigger.dataset.transferOpenSquadPlanField || "status",
+    };
+    activeContext?.setActiveTab?.("squad");
+    window.requestAnimationFrame(focusSquadPlanField);
     return;
   }
 

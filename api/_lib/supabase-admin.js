@@ -749,13 +749,16 @@ function sendJson(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
-async function parseJsonBody(req) {
+async function parseJsonBody(req, options = {}) {
   const chunks = [];
   let totalBytes = 0;
+  const maxBytes = Number.isFinite(Number(options.maxBytes)) && Number(options.maxBytes) > 0
+    ? Number(options.maxBytes)
+    : MAX_JSON_BODY_BYTES;
   for await (const chunk of req) {
     const buffer = Buffer.from(chunk);
     totalBytes += buffer.length;
-    if (totalBytes > MAX_JSON_BODY_BYTES) {
+    if (totalBytes > maxBytes) {
       const error = new Error("Request body is too large.");
       error.code = "BODY_TOO_LARGE";
       throw error;

@@ -19,6 +19,7 @@ const crypto = require("crypto");
 
 const STATE_BUCKET = "footballscience-app-state";
 const STATE_PREFIX = "global";
+const MAX_APP_STATE_JSON_BODY_BYTES = 4 * 1024 * 1024;
 const MAX_STATE_VALUE_BYTES = 12 * 1024 * 1024;
 const PERIODIZATION_KEY = "football-periodization-v2";
 const SESSION_PLANNER_KEY = "football-session-planner-v3";
@@ -2513,7 +2514,7 @@ module.exports = async (req, res) => {
       return sendJson(res, 405, { ok: false, reason: "Method not allowed." });
     }
 
-    const body = await parseJsonBody(req);
+    const body = await parseJsonBody(req, { maxBytes: MAX_APP_STATE_JSON_BODY_BYTES });
     if (body?.entries && typeof body.entries === "object" && req.method !== "DELETE") {
       const result = await applyStateEntries(actor, body.entries, body.metadata || body.revisions || {});
       return sendJson(res, result.ok ? 200 : result.status || 400, result);

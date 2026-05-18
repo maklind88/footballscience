@@ -335,6 +335,68 @@ test("app-state rejects unauthenticated requests before touching Supabase storag
   }
 });
 
+test("app-state accepts Session Planner saves above the shared small JSON limit", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const storage = createAppStateFetchMock({});
+  global.fetch = storage.fetchMock;
+
+  const largeNotes = "Possession principles. ".repeat(16000);
+  const largeSessionPlannerState = {
+    selectedDate: "2026-05-18",
+    sessions: {
+      "2026-05-18": {
+        date: "2026-05-18",
+        selectedBlockId: "block-large",
+        blocks: [
+          {
+            id: "block-large",
+            title: "Large live training state",
+            organization: largeNotes,
+            principles: "Keep the ball, protect the middle, finish the action.",
+            fieldUpdatedAt: {
+              organization: "2026-05-18T11:45:00.000Z",
+              principles: "2026-05-18T11:45:00.000Z",
+            },
+          },
+        ],
+      },
+    },
+  };
+  const body = JSON.stringify({
+    key: appStateSessionPlannerKey,
+    value: JSON.stringify(largeSessionPlannerState),
+    metadata: { baseRevision: 0 },
+  });
+  expect(Buffer.byteLength(body, "utf8")).toBeGreaterThan(256 * 1024);
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload).toMatchObject({
+      ok: true,
+      key: appStateSessionPlannerKey,
+    });
+    expect(storage.objects.has(appStateSessionPlannerPath)).toBe(true);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
 test("session history is admin-only for coaches", async () => {
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;

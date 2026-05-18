@@ -1427,9 +1427,9 @@
           if (options.forceApply || !pendingEntry?.pendingCentralSync) {
             return true;
           }
-          const centralUpdatedAt = parseCentralSyncTimestamp(metadataEntry.updatedAt);
-          const localPendingUpdatedAt = parseCentralSyncTimestamp(pendingEntry.updatedAt);
-          return centralUpdatedAt > 0 && centralUpdatedAt >= localPendingUpdatedAt;
+          const centralHash = String(metadataEntry.hash || "").trim();
+          const localPendingHash = String(pendingEntry.hash || "").trim();
+          return Boolean(centralHash && localPendingHash && centralHash === localPendingHash);
         }
         function clearCentralPendingSyncFlag(key) {
           try {

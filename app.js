@@ -720,6 +720,27 @@ return true;
 }
 return Object.values(readDataSafetyManifest().entries || {}).some((entry) => entry?.pendingCentralSync);
 }
+function retryCentralWrites() {
+if (
+centralStateWriteTimer ||
+centralStateWriteQueue.size ||
+window.__footballScienceCentralHydrating ||
+!getCurrentPlatformUser() ||
+!getCentralStateBridge()?.syncKey
+) {
+return;
+}
+for (const [key, entry] of Object.entries(readDataSafetyManifest().entries)) {
+if (!entry?.pendingCentralSync || !isDataSafetyProtectedStorageKey(key)) {
+continue;
+}
+const removed = !!entry.deletedAt;
+const value = rawDataSafetyGetItem(key);
+if (removed || value !== null) {
+queueCentralStateWrite(key, value ?? "", { removed });
+}
+}
+}
 function applyCentralSyncedStateValue(write = {}, syncedValue) {
 const key = String(write.key || "");
 if (!key || write.removed || typeof syncedValue !== "string") {
@@ -32913,9 +32934,12 @@ const bridge = getCentralStateBridge();
 if (
 document.visibilityState === "hidden" ||
 !getCurrentPlatformUser() ||
-!bridge?.hydrate ||
-hasPendingCentralStateWrites()
+!bridge?.hydrate
 ) {
+return;
+}
+if (hasPendingCentralStateWrites()) {
+retryCentralWrites();
 return;
 }
 bridge.hydrate().catch((error) => {
@@ -75523,6 +75547,7 @@ scheduleDashboardLoginPopups();
 window.addEventListener("footballscience:central-state-ready", () => {
 dataSafetyRuntimeStatus.lastError = "";
 queueCentralStateStatus("");
+retryCentralWrites();
 flushCentralStateWrites();
 startDashboardPresenceRuntime();
 refreshDashboardPresence({ forceRender: true }).catch(() => {});

@@ -3,7 +3,9 @@ import { expect, test } from "@playwright/test";
 const revisionStateKey = "football-simulator-sequence-v1";
 const periodizationStateKey = "football-periodization-v2";
 const scheduleStateKey = "football-schedule-v1";
+const sessionPlannerStateKey = "football-session-planner-v3";
 const medicalTeamStateKey = "football-medical-team-v1";
+const dataSafetyManifestKey = "football-data-safety-v1";
 const qaUser = {
   id: "qa-user-1",
   email: "qa@footballscience.test",
@@ -241,6 +243,108 @@ test("fresh server profile restores admin access when the stored Supabase sessio
     await expect(tab.page.locator('[data-workspace-view="admin"].is-active')).toBeVisible();
     await expect(tab.page.locator("#adminWorkspace")).toContainText("Access & Users");
     await expect(tab.page.locator("#adminWorkspace")).toContainText("Platform Admin");
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("central hydration does not overwrite pending local Session Planner data with a different server hash", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const localSessionPlannerState = {
+    selectedDate: "2026-05-18",
+    sessions: {
+      "2026-05-18": {
+        date: "2026-05-18",
+        title: "Local unsynced training",
+        selectedBlockId: "local-block",
+        blocks: [
+          {
+            id: "local-block",
+            label: "Block 1",
+            title: "Local unsynced exercise",
+            minutes: 15,
+            updatedAt: "2026-05-18T12:01:00.000Z",
+          },
+        ],
+      },
+    },
+  };
+  const centralSessionPlannerState = {
+    selectedDate: "2026-05-18",
+    sessions: {
+      "2026-05-18": {
+        date: "2026-05-18",
+        title: "Central older training",
+        selectedBlockId: "central-block",
+        blocks: [
+          {
+            id: "central-block",
+            label: "Block 1",
+            title: "Central older exercise",
+            minutes: 10,
+            updatedAt: "2026-05-18T12:00:00.000Z",
+          },
+        ],
+      },
+    },
+  };
+  const centralValue = JSON.stringify(centralSessionPlannerState);
+  const centralStore = {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+    entries: {
+      [sessionPlannerStateKey]: centralValue,
+    },
+    metadataEntries: {
+      [sessionPlannerStateKey]: {
+        ...createMetadata(6, centralValue),
+        hash: "central-different-hash",
+        updatedAt: "2026-05-18T12:06:00.000Z",
+      },
+    },
+  };
+  const localValue = JSON.stringify(localSessionPlannerState);
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "session-pending-local", {
+    initScript: ({ key, value, manifestKey }) => {
+      window.localStorage.setItem(key, value);
+      window.localStorage.setItem(
+        manifestKey,
+        JSON.stringify({
+          version: 1,
+          entries: {
+            [key]: {
+              label: "Session Planner",
+              updatedAt: "2026-05-18T12:01:00.000Z",
+              hash: "local-pending-hash",
+              size: value.length,
+              writes: 1,
+              pendingCentralSync: true,
+            },
+          },
+        })
+      );
+    },
+    initArg: { key: sessionPlannerStateKey, value: localValue, manifestKey: dataSafetyManifestKey },
+  });
+
+  try {
+    await expect
+      .poll(
+        () =>
+          tab.page.evaluate((key) => {
+            const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+            const session = state.sessions?.["2026-05-18"];
+            return {
+              title: session?.title || "",
+              blockTitle: session?.blocks?.[0]?.title || "",
+            };
+          }, sessionPlannerStateKey),
+        { timeout: 10_000 }
+      )
+      .toEqual({
+        title: "Local unsynced training",
+        blockTitle: "Local unsynced exercise",
+      });
   } finally {
     await closeCentralStateContext(tab.context);
   }

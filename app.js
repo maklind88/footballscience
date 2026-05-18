@@ -22560,6 +22560,69 @@ await flushCentralStateWrites();
 renderDashboardCards();
 renderAdminWorkspace(message);
 }
+function getAdminTransferRoomAccessTeam(state = ensureTransferRoomState(), structure = getPlatformStructureState()) {
+const fallbackTeamId = state.activeTeamId || state.settings?.activeTeamId || platformDefaultTeamId;
+const team =
+(state.teams || []).find((item) => item.id === fallbackTeamId) ||
+getPlatformTeamById(fallbackTeamId, structure) ||
+(state.teams || [])[0] ||
+{};
+return {
+teamId: team.id || fallbackTeamId,
+teamName: team.name || platformDefaultTeamName,
+};
+}
+function renderAdminTransferRoomAccessPanel(users = [], structure = getPlatformStructureState()) {
+const state = ensureTransferRoomState();
+const { teamId, teamName } = getAdminTransferRoomAccessTeam(state, structure);
+const selectedIds = new Set(state.accessByTeam?.[teamId]?.userIds || []);
+const activeUsers = users.filter((user) => user && user.status !== "paused");
+const selectedCount = activeUsers.filter((user) => selectedIds.has(user.id)).length;
+const userRows = activeUsers.length
+? activeUsers
+.map((user) => {
+const role = normalizePlatformRole(user.role, "coach");
+const isAutomatic = role === "admin" || role === "team-admin";
+const checked = isAutomatic || selectedIds.has(user.id);
+const name = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username || user.email || "User";
+const label = isAutomatic ? `${getRoleLabel(role)} · automatic` : getRoleLabel(role);
+return `
+              <label class="admin-access-toggle admin-access-level${isAutomatic ? " is-locked" : ""}">
+                <input
+                  type="checkbox"
+                  ${isAutomatic ? "" : `data-admin-transfer-room-access-user="${escapeHtml(user.id)}"`}
+                  ${checked ? "checked" : ""}
+                  ${isAutomatic ? "disabled" : ""}
+                />
+                <span>${escapeHtml(name)} <small>${escapeHtml(label)}</small></span>
+              </label>
+            `;
+})
+.join("")
+: `<p class="pr-empty">No active users found for this team.</p>`;
+return `
+<form id="adminTransferRoomAccessForm" class="admin-card admin-access-card">
+<div class="staff-card-head">
+<div>
+<h2>Transfer Room Access</h2>
+<span>Selected people for ${escapeHtml(teamName)}</span>
+</div>
+<span>${escapeHtml(String(selectedCount))} selected</span>
+</div>
+<article class="admin-access-row">
+<div class="admin-access-title">
+<strong>Selected-person access</strong>
+<small>Admins and team admins are automatic. Everyone else is selected here.</small>
+</div>
+<div class="admin-access-roles">${userRows}</div>
+</article>
+<div class="profile-form-footer admin-access-footer">
+<span>This controls who can open Transfer Room for ${escapeHtml(teamName)}.</span>
+<button type="submit">Save Transfer Room access</button>
+</div>
+</form>
+`;
+}
 function renderAdminWorkspace(message = "") {
 if (!ui.adminWorkspace) {
 return;
@@ -22839,6 +22902,7 @@ ui.adminWorkspace.innerHTML = `
       ${selectedUserEditor}
       ${createUserEditor}
       ${adminSuggestionDatalists}
+      ${currentUserIsPlatformAdmin ? renderAdminTransferRoomAccessPanel(users, structure) : ""}
       ${
         currentUserIsPlatformAdmin
           ? `
@@ -72965,6 +73029,41 @@ renderAdminWorkspace(error?.message || "User could not be saved.");
 } finally {
 setFormSubmitButtonState(userForm, { isSubmitting: false, defaultLabel: "Save" });
 }
+return;
+}
+const transferRoomAccessForm = event.target.closest("#adminTransferRoomAccessForm");
+if (transferRoomAccessForm) {
+event.preventDefault();
+if (!isPlatformAdminUser(getCurrentPlatformUser()) || !transferRoomRuntime.canManageAccess(getCurrentPlatformUser())) {
+renderAdminWorkspace("Platform admin required.");
+return;
+}
+const controls = Array.from(transferRoomAccessForm.querySelectorAll("[data-admin-transfer-room-access-user]"));
+const editableIds = new Set(controls.map((control) => control.dataset.adminTransferRoomAccessUser).filter(Boolean));
+const nextSelectedIds = new Set(
+controls
+.filter((control) => control.checked)
+.map((control) => control.dataset.adminTransferRoomAccessUser)
+.filter(Boolean)
+);
+const state = ensureTransferRoomState();
+const { teamId } = getAdminTransferRoomAccessTeam(state, getPlatformStructureState());
+const currentSelectedIds = new Set(state.accessByTeam?.[teamId]?.userIds || []);
+let hasChanges = false;
+currentSelectedIds.forEach((userId) => {
+if (editableIds.has(userId) && !nextSelectedIds.has(userId)) {
+transferRoomRuntime.toggleAccessUser(userId, false);
+hasChanges = true;
+}
+});
+nextSelectedIds.forEach((userId) => {
+if (!currentSelectedIds.has(userId)) {
+transferRoomRuntime.toggleAccessUser(userId, true);
+hasChanges = true;
+}
+});
+renderWorkspaceChrome();
+renderAdminWorkspace(hasChanges ? "Transfer Room access saved." : "Transfer Room access is already up to date.");
 return;
 }
 const accessForm = event.target.closest("#adminAccessForm");

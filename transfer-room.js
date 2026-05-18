@@ -34,6 +34,7 @@ const transferRoomTargetDealTypeOptions = Object.freeze([
   { value: "extension", label: "Extension" },
   { value: "unknown", label: "Unknown" },
 ]);
+const transferRoomTabs = new Set(["overview", "squad", "targets", "scenarios", "rules"]);
 const transferRoomBudgetActiveStages = new Set(["shortlist", "internal-approved", "contact", "negotiation", "medical-admin", "approved", "signed"]);
 const transferRoomOutgoingStatuses = new Set(["sell", "loan", "release"]);
 
@@ -57,12 +58,13 @@ function getState() {
   return activeContext?.state || {};
 }
 
-function getCanEdit() {
-  return activeContext?.canEdit?.() === true;
+function getActiveTransferRoomTab() {
+  const tab = getState().activeTab || "overview";
+  return transferRoomTabs.has(tab) ? tab : "overview";
 }
 
-function getCanManageAccess() {
-  return activeContext?.canManageAccess?.() === true;
+function getCanEdit() {
+  return activeContext?.canEdit?.() === true;
 }
 
 function getCurrency() {
@@ -437,7 +439,7 @@ function renderOptionList(options = [], selectedValue = "") {
 }
 
 function renderTabButton(tabId, label) {
-  const activeTab = getState().activeTab || "overview";
+  const activeTab = getActiveTransferRoomTab();
   return `<button type="button" class="${activeTab === tabId ? "is-active" : ""}" data-transfer-room-tab="${escapeHtml(tabId)}">${escapeHtml(label)}</button>`;
 }
 
@@ -1400,45 +1402,8 @@ function renderRuleCard(rule = {}) {
   `;
 }
 
-function renderAccess() {
-  const state = getState();
-  const canManage = getCanManageAccess();
-  const teamId = state.activeTeamId;
-  const selectedIds = new Set(state.accessByTeam?.[teamId]?.userIds || []);
-  const users = (activeContext?.users || []).filter((user) => user.status !== "paused");
-  return `
-    <section class="transfer-room-access">
-      <div class="transfer-room-section-head">
-        <div>
-          <p>Security</p>
-          <h2>Selected people</h2>
-        </div>
-        <span>${escapeHtml(String(selectedIds.size))} selected</span>
-      </div>
-      <div class="transfer-room-access-list">
-        ${users
-          .map((user) => {
-            const role = user.role || "coach";
-            const isPrivileged = role === "admin" || role === "team-admin";
-            const checked = selectedIds.has(user.id);
-            return `
-              <label class="transfer-room-access-user">
-                <input type="checkbox" data-transfer-access-user="${escapeHtml(user.id)}" ${checked ? "checked" : ""} ${canManage && !isPrivileged ? "" : "disabled"} />
-                <span>
-                  <strong>${escapeHtml([user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || "User")}</strong>
-                  <small>${escapeHtml(isPrivileged ? `${role} (automatic)` : role)}</small>
-                </span>
-              </label>
-            `;
-          })
-          .join("")}
-      </div>
-    </section>
-  `;
-}
-
 function renderBody() {
-  const tab = getState().activeTab || "overview";
+  const tab = getActiveTransferRoomTab();
   if (tab === "squad") {
     return renderSquadPlan();
   }
@@ -1450,9 +1415,6 @@ function renderBody() {
   }
   if (tab === "scenarios") {
     return renderScenarioVersions();
-  }
-  if (tab === "access") {
-    return renderAccess();
   }
   return renderOverview();
 }
@@ -1472,7 +1434,6 @@ export function render(context = {}) {
         ${renderTabButton("targets", "Targets")}
         ${renderTabButton("scenarios", "Scenarios")}
         ${renderTabButton("rules", "Rules")}
-        ${renderTabButton("access", "Access")}
       </nav>
       ${renderNotice()}
       ${renderBody()}
@@ -1597,10 +1558,6 @@ export function handleChange(event, context = activeContext) {
     return;
   }
 
-  const accessToggle = event.target.closest("[data-transfer-access-user]");
-  if (accessToggle) {
-    activeContext?.toggleAccessUser?.(accessToggle.dataset.transferAccessUser, accessToggle.checked);
-  }
 }
 
 export function handleSubmit(event) {

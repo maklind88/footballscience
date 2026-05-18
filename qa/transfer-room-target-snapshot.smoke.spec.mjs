@@ -44,7 +44,39 @@ async function bootApp(page) {
 
 async function setQaCurrentRole(page, role) {
   await page.evaluate((nextRole) => {
-    const user = {
+    const adminUser = {
+      id: "qa-admin",
+      email: "admin@footballscience.test",
+      firstName: "QA",
+      lastName: "Admin",
+      username: "qa-admin",
+      role: "admin",
+      title: "QA",
+      department: "Football",
+      clubId: "club-ncc",
+      clubName: "North Carolina Courage",
+      teamId: "team-ncc-first",
+      teamName: "North Carolina Courage",
+      team: "North Carolina Courage",
+      status: "active",
+    };
+    const scoutUser = {
+      id: "qa-scout",
+      email: "scout@footballscience.test",
+      firstName: "QA",
+      lastName: "Scout",
+      username: "qa-scout",
+      role: "scout",
+      title: "Scout",
+      department: "Scouting",
+      clubId: "club-ncc",
+      clubName: "North Carolina Courage",
+      teamId: "team-ncc-first",
+      teamName: "North Carolina Courage",
+      team: "North Carolina Courage",
+      status: "active",
+    };
+    const requestedUser = {
       id: `qa-${nextRole}`,
       email: `${nextRole}@footballscience.test`,
       firstName: "QA",
@@ -60,8 +92,9 @@ async function setQaCurrentRole(page, role) {
       team: "North Carolina Courage",
       status: "active",
     };
-    window.platformAuthStore?.writeUsers?.([user]);
-    window.platformAuthStore?.setCurrentUser?.(user.id);
+    const users = new Map([adminUser, scoutUser, requestedUser].map((user) => [user.id, user]));
+    window.platformAuthStore?.writeUsers?.(Array.from(users.values()));
+    window.platformAuthStore?.setCurrentUser?.(requestedUser.id);
   }, role);
   await expect.poll(() => page.evaluate(() => document.body.dataset.userRole || ""), { timeout: 10_000 }).toBe(role);
 }
@@ -226,6 +259,7 @@ test("Transfer Room opens a saved target profile without loading scouting databa
   await openWorkspace(page, "transfer-room");
 
   await expect(page.locator("body")).toHaveAttribute("data-active-workspace", "transfer-room");
+  await expect(page.locator('.transfer-room-tabs [data-transfer-room-tab="access"]')).toHaveCount(0);
   await expect(page.locator(".transfer-room-pipeline")).toContainText("Negotiation");
   await expect(page.locator(".transfer-room-pipeline")).toContainText("2 active");
   await expect(page.locator(".transfer-room-target-card").first()).toContainText("Maya Snapshot");
@@ -320,4 +354,22 @@ test("Transfer Room opens a saved target profile without loading scouting databa
   await expect(page.locator("body")).toHaveAttribute("data-active-workspace", "transfer-room");
   await expect(page.locator('[data-workspace-view="scouting"].is-active')).toHaveCount(0);
   await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), scoutingDatabaseKey)).toBeNull();
+
+  await openWorkspace(page, "admin");
+  const transferRoomAccessForm = page.locator("#adminTransferRoomAccessForm");
+  await expect(transferRoomAccessForm).toContainText("Transfer Room Access");
+  await expect(transferRoomAccessForm).toContainText("Selected people for North Carolina Courage");
+  const scoutAccess = transferRoomAccessForm.locator('[data-admin-transfer-room-access-user="qa-scout"]');
+  await expect(scoutAccess).not.toBeChecked();
+  await scoutAccess.check();
+  await transferRoomAccessForm.locator('button[type="submit"]').click();
+  await expect(page.locator("#adminWorkspace")).toContainText("Transfer Room access saved.");
+  await expect
+    .poll(() =>
+      page.evaluate((key) => {
+        const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+        return state.accessByTeam?.["team-ncc-first"]?.userIds || [];
+      }, transferRoomKey)
+    )
+    .toContain("qa-scout");
 });

@@ -387,6 +387,34 @@ test("Transfer Room opens a saved target profile without loading scouting databa
   await expect(page.locator(".transfer-room-target-card").first()).toContainText("Maya Snapshot");
   await expect(page.locator(".transfer-room-target-card").first()).toContainText("Confirm agent availability");
 
+  const capSpace = page.locator('[data-transfer-budget-value="capSpace"]').first();
+  await expect(capSpace).toHaveText("$3,605,000");
+  await page.locator('[data-transfer-room-tab="squad"]').click();
+  const playerId = "ncc-2026-kailen-sheridan";
+  const firstSalary = page.locator(`[data-transfer-player-id="${playerId}"][data-transfer-squad-field="salary"]`);
+  await page.locator(`[data-transfer-player-id="${playerId}"][data-transfer-squad-field="status"]`).selectOption("keep");
+  await firstSalary.fill("120000");
+  await expect(capSpace).toHaveText("$3,485,000");
+  await firstSalary.evaluate((node) => node.dispatchEvent(new Event("change", { bubbles: true })));
+  await expect
+    .poll(() =>
+      page.evaluate(
+        ({ key, id }) => {
+          const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+          return state.squadPlans?.[id]?.salary;
+        },
+        { key: transferRoomKey, id: playerId }
+      )
+    )
+    .toBe(120000);
+
+  await page.locator('[data-transfer-room-tab="targets"]').click();
+  const incompleteWage = page.locator('[data-transfer-record-id="qa-target-incomplete"][data-transfer-target-field="wage"]').first();
+  await incompleteWage.fill("60000");
+  await expect(capSpace).toHaveText("$3,425,000");
+  await incompleteWage.evaluate((node) => node.dispatchEvent(new Event("change", { bubbles: true })));
+  await expect(page.locator(".transfer-room-target-card").filter({ hasText: "Incomplete Target" })).toContainText("$60,000 cap impact");
+
   const incompleteStage = page.locator('select[data-transfer-record-id="qa-target-incomplete"][data-transfer-target-field="stage"]');
   await incompleteStage.selectOption("approved");
   await expect(page.locator(".transfer-room-notice")).toContainText("Stage gate blocked");
@@ -430,10 +458,10 @@ test("Transfer Room opens a saved target profile without loading scouting databa
   await auditPanel.locator("[data-transfer-audit-toggle]").click();
   await expect(auditPanel).toHaveClass(/is-expanded/);
   await expect(auditPanel.locator(".transfer-room-audit-list article")).toHaveCount(10);
-  await expect(auditPanel.locator(".transfer-room-audit-pagination")).toContainText("1-10 of 13");
+  await expect(auditPanel.locator(".transfer-room-audit-pagination")).toContainText("1-10 of 15");
   await auditPanel.locator('[data-transfer-audit-page-direction="1"]').click();
-  await expect(auditPanel.locator(".transfer-room-audit-list article")).toHaveCount(3);
-  await expect(auditPanel.locator(".transfer-room-audit-pagination")).toContainText("11-13 of 13");
+  await expect(auditPanel.locator(".transfer-room-audit-list article")).toHaveCount(5);
+  await expect(auditPanel.locator(".transfer-room-audit-pagination")).toContainText("11-15 of 15");
 
   await page.locator('[data-transfer-room-tab="targets"]').click();
   await page.locator('[data-transfer-open-target-profile="qa-target-snapshot-1"]').click();
@@ -530,6 +558,7 @@ test("Transfer Room reads Shadow XI boards and keeps dismissed targets removed",
 
   await expect(page.locator(".transfer-room-target-card")).toContainText("Board Snapshot");
   await expect(page.locator(".transfer-room-target-card")).toContainText("Snapshot partial");
+  await expect(page.locator(".transfer-room-target-card")).toContainText("Not in cap plan");
 
   await page.locator('[data-transfer-remove-target="qa-shadow-board-target"]').click();
   await expect(page.locator(".transfer-room-target-card")).toHaveCount(0);

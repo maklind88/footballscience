@@ -37,6 +37,9 @@ const transferRoomTargetDealTypeOptions = Object.freeze([
 const transferRoomTabs = new Set(["overview", "squad", "targets", "scenarios", "rules"]);
 const transferRoomBudgetActiveStages = new Set(["shortlist", "internal-approved", "contact", "negotiation", "medical-admin", "approved", "signed"]);
 const transferRoomOutgoingStatuses = new Set(["sell", "loan", "release"]);
+const transferRoomBudgetPreviewSettings = new Set(["salaryCap", "capBuffer"]);
+const transferRoomBudgetPreviewSquadFields = new Set(["salary", "estimatedValue"]);
+const transferRoomBudgetPreviewTargetFields = new Set(["fee", "wage"]);
 const auditTimelinePageSize = 10;
 const auditTimelineUiState = new Map();
 let squadPlanFocus = null;
@@ -110,21 +113,29 @@ function formatPercent(value) {
 }
 
 function getLeagueProfile() {
-  return getLeagueProfileForSettings(getState().settings || {});
+  return getLeagueProfileForSettings(getState().settings || {}, getState());
 }
 
-function getLeagueProfileForSettings(settings = {}) {
-  const state = getState();
+function getLeagueProfileForSettings(settings = {}, sourceState = getState()) {
+  const state = sourceState || getState();
   const profileId = settings.leagueProfileId || state.settings?.leagueProfileId || "nwsl-2026";
   return state.leagueProfiles?.[profileId] || state.leagueProfiles?.["nwsl-2026"] || {};
 }
 
+function getSquadPlansFromState(sourceState = getState()) {
+  return Object.values(sourceState?.squadPlans || {}).filter((plan) => plan?.playerId);
+}
+
 function getSquadPlans() {
-  return Object.values(getState().squadPlans || {}).filter((plan) => plan?.playerId);
+  return getSquadPlansFromState(getState());
+}
+
+function getTargetPlansFromState(sourceState = getState()) {
+  return Object.values(sourceState?.targetPlans || {}).filter((plan) => plan?.recordId);
 }
 
 function getTargetPlans() {
-  return Object.values(getState().targetPlans || {}).filter((plan) => plan?.recordId);
+  return getTargetPlansFromState(getState());
 }
 
 function getTargetSnapshot(recordId) {
@@ -281,13 +292,13 @@ function renderSelectOptions(options = [], selectedValue = "") {
     .join("");
 }
 
-function calculateBudget() {
-  const state = getState();
-  const profile = getLeagueProfile();
+function calculateBudget(sourceState = getState()) {
+  const state = sourceState || getState();
+  const profile = getLeagueProfileForSettings(state.settings || {}, state);
   const cap = toNumber(state.settings?.salaryCap || profile.salaryCap || 0);
   const buffer = toNumber(state.settings?.capBuffer || 0);
-  const squadPlans = getSquadPlans();
-  const targetPlans = getTargetPlans();
+  const squadPlans = getSquadPlansFromState(state);
+  const targetPlans = getTargetPlansFromState(state);
   const currentCommitment = squadPlans.reduce((sum, plan) => sum + toAnnual(plan.salary, plan.wagePeriod), 0);
   const outgoingRelief = squadPlans
     .filter((plan) => transferRoomOutgoingStatuses.has(plan.status))
@@ -317,10 +328,11 @@ function calculateBudget() {
   };
 }
 
-function calculateScenarioPlanner() {
-  const budget = calculateBudget();
-  const squadPlans = getSquadPlans();
-  const targetPlans = getTargetPlans();
+function calculateScenarioPlanner(sourceState = getState()) {
+  const state = sourceState || getState();
+  const budget = calculateBudget(state);
+  const squadPlans = getSquadPlansFromState(state);
+  const targetPlans = getTargetPlansFromState(state);
   const outgoingPlans = squadPlans.filter((plan) => transferRoomOutgoingStatuses.has(plan.status));
   const activeTargets = targetPlans.filter(isTargetBudgetActive);
   const outgoingValue = outgoingPlans
@@ -504,11 +516,11 @@ function renderBudgetHero() {
       </div>
       <div class="transfer-room-cap-board ${capTone}">
         <span>Projected cap space</span>
-        <strong>${formatMoney(budget.capSpace)}</strong>
+        <strong data-transfer-budget-value="capSpace">${formatMoney(budget.capSpace)}</strong>
         <div class="transfer-room-cap-track" aria-label="Salary cap usage">
-          <i style="width:${Math.min(100, budget.utilization).toFixed(1)}%"></i>
+          <i data-transfer-budget-bar style="width:${Math.min(100, budget.utilization).toFixed(1)}%"></i>
         </div>
-        <small>${formatPercent(budget.utilization)} of ${formatMoney(budget.cap)} cap</small>
+        <small data-transfer-budget-value="capUsage">${formatPercent(budget.utilization)} of ${formatMoney(budget.cap)} cap</small>
       </div>
     </header>
   `;
@@ -517,21 +529,21 @@ function renderBudgetHero() {
 function renderKpiGrid() {
   const budget = calculateBudget();
   const items = [
-    ["Salary cap", formatMoney(budget.cap), "NWSL active cap"],
-    ["Current wages", formatMoney(budget.currentCommitment), "Squad annualized"],
-    ["Outgoing relief", formatMoney(budget.outgoingRelief), "Sell, loan, release"],
-    ["Incoming wages", formatMoney(budget.incomingWages), `${budget.activeTargetCount} active targets`],
-    ["Transfer fees", formatMoney(budget.incomingFees), "Planned fees"],
+    { key: "cap", label: "Salary cap", value: formatMoney(budget.cap), meta: "NWSL active cap" },
+    { key: "currentCommitment", label: "Current wages", value: formatMoney(budget.currentCommitment), meta: "Squad annualized" },
+    { key: "outgoingRelief", label: "Outgoing relief", value: formatMoney(budget.outgoingRelief), meta: "Sell, loan, release" },
+    { key: "incomingWages", label: "Incoming wages", value: formatMoney(budget.incomingWages), meta: `${budget.activeTargetCount} active targets` },
+    { key: "incomingFees", label: "Transfer fees", value: formatMoney(budget.incomingFees), meta: "Cash exposure, not salary cap" },
   ];
   return `
     <section class="transfer-room-kpis">
       ${items
         .map(
-          ([label, value, meta]) => `
-            <article>
-              <span>${escapeHtml(label)}</span>
-              <strong>${escapeHtml(value)}</strong>
-              <small>${escapeHtml(meta)}</small>
+          (item) => `
+            <article data-transfer-kpi="${escapeHtml(item.key)}">
+              <span>${escapeHtml(item.label)}</span>
+              <strong data-transfer-kpi-value>${escapeHtml(item.value)}</strong>
+              <small data-transfer-kpi-meta>${escapeHtml(item.meta)}</small>
             </article>
           `
         )
@@ -540,12 +552,140 @@ function renderKpiGrid() {
   `;
 }
 
-function renderScenarioCard(label, value, meta, tone = "") {
+function clonePreviewPlans(plans = {}) {
+  return Object.fromEntries(Object.entries(plans || {}).map(([id, plan]) => [id, { ...(plan || {}) }]));
+}
+
+function getBudgetPreviewState(target) {
+  if (!target || !getCanEdit()) {
+    return null;
+  }
+  const state = getState();
+  const previewState = {
+    ...state,
+    settings: { ...(state.settings || {}) },
+    squadPlans: clonePreviewPlans(state.squadPlans || {}),
+    targetPlans: clonePreviewPlans(state.targetPlans || {}),
+  };
+  const setting = target.closest("[data-transfer-setting]");
+  if (setting && transferRoomBudgetPreviewSettings.has(setting.dataset.transferSetting)) {
+    previewState.settings[setting.dataset.transferSetting] = setting.value;
+    return previewState;
+  }
+  const squadField = target.closest("[data-transfer-squad-field]");
+  if (squadField && transferRoomBudgetPreviewSquadFields.has(squadField.dataset.transferSquadField)) {
+    const playerId = squadField.dataset.transferPlayerId;
+    if (!playerId) {
+      return null;
+    }
+    previewState.squadPlans[playerId] = {
+      ...(previewState.squadPlans[playerId] || {}),
+      playerId,
+      [squadField.dataset.transferSquadField]: squadField.value,
+    };
+    return previewState;
+  }
+  const targetField = target.closest("[data-transfer-target-field]");
+  if (targetField && transferRoomBudgetPreviewTargetFields.has(targetField.dataset.transferTargetField)) {
+    const recordId = targetField.dataset.transferRecordId;
+    if (!recordId || !previewState.targetPlans[recordId]) {
+      return null;
+    }
+    previewState.targetPlans[recordId] = {
+      ...(previewState.targetPlans[recordId] || {}),
+      recordId,
+      [targetField.dataset.transferTargetField]: targetField.value,
+    };
+    return previewState;
+  }
+  return null;
+}
+
+function setPreviewTone(element, tone) {
+  if (!element) {
+    return;
+  }
+  element.classList.remove("is-danger", "is-warn", "is-good", "danger", "warn", "good");
+  if (tone) {
+    element.classList.add(tone.startsWith("is-") ? tone : `is-${tone}`);
+  }
+}
+
+function updatePreviewKpi(root, key, value, meta) {
+  const card = root?.querySelector(`[data-transfer-kpi="${key}"]`);
+  if (!card) {
+    return;
+  }
+  const valueNode = card.querySelector("[data-transfer-kpi-value]");
+  const metaNode = card.querySelector("[data-transfer-kpi-meta]");
+  if (valueNode) {
+    valueNode.textContent = value;
+  }
+  if (metaNode) {
+    metaNode.textContent = meta;
+  }
+}
+
+function updatePreviewScenarioCard(root, key, value, meta, tone = "") {
+  const card = root?.querySelector(`[data-transfer-scenario-card="${key}"]`);
+  if (!card) {
+    return;
+  }
+  card.classList.remove("is-danger", "is-warn", "is-good");
+  if (tone) {
+    card.classList.add(`is-${tone}`);
+  }
+  const valueNode = card.querySelector("[data-transfer-scenario-value]");
+  const metaNode = card.querySelector("[data-transfer-scenario-meta]");
+  if (valueNode) {
+    valueNode.textContent = value;
+  }
+  if (metaNode) {
+    metaNode.textContent = meta;
+  }
+}
+
+function applyBudgetPreview(previewState) {
+  const root = activeContext?.ui?.transferRoomWorkspace;
+  if (!root || !previewState) {
+    return;
+  }
+  const budget = calculateBudget(previewState);
+  const scenario = calculateScenarioPlanner(previewState);
+  const capTone = budget.capSpace < 0 ? "is-danger" : budget.capSpace < budget.cap * 0.08 ? "is-warn" : "is-good";
+  const scenarioTone = scenario.capSpace < 0 ? "danger" : scenario.warnings.length ? "warn" : "good";
+  root.querySelectorAll(".transfer-room-cap-board").forEach((board) => {
+    setPreviewTone(board, capTone);
+    const capSpaceNode = board.querySelector('[data-transfer-budget-value="capSpace"]');
+    const capUsageNode = board.querySelector('[data-transfer-budget-value="capUsage"]');
+    const bar = board.querySelector("[data-transfer-budget-bar]");
+    if (capSpaceNode) {
+      capSpaceNode.textContent = formatMoney(budget.capSpace);
+    }
+    if (capUsageNode) {
+      capUsageNode.textContent = `${formatPercent(budget.utilization)} of ${formatMoney(budget.cap)} cap`;
+    }
+    if (bar) {
+      bar.style.width = `${Math.min(100, budget.utilization).toFixed(1)}%`;
+    }
+  });
+  updatePreviewKpi(root, "cap", formatMoney(budget.cap), "NWSL active cap");
+  updatePreviewKpi(root, "currentCommitment", formatMoney(budget.currentCommitment), "Squad annualized");
+  updatePreviewKpi(root, "outgoingRelief", formatMoney(budget.outgoingRelief), "Sell, loan, release");
+  updatePreviewKpi(root, "incomingWages", formatMoney(budget.incomingWages), `${budget.activeTargetCount} active targets`);
+  updatePreviewKpi(root, "incomingFees", formatMoney(budget.incomingFees), "Cash exposure, not salary cap");
+  updatePreviewScenarioCard(root, "capSpace", formatMoney(scenario.capSpace), `${formatPercent(scenario.utilization)} cap usage`, scenarioTone);
+  updatePreviewScenarioCard(root, "netWageChange", formatMoney(scenario.netWageChange), "Incoming minus outgoing relief");
+  updatePreviewScenarioCard(root, "netFeeExposure", formatMoney(scenario.netFeeExposure), "Cash budget, not salary cap");
+  updatePreviewScenarioCard(root, "activeDeals", `${scenario.activeTargets.length}/${scenario.targetCount}`, "Budget-active pipeline");
+}
+
+function renderScenarioCard(label, value, meta, tone = "", key = "") {
   return `
-    <article class="${tone ? `is-${escapeHtml(tone)}` : ""}">
+    <article class="${tone ? `is-${escapeHtml(tone)}` : ""}" ${key ? `data-transfer-scenario-card="${escapeHtml(key)}"` : ""}>
       <span>${escapeHtml(label)}</span>
-      <strong>${escapeHtml(value)}</strong>
-      <small>${escapeHtml(meta)}</small>
+      <strong data-transfer-scenario-value>${escapeHtml(value)}</strong>
+      <small data-transfer-scenario-meta>${escapeHtml(meta)}</small>
     </article>
   `;
 }
@@ -637,10 +777,10 @@ function renderScenarioPlanner() {
         <span>${escapeHtml(scenario.warnings.length ? `${scenario.warnings.length} checks` : "Aligned")}</span>
       </div>
       <div class="transfer-room-scenario-grid">
-        ${renderScenarioCard("Projected cap space", formatMoney(scenario.capSpace), `${formatPercent(scenario.utilization)} cap usage`, capTone)}
-        ${renderScenarioCard("Net wage change", formatMoney(scenario.netWageChange), "Incoming minus outgoing relief")}
-        ${renderScenarioCard("Net fee exposure", formatMoney(scenario.netFeeExposure), "Fees minus outgoing value")}
-        ${renderScenarioCard("Active deals", `${scenario.activeTargets.length}/${scenario.targetCount}`, "Budget-active pipeline")}
+        ${renderScenarioCard("Projected cap space", formatMoney(scenario.capSpace), `${formatPercent(scenario.utilization)} cap usage`, capTone, "capSpace")}
+        ${renderScenarioCard("Net wage change", formatMoney(scenario.netWageChange), "Incoming minus outgoing relief", "", "netWageChange")}
+        ${renderScenarioCard("Net fee exposure", formatMoney(scenario.netFeeExposure), "Cash budget, not salary cap", "", "netFeeExposure")}
+        ${renderScenarioCard("Active deals", `${scenario.activeTargets.length}/${scenario.targetCount}`, "Budget-active pipeline", "", "activeDeals")}
       </div>
       <div class="transfer-room-scenario-lanes">
         <article>
@@ -1060,6 +1200,14 @@ function renderTargetCard(plan) {
   const gateIssues = getTargetGateIssues(plan);
   const readiness = getTargetReadiness(plan);
   const approvalSummary = getTargetApprovalSummary(plan);
+  const annualWage = toAnnual(plan.wage, plan.wagePeriod);
+  const isBudgetActive = isTargetBudgetActive(plan);
+  const capImpactLabel = isBudgetActive
+    ? annualWage > 0
+      ? `${formatMoney(annualWage)} cap impact`
+      : "Wage missing"
+    : "Not in cap plan";
+  const capImpactClass = isBudgetActive && annualWage > 0 ? "is-clear" : "is-blocked";
   const squadOptions = (activeContext?.squadPlayers || [])
     .map((player) => `<option value="${escapeHtml(player.id)}" ${plan.replacementFor === player.id ? "selected" : ""}>${escapeHtml(player.name)}</option>`)
     .join("");
@@ -1081,6 +1229,7 @@ function renderTargetCard(plan) {
         <span class="${approvalSummary.rejectedCount ? "is-blocked" : approvalSummary.approvedCount === approvalSummary.total ? "is-clear" : ""}">${escapeHtml(approvalSummary.label)}</span>
         <span class="${gateIssues.length ? "is-blocked" : "is-clear"}">${escapeHtml(gateIssues.length ? `${gateIssues.length} gate blockers` : "Gate clear")}</span>
         <span class="${readiness.snapshotHealth.tone === "ready" ? "is-clear" : readiness.snapshotHealth.tone === "blocked" ? "is-blocked" : ""}">${escapeHtml(readiness.snapshotHealth.label)}</span>
+        <span class="${capImpactClass}">${escapeHtml(capImpactLabel)}</span>
         <span>${escapeHtml(snapshot.league || "League unknown")}</span>
         <span>${escapeHtml(snapshot.fit || "Fit pending")}</span>
         <span>${escapeHtml(plan.nextAction || snapshot.signalLabel || "Next action pending")}</span>
@@ -1653,7 +1802,10 @@ export function handleClick(event, context = activeContext) {
   }
 }
 
-export function handleInput() {}
+export function handleInput(event, context = activeContext) {
+  setContext(context);
+  applyBudgetPreview(getBudgetPreviewState(event.target));
+}
 
 export function handleChange(event, context = activeContext) {
   setContext(context);

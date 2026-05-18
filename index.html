@@ -1424,6 +1424,9 @@
           return Number.isFinite(timestamp) ? timestamp : 0;
         }
         function shouldApplyCentralStateEntry(key, pendingEntry = {}, metadataEntry = {}, options = {}) {
+          if (key === MEDICAL_TEAM_STATE_KEY) {
+            return true;
+          }
           if (options.forceApply || !pendingEntry?.pendingCentralSync) {
             return true;
           }

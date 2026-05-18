@@ -688,7 +688,7 @@ const bridge = getCentralStateBridge();
 return Boolean(getCurrentPlatformUser() && bridge?.syncKey);
 }
 function createCentralBackedStorageError() {
-return new Error("Central Supabase sync is not ready. Changes are saved locally and will sync later.");
+return new Error("Central sync is not ready.");
 }
 function setCentralSyncPendingState(key, isPending = false, isRemoved = false) {
 const normalizedKey = String(key || "");
@@ -1109,12 +1109,12 @@ const snapshotTime = formatDataSafetyTime(manifest.lastSnapshotAt);
 const savedTime = formatDataSafetyTime(manifest.lastSavedAt);
 if (centralStatus.localDev) {
 ui.dataSafetyStatus.textContent = "Local dev cache";
-ui.dataSafetyStatus.title = "You are on localhost/dev mode. Changes are saved in this browser only and are not shared with colleagues.";
+ui.dataSafetyStatus.title = "Localhost cache only.";
 return;
 }
 if (hasPendingCentralSync) {
 ui.dataSafetyStatus.textContent = savedTime ? `Sync pending ${savedTime}` : "Sync pending";
-ui.dataSafetyStatus.title = "Changes are saved locally and waiting to be written to Supabase.";
+ui.dataSafetyStatus.title = "Saved locally; waiting for Supabase.";
 return;
 }
 if (centralTime) {

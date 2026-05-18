@@ -13,11 +13,11 @@
 }
 
 .transfer-room-hero {
-  min-height: 220px;
+  min-height: 168px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 430px);
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 390px);
   align-items: stretch;
-  gap: 18px;
+  gap: 14px;
 }
 
 .transfer-room-hero-main,
@@ -37,10 +37,10 @@
 }
 
 .transfer-room-hero-main {
-  padding: clamp(22px, 3vw, 38px);
+  padding: clamp(20px, 2.4vw, 30px);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: center;
 }
 
 .transfer-room-hero-main p,
@@ -56,9 +56,9 @@
 
 .transfer-room-hero-main h1 {
   max-width: 860px;
-  margin: 12px 0 24px;
-  font-size: clamp(2.4rem, 5vw, 5.8rem);
-  line-height: 0.95;
+  margin: 10px 0 0;
+  font-size: clamp(2.35rem, 4.2vw, 4.75rem);
+  line-height: 1;
   letter-spacing: 0;
 }
 
@@ -85,11 +85,11 @@
 }
 
 .transfer-room-cap-board {
-  padding: 24px;
+  padding: 22px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
   background: #172019;
   color: #f9fbf6;
 }
@@ -101,7 +101,7 @@
 }
 
 .transfer-room-cap-board strong {
-  font-size: clamp(2rem, 4vw, 4rem);
+  font-size: clamp(2rem, 3.2vw, 3.45rem);
   line-height: 1;
 }
 
@@ -114,7 +114,7 @@
 }
 
 .transfer-room-cap-track {
-  height: 10px;
+  height: 8px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.18);
 }

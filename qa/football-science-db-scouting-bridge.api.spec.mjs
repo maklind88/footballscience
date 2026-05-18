@@ -60,6 +60,17 @@ test("Football Science DB retries once with a refreshed auth token after server 
   expect(workspace).toContain("window.location.reload()");
 });
 
+test("Scouting API auth preserves long Supabase access tokens", () => {
+  const workspace = readFileSync(resolve(projectRoot, "scouting-workspace.js"), "utf8");
+
+  expect(workspace).toContain("SCOUTING_API_ACCESS_TOKEN_MAX_LENGTH = 6000");
+  expect(workspace).toContain("normalizeScoutingApiAccessToken");
+  expect(workspace).toContain("normalizeScoutingApiAccessToken(await authStore.getAccessToken())");
+  expect(workspace).toContain("normalizeScoutingApiAccessToken(await authStore.refreshAccessToken())");
+  expect(workspace).not.toContain("normalizeScoutingText(await authStore.getAccessToken(), 2400)");
+  expect(workspace).not.toContain("normalizeScoutingText(await authStore.refreshAccessToken(), 2400)");
+});
+
 test("Every Scouting reader role can read Football Science DB", () => {
   const scoutingReadRoles = permissionMatrix.platformPermissionMatrixByModule.scouting.permissions.read;
   const fsdbReadRoles = permissionMatrix.platformPermissionMatrixByModule["football-science-db"].permissions.read;

@@ -75,6 +75,7 @@ let scoutingProfileOverviewPanelHydrateInProgress = new Set();
 let scoutingOppositionFilters = { team: "", season: "all", minMinutes: 450 };
 let scoutingOppositionLatestSnapshot = null;
 let scoutingDataQualitySummaryCache = { key: "", value: null };
+const SCOUTING_API_ACCESS_TOKEN_MAX_LENGTH = 6000;
 const scoutingDatabaseWorkerRequests = new Map();
 const scoutingWorkerRecordHydrationQueue = new Set();
 const scoutingWorkerRecordHydrationInFlight = new Set();
@@ -1205,6 +1206,13 @@ function isScoutingPagedDatabaseActive() {
 function getScoutingAssetVersion() {
   return encodeURIComponent(window.__assetVersion || "dev");
 }
+function normalizeScoutingApiAccessToken(value = "") {
+  const token = String(value || "").trim();
+  if (!token || token.length > SCOUTING_API_ACCESS_TOKEN_MAX_LENGTH) {
+    return "";
+  }
+  return token;
+}
 async function getScoutingApiAccessToken(options = {}) {
   if (window.platformAuthReadyPromise instanceof Promise) {
     try {
@@ -1219,12 +1227,12 @@ async function getScoutingApiAccessToken(options = {}) {
   }
   try {
     if (options.forceRefresh && typeof authStore.refreshAccessToken === "function") {
-      const refreshedToken = normalizeScoutingText(await authStore.refreshAccessToken(), 2400);
+      const refreshedToken = normalizeScoutingApiAccessToken(await authStore.refreshAccessToken());
       if (refreshedToken) {
         return refreshedToken;
       }
     }
-    return normalizeScoutingText(await authStore.getAccessToken(), 2400);
+    return normalizeScoutingApiAccessToken(await authStore.getAccessToken());
   } catch {
     return "";
   }

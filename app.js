@@ -7447,7 +7447,7 @@ events: events.map(cloneScheduleEvent),
 renderScheduleWorkspace();
 }
 function pasteScheduleClipboardToSelectedDay() {
-if (!scheduleState || !scheduleClipboard?.events?.length || !isScheduleDayEditing()) {
+if (!scheduleState || !canEditScheduleWorkspace() || !scheduleClipboard?.events?.length) {
 return;
 }
 const date = scheduleState.selectedDate;
@@ -75310,9 +75310,6 @@ canEditScheduleWorkspace() &&
 !isEditableKeyboardTarget(event.target) &&
 (isCopyShortcut || isPasteShortcut || isQuickScheduleCopy || isQuickSchedulePaste)
 ) {
-if ((isPasteShortcut || isQuickSchedulePaste) && !isScheduleDayEditing()) {
-return;
-}
 event.preventDefault();
 if (isCopyShortcut || isQuickScheduleCopy) {
 copySelectedScheduleDay();
@@ -75361,7 +75358,7 @@ events.map((item) => [item.time, item.title, item.note].filter(Boolean).join(" -
 );
 });
 document.addEventListener("paste", (event) => {
-if (!isScheduleWorkspaceActive() || !isScheduleDayEditing() || isEditableKeyboardTarget(event.target)) {
+if (!isScheduleWorkspaceActive() || !canEditScheduleWorkspace() || isEditableKeyboardTarget(event.target)) {
 return;
 }
 if (!scheduleClipboard?.events?.length) {

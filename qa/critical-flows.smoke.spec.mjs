@@ -351,6 +351,79 @@ test("Schedule Today anchors overview to the real current date", async ({ page }
     });
 });
 
+test("Schedule overview copies and pastes selected days with command shortcuts", async ({ page }) => {
+  await page.addInitScript(({ key }) => {
+    window.localStorage.setItem(
+      key,
+      JSON.stringify({
+        selectedYear: 2026,
+        selectedMonthIndex: 4,
+        selectedDate: "2026-05-09",
+        viewMode: "overview",
+        overviewSpan: 3,
+        importVersion: "ncc-2026-numbers-v1",
+        events: [
+          {
+            id: "copy-source-training",
+            date: "2026-05-09",
+            time: "10:00",
+            type: "training",
+            title: "Copied Training",
+            note: "Overview copy source",
+          },
+          {
+            id: "copy-source-meeting",
+            date: "2026-05-09",
+            time: "13:00",
+            type: "meeting",
+            title: "Copied Meeting",
+            note: "Second source plan",
+          },
+          {
+            id: "paste-target-existing",
+            date: "2026-05-12",
+            time: "09:00",
+            type: "off",
+            title: "Existing Target",
+            note: "Should be replaced",
+          },
+        ],
+      })
+    );
+  }, { key: scheduleKey });
+
+  await bootApp(page);
+  await openWorkspace(page, "schedule");
+  await expect(page.locator("#scheduleOverviewGrid")).toBeVisible();
+  await page.locator('[data-schedule-date="2026-05-09"]').first().click();
+  await expect(page.locator("#scheduleEventList")).toContainText("Copied Training");
+
+  await page.evaluate(() => {
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "c", metaKey: true, bubbles: true, cancelable: true }));
+  });
+  await page.locator('[data-schedule-date="2026-05-12"]').first().click();
+  await expect(page.locator("#scheduleEventForm")).toBeHidden();
+
+  await page.evaluate(() => {
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "v", metaKey: true, bubbles: true, cancelable: true }));
+  });
+
+  await expect(page.locator("#scheduleEventList")).toContainText("Copied Training");
+  await expect(page.locator("#scheduleEventList")).toContainText("Copied Meeting");
+  await expect(page.locator("#scheduleEventList")).not.toContainText("Existing Target");
+  await expect
+    .poll(() =>
+      page.evaluate((key) => {
+        const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+        return state.events
+          .filter((event) => event.date === "2026-05-12")
+          .map((event) => event.title)
+          .sort();
+      }, scheduleKey)
+    )
+    .toEqual(["Copied Meeting", "Copied Training"]);
+});
+
 test("Schedule week view shows daily operations and opens linked session", async ({ page }) => {
   await page.addInitScript(({ scheduleKey, sessionPlannerKey, periodizationKey }) => {
     const realDate = Date;

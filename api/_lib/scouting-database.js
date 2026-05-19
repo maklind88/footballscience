@@ -137,6 +137,147 @@ function getClientRecordPositionGroup(record = {}) {
   return tokens[0] || "OTHER";
 }
 
+function getClientRecordPersonNameKey(record = {}) {
+  return normalizeIdentityPart(getClientRecordName(record).replace(/\./g, " "), 180);
+}
+
+function getClientRecordNationalityKey(record = {}) {
+  return [recordValue(record, "passportCountry"), recordValue(record, "birthCountry")]
+    .map((value) => normalizeIdentityPart(value, 120))
+    .filter(Boolean)
+    .sort()
+    .join("|");
+}
+
+function getClientRecordSeasonYear(record = {}) {
+  const season = normalizeString(recordValue(record, "season"), 80);
+  const years = season.match(/\b(?:19|20)\d{2}\b/g);
+  if (!years?.length) return 0;
+  return Math.max(...years.map((year) => Number(year)).filter(Number.isFinite));
+}
+
+function areClientRecordAgesSeasonCompatible(left = {}, right = {}) {
+  const leftAge = normalizeNumber(recordValue(left, "age"), null);
+  const rightAge = normalizeNumber(recordValue(right, "age"), null);
+  if (!Number.isFinite(leftAge) || !Number.isFinite(rightAge)) {
+    return true;
+  }
+  const ageSpread = Math.abs(leftAge - rightAge);
+  const leftYear = getClientRecordSeasonYear(left);
+  const rightYear = getClientRecordSeasonYear(right);
+  if (leftYear && rightYear) {
+    const seasonSpread = Math.abs(leftYear - rightYear);
+    return ageSpread <= Math.max(3, seasonSpread + 2);
+  }
+  return ageSpread <= 4;
+}
+
+function areClientRecordClubSeasonSignalsCompatible(left = {}, right = {}) {
+  const leftTeam = normalizeIdentityPart(recordValue(left, "team"), 180);
+  const rightTeam = normalizeIdentityPart(recordValue(right, "team"), 180);
+  if (!leftTeam || !rightTeam || leftTeam === rightTeam) {
+    return true;
+  }
+  const leftSeason = normalizeIdentityPart(recordValue(left, "season"), 80);
+  const rightSeason = normalizeIdentityPart(recordValue(right, "season"), 80);
+  if (leftSeason && rightSeason && leftSeason === rightSeason) {
+    const leftAge = normalizeNumber(recordValue(left, "age"), null);
+    const rightAge = normalizeNumber(recordValue(right, "age"), null);
+    if (Number.isFinite(leftAge) && Number.isFinite(rightAge) && Math.abs(leftAge - rightAge) > 1) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function areClientRecordPositionsCompatibleForWeakIdentity(left = {}, right = {}) {
+  const leftGroup = getClientRecordPositionGroup(left);
+  const rightGroup = getClientRecordPositionGroup(right);
+  if (!leftGroup || !rightGroup || leftGroup === rightGroup) {
+    return true;
+  }
+  if (leftGroup === "GK" || rightGroup === "GK") {
+    return false;
+  }
+  return true;
+}
+
+function areClientRecordsLikelySamePerson(left = {}, right = {}) {
+  const leftIdentity = normalizeIdentityPart(recordValue(left, "playerIdentityId"), 180);
+  const rightIdentity = normalizeIdentityPart(recordValue(right, "playerIdentityId"), 180);
+  if (leftIdentity && rightIdentity && leftIdentity === rightIdentity) {
+    return true;
+  }
+  if (getClientRecordPersonNameKey(left) !== getClientRecordPersonNameKey(right)) {
+    return false;
+  }
+  const leftNationality = getClientRecordNationalityKey(left);
+  const rightNationality = getClientRecordNationalityKey(right);
+  if (leftNationality && rightNationality && leftNationality !== rightNationality) {
+    return false;
+  }
+  const leftDob = normalizeDateValue(recordValue(left, "dateOfBirth"));
+  const rightDob = normalizeDateValue(recordValue(right, "dateOfBirth"));
+  if (leftDob && rightDob && leftDob !== rightDob) {
+    return false;
+  }
+  return (
+    areClientRecordAgesSeasonCompatible(left, right) &&
+    areClientRecordClubSeasonSignalsCompatible(left, right) &&
+    areClientRecordPositionsCompatibleForWeakIdentity(left, right)
+  );
+}
+
+function getClientRecordMetricCount(record = {}) {
+  const metrics = recordValue(record, "metrics");
+  if (!metrics || typeof metrics !== "object") {
+    return 0;
+  }
+  return Object.values(metrics).filter((value) => value !== null && value !== undefined && value !== "").length;
+}
+
+function getClientRepresentativeRecordScore(record = {}, query = {}) {
+  const selectedSeason = normalizeString(query.season, 80);
+  const seasonMatchBonus = selectedSeason && selectedSeason !== "all" && normalizeString(recordValue(record, "season"), 80) === selectedSeason ? 1000000000 : 0;
+  const seasonScore = getClientRecordSeasonYear(record) * 100000;
+  const metricsScore = getClientRecordMetricCount(record) * 1000;
+  const minutesScore = Math.min(9999, normalizeNumber(recordValue(record, "minutes"), 0) || 0);
+  return seasonMatchBonus + seasonScore + metricsScore + minutesScore;
+}
+
+function chooseClientRepresentativeRecord(records = [], query = {}) {
+  return [...records].sort((left, right) => {
+    const scoreDelta = getClientRepresentativeRecordScore(right, query) - getClientRepresentativeRecordScore(left, query);
+    if (scoreDelta) return scoreDelta;
+    return getClientRecordName(left).localeCompare(getClientRecordName(right));
+  })[0] || null;
+}
+
+function groupClientRecordsByPerson(records = [], query = {}) {
+  const clusters = [];
+  for (const record of Array.isArray(records) ? records : []) {
+    const identity = normalizeIdentityPart(recordValue(record, "playerIdentityId"), 180);
+    let cluster = identity ? clusters.find((item) => item.identity && item.identity === identity) : null;
+    if (!cluster) {
+      cluster = clusters.find((item) => {
+        if (identity && item.identity && item.identity !== identity) {
+          return false;
+        }
+        return item.records.every((candidate) => areClientRecordsLikelySamePerson(record, candidate));
+      });
+    }
+    if (cluster) {
+      cluster.records.push(record);
+      if (identity && !cluster.identity) {
+        cluster.identity = identity;
+      }
+    } else {
+      clusters.push({ identity, records: [record] });
+    }
+  }
+  return clusters.map((cluster) => chooseClientRepresentativeRecord(cluster.records, query)).filter(Boolean);
+}
+
 function actorRole(actor = {}) {
   return normalizeString(actor.role || "unknown", 40).toLowerCase();
 }
@@ -930,8 +1071,12 @@ async function fetchDatabaseSnapshot(query = {}) {
   const limit = asLimit(query.limit);
   const offset = asOffset(query.offset);
   const rows = rowsPayload.rows || [];
-  const total = Number.isFinite(Number(rowsPayload.total)) ? Math.max(0, Number(rowsPayload.total)) : null;
-  const hasMore = rows.length === limit && (!Number.isFinite(total) || offset + rows.length < total);
+  const clientRecords = rows.map(seasonRowToClientRecord);
+  const groupedRecords = groupClientRecordsByPerson(clientRecords, query);
+  const rawTotal = Number.isFinite(Number(rowsPayload.total)) ? Math.max(0, Number(rowsPayload.total)) : null;
+  const total = Number.isFinite(rawTotal) && rawTotal === rows.length ? groupedRecords.length : rawTotal;
+  const returned = groupedRecords.length;
+  const hasMore = rows.length === limit && (!Number.isFinite(rawTotal) || offset + rows.length < rawTotal);
   return {
     ok: true,
     schema: SCOUTING_DATABASE_SCHEMA,
@@ -940,12 +1085,12 @@ async function fetchDatabaseSnapshot(query = {}) {
     source: "api",
     importedAt: new Date().toISOString(),
     metrics: Array.isArray(metrics) ? metrics : null,
-    records: rows.map(seasonRowToClientRecord),
+    records: groupedRecords,
     options,
     page: {
       limit,
       offset,
-      returned: rows.length,
+      returned,
       total,
       nextOffset: hasMore ? offset + rows.length : null,
       hasMore,

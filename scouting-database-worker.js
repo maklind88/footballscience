@@ -82,6 +82,170 @@ function getRecordAge(record) {
   return normalizeNumber(getRecordValue(record, recordIndex.age), NaN);
 }
 
+function normalizeIdentityPart(value = "", limit = 140) {
+  return normalizeText(value, limit)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function getRecordSeasonYear(record) {
+  const season = getRecordSeason(record);
+  const years = season.match(/\d{4}/g);
+  if (!years || !years.length) return Number.NaN;
+  return Math.max(...years.map((year) => Number(year)).filter(Number.isFinite));
+}
+
+function getRecordIdentityBaseKey(record) {
+  const playerName = normalizeIdentityPart(getRecordName(record));
+  if (!playerName) return "";
+
+  const countries = [
+    normalizeIdentityPart(getRecordValue(record, recordIndex.birthCountry), 60),
+    normalizeIdentityPart(getRecordValue(record, recordIndex.passportCountry), 60),
+  ]
+    .filter(Boolean)
+    .sort()
+    .join("|");
+
+  const height = normalizeNumber(getRecordValue(record, recordIndex.height), Number.NaN);
+  const heightKey = Number.isFinite(height) && height > 0 ? `h${Math.round(height)}` : "";
+
+  return [playerName, countries, heightKey].filter(Boolean).join("::");
+}
+
+function hasPlausibleSeasonAgeLink(firstRecord, nextRecord) {
+  const firstAge = getRecordAge(firstRecord);
+  const nextAge = getRecordAge(nextRecord);
+  const firstYear = getRecordSeasonYear(firstRecord);
+  const nextYear = getRecordSeasonYear(nextRecord);
+
+  if (
+    !Number.isFinite(firstAge) ||
+    !Number.isFinite(nextAge) ||
+    !Number.isFinite(firstYear) ||
+    !Number.isFinite(nextYear)
+  ) {
+    return true;
+  }
+
+  const ageDelta = nextAge - firstAge;
+  const seasonDelta = nextYear - firstYear;
+  return Math.abs(ageDelta - seasonDelta) <= 2;
+}
+
+function areRecordClubSeasonSignalsCompatible(firstRecord, nextRecord) {
+  const firstTeam = normalizeIdentityPart(getRecordTeam(firstRecord), 180);
+  const nextTeam = normalizeIdentityPart(getRecordTeam(nextRecord), 180);
+  if (!firstTeam || !nextTeam || firstTeam === nextTeam) {
+    return true;
+  }
+  const firstSeason = normalizeIdentityPart(getRecordSeason(firstRecord), 80);
+  const nextSeason = normalizeIdentityPart(getRecordSeason(nextRecord), 80);
+  if (firstSeason && nextSeason && firstSeason === nextSeason) {
+    const firstAge = getRecordAge(firstRecord);
+    const nextAge = getRecordAge(nextRecord);
+    if (Number.isFinite(firstAge) && Number.isFinite(nextAge) && Math.abs(firstAge - nextAge) > 1) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function getRecordPositionGroup(record) {
+  const tokens = getPositionTokens(record);
+  if (tokens.some((token) => token.includes("GK"))) return "GK";
+  if (tokens.some((token) => ["CB", "RCB", "LCB"].includes(token))) return "CB";
+  if (tokens.some((token) => ["RB", "LB", "RWB", "LWB", "WB"].includes(token))) return "FB";
+  if (tokens.some((token) => ["DMF", "CMF", "RCMF", "LCMF", "AMF", "MF"].includes(token))) return "MID";
+  if (tokens.some((token) => ["RW", "LW", "RWF", "LWF", "WF", "W"].includes(token))) return "WING";
+  if (tokens.some((token) => ["CF", "ST", "FW"].includes(token))) return "CF";
+  return tokens[0] || "";
+}
+
+function areRecordPositionsCompatibleForWeakIdentity(firstRecord, nextRecord) {
+  const firstGroup = getRecordPositionGroup(firstRecord);
+  const nextGroup = getRecordPositionGroup(nextRecord);
+  if (!firstGroup || !nextGroup || firstGroup === nextGroup) {
+    return true;
+  }
+  if (firstGroup === "GK" || nextGroup === "GK") {
+    return false;
+  }
+  return true;
+}
+
+function areWorkerRecordsLikelySamePerson(firstRecord, nextRecord) {
+  return (
+    hasPlausibleSeasonAgeLink(firstRecord, nextRecord) &&
+    areRecordClubSeasonSignalsCompatible(firstRecord, nextRecord) &&
+    areRecordPositionsCompatibleForWeakIdentity(firstRecord, nextRecord)
+  );
+}
+
+function chooseRepresentativeSeasonRecord(records = []) {
+  return records.reduce((bestRecord, candidateRecord) => {
+    if (!bestRecord) return candidateRecord;
+
+    const bestYear = getRecordSeasonYear(bestRecord);
+    const candidateYear = getRecordSeasonYear(candidateRecord);
+    if (Number.isFinite(candidateYear) && (!Number.isFinite(bestYear) || candidateYear > bestYear)) {
+      return candidateRecord;
+    }
+    if (candidateYear === bestYear) {
+      const bestMinutes = getRecordMinutes(bestRecord);
+      const candidateMinutes = getRecordMinutes(candidateRecord);
+      if (candidateMinutes > bestMinutes) return candidateRecord;
+    }
+
+    return bestRecord;
+  }, null);
+}
+
+function dedupeScoutingPlayerRecords(records = []) {
+  const standaloneRecords = [];
+  const bucketsByIdentity = new Map();
+
+  records.forEach((record) => {
+    const identityKey = getRecordIdentityBaseKey(record);
+    if (!identityKey) {
+      standaloneRecords.push(record);
+      return;
+    }
+
+    let buckets = bucketsByIdentity.get(identityKey);
+    if (!buckets) {
+      buckets = [];
+      bucketsByIdentity.set(identityKey, buckets);
+    }
+
+    let bucket = buckets.find((candidateBucket) =>
+      candidateBucket.records.every((existingRecord) => areWorkerRecordsLikelySamePerson(existingRecord, record))
+    );
+
+    if (!bucket) {
+      bucket = { records: [] };
+      buckets.push(bucket);
+    }
+
+    bucket.records.push(record);
+  });
+
+  const representativeRecords = [...standaloneRecords];
+  bucketsByIdentity.forEach((buckets) => {
+    buckets.forEach((bucket) => {
+      const representativeRecord = chooseRepresentativeSeasonRecord(bucket.records);
+      if (representativeRecord) {
+        representativeRecords.push(representativeRecord);
+      }
+    });
+  });
+
+  return representativeRecords;
+}
+
 function getRecordMatches(record) {
   return normalizeNumber(getRecordValue(record, recordIndex.matches), 0);
 }
@@ -377,21 +541,9 @@ function getDatabasePage(query = {}) {
   const database = loadedDatabase;
   const records = Array.isArray(database?.records) ? database.records : [];
   const normalizedQuery = normalizeQuery(query);
-  const filteredRecords = getFilteredSortedRecords(records, normalizedQuery);
-  const hasMinAge = Number.isFinite(normalizedQuery.minAge) && normalizedQuery.minAge > 0;
-  const hasMaxAge = Number.isFinite(normalizedQuery.maxAge) && normalizedQuery.maxAge > 0;
-  const total =
-    !normalizedQuery.query &&
-    normalizedQuery.league === "all" &&
-    normalizedQuery.team === "all" &&
-    normalizedQuery.season === "all" &&
-    normalizedQuery.position === "ALL" &&
-    normalizedQuery.minMinutes === 0 &&
-    normalizedQuery.maxMinutes === 0 &&
-    !hasMinAge &&
-    !hasMaxAge
-      ? Math.max(filteredRecords.length, Math.floor(Number(database?.totalRecords) || 0))
-      : filteredRecords.length;
+  const filteredSeasonRecords = getFilteredSortedRecords(records, normalizedQuery);
+  const filteredRecords = dedupeScoutingPlayerRecords(filteredSeasonRecords);
+  const total = filteredRecords.length;
   const pageRecords = filteredRecords.slice(normalizedQuery.offset, normalizedQuery.offset + normalizedQuery.limit);
   const nextOffset = normalizedQuery.offset + pageRecords.length;
   const hasMore = nextOffset < total;

@@ -20,6 +20,10 @@ const recordIndex = Object.freeze({
 
 let loadedDatabase = null;
 let loadedScriptUrl = "";
+let loadedFullDatabase = null;
+let loadedFullScriptUrl = "";
+let loadedPreviewDatabase = null;
+let loadedPreviewScriptUrl = "";
 let optionCache = null;
 let metricIndexCache = null;
 let searchCorpusCache = new Map();
@@ -31,7 +35,14 @@ function normalizeText(value = "", limit = 120) {
 
 function normalizeLeague(value = "") {
   const text = normalizeText(value, 120);
-  return text.replace(/^scotland\s+swpl$/i, "Scotland SWPL");
+  const fixedCountry = text
+    .replace(/^scottland\b/i, "Scotland")
+    .replace(/\bSWPL\s*\d+\b/i, "SWPL")
+    .trim();
+  if (/^Scotland\s+SWPL\b/i.test(fixedCountry)) {
+    return "Scotland SWPL";
+  }
+  return fixedCountry;
 }
 
 function normalizeNumber(value, fallback = 0) {
@@ -86,6 +97,18 @@ function getPositionTokens(recordOrPosition) {
     .split(/[^A-Z0-9]+/)
     .map((token) => token.trim())
     .filter(Boolean);
+}
+
+function positionMatchesFilter(record, selectedPosition) {
+  const position = normalizeText(selectedPosition, 80).toUpperCase();
+  if (!position || position === "ALL") {
+    return true;
+  }
+  const tokens = getPositionTokens(record);
+  if (tokens.includes(position)) {
+    return true;
+  }
+  return ["CB", "CMF", "DMF", "AMF", "WB", "WF", "MF"].includes(position) && tokens.some((token) => token.endsWith(position));
 }
 
 function getMetricIndex() {
@@ -190,10 +213,23 @@ function buildOptions(records = []) {
   return optionCache;
 }
 
+function activateDatabase(database, scriptUrl) {
+  if (loadedDatabase === database && loadedScriptUrl === scriptUrl) {
+    return loadedDatabase;
+  }
+  loadedDatabase = database;
+  loadedScriptUrl = scriptUrl;
+  optionCache = null;
+  metricIndexCache = null;
+  searchCorpusCache = new Map();
+  filteredRecordCache = new Map();
+  return loadedDatabase;
+}
+
 function loadDatabase(scriptUrl = "scouting-import-data.js") {
   const normalizedScriptUrl = String(scriptUrl || "scouting-import-data.js");
-  if (loadedDatabase && loadedScriptUrl === normalizedScriptUrl) {
-    return loadedDatabase;
+  if (loadedFullDatabase && loadedFullScriptUrl === normalizedScriptUrl) {
+    return activateDatabase(loadedFullDatabase, loadedFullScriptUrl);
   }
   self.__footballScienceScoutingDatabase = null;
   importScripts(normalizedScriptUrl);
@@ -201,13 +237,25 @@ function loadDatabase(scriptUrl = "scouting-import-data.js") {
   if (!database || !Array.isArray(database.records) || !Array.isArray(database.metrics)) {
     throw new Error("Scouting player database did not register.");
   }
-  loadedDatabase = database;
-  loadedScriptUrl = normalizedScriptUrl;
-  optionCache = null;
-  metricIndexCache = null;
-  searchCorpusCache = new Map();
-  filteredRecordCache = new Map();
-  return loadedDatabase;
+  loadedFullDatabase = database;
+  loadedFullScriptUrl = normalizedScriptUrl;
+  return activateDatabase(loadedFullDatabase, loadedFullScriptUrl);
+}
+
+function loadPreviewDatabase(scriptUrl = "scouting-import-preview-data.js") {
+  const normalizedScriptUrl = String(scriptUrl || "scouting-import-preview-data.js");
+  if (loadedPreviewDatabase && loadedPreviewScriptUrl === normalizedScriptUrl) {
+    return activateDatabase(loadedPreviewDatabase, loadedPreviewScriptUrl);
+  }
+  self.__footballScienceScoutingPreviewDatabase = null;
+  importScripts(normalizedScriptUrl);
+  const database = self.__footballScienceScoutingPreviewDatabase;
+  if (!database || !Array.isArray(database.records) || !Array.isArray(database.metrics)) {
+    throw new Error("Scouting player database preview did not register.");
+  }
+  loadedPreviewDatabase = database;
+  loadedPreviewScriptUrl = normalizedScriptUrl;
+  return activateDatabase(loadedPreviewDatabase, loadedPreviewScriptUrl);
 }
 
 function normalizeQuery(query = {}) {
@@ -239,7 +287,7 @@ function recordMatchesQuery(record, query) {
   if (query.season && query.season !== "all" && getRecordSeason(record) !== query.season) {
     return false;
   }
-  if (query.position && query.position !== "ALL" && !getPositionTokens(record).includes(query.position)) {
+  if (!positionMatchesFilter(record, query.position)) {
     return false;
   }
   const minutes = getRecordMinutes(record);
@@ -330,7 +378,20 @@ function getDatabasePage(query = {}) {
   const records = Array.isArray(database?.records) ? database.records : [];
   const normalizedQuery = normalizeQuery(query);
   const filteredRecords = getFilteredSortedRecords(records, normalizedQuery);
-  const total = filteredRecords.length;
+  const hasMinAge = Number.isFinite(normalizedQuery.minAge) && normalizedQuery.minAge > 0;
+  const hasMaxAge = Number.isFinite(normalizedQuery.maxAge) && normalizedQuery.maxAge > 0;
+  const total =
+    !normalizedQuery.query &&
+    normalizedQuery.league === "all" &&
+    normalizedQuery.team === "all" &&
+    normalizedQuery.season === "all" &&
+    normalizedQuery.position === "ALL" &&
+    normalizedQuery.minMinutes === 0 &&
+    normalizedQuery.maxMinutes === 0 &&
+    !hasMinAge &&
+    !hasMaxAge
+      ? Math.max(filteredRecords.length, Math.floor(Number(database?.totalRecords) || 0))
+      : filteredRecords.length;
   const pageRecords = filteredRecords.slice(normalizedQuery.offset, normalizedQuery.offset + normalizedQuery.limit);
   const nextOffset = normalizedQuery.offset + pageRecords.length;
   const hasMore = nextOffset < total;
@@ -373,19 +434,45 @@ function getRecordsByIds(recordIds = []) {
 }
 
 self.addEventListener("message", (event) => {
-  if (!["query", "recordsByIds"].includes(event.data?.type)) {
+  if (!["query", "recordsByIds", "preview", "preload"].includes(event.data?.type)) {
     return;
   }
   const requestId = Number(event.data.requestId) || 0;
   try {
-    loadDatabase(event.data.scriptUrl);
+    const fullScriptUrl = event.data.scriptUrl || "scouting-import-data.js";
+    const previewScriptUrl = event.data.previewScriptUrl || "scouting-import-preview-data.js";
+    if (event.data.type === "preview") {
+      loadPreviewDatabase(previewScriptUrl);
+      self.postMessage({
+        type: "database",
+        requestId,
+        database: getDatabasePage(event.data.query || {}),
+      });
+      return;
+    }
+    if (event.data.type === "preload") {
+      loadDatabase(fullScriptUrl);
+      self.postMessage({
+        type: "preloaded",
+        requestId,
+      });
+      return;
+    }
     if (event.data.type === "recordsByIds") {
+      loadDatabase(fullScriptUrl);
       self.postMessage({
         type: "records",
         requestId,
         records: getRecordsByIds(event.data.recordIds || []),
       });
       return;
+    }
+    if (loadedFullDatabase && loadedFullScriptUrl === String(fullScriptUrl || "scouting-import-data.js")) {
+      activateDatabase(loadedFullDatabase, loadedFullScriptUrl);
+    } else if (loadedPreviewDatabase) {
+      activateDatabase(loadedPreviewDatabase, loadedPreviewScriptUrl);
+    } else {
+      loadDatabase(fullScriptUrl);
     }
     self.postMessage({
       type: "database",

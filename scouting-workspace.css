@@ -8916,3 +8916,8 @@ body.is-dark-mode .scouting-my-team-spider-panel dl div{
     text-align: left;
   }
 }
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-slot-head,
+.scouting-shadow-board-item>button{
+  min-height:2rem;
+}
+.scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-slot-head{padding:.22rem .34rem}

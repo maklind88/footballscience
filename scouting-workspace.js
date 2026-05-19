@@ -7,6 +7,8 @@ let scoutingPriorityOptions = [];
 let scoutingDatabaseLoadPromise = null;
 let scoutingDatabaseLoadSource = "";
 let scoutingDatabaseWorker = null;
+let scoutingDatabaseWorkerPreloadPromise = null;
+let scoutingDatabaseWorkerPreloadTimer = 0;
 let scoutingDatabaseWorkerRequestId = 0;
 let scoutingDatabaseError = "";
 let scoutingDatabaseOptionCache = null;
@@ -422,7 +424,7 @@ function writeScoutingState(options = {}) {
   return activeContext.writeState(options);
 }
 let scoutingDeferredStateWriteTimer = 0;
-function deferScoutingStateWrite(options = {}, beforeWrite = null) {
+function deferScoutingStateWrite(options = {}, beforeWrite = null, delayMs = 120) {
   window.clearTimeout(scoutingDeferredStateWriteTimer);
   scoutingDeferredStateWriteTimer = window.setTimeout(() => {
     scoutingDeferredStateWriteTimer = 0;
@@ -430,7 +432,7 @@ function deferScoutingStateWrite(options = {}, beforeWrite = null) {
       beforeWrite();
     }
     writeScoutingState(options);
-  }, 0);
+  }, Math.max(0, Math.floor(Number(delayMs) || 0)));
 }
 function canEditScoutingWorkspace() {
   return activeContext.canEdit();
@@ -2484,7 +2486,7 @@ function loadScoutingDatabaseFilterOptions() {
       const seasons = Array.isArray(rawOptions.seasons) ? rawOptions.seasons.filter(Boolean) : [];
       const positions = Array.isArray(rawOptions.positions) ? rawOptions.positions.filter(Boolean) : [];
       const normalized = {
-        leagues: [...new Set(leagues.map((item) => String(item).trim()).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b))),
+        leagues: [...new Set(leagues.map((item) => normalizeScoutingLeague(item)).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b))),
         teams: [...new Set(teams.map((item) => String(item).trim()).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b))),
         seasons: [...new Set(seasons.map((item) => String(item).trim()).filter(Boolean))].sort((a, b) => String(b).localeCompare(String(a))),
         positions: [...new Set(positions.map((item) => String(item).trim()).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b))),
@@ -2748,6 +2750,10 @@ function getOrCreateScoutingDatabaseWorker() {
       request.resolve(Array.isArray(message.records) ? message.records : []);
       return;
     }
+    if (message.type === "preloaded") {
+      request.resolve(true);
+      return;
+    }
     request.reject(new Error(message.message || "Scouting player database could not be loaded."));
   };
   worker.onerror = (error) => {
@@ -2781,6 +2787,7 @@ function requestScoutingDatabaseWorkerQuery(options = {}) {
       type: options.type || "query",
       requestId,
       scriptUrl: `scouting-import-data.js?v=${getScoutingAssetVersion()}`,
+      previewScriptUrl: `scouting-import-preview-data.js?v=${getScoutingAssetVersion()}`,
       query: getScoutingWorkerQueryFromState(),
       recordIds: Array.isArray(options.recordIds) ? options.recordIds : [],
     });
@@ -2797,8 +2804,39 @@ function requestScoutingDatabaseWorkerRecords(recordIds = [], options = {}) {
     timeoutMs: options.timeoutMs || 8000,
   });
 }
+function prewarmScoutingDatabaseWorker() {
+  const filters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
+  if (
+    filters.source === "fsdb" ||
+    isScoutingDatabaseLoaded() ||
+    scoutingDatabaseLoadPromise ||
+    typeof Worker !== "function"
+  ) {
+    return Promise.resolve(false);
+  }
+  if (scoutingDatabaseWorkerPreloadPromise) {
+    return scoutingDatabaseWorkerPreloadPromise;
+  }
+  scoutingDatabaseWorkerPreloadPromise = requestScoutingDatabaseWorkerQuery({
+    type: "preview",
+    timeoutMs: 8000,
+  })
+    .then(() => true)
+    .catch(() => false)
+    .finally(() => {
+      scoutingDatabaseWorkerPreloadPromise = null;
+    });
+  return scoutingDatabaseWorkerPreloadPromise;
+}
+function scheduleScoutingDatabaseWorkerPrewarm(delayMs = 180) {
+  window.clearTimeout(scoutingDatabaseWorkerPreloadTimer);
+  scoutingDatabaseWorkerPreloadTimer = window.setTimeout(() => {
+    scoutingDatabaseWorkerPreloadTimer = 0;
+    prewarmScoutingDatabaseWorker();
+  }, Math.max(0, Math.floor(Number(delayMs) || 0)));
+}
 function loadScoutingDatabaseWithWorker() {
-  return requestScoutingDatabaseWorkerQuery({ timeoutMs: 45000 })
+  return requestScoutingDatabaseWorkerQuery({ type: "preview", timeoutMs: 8000 })
     .then((database) => {
       const appliedDatabase = applyScoutingWorkerDatabase(database);
       if (!appliedDatabase) {
@@ -4700,6 +4738,17 @@ function getScoutingPositionTokens(recordOrPosition) {
     .split(/[^A-Z0-9]+/)
     .map((token) => token.trim())
     .filter(Boolean);
+}
+function scoutingPositionMatchesFilter(recordOrPosition, selectedPosition = "") {
+  const position = normalizeScoutingText(selectedPosition, 40).toUpperCase();
+  if (!position || position === "ALL") {
+    return true;
+  }
+  const tokens = getScoutingPositionTokens(recordOrPosition);
+  if (tokens.includes(position)) {
+    return true;
+  }
+  return ["CB", "CMF", "DMF", "AMF", "WB", "WF", "MF"].includes(position) && tokens.some((token) => token.endsWith(position));
 }
 function getScoutingPositionGroup(recordOrPosition) {
   const tokens = getScoutingPositionTokens(recordOrPosition);
@@ -6844,7 +6893,7 @@ function getFilteredScoutingDatabaseRecords() {
         if (filters.season !== "all" && getScoutingRecordSeason(record) !== filters.season) {
           return false;
         }
-        if (filters.position !== "all" && !getScoutingPositionTokens(record).includes(filters.position.toUpperCase())) {
+        if (filters.position !== "all" && !scoutingPositionMatchesFilter(record, filters.position)) {
           return false;
         }
         const recordMinutes = getScoutingRecordMinutes(record);
@@ -6957,7 +7006,7 @@ function getFilteredScoutingDatabaseRecords() {
       if (filters.season !== "all" && getScoutingRecordSeason(record) !== filters.season) {
         return false;
       }
-      if (filters.position !== "all" && !getScoutingPositionTokens(record).includes(filters.position.toUpperCase())) {
+      if (filters.position !== "all" && !scoutingPositionMatchesFilter(record, filters.position)) {
         return false;
       }
       const recordMinutes = getScoutingRecordMinutes(record);
@@ -15448,6 +15497,7 @@ function renderScoutingWorkspace(options = {}) {
   if (state.selectedRecordId && normalizeScoutingProfileTab(state.profileTab) === "overview") {
     queueFootballScienceDbProfileHydration(state.selectedRecordId);
   }
+  scheduleScoutingDatabaseWorkerPrewarm(state.activeTab === "database" ? 180 : 750);
   restoreScoutingScrollSnapshot(scrollSnapshot);
 }
 function refreshScoutingWorkspaceSummaryMetrics() {

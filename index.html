@@ -1370,8 +1370,8 @@
               payload: {
                 reason:
                   error?.name === "AbortError"
-                    ? "The request took too long. Check your connection and try again."
-                    : error?.message || "Network error. Check your connection and try again.",
+                    ? "Request timed out. Try again."
+                    : error?.message || "Network error. Try again.",
               },
             };
           } finally {
@@ -2022,7 +2022,7 @@
                   body: JSON.stringify({ entries: localEntries }),
                 });
                 if (!seedResponse.ok) {
-                  centralState.lastError = seedResponse.payload?.reason || "Central app data could not be seeded.";
+                centralState.lastError = seedResponse.payload?.reason || "Central seed failed.";
                   return false;
                 }
                 if (Array.isArray(seedResponse.payload?.results)) {
@@ -2044,7 +2044,7 @@
             );
             return true;
           } catch (error) {
-            centralState.lastError = error?.message || "Central app data could not be loaded.";
+            centralState.lastError = error?.message || "Central load failed.";
             return false;
           } finally {
             centralState.hydrating = false;
@@ -2058,7 +2058,7 @@
             return { ok: true, localDev: true };
           }
           if (!authState.session?.access_token || !isCentralStateKey(key)) {
-            return { ok: false, reason: "Central sync is not ready." };
+            return { ok: false, reason: "Sync not ready." };
           }
           try {
             centralState.localDev = false;
@@ -2084,7 +2084,7 @@
               }),
             });
             if (!response.ok) {
-              centralState.lastError = response.payload?.reason || "Central sync failed.";
+              centralState.lastError = response.payload?.reason || "Sync failed.";
               return {
                 ok: false,
                 status: response.status,
@@ -2103,7 +2103,7 @@
             }
             return { ok: true, ...(response.payload || {}) };
           } catch (error) {
-            centralState.lastError = error?.message || "Central sync failed.";
+            centralState.lastError = error?.message || "Sync failed.";
             return { ok: false, reason: centralState.lastError };
           }
         }
@@ -2268,7 +2268,7 @@
         }
         async function signInWithIdentifier(identifier, password) {
           if (authState.devMode) return signInWithDevAuth(identifier, password);
-          if (!authState.supabase) return { ok: false, reason: "Authentication is not initialized. Open the app through footballscience.xyz." };
+          if (!authState.supabase) return { ok: false, reason: "Authentication is not ready. Open footballscience.xyz." };
           const cleanIdentifier = String(identifier || "").trim().toLowerCase();
           const cleanPassword = String(password || "").trim();
           if (!cleanIdentifier || !cleanPassword) return { ok: false, reason: "Username and password are required." };
@@ -2299,8 +2299,8 @@
                 }
               }
               const message = String(loginResponse.payload?.reason || "").toLowerCase();
-              if (foundByUsername && message.includes("invalid")) return {ok:false,reason:"Incorrect username or password. Make sure you are using the password for this account."};
-              if (!cleanIdentifier.includes("@") && message.includes("invalid")) return {ok:false,reason:"Incorrect username or password. If you used a username, try the email address instead, or reset the password."};
+                if (foundByUsername && message.includes("invalid")) return {ok:false,reason:"Incorrect username or password."};
+                if (!cleanIdentifier.includes("@") && message.includes("invalid")) return {ok:false,reason:"Incorrect username or password. Try email or reset password."};
               if (message.includes("invalid")) return {ok:false,reason:"Invalid login credentials."};
               return { ok: false, reason: loginResponse.payload?.reason || "Invalid username or password." };
             }
@@ -3023,7 +3023,7 @@
           }
           let clientConfigResponse = null;
           try {
-            const configResponse = await withTimeout(fetch(API_CLIENT_CONFIG,{credentials:"omit",cache:"no-store"}),12000,"Authentication settings took too long to load.");
+            const configResponse = await withTimeout(fetch(API_CLIENT_CONFIG,{credentials:"omit",cache:"no-store"}),12000,"Auth settings timed out.");
             const configPayload = await readJsonResponse(configResponse);
             if (!configPayload?.ok || !configPayload.url || !configPayload.anonKey) {
               throw new Error(configPayload?.reason || "Supabase settings are not available.");

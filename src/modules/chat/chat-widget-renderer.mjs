@@ -49,14 +49,38 @@ function formatDateSeparator(value) {
 
 const MESSAGE_GROUP_WINDOW_MS = 5 * 60 * 1000;
 
-function shouldGroupWithPreviousMessage(message = {}, previousMessage = null, currentDateKey = "", previousDateKey = "") {
+function getMessageGroupingAuthorKey(message = {}, currentUser = null) {
+  const userId = String(message.userId || message.authorId || message.senderId || "").trim();
+  const author = message.author || {};
+  const authorId = String(author.id || author.userId || author.user_id || "").trim();
+  const currentUserId = String(currentUser?.id || "").trim();
+  if (currentUserId && (userId === currentUserId || authorId === currentUserId)) {
+    return `self:${currentUserId}`;
+  }
+  if (userId || authorId) {
+    return userId || authorId;
+  }
+  return [
+    author.firstName || author.first_name,
+    author.lastName || author.last_name,
+    author.email,
+    author.username,
+  ]
+    .map((part) => String(part || "").trim().toLowerCase())
+    .filter(Boolean)
+    .join("|");
+}
+
+function shouldGroupWithPreviousMessage(message = {}, previousMessage = null, currentDateKey = "", previousDateKey = "", currentUser = null) {
   if (!previousMessage) {
     return false;
   }
   if (currentDateKey && previousDateKey && currentDateKey !== previousDateKey) {
     return false;
   }
-  if (String(message.userId || "") !== String(previousMessage.userId || "")) {
+  const currentAuthorKey = getMessageGroupingAuthorKey(message, currentUser);
+  const previousAuthorKey = getMessageGroupingAuthorKey(previousMessage, currentUser);
+  if (!currentAuthorKey || currentAuthorKey !== previousAuthorKey) {
     return false;
   }
 
@@ -66,7 +90,7 @@ function shouldGroupWithPreviousMessage(message = {}, previousMessage = null, cu
     return true;
   }
 
-  return currentTime >= previousTime && currentTime - previousTime <= MESSAGE_GROUP_WINDOW_MS;
+  return Math.abs(currentTime - previousTime) <= MESSAGE_GROUP_WINDOW_MS;
 }
 
 function formatFileSize(value) {
@@ -288,7 +312,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         const separator = hasSeparator
           ? `<div class="dashboard-chat-date-separator"><span>${escapeHtml(formatDateSeparator(message.createdAt))}</span></div>`
           : "";
-        const groupedWithPrevious = !hasSeparator && shouldGroupWithPreviousMessage(message, previousMessage, currentKey, previousKey);
+        const groupedWithPrevious = !hasSeparator && shouldGroupWithPreviousMessage(message, previousMessage, currentKey, previousKey, currentUser);
         previousKey = currentKey || previousKey;
         previousMessage = message;
         return `${separator}${renderMessage(message, users, currentUser, { groupedWithPrevious })}`;

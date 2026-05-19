@@ -20982,7 +20982,16 @@ styleElement = document.createElement("style");
 styleElement.id = "sessionPlannerPrintPageStyle";
 document.head.appendChild(styleElement);
 }
-styleElement.textContent = `@page { size: ${paper.pageSize}; margin: 0; }`;
+styleElement.textContent = `
+@page { size: ${paper.pageSize}; margin: 0; }
+@media print {
+  body.is-session-printing .session-print-root,
+  body.is-session-printing .session-print-root *,
+  body.is-session-printing .session-print-document,
+  body.is-session-printing .session-print-document * {
+    visibility: visible !important;
+  }
+}`;
 }
 function removeSessionPlannerPrintRoot() {
 document.querySelectorAll("[data-session-print-root]").forEach((element) => element.remove());

@@ -333,3 +333,14 @@ test("game simulator animation loop does not run globally outside the simulator 
   expect(workspaceControllerSource).toContain("createSimulatorWorkspaceController");
   expect(workspaceControllerSource).toContain("launchFromIntro");
 });
+
+test("Session Planner print mode keeps the coach sheet visible for browser printing", () => {
+  const appSource = readProjectFile("app.js");
+
+  expect(appSource).toContain("@media print");
+  expect(appSource).toContain("body.is-session-printing .session-print-root,");
+  expect(appSource).toContain("body.is-session-printing .session-print-root *");
+  expect(appSource).toContain("body.is-session-printing .session-print-document *");
+  expect(appSource).toContain("visibility: visible !important");
+  expect(appSource).toContain("window.print()");
+});

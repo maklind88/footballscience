@@ -11984,12 +11984,20 @@ function renderScoutingProfileRoleSpiderGrid(record, selectedProfileRoleId, prof
     </div>
   `;
 }
-function renderScoutingComparisonRadarOverlay(playerRecords) {
+function renderScoutingComparisonRadarOverlay(playerRecords, metricItems = []) {
   const records = playerRecords.map(({ record }) => record).filter(Boolean).slice(0, 4);
   if (records.length < 2) {
     return "";
   }
-  const template = getScoutingRadarTemplate(records[0]);
+  const selectedTemplate = Array.isArray(metricItems)
+    ? metricItems
+        .map((metric) => ({
+          metricId: metric?.id,
+          label: metric?.label || metric?.id || "Metric",
+        }))
+        .filter((item) => item.metricId)
+    : [];
+  const template = selectedTemplate.length ? selectedTemplate : getScoutingRadarTemplate(records[0]);
   if (!template.length) {
     return "";
   }
@@ -12009,7 +12017,7 @@ function renderScoutingComparisonRadarOverlay(playerRecords) {
   });
   const shapes = records.map((record, recordIndex) => {
     const points = template.map((item, index) => {
-      const percentile = getScoutingTemplatePercentile(record, item) || 1;
+      const percentile = getScoutingPercentile(record, item.metricId) || 1;
       const angle = angleOffset + (index / template.length) * Math.PI * 2;
       const valueRadius = radius * (percentile / 100);
       return `${(center + Math.cos(angle) * valueRadius).toFixed(1)},${(center + Math.sin(angle) * valueRadius).toFixed(1)}`;
@@ -12024,7 +12032,7 @@ function renderScoutingComparisonRadarOverlay(playerRecords) {
     <section class="scouting-comparison-radar">
       <div>
         <span>Radar overlay</span>
-        <strong>${records.length} player ${escapeHtml(template.profileLabel || "role spider")}</strong>
+        <strong>${records.length} players · ${escapeHtml(template.length)} selected metrics</strong>
       </div>
       <svg viewBox="0 0 236 236" role="img" aria-label="Comparison radar overlay">
         <circle class="scouting-radar-ring" cx="${center}" cy="${center}" r="${radius}" />
@@ -12883,20 +12891,21 @@ function renderScoutingDatabaseControls() {
           <span>Max age</span>
           ${renderScoutingRangeFilter({ field: "maxAge", value: ageMaxValue, min: 14, max: 45, step: 1, ariaLabel: "Maximum age" })}
         </label>
-        <div class="scouting-filter-multi">
-          <span>Highlight metrics</span>
+        <div class="scouting-filter-multi scouting-filter-metric-picker">
+          <span>Metric filters</span>
           <details ${scoutingDatabaseMetricFilterOpen ? "open" : ""} data-scouting-metric-filter-details>
             <summary data-scouting-metric-filter-summary>
-              <strong title="${escapeHtml(selectedMetricLabels.join(", "))}">${escapeHtml(selectedMetricSummary || "No metric floor")}</strong>
-              <em>${escapeHtml(selectedMetricLabels.length)} selected</em>
+              <strong title="${escapeHtml(selectedMetricLabels.join(", "))}">${escapeHtml(selectedMetricSummary || "Choose metrics")}</strong>
+              <em>${escapeHtml(selectedMetricLabels.length ? `${selectedMetricLabels.length} selected` : `${metricOptions.length} available`)}</em>
             </summary>
             <div class="scouting-filter-multi-search">
               <input
                 type="search"
                 value="${escapeHtml(scoutingDatabaseMetricFilterQuery)}"
-                placeholder="Search metric..."
+                placeholder="Search among ${escapeHtml(metricOptions.length)} metrics..."
                 data-scouting-metric-filter-search
               />
+              <p>Select one or more metrics, then use Metric percentile to set the floor.</p>
             </div>
             <div class="scouting-filter-multi-options">
               ${filteredMetricOptions.length ? filteredMetricOptions
@@ -12904,7 +12913,10 @@ function renderScoutingDatabaseControls() {
                   (metric) => `
                     <label>
                       <input type="checkbox" value="${escapeHtml(metric.id)}" data-scouting-metric-filter ${selectedMetricIds.includes(metric.id) ? "checked" : ""} />
-                      <span>${escapeHtml(metric.label)}</span>
+                      <span>
+                        <strong>${escapeHtml(metric.label)}</strong>
+                        ${metric.group ? `<em>${escapeHtml(metric.group)}</em>` : ""}
+                      </span>
                     </label>
                   `
                 )
@@ -14128,11 +14140,6 @@ function renderScoutingTargetsPanel() {
 function renderScoutingComparisonLabPanel() {
   const state = ensureScoutingState();
   const lab = getScoutingComparisonLab(state);
-  const selectedSlot = getScoutingSlotById(lab.slotId) || getScoutingSlotById(scoutingShadowSlots[0]?.id || "");
-  const slotId = selectedSlot?.id || "";
-  const slotOptions = scoutingShadowSlots
-    .map((slot) => `<option value="${escapeHtml(slot.id)}" ${slotId === slot.id ? "selected" : ""}>${escapeHtml(slot.label)} · ${escapeHtml(slot.position)}</option>`)
-    .join("");
   const metricOptions = getScoutingMetricOptions();
   const selectedMetricIds = Array.from(
     new Set((lab.metricIds?.length ? lab.metricIds : [lab.metricId]).map((metricId) => normalizeScoutingText(metricId, 120)).filter(Boolean))
@@ -14140,6 +14147,7 @@ function renderScoutingComparisonLabPanel() {
   const comparisonMetricIds = selectedMetricIds.length ? selectedMetricIds : [metricOptions[0]?.id || "minutes"].filter(Boolean);
   const selectedMetricOptions = comparisonMetricIds.map((metricId) => getScoutingMetric(metricId)).filter(Boolean);
   const metric = selectedMetricOptions[0] || metricOptions[0];
+  const metricLabelText = selectedMetricOptions.length ? selectedMetricOptions.map((item) => item.label).join(", ") : "selected metrics";
   const comparisonMetricQuery = scoutingComparisonMetricFilterQuery.toLowerCase();
   const comparisonMetricChoices = comparisonMetricQuery
     ? metricOptions.filter((metricOption) => `${metricOption.label} ${metricOption.id}`.toLowerCase().includes(comparisonMetricQuery))
@@ -14161,7 +14169,13 @@ function renderScoutingComparisonLabPanel() {
     .join("");
   const selectedPlayerIds = (lab.playerIds || []).map((recordId) => normalizeScoutingText(recordId, 160));
   const selectedRecords = selectedPlayerIds.map(getScoutingRecordById).filter(Boolean);
-  const candidateRecords = selectedSlot ? getScoutingComparisonCandidatesForSlot(slotId).slice(0, 80) : [];
+  const database = getScoutingDatabase();
+  const databaseRecords = Array.isArray(database?.records) ? database.records : [];
+  const filteredDatabaseRecords = isScoutingDatabaseLoaded() ? getFilteredScoutingDatabaseRecords() : [];
+  const candidateRecords = [
+    ...filteredDatabaseRecords.slice(0, 220),
+    ...databaseRecords.slice(0, 220),
+  ];
   const candidateMap = new Map();
   [...selectedRecords, ...candidateRecords].forEach((record) => {
     const recordId = getScoutingRecordId(record);
@@ -14200,43 +14214,55 @@ function renderScoutingComparisonLabPanel() {
     canCompare && comparisonLeader
       ? `${escapeHtml(getScoutingRecordName(comparisonLeader.record))} leads ${escapeHtml(metric?.label || "selected metric")} at P${escapeHtml(comparisonLeader.percentile)}`
       : "";
-  const roleModel = selectedSlot ? getScoutingRoleModel(slotId) : null;
-  const roleModelName = roleModel?.name || (selectedSlot ? `${selectedSlot.label} search model` : "Selected role");
   const comparisonDecisionRows = canCompare
     ? playerRecords
         .map(({ record }) => {
-          const roleFit = getScoutingRoleFitScore(record);
-          const modelScore = roleModel ? getScoutingRoleModelMatchScore(record, roleModel) : roleFit;
+          const metricEntries = selectedMetricOptions.map((selectedMetric) => {
+            const percentile = getScoutingPercentile(record, selectedMetric.id);
+            return {
+              metric: selectedMetric,
+              value: getScoutingMetricValue(record, selectedMetric.id),
+              percentile,
+            };
+          });
+          const finitePercentiles = metricEntries.map((entry) => entry.percentile).filter((percentile) => Number.isFinite(percentile));
+          const metricScore = finitePercentiles.length
+            ? Math.round(finitePercentiles.reduce((sum, percentile) => sum + percentile, 0) / finitePercentiles.length)
+            : null;
+          const bestSelectedMetric = metricEntries
+            .filter((entry) => Number.isFinite(entry.percentile))
+            .sort((a, b) => b.percentile - a.percentile)[0] || null;
           const intelligence = getScoutingIntelligenceProfile(record, state);
           const selectedValue = getScoutingMetricValue(record, metric?.id);
           const selectedPercentile = metric ? getScoutingPercentile(record, metric.id) : null;
           return {
             record,
-            roleFit,
-            modelScore,
+            metricScore,
+            metricEntries,
+            bestSelectedMetric,
             intelligence,
             selectedValue,
             selectedPercentile,
           };
         })
-        .sort((a, b) => (b.modelScore || 0) - (a.modelScore || 0) || (b.roleFit || 0) - (a.roleFit || 0))
+        .sort((a, b) => (b.metricScore || 0) - (a.metricScore || 0) || (b.selectedPercentile || 0) - (a.selectedPercentile || 0))
     : [];
   const comparisonRecommendation = comparisonDecisionRows[0];
   const comparisonMetricRows = canCompare
-    ? getScoutingRadarTemplate(playerRecords[0].record)
-        .map((item) => {
+    ? selectedMetricOptions
+        .map((selectedMetric) => {
           const values = playerRecords
             .map(({ record }) => ({
               record,
-              value: getScoutingMetricValue(record, item.metricId),
-              percentile: getScoutingTemplatePercentile(record, item),
+              value: getScoutingMetricValue(record, selectedMetric.id),
+              percentile: getScoutingPercentile(record, selectedMetric.id),
             }))
             .filter((entry) => Number.isFinite(entry.percentile));
           const winner = [...values].sort((a, b) => b.percentile - a.percentile)[0];
           return winner
             ? {
-                label: item.label,
-                metric: getScoutingMetric(item.metricId),
+                label: selectedMetric.label,
+                metric: selectedMetric,
                 winner,
                 values,
               }
@@ -14247,14 +14273,8 @@ function renderScoutingComparisonLabPanel() {
   const comparisonTableMetrics = canCompare
     ? Array.from(
         new Map(
-          [
-            ...selectedMetricOptions.map((metricOption) => ({ metricId: metricOption.id, label: metricOption.label })),
-            ...getScoutingRadarTemplate(playerRecords[0].record).map((item) => ({ metricId: item.metricId, label: item.label })),
-            ...getScoutingRoleModelSignals(roleModel).map((signal) => ({
-              metricId: signal.metricId,
-              label: getScoutingMetric(signal.metricId)?.label || signal.metricId,
-            })),
-          ]
+          selectedMetricOptions
+            .map((metricOption) => ({ metricId: metricOption.id, label: metricOption.label }))
             .filter((item) => item?.metricId)
             .map((item) => [item.metricId, item])
         ).values()
@@ -14287,7 +14307,7 @@ function renderScoutingComparisonLabPanel() {
                   `;
                 })
                 .join("")
-            : `<p class="scouting-muted">No searchable players found for this role yet.</p>`
+            : `<p class="scouting-muted">No searchable players found yet. Load the scouting player database or add players from the database list.</p>`
         }
       </div>
     `
@@ -14300,17 +14320,11 @@ function renderScoutingComparisonLabPanel() {
           <h2>Comparison lab</h2>
         </div>
         <button type="button" class="scouting-comparison-candidate-toggle${scoutingComparisonCandidatesOpen ? " is-open" : ""}" data-toggle-scouting-comparison-candidates>
-          ${escapeHtml(candidates.length)} searchable players
+          ${escapeHtml(databaseRecords.length || candidates.length)} selectable players
         </button>
       </div>
       ${comparisonCandidateList}
       <form class="scouting-comparison-form scouting-comparison-search" data-scouting-comparison-form>
-        <label>
-          Role filter
-          <select name="slotId" data-scouting-comparison-slot ${canEdit ? "" : "disabled"}>
-            ${slotOptions}
-          </select>
-        </label>
         <fieldset class="scouting-comparison-metric-choice">
           <legend>Metrics</legend>
           <details data-scouting-comparison-metric-details ${scoutingComparisonMetricMenuOpen ? "open" : ""}>
@@ -14361,54 +14375,52 @@ function renderScoutingComparisonLabPanel() {
         </label>
       </form>
       <p class="scouting-comparison-summary">
-        ${selectedMetricOptions.length ? `Metrics: ${escapeHtml(selectedMetricOptions.map((item) => item.label).join(", "))}` : "Select metrics"} ${canCompare ? `· ${metricDelta}` : "· Pick at least two players to compare"} · Model: ${escapeHtml(roleModelName)}
+        ${selectedMetricOptions.length ? `Metrics: ${escapeHtml(metricLabelText)}` : "Select metrics"} ${canCompare ? `· ${metricDelta}` : "· Pick at least two players to compare"}
       </p>
       ${
         canCompare && comparisonRecommendation
           ? `
             <div class="scouting-comparison-decision">
               <div>
-                <span>Current leader</span>
+                <span>Metric leader</span>
                 <strong>${escapeHtml(getScoutingRecordName(comparisonRecommendation.record))}</strong>
-                <p>${escapeHtml(comparisonRecommendation.intelligence?.signal?.headline || "Best weighted comparison fit in this selection.")}</p>
+                <p>${escapeHtml(`Best average across ${selectedMetricOptions.length} selected metric${selectedMetricOptions.length === 1 ? "" : "s"}.`)}</p>
               </div>
               <div>
-                <span>Blueprint match</span>
-                <strong>P${escapeHtml(formatScoutingNumber(comparisonRecommendation.modelScore))}</strong>
-                <p>${escapeHtml(roleModel ? "Based on saved role model metrics." : "Based on role fit until a role model is saved.")}</p>
+                <span>Selected metric score</span>
+                <strong>${Number.isFinite(comparisonRecommendation.metricScore) ? `P${escapeHtml(comparisonRecommendation.metricScore)}` : "n/a"}</strong>
+                <p>${escapeHtml(comparisonRecommendation.bestSelectedMetric ? `${comparisonRecommendation.bestSelectedMetric.metric.label} is strongest at P${comparisonRecommendation.bestSelectedMetric.percentile}.` : "No selected metric data yet.")}</p>
               </div>
               <div>
-                <span>Risk / confidence</span>
-                <strong>${escapeHtml(comparisonRecommendation.intelligence?.confidence?.label || "Unknown")} / ${escapeHtml(comparisonRecommendation.intelligence?.risk?.label || "Unknown")}</strong>
-                <p>Use this before shortlisting or report draft.</p>
+                <span>Comparison basis</span>
+                <strong>${escapeHtml(selectedMetricOptions.length)} metrics</strong>
+                <p>No role filter. Only the players and metrics you selected are compared.</p>
               </div>
             </div>
           `
           : ""
       }
-      ${canCompare ? renderScoutingComparisonRadarOverlay(playerRecords) : ""}
+      ${canCompare ? renderScoutingComparisonRadarOverlay(playerRecords, selectedMetricOptions) : ""}
       <div class="scouting-comparison-results">
         ${
           canCompare
             ? comparisonDecisionRows
                 .map((entry) => {
-                  const bestSignal = getScoutingBestSignal(entry.record);
                     return `
                     <article class="scouting-target-card">
                       <div class="scouting-target-main">
                         <strong>${escapeHtml(getScoutingRecordName(entry.record))}</strong>
-                        <span>Match P${escapeHtml(formatScoutingNumber(entry.modelScore))}</span>
+                        <span>${Number.isFinite(entry.metricScore) ? `Metric avg P${escapeHtml(entry.metricScore)}` : "No metric score"}</span>
                       </div>
                       <p class="scouting-fit-line">${escapeHtml(getScoutingRecordTeam(entry.record) || "No club")} · ${escapeHtml(getScoutingRecordPosition(entry.record) || "No position")} · ${escapeHtml(formatScoutingNumber(getScoutingRecordMinutes(entry.record)))} minutes</p>
                       <p class="scouting-fit-line">${escapeHtml(metric?.label || "Metric")}: ${escapeHtml(formatScoutingNumber(entry.selectedValue))}${entry.selectedPercentile ? ` · P${escapeHtml(entry.selectedPercentile)}` : ""}</p>
-                      <p class="scouting-note-line">Role fit ${escapeHtml(getScoutingRoleFitLabel(entry.roleFit))} ${Number.isFinite(entry.roleFit) ? `· P${escapeHtml(entry.roleFit)}` : ""}</p>
-                      <p class="scouting-note-line">Best signal: ${escapeHtml(bestSignal ? `${bestSignal.metric.label} · P${bestSignal.percentile}` : "No signal")}</p>
+                      <p class="scouting-note-line">Best selected metric: ${escapeHtml(entry.bestSelectedMetric ? `${entry.bestSelectedMetric.metric.label} · P${entry.bestSelectedMetric.percentile}` : "No selected metric data")}</p>
                       <button type="button" class="scouting-secondary-button" data-open-scouting-record="${escapeHtml(getScoutingRecordId(entry.record))}">Open profile</button>
                     </article>
                   `;
                 })
                 .join("")
-            : `<p class="scouting-muted">Choose a role, then search and select at least two players from the database.</p>`
+            : `<p class="scouting-muted">Select two to four players, then choose the metrics you want to compare.</p>`
         }
       </div>
       ${
@@ -16238,8 +16250,17 @@ export function handleClick(event, context) {
   setScoutingContext(context);
   const comparisonMetricSummary = event.target.closest("[data-scouting-comparison-metric-summary]");
   if (comparisonMetricSummary) {
+    event.preventDefault();
+    event.stopPropagation();
     const details = comparisonMetricSummary.closest("[data-scouting-comparison-metric-details]");
-    scoutingComparisonMetricMenuOpen = !details?.open;
+    scoutingComparisonMetricMenuOpen = !details?.hasAttribute("open");
+    if (details) {
+      if (scoutingComparisonMetricMenuOpen) {
+        details.setAttribute("open", "");
+      } else {
+        details.removeAttribute("open");
+      }
+    }
     return;
   }
   if (scoutingComparisonMetricMenuOpen && !event.target.closest("[data-scouting-comparison-metric-details]")) {
@@ -16924,12 +16945,11 @@ export function handleChange(event, context) {
     const formData = new FormData(comparisonForm);
     const metricIds = formData.getAll("metricIds").map((metricId) => normalizeScoutingText(metricId, 120)).filter(Boolean);
     setScoutingComparisonLab({
-      slotId: formData.get("slotId"),
       metricId: metricIds[0],
       metricIds,
       playerIds: [formData.get("playerA"), formData.get("playerB"), formData.get("playerC"), formData.get("playerD")],
     });
-    renderScoutingWorkspace();
+    renderScoutingWorkspace({ preserveFocus: true });
     return;
   }
   const oppositionForm = event.target.closest("[data-scouting-opposition-form]");
@@ -16972,7 +16992,14 @@ export function handleChange(event, context) {
         selectedMetricIds.delete(metricId);
       }
     }
-    setScoutingDatabaseFilter("metricIds", Array.from(selectedMetricIds));
+    const nextMetricIds = Array.from(selectedMetricIds);
+    setScoutingDatabaseFilter("metricIds", nextMetricIds);
+    const metricMin = Number(normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters).metricMin);
+    if (nextMetricIds.length && (!Number.isFinite(metricMin) || metricMin <= 0)) {
+      setScoutingDatabaseFilter("metricMin", 75);
+    } else if (!nextMetricIds.length && Number.isFinite(metricMin) && metricMin > 0) {
+      setScoutingDatabaseFilter("metricMin", 0);
+    }
     renderScoutingWorkspace({ preserveFocus: true });
     if (isScoutingDatabaseLoaded()) {
       scheduleScoutingDatabaseFilterRefresh();

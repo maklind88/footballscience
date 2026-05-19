@@ -570,7 +570,7 @@ font-weight:780;
 }
 .scouting-comparison-search{
 display: grid;
-grid-template-columns: repeat(6, minmax(0, 1fr));
+grid-template-columns: repeat(5, minmax(0, 1fr));
 gap: 0.58rem;
 padding: 0.72rem;
 border-radius: 14px;
@@ -2169,6 +2169,14 @@ border-bottom:0;
 background:rgba(255,255,255,.98);
 box-shadow:0 18px 42px rgba(20,28,34,.12);
 }
+.scouting-filter-multi-search p{
+margin:.36rem .1rem .08rem;
+color:#66756d;
+font-size:.68rem;
+font-weight:780;
+line-height:1.25;
+text-transform:none;
+}
 .scouting-filter-multi-search input{
 width:100%;
 min-height:2.25rem;
@@ -2215,6 +2223,29 @@ color: #1d1d1f;
 font-size: 0.76rem;
 font-weight: 820;
 text-transform: none;
+}
+.scouting-filter-multi-options label > span{
+display:grid;
+gap:.08rem;
+min-width:0;
+}
+.scouting-filter-multi-options label > span strong{
+overflow:hidden;
+text-overflow:ellipsis;
+white-space:nowrap;
+font-size:.78rem;
+font-weight:890;
+line-height:1.1;
+}
+.scouting-filter-multi-options label > span em{
+overflow:hidden;
+text-overflow:ellipsis;
+white-space:nowrap;
+color:#6e6e73;
+font-size:.66rem;
+font-style:normal;
+font-weight:780;
+line-height:1.1;
 }
 .scouting-filter-multi-options label:has(input:checked){
 background: rgba(35, 59, 45, 0.1);

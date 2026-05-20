@@ -4922,7 +4922,18 @@ const lastInitial = user?.lastName?.trim()?.[0] ?? "";
 return `${firstInitial}${lastInitial}`.toUpperCase() || "U";
 }
 function getUserProfileImageUrl(user) {
-const value = String(user?.profileImageUrl ?? "").trim();
+const metadata = user?.user_metadata && typeof user.user_metadata === "object" ? user.user_metadata : {};
+const value =
+[
+user?.profileImageUrl,
+user?.profile_image_url,
+user?.avatarUrl,
+user?.avatar_url,
+metadata.profileImageUrl,
+metadata.profile_image_url,
+metadata.avatarUrl,
+metadata.avatar_url,
+].find((candidate) => String(candidate || "").trim()) || "";
 return normalizePlatformImageUrl(value);
 }
 function normalizePlatformImageUrl(value = "") {

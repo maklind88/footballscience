@@ -144,6 +144,9 @@ function normalizeProfilePayload(values = {}) {
   const lastName = normalizeProfileValue(values.lastName || values.last_name, MAX_NAME_LENGTH);
   const explicitUsername = normalizeProfileValue(values.username, MAX_USERNAME_LENGTH);
   const fallbackUsername = normalizeUsername(`${firstName || "new"}.${lastName || "user"}`, "new.user");
+  const profileImageUrl = normalizeProfileImageValue(
+    values.profileImageUrl || values.profile_image_url || values.avatarUrl || values.avatar_url
+  );
 
   return {
     firstName: firstName || "New",
@@ -158,7 +161,10 @@ function normalizeProfilePayload(values = {}) {
     teamName: normalizeProfileValue(values.teamName || values.team_name || values.team || "North Carolina Courage", MAX_METADATA_FIELD_LENGTH),
     team: normalizeProfileValue(values.team || values.teamName || values.team_name || "North Carolina Courage", MAX_METADATA_FIELD_LENGTH),
     status: normalizeStatus(values.status),
-    profileImageUrl: normalizeProfileImageValue(values.profileImageUrl || values.profile_image_url),
+    profileImageUrl,
+    profile_image_url: profileImageUrl,
+    avatarUrl: profileImageUrl,
+    avatar_url: profileImageUrl,
   };
 }
 
@@ -630,6 +636,9 @@ async function updateAuthUser(id, values = {}) {
         team: currentUser.team || "",
         status: currentUser.status || "",
         profileImageUrl: currentUser.profileImageUrl || "",
+        profile_image_url: currentUser.profileImageUrl || "",
+        avatarUrl: currentUser.profileImageUrl || "",
+        avatar_url: currentUser.profileImageUrl || "",
       }
     : {};
   const appMetadataSource =

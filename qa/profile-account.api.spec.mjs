@@ -103,6 +103,17 @@ test("profile metadata rejects new inline images but legacy profile reads still 
   expect(normalizePlatformUser(createAuthUser({ profileImageUrl: inlineImage })).profileImageUrl).toBe(inlineImage);
 });
 
+test("profile metadata keeps all profile image aliases in sync", () => {
+  const publicUrl =
+    "https://project.supabase.co/storage/v1/object/public/footballscience-profile-images/users/user-1/avatar.png";
+  const payload = normalizeProfilePayload({ avatar_url: publicUrl });
+
+  expect(payload.profileImageUrl).toBe(publicUrl);
+  expect(payload.profile_image_url).toBe(publicUrl);
+  expect(payload.avatarUrl).toBe(publicUrl);
+  expect(payload.avatar_url).toBe(publicUrl);
+});
+
 test("profile image API uploads to storage and stores only a public URL in auth metadata", async () => {
   const envSnapshot = snapshotEnv(supabaseEnvKeys);
   const fetchSnapshot = globalThis.fetch;
@@ -196,6 +207,9 @@ test("profile image API uploads to storage and stores only a public URL in auth 
     expect(uploadedObjects).toHaveLength(1);
     expect(updatePayloads).toHaveLength(1);
     expect(updatePayloads[0].user_metadata.profileImageUrl).toBe(response.payload.profileImageUrl);
+    expect(updatePayloads[0].user_metadata.profile_image_url).toBe(response.payload.profileImageUrl);
+    expect(updatePayloads[0].user_metadata.avatarUrl).toBe(response.payload.profileImageUrl);
+    expect(updatePayloads[0].user_metadata.avatar_url).toBe(response.payload.profileImageUrl);
     expect(updatePayloads[0].user_metadata.profileImageUrl).not.toContain("data:image");
     expect(JSON.stringify(updatePayloads[0])).not.toContain(imageDataUrl);
     expect(updatePayloads[0].user_metadata.firstName).toBe("Updated");
@@ -342,6 +356,9 @@ test("legacy inline profile images are migrated to Supabase Storage while readin
     );
     expect(response.payload.users[0].profileImageUrl).not.toContain("data:image");
     expect(updatePayloads[0].user_metadata.profileImageUrl).toBe(response.payload.users[0].profileImageUrl);
+    expect(updatePayloads[0].user_metadata.profile_image_url).toBe(response.payload.users[0].profileImageUrl);
+    expect(updatePayloads[0].user_metadata.avatarUrl).toBe(response.payload.users[0].profileImageUrl);
+    expect(updatePayloads[0].user_metadata.avatar_url).toBe(response.payload.users[0].profileImageUrl);
   } finally {
     globalThis.fetch = fetchSnapshot;
     restoreEnv(envSnapshot);

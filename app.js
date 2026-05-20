@@ -27681,6 +27681,12 @@ return dateComparison;
 return new Date(second.updatedAt || second.createdAt) - new Date(first.updatedAt || first.createdAt);
 });
 }
+function isMedicalRestrictedRecommendationRecord(record) {
+return normalizeMedicalParticipation(record?.participation, 100) !== 100;
+}
+function getMedicalPlayerRestrictedLogRecords(playerId, options = {}) {
+return getMedicalPlayerRecords(playerId, options).filter(isMedicalRestrictedRecommendationRecord);
+}
 function getMedicalWindowDates() {
 ensureMedicalState();
 const startDate = parseScheduleDateValue(medicalState.selectedDate);
@@ -28347,6 +28353,7 @@ huddle.coachHandover.slice(0, 4),
 function getMedicalPlayerProfileSummary(player, dateValue = medicalState?.selectedDate) {
 const currentRecord = getLatestMedicalRecord(player.id, dateValue);
 const manualRecords = getMedicalPlayerRecords(player.id);
+const restrictedManualRecords = manualRecords.filter(isMedicalRestrictedRecommendationRecord);
 const plans = getMedicalPlayerInjuryPlans(player.id);
 const activePlan = getActiveMedicalInjuryPlan(player.id, dateValue);
 const primaryPlan = activePlan ?? plans[0] ?? null;
@@ -28370,7 +28377,7 @@ const signOffCount = primaryPlan
 const gatePassCount = primaryPlan
 ? medicalLoadGateOptions.filter((gate) => gates[gate.key] === "pass").length
 : 0;
-const latestManualRecord = manualRecords[0] ?? null;
+const latestManualRecord = restrictedManualRecords[0] ?? null;
 const activeDays = activePlan ? getMedicalDaySpan(activePlan.startDate, dateValue) : null;
 const coachNote = getMedicalCoachComment(currentRecord) || getMedicalCoachComment(latestManualRecord);
 return {
@@ -28382,7 +28389,7 @@ activePlan,
 primaryPlan,
 windowAverage,
 windowLoggedCount: windowRecords.length,
-manualLogCount: manualRecords.length,
+manualLogCount: restrictedManualRecords.length,
 latestManualRecord,
 activeDays,
 signOffCount,
@@ -29812,9 +29819,9 @@ players.length
 `;
 }
 function renderMedicalLog(player) {
-const records = player ? getMedicalPlayerRecords(player.id) : [];
+const records = player ? getMedicalPlayerRestrictedLogRecords(player.id) : [];
 if (!records.length) {
-return `<div class="medical-log-empty">No medical log yet.</div>`;
+return `<div class="medical-log-empty">No restricted recommendations yet.</div>`;
 }
 return records
 .map((record) => {
@@ -30251,8 +30258,8 @@ return `
 `;
 }
 function renderMedicalLogCard(player) {
-const activeCount = getMedicalPlayerRecords(player.id).length;
-const archivedCount = getMedicalPlayerRecords(player.id, { includeArchived: true }).filter(isMedicalItemArchived).length;
+const activeCount = getMedicalPlayerRestrictedLogRecords(player.id).length;
+const archivedCount = getMedicalPlayerRestrictedLogRecords(player.id, { includeArchived: true }).filter(isMedicalItemArchived).length;
 return `
 <article class="medical-side-card medical-log-card">
 <div class="medical-card-headline">
@@ -30459,7 +30466,7 @@ ${renderMedicalActualParticipationOptions(record?.actualParticipation)}
 <article class="medical-side-card medical-log-card">
 <div class="medical-card-headline">
 <h2>Medical Log</h2>
-<span>${getMedicalPlayerRecords(player.id).length}</span>
+<span>${getMedicalPlayerRestrictedLogRecords(player.id).length}</span>
 </div>
 <div class="medical-log-list">${renderMedicalLog(player)}</div>
 </article>

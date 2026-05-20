@@ -993,6 +993,17 @@ test("Medical archive keeps clinical records and plans protected", async ({ page
             createdAt: "2026-05-15T08:00:00.000Z",
             updatedAt: "2026-05-15T08:00:00.000Z",
           },
+          {
+            id: "qa-full-record",
+            playerId: "qa-archive-player",
+            date: "2026-05-14",
+            status: "full",
+            participation: 100,
+            actualParticipation: "not-logged",
+            rtpPhase: "full-training",
+            createdAt: "2026-05-14T08:00:00.000Z",
+            updatedAt: "2026-05-14T08:00:00.000Z",
+          },
         ],
         injuryPlans: [
           {
@@ -1020,6 +1031,10 @@ test("Medical archive keeps clinical records and plans protected", async ({ page
   await expect(page.locator("[data-medical-data-safety]")).toBeVisible();
   await page.locator('[data-medical-select-player="qa-archive-player"]').first().click();
   await page.locator('[data-medical-modal-tab="profile"]').click();
+  const medicalLogCard = page.locator(".medical-modal-card .medical-log-card");
+  await expect(medicalLogCard.locator(".medical-card-headline span")).toHaveText("1");
+  await expect(medicalLogCard).toContainText("75% recommended");
+  await expect(medicalLogCard).not.toContainText("100% recommended");
   const archiveRecordButton = page.locator('[data-medical-delete-record="qa-archive-record"]');
   await expect(archiveRecordButton).toHaveText("Archive");
   await expect(archiveRecordButton).not.toHaveText("x");
@@ -1039,7 +1054,7 @@ test("Medical archive keeps clinical records and plans protected", async ({ page
         };
       }, medicalKey)
     )
-    .toEqual({ recordCount: 1, archived: true, archiveCount: 1 });
+    .toEqual({ recordCount: 2, archived: true, archiveCount: 1 });
 
   await page.locator('[data-medical-modal-tab="plan"]').click();
   const archivePlanButton = page.locator('[data-medical-delete-injury-plan="qa-archive-plan"]');

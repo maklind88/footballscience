@@ -21424,7 +21424,7 @@ ui.profileWorkspace.innerHTML = `
           </div>
           <span class="profile-role-pill">${openPersonalTasks.length} open</span>
         </header>
-        <form id="profileTodoForm" class="profile-todo-form">
+        <form id="profileTodoForm" class="profile-todo-form" novalidate>
           <input name="title" type="text" autocomplete="off" placeholder="Add your own To-Do" required />
           <button type="submit">Add</button>
         </form>

@@ -146,7 +146,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
         </section>
         <section>
           <h3>Personal</h3>
-          <form id="dashboardPersonalTodoForm" class="profile-todo-form dashboard-inline-form">
+          <form id="dashboardPersonalTodoForm" class="profile-todo-form dashboard-inline-form" novalidate>
             <input name="title" type="text" autocomplete="off" placeholder="Add your own To-Do" required />
             <button type="submit">Add</button>
           </form>
@@ -154,7 +154,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
         </section>
         <section>
           <h3>Delegate</h3>
-          <form id="dashboardTaskForm" class="dashboard-task-form dashboard-task-form-compact">
+          <form id="dashboardTaskForm" class="dashboard-task-form dashboard-task-form-compact" novalidate>
             <label>
               <span>Task</span>
               <input name="title" type="text" autocomplete="off" placeholder="Add a task" required />

@@ -336,13 +336,16 @@ test("game simulator animation loop does not run globally outside the simulator 
 
 test("Session Planner print mode keeps the coach sheet visible for browser printing", () => {
   const appSource = readProjectFile("app.js");
+  const indexSource = readProjectFile("index.html");
 
   expect(appSource).toContain("@media print");
   expect(appSource).toContain("body.is-session-printing .session-print-root,");
   expect(appSource).toContain("body.is-session-printing .session-print-root *");
   expect(appSource).toContain("body.is-session-printing .session-print-document *");
   expect(appSource).toContain("visibility: visible !important");
+  expect(appSource).toContain("sessionPlannerPrintOverlayOpen ||");
   expect(appSource).toContain("window.print()");
+  expect(indexSource).toContain("session-print-overrides.css");
 });
 
 test("Session Planner never seeds generated training blocks onto an off day", () => {

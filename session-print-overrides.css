@@ -1,0 +1,44 @@
+/* Session print coach sheet polish. Loaded after the compressed main stylesheet. */
+.session-print-page-front .session-print-feature-block {
+  grid-template-rows: minmax(0.66in, auto) minmax(0, 1fr);
+}
+
+.session-print-page-front .session-print-feature-note span {
+  -webkit-line-clamp: 5;
+}
+
+.session-print-page-front .session-print-feature-player-board {
+  align-items: start;
+  padding-top: 0.015in;
+}
+
+.session-print-page-front .session-print-feature-block .session-print-player-board-mini {
+  width: 96%;
+  max-height: calc(100% - 0.07in);
+}
+
+.session-print-player-token {
+  min-width: 0.19in;
+  height: 0.13in;
+  padding: 0 0.02in;
+  border-radius: 0.03in;
+  font-size: 0.048in;
+}
+
+.session-print-feature-block .session-print-player-token {
+  min-width: 0.24in;
+  height: 0.155in;
+  font-size: 0.055in;
+}
+
+.session-print-visual .session-tactical-marker:not(.session-tactical-text):not(.session-tactical-mini-goal):not(.session-tactical-big-goal) {
+  transform: translate(-50%, -50%) rotate(var(--session-tactical-rotation, 0deg)) scale(0.76);
+}
+
+.session-print-visual .session-tactical-player {
+  box-shadow: 0 0 0 1.5px #ffffffc7, 0 5px 12px #00000026;
+}
+
+.session-print-visual .session-tactical-ball {
+  box-shadow: 0 3px 8px #00000026;
+}

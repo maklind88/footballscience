@@ -32464,6 +32464,7 @@ return Boolean(
 sessionPlannerLibraryOpen ||
 sessionPlannerPendingLibrarySave ||
 sessionPlannerVisualPreviewOpen ||
+sessionPlannerPrintOverlayOpen ||
 sessionPlannerTacticalboardOpen ||
 sessionPlannerPlayerBoardOpen ||
 sessionPlannerPlayerBoardSelectedPlayerId ||

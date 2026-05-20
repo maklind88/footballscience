@@ -364,10 +364,16 @@ async function writeRevisionValue(page, title) {
 
 async function closeCentralStateContext(context) {
   try {
-    await context.close();
+    await Promise.race([
+      context.close(),
+      new Promise((resolve) => setTimeout(resolve, 2_500)),
+    ]);
   } catch (error) {
     const message = String(error?.message || "");
-    if (message.includes("ENOENT") && (message.includes(".network") || message.includes(".trace") || message.includes(".zip"))) {
+    if (
+      message.includes("Target page, context or browser has been closed") ||
+      (message.includes("ENOENT") && (message.includes(".network") || message.includes(".trace") || message.includes(".zip")))
+    ) {
       return;
     }
     throw error;

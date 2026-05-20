@@ -72820,6 +72820,9 @@ return;
 }
 const result = addPlayerProfile(getPlatformFormValues(newPlayerForm));
 const player = result?.player ?? null;
+if (result?.ok) {
+playerProfileNewPlayerModalOpen = false;
+}
 renderPlayerProfilesWorkspace(
 buildPlayerProfileOperationFeedback(
 result,
@@ -72830,7 +72833,6 @@ player
 );
 if (result?.ok) {
 newPlayerForm.reset();
-playerProfileNewPlayerModalOpen = false;
 }
 return;
 }

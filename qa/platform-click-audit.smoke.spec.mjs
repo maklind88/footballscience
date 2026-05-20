@@ -108,7 +108,11 @@ async function closeTransientUi(page) {
       "[data-dashboard-modal-close]",
       ".modal-close",
       ".profile-modal-close",
+      ".squad-profile-modal-close",
       ".scouting-profile-close",
+      "[data-player-profile-modal-close]",
+      "[data-player-profile-new-modal-close]",
+      "[data-periodization-close]",
       "[aria-label='Close']",
       "[aria-label='Close modal']",
     ]) {

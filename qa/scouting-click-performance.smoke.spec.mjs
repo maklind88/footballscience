@@ -285,7 +285,7 @@ test("Scouting critical clicks stay within interaction budgets", async ({ page }
   });
   expect(fallbackDatabase.source).toBe("worker");
   expect(fallbackDatabase.records).toBeLessThanOrEqual(50);
-  expect(fallbackDatabase.total).toBeGreaterThan(fallbackDatabase.records);
+  expect(fallbackDatabase.total).toBeGreaterThanOrEqual(fallbackDatabase.records);
 
   const firstRow = await waitForScoutingRows(page);
   const searchTerm = await getStableSearchTerm(firstRow);

@@ -1099,7 +1099,19 @@ test("Medical plan draft survives modal rerenders and saves long-term zero avail
         selectedPlayerId: "qa-plan-player",
         rosterVersion: "qa-medical-plan-draft-v1",
         players: [{ id: "qa-plan-player", name: "QA Long Term Player", position: "Defender", rosterOrder: 1 }],
-        records: [],
+        records: [
+          {
+            id: "qa-plan-player-old-full",
+            playerId: "qa-plan-player",
+            date: "2026-05-21",
+            status: "full",
+            participation: 100,
+            actualParticipation: "not-logged",
+            rtpPhase: "full-training",
+            createdAt: "2026-05-20T08:00:00.000Z",
+            updatedAt: "2026-05-20T08:00:00.000Z",
+          },
+        ],
         injuryPlans: [],
       })
     );
@@ -1150,6 +1162,7 @@ test("Medical plan draft survives modal rerenders and saves long-term zero avail
               startDate: plan.startDate,
               endDate: plan.endDate,
               comment: plan.comment,
+              phase: plan.phase,
               coachNote: plan.coachNote,
               shareWithCoach: plan.shareWithCoach,
             }
@@ -1167,9 +1180,48 @@ test("Medical plan draft survives modal rerenders and saves long-term zero avail
       startDate: "2026-05-21",
       endDate: "2026-11-20",
       comment: "Long-term ACL plan. Keep availability at 0% until medical review.",
+      phase: "Protected rehab, no team football",
       coachNote: "Unavailable long term",
       shareWithCoach: true,
     });
+
+  const planList = page.locator(".medical-plan-list-card");
+  await expect(planList).toContainText("ACL long-term injury");
+  await expect(planList.locator("[data-medical-edit-injury-plan]").first()).toHaveText("Edit");
+  await planList.locator("[data-medical-edit-injury-plan]").first().click();
+  await expect(planForm.locator('button[type="submit"]')).toHaveText("Update plan");
+  await expect(planForm.locator('[name="injuryType"]')).toHaveValue("ACL long-term injury");
+  await planForm.locator('[name="duration"]').fill("9");
+  await planForm.locator('[name="durationUnit"]').selectOption("months");
+  await planForm.locator('[name="phase"]').fill("Protected rehab - months 1-9");
+  await planForm.locator('button[type="submit"]').click();
+
+  await expect
+    .poll(() =>
+      page.evaluate((storageKey) => {
+        const state = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+        const plans = (state.injuryPlans || []).filter((entry) => entry.playerId === "qa-plan-player");
+        return {
+          count: plans.length,
+          duration: plans[0]?.duration,
+          durationUnit: plans[0]?.durationUnit,
+          phase: plans[0]?.phase,
+          participation: plans[0]?.participation,
+        };
+      }, medicalKey)
+    )
+    .toEqual({
+      count: 1,
+      duration: 9,
+      durationUnit: "months",
+      phase: "Protected rehab - months 1-9",
+      participation: 0,
+    });
+
+  await page.locator(".medical-modal-close").click();
+  const playerRow = page.locator('[data-medical-roster-row="qa-plan-player"]');
+  await expect(playerRow.locator(".medical-status-chip")).toHaveText("Unavailable");
+  await expect(playerRow.locator(".medical-roster-current-main strong")).toHaveText("0%");
 });
 
 test("Medical metrics use current-month and trailing 7-day averages", async ({ page }) => {

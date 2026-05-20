@@ -23197,6 +23197,17 @@ function normalizeMedicalTimestamp(value) {
 const cleanValue = String(value ?? "").trim().slice(0, 40);
 return Number.isFinite(Date.parse(cleanValue)) ? cleanValue : "";
 }
+function getMedicalTimestampMs(value, fallback = 0) {
+const cleanValue = normalizeMedicalTimestamp(value);
+if (!cleanValue) {
+return fallback;
+}
+const timestamp = Date.parse(cleanValue);
+return Number.isFinite(timestamp) ? timestamp : fallback;
+}
+function getMedicalEntityUpdatedMs(entity = {}) {
+return Math.max(getMedicalTimestampMs(entity.updatedAt), getMedicalTimestampMs(entity.createdAt));
+}
 function isMedicalItemArchived(item = {}) {
 return Boolean(normalizeMedicalTimestamp(item.archivedAt || item.deletedAt));
 }
@@ -27659,6 +27670,7 @@ rtpPhase: plan.rtpPhase,
 clearance: plan.clearance,
 gates: plan.gates,
 createdAt: plan.createdAt,
+updatedAt: plan.updatedAt,
 createdBy: plan.createdBy,
 source: "injury-plan",
 injuryPlanId: plan.id,
@@ -27669,10 +27681,12 @@ ensureMedicalState();
 const manualRecord = medicalState.records
 .filter((record) => record.playerId === playerId && record.date === dateValue && !isMedicalItemArchived(record))
 .sort((first, second) => new Date(second.updatedAt || second.createdAt) - new Date(first.updatedAt || first.createdAt))[0] ?? null;
-if (manualRecord) {
-return manualRecord;
+const activePlan = getActiveMedicalInjuryPlan(playerId, dateValue);
+const planRecord = createMedicalRecordFromInjuryPlan(activePlan, dateValue);
+if (manualRecord && planRecord) {
+return getMedicalEntityUpdatedMs(activePlan) >= getMedicalEntityUpdatedMs(manualRecord) ? planRecord : manualRecord;
 }
-return createMedicalRecordFromInjuryPlan(getActiveMedicalInjuryPlan(playerId, dateValue), dateValue);
+return manualRecord || planRecord;
 }
 function getMedicalPlayerRecords(playerId, options = {}) {
 ensureMedicalState();
@@ -27824,6 +27838,7 @@ return medicalGateOptions
 }
 function getDefaultMedicalInjuryPlanDraft(playerId = medicalState?.selectedPlayerId || "") {
 return {
+planId: "",
 playerId: String(playerId ?? "").trim(),
 injuryType: "",
 bodyArea: "",
@@ -27850,6 +27865,7 @@ const status = medicalInjuryPlanStatusOptions.some((option) => option.key === dr
 const durationUnit = ["days", "weeks", "months"].includes(draft.durationUnit) ? draft.durationUnit : defaults.durationUnit;
 return {
 ...defaults,
+planId: String(draft.planId ?? draft.id ?? defaults.planId).trim(),
 playerId: draftPlayerId,
 injuryType: String(draft.injuryType ?? defaults.injuryType).trim(),
 bodyArea: String(draft.bodyArea ?? defaults.bodyArea).trim(),
@@ -27885,6 +27901,15 @@ return null;
 const draft = normalizeMedicalInjuryPlanDraft({ ...values, playerId: draftPlayerId }, draftPlayerId);
 medicalInjuryPlanDraftsByPlayerId.set(draftPlayerId, draft);
 return draft;
+}
+function setMedicalInjuryPlanDraftFromPlan(plan) {
+if (!plan?.playerId) {
+return null;
+}
+return setMedicalInjuryPlanDraft(plan.playerId, {
+...plan,
+planId: plan.id,
+});
 }
 function clearMedicalInjuryPlanDraft(playerId) {
 const draftPlayerId = String(playerId ?? "").trim();
@@ -29938,7 +29963,14 @@ return `
 ${plan.bodyArea || plan.reviewDate ? `<small>${escapeHtml([plan.bodyArea, plan.reviewDate ? `Review ${formatMedicalDateLabel(plan.reviewDate)}` : ""].filter(Boolean).join(" / "))}</small>` : ""}
 ${plan.comment ? `<p>${escapeHtml(plan.comment)}</p>` : ""}
 </div>
-${canEditMedicalTeam() ? `<button type="button" class="medical-log-delete" data-medical-delete-injury-plan="${escapeHtml(plan.id)}" aria-label="Archive injury plan">Archive</button>` : ""}
+${
+canEditMedicalTeam()
+? `<div class="medical-plan-actions">
+<button type="button" class="medical-plan-edit" data-medical-edit-injury-plan="${escapeHtml(plan.id)}" aria-label="Edit availability plan">Edit</button>
+<button type="button" class="medical-log-delete" data-medical-delete-injury-plan="${escapeHtml(plan.id)}" aria-label="Archive injury plan">Archive</button>
+</div>`
+: ""
+}
 </article>
 `;
 })
@@ -29946,13 +29978,15 @@ ${canEditMedicalTeam() ? `<button type="button" class="medical-log-delete" data-
 }
 function renderMedicalInjuryPlanForm(player, canEdit) {
 const draft = getMedicalInjuryPlanDraft(player.id);
+const isEditing = Boolean(draft.planId);
 return `
 <article class="medical-modal-main-card medical-injury-plan-card">
 <div class="medical-card-headline">
-<h2>Availability Plan</h2>
-<span>Auto-applies across date range, no daily entry needed</span>
+<h2>${isEditing ? "Edit Availability Plan" : "Availability Plan"}</h2>
+<span>${isEditing ? "Updates the active restriction and automatic availability" : "Auto-applies across date range, no daily entry needed"}</span>
 </div>
 <form id="medicalInjuryPlanForm" class="medical-profile-form">
+<input type="hidden" name="planId" value="${escapeHtml(draft.planId)}" />
 <input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
 <div class="medical-form-grid medical-plan-form-grid">
 <label>
@@ -30031,7 +30065,10 @@ ${canEdit ? "" : "disabled"}
 <input type="checkbox" name="shareWithCoach" ${draft.shareWithCoach ? "checked" : ""} ${canEdit ? "" : "disabled"} />
 <span>Approved to share with coaching staff</span>
 </label>
-<button type="submit" ${canEdit ? "" : "disabled"}>Create plan</button>
+<div class="medical-form-actions">
+<button type="submit" ${canEdit ? "" : "disabled"}>${isEditing ? "Update plan" : "Create plan"}</button>
+${isEditing ? `<button type="button" class="secondary medical-secondary-button" data-medical-cancel-injury-plan-edit ${canEdit ? "" : "disabled"}>Cancel edit</button>` : ""}
+</div>
 </form>
 <datalist id="medicalInjuryTypes">
 <option value="ACL injury"></option>
@@ -30828,6 +30865,39 @@ medicalState.selectedDate = plan.startDate;
 medicalState.selectedPlayerId = plan.playerId;
 commitMedicalClinicalState("availability-plan-created", `${player.name}: availability plan created.`);
 return plan;
+}
+function updateMedicalInjuryPlan(values) {
+ensureMedicalState();
+const planIndex = medicalState.injuryPlans.findIndex((plan) => plan.id === values.planId);
+if (planIndex < 0) {
+return null;
+}
+const currentPlan = medicalState.injuryPlans[planIndex];
+if (isMedicalItemArchived(currentPlan)) {
+return null;
+}
+const player = medicalState.players.find((candidate) => candidate.id === currentPlan.playerId);
+const nextPlan = normalizeMedicalInjuryPlan({
+...currentPlan,
+...values,
+id: currentPlan.id,
+playerId: currentPlan.playerId,
+clearance: currentPlan.clearance,
+gates: currentPlan.gates,
+createdAt: currentPlan.createdAt,
+createdBy: currentPlan.createdBy,
+updatedAt: new Date().toISOString(),
+});
+if (!nextPlan) {
+return null;
+}
+const nextPlans = [...medicalState.injuryPlans];
+nextPlans[planIndex] = nextPlan;
+medicalState.injuryPlans = nextPlans;
+medicalState.selectedDate = nextPlan.startDate;
+medicalState.selectedPlayerId = nextPlan.playerId;
+commitMedicalClinicalState("availability-plan-updated", `${player?.name || "Player"}: availability plan updated.`);
+return nextPlan;
 }
 function updateMedicalPlanClearance(values) {
 ensureMedicalState();
@@ -72790,6 +72860,29 @@ renderMedicalTeamWorkspace("Availability plan archived in protected clinical his
 }
 return;
 }
+const editInjuryPlanButton = event.target.closest("[data-medical-edit-injury-plan]");
+if (editInjuryPlanButton && canEditMedicalTeam()) {
+const planId = editInjuryPlanButton.dataset.medicalEditInjuryPlan;
+const plan = medicalState.injuryPlans.find((entry) => entry.id === planId && !isMedicalItemArchived(entry));
+if (plan) {
+event.preventDefault();
+event.stopPropagation();
+setMedicalInjuryPlanDraftFromPlan(plan);
+medicalState.selectedPlayerId = plan.playerId;
+medicalPlayerModalOpen = true;
+medicalPlayerModalTab = "plan";
+renderMedicalTeamWorkspace("Availability plan ready to edit.");
+}
+return;
+}
+const cancelInjuryPlanEditButton = event.target.closest("[data-medical-cancel-injury-plan-edit]");
+if (cancelInjuryPlanEditButton && canEditMedicalTeam()) {
+const form = cancelInjuryPlanEditButton.closest("#medicalInjuryPlanForm");
+const playerId = form?.querySelector("[name='playerId']")?.value || medicalState.selectedPlayerId;
+clearMedicalInjuryPlanDraft(playerId);
+renderMedicalTeamWorkspace("Plan edit cancelled.");
+return;
+}
 const removePlayerButton = event.target.closest("[data-medical-remove-player]");
 if (removePlayerButton && canEditMedicalTeam()) {
 const player = medicalState.players.find((candidate) => candidate.id === removePlayerButton.dataset.medicalRemovePlayer);
@@ -73046,16 +73139,19 @@ event.preventDefault();
 if (!canEditMedicalTeam()) {
 return;
 }
-const plan = addMedicalInjuryPlan(getMedicalInjuryPlanFormDraft(injuryPlanForm));
+const draft = getMedicalInjuryPlanFormDraft(injuryPlanForm);
+const plan = draft?.planId ? updateMedicalInjuryPlan(draft) : addMedicalInjuryPlan(draft);
 if (plan) {
 clearMedicalInjuryPlanDraft(plan.playerId);
-void recordMedicalDatabaseSyncEvent("availability-plan-created", {
+const eventType = draft?.planId ? "availability-plan-updated" : "availability-plan-created";
+void recordMedicalDatabaseSyncEvent(eventType, {
 playerId: plan.playerId,
+planId: plan.id,
 plan,
-idempotencyKey: `availability-plan-created:${plan.id}`,
+idempotencyKey: `${eventType}:${plan.id}:${plan.updatedAt || Date.now()}`,
 });
 }
-renderMedicalTeamWorkspace(plan ? "Availability plan created." : "Availability plan could not be created.");
+renderMedicalTeamWorkspace(plan ? `Availability plan ${draft?.planId ? "updated" : "created"}.` : "Availability plan could not be saved.");
 return;
 }
 const recommendationForm = event.target.closest("[data-medical-recommendation-form]");

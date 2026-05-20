@@ -279,6 +279,62 @@ body.is-dark-mode .medical-log-delete:focus-visible {
   border-color: rgba(248, 113, 113, 0.38);
 }
 
+.medical-plan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.38rem;
+  align-self: center;
+}
+
+.medical-plan-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 4.4rem;
+  height: 2.1rem;
+  min-height: 2.1rem;
+  padding: 0 0.72rem;
+  border: 1px solid rgba(20, 95, 73, 0.18);
+  border-radius: 999px;
+  color: #123c2b;
+  background: linear-gradient(180deg, rgba(244, 252, 247, 0.98), rgba(219, 245, 228, 0.94));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78), 0 8px 18px rgba(20, 95, 73, 0.08);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 140ms ease, background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.medical-plan-edit:hover {
+  border-color: rgba(20, 95, 73, 0.28);
+  background: linear-gradient(180deg, rgba(235, 250, 240, 0.98), rgba(205, 239, 217, 0.96));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 10px 22px rgba(20, 95, 73, 0.12);
+  transform: translateY(-1px);
+}
+
+.medical-plan-edit:focus-visible {
+  outline: 0;
+  border-color: rgba(20, 95, 73, 0.38);
+  box-shadow: 0 0 0 4px rgba(35, 160, 111, 0.16), 0 10px 22px rgba(20, 95, 73, 0.12);
+}
+
+body.is-dark-mode .medical-plan-edit {
+  color: #d8f9e2;
+  background: rgba(35, 160, 111, 0.18);
+  border-color: rgba(129, 210, 159, 0.24);
+  box-shadow: none;
+}
+
+body.is-dark-mode .medical-plan-edit:hover,
+body.is-dark-mode .medical-plan-edit:focus-visible {
+  background: rgba(35, 160, 111, 0.28);
+  border-color: rgba(129, 210, 159, 0.38);
+}
+
 .medical-activity-lock {
   padding: 0.68rem 0.78rem;
   border: 1px solid rgba(222, 82, 82, 0.2);

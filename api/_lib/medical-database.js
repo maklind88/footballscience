@@ -21,6 +21,7 @@ const MEDICAL_EVENT_TYPES = new Set([
   "recommendation-saved",
   "bulk-recommendation-saved",
   "availability-plan-created",
+  "availability-plan-updated",
   "availability-plan-archived",
   "availability-plan-deleted",
   "clearance-saved",

@@ -133,6 +133,16 @@ test("medical archive events are first-class sync events", () => {
   expect(
     medicalDatabase.normalizeSyncEventBody(
       {
+        eventType: "availability-plan-updated",
+        playerId: "legacy-player-7",
+        payload: { planId: "plan-1", plan: { id: "plan-1", playerId: "legacy-player-7", participation: 0 } },
+      },
+      { id: "0f9a1865-0b2e-4a28-b933-87e137f7e3a4", role: "medical" }
+    ).row.event_type
+  ).toBe("availability-plan-updated");
+  expect(
+    medicalDatabase.normalizeSyncEventBody(
+      {
         eventType: "player-archived",
         playerId: "legacy-player-7",
         payload: { player: { id: "legacy-player-7", archivedAt: "2026-05-20T12:00:00.000Z" } },
@@ -147,6 +157,7 @@ test("medical room archives clinical items instead of hard deleting them", () =>
   expect(appSource).toContain("archiveReason: \"Manual archive from Medical Room\"");
   expect(appSource).toContain("record-archived");
   expect(appSource).toContain("availability-plan-archived");
+  expect(appSource).toContain("availability-plan-updated");
   expect(appSource).toContain("player-archived");
   expect(appSource).toContain("data-medical-data-safety");
   expect(appSource).not.toContain("medicalState.records = medicalState.records.filter((record) => record.id !== recordId)");

@@ -1052,6 +1052,103 @@ test("Medical archive keeps clinical records and plans protected", async ({ page
     .toEqual({ planCount: 1, archived: true, archiveCount: 1 });
 });
 
+test("Medical plan draft survives modal rerenders and saves long-term zero availability", async ({ page }) => {
+  await page.addInitScript(({ medicalStorageKey, scheduleStorageKey }) => {
+    window.localStorage.setItem(
+      scheduleStorageKey,
+      JSON.stringify({
+        selectedYear: 2026,
+        selectedMonthIndex: 4,
+        selectedDate: "2026-05-21",
+        viewMode: "month",
+        overviewSpan: 6,
+        visibleEventTypes: ["training", "match", "meeting", "travel", "recovery", "off"],
+        importVersion: "qa-medical-plan-draft-v1",
+        events: [
+          { id: "qa-plan-training", date: "2026-05-21", time: "10:00", type: "training", title: "Training", note: "" },
+        ],
+      })
+    );
+    window.localStorage.setItem(
+      medicalStorageKey,
+      JSON.stringify({
+        selectedDate: "2026-05-21",
+        selectedPlayerId: "qa-plan-player",
+        rosterVersion: "qa-medical-plan-draft-v1",
+        players: [{ id: "qa-plan-player", name: "QA Long Term Player", position: "Defender", rosterOrder: 1 }],
+        records: [],
+        injuryPlans: [],
+      })
+    );
+  }, { medicalStorageKey: medicalKey, scheduleStorageKey: scheduleKey });
+
+  await bootApp(page);
+  await openWorkspace(page, "medical-team");
+  await page.locator('[data-medical-ops-tab="availability"]').click();
+  await page.locator('[data-medical-select-player="qa-plan-player"]').first().click();
+
+  const modalTabs = page.locator(".medical-modal-tabs");
+  await modalTabs.getByRole("tab", { name: "Medical Plan" }).click();
+  const planForm = page.locator("#medicalInjuryPlanForm");
+  await expect(planForm).toBeVisible();
+
+  await planForm.locator('[name="injuryType"]').fill("ACL long-term injury");
+  await planForm.locator('[name="bodyArea"]').fill("Knee");
+  await planForm.locator('[name="duration"]').fill("6");
+  await planForm.locator('[name="durationUnit"]').selectOption("months");
+  await planForm.locator('[name="phase"]').fill("Protected rehab, no team football");
+  await planForm.locator('[name="comment"]').fill("Long-term ACL plan. Keep availability at 0% until medical review.");
+  await planForm.locator('[name="coachNote"]').fill("Unavailable long term");
+  await planForm.locator('[name="shareWithCoach"]').check();
+
+  await modalTabs.getByRole("tab", { name: "Medical Profile" }).click();
+  await modalTabs.getByRole("tab", { name: "Medical Plan" }).click();
+  await expect(planForm.locator('[name="injuryType"]')).toHaveValue("ACL long-term injury");
+  await expect(planForm.locator('[name="duration"]')).toHaveValue("6");
+  await expect(planForm.locator('[name="durationUnit"]')).toHaveValue("months");
+  await expect(planForm.locator('[name="comment"]')).toHaveValue("Long-term ACL plan. Keep availability at 0% until medical review.");
+
+  await planForm.locator('button[type="submit"]').click();
+
+  await expect
+    .poll(() =>
+      page.evaluate((storageKey) => {
+        const state = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+        const plan = (state.injuryPlans || []).find((entry) => entry.playerId === "qa-plan-player");
+        return plan
+          ? {
+              injuryType: plan.injuryType,
+              bodyArea: plan.bodyArea,
+              status: plan.status,
+              participation: plan.participation,
+              rtpPhase: plan.rtpPhase,
+              duration: plan.duration,
+              durationUnit: plan.durationUnit,
+              startDate: plan.startDate,
+              endDate: plan.endDate,
+              comment: plan.comment,
+              coachNote: plan.coachNote,
+              shareWithCoach: plan.shareWithCoach,
+            }
+          : null;
+      }, medicalKey)
+    )
+    .toEqual({
+      injuryType: "ACL long-term injury",
+      bodyArea: "Knee",
+      status: "unavailable",
+      participation: 0,
+      rtpPhase: "medical-restriction",
+      duration: 6,
+      durationUnit: "months",
+      startDate: "2026-05-21",
+      endDate: "2026-11-20",
+      comment: "Long-term ACL plan. Keep availability at 0% until medical review.",
+      coachNote: "Unavailable long term",
+      shareWithCoach: true,
+    });
+});
+
 test("Medical metrics use current-month and trailing 7-day averages", async ({ page }) => {
   await page.addInitScript(({ storageKey }) => {
     const fixedNow = new Date("2026-05-15T12:00:00Z").valueOf();

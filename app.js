@@ -4544,6 +4544,7 @@ let medicalStatusFilter = "all";
 let medicalOperationsTab = "availability";
 let medicalPlayerModalOpen = false;
 let medicalPlayerModalTab = "availability";
+let medicalInjuryPlanDraftsByPlayerId = new Map();
 let medicalBulkSelectedPlayerIds = new Set();
 let medicalBulkRecommendationOpen = false;
 let playerProfilesState = null;
@@ -27787,6 +27788,19 @@ return medicalRtpPhaseOptions
 )
 .join("");
 }
+function renderMedicalDurationUnitOptions(selectedUnit) {
+const currentUnit = ["days", "weeks", "months"].includes(selectedUnit) ? selectedUnit : "weeks";
+return [
+["weeks", "Weeks"],
+["months", "Months"],
+["days", "Days"],
+]
+.map(
+([unit, label]) =>
+`<option value="${escapeHtml(unit)}"${unit === currentUnit ? " selected" : ""}>${escapeHtml(label)}</option>`
+)
+.join("");
+}
 function renderMedicalGateOptions(selectedGate) {
 const currentGate = getMedicalGateOption(selectedGate).key;
 return medicalGateOptions
@@ -27795,6 +27809,94 @@ return medicalGateOptions
 `<option value="${escapeHtml(option.key)}"${option.key === currentGate ? " selected" : ""}>${escapeHtml(option.label)}</option>`
 )
 .join("");
+}
+function getDefaultMedicalInjuryPlanDraft(playerId = medicalState?.selectedPlayerId || "") {
+return {
+playerId: String(playerId ?? "").trim(),
+injuryType: "",
+bodyArea: "",
+startDate: isMedicalDateValue(medicalState?.selectedDate) ? medicalState.selectedDate : formatScheduleDateValue(new Date()),
+duration: 4,
+durationUnit: "weeks",
+status: "unavailable",
+rtpPhase: "medical-restriction",
+participation: 0,
+reviewDate: "",
+phase: "",
+comment: "",
+coachNote: "",
+shareWithCoach: false,
+};
+}
+function normalizeMedicalInjuryPlanDraft(draft = {}, playerId = draft.playerId) {
+const defaults = getDefaultMedicalInjuryPlanDraft(playerId);
+const draftPlayerId = String(draft.playerId ?? defaults.playerId).trim() || defaults.playerId;
+const rtpPhase = getMedicalRtpPhaseOption(draft.rtpPhase || defaults.rtpPhase);
+const status = medicalInjuryPlanStatusOptions.some((option) => option.key === draft.status)
+? draft.status
+: rtpPhase.status;
+const durationUnit = ["days", "weeks", "months"].includes(draft.durationUnit) ? draft.durationUnit : defaults.durationUnit;
+return {
+...defaults,
+playerId: draftPlayerId,
+injuryType: String(draft.injuryType ?? defaults.injuryType).trim(),
+bodyArea: String(draft.bodyArea ?? defaults.bodyArea).trim(),
+startDate: isMedicalDateValue(draft.startDate) ? draft.startDate : defaults.startDate,
+duration: Math.max(1, Number(draft.duration) || defaults.duration),
+durationUnit,
+status,
+rtpPhase: rtpPhase.key,
+participation: normalizeMedicalParticipation(draft.participation, rtpPhase.participation),
+reviewDate: isMedicalDateValue(draft.reviewDate) ? draft.reviewDate : "",
+phase: String(draft.phase ?? defaults.phase).trim(),
+comment: String(draft.comment ?? defaults.comment).trim(),
+coachNote: String(draft.coachNote ?? defaults.coachNote).trim(),
+shareWithCoach: normalizeMedicalShareValue(draft.shareWithCoach),
+};
+}
+function getMedicalInjuryPlanDraft(playerId = medicalState?.selectedPlayerId || "") {
+const draftPlayerId = String(playerId ?? "").trim();
+const draft = normalizeMedicalInjuryPlanDraft(
+medicalInjuryPlanDraftsByPlayerId.get(draftPlayerId) ?? { playerId: draftPlayerId },
+draftPlayerId
+);
+if (draftPlayerId) {
+medicalInjuryPlanDraftsByPlayerId.set(draftPlayerId, draft);
+}
+return draft;
+}
+function setMedicalInjuryPlanDraft(playerId, values = {}) {
+const draftPlayerId = String(playerId ?? values.playerId ?? "").trim();
+if (!draftPlayerId) {
+return null;
+}
+const draft = normalizeMedicalInjuryPlanDraft({ ...values, playerId: draftPlayerId }, draftPlayerId);
+medicalInjuryPlanDraftsByPlayerId.set(draftPlayerId, draft);
+return draft;
+}
+function clearMedicalInjuryPlanDraft(playerId) {
+const draftPlayerId = String(playerId ?? "").trim();
+if (draftPlayerId) {
+medicalInjuryPlanDraftsByPlayerId.delete(draftPlayerId);
+}
+}
+function getMedicalInjuryPlanFormDraft(form) {
+if (!form) {
+return null;
+}
+const values = getPlatformFormValues(form);
+return {
+...values,
+playerId: values.playerId || form.querySelector("[name='playerId']")?.value || medicalState?.selectedPlayerId || "",
+shareWithCoach: Boolean(form.querySelector("[name='shareWithCoach']")?.checked),
+};
+}
+function persistMedicalInjuryPlanDraftFromForm(form) {
+const draft = getMedicalInjuryPlanFormDraft(form);
+if (!draft) {
+return null;
+}
+return setMedicalInjuryPlanDraft(draft.playerId, draft);
 }
 function getMedicalPlayerInitials(player) {
 const words = String(player?.name ?? "").trim().split(/\s+/).filter(Boolean);
@@ -29830,64 +29932,62 @@ ${canEditMedicalTeam() ? `<button type="button" class="medical-log-delete" data-
 .join("");
 }
 function renderMedicalInjuryPlanForm(player, canEdit) {
-const defaultDate = medicalState.selectedDate;
+const draft = getMedicalInjuryPlanDraft(player.id);
 return `
 <article class="medical-modal-main-card medical-injury-plan-card">
 <div class="medical-card-headline">
 <h2>Availability Plan</h2>
-<span>Auto-applies across date range</span>
+<span>Auto-applies across date range, no daily entry needed</span>
 </div>
 <form id="medicalInjuryPlanForm" class="medical-profile-form">
 <input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
 <div class="medical-form-grid medical-plan-form-grid">
 <label>
 <span>Injury / reason</span>
-<input name="injuryType" list="medicalInjuryTypes" placeholder="ACL injury" required ${canEdit ? "" : "disabled"} />
+<input name="injuryType" list="medicalInjuryTypes" value="${escapeHtml(draft.injuryType)}" placeholder="ACL injury" required ${canEdit ? "" : "disabled"} />
 </label>
 <label>
 <span>Body area</span>
-<input name="bodyArea" placeholder="Knee" ${canEdit ? "" : "disabled"} />
+<input name="bodyArea" value="${escapeHtml(draft.bodyArea)}" placeholder="Knee" ${canEdit ? "" : "disabled"} />
 </label>
 <label>
 <span>Start</span>
-<input name="startDate" type="date" value="${escapeHtml(defaultDate)}" ${canEdit ? "" : "disabled"} />
+<input name="startDate" type="date" value="${escapeHtml(draft.startDate)}" ${canEdit ? "" : "disabled"} />
 </label>
 <label>
 <span>Duration</span>
 <div class="medical-duration-fields">
-<input name="duration" type="number" min="1" value="4" ${canEdit ? "" : "disabled"} />
+<input name="duration" type="number" min="1" value="${escapeHtml(draft.duration)}" ${canEdit ? "" : "disabled"} />
 <select name="durationUnit" ${canEdit ? "" : "disabled"}>
-<option value="weeks" selected>Weeks</option>
-<option value="months">Months</option>
-<option value="days">Days</option>
+${renderMedicalDurationUnitOptions(draft.durationUnit)}
 </select>
 </div>
 </label>
 <label>
 <span>Status</span>
 <select name="status" ${canEdit ? "" : "disabled"}>
-${renderMedicalInjuryPlanStatusOptions("unavailable")}
+${renderMedicalInjuryPlanStatusOptions(draft.status)}
 </select>
 </label>
 <label>
 <span>RTP phase</span>
 <select name="rtpPhase" data-medical-plan-rtp-phase ${canEdit ? "" : "disabled"}>
-${renderMedicalRtpPhaseOptions("medical-restriction")}
+${renderMedicalRtpPhaseOptions(draft.rtpPhase)}
 </select>
 </label>
 <label>
 <span>Recommended</span>
 <select name="participation" data-medical-plan-participation ${canEdit ? "" : "disabled"}>
-${renderMedicalParticipationOptions(0)}
+${renderMedicalParticipationOptions(draft.participation)}
 </select>
 </label>
 <label>
 <span>Review date</span>
-<input name="reviewDate" type="date" ${canEdit ? "" : "disabled"} />
+<input name="reviewDate" type="date" value="${escapeHtml(draft.reviewDate)}" ${canEdit ? "" : "disabled"} />
 </label>
 <label>
 <span>Treatment note</span>
-<input name="phase" placeholder="Week 1-4 protected rehab" ${canEdit ? "" : "disabled"} />
+<input name="phase" value="${escapeHtml(draft.phase)}" placeholder="Week 1-4 protected rehab" ${canEdit ? "" : "disabled"} />
 </label>
 </div>
 <div class="medical-duration-presets" aria-label="Duration presets">
@@ -29899,6 +29999,7 @@ type="button"
 data-medical-duration-preset
 data-medical-duration="${preset.duration}"
 data-medical-duration-unit="${escapeHtml(preset.unit)}"
+class="${draft.duration === preset.duration && draft.durationUnit === preset.unit ? "is-selected" : ""}"
 ${canEdit ? "" : "disabled"}
 >${escapeHtml(preset.label)}</button>
 `
@@ -29907,14 +30008,14 @@ ${canEdit ? "" : "disabled"}
 </div>
 <label>
 <span>Internal clinical note</span>
-<textarea name="comment" rows="3" ${canEdit ? "" : "disabled"}></textarea>
+<textarea name="comment" rows="3" ${canEdit ? "" : "disabled"}>${escapeHtml(draft.comment)}</textarea>
 </label>
 <label>
 <span>Coach-safe comment</span>
-<textarea name="coachNote" rows="2" placeholder="Shared note for coaches" ${canEdit ? "" : "disabled"}></textarea>
+<textarea name="coachNote" rows="2" placeholder="Shared note for coaches" ${canEdit ? "" : "disabled"}>${escapeHtml(draft.coachNote)}</textarea>
 </label>
 <label class="medical-inline-check">
-<input type="checkbox" name="shareWithCoach" ${canEdit ? "" : "disabled"} />
+<input type="checkbox" name="shareWithCoach" ${draft.shareWithCoach ? "checked" : ""} ${canEdit ? "" : "disabled"} />
 <span>Approved to share with coaching staff</span>
 </label>
 <button type="submit" ${canEdit ? "" : "disabled"}>Create plan</button>
@@ -72557,6 +72658,7 @@ durationUnitInput.value = durationPreset.dataset.medicalDurationUnit;
 form.querySelectorAll("[data-medical-duration-preset]").forEach((button) => {
 button.classList.toggle("is-selected", button === durationPreset);
 });
+persistMedicalInjuryPlanDraftFromForm(form);
 }
 return;
 }
@@ -72705,6 +72807,11 @@ event.preventDefault();
 openMedicalPlayerModal(selectPlayerCard.dataset.medicalSelectPlayer);
 });
 ui.medicalTeamWorkspace?.addEventListener("input", (event) => {
+const injuryPlanForm = event.target.closest("#medicalInjuryPlanForm");
+if (injuryPlanForm) {
+persistMedicalInjuryPlanDraftFromForm(injuryPlanForm);
+return;
+}
 const searchInput = event.target.closest("[data-medical-roster-search]");
 if (!searchInput) {
 return;
@@ -72820,6 +72927,11 @@ if (participationSelect) {
 participationSelect.value = String(phase.participation);
 }
 }
+const injuryPlanForm = event.target.closest("#medicalInjuryPlanForm");
+if (injuryPlanForm) {
+persistMedicalInjuryPlanDraftFromForm(injuryPlanForm);
+return;
+}
 });
 ui.medicalTeamWorkspace?.addEventListener("submit", (event) => {
 const governanceForm = event.target.closest("#medicalGovernanceForm");
@@ -72921,8 +73033,9 @@ event.preventDefault();
 if (!canEditMedicalTeam()) {
 return;
 }
-const plan = addMedicalInjuryPlan(getPlatformFormValues(injuryPlanForm));
+const plan = addMedicalInjuryPlan(getMedicalInjuryPlanFormDraft(injuryPlanForm));
 if (plan) {
+clearMedicalInjuryPlanDraft(plan.playerId);
 void recordMedicalDatabaseSyncEvent("availability-plan-created", {
 playerId: plan.playerId,
 plan,

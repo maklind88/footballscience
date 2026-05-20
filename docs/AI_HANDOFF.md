@@ -16,6 +16,7 @@ Design should feel clean, Apple/Mac-like, calm, professional, and modular. Avoid
 - The user is not expected to know how to build the platform. Treat their messages as product wishes and live observations, not technical implementation instructions.
 - Live is the product truth. If the user is looking at `footballscience.xyz`, verify live behavior before assuming local state is enough.
 - Ask fewer technical questions. Decide implementation details yourself unless there is a real product, data-loss, security, or release-risk ambiguity.
+- Use the Fast UI Lane for narrow visible changes while the platform is under heavy development: make small text/layout/CSS/ordering/visibility fixes quickly with minimal targeted validation instead of the full safety gate. Keep the Safe Lane for auth, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, secrets, or anything that can lose/leak data or take Live down.
 - Keep UI labels mostly in English football terms unless the user asks otherwise.
 - Do not say something is done unless it has been checked.
 - The user strongly dislikes needing to ask again if something works locally but not for them.

@@ -17,6 +17,18 @@ This section overrides any older release wording below.
 - If deploy would include unrelated or unfinished work from another chat, stop and explain the coordination issue in plain Swedish.
 - Live QA login is allowed when credentials are available in the current chat or environment, but never write passwords, tokens, or secrets into source files or docs.
 
+## Current Speed Agreement
+
+This section exists because the platform is under heavy active product development and the user needs small visible changes to move much faster than large platform/security work.
+
+- Default to the **Fast UI Lane** for narrow visual/product-polish changes: text, spacing, alignment, ordering, visibility, CSS, layout polish, copy, icons, simple Home/Admin appearance settings, and marked browser elements that do not change persisted data contracts.
+- In the Fast UI Lane, do not run the full safe release gate, full API suite, broad Playwright suites, staging flow, backup/restore checks, or Supabase/security verification unless the touched files or code path make them relevant.
+- Fast UI validation should be intentionally small: `git diff --check`, syntax check for touched JS when applicable, and one targeted browser/smoke check only when the visual change needs proof.
+- If the user says `Deploy` or `Deploy fast` after a Fast UI change, use the fast deploy path and keep verification narrow unless the change unexpectedly touches risky code.
+- Use the **Safe Lane** only for auth/login, permissions, central app-state/data, Supabase/API, backup/restore, migrations, secrets, security, broad multi-module behavior, or anything that could lose/leak user data or take Live down.
+- Do not ask the user which lane to use when the request is clear. Codex owns this classification.
+- Never remove hard protections for data loss, secret leakage, tenant isolation, or Live availability. Reduce process overhead for UI work, not the core safety rails that protect users.
+
 ## Live Codeword
 
 When the user writes `Live` as a standalone command, run the full update flow that makes branch information, `main`, GitHub, and production agree.
@@ -63,6 +75,16 @@ If the current branch contains unrelated or unfinished work from another chat, s
 ## Required Release Order
 
 Use this order for finished work. Only push/deploy when the user asks for deploy or when the task specifically requires GitHub publication.
+
+For **Fast UI Lane** changes, this order is intentionally lighter:
+
+1. Inspect local state: `git status --short`.
+2. Implement the scoped UI/content/layout change.
+3. Run minimal validation for the touched surface: `git diff --check`, syntax check for touched JS when applicable, and targeted browser/smoke proof only when useful.
+4. Stage/commit only intended files when the work should be preserved.
+5. For `Deploy` / `Deploy fast`, run `npm run deploy` and do narrow live verification.
+
+For **Safe Lane** or risky changes, use the fuller order:
 
 1. Inspect local state: `git status --short`.
 2. Implement the change.

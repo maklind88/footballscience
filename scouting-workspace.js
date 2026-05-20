@@ -9,6 +9,9 @@ let scoutingDatabaseLoadSource = "";
 let scoutingDatabaseWorker = null;
 let scoutingDatabaseWorkerPreloadPromise = null;
 let scoutingDatabaseWorkerPreloadTimer = 0;
+let scoutingDatabaseWorkerFullPreloadPromise = null;
+let scoutingDatabaseWorkerFullPreloadTimer = 0;
+let scoutingDatabaseWorkerFullReady = false;
 let scoutingDatabaseWorkerRequestId = 0;
 let scoutingDatabaseError = "";
 let scoutingDatabaseOptionCache = null;
@@ -2759,6 +2762,7 @@ function getOrCreateScoutingDatabaseWorker() {
   worker.onerror = (error) => {
     if (scoutingDatabaseWorker === worker) {
       scoutingDatabaseWorker = null;
+      scoutingDatabaseWorkerFullReady = false;
     }
     worker.terminate();
     rejectPendingScoutingDatabaseWorkerRequests(error);
@@ -2777,6 +2781,7 @@ function requestScoutingDatabaseWorkerQuery(options = {}) {
       scoutingDatabaseWorkerRequests.delete(requestId);
       if (scoutingDatabaseWorker === worker) {
         scoutingDatabaseWorker = null;
+        scoutingDatabaseWorkerFullReady = false;
       }
       worker.terminate();
       reject(new Error("Scouting player database timed out while loading."));
@@ -2788,6 +2793,7 @@ function requestScoutingDatabaseWorkerQuery(options = {}) {
       requestId,
       scriptUrl: `scouting-import-data.js?v=${getScoutingAssetVersion()}`,
       previewScriptUrl: `scouting-import-preview-data.js?v=${getScoutingAssetVersion()}`,
+      manifestScriptUrl: `scouting-import-manifest.js?v=${getScoutingAssetVersion()}`,
       query: getScoutingWorkerQueryFromState(),
       recordIds: Array.isArray(options.recordIds) ? options.recordIds : [],
     });
@@ -2821,18 +2827,56 @@ function prewarmScoutingDatabaseWorker() {
     type: "preview",
     timeoutMs: 8000,
   })
-    .then(() => true)
+    .then(() => {
+      scheduleFullScoutingDatabaseWorkerPreload(650);
+      return true;
+    })
     .catch(() => false)
     .finally(() => {
       scoutingDatabaseWorkerPreloadPromise = null;
     });
   return scoutingDatabaseWorkerPreloadPromise;
 }
+function prewarmFullScoutingDatabaseWorker() {
+  const filters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
+  if (filters.source === "fsdb" || typeof Worker !== "function") {
+    return Promise.resolve(false);
+  }
+  if (scoutingDatabaseWorkerFullReady) {
+    return Promise.resolve(true);
+  }
+  if (scoutingDatabaseWorkerFullPreloadPromise) {
+    return scoutingDatabaseWorkerFullPreloadPromise;
+  }
+  scoutingDatabaseWorkerFullPreloadPromise = requestScoutingDatabaseWorkerQuery({
+    type: "preload",
+    timeoutMs: 45000,
+  })
+    .then(() => {
+      scoutingDatabaseWorkerFullReady = true;
+      if (isScoutingWorkerDatabaseActive()) {
+        scheduleScoutingDatabaseRefresh();
+      }
+      return true;
+    })
+    .catch(() => false)
+    .finally(() => {
+      scoutingDatabaseWorkerFullPreloadPromise = null;
+    });
+  return scoutingDatabaseWorkerFullPreloadPromise;
+}
 function scheduleScoutingDatabaseWorkerPrewarm(delayMs = 180) {
   window.clearTimeout(scoutingDatabaseWorkerPreloadTimer);
   scoutingDatabaseWorkerPreloadTimer = window.setTimeout(() => {
     scoutingDatabaseWorkerPreloadTimer = 0;
     prewarmScoutingDatabaseWorker();
+  }, Math.max(0, Math.floor(Number(delayMs) || 0)));
+}
+function scheduleFullScoutingDatabaseWorkerPreload(delayMs = 650) {
+  window.clearTimeout(scoutingDatabaseWorkerFullPreloadTimer);
+  scoutingDatabaseWorkerFullPreloadTimer = window.setTimeout(() => {
+    scoutingDatabaseWorkerFullPreloadTimer = 0;
+    prewarmFullScoutingDatabaseWorker();
   }, Math.max(0, Math.floor(Number(delayMs) || 0)));
 }
 function loadScoutingDatabaseWithWorker() {
@@ -2842,6 +2886,7 @@ function loadScoutingDatabaseWithWorker() {
       if (!appliedDatabase) {
         throw new Error("Scouting player database worker returned no records.");
       }
+      scheduleFullScoutingDatabaseWorkerPreload(320);
       return appliedDatabase;
     })
     .catch(() => loadScoutingDatabaseWithScript());
@@ -15613,37 +15658,43 @@ function renderScoutingAnalysisRoomWorkspace(options = {}) {
   if (!ui.scoutingWorkspace) {
     return;
   }
-  if (!isScoutingDatabaseLoaded()) {
-    queueScoutingDatabaseLoad(renderScoutingAnalysisRoomWorkspace);
-  }
   const preserveOverlayState = options.preserveFocus || hasOpenScoutingOverlay();
   const focusSnapshot = preserveOverlayState ? getScoutingFocusSnapshot() : null;
   const scrollSnapshot = preserveOverlayState ? getScoutingScrollSnapshot() : null;
-  const database = getScoutingDatabase();
-  const playerCount = getScoutingDatabaseTotalCount(database);
-  const sheetCount = database?.sheets?.length || 0;
   ui.scoutingWorkspace.innerHTML = `
     <section class="scouting-shell">
       <header class="scouting-hero">
         <div>
           <p class="placeholder-tag">Analysis Room</p>
-          <h1>Opposition intelligence</h1>
-        </div>
-        <div class="scouting-metrics" aria-label="Analysis summary">
-          <span><strong>${playerCount ? playerCount.toLocaleString("en-US") : "..."}</strong> Players</span>
-          <span><strong>${sheetCount ? sheetCount.toLocaleString("en-US") : "..."}</strong> Data sheets</span>
+          <h1>Own team performance</h1>
         </div>
       </header>
       <section class="scouting-board">
         <div class="scouting-content">
-          ${renderScoutingOppositionPanel()}
+          <section class="analysis-room-placeholder" aria-label="Analysis Room placeholder">
+            <div class="analysis-room-placeholder-copy">
+              <p class="placeholder-tag">Own team review</p>
+              <h2>Skunks Work building this</h2>
+              <p>Analysis Room will focus on our own team performances, match reviews and the feedback loop back into training.</p>
+            </div>
+            <div class="analysis-room-skunk-card" aria-hidden="true">
+              <div class="analysis-room-skunk">
+                <span class="analysis-room-skunk-tail"></span>
+                <span class="analysis-room-skunk-body"></span>
+                <span class="analysis-room-skunk-stripe"></span>
+                <span class="analysis-room-skunk-head"></span>
+                <span class="analysis-room-skunk-ear is-left"></span>
+                <span class="analysis-room-skunk-ear is-right"></span>
+                <span class="analysis-room-skunk-eye"></span>
+                <span class="analysis-room-skunk-nose"></span>
+              </div>
+            </div>
+          </section>
         </div>
       </section>
     </section>
-    ${renderScoutingProfileModal()}
   `;
   restoreScoutingFocus(focusSnapshot);
-  bindScoutingDragAndDrop();
   restoreScoutingScrollSnapshot(scrollSnapshot);
 }
 function setScoutingActiveTab(tabId) {

@@ -1923,8 +1923,8 @@ icon: "◍",
 id: "analysis-room",
 kind: "analysis-room",
 title: "Analysis Room",
-meta: "Review and opposition",
-description: "Clips, match review, opposition cues and tactical references.",
+meta: "Team performance",
+description: "Own-team match review, performance trends and tactical feedback.",
 status: "Shell",
 icon: "◈",
 },
@@ -7219,7 +7219,7 @@ ui.analysisRoomWorkspace.innerHTML = `
       <section class="scouting-shell">
         <section class="scouting-load-panel">
           <h2>Loading Analysis Room</h2>
-          <p>Preparing opposition analysis workspace.</p>
+          <p>Preparing the own-team performance room.</p>
         </section>
       </section>
     `;

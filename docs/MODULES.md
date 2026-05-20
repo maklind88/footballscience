@@ -206,7 +206,14 @@ Future state:
 
 ## Analysis Room
 
-Currently a placeholder. User asked for a skunk placeholder: `Skunks Work building this` with a skunk image/visual.
+Purpose: own-team performance review.
+
+Current direction:
+
+- Analysis Room is for the team's own performances, match reviews, and feedback into training.
+- It should not become opposition scouting or recruitment analysis.
+- Keep it as a polished placeholder until the workflow is defined.
+- Placeholder text: `Skunks Work building this` with a premium skunk visual.
 
 ## Scouting
 

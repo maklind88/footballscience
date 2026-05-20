@@ -195,13 +195,14 @@ async function waitForProfileReady(page, recordId) {
       }
       const rect = modal.getBoundingClientRect();
       const controls = Array.from(modal.querySelectorAll("[data-toggle-scouting-favorite], [data-add-scouting-record-to-shadow]"));
-      const expectedControls = targetRecordId
+      const matchingControls = targetRecordId
         ? controls.filter(
             (control) =>
               control.getAttribute("data-toggle-scouting-favorite") === targetRecordId ||
               control.getAttribute("data-add-scouting-record-to-shadow") === targetRecordId
           )
-        : controls;
+        : [];
+      const expectedControls = matchingControls.length ? matchingControls : controls;
       const hasFavorite = expectedControls.some((control) => control.hasAttribute("data-toggle-scouting-favorite"));
       const hasShadowAction = expectedControls.some((control) => control.hasAttribute("data-add-scouting-record-to-shadow"));
       return (

@@ -16,7 +16,8 @@ docs/NEXT_STEPS.md
 docs/QA_CHECKLIST.md
 
 Fokus:
-- Analysis Room ar inte definierad annu.
+- Analysis Room ar for egna lagets prestationer, match review och feedback tillbaka till traning.
+- Det ar inte opposition scouting eller rekryteringsanalys.
 - Just nu ska den helst visa en snygg placeholder.
 - Text: Skunks Work building this.
 - Visa en skunk pa ett snyggt/premium satt.

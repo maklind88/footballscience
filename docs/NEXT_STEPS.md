@@ -70,6 +70,12 @@
 - Keep overview colors clear and add small color legend per month.
 - Admin edit only; non-admin view only.
 
+## Analysis Room
+
+- Keep Analysis Room focused on own-team performance review.
+- Do not build fake analysis tools until the match review workflow is defined.
+- Keep the polished `Skunks Work building this` placeholder visible for now.
+
 ## Scouting
 
 - Scouting now has a first real pass: Shadow XI, lazy-loaded Excel/Wyscout database, filters, percentile highlights, player profile spider charts, favorites, named lists, and Shadow XI assignment.

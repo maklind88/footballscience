@@ -1020,7 +1020,13 @@ test("Medical archive keeps clinical records and plans protected", async ({ page
   await expect(page.locator("[data-medical-data-safety]")).toBeVisible();
   await page.locator('[data-medical-select-player="qa-archive-player"]').first().click();
   await page.locator('[data-medical-modal-tab="profile"]').click();
-  await page.locator('[data-medical-delete-record="qa-archive-record"]').click();
+  const archiveRecordButton = page.locator('[data-medical-delete-record="qa-archive-record"]');
+  await expect(archiveRecordButton).toHaveText("Archive");
+  await expect(archiveRecordButton).not.toHaveText("x");
+  const archiveRecordBox = await archiveRecordButton.boundingBox();
+  expect(archiveRecordBox?.width ?? 0).toBeGreaterThan(56);
+  expect(archiveRecordBox?.height ?? 99).toBeLessThan(40);
+  await archiveRecordButton.click();
 
   await expect
     .poll(() =>
@@ -1036,7 +1042,9 @@ test("Medical archive keeps clinical records and plans protected", async ({ page
     .toEqual({ recordCount: 1, archived: true, archiveCount: 1 });
 
   await page.locator('[data-medical-modal-tab="plan"]').click();
-  await page.locator('[data-medical-delete-injury-plan="qa-archive-plan"]').click();
+  const archivePlanButton = page.locator('[data-medical-delete-injury-plan="qa-archive-plan"]');
+  await expect(archivePlanButton).toHaveText("Archive");
+  await archivePlanButton.click();
 
   await expect
     .poll(() =>

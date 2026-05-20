@@ -230,14 +230,53 @@
 }
 
 .medical-log-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: end;
+  align-self: center;
   width: auto;
-  min-width: 4.35rem;
-  min-height: 2rem;
-  padding: 0 0.58rem;
+  min-width: 4.85rem;
+  height: 2.1rem;
+  min-height: 2.1rem;
+  padding: 0 0.72rem;
+  border: 1px solid rgba(116, 34, 30, 0.14);
   border-radius: 999px;
-  font-size: 0.68rem;
+  color: #8a1f11;
+  background: linear-gradient(180deg, rgba(255, 247, 246, 0.96), rgba(253, 236, 234, 0.94));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78), 0 8px 18px rgba(116, 34, 30, 0.08);
+  font-size: 0.7rem;
   font-weight: 900;
+  letter-spacing: 0;
   line-height: 1;
+  cursor: pointer;
+  transition: transform 140ms ease, background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.medical-log-delete:hover {
+  border-color: rgba(116, 34, 30, 0.24);
+  background: linear-gradient(180deg, rgba(255, 242, 240, 0.98), rgba(250, 222, 218, 0.96));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 10px 22px rgba(116, 34, 30, 0.12);
+  transform: translateY(-1px);
+}
+
+.medical-log-delete:focus-visible {
+  outline: 0;
+  border-color: rgba(116, 34, 30, 0.34);
+  box-shadow: 0 0 0 4px rgba(222, 82, 82, 0.16), 0 10px 22px rgba(116, 34, 30, 0.12);
+}
+
+body.is-dark-mode .medical-log-delete {
+  color: #fecaca;
+  background: rgba(150, 37, 37, 0.2);
+  border-color: rgba(248, 113, 113, 0.24);
+  box-shadow: none;
+}
+
+body.is-dark-mode .medical-log-delete:hover,
+body.is-dark-mode .medical-log-delete:focus-visible {
+  background: rgba(150, 37, 37, 0.3);
+  border-color: rgba(248, 113, 113, 0.38);
 }
 
 .medical-activity-lock {

@@ -8,6 +8,56 @@ const playerProfilesKey = "football-player-profiles-v1";
 const dashboardChatKey = "football-dashboard-chat-v1";
 const workspaceHubKey = "football-workspace-hub-v3";
 const workspaceLastActiveKey = "football-workspace-last-active-local-v1";
+const qaSessionPlannerTrainingDate = "2026-05-19";
+
+function createQaSessionPlannerState(dateValue = qaSessionPlannerTrainingDate) {
+  return {
+    selectedDate: dateValue,
+    sessions: {
+      [dateValue]: {
+        id: `session-${dateValue}`,
+        date: dateValue,
+        title: "QA Training",
+        theme: "QA seeded session",
+        selectedBlockId: "qa-block-1",
+        blocks: [
+          {
+            id: "qa-block-1",
+            label: "Block 1",
+            title: "QA Exercise",
+            focus: "QA",
+            phase: "In Possession",
+            subPhase: "Build Up",
+            minutes: 15,
+            time: "",
+            intensity: 3,
+            pitchSize: "SSG",
+            material: "",
+            objective: "",
+            why: "",
+            organization: "",
+            principles: "",
+            diagram: "half-pitch",
+            tacticalElements: [],
+            playerBoardPositions: {},
+            playerBoardColors: {},
+          },
+        ],
+      },
+    },
+  };
+}
+
+async function seedQaSessionPlannerTrainingSession(page, dateValue = qaSessionPlannerTrainingDate) {
+  await page.addInitScript(
+    ({ storageKey, state }) => {
+      if (!window.localStorage.getItem(storageKey)) {
+        window.localStorage.setItem(storageKey, JSON.stringify(state));
+      }
+    },
+    { storageKey: sessionPlannerKey, state: createQaSessionPlannerState(dateValue) }
+  );
+}
 
 async function dismissDashboardModal(page) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -862,6 +912,7 @@ test("Periodization edit overlay keeps scroll position while saving fields", asy
 
 test("Session Planner block edits persist after refresh", async ({ page }) => {
   const value = `QA Session ${Date.now()}`;
+  await seedQaSessionPlannerTrainingSession(page);
   await bootApp(page);
   await openWorkspace(page, "session-planner");
 
@@ -1427,6 +1478,7 @@ test("Medical operations actual missing counts only players expected to particip
 test("Squad add creates a Medical roster slot and Session Planner placement", async ({ page }) => {
   const playerName = `QA Squad Placement ${Date.now()}`;
   let squadAgeRequests = 0;
+  await seedQaSessionPlannerTrainingSession(page);
   await bootApp(page);
   await page.route("**/api/squad-ages", async (route) => {
     squadAgeRequests += 1;
@@ -1635,6 +1687,7 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
 
 test("Academy Squad add is available for session planning without Medical clearance", async ({ page }) => {
   const playerName = `QA Academy Planner ${Date.now()}`;
+  await seedQaSessionPlannerTrainingSession(page);
   await bootApp(page);
   await openWorkspace(page, "player-profiles");
 

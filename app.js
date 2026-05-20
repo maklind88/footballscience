@@ -13151,6 +13151,59 @@ selectedBlockId: "",
 blocks: [],
 };
 }
+function getSessionPlannerPeriodizationOverride(dateValue) {
+if (!dateValue) {
+return {};
+}
+if (!periodizationState) {
+periodizationState = readPeriodizationState();
+}
+return periodizationState?.days?.[dateValue] ?? {};
+}
+function isSessionPlannerOffDate(dateValue) {
+if (!dateValue) {
+return false;
+}
+const periodizationOverride = getSessionPlannerPeriodizationOverride(dateValue);
+const savedDaySchedule = String(periodizationOverride.daySchedule || "").trim().toUpperCase();
+const savedSessionType = String(periodizationOverride.sessionType || "").trim().toUpperCase();
+const scheduleEvent = getScheduleMainEvent(getScheduleEventsForDate(dateValue));
+return savedDaySchedule === "OFF" || savedSessionType === "OFF" || scheduleEvent?.type === "off";
+}
+function createSessionPlannerSessionForNewPlan(dateValue = formatScheduleDateValue(new Date())) {
+return isSessionPlannerOffDate(dateValue)
+? createSessionPlannerEmptySession(dateValue)
+: createSessionPlannerDefaultSession(dateValue);
+}
+function isGeneratedDefaultSessionPlannerSession(session = {}) {
+const blocks = Array.isArray(session.blocks) ? session.blocks : [];
+return (
+String(session.title || "").trim() === "Training Session" &&
+String(session.theme || "").trim() === "Possession and pressing connection" &&
+blocks.length === 4 &&
+blocks[0]?.id === "warm-up" &&
+blocks[0]?.title === "Activation" &&
+blocks[1]?.id === "block-1" &&
+blocks[1]?.title === "Technical Rhythm" &&
+blocks[2]?.id === "block-2" &&
+blocks[3]?.id === "game" &&
+blocks[3]?.title === "Game Form"
+);
+}
+function shouldStripSessionPlannerGeneratedDefaultSession(dateValue, session = {}) {
+if (!isGeneratedDefaultSessionPlannerSession(session)) {
+return false;
+}
+const scheduleEvents = getScheduleEventsForDate(dateValue);
+const hasSessionEvent = scheduleEvents.some(isScheduleSessionEvent);
+const periodizationOverride = getSessionPlannerPeriodizationOverride(dateValue);
+const savedDaySchedule = String(periodizationOverride.daySchedule || "").trim().toLowerCase();
+const savedSessionType = String(periodizationOverride.sessionType || "").trim().toLowerCase();
+const hasSavedTrainingSignal = [savedDaySchedule, savedSessionType].some((value) =>
+value.includes("training") || value.includes("match") || value.includes("recovery")
+);
+return isSessionPlannerOffDate(dateValue) || (!hasSessionEvent && !hasSavedTrainingSignal);
+}
 function cloneSessionPlannerSession(session = {}) {
 const date = session.date || formatScheduleDateValue(new Date());
 const blocks = Array.isArray(session.blocks) ? session.blocks.map(createSessionPlannerBlock) : [];
@@ -13173,11 +13226,10 @@ blocks,
 }
 function createSessionPlannerDefaultState() {
 const selectedDate = formatScheduleDateValue(new Date());
-const defaultSession = createSessionPlannerDefaultSession(selectedDate);
 return {
 selectedDate,
 sessions: {
-[selectedDate]: defaultSession,
+[selectedDate]: createSessionPlannerEmptySession(selectedDate),
 },
 };
 }
@@ -13425,7 +13477,10 @@ const fallback = createSessionPlannerDefaultState();
 const selectedDate = source.selectedDate || fallback.selectedDate;
 const sessions = {};
 Object.entries(source.sessions ?? {}).forEach(([dateValue, session]) => {
-sessions[dateValue] = cloneSessionPlannerSession({ ...session, date: session.date || dateValue });
+const clonedSession = cloneSessionPlannerSession({ ...session, date: session.date || dateValue });
+sessions[dateValue] = shouldStripSessionPlannerGeneratedDefaultSession(dateValue, clonedSession)
+? createSessionPlannerEmptySession(dateValue)
+: clonedSession;
 });
 if (!Object.keys(sessions).length) {
 sessions[fallback.selectedDate] = fallback.sessions[fallback.selectedDate];
@@ -13438,7 +13493,14 @@ sessions,
 function readSessionPlannerState() {
 try {
 const raw = window.localStorage.getItem(sessionPlannerStorageKey);
-return raw ? cloneSessionPlannerState(JSON.parse(raw)) : createSessionPlannerDefaultState();
+if (!raw) {
+return createSessionPlannerDefaultState();
+}
+const state = cloneSessionPlannerState(JSON.parse(raw));
+if (JSON.stringify(state) !== raw) {
+persistNormalizedSessionPlannerState(state);
+}
+return state;
 } catch {
 return createSessionPlannerDefaultState();
 }
@@ -13510,6 +13572,24 @@ return {
 state: applySessionPlannerBlockDeletionTombstones(applySessionPlannerBlockReductionGuard(merged, current), current, backup),
 recoveredSessions,
 };
+}
+function persistNormalizedSessionPlannerState(nextState) {
+const nextValue = JSON.stringify(nextState);
+try {
+rawDataSafetySetItem(sessionPlannerStorageKey, nextValue);
+if (window.__footballScienceCentralHydrating) {
+window.setTimeout(() => {
+if (rawDataSafetyGetItem(sessionPlannerStorageKey) === nextValue && canWriteCentralBackedCache()) {
+recordDataSafetyWrite(sessionPlannerStorageKey, nextValue);
+}
+}, 0);
+return;
+}
+if (canWriteCentralBackedCache()) {
+recordDataSafetyWrite(sessionPlannerStorageKey, nextValue);
+}
+} catch {
+}
 }
 async function findSessionPlannerStateInSnapshots(currentState) {
 try {
@@ -70876,7 +70956,7 @@ if (!sessionPlannerState.sessions) {
 sessionPlannerState.sessions = {};
 }
 if (!sessionPlannerState.sessions[dateValue]?.blocks?.length) {
-sessionPlannerState.sessions[dateValue] = createSessionPlannerDefaultSession(dateValue);
+sessionPlannerState.sessions[dateValue] = createSessionPlannerSessionForNewPlan(dateValue);
 }
 sessionPlannerState.selectedDate = dateValue;
 writeSessionPlannerState();
@@ -70891,7 +70971,7 @@ if (!sessionPlannerState.sessions) {
 sessionPlannerState.sessions = {};
 }
 if (!sessionPlannerState.sessions[dateValue]?.blocks?.length && canEditSessionPlanner()) {
-sessionPlannerState.sessions[dateValue] = createSessionPlannerDefaultSession(dateValue);
+sessionPlannerState.sessions[dateValue] = createSessionPlannerSessionForNewPlan(dateValue);
 }
 sessionPlannerState.selectedDate = dateValue;
 writeSessionPlannerState();

@@ -344,3 +344,16 @@ test("Session Planner print mode keeps the coach sheet visible for browser print
   expect(appSource).toContain("visibility: visible !important");
   expect(appSource).toContain("window.print()");
 });
+
+test("Session Planner never seeds generated training blocks onto an off day", () => {
+  const appSource = readProjectFile("app.js");
+
+  expect(appSource).toContain("[selectedDate]: createSessionPlannerEmptySession(selectedDate)");
+  expect(appSource).toContain("function isSessionPlannerOffDate");
+  expect(appSource).toContain("function createSessionPlannerSessionForNewPlan");
+  expect(appSource).toContain("function shouldStripSessionPlannerGeneratedDefaultSession");
+  expect(appSource).toContain(
+    "sessionPlannerState.sessions[dateValue] = createSessionPlannerSessionForNewPlan(dateValue);"
+  );
+  expect(appSource).not.toContain("const defaultSession = createSessionPlannerDefaultSession(selectedDate);");
+});

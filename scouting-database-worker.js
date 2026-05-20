@@ -836,13 +836,10 @@ async function handleWorkerMessage(event) {
       });
       return;
     }
-    if (loadedFullDatabase && loadedFullScriptUrl === String(fullScriptUrl || "scouting-import-data.js")) {
-      activateDatabase(loadedFullDatabase, loadedFullScriptUrl);
-    } else if (loadedPreviewDatabase) {
-      activateDatabase(loadedPreviewDatabase, loadedPreviewScriptUrl);
-    } else {
+    if (!loadedFullDatabase || loadedFullScriptUrl !== String(fullScriptUrl || "scouting-import-data.js")) {
       await loadDatabase(fullScriptUrl, manifestScriptUrl);
     }
+    activateDatabase(loadedFullDatabase, loadedFullScriptUrl);
     self.postMessage({
       type: "database",
       requestId,

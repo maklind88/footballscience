@@ -39,6 +39,9 @@ let scoutingSettingsPanel = "";
 let scoutingComparisonMetricMenuOpen = false;
 let scoutingComparisonMetricFilterQuery = "";
 let scoutingComparisonCandidatesOpen = false;
+let scoutingComparisonPlayerSearchQuery = "";
+let scoutingComparisonSearchTimer = 0;
+let scoutingComparisonSearchCache = { key: "", status: "idle", records: [], error: "", promise: null };
 let scoutingLeagueQualityCache = new Map();
 let scoutingRecordMiniRadarCache = new Map();
 let scoutingFilteredDatabaseCache = {
@@ -2794,7 +2797,7 @@ function requestScoutingDatabaseWorkerQuery(options = {}) {
       scriptUrl: `scouting-import-data.js?v=${getScoutingAssetVersion()}`,
       previewScriptUrl: `scouting-import-preview-data.js?v=${getScoutingAssetVersion()}`,
       manifestScriptUrl: `scouting-import-manifest.js?v=${getScoutingAssetVersion()}`,
-      query: getScoutingWorkerQueryFromState(),
+      query: options.query && typeof options.query === "object" ? options.query : getScoutingWorkerQueryFromState(),
       recordIds: Array.isArray(options.recordIds) ? options.recordIds : [],
     });
   });
@@ -2880,13 +2883,13 @@ function scheduleFullScoutingDatabaseWorkerPreload(delayMs = 650) {
   }, Math.max(0, Math.floor(Number(delayMs) || 0)));
 }
 function loadScoutingDatabaseWithWorker() {
-  return requestScoutingDatabaseWorkerQuery({ type: "preview", timeoutMs: 8000 })
+  return requestScoutingDatabaseWorkerQuery({ timeoutMs: 45000 })
     .then((database) => {
       const appliedDatabase = applyScoutingWorkerDatabase(database);
       if (!appliedDatabase) {
         throw new Error("Scouting player database worker returned no records.");
       }
-      scheduleFullScoutingDatabaseWorkerPreload(320);
+      scoutingDatabaseWorkerFullReady = true;
       return appliedDatabase;
     })
     .catch(() => loadScoutingDatabaseWithScript());
@@ -3864,6 +3867,10 @@ function addScoutingComparisonPlayer(recordId) {
   if (!id || !canEditScoutingWorkspace()) {
     return;
   }
+  const record = getScoutingRecordById(id) || getScoutingComparisonCachedRecordById(id);
+  if (record) {
+    rememberScoutingRecordSnapshot(record);
+  }
   const lab = getScoutingComparisonLab();
   const nextPlayerIds = lab.playerIds.filter(Boolean).filter((playerId) => playerId !== id);
   if (nextPlayerIds.length >= 4) {
@@ -3873,6 +3880,102 @@ function addScoutingComparisonPlayer(recordId) {
   setScoutingComparisonLab({ ...lab, playerIds: nextPlayerIds });
   scoutingComparisonCandidatesOpen = true;
   renderScoutingWorkspace({ preserveFocus: true });
+}
+function getScoutingComparisonCachedRecordById(recordId) {
+  const id = normalizeScoutingText(recordId, 160);
+  if (!id) {
+    return null;
+  }
+  return (Array.isArray(scoutingComparisonSearchCache.records) ? scoutingComparisonSearchCache.records : []).find((record) => getScoutingRecordId(record) === id) || null;
+}
+function getScoutingComparisonSearchKey(query = "") {
+  return `${getScoutingAssetVersion()}::${normalizeScoutingText(query, 120).toLowerCase()}`;
+}
+function getScoutingComparisonSearchText(record) {
+  return [
+    getScoutingRecordName(record),
+    getScoutingRecordTeam(record),
+    getScoutingRecordLeague(record),
+    getScoutingRecordPosition(record),
+    getScoutingRecordNationality(record),
+  ]
+    .map((value) => normalizeScoutingText(value, 160).toLowerCase())
+    .filter(Boolean)
+    .join(" ");
+}
+function getLocalScoutingComparisonSearchRecords(query = "", limit = 24) {
+  const normalizedQuery = normalizeScoutingText(query, 120).toLowerCase();
+  if (normalizedQuery.length < 2) {
+    return [];
+  }
+  const database = getScoutingDatabase();
+  const records = Array.isArray(database?.records) ? database.records : [];
+  return records.filter((record) => getScoutingComparisonSearchText(record).includes(normalizedQuery)).slice(0, limit);
+}
+function queueScoutingComparisonPlayerSearch(query = scoutingComparisonPlayerSearchQuery) {
+  const normalizedQuery = normalizeScoutingText(query, 120);
+  window.clearTimeout(scoutingComparisonSearchTimer);
+  scoutingComparisonPlayerSearchQuery = normalizedQuery;
+  scoutingComparisonCandidatesOpen = true;
+  if (normalizedQuery.length < 2) {
+    scoutingComparisonSearchCache = { key: getScoutingComparisonSearchKey(normalizedQuery), status: "idle", records: [], error: "", promise: null };
+    renderScoutingWorkspace({ preserveFocus: true });
+    return;
+  }
+  scoutingComparisonSearchTimer = window.setTimeout(() => {
+    const key = getScoutingComparisonSearchKey(normalizedQuery);
+    if (scoutingComparisonSearchCache.key === key && ["loading", "ready"].includes(scoutingComparisonSearchCache.status)) {
+      renderScoutingWorkspace({ preserveFocus: true });
+      return;
+    }
+    const localRecords = getLocalScoutingComparisonSearchRecords(normalizedQuery, 24);
+    scoutingComparisonSearchCache = { key, status: "loading", records: localRecords, error: "", promise: null };
+    renderScoutingWorkspace({ preserveFocus: true });
+    const workerQuery = {
+      ...getScoutingWorkerQueryFromState(),
+      query: normalizedQuery,
+      league: "",
+      team: "",
+      season: "",
+      position: "",
+      offset: 0,
+      limit: 32,
+      includeTotal: "0",
+      includeOptions: "0",
+      includeMetrics: "0",
+    };
+    const promise = requestScoutingDatabaseWorkerQuery({ query: workerQuery, timeoutMs: 18000 })
+      .then((database) => {
+        if (scoutingComparisonSearchCache.key !== key) {
+          return;
+        }
+        const remoteRecords = Array.isArray(database?.records) ? database.records : [];
+        const recordMap = new Map();
+        [...localRecords, ...remoteRecords].forEach((record) => {
+          const recordId = getScoutingRecordId(record);
+          if (recordId && !recordMap.has(recordId)) {
+            recordMap.set(recordId, record);
+            rememberScoutingRecordSnapshot(record);
+          }
+        });
+        scoutingComparisonSearchCache = { key, status: "ready", records: Array.from(recordMap.values()).slice(0, 32), error: "", promise: null };
+        renderScoutingWorkspace({ preserveFocus: true });
+      })
+      .catch((error) => {
+        if (scoutingComparisonSearchCache.key !== key) {
+          return;
+        }
+        scoutingComparisonSearchCache = {
+          key,
+          status: localRecords.length ? "ready" : "error",
+          records: localRecords,
+          error: error?.message || "Could not search the full scouting database.",
+          promise: null,
+        };
+        renderScoutingWorkspace({ preserveFocus: true });
+      });
+    scoutingComparisonSearchCache.promise = promise;
+  }, 180);
 }
 function removeScoutingComparisonPlayer(recordId) {
   const id = normalizeScoutingText(recordId, 160);
@@ -14262,14 +14365,9 @@ function renderScoutingComparisonLabPanel() {
     )
     .join("");
   const selectedPlayerIds = (lab.playerIds || []).map((recordId) => normalizeScoutingText(recordId, 160));
-  const selectedRecords = selectedPlayerIds.map(getScoutingRecordById).filter(Boolean);
-  const database = getScoutingDatabase();
-  const databaseRecords = Array.isArray(database?.records) ? database.records : [];
-  const filteredDatabaseRecords = isScoutingDatabaseLoaded() ? getFilteredScoutingDatabaseRecords() : [];
-  const candidateRecords = [
-    ...filteredDatabaseRecords.slice(0, 220),
-    ...databaseRecords.slice(0, 220),
-  ];
+  const selectedRecords = selectedPlayerIds.map((recordId) => getScoutingRecordById(recordId) || getScoutingComparisonCachedRecordById(recordId)).filter(Boolean);
+  const searchRecords = Array.isArray(scoutingComparisonSearchCache.records) ? scoutingComparisonSearchCache.records : [];
+  const candidateRecords = scoutingComparisonPlayerSearchQuery.length >= 2 ? searchRecords : [];
   const candidateMap = new Map();
   [...selectedRecords, ...candidateRecords].forEach((record) => {
     const recordId = getScoutingRecordId(record);
@@ -14278,19 +14376,12 @@ function renderScoutingComparisonLabPanel() {
     }
   });
   const candidates = Array.from(candidateMap.values());
-  const getPlayerOptions = (currentValue) =>
-    candidates
-      .map((record) => {
-        const recordId = getScoutingRecordId(record);
-        return `<option value="${escapeHtml(recordId)}" ${currentValue === recordId ? "selected" : ""}>${escapeHtml(getScoutingRecordName(record))} · ${escapeHtml(getScoutingRecordTeam(record) || "No club")}</option>`;
-      })
-      .join("");
   const uniquePlayerIds = Array.from(new Set(selectedPlayerIds.filter(Boolean))).slice(0, 4);
   const selectedComparisonPlayerSet = new Set(uniquePlayerIds);
   const playerRecords = uniquePlayerIds
     .map((recordId) => ({
       recordId,
-      record: getScoutingRecordById(recordId),
+      record: getScoutingRecordById(recordId) || getScoutingComparisonCachedRecordById(recordId),
     }))
     .filter(({ record }) => Boolean(record));
   const canCompare = playerRecords.length >= 2;
@@ -14375,7 +14466,30 @@ function renderScoutingComparisonLabPanel() {
       ).slice(0, 12)
     : [];
   const canEdit = canEditScoutingWorkspace();
-  const comparisonCandidateList = scoutingComparisonCandidatesOpen
+  const selectedSlotMarkup = [0, 1, 2, 3]
+    .map((slotIndex) => {
+      const recordId = uniquePlayerIds[slotIndex] || "";
+      const record = recordId ? getScoutingRecordById(recordId) || getScoutingComparisonCachedRecordById(recordId) : null;
+      return record
+        ? `
+          <article class="scouting-comparison-selected-player">
+            ${renderScoutingRecordAvatar(record)}
+            <div>
+              <strong>${escapeHtml(getScoutingRecordName(record))}</strong>
+              <span>${escapeHtml(getScoutingRecordPosition(record) || "No position")} · ${escapeHtml(getScoutingRecordTeam(record) || getScoutingRecordLeague(record) || "No club")}</span>
+            </div>
+            <button type="button" aria-label="Remove ${escapeHtml(getScoutingRecordName(record))}" data-remove-scouting-comparison-player="${escapeHtml(recordId)}" ${canEdit ? "" : "disabled"}>x</button>
+          </article>
+        `
+        : `
+          <article class="scouting-comparison-selected-player is-empty">
+            <span>${escapeHtml(`Player ${slotIndex + 1}`)}</span>
+            <strong>Search and add</strong>
+          </article>
+        `;
+    })
+    .join("");
+  const comparisonCandidateList = scoutingComparisonCandidatesOpen || scoutingComparisonPlayerSearchQuery
     ? `
       <div class="scouting-comparison-candidate-drawer" data-scouting-comparison-candidate-area>
         ${
@@ -14401,7 +14515,11 @@ function renderScoutingComparisonLabPanel() {
                   `;
                 })
                 .join("")
-            : `<p class="scouting-muted">No searchable players found yet. Load the scouting player database or add players from the database list.</p>`
+            : scoutingComparisonPlayerSearchQuery.length < 2
+              ? `<p class="scouting-muted">Type at least two letters to search the full scouting database.</p>`
+              : scoutingComparisonSearchCache.status === "loading"
+                ? `<p class="scouting-muted">Searching the full scouting database...</p>`
+                : `<p class="scouting-muted">${escapeHtml(scoutingComparisonSearchCache.error || "No matching players found.")}</p>`
         }
       </div>
     `
@@ -14414,11 +14532,20 @@ function renderScoutingComparisonLabPanel() {
           <h2>Comparison lab</h2>
         </div>
         <button type="button" class="scouting-comparison-candidate-toggle${scoutingComparisonCandidatesOpen ? " is-open" : ""}" data-toggle-scouting-comparison-candidates>
-          ${escapeHtml(databaseRecords.length || candidates.length)} selectable players
+          ${escapeHtml(uniquePlayerIds.length)}/4 compared
         </button>
       </div>
-      ${comparisonCandidateList}
       <form class="scouting-comparison-form scouting-comparison-search" data-scouting-comparison-form>
+        <label class="scouting-comparison-player-search-field">
+          Search player
+          <input
+            type="search"
+            value="${escapeHtml(scoutingComparisonPlayerSearchQuery)}"
+            placeholder="Search name, club, league..."
+            data-scouting-comparison-player-search
+            ${canEdit ? "" : "disabled"}
+          />
+        </label>
         <fieldset class="scouting-comparison-metric-choice">
           <legend>Metrics</legend>
           <details data-scouting-comparison-metric-details ${scoutingComparisonMetricMenuOpen ? "open" : ""}>
@@ -14439,35 +14566,11 @@ function renderScoutingComparisonLabPanel() {
             </div>
           </details>
         </fieldset>
-        <label>
-          Player A
-          <select name="playerA" data-scouting-comparison-player="a" ${canEdit ? "" : "disabled"}>
-            <option value="">Search player A</option>
-            ${getPlayerOptions(selectedPlayerIds[0])}
-          </select>
-        </label>
-        <label>
-          Player B
-          <select name="playerB" data-scouting-comparison-player="b" ${canEdit ? "" : "disabled"}>
-            <option value="">Search player B</option>
-            ${getPlayerOptions(selectedPlayerIds[1])}
-          </select>
-        </label>
-        <label>
-          Player C
-          <select name="playerC" data-scouting-comparison-player="c" ${canEdit ? "" : "disabled"}>
-            <option value="">Optional player C</option>
-            ${getPlayerOptions(selectedPlayerIds[2])}
-          </select>
-        </label>
-        <label>
-          Player D
-          <select name="playerD" data-scouting-comparison-player="d" ${canEdit ? "" : "disabled"}>
-            <option value="">Optional player D</option>
-            ${getPlayerOptions(selectedPlayerIds[3])}
-          </select>
-        </label>
       </form>
+      <div class="scouting-comparison-selected-grid">
+        ${selectedSlotMarkup}
+      </div>
+      ${comparisonCandidateList}
       <p class="scouting-comparison-summary">
         ${selectedMetricOptions.length ? `Metrics: ${escapeHtml(metricLabelText)}` : "Select metrics"} ${canCompare ? `· ${metricDelta}` : "· Pick at least two players to compare"}
       </p>
@@ -16373,6 +16476,10 @@ export function handleClick(event, context) {
     event.preventDefault();
     event.stopPropagation();
     scoutingComparisonCandidatesOpen = !scoutingComparisonCandidatesOpen;
+    if (scoutingComparisonCandidatesOpen && scoutingComparisonPlayerSearchQuery) {
+      queueScoutingComparisonPlayerSearch(scoutingComparisonPlayerSearchQuery);
+      return;
+    }
     renderScoutingWorkspace({ preserveFocus: true });
     return;
   }
@@ -16928,6 +17035,11 @@ export function handleInput(event, context) {
     renderScoutingWorkspace({ preserveFocus: true });
     return;
   }
+  const comparisonPlayerSearchInput = event.target.closest("[data-scouting-comparison-player-search]");
+  if (comparisonPlayerSearchInput) {
+    queueScoutingComparisonPlayerSearch(comparisonPlayerSearchInput.value);
+    return;
+  }
   const databaseSearchInput = event.target.closest("[data-scouting-database-search-input]");
   if (databaseSearchInput) {
     scoutingDatabaseSearchDraft = databaseSearchInput.value;
@@ -17045,10 +17157,14 @@ export function handleChange(event, context) {
     scoutingComparisonMetricMenuOpen = Boolean(event.target.closest(".scouting-comparison-metric-choice"));
     const formData = new FormData(comparisonForm);
     const metricIds = formData.getAll("metricIds").map((metricId) => normalizeScoutingText(metricId, 120)).filter(Boolean);
+    const existingLab = getScoutingComparisonLab();
+    const playerFields = ["playerA", "playerB", "playerC", "playerD"].filter((fieldName) => comparisonForm.elements[fieldName]);
     setScoutingComparisonLab({
       metricId: metricIds[0],
       metricIds,
-      playerIds: [formData.get("playerA"), formData.get("playerB"), formData.get("playerC"), formData.get("playerD")],
+      playerIds: playerFields.length
+        ? [formData.get("playerA"), formData.get("playerB"), formData.get("playerC"), formData.get("playerD")]
+        : existingLab.playerIds,
     });
     renderScoutingWorkspace({ preserveFocus: true });
     return;

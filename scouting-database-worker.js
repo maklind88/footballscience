@@ -39,6 +39,42 @@ function normalizeText(value = "", limit = 120) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, limit);
 }
 
+function normalizePersonNameForMatch(value = "", limit = 180) {
+  return normalizeText(value, limit)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[.'’`´-]/g, " ")
+    .replace(/[^a-zA-Z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function getPersonNameSignature(value = "") {
+  const normalized = normalizePersonNameForMatch(value);
+  const tokens = normalized.split(" ").filter(Boolean);
+  if (!tokens.length) {
+    return { normalized: "", firstInitial: "", surname: "" };
+  }
+  const firstToken = tokens[0] || "";
+  return {
+    normalized,
+    firstInitial: firstToken.slice(0, 1),
+    surname: tokens[tokens.length - 1] || "",
+  };
+}
+
+function getInitialSurnameAlias(value = "") {
+  const signature = getPersonNameSignature(value);
+  return signature.firstInitial && signature.surname ? `${signature.firstInitial} ${signature.surname}` : "";
+}
+
+function areNamesInitialSurnameMatch(firstName = "", secondName = "") {
+  const first = getPersonNameSignature(firstName);
+  const second = getPersonNameSignature(secondName);
+  return Boolean(first.firstInitial && first.surname && first.firstInitial === second.firstInitial && first.surname === second.surname);
+}
+
 function normalizeLeague(value = "") {
   const text = normalizeText(value, 120);
   const fixedCountry = text
@@ -489,6 +525,8 @@ function buildSearchCorpus(record) {
   }
   const corpus = [
     getRecordName(record),
+    normalizePersonNameForMatch(getRecordName(record)),
+    getInitialSurnameAlias(getRecordName(record)),
     getRecordTeam(record),
     getRecordLeague(record),
     getRecordSeason(record),
@@ -685,7 +723,7 @@ function recordMatchesQuery(record, query) {
   if (Number.isFinite(query.maxAge) && query.maxAge > 0 && (!Number.isFinite(age) || age > query.maxAge)) {
     return false;
   }
-  if (query.query && !buildSearchCorpus(record).includes(query.query)) {
+  if (query.query && !buildSearchCorpus(record).includes(query.query) && !areNamesInitialSurnameMatch(query.query, getRecordName(record))) {
     return false;
   }
   return true;

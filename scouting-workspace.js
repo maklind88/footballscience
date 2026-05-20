@@ -42,6 +42,8 @@ let scoutingComparisonCandidatesOpen = false;
 let scoutingComparisonPlayerSearchQuery = "";
 let scoutingComparisonSearchTimer = 0;
 let scoutingComparisonSearchCache = { key: "", status: "idle", records: [], error: "", promise: null };
+let scoutingMyTeamRecordMatchCache = new Map();
+let scoutingMyTeamRecordHydrationInFlight = new Set();
 let scoutingLeagueQualityCache = new Map();
 let scoutingRecordMiniRadarCache = new Map();
 let scoutingFilteredDatabaseCache = {
@@ -3472,6 +3474,81 @@ function getScoutingMyTeamPlayerById(playerId, players = getScoutingMyTeamPlayer
   const id = normalizeScoutingText(playerId, 160);
   return players.find((player) => getScoutingMyTeamPlayerId(player) === id) || null;
 }
+function getScoutingRecordKnownFullNameAliases(record) {
+  const recordName = getScoutingRecordName(record);
+  return getScoutingMyTeamPlayers()
+    .map((player) => normalizeScoutingText(player.name, 160))
+    .filter((name) => name && areScoutingNamesInitialSurnameMatch(name, recordName));
+}
+function getScoutingMyTeamCandidateRecords() {
+  ensureScoutingRecordLookupsReady();
+  const seen = new Set();
+  const records = [];
+  const addRecord = (record) => {
+    const id = getScoutingRecordId(record);
+    if (!id || seen.has(id)) {
+      return;
+    }
+    seen.add(id);
+    records.push(record);
+  };
+  const databaseRecords = Array.isArray(getScoutingDatabase()?.records) ? getScoutingDatabase().records : [];
+  databaseRecords.forEach(addRecord);
+  scoutingKnownRecordLookupCache.forEach(addRecord);
+  Object.values(getScoutingPlayerSnapshots(ensureScoutingState())).forEach((snapshot) => {
+    const fallbackRecord = getScoutingSnapshotFallbackRecord(snapshot?.recordId);
+    if (fallbackRecord) {
+      addRecord(fallbackRecord);
+    }
+  });
+  return records;
+}
+function scoreScoutingMyTeamRecordMatch(player = {}, record = null) {
+  if (!record || !areScoutingNamesInitialSurnameMatch(player.name, getScoutingRecordName(record))) {
+    return -1;
+  }
+  let score = 70;
+  const playerAge = Number(player.age);
+  const recordAge = getScoutingRecordAge(record);
+  if (Number.isFinite(playerAge) && Number.isFinite(recordAge)) {
+    const delta = Math.abs(playerAge - recordAge);
+    score += delta === 0 ? 22 : delta === 1 ? 15 : delta <= 2 ? 8 : -18;
+  }
+  const playerGroup = getScoutingPositionGroup(player.position || player.bestRole || "");
+  const recordGroup = getScoutingPositionGroup(record);
+  if (playerGroup && recordGroup && playerGroup === recordGroup) {
+    score += 16;
+  }
+  const playerTeam = normalizeScoutingPersonNameForMatch(player.team || player.club || "");
+  const recordTeam = normalizeScoutingPersonNameForMatch(getScoutingRecordTeam(record));
+  if (playerTeam && recordTeam && (playerTeam === recordTeam || playerTeam.includes(recordTeam) || recordTeam.includes(playerTeam))) {
+    score += 10;
+  }
+  score += Math.min(8, Math.max(0, getScoutingRecordSeasonYearValue(record) - 2018));
+  score += Math.min(8, Math.round(getScoutingRecordMinutes(record) / 900));
+  return score;
+}
+function findScoutingRecordForMyTeamPlayer(player = {}) {
+  const playerId = getScoutingMyTeamPlayerId(player);
+  const cacheKey = [
+    playerId,
+    normalizeScoutingText(player.name, 160),
+    normalizeScoutingText(player.position, 80),
+    normalizeScoutingText(player.age, 20),
+    scoutingRecordLookupFingerprint,
+    scoutingKnownRecordLookupCache.size,
+  ].join("|");
+  if (scoutingMyTeamRecordMatchCache.has(cacheKey)) {
+    return scoutingMyTeamRecordMatchCache.get(cacheKey);
+  }
+  const candidates = getScoutingMyTeamCandidateRecords()
+    .map((record) => ({ record, score: scoreScoutingMyTeamRecordMatch(player, record) }))
+    .filter((entry) => entry.score >= 70)
+    .sort((a, b) => b.score - a.score || getScoutingRecordSeasonYearValue(b.record) - getScoutingRecordSeasonYearValue(a.record) || getScoutingRecordMinutes(b.record) - getScoutingRecordMinutes(a.record));
+  const match = candidates[0]?.record || null;
+  scoutingMyTeamRecordMatchCache.set(cacheKey, match);
+  return match;
+}
 function getScoutingMyTeamSlotPitchPosition(slot, formation = "4-3-3") {
   const role = normalizeScoutingText(slot?.label || slot?.id, 40).toUpperCase();
   const normalizedFormation = normalizeScoutingFormation(formation);
@@ -3625,28 +3702,38 @@ function renderScoutingMyTeamInfoPanel(player = {}, slot = null) {
 }
 function renderScoutingMyTeamSpiderButton(player = {}, slot = null) {
   const age = formatScoutingMyTeamAge(player.age) || "Age unknown";
-  const role = getScoutingMyTeamBestRoleLine(player);
+  const linkedRecord = findScoutingRecordForMyTeamPlayer(player);
+  const role = linkedRecord ? getScoutingRecordBestRoleLabel(linkedRecord) : getScoutingMyTeamBestRoleLine(player);
   const status = normalizeScoutingText(player.status, 80) || "Current squad";
+  const playerId = getScoutingMyTeamPlayerId(player);
   return `
-    <details class="scouting-my-team-spider-menu">
+    <details class="scouting-my-team-spider-menu" data-scouting-my-team-spider-shell="${escapeHtml(playerId)}" data-scouting-my-team-spider-linked="${escapeHtml(linkedRecord ? getScoutingRecordId(linkedRecord) : "")}">
       <summary aria-label="Open spider for ${escapeHtml(player.name || "player")}">◎</summary>
       <div class="scouting-my-team-spider-panel">
         <div>
           <span>Best profile fit</span>
           <strong>${escapeHtml(role || slot?.label || "No profile fit")}</strong>
-          <small>${escapeHtml([player.team || "Current squad", age, status].filter(Boolean).join(" · "))}</small>
+          <small>${escapeHtml([linkedRecord ? getScoutingRecordName(linkedRecord) : player.team || "Current squad", age, status].filter(Boolean).join(" · "))}</small>
         </div>
-        <svg class="player-profile-scouting-spider" viewBox="0 0 220 220" role="img" aria-label="Player spider">
-          <circle class="player-profile-scouting-ring" cx="110" cy="110" r="78" />
-          <circle class="player-profile-scouting-ring" cx="110" cy="110" r="52" />
-          <circle class="player-profile-scouting-ring" cx="110" cy="110" r="26" />
-          <text class="player-profile-scouting-empty-text" x="110" y="106">No data</text>
-          <text class="player-profile-scouting-empty-subtext" x="110" y="126">Player profile spider</text>
-        </svg>
+        <div class="scouting-my-team-spider-visual">
+          ${
+            linkedRecord
+              ? getScoutingRecordMiniRadarMarkup(linkedRecord)
+              : `
+                <svg class="player-profile-scouting-spider" viewBox="0 0 220 220" role="img" aria-label="Player spider">
+                  <circle class="player-profile-scouting-ring" cx="110" cy="110" r="78" />
+                  <circle class="player-profile-scouting-ring" cx="110" cy="110" r="52" />
+                  <circle class="player-profile-scouting-ring" cx="110" cy="110" r="26" />
+                  <text class="player-profile-scouting-empty-text" x="110" y="106">Finding data</text>
+                  <text class="player-profile-scouting-empty-subtext" x="110" y="126">Initial + surname match</text>
+                </svg>
+              `
+          }
+        </div>
         <dl>
           <div><dt>Position</dt><dd>${escapeHtml(slot?.label || player.position || "Unknown")}</dd></div>
           <div><dt>Fit</dt><dd>${escapeHtml(role || "No role model")}</dd></div>
-          <div><dt>Data</dt><dd>No linked metrics yet</dd></div>
+          <div><dt>Data</dt><dd>${linkedRecord ? escapeHtml(`Linked to ${getScoutingRecordName(linkedRecord)}`) : "Searching scouting database"}</dd></div>
         </dl>
       </div>
     </details>
@@ -4184,6 +4271,54 @@ function getScoutingRecordId(record) {
 function getScoutingRecordName(record) {
   return normalizeScoutingText(record?.[scoutingRecordIndex.player], 160) || "Unknown player";
 }
+function normalizeScoutingPersonNameForMatch(value = "", limit = 180) {
+  return normalizeScoutingText(value, limit)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[.'’`´-]/g, " ")
+    .replace(/[^a-zA-Z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+function getScoutingPersonNameSignature(value = "") {
+  const normalized = normalizeScoutingPersonNameForMatch(value);
+  const tokens = normalized.split(" ").filter(Boolean);
+  if (!tokens.length) {
+    return { normalized: "", firstInitial: "", surname: "" };
+  }
+  const firstToken = tokens[0] || "";
+  const surname = tokens[tokens.length - 1] || "";
+  return {
+    normalized,
+    firstInitial: firstToken.slice(0, 1),
+    surname,
+  };
+}
+function getScoutingInitialSurnameAlias(value = "") {
+  const signature = getScoutingPersonNameSignature(value);
+  return signature.firstInitial && signature.surname ? `${signature.firstInitial} ${signature.surname}` : "";
+}
+function areScoutingNamesInitialSurnameMatch(firstName = "", secondName = "") {
+  const first = getScoutingPersonNameSignature(firstName);
+  const second = getScoutingPersonNameSignature(secondName);
+  return Boolean(first.firstInitial && first.surname && first.firstInitial === second.firstInitial && first.surname === second.surname);
+}
+function getScoutingRecordNameAliasTerms(record) {
+  const recordName = getScoutingRecordName(record);
+  const normalizedName = normalizeScoutingPersonNameForMatch(recordName);
+  const initialSurname = getScoutingInitialSurnameAlias(recordName);
+  const terms = new Set([normalizedName, initialSurname, initialSurname ? initialSurname.replace(/\s+/g, ". ") : ""]);
+  return [...terms].filter(Boolean);
+}
+function doesScoutingRecordMatchSearchQuery(record, query = "") {
+  const normalizedQuery = normalizeScoutingPersonNameForMatch(query, 140);
+  if (!normalizedQuery) {
+    return true;
+  }
+  const corpus = normalizeScoutingPersonNameForMatch(getScoutingRecordSearchCorpus(record), 260);
+  return corpus.includes(normalizedQuery) || areScoutingNamesInitialSurnameMatch(query, getScoutingRecordName(record));
+}
 function getScoutingRecordTeam(record) {
   return normalizeScoutingText(record?.[scoutingRecordIndex.team], 160);
 }
@@ -4500,6 +4635,90 @@ function bindScoutingRecordMiniRadarShells() {
     shell.dataset.scoutingMiniRadarBound = "1";
   });
 }
+function getScoutingMyTeamWorkerSearchQuery(player = {}) {
+  return getScoutingInitialSurnameAlias(player.name) || normalizeScoutingPersonNameForMatch(player.name, 120) || normalizeScoutingText(player.name, 120);
+}
+async function hydrateScoutingMyTeamSpiderShell(shell = null) {
+  if (!shell || shell.dataset.scoutingMyTeamSpiderLoaded === "1") {
+    return;
+  }
+  if (normalizeScoutingText(shell.dataset.scoutingMyTeamSpiderLinked, 160)) {
+    shell.dataset.scoutingMyTeamSpiderLoaded = "1";
+    return;
+  }
+  const playerId = normalizeScoutingText(shell.dataset.scoutingMyTeamSpiderShell, 160);
+  const player = getScoutingMyTeamPlayerById(playerId);
+  if (!player) {
+    return;
+  }
+  let record = findScoutingRecordForMyTeamPlayer(player);
+  if (!record && typeof Worker === "function") {
+    if (scoutingMyTeamRecordHydrationInFlight.has(playerId)) {
+      return;
+    }
+    scoutingMyTeamRecordHydrationInFlight.add(playerId);
+    try {
+      const database = await requestScoutingDatabaseWorkerQuery({
+        query: {
+          ...getScoutingWorkerQueryFromState(),
+          query: getScoutingMyTeamWorkerSearchQuery(player),
+          league: "all",
+          team: "all",
+          season: "all",
+          position: "all",
+          minMinutes: 0,
+          maxMinutes: 0,
+          minAge: "",
+          maxAge: "",
+          limit: 25,
+          offset: 0,
+        },
+        timeoutMs: 9000,
+      });
+      (Array.isArray(database?.records) ? database.records : []).forEach((candidate) => {
+        const id = getScoutingRecordId(candidate);
+        if (id) {
+          scoutingKnownRecordLookupCache.set(id, candidate);
+          rememberScoutingRecordSnapshot(candidate, ensureScoutingState(), { includeAnalysis: false });
+        }
+      });
+      scoutingMyTeamRecordMatchCache.clear();
+      record = findScoutingRecordForMyTeamPlayer(player);
+      if (record) {
+        writeScoutingState({ syncCentral: false, syncShadowBoard: false });
+      }
+    } catch {
+      record = null;
+    } finally {
+      scoutingMyTeamRecordHydrationInFlight.delete(playerId);
+    }
+  }
+  if (!record) {
+    shell.dataset.scoutingMyTeamSpiderLoaded = "1";
+    return;
+  }
+  const slotId = normalizeScoutingText(shell.closest("[data-my-team-slot-role]")?.dataset.myTeamSlotRole, 40);
+  const slot = scoutingShadowSlots.find((item) => item.id === slotId) || null;
+  shell.outerHTML = renderScoutingMyTeamSpiderButton(player, slot);
+  bindScoutingMyTeamSpiderShells();
+}
+function bindScoutingMyTeamSpiderShells() {
+  const nodes = ui.scoutingWorkspace?.querySelectorAll("[data-scouting-my-team-spider-shell]") || [];
+  nodes.forEach((shell) => {
+    if (shell.dataset.scoutingMyTeamSpiderBound === "1") {
+      return;
+    }
+    const hydrate = () => hydrateScoutingMyTeamSpiderShell(shell);
+    shell.addEventListener("toggle", () => {
+      if (shell.open) {
+        hydrate();
+      }
+    });
+    shell.addEventListener("mouseenter", hydrate, { passive: true });
+    shell.addEventListener("focusin", hydrate, { passive: true });
+    shell.dataset.scoutingMyTeamSpiderBound = "1";
+  });
+}
 function getScoutingRecordSeason(record) {
   return normalizeScoutingText(record?.[scoutingRecordIndex.season], 80);
 }
@@ -4672,6 +4891,8 @@ function ensureScoutingRecordLookupsReady() {
       nextIdLookup.set(recordId, record);
       const searchCorpus = [
         getScoutingRecordName(record),
+        ...getScoutingRecordNameAliasTerms(record),
+        ...getScoutingRecordKnownFullNameAliases(record),
         getScoutingRecordTeam(record),
         getScoutingRecordLeague(record),
         getScoutingRecordSeason(record),
@@ -7262,7 +7483,7 @@ function getFilteredScoutingDatabaseRecords() {
       if (!query) {
         return true;
       }
-      return getScoutingRecordSearchCorpus(record).includes(query);
+      return doesScoutingRecordMatchSearchQuery(record, query);
     })
     .sort((a, b) => {
       if (sortMetricId === "role-fit") {
@@ -15632,6 +15853,7 @@ function renderScoutingWorkspace(options = {}) {
   restoreScoutingDisclosureSnapshot(disclosureSnapshot);
   restoreScoutingFocus(focusSnapshot);
   bindScoutingDragAndDrop();
+  bindScoutingMyTeamSpiderShells();
   if (state.activeTab === "database") {
     bindScoutingRecordMiniRadarShells();
     if (isScoutingDatabaseAdvancedMode()) {

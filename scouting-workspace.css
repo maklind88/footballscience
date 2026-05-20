@@ -8110,6 +8110,19 @@ body.is-dark-mode .scouting-shadow-slot-pin{
   font-size:.66rem;
   font-weight:760;
 }
+.scouting-my-team-spider-visual{
+  display:grid;
+  place-items:center;
+  min-height:12.5rem;
+}
+.scouting-my-team-spider-visual .scouting-mini-radar{
+  width:14.5rem;
+  max-width:100%;
+  aspect-ratio:auto;
+}
+.scouting-my-team-spider-visual .scouting-mini-radar-svg{
+  width:12.5rem;
+}
 .scouting-my-team-spider-panel .player-profile-scouting-spider{
   width:15.5rem;
   max-width:100%;

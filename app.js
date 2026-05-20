@@ -13206,6 +13206,12 @@ value.includes("training") || value.includes("match") || value.includes("recover
 );
 return isSessionPlannerOffDate(dateValue) || (!hasSessionEvent && !hasSavedTrainingSignal);
 }
+function shouldClearSessionPlannerSessionForDate(dateValue, session = {}) {
+if (isSessionPlannerOffDate(dateValue)) {
+return true;
+}
+return shouldStripSessionPlannerGeneratedDefaultSession(dateValue, session);
+}
 function cloneSessionPlannerSession(session = {}) {
 const date = session.date || formatScheduleDateValue(new Date());
 const blocks = Array.isArray(session.blocks) ? session.blocks.map(createSessionPlannerBlock) : [];
@@ -13480,7 +13486,7 @@ const selectedDate = source.selectedDate || fallback.selectedDate;
 const sessions = {};
 Object.entries(source.sessions ?? {}).forEach(([dateValue, session]) => {
 const clonedSession = cloneSessionPlannerSession({ ...session, date: session.date || dateValue });
-sessions[dateValue] = shouldStripSessionPlannerGeneratedDefaultSession(dateValue, clonedSession)
+sessions[dateValue] = shouldClearSessionPlannerSessionForDate(dateValue, clonedSession)
 ? createSessionPlannerEmptySession(dateValue)
 : clonedSession;
 });

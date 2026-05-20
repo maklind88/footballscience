@@ -352,6 +352,9 @@ test("Session Planner never seeds generated training blocks onto an off day", ()
   expect(appSource).toContain("function isSessionPlannerOffDate");
   expect(appSource).toContain("function createSessionPlannerSessionForNewPlan");
   expect(appSource).toContain("function shouldStripSessionPlannerGeneratedDefaultSession");
+  expect(appSource).toContain("function shouldClearSessionPlannerSessionForDate");
+  expect(appSource).toContain("if (isSessionPlannerOffDate(dateValue))");
+  expect(appSource).toContain("shouldClearSessionPlannerSessionForDate(dateValue, clonedSession)");
   expect(appSource).toContain(
     "sessionPlannerState.sessions[dateValue] = createSessionPlannerSessionForNewPlan(dateValue);"
   );

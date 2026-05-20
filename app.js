@@ -2085,6 +2085,7 @@ const medicalPlayerModalTabOptions = [
 { key: "profile", label: "Medical Profile" },
 { key: "plan", label: "Medical Plan" },
 ];
+const medicalDataSafetySyncStatusOptions = new Set(["idle", "pending", "stored", "legacy", "duplicate", "failed"]);
 const medicalPositionOrder = {
 Goalkeeper: 1,
 Defender: 2,
@@ -20526,7 +20527,7 @@ return `
 }
 function getMedicalAvailabilityItems(dateValue = medicalState?.selectedDate) {
 ensureMedicalState();
-return [...medicalState.players]
+return getActiveMedicalPlayers()
 .sort(compareMedicalPlayers)
 .map((player) => {
 const record = getLatestMedicalRecord(player.id, dateValue);
@@ -23177,10 +23178,96 @@ roleGroup: String(player.roleGroup ?? "").trim(),
 rosterOrder: Number.isFinite(rosterOrder) ? rosterOrder : null,
 createdAt: player.createdAt || new Date().toISOString(),
 updatedAt: player.updatedAt || new Date().toISOString(),
+archivedAt: normalizeMedicalTimestamp(player.archivedAt || player.deletedAt),
+archivedBy: String(player.archivedBy ?? player.deletedBy ?? "").trim(),
+archiveReason: String(player.archiveReason ?? player.deleteReason ?? "").trim().slice(0, 160),
 };
 }
 function normalizeMedicalShareValue(value) {
 return value === true || value === "true" || value === "on" || value === "1";
+}
+function normalizeMedicalTimestamp(value) {
+const cleanValue = String(value ?? "").trim().slice(0, 40);
+return Number.isFinite(Date.parse(cleanValue)) ? cleanValue : "";
+}
+function isMedicalItemArchived(item = {}) {
+return Boolean(normalizeMedicalTimestamp(item.archivedAt || item.deletedAt));
+}
+function getCurrentMedicalActorId() {
+const user = getCurrentPlatformUser();
+return String(user?.id || user?.username || user?.email || "").trim();
+}
+function getMedicalDataSafetyCounts(source = {}) {
+const players = Array.isArray(source.players) ? source.players : [];
+const records = Array.isArray(source.records) ? source.records : [];
+const injuryPlans = Array.isArray(source.injuryPlans) ? source.injuryPlans : [];
+return {
+archivedPlayers: players.filter(isMedicalItemArchived).length,
+archivedRecords: records.filter(isMedicalItemArchived).length,
+archivedPlans: injuryPlans.filter(isMedicalItemArchived).length,
+};
+}
+function normalizeMedicalDataSafety(dataSafety = {}, source = {}) {
+const counts = getMedicalDataSafetyCounts(source);
+const syncStatus = String(dataSafety.lastDatabaseSyncStatus ?? "idle").trim().toLowerCase();
+return {
+schema: "footballscience-medical-data-safety-v1",
+lastClinicalChangeAt: normalizeMedicalTimestamp(dataSafety.lastClinicalChangeAt),
+lastClinicalChangeBy: String(dataSafety.lastClinicalChangeBy ?? "").trim().slice(0, 160),
+lastClinicalChangeType: String(dataSafety.lastClinicalChangeType ?? "").trim().slice(0, 80),
+lastClinicalChangeSummary: String(dataSafety.lastClinicalChangeSummary ?? "").trim().slice(0, 220),
+lastDatabaseSyncAt: normalizeMedicalTimestamp(dataSafety.lastDatabaseSyncAt),
+lastDatabaseSyncStatus: medicalDataSafetySyncStatusOptions.has(syncStatus) ? syncStatus : "idle",
+lastDatabaseSyncEvent: String(dataSafety.lastDatabaseSyncEvent ?? "").trim().slice(0, 80),
+lastPayloadHash: String(dataSafety.lastPayloadHash ?? "").trim().slice(0, 80),
+archivedRecordCount: counts.archivedRecords,
+archivedPlanCount: counts.archivedPlans,
+archivedPlayerCount: counts.archivedPlayers,
+};
+}
+function markMedicalClinicalChange(changeType, summary) {
+ensureMedicalState();
+medicalState.dataSafety = normalizeMedicalDataSafety(
+{
+...medicalState.dataSafety,
+lastClinicalChangeAt: new Date().toISOString(),
+lastClinicalChangeBy: getCurrentMedicalActorId(),
+lastClinicalChangeType: changeType,
+lastClinicalChangeSummary: summary,
+lastDatabaseSyncStatus: "pending",
+lastDatabaseSyncEvent: changeType,
+},
+medicalState
+);
+}
+function commitMedicalClinicalState(changeType, summary) {
+markMedicalClinicalChange(changeType, summary);
+writeMedicalState();
+}
+function updateMedicalDatabaseSyncStatus(eventType, result = {}) {
+if (!medicalState) {
+return;
+}
+const status = result.ok
+? result.stored
+? "stored"
+: result.duplicate
+? "duplicate"
+: result.enabled === false || result.localDev
+? "legacy"
+: "legacy"
+: "failed";
+medicalState.dataSafety = normalizeMedicalDataSafety(
+{
+...medicalState.dataSafety,
+lastDatabaseSyncAt: new Date().toISOString(),
+lastDatabaseSyncStatus: status,
+lastDatabaseSyncEvent: eventType,
+lastPayloadHash: result.payloadHash || medicalState.dataSafety?.lastPayloadHash || "",
+},
+medicalState
+);
+writeMedicalState();
 }
 function normalizeMedicalClearance(clearance = {}) {
 return medicalClearanceRoles.reduce((result, role) => {
@@ -23218,6 +23305,8 @@ const participation = normalizeMedicalParticipation(record.participation);
 const statusKey = medicalStatusOptions.some((status) => status.key === record.status)
 ? record.status
 : getMedicalStatusForParticipation(participation);
+const createdAt = normalizeMedicalTimestamp(record.createdAt) || new Date().toISOString();
+const archivedAt = normalizeMedicalTimestamp(record.archivedAt || record.deletedAt);
 return {
 id: record.id || createDashboardId("medical-record"),
 playerId,
@@ -23235,8 +23324,12 @@ statusKey,
 participation,
 getMedicalRecommendationActivityContext(date).type
 ),
-createdAt: record.createdAt || new Date().toISOString(),
+createdAt,
+updatedAt: normalizeMedicalTimestamp(record.updatedAt) || archivedAt || createdAt,
 createdBy: record.createdBy || getCurrentPlatformUser()?.id || "",
+archivedAt,
+archivedBy: String(record.archivedBy ?? record.deletedBy ?? "").trim(),
+archiveReason: String(record.archiveReason ?? record.deleteReason ?? "").trim().slice(0, 160),
 };
 }
 function addMedicalCalendarMonths(date, months) {
@@ -23279,6 +23372,8 @@ const participation = normalizeMedicalParticipation(plan.participation, phaseOpt
 const status = medicalInjuryPlanStatusOptions.some((option) => option.key === plan.status)
 ? plan.status
 : phaseOption.status;
+const createdAt = normalizeMedicalTimestamp(plan.createdAt) || new Date().toISOString();
+const archivedAt = normalizeMedicalTimestamp(plan.archivedAt || plan.deletedAt);
 return {
 id: plan.id || createDashboardId("medical-injury-plan"),
 playerId,
@@ -23298,9 +23393,12 @@ gates: normalizeMedicalLoadGates(plan.gates),
 coachNote: String(plan.coachNote ?? "").trim(),
 shareWithCoach: normalizeMedicalShareValue(plan.shareWithCoach),
 comment: String(plan.comment ?? "").trim(),
-createdAt: plan.createdAt || new Date().toISOString(),
-updatedAt: plan.updatedAt || new Date().toISOString(),
+createdAt,
+updatedAt: normalizeMedicalTimestamp(plan.updatedAt) || archivedAt || createdAt,
 createdBy: plan.createdBy || getCurrentPlatformUser()?.id || "",
+archivedAt,
+archivedBy: String(plan.archivedBy ?? plan.deletedBy ?? "").trim(),
+archiveReason: String(plan.archiveReason ?? plan.deleteReason ?? "").trim().slice(0, 160),
 };
 }
 function createDefaultMedicalGovernancePolicy() {
@@ -23419,15 +23517,17 @@ return new Date(second.createdAt) - new Date(first.createdAt);
 const selectedDate = isMedicalDateValue(source.selectedDate)
 ? source.selectedDate
 : formatScheduleDateValue(new Date());
-const selectedPlayerId = players.some((player) => player.id === source.selectedPlayerId)
+const activePlayers = players.filter((player) => !isMedicalItemArchived(player));
+const selectedPlayerId = activePlayers.some((player) => player.id === source.selectedPlayerId)
 ? source.selectedPlayerId
-: players[0]?.id || "";
+: activePlayers[0]?.id || "";
 return {
 selectedDate,
 selectedPlayerId,
 players,
 records,
 injuryPlans,
+dataSafety: normalizeMedicalDataSafety(source.dataSafety, { players, records, injuryPlans }),
 policy: normalizeMedicalGovernancePolicy(source.policy),
 rosterVersion: source.rosterVersion || medicalDefaultRosterVersion,
 };
@@ -27437,15 +27537,24 @@ return normalizePlatformStructureText(user?.team || user?.teamName || user?.club
 }
 function getSelectedMedicalPlayer() {
 ensureMedicalState();
-return medicalState.players.find((player) => player.id === medicalState.selectedPlayerId) ?? medicalState.players[0] ?? null;
+return (
+medicalState.players.find((player) => player.id === medicalState.selectedPlayerId && !isMedicalItemArchived(player)) ??
+medicalState.players.find((player) => !isMedicalItemArchived(player)) ??
+null
+);
+}
+function getActiveMedicalPlayers() {
+ensureMedicalState();
+return medicalState.players.filter((player) => !isMedicalItemArchived(player));
 }
 function isMedicalInjuryPlanActive(plan, dateValue = medicalState?.selectedDate) {
-return Boolean(plan && isMedicalDateValue(dateValue) && plan.startDate <= dateValue && plan.endDate >= dateValue);
+return Boolean(plan && !isMedicalItemArchived(plan) && isMedicalDateValue(dateValue) && plan.startDate <= dateValue && plan.endDate >= dateValue);
 }
-function getMedicalPlayerInjuryPlans(playerId) {
+function getMedicalPlayerInjuryPlans(playerId, options = {}) {
 ensureMedicalState();
+const includeArchived = Boolean(options.includeArchived);
 return medicalState.injuryPlans
-.filter((plan) => plan.playerId === playerId)
+.filter((plan) => plan.playerId === playerId && (includeArchived || !isMedicalItemArchived(plan)))
 .sort((first, second) => {
 const activeComparison =
 Number(isMedicalInjuryPlanActive(second, medicalState.selectedDate)) -
@@ -27464,7 +27573,7 @@ function getActiveMedicalInjuryPlan(playerId, dateValue = medicalState?.selected
 ensureMedicalState();
 return medicalState.injuryPlans
 .filter((plan) => plan.playerId === playerId && isMedicalInjuryPlanActive(plan, dateValue))
-.sort((first, second) => new Date(second.createdAt) - new Date(first.createdAt))[0] ?? null;
+.sort((first, second) => new Date(second.updatedAt || second.createdAt) - new Date(first.updatedAt || first.createdAt))[0] ?? null;
 }
 function isMedicalPlanCleared(plan) {
 if (!plan) {
@@ -27497,7 +27606,7 @@ return [];
 }
 const endDate = formatScheduleDateValue(addCalendarDays(parseScheduleDateValue(dateValue), 7));
 return medicalState.injuryPlans
-.filter((plan) => plan.reviewDate && plan.reviewDate <= endDate && plan.endDate >= dateValue)
+.filter((plan) => !isMedicalItemArchived(plan) && plan.reviewDate && plan.reviewDate <= endDate && plan.endDate >= dateValue)
 .map((plan) => ({
 plan,
 player: medicalState.players.find((player) => player.id === plan.playerId) ?? null,
@@ -27551,23 +27660,24 @@ injuryPlanId: plan.id,
 function getLatestMedicalRecord(playerId, dateValue = medicalState?.selectedDate) {
 ensureMedicalState();
 const manualRecord = medicalState.records
-.filter((record) => record.playerId === playerId && record.date === dateValue)
-.sort((first, second) => new Date(second.createdAt) - new Date(first.createdAt))[0] ?? null;
+.filter((record) => record.playerId === playerId && record.date === dateValue && !isMedicalItemArchived(record))
+.sort((first, second) => new Date(second.updatedAt || second.createdAt) - new Date(first.updatedAt || first.createdAt))[0] ?? null;
 if (manualRecord) {
 return manualRecord;
 }
 return createMedicalRecordFromInjuryPlan(getActiveMedicalInjuryPlan(playerId, dateValue), dateValue);
 }
-function getMedicalPlayerRecords(playerId) {
+function getMedicalPlayerRecords(playerId, options = {}) {
 ensureMedicalState();
+const includeArchived = Boolean(options.includeArchived);
 return medicalState.records
-.filter((record) => record.playerId === playerId)
+.filter((record) => record.playerId === playerId && (includeArchived || !isMedicalItemArchived(record)))
 .sort((first, second) => {
 const dateComparison = second.date.localeCompare(first.date);
 if (dateComparison !== 0) {
 return dateComparison;
 }
-return new Date(second.createdAt) - new Date(first.createdAt);
+return new Date(second.updatedAt || second.createdAt) - new Date(first.updatedAt || first.createdAt);
 });
 }
 function getMedicalWindowDates() {
@@ -27741,7 +27851,7 @@ function getMedicalParticipationAverageForDates(dateValues = []) {
 ensureMedicalState();
 const records = [];
 dateValues.forEach((dateValue) => {
-medicalState.players.forEach((player) => {
+getActiveMedicalPlayers().forEach((player) => {
 const record = getLatestMedicalRecord(player.id, dateValue);
 if (record) {
 records.push(record);
@@ -27753,7 +27863,7 @@ averageParticipation: records.length
 ? Math.round(records.reduce((sum, record) => sum + record.participation, 0) / records.length)
 : null,
 loggedCount: records.length,
-slotCount: Math.max(0, dateValues.length * medicalState.players.length),
+slotCount: Math.max(0, dateValues.length * getActiveMedicalPlayers().length),
 };
 }
 function getMedicalMonthAverageStats() {
@@ -27761,7 +27871,7 @@ return getMedicalParticipationAverageForDates(getMedicalMonthToDateDates(new Dat
 }
 function getMedicalAttentionPlayers(dateValue = medicalState?.selectedDate) {
 ensureMedicalState();
-return medicalState.players
+return getActiveMedicalPlayers()
 .map((player) => {
 const record = getLatestMedicalRecord(player.id, dateValue);
 const status = getMedicalRecordStatus(record);
@@ -27784,7 +27894,7 @@ return compareMedicalPlayers(first.player, second.player);
 function getMedicalPositionSummaries(dateValue = medicalState?.selectedDate) {
 ensureMedicalState();
 const summaries = new Map();
-medicalState.players.forEach((player) => {
+getActiveMedicalPlayers().forEach((player) => {
 const position = normalizeMedicalPlayerPosition(player.position, player);
 const currentSummary = summaries.get(position) ?? {
 position,
@@ -27923,19 +28033,24 @@ return medicalState.players.find((player) => player.id === playerId) ?? null;
 function buildMedicalDatabaseStateSummary() {
 ensureMedicalState();
 const stats = getMedicalDailyStats(medicalState.selectedDate);
+const archiveCounts = getMedicalDataSafetyCounts(medicalState);
 return {
 selectedDate: medicalState.selectedDate,
 rosterVersion: medicalState.rosterVersion,
-playerCount: medicalState.players.length,
+playerCount: getActiveMedicalPlayers().length,
+archivedPlayerCount: archiveCounts.archivedPlayers,
 recordCount: medicalState.records.length,
 injuryPlanCount: medicalState.injuryPlans.length,
+archivedRecordCount: archiveCounts.archivedRecords,
+archivedPlanCount: archiveCounts.archivedPlans,
+lastClinicalChangeAt: medicalState.dataSafety?.lastClinicalChangeAt || "",
 fullCount: stats.fullCount,
 modifiedCount: stats.modifiedCount,
 unavailableCount: stats.unavailableCount,
 unloggedCount: stats.unloggedCount,
 coachSharedItems:
-medicalState.records.filter((record) => record.shareWithCoach).length +
-medicalState.injuryPlans.filter((plan) => plan.shareWithCoach).length,
+medicalState.records.filter((record) => !isMedicalItemArchived(record) && record.shareWithCoach).length +
+medicalState.injuryPlans.filter((plan) => !isMedicalItemArchived(plan) && plan.shareWithCoach).length,
 };
 }
 function getMedicalDatabaseIdempotencyKey(eventType, payload = {}) {
@@ -27985,7 +28100,15 @@ stateSummary: buildMedicalDatabaseStateSummary(),
 ...payloadCopy,
 },
 })
-.catch(() => ({ ok: false }));
+.then((result) => {
+updateMedicalDatabaseSyncStatus(eventType, result);
+return result;
+})
+.catch(() => {
+const result = { ok: false };
+updateMedicalDatabaseSyncStatus(eventType, result);
+return result;
+});
 }
 function copyMedicalCoachHandoverToClipboard() {
 const text = buildMedicalCoachHandoverText(medicalState.selectedDate);
@@ -28050,11 +28173,12 @@ return items.map(renderItem).join("");
 function renderMedicalDailyHuddle() {
 const huddle = getMedicalDailyHuddle(medicalState.selectedDate);
 const stats = getMedicalDailyStats(medicalState.selectedDate);
+const activePlayerCount = getActiveMedicalPlayers().length;
 return `
 <section class="medical-huddle" aria-label="Daily Medical Huddle">
 <article class="medical-huddle-brief">
 <span>Daily Huddle</span>
-<strong>${stats.fullCount}/${medicalState.players.length}</strong>
+<strong>${stats.fullCount}/${activePlayerCount}</strong>
 <div class="medical-huddle-kpis">
 <small>${huddle.restricted.length} managed</small>
 <small>${huddle.needsRecommendation.length} open</small>
@@ -28231,7 +28355,7 @@ summary.coachNote
 function getFilteredMedicalPlayers() {
 ensureMedicalState();
 const query = medicalRosterSearchQuery.trim().toLowerCase();
-return medicalState.players.filter((player) => {
+return getActiveMedicalPlayers().filter((player) => {
 const record = getLatestMedicalRecord(player.id, medicalState.selectedDate);
 const status = getMedicalRecordStatus(record);
 const matchesSearch = !query || `${player.name} ${player.number} ${player.position}`.toLowerCase().includes(query);
@@ -28244,7 +28368,7 @@ return matchesSearch && matchesStatus;
 }
 function getMedicalValidBulkSelection() {
 ensureMedicalState();
-const validIds = new Set(medicalState.players.map((player) => player.id));
+const validIds = new Set(getActiveMedicalPlayers().map((player) => player.id));
 medicalBulkSelectedPlayerIds = new Set(
 Array.from(medicalBulkSelectedPlayerIds).filter((playerId) => validIds.has(playerId))
 );
@@ -28252,19 +28376,19 @@ return medicalBulkSelectedPlayerIds;
 }
 function getMedicalBulkSelectedPlayers() {
 const selectedIds = getMedicalValidBulkSelection();
-return medicalState.players.filter((player) => selectedIds.has(player.id)).sort(compareMedicalPlayers);
+return getActiveMedicalPlayers().filter((player) => selectedIds.has(player.id)).sort(compareMedicalPlayers);
 }
 function toggleMedicalBulkPlayer(playerId) {
 const selectedIds = getMedicalValidBulkSelection();
 if (selectedIds.has(playerId)) {
 selectedIds.delete(playerId);
-} else if (medicalState.players.some((player) => player.id === playerId)) {
+} else if (getActiveMedicalPlayers().some((player) => player.id === playerId)) {
 selectedIds.add(playerId);
 }
 renderMedicalTeamWorkspace();
 }
 function setMedicalBulkSelection(playerIds = []) {
-const validIds = new Set(medicalState.players.map((player) => player.id));
+const validIds = new Set(getActiveMedicalPlayers().map((player) => player.id));
 medicalBulkSelectedPlayerIds = new Set(playerIds.filter((playerId) => validIds.has(playerId)));
 renderMedicalTeamWorkspace();
 }
@@ -28347,7 +28471,7 @@ comment: values.comment,
 coachNote: values.coachNote,
 shareWithCoach: values.shareWithCoach,
 rtpPhase,
-});
+}, { skipDataSafety: true });
 if (record) {
 savedCount += 1;
 savedRecords.push(record);
@@ -28356,7 +28480,11 @@ savedRecords.push(record);
 medicalState.selectedDate = dateValue;
 medicalBulkSelectedPlayerIds = new Set();
 medicalBulkRecommendationOpen = false;
+if (savedCount) {
+commitMedicalClinicalState("bulk-recommendation-saved", `${savedCount} bulk recommendations saved for ${dateValue}.`);
+} else {
 writeMedicalState();
+}
 return {
 savedCount,
 records: savedRecords,
@@ -28472,9 +28600,9 @@ policy,
 daysSinceReview,
 reviewDue,
 coachSharedItems:
-medicalState.records.filter((record) => record.shareWithCoach).length +
-medicalState.injuryPlans.filter((plan) => plan.shareWithCoach).length,
-privateRecordCount: medicalState.records.filter((record) => String(record.comment || "").trim()).length,
+medicalState.records.filter((record) => !isMedicalItemArchived(record) && record.shareWithCoach).length +
+medicalState.injuryPlans.filter((plan) => !isMedicalItemArchived(plan) && plan.shareWithCoach).length,
+privateRecordCount: medicalState.records.filter((record) => !isMedicalItemArchived(record) && String(record.comment || "").trim()).length,
 };
 }
 function updateMedicalGovernancePolicy(values = {}) {
@@ -28500,8 +28628,9 @@ function renderMedicalCommandBoard() {
 const attentionPlayers = getMedicalAttentionPlayers(medicalState.selectedDate).slice(0, 6);
 const positionSummaries = getMedicalPositionSummaries(medicalState.selectedDate);
 const reviewAlerts = getMedicalReviewAlerts(medicalState.selectedDate);
-const fullClearance = medicalState.players.length
-? Math.round((getMedicalDailyStats(medicalState.selectedDate).fullCount / medicalState.players.length) * 100)
+const activePlayerCount = getActiveMedicalPlayers().length;
+const fullClearance = activePlayerCount
+? Math.round((getMedicalDailyStats(medicalState.selectedDate).fullCount / activePlayerCount) * 100)
 : 0;
 return `
 <section class="medical-command-board" aria-label="Medical command board">
@@ -28535,7 +28664,7 @@ attentionPlayers.length
 <article class="medical-command-card">
 <div class="medical-command-head">
 <span>Position Load</span>
-<strong>${medicalState.players.length}</strong>
+<strong>${activePlayerCount}</strong>
 </div>
 <div class="medical-position-load">
 ${positionSummaries
@@ -28680,7 +28809,7 @@ return Boolean(plan && plan.startDate <= endDate && plan.endDate >= startDate);
 function getMedicalSeasonPlans(dateValue = medicalState?.selectedDate) {
 ensureMedicalState();
 const { startDate, endDate } = getMedicalSeasonWindow(dateValue);
-return medicalState.injuryPlans.filter((plan) => medicalPlanOverlapsWindow(plan, startDate, endDate));
+return medicalState.injuryPlans.filter((plan) => !isMedicalItemArchived(plan) && medicalPlanOverlapsWindow(plan, startDate, endDate));
 }
 function getMedicalActiveCaseItems(dateValue = medicalState?.selectedDate) {
 ensureMedicalState();
@@ -28711,14 +28840,17 @@ ensureMedicalState();
 const playerById = new Map(medicalState.players.map((player) => [player.id, player]));
 const recommendationEvents = medicalState.records.map((record) => {
 const player = playerById.get(record.playerId) ?? null;
+const archived = isMedicalItemArchived(record);
 return {
 id: record.id,
 date: record.date,
-sortTime: record.createdAt || `${record.date}T00:00:00.000Z`,
+sortTime: archived ? record.archivedAt : record.updatedAt || record.createdAt || `${record.date}T00:00:00.000Z`,
 player,
-type: "Recommendation",
+type: archived ? "Recommendation archived" : "Recommendation",
 title: `${record.participation}% / ${getMedicalRecordStatus(record).label}`,
-detail: record.actualParticipation === medicalActualParticipationFallback
+detail: archived
+? record.archiveReason || "Kept in protected clinical archive"
+: record.actualParticipation === medicalActualParticipationFallback
 ? getMedicalRtpPhaseOption(record.rtpPhase).label
 : `Actual ${record.actualParticipation}%`,
 coachShared: record.shareWithCoach,
@@ -28726,14 +28858,17 @@ coachShared: record.shareWithCoach,
 });
 const caseEvents = medicalState.injuryPlans.map((plan) => {
 const player = playerById.get(plan.playerId) ?? null;
+const archived = isMedicalItemArchived(plan);
 return {
 id: plan.id,
 date: plan.startDate,
-sortTime: plan.createdAt || `${plan.startDate}T00:00:00.000Z`,
+sortTime: archived ? plan.archivedAt : plan.updatedAt || plan.createdAt || `${plan.startDate}T00:00:00.000Z`,
 player,
-type: "Case opened",
+type: archived ? "Case archived" : "Case opened",
 title: plan.injuryType,
-detail: `${getMedicalRtpPhaseOption(plan.rtpPhase).label} / ${plan.participation}% / ${getMedicalPlanTotalDays(plan)} days`,
+detail: archived
+? plan.archiveReason || "Kept in protected clinical archive"
+: `${getMedicalRtpPhaseOption(plan.rtpPhase).label} / ${plan.participation}% / ${getMedicalPlanTotalDays(plan)} days`,
 coachShared: plan.shareWithCoach,
 };
 });
@@ -28852,6 +28987,7 @@ primaryDriver: drivers[0]?.label || "No medical signal",
 function getMedicalRiskSignals(dateValue = medicalState?.selectedDate) {
 ensureMedicalState();
 return medicalState.players
+ .filter((player) => !isMedicalItemArchived(player))
 .map((player) => getMedicalPlayerRiskSignal(player, dateValue))
 .sort((first, second) => {
 if (first.highestSeverity !== second.highestSeverity) {
@@ -29180,11 +29316,13 @@ function renderMedicalAvailabilityWorkspace(message = "") {
 const stats = getMedicalDailyStats(medicalState.selectedDate);
 const windowAverage = getMedicalWindowAverage();
 const monthStats = getMedicalMonthAverageStats();
+const hasActivePlayers = getActiveMedicalPlayers().length > 0;
 return `
 <section class="medical-availability-workspace" data-medical-availability-workspace aria-label="Medical availability recommendations">
 ${renderMedicalDateStrip()}
 ${renderMedicalActivityContextPanel()}
 ${message ? `<div class="medical-message">${escapeHtml(message)}</div>` : ""}
+${renderMedicalDataSafetyPanel()}
 <section class="medical-metrics-grid" aria-label="Medical availability summary">
 ${renderMedicalMetric("Full", String(stats.fullCount), "100%", "full")}
 ${renderMedicalMetric("Modified", String(stats.modifiedCount), "10-75%", "modified")}
@@ -29194,7 +29332,7 @@ ${renderMedicalMetric("Month average", monthStats.averageParticipation === null 
 ${renderMedicalMetric("7-day average", windowAverage === null ? "-" : `${windowAverage}%`, "last 7 days")}
 </section>
 ${
-medicalState.players.length
+hasActivePlayers
 ? `
 <section class="medical-layout">
 ${renderMedicalRosterPanel()}
@@ -29205,6 +29343,53 @@ ${canViewPrivateMedicalDetails() ? "" : renderMedicalOperationsSystem()}
 `
 : renderMedicalRosterSetup()
 }
+</section>
+`;
+}
+function formatMedicalTimestampLabel(timestamp) {
+const cleanTimestamp = normalizeMedicalTimestamp(timestamp);
+if (!cleanTimestamp) {
+return "No clinical save yet";
+}
+return new Intl.DateTimeFormat("en-GB", {
+day: "numeric",
+month: "short",
+hour: "2-digit",
+minute: "2-digit",
+}).format(new Date(cleanTimestamp));
+}
+function getMedicalDatabaseSyncLabel(status) {
+if (status === "stored") {
+return "Database shadow saved";
+}
+if (status === "duplicate") {
+return "Database already current";
+}
+if (status === "failed") {
+return "Sync needs retry";
+}
+if (status === "pending") {
+return "Sync pending";
+}
+return "Protected app-state";
+}
+function renderMedicalDataSafetyPanel() {
+const safety = normalizeMedicalDataSafety(medicalState.dataSafety, medicalState);
+const archiveTotal = safety.archivedRecordCount + safety.archivedPlanCount + safety.archivedPlayerCount;
+const lastChangeLabel = formatMedicalTimestampLabel(safety.lastClinicalChangeAt);
+const lastSummary = safety.lastClinicalChangeSummary || "Clinical changes are protected by merge and archive safeguards.";
+const syncLabel = getMedicalDatabaseSyncLabel(safety.lastDatabaseSyncStatus);
+return `
+<section class="medical-data-safety medical-data-safety-${escapeHtml(safety.lastDatabaseSyncStatus)}" data-medical-data-safety>
+<div>
+<span>Data safety</span>
+<strong>${escapeHtml(lastChangeLabel)}</strong>
+<small>${escapeHtml(lastSummary)}</small>
+</div>
+<div class="medical-data-safety-pills">
+<span>${escapeHtml(syncLabel)}</span>
+<span>${archiveTotal} archived</span>
+</div>
 </section>
 `;
 }
@@ -29544,7 +29729,7 @@ return `
 <small>${record.participation}% recommended / ${escapeHtml(actualText)}</small>
 ${record.comment ? `<p>${escapeHtml(record.comment)}</p>` : ""}
 </div>
-${canEditMedicalTeam() ? `<button type="button" class="medical-log-delete" data-medical-delete-record="${escapeHtml(record.id)}" aria-label="Delete log entry">x</button>` : ""}
+${canEditMedicalTeam() ? `<button type="button" class="medical-log-delete" data-medical-delete-record="${escapeHtml(record.id)}" aria-label="Archive log entry">Archive</button>` : ""}
 </article>
 `;
 })
@@ -29638,7 +29823,7 @@ return `
 ${plan.bodyArea || plan.reviewDate ? `<small>${escapeHtml([plan.bodyArea, plan.reviewDate ? `Review ${formatMedicalDateLabel(plan.reviewDate)}` : ""].filter(Boolean).join(" / "))}</small>` : ""}
 ${plan.comment ? `<p>${escapeHtml(plan.comment)}</p>` : ""}
 </div>
-${canEditMedicalTeam() ? `<button type="button" class="medical-log-delete" data-medical-delete-injury-plan="${escapeHtml(plan.id)}" aria-label="Delete injury plan">x</button>` : ""}
+${canEditMedicalTeam() ? `<button type="button" class="medical-log-delete" data-medical-delete-injury-plan="${escapeHtml(plan.id)}" aria-label="Archive injury plan">Archive</button>` : ""}
 </article>
 `;
 })
@@ -29952,22 +30137,26 @@ ${renderMedicalActualPresets(formActual, canRecommend)}
 `;
 }
 function renderMedicalPlanListCard(player) {
+const activeCount = getMedicalPlayerInjuryPlans(player.id).length;
+const archivedCount = getMedicalPlayerInjuryPlans(player.id, { includeArchived: true }).filter(isMedicalItemArchived).length;
 return `
 <article class="medical-side-card medical-plan-list-card">
 <div class="medical-card-headline">
 <h2>Availability Plans</h2>
-<span>${getMedicalPlayerInjuryPlans(player.id).length}</span>
+<span>${activeCount}${archivedCount ? ` / ${archivedCount} archived` : ""}</span>
 </div>
 <div class="medical-plan-list">${renderMedicalInjuryPlanList(player)}</div>
 </article>
 `;
 }
 function renderMedicalLogCard(player) {
+const activeCount = getMedicalPlayerRecords(player.id).length;
+const archivedCount = getMedicalPlayerRecords(player.id, { includeArchived: true }).filter(isMedicalItemArchived).length;
 return `
 <article class="medical-side-card medical-log-card">
 <div class="medical-card-headline">
 <h2>Medical Log</h2>
-<span>${getMedicalPlayerRecords(player.id).length}</span>
+<span>${activeCount}${archivedCount ? ` / ${archivedCount} archived` : ""}</span>
 </div>
 <div class="medical-log-list">${renderMedicalLog(player)}</div>
 </article>
@@ -30344,6 +30533,9 @@ Object.assign(existingPlayer, {
 ...existingPlayer,
 ...player,
 id: existingPlayer.id || player.id,
+archivedAt: "",
+archivedBy: "",
+archiveReason: "",
 updatedAt: new Date().toISOString(),
 });
 } else {
@@ -30361,7 +30553,7 @@ selectedPlayerId: medicalState.selectedPlayerId || nextPlayers[0]?.id || "",
 });
 writeMedicalState();
 }
-function addMedicalRecord(values) {
+function addMedicalRecord(values, options = {}) {
 ensureMedicalState();
 const playerId = values.playerId;
 const player = medicalState.players.find((candidate) => candidate.id === playerId);
@@ -30394,7 +30586,11 @@ return null;
 medicalState.records = [record, ...medicalState.records];
 medicalState.selectedDate = record.date;
 medicalState.selectedPlayerId = playerId;
+if (options.skipDataSafety) {
 writeMedicalState();
+} else {
+commitMedicalClinicalState("recommendation-saved", `${player.name}: ${record.participation}% recommendation saved.`);
+}
 return record;
 }
 function updateMedicalPlayerProfile(values) {
@@ -30422,25 +30618,81 @@ medicalState = cloneMedicalState({
 players: nextPlayers,
 selectedPlayerId: nextPlayer.id,
 });
-writeMedicalState();
+commitMedicalClinicalState("player-profile-saved", `${nextPlayer.name} profile saved.`);
 return true;
 }
 function removeMedicalPlayer(playerId) {
 ensureMedicalState();
-const nextPlayers = medicalState.players.filter((player) => player.id !== playerId);
-medicalState = cloneMedicalState({
-...medicalState,
-players: nextPlayers,
-records: medicalState.records.filter((record) => record.playerId !== playerId),
-injuryPlans: medicalState.injuryPlans.filter((plan) => plan.playerId !== playerId),
-selectedPlayerId: nextPlayers[0]?.id || "",
+const playerIndex = medicalState.players.findIndex((player) => player.id === playerId);
+if (playerIndex < 0) {
+return null;
+}
+const archivedAt = new Date().toISOString();
+const archivedPlayer = normalizeMedicalPlayer({
+...medicalState.players[playerIndex],
+updatedAt: archivedAt,
+archivedAt,
+archivedBy: getCurrentMedicalActorId(),
+archiveReason: "Manual archive from Medical Room",
 });
-writeMedicalState();
+if (!archivedPlayer) {
+return null;
+}
+const nextPlayers = [...medicalState.players];
+nextPlayers[playerIndex] = archivedPlayer;
+medicalState.players = nextPlayers;
+medicalState.records = medicalState.records.map((record) =>
+record.playerId === playerId && !isMedicalItemArchived(record)
+? normalizeMedicalRecord({
+...record,
+updatedAt: archivedAt,
+archivedAt,
+archivedBy: getCurrentMedicalActorId(),
+archiveReason: "Player archived from Medical Room",
+}) || record
+: record
+);
+medicalState.injuryPlans = medicalState.injuryPlans.map((plan) =>
+plan.playerId === playerId && !isMedicalItemArchived(plan)
+? normalizeMedicalInjuryPlan({
+...plan,
+updatedAt: archivedAt,
+archivedAt,
+archivedBy: getCurrentMedicalActorId(),
+archiveReason: "Player archived from Medical Room",
+}) || plan
+: plan
+);
+medicalState.selectedPlayerId = getActiveMedicalPlayers()[0]?.id || "";
+commitMedicalClinicalState("player-archived", `${archivedPlayer.name} archived with protected medical history.`);
+return archivedPlayer;
 }
 function removeMedicalRecord(recordId) {
 ensureMedicalState();
-medicalState.records = medicalState.records.filter((record) => record.id !== recordId);
-writeMedicalState();
+const recordIndex = medicalState.records.findIndex((record) => record.id === recordId);
+if (recordIndex < 0) {
+return null;
+}
+const currentRecord = medicalState.records[recordIndex];
+if (isMedicalItemArchived(currentRecord)) {
+return currentRecord;
+}
+const archivedAt = new Date().toISOString();
+const archivedRecord = normalizeMedicalRecord({
+...currentRecord,
+updatedAt: archivedAt,
+archivedAt,
+archivedBy: getCurrentMedicalActorId(),
+archiveReason: "Manual archive from Medical Room",
+});
+if (!archivedRecord) {
+return null;
+}
+const nextRecords = [...medicalState.records];
+nextRecords[recordIndex] = archivedRecord;
+medicalState.records = nextRecords;
+commitMedicalClinicalState("record-archived", "Medical log entry archived and kept in protected history.");
+return archivedRecord;
 }
 function addMedicalInjuryPlan(values) {
 ensureMedicalState();
@@ -30460,7 +30712,7 @@ return null;
 medicalState.injuryPlans = [plan, ...medicalState.injuryPlans];
 medicalState.selectedDate = plan.startDate;
 medicalState.selectedPlayerId = plan.playerId;
-writeMedicalState();
+commitMedicalClinicalState("availability-plan-created", `${player.name}: availability plan created.`);
 return plan;
 }
 function updateMedicalPlanClearance(values) {
@@ -30488,13 +30740,35 @@ const nextPlans = [...medicalState.injuryPlans];
 nextPlans[planIndex] = nextPlan;
 medicalState.injuryPlans = nextPlans;
 medicalState.selectedPlayerId = nextPlan.playerId;
-writeMedicalState();
+commitMedicalClinicalState("clearance-saved", "Clearance checklist saved.");
 return nextPlan;
 }
 function removeMedicalInjuryPlan(planId) {
 ensureMedicalState();
-medicalState.injuryPlans = medicalState.injuryPlans.filter((plan) => plan.id !== planId);
-writeMedicalState();
+const planIndex = medicalState.injuryPlans.findIndex((plan) => plan.id === planId);
+if (planIndex < 0) {
+return null;
+}
+const currentPlan = medicalState.injuryPlans[planIndex];
+if (isMedicalItemArchived(currentPlan)) {
+return currentPlan;
+}
+const archivedAt = new Date().toISOString();
+const archivedPlan = normalizeMedicalInjuryPlan({
+...currentPlan,
+updatedAt: archivedAt,
+archivedAt,
+archivedBy: getCurrentMedicalActorId(),
+archiveReason: "Manual archive from Medical Room",
+});
+if (!archivedPlan) {
+return null;
+}
+const nextPlans = [...medicalState.injuryPlans];
+nextPlans[planIndex] = archivedPlan;
+medicalState.injuryPlans = nextPlans;
+commitMedicalClinicalState("availability-plan-archived", "Availability plan archived and kept in protected history.");
+return archivedPlan;
 }
 function openMedicalPlayerModal(playerId) {
 ensureMedicalState();
@@ -72371,48 +72645,48 @@ return;
 }
 const deleteRecordButton = event.target.closest("[data-medical-delete-record]");
 if (deleteRecordButton && canEditMedicalTeam()) {
-if (window.confirm("Delete this medical log entry?")) {
+if (window.confirm("Archive this medical log entry? It will remain in protected clinical history.")) {
 const recordId = deleteRecordButton.dataset.medicalDeleteRecord;
 const record = medicalState.records.find((entry) => entry.id === recordId) ?? null;
-removeMedicalRecord(recordId);
-void recordMedicalDatabaseSyncEvent("record-deleted", {
+const archivedRecord = removeMedicalRecord(recordId);
+void recordMedicalDatabaseSyncEvent("record-archived", {
 playerId: record?.playerId || "",
 recordId,
-record,
-idempotencyKey: `record-deleted:${recordId}`,
+record: archivedRecord || record,
+idempotencyKey: `record-archived:${recordId}:${archivedRecord?.archivedAt || Date.now()}`,
 });
-renderMedicalTeamWorkspace("Log entry deleted.");
+renderMedicalTeamWorkspace("Log entry archived in protected clinical history.");
 }
 return;
 }
 const deleteInjuryPlanButton = event.target.closest("[data-medical-delete-injury-plan]");
 if (deleteInjuryPlanButton && canEditMedicalTeam()) {
-if (window.confirm("Delete this availability plan?")) {
+if (window.confirm("Archive this availability plan? It will remain in protected clinical history.")) {
 const planId = deleteInjuryPlanButton.dataset.medicalDeleteInjuryPlan;
 const plan = medicalState.injuryPlans.find((entry) => entry.id === planId) ?? null;
-removeMedicalInjuryPlan(planId);
-void recordMedicalDatabaseSyncEvent("availability-plan-deleted", {
+const archivedPlan = removeMedicalInjuryPlan(planId);
+void recordMedicalDatabaseSyncEvent("availability-plan-archived", {
 playerId: plan?.playerId || "",
 planId,
-plan,
-idempotencyKey: `availability-plan-deleted:${planId}`,
+plan: archivedPlan || plan,
+idempotencyKey: `availability-plan-archived:${planId}:${archivedPlan?.archivedAt || Date.now()}`,
 });
-renderMedicalTeamWorkspace("Availability plan deleted.");
+renderMedicalTeamWorkspace("Availability plan archived in protected clinical history.");
 }
 return;
 }
 const removePlayerButton = event.target.closest("[data-medical-remove-player]");
 if (removePlayerButton && canEditMedicalTeam()) {
 const player = medicalState.players.find((candidate) => candidate.id === removePlayerButton.dataset.medicalRemovePlayer);
-if (player && window.confirm(`Remove ${player.name} and the medical log?`)) {
-removeMedicalPlayer(player.id);
-void recordMedicalDatabaseSyncEvent("player-removed", {
+if (player && window.confirm(`Archive ${player.name} from Medical Room? Medical history will remain protected.`)) {
+const archivedPlayer = removeMedicalPlayer(player.id);
+void recordMedicalDatabaseSyncEvent("player-archived", {
 playerId: player.id,
-player,
-idempotencyKey: `player-removed:${player.id}`,
+player: archivedPlayer || player,
+idempotencyKey: `player-archived:${player.id}:${archivedPlayer?.archivedAt || Date.now()}`,
 });
 medicalPlayerModalOpen = false;
-renderMedicalTeamWorkspace("Player removed.");
+renderMedicalTeamWorkspace("Player archived with protected medical history.");
 }
 }
 });

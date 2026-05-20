@@ -959,6 +959,99 @@ test("Medical recommendation edits persist after refresh", async ({ page }) => {
   await expectStorageContains(page, medicalKey, comment);
 });
 
+test("Medical archive keeps clinical records and plans protected", async ({ page }) => {
+  await page.addInitScript(({ medicalStorageKey, scheduleStorageKey }) => {
+    window.localStorage.setItem(
+      scheduleStorageKey,
+      JSON.stringify({
+        selectedYear: 2026,
+        selectedMonthIndex: 4,
+        selectedDate: "2026-05-15",
+        viewMode: "month",
+        overviewSpan: 6,
+        visibleEventTypes: ["training", "match", "meeting", "travel", "recovery", "off"],
+        importVersion: "qa-medical-archive-v1",
+        events: [{ id: "qa-archive-training", date: "2026-05-15", time: "10:00", type: "training", title: "Training", note: "" }],
+      })
+    );
+    window.localStorage.setItem(
+      medicalStorageKey,
+      JSON.stringify({
+        selectedDate: "2026-05-15",
+        selectedPlayerId: "qa-archive-player",
+        rosterVersion: "qa-medical-archive-v1",
+        players: [{ id: "qa-archive-player", name: "QA Archive Player", position: "Forward", rosterOrder: 1 }],
+        records: [
+          {
+            id: "qa-archive-record",
+            playerId: "qa-archive-player",
+            date: "2026-05-15",
+            status: "modified",
+            participation: 75,
+            actualParticipation: "not-logged",
+            rtpPhase: "modified-team",
+            createdAt: "2026-05-15T08:00:00.000Z",
+            updatedAt: "2026-05-15T08:00:00.000Z",
+          },
+        ],
+        injuryPlans: [
+          {
+            id: "qa-archive-plan",
+            playerId: "qa-archive-player",
+            injuryType: "Load management",
+            startDate: "2026-05-15",
+            endDate: "2026-05-21",
+            duration: 1,
+            durationUnit: "weeks",
+            status: "modified",
+            participation: 75,
+            rtpPhase: "modified-team",
+            createdAt: "2026-05-15T07:00:00.000Z",
+            updatedAt: "2026-05-15T07:00:00.000Z",
+          },
+        ],
+      })
+    );
+  }, { medicalStorageKey: medicalKey, scheduleStorageKey: scheduleKey });
+
+  await bootApp(page);
+  await openWorkspace(page, "medical-team");
+  await page.locator('[data-medical-ops-tab="availability"]').click();
+  await expect(page.locator("[data-medical-data-safety]")).toBeVisible();
+  await page.locator('[data-medical-select-player="qa-archive-player"]').first().click();
+  await page.locator('[data-medical-modal-tab="profile"]').click();
+  await page.locator('[data-medical-delete-record="qa-archive-record"]').click();
+
+  await expect
+    .poll(() =>
+      page.evaluate((storageKey) => {
+        const state = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+        return {
+          recordCount: state.records?.length || 0,
+          archived: Boolean(state.records?.find((record) => record.id === "qa-archive-record")?.archivedAt),
+          archiveCount: state.dataSafety?.archivedRecordCount || 0,
+        };
+      }, medicalKey)
+    )
+    .toEqual({ recordCount: 1, archived: true, archiveCount: 1 });
+
+  await page.locator('[data-medical-modal-tab="plan"]').click();
+  await page.locator('[data-medical-delete-injury-plan="qa-archive-plan"]').click();
+
+  await expect
+    .poll(() =>
+      page.evaluate((storageKey) => {
+        const state = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+        return {
+          planCount: state.injuryPlans?.length || 0,
+          archived: Boolean(state.injuryPlans?.find((plan) => plan.id === "qa-archive-plan")?.archivedAt),
+          archiveCount: state.dataSafety?.archivedPlanCount || 0,
+        };
+      }, medicalKey)
+    )
+    .toEqual({ planCount: 1, archived: true, archiveCount: 1 });
+});
+
 test("Medical metrics use current-month and trailing 7-day averages", async ({ page }) => {
   await page.addInitScript(({ storageKey }) => {
     const fixedNow = new Date("2026-05-15T12:00:00Z").valueOf();

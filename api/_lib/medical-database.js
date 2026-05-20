@@ -21,13 +21,16 @@ const MEDICAL_EVENT_TYPES = new Set([
   "recommendation-saved",
   "bulk-recommendation-saved",
   "availability-plan-created",
+  "availability-plan-archived",
   "availability-plan-deleted",
   "clearance-saved",
   "governance-saved",
   "player-profile-saved",
   "players-imported",
   "player-added",
+  "player-archived",
   "player-removed",
+  "record-archived",
   "record-deleted",
 ]);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

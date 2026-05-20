@@ -155,6 +155,91 @@
   background: rgba(107, 114, 128, 0.12);
 }
 
+.medical-data-safety {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  min-width: 0;
+  padding: 0.72rem 0.82rem;
+  border: 1px solid rgba(29, 31, 29, 0.08);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(239, 247, 243, 0.86)),
+    rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 28px rgba(12, 24, 20, 0.055);
+}
+
+.medical-data-safety div:first-child {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+
+.medical-data-safety span,
+.medical-data-safety small {
+  color: #64716b;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.medical-data-safety div:first-child > span {
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.medical-data-safety strong {
+  color: #10231b;
+  font-size: 0.98rem;
+  font-weight: 950;
+  line-height: 1.05;
+}
+
+.medical-data-safety small {
+  overflow: hidden;
+  max-width: 44rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.medical-data-safety-pills {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.38rem;
+}
+
+.medical-data-safety-pills span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.8rem;
+  padding: 0 0.62rem;
+  border: 1px solid rgba(29, 126, 82, 0.14);
+  border-radius: 999px;
+  color: #123c2b;
+  background: rgba(29, 126, 82, 0.1);
+  white-space: nowrap;
+}
+
+.medical-data-safety-failed .medical-data-safety-pills span:first-child {
+  color: #9b2f2f;
+  background: rgba(255, 236, 236, 0.86);
+  border-color: rgba(222, 82, 82, 0.2);
+}
+
+.medical-log-delete {
+  width: auto;
+  min-width: 4.35rem;
+  min-height: 2rem;
+  padding: 0 0.58rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .medical-activity-lock {
   padding: 0.68rem 0.78rem;
   border: 1px solid rgba(222, 82, 82, 0.2);
@@ -1006,6 +1091,35 @@ body.is-dark-mode .medical-activity-lock {
   border-color: rgba(248, 113, 113, 0.26);
 }
 
+body.is-dark-mode .medical-data-safety {
+  border-color: var(--dark-line);
+  background:
+    linear-gradient(135deg, rgba(23, 36, 31, 0.94), rgba(13, 20, 28, 0.92)),
+    var(--dark-surface-soft);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.22);
+}
+
+body.is-dark-mode .medical-data-safety span,
+body.is-dark-mode .medical-data-safety small {
+  color: var(--dark-muted);
+}
+
+body.is-dark-mode .medical-data-safety strong {
+  color: var(--dark-text);
+}
+
+body.is-dark-mode .medical-data-safety-pills span {
+  color: #c6f6d5;
+  background: rgba(47, 143, 107, 0.18);
+  border-color: rgba(129, 210, 159, 0.22);
+}
+
+body.is-dark-mode .medical-data-safety-failed .medical-data-safety-pills span:first-child {
+  color: #fecaca;
+  background: rgba(150, 37, 37, 0.28);
+  border-color: rgba(248, 113, 113, 0.26);
+}
+
 body.is-dark-mode .medical-bulk-activity-label {
   color: #c6f6d5;
   background: rgba(47, 143, 107, 0.18);
@@ -1233,6 +1347,20 @@ body.is-dark-mode .medical-ops-stat-clear {
 
   .medical-activity-context small {
     white-space: normal;
+  }
+
+  .medical-data-safety {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .medical-data-safety small {
+    max-width: none;
+    white-space: normal;
+  }
+
+  .medical-data-safety-pills {
+    justify-content: flex-start;
   }
 
   .medical-ops-top-menu {

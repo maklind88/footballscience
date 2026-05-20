@@ -92,6 +92,67 @@ test("medical sync events normalize to an idempotent database row", () => {
   expect(first.row.idempotency_key).toBe(second.row.idempotency_key);
 });
 
+test("medical archive events are first-class sync events", () => {
+  const recordArchive = medicalDatabase.normalizeSyncEventBody(
+    {
+      eventType: "record-archived",
+      playerId: "legacy-player-7",
+      payload: {
+        recordId: "record-1",
+        record: {
+          id: "record-1",
+          playerId: "legacy-player-7",
+          archivedAt: "2026-05-20T12:00:00.000Z",
+          archiveReason: "Manual archive from Medical Room",
+        },
+      },
+    },
+    { id: "0f9a1865-0b2e-4a28-b933-87e137f7e3a4", role: "medical" }
+  );
+  const planArchive = medicalDatabase.normalizeSyncEventBody(
+    {
+      eventType: "availability-plan-archived",
+      playerId: "legacy-player-7",
+      payload: {
+        planId: "plan-1",
+        plan: {
+          id: "plan-1",
+          playerId: "legacy-player-7",
+          archivedAt: "2026-05-20T12:00:00.000Z",
+          archiveReason: "Manual archive from Medical Room",
+        },
+      },
+    },
+    { id: "0f9a1865-0b2e-4a28-b933-87e137f7e3a4", role: "medical" }
+  );
+
+  expect(recordArchive.ok).toBe(true);
+  expect(recordArchive.row.event_type).toBe("record-archived");
+  expect(planArchive.ok).toBe(true);
+  expect(planArchive.row.event_type).toBe("availability-plan-archived");
+  expect(
+    medicalDatabase.normalizeSyncEventBody(
+      {
+        eventType: "player-archived",
+        playerId: "legacy-player-7",
+        payload: { player: { id: "legacy-player-7", archivedAt: "2026-05-20T12:00:00.000Z" } },
+      },
+      { id: "0f9a1865-0b2e-4a28-b933-87e137f7e3a4", role: "medical" }
+    ).row.event_type
+  ).toBe("player-archived");
+});
+
+test("medical room archives clinical items instead of hard deleting them", () => {
+  const appSource = readFileSync(resolve(__dirname, "../app.js"), "utf8");
+  expect(appSource).toContain("archiveReason: \"Manual archive from Medical Room\"");
+  expect(appSource).toContain("record-archived");
+  expect(appSource).toContain("availability-plan-archived");
+  expect(appSource).toContain("player-archived");
+  expect(appSource).toContain("data-medical-data-safety");
+  expect(appSource).not.toContain("medicalState.records = medicalState.records.filter((record) => record.id !== recordId)");
+  expect(appSource).not.toContain("medicalState.injuryPlans = medicalState.injuryPlans.filter((plan) => plan.id !== planId)");
+});
+
 test("medical API route is auth protected and delegates to database handler", () => {
   const route = readFileSync(resolve(__dirname, "../api/medical.js"), "utf8");
   expect(route).toContain("getCurrentActor");

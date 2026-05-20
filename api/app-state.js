@@ -1636,6 +1636,15 @@ function normalizeMedicalDateValue(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(cleanValue) ? cleanValue : "";
 }
 
+function normalizeMedicalTimestampValue(value) {
+  const cleanValue = normalizeMedicalText(value, 40);
+  return Number.isFinite(Date.parse(cleanValue)) ? cleanValue : "";
+}
+
+function isArchivedMedicalItem(item = {}) {
+  return Boolean(normalizeMedicalTimestampValue(item?.archivedAt || item?.deletedAt));
+}
+
 function normalizeMedicalParticipationValue(value, fallback = 100) {
   const numericValue = Number(value);
   return MEDICAL_PARTICIPATION_OPTIONS.has(numericValue) ? numericValue : fallback;
@@ -1767,9 +1776,15 @@ function sanitizeMedicalTeamStateForCoach(rawValue) {
   return JSON.stringify({
     selectedDate: normalizeMedicalDateValue(state.selectedDate),
     selectedPlayerId: normalizeMedicalText(state.selectedPlayerId, 180),
-    players: Array.isArray(state.players) ? state.players.map(sanitizeMedicalPlayerForCoach) : [],
-    records: Array.isArray(state.records) ? state.records.map(sanitizeMedicalRecordForCoach) : [],
-    injuryPlans: Array.isArray(state.injuryPlans) ? state.injuryPlans.map(sanitizeMedicalInjuryPlanForCoach) : [],
+    players: Array.isArray(state.players)
+      ? state.players.filter((player) => !isArchivedMedicalItem(player)).map(sanitizeMedicalPlayerForCoach)
+      : [],
+    records: Array.isArray(state.records)
+      ? state.records.filter((record) => !isArchivedMedicalItem(record)).map(sanitizeMedicalRecordForCoach)
+      : [],
+    injuryPlans: Array.isArray(state.injuryPlans)
+      ? state.injuryPlans.filter((plan) => !isArchivedMedicalItem(plan)).map(sanitizeMedicalInjuryPlanForCoach)
+      : [],
     rosterVersion: normalizeMedicalText(state.rosterVersion, 120),
     securityView: "coach-safe",
   });
@@ -1779,11 +1794,15 @@ function summarizeMedicalStateForAudit(rawValue) {
   const state = safeParseJson(rawValue, {});
   const records = Array.isArray(state?.records) ? state.records : [];
   const injuryPlans = Array.isArray(state?.injuryPlans) ? state.injuryPlans : [];
+  const players = Array.isArray(state?.players) ? state.players : [];
   const policy = state?.policy && typeof state.policy === "object" ? state.policy : {};
   return {
-    playerCount: Array.isArray(state?.players) ? state.players.length : 0,
+    playerCount: players.length,
+    archivedPlayerCount: players.filter(isArchivedMedicalItem).length,
     recordCount: records.length,
     planCount: injuryPlans.length,
+    archivedRecordCount: records.filter(isArchivedMedicalItem).length,
+    archivedPlanCount: injuryPlans.filter(isArchivedMedicalItem).length,
     coachSharedRecordCount: records.filter((record) => record?.shareWithCoach).length,
     coachSharedPlanCount: injuryPlans.filter((plan) => plan?.shareWithCoach).length,
     selectedDate: normalizeMedicalDateValue(state?.selectedDate),
@@ -1809,7 +1828,7 @@ function getMedicalEntityMergeKey(item = {}, fallbackFields = []) {
 }
 
 function getMedicalEntityTimestamp(item = {}) {
-  const timestamps = ["updatedAt", "createdAt", "date", "startDate"]
+  const timestamps = ["archivedAt", "deletedAt", "updatedAt", "createdAt", "lastClinicalChangeAt", "lastDatabaseSyncAt", "date", "startDate"]
     .map((field) => Date.parse(String(item?.[field] || "")))
     .filter((timestamp) => Number.isFinite(timestamp));
   return timestamps.length ? Math.max(...timestamps) : 0;
@@ -1892,6 +1911,7 @@ function mergeMedicalStatesPreservingClinical(existingState = {}, incomingState 
     records,
     injuryPlans,
     policy: mergeMedicalPolicy(existingState.policy, incomingState.policy),
+    dataSafety: mergeMedicalPolicy(existingState.dataSafety, incomingState.dataSafety),
   };
 }
 

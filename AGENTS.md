@@ -7,7 +7,7 @@ These rules apply to every Codex chat working in this repository.
 This section overrides any older release wording below.
 
 - Deploy only when the user explicitly says `Deploy`, `Deploy fast`, `Deploy safe`, or the standalone codeword `Live`.
-- `Deploy` and `Deploy fast` mean the fast everyday path: `npm run deploy`, unless the change is risky.
+- `Deploy` and `Deploy fast` mean the fast everyday path: use `npm run deploy:ui` for clean Fast UI Lane changes, otherwise `npm run deploy`, unless the change is risky.
 - `Deploy safe` means the full safe path: `npm run deploy:safe`.
 - `Live` means the full sync-to-production flow below: make branch information, `main`, GitHub, production deploy, and postdeploy verification agree.
 - Do not ask the user which deploy path to use when the intent is clear.
@@ -16,6 +16,7 @@ This section overrides any older release wording below.
 - Safe deploy is for auth/login, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, or broad multi-module changes.
 - If deploy would include unrelated or unfinished work from another chat, stop and explain the coordination issue in plain Swedish.
 - Live QA login is allowed when credentials are available in the current chat or environment, but never write passwords, tokens, or secrets into source files or docs.
+- One chat should own Live/deploy coordination at a time. Other chats may build isolated module work, but they should not sync, merge, or deploy Live unless explicitly acting as the deploy-owner chat.
 
 ## Current Speed Agreement
 
@@ -23,11 +24,25 @@ This section exists because the platform is under heavy active product developme
 
 - Default to the **Fast UI Lane** for narrow visual/product-polish changes: text, spacing, alignment, ordering, visibility, CSS, layout polish, copy, icons, simple Home/Admin appearance settings, and marked browser elements that do not change persisted data contracts.
 - In the Fast UI Lane, do not run the full safe release gate, full API suite, broad Playwright suites, staging flow, backup/restore checks, or Supabase/security verification unless the touched files or code path make them relevant.
-- Fast UI validation should be intentionally small: `git diff --check`, syntax check for touched JS when applicable, and one targeted browser/smoke check only when the visual change needs proof.
-- If the user says `Deploy` or `Deploy fast` after a Fast UI change, use the fast deploy path and keep verification narrow unless the change unexpectedly touches risky code.
+- Fast UI validation should be intentionally small: prefer `npm run quick:ui`, which runs `git diff --check`, syntax for changed JS files, and path-risk detection. Add one targeted browser/smoke check only when the visual change needs proof.
+- If the user says `Deploy` or `Deploy fast` after a clean committed Fast UI change, prefer `npm run deploy:ui`. It deploys through Vercel CLI after `quick:ui`, pushes `main`, checks release traffic, and runs production postdeploy verification while GitHub QA can continue in the background.
 - Use the **Safe Lane** only for auth/login, permissions, central app-state/data, Supabase/API, backup/restore, migrations, secrets, security, broad multi-module behavior, or anything that could lose/leak user data or take Live down.
 - Do not ask the user which lane to use when the request is clear. Codex owns this classification.
 - Never remove hard protections for data loss, secret leakage, tenant isolation, or Live availability. Reduce process overhead for UI work, not the core safety rails that protect users.
+
+## Marked Live UI Workflow
+
+- When the user marks an element on Live and describes a visual change, treat the selected element/selector as the product target.
+- Go directly to the relevant selector/component/module when it is clear from the browser marker. Do not re-analyze the whole platform for a small visual request.
+- If the change should affect all similar UI, implement it through the shared component/type/class/renderer path instead of one-off DOM or CSS hacks.
+- If the marker points into a module owned by another active chat, stop and say that plainly before editing.
+
+## Modular UI Direction
+
+- For new UI surfaces, prefer small module files over growing `app.js` and `styles.css`.
+- For tiny fixes in legacy UI, keep the fix narrow; do not start a broad extraction unless it is needed for the request.
+- When the same UI pattern is edited repeatedly, extract the renderer/style into `src/modules/<module>/...` or a dedicated stylesheet so future marked changes are faster.
+- Do not do large modularization in the Fast UI Lane unless it is a clearly isolated UI-only extraction.
 
 ## Chat Status Dot
 
@@ -90,9 +105,9 @@ For **Fast UI Lane** changes, this order is intentionally lighter:
 
 1. Inspect local state: `git status --short`.
 2. Implement the scoped UI/content/layout change.
-3. Run minimal validation for the touched surface: `git diff --check`, syntax check for touched JS when applicable, and targeted browser/smoke proof only when useful.
+3. Run minimal validation for the touched surface: `npm run quick:ui`, plus targeted browser/smoke proof only when useful.
 4. Stage/commit only intended files when the work should be preserved.
-5. For `Deploy` / `Deploy fast`, run `npm run deploy` and do narrow live verification.
+5. For `Deploy` / `Deploy fast`, run `npm run deploy:ui` when the committed change is clean UI-only; otherwise use `npm run deploy`.
 
 For **Safe Lane** or risky changes, use the fuller order:
 

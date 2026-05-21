@@ -2,7 +2,7 @@
 
 Read this file first when starting a new thread on Football Science.
 
-Also read `AGENTS.md` and `docs/LIVE_FIRST_WORKFLOW.md`. Read `docs/PLATFORM_SCALE_PROGRAM.md` when working on multi-tenant identity, app-state migrations, `app.js` extraction, Chat server-first, or Scouting server-first. The durable working model is live-first: the user describes the desired product outcome on `https://footballscience.xyz`, and Codex owns the technical implementation path, QA, GitHub, deploy discipline, and production verification.
+Also read `AGENTS.md`, `docs/LIVE_FIRST_WORKFLOW.md`, and `docs/QUICK_UI_WORKFLOW.md`. Read `docs/PLATFORM_SCALE_PROGRAM.md` when working on multi-tenant identity, app-state migrations, `app.js` extraction, Chat server-first, or Scouting server-first. The durable working model is live-first: the user describes the desired product outcome on `https://footballscience.xyz`, and Codex owns the technical implementation path, QA, GitHub, deploy discipline, and production verification.
 
 ## Product
 
@@ -16,7 +16,10 @@ Design should feel clean, Apple/Mac-like, calm, professional, and modular. Avoid
 - The user is not expected to know how to build the platform. Treat their messages as product wishes and live observations, not technical implementation instructions.
 - Live is the product truth. If the user is looking at `footballscience.xyz`, verify live behavior before assuming local state is enough.
 - Ask fewer technical questions. Decide implementation details yourself unless there is a real product, data-loss, security, or release-risk ambiguity.
-- Use the Fast UI Lane for narrow visible changes while the platform is under heavy development: make small text/layout/CSS/ordering/visibility fixes quickly with minimal targeted validation instead of the full safety gate. Keep the Safe Lane for auth, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, secrets, or anything that can lose/leak data or take Live down.
+- Use the Fast UI Lane for narrow visible changes while the platform is under heavy development: make small text/layout/CSS/ordering/visibility fixes quickly with `npm run quick:ui` instead of the full safety gate. For clean committed UI-only work, `npm run deploy:ui` can push/deploy through Vercel CLI and then run production postdeploy verification while GitHub QA continues in the background. Keep the Safe Lane for auth, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, secrets, or anything that can lose/leak data or take Live down.
+- Keep one Live/deploy-owner chat at a time. Other chats may build modules, but should not sync, merge, or deploy Live unless explicitly acting as the deploy-owner chat.
+- When the user marks an element on Live, go directly to the relevant selector/component/module and make same-type changes centrally rather than re-analyzing the whole platform.
+- Prefer extracting repeated UI into small module files over growing `app.js` and `styles.css`, but keep tiny legacy fixes narrow.
 - Start status/final replies with the chat status dot when work/release state matters: `🟢 Live` only when this chat's relevant work is committed, pushed, deployed, production-verified, and clean; `🔴 Inte live` for local, unpushed, undeployed, unverified, blocked, or mixed work. Green must mean the user can see it on `footballscience.xyz`.
 - Keep UI labels mostly in English football terms unless the user asks otherwise.
 - Do not say something is done unless it has been checked.

@@ -140,6 +140,13 @@ async function openWorkspace(page, workspaceId, viewId = workspaceId) {
   await expect(page.locator(`[data-workspace-view="${viewId}"].is-active`)).toBeVisible();
 }
 
+async function waitForSessionPlannerWorkspace(page) {
+  const activeWorkspace = page.locator('[data-workspace-view="session-planner"].is-active');
+  await expect(activeWorkspace).toBeVisible();
+  await expect(activeWorkspace.locator("[data-session-open-player-board]")).toBeVisible();
+  return activeWorkspace;
+}
+
 async function expectStorageContains(page, key, text) {
   await expect
     .poll(
@@ -1929,9 +1936,8 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
     });
 
   await openWorkspace(page, "session-planner");
-  await expect(
-    page.locator('[data-workspace-view="session-planner"].is-active .session-player-board-warning-row.is-unset small')
-  ).toContainText(playerName);
+  const sessionPlannerWorkspace = await waitForSessionPlannerWorkspace(page);
+  await expect(sessionPlannerWorkspace.locator(".session-player-board-warning-row.is-unset small")).toContainText(playerName);
   await expect
     .poll(() =>
       page.evaluate(
@@ -2007,7 +2013,8 @@ test("Academy Squad add is available for session planning without Medical cleara
     });
 
   await openWorkspace(page, "session-planner");
-  await page.locator("[data-session-open-player-board]").click();
+  const sessionPlannerWorkspace = await waitForSessionPlannerWorkspace(page);
+  await sessionPlannerWorkspace.locator("[data-session-open-player-board]").click();
   await expect(
     page.locator(`.session-player-board-token[aria-label^="${playerName}, 100% available"]`)
   ).toBeVisible();

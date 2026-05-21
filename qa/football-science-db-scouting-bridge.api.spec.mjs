@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import vm from "node:vm";
 
 const require = createRequire(import.meta.url);
 const fsdb = require("../api/_lib/football-science-db.js");
@@ -10,6 +11,17 @@ const scoutingDatabase = require("../api/_lib/scouting-database.js");
 const permissionMatrix = require("../src/core/permission-matrix.cjs");
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
+
+function loadScoutingWorkerSandbox() {
+  const sandbox = {
+    self: { addEventListener() {} },
+    Map,
+    Set,
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(readFileSync(resolve(projectRoot, "scouting-database-worker.js"), "utf8"), sandbox);
+  return sandbox;
+}
 
 test("Scouting database keeps source enrichment behind one visual player database", () => {
   const workspace = readFileSync(resolve(projectRoot, "scouting-workspace.js"), "utf8");
@@ -174,6 +186,59 @@ test("Scouting exact-name dedupe refuses known identity conflicts", () => {
       date_of_birth: "1999-01-01",
     })
   ).toBe(false);
+});
+
+test("Scouting worker dedupe keeps the representative season aligned with active sorting", () => {
+  const worker = loadScoutingWorkerSandbox();
+
+  const youngerOlderSeason = [
+    "younger-older-season",
+    "Ada Example",
+    "North Carolina Courage",
+    "North Carolina Courage",
+    "NWSL",
+    "2024",
+    "CF",
+    24,
+    18,
+    1600,
+    "United States",
+    "United States",
+    170,
+    62,
+    [],
+  ];
+  const olderNewerSeason = [
+    "older-newer-season",
+    "Ada Example",
+    "North Carolina Courage",
+    "North Carolina Courage",
+    "NWSL",
+    "2025",
+    "CF",
+    25,
+    20,
+    1900,
+    "United States",
+    "United States",
+    170,
+    62,
+    [],
+  ];
+
+  const dedupedByAge = worker.dedupeScoutingPlayerRecords([youngerOlderSeason, olderNewerSeason], {
+    season: "all",
+    sortMetricId: "age",
+  });
+  expect(dedupedByAge).toHaveLength(1);
+  expect(dedupedByAge[0][0]).toBe("younger-older-season");
+
+  const dedupedBySeason = worker.dedupeScoutingPlayerRecords([youngerOlderSeason, olderNewerSeason], {
+    season: "2025",
+    sortMetricId: "age",
+  });
+  expect(dedupedBySeason).toHaveLength(1);
+  expect(dedupedBySeason[0][0]).toBe("older-newer-season");
 });
 
 test("Scouting duplicate repair plans move seasons to one master player", () => {

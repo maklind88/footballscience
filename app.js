@@ -810,6 +810,9 @@ return;
 if (key === playerProfilesStorageKey) {
 clearPlayerProfileImportUndoSnapshots();
 playerProfilesState = readPlayerProfilesState();
+if (hubState?.activeWorkspaceId === "transfer-room" && !shouldDeferCentralizedAppStateReload()) {
+syncTransferRoomLinkedState({ render: true });
+}
 if (hubState?.activeWorkspaceId === "player-profiles" && !shouldDeferCentralizedAppStateReload()) {
 renderPlayerProfilesWorkspace();
 }
@@ -828,6 +831,9 @@ return;
 }
 if (key === scoutingStorageKey) {
 scoutingState = readScoutingState();
+if (hubState?.activeWorkspaceId === "transfer-room" && !shouldDeferCentralizedAppStateReload()) {
+syncTransferRoomLinkedState({ render: true });
+}
 if (hubState?.activeWorkspaceId === "scouting" && !shouldDeferCentralizedAppStateReload()) {
 renderScoutingWorkspace();
 }
@@ -7083,6 +7089,17 @@ logEvent,
 });
 function readTransferRoomState() { return transferRoomRuntime.readState(); }
 function ensureTransferRoomState() { return transferRoomRuntime.ensureState(); }
+function syncTransferRoomLinkedState(options = {}) {
+if (!playerProfilesState) {
+playerProfilesState = readPlayerProfilesState();
+}
+ensureScoutingState();
+transferRoomState = ensureTransferRoomState();
+if (options.render && hubState?.activeWorkspaceId === "transfer-room" && !shouldDeferCentralizedAppStateReload()) {
+renderTransferRoomWorkspace();
+}
+return transferRoomState;
+}
 function canUserAccessTransferRoom(user = getCurrentPlatformUser()) { return transferRoomRuntime.canAccess(user); }
 function canUserEditTransferRoom(user = getCurrentPlatformUser()) { return transferRoomRuntime.canAccess(user); }
 function addTransferRoomTargetFromScoutingSnapshot(snapshot = {}, options = {}) {
@@ -32214,11 +32231,8 @@ ensureScoutingState();
 return;
 }
 if (viewId === "transfer-room") {
-ensureTransferRoomState();
-if (!playerProfilesState) {
-playerProfilesState = readPlayerProfilesState();
-}
-ensureScoutingState();
+syncTransferRoomLinkedState();
+return;
 }
 }
 function queueWorkspaceModulePreload(workspaceId = "") {
@@ -32430,6 +32444,7 @@ scheduleState = readScheduleState();
 medicalState = readMedicalState();
 playerProfilesState = readPlayerProfilesState();
 scoutingState = readScoutingState();
+transferRoomState = readTransferRoomState();
 sessionPlannerState = readSessionPlannerStatePreservingUiSelection(previousSessionPlannerSelection);
 sessionPlannerExerciseLibrary = readSessionPlannerExerciseLibrary();
 state.savedSequences = readSavedSequenceLibrary();
@@ -75199,6 +75214,22 @@ event.key === playerProfilesStorageKey ||
 event.key === scoutingStorageKey ||
 event.key === transferRoomStorageKey
 ) {
+if (event.key === playerProfilesStorageKey) {
+playerProfilesState = readPlayerProfilesState();
+if (hubState?.activeWorkspaceId === "transfer-room") {
+syncTransferRoomLinkedState({ render: true });
+return;
+}
+if (hubState?.activeWorkspaceId === "player-profiles") {
+renderPlayerProfilesWorkspace();
+return;
+}
+}
+if (event.key === scoutingStorageKey && hubState?.activeWorkspaceId === "transfer-room") {
+scoutingState = readScoutingState();
+syncTransferRoomLinkedState({ render: true });
+return;
+}
 if (event.key === scoutingStorageKey && hubState?.activeWorkspaceId === "scouting") {
 scoutingState = preserveScoutingTransientUiState(readScoutingState(), scoutingState);
 renderScoutingWorkspace();
@@ -75207,11 +75238,6 @@ return;
 if (event.key === transferRoomStorageKey && hubState?.activeWorkspaceId === "transfer-room") {
 transferRoomState = readTransferRoomState();
 renderTransferRoomWorkspace();
-return;
-}
-if (event.key === playerProfilesStorageKey && hubState?.activeWorkspaceId === "player-profiles") {
-playerProfilesState = readPlayerProfilesState();
-renderPlayerProfilesWorkspace();
 return;
 }
 if (hubState?.activeWorkspaceId === "home") {

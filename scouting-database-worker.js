@@ -227,26 +227,49 @@ function areWorkerRecordsLikelySamePerson(firstRecord, nextRecord) {
   );
 }
 
-function chooseRepresentativeSeasonRecord(records = []) {
+function chooseRepresentativeSeasonRecord(records = [], query = {}) {
   return records.reduce((bestRecord, candidateRecord) => {
     if (!bestRecord) return candidateRecord;
 
-    const bestYear = getRecordSeasonYear(bestRecord);
-    const candidateYear = getRecordSeasonYear(candidateRecord);
-    if (Number.isFinite(candidateYear) && (!Number.isFinite(bestYear) || candidateYear > bestYear)) {
-      return candidateRecord;
-    }
-    if (candidateYear === bestYear) {
-      const bestMinutes = getRecordMinutes(bestRecord);
-      const candidateMinutes = getRecordMinutes(candidateRecord);
-      if (candidateMinutes > bestMinutes) return candidateRecord;
+    const selectedSeason = normalizeText(query.season, 80);
+    const bestSeasonMatch = selectedSeason && selectedSeason !== "all" && getRecordSeason(bestRecord) === selectedSeason;
+    const candidateSeasonMatch =
+      selectedSeason && selectedSeason !== "all" && getRecordSeason(candidateRecord) === selectedSeason;
+    if (bestSeasonMatch !== candidateSeasonMatch) {
+      return candidateSeasonMatch ? candidateRecord : bestRecord;
     }
 
+    const metricId = normalizeText(query.sortMetricId, 160).toLowerCase();
+    if (metricId) {
+      const metricDelta = compareRepresentativeMetricValues(bestRecord, candidateRecord, metricId);
+      if (metricDelta !== 0) {
+        return metricDelta > 0 ? candidateRecord : bestRecord;
+      }
+    }
+
+    const bestYear = getRecordSeasonYear(bestRecord);
+    const candidateYear = getRecordSeasonYear(candidateRecord);
+    if (candidateYear !== bestYear && (Number.isFinite(candidateYear) || Number.isFinite(bestYear))) {
+      if (!Number.isFinite(bestYear) || (Number.isFinite(candidateYear) && candidateYear > bestYear)) {
+        return candidateRecord;
+      }
+      return bestRecord;
+    }
+
+    const bestMinutes = getRecordMinutes(bestRecord);
+    const candidateMinutes = getRecordMinutes(candidateRecord);
+    if (candidateMinutes !== bestMinutes) {
+      return candidateMinutes > bestMinutes ? candidateRecord : bestRecord;
+    }
+
+    if (getRecordName(candidateRecord).localeCompare(getRecordName(bestRecord)) < 0) {
+      return candidateRecord;
+    }
     return bestRecord;
   }, null);
 }
 
-function dedupeScoutingPlayerRecords(records = []) {
+function dedupeScoutingPlayerRecords(records = [], query = {}) {
   const standaloneRecords = [];
   const bucketsByIdentity = new Map();
 
@@ -278,7 +301,7 @@ function dedupeScoutingPlayerRecords(records = []) {
   const representativeRecords = [...standaloneRecords];
   bucketsByIdentity.forEach((buckets) => {
     buckets.forEach((bucket) => {
-      const representativeRecord = chooseRepresentativeSeasonRecord(bucket.records);
+      const representativeRecord = chooseRepresentativeSeasonRecord(bucket.records, query);
       if (representativeRecord) {
         representativeRecords.push(representativeRecord);
       }
@@ -758,6 +781,22 @@ function createRecordComparator(sortMetricId) {
   };
 }
 
+function compareRepresentativeMetricValues(bestRecord, candidateRecord, sortMetricId) {
+  const id = normalizeText(sortMetricId, 160).toLowerCase();
+  if (id === "age") {
+    const bestAge = getRecordAge(bestRecord);
+    const candidateAge = getRecordAge(candidateRecord);
+    const safeBestAge = Number.isFinite(bestAge) ? bestAge : Number.MAX_SAFE_INTEGER;
+    const safeCandidateAge = Number.isFinite(candidateAge) ? candidateAge : Number.MAX_SAFE_INTEGER;
+    return safeBestAge - safeCandidateAge;
+  }
+  const bestValue = Number.isFinite(getMetricValue(bestRecord, sortMetricId)) ? getMetricValue(bestRecord, sortMetricId) : 0;
+  const candidateValue = Number.isFinite(getMetricValue(candidateRecord, sortMetricId))
+    ? getMetricValue(candidateRecord, sortMetricId)
+    : 0;
+  return candidateValue - bestValue;
+}
+
 function getFilteredRecordCacheKey(query) {
   return [
     query.query,
@@ -797,7 +836,7 @@ function getDatabasePage(query = {}) {
   const records = Array.isArray(database?.records) ? database.records : [];
   const normalizedQuery = normalizeQuery(query);
   const filteredSeasonRecords = getFilteredSortedRecords(records, normalizedQuery);
-  const filteredRecords = dedupeScoutingPlayerRecords(filteredSeasonRecords);
+  const filteredRecords = dedupeScoutingPlayerRecords(filteredSeasonRecords, normalizedQuery);
   const total = filteredRecords.length;
   const pageRecords = filteredRecords.slice(normalizedQuery.offset, normalizedQuery.offset + normalizedQuery.limit);
   const nextOffset = normalizedQuery.offset + pageRecords.length;

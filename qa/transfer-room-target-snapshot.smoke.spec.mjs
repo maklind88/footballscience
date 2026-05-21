@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const workspaceHubKey = "football-workspace-hub-v3";
+const playerProfilesKey = "football-player-profiles-v1";
 const transferRoomKey = "football-transfer-room-v1";
 const scoutingKey = "football-scouting-v1";
 const scoutingDatabaseKey = "football-scouting-imported-database-v1";
@@ -414,6 +415,91 @@ test("Transfer Room opens a saved target profile without loading scouting databa
   await expect(capSpace).toHaveText("$3,425,000");
   await incompleteWage.evaluate((node) => node.dispatchEvent(new Event("change", { bubbles: true })));
   await expect(page.locator(".transfer-room-target-card").filter({ hasText: "Incomplete Target" })).toContainText("$60,000 cap impact");
+
+  await page.evaluate(
+    ({ profilesKey, scoutKey }) => {
+      const profileValue = JSON.stringify({
+        players: [
+          {
+            id: "qa-late-sync-player",
+            name: "Late Sync Player",
+            number: "8",
+            position: "CM",
+            primaryRole: "8",
+            roleGroup: "midfielder",
+            rosterOrder: 1,
+            countsInSquad: true,
+          },
+        ],
+      });
+      window.localStorage.setItem(profilesKey, profileValue);
+      window.dispatchEvent(new StorageEvent("storage", { key: profilesKey, newValue: profileValue }));
+
+      const scoutingValue = JSON.stringify({
+        activeTab: "shadow-xi",
+        shadowXi: {
+          activeBoardId: "default-shadow-xi",
+          slots: { lcmf: ["qa-late-shadow-target"] },
+          meta: {
+            "lcmf:qa-late-shadow-target": {
+              playerName: "Late Shadow Target",
+              team: "Sync FC",
+              position: "CM",
+              league: "NWSL",
+              season: "2026",
+            },
+          },
+          boards: [
+            {
+              id: "secondary-shadow-board",
+              name: "Secondary Shadow XI",
+              formation: "4-3-3",
+              slots: { cf: ["qa-board-only-target"] },
+              meta: {
+                "cf:qa-board-only-target": {
+                  playerName: "Board Only Target",
+                  team: "Board FC",
+                  position: "ST",
+                  league: "NWSL",
+                  season: "2026",
+                },
+              },
+            },
+          ],
+        },
+        playerSnapshots: {
+          "qa-late-shadow-target": {
+            recordId: "qa-late-shadow-target",
+            name: "Late Shadow Target",
+            club: "Sync FC",
+            position: "CM",
+            league: "NWSL",
+            season: "2026",
+            signalLabel: "Central sync profile",
+            summary: "Synced into Transfer Room after Transfer Room was already open.",
+          },
+          "qa-board-only-target": {
+            recordId: "qa-board-only-target",
+            name: "Board Only Target",
+            club: "Board FC",
+            position: "ST",
+            league: "NWSL",
+            season: "2026",
+            signalLabel: "Saved Shadow XI board",
+            summary: "Synced from a saved Shadow XI board, not only the active board.",
+          },
+        },
+      });
+      window.localStorage.setItem(scoutKey, scoutingValue);
+      window.dispatchEvent(new StorageEvent("storage", { key: scoutKey, newValue: scoutingValue }));
+    },
+    { profilesKey: playerProfilesKey, scoutKey: scoutingKey }
+  );
+  await expect(page.locator(".transfer-room-target-grid")).toContainText("Late Shadow Target");
+  await expect(page.locator(".transfer-room-target-grid")).toContainText("Board Only Target");
+  await page.locator('[data-transfer-room-tab="squad"]').click();
+  await expect(page.locator(".transfer-room-squad-table")).toContainText("Late Sync Player");
+  await page.locator('[data-transfer-room-tab="targets"]').click();
 
   const incompleteStage = page.locator('select[data-transfer-record-id="qa-target-incomplete"][data-transfer-target-field="stage"]');
   await incompleteStage.selectOption("approved");

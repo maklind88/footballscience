@@ -17,6 +17,7 @@ Design should feel clean, Apple/Mac-like, calm, professional, and modular. Avoid
 - Live is the product truth. If the user is looking at `footballscience.xyz`, verify live behavior before assuming local state is enough.
 - Ask fewer technical questions. Decide implementation details yourself unless there is a real product, data-loss, security, or release-risk ambiguity.
 - Use the Fast UI Lane for narrow visible changes while the platform is under heavy development: make small text/layout/CSS/ordering/visibility fixes quickly with minimal targeted validation instead of the full safety gate. Keep the Safe Lane for auth, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, secrets, or anything that can lose/leak data or take Live down.
+- Start status/final replies with the chat status dot when work/release state matters: `🟢 Live` only when this chat's relevant work is committed, pushed, deployed, production-verified, and clean; `🔴 Inte live` for local, unpushed, undeployed, unverified, blocked, or mixed work. Green must mean the user can see it on `footballscience.xyz`.
 - Keep UI labels mostly in English football terms unless the user asks otherwise.
 - Do not say something is done unless it has been checked.
 - The user strongly dislikes needing to ask again if something works locally but not for them.

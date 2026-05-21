@@ -29,6 +29,16 @@ This section exists because the platform is under heavy active product developme
 - Do not ask the user which lane to use when the request is clear. Codex owns this classification.
 - Never remove hard protections for data loss, secret leakage, tenant isolation, or Live availability. Reduce process overhead for UI work, not the core safety rails that protect users.
 
+## Chat Status Dot
+
+Every chat should make its release state obvious because many Codex chats may work in parallel.
+
+- Use `🟢 Live` at the start of status/final replies only when this chat's relevant work is committed, pushed to `main`, deployed to production, production verification has passed, and the working tree has no relevant pending changes.
+- Use `🔴 Inte live` when any relevant work in this chat is still uncommitted, unpushed, not deployed, not verified on production, blocked by checks, mixed with unrelated changes, or waiting for the user to say `Deploy`/`Live`.
+- If there are unrelated dirty files from another chat, keep this chat's dot red unless this chat's own work is already live and clearly separate; mention the unrelated files briefly so the user knows why the repo is not fully clean.
+- Do not use the green dot just because code exists locally or tests pass. Green means the user can look at `https://footballscience.xyz` and expect the change to be there.
+- Keep the wording short: `🟢 Live - ...` or `🔴 Inte live - ...`.
+
 ## Live Codeword
 
 When the user writes `Live` as a standalone command, run the full update flow that makes branch information, `main`, GitHub, and production agree.

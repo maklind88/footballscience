@@ -36,9 +36,40 @@
 }
 
 .session-print-visual .session-tactical-player {
-  box-shadow: 0 0 0 1.5px #ffffffc7, 0 5px 12px #00000026;
+  box-shadow: none;
 }
 
 .session-print-visual .session-tactical-ball {
-  box-shadow: 0 3px 8px #00000026;
+  box-shadow: none;
+}
+
+.session-print-document .session-print-visual .session-tactical-marker,
+.session-print-document .session-print-visual .session-tactical-marker::before,
+.session-print-document .session-print-visual .session-tactical-marker::after,
+.session-print-document .session-print-visual .session-tactical-player-badge,
+.session-print-document .session-print-player-token {
+  -webkit-filter: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+  text-shadow: none !important;
+}
+
+.session-print-document .session-print-visual .session-tactical-marker.is-selected {
+  outline: none !important;
+}
+
+@media print {
+  .session-print-document,
+  .session-print-document * {
+    -webkit-backdrop-filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+    filter: none !important;
+    text-shadow: none !important;
+  }
+
+  .session-print-document .session-print-visual .session-tactical-marker.is-selected {
+    outline: none !important;
+  }
 }

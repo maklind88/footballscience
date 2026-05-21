@@ -27764,19 +27764,30 @@ return "No team event";
 }
 return mainEvent.title || scheduleEventTypes[mainEvent.type]?.label || "Team event";
 }
+function getMedicalRecommendationEvent(events = []) {
+const matchEvent = events.find((event) => event?.type === "match");
+if (matchEvent) {
+return { event: matchEvent, type: "match" };
+}
+const trainingEvent = events.find(isScheduleSessionEvent);
+if (trainingEvent) {
+return { event: trainingEvent, type: "training" };
+}
+return { event: getScheduleMainEvent(events) ?? null, type: "none" };
+}
 function getMedicalRecommendationActivityContext(dateValue = medicalState?.selectedDate) {
 const cleanDate = isMedicalDateValue(dateValue) ? dateValue : formatScheduleDateValue(new Date());
 const events = getScheduleEventsForDate(cleanDate);
-const mainEvent = getScheduleMainEvent(events);
-const rawType = mainEvent?.type || "none";
-const isMatch = rawType === "match";
-const isTraining = rawType === "training";
+const { event: mainEvent, type: activityType } = getMedicalRecommendationEvent(events);
+const rawType = mainEvent?.type || activityType;
+const isMatch = activityType === "match";
+const isTraining = activityType === "training";
 const isRecommendable = isMatch || isTraining;
 const scheduleLabel = mainEvent?.title || scheduleEventTypes[rawType]?.label || "No team event";
 const activityLabel = isMatch ? "Match" : isTraining ? "Training" : "No team activity";
 return {
 date: cleanDate,
-type: isRecommendable ? rawType : "none",
+type: isRecommendable ? activityType : "none",
 rawType,
 mainEvent,
 scheduleLabel,

@@ -1395,6 +1395,7 @@ test("Medical recommendations use match context and lock non-activity days", asy
           { id: "qa-training", date: "2026-05-15", time: "10:00", type: "training", title: "Training", note: "" },
           { id: "qa-match", date: "2026-05-16", time: "18:30", type: "match", title: "QA Match Day", note: "" },
           { id: "qa-off", date: "2026-05-17", time: "", type: "off", title: "Squad Off", note: "" },
+          { id: "qa-training-travel", date: "2026-05-18", time: "10:00", type: "travel", title: "Training + Departure", note: "Travel after training" },
         ],
       })
     );
@@ -1473,6 +1474,25 @@ test("Medical recommendations use match context and lock non-activity days", asy
   await page.locator('[data-medical-roster-row="qa-match-player"]').click();
   await expect(page.locator(".medical-activity-lock")).toContainText("No scheduled training or match");
   await expect(page.locator('#medicalRecommendationForm button[type="submit"]')).toBeDisabled();
+  await page.locator(".medical-modal-close").click();
+
+  await page.locator("[data-medical-date-picker]").evaluate((input) => {
+    input.value = "2026-05-18";
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await expect(page.locator("[data-medical-activity-context]")).toContainText("Training Recommendation");
+  await expect(page.locator("[data-medical-activity-context]")).toContainText("Training + Departure");
+  await expect(page.locator('[data-medical-roster-row="qa-match-player"] [data-medical-quick-participation="100"]')).toBeEnabled();
+  await page.locator('[data-medical-roster-row="qa-match-player"] [data-medical-quick-participation="100"]').click();
+  await expect
+    .poll(() =>
+      page.evaluate((storageKey) => {
+        const state = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+        const record = (state.records || []).find((entry) => entry.playerId === "qa-match-player" && entry.date === "2026-05-18");
+        return record ? `${record.participation}:${record.rtpPhase}` : "";
+      }, medicalKey)
+    )
+    .toBe("100:full-training");
 });
 
 test("Medical roster overview groups by position and supports row quick recommendations", async ({ page }) => {

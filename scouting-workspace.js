@@ -4369,6 +4369,10 @@ function getScoutingRecordSourceTrace(record) {
   const trace = record?.[scoutingRecordIndex.sourceTrace];
   return trace && typeof trace === "object" && !Array.isArray(trace) ? trace : {};
 }
+function getScoutingRecordMergedSeasonRecords(record) {
+  const trace = getScoutingRecordSourceTrace(record);
+  return Array.isArray(trace.mergedSeasonRecords) ? trace.mergedSeasonRecords.filter(Boolean) : [];
+}
 function getScoutingRecordFootballScienceDbMeta(record) {
   const trace = getScoutingRecordSourceTrace(record);
   const fsdb = trace.footballScienceDb;
@@ -6359,6 +6363,10 @@ function rememberScoutingDatabaseRecords(database = {}) {
 }
 function getScoutingRecordsForPlayer(record) {
   ensureScoutingRecordLookupsReady();
+  const mergedSeasonRecords = getScoutingRecordMergedSeasonRecords(record);
+  if (mergedSeasonRecords.length) {
+    return mergedSeasonRecords.filter((candidate) => areScoutingRecordsLikelySamePerson(record, candidate));
+  }
   const name = getScoutingRecordName(record).toLowerCase();
   if (!name) {
     return [];

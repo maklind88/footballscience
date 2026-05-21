@@ -16,6 +16,7 @@ const recordIndex = Object.freeze({
   height: 12,
   weight: 13,
   metrics: 14,
+  sourceTrace: 20,
 });
 
 let loadedDatabase = null;
@@ -269,6 +270,56 @@ function chooseRepresentativeSeasonRecord(records = [], query = {}) {
   }, null);
 }
 
+function getRecordSourceTrace(record) {
+  const trace = Array.isArray(record) ? record[recordIndex.sourceTrace] : record?.sourceTrace;
+  return trace && typeof trace === "object" && !Array.isArray(trace) ? trace : {};
+}
+
+function setRecordSourceTrace(record, trace = {}) {
+  if (Array.isArray(record)) {
+    record[recordIndex.sourceTrace] = trace;
+  } else if (record && typeof record === "object") {
+    record.sourceTrace = trace;
+  }
+  return record;
+}
+
+function cloneRecordForMergedSeasonPayload(record) {
+  const clone = Array.isArray(record) ? record.slice() : { ...record };
+  const trace = { ...getRecordSourceTrace(clone) };
+  delete trace.mergedSeasonRecords;
+  delete trace.mergedSeasonRecordCount;
+  setRecordSourceTrace(clone, trace);
+  return clone;
+}
+
+function sortMergedSeasonRecords(records = []) {
+  return records
+    .slice()
+    .sort((first, second) => {
+      const firstYear = getRecordSeasonYear(first);
+      const secondYear = getRecordSeasonYear(second);
+      const yearDelta =
+        (Number.isFinite(secondYear) ? secondYear : Number.NEGATIVE_INFINITY) -
+        (Number.isFinite(firstYear) ? firstYear : Number.NEGATIVE_INFINITY);
+      return yearDelta || getRecordMinutes(second) - getRecordMinutes(first) || getRecordName(first).localeCompare(getRecordName(second));
+    });
+}
+
+function attachMergedSeasonRecords(representativeRecord, records = []) {
+  if (!representativeRecord || records.length <= 1) {
+    return representativeRecord;
+  }
+  const next = Array.isArray(representativeRecord) ? representativeRecord.slice() : { ...representativeRecord };
+  const mergedSeasonRecords = sortMergedSeasonRecords(records).map(cloneRecordForMergedSeasonPayload);
+  setRecordSourceTrace(next, {
+    ...getRecordSourceTrace(next),
+    mergedSeasonRecords,
+    mergedSeasonRecordCount: mergedSeasonRecords.length,
+  });
+  return next;
+}
+
 function dedupeScoutingPlayerRecords(records = [], query = {}) {
   const standaloneRecords = [];
   const bucketsByIdentity = new Map();
@@ -303,7 +354,7 @@ function dedupeScoutingPlayerRecords(records = [], query = {}) {
     buckets.forEach((bucket) => {
       const representativeRecord = chooseRepresentativeSeasonRecord(bucket.records, query);
       if (representativeRecord) {
-        representativeRecords.push(representativeRecord);
+        representativeRecords.push(attachMergedSeasonRecords(representativeRecord, bucket.records));
       }
     });
   });

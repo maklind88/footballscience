@@ -232,6 +232,10 @@ test("Scouting worker dedupe shows the latest season card unless a season is sel
   });
   expect(dedupedByAge).toHaveLength(1);
   expect(dedupedByAge[0][0]).toBe("older-newer-season");
+  expect(dedupedByAge[0][20].mergedSeasonRecords.map((row) => row[0])).toEqual([
+    "older-newer-season",
+    "younger-older-season",
+  ]);
 
   const dedupedBySeason = worker.dedupeScoutingPlayerRecords([youngerOlderSeason, olderNewerSeason], {
     season: "2024",
@@ -239,6 +243,10 @@ test("Scouting worker dedupe shows the latest season card unless a season is sel
   });
   expect(dedupedBySeason).toHaveLength(1);
   expect(dedupedBySeason[0][0]).toBe("younger-older-season");
+  expect(dedupedBySeason[0][20].mergedSeasonRecords.map((row) => row[0])).toEqual([
+    "older-newer-season",
+    "younger-older-season",
+  ]);
 });
 
 test("Scouting duplicate repair plans move seasons to one master player", () => {

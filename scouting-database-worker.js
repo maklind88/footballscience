@@ -239,14 +239,6 @@ function chooseRepresentativeSeasonRecord(records = [], query = {}) {
       return candidateSeasonMatch ? candidateRecord : bestRecord;
     }
 
-    const metricId = normalizeText(query.sortMetricId, 160).toLowerCase();
-    if (metricId) {
-      const metricDelta = compareRepresentativeMetricValues(bestRecord, candidateRecord, metricId);
-      if (metricDelta !== 0) {
-        return metricDelta > 0 ? candidateRecord : bestRecord;
-      }
-    }
-
     const bestYear = getRecordSeasonYear(bestRecord);
     const candidateYear = getRecordSeasonYear(candidateRecord);
     if (candidateYear !== bestYear && (Number.isFinite(candidateYear) || Number.isFinite(bestYear))) {
@@ -254,6 +246,14 @@ function chooseRepresentativeSeasonRecord(records = [], query = {}) {
         return candidateRecord;
       }
       return bestRecord;
+    }
+
+    const metricId = normalizeText(query.sortMetricId, 160).toLowerCase();
+    if (metricId) {
+      const metricDelta = compareRepresentativeMetricValues(bestRecord, candidateRecord, metricId);
+      if (metricDelta !== 0) {
+        return metricDelta > 0 ? candidateRecord : bestRecord;
+      }
     }
 
     const bestMinutes = getRecordMinutes(bestRecord);

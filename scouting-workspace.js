@@ -7696,7 +7696,7 @@ const scoutingFallbackSpiderProfiles = Object.freeze({
     label: "General player profile",
     description: "Fallback spider from broad possession, progression and duel metrics.",
     axes: [
-      { label: "Minutes", labels: ["minutes", "Minutes"] },
+      { label: "Defending", labels: ["interceptions-per-90", "Interceptions per 90", "defensive-duels-won", "Defensive duels won"] },
       { label: "Duels", labels: ["duels-won", "Duels won"] },
       { label: "Passing", labels: ["accurate-passes", "Accurate passes"] },
       { label: "Progression", labels: ["progressive-passes-per-90", "Progressive passes per 90", "progressive-runs-per-90"] },
@@ -8258,7 +8258,7 @@ function buildScoutingRadarTemplateFromProfile(record, profile, benchmarkMode = 
   const axes = (profile.axes || [])
     .map((item, index) => {
       const metricId = getScoutingMetricIdByLabels(item.labels);
-      if (!metricId || used.has(metricId)) {
+      if (!metricId || metricId === "minutes" || used.has(metricId)) {
         missingMetricLabels.push(item.label);
         return null;
       }
@@ -9094,7 +9094,7 @@ function getScoutingRoleMetricRows(record, template = getScoutingRadarTemplate(r
         quality: getScoutingMetricQuality(record, item.metricId),
       };
     })
-    .filter((row) => row.metric);
+    .filter((row) => row.metric && row.metric.id !== "minutes" && row.metricId !== "minutes");
 }
 function getScoutingWeightedScoreFromRows(rows = []) {
   const validRows = rows.filter((row) => Number.isFinite(row.percentile) && Number.isFinite(row.weight));

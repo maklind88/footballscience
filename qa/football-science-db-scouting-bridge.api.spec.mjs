@@ -188,7 +188,7 @@ test("Scouting exact-name dedupe refuses known identity conflicts", () => {
   ).toBe(false);
 });
 
-test("Scouting worker dedupe keeps the representative season aligned with active sorting", () => {
+test("Scouting worker dedupe shows the latest season card unless a season is selected", () => {
   const worker = loadScoutingWorkerSandbox();
 
   const youngerOlderSeason = [
@@ -231,14 +231,14 @@ test("Scouting worker dedupe keeps the representative season aligned with active
     sortMetricId: "age",
   });
   expect(dedupedByAge).toHaveLength(1);
-  expect(dedupedByAge[0][0]).toBe("younger-older-season");
+  expect(dedupedByAge[0][0]).toBe("older-newer-season");
 
   const dedupedBySeason = worker.dedupeScoutingPlayerRecords([youngerOlderSeason, olderNewerSeason], {
-    season: "2025",
+    season: "2024",
     sortMetricId: "age",
   });
   expect(dedupedBySeason).toHaveLength(1);
-  expect(dedupedBySeason[0][0]).toBe("older-newer-season");
+  expect(dedupedBySeason[0][0]).toBe("younger-older-season");
 });
 
 test("Scouting duplicate repair plans move seasons to one master player", () => {

@@ -1,8 +1,12 @@
 import {
   cloneGameplanState,
   createGameplanFromMatch,
+  gameplanActiveTabs,
+  gameplanEvidenceConfidenceOptions,
+  gameplanObservationStatusOptions,
   gameplanPhaseKeys,
   gameplanPhaseLabels,
+  gameplanScenarioStatusOptions,
   gameplanStatusOptions,
   getActiveGameplan,
   getGameplanMatchLabel,
@@ -34,13 +38,25 @@ const gameplanEditableFields = new Set([
   "playerBrief.headline",
   "playerBrief.message",
   "playerBrief.focus",
+  "playerBrief.positionGroupFocus",
   "playerBrief.individualFocus",
   "playerBrief.phases.inPossession",
   "playerBrief.phases.outOfPossession",
   "playerBrief.phases.attackingTransition",
   "playerBrief.phases.defensiveTransition",
   "playerBrief.phases.setPieces",
+  "meeting.agenda",
+  "meeting.decisions",
+  "live.halftime.keyMessage",
+  "live.halftime.adjustments",
+  "live.halftime.risks",
+  "review.outcome",
+  "review.planWorked",
+  "review.lessons",
+  "review.trainingCarryover",
+  "review.scoutingCarryover",
 ]);
+const gameplanEditableFieldPrefixes = ["playerBrief.individualNotes."];
 
 function setContext(context = {}) {
   activeContext = context;
@@ -403,6 +419,15 @@ function getBriefReceipt(plan = {}, playerId = "") {
   return receipts[playerId] || null;
 }
 
+function getPlayerSpecificBrief(plan = {}, playerId = "") {
+  const brief = plan.playerBrief || {};
+  const individualNotes = brief.individualNotes && typeof brief.individualNotes === "object" ? brief.individualNotes : {};
+  return {
+    ...brief,
+    individualFocus: individualNotes[playerId] || brief.individualFocus || "",
+  };
+}
+
 function readGameplanState() {
   try {
     return JSON.parse(window.localStorage.getItem(gameplanStorageKey) || "{}");
@@ -441,7 +466,9 @@ function mutateActiveGameplan(mutator, options = {}) {
 }
 
 function setGameplanNestedField(plan = {}, path = "", value = "") {
-  if (!gameplanEditableFields.has(path)) return false;
+  const isEditable =
+    gameplanEditableFields.has(path) || gameplanEditableFieldPrefixes.some((prefix) => path.startsWith(prefix) && path.length > prefix.length);
+  if (!isEditable) return false;
   if (path === "status") {
     const allowedStatuses = new Set(["draft", "staff-review", "player-brief-ready", "locked"]);
     const nextStatus = String(value || "").trim().toLowerCase();
@@ -474,7 +501,15 @@ function setActiveGameplan(gameplanId = "") {
 
 function setGameplanActiveTab(tabId = "") {
   const state = getState();
-  state.activeTab = ["plan", "staff", "player-brief", "checklist"].includes(tabId) ? tabId : "plan";
+  if (gameplanActiveTabs.includes(tabId)) {
+    state.activeTab = tabId;
+  } else if (tabId === "scenarios" || tabId === "evidence") {
+    state.activeTab = "plan";
+  } else if (tabId === "live" || tabId === "review" || tabId === "checklist") {
+    state.activeTab = "matchday";
+  } else {
+    state.activeTab = "plan";
+  }
   writeGameplanState({ syncCentral: false });
 }
 
@@ -596,6 +631,118 @@ function removeGameplanChecklistItem(itemId = "") {
   });
 }
 
+function addGameplanScenarioCard() {
+  if (!canEditPlan()) return;
+  mutateActiveGameplan((plan) => {
+    plan.scenarioCards = Array.isArray(plan.scenarioCards) ? plan.scenarioCards : [];
+    plan.scenarioCards.push({
+      id: createGameplanLocalId("scenario"),
+      title: "New scenario",
+      trigger: "",
+      staffAction: "",
+      playerMessage: "",
+      ownerUserId: "",
+      status: "open",
+    });
+  });
+}
+
+function updateGameplanScenarioCard(cardId = "", patch = {}) {
+  if (!canEditPlan()) return;
+  mutateActiveGameplan((plan) => {
+    plan.scenarioCards = (plan.scenarioCards || []).map((entry) => (entry.id === cardId ? { ...entry, ...patch } : entry));
+  });
+}
+
+function removeGameplanScenarioCard(cardId = "") {
+  if (!canEditPlan()) return;
+  mutateActiveGameplan((plan) => {
+    plan.scenarioCards = (plan.scenarioCards || []).filter((entry) => entry.id !== cardId);
+  });
+}
+
+function addGameplanEvidenceItem() {
+  if (!canEditPlan()) return;
+  mutateActiveGameplan((plan) => {
+    plan.evidence = Array.isArray(plan.evidence) ? plan.evidence : [];
+    plan.evidence.push({
+      id: createGameplanLocalId("evidence"),
+      title: "New evidence",
+      source: "Analysis",
+      phase: "",
+      url: "",
+      note: "",
+      ownerUserId: "",
+      confidence: "medium",
+    });
+  });
+}
+
+function updateGameplanEvidenceItem(itemId = "", patch = {}) {
+  if (!canEditPlan()) return;
+  mutateActiveGameplan((plan) => {
+    plan.evidence = (plan.evidence || []).map((entry) => (entry.id === itemId ? { ...entry, ...patch } : entry));
+  });
+}
+
+function removeGameplanEvidenceItem(itemId = "") {
+  if (!canEditPlan()) return;
+  mutateActiveGameplan((plan) => {
+    plan.evidence = (plan.evidence || []).filter((entry) => entry.id !== itemId);
+  });
+}
+
+function approveGameplanMeeting() {
+  if (!canEditPlan()) return;
+  mutateActiveGameplan((plan) => {
+    plan.meeting = {
+      ...(plan.meeting || {}),
+      approvedByUserId: activeContext?.currentUser?.id || "staff",
+      approvedAt: new Date().toISOString(),
+    };
+    if (plan.status === "draft") {
+      plan.status = "staff-review";
+    }
+  });
+}
+
+function addGameplanObservation() {
+  if (!canEditPlan()) return;
+  mutateActiveGameplan((plan) => {
+    const live = plan.live || {};
+    live.observations = Array.isArray(live.observations) ? live.observations : [];
+    live.observations.unshift({
+      id: createGameplanLocalId("obs"),
+      minute: "",
+      phase: "",
+      ownerUserId: "",
+      observation: "",
+      action: "",
+      status: "watching",
+      createdAt: new Date().toISOString(),
+    });
+    plan.live = live;
+  });
+}
+
+function updateGameplanObservation(observationId = "", patch = {}) {
+  if (!canEditPlan()) return;
+  mutateActiveGameplan((plan) => {
+    const live = plan.live || {};
+    live.observations = (live.observations || []).map((entry) => (entry.id === observationId ? { ...entry, ...patch } : entry));
+    plan.live = live;
+  });
+}
+
+function removeGameplanObservation(observationId = "") {
+  if (!canEditPlan()) return;
+  mutateActiveGameplan((plan) => {
+    const live = plan.live || {};
+    live.observations = (live.observations || []).filter((entry) => entry.id !== observationId);
+    plan.live = live;
+  });
+}
+
 function getLocalPlayerBriefAccess(planId = "", playerId = "") {
   const plan = getPlanById(planId);
   const brief = plan?.playerBrief || {};
@@ -690,6 +837,15 @@ function renderStatusOptions(selectedStatus = "draft") {
     .join("");
 }
 
+function renderOptions(options = [], selectedValue = "") {
+  return options
+    .map(
+      (option) =>
+        `<option value="${escapeHtml(option.value)}" ${option.value === selectedValue ? "selected" : ""}>${escapeHtml(option.label)}</option>`
+    )
+    .join("");
+}
+
 function renderField(path, label, value = "", options = {}) {
   const disabled = options.disabled || !canEditPlan();
   const rows = options.rows || 3;
@@ -760,6 +916,8 @@ function renderHero(plan) {
   const audienceCount = plan.playerBrief?.audiencePlayerIds?.length || 0;
   const checklist = plan.checklist || [];
   const doneCount = checklist.filter((item) => item.done).length;
+  const scenarios = plan.scenarioCards || [];
+  const readyScenarioCount = scenarios.filter((item) => item.status === "ready" || item.status === "used").length;
   return `
     <header class="gameplan-hero">
       <div class="gameplan-hero-main">
@@ -784,6 +942,10 @@ function renderHero(plan) {
           <span>Player brief audience</span>
         </div>
         <div>
+          <strong>${readyScenarioCount}/${scenarios.length}</strong>
+          <span>Decision cards</span>
+        </div>
+        <div>
           <strong>${doneCount}/${checklist.length}</strong>
           <span>Checklist</span>
         </div>
@@ -798,7 +960,7 @@ function renderTabs() {
     ["plan", "Plan"],
     ["staff", "Staff"],
     ["player-brief", "Player Brief"],
-    ["checklist", "Checklist"],
+    ["matchday", "Matchday"],
   ];
   return `
     <nav class="gameplan-tabs" aria-label="Gameplan sections">
@@ -812,34 +974,122 @@ function renderTabs() {
   `;
 }
 
-function renderPlanTab(plan) {
+function renderEvidenceChips(plan) {
+  const evidence = plan.evidence || [];
   return `
-    <section class="gameplan-panel gameplan-plan-grid">
+    <div class="gameplan-evidence-chips">
+      ${
+        evidence.length
+          ? evidence
+              .slice(0, 4)
+              .map((item) => {
+                const label = item.title || item.source || "Evidence";
+                const meta = [item.source, item.confidence].filter(Boolean).join(" · ");
+                const content = `
+                  <strong>${escapeHtml(label)}</strong>
+                  ${meta ? `<span>${escapeHtml(meta)}</span>` : ""}
+                `;
+                return item.url
+                  ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener" class="gameplan-evidence-chip">${content}</a>`
+                  : `<span class="gameplan-evidence-chip">${content}</span>`;
+              })
+              .join("")
+          : `<span class="gameplan-evidence-chip is-empty">No evidence linked</span>`
+      }
+    </div>
+  `;
+}
+
+function renderEvidenceQuickEditor(plan) {
+  const evidence = plan.evidence || [];
+  const disabled = !canEditPlan();
+  if (!evidence.length) {
+    return "";
+  }
+  return `
+    <div class="gameplan-evidence-quick-list">
+      ${evidence
+        .slice(0, 4)
+        .map(
+          (item) => `
+            <article class="gameplan-evidence-quick-row">
+              <input value="${escapeHtml(item.title)}" data-gameplan-evidence="${escapeHtml(item.id)}" data-gameplan-evidence-field="title" ${disabled ? "disabled" : ""} aria-label="Evidence title">
+              <input value="${escapeHtml(item.url)}" data-gameplan-evidence="${escapeHtml(item.id)}" data-gameplan-evidence-field="url" ${disabled ? "disabled" : ""} aria-label="Evidence URL">
+              <select data-gameplan-evidence="${escapeHtml(item.id)}" data-gameplan-evidence-field="confidence" ${disabled ? "disabled" : ""} aria-label="Evidence confidence">
+                ${renderOptions(gameplanEvidenceConfidenceOptions, item.confidence || "medium")}
+              </select>
+              <button type="button" data-gameplan-remove-evidence="${escapeHtml(item.id)}" ${disabled ? "disabled" : ""}>Remove</button>
+            </article>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderCommandScenarioCard(item, index) {
+  const disabled = !canEditPlan();
+  return `
+    <article class="gameplan-command-trigger">
+      <div class="gameplan-command-trigger-head">
+        <strong>${index + 1}</strong>
+        <input value="${escapeHtml(item.title)}" data-gameplan-scenario="${escapeHtml(item.id)}" data-gameplan-scenario-field="title" ${disabled ? "disabled" : ""} aria-label="Decision trigger title">
+        <select data-gameplan-scenario="${escapeHtml(item.id)}" data-gameplan-scenario-field="status" ${disabled ? "disabled" : ""} aria-label="Decision trigger status">
+          ${renderOptions(gameplanScenarioStatusOptions, item.status || "open")}
+        </select>
+      </div>
+      <div class="gameplan-command-trigger-body">
+        <label>
+          <span>If</span>
+          <textarea rows="2" data-gameplan-scenario="${escapeHtml(item.id)}" data-gameplan-scenario-field="trigger" ${disabled ? "disabled" : ""}>${escapeHtml(item.trigger)}</textarea>
+        </label>
+        <label>
+          <span>Then</span>
+          <textarea rows="2" data-gameplan-scenario="${escapeHtml(item.id)}" data-gameplan-scenario-field="staffAction" ${disabled ? "disabled" : ""}>${escapeHtml(item.staffAction)}</textarea>
+        </label>
+      </div>
+    </article>
+  `;
+}
+
+function renderPlanTab(plan) {
+  const scenarioCards = (plan.scenarioCards || []).slice(0, 3);
+  const canAddTrigger = canEditPlan() && (plan.scenarioCards || []).length < 3;
+  return `
+    <section class="gameplan-panel gameplan-command-grid">
+      <section class="gameplan-card gameplan-card-span gameplan-command-card">
+        <header>
+          <span>Match Command</span>
+          <button type="button" data-gameplan-add-evidence ${!canEditPlan() ? "disabled" : ""}>Add evidence</button>
+        </header>
+        <div class="gameplan-command-summary">
+          ${renderField("summary.objective", "Match objective", plan.summary?.objective, { rows: 2 })}
+          ${renderField("summary.nonNegotiables", "3 non-negotiables", plan.summary?.nonNegotiables, { rows: 2 })}
+          ${renderField("opponentPlan.threats", "Key opponent threat", plan.opponentPlan?.threats, { rows: 2 })}
+          ${renderField("opponentPlan.weakZones", "Our main advantage", plan.opponentPlan?.weakZones, { rows: 2 })}
+        </div>
+        ${renderEvidenceChips(plan)}
+        ${renderEvidenceQuickEditor(plan)}
+      </section>
       <section class="gameplan-card gameplan-card-span">
-        <header><span>Match Brief</span></header>
-        <div class="gameplan-form-grid">
-          ${renderField("summary.objective", "Match objective", plan.summary?.objective, { rows: 3 })}
-          ${renderField("summary.matchStory", "Expected match story", plan.summary?.matchStory, { rows: 3 })}
-          ${renderField("summary.nonNegotiables", "Non-negotiables", plan.summary?.nonNegotiables, { rows: 3, wide: true })}
+        <header>
+          <span>Top 3 Decision Triggers</span>
+          <button type="button" data-gameplan-add-scenario ${!canAddTrigger ? "disabled" : ""}>Add trigger</button>
+        </header>
+        <div class="gameplan-command-triggers">
+          ${
+            scenarioCards.length
+              ? scenarioCards.map(renderCommandScenarioCard).join("")
+              : `<div class="gameplan-empty-small">No decision triggers yet.</div>`
+          }
         </div>
       </section>
       <section class="gameplan-card gameplan-card-span">
-        <header><span>Tactical Intent</span></header>
-        <div class="gameplan-phase-grid">
-          ${gameplanPhaseKeys
-            .map((key) => renderField(`tactical.${key}`, gameplanPhaseLabels[key], plan.tactical?.[key], { rows: 4 }))
+        <header><span>Phase Notes</span></header>
+        <div class="gameplan-phase-grid gameplan-phase-grid-compact">
+          ${["inPossession", "outOfPossession", "setPieces"]
+            .map((key) => renderField(`tactical.${key}`, gameplanPhaseLabels[key], plan.tactical?.[key], { rows: 3 }))
             .join("")}
-        </div>
-      </section>
-      <section class="gameplan-card gameplan-card-span">
-        <header><span>Opponent Plan</span></header>
-        <div class="gameplan-form-grid">
-          ${renderField("opponentPlan.shape", "Shape", plan.opponentPlan?.shape, { rows: 2 })}
-          ${renderField("opponentPlan.threats", "Threats", plan.opponentPlan?.threats, { rows: 3 })}
-          ${renderField("opponentPlan.weakZones", "Weak zones", plan.opponentPlan?.weakZones, { rows: 3 })}
-          ${renderField("opponentPlan.keyPlayers", "Key players", plan.opponentPlan?.keyPlayers, { rows: 3 })}
-          ${renderField("opponentPlan.pressingCues", "Pressing cues", plan.opponentPlan?.pressingCues, { rows: 3 })}
-          ${renderField("opponentPlan.setPieces", "Set-piece risk", plan.opponentPlan?.setPieces, { rows: 3 })}
         </div>
       </section>
     </section>
@@ -888,6 +1138,7 @@ function renderStaffResponsibilityCard(item) {
 function renderStaffTab(plan) {
   return `
     <section class="gameplan-panel">
+      ${renderMeetingPanel(plan)}
       <section class="gameplan-card">
         <header>
           <span>Staff Responsibilities</span>
@@ -897,6 +1148,26 @@ function renderStaffTab(plan) {
           ${(plan.staffResponsibilities || []).map(renderStaffResponsibilityCard).join("")}
         </div>
       </section>
+    </section>
+  `;
+}
+
+function renderMeetingPanel(plan) {
+  const meeting = plan.meeting || {};
+  return `
+    <section class="gameplan-card">
+      <header>
+        <span>Staff Meeting</span>
+        <button type="button" data-gameplan-approve-meeting ${!canEditPlan() ? "disabled" : ""}>Approve plan</button>
+      </header>
+      <div class="gameplan-form-grid">
+        ${renderField("meeting.agenda", "Agenda", meeting.agenda, { rows: 5 })}
+        ${renderField("meeting.decisions", "Decisions locked", meeting.decisions, { rows: 5 })}
+      </div>
+      <div class="gameplan-inline-status">
+        <strong>${meeting.approvedAt ? "Approved" : "Not approved"}</strong>
+        <span>${meeting.approvedAt ? escapeHtml(formatTimestamp(meeting.approvedAt)) : "Head Coach sign-off needed before sharing final brief."}</span>
+      </div>
     </section>
   `;
 }
@@ -939,6 +1210,7 @@ function renderPlayerBriefPreview(plan) {
   const brief = plan.playerBrief || {};
   const selected = new Set(brief.audiencePlayerIds || []);
   const players = getSquadPlayers().filter((player) => selected.has(player.id));
+  const individualNoteCount = Object.values(brief.individualNotes || {}).filter(Boolean).length;
   return `
     <section class="gameplan-player-preview">
       <div class="gameplan-player-preview-card">
@@ -946,6 +1218,7 @@ function renderPlayerBriefPreview(plan) {
         <h2>${escapeHtml(brief.headline || "Player Brief")}</h2>
         ${brief.message ? `<strong>${escapeHtml(brief.message)}</strong>` : ""}
         ${brief.focus ? `<section><span>Team focus</span><p>${escapeHtml(brief.focus)}</p></section>` : ""}
+        ${brief.positionGroupFocus ? `<section><span>Position group focus</span><p>${escapeHtml(brief.positionGroupFocus)}</p></section>` : ""}
         <div class="gameplan-player-preview-phases">
           ${gameplanPhaseKeys
             .map((key) =>
@@ -958,6 +1231,7 @@ function renderPlayerBriefPreview(plan) {
         ${brief.individualFocus ? `<section><span>Individual focus</span><p>${escapeHtml(brief.individualFocus)}</p></section>` : ""}
         <footer>
           <span>${players.length} selected player${players.length === 1 ? "" : "s"}</span>
+          <span>${individualNoteCount} individual note${individualNoteCount === 1 ? "" : "s"}</span>
           ${brief.publishedAt ? `<span>Published ${escapeHtml(formatTimestamp(brief.publishedAt))}</span>` : `<span>Not published</span>`}
         </footer>
       </div>
@@ -1009,6 +1283,33 @@ function renderPlayerBriefDelivery(plan) {
   `;
 }
 
+function renderIndividualBriefNotes(plan) {
+  const players = getSelectedBriefPlayers(plan);
+  const notes = plan.playerBrief?.individualNotes || {};
+  const disabled = !canEditPlan();
+  return `
+    <section class="gameplan-card gameplan-individual-notes">
+      <header><span>Individual Player Notes</span></header>
+      <div class="gameplan-individual-note-list">
+        ${
+          players.length
+            ? players
+                .map(
+                  (player) => `
+                    <label class="gameplan-field">
+                      <span>${escapeHtml(player.name || "Player")}</span>
+                      <textarea rows="3" data-gameplan-field="playerBrief.individualNotes.${escapeHtml(player.id)}" ${disabled ? "disabled" : ""}>${escapeHtml(notes[player.id] || "")}</textarea>
+                    </label>
+                  `
+                )
+                .join("")
+            : `<div class="gameplan-empty-small">Select players to add individual instructions.</div>`
+        }
+      </div>
+    </section>
+  `;
+}
+
 function renderPlayerBriefTab(plan) {
   const brief = plan.playerBrief || {};
   return `
@@ -1022,6 +1323,7 @@ function renderPlayerBriefTab(plan) {
           ${renderField("playerBrief.headline", "Headline", brief.headline, { rows: 2 })}
           ${renderField("playerBrief.message", "Message", brief.message, { rows: 3 })}
           ${renderField("playerBrief.focus", "Team focus", brief.focus, { rows: 3, wide: true })}
+          ${renderField("playerBrief.positionGroupFocus", "Position group focus", brief.positionGroupFocus, { rows: 3, wide: true })}
         </div>
         <div class="gameplan-phase-grid">
           ${gameplanPhaseKeys
@@ -1031,6 +1333,7 @@ function renderPlayerBriefTab(plan) {
         ${renderField("playerBrief.individualFocus", "Individual focus", brief.individualFocus, { rows: 3, wide: true })}
       </section>
       ${renderPlayerAudience(plan)}
+      ${renderIndividualBriefNotes(plan)}
       ${renderPlayerBriefDelivery(plan)}
       ${renderPlayerBriefPreview(plan)}
     </section>
@@ -1079,6 +1382,7 @@ function renderPlayerBriefPortalCard({ plan = {}, player = {}, brief = {}, recei
           ${brief.publishedAt ? `<span>Published ${escapeHtml(formatTimestamp(brief.publishedAt))}</span>` : ""}
         </div>
         ${brief.focus ? `<section><span>Team focus</span><p>${escapeHtml(brief.focus)}</p></section>` : ""}
+        ${brief.positionGroupFocus ? `<section><span>Position group focus</span><p>${escapeHtml(brief.positionGroupFocus)}</p></section>` : ""}
         <div class="gameplan-player-portal-phases">
           ${gameplanPhaseKeys
             .map((key) =>
@@ -1151,7 +1455,7 @@ function renderPlayerBriefPortal(route = {}) {
   return renderPlayerBriefPortalCard({
     plan,
     player,
-    brief,
+    brief: getPlayerSpecificBrief(plan, route.playerId),
     receipt,
     acknowledgeMarkup: `<button type="button" data-gameplan-ack-player-brief="${escapeHtml(plan.id)}" data-gameplan-ack-player="${escapeHtml(route.playerId)}" ${acknowledged ? "disabled" : ""}>
       ${acknowledged ? "Marked as read" : "Mark as read"}
@@ -1159,10 +1463,76 @@ function renderPlayerBriefPortal(route = {}) {
   });
 }
 
-function renderChecklistTab(plan) {
+function renderObservationCard(item) {
   const disabled = !canEditPlan();
   return `
-    <section class="gameplan-panel">
+    <article class="gameplan-observation-card">
+      <div class="gameplan-observation-top">
+        <label>
+          <span>Minute</span>
+          <input value="${escapeHtml(item.minute)}" data-gameplan-observation="${escapeHtml(item.id)}" data-gameplan-observation-field="minute" ${disabled ? "disabled" : ""}>
+        </label>
+        <label>
+          <span>Phase</span>
+          <input value="${escapeHtml(item.phase)}" data-gameplan-observation="${escapeHtml(item.id)}" data-gameplan-observation-field="phase" ${disabled ? "disabled" : ""}>
+        </label>
+        <label>
+          <span>Owner</span>
+          <select data-gameplan-observation="${escapeHtml(item.id)}" data-gameplan-observation-field="ownerUserId" ${disabled ? "disabled" : ""}>
+            ${renderUserOptions(item.ownerUserId)}
+          </select>
+        </label>
+        <label>
+          <span>Status</span>
+          <select data-gameplan-observation="${escapeHtml(item.id)}" data-gameplan-observation-field="status" ${disabled ? "disabled" : ""}>
+            ${renderOptions(gameplanObservationStatusOptions, item.status || "watching")}
+          </select>
+        </label>
+        <button type="button" data-gameplan-remove-observation="${escapeHtml(item.id)}" ${disabled ? "disabled" : ""}>Remove</button>
+      </div>
+      <div class="gameplan-form-grid">
+        <label class="gameplan-field">
+          <span>Observation</span>
+          <textarea rows="3" data-gameplan-observation="${escapeHtml(item.id)}" data-gameplan-observation-field="observation" ${disabled ? "disabled" : ""}>${escapeHtml(item.observation)}</textarea>
+        </label>
+        <label class="gameplan-field">
+          <span>Action / message</span>
+          <textarea rows="3" data-gameplan-observation="${escapeHtml(item.id)}" data-gameplan-observation-field="action" ${disabled ? "disabled" : ""}>${escapeHtml(item.action)}</textarea>
+        </label>
+      </div>
+    </article>
+  `;
+}
+
+function renderMatchdayTab(plan) {
+  const live = plan.live || {};
+  const halftime = live.halftime || {};
+  const observations = live.observations || [];
+  const review = plan.review || {};
+  const disabled = !canEditPlan();
+  return `
+    <section class="gameplan-panel gameplan-matchday-grid">
+      <section class="gameplan-card">
+        <header><span>Coach Mode</span></header>
+        <div class="gameplan-form-grid">
+          ${renderField("live.halftime.keyMessage", "Halftime message", halftime.keyMessage, { rows: 2 })}
+          ${renderField("live.halftime.adjustments", "Adjustments", halftime.adjustments, { rows: 2 })}
+          ${renderField("live.halftime.risks", "Risks", halftime.risks, { rows: 2, wide: true })}
+        </div>
+      </section>
+      <section class="gameplan-card">
+        <header>
+          <span>Observations</span>
+          <button type="button" data-gameplan-add-observation ${disabled ? "disabled" : ""}>Add observation</button>
+        </header>
+        <div class="gameplan-observation-list">
+          ${
+            observations.length
+              ? observations.map(renderObservationCard).join("")
+              : `<div class="gameplan-empty-small">No matchday observations yet.</div>`
+          }
+        </div>
+      </section>
       <section class="gameplan-card">
         <header>
           <span>Matchday Checklist</span>
@@ -1186,6 +1556,14 @@ function renderChecklistTab(plan) {
             .join("")}
         </div>
       </section>
+      <section class="gameplan-card">
+        <header><span>After Action</span></header>
+        <div class="gameplan-form-grid">
+          ${renderField("review.outcome", "Outcome", review.outcome, { rows: 2 })}
+          ${renderField("review.lessons", "Lessons", review.lessons, { rows: 2 })}
+          ${renderField("review.trainingCarryover", "Training carryover", review.trainingCarryover, { rows: 2, wide: true })}
+        </div>
+      </section>
     </section>
   `;
 }
@@ -1194,7 +1572,7 @@ function renderActiveTab(plan) {
   const tab = getState().activeTab || "plan";
   if (tab === "staff") return renderStaffTab(plan);
   if (tab === "player-brief") return renderPlayerBriefTab(plan);
-  if (tab === "checklist") return renderChecklistTab(plan);
+  if (tab === "matchday") return renderMatchdayTab(plan);
   return renderPlanTab(plan);
 }
 
@@ -1319,6 +1697,33 @@ export async function handleClick(event, context = activeContext) {
     rerenderGameplan();
     return;
   }
+  if (event.target.closest("[data-gameplan-add-scenario]")) {
+    addGameplanScenarioCard();
+    rerenderGameplan();
+    return;
+  }
+  const removeScenarioTrigger = event.target.closest("[data-gameplan-remove-scenario]");
+  if (removeScenarioTrigger) {
+    removeGameplanScenarioCard(removeScenarioTrigger.dataset.gameplanRemoveScenario);
+    rerenderGameplan();
+    return;
+  }
+  if (event.target.closest("[data-gameplan-add-evidence]")) {
+    addGameplanEvidenceItem();
+    rerenderGameplan();
+    return;
+  }
+  const removeEvidenceTrigger = event.target.closest("[data-gameplan-remove-evidence]");
+  if (removeEvidenceTrigger) {
+    removeGameplanEvidenceItem(removeEvidenceTrigger.dataset.gameplanRemoveEvidence);
+    rerenderGameplan();
+    return;
+  }
+  if (event.target.closest("[data-gameplan-approve-meeting]")) {
+    approveGameplanMeeting();
+    rerenderGameplan();
+    return;
+  }
   const audienceTrigger = event.target.closest("[data-gameplan-audience]");
   if (audienceTrigger) {
     setGameplanAudience(audienceTrigger.dataset.gameplanAudience);
@@ -1332,6 +1737,17 @@ export async function handleClick(event, context = activeContext) {
   }
   if (event.target.closest("[data-gameplan-add-check]")) {
     addGameplanChecklistItem();
+    rerenderGameplan();
+    return;
+  }
+  if (event.target.closest("[data-gameplan-add-observation]")) {
+    addGameplanObservation();
+    rerenderGameplan();
+    return;
+  }
+  const removeObservationTrigger = event.target.closest("[data-gameplan-remove-observation]");
+  if (removeObservationTrigger) {
+    removeGameplanObservation(removeObservationTrigger.dataset.gameplanRemoveObservation);
     rerenderGameplan();
     return;
   }
@@ -1353,6 +1769,27 @@ export function handleInput(event, context = activeContext) {
   if (staffField) {
     updateGameplanStaffResponsibility(staffField.dataset.gameplanStaff, {
       [staffField.dataset.gameplanStaffField]: staffField.value,
+    });
+    return;
+  }
+  const scenarioField = event.target.closest("[data-gameplan-scenario][data-gameplan-scenario-field]");
+  if (scenarioField) {
+    updateGameplanScenarioCard(scenarioField.dataset.gameplanScenario, {
+      [scenarioField.dataset.gameplanScenarioField]: scenarioField.value,
+    });
+    return;
+  }
+  const evidenceField = event.target.closest("[data-gameplan-evidence][data-gameplan-evidence-field]");
+  if (evidenceField) {
+    updateGameplanEvidenceItem(evidenceField.dataset.gameplanEvidence, {
+      [evidenceField.dataset.gameplanEvidenceField]: evidenceField.value,
+    });
+    return;
+  }
+  const observationField = event.target.closest("[data-gameplan-observation][data-gameplan-observation-field]");
+  if (observationField) {
+    updateGameplanObservation(observationField.dataset.gameplanObservation, {
+      [observationField.dataset.gameplanObservationField]: observationField.value,
     });
     return;
   }
@@ -1392,6 +1829,36 @@ export function handleChange(event, context = activeContext) {
       [staffField.dataset.gameplanStaffField]: staffField.value,
     });
     if (staffField.matches("select")) {
+      rerenderGameplan();
+    }
+    return;
+  }
+  const scenarioField = event.target.closest("[data-gameplan-scenario][data-gameplan-scenario-field]");
+  if (scenarioField) {
+    updateGameplanScenarioCard(scenarioField.dataset.gameplanScenario, {
+      [scenarioField.dataset.gameplanScenarioField]: scenarioField.value,
+    });
+    if (scenarioField.matches("select")) {
+      rerenderGameplan();
+    }
+    return;
+  }
+  const evidenceField = event.target.closest("[data-gameplan-evidence][data-gameplan-evidence-field]");
+  if (evidenceField) {
+    updateGameplanEvidenceItem(evidenceField.dataset.gameplanEvidence, {
+      [evidenceField.dataset.gameplanEvidenceField]: evidenceField.value,
+    });
+    if (evidenceField.matches("select")) {
+      rerenderGameplan();
+    }
+    return;
+  }
+  const observationField = event.target.closest("[data-gameplan-observation][data-gameplan-observation-field]");
+  if (observationField) {
+    updateGameplanObservation(observationField.dataset.gameplanObservation, {
+      [observationField.dataset.gameplanObservationField]: observationField.value,
+    });
+    if (observationField.matches("select")) {
       rerenderGameplan();
     }
     return;

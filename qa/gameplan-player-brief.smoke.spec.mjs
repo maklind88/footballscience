@@ -48,6 +48,10 @@ test("Gameplan Player Brief portal is audience-gated and records player receipts
   await bootApp(page);
   await openWorkspace(page, "gameplan");
   await expect(page.locator("#gameplanWorkspace .gameplan-shell")).toBeVisible();
+  await expect(page.locator("#gameplanWorkspace [data-gameplan-tab]")).toHaveCount(4);
+  await expect(page.locator("#gameplanWorkspace")).toContainText("Match Command");
+  await page.locator('[data-gameplan-tab="matchday"]').click();
+  await expect(page.locator("#gameplanWorkspace")).toContainText("Coach Mode");
 
   await page.locator('[data-gameplan-tab="player-brief"]').click();
   await expect(page.locator(".gameplan-player-layout")).toBeVisible();
@@ -63,6 +67,7 @@ test("Gameplan Player Brief portal is audience-gated and records player receipts
   await page.locator('[data-gameplan-field="playerBrief.headline"]').fill("Press together, finish the first action");
   await page.locator('[data-gameplan-field="playerBrief.message"]').fill("Player-facing only. Keep the distances compact.");
   await page.locator('[data-gameplan-field="playerBrief.focus"]').fill("Win second balls and protect the rest defence.");
+  await page.locator('[data-gameplan-field^="playerBrief.individualNotes."]').first().fill("Your first scan opens the six.");
   await page.locator('[data-gameplan-publish-player-brief]').click();
 
   const linkInput = page.locator('[data-gameplan-player-brief-link]').first();
@@ -78,6 +83,7 @@ test("Gameplan Player Brief portal is audience-gated and records player receipts
   await expect(portal.locator(".gameplan-player-portal-card")).toBeVisible();
   await expect(portal.locator(".gameplan-player-portal-card")).toContainText("Press together, finish the first action");
   await expect(portal.locator(".gameplan-player-portal-card")).toContainText("Player-facing only");
+  await expect(portal.locator(".gameplan-player-portal-card")).toContainText("Your first scan opens the six.");
   await expect(portal.locator(".gameplan-player-portal-card")).not.toContainText(/Staff Responsibilities|Halftime report|Decision trigger|Opponent Plan/i);
 
   await portal.locator("[data-gameplan-ack-player-brief]").click();

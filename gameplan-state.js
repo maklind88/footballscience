@@ -1,4 +1,4 @@
-const gameplanSchemaVersion = 2;
+const gameplanSchemaVersion = 3;
 
 const defaultPhaseKeys = Object.freeze([
   "inPossession",
@@ -25,6 +25,27 @@ const defaultChecklistStages = Object.freeze([
   { stage: "Post", title: "Review notes captured" },
 ]);
 
+const defaultScenarioTemplates = Object.freeze([
+  {
+    title: "First 15 minutes",
+    trigger: "Opponent builds through the same side twice in a row.",
+    staffAction: "Lock the press cue and confirm distances from the bench.",
+    playerMessage: "Stay compact, jump together, protect the second ball.",
+  },
+  {
+    title: "Protect lead after 75",
+    trigger: "We lead by one goal after 75 minutes or opponent adds another forward.",
+    staffAction: "Check rest defence, slow restart tempo, prepare control substitution.",
+    playerMessage: "Keep the ball-side distances short and defend the box early.",
+  },
+  {
+    title: "Chasing goal after 70",
+    trigger: "We are level or behind after 70 minutes and territory is stable.",
+    staffAction: "Prepare higher full-back position and extra box runner.",
+    playerMessage: "Play forward earlier, attack second phase, keep counter cover.",
+  },
+]);
+
 const defaultStaffResponsibilityTemplates = Object.freeze([
   { role: "Head Coach", area: "Match direction" },
   { role: "Assistant Coach", area: "Out of possession" },
@@ -37,11 +58,29 @@ const defaultStaffResponsibilityTemplates = Object.freeze([
 
 export const gameplanPhaseKeys = defaultPhaseKeys;
 export const gameplanPhaseLabels = defaultPhaseLabels;
+export const gameplanActiveTabs = Object.freeze(["plan", "staff", "player-brief", "matchday"]);
 export const gameplanStatusOptions = Object.freeze([
   { value: "draft", label: "Draft" },
   { value: "staff-review", label: "Staff review" },
   { value: "player-brief-ready", label: "Player brief ready" },
   { value: "locked", label: "Locked" },
+]);
+export const gameplanScenarioStatusOptions = Object.freeze([
+  { value: "open", label: "Open" },
+  { value: "ready", label: "Ready" },
+  { value: "used", label: "Used" },
+  { value: "parked", label: "Parked" },
+]);
+export const gameplanEvidenceConfidenceOptions = Object.freeze([
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+]);
+export const gameplanObservationStatusOptions = Object.freeze([
+  { value: "watching", label: "Watching" },
+  { value: "reported", label: "Reported" },
+  { value: "actioned", label: "Actioned" },
+  { value: "closed", label: "Closed" },
 ]);
 
 export function normalizeGameplanText(value, maxLength = 1200) {
@@ -60,9 +99,28 @@ function normalizeStatus(value) {
   return gameplanStatusOptions.some((option) => option.value === normalized) ? normalized : "draft";
 }
 
+function normalizeOption(value, options, fallback) {
+  const normalized = normalizeGameplanText(value, 40).toLowerCase();
+  return options.some((option) => option.value === normalized) ? normalized : fallback;
+}
+
 function normalizeDate(value) {
   const text = normalizeGameplanText(value, 20);
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "";
+}
+
+function normalizeGameplanActiveTab(value) {
+  const tab = normalizeGameplanText(value, 40);
+  if (gameplanActiveTabs.includes(tab)) {
+    return tab;
+  }
+  if (tab === "scenarios" || tab === "evidence") {
+    return "plan";
+  }
+  if (tab === "live" || tab === "review" || tab === "checklist") {
+    return "matchday";
+  }
+  return "plan";
 }
 
 function normalizeGameplanPerson(entry = {}) {
@@ -100,6 +158,93 @@ function normalizePhaseMap(source = {}, maxLength = 900) {
 function normalizeStringArray(values = [], maxLength = 180) {
   const source = Array.isArray(values) ? values : [];
   return Array.from(new Set(source.map((value) => normalizeGameplanText(value, maxLength)).filter(Boolean)));
+}
+
+function normalizeGameplanMap(source = {}, maxLength = 700) {
+  const entries = Object.entries(source && typeof source === "object" && !Array.isArray(source) ? source : {});
+  return entries.reduce((map, [key, value]) => {
+    const normalizedKey = normalizeGameplanText(key, 180);
+    const normalizedValue = normalizeGameplanText(value, maxLength);
+    if (normalizedKey && normalizedValue) {
+      map[normalizedKey] = normalizedValue;
+    }
+    return map;
+  }, {});
+}
+
+function normalizeGameplanScenario(entry = {}) {
+  return {
+    id: normalizeGameplanText(entry.id, 160) || createGameplanId("scenario"),
+    title: normalizeGameplanText(entry.title, 160),
+    trigger: normalizeGameplanText(entry.trigger, 900),
+    staffAction: normalizeGameplanText(entry.staffAction, 900),
+    playerMessage: normalizeGameplanText(entry.playerMessage, 700),
+    ownerUserId: normalizeGameplanText(entry.ownerUserId, 180),
+    status: normalizeOption(entry.status, gameplanScenarioStatusOptions, "open"),
+  };
+}
+
+function normalizeGameplanEvidence(entry = {}) {
+  return {
+    id: normalizeGameplanText(entry.id, 160) || createGameplanId("evidence"),
+    title: normalizeGameplanText(entry.title, 180),
+    source: normalizeGameplanText(entry.source, 120),
+    phase: normalizeGameplanText(entry.phase, 80),
+    url: normalizeGameplanText(entry.url, 1000),
+    note: normalizeGameplanText(entry.note, 900),
+    ownerUserId: normalizeGameplanText(entry.ownerUserId, 180),
+    confidence: normalizeOption(entry.confidence, gameplanEvidenceConfidenceOptions, "medium"),
+  };
+}
+
+function normalizeGameplanObservation(entry = {}) {
+  return {
+    id: normalizeGameplanText(entry.id, 160) || createGameplanId("obs"),
+    minute: normalizeGameplanText(entry.minute, 20),
+    phase: normalizeGameplanText(entry.phase, 80),
+    ownerUserId: normalizeGameplanText(entry.ownerUserId, 180),
+    observation: normalizeGameplanText(entry.observation, 900),
+    action: normalizeGameplanText(entry.action, 900),
+    status: normalizeOption(entry.status, gameplanObservationStatusOptions, "watching"),
+    createdAt: normalizeGameplanText(entry.createdAt, 40) || new Date().toISOString(),
+  };
+}
+
+function normalizeGameplanMeeting(source = {}) {
+  return {
+    agenda: normalizeGameplanText(
+      source.agenda ||
+        "1. Opponent identity and key threats\n2. Our match objective and non-negotiables\n3. Scenario decisions\n4. Player Brief approval",
+      1200
+    ),
+    decisions: normalizeGameplanText(source.decisions, 1200),
+    approvedByUserId: normalizeGameplanText(source.approvedByUserId, 180),
+    approvedAt: normalizeGameplanText(source.approvedAt, 40),
+  };
+}
+
+function normalizeGameplanLive(source = {}) {
+  const halftime = source.halftime && typeof source.halftime === "object" ? source.halftime : {};
+  return {
+    observations: Array.isArray(source.observations)
+      ? source.observations.map(normalizeGameplanObservation).filter((entry) => entry.observation || entry.action || entry.minute)
+      : [],
+    halftime: {
+      keyMessage: normalizeGameplanText(halftime.keyMessage, 900),
+      adjustments: normalizeGameplanText(halftime.adjustments, 900),
+      risks: normalizeGameplanText(halftime.risks, 900),
+    },
+  };
+}
+
+function normalizeGameplanReview(source = {}) {
+  return {
+    outcome: normalizeGameplanText(source.outcome, 700),
+    planWorked: normalizeGameplanText(source.planWorked, 900),
+    lessons: normalizeGameplanText(source.lessons, 1200),
+    trainingCarryover: normalizeGameplanText(source.trainingCarryover, 900),
+    scoutingCarryover: normalizeGameplanText(source.scoutingCarryover, 900),
+  };
 }
 
 function normalizeBriefReceipt(entry = {}, fallbackPlayerId = "") {
@@ -167,12 +312,24 @@ export function createGameplanFromMatch(match = {}, options = {}) {
       headline: "",
       message: "",
       focus: "",
+      positionGroupFocus: "",
       individualFocus: "",
+      individualNotes: {},
       audiencePlayerIds: [],
       publishedAt: "",
       readReceipts: {},
       phases: {},
     },
+    meeting: normalizeGameplanMeeting(),
+    scenarioCards: defaultScenarioTemplates.map((item) =>
+      normalizeGameplanScenario({
+        ...item,
+        id: createGameplanId("scenario"),
+      })
+    ),
+    evidence: [],
+    live: normalizeGameplanLive(),
+    review: normalizeGameplanReview(),
     checklist: defaultChecklistStages.map((item) =>
       normalizeChecklistItem({
         ...item,
@@ -224,12 +381,23 @@ export function normalizeGameplan(source = {}) {
       headline: normalizeGameplanText(playerBrief.headline, 180),
       message: normalizeGameplanText(playerBrief.message, 900),
       focus: normalizeGameplanText(playerBrief.focus, 900),
+      positionGroupFocus: normalizeGameplanText(playerBrief.positionGroupFocus, 900),
       individualFocus: normalizeGameplanText(playerBrief.individualFocus, 900),
+      individualNotes: normalizeGameplanMap(playerBrief.individualNotes, 700),
       audiencePlayerIds: normalizeStringArray(playerBrief.audiencePlayerIds, 180),
       publishedAt: normalizeGameplanText(playerBrief.publishedAt, 40),
       readReceipts: normalizeBriefReceipts(playerBrief.readReceipts || playerBrief.receipts),
       phases: normalizePhaseMap(playerBrief.phases, 700),
     },
+    meeting: normalizeGameplanMeeting(source.meeting),
+    scenarioCards: Array.isArray(source.scenarioCards)
+      ? source.scenarioCards.map(normalizeGameplanScenario).filter((entry) => entry.title || entry.trigger || entry.staffAction)
+      : [],
+    evidence: Array.isArray(source.evidence)
+      ? source.evidence.map(normalizeGameplanEvidence).filter((entry) => entry.title || entry.note || entry.url)
+      : [],
+    live: normalizeGameplanLive(source.live),
+    review: normalizeGameplanReview(source.review),
     checklist,
     createdAt: normalizeGameplanText(source.createdAt, 40) || now,
     updatedAt: normalizeGameplanText(source.updatedAt, 40) || now,
@@ -246,9 +414,7 @@ export function cloneGameplanState(source = {}, options = {}) {
   }
   const selectedId = normalizeGameplanText(source.activeGameplanId, 180);
   const activeGameplanId = gameplans.some((plan) => plan.id === selectedId) ? selectedId : gameplans[0]?.id || "";
-  const activeTab = ["plan", "staff", "player-brief", "checklist"].includes(source.activeTab)
-    ? source.activeTab
-    : "plan";
+  const activeTab = normalizeGameplanActiveTab(source.activeTab);
   return {
     schemaVersion: gameplanSchemaVersion,
     activeGameplanId,

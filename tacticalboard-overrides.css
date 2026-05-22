@@ -1,0 +1,5 @@
+.session-tacticalboard-inspector {
+  align-self: stretch;
+  height: calc(94vh - 6.2rem);
+  max-height: calc(94vh - 6.2rem);
+}

@@ -831,6 +831,20 @@ test("Periodization derives match day tags from schedule while preserving manual
               matchDay: "2026-05-01T12:00:00.000Z",
             },
           },
+          "2026-05-11": {
+            daySchedule: "Off",
+            sessionType: "Off",
+            physicalLoad: "Off",
+          },
+          "2026-05-12": {
+            daySchedule: "Off",
+            sessionType: "Off",
+            physicalLoad: "Off",
+            matchDay: "Match Day +2",
+            fieldUpdatedAt: {
+              matchDay: "2026-05-01T12:00:00.000Z",
+            },
+          },
         },
       })
     );
@@ -841,6 +855,8 @@ test("Periodization derives match day tags from schedule while preserving manual
 
   await expect(page.locator('[data-periodization-date="2026-05-08"] .periodization-day-md')).toHaveText("Match Day -2");
   await expect(page.locator('[data-periodization-date="2026-05-07"] .periodization-day-md')).toHaveText("Match Day +3");
+  await expect(page.locator('[data-periodization-date="2026-05-11"] .periodization-day-md')).toHaveCount(0);
+  await expect(page.locator('[data-periodization-date="2026-05-12"] .periodization-day-md')).toHaveText("Match Day +2");
 
   await page.locator('[data-periodization-date="2026-05-08"]').click();
   await expect(page.locator("[data-periodization-overlay]")).toBeVisible();

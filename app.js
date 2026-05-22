@@ -6137,11 +6137,14 @@ const day = normalizePeriodizationDay({
 ...getDefaultPeriodizationDay(dateValue),
 ...savedDay,
 });
-const autoMatchDay = getPeriodizationAutoMd(dateValue);
-if (getPeriodizationFieldUpdatedAtMs(savedDay, "matchDay") || !autoMatchDay) {
+if (getPeriodizationFieldUpdatedAtMs(savedDay, "matchDay")) {
 return day;
 }
-return { ...day, matchDay: autoMatchDay };
+if (isPeriodizationOffDay(day)) {
+return { ...day, matchDay: "" };
+}
+const autoMatchDay = getPeriodizationAutoMd(dateValue);
+return autoMatchDay ? { ...day, matchDay: autoMatchDay } : day;
 }
 function ensurePeriodizationState() {
 if (!periodizationState) {

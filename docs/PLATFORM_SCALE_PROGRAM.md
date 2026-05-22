@@ -6,11 +6,12 @@ This program tracks the long-term work needed to make Football Science safe to g
 
 Do not rewrite the platform in one large move. Build a server-owned spine beside the current app, then migrate one module at a time with app-state fallback, tests, audit, and rollback intact.
 
-Current isolated branch/worktree:
+Current coordination rule:
 
-- Branch: `codex/platform-scale-foundation-clean`
-- Worktree: `/Users/maklind/Documents/New project-scale-foundation-clean`
-- Original working tree has unrelated Scouting changes and must not be used for platform foundation deploys until coordinated.
+- Keep `main` synced with GitHub before starting platform foundation work.
+- Start broad platform/security work from a fresh `codex/` branch or clean worktree based on `origin/main`.
+- Do not mix local Scouting/import work into platform foundation releases.
+- Local/provider import files belong outside Git or under ignored `data/`; commit only reviewed scripts, migrations, tests, and app code.
 
 ## Program Status
 

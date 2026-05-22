@@ -50,12 +50,14 @@ requirePackageScript("release:vercel-token", "node scripts/verify-vercel-token.m
 requirePackageScript("storage:guard", "node scripts/verify-storage-key-policy.mjs");
 requirePackageScript("security:platform", "node scripts/verify-platform-security.mjs");
 requirePackageScript("platform:readiness", "node scripts/verify-platform-readiness.mjs");
+requirePackageScript("platform:identity:backfill", "node scripts/platform-identity-backfill.mjs");
 
 requireText("vercel.json", "scripts/vercel-ignore-build.mjs", "automatic Vercel production builds must stay blocked");
 requireText("package.json", "npm run storage:guard", "full QA must include the storage key policy gate");
 requireText("package.json", "npm run security:platform", "full QA must include the platform security control-plane gate");
 requireText("package.json", "npm run platform:readiness", "full QA must include the platform readiness contract");
 requireText("src/core/platform-readiness-contracts.mjs", "PLATFORM_READINESS_SCHEMA", "platform readiness must have a stable schema");
+requireText("src/core/platform-readiness-contracts.mjs", "platform:identity:backfill", "platform readiness must expose the identity backfill operation");
 requireText("api/platform-readiness.js", "/api/platform-readiness", "admin dashboard must load readiness through the secured API");
 requireText("app.js", "Platform Readiness", "admin must expose a platform readiness dashboard");
 requireText("scripts/verify-storage-key-policy.mjs", "approvedLocalOnlyStorageKeys", "new local-only storage keys must be explicitly justified");
@@ -85,6 +87,8 @@ requireText("scripts/release-ship.mjs", "requireCanonicalVercelProjectLink", "fa
 requireText("scripts/release-ship.mjs", "footballscience", "fast deploys must target the canonical Vercel project");
 requireText("scripts/release-auto.mjs", "requireCanonicalVercelProjectLink", "legacy deploys must fail closed when a worktree is linked to the wrong Vercel project");
 requireText("scripts/verify-incident-readiness.mjs", "Incident readiness verification: ok", "incident alerting must stay testable");
+requireText("scripts/platform-identity-backfill.mjs", "BACKFILL_PLATFORM_IDENTITY", "platform identity backfill must require explicit apply confirmation");
+requireText("qa/platform-identity-backfill.api.spec.mjs", "app_metadata", "platform identity backfill tests must prove server-owned role derivation");
 requireText("qa/production.live.spec.mjs", "production admin account can open Access & Users", "live smoke must prove admin access");
 requireText("qa/production.live.spec.mjs", 'toBe("admin")', "live smoke must fail if the release QA account loses admin");
 

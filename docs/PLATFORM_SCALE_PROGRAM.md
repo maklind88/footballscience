@@ -17,7 +17,7 @@ Current coordination rule:
 
 | Stream | Status | Current Contract | Next Build Step | Release Risk |
 | --- | --- | --- | --- | --- |
-| Multi-tenant auth/users/org/team | Tenant bootstrap API started | `public.platform_*` identity migration + `/api/platform-identity` + `/api/platform-tenant-bootstrap` | Backfill existing tenants and memberships through explicit admin operations | Safe deploy only |
+| Multi-tenant auth/users/org/team | Backfill runner started | `public.platform_*` identity migration + `/api/platform-identity` + `/api/platform-tenant-bootstrap` + `npm run platform:identity:backfill` | Run controlled dry-run backfill, review output, then apply with explicit confirmation | Safe deploy only |
 | App-state module migrations | Tracked | `platform_module_migration_checkpoints` | Promote Chat to server-first with app-state fallback compare | Safe deploy only |
 | `app.js` module extraction | Started before program | Module loader + existing lazy Scouting/Game Simulator boundaries | Extract one module boundary per release, no UI behavior change first | Safe deploy for broad moves |
 | Chat server-first | Schema exists, app-state fallback still active | `chat_*` tables and `/api/chat` | Make chat API primary for reads/writes, retain compatibility cache | Safe deploy only |
@@ -92,6 +92,32 @@ The bootstrap endpoint is server-first and conservative:
 
 Write authorization must not trust `user_metadata`. Authorization must come from server-owned membership rows and/or server-owned `app_metadata` bootstrap role.
 
+## Backfill Runner v1
+
+`npm run platform:identity:backfill` is the controlled operational entry point for seeding canonical Platform Identity rows from existing Supabase Auth users.
+
+Rules:
+
+- Dry-run is the default.
+- Writes require `--apply --confirm=BACKFILL_PLATFORM_IDENTITY`.
+- A real `--actor-id` is required so created/updated rows have an audit actor.
+- Roles are derived only from server-owned `app_metadata`, never editable `user_metadata`.
+- Profile display fields may read `user_metadata`, but authorization does not.
+- The runner calls the shared tenant bootstrap pipeline for every user instead of writing directly to tables.
+- It does not change UI routing, app-state ownership, module reads, or module writes.
+
+Typical dry-run:
+
+```bash
+npm run platform:identity:backfill -- --actor-id <admin-user-uuid> --organization-name "Football Science" --team-name "First Team"
+```
+
+Apply only after dry-run review:
+
+```bash
+npm run platform:identity:backfill -- --apply --confirm=BACKFILL_PLATFORM_IDENTITY --actor-id <admin-user-uuid> --organization-name "Football Science" --team-name "First Team"
+```
+
 ## Next Phase: Controlled Backfill
 
-Use the bootstrap endpoint behind explicit admin operations to seed production/staging tenant rows. After that, promote one module at a time into shadow reads with app-state fallback comparison still active.
+Use the backfill runner behind explicit admin operations to seed production/staging tenant rows. After that, promote one module at a time into shadow reads with app-state fallback comparison still active.

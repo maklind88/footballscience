@@ -143,6 +143,7 @@ async function openWorkspace(page, workspaceId, viewId = workspaceId) {
 async function waitForSessionPlannerWorkspace(page) {
   const activeWorkspace = page.locator('[data-workspace-view="session-planner"].is-active');
   await expect(activeWorkspace).toBeVisible();
+  await expect(activeWorkspace.locator("[data-session-field]").first()).toBeVisible();
   await expect(activeWorkspace.locator("[data-session-open-player-board]")).toBeVisible();
   return activeWorkspace;
 }
@@ -922,10 +923,11 @@ test("Session Planner block edits persist after refresh", async ({ page }) => {
   await seedQaSessionPlannerTrainingSession(page);
   await bootApp(page);
   await openWorkspace(page, "session-planner");
+  const sessionPlannerWorkspace = await waitForSessionPlannerWorkspace(page);
 
-  let field = page.locator('[data-session-field="objective"]:visible').first();
+  let field = sessionPlannerWorkspace.locator('[data-session-field="objective"]:visible').first();
   if ((await field.count()) === 0) {
-    field = page.locator("[data-session-field]:visible").first();
+    field = sessionPlannerWorkspace.locator("[data-session-field]:visible").first();
   }
   await expect(field).toBeVisible();
   await field.fill(value);
@@ -1957,7 +1959,14 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
 
   await openWorkspace(page, "session-planner");
   const sessionPlannerWorkspace = await waitForSessionPlannerWorkspace(page);
-  await expect(sessionPlannerWorkspace.locator(".session-player-board-warning-row.is-unset small")).toContainText(playerName);
+  await expect
+    .poll(async () => {
+      const warnings = sessionPlannerWorkspace.locator(".session-player-board-warning-row.is-unset small");
+      const count = await warnings.count();
+      if (!count) return "";
+      return (await warnings.allTextContents()).join(" | ");
+    })
+    .toContain(playerName);
   await expect
     .poll(() =>
       page.evaluate(

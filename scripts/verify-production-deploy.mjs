@@ -8,7 +8,7 @@ const baseUrl = new URL(process.env.LIVE_QA_BASE_URL || process.argv[2] || "http
 const failures = [];
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const allowLiveHashMismatch = process.env.RELEASE_ALLOW_LIVE_HASH_MISMATCH === "1";
-const releaseHashWaitMs = Number(process.env.RELEASE_LIVE_HASH_WAIT_MS || 30_000);
+const releaseHashWaitMs = Number(process.env.RELEASE_LIVE_HASH_WAIT_MS || 90_000);
 const releaseHashRetryDelayMs = Number(process.env.RELEASE_LIVE_HASH_RETRY_DELAY_MS || 3_000);
 
 function sha256(value) {
@@ -35,7 +35,14 @@ async function waitForExpectedApp(url, expectedAppHash) {
   const deadline = Date.now() + Math.max(releaseHashWaitMs, 0);
   let lastApp = await readText(url);
   let lastHash = sha256(lastApp.text);
+  let announcedWait = false;
   while (lastApp.response.ok && lastHash !== expectedAppHash && Date.now() < deadline) {
+    if (!announcedWait) {
+      console.log(
+        `- waiting for live app.js hash to match release for up to ${Math.round(releaseHashWaitMs / 1000)}s`,
+      );
+      announcedWait = true;
+    }
     await sleep(releaseHashRetryDelayMs);
     lastApp = await readText(urlFor("/app.js"));
     lastHash = sha256(lastApp.text);

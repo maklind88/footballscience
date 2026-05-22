@@ -3,3 +3,40 @@
   height: calc(94vh - 6.2rem);
   max-height: calc(94vh - 6.2rem);
 }
+
+.session-tacticalboard-toolbox {
+  align-self: stretch;
+  height: calc(94vh - 6.2rem);
+  max-height: calc(94vh - 6.2rem);
+  overflow: hidden;
+}
+
+@media (max-height: 760px) {
+  .session-tacticalboard-toolbox {
+    gap: .48rem;
+    padding: .68rem;
+  }
+
+  .session-tacticalboard-tools {
+    gap: .42rem;
+  }
+
+  .session-tacticalboard-tool-group {
+    gap: .26rem;
+  }
+
+  .session-tacticalboard-tool-group > span {
+    font-size: .68rem;
+  }
+
+  .session-tacticalboard-tool-row {
+    gap: .3rem;
+  }
+
+  .session-tactical-tool-button {
+    min-height: 2.05rem;
+    padding: 0 .55rem;
+    border-radius: 13px;
+    font-size: .76rem;
+  }
+}

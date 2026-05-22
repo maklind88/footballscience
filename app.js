@@ -4641,7 +4641,7 @@ let sessionPlannerTacticalTool = "blue-player";
 let sessionPlannerTacticalColor = "#0d4f86";
 let sessionPlannerTacticalLineWidth = 1.1;
 let sessionPlannerTacticalLineStyle = "solid";
-let sessionPlannerTacticalSnapEnabled = true;
+let sessionPlannerTacticalSnapEnabled = false;
 let sessionPlannerTacticalPendingPoint = null;
 let sessionPlannerTacticalSelectedElementId = "";
 let sessionPlannerTacticalSelectedElementIds = [];
@@ -14834,6 +14834,16 @@ function syncSessionPlannerTacticalboardInspector() {
 const colorInput = ui.sessionPlannerWorkspace?.querySelector("[data-session-tactical-color]");
 const widthInput = ui.sessionPlannerWorkspace?.querySelector("[data-session-tactical-width]");
 const styleInput = ui.sessionPlannerWorkspace?.querySelector("[data-session-tactical-style]");
+const selectedElementIds = getSessionPlannerTacticalSelectedElementIds();
+const arrangeCountLabel = ui.sessionPlannerWorkspace?.querySelector("[data-session-tactical-arrange-count]");
+if (arrangeCountLabel) {
+arrangeCountLabel.textContent = `${selectedElementIds.length} selected`;
+}
+ui.sessionPlannerWorkspace
+?.querySelectorAll("[data-session-arrange-tactical]")
+?.forEach((button) => {
+button.disabled = selectedElementIds.length < 2;
+});
 if (!colorInput || !widthInput) {
 return;
 }
@@ -15033,6 +15043,69 @@ moveSessionPlannerTacticalElementByDelta(item.element, deltaX, deltaY);
 });
 refreshSessionPlannerTacticalboardCanvas({ persist: true });
 }
+function getSessionPlannerTacticalArrangeSpacing(count, span, fallback = 5.2) {
+if (count <= 1) {
+return 0;
+}
+const availableSpan = Math.abs(Number(span));
+if (Number.isFinite(availableSpan) && availableSpan >= count * 2.6) {
+return clamp(availableSpan / (count - 1), 3.2, 9.5);
+}
+return fallback;
+}
+function moveSessionPlannerTacticalElementCenterTo(item, targetCenterX, targetCenterY) {
+if (!item?.element) {
+return;
+}
+const deltaX = Number(targetCenterX) - item.centerX;
+const deltaY = Number(targetCenterY) - item.centerY;
+moveSessionPlannerTacticalElementByDelta(item.element, deltaX, deltaY);
+}
+function arrangeSelectedSessionPlannerTacticalElements(mode) {
+if (!canEditSessionPlanner()) {
+return;
+}
+const collection = getSessionPlannerTacticalBoundsCollection(getSelectedSessionPlannerTacticalElements());
+if (!collection || collection.items.length < 2) {
+showSessionPlannerToast("Select at least two items to arrange.", "warning");
+return;
+}
+const count = collection.items.length;
+const centerX = (collection.left + collection.right) / 2;
+const centerY = (collection.top + collection.bottom) / 2;
+const sortedItems = [...collection.items].sort((a, b) =>
+a.centerY === b.centerY ? a.centerX - b.centerX : a.centerY - b.centerY
+);
+if (mode === "row") {
+const rowItems = [...collection.items].sort((a, b) => a.centerX - b.centerX);
+const spacing = getSessionPlannerTacticalArrangeSpacing(count, collection.right - collection.left, 5);
+const startX = clamp(centerX - (spacing * (count - 1)) / 2, 3, 97 - spacing * (count - 1));
+rowItems.forEach((item, index) => {
+moveSessionPlannerTacticalElementCenterTo(item, startX + spacing * index, centerY);
+});
+} else if (mode === "column") {
+const columnItems = [...collection.items].sort((a, b) => a.centerY - b.centerY);
+const spacing = getSessionPlannerTacticalArrangeSpacing(count, collection.bottom - collection.top, 4.6);
+const startY = clamp(centerY - (spacing * (count - 1)) / 2, 3, 97 - spacing * (count - 1));
+columnItems.forEach((item, index) => {
+moveSessionPlannerTacticalElementCenterTo(item, centerX, startY + spacing * index);
+});
+} else {
+const columns = Math.ceil(Math.sqrt(count));
+const rows = Math.ceil(count / columns);
+const spacingX = 5.4;
+const spacingY = 4.9;
+const startX = clamp(centerX - (spacingX * (columns - 1)) / 2, 3, 97 - spacingX * (columns - 1));
+const startY = clamp(centerY - (spacingY * (rows - 1)) / 2, 3, 97 - spacingY * (rows - 1));
+sortedItems.forEach((item, index) => {
+const columnIndex = index % columns;
+const rowIndex = Math.floor(index / columns);
+moveSessionPlannerTacticalElementCenterTo(item, startX + spacingX * columnIndex, startY + spacingY * rowIndex);
+});
+}
+refreshSessionPlannerTacticalboardCanvas({ persist: true });
+showSessionPlannerToast(`Arranged ${count} selected item${count === 1 ? "" : "s"}.`);
+}
 function copySelectedSessionPlannerTacticalElements() {
 if (!canEditSessionPlanner()) {
 return false;
@@ -15079,10 +15152,7 @@ return duplicate;
 });
 block.tacticalElements.push(...duplicatedElements);
 sessionPlannerTacticalClipboardPasteCount += 1;
-setSessionPlannerTacticalSelectedElements(
-duplicatedElements.map((element) => element.id),
-duplicatedElements[0]?.id || ""
-);
+clearSessionPlannerTacticalSelection();
 sessionPlannerTacticalPendingPoint = null;
 sessionPlannerTacticalDraftLineState = null;
 sessionPlannerTacticalSelectionState = null;
@@ -17679,9 +17749,11 @@ const frameButtons = tacticalFrames
       >
         ${index + 1}
       </button>
-    `)
+`)
 .join("");
 const frameStatusLabel = `${Math.max(1, tacticalFrames.findIndex((frame) => frame.id === activeFrameId) + 1)} / ${tacticalFrames.length || 1}`;
+const selectedTacticalCount = getSessionPlannerTacticalSelectedElementIds().length;
+const arrangeDisabled = selectedTacticalCount < 2 ? "disabled" : "";
 return `
     <div class="session-library-overlay session-tacticalboard-overlay" data-session-tacticalboard-overlay>
       <section class="session-library-modal session-tacticalboard-modal" role="dialog" aria-modal="true" aria-label="Tacticalboard">
@@ -17729,11 +17801,6 @@ ${group.tools
                 <span>Pitch view</span>
                 <select data-session-tactical-pitch-mode>${pitchModeOptions}</select>
               </label>
-              <label class="session-tacticalboard-toggle">
-                <input type="checkbox" data-session-tactical-snap ${sessionPlannerTacticalSnapEnabled ? "checked" : ""} />
-                <span>Snap</span>
-                <small>Alt for precision</small>
-              </label>
               <label>
                 <span>Colour</span>
                 <input type="color" value="${escapeHtml(sessionPlannerTacticalColor)}" data-session-tactical-color />
@@ -17764,22 +17831,17 @@ ${group.tools
             <div class="session-tacticalboard-arrange" aria-label="Arrange selected items">
               <div class="session-tacticalboard-panel-head">
                 <span>Arrange</span>
-                <small>Selected</small>
+                <small data-session-tactical-arrange-count>${selectedTacticalCount} selected</small>
               </div>
               <div class="session-tacticalboard-arrange-grid">
-                <button type="button" data-session-align-tactical="left">Left</button>
-                <button type="button" data-session-align-tactical="center">Center</button>
-                <button type="button" data-session-align-tactical="right">Right</button>
-                <button type="button" data-session-align-tactical="top">Top</button>
-                <button type="button" data-session-align-tactical="middle">Middle</button>
-                <button type="button" data-session-align-tactical="bottom">Bottom</button>
-                <button type="button" data-session-distribute-tactical="x">Distribute X</button>
-                <button type="button" data-session-distribute-tactical="y">Distribute Y</button>
+                <button type="button" data-session-arrange-tactical="row" ${arrangeDisabled}>Row</button>
+                <button type="button" data-session-arrange-tactical="column" ${arrangeDisabled}>Column</button>
+                <button type="button" data-session-arrange-tactical="grid" ${arrangeDisabled}>Grid</button>
               </div>
             </div>
             <div class="session-tacticalboard-hint">
               <strong>Sharp board mode</strong>
-              <span>Measurements use this view: ${escapeHtml(pitchMeasurementLabel)}. Double-click places items. Alt gives precise movement while snap is on.</span>
+              <span>Measurements use this view: ${escapeHtml(pitchMeasurementLabel)}. Double-click places items.</span>
             </div>
             <label class="session-media-upload-button session-tacticalboard-upload">
               ${renderSessionPlannerActionIcon("upload")}
@@ -73673,14 +73735,9 @@ if (tacticalDeleteFrameButton) {
 deleteSessionPlannerTacticalFrame();
 return;
 }
-const tacticalAlignButton = event.target.closest("[data-session-align-tactical]");
-if (tacticalAlignButton) {
-alignSelectedSessionPlannerTacticalElements(tacticalAlignButton.dataset.sessionAlignTactical);
-return;
-}
-const tacticalDistributeButton = event.target.closest("[data-session-distribute-tactical]");
-if (tacticalDistributeButton) {
-distributeSelectedSessionPlannerTacticalElements(tacticalDistributeButton.dataset.sessionDistributeTactical);
+const tacticalArrangeButton = event.target.closest("[data-session-arrange-tactical]");
+if (tacticalArrangeButton) {
+arrangeSelectedSessionPlannerTacticalElements(tacticalArrangeButton.dataset.sessionArrangeTactical);
 return;
 }
 const tacticalToolButton = event.target.closest("[data-session-tactical-tool]");
@@ -74244,11 +74301,6 @@ return;
 const printSectionField = event.target.closest("[data-session-print-section]");
 if (printSectionField) {
 updateSessionPlannerPrintSection(printSectionField.dataset.sessionPrintSection, printSectionField.checked);
-return;
-}
-const tacticalSnapField = event.target.closest("[data-session-tactical-snap]");
-if (tacticalSnapField) {
-sessionPlannerTacticalSnapEnabled = Boolean(tacticalSnapField.checked);
 return;
 }
 const tacticalPitchModeField = event.target.closest("[data-session-tactical-pitch-mode]");

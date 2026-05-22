@@ -368,3 +368,19 @@ test("Session Planner never seeds generated training blocks onto an off day", ()
   );
   expect(appSource).not.toContain("const defaultSession = createSessionPlannerDefaultSession(selectedDate);");
 });
+
+test("Session Planner tactical board keeps selection controls simple and explicit", () => {
+  const appSource = readProjectFile("app.js");
+
+  expect(appSource).toContain("let sessionPlannerTacticalSnapEnabled = false;");
+  expect(appSource).not.toContain("data-session-tactical-snap");
+  expect(appSource).not.toContain("Alt for precision");
+  expect(appSource).not.toContain("Alt gives precise movement");
+  expect(appSource).toContain("function arrangeSelectedSessionPlannerTacticalElements(mode)");
+  expect(appSource).toContain('data-session-arrange-tactical="row"');
+  expect(appSource).toContain('data-session-arrange-tactical="column"');
+  expect(appSource).toContain('data-session-arrange-tactical="grid"');
+  expect(appSource).not.toContain("data-session-align-tactical");
+  expect(appSource).not.toContain("data-session-distribute-tactical");
+  expect(appSource).toContain("clearSessionPlannerTacticalSelection();\nsessionPlannerTacticalPendingPoint = null;");
+});

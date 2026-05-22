@@ -1053,8 +1053,8 @@ test("Medical archive keeps clinical records and plans protected", async ({ page
   await bootApp(page);
   await openWorkspace(page, "medical-team");
   await page.locator('[data-medical-ops-tab="availability"]').click();
-  await expect(page.locator("[data-medical-data-safety]")).toBeVisible();
-  await page.locator('[data-medical-select-player="qa-archive-player"]').first().click();
+  await expect(page.locator("[data-medical-data-safety]")).toHaveCount(0);
+  await page.locator('[data-medical-roster-row="qa-archive-player"] .medical-roster-player-cell').click();
   await page.locator('[data-medical-modal-tab="profile"]').click();
   const medicalLogCard = page.locator(".medical-modal-card .medical-log-card");
   await expect(medicalLogCard.locator(".medical-card-headline span")).toHaveText("1");
@@ -1292,7 +1292,11 @@ test("Medical metrics use current-month and trailing 7-day averages", async ({ p
   await expect(metricCards.filter({ hasText: "Month average" })).not.toContainText("filled");
   await expect(metricCards.filter({ hasText: "7-day average" })).toContainText("38%");
   await expect(metricCards.filter({ hasText: "7-day average" })).toContainText("last 7 days");
+  await expect(page.locator(".medical-availability-workspace .medical-huddle")).toHaveCount(0);
+  await expect(page.locator(".medical-availability-workspace .medical-coach-handover")).toHaveCount(0);
+  await page.locator('[data-medical-ops-tab="overview"]').click();
   await expect(page.locator(".medical-huddle-brief strong")).toHaveText("0/1");
+  await expect(page.locator(".medical-ops-overview .medical-coach-handover")).toBeVisible();
 });
 
 test("Medical bulk recommendation opens as a compact dated action row", async ({ page }) => {
@@ -1434,6 +1438,7 @@ test("Medical recommendations use match context and lock non-activity days", asy
   await openWorkspace(page, "medical-team");
 
   await expect(page.locator("[data-medical-activity-context]")).toContainText("Match Recommendation");
+  await expect(page.locator("[data-medical-activity-context]")).toBeHidden();
   const playerRow = page.locator('[data-medical-roster-row="qa-match-player"]');
   await playerRow.locator('[data-medical-quick-participation="100"]').click();
   await expect
@@ -1445,14 +1450,19 @@ test("Medical recommendations use match context and lock non-activity days", asy
       }, medicalKey)
     )
     .toBe("100:match-available");
-  await expect(playerRow.locator(".medical-status-chip")).toHaveText("Match Available");
   await expect(playerRow).toHaveClass(/medical-tone-full/);
   await expect(playerRow).not.toHaveClass(/medical-tone-monitor/);
-  await expect(playerRow.locator(".medical-status-chip")).toHaveClass(/medical-tone-full/);
-  await expect(playerRow.locator(".medical-day-cell").filter({ hasText: "100%" }).first()).toHaveClass(/medical-tone-full/);
+  await expect(playerRow.locator(".medical-roster-current-cell")).toHaveCount(0);
+  await expect(playerRow.locator(".medical-roster-window-cell")).toHaveCount(0);
   await expect(playerRow).not.toContainText("Full Training");
+  await page.locator('[data-medical-ops-tab="overview"]').click();
+  const overviewPlayerRow = page.locator('.medical-ops-player-row[data-medical-select-player="qa-match-player"]');
+  await expect(overviewPlayerRow).toContainText("Match Available");
+  await expect(overviewPlayerRow).toContainText("100%");
+  await page.locator('[data-medical-ops-tab="availability"]').click();
+  await expect(playerRow).toBeVisible();
 
-  await playerRow.click();
+  await playerRow.locator(".medical-roster-player-cell").click();
   await expect(page.locator(".medical-modal-current")).toContainText("Match Available");
   await expect(page.locator(".medical-modal-close")).toHaveText("");
   await expect(page.locator(".medical-modal-close")).toHaveAttribute("aria-label", "Close recommendation");
@@ -1489,7 +1499,7 @@ test("Medical recommendations use match context and lock non-activity days", asy
   await expect(bulkForm.locator("[data-medical-bulk-participation]")).toBeDisabled();
   await expect(bulkForm.locator('button[type="submit"]')).toBeDisabled();
 
-  await page.locator('[data-medical-roster-row="qa-match-player"]').click();
+  await page.locator('[data-medical-roster-row="qa-match-player"] .medical-roster-player-cell').click();
   await expect(page.locator(".medical-activity-lock")).toContainText("No scheduled training or match");
   await expect(page.locator('#medicalRecommendationForm button[type="submit"]')).toBeDisabled();
   await page.locator(".medical-modal-close").click();
@@ -1556,13 +1566,22 @@ test("Medical roster overview groups by position and supports row quick recommen
         const bulkPanel = document.querySelector(".medical-bulk-panel");
         const commandBoard = document.querySelector(".medical-roster-panel > .medical-command-board");
         const positionOverview = document.querySelector(".medical-position-overview");
-        if (!bulkPanel || !commandBoard || !positionOverview) return "";
-        const bulkAfterCommand = Boolean(commandBoard.compareDocumentPosition(bulkPanel) & Node.DOCUMENT_POSITION_FOLLOWING);
+        if (!bulkPanel || !positionOverview) return "";
+        const noCommandBoard = !commandBoard;
         const overviewAfterBulk = Boolean(bulkPanel.compareDocumentPosition(positionOverview) & Node.DOCUMENT_POSITION_FOLLOWING);
-        return bulkAfterCommand && overviewAfterBulk ? "command-bulk-list" : "wrong-order";
+        return noCommandBoard && overviewAfterBulk ? "bulk-list" : "wrong-order";
       })
     )
-    .toBe("command-bulk-list");
+    .toBe("bulk-list");
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Array.from(document.querySelector(".medical-position-group .medical-roster-list-head")?.children || []).map((element) =>
+          element.textContent?.trim()
+        )
+      )
+    )
+    .toEqual(["Player", "Quick Recommendation", "Select"]);
 
   const searchInput = page.locator("[data-medical-roster-search]");
   await searchInput.click();

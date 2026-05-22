@@ -29364,6 +29364,9 @@ ${urgentSignals.length
 : `<div class="medical-empty-inline">No review signals for the selected date.</div>`}
 </div>
 </article>
+${renderMedicalDailyHuddle()}
+${renderMedicalCoachHandoverPanel()}
+${renderMedicalOperationsPlayerAvailability(summary)}
 <article class="medical-ops-card">
 <div class="medical-command-head">
 <span>Active Case Board</span>
@@ -29388,6 +29391,53 @@ ${summary.activeCases.length
 </div>
 </article>
 </div>
+`;
+}
+function renderMedicalOperationsPlayerAvailability(summary) {
+const players = summary.signals;
+return `
+<article class="medical-ops-card medical-ops-player-availability-card">
+<div class="medical-command-head">
+<span>Player Availability</span>
+<strong>${players.length}</strong>
+</div>
+<div class="medical-ops-player-table">
+<div class="medical-ops-player-table-head" aria-hidden="true">
+<span>Player</span>
+<span>Status</span>
+<span>7 days</span>
+</div>
+<div class="medical-ops-player-table-body">
+${
+players.length
+? players
+.map((signal) => {
+const participationLabel = signal.record ? `${signal.record.participation}%` : "Not set";
+const trailingLabel = signal.trailing.average === null ? "-" : `${signal.trailing.average}%`;
+const trailingMeta = signal.trailing.records.length ? `${signal.trailing.records.length}/7 logged` : "No trend";
+return `
+<button type="button" data-medical-select-player="${escapeHtml(signal.player.id)}" class="medical-ops-player-row medical-ops-tone-${escapeHtml(signal.tone)}">
+<span>
+<strong>${escapeHtml(signal.player.name)}</strong>
+<small>${escapeHtml(signal.player.position || "Position")}</small>
+</span>
+<span>
+<strong>${escapeHtml(signal.status.label)}</strong>
+<small>${escapeHtml(participationLabel)}</small>
+</span>
+<span>
+<strong>${escapeHtml(trailingLabel)}</strong>
+<small>${escapeHtml(trailingMeta)}</small>
+</span>
+</button>
+`;
+})
+.join("")
+: `<div class="medical-empty-inline">No players available in the medical roster.</div>`
+}
+</div>
+</div>
+</article>
 `;
 }
 function renderMedicalOperationsSignals(summary) {
@@ -29575,7 +29625,6 @@ return `
 ${renderMedicalDateStrip()}
 ${renderMedicalActivityContextPanel()}
 ${message ? `<div class="medical-message">${escapeHtml(message)}</div>` : ""}
-${renderMedicalDataSafetyPanel()}
 <section class="medical-metrics-grid" aria-label="Medical availability summary">
 ${renderMedicalMetric("Full", String(stats.fullCount), "100%", "full")}
 ${renderMedicalMetric("Modified", String(stats.modifiedCount), "10-75%", "modified")}
@@ -29590,8 +29639,6 @@ hasActivePlayers
 <section class="medical-layout">
 ${renderMedicalRosterPanel()}
 </section>
-${renderMedicalDailyHuddle()}
-${renderMedicalCoachHandoverPanel()}
 ${canViewPrivateMedicalDetails() ? "" : renderMedicalOperationsSystem()}
 `
 : renderMedicalRosterSetup()
@@ -29686,7 +29733,7 @@ const detailLabel = activityContext.isRecommendable
 ? `${formatMedicalDateLabel(activityContext.date, "long")} / ${activityContext.scheduleLabel}`
 : `${formatMedicalDateLabel(activityContext.date, "long")} / no training or match`;
 return `
-<section class="medical-activity-context${modifier}" data-medical-activity-context>
+<section class="medical-activity-context${modifier} is-hidden" data-medical-activity-context aria-hidden="true">
 <div>
 <span>Recommendation target</span>
 <strong>${escapeHtml(activityContext.recommendationLabel)}</strong>
@@ -29780,9 +29827,7 @@ const status = getMedicalRecordStatus(record);
 const activityContext = getMedicalRecommendationActivityContext(medicalState.selectedDate);
 const isSelected = player.id === medicalState.selectedPlayerId;
 const isBulkSelected = getMedicalValidBulkSelection().has(player.id);
-const participationLabel = record ? `${record.participation}%` : "Not set";
 const latestComment = getMedicalVisibleComment(record);
-const phaseLabel = record ? getMedicalRtpPhaseOption(record.rtpPhase).label : "No RTP phase";
 const canBulkSelect = canEditMedicalTeam() && activityContext.isRecommendable;
 const bulkToggleLabel = isBulkSelected
 ? `Remove ${player.name} from bulk recommendation`
@@ -29807,19 +29852,6 @@ ${renderMedicalTemporaryPlayerBadge(player)}
 </div>
 </div>
 </div>
-<div class="medical-roster-current-cell">
-<span class="medical-status-chip medical-tone-${escapeHtml(status.tone)}">${escapeHtml(status.label)}</span>
-<div class="medical-roster-current-main">
-<strong>${escapeHtml(participationLabel)}</strong>
-<span class="medical-participation-track">
-<span style="width: ${record ? record.participation : 0}%"></span>
-</span>
-</div>
-<small>${escapeHtml(phaseLabel)}</small>
-</div>
-<div class="medical-roster-window-cell" aria-label="Recommendation window">
-${getMedicalWindowDates().map((dateValue) => renderMedicalDayCell(player, dateValue)).join("")}
-</div>
 <div class="medical-roster-quick-cell">
 ${renderMedicalQuickRecommendationButtons(player, record)}
 </div>
@@ -29840,7 +29872,6 @@ ${latestComment ? `<p class="medical-row-comment">${escapeHtml(latestComment)}</
 }
 function renderMedicalPositionGroup(group) {
 const stats = getMedicalRosterPositionStats(group.players);
-const activityContext = getMedicalRecommendationActivityContext(medicalState.selectedDate);
 return `
 <section class="medical-position-group">
 <header class="medical-position-group-head">
@@ -29853,9 +29884,7 @@ return `
 <div class="medical-roster-list">
 <div class="medical-roster-list-head" aria-hidden="true">
 <span>Player</span>
-<span>Status</span>
-<span>7 days</span>
-<span>${escapeHtml(activityContext.quickLabel)}</span>
+<span>Quick Recommendation</span>
 <span>Select</span>
 </div>
 ${group.players.map(renderMedicalRosterRow).join("")}
@@ -29950,7 +29979,6 @@ ${medicalStatusOptions
 </select>
 </div>
 </div>
-${renderMedicalCommandBoard()}
 ${renderMedicalBulkUpdatePanel(players)}
 <div class="medical-position-overview">
 ${

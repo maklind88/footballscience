@@ -26,6 +26,7 @@ test("platform readiness contract covers every requested operating area", () => 
     "release:postdeploy": "node scripts/verify-production-deploy.mjs",
     "release:monitor": "npm run release:monitor-postdeploy",
     "platform:readiness": "node scripts/verify-platform-readiness.mjs",
+    "platform:identity:backfill": "node scripts/platform-identity-backfill.mjs",
   };
   const report = createPlatformReadinessReport({
     env: completeEnv,

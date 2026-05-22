@@ -188,6 +188,13 @@ export const platformReadinessWorkflowRequirements = Object.freeze([
     packageScript: "platform:readiness",
     command: "npm run platform:readiness",
   }),
+  Object.freeze({
+    id: "platform-identity-backfill",
+    area: "module-standard",
+    label: "Platform identity backfill",
+    packageScript: "platform:identity:backfill",
+    command: "npm run platform:identity:backfill",
+  }),
 ]);
 
 export const platformObservabilitySignals = Object.freeze([

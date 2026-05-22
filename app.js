@@ -2565,7 +2565,7 @@ const playerProfileChangeLogLimit = 250;
 const playerProfileChangeFieldDefinitions = [
 { key: "name", label: "Name" },
 { key: "number", label: "Number" },
-{ key: "age", label: "Age" },
+{ key: "birthDate", label: "Birth date" },
 { key: "position", label: "Position" },
 { key: "status", label: "Availability status", options: playerProfileStatusOptions },
 { key: "squadStatus", label: "Squad status", options: playerProfileSquadStatusOptions },
@@ -23783,6 +23783,7 @@ age: normalizePlayerProfileAgeValue(entry.age),
 databasePlayerId: String(entry.databasePlayerId || entry.playerId || "").trim(),
 source: String(entry.source || "squad_players").trim(),
 checkedAt: String(entry.checkedAt || "").trim(),
+birthDateCheckedAt: String(entry.birthDateCheckedAt || "").trim(),
 };
 }
 function readPlayerProfileAgeCache() {
@@ -23853,6 +23854,17 @@ if (!cachedAge) {
 return "";
 }
 return getPlayerProfileAgeValue({ birthDate: cachedAge.birthDate, age: cachedAge.age }, referenceDate);
+}
+function getPlayerProfileBirthDateValue(player = {}) {
+return normalizePlayerProfileBirthDate(player.birthDate || player.dateOfBirth || player.date_of_birth || player.dob);
+}
+function getPlayerProfileDisplayBirthDateValue(player = {}) {
+const directBirthDate = getPlayerProfileBirthDateValue(player);
+if (directBirthDate) {
+return directBirthDate;
+}
+const cachedEntry = getPlayerProfileAgeCacheEntry(player);
+return cachedEntry?.birthDate || "";
 }
 function isPlayerProfileTemporaryActiveOnDate(player = {}, dateValue = "") {
 if (!isTemporaryPlayerProfile(player)) {
@@ -24554,7 +24566,7 @@ const seenKeys = new Set();
 return (Array.isArray(players) ? players : [])
 .filter((player) => player?.id && player?.name)
 .filter((player) => {
-if (getPlayerProfileAgeValue(player)) {
+if (getPlayerProfileBirthDateValue(player)) {
 return false;
 }
 const cacheKey = getPlayerProfileAgeCacheKey(player);
@@ -24562,7 +24574,7 @@ if (!cacheKey || seenKeys.has(cacheKey)) {
 return false;
 }
 const cachedEntry = getPlayerProfileAgeCacheEntry(player, cache);
-if (cachedEntry?.checkedAt) {
+if (cachedEntry?.birthDate || cachedEntry?.birthDateCheckedAt || (cachedEntry?.checkedAt && !cachedEntry?.age)) {
 return false;
 }
 seenKeys.add(cacheKey);
@@ -24610,6 +24622,7 @@ cache.players[candidate.cacheKey] = {
 ...(cache.players[candidate.cacheKey] || {}),
 signature: candidate.signature,
 checkedAt: now,
+birthDateCheckedAt: now,
 source: "squad_players",
 };
 });
@@ -24632,6 +24645,7 @@ age,
 databasePlayerId: String(entry.databasePlayerId || entry.playerId || "").trim(),
 source: String(entry.source || "squad_players").trim(),
 checkedAt: now,
+birthDateCheckedAt: now,
 };
 });
 writePlayerProfileAgeCache(cache);
@@ -25508,9 +25522,9 @@ return `
 function renderSquadRoleCell(player) {
 return `<div class="squad-role-cell">${renderSquadRoleStack(player)}</div>`;
 }
-function renderSquadAgeCell(player) {
-const age = getPlayerProfileDisplayAgeValue(player);
-return `<span class="squad-age-cell">${escapeHtml(age || "-")}</span>`;
+function renderSquadBirthDateCell(player) {
+const birthDate = getPlayerProfileDisplayBirthDateValue(player);
+return `<span class="squad-birth-date-cell">${escapeHtml(birthDate || "-")}</span>`;
 }
 function renderSquadPlanningCell(player) {
 const isTemporary = isTemporaryPlayerProfile(player);
@@ -25623,7 +25637,7 @@ return `
           </div>
         </div>
       </td>
-      <td>${renderSquadAgeCell(player)}</td>
+      <td>${renderSquadBirthDateCell(player)}</td>
       <td>${renderSquadRoleCell(player)}</td>
       <td>${renderSquadPlanningCell(player)}</td>
       <td>${renderPlayerProfileStatusChip(effectiveStatus)}</td>
@@ -25639,7 +25653,7 @@ return `
         <thead>
           <tr>
             <th>Player</th>
-            <th>Age</th>
+            <th>Birth date</th>
             <th>Roles</th>
             <th>Squad</th>
             <th>Status</th>
@@ -25963,8 +25977,8 @@ return `
               <input name="number" value="${escapeHtml(player.number)}" ${canEdit ? "" : "disabled"} />
             </label>
             <label class="squad-tab-field-overview">
-              <span>Age</span>
-              <input name="age" type="number" min="0" max="99" value="${escapeHtml(getPlayerProfileAgeValue(player) || player.age || "")}" ${canEdit ? "" : "disabled"} />
+              <span>Birth date</span>
+              <input name="birthDate" type="date" value="${escapeHtml(getPlayerProfileDisplayBirthDateValue(player))}" ${canEdit ? "" : "disabled"} />
             </label>
             <label class="squad-tab-field-overview">
               <span>Position</span>
@@ -26151,8 +26165,8 @@ return `
             <input name="number" placeholder="#" ${canEdit ? "" : "disabled"} />
           </label>
           <label>
-            <span>Age</span>
-            <input name="age" type="number" min="0" max="99" placeholder="Age" ${canEdit ? "" : "disabled"} />
+            <span>Birth date</span>
+            <input name="birthDate" type="date" ${canEdit ? "" : "disabled"} />
           </label>
           <label>
             <span>Position</span>
@@ -27225,7 +27239,6 @@ const values = {
 playerId: String(data.get("playerId") ?? "").trim(),
 name: String(data.get("name") ?? "").trim(),
 number: String(data.get("number") ?? "").trim(),
-age: String(data.get("age") ?? "").trim(),
 position: String(data.get("position") ?? "").trim(),
 status: String(data.get("status") ?? "").trim(),
 squadStatus: String(data.get("squadStatus") ?? "").trim(),
@@ -27246,6 +27259,8 @@ reviewDate: String(data.get("idpReviewDate") ?? "").trim(),
 },
 futureData,
 };
+if (hasField("age")) values.age = String(data.get("age") ?? "").trim();
+if (hasField("birthDate")) values.birthDate = String(data.get("birthDate") ?? "").trim();
 if (hasField("rosterType")) values.rosterType = String(data.get("rosterType") ?? "").trim();
 if (hasField("temporaryGroup")) values.temporaryGroup = String(data.get("temporaryGroup") ?? "").trim();
 if (hasField("temporaryFrom")) values.temporaryFrom = String(data.get("temporaryFrom") ?? "").trim();

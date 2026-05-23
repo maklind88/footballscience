@@ -24043,15 +24043,20 @@ return null;
 return entry;
 }
 function getPlayerProfileDisplayAgeValue(player = {}, referenceDate = new Date()) {
-const directAge = getPlayerProfileAgeValue(player, referenceDate);
+const directBirthDate = getPlayerProfileBirthDateValue(player);
+if (directBirthDate) {
+return getPlayerProfileAgeValue({ birthDate: directBirthDate }, referenceDate);
+}
+const cachedAge = getPlayerProfileAgeCacheEntry(player);
+const cachedBirthDate = normalizePlayerProfileBirthDate(cachedAge?.birthDate);
+if (cachedBirthDate) {
+return getPlayerProfileAgeValue({ birthDate: cachedBirthDate }, referenceDate);
+}
+const directAge = normalizePlayerProfileAgeValue(player.age ?? player.playerAge);
 if (directAge) {
 return directAge;
 }
-const cachedAge = getPlayerProfileAgeCacheEntry(player);
-if (!cachedAge) {
-return "";
-}
-return getPlayerProfileAgeValue({ birthDate: cachedAge.birthDate, age: cachedAge.age }, referenceDate);
+return cachedAge ? getPlayerProfileAgeValue({ age: cachedAge.age }, referenceDate) : "";
 }
 function getPlayerProfileBirthDateValue(player = {}) {
 return normalizePlayerProfileBirthDate(player.birthDate || player.dateOfBirth || player.date_of_birth || player.dob);
@@ -25720,9 +25725,9 @@ return `
 function renderSquadRoleCell(player) {
 return `<div class="squad-role-cell">${renderSquadRoleStack(player)}</div>`;
 }
-function renderSquadBirthDateCell(player) {
-const birthDate = getPlayerProfileDisplayBirthDateValue(player);
-return `<span class="squad-birth-date-cell">${escapeHtml(birthDate || "-")}</span>`;
+function renderSquadAgeCell(player) {
+const age = getPlayerProfileDisplayAgeValue(player);
+return `<span class="squad-age-cell">${escapeHtml(age || "-")}</span>`;
 }
 function renderSquadPlanningCell(player) {
 const isTemporary = isTemporaryPlayerProfile(player);
@@ -25835,7 +25840,7 @@ return `
           </div>
         </div>
       </td>
-      <td>${renderSquadBirthDateCell(player)}</td>
+      <td>${renderSquadAgeCell(player)}</td>
       <td>${renderSquadRoleCell(player)}</td>
       <td>${renderSquadPlanningCell(player)}</td>
       <td>${renderPlayerProfileStatusChip(effectiveStatus)}</td>
@@ -25851,7 +25856,7 @@ return `
         <thead>
           <tr>
             <th>Player</th>
-            <th>Birth date</th>
+            <th>Age</th>
             <th>Roles</th>
             <th>Squad</th>
             <th>Status</th>

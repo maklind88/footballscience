@@ -10,6 +10,16 @@ const workspaceHubKey = "football-workspace-hub-v3";
 const workspaceLastActiveKey = "football-workspace-last-active-local-v1";
 const qaSessionPlannerTrainingDate = "2026-05-19";
 
+function getQaAgeFromBirthDate(birthDate, referenceDate = new Date()) {
+  const [year, month, day] = birthDate.split("-").map(Number);
+  let age = referenceDate.getFullYear() - year;
+  const monthDiff = referenceDate.getMonth() + 1 - month;
+  if (monthDiff < 0 || (monthDiff === 0 && referenceDate.getDate() < day)) {
+    age -= 1;
+  }
+  return String(age);
+}
+
 function createQaSessionPlannerState(dateValue = qaSessionPlannerTrainingDate) {
   return {
     selectedDate: dateValue,
@@ -1890,15 +1900,13 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
     /\d+\/\d+ squad/
   );
   await expect(page.locator(".squad-command-tools .squad-command-list-summary")).toHaveCount(0);
-  await expect(page.locator(".squad-table thead").first()).toContainText("Birth date");
+  await expect(page.locator(".squad-table thead").first()).toContainText("Age");
   await expect(page.locator(".squad-table thead").first()).not.toContainText("Medical");
   await expect(page.locator(".squad-table thead").first()).toContainText("IDP");
   await expect(page.locator(".squad-player-row").first()).toContainText("Goalkeeper");
-  await expect(page.locator(".squad-player-row").first().locator(".squad-birth-date-cell")).toHaveText(
-    /^(?:-|\d{4}-\d{2}-\d{2})$/
-  );
-  await expect(page.locator('[data-player-profile-select="ncc-2026-madison-white"] .squad-birth-date-cell')).toHaveText(
-    "2000-01-01"
+  await expect(page.locator(".squad-player-row").first().locator(".squad-age-cell")).toHaveText(/^-|\d+$/);
+  await expect(page.locator('[data-player-profile-select="ncc-2026-madison-white"] .squad-age-cell')).toHaveText(
+    getQaAgeFromBirthDate("2000-01-01")
   );
   expect(squadAgeRequests).toBe(1);
   await openWorkspace(page, "home");
@@ -1913,10 +1921,10 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
     .toBeLessThanOrEqual(290);
   await expect
     .poll(async () => {
-      const birthDateCell = await page.locator(".squad-player-row").first().locator("td").nth(1).boundingBox();
-      return birthDateCell ? Math.round(birthDateCell.width) : 999;
+      const ageCell = await page.locator(".squad-player-row").first().locator("td").nth(1).boundingBox();
+      return ageCell ? Math.round(ageCell.width) : 999;
     })
-    .toBeLessThanOrEqual(125);
+    .toBeLessThanOrEqual(90);
   await expect(page.locator(".squad-player-row").first().locator(".squad-role-cell small")).toHaveCount(0);
   await expect(page.locator(".squad-player-row").first().locator(".squad-planning-cell small")).toHaveCount(0);
   await expect(page.locator(".squad-player-row").first().locator(".squad-planning-cell")).not.toContainText(
@@ -1969,9 +1977,9 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
   await form.locator('button[type="submit"]').click();
 
   await expectStorageContains(page, playerProfilesKey, playerName);
-  await expect(
-    page.locator(".squad-player-row", { hasText: playerName }).first().locator(".squad-birth-date-cell")
-  ).toHaveText("2005-02-03");
+  await expect(page.locator(".squad-player-row", { hasText: playerName }).first().locator(".squad-age-cell")).toHaveText(
+    getQaAgeFromBirthDate("2005-02-03")
+  );
   await expectStorageContains(page, medicalKey, playerName);
   await expect
     .poll(() =>

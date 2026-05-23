@@ -972,7 +972,7 @@ test("Medical recommendation edits persist after refresh", async ({ page }) => {
   await expect(page.locator(".medical-hero h1")).toHaveText("North Carolina Courage");
   await expect(page.locator(".medical-hero-meta")).toHaveCount(0);
 
-  await page.locator("[data-medical-select-player]:visible").first().click();
+  await page.locator("[data-medical-roster-row]:visible .medical-roster-player-cell").first().click();
   const form = page.locator("#medicalRecommendationForm:visible").first();
   await expect(form).toBeVisible();
   await form.locator('textarea[name="comment"]').fill(comment);
@@ -1145,7 +1145,7 @@ test("Medical plan draft survives modal rerenders and saves long-term zero avail
   await bootApp(page);
   await openWorkspace(page, "medical-team");
   await page.locator('[data-medical-ops-tab="availability"]').click();
-  await page.locator('[data-medical-select-player="qa-plan-player"]').first().click();
+  await page.locator('[data-medical-roster-row="qa-plan-player"] .medical-roster-player-cell').click();
 
   const modalTabs = page.locator(".medical-modal-tabs");
   await modalTabs.getByRole("tab", { name: "Medical Plan" }).click();
@@ -1245,8 +1245,8 @@ test("Medical plan draft survives modal rerenders and saves long-term zero avail
 
   await page.locator(".medical-modal-close").click();
   const playerRow = page.locator('[data-medical-roster-row="qa-plan-player"]');
-  await expect(playerRow.locator(".medical-status-chip")).toHaveText("Unavailable");
-  await expect(playerRow.locator(".medical-roster-current-main strong")).toHaveText("0%");
+  await expect(playerRow.locator(".medical-quick-rec-button.is-active")).toHaveText("0%");
+  await expect(playerRow).toContainText("ACL long-term injury");
 });
 
 test("Medical metrics use current-month and trailing 7-day averages", async ({ page }) => {

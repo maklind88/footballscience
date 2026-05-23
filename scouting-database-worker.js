@@ -27,6 +27,7 @@ let loadedPreviewDatabase = null;
 let loadedPreviewScriptUrl = "";
 let optionCache = null;
 let metricIndexCache = null;
+let metricPercentileCache = new Map();
 let searchCorpusCache = new Map();
 let filteredRecordCache = new Map();
 let recordByIdCache = { database: null, byId: new Map() };
@@ -592,6 +593,82 @@ function getMetricValue(record, metricId) {
   return NaN;
 }
 
+function getMetricDirection(metricId) {
+  const id = normalizeText(metricId, 160).toLowerCase();
+  const metric = (loadedDatabase?.metrics || []).find((item) =>
+    [item?.id, item?.key, item?.label].map((value) => normalizeText(value, 160).toLowerCase()).includes(id)
+  );
+  return normalizeText(metric?.direction, 20).toLowerCase() === "lower" ? "lower" : "higher";
+}
+
+function getRecordPositionGroup(record) {
+  const tokens = getPositionTokens(record);
+  if (!tokens.length) {
+    return "GEN";
+  }
+  if (tokens.some((token) => token === "GK" || token === "GOALKEEPER")) {
+    return "GK";
+  }
+  if (tokens.some((token) => token === "CB" || token.endsWith("CB"))) {
+    return "CB";
+  }
+  if (tokens.some((token) => ["RB", "LB", "RWB", "LWB"].includes(token))) {
+    return "FB";
+  }
+  if (tokens.some((token) => ["DM", "DMF", "CM", "CMF", "RCMF", "LCMF", "AM", "AMF"].includes(token) || token.endsWith("MF"))) {
+    return "MF";
+  }
+  if (tokens.some((token) => ["RW", "LW", "RWF", "LWF", "WF", "W"].includes(token))) {
+    return "W";
+  }
+  if (tokens.some((token) => ["CF", "ST", "FW", "F"].includes(token))) {
+    return "FW";
+  }
+  return tokens[0];
+}
+
+function getMetricPercentileValues(metricId, positionGroup) {
+  const id = normalizeText(metricId, 160).toLowerCase();
+  const group = normalizeText(positionGroup || "GEN", 40);
+  const cacheKey = `${group}:${id}`;
+  if (metricPercentileCache.has(cacheKey)) {
+    return metricPercentileCache.get(cacheKey);
+  }
+  const values = (loadedDatabase?.records || [])
+    .filter((candidate) => getRecordPositionGroup(candidate) === group && getRecordMinutes(candidate) >= 450)
+    .map((candidate) => getMetricValue(candidate, id))
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => a - b);
+  metricPercentileCache.set(cacheKey, values);
+  return values;
+}
+
+function getMetricPercentile(record, metricId) {
+  const value = getMetricValue(record, metricId);
+  if (!Number.isFinite(value)) {
+    return NaN;
+  }
+  const values = getMetricPercentileValues(metricId, getRecordPositionGroup(record));
+  if (values.length < 2) {
+    return 50;
+  }
+  let low = 0;
+  let high = values.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (values[middle] <= value) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+  let percentile = Math.max(1, Math.min(99, Math.round((low / values.length) * 100)));
+  if (getMetricDirection(metricId) === "lower") {
+    percentile = 101 - percentile;
+  }
+  return Math.max(1, Math.min(99, percentile));
+}
+
 function buildSearchCorpus(record) {
   const recordId = getRecordId(record);
   if (recordId && searchCorpusCache.has(recordId)) {
@@ -658,6 +735,7 @@ function activateDatabase(database, scriptUrl) {
   loadedScriptUrl = scriptUrl;
   optionCache = null;
   metricIndexCache = null;
+  metricPercentileCache = new Map();
   searchCorpusCache = new Map();
   filteredRecordCache = new Map();
   recordByIdCache = { database: null, byId: new Map() };
@@ -754,6 +832,13 @@ async function loadPreviewDatabase(scriptUrl = "scouting-import-preview-data.js"
 function normalizeQuery(query = {}) {
   const limit = Math.max(1, Math.min(250, Math.floor(normalizeNumber(query.limit, 50))));
   const offset = Math.max(0, Math.floor(normalizeNumber(query.offset, 0)));
+  const metricIds = String(
+    Array.isArray(query.metricIds) ? query.metricIds.join(",") : query.metricIds || query.metricId || ""
+  )
+    .split(",")
+    .map((item) => normalizeText(item, 160).toLowerCase())
+    .filter((item) => item && item !== "all")
+    .slice(0, 20);
   return {
     query: normalizeText(query.query, 120).toLowerCase(),
     league: normalizeLeague(query.league || "all") || "all",
@@ -764,6 +849,8 @@ function normalizeQuery(query = {}) {
     maxMinutes: Math.max(0, Math.round(normalizeNumber(query.maxMinutes, 0))),
     minAge: normalizeNumber(query.minAge, NaN),
     maxAge: normalizeNumber(query.maxAge, NaN),
+    metricIds: Array.from(new Set(metricIds)),
+    metricMin: normalizeNumber(query.metricMin, NaN),
     sortMetricId: normalizeText(query.sortMetricId || query.sort || "minutes", 160) || "minutes",
     limit,
     offset,
@@ -799,6 +886,9 @@ function recordMatchesQuery(record, query) {
   }
   if (query.query && !buildSearchCorpus(record).includes(query.query) && !areNamesInitialSurnameMatch(query.query, getRecordName(record))) {
     return false;
+  }
+  if (query.metricIds.length && Number.isFinite(query.metricMin) && query.metricMin > 0) {
+    return query.metricIds.some((metricId) => getMetricPercentile(record, metricId) >= query.metricMin);
   }
   return true;
 }
@@ -859,6 +949,8 @@ function getFilteredRecordCacheKey(query) {
     query.maxMinutes,
     Number.isFinite(query.minAge) ? query.minAge : "",
     Number.isFinite(query.maxAge) ? query.maxAge : "",
+    query.metricIds.length ? query.metricIds.join(",") : "all",
+    Number.isFinite(query.metricMin) ? query.metricMin : "",
     query.sortMetricId,
   ].join("|");
 }

@@ -421,6 +421,77 @@ function metricToClient(row = {}) {
   };
 }
 
+function getQueryMetricIds(query = {}) {
+  return Array.from(
+    new Set(
+      String(Array.isArray(query.metricIds) ? query.metricIds.join(",") : query.metricIds || query.metricId || "")
+        .split(",")
+        .map((item) => normalizeMetricKey(item, ""))
+        .filter((item) => item && item !== "all")
+    )
+  ).slice(0, 20);
+}
+
+function getSeasonRowMetricValue(row = {}, metricId = "") {
+  const id = normalizeMetricKey(metricId, "");
+  const metrics = row.metrics && typeof row.metrics === "object" && !Array.isArray(row.metrics) ? row.metrics : {};
+  const rawEntry = metrics[id] ?? metrics[metricId];
+  const rawValue = rawEntry && typeof rawEntry === "object" && !Array.isArray(rawEntry) ? rawEntry.value : rawEntry;
+  const value = Number(rawValue);
+  return Number.isFinite(value) ? value : NaN;
+}
+
+function getSeasonRowPositionGroup(row = {}) {
+  const tokens = normalizeString(row.position_text, 120).toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);
+  if (!tokens.length) {
+    return "GEN";
+  }
+  if (tokens.some((token) => token === "GK" || token === "GOALKEEPER")) {
+    return "GK";
+  }
+  if (tokens.some((token) => token === "CB" || token.endsWith("CB"))) {
+    return "CB";
+  }
+  if (tokens.some((token) => ["RB", "LB", "RWB", "LWB"].includes(token))) {
+    return "FB";
+  }
+  if (tokens.some((token) => ["DM", "DMF", "CM", "CMF", "RCMF", "LCMF", "AM", "AMF"].includes(token) || token.endsWith("MF"))) {
+    return "MF";
+  }
+  if (tokens.some((token) => ["RW", "LW", "RWF", "LWF", "WF", "W"].includes(token))) {
+    return "W";
+  }
+  if (tokens.some((token) => ["CF", "ST", "FW", "F"].includes(token))) {
+    return "FW";
+  }
+  return tokens[0];
+}
+
+function getSeasonRowMetricPercentile(row = {}, metricId = "", values = [], direction = "higher") {
+  const value = getSeasonRowMetricValue(row, metricId);
+  if (!Number.isFinite(value)) {
+    return NaN;
+  }
+  if (!Array.isArray(values) || values.length < 2) {
+    return 50;
+  }
+  let low = 0;
+  let high = values.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (values[middle] <= value) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+  let percentile = Math.max(1, Math.min(99, Math.round((low / values.length) * 100)));
+  if (normalizeString(direction, 20).toLowerCase() === "lower") {
+    percentile = 101 - percentile;
+  }
+  return Math.max(1, Math.min(99, percentile));
+}
+
 function seasonRowToClientRecord(row = {}) {
   const metadata = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? row.metadata : {};
   return [
@@ -952,6 +1023,11 @@ function getSeasonOrder(query = {}) {
 }
 
 async function fetchSeasonRows(query = {}) {
+  const metricIds = getQueryMetricIds(query);
+  const metricMin = normalizeNumber(query.metricMin, null);
+  if (metricIds.length && Number.isFinite(metricMin) && metricMin > 0) {
+    return fetchMetricFilteredSeasonRows(query, metricIds, Math.max(1, Math.min(99, Math.round(metricMin))));
+  }
   const params = new URLSearchParams({
     select:
       "id,record_key,import_batch_id,player_id,player_name,team_name,team_within_timeframe,league_name,season_label,position_text,age,matches,minutes,birth_country,passport_country,height_cm,weight_kg,date_of_birth,metrics,source_system,source_player_id,source_record_id,player_identity_key,metadata,updated_at",
@@ -969,6 +1045,67 @@ async function fetchSeasonRows(query = {}) {
   return {
     rows: Array.isArray(result.payload) ? result.payload : [],
     total: Number.isFinite(Number(result.count)) ? Number(result.count) : null,
+  };
+}
+
+async function fetchMetricFilteredSeasonRows(query = {}, metricIds = [], metricMin = 75) {
+  const limit = asLimit(query.limit);
+  const requestedOffset = asOffset(query.offset);
+  const chunkLimit = MAX_LIMIT;
+  const allRows = [];
+  for (let offset = 0; offset < 50000; offset += chunkLimit) {
+    const params = new URLSearchParams({
+      select:
+        "id,record_key,import_batch_id,player_id,player_name,team_name,team_within_timeframe,league_name,season_label,position_text,age,matches,minutes,birth_country,passport_country,height_cm,weight_kg,date_of_birth,metrics,source_system,source_player_id,source_record_id,player_identity_key,metadata,updated_at",
+      order: getSeasonOrder(query),
+      limit: String(chunkLimit),
+      offset: String(offset),
+    });
+    addSeasonFilters(params, { ...query, offset: 0, limit: chunkLimit });
+    const result = await dbRequest(`/scouting_player_seasons?${params.toString()}`, {
+      includeCount: false,
+    });
+    if (!result.ok) {
+      throw Object.assign(new Error(result.reason), { status: result.status, payload: result.payload });
+    }
+    const rows = Array.isArray(result.payload) ? result.payload : [];
+    allRows.push(...rows);
+    if (rows.length < chunkLimit) {
+      break;
+    }
+  }
+  const metrics = await fetchMetrics();
+  const directionsByMetric = new Map(metrics.map((metric) => [normalizeMetricKey(metric.id, ""), metric.direction || "higher"]));
+  const valuesByGroupMetric = new Map();
+  allRows.forEach((row) => {
+    const group = getSeasonRowPositionGroup(row);
+    metricIds.forEach((metricId) => {
+      const value = getSeasonRowMetricValue(row, metricId);
+      if (!Number.isFinite(value) || normalizeNumber(row.minutes, 0) < 450) {
+        return;
+      }
+      const key = `${group}:${metricId}`;
+      const values = valuesByGroupMetric.get(key) || [];
+      values.push(value);
+      valuesByGroupMetric.set(key, values);
+    });
+  });
+  valuesByGroupMetric.forEach((values) => values.sort((a, b) => a - b));
+  const filteredRows = allRows.filter((row) => {
+    const group = getSeasonRowPositionGroup(row);
+    return metricIds.some((metricId) => {
+      const percentile = getSeasonRowMetricPercentile(
+        row,
+        metricId,
+        valuesByGroupMetric.get(`${group}:${metricId}`) || [],
+        directionsByMetric.get(metricId) || "higher"
+      );
+      return Number.isFinite(percentile) && percentile >= metricMin;
+    });
+  });
+  return {
+    rows: filteredRows.slice(requestedOffset, requestedOffset + limit),
+    total: filteredRows.length,
   };
 }
 

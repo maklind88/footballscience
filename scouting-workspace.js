@@ -1310,6 +1310,9 @@ function getScoutingApiQueryFromState() {
     maxMinutes: filters.maxMinutes || 0,
     minAge: filters.minAge || "",
     maxAge: filters.maxAge || "",
+    metricId: filters.metricIds?.[0] || filters.metricId || "",
+    metricIds: Array.isArray(filters.metricIds) && filters.metricIds.length ? filters.metricIds.join(",") : "",
+    metricMin: filters.metricMin || "",
     sortMetricId: filters.sortMetricId,
     offset,
     includeTotal: includeTotal ? "1" : "0",
@@ -7189,6 +7192,8 @@ function getFilteredScoutingDatabaseRecords() {
   const hasMetricMin = Number.isFinite(metricMin) && metricMin > 0;
   const hasRoleFitMin = Number.isFinite(roleFitMin) && roleFitMin > 0;
   const hasRoleFloorMin = Number.isFinite(roleFloorMin) && roleFloorMin > 0;
+  const hasPagedMetricFilter = isPaged && metricFilterIds.length && hasMetricMin;
+  const shouldApplyLocalMetricFilter = !hasPagedMetricFilter && metricFilterIds.length && hasMetricMin;
   const sortNeedsSimpleFilter = sortMetricId === "minutes" || sortMetricId === "matches";
   const isPagedSimplePageView =
     isPaged &&
@@ -7198,10 +7203,10 @@ function getFilteredScoutingDatabaseRecords() {
     signalMode === "all" &&
     marketStatus === "all" &&
     !roleProfileId &&
-    !metricFilterIds.length &&
+    !shouldApplyLocalMetricFilter &&
     !hasRoleFitMin &&
     !hasRoleFloorMin &&
-    !hasMetricMin;
+    (!hasMetricMin || hasPagedMetricFilter);
   const isLocalSimplePageView =
     !isApi &&
     !hasQuery &&
@@ -7308,7 +7313,7 @@ function getFilteredScoutingDatabaseRecords() {
     return groupedRecords;
   }
   const roleFitCache = needsRoleFit ? new Map() : null;
-  const metricFilterCache = metricFilterIds.length && Number.isFinite(metricMin) && metricMin > 0 ? new Map() : null;
+  const metricFilterCache = shouldApplyLocalMetricFilter ? new Map() : null;
   const sortPercentileCache = sortMetricId !== "minutes" && sortMetricId !== "matches" && sortMetricId !== "role-fit" ? new Map() : null;
   const roleFloorCache = Number.isFinite(roleFloorMin) && roleFloorMin > 0 ? new Map() : null;
   const getCachedRoleFit = (record) => {
@@ -7415,8 +7420,8 @@ function getFilteredScoutingDatabaseRecords() {
         }
       }
       const roleFitScore = needsRoleFit ? getCachedRoleFit(record) : null;
-      if (metricFilterIds.length && hasMetricMin) {
-        const passesSelectedMetrics = metricFilterIds.every((selectedMetricId) => {
+      if (shouldApplyLocalMetricFilter) {
+        const passesSelectedMetrics = metricFilterIds.some((selectedMetricId) => {
           const percentile = getCachedMetricPercentile(record, selectedMetricId);
           return Number.isFinite(percentile) && percentile >= metricMin;
         });
@@ -16905,8 +16910,13 @@ export function handleClick(event, context) {
   }
   const metricFilterSummary = event.target.closest("[data-scouting-metric-filter-summary]");
   if (metricFilterSummary) {
+    event.preventDefault();
+    event.stopPropagation();
     const details = metricFilterSummary.closest("[data-scouting-metric-filter-details]");
     scoutingDatabaseMetricFilterOpen = !details?.open;
+    if (details) {
+      details.open = scoutingDatabaseMetricFilterOpen;
+    }
     return;
   }
   const resetRangeFilterTrigger = event.target.closest("[data-reset-scouting-range-filter]");
@@ -17446,7 +17456,13 @@ export function handleChange(event, context) {
   if (metricFilterChoice) {
     scoutingDatabaseMetricFilterOpen = true;
     const filters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
-    const selectedMetricIds = new Set(Array.isArray(filters.metricIds) ? filters.metricIds : []);
+    const selectedMetricIds = new Set(
+      Array.isArray(filters.metricIds) && filters.metricIds.length
+        ? filters.metricIds
+        : filters.metricId && filters.metricId !== "all"
+          ? [filters.metricId]
+          : []
+    );
     const metricId = normalizeScoutingText(metricFilterChoice.value, 120);
     if (metricId) {
       if (metricFilterChoice.checked) {

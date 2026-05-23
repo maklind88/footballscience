@@ -3959,14 +3959,24 @@ function addScoutingComparisonPlayer(recordId) {
     rememberScoutingRecordSnapshot(record);
   }
   const lab = getScoutingComparisonLab();
-  const nextPlayerIds = lab.playerIds.filter(Boolean).filter((playerId) => playerId !== id);
-  if (nextPlayerIds.length >= 4) {
+  const nextPlayerIds = [lab.playerIds[0] || "", lab.playerIds[1] || "", lab.playerIds[2] || "", lab.playerIds[3] || ""];
+  if (nextPlayerIds.includes(id)) {
+    scoutingComparisonPlayerSearchQuery = "";
+    scoutingComparisonCandidatesOpen = false;
+    renderScoutingWorkspace({ preserveFocus: true });
+    window.requestAnimationFrame(() => ui.scoutingWorkspace?.querySelector("[data-scouting-comparison-player-search]")?.focus());
     return;
   }
-  nextPlayerIds.push(id);
+  const targetIndex = nextPlayerIds.findIndex((playerId) => !playerId);
+  if (targetIndex < 0) {
+    return;
+  }
+  nextPlayerIds[targetIndex] = id;
   setScoutingComparisonLab({ ...lab, playerIds: nextPlayerIds });
-  scoutingComparisonCandidatesOpen = true;
+  scoutingComparisonPlayerSearchQuery = "";
+  scoutingComparisonCandidatesOpen = false;
   renderScoutingWorkspace({ preserveFocus: true });
+  window.requestAnimationFrame(() => ui.scoutingWorkspace?.querySelector("[data-scouting-comparison-player-search]")?.focus());
 }
 function getScoutingComparisonCachedRecordById(recordId) {
   const id = normalizeScoutingText(recordId, 160);
@@ -14598,7 +14608,7 @@ function renderScoutingComparisonLabPanel() {
   const searchRecords = Array.isArray(scoutingComparisonSearchCache.records) ? scoutingComparisonSearchCache.records : [];
   const candidateRecords = scoutingComparisonPlayerSearchQuery.length >= 2 ? searchRecords : [];
   const candidateMap = new Map();
-  [...selectedRecords, ...candidateRecords].forEach((record) => {
+  candidateRecords.forEach((record) => {
     const recordId = getScoutingRecordId(record);
     if (recordId && !candidateMap.has(recordId)) {
       candidateMap.set(recordId, record);
@@ -14720,7 +14730,7 @@ function renderScoutingComparisonLabPanel() {
     .join("");
   const comparisonCandidateList = scoutingComparisonCandidatesOpen || scoutingComparisonPlayerSearchQuery
     ? `
-      <div class="scouting-comparison-candidate-drawer" data-scouting-comparison-candidate-area>
+      <div class="scouting-comparison-candidate-drawer" data-scouting-comparison-candidate-area role="listbox" aria-label="Comparison player search results">
         ${
           candidates.length
             ? candidates
@@ -14729,18 +14739,21 @@ function renderScoutingComparisonLabPanel() {
                   const selected = selectedComparisonPlayerSet.has(recordId);
                   const addDisabled = !canEdit || (!selected && uniquePlayerIds.length >= 4);
                   return `
-                    <article class="scouting-comparison-candidate-card${selected ? " is-selected" : ""}">
+                    <button
+                      type="button"
+                      class="scouting-comparison-candidate-card${selected ? " is-selected" : ""}"
+                      data-add-scouting-comparison-player="${escapeHtml(recordId)}"
+                      role="option"
+                      aria-selected="${selected ? "true" : "false"}"
+                      ${selected || addDisabled ? "disabled" : ""}
+                    >
                       ${renderScoutingRecordAvatar(record)}
-                      <button type="button" class="scouting-comparison-candidate-main" data-open-scouting-record="${escapeHtml(recordId)}">
+                      <span class="scouting-comparison-candidate-main">
                         <strong>${escapeHtml(getScoutingRecordName(record))}</strong>
                         <span>${escapeHtml(getScoutingRecordPosition(record) || "No position")} · ${escapeHtml(getScoutingRecordTeam(record) || getScoutingRecordLeague(record) || "No club")}</span>
-                      </button>
-                      ${
-                        selected
-                          ? `<button type="button" class="scouting-secondary-button" data-remove-scouting-comparison-player="${escapeHtml(recordId)}" ${canEdit ? "" : "disabled"}>Remove</button>`
-                          : `<button type="button" class="scouting-secondary-button" data-add-scouting-comparison-player="${escapeHtml(recordId)}" ${addDisabled ? "disabled" : ""}>Compare</button>`
-                      }
-                    </article>
+                      </span>
+                      <span class="scouting-comparison-candidate-action">${escapeHtml(selected ? "Added" : uniquePlayerIds.length >= 4 ? "Full" : "Add")}</span>
+                    </button>
                   `;
                 })
                 .join("")
@@ -14765,16 +14778,20 @@ function renderScoutingComparisonLabPanel() {
         </button>
       </div>
       <form class="scouting-comparison-form scouting-comparison-search" data-scouting-comparison-form>
-        <label class="scouting-comparison-player-search-field">
-          Search player
-          <input
-            type="search"
-            value="${escapeHtml(scoutingComparisonPlayerSearchQuery)}"
-            placeholder="Search name, club, league..."
-            data-scouting-comparison-player-search
-            ${canEdit ? "" : "disabled"}
-          />
-        </label>
+        <div class="scouting-comparison-player-search-wrap">
+          <label class="scouting-comparison-player-search-field">
+            Search player
+            <input
+              type="search"
+              value="${escapeHtml(scoutingComparisonPlayerSearchQuery)}"
+              placeholder="Search name, club, league..."
+              autocomplete="off"
+              data-scouting-comparison-player-search
+              ${canEdit ? "" : "disabled"}
+            />
+          </label>
+          ${comparisonCandidateList}
+        </div>
         <fieldset class="scouting-comparison-metric-choice">
           <legend>Metrics</legend>
           <details data-scouting-comparison-metric-details ${scoutingComparisonMetricMenuOpen ? "open" : ""}>
@@ -14799,7 +14816,6 @@ function renderScoutingComparisonLabPanel() {
       <div class="scouting-comparison-selected-grid">
         ${selectedSlotMarkup}
       </div>
-      ${comparisonCandidateList}
       <p class="scouting-comparison-summary">
         ${selectedMetricOptions.length ? `Metrics: ${escapeHtml(metricLabelText)}` : "Select metrics"} ${canCompare ? `· ${metricDelta}` : "· Pick at least two players to compare"}
       </p>

@@ -116,10 +116,12 @@ For **Safe Lane** or risky changes, use the fuller order:
 3. Run validation:
    - `npm run check`
    - targeted Playwright/API tests for the touched area
+   - prefer `npm run qa:contracts` for focused contract/module guardrail coverage when shared APIs, adapters, release rules, or modular boundaries changed
    - prefer `npm run qa:api` for API/data contract coverage instead of typing the full Playwright command
    - `npm run release:ship -- --mode fast` for routine deploy readiness
    - `npm run release:gate` when you need the full preflight + safety + deploy QA gate before release work
    - `npm run qa:browser` for UI flows when the touched area needs browser proof
+   - use `npm run qa:staging:required` or `npm run qa:live:required` when staging/live authenticated smoke must fail loudly if credentials or env wiring are missing
    - `npx playwright test --config=qa/playwright.config.mjs --project=api-contracts` for API/data changes
 4. Stage only intended files.
 5. Commit with a clear message.

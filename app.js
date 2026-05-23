@@ -8436,6 +8436,15 @@ function normalizeDashboardMessage(message) {
 const currentUser = getCurrentPlatformUser();
 const userId = message?.userId || message?.authorId || message?.senderId || currentUser?.id || "";
 const text = String(message?.text ?? "").trim().slice(0, dashboardChatMaxMessageLength);
+const id = String(message?.id || message?.messageId || "").trim() || createDashboardId("message");
+const clientMessageId = String(
+message?.clientMessageId ||
+message?.client_message_id ||
+message?.metadata?.clientMessageId ||
+message?.metadata?.client_message_id ||
+""
+).trim();
+const createdAt = String(message?.createdAt || message?.created_at || "").trim() || new Date().toISOString();
 const readBy = Array.isArray(message?.readBy)
 ? message.readBy.map((userId) => String(userId ?? "").trim()).filter(Boolean)
 : [];
@@ -8443,12 +8452,13 @@ const mentionedUserIds = Array.isArray(message?.mentionedUserIds)
 ? message.mentionedUserIds.map((userId) => String(userId || "").trim()).filter(Boolean)
 : getDashboardMentionUserIds(text, getPlatformUsers(), userId);
 return {
-id: message?.id || createDashboardId("message"),
+id,
+clientMessageId,
 userId,
 threadId: normalizeDashboardChatThreadId(message?.threadId, dashboardChatTeamThreadId),
 text,
-createdAt: message?.createdAt || new Date().toISOString(),
-deliveredAt: message?.deliveredAt || message?.createdAt || new Date().toISOString(),
+createdAt,
+deliveredAt: message?.deliveredAt || message?.createdAt || createdAt,
 readBy: Array.from(new Set([userId, ...readBy].filter(Boolean))),
 mentionedUserIds: Array.from(new Set(mentionedUserIds)),
 reactions: normalizeDashboardReactions(message?.reactions),
@@ -8460,6 +8470,100 @@ author: normalizeDashboardMessageAuthor(message?.author || message?.user || null
 attachments: Array.isArray(message?.attachments) ? message.attachments : [],
 status: String(message?.status || "sent").trim().toLowerCase(),
 };
+}
+function getDashboardMessageCreatedAtMs(message = {}) {
+const createdAtMs = Date.parse(message.createdAt || message.created_at || "");
+if (Number.isFinite(createdAtMs)) {
+return createdAtMs;
+}
+const deliveredAtMs = Date.parse(message.deliveredAt || message.delivered_at || "");
+return Number.isFinite(deliveredAtMs) ? deliveredAtMs : 0;
+}
+function compareDashboardChatMessages(first = {}, second = {}) {
+const firstTime = getDashboardMessageCreatedAtMs(first);
+const secondTime = getDashboardMessageCreatedAtMs(second);
+if (firstTime !== secondTime) {
+return firstTime - secondTime;
+}
+const firstId = String(first.id || first.clientMessageId || "");
+const secondId = String(second.id || second.clientMessageId || "");
+return firstId.localeCompare(secondId, undefined, { sensitivity: "base" });
+}
+function getDashboardMessageIdentityKeys(message = {}) {
+return Array.from(
+new Set(
+[
+message.id,
+message.messageId,
+message.clientMessageId,
+message.client_message_id,
+message.metadata?.clientMessageId,
+message.metadata?.client_message_id,
+]
+.map((value) => String(value || "").trim())
+.filter(Boolean)
+)
+);
+}
+function isDashboardMessageRememberedDeleted(message = {}, deletedMessageIds = readDashboardDeletedMessageIds()) {
+return getDashboardMessageIdentityKeys(message).some((id) => deletedMessageIds.has(id));
+}
+function mergeDashboardChatMessageRecords(existingMessage, incomingMessage) {
+if (!existingMessage) {
+return normalizeDashboardMessage(incomingMessage);
+}
+const existing = normalizeDashboardMessage(existingMessage);
+const incoming = normalizeDashboardMessage(incomingMessage);
+const incomingIsServerSettled = incoming.status !== "pending" && incoming.status !== "failed";
+const existingIsLocalOnly = existing.status === "pending" || existing.status === "failed";
+const preferIncoming = incomingIsServerSettled && (existingIsLocalOnly || getDashboardMessageCreatedAtMs(incoming) >= getDashboardMessageCreatedAtMs(existing));
+const base = preferIncoming ? existing : incoming;
+const overlay = preferIncoming ? incoming : existing;
+const reactions = normalizeDashboardReactions({
+...base.reactions,
+...overlay.reactions,
+});
+dashboardChatReactionOptions.forEach((option) => {
+reactions[option.key] = Array.from(new Set([...(base.reactions?.[option.key] || []), ...(overlay.reactions?.[option.key] || [])].filter(Boolean)));
+});
+return normalizeDashboardMessage({
+...base,
+...overlay,
+id: overlay.id || base.id,
+clientMessageId: overlay.clientMessageId || base.clientMessageId,
+readBy: Array.from(new Set([...(base.readBy || []), ...(overlay.readBy || [])].filter(Boolean))),
+mentionedUserIds: Array.from(new Set([...(base.mentionedUserIds || []), ...(overlay.mentionedUserIds || [])].filter(Boolean))),
+reactions,
+attachments: overlay.attachments?.length ? overlay.attachments : base.attachments,
+author: overlay.author || base.author,
+status: incomingIsServerSettled ? incoming.status : overlay.status || base.status,
+});
+}
+function setDashboardMessageInIdentityMap(messageMap, message) {
+const normalizedMessage = normalizeDashboardMessage(message);
+const identityKeys = getDashboardMessageIdentityKeys(normalizedMessage);
+const existingKey = identityKeys.find((key) => messageMap.has(key));
+const existingMessage = existingKey ? messageMap.get(existingKey) : null;
+const nextMessage = mergeDashboardChatMessageRecords(existingMessage, normalizedMessage);
+if (existingMessage) {
+getDashboardMessageIdentityKeys(existingMessage).forEach((key) => messageMap.delete(key));
+}
+getDashboardMessageIdentityKeys(nextMessage).forEach((key) => messageMap.set(key, nextMessage));
+}
+function getDashboardMessagesFromIdentityMap(messageMap) {
+return Array.from(new Set(messageMap.values())).sort(compareDashboardChatMessages);
+}
+function normalizeDashboardMessageCollection(messages = [], options = {}) {
+const deletedMessageIds = options.deletedMessageIds || readDashboardDeletedMessageIds();
+const messageMap = new Map();
+(Array.isArray(messages) ? messages : []).forEach((sourceMessage) => {
+const message = normalizeDashboardMessage(sourceMessage);
+if (!message.text || !message.userId || isDashboardMessageRememberedDeleted(message, deletedMessageIds)) {
+return;
+}
+setDashboardMessageInIdentityMap(messageMap, message);
+});
+return getDashboardMessagesFromIdentityMap(messageMap);
 }
 function readDashboardDeletedMessageIds() {
 const parsed = readDashboardJson(dashboardChatDeletedMessageIdsStorageKey, []);
@@ -8485,7 +8589,7 @@ return;
 const nextMessages = dashboardChatRuntimeMessages.filter((message) => {
 const sourceId = String(message?.id || message?.messageId || "").trim();
 const normalizedId = normalizeDashboardMessage(message).id;
-return !deletedMessageIds.has(sourceId) && !deletedMessageIds.has(normalizedId);
+return !deletedMessageIds.has(sourceId) && !deletedMessageIds.has(normalizedId) && !isDashboardMessageRememberedDeleted(message, deletedMessageIds);
 });
 if (nextMessages.length === dashboardChatRuntimeMessages.length) {
 return;
@@ -8500,25 +8604,16 @@ const parsed = readDashboardJson(dashboardChatStorageKey, []);
 dashboardChatRuntimeMessages = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.messages) ? parsed.messages : [];
 }
 const deletedMessageIds = readDashboardDeletedMessageIds();
-return Array.isArray(dashboardChatRuntimeMessages)
-? dashboardChatRuntimeMessages
-.map(normalizeDashboardMessage)
-.filter((message) => message.text && message.userId && !deletedMessageIds.has(message.id))
-.sort((first, second) => new Date(first.createdAt) - new Date(second.createdAt))
-: [];
+return normalizeDashboardMessageCollection(dashboardChatRuntimeMessages, { deletedMessageIds });
 }
 function writeDashboardMessages(messages, options = {}) {
 const deletedMessageIds = readDashboardDeletedMessageIds();
-const normalizedMessages = messages
-.map(normalizeDashboardMessage)
-.filter((message) => message.text && message.userId && !deletedMessageIds.has(message.id));
+const normalizedMessages = normalizeDashboardMessageCollection(messages, { deletedMessageIds });
 const recentMessages = normalizedMessages.slice(-80);
 const pinnedMessages = normalizedMessages
 .filter((message) => message.pinnedAt && !recentMessages.some((recentMessage) => recentMessage.id === message.id))
 .slice(-20);
-const nextMessages = [...pinnedMessages, ...recentMessages]
-.filter((message, index, source) => source.findIndex((candidate) => candidate.id === message.id) === index)
-.sort((first, second) => new Date(first.createdAt) - new Date(second.createdAt));
+const nextMessages = normalizeDashboardMessageCollection([...pinnedMessages, ...recentMessages], { deletedMessageIds });
 dashboardChatRuntimeMessages = nextMessages;
 centralStateWriteSuppressionKeys.add(dashboardChatStorageKey);
 try { writeDashboardJson(dashboardChatStorageKey, nextMessages); } finally { centralStateWriteSuppressionKeys.delete(dashboardChatStorageKey); }
@@ -8651,6 +8746,7 @@ const type = String(thread.type || "team").trim().toLowerCase();
 const legacyThreadId = String(thread.metadata?.legacyThreadId || thread.legacyThreadId || "").trim();
 const messageCount = Number(thread.message_count || thread.messageCount || 0) || 0;
 const lastMessage = thread.lastMessage || thread.last_message || null;
+const lastMessageId = String(thread.lastMessageId || thread.last_message_id || lastMessage?.id || lastMessage?.messageId || "").trim();
 const template =
 dashboardChatAdvancedThreadTemplates.find((candidate) => candidate.key === legacyThreadId) ||
 dashboardChatAdvancedThreadTemplates.find((candidate) => candidate.type === type);
@@ -8666,6 +8762,7 @@ messageCount,
 unreadCount: Number(thread.unreadCount || thread.unread_count || 0) || 0,
 lastReadAt: String(thread.lastReadAt || thread.last_read_at || "").trim(),
 lastMessage,
+lastMessageId,
 lastMessagePreview: String(thread.lastMessagePreview || thread.last_message_preview || "").trim(),
 participants: Array.isArray(thread.participants) ? thread.participants.map((value) => String(value || "").trim()).filter(Boolean) : [],
 permissions: thread.permissions && typeof thread.permissions === "object" ? thread.permissions : {},
@@ -8683,6 +8780,7 @@ const author = message.author || message.user || null;
 const authorId = message.userId || message.author_id || message.authorId || "";
 return normalizeDashboardMessage({
 id: message.id || message.messageId,
+clientMessageId: message.clientMessageId || message.client_message_id || message.metadata?.clientMessageId || message.metadata?.client_message_id || "",
 threadId,
 text: message.text ?? message.body ?? "",
 userId: authorId,
@@ -8709,14 +8807,40 @@ const messageThread = options.thread || null;
 const existingMessages = readDashboardMessages();
 const existingThreadMessages = replaceThreadId ? existingMessages.filter((message) => message.threadId === replaceThreadId) : [];
 const keepThread = Boolean(options.keepThread);
+const incomingApiMessages = messages.map((sourceMessage) => ({
+sourceMessage,
+message: normalizeDashboardApiMessage(sourceMessage, messageThread),
+sourceMessageId: String(sourceMessage?.id || sourceMessage?.messageId || "").trim(),
+clientMessageId: String(sourceMessage?.clientMessageId || sourceMessage?.client_message_id || sourceMessage?.metadata?.clientMessageId || sourceMessage?.metadata?.client_message_id || "").trim(),
+deletedAt: String(sourceMessage?.deletedAt || sourceMessage?.deleted_at || "").trim(),
+}));
+const incomingIdentityKeys = new Set();
+let incomingMaxCreatedAtMs = 0;
+incomingApiMessages.forEach(({ message, sourceMessageId, clientMessageId }) => {
+[sourceMessageId, clientMessageId, ...getDashboardMessageIdentityKeys(message)].filter(Boolean).forEach((key) => incomingIdentityKeys.add(key));
+incomingMaxCreatedAtMs = Math.max(incomingMaxCreatedAtMs, getDashboardMessageCreatedAtMs(message));
+});
+const recentLocalMessageCutoff = Date.now() - 5 * 60 * 1000;
+const shouldKeepExistingThreadMessage = (message) => {
+if (!replaceThreadId || message.threadId !== replaceThreadId) {
+return true;
+}
+if (message.status === "pending" || message.status === "failed") {
+return true;
+}
+if (getDashboardMessageIdentityKeys(message).some((key) => incomingIdentityKeys.has(key))) {
+return false;
+}
+const createdAtMs = getDashboardMessageCreatedAtMs(message);
+return Boolean(createdAtMs && (createdAtMs >= incomingMaxCreatedAtMs || createdAtMs >= recentLocalMessageCutoff));
+};
 const current = replaceThreadId && !keepThread
-? existingMessages.filter((message) => message.threadId !== replaceThreadId || message.status === "pending" || message.status === "failed")
+? existingMessages.filter(shouldKeepExistingThreadMessage)
 : existingMessages;
 if (!messages.length) {
 if (replaceThreadId) {
-const recentLocalMessageCutoff = Date.now() - 2 * 60 * 1000;
 const hasRecentLocalThreadMessages = existingThreadMessages.some((message) => {
-const createdAtMs = Date.parse(message.createdAt || "");
+const createdAtMs = getDashboardMessageCreatedAtMs(message);
 return message.status === "pending" || message.status === "failed" || (Number.isFinite(createdAtMs) && createdAtMs >= recentLocalMessageCutoff);
 });
 const threadStillHasServerActivity = [
@@ -8737,12 +8861,14 @@ renderDashboardChatWidget();
 }
 return current;
 }
-const byId = new Map(current.map((message) => [message.id, message]));
+const byId = new Map();
+current.forEach((message) => {
+if (message.text && message.userId) {
+setDashboardMessageInIdentityMap(byId, message);
+}
+});
 const deletedMessageIds = readDashboardDeletedMessageIds();
-messages.forEach((sourceMessage) => {
-const sourceMessageId = String(sourceMessage?.id || sourceMessage?.messageId || "").trim();
-const clientMessageId = String(sourceMessage?.clientMessageId || sourceMessage?.client_message_id || "").trim();
-const deletedAt = String(sourceMessage?.deletedAt || sourceMessage?.deleted_at || "").trim();
+incomingApiMessages.forEach(({ sourceMessageId, clientMessageId, deletedAt, message }) => {
 if (sourceMessageId && deletedAt) {
 rememberDashboardDeletedMessageId(sourceMessageId);
 deletedMessageIds.add(sourceMessageId);
@@ -8754,22 +8880,19 @@ byId.delete(clientMessageId);
 }
 return;
 }
-const message = normalizeDashboardApiMessage(sourceMessage, messageThread);
-const existingMessage = byId.get(clientMessageId) || byId.get(message.id) || null;
+const existingMessage = getDashboardMessageIdentityKeys({ ...message, clientMessageId }).map((key) => byId.get(key)).find(Boolean) || null;
 const readBy = existingMessage ? Array.from(new Set([...(existingMessage.readBy || []), ...(message.readBy || [])].filter(Boolean))) : message.readBy;
-if (clientMessageId && byId.has(clientMessageId) && clientMessageId !== message.id) {
-byId.delete(clientMessageId);
-}
 const resolvedMessage = normalizeDashboardMessage({
 ...message,
+clientMessageId: message.clientMessageId || clientMessageId,
 threadId: replaceThreadId && message?.threadId !== replaceThreadId ? replaceThreadId : message.threadId,
 readBy,
 });
-if (resolvedMessage?.text && resolvedMessage.userId && !deletedMessageIds.has(resolvedMessage.id)) {
-byId.set(resolvedMessage.id, resolvedMessage);
+if (resolvedMessage?.text && resolvedMessage.userId && !isDashboardMessageRememberedDeleted(resolvedMessage, deletedMessageIds)) {
+setDashboardMessageInIdentityMap(byId, resolvedMessage);
 }
 });
-const mergedMessages = Array.from(byId.values()).sort((first, second) => new Date(first.createdAt) - new Date(second.createdAt));
+const mergedMessages = getDashboardMessagesFromIdentityMap(byId);
 writeDashboardMessages(mergedMessages, { skipCentralSync: true });
 if (options.render !== false) {
 renderDashboardChatWidget();
@@ -9110,6 +9233,7 @@ return null;
 }
 const message = normalizeDashboardMessage({
 id: options.id || "",
+clientMessageId: options.clientMessageId || options.id || "",
 threadId,
 text: cleanText,
 userId: currentUser.id,
@@ -9192,11 +9316,16 @@ thread.threadId === normalizedThreadId ? { ...thread, unreadCount: 0, lastReadAt
 function queueDashboardChatReadReceiptApi(threadId, messages = readDashboardMessages()) {
 const currentUser = getCurrentPlatformUser();
 const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
-const latestMessage = [...messages].reverse().find((message) => message.threadId === normalizedThreadId);
-if (!currentUser?.id || !latestMessage?.id) {
+const latestMessage = [...messages]
+.reverse()
+.find((message) => message.threadId === normalizedThreadId && message.status !== "pending" && message.status !== "failed");
+const apiThread = dashboardChatApiThreads.find((thread) => thread.threadId === normalizedThreadId) || null;
+const apiLastMessage = apiThread?.lastMessage ? normalizeDashboardApiMessage(apiThread.lastMessage, apiThread) : null;
+const latestMessageId = String(latestMessage?.id || apiLastMessage?.id || apiThread?.lastMessageId || "").trim();
+if (!currentUser?.id || !latestMessageId) {
 return;
 }
-const signature = `${currentUser.id}:${normalizedThreadId}:${latestMessage.id}`;
+const signature = `${currentUser.id}:${normalizedThreadId}:${latestMessageId}`;
 if (dashboardChatApiReadReceiptSyncSignatures.has(signature)) {
 return;
 }
@@ -9207,7 +9336,7 @@ dashboardChatApiReadReceiptSyncSignatures.add(signature);
 void sendDashboardChatApiAction({
 action: "markThreadRead",
 threadId: normalizedThreadId,
-lastReadMessageId: latestMessage.id,
+lastReadMessageId: latestMessageId,
 }).then((result) => {
 if (result.ok) {
 markDashboardChatApiThreadRead(normalizedThreadId);
@@ -9248,6 +9377,7 @@ queueDashboardChatReadReceiptApi(normalizedThreadId, nextMessages);
 }
 } else if (normalizedThreadId) {
 markDashboardChatApiThreadRead(normalizedThreadId);
+queueDashboardChatReadReceiptApi(normalizedThreadId, nextMessages);
 }
 return nextMessages;
 }
@@ -10162,6 +10292,7 @@ if (root.dataset.dashboardChatRenderSignature === renderSignature) {
 if (shouldClearSubmittedComposerDraft) {
 dashboardChatSubmittedComposerDrafts.delete(previousComposerThreadId);
 }
+dashboardChatPageScroll = false;
 renderTopIconMenu();
 return;
 }
@@ -10209,7 +10340,12 @@ const state = readDashboardChatWidgetState();
 const notifications = readDashboardChatWidgetNotificationState();
 const messages = readDashboardMessages();
 const normalizedActiveThreadId = normalizeDashboardChatThreadId(state.selectedThreadId, dashboardChatTeamThreadId);
-const activeThreadLastMessage = [...messages].reverse().find((message) => message.threadId === normalizedActiveThreadId);
+const activeThreadApi = dashboardChatApiThreads.find((thread) => thread.threadId === normalizedActiveThreadId) || null;
+const activeThreadApiLastMessage = activeThreadApi?.lastMessage ? normalizeDashboardApiMessage(activeThreadApi.lastMessage, activeThreadApi) : null;
+const activeThreadLastMessage =
+[...messages].reverse().find((message) => message.threadId === normalizedActiveThreadId) ||
+activeThreadApiLastMessage ||
+(activeThreadApi?.lastMessageId ? { id: activeThreadApi.lastMessageId, userId: "", threadId: normalizedActiveThreadId } : null);
 const currentCursor = readDashboardChatWidgetNotificationCursor();
 if (activeThreadLastMessage && isDashboardChatThreadActivelyViewed(activeThreadLastMessage.threadId)) {
 if (

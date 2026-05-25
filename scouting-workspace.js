@@ -423,13 +423,23 @@ function setScoutingContext(context) {
   scoutingPriorityOptions = context.scoutingPriorityOptions || scoutingPriorityFallbackOptions;
 }
 function ensureScoutingState() {
-  return activeContext.ensureState();
+  const state = activeContext.ensureState();
+  hydrateScoutingDurableState(state);
+  return state;
 }
 function writeScoutingState(options = {}) {
   if (options.syncShadowBoard !== false) {
-    syncScoutingActiveShadowBoard();
+    const previousHydrationState = scoutingDurableHydrating;
+    scoutingDurableHydrating = true;
+    try {
+      syncScoutingActiveShadowBoard();
+    } finally {
+      scoutingDurableHydrating = previousHydrationState;
+    }
   }
-  return activeContext.writeState(options);
+  const result = activeContext.writeState(options);
+  persistScoutingDurableState(activeContext.ensureState());
+  return result;
 }
 let scoutingDeferredStateWriteTimer = 0;
 function deferScoutingStateWrite(options = {}, beforeWrite = null, delayMs = 120) {
@@ -1116,6 +1126,133 @@ function cloneScoutingSavedView(view = {}) {
     filters: normalizeScoutingDatabaseFilters(view.filters),
     createdAt: normalizeScoutingText(view.createdAt, 40) || new Date().toISOString(),
   };
+}
+
+const scoutingDurableStateStorageKey = "football-scouting-durable-state-v1";
+let scoutingDurableHydrating = false;
+
+function getScoutingDurableScopeKey() {
+  const context = activeContext || {};
+  const team =
+    normalizeScoutingText(context.teamName, 80) ||
+    normalizeScoutingText(context.teamLabel, 80) ||
+    normalizeScoutingText(context.clubName, 80) ||
+    "default-team";
+  return normalizeScoutingText(team, 80).toLowerCase();
+}
+
+function readScoutingDurableStateStore() {
+  if (!window.localStorage) return {};
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(scoutingDurableStateStorageKey) || "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function writeScoutingDurableStateStore(store) {
+  if (!window.localStorage) return;
+  try {
+    window.localStorage.setItem(scoutingDurableStateStorageKey, JSON.stringify(store || {}));
+  } catch (error) {
+    // Local storage can fail in private mode. The central write still runs.
+  }
+}
+
+function mergeScoutingItemsById(currentItems = [], durableItems = [], cloneItem = (item) => item) {
+  const itemsById = new Map();
+  durableItems.forEach((item) => {
+    const cloned = cloneItem(item);
+    const id = normalizeScoutingText(cloned?.id, 160);
+    if (id) itemsById.set(id, cloned);
+  });
+  currentItems.forEach((item) => {
+    const cloned = cloneItem(item);
+    const id = normalizeScoutingText(cloned?.id, 160);
+    if (id) itemsById.set(id, cloned);
+  });
+  return Array.from(itemsById.values());
+}
+
+function cloneScoutingStateObject(value = {}) {
+  return value && typeof value === "object" ? JSON.parse(JSON.stringify(value)) : {};
+}
+
+function normalizeScoutingDurableStateSlice(state = {}) {
+  const shadowClone =
+    typeof cloneScoutingShadowXi === "function" ? cloneScoutingShadowXi(state.shadowXi || {}) : cloneScoutingStateObject(state.shadowXi);
+  const myTeamClone =
+    typeof cloneScoutingMyTeam === "function" ? cloneScoutingMyTeam(state.myTeam || {}) : cloneScoutingStateObject(state.myTeam);
+  return {
+    savedViews: Array.isArray(state.savedViews) ? state.savedViews.map(cloneScoutingSavedView) : [],
+    favoriteRecordIds: normalizeScoutingRecordIds(state.favoriteRecordIds),
+    contactLog: Array.isArray(state.contactLog) ? state.contactLog.map(normalizeScoutingContactLogEntry) : [],
+    comparisonLab: normalizeScoutingComparisonLab(state.comparisonLab || {}),
+    lists: Array.isArray(state.lists) ? state.lists.map(cloneScoutingList) : [],
+    shadowXi: shadowClone,
+    myTeam: myTeamClone,
+    playerSnapshots: state.playerSnapshots && typeof state.playerSnapshots === "object" ? { ...state.playerSnapshots } : {},
+  };
+}
+
+function hydrateScoutingDurableState(state) {
+  if (!state || scoutingDurableHydrating) return state;
+  scoutingDurableHydrating = true;
+  try {
+    const store = readScoutingDurableStateStore();
+    const durable = normalizeScoutingDurableStateSlice(store[getScoutingDurableScopeKey()] || {});
+
+    state.savedViews = mergeScoutingItemsById(
+      Array.isArray(state.savedViews) ? state.savedViews : [],
+      durable.savedViews,
+      cloneScoutingSavedView,
+    );
+    state.favoriteRecordIds = normalizeScoutingRecordIds([
+      ...(Array.isArray(durable.favoriteRecordIds) ? durable.favoriteRecordIds : []),
+      ...(Array.isArray(state.favoriteRecordIds) ? state.favoriteRecordIds : []),
+    ]);
+    state.contactLog = mergeScoutingItemsById(
+      Array.isArray(state.contactLog) ? state.contactLog : [],
+      durable.contactLog,
+      normalizeScoutingContactLogEntry,
+    ).sort((a, b) => normalizeScoutingText(b.createdAt, 40).localeCompare(normalizeScoutingText(a.createdAt, 40)));
+    state.lists = mergeScoutingItemsById(
+      Array.isArray(state.lists) ? state.lists : [],
+      durable.lists,
+      cloneScoutingList,
+    );
+    state.comparisonLab =
+      state.comparisonLab && Array.isArray(state.comparisonLab.playerIds) && state.comparisonLab.playerIds.some(Boolean)
+        ? normalizeScoutingComparisonLab(state.comparisonLab)
+        : durable.comparisonLab;
+    const hasShadowData =
+      state.shadowXi &&
+      (Object.keys(state.shadowXi.slots || {}).length ||
+        Object.keys(state.shadowXi.positions || {}).length ||
+        (Array.isArray(state.shadowXi.boards) && state.shadowXi.boards.length));
+    const hasMyTeamData =
+      state.myTeam &&
+      (Object.keys(state.myTeam.slots || {}).length ||
+        Object.keys(state.myTeam.positions || {}).length ||
+        (Array.isArray(state.myTeam.players) && state.myTeam.players.length));
+    state.shadowXi = hasShadowData ? cloneScoutingStateObject(state.shadowXi) : durable.shadowXi;
+    state.myTeam = hasMyTeamData ? cloneScoutingStateObject(state.myTeam) : durable.myTeam;
+    state.playerSnapshots = {
+      ...(durable.playerSnapshots || {}),
+      ...(state.playerSnapshots && typeof state.playerSnapshots === "object" ? state.playerSnapshots : {}),
+    };
+  } finally {
+    scoutingDurableHydrating = false;
+  }
+  return state;
+}
+
+function persistScoutingDurableState(state) {
+  if (!state || scoutingDurableHydrating) return;
+  const store = readScoutingDurableStateStore();
+  store[getScoutingDurableScopeKey()] = normalizeScoutingDurableStateSlice(state);
+  writeScoutingDurableStateStore(store);
 }
 function normalizeScoutingDatabaseFilters(filters = {}) {
   const minMinutes = Number(filters.minMinutes);
@@ -3946,11 +4083,42 @@ function getScoutingComparisonLab(state = ensureScoutingState()) {
 }
 function setScoutingComparisonLab(patch = {}) {
   const state = ensureScoutingState();
-  state.comparisonLab = {
-    ...normalizeScoutingComparisonLab(state.comparisonLab),
-    ...normalizeScoutingComparisonLab(patch),
-  };
+  const currentLab = normalizeScoutingComparisonLab(state.comparisonLab);
+  const hasPlayerIds = Object.prototype.hasOwnProperty.call(patch, "playerIds");
+  const hasMetricIds = Object.prototype.hasOwnProperty.call(patch, "metricIds");
+  const hasMetricId = Object.prototype.hasOwnProperty.call(patch, "metricId");
+  const hasSlotId = Object.prototype.hasOwnProperty.call(patch, "slotId");
+  state.comparisonLab = normalizeScoutingComparisonLab({
+    slotId: hasSlotId ? patch.slotId : currentLab.slotId,
+    playerIds: hasPlayerIds ? patch.playerIds : currentLab.playerIds,
+    metricId: hasMetricId ? patch.metricId : currentLab.metricId,
+    metricIds: hasMetricIds ? patch.metricIds : hasMetricId ? [patch.metricId] : currentLab.metricIds,
+  });
   writeScoutingState();
+}
+function syncScoutingComparisonLabFromDom() {
+  const form = ui.scoutingWorkspace?.querySelector("[data-scouting-comparison-form]");
+  if (!form || !canEditScoutingWorkspace()) {
+    return;
+  }
+  const formData = new FormData(form);
+  const metricIds = formData.getAll("metricIds").map((metricId) => normalizeScoutingText(metricId, 120)).filter(Boolean);
+  if (!metricIds.length) {
+    return;
+  }
+  const lab = getScoutingComparisonLab();
+  if (metricIds.join("|") === (lab.metricIds || []).join("|")) {
+    return;
+  }
+  setScoutingComparisonLab({
+    metricId: metricIds[0],
+    metricIds,
+    playerIds: lab.playerIds,
+  });
+}
+function renderScoutingComparisonWorkspace(options = { preserveFocus: true }) {
+  syncScoutingComparisonLabFromDom();
+  renderScoutingWorkspace(options);
 }
 function addScoutingComparisonPlayer(recordId) {
   const id = normalizeScoutingText(recordId, 160);
@@ -3966,7 +4134,7 @@ function addScoutingComparisonPlayer(recordId) {
   if (nextPlayerIds.includes(id)) {
     scoutingComparisonPlayerSearchQuery = "";
     scoutingComparisonCandidatesOpen = false;
-    renderScoutingWorkspace({ preserveFocus: true });
+    renderScoutingComparisonWorkspace({ preserveFocus: true });
     window.requestAnimationFrame(() => ui.scoutingWorkspace?.querySelector("[data-scouting-comparison-player-search]")?.focus());
     return;
   }
@@ -3978,7 +4146,7 @@ function addScoutingComparisonPlayer(recordId) {
   setScoutingComparisonLab({ ...lab, playerIds: nextPlayerIds });
   scoutingComparisonPlayerSearchQuery = "";
   scoutingComparisonCandidatesOpen = false;
-  renderScoutingWorkspace({ preserveFocus: true });
+  renderScoutingComparisonWorkspace({ preserveFocus: true });
   window.requestAnimationFrame(() => ui.scoutingWorkspace?.querySelector("[data-scouting-comparison-player-search]")?.focus());
 }
 function getScoutingComparisonCachedRecordById(recordId) {
@@ -4019,18 +4187,18 @@ function queueScoutingComparisonPlayerSearch(query = scoutingComparisonPlayerSea
   scoutingComparisonCandidatesOpen = true;
   if (normalizedQuery.length < 2) {
     scoutingComparisonSearchCache = { key: getScoutingComparisonSearchKey(normalizedQuery), status: "idle", records: [], error: "", promise: null };
-    renderScoutingWorkspace({ preserveFocus: true });
+    renderScoutingComparisonWorkspace({ preserveFocus: true });
     return;
   }
   scoutingComparisonSearchTimer = window.setTimeout(() => {
     const key = getScoutingComparisonSearchKey(normalizedQuery);
     if (scoutingComparisonSearchCache.key === key && ["loading", "ready"].includes(scoutingComparisonSearchCache.status)) {
-      renderScoutingWorkspace({ preserveFocus: true });
+      renderScoutingComparisonWorkspace({ preserveFocus: true });
       return;
     }
     const localRecords = getLocalScoutingComparisonSearchRecords(normalizedQuery, 24);
     scoutingComparisonSearchCache = { key, status: "loading", records: localRecords, error: "", promise: null };
-    renderScoutingWorkspace({ preserveFocus: true });
+    renderScoutingComparisonWorkspace({ preserveFocus: true });
     const workerQuery = {
       ...getScoutingWorkerQueryFromState(),
       query: normalizedQuery,
@@ -4059,7 +4227,7 @@ function queueScoutingComparisonPlayerSearch(query = scoutingComparisonPlayerSea
           }
         });
         scoutingComparisonSearchCache = { key, status: "ready", records: Array.from(recordMap.values()).slice(0, 32), error: "", promise: null };
-        renderScoutingWorkspace({ preserveFocus: true });
+        renderScoutingComparisonWorkspace({ preserveFocus: true });
       })
       .catch((error) => {
         if (scoutingComparisonSearchCache.key !== key) {
@@ -4072,7 +4240,7 @@ function queueScoutingComparisonPlayerSearch(query = scoutingComparisonPlayerSea
           error: error?.message || "Could not search the full scouting database.",
           promise: null,
         };
-        renderScoutingWorkspace({ preserveFocus: true });
+        renderScoutingComparisonWorkspace({ preserveFocus: true });
       });
     scoutingComparisonSearchCache.promise = promise;
   }, 180);
@@ -4968,7 +5136,10 @@ function getScoutingRecordSeasonYearValue(record) {
 function getScoutingRecordStrongPersonKey(record) {
   const sourceSystem = normalizeScoutingIdentityPart(getScoutingRecordSourceSystem(record), 40);
   const sourcePlayerId = normalizeScoutingIdentityPart(getScoutingRecordPlayerSourceId(record), 160);
-  if (sourcePlayerId) {
+  const sourceTrace = getScoutingRecordSourceTrace(record);
+  const identitySource = normalizeScoutingText(sourceTrace.identitySource, 40).toLowerCase();
+  const sourceIdIsDerived = !identitySource || ["derived", "name", "name + date of birth + nationality"].includes(identitySource);
+  if (sourcePlayerId && !sourceIdIsDerived) {
     return `source:${sourceSystem}:${sourcePlayerId}`;
   }
   const nameKey = getScoutingRecordPersonNameKey(record);
@@ -4978,12 +5149,14 @@ function getScoutingRecordStrongPersonKey(record) {
     return `dob:${nameKey}:${dateOfBirth}:${nationalityKey}`;
   }
   const storedIdentityId = normalizeScoutingIdentityPart(getScoutingRecordStoredIdentityId(record), 160);
-  const sourceTrace = getScoutingRecordSourceTrace(record);
-  const identitySource = normalizeScoutingText(sourceTrace.identitySource, 40).toLowerCase();
   if (storedIdentityId && identitySource && !["derived", "name", "name + date of birth + nationality"].includes(identitySource)) {
     return `identity:${sourceSystem}:${storedIdentityId}`;
   }
   return "";
+}
+function isScoutingHardPersonKey(key = "") {
+  const normalized = normalizeScoutingText(key, 220).toLowerCase();
+  return normalized.startsWith("source:") || normalized.startsWith("dob:");
 }
 function areScoutingNationalitiesCompatible(firstRecord, secondRecord) {
   const first = getScoutingRecordPersonNationalityKey(firstRecord);
@@ -5048,9 +5221,19 @@ function areScoutingRecordsLikelySamePerson(firstRecord, secondRecord) {
   const firstStrongKey = getScoutingRecordStrongPersonKey(firstRecord);
   const secondStrongKey = getScoutingRecordStrongPersonKey(secondRecord);
   if (firstStrongKey && secondStrongKey) {
-    return firstStrongKey === secondStrongKey;
+    if (firstStrongKey === secondStrongKey) {
+      return true;
+    }
+    if (isScoutingHardPersonKey(firstStrongKey) || isScoutingHardPersonKey(secondStrongKey)) {
+      return false;
+    }
   }
-  if (getScoutingRecordPersonNameKey(firstRecord) !== getScoutingRecordPersonNameKey(secondRecord)) {
+  const firstNameKey = getScoutingRecordPersonNameKey(firstRecord);
+  const secondNameKey = getScoutingRecordPersonNameKey(secondRecord);
+  if (
+    firstNameKey !== secondNameKey &&
+    !areScoutingNamesInitialSurnameMatch(getScoutingRecordName(firstRecord), getScoutingRecordName(secondRecord))
+  ) {
     return false;
   }
   return (
@@ -5078,6 +5261,23 @@ function chooseScoutingRepresentativeRecord(records = [], filters = {}) {
     return getScoutingRecordName(first).localeCompare(getScoutingRecordName(second));
   })[0] || null;
 }
+function attachScoutingMergedSeasonRecords(record, records = []) {
+  if (!record) {
+    return null;
+  }
+  const mergedSeasonRecords = [...(Array.isArray(records) ? records : [])].sort((first, second) => {
+    const seasonDelta = getScoutingRecordSeasonYearValue(second) - getScoutingRecordSeasonYearValue(first);
+    if (seasonDelta) return seasonDelta;
+    return getScoutingRecordMinutes(second) - getScoutingRecordMinutes(first);
+  });
+  const nextRecord = Array.isArray(record) ? record.slice() : { ...record };
+  nextRecord[scoutingRecordIndex.sourceTrace] = {
+    ...getScoutingRecordSourceTrace(record),
+    mergedSeasonRecords,
+    mergedSeasonCount: mergedSeasonRecords.length,
+  };
+  return nextRecord;
+}
 function groupScoutingDatabaseRecordsByPerson(records = [], filters = {}) {
   const clusters = [];
   for (const record of Array.isArray(records) ? records : []) {
@@ -5087,7 +5287,12 @@ function groupScoutingDatabaseRecordsByPerson(records = [], filters = {}) {
       : null;
     if (!cluster) {
       cluster = clusters.find((item) => {
-        if (strongKey && item.strongKey && item.strongKey !== strongKey) {
+        if (
+          strongKey &&
+          item.strongKey &&
+          item.strongKey !== strongKey &&
+          (isScoutingHardPersonKey(strongKey) || isScoutingHardPersonKey(item.strongKey))
+        ) {
           return false;
         }
         return item.records.every((candidate) => areScoutingRecordsLikelySamePerson(record, candidate));
@@ -5102,7 +5307,9 @@ function groupScoutingDatabaseRecordsByPerson(records = [], filters = {}) {
       clusters.push({ strongKey, records: [record] });
     }
   }
-  return clusters.map((cluster) => chooseScoutingRepresentativeRecord(cluster.records, filters)).filter(Boolean);
+  return clusters
+    .map((cluster) => attachScoutingMergedSeasonRecords(chooseScoutingRepresentativeRecord(cluster.records, filters), cluster.records))
+    .filter(Boolean);
 }
 function formatScoutingNumber(value, fallback = "n/a") {
   const number = Number(value);
@@ -6384,9 +6591,15 @@ function getScoutingRecordsForPlayer(record) {
   if (!name) {
     return [];
   }
-  return (scoutingRecordNameLookupCache.get(name) || [])
+  const directRecords = (scoutingRecordNameLookupCache.get(name) || [])
     .filter((candidate) => areScoutingRecordsLikelySamePerson(record, candidate))
     .slice();
+  if (directRecords.length) {
+    return directRecords;
+  }
+  return Array.from(scoutingRecordIdLookupCache.values())
+    .filter((candidate) => areScoutingRecordsLikelySamePerson(record, candidate))
+    .sort((a, b) => getScoutingRecordSeasonYearValue(b) - getScoutingRecordSeasonYearValue(a) || getScoutingRecordMinutes(b) - getScoutingRecordMinutes(a));
 }
 function getScoutingTargets(state = ensureScoutingState()) {
   return Array.isArray(state.targets) ? state.targets : [];
@@ -12827,7 +13040,7 @@ function setScoutingShadowFormation(value) {
   }
   const state = ensureScoutingState();
   state.shadowXi.formation = normalizeScoutingFormation(value);
-  writeScoutingState({ syncCentral: false });
+  writeScoutingState();
   renderScoutingWorkspace({ preserveFocus: true });
 }
 function setScoutingShadowSlotPitchPosition(slotId = "", xValue, yValue) {
@@ -12856,7 +13069,7 @@ function setScoutingShadowSlotPitchPosition(slotId = "", xValue, yValue) {
       },
     },
   };
-  writeScoutingState({ syncCentral: false });
+  writeScoutingState();
   renderScoutingWorkspace({ preserveFocus: true });
 }
 function getScoutingFocusSnapshot() {
@@ -14602,7 +14815,7 @@ function renderScoutingComparisonLabPanel() {
     .map(
       (metricOption, index) => `
         <label>
-          <input type="checkbox" name="metricIds" value="${escapeHtml(metricOption.id)}" ${comparisonMetricIds.includes(metricOption.id) || (!comparisonMetricIds.length && index === 0) ? "checked" : ""} ${canEditScoutingWorkspace() ? "" : "disabled"} />
+          <input type="checkbox" name="metricIds" value="${escapeHtml(metricOption.id)}" ${comparisonMetricIds.includes(metricOption.id) || (!comparisonMetricIds.length && index === 0) ? "checked" : ""} data-scouting-comparison-metric-checkbox ${canEditScoutingWorkspace() ? "" : "disabled"} />
           <span>${escapeHtml(metricOption.label)}</span>
         </label>
       `
@@ -14733,9 +14946,34 @@ function renderScoutingComparisonLabPanel() {
         `;
     })
     .join("");
+  const comparisonSelectedDrawerList = uniquePlayerIds.length
+    ? `
+      <div class="scouting-comparison-drawer-section">
+        <p class="placeholder-tag">Selected compare players</p>
+        ${uniquePlayerIds
+          .map((recordId) => {
+            const record = getScoutingRecordById(recordId) || getScoutingComparisonCachedRecordById(recordId);
+            return record
+              ? `
+                <article class="scouting-comparison-drawer-selected-card">
+                  ${renderScoutingRecordAvatar(record)}
+                  <span>
+                    <strong>${escapeHtml(getScoutingRecordName(record))}</strong>
+                    <em>${escapeHtml(getScoutingRecordPosition(record) || "No position")} · ${escapeHtml(getScoutingRecordTeam(record) || getScoutingRecordLeague(record) || "No club")}</em>
+                  </span>
+                  <button type="button" aria-label="Remove ${escapeHtml(getScoutingRecordName(record))}" data-remove-scouting-comparison-player="${escapeHtml(recordId)}" ${canEdit ? "" : "disabled"}>Remove</button>
+                </article>
+              `
+              : "";
+          })
+          .join("")}
+      </div>
+    `
+    : `<p class="scouting-comparison-drawer-empty">No players selected yet. Search below to add two to four players.</p>`;
   const comparisonCandidateList = scoutingComparisonCandidatesOpen || scoutingComparisonPlayerSearchQuery
     ? `
       <div class="scouting-comparison-candidate-drawer" data-scouting-comparison-candidate-area role="listbox" aria-label="Comparison player search results">
+        ${scoutingComparisonCandidatesOpen ? comparisonSelectedDrawerList : ""}
         ${
           candidates.length
             ? candidates
@@ -16488,13 +16726,12 @@ function toggleScoutingFavorite(recordId) {
     markDebugTiming("favorite-controls-updated");
     refreshScoutingWorkspaceSummaryMetrics();
     markDebugTiming("summary-updated");
-    deferScoutingStateWrite({}, () => {
-      const record = getScoutingRecordById(id);
-      if (record) {
-        rememberScoutingRecordSnapshot(record, state, { includeAnalysis: false });
-      }
-    });
-    markDebugTiming("write-deferred");
+    const record = getScoutingRecordById(id);
+    if (record) {
+      rememberScoutingRecordSnapshot(record, state, { includeAnalysis: false });
+    }
+    writeScoutingState();
+    markDebugTiming("state-written");
     if (debugTimings) {
       const base = debugTimings[0]?.at || 0;
       console.log(
@@ -16731,7 +16968,7 @@ export function handleClick(event, context) {
       queueScoutingComparisonPlayerSearch(scoutingComparisonPlayerSearchQuery);
       return;
     }
-    renderScoutingWorkspace({ preserveFocus: true });
+    renderScoutingComparisonWorkspace({ preserveFocus: true });
     return;
   }
   const addComparisonPlayerTrigger = event.target.closest("[data-add-scouting-comparison-player]");
@@ -17288,7 +17525,7 @@ export function handleInput(event, context) {
   if (comparisonMetricSearchInput) {
     scoutingComparisonMetricMenuOpen = true;
     scoutingComparisonMetricFilterQuery = normalizeScoutingText(comparisonMetricSearchInput.value, 80);
-    renderScoutingWorkspace({ preserveFocus: true });
+    renderScoutingComparisonWorkspace({ preserveFocus: true });
     return;
   }
   const comparisonPlayerSearchInput = event.target.closest("[data-scouting-comparison-player-search]");
@@ -17405,6 +17642,31 @@ export function handleChange(event, context) {
     setScoutingShadowBoardVisibility(shadowBoardVisibilityTrigger.dataset.scoutingShadowBoardVisibility, shadowBoardVisibilityTrigger.value);
     return;
   }
+  const comparisonMetricChoice = event.target.closest("[data-scouting-comparison-metric-checkbox]");
+  if (comparisonMetricChoice) {
+    if (!canEditScoutingWorkspace()) {
+      return;
+    }
+    scoutingComparisonMetricMenuOpen = true;
+    const metricId = normalizeScoutingText(comparisonMetricChoice.value, 120);
+    const lab = getScoutingComparisonLab();
+    const metricIds = new Set((lab.metricIds || []).map((item) => normalizeScoutingText(item, 120)).filter(Boolean));
+    if (metricId) {
+      if (comparisonMetricChoice.checked) {
+        metricIds.add(metricId);
+      } else {
+        metricIds.delete(metricId);
+      }
+    }
+    const nextMetricIds = Array.from(metricIds);
+    setScoutingComparisonLab({
+      metricId: nextMetricIds[0] || lab.metricId,
+      metricIds: nextMetricIds,
+      playerIds: lab.playerIds,
+    });
+    renderScoutingComparisonWorkspace({ preserveFocus: true });
+    return;
+  }
   const comparisonForm = event.target.closest("[data-scouting-comparison-form]");
   if (comparisonForm) {
     if (!canEditScoutingWorkspace()) {
@@ -17422,7 +17684,7 @@ export function handleChange(event, context) {
         ? [formData.get("playerA"), formData.get("playerB"), formData.get("playerC"), formData.get("playerD")]
         : existingLab.playerIds,
     });
-    renderScoutingWorkspace({ preserveFocus: true });
+    renderScoutingComparisonWorkspace({ preserveFocus: true });
     return;
   }
   const oppositionForm = event.target.closest("[data-scouting-opposition-form]");

@@ -129,17 +129,58 @@ function getAttachmentDraftIcon(attachmentDraft = {}) {
   return "FILE";
 }
 
-function defaultRenderMessageText(message = {}, options = {}, escapeHtml = defaultEscapeHtml) {
-  const text = String(message?.text || "");
-  const query = String(options.searchQuery || "").trim();
+export function renderDashboardChatTextPartWithSearchHighlight(part = "", searchQuery = "", escapeHtml = defaultEscapeHtml) {
+  const text = String(part || "");
+  const query = String(searchQuery || "").trim();
   if (query.length < 2) {
-    return escapeHtml(text);
+    return escapeHtml(text).replaceAll("\n", "<br />");
   }
-  const matchIndex = text.toLowerCase().indexOf(query.toLowerCase());
-  if (matchIndex === -1) {
-    return escapeHtml(text);
+  const lowerText = text.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+  let cursor = 0;
+  let output = "";
+  while (cursor < text.length) {
+    const matchIndex = lowerText.indexOf(lowerQuery, cursor);
+    if (matchIndex === -1) {
+      output += escapeHtml(text.slice(cursor)).replaceAll("\n", "<br />");
+      break;
+    }
+    output += escapeHtml(text.slice(cursor, matchIndex)).replaceAll("\n", "<br />");
+    output += `<mark class="dashboard-chat-search-hit">${escapeHtml(text.slice(matchIndex, matchIndex + query.length)).replaceAll("\n", "<br />")}</mark>`;
+    cursor = matchIndex + query.length;
   }
-  return `${escapeHtml(text.slice(0, matchIndex))}<mark class="dashboard-chat-search-hit">${escapeHtml(text.slice(matchIndex, matchIndex + query.length))}</mark>${escapeHtml(text.slice(matchIndex + query.length))}`;
+  return output;
+}
+
+export function createDashboardChatMessageTextRenderer({ escapeHtml = defaultEscapeHtml, getMentionUserIdsForToken = () => [] } = {}) {
+  return function renderDashboardChatMessageText(message, users = [], options = {}) {
+    return String(message?.text || "")
+      .split(/(@[a-zA-Z0-9._-]{2,64})/g)
+      .map((part) => {
+        if (!part.startsWith("@") || !getMentionUserIdsForToken(part.slice(1), users, message.userId).length) {
+          return renderDashboardChatTextPartWithSearchHighlight(part, options.searchQuery, escapeHtml);
+        }
+        return `<mark class="dashboard-chat-mention">${escapeHtml(part)}</mark>`;
+      })
+      .join("");
+  };
+}
+
+export function renderDashboardChatMessageStatus(message = {}, currentUser = {}, escapeHtml = defaultEscapeHtml) {
+  if (message.userId !== currentUser?.id) {
+    return "";
+  }
+  const readCount = (Array.isArray(message?.readBy) ? message.readBy : []).filter((userId) => userId !== currentUser?.id && userId !== message.userId).length;
+  const status = String(message?.status || "").trim().toLowerCase();
+  const statusKey = status === "failed" || status === "pending" || status === "delivered" ? status : readCount || status === "read" ? "read" : "sent";
+  const statusIcon = statusKey === "pending" ? "..." : statusKey === "failed" ? "!" : statusKey === "sent" ? "✓" : "✓✓";
+  const statusLabel =
+    statusKey === "pending" ? "Sending" : statusKey === "failed" ? "Not sent" : statusKey === "read" ? (readCount ? `Read by ${readCount}` : "Read") : statusKey === "delivered" ? "Delivered" : "Sent";
+  return `<div class="dashboard-chat-status is-${statusKey}" title="${escapeHtml(statusLabel)}" aria-label="${escapeHtml(statusLabel)}"><span class="dashboard-chat-check-label">${statusIcon}</span><span class="dashboard-chat-status-text">${escapeHtml(statusLabel)}</span></div>`;
+}
+
+function defaultRenderMessageText(message = {}, options = {}, escapeHtml = defaultEscapeHtml) {
+  return renderDashboardChatTextPartWithSearchHighlight(message?.text, options.searchQuery, escapeHtml);
 }
 
 export function createDashboardChatWidgetRenderer(dependencies = {}) {

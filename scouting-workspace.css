@@ -9248,3 +9248,174 @@ body.is-dark-mode .analysis-room-skunk-card::before{
     grid-template-columns: 1fr;
   }
 }
+
+.scouting-comparison-studio{display:grid;gap:.85rem;padding:clamp(1rem,2vw,1.2rem);border-radius:24px;background:linear-gradient(180deg,#ffffffef,#fbfcf9d9);border:1px solid #1d1d1f12;box-shadow:0 18px 44px #10201510}.scouting-comparison-studio .scouting-comparison-head{display:flex;align-items:center;justify-content:space-between;gap:1rem}.scouting-comparison-studio .scouting-comparison-head>div{display:grid;gap:.08rem}.scouting-comparison-studio .scouting-comparison-head h2{margin:0;font-size:clamp(1.25rem,2vw,1.55rem);letter-spacing:-.035em}.scouting-comparison-studio .scouting-comparison-candidate-toggle{min-height:2.35rem;padding:0 .92rem;border-radius:999px;border:1px solid #1d1d1f12;background:#eef4ef;color:#173326;font-weight:900;white-space:nowrap}.scouting-comparison-studio .scouting-comparison-candidate-toggle.is-open,.scouting-comparison-studio .scouting-comparison-candidate-toggle:hover{background:#20382b;color:#fff}.scouting-comparison-studio .scouting-comparison-form{display:grid;grid-template-columns:minmax(18rem,2fr) minmax(15rem,1fr);gap:.75rem;align-items:start;padding:.72rem;border-radius:18px;background:#f7faf7;border:1px solid #1d1d1f12}.scouting-comparison-studio .scouting-comparison-player-search-wrap,.scouting-comparison-studio .scouting-comparison-metric-choice{position:relative;min-width:0;margin:0}.scouting-comparison-studio .scouting-comparison-player-search-field,.scouting-comparison-studio .scouting-comparison-metric-choice{display:grid;gap:.28rem}.scouting-comparison-studio .scouting-comparison-player-search-field,.scouting-comparison-studio .scouting-comparison-metric-choice legend{color:#657068;font-size:.68rem;font-weight:950;letter-spacing:.08em;text-transform:uppercase}.scouting-comparison-studio .scouting-comparison-player-search-field input,.scouting-comparison-studio .scouting-comparison-metric-choice summary{width:100%;min-height:3rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem;border:1px solid #1d1d1f18;border-radius:14px;background:#fff;color:#17251e;font:inherit;font-weight:850;padding:0 .85rem;box-shadow:inset 0 1px 0 #ffffffd9;cursor:pointer}.scouting-comparison-studio .scouting-comparison-player-search-field input:focus,.scouting-comparison-studio .scouting-comparison-metric-choice details[open] summary{outline:0;border-color:#2f8f6b70;box-shadow:0 0 0 3px #2f8f6b1f}.scouting-comparison-studio .scouting-comparison-metric-choice summary span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.scouting-comparison-studio .scouting-comparison-metric-choice summary em{flex:0 0 auto;padding:.22rem .5rem;border-radius:999px;background:#233b2d12;color:#20382b;font-style:normal;font-size:.72rem}.scouting-comparison-studio .scouting-comparison-candidate-drawer,.scouting-comparison-studio .scouting-comparison-metric-search,.scouting-comparison-studio .scouting-comparison-metric-options{position:absolute;left:0;right:0;z-index:80;background:#fffffff5;border:1px solid #1d1d1f14;box-shadow:0 22px 48px #10201524;backdrop-filter:blur(18px)}.scouting-comparison-studio .scouting-comparison-candidate-drawer{top:calc(100% + .42rem);max-height:22rem;overflow:auto;border-radius:18px;padding:.5rem}.scouting-comparison-studio .scouting-comparison-metric-search{top:calc(100% + .42rem);padding:.55rem .55rem 0;border-bottom:0;border-radius:18px 18px 0 0}.scouting-comparison-studio .scouting-comparison-metric-search input{width:100%;min-height:2.55rem;border:1px solid #1d1d1f18;border-radius:12px;background:#fff;color:#17251e;font:inherit;font-weight:800;padding:0 .75rem}.scouting-comparison-studio .scouting-comparison-metric-options{top:calc(100% + 3.52rem);max-height:18rem;overflow:auto;border-top:0;border-radius:0 0 18px 18px;padding:.5rem}.scouting-comparison-studio .scouting-comparison-metric-options label{display:flex;align-items:center;gap:.55rem;min-height:2.45rem;padding:.48rem .55rem;border-radius:12px;color:#17251e;font-weight:800}.scouting-comparison-studio .scouting-comparison-metric-options label:hover{background:#eef4ef}.scouting-comparison-studio .scouting-comparison-candidate-card{width:100%;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:.65rem;padding:.58rem;border:0;border-radius:14px;background:#fff;color:#17251e;text-align:left}.scouting-comparison-studio .scouting-comparison-candidate-card+button{margin-top:.38rem}.scouting-comparison-studio .scouting-comparison-candidate-card:hover{background:#eef4ef}.scouting-comparison-studio .scouting-comparison-candidate-main{display:grid;gap:.06rem;min-width:0}.scouting-comparison-studio .scouting-comparison-candidate-main strong,.scouting-comparison-studio .scouting-comparison-candidate-main span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.scouting-comparison-studio .scouting-comparison-candidate-action{padding:.26rem .55rem;border-radius:999px;background:#20382b;color:#fff;font-size:.72rem;font-weight:900}.scouting-comparison-studio .scouting-comparison-selected-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.62rem}.scouting-comparison-studio .scouting-comparison-selected-player{min-width:0;min-height:4.25rem;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:.65rem;padding:.65rem;border-radius:18px;background:#fff;border:1px solid #1d1d1f12;box-shadow:0 10px 24px #1020150d}.scouting-comparison-studio .scouting-comparison-selected-player.is-empty{grid-template-columns:1fr;border-style:dashed;background:#f7faf7;color:#657068}.scouting-comparison-studio .scouting-comparison-selected-player strong,.scouting-comparison-studio .scouting-comparison-selected-player span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.scouting-comparison-studio .scouting-comparison-selected-player button{width:2rem;height:2rem;border-radius:999px;border:1px solid #d92d2024;background:#fff1f1;color:#b42318;font-weight:950}.scouting-comparison-studio .scouting-comparison-summary{margin:0;color:#52635a;font-size:.9rem;font-weight:800}.scouting-comparison-studio .scouting-comparison-decision{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.62rem}.scouting-comparison-studio .scouting-comparison-decision>div{min-width:0;padding:.82rem;border-radius:18px;background:#eef4ef;border:1px solid #1d1d1f10}.scouting-comparison-studio .scouting-comparison-decision span{display:block;color:#657068;font-size:.68rem;font-weight:950;letter-spacing:.08em;text-transform:uppercase}.scouting-comparison-studio .scouting-comparison-decision strong{display:block;margin:.18rem 0;font-size:1.05rem}.scouting-comparison-studio .scouting-comparison-decision p{margin:0;color:#52635a;font-size:.86rem}.scouting-comparison-studio .scouting-comparison-results{display:grid;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));gap:.62rem}.scouting-comparison-studio .scouting-comparison-table{overflow:auto;border:1px solid #1d1d1f12;border-radius:18px;background:#fff}.scouting-comparison-studio .scouting-comparison-table-head,.scouting-comparison-studio .scouting-comparison-table-row{display:grid;grid-template-columns:minmax(11rem,1.2fr) repeat(4,minmax(8rem,1fr)) minmax(10rem,1fr);gap:.5rem;align-items:center;min-width:52rem;padding:.64rem .78rem}.scouting-comparison-studio .scouting-comparison-table-head{color:#657068;background:#eef4ef;font-size:.68rem;font-weight:950;letter-spacing:.08em;text-transform:uppercase}.scouting-comparison-studio .scouting-comparison-table-row+div{border-top:1px solid #1d1d1f0f}.scouting-comparison-studio .scouting-comparison-table-row em{display:block;color:#657068;font-style:normal;font-size:.74rem;font-weight:850}@media (max-width:900px){.scouting-comparison-studio .scouting-comparison-form,.scouting-comparison-studio .scouting-comparison-decision{grid-template-columns:1fr}.scouting-comparison-studio .scouting-comparison-selected-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media (max-width:620px){.scouting-comparison-studio .scouting-comparison-head{align-items:flex-start;flex-direction:column}.scouting-comparison-studio .scouting-comparison-selected-grid{grid-template-columns:1fr}.scouting-comparison-studio .scouting-comparison-candidate-toggle{width:100%}}
+.scouting-comparison-studio .scouting-comparison-metric-choice{border:0;padding:0;min-inline-size:0}.scouting-comparison-studio .scouting-comparison-metric-choice legend{padding:0}.scouting-comparison-studio .scouting-comparison-player-search-field input{margin-top:.28rem}
+.scouting-shell .scouting-command-bar{min-height:4.15rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin:.72rem 0 .85rem;padding:.72rem .78rem;border-radius:20px;background:#ffffffe8;border:1px solid #1d1d1f10;box-shadow:0 14px 34px #1020150d}.scouting-shell .scouting-tabs{display:flex;align-items:center;gap:.45rem;min-width:0;flex-wrap:wrap}.scouting-shell .scouting-tab{min-height:2.55rem;display:inline-flex;align-items:center;justify-content:center;padding:0 .95rem;border-radius:999px;border:1px solid #1d1d1f14;background:#fff;color:#17251e;font-weight:900;line-height:1;box-shadow:none}.scouting-shell .scouting-tab.is-active{background:#20382b;color:#fff;border-color:#20382b;box-shadow:0 10px 24px #20382b22}.scouting-shell .scouting-tab:hover{transform:translateY(-1px);box-shadow:0 10px 22px #10201512}.scouting-shell .scouting-hero{min-height:5.25rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.05rem;border-radius:18px}.scouting-shell .scouting-hero h1{margin:0;line-height:1.02}.scouting-shell .scouting-content{display:grid;gap:.85rem}@media (max-width:760px){.scouting-shell .scouting-command-bar{align-items:stretch;flex-direction:column}.scouting-shell .scouting-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.scouting-shell .scouting-tab{width:100%}}
+.scouting-comparison-studio .scouting-comparison-drawer-section{display:grid;gap:.42rem;margin-bottom:.5rem;padding:.5rem;border-radius:14px;background:#f7faf7;border:1px solid #1d1d1f10}.scouting-comparison-studio .scouting-comparison-drawer-selected-card{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:.55rem;min-height:2.75rem;padding:.42rem .48rem;border-radius:12px;background:#fff;border:1px solid #1d1d1f10}.scouting-comparison-studio .scouting-comparison-drawer-selected-card span{display:grid;gap:.05rem;min-width:0}.scouting-comparison-studio .scouting-comparison-drawer-selected-card strong,.scouting-comparison-studio .scouting-comparison-drawer-selected-card em{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.scouting-comparison-studio .scouting-comparison-drawer-selected-card em{color:#657068;font-style:normal;font-size:.74rem;font-weight:800}.scouting-comparison-studio .scouting-comparison-drawer-selected-card button{min-height:2rem;padding:0 .62rem;border-radius:999px;border:1px solid #d92d2024;background:#fff1f1;color:#b42318;font-size:.72rem;font-weight:950}.scouting-comparison-studio .scouting-comparison-drawer-empty{margin:0 0 .45rem;padding:.7rem;border-radius:14px;background:#f7faf7;border:1px dashed #1d1d1f18;color:#657068;font-size:.86rem;font-weight:800}.scouting-comparison-studio .scouting-comparison-candidate-drawer .scouting-muted{margin:.45rem .2rem;color:#657068;font-weight:750}
+.scouting-shell {
+  --scouting-shell-gap: 12px;
+  --scouting-control-height: 40px;
+  --scouting-card-radius: 18px;
+}
+
+.scouting-shell .scouting-hero {
+  min-height: 82px;
+  padding: 18px 18px;
+  margin-bottom: var(--scouting-shell-gap);
+  display: flex;
+  align-items: center;
+}
+
+.scouting-shell .scouting-hero h1 {
+  line-height: 0.95;
+}
+
+.scouting-shell .scouting-board {
+  display: flex;
+  flex-direction: column;
+  gap: var(--scouting-shell-gap);
+}
+
+.scouting-shell .scouting-command-bar {
+  min-height: 58px;
+  margin: 0;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+}
+
+.scouting-shell .scouting-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.scouting-shell .scouting-tab,
+.scouting-shell .scouting-secondary-button,
+.scouting-shell .scouting-primary-button,
+.scouting-shell .scouting-filter-toggle,
+.scouting-shell .scouting-comparison-candidate-toggle,
+.scouting-shell .scouting-saved-views-trigger {
+  min-height: var(--scouting-control-height);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.scouting-shell .scouting-content > section,
+.scouting-shell .scouting-content > div,
+.scouting-shell .scouting-comparison-studio,
+.scouting-shell .scouting-lists-panel,
+.scouting-shell .scouting-database-panel {
+  border-radius: var(--scouting-card-radius);
+}
+
+.scouting-profile-backdrop,
+.scouting-saved-views-overlay,
+.scouting-role-model-overlay,
+.scouting-settings-overlay {
+  overflow-anchor: none;
+}
+
+.scouting-profile-modal,
+.scouting-saved-views-modal,
+.scouting-role-model-modal,
+.scouting-settings-modal {
+  overflow-anchor: none;
+  scroll-behavior: auto;
+}
+
+.scouting-profile-modal .scouting-profile-head {
+  min-height: 96px;
+}
+
+.scouting-profile-modal .scouting-profile-identity {
+  min-height: 68px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.scouting-profile-modal .scouting-profile-tabs-row,
+.scouting-profile-modal .scouting-profile-tabs {
+  min-height: 54px;
+  align-items: center;
+}
+
+.scouting-profile-tabs button,
+.scouting-profile-tabs-actions summary,
+.scouting-profile-tabs-actions button {
+  min-height: 38px;
+  border-radius: 999px;
+}
+
+.scouting-contact-list article > button,
+.scouting-comparison-selected-player > button,
+.scouting-comparison-drawer-selected-card > button {
+  min-width: 34px;
+  min-height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(28, 47, 40, 0.12);
+  background: rgba(255, 255, 255, 0.9);
+  color: #8b1f28;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.scouting-contact-list article > button:hover,
+.scouting-comparison-selected-player > button:hover,
+.scouting-comparison-drawer-selected-card > button:hover {
+  background: #fff3f1;
+  border-color: rgba(139, 31, 40, 0.28);
+}
+
+.scouting-comparison-studio .scouting-comparison-form > *,
+.scouting-comparison-studio .scouting-comparison-metric-choice summary,
+.scouting-comparison-studio .scouting-comparison-player-search-field input {
+  min-height: 48px;
+}
+
+.scouting-comparison-studio .scouting-comparison-decision {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.scouting-comparison-studio .scouting-comparison-decision > div {
+  border-radius: 16px;
+  padding: 14px;
+  background: linear-gradient(145deg, rgba(241, 246, 239, 0.94), rgba(255, 255, 255, 0.88));
+  border: 1px solid rgba(28, 47, 40, 0.1);
+}
+
+.scouting-shadow-layout .scouting-shadow-pitch,
+.scouting-my-team-layout .scouting-shadow-pitch {
+  overflow-anchor: none;
+}
+
+.scouting-shadow-player-menu,
+.scouting-my-team-player-menu,
+.scouting-my-team-slot-menu {
+  position: relative;
+  z-index: 20;
+}
+
+.scouting-shadow-player-menu > div,
+.scouting-my-team-player-menu > div,
+.scouting-my-team-slot-menu > div {
+  z-index: 1000;
+}
+
+@media (max-width: 900px) {
+  .scouting-comparison-studio .scouting-comparison-decision {
+    grid-template-columns: 1fr;
+  }
+
+  .scouting-shell .scouting-command-bar {
+    align-items: flex-start;
+  }
+}

@@ -38,3 +38,16 @@ test("chat database adapter normalizes message constraints", () => {
   expect(chatDatabase._private.normalizeThreadType("matchday")).toBe("matchday");
   expect(chatDatabase._private.normalizeThreadType("announcement")).toBe("announcement");
 });
+
+test("chat database adapter exposes persisted thread settings action", () => {
+  const { readFileSync } = require("node:fs");
+  const path = require("node:path");
+  const { fileURLToPath } = require("node:url");
+  const source = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../api/_lib/chat-database.js"), "utf8");
+
+  expect(source).toContain("setThreadSettings: 30");
+  expect(source).toContain("async function setThreadSettings");
+  expect(source).toContain("metadata.settingsByUser = settingsByUser");
+  expect(source).toContain("metadata.threadSettingsUpdatedAt = now");
+  expect(source).toContain("result = await setThreadSettings(actor, body)");
+});

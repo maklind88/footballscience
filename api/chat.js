@@ -37,6 +37,7 @@ const CHAT_ACTIONS = new Set([
   "addReaction",
   "removeReaction",
   "markThreadRead",
+  "setThreadSettings",
   "clearThread",
   "createAttachmentIntent",
 ]);
@@ -52,6 +53,7 @@ const RATE_LIMITS = {
   addReaction: 80,
   removeReaction: 80,
   markThreadRead: 120,
+  setThreadSettings: 30,
   clearThread: 5,
   default: 60,
 };
@@ -119,6 +121,28 @@ function normalizeBoolean(value) {
   return value === true || value === "true" || value === 1 || value === "1";
 }
 
+function hasOwn(value, key) {
+  return Object.prototype.hasOwnProperty.call(value || {}, key);
+}
+
+function normalizeThreadSettingPatch(value = {}) {
+  const source = isPlainObject(value) ? value : {};
+  const patch = {};
+  if (hasOwn(source, "muted")) {
+    patch.muted = normalizeBoolean(source.muted);
+  }
+  if (hasOwn(source, "pinned")) {
+    patch.pinned = normalizeBoolean(source.pinned);
+  }
+  if (hasOwn(source, "customTitle")) {
+    patch.customTitle = normalizeString(source.customTitle, MAX_THREAD_TITLE_LENGTH);
+  }
+  if (hasOwn(source, "avatarLabel")) {
+    patch.avatarLabel = normalizeString(source.avatarLabel, 2).toUpperCase();
+  }
+  return patch;
+}
+
 function actorName(actor = {}) {
   return normalizeString(
     `${actor.firstName || ""} ${actor.lastName || ""}`.trim() || actor.username || actor.email || "Unknown user",
@@ -169,6 +193,17 @@ function isPlainObject(value) {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
+function cloneChatValue(value) {
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (error) {
+    if (Array.isArray(value)) {
+      return value.map((item) => (isPlainObject(item) ? { ...item } : item));
+    }
+    return isPlainObject(value) ? { ...value } : value;
+  }
+}
+
 function canUseChat(actor = {}) {
   return STAFF_ROLES.has(String(actor.role || "").toLowerCase());
 }
@@ -196,7 +231,7 @@ function defaultChatState() {
 function normalizeChatState(rawState = {}) {
   const fallback = defaultChatState();
   if (Array.isArray(rawState)) {
-    const messages = rawState.filter((message) => message && typeof message === "object");
+    const messages = cloneChatValue(rawState.filter((message) => message && typeof message === "object"));
     const threadParticipants = new Map();
     messages.forEach((message) => {
       const threadId = normalizeId(message.threadId || message.channelId || "team", "");
@@ -234,7 +269,7 @@ function normalizeChatState(rawState = {}) {
       messages,
     };
   }
-  const state = isPlainObject(rawState) ? { ...rawState } : {};
+  const state = isPlainObject(rawState) ? cloneChatValue(rawState) : {};
 
   state.schema = normalizeString(state.schema || fallback.schema, 80);
   state.contract = CHAT_API_SCHEMA;
@@ -348,7 +383,7 @@ function normalizeAuditDetails(value, depth = 0) {
 function addChatAuditEntry(state, actor, action, summary, details = {}) {
   const now = new Date().toISOString();
   const isDestructive = ["deleteMessage", "clearThread"].includes(action);
-  const isAdminAction = ["setMessagePinned", "setMessagePriority", "clearThread"].includes(action);
+  const isAdminAction = ["setMessagePinned", "setMessagePriority", "setThreadSettings", "clearThread"].includes(action);
   const entry = {
     id: `${now}-${Math.random().toString(16).slice(2, 10)}`,
     createdAt: now,
@@ -414,7 +449,7 @@ function filterChatStateForActor(state, actor) {
     threads: allowedThreads,
     messages: normalized.messages.filter((message) => {
       const threadId = normalizeId(message?.threadId || message?.channelId, "");
-      return !message?.isDeleted && (!threadId || allowedThreadIds.has(threadId));
+      return !threadId || allowedThreadIds.has(threadId);
     }),
   };
 
@@ -777,6 +812,79 @@ function applyMarkThreadRead(state, actor, body, now) {
   return { ok: true, status: 200, action: "markThreadRead", state, thread, auditEntry };
 }
 
+function applySetThreadSettings(state, actor, body, now) {
+  const threadId = normalizeId(body.threadId || body.id || body.channelId, "");
+  const thread = getThreadById(state, threadId);
+  if (!thread) {
+    return { ok: false, status: 404, reason: "Thread not found." };
+  }
+
+  const access = ensureActionAllowed(actor, state, thread);
+  if (!access.ok) {
+    return access;
+  }
+
+  const actorKey = normalizeObjectKey(actor.id || actor.email || "actor", "actor", MAX_ID_LENGTH);
+  const requestedPatch = normalizeThreadSettingPatch({
+    ...(isPlainObject(body.settings) ? body.settings : {}),
+    ...(hasOwn(body, "muted") ? { muted: body.muted } : {}),
+    ...(hasOwn(body, "pinned") ? { pinned: body.pinned } : {}),
+    ...(hasOwn(body, "customTitle") || hasOwn(body, "title") ? { customTitle: body.customTitle ?? body.title } : {}),
+    ...(hasOwn(body, "avatarLabel") ? { avatarLabel: body.avatarLabel } : {}),
+  });
+  const sharedPatch = {};
+  if (hasOwn(requestedPatch, "customTitle") || hasOwn(requestedPatch, "avatarLabel")) {
+    if (!canManageChat(actor)) {
+      return { ok: false, status: 403, reason: "Chat manager access required to rename or rebrand a thread." };
+    }
+    if (hasOwn(requestedPatch, "customTitle")) {
+      sharedPatch.customTitle = requestedPatch.customTitle;
+      if (requestedPatch.customTitle) {
+        thread.title = requestedPatch.customTitle;
+        thread.name = requestedPatch.customTitle;
+      }
+    }
+    if (hasOwn(requestedPatch, "avatarLabel")) {
+      sharedPatch.avatarLabel = requestedPatch.avatarLabel;
+    }
+  }
+  const userPatch = {};
+  if (hasOwn(requestedPatch, "muted")) {
+    userPatch.muted = requestedPatch.muted;
+  }
+  if (hasOwn(requestedPatch, "pinned")) {
+    userPatch.pinned = requestedPatch.pinned;
+  }
+  const settingsByUser = isPlainObject(thread.settingsByUser) ? { ...thread.settingsByUser } : {};
+  settingsByUser[actorKey] = {
+    ...(isPlainObject(settingsByUser[actorKey]) ? settingsByUser[actorKey] : {}),
+    ...userPatch,
+    updatedAt: now,
+  };
+  thread.settingsByUser = settingsByUser;
+  thread.settings = {
+    muted: Boolean(settingsByUser[actorKey]?.muted),
+    pinned: Boolean(settingsByUser[actorKey]?.pinned),
+    customTitle: sharedPatch.customTitle ?? thread.settings?.customTitle ?? "",
+    avatarLabel: sharedPatch.avatarLabel ?? thread.settings?.avatarLabel ?? "",
+    updatedAt: now,
+  };
+  thread.metadata = {
+    ...(isPlainObject(thread.metadata) ? thread.metadata : {}),
+    ...sharedPatch,
+    settingsByUser,
+    threadSettingsUpdatedAt: now,
+  };
+  thread.updatedAt = now;
+
+  const auditEntry = addChatAuditEntry(state, actor, "setThreadSettings", "Updated chat thread settings.", {
+    threadId: thread.id,
+    changed: Object.keys(requestedPatch).sort(),
+  });
+
+  return { ok: true, status: 200, action: "setThreadSettings", state, thread, auditEntry };
+}
+
 function applyClearThread(state, actor, body, now) {
   if (!canAdminChat(actor)) {
     return { ok: false, status: 403, reason: "Admin chat access required." };
@@ -853,6 +961,8 @@ function applyChatActionToState(rawState, actor, body = {}, context = {}) {
     result = applyReaction(state, actor, body, now, false);
   } else if (action === "markThreadRead") {
     result = applyMarkThreadRead(state, actor, body, now);
+  } else if (action === "setThreadSettings") {
+    result = applySetThreadSettings(state, actor, body, now);
   } else if (action === "clearThread") {
     result = applyClearThread(state, actor, body, now);
   }

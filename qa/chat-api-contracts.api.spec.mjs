@@ -238,3 +238,61 @@ test("retention prunes old active, deleted, and audit entries", () => {
   expect(retained.messages.map((message) => message.id)).toEqual(["fresh-active"]);
   expect(retained.audit.map((entry) => entry.id)).toEqual(["fresh-audit"]);
 });
+
+test("thread settings persist mute and pin while manager-gating shared identity", () => {
+  const seeded = applyChatActionToState(
+    {},
+    staffActor,
+    { action: "sendMessage", threadId: "team", text: "Settings seed" },
+    { now: "2026-05-07T12:00:00.000Z" }
+  ).state;
+
+  const updated = applyChatActionToState(
+    seeded,
+    staffActor,
+    {
+      action: "setThreadSettings",
+      threadId: "team",
+      settings: {
+        muted: true,
+        pinned: true,
+        customTitle: "Staff Hub",
+        avatarLabel: "SH",
+      },
+    },
+    { now: "2026-05-07T12:01:00.000Z" }
+  );
+
+  expect(updated.ok).toBe(true);
+  expect(updated.thread.settings.muted).toBe(true);
+  expect(updated.thread.settings.pinned).toBe(true);
+  expect(updated.thread.settings.customTitle).toBe("Staff Hub");
+  expect(updated.thread.settings.avatarLabel).toBe("SH");
+  expect(updated.thread.settingsByUser[staffActor.id].muted).toBe(true);
+  expect(updated.thread.title).toBe("Staff Hub");
+  expect(updated.state.audit[0].action).toBe("chat.setThreadSettings");
+
+  const analystActor = {
+    ...staffActor,
+    id: "analyst-1",
+    email: "analyst@example.com",
+    role: "analyst",
+  };
+  const personalOnly = applyChatActionToState(
+    updated.state,
+    analystActor,
+    { action: "setThreadSettings", threadId: "team", settings: { muted: true, pinned: true } },
+    { now: "2026-05-07T12:02:00.000Z" }
+  );
+  expect(personalOnly.ok).toBe(true);
+  expect(personalOnly.thread.settingsByUser[analystActor.id].pinned).toBe(true);
+
+  const deniedRename = applyChatActionToState(
+    updated.state,
+    analystActor,
+    { action: "setThreadSettings", threadId: "team", settings: { customTitle: "Analyst Rename" } },
+    { now: "2026-05-07T12:03:00.000Z" }
+  );
+  expect(deniedRename.ok).toBe(false);
+  expect(deniedRename.status).toBe(403);
+});

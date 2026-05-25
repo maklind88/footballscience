@@ -50,8 +50,9 @@ function formatDateSeparator(value) {
 const MESSAGE_GROUP_WINDOW_MS = 5 * 60 * 1000;
 
 function getMessageGroupingAuthorKey(message = {}, currentUser = null) {
-  const userId = String(message.userId || message.authorId || message.senderId || "").trim();
-  const author = message.author || {};
+  const source = message || {};
+  const userId = String(source.userId || source.authorId || source.senderId || "").trim();
+  const author = source.author || {};
   const authorId = String(author.id || author.userId || author.user_id || "").trim();
   const currentUserId = String(currentUser?.id || "").trim();
   if (currentUserId && (userId === currentUserId || authorId === currentUserId)) {
@@ -72,7 +73,7 @@ function getMessageGroupingAuthorKey(message = {}, currentUser = null) {
 }
 
 function shouldGroupWithPreviousMessage(message = {}, previousMessage = null, currentDateKey = "", previousDateKey = "", currentUser = null) {
-  if (!previousMessage) {
+  if (!message || !previousMessage) {
     return false;
   }
   if (currentDateKey && previousDateKey && currentDateKey !== previousDateKey) {
@@ -128,6 +129,19 @@ function getAttachmentDraftIcon(attachmentDraft = {}) {
   return "FILE";
 }
 
+function defaultRenderMessageText(message = {}, options = {}, escapeHtml = defaultEscapeHtml) {
+  const text = String(message?.text || "");
+  const query = String(options.searchQuery || "").trim();
+  if (query.length < 2) {
+    return escapeHtml(text);
+  }
+  const matchIndex = text.toLowerCase().indexOf(query.toLowerCase());
+  if (matchIndex === -1) {
+    return escapeHtml(text);
+  }
+  return `${escapeHtml(text.slice(0, matchIndex))}<mark class="dashboard-chat-search-hit">${escapeHtml(text.slice(matchIndex, matchIndex + query.length))}</mark>${escapeHtml(text.slice(matchIndex + query.length))}`;
+}
+
 export function createDashboardChatWidgetRenderer(dependencies = {}) {
   const {
     teamThreadId = "team",
@@ -143,7 +157,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     getPresenceLabel = (status) => String(status || "Offline"),
     renderPresenceAvatar = () => `<span class="dashboard-chat-stack-avatar is-team">T</span>`,
     renderMessageStatus = () => "",
-    renderMessageText = (message) => escapeHtml(message?.text || ""),
+    renderMessageText = (message, _users, options = {}) => defaultRenderMessageText(message, options, escapeHtml),
     renderMessageReactions = () => "",
     renderMessageAttachments = () => "",
     renderReplyReference = () => "",
@@ -182,10 +196,39 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const priority = normalizePriority(lastMessage.priority);
     const priorityOption = priorityOptions.find((option) => option.key === priority);
     const priorityPrefix = priority === "normal" ? "" : `${priorityOption?.label || priority}: `;
+    const attachmentCount = getMessageAttachmentCount(lastMessage);
+    const attachmentSuffix = attachmentCount
+      ? ` · ${attachmentCount} attachment${attachmentCount === 1 ? "" : "s"}`
+      : "";
+    const previewText = shortText || (attachmentCount ? "Attachment" : "Message");
 
     return lastMessage.mentionedUserIds?.includes(currentUser?.id)
-      ? `${priorityPrefix}Mentioned you: ${shortText}`
-      : `${priorityPrefix}${senderName}: ${shortText}`;
+      ? `${priorityPrefix}Mentioned you: ${previewText}${attachmentSuffix}`
+      : `${priorityPrefix}${senderName}: ${previewText}${attachmentSuffix}`;
+  }
+
+  function getMessageAttachmentCount(message = {}) {
+    return Array.isArray(message?.attachments) ? message.attachments.length : 0;
+  }
+
+  function getThreadAttachmentCount(thread = {}) {
+    return getMessageAttachmentCount(thread.lastMessage || thread.apiThread?.lastMessage || thread.apiThread?.last_message || null);
+  }
+
+  function getThreadKindLabel(thread = {}) {
+    if (thread.isTeamThread) {
+      return "Team";
+    }
+    if (thread.participant) {
+      return "Direct";
+    }
+    return {
+      group: "Staff",
+      medical: "Medical",
+      matchday: "Matchday",
+      training: "Training",
+      announcement: "Announcements",
+    }[thread.type] || "Group";
   }
 
   function getLatestThread(threads = []) {
@@ -237,15 +280,19 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const isOwn = message.userId === currentUser?.id;
     const isMentioned = !isOwn && message.mentionedUserIds.includes(currentUser?.id);
     const isGroupedWithPrevious = Boolean(options.groupedWithPrevious);
+    const isGroupedWithNext = Boolean(options.groupedWithNext);
+    const searchQuery = String(options.searchQuery || "").trim();
+    const isSearchMatch = Boolean(searchQuery && String(message.text || "").toLowerCase().includes(searchQuery.toLowerCase()));
     const messageStatus = String(message.status || "sent").trim().toLowerCase().replace(/[^a-z-]/g, "");
     const user = users.find((candidate) => candidate.id === message.userId) ?? message.author ?? null;
     const userName = user ? formatUserName(user) : "Unknown";
     const avatarMarkup = user
       ? renderPresenceAvatar(user, "dashboard-chat-avatar")
       : `<span class="dashboard-chat-avatar" aria-hidden="true">?</span>`;
-    const statusMarkup = isOwn ? renderMessageStatus(message, users, currentUser) : "";
+    const statusMarkup = isOwn && !isGroupedWithNext ? renderMessageStatus(message, users, currentUser) : "";
     const canDeleteChat = canDeleteMessage(currentUser);
     const canPinChat = canPinMessage(currentUser);
+    const canRetryMessage = isOwn && messageStatus === "failed";
     const pinLabel = message.pinnedAt ? "Unpin" : "Pin";
     const replyMessage = message.replyToId ? getMessageById(message.replyToId) : null;
     const replyMarkup = replyMessage ? renderReplyReference(replyMessage, users, { compact: true }) : "";
@@ -265,7 +312,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     `;
 
     return `
-    <article class="dashboard-chat-message${isOwn ? " is-own" : ""}${isMentioned ? " is-mentioned" : ""}${message.pinnedAt ? " is-pinned" : ""}${isGroupedWithPrevious ? " is-grouped-with-previous" : ""}${messageStatus ? ` is-status-${escapeHtml(messageStatus)}` : ""}" data-dashboard-chat-message-id="${escapeHtml(message.id)}" aria-label="${escapeHtml(`${userName}${timeLabel ? `, ${timeLabel}` : ""}`)}">
+    <article class="dashboard-chat-message${isOwn ? " is-own" : ""}${isMentioned ? " is-mentioned" : ""}${isSearchMatch ? " is-search-match" : ""}${message.pinnedAt ? " is-pinned" : ""}${isGroupedWithPrevious ? " is-grouped-with-previous" : ""}${isGroupedWithNext ? " is-grouped-with-next" : ""}${messageStatus ? ` is-${escapeHtml(messageStatus)} is-status-${escapeHtml(messageStatus)}` : ""}" data-dashboard-chat-message-id="${escapeHtml(message.id)}" aria-label="${escapeHtml(`${userName}${timeLabel ? `, ${timeLabel}` : ""}`)}">
       ${metaMarkup}
       <div class="dashboard-chat-bubble">
         <details class="dashboard-chat-message-menu">
@@ -274,6 +321,11 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           </summary>
           <div class="dashboard-chat-message-menu-panel" role="menu">
             <button type="button" class="dashboard-chat-menu-action" data-dashboard-reply-message="${escapeHtml(message.id)}" role="menuitem"><span aria-hidden="true">&#8617;</span><span>Reply</span></button>
+            ${
+              canRetryMessage
+                ? `<button type="button" class="dashboard-chat-menu-action is-primary" data-dashboard-retry-message="${escapeHtml(message.id)}" data-dashboard-chat-message-retry="${escapeHtml(message.id)}" role="menuitem"><span aria-hidden="true">&#8635;</span><span>Retry send</span></button>`
+                : ""
+            }
             <button type="button" class="dashboard-chat-menu-action" data-dashboard-copy-message="${escapeHtml(message.id)}" role="menuitem"><span aria-hidden="true">&#10697;</span><span>Copy</span></button>
             ${
               reactionMarkup
@@ -294,7 +346,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         </details>
         ${priorityMarkup}
         ${replyMarkup}
-        <p>${renderMessageText(message, users)}</p>
+        <p>${renderMessageText(message, users, { searchQuery })}</p>
         ${renderMessageAttachments(message, users)}
         ${statusMarkup}
       </div>
@@ -302,31 +354,49 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
   `;
   }
 
-  function renderMessagesWithDateSeparators(messages, users, currentUser) {
+  function renderMessagesWithDateSeparators(messages, users, currentUser, options = {}) {
     let previousKey = "";
     let previousMessage = null;
     return messages
-      .map((message) => {
+      .map((message, index, source) => {
         const currentKey = dateSeparatorKey(message.createdAt);
+        const nextMessage = source[index + 1] || null;
+        const nextKey = nextMessage ? dateSeparatorKey(nextMessage.createdAt) : "";
         const hasSeparator = Boolean(currentKey && currentKey !== previousKey);
         const separator = hasSeparator
           ? `<div class="dashboard-chat-date-separator"><span>${escapeHtml(formatDateSeparator(message.createdAt))}</span></div>`
           : "";
         const groupedWithPrevious = !hasSeparator && shouldGroupWithPreviousMessage(message, previousMessage, currentKey, previousKey, currentUser);
+        const groupedWithNext = shouldGroupWithPreviousMessage(nextMessage, message, nextKey, currentKey, currentUser);
         previousKey = currentKey || previousKey;
         previousMessage = message;
-        return `${separator}${renderMessage(message, users, currentUser, { groupedWithPrevious })}`;
+        return `${separator}${renderMessage(message, users, currentUser, { groupedWithPrevious, groupedWithNext, searchQuery: options.searchQuery })}`;
       })
       .join("");
   }
 
   function renderThreadItem(thread, currentUser, users, isSelected, isUnread) {
-    const threadLabel = thread.isTeamThread ? "Team Room" : thread.label;
+    const threadLabel = thread.isTeamThread ? thread.label || "Team Room" : thread.label;
     const preview = getThreadPreview(thread, users, currentUser);
     const threadStatus = getThreadStatus(thread, users);
+    const threadKindLabel = getThreadKindLabel(thread);
+    const threadSettings = thread.settings || {};
+    const attachmentCount = getThreadAttachmentCount(thread);
+    const unreadCount = Number(isUnread || 0) || 0;
+    const unreadLabel = unreadCount > 99 ? "99+" : String(unreadCount);
+    const signalMarkup = [
+      attachmentCount
+        ? `<span class="dashboard-chat-thread-signal is-attachment" title="${escapeHtml(`${attachmentCount} attachment${attachmentCount === 1 ? "" : "s"}`)}" aria-label="${escapeHtml(`${attachmentCount} attachment${attachmentCount === 1 ? "" : "s"}`)}">&#128206;</span>`
+        : "",
+      threadSettings.pinned ? `<span class="dashboard-chat-thread-signal is-pinned" title="Pinned conversation" aria-label="Pinned conversation">&#9733;</span>` : "",
+      threadSettings.muted ? `<span class="dashboard-chat-thread-signal is-muted" title="Muted conversation" aria-label="Muted conversation">&#128263;</span>` : "",
+      thread.mentionCount ? `<span class="dashboard-chat-thread-mention-badge" aria-label="Mentioned">@</span>` : "",
+      unreadCount ? `<span class="dashboard-chat-thread-unread" aria-label="${escapeHtml(`${unreadLabel} unread message${unreadCount === 1 ? "" : "s"}`)}">${escapeHtml(unreadLabel)}</span>` : "",
+    ].filter(Boolean).join("");
+    const avatarLabel = threadSettings.avatarLabel || (thread.isTeamThread ? "T" : (threadLabel[0] || "C"));
     const avatarMarkup = thread.participant
       ? renderPresenceAvatar(thread.participant, "dashboard-chat-thread-avatar")
-      : `<span class="dashboard-chat-thread-avatar is-team" aria-hidden="true">${escapeHtml(thread.isTeamThread ? "T" : (threadLabel[0] || "C"))}</span>`;
+      : `<span class="dashboard-chat-thread-avatar is-team" aria-hidden="true">${escapeHtml(avatarLabel)}</span>`;
     const threadTime = thread.lastActivityAt
       ? escapeHtml(formatTime(thread.lastActivityAt))
       : thread.lastMessage
@@ -334,14 +404,15 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         : thread.apiThread?.lastMessageAt
           ? escapeHtml(formatTime(thread.apiThread.lastMessageAt))
         : "&mdash;";
-    const searchText = `${threadLabel} ${preview} ${threadStatus}`.toLowerCase();
+    const searchText = `${threadLabel} ${preview} ${threadStatus} ${threadKindLabel}`.toLowerCase();
 
     return `
     <button
       type="button"
-      class="dashboard-chat-thread-item${isSelected ? " is-active" : ""}${isUnread ? " is-unread" : ""}${thread.mentionCount ? " is-mentioned" : ""}"
+      class="dashboard-chat-thread-item${isSelected ? " is-active" : ""}${unreadCount ? " is-unread" : ""}${thread.mentionCount ? " is-mentioned" : ""}${attachmentCount ? " has-attachment" : ""}${threadSettings.pinned ? " is-thread-pinned" : ""}${threadSettings.muted ? " is-thread-muted" : ""}"
       data-dashboard-chat-thread="${escapeHtml(thread.threadId)}"
       data-dashboard-chat-search="${escapeHtml(searchText)}"
+      aria-label="${escapeHtml(`${threadLabel}. ${preview}. ${unreadCount ? `${unreadLabel} unread.` : "No unread messages."}`)}"
     >
       ${avatarMarkup}
       <span class="dashboard-chat-thread-copy">
@@ -349,13 +420,16 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           <strong>${escapeHtml(threadLabel)}</strong>
           <small>${threadTime}</small>
         </span>
-        <small>${escapeHtml(preview)}</small>
+        <span class="dashboard-chat-thread-preview-line">
+          <small class="dashboard-chat-thread-kind">${escapeHtml(threadKindLabel)}</small>
+          <small class="dashboard-chat-thread-preview">${escapeHtml(preview)}</small>
+        </span>
         <span class="dashboard-chat-thread-meta">
           <span>${escapeHtml(threadStatus)}</span>
           <span>${escapeHtml(`${thread.messageCount || 0} message${thread.messageCount === 1 ? "" : "s"}`)}</span>
         </span>
       </span>
-      ${thread.mentionCount ? `<span class="dashboard-chat-thread-mention-badge">@</span>` : isUnread ? `<span class="dashboard-chat-thread-unread">${isUnread}</span>` : ""}
+      <span class="dashboard-chat-thread-signals">${signalMarkup}</span>
     </button>
   `;
   }
@@ -378,6 +452,249 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       </section>
     </div>
   `;
+  }
+
+  function getThreadDetailParticipants(thread, users = []) {
+    if (!thread) {
+      return [];
+    }
+    if (thread.isTeamThread || !thread.participant) {
+      return users;
+    }
+    return [thread.participant].filter(Boolean);
+  }
+
+  function getThreadFiles(messages = [], activeThreadId = teamThreadId) {
+    return messages
+      .filter((message) => message.threadId === activeThreadId)
+      .flatMap((message) =>
+        (Array.isArray(message.attachments) ? message.attachments : []).map((attachment) => ({
+          attachment,
+          message,
+        }))
+      )
+      .slice(-8)
+      .reverse();
+  }
+
+  function getSafePanelId(value = "") {
+    return String(value || "thread").replace(/[^a-zA-Z0-9_-]/g, "-") || "thread";
+  }
+
+  function getAttachmentDisplayName(attachment = {}) {
+    return String(
+      attachment.metadata?.fileName ||
+        attachment.metadata?.filename ||
+        attachment.fileName ||
+        attachment.file_name ||
+        attachment.name ||
+        "Attachment"
+    ).trim();
+  }
+
+  function getAttachmentMimeType(attachment = {}) {
+    return String(attachment.metadata?.mimeType || attachment.mimeType || attachment.mime_type || "").toLowerCase();
+  }
+
+  function getAttachmentLibraryType(attachment = {}) {
+    const mimeType = getAttachmentMimeType(attachment);
+    const fileName = getAttachmentDisplayName(attachment).toLowerCase();
+    if (mimeType.startsWith("image/") || mimeType.startsWith("video/") || /\.(png|jpe?g|webp|gif|svg|mp4|mov|m4v|webm)$/.test(fileName)) {
+      return "media";
+    }
+    if (
+      mimeType.includes("pdf") ||
+      mimeType.includes("document") ||
+      mimeType.includes("spreadsheet") ||
+      mimeType.includes("presentation") ||
+      /\.(pdf|docx?|xlsx?|pptx?|csv|txt|rtf)$/.test(fileName)
+    ) {
+      return "docs";
+    }
+    return "files";
+  }
+
+  function getThreadLinks(messages = [], activeThreadId = teamThreadId) {
+    const urlPattern = /\bhttps?:\/\/[^\s<>"']+/gi;
+    const seen = new Set();
+    return messages
+      .filter((message) => message.threadId === activeThreadId)
+      .flatMap((message) => Array.from(String(message.text || "").matchAll(urlPattern)).map((match) => String(match[0] || "").replace(/[),.;]+$/, "")))
+      .filter((url) => {
+        if (!url || seen.has(url)) {
+          return false;
+        }
+        seen.add(url);
+        return true;
+      })
+      .slice(-12)
+      .reverse();
+  }
+
+  function getLinkLabel(url = "") {
+    try {
+      const parsed = new URL(url);
+      return parsed.hostname.replace(/^www\./, "") || url;
+    } catch {
+      return url;
+    }
+  }
+
+  function renderAttachmentLibraryItem(entry = {}) {
+    const attachment = entry.attachment || {};
+    const name = getAttachmentDisplayName(attachment);
+    const size = formatFileSize(attachment.metadata?.byteSize || attachment.byte_size || attachment.size);
+    const url = attachment.signedUrl || attachment.url || "";
+    return `
+      <button type="button" data-dashboard-chat-attachment-preview data-dashboard-chat-attachment-url="${escapeHtml(url)}" data-dashboard-chat-attachment-name="${escapeHtml(name)}" data-dashboard-chat-attachment-mime="${escapeHtml(getAttachmentMimeType(attachment))}" ${url ? "" : "disabled"}>
+        <span>${escapeHtml(getAttachmentDraftIcon(attachment))}</span>
+        <small>${escapeHtml(name)}${size ? ` · ${escapeHtml(size)}` : ""}</small>
+      </button>
+    `;
+  }
+
+  function renderLinkLibraryItem(url = "") {
+    return `
+      <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">
+        <span>LINK</span>
+        <small>${escapeHtml(getLinkLabel(url))}</small>
+      </a>
+    `;
+  }
+
+  function renderLibraryPanel(section) {
+    return `
+      <div class="dashboard-chat-library-panel is-${escapeHtml(section.key)}">
+        ${
+          section.items.length
+            ? section.items.map((item) => (section.key === "links" ? renderLinkLibraryItem(item) : renderAttachmentLibraryItem(item))).join("")
+            : `<em>No ${escapeHtml(section.label.toLowerCase())} yet.</em>`
+        }
+      </div>
+    `;
+  }
+
+  function renderAttachmentLibrary(messages = [], activeThreadId = teamThreadId) {
+    const attachments = getThreadFiles(messages, activeThreadId);
+    const links = getThreadLinks(messages, activeThreadId);
+    const sections = [
+      { key: "media", label: "Media", items: attachments.filter((entry) => getAttachmentLibraryType(entry.attachment) === "media") },
+      { key: "docs", label: "Docs", items: attachments.filter((entry) => getAttachmentLibraryType(entry.attachment) === "docs") },
+      { key: "links", label: "Links", items: links },
+      { key: "files", label: "Files", items: attachments.filter((entry) => getAttachmentLibraryType(entry.attachment) === "files") },
+    ];
+    const panelId = `dashboardChatLibrary-${getSafePanelId(activeThreadId)}`;
+    return `
+      <div class="dashboard-chat-attachment-library">
+        ${sections
+          .map((section, index) => `<input class="dashboard-chat-library-radio is-${escapeHtml(section.key)}" type="radio" id="${escapeHtml(`${panelId}-${section.key}`)}" name="${escapeHtml(panelId)}" ${index === 0 ? "checked" : ""}>`)
+          .join("")}
+        <div class="dashboard-chat-library-tabs" role="tablist" aria-label="Attachment library">
+          ${sections
+            .map(
+              (section) => `
+                <label for="${escapeHtml(`${panelId}-${section.key}`)}">
+                  ${escapeHtml(section.label)}
+                  <span>${escapeHtml(String(section.items.length))}</span>
+                </label>
+              `
+            )
+            .join("")}
+        </div>
+        <div class="dashboard-chat-library-panels">
+          ${sections.map(renderLibraryPanel).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderThreadDetailsPanel({ activeThread, activeThreadId, activeThreadLabel, activeThreadSubLabel, users, messages, pinnedMessages, messageSearchQuery = "", searchMatchCount = 0, threadMessageCount = 0 }) {
+    const participants = getThreadDetailParticipants(activeThread, users).slice(0, 8);
+    const files = getThreadFiles(messages, activeThreadId);
+    const links = getThreadLinks(messages, activeThreadId);
+    const threadSettings = activeThread?.settings || {};
+    const normalizedSearch = String(messageSearchQuery || "").trim();
+    const searchSummary = normalizedSearch
+      ? `${searchMatchCount} match${searchMatchCount === 1 ? "" : "es"} in ${threadMessageCount} messages`
+      : "Search messages in this conversation";
+    return `
+      <section class="dashboard-chat-details-panel" aria-label="Conversation details">
+        <header>
+          <div>
+            <span class="dashboard-chat-details-kicker">Conversation</span>
+            <strong>${escapeHtml(activeThreadLabel)}</strong>
+            <small>${escapeHtml(activeThreadSubLabel)}</small>
+          </div>
+          <button type="button" data-dashboard-chat-details-close aria-label="Close conversation details">&times;</button>
+        </header>
+        <div class="dashboard-chat-details-grid">
+          <article>
+            <span>People</span>
+            <strong>${escapeHtml(String(participants.length || (activeThread?.isTeamThread ? users.length : 0)))}</strong>
+            <small>${escapeHtml(activeThread?.isTeamThread ? "Team access" : activeThread?.participant ? "Direct chat" : "Group thread")}</small>
+          </article>
+          <article>
+            <span>Pins</span>
+            <strong>${escapeHtml(String(pinnedMessages.length))}</strong>
+            <small>Important notes</small>
+          </article>
+          <article>
+            <span>Files</span>
+            <strong>${escapeHtml(String(files.length + links.length))}</strong>
+            <small>Media, docs and links</small>
+          </article>
+        </div>
+        <label class="dashboard-chat-details-search">
+          <span>Search conversation</span>
+          <input type="search" data-dashboard-chat-message-search value="${escapeHtml(normalizedSearch)}" placeholder="${escapeHtml(`Search ${activeThreadLabel}`)}" autocomplete="off">
+          <small>${escapeHtml(searchSummary)}</small>
+        </label>
+        <div class="dashboard-chat-details-section">
+          <strong>Thread settings</strong>
+          <div class="dashboard-chat-settings-grid">
+            <button type="button" data-dashboard-chat-thread-setting="toggle-mute" data-dashboard-chat-thread-setting-thread="${escapeHtml(activeThreadId)}" class="${threadSettings.muted ? "is-active" : ""}">
+              <span>${threadSettings.muted ? "Muted" : "Mute"}</span>
+              <small>${threadSettings.muted ? "Notifications paused" : "Pause this chat"}</small>
+            </button>
+            <button type="button" data-dashboard-chat-thread-setting="toggle-pin" data-dashboard-chat-thread-setting-thread="${escapeHtml(activeThreadId)}" class="${threadSettings.pinned ? "is-active" : ""}">
+              <span>${threadSettings.pinned ? "Pinned" : "Pin"}</span>
+              <small>${threadSettings.pinned ? "Shown first" : "Keep near top"}</small>
+            </button>
+            <button type="button" data-dashboard-chat-thread-setting="rename" data-dashboard-chat-thread-setting-thread="${escapeHtml(activeThreadId)}">
+              <span>Rename</span>
+              <small>${escapeHtml(threadSettings.customTitle || "Set display name")}</small>
+            </button>
+            <button type="button" data-dashboard-chat-thread-setting="avatar" data-dashboard-chat-thread-setting-thread="${escapeHtml(activeThreadId)}">
+              <span>Image</span>
+              <small>${escapeHtml(threadSettings.avatarLabel || "Set initials")}</small>
+            </button>
+          </div>
+        </div>
+        <div class="dashboard-chat-details-section">
+          <strong>Participants</strong>
+          <div class="dashboard-chat-details-people">
+            ${
+              participants.length
+                ? participants
+                    .map(
+                      (participant) => `
+                        <span>
+                          ${renderPresenceAvatar(participant, "dashboard-chat-details-avatar")}
+                          <small>${escapeHtml(formatUserName(participant))}</small>
+                        </span>
+                      `
+                    )
+                    .join("")
+                : `<em>No participants loaded yet.</em>`
+            }
+          </div>
+        </div>
+        <div class="dashboard-chat-details-section">
+          <strong>Library</strong>
+          ${renderAttachmentLibrary(messages, activeThreadId)}
+        </div>
+      </section>
+    `;
   }
 
   function resolveReplyDraft(replyDraft, activeThreadId, messages) {
@@ -403,6 +720,9 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         ? state.selectedThreadId
         : threads[0]?.threadId || teamThreadId,
       unreadCount = 0,
+      realtimeStatus = { key: "warming", label: "Syncing", detail: "Realtime warming up" },
+      detailsOpen = false,
+      mobileConversationOpen = true,
       replyDraft = null,
       priorityDraft = "normal",
       confirmAction = null,
@@ -440,6 +760,9 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const teamPresenceLabel = getThreadStatus({ isTeamThread: true }, users);
     const notificationLevel = notificationState.level || (notificationState.enabled ? "all" : "muted");
     const notificationLabel = { all: "All", mentions: "Mentions", muted: "Muted" }[notificationLevel] || "All";
+    const realtimeKey = String(realtimeStatus?.key || "warming").replace(/[^a-z-]/g, "");
+    const realtimeLabel = String(realtimeStatus?.label || "Syncing");
+    const realtimeDetail = String(realtimeStatus?.detail || realtimeLabel);
     const threadPresetMarkup = advancedThreadTemplates.length
       ? `
           <details class="dashboard-chat-thread-presets" data-dashboard-chat-thread-presets>
@@ -540,7 +863,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       activeThreadId,
       replyDraft: replyState.replyDraft,
       html: `
-    <aside class="dashboard-chat-widget${isOpen ? " is-open" : ""}">
+    <aside class="dashboard-chat-widget${isOpen ? " is-open" : ""}${mobileConversationOpen ? " is-mobile-conversation" : " is-mobile-inbox"}">
       ${
         isOpen
           ? `
@@ -561,6 +884,13 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                   aria-label="${notificationState.enabled ? "Turn chat notifications off" : "Turn chat notifications on"}"
                 >
                   ${escapeHtml(notificationLabel)}
+                </button>
+                <span class="dashboard-chat-realtime-pill is-${escapeHtml(realtimeKey)}" title="${escapeHtml(realtimeDetail)}" aria-label="${escapeHtml(`Chat ${realtimeLabel}. ${realtimeDetail}`)}">
+                  <i aria-hidden="true"></i>
+                  <span>${escapeHtml(realtimeLabel)}</span>
+                </span>
+                <button type="button" class="dashboard-chat-details-button${detailsOpen ? " is-active" : ""}" data-dashboard-chat-details-toggle aria-expanded="${detailsOpen}" aria-label="Open conversation details">
+                  Info
                 </button>
                 ${
                   canDeleteMessage(currentUser)
@@ -605,6 +935,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       }
       <button type="button" class="dashboard-chat-widget-toast" data-dashboard-chat-widget-toast data-dashboard-chat-toast-open aria-live="polite" aria-atomic="true" hidden></button>
       ${renderConfirmDialog(confirmAction)}
+      ${isOpen && detailsOpen ? renderThreadDetailsPanel({ activeThread, activeThreadId, activeThreadLabel, activeThreadSubLabel, users, messages, pinnedMessages, messageSearchQuery, searchMatchCount: searchedMessages.length, threadMessageCount: hasThreadMessages.length }) : ""}
       <div class="dashboard-chat-widget-body">
         <section class="dashboard-chat-thread-list" aria-label="Chat threads">
           <div class="dashboard-chat-inbox-head">
@@ -636,11 +967,18 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           </div>
         </section>
         <section class="dashboard-chat-conversation" aria-label="Active conversation">
+          <div class="dashboard-chat-mobile-thread-bar">
+            <button type="button" data-dashboard-chat-mobile-back aria-label="Back to inbox">&#8592;</button>
+            <span>
+              <strong>${escapeHtml(activeThreadLabel)}</strong>
+              <small>${escapeHtml(activeThreadSubLabel)}</small>
+            </span>
+          </div>
           ${moderationMarkup}
           ${renderPinnedMessages(pinnedMessages, users, currentUser)}
           <div class="dashboard-chat-list" data-dashboard-chat-list aria-live="polite">
             ${hasOlderMessages && !normalizedMessageSearch ? `<button type="button" class="dashboard-chat-load-more" data-dashboard-chat-load-earlier="${escapeHtml(activeThreadId)}">Load earlier</button>` : ""}
-            ${visibleMessages.length ? renderMessagesWithDateSeparators(visibleMessages, users, currentUser) : `<div class="dashboard-chat-empty-state"><strong>No messages yet</strong><span>${escapeHtml(activeThread?.isTeamThread ? "Start the team thread." : `Start a direct message with ${activeThreadLabel}.`)}</span></div>`}
+            ${visibleMessages.length ? renderMessagesWithDateSeparators(visibleMessages, users, currentUser, { searchQuery: normalizedMessageSearch }) : `<div class="dashboard-chat-empty-state"><strong>No messages yet</strong><span>${escapeHtml(activeThread?.isTeamThread ? "Start the team thread." : `Start a direct message with ${activeThreadLabel}.`)}</span></div>`}
           </div>
           ${renderTypingIndicator(activeThreadId, users, currentUser)}
           ${replyComposerMarkup}

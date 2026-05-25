@@ -8425,10 +8425,13 @@ getDashboardMentionUserIdsForToken(match[1], users, authorUserId).forEach((userI
 }
 return Array.from(mentionedUserIds);
 }
-const renderDashboardMessageText = createDashboardChatMessageTextRenderer({
+const dashboardChatMessageTextRenderer = createDashboardChatMessageTextRenderer({
 escapeHtml,
 getMentionUserIdsForToken: getDashboardMentionUserIdsForToken,
 });
+function renderDashboardMessageText(message, users = getPlatformUsers(), options = {}) {
+return dashboardChatMessageTextRenderer(message, users, options);
+}
 function canPinDashboardChatMessage(user = getCurrentPlatformUser()) {
 const normalizedRole = normalizePlatformRole(user?.role, "");
 return normalizedRole === "admin" || normalizedRole === "coach" || normalizedRole === "club-admin" || normalizedRole === "team-admin";

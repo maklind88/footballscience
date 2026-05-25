@@ -4599,6 +4599,8 @@ let dashboardChatRuntimeMessages = [];
 let dashboardChatHydratedThreadIds = new Set();
 let dashboardChatMessageSearchQuery = "";
 let dashboardChatModerationOpen = false;
+let dashboardChatDetailsOpen = false;
+let dashboardChatMobileConversationOpen = true;
 let dashboardChatModerationState = { loading: false, audits: [], retentionPolicy: null, health: null, error: "" };
 let dashboardChatThreadSummarySyncTimer = 0;
 let dashboardChatThreadSummaryLastRequestedAt = 0;
@@ -8326,6 +8328,123 @@ enabled: level !== "muted",
 level,
 });
 }
+function readDashboardChatThreadSettingsMap() {
+const parsed = readDashboardJson("football-dashboard-chat-thread-settings-v1", {});
+return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+}
+function normalizeDashboardChatThreadSettings(value = {}) {
+return {
+muted: Boolean(value?.muted),
+pinned: Boolean(value?.pinned),
+customTitle: String(value?.customTitle || "").trim().slice(0, 80),
+avatarLabel: String(value?.avatarLabel || "").trim().slice(0, 2).toUpperCase(),
+updatedAt: String(value?.updatedAt || "").trim(),
+};
+}
+function getDashboardChatThreadSettings(threadId = dashboardChatTeamThreadId) {
+const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+return getDashboardChatStoredThreadSettings(normalizedThreadId) || normalizeDashboardChatThreadSettings({});
+}
+function getDashboardChatStoredThreadSettings(threadId = dashboardChatTeamThreadId) {
+const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+const settingsMap = readDashboardChatThreadSettingsMap();
+return Object.prototype.hasOwnProperty.call(settingsMap, normalizedThreadId)
+? normalizeDashboardChatThreadSettings(settingsMap[normalizedThreadId])
+: null;
+}
+function getDashboardChatMergedThreadSettings(threadId = dashboardChatTeamThreadId, apiSettings = {}) {
+const normalizedApiSettings = normalizeDashboardChatThreadSettings(apiSettings || {});
+const storedSettings = getDashboardChatStoredThreadSettings(threadId);
+if (!storedSettings) {
+return normalizedApiSettings;
+}
+const apiUpdatedAt = Date.parse(normalizedApiSettings.updatedAt || "") || 0;
+const storedUpdatedAt = Date.parse(storedSettings.updatedAt || "") || 0;
+if (apiUpdatedAt > storedUpdatedAt) {
+return normalizedApiSettings;
+}
+return normalizeDashboardChatThreadSettings({
+...normalizedApiSettings,
+...storedSettings,
+});
+}
+function writeDashboardChatThreadSettings(threadId = dashboardChatTeamThreadId, settings = {}) {
+const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+if (!normalizedThreadId) {
+return;
+}
+const settingsMap = readDashboardChatThreadSettingsMap();
+settingsMap[normalizedThreadId] = {
+...normalizeDashboardChatThreadSettings(settings),
+updatedAt: new Date().toISOString(),
+};
+writeDashboardJson("football-dashboard-chat-thread-settings-v1", settingsMap);
+}
+function removeDashboardChatThreadSettings(threadId = dashboardChatTeamThreadId) {
+const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+if (!normalizedThreadId) {
+return;
+}
+const settingsMap = readDashboardChatThreadSettingsMap();
+if (!Object.prototype.hasOwnProperty.call(settingsMap, normalizedThreadId)) {
+return;
+}
+delete settingsMap[normalizedThreadId];
+writeDashboardJson("football-dashboard-chat-thread-settings-v1", settingsMap);
+}
+function updateDashboardChatThreadSettings(threadId = dashboardChatTeamThreadId, patch = {}) {
+const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+const currentSettings = getDashboardChatThreadSettings(normalizedThreadId);
+writeDashboardChatThreadSettings(normalizedThreadId, {
+...currentSettings,
+...patch,
+});
+}
+async function setDashboardChatThreadSettingsWithApi(threadId = dashboardChatTeamThreadId, patch = {}) {
+const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+const previousStoredSettings = getDashboardChatStoredThreadSettings(normalizedThreadId);
+const apiThread = dashboardChatApiThreads.find((thread) => thread.threadId === normalizedThreadId) || null;
+const previousSettings = getDashboardChatMergedThreadSettings(normalizedThreadId, apiThread?.settings || {});
+const nextSettings = normalizeDashboardChatThreadSettings({
+...previousSettings,
+...patch,
+});
+updateDashboardChatThreadSettings(normalizedThreadId, nextSettings);
+renderDashboardChatWidget();
+const result = await sendDashboardChatApiAction({
+action: "setThreadSettings",
+threadId: normalizedThreadId,
+threadType: getDashboardChatThreadTypeForApi(normalizedThreadId),
+settings: nextSettings,
+});
+if (result?.ok) {
+applyDashboardChatApiPayload(result.result || {}, { threadId: normalizedThreadId });
+const savedSettings = result.result?.thread?.settings;
+if (savedSettings) {
+writeDashboardChatThreadSettings(normalizedThreadId, savedSettings);
+}
+renderDashboardChatWidget();
+return true;
+}
+if (canFallbackDashboardChatApiResult(result)) {
+renderDashboardChatWidget();
+return true;
+}
+if (previousStoredSettings) {
+writeDashboardChatThreadSettings(normalizedThreadId, previousStoredSettings);
+} else {
+removeDashboardChatThreadSettings(normalizedThreadId);
+}
+showDashboardChatWidgetToast(result?.reason || "Thread settings could not be saved.", normalizedThreadId);
+renderDashboardChatWidget();
+return false;
+}
+function getDashboardChatThreadSettingsSnapshot(threads = []) {
+return threads.reduce((snapshot, thread) => {
+snapshot[thread.threadId] = normalizeDashboardChatThreadSettings(thread.settings || getDashboardChatThreadSettings(thread.threadId));
+return snapshot;
+}, {});
+}
 function readDashboardChatWidgetNotificationCursor() {
 const parsed = readDashboardJson(dashboardChatWidgetNotificationCursorStorageKey, {});
 if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -8767,6 +8886,7 @@ lastMessagePreview: String(thread.lastMessagePreview || thread.last_message_prev
 participants: Array.isArray(thread.participants) ? thread.participants.map((value) => String(value || "").trim()).filter(Boolean) : [],
 permissions: thread.permissions && typeof thread.permissions === "object" ? thread.permissions : {},
 avatarUrl: String(thread.avatarUrl || thread.avatar_url || "").trim(),
+settings: normalizeDashboardChatThreadSettings(thread.settings || thread.threadSettings || {}),
 metadata: thread.metadata || {},
 };
 }
@@ -9172,6 +9292,7 @@ queueDashboardChatThreadSummaryRefresh({ delayMs: 350 });
 }
 function handleDashboardChatRealtimeStatus(status = "") {
 dashboardChatApiRealtimeStatus = String(status || "unknown");
+renderDashboardChatWidget();
 if (dashboardChatApiRealtimeRecoveryTimer) {
 window.clearTimeout(dashboardChatApiRealtimeRecoveryTimer);
 dashboardChatApiRealtimeRecoveryTimer = 0;
@@ -9211,6 +9332,25 @@ queueDashboardChatApiRefresh({ delayMs: 250 })
 queueDashboardChatApiRefresh({ delayMs: 400 })
 )
 .subscribe(handleDashboardChatRealtimeStatus);
+}
+function getDashboardChatRealtimeRenderState() {
+const rawStatus = String(dashboardChatApiRealtimeStatus || "idle").trim().toUpperCase();
+if (typeof navigator !== "undefined" && navigator.onLine === false) {
+return { key: "offline", label: "Offline", detail: "No network connection" };
+}
+if (!dashboardChatApiScope?.organizationId) {
+return { key: "warming", label: "Syncing", detail: "Preparing secure chat scope" };
+}
+if (rawStatus === "SUBSCRIBED") {
+const lastEventLabel = dashboardChatApiRealtimeLastEventAt
+? `Last event ${formatDashboardTime(new Date(dashboardChatApiRealtimeLastEventAt).toISOString())}`
+: "Realtime active";
+return { key: "connected", label: "Connected", detail: lastEventLabel };
+}
+if (rawStatus === "CHANNEL_ERROR" || rawStatus === "TIMED_OUT" || rawStatus === "CLOSED") {
+return { key: "reconnecting", label: "Reconnecting", detail: "Realtime is recovering" };
+}
+return { key: "warming", label: "Syncing", detail: rawStatus === "IDLE" ? "Realtime warming up" : `Realtime ${rawStatus.toLowerCase()}` };
 }
 async function commitDashboardChatApiAction(payload, localCommit) {
 const result = await sendDashboardChatApiAction(payload);
@@ -9303,6 +9443,57 @@ updateDashboardMessageLocalStatus(messageId, "failed");
 showDashboardChatWidgetToast(result.reason || "Message could not be sent.", normalizedThreadId);
 renderDashboardChatWidget();
 return null;
+}
+async function retryDashboardMessageWithApi(messageId) {
+const currentUser = getCurrentPlatformUser();
+const normalizedMessageId = String(messageId || "").trim();
+const message = readDashboardMessages().find((candidate) => candidate.id === normalizedMessageId);
+if (!currentUser?.id || !message || message.userId !== currentUser.id) {
+return false;
+}
+const normalizedThreadId = normalizeDashboardChatThreadId(message.threadId, dashboardChatTeamThreadId);
+const cleanText = String(message.text || "").trim().slice(0, dashboardChatMaxMessageLength);
+if (!cleanText) {
+return false;
+}
+updateDashboardMessageLocalStatus(normalizedMessageId, "pending");
+renderDashboardChatWidget();
+const attachmentIds = (Array.isArray(message.attachments) ? message.attachments : [])
+.map((attachment) => String(attachment?.id || attachment?.attachmentId || attachment?.attachment_id || "").trim())
+.filter(Boolean);
+const result = await sendDashboardChatApiAction({
+action: "sendMessage",
+id: normalizedMessageId,
+clientMessageId: message.clientMessageId || normalizedMessageId,
+threadId: normalizedThreadId,
+threadType: getDashboardChatThreadTypeForApi(normalizedThreadId),
+threadTitle: getDashboardChatThreadLabel(normalizedThreadId, currentUser),
+participantIds: getDashboardChatParticipantIdsForApi(normalizedThreadId),
+text: cleanText,
+replyToId: message.replyToId || "",
+priority: message.priority || "normal",
+mentionedUserIds: Array.isArray(message.mentionedUserIds) ? message.mentionedUserIds : getDashboardMentionUserIds(cleanText, getPlatformUsers(), currentUser.id),
+attachmentIds,
+});
+if (result.ok) {
+applyDashboardChatApiPayload(result.result || {}, { threadId: normalizedThreadId });
+updateDashboardMessageLocalStatus(normalizedMessageId, "sent");
+queueDashboardChatThreadSummaryRefresh({ delayMs: 50 });
+renderDashboardChatWidget();
+renderTopIconMenu();
+return true;
+}
+if (canFallbackDashboardChatApiResult(result)) {
+updateDashboardMessageLocalStatus(normalizedMessageId, "sent");
+renderDashboardChatWidget();
+renderTopIconMenu();
+return true;
+}
+logDashboardChatApiFailure("retryMessage", result);
+updateDashboardMessageLocalStatus(normalizedMessageId, "failed");
+showDashboardChatWidgetToast(result.reason || "Message could not be sent.", normalizedThreadId);
+renderDashboardChatWidget();
+return false;
 }
 function markDashboardChatApiThreadRead(threadId) {
 const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
@@ -9584,9 +9775,10 @@ const isDirectThread = !isTeamThread && !isManagedThread && normalizedThreadId.s
 const fallbackThreadLabel = formatDashboardChatThreadLabel(normalizedThreadId, currentUser, users);
 const apiThreadTitle = String(apiThread?.title || "").trim();
 const shouldUseComputedLabel = isTeamThread || isDirectThread || isGenericDashboardChatThreadTitle(apiThreadTitle);
+const threadSettings = getDashboardChatMergedThreadSettings(normalizedThreadId, apiThread?.settings || {});
 return {
 threadId: normalizedThreadId,
-label: shouldUseComputedLabel ? fallbackThreadLabel : apiThreadTitle,
+label: threadSettings.customTitle || (shouldUseComputedLabel ? fallbackThreadLabel : apiThreadTitle),
 isTeamThread,
 type: apiThread?.type || (isManagedThread ? managedTemplate?.type : isTeamThread ? "team" : "dm"),
 participant: participants[0] || null,
@@ -9596,6 +9788,7 @@ mentionCount,
 lastMessage,
 lastActivityAt: lastActivityMs ? new Date(lastActivityMs).toISOString() : "",
 apiThread,
+settings: threadSettings,
 };
 }
 function getDashboardChatThreadList(currentUser = getCurrentPlatformUser(), users = getPlatformUsers(), messages = readDashboardMessages()) {
@@ -9636,6 +9829,11 @@ new Set([
 );
 const directThreads = directThreadIds.map((threadId) => getDashboardChatThreadData(threadId, currentUser, users, messages));
 const sortThreads = (first, second) => {
+const firstPinned = Boolean(first.settings?.pinned);
+const secondPinned = Boolean(second.settings?.pinned);
+if (firstPinned !== secondPinned) {
+return firstPinned ? -1 : 1;
+}
 const firstHasMessages = Boolean(first.messageCount || first.lastMessage || first.apiThread?.lastMessage || first.apiThread?.lastMessageAt);
 const secondHasMessages = Boolean(second.messageCount || second.lastMessage || second.apiThread?.lastMessage || second.apiThread?.lastMessageAt);
 if (firstHasMessages !== secondHasMessages) {
@@ -10055,10 +10253,20 @@ if (message.userId !== currentUser?.id) return "";
 const readCount = (Array.isArray(message?.readBy) ? message.readBy : []).filter((userId) => userId !== currentUser?.id && userId !== message.userId).length;
 const status = String(message?.status || "").trim().toLowerCase();
 const statusKey = status === "failed" || status === "pending" || status === "delivered" ? status : readCount || status === "read" ? "read" : "sent";
-const statusIcon = statusKey === "pending" ? "•" : statusKey === "failed" ? "!" : statusKey === "sent" ? "✓" : "✓✓";
+const statusIcon = statusKey === "pending" ? "..." : statusKey === "failed" ? "!" : statusKey === "sent" ? "✓" : "✓✓";
+const statusLabel = statusKey === "pending"
+? "Sending"
+: statusKey === "failed"
+? "Not sent"
+: statusKey === "read"
+? readCount ? `Read by ${readCount}` : "Read"
+: statusKey === "delivered"
+? "Delivered"
+: "Sent";
 return `
-    <div class="dashboard-chat-status is-${statusKey}">
+    <div class="dashboard-chat-status is-${statusKey}" title="${escapeHtml(statusLabel)}" aria-label="${escapeHtml(statusLabel)}">
       <span class="dashboard-chat-check-label">${statusIcon}</span>
+      <span class="dashboard-chat-status-text">${escapeHtml(statusLabel)}</span>
     </div>
   `;
 }
@@ -10094,17 +10302,40 @@ return `
     </div>
   `;
 }
-function renderDashboardMessageText(message, users = getPlatformUsers()) {
+function renderDashboardTextPartWithSearchHighlight(part = "", searchQuery = "") {
+const text = String(part || "");
+const query = String(searchQuery || "").trim();
+if (query.length < 2) {
+return escapeHtml(text).replaceAll("\n", "<br />");
+}
+const lowerText = text.toLowerCase();
+const lowerQuery = query.toLowerCase();
+let cursor = 0;
+let output = "";
+while (cursor < text.length) {
+const matchIndex = lowerText.indexOf(lowerQuery, cursor);
+if (matchIndex === -1) {
+output += escapeHtml(text.slice(cursor)).replaceAll("\n", "<br />");
+break;
+}
+output += escapeHtml(text.slice(cursor, matchIndex)).replaceAll("\n", "<br />");
+output += `<mark class="dashboard-chat-search-hit">${escapeHtml(text.slice(matchIndex, matchIndex + query.length)).replaceAll("\n", "<br />")}</mark>`;
+cursor = matchIndex + query.length;
+}
+return output;
+}
+function renderDashboardMessageText(message, users = getPlatformUsers(), options = {}) {
 const text = String(message?.text || "");
+const searchQuery = String(options.searchQuery || "").trim();
 return text
 .split(/(@[a-zA-Z0-9._-]{2,64})/g)
 .map((part) => {
 if (!part.startsWith("@")) {
-return escapeHtml(part).replaceAll("\n", "<br />");
+return renderDashboardTextPartWithSearchHighlight(part, searchQuery);
 }
 const mentionedUserIds = getDashboardMentionUserIdsForToken(part.slice(1), users, message.userId);
 if (!mentionedUserIds.length) {
-return escapeHtml(part);
+return renderDashboardTextPartWithSearchHighlight(part, searchQuery);
 }
 return `<mark class="dashboard-chat-mention">${escapeHtml(part)}</mark>`;
 })
@@ -10269,6 +10500,10 @@ messages: resolvedMessages,
 threads,
 activeThreadId,
 unreadCount,
+realtimeStatus: getDashboardChatRealtimeRenderState(),
+detailsOpen: dashboardChatDetailsOpen,
+mobileConversationOpen: dashboardChatMobileConversationOpen,
+threadSettings: getDashboardChatThreadSettingsSnapshot(threads),
 replyDraft: dashboardChatReplyDraft,
 priorityDraft: dashboardChatPriorityDraft,
 confirmAction: dashboardChatConfirmAction,
@@ -10373,6 +10608,9 @@ if (cursor.lastMessageId === latestMessage.id && cursor.userId === latestMessage
 return;
 }
 if (isDashboardChatThreadActivelyViewed(latestMessage.threadId)) {
+return;
+}
+if (getDashboardChatThreadSettings(latestMessage.threadId).muted) {
 return;
 }
 const users = getPlatformUsers();
@@ -71760,6 +71998,7 @@ writeDashboardChatWidgetState({
 isOpen: true,
 selectedThreadId: threadId,
 });
+dashboardChatMobileConversationOpen = true;
 hideDashboardChatWidgetToast();
 renderDashboardChatWidget();
 focusDashboardChatWidgetComposer();
@@ -71781,6 +72020,49 @@ const confirmCancelButton = event.target.closest("[data-dashboard-chat-confirm-c
 if ((confirmBackdrop && event.target === confirmBackdrop) || confirmCancelButton) {
 setDashboardChatConfirmAction(null);
 renderDashboardChatWidget();
+return;
+}
+const detailsToggleButton = event.target.closest("[data-dashboard-chat-details-toggle]");
+if (detailsToggleButton) {
+dashboardChatDetailsOpen = !dashboardChatDetailsOpen;
+renderDashboardChatWidget();
+return;
+}
+const detailsCloseButton = event.target.closest("[data-dashboard-chat-details-close]");
+if (detailsCloseButton) {
+dashboardChatDetailsOpen = false;
+renderDashboardChatWidget();
+return;
+}
+const mobileBackButton = event.target.closest("[data-dashboard-chat-mobile-back]");
+if (mobileBackButton) {
+dashboardChatMobileConversationOpen = false;
+dashboardChatDetailsOpen = false;
+renderDashboardChatWidget();
+return;
+}
+const threadSettingButton = event.target.closest("[data-dashboard-chat-thread-setting]");
+if (threadSettingButton) {
+const currentState = readDashboardChatWidgetState();
+const threadId = normalizeDashboardChatThreadId(threadSettingButton.dataset.dashboardChatThreadSettingThread || currentState.selectedThreadId, dashboardChatTeamThreadId);
+const action = String(threadSettingButton.dataset.dashboardChatThreadSetting || "").trim();
+const currentSettings = getDashboardChatThreadData(threadId, getCurrentPlatformUser(), getPlatformUsers(), readDashboardMessages()).settings;
+if (action === "toggle-mute") {
+void setDashboardChatThreadSettingsWithApi(threadId, { muted: !currentSettings.muted });
+} else if (action === "toggle-pin") {
+void setDashboardChatThreadSettingsWithApi(threadId, { pinned: !currentSettings.pinned });
+} else if (action === "rename") {
+const currentLabel = getDashboardChatThreadLabel(threadId, getCurrentPlatformUser());
+const nextTitle = window.prompt("Rename conversation", currentSettings.customTitle || currentLabel);
+if (nextTitle !== null) {
+void setDashboardChatThreadSettingsWithApi(threadId, { customTitle: String(nextTitle || "").trim() });
+}
+} else if (action === "avatar") {
+const nextAvatarLabel = window.prompt("Conversation initials", currentSettings.avatarLabel || "");
+if (nextAvatarLabel !== null) {
+void setDashboardChatThreadSettingsWithApi(threadId, { avatarLabel: String(nextAvatarLabel || "").trim().slice(0, 2).toUpperCase() });
+}
+}
 return;
 }
 const confirmApplyButton = event.target.closest("[data-dashboard-chat-confirm-apply]");
@@ -71818,6 +72100,11 @@ const message = getDashboardMessageById(copyMessageButton.dataset.dashboardCopyM
 const text = String(message?.text || "");
 const copied = Boolean(text && navigator.clipboard?.writeText && await navigator.clipboard.writeText(text).then(() => true, () => false));
 showDashboardChatWidgetToast(copied ? "Copied" : "Failed", message?.threadId || dashboardChatTeamThreadId);
+return;
+}
+const retryMessageButton = event.target.closest("[data-dashboard-retry-message]");
+if (retryMessageButton) {
+await retryDashboardMessageWithApi(retryMessageButton.dataset.dashboardRetryMessage);
 return;
 }
 const reactionButton = event.target.closest("[data-dashboard-message-reaction][data-dashboard-reaction-key]");
@@ -71896,9 +72183,12 @@ clearDashboardChatTyping();
 setDashboardChatReplyDraft("", "");
 setDashboardChatPriorityDraft("normal");
 setDashboardChatConfirmAction(null);
+dashboardChatDetailsOpen = false;
+dashboardChatMobileConversationOpen = true;
 }
 writeDashboardChatWidgetState(nextState);
 if (nextState.isOpen) {
+dashboardChatMobileConversationOpen = false;
 hideDashboardChatWidgetToast();
 queueDashboardChatCurrentViewRefresh({ delayMs: 0 });
 }
@@ -71926,6 +72216,8 @@ clearDashboardChatTyping();
 setDashboardChatReplyDraft("", "");
 setDashboardChatPriorityDraft("normal");
 dashboardChatMessageSearchQuery = "";
+dashboardChatDetailsOpen = false;
+dashboardChatMobileConversationOpen = true;
 writeDashboardChatWidgetState({
 isOpen: true,
 selectedThreadId: threadId,

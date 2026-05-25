@@ -38,6 +38,7 @@ const RATE_LIMITS = {
   addReaction: 80,
   removeReaction: 80,
   markThreadRead: 120,
+  setThreadSettings: 30,
   clearThread: 5,
   createAttachmentIntent: 20,
   uploadAttachmentObject: 20,
@@ -179,6 +180,32 @@ function normalizePriority(value) {
 
 function normalizeBoolean(value) {
   return value === true || value === "true" || value === 1 || value === "1";
+}
+
+function hasOwn(value, key) {
+  return Object.prototype.hasOwnProperty.call(value || {}, key);
+}
+
+function isPlainObject(value) {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function normalizeThreadSettingPatch(value = {}) {
+  const source = isPlainObject(value) ? value : {};
+  const patch = {};
+  if (hasOwn(source, "muted")) {
+    patch.muted = normalizeBoolean(source.muted);
+  }
+  if (hasOwn(source, "pinned")) {
+    patch.pinned = normalizeBoolean(source.pinned);
+  }
+  if (hasOwn(source, "customTitle")) {
+    patch.customTitle = normalizeString(source.customTitle, 140);
+  }
+  if (hasOwn(source, "avatarLabel")) {
+    patch.avatarLabel = normalizeString(source.avatarLabel, 2).toUpperCase();
+  }
+  return patch;
 }
 
 function canUseChat(actor = {}) {
@@ -1039,7 +1066,7 @@ function mentionHandles(text) {
 
 function databaseAuditEvent(actor, action, details = {}) {
   const destructive = ["deleteMessage", "clearThread"].includes(action);
-  const adminAction = ["setMessagePinned", "setMessagePriority", "clearThread"].includes(action);
+  const adminAction = ["setMessagePinned", "setMessagePriority", "setThreadSettings", "clearThread"].includes(action);
   return {
     action: `chat.${action}`,
     severity: destructive ? "warning" : adminAction ? "notice" : "info",
@@ -1199,6 +1226,9 @@ async function enrichThreadSummaries(actor, threads = []) {
       const lastMessage = messagesById.get(thread.last_message_id) || null;
       const [enrichedLastMessage] = lastMessage ? await enrichMessages([lastMessage], thread) : [];
       const receipt = receiptsByThreadId.get(thread.id) || null;
+      const metadata = isPlainObject(thread.metadata) ? thread.metadata : {};
+      const settingsByUser = isPlainObject(metadata.settingsByUser) ? metadata.settingsByUser : {};
+      const actorSettings = normalizeThreadSettingPatch(settingsByUser[actor?.id] || {});
       const lastMessageAtMs = Date.parse(thread.last_message_at || lastMessage?.created_at || "");
       const lastReadAtMs = Date.parse(receipt?.last_read_at || "");
       const unreadCount =
@@ -1211,7 +1241,14 @@ async function enrichThreadSummaries(actor, threads = []) {
         threadId: toLegacyThreadId(thread),
         participants: threadParticipantIds(thread),
         permissions: threadPermissionsForActor(actor, thread),
-        avatarUrl: normalizeString(thread.metadata?.avatarUrl || thread.metadata?.imageUrl || "", 800),
+        avatarUrl: normalizeString(metadata.avatarUrl || metadata.imageUrl || "", 800),
+        settings: {
+          muted: Boolean(actorSettings.muted),
+          pinned: Boolean(actorSettings.pinned),
+          customTitle: normalizeString(metadata.customTitle || "", 140),
+          avatarLabel: normalizeString(metadata.avatarLabel || "", 2).toUpperCase(),
+          updatedAt: normalizeString(settingsByUser[actor?.id]?.updatedAt || metadata.threadSettingsUpdatedAt || metadata.settingsUpdatedAt || "", 80),
+        },
         lastMessage: enrichedLastMessage || null,
         lastMessagePreview: enrichedLastMessage ? messagePreviewText(enrichedLastMessage) : "",
         unreadCount,
@@ -1880,6 +1917,72 @@ async function markThreadRead(actor, body) {
   return { ok: true, action: "markThreadRead", thread: threadSummary || thread };
 }
 
+async function setThreadSettings(actor, body) {
+  const threadId = normalizeId(body.threadId || body.thread_id || body.id);
+  if (!threadId) {
+    return { ok: false, status: 400, reason: "threadId is required." };
+  }
+
+  const thread = await resolveThreadForAction(actor, body, { createIfMissing: false });
+  const access = await ensureThreadAccess(actor, thread);
+  if (!access.ok) {
+    return access;
+  }
+
+  const rawPatch = { ...(isPlainObject(body.settings) ? body.settings : {}) };
+  ["muted", "pinned", "customTitle", "avatarLabel"].forEach((key) => {
+    if (hasOwn(body, key)) {
+      rawPatch[key] = body[key];
+    }
+  });
+  const requestedPatch = normalizeThreadSettingPatch(rawPatch);
+  const changesSharedThreadIdentity = hasOwn(requestedPatch, "customTitle") || hasOwn(requestedPatch, "avatarLabel");
+  const canManageThread = actorRole(actor) === "admin" || canManageByRole(access.membership?.role);
+  if (changesSharedThreadIdentity && !canManageThread) {
+    return { ok: false, status: 403, reason: "Chat manager access required." };
+  }
+
+  const now = new Date().toISOString();
+  const metadata = {
+    ...(isPlainObject(thread.metadata) ? thread.metadata : {}),
+  };
+  const actorKey = normalizeId(actor.id || actor.email || "actor");
+  const settingsByUser = {
+    ...(isPlainObject(metadata.settingsByUser) ? metadata.settingsByUser : {}),
+  };
+  const currentActorSettings = isPlainObject(settingsByUser[actorKey]) ? settingsByUser[actorKey] : {};
+  settingsByUser[actorKey] = {
+    ...currentActorSettings,
+    ...(hasOwn(requestedPatch, "muted") ? { muted: requestedPatch.muted } : {}),
+    ...(hasOwn(requestedPatch, "pinned") ? { pinned: requestedPatch.pinned } : {}),
+    updatedAt: now,
+  };
+  metadata.settingsByUser = settingsByUser;
+  metadata.threadSettingsUpdatedAt = now;
+
+  const update = { metadata };
+  if (hasOwn(requestedPatch, "customTitle")) {
+    metadata.customTitle = requestedPatch.customTitle;
+    if (requestedPatch.customTitle) {
+      update.title = requestedPatch.customTitle;
+    }
+  }
+  if (hasOwn(requestedPatch, "avatarLabel")) {
+    metadata.avatarLabel = requestedPatch.avatarLabel;
+  }
+
+  const [updatedThread] = await patchRows("chat_threads", `id=eq.${filterValue(thread.id)}`, update);
+  const audit = await insertAudit(actor, "setThreadSettings", {
+    organization_id: thread.organization_id,
+    team_id: thread.team_id,
+    thread_id: thread.id,
+  }, {
+    settings: requestedPatch,
+  });
+  const [threadSummary] = await enrichThreadSummaries(actor, [updatedThread || { ...thread, ...update }]);
+  return { ok: true, action: "setThreadSettings", thread: threadSummary || updatedThread || thread, auditId: audit?.id || "" };
+}
+
 async function clearThread(actor, body) {
   const threadId = normalizeId(body.threadId || body.thread_id || body.id);
   if (!threadId) {
@@ -2073,6 +2176,8 @@ async function handleDatabasePost(req, res, actor) {
     result = await setReaction(actor, body, false);
   } else if (action === "markThreadRead") {
     result = await markThreadRead(actor, body);
+  } else if (action === "setThreadSettings") {
+    result = await setThreadSettings(actor, body);
   } else if (action === "clearThread") {
     result = await clearThread(actor, body);
   } else if (action === "createAttachmentIntent") {

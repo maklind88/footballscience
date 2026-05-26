@@ -165,7 +165,21 @@ test("Gameplan state carries elite workflow sections", async () => {
             ...plan,
             meeting: { decisions: "Press trigger approved." },
             scenarioCards: [{ title: "Protect lead", trigger: "75+", staffAction: "Control rest defence", status: "ready" }],
-            evidence: [{ title: "Opponent build-up clip", source: "Analysis", confidence: "high", url: "https://example.com/clip" }],
+            evidence: [
+              {
+                title: "Opponent build-up clip",
+                source: "Analysis Room",
+                linkedSourceType: "analysis",
+                linkedSourceId: "clip-1",
+                linkedSourceLabel: "Analysis Room",
+                linkedWorkspace: "analysis-room",
+                mediaType: "clip",
+                matchEventId: "match-1",
+                sourceRef: "football-analysis-room-v1:clips#clip-1",
+                confidence: "high",
+                url: "https://example.com/clip",
+              },
+            ],
             playerBrief: {
               ...plan.playerBrief,
               positionGroupFocus: "Midfield screen first.",
@@ -201,7 +215,14 @@ test("Gameplan state carries elite workflow sections", async () => {
   expect(result.agenda).toContain("Opponent identity");
   expect(result.decisions).toBe("Press trigger approved.");
   expect(result.scenario).toEqual(expect.objectContaining({ title: "Protect lead", status: "ready" }));
-  expect(result.evidence).toEqual(expect.objectContaining({ confidence: "high" }));
+  expect(result.evidence).toEqual(
+    expect.objectContaining({
+      confidence: "high",
+      linkedSourceType: "analysis",
+      linkedSourceId: "clip-1",
+      mediaType: "clip",
+    })
+  );
   expect(result.playerNote).toBe("Scan before receiving.");
   expect(result.observation).toEqual(expect.objectContaining({ minute: "33", status: "reported" }));
   expect(result.lessons).toContain("Trigger worked");

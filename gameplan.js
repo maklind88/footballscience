@@ -16,6 +16,11 @@ import {
 const gameplanStorageKey = "football-gameplan-v1";
 const scheduleStorageKey = "football-schedule-v1";
 const playerProfilesStorageKey = "football-player-profiles-v1";
+const scoutingStorageKey = "football-scouting-v1";
+const scoutingImportedDatabaseStorageKey = "football-scouting-imported-database-v1";
+const scoutingImportLastUploadStorageKey = "football-scouting-last-import-summary-v1";
+const scoutingDurableStateStorageKey = "football-scouting-durable-state-v1";
+const analysisEvidenceStorageKeys = Object.freeze(["football-analysis-room-v1", "football-analysis-v1", "football-match-analysis-v1"]);
 let activeContext = null;
 let gameplanState = null;
 let signedPlayerBriefState = { token: "", status: "idle", payload: null, reason: "" };
@@ -137,6 +142,454 @@ function getSquadPlayers() {
       position: player.position || player.primaryRole || "",
       roleGroup: player.roleGroup || "",
     }));
+}
+
+function asGameplanObject(value = null) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function asGameplanArray(value = null) {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === "object") return Object.values(value);
+  return [];
+}
+
+function normalizeEvidenceText(value = "", maxLength = 240) {
+  if (value === null || value === undefined || typeof value === "object") {
+    return "";
+  }
+  return String(value).trim().slice(0, maxLength);
+}
+
+function firstEvidenceText(values = [], maxLength = 240) {
+  for (const value of values) {
+    const text = normalizeEvidenceText(value, maxLength);
+    if (text) return text;
+  }
+  return "";
+}
+
+function getEvidenceUrl(entry = {}) {
+  const source = asGameplanObject(entry);
+  return firstEvidenceText(
+    [
+      source.url,
+      source.link,
+      source.href,
+      source.clipUrl,
+      source.videoUrl,
+      source.imageUrl,
+      source.fileUrl,
+      source.mediaUrl,
+      source.assetUrl,
+      source.signedUrl,
+      source.downloadUrl,
+    ],
+    1000
+  );
+}
+
+function getEvidenceMediaType(entry = {}, fallback = "data") {
+  const source = asGameplanObject(entry);
+  const explicit = firstEvidenceText([source.mediaType, source.assetType, source.type, source.kind], 80).toLowerCase();
+  if (explicit.includes("clip") || explicit.includes("video")) return "clip";
+  if (explicit.includes("image") || explicit.includes("photo") || explicit.includes("frame")) return "image";
+  if (explicit.includes("report") || explicit.includes("memo")) return "report";
+  if (explicit.includes("data") || explicit.includes("metric")) return "data";
+  const url = getEvidenceUrl(source).toLowerCase();
+  if (/\.(mp4|mov|webm|m4v)(\?|$)/.test(url)) return "clip";
+  if (/\.(png|jpg|jpeg|webp|gif)(\?|$)/.test(url)) return "image";
+  if (/\.(pdf|docx?|pptx?)(\?|$)/.test(url)) return "report";
+  return fallback;
+}
+
+function getEvidenceOpenLabel(item = {}) {
+  const mediaType = normalizeEvidenceText(item.mediaType, 40).toLowerCase();
+  if (mediaType === "clip") return "Open clip";
+  if (mediaType === "image") return "Open image";
+  if (mediaType === "report") return "Open report";
+  return "Open source";
+}
+
+function getPlanEvidenceSearchTerms(plan = {}) {
+  return [
+    plan.matchEventId,
+    plan.opponent,
+    plan.title,
+    plan.date,
+    plan.competition,
+    plan.venue,
+  ]
+    .map((value) => normalizeSearchText(value).trim())
+    .filter((value) => value.length >= 3);
+}
+
+function evidenceTextMatchesPlan(value = "", plan = {}) {
+  const text = normalizeSearchText(value);
+  return getPlanEvidenceSearchTerms(plan).some((term) => text.includes(term));
+}
+
+function createEvidenceCandidate(candidate = {}) {
+  const linkedSourceType = normalizeEvidenceText(candidate.linkedSourceType || candidate.sourceType || "manual", 80).toLowerCase();
+  const linkedSourceId = normalizeEvidenceText(candidate.linkedSourceId || candidate.sourceId, 220);
+  const title = firstEvidenceText([candidate.title, candidate.name, candidate.label, candidate.source], 180);
+  const source = firstEvidenceText([candidate.source, candidate.sourceLabel, candidate.linkedSourceLabel], 120);
+  const note = firstEvidenceText([candidate.note, candidate.summary, candidate.description], 700);
+  const url = normalizeEvidenceText(candidate.url, 1000);
+  const sourceRef = normalizeEvidenceText(candidate.sourceRef, 260);
+  if (!title && !note && !url && !linkedSourceId && !sourceRef) {
+    return null;
+  }
+  const id = normalizeEvidenceText(
+    candidate.id || `${linkedSourceType}:${linkedSourceId || sourceRef || url || title || source}`,
+    260
+  );
+  return {
+    id,
+    title: title || source || "Evidence",
+    source: source || "Evidence source",
+    phase: normalizeEvidenceText(candidate.phase, 80),
+    url,
+    note,
+    confidence: normalizeEvidenceConfidence(candidate.confidence),
+    linkedSourceType,
+    linkedSourceId,
+    linkedSourceLabel: normalizeEvidenceText(candidate.linkedSourceLabel || source || linkedSourceType, 180),
+    linkedWorkspace: normalizeEvidenceText(candidate.linkedWorkspace || candidate.workspaceId, 80),
+    mediaType: normalizeEvidenceText(candidate.mediaType || "data", 80).toLowerCase(),
+    matchEventId: normalizeEvidenceText(candidate.matchEventId, 180),
+    sourceRef,
+    meta: normalizeEvidenceText(candidate.meta, 220),
+  };
+}
+
+function normalizeEvidenceConfidence(value = "") {
+  const normalized = normalizeEvidenceText(value, 40).toLowerCase();
+  if (["low", "medium", "high"].includes(normalized)) return normalized;
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) {
+    if (numeric >= 4) return "high";
+    if (numeric <= 2) return "low";
+  }
+  return "medium";
+}
+
+function getEvidenceCandidateKey(candidate = {}) {
+  const type = normalizeEvidenceText(candidate.linkedSourceType || candidate.sourceType, 80).toLowerCase();
+  const id = normalizeEvidenceText(candidate.linkedSourceId || candidate.sourceId, 220);
+  if (type && id) return `${type}:${id}`;
+  const sourceRef = normalizeEvidenceText(candidate.sourceRef, 260);
+  if (sourceRef) return sourceRef;
+  const url = normalizeEvidenceText(candidate.url, 1000);
+  if (url) return `url:${url}`;
+  return normalizeSearchText([candidate.title, candidate.source, candidate.note].join(":"));
+}
+
+function dedupeEvidenceCandidates(candidates = []) {
+  const seen = new Set();
+  const unique = [];
+  for (const candidate of candidates.filter(Boolean)) {
+    const key = getEvidenceCandidateKey(candidate);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(candidate);
+  }
+  return unique;
+}
+
+function isEvidenceCandidateLinked(plan = {}, candidate = {}) {
+  const candidateKey = getEvidenceCandidateKey(candidate);
+  return (plan.evidence || []).some((item) => {
+    if (candidateKey && getEvidenceCandidateKey(item) === candidateKey) return true;
+    return Boolean(candidate.url && item.url && item.url === candidate.url);
+  });
+}
+
+function buildEvidenceCandidateFromObject(entry = {}, defaults = {}, index = 0) {
+  const source = typeof entry === "string" ? { url: entry } : asGameplanObject(entry);
+  const title = firstEvidenceText(
+    [source.title, source.name, source.label, source.fileName, source.filename, source.player, source.playerName, defaults.title],
+    180
+  );
+  const note = firstEvidenceText([source.note, source.notes, source.summary, source.description, source.memo, source.analysis, defaults.note], 700);
+  const linkedSourceId = firstEvidenceText(
+    [
+      source.id,
+      source.clipId,
+      source.assetId,
+      source.reportId,
+      source.recordId,
+      source.sourceId,
+      source.key,
+      defaults.linkedSourceId,
+      defaults.sourceId,
+      index,
+    ],
+    220
+  );
+  const url = getEvidenceUrl(source);
+  if (!title && !note && !url) {
+    return null;
+  }
+  const mediaType = getEvidenceMediaType(source, defaults.mediaType || "data");
+  return createEvidenceCandidate({
+    id: `${defaults.linkedSourceType || "source"}:${linkedSourceId || url || index}`,
+    title,
+    source: defaults.source,
+    note,
+    url,
+    confidence: source.confidence || defaults.confidence,
+    phase: source.phase || source.phaseLabel || defaults.phase,
+    linkedSourceType: defaults.linkedSourceType,
+    linkedSourceId,
+    linkedSourceLabel: defaults.linkedSourceLabel || defaults.source,
+    linkedWorkspace: defaults.linkedWorkspace,
+    mediaType,
+    matchEventId: source.matchEventId || source.eventId || defaults.matchEventId,
+    sourceRef: defaults.sourceRef ? `${defaults.sourceRef}#${linkedSourceId || index}` : "",
+    meta: defaults.meta,
+  });
+}
+
+function getScheduleEventForPlan(plan = {}) {
+  const events = (activeContext?.getScheduleState?.() || readStorageJson(scheduleStorageKey)).events || [];
+  const eventId = normalizeEvidenceText(plan.matchEventId, 180);
+  if (eventId) {
+    const match = events.find((event) => event?.id === eventId);
+    if (match) return match;
+  }
+  return events.find((event) => event?.type === "match" && event?.date === plan.date && evidenceTextMatchesPlan(event?.title, plan)) || null;
+}
+
+function getMatchMediaEvidenceCandidates(plan = {}) {
+  const event = getScheduleEventForPlan(plan);
+  if (!event) return [];
+  const directMedia = ["url", "clipUrl", "videoUrl", "imageUrl", "fileUrl", "mediaUrl", "analysisUrl"].some((key) => event[key])
+    ? [event]
+    : [];
+  const entries = [
+    ...directMedia,
+    ...asGameplanArray(event.clips),
+    ...asGameplanArray(event.media),
+    ...asGameplanArray(event.attachments),
+    ...asGameplanArray(event.images),
+    ...asGameplanArray(event.matchImages),
+    ...asGameplanArray(event.matchFrames),
+    ...asGameplanArray(event.analysisAssets),
+  ];
+  return entries
+    .map((entry, index) =>
+      buildEvidenceCandidateFromObject(entry, {
+        source: "Match media",
+        title: event.title || plan.title || "Match media",
+        note: event.description || event.notes || "",
+        linkedSourceType: "match-media",
+        linkedWorkspace: "schedule",
+        mediaType: "clip",
+        matchEventId: event.id || plan.matchEventId,
+        sourceRef: `${scheduleStorageKey}:${event.id || plan.matchEventId || "match"}`,
+      }, index)
+    )
+    .filter(Boolean);
+}
+
+function getAnalysisEvidenceCandidates(plan = {}) {
+  const candidates = [];
+  const buckets = ["evidence", "clips", "clipLibrary", "videos", "images", "matchImages", "frames", "reports", "analysis", "assets"];
+  for (const key of analysisEvidenceStorageKeys) {
+    const state = readStorageJson(key);
+    for (const bucket of buckets) {
+      asGameplanArray(state?.[bucket]).forEach((entry, index) => {
+        const candidate = buildEvidenceCandidateFromObject(entry, {
+          source: "Analysis Room",
+          linkedSourceType: "analysis",
+          linkedWorkspace: "analysis-room",
+          mediaType: bucket.includes("image") || bucket.includes("frame") ? "image" : bucket.includes("report") ? "report" : "clip",
+          matchEventId: plan.matchEventId,
+          sourceRef: `${key}:${bucket}`,
+        }, index);
+        if (!candidate) return;
+        const matchText = [candidate.title, candidate.note, candidate.meta, candidate.matchEventId].join(" ");
+        if (!candidate.matchEventId || candidate.matchEventId === plan.matchEventId || evidenceTextMatchesPlan(matchText, plan)) {
+          candidates.push(candidate);
+        }
+      });
+    }
+  }
+  asGameplanArray(window.__footballScienceGameplanEvidenceSources).forEach((entry, index) => {
+    const candidate = buildEvidenceCandidateFromObject(entry, {
+      source: "Analysis Room",
+      linkedSourceType: "analysis",
+      linkedWorkspace: "analysis-room",
+      mediaType: "clip",
+      matchEventId: plan.matchEventId,
+      sourceRef: "window:__footballScienceGameplanEvidenceSources",
+    }, index);
+    if (candidate) candidates.push(candidate);
+  });
+  return candidates;
+}
+
+function getScoutingRecordField(record = {}, key = "") {
+  if (Array.isArray(record)) {
+    const indexes = {
+      id: 0,
+      player: 1,
+      team: 2,
+      league: 4,
+      season: 5,
+      position: 6,
+      age: 7,
+      matches: 8,
+      minutes: 9,
+      sourceSystem: 15,
+      imageUrl: 18,
+    };
+    return record[indexes[key]];
+  }
+  return record?.[key] || record?.[key === "player" ? "name" : key] || "";
+}
+
+function createScoutingRecordCandidate(record = {}, plan = {}, index = 0) {
+  const id = firstEvidenceText([getScoutingRecordField(record, "id"), `record-${index}`], 160);
+  const player = firstEvidenceText([getScoutingRecordField(record, "player")], 160);
+  const team = firstEvidenceText([getScoutingRecordField(record, "team")], 120);
+  const position = firstEvidenceText([getScoutingRecordField(record, "position")], 80);
+  const season = firstEvidenceText([getScoutingRecordField(record, "season")], 80);
+  const minutes = firstEvidenceText([getScoutingRecordField(record, "minutes")], 40);
+  const imageUrl = firstEvidenceText([getScoutingRecordField(record, "imageUrl")], 1000);
+  return createEvidenceCandidate({
+    id: `scouting-data:${id}`,
+    title: [player, position].filter(Boolean).join(" · ") || team || "Scouting data",
+    source: "Scouting data",
+    note: [team, season, minutes ? `${minutes} minutes` : ""].filter(Boolean).join(" · "),
+    url: imageUrl,
+    confidence: "medium",
+    linkedSourceType: "scouting",
+    linkedSourceId: id,
+    linkedSourceLabel: "Scouting data",
+    linkedWorkspace: "scouting",
+    mediaType: imageUrl ? "image" : "data",
+    matchEventId: plan.matchEventId,
+    sourceRef: `${scoutingImportedDatabaseStorageKey}#${id}`,
+  });
+}
+
+function getScoutingEvidenceCandidates(plan = {}) {
+  const state = readStorageJson(scoutingStorageKey);
+  const durable = readStorageJson(scoutingDurableStateStorageKey);
+  const importSummary = readStorageJson(scoutingImportLastUploadStorageKey);
+  const importedDatabase = readStorageJson(scoutingImportedDatabaseStorageKey);
+  const candidates = [];
+
+  asGameplanArray(state.reports).forEach((report, index) => {
+    const reportText = [report.title, report.summary, report.type].join(" ");
+    const isOpposition = normalizeSearchText(report.type).includes("opposition");
+    if (!isOpposition && !evidenceTextMatchesPlan(reportText, plan) && index > 5) return;
+    candidates.push(
+      createEvidenceCandidate({
+        id: `scouting-report:${report.id || index}`,
+        title: report.title || "Scouting report",
+        source: report.type === "opposition" ? "Opposition report" : "Scouting report",
+        note: report.summary || report.recommendation || "",
+        confidence: report.confidence,
+        linkedSourceType: "scouting",
+        linkedSourceId: report.id || `report-${index}`,
+        linkedSourceLabel: report.type === "opposition" ? "Opposition report" : "Scouting report",
+        linkedWorkspace: "scouting",
+        mediaType: "report",
+        matchEventId: plan.matchEventId,
+        sourceRef: `${scoutingStorageKey}:reports#${report.id || index}`,
+      })
+    );
+  });
+
+  asGameplanArray(state.targets).forEach((target, index) => {
+    candidates.push(
+      createEvidenceCandidate({
+        id: `scouting-target:${target.id || index}`,
+        title: [target.name, target.position].filter(Boolean).join(" · ") || "Scouting target",
+        source: "Scouting target",
+        note: target.notes || target.nextAction || target.fit || "",
+        confidence: target.priority === "urgent" || target.priority === "high" ? "high" : "medium",
+        linkedSourceType: "scouting",
+        linkedSourceId: target.id || target.recordId || `target-${index}`,
+        linkedSourceLabel: "Scouting target",
+        linkedWorkspace: "scouting",
+        mediaType: "data",
+        matchEventId: plan.matchEventId,
+        sourceRef: `${scoutingStorageKey}:targets#${target.id || index}`,
+      })
+    );
+  });
+
+  [...asGameplanArray(state.savedViews), ...asGameplanArray(durable.savedViews)].forEach((view, index) => {
+    if (!evidenceTextMatchesPlan([view.name, view.description, view.query].join(" "), plan) && index > 3) return;
+    candidates.push(
+      createEvidenceCandidate({
+        id: `scouting-view:${view.id || index}`,
+        title: view.name || "Scouting view",
+        source: "Scouting view",
+        note: view.description || view.query || "",
+        confidence: "medium",
+        linkedSourceType: "scouting",
+        linkedSourceId: view.id || `view-${index}`,
+        linkedSourceLabel: "Scouting view",
+        linkedWorkspace: "scouting",
+        mediaType: "data",
+        matchEventId: plan.matchEventId,
+        sourceRef: `${scoutingStorageKey}:savedViews#${view.id || index}`,
+      })
+    );
+  });
+
+  const records = asGameplanArray(importedDatabase.records);
+  const matchedRecords = [];
+  for (const record of records) {
+    const recordText = [
+      getScoutingRecordField(record, "player"),
+      getScoutingRecordField(record, "team"),
+      getScoutingRecordField(record, "league"),
+      getScoutingRecordField(record, "season"),
+      getScoutingRecordField(record, "position"),
+    ].join(" ");
+    if (evidenceTextMatchesPlan(recordText, plan)) {
+      matchedRecords.push(record);
+    }
+    if (matchedRecords.length >= 3) break;
+  }
+  matchedRecords.forEach((record, index) => {
+    candidates.push(createScoutingRecordCandidate(record, plan, index));
+  });
+
+  if (importSummary?.status === "published" && !matchedRecords.length && candidates.length < 3) {
+    candidates.push(
+      createEvidenceCandidate({
+        id: `scouting-import:${importSummary.updatedAt || importSummary.startedAt || "latest"}`,
+        title: importSummary.fileName || "Scouting database import",
+        source: "Scouting data",
+        note: `${importSummary.rowCount || 0} rows · ${importSummary.metricCount || 0} metrics`,
+        confidence: "medium",
+        linkedSourceType: "scouting",
+        linkedSourceId: importSummary.updatedAt || importSummary.startedAt || "latest-import",
+        linkedSourceLabel: "Scouting data",
+        linkedWorkspace: "scouting",
+        mediaType: "data",
+        matchEventId: plan.matchEventId,
+        sourceRef: scoutingImportLastUploadStorageKey,
+      })
+    );
+  }
+
+  return candidates;
+}
+
+function getGameplanEvidenceSourceCandidates(plan = {}) {
+  return dedupeEvidenceCandidates([
+    ...getMatchMediaEvidenceCandidates(plan),
+    ...getAnalysisEvidenceCandidates(plan),
+    ...getScoutingEvidenceCandidates(plan),
+  ]).slice(0, 12);
 }
 
 function getPlan() {
@@ -680,7 +1133,14 @@ function addGameplanEvidenceItem() {
     plan.evidence.push({
       id: createGameplanLocalId("evidence"),
       title: "New evidence",
-      source: "Analysis",
+      source: "Manual",
+      linkedSourceType: "manual",
+      linkedSourceId: "",
+      linkedSourceLabel: "Manual evidence",
+      linkedWorkspace: "",
+      mediaType: "link",
+      matchEventId: plan.matchEventId || "",
+      sourceRef: "",
       phase: "",
       url: "",
       note: "",
@@ -701,6 +1161,43 @@ function removeGameplanEvidenceItem(itemId = "") {
   if (!canEditPlan()) return;
   mutateActiveGameplan((plan) => {
     plan.evidence = (plan.evidence || []).filter((entry) => entry.id !== itemId);
+  });
+}
+
+function linkGameplanEvidenceCandidate(candidateId = "") {
+  if (!canEditPlan()) return;
+  const plan = getPlan();
+  const candidate = getGameplanEvidenceSourceCandidates(plan).find((entry) => entry.id === candidateId);
+  if (!candidate) return;
+  mutateActiveGameplan((activePlan) => {
+    activePlan.evidence = Array.isArray(activePlan.evidence) ? activePlan.evidence : [];
+    const nextItem = {
+      id: createGameplanLocalId("evidence"),
+      title: candidate.title,
+      source: candidate.source,
+      linkedSourceType: candidate.linkedSourceType,
+      linkedSourceId: candidate.linkedSourceId,
+      linkedSourceLabel: candidate.linkedSourceLabel,
+      linkedWorkspace: candidate.linkedWorkspace,
+      mediaType: candidate.mediaType,
+      matchEventId: candidate.matchEventId || activePlan.matchEventId || "",
+      sourceRef: candidate.sourceRef,
+      phase: candidate.phase || "",
+      url: candidate.url || "",
+      note: candidate.note || "",
+      ownerUserId: activeContext?.currentUser?.id || "",
+      confidence: candidate.confidence || "medium",
+    };
+    const existingIndex = activePlan.evidence.findIndex((item) => getEvidenceCandidateKey(item) === getEvidenceCandidateKey(candidate));
+    if (existingIndex >= 0) {
+      activePlan.evidence[existingIndex] = {
+        ...activePlan.evidence[existingIndex],
+        ...nextItem,
+        id: activePlan.evidence[existingIndex].id,
+      };
+      return;
+    }
+    activePlan.evidence.unshift(nextItem);
   });
 }
 
@@ -1099,6 +1596,12 @@ function renderTabs() {
   `;
 }
 
+function getEvidenceMetaLabel(item = {}) {
+  const sourceLabel = item.linkedSourceLabel || item.source || "";
+  const mediaType = item.mediaType ? item.mediaType.replace("-", " ") : "";
+  return [sourceLabel, mediaType, item.confidence ? `${item.confidence} confidence` : ""].filter(Boolean).join(" · ");
+}
+
 function renderEvidenceChips(plan) {
   const evidence = plan.evidence || [];
   return `
@@ -1109,7 +1612,7 @@ function renderEvidenceChips(plan) {
               .slice(0, 4)
               .map((item) => {
                 const label = item.title || item.source || "Evidence";
-                const meta = [item.source, item.confidence].filter(Boolean).join(" · ");
+                const meta = getEvidenceMetaLabel(item);
                 const content = `
                   <strong>${escapeHtml(label)}</strong>
                   ${meta ? `<span>${escapeHtml(meta)}</span>` : ""}
@@ -1144,11 +1647,60 @@ function renderEvidenceQuickEditor(plan) {
                 ${renderOptions(gameplanEvidenceConfidenceOptions, item.confidence || "medium")}
               </select>
               <button type="button" data-gameplan-remove-evidence="${escapeHtml(item.id)}" ${disabled ? "disabled" : ""}>Remove</button>
+              <small>${escapeHtml(getEvidenceMetaLabel(item) || "Manual evidence")}</small>
             </article>
           `
         )
         .join("")}
     </div>
+  `;
+}
+
+function renderEvidenceSourceCandidate(plan = {}, candidate = {}) {
+  const linked = isEvidenceCandidateLinked(plan, candidate);
+  const meta = [candidate.source, candidate.mediaType, candidate.meta].filter(Boolean).join(" · ");
+  return `
+    <article class="gameplan-evidence-source-row${linked ? " is-linked" : ""}">
+      <div>
+        ${meta ? `<span>${escapeHtml(meta)}</span>` : ""}
+        <strong>${escapeHtml(candidate.title || "Evidence source")}</strong>
+        ${candidate.note ? `<p>${escapeHtml(candidate.note)}</p>` : ""}
+      </div>
+      <button type="button" data-gameplan-link-evidence="${escapeHtml(candidate.id)}" ${linked || !canEditPlan() ? "disabled" : ""}>
+        ${linked ? "Linked" : "Link"}
+      </button>
+    </article>
+  `;
+}
+
+function renderEvidenceSourcePanel(plan) {
+  const candidates = getGameplanEvidenceSourceCandidates(plan);
+  const sourceCounts = candidates.reduce((counts, candidate) => {
+    const key = candidate.linkedSourceType || "source";
+    counts[key] = (counts[key] || 0) + 1;
+    return counts;
+  }, {});
+  return `
+    <section class="gameplan-evidence-source-panel" aria-label="Linked evidence sources">
+      <header>
+        <div>
+          <span>Evidence Sources</span>
+          <strong>${candidates.length ? `${candidates.length} available` : "No sources found"}</strong>
+        </div>
+        <div class="gameplan-evidence-source-counts" aria-label="Evidence source counts">
+          <span>Analysis ${sourceCounts.analysis || 0}</span>
+          <span>Scouting ${sourceCounts.scouting || 0}</span>
+          <span>Media ${sourceCounts["match-media"] || 0}</span>
+        </div>
+      </header>
+      <div class="gameplan-evidence-source-list">
+        ${
+          candidates.length
+            ? candidates.slice(0, 8).map((candidate) => renderEvidenceSourceCandidate(plan, candidate)).join("")
+            : `<div class="gameplan-empty-small">No analysis, scouting or match media found yet.</div>`
+        }
+      </div>
+    </section>
   `;
 }
 
@@ -1251,6 +1803,7 @@ function renderPlanEditTab(plan) {
         </div>
         ${renderEvidenceChips(plan)}
         ${renderEvidenceQuickEditor(plan)}
+        ${renderEvidenceSourcePanel(plan)}
       </section>
       <section class="gameplan-card gameplan-card-span">
         <header>
@@ -1296,7 +1849,7 @@ function renderRoleResponsibilityItem(item = {}) {
 }
 
 function renderRoleEvidenceItem(item = {}) {
-  const meta = [item.source, item.phase, item.confidence ? `${item.confidence} confidence` : ""].filter(Boolean).join(" · ");
+  const meta = [getEvidenceMetaLabel(item), item.phase].filter(Boolean).join(" · ");
   const title = item.title || item.source || "Evidence";
   return `
     <article class="gameplan-role-item">
@@ -1305,7 +1858,7 @@ function renderRoleEvidenceItem(item = {}) {
         ${meta ? `<span>${escapeHtml(meta)}</span>` : ""}
       </div>
       ${item.note ? `<p>${escapeHtml(item.note)}</p>` : ""}
-      ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">Open clip</a>` : ""}
+      ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">${escapeHtml(getEvidenceOpenLabel(item))}</a>` : ""}
     </article>
   `;
 }
@@ -1346,7 +1899,7 @@ function renderRoleLens(plan) {
       <article class="gameplan-role-card">
         <header>
           <span>Analyst Evidence</span>
-          <strong>${evidence.length} clip${evidence.length === 1 ? "" : "s"}</strong>
+          <strong>${evidence.length} item${evidence.length === 1 ? "" : "s"}</strong>
         </header>
         <div class="gameplan-role-list">
           ${evidence.length ? evidence.slice(0, 4).map(renderRoleEvidenceItem).join("") : `<div class="gameplan-empty-small">No evidence linked.</div>`}
@@ -2023,6 +2576,12 @@ export async function handleClick(event, context = activeContext) {
   }
   if (event.target.closest("[data-gameplan-add-evidence]")) {
     addGameplanEvidenceItem();
+    rerenderGameplan();
+    return;
+  }
+  const linkEvidenceTrigger = event.target.closest("[data-gameplan-link-evidence]");
+  if (linkEvidenceTrigger) {
+    linkGameplanEvidenceCandidate(linkEvidenceTrigger.dataset.gameplanLinkEvidence);
     rerenderGameplan();
     return;
   }

@@ -86,7 +86,8 @@
 .gameplan-brief-trigger-list,
 .gameplan-role-list,
 .gameplan-evidence-chips,
-.gameplan-evidence-quick-list {
+.gameplan-evidence-quick-list,
+.gameplan-evidence-source-list {
   display: grid;
   gap: 0.5rem;
 }
@@ -104,6 +105,7 @@
 .gameplan-evidence-card button,
 .gameplan-observation-card button,
 .gameplan-evidence-quick-row button,
+.gameplan-evidence-source-row button,
 .gameplan-check-item button {
   min-height: 2.35rem;
   border: 0;
@@ -803,11 +805,101 @@
   font-weight: 850;
 }
 
+.gameplan-evidence-source-panel {
+  display: grid;
+  gap: 0.6rem;
+  padding-top: 0.25rem;
+}
+
+.gameplan-evidence-source-panel header {
+  align-items: flex-end;
+  padding-top: 0.1rem;
+}
+
+.gameplan-evidence-source-panel header div:first-child {
+  display: grid;
+  gap: 0.08rem;
+}
+
+.gameplan-evidence-source-panel header span,
+.gameplan-evidence-quick-row small,
+.gameplan-evidence-source-row span {
+  color: #66716a;
+  font-size: 0.69rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.gameplan-evidence-source-panel header strong {
+  color: #172018;
+}
+
+.gameplan-evidence-source-counts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.gameplan-evidence-source-counts span {
+  padding: 0.35rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(24, 46, 34, 0.08);
+}
+
 .gameplan-evidence-quick-row {
   display: grid;
   grid-template-columns: minmax(9rem, 1fr) minmax(10rem, 1.1fr) minmax(7rem, 0.45fr) auto;
   gap: 0.5rem;
   align-items: center;
+}
+
+.gameplan-evidence-quick-row small {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gameplan-evidence-source-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  align-items: center;
+  padding: 0.68rem;
+  border: 1px solid rgba(29, 29, 31, 0.1);
+  border-radius: 14px;
+  background: rgba(247, 250, 248, 0.82);
+}
+
+.gameplan-evidence-source-row div {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.gameplan-evidence-source-row strong,
+.gameplan-evidence-source-row p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gameplan-evidence-source-row strong {
+  color: #172018;
+}
+
+.gameplan-evidence-source-row p {
+  margin: 0;
+  color: #25392f;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.gameplan-evidence-source-row.is-linked {
+  border-color: rgba(24, 55, 41, 0.24);
+  background: rgba(24, 46, 34, 0.08);
 }
 
 .gameplan-command-trigger-head,
@@ -1222,6 +1314,9 @@ body.is-dark-mode .gameplan-brief-metric span,
 body.is-dark-mode .gameplan-briefing-evidence > div span,
 body.is-dark-mode .gameplan-brief-trigger section span,
 body.is-dark-mode .gameplan-brief-phase span,
+body.is-dark-mode .gameplan-evidence-source-panel header span,
+body.is-dark-mode .gameplan-evidence-quick-row small,
+body.is-dark-mode .gameplan-evidence-source-row span,
 body.is-dark-mode .gameplan-command-trigger label span {
   color: rgba(226, 232, 240, 0.72);
 }
@@ -1241,6 +1336,7 @@ body.is-dark-mode .gameplan-brief-trigger,
 body.is-dark-mode .gameplan-brief-phase,
 body.is-dark-mode .gameplan-brief-trigger section,
 body.is-dark-mode .gameplan-evidence-chip,
+body.is-dark-mode .gameplan-evidence-source-row,
 body.is-dark-mode .gameplan-inline-status,
 body.is-dark-mode .gameplan-check-item,
 body.is-dark-mode .gameplan-player-pill,
@@ -1267,6 +1363,7 @@ body.is-dark-mode .gameplan-staff-card button,
 body.is-dark-mode .gameplan-evidence-card button,
 body.is-dark-mode .gameplan-observation-card button,
 body.is-dark-mode .gameplan-evidence-quick-row button,
+body.is-dark-mode .gameplan-evidence-source-row button,
 body.is-dark-mode .gameplan-check-item button {
   background: rgba(255, 255, 255, 0.12);
   color: rgba(241, 245, 249, 0.94);
@@ -1355,10 +1452,19 @@ body.is-dark-mode .gameplan-brief-metric p,
 body.is-dark-mode .gameplan-role-card header strong,
 body.is-dark-mode .gameplan-role-item strong,
 body.is-dark-mode .gameplan-role-item p,
+body.is-dark-mode .gameplan-evidence-source-panel header strong,
+body.is-dark-mode .gameplan-evidence-source-row strong,
+body.is-dark-mode .gameplan-evidence-source-row p,
 body.is-dark-mode .gameplan-brief-trigger h3,
 body.is-dark-mode .gameplan-brief-trigger p,
 body.is-dark-mode .gameplan-brief-phase p {
   color: var(--ink);
+}
+
+body.is-dark-mode .gameplan-evidence-source-counts span,
+body.is-dark-mode .gameplan-evidence-source-row.is-linked {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(203, 213, 225, 0.22);
 }
 
 body.is-dark-mode .gameplan-brief-empty {
@@ -1457,6 +1563,7 @@ body.is-dark-mode .gameplan-player-portal-card footer > span {
   .gameplan-command-trigger-body,
   .gameplan-phase-grid-compact,
   .gameplan-evidence-quick-row,
+  .gameplan-evidence-source-row,
   .gameplan-form-grid,
   .gameplan-staff-fields,
   .gameplan-staff-top,

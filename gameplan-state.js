@@ -1,4 +1,4 @@
-const gameplanSchemaVersion = 3;
+const gameplanSchemaVersion = 4;
 
 const defaultPhaseKeys = Object.freeze([
   "inPossession",
@@ -195,6 +195,13 @@ function normalizeGameplanEvidence(entry = {}) {
     id: normalizeGameplanText(entry.id, 160) || createGameplanId("evidence"),
     title: normalizeGameplanText(entry.title, 180),
     source: normalizeGameplanText(entry.source, 120),
+    linkedSourceType: normalizeGameplanText(entry.linkedSourceType || entry.sourceType, 80).toLowerCase(),
+    linkedSourceId: normalizeGameplanText(entry.linkedSourceId || entry.sourceId, 220),
+    linkedSourceLabel: normalizeGameplanText(entry.linkedSourceLabel || entry.sourceLabel, 180),
+    linkedWorkspace: normalizeGameplanText(entry.linkedWorkspace || entry.workspaceId, 80),
+    mediaType: normalizeGameplanText(entry.mediaType || entry.assetType, 80).toLowerCase(),
+    matchEventId: normalizeGameplanText(entry.matchEventId, 180),
+    sourceRef: normalizeGameplanText(entry.sourceRef, 260),
     phase: normalizeGameplanText(entry.phase, 80),
     url: normalizeGameplanText(entry.url, 1000),
     note: normalizeGameplanText(entry.note, 900),
@@ -400,7 +407,9 @@ export function normalizeGameplan(source = {}) {
       ? source.scenarioCards.map(normalizeGameplanScenario).filter((entry) => entry.title || entry.trigger || entry.staffAction)
       : [],
     evidence: Array.isArray(source.evidence)
-      ? source.evidence.map(normalizeGameplanEvidence).filter((entry) => entry.title || entry.note || entry.url)
+      ? source.evidence
+          .map(normalizeGameplanEvidence)
+          .filter((entry) => entry.title || entry.note || entry.url || entry.linkedSourceId || entry.sourceRef)
       : [],
     live: normalizeGameplanLive(source.live),
     review: normalizeGameplanReview(source.review),

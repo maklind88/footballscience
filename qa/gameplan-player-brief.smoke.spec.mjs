@@ -41,10 +41,54 @@ async function openWorkspace(page, workspaceId, viewId = workspaceId) {
   await expect(page.locator(`[data-workspace-view="${viewId}"].is-active`)).toBeVisible();
 }
 
+async function seedGameplanEvidenceSources(page) {
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      "football-analysis-room-v1",
+      JSON.stringify({
+        clips: [
+          {
+            id: "qa-analysis-clip-1",
+            title: "Opponent build-up clip",
+            note: "Their left centre-back receives free before the press cue.",
+            clipUrl: "https://example.com/opponent-build-up.mp4",
+            confidence: "high",
+          },
+        ],
+      })
+    );
+    window.localStorage.setItem(
+      "football-scouting-v1",
+      JSON.stringify({
+        reports: [
+          {
+            id: "qa-opposition-report-1",
+            type: "opposition",
+            title: "Opposition memo: left-side build",
+            summary: "Scouting report links the clip to opponent build-up behaviour.",
+            confidence: 4,
+            createdAt: "2026-05-20T12:00:00.000Z",
+          },
+        ],
+        targets: [
+          {
+            id: "qa-target-1",
+            name: "Rivals FC winger",
+            position: "LW",
+            priority: "high",
+            notes: "Back-post threat from early crosses.",
+          },
+        ],
+      })
+    );
+  });
+}
+
 test("Gameplan Player Brief portal is audience-gated and records player receipts", async ({ context, page }) => {
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
+  await seedGameplanEvidenceSources(page);
   await bootApp(page);
   await openWorkspace(page, "gameplan");
   await expect(page.locator("#gameplanWorkspace .gameplan-shell")).toBeVisible();
@@ -55,13 +99,19 @@ test("Gameplan Player Brief portal is audience-gated and records player receipts
   await page.locator('[data-gameplan-plan-mode="edit"]').click();
   await expect(page.locator('[data-gameplan-field="summary.objective"]')).toBeVisible();
   await page.locator('[data-gameplan-field="summary.objective"]').fill("Win territory early and keep the game connected.");
+  await expect(page.locator(".gameplan-evidence-source-panel")).toBeVisible();
+  await expect(page.locator(".gameplan-evidence-source-panel")).toContainText("Opponent build-up clip");
+  await page.locator(".gameplan-evidence-source-row").filter({ hasText: "Opponent build-up clip" }).locator("[data-gameplan-link-evidence]").click();
+  await expect(page.locator(".gameplan-evidence-chips")).toContainText("Opponent build-up clip");
   await page.locator('[data-gameplan-plan-mode="briefing"]').click();
   await expect(page.locator("#gameplanWorkspace")).toContainText("Win territory early");
+  await expect(page.locator("#gameplanWorkspace")).toContainText("Opponent build-up clip");
   await expect(page.locator('[data-gameplan-field="summary.objective"]')).toHaveCount(0);
   await page.locator('[data-gameplan-tab="staff"]').click();
   await expect(page.locator(".gameplan-role-lens")).toBeVisible();
   await expect(page.locator(".gameplan-role-lens")).toContainText("My Responsibilities");
   await expect(page.locator(".gameplan-role-lens")).toContainText("Analyst Evidence");
+  await expect(page.locator(".gameplan-role-lens")).toContainText("Opponent build-up clip");
   await expect(page.locator(".gameplan-role-lens")).toContainText("Keeper Brief");
   await expect(page.locator(".gameplan-role-lens")).toContainText("Player-Safe View");
   await page.locator('[data-gameplan-tab="matchday"]').click();

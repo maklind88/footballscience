@@ -1630,6 +1630,7 @@ test("Medical operations board separates signals, cases, history and season view
         players: [
           { id: "qa-risk", name: "QA Risk Player", position: "Forward", rosterOrder: 1 },
           { id: "qa-clear", name: "QA Clear Player", position: "Midfielder", rosterOrder: 2 },
+          { id: "qa-long-term", name: "QA Long Term ACL", position: "Defender", rosterOrder: 3 },
         ],
         records: [
           {
@@ -1678,6 +1679,30 @@ test("Medical operations board separates signals, cases, history and season view
             },
             createdAt: "2026-05-01T08:00:00.000Z",
           },
+          {
+            id: "qa-long-term-case",
+            playerId: "qa-long-term",
+            injuryType: "ACL injury",
+            bodyArea: "Knee",
+            startDate: "2026-05-01",
+            endDate: "2026-09-30",
+            duration: 5,
+            durationUnit: "months",
+            status: "unavailable",
+            participation: 0,
+            reviewDate: "2026-07-15",
+            rtpPhase: "medical-restriction",
+            phase: "Protected rehab",
+            clearance: { doctor: false, physio: false, performance: false },
+            gates: {
+              strength: "pending",
+              gpsLoad: "pending",
+              painResponse: "pending",
+              wellness: "pending",
+              psychologicalReadiness: "pending",
+            },
+            createdAt: "2026-05-01T08:10:00.000Z",
+          },
         ],
       })
     );
@@ -1714,8 +1739,13 @@ test("Medical operations board separates signals, cases, history and season view
   });
   expect(menuPlacement.menuTop).toBeLessThan(menuPlacement.operationsTop);
   expect(menuPlacement.firstTabLeft - menuPlacement.menuLeft).toBeLessThan(20);
-  await expect(operations).toContainText("Review now");
+  await expect(operations).toContainText("Action required");
   await expect(operations).toContainText("ACL injury");
+  const actionCard = operations.locator(".medical-ops-card").filter({ hasText: "Action Required" });
+  await expect(actionCard).toContainText("QA Risk Player");
+  await expect(actionCard).not.toContainText("QA Long Term ACL");
+  const activeCaseBoard = operations.locator(".medical-ops-card").filter({ hasText: "Active Case Board" });
+  await expect(activeCaseBoard).toContainText("QA Long Term ACL");
 
   await operationsMenu.locator('[data-medical-ops-tab="availability"]').click();
   await expect(operationsMenu.locator('[data-medical-ops-tab="availability"]')).toHaveClass(/is-active/);

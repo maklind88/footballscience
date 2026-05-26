@@ -369,6 +369,20 @@ test("Session Planner never seeds generated training blocks onto an off day", ()
   expect(appSource).not.toContain("const defaultSession = createSessionPlannerDefaultSession(selectedDate);");
 });
 
+test("Session Planner central sync conflicts retry silently instead of reopening a modal", () => {
+  const appSource = readProjectFile("app.js");
+
+  expect(appSource).toContain("function retryCentralStateWriteAfterConflict");
+  expect(appSource).toContain("function getCentralSyncResultRevision");
+  expect(appSource).toContain("function showSessionPlannerCentralSyncNotice");
+  expect(appSource).toContain("let sessionPlannerCentralSyncNoticeAt = 0;");
+  expect(appSource).toContain("baseRevision: retryBaseRevision");
+  expect(appSource).toContain('setPlatformAutosaveStatus("issue", "Sync needs attention");');
+  expect(appSource).not.toContain("${renderSessionPlannerCentralSyncConflictOverlay()}");
+  expect(appSource).not.toContain("sessionPlannerCentralSyncConflict ||");
+  expect(appSource).not.toContain('setPlatformAutosaveStatus("conflict", result?.reason || "Central newer.")');
+});
+
 test("Session Planner tactical board keeps selection controls simple and explicit", () => {
   const appSource = readProjectFile("app.js");
 

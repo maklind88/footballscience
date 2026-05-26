@@ -59,6 +59,7 @@ const defaultStaffResponsibilityTemplates = Object.freeze([
 export const gameplanPhaseKeys = defaultPhaseKeys;
 export const gameplanPhaseLabels = defaultPhaseLabels;
 export const gameplanActiveTabs = Object.freeze(["plan", "staff", "player-brief", "matchday"]);
+export const gameplanPlanModes = Object.freeze(["briefing", "edit"]);
 export const gameplanStatusOptions = Object.freeze([
   { value: "draft", label: "Draft" },
   { value: "staff-review", label: "Staff review" },
@@ -121,6 +122,11 @@ function normalizeGameplanActiveTab(value) {
     return "matchday";
   }
   return "plan";
+}
+
+function normalizeGameplanPlanMode(value) {
+  const mode = normalizeGameplanText(value, 40);
+  return gameplanPlanModes.includes(mode) ? mode : "briefing";
 }
 
 function normalizeGameplanPerson(entry = {}) {
@@ -419,6 +425,7 @@ export function cloneGameplanState(source = {}, options = {}) {
     schemaVersion: gameplanSchemaVersion,
     activeGameplanId,
     activeTab,
+    planMode: normalizeGameplanPlanMode(source.planMode),
     gameplans,
     updatedAt: normalizeGameplanText(source.updatedAt, 40) || new Date().toISOString(),
   };

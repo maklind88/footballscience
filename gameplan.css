@@ -83,6 +83,7 @@
 .gameplan-observation-list,
 .gameplan-individual-note-list,
 .gameplan-command-triggers,
+.gameplan-brief-trigger-list,
 .gameplan-evidence-chips,
 .gameplan-evidence-quick-list {
   display: grid;
@@ -92,6 +93,7 @@
 .gameplan-plan-card,
 .gameplan-match-list button,
 .gameplan-tabs button,
+.gameplan-mode-switch button,
 .gameplan-card header button,
 .gameplan-player-audience button,
 .gameplan-delivery-row button,
@@ -140,7 +142,9 @@
 .gameplan-plan-card.is-active,
 .gameplan-plan-card:hover,
 .gameplan-tabs button.is-active,
-.gameplan-tabs button:hover {
+.gameplan-tabs button:hover,
+.gameplan-mode-switch button.is-active,
+.gameplan-mode-switch button:hover:not(:disabled) {
   background: #183729;
   color: #fff;
 }
@@ -268,10 +272,42 @@
   border-radius: 999px;
 }
 
+.gameplan-card-actions,
+.gameplan-mode-switch,
+.gameplan-briefing-header > div {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.gameplan-card-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.gameplan-mode-switch {
+  padding: 0.22rem;
+  border-radius: 999px;
+  background: rgba(24, 46, 34, 0.07);
+}
+
+.gameplan-mode-switch button {
+  min-width: 5.8rem;
+  min-height: 2rem;
+  padding: 0 0.7rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+.gameplan-briefing-header > div {
+  flex-wrap: wrap;
+}
+
 .gameplan-panel,
 .gameplan-plan-grid,
 .gameplan-player-layout,
 .gameplan-command-grid,
+.gameplan-briefing-layout,
 .gameplan-matchday-grid {
   display: grid;
   gap: 0.9rem;
@@ -472,6 +508,166 @@
 .gameplan-inline-status span {
   color: #66716a;
   font-size: 0.84rem;
+}
+
+.gameplan-briefing-command-card {
+  gap: 1rem;
+}
+
+.gameplan-briefing-command {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
+  gap: 0.75rem;
+}
+
+.gameplan-briefing-lead,
+.gameplan-brief-metric,
+.gameplan-briefing-evidence,
+.gameplan-brief-trigger,
+.gameplan-brief-phase {
+  border: 1px solid rgba(29, 29, 31, 0.1);
+  background: rgba(247, 250, 248, 0.82);
+}
+
+.gameplan-briefing-lead {
+  display: grid;
+  align-content: start;
+  gap: 0.45rem;
+  min-height: 11rem;
+  padding: clamp(0.85rem, 2vw, 1rem);
+  border-radius: 16px;
+}
+
+.gameplan-briefing-lead span,
+.gameplan-brief-metric span,
+.gameplan-briefing-evidence > div span,
+.gameplan-brief-trigger section span,
+.gameplan-brief-phase span {
+  color: #66716a;
+  font-size: 0.69rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.gameplan-briefing-lead p,
+.gameplan-brief-metric p,
+.gameplan-brief-trigger p,
+.gameplan-brief-phase p {
+  margin: 0;
+  color: #25392f;
+  line-height: 1.46;
+}
+
+.gameplan-briefing-lead p {
+  font-size: clamp(1.15rem, 2vw, 1.55rem);
+  font-weight: 850;
+}
+
+.gameplan-briefing-metrics {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.gameplan-brief-metric,
+.gameplan-brief-phase {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.72rem;
+  border-radius: 14px;
+}
+
+.gameplan-brief-empty {
+  color: #728078;
+  font-weight: 800;
+}
+
+.gameplan-briefing-evidence {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.72rem;
+  border-radius: 16px;
+}
+
+.gameplan-briefing-evidence > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.gameplan-briefing-evidence > div strong {
+  display: grid;
+  place-items: center;
+  min-width: 2rem;
+  min-height: 2rem;
+  border-radius: 999px;
+  background: #183729;
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.gameplan-brief-trigger {
+  display: grid;
+  gap: 0.72rem;
+  padding: 0.78rem;
+  border-radius: 16px;
+}
+
+.gameplan-brief-trigger header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.6rem;
+}
+
+.gameplan-brief-trigger header strong {
+  display: grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #183729;
+  color: #fff;
+}
+
+.gameplan-brief-trigger header div {
+  min-width: 0;
+}
+
+.gameplan-brief-trigger h3 {
+  margin: 0;
+  color: #172018;
+  font-size: 1rem;
+}
+
+.gameplan-brief-trigger header span {
+  color: #66716a;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.gameplan-brief-trigger-grid,
+.gameplan-brief-phase-grid {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.gameplan-brief-trigger-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.gameplan-brief-trigger section {
+  display: grid;
+  gap: 0.28rem;
+  padding: 0.68rem;
+  border-radius: 12px;
+  background: rgba(24, 46, 34, 0.06);
+}
+
+.gameplan-brief-phase-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .gameplan-command-summary {
@@ -902,6 +1098,12 @@ body.is-dark-mode .gameplan-staff-card,
 body.is-dark-mode .gameplan-evidence-card,
 body.is-dark-mode .gameplan-observation-card,
 body.is-dark-mode .gameplan-command-trigger,
+body.is-dark-mode .gameplan-briefing-lead,
+body.is-dark-mode .gameplan-brief-metric,
+body.is-dark-mode .gameplan-briefing-evidence,
+body.is-dark-mode .gameplan-brief-trigger,
+body.is-dark-mode .gameplan-brief-phase,
+body.is-dark-mode .gameplan-brief-trigger section,
 body.is-dark-mode .gameplan-evidence-chip,
 body.is-dark-mode .gameplan-inline-status,
 body.is-dark-mode .gameplan-check-item,
@@ -910,6 +1112,59 @@ body.is-dark-mode .gameplan-delivery-row {
   background: rgba(255, 255, 255, 0.08);
   color: var(--ink);
   border-color: rgba(148, 163, 184, 0.24);
+}
+
+body.is-dark-mode .gameplan-mode-switch {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+body.is-dark-mode .gameplan-plan-card,
+body.is-dark-mode .gameplan-match-list button,
+body.is-dark-mode .gameplan-tabs button,
+body.is-dark-mode .gameplan-mode-switch button,
+body.is-dark-mode .gameplan-card header button,
+body.is-dark-mode .gameplan-player-audience button,
+body.is-dark-mode .gameplan-delivery-row button,
+body.is-dark-mode .gameplan-delivery-row a,
+body.is-dark-mode .gameplan-staff-card button,
+body.is-dark-mode .gameplan-evidence-card button,
+body.is-dark-mode .gameplan-observation-card button,
+body.is-dark-mode .gameplan-evidence-quick-row button,
+body.is-dark-mode .gameplan-check-item button {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(226, 232, 240, 0.88);
+}
+
+body.is-dark-mode .gameplan-plan-card.is-active,
+body.is-dark-mode .gameplan-plan-card:hover,
+body.is-dark-mode .gameplan-tabs button.is-active,
+body.is-dark-mode .gameplan-tabs button:hover,
+body.is-dark-mode .gameplan-mode-switch button.is-active,
+body.is-dark-mode .gameplan-mode-switch button:hover:not(:disabled) {
+  background: #25543f;
+  color: #fff;
+}
+
+body.is-dark-mode .gameplan-plan-card span,
+body.is-dark-mode .gameplan-plan-card small {
+  color: rgba(226, 232, 240, 0.66);
+}
+
+body.is-dark-mode .gameplan-plan-card.is-active span,
+body.is-dark-mode .gameplan-plan-card.is-active small {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+body.is-dark-mode .gameplan-briefing-lead p,
+body.is-dark-mode .gameplan-brief-metric p,
+body.is-dark-mode .gameplan-brief-trigger h3,
+body.is-dark-mode .gameplan-brief-trigger p,
+body.is-dark-mode .gameplan-brief-phase p {
+  color: var(--ink);
+}
+
+body.is-dark-mode .gameplan-brief-empty {
+  color: rgba(226, 232, 240, 0.62);
 }
 
 body.is-dark-mode .gameplan-field textarea,
@@ -988,6 +1243,9 @@ body.is-dark-mode .gameplan-player-portal-card footer > span {
 
   .gameplan-hero,
   .gameplan-status-board,
+  .gameplan-briefing-command,
+  .gameplan-brief-trigger-grid,
+  .gameplan-brief-phase-grid,
   .gameplan-command-summary,
   .gameplan-command-trigger-head,
   .gameplan-command-trigger-body,
@@ -1017,5 +1275,14 @@ body.is-dark-mode .gameplan-player-portal-card footer > span {
 
   .gameplan-tabs button {
     flex: 1 1 8rem;
+  }
+
+  .gameplan-card-actions,
+  .gameplan-mode-switch {
+    width: 100%;
+  }
+
+  .gameplan-mode-switch button {
+    flex: 1 1 0;
   }
 }

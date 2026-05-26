@@ -181,6 +181,7 @@ test("Gameplan state carries elite workflow sections", async () => {
         const active = state.gameplans[0];
         console.log(JSON.stringify({
           activeTab: state.activeTab,
+          planMode: state.planMode,
           agenda: active.meeting.agenda,
           decisions: active.meeting.decisions,
           scenario: active.scenarioCards[0],
@@ -196,6 +197,7 @@ test("Gameplan state carries elite workflow sections", async () => {
   const result = JSON.parse(output.trim().split("\n").at(-1));
 
   expect(result.activeTab).toBe("matchday");
+  expect(result.planMode).toBe("briefing");
   expect(result.agenda).toContain("Opponent identity");
   expect(result.decisions).toBe("Press trigger approved.");
   expect(result.scenario).toEqual(expect.objectContaining({ title: "Protect lead", status: "ready" }));

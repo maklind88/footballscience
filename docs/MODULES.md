@@ -240,7 +240,7 @@ Current direction:
 - Current state key is `football-gameplan-v1`, protected by central app-state, data safety, backup, and permission contracts.
 - Gameplans are created from Schedule matches so match metadata stays connected to the season calendar.
 - The visible workflow is intentionally compact: `Plan`, `Staff`, `Player Brief`, and `Matchday`.
-- `Plan` is the Match Command view: objective, non-negotiables, key opponent threat, main advantage, evidence chips, and top three decision triggers.
+- `Plan` opens in a read-first Match Command briefing, with a separate Edit mode for objective, non-negotiables, key opponent threat, main advantage, evidence chips, phase notes, and top three decision triggers.
 - `Staff` owns responsibilities plus the staff meeting agenda, locked decisions, and plan approval.
 - `Matchday` combines coach mode, halftime message, observations, checklist, and after-action notes.
 - Player Brief is intentionally separate from staff responsibilities. It contains only player-facing headline, message, team focus, position-group focus, phase notes, player-specific individual focus, selected audience, and publish timestamp.

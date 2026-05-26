@@ -6,6 +6,7 @@ import {
   gameplanObservationStatusOptions,
   gameplanPhaseKeys,
   gameplanPhaseLabels,
+  gameplanPlanModes,
   gameplanScenarioStatusOptions,
   gameplanStatusOptions,
   getActiveGameplan,
@@ -152,6 +153,7 @@ function ensureSeedGameplan() {
   state.gameplans.push(plan);
   state.activeGameplanId = plan.id;
   state.activeTab = "plan";
+  state.planMode = "briefing";
   writeGameplanState({ syncCentral: false });
 }
 
@@ -496,6 +498,7 @@ function setActiveGameplan(gameplanId = "") {
   const state = getState();
   if (!state.gameplans?.some((plan) => plan.id === gameplanId)) return;
   state.activeGameplanId = gameplanId;
+  state.planMode = "briefing";
   writeGameplanState({ syncCentral: false });
 }
 
@@ -513,6 +516,13 @@ function setGameplanActiveTab(tabId = "") {
   writeGameplanState({ syncCentral: false });
 }
 
+function setGameplanPlanMode(mode = "") {
+  if (mode === "edit" && !canEditPlan()) return;
+  const state = getState();
+  state.planMode = gameplanPlanModes.includes(mode) ? mode : "briefing";
+  writeGameplanState({ syncCentral: false });
+}
+
 function createGameplanFromScheduleMatch(matchId = "") {
   if (!canEditWorkspace()) return;
   const match = getScheduleMatches().find((candidate) => candidate.id === matchId);
@@ -522,6 +532,7 @@ function createGameplanFromScheduleMatch(matchId = "") {
   if (existing) {
     state.activeGameplanId = existing.id;
     state.activeTab = "plan";
+    state.planMode = "briefing";
     writeGameplanState({ syncCentral: false });
     return;
   }
@@ -530,6 +541,7 @@ function createGameplanFromScheduleMatch(matchId = "") {
   state.gameplans.push(plan);
   state.activeGameplanId = plan.id;
   state.activeTab = "plan";
+  state.planMode = "briefing";
   writeGameplanState();
 }
 
@@ -861,6 +873,75 @@ function renderField(path, label, value = "", options = {}) {
   `;
 }
 
+function getOptionLabel(options = [], value = "") {
+  return options.find((option) => option.value === value)?.label || value || "";
+}
+
+function renderBriefingText(value = "", fallback = "Not set") {
+  const text = String(value || "").trim();
+  if (!text) {
+    return `<span class="gameplan-brief-empty">${escapeHtml(fallback)}</span>`;
+  }
+  return escapeHtml(text).replaceAll("\n", "<br>");
+}
+
+function getGameplanPlanMode(plan = getPlan()) {
+  return getState().planMode === "edit" && canEditPlan(plan) ? "edit" : "briefing";
+}
+
+function renderPlanModeSwitch(plan = getPlan()) {
+  const activeMode = getGameplanPlanMode(plan);
+  return `
+    <div class="gameplan-mode-switch" aria-label="Plan mode">
+      <button type="button" class="${activeMode === "briefing" ? "is-active" : ""}" data-gameplan-plan-mode="briefing">Briefing</button>
+      <button type="button" class="${activeMode === "edit" ? "is-active" : ""}" data-gameplan-plan-mode="edit" ${!canEditPlan(plan) ? "disabled" : ""}>Edit</button>
+    </div>
+  `;
+}
+
+function renderBriefingMetric(label = "", value = "", fallback = "Not set") {
+  return `
+    <article class="gameplan-brief-metric">
+      <span>${escapeHtml(label)}</span>
+      <p>${renderBriefingText(value, fallback)}</p>
+    </article>
+  `;
+}
+
+function renderBriefingTrigger(item = {}, index = 0) {
+  const statusLabel = getOptionLabel(gameplanScenarioStatusOptions, item.status || "open");
+  return `
+    <article class="gameplan-brief-trigger">
+      <header>
+        <strong>${index + 1}</strong>
+        <div>
+          <h3>${escapeHtml(item.title || `Decision trigger ${index + 1}`)}</h3>
+          <span>${escapeHtml(statusLabel)}</span>
+        </div>
+      </header>
+      <div class="gameplan-brief-trigger-grid">
+        <section>
+          <span>If</span>
+          <p>${renderBriefingText(item.trigger, "Trigger not set")}</p>
+        </section>
+        <section>
+          <span>Then</span>
+          <p>${renderBriefingText(item.staffAction, "Staff action not set")}</p>
+        </section>
+      </div>
+    </article>
+  `;
+}
+
+function renderBriefingPhase(key = "", value = "") {
+  return `
+    <article class="gameplan-brief-phase">
+      <span>${escapeHtml(gameplanPhaseLabels[key] || key)}</span>
+      <p>${renderBriefingText(value, "Phase note not set")}</p>
+    </article>
+  `;
+}
+
 function renderPlanList() {
   const state = getState();
   const plans = Array.isArray(state.gameplans) ? state.gameplans : [];
@@ -1052,7 +1133,60 @@ function renderCommandScenarioCard(item, index) {
   `;
 }
 
-function renderPlanTab(plan) {
+function renderPlanBriefingTab(plan) {
+  const scenarioCards = (plan.scenarioCards || []).slice(0, 3);
+  const evidenceCount = (plan.evidence || []).length;
+  return `
+    <section class="gameplan-panel gameplan-briefing-layout">
+      <section class="gameplan-card gameplan-card-span gameplan-briefing-command-card">
+        <header class="gameplan-briefing-header">
+          <div>
+            <span>Match Command</span>
+          </div>
+          ${renderPlanModeSwitch(plan)}
+        </header>
+        <div class="gameplan-briefing-command">
+          <div class="gameplan-briefing-lead">
+            <span>Match objective</span>
+            <p>${renderBriefingText(plan.summary?.objective, "Match objective not set")}</p>
+          </div>
+          <div class="gameplan-briefing-metrics">
+            ${renderBriefingMetric("3 non-negotiables", plan.summary?.nonNegotiables, "Non-negotiables not set")}
+            ${renderBriefingMetric("Key opponent threat", plan.opponentPlan?.threats, "Opponent threat not set")}
+            ${renderBriefingMetric("Our main advantage", plan.opponentPlan?.weakZones, "Main advantage not set")}
+          </div>
+        </div>
+        <div class="gameplan-briefing-evidence">
+          <div>
+            <span>Evidence</span>
+            <strong>${evidenceCount}</strong>
+          </div>
+          ${renderEvidenceChips(plan)}
+        </div>
+      </section>
+      <section class="gameplan-card gameplan-card-span">
+        <header><span>Top 3 Decision Triggers</span></header>
+        <div class="gameplan-brief-trigger-list">
+          ${
+            scenarioCards.length
+              ? scenarioCards.map(renderBriefingTrigger).join("")
+              : `<div class="gameplan-empty-small">No decision triggers yet.</div>`
+          }
+        </div>
+      </section>
+      <section class="gameplan-card gameplan-card-span">
+        <header><span>Phase Notes</span></header>
+        <div class="gameplan-brief-phase-grid">
+          ${["inPossession", "outOfPossession", "setPieces"]
+            .map((key) => renderBriefingPhase(key, plan.tactical?.[key]))
+            .join("")}
+        </div>
+      </section>
+    </section>
+  `;
+}
+
+function renderPlanEditTab(plan) {
   const scenarioCards = (plan.scenarioCards || []).slice(0, 3);
   const canAddTrigger = canEditPlan() && (plan.scenarioCards || []).length < 3;
   return `
@@ -1060,7 +1194,10 @@ function renderPlanTab(plan) {
       <section class="gameplan-card gameplan-card-span gameplan-command-card">
         <header>
           <span>Match Command</span>
-          <button type="button" data-gameplan-add-evidence ${!canEditPlan() ? "disabled" : ""}>Add evidence</button>
+          <div class="gameplan-card-actions">
+            ${renderPlanModeSwitch(plan)}
+            <button type="button" data-gameplan-add-evidence ${!canEditPlan() ? "disabled" : ""}>Add evidence</button>
+          </div>
         </header>
         <div class="gameplan-command-summary">
           ${renderField("summary.objective", "Match objective", plan.summary?.objective, { rows: 2 })}
@@ -1094,6 +1231,10 @@ function renderPlanTab(plan) {
       </section>
     </section>
   `;
+}
+
+function renderPlanTab(plan) {
+  return getGameplanPlanMode(plan) === "edit" ? renderPlanEditTab(plan) : renderPlanBriefingTab(plan);
 }
 
 function renderStaffResponsibilityCard(item) {
@@ -1683,6 +1824,12 @@ export async function handleClick(event, context = activeContext) {
   const tabTrigger = event.target.closest("[data-gameplan-tab]");
   if (tabTrigger) {
     setGameplanActiveTab(tabTrigger.dataset.gameplanTab);
+    rerenderGameplan();
+    return;
+  }
+  const planModeTrigger = event.target.closest("[data-gameplan-plan-mode]");
+  if (planModeTrigger) {
+    setGameplanPlanMode(planModeTrigger.dataset.gameplanPlanMode);
     rerenderGameplan();
     return;
   }

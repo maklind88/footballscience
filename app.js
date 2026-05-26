@@ -29354,33 +29354,58 @@ const activePlan = getActiveMedicalInjuryPlan(player.id, dateValue);
 const playerPlans = getMedicalPlayerInjuryPlans(player.id);
 const trailing = getMedicalTrailingRecommendationSummary(player.id, dateValue);
 const drivers = [];
+const actionDrivers = [];
+const isPlanManagedRecord = Boolean(activePlan && record?.injuryPlanId === activePlan.id);
 if (record?.participation === 0) {
-drivers.push({ label: "Unavailable today", severity: 3 });
+if (activePlan || isPlanManagedRecord) {
+drivers.push({ label: `${activePlan?.injuryType || "Active medical plan"} controls availability`, severity: 2 });
+} else {
+const driver = { label: "0% without active plan", severity: 3 };
+drivers.push(driver);
+actionDrivers.push(driver);
+}
 } else if (record && record.participation < 100) {
 drivers.push({ label: `${record.participation}% recommendation`, severity: 2 });
+if (!activePlan) {
+actionDrivers.push({ label: `${record.participation}% without active plan`, severity: 2 });
+}
 }
 if (record && record.actualParticipation !== medicalActualParticipationFallback && Number(record.actualParticipation) > record.participation) {
-drivers.push({ label: "Actual exceeded recommendation", severity: 3 });
+const driver = { label: "Actual exceeded recommendation", severity: 3 };
+drivers.push(driver);
+actionDrivers.push(driver);
 }
 if (activePlan) {
-drivers.push({ label: activePlan.injuryType, severity: activePlan.participation === 0 ? 3 : 2 });
+drivers.push({ label: activePlan.injuryType, severity: activePlan.participation === 0 ? 2 : 1 });
 const review = getMedicalPlanReviewState(activePlan, dateValue);
 if (review.severity) {
-drivers.push({ label: review.label, severity: review.severity });
+const driver = { label: review.label, severity: review.severity };
+drivers.push(driver);
+actionDrivers.push(driver);
 }
 const clearance = getMedicalPlanClearanceSummary(activePlan);
-if (!clearance.isCleared) {
-drivers.push({ label: "Clearance incomplete", severity: activePlan.participation >= 100 ? 3 : 2 });
+if (!clearance.isCleared && activePlan.participation >= 100) {
+const driver = { label: "Clearance incomplete", severity: 3 };
+drivers.push(driver);
+actionDrivers.push(driver);
+} else if (!clearance.isCleared) {
+drivers.push({ label: "Clearance pending", severity: 1 });
 }
 if (clearance.gateFailCount) {
-drivers.push({ label: `${clearance.gateFailCount} failed load gate${clearance.gateFailCount === 1 ? "" : "s"}`, severity: 3 });
+const driver = { label: `${clearance.gateFailCount} failed load gate${clearance.gateFailCount === 1 ? "" : "s"}`, severity: activePlan.participation >= 75 ? 3 : 1 };
+drivers.push(driver);
+if (activePlan.participation >= 75) {
+actionDrivers.push(driver);
+}
 }
 if (clearance.gateMonitorCount) {
-drivers.push({ label: `${clearance.gateMonitorCount} monitored load gate${clearance.gateMonitorCount === 1 ? "" : "s"}`, severity: 2 });
+drivers.push({ label: `${clearance.gateMonitorCount} monitored load gate${clearance.gateMonitorCount === 1 ? "" : "s"}`, severity: 1 });
 }
 }
 if (trailing.exceededCount) {
-drivers.push({ label: `${trailing.exceededCount} actual > recommendation`, severity: 3 });
+const driver = { label: `${trailing.exceededCount} actual > recommendation`, severity: 3 };
+drivers.push(driver);
+actionDrivers.push(driver);
 }
 if (trailing.unavailableDays >= 3) {
 drivers.push({ label: `${trailing.unavailableDays}/7 unavailable days`, severity: 2 });
@@ -29391,9 +29416,12 @@ if (playerPlans.length >= 2) {
 drivers.push({ label: `${playerPlans.length} medical cases`, severity: 1 });
 }
 const highestSeverity = drivers.reduce((highest, driver) => Math.max(highest, driver.severity), 0);
+const actionSeverity = actionDrivers.reduce((highest, driver) => Math.max(highest, driver.severity), 0);
 const score = Math.min(100, drivers.reduce((sum, driver) => sum + driver.severity * 18, 0));
 const tone = highestSeverity >= 3 ? "high" : highestSeverity === 2 ? "medium" : highestSeverity === 1 ? "low" : "clear";
-const label = tone === "high" ? "Review now" : tone === "medium" ? "Monitor" : tone === "low" ? "Watch" : "Clear";
+const actionTone = actionSeverity >= 3 ? "high" : actionSeverity === 2 ? "medium" : actionSeverity === 1 ? "low" : "clear";
+const label = actionSeverity >= 3 ? "Action required" : actionSeverity === 2 ? "Review soon" : activePlan ? "Active case" : tone === "medium" ? "Monitor" : tone === "low" ? "Watch" : "Clear";
+const actionLabel = actionSeverity >= 3 ? "Action required" : actionSeverity === 2 ? "Review soon" : actionSeverity === 1 ? "Watch" : "No action";
 return {
 player,
 record,
@@ -29401,11 +29429,16 @@ status,
 activePlan,
 trailing,
 drivers,
+actionDrivers,
 highestSeverity,
+actionSeverity,
 score,
 tone,
+actionTone,
 label,
+actionLabel,
 primaryDriver: drivers[0]?.label || "No medical signal",
+primaryActionDriver: actionDrivers[0]?.label || "No action required",
 };
 }
 function getMedicalRiskSignals(dateValue = medicalState?.selectedDate) {
@@ -29414,6 +29447,9 @@ return medicalState.players
  .filter((player) => !isMedicalItemArchived(player))
 .map((player) => getMedicalPlayerRiskSignal(player, dateValue))
 .sort((first, second) => {
+if (first.actionSeverity !== second.actionSeverity) {
+return second.actionSeverity - first.actionSeverity;
+}
 if (first.highestSeverity !== second.highestSeverity) {
 return second.highestSeverity - first.highestSeverity;
 }
@@ -29430,17 +29466,19 @@ return compareMedicalPlayers(first.player, second.player);
 }
 function getMedicalOperationsSummary(dateValue = medicalState?.selectedDate) {
 const signals = getMedicalRiskSignals(dateValue);
+const actionSignals = signals.filter((signal) => signal.actionSeverity > 0);
 const activeCases = getMedicalActiveCaseItems(dateValue);
-const clearanceBlockers = activeCases.filter((item) => !item.clearance.isCleared);
-const reviewNow = signals.filter((signal) => signal.highestSeverity >= 3).length;
+const clearanceBlockers = activeCases.filter((item) => item.plan.participation >= 100 && !item.clearance.isCleared);
+const actionRequired = actionSignals.length;
 const actualMissing = getMedicalAvailabilityItems(dateValue).filter(
 (item) => item.record && item.record.participation > 0 && item.record.actualParticipation === medicalActualParticipationFallback
 ).length;
 return {
 signals,
+actionSignals,
 activeCases,
 clearanceBlockers,
-reviewNow,
+actionRequired,
 actualMissing,
 season: getMedicalSeasonSummary(dateValue),
 };
@@ -29494,9 +29532,9 @@ ${renderMedicalOperationsTabs("medical-ops-tabs-top")}
 `;
 }
 function renderMedicalOperationsOverview(summary) {
-const urgentSignals = summary.signals.filter((signal) => signal.highestSeverity > 0).slice(0, 5);
-const briefing = summary.reviewNow
-? `${summary.reviewNow} player${summary.reviewNow === 1 ? "" : "s"} need medical review before the next football decision.`
+const actionSignals = summary.actionSignals.slice(0, 5);
+const briefing = summary.actionRequired
+? `${summary.actionRequired} player${summary.actionRequired === 1 ? "" : "s"} need medical action before the next football decision.`
 : summary.activeCases.length
 ? `${summary.activeCases.length} active case${summary.activeCases.length === 1 ? "" : "s"} under control.`
 : "No active medical blockers for the selected date.";
@@ -29508,7 +29546,7 @@ return `
 <small>${escapeHtml(formatMedicalDateLabel(medicalState.selectedDate, "long"))}</small>
 </article>
 <div class="medical-ops-stats">
-${renderMedicalOpsStat("Review now", String(summary.reviewNow), "medical signal", summary.reviewNow ? "high" : "clear")}
+${renderMedicalOpsStat("Action required", String(summary.actionRequired), "review / clearance / mismatch", summary.actionRequired ? "high" : "clear")}
 ${renderMedicalOpsStat("Active cases", String(summary.activeCases.length), "current plans", summary.activeCases.length ? "medium" : "clear")}
 ${renderMedicalOpsStat("Clearance blockers", String(summary.clearanceBlockers.length), "sign-off / gates", summary.clearanceBlockers.length ? "high" : "clear")}
 ${renderMedicalOpsStat("Actual missing", String(summary.actualMissing), "today's participation", summary.actualMissing ? "low" : "clear")}
@@ -29516,23 +29554,23 @@ ${renderMedicalOpsStat("GPS / match load", "Pending", "Performance Room bridge",
 </div>
 <article class="medical-ops-card">
 <div class="medical-command-head">
-<span>Top Review Signals</span>
-<strong>${urgentSignals.length}</strong>
+<span>Action Required</span>
+<strong>${summary.actionRequired}</strong>
 </div>
 <div class="medical-ops-signal-list">
-${urgentSignals.length
-? urgentSignals
+${actionSignals.length
+? actionSignals
 .map(
 (signal) => `
-<button type="button" data-medical-select-player="${escapeHtml(signal.player.id)}" class="medical-ops-signal-row medical-ops-tone-${escapeHtml(signal.tone)}">
+<button type="button" data-medical-select-player="${escapeHtml(signal.player.id)}" class="medical-ops-signal-row medical-ops-tone-${escapeHtml(signal.actionTone)}">
 <span>${escapeHtml(signal.player.name)}</span>
-<strong>${escapeHtml(signal.label)}</strong>
-<small>${escapeHtml(signal.primaryDriver)}</small>
+<strong>${escapeHtml(signal.actionLabel)}</strong>
+<small>${escapeHtml(signal.primaryActionDriver)}</small>
 </button>
 `
 )
 .join("")
-: `<div class="medical-empty-inline">No review signals for the selected date.</div>`}
+: `<div class="medical-empty-inline">No medical actions required for the selected date.</div>`}
 </div>
 </article>
 ${renderMedicalDailyHuddle()}
@@ -29632,7 +29670,7 @@ return `
 <strong>${signal.record ? `${signal.record.participation}%` : "Not set"}<small>${escapeHtml(signal.status.label)}</small></strong>
 <span>${escapeHtml(planLabel)}<small>${signal.trailing.average === null ? "No 7-day trend" : `${signal.trailing.average}% trailing average`}</small></span>
 <span class="medical-ops-driver-cell">${renderMedicalSignalDrivers(signal, 4)}</span>
-<strong>${escapeHtml(signal.label)}<small>${signal.score ? `${signal.score}/100 signal score` : "No action"}</small></strong>
+<strong>${escapeHtml(signal.actionSeverity ? signal.actionLabel : signal.label)}<small>${escapeHtml(signal.actionSeverity ? signal.primaryActionDriver : "No action")}</small></strong>
 </button>
 `;
 })

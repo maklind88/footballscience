@@ -166,6 +166,7 @@ shotModeButton: document.getElementById("shotModeButton"),
 assignBallButton: document.getElementById("assignBallButton"),
 defensiveAutopilotButton: document.getElementById("defensiveAutopilotButton"),
 offensiveAutopilotButton: document.getElementById("offensiveAutopilotButton"),
+autoV2DebugButton: document.getElementById("autoV2DebugButton"),
 previousStepButton: document.getElementById("previousStepButton"),
 nextStepButton: document.getElementById("nextStepButton"),
 sequenceStepLabel: document.getElementById("sequenceStepLabel"),
@@ -675,6 +676,61 @@ let centralStateRefreshTimer = null;
 const centralStateWriteQueue = new Map();
 const centralStateWriteSuppressionKeys = new Set();
 const centralStateRefreshIntervalMs = 10000;
+let platformAutosaveStatus = {
+state: "saved",
+message: "Saved",
+updatedAt: "",
+};
+let platformAutosaveStatusTimer = null;
+function getPlatformAutosaveStatusLabel(state = platformAutosaveStatus.state) {
+if (state === "saving") return "Saving";
+if (state === "issue" || state === "conflict") return "Sync issue";
+return "Saved";
+}
+function renderPlatformAutosaveStatus() {
+if (!document.body) {
+return;
+}
+let statusElement = document.querySelector("[data-platform-autosave-status]");
+if (!statusElement) {
+statusElement = document.createElement("div");
+statusElement.className = "platform-autosave-status";
+statusElement.dataset.platformAutosaveStatus = "";
+statusElement.setAttribute("role", "status");
+statusElement.setAttribute("aria-live", "polite");
+document.body.appendChild(statusElement);
+}
+const state = platformAutosaveStatus.state || "saved";
+const label = getPlatformAutosaveStatusLabel(state);
+const detail = platformAutosaveStatus.message && platformAutosaveStatus.message !== label
+? platformAutosaveStatus.message
+: "";
+statusElement.className = `platform-autosave-status is-${state}`;
+statusElement.innerHTML = `
+  <span class="platform-autosave-status-dot" aria-hidden="true"></span>
+  <strong>${escapeHtml(label)}</strong>
+  ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
+`;
+}
+function setPlatformAutosaveStatus(state = "saved", message = "") {
+const nextState = ["saved", "saving", "issue", "conflict"].includes(state) ? state : "saved";
+platformAutosaveStatus = {
+state: nextState,
+message: String(message || getPlatformAutosaveStatusLabel(nextState)),
+updatedAt: getDataSafetyNow(),
+};
+if (platformAutosaveStatusTimer) {
+window.clearTimeout(platformAutosaveStatusTimer);
+platformAutosaveStatusTimer = null;
+}
+renderPlatformAutosaveStatus();
+if (nextState === "saved") {
+platformAutosaveStatusTimer = window.setTimeout(() => {
+const statusElement = document.querySelector("[data-platform-autosave-status]");
+statusElement?.classList.add("is-idle");
+}, 2200);
+}
+}
 function getCentralStateBridge() {
 return window.footballScienceCentralState ?? null;
 }
@@ -768,6 +824,7 @@ pendingCentralSync: false,
 queueDataSafetySnapshot("central-merge");
 if (key === sessionPlannerStorageKey) {
 sessionPlannerState = readSessionPlannerStatePreservingUiSelection();
+syncSessionPlannerBoardHistoryBaselines(getSessionPlannerSelectedBlock());
 if (hubState?.activeWorkspaceId === "session-planner" && !shouldDeferCentralizedAppStateReload()) {
 renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
@@ -848,6 +905,28 @@ renderTransferRoomWorkspace();
 }
 }
 }
+function getCentralSyncResultValue(result = {}) {
+const candidates = [
+result?.value,
+result?.currentValue,
+result?.serverValue,
+result?.data?.value,
+result?.record?.value,
+];
+return candidates.find((value) => typeof value === "string") ?? "";
+}
+function registerSessionPlannerCentralSyncConflict(write = {}, result = {}) {
+if (String(write.key || "") !== sessionPlannerStorageKey) {
+return;
+}
+sessionPlannerCentralSyncConflict = {
+key: sessionPlannerStorageKey,
+reason: String(result?.reason || "Another version was saved first."),
+localValue: String(write.value || ""),
+centralValue: getCentralSyncResultValue(result),
+createdAt: getDataSafetyNow(),
+};
+}
 function queueCentralStateWrite(key, value, options = {}) {
 if (window.__footballScienceCentralHydrating) {
 return;
@@ -862,8 +941,10 @@ return;
 }
 if (!getCurrentPlatformUser() || !bridge?.syncKey) {
 queueCentralStateStatus("Central sync unavailable.");
+setPlatformAutosaveStatus("issue", "Central sync unavailable.");
 return;
 }
+setPlatformAutosaveStatus("saving", "Saving");
 setCentralSyncPendingState(normalizedKey, true, Boolean(options.removed));
 centralStateWriteQueue.set(normalizedKey, {
 key: normalizedKey,
@@ -894,7 +975,12 @@ if (!result?.ok) {
 if (result?.conflict || result?.status === 409) {
 setCentralSyncPendingState(write.key, false, write.removed);
 queueCentralStateStatus(result?.reason || "Central newer.");
+registerSessionPlannerCentralSyncConflict(write, result);
+setPlatformAutosaveStatus("conflict", result?.reason || "Central newer.");
 await bridge.hydrate?.({ forceApply: true }).catch(() => {});
+if (write.key === sessionPlannerStorageKey && hubState?.activeWorkspaceId === "session-planner") {
+renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+}
 continue;
 }
 for (let retryIndex = index; retryIndex < writes.length; retryIndex += 1) {
@@ -902,6 +988,7 @@ const retryWrite = writes[retryIndex];
 centralStateWriteQueue.set(retryWrite.key, retryWrite);
 }
 queueCentralStateStatus(result?.reason || "Sync failed.");
+setPlatformAutosaveStatus("issue", result?.reason || "Sync failed.");
 return;
 }
 applyCentralSyncedStateValue(write, result.value);
@@ -911,6 +998,7 @@ showSessionPlannerToast("Central sync merged.", "warning");
 setCentralSyncPendingState(write.key, false, write.removed);
 }
 queueCentralStateStatus("");
+setPlatformAutosaveStatus("saved", "Saved");
 }
 function recordDataSafetyWrite(key, value, options = {}) {
 const normalizedKey = String(key || "");
@@ -4413,6 +4501,8 @@ movementProgress: 0,
 function resetPlayerMovementProgress(players = state.players) {
 players.forEach((player) => {
 player.movementProgress = 0;
+player.autoV2Velocity = null;
+player.autoV2LastElapsed = 0;
 });
 }
 function createInitialState() {
@@ -4439,6 +4529,7 @@ ballSpeedMode: "auto",
 dribbleSpeedMode: "auto",
 defensiveAutopilot: false,
 offensiveAutopilot: false,
+autoV2Debug: false,
 autoPilotPlay: {
 active: false,
 nextActionTimeoutId: null,
@@ -4534,6 +4625,7 @@ resetFormations: false,
 return initialState;
 }
 let state = createInitialState();
+window.__autoV2DebugEnabled = Boolean(window.__autoV2DebugEnabled);
 let lastFrame = null;
 let simulatorAnimationRuntime = null;
 let simulatorAnimationRuntimePromise = null;
@@ -4626,6 +4718,17 @@ let sessionPlannerDraggedLibraryExerciseId = "";
 let sessionPlannerLibraryPointerDrag = null;
 let sessionPlannerLibrarySuppressNextClick = false;
 let sessionPlannerPendingLibrarySave = null;
+let sessionPlannerCentralSyncConflict = null;
+const sessionPlannerBoardHistoryLimit = 80;
+let sessionPlannerBoardHistoryApplying = false;
+const sessionPlannerBoardHistoryBaselines = {
+tactical: new Map(),
+player: new Map(),
+};
+const sessionPlannerBoardHistoryStacks = {
+tactical: new Map(),
+player: new Map(),
+};
 let sessionPlannerSnapshotRecoveryQueued = false;
 let sessionPlannerExerciseLibrarySnapshotRecoveryQueued = false;
 let sessionPlannerHistoryEntries = [];
@@ -13844,11 +13947,184 @@ showSessionPlannerToast("Session planner restored from local backup.");
 }
 });
 }
+function getSessionPlannerBoardHistoryKey(block = getSessionPlannerSelectedBlock()) {
+return `${sessionPlannerState?.selectedDate || "date"}::${block?.id || "block"}`;
+}
+function stringifySessionPlannerBoardSnapshot(snapshot = {}) {
+try {
+return JSON.stringify(snapshot);
+} catch {
+return "";
+}
+}
+function cloneSessionPlannerBoardDataObject(value = {}) {
+return value && typeof value === "object" && !Array.isArray(value)
+? JSON.parse(JSON.stringify(value))
+: {};
+}
+function createSessionPlannerTacticalBoardSnapshot(block = getSessionPlannerSelectedBlock()) {
+if (!block) {
+return null;
+}
+const frames = normalizeSessionPlannerTacticalFrames(block.tacticalFrames);
+return {
+tacticalPitchMode: normalizeSessionPlannerTacticalPitchMode(block.tacticalPitchMode),
+tacticalFrames: frames,
+tacticalActiveFrameId: normalizeSessionPlannerTacticalActiveFrameId(block.tacticalActiveFrameId, frames),
+tacticalElements: Array.isArray(block.tacticalElements)
+? block.tacticalElements.map(cloneSessionPlannerTacticalElement)
+: [],
+};
+}
+function createSessionPlannerPlayerBoardSnapshot(block = getSessionPlannerSelectedBlock()) {
+if (!block) {
+return null;
+}
+return {
+playerBoardLayoutMode: block.playerBoardLayoutMode === "manual" ? "manual" : "auto",
+playerBoardPositions: normalizeSessionPlannerPlayerBoardPositions(block.playerBoardPositions),
+playerBoardColors: normalizeSessionPlannerPlayerBoardColors(block.playerBoardColors),
+};
+}
+function createSessionPlannerBoardSnapshot(type, block = getSessionPlannerSelectedBlock()) {
+return type === "player"
+? createSessionPlannerPlayerBoardSnapshot(block)
+: createSessionPlannerTacticalBoardSnapshot(block);
+}
+function getSessionPlannerBoardHistoryStack(type, key) {
+const store = sessionPlannerBoardHistoryStacks[type] || sessionPlannerBoardHistoryStacks.tactical;
+if (!store.has(key)) {
+store.set(key, { undo: [], redo: [] });
+}
+return store.get(key);
+}
+function trimSessionPlannerBoardHistoryStack(stack) {
+while (stack.undo.length > sessionPlannerBoardHistoryLimit) {
+stack.undo.shift();
+}
+while (stack.redo.length > sessionPlannerBoardHistoryLimit) {
+stack.redo.shift();
+}
+}
+function syncSessionPlannerBoardHistoryBaseline(type, block = getSessionPlannerSelectedBlock()) {
+const snapshot = createSessionPlannerBoardSnapshot(type, block);
+if (!snapshot || !block) {
+return;
+}
+sessionPlannerBoardHistoryBaselines[type]?.set(getSessionPlannerBoardHistoryKey(block), snapshot);
+}
+function syncSessionPlannerBoardHistoryBaselines(block = getSessionPlannerSelectedBlock()) {
+syncSessionPlannerBoardHistoryBaseline("tactical", block);
+syncSessionPlannerBoardHistoryBaseline("player", block);
+}
+function captureSessionPlannerBoardHistoryFromState() {
+if (sessionPlannerBoardHistoryApplying) {
+return;
+}
+const block = getSessionPlannerSelectedBlock();
+if (!block) {
+return;
+}
+["tactical", "player"].forEach((type) => {
+const snapshot = createSessionPlannerBoardSnapshot(type, block);
+const baselineStore = sessionPlannerBoardHistoryBaselines[type];
+if (!snapshot || !baselineStore) {
+return;
+}
+const key = getSessionPlannerBoardHistoryKey(block);
+const previousSnapshot = baselineStore.get(key);
+if (!previousSnapshot) {
+baselineStore.set(key, snapshot);
+return;
+}
+if (stringifySessionPlannerBoardSnapshot(previousSnapshot) === stringifySessionPlannerBoardSnapshot(snapshot)) {
+return;
+}
+const stack = getSessionPlannerBoardHistoryStack(type, key);
+stack.undo.push(previousSnapshot);
+stack.redo = [];
+trimSessionPlannerBoardHistoryStack(stack);
+baselineStore.set(key, snapshot);
+});
+}
+function applySessionPlannerBoardSnapshot(type, snapshot) {
+const block = getSessionPlannerSelectedBlock();
+if (!block || !snapshot) {
+return false;
+}
+sessionPlannerBoardHistoryApplying = true;
+try {
+if (type === "player") {
+block.playerBoardLayoutMode = snapshot.playerBoardLayoutMode === "manual" ? "manual" : "auto";
+block.playerBoardPositions = normalizeSessionPlannerPlayerBoardPositions(snapshot.playerBoardPositions);
+block.playerBoardColors = normalizeSessionPlannerPlayerBoardColors(snapshot.playerBoardColors);
+markSessionPlannerBlockFieldsUpdated(block, ["playerBoardLayoutMode", "playerBoardPositions", "playerBoardColors"]);
+} else {
+const frames = normalizeSessionPlannerTacticalFrames(snapshot.tacticalFrames);
+block.tacticalPitchMode = normalizeSessionPlannerTacticalPitchMode(snapshot.tacticalPitchMode);
+block.tacticalFrames = frames;
+block.tacticalActiveFrameId = normalizeSessionPlannerTacticalActiveFrameId(snapshot.tacticalActiveFrameId, frames);
+block.tacticalElements = Array.isArray(snapshot.tacticalElements)
+? snapshot.tacticalElements.map(cloneSessionPlannerTacticalElement)
+: [];
+markSessionPlannerBlockFieldsUpdated(block, ["tacticalPitchMode", "tacticalElements", "tacticalFrames", "tacticalActiveFrameId"]);
+sessionPlannerTacticalPendingPoint = null;
+sessionPlannerTacticalDraftLineState = null;
+sessionPlannerTacticalSelectionState = null;
+clearSessionPlannerTacticalSelection();
+}
+writeSessionPlannerState();
+} finally {
+sessionPlannerBoardHistoryApplying = false;
+}
+syncSessionPlannerBoardHistoryBaseline(type, block);
+renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+return true;
+}
+function undoSessionPlannerBoardHistory(type) {
+const block = getSessionPlannerSelectedBlock();
+if (!block || !canEditSessionPlanner()) {
+return false;
+}
+const key = getSessionPlannerBoardHistoryKey(block);
+const stack = getSessionPlannerBoardHistoryStack(type, key);
+if (!stack.undo.length) {
+showSessionPlannerToast("Nothing to undo yet.", "warning");
+return false;
+}
+const currentSnapshot = createSessionPlannerBoardSnapshot(type, block);
+const previousSnapshot = stack.undo.pop();
+if (currentSnapshot) {
+stack.redo.push(currentSnapshot);
+}
+trimSessionPlannerBoardHistoryStack(stack);
+return applySessionPlannerBoardSnapshot(type, previousSnapshot);
+}
+function redoSessionPlannerBoardHistory(type) {
+const block = getSessionPlannerSelectedBlock();
+if (!block || !canEditSessionPlanner()) {
+return false;
+}
+const key = getSessionPlannerBoardHistoryKey(block);
+const stack = getSessionPlannerBoardHistoryStack(type, key);
+if (!stack.redo.length) {
+showSessionPlannerToast("Nothing to redo yet.", "warning");
+return false;
+}
+const currentSnapshot = createSessionPlannerBoardSnapshot(type, block);
+const nextSnapshot = stack.redo.pop();
+if (currentSnapshot) {
+stack.undo.push(currentSnapshot);
+}
+trimSessionPlannerBoardHistoryStack(stack);
+return applySessionPlannerBoardSnapshot(type, nextSnapshot);
+}
 function writeSessionPlannerState() {
 if (!sessionPlannerState) {
 return false;
 }
 try {
+captureSessionPlannerBoardHistoryFromState();
 let existingState = null;
 try {
 const rawExistingState = window.localStorage.getItem(sessionPlannerStorageKey);
@@ -14173,6 +14449,7 @@ sessionPlannerVisualPreviewOpen = false;
 sessionPlannerPlayerBoardOpen = false;
 sessionPlannerPlayerBoardAssistantOpen = false;
 sessionPlannerPrintOverlayOpen = false;
+syncSessionPlannerBoardHistoryBaseline("tactical", getSessionPlannerSelectedBlock());
 }
 sessionPlannerTacticalPendingPoint = null;
 sessionPlannerTacticalDraftLineState = null;
@@ -14192,6 +14469,7 @@ sessionPlannerVisualPreviewOpen = false;
 sessionPlannerTacticalboardOpen = false;
 sessionPlannerPrintOverlayOpen = false;
 syncSessionPlannerPlayerBoardSelection(getSessionPlannerSelectedBlock());
+syncSessionPlannerBoardHistoryBaseline("player", getSessionPlannerSelectedBlock());
 } else {
 sessionPlannerPlayerBoardDragState = null;
 sessionPlannerPlayerBoardSelectionState = null;
@@ -14731,17 +15009,7 @@ function undoSelectedSessionPlannerTacticalBoardAction() {
 if (!canEditSessionPlanner()) {
 return;
 }
-const block = getSessionPlannerSelectedBlock();
-if (!block || !Array.isArray(block.tacticalElements) || !block.tacticalElements.length) {
-return;
-}
-const removedElement = block.tacticalElements.pop();
-sessionPlannerTacticalPendingPoint = null;
-sessionPlannerTacticalDraftLineState = null;
-setSessionPlannerTacticalSelectedElements(
-getSessionPlannerTacticalSelectedElementIds().filter((elementId) => elementId !== removedElement?.id)
-);
-refreshSessionPlannerTacticalboardCanvas({ persist: true });
+undoSessionPlannerBoardHistory("tactical");
 }
 function removeSessionPlannerTacticalElement(elementId) {
 if (!canEditSessionPlanner() || !elementId) {
@@ -17771,6 +18039,76 @@ return `
     </div>
   `;
 }
+function renderSessionPlannerCentralSyncConflictOverlay() {
+if (!sessionPlannerCentralSyncConflict) {
+return "";
+}
+return `
+    <div class="session-library-overlay session-save-conflict-overlay" data-session-central-conflict-overlay>
+      <section class="session-library-modal session-save-conflict-modal session-central-conflict-modal" role="dialog" aria-modal="true" aria-label="Session sync conflict">
+        <header class="session-library-modal-head">
+          <div>
+            <span>Autosave</span>
+            <h2>Someone saved this session first</h2>
+          </div>
+          <button
+            type="button"
+            class="session-library-close-button"
+            data-session-central-conflict-action="keep-central"
+            aria-label="Keep synced version"
+          >
+            Keep synced
+          </button>
+        </header>
+        <div class="session-save-conflict-copy">
+          <strong>Sync issue</strong>
+          <p>${escapeHtml(sessionPlannerCentralSyncConflict.reason || "The central version changed while you were editing.")}</p>
+          <p>Choose the synced version, or save your local board changes again if you want them to replace the latest version.</p>
+        </div>
+        <div class="session-save-conflict-actions">
+          <button type="button" class="session-save-conflict-secondary" data-session-central-conflict-action="keep-central">
+            Use synced version
+          </button>
+          <button type="button" class="session-save-conflict-primary" data-session-central-conflict-action="save-local">
+            Save my version
+          </button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+function resolveSessionPlannerCentralSyncConflict(action = "keep-central") {
+if (!sessionPlannerCentralSyncConflict) {
+return;
+}
+const conflict = sessionPlannerCentralSyncConflict;
+sessionPlannerCentralSyncConflict = null;
+if (action === "save-local" && conflict.localValue) {
+window.__footballScienceCentralHydrating = true;
+try {
+rawDataSafetySetItem(sessionPlannerStorageKey, conflict.localValue);
+} finally {
+window.__footballScienceCentralHydrating = false;
+}
+sessionPlannerState = readSessionPlannerStatePreservingUiSelection();
+queueCentralStateWrite(sessionPlannerStorageKey, conflict.localValue);
+setPlatformAutosaveStatus("saving", "Saving");
+} else if (conflict.centralValue) {
+window.__footballScienceCentralHydrating = true;
+try {
+rawDataSafetySetItem(sessionPlannerStorageKey, conflict.centralValue);
+} finally {
+window.__footballScienceCentralHydrating = false;
+}
+sessionPlannerState = readSessionPlannerStatePreservingUiSelection();
+setPlatformAutosaveStatus("saved", "Saved");
+} else {
+setPlatformAutosaveStatus("saved", "Saved");
+}
+if (hubState?.activeWorkspaceId === "session-planner") {
+renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+}
+}
 function renderSessionPlannerActionIcon(name) {
 const icons = {
 eye: `
@@ -18018,7 +18356,8 @@ ${group.tools
               <button type="button" class="session-tacticalboard-copy-selected" data-session-copy-tactical-selected>Copy selected</button>
               <button type="button" class="session-tacticalboard-paste" data-session-paste-tactical-clipboard>Paste</button>
               <button type="button" class="session-tacticalboard-delete-selected" data-session-delete-tactical-selected>Delete selected</button>
-              <button type="button" class="session-tacticalboard-undo" data-session-undo-board>Undo last</button>
+              <button type="button" class="session-tacticalboard-undo" data-session-undo-board="tactical">Undo</button>
+              <button type="button" class="session-tacticalboard-redo" data-session-redo-board="tactical">Redo</button>
               <button type="button" class="session-tacticalboard-clear" data-session-clear-board title="Delete all drawings">Delete all</button>
             </div>
           </aside>
@@ -20458,6 +20797,8 @@ return `
         <button type="button" class="session-player-board-tool-button is-priority" data-session-player-board-prioritize ${selectedDisabled}>Prioritize</button>
       </form>
       <button type="button" class="session-player-board-tool-button" data-session-player-board-reset-positions ${playersDisabled}>Reset</button>
+      <button type="button" class="session-player-board-tool-button" data-session-undo-board="player" ${playersDisabled}>Undo</button>
+      <button type="button" class="session-player-board-tool-button" data-session-redo-board="player" ${playersDisabled}>Redo</button>
       <div class="session-player-board-color-tools" aria-label="Player board colours">
         <span>Colour</span>
         ${colorButtons}
@@ -21551,6 +21892,7 @@ ${renderSessionPlannerEditableField(block, "principles", "Principles & Coaching 
     ${renderSessionPlannerPeriodizationOverlay()}
     ${renderSessionPlannerLibraryOverlay()}
     ${renderSessionPlannerLibrarySaveConflictOverlay()}
+    ${renderSessionPlannerCentralSyncConflictOverlay()}
     ${renderSessionPlannerVisualPreviewOverlay(block)}
     ${renderSessionPlannerTacticalboardOverlay(block)}
     ${renderSessionPlannerPlayerBoardOverlay(block)}
@@ -21626,7 +21968,7 @@ ui.profileWorkspace.innerHTML = `
         <span class="profile-role-pill">${escapeHtml(getRoleLabel(user.role))}</span>
       </header>
       <form id="profileForm" class="platform-form profile-form">
-        ${profileMessage ? `<p class="staff-message profile-wide">${escapeHtml(profileMessage)}</p>` : ""}
+        ${profileMessage ? `<p class="staff-message profile-wide platform-inline-toast" role="status" aria-live="polite">${escapeHtml(profileMessage)}</p>` : ""}
         <div class="profile-image-field profile-wide">
           <div>
             <span>Profile image</span>
@@ -22017,7 +22359,7 @@ ui.staffWorkspace.innerHTML = `
         </div>
         <span class="profile-role-pill">${isAdmin ? "Admin" : "View"}</span>
       </header>
-      ${message ? `<p class="staff-message">${escapeHtml(message)}</p>` : ""}
+      ${message ? `<p class="staff-message platform-inline-toast" role="status" aria-live="polite">${escapeHtml(message)}</p>` : ""}
       <section class="staff-layout">
         <div class="staff-list-card">
           <div class="staff-card-head">
@@ -23244,7 +23586,7 @@ ui.adminWorkspace.innerHTML = `
         </div>
         <span class="profile-role-pill">Admin</span>
       </header>
-      ${message ? `<p class="staff-message">${escapeHtml(message)}</p>` : ""}
+      ${message ? `<p class="staff-message platform-inline-toast" role="status" aria-live="polite">${escapeHtml(message)}</p>` : ""}
       ${renderAdminStructurePanel(currentUser, structure, users)}
       ${currentUserIsPlatformAdmin ? renderPlatformReadinessDashboard() : ""}
       ${currentUserIsPlatformAdmin ? renderPlatformAppearanceGovernancePanel() : ""}
@@ -24392,7 +24734,7 @@ if (!message) {
 return "";
 }
 if (typeof message === "string") {
-return `<div class="player-profile-message">${escapeHtml(message).replace(/\n/g, "<br>")}</div>`;
+    return `<div class="player-profile-message platform-inline-toast" role="status" aria-live="polite">${escapeHtml(message).replace(/\n/g, "<br>")}</div>`;
 }
 if (typeof message === "object") {
 const lines = Array.isArray(message.lines) ? message.lines.filter(Boolean) : [];
@@ -24410,7 +24752,7 @@ items.length
 ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
 : "",
 ].join("");
-return `<div class="player-profile-message ${status}">${body || ""}</div>`;
+return `<div class="player-profile-message ${status} platform-inline-toast" role="status" aria-live="polite">${body || ""}</div>`;
 }
 return "";
 }
@@ -29830,7 +30172,7 @@ return `
 <section class="medical-availability-workspace" data-medical-availability-workspace aria-label="Medical availability recommendations">
 ${renderMedicalDateStrip()}
 ${renderMedicalActivityContextPanel()}
-${message ? `<div class="medical-message">${escapeHtml(message)}</div>` : ""}
+${message ? `<div class="medical-message platform-inline-toast" role="status" aria-live="polite">${escapeHtml(message)}</div>` : ""}
 <section class="medical-metrics-grid" aria-label="Medical availability summary">
 ${renderMedicalMetric("Full", String(stats.fullCount), "100%", "full")}
 ${renderMedicalMetric("Modified", String(stats.modifiedCount), "10-75%", "modified")}
@@ -30882,7 +31224,7 @@ ui.medicalTeamWorkspace.innerHTML = `
 <div class="medical-access-chip">${escapeHtml(getMedicalAccessLabel())}</div>
 </header>
 ${renderMedicalOperationsTopMenu()}
-${showAvailabilityWorkspace ? renderMedicalAvailabilityWorkspace(message) : `${message ? `<div class="medical-message">${escapeHtml(message)}</div>` : ""}${renderMedicalOperationsSystem()}`}
+${showAvailabilityWorkspace ? renderMedicalAvailabilityWorkspace(message) : `${message ? `<div class="medical-message platform-inline-toast" role="status" aria-live="polite">${escapeHtml(message)}</div>` : ""}${renderMedicalOperationsSystem()}`}
 ${renderMedicalPlayerModal()}
 </div>
 `;
@@ -32452,6 +32794,7 @@ ui.playPauseButton.textContent = "Start";
 updateModeButtons();
 syncDefensiveAutopilotButton();
 syncOffensiveAutopilotButton();
+syncAutoV2DebugButton();
 updateSequenceButtons();
 logEvent("Unsaved simulator session closed. New simulator session starts with a kick-off.");
 }
@@ -32808,6 +33151,7 @@ return true;
 return Boolean(
 sessionPlannerLibraryOpen ||
 sessionPlannerPendingLibrarySave ||
+sessionPlannerCentralSyncConflict ||
 sessionPlannerVisualPreviewOpen ||
 sessionPlannerPrintOverlayOpen ||
 sessionPlannerTacticalboardOpen ||
@@ -33272,6 +33616,8 @@ ballFocusPoint: step.defensiveAutopilot.ballFocusPoint
 presserPlayerId: step.defensiveAutopilot.presserPlayerId ?? null,
 phaseKey: step.defensiveAutopilot.phaseKey ?? null,
 phaseLabel: step.defensiveAutopilot.phaseLabel ?? null,
+behaviorVersion: step.defensiveAutopilot.behaviorVersion ?? null,
+intents: cloneDefensiveAutopilotIntents(step.defensiveAutopilot.intents),
 }
 : null,
 offensiveAutopilot: step.offensiveAutopilot
@@ -33285,6 +33631,9 @@ phaseKey: step.offensiveAutopilot.phaseKey ?? null,
 phaseLabel: step.offensiveAutopilot.phaseLabel ?? null,
 principleKey: step.offensiveAutopilot.principleKey ?? null,
 principleLabel: step.offensiveAutopilot.principleLabel ?? null,
+behaviorVersion: step.offensiveAutopilot.behaviorVersion ?? null,
+intents: cloneOffensiveAutopilotIntents(step.offensiveAutopilot.intents),
+triggers: cloneAutoV2DecisionTriggers(step.offensiveAutopilot.triggers),
 }
 : null,
 beforeSnapshot: cloneSnapshot(step.beforeSnapshot),
@@ -39633,6 +39982,434 @@ actionMeta.target ?? reference.targetPoint,
 actionMeta.defensiveAutopilot?.phaseKey ?? null
 );
 return getDefensiveDribblePressTarget(player, reference, profile, state.ball.position);
+}
+function cloneDefensiveAutopilotIntents(intents = null) {
+if (!intents || typeof intents !== "object") {
+return null;
+}
+return Object.fromEntries(
+Object.entries(intents).map(([playerId, intent]) => [
+playerId,
+{
+type: intent?.type ?? "protect-space",
+label: intent?.label ?? "Protect space",
+urgency: Number.isFinite(intent?.urgency) ? intent.urgency : 0.5,
+lineKey: intent?.lineKey ?? null,
+relationship: intent?.relationship ?? null,
+},
+])
+);
+}
+function getDefensiveAutoV2Intent(player, actionMeta, targetPosition = null) {
+const storedIntent = actionMeta?.defensiveAutopilot?.intents?.[player.id];
+if (storedIntent) {
+return {
+type: storedIntent.type ?? "protect-space",
+label: storedIntent.label ?? "Protect space",
+urgency: Number.isFinite(storedIntent.urgency) ? storedIntent.urgency : 0.5,
+lineKey: storedIntent.lineKey ?? getDefensiveAutopilotLineKey(
+player,
+teams[player.team]?.formation,
+actionMeta?.defensiveAutopilot?.phaseKey ?? "midBlock"
+),
+relationship: storedIntent.relationship ?? null,
+};
+}
+const phaseKey = actionMeta?.defensiveAutopilot?.phaseKey ?? getDefensivePhaseKey(player.team, targetPosition ?? state.ball.position);
+const lineKey = getDefensiveAutopilotLineKey(player, teams[player.team]?.formation, phaseKey);
+const presserId = actionMeta?.defensiveAutopilot?.presserPlayerId ?? null;
+if (presserId && player.id === presserId) {
+return {
+type: "press-ball",
+label: "Press ball",
+urgency: phaseKey === "highPress" ? 1 : 0.88,
+lineKey,
+relationship: "nearest pressure",
+};
+}
+if (lineKey === "back") {
+return {
+type: phaseKey === "highPress" ? "recover-goal-side" : "protect-space",
+label: phaseKey === "highPress" ? "Recover goal-side" : "Protect space",
+urgency: phaseKey === "boxDefending" ? 0.66 : 0.58,
+lineKey,
+relationship: "hold back-line relation",
+};
+}
+if (lineKey === "midfield") {
+const centralDistance = Math.abs((targetPosition?.y ?? player.position.y) - pitch.width / 2);
+return {
+type: centralDistance < pitch.width * 0.18 ? "screen-central-lane" : "cover-lane",
+label: centralDistance < pitch.width * 0.18 ? "Screen central lane" : "Cover lane",
+urgency: phaseKey === "lowBlock" || phaseKey === "boxDefending" ? 0.7 : 0.76,
+lineKey,
+relationship: "protect pass lane",
+};
+}
+return {
+type: phaseKey === "highPress" ? "cover-lane" : "support-behind",
+label: phaseKey === "highPress" ? "Cover lane" : "Support behind",
+urgency: phaseKey === "highPress" ? 0.82 : 0.62,
+lineKey,
+relationship: "cover behind pressure",
+};
+}
+function buildDefensiveAutoV2Intents(teamId, defensivePlayers, plannedPositions, profile, presserId = null) {
+const phaseKey = profile?.phaseKey ?? "midBlock";
+const intents = {};
+defensivePlayers.forEach((player) => {
+const lineKey = getDefensiveAutopilotLineKey(player, teams[teamId]?.formation, phaseKey);
+let intent;
+if (presserId && player.id === presserId) {
+intent = {
+type: "press-ball",
+label: "Press ball",
+urgency: phaseKey === "highPress" ? 1 : 0.9,
+lineKey,
+relationship: "nearest pressure",
+};
+} else if (lineKey === "back") {
+intent = {
+type: profile?.lineActionAdjustment?.mode === "drop" ? "recover-goal-side" : "protect-space",
+label: profile?.lineActionAdjustment?.mode === "drop" ? "Recover goal-side" : "Protect space",
+urgency: phaseKey === "boxDefending" ? 0.66 : 0.58,
+lineKey,
+relationship: "hold back-line relation",
+};
+} else if (lineKey === "midfield") {
+const target = plannedPositions.get(player.id) ?? player.position;
+const centralDistance = Math.abs(target.y - pitch.width / 2);
+intent = {
+type: centralDistance < pitch.width * 0.18 ? "screen-central-lane" : "cover-lane",
+label: centralDistance < pitch.width * 0.18 ? "Screen central lane" : "Cover lane",
+urgency: phaseKey === "lowBlock" || phaseKey === "boxDefending" ? 0.7 : 0.76,
+lineKey,
+relationship: "protect pass lane",
+};
+} else {
+intent = {
+type: phaseKey === "highPress" ? "cover-lane" : "support-behind",
+label: phaseKey === "highPress" ? "Cover lane" : "Support behind",
+urgency: phaseKey === "highPress" ? 0.82 : 0.62,
+lineKey,
+relationship: "cover behind pressure",
+};
+}
+intents[player.id] = intent;
+});
+return intents;
+}
+function setReachableDefensiveAutoV2Target(plannedPositions, player, target) {
+if (!player || !target || !plannedPositions.has(player.id)) {
+return false;
+}
+const origin = getActionOrigin(player);
+const nextTarget = clampToPitch(
+clampToCircle(target, origin, getEditableRadius(player)),
+2
+);
+if (distance(plannedPositions.get(player.id), nextTarget) <= 0.04) {
+return false;
+}
+plannedPositions.set(player.id, nextTarget);
+return true;
+}
+function applyDefensiveAutoV2BackLineRelationship(
+teamId,
+plannedPositions,
+groups,
+profile,
+ballPoint,
+presserId = null
+) {
+const backs = (groups.back ?? [])
+.filter((player) => !isGoalkeeper(player) && plannedPositions.has(player.id))
+.sort((a, b) => plannedPositions.get(a.id).y - plannedPositions.get(b.id).y);
+if (backs.length < 2) {
+return [];
+}
+const desiredGap = clamp(
+getDefensiveUnitGap(profile, "back"),
+profile.phaseKey === "boxDefending" ? 7 : profile.phaseKey === "lowBlock" ? 7.6 : 8.2,
+profile.phaseKey === "highPress" ? 11.6 : 9.8
+);
+const lineWidth = desiredGap * (backs.length - 1);
+const lineX = getDefensiveLineX(teamId, "back", ballPoint, profile);
+const centerY = getDefensiveLineCenterY("back", profile, ballPoint, lineWidth);
+let adjusted = false;
+backs.forEach((player, index) => {
+const current = plannedPositions.get(player.id);
+const isPresser = presserId && player.id === presserId;
+const slot = {
+x: lineX,
+y: clamp(centerY - lineWidth / 2 + desiredGap * index, 3.1, pitch.width - 3.1),
+};
+const relationshipWeight =
+profile.phaseKey === "boxDefending"
+? 0.82
+: profile.phaseKey === "lowBlock"
+? 0.74
+: profile.phaseKey === "highPress"
+? 0.46
+: 0.62;
+const weight = isPresser ? relationshipWeight * 0.36 : relationshipWeight;
+adjusted = setReachableDefensiveAutoV2Target(plannedPositions, player, {
+x: lerp(current.x, slot.x, weight),
+y: lerp(current.y, slot.y, weight),
+}) || adjusted;
+});
+return adjusted ? ["Auto v2: back line stays connected"] : [];
+}
+function applyDefensiveAutoV2MidfieldPressCover(
+teamId,
+plannedPositions,
+groups,
+profile,
+ballPoint,
+presser = null
+) {
+if (!presser || !plannedPositions.has(presser.id)) {
+return [];
+}
+const midfielders = (groups.midfield ?? [])
+.filter((player) => !isGoalkeeper(player) && player.id !== presser.id && plannedPositions.has(player.id))
+.sort((a, b) => {
+const aTarget = plannedPositions.get(a.id);
+const bTarget = plannedPositions.get(b.id);
+return Math.abs(aTarget.y - ballPoint.y) - Math.abs(bTarget.y - ballPoint.y);
+});
+if (!midfielders.length) {
+return [];
+}
+const sign = getDefendingDirectionSign(teamId);
+const ownGoalX = teamId === "home" ? 0 : pitch.length;
+const pressTarget = plannedPositions.get(presser.id);
+const pressDepth = getDistanceFromOwnGoal(teamId, pressTarget);
+const screenDepth = clamp(
+pressDepth - (profile.phaseKey === "highPress" ? 6.2 : profile.phaseKey === "midBlock" ? 5.2 : 4.2),
+profile.minBackLineFromOwnGoal + 5.8,
+Math.max(profile.minBackLineFromOwnGoal + 6.2, getDefensiveLineDistanceFromOwnGoal(teamId, "midfield", ballPoint, profile))
+);
+const screenX = ownGoalX + sign * screenDepth;
+const screenPlayers = midfielders.slice(0, Math.min(2, midfielders.length));
+let adjusted = false;
+screenPlayers.forEach((player, index) => {
+const current = plannedPositions.get(player.id);
+const side = index === 0 ? 0 : Math.sign(current.y - ballPoint.y) || getWideSideSign(ballPoint) || 1;
+const screenY = clamp(
+lerp(current.y, ballPoint.y + side * (index === 0 ? 0 : 7.2), 0.62),
+5.2,
+pitch.width - 5.2
+);
+const weight =
+profile.phaseKey === "boxDefending"
+? 0.78
+: profile.phaseKey === "lowBlock"
+? 0.7
+: profile.phaseKey === "highPress"
+? 0.42
+: 0.58;
+adjusted = setReachableDefensiveAutoV2Target(plannedPositions, player, {
+x: lerp(current.x, screenX, weight),
+y: screenY,
+}) || adjusted;
+});
+return adjusted ? ["Auto v2: midfield covers behind press"] : [];
+}
+function applyDefensiveAutoV2PressTether(
+teamId,
+plannedPositions,
+groups,
+profile,
+ballPoint,
+presser = null
+) {
+if (!presser || !plannedPositions.has(presser.id)) {
+return [];
+}
+const supportPool = [...(groups.midfield ?? []), ...(groups.back ?? [])]
+.filter((player) => !isGoalkeeper(player) && player.id !== presser.id && plannedPositions.has(player.id));
+if (!supportPool.length) {
+return [];
+}
+const pressTarget = plannedPositions.get(presser.id);
+const nearestSupport = supportPool
+.map((player) => ({
+player,
+target: plannedPositions.get(player.id),
+gap: distance(pressTarget, plannedPositions.get(player.id)),
+}))
+.sort((a, b) => a.gap - b.gap)[0];
+const maxSupportGap =
+profile.phaseKey === "highPress"
+? 13.8
+: profile.phaseKey === "midBlock"
+? 11.8
+: 9.8;
+if (!nearestSupport || nearestSupport.gap <= maxSupportGap) {
+return [];
+}
+const sign = getDefendingDirectionSign(teamId);
+const ownGoalX = teamId === "home" ? 0 : pitch.length;
+const pressDepth = getDistanceFromOwnGoal(teamId, pressTarget);
+const supportDepth = clamp(
+pressDepth - (profile.phaseKey === "highPress" ? 5.4 : 4.2),
+profile.minBackLineFromOwnGoal + 4,
+profile.maxBackLineFromOwnGoal + 12
+);
+const tetherTarget = {
+x: ownGoalX + sign * supportDepth,
+y: lerp(nearestSupport.target.y, pressTarget.y, 0.48),
+};
+const adjusted = setReachableDefensiveAutoV2Target(
+plannedPositions,
+nearestSupport.player,
+tetherTarget
+);
+return adjusted ? ["Auto v2: press has close cover"] : [];
+}
+function applyDefensiveAutoV2AntiMagnetRelationships(
+teamId,
+plannedPositions,
+groups,
+profile,
+ballPoint,
+presser = null
+) {
+const labels = [];
+["back", "midfield", "forward"].forEach((lineKey) => {
+const players = (groups[lineKey] ?? [])
+.filter((player) => !isGoalkeeper(player) && player.id !== presser?.id && plannedPositions.has(player.id));
+if (!players.length) {
+return;
+}
+const lineWidth = getDefensiveUnitGap(profile, lineKey) * Math.max(0, players.length - 1);
+const lineX = getDefensiveLineX(teamId, lineKey, ballPoint, profile);
+const centerY = getDefensiveLineCenterY(lineKey, profile, ballPoint, lineWidth);
+const ballPullLimit =
+lineKey === "forward"
+? 13.5
+: lineKey === "midfield"
+? 10.8
+: 8.2;
+players.forEach((player, index) => {
+const current = plannedPositions.get(player.id);
+const overPulledToBall = distance(current, ballPoint) < ballPullLimit;
+if (!overPulledToBall) {
+return;
+}
+const spreadRatio = players.length === 1 ? 0.5 : index / (players.length - 1);
+const relationshipSlot = {
+x: lineX,
+y: clamp(centerY - lineWidth / 2 + lineWidth * spreadRatio, 3.2, pitch.width - 3.2),
+};
+const weight = lineKey === "back" ? 0.64 : lineKey === "midfield" ? 0.5 : 0.34;
+if (setReachableDefensiveAutoV2Target(plannedPositions, player, {
+x: lerp(current.x, relationshipSlot.x, weight),
+y: lerp(current.y, relationshipSlot.y, weight),
+})) {
+labels.push("Auto v2: non-pressers hold team shape");
+}
+});
+});
+return uniquePrincipleLabels(labels);
+}
+function applyDefensiveAutoV2RelationshipLayer(
+teamId,
+plannedPositions,
+profile,
+ballPoint,
+presser = null
+) {
+if (!teamId || !plannedPositions?.size || !profile || !ballPoint) {
+return [];
+}
+const groups = getDefensiveAutopilotGroupsForTeam(teamId, profile.phaseKey);
+return uniquePrincipleLabels([
+...applyDefensiveAutoV2MidfieldPressCover(teamId, plannedPositions, groups, profile, ballPoint, presser),
+...applyDefensiveAutoV2PressTether(teamId, plannedPositions, groups, profile, ballPoint, presser),
+...applyDefensiveAutoV2BackLineRelationship(teamId, plannedPositions, groups, profile, ballPoint, presser?.id ?? null),
+...applyDefensiveAutoV2AntiMagnetRelationships(teamId, plannedPositions, groups, profile, ballPoint, presser),
+]);
+}
+function getDefensiveAutoV2FrameDt(player, elapsed) {
+const previousElapsed = Number.isFinite(player.autoV2LastElapsed) ? player.autoV2LastElapsed : 0;
+let frameDt = elapsed - previousElapsed;
+if (!Number.isFinite(frameDt) || frameDt <= 0 || frameDt > 0.12) {
+frameDt = 0.05;
+}
+player.autoV2LastElapsed = elapsed;
+return frameDt;
+}
+function moveDefensiveAutoV2Player(player, targetPosition, actionMeta, intent, elapsed, focusPoint = null) {
+if (!targetPosition) {
+return;
+}
+const context = getPlayerDecisionContext(player);
+const frameDt = getDefensiveAutoV2FrameDt(player, elapsed);
+const runTime = Math.max(0, elapsed - context.reactionTime * (intent.type === "press-ball" ? 0.42 : 0.78));
+if (runTime <= 0) {
+if (focusPoint) {
+rotatePlayerBodyToward(player, focusPoint, 0.08);
+}
+return;
+}
+const previousPosition = cloneVector(player.position);
+const remaining = distance(previousPosition, targetPosition);
+if (remaining <= 0.025) {
+player.position = cloneVector(targetPosition);
+player.autoV2Velocity = { x: 0, y: 0 };
+if (focusPoint) {
+rotatePlayerBodyToward(player, focusPoint, intent.type === "press-ball" ? 0.42 : 0.3);
+}
+return;
+}
+const currentVelocity = player.autoV2Velocity ?? { x: 0, y: 0 };
+const currentSpeed = Math.hypot(currentVelocity.x, currentVelocity.y);
+const currentAngle =
+currentSpeed > 0.05
+? Math.atan2(currentVelocity.y, currentVelocity.x)
+: getPlayerFacingAngle(player);
+const desiredAngle = angleBetween(previousPosition, targetPosition);
+const intentUrgency = clamp(intent.urgency ?? 0.65, 0.35, 1.08);
+const turnRate =
+(intent.type === "press-ball" ? 3.9 : intent.lineKey === "back" ? 2.35 : 2.9) *
+(0.74 + context.profile.tacticalDiscipline * 0.24 + context.profile.perception * 0.18);
+const angleDelta = normalizeAngle(desiredAngle - currentAngle);
+const limitedAngle = currentAngle + clamp(angleDelta, -turnRate * frameDt, turnRate * frameDt);
+const brakeDistance = intent.type === "press-ball" ? 1.35 : intent.lineKey === "back" ? 2.35 : 1.85;
+const maxSpeed =
+context.maxSpeed *
+(intent.type === "press-ball" ? 0.94 : intent.lineKey === "back" ? 0.62 : 0.72) *
+intentUrgency;
+const acceleration =
+context.acceleration *
+(intent.type === "press-ball" ? 1.04 : intent.lineKey === "back" ? 0.72 : 0.84);
+const brakingSpeed = Math.sqrt(Math.max(0, 2 * acceleration * Math.max(0, remaining - brakeDistance * 0.32)));
+const desiredSpeed = clamp(Math.min(maxSpeed, brakingSpeed), 0, maxSpeed);
+const nextSpeed = currentSpeed + clamp(desiredSpeed - currentSpeed, -acceleration * 1.34 * frameDt, acceleration * frameDt);
+const nextVelocity = {
+x: Math.cos(limitedAngle) * nextSpeed,
+y: Math.sin(limitedAngle) * nextSpeed,
+};
+const rawNext = {
+x: previousPosition.x + nextVelocity.x * frameDt,
+y: previousPosition.y + nextVelocity.y * frameDt,
+};
+const nextPosition = clampToPitch(
+distance(rawNext, targetPosition) < Math.max(0.05, nextSpeed * frameDt * 0.7)
+? targetPosition
+: rawNext,
+2
+);
+player.position = nextPosition;
+player.autoV2Velocity = nextVelocity;
+player.movementProgress = distance(getActionOrigin(player), nextPosition);
+if (distance(previousPosition, nextPosition) > 0.004) {
+rotatePlayerBodyAlongMovement(player, previousPosition, nextPosition, intent.type === "press-ball" ? 0.36 : 0.28);
+} else if (focusPoint) {
+rotatePlayerBodyToward(player, focusPoint, 0.16);
+}
 }
 function alignArrivedDefensiveAutopilotPlayers(actionMeta, targetMap, focusPoint = null) {
 const defensiveFocusPoint = focusPoint ?? getDefensiveAutopilotFocusPoint(actionMeta);
@@ -54089,6 +54866,452 @@ profile,
 principle: resolvedPrinciple,
 };
 }
+function cloneOffensiveAutopilotIntents(intents = null) {
+if (!intents || typeof intents !== "object") {
+return null;
+}
+return Object.fromEntries(
+Object.entries(intents).map(([playerId, intent]) => [
+playerId,
+{
+type: intent?.type ?? "offer-angle",
+label: intent?.label ?? "Offer angle",
+urgency: Number.isFinite(intent?.urgency) ? intent.urgency : 0.55,
+roleKey: intent?.roleKey ?? null,
+startDelay: Number.isFinite(intent?.startDelay) ? intent.startDelay : 0,
+relationship: intent?.relationship ?? null,
+},
+])
+);
+}
+function cloneAutoV2DecisionTriggers(triggers = null) {
+if (!triggers || typeof triggers !== "object") {
+return null;
+}
+return {
+ballPressure: Number.isFinite(triggers.ballPressure) ? triggers.ballPressure : 0,
+forwardFacing: Number.isFinite(triggers.forwardFacing) ? triggers.forwardFacing : 0,
+highBackLine: Number.isFinite(triggers.highBackLine) ? triggers.highBackLine : 0,
+centralCongestion: Number.isFinite(triggers.centralCongestion) ? triggers.centralCongestion : 0,
+receiverPressure: Number.isFinite(triggers.receiverPressure) ? triggers.receiverPressure : 0,
+restDefenseBalance: Number.isFinite(triggers.restDefenseBalance) ? triggers.restDefenseBalance : 0,
+poorTouchLooseBall: Number.isFinite(triggers.poorTouchLooseBall) ? triggers.poorTouchLooseBall : 0,
+centralClosed: Number.isFinite(triggers.centralClosed) ? triggers.centralClosed : 0,
+labels: Array.isArray(triggers.labels) ? [...triggers.labels] : [],
+};
+}
+function scanAutoV2DecisionTriggers(teamId, ballPoint, actionMeta, profile = {}) {
+const attackingTeamId = teamId;
+const defendingTeamId = getOtherTeamId(attackingTeamId);
+const startPoint =
+actionMeta?.beforeSnapshot?.ball?.position ??
+state.ball.startPosition ??
+state.ball.position ??
+ballPoint;
+const carrier =
+getPlayerById(actionMeta?.carrierPlayerId) ??
+getPlayerById(actionMeta?.beforeSnapshot?.ball?.ownerPlayerId) ??
+getPlayerById(state.ball.carrierPlayerId) ??
+getPlayerById(state.ball.initiatorPlayerId) ??
+getPlayerById(state.ball.ownerPlayerId);
+const receiver = getPlayerById(actionMeta?.receiverPlayerId);
+const actionType = actionMeta?.actionType ?? state.ball.actionType;
+const ballPressure = getOpponentPressureAtPoint(attackingTeamId, startPoint ?? ballPoint, 12);
+const receiverPressure = receiver || actionType === "pass"
+? getOpponentPressureAtPoint(attackingTeamId, ballPoint, 10.5)
+: 0;
+const attackSign = getAttackDirectionSign(attackingTeamId);
+const facingAngle = carrier ? getPlayerFacingAngle(carrier) : getTeamAttackAngle(attackingTeamId);
+const forwardAngle = attackSign > 0 ? 0 : Math.PI;
+const forwardFacing = carrier ? clamp(1 - angleDifference(facingAngle, forwardAngle) / (Math.PI * 0.62), 0, 1) : 0.5;
+const centralCongestion = state.players.reduce((count, player) => {
+if (player.team === attackingTeamId) {
+return count;
+}
+const gap = Math.abs(player.position.y - pitch.width / 2);
+const depthGap = Math.abs(getAttackingDepth(player.position, attackingTeamId) - getAttackingDepth(ballPoint, attackingTeamId));
+return count + (gap <= 15 && depthGap <= 18 ? 1 : 0);
+}, 0);
+const centralCongestionScore = clamp(centralCongestion / 5, 0, 1);
+const defenders = state.players.filter((player) => player.team === defendingTeamId && !isGoalkeeper(player));
+const backLineDepth = defenders.length
+? defenders.reduce((maxDepth, player) => Math.max(maxDepth, getDistanceFromOwnGoal(defendingTeamId, player.position)), 0)
+: 0;
+const highBackLine = clamp((backLineDepth - 42) / 22, 0, 1);
+const ballDepth = getAttackingDepth(ballPoint, attackingTeamId);
+const restDefenseCount = state.players.filter((player) => {
+if (player.team !== attackingTeamId || isGoalkeeper(player)) {
+return false;
+}
+const roleKey = getOffensiveRoleKey(player, teams[attackingTeamId]?.formation);
+const depth = getAttackingDepth(player.position, attackingTeamId);
+return (roleKey === "pivot" || roleKey === "rest" || roleKey === "wideBack") && depth <= Math.max(28, ballDepth - 14);
+}).length;
+const restDefenseBalance = clamp(restDefenseCount / 2, 0, 1);
+const passDistance = startPoint && ballPoint ? distance(startPoint, ballPoint) : 0;
+const poorTouchLooseBall =
+actionType === "recovery" ||
+state.ball.actionType === "recovery" ||
+state.ball.inTransit && !state.ball.ownerPlayerId && actionType !== "shot" && passDistance >= 9
+? clamp(0.45 + receiverPressure * 0.35 + ballPressure * 0.2, 0, 1)
+: 0;
+const centralClosed = clamp(
+centralCongestionScore * 0.58 +
+getOpponentPressureAtPoint(attackingTeamId, {
+x: ballPoint.x,
+y: pitch.width / 2,
+}, 16) * 0.42,
+0,
+1
+);
+const labels = [];
+if (ballPressure >= 0.55) labels.push("ball-carrier pressured");
+if (forwardFacing >= 0.62 && ballPressure <= 0.62) labels.push("ball-carrier forward-facing");
+if (highBackLine >= 0.5) labels.push("high defensive line");
+if (centralClosed >= 0.54) labels.push("central lane closed");
+if (receiverPressure >= 0.5) labels.push("receiver pressured");
+if (restDefenseBalance < 0.65 && ballDepth >= 38) labels.push("rest defense thin");
+if (poorTouchLooseBall >= 0.48) labels.push("loose/poor-touch risk");
+return {
+ballPressure,
+forwardFacing,
+highBackLine,
+centralCongestion: centralCongestionScore,
+receiverPressure,
+restDefenseBalance,
+poorTouchLooseBall,
+centralClosed,
+labels,
+};
+}
+function weightOffensiveAutoV2Intent(intent, triggers = null) {
+if (!triggers) {
+return intent;
+}
+const next = { ...intent };
+if (next.type === "support-behind" || next.type === "offer-angle") {
+next.urgency = clamp(next.urgency + triggers.ballPressure * 0.22 + triggers.receiverPressure * 0.12, 0.35, 1);
+next.startDelay = Math.max(0, next.startDelay - triggers.ballPressure * 0.05);
+}
+if (next.type === "run-behind" || next.type === "pin-line" || next.type === "create-third-man-option") {
+next.urgency = clamp(next.urgency + triggers.forwardFacing * 0.16 + triggers.highBackLine * 0.18 - triggers.ballPressure * 0.12, 0.34, 1);
+next.startDelay = clamp(next.startDelay + triggers.ballPressure * 0.1 - triggers.forwardFacing * 0.06, 0, 0.34);
+}
+if (next.type === "hold-width") {
+next.urgency = clamp(next.urgency + triggers.centralClosed * 0.24 + triggers.centralCongestion * 0.12, 0.35, 1);
+next.startDelay = clamp(next.startDelay - triggers.centralClosed * 0.04, 0, 0.24);
+}
+if (next.type === "rest-defense") {
+next.urgency = clamp(next.urgency + (1 - triggers.restDefenseBalance) * 0.32 + triggers.poorTouchLooseBall * 0.12, 0.34, 0.9);
+next.startDelay = 0;
+}
+next.relationship = [
+next.relationship,
+...(triggers.labels?.slice(0, 2) ?? []),
+].filter(Boolean).join(" / ");
+return next;
+}
+function getOffensiveAutoV2Intent(player, actionMeta, targetPosition = null) {
+const storedIntent = actionMeta?.offensiveAutopilot?.intents?.[player.id];
+if (storedIntent) {
+return {
+type: storedIntent.type ?? "offer-angle",
+label: storedIntent.label ?? "Offer angle",
+urgency: Number.isFinite(storedIntent.urgency) ? storedIntent.urgency : 0.55,
+roleKey: storedIntent.roleKey ?? getOffensiveRoleKey(player, teams[player.team]?.formation),
+startDelay: Number.isFinite(storedIntent.startDelay) ? storedIntent.startDelay : 0,
+relationship: storedIntent.relationship ?? null,
+};
+}
+const triggers = actionMeta?.offensiveAutopilot?.triggers ?? null;
+const roleKey = getOffensiveRoleKey(player, teams[player.team]?.formation);
+const ballPoint = actionMeta?.offensiveAutopilot?.ballFocusPoint ?? actionMeta?.target ?? state.ball.position;
+const attackSign = getAttackDirectionSign(player.team);
+const target = targetPosition ?? player.position;
+const forwardOffset = (target.x - ballPoint.x) * attackSign;
+const lateralOffset = Math.abs(target.y - pitch.width / 2);
+if (actionMeta?.offensiveAutopilot?.runnerPlayerId === player.id || forwardOffset >= 10) {
+return weightOffensiveAutoV2Intent({
+type: "run-behind",
+label: "Run behind",
+urgency: 0.86,
+roleKey,
+startDelay: 0.18,
+relationship: "depth threat after support appears",
+}, triggers);
+}
+if (roleKey === "rest" || (roleKey === "pivot" && forwardOffset < -7)) {
+return weightOffensiveAutoV2Intent({
+type: "rest-defense",
+label: "Rest defense",
+urgency: 0.46,
+roleKey,
+startDelay: 0,
+relationship: "secure behind attack",
+}, triggers);
+}
+if (roleKey === "wideBack" || roleKey === "wideForward" || lateralOffset >= pitch.width * 0.28) {
+return weightOffensiveAutoV2Intent({
+type: "hold-width",
+label: "Hold width",
+urgency: 0.52,
+roleKey,
+startDelay: 0.08,
+relationship: "stretch outside lane",
+}, triggers);
+}
+if (roleKey === "striker" || roleKey === "secondStriker") {
+return weightOffensiveAutoV2Intent({
+type: forwardOffset >= 5 ? "pin-line" : "offer-angle",
+label: forwardOffset >= 5 ? "Pin line" : "Offer angle",
+urgency: forwardOffset >= 5 ? 0.72 : 0.62,
+roleKey,
+startDelay: forwardOffset >= 5 ? 0.16 : 0.06,
+relationship: "occupy last line",
+}, triggers);
+}
+if (roleKey === "connector" && forwardOffset >= 2) {
+return weightOffensiveAutoV2Intent({
+type: "create-third-man-option",
+label: "Create third-man option",
+urgency: 0.66,
+roleKey,
+startDelay: 0.12,
+relationship: "diagonal third player",
+}, triggers);
+}
+return weightOffensiveAutoV2Intent({
+type: forwardOffset < -3 ? "support-behind" : "offer-angle",
+label: forwardOffset < -3 ? "Support behind" : "Offer angle",
+urgency: forwardOffset < -3 ? 0.58 : 0.64,
+roleKey,
+startDelay: forwardOffset < -3 ? 0.02 : 0.07,
+relationship: forwardOffset < -3 ? "bounce support" : "playable angle",
+}, triggers);
+}
+function setReachableOffensiveAutoV2Target(plannedPositions, player, target) {
+if (!player || !target || !plannedPositions.has(player.id)) {
+return false;
+}
+const origin = getActionOrigin(player);
+const nextTarget = clampToPitch(
+clampToCircle(target, origin, getEditableRadius(player)),
+2
+);
+if (distance(plannedPositions.get(player.id), nextTarget) <= 0.04) {
+return false;
+}
+plannedPositions.set(player.id, nextTarget);
+return true;
+}
+function pickOffensiveAutoV2Player(teamId, plannedPositions, excludedIds, roleKeys, referencePoint, preferredSide = 0) {
+return state.players
+.filter((player) => {
+if (player.team !== teamId || excludedIds.has(player.id) || !plannedPositions.has(player.id) || isGoalkeeper(player)) {
+return false;
+}
+const roleKey = getOffensiveRoleKey(player, teams[teamId]?.formation);
+if (roleKeys.length && !roleKeys.includes(roleKey)) {
+return false;
+}
+if (preferredSide) {
+const side = Math.sign((plannedPositions.get(player.id)?.y ?? player.position.y) - pitch.width / 2) || 0;
+if (side !== preferredSide) {
+return false;
+}
+}
+return true;
+})
+.map((player) => ({
+player,
+score: distance(plannedPositions.get(player.id), referencePoint) -
+getAutoPilotRoleStrength(player, "receiver") * 4 -
+getAutoPilotRoleStrength(player, "runner") * (roleKeys.includes("striker") || roleKeys.includes("wideForward") ? 3 : 0),
+}))
+.sort((a, b) => a.score - b.score)[0]?.player ?? null;
+}
+function applyOffensiveAutoV2RelationshipLayer(teamId, plannedPositions, profile, ballPoint, actionMeta, runner = null) {
+if (!teamId || !plannedPositions?.size || !ballPoint || !profile) {
+return [];
+}
+const labels = [];
+const sideSign = getWideSideSign(ballPoint) || 1;
+const attackSign = getAttackDirectionSign(teamId);
+const depth = getAttackingDepth(ballPoint, teamId);
+const triggers = actionMeta?.offensiveAutopilot?.triggers ?? scanAutoV2DecisionTriggers(teamId, ballPoint, actionMeta, profile);
+const excludedIds = new Set([
+actionMeta?.carrierPlayerId,
+actionMeta?.receiverPlayerId,
+actionMeta?.beforeSnapshot?.ball?.ownerPlayerId,
+state.ball.initiatorPlayerId,
+state.ball.receiverPlayerId,
+runner?.id,
+].filter(Boolean));
+const relationTarget = (slot) => getBallNearSupportTriangleTarget(teamId, ballPoint, slot, sideSign, profile);
+const supportBehind = pickOffensiveAutoV2Player(teamId, plannedPositions, excludedIds, ["pivot", "connector", "wideBack", "rest"], relationTarget("underSupport"));
+if (supportBehind && setReachableOffensiveAutoV2Target(plannedPositions, supportBehind, relationTarget("underSupport"))) {
+excludedIds.add(supportBehind.id);
+labels.push(triggers.ballPressure >= 0.55 ? "Auto v2 trigger: pressure creates support behind" : "Auto v2: support behind ball");
+}
+const anglePlayer = pickOffensiveAutoV2Player(
+teamId,
+plannedPositions,
+excludedIds,
+["connector", "pivot", "wideForward", "secondStriker"],
+relationTarget("insideAngle"),
+isWidePrincipleZone(ballPoint) ? sideSign : 0
+);
+if (anglePlayer && setReachableOffensiveAutoV2Target(plannedPositions, anglePlayer, relationTarget("insideAngle"))) {
+excludedIds.add(anglePlayer.id);
+labels.push(triggers.receiverPressure >= 0.5 ? "Auto v2 trigger: receiver pressure creates escape angle" : "Auto v2: playable angle");
+}
+const thirdMan = pickOffensiveAutoV2Player(
+teamId,
+plannedPositions,
+excludedIds,
+["connector", "wideForward", "secondStriker", "striker"],
+relationTarget("beyondOption")
+);
+if (
+thirdMan &&
+(depth >= 34 || triggers.forwardFacing >= 0.62 || triggers.highBackLine >= 0.5) &&
+setReachableOffensiveAutoV2Target(plannedPositions, thirdMan, relationTarget("beyondOption"))
+) {
+excludedIds.add(thirdMan.id);
+labels.push(triggers.forwardFacing >= 0.62 ? "Auto v2 trigger: forward-facing opens third man" : "Auto v2: diagonal third-man option");
+}
+const widthPlayer = pickOffensiveAutoV2Player(
+teamId,
+plannedPositions,
+excludedIds,
+["wideBack", "wideForward"],
+relationTarget("outsideWidth"),
+sideSign
+);
+if (
+widthPlayer &&
+(triggers.centralClosed >= 0.46 || isWidePrincipleZone(ballPoint) || profile.widthDiscipline >= 0.6) &&
+setReachableOffensiveAutoV2Target(plannedPositions, widthPlayer, relationTarget("outsideWidth"))
+) {
+excludedIds.add(widthPlayer.id);
+labels.push(triggers.centralClosed >= 0.46 ? "Auto v2 trigger: central lane closed, hold width" : "Auto v2: width held outside");
+}
+const restPlayer = pickOffensiveAutoV2Player(
+teamId,
+plannedPositions,
+excludedIds,
+["pivot", "rest", "wideBack"],
+relationTarget("restLock")
+);
+if (restPlayer && setReachableOffensiveAutoV2Target(plannedPositions, restPlayer, relationTarget("restLock"))) {
+excludedIds.add(restPlayer.id);
+labels.push(triggers.restDefenseBalance < 0.65 ? "Auto v2 trigger: rest defense secured" : "Auto v2: rest defense secured");
+}
+if (runner && plannedPositions.has(runner.id) && (triggers.highBackLine >= 0.42 || triggers.forwardFacing >= 0.58 || depth >= 38)) {
+const current = plannedPositions.get(runner.id);
+const minDepthAhead = ballPoint.x + attackSign * 9;
+const runTarget = {
+x: attackSign > 0 ? Math.max(current.x, minDepthAhead) : Math.min(current.x, minDepthAhead),
+y: lerp(current.y, pitch.width / 2 - sideSign * 7, 0.24),
+};
+if (setReachableOffensiveAutoV2Target(plannedPositions, runner, runTarget)) {
+labels.push(triggers.highBackLine >= 0.42 ? "Auto v2 trigger: high line invites depth run" : "Auto v2: depth run timed after triangle");
+}
+}
+return uniquePrincipleLabels(labels);
+}
+function buildOffensiveAutoV2Intents(teamId, attackingPlayers, plannedPositions, profile, ballPoint, actionMeta, runnerId = null) {
+const intents = {};
+attackingPlayers.forEach((player) => {
+const target = plannedPositions.get(player.id);
+if (!target) {
+return;
+}
+const intent = getOffensiveAutoV2Intent(player, {
+...actionMeta,
+offensiveAutopilot: {
+...(actionMeta?.offensiveAutopilot ?? {}),
+teamId,
+ballFocusPoint: ballPoint,
+runnerPlayerId: runnerId,
+phaseKey: profile?.phaseKey ?? null,
+triggers: actionMeta?.offensiveAutopilot?.triggers ?? scanAutoV2DecisionTriggers(teamId, ballPoint, actionMeta, profile),
+},
+}, target);
+intents[player.id] = intent;
+});
+return intents;
+}
+function moveOffensiveAutoV2Player(player, targetPosition, actionMeta, intent, elapsed, focusPoint = null) {
+if (!targetPosition) {
+return;
+}
+const context = getPlayerDecisionContext(player);
+const frameDt = getDefensiveAutoV2FrameDt(player, elapsed);
+const delayedElapsed = elapsed - (intent.startDelay ?? 0);
+const runTime = Math.max(0, delayedElapsed - context.reactionTime * 0.58);
+if (runTime <= 0) {
+if (focusPoint) {
+rotatePlayerBodyToward(player, focusPoint, 0.08);
+}
+return;
+}
+const previousPosition = cloneVector(player.position);
+const remaining = distance(previousPosition, targetPosition);
+if (remaining <= 0.025) {
+player.position = cloneVector(targetPosition);
+player.autoV2Velocity = { x: 0, y: 0 };
+if (focusPoint) {
+rotatePlayerBodyToward(player, focusPoint, 0.28);
+}
+return;
+}
+const currentVelocity = player.autoV2Velocity ?? { x: 0, y: 0 };
+const currentSpeed = Math.hypot(currentVelocity.x, currentVelocity.y);
+const currentAngle =
+currentSpeed > 0.05
+? Math.atan2(currentVelocity.y, currentVelocity.x)
+: getPlayerFacingAngle(player);
+const desiredAngle = angleBetween(previousPosition, targetPosition);
+const urgency = clamp(intent.urgency ?? 0.6, 0.34, 1);
+const turnRate =
+(intent.type === "run-behind" || intent.type === "attack-box" ? 3.35 : intent.type === "rest-defense" ? 2.05 : 2.75) *
+(0.72 + context.profile.perception * 0.18 + context.profile.decisionSpeed * 0.18);
+const limitedAngle = currentAngle + clamp(normalizeAngle(desiredAngle - currentAngle), -turnRate * frameDt, turnRate * frameDt);
+const maxSpeed =
+context.maxSpeed *
+(intent.type === "run-behind" || intent.type === "attack-box" ? 0.88 : intent.type === "rest-defense" ? 0.52 : 0.68) *
+urgency;
+const acceleration =
+context.acceleration *
+(intent.type === "run-behind" || intent.type === "counter-movement" ? 0.94 : intent.type === "rest-defense" ? 0.62 : 0.78);
+const brakeDistance = intent.type === "hold-width" || intent.type === "rest-defense" ? 2.4 : 1.65;
+const brakingSpeed = Math.sqrt(Math.max(0, 2 * acceleration * Math.max(0, remaining - brakeDistance * 0.34)));
+const desiredSpeed = clamp(Math.min(maxSpeed, brakingSpeed), 0, maxSpeed);
+const nextSpeed = currentSpeed + clamp(desiredSpeed - currentSpeed, -acceleration * 1.3 * frameDt, acceleration * frameDt);
+const nextVelocity = {
+x: Math.cos(limitedAngle) * nextSpeed,
+y: Math.sin(limitedAngle) * nextSpeed,
+};
+const rawNext = {
+x: previousPosition.x + nextVelocity.x * frameDt,
+y: previousPosition.y + nextVelocity.y * frameDt,
+};
+const nextPosition = clampToPitch(
+distance(rawNext, targetPosition) < Math.max(0.05, nextSpeed * frameDt * 0.7)
+? targetPosition
+: rawNext,
+2
+);
+player.position = nextPosition;
+player.autoV2Velocity = nextVelocity;
+player.movementProgress = distance(getActionOrigin(player), nextPosition);
+if (distance(previousPosition, nextPosition) > 0.004) {
+rotatePlayerBodyAlongMovement(player, previousPosition, nextPosition, intent.type === "run-behind" ? 0.34 : 0.26);
+} else if (focusPoint) {
+rotatePlayerBodyToward(player, focusPoint, 0.14);
+}
+}
 function getDefensivePhaseKey(teamId, ballPoint, actionType = state.ball.actionType ?? state.draftStep?.actionType) {
 if (state.restartPhase?.type) {
 if (state.restartPhase.type === "kickoff") {
@@ -63550,6 +64773,13 @@ return false;
 }
 const { targets, runner, profile, principle } = buildOffensiveAutopilotTargets(possessionTeamId, ballPoint);
 let movedPlayers = 0;
+let autoV2RelationshipLabels = [];
+const autoV2DecisionTriggers = scanAutoV2DecisionTriggers(
+possessionTeamId,
+ballPoint,
+state.draftStep,
+profile
+);
 if (state.draftStep) {
 state.draftStep.offensiveAutopilot = {
 teamId: possessionTeamId,
@@ -63559,9 +64789,12 @@ phaseKey: profile.phaseKey,
 phaseLabel: profile.phaseLabel,
 principleKey: principle?.key ?? null,
 principleLabel: principle?.label ?? null,
+triggers: autoV2DecisionTriggers,
 };
 }
-state.players.forEach((player) => {
+const plannedPositions = new Map();
+const attackingPlayers = state.players.filter((player) => player.team === possessionTeamId);
+attackingPlayers.forEach((player) => {
 if (player.team !== possessionTeamId) {
 return;
 }
@@ -63577,6 +64810,40 @@ const reachableTarget = clampToPitch(
 clampToCircle(target, origin, getEditableRadius(player)),
 2
 );
+plannedPositions.set(player.id, reachableTarget);
+});
+autoV2RelationshipLabels = applyOffensiveAutoV2RelationshipLayer(
+possessionTeamId,
+plannedPositions,
+profile,
+ballPoint,
+state.draftStep,
+runner ?? null
+);
+const offensiveIntents = buildOffensiveAutoV2Intents(
+possessionTeamId,
+attackingPlayers,
+plannedPositions,
+profile,
+ballPoint,
+state.draftStep,
+runner?.id ?? null
+);
+if (state.draftStep?.offensiveAutopilot) {
+state.draftStep.offensiveAutopilot.behaviorVersion = "v2";
+state.draftStep.offensiveAutopilot.triggers = autoV2DecisionTriggers;
+state.draftStep.offensiveAutopilot.intents = offensiveIntents;
+const autoV2PrincipleLabel = uniquePrincipleLabels([
+principle?.label,
+...(autoV2RelationshipLabels ?? []),
+]).join("; ");
+state.draftStep.offensiveAutopilot.principleLabel = autoV2PrincipleLabel || (principle?.label ?? null);
+}
+attackingPlayers.forEach((player) => {
+const reachableTarget = plannedPositions.get(player.id);
+if (!reachableTarget) {
+return;
+}
 const previousPosition = cloneVector(player.position);
 if (distance(previousPosition, reachableTarget) > 0.03) {
 movedPlayers += 1;
@@ -63590,8 +64857,9 @@ rotatePlayerBodyToward(player, ballPoint, runner?.id === player.id ? 0.38 : 0.52
 if (movedPlayers > 0 && !options.silent) {
 const runnerText = runner ? ` ${getPlayerMagnetLabel(runner)} attacks depth.` : "";
 const principleText = principle ? ` ${principle.label}.` : "";
+const relationshipText = autoV2RelationshipLabels?.length ? ` ${autoV2RelationshipLabels.join("; ")}.` : "";
 logEvent(
-`Offensive autopilot shaped ${teams[possessionTeamId].name} into ${profile.phaseLabel.toLowerCase()} support from ${teams[possessionTeamId].formation} / ${profile.styleLabel}: ${profile.principleLabel}.${runnerText}${principleText}`
+`Offensive autopilot shaped ${teams[possessionTeamId].name} into ${profile.phaseLabel.toLowerCase()} support from ${teams[possessionTeamId].formation} / ${profile.styleLabel}: ${profile.principleLabel}.${runnerText}${principleText}${relationshipText}`
 );
 }
 return movedPlayers > 0;
@@ -63707,6 +64975,7 @@ const ballPoint = cloneVector(state.ball.target ?? state.draftStep?.target ?? st
 const { targets, presser, profile, protectionLabels, focusPoint } = buildDefensiveAutopilotTargets(defensiveTeamId, ballPoint);
 const orientationPoint = focusPoint ?? ballPoint;
 let movedPlayers = 0;
+let autoV2RelationshipLabels = [];
 if (state.draftStep) {
 state.draftStep.defensiveAutopilot = {
 teamId: defensiveTeamId,
@@ -63740,6 +65009,28 @@ profile,
 ballPoint,
 presser?.id ?? null
 );
+autoV2RelationshipLabels = applyDefensiveAutoV2RelationshipLayer(
+defensiveTeamId,
+plannedPositions,
+profile,
+ballPoint,
+presser ?? null
+);
+const defensiveIntents = buildDefensiveAutoV2Intents(
+defensiveTeamId,
+defensivePlayers,
+plannedPositions,
+profile,
+presser?.id ?? null
+);
+if (state.draftStep?.defensiveAutopilot) {
+state.draftStep.defensiveAutopilot.behaviorVersion = "v2";
+state.draftStep.defensiveAutopilot.intents = defensiveIntents;
+state.draftStep.defensiveAutopilot.protectionLabels = uniquePrincipleLabels([
+...(protectionLabels ?? []),
+...(autoV2RelationshipLabels ?? []),
+]);
+}
 defensivePlayers.forEach((player) => {
 if (player.team !== defensiveTeamId) {
 return;
@@ -63764,8 +65055,9 @@ rotatePlayerBodyToward(player, orientationPoint, presser?.id === player.id ? 0.6
 if (movedPlayers > 0 && !options.silent) {
 const presserText = presser ? ` ${getPlayerMagnetLabel(presser)} starts the pressure.` : "";
 const protectionText = protectionLabels?.length ? ` ${protectionLabels.join("; ")}.` : "";
+const relationshipText = autoV2RelationshipLabels?.length ? ` ${autoV2RelationshipLabels.join("; ")}.` : "";
 logEvent(
-`Defensive autopilot shaped ${teams[defensiveTeamId].name} into a compact ${profile.phaseLabel.toLowerCase()} from ${teams[defensiveTeamId].formation} / ${profile.styleLabel}.${presserText}${protectionText}`
+`Defensive autopilot shaped ${teams[defensiveTeamId].name} into a compact ${profile.phaseLabel.toLowerCase()} from ${teams[defensiveTeamId].formation} / ${profile.styleLabel}.${presserText}${protectionText}${relationshipText}`
 );
 }
 return movedPlayers > 0;
@@ -68877,6 +70169,30 @@ const isDribbleAutopilotPresser = isDefensiveDribblePresser(player, actionMeta);
 if (isDribbleAutopilotPresser) {
 targetPosition = getLiveDefensiveDribblePressTarget(player, actionMeta, targetPosition);
 }
+if (isDefensiveAutopilotRunner) {
+const intent = getDefensiveAutoV2Intent(player, actionMeta, targetPosition);
+moveDefensiveAutoV2Player(
+player,
+targetPosition,
+actionMeta,
+intent,
+elapsed,
+state.ball.inTransit ? state.ball.position : defensiveFocusPoint
+);
+return;
+}
+if (isOffensiveAutopilotRunner && !isPassReceiver) {
+const intent = getOffensiveAutoV2Intent(player, actionMeta, targetPosition);
+moveOffensiveAutoV2Player(
+player,
+targetPosition,
+actionMeta,
+intent,
+elapsed,
+state.ball.inTransit ? state.ball.position : offensiveFocusPoint
+);
+return;
+}
 const origin = getActionOrigin(player);
 const movementPath = isPassReceiver
 ? { start: origin, end: targetPosition, waypoint: null, totalDistance: distance(origin, targetPosition) }
@@ -69278,6 +70594,8 @@ ballFocusPoint: cloneVector(state.draftStep.defensiveAutopilot.ballFocusPoint ??
 presserPlayerId: state.draftStep.defensiveAutopilot.presserPlayerId ?? null,
 phaseKey: state.draftStep.defensiveAutopilot.phaseKey ?? null,
 phaseLabel: state.draftStep.defensiveAutopilot.phaseLabel ?? null,
+behaviorVersion: state.draftStep.defensiveAutopilot.behaviorVersion ?? null,
+intents: cloneDefensiveAutopilotIntents(state.draftStep.defensiveAutopilot.intents),
 }
 : null,
 offensiveAutopilot: state.draftStep.offensiveAutopilot
@@ -69289,6 +70607,9 @@ phaseKey: state.draftStep.offensiveAutopilot.phaseKey ?? null,
 phaseLabel: state.draftStep.offensiveAutopilot.phaseLabel ?? null,
 principleKey: state.draftStep.offensiveAutopilot.principleKey ?? null,
 principleLabel: state.draftStep.offensiveAutopilot.principleLabel ?? null,
+behaviorVersion: state.draftStep.offensiveAutopilot.behaviorVersion ?? null,
+intents: cloneOffensiveAutopilotIntents(state.draftStep.offensiveAutopilot.intents),
+triggers: cloneAutoV2DecisionTriggers(state.draftStep.offensiveAutopilot.triggers),
 }
 : null,
 beforeSnapshot,
@@ -70200,6 +71521,120 @@ ctx.fillRect(left, top, width, height);
 ctx.strokeRect(left, top, width, height);
 ctx.restore();
 }
+function getRenderedAutoV2ActionMeta() {
+if (state.draftStep) {
+return state.draftStep;
+}
+if (state.sequence.isPlaying && state.sequence.playbackIndex >= 0) {
+return state.sequence.steps[state.sequence.playbackIndex] ?? null;
+}
+return null;
+}
+function getAutoV2DebugTriggerRows(triggers = null) {
+if (!triggers) {
+return [];
+}
+const rows = [
+["Press", triggers.ballPressure],
+["Fwd", triggers.forwardFacing],
+["High line", triggers.highBackLine],
+["Central", triggers.centralClosed],
+["Rec press", triggers.receiverPressure],
+["Rest", triggers.restDefenseBalance],
+["Loose", triggers.poorTouchLooseBall],
+].filter(([, value]) => Number.isFinite(value));
+return rows.map(([label, value]) => `${label} ${Math.round(clamp(value, 0, 1) * 100)}`);
+}
+function drawAutoV2DebugLabel(player, intent, tone = "attack") {
+if (!intent) {
+return;
+}
+const point = toCanvas(player.position);
+const primary = intent.label ?? intent.type ?? "Auto v2";
+const secondary = intent.relationship ? intent.relationship.split(" / ")[0] : "";
+const text = secondary ? `${primary} • ${secondary}` : primary;
+ctx.save();
+ctx.font = "700 10px -apple-system, BlinkMacSystemFont, sans-serif";
+const maxWidth = 168;
+const displayText = text.length > 42 ? `${text.slice(0, 39)}...` : text;
+const textWidth = Math.min(ctx.measureText(displayText).width, maxWidth);
+const x = clamp(point.x - textWidth / 2 - 7, 8, canvas.width - textWidth - 14);
+const y = clamp(point.y - 31, 8, canvas.height - 24);
+ctx.fillStyle = tone === "defence" ? "rgba(121, 33, 33, 0.78)" : "rgba(10, 38, 82, 0.78)";
+ctx.strokeStyle = tone === "defence" ? "rgba(255, 180, 180, 0.72)" : "rgba(173, 212, 255, 0.72)";
+ctx.lineWidth = 1;
+ctx.beginPath();
+ctx.roundRect(x, y, textWidth + 14, 20, 8);
+ctx.fill();
+ctx.stroke();
+ctx.fillStyle = "rgba(255,255,255,0.96)";
+ctx.textAlign = "left";
+ctx.textBaseline = "middle";
+ctx.fillText(displayText, x + 7, y + 10, maxWidth);
+ctx.restore();
+}
+function drawAutoV2DebugPanel(actionMeta) {
+const offensive = actionMeta?.offensiveAutopilot;
+const defensive = actionMeta?.defensiveAutopilot;
+const triggerRows = getAutoV2DebugTriggerRows(offensive?.triggers);
+const activeLabels = [
+...(offensive?.triggers?.labels ?? []),
+offensive?.principleLabel,
+defensive?.phaseLabel ? `Def ${defensive.phaseLabel}` : null,
+].filter(Boolean).slice(0, 5);
+const rows = [
+"Auto v2 Debug",
+...triggerRows.slice(0, 7),
+...activeLabels.map((label) => label.length > 34 ? `${label.slice(0, 31)}...` : label),
+];
+if (!rows.length) {
+return;
+}
+ctx.save();
+ctx.font = "700 11px -apple-system, BlinkMacSystemFont, sans-serif";
+const width = Math.min(
+260,
+Math.max(...rows.map((row) => ctx.measureText(row).width)) + 24
+);
+const height = rows.length * 18 + 16;
+const x = canvas.width - width - 14;
+const y = 14;
+ctx.fillStyle = "rgba(9, 13, 22, 0.76)";
+ctx.strokeStyle = "rgba(255,255,255,0.22)";
+ctx.lineWidth = 1;
+ctx.beginPath();
+ctx.roundRect(x, y, width, height, 10);
+ctx.fill();
+ctx.stroke();
+rows.forEach((row, index) => {
+ctx.fillStyle = index === 0 ? "rgba(255,255,255,0.98)" : "rgba(226,238,255,0.9)";
+ctx.font = index === 0
+? "800 12px -apple-system, BlinkMacSystemFont, sans-serif"
+: "700 10px -apple-system, BlinkMacSystemFont, sans-serif";
+ctx.fillText(row, x + 12, y + 16 + index * 18);
+});
+ctx.restore();
+}
+function drawAutoV2DebugOverlay() {
+if (!state.autoV2Debug && !window.__autoV2DebugEnabled) {
+return;
+}
+const actionMeta = getRenderedAutoV2ActionMeta();
+if (!actionMeta?.offensiveAutopilot && !actionMeta?.defensiveAutopilot) {
+return;
+}
+const offensiveIntents = actionMeta.offensiveAutopilot?.intents ?? {};
+const defensiveIntents = actionMeta.defensiveAutopilot?.intents ?? {};
+state.players.forEach((player) => {
+if (offensiveIntents[player.id]) {
+drawAutoV2DebugLabel(player, offensiveIntents[player.id], "attack");
+}
+if (defensiveIntents[player.id]) {
+drawAutoV2DebugLabel(player, defensiveIntents[player.id], "defence");
+}
+});
+drawAutoV2DebugPanel(actionMeta);
+}
 function syncOwnedBallPosition() {
 if (!state.ball.ownerPlayerId || state.ball.inTransit || hasBallAction()) {
 return;
@@ -70499,11 +71934,13 @@ drawReachZones();
 drawExampleOverlay();
 state.players.forEach(drawPlayer);
 drawBall();
+drawAutoV2DebugOverlay();
 drawGoalFlash();
 drawSelectionBox();
 renderSidebar();
 updatePitchFullscreenHudLayout();
 }
+window.renderGameSimulator = render;
 function pickPlayer(point) {
 const hitRadius = playerRadiusMeters + 0.5;
 const reversed = [...state.players].reverse();
@@ -71282,6 +72719,21 @@ ui.offensiveAutopilotButton.textContent = state.offensiveAutopilot
 : "Attack Manual";
 ui.offensiveAutopilotButton.disabled = state.isRunning || state.sequence.isPlaying;
 }
+function syncAutoV2DebugButton() {
+if (!ui.autoV2DebugButton) {
+return;
+}
+ui.autoV2DebugButton.classList.toggle("is-active", Boolean(window.__autoV2DebugEnabled));
+ui.autoV2DebugButton.setAttribute("aria-pressed", String(Boolean(window.__autoV2DebugEnabled)));
+ui.autoV2DebugButton.textContent = window.__autoV2DebugEnabled ? "Auto v2 Debug On" : "Auto v2 Debug";
+}
+function toggleAutoV2DebugOverlay() {
+state.autoV2Debug = !state.autoV2Debug;
+window.__autoV2DebugEnabled = state.autoV2Debug;
+logEvent(state.autoV2Debug ? "Auto v2 debug overlay is on." : "Auto v2 debug overlay is off.");
+render();
+}
+window.toggleAutoV2DebugOverlay = toggleAutoV2DebugOverlay;
 function shouldIgnoreHotkey(event) { return shouldIgnoreSimulatorTextOrModifierTarget(event); }
 function shouldIgnoreSpaceAutopilotHotkey(event) { return shouldIgnoreSimulatorTextOrModifierTarget(event); }
 function clearKeyboardActionGrace() { gameSimulatorKeyboardState?.clearKeyboardActionGrace(state); }
@@ -71593,6 +73045,9 @@ state.autoPilotPlay.active = false;
 logEvent("Offensive autopilot is off.");
 }
 render();
+});
+ui.autoV2DebugButton?.addEventListener("click", () => {
+toggleAutoV2DebugOverlay();
 });
 ui.sidebarToggle?.addEventListener("click", () => {
 if (!hubState) {
@@ -73872,9 +75327,18 @@ if (event.target.matches("[data-session-save-conflict-overlay]")) {
 resolveSessionPlannerLibrarySaveConflict("cancel");
 return;
 }
+if (event.target.matches("[data-session-central-conflict-overlay]")) {
+resolveSessionPlannerCentralSyncConflict("keep-central");
+return;
+}
 const saveConflictAction = event.target.closest("[data-session-save-conflict-action]");
 if (saveConflictAction) {
 resolveSessionPlannerLibrarySaveConflict(saveConflictAction.dataset.sessionSaveConflictAction);
+return;
+}
+const centralConflictAction = event.target.closest("[data-session-central-conflict-action]");
+if (centralConflictAction) {
+resolveSessionPlannerCentralSyncConflict(centralConflictAction.dataset.sessionCentralConflictAction);
 return;
 }
 if (event.target.matches("[data-session-visual-preview-overlay]")) {
@@ -74022,7 +75486,12 @@ return;
 }
 const tacticalUndoButton = event.target.closest("[data-session-undo-board]");
 if (tacticalUndoButton) {
-undoSelectedSessionPlannerTacticalBoardAction();
+undoSessionPlannerBoardHistory(tacticalUndoButton.dataset.sessionUndoBoard || "tactical");
+return;
+}
+const boardRedoButton = event.target.closest("[data-session-redo-board]");
+if (boardRedoButton) {
+redoSessionPlannerBoardHistory(boardRedoButton.dataset.sessionRedoBoard || "tactical");
 return;
 }
 const tacticalCopySelectedButton = event.target.closest("[data-session-copy-tactical-selected]");
@@ -74801,7 +76270,25 @@ sessionPlannerTacticalboardOpen &&
 event.key.toLowerCase() === "z"
 ) {
 event.preventDefault();
-undoSelectedSessionPlannerTacticalBoardAction();
+if (event.shiftKey) {
+redoSessionPlannerBoardHistory("tactical");
+} else {
+undoSessionPlannerBoardHistory("tactical");
+}
+return;
+}
+if (
+sessionPlannerPlayerBoardOpen &&
+(event.metaKey || event.ctrlKey) &&
+event.key.toLowerCase() === "z" &&
+!isTextEditingTarget
+) {
+event.preventDefault();
+if (event.shiftKey) {
+redoSessionPlannerBoardHistory("player");
+} else {
+undoSessionPlannerBoardHistory("player");
+}
 return;
 }
 if (sessionPlannerTacticalboardOpen && event.key === "Escape") {

@@ -24,6 +24,7 @@ let scoutingRecordSearchCorpusCache = new Map();
 let scoutingMetricIndexCache = { database: null, byId: new Map() };
 let scoutingRecordIdLookupCache = new Map();
 let scoutingRecordNameLookupCache = new Map();
+let scoutingRecordPersonLookupCache = new Map();
 let scoutingKnownRecordLookupCache = new Map();
 let scoutingKnownRecordLookupFingerprint = "";
 let scoutingRecordLookupFingerprint = "";
@@ -1054,6 +1055,7 @@ function resetScoutingComputedCaches() {
   scoutingMetricIndexCache = { database: null, byId: new Map() };
   scoutingRecordIdLookupCache = new Map();
   scoutingRecordNameLookupCache = new Map();
+  scoutingRecordPersonLookupCache = new Map();
   scoutingRecordLookupFingerprint = "";
   scoutingMarketIntelVersion = 0;
   scoutingProfileApiCache = new Map();
@@ -1127,6 +1129,40 @@ function cloneScoutingSavedView(view = {}) {
     createdAt: normalizeScoutingText(view.createdAt, 40) || new Date().toISOString(),
   };
 }
+function cloneScoutingTargetState(target = {}) {
+  return {
+    id: normalizeScoutingText(target.id, 120) || `scouting-target-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    recordId: normalizeScoutingText(target.recordId, 160),
+    name: normalizeScoutingText(target.name, 180),
+    club: normalizeScoutingText(target.club, 180),
+    position: normalizeScoutingText(target.position, 80),
+    age: normalizeScoutingText(target.age, 20),
+    status: normalizeScoutingTargetStatus(target.status),
+    priority: normalizeScoutingTargetPriority(target.priority),
+    fit: normalizeScoutingText(target.fit, 40),
+    notes: normalizeScoutingText(target.notes, 900),
+    slotId: normalizeScoutingText(target.slotId, 40),
+    owner: normalizeScoutingText(target.owner, 80),
+    nextAction: normalizeScoutingText(target.nextAction, 220),
+    nextActionDate: normalizeScoutingDateText(target.nextActionDate),
+    lastContact: normalizeScoutingDateText(target.lastContact),
+    decisionDeadline: normalizeScoutingDateText(target.decisionDeadline),
+    createdAt: normalizeScoutingText(target.createdAt, 40) || new Date().toISOString(),
+    updatedAt: normalizeScoutingText(target.updatedAt, 40) || normalizeScoutingText(target.createdAt, 40) || new Date().toISOString(),
+  };
+}
+function cloneScoutingMarketIntelState(value = {}) {
+  return Object.entries(value && typeof value === "object" && !Array.isArray(value) ? value : {}).reduce((next, [recordId, info]) => {
+    const id = normalizeScoutingText(recordId || info?.recordId, 160);
+    if (id) {
+      next[id] = normalizeScoutingMarketInfo(id, info || {});
+    }
+    return next;
+  }, {});
+}
+function cloneScoutingReportsState(reports = []) {
+  return Array.isArray(reports) ? reports.map(normalizeScoutingReport) : [];
+}
 
 const scoutingDurableStateStorageKey = "football-scouting-durable-state-v1";
 let scoutingDurableHydrating = false;
@@ -1189,6 +1225,10 @@ function normalizeScoutingDurableStateSlice(state = {}) {
     favoriteRecordIds: normalizeScoutingRecordIds(state.favoriteRecordIds),
     contactLog: Array.isArray(state.contactLog) ? state.contactLog.map(normalizeScoutingContactLogEntry) : [],
     comparisonLab: normalizeScoutingComparisonLab(state.comparisonLab || {}),
+    compareRecordIds: normalizeScoutingRecordIds(state.compareRecordIds),
+    targets: Array.isArray(state.targets) ? state.targets.map(cloneScoutingTargetState) : [],
+    marketIntel: cloneScoutingMarketIntelState(state.marketIntel),
+    reports: cloneScoutingReportsState(state.reports),
     lists: Array.isArray(state.lists) ? state.lists.map(cloneScoutingList) : [],
     shadowXi: shadowClone,
     myTeam: myTeamClone,
@@ -1222,6 +1262,24 @@ function hydrateScoutingDurableState(state) {
       durable.lists,
       cloneScoutingList,
     );
+    state.compareRecordIds = normalizeScoutingRecordIds([
+      ...(Array.isArray(durable.compareRecordIds) ? durable.compareRecordIds : []),
+      ...(Array.isArray(state.compareRecordIds) ? state.compareRecordIds : []),
+    ]).slice(0, 5);
+    state.targets = mergeScoutingItemsById(
+      Array.isArray(state.targets) ? state.targets : [],
+      durable.targets,
+      cloneScoutingTargetState,
+    ).sort((a, b) => normalizeScoutingText(b.updatedAt || b.createdAt, 40).localeCompare(normalizeScoutingText(a.updatedAt || a.createdAt, 40)));
+    state.reports = mergeScoutingItemsById(
+      Array.isArray(state.reports) ? state.reports : [],
+      durable.reports,
+      normalizeScoutingReport,
+    ).sort((a, b) => normalizeScoutingText(b.createdAt, 40).localeCompare(normalizeScoutingText(a.createdAt, 40)));
+    state.marketIntel = {
+      ...(durable.marketIntel || {}),
+      ...(state.marketIntel && typeof state.marketIntel === "object" ? cloneScoutingMarketIntelState(state.marketIntel) : {}),
+    };
     state.comparisonLab =
       state.comparisonLab && Array.isArray(state.comparisonLab.playerIds) && state.comparisonLab.playerIds.some(Boolean)
         ? normalizeScoutingComparisonLab(state.comparisonLab)
@@ -3124,6 +3182,19 @@ function buildScoutingImportHash(value = "") {
   }
   return hash.toString(36);
 }
+function buildScoutingImportCollectionHash(parts = []) {
+  let hash = 2166136261;
+  (Array.isArray(parts) ? parts : [parts]).forEach((part) => {
+    const text = String(part ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+    for (let index = 0; index < text.length; index += 1) {
+      hash ^= text.charCodeAt(index);
+      hash = Math.imul(hash, 16777619) >>> 0;
+    }
+    hash ^= 31;
+    hash = Math.imul(hash, 16777619) >>> 0;
+  });
+  return hash.toString(36);
+}
 function buildScoutingImportRecordId(seed = "", fallback = "record", maxLength = 160) {
   const normalized = normalizeScoutingText(seed, 240).toLowerCase().replace(/[^a-z0-9]+/g, "-");
   const hash = buildScoutingImportHash(seed);
@@ -3141,10 +3212,15 @@ function buildScoutingScopedId(value = "", sourceSystem = "file-import") {
 function getScoutingImportSourceSystem(draft = scoutingImportDraft) {
   return normalizeScoutingText(draft?.sourceSystem, 40) || "file-import";
 }
+function isScoutingVerifiedImportIdentityKey(key = "") {
+  return ["federationId", "wyscoutId", "fbrefId", "transfermarktId", "footballScienceDb"].includes(
+    normalizeScoutingText(key, 60)
+  );
+}
 function buildScoutingPlayerSourceId(row = {}, map = {}) {
   const primary = getScoutingImportIdentityCandidates(row, map)[0];
-  if (primary?.value) {
-    return buildScoutingImportRecordId(`federation ${primary.value}`, "player", 140);
+  if (primary?.value && isScoutingVerifiedImportIdentityKey(primary.key)) {
+    return buildScoutingImportRecordId(`${primary.key} ${primary.value}`, "player", 140);
   }
   const player = normalizeScoutingText(row?.[map.player], 120);
   const dateOfBirth = normalizeScoutingDateValue(row?.[map.dateOfBirth]);
@@ -3524,6 +3600,25 @@ function getScoutingShadowSlotPitchPosition(slot = {}, formation = "4-3-3") {
   const coordinates = formations[normalizedFormation]?.[role] || base[role] || [Number(slot.x) || 50, Number(slot.y) || 50];
   return { x: coordinates[0], y: coordinates[1] };
 }
+function getScoutingUnifiedPitchHeightRem(slotDepths = [], totalPlayers = 0) {
+  const maxDepth = Math.max(1, ...slotDepths.map((count) => Number(count) || 0));
+  return Math.round(Math.min(82, Math.max(64, 52 + maxDepth * 4.2 + totalPlayers * 0.1)));
+}
+function renderScoutingPitchFormationToolbar(value, dataAttribute, canEdit, options = {}) {
+  const positionClass = options.right ? " is-right" : "";
+  return `
+    <div class="scouting-pitch-toolbar${positionClass}">
+      <label>
+        <span>Formation</span>
+        <select ${dataAttribute} ${canEdit ? "" : "disabled"}>
+          ${getScoutingFormationOptions()
+            .map((formation) => `<option value="${escapeHtml(formation)}" ${normalizeScoutingFormation(value) === formation ? "selected" : ""}>${escapeHtml(formation)}</option>`)
+            .join("")}
+        </select>
+      </label>
+    </div>
+  `;
+}
 function getScoutingMyTeamState(state = ensureScoutingState()) {
   const source = state.myTeam && typeof state.myTeam === "object" ? state.myTeam : {};
   const slotIds = new Set(scoutingShadowSlots.map((slot) => slot.id));
@@ -3894,6 +3989,51 @@ function renderScoutingMyTeamPlayerMenu(player = {}, slot = null) {
     </details>
   `;
 }
+function renderScoutingPitchRecordMenu(record, slot, recordId) {
+  if (!canEditScoutingWorkspace()) {
+    return "";
+  }
+  return `
+    <details class="scouting-my-team-menu scouting-shadow-player-menu">
+      <summary aria-label="More actions for ${escapeHtml(getScoutingRecordName(record))}">...</summary>
+      <div>
+        <button type="button" data-open-scouting-record="${escapeHtml(recordId)}">Open profile</button>
+        <button type="button" class="is-danger" data-remove-scouting-shadow-slot="${escapeHtml(slot.id)}" data-remove-scouting-shadow-record="${escapeHtml(recordId)}">
+          <span aria-hidden="true">🗑</span>
+          Remove player
+        </button>
+      </div>
+    </details>
+  `;
+}
+function renderScoutingPitchRecordProfileButton(record, recordId) {
+  return `
+    <button type="button" class="scouting-my-team-spider-menu scouting-shadow-profile-trigger" data-open-scouting-record="${escapeHtml(recordId)}" aria-label="Open profile for ${escapeHtml(getScoutingRecordName(record))}">
+      ◎
+    </button>
+  `;
+}
+function renderScoutingPitchRecordCard(record, options = {}) {
+  const recordId = getScoutingRecordId(record);
+  const slot = options.slot || null;
+  const draggable = canEditScoutingWorkspace() && slot;
+  const dragAttributes = slot
+    ? `draggable="${draggable ? "true" : "false"}" data-scouting-drag-shadow-record="${escapeHtml(recordId)}" data-scouting-shadow-slot="${escapeHtml(slot.id)}" data-scouting-shadow-drop-slot="${escapeHtml(slot.id)}"`
+    : "";
+  return `
+    <article class="scouting-my-team-player scouting-shadow-player is-compact" ${dragAttributes}>
+      ${renderScoutingRecordAvatar(record)}
+      <div class="scouting-my-team-player-copy scouting-shadow-player-copy">
+        <button type="button" class="scouting-shadow-player-name" data-open-scouting-record="${escapeHtml(recordId)}">
+          ${escapeHtml(getScoutingRecordName(record))}
+        </button>
+        <em>${escapeHtml(getScoutingRecordBestRoleLabel(record) || getScoutingRecordPosition(record) || "Best role pending")}</em>
+      </div>
+      ${renderScoutingPitchRecordProfileButton(record, recordId)}
+      ${slot ? renderScoutingPitchRecordMenu(record, slot, recordId) : ""}
+    </article>
+  `;
+}
 function renderScoutingMyTeamPlayerCard(player, options = {}) {
   const id = getScoutingMyTeamPlayerId(player);
   const compact = Boolean(options.compact);
@@ -4074,7 +4214,7 @@ function normalizeScoutingComparisonLab(value = {}) {
   return {
     slotId,
     playerIds: [playerIds[0] || "", playerIds[1] || "", playerIds[2] || "", playerIds[3] || ""],
-    metricId: metricIds[0] || metricId || "minutes",
+    metricId: metricIds[0] || "",
     metricIds: Array.from(new Set(metricIds)).slice(0, 12),
   };
 }
@@ -5069,6 +5209,7 @@ function ensureScoutingRecordLookupsReady() {
   const records = Array.isArray(database?.records) ? database.records : [];
   const nextIdLookup = new Map();
   const nextNameLookup = new Map();
+  const nextPersonLookup = new Map();
   const nextSearchCorpus = new Map();
   for (const record of records) {
     const recordId = getScoutingRecordId(record);
@@ -5105,14 +5246,45 @@ function ensureScoutingRecordLookupsReady() {
   for (const bucket of nextNameLookup.values()) {
     bucket.sort((a, b) => getScoutingRecordSeason(b).localeCompare(getScoutingRecordSeason(a)) || getScoutingRecordMinutes(b) - getScoutingRecordMinutes(a));
   }
+  buildScoutingDatabasePersonClusters(records).forEach((cluster) => {
+    const sortedRecords = [...cluster.records].sort(
+      (a, b) => getScoutingRecordSeasonYearValue(b) - getScoutingRecordSeasonYearValue(a) || getScoutingRecordMinutes(b) - getScoutingRecordMinutes(a)
+    );
+    const lookupKeys = new Set();
+    cluster.records.forEach((record) => getScoutingRecordPersonLookupKeys(record).forEach((key) => lookupKeys.add(key)));
+    lookupKeys.forEach((key) => {
+      if (key) {
+        nextPersonLookup.set(key, sortedRecords);
+      }
+    });
+  });
   scoutingRecordIdLookupCache = nextIdLookup;
   scoutingRecordNameLookupCache = nextNameLookup;
+  scoutingRecordPersonLookupCache = nextPersonLookup;
   scoutingRecordSearchCorpusCache = nextSearchCorpus;
   scoutingRecordLookupFingerprint = fingerprint;
 }
 function getScoutingRecordSearchCorpus(record) {
   const recordId = getScoutingRecordId(record);
-  return recordId ? scoutingRecordSearchCorpusCache.get(recordId) || "" : "";
+  const cached = recordId ? scoutingRecordSearchCorpusCache.get(recordId) || "" : "";
+  const mergedRows = getScoutingRecordMergedSeasonRecords(record);
+  if (!mergedRows.length) {
+    return cached;
+  }
+  const mergedCorpus = mergedRows
+    .flatMap((seasonRecord) => [
+      getScoutingRecordName(seasonRecord),
+      ...getScoutingRecordNameAliasTerms(seasonRecord),
+      ...getScoutingRecordKnownFullNameAliases(seasonRecord),
+      getScoutingRecordTeam(seasonRecord),
+      getScoutingRecordLeague(seasonRecord),
+      getScoutingRecordSeason(seasonRecord),
+      getScoutingRecordPosition(seasonRecord),
+      ...getScoutingRoleLabelsForGroup(seasonRecord),
+    ])
+    .filter(Boolean)
+    .join(" ");
+  return normalizeScoutingText(`${cached} ${mergedCorpus}`, 800).toLowerCase();
 }
 function getScoutingRecordStoredIdentityId(record) {
   return normalizeScoutingText(record?.[scoutingRecordIndex.playerIdentityId], 160);
@@ -5124,6 +5296,44 @@ function getScoutingRecordPersonNationalityKey(record) {
   const nationality = getScoutingRecordNationalityMeta(record);
   const code = nationality.code && nationality.code !== "N/A" ? nationality.code : "";
   return normalizeScoutingIdentityPart(code || nationality.label, 80);
+}
+function getScoutingRecordPersonAliasKey(record) {
+  return normalizeScoutingIdentityPart(getScoutingInitialSurnameAlias(getScoutingRecordName(record)), 140);
+}
+function getScoutingRecordSoftPersonKey(record) {
+  const aliasKey = getScoutingRecordPersonAliasKey(record) || getScoutingRecordPersonNameKey(record);
+  const nationalityKey = getScoutingRecordPersonNationalityKey(record);
+  const dob = normalizeScoutingIdentityPart(getScoutingRecordDateOfBirth(record), 40);
+  return [aliasKey, nationalityKey, dob].filter(Boolean).join("|");
+}
+function getScoutingRecordPersonLookupKeys(record) {
+  const keys = new Set();
+  const strongKey = getScoutingRecordStrongPersonKey(record);
+  const nameKey = getScoutingRecordPersonNameKey(record);
+  const aliasKey = getScoutingRecordPersonAliasKey(record);
+  const nationalityKey = getScoutingRecordPersonNationalityKey(record);
+  const dob = normalizeScoutingIdentityPart(getScoutingRecordDateOfBirth(record), 40);
+  if (strongKey) keys.add(`strong:${strongKey}`);
+  if (nameKey && nationalityKey) keys.add(`name:${nameKey}:${nationalityKey}`);
+  if (aliasKey && nationalityKey) keys.add(`alias:${aliasKey}:${nationalityKey}`);
+  if (aliasKey && dob) keys.add(`aliasdob:${aliasKey}:${dob}`);
+  if (nameKey && dob) keys.add(`namedob:${nameKey}:${dob}`);
+  return Array.from(keys).filter(Boolean);
+}
+function getScoutingRecordCanonicalPersonKey(record) {
+  const strongKey = getScoutingRecordStrongPersonKey(record);
+  if (strongKey) {
+    return strongKey;
+  }
+  const aliasKey = getScoutingRecordPersonAliasKey(record);
+  const nameKey = getScoutingRecordPersonNameKey(record);
+  const nationalityKey = getScoutingRecordPersonNationalityKey(record);
+  const dob = normalizeScoutingIdentityPart(getScoutingRecordDateOfBirth(record), 40);
+  return [
+    aliasKey || nameKey || "unknown-player",
+    nationalityKey || "unknown-nationality",
+    dob || "unknown-dob",
+  ].join("|");
 }
 function getScoutingRecordSeasonYearValue(record) {
   const season = getScoutingRecordSeason(record);
@@ -5138,8 +5348,9 @@ function getScoutingRecordStrongPersonKey(record) {
   const sourcePlayerId = normalizeScoutingIdentityPart(getScoutingRecordPlayerSourceId(record), 160);
   const sourceTrace = getScoutingRecordSourceTrace(record);
   const identitySource = normalizeScoutingText(sourceTrace.identitySource, 40).toLowerCase();
-  const sourceIdIsDerived = !identitySource || ["derived", "name", "name + date of birth + nationality"].includes(identitySource);
-  if (sourcePlayerId && !sourceIdIsDerived) {
+  const verifiedIdentitySources = new Set(["football-science-db", "federationid", "wyscoutid", "fbrefid", "transfermarktid"]);
+  const sourceIdIsVerified = verifiedIdentitySources.has(identitySource.replace(/[^a-z0-9-]/g, ""));
+  if (sourcePlayerId && sourceIdIsVerified) {
     return `source:${sourceSystem}:${sourcePlayerId}`;
   }
   const nameKey = getScoutingRecordPersonNameKey(record);
@@ -5149,7 +5360,7 @@ function getScoutingRecordStrongPersonKey(record) {
     return `dob:${nameKey}:${dateOfBirth}:${nationalityKey}`;
   }
   const storedIdentityId = normalizeScoutingIdentityPart(getScoutingRecordStoredIdentityId(record), 160);
-  if (storedIdentityId && identitySource && !["derived", "name", "name + date of birth + nationality"].includes(identitySource)) {
+  if (storedIdentityId && sourceIdIsVerified) {
     return `identity:${sourceSystem}:${storedIdentityId}`;
   }
   return "";
@@ -5192,6 +5403,15 @@ function areScoutingClubSeasonSignalsCompatible(firstRecord, secondRecord) {
   const firstSeason = normalizeScoutingIdentityPart(getScoutingRecordSeason(firstRecord), 80);
   const secondSeason = normalizeScoutingIdentityPart(getScoutingRecordSeason(secondRecord), 80);
   if (firstSeason && secondSeason && firstSeason === secondSeason) {
+    const firstStrongKey = getScoutingRecordStrongPersonKey(firstRecord);
+    const secondStrongKey = getScoutingRecordStrongPersonKey(secondRecord);
+    const hasHardIdentityMatch = firstStrongKey && secondStrongKey && firstStrongKey === secondStrongKey;
+    const hasBirthDateMatch =
+      getScoutingRecordDateOfBirth(firstRecord) &&
+      getScoutingRecordDateOfBirth(firstRecord) === getScoutingRecordDateOfBirth(secondRecord);
+    if (!hasHardIdentityMatch && !hasBirthDateMatch) {
+      return false;
+    }
     const firstAge = getScoutingRecordAge(firstRecord);
     const secondAge = getScoutingRecordAge(secondRecord);
     if (Number.isFinite(firstAge) && Number.isFinite(secondAge) && Math.abs(firstAge - secondAge) > 1) {
@@ -5261,30 +5481,17 @@ function chooseScoutingRepresentativeRecord(records = [], filters = {}) {
     return getScoutingRecordName(first).localeCompare(getScoutingRecordName(second));
   })[0] || null;
 }
-function attachScoutingMergedSeasonRecords(record, records = []) {
-  if (!record) {
-    return null;
-  }
-  const mergedSeasonRecords = [...(Array.isArray(records) ? records : [])].sort((first, second) => {
-    const seasonDelta = getScoutingRecordSeasonYearValue(second) - getScoutingRecordSeasonYearValue(first);
-    if (seasonDelta) return seasonDelta;
-    return getScoutingRecordMinutes(second) - getScoutingRecordMinutes(first);
-  });
-  const nextRecord = Array.isArray(record) ? record.slice() : { ...record };
-  nextRecord[scoutingRecordIndex.sourceTrace] = {
-    ...getScoutingRecordSourceTrace(record),
-    mergedSeasonRecords,
-    mergedSeasonCount: mergedSeasonRecords.length,
-  };
-  return nextRecord;
-}
-function groupScoutingDatabaseRecordsByPerson(records = [], filters = {}) {
+function buildScoutingDatabasePersonClusters(records = []) {
   const clusters = [];
   for (const record of Array.isArray(records) ? records : []) {
     const strongKey = getScoutingRecordStrongPersonKey(record);
+    const softKey = getScoutingRecordSoftPersonKey(record);
     let cluster = strongKey
       ? clusters.find((item) => item.strongKey && item.strongKey === strongKey)
       : null;
+    if (!cluster && softKey) {
+      cluster = clusters.find((item) => item.softKey && item.softKey === softKey && item.records.every((candidate) => areScoutingRecordsLikelySamePerson(record, candidate)));
+    }
     if (!cluster) {
       cluster = clusters.find((item) => {
         if (
@@ -5303,10 +5510,39 @@ function groupScoutingDatabaseRecordsByPerson(records = [], filters = {}) {
       if (strongKey && !cluster.strongKey) {
         cluster.strongKey = strongKey;
       }
+      if (softKey && !cluster.softKey) {
+        cluster.softKey = softKey;
+      }
     } else {
-      clusters.push({ strongKey, records: [record] });
+      clusters.push({ strongKey, softKey, records: [record] });
     }
   }
+  return clusters;
+}
+function attachScoutingMergedSeasonRecords(record, records = []) {
+  if (!record) {
+    return null;
+  }
+  const mergedSeasonRecords = [...(Array.isArray(records) ? records : [])].sort((first, second) => {
+    const seasonDelta = getScoutingRecordSeasonYearValue(second) - getScoutingRecordSeasonYearValue(first);
+    if (seasonDelta) return seasonDelta;
+    return getScoutingRecordMinutes(second) - getScoutingRecordMinutes(first);
+  });
+  const nextRecord = Array.isArray(record) ? record.slice() : { ...record };
+  nextRecord[scoutingRecordIndex.sourceTrace] = {
+    ...getScoutingRecordSourceTrace(record),
+    personClusterKey: getScoutingRecordCanonicalPersonKey(record),
+    mergedSeasonRecords,
+    mergedSeasonCount: mergedSeasonRecords.length,
+    mergedSeasonRecordIds: mergedSeasonRecords.map((seasonRecord) => getScoutingRecordId(seasonRecord)).filter(Boolean),
+    seasonOptions: mergedSeasonRecords
+      .map((seasonRecord) => getScoutingRecordSeason(seasonRecord))
+      .filter((season, index, values) => season && values.indexOf(season) === index),
+  };
+  return nextRecord;
+}
+function groupScoutingDatabaseRecordsByPerson(records = [], filters = {}) {
+  const clusters = buildScoutingDatabasePersonClusters(records);
   return clusters
     .map((cluster) => attachScoutingMergedSeasonRecords(chooseScoutingRepresentativeRecord(cluster.records, filters), cluster.records))
     .filter(Boolean);
@@ -5812,9 +6048,10 @@ function getScoutingImportMergeKey(sourceSystem = "", playerIdentityId = "", sea
   ].join("|");
 }
 function getScoutingRecordMergeKey(record) {
+  const personIdentityKey = getScoutingRecordStrongPersonKey(record) || getScoutingRecordCanonicalPersonKey(record) || getScoutingRecordPlayerIdentityId(record);
   return getScoutingImportMergeKey(
     normalizeScoutingText(record?.[scoutingRecordIndex.sourceSystem], 40) || "file-import",
-    getScoutingRecordPlayerIdentityId(record),
+    personIdentityKey,
     getScoutingRecordSeason(record),
     getScoutingRecordLeague(record),
     getScoutingRecordTeam(record)
@@ -5886,6 +6123,27 @@ function mergeScoutingImportMetrics(existingMetrics = [], importedMetrics = []) 
   });
   return [...byId.values()];
 }
+function getScoutingSlotPlayerCount(slots = {}) {
+  return Object.values(slots && typeof slots === "object" ? slots : {}).reduce((sum, slot) => {
+    const recordIds = Array.isArray(slot?.recordIds) ? slot.recordIds : [];
+    return sum + recordIds.length;
+  }, 0);
+}
+function getScoutingImportManualStateSummary(state = ensureScoutingState()) {
+  const shadowXi = state?.shadowXi && typeof state.shadowXi === "object" ? state.shadowXi : {};
+  const myTeam = state?.myTeam && typeof state.myTeam === "object" ? state.myTeam : {};
+  return {
+    savedViews: Array.isArray(state?.savedViews) ? state.savedViews.length : 0,
+    favorites: normalizeScoutingRecordIds(state?.favoriteRecordIds).length,
+    contacts: Array.isArray(state?.contactLog) ? state.contactLog.length : 0,
+    lists: Array.isArray(state?.lists) ? state.lists.length : 0,
+    targets: Array.isArray(state?.targets) ? state.targets.length : 0,
+    reports: Array.isArray(state?.reports) ? state.reports.length : 0,
+    comparePlayers: normalizeScoutingRecordIds(state?.compareRecordIds).length,
+    shadowXiPlayers: getScoutingSlotPlayerCount(shadowXi.slots),
+    myTeamPlayers: getScoutingSlotPlayerCount(myTeam.slots),
+  };
+}
 function buildScoutingImportPreview(database = {}) {
   const existingRecords = getScoutingDatabase()?.records || [];
   const existingByMergeKey = new Map();
@@ -5928,6 +6186,7 @@ function buildScoutingImportPreview(database = {}) {
     metricQualityCounts,
     samples,
     operationsByMergeKey,
+    manualStatePreserved: getScoutingImportManualStateSummary(),
     signature: database.importSignature || "",
   };
   (database.records || []).forEach((record) => {
@@ -6031,9 +6290,9 @@ function buildScoutingImportPreview(database = {}) {
         : summary.replaceRows > 0 || summary.newRows > 0
           ? {
               tone: "safe",
-              label: "Safe to commit",
-              detail: "No identity conflicts detected in this preview. New and replaced rows will keep source trace metadata.",
-            }
+          label: "Safe to commit",
+          detail: "No identity conflicts detected in this preview. New and replaced rows will keep source trace metadata; manual notes and lists are preserved.",
+        }
           : {
               tone: "neutral",
               label: "No changes detected",
@@ -6053,10 +6312,15 @@ function getScoutingImportPublishDatabase(database = {}, preview = {}) {
 }
 function mergeScoutingImportedDatabase(database = {}, preview = {}) {
   const existing = getScoutingDatabase();
-  const incomingByMergeKey = new Map((database.records || []).map((record) => [getScoutingRecordMergeKey(record), record]));
+  const operations = preview.operationsByMergeKey || {};
+  const incomingRecords = (database.records || []).filter((record) => {
+    const operation = operations[getScoutingRecordMergeKey(record)];
+    return operation === "new" || operation === "replace";
+  });
+  const incomingByMergeKey = new Map(incomingRecords.map((record) => [getScoutingRecordMergeKey(record), record]));
   const nextRecords = [
     ...(existing?.records || []).filter((record) => !incomingByMergeKey.has(getScoutingRecordMergeKey(record))),
-    ...(database.records || []),
+    ...incomingRecords,
   ];
   return {
     ...database,
@@ -6071,6 +6335,17 @@ function renderScoutingImportDiffPreview(preview = null) {
   }
   const quality = preview.metricQualityCounts || {};
   const safety = preview.importSafety || {};
+  const manual = preview.manualStatePreserved || {};
+  const manualTotal =
+    (manual.savedViews || 0) +
+    (manual.favorites || 0) +
+    (manual.contacts || 0) +
+    (manual.lists || 0) +
+    (manual.targets || 0) +
+    (manual.reports || 0) +
+    (manual.comparePlayers || 0) +
+    (manual.shadowXiPlayers || 0) +
+    (manual.myTeamPlayers || 0);
   return `
     <div class="scouting-import-diff-preview">
       <div class="scouting-import-safety is-${escapeHtml(safety.tone || "neutral")}">
@@ -6083,8 +6358,12 @@ function renderScoutingImportDiffPreview(preview = null) {
         <article><span>Unchanged</span><strong>${escapeHtml(preview.unchangedRows || 0)}</strong></article>
         <article><span>Deduped</span><strong>${escapeHtml(preview.duplicateRows || 0)}</strong></article>
         <article><span>Review flags</span><strong>${escapeHtml(preview.identityWarningRows || 0)}</strong></article>
+        <article><span>Manual preserved</span><strong>${escapeHtml(manualTotal)}</strong></article>
       </div>
       <p>${escapeHtml(`Metric quality: ${quality.trusted || 0} trusted / ${quality.estimated || 0} estimated / ${quality.missing || 0} missing.`)}</p>
+      <p>${escapeHtml(
+        `Manual work stays intact: ${manual.favorites || 0} favorites, ${manual.lists || 0} lists, ${manual.contacts || 0} contacts, ${manual.targets || 0} pipeline targets, ${manual.reports || 0} reports, ${manual.shadowXiPlayers || 0} Shadow XI players and ${manual.myTeamPlayers || 0} My Team players.`
+      )}</p>
       ${
         preview.identityWarnings?.length
           ? `<div class="scouting-import-risk-list">${preview.identityWarnings
@@ -6168,7 +6447,8 @@ function buildScoutingImportedDatabase() {
         return null;
       }
       const identityCandidates = getScoutingImportIdentityCandidates(row, map);
-      const mappedPlayerSourceId = identityCandidates[0]?.value || "";
+      const mappedPlayerSourceId =
+        identityCandidates[0]?.value && isScoutingVerifiedImportIdentityKey(identityCandidates[0]?.key) ? identityCandidates[0].value : "";
       const playerSourceId = buildScoutingPlayerSourceId(row, map);
       const sourceRecordId = buildScoutingRecordSourceId(row, map, playerSourceId);
       const age = parseScoutingMetricValue(row[map.age]) || "";
@@ -6255,14 +6535,26 @@ function buildScoutingImportedDatabase() {
       recordsByMergeKey.set(mergeKey, preferScoutingImportRecord(record, recordsByMergeKey.get(mergeKey)));
     });
   const records = [...recordsByMergeKey.values()];
-  const importSignature = buildScoutingImportHash([
+  const metricSignature = buildScoutingImportCollectionHash(
+    metrics.map((metric) => `${metric.id}:${metric.label}:${metric.direction}:${metric.sourceColumn}`)
+  );
+  const recordSignature = buildScoutingImportCollectionHash(
+    records
+      .slice()
+      .sort((a, b) => getScoutingRecordMergeKey(a).localeCompare(getScoutingRecordMergeKey(b)))
+      .map((record) => `${getScoutingRecordMergeKey(record)}:${getScoutingRecordImportFingerprint(record)}`)
+  );
+  const importSignature = buildScoutingImportCollectionHash([
     scoutingImportDraft.fileName,
     sheets.map((sheet) => sheet.name).join("~"),
     sourceSystem,
+    scoutingImportDraft.seasonOverride || "",
+    JSON.stringify(scoutingImportDraft.map || {}),
     records.length,
     metrics.length,
-    records.map((record) => getScoutingRecordMergeKey(record)).join("~"),
-  ].join("::"));
+    metricSignature,
+    recordSignature,
+  ]);
   return {
     source: "ui-import",
     fileName: scoutingImportDraft.fileName,
@@ -6271,6 +6563,7 @@ function buildScoutingImportedDatabase() {
     metrics,
     records,
     importSignature,
+    importContentSignature: recordSignature,
     dedupeSummary: {
       incomingDuplicates,
       duplicateSamples,
@@ -6586,6 +6879,12 @@ function getScoutingRecordsForPlayer(record) {
   const mergedSeasonRecords = getScoutingRecordMergedSeasonRecords(record);
   if (mergedSeasonRecords.length) {
     return mergedSeasonRecords.filter((candidate) => areScoutingRecordsLikelySamePerson(record, candidate));
+  }
+  for (const key of getScoutingRecordPersonLookupKeys(record)) {
+    const personRecords = scoutingRecordPersonLookupCache.get(key);
+    if (personRecords?.length) {
+      return personRecords.filter((candidate) => areScoutingRecordsLikelySamePerson(record, candidate));
+    }
   }
   const name = getScoutingRecordName(record).toLowerCase();
   if (!name) {
@@ -9003,16 +9302,23 @@ function bindScoutingDragAndDrop() {
       // Pointer capture can already be released by the browser.
     }
     if (!cancel && drag.lastPosition) {
-      setScoutingMyTeamSlotPitchPosition(drag.slotId, drag.lastPosition.x, drag.lastPosition.y);
+      if (drag.mode === "shadow") {
+        setScoutingShadowSlotPitchPosition(drag.slotId, drag.lastPosition.x, drag.lastPosition.y);
+      } else {
+        setScoutingMyTeamSlotPitchPosition(drag.slotId, drag.lastPosition.x, drag.lastPosition.y);
+      }
     }
   };
   root.addEventListener("pointerdown", (event) => {
     const myTeamSlotHandle = event.target.closest("[data-scouting-drag-my-team-slot]");
-    if (!myTeamSlotHandle || !root.contains(myTeamSlotHandle) || !canEditScoutingWorkspace()) {
+    const shadowSlotHandle = event.target.closest("[data-scouting-drag-shadow-slot]");
+    const slotHandle = myTeamSlotHandle || shadowSlotHandle;
+    if (!slotHandle || !root.contains(slotHandle) || !canEditScoutingWorkspace()) {
       return;
     }
-    const slotElement = myTeamSlotHandle.closest(".scouting-my-team-slot");
-    const pitchElement = myTeamSlotHandle.closest(".scouting-my-team-pitch");
+    const mode = shadowSlotHandle ? "shadow" : "my-team";
+    const slotElement = slotHandle.closest(".scouting-shadow-slot");
+    const pitchElement = slotHandle.closest(".scouting-shadow-pitch");
     const position = getScoutingMyTeamPointerPitchPosition(event, pitchElement);
     if (!slotElement || !pitchElement || !position) {
       return;
@@ -9021,15 +9327,16 @@ function bindScoutingDragAndDrop() {
     event.stopPropagation();
     myTeamSlotPositionDrag = {
       pointerId: event.pointerId,
-      slotId: myTeamSlotHandle.dataset.scoutingDragMyTeamSlot,
-      handle: myTeamSlotHandle,
+      mode,
+      slotId: mode === "shadow" ? slotHandle.dataset.scoutingDragShadowSlot : slotHandle.dataset.scoutingDragMyTeamSlot,
+      handle: slotHandle,
       slotElement,
       pitchElement,
       lastPosition: position,
     };
     slotElement.classList.add("is-position-dragging");
     previewScoutingMyTeamSlotPitchPosition(slotElement, position);
-    myTeamSlotHandle.setPointerCapture?.(event.pointerId);
+    slotHandle.setPointerCapture?.(event.pointerId);
   });
   root.addEventListener("pointermove", (event) => {
     if (!myTeamSlotPositionDrag || event.pointerId !== myTeamSlotPositionDrag.pointerId) {
@@ -14383,20 +14690,11 @@ function renderScoutingShadowXi() {
   const activeShadowBoardId = normalizeScoutingText(state.shadowXi?.activeBoardId, 100) || shadowBoards[0]?.id || "default-shadow-xi";
   const shadowSlotDepths = scoutingShadowSlots.map((slot) => getScoutingShadowSlotRecordIds(slot.id, state).length);
   const totalShadowTargets = shadowSlotDepths.reduce((sum, count) => sum + count, 0);
-  const shadowPitchHeightRem = Math.round(Math.min(84, Math.max(58, 52 + Math.max(1, ...shadowSlotDepths) * 4.2 + totalShadowTargets * 0.08)));
+  const shadowPitchHeightRem = getScoutingUnifiedPitchHeightRem(shadowSlotDepths, totalShadowTargets);
   return `
     <section class="scouting-shadow-layout">
-      <div class="scouting-shadow-pitch ${escapeHtml(getScoutingPitchFormationClass(state.shadowXi.formation))}" style="--scouting-shadow-pitch-height:${shadowPitchHeightRem}rem;" aria-label="Shadow eleven ${escapeHtml(state.shadowXi.formation)}">
-        <div class="scouting-pitch-toolbar">
-          <label>
-            <span>Formation</span>
-            <select data-scouting-formation ${canEdit ? "" : "disabled"}>
-              ${getScoutingFormationOptions()
-                .map((formation) => `<option value="${escapeHtml(formation)}" ${normalizeScoutingFormation(state.shadowXi.formation) === formation ? "selected" : ""}>${escapeHtml(formation)}</option>`)
-                .join("")}
-            </select>
-          </label>
-        </div>
+      <div class="scouting-shadow-pitch scouting-my-team-pitch ${escapeHtml(getScoutingPitchFormationClass(state.shadowXi.formation))}" style="--scouting-shadow-pitch-height:${shadowPitchHeightRem}rem;--my-team-pitch-height:${shadowPitchHeightRem}rem;" aria-label="Shadow eleven ${escapeHtml(state.shadowXi.formation)}">
+        ${renderScoutingPitchFormationToolbar(state.shadowXi.formation, "data-scouting-formation", canEdit)}
         <span class="scouting-pitch-line is-half"></span>
         <span class="scouting-pitch-line is-box-top"></span>
         <span class="scouting-pitch-line is-box-bottom"></span>
@@ -14405,50 +14703,31 @@ function renderScoutingShadowXi() {
             const pitchPosition = getScoutingShadowSlotPitchPosition(slot, state.shadowXi.formation);
             const records = getScoutingShadowSlotRecords(slot.id, state);
             return `
-              <article class="scouting-shadow-slot${records.length ? " is-filled" : ""}${selectedSlotId === slot.id ? " is-selected" : ""}" style="--x:${pitchPosition.x}%;--y:${pitchPosition.y}%;" data-shadow-slot-role="${escapeHtml(slot.id)}" data-scouting-shadow-drop-slot="${escapeHtml(slot.id)}">
+              <article class="scouting-shadow-slot scouting-my-team-slot${records.length ? " is-filled" : ""}${selectedSlotId === slot.id ? " is-selected" : ""}" style="--x:${pitchPosition.x}%;--y:${pitchPosition.y}%;" data-shadow-slot-role="${escapeHtml(slot.id)}" data-scouting-shadow-drop-slot="${escapeHtml(slot.id)}">
                 <span class="scouting-shadow-slot-pin" draggable="${canEdit ? "true" : "false"}" data-scouting-drag-shadow-slot="${escapeHtml(slot.id)}" aria-label="Move ${escapeHtml(slot.label)} position"></span>
-                <button type="button" class="scouting-shadow-slot-head" data-select-scouting-shadow-slot="${escapeHtml(slot.id)}">
-                  <span>${escapeHtml(slot.label)}</span>
-                  <strong>${records.length ? `${records.length} target${records.length === 1 ? "" : "s"}` : "Wishlist"}</strong>
-                  <em>${escapeHtml(slot.position)}</em>
-                </button>
-                <div class="scouting-shadow-stack">
-                  ${
-                    records.length
-                  ? records
-                            .map((record, index) => {
+                <div class="scouting-my-team-slot-card">
+                  <button type="button" class="scouting-my-team-slot-head scouting-shadow-slot-head" data-select-scouting-shadow-slot="${escapeHtml(slot.id)}">
+                    <span class="scouting-my-team-slot-role">${escapeHtml(slot.label)}</span>
+                    <small>${records.length ? `${records.length} ${records.length === 1 ? "target" : "targets"}` : "Wishlist"}</small>
+                  </button>
+                  <div class="scouting-my-team-slot-stack scouting-shadow-stack">
+                    ${
+                      records.length
+                        ? records
+                            .map((record) => {
                               const recordId = getScoutingRecordId(record);
                               return `
-                              <div class="scouting-shadow-player-row" style="--stack:${index};" data-scouting-shadow-drop-slot="${escapeHtml(slot.id)}" data-scouting-shadow-drop-before="${escapeHtml(recordId)}">
-                                <article
-                                  class="scouting-shadow-player"
-                                  draggable="true"
-                                  data-scouting-drag-shadow-record="${escapeHtml(recordId)}"
-                                  data-scouting-shadow-slot="${escapeHtml(slot.id)}"
-                                  data-scouting-shadow-drop-slot="${escapeHtml(slot.id)}"
-                                  data-scouting-shadow-drop-before="${escapeHtml(recordId)}"
-                                >
-                                  ${renderScoutingShadowPlayerProfileButton(record, recordId)}
-                                  <div class="scouting-shadow-player-copy">
-                                    <button
-                                      type="button"
-                                      class="scouting-shadow-player-name"
-                                      data-open-scouting-record="${escapeHtml(recordId)}"
-                                    >
-                                      ${escapeHtml(getScoutingRecordName(record))}
-                                    </button>
-                                    <span>${escapeHtml(getScoutingRecordTeam(record) || getScoutingRecordLeague(record))}</span>
-                                  </div>
-                                  ${renderScoutingShadowPlayerMenu(record, slot, recordId)}
-                                </article>
-                              </div>
-                            `;
-                          })
-                          .join("")
-                      : `<p class="scouting-shadow-empty"><strong>Drop target</strong><span>Drag a favorite or add from player profile.</span></p>`
-                  }
+                                <div class="scouting-my-team-slot-entry scouting-shadow-player-row" data-scouting-shadow-drop-slot="${escapeHtml(slot.id)}" data-scouting-shadow-drop-before="${escapeHtml(recordId)}">
+                                  ${renderScoutingPitchRecordCard(record, { slot })}
+                                </div>
+                              `;
+                            })
+                            .join("")
+                        : `<p class="scouting-shadow-empty"><strong>Drop target</strong><span>Drag a favorite or add from player profile.</span></p>`
+                    }
+                  </div>
+                  <button type="button" class="scouting-my-team-add-to-slot scouting-shadow-add" data-select-scouting-shadow-slot="${escapeHtml(slot.id)}" ${canEdit ? "" : "disabled"}>+ Add player</button>
                 </div>
-                <button type="button" class="scouting-shadow-add" data-select-scouting-shadow-slot="${escapeHtml(slot.id)}" ${canEdit ? "" : "disabled"}>+ Add player</button>
               </article>
             `;
           })
@@ -14531,24 +14810,14 @@ function renderScoutingMyTeam() {
   const assignedIds = getScoutingMyTeamAssignedIds(state);
   const roleModelCount = getScoutingRoleModels(state).length;
   const benchPlayers = players.filter((player) => !assignedIds.has(getScoutingMyTeamPlayerId(player)));
-  const maxSlotDepth = Math.max(
-    1,
-    ...scoutingShadowSlots.map((slot) => normalizeScoutingMyTeamSlotPlayerIds(myTeam.slots[slot.id]).length)
+  const pitchHeightRem = getScoutingUnifiedPitchHeightRem(
+    scoutingShadowSlots.map((slot) => normalizeScoutingMyTeamSlotPlayerIds(myTeam.slots[slot.id]).length),
+    assignedIds.size
   );
-  const pitchHeightRem = Math.round(Math.min(84, Math.max(66, 52 + maxSlotDepth * 4.2 + assignedIds.size * 0.12)));
   return `
     <section class="scouting-shadow-layout scouting-my-team-layout">
       <div class="scouting-shadow-pitch scouting-my-team-pitch ${escapeHtml(getScoutingPitchFormationClass(myTeam.formation))}" style="--my-team-pitch-height:${pitchHeightRem}rem;" aria-label="My Team ${escapeHtml(myTeam.formation)}">
-        <div class="scouting-pitch-toolbar is-right">
-          <label>
-            <span>Formation</span>
-            <select data-scouting-my-team-formation ${canEdit ? "" : "disabled"}>
-              ${getScoutingFormationOptions()
-                .map((formation) => `<option value="${escapeHtml(formation)}" ${myTeam.formation === formation ? "selected" : ""}>${escapeHtml(formation)}</option>`)
-                .join("")}
-            </select>
-          </label>
-        </div>
+        ${renderScoutingPitchFormationToolbar(myTeam.formation, "data-scouting-my-team-formation", canEdit, { right: true })}
         <span class="scouting-pitch-line is-half"></span>
         <span class="scouting-pitch-line is-box-top"></span>
         <span class="scouting-pitch-line is-box-bottom"></span>
@@ -14796,11 +15065,11 @@ function renderScoutingComparisonLabPanel() {
   const lab = getScoutingComparisonLab(state);
   const metricOptions = getScoutingMetricOptions();
   const selectedMetricIds = Array.from(
-    new Set((lab.metricIds?.length ? lab.metricIds : [lab.metricId]).map((metricId) => normalizeScoutingText(metricId, 120)).filter(Boolean))
+    new Set((Array.isArray(lab.metricIds) ? lab.metricIds : []).map((metricId) => normalizeScoutingText(metricId, 120)).filter(Boolean))
   ).filter((metricId) => metricOptions.some((metricOption) => metricOption.id === metricId));
-  const comparisonMetricIds = selectedMetricIds.length ? selectedMetricIds : [metricOptions[0]?.id || "minutes"].filter(Boolean);
+  const comparisonMetricIds = selectedMetricIds;
   const selectedMetricOptions = comparisonMetricIds.map((metricId) => getScoutingMetric(metricId)).filter(Boolean);
-  const metric = selectedMetricOptions[0] || metricOptions[0];
+  const metric = selectedMetricOptions[0] || null;
   const metricLabelText = selectedMetricOptions.length ? selectedMetricOptions.map((item) => item.label).join(", ") : "selected metrics";
   const comparisonMetricQuery = scoutingComparisonMetricFilterQuery.toLowerCase();
   const comparisonMetricChoices = comparisonMetricQuery
@@ -14815,7 +15084,7 @@ function renderScoutingComparisonLabPanel() {
     .map(
       (metricOption, index) => `
         <label>
-          <input type="checkbox" name="metricIds" value="${escapeHtml(metricOption.id)}" ${comparisonMetricIds.includes(metricOption.id) || (!comparisonMetricIds.length && index === 0) ? "checked" : ""} data-scouting-comparison-metric-checkbox ${canEditScoutingWorkspace() ? "" : "disabled"} />
+          <input type="checkbox" name="metricIds" value="${escapeHtml(metricOption.id)}" ${comparisonMetricIds.includes(metricOption.id) ? "checked" : ""} data-scouting-comparison-metric-checkbox ${canEditScoutingWorkspace() ? "" : "disabled"} />
           <span>${escapeHtml(metricOption.label)}</span>
         </label>
       `
@@ -14842,6 +15111,7 @@ function renderScoutingComparisonLabPanel() {
     }))
     .filter(({ record }) => Boolean(record));
   const canCompare = playerRecords.length >= 2;
+  const canScoreCompare = canCompare && selectedMetricOptions.length > 0;
   const comparisonSnapshot = canCompare
     ? playerRecords.map(({ record }) => ({
         record,
@@ -14856,7 +15126,7 @@ function renderScoutingComparisonLabPanel() {
     canCompare && comparisonLeader
       ? `${escapeHtml(getScoutingRecordName(comparisonLeader.record))} leads ${escapeHtml(metric?.label || "selected metric")} at P${escapeHtml(comparisonLeader.percentile)}`
       : "";
-  const comparisonDecisionRows = canCompare
+  const comparisonDecisionRows = canScoreCompare
     ? playerRecords
         .map(({ record }) => {
           const metricEntries = selectedMetricOptions.map((selectedMetric) => {
@@ -14890,7 +15160,7 @@ function renderScoutingComparisonLabPanel() {
         .sort((a, b) => (b.metricScore || 0) - (a.metricScore || 0) || (b.selectedPercentile || 0) - (a.selectedPercentile || 0))
     : [];
   const comparisonRecommendation = comparisonDecisionRows[0];
-  const comparisonMetricRows = canCompare
+  const comparisonMetricRows = canScoreCompare
     ? selectedMetricOptions
         .map((selectedMetric) => {
           const values = playerRecords
@@ -14912,7 +15182,7 @@ function renderScoutingComparisonLabPanel() {
         })
         .filter(Boolean)
     : [];
-  const comparisonTableMetrics = canCompare
+  const comparisonTableMetrics = canScoreCompare
     ? Array.from(
         new Map(
           selectedMetricOptions
@@ -14922,6 +15192,27 @@ function renderScoutingComparisonLabPanel() {
         ).values()
       ).slice(0, 12)
     : [];
+  const comparisonRunnerUp = comparisonDecisionRows[1] || null;
+  const comparisonScoreGap =
+    comparisonRecommendation && comparisonRunnerUp && Number.isFinite(comparisonRecommendation.metricScore) && Number.isFinite(comparisonRunnerUp.metricScore)
+      ? comparisonRecommendation.metricScore - comparisonRunnerUp.metricScore
+      : null;
+  const comparisonCoverageCount = comparisonDecisionRows.reduce(
+    (sum, entry) => sum + entry.metricEntries.filter((metricEntry) => Number.isFinite(metricEntry.percentile)).length,
+    0
+  );
+  const comparisonCoverageTotal = Math.max(1, comparisonDecisionRows.length * Math.max(1, selectedMetricOptions.length));
+  const comparisonCoveragePercent = Math.round((comparisonCoverageCount / comparisonCoverageTotal) * 100);
+  const comparisonConclusion =
+    canScoreCompare && comparisonRecommendation
+      ? `${getScoutingRecordName(comparisonRecommendation.record)} leder jämförelsen${Number.isFinite(comparisonScoreGap) ? ` med ${comparisonScoreGap} percentile-poäng` : ""}. ${
+          comparisonRecommendation.bestSelectedMetric
+            ? `Starkaste datapunkten är ${comparisonRecommendation.bestSelectedMetric.metric.label} på P${comparisonRecommendation.bestSelectedMetric.percentile}.`
+            : "Datatäckningen är begränsad, så använd detta som en första indikation."
+        }`
+      : canCompare
+        ? "Välj metrics för att skapa en riktig jämförelse mellan spelarna."
+        : "Sök fram minst två spelare och välj metrics för att få vinnare, spider, tabell och slutsats.";
   const canEdit = canEditScoutingWorkspace();
   const selectedSlotMarkup = [0, 1, 2, 3]
     .map((slotIndex) => {
@@ -15060,26 +15351,31 @@ function renderScoutingComparisonLabPanel() {
         ${selectedSlotMarkup}
       </div>
       <p class="scouting-comparison-summary">
-        ${selectedMetricOptions.length ? `Metrics: ${escapeHtml(metricLabelText)}` : "Select metrics"} ${canCompare ? `· ${metricDelta}` : "· Pick at least two players to compare"}
+        ${selectedMetricOptions.length ? `Metrics: ${escapeHtml(metricLabelText)}` : "Select metrics"} ${canScoreCompare && metricDelta ? `· ${metricDelta}` : "· Decision is based only on selected players and selected metrics"}
       </p>
       ${
-        canCompare && comparisonRecommendation
+        canCompare
           ? `
             <div class="scouting-comparison-decision">
-              <div>
-                <span>Metric leader</span>
-                <strong>${escapeHtml(getScoutingRecordName(comparisonRecommendation.record))}</strong>
-                <p>${escapeHtml(`Best average across ${selectedMetricOptions.length} selected metric${selectedMetricOptions.length === 1 ? "" : "s"}.`)}</p>
+              <div class="is-winner">
+                <span>Winner</span>
+                <strong>${escapeHtml(comparisonRecommendation ? getScoutingRecordName(comparisonRecommendation.record) : "No winner yet")}</strong>
+                <p>${escapeHtml(canScoreCompare ? `Best average across ${selectedMetricOptions.length} selected metric${selectedMetricOptions.length === 1 ? "" : "s"}.` : "Choose metrics before a winner can be calculated.")}</p>
               </div>
               <div>
-                <span>Selected metric score</span>
-                <strong>${Number.isFinite(comparisonRecommendation.metricScore) ? `P${escapeHtml(comparisonRecommendation.metricScore)}` : "n/a"}</strong>
-                <p>${escapeHtml(comparisonRecommendation.bestSelectedMetric ? `${comparisonRecommendation.bestSelectedMetric.metric.label} is strongest at P${comparisonRecommendation.bestSelectedMetric.percentile}.` : "No selected metric data yet.")}</p>
+                <span>Score gap</span>
+                <strong>${Number.isFinite(comparisonScoreGap) ? `${escapeHtml(comparisonScoreGap)} pts` : "n/a"}</strong>
+                <p>${escapeHtml(comparisonRunnerUp ? `Runner-up: ${getScoutingRecordName(comparisonRunnerUp.record)}.` : "Add another scored player to separate the field.")}</p>
               </div>
               <div>
-                <span>Comparison basis</span>
-                <strong>${escapeHtml(selectedMetricOptions.length)} metrics</strong>
-                <p>No role filter. Only the players and metrics you selected are compared.</p>
+                <span>Data coverage</span>
+                <strong>${escapeHtml(comparisonCoveragePercent)}%</strong>
+                <p>${escapeHtml(`${comparisonCoverageCount}/${comparisonCoverageTotal} player-metric cells have percentile data.`)}</p>
+              </div>
+              <div class="is-conclusion">
+                <span>Short conclusion</span>
+                <strong>${escapeHtml(comparisonRecommendation ? "Decision note" : "Next step")}</strong>
+                <p>${escapeHtml(comparisonConclusion)}</p>
               </div>
             </div>
           `
@@ -15111,7 +15407,7 @@ function renderScoutingComparisonLabPanel() {
       ${
         canCompare && comparisonTableMetrics.length
           ? `
-            <div class="scouting-comparison-table">
+            <div class="scouting-comparison-table" style="--comparison-player-columns:${escapeHtml(playerRecords.length)};">
               <div class="scouting-comparison-table-head">
                 <span>Metric</span>
                 ${playerRecords.map(({ record }) => `<span>${escapeHtml(getScoutingRecordName(record))}</span>`).join("")}
@@ -17660,7 +17956,7 @@ export function handleChange(event, context) {
     }
     const nextMetricIds = Array.from(metricIds);
     setScoutingComparisonLab({
-      metricId: nextMetricIds[0] || lab.metricId,
+      metricId: nextMetricIds[0] || "",
       metricIds: nextMetricIds,
       playerIds: lab.playerIds,
     });

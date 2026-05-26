@@ -16,7 +16,7 @@ This section overrides any older release wording below.
 - Safe deploy is for auth/login, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, or broad multi-module changes.
 - If deploy would include unrelated or unfinished work from another chat, stop and explain the coordination issue in plain Swedish.
 - Live QA login is allowed when credentials are available in the current chat or environment, but never write passwords, tokens, or secrets into source files or docs.
-- One chat should own Live/deploy coordination at a time. Other chats may build isolated module work, but they should not sync, merge, or deploy Live unless explicitly acting as the deploy-owner chat.
+- Live/deploy coordination should stay in the user's designated release-owner chat. Other chats may build isolated module work, but they should not sync, merge, or deploy Live unless the user explicitly transfers release ownership.
 
 ## Current Speed Agreement
 
@@ -44,15 +44,9 @@ This section exists because the platform is under heavy active product developme
 - When the same UI pattern is edited repeatedly, extract the renderer/style into `src/modules/<module>/...` or a dedicated stylesheet so future marked changes are faster.
 - Do not do large modularization in the Fast UI Lane unless it is a clearly isolated UI-only extraction.
 
-## Chat Status Dot
+## Release Status Wording
 
-Every chat should make its release state obvious because many Codex chats may work in parallel.
-
-- Use `🟢 Live` at the start of status/final replies only when this chat's relevant work is committed, pushed to `main`, deployed to production, production verification has passed, and the working tree has no relevant pending changes.
-- Use `🔴 Inte live` when any relevant work in this chat is still uncommitted, unpushed, not deployed, not verified on production, blocked by checks, mixed with unrelated changes, or waiting for the user to say `Deploy`/`Live`.
-- If there are unrelated dirty files from another chat, keep this chat's dot red unless this chat's own work is already live and clearly separate; mention the unrelated files briefly so the user knows why the repo is not fully clean.
-- Do not use the green dot just because code exists locally or tests pass. Green means the user can look at `https://footballscience.xyz` and expect the change to be there.
-- Keep the wording short: `🟢 Live - ...` or `🔴 Inte live - ...`.
+Do not prefix replies with release-status labels. When release state matters, explain it briefly in plain Swedish, for example whether work is local, committed, pushed, deployed, production-verified, blocked, or waiting for `Deploy`/`Live`.
 
 ## Live Codeword
 

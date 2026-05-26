@@ -383,10 +383,22 @@ test("Transfer Room opens a saved target profile without loading scouting databa
 
   await expect(page.locator("body")).toHaveAttribute("data-active-workspace", "transfer-room");
   await expect(page.locator('.transfer-room-tabs [data-transfer-room-tab="access"]')).toHaveCount(0);
-  await expect(page.locator(".transfer-room-pipeline")).toContainText("Negotiation");
-  await expect(page.locator(".transfer-room-pipeline")).toContainText("2 active");
-  await expect(page.locator(".transfer-room-target-card").first()).toContainText("Maya Snapshot");
-  await expect(page.locator(".transfer-room-target-card").first()).toContainText("Confirm agent availability");
+  await expect(page.locator(".transfer-room-pipeline")).toContainText("2/2 budget-active");
+  await expect(page.locator('[data-transfer-pipeline-stage="negotiation"]')).toContainText("Negotiation");
+  await expect(page.locator('[data-transfer-pipeline-stage="approved-signed"]')).toContainText("Approved / Signed");
+  await expect(page.locator('[data-transfer-target-lane="shortlist"]')).toContainText("Incomplete Target");
+  await expect(page.locator('[data-transfer-target-lane="negotiation"]')).toContainText("Maya Snapshot");
+  const mayaTargetCard = page.locator('[data-transfer-target-card="qa-target-snapshot-1"]');
+  await expect(mayaTargetCard).toContainText("Maya Snapshot");
+  await expect(mayaTargetCard).toContainText("Confirm agent availability");
+  const capLogic = page.locator(".transfer-room-cap-logic").first();
+  await expect(capLogic).toContainText("Current cap");
+  await expect(capLogic.locator('[data-transfer-cap-card="currentCap"]')).toContainText("$3,650,000");
+  await expect(capLogic.locator('[data-transfer-cap-card="projectedCap"]')).toContainText("$3,605,000");
+  await expect(capLogic.locator('[data-transfer-cap-card="selectedScenarioCap"]')).toContainText("$3,605,000");
+  await expect(capLogic).toContainText("Cash / budget only");
+  await expect(capLogic.locator('[data-transfer-cap-ledger="deals"]')).toContainText("Maya Snapshot");
+  await expect(capLogic.locator('[data-transfer-cap-ledger="deals"]')).toContainText("+$95,000");
 
   const capSpace = page.locator('[data-transfer-budget-value="capSpace"]').first();
   await expect(capSpace).toHaveText("$3,605,000");
@@ -413,6 +425,9 @@ test("Transfer Room opens a saved target profile without loading scouting databa
   const incompleteWage = page.locator('[data-transfer-record-id="qa-target-incomplete"][data-transfer-target-field="wage"]').first();
   await incompleteWage.fill("60000");
   await expect(capSpace).toHaveText("$3,425,000");
+  await expect(capLogic.locator('[data-transfer-cap-card="projectedCap"]')).toContainText("$3,425,000");
+  await expect(capLogic.locator('[data-transfer-cap-ledger="deals"]')).toContainText("Incomplete Target");
+  await expect(capLogic.locator('[data-transfer-cap-ledger="deals"]')).toContainText("+$60,000");
   await incompleteWage.evaluate((node) => node.dispatchEvent(new Event("change", { bubbles: true })));
   await expect(page.locator(".transfer-room-target-card").filter({ hasText: "Incomplete Target" })).toContainText("$60,000 cap impact");
 
@@ -591,6 +606,7 @@ test("Transfer Room opens a saved target profile without loading scouting databa
     .toEqual({ stage: "approved", approvals: 3, hasApprovalAudit: true });
 
   await page.locator('[data-transfer-close-target-profile]').click();
+  await expect(page.locator('[data-transfer-target-lane="approved-signed"]')).toContainText("Maya Snapshot");
   await page.locator('[data-transfer-room-tab="scenarios"]').click();
   await expect(page.locator(".transfer-room-scenarios")).toContainText("Scenario versions");
   await expect(page.locator(".transfer-room-scenario-compare")).toContainText("Current plan");

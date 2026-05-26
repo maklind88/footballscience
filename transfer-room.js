@@ -34,12 +34,22 @@ const transferRoomTargetDealTypeOptions = Object.freeze([
   { value: "extension", label: "Extension" },
   { value: "unknown", label: "Unknown" },
 ]);
+const transferRoomTargetPipelineStages = Object.freeze([
+  { id: "monitoring", label: "Monitoring", stages: ["monitoring"], summary: "Long-list watch" },
+  { id: "shortlist", label: "Shortlist", stages: ["shortlist"], summary: "Build the case" },
+  { id: "internal-approved", label: "Internal approved", stages: ["internal-approved"], summary: "Club aligned" },
+  { id: "contact", label: "Contact", stages: ["contact"], summary: "Club/agent touchpoint" },
+  { id: "negotiation", label: "Negotiation", stages: ["negotiation"], summary: "Terms and cap" },
+  { id: "medical-admin", label: "Medical/Admin", stages: ["medical-admin"], summary: "Checks and documents" },
+  { id: "approved-signed", label: "Approved / Signed", stages: ["approved", "signed"], summary: "Ready to execute" },
+  { id: "paused-lost", label: "Paused / Lost", stages: ["paused", "lost"], summary: "Archive or revisit" },
+]);
 const transferRoomTabs = new Set(["overview", "squad", "targets", "scenarios", "rules"]);
 const transferRoomBudgetActiveStages = new Set(["shortlist", "internal-approved", "contact", "negotiation", "medical-admin", "approved", "signed"]);
 const transferRoomOutgoingStatuses = new Set(["sell", "loan", "release"]);
 const transferRoomBudgetPreviewSettings = new Set(["salaryCap", "capBuffer"]);
-const transferRoomBudgetPreviewSquadFields = new Set(["salary", "estimatedValue"]);
-const transferRoomBudgetPreviewTargetFields = new Set(["fee", "wage"]);
+const transferRoomBudgetPreviewSquadFields = new Set(["salary", "estimatedValue", "status"]);
+const transferRoomBudgetPreviewTargetFields = new Set(["fee", "wage", "wagePeriod"]);
 const auditTimelinePageSize = 10;
 const auditTimelineUiState = new Map();
 let squadPlanFocus = null;
@@ -107,6 +117,15 @@ function formatMoney(value, currency = getCurrency()) {
   }).format(numericValue);
 }
 
+function formatSignedMoney(value, currency = getCurrency()) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue) || numericValue === 0) {
+    return formatMoney(0, currency);
+  }
+  const formatted = formatMoney(Math.abs(numericValue), currency);
+  return `${numericValue > 0 ? "+" : "-"}${formatted}`;
+}
+
 function formatPercent(value) {
   const numericValue = Number(value);
   return Number.isFinite(numericValue) ? `${Math.round(numericValue)}%` : "0%";
@@ -156,6 +175,29 @@ function getRiskLabel(risk = "") {
 
 function getDealTypeLabel(dealType = "") {
   return transferRoomTargetDealTypeOptions.find((option) => option.value === dealType)?.label || "Transfer";
+}
+
+function getPipelineStageForTarget(plan = {}) {
+  const stage = plan.stage || "monitoring";
+  return transferRoomTargetPipelineStages.find((group) => group.stages.includes(stage)) || transferRoomTargetPipelineStages[0];
+}
+
+function getTargetPipelineLanes(targetPlans = getTargetPlans()) {
+  return transferRoomTargetPipelineStages.map((stageGroup) => {
+    const plans = targetPlans.filter((plan) => stageGroup.stages.includes(plan.stage || "monitoring"));
+    const activePlans = plans.filter(isTargetBudgetActive);
+    const capImpact = activePlans.reduce((sum, plan) => sum + toAnnual(plan.wage, plan.wagePeriod), 0);
+    const gateBlockers = plans.reduce((sum, plan) => sum + getTargetGateIssues(plan).length, 0);
+    const missingWages = activePlans.filter((plan) => !toNumber(plan.wage)).length;
+    return {
+      ...stageGroup,
+      plans,
+      activePlans,
+      capImpact,
+      gateBlockers,
+      missingWages,
+    };
+  });
 }
 
 function getTargetGateIssues(plan = {}) {
@@ -310,6 +352,8 @@ function calculateBudget(sourceState = getState()) {
   const incomingFees = targetPlans
     .filter(isTargetBudgetActive)
     .reduce((sum, plan) => sum + toNumber(plan.fee), 0);
+  const currentCapSpace = cap - buffer - currentCommitment;
+  const currentUtilization = cap > 0 ? Math.min(120, Math.max(0, (currentCommitment / cap) * 100)) : 0;
   const projectedCommitment = Math.max(0, currentCommitment - outgoingRelief + incomingWages);
   const capSpace = cap - buffer - projectedCommitment;
   const utilization = cap > 0 ? Math.min(120, Math.max(0, (projectedCommitment / cap) * 100)) : 0;
@@ -317,6 +361,8 @@ function calculateBudget(sourceState = getState()) {
     cap,
     buffer,
     currentCommitment,
+    currentCapSpace,
+    currentUtilization,
     outgoingRelief,
     incomingWages,
     incomingFees,
@@ -368,6 +414,107 @@ function calculateScenarioPlanner(sourceState = getState()) {
   };
 }
 
+function getSelectedScenario(sourceState = getState()) {
+  const state = sourceState || getState();
+  const scenarios = Array.isArray(state.scenarios) ? state.scenarios : [];
+  const activeScenarioId = state.activeScenarioId || "";
+  return scenarios.find((scenario) => scenario.id === activeScenarioId) || null;
+}
+
+function getCapDealImpactItems(sourceState = getState()) {
+  const state = sourceState || getState();
+  const targetItems = getTargetPlansFromState(state).map((plan) => {
+    const isActive = isTargetBudgetActive(plan);
+    const capImpact = isActive ? toAnnual(plan.wage, plan.wagePeriod || state.settings?.wagePeriod) : 0;
+    const cashImpact = isActive ? toNumber(plan.fee) : 0;
+    return {
+      id: `target-${plan.recordId}`,
+      label: plan.name || "Transfer target",
+      context: `${getTargetStageLabel(plan.stage)} / ${getDealTypeLabel(plan.dealType)}`,
+      capLabel: isActive ? (capImpact ? formatSignedMoney(capImpact, state.settings?.currency || getCurrency()) : "Wage missing") : "Not in cap plan",
+      cashLabel: isActive && cashImpact ? `${formatSignedMoney(cashImpact, state.settings?.currency || getCurrency())} cash` : "No cash impact",
+      tone: isActive && capImpact ? "cost" : isActive ? "watch" : "neutral",
+    };
+  });
+  const outgoingItems = getSquadPlansFromState(state)
+    .filter((plan) => transferRoomOutgoingStatuses.has(plan.status))
+    .map((plan) => {
+      const capRelief = toAnnual(plan.salary, plan.wagePeriod || state.settings?.wagePeriod);
+      const cashOffset = plan.status !== "loan" ? toNumber(plan.estimatedValue) : 0;
+      return {
+        id: `outgoing-${plan.playerId}`,
+        label: plan.name || "Outgoing player",
+        context: `${String(plan.status || "outgoing").replace(/-/g, " ")} / squad plan`,
+        capLabel: capRelief ? formatSignedMoney(-capRelief, state.settings?.currency || getCurrency()) : "No salary set",
+        cashLabel: cashOffset ? `${formatSignedMoney(cashOffset, state.settings?.currency || getCurrency())} cash offset` : "No cash offset",
+        tone: capRelief ? "relief" : "watch",
+      };
+    });
+  return [...targetItems, ...outgoingItems].slice(0, 8);
+}
+
+function calculateCapLogic(sourceState = getState()) {
+  const state = sourceState || getState();
+  const budget = calculateBudget(state);
+  const scenario = calculateScenarioPlanner(state);
+  const selectedScenario = getSelectedScenario(state);
+  const selectedScenarioSummary = selectedScenario
+    ? calculateScenarioSnapshot(selectedScenario, state)
+    : calculateScenarioSnapshot(null, state);
+  const currency = state.settings?.currency || getCurrency();
+  const capEntries = [
+    { label: "Current squad wages", value: formatMoney(budget.currentCommitment, currency), meta: "Counts now" },
+    { label: "Outgoing relief", value: formatSignedMoney(-budget.outgoingRelief, currency), meta: "Sell, loan, release" },
+    { label: "Incoming wages", value: formatSignedMoney(budget.incomingWages, currency), meta: `${budget.activeTargetCount} budget-active targets` },
+    budget.buffer ? { label: "Internal buffer", value: formatSignedMoney(-budget.buffer, currency), meta: "Reserved cap room" } : null,
+  ].filter(Boolean);
+  const cashEntries = [
+    { label: "Transfer fees", value: formatMoney(budget.incomingFees, currency), meta: "Cash exposure, not cap" },
+    { label: "Outgoing values", value: formatMoney(scenario.outgoingValue, currency), meta: "Budget offset, not cap" },
+    { label: "Net cash exposure", value: formatSignedMoney(scenario.netFeeExposure, currency), meta: "Fees minus outgoing value" },
+  ];
+  return {
+    budget,
+    scenario,
+    selectedScenario,
+    selectedScenarioSummary,
+    currency,
+    cards: [
+      {
+        key: "currentCap",
+        label: "Current cap",
+        value: formatMoney(budget.currentCapSpace, currency),
+        meta: `${formatPercent(budget.currentUtilization)} used before moves`,
+        tone: budget.currentCapSpace < 0 ? "danger" : budget.currentCapSpace < budget.cap * 0.08 ? "warn" : "good",
+      },
+      {
+        key: "projectedCap",
+        label: "Projected cap",
+        value: formatMoney(budget.capSpace, currency),
+        meta: `${formatSignedMoney(scenario.netWageChange, currency)} net wage change`,
+        tone: budget.capSpace < 0 ? "danger" : budget.capSpace < budget.cap * 0.08 ? "warn" : "good",
+      },
+      {
+        key: "selectedScenarioCap",
+        label: "Selected scenario cap",
+        value: formatMoney(selectedScenarioSummary.capSpace, currency),
+        meta: selectedScenario ? selectedScenario.name || "Selected scenario" : "Current plan",
+        tone: selectedScenarioSummary.capSpace < 0 ? "danger" : selectedScenarioSummary.capSpace < selectedScenarioSummary.cap * 0.08 ? "warn" : "good",
+      },
+      {
+        key: "cashBudget",
+        label: "Cash / budget",
+        value: formatSignedMoney(scenario.netFeeExposure, currency),
+        meta: "Fees and outgoing values",
+        tone: scenario.netFeeExposure > 0 ? "watch" : "good",
+      },
+    ],
+    capEntries,
+    cashEntries,
+    dealImpacts: getCapDealImpactItems(state),
+  };
+}
+
 function getScenarioPlanMap(plans = [], idField = "id") {
   return plans.reduce((map, plan) => {
     const id = plan?.[idField];
@@ -378,10 +525,10 @@ function getScenarioPlanMap(plans = [], idField = "id") {
   }, {});
 }
 
-function calculateScenarioSnapshot(scenario = null) {
-  const state = getState();
+function calculateScenarioSnapshot(scenario = null, sourceState = getState()) {
+  const state = sourceState || getState();
   const settings = scenario?.settings || state.settings || {};
-  const profile = getLeagueProfileForSettings(settings);
+  const profile = getLeagueProfileForSettings(settings, state);
   const squadPlans = Object.values(scenario?.squadPlans || state.squadPlans || {}).filter((plan) => plan?.playerId);
   const targetPlans = Object.values(scenario?.targetPlans || state.targetPlans || {}).filter((plan) => plan?.recordId);
   const cap = toNumber(settings.salaryCap || profile.salaryCap || 0);
@@ -552,6 +699,81 @@ function renderKpiGrid() {
   `;
 }
 
+function renderCapLogicCard(card = {}) {
+  return `
+    <article class="is-${escapeHtml(card.tone || "good")}" data-transfer-cap-card="${escapeHtml(card.key)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong data-transfer-cap-card-value>${escapeHtml(card.value)}</strong>
+      <small data-transfer-cap-card-meta>${escapeHtml(card.meta)}</small>
+    </article>
+  `;
+}
+
+function renderCapLogicLine(item = {}) {
+  return `
+    <li>
+      <span>${escapeHtml(item.label)}</span>
+      <strong>${escapeHtml(item.value)}</strong>
+      <small>${escapeHtml(item.meta)}</small>
+    </li>
+  `;
+}
+
+function renderCapDealImpactLine(item = {}) {
+  return `
+    <li class="is-${escapeHtml(item.tone || "neutral")}">
+      <div>
+        <span>${escapeHtml(item.context)}</span>
+        <strong>${escapeHtml(item.label)}</strong>
+      </div>
+      <em>${escapeHtml(item.capLabel)}</em>
+      <small>${escapeHtml(item.cashLabel)}</small>
+    </li>
+  `;
+}
+
+function renderCapLogicPanel() {
+  const capLogic = calculateCapLogic();
+  return `
+    <section class="transfer-room-cap-logic" data-transfer-cap-logic>
+      <div class="transfer-room-section-head">
+        <div>
+          <p>Cap logic</p>
+          <h2>Current, projected and scenario cap</h2>
+        </div>
+        <span>${escapeHtml(capLogic.selectedScenario ? "Scenario selected" : "Live plan")}</span>
+      </div>
+      <div class="transfer-room-cap-logic-grid">
+        ${capLogic.cards.map(renderCapLogicCard).join("")}
+      </div>
+      <div class="transfer-room-cap-ledger-grid">
+        <article>
+          <span>Counts against cap</span>
+          <ul data-transfer-cap-ledger="cap">
+            ${capLogic.capEntries.map(renderCapLogicLine).join("")}
+          </ul>
+        </article>
+        <article>
+          <span>Cash / budget only</span>
+          <ul data-transfer-cap-ledger="cash">
+            ${capLogic.cashEntries.map(renderCapLogicLine).join("")}
+          </ul>
+        </article>
+        <article>
+          <span>Cap impact per deal</span>
+          <ul data-transfer-cap-ledger="deals">
+            ${
+              capLogic.dealImpacts.length
+                ? capLogic.dealImpacts.map(renderCapDealImpactLine).join("")
+                : `<li><span>No active deal impacts</span><strong>${escapeHtml(formatMoney(0))}</strong><small>Monitoring and empty boards do not hit cap.</small></li>`
+            }
+          </ul>
+        </article>
+      </div>
+    </section>
+  `;
+}
+
 function clonePreviewPlans(plans = {}) {
   return Object.fromEntries(Object.entries(plans || {}).map(([id, plan]) => [id, { ...(plan || {}) }]));
 }
@@ -605,7 +827,7 @@ function setPreviewTone(element, tone) {
   if (!element) {
     return;
   }
-  element.classList.remove("is-danger", "is-warn", "is-good", "danger", "warn", "good");
+  element.classList.remove("is-danger", "is-warn", "is-watch", "is-good", "danger", "warn", "watch", "good");
   if (tone) {
     element.classList.add(tone.startsWith("is-") ? tone : `is-${tone}`);
   }
@@ -645,6 +867,43 @@ function updatePreviewScenarioCard(root, key, value, meta, tone = "") {
   }
 }
 
+function updatePreviewCapLogic(root, capLogic) {
+  if (!root || !capLogic) {
+    return;
+  }
+  root.querySelectorAll("[data-transfer-cap-logic]").forEach((panel) => {
+    capLogic.cards.forEach((cardData) => {
+      const card = panel.querySelector(`[data-transfer-cap-card="${cardData.key}"]`);
+      if (!card) {
+        return;
+      }
+      setPreviewTone(card, cardData.tone);
+      const valueNode = card.querySelector("[data-transfer-cap-card-value]");
+      const metaNode = card.querySelector("[data-transfer-cap-card-meta]");
+      if (valueNode) {
+        valueNode.textContent = cardData.value;
+      }
+      if (metaNode) {
+        metaNode.textContent = cardData.meta;
+      }
+    });
+    const capLedger = panel.querySelector('[data-transfer-cap-ledger="cap"]');
+    const cashLedger = panel.querySelector('[data-transfer-cap-ledger="cash"]');
+    const dealsLedger = panel.querySelector('[data-transfer-cap-ledger="deals"]');
+    if (capLedger) {
+      capLedger.innerHTML = capLogic.capEntries.map(renderCapLogicLine).join("");
+    }
+    if (cashLedger) {
+      cashLedger.innerHTML = capLogic.cashEntries.map(renderCapLogicLine).join("");
+    }
+    if (dealsLedger) {
+      dealsLedger.innerHTML = capLogic.dealImpacts.length
+        ? capLogic.dealImpacts.map(renderCapDealImpactLine).join("")
+        : `<li><span>No active deal impacts</span><strong>${escapeHtml(formatMoney(0))}</strong><small>Monitoring and empty boards do not hit cap.</small></li>`;
+    }
+  });
+}
+
 function applyBudgetPreview(previewState) {
   const root = activeContext?.ui?.transferRoomWorkspace;
   if (!root || !previewState) {
@@ -652,6 +911,7 @@ function applyBudgetPreview(previewState) {
   }
   const budget = calculateBudget(previewState);
   const scenario = calculateScenarioPlanner(previewState);
+  const capLogic = calculateCapLogic(previewState);
   const capTone = budget.capSpace < 0 ? "is-danger" : budget.capSpace < budget.cap * 0.08 ? "is-warn" : "is-good";
   const scenarioTone = scenario.capSpace < 0 ? "danger" : scenario.warnings.length ? "warn" : "good";
   root.querySelectorAll(".transfer-room-cap-board").forEach((board) => {
@@ -678,6 +938,7 @@ function applyBudgetPreview(previewState) {
   updatePreviewScenarioCard(root, "netWageChange", formatMoney(scenario.netWageChange), "Incoming minus outgoing relief");
   updatePreviewScenarioCard(root, "netFeeExposure", formatMoney(scenario.netFeeExposure), "Cash budget, not salary cap");
   updatePreviewScenarioCard(root, "activeDeals", `${scenario.activeTargets.length}/${scenario.targetCount}`, "Budget-active pipeline");
+  updatePreviewCapLogic(root, capLogic);
 }
 
 function renderScenarioCard(label, value, meta, tone = "", key = "") {
@@ -802,6 +1063,7 @@ function renderScenarioPlanner() {
 
 function renderDealPipeline() {
   const scenario = calculateScenarioPlanner();
+  const lanes = getTargetPipelineLanes();
   return `
     <section class="transfer-room-pipeline">
       <div class="transfer-room-section-head">
@@ -809,15 +1071,16 @@ function renderDealPipeline() {
           <p>Deal desk</p>
           <h2>Pipeline</h2>
         </div>
-        <span>${escapeHtml(String(scenario.activeTargetCount))} active</span>
+        <span>${escapeHtml(`${scenario.activeTargetCount}/${scenario.targetCount} budget-active`)}</span>
       </div>
       <div class="transfer-room-pipeline-grid">
-        ${scenario.stageCounts
+        ${lanes
           .map(
-            (stage) => `
-              <article class="${stage.count ? "has-count" : ""}">
-                <strong>${escapeHtml(String(stage.count))}</strong>
-                <span>${escapeHtml(stage.label)}</span>
+            (lane) => `
+              <article class="${lane.plans.length ? "has-count" : ""}" data-transfer-pipeline-stage="${escapeHtml(lane.id)}">
+                <strong>${escapeHtml(String(lane.plans.length))}</strong>
+                <span>${escapeHtml(lane.label)}</span>
+                <small>${escapeHtml(lane.gateBlockers ? `${lane.gateBlockers} blockers` : lane.summary)}</small>
               </article>
             `
           )
@@ -1110,6 +1373,7 @@ function renderScenarioVersions() {
 function renderOverview() {
   return `
     ${renderKpiGrid()}
+    ${renderCapLogicPanel()}
     ${renderScenarioPlanner()}
     ${renderRuleCheckPanel()}
     ${renderAuditTimeline("", "Latest activity")}
@@ -1177,6 +1441,7 @@ function renderSquadRow(player, plan, canEdit) {
 
 function renderTargets() {
   const targets = getTargetPlans();
+  const lanes = getTargetPipelineLanes(targets);
   return `
     <section class="transfer-room-targets">
       <div class="transfer-room-section-head">
@@ -1187,8 +1452,35 @@ function renderTargets() {
         <button type="button" data-transfer-open-workspace="scouting">Open Scouting</button>
       </div>
       ${renderDealPipeline()}
-      <div class="transfer-room-target-grid">
-        ${targets.length ? targets.map(renderTargetCard).join("") : `<article class="transfer-room-empty">No scouting targets have been sent or placed in Shadow XI yet.</article>`}
+      ${renderCapLogicPanel()}
+      ${targets.length ? "" : `<p class="transfer-room-target-board-status">No scouting targets have been sent or placed in Shadow XI yet.</p>`}
+      <div class="transfer-room-target-grid transfer-room-target-board" aria-label="Transfer target deal pipeline">
+        ${lanes.map(renderTargetPipelineLane).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderTargetPipelineLane(lane = {}) {
+  const countLabel = `${lane.plans.length} deal${lane.plans.length === 1 ? "" : "s"}`;
+  const statusLabel = lane.gateBlockers
+    ? `${lane.gateBlockers} blocker${lane.gateBlockers === 1 ? "" : "s"}`
+    : lane.missingWages
+      ? `${lane.missingWages} wage missing`
+      : lane.capImpact
+        ? `${formatMoney(lane.capImpact)} cap`
+        : lane.summary;
+  return `
+    <section class="transfer-room-target-lane ${lane.plans.length ? "has-targets" : "is-empty"}" data-transfer-target-lane="${escapeHtml(lane.id)}">
+      <header>
+        <div>
+          <span>${escapeHtml(lane.label)}</span>
+          <strong>${escapeHtml(countLabel)}</strong>
+        </div>
+        <em>${escapeHtml(statusLabel)}</em>
+      </header>
+      <div class="transfer-room-target-lane-list">
+        ${lane.plans.length ? lane.plans.map(renderTargetCard).join("") : `<article class="transfer-room-target-lane-empty">No deals in this lane.</article>`}
       </div>
     </section>
   `;
@@ -1208,11 +1500,12 @@ function renderTargetCard(plan) {
       : "Wage missing"
     : "Not in cap plan";
   const capImpactClass = isBudgetActive && annualWage > 0 ? "is-clear" : "is-blocked";
+  const pipelineStage = getPipelineStageForTarget(plan);
   const squadOptions = (activeContext?.squadPlayers || [])
     .map((player) => `<option value="${escapeHtml(player.id)}" ${plan.replacementFor === player.id ? "selected" : ""}>${escapeHtml(player.name)}</option>`)
     .join("");
   return `
-    <article class="transfer-room-target-card">
+    <article class="transfer-room-target-card is-${escapeHtml(readiness.tone)}" data-transfer-target-card="${escapeHtml(plan.recordId)}" data-transfer-target-stage="${escapeHtml(pipelineStage.id)}">
       <div class="transfer-room-target-card-head">
         <div class="transfer-room-target-avatar">${snapshot.imageUrl ? `<img src="${escapeHtml(snapshot.imageUrl)}" alt="" />` : escapeHtml((plan.name || snapshot.name || "T").slice(0, 1))}</div>
         <div>
@@ -1233,6 +1526,20 @@ function renderTargetCard(plan) {
         <span>${escapeHtml(snapshot.league || "League unknown")}</span>
         <span>${escapeHtml(snapshot.fit || "Fit pending")}</span>
         <span>${escapeHtml(plan.nextAction || snapshot.signalLabel || "Next action pending")}</span>
+      </div>
+      <div class="transfer-room-target-deal-strip">
+        <div>
+          <span>Fee</span>
+          <strong>${escapeHtml(formatOptionalMoney(plan.fee))}</strong>
+        </div>
+        <div>
+          <span>Wage</span>
+          <strong>${escapeHtml(formatOptionalMoney(plan.wage))}</strong>
+        </div>
+        <div>
+          <span>Owner</span>
+          <strong>${escapeHtml(plan.decisionOwner || "Unassigned")}</strong>
+        </div>
       </div>
       <div class="transfer-room-target-fields">
         <label>
@@ -1600,6 +1907,7 @@ function renderRules() {
   const canEdit = getCanEdit();
   return `
     ${renderKpiGrid()}
+    ${renderCapLogicPanel()}
     ${renderRuleCheckPanel()}
     <section class="transfer-room-rules-layout">
       <form class="transfer-room-settings" data-transfer-settings-form>
@@ -1651,7 +1959,10 @@ function renderRuleCard(rule = {}) {
 function renderBody() {
   const tab = getActiveTransferRoomTab();
   if (tab === "squad") {
-    return renderSquadPlan();
+    return `
+      ${renderCapLogicPanel()}
+      ${renderSquadPlan()}
+    `;
   }
   if (tab === "targets") {
     return renderTargets();

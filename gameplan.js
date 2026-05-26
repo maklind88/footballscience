@@ -823,9 +823,53 @@ function getReceiptLabel(receipt = null) {
   return "Not opened";
 }
 
+function getPersonLabel(user = {}) {
+  return [user.firstName, user.lastName].filter(Boolean).join(" ") || user.name || user.email || "";
+}
+
 function getUserName(userId = "") {
   const user = (activeContext?.users || []).find((candidate) => candidate.id === userId);
-  return user ? [user.firstName, user.lastName].filter(Boolean).join(" ") || user.name || user.email : "";
+  return user ? getPersonLabel(user) : "";
+}
+
+function getCurrentUser() {
+  return activeContext?.currentUser || {};
+}
+
+function normalizeSearchText(value = "") {
+  return String(value || "").toLowerCase();
+}
+
+function staffResponsibilityText(item = {}) {
+  return normalizeSearchText([item.role, item.area, item.ownerName, item.watchFor, item.reportAtHalftime, item.decisionTrigger].join(" "));
+}
+
+function textMatchesAny(text = "", keywords = []) {
+  const normalized = normalizeSearchText(text);
+  return keywords.some((keyword) => normalized.includes(keyword));
+}
+
+function getCurrentUserRoleKeywords() {
+  const role = normalizeSearchText(getCurrentUser().role || getCurrentUser().jobTitle || getCurrentUser().position || "");
+  if (role.includes("analyst") || role.includes("scout")) return ["analyst", "analysis", "opponent", "trend", "evidence", "scout"];
+  if (role.includes("medical")) return ["medical", "availability", "injury"];
+  if (role.includes("performance")) return ["performance", "load", "readiness"];
+  if (role.includes("keeper") || role.includes("goalkeeper") || role === "gk") return ["goalkeeper", "keeper", "gk", "box"];
+  if (role.includes("assistant")) return ["assistant", "out of possession", "press", "transition"];
+  if (role.includes("coach") || role.includes("admin")) return ["head coach", "assistant", "match direction"];
+  return [];
+}
+
+function getRoleResponsibilities(plan = {}, keywords = []) {
+  return (plan.staffResponsibilities || []).filter((item) => textMatchesAny(staffResponsibilityText(item), keywords));
+}
+
+function getCurrentUserResponsibilities(plan = {}) {
+  const currentUserId = getCurrentUser().id || "";
+  const assigned = currentUserId ? (plan.staffResponsibilities || []).filter((item) => item.userId === currentUserId) : [];
+  if (assigned.length) return assigned;
+  const roleMatches = getRoleResponsibilities(plan, getCurrentUserRoleKeywords());
+  return roleMatches.slice(0, 3);
 }
 
 function renderUserOptions(selectedUserId = "") {
@@ -1237,6 +1281,127 @@ function renderPlanTab(plan) {
   return getGameplanPlanMode(plan) === "edit" ? renderPlanEditTab(plan) : renderPlanBriefingTab(plan);
 }
 
+function renderRoleResponsibilityItem(item = {}) {
+  const owner = item.userId ? getUserName(item.userId) : item.ownerName || "Unassigned";
+  return `
+    <article class="gameplan-role-item">
+      <div>
+        <strong>${escapeHtml(item.area || item.role || "Responsibility")}</strong>
+        <span>${escapeHtml([item.role, owner].filter(Boolean).join(" · "))}</span>
+      </div>
+      ${item.watchFor ? `<p>${escapeHtml(item.watchFor)}</p>` : ""}
+      ${item.decisionTrigger ? `<small>${escapeHtml(item.decisionTrigger)}</small>` : ""}
+    </article>
+  `;
+}
+
+function renderRoleEvidenceItem(item = {}) {
+  const meta = [item.source, item.phase, item.confidence ? `${item.confidence} confidence` : ""].filter(Boolean).join(" · ");
+  const title = item.title || item.source || "Evidence";
+  return `
+    <article class="gameplan-role-item">
+      <div>
+        <strong>${escapeHtml(title)}</strong>
+        ${meta ? `<span>${escapeHtml(meta)}</span>` : ""}
+      </div>
+      ${item.note ? `<p>${escapeHtml(item.note)}</p>` : ""}
+      ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">Open clip</a>` : ""}
+    </article>
+  `;
+}
+
+function renderRoleLens(plan) {
+  const currentUser = getCurrentUser();
+  const currentUserName = getPersonLabel(currentUser) || "Current staff";
+  const myResponsibilities = getCurrentUserResponsibilities(plan);
+  const analystResponsibilities = getRoleResponsibilities(plan, ["analyst", "analysis", "opponent", "trend", "evidence", "scout"]);
+  const keeperResponsibilities = getRoleResponsibilities(plan, ["goalkeeper", "keeper", "gk", "box"]);
+  const evidence = plan.evidence || [];
+  const keepers = getSquadPlayers().filter((player) => textMatchesAny(`${player.position} ${player.roleGroup}`, ["goalkeeper", "keeper", "gk"]));
+  const selectedPlayerIds = new Set(plan.playerBrief?.audiencePlayerIds || []);
+  const selectedKeepers = keepers.filter((player) => selectedPlayerIds.has(player.id));
+  const keeperNotes = selectedKeepers
+    .map((player) => ({
+      player,
+      note: plan.playerBrief?.individualNotes?.[player.id] || plan.playerBrief?.individualFocus || "",
+    }))
+    .filter((entry) => entry.note);
+  const selectedPlayers = getSelectedBriefPlayers(plan);
+  const individualNoteCount = Object.values(plan.playerBrief?.individualNotes || {}).filter(Boolean).length;
+  return `
+    <section class="gameplan-role-lens" aria-label="Role-specific Gameplan views">
+      <article class="gameplan-role-card">
+        <header>
+          <span>My Responsibilities</span>
+          <strong>${escapeHtml(currentUserName)}</strong>
+        </header>
+        <div class="gameplan-role-list">
+          ${
+            myResponsibilities.length
+              ? myResponsibilities.map(renderRoleResponsibilityItem).join("")
+              : `<div class="gameplan-empty-small">No role assigned yet.</div>`
+          }
+        </div>
+      </article>
+      <article class="gameplan-role-card">
+        <header>
+          <span>Analyst Evidence</span>
+          <strong>${evidence.length} clip${evidence.length === 1 ? "" : "s"}</strong>
+        </header>
+        <div class="gameplan-role-list">
+          ${evidence.length ? evidence.slice(0, 4).map(renderRoleEvidenceItem).join("") : `<div class="gameplan-empty-small">No evidence linked.</div>`}
+          ${
+            !evidence.length && analystResponsibilities.length
+              ? analystResponsibilities.slice(0, 2).map(renderRoleResponsibilityItem).join("")
+              : ""
+          }
+        </div>
+      </article>
+      <article class="gameplan-role-card">
+        <header>
+          <span>Keeper Brief</span>
+          <strong>${selectedKeepers.length}/${keepers.length}</strong>
+        </header>
+        <div class="gameplan-role-list">
+          ${keeperResponsibilities.length ? keeperResponsibilities.slice(0, 2).map(renderRoleResponsibilityItem).join("") : ""}
+          ${
+            keeperNotes.length
+              ? keeperNotes
+                  .map(
+                    ({ player, note }) => `
+                      <article class="gameplan-role-item">
+                        <div>
+                          <strong>${escapeHtml(player.name || "Goalkeeper")}</strong>
+                          <span>${escapeHtml(player.position || player.roleGroup || "Goalkeeper")}</span>
+                        </div>
+                        <p>${escapeHtml(note)}</p>
+                      </article>
+                    `
+                  )
+                  .join("")
+              : `<div class="gameplan-empty-small">No keeper-specific note yet.</div>`
+          }
+        </div>
+      </article>
+      <article class="gameplan-role-card">
+        <header>
+          <span>Player-Safe View</span>
+          <strong>${selectedPlayers.length}</strong>
+        </header>
+        <div class="gameplan-role-list">
+          <article class="gameplan-role-item">
+            <div>
+              <strong>${plan.playerBrief?.publishedAt ? "Published" : "Not published"}</strong>
+              <span>${plan.playerBrief?.publishedAt ? escapeHtml(formatTimestamp(plan.playerBrief.publishedAt)) : "Player Brief"}</span>
+            </div>
+            <p>${escapeHtml(`${selectedPlayers.length} selected player${selectedPlayers.length === 1 ? "" : "s"} · ${individualNoteCount} individual note${individualNoteCount === 1 ? "" : "s"}`)}</p>
+          </article>
+        </div>
+      </article>
+    </section>
+  `;
+}
+
 function renderStaffResponsibilityCard(item) {
   const disabled = !canEditPlan();
   return `
@@ -1279,6 +1444,7 @@ function renderStaffResponsibilityCard(item) {
 function renderStaffTab(plan) {
   return `
     <section class="gameplan-panel">
+      ${renderRoleLens(plan)}
       ${renderMeetingPanel(plan)}
       <section class="gameplan-card">
         <header>

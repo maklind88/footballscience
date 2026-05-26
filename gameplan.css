@@ -84,6 +84,7 @@
 .gameplan-individual-note-list,
 .gameplan-command-triggers,
 .gameplan-brief-trigger-list,
+.gameplan-role-list,
 .gameplan-evidence-chips,
 .gameplan-evidence-quick-list {
   display: grid;
@@ -321,6 +322,7 @@
 .gameplan-player-layout,
 .gameplan-command-grid,
 .gameplan-briefing-layout,
+.gameplan-role-lens,
 .gameplan-matchday-grid {
   display: grid;
   gap: 0.9rem;
@@ -521,6 +523,80 @@
 .gameplan-inline-status span {
   color: #66716a;
   font-size: 0.84rem;
+}
+
+.gameplan-role-lens {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.gameplan-role-card,
+.gameplan-role-item {
+  border: 1px solid rgba(29, 29, 31, 0.1);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.gameplan-role-card {
+  display: grid;
+  gap: 0.68rem;
+  min-width: 0;
+  padding: 0.8rem;
+  border-radius: 18px;
+  box-shadow: 0 14px 36px rgba(20, 30, 24, 0.07);
+}
+
+.gameplan-role-card header {
+  display: grid;
+  gap: 0.16rem;
+}
+
+.gameplan-role-card header span,
+.gameplan-role-item span {
+  color: #66716a;
+  font-size: 0.69rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.gameplan-role-card header strong,
+.gameplan-role-item strong {
+  overflow: hidden;
+  color: #172018;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gameplan-role-item {
+  display: grid;
+  gap: 0.36rem;
+  padding: 0.64rem;
+  border-radius: 14px;
+}
+
+.gameplan-role-item div {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+
+.gameplan-role-item p,
+.gameplan-role-item small {
+  margin: 0;
+  color: #25392f;
+  font-size: 0.82rem;
+  font-weight: 750;
+  line-height: 1.38;
+}
+
+.gameplan-role-item small {
+  color: #66716a;
+}
+
+.gameplan-role-item a {
+  color: #183729;
+  font-size: 0.8rem;
+  font-weight: 900;
+  text-decoration: none;
 }
 
 .gameplan-briefing-command-card {
@@ -1096,6 +1172,7 @@ body.is-dark-mode .gameplan-card,
 body.is-dark-mode .gameplan-delivery-panel,
 body.is-dark-mode .gameplan-player-audience,
 body.is-dark-mode .gameplan-status-board,
+body.is-dark-mode .gameplan-role-card,
 body.is-dark-mode .gameplan-empty,
 body.is-dark-mode .gameplan-empty-small {
   background: rgba(18, 27, 44, 0.92);
@@ -1138,6 +1215,8 @@ body.is-dark-mode .gameplan-player-preview-card section span,
 body.is-dark-mode .gameplan-player-portal-card section span,
 body.is-dark-mode .gameplan-create-panel > span,
 body.is-dark-mode .gameplan-hero-main p,
+body.is-dark-mode .gameplan-role-card header span,
+body.is-dark-mode .gameplan-role-item span,
 body.is-dark-mode .gameplan-briefing-lead span,
 body.is-dark-mode .gameplan-brief-metric span,
 body.is-dark-mode .gameplan-briefing-evidence > div span,
@@ -1154,6 +1233,7 @@ body.is-dark-mode .gameplan-staff-card,
 body.is-dark-mode .gameplan-evidence-card,
 body.is-dark-mode .gameplan-observation-card,
 body.is-dark-mode .gameplan-command-trigger,
+body.is-dark-mode .gameplan-role-item,
 body.is-dark-mode .gameplan-briefing-lead,
 body.is-dark-mode .gameplan-brief-metric,
 body.is-dark-mode .gameplan-briefing-evidence,
@@ -1272,6 +1352,9 @@ body.is-dark-mode .gameplan-mode-switch button:not(.is-active) {
 
 body.is-dark-mode .gameplan-briefing-lead p,
 body.is-dark-mode .gameplan-brief-metric p,
+body.is-dark-mode .gameplan-role-card header strong,
+body.is-dark-mode .gameplan-role-item strong,
+body.is-dark-mode .gameplan-role-item p,
 body.is-dark-mode .gameplan-brief-trigger h3,
 body.is-dark-mode .gameplan-brief-trigger p,
 body.is-dark-mode .gameplan-brief-phase p {
@@ -1280,6 +1363,14 @@ body.is-dark-mode .gameplan-brief-phase p {
 
 body.is-dark-mode .gameplan-brief-empty {
   color: rgba(226, 232, 240, 0.72);
+}
+
+body.is-dark-mode .gameplan-role-item small {
+  color: rgba(226, 232, 240, 0.68);
+}
+
+body.is-dark-mode .gameplan-role-item a {
+  color: #b7f7d1;
 }
 
 body.is-dark-mode .gameplan-field textarea,
@@ -1344,6 +1435,10 @@ body.is-dark-mode .gameplan-player-portal-card footer > span {
   .gameplan-match-list {
     grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
   }
+
+  .gameplan-role-lens {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 760px) {
@@ -1354,6 +1449,7 @@ body.is-dark-mode .gameplan-player-portal-card footer > span {
   .gameplan-hero,
   .gameplan-status-board,
   .gameplan-briefing-command,
+  .gameplan-role-lens,
   .gameplan-brief-trigger-grid,
   .gameplan-brief-phase-grid,
   .gameplan-command-summary,

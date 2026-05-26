@@ -58,6 +58,12 @@ test("Gameplan Player Brief portal is audience-gated and records player receipts
   await page.locator('[data-gameplan-plan-mode="briefing"]').click();
   await expect(page.locator("#gameplanWorkspace")).toContainText("Win territory early");
   await expect(page.locator('[data-gameplan-field="summary.objective"]')).toHaveCount(0);
+  await page.locator('[data-gameplan-tab="staff"]').click();
+  await expect(page.locator(".gameplan-role-lens")).toBeVisible();
+  await expect(page.locator(".gameplan-role-lens")).toContainText("My Responsibilities");
+  await expect(page.locator(".gameplan-role-lens")).toContainText("Analyst Evidence");
+  await expect(page.locator(".gameplan-role-lens")).toContainText("Keeper Brief");
+  await expect(page.locator(".gameplan-role-lens")).toContainText("Player-Safe View");
   await page.locator('[data-gameplan-tab="matchday"]').click();
   await expect(page.locator("#gameplanWorkspace")).toContainText("Coach Mode");
 

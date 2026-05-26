@@ -24731,7 +24731,17 @@ const role = normalizePlayerProfileRole(player.primaryRole, "");
 const index = playerProfileRoleOptions.indexOf(role);
 return index >= 0 ? index : playerProfileRoleOptions.length;
 }
+function normalizePlayerProfileRemovedIds(value = []) {
+const source = Array.isArray(value) ? value : [];
+return Array.from(
+new Set(source.map((id) => String(id || "").trim()).filter(Boolean))
+).slice(0, 1000);
+}
 function clonePlayerProfilesState(source = {}) {
+const removedPlayerIds = normalizePlayerProfileRemovedIds(
+source.removedPlayerIds || source.deletedPlayerIds || source.removedIds
+);
+const removedPlayerIdSet = new Set(removedPlayerIds);
 const seededPlayers = defaultMedicalPlayers.map((player) =>
 normalizePlayerProfile({
 ...player,
@@ -24744,9 +24754,15 @@ const incomingPlayers = Array.isArray(source.players)
 : [];
 const playersById = new Map();
 seededPlayers.filter(Boolean).forEach((player) => {
+if (removedPlayerIdSet.has(player.id)) {
+return;
+}
 playersById.set(player.id, player);
 });
 incomingPlayers.forEach((player) => {
+if (removedPlayerIdSet.has(player.id)) {
+return;
+}
 const seededPlayer = playersById.get(player.id);
 playersById.set(player.id, seededPlayer ? { ...seededPlayer, ...player } : player);
 });
@@ -24757,6 +24773,7 @@ const selectedPlayerId = players.some((player) => player.id === source.selectedP
 return {
 selectedPlayerId,
 players,
+removedPlayerIds,
 rosterVersion: source.rosterVersion || playerProfilesDefaultRosterVersion,
 changeLog: normalizePlayerProfileChangeLog(source.changeLog || source.history || []),
 schemaVersion: playerProfilesSchemaVersion,
@@ -24787,6 +24804,10 @@ if (!playerProfilesState) {
 return;
 }
 try {
+const removedPlayerIdSet = new Set(normalizePlayerProfileRemovedIds(playerProfilesState.removedPlayerIds));
+playerProfilesState.removedPlayerIds = Array.from(removedPlayerIdSet);
+playerProfilesState.players = (Array.isArray(playerProfilesState.players) ? playerProfilesState.players : [])
+.filter((player) => !removedPlayerIdSet.has(player?.id));
 playerProfilesState.updatedAt = new Date().toISOString();
 window.localStorage.setItem(playerProfilesStorageKey, JSON.stringify(playerProfilesState));
 } catch {
@@ -27270,6 +27291,13 @@ canApply: false,
 }
 const preApplySnapshot = createPlayerProfileImportUndoSnapshot(basePlan);
 const importedCount = basePlan.importedCount || 0;
+const importedPlayerIds = new Set(
+(basePlan.profilesForMedicalSync || []).map((player) => String(player?.id || "").trim()).filter(Boolean)
+);
+if (importedPlayerIds.size) {
+playerProfilesState.removedPlayerIds = normalizePlayerProfileRemovedIds(playerProfilesState.removedPlayerIds)
+.filter((removedPlayerId) => !importedPlayerIds.has(removedPlayerId));
+}
 playerProfilesState.players = [...(Array.isArray(basePlan.nextPlayers) ? basePlan.nextPlayers : playerProfilesState.players)]
 .sort(comparePlayerProfiles);
 if (!playerProfilesState.selectedPlayerId && playerProfilesState.players[0]) {
@@ -27582,6 +27610,8 @@ duplicates: [],
 player: null,
 };
 }
+playerProfilesState.removedPlayerIds = normalizePlayerProfileRemovedIds(playerProfilesState.removedPlayerIds)
+.filter((removedPlayerId) => removedPlayerId !== player.id);
 playerProfilesState.players = [...playerProfilesState.players, player].sort(comparePlayerProfiles);
 playerProfilesState.selectedPlayerId = player.id;
 recordPlayerProfileChange("player-added", player, [
@@ -27725,6 +27755,11 @@ function removePlayerProfile(playerId) {
 if (!isCurrentPlatformUserAdmin()) return false;
 ensurePlayerProfilesState();
 const removedPlayer = playerProfilesState.players.find((player) => player.id === playerId) ?? null;
+const removedPlayerIds = normalizePlayerProfileRemovedIds(playerProfilesState.removedPlayerIds);
+if (playerId && !removedPlayerIds.includes(playerId)) {
+removedPlayerIds.push(playerId);
+}
+playerProfilesState.removedPlayerIds = removedPlayerIds;
 const nextPlayers = playerProfilesState.players.filter((player) => player.id !== playerId);
 playerProfilesState.players = nextPlayers;
 playerProfilesState.selectedPlayerId = nextPlayers[0]?.id || "";

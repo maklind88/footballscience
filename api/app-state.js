@@ -1149,6 +1149,15 @@ function parsePlayerProfilesStateValue(rawValue) {
   return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
 }
 
+function normalizePlayerProfileRemovedIds(value = []) {
+  const source = Array.isArray(value) ? value : [];
+  return Array.from(new Set(source.map((id) => String(id || "").trim()).filter(Boolean))).slice(0, 1000);
+}
+
+function getPlayerProfileId(player = {}) {
+  return String(player?.id || "").trim();
+}
+
 function getPlayerProfilesStateTimestamp(state = {}) {
   return parseSessionPlannerGuardTimestamp(state?.updatedAt);
 }
@@ -1442,21 +1451,46 @@ async function protectPlayerProfilesStateValue(rawValue, context = {}) {
     return { ok: false, reason: "Squad player data is invalid and was not saved." };
   }
 
+  const incomingRemovedPlayerIds = normalizePlayerProfileRemovedIds(incomingState.removedPlayerIds);
+  const incomingRemovedPlayerIdSet = new Set(incomingRemovedPlayerIds);
+  const incomingStateWithRemovals = {
+    ...incomingState,
+    players: incomingState.players.filter((player) => !incomingRemovedPlayerIdSet.has(getPlayerProfileId(player))),
+    removedPlayerIds: incomingRemovedPlayerIds,
+  };
   const existingEntry = context.previousEntry || await readStateObject(PLAYER_PROFILES_KEY);
   const existingState = parsePlayerProfilesStateValue(existingEntry?.value);
   if (!existingState || !Array.isArray(existingState.players)) {
-    return { ok: true, value: JSON.stringify(incomingState), merged: false };
+    const normalizedValue = JSON.stringify(incomingStateWithRemovals);
+    return { ok: true, value: normalizedValue, merged: normalizedValue !== rawValue };
   }
 
   const previousRevision = getStateEntryRevision(existingEntry);
   const incomingBaseRevision = parseClientRevision(context.clientBaseRevision);
+  const incomingStateTimestamp = getPlayerProfilesStateTimestamp(incomingState);
+  const existingStateTimestamp = getPlayerProfilesStateTimestamp(existingState);
   const incomingIsStale =
     incomingBaseRevision !== null &&
     previousRevision > 0 &&
     incomingBaseRevision < previousRevision;
-  const incomingStateTimestamp = getPlayerProfilesStateTimestamp(incomingState);
+  const incomingLooksOlderThanExisting =
+    existingStateTimestamp > 0 &&
+    (!incomingStateTimestamp || incomingStateTimestamp < existingStateTimestamp);
+  const incomingActivePlayerIds = new Set(
+    incomingState.players.map(getPlayerProfileId).filter(Boolean)
+  );
+  const removedPlayerIds = new Set(incomingRemovedPlayerIds);
+  normalizePlayerProfileRemovedIds(existingState.removedPlayerIds).forEach((removedPlayerId) => {
+    if (incomingIsStale || incomingLooksOlderThanExisting || !incomingActivePlayerIds.has(removedPlayerId)) {
+      removedPlayerIds.add(removedPlayerId);
+    }
+  });
+  const removedPlayerIdSet = new Set(removedPlayerIds);
   const existingByKey = new Map();
   existingState.players.forEach((player) => {
+    if (removedPlayerIdSet.has(getPlayerProfileId(player))) {
+      return;
+    }
     const key = getPlayerProfileMergeKey(player);
     if (key) {
       existingByKey.set(key, player);
@@ -1466,6 +1500,7 @@ async function protectPlayerProfilesStateValue(rawValue, context = {}) {
   const usedKeys = new Set();
   const mergedPlayers = incomingState.players
     .filter((player) => player && typeof player === "object" && !Array.isArray(player))
+    .filter((player) => !removedPlayerIdSet.has(getPlayerProfileId(player)))
     .map((incomingPlayer) => {
       const key = getPlayerProfileMergeKey(incomingPlayer);
       if (!key) {
@@ -1483,6 +1518,9 @@ async function protectPlayerProfilesStateValue(rawValue, context = {}) {
     });
 
   existingState.players.forEach((existingPlayer) => {
+    if (removedPlayerIdSet.has(getPlayerProfileId(existingPlayer))) {
+      return;
+    }
     const key = getPlayerProfileMergeKey(existingPlayer);
     if (!key || usedKeys.has(key)) {
       return;
@@ -1515,6 +1553,7 @@ async function protectPlayerProfilesStateValue(rawValue, context = {}) {
     ...incomingState,
     selectedPlayerId,
     players: mergedPlayers,
+    removedPlayerIds: Array.from(removedPlayerIds),
     changeLog: mergePlayerProfileChangeLog(existingState.changeLog, incomingState.changeLog),
     updatedAt: new Date(
       Math.max(

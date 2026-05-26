@@ -988,6 +988,100 @@ test("app-state preserves newer Squad role edits when a stale client syncs later
   }
 });
 
+test("app-state keeps removed Squad players hidden when a stale client syncs later", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const existingSquadState = {
+    selectedPlayerId: "player-kept",
+    removedPlayerIds: ["player-removed"],
+    players: [
+      {
+        id: "player-kept",
+        name: "Kept Player",
+        primaryRole: "GK",
+        roleGroup: "goalkeeper",
+        updatedAt: "2026-05-07T12:10:00.000Z",
+      },
+    ],
+    changeLog: [
+      {
+        id: "change-remove",
+        type: "player-removed",
+        playerId: "player-removed",
+        summary: "Removed Player removed from Squad",
+        changes: [{ field: "Squad status", from: "Squad depth", to: "Removed" }],
+        createdAt: "2026-05-07T12:10:01.000Z",
+      },
+    ],
+    updatedAt: "2026-05-07T12:10:00.000Z",
+  };
+  const staleSquadState = {
+    selectedPlayerId: "player-removed",
+    players: [
+      {
+        id: "player-removed",
+        name: "Removed Player",
+        primaryRole: "ST",
+        roleGroup: "forward",
+        updatedAt: "2026-05-07T12:00:00.000Z",
+      },
+      {
+        id: "player-kept",
+        name: "Kept Player",
+        primaryRole: "GK",
+        roleGroup: "goalkeeper",
+        updatedAt: "2026-05-07T12:00:00.000Z",
+      },
+    ],
+    updatedAt: "2026-05-07T12:00:00.000Z",
+  };
+  const storage = createAppStateFetchMock(
+    {
+      [workspaceHubPath]: createAppStateStorageEntry(workspaceHubKey, {
+        workspaceAccess: {
+          "player-profiles": { view: ["admin", "coach"], edit: ["admin", "coach"] },
+        },
+      }),
+      [playerProfilesPath]: {
+        ...createAppStateStorageEntry(playerProfilesKey, existingSquadState),
+        revision: 2,
+      },
+    },
+    "coach"
+  );
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        key: playerProfilesKey,
+        value: JSON.stringify(staleSquadState),
+        metadata: { baseRevision: 1 },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload.merged).toBe(true);
+    const syncedState = JSON.parse(response.payload.value);
+    expect(syncedState.players.map((player) => player.id)).toEqual(["player-kept"]);
+    expect(syncedState.removedPlayerIds).toContain("player-removed");
+    expect(syncedState.selectedPlayerId).toBe("player-kept");
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
 test("app-state preserves Squad position when a stale role save carries older player fields", async () => {
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;

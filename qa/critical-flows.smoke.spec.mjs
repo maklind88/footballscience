@@ -1814,6 +1814,48 @@ test("Medical operations actual missing counts only players expected to particip
   await expect(actualMissingStat).toContainText("today's participation");
 });
 
+test("Squad removal keeps default roster players hidden after reload", async ({ page }) => {
+  const removedPlayerId = "ncc-2026-cortnee-vine";
+  await bootApp(page);
+  await page.evaluate(() => {
+    const store = window.platformAuthStore;
+    const currentUser = store?.getCurrentUser?.();
+    if (!store || !currentUser) return;
+    const nextUser = { ...currentUser, role: "admin" };
+    store.writeUsers([nextUser, ...store.getUsers().filter((user) => user.id !== nextUser.id)]);
+    store.setCurrentUser(nextUser.id);
+  });
+  await openWorkspace(page, "player-profiles");
+
+  const removedPlayerRow = page.locator(`[data-player-profile-select="${removedPlayerId}"]`);
+  await expect(removedPlayerRow).toContainText("Cortnee Vine");
+  await removedPlayerRow.click();
+  await expect(page.locator(".squad-profile-modal")).toBeVisible();
+  await page.locator(`[data-player-profile-remove="${removedPlayerId}"]`).click();
+
+  await expect(page.locator(`[data-player-profile-select="${removedPlayerId}"]`)).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        ({ storageKey, playerId }) => {
+          const state = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+          return {
+            isListed: Array.isArray(state.players) ? state.players.some((player) => player.id === playerId) : false,
+            isTombstoned: Array.isArray(state.removedPlayerIds) ? state.removedPlayerIds.includes(playerId) : false,
+          };
+        },
+        { storageKey: playerProfilesKey, playerId: removedPlayerId }
+      )
+    )
+    .toMatchObject({ isListed: false, isTombstoned: true });
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.locator("#hubShell")).toBeVisible();
+  await dismissDashboardModal(page);
+  await openWorkspace(page, "player-profiles");
+  await expect(page.locator(`[data-player-profile-select="${removedPlayerId}"]`)).toHaveCount(0);
+});
+
 test("Squad add creates a Medical roster slot and Session Planner placement", async ({ page }) => {
   const playerName = `QA Squad Placement ${Date.now()}`;
   let squadAgeRequests = 0;

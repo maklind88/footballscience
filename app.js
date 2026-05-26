@@ -915,17 +915,50 @@ result?.record?.value,
 ];
 return candidates.find((value) => typeof value === "string") ?? "";
 }
+function getCentralSyncResultRevision(result = {}) {
+const revision = Number(result?.currentRevision ?? result?.revision ?? result?.metadata?.revision);
+return Number.isInteger(revision) && revision > 0 ? revision : 0;
+}
+function showSessionPlannerCentralSyncNotice(message = "Session synced with the latest team changes.", tone = "warning") {
+const now = Date.now();
+if (now - sessionPlannerCentralSyncNoticeAt < 12000) {
+return;
+}
+sessionPlannerCentralSyncNoticeAt = now;
+if (hubState?.activeWorkspaceId === "session-planner") {
+showSessionPlannerToast(message, tone);
+}
+}
+async function retryCentralStateWriteAfterConflict(write = {}, result = {}, bridge = getCentralStateBridge()) {
+if (String(write.key || "") !== sessionPlannerStorageKey || write.removed || Number(write.retryCount || 0) > 0) {
+return null;
+}
+const retryBaseRevision = getCentralSyncResultRevision(result);
+if (!retryBaseRevision || !bridge?.syncKey) {
+return null;
+}
+const retryResult = await bridge.syncKey(write.key, write.value, {
+removed: false,
+baseRevision: retryBaseRevision,
+});
+if (!retryResult?.ok) {
+return retryResult || null;
+}
+applyCentralSyncedStateValue(write, retryResult.value);
+if (retryResult?.merged) {
+showSessionPlannerCentralSyncNotice("Session synced with the latest team changes.");
+}
+return retryResult;
+}
 function registerSessionPlannerCentralSyncConflict(write = {}, result = {}) {
 if (String(write.key || "") !== sessionPlannerStorageKey) {
 return;
 }
-sessionPlannerCentralSyncConflict = {
-key: sessionPlannerStorageKey,
-reason: String(result?.reason || "Another version was saved first."),
-localValue: String(write.value || ""),
-centralValue: getCentralSyncResultValue(result),
-createdAt: getDataSafetyNow(),
-};
+sessionPlannerCentralSyncConflict = null;
+showSessionPlannerCentralSyncNotice(
+result?.reason ? `Session sync needs attention: ${result.reason}` : "Session sync needs attention. Your latest edit stayed local.",
+"warning"
+);
 }
 function queueCentralStateWrite(key, value, options = {}) {
 if (window.__footballScienceCentralHydrating) {
@@ -973,13 +1006,18 @@ baseRevision: write.baseRevision,
 });
 if (!result?.ok) {
 if (result?.conflict || result?.status === 409) {
+const retryResult = await retryCentralStateWriteAfterConflict(write, result, bridge);
 setCentralSyncPendingState(write.key, false, write.removed);
+if (retryResult?.ok) {
+queueCentralStateStatus("");
+setPlatformAutosaveStatus("saved", "Saved");
+continue;
+}
 queueCentralStateStatus(result?.reason || "Central newer.");
 registerSessionPlannerCentralSyncConflict(write, result);
-setPlatformAutosaveStatus("conflict", result?.reason || "Central newer.");
+setPlatformAutosaveStatus("issue", "Sync needs attention");
+if (write.key !== sessionPlannerStorageKey) {
 await bridge.hydrate?.({ forceApply: true }).catch(() => {});
-if (write.key === sessionPlannerStorageKey && hubState?.activeWorkspaceId === "session-planner") {
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
 continue;
 }
@@ -4721,6 +4759,7 @@ let sessionPlannerLibraryPointerDrag = null;
 let sessionPlannerLibrarySuppressNextClick = false;
 let sessionPlannerPendingLibrarySave = null;
 let sessionPlannerCentralSyncConflict = null;
+let sessionPlannerCentralSyncNoticeAt = 0;
 const sessionPlannerBoardHistoryLimit = 80;
 let sessionPlannerBoardHistoryApplying = false;
 const sessionPlannerBoardHistoryBaselines = {
@@ -21981,7 +22020,6 @@ ${renderSessionPlannerEditableField(block, "principles", "Principles & Coaching 
     ${renderSessionPlannerPeriodizationOverlay()}
     ${renderSessionPlannerLibraryOverlay()}
     ${renderSessionPlannerLibrarySaveConflictOverlay()}
-    ${renderSessionPlannerCentralSyncConflictOverlay()}
     ${renderSessionPlannerVisualPreviewOverlay(block)}
     ${renderSessionPlannerTacticalboardOverlay(block)}
     ${renderSessionPlannerPlayerBoardOverlay(block)}
@@ -33278,7 +33316,6 @@ return true;
 return Boolean(
 sessionPlannerLibraryOpen ||
 sessionPlannerPendingLibrarySave ||
-sessionPlannerCentralSyncConflict ||
 sessionPlannerVisualPreviewOpen ||
 sessionPlannerPrintOverlayOpen ||
 sessionPlannerTacticalboardOpen ||

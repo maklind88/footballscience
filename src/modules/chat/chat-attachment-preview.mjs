@@ -12,12 +12,39 @@ function html(value) {
   })[char]);
 }
 
-function isImage(mimeType = "", name = "") {
-  return String(mimeType).startsWith("image/") || /\.(png|jpe?g|webp|gif|svg)$/i.test(String(name));
+function normalizeAttachmentItem(value = {}) {
+  return {
+    url: safeText(value.url || value.href).trim(),
+    name: safeText(value.name || value.fileName || value.file_name || "Attachment").trim() || "Attachment",
+    mimeType: safeText(value.mimeType || value.mime_type || value.type).trim().toLowerCase(),
+  };
 }
 
-function isPdf(mimeType = "", name = "") {
-  return String(mimeType).includes("pdf") || /\.pdf$/i.test(String(name));
+function extensionForName(name = "") {
+  const match = safeText(name).toLowerCase().match(/\.([a-z0-9]{2,8})$/);
+  return match ? match[1] : "";
+}
+
+function getPreviewKind(mimeType = "", name = "") {
+  const type = safeText(mimeType).toLowerCase();
+  const extension = extensionForName(name);
+  if (type.startsWith("image/") || ["png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "avif"].includes(extension)) return "image";
+  if (type.includes("pdf") || extension === "pdf") return "pdf";
+  if (type.startsWith("video/") || ["mp4", "mov", "m4v", "webm"].includes(extension)) return "video";
+  if (type.startsWith("audio/") || ["mp3", "wav", "m4a", "ogg"].includes(extension)) return "audio";
+  if (type.startsWith("text/") || ["txt", "csv", "md", "json"].includes(extension)) return "text";
+  return "file";
+}
+
+function getKindLabel(kind = "file") {
+  return {
+    image: "Image preview",
+    pdf: "PDF preview",
+    video: "Video preview",
+    audio: "Audio preview",
+    text: "Text preview",
+    file: "File ready",
+  }[kind] || "File ready";
 }
 
 function triggerDownload(url, name) {
@@ -49,75 +76,145 @@ async function saveAttachmentAs(url, name) {
   await writable.close();
 }
 
+function previewUnavailableMarkup(name, message = "This file type cannot be previewed here.") {
+  return `
+    <div class="dashboard-chat-attachment-preview-empty">
+      <span aria-hidden="true">FILE</span>
+      <strong>${html(name)}</strong>
+      <p>${html(message)} Use Download, Save as, or Open tab.</p>
+      <button type="button" data-chat-attachment-preview-retry>Retry preview</button>
+    </div>
+  `;
+}
+
 export function createDashboardChatAttachmentPreview() {
   let previewRoot = null;
   let previewObjectUrl = "";
+  let previewLoadToken = 0;
   let previousActiveElement = null;
   let previousBodyOverflow = "";
-  const close = () => {
+  let state = { items: [], index: 0 };
+
+  const currentItem = () => state.items[state.index] || null;
+
+  const revokeObjectUrl = () => {
     if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
     previewObjectUrl = "";
+  };
+
+  const close = () => {
+    previewLoadToken += 1;
+    revokeObjectUrl();
     previewRoot?.remove();
     previewRoot = null;
     document.body.style.overflow = previousBodyOverflow;
     previousBodyOverflow = "";
     previousActiveElement?.focus?.();
     previousActiveElement = null;
+    state = { items: [], index: 0 };
   };
-  const setOpenLink = (url) => {
-    const openLink = previewRoot?.querySelector("[data-chat-attachment-preview-open]");
-    if (openLink) openLink.href = url;
-  };
-  const print = (url, name, mimeType) => {
-    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=1100,height=800");
-    if (!printWindow) return;
-    const body = isImage(mimeType, name)
-      ? `<img src="${html(url)}" alt="${html(name)}" style="max-width:100%;height:auto;display:block;margin:auto">`
-      : `<iframe src="${html(url)}" title="${html(name)}" style="width:100%;height:100vh;border:0"></iframe>`;
-    printWindow.document.write(`<!doctype html><title>${html(name)}</title><body style="margin:0;background:#fff">${body}<script>setTimeout(()=>{focus();print();},900)<\/script></body>`);
-    printWindow.document.close();
-  };
-  const renderPreview = (body, label = "Preview") => {
+
+  const setToolbarState = () => {
     if (!previewRoot) return;
-    const labelNode = previewRoot.querySelector("[data-chat-attachment-preview-label]");
-    const bodyNode = previewRoot.querySelector("[data-chat-attachment-preview-body]");
-    if (labelNode) labelNode.textContent = label;
+    const item = currentItem();
+    const total = state.items.length;
+    const kind = getPreviewKind(item?.mimeType, item?.name);
+    const title = previewRoot.querySelector("[data-chat-attachment-preview-title]");
+    const label = previewRoot.querySelector("[data-chat-attachment-preview-label]");
+    const count = previewRoot.querySelector("[data-chat-attachment-preview-count]");
+    const openLink = previewRoot.querySelector("[data-chat-attachment-preview-open]");
+    const previous = previewRoot.querySelector("[data-chat-attachment-preview-previous]");
+    const next = previewRoot.querySelector("[data-chat-attachment-preview-next]");
+    if (title) title.textContent = item?.name || "Attachment";
+    if (label) label.textContent = getKindLabel(kind);
+    if (count) count.textContent = total > 1 ? `${state.index + 1} of ${total}` : "1 file";
+    if (openLink) openLink.href = item?.url || "#";
+    if (previous) previous.disabled = total <= 1;
+    if (next) next.disabled = total <= 1;
+  };
+
+  const renderPreview = (body) => {
+    const bodyNode = previewRoot?.querySelector("[data-chat-attachment-preview-body]");
     if (bodyNode) bodyNode.innerHTML = body;
   };
+
   const renderFilePreview = (url, name, mimeType) => {
-    setOpenLink(url);
-    if (isImage(mimeType, name)) {
+    const kind = getPreviewKind(mimeType, name);
+    setToolbarState();
+    if (kind === "image") {
       renderPreview(`<img src="${html(url)}" alt="${html(name)}">`);
       return;
     }
-    if (isPdf(mimeType, name) || String(mimeType).startsWith("text/")) {
+    if (kind === "pdf") {
+      renderPreview(`<iframe src="${html(url)}#toolbar=1&navpanes=0" title="${html(name)}"></iframe>`);
+      return;
+    }
+    if (kind === "video") {
+      renderPreview(`<video controls playsinline src="${html(url)}" aria-label="${html(name)}"></video>`);
+      return;
+    }
+    if (kind === "audio") {
+      renderPreview(`<div class="dashboard-chat-attachment-preview-empty"><span aria-hidden="true">AUDIO</span><strong>${html(name)}</strong><audio controls src="${html(url)}"></audio></div>`);
+      return;
+    }
+    if (kind === "text") {
       renderPreview(`<iframe src="${html(url)}" title="${html(name)}"></iframe>`);
       return;
     }
-    renderPreview(
-      `<div style="display:grid;gap:.7rem;place-items:center;text-align:center;color:#334155"><strong>Preview unavailable</strong><span>This file type cannot be previewed here. Use Download, Save as, or Open tab.</span></div>`,
-      "File ready"
-    );
+    renderPreview(previewUnavailableMarkup(name));
   };
-  const loadPreviewBlob = async (url, name, mimeType) => {
+
+  const loadPreviewBlob = async (item) => {
+    if (!item?.url) return;
+    const loadToken = previewLoadToken + 1;
+    previewLoadToken = loadToken;
+    revokeObjectUrl();
+    renderPreview(`
+      <div class="dashboard-chat-attachment-preview-empty is-loading">
+        <span aria-hidden="true">...</span>
+        <strong>Preparing preview</strong>
+        <p>Securely loading the attachment.</p>
+      </div>
+    `);
     try {
-      const response = await fetch(url);
+      const response = await fetch(item.url, { credentials: "same-origin" });
+      if (loadToken !== previewLoadToken) return;
       if (!response.ok) throw new Error("Preview request failed.");
       const blob = await response.blob();
-      if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+      if (loadToken !== previewLoadToken) return;
       previewObjectUrl = URL.createObjectURL(blob);
-      renderFilePreview(previewObjectUrl, name, blob.type || mimeType);
+      renderFilePreview(previewObjectUrl, item.name, blob.type || item.mimeType);
     } catch {
-      if (isImage(mimeType, name)) {
-        renderFilePreview(url, name, mimeType);
+      if (loadToken !== previewLoadToken) return;
+      const kind = getPreviewKind(item.mimeType, item.name);
+      if (kind === "image" || kind === "video" || kind === "audio") {
+        renderFilePreview(item.url, item.name, item.mimeType);
         return;
       }
-      renderPreview(
-        `<div style="display:grid;gap:.7rem;place-items:center;text-align:center;color:#334155"><strong>Preview blocked</strong><span>The file cannot be embedded in this browser. Download it or open it in a new tab.</span></div>`,
-        "Preview blocked"
-      );
+      renderPreview(previewUnavailableMarkup(item.name, "The browser blocked the embedded preview."));
     }
   };
+
+  const showIndex = (nextIndex) => {
+    if (!state.items.length) return;
+    state.index = (nextIndex + state.items.length) % state.items.length;
+    setToolbarState();
+    void loadPreviewBlob(currentItem());
+  };
+
+  const print = (item) => {
+    if (!item?.url) return;
+    const printableUrl = previewObjectUrl || item.url;
+    const kind = getPreviewKind(item.mimeType, item.name);
+    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=1100,height=800");
+    if (!printWindow) return;
+    const body = kind === "image"
+      ? `<img src="${html(printableUrl)}" alt="${html(item.name)}" style="max-width:100%;height:auto;display:block;margin:auto">`
+      : `<iframe src="${html(printableUrl)}" title="${html(item.name)}" style="width:100%;height:100vh;border:0"></iframe>`;
+    printWindow.document.write(`<!doctype html><title>${html(item.name)}</title><body style="margin:0;background:#fff">${body}<script>setTimeout(()=>{focus();print();},900)<\/script></body>`);
+    printWindow.document.close();
+  };
+
   const keepFocusInsidePreview = (event) => {
     if (!previewRoot || event.key !== "Tab") return;
     const focusable = [...previewRoot.querySelectorAll("button,a,input,select,textarea,[tabindex]:not([tabindex='-1'])")]
@@ -133,9 +230,17 @@ export function createDashboardChatAttachmentPreview() {
       first.focus();
     }
   };
-  const open = ({ url, name = "Attachment", mimeType = "" } = {}) => {
-    if (!url) return;
+
+  const open = ({ url, name = "Attachment", mimeType = "", items = [], index = 0 } = {}) => {
+    const normalizedItems = (Array.isArray(items) ? items : [])
+      .map(normalizeAttachmentItem)
+      .filter((item) => item.url);
+    const fallbackItem = normalizeAttachmentItem({ url, name, mimeType });
+    const nextItems = normalizedItems.length ? normalizedItems : fallbackItem.url ? [fallbackItem] : [];
+    if (!nextItems.length) return;
+    const safeIndex = Math.max(0, Math.min(Number(index) || 0, nextItems.length - 1));
     close();
+    state = { items: nextItems, index: safeIndex };
     previousActiveElement = document.activeElement;
     previousBodyOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -145,32 +250,45 @@ export function createDashboardChatAttachmentPreview() {
       <div class="dashboard-chat-attachment-preview-backdrop" data-chat-attachment-preview-close></div>
       <section class="dashboard-chat-attachment-preview-card" role="dialog" aria-modal="true" aria-label="Attachment preview">
         <header>
-          <div><span data-chat-attachment-preview-label>Preparing preview</span><strong>${html(name)}</strong></div>
-          <div class="dashboard-chat-attachment-preview-actions">
+          <div class="dashboard-chat-attachment-preview-title-block">
+            <span data-chat-attachment-preview-label>Preparing preview</span>
+            <strong data-chat-attachment-preview-title>Attachment</strong>
+            <small data-chat-attachment-preview-count>1 file</small>
+          </div>
+          <div class="dashboard-chat-attachment-preview-actions" role="toolbar" aria-label="Attachment actions">
+            <button type="button" data-chat-attachment-preview-previous aria-label="Previous attachment">Prev</button>
+            <button type="button" data-chat-attachment-preview-next aria-label="Next attachment">Next</button>
             <button type="button" data-chat-attachment-preview-print>Print</button>
             <button type="button" data-chat-attachment-preview-download>Download</button>
             <button type="button" data-chat-attachment-preview-save>Save as</button>
-            <a href="${html(url)}" target="_blank" rel="noopener noreferrer" data-chat-attachment-preview-open>Open tab</a>
+            <a href="#" target="_blank" rel="noopener noreferrer" data-chat-attachment-preview-open>Open tab</a>
             <button type="button" class="is-close" data-chat-attachment-preview-close aria-label="Close attachment preview">&times;</button>
           </div>
         </header>
-        <div class="dashboard-chat-attachment-preview-body" data-chat-attachment-preview-body>
-          <div style="display:grid;gap:.7rem;place-items:center;text-align:center;color:#334155"><strong>Preparing preview...</strong><span>Securely loading the attachment.</span></div>
-        </div>
       </section>`;
     previewRoot.addEventListener("click", (event) => {
+      const item = currentItem();
       if (event.target.closest("[data-chat-attachment-preview-close]")) close();
-      if (event.target.closest("[data-chat-attachment-preview-download]")) triggerDownload(previewObjectUrl || url, name);
-      if (event.target.closest("[data-chat-attachment-preview-save]")) saveAttachmentAs(previewObjectUrl || url, name).catch(() => triggerDownload(previewObjectUrl || url, name));
-      if (event.target.closest("[data-chat-attachment-preview-print]")) print(previewObjectUrl || url, name, mimeType);
+      if (event.target.closest("[data-chat-attachment-preview-previous]")) showIndex(state.index - 1);
+      if (event.target.closest("[data-chat-attachment-preview-next]")) showIndex(state.index + 1);
+      if (event.target.closest("[data-chat-attachment-preview-download]") && item) triggerDownload(previewObjectUrl || item.url, item.name);
+      if (event.target.closest("[data-chat-attachment-preview-save]") && item) saveAttachmentAs(previewObjectUrl || item.url, item.name).catch(() => triggerDownload(previewObjectUrl || item.url, item.name));
+      if (event.target.closest("[data-chat-attachment-preview-print]") && item) print(item);
+      if (event.target.closest("[data-chat-attachment-preview-retry]") && item) void loadPreviewBlob(item);
     });
     document.body.append(previewRoot);
+    setToolbarState();
     previewRoot.querySelector("[data-chat-attachment-preview-close]")?.focus();
-    void loadPreviewBlob(url, name, mimeType);
+    void loadPreviewBlob(currentItem());
   };
+
   document.addEventListener("keydown", (event) => {
     keepFocusInsidePreview(event);
-    if (event.key === "Escape" && previewRoot) close();
+    if (!previewRoot) return;
+    if (event.key === "Escape") close();
+    if (event.key === "ArrowLeft") showIndex(state.index - 1);
+    if (event.key === "ArrowRight") showIndex(state.index + 1);
   });
+
   return { open, close };
 }

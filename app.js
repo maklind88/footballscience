@@ -4600,10 +4600,12 @@ let dashboardChatApiPagination = {};
 let dashboardChatRuntimeMessages = [];
 let dashboardChatHydratedThreadIds = new Set();
 let dashboardChatMessageSearchQuery = "";
+let dashboardChatMessageSearchActiveIndex = 0;
 let dashboardChatModerationOpen = false;
 let dashboardChatDetailsOpen = false;
 let dashboardChatMobileConversationOpen = true;
-let dashboardChatModerationState = { loading: false, audits: [], retentionPolicy: null, health: null, error: "" };
+let dashboardChatModerationFilters = { action: "all", userId: "", threadId: "", from: "", to: "" };
+let dashboardChatModerationState = { loading: false, audits: [], failedUploads: [], retentionPolicy: null, health: null, filters: dashboardChatModerationFilters, error: "" };
 let dashboardChatThreadSummarySyncTimer = 0;
 let dashboardChatThreadSummaryLastRequestedAt = 0;
 let dashboardChatComposerAttachmentDraft = null;
@@ -8781,6 +8783,23 @@ return Boolean(isLocalHost && isDevAuth && result.status === 401);
 function logDashboardChatApiFailure(action, result = {}) {
 console.warn(`Chat action ${action} was not saved through /api/chat.`, result.reason || result.status || result);
 }
+function normalizeDashboardApiParticipant(participant = {}) {
+if (participant && typeof participant === "object" && !Array.isArray(participant)) {
+const userId = String(participant.userId || participant.user_id || participant.id || "").trim();
+return {
+id: userId,
+userId,
+participantRole: String(participant.participantRole || participant.participant_role || participant.role || "member").trim().toLowerCase() || "member",
+role: String(participant.participantRole || participant.participant_role || participant.role || "member").trim().toLowerCase() || "member",
+joinedAt: String(participant.joinedAt || participant.joined_at || "").trim(),
+leftAt: String(participant.leftAt || participant.left_at || "").trim(),
+lastReadAt: String(participant.lastReadAt || participant.last_read_at || "").trim(),
+lastReadMessageId: String(participant.lastReadMessageId || participant.last_read_message_id || "").trim(),
+};
+}
+const userId = String(participant || "").trim();
+return userId ? { id: userId, userId, participantRole: "member", role: "member", joinedAt: "", leftAt: "", lastReadAt: "", lastReadMessageId: "" } : null;
+}
 function normalizeDashboardApiThread(thread = {}) {
 const type = String(thread.type || "team").trim().toLowerCase();
 const legacyThreadId = String(thread.metadata?.legacyThreadId || thread.legacyThreadId || "").trim();
@@ -8804,7 +8823,7 @@ lastReadAt: String(thread.lastReadAt || thread.last_read_at || "").trim(),
 lastMessage,
 lastMessageId,
 lastMessagePreview: String(thread.lastMessagePreview || thread.last_message_preview || "").trim(),
-participants: Array.isArray(thread.participants) ? thread.participants.map((value) => String(value || "").trim()).filter(Boolean) : [],
+participants: Array.isArray(thread.participants) ? thread.participants.map(normalizeDashboardApiParticipant).filter(Boolean) : [],
 permissions: thread.permissions && typeof thread.permissions === "object" ? thread.permissions : {},
 avatarUrl: String(thread.avatarUrl || thread.avatar_url || "").trim(),
 settings: dashboardChatThreadSettings.normalize(thread.settings || thread.threadSettings || {}),
@@ -9002,6 +9021,7 @@ logDashboardChatApiFailure("threads", result);
 return result;
 }
 applyDashboardChatApiPayload(result.result || {});
+syncDashboardChatWidgetNotificationCursor();
 if (options.render !== false) {
 renderDashboardChatWidget();
 }
@@ -9082,7 +9102,16 @@ return null;
 }
 dashboardChatModerationState = { ...dashboardChatModerationState, loading: true, error: "" };
 renderDashboardChatWidget();
-const result = await fetchDashboardChatApi({ view: "moderation", limit: 40 });
+const moderationQuery = {
+view: "moderation",
+limit: 80,
+action: dashboardChatModerationFilters.action || "all",
+userId: dashboardChatModerationFilters.userId || "",
+thread: dashboardChatModerationFilters.threadId || "",
+from: dashboardChatModerationFilters.from || "",
+to: dashboardChatModerationFilters.to || "",
+};
+const result = await fetchDashboardChatApi(moderationQuery);
 const healthResult = await fetchDashboardChatApi({ view: "health", limit: 8 });
 if (!result.ok) {
 dashboardChatModerationState = { ...dashboardChatModerationState, loading: false, error: result.reason || "Could not load moderation." };
@@ -9092,8 +9121,10 @@ return result;
 dashboardChatModerationState = {
 loading: false,
 audits: Array.isArray(result.result.audits) ? result.result.audits : [],
+failedUploads: Array.isArray(result.result.failedUploads) ? result.result.failedUploads : [],
 retentionPolicy: result.result.retentionPolicy || null,
 health: healthResult.ok ? healthResult.result.health || null : dashboardChatModerationState.health,
+filters: result.result.filters || dashboardChatModerationFilters,
 error: "",
 };
 if (healthResult.ok && Array.isArray(healthResult.result.audits) && !dashboardChatModerationState.audits.length) {
@@ -9211,6 +9242,18 @@ renderTopIconMenu();
 queueDashboardChatApiRefresh({ delayMs: 250 });
 queueDashboardChatThreadSummaryRefresh({ delayMs: 350 });
 }
+function handleDashboardChatRealtimeRelatedChange(change = {}) {
+dashboardChatApiRealtimeLastEventAt = Date.now();
+const record = change.new || change.old || {};
+const databaseThreadId = String(record.thread_id || record.id || "").trim();
+const activeState = readDashboardChatWidgetState();
+const matchingThread = dashboardChatApiThreads.find((thread) => thread.databaseThreadId === databaseThreadId) || null;
+const refreshThreadId = matchingThread?.threadId || activeState.selectedThreadId || dashboardChatTeamThreadId;
+queueDashboardChatThreadSummaryRefresh({ delayMs: 180 });
+if (activeState.isOpen) {
+queueDashboardChatApiRefresh({ threadId: refreshThreadId, delayMs: 220 });
+}
+}
 function handleDashboardChatRealtimeStatus(status = "") {
 dashboardChatApiRealtimeStatus = String(status || "unknown");
 renderDashboardChatWidget();
@@ -9245,12 +9288,15 @@ dashboardChatApiRealtimeSignature = signature;
 const realtimeScopeFilter = `organization_id=eq.${scope.organizationId}`;
 dashboardChatApiRealtimeChannel = supabaseClient
 .channel(`chat:${signature}`)
+.on("postgres_changes", { event: "*", schema: "public", table: "chat_threads", filter: realtimeScopeFilter }, handleDashboardChatRealtimeRelatedChange)
 .on("postgres_changes", { event: "*", schema: "public", table: "chat_messages", filter: realtimeScopeFilter }, handleDashboardChatRealtimeMessageChange)
+.on("postgres_changes", { event: "*", schema: "public", table: "chat_attachments", filter: realtimeScopeFilter }, handleDashboardChatRealtimeRelatedChange)
+.on("postgres_changes", { event: "*", schema: "public", table: "chat_thread_participants", filter: realtimeScopeFilter }, handleDashboardChatRealtimeRelatedChange)
 .on("postgres_changes", { event: "*", schema: "public", table: "chat_reactions", filter: realtimeScopeFilter }, () =>
-queueDashboardChatApiRefresh({ delayMs: 250 })
+handleDashboardChatRealtimeRelatedChange()
 )
 .on("postgres_changes", { event: "*", schema: "public", table: "chat_read_receipts", filter: realtimeScopeFilter }, () =>
-queueDashboardChatApiRefresh({ delayMs: 400 })
+handleDashboardChatRealtimeRelatedChange()
 )
 .subscribe(handleDashboardChatRealtimeStatus);
 }
@@ -9630,12 +9676,31 @@ const fallbackThreadLabel = formatDashboardChatThreadLabel(normalizedThreadId, c
 const apiThreadTitle = String(apiThread?.title || "").trim();
 const shouldUseComputedLabel = isTeamThread || isDirectThread || isGenericDashboardChatThreadTitle(apiThreadTitle);
 const threadSettings = dashboardChatThreadSettings.merge(normalizedThreadId, apiThread?.settings || {});
+const apiParticipants = Array.isArray(apiThread?.participants) ? apiThread.participants : [];
+const resolvedApiParticipants = apiParticipants.map((participant) => {
+const userId = String(participant.userId || participant.id || "").trim();
+const platformUser = users.find((user) => user.id === userId) || null;
+return {
+...(platformUser || { id: userId, firstName: userId ? "Staff" : "Unknown", lastName: "" }),
+...participant,
+id: userId || platformUser?.id || "",
+chatParticipantRole: participant.participantRole || participant.role || "member",
+lastReadAt: participant.lastReadAt || "",
+};
+}).filter((participant) => participant.id);
+const threadParticipants = isTeamThread
+? users
+: resolvedApiParticipants.length
+? resolvedApiParticipants
+: participants;
 return {
 threadId: normalizedThreadId,
 label: threadSettings.customTitle || (shouldUseComputedLabel ? fallbackThreadLabel : apiThreadTitle),
 isTeamThread,
 type: apiThread?.type || (isManagedThread ? managedTemplate?.type : isTeamThread ? "team" : "dm"),
-participant: participants[0] || null,
+participant: threadParticipants.find((participant) => !isSameDashboardUser(participant, currentUser)) || threadParticipants[0] || null,
+participants: threadParticipants,
+permissions: apiThread?.permissions || {},
 messageCount: Math.max(threadMessages.length, apiThread?.messageCount || 0),
 unreadCount: effectiveUnreadCount,
 mentionCount,
@@ -10300,6 +10365,7 @@ replyDraft: dashboardChatReplyDraft,
 priorityDraft: dashboardChatPriorityDraft,
 confirmAction: dashboardChatConfirmAction,
 messageSearchQuery: dashboardChatMessageSearchQuery,
+messageSearchActiveIndex: dashboardChatMessageSearchActiveIndex,
 hasOlderMessages: Boolean(dashboardChatApiPagination[activeThreadId]),
 advancedThreadTemplates: dashboardChatAdvancedThreadTemplates,
 moderationOpen: dashboardChatModerationOpen,
@@ -10323,6 +10389,10 @@ dashboardChatPageScroll = false;
 renderTopIconMenu();
 return;
 }
+const previousMessageSearchInput = root.querySelector("[data-dashboard-chat-message-search]");
+const wasMessageSearchFocused = Boolean(previousMessageSearchInput && document.activeElement === previousMessageSearchInput);
+const previousMessageSearchSelectionStart = wasMessageSearchFocused ? previousMessageSearchInput.selectionStart : null;
+const previousMessageSearchSelectionEnd = wasMessageSearchFocused ? previousMessageSearchInput.selectionEnd : null;
 root.innerHTML = renderedWidget.html;
 root.dataset.dashboardChatRenderSignature = renderSignature;
 if (shouldClearSubmittedComposerDraft) {
@@ -10333,8 +10403,20 @@ if (nextThreadList) {
 nextThreadList.scrollTop = previousThreadListScrollTop;
 nextThreadList.scrollLeft = previousThreadListScrollLeft;
 }
+if (wasMessageSearchFocused) {
+const nextMessageSearchInput = root.querySelector("[data-dashboard-chat-message-search]");
+if (nextMessageSearchInput) {
+nextMessageSearchInput.focus();
+if (previousMessageSearchSelectionStart !== null && previousMessageSearchSelectionEnd !== null) {
+nextMessageSearchInput.setSelectionRange(previousMessageSearchSelectionStart, previousMessageSearchSelectionEnd);
+}
+}
+}
 const nextChatList = root.querySelector("[data-dashboard-chat-list]");
-if (nextChatList && previousChatListScrollTop !== null && previousComposerThreadId === renderedWidget.activeThreadId) {
+const activeSearchMatchElement = root.querySelector("[data-dashboard-chat-search-active='true']");
+if (activeSearchMatchElement) {
+activeSearchMatchElement.scrollIntoView({ block: "center", inline: "nearest" });
+} else if (nextChatList && previousChatListScrollTop !== null && previousComposerThreadId === renderedWidget.activeThreadId) {
 const nextMaxScrollTop = Math.max(0, nextChatList.scrollHeight - nextChatList.clientHeight);
 const nextScrollTop = preserveChatScroll
 ? previousChatListScrollTop + Math.max(0, nextChatList.scrollHeight - previousChatListScrollHeight)
@@ -10392,24 +10474,31 @@ if (!notifications.enabled) {
 return;
 }
 const latestMessage = [...messages].reverse().find((message) => message.userId !== currentUser.id);
-if (!latestMessage) {
+const latestApiThreadMessage = dashboardChatApiThreads
+.map((thread) => (thread.lastMessage ? normalizeDashboardApiMessage(thread.lastMessage, thread) : null))
+.filter((message) => message && message.userId !== currentUser.id)
+.sort((first, second) => getDashboardMessageCreatedAtMs(second) - getDashboardMessageCreatedAtMs(first))[0] || null;
+const latestVisibleMessage = [latestMessage, latestApiThreadMessage]
+.filter(Boolean)
+.sort((first, second) => getDashboardMessageCreatedAtMs(second) - getDashboardMessageCreatedAtMs(first))[0] || null;
+if (!latestVisibleMessage) {
 return;
 }
 const cursor = currentCursor;
-if (cursor.lastMessageId === latestMessage.id && cursor.userId === latestMessage.userId && cursor.threadId === latestMessage.threadId) {
+if (cursor.lastMessageId === latestVisibleMessage.id && cursor.userId === latestVisibleMessage.userId && cursor.threadId === latestVisibleMessage.threadId) {
 return;
 }
-if (isDashboardChatThreadActivelyViewed(latestMessage.threadId)) {
+if (isDashboardChatThreadActivelyViewed(latestVisibleMessage.threadId)) {
 return;
 }
-if (dashboardChatThreadSettings.get(latestMessage.threadId).muted) {
+if (dashboardChatThreadSettings.get(latestVisibleMessage.threadId).muted) {
 return;
 }
 const users = getPlatformUsers();
-const sender = users?.find((entry) => entry.id === latestMessage.userId);
-const senderName = formatUserName(sender ?? latestMessage.author ?? { firstName: "Team", lastName: "Member" });
-const threadName = formatDashboardChatThreadLabel(latestMessage.threadId, currentUser, getPlatformUsers());
-const mentionedCurrentUser = latestMessage.mentionedUserIds.includes(currentUser.id);
+const sender = users?.find((entry) => entry.id === latestVisibleMessage.userId);
+const senderName = formatUserName(sender ?? latestVisibleMessage.author ?? { firstName: "Team", lastName: "Member" });
+const threadName = formatDashboardChatThreadLabel(latestVisibleMessage.threadId, currentUser, getPlatformUsers());
+const mentionedCurrentUser = latestVisibleMessage.mentionedUserIds.includes(currentUser.id);
 if (notifications.level === "mentions" && !mentionedCurrentUser) {
 return;
 }
@@ -10417,13 +10506,13 @@ showDashboardChatWidgetToast(
 mentionedCurrentUser
 ? `${senderName} mentioned you in ${threadName}`
 : `New message from ${senderName} in ${threadName}`,
-latestMessage.threadId
+latestVisibleMessage.threadId
 );
 writeDashboardChatWidgetNotificationCursor({
-lastMessageId: latestMessage.id,
+lastMessageId: latestVisibleMessage.id,
 seenAt: Date.now(),
-userId: latestMessage.userId,
-threadId: latestMessage.threadId,
+userId: latestVisibleMessage.userId,
+threadId: latestVisibleMessage.threadId,
 });
 }
 function showDashboardChatWidgetToast(messageText, threadId = dashboardChatTeamThreadId) {
@@ -71839,6 +71928,12 @@ const currentState = readDashboardChatWidgetState();
 dashboardChatApiUiActions.handleThreadSettingAction(threadSettingButton, currentState.selectedThreadId);
 return;
 }
+const participantActionButton = event.target.closest("[data-dashboard-chat-participant-action]");
+if (participantActionButton) {
+const currentState = readDashboardChatWidgetState();
+dashboardChatApiUiActions.handleThreadParticipantAction(participantActionButton, currentState.selectedThreadId);
+return;
+}
 const confirmApplyButton = event.target.closest("[data-dashboard-chat-confirm-apply]");
 if (confirmApplyButton) {
 const confirmAction = dashboardChatConfirmAction;
@@ -71924,10 +72019,21 @@ return;
 const attachmentPreviewButton = event.target.closest("[data-dashboard-chat-attachment-preview]");
 if (attachmentPreviewButton) {
 event.preventDefault();
+const previewButtons = Array.from(
+ui.dashboardChatWidgetRoot?.querySelectorAll("[data-dashboard-chat-attachment-preview]") || []
+).filter((button) => button.dataset.dashboardChatAttachmentUrl);
+const previewItems = previewButtons.map((button) => ({
+url: button.dataset.dashboardChatAttachmentUrl,
+name: button.dataset.dashboardChatAttachmentName,
+mimeType: button.dataset.dashboardChatAttachmentMime,
+}));
+const previewIndex = Math.max(0, previewButtons.indexOf(attachmentPreviewButton));
 dashboardChatAttachmentPreview.open({
 url: attachmentPreviewButton.dataset.dashboardChatAttachmentUrl,
 name: attachmentPreviewButton.dataset.dashboardChatAttachmentName,
 mimeType: attachmentPreviewButton.dataset.dashboardChatAttachmentMime,
+items: previewItems,
+index: previewIndex,
 });
 return;
 }
@@ -72045,6 +72151,16 @@ confirmLabel: "Delete message",
 renderDashboardChatWidget();
 }
 });
+ui.dashboardChatWidgetRoot?.addEventListener("click", (event) => {
+const searchStepButton = event.target.closest("[data-dashboard-chat-search-step]");
+if (!searchStepButton) {
+return;
+}
+event.preventDefault();
+const direction = searchStepButton.dataset.dashboardChatSearchStep === "previous" ? -1 : 1;
+dashboardChatMessageSearchActiveIndex += direction;
+renderDashboardChatWidget();
+});
 ui.dashboardChatWidgetRoot?.addEventListener("input", (event) => {
 const chatInput = event.target.closest("[data-dashboard-chat-input]");
 if (chatInput) {
@@ -72061,11 +72177,11 @@ return;
 const messageSearchInput = event.target.closest("[data-dashboard-chat-message-search]");
 if (messageSearchInput) {
 dashboardChatMessageSearchQuery = messageSearchInput.value.trim().slice(0, 120);
+dashboardChatMessageSearchActiveIndex = 0;
 if (dashboardChatMessageSearchQuery.length >= 2) {
 queueDashboardChatApiRefresh({ search: dashboardChatMessageSearchQuery, delayMs: 220 });
-} else {
-renderDashboardChatWidget();
 }
+renderDashboardChatWidget();
 return;
 }
 const filterInput = event.target.closest("[data-dashboard-chat-filter]");
@@ -72088,6 +72204,22 @@ if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
 event.preventDefault();
 event.target.form?.requestSubmit();
 }
+});
+ui.dashboardChatWidgetRoot?.addEventListener("submit", async (event) => {
+const moderationFilterForm = event.target.closest("[data-dashboard-chat-moderation-filter-form]");
+if (!moderationFilterForm) {
+return;
+}
+event.preventDefault();
+const formData = new FormData(moderationFilterForm);
+dashboardChatModerationFilters = {
+action: String(formData.get("action") || "all").trim() || "all",
+userId: String(formData.get("userId") || "").trim(),
+threadId: String(formData.get("threadId") || "").trim(),
+from: String(formData.get("from") || "").trim(),
+to: String(formData.get("to") || "").trim(),
+};
+await loadDashboardChatModerationFromApi();
 });
 document.addEventListener("click", (event) => {
 if (event.target.closest("[data-dashboard-read-receipt]")) {

@@ -79,6 +79,91 @@ export function createDashboardChatApiUiActions(dependencies = {}) {
     return false;
   }
 
+  function getThreadParticipantIdsFromApi(threadId = teamThreadId) {
+    const normalizedThreadId = getNormalizedThreadId(threadId);
+    const apiThread = (getApiThreads() || []).find((thread) => thread.threadId === normalizedThreadId) || null;
+    const apiParticipantIds = Array.isArray(apiThread?.participants)
+      ? apiThread.participants.map((participant) => normalizeText(participant?.userId || participant?.id || participant)).filter(Boolean)
+      : [];
+    return Array.from(new Set((apiParticipantIds.length ? apiParticipantIds : getParticipantIds(normalizedThreadId)).filter(Boolean)));
+  }
+
+  function resolveUserFromQuery(query = "") {
+    const normalizedQuery = normalizeText(query).toLowerCase();
+    if (!normalizedQuery) return null;
+    return (getUsers() || []).find((user) => {
+      const haystack = [
+        user.id,
+        user.email,
+        user.username,
+        user.firstName,
+        user.lastName,
+        `${user.firstName || ""} ${user.lastName || ""}`,
+      ].map((part) => normalizeText(part).toLowerCase());
+      return haystack.some((part) => part && (part === normalizedQuery || part.includes(normalizedQuery)));
+    }) || null;
+  }
+
+  async function setThreadParticipantsWithApi(threadId = teamThreadId, participantIds = []) {
+    const normalizedThreadId = getNormalizedThreadId(threadId);
+    const currentUser = getCurrentUser();
+    const nextParticipantIds = Array.from(new Set([currentUser?.id, ...participantIds].map(normalizeText).filter(Boolean)));
+    if (nextParticipantIds.length < 2) {
+      showToast("A chat needs at least two participants.", normalizedThreadId);
+      return false;
+    }
+    const result = await sendApiAction({
+      action: "setThreadParticipants",
+      threadId: normalizedThreadId,
+      threadType: getThreadType(normalizedThreadId),
+      participantIds: nextParticipantIds,
+    });
+    if (result?.ok) {
+      applyApiPayload(result.result || {}, { threadId: normalizedThreadId });
+      queueThreadSummaryRefresh({ delayMs: 50 });
+      renderWidget();
+      return true;
+    }
+    if (canFallbackApiResult(result)) {
+      renderWidget();
+      return true;
+    }
+    showToast(result?.reason || "Participants could not be updated.", normalizedThreadId);
+    renderWidget();
+    return false;
+  }
+
+  function handleThreadParticipantAction(trigger, selectedThreadId = teamThreadId) {
+    const threadId = getNormalizedThreadId(trigger?.dataset?.dashboardChatParticipantThread || selectedThreadId);
+    const action = normalizeText(trigger?.dataset?.dashboardChatParticipantAction);
+    const currentUser = getCurrentUser();
+    const currentIds = getThreadParticipantIdsFromApi(threadId);
+    if (action === "add") {
+      const query = window.prompt("Add participant by name or email", "");
+      if (query === null) return true;
+      const user = resolveUserFromQuery(query);
+      if (!user?.id) {
+        showToast("No matching user found.", threadId);
+        return true;
+      }
+      void setThreadParticipantsWithApi(threadId, [...currentIds, user.id]);
+      return true;
+    }
+    if (action === "remove") {
+      const participantId = normalizeText(trigger?.dataset?.dashboardChatParticipantId);
+      if (!participantId || participantId === currentUser?.id) {
+        showToast("You cannot remove yourself from this chat here.", threadId);
+        return true;
+      }
+      const user = (getUsers() || []).find((candidate) => candidate.id === participantId);
+      const label = user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email || "this participant" : "this participant";
+      if (!window.confirm(`Remove ${label} from this chat?`)) return true;
+      void setThreadParticipantsWithApi(threadId, currentIds.filter((userId) => userId !== participantId));
+      return true;
+    }
+    return false;
+  }
+
   function getRealtimeRenderState() {
     const rawStatus = normalizeText(getRealtimeStatus() || "idle").toUpperCase();
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
@@ -177,8 +262,10 @@ export function createDashboardChatApiUiActions(dependencies = {}) {
 
   return Object.freeze({
     getRealtimeRenderState,
+    handleThreadParticipantAction,
     handleThreadSettingAction,
     retryMessageWithApi,
+    setThreadParticipantsWithApi,
     setThreadSettingsWithApi,
   });
 }

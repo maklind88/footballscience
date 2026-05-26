@@ -51,3 +51,32 @@ test("chat database adapter exposes persisted thread settings action", () => {
   expect(source).toContain("metadata.threadSettingsUpdatedAt = now");
   expect(source).toContain("result = await setThreadSettings(actor, body)");
 });
+
+test("chat database adapter exposes server-side participant management", () => {
+  const { readFileSync } = require("node:fs");
+  const path = require("node:path");
+  const { fileURLToPath } = require("node:url");
+  const source = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../api/_lib/chat-database.js"), "utf8");
+
+  expect(source).toContain("setThreadParticipants: 12");
+  expect(source).toContain("async function setThreadParticipants");
+  expect(source).toContain("Team chat participants are managed by team membership");
+  expect(source).toContain("chat_thread_participants");
+  expect(source).toContain("participantClientPayload");
+  expect(source).toContain("result = await setThreadParticipants(actor, body)");
+});
+
+test("chat moderation endpoint supports admin filters", () => {
+  const { readFileSync } = require("node:fs");
+  const path = require("node:path");
+  const { fileURLToPath } = require("node:url");
+  const source = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../api/_lib/chat-database.js"), "utf8");
+
+  expect(source).toContain("const auditAction");
+  expect(source).toContain("action=in.(\"chat.deleteMessage\",\"chat.clearThread\")");
+  expect(source).toContain("admin_action=eq.true");
+  expect(source).toContain("destructive=eq.true");
+  expect(source).toContain("failedUploads");
+  expect(source).toContain("status=in.(failed,error)");
+  expect(source).toContain("auditToDate.setUTCHours(23, 59, 59, 999)");
+});

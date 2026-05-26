@@ -114,7 +114,9 @@ test("chat widget highlights searched messages and keeps search inside the detai
 
   expect(result.html).toContain("dashboard-chat-details-panel");
   expect(result.html).toContain("data-dashboard-chat-message-search");
-  expect(result.html).toContain("1 match in 2 messages");
+  expect(result.html).toContain("1 of 1 matches in 2 messages");
+  expect(result.html).toContain('data-dashboard-chat-search-step="previous"');
+  expect(result.html).toContain('data-dashboard-chat-search-active="true"');
   expect(result.html).toContain("dashboard-chat-message is-search-match");
   expect(result.html).toContain("dashboard-chat-search-hit");
   expect(result.html).toContain("dashboard-chat-attachment-library");

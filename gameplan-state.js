@@ -1,4 +1,4 @@
-const gameplanSchemaVersion = 3;
+const gameplanSchemaVersion = 4;
 
 const defaultPhaseKeys = Object.freeze([
   "inPossession",
@@ -59,6 +59,7 @@ const defaultStaffResponsibilityTemplates = Object.freeze([
 export const gameplanPhaseKeys = defaultPhaseKeys;
 export const gameplanPhaseLabels = defaultPhaseLabels;
 export const gameplanActiveTabs = Object.freeze(["plan", "staff", "player-brief", "matchday"]);
+export const gameplanPlanModes = Object.freeze(["briefing", "edit"]);
 export const gameplanStatusOptions = Object.freeze([
   { value: "draft", label: "Draft" },
   { value: "staff-review", label: "Staff review" },
@@ -121,6 +122,11 @@ function normalizeGameplanActiveTab(value) {
     return "matchday";
   }
   return "plan";
+}
+
+function normalizeGameplanPlanMode(value) {
+  const mode = normalizeGameplanText(value, 40);
+  return gameplanPlanModes.includes(mode) ? mode : "briefing";
 }
 
 function normalizeGameplanPerson(entry = {}) {
@@ -189,6 +195,13 @@ function normalizeGameplanEvidence(entry = {}) {
     id: normalizeGameplanText(entry.id, 160) || createGameplanId("evidence"),
     title: normalizeGameplanText(entry.title, 180),
     source: normalizeGameplanText(entry.source, 120),
+    linkedSourceType: normalizeGameplanText(entry.linkedSourceType || entry.sourceType, 80).toLowerCase(),
+    linkedSourceId: normalizeGameplanText(entry.linkedSourceId || entry.sourceId, 220),
+    linkedSourceLabel: normalizeGameplanText(entry.linkedSourceLabel || entry.sourceLabel, 180),
+    linkedWorkspace: normalizeGameplanText(entry.linkedWorkspace || entry.workspaceId, 80),
+    mediaType: normalizeGameplanText(entry.mediaType || entry.assetType, 80).toLowerCase(),
+    matchEventId: normalizeGameplanText(entry.matchEventId, 180),
+    sourceRef: normalizeGameplanText(entry.sourceRef, 260),
     phase: normalizeGameplanText(entry.phase, 80),
     url: normalizeGameplanText(entry.url, 1000),
     note: normalizeGameplanText(entry.note, 900),
@@ -394,7 +407,9 @@ export function normalizeGameplan(source = {}) {
       ? source.scenarioCards.map(normalizeGameplanScenario).filter((entry) => entry.title || entry.trigger || entry.staffAction)
       : [],
     evidence: Array.isArray(source.evidence)
-      ? source.evidence.map(normalizeGameplanEvidence).filter((entry) => entry.title || entry.note || entry.url)
+      ? source.evidence
+          .map(normalizeGameplanEvidence)
+          .filter((entry) => entry.title || entry.note || entry.url || entry.linkedSourceId || entry.sourceRef)
       : [],
     live: normalizeGameplanLive(source.live),
     review: normalizeGameplanReview(source.review),
@@ -419,6 +434,7 @@ export function cloneGameplanState(source = {}, options = {}) {
     schemaVersion: gameplanSchemaVersion,
     activeGameplanId,
     activeTab,
+    planMode: normalizeGameplanPlanMode(source.planMode),
     gameplans,
     updatedAt: normalizeGameplanText(source.updatedAt, 40) || new Date().toISOString(),
   };

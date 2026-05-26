@@ -115,11 +115,14 @@
 }
 
 .gameplan-plan-card {
+  position: relative;
   display: grid;
   gap: 0.12rem;
   width: 100%;
   padding: 0.72rem;
+  border: 1px solid transparent;
   text-align: left;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease;
 }
 
 .gameplan-plan-card span,
@@ -137,6 +140,10 @@
   font-size: 0.94rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.gameplan-plan-card:hover {
+  transform: translateY(-1px);
 }
 
 .gameplan-plan-card.is-active,
@@ -164,7 +171,13 @@
 .gameplan-match-list button {
   width: 100%;
   padding: 0.65rem;
+  border: 1px solid transparent;
   text-align: left;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.gameplan-match-list button:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 
 .gameplan-main {
@@ -1074,6 +1087,10 @@ body.is-dark-mode .gameplan-workspace {
   color: var(--ink);
 }
 
+body.is-dark-mode .gameplan-shell {
+  color: #eef4f0;
+}
+
 body.is-dark-mode .gameplan-sidebar,
 body.is-dark-mode .gameplan-card,
 body.is-dark-mode .gameplan-delivery-panel,
@@ -1081,14 +1098,53 @@ body.is-dark-mode .gameplan-player-audience,
 body.is-dark-mode .gameplan-status-board,
 body.is-dark-mode .gameplan-empty,
 body.is-dark-mode .gameplan-empty-small {
-  background: rgba(15, 23, 42, 0.78);
-  border-color: rgba(148, 163, 184, 0.28);
+  background: rgba(18, 27, 44, 0.92);
+  border-color: rgba(203, 213, 225, 0.2);
   color: var(--ink);
+  box-shadow: 0 20px 54px rgba(2, 6, 23, 0.3);
+}
+
+body.is-dark-mode .gameplan-sidebar {
+  background: rgba(10, 16, 28, 0.94);
+  border-color: rgba(203, 213, 225, 0.22);
+}
+
+body.is-dark-mode .gameplan-sidebar-head strong {
+  display: grid;
+  place-items: center;
+  min-width: 1.9rem;
+  min-height: 1.9rem;
+  border-radius: 999px;
+  background: rgba(244, 201, 93, 0.16);
+  color: #f8e7a7;
 }
 
 body.is-dark-mode .gameplan-hero {
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.9));
-  border-color: rgba(148, 163, 184, 0.28);
+  background: linear-gradient(135deg, rgba(18, 27, 44, 0.98), rgba(33, 44, 66, 0.94));
+  border-color: rgba(203, 213, 225, 0.22);
+  box-shadow: 0 22px 60px rgba(2, 6, 23, 0.34);
+}
+
+body.is-dark-mode .gameplan-sidebar-head span,
+body.is-dark-mode .gameplan-card header span,
+body.is-dark-mode .gameplan-delivery-panel header span,
+body.is-dark-mode .gameplan-player-audience header span,
+body.is-dark-mode .gameplan-field span,
+body.is-dark-mode .gameplan-staff-card label span,
+body.is-dark-mode .gameplan-evidence-card label span,
+body.is-dark-mode .gameplan-observation-card label span,
+body.is-dark-mode .gameplan-status-board label span,
+body.is-dark-mode .gameplan-player-preview-card section span,
+body.is-dark-mode .gameplan-player-portal-card section span,
+body.is-dark-mode .gameplan-create-panel > span,
+body.is-dark-mode .gameplan-hero-main p,
+body.is-dark-mode .gameplan-briefing-lead span,
+body.is-dark-mode .gameplan-brief-metric span,
+body.is-dark-mode .gameplan-briefing-evidence > div span,
+body.is-dark-mode .gameplan-brief-trigger section span,
+body.is-dark-mode .gameplan-brief-phase span,
+body.is-dark-mode .gameplan-command-trigger label span {
+  color: rgba(226, 232, 240, 0.72);
 }
 
 body.is-dark-mode .gameplan-meta-row span,
@@ -1109,13 +1165,14 @@ body.is-dark-mode .gameplan-inline-status,
 body.is-dark-mode .gameplan-check-item,
 body.is-dark-mode .gameplan-player-pill,
 body.is-dark-mode .gameplan-delivery-row {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.095);
   color: var(--ink);
-  border-color: rgba(148, 163, 184, 0.24);
+  border-color: rgba(203, 213, 225, 0.2);
 }
 
 body.is-dark-mode .gameplan-mode-switch {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.11);
+  border: 1px solid rgba(203, 213, 225, 0.12);
 }
 
 body.is-dark-mode .gameplan-plan-card,
@@ -1131,8 +1188,34 @@ body.is-dark-mode .gameplan-evidence-card button,
 body.is-dark-mode .gameplan-observation-card button,
 body.is-dark-mode .gameplan-evidence-quick-row button,
 body.is-dark-mode .gameplan-check-item button {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(226, 232, 240, 0.88);
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(241, 245, 249, 0.94);
+  border-color: rgba(203, 213, 225, 0.14);
+}
+
+body.is-dark-mode .gameplan-match-list button {
+  background: rgba(255, 255, 255, 0.115);
+  color: #f1f5f9;
+}
+
+body.is-dark-mode .gameplan-match-list button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(226, 232, 240, 0.3);
+}
+
+body.is-dark-mode .gameplan-status-board strong {
+  color: #fff;
+}
+
+body.is-dark-mode .gameplan-status-board > div,
+body.is-dark-mode .gameplan-status-board label {
+  box-shadow: inset 0 0 0 1px rgba(203, 213, 225, 0.08);
+}
+
+body.is-dark-mode .gameplan-status-board select {
+  background: rgba(3, 7, 18, 0.72);
+  color: #fff;
+  border-color: rgba(203, 213, 225, 0.32);
 }
 
 body.is-dark-mode .gameplan-plan-card.is-active,
@@ -1141,18 +1224,50 @@ body.is-dark-mode .gameplan-tabs button.is-active,
 body.is-dark-mode .gameplan-tabs button:hover,
 body.is-dark-mode .gameplan-mode-switch button.is-active,
 body.is-dark-mode .gameplan-mode-switch button:hover:not(:disabled) {
-  background: #25543f;
+  background: #2f6b50;
   color: #fff;
+  border-color: rgba(178, 255, 214, 0.26);
+  box-shadow: 0 8px 22px rgba(15, 118, 82, 0.22);
+}
+
+body.is-dark-mode .gameplan-plan-card.is-active::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0.28rem;
+  border-radius: 12px 0 0 12px;
+  background: #f4c95d;
+  content: "";
 }
 
 body.is-dark-mode .gameplan-plan-card span,
 body.is-dark-mode .gameplan-plan-card small {
-  color: rgba(226, 232, 240, 0.66);
+  color: rgba(226, 232, 240, 0.72);
+}
+
+body.is-dark-mode .gameplan-plan-card strong,
+body.is-dark-mode .gameplan-match-list button {
+  color: rgba(248, 250, 252, 0.96);
 }
 
 body.is-dark-mode .gameplan-plan-card.is-active span,
 body.is-dark-mode .gameplan-plan-card.is-active small {
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(255, 255, 255, 0.84);
+}
+
+body.is-dark-mode .gameplan-plan-card.is-active strong {
+  color: #fff;
+}
+
+body.is-dark-mode .gameplan-tabs {
+  background: rgba(10, 16, 28, 0.82);
+  border-color: rgba(203, 213, 225, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.4);
+}
+
+body.is-dark-mode .gameplan-tabs button:not(.is-active),
+body.is-dark-mode .gameplan-mode-switch button:not(.is-active) {
+  background: rgba(255, 255, 255, 0.11);
+  color: rgba(241, 245, 249, 0.88);
 }
 
 body.is-dark-mode .gameplan-briefing-lead p,
@@ -1164,7 +1279,7 @@ body.is-dark-mode .gameplan-brief-phase p {
 }
 
 body.is-dark-mode .gameplan-brief-empty {
-  color: rgba(226, 232, 240, 0.62);
+  color: rgba(226, 232, 240, 0.72);
 }
 
 body.is-dark-mode .gameplan-field textarea,
@@ -1189,11 +1304,6 @@ body.is-dark-mode .gameplan-status-board select {
   background: rgba(2, 6, 23, 0.55);
   color: var(--ink);
   border-color: rgba(148, 163, 184, 0.32);
-}
-
-body.is-dark-mode .gameplan-tabs {
-  background: rgba(15, 23, 42, 0.66);
-  border-color: rgba(148, 163, 184, 0.24);
 }
 
 body.is-dark-mode .gameplan-player-portal {

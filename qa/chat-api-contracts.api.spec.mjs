@@ -296,3 +296,57 @@ test("thread settings persist mute and pin while manager-gating shared identity"
   expect(deniedRename.ok).toBe(false);
   expect(deniedRename.status).toBe(403);
 });
+
+test("thread participant management is manager-only and preserves private thread scope", () => {
+  const seed = applyChatActionToState(
+    {},
+    staffActor,
+    {
+      action: "createThread",
+      threadId: "group:staff-room",
+      type: "group",
+      title: "Staff Room",
+      participantIds: [staffActor.id, "analyst-1"],
+    },
+    { now: "2026-05-07T13:00:00.000Z" }
+  ).state;
+
+  const denied = applyChatActionToState(
+    seed,
+    { ...staffActor, id: "analyst-1", email: "analyst@example.com", role: "analyst" },
+    { action: "setThreadParticipants", threadId: "group:staff-room", addParticipantIds: ["medical-1"] },
+    { now: "2026-05-07T13:01:00.000Z" }
+  );
+  expect(denied.ok).toBe(false);
+  expect(denied.status).toBe(403);
+
+  const updated = applyChatActionToState(
+    seed,
+    staffActor,
+    {
+      action: "setThreadParticipants",
+      threadId: "group:staff-room",
+      addParticipantIds: ["medical-1"],
+      removeParticipantIds: ["analyst-1"],
+      participantRoles: { "medical-1": "observer" },
+    },
+    { now: "2026-05-07T13:02:00.000Z" }
+  );
+
+  expect(updated.ok).toBe(true);
+  expect(updated.thread.participantIds).toContain(staffActor.id);
+  expect(updated.thread.participantIds).toContain("medical-1");
+  expect(updated.thread.participantIds).not.toContain("analyst-1");
+  expect(updated.thread.participantRoles[staffActor.id]).toBe("owner");
+  expect(updated.thread.participantRoles["medical-1"]).toBe("observer");
+  expect(updated.state.audit[0].action).toBe("chat.setThreadParticipants");
+
+  const teamDenied = applyChatActionToState(
+    updated.state,
+    staffActor,
+    { action: "setThreadParticipants", threadId: "team", addParticipantIds: ["someone"] },
+    { now: "2026-05-07T13:03:00.000Z" }
+  );
+  expect(teamDenied.ok).toBe(false);
+  expect(teamDenied.status).toBe(400);
+});

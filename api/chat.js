@@ -38,6 +38,7 @@ const CHAT_ACTIONS = new Set([
   "removeReaction",
   "markThreadRead",
   "setThreadSettings",
+  "setThreadParticipants",
   "clearThread",
   "createAttachmentIntent",
 ]);
@@ -54,6 +55,7 @@ const RATE_LIMITS = {
   removeReaction: 80,
   markThreadRead: 120,
   setThreadSettings: 30,
+  setThreadParticipants: 12,
   clearThread: 5,
   default: 60,
 };
@@ -175,6 +177,22 @@ function normalizeParticipantIds(values = [], actor) {
   }
 
   return Array.from(new Set(participantIds)).slice(0, 80);
+}
+
+function normalizeParticipantRole(value) {
+  const role = normalizeString(value || "member", 32).toLowerCase();
+  return ["owner", "member", "observer"].includes(role) ? role : "member";
+}
+
+function normalizeParticipantRoleMap(value = {}) {
+  const source = isPlainObject(value) ? value : {};
+  return Object.entries(source).reduce((roles, [participantId, role]) => {
+    const key = normalizeString(participantId, MAX_ID_LENGTH);
+    if (key) {
+      roles[key] = normalizeParticipantRole(role);
+    }
+    return roles;
+  }, {});
 }
 
 function extractMentionHandles(text) {
@@ -383,7 +401,7 @@ function normalizeAuditDetails(value, depth = 0) {
 function addChatAuditEntry(state, actor, action, summary, details = {}) {
   const now = new Date().toISOString();
   const isDestructive = ["deleteMessage", "clearThread"].includes(action);
-  const isAdminAction = ["setMessagePinned", "setMessagePriority", "setThreadSettings", "clearThread"].includes(action);
+  const isAdminAction = ["setMessagePinned", "setMessagePriority", "setThreadSettings", "setThreadParticipants", "clearThread"].includes(action);
   const entry = {
     id: `${now}-${Math.random().toString(16).slice(2, 10)}`,
     createdAt: now,
@@ -785,6 +803,9 @@ function applyMarkThreadRead(state, actor, body, now) {
   const threadId = normalizeId(body.threadId || body.id || body.channelId, "");
   const thread = getThreadById(state, threadId);
   if (!thread) {
+    if (threadId === "team") {
+      return { ok: false, status: 400, reason: "Team chat participants are managed by team membership." };
+    }
     return { ok: false, status: 404, reason: "Thread not found." };
   }
 
@@ -798,6 +819,16 @@ function applyMarkThreadRead(state, actor, body, now) {
     ...(isPlainObject(state.readReceipts[thread.id]) ? state.readReceipts[thread.id] : {}),
     [actorKey]: now,
   };
+
+  state.messages.forEach((message) => {
+    if (normalizeId(message?.threadId, "") !== thread.id || message?.isDeleted) {
+      return;
+    }
+    const readBy = Array.isArray(message.readBy) ? message.readBy : [];
+    if (!readBy.includes(actorKey)) {
+      message.readBy = [...readBy, actorKey];
+    }
+  });
 
   thread.readBy = {
     ...(isPlainObject(thread.readBy) ? thread.readBy : {}),
@@ -816,6 +847,9 @@ function applySetThreadSettings(state, actor, body, now) {
   const threadId = normalizeId(body.threadId || body.id || body.channelId, "");
   const thread = getThreadById(state, threadId);
   if (!thread) {
+    if (threadId === "team") {
+      return { ok: false, status: 400, reason: "Team chat participants are managed by team membership." };
+    }
     return { ok: false, status: 404, reason: "Thread not found." };
   }
 
@@ -883,6 +917,87 @@ function applySetThreadSettings(state, actor, body, now) {
   });
 
   return { ok: true, status: 200, action: "setThreadSettings", state, thread, auditEntry };
+}
+
+function applySetThreadParticipants(state, actor, body, now) {
+  const threadId = normalizeId(body.threadId || body.id || body.channelId, "");
+  const thread = getThreadById(state, threadId);
+  if (!thread) {
+    if (threadId === "team") {
+      return { ok: false, status: 400, reason: "Team chat participants are managed by team membership." };
+    }
+    return { ok: false, status: 404, reason: "Thread not found." };
+  }
+
+  const access = ensureActionAllowed(actor, state, thread);
+  if (!access.ok) {
+    return access;
+  }
+
+  if (!canManageChat(actor)) {
+    return { ok: false, status: 403, reason: "Chat manager access required to change participants." };
+  }
+
+  const type = normalizeThreadType(thread.type || thread.kind);
+  if (type === "team") {
+    return { ok: false, status: 400, reason: "Team chat participants are managed by team membership." };
+  }
+
+  const actorId = normalizeString(actor.id || actor.email || "actor", MAX_ID_LENGTH);
+  const currentIds = normalizeParticipantIds(thread.participantIds || thread.participants || [], actor);
+  const addedIds = normalizeParticipantIds(body.addParticipantIds || body.addParticipants || [], null);
+  const removedIds = new Set(
+    normalizeParticipantIds(body.removeParticipantIds || body.removeParticipants || [], null)
+      .map((value) => value.toLowerCase())
+      .filter((value) => value !== actorId.toLowerCase())
+  );
+  const replacing = Array.isArray(body.participantIds) || Array.isArray(body.participants);
+  const requestedIds = replacing
+    ? normalizeParticipantIds(body.participantIds || body.participants || [], actor)
+    : Array.from(new Set([...currentIds, ...addedIds])).filter((participantId) => !removedIds.has(participantId.toLowerCase()));
+  const nextIds = Array.from(new Set([...requestedIds, actorId].filter(Boolean))).slice(0, 80);
+
+  if (nextIds.length < 2) {
+    return { ok: false, status: 400, reason: "A private or group chat needs at least two participants." };
+  }
+
+  const existingRoles = normalizeParticipantRoleMap(thread.participantRoles || thread.participant_roles || {});
+  const requestedRoles = normalizeParticipantRoleMap(body.participantRoles || body.participant_roles || {});
+  const nextRoles = nextIds.reduce((roles, participantId) => {
+    roles[participantId] = participantId === actorId ? "owner" : requestedRoles[participantId] || existingRoles[participantId] || "member";
+    return roles;
+  }, {});
+  const previousSet = new Set(currentIds.map((value) => value.toLowerCase()));
+  const nextSet = new Set(nextIds.map((value) => value.toLowerCase()));
+  const added = nextIds.filter((value) => !previousSet.has(value.toLowerCase()));
+  const removed = currentIds.filter((value) => !nextSet.has(value.toLowerCase()));
+
+  thread.participantIds = nextIds;
+  thread.participantRoles = nextRoles;
+  thread.participants = nextIds.map((participantId) => ({
+    id: participantId,
+    userId: participantId,
+    participantRole: nextRoles[participantId] || "member",
+    role: nextRoles[participantId] || "member",
+    lastReadAt: state.readReceipts?.[thread.id]?.[participantId] || "",
+  }));
+  thread.metadata = {
+    ...(isPlainObject(thread.metadata) ? thread.metadata : {}),
+    participantIds: nextIds,
+    participantRoles: nextRoles,
+    participantsUpdatedAt: now,
+    participantsUpdatedBy: actorId,
+  };
+  thread.updatedAt = now;
+
+  const auditEntry = addChatAuditEntry(state, actor, "setThreadParticipants", "Updated chat thread participants.", {
+    threadId: thread.id,
+    added,
+    removed,
+    participantCount: nextIds.length,
+  });
+
+  return { ok: true, status: 200, action: "setThreadParticipants", state, thread, auditEntry };
 }
 
 function applyClearThread(state, actor, body, now) {
@@ -963,6 +1078,8 @@ function applyChatActionToState(rawState, actor, body = {}, context = {}) {
     result = applyMarkThreadRead(state, actor, body, now);
   } else if (action === "setThreadSettings") {
     result = applySetThreadSettings(state, actor, body, now);
+  } else if (action === "setThreadParticipants") {
+    result = applySetThreadParticipants(state, actor, body, now);
   } else if (action === "clearThread") {
     result = applyClearThread(state, actor, body, now);
   }

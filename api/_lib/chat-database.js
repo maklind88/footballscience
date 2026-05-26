@@ -39,6 +39,7 @@ const RATE_LIMITS = {
   removeReaction: 80,
   markThreadRead: 120,
   setThreadSettings: 30,
+  setThreadParticipants: 12,
   clearThread: 5,
   createAttachmentIntent: 20,
   uploadAttachmentObject: 20,
@@ -206,6 +207,22 @@ function normalizeThreadSettingPatch(value = {}) {
     patch.avatarLabel = normalizeString(source.avatarLabel, 2).toUpperCase();
   }
   return patch;
+}
+
+function normalizeParticipantRole(value) {
+  const role = normalizeString(value || "member", 32).toLowerCase();
+  return ["owner", "member", "observer"].includes(role) ? role : "member";
+}
+
+function normalizeParticipantRoleMap(value = {}) {
+  const source = isPlainObject(value) ? value : {};
+  return Object.entries(source).reduce((roles, [participantId, role]) => {
+    const key = normalizeId(participantId);
+    if (key) {
+      roles[key] = normalizeParticipantRole(role);
+    }
+    return roles;
+  }, {});
 }
 
 function canUseChat(actor = {}) {
@@ -1066,7 +1083,7 @@ function mentionHandles(text) {
 
 function databaseAuditEvent(actor, action, details = {}) {
   const destructive = ["deleteMessage", "clearThread"].includes(action);
-  const adminAction = ["setMessagePinned", "setMessagePriority", "setThreadSettings", "clearThread"].includes(action);
+  const adminAction = ["setMessagePinned", "setMessagePriority", "setThreadSettings", "setThreadParticipants", "clearThread"].includes(action);
   return {
     action: `chat.${action}`,
     severity: destructive ? "warning" : adminAction ? "notice" : "info",
@@ -1117,6 +1134,31 @@ function threadParticipantIds(thread = {}) {
   );
 }
 
+function participantClientPayload(row = {}, receipt = null) {
+  const userId = normalizeId(row.user_id || row.id || row.userId);
+  return {
+    id: userId,
+    userId,
+    participantRole: normalizeParticipantRole(row.participant_role || row.participantRole),
+    role: normalizeParticipantRole(row.participant_role || row.participantRole),
+    joinedAt: normalizeString(row.joined_at || row.joinedAt || "", 80),
+    leftAt: normalizeString(row.left_at || row.leftAt || "", 80),
+    lastReadAt: normalizeString(receipt?.last_read_at || receipt?.lastReadAt || "", 80),
+    lastReadMessageId: normalizeId(receipt?.last_read_message_id || receipt?.lastReadMessageId || ""),
+  };
+}
+
+async function readThreadParticipantRows(threadIds = []) {
+  const ids = Array.from(new Set(threadIds.filter(Boolean)));
+  if (!ids.length) {
+    return [];
+  }
+  return selectMany(
+    "chat_thread_participants",
+    `select=thread_id,user_id,participant_role,joined_at,left_at&thread_id=${inFilter(ids)}&left_at=is.null`
+  ).catch(() => []);
+}
+
 function threadPermissionsForActor(actor, thread = {}) {
   const role = actorRole(actor);
   const manager = canAdmin(actor) || MANAGER_ROLES.has(role);
@@ -1126,6 +1168,7 @@ function threadPermissionsForActor(actor, thread = {}) {
     canAttach: true,
     canReact: true,
     canReadReceipts: true,
+    canManageParticipants: type !== "team" && manager,
     canPin: manager,
     canClear: canAdmin(actor),
     canModerate: canAdmin(actor),
@@ -1208,7 +1251,7 @@ async function enrichThreadSummaries(actor, threads = []) {
   }
   const threadIds = threads.map((thread) => thread.id).filter(Boolean);
   const lastMessageIds = threads.map((thread) => thread.last_message_id).filter(Boolean);
-  const [lastMessages, receipts] = await Promise.all([
+  const [lastMessages, receipts, participantRows, allReceipts] = await Promise.all([
     lastMessageIds.length
       ? selectMany("chat_messages", `select=${MESSAGE_SELECT}&id=${inFilter(lastMessageIds)}&deleted_at=is.null`).catch(() => [])
       : Promise.resolve([]),
@@ -1218,9 +1261,21 @@ async function enrichThreadSummaries(actor, threads = []) {
           `select=${RECEIPT_SELECT}&thread_id=${inFilter(threadIds)}&user_id=eq.${filterValue(actor.id)}`
         ).catch(() => [])
       : Promise.resolve([]),
+    readThreadParticipantRows(threadIds),
+    threadIds.length
+      ? selectMany("chat_read_receipts", `select=${RECEIPT_SELECT}&thread_id=${inFilter(threadIds)}`).catch(() => [])
+      : Promise.resolve([]),
   ]);
   const messagesById = new Map(lastMessages.map((message) => [message.id, message]));
   const receiptsByThreadId = new Map(receipts.map((receipt) => [receipt.thread_id, receipt]));
+  const participantRowsByThreadId = participantRows.reduce((map, participant) => {
+    map.set(participant.thread_id, [...(map.get(participant.thread_id) || []), participant]);
+    return map;
+  }, new Map());
+  const receiptsByThreadAndUser = allReceipts.reduce((map, receipt) => {
+    map.set(`${receipt.thread_id}:${receipt.user_id}`, receipt);
+    return map;
+  }, new Map());
   return Promise.all(
     threads.map(async (thread) => {
       const lastMessage = messagesById.get(thread.last_message_id) || null;
@@ -1239,7 +1294,11 @@ async function enrichThreadSummaries(actor, threads = []) {
         ...thread,
         legacyThreadId: toLegacyThreadId(thread),
         threadId: toLegacyThreadId(thread),
-        participants: threadParticipantIds(thread),
+        participants: (participantRowsByThreadId.get(thread.id) || []).length
+          ? (participantRowsByThreadId.get(thread.id) || []).map((participant) =>
+              participantClientPayload(participant, receiptsByThreadAndUser.get(`${thread.id}:${participant.user_id}`))
+            )
+          : threadParticipantIds(thread).map((userId) => participantClientPayload({ user_id: userId })),
         permissions: threadPermissionsForActor(actor, thread),
         avatarUrl: normalizeString(metadata.avatarUrl || metadata.imageUrl || "", 800),
         settings: {
@@ -1306,6 +1365,17 @@ async function handleDatabaseGet(req, res, actor) {
   const threadId = normalizeId(query.get("threadId"));
   const cursor = normalizeString(query.get("cursor"), 80);
   const limit = Math.max(1, Math.min(PAGE_SIZE_MAX, Number(query.get("limit")) || PAGE_SIZE_DEFAULT));
+  const auditAction = normalizeString(query.get("action"), 80).toLowerCase();
+  const auditUserId = normalizeId(query.get("userId") || query.get("user"));
+  const auditThreadId = normalizeId(query.get("auditThreadId") || query.get("thread"));
+  const auditFrom = normalizeString(query.get("from"), 80);
+  const auditTo = normalizeString(query.get("to"), 80);
+  const auditFromIso = auditFrom && !Number.isNaN(Date.parse(auditFrom)) ? new Date(auditFrom).toISOString() : "";
+  const auditToDate = auditTo && !Number.isNaN(Date.parse(auditTo)) ? new Date(auditTo) : null;
+  if (auditToDate && /^\d{4}-\d{2}-\d{2}$/.test(auditTo)) {
+    auditToDate.setUTCHours(23, 59, 59, 999);
+  }
+  const auditToIso = auditToDate ? auditToDate.toISOString() : "";
 
   const scope = await resolveChatScope(actor, { organizationId, teamId });
   if (!scope) {
@@ -1317,15 +1387,60 @@ async function handleDatabaseGet(req, res, actor) {
       return sendJson(res, 403, { ok: false, reason: "Admin chat access required." });
     }
 
-    const audits = await selectMany(
-      "chat_audit_events",
-      [
-        `select=${AUDIT_SELECT}`,
-        `organization_id=eq.${filterValue(scope.organizationId)}`,
-        "order=created_at.desc",
-        `limit=${limit}`,
-      ].join("&")
-    );
+    const auditFilters = [
+      `select=${AUDIT_SELECT}`,
+      `organization_id=eq.${filterValue(scope.organizationId)}`,
+      "order=created_at.desc",
+      `limit=${limit}`,
+    ];
+    if (auditAction && auditAction !== "all" && auditAction !== "failed-uploads") {
+      if (auditAction === "delete") {
+        auditFilters.push('action=in.("chat.deleteMessage","chat.clearThread")');
+      } else if (auditAction === "admin") {
+        auditFilters.push("admin_action=eq.true");
+      } else if (auditAction === "destructive") {
+        auditFilters.push("destructive=eq.true");
+      } else {
+        auditFilters.push(`action=eq.${filterValue(auditAction.startsWith("chat.") ? auditAction : `chat.${auditAction}`)}`);
+      }
+    }
+    if (isUuid(auditUserId)) {
+      auditFilters.push(`actor_id=eq.${filterValue(auditUserId)}`);
+    }
+    if (isUuid(auditThreadId)) {
+      auditFilters.push(`thread_id=eq.${filterValue(auditThreadId)}`);
+    }
+    if (auditFromIso) {
+      auditFilters.push(`created_at=gte.${filterValue(auditFromIso)}`);
+    }
+    if (auditToIso) {
+      auditFilters.push(`created_at=lte.${filterValue(auditToIso)}`);
+    }
+
+    const failedUploadFilters = [
+      "select=id,thread_id,uploaded_by,status,created_at,updated_at,metadata",
+      `organization_id=eq.${filterValue(scope.organizationId)}`,
+      "status=in.(failed,error)",
+      "order=created_at.desc",
+      `limit=${limit}`,
+    ];
+    if (isUuid(auditUserId)) {
+      failedUploadFilters.push(`uploaded_by=eq.${filterValue(auditUserId)}`);
+    }
+    if (isUuid(auditThreadId)) {
+      failedUploadFilters.push(`thread_id=eq.${filterValue(auditThreadId)}`);
+    }
+    if (auditFromIso) {
+      failedUploadFilters.push(`created_at=gte.${filterValue(auditFromIso)}`);
+    }
+    if (auditToIso) {
+      failedUploadFilters.push(`created_at=lte.${filterValue(auditToIso)}`);
+    }
+
+    const [audits, failedUploads] = await Promise.all([
+      auditAction === "failed-uploads" ? Promise.resolve([]) : selectMany("chat_audit_events", auditFilters.join("&")),
+      selectMany("chat_attachments", failedUploadFilters.join("&")).catch(() => []),
+    ]);
     const retentionPolicies = await selectMany(
       "chat_retention_policies",
       `select=*&organization_id=eq.${filterValue(scope.organizationId)}&limit=1`
@@ -1336,6 +1451,14 @@ async function handleDatabaseGet(req, res, actor) {
       mode: "database",
       scope,
       audits,
+      failedUploads,
+      filters: {
+        action: auditAction || "all",
+        userId: auditUserId,
+        threadId: auditThreadId,
+        from: auditFrom,
+        to: auditTo,
+      },
       retentionPolicy: retentionPolicies[0] || null,
     });
   }
@@ -1983,6 +2106,132 @@ async function setThreadSettings(actor, body) {
   return { ok: true, action: "setThreadSettings", thread: threadSummary || updatedThread || thread, auditId: audit?.id || "" };
 }
 
+async function setThreadParticipants(actor, body) {
+  const threadId = normalizeId(body.threadId || body.thread_id || body.id);
+  if (!threadId) {
+    return { ok: false, status: 400, reason: "threadId is required." };
+  }
+
+  const thread = await resolveThreadForAction(actor, body, { createIfMissing: false });
+  const access = await ensureThreadAccess(actor, thread, { manager: true });
+  if (!access.ok) {
+    return access;
+  }
+
+  const type = normalizeThreadType(thread.type);
+  if (type === "team") {
+    return { ok: false, status: 400, reason: "Team chat participants are managed by team membership." };
+  }
+
+  const now = new Date().toISOString();
+  const currentRows = await selectMany(
+    "chat_thread_participants",
+    `select=thread_id,user_id,participant_role,joined_at,left_at&thread_id=eq.${filterValue(thread.id)}`
+  ).catch(() => []);
+  const activeCurrentIds = currentRows.filter((row) => !row.left_at).map((row) => row.user_id).filter(Boolean);
+  const currentIds = Array.from(new Set([...activeCurrentIds, ...threadParticipantIds(thread)]));
+  const addedIds = getParticipantIdsForThread(actor, { participantIds: body.addParticipantIds || body.addParticipants || [] }, "", type)
+    .filter((userId) => userId !== actor.id);
+  const removedIds = new Set(
+    getParticipantIdsForThread(actor, { participantIds: body.removeParticipantIds || body.removeParticipants || [] }, "", type)
+      .filter((userId) => userId !== actor.id)
+  );
+  const replacing = Array.isArray(body.participantIds) || Array.isArray(body.participants);
+  const requestedIds = replacing
+    ? getParticipantIdsForThread(actor, body, toLegacyThreadId(thread), type)
+    : Array.from(new Set([...currentIds, ...addedIds])).filter((userId) => !removedIds.has(userId));
+  const nextIds = Array.from(new Set([actor.id, ...requestedIds].filter((userId) => isUuid(userId)))).slice(0, 80);
+
+  if (nextIds.length < 2) {
+    return { ok: false, status: 400, reason: "A private or group chat needs at least two participants." };
+  }
+
+  const existingRoleByUserId = currentRows.reduce((map, row) => {
+    if (row.user_id) {
+      map[row.user_id] = normalizeParticipantRole(row.participant_role);
+    }
+    return map;
+  }, {});
+  const requestedRoles = normalizeParticipantRoleMap(body.participantRoles || body.participant_roles || {});
+  const nextRoles = nextIds.reduce((roles, userId) => {
+    roles[userId] = userId === actor.id ? "owner" : requestedRoles[userId] || existingRoleByUserId[userId] || "member";
+    return roles;
+  }, {});
+  const nextIdSet = new Set(nextIds);
+  const removeIds = activeCurrentIds.filter((userId) => !nextIdSet.has(userId));
+  const existingIds = new Set(currentRows.map((row) => row.user_id).filter(Boolean));
+  const restoreIds = nextIds.filter((userId) => existingIds.has(userId));
+  const insertIds = nextIds.filter((userId) => !existingIds.has(userId));
+
+  await Promise.all([
+    restoreIds.length
+      ? patchRows(
+          "chat_thread_participants",
+          `thread_id=eq.${filterValue(thread.id)}&user_id=${inFilter(restoreIds)}`,
+          {
+            participant_role: "member",
+            left_at: null,
+            metadata: { updatedBy: actor.id, updatedAt: now },
+          }
+        ).catch(() => [])
+      : Promise.resolve([]),
+    removeIds.length
+      ? patchRows(
+          "chat_thread_participants",
+          `thread_id=eq.${filterValue(thread.id)}&user_id=${inFilter(removeIds)}`,
+          {
+            left_at: now,
+            metadata: { removedBy: actor.id, removedAt: now },
+          }
+        ).catch(() => [])
+      : Promise.resolve([]),
+    insertIds.length
+      ? insertRows(
+          "chat_thread_participants",
+          insertIds.map((userId) => ({
+            thread_id: thread.id,
+            organization_id: thread.organization_id,
+            team_id: thread.team_id,
+            user_id: userId,
+            participant_role: nextRoles[userId] || "member",
+            created_by: isUuid(actor.id) ? actor.id : null,
+            metadata: { addedBy: actor.id, addedAt: now },
+          }))
+        ).catch(() => [])
+      : Promise.resolve([]),
+  ]);
+
+  await Promise.all(
+    nextIds.map((userId) =>
+      patchRows(
+        "chat_thread_participants",
+        `thread_id=eq.${filterValue(thread.id)}&user_id=eq.${filterValue(userId)}`,
+        { participant_role: nextRoles[userId] || "member" }
+      ).catch(() => [])
+    )
+  );
+
+  const metadata = {
+    ...(isPlainObject(thread.metadata) ? thread.metadata : {}),
+    participantIds: nextIds,
+    participantRoles: nextRoles,
+    participantsUpdatedAt: now,
+    participantsUpdatedBy: actor.id,
+  };
+  const [updatedThread] = await patchRows("chat_threads", `id=eq.${filterValue(thread.id)}`, { metadata });
+  const audit = await insertAudit(actor, "setThreadParticipants", {
+    organization_id: thread.organization_id,
+    team_id: thread.team_id,
+    thread_id: thread.id,
+  }, {
+    added: nextIds.filter((userId) => !currentIds.includes(userId)),
+    removed: removeIds,
+    participantCount: nextIds.length,
+  });
+  const [threadSummary] = await enrichThreadSummaries(actor, [updatedThread || { ...thread, metadata }]);
+  return { ok: true, action: "setThreadParticipants", thread: threadSummary || updatedThread || thread, auditId: audit?.id || "" };
+}
+
 async function clearThread(actor, body) {
   const threadId = normalizeId(body.threadId || body.thread_id || body.id);
   if (!threadId) {
@@ -2178,6 +2427,8 @@ async function handleDatabasePost(req, res, actor) {
     result = await markThreadRead(actor, body);
   } else if (action === "setThreadSettings") {
     result = await setThreadSettings(actor, body);
+  } else if (action === "setThreadParticipants") {
+    result = await setThreadParticipants(actor, body);
   } else if (action === "clearThread") {
     result = await clearThread(actor, body);
   } else if (action === "createAttachmentIntent") {

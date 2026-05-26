@@ -12,6 +12,8 @@ const { applyChatActionToState, filterChatStateForActor } = chatApi._private;
 const appSource = readFileSync(path.join(__dirname, "../app.js"), "utf8");
 const rendererSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-widget-renderer.mjs"), "utf8");
 const chatCssSource = readFileSync(path.join(__dirname, "../dashboard-chat.css"), "utf8");
+const attachmentPreviewSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-attachment-preview.mjs"), "utf8");
+const databaseSource = readFileSync(path.join(__dirname, "../api/_lib/chat-database.js"), "utf8");
 
 const coachActor = {
   id: "coach-qa",
@@ -125,6 +127,122 @@ test("dm flow stays scoped to participants and does not leak to other staff", ()
   expect(hiddenFromOutsider.messages).toHaveLength(0);
 });
 
+test("multi-user consistency keeps send, receive, unread, read receipt, and delete in one shared truth", () => {
+  const threadId = "dm:coach-qa:teammate-qa";
+  const seedState = {
+    threads: [
+      {
+        id: threadId,
+        type: "dm",
+        title: "Taylor Teammate",
+        participantIds: [coachActor.id, teammateActor.id],
+      },
+    ],
+    messages: [],
+    audit: [],
+    readReceipts: {},
+  };
+
+  const coachSend = applyChatActionToState(
+    seedState,
+    coachActor,
+    { action: "sendMessage", id: "qa-coach-message", threadId, text: "Shared truth from Casey" },
+    { now: "2026-05-24T08:00:00.000Z" }
+  );
+  expect(coachSend.ok).toBe(true);
+
+  const teammateViewAfterSend = filterChatStateForActor(coachSend.state, teammateActor);
+  const teammateReceived = teammateViewAfterSend.messages.find((message) => message.id === "qa-coach-message");
+  expect(teammateReceived?.text).toBe("Shared truth from Casey");
+  expect(teammateReceived?.readBy).toContain(coachActor.id);
+  expect(teammateReceived?.readBy).not.toContain(teammateActor.id);
+
+  const teammateRead = applyChatActionToState(
+    coachSend.state,
+    teammateActor,
+    { action: "markThreadRead", threadId },
+    { now: "2026-05-24T08:01:00.000Z" }
+  );
+  expect(teammateRead.ok).toBe(true);
+  expect(teammateRead.state.readReceipts[threadId][teammateActor.id]).toBe("2026-05-24T08:01:00.000Z");
+  expect(teammateRead.state.messages.find((message) => message.id === "qa-coach-message")?.readBy).toContain(teammateActor.id);
+
+  const teammateReply = applyChatActionToState(
+    teammateRead.state,
+    teammateActor,
+    { action: "sendMessage", id: "qa-teammate-message", threadId, text: "Taylor sees the same truth" },
+    { now: "2026-05-24T08:02:00.000Z" }
+  );
+  expect(teammateReply.ok).toBe(true);
+  const coachViewAfterReply = filterChatStateForActor(teammateReply.state, coachActor);
+  const coachUnreadReply = coachViewAfterReply.messages.find((message) => message.id === "qa-teammate-message");
+  expect(coachUnreadReply?.text).toBe("Taylor sees the same truth");
+  expect(coachUnreadReply?.readBy).toContain(teammateActor.id);
+  expect(coachUnreadReply?.readBy).not.toContain(coachActor.id);
+
+  const deleted = applyChatActionToState(
+    teammateReply.state,
+    coachActor,
+    { action: "deleteMessage", messageId: "qa-coach-message" },
+    { now: "2026-05-24T08:03:00.000Z" }
+  );
+  expect(deleted.ok).toBe(true);
+  for (const actor of [coachActor, teammateActor]) {
+    const visible = filterChatStateForActor(deleted.state, actor);
+    const removed = visible.messages.find((message) => message.id === "qa-coach-message");
+    expect(removed?.isDeleted).toBe(true);
+    expect(removed?.text).toBe("");
+  }
+});
+
+test("multi-user QA suite covers reload, offline retry hooks, attachments, delete, and read receipts", () => {
+  const threadId = "dm:coach-qa:teammate-qa";
+  const seedState = {
+    threads: [
+      {
+        id: threadId,
+        type: "dm",
+        title: "Taylor Teammate",
+        participantIds: [coachActor.id, teammateActor.id],
+      },
+    ],
+    messages: [],
+    audit: [],
+    readReceipts: {},
+  };
+
+  const sent = applyChatActionToState(
+    seedState,
+    coachActor,
+    { action: "sendMessage", id: "qa-reload-message", threadId, text: "Reload proof with attachment intent" },
+    { now: "2026-05-24T09:00:00.000Z" }
+  );
+  const read = applyChatActionToState(
+    sent.state,
+    teammateActor,
+    { action: "markThreadRead", threadId },
+    { now: "2026-05-24T09:01:00.000Z" }
+  );
+  const deleted = applyChatActionToState(
+    read.state,
+    coachActor,
+    { action: "deleteMessage", messageId: "qa-reload-message" },
+    { now: "2026-05-24T09:02:00.000Z" }
+  );
+  const reloaded = filterChatStateForActor(JSON.parse(JSON.stringify(deleted.state)), teammateActor);
+  const messageAfterReload = reloaded.messages.find((message) => message.id === "qa-reload-message");
+
+  expect(messageAfterReload?.isDeleted).toBe(true);
+  expect(messageAfterReload?.text).toBe("");
+  expect(deleted.state.readReceipts[threadId][teammateActor.id]).toBe("2026-05-24T09:01:00.000Z");
+  expect(appSource).toContain("retryDashboardMessageWithApi");
+  expect(appSource).toContain("dashboardChatSubmittedComposerDrafts");
+  expect(appSource).toContain("dashboardChatComposerAttachmentDraft");
+  expect(databaseSource).toContain("createAttachmentIntent");
+  expect(databaseSource).toContain("uploadAttachmentObject");
+  expect(databaseSource).toContain("attachmentIds");
+});
+
 test("settings flow covers mute, pin, rename, avatar, and manager permissions", () => {
   const seed = applyChatActionToState(
     {},
@@ -191,18 +309,56 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(appSource).toContain("setDashboardChatThreadSettingsWithApi");
   expect(appSource).toContain("dashboardChatAttachmentRenderer");
   expect(appSource).toContain("dashboardChatComposerAttachmentDraft");
+  expect(appSource).toContain("previewItems");
+  expect(appSource).toContain("handleThreadParticipantAction");
+  expect(appSource).toContain("dashboardChatModerationFilters");
+  expect(appSource).toContain("data-dashboard-chat-moderation-filter-form");
+  expect(appSource).toContain("dashboardChatMessageSearchActiveIndex");
+  expect(appSource).toContain("data-dashboard-chat-search-step");
+  expect(appSource).toContain("data-dashboard-chat-search-active");
+  expect(appSource).toContain("handleDashboardChatRealtimeRelatedChange");
+  expect(appSource).toContain('table: "chat_threads"');
+  expect(appSource).toContain('table: "chat_attachments"');
+  expect(appSource).toContain('table: "chat_thread_participants"');
+  expect(appSource).toContain("latestApiThreadMessage");
   expect(appSource).toContain("markDashboardMessagesReadForCurrentUser");
   expect(appSource).toContain("previousThreadListScrollTop");
   expect(appSource).toContain("previousChatListWasAtBottom");
 
   expect(rendererSource).toContain("data-dashboard-chat-message-retry");
   expect(rendererSource).toContain("data-dashboard-chat-mobile-back");
+  expect(rendererSource).toContain("data-dashboard-chat-participant-action");
+  expect(rendererSource).toContain("dashboard-chat-moderation-filters");
   expect(rendererSource).toContain("dashboard-chat-attachment-library");
   expect(rendererSource).toContain("dashboard-chat-search-hit");
+  expect(rendererSource).toContain("dashboard-chat-search-nav");
+  expect(rendererSource).toContain("dashboard-chat-more-menu");
+  expect(rendererSource).toContain("dashboard-chat-support-diagnostics");
+  expect(rendererSource).toContain("is-active-search-match");
   expect(rendererSource).toContain("groupedWithNext");
 
   expect(chatCssSource).toContain("dashboard-chat-message.is-pending");
   expect(chatCssSource).toContain("dashboard-chat-message.is-failed");
   expect(chatCssSource).toContain("dashboard-chat-attachment-library");
+  expect(chatCssSource).toContain("dashboard-chat-details-section-head");
+  expect(chatCssSource).toContain("dashboard-chat-moderation-filters");
+  expect(chatCssSource).toContain("dashboard-chat-search-nav");
+  expect(chatCssSource).toContain("dashboard-chat-more-menu");
+  expect(chatCssSource).toContain("dashboard-chat-support-diagnostics");
+  expect(chatCssSource).toContain("dashboard-chat-attachment-preview-empty");
   expect(chatCssSource).toContain("dashboard-chat-widget.is-mobile-conversation");
+
+  expect(attachmentPreviewSource).toContain("data-chat-attachment-preview-previous");
+  expect(attachmentPreviewSource).toContain("data-chat-attachment-preview-next");
+  expect(attachmentPreviewSource).toContain("data-chat-attachment-preview-retry");
+  expect(attachmentPreviewSource).toContain("previewLoadToken");
+  expect(attachmentPreviewSource).toContain("showSaveFilePicker");
+  expect(attachmentPreviewSource).toContain("event.key === \"Escape\"");
+  expect(attachmentPreviewSource).toContain("event.key === \"ArrowLeft\"");
+  expect(attachmentPreviewSource).toContain("event.key === \"ArrowRight\"");
+  expect(attachmentPreviewSource).toContain("getPreviewKind");
+
+  expect(databaseSource).toContain("attachmentIds");
+  expect(databaseSource).toContain("status: \"ready\"");
+  expect(databaseSource).toContain("chat_read_receipts");
 });

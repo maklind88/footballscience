@@ -1437,9 +1437,10 @@ async function handleDatabaseGet(req, res, actor) {
       failedUploadFilters.push(`created_at=lte.${filterValue(auditToIso)}`);
     }
 
+    const includeFailedUploads = auditAction === "all" || auditAction === "failed-uploads";
     const [audits, failedUploads] = await Promise.all([
       auditAction === "failed-uploads" ? Promise.resolve([]) : selectMany("chat_audit_events", auditFilters.join("&")),
-      selectMany("chat_attachments", failedUploadFilters.join("&")).catch(() => []),
+      includeFailedUploads ? selectMany("chat_attachments", failedUploadFilters.join("&")).catch(() => []) : Promise.resolve([]),
     ]);
     const retentionPolicies = await selectMany(
       "chat_retention_policies",

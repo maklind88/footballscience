@@ -78,5 +78,6 @@ test("chat moderation endpoint supports admin filters", () => {
   expect(source).toContain("destructive=eq.true");
   expect(source).toContain("failedUploads");
   expect(source).toContain("status=in.(failed,error)");
+  expect(source).toContain('const includeFailedUploads = auditAction === "all" || auditAction === "failed-uploads"');
   expect(source).toContain("auditToDate.setUTCHours(23, 59, 59, 999)");
 });

@@ -2130,6 +2130,17 @@ test("Academy Squad add is available for session planning without Medical cleara
   await expect(guestRow.locator(".squad-planning-cell")).toContainText("Academy training");
   await expect(guestRow.locator(".squad-planning-cell")).not.toContainText("Squad depth");
   await expect(squadSection.locator(".squad-player-row", { hasText: playerName })).toHaveCount(0);
+  await page.locator("[data-player-profile-roster-filter]").selectOption("squad");
+  await expect(guestSection).toBeVisible();
+  await expect(guestRow).toBeVisible();
+  const guestToggle = guestSection.locator("[data-squad-temporary-toggle]");
+  await expect(guestToggle).toHaveAttribute("aria-expanded", "true");
+  await guestToggle.click();
+  await expect(guestToggle).toHaveAttribute("aria-expanded", "false");
+  await expect(guestSection.locator(".squad-player-row", { hasText: playerName })).toHaveCount(0);
+  await guestToggle.click();
+  await expect(guestToggle).toHaveAttribute("aria-expanded", "true");
+  await expect(guestRow).toBeVisible();
   const squadBox = await squadSection.boundingBox();
   const guestBox = await guestSection.boundingBox();
   expect(squadBox).not.toBeNull();

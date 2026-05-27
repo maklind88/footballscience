@@ -4693,6 +4693,7 @@ let playerProfileAgeHydrationLastFingerprint = "";
 let playerProfilesSearchQuery = "";
 let playerProfilesRoleGroupFilter = "all";
 let playerProfilesRosterFilter = "all";
+let playerProfilesTemporarySectionCollapsed = false;
 let playerProfileActiveTab = "overview";
 let playerProfileModalOpen = false;
 let playerProfileNewPlayerModalOpen = false;
@@ -25692,6 +25693,10 @@ player.idp?.focusAreas,
 .includes(query);
 }).sort(comparePlayerProfiles);
 }
+function getAllTemporaryPlayerProfiles() {
+ensurePlayerProfilesState();
+return playerProfilesState.players.filter(isTemporaryPlayerProfile).sort(comparePlayerProfiles);
+}
 function getPlayerProfileCompleteness(player = {}) {
 const checks = [
 player.name,
@@ -26463,23 +26468,30 @@ return `
 function renderSquadRosterSection(section = {}) {
 const players = Array.isArray(section.players) ? section.players : [];
 const key = section.key || "squad";
+const isCollapsed = Boolean(section.collapsed);
+const toggleLabel = isCollapsed ? `Show ${players.length}` : "Hide";
 return `
-    <section class="squad-roster-section is-${escapeHtml(key)}" data-squad-roster-section="${escapeHtml(key)}">
+    <section class="squad-roster-section is-${escapeHtml(key)}${isCollapsed ? " is-collapsed" : ""}" data-squad-roster-section="${escapeHtml(key)}">
       <header class="squad-roster-section-head">
         <div>
           <h2>${escapeHtml(section.title || "Squad")}</h2>
           <span>${escapeHtml(section.subtitle || `${players.length} visible`)}</span>
         </div>
+        ${
+          section.collapsible
+            ? `<button type="button" class="squad-roster-pill is-temporary squad-roster-section-toggle" style="margin-left:auto;border:0;cursor:pointer;" data-squad-temporary-toggle aria-expanded="${isCollapsed ? "false" : "true"}">${escapeHtml(toggleLabel)}</button>`
+            : ""
+        }
       </header>
-      ${renderSquadPlayerTable(players, section.emptyText)}
+      ${isCollapsed ? "" : renderSquadPlayerTable(players, section.emptyText)}
     </section>
   `;
 }
 function getSquadRosterListSummary(visibleSummary = {}, rosterSummary = {}) {
 const squadText = `${visibleSummary.squadCount || 0}/${rosterSummary.squadCount || 0} squad`;
-const hasTemporaryPlayers = Boolean((visibleSummary.temporaryCount || 0) || (rosterSummary.temporaryCount || 0));
+const hasTemporaryPlayers = Boolean(rosterSummary.temporaryCount || 0);
 const temporaryText = hasTemporaryPlayers
-? ` + ${visibleSummary.temporaryCount || 0}/${rosterSummary.temporaryCount || 0} temporary`
+? ` + ${rosterSummary.temporaryCount || 0} temporary`
 : "";
 return `${squadText}${temporaryText}`;
 }
@@ -26487,7 +26499,9 @@ function renderSquadRosterSections(visiblePlayers = [], summaries = {}) {
 const rosterSummary = summaries.rosterSummary || getPlayerProfilesRosterSummary(playerProfilesState.players);
 const visibleSummary = summaries.visibleSummary || getPlayerProfilesRosterSummary(visiblePlayers);
 const listSummary = getSquadRosterListSummary(visibleSummary, rosterSummary);
-if (!visiblePlayers.length) {
+const squadPlayers = visiblePlayers.filter(playerProfileCountsInSquad);
+const temporaryPlayers = getAllTemporaryPlayerProfiles();
+if (!squadPlayers.length && !temporaryPlayers.length) {
 return renderSquadRosterSection({
 key: "empty",
 title: "Squad List",
@@ -26496,8 +26510,6 @@ players: [],
 emptyText: "No players found. Adjust search or role group filter.",
 });
 }
-const squadPlayers = visiblePlayers.filter(playerProfileCountsInSquad);
-const temporaryPlayers = visiblePlayers.filter(isTemporaryPlayerProfile);
 return [
 squadPlayers.length
 ? renderSquadRosterSection({
@@ -26513,6 +26525,8 @@ key: "temporary",
 title: "Training guests",
 subtitle: `${temporaryPlayers.length} not counted in squad total`,
 players: temporaryPlayers,
+collapsible: true,
+collapsed: playerProfilesTemporarySectionCollapsed,
 })
 : "",
 ].join("");
@@ -75424,6 +75438,14 @@ items: pendingImport?.rows
 )
 : [],
 });
+return;
+}
+const temporaryToggle = event.target.closest("[data-squad-temporary-toggle]");
+if (temporaryToggle) {
+event.preventDefault();
+event.stopPropagation();
+playerProfilesTemporarySectionCollapsed = !playerProfilesTemporarySectionCollapsed;
+renderPlayerProfilesRosterListOnly();
 return;
 }
 const selectButton = event.target.closest("[data-player-profile-select]");

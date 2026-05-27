@@ -854,11 +854,54 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const realtimeKey = String(realtimeStatus?.key || "warming").replace(/[^a-z-]/g, "");
     const realtimeLabel = String(realtimeStatus?.label || "Syncing");
     const realtimeDetail = String(realtimeStatus?.detail || realtimeLabel);
-    const threadPresetMarkup = advancedThreadTemplates.length
+    const groupCreateUsers = users
+      .filter((user) => user?.id && user.id !== currentUser?.id)
+      .slice(0, 18);
+    const groupCreateMarkup = groupCreateUsers.length
+      ? `
+          <form class="dashboard-chat-group-create-form" data-dashboard-chat-group-create-form>
+            <div class="dashboard-chat-group-create-head">
+              <strong>New group</strong>
+              <small>Choose people and start a focused room</small>
+            </div>
+            <label class="dashboard-chat-group-name">
+              <span>Group name</span>
+              <input name="title" type="text" maxlength="80" placeholder="Example: Match prep" required>
+            </label>
+            <div class="dashboard-chat-group-create-users" aria-label="Choose group members">
+              ${groupCreateUsers
+                .map((user) => {
+                  const userName = formatUserName(user);
+                  const userInitial = String(userName || "?").trim().slice(0, 1).toUpperCase() || "?";
+                  const userMeta = user.role || user.teamRole || user.email || "Team member";
+                  return `
+                    <label class="dashboard-chat-group-user">
+                      <input type="checkbox" name="participantIds" value="${escapeHtml(user.id)}">
+                      <span class="dashboard-chat-group-user-avatar">${escapeHtml(userInitial)}</span>
+                      <span>
+                        <strong>${escapeHtml(userName)}</strong>
+                        <small>${escapeHtml(userMeta)}</small>
+                      </span>
+                    </label>
+                  `;
+                })
+                .join("")}
+            </div>
+            <button type="submit">Create group</button>
+          </form>
+        `
+      : `
+          <div class="dashboard-chat-group-create-empty">
+            <strong>No teammates yet</strong>
+            <small>Add users before creating a group chat.</small>
+          </div>
+        `;
+    const threadPresetMarkup = advancedThreadTemplates.length || groupCreateUsers.length
       ? `
           <details class="dashboard-chat-thread-presets" data-dashboard-chat-thread-presets>
             <summary aria-label="Create new chat">+</summary>
             <div class="dashboard-chat-thread-preset-menu" aria-label="Create chat thread">
+              ${groupCreateMarkup}
               ${advancedThreadTemplates
                 .map(
                   (template) => `

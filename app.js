@@ -9369,6 +9369,71 @@ renderDashboardChatWidget();
 focusDashboardChatWidgetComposer();
 return result.result?.thread || null;
 }
+async function createDashboardCustomGroupThreadFromForm(form) {
+if (!form || form.dataset.busy === "true") return null;
+const currentUser = getCurrentPlatformUser();
+const formData = new FormData(form);
+const title = String(formData.get("title") || "").trim().slice(0, 80);
+const selectedParticipantIds = Array.from(new Set(
+formData.getAll("participantIds")
+.map((value) => String(value || "").trim())
+.filter(Boolean)
+));
+if (!currentUser?.id) {
+showDashboardChatWidgetToast("Sign in before creating a group.", dashboardChatActiveThreadId);
+return null;
+}
+if (!title) {
+showDashboardChatWidgetToast("Add a group name.", dashboardChatActiveThreadId);
+return null;
+}
+if (!selectedParticipantIds.length) {
+showDashboardChatWidgetToast("Choose at least one teammate.", dashboardChatActiveThreadId);
+return null;
+}
+const legacyThreadId = createDashboardId("group");
+const participantIds = Array.from(new Set([currentUser.id, ...selectedParticipantIds].filter(Boolean)));
+const submitButton = form.querySelector("button[type='submit']");
+form.dataset.busy = "true";
+if (submitButton) {
+submitButton.disabled = true;
+submitButton.textContent = "Creating...";
+}
+const result = await sendDashboardChatApiAction({
+action: "createThread",
+threadId: legacyThreadId,
+type: "group",
+title,
+visibility: "team",
+participantIds,
+});
+if (!result.ok) {
+logDashboardChatApiFailure("createGroupThread", result);
+showDashboardChatWidgetToast(result.reason || "Could not create group.", dashboardChatActiveThreadId);
+delete form.dataset.busy;
+if (submitButton) {
+submitButton.disabled = false;
+submitButton.textContent = "Create group";
+}
+return null;
+}
+applyDashboardChatApiPayload(result.result || {}, { threadId: legacyThreadId });
+dashboardChatMessageSearchQuery = "";
+writeDashboardChatWidgetState({
+isOpen: true,
+selectedThreadId: legacyThreadId,
+});
+form.reset();
+delete form.dataset.busy;
+if (submitButton) {
+submitButton.disabled = false;
+submitButton.textContent = "Create group";
+}
+renderDashboardChatWidget();
+focusDashboardChatWidgetComposer();
+showDashboardChatWidgetToast("Group created.", legacyThreadId);
+return result.result?.thread || null;
+}
 function handleDashboardChatRealtimeMessageChange(change = {}) {
 dashboardChatApiRealtimeLastEventAt = Date.now();
 const eventType = String(change.eventType || change.type || "").toUpperCase();
@@ -73771,6 +73836,12 @@ event.target.form?.requestSubmit();
 }
 });
 ui.dashboardChatWidgetRoot?.addEventListener("submit", async (event) => {
+const groupCreateForm = event.target.closest("[data-dashboard-chat-group-create-form]");
+if (groupCreateForm) {
+event.preventDefault();
+await createDashboardCustomGroupThreadFromForm(groupCreateForm);
+return;
+}
 const moderationFilterForm = event.target.closest("[data-dashboard-chat-moderation-filter-form]");
 if (!moderationFilterForm) {
 return;

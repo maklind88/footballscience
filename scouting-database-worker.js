@@ -799,9 +799,10 @@ function loadPreviewDatabaseFromScript(scriptUrl = "scouting-import-preview-data
   return activateDatabase(loadedPreviewDatabase, loadedPreviewScriptUrl);
 }
 
-async function loadDatabase(scriptUrl = "scouting-import-data.js", manifestScriptUrl = "scouting-import-manifest.js") {
+async function loadDatabase(scriptUrl = "scouting-import-data.js", manifestScriptUrl = "scouting-import-manifest.js", options = {}) {
   const normalizedScriptUrl = String(scriptUrl || "scouting-import-data.js");
   const manifest = loadDatabaseManifest(manifestScriptUrl);
+  const primeOptions = options.prime && typeof options.prime === "object" ? options.prime : {};
   if (loadedFullDatabase && loadedFullScriptUrl === normalizedScriptUrl) {
     return activateDatabase(loadedFullDatabase, loadedFullScriptUrl);
   }
@@ -810,11 +811,11 @@ async function loadDatabase(scriptUrl = "scouting-import-data.js", manifestScrip
     loadedFullDatabase = cachedDatabase;
     loadedFullScriptUrl = normalizedScriptUrl;
     const database = activateDatabase(loadedFullDatabase, loadedFullScriptUrl);
-    primeDatabaseIndexes(database);
+    primeDatabaseIndexes(database, primeOptions);
     return database;
   }
   const database = loadDatabaseFromScript(normalizedScriptUrl);
-  primeDatabaseIndexes(database);
+  primeDatabaseIndexes(database, primeOptions);
   writeWorkerCachedDatabase("full", normalizedScriptUrl, database, manifest).catch(() => false);
   return database;
 }
@@ -1040,7 +1041,7 @@ async function handleWorkerMessage(event) {
       return;
     }
     if (event.data.type === "preload") {
-      await loadDatabase(fullScriptUrl, manifestScriptUrl);
+      await loadDatabase(fullScriptUrl, manifestScriptUrl, { prime: { options: false, search: false } });
       self.postMessage({
         type: "preloaded",
         requestId,
@@ -1048,7 +1049,7 @@ async function handleWorkerMessage(event) {
       return;
     }
     if (event.data.type === "recordsByIds") {
-      await loadDatabase(fullScriptUrl, manifestScriptUrl);
+      await loadDatabase(fullScriptUrl, manifestScriptUrl, { prime: { options: false, search: false } });
       self.postMessage({
         type: "records",
         requestId,

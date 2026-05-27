@@ -11,6 +11,7 @@ let scoutingDatabaseWorkerPreloadPromise = null;
 let scoutingDatabaseWorkerPreloadTimer = 0;
 let scoutingDatabaseWorkerFullPreloadPromise = null;
 let scoutingDatabaseWorkerFullPreloadTimer = 0;
+let scoutingDatabaseWorkerFullRefreshTimer = 0;
 let scoutingDatabaseWorkerFullReady = false;
 let scoutingDatabaseWorkerRequestId = 0;
 let scoutingDatabaseError = "";
@@ -210,6 +211,7 @@ const SCOUTING_IMPORT_MAX_CHUNK_PAYLOAD_CHARACTERS = 70000;
 const SCOUTING_IMPORT_MAX_CHUNK_BYTES = 200000;
 const SCOUTING_API_DATABASE_PAGE_LIMIT = 50;
 const SCOUTING_DATABASE_PAGE_SIZE = 50;
+const SCOUTING_ADVANCED_PANEL_RECORD_LIMIT = 4;
 const SCOUTING_STANDALONE_FSDB_DATABASE_ENABLED = false;
 const SCOUTING_FSDB_GENDER_SEGMENT_OPTIONS = Object.freeze([
   { id: "women", label: "Women's players", shortLabel: "Women's" },
@@ -2312,6 +2314,7 @@ function applyScoutingWorkerDatabase(result = {}) {
   scoutingDatabaseOptionCache = null;
   resetScoutingComputedCaches();
   rememberScoutingDatabaseRecords(database);
+  queueScoutingWorkerRecordHydration(getScoutingCompareRecordIds());
   return database;
 }
 function dedupeScoutingRecords(records = [], existingIds = new Set()) {
@@ -3058,7 +3061,7 @@ function prewarmFullScoutingDatabaseWorker() {
     .then(() => {
       scoutingDatabaseWorkerFullReady = true;
       if (isScoutingWorkerDatabaseActive()) {
-        scheduleScoutingDatabaseRefresh();
+        scheduleScoutingDatabaseWorkerFullRefresh();
       }
       return true;
     })
@@ -3080,6 +3083,16 @@ function scheduleFullScoutingDatabaseWorkerPreload(delayMs = 650) {
   scoutingDatabaseWorkerFullPreloadTimer = window.setTimeout(() => {
     scoutingDatabaseWorkerFullPreloadTimer = 0;
     prewarmFullScoutingDatabaseWorker();
+  }, Math.max(0, Math.floor(Number(delayMs) || 0)));
+}
+function scheduleScoutingDatabaseWorkerFullRefresh(delayMs = 2500) {
+  window.clearTimeout(scoutingDatabaseWorkerFullRefreshTimer);
+  scoutingDatabaseWorkerFullRefreshTimer = window.setTimeout(() => {
+    scoutingDatabaseWorkerFullRefreshTimer = 0;
+    if (!isScoutingWorkerDatabaseActive() || scoutingAdvancedDatabaseFiltersOpen || hasOpenScoutingOverlay()) {
+      return;
+    }
+    scheduleScoutingDatabaseRefresh();
   }, Math.max(0, Math.floor(Number(delayMs) || 0)));
 }
 function loadScoutingDatabaseWithWorker() {
@@ -6785,6 +6798,12 @@ function refreshScoutingAfterWorkerRecordHydration() {
   const state = ensureScoutingState();
   if (state.selectedRecordId && ui.scoutingWorkspace.querySelector("[data-scouting-profile-modal]")) {
     renderScoutingProfileModalIntoDom(state.selectedRecordId);
+    return;
+  }
+  if (state.activeTab === "database") {
+    if (ui.scoutingWorkspace.querySelector("[data-scouting-compare-set]")) {
+      renderScoutingCompareSetPanelIntoDom();
+    }
     return;
   }
   const updated = rerenderScoutingActiveContent({ preserveFocus: true });
@@ -11262,7 +11281,7 @@ function renderScoutingBudgetBoard(state = ensureScoutingState()) {
 }
 function renderScoutingMarketRadar(records) {
   const state = ensureScoutingState();
-  const candidatePool = records.slice(0, 160).map((record) => ({
+  const candidatePool = records.slice(0, SCOUTING_ADVANCED_PANEL_RECORD_LIMIT).map((record) => ({
     record,
     recordId: getScoutingRecordId(record),
     fit: getScoutingRoleFitScore(record),
@@ -11325,7 +11344,7 @@ function renderScoutingMarketRadar(records) {
 function getScoutingDatabaseBriefCards(records = [], state = ensureScoutingState()) {
   const reports = getScoutingReports(state);
   const reportTargetIds = new Set(reports.map((report) => normalizeScoutingText(report.targetId, 120)).filter(Boolean));
-  const pool = records.slice(0, 180).map((record) => {
+  const pool = records.slice(0, SCOUTING_ADVANCED_PANEL_RECORD_LIMIT).map((record) => {
     const recordId = getScoutingRecordId(record);
     const intelligence = getScoutingIntelligenceProfile(record, state);
     const target = findScoutingTargetByRecordId(recordId, state);
@@ -11484,7 +11503,7 @@ function renderScoutingDatabaseIntelligenceBrief(records = [], state = ensureSco
 function getScoutingDatabaseActionQueue(records = [], state = ensureScoutingState(), limit = 8) {
   const seen = new Set();
   return records
-    .slice(0, 220)
+    .slice(0, SCOUTING_ADVANCED_PANEL_RECORD_LIMIT)
     .map((record) => {
       const recordId = getScoutingRecordId(record);
       const gate = getScoutingDecisionGate(record, state);
@@ -13543,7 +13562,9 @@ function setScoutingDatabaseAdvancedMode(enabled) {
     return;
   }
   scoutingDatabaseAdvancedMode = nextMode;
-  renderScoutingWorkspace({ preserveFocus: true });
+  if (!syncScoutingAdvancedDatabaseModeDom()) {
+    refreshScoutingDatabaseSurface({ controls: true });
+  }
 }
 function renderScoutingRecordCard(record, options = {}) {
   const lightweight = Boolean(options.lightweight);
@@ -16877,6 +16898,248 @@ function renderScoutingDatabaseResults() {
     loadScoutingImportHistory();
   }
 }
+function getScoutingDatabaseVisibleRecordsForPanels() {
+  const records = getFilteredScoutingDatabaseRecords();
+  const apiPage = getScoutingDatabasePage();
+  const databaseSource = normalizeScoutingText(getScoutingDatabase()?.source, 40);
+  const isFootballScienceDb = databaseSource === "fsdb";
+  const isPaged = databaseSource === "api" || databaseSource === "worker" || isFootballScienceDb;
+  const pageOffset = isPaged ? apiPage?.offset || 0 : getScoutingDatabasePageOffset(records.length);
+  const visibleRecords = isPaged
+    ? records
+    : records.slice(pageOffset, pageOffset + SCOUTING_DATABASE_PAGE_SIZE);
+  return {
+    records,
+    visibleRecords,
+  };
+}
+function updateScoutingDatabaseModeButtonsDom() {
+  const advancedMode = isScoutingDatabaseAdvancedMode();
+  ui.scoutingWorkspace?.querySelectorAll("[data-toggle-scouting-database-mode]")?.forEach((button) => {
+    button.classList.toggle("is-open", advancedMode);
+    button.setAttribute("aria-pressed", advancedMode ? "true" : "false");
+    button.textContent = advancedMode ? "Advanced mode on" : "Advanced mode";
+  });
+}
+function removeScoutingAdvancedDatabasePanels() {
+  ui.scoutingWorkspace
+    ?.querySelectorAll("[data-scouting-compare-set], [data-scouting-intelligence-brief], [data-scouting-action-queue], [data-scouting-market-radar]")
+    ?.forEach((panel) => panel.remove());
+}
+function renderScoutingDatabaseIntelligenceBriefLite(records = [], state = ensureScoutingState(), totalCount = records.length) {
+  const visibleRecords = records.slice(0, SCOUTING_ADVANCED_PANEL_RECORD_LIMIT);
+  const minutesLeader = [...visibleRecords].sort((a, b) => getScoutingRecordMinutes(b) - getScoutingRecordMinutes(a))[0] || null;
+  const youngest = [...visibleRecords]
+    .filter((record) => Number.isFinite(getScoutingRecordAge(record)))
+    .sort((a, b) => getScoutingRecordAge(a) - getScoutingRecordAge(b))[0] || null;
+  const compareRecord = getScoutingCompareRecordIds(state).map((recordId) => getScoutingStoredPlayerRecord(recordId, state)).filter(Boolean)[0] || null;
+  const cards = [
+    {
+      tone: "opportunity",
+      label: "Current view",
+      title: `${Math.max(totalCount, records.length).toLocaleString("en-US")} players ready`,
+      detail: `${visibleRecords.length.toLocaleString("en-US")} visible profiles in this database slice.`,
+      record: visibleRecords[0] || null,
+      action: visibleRecords[0] ? "Open" : "No action",
+    },
+    {
+      tone: "opportunity",
+      label: "Compare set",
+      title: `${getScoutingCompareRecordIds(state).length}/5 selected`,
+      detail: compareRecord ? `${getScoutingRecordName(compareRecord)} is available for comparison.` : "Add players from the list to start a compare read.",
+      record: compareRecord,
+      action: compareRecord ? "Open" : "No action",
+    },
+    {
+      tone: "warning",
+      label: "Minutes leader",
+      title: minutesLeader ? getScoutingRecordName(minutesLeader) : "No minutes leader",
+      detail: minutesLeader ? `${formatScoutingNumber(getScoutingRecordMinutes(minutesLeader))} minutes / ${getScoutingRecordTeam(minutesLeader) || "club n/a"}` : "No current page player data yet.",
+      record: minutesLeader,
+      action: minutesLeader ? "Open" : "No action",
+    },
+    {
+      tone: "risk",
+      label: "Young profile",
+      title: youngest ? getScoutingRecordName(youngest) : "No age data",
+      detail: youngest ? `${formatScoutingNumber(getScoutingRecordAge(youngest))} yrs / ${getScoutingRecordPosition(youngest) || "position n/a"}` : "Age metadata is missing in this slice.",
+      record: youngest,
+      action: youngest ? "Open" : "No action",
+    },
+  ];
+  return `
+    <section class="scouting-intelligence-brief" data-scouting-intelligence-brief>
+      <div class="scouting-intelligence-brief-head">
+        <span>Database intelligence brief</span>
+        <strong>${escapeHtml(`${Math.max(totalCount, records.length).toLocaleString("en-US")} players in current view`)}</strong>
+      </div>
+      <div class="scouting-intelligence-brief-grid">
+        ${cards
+          .map((card) => {
+            const recordId = card.record ? getScoutingRecordId(card.record) : "";
+            return `
+              <button type="button" class="is-${escapeHtml(card.tone)}" ${recordId ? `data-open-scouting-record="${escapeHtml(recordId)}"` : "disabled"}>
+                <span>${escapeHtml(card.label)}</span>
+                <strong>${escapeHtml(card.title)}</strong>
+                <em>${escapeHtml(card.detail)}</em>
+                <small>${escapeHtml(recordId ? card.action : "No action")}</small>
+              </button>
+            `;
+          })
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+function renderScoutingDatabaseActionQueueLite(records = []) {
+  const queue = records.slice(0, SCOUTING_ADVANCED_PANEL_RECORD_LIMIT).map((record) => ({
+    record,
+    recordId: getScoutingRecordId(record),
+    minutes: getScoutingRecordMinutes(record),
+    age: getScoutingRecordAge(record),
+  })).filter((item) => item.recordId);
+  return `
+    <section class="scouting-action-queue" data-scouting-action-queue>
+      <div class="scouting-action-queue-head">
+        <div>
+          <span>Scout action queue</span>
+          <strong>${escapeHtml(queue.length ? `${queue.length} quick review${queue.length === 1 ? "" : "s"}` : "No quick reviews")}</strong>
+        </div>
+        <p>${escapeHtml(queue.length ? "Visible profiles are ready for scouting triage." : "Current view has no visible players yet.")}</p>
+      </div>
+      <div class="scouting-action-queue-list">
+        ${
+          queue.length
+            ? queue
+                .map(
+                  (item) => `
+                    <button type="button" class="is-watch" data-open-scouting-record="${escapeHtml(item.recordId)}">
+                      <span>Open player review</span>
+                      <strong>${escapeHtml(getScoutingRecordName(item.record))}</strong>
+                      <em>${escapeHtml(`${getScoutingRecordPosition(item.record) || "Position n/a"} / ${getScoutingRecordTeam(item.record) || "club n/a"}`)}</em>
+                      <small>${escapeHtml(`${formatScoutingNumber(item.minutes)} min${Number.isFinite(item.age) ? ` / ${formatScoutingNumber(item.age)} yrs` : ""}`)}</small>
+                    </button>
+                  `
+                )
+                .join("")
+            : `<p class="scouting-muted">No visible players to review yet.</p>`
+        }
+      </div>
+    </section>
+  `;
+}
+function renderScoutingMarketRadarLite(records = [], state = ensureScoutingState()) {
+  const visibleRecords = records.slice(0, SCOUTING_ADVANCED_PANEL_RECORD_LIMIT);
+  const favorites = new Set(normalizeScoutingRecordIds(state.favoriteRecordIds));
+  const watched = visibleRecords.find((record) => favorites.has(getScoutingRecordId(record))) || visibleRecords[0] || null;
+  const cards = [
+    { label: "Shortlist look", record: visibleRecords[0] || null, detail: (record) => getScoutingRecordPosition(record) || "Open profile" },
+    { label: "Most minutes", record: [...visibleRecords].sort((a, b) => getScoutingRecordMinutes(b) - getScoutingRecordMinutes(a))[0] || null, detail: (record) => `${formatScoutingNumber(getScoutingRecordMinutes(record))} min` },
+    { label: "Youngest", record: [...visibleRecords].filter((record) => Number.isFinite(getScoutingRecordAge(record))).sort((a, b) => getScoutingRecordAge(a) - getScoutingRecordAge(b))[0] || null, detail: (record) => `${formatScoutingNumber(getScoutingRecordAge(record))} yrs` },
+    { label: "Already on radar", record: watched, detail: (record) => (favorites.has(getScoutingRecordId(record)) ? "Favorite" : getScoutingRecordTeam(record) || "Review") },
+  ].filter((card) => card.record);
+  return `
+    <section class="scouting-market-radar" data-scouting-market-radar>
+      ${
+        cards.length
+          ? cards
+              .map(
+                (card) => `
+                  <button type="button" data-open-scouting-record="${escapeHtml(getScoutingRecordId(card.record))}">
+                    <span>${escapeHtml(card.label)}</span>
+                    <strong>${escapeHtml(getScoutingRecordName(card.record))}</strong>
+                    <em>${escapeHtml(card.detail(card.record))}</em>
+                  </button>
+                `
+              )
+              .join("")
+          : `<p class="scouting-muted">No market radar cards for this filter set yet.</p>`
+      }
+    </section>
+  `;
+}
+function renderScoutingAdvancedDatabasePanelsMarkup(records = [], state = ensureScoutingState(), totalCount = records.length, options = {}) {
+  if (options.lightweight) {
+    return [
+      renderScoutingCompareSetPanel(state),
+      renderScoutingDatabaseIntelligenceBriefLite(records, state, totalCount),
+      renderScoutingDatabaseActionQueueLite(records),
+      renderScoutingMarketRadarLite(records, state),
+    ].join("");
+  }
+  return [
+    renderScoutingCompareSetPanel(state),
+    renderScoutingDatabaseIntelligenceBrief(records, state, { totalCount }),
+    renderScoutingDatabaseActionQueue(records, state),
+    renderScoutingMarketRadar(records),
+  ].join("");
+}
+function syncScoutingAdvancedDatabaseModeDom() {
+  const root = ui.scoutingWorkspace;
+  if (!root || ensureScoutingState().activeTab !== "database") {
+    return false;
+  }
+  const recordTable = root.querySelector(".scouting-record-table");
+  if (!recordTable) {
+    return false;
+  }
+  updateScoutingDatabaseModeButtonsDom();
+  removeScoutingAdvancedDatabasePanels();
+  if (!isScoutingDatabaseAdvancedMode()) {
+    return true;
+  }
+  const panelRecords = getScoutingDatabaseVisibleRecordsForPanels();
+  recordTable.insertAdjacentHTML(
+    "beforebegin",
+    renderScoutingAdvancedDatabasePanelsMarkup(
+      panelRecords.visibleRecords,
+      ensureScoutingState(),
+      panelRecords.records.length,
+      { lightweight: true }
+    )
+  );
+  bindScoutingRecordMiniRadarShells();
+  loadScoutingImportHistory();
+  return true;
+}
+function refreshScoutingDatabaseSurface(options = {}) {
+  const state = ensureScoutingState();
+  if (state.activeTab !== "database" || options.controls) {
+    const updated = rerenderScoutingActiveContent({ preserveFocus: true });
+    if (!updated) {
+      renderScoutingWorkspace({ preserveFocus: true });
+    }
+    return;
+  }
+  renderScoutingDatabaseResults();
+  refreshScoutingWorkspaceSummaryMetrics();
+}
+function syncScoutingAdvancedDatabaseFiltersDom() {
+  const root = ui.scoutingWorkspace;
+  const trigger = root?.querySelector("[data-toggle-scouting-advanced-filters]");
+  const panel = root?.querySelector(".scouting-database-advanced-filters");
+  if (!trigger || !panel) {
+    return false;
+  }
+  trigger.classList.toggle("is-open", scoutingAdvancedDatabaseFiltersOpen);
+  trigger.setAttribute("aria-expanded", scoutingAdvancedDatabaseFiltersOpen ? "true" : "false");
+  panel.classList.toggle("is-open", scoutingAdvancedDatabaseFiltersOpen);
+  panel.hidden = !scoutingAdvancedDatabaseFiltersOpen;
+  return true;
+}
+function setScoutingAdvancedDatabaseFiltersOpen(open) {
+  const nextOpen = Boolean(open);
+  if (nextOpen === scoutingAdvancedDatabaseFiltersOpen) {
+    return;
+  }
+  scoutingAdvancedDatabaseFiltersOpen = nextOpen;
+  if (!scoutingAdvancedDatabaseFiltersOpen) {
+    scoutingDatabaseMetricFilterOpen = false;
+  }
+  if (!syncScoutingAdvancedDatabaseFiltersDom()) {
+    refreshScoutingDatabaseSurface({ controls: true });
+  }
+}
 function scheduleScoutingDatabaseRefresh() {
   const isApi = isScoutingApiDatabaseActive();
   const isWorker = isScoutingWorkerDatabaseActive();
@@ -17427,11 +17690,7 @@ export function handleClick(event, context) {
   if (advancedFiltersTrigger) {
     event.preventDefault();
     event.stopPropagation();
-    scoutingAdvancedDatabaseFiltersOpen = !scoutingAdvancedDatabaseFiltersOpen;
-    if (!scoutingAdvancedDatabaseFiltersOpen) {
-      scoutingDatabaseMetricFilterOpen = false;
-    }
-    renderScoutingWorkspace({ preserveFocus: true });
+    setScoutingAdvancedDatabaseFiltersOpen(!scoutingAdvancedDatabaseFiltersOpen);
     return;
   }
   const advancedModeTrigger = event.target.closest("[data-toggle-scouting-database-mode]");
@@ -17843,7 +18102,7 @@ export function handleInput(event, context) {
   if (metricFilterSearchInput) {
     scoutingDatabaseMetricFilterOpen = true;
     scoutingDatabaseMetricFilterQuery = normalizeScoutingText(metricFilterSearchInput.value, 80);
-    renderScoutingWorkspace({ preserveFocus: true });
+    refreshScoutingDatabaseSurface({ controls: true });
     return;
   }
   const filterInput = event.target.closest("[data-scouting-filter]");
@@ -18037,10 +18296,7 @@ export function handleChange(event, context) {
     } else if (!nextMetricIds.length && Number.isFinite(metricMin) && metricMin > 0) {
       setScoutingDatabaseFilter("metricMin", 0);
     }
-    renderScoutingWorkspace({ preserveFocus: true });
-    if (isScoutingDatabaseLoaded()) {
-      scheduleScoutingDatabaseFilterRefresh();
-    }
+    refreshScoutingDatabaseSurface({ controls: true });
     return;
   }
   const filterInput = event.target.closest("[data-scouting-filter]");

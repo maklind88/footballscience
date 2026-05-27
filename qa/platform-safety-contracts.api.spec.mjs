@@ -351,6 +351,8 @@ test("Session Planner print mode keeps the coach sheet visible for browser print
   expect(printOverrideSource).toContain("box-shadow: none !important");
   expect(printOverrideSource).toContain("filter: none !important");
   expect(printOverrideSource).toContain(".session-tactical-marker::before");
+  expect(printOverrideSource).toContain("font-size: 0.086in");
+  expect(printOverrideSource).toContain("line-height: 0.86");
 });
 
 test("Session Planner never seeds generated training blocks onto an off day", () => {
@@ -394,6 +396,8 @@ test("Session Planner tactical board keeps selection controls simple and explici
   expect(appSource).toContain('data-session-arrange-tactical="row"');
   expect(appSource).toContain('data-session-arrange-tactical="column"');
   expect(appSource).toContain('data-session-arrange-tactical="grid"');
+  expect(appSource).toContain('markerUnits="strokeWidth"');
+  expect(appSource).toContain('viewBox="0 0 6 6"');
   expect(appSource).not.toContain("data-session-align-tactical");
   expect(appSource).not.toContain("data-session-distribute-tactical");
   expect(appSource).toContain("clearSessionPlannerTacticalSelection();\nsessionPlannerTacticalPendingPoint = null;");

@@ -18,17 +18,20 @@
 }
 
 .session-print-player-token {
-  min-width: 0.19in;
-  height: 0.13in;
-  padding: 0 0.02in;
+  min-width: 0.22in;
+  height: 0.14in;
+  padding: 0 0.012in;
   border-radius: 0.03in;
-  font-size: 0.048in;
+  font-size: 0.07in;
+  line-height: 0.88;
 }
 
 .session-print-feature-block .session-print-player-token {
-  min-width: 0.24in;
-  height: 0.155in;
-  font-size: 0.055in;
+  min-width: 0.29in;
+  height: 0.18in;
+  padding: 0 0.012in;
+  font-size: 0.086in;
+  line-height: 0.86;
 }
 
 .session-print-visual .session-tactical-marker:not(.session-tactical-text):not(.session-tactical-mini-goal):not(.session-tactical-big-goal) {

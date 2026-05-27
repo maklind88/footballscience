@@ -17336,8 +17336,8 @@ return `
         }
         <svg class="session-tactical-svg-layer" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           <defs>
-            <marker id="${escapeHtml(arrowId)}" markerWidth="5.2" markerHeight="5.2" refX="4.85" refY="2.6" orient="auto">
-              <path d="M0.35,0.35 L4.9,2.6 L0.35,4.85 Z" fill="context-stroke"></path>
+            <marker id="${escapeHtml(arrowId)}" markerWidth="6" markerHeight="6" refX="5.45" refY="3" orient="auto" markerUnits="strokeWidth" viewBox="0 0 6 6">
+              <path d="M0.75,0.6 L5.45,3 L0.75,5.4 Z" fill="context-stroke" stroke="context-stroke" stroke-width="0.22" stroke-linejoin="round"></path>
             </marker>
           </defs>
           ${elements.map((element) => renderSessionPlannerTacticalSvgElement(element, arrowId)).join("")}

@@ -21322,7 +21322,7 @@ return `
 }
 function getMedicalAvailabilityItems(dateValue = medicalState?.selectedDate) {
 ensureMedicalState();
-return getActiveMedicalPlayers()
+return getActiveMedicalPlayersForDate(dateValue)
 .sort(compareMedicalPlayers)
 .map((player) => {
 const record = getLatestMedicalRecord(player.id, dateValue);
@@ -28421,6 +28421,12 @@ function getActiveMedicalPlayers() {
 ensureMedicalState();
 return medicalState.players.filter((player) => !isMedicalItemArchived(player));
 }
+function isMedicalPlayerVisibleForDate(player = {}, dateValue = medicalState?.selectedDate) {
+return !isTemporaryPlayerProfile(player) || isPlayerProfileTemporaryActiveOnDate(player, dateValue);
+}
+function getActiveMedicalPlayersForDate(dateValue = medicalState?.selectedDate) {
+return getActiveMedicalPlayers().filter((player) => isMedicalPlayerVisibleForDate(player, dateValue));
+}
 function isMedicalInjuryPlanActive(plan, dateValue = medicalState?.selectedDate) {
 return Boolean(plan && !isMedicalItemArchived(plan) && isMedicalDateValue(dateValue) && plan.startDate <= dateValue && plan.endDate >= dateValue);
 }
@@ -29362,10 +29368,10 @@ summary.coachNote
 function getFilteredMedicalPlayers() {
 ensureMedicalState();
 const query = medicalRosterSearchQuery.trim().toLowerCase();
-return getActiveMedicalPlayers().filter((player) => {
+return getActiveMedicalPlayersForDate(medicalState.selectedDate).filter((player) => {
 const record = getLatestMedicalRecord(player.id, medicalState.selectedDate);
 const status = getMedicalRecordStatus(record);
-const matchesSearch = !query || `${player.name} ${player.number} ${player.position}`.toLowerCase().includes(query);
+const matchesSearch = !query || `${player.name} ${player.number} ${player.position} ${getPlayerProfileRosterLabel(player)}`.toLowerCase().includes(query);
 const matchesStatus =
 medicalStatusFilter === "all" ||
 (medicalStatusFilter === "not-set" && !record) ||
@@ -29375,7 +29381,7 @@ return matchesSearch && matchesStatus;
 }
 function getMedicalValidBulkSelection() {
 ensureMedicalState();
-const validIds = new Set(getActiveMedicalPlayers().map((player) => player.id));
+const validIds = new Set(getActiveMedicalPlayersForDate(medicalState.selectedDate).map((player) => player.id));
 medicalBulkSelectedPlayerIds = new Set(
 Array.from(medicalBulkSelectedPlayerIds).filter((playerId) => validIds.has(playerId))
 );
@@ -29383,7 +29389,7 @@ return medicalBulkSelectedPlayerIds;
 }
 function getMedicalBulkSelectedPlayers() {
 const selectedIds = getMedicalValidBulkSelection();
-return getActiveMedicalPlayers().filter((player) => selectedIds.has(player.id)).sort(compareMedicalPlayers);
+return getActiveMedicalPlayersForDate(medicalState.selectedDate).filter((player) => selectedIds.has(player.id)).sort(compareMedicalPlayers);
 }
 function toggleMedicalBulkPlayer(playerId) {
 const selectedIds = getMedicalValidBulkSelection();
@@ -30684,6 +30690,35 @@ ${group.players.map(renderMedicalRosterRow).join("")}
 </section>
 `;
 }
+function renderMedicalTemporaryPlayerSection(players = []) {
+const activeCount = players.length;
+return `
+<section class="medical-temporary-player-panel" aria-label="Temporary training guests for selected date">
+<header class="medical-temporary-player-head">
+<div>
+<span class="medical-temporary-tab">Training guests</span>
+<strong>Temporary players</strong>
+<small>Only shown here when their temporary training dates include ${escapeHtml(formatMedicalDateLabel(medicalState.selectedDate, "long"))}.</small>
+</div>
+<p>${activeCount ? `${activeCount} active for this date` : "None active for this date"}</p>
+</header>
+${
+activeCount
+? `
+<div class="medical-roster-list medical-temporary-roster-list">
+<div class="medical-roster-list-head" aria-hidden="true">
+<span>Player</span>
+<span>Quick Recommendation</span>
+<span>Select</span>
+</div>
+${players.map(renderMedicalRosterRow).join("")}
+</div>
+`
+: `<div class="medical-empty-inline medical-temporary-empty">No temporary players are marked as training with the team on this date.</div>`
+}
+</section>
+`;
+}
 function renderMedicalRosterSetup() {
 const canEdit = canEditMedicalTeam();
 return `
@@ -30742,7 +30777,9 @@ return `
 }
 function renderMedicalRosterPanel() {
 const players = getFilteredMedicalPlayers();
-const positionGroups = getMedicalRosterPositionGroups(players);
+const squadPlayers = players.filter((player) => !isTemporaryPlayerProfile(player));
+const temporaryPlayers = players.filter(isTemporaryPlayerProfile);
+const positionGroups = getMedicalRosterPositionGroups(squadPlayers);
 const activityContext = getMedicalRecommendationActivityContext(medicalState.selectedDate);
 return `
 <section class="medical-roster-panel">
@@ -30774,11 +30811,12 @@ ${medicalStatusOptions
 ${renderMedicalBulkUpdatePanel(players)}
 <div class="medical-position-overview">
 ${
-players.length
+squadPlayers.length
 ? positionGroups.map(renderMedicalPositionGroup).join("")
-: `<div class="medical-empty-inline">No players match the current filter.</div>`
+: `<div class="medical-empty-inline">${temporaryPlayers.length ? "No squad players match the current filter." : "No players match the current filter."}</div>`
 }
 </div>
+${renderMedicalTemporaryPlayerSection(temporaryPlayers)}
 </section>
 `;
 }

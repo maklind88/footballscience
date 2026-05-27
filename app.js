@@ -893,7 +893,11 @@ scoutingState = readScoutingState();
 if (hubState?.activeWorkspaceId === "transfer-room" && !shouldDeferCentralizedAppStateReload()) {
 syncTransferRoomLinkedState({ render: true });
 }
-if (hubState?.activeWorkspaceId === "scouting" && !shouldDeferCentralizedAppStateReload()) {
+if (hubState?.activeWorkspaceId === "scouting" && shouldDeferCentralizedAppStateReload()) {
+centralizedAppStateReloadPending = true;
+return;
+}
+if (hubState?.activeWorkspaceId === "scouting") {
 renderScoutingWorkspace();
 }
 return;
@@ -8507,21 +8511,84 @@ return dashboardChatApiUiActions.setThreadSettingsWithApi(threadId, patch);
 function readDashboardChatWidgetNotificationCursor() {
 const parsed = readDashboardJson(dashboardChatWidgetNotificationCursorStorageKey, {});
 if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-return { lastMessageId: "", seenAt: 0, userId: "", threadId: dashboardChatTeamThreadId };
+return { lastMessageId: "", seenAt: 0, userId: "", threadId: dashboardChatTeamThreadId, threads: {} };
 }
-return {
+const fallbackThreadId = normalizeDashboardChatThreadId(parsed.threadId, dashboardChatTeamThreadId);
+const legacyCursor = {
 lastMessageId: String(parsed.lastMessageId || "").trim(),
 seenAt: Number.isFinite(Number(parsed.seenAt)) ? Number(parsed.seenAt) : 0,
 userId: String(parsed.userId || "").trim(),
-threadId: normalizeDashboardChatThreadId(parsed.threadId, dashboardChatTeamThreadId),
+threadId: fallbackThreadId,
 };
+const rawThreads = parsed.threads && typeof parsed.threads === "object" && !Array.isArray(parsed.threads) ? parsed.threads : {};
+const threads = Object.fromEntries(
+Object.entries(rawThreads)
+.map(([threadId, cursor]) => {
+const normalizedThreadId = normalizeDashboardChatThreadId(threadId, "");
+if (!normalizedThreadId || !cursor || typeof cursor !== "object" || Array.isArray(cursor)) {
+return null;
+}
+return [
+normalizedThreadId,
+{
+lastMessageId: String(cursor.lastMessageId || "").trim(),
+seenAt: Number.isFinite(Number(cursor.seenAt)) ? Number(cursor.seenAt) : 0,
+userId: String(cursor.userId || "").trim(),
+threadId: normalizedThreadId,
+},
+];
+})
+.filter(Boolean)
+);
+if (legacyCursor.lastMessageId && !threads[legacyCursor.threadId]) {
+threads[legacyCursor.threadId] = legacyCursor;
+}
+return { ...legacyCursor, threads };
 }
 function writeDashboardChatWidgetNotificationCursor(nextCursor) {
-writeDashboardJson(dashboardChatWidgetNotificationCursorStorageKey, {
+const parsed = readDashboardJson(dashboardChatWidgetNotificationCursorStorageKey, {});
+const previousThreads = parsed?.threads && typeof parsed.threads === "object" && !Array.isArray(parsed.threads) ? parsed.threads : {};
+const threadId = normalizeDashboardChatThreadId(nextCursor?.threadId, dashboardChatTeamThreadId);
+const cursor = {
 lastMessageId: String(nextCursor?.lastMessageId || "").trim(),
 seenAt: Number(nextCursor?.seenAt || 0) || 0,
 userId: String(nextCursor?.userId || "").trim(),
-threadId: normalizeDashboardChatThreadId(nextCursor?.threadId, dashboardChatTeamThreadId),
+threadId,
+};
+const threads = {
+...previousThreads,
+[threadId]: cursor,
+};
+const trimmedThreads = Object.fromEntries(
+Object.entries(threads)
+.sort(([, first], [, second]) => (Number(second?.seenAt || 0) || 0) - (Number(first?.seenAt || 0) || 0))
+.slice(0, 100)
+);
+writeDashboardJson(dashboardChatWidgetNotificationCursorStorageKey, {
+...cursor,
+threads: trimmedThreads,
+});
+}
+function getDashboardChatLatestNotificationMessageForThread(threadId, messages = readDashboardMessages()) {
+const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+const apiThread = dashboardChatApiThreads.find((thread) => thread.threadId === normalizedThreadId) || null;
+const apiLastMessage = apiThread?.lastMessage ? normalizeDashboardApiMessage(apiThread.lastMessage, apiThread) : null;
+return (
+[...messages].reverse().find((message) => message.threadId === normalizedThreadId) ||
+apiLastMessage ||
+(apiThread?.lastMessageId ? { id: apiThread.lastMessageId, userId: "", threadId: normalizedThreadId } : null)
+);
+}
+function markDashboardChatWidgetNotificationSeenForThread(threadId, messages = readDashboardMessages()) {
+const latestMessage = getDashboardChatLatestNotificationMessageForThread(threadId, messages);
+if (!latestMessage?.id) {
+return;
+}
+writeDashboardChatWidgetNotificationCursor({
+lastMessageId: latestMessage.id,
+seenAt: Date.now(),
+userId: latestMessage.userId,
+threadId: latestMessage.threadId,
 });
 }
 function isDashboardDocumentActivelyViewed() {
@@ -10664,11 +10731,12 @@ const activeThreadLastMessage =
 activeThreadApiLastMessage ||
 (activeThreadApi?.lastMessageId ? { id: activeThreadApi.lastMessageId, userId: "", threadId: normalizedActiveThreadId } : null);
 const currentCursor = readDashboardChatWidgetNotificationCursor();
+const activeThreadCursor = currentCursor.threads?.[activeThreadLastMessage?.threadId] || {};
 if (activeThreadLastMessage && isDashboardChatThreadActivelyViewed(activeThreadLastMessage.threadId)) {
 if (
-currentCursor.threadId !== activeThreadLastMessage.threadId ||
-currentCursor.lastMessageId !== activeThreadLastMessage.id ||
-currentCursor.userId !== activeThreadLastMessage.userId
+activeThreadCursor.threadId !== activeThreadLastMessage.threadId ||
+activeThreadCursor.lastMessageId !== activeThreadLastMessage.id ||
+activeThreadCursor.userId !== activeThreadLastMessage.userId
 ) {
 writeDashboardChatWidgetNotificationCursor({
 lastMessageId: activeThreadLastMessage.id,
@@ -10692,7 +10760,7 @@ const latestVisibleMessage = [latestMessage, latestApiThreadMessage]
 if (!latestVisibleMessage) {
 return;
 }
-const cursor = currentCursor;
+const cursor = currentCursor.threads?.[latestVisibleMessage.threadId] || currentCursor;
 if (cursor.lastMessageId === latestVisibleMessage.id && cursor.userId === latestVisibleMessage.userId && cursor.threadId === latestVisibleMessage.threadId) {
 return;
 }
@@ -33429,6 +33497,16 @@ function shouldDeferCentralizedAppStateReload() {
 const activeElement = document.activeElement;
 if (isEditableKeyboardTarget(activeElement)) {
 return true;
+}
+if (hubState?.activeWorkspaceId === "scouting") {
+const scoutingRoot = ui.scoutingWorkspace;
+if (
+scoutingRoot?.querySelector(
+".scouting-profile-backdrop,[data-scouting-role-model-overlay],[data-scouting-report-builder-overlay],[data-scouting-saved-views-overlay],[data-scouting-settings-overlay],details[open],[data-scouting-active-content] .is-dragging"
+)
+) {
+return true;
+}
 }
 return Boolean(
 sessionPlannerLibraryOpen ||
@@ -73562,6 +73640,7 @@ isOpen: true,
 selectedThreadId: threadId,
 });
 dashboardChatMobileConversationOpen = true;
+markDashboardChatWidgetNotificationSeenForThread(threadId);
 hideDashboardChatWidgetToast();
 renderDashboardChatWidget();
 focusDashboardChatWidgetComposer();
@@ -73784,6 +73863,7 @@ writeDashboardChatWidgetState({
 isOpen: true,
 selectedThreadId: threadId,
 });
+markDashboardChatWidgetNotificationSeenForThread(threadId);
 hideDashboardChatWidgetToast();
 renderDashboardChatWidget();
 queueDashboardChatCurrentViewRefresh({ delayMs: 0 });
@@ -77408,6 +77488,10 @@ return;
 }
 if (event.key === scoutingStorageKey && hubState?.activeWorkspaceId === "scouting") {
 scoutingState = preserveScoutingTransientUiState(readScoutingState(), scoutingState);
+if (shouldDeferCentralizedAppStateReload()) {
+centralizedAppStateReloadPending = true;
+return;
+}
 renderScoutingWorkspace();
 return;
 }

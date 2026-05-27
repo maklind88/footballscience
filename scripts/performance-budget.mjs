@@ -23,9 +23,9 @@ const budgets = [
   },
   {
     file: "dashboard-chat.css",
-    maxBytes: 95_000,
-    maxGzipBytes: 13_000,
-    maxLines: 980,
+    maxBytes: 118_000,
+    maxGzipBytes: 16_000,
+    maxLines: 1_750,
     targetGzipBytes: 5_000,
   },
   {

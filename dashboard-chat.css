@@ -1641,3 +1641,71 @@ body.is-dashboard-chat-open .dashboard-chat-widget.is-open{
     min-width:4.35rem!important;
   }
 }
+
+/* Chat plus button alignment fix. */
+.dashboard-chat-inbox-head .dashboard-chat-thread-presets summary{
+  position:relative!important;
+  display:grid!important;
+  place-items:center!important;
+  overflow:visible!important;
+  color:transparent!important;
+  font-size:0!important;
+  line-height:1!important;
+  text-indent:0!important;
+}
+
+.dashboard-chat-inbox-head .dashboard-chat-thread-presets summary::before{
+  content:"+"!important;
+  position:absolute!important;
+  inset:0!important;
+  display:grid!important;
+  place-items:center!important;
+  color:#fff!important;
+  font-size:1.18rem!important;
+  font-weight:950!important;
+  line-height:1!important;
+  transform:translateY(-.02rem)!important;
+}
+
+.dashboard-chat-inbox-head .dashboard-chat-thread-presets[open] summary::before{
+  content:"-"!important;
+}
+
+/* Chat thread list overflow guard. */
+.dashboard-chat-widget.is-open .dashboard-chat-thread-scroll,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-item,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-copy,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-copy *,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-meta,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-row{
+  min-width:0!important;
+}
+
+.dashboard-chat-widget.is-open .dashboard-chat-thread-item{
+  overflow:hidden!important;
+}
+
+.dashboard-chat-widget.is-open .dashboard-chat-thread-copy{
+  display:grid!important;
+  gap:.12rem!important;
+  overflow:hidden!important;
+}
+
+.dashboard-chat-widget.is-open .dashboard-chat-thread-copy strong,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-copy small,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-meta,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-meta span,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-row,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-row span{
+  display:block!important;
+  max-width:100%!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+
+.dashboard-chat-widget.is-open .dashboard-chat-thread-meta{
+  justify-self:end!important;
+  max-width:4.9rem!important;
+  text-align:right!important;
+}

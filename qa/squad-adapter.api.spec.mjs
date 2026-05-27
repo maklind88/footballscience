@@ -91,6 +91,18 @@ test("Squad selectors support filtering, counts, and cursor-friendly pages", () 
           temporaryTo: "2026-05-12",
           rosterOrder: 0,
         },
+        {
+          id: "inactive-guest",
+          name: "Inactive Training Guest",
+          position: "Forward",
+          primaryRole: "ST",
+          status: "unavailable",
+          rosterType: "inactive",
+          temporaryGroup: "Academy Training Group",
+          temporaryFrom: "2026-05-01",
+          temporaryTo: "2026-05-02",
+          rosterOrder: 1,
+        },
       ],
     },
     { now, idFactory }
@@ -101,8 +113,8 @@ test("Squad selectors support filtering, counts, and cursor-friendly pages", () 
   ]);
   expect(createSquadCounts(state.players)).toMatchObject({
     players: 3,
-    temporaryPlayers: 1,
-    totalPlayers: 4,
+    temporaryPlayers: 2,
+    totalPlayers: 5,
     available: 3,
     activeIdps: 1,
     roleBalance: {
@@ -112,7 +124,15 @@ test("Squad selectors support filtering, counts, and cursor-friendly pages", () 
       forward: 0,
     },
   });
-  expect(filterSquadPlayers(state.players, { rosterType: "temporary" }).map((player) => player.id)).toEqual(["academy-1"]);
+  expect(state.players.find((player) => player.id === "inactive-guest")).toMatchObject({
+    rosterType: "guest",
+    countsInSquad: false,
+    temporaryGroup: "Academy Training Group",
+  });
+  expect(filterSquadPlayers(state.players, { rosterType: "temporary" }).map((player) => player.id)).toEqual([
+    "academy-1",
+    "inactive-guest",
+  ]);
   expect(filterSquadPlayers(state.players, { rosterType: "temporary", activeOnDate: "2026-05-07" }).map((player) => player.id)).toEqual([]);
   expect(filterSquadPlayers(state.players, { rosterType: "temporary", activeOnDate: "2026-05-10" }).map((player) => player.id)).toEqual(["academy-1"]);
   expect(filterSquadPlayers(state.players, { rosterType: "temporary", activeOnDate: "2026-05-13" }).map((player) => player.id)).toEqual([]);

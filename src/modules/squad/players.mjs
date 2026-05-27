@@ -17,7 +17,7 @@ export const squadAvailabilityKeys = Object.freeze([
   "unknown",
 ]);
 export const squadIdpStatusKeys = Object.freeze(["active", "review", "monitor", "none"]);
-export const squadRosterTypeKeys = Object.freeze(["squad", "academy", "trial", "guest"]);
+export const squadRosterTypeKeys = Object.freeze(["squad", "academy", "trial", "trialist", "guest", "loan"]);
 
 const defaultPageLimit = 50;
 const maxPageLimit = 200;
@@ -27,6 +27,29 @@ const squadRoleGroupSortOrder = Object.freeze({
   defender: 1,
   midfielder: 2,
   forward: 3,
+});
+const squadRosterTypeAliases = Object.freeze({
+  trial: "trial",
+  "trial-player": "trial",
+  trialist: "trial",
+  academy: "academy",
+  "academy-player": "academy",
+  "academy-training": "academy",
+  callup: "academy",
+  "call-up": "academy",
+  temporary: "guest",
+  temp: "guest",
+  "training-guest": "guest",
+  trainingguest: "guest",
+  guest: "guest",
+  "guest-player": "guest",
+  inactive: "guest",
+  "inactive-guest": "guest",
+  external: "loan",
+  "external-player": "loan",
+  loan: "loan",
+  "loan-external": "loan",
+  "loan-watch": "loan",
 });
 
 function normalizeText(value) {
@@ -62,6 +85,21 @@ function normalizeArray(value = []) {
 function normalizeStatus(value, allowedValues, fallback) {
   const status = normalizeKey(value || fallback);
   return allowedValues.includes(status) ? status : fallback;
+}
+
+function normalizeRosterTypeKey(value) {
+  const cleanValue = normalizeKey(value);
+  if (!cleanValue) {
+    return "";
+  }
+  const dashedValue = cleanValue.replace(/[_\s/]+/g, "-").replace(/-+/g, "-");
+  const compactValue = cleanValue.replace(/[\s/_-]+/g, "");
+  return squadRosterTypeAliases[cleanValue] || squadRosterTypeAliases[dashedValue] || squadRosterTypeAliases[compactValue] || cleanValue;
+}
+
+function normalizeSquadRosterType(value, fallback = "squad") {
+  const rosterType = normalizeRosterTypeKey(value || fallback);
+  return squadRosterTypeKeys.includes(rosterType) ? rosterType : fallback;
 }
 
 function normalizeBoolean(value, fallback = false) {
@@ -199,7 +237,7 @@ export function normalizeSquadPlayer(player = {}, options = {}) {
   const secondaryRoles = normalizeSquadRoleList(player.secondaryRoles || player.secondary_roles).filter((role) => role !== primaryRole);
   const createdAt = normalizeText(player.createdAt || player.created_at) || normalizeText(options.now) || defaultNow();
   const updatedAt = normalizeText(player.updatedAt || player.updated_at) || createdAt;
-  const rosterType = normalizeStatus(player.rosterType || player.roster_type || player.playerType || player.player_type, squadRosterTypeKeys, "squad");
+  const rosterType = normalizeSquadRosterType(player.rosterType || player.roster_type || player.playerType || player.player_type, "squad");
   const countsInSquad = normalizeBoolean(player.countsInSquad ?? player.counts_in_squad, rosterType === "squad");
 
   return Object.freeze({
@@ -314,7 +352,10 @@ export function filterSquadPlayers(players = [], filters = {}) {
   const roleGroup = normalizeKey(filters.roleGroup || "all");
   const status = normalizeKey(filters.status || "all");
   const squadStatus = normalizeKey(filters.squadStatus || "all");
-  const rosterType = normalizeKey(filters.rosterType || "all");
+  const rosterTypeValue = normalizeKey(filters.rosterType || "all");
+  const rosterType = ["all", "temporary"].includes(rosterTypeValue)
+    ? rosterTypeValue
+    : normalizeSquadRosterType(rosterTypeValue, rosterTypeValue);
   const activeOnDate = normalizeSquadDateValue(filters.activeOnDate || filters.date);
 
   return Object.freeze(

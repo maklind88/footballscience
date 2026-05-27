@@ -2179,6 +2179,53 @@ test("Academy Squad add is available for session planning without Medical cleara
   ).toBeVisible();
 });
 
+test("Squad training guests keeps inactive temporary players visible", async ({ page }) => {
+  const playerName = `QA Inactive Guest ${Date.now()}`;
+  await page.addInitScript(
+    ({ storageKey, player }) => {
+      window.localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          selectedPlayerId: player.id,
+          players: [player],
+          updatedAt: "2026-05-27T12:00:00.000Z",
+        })
+      );
+    },
+    {
+      storageKey: playerProfilesKey,
+      player: {
+        id: "qa-inactive-training-guest",
+        name: playerName,
+        number: "91",
+        position: "Forward",
+        primaryRole: "ST",
+        roleGroup: "forward",
+        status: "unavailable",
+        rosterType: "inactive",
+        temporaryGroup: "Academy Training Group",
+        temporaryFrom: "2026-05-01",
+        temporaryTo: "2026-05-02",
+        idp: { status: "none" },
+      },
+    }
+  );
+
+  await bootApp(page);
+  await openWorkspace(page, "player-profiles");
+
+  const squadSection = page.locator('[data-squad-roster-section="squad"]');
+  const guestSection = page.locator('[data-squad-roster-section="temporary"]');
+  await expect(squadSection).toBeVisible();
+  await expect(guestSection).toBeVisible();
+  const guestRow = guestSection.locator(".squad-player-row", { hasText: playerName });
+  await expect(guestRow).toBeVisible();
+  await expect(guestRow.locator(".squad-planning-cell")).toContainText("Guest");
+  await expect(guestRow).toContainText("Academy Training Group");
+  await expect(guestRow).toContainText("Unavailable");
+  await expect(squadSection.locator(".squad-player-row", { hasText: playerName })).toHaveCount(0);
+});
+
 test("Squad profile modal autosaves edits and keeps its size across tabs", async ({ page }) => {
   const coachNote = `QA autosave note ${Date.now()}`;
   await bootApp(page);

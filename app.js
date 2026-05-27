@@ -2660,6 +2660,29 @@ const playerProfileRosterTypeOptions = [
 { key: "guest", label: "Guest player", shortLabel: "Guest", countsInSquad: false },
 { key: "loan", label: "Loan / external", shortLabel: "Loan", countsInSquad: false },
 ];
+const playerProfileRosterTypeAliases = Object.freeze({
+trial: "trialist",
+"trial-player": "trialist",
+"trialist": "trialist",
+academy: "academy",
+"academy-player": "academy",
+"academy-training": "academy",
+callup: "academy",
+"call-up": "academy",
+temporary: "guest",
+temp: "guest",
+"training-guest": "guest",
+trainingguest: "guest",
+guest: "guest",
+"guest-player": "guest",
+inactive: "guest",
+"inactive-guest": "guest",
+external: "loan",
+"external-player": "loan",
+loan: "loan",
+"loan-external": "loan",
+"loan-watch": "loan",
+});
 const playerProfileRosterFilterOptions = [
 { key: "all", label: "All roster" },
 ...playerProfileRosterTypeOptions,
@@ -24531,9 +24554,23 @@ return options.find((option) => option.key === key) ?? fallback ?? options[0];
 function getPlayerProfileRosterTypeOption(value) {
 return getPlayerProfileOption(playerProfileRosterTypeOptions, normalizePlayerProfileRosterType(value), playerProfileRosterTypeOptions[0]);
 }
-function normalizePlayerProfileRosterType(value, fallback = "squad") {
+function normalizePlayerProfileRosterTypeKey(value) {
 const cleanValue = String(value ?? "").trim().toLowerCase();
-return playerProfileRosterTypeOptions.some((option) => option.key === cleanValue) ? cleanValue : fallback;
+if (!cleanValue) {
+return "";
+}
+const dashedValue = cleanValue.replace(/[_\s/]+/g, "-").replace(/-+/g, "-");
+const compactValue = cleanValue.replace(/[\s/_-]+/g, "");
+return (
+playerProfileRosterTypeAliases[cleanValue] ||
+playerProfileRosterTypeAliases[dashedValue] ||
+playerProfileRosterTypeAliases[compactValue] ||
+cleanValue
+);
+}
+function normalizePlayerProfileRosterType(value, fallback = "squad") {
+const rosterType = normalizePlayerProfileRosterTypeKey(value);
+return playerProfileRosterTypeOptions.some((option) => option.key === rosterType) ? rosterType : fallback;
 }
 function playerProfileRosterTypeCountsInSquad(value) {
 return getPlayerProfileRosterTypeOption(value).countsInSquad !== false;

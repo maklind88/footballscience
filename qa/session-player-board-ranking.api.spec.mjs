@@ -47,3 +47,15 @@ test("Session Planner Player Board can copy team setup from another block", () =
   expect(styleSource).toContain(".session-player-board-boardbar-actions");
   expect(styleSource).toContain(".session-player-board-tool-button.is-copy");
 });
+
+test("Session Planner Player Board spaces compact print and preview tokens for readability", () => {
+  const appSource = readProjectFile("app.js");
+
+  expect(appSource).toContain("function getSessionPlannerPlayerBoardReadableSpacing");
+  expect(appSource).toContain("function getSessionPlannerReadablePlayerBoardPositions");
+  expect(appSource).toContain('getSessionPlannerPlayerBoardReadableSpacing(boardPlayers.length, "preview")');
+  expect(appSource).toContain('getSessionPlannerPlayerBoardReadableSpacing(boardPlayers.length, "print")');
+  expect(appSource).toContain("previewPositions.get(item.player.id)");
+  expect(appSource).toContain("printPositions.get(item.player.id)");
+  expect(appSource).toContain("overlapX <= 0 || overlapY <= 0");
+});

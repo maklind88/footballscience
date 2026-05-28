@@ -20680,6 +20680,78 @@ const index = boardPlayers.findIndex((item) => item.player.id === playerId);
 const item = boardPlayers[index] ?? { player: { id: playerId, position: "" } };
 return getSessionPlannerPlayerBoardPosition(block, item, Math.max(index, 0), boardPlayers);
 }
+function getSessionPlannerPlayerBoardReadableSpacing(playerCount, mode = "preview") {
+const count = Math.max(0, Number(playerCount) || 0);
+const compact = count > 28;
+const dense = count > 20;
+if (mode === "print") {
+return {
+minX: compact ? 6.4 : dense ? 7.2 : 8,
+minY: compact ? 5.7 : dense ? 6.35 : 7,
+};
+}
+return {
+minX: compact ? 7 : dense ? 7.8 : 8.8,
+minY: compact ? 6.05 : dense ? 6.7 : 7.4,
+};
+}
+function getSessionPlannerReadablePlayerBoardPositions(block, boardPlayers = [], options = {}) {
+const items = Array.isArray(boardPlayers) ? boardPlayers : [];
+const minX = Number.isFinite(Number(options.minX)) ? Number(options.minX) : 8;
+const minY = Number.isFinite(Number(options.minY)) ? Number(options.minY) : 6.5;
+const minBoundsX = Number.isFinite(Number(options.minBoundsX)) ? Number(options.minBoundsX) : 5;
+const maxBoundsX = Number.isFinite(Number(options.maxBoundsX)) ? Number(options.maxBoundsX) : 95;
+const minBoundsY = Number.isFinite(Number(options.minBoundsY)) ? Number(options.minBoundsY) : 8;
+const maxBoundsY = Number.isFinite(Number(options.maxBoundsY)) ? Number(options.maxBoundsY) : 92;
+const entries = items
+.map((item, index) => {
+const playerId = item?.player?.id;
+if (!playerId) {
+return null;
+}
+const position = getSessionPlannerPlayerBoardPosition(block, item, index, items);
+return {
+id: playerId,
+index,
+x: clamp(Number(position.x) || 50, minBoundsX, maxBoundsX),
+y: clamp(Number(position.y) || 50, minBoundsY, maxBoundsY),
+};
+})
+.filter(Boolean);
+for (let iteration = 0; iteration < 72; iteration += 1) {
+let moved = false;
+for (let firstIndex = 0; firstIndex < entries.length; firstIndex += 1) {
+for (let secondIndex = firstIndex + 1; secondIndex < entries.length; secondIndex += 1) {
+const first = entries[firstIndex];
+const second = entries[secondIndex];
+const dx = second.x - first.x;
+const dy = second.y - first.y;
+const overlapX = minX - Math.abs(dx);
+const overlapY = minY - Math.abs(dy);
+if (overlapX <= 0 || overlapY <= 0) {
+continue;
+}
+const separateOnX = Math.abs(dx) > 0.01 && (overlapX < overlapY || Math.abs(dy) <= 0.01);
+if (separateOnX) {
+const direction = Math.sign(dx) || (first.index < second.index ? 1 : -1);
+const correction = (overlapX + 0.12) / 2;
+first.x = clamp(first.x - direction * correction, minBoundsX, maxBoundsX);
+second.x = clamp(second.x + direction * correction, minBoundsX, maxBoundsX);
+} else {
+const direction = Math.sign(dy) || (first.index < second.index ? 1 : -1);
+const correction = (overlapY + 0.12) / 2;
+first.y = clamp(first.y - direction * correction, minBoundsY, maxBoundsY);
+second.y = clamp(second.y + direction * correction, minBoundsY, maxBoundsY);
+}
+moved = true;
+}
+}
+if (!moved) {
+break;
+}
+}
+return new Map(entries.map((entry) => [entry.id, { x: entry.x, y: entry.y }]));
+}
 function getSessionPlannerPlayerBoardTone(participation) {
 if (participation <= 10) {
 return "low";
@@ -21097,6 +21169,11 @@ const { boardPlayers, rule, temporaryBoardCount, belowLimitCount, hiddenZeroCoun
 const labelMap = getSessionPlannerPlayerBoardInitialLabelMap(boardPlayers);
 const previewDensityClass =
 boardPlayers.length > 28 ? " is-ultra-dense" : boardPlayers.length > 18 ? " is-dense" : "";
+const previewPositions = getSessionPlannerReadablePlayerBoardPositions(
+block,
+boardPlayers,
+getSessionPlannerPlayerBoardReadableSpacing(boardPlayers.length, "preview")
+);
 return `
     <section class="session-tool-panel session-player-board-panel">
       <div class="session-tool-panel-head">
@@ -21120,7 +21197,9 @@ return `
             boardPlayers.length
               ? boardPlayers
                   .map((item, index) => {
-                    const position = getSessionPlannerPlayerBoardPosition(block, item, index, boardPlayers);
+                    const position =
+                      previewPositions.get(item.player.id) ??
+                      getSessionPlannerPlayerBoardPosition(block, item, index, boardPlayers);
                     const tone = getSessionPlannerPlayerBoardTone(item.participation);
                     const customColor = getSessionPlannerPlayerBoardCustomColor(block, item.player.id);
                     const colorStyle = getSessionPlannerPlayerBoardColorStyle(customColor);
@@ -21697,6 +21776,11 @@ return colors[getSessionPlannerPlayerBoardTone(item.participation)] ?? colors.fu
 function renderSessionPlannerPrintPlayerBoardMini(block) {
 const { boardPlayers, rule } = getSessionPlannerPlayerBoardSummary(block);
 const labelMap = getSessionPlannerPlayerBoardInitialLabelMap(boardPlayers);
+const printPositions = getSessionPlannerReadablePlayerBoardPositions(
+block,
+boardPlayers,
+getSessionPlannerPlayerBoardReadableSpacing(boardPlayers.length, "print")
+);
 return `
     <div class="session-print-player-board-mini" aria-label="Player board snapshot">
       <span class="session-print-board-line session-print-board-line-half"></span>
@@ -21706,7 +21790,9 @@ return `
         boardPlayers.length
           ? boardPlayers
               .map((item, index) => {
-                const position = getSessionPlannerPlayerBoardPosition(block, item, index, boardPlayers);
+                const position =
+                  printPositions.get(item.player.id) ??
+                  getSessionPlannerPlayerBoardPosition(block, item, index, boardPlayers);
                 const color = getSessionPlannerPrintPlayerColor(item, block);
                 return `
 <span

@@ -24835,6 +24835,44 @@ return String(value)
 .replace(/\s+/g, " ")
 .toLowerCase();
 }
+function getPlayerProfileSyncIdentityKeys(player = {}) {
+const keys = [];
+const playerId = String(player.id || player.playerId || player.profileId || "").trim();
+if (playerId) {
+keys.push(`id:${playerId}`);
+}
+const name = normalizePlayerProfileName(player.name || player.displayName || "");
+if (name) {
+const number = String(player.number || player.shirtNumber || player.shirt_number || "").trim().toLowerCase();
+keys.push(`name:${name}|${number}`);
+}
+return keys;
+}
+function getTemporaryRosterTypeFromPlayerSource(player = {}) {
+const rosterType = normalizePlayerProfileRosterType(player.rosterType || player.playerType || player.squadType, "");
+if (rosterType && !playerProfileRosterTypeCountsInSquad(rosterType)) {
+return rosterType;
+}
+const searchText = [
+player.rosterType,
+player.playerType,
+player.squadType,
+player.temporaryGroup,
+player.subGroup,
+player.trainingGroup,
+player.status,
+].join(" ").toLowerCase();
+if (searchText.includes("academy")) {
+return "academy";
+}
+if (searchText.includes("trial")) {
+return "trialist";
+}
+if (searchText.includes("loan") || searchText.includes("external")) {
+return "loan";
+}
+return "guest";
+}
 function getPlayerProfileDuplicateCandidates(candidate = {}, players = [], options = {}) {
 const ignorePlayerId = String(options.ignorePlayerId || "");
 const normalizedName = normalizePlayerProfileName(candidate?.name || "");
@@ -25419,6 +25457,57 @@ changeLog: normalizePlayerProfileChangeLog(source.changeLog || source.history ||
 schemaVersion: playerProfilesSchemaVersion,
 updatedAt: source.updatedAt || new Date().toISOString(),
 };
+}
+function buildPlayerProfileFromMedicalTrainingGuest(medicalPlayer = {}) {
+const rosterType = getTemporaryRosterTypeFromPlayerSource(medicalPlayer);
+return normalizePlayerProfile({
+...medicalPlayer,
+rosterType,
+countsInSquad: false,
+temporaryGroup: medicalPlayer.temporaryGroup || medicalPlayer.subGroup || medicalPlayer.trainingGroup || getPlayerProfileRosterTypeOption(rosterType).shortLabel,
+temporaryFrom: medicalPlayer.temporaryFrom || medicalPlayer.startDate,
+temporaryTo: medicalPlayer.temporaryTo || medicalPlayer.endDate,
+});
+}
+function syncPlayerProfilesFromMedicalTrainingGuests(options = {}) {
+if (!playerProfilesState) {
+return false;
+}
+ensureMedicalState();
+const medicalPlayers = Array.isArray(medicalState?.players) ? medicalState.players : [];
+const removedPlayerIdSet = new Set(normalizePlayerProfileRemovedIds(playerProfilesState.removedPlayerIds));
+const existingIdentityKeys = new Set();
+(Array.isArray(playerProfilesState.players) ? playerProfilesState.players : []).forEach((player) => {
+getPlayerProfileSyncIdentityKeys(player).forEach((key) => existingIdentityKeys.add(key));
+});
+const importedProfiles = [];
+medicalPlayers
+.filter((player) => player && !isMedicalItemArchived(player))
+.filter(isTemporaryPlayerProfile)
+.forEach((medicalPlayer) => {
+const identityKeys = getPlayerProfileSyncIdentityKeys(medicalPlayer);
+const playerId = String(medicalPlayer.id || "").trim();
+if ((playerId && removedPlayerIdSet.has(playerId)) || identityKeys.some((key) => existingIdentityKeys.has(key))) {
+return;
+}
+const profile = buildPlayerProfileFromMedicalTrainingGuest(medicalPlayer);
+if (!profile || playerProfileCountsInSquad(profile)) {
+return;
+}
+importedProfiles.push(profile);
+getPlayerProfileSyncIdentityKeys(profile).forEach((key) => existingIdentityKeys.add(key));
+});
+if (!importedProfiles.length) {
+return false;
+}
+playerProfilesState.players = [...playerProfilesState.players, ...importedProfiles].sort(comparePlayerProfiles);
+if (!playerProfilesState.selectedPlayerId && playerProfilesState.players[0]) {
+playerProfilesState.selectedPlayerId = playerProfilesState.players[0].id;
+}
+if (options.persist !== false) {
+writePlayerProfilesState();
+}
+return true;
 }
 function readPlayerProfilesState() {
 try {
@@ -28078,6 +28167,7 @@ return;
 }
 ensurePlayerProfilesState();
 ensureMedicalState();
+syncPlayerProfilesFromMedicalTrainingGuests();
 const visiblePlayers = getVisiblePlayerProfiles();
 const selectedPlayer = getSelectedPlayerProfile();
 const rosterSummary = getPlayerProfilesRosterSummary(playerProfilesState.players);

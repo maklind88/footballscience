@@ -2226,6 +2226,78 @@ test("Squad training guests keeps inactive temporary players visible", async ({ 
   await expect(squadSection.locator(".squad-player-row", { hasText: playerName })).toHaveCount(0);
 });
 
+test("Squad Room shows legacy Medical training guests outside their active dates", async ({ page }) => {
+  const playerName = `QA Legacy Medical Guest ${Date.now()}`;
+  await page.addInitScript(
+    ({ medicalStorageKey, profileStorageKey, player }) => {
+      window.localStorage.setItem(
+        medicalStorageKey,
+        JSON.stringify({
+          rosterVersion: "qa-medical-training-guests",
+          selectedDate: "2026-05-27",
+          selectedPlayerId: player.id,
+          players: [player],
+          records: [],
+          injuryPlans: [],
+        })
+      );
+      window.localStorage.setItem(
+        profileStorageKey,
+        JSON.stringify({
+          rosterVersion: "qa-empty-player-profiles",
+          schemaVersion: 3,
+          selectedPlayerId: "",
+          players: [],
+          removedPlayerIds: [],
+          updatedAt: "2026-05-27T12:00:00.000Z",
+        })
+      );
+    },
+    {
+      medicalStorageKey: medicalKey,
+      profileStorageKey: playerProfilesKey,
+      player: {
+        id: "qa-legacy-medical-guest",
+        name: playerName,
+        number: "92",
+        position: "Forward",
+        primaryRole: "ST",
+        roleGroup: "forward",
+        rosterType: "guest",
+        countsInSquad: false,
+        temporaryGroup: "Academy Training Group",
+        temporaryFrom: "2026-05-01",
+        temporaryTo: "2026-05-02",
+      },
+    }
+  );
+
+  await bootApp(page);
+  await openWorkspace(page, "player-profiles");
+
+  const guestSection = page.locator('[data-squad-roster-section="temporary"]');
+  await expect(guestSection).toBeVisible();
+  const guestRow = guestSection.locator(".squad-player-row", { hasText: playerName });
+  await expect(guestRow).toBeVisible();
+  await expect(guestRow).toContainText("Academy Training Group");
+  await expect(guestRow).toContainText("2026-05-01 to 2026-05-02");
+  await page.locator("[data-player-profile-roster-filter]").selectOption("squad");
+  await expect(guestRow).toBeVisible();
+
+  const guestToggle = guestSection.locator("[data-squad-temporary-toggle]");
+  await expect(guestToggle).toHaveAttribute("aria-expanded", "true");
+  await guestToggle.click();
+  await expect(guestSection.locator(".squad-player-row", { hasText: playerName })).toHaveCount(0);
+  await guestToggle.click();
+  await expect(guestRow).toBeVisible();
+
+  await guestRow.click();
+  const modal = page.locator(".squad-profile-modal:has(#playerProfileEditForm)").first();
+  await expect(modal).toBeVisible();
+  await expect(modal.locator('input[name="temporaryFrom"]')).toHaveValue("2026-05-01");
+  await expect(modal.locator('input[name="temporaryTo"]')).toHaveValue("2026-05-02");
+});
+
 test("Squad profile modal autosaves edits and keeps its size across tabs", async ({ page }) => {
   const coachNote = `QA autosave note ${Date.now()}`;
   await bootApp(page);

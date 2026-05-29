@@ -106,6 +106,7 @@
 .gameplan-observation-card button,
 .gameplan-evidence-quick-row button,
 .gameplan-evidence-source-row button,
+.gameplan-mini-editor-row button,
 .gameplan-check-item button {
   min-height: 2.35rem;
   border: 0;
@@ -388,6 +389,8 @@
 .gameplan-command-trigger select,
 .gameplan-evidence-quick-row input,
 .gameplan-evidence-quick-row select,
+.gameplan-mini-editor-row input,
+.gameplan-mini-editor-row select,
 .gameplan-delivery-row input,
 .gameplan-check-item input,
 .gameplan-check-item select,
@@ -424,6 +427,8 @@
 .gameplan-command-trigger select,
 .gameplan-evidence-quick-row input,
 .gameplan-evidence-quick-row select,
+.gameplan-mini-editor-row input,
+.gameplan-mini-editor-row select,
 .gameplan-delivery-row input,
 .gameplan-check-item input,
 .gameplan-check-item select,
@@ -446,6 +451,8 @@
 .gameplan-command-trigger select:focus,
 .gameplan-evidence-quick-row input:focus,
 .gameplan-evidence-quick-row select:focus,
+.gameplan-mini-editor-row input:focus,
+.gameplan-mini-editor-row select:focus,
 .gameplan-delivery-row input:focus,
 .gameplan-check-item input:focus,
 .gameplan-check-item select:focus,
@@ -469,6 +476,8 @@
 .gameplan-command-trigger select:disabled,
 .gameplan-evidence-quick-row input:disabled,
 .gameplan-evidence-quick-row select:disabled,
+.gameplan-mini-editor-row input:disabled,
+.gameplan-mini-editor-row select:disabled,
 .gameplan-delivery-row input:disabled,
 .gameplan-check-item input:disabled,
 .gameplan-check-item select:disabled,
@@ -902,6 +911,188 @@
   background: rgba(24, 46, 34, 0.08);
 }
 
+.gameplan-lineup-grid,
+.gameplan-week-focus-grid,
+.gameplan-mini-principle-list,
+.gameplan-lineup-player-list,
+.gameplan-mini-editor-list {
+  display: grid;
+  gap: 0.58rem;
+}
+
+.gameplan-lineup-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.72fr);
+}
+
+.gameplan-lineup-grid > section,
+.gameplan-week-focus-grid article,
+.gameplan-lineup-chip,
+.gameplan-lineup-player-row,
+.gameplan-mini-principle-pill,
+.gameplan-mini-editor-row {
+  border: 1px solid rgba(29, 29, 31, 0.1);
+  border-radius: 14px;
+  background: rgba(247, 250, 248, 0.82);
+}
+
+.gameplan-lineup-grid > section {
+  display: grid;
+  align-content: start;
+  gap: 0.55rem;
+  padding: 0.68rem;
+}
+
+.gameplan-lineup-section-head,
+.gameplan-lineup-editor-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+}
+
+.gameplan-lineup-section-head span,
+.gameplan-week-focus-grid article span,
+.gameplan-mini-principle-pill span,
+.gameplan-lineup-player-row span {
+  color: #66716a;
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.gameplan-lineup-section-head strong {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.72rem;
+  padding: 0 0.52rem;
+  border-radius: 999px;
+  background: rgba(24, 46, 34, 0.09);
+  color: #25392f;
+  font-size: 0.78rem;
+}
+
+.gameplan-lineup-chip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: center;
+  padding: 0.56rem;
+}
+
+.gameplan-lineup-chip > strong {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: #183729;
+  color: #fff;
+  font-size: 0.78rem;
+}
+
+.gameplan-lineup-chip div,
+.gameplan-lineup-player-row div,
+.gameplan-mini-principle-pill {
+  min-width: 0;
+}
+
+.gameplan-lineup-chip span,
+.gameplan-lineup-chip p,
+.gameplan-lineup-player-row strong,
+.gameplan-lineup-player-row span,
+.gameplan-mini-principle-pill strong,
+.gameplan-mini-principle-pill span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gameplan-lineup-chip p {
+  margin: 0.04rem 0 0;
+  color: #172018;
+  font-weight: 850;
+}
+
+.gameplan-lineup-editor-top .gameplan-field {
+  width: min(16rem, 100%);
+}
+
+.gameplan-lineup-player-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.58rem 0.64rem;
+}
+
+.gameplan-lineup-player-row div {
+  display: grid;
+  gap: 0.06rem;
+}
+
+.gameplan-lineup-player-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2rem;
+  color: #25392f;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.gameplan-lineup-player-row input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #183729;
+}
+
+.gameplan-week-focus-grid {
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+.gameplan-week-focus-grid article {
+  display: grid;
+  align-content: start;
+  gap: 0.28rem;
+  min-height: 6.3rem;
+  padding: 0.72rem;
+}
+
+.gameplan-week-focus-grid article p {
+  margin: 0;
+  color: #25392f;
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.42;
+  white-space: pre-line;
+}
+
+.gameplan-mini-principle-list {
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+.gameplan-mini-principle-pill {
+  display: grid;
+  gap: 0.14rem;
+  min-height: 3.8rem;
+  padding: 0.62rem 0.7rem;
+}
+
+.gameplan-mini-principle-pill strong {
+  color: #172018;
+}
+
+.gameplan-mini-editor-row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) minmax(9rem, 0.6fr) minmax(12rem, 0.8fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.56rem;
+}
+
+.gameplan-mini-editor-row button {
+  padding: 0 0.7rem;
+}
+
 .gameplan-command-trigger-head,
 .gameplan-command-trigger-body {
   display: grid;
@@ -1184,6 +1375,7 @@
 .gameplan-player-portal-card section p {
   color: #25392f;
   line-height: 1.45;
+  white-space: pre-line;
 }
 
 .gameplan-player-portal-meta {
@@ -1317,7 +1509,11 @@ body.is-dark-mode .gameplan-brief-phase span,
 body.is-dark-mode .gameplan-evidence-source-panel header span,
 body.is-dark-mode .gameplan-evidence-quick-row small,
 body.is-dark-mode .gameplan-evidence-source-row span,
-body.is-dark-mode .gameplan-command-trigger label span {
+body.is-dark-mode .gameplan-command-trigger label span,
+body.is-dark-mode .gameplan-lineup-section-head span,
+body.is-dark-mode .gameplan-week-focus-grid article span,
+body.is-dark-mode .gameplan-mini-principle-pill span,
+body.is-dark-mode .gameplan-lineup-player-row span {
   color: rgba(226, 232, 240, 0.72);
 }
 
@@ -1340,7 +1536,13 @@ body.is-dark-mode .gameplan-evidence-source-row,
 body.is-dark-mode .gameplan-inline-status,
 body.is-dark-mode .gameplan-check-item,
 body.is-dark-mode .gameplan-player-pill,
-body.is-dark-mode .gameplan-delivery-row {
+body.is-dark-mode .gameplan-delivery-row,
+body.is-dark-mode .gameplan-lineup-grid > section,
+body.is-dark-mode .gameplan-week-focus-grid article,
+body.is-dark-mode .gameplan-lineup-chip,
+body.is-dark-mode .gameplan-lineup-player-row,
+body.is-dark-mode .gameplan-mini-principle-pill,
+body.is-dark-mode .gameplan-mini-editor-row {
   background: rgba(255, 255, 255, 0.095);
   color: var(--ink);
   border-color: rgba(203, 213, 225, 0.2);
@@ -1364,6 +1566,7 @@ body.is-dark-mode .gameplan-evidence-card button,
 body.is-dark-mode .gameplan-observation-card button,
 body.is-dark-mode .gameplan-evidence-quick-row button,
 body.is-dark-mode .gameplan-evidence-source-row button,
+body.is-dark-mode .gameplan-mini-editor-row button,
 body.is-dark-mode .gameplan-check-item button {
   background: rgba(255, 255, 255, 0.12);
   color: rgba(241, 245, 249, 0.94);
@@ -1457,12 +1660,18 @@ body.is-dark-mode .gameplan-evidence-source-row strong,
 body.is-dark-mode .gameplan-evidence-source-row p,
 body.is-dark-mode .gameplan-brief-trigger h3,
 body.is-dark-mode .gameplan-brief-trigger p,
-body.is-dark-mode .gameplan-brief-phase p {
+body.is-dark-mode .gameplan-brief-phase p,
+body.is-dark-mode .gameplan-lineup-chip p,
+body.is-dark-mode .gameplan-lineup-player-row strong,
+body.is-dark-mode .gameplan-lineup-player-row label,
+body.is-dark-mode .gameplan-week-focus-grid article p,
+body.is-dark-mode .gameplan-mini-principle-pill strong {
   color: var(--ink);
 }
 
 body.is-dark-mode .gameplan-evidence-source-counts span,
-body.is-dark-mode .gameplan-evidence-source-row.is-linked {
+body.is-dark-mode .gameplan-evidence-source-row.is-linked,
+body.is-dark-mode .gameplan-lineup-section-head strong {
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(203, 213, 225, 0.22);
 }
@@ -1494,6 +1703,8 @@ body.is-dark-mode .gameplan-command-trigger input,
 body.is-dark-mode .gameplan-command-trigger select,
 body.is-dark-mode .gameplan-evidence-quick-row input,
 body.is-dark-mode .gameplan-evidence-quick-row select,
+body.is-dark-mode .gameplan-mini-editor-row input,
+body.is-dark-mode .gameplan-mini-editor-row select,
 body.is-dark-mode .gameplan-delivery-row input,
 body.is-dark-mode .gameplan-check-item input,
 body.is-dark-mode .gameplan-check-item select,
@@ -1562,6 +1773,8 @@ body.is-dark-mode .gameplan-player-portal-card footer > span {
   .gameplan-command-trigger-head,
   .gameplan-command-trigger-body,
   .gameplan-phase-grid-compact,
+  .gameplan-lineup-grid,
+  .gameplan-mini-editor-row,
   .gameplan-evidence-quick-row,
   .gameplan-evidence-source-row,
   .gameplan-form-grid,
@@ -1597,5 +1810,9 @@ body.is-dark-mode .gameplan-player-portal-card footer > span {
 
   .gameplan-mode-switch button {
     flex: 1 1 0;
+  }
+
+  .gameplan-lineup-player-row {
+    grid-template-columns: minmax(0, 1fr) minmax(4rem, auto) minmax(5rem, auto);
   }
 }

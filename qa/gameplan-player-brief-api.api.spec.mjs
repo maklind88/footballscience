@@ -29,6 +29,20 @@ function sampleGameplanState() {
             reportAtHalftime: "Staff-only halftime report",
           },
         ],
+        matchFocus: {
+          miniGamePrinciples: [
+            {
+              principle: "Find the Third",
+              phase: "Build Up",
+              playerIds: ["player-1"],
+            },
+            {
+              principle: "Blocked player private mini",
+              phase: "Pressing",
+              playerIds: ["player-2"],
+            },
+          ],
+        },
         playerBrief: {
           headline: "Press together",
           message: "Player-facing only.",
@@ -100,9 +114,13 @@ test("Gameplan Player Brief payload returns only player-facing fields", () => {
   expect(payload.brief.headline).toBe("Press together");
   expect(payload.brief.positionGroupFocus).toBe("Midfield screen first.");
   expect(payload.brief.individualFocus).toBe("Scan before receiving.");
+  expect(payload.brief.miniGamePrinciples).toEqual([
+    expect.objectContaining({ principle: "Find the Third", phase: "Build Up" }),
+  ]);
   expect(payload.player.name).toBe("Selected Player");
   expect(JSON.stringify(payload)).not.toContain("Staff-only");
   expect(JSON.stringify(payload)).not.toContain("Blocked player private detail");
+  expect(JSON.stringify(payload)).not.toContain("Blocked player private mini");
   expect(JSON.stringify(payload)).not.toContain("individualNotes");
   expect(JSON.stringify(payload)).not.toContain("staffResponsibilities");
   expect(JSON.stringify(payload)).not.toContain("opponentPlan");
@@ -180,6 +198,28 @@ test("Gameplan state carries elite workflow sections", async () => {
                 url: "https://example.com/clip",
               },
             ],
+            lineup: {
+              formation: "4-3-3",
+              startingPlayerIds: ["player-1"],
+              benchPlayerIds: ["player-2", "player-1"],
+            },
+            matchFocus: {
+              sourceGeneratedAt: "2026-05-19T12:00:00.000Z",
+              sourceWindow: "2026-05-14 to 2026-05-19",
+              phasePrinciples: {
+                inPossession: "Create width",
+                outOfPossession: "Protect central lane",
+              },
+              miniGamePrinciples: [
+                {
+                  id: "mini-1",
+                  principle: "Find the Third",
+                  phase: "Build Up",
+                  playerIds: ["player-1"],
+                  source: "Periodization",
+                },
+              ],
+            },
             playerBrief: {
               ...plan.playerBrief,
               positionGroupFocus: "Midfield screen first.",
@@ -200,6 +240,8 @@ test("Gameplan state carries elite workflow sections", async () => {
           decisions: active.meeting.decisions,
           scenario: active.scenarioCards[0],
           evidence: active.evidence[0],
+          lineup: active.lineup,
+          matchFocus: active.matchFocus,
           playerNote: active.playerBrief.individualNotes["player-1"],
           observation: active.live.observations[0],
           lessons: active.review.lessons,
@@ -221,6 +263,21 @@ test("Gameplan state carries elite workflow sections", async () => {
       linkedSourceType: "analysis",
       linkedSourceId: "clip-1",
       mediaType: "clip",
+    })
+  );
+  expect(result.lineup).toEqual(
+    expect.objectContaining({
+      formation: "4-3-3",
+      startingPlayerIds: ["player-1"],
+      benchPlayerIds: ["player-2"],
+    })
+  );
+  expect(result.matchFocus.phasePrinciples.inPossession).toContain("Create width");
+  expect(result.matchFocus.miniGamePrinciples[0]).toEqual(
+    expect.objectContaining({
+      principle: "Find the Third",
+      phase: "Build Up",
+      playerIds: ["player-1"],
     })
   );
   expect(result.playerNote).toBe("Scan before receiving.");

@@ -1,4 +1,4 @@
-const gameplanSchemaVersion = 4;
+const gameplanSchemaVersion = 5;
 
 const defaultPhaseKeys = Object.freeze([
   "inPossession",
@@ -210,6 +210,37 @@ function normalizeGameplanEvidence(entry = {}) {
   };
 }
 
+function normalizeGameplanLineup(source = {}) {
+  const startingPlayerIds = normalizeStringArray(source.startingPlayerIds || source.starters || source.startingXI, 180).slice(0, 11);
+  const startingSet = new Set(startingPlayerIds);
+  return {
+    formation: normalizeGameplanText(source.formation, 40),
+    startingPlayerIds,
+    benchPlayerIds: normalizeStringArray(source.benchPlayerIds || source.bench || source.substitutes, 180).filter((id) => !startingSet.has(id)),
+  };
+}
+
+function normalizeMiniGamePrinciple(entry = {}) {
+  return {
+    id: normalizeGameplanText(entry.id, 160) || createGameplanId("mini"),
+    principle: normalizeGameplanText(entry.principle || entry.title || entry.label, 180),
+    phase: normalizeGameplanText(entry.phase, 80),
+    playerIds: normalizeStringArray(entry.playerIds || entry.assignedPlayerIds || (entry.playerId ? [entry.playerId] : []), 180),
+    source: normalizeGameplanText(entry.source, 120),
+  };
+}
+
+function normalizeGameplanMatchFocus(source = {}) {
+  return {
+    sourceGeneratedAt: normalizeGameplanText(source.sourceGeneratedAt, 40),
+    sourceWindow: normalizeGameplanText(source.sourceWindow, 120),
+    phasePrinciples: normalizePhaseMap(source.phasePrinciples, 900),
+    miniGamePrinciples: Array.isArray(source.miniGamePrinciples)
+      ? source.miniGamePrinciples.map(normalizeMiniGamePrinciple).filter((entry) => entry.principle || entry.playerIds.length)
+      : [],
+  };
+}
+
 function normalizeGameplanObservation(entry = {}) {
   return {
     id: normalizeGameplanText(entry.id, 160) || createGameplanId("obs"),
@@ -315,6 +346,8 @@ export function createGameplanFromMatch(match = {}, options = {}) {
     },
     tactical: {},
     opponentPlan: {},
+    lineup: {},
+    matchFocus: {},
     staffResponsibilities: defaultStaffResponsibilityTemplates.map((template) =>
       normalizeGameplanPerson({
         ...template,
@@ -390,6 +423,8 @@ export function normalizeGameplan(source = {}) {
       setPieces: normalizeGameplanText(source.opponentPlan?.setPieces, 900),
     },
     staffResponsibilities,
+    lineup: normalizeGameplanLineup(source.lineup),
+    matchFocus: normalizeGameplanMatchFocus(source.matchFocus),
     playerBrief: {
       headline: normalizeGameplanText(playerBrief.headline, 180),
       message: normalizeGameplanText(playerBrief.message, 900),

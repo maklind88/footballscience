@@ -44,6 +44,88 @@ async function openWorkspace(page, workspaceId, viewId = workspaceId) {
 async function seedGameplanEvidenceSources(page) {
   await page.addInitScript(() => {
     window.localStorage.setItem(
+      "football-schedule-v1",
+      JSON.stringify({
+        selectedYear: 2026,
+        selectedMonthIndex: 5,
+        selectedDate: "2026-06-03",
+        viewMode: "month",
+        overviewSpan: 6,
+        events: [
+          {
+            id: "qa-gameplan-match",
+            date: "2026-06-03",
+            time: "19:00",
+            type: "match",
+            title: "Rivals FC",
+            location: "Home Stadium",
+            competition: "League",
+          },
+        ],
+      })
+    );
+    window.localStorage.setItem(
+      "football-player-profiles-v1",
+      JSON.stringify({
+        players: [
+          { id: "qa-player-1", name: "QA Captain", number: "6", position: "Midfielder", rosterOrder: 1 },
+          { id: "qa-player-2", name: "QA Forward", number: "9", position: "Forward", rosterOrder: 2 },
+          { id: "qa-player-3", name: "QA Keeper", number: "1", position: "Goalkeeper", rosterOrder: 3 },
+        ],
+      })
+    );
+    window.localStorage.setItem(
+      "football-session-planner-v3",
+      JSON.stringify({
+        selectedDate: "2026-05-30",
+        sessions: {
+          "2026-05-30": {
+            id: "session-2026-05-30",
+            date: "2026-05-30",
+            title: "Training Session",
+            theme: "Build and press",
+            selectedBlockId: "qa-build",
+            blocks: [
+              {
+                id: "qa-build",
+                title: "Build-up Rhythm",
+                focus: "Create angles and find the third player",
+                phase: "In Possession",
+                subPhase: "Build Up",
+                principles: "Create width, scan early, play away from pressure.",
+              },
+              {
+                id: "qa-press",
+                title: "Pressing Game",
+                focus: "Mini-game constraint",
+                phase: "Out of Possession",
+                subPhase: "High Press",
+                principles: "Jump on backwards pass, protect central lane.",
+              },
+            ],
+          },
+        },
+      })
+    );
+    window.localStorage.setItem(
+      "football-periodization-v2",
+      JSON.stringify({
+        selectedYear: 2026,
+        selectedMonthIndex: 4,
+        selectedDate: "2026-05-30",
+        days: {
+          "2026-05-30": {
+            daySchedule: "Training",
+            matchDay: "Match Day -4",
+            matchPhases: ["In Possession", "Out of Possession"],
+            subPhases: ["Build Up", "High Press"],
+            teamPrinciples: ["Create width", "Protect central lane"],
+            miniGamePrinciples: ["Find the Third", "Counterpress five seconds"],
+          },
+        },
+      })
+    );
+    window.localStorage.setItem(
       "football-analysis-room-v1",
       JSON.stringify({
         clips: [
@@ -98,12 +180,26 @@ test("Gameplan Player Brief portal is audience-gated and records player receipts
   await expect(page.locator('[data-gameplan-field="summary.objective"]')).toHaveCount(0);
   await page.locator('[data-gameplan-plan-mode="edit"]').click();
   await expect(page.locator('[data-gameplan-field="summary.objective"]')).toBeVisible();
+  await expect(page.locator(".gameplan-lineup-editor")).toBeVisible();
+  await expect(page.locator(".gameplan-week-focus-card")).toContainText("Create width");
+  const lineupRows = page.locator(".gameplan-lineup-player-row");
+  await expect(lineupRows.first()).toBeVisible();
+  const selectedLineupPlayerId = await lineupRows.nth(0).locator('[data-gameplan-lineup-group="starting"]').getAttribute("data-gameplan-lineup-player");
+  await lineupRows.nth(0).locator('[data-gameplan-lineup-group="starting"]').check();
+  await lineupRows.nth(1).locator('[data-gameplan-lineup-group="bench"]').check();
+  await page.locator("[data-gameplan-sync-week-focus]").click();
+  await expect
+    .poll(() => page.locator('[data-gameplan-mini-field="principle"]').evaluateAll((fields) => fields.map((field) => field.value).join(" | ")))
+    .toContain("Find the Third");
   await page.locator('[data-gameplan-field="summary.objective"]').fill("Win territory early and keep the game connected.");
   await expect(page.locator(".gameplan-evidence-source-panel")).toBeVisible();
   await expect(page.locator(".gameplan-evidence-source-panel")).toContainText("Opponent build-up clip");
   await page.locator(".gameplan-evidence-source-row").filter({ hasText: "Opponent build-up clip" }).locator("[data-gameplan-link-evidence]").click();
   await expect(page.locator(".gameplan-evidence-chips")).toContainText("Opponent build-up clip");
   await page.locator('[data-gameplan-plan-mode="briefing"]').click();
+  await expect(page.locator(".gameplan-lineup-overview")).toContainText("1/11");
+  await expect(page.locator(".gameplan-lineup-overview")).toContainText("Bench");
+  await expect(page.locator(".gameplan-week-focus-card")).toContainText("Find the Third");
   await expect(page.locator("#gameplanWorkspace")).toContainText("Win territory early");
   await expect(page.locator("#gameplanWorkspace")).toContainText("Opponent build-up clip");
   await expect(page.locator('[data-gameplan-field="summary.objective"]')).toHaveCount(0);
@@ -122,12 +218,15 @@ test("Gameplan Player Brief portal is audience-gated and records player receipts
 
   const playerInputs = page.locator('[data-gameplan-player-audience]');
   await expect(playerInputs.first()).toBeVisible();
-  const selectedPlayerId = await playerInputs.first().getAttribute("data-gameplan-player-audience");
-  const blockedPlayerId = await playerInputs.nth(1).getAttribute("data-gameplan-player-audience");
+  const selectedPlayerId = selectedLineupPlayerId || (await playerInputs.first().getAttribute("data-gameplan-player-audience"));
+  const blockedPlayerId = await playerInputs.evaluateAll((inputs, selectedId) => {
+    const ids = inputs.map((input) => input.getAttribute("data-gameplan-player-audience")).filter(Boolean);
+    return ids.find((id) => id !== selectedId) || "";
+  }, selectedPlayerId);
   expect(selectedPlayerId).toBeTruthy();
   expect(blockedPlayerId).toBeTruthy();
 
-  await playerInputs.first().check();
+  await page.locator(`[data-gameplan-player-audience="${selectedPlayerId}"]`).check();
   await page.locator('[data-gameplan-field="playerBrief.headline"]').fill("Press together, finish the first action");
   await page.locator('[data-gameplan-field="playerBrief.message"]').fill("Player-facing only. Keep the distances compact.");
   await page.locator('[data-gameplan-field="playerBrief.focus"]').fill("Win second balls and protect the rest defence.");
@@ -147,6 +246,7 @@ test("Gameplan Player Brief portal is audience-gated and records player receipts
   await expect(portal.locator(".gameplan-player-portal-card")).toBeVisible();
   await expect(portal.locator(".gameplan-player-portal-card")).toContainText("Press together, finish the first action");
   await expect(portal.locator(".gameplan-player-portal-card")).toContainText("Player-facing only");
+  await expect(portal.locator(".gameplan-player-portal-card")).toContainText("Find the Third");
   await expect(portal.locator(".gameplan-player-portal-card")).toContainText("Your first scan opens the six.");
   await expect(portal.locator(".gameplan-player-portal-card")).not.toContainText(/Staff Responsibilities|Halftime report|Decision trigger|Opponent Plan/i);
 

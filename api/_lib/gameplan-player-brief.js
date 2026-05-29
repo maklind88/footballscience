@@ -326,6 +326,19 @@ function normalizePhaseMap(source = {}) {
   );
 }
 
+function getPlayerMiniGamePrinciples(plan = {}, playerId = "") {
+  const normalizedPlayerId = normalizeText(playerId, 180);
+  if (!normalizedPlayerId) return [];
+  const principles = Array.isArray(plan.matchFocus?.miniGamePrinciples) ? plan.matchFocus.miniGamePrinciples : [];
+  return principles
+    .filter((item) => Array.isArray(item?.playerIds) && item.playerIds.map((id) => normalizeText(id, 180)).includes(normalizedPlayerId))
+    .map((item) => ({
+      principle: normalizeText(item.principle || item.title || item.label, 180),
+      phase: normalizeText(item.phase, 80),
+    }))
+    .filter((item) => item.principle);
+}
+
 function getReceipt(brief = {}, playerId = "") {
   const receipt = brief.readReceipts?.[playerId] || {};
   return {
@@ -377,6 +390,7 @@ function resolvePlayerBriefPayload(gameplanState = {}, playerProfilesState = {},
       positionGroupFocus: normalizeText(brief.positionGroupFocus, 900),
       individualFocus: playerSpecificFocus,
       phases: normalizePhaseMap(brief.phases),
+      miniGamePrinciples: getPlayerMiniGamePrinciples(plan, playerId),
       publishedAt: normalizeText(brief.publishedAt, 40),
     },
     receipt: getReceipt(brief, playerId),

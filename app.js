@@ -300,6 +300,7 @@ const sessionPlannerBlockMergeFields = Object.freeze([
 "visualImage",
 "playerBoardPositions",
 "playerBoardColors",
+"playerBoardCustomPeople",
 "tacticalElements",
 ]);
 const sessionPlannerBlockMergeFieldSet = new Set(sessionPlannerBlockMergeFields);
@@ -4842,6 +4843,7 @@ let sessionPlannerPlayerBoardFormationInput = "";
 let sessionPlannerPlayerBoardTeamCount = 2;
 let sessionPlannerPlayerBoardAutoMode = "balanced";
 let sessionPlannerPlayerBoardAssistantOpen = false;
+let sessionPlannerPlayerBoardCustomPersonEditor = null;
 let sessionPlannerPrintRootElement = null;
 const sessionPlannerPlayerBoardColorOptions = [
 { label: "Blue", value: "#1d8bff" },
@@ -11896,6 +11898,7 @@ playerBoardLayoutMode: overrides.playerBoardLayoutMode === "manual" ? "manual" :
 visualImage: overrides.visualImage || "",
 playerBoardPositions: normalizeSessionPlannerPlayerBoardPositions(overrides.playerBoardPositions),
 playerBoardColors: normalizeSessionPlannerPlayerBoardColors(overrides.playerBoardColors),
+playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople(overrides.playerBoardCustomPeople),
 tacticalElements,
 };
 }
@@ -11931,6 +11934,7 @@ return createSessionPlannerLibraryExercise({
 ...exercise,
 playerBoardPositions: normalizeSessionPlannerPlayerBoardPositions(exercise.playerBoardPositions),
 playerBoardColors: normalizeSessionPlannerPlayerBoardColors(exercise.playerBoardColors),
+playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople(exercise.playerBoardCustomPeople),
 tacticalFrames: normalizeSessionPlannerTacticalFrames(exercise.tacticalFrames),
 tacticalActiveFrameId: exercise.tacticalActiveFrameId || "",
 tacticalElements: Array.isArray(exercise.tacticalElements)
@@ -12426,6 +12430,42 @@ colors[playerId] = color;
 }
 return colors;
 }, {});
+}
+function normalizeSessionPlannerPlayerBoardCustomPeople(source = []) {
+if (!Array.isArray(source)) {
+return [];
+}
+const usedIds = new Set();
+return source
+.filter((person) => person && typeof person === "object" && !Array.isArray(person))
+.reduce((people, person) => {
+const name = String(person.name || "").trim().replace(/\s+/g, " ").slice(0, 72);
+if (!name) {
+return people;
+}
+let id = String(person.id || "").trim();
+while (!id || usedIds.has(id)) {
+id = createSessionPlannerStableId("player-board-person");
+}
+usedIds.add(id);
+const kindValue = String(person.kind || person.type || "").trim().toLowerCase();
+const role = String(person.role || person.position || "").trim().replace(/\s+/g, " ").slice(0, 36);
+const kind =
+kindValue.includes("staff") ||
+kindValue.includes("coach") ||
+kindValue.includes("leader") ||
+kindValue.includes("ledare")
+? "staff"
+: "player";
+people.push({
+id,
+name,
+role,
+kind,
+createdAt: normalizeSessionPlannerTimestamp(person.createdAt) || "",
+});
+return people;
+}, []);
 }
 function getSessionPlannerMultiSelectFieldConfig(field) {
 const configs = {
@@ -13402,6 +13442,7 @@ playerBoardLayoutMode: block.playerBoardLayoutMode === "manual" ? "manual" : "au
 visualImage: block.visualImage || "",
 playerBoardPositions: normalizeSessionPlannerPlayerBoardPositions(block.playerBoardPositions),
 playerBoardColors: normalizeSessionPlannerPlayerBoardColors(block.playerBoardColors),
+playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople(block.playerBoardCustomPeople),
 tacticalFrames: normalizeSessionPlannerTacticalFrames(block.tacticalFrames),
 tacticalActiveFrameId: block.tacticalActiveFrameId || "",
 tacticalElements: Array.isArray(block.tacticalElements)
@@ -14269,6 +14310,7 @@ return {
 playerBoardLayoutMode: block.playerBoardLayoutMode === "manual" ? "manual" : "auto",
 playerBoardPositions: normalizeSessionPlannerPlayerBoardPositions(block.playerBoardPositions),
 playerBoardColors: normalizeSessionPlannerPlayerBoardColors(block.playerBoardColors),
+playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople(block.playerBoardCustomPeople),
 };
 }
 function createSessionPlannerBoardSnapshot(type, block = getSessionPlannerSelectedBlock()) {
@@ -14343,7 +14385,13 @@ if (type === "player") {
 block.playerBoardLayoutMode = snapshot.playerBoardLayoutMode === "manual" ? "manual" : "auto";
 block.playerBoardPositions = normalizeSessionPlannerPlayerBoardPositions(snapshot.playerBoardPositions);
 block.playerBoardColors = normalizeSessionPlannerPlayerBoardColors(snapshot.playerBoardColors);
-markSessionPlannerBlockFieldsUpdated(block, ["playerBoardLayoutMode", "playerBoardPositions", "playerBoardColors"]);
+block.playerBoardCustomPeople = normalizeSessionPlannerPlayerBoardCustomPeople(snapshot.playerBoardCustomPeople);
+markSessionPlannerBlockFieldsUpdated(block, [
+"playerBoardLayoutMode",
+"playerBoardPositions",
+"playerBoardColors",
+"playerBoardCustomPeople",
+]);
 } else {
 const frames = normalizeSessionPlannerTacticalFrames(snapshot.tacticalFrames);
 block.tacticalPitchMode = normalizeSessionPlannerTacticalPitchMode(snapshot.tacticalPitchMode);
@@ -14747,6 +14795,7 @@ renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 function setSessionPlannerPlayerBoardOpen(isOpen) {
 sessionPlannerPlayerBoardOpen = Boolean(isOpen);
 sessionPlannerPlayerBoardAssistantOpen = false;
+sessionPlannerPlayerBoardCustomPersonEditor = null;
 if (sessionPlannerPlayerBoardOpen) {
 sessionPlannerAddMenuOpen = false;
 sessionPlannerLibraryOpen = false;
@@ -14773,6 +14822,7 @@ return;
 }
 sessionPlannerPlayerBoardSelectedPlayerId = playerId;
 sessionPlannerPlayerBoardAssistantOpen = false;
+sessionPlannerPlayerBoardCustomPersonEditor = null;
 renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
 function closeSessionPlannerPlayerBoardProfile() {
@@ -14869,6 +14919,154 @@ return;
 }
 updateSessionPlannerPlayerBoardSelectedColor("");
 showSessionPlannerToast(`Colour cleared for ${selectedIds.length} player${selectedIds.length === 1 ? "" : "s"}.`);
+}
+function getSessionPlannerPlayerBoardContextPosition(event, board) {
+const rect = board?.getBoundingClientRect?.();
+if (!rect?.width || !rect?.height) {
+return { x: 50, y: 50 };
+}
+return {
+x: clamp(((event.clientX - rect.left) / rect.width) * 100, 2, 98),
+y: clamp(((event.clientY - rect.top) / rect.height) * 100, 4, 96),
+};
+}
+function normalizeSessionPlannerPlayerBoardCustomPersonPromptValue(value, limit = 72) {
+return String(value || "").trim().replace(/\s+/g, " ").slice(0, limit);
+}
+function getSessionPlannerPlayerBoardCustomPersonKind(role, name) {
+const text = `${role || ""} ${name || ""}`.toLowerCase();
+return /staff|coach|leader|ledare|tr[aä]nare|assistent/.test(text) ? "staff" : "player";
+}
+function removeSessionPlannerPlayerBoardCustomPerson(playerId) {
+const block = getSessionPlannerSelectedBlock();
+if (!block || !playerId) {
+return;
+}
+const people = getSessionPlannerPlayerBoardCustomPeople(block);
+const person = people.find((item) => item.id === playerId);
+if (!person) {
+return;
+}
+const shouldRemove = window.confirm(`Remove ${person.name} from this player board?`);
+if (!shouldRemove) {
+return;
+}
+block.playerBoardCustomPeople = people.filter((item) => item.id !== playerId);
+if (block.playerBoardPositions && typeof block.playerBoardPositions === "object") {
+delete block.playerBoardPositions[playerId];
+}
+if (block.playerBoardColors && typeof block.playerBoardColors === "object") {
+delete block.playerBoardColors[playerId];
+}
+setSessionPlannerPlayerBoardSelectedPlayers(
+sessionPlannerPlayerBoardSelectedPlayerIds.filter((selectedId) => selectedId !== playerId)
+);
+markSessionPlannerBlockFieldsUpdated(block, [
+"playerBoardCustomPeople",
+"playerBoardPositions",
+"playerBoardColors",
+]);
+writeSessionPlannerState();
+renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+showSessionPlannerToast(`${person.name} removed from this player board.`);
+}
+function openSessionPlannerPlayerBoardCustomPersonEditor(editor = {}) {
+sessionPlannerPlayerBoardCustomPersonEditor = {
+mode: editor.mode === "edit" ? "edit" : "add",
+personId: String(editor.personId || ""),
+position: editor.position || null,
+};
+renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+}
+function closeSessionPlannerPlayerBoardCustomPersonEditor() {
+sessionPlannerPlayerBoardCustomPersonEditor = null;
+renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+}
+function saveSessionPlannerPlayerBoardCustomPersonFromForm(form) {
+if (!canEditSessionPlanner()) {
+return;
+}
+const block = getSessionPlannerSelectedBlock();
+const editor = sessionPlannerPlayerBoardCustomPersonEditor;
+if (!block || !editor) {
+return;
+}
+const formData = new FormData(form);
+const name = normalizeSessionPlannerPlayerBoardCustomPersonPromptValue(formData.get("name"));
+if (!name) {
+showSessionPlannerToast("Add a name first.", "error");
+return;
+}
+const role = normalizeSessionPlannerPlayerBoardCustomPersonPromptValue(formData.get("role"), 36);
+const kindInput = String(formData.get("kind") || "").trim();
+const kind = kindInput === "staff" ? "staff" : getSessionPlannerPlayerBoardCustomPersonKind(role, name);
+const people = getSessionPlannerPlayerBoardCustomPeople(block);
+if (editor.mode === "edit" && editor.personId) {
+const personIndex = people.findIndex((person) => person.id === editor.personId);
+if (personIndex < 0) {
+return;
+}
+people[personIndex] = {
+...people[personIndex],
+name,
+role,
+kind,
+};
+block.playerBoardCustomPeople = people;
+markSessionPlannerBlockFieldsUpdated(block, ["playerBoardCustomPeople"]);
+sessionPlannerPlayerBoardCustomPersonEditor = null;
+writeSessionPlannerState();
+renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+showSessionPlannerToast(`${name} updated.`);
+return;
+}
+const person = {
+id: createSessionPlannerStableId("player-board-person"),
+name,
+role,
+kind,
+createdAt: new Date().toISOString(),
+};
+block.playerBoardCustomPeople = [...people, person];
+block.playerBoardLayoutMode = "manual";
+if (!block.playerBoardPositions || typeof block.playerBoardPositions !== "object") {
+block.playerBoardPositions = {};
+}
+block.playerBoardPositions[person.id] = editor.position || { x: 50, y: 50 };
+markSessionPlannerBlockFieldsUpdated(block, [
+"playerBoardCustomPeople",
+"playerBoardLayoutMode",
+"playerBoardPositions",
+]);
+sessionPlannerPlayerBoardCustomPersonEditor = null;
+setSessionPlannerPlayerBoardSelectedPlayers([person.id]);
+writeSessionPlannerState();
+renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+showSessionPlannerToast(`${name} added to this player board.`);
+}
+function handleSessionPlannerPlayerBoardContextMenu(event) {
+if (event.target.closest?.("[data-session-player-board-person-editor]")) {
+return;
+}
+const board = event.target.closest?.("[data-session-player-board]");
+if (!board || !sessionPlannerPlayerBoardOpen) {
+return;
+}
+event.preventDefault();
+const token = event.target.closest?.("[data-session-player-board-token]");
+const playerId = token?.dataset?.sessionPlayerBoardToken || "";
+if (playerId && isSessionPlannerPlayerBoardCustomPersonId(playerId)) {
+openSessionPlannerPlayerBoardCustomPersonEditor({ mode: "edit", personId: playerId });
+return;
+}
+if (playerId) {
+openSessionPlannerPlayerBoardProfile(playerId);
+return;
+}
+openSessionPlannerPlayerBoardCustomPersonEditor({
+mode: "add",
+position: getSessionPlannerPlayerBoardContextPosition(event, board),
+});
 }
 function resetSessionPlannerPlayerBoardPositions() {
 if (!canEditSessionPlanner()) {
@@ -16405,6 +16603,9 @@ function startSessionPlannerPlayerBoardDrag(event) {
 if (!canEditSessionPlanner()) {
 return false;
 }
+if (event.button !== 0) {
+return false;
+}
 const token = event.target.closest?.("[data-session-player-board-token]");
 const board = token?.closest?.("[data-session-player-board]");
 const block = getSessionPlannerSelectedBlock();
@@ -16547,8 +16748,15 @@ function startSessionPlannerPlayerBoardSelection(event) {
 if (!canEditSessionPlanner()) {
 return false;
 }
+if (event.button !== 0) {
+return false;
+}
 const board = event.target.closest?.("[data-session-player-board]");
-if (!board || event.target.closest?.("[data-session-player-board-token]")) {
+if (
+!board ||
+event.target.closest?.("[data-session-player-board-token]") ||
+event.target.closest?.("[data-session-player-board-person-editor]")
+) {
 return false;
 }
 const startPoint = getSessionPlannerPlayerBoardEventPoint(event, board);
@@ -16740,6 +16948,7 @@ label: block.label,
 visualImage: exercise.visualImage || "",
 playerBoardPositions: normalizeSessionPlannerPlayerBoardPositions(exercise.playerBoardPositions),
 playerBoardColors: normalizeSessionPlannerPlayerBoardColors(exercise.playerBoardColors),
+playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople(exercise.playerBoardCustomPeople),
 tacticalFrames: normalizeSessionPlannerTacticalFrames(exercise.tacticalFrames),
 tacticalActiveFrameId: exercise.tacticalActiveFrameId || "",
 tacticalElements: Array.isArray(exercise.tacticalElements)
@@ -19480,15 +19689,48 @@ return false;
 }
 return participation >= rule.min;
 }
+function isSessionPlannerPlayerBoardCustomPersonId(playerId = "") {
+return String(playerId || "").startsWith("player-board-person-");
+}
+function getSessionPlannerPlayerBoardCustomPeople(block = getSessionPlannerSelectedBlock()) {
+return normalizeSessionPlannerPlayerBoardCustomPeople(block?.playerBoardCustomPeople);
+}
+function getSessionPlannerPlayerBoardCustomPerson(block, personId) {
+return getSessionPlannerPlayerBoardCustomPeople(block).find((person) => person.id === personId) || null;
+}
+function createSessionPlannerPlayerBoardCustomItem(person = {}) {
+const kind = person.kind === "staff" ? "staff" : "player";
+const roleLabel = person.role || (kind === "staff" ? "Staff" : "Guest");
+return {
+player: {
+id: person.id,
+name: person.name,
+position: roleLabel,
+role: roleLabel,
+roleGroup: kind === "staff" ? "midfielder" : "",
+rosterType: "guest",
+countsInSquad: false,
+temporaryGroup: kind === "staff" ? "Staff" : "Manual board",
+playerBoardCustom: true,
+playerBoardKind: kind,
+playerBoardRoleLabel: roleLabel,
+},
+record: null,
+planningOnly: true,
+participation: 100,
+status: { label: kind === "staff" ? "Staff added" : "Added manually" },
+};
+}
 function getSessionPlannerPlayerBoardPlayers(block = getSessionPlannerSelectedBlock()) {
 const rule = getSessionPlannerPlayerBoardRule(block);
-return getSessionPlannerAvailabilityItems(sessionPlannerState?.selectedDate)
+const availabilityItems = getSessionPlannerAvailabilityItems(sessionPlannerState?.selectedDate)
 .filter((item) => (item.record || item.planningOnly) && isSessionPlannerPlayerVisibleForBoard(item.participation, rule))
 .map((item) => ({
 ...item,
 player: getSessionPlannerPlayerBoardSyncedPlayer(item.player),
-}))
-.sort(compareSessionPlannerPlayerBoardItems);
+}));
+const customItems = getSessionPlannerPlayerBoardCustomPeople(block).map(createSessionPlannerPlayerBoardCustomItem);
+return [...availabilityItems, ...customItems].sort(compareSessionPlannerPlayerBoardItems);
 }
 function getSessionPlannerPlayerBoardSummary(block = getSessionPlannerSelectedBlock()) {
 const boardPlayers = getSessionPlannerPlayerBoardPlayers(block);
@@ -20825,19 +21067,23 @@ const label = labelMap.get(item.player.id) ?? getMedicalPlayerInitials(item.play
 const customColor = getSessionPlannerPlayerBoardCustomColor(block, item.player.id);
 const colorStyle = getSessionPlannerPlayerBoardColorStyle(customColor);
 const bridgeRole = getSessionPlannerPlayerBoardBridgeRoleLabel(item.player);
+const customRole = item.player.playerBoardCustom ? item.player.playerBoardRoleLabel || item.player.position || "" : "";
+const secondaryRole = bridgeRole || customRole;
 const bridgeTitle = bridgeRole ? ` · Squad role ${bridgeRole}` : "";
+const customTitle = item.player.playerBoardCustom ? " · Manual board person" : "";
 const temporaryTitle = isTemporaryPlayerProfile(item.player) ? ` · ${getPlayerProfileRosterLabel(item.player)}` : "";
 return `
     <button
       type="button"
-      class="session-player-board-token is-${escapeHtml(tone)}${customColor ? " has-custom-color" : ""}${selectedPlayerIds.has(item.player.id) ? " is-selected" : ""}${isTemporaryPlayerProfile(item.player) ? " is-temporary" : ""}"
+      class="session-player-board-token is-${escapeHtml(tone)}${customColor ? " has-custom-color" : ""}${selectedPlayerIds.has(item.player.id) ? " is-selected" : ""}${isTemporaryPlayerProfile(item.player) ? " is-temporary" : ""}${item.player.playerBoardCustom ? " is-custom-person" : ""}"
       data-session-player-board-token="${escapeHtml(item.player.id)}"
+      data-session-player-board-token-kind="${item.player.playerBoardCustom ? "custom" : "roster"}"
       style="left: ${position.x}%; top: ${position.y}%; ${colorStyle}"
-      title="${escapeHtml(`${item.player.name} · ${item.participation}%${bridgeTitle}${temporaryTitle}`)}"
-      aria-label="${escapeHtml(`${item.player.name}, ${item.participation}% available${bridgeTitle}${temporaryTitle}`)}"
+      title="${escapeHtml(`${item.player.name} · ${item.participation}%${bridgeTitle}${temporaryTitle}${customTitle}`)}"
+      aria-label="${escapeHtml(`${item.player.name}, ${item.participation}% available${bridgeTitle}${temporaryTitle}${customTitle}`)}"
     >
       <strong>${escapeHtml(label)}</strong>
-      ${bridgeRole ? `<span>${escapeHtml(bridgeRole)}</span>` : ""}
+      ${secondaryRole ? `<span>${escapeHtml(secondaryRole)}</span>` : ""}
     </button>
   `;
 }
@@ -20857,7 +21103,9 @@ const actualParticipation = normalizeMedicalActualParticipation(record?.actualPa
 const actualLabel = actualParticipation === medicalActualParticipationFallback ? "Not logged" : `${actualParticipation}%`;
 const rtpPhase = record?.rtpPhase ? getMedicalRtpPhaseOption(record.rtpPhase).label : "Not set";
 const coachNote = getMedicalCoachComment(record);
-const sourceLabel = item.planningOnly
+const sourceLabel = player.playerBoardCustom
+? "Manual board person"
+: item.planningOnly
 ? "Planning guest"
 : record?.source === "injury-plan"
 ? "Availability plan"
@@ -21205,7 +21453,7 @@ return `
                     const colorStyle = getSessionPlannerPlayerBoardColorStyle(customColor);
                     return `
 <span
-class="session-player-board-preview-token is-${escapeHtml(tone)}${customColor ? " has-custom-color" : ""}${isTemporaryPlayerProfile(item.player) ? " is-temporary" : ""}"
+class="session-player-board-preview-token is-${escapeHtml(tone)}${customColor ? " has-custom-color" : ""}${isTemporaryPlayerProfile(item.player) ? " is-temporary" : ""}${item.player.playerBoardCustom ? " is-custom-person" : ""}"
 style="left: ${position.x}%; top: ${position.y}%; ${colorStyle}"
 >${escapeHtml(labelMap.get(item.player.id) ?? getMedicalPlayerInitials(item.player))}</span>
 `;
@@ -21216,6 +21464,54 @@ style="left: ${position.x}%; top: ${position.y}%; ${colorStyle}"
         </span>
       </button>
     </section>
+  `;
+}
+function renderSessionPlannerPlayerBoardCustomPersonEditor(block) {
+const editor = sessionPlannerPlayerBoardCustomPersonEditor;
+if (!editor) {
+return "";
+}
+const person = editor.personId ? getSessionPlannerPlayerBoardCustomPerson(block, editor.personId) : null;
+const isEdit = Boolean(person);
+const title = isEdit ? "Edit manual person" : "Add player or staff";
+const name = person?.name || "";
+const role = person?.role || "";
+const kind = person?.kind === "staff" ? "staff" : "player";
+return `
+      <form
+        class="session-player-board-person-editor"
+        data-session-player-board-person-editor
+        data-session-player-board-person-form
+        style="position:absolute;right:.9rem;top:.9rem;z-index:16;width:min(18rem,calc(100% - 1.8rem));display:grid;gap:.48rem;padding:.72rem;border-radius:16px;background:rgba(255,255,255,.96);border:1px solid rgba(29,29,31,.16);box-shadow:0 18px 44px rgba(0,0,0,.16);"
+      >
+        <header style="display:flex;align-items:center;justify-content:space-between;gap:.55rem;">
+          <strong style="font-size:.86rem;line-height:1.05;">${escapeHtml(title)}</strong>
+          <button type="button" class="session-player-board-tool-button" data-session-player-board-person-cancel style="min-height:1.85rem;padding:0 .6rem;">Close</button>
+        </header>
+        <label style="display:grid;gap:.18rem;color:#6e6e73;font-size:.62rem;font-weight:900;letter-spacing:.04em;text-transform:uppercase;">
+          Name
+          <input name="name" value="${escapeHtml(name)}" autocomplete="off" placeholder="Name" style="min-height:2.15rem;border:1px solid rgba(29,29,31,.18);border-radius:10px;padding:0 .62rem;color:#1d1d1f;background:#fff;font:inherit;font-size:.82rem;font-weight:800;text-transform:none;letter-spacing:0;" />
+        </label>
+        <label style="display:grid;gap:.18rem;color:#6e6e73;font-size:.62rem;font-weight:900;letter-spacing:.04em;text-transform:uppercase;">
+          Role / note
+          <input name="role" value="${escapeHtml(role)}" autocomplete="off" placeholder="Coach, Staff, GK, CB..." style="min-height:2.15rem;border:1px solid rgba(29,29,31,.18);border-radius:10px;padding:0 .62rem;color:#1d1d1f;background:#fff;font:inherit;font-size:.82rem;font-weight:800;text-transform:none;letter-spacing:0;" />
+        </label>
+        <label style="display:grid;gap:.18rem;color:#6e6e73;font-size:.62rem;font-weight:900;letter-spacing:.04em;text-transform:uppercase;">
+          Type
+          <select name="kind" style="min-height:2.15rem;border:1px solid rgba(29,29,31,.18);border-radius:10px;padding:0 .62rem;color:#1d1d1f;background:#fff;font:inherit;font-size:.82rem;font-weight:800;text-transform:none;letter-spacing:0;">
+            <option value="player"${kind === "player" ? " selected" : ""}>Player</option>
+            <option value="staff"${kind === "staff" ? " selected" : ""}>Staff / leader</option>
+          </select>
+        </label>
+        <div style="display:flex;align-items:center;gap:.4rem;">
+          <button type="submit" class="session-player-board-tool-button is-copy" style="flex:1 1 auto;min-height:2.15rem;">${isEdit ? "Save" : "Add"}</button>
+          ${
+            isEdit
+              ? `<button type="button" class="session-player-board-tool-button" data-session-player-board-person-remove="${escapeHtml(person.id)}" style="min-height:2.15rem;color:#d92d20;background:#fde7e7;">Remove</button>`
+              : ""
+          }
+        </div>
+      </form>
   `;
 }
 function renderSessionPlannerPlayerBoardOverlay(block) {
@@ -21274,6 +21570,7 @@ return `
                       .join("")
                   : `<p class="session-player-board-empty">No medically available players logged for this block.</p>`
               }
+              ${renderSessionPlannerPlayerBoardCustomPersonEditor(block)}
             </div>
           </div>
         </div>
@@ -21796,7 +22093,7 @@ return `
                 const color = getSessionPlannerPrintPlayerColor(item, block);
                 return `
 <span
-class="session-print-player-token"
+class="session-print-player-token${item.player.playerBoardCustom ? " is-custom-person" : ""}"
 style="left: ${position.x}%; top: ${position.y}%; --session-print-player-color: ${escapeHtml(color)}; --session-print-player-text: ${escapeHtml(getSessionPlannerPlayerBoardTextColor(color))};"
 title="${escapeHtml(`${item.player.name} ${item.participation}%`)}"
 >${escapeHtml(labelMap.get(item.player.id) ?? getMedicalPlayerInitials(item.player))}</span>
@@ -76071,6 +76368,17 @@ if (playerBoardClearColorsButton) {
 clearSessionPlannerPlayerBoardSelectedColors();
 return;
 }
+const playerBoardPersonCancelButton = event.target.closest("[data-session-player-board-person-cancel]");
+if (playerBoardPersonCancelButton) {
+closeSessionPlannerPlayerBoardCustomPersonEditor();
+return;
+}
+const playerBoardPersonRemoveButton = event.target.closest("[data-session-player-board-person-remove]");
+if (playerBoardPersonRemoveButton) {
+sessionPlannerPlayerBoardCustomPersonEditor = null;
+removeSessionPlannerPlayerBoardCustomPerson(playerBoardPersonRemoveButton.dataset.sessionPlayerBoardPersonRemove);
+return;
+}
 if (event.target.matches("[data-session-player-board-overlay]")) {
 setSessionPlannerPlayerBoardOpen(false);
 return;
@@ -76402,6 +76710,9 @@ return;
 }
 handleSessionPlannerTacticalCanvasDoubleClick(event, tacticalCanvas);
 });
+ui.sessionPlannerWorkspace?.addEventListener("contextmenu", (event) => {
+handleSessionPlannerPlayerBoardContextMenu(event);
+});
 ui.sessionPlannerWorkspace?.addEventListener("submit", (event) => {
 const libraryFolderEditForm = event.target.closest?.("[data-session-library-folder-edit-form]");
 if (libraryFolderEditForm) {
@@ -76413,6 +76724,12 @@ const libraryFolderForm = event.target.closest?.("[data-session-library-folder-f
 if (libraryFolderForm) {
 event.preventDefault();
 createSessionPlannerExerciseLibraryFolderFromForm(libraryFolderForm);
+return;
+}
+const playerBoardPersonForm = event.target.closest?.("[data-session-player-board-person-form]");
+if (playerBoardPersonForm) {
+event.preventDefault();
+saveSessionPlannerPlayerBoardCustomPersonFromForm(playerBoardPersonForm);
 return;
 }
 const playerBoardAutoForm = event.target.closest?.("[data-session-player-board-auto-form]");

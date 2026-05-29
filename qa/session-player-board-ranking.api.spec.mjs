@@ -48,6 +48,22 @@ test("Session Planner Player Board can copy team setup from another block", () =
   expect(styleSource).toContain(".session-player-board-tool-button.is-copy");
 });
 
+test("Session Planner Player Board can add manual people directly on a block", () => {
+  const appSource = readProjectFile("app.js");
+
+  expect(appSource).toContain("\"playerBoardCustomPeople\"");
+  expect(appSource).toContain("function normalizeSessionPlannerPlayerBoardCustomPeople");
+  expect(appSource).toContain("function openSessionPlannerPlayerBoardCustomPersonEditor");
+  expect(appSource).toContain("function removeSessionPlannerPlayerBoardCustomPerson");
+  expect(appSource).toContain("function renderSessionPlannerPlayerBoardCustomPersonEditor");
+  expect(appSource).toContain("function saveSessionPlannerPlayerBoardCustomPersonFromForm");
+  expect(appSource).toContain("data-session-player-board-token-kind=\"${item.player.playerBoardCustom ? \"custom\" : \"roster\"}\"");
+  expect(appSource).toContain("data-session-player-board-person-form");
+  expect(appSource).toContain("addEventListener(\"contextmenu\"");
+  expect(appSource).toContain("playerBoardCustom: true");
+  expect(appSource).toContain("Manual board person");
+});
+
 test("Session Planner Player Board spaces compact print and preview tokens for readability", () => {
   const appSource = readProjectFile("app.js");
 

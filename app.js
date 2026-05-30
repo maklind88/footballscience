@@ -27253,15 +27253,17 @@ const activeTabTitle = getPlayerProfileOption(playerProfileTabOptions, activeTab
 const medicalSnapshot = getPlayerProfileMedicalSnapshot(player.id);
 const effectiveStatus = getPlayerProfileEffectiveStatusFromSnapshot(player, medicalSnapshot);
 const isSquadPlayer = playerProfileCountsInSquad(player);
-const temporaryRosterFields = isSquadPlayer
-? ""
-: `
+const rosterTypeField = `
             <label class="squad-tab-field-overview">
               <span>Roster type</span>
               <select name="rosterType" ${canEdit ? "" : "disabled"}>
                 ${renderPlayerProfileOptionSet(playerProfileRosterTypeOptions, player.rosterType)}
               </select>
             </label>
+          `;
+const temporaryRosterFields = isSquadPlayer
+? ""
+: `
             <label class="squad-tab-field-overview">
               <span>Temporary group</span>
               <input name="temporaryGroup" value="${escapeHtml(player.temporaryGroup)}" placeholder="Academy Training Group" ${canEdit ? "" : "disabled"} />
@@ -27322,6 +27324,7 @@ return `
                 ${renderPlayerProfileOptionSet(playerProfileStatusOptions, player.status)}
               </select>
             </label>
+            ${rosterTypeField}
             <label class="squad-tab-field-roles">
               <span>Primary role</span>
               <select name="primaryRole" ${canEdit ? "" : "disabled"}>
@@ -28818,12 +28821,8 @@ const currentIsSquadPlayer = playerProfileCountsInSquad(currentPlayer);
 const submittedRosterType = hasSubmittedValue("rosterType")
 ? normalizePlayerProfileRosterType(values.rosterType, currentRosterType)
 : currentRosterType;
-const nextRosterType = currentIsSquadPlayer
-? playerProfileRosterTypeCountsInSquad(currentRosterType)
-? currentRosterType
-: "squad"
-: submittedRosterType;
-const nextCountsInSquad = currentIsSquadPlayer || playerProfileRosterTypeCountsInSquad(nextRosterType);
+const nextRosterType = submittedRosterType;
+const nextCountsInSquad = playerProfileRosterTypeCountsInSquad(nextRosterType);
 const nextTemporaryGroup = nextCountsInSquad
 ? ""
 : hasSubmittedValue("temporaryGroup")
@@ -76177,7 +76176,17 @@ handlePhotoInput(playerPhotoInput);
 return;
 }
 const editForm = event.target.closest("#playerProfileEditForm");
-if (editForm) { queuePlayerProfileAutosave(editForm, 0); return; }
+if (editForm) {
+if (event.target.matches('select[name="rosterType"]')) {
+const result = savePlayerProfileEditForm(editForm);
+if (result?.ok) {
+renderPlayerProfilesWorkspace();
+}
+return;
+}
+queuePlayerProfileAutosave(editForm, 0);
+return;
+}
 const importInput = event.target.closest("[data-squad-data-import-file]");
 if (importInput) {
 const file = importInput.files?.[0] ?? null;

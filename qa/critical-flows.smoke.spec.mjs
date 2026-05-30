@@ -2476,7 +2476,7 @@ test("Squad profile modal autosaves edits and keeps its size across tabs", async
   await expect(modal.locator("[data-player-profile-remove]")).toBeVisible();
   await expect(modal.locator(".squad-profile-strip")).toHaveCount(0);
   await expect(modal.locator('input[name="photoUrl"]')).toHaveCount(0);
-  await expect(modal.locator('select[name="rosterType"]')).toHaveCount(0);
+  await expect(modal.locator('select[name="rosterType"]')).toBeVisible();
   await expect(modal.locator('input[name="temporaryGroup"]')).toHaveCount(0);
   await expect(modal.locator('input[name="temporaryFrom"]')).toHaveCount(0);
   await expect(modal.locator('input[name="temporaryTo"]')).toHaveCount(0);
@@ -2599,6 +2599,81 @@ test("Squad profile modal autosaves edits and keeps its size across tabs", async
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.locator("#hubShell")).toBeVisible();
   await expectStorageContains(page, playerProfilesKey, coachNote);
+});
+
+test("Squad profile roster type moves players between squad and training guests", async ({ page }) => {
+  await bootApp(page);
+  await openWorkspace(page, "player-profiles");
+
+  await page.locator("[data-player-profile-select]").first().click();
+  const modal = page.locator(".squad-profile-modal:has(#playerProfileEditForm)").first();
+  await expect(modal).toBeVisible();
+  const playerId = await modal.locator('input[name="playerId"]').inputValue();
+  const rosterTypeSelect = modal.locator('select[name="rosterType"]');
+  await expect(rosterTypeSelect).toBeVisible();
+  await expect(rosterTypeSelect).toHaveValue("squad");
+  await expect(modal.locator('input[name="temporaryGroup"]')).toHaveCount(0);
+
+  await rosterTypeSelect.selectOption("academy");
+  await expect(modal.locator('input[name="temporaryGroup"]')).toBeVisible();
+  await modal.locator('input[name="temporaryGroup"]').fill("QA academy call-up");
+  await modal.locator('input[name="temporaryFrom"]').fill("2026-05-01");
+  await modal.locator('input[name="temporaryTo"]').fill("2026-05-14");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        ({ key, id }) => {
+          const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+          const player = Array.isArray(state.players) ? state.players.find((candidate) => candidate.id === id) : null;
+          return player
+            ? {
+                countsInSquad: player.countsInSquad,
+                rosterType: player.rosterType || "",
+                temporaryGroup: player.temporaryGroup || "",
+                temporaryFrom: player.temporaryFrom || "",
+                temporaryTo: player.temporaryTo || "",
+              }
+            : null;
+        },
+        { key: playerProfilesKey, id: playerId }
+      )
+    )
+    .toMatchObject({
+      countsInSquad: false,
+      rosterType: "academy",
+      temporaryGroup: "QA academy call-up",
+      temporaryFrom: "2026-05-01",
+      temporaryTo: "2026-05-14",
+    });
+
+  await modal.locator('select[name="rosterType"]').selectOption("squad");
+  await expect(modal.locator('input[name="temporaryGroup"]')).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        ({ key, id }) => {
+          const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+          const player = Array.isArray(state.players) ? state.players.find((candidate) => candidate.id === id) : null;
+          return player
+            ? {
+                countsInSquad: player.countsInSquad,
+                rosterType: player.rosterType || "",
+                temporaryGroup: player.temporaryGroup || "",
+                temporaryFrom: player.temporaryFrom || "",
+                temporaryTo: player.temporaryTo || "",
+              }
+            : null;
+        },
+        { key: playerProfilesKey, id: playerId }
+      )
+    )
+    .toMatchObject({
+      countsInSquad: true,
+      rosterType: "squad",
+      temporaryGroup: "",
+      temporaryFrom: "",
+      temporaryTo: "",
+    });
 });
 
 test("Squad availability status is editable and Medical injury status overrides the roster", async ({ page }) => {

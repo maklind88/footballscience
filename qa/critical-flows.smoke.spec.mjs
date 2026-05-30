@@ -804,6 +804,52 @@ test("Periodization Today opens the real current date", async ({ page }) => {
     });
 });
 
+test("Periodization Today scrolls to the selected day without opening overlay", async ({ page }) => {
+  await page.addInitScript(({ key }) => {
+    const realDate = Date;
+    const fixedNow = new realDate("2026-05-30T12:00:00-04:00").getTime();
+    class FixedDate extends realDate {
+      constructor(...args) {
+        super(...(args.length ? args : [fixedNow]));
+      }
+      static now() {
+        return fixedNow;
+      }
+    }
+    FixedDate.UTC = realDate.UTC;
+    FixedDate.parse = realDate.parse;
+    FixedDate.prototype = realDate.prototype;
+    window.Date = FixedDate;
+    window.localStorage.setItem(
+      key,
+      JSON.stringify({
+        selectedYear: 2026,
+        selectedMonthIndex: 0,
+        selectedDate: "2026-01-15",
+        importVersion: "ncc-2026-periodization-v1",
+        days: {},
+      })
+    );
+  }, { key: periodizationKey });
+
+  await bootApp(page);
+  await openWorkspace(page, "periodization");
+  await page.locator("#periodizationTodayButton").click();
+
+  const selectedCard = page.locator('[data-periodization-date="2026-05-30"]');
+  await expect(page.locator("#periodizationHeading")).toHaveText("May 2026");
+  await expect(selectedCard).toHaveClass(/is-selected/);
+  await expect(page.locator("[data-periodization-overlay]")).toHaveCount(0);
+  await expect
+    .poll(() =>
+      selectedCard.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.top >= 80 && rect.bottom <= window.innerHeight - 20;
+      })
+    )
+    .toBe(true);
+});
+
 test("Periodization derives match day tags from schedule while preserving manual overrides", async ({ page }) => {
   await page.addInitScript(({ scheduleKey, periodizationKey }) => {
     if (window.localStorage.getItem("qa-periodization-auto-matchday-seeded") === "1") {

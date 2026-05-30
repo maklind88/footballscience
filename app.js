@@ -6549,6 +6549,23 @@ return;
 }
 setPeriodizationMonth(periodizationState.selectedMonthIndex + delta);
 }
+function scrollPeriodizationDateIntoView(dateValue, options = {}) {
+if (!ui.periodizationBoard || !dateValue) {
+return;
+}
+const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+window.requestAnimationFrame(() => {
+const selectedCard = ui.periodizationBoard.querySelector(`[data-periodization-date="${dateValue}"]`);
+if (!selectedCard) {
+return;
+}
+selectedCard.scrollIntoView({
+block: options.block || "center",
+inline: "nearest",
+behavior: options.behavior || (prefersReducedMotion ? "auto" : "smooth"),
+});
+});
+}
 function jumpPeriodizationToToday() {
 ensurePeriodizationState();
 if (!periodizationState) {
@@ -6567,6 +6584,7 @@ days: periodizationState?.days ?? {},
 writePeriodizationState({ syncCentral: false });
 if (hubState?.activeWorkspaceId === "periodization") {
 renderPeriodizationWorkspace();
+scrollPeriodizationDateIntoView(todayDateValue);
 }
 }
 function padDatePart(value) {

@@ -8330,6 +8330,10 @@ return dashboardChatTeamThreadId;
 if (dashboardChatAdvancedThreadTemplates.some((template) => template.key === threadId)) {
 return threadId;
 }
+const sanitizedThreadId = threadId.replace(/[^a-zA-Z0-9_.:-]/g, "-");
+if (sanitizedThreadId.startsWith("group-") || sanitizedThreadId.startsWith("group:")) {
+return sanitizedThreadId;
+}
 if (!threadId.startsWith("dm:")) {
 return dashboardChatTeamThreadId;
 }
@@ -8372,6 +8376,10 @@ const template = dashboardChatAdvancedThreadTemplates.find((candidate) => candid
 if (template) {
 return template.title;
 }
+if (normalized.startsWith("group-") || normalized.startsWith("group:")) {
+const apiThread = dashboardChatApiThreads.find((thread) => thread.threadId === normalized);
+return dashboardChatThreadSettings.merge(normalized, apiThread?.settings || {}).customTitle || apiThread?.title || "Group chat";
+}
 const participantPartner = getDashboardChatThreadParticipants(normalized, users).find((user) => !isSameDashboardUser(user, currentUser));
 if (participantPartner) {
 return formatUserName(participantPartner);
@@ -8409,6 +8417,16 @@ function getDashboardChatThreadParticipants(threadId, users = getPlatformUsers()
 const normalized = normalizeDashboardChatThreadId(threadId);
 if (normalized === dashboardChatTeamThreadId || dashboardChatAdvancedThreadTemplates.some((template) => template.key === normalized)) {
 return [];
+}
+if (normalized.startsWith("group-") || normalized.startsWith("group:")) {
+const apiThread = dashboardChatApiThreads.find((thread) => thread.threadId === normalized);
+const apiParticipants = Array.isArray(apiThread?.participants) ? apiThread.participants : [];
+return apiParticipants
+.map((participant) => {
+const userId = String(participant.userId || participant.id || "").trim();
+return users.find((user) => user.id === userId) || (userId ? { ...participant, id: userId } : null);
+})
+.filter(Boolean);
 }
 const [, firstId = "", secondId = ""] = normalized.split(":");
 const userIds = [firstId, secondId];
@@ -8854,6 +8872,9 @@ const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardCha
 if (normalizedThreadId === dashboardChatTeamThreadId) {
 return "team";
 }
+if (normalizedThreadId.startsWith("group-") || normalizedThreadId.startsWith("group:")) {
+return "group";
+}
 const template = dashboardChatAdvancedThreadTemplates.find((candidate) => candidate.key === normalizedThreadId);
 return template?.type || "dm";
 }
@@ -8880,11 +8901,30 @@ return "";
 }
 }
 async function sendDashboardChatApiAction(payload = {}) {
-const token = await getDashboardChatApiAccessToken();
+let token = "";
+try {
+token = await withUiTimeout(
+getDashboardChatApiAccessToken(),
+8000,
+"Chat session check took too long. Try again."
+);
+} catch (error) {
+return {
+ok: false,
+status: 0,
+reason: error?.message || "Chat session check took too long. Try again.",
+retryable: true,
+};
+}
 if (!token) {
 return { ok: false, status: 401, reason: "Chat API requires an authenticated session." };
 }
+const controller = typeof AbortController === "function" ? new AbortController() : null;
+let timeoutId = 0;
 try {
+if (controller) {
+timeoutId = window.setTimeout(() => controller.abort(), 15000);
+}
 const response = await fetch("/api/chat", {
 method: "POST",
 headers: {
@@ -8892,6 +8932,7 @@ headers: {
 Authorization: `Bearer ${token}`,
 },
 body: JSON.stringify(payload),
+signal: controller?.signal,
 });
 const responseText = await response.text();
 let result = {};
@@ -8912,12 +8953,17 @@ retryable: response.status >= 500,
 }
 return { ok: true, status: response.status, result };
 } catch (error) {
+const timedOut = error?.name === "AbortError";
 return {
 ok: false,
 status: 0,
-reason: error?.message || "Chat API could not be reached.",
+reason: timedOut ? "Chat API timed out. Try again." : error?.message || "Chat API could not be reached.",
 retryable: true,
 };
+} finally {
+if (timeoutId) {
+window.clearTimeout(timeoutId);
+}
 }
 }
 async function fetchDashboardChatApi(query = {}) {
@@ -9447,6 +9493,7 @@ if (submitButton) {
 submitButton.disabled = true;
 submitButton.textContent = "Creating...";
 }
+try {
 const result = await sendDashboardChatApiAction({
 action: "createThread",
 threadId: legacyThreadId,
@@ -9458,11 +9505,6 @@ participantIds,
 if (!result.ok) {
 logDashboardChatApiFailure("createGroupThread", result);
 showDashboardChatWidgetToast(result.reason || "Could not create group.", dashboardChatActiveThreadId);
-delete form.dataset.busy;
-if (submitButton) {
-submitButton.disabled = false;
-submitButton.textContent = "Create group";
-}
 return null;
 }
 applyDashboardChatApiPayload(result.result || {}, { threadId: legacyThreadId });
@@ -9473,15 +9515,27 @@ selectedThreadId: legacyThreadId,
 });
 dashboardChatGroupCreatorOpen = false;
 form.reset();
+renderDashboardChatWidget();
+focusDashboardChatWidgetComposer();
+showDashboardChatWidgetToast("Group created.", legacyThreadId);
+queueDashboardChatThreadSummaryRefresh({ delayMs: 0, render: true });
+return result.result?.thread || null;
+} catch (error) {
+logDashboardChatApiFailure("createGroupThread", {
+ok: false,
+status: 0,
+reason: error?.message || "Could not create group.",
+retryable: true,
+});
+showDashboardChatWidgetToast(error?.message || "Could not create group.", dashboardChatActiveThreadId);
+return null;
+} finally {
 delete form.dataset.busy;
 if (submitButton) {
 submitButton.disabled = false;
 submitButton.textContent = "Create group";
 }
-renderDashboardChatWidget();
-focusDashboardChatWidgetComposer();
-showDashboardChatWidgetToast("Group created.", legacyThreadId);
-return result.result?.thread || null;
+}
 }
 function handleDashboardChatRealtimeMessageChange(change = {}) {
 dashboardChatApiRealtimeLastEventAt = Date.now();

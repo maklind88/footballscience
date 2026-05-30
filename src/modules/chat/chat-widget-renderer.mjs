@@ -914,24 +914,15 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           </div>
         `
       : "";
-    const threadPresetMarkup = advancedThreadTemplates.length || groupCreateUsers.length
+    const threadPresetMarkup = groupCreateUsers.length
       ? `
           <details class="dashboard-chat-thread-presets" data-dashboard-chat-thread-presets>
             <summary aria-label="Create new chat">+</summary>
-            <div class="dashboard-chat-thread-preset-menu" aria-label="Create chat thread">
+            <div class="dashboard-chat-thread-preset-menu" aria-label="Create group chat">
               <button type="button" class="dashboard-chat-create-menu-action is-primary" data-dashboard-chat-open-group-creator>
                 <strong>New group</strong>
                 <small>Choose people and start a focused room</small>
               </button>
-              ${advancedThreadTemplates
-                .map(
-                  (template) => `
-                    <button type="button" data-dashboard-chat-create-thread="${escapeHtml(template.key)}">
-                      ${escapeHtml(template.label)}
-                    </button>
-                  `
-                )
-                .join("")}
             </div>
           </details>
         `

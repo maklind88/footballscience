@@ -527,6 +527,9 @@ async function selectMany(table, query) {
 }
 
 async function insertRows(table, rows) {
+  if (Array.isArray(rows) && !rows.length) {
+    return [];
+  }
   const result = await dbRequest(`/${table}`, {
     method: "POST",
     headers: { Prefer: "return=representation" },
@@ -1671,6 +1674,12 @@ async function createThread(actor, body) {
   const scope = await resolveChatScope(actor, body);
   if (!scope) {
     return { ok: false, status: 403, reason: "You do not have access to this chat organization or team." };
+  }
+
+  const requestedThreadId = normalizeId(body.threadId || body.thread_id || body.id);
+  const participantIds = getParticipantIdsForThread(actor, body, requestedThreadId, type);
+  if ((type === "group" || type === "dm") && participantIds.length < 2) {
+    return { ok: false, status: 400, reason: "A private or group chat needs at least two valid participants." };
   }
 
   const thread = await ensureScopedThread(actor, { ...body, type }, scope);

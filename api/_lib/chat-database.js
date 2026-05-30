@@ -1,4 +1,4 @@
-const { parseJsonBody, readConfig, sendJson } = require("./supabase-admin.js");
+const { parseJsonBody, readConfig, sendJson, listAllAuthUsers } = require("./supabase-admin.js");
 
 const CHAT_DATABASE_MODE_VALUES = new Set(["database", "db", "postgres", "supabase"]);
 const CHAT_LEGACY_MODE_VALUES = new Set(["legacy", "storage", "app-state", "appstate", "local", "off", "false", "0"]);
@@ -878,9 +878,88 @@ function getParticipantIdsForThread(actor, body = {}, legacyKey = "", type = "te
       actor.id,
       ...getParticipantIdsFromLegacyKey(legacyKey, type),
       ...(Array.isArray(body.participantIds) ? body.participantIds : []),
-      ...(Array.isArray(body.participants) ? body.participants : []),
+      ...(Array.isArray(body.participants) ? body.participants.map((participant) => {
+        if (participant && typeof participant === "object") {
+          return participant.userId || participant.user_id || participant.id;
+        }
+        return participant;
+      }) : []),
     ].filter((userId) => isUuid(userId)))
   ).slice(0, 80);
+}
+
+function normalizeParticipantLookupKey(value = "") {
+  return normalizeString(value, 254).toLowerCase();
+}
+
+function collectParticipantLookupKeys(body = {}) {
+  const keys = new Set();
+  const addKey = (value) => {
+    const key = normalizeParticipantLookupKey(value);
+    if (key) {
+      keys.add(key);
+    }
+  };
+  const collect = (value) => {
+    if (!value) {
+      return;
+    }
+    if (typeof value === "object") {
+      addKey(value.id);
+      addKey(value.userId);
+      addKey(value.user_id);
+      addKey(value.email);
+      addKey(value.username);
+      addKey(value.userName);
+      return;
+    }
+    addKey(value);
+  };
+  [
+    ...(Array.isArray(body.participantIds) ? body.participantIds : []),
+    ...(Array.isArray(body.participants) ? body.participants : []),
+  ].forEach(collect);
+  return keys;
+}
+
+function participantScopeKey(...values) {
+  return normalizeString(values.find(Boolean) || "", 180).toLowerCase();
+}
+
+function canResolveParticipantForActor(actor = {}, user = {}) {
+  if (normalizeString(user.status || "active", 24).toLowerCase() !== "active") {
+    return false;
+  }
+  const role = actorRole(actor);
+  if (role === "admin") {
+    return true;
+  }
+  const actorClub = participantScopeKey(actor.clubId, actor.clubName);
+  const userClub = participantScopeKey(user.clubId, user.clubName);
+  if (role === "club-admin" && actorClub && userClub) {
+    return actorClub === userClub;
+  }
+  const actorTeam = participantScopeKey(actor.teamId, actor.teamName, actor.team);
+  const userTeam = participantScopeKey(user.teamId, user.teamName, user.team);
+  return !actorTeam || !userTeam || actorTeam === userTeam;
+}
+
+async function resolveParticipantIdsForThread(actor, body = {}, legacyKey = "", type = "team") {
+  const directIds = getParticipantIdsForThread(actor, body, legacyKey, type);
+  const lookupKeys = collectParticipantLookupKeys(body);
+  if (!lookupKeys.size) {
+    return directIds;
+  }
+  const users = await listAllAuthUsers().catch(() => []);
+  const resolvedIds = users
+    .filter((user) => isUuid(user.id) && canResolveParticipantForActor(actor, user))
+    .filter((user) => [
+      user.id,
+      user.email,
+      user.username,
+    ].map(normalizeParticipantLookupKey).some((key) => lookupKeys.has(key)))
+    .map((user) => user.id);
+  return Array.from(new Set([...directIds, ...resolvedIds].filter((userId) => isUuid(userId)))).slice(0, 80);
 }
 
 async function ensureThreadParticipants(actor, thread, participantIds = []) {
@@ -1677,12 +1756,12 @@ async function createThread(actor, body) {
   }
 
   const requestedThreadId = normalizeId(body.threadId || body.thread_id || body.id);
-  const participantIds = getParticipantIdsForThread(actor, body, requestedThreadId, type);
+  const participantIds = await resolveParticipantIdsForThread(actor, body, requestedThreadId, type);
   if ((type === "group" || type === "dm") && participantIds.length < 2) {
     return { ok: false, status: 400, reason: "A private or group chat needs at least two valid participants." };
   }
 
-  const thread = await ensureScopedThread(actor, { ...body, type }, scope);
+  const thread = await ensureScopedThread(actor, { ...body, type, participantIds }, scope);
   if (!thread?.id) {
     return { ok: false, status: 500, reason: "Chat thread could not be created." };
   }

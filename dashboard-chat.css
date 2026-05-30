@@ -1885,6 +1885,18 @@ body.is-dashboard-chat-open .dashboard-chat-widget.is-open{
   box-shadow:none!important;
 }
 
+.dashboard-chat-group-create-error{
+  margin:0!important;
+  padding:.68rem .78rem!important;
+  border:1px solid rgba(220,38,38,.2)!important;
+  border-radius:14px!important;
+  background:#fff1f2!important;
+  color:#b91c1c!important;
+  font-size:.68rem!important;
+  font-weight:900!important;
+  line-height:1.25!important;
+}
+
 .dashboard-chat-group-title-presets{
   display:flex!important;
   flex-wrap:wrap!important;

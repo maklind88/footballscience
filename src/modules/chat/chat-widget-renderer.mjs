@@ -464,7 +464,6 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           <small>${threadTime}</small>
         </span>
         <span class="dashboard-chat-thread-preview-line">
-          <small class="dashboard-chat-thread-kind">${escapeHtml(threadKindLabel)}</small>
           <small class="dashboard-chat-thread-preview">${escapeHtml(preview)}</small>
         </span>
         <span class="dashboard-chat-thread-meta">
@@ -861,6 +860,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const groupCreateMarkup = groupCreateUsers.length
       ? `
           <form class="dashboard-chat-group-create-form" data-dashboard-chat-group-create-form>
+            <p class="dashboard-chat-group-create-error" data-dashboard-chat-group-create-error hidden></p>
             <label class="dashboard-chat-group-name">
               <span>Group name</span>
               <input name="title" type="text" maxlength="80" placeholder="Example: Match prep" required data-dashboard-chat-group-name-input>
@@ -878,7 +878,14 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                   const userMeta = user.role || user.teamRole || user.email || "Team member";
                   return `
                     <label class="dashboard-chat-group-user">
-                      <input type="checkbox" name="participantIds" value="${escapeHtml(user.id)}">
+                      <input
+                        type="checkbox"
+                        name="participantIds"
+                        value="${escapeHtml(user.id)}"
+                        data-dashboard-chat-group-participant-email="${escapeHtml(user.email || "")}"
+                        data-dashboard-chat-group-participant-username="${escapeHtml(user.username || "")}"
+                        data-dashboard-chat-group-participant-name="${escapeHtml(userName)}"
+                      >
                       <span class="dashboard-chat-group-user-avatar">${escapeHtml(userInitial)}</span>
                       <span>
                         <strong>${escapeHtml(userName)}</strong>

@@ -9463,25 +9463,45 @@ renderDashboardChatWidget();
 focusDashboardChatWidgetComposer();
 return result.result?.thread || null;
 }
+function setDashboardChatGroupCreateError(form, message = "") {
+const errorElement = form?.querySelector("[data-dashboard-chat-group-create-error]");
+if (!errorElement) {
+return;
+}
+const normalizedMessage = String(message || "").trim();
+errorElement.textContent = normalizedMessage;
+errorElement.hidden = !normalizedMessage;
+}
 async function createDashboardCustomGroupThreadFromForm(form) {
 if (!form || form.dataset.busy === "true") return null;
 const currentUser = getCurrentPlatformUser();
 const formData = new FormData(form);
 const title = String(formData.get("title") || "").trim().slice(0, 80);
+setDashboardChatGroupCreateError(form, "");
+const selectedParticipantInputs = Array.from(form.querySelectorAll("input[name='participantIds']:checked"));
+const selectedParticipants = selectedParticipantInputs
+.map((input) => ({
+id: String(input.value || "").trim(),
+email: String(input.dataset.dashboardChatGroupParticipantEmail || "").trim().toLowerCase(),
+username: String(input.dataset.dashboardChatGroupParticipantUsername || "").trim(),
+name: String(input.dataset.dashboardChatGroupParticipantName || "").trim(),
+}))
+.filter((participant) => participant.id || participant.email || participant.username);
 const selectedParticipantIds = Array.from(new Set(
-formData.getAll("participantIds")
-.map((value) => String(value || "").trim())
-.filter(Boolean)
+selectedParticipants.map((participant) => participant.id).filter(Boolean)
 ));
 if (!currentUser?.id) {
+setDashboardChatGroupCreateError(form, "Sign in before creating a group.");
 showDashboardChatWidgetToast("Sign in before creating a group.", dashboardChatActiveThreadId);
 return null;
 }
 if (!title) {
+setDashboardChatGroupCreateError(form, "Add a group name.");
 showDashboardChatWidgetToast("Add a group name.", dashboardChatActiveThreadId);
 return null;
 }
-if (!selectedParticipantIds.length) {
+if (!selectedParticipants.length) {
+setDashboardChatGroupCreateError(form, "Choose at least one teammate.");
 showDashboardChatWidgetToast("Choose at least one teammate.", dashboardChatActiveThreadId);
 return null;
 }
@@ -9501,9 +9521,14 @@ type: "group",
 title,
 visibility: "team",
 participantIds,
+participants: [
+{ id: currentUser.id, email: currentUser.email || "", username: currentUser.username || "", name: formatUserName(currentUser) },
+...selectedParticipants,
+],
 });
 if (!result.ok) {
 logDashboardChatApiFailure("createGroupThread", result);
+setDashboardChatGroupCreateError(form, result.reason || "Could not create group.");
 showDashboardChatWidgetToast(result.reason || "Could not create group.", dashboardChatActiveThreadId);
 return null;
 }
@@ -9527,6 +9552,7 @@ status: 0,
 reason: error?.message || "Could not create group.",
 retryable: true,
 });
+setDashboardChatGroupCreateError(form, error?.message || "Could not create group.");
 showDashboardChatWidgetToast(error?.message || "Could not create group.", dashboardChatActiveThreadId);
 return null;
 } finally {

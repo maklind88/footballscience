@@ -780,6 +780,9 @@ test("Periodization Today opens the real current date", async ({ page }) => {
   const microcycle = page.locator('[data-periodization-week-start="2026-05-04"]');
   await expect(microcycle.locator(".periodization-microcycle-load-rail")).toBeVisible();
   await expect(microcycle.locator(".periodization-microcycle-load-day")).toHaveCount(7);
+  await expect(page.locator("[data-periodization-overlay]")).toHaveCount(0);
+
+  await selectedCard.click();
   await expect(page.locator("[data-periodization-overlay]")).toBeVisible();
   await expect(page.locator("[data-periodization-overlay] h2").first()).toHaveText("Saturday, May 9");
   await expect(page.locator("[data-periodization-overlay] .periodization-view-microcycle")).toBeVisible();
@@ -900,6 +903,8 @@ test("Periodization day notes persist after refresh", async ({ page }) => {
   await openWorkspace(page, "periodization");
 
   await page.locator("#periodizationTodayButton").click();
+  await expect(page.locator("[data-periodization-overlay]")).toHaveCount(0);
+  await page.locator(".periodization-day-card.is-selected").click();
   await expect(page.locator("[data-periodization-overlay]")).toBeVisible();
   await page.locator("[data-periodization-edit-selected]").click();
   const notesField = page.locator('textarea[data-periodization-field="sessionNotes"]').first();
@@ -928,6 +933,8 @@ test("Periodization edit overlay keeps scroll position while saving fields", asy
   await openWorkspace(page, "periodization");
 
   await page.locator("#periodizationTodayButton").click();
+  await expect(page.locator("[data-periodization-overlay]")).toHaveCount(0);
+  await page.locator(".periodization-day-card.is-selected").click();
   await expect(page.locator("[data-periodization-overlay]")).toBeVisible();
   await page.locator("[data-periodization-edit-selected]").click();
   const panel = page.locator("[data-periodization-overlay] .periodization-day-panel").first();

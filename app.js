@@ -6555,7 +6555,7 @@ return;
 }
 const today = new Date();
 const todayDateValue = formatScheduleDateValue(new Date(periodizationYear, today.getMonth(), today.getDate()));
-periodizationDayOverlayOpen = true;
+periodizationDayOverlayOpen = false;
 periodizationDayOverlayMode = "view";
 periodizationState = clonePeriodizationState({
 ...periodizationState,

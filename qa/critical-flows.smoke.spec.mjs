@@ -1886,6 +1886,150 @@ test("Squad removal keeps default roster players hidden after reload", async ({ 
   await expect(page.locator(`[data-player-profile-select="${removedPlayerId}"]`)).toHaveCount(0);
 });
 
+test("Squad removal archives matching Medical player and removes planner availability", async ({ page }) => {
+  const playerName = `QA Remove Everywhere ${Date.now()}`;
+  const squadPlayerId = "qa-squad-remove-everywhere";
+  const medicalPlayerId = "qa-medical-remove-everywhere";
+  await seedQaSessionPlannerTrainingSession(page);
+  await page.addInitScript(
+    ({ profileStorageKey, medicalStorageKey, playerName, squadPlayerId, medicalPlayerId }) => {
+      window.localStorage.setItem(
+        profileStorageKey,
+        JSON.stringify({
+          rosterVersion: "qa-squad-remove-everywhere",
+          schemaVersion: 3,
+          selectedPlayerId: squadPlayerId,
+          players: [
+            {
+              id: squadPlayerId,
+              name: playerName,
+              number: "77",
+              position: "Forward",
+              primaryRole: "ST",
+              roleGroup: "forward",
+              status: "available",
+              squadStatus: "important",
+              rosterType: "squad",
+              countsInSquad: true,
+              createdAt: "2026-05-27T12:00:00.000Z",
+              updatedAt: "2026-05-27T12:00:00.000Z",
+            },
+          ],
+          removedPlayerIds: [],
+          updatedAt: "2026-05-27T12:00:00.000Z",
+        })
+      );
+      window.localStorage.setItem(
+        medicalStorageKey,
+        JSON.stringify({
+          rosterVersion: "qa-medical-remove-everywhere",
+          selectedDate: "2026-05-19",
+          selectedPlayerId: medicalPlayerId,
+          players: [
+            {
+              id: medicalPlayerId,
+              name: playerName,
+              number: "77",
+              position: "Forward",
+              primaryRole: "ST",
+              roleGroup: "forward",
+              rosterType: "squad",
+              countsInSquad: true,
+              createdAt: "2026-05-27T12:00:00.000Z",
+              updatedAt: "2026-05-27T12:00:00.000Z",
+            },
+          ],
+          records: [
+            {
+              id: "qa-remove-medical-record",
+              playerId: medicalPlayerId,
+              date: "2026-05-19",
+              status: "available",
+              participation: 100,
+              createdAt: "2026-05-27T12:00:00.000Z",
+            },
+          ],
+          injuryPlans: [
+            {
+              id: "qa-remove-medical-plan",
+              playerId: medicalPlayerId,
+              startDate: "2026-05-19",
+              endDate: "2026-05-26",
+              duration: 1,
+              durationUnit: "weeks",
+              status: "active",
+              participation: 50,
+              createdAt: "2026-05-27T12:00:00.000Z",
+            },
+          ],
+        })
+      );
+    },
+    { profileStorageKey: playerProfilesKey, medicalStorageKey: medicalKey, playerName, squadPlayerId, medicalPlayerId }
+  );
+  await bootApp(page);
+  await page.evaluate(() => {
+    const store = window.platformAuthStore;
+    const currentUser = store?.getCurrentUser?.();
+    if (!store || !currentUser) return;
+    const nextUser = { ...currentUser, role: "admin" };
+    store.writeUsers([nextUser, ...store.getUsers().filter((user) => user.id !== nextUser.id)]);
+    store.setCurrentUser(nextUser.id);
+  });
+
+  await openWorkspace(page, "player-profiles");
+  await page.locator(`[data-player-profile-select="${squadPlayerId}"]`).click();
+  await expect(page.locator(".squad-profile-modal")).toBeVisible();
+  await page.locator(`[data-player-profile-remove="${squadPlayerId}"]`).click();
+  await expect(page.locator(`[data-player-profile-select="${squadPlayerId}"]`)).toHaveCount(0);
+
+  await expect
+    .poll(() =>
+      page.evaluate(
+        ({ profileStorageKey, medicalStorageKey, squadPlayerId, medicalPlayerId }) => {
+          const profileState = JSON.parse(window.localStorage.getItem(profileStorageKey) || "{}");
+          const medicalState = JSON.parse(window.localStorage.getItem(medicalStorageKey) || "{}");
+          const medicalPlayer = Array.isArray(medicalState.players)
+            ? medicalState.players.find((player) => player.id === medicalPlayerId)
+            : null;
+          const medicalRecord = Array.isArray(medicalState.records)
+            ? medicalState.records.find((record) => record.id === "qa-remove-medical-record")
+            : null;
+          const medicalPlan = Array.isArray(medicalState.injuryPlans)
+            ? medicalState.injuryPlans.find((plan) => plan.id === "qa-remove-medical-plan")
+            : null;
+          return {
+            profileListed: Array.isArray(profileState.players)
+              ? profileState.players.some((player) => player.id === squadPlayerId)
+              : false,
+            profileTombstoned: Array.isArray(profileState.removedPlayerIds)
+              ? profileState.removedPlayerIds.includes(squadPlayerId)
+              : false,
+            medicalArchived: Boolean(medicalPlayer?.archivedAt),
+            medicalRecordArchived: Boolean(medicalRecord?.archivedAt),
+            medicalPlanArchived: Boolean(medicalPlan?.archivedAt),
+          };
+        },
+        { profileStorageKey: playerProfilesKey, medicalStorageKey: medicalKey, squadPlayerId, medicalPlayerId }
+      )
+    )
+    .toMatchObject({
+      profileListed: false,
+      profileTombstoned: true,
+      medicalArchived: true,
+      medicalRecordArchived: true,
+      medicalPlanArchived: true,
+    });
+
+  await openWorkspace(page, "medical-team");
+  await expect(page.locator(`[data-medical-roster-row="${medicalPlayerId}"]`)).toHaveCount(0);
+
+  await openWorkspace(page, "session-planner");
+  const sessionPlannerWorkspace = await waitForSessionPlannerWorkspace(page);
+  await sessionPlannerWorkspace.locator("[data-session-open-player-board]").click();
+  await expect(page.locator(".session-player-board-token", { hasText: playerName })).toHaveCount(0);
+});
+
 test("Squad add creates a Medical roster slot and Session Planner placement", async ({ page }) => {
   const playerName = `QA Squad Placement ${Date.now()}`;
   let squadAgeRequests = 0;

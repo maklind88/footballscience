@@ -28656,6 +28656,85 @@ return;
 }
 upsertMedicalPlayers(medicalPlayers);
 }
+function getMedicalPlayersMatchingPlayerProfile(playerProfile = {}) {
+ensureMedicalState();
+const targetId = String(playerProfile.id || playerProfile.playerId || playerProfile.profileId || "").trim();
+const targetName = normalizePlayerProfileName(playerProfile.name || playerProfile.displayName || "");
+const targetNumber = String(playerProfile.number || playerProfile.shirtNumber || playerProfile.shirt_number || "").trim().toLowerCase();
+const activePlayers = medicalState.players.filter((player) => !isMedicalItemArchived(player));
+const matchesById = new Map();
+activePlayers.forEach((medicalPlayer) => {
+const medicalId = String(medicalPlayer.id || medicalPlayer.playerId || medicalPlayer.profileId || "").trim();
+const medicalName = normalizePlayerProfileName(medicalPlayer.name || medicalPlayer.displayName || "");
+const medicalNumber = String(medicalPlayer.number || medicalPlayer.shirtNumber || medicalPlayer.shirt_number || "").trim().toLowerCase();
+if (targetId && medicalId === targetId) {
+matchesById.set(medicalPlayer.id, medicalPlayer);
+return;
+}
+if (targetName && targetNumber && medicalName === targetName && medicalNumber === targetNumber) {
+matchesById.set(medicalPlayer.id, medicalPlayer);
+}
+});
+if (matchesById.size || !targetName || targetNumber) {
+return Array.from(matchesById.values());
+}
+const nameMatches = activePlayers.filter((medicalPlayer) => normalizePlayerProfileName(medicalPlayer.name || medicalPlayer.displayName || "") === targetName);
+return nameMatches.length === 1 ? nameMatches : [];
+}
+function archiveMedicalPlayersForRemovedPlayerProfile(playerProfile = {}) {
+const matchingPlayers = getMedicalPlayersMatchingPlayerProfile(playerProfile);
+if (!matchingPlayers.length) {
+return [];
+}
+const archivedAt = new Date().toISOString();
+const matchingPlayerIds = new Set(matchingPlayers.map((player) => String(player.id || "").trim()).filter(Boolean));
+const archivedPlayers = [];
+medicalState.players = medicalState.players.map((medicalPlayer) => {
+if (!matchingPlayerIds.has(String(medicalPlayer.id || "").trim()) || isMedicalItemArchived(medicalPlayer)) {
+return medicalPlayer;
+}
+const archivedPlayer = normalizeMedicalPlayer({
+...medicalPlayer,
+updatedAt: archivedAt,
+archivedAt,
+archivedBy: getCurrentMedicalActorId(),
+archiveReason: "Removed from Squad Room",
+});
+if (archivedPlayer) {
+archivedPlayers.push(archivedPlayer);
+return archivedPlayer;
+}
+return medicalPlayer;
+});
+medicalState.records = medicalState.records.map((record) =>
+matchingPlayerIds.has(String(record.playerId || "").trim()) && !isMedicalItemArchived(record)
+? normalizeMedicalRecord({
+...record,
+updatedAt: archivedAt,
+archivedAt,
+archivedBy: getCurrentMedicalActorId(),
+archiveReason: "Player removed from Squad Room",
+}) || record
+: record
+);
+medicalState.injuryPlans = medicalState.injuryPlans.map((plan) =>
+matchingPlayerIds.has(String(plan.playerId || "").trim()) && !isMedicalItemArchived(plan)
+? normalizeMedicalInjuryPlan({
+...plan,
+updatedAt: archivedAt,
+archivedAt,
+archivedBy: getCurrentMedicalActorId(),
+archiveReason: "Player removed from Squad Room",
+}) || plan
+: plan
+);
+medicalState.selectedPlayerId = getActiveMedicalPlayers()[0]?.id || "";
+commitMedicalClinicalState(
+"player-removed-from-squad",
+`${archivedPlayers.map((player) => player.name).join(", ")} archived after Squad Room removal.`
+);
+return archivedPlayers;
+}
 function addPlayerProfile(values = {}) {
 ensurePlayerProfilesState();
 const roleGroup = getPlayerProfileRoleGroupForRole(values.primaryRole, values.position);
@@ -28848,9 +28927,7 @@ recordPlayerProfileChange("player-removed", removedPlayer, [
 ]);
 }
 writePlayerProfilesState();
-if (removedPlayer) {
-removeMedicalPlayer(removedPlayer.id);
-}
+archiveMedicalPlayersForRemovedPlayerProfile(removedPlayer || { id: playerId });
 return true;
 }
 function createSessionPlannerPlayerProfileContract(player, dateValue = formatScheduleDateValue(new Date())) {

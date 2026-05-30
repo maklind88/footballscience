@@ -1059,7 +1059,8 @@ body.is-dark-mode .medical-plan-edit:focus-visible {
 }
 
 .medical-ops-case-row {
-  grid-template-columns: minmax(7rem, 1fr);
+  grid-template-columns: minmax(8rem, 1fr) minmax(8rem, 1fr) minmax(4.4rem, 0.42fr) minmax(4.6rem, 0.42fr);
+  align-items: center;
 }
 
 .medical-ops-signal-row span,
@@ -1081,6 +1082,47 @@ body.is-dark-mode .medical-plan-edit:focus-visible {
 .medical-ops-case-row small {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.medical-case-player,
+.medical-case-plan,
+.medical-case-metric {
+  display: grid;
+  gap: 0.14rem;
+  min-width: 0;
+}
+
+.medical-case-metric {
+  justify-items: end;
+  text-align: right;
+}
+
+.medical-case-footer {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 0.42rem;
+  min-width: 0;
+}
+
+.medical-case-footer small {
+  min-width: 0;
+  max-width: 13rem;
+  padding: 0.22rem 0.42rem;
+  border-radius: 999px;
+  background: rgba(29, 31, 29, 0.05);
+}
+
+.medical-case-footer b {
+  margin-left: auto;
+  padding: 0.26rem 0.54rem;
+  border-radius: 999px;
+  color: #123c2b;
+  background: rgba(35, 160, 111, 0.14);
+  font-size: 0.68rem;
+  font-weight: 950;
+  line-height: 1;
   white-space: nowrap;
 }
 
@@ -1440,6 +1482,15 @@ body.is-dark-mode .medical-ops-case-row small {
   color: var(--dark-muted);
 }
 
+body.is-dark-mode .medical-case-footer small {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+body.is-dark-mode .medical-case-footer b {
+  color: #d8f9e2;
+  background: rgba(35, 160, 111, 0.18);
+}
+
 body.is-dark-mode .medical-ops-tone-high,
 body.is-dark-mode .medical-ops-stat-high {
   border-color: rgba(248, 113, 113, 0.32);
@@ -1620,6 +1671,10 @@ body.is-dark-mode .medical-ops-stat-clear {
   .medical-ops-table-head,
   .medical-ops-table-row {
     min-width: 54rem;
+  }
+
+  .medical-ops-case-row {
+    grid-template-columns: minmax(9rem, 1fr) minmax(9rem, 1fr);
   }
 
   .medical-ops-severity-grid {

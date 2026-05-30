@@ -30781,14 +30781,31 @@ ${renderMedicalOperationsPlayerAvailability(summary)}
 <div class="medical-ops-case-list">
 ${summary.activeCases.length
 ? summary.activeCases
-.slice(0, 5)
+.slice(0, 6)
 .map(
-({ player, plan, severity, daysRemaining, clearance }) => `
-<button type="button" data-medical-select-player="${escapeHtml(player.id)}" class="medical-ops-case-row medical-ops-tone-${escapeHtml(severity.tone)}">
-<span>${escapeHtml(player.name)}</span>
+({ player, plan, severity, daysRemaining, review, clearance }) => `
+<button type="button" data-medical-edit-injury-plan="${escapeHtml(plan.id)}" class="medical-ops-case-row medical-ops-tone-${escapeHtml(severity.tone)}" aria-label="Edit ${escapeHtml(player.name)} medical plan">
+<span class="medical-case-player">
+<strong>${escapeHtml(player.name)}</strong>
+<small>${escapeHtml(player.position || "Position")} / ${escapeHtml(severity.label)}</small>
+</span>
+<span class="medical-case-plan">
 <strong>${escapeHtml(plan.injuryType)}</strong>
-<small>${escapeHtml(getMedicalRtpPhaseOption(plan.rtpPhase).label)} / ${plan.participation}% / ${daysRemaining} days left</small>
+<small>${escapeHtml([plan.bodyArea, getMedicalRtpPhaseOption(plan.rtpPhase).label].filter(Boolean).join(" / "))}</small>
+</span>
+<span class="medical-case-metric">
+<strong>${plan.participation}%</strong>
+<small>recommended</small>
+</span>
+<span class="medical-case-metric">
+<strong>${daysRemaining}</strong>
+<small>days left</small>
+</span>
+<span class="medical-case-footer">
+<small>${escapeHtml(review.label)}</small>
 <small>${clearance.signOffCount}/${medicalClearanceRoles.length} sign-off / ${clearance.gatePassCount}/${medicalLoadGateOptions.length} gates</small>
+<b>Edit plan</b>
+</span>
 </button>
 `
 )

@@ -1746,6 +1746,17 @@ test("Medical operations board separates signals, cases, history and season view
   await expect(actionCard).not.toContainText("QA Long Term ACL");
   const activeCaseBoard = operations.locator(".medical-ops-card").filter({ hasText: "Active Case Board" });
   await expect(activeCaseBoard).toContainText("QA Long Term ACL");
+  const longTermCase = activeCaseBoard.locator('[data-medical-edit-injury-plan="qa-long-term-case"]');
+  await expect(longTermCase).toContainText("Edit plan");
+  await expect(longTermCase).toContainText("Review Wed 15 Jul");
+  await longTermCase.click();
+  const modalTabs = page.locator(".medical-modal-tabs");
+  await expect(modalTabs.getByRole("tab", { name: "Medical Plan" })).toHaveAttribute("aria-selected", "true");
+  const planForm = page.locator("#medicalInjuryPlanForm");
+  await expect(planForm.locator('button[type="submit"]')).toHaveText("Update plan");
+  await expect(planForm.locator('[name="injuryType"]')).toHaveValue("ACL injury");
+  await expect(planForm.locator('[name="duration"]')).toHaveValue("5");
+  await page.locator(".medical-modal-close").click();
 
   await operationsMenu.locator('[data-medical-ops-tab="availability"]').click();
   await expect(operationsMenu.locator('[data-medical-ops-tab="availability"]')).toHaveClass(/is-active/);

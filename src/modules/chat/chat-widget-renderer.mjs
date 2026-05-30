@@ -815,6 +815,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       moderationState = { loading: false, audits: [], retentionPolicy: null, error: "" },
       attachmentDraft = null,
       teamChatTitle = "Team Chat",
+      groupCreatorOpen = false,
     } = options;
     const isOpen = Boolean(state.isOpen);
     const activeThread = threads.find((thread) => thread.threadId === activeThreadId);
@@ -860,14 +861,15 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const groupCreateMarkup = groupCreateUsers.length
       ? `
           <form class="dashboard-chat-group-create-form" data-dashboard-chat-group-create-form>
-            <div class="dashboard-chat-group-create-head">
-              <strong>New group</strong>
-              <small>Choose people and start a focused room</small>
-            </div>
             <label class="dashboard-chat-group-name">
               <span>Group name</span>
-              <input name="title" type="text" maxlength="80" placeholder="Example: Match prep" required>
+              <input name="title" type="text" maxlength="80" placeholder="Example: Match prep" required data-dashboard-chat-group-name-input>
             </label>
+            <div class="dashboard-chat-group-title-presets" aria-label="Suggested group names">
+              <button type="button" data-dashboard-chat-group-title-preset="Match prep">Match prep</button>
+              <button type="button" data-dashboard-chat-group-title-preset="Training staff">Training staff</button>
+              <button type="button" data-dashboard-chat-group-title-preset="Medical update">Medical update</button>
+            </div>
             <div class="dashboard-chat-group-create-users" aria-label="Choose group members">
               ${groupCreateUsers
                 .map((user) => {
@@ -896,12 +898,31 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
             <small>Add users before creating a group chat.</small>
           </div>
         `;
+    const groupCreateOverlayMarkup = groupCreatorOpen
+      ? `
+          <div class="dashboard-chat-group-create-overlay" data-dashboard-chat-group-create-backdrop>
+            <section class="dashboard-chat-group-create-card" role="dialog" aria-modal="true" aria-label="Create group chat">
+              <header>
+                <span>
+                  <strong>New group</strong>
+                  <small>Choose people and start a focused room</small>
+                </span>
+                <button type="button" aria-label="Close group creator" data-dashboard-chat-group-create-close>×</button>
+              </header>
+              ${groupCreateMarkup}
+            </section>
+          </div>
+        `
+      : "";
     const threadPresetMarkup = advancedThreadTemplates.length || groupCreateUsers.length
       ? `
           <details class="dashboard-chat-thread-presets" data-dashboard-chat-thread-presets>
             <summary aria-label="Create new chat">+</summary>
             <div class="dashboard-chat-thread-preset-menu" aria-label="Create chat thread">
-              ${groupCreateMarkup}
+              <button type="button" class="dashboard-chat-create-menu-action is-primary" data-dashboard-chat-open-group-creator>
+                <strong>New group</strong>
+                <small>Choose people and start a focused room</small>
+              </button>
               ${advancedThreadTemplates
                 .map(
                   (template) => `
@@ -1135,6 +1156,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       }
       <button type="button" class="dashboard-chat-widget-toast" data-dashboard-chat-widget-toast data-dashboard-chat-toast-open aria-live="polite" aria-atomic="true" hidden></button>
       ${renderConfirmDialog(confirmAction)}
+      ${isOpen ? groupCreateOverlayMarkup : ""}
       ${isOpen && detailsOpen ? renderThreadDetailsPanel({ activeThread, activeThreadId, activeThreadLabel, activeThreadSubLabel, users, messages, pinnedMessages, messageSearchQuery, searchMatchCount, searchActiveMatchIndex, threadMessageCount: hasThreadMessages.length }) : ""}
       <div class="dashboard-chat-widget-body">
         <section class="dashboard-chat-thread-list" aria-label="Chat threads">

@@ -4721,6 +4721,7 @@ let dashboardChatModerationState = { loading: false, audits: [], failedUploads: 
 let dashboardChatThreadSummarySyncTimer = 0;
 let dashboardChatThreadSummaryLastRequestedAt = 0;
 let dashboardChatComposerAttachmentDraft = null;
+let dashboardChatGroupCreatorOpen = false;
 let dashboardChatSubmittedComposerDrafts = new Map();
 let sessionPlannerPeriodizationOverlayMode = "view";
 let sessionPlannerLibraryOpen = false;
@@ -9407,6 +9408,7 @@ return null;
 }
 applyDashboardChatApiPayload(result.result || {}, { threadId: legacyThreadId });
 dashboardChatMessageSearchQuery = "";
+dashboardChatGroupCreatorOpen = false;
 writeDashboardChatWidgetState({
 isOpen: true,
 selectedThreadId: legacyThreadId,
@@ -9469,6 +9471,7 @@ writeDashboardChatWidgetState({
 isOpen: true,
 selectedThreadId: legacyThreadId,
 });
+dashboardChatGroupCreatorOpen = false;
 form.reset();
 delete form.dataset.busy;
 if (submitButton) {
@@ -10625,6 +10628,7 @@ moderationOpen: dashboardChatModerationOpen,
 moderationState: dashboardChatModerationState,
 attachmentDraft: dashboardChatComposerAttachmentDraft,
 teamChatTitle: getDashboardChatTeamChatTitle(),
+groupCreatorOpen: dashboardChatGroupCreatorOpen,
 });
 dashboardChatReplyDraft = renderedWidget.replyDraft;
 if (renderedWidget.activeThreadId !== state.selectedThreadId) {
@@ -74027,6 +74031,11 @@ window.addEventListener("scroll", hideTopIconTooltip, { passive: true });
 window.addEventListener("resize", hideTopIconTooltip);
 document.addEventListener("keydown", (event) => {
 if (event.key === "Escape") {
+if (dashboardChatGroupCreatorOpen) {
+dashboardChatGroupCreatorOpen = false;
+renderDashboardChatWidget();
+return;
+}
 hideTopIconTooltip();
 }
 });
@@ -74307,6 +74316,34 @@ if (loadEarlierButton) {
 await loadOlderDashboardChatMessagesWithApi(loadEarlierButton.dataset.dashboardChatLoadEarlier);
 return;
 }
+const openGroupCreatorButton = event.target.closest("[data-dashboard-chat-open-group-creator]");
+if (openGroupCreatorButton) {
+event.preventDefault();
+dashboardChatGroupCreatorOpen = true;
+renderDashboardChatWidget();
+window.setTimeout(() => {
+ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-group-name-input]")?.focus();
+}, 0);
+return;
+}
+const closeGroupCreatorButton = event.target.closest("[data-dashboard-chat-group-create-close]");
+const groupCreatorBackdrop = event.target.closest("[data-dashboard-chat-group-create-backdrop]");
+if (closeGroupCreatorButton || (groupCreatorBackdrop && event.target === groupCreatorBackdrop)) {
+event.preventDefault();
+dashboardChatGroupCreatorOpen = false;
+renderDashboardChatWidget();
+return;
+}
+const groupTitlePresetButton = event.target.closest("[data-dashboard-chat-group-title-preset]");
+if (groupTitlePresetButton) {
+event.preventDefault();
+const groupNameInput = ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-group-name-input]");
+if (groupNameInput) {
+groupNameInput.value = groupTitlePresetButton.dataset.dashboardChatGroupTitlePreset || "";
+groupNameInput.focus();
+}
+return;
+}
 const createThreadButton = event.target.closest("[data-dashboard-chat-create-thread]");
 if (createThreadButton) {
 await createDashboardAdvancedChatThread(createThreadButton.dataset.dashboardChatCreateThread);
@@ -74381,6 +74418,7 @@ setDashboardChatReplyDraft("", "");
 setDashboardChatPriorityDraft("normal");
 setDashboardChatConfirmAction(null);
 dashboardChatDetailsOpen = false;
+dashboardChatGroupCreatorOpen = false;
 dashboardChatMobileConversationOpen = true;
 }
 writeDashboardChatWidgetState(nextState);
@@ -74414,6 +74452,7 @@ setDashboardChatReplyDraft("", "");
 setDashboardChatPriorityDraft("normal");
 dashboardChatMessageSearchQuery = "";
 dashboardChatDetailsOpen = false;
+dashboardChatGroupCreatorOpen = false;
 dashboardChatMobileConversationOpen = true;
 writeDashboardChatWidgetState({
 isOpen: true,

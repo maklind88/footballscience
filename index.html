@@ -38,8 +38,9 @@
     <link id=s rel=stylesheet>
     <link id=m rel=stylesheet>
     <link id=p rel=stylesheet>
+    <link id=f rel=stylesheet>
     <link rel=stylesheet href=appearance-governance.css>
-    <script>{const v=window.__assetVersion=Date.now(),d=document;["styles.css","medical-roster-overview.css","session-print-overrides.css"].map((f,i)=>d.getElementById("smp"[i]).href=f+"?v="+v)}</script>
+    <script>{const v=window.__assetVersion=Date.now(),d=document;["styles.css","medical-roster-overview.css","session-print-overrides.css","platform-feedback.css"].map((f,i)=>d.getElementById("smpf"[i]).href=f+"?v="+v)}</script>
     <link rel=stylesheet href=tacticalboard-overrides.css>
     <script>
       (function () {
@@ -3134,7 +3135,7 @@
         const u=async(v)=>{const l=await g();if(!l)return v;if(v&&l!==v&&s()){p(l);await c();const t=new URL(location.href);t.searchParams.set("_build",l);location.replace(t);return l}p(l);return l};
         const L=String((await g())||s()||window.__assetVersion||Date.now()).trim().slice(0,m);
         window.__assetVersion=L;
-        for(const[i,f]of[["s","styles.css"],["m","medical-roster-overview.css"]]){const e=document.getElementById(i);if(e)e.href=`${f}?v=${L}`}
+        for(const[i,f]of[["s","styles.css"],["m","medical-roster-overview.css"],["f","platform-feedback.css"]]){const e=document.getElementById(i);if(e)e.href=`${f}?v=${L}`}
         const latest=await u(s()||L);if(latest!==L)return;
         const load=(f)=>new Promise((r)=>{const n=document.createElement("script");n.src=f;n.onload=r;n.onerror=r;document.head.append(n)});
         const start=()=>{let w=!1;const f=async()=>{if(w||document.hidden)return;w=!0;try{await u(L)}finally{w=!1}};setInterval(f,n);addEventListener("visibilitychange",()=>{if(!document.hidden)f()})};

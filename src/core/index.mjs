@@ -8,3 +8,4 @@ export * from "./storage-adapters.mjs";
 export * from "./platform-module-loader.mjs";
 export * from "./platform-readiness-contracts.mjs";
 export * from "./appearance-governance.mjs";
+export * from "./platform-autosave-status.mjs";

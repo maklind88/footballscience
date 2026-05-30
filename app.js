@@ -47,6 +47,7 @@ import { uploadDashboardChatAttachmentFile as uploadDashboardChatAttachmentFileW
 import { createDashboardHomeCardsRenderer } from "./src/modules/home/dashboard-renderer.mjs";
 import { selectHomeTaskQueues } from "./src/modules/home/tasks.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
+import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
 import { getTopIconSvg } from "./top-icons.js";
 import {
@@ -677,61 +678,13 @@ let centralStateRefreshTimer = null;
 const centralStateWriteQueue = new Map();
 const centralStateWriteSuppressionKeys = new Set();
 const centralStateRefreshIntervalMs = 10000;
-let platformAutosaveStatus = {
-state: "saved",
-message: "Saved",
-updatedAt: "",
-};
-let platformAutosaveStatusTimer = null;
-function getPlatformAutosaveStatusLabel(state = platformAutosaveStatus.state) {
-if (state === "saving") return "Saving";
-if (state === "issue" || state === "conflict") return "Sync issue";
-return "Saved";
-}
-function renderPlatformAutosaveStatus() {
-if (!document.body) {
-return;
-}
-let statusElement = document.querySelector("[data-platform-autosave-status]");
-if (!statusElement) {
-statusElement = document.createElement("div");
-statusElement.className = "platform-autosave-status";
-statusElement.dataset.platformAutosaveStatus = "";
-statusElement.setAttribute("role", "status");
-statusElement.setAttribute("aria-live", "polite");
-document.body.appendChild(statusElement);
-}
-const state = platformAutosaveStatus.state || "saved";
-const label = getPlatformAutosaveStatusLabel(state);
-const detail = platformAutosaveStatus.message && platformAutosaveStatus.message !== label
-? platformAutosaveStatus.message
-: "";
-statusElement.className = `platform-autosave-status is-${state}`;
-statusElement.innerHTML = `
-  <span class="platform-autosave-status-dot" aria-hidden="true"></span>
-  <strong>${escapeHtml(label)}</strong>
-  ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
-`;
-}
-function setPlatformAutosaveStatus(state = "saved", message = "") {
-const nextState = ["saved", "saving", "issue", "conflict"].includes(state) ? state : "saved";
-platformAutosaveStatus = {
-state: nextState,
-message: String(message || getPlatformAutosaveStatusLabel(nextState)),
-updatedAt: getDataSafetyNow(),
-};
-if (platformAutosaveStatusTimer) {
-window.clearTimeout(platformAutosaveStatusTimer);
-platformAutosaveStatusTimer = null;
-}
-renderPlatformAutosaveStatus();
-if (nextState === "saved") {
-platformAutosaveStatusTimer = window.setTimeout(() => {
-const statusElement = document.querySelector("[data-platform-autosave-status]");
-statusElement?.classList.add("is-idle");
-}, 2200);
-}
-}
+const platformAutosaveStatusController = createPlatformAutosaveStatusController({
+documentRef: document,
+windowRef: window,
+now: getDataSafetyNow,
+escapeHtml,
+});
+const setPlatformAutosaveStatus = platformAutosaveStatusController.set;
 function getCentralStateBridge() {
 return window.footballScienceCentralState ?? null;
 }

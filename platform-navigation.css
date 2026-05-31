@@ -352,10 +352,16 @@ body[data-active-workspace="my-profile"] .platform-sidebar-profile .coach-avatar
   display: none;
 }
 
+.platform-main {
+  grid-template-rows: minmax(0, 1fr);
+}
+
 .platform-topbar {
-  min-height: 4.45rem;
-  padding: 0.8rem 1.3rem;
-  justify-content: flex-start;
+  display: none;
+}
+
+.platform-content {
+  min-height: 100vh;
 }
 
 .platform-topbar-actions {
@@ -481,12 +487,9 @@ body.is-dark-mode .platform-sidebar .platform-profile-menu {
     border-top: 1px solid #ffffff1f;
   }
 
-  .platform-main {
-    padding-bottom: 4.9rem;
-  }
-
-  .platform-topbar {
-    padding: 0.72rem 0.9rem;
+  .platform-main,
+  .platform-content {
+    min-height: calc(100vh - 4.9rem);
   }
 
   .platform-sidebar .platform-profile-menu {

@@ -260,17 +260,21 @@ test("Scouting critical clicks stay within interaction budgets", async ({ page }
 
   await clickScoutingTab(page, results, "database");
 
-  const loadButton = page.locator("[data-scouting-load-database], [data-scouting-retry-database]").first();
   await measureInteraction(
     page,
     results,
     "load scouting database",
     budgets.loadDatabase,
     async () => {
-      if ((await loadButton.count()) > 0) {
-        await expect(loadButton).toBeEnabled({ timeout: 15_000 });
-        await loadButton.click();
-      }
+      await page.evaluate(() => {
+        const buttons = Array.from(document.querySelectorAll("[data-scouting-load-database], [data-scouting-retry-database]"));
+        const button = buttons.find((node) => {
+          const rect = node.getBoundingClientRect();
+          const style = window.getComputedStyle(node);
+          return !node.disabled && rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+        });
+        button?.click();
+      });
     },
     async () => {
       await waitForScoutingRows(page, { timeout: budgets.loadDatabase });

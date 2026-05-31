@@ -272,6 +272,7 @@ function queueCriticalWorkspacePreloads() {
 queuePlatformIdleTask(() => {
 queueWorkspaceModulePreload("transfer-room");
 }, 900);
+window.setTimeout(() => queuePlatformIdleTask(() => queueWorkspaceModulePreload("scouting"), 600), 1600);
 }
 const platformThemeModeSupported = new Set(["auto", "light", "dark"]);
 const platformDarkThemeStartHour = 19;
@@ -7324,6 +7325,7 @@ gpModule.render(getGameplanContext());
 }
 let scoutingWorkspaceModulePromise = null;
 let scoutingWorkspaceModule = null;
+let scoutingMenuPreloadTimer = 0;
 function getScoutingWorkspaceContext() {
 return {
 ui,
@@ -34010,24 +34012,21 @@ const viewId = getWorkspaceViewId(safeWorkspaceId || workspaceHubDefaultActiveWo
 if (viewId === "game-simulator") {
 queueGameSimulatorControllersLoad();
 }
-if (viewId === "analysis-room") {
+if (viewId === "analysis-room" || viewId === "scouting") {
 loadScoutingWorkspaceModule();
 }
 if (viewId === "transfer-room") {
 loadTransferRoomWorkspaceModule();
 }
 }
-function shouldPreloadWorkspaceFromMenuTrigger(workspaceId = "") {
-const safeWorkspaceId = getSafeWorkspaceId(workspaceId, hubState) || workspaceId;
-const viewId = getWorkspaceViewId(safeWorkspaceId || workspaceHubDefaultActiveWorkspaceId);
-return viewId !== "scouting";
-}
 function preloadWorkspaceFromTrigger(trigger) {
 const workspaceId = trigger?.dataset?.openWorkspace || "";
 if (!workspaceId) {
 return;
 }
-if (!shouldPreloadWorkspaceFromMenuTrigger(workspaceId)) {
+if (getWorkspaceViewId(getSafeWorkspaceId(workspaceId, hubState) || workspaceId) === "scouting") {
+window.clearTimeout(scoutingMenuPreloadTimer);
+scoutingMenuPreloadTimer = window.setTimeout(() => queueWorkspaceModulePreload(workspaceId), 180);
 return;
 }
 queueWorkspaceModulePreload(workspaceId);
@@ -34168,8 +34167,7 @@ if (targetWorkspaceId === "game-simulator") {
 resetGameSimulatorIntro();
 }
 const targetViewId = getWorkspaceViewId(targetWorkspaceId);
-const shouldPreloadBeforeRender = targetViewId !== "scouting";
-if (shouldPreloadBeforeRender) {
+if (targetViewId && targetViewId !== "scouting") {
 queueWorkspaceModulePreload(targetWorkspaceId);
 }
 hubState.activeWorkspaceId = targetWorkspaceId;

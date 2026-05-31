@@ -5,10 +5,12 @@ const workspaceHubKey = "football-workspace-hub-v3";
 const workspaceIds = [
   "home",
   "schedule",
+  "gameplan",
   "periodization",
   "session-planner",
   "player-profiles",
   "scouting",
+  "transfer-room",
   "analysis-room",
   "staff",
   "medical-team",

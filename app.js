@@ -2046,12 +2046,12 @@ const platformSidebarPrimaryOrder = [
 "session-planner",
 "player-profiles",
 "scouting",
+"game-simulator",
 ];
 const platformSidebarMoreOrder = [
 "gameplan",
 "transfer-room",
 "analysis-room",
-"game-simulator",
 "staff",
 "admin",
 "team-identity",

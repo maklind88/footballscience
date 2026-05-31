@@ -268,7 +268,7 @@ ensureDashboardChatStylesheet().catch(() => {});
 }
 function queueCriticalWorkspacePreloads() {
 queuePlatformIdleTask(() => {
-queueWorkspaceModulePreload("scouting");
+queueWorkspaceModulePreload("transfer-room");
 }, 900);
 }
 const platformThemeModeSupported = new Set(["auto", "light", "dark"]);
@@ -7358,6 +7358,18 @@ throw error;
 }
 return scoutingWorkspaceModulePromise;
 }
+function loadScoutingWorkspaceModuleAfterPaint() {
+return new Promise((resolve, reject) => {
+const scheduleLoad = () => {
+loadScoutingWorkspaceModule().then(resolve).catch(reject);
+};
+if (typeof window.requestAnimationFrame === "function") {
+window.requestAnimationFrame(() => window.requestAnimationFrame(scheduleLoad));
+return;
+}
+window.setTimeout(scheduleLoad, 0);
+});
+}
 function renderScoutingWorkspace() {
 if (!ui.scoutingWorkspace) {
 return;
@@ -7371,7 +7383,7 @@ ui.scoutingWorkspace.innerHTML = `
         </section>
       </section>
     `;
-loadScoutingWorkspaceModule()
+loadScoutingWorkspaceModuleAfterPaint()
 .then((module) => module.render(getScoutingWorkspaceContext()))
 .catch(() => {
 ui.scoutingWorkspace.innerHTML = `
@@ -33920,16 +33932,21 @@ queueGameSimulatorControllersLoad();
 if (viewId === "analysis-room") {
 loadScoutingWorkspaceModule();
 }
-if (viewId === "scouting") {
-loadScoutingWorkspaceModule();
-}
 if (viewId === "transfer-room") {
 loadTransferRoomWorkspaceModule();
 }
 }
+function shouldPreloadWorkspaceFromMenuTrigger(workspaceId = "") {
+const safeWorkspaceId = getSafeWorkspaceId(workspaceId, hubState) || workspaceId;
+const viewId = getWorkspaceViewId(safeWorkspaceId || workspaceHubDefaultActiveWorkspaceId);
+return viewId !== "scouting";
+}
 function preloadWorkspaceFromTrigger(trigger) {
 const workspaceId = trigger?.dataset?.openWorkspace || "";
 if (!workspaceId) {
+return;
+}
+if (!shouldPreloadWorkspaceFromMenuTrigger(workspaceId)) {
 return;
 }
 queueWorkspaceModulePreload(workspaceId);
@@ -34067,7 +34084,11 @@ playerProfileNewPlayerModalOpen = false;
 if (targetWorkspaceId === "game-simulator") {
 resetGameSimulatorIntro();
 }
+const targetViewId = getWorkspaceViewId(targetWorkspaceId);
+const shouldPreloadBeforeRender = targetViewId !== "scouting";
+if (shouldPreloadBeforeRender) {
 queueWorkspaceModulePreload(targetWorkspaceId);
+}
 hubState.activeWorkspaceId = targetWorkspaceId;
 rememberActiveWorkspaceId(targetWorkspaceId);
 writeWorkspaceHubState();

@@ -55,6 +55,31 @@
   gap: 0;
 }
 
+.platform-brand-home {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  box-shadow: none;
+  cursor: pointer;
+  transition: transform 160ms ease;
+}
+
+.platform-brand-home:hover,
+.platform-brand-home:focus-visible {
+  transform: translateY(-1px);
+  outline: 0;
+}
+
+.platform-brand-home:focus-visible .platform-mark {
+  box-shadow: 0 0 0 4px #d7b46a36, 0 16px 34px #06120f33, inset 0 1px 0 #ffffff12;
+}
+
+body[data-active-workspace="home"] .platform-brand-home .platform-mark {
+  border-color: #d7b46a78;
+  box-shadow: 0 0 0 0.22rem #d7b46a20, 0 16px 34px #06120f33, inset 0 1px 0 #ffffff12;
+}
+
 .platform-brand > div,
 .platform-sidebar-account-copy {
   position: absolute;

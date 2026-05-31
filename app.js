@@ -2040,18 +2040,17 @@ const topIconMenuOrder = [
 "game-simulator",
 ];
 const platformSidebarPrimaryOrder = [
-"home",
 "schedule",
+"periodization",
+"medical-team",
 "session-planner",
 "player-profiles",
 "scouting",
-"analysis-room",
-"medical-team",
 ];
 const platformSidebarMoreOrder = [
 "gameplan",
-"periodization",
 "transfer-room",
+"analysis-room",
 "game-simulator",
 "staff",
 "admin",

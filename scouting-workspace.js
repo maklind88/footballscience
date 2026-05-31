@@ -12,6 +12,7 @@ let scoutingDatabaseWorkerPreloadTimer = 0;
 let scoutingDatabaseWorkerFullPreloadPromise = null;
 let scoutingDatabaseWorkerFullPreloadTimer = 0;
 let scoutingDatabaseWorkerFullRefreshTimer = 0;
+let scoutingDatabaseAutoLoadTimer = 0;
 let scoutingDatabaseWorkerFullReady = false;
 let scoutingDatabaseWorkerRequestId = 0;
 let scoutingDatabaseError = "";
@@ -3166,6 +3167,24 @@ function queueScoutingDatabaseLoad(onReady = renderScoutingWorkspace) {
   }
   ensureScoutingDatabaseLoaded().then(scheduleRender).catch(scheduleRender);
 }
+function scheduleScoutingDatabaseAutoLoad(delayMs = 80) {
+  window.clearTimeout(scoutingDatabaseAutoLoadTimer);
+  scoutingDatabaseAutoLoadTimer = window.setTimeout(() => {
+    scoutingDatabaseAutoLoadTimer = 0;
+    const state = ensureScoutingState();
+    const filters = normalizeScoutingDatabaseFilters(state.databaseFilters);
+    if (
+      state.activeTab !== "database" ||
+      filters.source === "fsdb" ||
+      isScoutingDatabaseLoaded() ||
+      scoutingDatabaseLoadPromise ||
+      scoutingDatabaseError
+    ) {
+      return;
+    }
+    queueScoutingDatabaseLoad(renderScoutingWorkspace);
+  }, Math.max(0, Math.floor(Number(delayMs) || 0)));
+}
 function getScoutingMetricOptions() {
   const database = getScoutingDatabase();
   return [...scoutingCoreMetricOptions, ...(database?.metrics || [])];
@@ -3721,6 +3740,32 @@ function getScoutingMyTeamPlayers() {
 function getScoutingMyTeamPlayerById(playerId, players = getScoutingMyTeamPlayers()) {
   const id = normalizeScoutingText(playerId, 160);
   return players.find((player) => getScoutingMyTeamPlayerId(player) === id) || null;
+}
+function normalizeScoutingSquadRosterType(value = "") {
+  return normalizeScoutingText(value, 80)
+    .toLowerCase()
+    .replace(/[_\s/]+/g, "-")
+    .replace(/-+/g, "-");
+}
+function scoutingPlayerCountsInSquad(player = {}) {
+  if (typeof player.countsInSquad === "boolean") {
+    return player.countsInSquad;
+  }
+  if (typeof player.counts_in_squad === "boolean") {
+    return player.counts_in_squad;
+  }
+  const rosterType = normalizeScoutingSquadRosterType(
+    player.rosterType || player.roster_type || player.playerType || player.player_type || player.squadType || player.squad_type
+  );
+  if (["guest", "guest-player", "training-guest", "inactive-guest", "temporary", "temp", "trial", "trialist"].includes(rosterType)) {
+    return false;
+  }
+  const rosterText = normalizeScoutingSquadRosterType(
+    [player.status, player.availability, player.squadStatus, player.squad_status, player.temporaryGroup, player.trainingGroup]
+      .filter(Boolean)
+      .join(" ")
+  );
+  return !["guest", "training-guest", "inactive-guest", "temporary", "temp", "trial", "trialist"].some((token) => rosterText.includes(token));
 }
 function getScoutingRecordKnownFullNameAliases(record) {
   const recordName = getScoutingRecordName(record);
@@ -12738,6 +12783,7 @@ function getScoutingInternalSquadPlayers() {
   rawCandidates.forEach((candidate) => visit(candidate));
   const seen = new Set();
   return found
+    .filter(scoutingPlayerCountsInSquad)
     .map((player, index) => {
       const name = normalizeScoutingText(player.name || player.player || player.playerName || player.fullName || player.displayName, 160);
       const position = normalizeScoutingText(player.position || player.primaryPosition || player.role || player.positions, 80);
@@ -12757,6 +12803,7 @@ function getScoutingInternalSquadPlayers() {
         age: Number.isFinite(ageValue) ? ageValue : null,
         rating: Number.isFinite(ratingValue) ? Math.max(1, Math.min(99, ratingValue <= 5 ? ratingValue * 20 : ratingValue)) : null,
         status: normalizeScoutingText(player.status || player.availability || player.squadStatus, 80),
+        rosterType: normalizeScoutingSquadRosterType(player.rosterType || player.roster_type || player.playerType || player.player_type || player.squadType || player.squad_type),
       };
     })
     .filter((player) => {
@@ -16440,6 +16487,7 @@ function renderScoutingWorkspace(options = {}) {
   bindScoutingMyTeamSpiderShells();
   if (state.activeTab === "database") {
     bindScoutingRecordMiniRadarShells();
+    scheduleScoutingDatabaseAutoLoad();
     if (isScoutingDatabaseAdvancedMode()) {
       loadScoutingImportHistory();
     }

@@ -7,6 +7,19 @@
   grid-template-columns: 5.45rem minmax(0, 1fr);
 }
 
+.platform-auth-brand {
+  display: flex;
+  justify-content: center;
+  margin: -0.25rem 0 -0.45rem;
+}
+
+.platform-auth-logo {
+  display: block;
+  width: min(17.5rem, 100%);
+  max-height: 8.75rem;
+  object-fit: contain;
+}
+
 .platform-sidebar {
   position: sticky;
   top: 0;
@@ -60,6 +73,14 @@
     linear-gradient(145deg, #fffaf0 0, #d7b46a 100%);
   color: #13211d;
   box-shadow: 0 16px 34px #06120f3d, inset 0 1px 0 #ffffffc7;
+  overflow: hidden;
+}
+
+.platform-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .platform-nav {
@@ -120,20 +141,33 @@
 .platform-nav-icon {
   width: 1.42rem;
   height: 1.42rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   color: currentColor;
   border-radius: 0;
+  box-shadow: none;
   font-size: 0;
+}
+
+.platform-nav-item.is-active .platform-nav-icon,
+.platform-nav-item:hover .platform-nav-icon,
+.platform-nav-item:focus-visible .platform-nav-icon {
+  background: transparent;
+  box-shadow: none;
 }
 
 .platform-nav-icon svg {
   width: 100%;
   height: 100%;
+  display: block;
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+  background: transparent;
 }
 
 .platform-nav-text {
@@ -201,6 +235,40 @@
   align-self: end;
 }
 
+.platform-sidebar-profile {
+  width: 3.14rem;
+  height: 3.14rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  color: inherit;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.platform-sidebar-profile:hover,
+.platform-sidebar-profile:focus-visible,
+.platform-sidebar-profile.is-active,
+body[data-active-workspace="my-profile"] .platform-sidebar-profile {
+  transform: translateY(-1px);
+  outline: 0;
+}
+
+.platform-sidebar-profile:focus-visible {
+  box-shadow: 0 0 0 4px #d7b46a36;
+}
+
+.platform-sidebar-profile.is-active .coach-avatar,
+body[data-active-workspace="my-profile"] .platform-sidebar-profile .coach-avatar {
+  border-color: #d7b46a;
+  box-shadow: 0 16px 34px #06120f42, 0 0 0 0.28rem #d7b46a26;
+}
+
 .platform-sidebar-foot .coach-avatar {
   width: 2.95rem;
   height: 2.95rem;
@@ -246,6 +314,16 @@
 
 .platform-title h1 {
   margin-left: 0;
+}
+
+.platform-title-mark {
+  display: block;
+  width: 2.55rem;
+  height: 2.55rem;
+  flex: 0 0 auto;
+  border-radius: 16px;
+  object-fit: cover;
+  box-shadow: 0 10px 24px #0f172a1c;
 }
 
 .top-icon-menu-floating-label {
@@ -351,5 +429,11 @@ body.is-dark-mode .platform-topbar {
 
   .platform-topbar {
     padding: 0.72rem 0.9rem;
+  }
+
+  .platform-title-mark {
+    width: 2.35rem;
+    height: 2.35rem;
+    border-radius: 14px;
   }
 }

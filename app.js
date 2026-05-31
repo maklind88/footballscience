@@ -82,6 +82,7 @@ profileMenuClub: document.getElementById("profileMenuClub"),
 profileMenuPanelAvatar: document.getElementById("profileMenuPanelAvatar"),
 profileMenuPanelName: document.getElementById("profileMenuPanelName"),
 profileMenuPanelClub: document.getElementById("profileMenuPanelClub"),
+sidebarProfileButton: document.getElementById("sidebarProfileButton"),
 dashboardChatWidgetRoot: document.getElementById("dashboardChatWidgetRoot"),
 dataSafetyStatus: document.getElementById("dataSafetyStatus"),
 dataSafetyExportButton: document.getElementById("dataSafetyExportButton"),
@@ -5185,6 +5186,10 @@ element.textContent = value;
 });
 if (ui.profileMenuButton) {
 ui.profileMenuButton.setAttribute("aria-label", `Open profile menu for ${name}`);
+}
+if (ui.sidebarProfileButton) {
+ui.sidebarProfileButton.setAttribute("aria-label", `Open profile for ${name}`);
+ui.sidebarProfileButton.setAttribute("title", name);
 }
 }
 function setProfileMenuOpen(isOpen) {
@@ -34071,6 +34076,7 @@ if (ui.coachRole) {
 ui.coachRole.textContent = currentUser?.title ?? hubState.profile.role;
 }
 applyUserAvatar(ui.coachAvatar, currentUser);
+ui.sidebarProfileButton?.classList.toggle("is-active", activeWorkspace.id === "my-profile");
 syncAccountMenu(currentUser);
 if (ui.dashboardDate) {
 ui.dashboardDate.textContent = getDashboardDateLabel();

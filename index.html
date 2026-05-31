@@ -7,6 +7,8 @@
     <meta http-equiv=Pragma content=no-cache>
     <meta http-equiv=Expires content=0>
     <title>Football Science Coaching Platform</title>
+    <link rel="icon" type="image/png" href="assets/football-science-mark.png">
+    <link rel="apple-touch-icon" href="assets/football-science-mark.png">
     <style>
       body.is-booting{overflow:hidden}
       body.is-booting:before{
@@ -95,7 +97,15 @@
     </script>
     <section id="loginScreen" class="login-screen" aria-label="Coaching platform login" hidden>
       <div class="login-card">
-        <p class="login-kicker">Football Science Coaching Platform</p>
+        <div class="platform-auth-brand">
+          <img
+            class="platform-auth-logo"
+            src="assets/football-science-logo.png"
+            alt="Football Science"
+            loading="eager"
+          />
+        </div>
+        <p class="login-kicker">Coaching Platform</p>
         <form id="loginForm" class="login-form">
           <label>
             Username or Email
@@ -129,15 +139,26 @@
     <div id="hubShell" class="coach-platform" hidden>
       <aside id="hubSidebar" class="platform-sidebar">
         <div class="platform-brand">
-          <span class="platform-mark">ML</span>
+          <span class="platform-mark" aria-hidden="true">
+            <img src="assets/football-science-mark.png" alt="" loading="eager" />
+          </span>
           <div>
-            <strong>Mak Coaching</strong>
-            <span>Daily team platform</span>
+            <strong>Football Science</strong>
+            <span>Coaching platform</span>
           </div>
         </div>
         <nav id="workspaceList" class="platform-nav" aria-label="Platform sections"></nav>
         <div class="platform-sidebar-foot">
-          <div id="coachAvatar" class="coach-avatar">ML</div>
+          <button
+            id="sidebarProfileButton"
+            type="button"
+            class="platform-sidebar-profile"
+            data-open-workspace="my-profile"
+            aria-label="Open my profile"
+            title="My profile"
+          >
+            <span id="coachAvatar" class="coach-avatar" aria-hidden="true">ML</span>
+          </button>
           <div>
             <strong id="coachName">Mak Lind</strong>
             <span id="coachRole">Head Coach</span>
@@ -150,6 +171,13 @@
             <button id="sidebarToggle" type="button" class="sidebar-toggle" aria-label="Toggle sidebar">
               ☰
             </button>
+            <img
+              class="platform-title-mark"
+              src="assets/football-science-mark.png"
+              alt=""
+              aria-hidden="true"
+              loading="eager"
+            />
             <div>
               <p id="workspaceMeta"></p>
               <h1 id="workspaceTitle" role="button" tabindex="0" aria-label="Open home">Football Science</h1>

@@ -1,0 +1,240 @@
+.coach-platform {
+  grid-template-columns: 5.65rem minmax(0, 1fr);
+  background: linear-gradient(180deg, #f7f8fb 0, #eceff4 100%);
+}
+
+.coach-platform.is-sidebar-collapsed {
+  grid-template-columns: 5.65rem minmax(0, 1fr);
+}
+
+.platform-sidebar {
+  position: sticky;
+  top: 0;
+  z-index: 140;
+  height: 100vh;
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  justify-items: center;
+  gap: 1.1rem;
+  padding: 1.15rem 0.75rem;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at 50% 92%, #d30d4d 0, #b71552 13rem, transparent 19rem),
+    linear-gradient(180deg, #12456e 0, #143d63 52%, #26375f 74%, #cf0b48 100%);
+  border-right: 1px solid #ffffff24;
+  box-shadow: 12px 0 34px #0f172a18;
+  backdrop-filter: none;
+}
+
+.coach-platform.is-sidebar-collapsed .platform-sidebar {
+  opacity: 1;
+  overflow: visible;
+  padding: 1.15rem 0.75rem;
+  border-right: 1px solid #ffffff24;
+}
+
+.platform-brand,
+.platform-sidebar-foot {
+  width: 100%;
+  justify-content: center;
+  gap: 0;
+}
+
+.platform-brand div,
+.platform-sidebar-foot div {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.platform-mark {
+  width: 3.05rem;
+  height: 3.05rem;
+  border-radius: 18px;
+  background: #fffffff2;
+  color: #143d63;
+  box-shadow: 0 16px 34px #0615262e, inset 0 1px 0 #ffffff;
+}
+
+.platform-nav {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.46rem;
+  overflow: auto;
+  padding: 0.35rem 0;
+  scrollbar-width: none;
+}
+
+.platform-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.platform-nav-item {
+  position: relative;
+  width: 3.15rem;
+  height: 3.15rem;
+  min-height: 3.15rem;
+  justify-content: center;
+  padding: 0;
+  border-radius: 13px;
+  color: #ffffffd9;
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.platform-nav-item:hover,
+.platform-nav-item:focus-visible {
+  color: #ffffff;
+  background: #ffffff1f;
+  border-color: #ffffff20;
+  box-shadow: 0 12px 26px #06152628;
+  transform: translateX(0);
+  outline: 0;
+}
+
+.platform-nav-item.is-active {
+  color: #143d63;
+  background: #fffffff2;
+  border-color: #ffffff;
+  box-shadow: 0 16px 34px #0615262e;
+}
+
+.platform-nav-item.is-active::before {
+  content: "";
+  position: absolute;
+  left: -0.82rem;
+  width: 0.2rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 0 0 0.18rem #ffffff24;
+}
+
+.platform-nav-icon {
+  width: 1.45rem;
+  height: 1.45rem;
+  background: transparent;
+  color: currentColor;
+  border-radius: 0;
+  font-size: 0;
+}
+
+.platform-nav-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.platform-nav-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.platform-sidebar-foot .coach-avatar {
+  width: 2.9rem;
+  height: 2.9rem;
+  border: 2px solid #ffffffd9;
+  box-shadow: 0 16px 34px #06152633;
+}
+
+.top-icon-menu {
+  display: none;
+}
+
+.platform-topbar {
+  min-height: 4.45rem;
+  padding: 0.8rem 1.3rem;
+}
+
+.platform-topbar-actions {
+  flex: 0 0 auto;
+}
+
+.platform-title h1 {
+  margin-left: 0;
+}
+
+.top-icon-menu-floating-label {
+  z-index: 420;
+}
+
+body.is-dark-mode .coach-platform {
+  background: linear-gradient(180deg, #0f172a 0, #111827 100%);
+}
+
+body.is-dark-mode .platform-topbar {
+  background: #0f172acc;
+  border-bottom-color: #94a3b82e;
+}
+
+@media (max-width: 820px) {
+  .coach-platform,
+  .coach-platform.is-sidebar-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .platform-sidebar,
+  .coach-platform.is-sidebar-collapsed .platform-sidebar {
+    position: fixed;
+    inset: auto 0 0 0;
+    height: 4.7rem;
+    min-height: 0;
+    grid-template-rows: 1fr;
+    grid-template-columns: 1fr;
+    padding: 0.45rem 0.7rem calc(0.45rem + env(safe-area-inset-bottom));
+    border-right: 0;
+    border-top: 1px solid #ffffff24;
+  }
+
+  .platform-brand,
+  .platform-sidebar-foot {
+    display: none;
+  }
+
+  .platform-nav {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 0.38rem;
+    padding: 0;
+    overflow-x: auto;
+  }
+
+  .platform-nav-item {
+    flex: 0 0 3rem;
+    width: 3rem;
+    height: 3rem;
+    min-height: 3rem;
+  }
+
+  .platform-nav-item.is-active::before {
+    left: 50%;
+    bottom: -0.42rem;
+    width: 1.55rem;
+    height: 0.18rem;
+    transform: translateX(-50%);
+  }
+
+  .platform-main {
+    padding-bottom: 4.9rem;
+  }
+
+  .platform-topbar {
+    padding: 0.72rem 0.9rem;
+  }
+}

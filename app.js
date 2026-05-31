@@ -11438,7 +11438,12 @@ admin: "Admin",
 return labels[workspace?.id] ?? workspace?.title ?? "";
 }
 function getTopIconTriggerLabel(trigger) {
-return trigger?.querySelector(".top-icon-menu-label")?.textContent?.trim() || trigger?.getAttribute("aria-label") || "";
+return (
+trigger?.querySelector(".top-icon-menu-label")?.textContent?.trim() ||
+trigger?.querySelector(".platform-nav-text strong")?.textContent?.trim() ||
+trigger?.getAttribute("aria-label") ||
+""
+);
 }
 function ensureTopIconTooltip() {
 let tooltip = document.querySelector(".top-icon-menu-floating-label");
@@ -11462,6 +11467,16 @@ tooltip.classList.add("is-visible");
 const triggerRect = trigger.getBoundingClientRect();
 const tooltipRect = tooltip.getBoundingClientRect();
 const edgeGap = 10;
+if (trigger.closest(".platform-sidebar")) {
+const left = Math.min(triggerRect.right + 12, window.innerWidth - tooltipRect.width - edgeGap);
+const top = Math.min(
+Math.max(triggerRect.top + triggerRect.height / 2 - tooltipRect.height / 2, edgeGap),
+window.innerHeight - tooltipRect.height - edgeGap
+);
+tooltip.style.left = `${Math.round(left)}px`;
+tooltip.style.top = `${Math.round(top)}px`;
+return;
+}
 const left = Math.min(
 Math.max(triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2, edgeGap),
 window.innerWidth - tooltipRect.width - edgeGap
@@ -11515,6 +11530,11 @@ return;
 hubState = repairWorkspaceState(hubState);
 let visibleWorkspaces = getVisibleWorkspaces();
 const isPlatformNav = ui.workspaceList.classList.contains("platform-nav");
+if (isPlatformNav) {
+visibleWorkspaces = ["home", ...topIconMenuOrder]
+.map((workspaceId) => getWorkspaceById(workspaceId))
+.filter((workspace) => workspace && canCurrentUserAccessWorkspace(workspace) && (!workspace.hiddenFromNav || workspace.id === "home"));
+}
 if (!visibleWorkspaces.length) {
 if (ui.workspaceSearch) {
 ui.workspaceSearch.value = "";
@@ -11525,11 +11545,12 @@ ui.workspaceList.innerHTML = visibleWorkspaces
 .map((workspace) => {
 const activeClass = workspace.id === hubState.activeWorkspaceId ? " is-active" : "";
 if (isPlatformNav) {
+const label = getTopIconLabel(workspace);
 return `
-          <button type="button" class="platform-nav-item${activeClass}" data-open-workspace="${workspace.id}">
-            <span class="platform-nav-icon">${escapeHtml(workspace.icon ?? "•")}</span>
+          <button type="button" class="platform-nav-item${activeClass}" data-open-workspace="${workspace.id}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">
+            <span class="platform-nav-icon" aria-hidden="true">${getTopIconSvg(workspace.id)}</span>
             <span class="platform-nav-text">
-              <strong>${escapeHtml(workspace.title)}</strong>
+              <strong>${escapeHtml(label)}</strong>
               <small>${escapeHtml(workspace.meta)}</small>
             </span>
           </button>
@@ -74112,10 +74133,26 @@ return;
 setActiveWorkspace(trigger.dataset.openWorkspace);
 });
 ui.workspaceList?.addEventListener("mouseover", (event) => {
-preloadWorkspaceFromTrigger(event.target.closest("[data-open-workspace]"));
+const trigger = event.target.closest("[data-open-workspace]");
+preloadWorkspaceFromTrigger(trigger);
+showTopIconTooltip(trigger);
+});
+ui.workspaceList?.addEventListener("mouseout", (event) => {
+const trigger = event.target.closest("[data-open-workspace]");
+if (trigger && !trigger.contains(event.relatedTarget)) {
+hideTopIconTooltip();
+}
 });
 ui.workspaceList?.addEventListener("focusin", (event) => {
-preloadWorkspaceFromTrigger(event.target.closest("[data-open-workspace]"));
+const trigger = event.target.closest("[data-open-workspace]");
+preloadWorkspaceFromTrigger(trigger);
+showTopIconTooltip(trigger);
+});
+ui.workspaceList?.addEventListener("focusout", (event) => {
+const trigger = event.target.closest("[data-open-workspace]");
+if (trigger && !trigger.contains(event.relatedTarget)) {
+hideTopIconTooltip();
+}
 });
 ui.topIconMenu?.addEventListener("click", (event) => {
 const trigger = event.target.closest("[data-open-workspace]");

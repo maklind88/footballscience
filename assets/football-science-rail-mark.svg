@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Football Science">
+  <path d="M13 10h26v10H25v10h13v10H25v14H13z" fill="#f7f4e8"/>
+  <path d="M39 10h14v10H42c-4 0-7 3-7 7s3 7 7 7h3c4 0 7 3 7 7s-3 7-7 7H30l6-10h8c1 0 2-1 2-2s-1-2-2-2h-3c-10 0-17-7-17-17S31 10 39 10z" fill="#20a05a"/>
+  <circle cx="32" cy="32" r="9" fill="none" stroke="#f7f4e8" stroke-width="3"/>
+  <path d="M32 18v28" stroke="#f7f4e8" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="32" cy="32" r="3.4" fill="#1f7cff" stroke="#f7f4e8" stroke-width="2"/>
+  <path d="M18 43c0-6 2.8-11.2 7.2-14.8" fill="none" stroke="#1f7cff" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="4 5"/>
+  <circle cx="18" cy="43" r="3" fill="#1f7cff" stroke="#86b7ff" stroke-width="2"/>
+  <circle cx="25" cy="28" r="3" fill="#1f7cff" stroke="#86b7ff" stroke-width="2"/>
+  <path d="M43 36l7-12" stroke="#f7f4e8" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="43" cy="36" r="3.5" fill="#f7f4e8"/>
+  <circle cx="50" cy="24" r="3.5" fill="#20a05a"/>
+</svg>

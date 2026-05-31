@@ -5186,10 +5186,7 @@ element.textContent = value;
 });
 if (ui.profileMenuButton) {
 ui.profileMenuButton.setAttribute("aria-label", `Open profile menu for ${name}`);
-}
-if (ui.sidebarProfileButton) {
-ui.sidebarProfileButton.setAttribute("aria-label", `Open profile for ${name}`);
-ui.sidebarProfileButton.setAttribute("title", name);
+ui.profileMenuButton.setAttribute("title", name);
 }
 }
 function setProfileMenuOpen(isOpen) {
@@ -34061,7 +34058,7 @@ document.body.dataset.activeWorkspace = activeWorkspace.id;
 document.body.dataset.userRole = String(currentUser?.role || "guest").trim().toLowerCase() || "guest";
 ui.hubShell?.classList.toggle("is-sidebar-collapsed", hubState.sidebarCollapsed);
 if (ui.workspaceTitle) {
-ui.workspaceTitle.textContent = "Football Science";
+ui.workspaceTitle.textContent = activeWorkspace.title || "Football Science";
 }
 if (ui.workspaceMeta) {
 ui.workspaceMeta.textContent = "";
@@ -34076,7 +34073,7 @@ if (ui.coachRole) {
 ui.coachRole.textContent = currentUser?.title ?? hubState.profile.role;
 }
 applyUserAvatar(ui.coachAvatar, currentUser);
-ui.sidebarProfileButton?.classList.toggle("is-active", activeWorkspace.id === "my-profile");
+ui.profileMenuButton?.classList.toggle("is-active", activeWorkspace.id === "my-profile");
 syncAccountMenu(currentUser);
 if (ui.dashboardDate) {
 ui.dashboardDate.textContent = getDashboardDateLabel();

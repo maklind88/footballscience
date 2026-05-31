@@ -55,8 +55,8 @@
   gap: 0;
 }
 
-.platform-brand div,
-.platform-sidebar-foot div {
+.platform-brand > div,
+.platform-sidebar-account-copy {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -69,10 +69,10 @@
   width: 3rem;
   height: 3rem;
   border-radius: 17px;
-  background:
-    linear-gradient(145deg, #fffaf0 0, #d7b46a 100%);
-  color: #13211d;
-  box-shadow: 0 16px 34px #06120f3d, inset 0 1px 0 #ffffffc7;
+  padding: 0.22rem;
+  background: #ffffff0a;
+  border: 1px solid #ffffff1a;
+  box-shadow: 0 16px 34px #06120f33, inset 0 1px 0 #ffffff12;
   overflow: hidden;
 }
 
@@ -80,7 +80,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .platform-nav {
@@ -235,6 +235,10 @@
   align-self: end;
 }
 
+.platform-sidebar-account-menu {
+  position: relative;
+}
+
 .platform-sidebar-profile {
   width: 3.14rem;
   height: 3.14rem;
@@ -267,6 +271,26 @@ body[data-active-workspace="my-profile"] .platform-sidebar-profile {
 body[data-active-workspace="my-profile"] .platform-sidebar-profile .coach-avatar {
   border-color: #d7b46a;
   box-shadow: 0 16px 34px #06120f42, 0 0 0 0.28rem #d7b46a26;
+}
+
+.platform-sidebar .platform-profile-menu {
+  top: auto;
+  right: auto;
+  bottom: 0;
+  left: calc(100% + 0.74rem);
+  width: min(20rem, calc(100vw - 7.5rem));
+  color: #1d1d1f;
+}
+
+.platform-sidebar .platform-profile-menu::before {
+  top: auto;
+  right: auto;
+  bottom: 1.12rem;
+  left: -0.36rem;
+  border-top: 0;
+  border-right: 0;
+  border-left: 1px solid #fffffff2;
+  border-bottom: 1px solid #fffffff2;
 }
 
 .platform-sidebar-foot .coach-avatar {
@@ -306,6 +330,7 @@ body[data-active-workspace="my-profile"] .platform-sidebar-profile .coach-avatar
 .platform-topbar {
   min-height: 4.45rem;
   padding: 0.8rem 1.3rem;
+  justify-content: flex-start;
 }
 
 .platform-topbar-actions {
@@ -314,16 +339,15 @@ body[data-active-workspace="my-profile"] .platform-sidebar-profile .coach-avatar
 
 .platform-title h1 {
   margin-left: 0;
+  cursor: default;
+  pointer-events: none;
 }
 
-.platform-title-mark {
-  display: block;
-  width: 2.55rem;
-  height: 2.55rem;
-  flex: 0 0 auto;
-  border-radius: 16px;
-  object-fit: cover;
-  box-shadow: 0 10px 24px #0f172a1c;
+.platform-title h1:hover,
+.platform-title h1:focus-visible {
+  color: #1d1d1f;
+  background: transparent;
+  outline: 0;
 }
 
 .top-icon-menu-floating-label {
@@ -337,6 +361,10 @@ body.is-dark-mode .coach-platform {
 body.is-dark-mode .platform-topbar {
   background: #0f172acc;
   border-bottom-color: #94a3b82e;
+}
+
+body.is-dark-mode .platform-sidebar .platform-profile-menu {
+  color: var(--ink);
 }
 
 @media (max-height: 720px) and (min-width: 821px) {
@@ -373,15 +401,20 @@ body.is-dark-mode .platform-topbar {
     height: 4.7rem;
     min-height: 0;
     grid-template-rows: 1fr;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
     padding: 0.45rem 0.7rem calc(0.45rem + env(safe-area-inset-bottom));
     border-right: 0;
     border-top: 1px solid #ffffff17;
   }
 
-  .platform-brand,
-  .platform-sidebar-foot {
+  .platform-brand {
     display: none;
+  }
+
+  .platform-sidebar-foot {
+    display: flex;
+    width: auto;
+    align-self: center;
   }
 
   .platform-nav {
@@ -431,9 +464,20 @@ body.is-dark-mode .platform-topbar {
     padding: 0.72rem 0.9rem;
   }
 
-  .platform-title-mark {
-    width: 2.35rem;
-    height: 2.35rem;
-    border-radius: 14px;
+  .platform-sidebar .platform-profile-menu {
+    right: 0;
+    bottom: calc(100% + 0.72rem);
+    left: auto;
+    width: min(20rem, calc(100vw - 1.4rem));
+  }
+
+  .platform-sidebar .platform-profile-menu::before {
+    right: 1.16rem;
+    bottom: -0.36rem;
+    left: auto;
+    border-left: 0;
+    border-bottom: 0;
+    border-right: 1px solid #fffffff2;
+    border-top: 1px solid #fffffff2;
   }
 }

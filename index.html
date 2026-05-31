@@ -140,7 +140,7 @@
       <aside id="hubSidebar" class="platform-sidebar">
         <div class="platform-brand">
           <span class="platform-mark" aria-hidden="true">
-            <img src="assets/football-science-mark.png" alt="" loading="eager" />
+            <img src="assets/football-science-rail-mark.svg" alt="" loading="eager" />
           </span>
           <div>
             <strong>Football Science</strong>
@@ -149,19 +149,46 @@
         </div>
         <nav id="workspaceList" class="platform-nav" aria-label="Platform sections"></nav>
         <div class="platform-sidebar-foot">
-          <button
-            id="sidebarProfileButton"
-            type="button"
-            class="platform-sidebar-profile"
-            data-open-workspace="my-profile"
-            aria-label="Open my profile"
-            title="My profile"
-          >
-            <span id="coachAvatar" class="coach-avatar" aria-hidden="true">ML</span>
-          </button>
-          <div>
-            <strong id="coachName">Mak Lind</strong>
-            <span id="coachRole">Head Coach</span>
+          <div class="platform-account-menu platform-sidebar-account-menu">
+            <button
+              id="profileMenuButton"
+              type="button"
+              class="platform-sidebar-profile"
+              aria-label="Open profile menu"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              title="Profile menu"
+            >
+              <span id="coachAvatar" class="coach-avatar" aria-hidden="true">ML</span>
+            </button>
+            <div id="profileMenu" class="platform-profile-menu" role="menu" hidden>
+              <div class="profile-menu-head">
+                <span id="profileMenuPanelAvatar" class="platform-account-avatar" aria-hidden="true">ML</span>
+                <div>
+                  <strong id="profileMenuPanelName">Mak Lind</strong>
+                  <span id="profileMenuPanelClub">North Carolina Courage</span>
+                </div>
+              </div>
+              <div id="dataSafetyStatus" class="profile-menu-data-status" role="status">Local autosave ready</div>
+              <div class="platform-theme-switcher">
+                <span class="platform-theme-switcher-label">Theme</span>
+                <select id="platformThemeModeSelect" class="platform-theme-select" aria-label="Theme mode">
+                  <option value="auto">Auto</option>
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                </select>
+              </div>
+              <button id="dataSafetyExportButton" type="button" role="menuitem">Export Data Backup</button>
+              <button id="dataSafetyImportButton" type="button" role="menuitem">Restore Data Backup</button>
+              <input id="dataSafetyImportInput" type="file" accept="application/json" hidden />
+              <button type="button" data-open-workspace="my-profile" role="menuitem">Profile</button>
+              <button type="button" data-open-workspace="settings" role="menuitem">Settings</button>
+              <button id="logoutButton" type="button" class="profile-menu-logout" role="menuitem">Log out</button>
+            </div>
+            <div class="platform-sidebar-account-copy">
+              <strong id="coachName">Mak Lind</strong>
+              <span id="coachRole">Head Coach</span>
+            </div>
           </div>
         </div>
       </aside>
@@ -171,63 +198,9 @@
             <button id="sidebarToggle" type="button" class="sidebar-toggle" aria-label="Toggle sidebar">
               ☰
             </button>
-            <img
-              class="platform-title-mark"
-              src="assets/football-science-mark.png"
-              alt=""
-              aria-hidden="true"
-              loading="eager"
-            />
             <div>
               <p id="workspaceMeta"></p>
-              <h1 id="workspaceTitle" role="button" tabindex="0" aria-label="Open home">Football Science</h1>
-            </div>
-          </div>
-          <div class="platform-topbar-actions">
-            <nav id="topIconMenu" class="top-icon-menu" aria-label="Platform navigation"></nav>
-            <label class="workspace-switcher-label" for="workspaceQuickSwitch" hidden>
-              <span>Section</span>
-              <select id="workspaceQuickSwitch" aria-label="Open workspace"></select>
-            </label>
-            <div class="platform-account-menu">
-              <button
-                id="profileMenuButton"
-                type="button"
-                class="platform-account-button"
-                aria-label="Open profile menu"
-                aria-haspopup="menu"
-                aria-expanded="false"
-              >
-                <span id="profileMenuAvatar" class="platform-account-avatar" aria-hidden="true">ML</span>
-                <span class="platform-account-copy">
-                  <strong id="profileMenuName">Mak Lind</strong>
-                  <small id="profileMenuClub">North Carolina Courage</small>
-                </span>
-              </button>
-              <div id="profileMenu" class="platform-profile-menu" role="menu" hidden>
-                <div class="profile-menu-head">
-                  <span id="profileMenuPanelAvatar" class="platform-account-avatar" aria-hidden="true">ML</span>
-                  <div>
-                    <strong id="profileMenuPanelName">Mak Lind</strong>
-                    <span id="profileMenuPanelClub">North Carolina Courage</span>
-                  </div>
-                </div>
-                <div id="dataSafetyStatus" class="profile-menu-data-status" role="status">Local autosave ready</div>
-                <div class="platform-theme-switcher">
-                  <span class="platform-theme-switcher-label">Theme</span>
-                  <select id="platformThemeModeSelect" class="platform-theme-select" aria-label="Theme mode">
-                    <option value="auto">Auto</option>
-                    <option value="light">Light</option>
-                    <option value="dark">Dark</option>
-                  </select>
-                </div>
-                <button id="dataSafetyExportButton" type="button" role="menuitem">Export Data Backup</button>
-                <button id="dataSafetyImportButton" type="button" role="menuitem">Restore Data Backup</button>
-                <input id="dataSafetyImportInput" type="file" accept="application/json" hidden />
-                <button type="button" data-open-workspace="my-profile" role="menuitem">Profile</button>
-                <button type="button" data-open-workspace="settings" role="menuitem">Settings</button>
-                <button id="logoutButton" type="button" class="profile-menu-logout" role="menuitem">Log out</button>
-              </div>
+              <h1 id="workspaceTitle">Football Science</h1>
             </div>
           </div>
         </header>

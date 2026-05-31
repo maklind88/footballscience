@@ -138,6 +138,7 @@ scheduleEventCancelButton: document.getElementById("scheduleEventCancelButton"),
 sessionPlannerWorkspace: document.getElementById("sessionPlannerWorkspace"),
 pitchStage: document.getElementById("pitchStage"),
 pitchFullscreenButton: document.getElementById("pitchFullscreenButton"),
+coachAvatar: document.getElementById("coachAvatar"),
 coachName: document.getElementById("coachName"),
 coachRole: document.getElementById("coachRole"),
 profileWorkspace: document.getElementById("profileWorkspace"),
@@ -2036,6 +2037,24 @@ const topIconMenuOrder = [
 "admin",
 "team-identity",
 "game-simulator",
+];
+const platformSidebarPrimaryOrder = [
+"home",
+"schedule",
+"session-planner",
+"player-profiles",
+"scouting",
+"analysis-room",
+"medical-team",
+];
+const platformSidebarMoreOrder = [
+"gameplan",
+"periodization",
+"transfer-room",
+"game-simulator",
+"staff",
+"admin",
+"team-identity",
 ];
 const defaultWorkspaceAccess = {
 chat: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
@@ -11531,9 +11550,49 @@ hubState = repairWorkspaceState(hubState);
 let visibleWorkspaces = getVisibleWorkspaces();
 const isPlatformNav = ui.workspaceList.classList.contains("platform-nav");
 if (isPlatformNav) {
-visibleWorkspaces = ["home", ...topIconMenuOrder]
-.map((workspaceId) => getWorkspaceById(workspaceId))
-.filter((workspace) => workspace && canCurrentUserAccessWorkspace(workspace) && (!workspace.hiddenFromNav || workspace.id === "home"));
+const getSidebarWorkspace = (workspaceId) => getWorkspaceById(workspaceId);
+const isSidebarWorkspaceVisible = (workspace) =>
+workspace && canCurrentUserAccessWorkspace(workspace) && (!workspace.hiddenFromNav || workspace.id === "home");
+const renderSidebarItem = (workspace, extraClass = "") => {
+const label = getTopIconLabel(workspace);
+const activeClass = workspace.id === hubState.activeWorkspaceId ? " is-active" : "";
+return `
+          <button type="button" class="platform-nav-item${extraClass}${activeClass}" data-open-workspace="${escapeHtml(workspace.id)}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">
+            <span class="platform-nav-icon" aria-hidden="true">${getTopIconSvg(workspace.id)}</span>
+            <span class="platform-nav-text">
+              <strong>${escapeHtml(label)}</strong>
+              <small>${escapeHtml(workspace.meta)}</small>
+            </span>
+          </button>
+        `;
+};
+const primaryWorkspaces = platformSidebarPrimaryOrder.map(getSidebarWorkspace).filter(isSidebarWorkspaceVisible);
+const overflowWorkspaces = platformSidebarMoreOrder.map(getSidebarWorkspace).filter(isSidebarWorkspaceVisible);
+const hasActiveOverflowWorkspace = overflowWorkspaces.some((workspace) => workspace.id === hubState.activeWorkspaceId);
+const overflowMarkup = overflowWorkspaces.length
+? `
+        <details class="platform-nav-more">
+          <summary class="platform-nav-item platform-nav-more-trigger${hasActiveOverflowWorkspace ? " is-active" : ""}" aria-label="More sections" title="More sections">
+            <span class="platform-nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <circle cx="5" cy="12" r="1.5"></circle>
+                <circle cx="12" cy="12" r="1.5"></circle>
+                <circle cx="19" cy="12" r="1.5"></circle>
+              </svg>
+            </span>
+            <span class="platform-nav-text">
+              <strong>More</strong>
+              <small>Team, admin, identity</small>
+            </span>
+          </summary>
+          <div class="platform-nav-more-menu" role="menu" aria-label="More platform sections">
+            ${overflowWorkspaces.map((workspace) => renderSidebarItem(workspace, " platform-nav-more-item")).join("")}
+          </div>
+        </details>
+      `
+: "";
+ui.workspaceList.innerHTML = `${primaryWorkspaces.map((workspace) => renderSidebarItem(workspace)).join("")}${overflowMarkup}`;
+return;
 }
 if (!visibleWorkspaces.length) {
 if (ui.workspaceSearch) {
@@ -34011,6 +34070,7 @@ ui.coachName.textContent = currentUser ? formatUserName(currentUser) : hubState.
 if (ui.coachRole) {
 ui.coachRole.textContent = currentUser?.title ?? hubState.profile.role;
 }
+applyUserAvatar(ui.coachAvatar, currentUser);
 syncAccountMenu(currentUser);
 if (ui.dashboardDate) {
 ui.dashboardDate.textContent = getDashboardDateLabel();

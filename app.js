@@ -8490,6 +8490,9 @@ return getDashboardChatTeamChatTitle();
 }
 return formatDashboardChatThreadLabel(threadId, currentUser, users);
 }
+function getDashboardChatActiveToastThreadId() {
+return normalizeDashboardChatThreadId(readDashboardChatWidgetState().selectedThreadId, dashboardChatTeamThreadId);
+}
 function readDashboardChatWidgetState() {
 const parsed = readDashboardJson(dashboardChatWidgetStateStorageKey, {
 isOpen: false,
@@ -9480,7 +9483,7 @@ const threadId = normalizeDashboardChatThreadId(currentState.selectedThreadId, d
 await createDashboardChatAttachmentIntent(file, threadId);
 } catch (error) {
 setDashboardChatAttachmentDraft({ id: createDashboardId("attachment"), status: "failed", error: error?.message || "Upload failed.", metadata: { fileName: file.name || "Attachment", byteSize: file.size || 0, mimeType: file.type || "application/octet-stream" } });
-showDashboardChatWidgetToast(dashboardChatComposerAttachmentDraft.error, dashboardChatActiveThreadId);
+showDashboardChatWidgetToast(dashboardChatComposerAttachmentDraft.error, getDashboardChatActiveToastThreadId());
 } finally {
 attachmentInput.value = "";
 delete attachmentInput.dataset.busy;
@@ -9544,17 +9547,17 @@ selectedParticipants.map((participant) => participant.id).filter(Boolean)
 ));
 if (!currentUser?.id) {
 setDashboardChatGroupCreateError(form, "Sign in before creating a group.");
-showDashboardChatWidgetToast("Sign in before creating a group.", dashboardChatActiveThreadId);
+showDashboardChatWidgetToast("Sign in before creating a group.", getDashboardChatActiveToastThreadId());
 return null;
 }
 if (!title) {
 setDashboardChatGroupCreateError(form, "Add a group name.");
-showDashboardChatWidgetToast("Add a group name.", dashboardChatActiveThreadId);
+showDashboardChatWidgetToast("Add a group name.", getDashboardChatActiveToastThreadId());
 return null;
 }
 if (!selectedParticipants.length) {
 setDashboardChatGroupCreateError(form, "Choose at least one teammate.");
-showDashboardChatWidgetToast("Choose at least one teammate.", dashboardChatActiveThreadId);
+showDashboardChatWidgetToast("Choose at least one teammate.", getDashboardChatActiveToastThreadId());
 return null;
 }
 const legacyThreadId = createDashboardId("group");
@@ -9581,7 +9584,7 @@ participants: [
 if (!result.ok) {
 logDashboardChatApiFailure("createGroupThread", result);
 setDashboardChatGroupCreateError(form, result.reason || "Could not create group.");
-showDashboardChatWidgetToast(result.reason || "Could not create group.", dashboardChatActiveThreadId);
+showDashboardChatWidgetToast(result.reason || "Could not create group.", getDashboardChatActiveToastThreadId());
 return null;
 }
 applyDashboardChatApiPayload(result.result || {}, { threadId: legacyThreadId });
@@ -9605,7 +9608,7 @@ reason: error?.message || "Could not create group.",
 retryable: true,
 });
 setDashboardChatGroupCreateError(form, error?.message || "Could not create group.");
-showDashboardChatWidgetToast(error?.message || "Could not create group.", dashboardChatActiveThreadId);
+showDashboardChatWidgetToast(error?.message || "Could not create group.", getDashboardChatActiveToastThreadId());
 return null;
 } finally {
 delete form.dataset.busy;

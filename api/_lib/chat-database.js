@@ -174,6 +174,17 @@ function normalizeThreadType(value) {
     : "team";
 }
 
+function normalizeThreadVisibility(value, type = "team") {
+  const visibility = normalizeString(value, 40).toLowerCase();
+  if (visibility === "team") {
+    return "members";
+  }
+  if (["members", "staff", "medical", "private"].includes(visibility)) {
+    return visibility;
+  }
+  return type === "dm" ? "private" : type === "medical" ? "medical" : type === "announcement" ? "staff" : "members";
+}
+
 function normalizePriority(value) {
   const priority = normalizeString(value, 24).toLowerCase();
   return ["low", "normal", "medium", "high", "urgent", "critical"].includes(priority) ? priority : "normal";
@@ -1027,11 +1038,7 @@ async function ensureScopedThread(actor, body = {}, scope, options = {}) {
             ? "Announcements"
             : "Team chat";
   const title = normalizeString(body.title || body.threadTitle || body.name || titleFallback, 140);
-  const visibility = normalizeString(
-    body.visibility ||
-      (type === "dm" ? "private" : type === "medical" ? "medical" : type === "announcement" ? "staff" : "members"),
-    40
-  );
+  const visibility = normalizeThreadVisibility(body.visibility, type);
   const threadRows = await insertRows("chat_threads", {
     organization_id: scope.organizationId,
     team_id: type === "dm" ? null : scope.teamId || null,

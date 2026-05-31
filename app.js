@@ -9574,7 +9574,7 @@ action: "createThread",
 threadId: legacyThreadId,
 type: "group",
 title,
-visibility: "team",
+visibility: "members",
 participantIds,
 participants: [
 { id: currentUser.id, email: currentUser.email || "", username: currentUser.username || "", name: formatUserName(currentUser) },

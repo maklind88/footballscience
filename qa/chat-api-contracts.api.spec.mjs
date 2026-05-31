@@ -350,3 +350,10 @@ test("thread participant management is manager-only and preserves private thread
   expect(teamDenied.ok).toBe(false);
   expect(teamDenied.status).toBe(400);
 });
+
+test("database chat group creation normalizes unsupported team visibility before insert", () => {
+  expect(chatDatabaseSource).toContain("function normalizeThreadVisibility");
+  expect(chatDatabaseSource).toContain('if (visibility === "team")');
+  expect(chatDatabaseSource).toContain('return "members"');
+  expect(chatDatabaseSource).toContain("const visibility = normalizeThreadVisibility(body.visibility, type);");
+});

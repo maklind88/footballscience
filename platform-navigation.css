@@ -361,7 +361,103 @@ body[data-active-workspace="my-profile"] .platform-sidebar-profile .coach-avatar
 }
 
 .platform-content {
+  --platform-page-pad-x: clamp(0.9rem, 1.5vw, 1.55rem);
+  --platform-page-pad-y: clamp(0.75rem, 1.35vw, 1.35rem);
+  --platform-readable-max: 74rem;
+  --platform-board-max: none;
   min-height: 100vh;
+}
+
+.platform-content > .workspace-view {
+  width: 100%;
+  min-width: 0;
+}
+
+.platform-content > :is(
+  .platform-home-view,
+  .platform-schedule-view,
+  .platform-session-view,
+  .platform-periodization-view,
+  .platform-player-profiles-view,
+  .platform-medical-view,
+  .platform-scouting-view,
+  .platform-gameplan-view,
+  [data-workspace-view="transfer-room"],
+  .platform-analysis-room-view
+) {
+  padding: var(--platform-page-pad-y) var(--platform-page-pad-x);
+}
+
+.platform-content > :is(.platform-profile-view, .platform-staff-view, .platform-admin-view, .platform-placeholder-view) {
+  padding: var(--platform-page-pad-y) var(--platform-page-pad-x);
+}
+
+.platform-content > :is(
+  .platform-home-view,
+  .platform-schedule-view,
+  .platform-session-view,
+  .platform-periodization-view,
+  .platform-player-profiles-view,
+  .platform-medical-view,
+  .platform-scouting-view,
+  .platform-gameplan-view,
+  [data-workspace-view="transfer-room"],
+  .platform-analysis-room-view
+) > :is(.platform-home-shell, .platform-module-shell, .schedule-workspace, .periodization-shell, .session-planner-workspace, .player-profiles-workspace, .medical-workspace, .scouting-workspace, .gameplan-workspace, .analysis-room-workspace) {
+  width: 100%;
+  max-width: var(--platform-board-max);
+  margin-inline: 0;
+}
+
+.platform-content > [data-workspace-view="transfer-room"] > .transfer-room-workspace {
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
+}
+
+.platform-content > :is(.platform-profile-view, .platform-staff-view, .platform-admin-view, .platform-placeholder-view) > :is(.platform-module-shell, .profile-workspace, .staff-workspace, .admin-workspace, .placeholder-shell) {
+  width: min(100%, var(--platform-readable-max));
+}
+
+.platform-game-simulator-view {
+  padding: 0;
+}
+
+.platform-game-simulator-view > .simulator-workspace,
+.platform-game-simulator-view > .simulator-intro {
+  width: 100%;
+  max-width: none;
+}
+
+.platform-schedule-view .schedule-workspace {
+  gap: clamp(0.8rem, 1.2vw, 1.15rem);
+}
+
+.platform-schedule-view .schedule-hero-card,
+.platform-schedule-view .schedule-layout,
+.platform-schedule-view .schedule-board-card,
+.platform-schedule-view .schedule-day-card {
+  width: 100%;
+  max-width: none;
+}
+
+.platform-schedule-view .schedule-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, clamp(21rem, 24vw, 28rem));
+  align-items: start;
+}
+
+.platform-schedule-view .schedule-board-card {
+  min-width: 0;
+}
+
+.platform-schedule-view .schedule-day-card {
+  position: sticky;
+  top: var(--platform-page-pad-y);
+}
+
+.platform-schedule-view .schedule-overview-grid,
+.platform-schedule-view .schedule-overview-grid[data-months] {
+  grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr));
 }
 
 .platform-topbar-actions {
@@ -416,6 +512,21 @@ body.is-dark-mode .platform-sidebar .platform-profile-menu {
 
   .platform-nav {
     gap: 0.28rem;
+  }
+}
+
+@media (max-width: 1180px) {
+  .platform-content {
+    --platform-page-pad-x: clamp(0.75rem, 1.8vw, 1.1rem);
+    --platform-page-pad-y: clamp(0.65rem, 1.5vw, 1rem);
+  }
+
+  .platform-schedule-view .schedule-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .platform-schedule-view .schedule-day-card {
+    position: static;
   }
 }
 
@@ -490,6 +601,40 @@ body.is-dark-mode .platform-sidebar .platform-profile-menu {
   .platform-main,
   .platform-content {
     min-height: calc(100vh - 4.9rem);
+  }
+
+  .platform-content {
+    --platform-page-pad-x: 0.75rem;
+    --platform-page-pad-y: 0.65rem;
+  }
+
+  .platform-content > :is(
+    .platform-home-view,
+    .platform-schedule-view,
+    .platform-session-view,
+    .platform-periodization-view,
+    .platform-player-profiles-view,
+    .platform-medical-view,
+    .platform-scouting-view,
+    .platform-gameplan-view,
+    [data-workspace-view="transfer-room"],
+    .platform-analysis-room-view,
+    .platform-profile-view,
+    .platform-staff-view,
+    .platform-admin-view,
+    .platform-placeholder-view
+  ) {
+    padding: var(--platform-page-pad-y) var(--platform-page-pad-x);
+  }
+
+  .platform-schedule-view .schedule-hero-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .platform-schedule-view .schedule-toolbar {
+    width: 100%;
+    overflow-x: auto;
   }
 
   .platform-sidebar .platform-profile-menu {

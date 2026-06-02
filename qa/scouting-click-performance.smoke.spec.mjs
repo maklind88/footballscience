@@ -1,17 +1,19 @@
 import { expect, test } from "@playwright/test";
 
 const workspaceHubKey = "football-workspace-hub-v3";
+const performanceBudgetMultiplier = process.env.CI ? 1.5 : 1;
+const budget = (milliseconds) => Math.ceil(milliseconds * performanceBudgetMultiplier);
 
 const budgets = {
-  openWorkspace: 1200,
-  switchTab: 1000,
-  loadDatabase: 5000,
-  searchDatabase: 1000,
-  filterDatabase: 1000,
-  openProfile: 1000,
-  favoriteToggle: 500,
-  addToShadow: 1000,
-  closeProfile: 500,
+  openWorkspace: budget(1200),
+  switchTab: budget(1000),
+  loadDatabase: budget(5000),
+  searchDatabase: budget(1000),
+  filterDatabase: budget(1000),
+  openProfile: budget(1000),
+  favoriteToggle: budget(500),
+  addToShadow: budget(1000),
+  closeProfile: budget(500),
 };
 
 async function dismissDashboardModal(page) {

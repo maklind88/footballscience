@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const workspaceHubKey = "football-workspace-hub-v3";
+const playerProfilesKey = "football-player-profiles-v1";
 const scoutingAccessRoles = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"];
 const qaDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.dirname(qaDir);
@@ -385,6 +386,36 @@ test("Scouting compare set hydrates saved players outside the current worker pag
 test("Scouting My Team formation and squad placement stay stable", async ({ page }) => {
   test.setTimeout(120_000);
   await seedScoutingAccess(page);
+  await page.addInitScript(
+    ({ key }) => {
+      window.localStorage.setItem(
+        key,
+        JSON.stringify({
+          selectedPlayerId: "",
+          removedPlayerIds: [],
+          players: [
+            {
+              id: "qa-my-team-gk",
+              name: "QA My Team Keeper",
+              position: "Goalkeeper",
+              rosterType: "squad",
+              status: "Available",
+              rosterOrder: 1,
+            },
+            {
+              id: "qa-my-team-defender",
+              name: "QA My Team Defender",
+              position: "Defender",
+              rosterType: "squad",
+              status: "Available",
+              rosterOrder: 2,
+            },
+          ],
+        })
+      );
+    },
+    { key: playerProfilesKey }
+  );
   const boot = await bootApp(page);
   expect(boot.pageErrors).toEqual([]);
 

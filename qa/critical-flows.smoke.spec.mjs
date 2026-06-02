@@ -267,14 +267,15 @@ test("Profile updates sync to the account menu and local dev keeps Mak signed in
 
   await expect(page.locator("#profileWorkspace")).toContainText("Saved.");
   await expect(page.locator("#profileWorkspace .profile-title")).toContainText(`QA Account ${stamp}`);
-  await expect(page.locator("#profileMenuName")).toContainText(`QA Account ${stamp}`);
-  await expect(page.locator("#profileMenuClub")).toContainText(`Central Team ${stamp}`);
+  await expect(page.locator("#coachName")).toContainText(`QA Account ${stamp}`);
 
   await page.locator("#profileMenuButton").click();
+  await expect(page.locator("#profileMenuPanelName")).toContainText(`QA Account ${stamp}`);
+  await expect(page.locator("#profileMenuPanelClub")).toContainText(`Central Team ${stamp}`);
   await page.locator("#logoutButton").click();
   await expect(page.locator("#hubShell")).toBeVisible();
   await expect(page.locator("#loginScreen")).toBeHidden();
-  await expect(page.locator("#profileMenuName")).toContainText("Mak Lind");
+  await expect(page.locator("#coachName")).toContainText("Mak Lind");
 });
 
 test("Chat launcher shows unread chat until the thread is opened", async ({ page }) => {
@@ -2164,7 +2165,7 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
     store.setCurrentUser(nextUser.id);
   });
   await openWorkspace(page, "player-profiles");
-  await expect(page.locator('#topIconMenu [data-open-workspace="player-profiles"]')).toHaveAttribute(
+  await expect(page.locator('#workspaceList [data-open-workspace="player-profiles"]')).toHaveAttribute(
     "aria-label",
     "Squad Room"
   );

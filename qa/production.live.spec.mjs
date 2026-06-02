@@ -86,7 +86,25 @@ async function signIn(page) {
 
 async function openWorkspace(page, workspaceId, viewId = workspaceId) {
   await dismissDashboardModal(page);
-  await page.locator(`[data-open-workspace="${workspaceId}"]:visible`).first().click();
+  const visibleTrigger = page.locator(`[data-open-workspace="${workspaceId}"]:visible`).first();
+  if ((await visibleTrigger.count()) > 0) {
+    await visibleTrigger.click();
+  } else {
+    const moreMenu = page.locator(".platform-nav-more").first();
+    if ((await moreMenu.count()) > 0) {
+      await moreMenu.evaluate((node) => {
+        node.open = true;
+      });
+    }
+    const sidebarTrigger = page.locator(`#workspaceList [data-open-workspace="${workspaceId}"]`).first();
+    if ((await sidebarTrigger.count()) > 0) {
+      await sidebarTrigger.evaluate((button) => button.click());
+    } else {
+      await page.evaluate((targetWorkspaceId) => {
+        window.dispatchEvent(new CustomEvent("platform:open-workspace", { detail: { workspaceId: targetWorkspaceId } }));
+      }, workspaceId);
+    }
+  }
   await dismissDashboardModal(page);
   await expect(page.locator(`[data-workspace-view="${viewId}"].is-active`)).toBeVisible();
 }

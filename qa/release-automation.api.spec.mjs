@@ -39,5 +39,30 @@ test("safe ship release automation owns the staging to production flow", () => {
   expect(shipSource).toContain('"HEAD:main"');
   expect(shipSource).toContain('"Staging Deploy"');
   expect(shipSource).toContain('"Production Deploy"');
+  expect(shipSource).toContain('"release:staging-isolation"');
+  expect(shipSource).toContain('"release:staging-isolation:repair"');
   expect(shipSource).toContain('"release:postdeploy"');
+});
+
+test("release automation keeps staging and live environments isolated", () => {
+  const packageJson = readJson("package.json");
+  const isolationSource = readProjectFile("scripts/verify-staging-live-isolation.mjs");
+  const quickDeploy = readProjectFile("scripts/quick-ui-deploy.mjs");
+  const productionDeployWorkflow = readProjectFile(".github/workflows/production-deploy.yml");
+  const rollbackWorkflow = readProjectFile(".github/workflows/production-rollback.yml");
+
+  expect(packageJson.scripts["check"]).toContain("scripts/verify-staging-live-isolation.mjs");
+  expect(packageJson.scripts["release:staging-isolation"]).toBe("node scripts/verify-staging-live-isolation.mjs");
+  expect(packageJson.scripts["release:staging-isolation:repair"]).toBe(
+    "node scripts/verify-staging-live-isolation.mjs --repair"
+  );
+  expect(packageJson.scripts["release:monitor"]).toContain("npm run release:staging-isolation");
+  expect(isolationSource).toContain("footballscience-git-staging-makattack.vercel.app");
+  expect(isolationSource).toContain("staging.footballscience.xyz");
+  expect(isolationSource).toContain("footballscience.xyz");
+  expect(isolationSource).toContain("alias");
+  expect(isolationSource).toContain("set");
+  expect(quickDeploy).toContain("release:staging-isolation:repair");
+  expect(productionDeployWorkflow).toContain("npm run release:staging-isolation:repair");
+  expect(rollbackWorkflow).toContain("npm run release:staging-isolation:repair");
 });

@@ -163,7 +163,12 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   expect(packageJson.scripts["qa:live"]).toContain("qa/live.playwright.config.mjs");
   expect(packageJson.scripts["release:gate"]).toContain("npm run release:safety");
   expect(packageJson.scripts["release:traffic"]).toBe("node scripts/verify-vercel-release-traffic.mjs");
+  expect(packageJson.scripts["release:staging-isolation"]).toBe("node scripts/verify-staging-live-isolation.mjs");
+  expect(packageJson.scripts["release:staging-isolation:repair"]).toBe(
+    "node scripts/verify-staging-live-isolation.mjs --repair"
+  );
   expect(packageJson.scripts["release:monitor-postdeploy"]).toContain("RELEASE_ALLOW_LIVE_HASH_MISMATCH=1");
+  expect(packageJson.scripts["release:monitor"]).toContain("npm run release:staging-isolation");
   expect(packageJson.scripts["release:monitor"]).toContain("npm run release:backup");
   expect(packageJson.scripts["release:monitor"]).toContain("npm run release:restore-readiness");
   expect(packageJson.scripts["release:monitor"]).toContain("npm run release:restore-drill");
@@ -205,7 +210,10 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   expect(readProjectFile("scripts/verify-production-deploy.mjs")).toContain("RELEASE_ALLOW_LIVE_HASH_MISMATCH");
   expect(readProjectFile("scripts/verify-production-deploy.mjs")).toContain("crypto.createHash");
   expect(readProjectFile("scripts/verify-vercel-release-traffic.mjs")).toContain("Production Deploy");
+  expect(readProjectFile("scripts/verify-staging-live-isolation.mjs")).toContain("staging branch");
+  expect(readProjectFile("scripts/verify-staging-live-isolation.mjs")).toContain("alias");
   expect(readProjectFile("scripts/release-ship.mjs")).toContain("release:traffic");
+  expect(readProjectFile("scripts/release-ship.mjs")).toContain("release:staging-isolation:repair");
   expect(liveSpec).toContain("LIVE_QA_USERNAME");
   expect(liveSpec).toContain("LIVE_QA_PASSWORD");
   expect(liveSpec).toContain("production-safe live smoke");

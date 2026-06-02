@@ -233,6 +233,14 @@ function verifyVercelReleaseTraffic() {
   run("npm", ["run", "release:traffic"]);
 }
 
+function verifyStagingLiveIsolation() {
+  run("npm", ["run", "release:staging-isolation"]);
+}
+
+function repairStagingLiveIsolation() {
+  run("npm", ["run", "release:staging-isolation:repair"]);
+}
+
 function requireCanonicalVercelProjectLink() {
   const projectFile = path.join(rootDir, ".vercel", "project.json");
   if (!fs.existsSync(projectFile)) {
@@ -355,6 +363,7 @@ function deployThroughGithub(options) {
     waitForWorkflow("Production Deploy", "main", sha);
   }
 
+  verifyStagingLiveIsolation();
   run("npm", ["run", "release:postdeploy"]);
 }
 
@@ -371,6 +380,7 @@ function deployDirectProduction() {
   if (deploymentUrl) {
     console.log(`\nFast production deployment: ${deploymentUrl}`);
   }
+  repairStagingLiveIsolation();
   run("npm", ["run", "release:postdeploy"]);
 }
 
@@ -427,6 +437,7 @@ async function main() {
 
   if (options.deploy) {
     verifyVercelReleaseTraffic();
+    verifyStagingLiveIsolation();
     if (mode === "fast") {
       deployDirectProduction();
     } else {

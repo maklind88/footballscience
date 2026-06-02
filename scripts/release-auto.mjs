@@ -217,11 +217,13 @@ async function main() {
     requireCleanWorkingTree("Production deploy");
     run("npm", ["run", "release:gate"]);
     requireCanonicalVercelProjectLink();
+    run("npm", ["run", "release:staging-isolation"]);
     const deployOutput = run("npx", ["--yes", "vercel@53.2.0", "deploy", "--prod", "--yes"], { capture: true });
     const deploymentUrl = extractDeploymentUrl(deployOutput);
     if (deploymentUrl) {
       console.log(`\nProduction deployment: ${deploymentUrl}`);
     }
+    run("npm", ["run", "release:staging-isolation:repair"]);
     run("npm", ["run", "release:postdeploy"]);
   }
 

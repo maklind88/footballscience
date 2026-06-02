@@ -41,11 +41,13 @@ requirePackageScript("release:backup", "node scripts/verify-app-state-backup-fre
 requirePackageScript("release:restore-readiness", "node scripts/verify-app-state-restore-readiness.mjs");
 requirePackageScript("release:restore-drill", "node scripts/verify-app-state-restore-drill.mjs");
 requirePackageScript("release:monitor-postdeploy", "RELEASE_ALLOW_LIVE_HASH_MISMATCH=1 node scripts/verify-production-deploy.mjs");
-requirePackageScript("release:monitor", "npm run release:monitor-postdeploy && npm run release:backup && npm run release:restore-readiness && npm run release:restore-drill && npm run qa:live:required");
+requirePackageScript("release:monitor", "npm run release:monitor-postdeploy && npm run release:staging-isolation && npm run release:backup && npm run release:restore-readiness && npm run release:restore-drill && npm run qa:live:required");
 requirePackageScript("release:incident-alert", "node scripts/create-incident-alert.mjs");
 requirePackageScript("release:incident-readiness", "node scripts/verify-incident-readiness.mjs");
 requirePackageScript("release:rules", "node scripts/verify-release-rules.mjs");
 requirePackageScript("release:traffic", "node scripts/verify-vercel-release-traffic.mjs");
+requirePackageScript("release:staging-isolation", "node scripts/verify-staging-live-isolation.mjs");
+requirePackageScript("release:staging-isolation:repair", "node scripts/verify-staging-live-isolation.mjs --repair");
 requirePackageScript("release:vercel-token", "node scripts/verify-vercel-token.mjs");
 requirePackageScript("storage:guard", "node scripts/verify-storage-key-policy.mjs");
 requirePackageScript("security:platform", "node scripts/verify-platform-security.mjs");
@@ -82,10 +84,16 @@ requireText("scripts/verify-production-deploy.mjs", "RELEASE_ALLOW_LIVE_HASH_MIS
 requireText("scripts/verify-ci-release-env.mjs", "CRON_SECRET", "production CI must include the cron secret used for backup freshness checks");
 requireText("scripts/verify-vercel-token.mjs", "Vercel deployment token: ok", "CI must verify the Vercel token before deployment commands run");
 requireText("scripts/verify-vercel-release-traffic.mjs", "Production Deploy", "deploy tooling must avoid concurrent production deploy traffic");
+requireText("scripts/verify-staging-live-isolation.mjs", "staging branch", "release tooling must compare staging branch, staging alias, and live alias");
+requireText("scripts/verify-staging-live-isolation.mjs", '"alias", "set"', "release tooling must be able to repair the staging alias after direct production deploys");
+requireText("scripts/quick-ui-deploy.mjs", "release:staging-isolation:repair", "fast UI deploy must repair staging/live alias drift after Vercel CLI production deploys");
 requireText("scripts/release-ship.mjs", "release:traffic", "deploy commands must check release traffic before calling Vercel");
+requireText("scripts/release-ship.mjs", "release:staging-isolation", "deploy commands must verify staging/live isolation before production deploy");
+requireText("scripts/release-ship.mjs", "release:staging-isolation:repair", "direct production deploys must repair staging/live alias drift");
 requireText("scripts/release-ship.mjs", "requireCanonicalVercelProjectLink", "fast deploys must fail closed when a worktree is linked to the wrong Vercel project");
 requireText("scripts/release-ship.mjs", "footballscience", "fast deploys must target the canonical Vercel project");
 requireText("scripts/release-auto.mjs", "requireCanonicalVercelProjectLink", "legacy deploys must fail closed when a worktree is linked to the wrong Vercel project");
+requireText("scripts/release-auto.mjs", "release:staging-isolation:repair", "legacy deploys must repair staging/live alias drift after direct production deploys");
 requireText("scripts/verify-incident-readiness.mjs", "Incident readiness verification: ok", "incident alerting must stay testable");
 requireText("scripts/platform-identity-backfill.mjs", "BACKFILL_PLATFORM_IDENTITY", "platform identity backfill must require explicit apply confirmation");
 requireText("qa/platform-identity-backfill.api.spec.mjs", "app_metadata", "platform identity backfill tests must prove server-owned role derivation");
@@ -106,12 +114,14 @@ requireText(".github/workflows/production-deploy.yml", "npm run qa:staging:requi
 requireText(".github/workflows/production-deploy.yml", "npm run release:vercel-token", "production must fail closed when the Vercel token is invalid");
 requireText(".github/workflows/production-deploy.yml", "vercel@53.2.0 deploy --prebuilt --prod", "production deploy must use the pinned Vercel CLI prebuilt path");
 requireText(".github/workflows/production-deploy.yml", "npm run release:postdeploy", "production deploy must verify the live domain");
+requireText(".github/workflows/production-deploy.yml", "npm run release:staging-isolation:repair", "production deploy must repair staging/live alias drift before live verification");
 requireText(".github/workflows/production-deploy.yml", "npm run qa:live:required", "production deploy must run authenticated live smoke");
 requireText(".github/workflows/production-deploy.yml", 'LIVE_QA_EXPECT_ADMIN: "1"', "production deploy must prove the live QA account still has admin access");
 requireText(".github/workflows/production-deploy.yml", "CRON_SECRET", "production deploy must receive the cron secret required by the release environment gate");
 
 requireText(".github/workflows/production-smoke.yml", "schedule:", "production monitoring must run automatically");
 requireText(".github/workflows/production-smoke.yml", "npm run release:monitor", "production monitoring must run postdeploy and live smoke");
+requireText("package.json", "npm run release:staging-isolation", "production monitoring must verify staging/live isolation");
 requireText(".github/workflows/production-smoke.yml", 'LIVE_QA_EXPECT_ADMIN: "1"', "production monitoring must prove the live QA account still has admin access");
 requireText(".github/workflows/production-smoke.yml", "CRON_SECRET", "production monitoring must verify backup freshness with the cron secret");
 
@@ -125,6 +135,7 @@ requireText(".github/workflows/production-rollback.yml", "workflow_dispatch:", "
 requireText(".github/workflows/production-rollback.yml", "ROLLBACK", "rollback must require explicit confirmation");
 requireText(".github/workflows/production-rollback.yml", "npm run release:vercel-token", "rollback must fail closed when the Vercel token is invalid");
 requireText(".github/workflows/production-rollback.yml", "vercel@53.2.0 rollback", "rollback must use the pinned Vercel CLI");
+requireText(".github/workflows/production-rollback.yml", "npm run release:staging-isolation:repair", "rollback must repair staging/live alias drift before live verification");
 requireText(".github/workflows/production-rollback.yml", "npm run release:postdeploy", "rollback must verify the live domain");
 requireText(".github/workflows/production-rollback.yml", "npm run qa:live:required", "rollback must run authenticated live smoke");
 requireText(".github/workflows/production-rollback.yml", 'LIVE_QA_EXPECT_ADMIN: "1"', "rollback verification must prove the live QA account still has admin access");

@@ -67,5 +67,8 @@ jobs:
         if: ${{ env.STAGING_QA_BASE_URL != '' }}
         run: node scripts/restore-staging-alias.mjs
 
+      - name: Repair and verify staging/live isolation
+        run: npm run release:staging-isolation:repair
+
       - run: npm run release:postdeploy
       - run: npm run qa:live:required

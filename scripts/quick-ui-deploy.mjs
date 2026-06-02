@@ -80,6 +80,8 @@ if (!options.skipPush) {
   run("git", ["push", "origin", "HEAD:main"]);
 }
 run("npm", ["run", "release:traffic"]);
+run("npm", ["run", "release:staging-isolation"]);
 run("npx", ["--yes", "vercel@53.2.0", "deploy", "--prod", "--yes"]);
+run("npm", ["run", "release:staging-isolation:repair"]);
 run("npm", ["run", "release:postdeploy"]);
 console.log("Quick UI deploy: ok");

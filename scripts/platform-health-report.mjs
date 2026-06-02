@@ -78,6 +78,11 @@ for (const entry of performance.entries) {
   console.log(`- ${budgetStatus} ${entry.file}: ${formatBytes(entry.gzipBytes)} gzip, ${targetDebt}`);
 }
 
+printSection("Live signals");
+for (const signal of readiness.liveSignals) {
+  console.log(`- ${statusIcon(signal.status)} ${signal.label}: ${signal.details}`);
+}
+
 printSection("Scouting contract");
 console.log(`- signals: ${readiness.scoutingPerformance.requiredSignals.length}`);
 console.log(`- first page max records: ${readiness.scoutingPerformance.datasetRules.firstPageMaxRecords}`);

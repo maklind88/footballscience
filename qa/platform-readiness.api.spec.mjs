@@ -5,8 +5,10 @@ import { fileURLToPath } from "node:url";
 import {
   assertPlatformReadinessContract,
   createPlatformModuleReadinessMap,
+  createPlatformLiveSignalMap,
   createPlatformReadinessReport,
   platformDatabasePrimaryMigrationPlan,
+  platformLiveSignalContracts,
   platformObservabilitySignals,
   platformOperatingPriorities,
   platformReadinessAreas,
@@ -116,6 +118,45 @@ test("observability covers deploy, api, saves, backup, auth, and performance sig
   }
 });
 
+test("live health signals cover production, checks, backup, egress, and live QA without secret values", () => {
+  const signalIds = platformLiveSignalContracts.map((signal) => signal.id);
+  const signals = createPlatformLiveSignalMap({
+    env: {
+      ...completeEnv,
+      VERCEL_ENV: "production",
+      VERCEL_URL: "footballscience.xyz",
+      VERCEL_GIT_REPO_OWNER: "maklind88",
+      VERCEL_GIT_REPO_SLUG: "footballscience",
+      VERCEL_GIT_COMMIT_SHA: "abc123456789",
+      GITHUB_TOKEN: "secret-value",
+    },
+    liveSignals: {
+      "backup-freshness": {
+        status: platformReadinessStatuses.pass,
+        details: "Latest backup is 5 minutes old.",
+        checkedAt: "2026-06-02T00:00:00.000Z",
+      },
+    },
+  });
+
+  expect(signalIds).toEqual(
+    expect.arrayContaining([
+      "vercel-production",
+      "github-checks",
+      "backup-freshness",
+      "supabase-egress",
+      "live-qa",
+      "release-monitor",
+    ])
+  );
+  expect(signals.find((signal) => signal.id === "backup-freshness")).toMatchObject({
+    status: platformReadinessStatuses.pass,
+    details: "Latest backup is 5 minutes old.",
+  });
+  expect(JSON.stringify(signals)).not.toContain("secret-value");
+  expect(signals.every((signal) => signal.evidence.length)).toBe(true);
+});
+
 test("operating priorities define the long-term platform hardening order", () => {
   const report = createPlatformReadinessReport({
     env: completeEnv,
@@ -196,12 +237,16 @@ test("scouting performance contract stays explicit and conservative", () => {
 
 test("admin workspace exposes the platform health cockpit", () => {
   const appSource = readProjectFile("app.js");
+  const apiSource = readProjectFile("api/platform-readiness.js");
 
   expect(appSource).toContain("Platform Health");
   expect(appSource).toContain("Live Health");
+  expect(appSource).toContain("Live Signals");
   expect(appSource).toContain("Next Actions");
   expect(appSource).toContain("Database Migration");
   expect(appSource).toContain("Scouting Speed");
   expect(appSource).toContain("Missing env");
   expect(appSource).toContain("data-pr-refresh");
+  expect(apiSource).toContain("collectPlatformLiveSignals");
+  expect(apiSource).toContain("/api/app-state-backup-status");
 });

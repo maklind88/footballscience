@@ -23688,6 +23688,7 @@ const sections = Array.isArray(report.sections) ? report.sections : [];
 const modules = Array.isArray(report.modules) ? report.modules : [];
 const environment = Array.isArray(report.environment) ? report.environment : [];
 const signals = Array.isArray(report.observabilitySignals) ? report.observabilitySignals : [];
+const live = report.liveSignals || [];
 const priorities = Array.isArray(report.operatingPriorities) ? report.operatingPriorities : [];
 const migrations = Array.isArray(report.databasePrimaryMigrationPlan) ? report.databasePrimaryMigrationPlan : [];
 const scouting = report.scoutingPerformance || {};
@@ -23703,9 +23704,9 @@ const priorityRows = priorities.slice(0, 6).map((priority) => compactRow(`P${pri
 const migrationRows = migrations.slice(0, 10).map((item) => compactRow(`P${item.priority} · ${item.moduleId}`, item.nextStep || item.target || "")).join("");
 const scoutingRows = `${compactRow("First page", `${scouting?.datasetRules?.firstPageMaxRecords || 0} records`)}${compactRow("Worker", scouting?.datasetRules?.requiresWorkerSource ? "Required" : "Not required")}${compactRow("Signals", `${scouting?.requiredSignals?.length || 0}`)}`;
 const moduleRows = modules.slice(0, 14).map((module) => moduleRow(module.label || module.id, `${module.id} · ${module.implementation || "unclassified"}`, module.scope || "scope", module.status)).join("");
-const environmentRows = environment.map((entry) => `<article class="pr-env-row is-${esc(normalizePlatformReadinessStatus(entry.status))}"><div><strong>${esc(entry.label)}</strong><small>${esc(entry.location)}</small></div><span>${esc(entry.missing?.length ? entry.missing.join(", ") : "Configured")}</span>${renderPlatformReadinessStatus(entry.status)}</article>`).join("");
+const environmentRows = environment.map((entry) => `<article class="pr-env-row is-${esc(normalizePlatformReadinessStatus(entry.status))}"><div><strong>${esc(entry.label)}</strong><small>${esc(entry.location)}</small></div><span>${esc(entry.missing?.length ? entry.missing.join(", ") : "OK")}</span>${renderPlatformReadinessStatus(entry.status)}</article>`).join("");
 const signalRows = signals.map((signal) => compactRow(signal.label, signal.source)).join("");
-const scoreItems = [["Readiness", score], ["Modules", report.summary?.totalModules || modules.length], ["Legacy", report.summary?.legacyModules || 0], ["Missing env", missingEnv]].map(([label, value]) => `<div><span>${esc(label)}</span><strong>${esc(String(value))}</strong></div>`).join("");
+const liveRows = live.map((signal) => compactRow(signal.label, signal.details||signal.source, signal.status)).join("");
 return `
     <article class="admin-card pr-card">
       <div class="staff-card-head">
@@ -23720,11 +23721,11 @@ return `
           ? renderPlatformReadinessEmptyState()
           : `
       <section class="pr-section is-${esc(overallStatus)}">
-        <div><strong>Live Health</strong><p>${esc(nextPriority?.nextStep || "Contracts loaded.")}</p></div>${renderPlatformReadinessStatus(overallStatus)}
+        <div><strong>Live Health</strong><p>${esc(nextPriority?.nextStep || `Ready ${score}, Missing env ${missingEnv}.`)}</p></div>${renderPlatformReadinessStatus(overallStatus)}
       </section>
-      <div class="pr-score-grid">${scoreItems}</div>
       <section class="pr-section-grid">${sectionCards}</section>
       <section class="pr-detail-grid">
+        ${detailPanel("Live Signals", liveRows)}
         ${detailPanel("Next Actions", priorityRows)}
         ${detailPanel("Database Migration", migrationRows)}
         ${detailPanel("Scouting Speed", scoutingRows)}

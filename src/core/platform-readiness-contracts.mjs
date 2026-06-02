@@ -236,6 +236,57 @@ export const platformObservabilitySignals = Object.freeze([
   }),
 ]);
 
+export const platformLiveSignalContracts = Object.freeze([
+  Object.freeze({
+    id: "vercel-production",
+    label: "Vercel Production",
+    source: "Vercel runtime",
+    required: Object.freeze(["VERCEL_ENV", "VERCEL_URL"]),
+    recommended: Object.freeze(["VERCEL_GIT_COMMIT_SHA"]),
+    evidence: Object.freeze(["scripts/verify-production-deploy.mjs", "scripts/verify-vercel-release-traffic.mjs"]),
+  }),
+  Object.freeze({
+    id: "github-checks",
+    label: "GitHub Checks",
+    source: "GitHub commit/check API",
+    required: Object.freeze(["VERCEL_GIT_REPO_OWNER", "VERCEL_GIT_REPO_SLUG", "VERCEL_GIT_COMMIT_SHA"]),
+    recommended: Object.freeze(["GITHUB_TOKEN"]),
+    evidence: Object.freeze([".github/workflows/production-deploy.yml", "qa/release-automation.api.spec.mjs"]),
+  }),
+  Object.freeze({
+    id: "backup-freshness",
+    label: "Backup Freshness",
+    source: "/api/app-state-backup-status",
+    required: Object.freeze(["CRON_SECRET"]),
+    recommended: Object.freeze(["APP_STATE_BACKUP_STATUS_TOKEN"]),
+    evidence: Object.freeze(["scripts/verify-app-state-backup-freshness.mjs", "api/app-state-backup.js"]),
+  }),
+  Object.freeze({
+    id: "supabase-egress",
+    label: "Supabase Egress",
+    source: "egress guardrails + Supabase usage review",
+    required: Object.freeze(["SUPABASE_PROJECT_REF", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]),
+    recommended: Object.freeze(["SUPABASE_ACCESS_TOKEN"]),
+    evidence: Object.freeze(["qa/egress-guardrails.api.spec.mjs", "scripts/verify-supabase-remote.mjs"]),
+  }),
+  Object.freeze({
+    id: "live-qa",
+    label: "Live QA",
+    source: "authenticated live smoke",
+    required: Object.freeze(["LIVE_QA_USERNAME", "LIVE_QA_PASSWORD"]),
+    recommended: Object.freeze(["LIVE_QA_EXPECT_ADMIN"]),
+    evidence: Object.freeze(["scripts/verify-live-qa-env.mjs", "qa/live.playwright.config.mjs"]),
+  }),
+  Object.freeze({
+    id: "release-monitor",
+    label: "Release Monitor",
+    source: "release:monitor",
+    required: Object.freeze(["CRON_SECRET", "LIVE_QA_USERNAME", "LIVE_QA_PASSWORD"]),
+    recommended: Object.freeze(["APP_STATE_BACKUP_STATUS_TOKEN"]),
+    evidence: Object.freeze(["package.json", ".github/workflows/production-smoke.yml"]),
+  }),
+]);
+
 export const platformOperatingPriorities = Object.freeze([
   Object.freeze({
     id: "performance-ratchet",
@@ -431,6 +482,10 @@ function hasValue(env = {}, name) {
   return String(env?.[name] || "").trim().length > 0;
 }
 
+function normalizeReadinessStatus(status) {
+  return Object.values(platformReadinessStatuses).includes(status) ? status : platformReadinessStatuses.warning;
+}
+
 function evaluateEnvironmentRequirement(requirement, env = {}) {
   const missing = requirement.required.filter((name) => !hasValue(env, name));
   const missingRecommended = requirement.recommended.filter((name) => !hasValue(env, name));
@@ -447,6 +502,46 @@ function evaluateEnvironmentRequirement(requirement, env = {}) {
     missing: Object.freeze(missing),
     missingRecommended: Object.freeze(missingRecommended),
   });
+}
+
+function defaultLiveSignalDetails(signal, env = {}, missing = [], missingRecommended = []) {
+  if (missing.length) {
+    return `Missing ${missing.join(", ")}.`;
+  }
+  if (signal.id === "vercel-production") {
+    return env.VERCEL_ENV === "production" ? `Production runtime ${env.VERCEL_URL || ""}.` : `Runtime env is ${env.VERCEL_ENV || "unknown"}.`;
+  }
+  if (signal.id === "supabase-egress") {
+    return missingRecommended.length ? "Egress guardrails are active; usage token is not connected." : "Egress guardrails and Supabase access are connected.";
+  }
+  return missingRecommended.length ? `Connected with optional gap: ${missingRecommended.join(", ")}.` : "Connected.";
+}
+
+export function createPlatformLiveSignalMap(options = {}) {
+  const env = options.env || {};
+  const overrides = options.liveSignals && typeof options.liveSignals === "object" ? options.liveSignals : {};
+  return Object.freeze(
+    platformLiveSignalContracts.map((signal) => {
+      const override = overrides[signal.id] || {};
+      const missing = signal.required.filter((name) => !hasValue(env, name));
+      const missingRecommended = signal.recommended.filter((name) => !hasValue(env, name));
+      const status = override.status
+        ? normalizeReadinessStatus(override.status)
+        : missing.length
+        ? platformReadinessStatuses.missing
+        : missingRecommended.length
+        ? platformReadinessStatuses.warning
+        : platformReadinessStatuses.pass;
+      return Object.freeze({
+        ...signal,
+        status,
+        details: String(override.details || defaultLiveSignalDetails(signal, env, missing, missingRecommended)),
+        checkedAt: override.checkedAt || null,
+        missing: Object.freeze(missing),
+        missingRecommended: Object.freeze(missingRecommended),
+      });
+    })
+  );
 }
 
 function evaluateWorkflowRequirement(requirement, scripts = {}) {
@@ -531,6 +626,7 @@ export function createPlatformReadinessReport(options = {}) {
   const scripts = options.scripts || {};
   const gitStatusLines = Array.isArray(options.gitStatusLines) ? options.gitStatusLines : [];
   const moduleMap = createPlatformModuleReadinessMap(options);
+  const liveSignals = createPlatformLiveSignalMap(options);
   const environment = platformReadinessEnvironmentRequirements.map((requirement) =>
     evaluateEnvironmentRequirement(requirement, env)
   );
@@ -611,6 +707,8 @@ export function createPlatformReadinessReport(options = {}) {
     operatingPriorities: platformOperatingPriorities.length,
     databasePrimaryMigrationItems: platformDatabasePrimaryMigrationPlan.length,
     scoutingPerformanceSignals: platformScoutingPerformanceContract.requiredSignals.length,
+    liveSignals: liveSignals.length,
+    readyLiveSignals: liveSignals.filter((signal) => signal.status === platformReadinessStatuses.pass).length,
   });
 
   return Object.freeze({
@@ -623,6 +721,7 @@ export function createPlatformReadinessReport(options = {}) {
     environment,
     workflows: Object.freeze(workflows),
     observabilitySignals: platformObservabilitySignals,
+    liveSignals,
     operatingPriorities: platformOperatingPriorities,
     databasePrimaryMigrationPlan: platformDatabasePrimaryMigrationPlan,
     scoutingPerformance: platformScoutingPerformanceContract,

@@ -180,10 +180,36 @@ async function waitForScoutingRows(page, { timeout = 60_000 } = {}) {
 }
 
 async function loadScoutingDatabase(page) {
-  const loadButton = page.locator("[data-scouting-load-database], [data-scouting-retry-database]").first();
-  if ((await loadButton.count()) > 0) {
-    await expect(loadButton).toBeEnabled({ timeout: 15_000 });
-    await loadButton.click();
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const existingRow = page
+      .locator('[data-workspace-view="scouting"].is-active [data-scouting-record-grid] [data-open-scouting-record]:visible')
+      .first();
+    if ((await existingRow.count()) > 0) {
+      break;
+    }
+
+    const loadButton = page
+      .locator(
+        '[data-workspace-view="scouting"].is-active [data-scouting-load-database]:visible, [data-workspace-view="scouting"].is-active [data-scouting-retry-database]:visible'
+      )
+      .first();
+    if ((await loadButton.count()) === 0) {
+      await nextPaint(page);
+      continue;
+    }
+
+    try {
+      await expect(loadButton).toBeEnabled({ timeout: 5_000 });
+      await loadButton.click({ timeout: 5_000 });
+      break;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("detached") || message.includes("Timeout")) {
+        await nextPaint(page);
+        continue;
+      }
+      throw error;
+    }
   }
   return waitForScoutingRows(page, { timeout: 75_000 });
 }

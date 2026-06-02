@@ -15,6 +15,8 @@ concurrency:
 jobs:
   monitor:
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
     timeout-minutes: 20
     env:
       LIVE_QA_BASE_URL: ${{ vars.LIVE_QA_BASE_URL || 'https://footballscience.xyz' }}
@@ -22,21 +24,11 @@ jobs:
       LIVE_QA_PASSWORD: ${{ secrets.LIVE_QA_PASSWORD }}
       LIVE_QA_USERNAME: ${{ secrets.LIVE_QA_USERNAME }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
-      PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-linux-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            playwright-linux-
       - run: npm ci
-      - name: Install Playwright Chromium
-        run: npx playwright install --only-shell chromium
-        timeout-minutes: 5
       - run: npm run release:monitor

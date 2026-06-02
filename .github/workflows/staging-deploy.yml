@@ -16,6 +16,8 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
     timeout-minutes: 35
     env:
       LIVE_QA_BASE_URL: ${{ vars.LIVE_QA_BASE_URL || 'https://footballscience.xyz' }}
@@ -34,9 +36,6 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Install Playwright Chromium
-        run: npx playwright install --only-shell chromium
-        timeout-minutes: 5
       - run: npm run qa
 
       - name: Check staging deploy config

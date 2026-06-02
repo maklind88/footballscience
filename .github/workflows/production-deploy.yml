@@ -13,6 +13,8 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
     timeout-minutes: 45
     env:
       LIVE_QA_BASE_URL: ${{ vars.LIVE_QA_BASE_URL || 'https://footballscience.xyz' }}
@@ -42,10 +44,6 @@ jobs:
 
       - run: npm run release:ci-env
       - run: npm run release:vercel-token
-
-      - name: Install Playwright Chromium
-        run: npx playwright install --only-shell chromium
-        timeout-minutes: 5
 
       - name: Verify release gate
         run: npm run release:gate

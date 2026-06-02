@@ -9,6 +9,8 @@ on:
 jobs:
   qa:
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
@@ -19,7 +21,4 @@ jobs:
       - run: npm ci
       - run: npm run release:preflight
       - run: npm run security:audit
-      - name: Install Playwright Chromium
-        run: npx playwright install --only-shell chromium
-        timeout-minutes: 5
       - run: npm run qa

@@ -177,7 +177,9 @@ test("Source enrichment stays behind the unified Scouting database", async ({ pa
   await openWorkspace(page, "scouting");
 
   await page.locator('.scouting-tab[data-scouting-tab="database"]').click();
-  await expect(page.locator("[data-scouting-load-fsdb]")).toHaveCount(0);
-  await expect(page.locator("[data-scouting-load-database]").first()).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator(".scouting-load-panel").first()).toContainText("Source enrichment stays attached inside each player profile.");
+  const activeScoutingWorkspace = page.locator('[data-workspace-view="scouting"].is-active');
+  await expect(activeScoutingWorkspace.locator("[data-scouting-load-fsdb]")).toHaveCount(0);
+  const loadPanel = activeScoutingWorkspace.locator(".scouting-load-panel:has([data-scouting-load-database])").first();
+  await expect(loadPanel.locator("[data-scouting-load-database]")).toBeVisible({ timeout: 15_000 });
+  await expect(loadPanel).toContainText("Source enrichment stays attached inside each player profile.");
 });

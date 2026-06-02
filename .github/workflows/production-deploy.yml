@@ -13,6 +13,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
       LIVE_QA_BASE_URL: ${{ vars.LIVE_QA_BASE_URL || 'https://footballscience.xyz' }}
       LIVE_QA_EXPECT_ADMIN: "1"
@@ -43,7 +44,7 @@ jobs:
       - run: npm run release:vercel-token
 
       - name: Install Playwright Chromium
-        run: npx playwright install chromium
+        run: npx playwright install --only-shell chromium
         timeout-minutes: 5
 
       - name: Verify release gate

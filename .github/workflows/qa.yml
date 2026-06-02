@@ -9,6 +9,7 @@ on:
 jobs:
   qa:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -19,6 +20,6 @@ jobs:
       - run: npm run release:preflight
       - run: npm run security:audit
       - name: Install Playwright Chromium
-        run: npx playwright install chromium
+        run: npx playwright install --only-shell chromium
         timeout-minutes: 5
       - run: npm run qa

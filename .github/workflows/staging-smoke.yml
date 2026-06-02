@@ -6,6 +6,7 @@ on:
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       LIVE_QA_BASE_URL: ${{ vars.LIVE_QA_BASE_URL || 'https://footballscience.xyz' }}
       STAGING_QA_BASE_URL: ${{ vars.STAGING_QA_BASE_URL }}
@@ -22,6 +23,6 @@ jobs:
       - run: npm ci
       - run: npm run verify:staging-env -- --required
       - name: Install Playwright Chromium
-        run: npx playwright install chromium
+        run: npx playwright install --only-shell chromium
         timeout-minutes: 5
       - run: npm run qa:staging:required

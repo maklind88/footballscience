@@ -37,6 +37,6 @@ jobs:
             playwright-linux-
       - run: npm ci
       - name: Install Playwright Chromium
-        run: npx playwright install chromium
+        run: npx playwright install --only-shell chromium
         timeout-minutes: 5
       - run: npm run release:monitor

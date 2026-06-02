@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const chatDatabaseSource = readFileSync(path.join(__dirname, "../api/_lib/chat-database.js"), "utf8");
+const appSource = readFileSync(path.join(__dirname, "../app.js"), "utf8");
 const chatApi = require("../api/chat.js");
 const {
   applyChatActionToState,
@@ -356,4 +357,11 @@ test("database chat group creation normalizes unsupported team visibility before
   expect(chatDatabaseSource).toContain('if (visibility === "team")');
   expect(chatDatabaseSource).toContain('return "members"');
   expect(chatDatabaseSource).toContain("const visibility = normalizeThreadVisibility(body.visibility, type);");
+  expect(appSource).toContain('visibility: "members"');
+});
+
+test("custom database groups keep their own title instead of managed room templates", () => {
+  expect(appSource).toContain("const templateByLegacyId = legacyThreadId");
+  expect(appSource).toContain('const templateByManagedType = ["medical", "matchday", "training", "announcement"].includes(type)');
+  expect(appSource).toContain("title: String(thread.title || thread.name || template?.title");
 });

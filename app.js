@@ -9043,15 +9043,19 @@ const legacyThreadId = String(thread.metadata?.legacyThreadId || thread.legacyTh
 const messageCount = Number(thread.message_count || thread.messageCount || 0) || 0;
 const lastMessage = thread.lastMessage || thread.last_message || null;
 const lastMessageId = String(thread.lastMessageId || thread.last_message_id || lastMessage?.id || lastMessage?.messageId || "").trim();
-const template =
-dashboardChatAdvancedThreadTemplates.find((candidate) => candidate.key === legacyThreadId) ||
-dashboardChatAdvancedThreadTemplates.find((candidate) => candidate.type === type);
+const templateByLegacyId = legacyThreadId
+? dashboardChatAdvancedThreadTemplates.find((candidate) => candidate.key === legacyThreadId)
+: null;
+const templateByManagedType = ["medical", "matchday", "training", "announcement"].includes(type)
+? dashboardChatAdvancedThreadTemplates.find((candidate) => candidate.type === type)
+: null;
+const template = templateByLegacyId || templateByManagedType;
 const resolvedLegacyThreadId = legacyThreadId || template?.key || "";
 return {
 threadId: normalizeDashboardChatThreadId(resolvedLegacyThreadId || (type === "team" ? dashboardChatTeamThreadId : thread.id), dashboardChatTeamThreadId),
 databaseThreadId: String(thread.id || "").trim(),
 type,
-title: String(template?.title || thread.title || thread.name || (type === "team" ? getDashboardChatTeamChatTitle() : "Chat")).trim(),
+title: String(thread.title || thread.name || template?.title || (type === "team" ? getDashboardChatTeamChatTitle() : "Chat")).trim(),
 visibility: String(thread.visibility || "members").trim(),
 lastMessageAt: String(messageCount || lastMessage ? thread.last_message_at || thread.lastMessageAt || "" : "").trim(),
 messageCount,

@@ -65,16 +65,16 @@ jobs:
 
       - run: npm run release:vercel-token
         if: ${{ steps.staging-env.outputs.enabled == 'true' }}
-      - run: npx --yes vercel@53.2.0 pull --yes --environment=preview --token="$VERCEL_TOKEN"
+      - run: npx --yes vercel@53.2.0 pull --yes --environment=preview --git-branch=staging --token="$VERCEL_TOKEN"
         if: ${{ steps.staging-env.outputs.enabled == 'true' }}
-      - run: npx --yes vercel@53.2.0 build --token="$VERCEL_TOKEN"
+      - run: npx --yes vercel@53.2.0 build --target=preview --token="$VERCEL_TOKEN"
         if: ${{ steps.staging-env.outputs.enabled == 'true' }}
 
       - name: Deploy staging preview
         if: ${{ steps.staging-env.outputs.enabled == 'true' }}
         shell: bash
         run: |
-          npx --yes vercel@53.2.0 deploy --prebuilt --token="$VERCEL_TOKEN" | tee deployment-url.txt
+          npx --yes vercel@53.2.0 deploy --prebuilt --target=preview --meta githubCommitRef=staging --token="$VERCEL_TOKEN" | tee deployment-url.txt
           deployment_url="$(grep -Eo 'https://[^[:space:]]+\.vercel\.app' deployment-url.txt | tail -n 1)"
           if [ -z "$deployment_url" ]; then
             echo "Could not resolve staging deployment URL from Vercel output."

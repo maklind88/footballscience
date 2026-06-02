@@ -23671,92 +23671,47 @@ platformReadinessStatusLabels[normalizedStatus] || normalizedStatus
 }
 function renderPlatformReadinessEmptyState() {
 if (platformReadinessLoading) {
-return `<div class="pr-empty">Loading platform readiness...</div>`;
+return `<div class="pr-empty">Loading readiness...</div>`;
 }
 if (platformReadinessLoadError) {
 return `<div class="pr-empty is-error">${escapeHtml(platformReadinessLoadError)}</div>`;
 }
-return `<div class="pr-empty">Readiness data will load from the secure admin API.</div>`;
+return `<div class="pr-empty">Readiness loads from admin API.</div>`;
 }
 function createPlatformReadinessFallbackReport() {
-return {
-summary: {
-readySections: 0,
-totalSections: 0,
-totalModules: 0,
-legacyModules: 0,
-},
-sections: [],
-modules: [],
-environment: [],
-observabilitySignals: [],
-};
+return { summary: { readySections: 0, totalSections: 0, totalModules: 0, legacyModules: 0 }, sections: [], modules: [], environment: [], observabilitySignals: [] };
 }
 function renderPlatformReadinessDashboard() {
 const report = platformReadinessReport || createPlatformReadinessFallbackReport();
+const esc = escapeHtml;
 const sections = Array.isArray(report.sections) ? report.sections : [];
 const modules = Array.isArray(report.modules) ? report.modules : [];
 const environment = Array.isArray(report.environment) ? report.environment : [];
 const signals = Array.isArray(report.observabilitySignals) ? report.observabilitySignals : [];
+const priorities = Array.isArray(report.operatingPriorities) ? report.operatingPriorities : [];
+const migrations = Array.isArray(report.databasePrimaryMigrationPlan) ? report.databasePrimaryMigrationPlan : [];
+const scouting = report.scoutingPerformance || {};
 const score = report.summary ? `${report.summary.readySections}/${report.summary.totalSections}` : "0/0";
-const sectionCards = sections
-.map(
-(section) => `
-        <article class="pr-section is-${escapeHtml(normalizePlatformReadinessStatus(section.status))}">
-          <div>
-            <strong>${escapeHtml(section.label)}</strong>
-            <p>${escapeHtml(section.details)}</p>
-          </div>
-          ${renderPlatformReadinessStatus(section.status)}
-        </article>
-      `
-)
-.join("");
-const moduleRows = modules
-.slice(0, 14)
-.map(
-(module) => `
-        <article class="pr-module-row">
-          <div>
-            <strong>${escapeHtml(module.label || module.id)}</strong>
-            <small>${escapeHtml(module.id)} · ${escapeHtml(module.implementation || "unclassified")}</small>
-          </div>
-          <span>${escapeHtml(module.scope || "scope")}</span>
-          ${renderPlatformReadinessStatus(module.status)}
-        </article>
-      `
-)
-.join("");
-const environmentRows = environment
-.map(
-(entry) => `
-        <article class="pr-env-row is-${escapeHtml(normalizePlatformReadinessStatus(entry.status))}">
-          <div>
-            <strong>${escapeHtml(entry.label)}</strong>
-            <small>${escapeHtml(entry.location)}</small>
-          </div>
-          <span>${escapeHtml(entry.missing?.length ? entry.missing.join(", ") : "Configured")}</span>
-          ${renderPlatformReadinessStatus(entry.status)}
-        </article>
-      `
-)
-.join("");
-const signalRows = signals
-.map(
-(signal) => `
-        <article class="pr-signal-row">
-          <strong>${escapeHtml(signal.label)}</strong>
-          <span>${escapeHtml(signal.source)}</span>
-        </article>
-      `
-)
-.join("");
+const missingEnv = environment.filter((entry) => normalizePlatformReadinessStatus(entry.status) === "missing").length;
+const overallStatus = normalizePlatformReadinessStatus(report.overallStatus);
+const nextPriority = priorities[0] || null;
+const compactRow = (title, subtitle = "", status = "") => `<article class="pr-signal-row"><strong>${esc(title)}</strong><span>${esc(subtitle)}</span>${status ? renderPlatformReadinessStatus(status) : ""}</article>`;
+const moduleRow = (title, meta, scope, status) => `<article class="pr-module-row"><div><strong>${esc(title)}</strong><small>${esc(meta)}</small></div><span>${esc(scope || "")}</span>${renderPlatformReadinessStatus(status)}</article>`;
+const detailPanel = (title, rows) => `<div><h3>${esc(title)}</h3><div class="pr-list">${rows || renderPlatformReadinessEmptyState()}</div></div>`;
+const sectionCards = sections.map((section) => `<article class="pr-section is-${esc(normalizePlatformReadinessStatus(section.status))}"><div><strong>${esc(section.label)}</strong><p>${esc(section.details)}</p></div>${renderPlatformReadinessStatus(section.status)}</article>`).join("");
+const priorityRows = priorities.slice(0, 6).map((priority) => compactRow(`P${priority.priority} · ${priority.label}`, priority.nextStep || priority.target || priority.risk || "")).join("");
+const migrationRows = migrations.slice(0, 10).map((item) => compactRow(`P${item.priority} · ${item.moduleId}`, item.nextStep || item.target || "")).join("");
+const scoutingRows = `${compactRow("First page", `${scouting?.datasetRules?.firstPageMaxRecords || 0} records`)}${compactRow("Worker", scouting?.datasetRules?.requiresWorkerSource ? "Required" : "Not required")}${compactRow("Signals", `${scouting?.requiredSignals?.length || 0}`)}`;
+const moduleRows = modules.slice(0, 14).map((module) => moduleRow(module.label || module.id, `${module.id} · ${module.implementation || "unclassified"}`, module.scope || "scope", module.status)).join("");
+const environmentRows = environment.map((entry) => `<article class="pr-env-row is-${esc(normalizePlatformReadinessStatus(entry.status))}"><div><strong>${esc(entry.label)}</strong><small>${esc(entry.location)}</small></div><span>${esc(entry.missing?.length ? entry.missing.join(", ") : "Configured")}</span>${renderPlatformReadinessStatus(entry.status)}</article>`).join("");
+const signalRows = signals.map((signal) => compactRow(signal.label, signal.source)).join("");
+const scoreItems = [["Readiness", score], ["Modules", report.summary?.totalModules || modules.length], ["Legacy", report.summary?.legacyModules || 0], ["Missing env", missingEnv]].map(([label, value]) => `<div><span>${esc(label)}</span><strong>${esc(String(value))}</strong></div>`).join("");
 return `
     <article class="admin-card pr-card">
       <div class="staff-card-head">
         <div>
-          <h2>Platform Readiness</h2>
-          <span>${platformReadinessLoadedAt ? `Updated ${escapeHtml(formatAdminDateTime(platformReadinessLoadedAt))}` : "Admin system status"}</span>
+          <h2>Platform Health</h2>
+          <span>${platformReadinessLoadedAt ? `Updated ${esc(formatAdminDateTime(platformReadinessLoadedAt))}` : "Platform Readiness"}</span>
         </div>
         <button type="button" class="admin-send-button" data-pr-refresh>Refresh</button>
       </div>
@@ -23764,38 +23719,18 @@ return `
         !platformReadinessReport && (platformReadinessLoading || platformReadinessLoadError)
           ? renderPlatformReadinessEmptyState()
           : `
-      <div class="pr-score-grid">
-        <div>
-          <span>Readiness</span>
-          <strong>${escapeHtml(score)}</strong>
-        </div>
-        <div>
-          <span>Modules</span>
-          <strong>${escapeHtml(String(report.summary?.totalModules || modules.length))}</strong>
-        </div>
-        <div>
-          <span>Legacy</span>
-          <strong>${escapeHtml(String(report.summary?.legacyModules || 0))}</strong>
-        </div>
-        <div>
-          <span>Signals</span>
-          <strong>${escapeHtml(String(signals.length))}</strong>
-        </div>
-      </div>
+      <section class="pr-section is-${esc(overallStatus)}">
+        <div><strong>Live Health</strong><p>${esc(nextPriority?.nextStep || "Contracts loaded.")}</p></div>${renderPlatformReadinessStatus(overallStatus)}
+      </section>
+      <div class="pr-score-grid">${scoreItems}</div>
       <section class="pr-section-grid">${sectionCards}</section>
       <section class="pr-detail-grid">
-        <div>
-          <h3>Module Map</h3>
-          <div class="pr-list">${moduleRows}</div>
-        </div>
-        <div>
-          <h3>Secrets & Staging</h3>
-          <div class="pr-list">${environmentRows}</div>
-        </div>
-        <div>
-          <h3>Observability</h3>
-          <div class="pr-list">${signalRows}</div>
-        </div>
+        ${detailPanel("Next Actions", priorityRows)}
+        ${detailPanel("Database Migration", migrationRows)}
+        ${detailPanel("Scouting Speed", scoutingRows)}
+        ${detailPanel("Module Map", moduleRows)}
+        ${detailPanel("Secrets & Staging", environmentRows)}
+        ${detailPanel("Observability", signalRows)}
       </section>
       `
       }
@@ -23814,7 +23749,7 @@ platformReadinessLoading = true;
 platformReadinessLoadError = "";
 const token = await getPlatformApiAccessToken();
 if (!token) {
-platformReadinessLoadError = "Platform readiness requires an authenticated admin session.";
+platformReadinessLoadError = "Admin session required.";
 platformReadinessLoading = false;
 if (hubState?.activeWorkspaceId === "admin") {
 renderAdminWorkspace();

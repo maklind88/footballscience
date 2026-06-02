@@ -1,4 +1,7 @@
 import { expect, test } from "@playwright/test";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   assertPlatformReadinessContract,
   createPlatformModuleReadinessMap,
@@ -13,12 +16,17 @@ import {
 } from "../src/core/platform-readiness-contracts.mjs";
 import { platformModules, protectedStorageKeys } from "../src/core/platform-contracts.mjs";
 
+const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const completeEnv = Object.fromEntries(
   platformReadinessEnvironmentRequirements.flatMap((requirement) => [
     ...requirement.required.map((name) => [name, `${name.toLowerCase()}-value`]),
     ...requirement.recommended.map((name) => [name, `${name.toLowerCase()}-value`]),
   ])
 );
+
+function readProjectFile(filePath) {
+  return fs.readFileSync(path.join(rootDir, filePath), "utf8");
+}
 
 test("platform readiness contract covers every requested operating area", () => {
   const scripts = {
@@ -184,4 +192,16 @@ test("scouting performance contract stays explicit and conservative", () => {
   expect(platformScoutingPerformanceContract.budgetsMs.loadDatabase).toBeLessThanOrEqual(5000);
   expect(platformScoutingPerformanceContract.datasetRules.firstPageMaxRecords).toBeLessThanOrEqual(50);
   expect(platformScoutingPerformanceContract.datasetRules.requiresWorkerSource).toBe(true);
+});
+
+test("admin workspace exposes the platform health cockpit", () => {
+  const appSource = readProjectFile("app.js");
+
+  expect(appSource).toContain("Platform Health");
+  expect(appSource).toContain("Live Health");
+  expect(appSource).toContain("Next Actions");
+  expect(appSource).toContain("Database Migration");
+  expect(appSource).toContain("Scouting Speed");
+  expect(appSource).toContain("Missing env");
+  expect(appSource).toContain("data-pr-refresh");
 });

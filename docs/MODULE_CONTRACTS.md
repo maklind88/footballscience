@@ -62,6 +62,21 @@ Rules:
 - `qa`: `qa/platform-readiness.api.spec.mjs` and `npm run platform:readiness` must prove the readiness contract remains wired.
 - `migration`: keep as a core contract/dashboard first; if history is needed later, write snapshots to `platform_release_checks` and `platform_observability_signals` with organization scope and no secret values.
 
+### Platform Health Operating Model
+
+The platform hardening order is now code-owned in `src/core/platform-readiness-contracts.mjs` and can be checked with `npm run platform:health`.
+
+Current long-term priorities:
+
+- Keep the performance ratchet green while extracting `app.js`, `styles.css`, and `index.html` into smaller module-owned surfaces.
+- Use Platform Health as the source for a future admin dashboard covering release, staging, backup, API, egress, module, QA, and performance health.
+- Move high-risk modules to database-primary storage through staged, audited, tenant-scoped migrations.
+- Treat Scouting as a high-priority speed and pagination surface because it is data-heavy and click-sensitive.
+- Harden staging into a real mirror before risky Live releases.
+- Feed incident signals for deploys, egress, API errors, auth/permission spikes, saves, backups, and restore readiness into the health surface.
+
+Database-primary migration priority: Schedule, Squad, Scouting, Medical Team, Exercise Library, Sessions, Periodization, Gameplan, Transfer Room, and Game Simulator. Chat is tracked as an already database-backed module and should remain under its dedicated ownership path.
+
 ## Platform Appearance
 
 - `id`: `platform-appearance`

@@ -345,7 +345,7 @@ test("Session Planner print mode keeps the coach sheet visible for browser print
   expect(appSource).toContain("body.is-session-printing .session-print-document *");
   expect(appSource).toContain("visibility: visible !important");
   expect(appSource).toContain("sessionPlannerPrintOverlayOpen ||");
-  expect(appSource).toContain("window.print()");
+  expect(appSource).toMatch(/\b(?:window|win)\.print\(\);/);
   expect(indexSource).toContain("session-print-overrides.css");
   expect(printOverrideSource).toContain("@media print");
   expect(printOverrideSource).toContain("box-shadow: none !important");

@@ -10,7 +10,7 @@ import {
   selectScheduleTrainingEventForDate,
 } from "../src/modules/manifest.mjs";
 
-const now = "2026-05-07T12:00:00.000Z";
+const now = "2026-05-07";
 const idFactory = (_event, index = 0) => `event-${index + 1}`;
 
 test("Schedule adapter normalizes current schedule storage without changing the visible event model", () => {

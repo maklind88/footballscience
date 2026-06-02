@@ -236,6 +236,184 @@ export const platformObservabilitySignals = Object.freeze([
   }),
 ]);
 
+export const platformOperatingPriorities = Object.freeze([
+  Object.freeze({
+    id: "performance-ratchet",
+    area: "module-standard",
+    priority: 1,
+    label: "Performance ratchet",
+    risk: "Large shared files make every click, QA run, and release slower over time.",
+    target: "No new growth above the current budget while app.js and global CSS are extracted into modules.",
+    nextStep: "Keep npm run qa:perf green and extract repeated workspace UI before broad product work.",
+    evidence: Object.freeze(["scripts/performance-budget.mjs", "src/core/platform-readiness-contracts.mjs"]),
+  }),
+  Object.freeze({
+    id: "platform-health-dashboard",
+    area: "observability",
+    priority: 2,
+    label: "Platform health dashboard",
+    risk: "The product owner should not need to infer Live health from GitHub/Vercel/Supabase fragments.",
+    target: "One admin-facing health map for release, staging, backup, API, egress, module, and QA status.",
+    nextStep: "Use npm run platform:health as the contract source for the in-app admin dashboard.",
+    evidence: Object.freeze(["scripts/platform-health-report.mjs", "api/platform-readiness.js"]),
+  }),
+  Object.freeze({
+    id: "database-primary-modules",
+    area: "module-standard",
+    priority: 3,
+    label: "Database-primary modules",
+    risk: "Legacy app-state/storage fallbacks can create egress, stale overwrite, and tenant-boundary risk.",
+    target: "Each module gets server-owned rows, revision checks, RLS, audit, and snapshots before app-state fallback is retired.",
+    nextStep: "Migrate the highest-risk module data flows through staged dual-read/dual-write contracts.",
+    evidence: Object.freeze(["src/core/data-safety-contracts.cjs", "supabase/migrations"]),
+  }),
+  Object.freeze({
+    id: "scouting-speed-foundation",
+    area: "module-standard",
+    priority: 4,
+    label: "Scouting speed foundation",
+    risk: "Scouting is data-heavy and user-visible; slow database/profile clicks become a platform trust issue.",
+    target: "Scouting search, profile open, favorite, and Shadow XI actions stay inside explicit click budgets.",
+    nextStep: "Keep scouting click-performance smoke green and move large scouting reads behind server pagination.",
+    evidence: Object.freeze(["qa/scouting-click-performance.smoke.spec.mjs", "api/_lib/scouting-database.js"]),
+  }),
+  Object.freeze({
+    id: "staging-mirror-hardening",
+    area: "staging-mirror",
+    priority: 5,
+    label: "Staging mirror hardening",
+    risk: "Risky work cannot be proven safely if staging shares Live assumptions or missing secrets.",
+    target: "Staging has its own host, Supabase project, QA login, and authenticated smoke before risky Live releases.",
+    nextStep: "Make staging env requirements mandatory for safe-lane release ownership.",
+    evidence: Object.freeze(["scripts/verify-staging-env.mjs", ".github/workflows/staging-deploy.yml"]),
+  }),
+  Object.freeze({
+    id: "incident-observability",
+    area: "observability",
+    priority: 6,
+    label: "Incident observability",
+    risk: "Usage spikes, API errors, or stale backups can stay invisible until users feel them.",
+    target: "Release, egress, API, auth, permission, backup, and restore signals produce actionable alerts.",
+    nextStep: "Feed Supabase usage and backup/restore checks into the platform health surface.",
+    evidence: Object.freeze(["scripts/create-incident-alert.mjs", "scripts/verify-app-state-backup-freshness.mjs"]),
+  }),
+]);
+
+export const platformDatabasePrimaryMigrationPlan = Object.freeze([
+  Object.freeze({
+    moduleId: "schedule",
+    priority: 1,
+    current: "hybrid-adapter",
+    target: "database-primary",
+    risk: "Calendar data drives sessions and periodization; stale app-state can create wrong day context.",
+    nextStep: "Promote the existing schedule database adapter after staging/live QA proves row-version writes and restore.",
+  }),
+  Object.freeze({
+    moduleId: "player-profiles",
+    priority: 2,
+    current: "hybrid-adapter",
+    target: "database-primary",
+    risk: "Squad identity is reused by medical, scouting, sessions, and chat presence.",
+    nextStep: "Move profile reads through the Squad adapter and block stale roster overwrites with row revisions.",
+  }),
+  Object.freeze({
+    moduleId: "scouting",
+    priority: 3,
+    current: "lazy-module",
+    target: "server-paginated database-primary",
+    risk: "Large player/search payloads can slow the browser and increase bandwidth cost.",
+    nextStep: "Keep Scouting database/search/profile reads paginated server-side and retire full app-state fallback only after QA.",
+  }),
+  Object.freeze({
+    moduleId: "medical-team",
+    priority: 4,
+    current: "hybrid-secured-module",
+    target: "database-primary private-by-default",
+    risk: "Medical data needs strict role split, audit, and coach-safe views before scaling staff access.",
+    nextStep: "Promote private medical writes after RLS, audit, and coach-safe read views are proven in staging.",
+  }),
+  Object.freeze({
+    moduleId: "exercise-library",
+    priority: 5,
+    current: "legacy-monolith",
+    target: "database-primary versioned library",
+    risk: "Library edits feed sessions; destructive seed or folder writes must never remove saved exercises.",
+    nextStep: "Move exercises/folders into versioned tables before Session Planner block migration.",
+  }),
+  Object.freeze({
+    moduleId: "session-planner",
+    priority: 6,
+    current: "legacy-monolith",
+    target: "database-primary session blocks",
+    risk: "Training sessions are frequently edited and must not lose block-level data from stale browser state.",
+    nextStep: "Migrate after Exercise Library and Schedule foundations are database-primary.",
+  }),
+  Object.freeze({
+    moduleId: "periodization",
+    priority: 7,
+    current: "legacy-monolith",
+    target: "database-primary planning days",
+    risk: "Periodization feeds schedule/session context and needs date-scoped merge behavior.",
+    nextStep: "Migrate days after Schedule row versions and Session Planner dependencies are stable.",
+  }),
+  Object.freeze({
+    moduleId: "gameplan",
+    priority: 8,
+    current: "lazy-module",
+    target: "database-primary match plans",
+    risk: "Matchday context combines many modules and should move after core identity/planning data is stable.",
+    nextStep: "Keep signed Player Brief API server-owned while match plan tables are introduced.",
+  }),
+  Object.freeze({
+    moduleId: "transfer-room",
+    priority: 9,
+    current: "legacy-monolith",
+    target: "database-primary restricted module",
+    risk: "Recruitment/transfer planning is access-sensitive and should stay admin-scoped during migration.",
+    nextStep: "Migrate after Scouting target identity is server-owned.",
+  }),
+  Object.freeze({
+    moduleId: "game-simulator",
+    priority: 10,
+    current: "modular-runtime",
+    target: "database-primary large-payload library",
+    risk: "Simulator sequences can become large; migrate last with import/export and restore proven.",
+    nextStep: "Keep runtime modular while sequence storage moves only after backup/restore drills pass.",
+  }),
+]);
+
+export const platformScoutingPerformanceContract = Object.freeze({
+  moduleId: "scouting",
+  requiredSignals: Object.freeze([
+    "workspace-open",
+    "tab-switch",
+    "worker-paginated-database-load",
+    "search-submit",
+    "position-filter",
+    "profile-open",
+    "favorite-toggle",
+    "shadow-xi-add",
+    "profile-close",
+  ]),
+  budgetsMs: Object.freeze({
+    openWorkspace: 1200,
+    switchTab: 1000,
+    loadDatabase: 5000,
+    searchDatabase: 1000,
+    filterDatabase: 1000,
+    openProfile: 1000,
+    favoriteToggle: 500,
+    addToShadow: 1000,
+    closeProfile: 500,
+  }),
+  datasetRules: Object.freeze({
+    firstPageMaxRecords: 50,
+    requiresWorkerSource: true,
+    requiresServerPaginationBeforeDatabasePrimary: true,
+  }),
+  evidence: Object.freeze(["qa/scouting-click-performance.smoke.spec.mjs", "scouting-import-data.js", "api/_lib/scouting-database.js"]),
+});
+
 function statusWeight(status) {
   if (status === platformReadinessStatuses.missing) return 2;
   if (status === platformReadinessStatuses.warning) return 1;
@@ -430,6 +608,9 @@ export function createPlatformReadinessReport(options = {}) {
     modularModules: moduleMap.filter((module) => !String(module.implementation).includes("legacy")).length,
     legacyModules: moduleMap.filter((module) => String(module.implementation).includes("legacy")).length,
     protectedStorageKeys: protectedStorageKeys.length,
+    operatingPriorities: platformOperatingPriorities.length,
+    databasePrimaryMigrationItems: platformDatabasePrimaryMigrationPlan.length,
+    scoutingPerformanceSignals: platformScoutingPerformanceContract.requiredSignals.length,
   });
 
   return Object.freeze({
@@ -442,6 +623,9 @@ export function createPlatformReadinessReport(options = {}) {
     environment,
     workflows: Object.freeze(workflows),
     observabilitySignals: platformObservabilitySignals,
+    operatingPriorities: platformOperatingPriorities,
+    databasePrimaryMigrationPlan: platformDatabasePrimaryMigrationPlan,
+    scoutingPerformance: platformScoutingPerformanceContract,
   });
 }
 
@@ -471,6 +655,29 @@ export function assertPlatformReadinessContract(options = {}) {
     if (!signal.evidence.length) {
       failures.push(`Observability signal ${signal.id} has no evidence.`);
     }
+  }
+
+  const moduleIds = new Set(report.modules.map((module) => module.id));
+  for (const item of platformDatabasePrimaryMigrationPlan) {
+    if (!moduleIds.has(item.moduleId)) {
+      failures.push(`Database-primary migration item references unknown module: ${item.moduleId}`);
+    }
+    if (!item.nextStep) {
+      failures.push(`Database-primary migration item ${item.moduleId} is missing a next step.`);
+    }
+  }
+
+  for (const priority of platformOperatingPriorities) {
+    if (!priority.evidence.length || !priority.nextStep) {
+      failures.push(`Operating priority ${priority.id} is missing evidence or next step.`);
+    }
+  }
+
+  if (!moduleIds.has(platformScoutingPerformanceContract.moduleId)) {
+    failures.push("Scouting performance contract references an unknown module.");
+  }
+  if (platformScoutingPerformanceContract.datasetRules.firstPageMaxRecords > 50) {
+    failures.push("Scouting first-page dataset budget is too large for the current browser path.");
   }
 
   if (failures.length) {

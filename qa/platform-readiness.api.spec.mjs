@@ -3,10 +3,13 @@ import {
   assertPlatformReadinessContract,
   createPlatformModuleReadinessMap,
   createPlatformReadinessReport,
+  platformDatabasePrimaryMigrationPlan,
   platformObservabilitySignals,
+  platformOperatingPriorities,
   platformReadinessAreas,
   platformReadinessEnvironmentRequirements,
   platformReadinessStatuses,
+  platformScoutingPerformanceContract,
 } from "../src/core/platform-readiness-contracts.mjs";
 import { platformModules, protectedStorageKeys } from "../src/core/platform-contracts.mjs";
 
@@ -26,6 +29,7 @@ test("platform readiness contract covers every requested operating area", () => 
     "release:postdeploy": "node scripts/verify-production-deploy.mjs",
     "release:monitor": "npm run release:monitor-postdeploy",
     "platform:readiness": "node scripts/verify-platform-readiness.mjs",
+    "platform:health": "node scripts/platform-health-report.mjs",
     "platform:identity:backfill": "node scripts/platform-identity-backfill.mjs",
   };
   const report = createPlatformReadinessReport({
@@ -102,4 +106,82 @@ test("observability covers deploy, api, saves, backup, auth, and performance sig
   for (const signal of platformObservabilitySignals) {
     expect(signal.evidence.length).toBeGreaterThan(0);
   }
+});
+
+test("operating priorities define the long-term platform hardening order", () => {
+  const report = createPlatformReadinessReport({
+    env: completeEnv,
+    scripts: {
+      "platform:health": "node scripts/platform-health-report.mjs",
+    },
+  });
+  const priorityIds = platformOperatingPriorities.map((priority) => priority.id);
+
+  expect(priorityIds).toEqual(
+    expect.arrayContaining([
+      "performance-ratchet",
+      "platform-health-dashboard",
+      "database-primary-modules",
+      "scouting-speed-foundation",
+      "staging-mirror-hardening",
+      "incident-observability",
+    ])
+  );
+  expect(report.operatingPriorities[0]).toMatchObject({
+    id: "performance-ratchet",
+    priority: 1,
+  });
+  for (const priority of report.operatingPriorities) {
+    expect(priority.nextStep, priority.id).toBeTruthy();
+    expect(priority.evidence.length, priority.id).toBeGreaterThan(0);
+  }
+});
+
+test("database-primary migration plan covers high-risk legacy and hybrid modules without touching chat", () => {
+  const knownModules = new Set(platformModules.map((module) => module.id));
+  const migrationModuleIds = platformDatabasePrimaryMigrationPlan.map((item) => item.moduleId);
+
+  expect(migrationModuleIds).toEqual(
+    expect.arrayContaining([
+      "schedule",
+      "player-profiles",
+      "scouting",
+      "medical-team",
+      "exercise-library",
+      "session-planner",
+      "periodization",
+      "gameplan",
+      "transfer-room",
+      "game-simulator",
+    ])
+  );
+  expect(migrationModuleIds).not.toContain("chat");
+  for (const item of platformDatabasePrimaryMigrationPlan) {
+    expect(knownModules.has(item.moduleId), item.moduleId).toBe(true);
+    expect(item.priority, item.moduleId).toBeGreaterThan(0);
+    expect(item.target, item.moduleId).toContain("database");
+    expect(item.nextStep, item.moduleId).toBeTruthy();
+  }
+  expect(platformDatabasePrimaryMigrationPlan.find((item) => item.moduleId === "scouting")?.priority).toBeLessThan(
+    platformDatabasePrimaryMigrationPlan.find((item) => item.moduleId === "game-simulator")?.priority
+  );
+});
+
+test("scouting performance contract stays explicit and conservative", () => {
+  expect(platformScoutingPerformanceContract).toMatchObject({
+    moduleId: "scouting",
+  });
+  expect(platformScoutingPerformanceContract.requiredSignals).toEqual(
+    expect.arrayContaining([
+      "worker-paginated-database-load",
+      "search-submit",
+      "profile-open",
+      "favorite-toggle",
+      "shadow-xi-add",
+    ])
+  );
+  expect(platformScoutingPerformanceContract.budgetsMs.favoriteToggle).toBeLessThanOrEqual(500);
+  expect(platformScoutingPerformanceContract.budgetsMs.loadDatabase).toBeLessThanOrEqual(5000);
+  expect(platformScoutingPerformanceContract.datasetRules.firstPageMaxRecords).toBeLessThanOrEqual(50);
+  expect(platformScoutingPerformanceContract.datasetRules.requiresWorkerSource).toBe(true);
 });

@@ -6,6 +6,8 @@ const AUDIT_KEY = "football-platform-audit-log-v1";
 const AUDIT_SCHEMA = "footballscience-audit-log-v1";
 const MAX_AUDIT_ENTRIES = 200;
 const MAX_STRING_LENGTH = 240;
+const AUDIT_BUCKET_CHECK_TTL_MS = 10 * 60 * 1000;
+let auditBucketReadyCache = { checkedAt: 0, ready: false, pending: null };
 const REDACTED_DETAIL_KEYS = new Set([
   "password",
   "passwordConfirm",
@@ -91,21 +93,40 @@ async function storageRequest(path, options = {}) {
 }
 
 async function ensureAuditBucket() {
-  const existing = await storageRequest(`/bucket/${encodeURIComponent(AUDIT_BUCKET)}`, { method: "GET" });
-  if (existing.ok) {
+  const now = Date.now();
+  if (auditBucketReadyCache.ready && now - auditBucketReadyCache.checkedAt < AUDIT_BUCKET_CHECK_TTL_MS) {
     return true;
   }
+  if (auditBucketReadyCache.pending) {
+    return auditBucketReadyCache.pending;
+  }
 
-  const created = await storageRequest("/bucket", {
-    method: "POST",
-    body: JSON.stringify({
-      id: AUDIT_BUCKET,
-      name: AUDIT_BUCKET,
-      public: false,
-    }),
-  });
+  auditBucketReadyCache.pending = (async () => {
+    const existing = await storageRequest(`/bucket/${encodeURIComponent(AUDIT_BUCKET)}`, { method: "GET" });
+    if (existing.ok) {
+      return true;
+    }
 
-  return created.ok || created.status === 409 || String(created.reason || "").toLowerCase().includes("already");
+    const created = await storageRequest("/bucket", {
+      method: "POST",
+      body: JSON.stringify({
+        id: AUDIT_BUCKET,
+        name: AUDIT_BUCKET,
+        public: false,
+      }),
+    });
+
+    return created.ok || created.status === 409 || String(created.reason || "").toLowerCase().includes("already");
+  })();
+
+  try {
+    const ready = await auditBucketReadyCache.pending;
+    auditBucketReadyCache = { checkedAt: Date.now(), ready, pending: null };
+    return ready;
+  } catch {
+    auditBucketReadyCache = { checkedAt: Date.now(), ready: false, pending: null };
+    return false;
+  }
 }
 
 function auditObjectPath() {

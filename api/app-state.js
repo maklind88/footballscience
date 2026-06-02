@@ -21,6 +21,8 @@ const STATE_BUCKET = "footballscience-app-state";
 const STATE_PREFIX = "global";
 const MAX_APP_STATE_JSON_BODY_BYTES = 4 * 1024 * 1024;
 const MAX_STATE_VALUE_BYTES = 12 * 1024 * 1024;
+const STATE_BUCKET_CHECK_TTL_MS = 10 * 60 * 1000;
+const STATE_LIST_CACHE_TTL_MS = 5000;
 const PERIODIZATION_KEY = "football-periodization-v2";
 const SESSION_PLANNER_KEY = "football-session-planner-v3";
 const SESSION_EXERCISE_LIBRARY_KEY = "football-session-exercise-library-v1";
@@ -190,6 +192,21 @@ const BLOCKED_CONTENT_PATTERNS = [
 ];
 const BLOCKED_JSON_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 const MAX_CONTENT_DEPTH = 80;
+let stateBucketReadyCache = { checkedAt: 0, result: null, pending: null };
+let stateListObjectsCache = { updatedAt: 0, result: null };
+
+function cloneStateListResult(result = {}) {
+  return {
+    entries: { ...(result.entries || {}) },
+    metadata: Object.fromEntries(
+      Object.entries(result.metadata || {}).map(([key, value]) => [key, { ...(value || {}) }])
+    ),
+  };
+}
+
+function clearStateListObjectsCache() {
+  stateListObjectsCache = { updatedAt: 0, result: null };
+}
 
 function storageHeaders(contentType = "application/json") {
   const { serviceRoleKey } = readConfig();
@@ -251,25 +268,53 @@ async function storageRequest(path, options = {}) {
 }
 
 async function ensureStateBucket() {
-  const existing = await storageRequest(`/bucket/${encodeURIComponent(STATE_BUCKET)}`, { method: "GET" });
-  if (existing.ok) {
+  const now = Date.now();
+  if (stateBucketReadyCache.result?.ok && now - stateBucketReadyCache.checkedAt < STATE_BUCKET_CHECK_TTL_MS) {
     return { ok: true };
   }
-
-  const created = await storageRequest("/bucket", {
-    method: "POST",
-    body: JSON.stringify({
-      id: STATE_BUCKET,
-      name: STATE_BUCKET,
-      public: false,
-    }),
-  });
-
-  if (created.ok || created.status === 409 || String(created.reason || "").toLowerCase().includes("already")) {
-    return { ok: true };
+  if (stateBucketReadyCache.pending) {
+    return stateBucketReadyCache.pending;
   }
 
-  return created;
+  stateBucketReadyCache.pending = (async () => {
+    const existing = await storageRequest(`/bucket/${encodeURIComponent(STATE_BUCKET)}`, { method: "GET" });
+    if (existing.ok) {
+      return { ok: true };
+    }
+
+    const created = await storageRequest("/bucket", {
+      method: "POST",
+      body: JSON.stringify({
+        id: STATE_BUCKET,
+        name: STATE_BUCKET,
+        public: false,
+      }),
+    });
+
+    if (created.ok || created.status === 409 || String(created.reason || "").toLowerCase().includes("already")) {
+      return { ok: true };
+    }
+
+    return created;
+  })();
+
+  try {
+    const result = await stateBucketReadyCache.pending;
+    stateBucketReadyCache = {
+      checkedAt: Date.now(),
+      result,
+      pending: null,
+    };
+    return result;
+  } catch (error) {
+    const result = { ok: false, reason: error?.message || "Central state bucket is not available." };
+    stateBucketReadyCache = {
+      checkedAt: Date.now(),
+      result,
+      pending: null,
+    };
+    return result;
+  }
 }
 
 function sanitizeStateKey(key) {
@@ -2408,7 +2453,7 @@ async function writeStateObject(entry) {
   });
 
   if (!result.ok && result.status === 404) {
-    return storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${path}`, {
+    const fallback = await storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${path}`, {
       method: "POST",
       headers: {
         "x-upsert": "true",
@@ -2416,20 +2461,35 @@ async function writeStateObject(entry) {
       },
       body: JSON.stringify(entry),
     });
+    if (fallback.ok) {
+      clearStateListObjectsCache();
+    }
+    return fallback;
   }
 
+  if (result.ok) {
+    clearStateListObjectsCache();
+  }
   return result;
 }
 
 async function removeStateObject(key) {
   const path = objectPathForKey(key);
-  return storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}`, {
+  const result = await storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}`, {
     method: "DELETE",
     body: JSON.stringify({ prefixes: [path] }),
   });
+  if (result.ok || result.status === 404) {
+    clearStateListObjectsCache();
+  }
+  return result;
 }
 
 async function listStateObjects() {
+  const now = Date.now();
+  if (stateListObjectsCache.result && now - stateListObjectsCache.updatedAt < STATE_LIST_CACHE_TTL_MS) {
+    return cloneStateListResult(stateListObjectsCache.result);
+  }
   const entries = {};
   const metadata = {};
   await Promise.all(Array.from(CENTRAL_STATE_KEYS).map(async (key) => {
@@ -2440,7 +2500,9 @@ async function listStateObjects() {
     }
   }));
 
-  return { entries, metadata };
+  const result = { entries, metadata };
+  stateListObjectsCache = { updatedAt: Date.now(), result: cloneStateListResult(result) };
+  return result;
 }
 
 async function applyStateEntries(actor, entries = {}, metadata = {}) {

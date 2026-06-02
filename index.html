@@ -19,7 +19,7 @@
         display:grid;
         place-items:center;
         color:var(--ink);
-        background:rgba(245,245,247,0.36);
+        background:rgba(245,245,247,.36);
         backdrop-filter:blur(18px);
         font-weight:800;
         letter-spacing:0.01em;
@@ -31,9 +31,8 @@
         60% { content: "Loading.."; }
         80%, 100% { content: "Loading..."; }
       }
-
       body.is-dark-mode.is-booting:before{
-        background: rgba(11,16,32,0.55);
+        background: rgba(11,16,32,.55);
         color: #e5e7eb;
       }
     </style>
@@ -50,7 +49,6 @@
         const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
         if (location.protocol !== "https:" || localHosts.has(location.hostname)) return;
         if (document.head.querySelector('script[src="/_vercel/speed-insights/script.js"]')) return;
-
         const script = document.createElement("script");
         script.defer = true;
         script.src = "/_vercel/speed-insights/script.js";
@@ -65,12 +63,10 @@
       (function () {
         const themeModeKey = "football-platform-theme-mode-v1";
         const supportedModes = new Set(["auto", "light", "dark"]);
-
         function normalizeThemeMode(value) {
           const normalized = String(value || "auto").trim().toLowerCase();
           return supportedModes.has(normalized) ? normalized : "auto";
         }
-
         function isAutoThemeDark() {
           try {
             const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
@@ -79,11 +75,9 @@
             }
           } catch {
           }
-
           const totalMinutes = new Date().getHours() * 60 + new Date().getMinutes();
           return totalMinutes >= 19 * 60 || totalMinutes < 6 * 60;
         }
-
         try {
           const selectedMode = normalizeThemeMode(window.localStorage?.getItem(themeModeKey));
           const useDarkMode = selectedMode === "dark" || (selectedMode === "auto" && isAutoThemeDark());

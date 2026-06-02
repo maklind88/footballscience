@@ -8,6 +8,19 @@ const ONLINE_TTL_MS = 80 * 1000;
 const AWAY_TTL_MS = 6 * 60 * 1000;
 const RETAIN_TTL_MS = 24 * 60 * 60 * 1000;
 const TYPING_TTL_MS = 9 * 1000;
+const PRESENCE_BUCKET_CHECK_TTL_MS = 10 * 60 * 1000;
+const PRESENCE_READ_CACHE_TTL_MS = 5000;
+const PRESENCE_WRITE_MIN_INTERVAL_MS = 45 * 1000;
+const PRESENCE_TYPING_WRITE_MIN_INTERVAL_MS = 5 * 1000;
+let presenceBucketReadyCache = { checkedAt: 0, ready: false, pending: null };
+let presenceObjectCache = { updatedAt: 0, value: null };
+
+function clonePresenceObject(value = {}) {
+  return {
+    schema: value.schema || PRESENCE_SCHEMA,
+    entries: JSON.parse(JSON.stringify(value.entries && typeof value.entries === "object" ? value.entries : {})),
+  };
+}
 
 function getStorageBaseUrl() {
   const { url, serviceRoleKey } = readConfig();
@@ -83,21 +96,40 @@ async function storageRequest(path, options = {}) {
 }
 
 async function ensureStateBucket() {
-  const existing = await storageRequest(`/bucket/${encodeURIComponent(STATE_BUCKET)}`, { method: "GET" });
-  if (existing.ok) {
+  const now = Date.now();
+  if (presenceBucketReadyCache.ready && now - presenceBucketReadyCache.checkedAt < PRESENCE_BUCKET_CHECK_TTL_MS) {
     return true;
   }
+  if (presenceBucketReadyCache.pending) {
+    return presenceBucketReadyCache.pending;
+  }
 
-  const created = await storageRequest("/bucket", {
-    method: "POST",
-    body: JSON.stringify({
-      id: STATE_BUCKET,
-      name: STATE_BUCKET,
-      public: false,
-    }),
-  });
+  presenceBucketReadyCache.pending = (async () => {
+    const existing = await storageRequest(`/bucket/${encodeURIComponent(STATE_BUCKET)}`, { method: "GET" });
+    if (existing.ok) {
+      return true;
+    }
 
-  return created.ok || created.status === 409 || String(created.reason || "").toLowerCase().includes("already");
+    const created = await storageRequest("/bucket", {
+      method: "POST",
+      body: JSON.stringify({
+        id: STATE_BUCKET,
+        name: STATE_BUCKET,
+        public: false,
+      }),
+    });
+
+    return created.ok || created.status === 409 || String(created.reason || "").toLowerCase().includes("already");
+  })();
+
+  try {
+    const ready = await presenceBucketReadyCache.pending;
+    presenceBucketReadyCache = { checkedAt: Date.now(), ready, pending: null };
+    return ready;
+  } catch {
+    presenceBucketReadyCache = { checkedAt: Date.now(), ready: false, pending: null };
+    return false;
+  }
 }
 
 function objectPathForKey(key) {
@@ -105,6 +137,10 @@ function objectPathForKey(key) {
 }
 
 async function readPresenceObject() {
+  const now = Date.now();
+  if (presenceObjectCache.value && now - presenceObjectCache.updatedAt < PRESENCE_READ_CACHE_TTL_MS) {
+    return clonePresenceObject(presenceObjectCache.value);
+  }
   const result = await storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${objectPathForKey(PRESENCE_KEY)}`, {
     method: "GET",
     raw: true,
@@ -118,12 +154,14 @@ async function readPresenceObject() {
   try {
     const parsed = JSON.parse(result.payload);
     const value = JSON.parse(parsed?.value || "{}");
-    return {
+    const presenceObject = {
       schema: PRESENCE_SCHEMA,
       entries: value?.entries && typeof value.entries === "object" && !Array.isArray(value.entries)
         ? value.entries
         : {},
     };
+    presenceObjectCache = { updatedAt: Date.now(), value: clonePresenceObject(presenceObject) };
+    return presenceObject;
   } catch {
     return { schema: PRESENCE_SCHEMA, entries: {} };
   }
@@ -152,10 +190,13 @@ async function writePresenceObject(presenceLog, actor) {
   });
 
   if (result.ok || result.status !== 404) {
+    if (result.ok) {
+      presenceObjectCache = { updatedAt: Date.now(), value: clonePresenceObject(presenceLog) };
+    }
     return result;
   }
 
-  return storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${objectPathForKey(PRESENCE_KEY)}`, {
+  const fallback = await storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${objectPathForKey(PRESENCE_KEY)}`, {
     method: "POST",
     headers: {
       "x-upsert": "true",
@@ -163,6 +204,10 @@ async function writePresenceObject(presenceLog, actor) {
     },
     body: JSON.stringify(entry),
   });
+  if (fallback.ok) {
+    presenceObjectCache = { updatedAt: Date.now(), value: clonePresenceObject(presenceLog) };
+  }
+  return fallback;
 }
 
 function normalizePresenceStatus(value) {
@@ -185,6 +230,14 @@ function normalizePresenceActor(actor = {}) {
     role: normalizePresenceString(actor.role || "unknown"),
     profileImageUrl: normalizePresenceString(actor.profileImageUrl || "", ""),
   };
+}
+
+function getPresenceEntrySignature(entry = {}) {
+  return [
+    normalizePresenceStatus(entry.rawStatus || entry.status),
+    normalizePresenceString(entry.workspaceId || ""),
+    normalizePresenceString(entry.typingThreadId || ""),
+  ].join(":");
 }
 
 function resolvePresenceStatus(entry, nowMs = Date.now()) {
@@ -269,7 +322,8 @@ async function updatePresence(actor, values = {}) {
 
   const presenceLog = await readPresenceObject();
   const entries = sanitizePresenceEntries(presenceLog.entries);
-  const now = new Date().toISOString();
+  const nowMs = Date.now();
+  const now = new Date(nowMs).toISOString();
   const status = normalizePresenceStatus(values.status);
   const normalizedActor = normalizePresenceActor(actor);
 
@@ -284,6 +338,28 @@ async function updatePresence(actor, values = {}) {
   const typingAt = typingThreadId
     ? normalizePresenceString(values.typingAt || previousEntry.typingAt || now)
     : "";
+  const previousSeenMs = new Date(previousEntry.lastSeenAt || previousEntry.updatedAt || 0).getTime();
+  const previousTypingMs = new Date(previousEntry.typingAt || 0).getTime();
+  const nextSignature = getPresenceEntrySignature({ status, workspaceId: values.workspaceId, typingThreadId });
+  const previousSignature = getPresenceEntrySignature(previousEntry);
+  const typingRefreshDue =
+    typingThreadId &&
+    (!Number.isFinite(previousTypingMs) || nowMs - previousTypingMs > PRESENCE_TYPING_WRITE_MIN_INTERVAL_MS);
+  const minimumWriteInterval = typingThreadId ? PRESENCE_TYPING_WRITE_MIN_INTERVAL_MS : PRESENCE_WRITE_MIN_INTERVAL_MS;
+  if (
+    previousEntry?.userId &&
+    nextSignature === previousSignature &&
+    !typingRefreshDue &&
+    Number.isFinite(previousSeenMs) &&
+    nowMs - previousSeenMs < minimumWriteInterval
+  ) {
+    return {
+      ok: true,
+      entries: Object.values(sanitizePresenceEntries(entries)),
+      updatedAt: previousEntry.updatedAt || previousEntry.lastSeenAt || now,
+      throttled: true,
+    };
+  }
 
   entries[normalizedActor.id] = {
     userId: normalizedActor.id,

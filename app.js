@@ -1,43 +1,4 @@
-import {
-attackStylePresets,
-autoBallProfiles,
-autoDribbleProfiles,
-ballRadiusMeters,
-competitionPhysicalProfiles,
-defaultFormations,
-defaultKickoffTeamId,
-defaultPhysicalProfileKey,
-defaultScenarioInfo,
-defaultTeamIdentities,
-defenseStylePresets,
-defensiveAggressionPresets,
-defensiveAutopilotProfiles,
-defensivePhaseProfiles,
-firstTouchModes,
-formationLayouts,
-formationMagnetLabels,
-gameRoleProfiles,
-getAttackStyleRhythmProfile,
-intelligenceLabelBoosts,
-intelligenceRoleArchetypes,
-matchPhaseModel,
-offensiveAutopilotProfiles,
-offensivePhaseProfiles,
-pitch,
-pitchSurfacePresets,
-playerRadiusMeters,
-playerTendencyTemplates,
-possessionRhythmByAttackStyle,
-possessionRhythmDefaults,
-resolvePreferredFoot,
-resolveWeakFootQuality,
-setPiecePhaseProfiles,
-sprintRoleArchetypes,
-squadBlueprints,
-teamRosterOrder,
-teams,
-weatherPresets,
-} from "./src/modules/game-simulator/model-data.mjs";
+import { attackStylePresets, autoBallProfiles, autoDribbleProfiles, ballRadiusMeters, competitionPhysicalProfiles, defaultFormations, defaultKickoffTeamId, defaultPhysicalProfileKey, defaultScenarioInfo, defaultTeamIdentities, defenseStylePresets, defensiveAggressionPresets, defensiveAutopilotProfiles, defensivePhaseProfiles, firstTouchModes, formationLayouts, formationMagnetLabels, gameRoleProfiles, getAttackStyleRhythmProfile, intelligenceLabelBoosts, intelligenceRoleArchetypes, matchPhaseModel, offensiveAutopilotProfiles, offensivePhaseProfiles, pitch, pitchSurfacePresets, playerRadiusMeters, playerTendencyTemplates, possessionRhythmByAttackStyle, possessionRhythmDefaults, resolvePreferredFoot, resolveWeakFootQuality, setPiecePhaseProfiles, sprintRoleArchetypes, squadBlueprints, teamRosterOrder, teams, weatherPresets } from "./src/modules/game-simulator/model-data.mjs";
 import { createDashboardChatMessageTextRenderer, createDashboardChatWidgetRenderer, renderDashboardChatMessageStatus } from "./src/modules/chat/chat-widget-renderer.mjs";
 import { createDashboardChatAttachmentRenderer } from "./src/modules/chat/chat-attachment-renderer.mjs";
 import { createDashboardChatAttachmentPreview } from "./src/modules/chat/chat-attachment-preview.mjs";
@@ -50,185 +11,177 @@ import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mj
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
 import { getTopIconSvg } from "./top-icons.js";
-import {
-createDefaultPlatformAppearanceConfig,
-getHomeAppearanceImpactSummary,
-normalizePlatformAppearanceConfig,
-normalizePlatformAppearanceValue,
-platformAppearanceDensityOptions,
-platformAppearanceHomeComponentTypeIds,
-platformAppearanceHomeSectionDefaults,
-platformAppearanceThemeOptions,
-platformAppearanceToneOptions,
-} from "./src/core/appearance-governance.mjs";
-const canvas = document.getElementById("pitchCanvas");
+import { createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
+const getElement = document.getElementById.bind(document);
+const win = window;
+const canvas = getElement("pitchCanvas");
 const ctx = canvas.getContext("2d");
 const ui = {
-hubShell: document.getElementById("hubShell"),
-hubSidebar: document.getElementById("hubSidebar"),
-sidebarToggle: document.getElementById("sidebarToggle"),
-workspaceList: document.getElementById("workspaceList"),
-topIconMenu: document.getElementById("topIconMenu"),
-workspaceTitle: document.getElementById("workspaceTitle"),
-workspaceMeta: document.getElementById("workspaceMeta"),
-workspaceStatus: document.getElementById("workspaceStatus"),
-workspaceQuickSwitch: document.getElementById("workspaceQuickSwitch"),
-platformThemeModeSelect: document.getElementById("platformThemeModeSelect"),
-profileMenuButton: document.getElementById("profileMenuButton"),
-profileMenu: document.getElementById("profileMenu"),
-profileMenuAvatar: document.getElementById("profileMenuAvatar"),
-profileMenuName: document.getElementById("profileMenuName"),
-profileMenuClub: document.getElementById("profileMenuClub"),
-profileMenuPanelAvatar: document.getElementById("profileMenuPanelAvatar"),
-profileMenuPanelName: document.getElementById("profileMenuPanelName"),
-profileMenuPanelClub: document.getElementById("profileMenuPanelClub"),
-sidebarProfileButton: document.getElementById("sidebarProfileButton"),
-dashboardChatWidgetRoot: document.getElementById("dashboardChatWidgetRoot"),
-dataSafetyStatus: document.getElementById("dataSafetyStatus"),
-dataSafetyExportButton: document.getElementById("dataSafetyExportButton"),
-dataSafetyImportButton: document.getElementById("dataSafetyImportButton"),
-dataSafetyImportInput: document.getElementById("dataSafetyImportInput"),
-workspaceSearch: document.getElementById("workspaceSearch"),
-dashboardDate: document.getElementById("dashboardDate"),
-dashboardGreeting: document.getElementById("dashboardGreeting"),
-dashboardGrid: document.getElementById("dashboardGrid"),
-placeholderTag: document.getElementById("placeholderTag"),
-placeholderTitle: document.getElementById("placeholderTitle"),
-placeholderDescription: document.getElementById("placeholderDescription"),
-placeholderModules: document.getElementById("placeholderModules"),
-periodizationShell: document.getElementById("periodizationShell"),
-periodizationHeading: document.getElementById("periodizationHeading"),
-periodizationPrevMonthButton: document.getElementById("periodizationPrevMonthButton"),
-periodizationNextMonthButton: document.getElementById("periodizationNextMonthButton"),
-periodizationTodayButton: document.getElementById("periodizationTodayButton"),
-periodizationMonthSelect: document.getElementById("periodizationMonthSelect"),
-periodizationWindowLabel: document.getElementById("periodizationWindowLabel"),
-periodizationPickerGrid: document.getElementById("periodizationPickerGrid"),
-periodizationBoard: document.getElementById("periodizationBoard"),
-scheduleWorkspace: document.getElementById("scheduleWorkspace"),
-scheduleMonthTitle: document.getElementById("scheduleMonthTitle"),
-schedulePrevMonthButton: document.getElementById("schedulePrevMonthButton"),
-scheduleNextMonthButton: document.getElementById("scheduleNextMonthButton"),
-scheduleTodayButton: document.getElementById("scheduleTodayButton"),
-scheduleMonthViewButton: document.getElementById("scheduleMonthViewButton"),
-scheduleWeekViewButton: document.getElementById("scheduleWeekViewButton"),
-scheduleOverviewViewButton: document.getElementById("scheduleOverviewViewButton"),
-scheduleOverviewSpanControl: document.getElementById("scheduleOverviewSpanControl"),
+hubShell: getElement("hubShell"),
+hubSidebar: getElement("hubSidebar"),
+sidebarToggle: getElement("sidebarToggle"),
+workspaceList: getElement("workspaceList"),
+topIconMenu: getElement("topIconMenu"),
+workspaceTitle: getElement("workspaceTitle"),
+workspaceMeta: getElement("workspaceMeta"),
+workspaceStatus: getElement("workspaceStatus"),
+workspaceQuickSwitch: getElement("workspaceQuickSwitch"),
+platformThemeModeSelect: getElement("platformThemeModeSelect"),
+profileMenuButton: getElement("profileMenuButton"),
+profileMenu: getElement("profileMenu"),
+profileMenuAvatar: getElement("profileMenuAvatar"),
+profileMenuName: getElement("profileMenuName"),
+profileMenuClub: getElement("profileMenuClub"),
+profileMenuPanelAvatar: getElement("profileMenuPanelAvatar"),
+profileMenuPanelName: getElement("profileMenuPanelName"),
+profileMenuPanelClub: getElement("profileMenuPanelClub"),
+sidebarProfileButton: getElement("sidebarProfileButton"),
+dashboardChatWidgetRoot: getElement("dashboardChatWidgetRoot"),
+dataSafetyStatus: getElement("dataSafetyStatus"),
+dataSafetyExportButton: getElement("dataSafetyExportButton"),
+dataSafetyImportButton: getElement("dataSafetyImportButton"),
+dataSafetyImportInput: getElement("dataSafetyImportInput"),
+workspaceSearch: getElement("workspaceSearch"),
+dashboardDate: getElement("dashboardDate"),
+dashboardGreeting: getElement("dashboardGreeting"),
+dashboardGrid: getElement("dashboardGrid"),
+placeholderTag: getElement("placeholderTag"),
+placeholderTitle: getElement("placeholderTitle"),
+placeholderDescription: getElement("placeholderDescription"),
+placeholderModules: getElement("placeholderModules"),
+periodizationShell: getElement("periodizationShell"),
+periodizationHeading: getElement("periodizationHeading"),
+periodizationPrevMonthButton: getElement("periodizationPrevMonthButton"),
+periodizationNextMonthButton: getElement("periodizationNextMonthButton"),
+periodizationTodayButton: getElement("periodizationTodayButton"),
+periodizationMonthSelect: getElement("periodizationMonthSelect"),
+periodizationWindowLabel: getElement("periodizationWindowLabel"),
+periodizationPickerGrid: getElement("periodizationPickerGrid"),
+periodizationBoard: getElement("periodizationBoard"),
+scheduleWorkspace: getElement("scheduleWorkspace"),
+scheduleMonthTitle: getElement("scheduleMonthTitle"),
+schedulePrevMonthButton: getElement("schedulePrevMonthButton"),
+scheduleNextMonthButton: getElement("scheduleNextMonthButton"),
+scheduleTodayButton: getElement("scheduleTodayButton"),
+scheduleMonthViewButton: getElement("scheduleMonthViewButton"),
+scheduleWeekViewButton: getElement("scheduleWeekViewButton"),
+scheduleOverviewViewButton: getElement("scheduleOverviewViewButton"),
+scheduleOverviewSpanControl: getElement("scheduleOverviewSpanControl"),
 scheduleOverviewSpanButtons: Array.from(document.querySelectorAll("[data-schedule-span]")),
-scheduleWeekdays: document.getElementById("scheduleWeekdays"),
-scheduleCalendarGrid: document.getElementById("scheduleCalendarGrid"),
-scheduleWeekGrid: document.getElementById("scheduleWeekGrid"),
-scheduleOverviewGrid: document.getElementById("scheduleOverviewGrid"),
-scheduleDayCard: document.getElementById("scheduleDayCard"),
-scheduleDayEyebrow: document.getElementById("scheduleDayEyebrow"),
-scheduleSelectedDateLabel: document.getElementById("scheduleSelectedDateLabel"),
-scheduleEditDayButton: document.getElementById("scheduleEditDayButton"),
-scheduleAdminActions: document.getElementById("scheduleAdminActions"),
-scheduleCopyDayButton: document.getElementById("scheduleCopyDayButton"),
-schedulePasteDayButton: document.getElementById("schedulePasteDayButton"),
-scheduleEventList: document.getElementById("scheduleEventList"),
-scheduleDayInsights: document.getElementById("scheduleDayInsights"),
-scheduleEventForm: document.getElementById("scheduleEventForm"),
-scheduleEventDate: document.getElementById("scheduleEventDate"),
-scheduleEventTime: document.getElementById("scheduleEventTime"),
-scheduleEventType: document.getElementById("scheduleEventType"),
-scheduleEventTitle: document.getElementById("scheduleEventTitle"),
-scheduleEventNote: document.getElementById("scheduleEventNote"),
-scheduleEventSubmitButton: document.getElementById("scheduleEventSubmitButton"),
-scheduleEventCancelButton: document.getElementById("scheduleEventCancelButton"),
-sessionPlannerWorkspace: document.getElementById("sessionPlannerWorkspace"),
-pitchStage: document.getElementById("pitchStage"),
-pitchFullscreenButton: document.getElementById("pitchFullscreenButton"),
-coachAvatar: document.getElementById("coachAvatar"),
-coachName: document.getElementById("coachName"),
-coachRole: document.getElementById("coachRole"),
-profileWorkspace: document.getElementById("profileWorkspace"),
-staffWorkspace: document.getElementById("staffWorkspace"),
-adminWorkspace: document.getElementById("adminWorkspace"),
-medicalTeamWorkspace: document.getElementById("medicalTeamWorkspace"),
-playerProfilesWorkspace: document.getElementById("playerProfilesWorkspace"),
-scoutingWorkspace: document.getElementById("scoutingWorkspace"),
-gameplanWorkspace: document.getElementById("gameplanWorkspace"),
-transferRoomWorkspace: document.getElementById("transferRoomWorkspace"),
-analysisRoomWorkspace: document.getElementById("analysisRoomWorkspace"),
+scheduleWeekdays: getElement("scheduleWeekdays"),
+scheduleCalendarGrid: getElement("scheduleCalendarGrid"),
+scheduleWeekGrid: getElement("scheduleWeekGrid"),
+scheduleOverviewGrid: getElement("scheduleOverviewGrid"),
+scheduleDayCard: getElement("scheduleDayCard"),
+scheduleDayEyebrow: getElement("scheduleDayEyebrow"),
+scheduleSelectedDateLabel: getElement("scheduleSelectedDateLabel"),
+scheduleEditDayButton: getElement("scheduleEditDayButton"),
+scheduleAdminActions: getElement("scheduleAdminActions"),
+scheduleCopyDayButton: getElement("scheduleCopyDayButton"),
+schedulePasteDayButton: getElement("schedulePasteDayButton"),
+scheduleEventList: getElement("scheduleEventList"),
+scheduleDayInsights: getElement("scheduleDayInsights"),
+scheduleEventForm: getElement("scheduleEventForm"),
+scheduleEventDate: getElement("scheduleEventDate"),
+scheduleEventTime: getElement("scheduleEventTime"),
+scheduleEventType: getElement("scheduleEventType"),
+scheduleEventTitle: getElement("scheduleEventTitle"),
+scheduleEventNote: getElement("scheduleEventNote"),
+scheduleEventSubmitButton: getElement("scheduleEventSubmitButton"),
+scheduleEventCancelButton: getElement("scheduleEventCancelButton"),
+sessionPlannerWorkspace: getElement("sessionPlannerWorkspace"),
+pitchStage: getElement("pitchStage"),
+pitchFullscreenButton: getElement("pitchFullscreenButton"),
+coachAvatar: getElement("coachAvatar"),
+coachName: getElement("coachName"),
+coachRole: getElement("coachRole"),
+profileWorkspace: getElement("profileWorkspace"),
+staffWorkspace: getElement("staffWorkspace"),
+adminWorkspace: getElement("adminWorkspace"),
+medicalTeamWorkspace: getElement("medicalTeamWorkspace"),
+playerProfilesWorkspace: getElement("playerProfilesWorkspace"),
+scoutingWorkspace: getElement("scoutingWorkspace"),
+gameplanWorkspace: getElement("gameplanWorkspace"),
+transferRoomWorkspace: getElement("transferRoomWorkspace"),
+analysisRoomWorkspace: getElement("analysisRoomWorkspace"),
 gameSimulatorWorkspace: document.querySelector('[data-workspace-view="game-simulator"]'),
-gameSimulatorIntro: document.getElementById("gameSimulatorIntro"),
-simulatorIntroEnterButton: document.getElementById("simulatorIntroEnterButton"),
-playPauseButton: document.getElementById("playPauseButton"),
-resetButton: document.getElementById("resetButton"),
-homeFormationSelect: document.getElementById("homeFormationSelect"),
-awayFormationSelect: document.getElementById("awayFormationSelect"),
-homeAttackStyleSelect: document.getElementById("homeAttackStyleSelect"),
-homeDefenseStyleSelect: document.getElementById("homeDefenseStyleSelect"),
-awayAttackStyleSelect: document.getElementById("awayAttackStyleSelect"),
-awayDefenseStyleSelect: document.getElementById("awayDefenseStyleSelect"),
-physicalProfileSelect: document.getElementById("physicalProfileSelect"),
-passModeButton: document.getElementById("passModeButton"),
-dribbleModeButton: document.getElementById("dribbleModeButton"),
-shotModeButton: document.getElementById("shotModeButton"),
-assignBallButton: document.getElementById("assignBallButton"),
-defensiveAutopilotButton: document.getElementById("defensiveAutopilotButton"),
-offensiveAutopilotButton: document.getElementById("offensiveAutopilotButton"),
-autoV2DebugButton: document.getElementById("autoV2DebugButton"),
-previousStepButton: document.getElementById("previousStepButton"),
-nextStepButton: document.getElementById("nextStepButton"),
-sequenceStepLabel: document.getElementById("sequenceStepLabel"),
-playSequenceButton: document.getElementById("playSequenceButton"),
-clearSequenceButton: document.getElementById("clearSequenceButton"),
-saveSequenceButton: document.getElementById("saveSequenceButton"),
-loadSequenceButton: document.getElementById("loadSequenceButton"),
-downloadSequenceButton: document.getElementById("downloadSequenceButton"),
-playbackSpeed: document.getElementById("playbackSpeed"),
-playbackSpeedLabel: document.getElementById("playbackSpeedLabel"),
-ballSpeedAutoButton: document.getElementById("ballSpeedAutoButton"),
-ballSpeedManualButton: document.getElementById("ballSpeedManualButton"),
-ballSpeed: document.getElementById("ballSpeed"),
-ballSpeedLabel: document.getElementById("ballSpeedLabel"),
-dribbleSpeedAutoButton: document.getElementById("dribbleSpeedAutoButton"),
-dribbleSpeedManualButton: document.getElementById("dribbleSpeedManualButton"),
-dribbleSpeed: document.getElementById("dribbleSpeed"),
-dribbleSpeedLabel: document.getElementById("dribbleSpeedLabel"),
-pitchSurfaceSelect: document.getElementById("pitchSurfaceSelect"),
-weatherSelect: document.getElementById("weatherSelect"),
-firstTouchSelect: document.getElementById("firstTouchSelect"),
-defensiveAggressionSelect: document.getElementById("defensiveAggressionSelect"),
-homeLegendLabel: document.getElementById("homeLegendLabel"),
-awayLegendLabel: document.getElementById("awayLegendLabel"),
-simTime: document.getElementById("simTime"),
-ballStatus: document.getElementById("ballStatus"),
-ballEta: document.getElementById("ballEta"),
-actionTime: document.getElementById("actionTime"),
-actionType: document.getElementById("actionType"),
-ballProfile: document.getElementById("ballProfile"),
-ballCurrentSpeed: document.getElementById("ballCurrentSpeed"),
-ballOwner: document.getElementById("ballOwner"),
-selectedPlayerName: document.getElementById("selectedPlayerName"),
-selectedReachAtArrival: document.getElementById("selectedReachAtArrival"),
-fullscreenSimTime: document.getElementById("fullscreenSimTime"),
-fullscreenBallStatus: document.getElementById("fullscreenBallStatus"),
-fullscreenBallEta: document.getElementById("fullscreenBallEta"),
-fullscreenActionTime: document.getElementById("fullscreenActionTime"),
-fullscreenActionType: document.getElementById("fullscreenActionType"),
-fullscreenBallProfile: document.getElementById("fullscreenBallProfile"),
-fullscreenBallCurrentSpeed: document.getElementById("fullscreenBallCurrentSpeed"),
-fullscreenActionDistance: document.getElementById("fullscreenActionDistance"),
-fullscreenBallOwner: document.getElementById("fullscreenBallOwner"),
-fullscreenSelectedPlayerName: document.getElementById("fullscreenSelectedPlayerName"),
-fullscreenSelectedReachAtArrival: document.getElementById("fullscreenSelectedReachAtArrival"),
-scenarioTitle: document.getElementById("scenarioTitle"),
-scenarioText: document.getElementById("scenarioText"),
-scenarioMeta: document.getElementById("scenarioMeta"),
-selectedPlayerCard: document.getElementById("selectedPlayerCard"),
-fullscreenSelectedPlayerCard: document.getElementById("fullscreenSelectedPlayerCard"),
-metricTooltip: document.getElementById("metricTooltip"),
-playerTable: document.getElementById("playerTable"),
-eventLog: document.getElementById("eventLog"),
-sequenceStatus: document.getElementById("sequenceStatus"),
-sequenceList: document.getElementById("sequenceList"),
-savedSequenceStatus: document.getElementById("savedSequenceStatus"),
-savedSequenceList: document.getElementById("savedSequenceList"),
+gameSimulatorIntro: getElement("gameSimulatorIntro"),
+simulatorIntroEnterButton: getElement("simulatorIntroEnterButton"),
+playPauseButton: getElement("playPauseButton"),
+resetButton: getElement("resetButton"),
+homeFormationSelect: getElement("homeFormationSelect"),
+awayFormationSelect: getElement("awayFormationSelect"),
+homeAttackStyleSelect: getElement("homeAttackStyleSelect"),
+homeDefenseStyleSelect: getElement("homeDefenseStyleSelect"),
+awayAttackStyleSelect: getElement("awayAttackStyleSelect"),
+awayDefenseStyleSelect: getElement("awayDefenseStyleSelect"),
+physicalProfileSelect: getElement("physicalProfileSelect"),
+passModeButton: getElement("passModeButton"),
+dribbleModeButton: getElement("dribbleModeButton"),
+shotModeButton: getElement("shotModeButton"),
+assignBallButton: getElement("assignBallButton"),
+defensiveAutopilotButton: getElement("defensiveAutopilotButton"),
+offensiveAutopilotButton: getElement("offensiveAutopilotButton"),
+autoV2DebugButton: getElement("autoV2DebugButton"),
+previousStepButton: getElement("previousStepButton"),
+nextStepButton: getElement("nextStepButton"),
+sequenceStepLabel: getElement("sequenceStepLabel"),
+playSequenceButton: getElement("playSequenceButton"),
+clearSequenceButton: getElement("clearSequenceButton"),
+saveSequenceButton: getElement("saveSequenceButton"),
+loadSequenceButton: getElement("loadSequenceButton"),
+downloadSequenceButton: getElement("downloadSequenceButton"),
+playbackSpeed: getElement("playbackSpeed"),
+playbackSpeedLabel: getElement("playbackSpeedLabel"),
+ballSpeedAutoButton: getElement("ballSpeedAutoButton"),
+ballSpeedManualButton: getElement("ballSpeedManualButton"),
+ballSpeed: getElement("ballSpeed"),
+ballSpeedLabel: getElement("ballSpeedLabel"),
+dribbleSpeedAutoButton: getElement("dribbleSpeedAutoButton"),
+dribbleSpeedManualButton: getElement("dribbleSpeedManualButton"),
+dribbleSpeed: getElement("dribbleSpeed"),
+dribbleSpeedLabel: getElement("dribbleSpeedLabel"),
+pitchSurfaceSelect: getElement("pitchSurfaceSelect"),
+weatherSelect: getElement("weatherSelect"),
+firstTouchSelect: getElement("firstTouchSelect"),
+defensiveAggressionSelect: getElement("defensiveAggressionSelect"),
+homeLegendLabel: getElement("homeLegendLabel"),
+awayLegendLabel: getElement("awayLegendLabel"),
+simTime: getElement("simTime"),
+ballStatus: getElement("ballStatus"),
+ballEta: getElement("ballEta"),
+actionTime: getElement("actionTime"),
+actionType: getElement("actionType"),
+ballProfile: getElement("ballProfile"),
+ballCurrentSpeed: getElement("ballCurrentSpeed"),
+ballOwner: getElement("ballOwner"),
+selectedPlayerName: getElement("selectedPlayerName"),
+selectedReachAtArrival: getElement("selectedReachAtArrival"),
+fullscreenSimTime: getElement("fullscreenSimTime"),
+fullscreenBallStatus: getElement("fullscreenBallStatus"),
+fullscreenBallEta: getElement("fullscreenBallEta"),
+fullscreenActionTime: getElement("fullscreenActionTime"),
+fullscreenActionType: getElement("fullscreenActionType"),
+fullscreenBallProfile: getElement("fullscreenBallProfile"),
+fullscreenBallCurrentSpeed: getElement("fullscreenBallCurrentSpeed"),
+fullscreenActionDistance: getElement("fullscreenActionDistance"),
+fullscreenBallOwner: getElement("fullscreenBallOwner"),
+fullscreenSelectedPlayerName: getElement("fullscreenSelectedPlayerName"),
+fullscreenSelectedReachAtArrival: getElement("fullscreenSelectedReachAtArrival"),
+scenarioTitle: getElement("scenarioTitle"),
+scenarioText: getElement("scenarioText"),
+scenarioMeta: getElement("scenarioMeta"),
+selectedPlayerCard: getElement("selectedPlayerCard"),
+fullscreenSelectedPlayerCard: getElement("fullscreenSelectedPlayerCard"),
+metricTooltip: getElement("metricTooltip"),
+playerTable: getElement("playerTable"),
+eventLog: getElement("eventLog"),
+sequenceStatus: getElement("sequenceStatus"),
+sequenceList: getElement("sequenceList"),
+savedSequenceStatus: getElement("savedSequenceStatus"),
+savedSequenceList: getElement("savedSequenceList"),
 };
-const platformAssetVersion = window.__assetVersion || Date.now();
+const platformAssetVersion = win.__assetVersion || Date.now();
 const platformModuleLoader = createPlatformModuleLoader({
 documentRef: document,
 assetVersion: platformAssetVersion,
@@ -252,11 +205,11 @@ function queuePlatformIdleTask(callback, timeout = 300) {
 if (typeof callback !== "function") {
 return;
 }
-if (typeof window.requestIdleCallback === "function") {
-window.requestIdleCallback(callback, { timeout });
+if (typeof win.requestIdleCallback === "function") {
+win.requestIdleCallback(callback, { timeout });
 return;
 }
-window.setTimeout(callback, Math.min(timeout, 120));
+win.setTimeout(callback, Math.min(timeout, 120));
 }
 function ensureDashboardChatStylesheet() {
 return platformModuleLoader.loadStylesheet("dashboard-chat", "dashboard-chat.css", {
@@ -272,7 +225,7 @@ function queueCriticalWorkspacePreloads() {
 queuePlatformIdleTask(() => {
 queueWorkspaceModulePreload("transfer-room");
 }, 900);
-window.setTimeout(() => queuePlatformIdleTask(() => queueWorkspaceModulePreload("scouting"), 600), 1600);
+win.setTimeout(() => queuePlatformIdleTask(() => queueWorkspaceModulePreload("scouting"), 600), 1600);
 }
 const platformThemeModeSupported = new Set(["auto", "light", "dark"]);
 const platformDarkThemeStartHour = 19;
@@ -477,7 +430,7 @@ canPinMessage: canPinDashboardChatMessage,
 });
 function getDataSafetyStorage() {
 try {
-return window.localStorage;
+return win.localStorage;
 } catch {
 return null;
 }
@@ -535,16 +488,16 @@ platformThemeMediaQuery.addListener(platformThemeMediaQueryListener);
 }
 applyPlatformThemeByTime();
 if (platformThemeRefreshTimer) {
-window.clearInterval(platformThemeRefreshTimer);
+win.clearInterval(platformThemeRefreshTimer);
 }
-platformThemeRefreshTimer = window.setInterval(applyPlatformThemeByTime, platformThemeRefreshIntervalMs);
+platformThemeRefreshTimer = win.setInterval(applyPlatformThemeByTime, platformThemeRefreshIntervalMs);
 }
 function getPlatformThemeMode() {
 return normalizePlatformThemeMode(readPlatformThemeMode());
 }
 function readPlatformThemeMode() {
 try {
-return window.localStorage.getItem(platformThemeModeStorageKey) || platformThemeModeDefault;
+return win.localStorage.getItem(platformThemeModeStorageKey) || platformThemeModeDefault;
 } catch {
 return platformThemeModeDefault;
 }
@@ -556,7 +509,7 @@ return platformThemeModeSupported.has(normalizedMode) ? normalizedMode : platfor
 function setPlatformThemeMode(rawMode = platformThemeModeDefault) {
 const mode = normalizePlatformThemeMode(rawMode);
 try {
-window.localStorage.setItem(platformThemeModeStorageKey, mode);
+win.localStorage.setItem(platformThemeModeStorageKey, mode);
 } catch {
 }
 if (ui.platformThemeModeSelect) {
@@ -568,10 +521,10 @@ function getPlatformColorSchemeMediaQuery() {
 if (platformThemeMediaQuery) {
 return platformThemeMediaQuery;
 }
-if (typeof window.matchMedia !== "function") {
+if (typeof win.matchMedia !== "function") {
 return null;
 }
-return window.matchMedia("(prefers-color-scheme: dark)");
+return win.matchMedia("(prefers-color-scheme: dark)");
 }
 function isDataSafetyInternalStorageKey(key) {
 const normalizedKey = String(key || "");
@@ -676,11 +629,9 @@ return (hash >>> 0).toString(36);
 function getDataSafetyStorageLabel(key) {
 return dataSafetyStorageLabels[key] || key.replace(/^football-/, "").replaceAll("-", " ");
 }
-let centralStateWriteTimer = null;
-let centralStateRefreshTimer = null;
-const centralStateWriteQueue = new Map();
-const centralStateWriteSuppressionKeys = new Set();
-const centralStateRefreshIntervalMs = 10000;
+let centralStateWriteTimer = null, centralStateRefreshTimer = null, centralStateLastRefreshAt = 0, centralStateRefreshInFlight = false;
+const centralStateWriteQueue = new Map(), centralStateWriteSuppressionKeys = new Set();
+const centralStateRefreshIntervalMs = 120000, centralStateActiveRefreshMinMs = 30000, centralStateIntervalRefreshMinMs = 120000;
 const platformAutosaveStatusController = createPlatformAutosaveStatusController({
 documentRef: document,
 windowRef: window,
@@ -689,7 +640,7 @@ escapeHtml,
 });
 const setPlatformAutosaveStatus = platformAutosaveStatusController.set;
 function getCentralStateBridge() {
-return window.footballScienceCentralState ?? null;
+return win.footballScienceCentralState ?? null;
 }
 function getCentralStateMetadataForKey(key) {
 const metadata = getCentralStateBridge()?.getStatus?.()?.metadata;
@@ -701,7 +652,7 @@ const revision = Number(getCentralStateMetadataForKey(key).revision);
 return Number.isInteger(revision) && revision >= 0 ? revision : 0;
 }
 function canWriteCentralBackedCache() {
-if (window.__footballScienceCentralHydrating) {
+if (win.__footballScienceCentralHydrating) {
 return true;
 }
 const bridge = getCentralStateBridge();
@@ -741,7 +692,7 @@ return true;
 return Object.values(readDataSafetyManifest().entries || {}).some((entry) => entry?.pendingCentralSync);
 }
 function retryCentral() {
-if (centralStateWriteTimer || centralStateWriteQueue.size || window.__footballScienceCentralHydrating || !getCurrentPlatformUser() || !getCentralStateBridge()?.syncKey) return;
+if (centralStateWriteTimer || centralStateWriteQueue.size || win.__footballScienceCentralHydrating || !getCurrentPlatformUser() || !getCentralStateBridge()?.syncKey) return;
 for (const [key, entry] of Object.entries(readDataSafetyManifest().entries)) {
 const value = rawDataSafetyGetItem(key);
 if (entry?.pendingCentralSync && (entry.deletedAt || value !== null)) queueCentralStateWrite(key, value ?? "", { removed: !!entry.deletedAt });
@@ -761,11 +712,11 @@ key === scheduleStorageKey
 : key === periodizationStorageKey
 ? mergePeriodizationStatePreservingLocalUi(rawDataSafetyGetItem(key), syncedValue)
 : syncedValue;
-window.__footballScienceCentralHydrating = true;
+win.__footballScienceCentralHydrating = true;
 try {
 rawDataSafetySetItem(key, valueToApply);
 } finally {
-window.__footballScienceCentralHydrating = false;
+win.__footballScienceCentralHydrating = false;
 }
 mutateDataSafetyManifest((manifest) => {
 const currentEntry = manifest.entries[key] || {};
@@ -922,7 +873,7 @@ result?.reason ? `Session sync needs attention: ${result.reason}` : "Session syn
 );
 }
 function queueCentralStateWrite(key, value, options = {}) {
-if (window.__footballScienceCentralHydrating) {
+if (win.__footballScienceCentralHydrating) {
 return;
 }
 const normalizedKey = String(key || "");
@@ -947,9 +898,9 @@ removed: Boolean(options.removed),
 baseRevision: getCentralStateRevisionForKey(normalizedKey),
 });
 if (centralStateWriteTimer) {
-window.clearTimeout(centralStateWriteTimer);
+win.clearTimeout(centralStateWriteTimer);
 }
-centralStateWriteTimer = window.setTimeout(flushCentralStateWrites, 120);
+centralStateWriteTimer = win.setTimeout(flushCentralStateWrites, 120);
 }
 async function flushCentralStateWrites() {
 centralStateWriteTimer = null;
@@ -1070,7 +1021,7 @@ schema: dataSafetyExportSchema,
 app: "Football Science",
 createdAt: getDataSafetyNow(),
 reason,
-source: window.location.href,
+source: win.location.href,
 summary: {
 keyCount: entries.length,
 totalBytes: entries.reduce((total, entry) => total + entry.size, 0),
@@ -1091,11 +1042,11 @@ if (dataSafetyDbPromise) {
 return dataSafetyDbPromise;
 }
 dataSafetyDbPromise = new Promise((resolve, reject) => {
-if (!window.indexedDB) {
+if (!win.indexedDB) {
 reject(new Error("IndexedDB is not available."));
 return;
 }
-const request = window.indexedDB.open(dataSafetyDatabaseName, 1);
+const request = win.indexedDB.open(dataSafetyDatabaseName, 1);
 request.onupgradeneeded = () => {
 const database = request.result;
 if (!database.objectStoreNames.contains(dataSafetySnapshotStoreName)) {
@@ -1162,9 +1113,9 @@ return false;
 }
 function queueDataSafetySnapshot(reason = "autosave") {
 if (dataSafetySnapshotTimer) {
-window.clearTimeout(dataSafetySnapshotTimer);
+win.clearTimeout(dataSafetySnapshotTimer);
 }
-dataSafetySnapshotTimer = window.setTimeout(() => {
+dataSafetySnapshotTimer = win.setTimeout(() => {
 dataSafetySnapshotTimer = null;
 saveDataSafetySnapshot(reason);
 }, 900);
@@ -1241,9 +1192,9 @@ ui.dataSafetyStatus.title = snapshotWarning
 }
 function queueDataSafetyStatusRefresh() {
 if (dataSafetyStatusTimer) {
-window.clearTimeout(dataSafetyStatusTimer);
+win.clearTimeout(dataSafetyStatusTimer);
 }
-dataSafetyStatusTimer = window.setTimeout(() => {
+dataSafetyStatusTimer = win.setTimeout(() => {
 dataSafetyStatusTimer = null;
 refreshDataSafetyStatus();
 }, 120);
@@ -1279,7 +1230,7 @@ link.download = `football-science-backup-${datePart}.json`;
 document.body.appendChild(link);
 link.click();
 link.remove();
-window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+win.setTimeout(() => URL.revokeObjectURL(url), 1000);
 mutateDataSafetyManifest((manifest) => {
 manifest.lastExportAt = backup.createdAt;
 });
@@ -1289,7 +1240,7 @@ refreshDataSafetyStatus();
 const message = error?.message || "The backup could not be exported.";
 dataSafetyRuntimeStatus.lastError = message;
 refreshDataSafetyStatus();
-window.alert(message);
+win.alert(message);
 }
 }
 function getStorageFromFootballScienceBackup(backup) {
@@ -1312,7 +1263,7 @@ let backup;
 try {
 backup = JSON.parse(await file.text());
 } catch {
-window.alert("That file is not a valid Football Science backup.");
+win.alert("That file is not a valid Football Science backup.");
 return;
 }
 const storage = getStorageFromFootballScienceBackup(backup);
@@ -1320,11 +1271,11 @@ const entries = Object.entries(storage || {}).filter(
 ([key, value]) => isDataSafetyProtectedStorageKey(key) && typeof value === "string"
 );
 if (!entries.length) {
-window.alert("That backup did not contain any restorable Football Science data.");
+win.alert("That backup did not contain any restorable Football Science data.");
 return;
 }
 const createdAt = backup.createdAt ? new Date(backup.createdAt).toLocaleString() : "unknown time";
-const confirmed = window.confirm(
+const confirmed = win.confirm(
 `Restore Football Science data from ${createdAt}?\n\nCurrent local data will be snapshotted first, then the page will reload.`
 );
 if (!confirmed) {
@@ -1341,13 +1292,13 @@ manifest.lastImportedAt = getDataSafetyNow();
 manifest.lastError = "";
 });
 await saveDataSafetySnapshot("after-restore");
-window.alert("Backup restored. The page will reload now.");
-window.setTimeout(() => window.location.reload(), 250);
+win.alert("Backup restored. The page will reload now.");
+win.setTimeout(() => win.location.reload(), 250);
 } catch (error) {
 const message = error?.message || "The backup could not be restored.";
 dataSafetyRuntimeStatus.lastError = message;
 refreshDataSafetyStatus();
-window.alert(message);
+win.alert(message);
 }
 }
 function migrateDataSafetyLegacyStorageKeys() {
@@ -1461,7 +1412,7 @@ manifest.lastSeenAt = getDataSafetyNow();
 requestDataSafetyPersistentStorage();
 queueDataSafetySnapshot("startup");
 refreshDataSafetyStatus();
-window.footballScienceDataSafety = {
+win.footballScienceDataSafety = {
 collect: collectFootballScienceStorageData,
 createBackup: createFootballScienceBackupEnvelope,
 exportBackup: exportFootballScienceDataBackup,
@@ -1513,7 +1464,7 @@ function isPlatformOverlayElementVisible(node) {
 if (!(node instanceof Element) || node.hidden || node.closest("[hidden]")) {
 return false;
 }
-const style = window.getComputedStyle(node);
+const style = win.getComputedStyle(node);
 if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") {
 return false;
 }
@@ -1608,7 +1559,7 @@ function isPlatformOverlayScrollableNode(node) {
 if (!(node instanceof Element) || !isPlatformOverlayElementVisible(node)) {
 return false;
 }
-const style = window.getComputedStyle(node);
+const style = win.getComputedStyle(node);
 const verticalScroll = /(auto|scroll|overlay)/.test(style.overflowY) || node.scrollHeight > node.clientHeight + 1;
 const horizontalScroll = /(auto|scroll|overlay)/.test(style.overflowX) || node.scrollWidth > node.clientWidth + 1;
 return verticalScroll || horizontalScroll;
@@ -1717,7 +1668,7 @@ rememberPlatformOverlayScroll(target);
 true
 );
 document.addEventListener("focusin", schedulePlatformOverlayStabilityRestore, true);
-window.addEventListener("resize", schedulePlatformOverlayStabilityRestore);
+win.addEventListener("resize", schedulePlatformOverlayStabilityRestore);
 platformOverlayStabilityState.observer = new MutationObserver(schedulePlatformOverlayStabilitySync);
 platformOverlayStabilityState.observer.observe(document.body, {
 childList: true,
@@ -1725,7 +1676,7 @@ subtree: true,
 attributes: true,
 attributeFilter: ["hidden", "class", "style", "aria-hidden"],
 });
-window.footballScienceOverlayStability = {
+win.footballScienceOverlayStability = {
 capture: rememberPlatformOverlayScroll,
 getBackgroundScroller: getPlatformContentScroller,
 restore: restorePlatformOverlayScrollPositions,
@@ -1859,11 +1810,11 @@ playerIds: ["", ""],
 metricId: "minutes",
 },
 };
-const importedNccScheduleEvents = Array.isArray(window.__importedNccScheduleEvents)
-? window.__importedNccScheduleEvents
+const importedNccScheduleEvents = Array.isArray(win.__importedNccScheduleEvents)
+? win.__importedNccScheduleEvents
 : [];
 const importedNccScheduleVersion = importedNccScheduleEvents.length
-? window.__importedNccScheduleVersion || "ncc-2026-numbers-v1"
+? win.__importedNccScheduleVersion || "ncc-2026-numbers-v1"
 : "";
 const defaultHubState = {
 activeWorkspaceId: "home",
@@ -2731,10 +2682,10 @@ const periodizationMonthNames = [
 "December",
 ];
 const periodizationYear = 2026;
-const importedNccPeriodizationVersion = window.__importedNccPeriodizationVersion || "";
+const importedNccPeriodizationVersion = win.__importedNccPeriodizationVersion || "";
 const importedNccPeriodizationDays =
-window.__importedNccPeriodizationDays && typeof window.__importedNccPeriodizationDays === "object"
-? window.__importedNccPeriodizationDays
+win.__importedNccPeriodizationDays && typeof win.__importedNccPeriodizationDays === "object"
+? win.__importedNccPeriodizationDays
 : {};
 const todayPeriodizationDate = new Date();
 const defaultPeriodizationState = {
@@ -4664,7 +4615,7 @@ resetFormations: false,
 return initialState;
 }
 let state = createInitialState();
-window.__autoV2DebugEnabled = Boolean(window.__autoV2DebugEnabled);
+win.__autoV2DebugEnabled = Boolean(win.__autoV2DebugEnabled);
 let lastFrame = null;
 let simulatorAnimationRuntime = null;
 let simulatorAnimationRuntimePromise = null;
@@ -4954,27 +4905,23 @@ const canonicalPlatformTeamValues = new Set([
 "first team",
 "ncc",
 ]);
-const dashboardPresenceHeartbeatMs = 25000;
-const dashboardPresencePollMs = 6000;
+const dashboardPresenceHeartbeatMs = 60000, dashboardPresencePollMs = 45000, dashboardPresenceSteadyPushMinMs = 30000;
+const dashboardPresenceTypingPushMinMs = 5000, dashboardPresencePollMinMs = 30000;
 const dashboardPresenceIdleMs = 90000;
 const dashboardPresenceOnlineTtlMs = 85000;
 const dashboardPresenceAwayTtlMs = 6 * 60 * 1000;
 const dashboardTypingTtlMs = 9000;
 const dashboardTypingSendThrottleMs = 1800;
 let dashboardPresenceEntriesByUserId = {};
-let dashboardPresenceHeartbeatTimer = null;
-let dashboardPresencePollTimer = null;
-let dashboardPresenceStarted = false;
-let dashboardPresenceLastActivityAt = Date.now();
-let dashboardPresenceLastRenderedSignature = "";
-let dashboardPresenceInFlight = false;
+let dashboardPresenceHeartbeatTimer = null, dashboardPresencePollTimer = null, dashboardPresenceStarted = false, dashboardPresenceInFlight = false;
+let dashboardPresenceLastActivityAt = Date.now(), dashboardPresenceLastRenderedSignature = "", dashboardPresenceLastPushAt = 0, dashboardPresenceLastPollAt = 0;
 function getPlatformAuthStore() {
-return window.platformAuthStore ?? null;
+return win.platformAuthStore ?? null;
 }
 async function getPlatformApiAccessToken() {
-if (window.platformAuthReadyPromise instanceof Promise) {
+if (win.platformAuthReadyPromise instanceof Promise) {
 try {
-await window.platformAuthReadyPromise;
+await win.platformAuthReadyPromise;
 } catch {
 }
 }
@@ -4990,7 +4937,7 @@ return "";
 }
 function syncPlatformUserFromAuth() {
 const authStore = getPlatformAuthStore();
-platformUser = authStore?.getCurrentUser?.() ?? window.platformSession ?? null;
+platformUser = authStore?.getCurrentUser?.() ?? win.platformSession ?? null;
 return platformUser;
 }
 function setFormSubmitButtonState(form, options = {}) {
@@ -5023,11 +4970,11 @@ let timeoutId = 0;
 return Promise.race([
 Promise.resolve(promise).finally(() => {
 if (timeoutId) {
-window.clearTimeout(timeoutId);
+win.clearTimeout(timeoutId);
 }
 }),
 new Promise((_, reject) => {
-timeoutId = window.setTimeout(() => {
+timeoutId = win.setTimeout(() => {
 reject(new Error(timeoutMessage || "Request timed out."));
 }, timeoutMs);
 }),
@@ -5576,7 +5523,7 @@ memberships,
 }
 function readPlatformStructureState() {
 try {
-const raw = window.localStorage.getItem(platformStructureStorageKey);
+const raw = win.localStorage.getItem(platformStructureStorageKey);
 return normalizePlatformStructureState(raw ? JSON.parse(raw) : cloneDefaultPlatformStructureState());
 } catch {
 return cloneDefaultPlatformStructureState();
@@ -5584,7 +5531,7 @@ return cloneDefaultPlatformStructureState();
 }
 function writePlatformStructureState(nextState) {
 try {
-window.localStorage.setItem(platformStructureStorageKey, JSON.stringify(normalizePlatformStructureState(nextState)));
+win.localStorage.setItem(platformStructureStorageKey, JSON.stringify(normalizePlatformStructureState(nextState)));
 } catch {
 logEvent("Club and team structure could not be written to local storage.");
 }
@@ -6155,7 +6102,7 @@ return repairedState;
 }
 function getWorkspaceIdFromUrl() {
 try {
-const params = new URLSearchParams(window.location.search);
+const params = new URLSearchParams(win.location.search);
 return params.get("workspace") ?? params.get("space") ?? null;
 } catch {
 return null;
@@ -6164,8 +6111,8 @@ return null;
 function readRememberedWorkspaceId() {
 try {
 return (
-window.sessionStorage.getItem(workspaceLastActiveStorageKey) ||
-window.localStorage.getItem(workspaceLastActiveStorageKey) ||
+win.sessionStorage.getItem(workspaceLastActiveStorageKey) ||
+win.localStorage.getItem(workspaceLastActiveStorageKey) ||
 null
 );
 } catch {
@@ -6178,10 +6125,10 @@ if (!safeWorkspaceId) {
 return;
 }
 try {
-window.sessionStorage.setItem(workspaceLastActiveStorageKey, safeWorkspaceId);
+win.sessionStorage.setItem(workspaceLastActiveStorageKey, safeWorkspaceId);
 } catch {}
 try {
-window.localStorage.setItem(workspaceLastActiveStorageKey, safeWorkspaceId);
+win.localStorage.setItem(workspaceLastActiveStorageKey, safeWorkspaceId);
 } catch {}
 }
 const periodizationFieldUpdatedAtKey = "fieldUpdatedAt";
@@ -6496,7 +6443,7 @@ if (!shouldSyncCentral) {
 centralStateWriteSuppressionKeys.add(periodizationStorageKey);
 }
 try {
-window.localStorage.setItem(periodizationStorageKey, JSON.stringify(state));
+win.localStorage.setItem(periodizationStorageKey, JSON.stringify(state));
 } finally {
 if (!shouldSyncCentral) {
 centralStateWriteSuppressionKeys.delete(periodizationStorageKey);
@@ -6505,7 +6452,7 @@ centralStateWriteSuppressionKeys.delete(periodizationStorageKey);
 }
 function readPeriodizationState() {
 try {
-const raw = window.localStorage.getItem(periodizationStorageKey);
+const raw = win.localStorage.getItem(periodizationStorageKey);
 const state = raw ? clonePeriodizationState(JSON.parse(raw)) : clonePeriodizationState(defaultPeriodizationState);
 const normalizedValue = JSON.stringify(state);
 if (raw !== normalizedValue) {
@@ -6574,8 +6521,8 @@ function scrollPeriodizationDateIntoView(dateValue, options = {}) {
 if (!ui.periodizationBoard || !dateValue) {
 return;
 }
-const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-window.requestAnimationFrame(() => {
+const prefersReducedMotion = win.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+win.requestAnimationFrame(() => {
 const selectedCard = ui.periodizationBoard.querySelector(`[data-periodization-date="${dateValue}"]`);
 if (!selectedCard) {
 return;
@@ -6736,7 +6683,7 @@ if (!shouldSyncCentral) {
 centralStateWriteSuppressionKeys.add(scheduleStorageKey);
 }
 try {
-window.localStorage.setItem(scheduleStorageKey, JSON.stringify(state));
+win.localStorage.setItem(scheduleStorageKey, JSON.stringify(state));
 } finally {
 if (!shouldSyncCentral) {
 centralStateWriteSuppressionKeys.delete(scheduleStorageKey);
@@ -6745,7 +6692,7 @@ centralStateWriteSuppressionKeys.delete(scheduleStorageKey);
 }
 function readScheduleState() {
 try {
-const raw = window.localStorage.getItem(scheduleStorageKey);
+const raw = win.localStorage.getItem(scheduleStorageKey);
 const state = raw ? cloneScheduleState(JSON.parse(raw)) : cloneScheduleState(defaultScheduleState);
 const mergedState = mergeImportedNccSchedule(state);
 const mergedValue = JSON.stringify(mergedState);
@@ -7186,7 +7133,7 @@ if (!shouldSyncCentral) {
 centralStateWriteSuppressionKeys.add(scoutingStorageKey);
 }
 try {
-window.localStorage.setItem(scoutingStorageKey, JSON.stringify(state));
+win.localStorage.setItem(scoutingStorageKey, JSON.stringify(state));
 } finally {
 if (!shouldSyncCentral) {
 centralStateWriteSuppressionKeys.delete(scoutingStorageKey);
@@ -7195,7 +7142,7 @@ centralStateWriteSuppressionKeys.delete(scoutingStorageKey);
 }
 function readScoutingState() {
 try {
-const raw = window.localStorage.getItem(scoutingStorageKey);
+const raw = win.localStorage.getItem(scoutingStorageKey);
 const state = raw ? cloneScoutingState(JSON.parse(raw)) : cloneScoutingState(defaultScoutingState);
 const nextState = hubState?.activeWorkspaceId === "scouting" ? preserveScoutingTransientUiState(state, scoutingState) : state;
 const normalizedValue = JSON.stringify(nextState);
@@ -7385,11 +7332,11 @@ return new Promise((resolve, reject) => {
 const scheduleLoad = () => {
 loadScoutingWorkspaceModule().then(resolve).catch(reject);
 };
-if (typeof window.requestAnimationFrame === "function") {
-window.requestAnimationFrame(() => window.requestAnimationFrame(scheduleLoad));
+if (typeof win.requestAnimationFrame === "function") {
+win.requestAnimationFrame(() => win.requestAnimationFrame(scheduleLoad));
 return;
 }
-window.setTimeout(scheduleLoad, 0);
+win.setTimeout(scheduleLoad, 0);
 });
 }
 function renderScoutingWorkspace() {
@@ -7597,8 +7544,8 @@ scheduleState?.viewMode === "overview"
 if (!root || !dateValue) {
 return;
 }
-const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-window.requestAnimationFrame(() => {
+const prefersReducedMotion = win.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+win.requestAnimationFrame(() => {
 root.querySelector(`[data-schedule-date="${dateValue}"]`)?.scrollIntoView({
 block: "center",
 inline: "nearest",
@@ -8152,7 +8099,7 @@ return clonedState;
 }
 function readWorkspaceHubState() {
 try {
-const raw = window.localStorage.getItem(workspaceHubStorageKey);
+const raw = win.localStorage.getItem(workspaceHubStorageKey);
 if (!raw) {
 return cloneHubState(defaultHubState);
 }
@@ -8184,7 +8131,7 @@ if (!hubState) {
 return;
 }
 try {
-window.localStorage.setItem(workspaceHubStorageKey, JSON.stringify(clonePersistableWorkspaceHubState(hubState)));
+win.localStorage.setItem(workspaceHubStorageKey, JSON.stringify(clonePersistableWorkspaceHubState(hubState)));
 } catch {
 logEvent("Workspace hub settings could not be written to local storage.");
 }
@@ -8292,7 +8239,7 @@ return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 function readDashboardJson(key, fallback) {
 try {
-const raw = window.localStorage.getItem(key);
+const raw = win.localStorage.getItem(key);
 if (!raw) {
 return fallback;
 }
@@ -8303,7 +8250,7 @@ return fallback;
 }
 function writeDashboardJson(key, value) {
 try {
-window.localStorage.setItem(key, JSON.stringify(value));
+win.localStorage.setItem(key, JSON.stringify(value));
 } catch {
 logEvent("Dashboard data could not be written to local storage.");
 }
@@ -8939,9 +8886,9 @@ return getDashboardChatThreadParticipants(threadId)
 .filter(Boolean);
 }
 async function getDashboardChatApiAccessToken() {
-if (window.platformAuthReadyPromise instanceof Promise) {
+if (win.platformAuthReadyPromise instanceof Promise) {
 try {
-await window.platformAuthReadyPromise;
+await win.platformAuthReadyPromise;
 } catch {
 }
 }
@@ -8978,7 +8925,7 @@ const controller = typeof AbortController === "function" ? new AbortController()
 let timeoutId = 0;
 try {
 if (controller) {
-timeoutId = window.setTimeout(() => controller.abort(), 15000);
+timeoutId = win.setTimeout(() => controller.abort(), 15000);
 }
 const response = await fetch("/api/chat", {
 method: "POST",
@@ -9017,7 +8964,7 @@ retryable: true,
 };
 } finally {
 if (timeoutId) {
-window.clearTimeout(timeoutId);
+win.clearTimeout(timeoutId);
 }
 }
 }
@@ -9065,7 +9012,7 @@ function canFallbackDashboardChatApiResult(result = {}) {
 if (result.retryable) {
 return true;
 }
-const host = window.location?.hostname || "";
+const host = win.location?.hostname || "";
 const isLocalHost = host === "localhost" || host === "127.0.0.1" || host === "::1" || host.endsWith(".localhost");
 const isDevAuth = Boolean(getPlatformAuthStore()?.isDevMode?.());
 return Boolean(isLocalHost && isDevAuth && result.status === 401);
@@ -9319,9 +9266,9 @@ return result;
 }
 function queueDashboardChatThreadSummaryRefresh(options = {}) {
 if (dashboardChatThreadSummarySyncTimer) {
-window.clearTimeout(dashboardChatThreadSummarySyncTimer);
+win.clearTimeout(dashboardChatThreadSummarySyncTimer);
 }
-dashboardChatThreadSummarySyncTimer = window.setTimeout(() => {
+dashboardChatThreadSummarySyncTimer = win.setTimeout(() => {
 dashboardChatThreadSummarySyncTimer = 0;
 dashboardChatThreadSummaryLastRequestedAt = Date.now();
 void refreshDashboardChatThreadSummariesFromApi(options);
@@ -9369,9 +9316,9 @@ return result;
 }
 function queueDashboardChatApiRefresh(options = {}) {
 if (dashboardChatApiSyncTimer) {
-window.clearTimeout(dashboardChatApiSyncTimer);
+win.clearTimeout(dashboardChatApiSyncTimer);
 }
-dashboardChatApiSyncTimer = window.setTimeout(() => {
+dashboardChatApiSyncTimer = win.setTimeout(() => {
 dashboardChatApiSyncTimer = 0;
 void refreshDashboardChatFromApi(options);
 }, Number(options.delayMs ?? 160));
@@ -9649,14 +9596,14 @@ function handleDashboardChatRealtimeStatus(status = "") {
 dashboardChatApiRealtimeStatus = String(status || "unknown");
 renderDashboardChatWidget();
 if (dashboardChatApiRealtimeRecoveryTimer) {
-window.clearTimeout(dashboardChatApiRealtimeRecoveryTimer);
+win.clearTimeout(dashboardChatApiRealtimeRecoveryTimer);
 dashboardChatApiRealtimeRecoveryTimer = 0;
 }
 if (dashboardChatApiRealtimeStatus === "SUBSCRIBED") {
 queueDashboardChatCurrentViewRefresh({ delayMs: 250 });
 return;
 }
-dashboardChatApiRealtimeRecoveryTimer = window.setTimeout(() => {
+dashboardChatApiRealtimeRecoveryTimer = win.setTimeout(() => {
 dashboardChatApiRealtimeRecoveryTimer = 0;
 queueDashboardChatCurrentViewRefresh({ delayMs: 0 });
 }, 1200);
@@ -10301,22 +10248,22 @@ return "";
 }
 return dashboardChatTypingThreadId;
 }
-async function pushDashboardPresence(statusOverride = "") {
+async function pushDashboardPresence(statusOverride = "", options = {}) {
 const currentUser = getCurrentPlatformUser();
 const authStore = getPlatformAuthStore();
-if (!currentUser?.id || !authStore?.updatePresence || dashboardPresenceInFlight) {
-return;
-}
+if (!currentUser?.id || !authStore?.updatePresence || dashboardPresenceInFlight) return;
+if (document.visibilityState !== "visible" && statusOverride !== "away" && statusOverride !== "offline") return;
+const status = statusOverride || getDashboardSelfPresenceStatus();
+const typingThreadId = getActiveDashboardTypingThreadId();
+const payload = { lastActivityAt: new Date(dashboardPresenceLastActivityAt).toISOString(), workspaceId: getDashboardPresenceWorkspaceId(), typingThreadId, typingAt: typingThreadId ? new Date(dashboardChatTypingAt).toISOString() : "" };
+const now = Date.now();
+const minInterval = typingThreadId ? dashboardPresenceTypingPushMinMs : dashboardPresenceSteadyPushMinMs;
+if (!options.force && now - dashboardPresenceLastPushAt < minInterval) return;
 dashboardPresenceInFlight = true;
 try {
-const status = statusOverride || getDashboardSelfPresenceStatus();
-const result = await authStore.updatePresence(status, {
-lastActivityAt: new Date(dashboardPresenceLastActivityAt).toISOString(),
-workspaceId: getDashboardPresenceWorkspaceId(),
-typingThreadId: getActiveDashboardTypingThreadId(),
-typingAt: getActiveDashboardTypingThreadId() ? new Date(dashboardChatTypingAt).toISOString() : "",
-});
+const result = await authStore.updatePresence(status, payload);
 if (result?.ok) {
+dashboardPresenceLastPushAt = now;
 applyDashboardPresenceEntries(result.entries, { forceRender: true });
 }
 } catch {
@@ -10327,9 +10274,10 @@ dashboardPresenceInFlight = false;
 async function refreshDashboardPresence(options = {}) {
 const currentUser = getCurrentPlatformUser();
 const authStore = getPlatformAuthStore();
-if (!currentUser?.id || !authStore?.getPresence) {
-return;
-}
+if (!currentUser?.id || !authStore?.getPresence || document.visibilityState !== "visible") return;
+const now = Date.now();
+if (!options.forceNetwork && now - dashboardPresenceLastPollAt < dashboardPresencePollMinMs) return;
+dashboardPresenceLastPollAt = now;
 try {
 const result = await authStore.getPresence();
 if (result?.ok) {
@@ -10340,43 +10288,38 @@ applyDashboardPresenceEntries(result.entries, { forceRender: Boolean(options.for
 }
 function startDashboardPresenceRuntime() {
 const currentUser = getCurrentPlatformUser();
-if (!currentUser?.id) {
-stopDashboardPresenceRuntime();
-return;
-}
-if (dashboardPresenceStarted) {
-return;
-}
+if (!currentUser?.id) return stopDashboardPresenceRuntime();
+if (dashboardPresenceStarted) return;
 dashboardPresenceStarted = true;
 markDashboardPresenceActivity();
 pushDashboardPresence("online").catch(() => {});
 refreshDashboardPresence({ forceRender: true }).catch(() => {});
-dashboardPresenceHeartbeatTimer = window.setInterval(() => {
+dashboardPresenceHeartbeatTimer = win.setInterval(() => {
 pushDashboardPresence().catch(() => {});
 }, dashboardPresenceHeartbeatMs);
-dashboardPresencePollTimer = window.setInterval(() => {
+dashboardPresencePollTimer = win.setInterval(() => {
 refreshDashboardPresence().catch(() => {});
 }, dashboardPresencePollMs);
 }
-function stopDashboardPresenceRuntime() {
-if (dashboardPresenceHeartbeatTimer) {
-window.clearInterval(dashboardPresenceHeartbeatTimer);
+function pauseDashboardPresenceRuntime(options = {}) {
+if (dashboardPresenceHeartbeatTimer) win.clearInterval(dashboardPresenceHeartbeatTimer);
+if (dashboardPresencePollTimer) win.clearInterval(dashboardPresencePollTimer);
 dashboardPresenceHeartbeatTimer = null;
-}
-if (dashboardPresencePollTimer) {
-window.clearInterval(dashboardPresencePollTimer);
 dashboardPresencePollTimer = null;
-}
 dashboardPresenceStarted = false;
+if (!options.clearEntries) return;
 dashboardPresenceEntriesByUserId = {};
 dashboardPresenceLastRenderedSignature = "";
 renderDashboardChatWidget();
+}
+function stopDashboardPresenceRuntime() {
+pauseDashboardPresenceRuntime({ clearEntries: true });
 }
 function clearDashboardChatTyping() {
 dashboardChatTypingThreadId = "";
 dashboardChatTypingAt = 0;
 if (dashboardChatTypingClearTimer) {
-window.clearTimeout(dashboardChatTypingClearTimer);
+win.clearTimeout(dashboardChatTypingClearTimer);
 dashboardChatTypingClearTimer = null;
 }
 pushDashboardPresence().catch(() => {});
@@ -10386,9 +10329,9 @@ const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardCha
 dashboardChatTypingThreadId = normalizedThreadId;
 dashboardChatTypingAt = Date.now();
 if (dashboardChatTypingClearTimer) {
-window.clearTimeout(dashboardChatTypingClearTimer);
+win.clearTimeout(dashboardChatTypingClearTimer);
 }
-dashboardChatTypingClearTimer = window.setTimeout(() => {
+dashboardChatTypingClearTimer = win.setTimeout(() => {
 dashboardChatTypingClearTimer = null;
 clearDashboardChatTyping();
 }, dashboardTypingTtlMs);
@@ -10914,7 +10857,7 @@ if (!root) {
 return;
 }
 if (dashboardChatWidgetToastTimer) {
-window.clearTimeout(dashboardChatWidgetToastTimer);
+win.clearTimeout(dashboardChatWidgetToastTimer);
 dashboardChatWidgetToastTimer = null;
 }
 const toastState = {
@@ -10930,7 +10873,7 @@ return;
 toastRoot.textContent = toastState.text;
 toastRoot.dataset.dashboardChatToastThread = toastState.threadId;
 toastRoot.hidden = false;
-dashboardChatWidgetToastTimer = window.setTimeout(() => {
+dashboardChatWidgetToastTimer = win.setTimeout(() => {
 if (root.querySelector("[data-dashboard-chat-widget-toast]")) {
 root.querySelector("[data-dashboard-chat-widget-toast]").hidden = true;
 }
@@ -10949,12 +10892,12 @@ toastRoot.textContent = "";
 delete toastRoot.dataset.dashboardChatToastThread;
 }
 if (dashboardChatWidgetToastTimer) {
-window.clearTimeout(dashboardChatWidgetToastTimer);
+win.clearTimeout(dashboardChatWidgetToastTimer);
 dashboardChatWidgetToastTimer = null;
 }
 }
 function focusDashboardChatWidgetComposer() {
-window.setTimeout(() => {
+win.setTimeout(() => {
 ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-input]")?.focus();
 }, 0);
 }
@@ -11243,7 +11186,7 @@ writeDashboardJson(dashboardNewsSeenStorageKey, {
 let dashboardModalAfterClose = null;
 let dashboardPopupsScheduledForUserId = null;
 function getDashboardModalRoot() {
-let root = document.getElementById("dashboardModalRoot");
+let root = getElement("dashboardModalRoot");
 if (!root) {
 root = document.createElement("div");
 root.id = "dashboardModalRoot";
@@ -11343,7 +11286,7 @@ if (dashboardPopupsScheduledForUserId === user.id) {
 return;
 }
 dashboardPopupsScheduledForUserId = user.id;
-window.setTimeout(() => {
+win.setTimeout(() => {
 const activeUser = getCurrentPlatformUser();
 if (!activeUser || activeUser.id !== user.id) {
 return;
@@ -11493,10 +11436,10 @@ const triggerRect = trigger.getBoundingClientRect();
 const tooltipRect = tooltip.getBoundingClientRect();
 const edgeGap = 10;
 if (trigger.closest(".platform-sidebar")) {
-const left = Math.min(triggerRect.right + 12, window.innerWidth - tooltipRect.width - edgeGap);
+const left = Math.min(triggerRect.right + 12, win.innerWidth - tooltipRect.width - edgeGap);
 const top = Math.min(
 Math.max(triggerRect.top + triggerRect.height / 2 - tooltipRect.height / 2, edgeGap),
-window.innerHeight - tooltipRect.height - edgeGap
+win.innerHeight - tooltipRect.height - edgeGap
 );
 tooltip.style.left = `${Math.round(left)}px`;
 tooltip.style.top = `${Math.round(top)}px`;
@@ -11504,7 +11447,7 @@ return;
 }
 const left = Math.min(
 Math.max(triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2, edgeGap),
-window.innerWidth - tooltipRect.width - edgeGap
+win.innerWidth - tooltipRect.width - edgeGap
 );
 tooltip.style.left = `${left}px`;
 tooltip.style.top = `${Math.round(triggerRect.bottom + 8)}px`;
@@ -12225,7 +12168,7 @@ return null;
 }
 function readSessionPlannerExerciseLibraryFromStorage(storageKey) {
 try {
-const rawLibrary = window.localStorage.getItem(storageKey);
+const rawLibrary = win.localStorage.getItem(storageKey);
 if (rawLibrary === null) {
 return null;
 }
@@ -12247,7 +12190,7 @@ function writeSessionPlannerExerciseLibraryToStorage(exercises = []) {
 const normalizedLibrary = normalizeSessionPlannerExerciseLibraryList(exercises);
 const libraryText = JSON.stringify(normalizedLibrary);
 try {
-window.localStorage.setItem(sessionPlannerExerciseLibraryStorageKey, libraryText);
+win.localStorage.setItem(sessionPlannerExerciseLibraryStorageKey, libraryText);
 } catch (error) {
 logEvent(error?.message || "Exercise library could not be saved centrally.");
 return {
@@ -12259,7 +12202,7 @@ error,
 }
 let backupSaved = true;
 try {
-window.localStorage.setItem(
+win.localStorage.setItem(
 sessionPlannerExerciseLibraryBackupStorageKey,
 JSON.stringify(createSessionPlannerExerciseLibraryBackupEnvelope(normalizedLibrary))
 );
@@ -12441,7 +12384,7 @@ return null;
 }
 function readSessionPlannerExerciseLibraryFoldersFromStorage(storageKey) {
 try {
-const rawFolders = window.localStorage.getItem(storageKey);
+const rawFolders = win.localStorage.getItem(storageKey);
 if (rawFolders === null) {
 return null;
 }
@@ -12463,7 +12406,7 @@ function writeSessionPlannerExerciseLibraryFoldersToStorage(folders = []) {
 const normalizedFolders = normalizeSessionPlannerExerciseLibraryFolders(folders);
 const foldersText = JSON.stringify(normalizedFolders);
 try {
-window.localStorage.setItem(sessionPlannerExerciseLibraryFoldersStorageKey, foldersText);
+win.localStorage.setItem(sessionPlannerExerciseLibraryFoldersStorageKey, foldersText);
 } catch (error) {
 logEvent(error?.message || "Exercise library folders could not be saved centrally.");
 return {
@@ -12475,7 +12418,7 @@ error,
 }
 let backupSaved = true;
 try {
-window.localStorage.setItem(
+win.localStorage.setItem(
 sessionPlannerExerciseLibraryFoldersBackupStorageKey,
 JSON.stringify(createSessionPlannerExerciseLibraryFoldersBackupEnvelope(normalizedFolders))
 );
@@ -12967,7 +12910,7 @@ const folder = getSessionPlannerLibraryFolderById(folderId);
 if (!folder || isSessionPlannerLibraryFolderArchived(folder)) {
 return;
 }
-const shouldArchive = window.confirm(`Archive folder "${folder.name}"?\n\nExercises inside it will stay in the library and remain available from All Exercises.`);
+const shouldArchive = win.confirm(`Archive folder "${folder.name}"?\n\nExercises inside it will stay in the library and remain available from All Exercises.`);
 if (!shouldArchive) {
 return;
 }
@@ -13319,7 +13262,7 @@ const exercise = getSessionPlannerLibraryExerciseById(sessionPlannerLibraryEditE
 if (
 exercise &&
 hasSessionPlannerLibraryExerciseEditChanges(exercise) &&
-!window.confirm("Discard unsaved exercise edits?")
+!win.confirm("Discard unsaved exercise edits?")
 ) {
 return;
 }
@@ -13628,9 +13571,9 @@ sessionPlannerToastMessage = String(message || "");
 sessionPlannerToastTone = tone;
 renderSessionPlannerToast();
 if (sessionPlannerToastTimeoutId) {
-window.clearTimeout(sessionPlannerToastTimeoutId);
+win.clearTimeout(sessionPlannerToastTimeoutId);
 }
-sessionPlannerToastTimeoutId = window.setTimeout(() => {
+sessionPlannerToastTimeoutId = win.setTimeout(() => {
 sessionPlannerToastMessage = "";
 renderSessionPlannerToast();
 }, 3200);
@@ -13805,7 +13748,7 @@ if (isSessionPlannerLibraryExerciseArchived(exercise)) {
 showSessionPlannerToast(`"${exercise.title || "Exercise"}" is already archived.`, "warning");
 return;
 }
-const shouldArchive = window.confirm(`Archive "${exercise.title || "this exercise"}" from the library?\n\nIt will stay saved and can be restored from Archive.`);
+const shouldArchive = win.confirm(`Archive "${exercise.title || "this exercise"}" from the library?\n\nIt will stay saved and can be restored from Archive.`);
 if (!shouldArchive) {
 return;
 }
@@ -14273,7 +14216,7 @@ sessions,
 }
 function readSessionPlannerState() {
 try {
-const raw = window.localStorage.getItem(sessionPlannerStorageKey);
+const raw = win.localStorage.getItem(sessionPlannerStorageKey);
 if (!raw) {
 return createSessionPlannerDefaultState();
 }
@@ -14358,8 +14301,8 @@ function persistNormalizedSessionPlannerState(nextState) {
 const nextValue = JSON.stringify(nextState);
 try {
 rawDataSafetySetItem(sessionPlannerStorageKey, nextValue);
-if (window.__footballScienceCentralHydrating) {
-window.setTimeout(() => {
+if (win.__footballScienceCentralHydrating) {
+win.setTimeout(() => {
 if (rawDataSafetyGetItem(sessionPlannerStorageKey) === nextValue && canWriteCentralBackedCache()) {
 recordDataSafetyWrite(sessionPlannerStorageKey, nextValue);
 }
@@ -14613,7 +14556,7 @@ try {
 captureSessionPlannerBoardHistoryFromState();
 let existingState = null;
 try {
-const rawExistingState = window.localStorage.getItem(sessionPlannerStorageKey);
+const rawExistingState = win.localStorage.getItem(sessionPlannerStorageKey);
 existingState = rawExistingState ? cloneSessionPlannerState(JSON.parse(rawExistingState)) : null;
 } catch {
 existingState = null;
@@ -14622,7 +14565,7 @@ const nextState = existingState
 ? mergeSessionPlannerStateForWrite(existingState, sessionPlannerState)
 : cloneSessionPlannerState(sessionPlannerState);
 sessionPlannerState = nextState;
-window.localStorage.setItem(sessionPlannerStorageKey, JSON.stringify(nextState));
+win.localStorage.setItem(sessionPlannerStorageKey, JSON.stringify(nextState));
 return true;
 } catch {
 logEvent("Session planner could not be written to local storage.");
@@ -14853,7 +14796,7 @@ return;
 }
 const block = session.blocks[blockIndex];
 const exerciseName = block?.title || block?.label || "this exercise";
-const shouldDelete = window.confirm(`Are you sure you want to delete "${exerciseName}" from this session?`);
+const shouldDelete = win.confirm(`Are you sure you want to delete "${exerciseName}" from this session?`);
 if (!shouldDelete) {
 return;
 }
@@ -14887,7 +14830,7 @@ const editExercise = getSessionPlannerLibraryEditExercise();
 if (
 editExercise &&
 hasSessionPlannerLibraryExerciseEditChanges(editExercise) &&
-!window.confirm("Discard unsaved exercise edits?")
+!win.confirm("Discard unsaved exercise edits?")
 ) {
 return;
 }
@@ -15100,7 +15043,7 @@ const person = people.find((item) => item.id === playerId);
 if (!person) {
 return;
 }
-const shouldRemove = window.confirm(`Remove ${person.name} from this player board?`);
+const shouldRemove = win.confirm(`Remove ${person.name} from this player board?`);
 if (!shouldRemove) {
 return;
 }
@@ -15229,7 +15172,7 @@ const block = getSessionPlannerSelectedBlock();
 if (!block) {
 return;
 }
-const shouldReset = window.confirm(
+const shouldReset = win.confirm(
 "Reset player board? This will move the players back to their starting positions and restore the player buttons."
 );
 if (!shouldReset) {
@@ -15393,7 +15336,7 @@ if (frames.length <= 1) {
 showSessionPlannerToast("Keep at least one frame on the board.", "warning");
 return;
 }
-if (!window.confirm("Delete this tactical board frame?")) {
+if (!win.confirm("Delete this tactical board frame?")) {
 return;
 }
 const activeFrameId = getSessionPlannerTacticalActiveFrameId(block);
@@ -15629,7 +15572,7 @@ const hasDrawings = Array.isArray(block.tacticalElements) && block.tacticalEleme
 if (!hasDrawings) {
 return;
 }
-const shouldDeleteAll = window.confirm("Delete all drawings from this exercise board?");
+const shouldDeleteAll = win.confirm("Delete all drawings from this exercise board?");
 if (!shouldDeleteAll) {
 return;
 }
@@ -16309,7 +16252,7 @@ return false;
 }
 const { x, y } = placementPoint;
 if (sessionPlannerTacticalTool === "text") {
-const label = window.prompt("Text on board", "Coaching point");
+const label = win.prompt("Text on board", "Coaching point");
 if (!label) {
 return false;
 }
@@ -17991,7 +17934,7 @@ const pillGap = 8;
 const pillWidth = datePill?.getBoundingClientRect().width ?? 52;
 const scrollDistance = (pillWidth + pillGap) * 7;
 const targetLeft = Math.max(0, dateStrip.scrollLeft + direction * scrollDistance);
-const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+const prefersReducedMotion = win.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 dateStrip.scrollTo({
 left: targetLeft,
 behavior: prefersReducedMotion ? "auto" : "smooth",
@@ -18731,21 +18674,21 @@ return;
 const conflict = sessionPlannerCentralSyncConflict;
 sessionPlannerCentralSyncConflict = null;
 if (action === "save-local" && conflict.localValue) {
-window.__footballScienceCentralHydrating = true;
+win.__footballScienceCentralHydrating = true;
 try {
 rawDataSafetySetItem(sessionPlannerStorageKey, conflict.localValue);
 } finally {
-window.__footballScienceCentralHydrating = false;
+win.__footballScienceCentralHydrating = false;
 }
 sessionPlannerState = readSessionPlannerStatePreservingUiSelection();
 queueCentralStateWrite(sessionPlannerStorageKey, conflict.localValue);
 setPlatformAutosaveStatus("saving", "Saving");
 } else if (conflict.centralValue) {
-window.__footballScienceCentralHydrating = true;
+win.__footballScienceCentralHydrating = true;
 try {
 rawDataSafetySetItem(sessionPlannerStorageKey, conflict.centralValue);
 } finally {
-window.__footballScienceCentralHydrating = false;
+win.__footballScienceCentralHydrating = false;
 }
 sessionPlannerState = readSessionPlannerStatePreservingUiSelection();
 setPlatformAutosaveStatus("saved", "Saved");
@@ -19037,7 +18980,6 @@ const sessionPlannerPlayerBoardPositionGroups = [
 { key: "midfielder", label: "Midfielders", shortLabel: "MID", order: 3, x: 58 },
 { key: "forward", label: "Forwards", shortLabel: "FWD", order: 4, x: 82 },
 ];
-
 function normalizeSessionPlannerPlayerBoardRoleGroupKey(value) {
   const key = normalizeSessionPlannerPlayerBoardProfileKey(value);
   if (!key) return "";
@@ -19047,7 +18989,6 @@ function normalizeSessionPlannerPlayerBoardRoleGroupKey(value) {
   if (["fwd", "fw", "forward", "forwards", "attacker", "attack", "striker", "anfall"].includes(key)) return "forward";
   return key;
 }
-
 function getSessionPlannerPlayerBoardRoleGroupForRole(roleKey) {
   const key = normalizeSessionPlannerPlayerBoardProfileKey(roleKey);
   if (!key) return "";
@@ -19113,7 +19054,6 @@ function getSessionPlannerPlayerBoardRoleGroupForRole(roleKey) {
   }
   return "";
 }
-
 function getSessionPlannerPlayerBoardSideForRole(roleKey) {
   const key = normalizeSessionPlannerPlayerBoardProfileKey(roleKey);
   if (
@@ -19157,7 +19097,6 @@ function getSessionPlannerPlayerBoardSideForRole(roleKey) {
   }
   return "";
 }
-
 function getSessionPlannerPlayerBoardExplicitRoles(player = {}) {
   return [
     player.primaryRole,
@@ -19168,14 +19107,12 @@ function getSessionPlannerPlayerBoardExplicitRoles(player = {}) {
     .map((role) => normalizePlayerProfileRole(role, ""))
     .filter(Boolean);
 }
-
 function getSessionPlannerPlayerBoardPositionGroup(player = {}) {
   const explicitRoleGroup = normalizeSessionPlannerPlayerBoardRoleGroupKey(player?.roleGroup);
   const explicitGroup = sessionPlannerPlayerBoardPositionGroups.find((group) => group.key === explicitRoleGroup);
   if (explicitGroup) {
     return explicitGroup;
   }
-
   const explicitRoles = getSessionPlannerPlayerBoardExplicitRoles(player);
   const explicitRoleGroupFromRole = explicitRoles
     .map((role) => getSessionPlannerPlayerBoardRoleGroupForRole(role))
@@ -19186,7 +19123,6 @@ function getSessionPlannerPlayerBoardPositionGroup(player = {}) {
   if (explicitRoleGroupMatch) {
     return explicitRoleGroupMatch;
   }
-
   const roleText = [
     player?.position,
     player?.primaryRole,
@@ -19272,14 +19208,12 @@ return numberMatches[0];
 }
 return null;
 }
-
 function normalizeSessionPlannerPlayerBoardSquadStatusKey(value) {
   const key = normalizeSessionPlannerPlayerBoardProfileKey(value);
   if (key === "squaddepth") return "depth";
   if (key === "loanwatch") return "loan";
   return key;
 }
-
 function getSessionPlannerPlayerBoardSquadStatusPriority(statusKey) {
   const priorityByStatus = {
     important: 100,
@@ -19290,7 +19224,6 @@ function getSessionPlannerPlayerBoardSquadStatusPriority(statusKey) {
   };
   return priorityByStatus[normalizeSessionPlannerPlayerBoardSquadStatusKey(statusKey)] ?? null;
 }
-
 function getSessionPlannerPlayerBoardCareerPhasePriority(phaseKey) {
   const priorityByPhase = {
     peak: 100,
@@ -19349,12 +19282,10 @@ function getSessionPlannerPlayerBoardSyncedPlayer(player = {}) {
   if (!profile) {
     return player;
   }
-
   const roleFit = getSessionPlannerPlayerBoardProfileRoleFitMap(profile);
   const futureMinutes = getSessionPlannerPlayerBoardFutureMinutesValue(profile.futureData?.minutes);
   const squadStatusPriority = getSessionPlannerPlayerBoardSquadStatusPriority(profile.squadStatus);
   const careerPhasePriority = getSessionPlannerPlayerBoardCareerPhasePriority(profile.careerPhase);
-
   return {
     ...player,
     number: profile.number || player.number,
@@ -19620,7 +19551,6 @@ function getSessionPlannerSelectionAssistantRoleScore(player = {}, targetRoles =
   if (directScore > 0) {
     return directScore;
   }
-
   const primaryRole = normalizePlayerProfileRole(player.primaryRole, "");
   if (targetRoles.includes(primaryRole)) {
     return 78;
@@ -19635,7 +19565,6 @@ function getSessionPlannerSelectionAssistantRoleScore(player = {}, targetRoles =
   if (targetGroups.has(normalizeSessionPlannerPlayerBoardRoleGroupKey(player.roleGroup))) {
     return 58;
   }
-
   return 48;
 }
 function getSessionPlannerSelectionAssistantReason(item, profile, roleScore) {
@@ -19644,7 +19573,6 @@ function getSessionPlannerSelectionAssistantReason(item, profile, roleScore) {
   const primaryRole = normalizePlayerProfileRole(player.primaryRole, "");
   const secondaryRoles = Array.isArray(player.secondaryRoles) ? player.secondaryRoles : [];
   const reasons = [];
-
   if (bestMatches.length) {
     reasons.push(`Role DNA ${bestMatches[0].role} ${bestMatches[0].score}%`);
   } else if (primaryRole) {
@@ -19674,7 +19602,6 @@ function getSessionPlannerSelectionAssistantReason(item, profile, roleScore) {
   if (roleScore < 60) {
     reasons.push("Fallback selection");
   }
-
   return reasons.slice(0, 3).join(" / ");
 }
 function scoreSessionPlannerSelectionAssistantItem(item, profile) {
@@ -19702,7 +19629,6 @@ function scoreSessionPlannerSelectionAssistantItem(item, profile) {
       roleBonus +
       linkedBonus
   );
-
   return {
     item,
     score: clamp(score, 0, 100),
@@ -20139,7 +20065,6 @@ function getSessionPlannerPlayerBoardPlayerRoleProfile(player = {}) {
   let side =
     explicitRoles.map((role) => getSessionPlannerPlayerBoardSideForRole(role)).find(Boolean) ||
     (["left", "center", "right"].includes(preferredSide) ? preferredSide : "center");
-
   if (side === "center" && (
     position.includes("left") ||
     position.includes("vänster") ||
@@ -20163,7 +20088,6 @@ function getSessionPlannerPlayerBoardPlayerRoleProfile(player = {}) {
   )) {
     side = "center";
   }
-
   return {
     roleKey: group.key,
     roleOrder: getSessionPlannerPlayerBoardRoleOrder(group.key),
@@ -20335,13 +20259,11 @@ return directValue;
 }
 return null;
 }
-
 function getSessionPlannerPlayerBoardDirectRoleFitScore(player = {}, slot = {}) {
   const profile = getSessionPlannerPlayerBoardPlayerRoleProfile(player);
   const slotRole = String(slot.roleKey ?? "").trim().toLowerCase();
   const slotSide = String(slot.side ?? "center").trim().toLowerCase();
   let score = profile.roleKey === slotRole ? 74 : 38;
-
   if (profile.roleKey === slotRole) {
     if (profile.side === slotSide) {
       score += 14;
@@ -20351,7 +20273,6 @@ function getSessionPlannerPlayerBoardDirectRoleFitScore(player = {}, slot = {}) 
       score -= 10;
     }
   }
-
   const primaryRole = normalizePlayerProfileRole(player.primaryRole, "");
   const secondaryRoles = Array.isArray(player.secondaryRoles)
     ? player.secondaryRoles.map((role) => normalizePlayerProfileRole(role, "")).filter(Boolean)
@@ -20364,10 +20285,8 @@ function getSessionPlannerPlayerBoardDirectRoleFitScore(player = {}, slot = {}) 
   } else if (secondaryRoles.some((role) => slotKeys.includes(normalizeSessionPlannerPlayerBoardProfileKey(role)))) {
     score += 10;
   }
-
   return clamp(score, 0, 100);
 }
-
 function getSessionPlannerPlayerBoardImportanceScore(player = {}) {
 const statusPriority =
 getSessionPlannerPlayerBoardNumericPriorityValue(player.squadImportance) ??
@@ -20395,7 +20314,6 @@ return rawImportance * 10;
 }
 return clamp(rawImportance, 0, 100);
 }
-
 function getSessionPlannerPlayerBoardCareerScore(player = {}) {
   const rawCareer =
     getSessionPlannerPlayerBoardNumericPriorityValue(player.careerPhasePriority) ??
@@ -20405,7 +20323,6 @@ function getSessionPlannerPlayerBoardCareerScore(player = {}) {
   }
   return 60;
 }
-
 function getSessionPlannerPlayerBoardMinutesScore(player = {}) {
 return (
 getSessionPlannerPlayerBoardNumericPriorityValue(player.nwslMinutes) ??
@@ -20635,7 +20552,7 @@ return boardPlayers.filter((item) => selectedIdSet.has(item.player.id));
 function getSessionPlannerPlayerBoardAutoSelectFormation() {
 let formationValue = normalizeSessionPlannerPlayerBoardFormationValue(sessionPlannerPlayerBoardFormationInput);
 if (!parseSessionPlannerPlayerBoardFormation(formationValue).length) {
-const promptValue = window.prompt("Set formation for Auto Select", formationValue || "3-3-1");
+const promptValue = win.prompt("Set formation for Auto Select", formationValue || "3-3-1");
 if (promptValue === null) {
 return null;
 }
@@ -20956,7 +20873,6 @@ function scoreSessionPlannerPlayerBoardFormationFit(item, slot, options = {}) {
     profile.roleKey === slot.roleKey && profile.side !== "center" && slot.side !== "center" && profile.side !== slot.side
       ? 36
       : 0;
-
   return (
     roleDistance * 220 +
     roleMismatchPenalty +
@@ -21853,7 +21769,7 @@ showSessionPlannerToast("History entry could not be found.", "error");
 return;
 }
 const willRemoveSession = !historyEntry.beforeSession;
-const confirmed = window.confirm(
+const confirmed = win.confirm(
 willRemoveSession
 ? `Undo the session created at ${formatSessionPlannerHistoryTime(historyEntry.createdAt)}?\n\nThis will remove the current session for ${historyEntry.date}.`
 : `Restore the previous version from ${formatSessionPlannerHistoryTime(historyEntry.createdAt)}?\n\nThis will replace the current session for ${historyEntry.date}.`
@@ -21873,11 +21789,11 @@ showSessionPlannerToast(result?.reason || "Session could not be restored.", "err
 return;
 }
 if (result.value) {
-window.__footballScienceCentralHydrating = true;
+win.__footballScienceCentralHydrating = true;
 try {
-window.localStorage.setItem(sessionPlannerStorageKey, result.value);
+win.localStorage.setItem(sessionPlannerStorageKey, result.value);
 } finally {
-window.__footballScienceCentralHydrating = false;
+win.__footballScienceCentralHydrating = false;
 }
 }
 sessionPlannerState = readSessionPlannerState();
@@ -21963,14 +21879,12 @@ return first.participation - second.participation;
 return compareMedicalPlayers(first.player, second.player);
 });
 }
-
 function getSessionPlannerTemporaryProfileAvailabilityItems(dateValue = medicalState?.selectedDate, existingItems = []) {
   const profileState = getSessionPlannerPlayerBoardProfileState();
   const profiles = Array.isArray(profileState?.players) ? profileState.players : [];
   if (!profiles.length) {
     return [];
   }
-
   const existingIds = new Set(
     existingItems
       .map((item) => item?.player)
@@ -21978,7 +21892,6 @@ function getSessionPlannerTemporaryProfileAvailabilityItems(dateValue = medicalS
       .map((value) => String(value ?? "").trim())
       .filter(Boolean)
   );
-
   return profiles
     .filter((profile) => isTemporaryPlayerProfile(profile))
     .filter((profile) => isPlayerProfileTemporaryActiveOnDate(profile, dateValue))
@@ -21993,7 +21906,6 @@ function getSessionPlannerTemporaryProfileAvailabilityItems(dateValue = medicalS
       planningOnly: true,
     }));
 }
-
 function getSessionPlannerAvailabilityItems(dateValue = medicalState?.selectedDate) {
   const medicalItems = getMedicalAvailabilityItems(dateValue)
     .filter((item) => !isTemporaryPlayerProfile(item.player) || isPlayerProfileTemporaryActiveOnDate(item.player, dateValue))
@@ -22492,7 +22404,7 @@ renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
 function ensureSessionPlannerPrintPageStyle() {
 const paper = getSessionPlannerPrintPaperOption();
-let styleElement = document.getElementById("sessionPlannerPrintPageStyle");
+let styleElement = getElement("sessionPlannerPrintPageStyle");
 if (!styleElement) {
 styleElement = document.createElement("style");
 styleElement.id = "sessionPlannerPrintPageStyle";
@@ -22534,9 +22446,9 @@ renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
 syncSessionPlannerPrintModeClass();
 ensureSessionPlannerPrintPageStyle();
-window.requestAnimationFrame(() => {
+win.requestAnimationFrame(() => {
 if (prepareSessionPlannerPrintRoot()) {
-window.print();
+win.print();
 }
 });
 }
@@ -22727,17 +22639,17 @@ if (dateStrip) {
 dateStrip.scrollLeft = previousDateStripScrollLeft;
 }
 }
-window.requestAnimationFrame(resizeSessionPlannerTextareas);
+win.requestAnimationFrame(resizeSessionPlannerTextareas);
 renderSessionPlannerToast();
 if (preserveDateStripScroll && !canReuseDateControls) {
-window.requestAnimationFrame(() => {
+win.requestAnimationFrame(() => {
 const dateStrip = ui.sessionPlannerWorkspace?.querySelector(".session-date-strip");
 if (dateStrip) {
 dateStrip.scrollLeft = previousDateStripScrollLeft;
 }
 });
 } else if (alignSelectedDate && !canReuseDateControls) {
-window.requestAnimationFrame(() => scrollSessionPlannerSelectedDateIntoView({ behavior: "auto" }));
+win.requestAnimationFrame(() => scrollSessionPlannerSelectedDateIntoView({ behavior: "auto" }));
 }
 }
 let profileWorkspaceFlashMessage = "";
@@ -22749,9 +22661,9 @@ return profileWorkspaceFlashMessage;
 }
 profileWorkspaceFlashMessage = nextMessage;
 if (profileWorkspaceFlashTimer) {
-window.clearTimeout(profileWorkspaceFlashTimer);
+win.clearTimeout(profileWorkspaceFlashTimer);
 }
-profileWorkspaceFlashTimer = window.setTimeout(() => {
+profileWorkspaceFlashTimer = win.setTimeout(() => {
 profileWorkspaceFlashTimer = null;
 profileWorkspaceFlashMessage = "";
 if (hubState?.activeWorkspaceId === "my-profile") {
@@ -23007,14 +22919,14 @@ const copyText = [
 temporaryPassword ? `Temporary password: ${temporaryPassword}` : "",
 ].filter(Boolean).join("\n");
 let copied = false;
-if (window.navigator?.clipboard?.writeText) {
+if (win.navigator?.clipboard?.writeText) {
 try {
-await window.navigator.clipboard.writeText(copyText);
+await win.navigator.clipboard.writeText(copyText);
 copied = true;
 } catch {
 }
 }
-window.location.href = mailto;
+win.location.href = mailto;
 return { copied, copyText };
 }
 function buildTemporaryLoginMessage(user, temporaryPassword, copied = false) {
@@ -23022,11 +22934,11 @@ return `New temporary login for ${user.email}: username ${user.username}, passwo
 }
 async function maybeCopyToClipboard(text) {
 const safeText = String(text || "").trim();
-if (!safeText || !window.navigator?.clipboard?.writeText) {
+if (!safeText || !win.navigator?.clipboard?.writeText) {
 return false;
 }
 try {
-await window.navigator.clipboard.writeText(safeText);
+await win.navigator.clipboard.writeText(safeText);
 return true;
 } catch {
 return false;
@@ -25033,7 +24945,7 @@ if (suppressCentralSync) {
 centralStateWriteSuppressionKeys.add(medicalTeamStorageKey);
 }
 try {
-window.localStorage.setItem(medicalTeamStorageKey, JSON.stringify(state));
+win.localStorage.setItem(medicalTeamStorageKey, JSON.stringify(state));
 } finally {
 if (suppressCentralSync) {
 centralStateWriteSuppressionKeys.delete(medicalTeamStorageKey);
@@ -25042,7 +24954,7 @@ centralStateWriteSuppressionKeys.delete(medicalTeamStorageKey);
 }
 function readMedicalState() {
 try {
-const raw = window.localStorage.getItem(medicalTeamStorageKey);
+const raw = win.localStorage.getItem(medicalTeamStorageKey);
 const parsed = raw ? JSON.parse(raw) : {};
 const state = sanitizeMedicalStateForCurrentUser(cloneMedicalState(parsed));
 const shouldPersistSeededRoster =
@@ -25069,7 +24981,7 @@ try {
 const coachSafeOnly = !canViewPrivateMedicalDetails();
 const nextState = coachSafeOnly ? sanitizeMedicalStateForCurrentUser(medicalState) : medicalState;
 const nextStateJson = JSON.stringify(nextState);
-const currentStateJson = window.localStorage.getItem(medicalTeamStorageKey);
+const currentStateJson = win.localStorage.getItem(medicalTeamStorageKey);
 if (currentStateJson === nextStateJson) {
 return;
 }
@@ -25192,7 +25104,7 @@ birthDateCheckedAt: String(entry.birthDateCheckedAt || "").trim(),
 }
 function readPlayerProfileAgeCache() {
 try {
-const raw = window.localStorage.getItem(playerProfileAgeCacheStorageKey);
+const raw = win.localStorage.getItem(playerProfileAgeCacheStorageKey);
 const parsed = raw ? JSON.parse(raw) : {};
 const sourcePlayers = parsed?.players && typeof parsed.players === "object" ? parsed.players : {};
 const players = Object.entries(sourcePlayers).reduce((result, [key, entry]) => {
@@ -25231,7 +25143,7 @@ players: cache.players && typeof cache.players === "object" ? cache.players : {}
 updatedAt: new Date().toISOString(),
 };
 try {
-window.localStorage.setItem(playerProfileAgeCacheStorageKey, JSON.stringify(playerProfileAgeCacheState));
+win.localStorage.setItem(playerProfileAgeCacheStorageKey, JSON.stringify(playerProfileAgeCacheState));
 } catch {
 logEvent("Squad age cache could not be written to local storage.");
 }
@@ -26047,17 +25959,17 @@ return true;
 }
 function readPlayerProfilesState() {
 try {
-const raw = window.localStorage.getItem(playerProfilesStorageKey);
+const raw = win.localStorage.getItem(playerProfilesStorageKey);
 const parsed = raw ? JSON.parse(raw) : {};
 const state = clonePlayerProfilesState(parsed);
 if (!raw || parsed?.schemaVersion !== playerProfilesSchemaVersion) {
-window.localStorage.setItem(playerProfilesStorageKey, JSON.stringify(state));
+win.localStorage.setItem(playerProfilesStorageKey, JSON.stringify(state));
 }
 return state;
 } catch {
 const state = clonePlayerProfilesState({});
 try {
-window.localStorage.setItem(playerProfilesStorageKey, JSON.stringify(state));
+win.localStorage.setItem(playerProfilesStorageKey, JSON.stringify(state));
 } catch {
 logEvent("Player Profiles data could not be written to local storage.");
 }
@@ -26074,7 +25986,7 @@ playerProfilesState.removedPlayerIds = Array.from(removedPlayerIdSet);
 playerProfilesState.players = (Array.isArray(playerProfilesState.players) ? playerProfilesState.players : [])
 .filter((player) => !removedPlayerIdSet.has(player?.id));
 playerProfilesState.updatedAt = new Date().toISOString();
-window.localStorage.setItem(playerProfilesStorageKey, JSON.stringify(playerProfilesState));
+win.localStorage.setItem(playerProfilesStorageKey, JSON.stringify(playerProfilesState));
 } catch {
 logEvent("Player Profiles data could not be written to local storage.");
 }
@@ -26223,8 +26135,8 @@ playerProfileAgeHydrationPending = false;
 }
 }
 function queuePlayerProfileAgeHydration() {
-window.clearTimeout(playerProfileAgeHydrationTimer);
-playerProfileAgeHydrationTimer = window.setTimeout(() => {
+win.clearTimeout(playerProfileAgeHydrationTimer);
+playerProfileAgeHydrationTimer = win.setTimeout(() => {
 playerProfileAgeHydrationTimer = 0;
 hydratePlayerProfileAgesOnce();
 }, 80);
@@ -26579,16 +26491,16 @@ const recordFirst = recordParts[0] || "";
 return Boolean(playerLast && recordLast && playerLast === recordLast && playerFirst[0] && playerFirst[0] === recordFirst[0]);
 }
 function getPlayerProfileScoutingDatabase() {
-const importedDatabase = window.__footballScienceImportedScoutingDatabase;
+const importedDatabase = win.__footballScienceImportedScoutingDatabase;
 if (importedDatabase && Array.isArray(importedDatabase.records) && Array.isArray(importedDatabase.metrics)) {
 return importedDatabase;
 }
-const bundledDatabase = window.__footballScienceScoutingDatabase;
+const bundledDatabase = win.__footballScienceScoutingDatabase;
 if (bundledDatabase && Array.isArray(bundledDatabase.records) && Array.isArray(bundledDatabase.metrics)) {
 return bundledDatabase;
 }
 try {
-const stored = window.localStorage?.getItem(playerProfileScoutingDatabaseStorageKey);
+const stored = win.localStorage?.getItem(playerProfileScoutingDatabaseStorageKey);
 if (!stored) {
 return null;
 }
@@ -28822,7 +28734,7 @@ const result = updatePlayerProfile(values);
 if (result?.ok) playerProfileAutosaveLastSignature = getPlayerProfileFormSignature(form);
 return result;
 }
-function queuePlayerProfileAutosave(form, delayMs = 420) { if (!form || !canEditPlayerProfiles()) return; window.clearTimeout(playerProfileAutosaveTimer); playerProfileAutosaveTimer = window.setTimeout(() => { playerProfileAutosaveTimer = 0; savePlayerProfileEditForm(form); }, delayMs); } function flushPlayerProfileAutosave() { const form = ui.playerProfilesWorkspace?.querySelector("#playerProfileEditForm"); window.clearTimeout(playerProfileAutosaveTimer); playerProfileAutosaveTimer = 0; return savePlayerProfileEditForm(form); }
+function queuePlayerProfileAutosave(form, delayMs = 420) { if (!form || !canEditPlayerProfiles()) return; win.clearTimeout(playerProfileAutosaveTimer); playerProfileAutosaveTimer = win.setTimeout(() => { playerProfileAutosaveTimer = 0; savePlayerProfileEditForm(form); }, delayMs); } function flushPlayerProfileAutosave() { const form = ui.playerProfilesWorkspace?.querySelector("#playerProfileEditForm"); win.clearTimeout(playerProfileAutosaveTimer); playerProfileAutosaveTimer = 0; return savePlayerProfileEditForm(form); }
 function buildMedicalPlayerFromPlayerProfile(player = {}) {
 const now = new Date().toISOString();
 const createdAt = String(player.createdAt || "").trim() || now;
@@ -29191,7 +29103,7 @@ player,
 isMedicalDateValue(options.dateValue) ? options.dateValue : formatScheduleDateValue(new Date())
 );
 }
-window.footballSciencePlayerProfiles = {
+win.footballSciencePlayerProfiles = {
 getState: () => clonePlayerProfilesState(ensurePlayerProfilesState()),
 getPlayersForSessionPlanner: getSessionPlannerPlayerProfileContracts,
 getPlayerForSessionPlanner: getSessionPlannerPlayerProfileContract,
@@ -29839,7 +29751,7 @@ lines.push(`${item.player.name}: ${item.participation}% / ${item.status.label}${
 return lines.join("\n");
 }
 function recordMedicalAuditEvent(event = {}) {
-const auditBridge = window.footballScienceAudit;
+const auditBridge = win.footballScienceAudit;
 if (!getCurrentPlatformUser() || !auditBridge?.record) {
 return Promise.resolve({ ok: false });
 }
@@ -29886,7 +29798,7 @@ Date.now();
 return [eventType, playerId, entityId].filter(Boolean).join(":");
 }
 function recordMedicalDatabaseSyncEvent(eventType, payload = {}) {
-const databaseBridge = window.footballScienceMedicalDatabase;
+const databaseBridge = win.footballScienceMedicalDatabase;
 if (!getCurrentPlatformUser() || !canViewPrivateMedicalDetails() || !databaseBridge?.record) {
 return Promise.resolve({ ok: false });
 }
@@ -34028,8 +33940,8 @@ if (!workspaceId) {
 return;
 }
 if (getWorkspaceViewId(getSafeWorkspaceId(workspaceId, hubState) || workspaceId) === "scouting") {
-window.clearTimeout(scoutingMenuPreloadTimer);
-scoutingMenuPreloadTimer = window.setTimeout(() => queueWorkspaceModulePreload(workspaceId), 180);
+win.clearTimeout(scoutingMenuPreloadTimer);
+scoutingMenuPreloadTimer = win.setTimeout(() => queueWorkspaceModulePreload(workspaceId), 180);
 return;
 }
 queueWorkspaceModulePreload(workspaceId);
@@ -34184,7 +34096,7 @@ syncPlatformUserFromAuth();
 hubState = repairWorkspaceState(readWorkspaceHubState());
 const urlWorkspaceId = getWorkspaceIdFromUrl();
 const safeUrlWorkspaceId = getSafeWorkspaceId(urlWorkspaceId, hubState);
-const pendingWorkspaceId = window.__pendingWorkspaceId;
+const pendingWorkspaceId = win.__pendingWorkspaceId;
 const safePendingWorkspaceId = getSafeWorkspaceId(pendingWorkspaceId, hubState);
 const rememberedWorkspaceId = readRememberedWorkspaceId();
 const safeRememberedWorkspaceId = getSafeWorkspaceId(rememberedWorkspaceId, hubState);
@@ -34199,7 +34111,7 @@ hubState.activeWorkspaceId = safeRememberedWorkspaceId;
 hubState.activeWorkspaceId = safeHomeWorkspaceId;
 }
 rememberActiveWorkspaceId(hubState.activeWorkspaceId);
-window.__pendingWorkspaceId = null;
+win.__pendingWorkspaceId = null;
 hydrateWorkspaceModuleState(hubState.activeWorkspaceId);
 writeWorkspaceHubState();
 renderWorkspaceChrome();
@@ -34302,22 +34214,22 @@ return;
 }
 requestCentralizedAppStateReload();
 }
-function refreshCentralStateFromSource(reason = "refresh") {
+function refreshCentralStateFromSource(reason = "refresh", options = {}) {
 const bridge = getCentralStateBridge();
-if (
-document.visibilityState === "hidden" ||
-!getCurrentPlatformUser() ||
-!bridge?.hydrate
-) {
-return;
-}
+if (document.visibilityState === "hidden" || centralStateRefreshInFlight || !getCurrentPlatformUser() || !bridge?.hydrate) return;
+if (reason === "interval" && !document.hasFocus()) return;
+const now = Date.now();
+const minInterval = options.force ? 0 : reason === "interval" ? centralStateIntervalRefreshMinMs : centralStateActiveRefreshMinMs;
+if (minInterval && now - centralStateLastRefreshAt < minInterval) return;
+centralStateRefreshInFlight = true;
+centralStateLastRefreshAt = now;
 const retryAfterHydrate = hasPendingCentralStateWrites();
 bridge.hydrate().then(() => {
-if (retryAfterHydrate) {
-retryCentral();
-}
+if (retryAfterHydrate) retryCentral();
 }).catch((error) => {
 queueCentralStateStatus(error?.message || `${reason} failed.`);
+}).finally(() => {
+centralStateRefreshInFlight = false;
 });
 }
 function canEditScenario() {
@@ -35043,7 +34955,7 @@ state.sequence.dirty = false;
 }
 function readSavedSequenceLibrary() {
 try {
-const raw = window.localStorage.getItem(sequenceLibraryStorageKey);
+const raw = win.localStorage.getItem(sequenceLibraryStorageKey);
 if (!raw) {
 return [];
 }
@@ -35064,17 +34976,17 @@ const sortedEntries = [...entries].sort(
 );
 state.savedSequences = sortedEntries;
 try {
-window.localStorage.setItem(
+win.localStorage.setItem(
 sequenceLibraryStorageKey,
 JSON.stringify(sortedEntries)
 );
 if (sortedEntries[0]?.sequence) {
-window.localStorage.setItem(
+win.localStorage.setItem(
 sequenceStorageKey,
 JSON.stringify(sortedEntries[0].sequence)
 );
 } else {
-window.localStorage.removeItem(sequenceStorageKey);
+win.localStorage.removeItem(sequenceStorageKey);
 }
 } catch {
 logEvent("The browser could not write to local storage.");
@@ -66756,13 +66668,13 @@ const cornerValue = clamp(Math.abs(target.y - pitch.width / 2) / (7.32 / 2), 0, 
 const score =
 option.baseScore +
 (isClose ? option.closeBonus : 0) +
-window.laneClarity * 0.34 +
-window.goalkeeperOpenness * 0.36 +
-window.angleQuality * 0.22 +
+win.laneClarity * 0.34 +
+win.goalkeeperOpenness * 0.36 +
+win.angleQuality * 0.22 +
 footScore * 0.16 +
 cornerValue * 0.18 +
 finisherStrength * 0.14 -
-window.blockRisk * 0.34 -
+win.blockRisk * 0.34 -
 (goalDistance > 31 && option.key === "near-post" ? 0.16 : 0);
 return {
 ...option,
@@ -70035,7 +69947,7 @@ return true;
 }
 function cancelAutoPilotContinuation() {
 if (state.autoPilotPlay?.nextActionTimeoutId) {
-window.clearTimeout(state.autoPilotPlay.nextActionTimeoutId);
+win.clearTimeout(state.autoPilotPlay.nextActionTimeoutId);
 state.autoPilotPlay.nextActionTimeoutId = null;
 }
 }
@@ -70140,7 +70052,7 @@ return;
 }
 cancelAutoPilotContinuation();
 const resolvedDelay = delayMs ?? getAutoPilotContinuationDelay(actionType);
-state.autoPilotPlay.nextActionTimeoutId = window.setTimeout(() => {
+state.autoPilotPlay.nextActionTimeoutId = win.setTimeout(() => {
 state.autoPilotPlay.nextActionTimeoutId = null;
 if (
 !state.autoPilotPlay.active ||
@@ -71770,7 +71682,7 @@ ui.playPauseButton.textContent = "Start";
 }
 function cancelSequenceAdvance() {
 if (state.sequence.playbackTimeoutId !== null) {
-window.clearTimeout(state.sequence.playbackTimeoutId);
+win.clearTimeout(state.sequence.playbackTimeoutId);
 state.sequence.playbackTimeoutId = null;
 }
 }
@@ -71820,7 +71732,7 @@ finishSequencePlayback();
 return;
 }
 cancelSequenceAdvance();
-state.sequence.playbackTimeoutId = window.setTimeout(() => {
+state.sequence.playbackTimeoutId = win.setTimeout(() => {
 state.sequence.playbackTimeoutId = null;
 startSequenceStep(nextIndex);
 }, 16);
@@ -71995,7 +71907,7 @@ const defaultName =
 state.scenario.title && state.scenario.title !== defaultScenarioInfo.title
 ? state.scenario.title
 : `Sequence ${new Date().toLocaleDateString("en-GB")}`;
-const requestedName = window.prompt("What would you like to name this sequence?", defaultName);
+const requestedName = win.prompt("What would you like to name this sequence?", defaultName);
 if (requestedName === null) {
 return;
 }
@@ -72021,7 +71933,7 @@ logEvent("The latest central sequence could not be read.");
 }
 return;
 }
-const raw = window.localStorage.getItem(sequenceStorageKey);
+const raw = win.localStorage.getItem(sequenceStorageKey);
 if (!raw) {
 logEvent("No saved central sequence was found.");
 return;
@@ -72738,7 +72650,7 @@ ctx.fillText(row, x + 12, y + 16 + index * 18);
 ctx.restore();
 }
 function drawAutoV2DebugOverlay() {
-if (!state.autoV2Debug && !window.__autoV2DebugEnabled) {
+if (!state.autoV2Debug && !win.__autoV2DebugEnabled) {
 return;
 }
 const actionMeta = getRenderedAutoV2ActionMeta();
@@ -73062,7 +72974,7 @@ drawSelectionBox();
 renderSidebar();
 updatePitchFullscreenHudLayout();
 }
-window.renderGameSimulator = render;
+win.renderGameSimulator = render;
 function pickPlayer(point) {
 const hitRadius = playerRadiusMeters + 0.5;
 const reversed = [...state.players].reverse();
@@ -73407,7 +73319,7 @@ executePlannedAction,
 setKeyboardActionMode,
 armKeyboardActionGrace,
 clearKeyboardActionGrace,
-requestAnimationFrame: (callback) => window.requestAnimationFrame(callback),
+requestAnimationFrame: (callback) => win.requestAnimationFrame(callback),
 });
 gameSimulatorFullscreenController = controllers.fullscreenController;
 gameSimulatorKeyboardState = controllers.keyboardState; gameSimulatorWorkspaceController = controllers.workspaceController;
@@ -73657,11 +73569,11 @@ const tooltipWidth = ui.metricTooltip.offsetWidth;
 const tooltipHeight = ui.metricTooltip.offsetHeight;
 let left = rect.left + rect.width / 2 - tooltipWidth / 2;
 let top = rect.bottom + 10;
-left = clamp(left, padding, window.innerWidth - tooltipWidth - padding);
-if (top + tooltipHeight > window.innerHeight - padding) {
+left = clamp(left, padding, win.innerWidth - tooltipWidth - padding);
+if (top + tooltipHeight > win.innerHeight - padding) {
 top = rect.top - tooltipHeight - 10;
 }
-top = clamp(top, padding, window.innerHeight - tooltipHeight - padding);
+top = clamp(top, padding, win.innerHeight - tooltipHeight - padding);
 ui.metricTooltip.style.left = `${left}px`;
 ui.metricTooltip.style.top = `${top}px`;
 }
@@ -73845,17 +73757,17 @@ function syncAutoV2DebugButton() {
 if (!ui.autoV2DebugButton) {
 return;
 }
-ui.autoV2DebugButton.classList.toggle("is-active", Boolean(window.__autoV2DebugEnabled));
-ui.autoV2DebugButton.setAttribute("aria-pressed", String(Boolean(window.__autoV2DebugEnabled)));
-ui.autoV2DebugButton.textContent = window.__autoV2DebugEnabled ? "Auto v2 Debug On" : "Auto v2 Debug";
+ui.autoV2DebugButton.classList.toggle("is-active", Boolean(win.__autoV2DebugEnabled));
+ui.autoV2DebugButton.setAttribute("aria-pressed", String(Boolean(win.__autoV2DebugEnabled)));
+ui.autoV2DebugButton.textContent = win.__autoV2DebugEnabled ? "Auto v2 Debug On" : "Auto v2 Debug";
 }
 function toggleAutoV2DebugOverlay() {
 state.autoV2Debug = !state.autoV2Debug;
-window.__autoV2DebugEnabled = state.autoV2Debug;
+win.__autoV2DebugEnabled = state.autoV2Debug;
 logEvent(state.autoV2Debug ? "Auto v2 debug overlay is on." : "Auto v2 debug overlay is off.");
 render();
 }
-window.toggleAutoV2DebugOverlay = toggleAutoV2DebugOverlay;
+win.toggleAutoV2DebugOverlay = toggleAutoV2DebugOverlay;
 function shouldIgnoreHotkey(event) { return shouldIgnoreSimulatorTextOrModifierTarget(event); }
 function shouldIgnoreSpaceAutopilotHotkey(event) { return shouldIgnoreSimulatorTextOrModifierTarget(event); }
 function clearKeyboardActionGrace() { gameSimulatorKeyboardState?.clearKeyboardActionGrace(state); }
@@ -74246,8 +74158,8 @@ if (trigger && !trigger.contains(event.relatedTarget)) {
 hideTopIconTooltip();
 }
 });
-window.addEventListener("scroll", hideTopIconTooltip, { passive: true });
-window.addEventListener("resize", hideTopIconTooltip);
+win.addEventListener("scroll", hideTopIconTooltip, { passive: true });
+win.addEventListener("resize", hideTopIconTooltip);
 document.addEventListener("keydown", (event) => {
 if (event.key === "Escape") {
 if (dashboardChatGroupCreatorOpen) {
@@ -74302,7 +74214,7 @@ return;
 }
 const removeTaskButton = event.target.closest("[data-dashboard-remove-task]");
 if (removeTaskButton) {
-if (window.confirm("Remove this task?")) {
+if (win.confirm("Remove this task?")) {
 removeDashboardTask(removeTaskButton.dataset.dashboardRemoveTask);
 refreshDashboardSurfaces();
 }
@@ -74540,7 +74452,7 @@ if (openGroupCreatorButton) {
 event.preventDefault();
 dashboardChatGroupCreatorOpen = true;
 renderDashboardChatWidget();
-window.setTimeout(() => {
+win.setTimeout(() => {
 ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-group-name-input]")?.focus();
 }, 0);
 return;
@@ -74896,7 +74808,7 @@ focusDashboardChatWidgetComposer();
 renderTopIconMenu();
 });
 document.addEventListener("click", (event) => {
-const modalRoot = document.getElementById("dashboardModalRoot");
+const modalRoot = getElement("dashboardModalRoot");
 if (!modalRoot || modalRoot.hidden) {
 return;
 }
@@ -74921,7 +74833,7 @@ document.addEventListener("keydown", (event) => {
 if (event.key !== "Escape") {
 return;
 }
-const modalRoot = document.getElementById("dashboardModalRoot");
+const modalRoot = getElement("dashboardModalRoot");
 if (!modalRoot || modalRoot.hidden) {
 return;
 }
@@ -74955,12 +74867,12 @@ event.target.value = "";
 importFootballScienceDataBackupFile(file);
 setProfileMenuOpen(false);
 });
-window.addEventListener("platform:open-workspace", (event) => {
+win.addEventListener("platform:open-workspace", (event) => {
 const workspaceId = event.detail?.workspaceId;
 if (!workspaceId) {
 return;
 }
-window.__pendingWorkspaceId = workspaceId;
+win.__pendingWorkspaceId = workspaceId;
 if (!hubState) {
 return;
 }
@@ -74969,9 +74881,9 @@ setActiveWorkspace(workspaceId);
 });
 ui.profileWorkspace?.addEventListener("submit", async (event) => {
 event.preventDefault();
-if (window.platformAuthReadyPromise instanceof Promise) {
+if (win.platformAuthReadyPromise instanceof Promise) {
 try {
-await window.platformAuthReadyPromise;
+await win.platformAuthReadyPromise;
 } catch {
 }
 }
@@ -75036,9 +74948,9 @@ const imageInput = event.target.closest("#profileImageUpload");
 if (!imageInput) {
 return;
 }
-if (window.platformAuthReadyPromise instanceof Promise) {
+if (win.platformAuthReadyPromise instanceof Promise) {
 try {
-await window.platformAuthReadyPromise;
+await win.platformAuthReadyPromise;
 } catch {
 }
 }
@@ -75085,9 +74997,9 @@ renderProfileWorkspace(message);
 ui.profileWorkspace?.addEventListener("click", async (event) => {
 const removePhotoButton = event.target.closest("[data-profile-remove-photo]");
 if (removePhotoButton) {
-if (window.platformAuthReadyPromise instanceof Promise) {
+if (win.platformAuthReadyPromise instanceof Promise) {
 try {
-await window.platformAuthReadyPromise;
+await win.platformAuthReadyPromise;
 } catch {
 }
 }
@@ -75128,7 +75040,7 @@ const removeTaskButton = event.target.closest("[data-dashboard-remove-task]");
 if (!removeTaskButton) {
 return;
 }
-if (window.confirm("Remove this To-Do?")) {
+if (win.confirm("Remove this To-Do?")) {
 removeDashboardTask(removeTaskButton.dataset.dashboardRemoveTask);
 refreshDashboardSurfaces();
 }
@@ -75178,7 +75090,7 @@ if (!canAdminManageUser(getCurrentPlatformUser(), staffUser, structure, { remove
 renderStaffWorkspace("This user is outside your admin scope.");
 return;
 }
-if (!window.confirm(`Remove ${formatUserName(staffUser)}?`)) {
+if (!win.confirm(`Remove ${formatUserName(staffUser)}?`)) {
 return;
 }
 const result = await getPlatformAuthStore()?.removeUser?.(userId);
@@ -75545,7 +75457,7 @@ return;
 if (!canRunAdminUserAction(adminUser, { remove: true })) {
 return;
 }
-if (!window.confirm(`Remove ${formatUserName(adminUser)}?`)) {
+if (!win.confirm(`Remove ${formatUserName(adminUser)}?`)) {
 return;
 }
 const result = await getPlatformAuthStore()?.removeUser?.(userId);
@@ -75891,7 +75803,7 @@ return;
 }
 const deleteRecordButton = event.target.closest("[data-medical-delete-record]");
 if (deleteRecordButton && canEditMedicalTeam()) {
-if (window.confirm("Archive this medical log entry? It will remain in protected clinical history.")) {
+if (win.confirm("Archive this medical log entry? It will remain in protected clinical history.")) {
 const recordId = deleteRecordButton.dataset.medicalDeleteRecord;
 const record = medicalState.records.find((entry) => entry.id === recordId) ?? null;
 const archivedRecord = removeMedicalRecord(recordId);
@@ -75907,7 +75819,7 @@ return;
 }
 const deleteInjuryPlanButton = event.target.closest("[data-medical-delete-injury-plan]");
 if (deleteInjuryPlanButton && canEditMedicalTeam()) {
-if (window.confirm("Archive this availability plan? It will remain in protected clinical history.")) {
+if (win.confirm("Archive this availability plan? It will remain in protected clinical history.")) {
 const planId = deleteInjuryPlanButton.dataset.medicalDeleteInjuryPlan;
 const plan = medicalState.injuryPlans.find((entry) => entry.id === planId) ?? null;
 const archivedPlan = removeMedicalInjuryPlan(planId);
@@ -75947,7 +75859,7 @@ return;
 const removePlayerButton = event.target.closest("[data-medical-remove-player]");
 if (removePlayerButton && canEditMedicalTeam()) {
 const player = medicalState.players.find((candidate) => candidate.id === removePlayerButton.dataset.medicalRemovePlayer);
-if (player && window.confirm(`Archive ${player.name} from Medical Room? Medical history will remain protected.`)) {
+if (player && win.confirm(`Archive ${player.name} from Medical Room? Medical history will remain protected.`)) {
 const archivedPlayer = removeMedicalPlayer(player.id);
 void recordMedicalDatabaseSyncEvent("player-archived", {
 playerId: player.id,
@@ -76390,7 +76302,7 @@ if (!removeButton) return;
 if (!isCurrentPlatformUserAdmin()) { renderPlayerProfilesWorkspace({ status: "warning", lines: ["Only team admins can remove players from Squad Room."] }); return; }
 ensurePlayerProfilesState();
 const player = playerProfilesState.players.find((candidate) => candidate.id === removeButton.dataset.playerProfileRemove);
-if (player && window.confirm(`Remove ${player.name} from Player Profiles?`)) {
+if (player && win.confirm(`Remove ${player.name} from Player Profiles?`)) {
 const removed = removePlayerProfile(player.id);
 playerProfileModalOpen = false;
 playerProfileNewPlayerModalOpen = false;
@@ -77173,7 +77085,7 @@ return;
 }
 startSessionPlannerTacticalDrag(event);
 });
-window.addEventListener("pointermove", (event) => {
+win.addEventListener("pointermove", (event) => {
 if (updateSessionPlannerLibraryPointerDrag(event)) {
 return;
 }
@@ -77185,7 +77097,7 @@ return;
 }
 updateSessionPlannerTacticalDrag(event);
 });
-window.addEventListener("pointerup", (event) => {
+win.addEventListener("pointerup", (event) => {
 if (finishSessionPlannerLibraryPointerDrag(event)) {
 return;
 }
@@ -77378,7 +77290,7 @@ function isSessionPlannerShortcutTextEditingTarget(target) {
 return Boolean(target?.closest?.("input, textarea, select, [contenteditable='true']"));
 }
 function hasSessionPlannerActiveTextSelection() {
-const selection = window.getSelection?.();
+const selection = win.getSelection?.();
 return Boolean(selection && !selection.isCollapsed && String(selection).trim());
 }
 function shouldHandleSessionPlannerTacticalboardShortcut(event, options = {}) {
@@ -77497,11 +77409,11 @@ return;
 }
 removeSelectedSessionPlannerTacticalElement();
 }
-window.addEventListener("keydown", handleSessionPlannerTacticalboardKeydown, true);
-window.addEventListener("keyup", handleSessionPlannerTacticalboardDeleteKeyup, true);
-window.addEventListener("copy", handleSessionPlannerTacticalboardCopy, true);
-window.addEventListener("paste", handleSessionPlannerTacticalboardPaste, true);
-window.addEventListener("afterprint", removeSessionPlannerPrintRoot);
+win.addEventListener("keydown", handleSessionPlannerTacticalboardKeydown, true);
+win.addEventListener("keyup", handleSessionPlannerTacticalboardDeleteKeyup, true);
+win.addEventListener("copy", handleSessionPlannerTacticalboardCopy, true);
+win.addEventListener("paste", handleSessionPlannerTacticalboardPaste, true);
+win.addEventListener("afterprint", removeSessionPlannerPrintRoot);
 ui.sessionPlannerWorkspace?.addEventListener("keydown", (event) => {
 if (event[SESSION_TACTICALBOARD_KEY_HANDLED]) {
 return;
@@ -78205,10 +78117,10 @@ removeSavedSequenceEntry(savedSequenceId);
 render();
 }
 });
-window.addEventListener("blur", () => {
+win.addEventListener("blur", () => {
 setProfileMenuOpen(false);
 });
-window.addEventListener("platform:user-change", () => {
+win.addEventListener("platform:user-change", () => {
 syncPlatformUserFromAuth();
 syncAccountMenu();
 setProfileMenuOpen(false);
@@ -78229,7 +78141,7 @@ renderWorkspaceChrome();
 }
 scheduleDashboardLoginPopups();
 });
-window.addEventListener("footballscience:central-state-ready", () => {
+win.addEventListener("footballscience:central-state-ready", () => {
 dataSafetyRuntimeStatus.lastError = "";
 retryCentral();
 flushCentralStateWrites();
@@ -78239,12 +78151,12 @@ requestCentralizedAppStateReload();
 refreshDataSafetyStatus();
 });
 document.addEventListener("focusout", () => {
-window.setTimeout(flushDeferredCentralizedAppStateReload, 180);
+win.setTimeout(flushDeferredCentralizedAppStateReload, 180);
 }, true);
 document.addEventListener("pointerup", () => {
-window.setTimeout(flushDeferredCentralizedAppStateReload, 180);
+win.setTimeout(flushDeferredCentralizedAppStateReload, 180);
 }, true);
-window.addEventListener("focus", () => {
+win.addEventListener("focus", () => {
 applyPlatformThemeByTime();
 markDashboardPresenceActivity();
 startDashboardPresenceRuntime();
@@ -78252,14 +78164,15 @@ pushDashboardPresence("online").catch(() => {});
 refreshDashboardPresence({ forceRender: true }).catch(() => {});
 queueDashboardChatCurrentViewRefresh({ delayMs: 250 });
 refreshCentralStateFromSource("focus");
-window.setTimeout(flushDeferredCentralizedAppStateReload, 180);
+win.setTimeout(flushDeferredCentralizedAppStateReload, 180);
 });
-window.addEventListener("blur", () => {
-pushDashboardPresence("away").catch(() => {});
+win.addEventListener("blur", () => {
+pushDashboardPresence("away", { force: true }).catch(() => {});
 });
 document.addEventListener("visibilitychange", () => {
 if (document.visibilityState !== "visible") {
-pushDashboardPresence("away").catch(() => {});
+pushDashboardPresence("away", { force: true }).catch(() => {});
+pauseDashboardPresenceRuntime();
 renderDashboardChatWidget();
 return;
 }
@@ -78273,7 +78186,7 @@ return;
 }
 queueDashboardChatCurrentViewRefresh({ delayMs: 250 });
 refreshCentralStateFromSource("visibility");
-window.setTimeout(flushDeferredCentralizedAppStateReload, 180);
+win.setTimeout(flushDeferredCentralizedAppStateReload, 180);
 });
 ["pointerdown", "keydown", "mousemove", "touchstart"].forEach((eventName) => {
 document.addEventListener(
@@ -78284,10 +78197,10 @@ markDashboardPresenceActivity();
 { passive: true }
 );
 });
-centralStateRefreshTimer = window.setInterval(() => {
+centralStateRefreshTimer = win.setInterval(() => {
 refreshCentralStateFromSource("interval");
 }, centralStateRefreshIntervalMs);
-window.addEventListener("storage", (event) => {
+win.addEventListener("storage", (event) => {
 if (isDataSafetyProtectedStorageKey(event.key)) {
 queueDataSafetyStatusRefresh();
 queueDataSafetySnapshot("cross-tab-update");
@@ -78351,15 +78264,15 @@ renderDashboardCards();
 renderTopIconMenu();
 }
 });
-window.addEventListener("pagehide", () => {
+win.addEventListener("pagehide", () => {
 pushDashboardPresence("away").catch(() => {});
 if (centralStateWriteTimer) {
-window.clearTimeout(centralStateWriteTimer);
+win.clearTimeout(centralStateWriteTimer);
 centralStateWriteTimer = null;
 flushCentralStateWrites();
 }
 if (dataSafetySnapshotTimer) {
-window.clearTimeout(dataSafetySnapshotTimer);
+win.clearTimeout(dataSafetySnapshotTimer);
 dataSafetySnapshotTimer = null;
 saveDataSafetySnapshot("pagehide");
 }

@@ -8,6 +8,8 @@ const SESSION_HISTORY_SCHEMA = "footballscience-session-history-v1";
 const MAX_SESSION_HISTORY_ENTRIES = 160;
 const MAX_SESSION_HISTORY_VALUE_BYTES = 9 * 1024 * 1024;
 const SESSION_HISTORY_BURST_WINDOW_MS = 5 * 60 * 1000;
+const STATE_BUCKET_CHECK_TTL_MS = 10 * 60 * 1000;
+let stateBucketReadyCache = { checkedAt: 0, ready: false, pending: null };
 
 function getStorageBaseUrl() {
   const { url, serviceRoleKey } = readConfig();
@@ -83,21 +85,40 @@ async function storageRequest(path, options = {}) {
 }
 
 async function ensureStateBucket() {
-  const existing = await storageRequest(`/bucket/${encodeURIComponent(STATE_BUCKET)}`, { method: "GET" });
-  if (existing.ok) {
+  const now = Date.now();
+  if (stateBucketReadyCache.ready && now - stateBucketReadyCache.checkedAt < STATE_BUCKET_CHECK_TTL_MS) {
     return true;
   }
+  if (stateBucketReadyCache.pending) {
+    return stateBucketReadyCache.pending;
+  }
 
-  const created = await storageRequest("/bucket", {
-    method: "POST",
-    body: JSON.stringify({
-      id: STATE_BUCKET,
-      name: STATE_BUCKET,
-      public: false,
-    }),
-  });
+  stateBucketReadyCache.pending = (async () => {
+    const existing = await storageRequest(`/bucket/${encodeURIComponent(STATE_BUCKET)}`, { method: "GET" });
+    if (existing.ok) {
+      return true;
+    }
 
-  return created.ok || created.status === 409 || String(created.reason || "").toLowerCase().includes("already");
+    const created = await storageRequest("/bucket", {
+      method: "POST",
+      body: JSON.stringify({
+        id: STATE_BUCKET,
+        name: STATE_BUCKET,
+        public: false,
+      }),
+    });
+
+    return created.ok || created.status === 409 || String(created.reason || "").toLowerCase().includes("already");
+  })();
+
+  try {
+    const ready = await stateBucketReadyCache.pending;
+    stateBucketReadyCache = { checkedAt: Date.now(), ready, pending: null };
+    return ready;
+  } catch {
+    stateBucketReadyCache = { checkedAt: Date.now(), ready: false, pending: null };
+    return false;
+  }
 }
 
 function objectPathForKey(key) {

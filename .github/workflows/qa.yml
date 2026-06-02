@@ -18,5 +18,7 @@ jobs:
       - run: npm ci
       - run: npm run release:preflight
       - run: npm run security:audit
-      - run: npx playwright install --with-deps chromium
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+        timeout-minutes: 5
       - run: npm run qa

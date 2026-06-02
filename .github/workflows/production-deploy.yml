@@ -42,7 +42,9 @@ jobs:
       - run: npm run release:ci-env
       - run: npm run release:vercel-token
 
-      - run: npx playwright install --with-deps chromium
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+        timeout-minutes: 5
 
       - name: Verify release gate
         run: npm run release:gate

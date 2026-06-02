@@ -61,5 +61,7 @@ jobs:
       - name: Roll back production alias
         run: npx --yes vercel@53.2.0 rollback "$ROLLBACK_DEPLOYMENT" --yes --timeout=5m --token="$VERCEL_TOKEN"
       - run: npm run release:postdeploy
-      - run: npx playwright install --with-deps chromium
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+        timeout-minutes: 5
       - run: npm run qa:live:required

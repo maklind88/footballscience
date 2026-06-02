@@ -21,5 +21,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify:staging-env -- --required
-      - run: npx playwright install --with-deps chromium
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+        timeout-minutes: 5
       - run: npm run qa:staging:required

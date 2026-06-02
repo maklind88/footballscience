@@ -33,7 +33,9 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+        timeout-minutes: 5
       - run: npm run qa
 
       - name: Check staging deploy config

@@ -36,5 +36,7 @@ jobs:
           restore-keys: |
             playwright-linux-
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+        timeout-minutes: 5
       - run: npm run release:monitor

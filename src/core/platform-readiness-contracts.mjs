@@ -714,7 +714,7 @@ export function createPlatformReadinessReport(options = {}) {
   return Object.freeze({
     schema: PLATFORM_READINESS_SCHEMA,
     generatedAt: new Date().toISOString(),
-    overallStatus: worstStatus(sections.map((section) => section.status)),
+    overallStatus: worstStatus([...sections.map((section) => section.status), ...liveSignals.map((signal) => signal.status)]),
     summary,
     sections,
     modules: moduleMap,

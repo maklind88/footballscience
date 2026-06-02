@@ -157,6 +157,24 @@ test("live health signals cover production, checks, backup, egress, and live QA 
   expect(signals.every((signal) => signal.evidence.length)).toBe(true);
 });
 
+test("overall readiness falls back when live health signals are missing", () => {
+  const report = createPlatformReadinessReport({
+    env: {
+      VERCEL_ENV: "production",
+      VERCEL_URL: "footballscience.xyz",
+    },
+    scripts: {
+      "release:monitor": "npm run release:monitor",
+    },
+    modules: [],
+    permissionMatrix: [],
+    dataSafetyContracts: [],
+  });
+
+  expect(report.liveSignals.some((signal) => signal.status === platformReadinessStatuses.missing)).toBe(true);
+  expect(report.overallStatus).toBe(platformReadinessStatuses.missing);
+});
+
 test("operating priorities define the long-term platform hardening order", () => {
   const report = createPlatformReadinessReport({
     env: completeEnv,

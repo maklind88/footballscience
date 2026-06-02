@@ -41,6 +41,7 @@ const RATE_LIMITS = {
   setThreadSettings: 30,
   setThreadParticipants: 12,
   clearThread: 5,
+  archiveThread: 5,
   createAttachmentIntent: 20,
   uploadAttachmentObject: 20,
   default: 60,
@@ -216,6 +217,9 @@ function normalizeThreadSettingPatch(value = {}) {
   }
   if (hasOwn(source, "avatarLabel")) {
     patch.avatarLabel = normalizeString(source.avatarLabel, 2).toUpperCase();
+  }
+  if (hasOwn(source, "avatarUrl")) {
+    patch.avatarUrl = normalizeString(source.avatarUrl, 800);
   }
   return patch;
 }
@@ -1171,8 +1175,8 @@ function mentionHandles(text) {
 }
 
 function databaseAuditEvent(actor, action, details = {}) {
-  const destructive = ["deleteMessage", "clearThread"].includes(action);
-  const adminAction = ["setMessagePinned", "setMessagePriority", "setThreadSettings", "setThreadParticipants", "clearThread"].includes(action);
+  const destructive = ["deleteMessage", "clearThread", "archiveThread"].includes(action);
+  const adminAction = ["setMessagePinned", "setMessagePriority", "setThreadSettings", "setThreadParticipants", "clearThread", "archiveThread"].includes(action);
   return {
     action: `chat.${action}`,
     severity: destructive ? "warning" : adminAction ? "notice" : "info",
@@ -1395,6 +1399,7 @@ async function enrichThreadSummaries(actor, threads = []) {
           pinned: Boolean(actorSettings.pinned),
           customTitle: normalizeString(metadata.customTitle || "", 140),
           avatarLabel: normalizeString(metadata.avatarLabel || "", 2).toUpperCase(),
+          avatarUrl: normalizeString(metadata.avatarUrl || metadata.imageUrl || "", 800),
           updatedAt: normalizeString(settingsByUser[actor?.id]?.updatedAt || metadata.threadSettingsUpdatedAt || metadata.settingsUpdatedAt || "", 80),
         },
         lastMessage: enrichedLastMessage || null,
@@ -2149,13 +2154,13 @@ async function setThreadSettings(actor, body) {
   }
 
   const rawPatch = { ...(isPlainObject(body.settings) ? body.settings : {}) };
-  ["muted", "pinned", "customTitle", "avatarLabel"].forEach((key) => {
+  ["muted", "pinned", "customTitle", "avatarLabel", "avatarUrl"].forEach((key) => {
     if (hasOwn(body, key)) {
       rawPatch[key] = body[key];
     }
   });
   const requestedPatch = normalizeThreadSettingPatch(rawPatch);
-  const changesSharedThreadIdentity = hasOwn(requestedPatch, "customTitle") || hasOwn(requestedPatch, "avatarLabel");
+  const changesSharedThreadIdentity = hasOwn(requestedPatch, "customTitle") || hasOwn(requestedPatch, "avatarLabel") || hasOwn(requestedPatch, "avatarUrl");
   const canManageThread = actorRole(actor) === "admin" || canManageByRole(access.membership?.role);
   if (changesSharedThreadIdentity && !canManageThread) {
     return { ok: false, status: 403, reason: "Chat manager access required." };
@@ -2188,6 +2193,9 @@ async function setThreadSettings(actor, body) {
   }
   if (hasOwn(requestedPatch, "avatarLabel")) {
     metadata.avatarLabel = requestedPatch.avatarLabel;
+  }
+  if (hasOwn(requestedPatch, "avatarUrl")) {
+    metadata.avatarUrl = requestedPatch.avatarUrl;
   }
 
   const [updatedThread] = await patchRows("chat_threads", `id=eq.${filterValue(thread.id)}`, update);
@@ -2363,6 +2371,42 @@ async function clearThread(actor, body) {
   return { ok: true, action: "clearThread", thread, auditId: audit?.id || "" };
 }
 
+async function archiveThread(actor, body) {
+  const threadId = normalizeId(body.threadId || body.thread_id || body.id);
+  if (!threadId) {
+    return { ok: false, status: 400, reason: "threadId is required." };
+  }
+
+  const thread = await readThread(threadId);
+  const access = await ensureThreadAccess(actor, thread, { manager: true });
+  if (!access.ok) {
+    return access;
+  }
+  if (thread?.type !== "group") {
+    return { ok: false, status: 400, reason: "Only custom group chats can be deleted." };
+  }
+
+  const now = new Date().toISOString();
+  const [updatedThread] = await patchRows("chat_threads", `id=eq.${filterValue(thread.id)}`, {
+    archived_at: now,
+    metadata: {
+      ...(isPlainObject(thread.metadata) ? thread.metadata : {}),
+      archivedBy: actor.id || "",
+      archivedAt: now,
+    },
+  });
+  const audit = await insertAudit(actor, "archiveThread", {
+    organization_id: thread.organization_id,
+    team_id: thread.team_id,
+    thread_id: thread.id,
+  }, {
+    title: thread.title,
+    type: thread.type,
+  });
+
+  return { ok: true, action: "archiveThread", thread: updatedThread || { ...thread, archived_at: now }, auditId: audit?.id || "" };
+}
+
 async function createAttachmentIntent(actor, body) {
   const thread = await resolveThreadForAction(actor, body);
   const access = await ensureThreadAccess(actor, thread);
@@ -2527,6 +2571,8 @@ async function handleDatabasePost(req, res, actor) {
     result = await setThreadParticipants(actor, body);
   } else if (action === "clearThread") {
     result = await clearThread(actor, body);
+  } else if (action === "archiveThread") {
+    result = await archiveThread(actor, body);
   } else if (action === "createAttachmentIntent") {
     result = await createAttachmentIntent(actor, body);
   } else if (action === "uploadAttachmentObject") {

@@ -40,6 +40,7 @@ const CHAT_ACTIONS = new Set([
   "setThreadSettings",
   "setThreadParticipants",
   "clearThread",
+  "archiveThread",
   "createAttachmentIntent",
 ]);
 const UNSAFE_OBJECT_KEYS = new Set(["__proto__", "constructor", "prototype"]);

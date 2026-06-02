@@ -1798,3 +1798,5 @@ body.is-dashboard-chat-open .dashboard-chat-widget.is-open{
   gap:.18rem!important;
   overflow:hidden!important;
 }
+
+.dashboard-chat-thread-avatar.has-photo{overflow:hidden!important;background:#fff!important}.dashboard-chat-thread-avatar.has-photo img{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important}.dashboard-chat-settings-grid button.is-danger{border-color:rgba(239,68,68,.2)!important;background:linear-gradient(180deg,#fff7f7,#fff)!important;color:#b91c1c!important}.dashboard-chat-settings-grid button.is-danger span{color:#dc2626!important}.dashboard-chat-settings-grid button.is-danger small{color:#991b1b!important}

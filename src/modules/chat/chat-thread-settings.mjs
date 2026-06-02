@@ -10,6 +10,7 @@ export function normalizeDashboardChatThreadSettings(value = {}) {
     pinned: Boolean(value?.pinned),
     customTitle: normalizeText(value?.customTitle).slice(0, 80),
     avatarLabel: normalizeText(value?.avatarLabel).slice(0, 2).toUpperCase(),
+    avatarUrl: normalizeText(value?.avatarUrl).slice(0, 800),
     updatedAt: normalizeText(value?.updatedAt),
   };
 }

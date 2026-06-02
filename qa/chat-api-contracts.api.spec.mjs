@@ -365,3 +365,14 @@ test("custom database groups keep their own title instead of managed room templa
   expect(appSource).toContain('const templateByManagedType = ["medical", "matchday", "training", "announcement"].includes(type)');
   expect(appSource).toContain("title: String(thread.title || thread.name || template?.title");
 });
+
+test("custom groups support top placement, avatar metadata, and safe delete", () => {
+  expect(appSource).toContain("createdAt: String(thread.created_at || thread.createdAt");
+  expect(appSource).toContain("Date.parse(apiThread?.createdAt || apiThread?.updatedAt || \"\")");
+  expect(appSource).toContain("archiveDashboardChatThreadWithApi");
+  expect(appSource).toContain('action: "archiveThread"');
+  expect(chatDatabaseSource).toContain("async function archiveThread");
+  expect(chatDatabaseSource).toContain('thread?.type !== "group"');
+  expect(chatDatabaseSource).toContain("archived_at: now");
+  expect(chatDatabaseSource).toContain("avatarUrl");
+});

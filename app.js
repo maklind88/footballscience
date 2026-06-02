@@ -9057,6 +9057,9 @@ databaseThreadId: String(thread.id || "").trim(),
 type,
 title: String(thread.title || thread.name || template?.title || (type === "team" ? getDashboardChatTeamChatTitle() : "Chat")).trim(),
 visibility: String(thread.visibility || "members").trim(),
+createdAt: String(thread.created_at || thread.createdAt || "").trim(),
+updatedAt: String(thread.updated_at || thread.updatedAt || "").trim(),
+avatarUrl: String(thread.avatarUrl || thread.avatar_url || thread.metadata?.avatarUrl || thread.metadata?.imageUrl || "").trim(),
 lastMessageAt: String(messageCount || lastMessage ? thread.last_message_at || thread.lastMessageAt || "" : "").trim(),
 messageCount,
 unreadCount: Number(thread.unreadCount || thread.unread_count || 0) || 0,
@@ -9539,16 +9542,17 @@ showDashboardChatWidgetToast(result.reason || "Could not create group.", getDash
 return null;
 }
 applyDashboardChatApiPayload(result.result || {}, { threadId: legacyThreadId });
+const createdThreadId = normalizeDashboardChatThreadId(result.result?.thread?.threadId || result.result?.thread?.legacyThreadId || legacyThreadId, legacyThreadId);
 dashboardChatMessageSearchQuery = "";
 writeDashboardChatWidgetState({
 isOpen: true,
-selectedThreadId: legacyThreadId,
+selectedThreadId: createdThreadId,
 });
 dashboardChatGroupCreatorOpen = false;
 form.reset();
 renderDashboardChatWidget();
 focusDashboardChatWidgetComposer();
-showDashboardChatWidgetToast("Group created.", legacyThreadId);
+showDashboardChatWidgetToast("Group created.", createdThreadId);
 queueDashboardChatThreadSummaryRefresh({ delayMs: 0, render: true });
 return result.result?.thread || null;
 } catch (error) {
@@ -10011,7 +10015,7 @@ const lastActivityMs = hasMessageActivity
 Date.parse(lastMessage?.createdAt || "") || 0,
 Date.parse(apiThread?.lastMessageAt || "") || 0
 )
-: 0;
+: Date.parse(apiThread?.createdAt || apiThread?.updatedAt || "") || 0;
 const managedTemplate = dashboardChatAdvancedThreadTemplates.find((template) => template.key === normalizedThreadId);
 const isDirectThread = !isTeamThread && !isManagedThread && normalizedThreadId.startsWith("dm:");
 const fallbackThreadLabel = formatDashboardChatThreadLabel(normalizedThreadId, currentUser, users);
@@ -10050,6 +10054,7 @@ lastMessage,
 lastActivityAt: lastActivityMs ? new Date(lastActivityMs).toISOString() : "",
 apiThread,
 settings: threadSettings,
+avatarUrl: threadSettings.avatarUrl || apiThread?.avatarUrl || "",
 };
 }
 function getDashboardChatThreadList(currentUser = getCurrentPlatformUser(), users = getPlatformUsers(), messages = readDashboardMessages()) {
@@ -10095,13 +10100,8 @@ const secondPinned = Boolean(second.settings?.pinned);
 if (firstPinned !== secondPinned) {
 return firstPinned ? -1 : 1;
 }
-const firstHasMessages = Boolean(first.messageCount || first.lastMessage || first.apiThread?.lastMessage || first.apiThread?.lastMessageAt);
-const secondHasMessages = Boolean(second.messageCount || second.lastMessage || second.apiThread?.lastMessage || second.apiThread?.lastMessageAt);
-if (firstHasMessages !== secondHasMessages) {
-return firstHasMessages ? -1 : 1;
-}
-const firstTime = firstHasMessages ? Date.parse(first.lastActivityAt || first.lastMessage?.createdAt || first.apiThread?.lastMessageAt || "") || 0 : 0;
-const secondTime = secondHasMessages ? Date.parse(second.lastActivityAt || second.lastMessage?.createdAt || second.apiThread?.lastMessageAt || "") || 0 : 0;
+const firstTime = Date.parse(first.lastActivityAt || first.lastMessage?.createdAt || first.apiThread?.lastMessageAt || first.apiThread?.createdAt || "") || 0;
+const secondTime = Date.parse(second.lastActivityAt || second.lastMessage?.createdAt || second.apiThread?.lastMessageAt || second.apiThread?.createdAt || "") || 0;
 if (firstTime === secondTime) {
 const firstName = getDashboardUserLabel(first.participant?.id, users);
 const secondName = getDashboardUserLabel(second.participant?.id, users);
@@ -10618,6 +10618,27 @@ queueDashboardChatThreadSummaryRefresh({ delayMs: 50 });
 return true;
 }
 );
+}
+async function archiveDashboardChatThreadWithApi(threadId) {
+const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+const result = await sendDashboardChatApiAction({
+action: "archiveThread",
+threadId: normalizedThreadId,
+threadType: getDashboardChatThreadTypeForApi(normalizedThreadId),
+});
+if (!result.ok) {
+logDashboardChatApiFailure("archiveThread", result);
+showDashboardChatWidgetToast(result.reason || "Group could not be deleted.", normalizedThreadId);
+return false;
+}
+dashboardChatApiThreads = dashboardChatApiThreads.filter((thread) => thread.threadId !== normalizedThreadId);
+clearDashboardMessagesForThread(normalizedThreadId, { skipCentralSync: true });
+dashboardChatThreadSettings.remove(normalizedThreadId);
+writeDashboardChatWidgetState({ isOpen: true, selectedThreadId: dashboardChatTeamThreadId });
+dashboardChatDetailsOpen = false;
+queueDashboardChatThreadSummaryRefresh({ delayMs: 0, render: true });
+showDashboardChatWidgetToast("Group deleted.", dashboardChatTeamThreadId);
+return true;
 }
 function getDashboardChatRenderSignature(html = "") {
 let hash = 0;
@@ -74325,6 +74346,19 @@ const currentState = readDashboardChatWidgetState();
 dashboardChatApiUiActions.handleThreadSettingAction(threadSettingButton, currentState.selectedThreadId);
 return;
 }
+const archiveThreadButton = event.target.closest("[data-dashboard-chat-archive-thread]");
+if (archiveThreadButton) {
+const threadId = normalizeDashboardChatThreadId(archiveThreadButton.dataset.dashboardChatArchiveThread, dashboardChatTeamThreadId);
+setDashboardChatConfirmAction({
+type: "archiveThread",
+threadId,
+title: "Delete this group?",
+message: "The group will disappear from the chat list. Messages stay protected in audit/history instead of being hard-deleted.",
+confirmLabel: "Delete group",
+});
+renderDashboardChatWidget();
+return;
+}
 const participantActionButton = event.target.closest("[data-dashboard-chat-participant-action]");
 if (participantActionButton) {
 const currentState = readDashboardChatWidgetState();
@@ -74337,6 +74371,8 @@ const confirmAction = dashboardChatConfirmAction;
 setDashboardChatConfirmAction(null);
 if (confirmAction?.type === "clearThread") {
 await clearDashboardMessagesForThreadWithApi(confirmAction.threadId);
+} else if (confirmAction?.type === "archiveThread") {
+await archiveDashboardChatThreadWithApi(confirmAction.threadId);
 } else if (confirmAction?.type === "deleteMessage") {
 await removeDashboardMessageWithApi(confirmAction.messageId);
 renderTopIconMenu();

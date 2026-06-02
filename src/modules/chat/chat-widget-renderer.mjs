@@ -437,9 +437,12 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       unreadCount ? `<span class="dashboard-chat-thread-unread" aria-label="${escapeHtml(`${unreadLabel} unread message${unreadCount === 1 ? "" : "s"}`)}">${escapeHtml(unreadLabel)}</span>` : "",
     ].filter(Boolean).join("");
     const avatarLabel = threadSettings.avatarLabel || (thread.isTeamThread ? "T" : (threadLabel[0] || "C"));
+    const avatarUrl = threadSettings.avatarUrl || thread.avatarUrl || "";
     const avatarMarkup = thread.participant
       ? renderPresenceAvatar(thread.participant, "dashboard-chat-thread-avatar")
-      : `<span class="dashboard-chat-thread-avatar is-team" aria-hidden="true">${escapeHtml(avatarLabel)}</span>`;
+      : avatarUrl
+        ? `<span class="dashboard-chat-thread-avatar is-team has-photo" aria-hidden="true"><img src="${escapeHtml(avatarUrl)}" alt=""></span>`
+        : `<span class="dashboard-chat-thread-avatar is-team" aria-hidden="true">${escapeHtml(avatarLabel)}</span>`;
     const threadTime = thread.lastActivityAt
       ? escapeHtml(formatTime(thread.lastActivityAt))
       : thread.lastMessage
@@ -659,6 +662,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const links = getThreadLinks(messages, activeThreadId);
     const threadSettings = activeThread?.settings || {};
     const canManageParticipants = Boolean(activeThread?.permissions?.canManageParticipants && !activeThread?.isTeamThread);
+    const canManageGroup = Boolean(activeThread && activeThread.type === "group" && canManageParticipants);
     const normalizedSearch = String(messageSearchQuery || "").trim();
     const activeMatchPosition = searchMatchCount ? Math.min(Math.max(Number(searchActiveMatchIndex) || 0, 0), searchMatchCount - 1) + 1 : 0;
     const searchSummary = normalizedSearch
@@ -725,8 +729,16 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
             </button>
             <button type="button" data-dashboard-chat-thread-setting="avatar" data-dashboard-chat-thread-setting-thread="${escapeHtml(activeThreadId)}">
               <span>Image</span>
-              <small>${escapeHtml(threadSettings.avatarLabel || "Set initials")}</small>
+              <small>${escapeHtml(threadSettings.avatarUrl ? "Photo set" : threadSettings.avatarLabel || "Photo or initials")}</small>
             </button>
+            ${
+              canManageGroup
+                ? `<button type="button" class="is-danger" data-dashboard-chat-archive-thread="${escapeHtml(activeThreadId)}">
+                    <span>Delete group</span>
+                    <small>Remove from chat list</small>
+                  </button>`
+                : ""
+            }
           </div>
         </div>
         <div class="dashboard-chat-details-section">

@@ -251,9 +251,13 @@ export function createDashboardChatApiUiActions(dependencies = {}) {
       return true;
     }
     if (action === "avatar") {
-      const nextAvatarLabel = window.prompt("Conversation initials", currentSettings.avatarLabel || "");
-      if (nextAvatarLabel !== null) {
-        void setThreadSettingsWithApi(threadId, { avatarLabel: normalizeText(nextAvatarLabel).slice(0, 2).toUpperCase() });
+      const nextAvatarValue = window.prompt("Group image URL or initials", currentSettings.avatarUrl || currentSettings.avatarLabel || "");
+      if (nextAvatarValue !== null) {
+        const cleanValue = normalizeText(nextAvatarValue);
+        const patch = /^https?:\/\//i.test(cleanValue)
+          ? { avatarUrl: cleanValue, avatarLabel: "" }
+          : { avatarLabel: cleanValue.slice(0, 2).toUpperCase(), avatarUrl: "" };
+        void setThreadSettingsWithApi(threadId, patch);
       }
       return true;
     }

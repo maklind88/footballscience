@@ -542,8 +542,49 @@ body.is-dark-mode .medical-plan-edit:focus-visible {
 .medical-roster-player-meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.36rem;
   min-width: 0;
+}
+
+.medical-squad-availability-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.24rem;
+  padding: 0 0.42rem;
+  border-radius: 999px;
+  border: 1px solid rgba(29, 31, 29, 0.08);
+  background: rgba(236, 239, 244, 0.94);
+  color: #3f4650;
+  font-size: 0.62rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.medical-squad-availability-badge.is-national-team {
+  border-color: rgba(59, 130, 246, 0.18);
+  background: #dbeafe;
+  color: #143d70;
+}
+
+.medical-squad-availability-badge.is-vacation {
+  border-color: rgba(245, 158, 11, 0.22);
+  background: #fef3c7;
+  color: #68420c;
+}
+
+.medical-squad-availability-badge.is-suspended,
+.medical-squad-availability-badge.is-unavailable {
+  border-color: rgba(220, 38, 38, 0.18);
+  background: #fee2e2;
+  color: #8a1f11;
+}
+
+.medical-squad-availability-badge.is-personal,
+.medical-squad-availability-badge.is-loan {
+  border-color: rgba(82, 91, 107, 0.15);
+  background: #eceef2;
+  color: #3f3f46;
 }
 
 .medical-roster-current-cell {
@@ -1384,6 +1425,31 @@ body.is-dark-mode .medical-roster-row.is-selected,
 body.is-dark-mode .medical-roster-row.is-bulk-selected {
   border-color: rgba(129, 210, 159, 0.36);
   background: rgba(29, 50, 43, 0.88);
+}
+
+body.is-dark-mode .medical-squad-availability-badge {
+  border-color: rgba(203, 213, 225, 0.16);
+  background: rgba(148, 163, 184, 0.18);
+  color: #d5e3ec;
+}
+
+body.is-dark-mode .medical-squad-availability-badge.is-national-team {
+  border-color: rgba(147, 197, 253, 0.34);
+  background: rgba(59, 130, 246, 0.22);
+  color: #dbeafe;
+}
+
+body.is-dark-mode .medical-squad-availability-badge.is-vacation {
+  border-color: rgba(251, 191, 36, 0.32);
+  background: rgba(180, 112, 20, 0.24);
+  color: #fde68a;
+}
+
+body.is-dark-mode .medical-squad-availability-badge.is-suspended,
+body.is-dark-mode .medical-squad-availability-badge.is-unavailable {
+  border-color: rgba(248, 113, 113, 0.32);
+  background: rgba(127, 29, 29, 0.34);
+  color: #fecaca;
 }
 
 body.is-dark-mode .medical-quick-rec-button,

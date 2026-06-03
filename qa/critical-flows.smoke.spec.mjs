@@ -1313,6 +1313,126 @@ test("Medical plan draft survives modal rerenders and saves long-term zero avail
   await expect(playerRow).toContainText("ACL long-term injury");
 });
 
+test("Medical availability blocks training recommendations for Squad non-available players", async ({ page }) => {
+  await page.addInitScript(({ medicalStorageKey, playerProfilesStorageKey, scheduleStorageKey }) => {
+    window.localStorage.setItem(
+      scheduleStorageKey,
+      JSON.stringify({
+        selectedYear: 2026,
+        selectedMonthIndex: 4,
+        selectedDate: "2026-05-19",
+        viewMode: "month",
+        overviewSpan: 6,
+        visibleEventTypes: ["training", "match", "meeting", "travel", "recovery", "off"],
+        importVersion: "qa-medical-squad-block-v1",
+        events: [{ id: "qa-training", date: "2026-05-19", time: "10:00", type: "training", title: "Training", note: "" }],
+      })
+    );
+    const players = [
+      {
+        id: "qa-international",
+        name: "QA International",
+        number: "9",
+        position: "Forward",
+        primaryRole: "ST",
+        roleGroup: "forward",
+        status: "national-team",
+        squadStatus: "important",
+        rosterType: "squad",
+        countsInSquad: true,
+        createdAt: "2026-05-18T08:00:00.000Z",
+        updatedAt: "2026-05-18T08:00:00.000Z",
+      },
+      {
+        id: "qa-available-training",
+        name: "QA Available Training",
+        number: "10",
+        position: "Midfielder",
+        primaryRole: "10",
+        roleGroup: "midfielder",
+        status: "available",
+        squadStatus: "rotation",
+        rosterType: "squad",
+        countsInSquad: true,
+        createdAt: "2026-05-18T08:00:00.000Z",
+        updatedAt: "2026-05-18T08:00:00.000Z",
+      },
+    ];
+    window.localStorage.setItem(
+      playerProfilesStorageKey,
+      JSON.stringify({
+        rosterVersion: "qa-medical-squad-block-v1",
+        schemaVersion: 3,
+        selectedPlayerId: "qa-international",
+        players,
+        removedPlayerIds: [],
+        updatedAt: "2026-05-18T08:00:00.000Z",
+      })
+    );
+    window.localStorage.setItem(
+      medicalStorageKey,
+      JSON.stringify({
+        selectedDate: "2026-05-19",
+        selectedPlayerId: "qa-international",
+        rosterVersion: "qa-medical-squad-block-v1",
+        players,
+        records: [
+          {
+            id: "qa-stale-international-full",
+            playerId: "qa-international",
+            date: "2026-05-19",
+            status: "full",
+            participation: 100,
+            actualParticipation: "not-logged",
+            rtpPhase: "full-training",
+            createdAt: "2026-05-18T09:00:00.000Z",
+          },
+        ],
+        injuryPlans: [],
+      })
+    );
+  }, { medicalStorageKey: medicalKey, playerProfilesStorageKey: playerProfilesKey, scheduleStorageKey: scheduleKey });
+
+  await bootApp(page);
+  await openWorkspace(page, "medical-team");
+  await page.locator('[data-medical-ops-tab="availability"]').click();
+
+  const internationalRow = page.locator('[data-medical-roster-row="qa-international"]');
+  const availableRow = page.locator('[data-medical-roster-row="qa-available-training"]');
+  await expect(internationalRow.locator(".medical-squad-availability-badge")).toHaveText("International duty");
+  await expect(internationalRow.locator(".medical-quick-rec-button.is-active")).toHaveText("0%");
+  await expect(internationalRow.locator('[data-medical-quick-participation="100"]')).toBeDisabled();
+  await expect(internationalRow.locator("[data-medical-bulk-toggle]")).toBeDisabled();
+  await expect(availableRow.locator('[data-medical-quick-participation="100"]')).toBeEnabled();
+
+  await page.locator("[data-medical-bulk-menu-toggle]").click();
+  await page.locator("[data-medical-bulk-select-not-set]").click();
+  await expect(internationalRow.locator("[data-medical-bulk-toggle]")).not.toHaveClass(/is-selected/);
+  await expect(availableRow.locator("[data-medical-bulk-toggle]")).toHaveClass(/is-selected/);
+  await page.locator("#medicalBulkRecommendationForm button[type='submit']").click();
+
+  await expect
+    .poll(() =>
+      page.evaluate((storageKey) => {
+        const state = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+        const internationalRecords = (state.records || []).filter((record) => record.playerId === "qa-international");
+        const availableRecords = (state.records || []).filter((record) => record.playerId === "qa-available-training");
+        return {
+          internationalCount: internationalRecords.length,
+          internationalParticipation: internationalRecords[0]?.participation,
+          availableCount: availableRecords.length,
+          availableParticipation: availableRecords[0]?.participation,
+        };
+      }, medicalKey)
+    )
+    .toEqual({
+      internationalCount: 1,
+      internationalParticipation: 100,
+      availableCount: 1,
+      availableParticipation: 75,
+    });
+});
+
 test("Medical metrics use current-month and trailing 7-day averages", async ({ page }) => {
   await page.addInitScript(({ storageKey }) => {
     const fixedNow = new Date("2026-05-15T12:00:00Z").valueOf();

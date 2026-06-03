@@ -21923,6 +21923,7 @@ function getSessionPlannerTemporaryProfileAvailabilityItems(dateValue = medicalS
     .filter((profile) => !existingIds.has(String(profile.id ?? "").trim()))
     .map((profile) => buildMedicalPlayerFromPlayerProfile(profile))
     .filter((player) => player && player.id && player.name)
+    .filter((player) => !isMedicalPlayerBlockedBySquadAvailability(player))
     .map((player) => ({
       player,
       record: null,
@@ -24376,6 +24377,44 @@ return "modified";
 }
 return "full";
 }
+const medicalSquadAvailabilityBlockStatusKeys = new Set([
+"national-team",
+"vacation",
+"personal",
+"suspended",
+"loan",
+"unavailable",
+]);
+function normalizeMedicalPlayerAvailabilityStatus(value, fallback = "available") {
+const status = String(value ?? "").trim().toLowerCase();
+return playerProfileStatusOptions.some((option) => option.key === status) ? status : fallback;
+}
+function getMedicalPlayerAvailabilityStatus(player = {}) {
+return normalizeMedicalPlayerAvailabilityStatus(
+player.status || player.availabilityStatus || player.availability_status,
+"available"
+);
+}
+function getMedicalPlayerAvailabilityStatusOption(player = {}) {
+const statusKey = getMedicalPlayerAvailabilityStatus(player);
+return (
+playerProfileStatusOptions.find((option) => option.key === statusKey) || {
+key: statusKey,
+label: statusKey ? statusKey.replace(/-/g, " ") : "Available",
+tone: "unavailable",
+}
+);
+}
+function isMedicalPlayerBlockedBySquadAvailability(player = {}) {
+return medicalSquadAvailabilityBlockStatusKeys.has(getMedicalPlayerAvailabilityStatus(player));
+}
+function getMedicalPlayerSquadAvailabilityBlockReason(player = {}) {
+if (!isMedicalPlayerBlockedBySquadAvailability(player)) {
+return "";
+}
+const option = getMedicalPlayerAvailabilityStatusOption(player);
+return `${player.name || "Player"} is marked ${option.label} in Squad Room and should not receive a team-activity recommendation.`;
+}
 function getMedicalRtpPhaseForRecommendation(statusKey, participation, activityType = "training") {
 if (statusKey === "unavailable" || participation === 0) {
 return "medical-restriction";
@@ -24460,6 +24499,7 @@ number: String(player.number ?? "").trim(),
 position,
 photoUrl: String(player.photoUrl ?? "").trim(),
 sourceUrl: String(player.sourceUrl ?? "").trim(),
+status: normalizeMedicalPlayerAvailabilityStatus(player.status || player.availabilityStatus || player.availability_status),
 rosterType,
 countsInSquad: typeof player.countsInSquad === "boolean"
 ? player.countsInSquad
@@ -28705,6 +28745,7 @@ id: player.id || createDashboardId("medical-player"),
 name: player.name,
 number: player.number,
 position: player.position,
+status: player.status,
 primaryRole: player.primaryRole,
 secondaryRoles: player.secondaryRoles,
 roleGroup: player.roleGroup,
@@ -29135,6 +29176,29 @@ return medicalState.injuryPlans
 .filter((plan) => plan.playerId === playerId && isMedicalInjuryPlanActive(plan, dateValue))
 .sort((first, second) => new Date(second.updatedAt || second.createdAt) - new Date(first.updatedAt || first.createdAt))[0] ?? null;
 }
+function createMedicalRecordFromSquadAvailabilityBlock(player, dateValue) {
+if (!player || !isMedicalDateValue(dateValue) || !isMedicalPlayerBlockedBySquadAvailability(player)) {
+return null;
+}
+const option = getMedicalPlayerAvailabilityStatusOption(player);
+const reason = option.label || "Unavailable";
+return {
+id: `squad-availability:${player.id}:${dateValue}`,
+playerId: player.id,
+date: dateValue,
+status: "unavailable",
+participation: 0,
+actualParticipation: medicalActualParticipationFallback,
+comment: `${reason} in Squad Room`,
+coachNote: `${reason} - not available for team activity`,
+shareWithCoach: true,
+rtpPhase: "medical-restriction",
+createdAt: player.updatedAt || new Date().toISOString(),
+updatedAt: player.updatedAt || new Date().toISOString(),
+createdBy: "squad-room",
+source: "squad-availability",
+};
+}
 function isMedicalPlanCleared(plan) {
 if (!plan) {
 return true;
@@ -29150,6 +29214,11 @@ function getMedicalRecommendationBlockReason(playerId, participation, dateValue)
 const activityContext = getMedicalRecommendationActivityContext(dateValue);
 if (!activityContext.isRecommendable) {
 return activityContext.blockReason;
+}
+const player = medicalState.players.find((candidate) => candidate.id === playerId);
+const squadBlockReason = getMedicalPlayerSquadAvailabilityBlockReason(player);
+if (squadBlockReason) {
+return squadBlockReason;
 }
 const activePlan = getActiveMedicalInjuryPlan(playerId, dateValue);
 if (participation === 100 && activePlan && !isMedicalPlanCleared(activePlan)) {
@@ -29220,6 +29289,11 @@ injuryPlanId: plan.id,
 }
 function getLatestMedicalRecord(playerId, dateValue = medicalState?.selectedDate) {
 ensureMedicalState();
+const player = medicalState.players.find((candidate) => candidate.id === playerId);
+const squadBlockRecord = createMedicalRecordFromSquadAvailabilityBlock(player, dateValue);
+if (squadBlockRecord) {
+return squadBlockRecord;
+}
 const manualRecord = medicalState.records
 .filter((record) => record.playerId === playerId && record.date === dateValue && !isMedicalItemArchived(record))
 .sort((first, second) => new Date(second.updatedAt || second.createdAt) - new Date(first.updatedAt || first.createdAt))[0] ?? null;
@@ -29513,6 +29587,13 @@ const windowLabel = getPlayerProfileTemporaryWindowLabel(player);
 const isActiveToday = isPlayerProfileTemporaryActiveOnDate(player, medicalState?.selectedDate);
 const label = [getPlayerProfileRosterLabel(player), windowLabel].filter(Boolean).join(" / ");
 return `<span class="medical-temporary-badge${isActiveToday ? "" : " is-outside-window"}">${escapeHtml(label)}</span>`;
+}
+function renderMedicalSquadAvailabilityBadge(player = {}) {
+if (!isMedicalPlayerBlockedBySquadAvailability(player)) {
+return "";
+}
+const option = getMedicalPlayerAvailabilityStatusOption(player);
+return `<span class="medical-squad-availability-badge is-${escapeHtml(option.tone || option.key)}">${escapeHtml(option.label)}</span>`;
 }
 function getMedicalDailyStats(dateValue = medicalState?.selectedDate) {
 ensureMedicalState();
@@ -30061,7 +30142,11 @@ return matchesSearch && matchesStatus;
 }
 function getMedicalValidBulkSelection() {
 ensureMedicalState();
-const validIds = new Set(getActiveMedicalPlayersForDate(medicalState.selectedDate).map((player) => player.id));
+const validIds = new Set(
+getActiveMedicalPlayersForDate(medicalState.selectedDate)
+.filter((player) => !isMedicalPlayerBlockedBySquadAvailability(player))
+.map((player) => player.id)
+);
 medicalBulkSelectedPlayerIds = new Set(
 Array.from(medicalBulkSelectedPlayerIds).filter((playerId) => validIds.has(playerId))
 );
@@ -30071,8 +30156,17 @@ function getMedicalBulkSelectedPlayers() {
 const selectedIds = getMedicalValidBulkSelection();
 return getActiveMedicalPlayersForDate(medicalState.selectedDate).filter((player) => selectedIds.has(player.id)).sort(compareMedicalPlayers);
 }
+function getMedicalBulkRecommendationEligiblePlayers(players = getFilteredMedicalPlayers()) {
+return players.filter((player) => !isMedicalPlayerBlockedBySquadAvailability(player));
+}
 function toggleMedicalBulkPlayer(playerId) {
 const selectedIds = getMedicalValidBulkSelection();
+const player = getActiveMedicalPlayersForDate(medicalState.selectedDate).find((candidate) => candidate.id === playerId);
+if (isMedicalPlayerBlockedBySquadAvailability(player)) {
+selectedIds.delete(playerId);
+renderMedicalTeamWorkspace(getMedicalPlayerSquadAvailabilityBlockReason(player));
+return;
+}
 if (selectedIds.has(playerId)) {
 selectedIds.delete(playerId);
 } else if (getActiveMedicalPlayers().some((player) => player.id === playerId)) {
@@ -30080,8 +30174,12 @@ selectedIds.add(playerId);
 }
 renderMedicalTeamWorkspace();
 }
-function setMedicalBulkSelection(playerIds = []) {
-const validIds = new Set(getActiveMedicalPlayers().map((player) => player.id));
+function setMedicalBulkSelection(playerIds = [], dateValue = medicalState.selectedDate) {
+const validIds = new Set(
+getActiveMedicalPlayersForDate(dateValue)
+.filter((player) => !isMedicalPlayerBlockedBySquadAvailability(player))
+.map((player) => player.id)
+);
 medicalBulkSelectedPlayerIds = new Set(playerIds.filter((playerId) => validIds.has(playerId)));
 renderMedicalTeamWorkspace();
 }
@@ -30094,7 +30192,13 @@ medicalBulkSelectedPlayerIds = new Set();
 renderMedicalTeamWorkspace(activityContext.blockReason);
 return;
 }
-setMedicalBulkSelection(players.filter((player) => !getLatestMedicalRecord(player.id, bulkDate)).map((player) => player.id));
+setMedicalBulkSelection(
+players
+.filter((player) => !isMedicalPlayerBlockedBySquadAvailability(player))
+.filter((player) => !getLatestMedicalRecord(player.id, bulkDate))
+.map((player) => player.id),
+bulkDate
+);
 }
 function applyMedicalQuickRecommendation(playerId, participationValue) {
 ensureMedicalState();
@@ -30192,6 +30296,7 @@ const selectedCount = selectedPlayers.length;
 const defaultDate = medicalState.selectedDate;
 const activityContext = getMedicalRecommendationActivityContext(defaultDate);
 const canRecommend = canEdit && activityContext.isRecommendable;
+const eligiblePlayers = getMedicalBulkRecommendationEligiblePlayers(players);
 const defaultParticipation = 75;
 const defaultStatus = getMedicalStatusForParticipation(defaultParticipation);
 const defaultRtpPhase = getMedicalRtpPhaseForRecommendation(defaultStatus, defaultParticipation, activityContext.type);
@@ -30214,7 +30319,7 @@ ${medicalBulkRecommendationOpen ? `
 </label>
 <label class="medical-bulk-select-field">
 <span>Select</span>
-<input type="button" value="Select Not Set" data-medical-bulk-select-not-set ${canRecommend && players.length ? "" : "disabled"} />
+<input type="button" value="Select Not Set" data-medical-bulk-select-not-set ${canRecommend && eligiblePlayers.length ? "" : "disabled"} />
 </label>
 <label class="medical-bulk-recommend-field">
 <span>Recommend</span>
@@ -30264,7 +30369,7 @@ activityLabel.textContent = activityContext.isRecommendable
 activityLabel.classList.toggle("is-locked", !activityContext.isRecommendable);
 }
 if (selectNotSetButton) {
-selectNotSetButton.disabled = !canRecommend || !getFilteredMedicalPlayers().length;
+selectNotSetButton.disabled = !canRecommend || !getMedicalBulkRecommendationEligiblePlayers(getFilteredMedicalPlayers()).length;
 }
 if (submitButton) {
 submitButton.disabled = !canRecommend || !getMedicalBulkSelectedPlayers().length;
@@ -31295,9 +31400,11 @@ return stats;
 function renderMedicalQuickRecommendationButtons(player, record) {
 const canEdit = canEditMedicalTeam();
 const activityContext = getMedicalRecommendationActivityContext(medicalState.selectedDate);
-const canRecommend = canEdit && activityContext.isRecommendable;
+const squadBlockReason = getMedicalPlayerSquadAvailabilityBlockReason(player);
+const canRecommend = canEdit && activityContext.isRecommendable && !squadBlockReason;
+const label = squadBlockReason || activityContext.quickLabel;
 return `
-<div class="medical-quick-rec-row" role="group" aria-label="${escapeHtml(activityContext.quickLabel)} for ${escapeHtml(player.name)}">
+<div class="medical-quick-rec-row" role="group" aria-label="${escapeHtml(label)} for ${escapeHtml(player.name)}">
 ${medicalParticipationOptions
 .map((participation) => {
 const statusKey = getMedicalStatusForParticipation(participation);
@@ -31308,6 +31415,7 @@ class="medical-quick-rec-button medical-quick-${escapeHtml(statusKey)}${record?.
 data-medical-quick-recommend="${escapeHtml(player.id)}"
 data-medical-quick-participation="${participation}"
 aria-label="${escapeHtml(player.name)} ${participation}% ${escapeHtml(activityContext.activityLabel.toLowerCase())} recommendation"
+title="${escapeHtml(label)}"
 ${canRecommend ? "" : "disabled"}
 >${participation}%</button>
 `;
@@ -31323,10 +31431,11 @@ const activityContext = getMedicalRecommendationActivityContext(medicalState.sel
 const isSelected = player.id === medicalState.selectedPlayerId;
 const isBulkSelected = getMedicalValidBulkSelection().has(player.id);
 const latestComment = getMedicalVisibleComment(record);
-const canBulkSelect = canEditMedicalTeam() && activityContext.isRecommendable;
+const squadBlockReason = getMedicalPlayerSquadAvailabilityBlockReason(player);
+const canBulkSelect = canEditMedicalTeam() && activityContext.isRecommendable && !squadBlockReason;
 const bulkToggleLabel = isBulkSelected
 ? `Remove ${player.name} from bulk recommendation`
-: `Select ${player.name} for bulk recommendation`;
+: squadBlockReason || `Select ${player.name} for bulk recommendation`;
 return `
 <article
 class="medical-roster-row medical-tone-${escapeHtml(status.tone)}${isSelected && medicalPlayerModalOpen ? " is-selected" : ""}${isBulkSelected ? " is-bulk-selected" : ""}"
@@ -31344,6 +31453,7 @@ ${renderMedicalPlayerAvatar(player)}
 ${player.number ? `<span>#${escapeHtml(player.number)}</span>` : ""}
 <span>${escapeHtml(player.position || "Position")}</span>
 ${renderMedicalTemporaryPlayerBadge(player)}
+${renderMedicalSquadAvailabilityBadge(player)}
 </div>
 </div>
 </div>
@@ -31905,14 +32015,16 @@ formStatus,
 formActual,
 formRtpPhase,
 formStatusLabel,
+squadBlockReason,
 } = context;
+const lockMessage = squadBlockReason || (!activityContext.isRecommendable ? `${activityContext.blockReason} Select a training or match day to add a recommendation.` : "");
 return `
 <article class="medical-modal-main-card">
 <div class="medical-card-headline">
 <h2>${escapeHtml(activityContext.recommendationLabel)}</h2>
 <span data-medical-recommendation-preview>${formParticipation}% / ${escapeHtml(formStatusLabel)}</span>
 </div>
-${activityContext.isRecommendable ? "" : `<div class="medical-activity-lock">${escapeHtml(activityContext.blockReason)} Select a training or match day to add a recommendation.</div>`}
+${lockMessage ? `<div class="medical-activity-lock">${escapeHtml(lockMessage)}</div>` : ""}
 <form id="medicalRecommendationForm" class="medical-profile-form medical-recommendation-form" data-medical-recommendation-form>
 <input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
 <input type="hidden" name="status" id="medicalRecommendationStatus" value="${escapeHtml(formStatus)}" />
@@ -32028,7 +32140,8 @@ return "";
 }
 const canEdit = canEditMedicalTeam();
 const activityContext = getMedicalRecommendationActivityContext(medicalState.selectedDate);
-const canRecommend = canEdit && activityContext.isRecommendable;
+const squadBlockReason = getMedicalPlayerSquadAvailabilityBlockReason(player);
+const canRecommend = canEdit && activityContext.isRecommendable && !squadBlockReason;
 const record = getLatestMedicalRecord(player.id, medicalState.selectedDate);
 const status = getMedicalRecordStatus(record);
 const formParticipation = record?.participation ?? 100;
@@ -32070,6 +32183,7 @@ formStatus,
 formActual,
 formRtpPhase,
 formStatusLabel,
+squadBlockReason,
 })}
 </section>
 </div>
@@ -32377,6 +32491,9 @@ ensureMedicalState();
 const playerId = values.playerId;
 const player = medicalState.players.find((candidate) => candidate.id === playerId);
 if (!player || !isMedicalDateValue(values.date)) {
+return null;
+}
+if (isMedicalPlayerBlockedBySquadAvailability(player)) {
 return null;
 }
 const participation = normalizeMedicalParticipation(values.participation);

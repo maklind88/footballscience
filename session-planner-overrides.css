@@ -1,0 +1,17 @@
+/*
+  Session Planner overlays must sit above the compact platform navigation.
+  The sidebar/more menu uses z-index values up to 430, so planner modals need
+  their own higher layer whenever boards or print dialogs are open.
+*/
+#sessionPlannerWorkspace .session-library-overlay {
+  z-index: 620;
+}
+
+#sessionPlannerWorkspace .session-library-overlay.session-save-conflict-overlay,
+#sessionPlannerWorkspace .session-library-overlay.session-central-conflict-overlay {
+  z-index: 640;
+}
+
+#sessionPlannerWorkspace .session-player-board-profile-overlay {
+  z-index: 660;
+}

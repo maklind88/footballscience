@@ -2071,6 +2071,114 @@ test("Squad removal keeps default roster players hidden after reload", async ({ 
   await expect(page.locator(`[data-player-profile-select="${removedPlayerId}"]`)).toHaveCount(0);
 });
 
+test("Medical Room hides stale active players that were removed from Squad", async ({ page }) => {
+  const removedPlayerId = "ncc-2026-cortnee-vine";
+  await page.addInitScript(
+    ({ profileStorageKey, medicalStorageKey, removedPlayerId }) => {
+      const now = "2026-05-27T12:00:00.000Z";
+      window.localStorage.setItem(
+        profileStorageKey,
+        JSON.stringify({
+          rosterVersion: "qa-squad-removed-player-guard",
+          schemaVersion: 3,
+          selectedPlayerId: "",
+          players: [],
+          removedPlayerIds: [removedPlayerId],
+          updatedAt: now,
+        })
+      );
+      window.localStorage.setItem(
+        medicalStorageKey,
+        JSON.stringify({
+          rosterVersion: "qa-medical-stale-removed-player",
+          selectedDate: "2026-05-19",
+          selectedPlayerId: removedPlayerId,
+          players: [
+            {
+              id: removedPlayerId,
+              name: "Cortnee Vine",
+              number: "",
+              position: "Forward",
+              rosterType: "squad",
+              countsInSquad: true,
+              createdAt: now,
+              updatedAt: now,
+            },
+          ],
+          records: [
+            {
+              id: "qa-cortnee-stale-record",
+              playerId: removedPlayerId,
+              date: "2026-05-19",
+              status: "full",
+              participation: 100,
+              rtpPhase: "full-training",
+              createdAt: now,
+              updatedAt: now,
+            },
+          ],
+          injuryPlans: [
+            {
+              id: "qa-cortnee-stale-plan",
+              playerId: removedPlayerId,
+              injuryType: "Old plan",
+              bodyArea: "",
+              startDate: "2026-05-19",
+              endDate: "2026-05-26",
+              duration: 1,
+              durationUnit: "weeks",
+              status: "unavailable",
+              participation: 0,
+              rtpPhase: "medical-restriction",
+              createdAt: now,
+              updatedAt: now,
+            },
+          ],
+        })
+      );
+    },
+    { profileStorageKey: playerProfilesKey, medicalStorageKey: medicalKey, removedPlayerId }
+  );
+
+  await bootApp(page);
+  await page.evaluate(() => {
+    const store = window.platformAuthStore;
+    const currentUser = store?.getCurrentUser?.();
+    if (!store || !currentUser) return;
+    const nextUser = { ...currentUser, role: "admin" };
+    store.writeUsers([nextUser, ...store.getUsers().filter((user) => user.id !== nextUser.id)]);
+    store.setCurrentUser(nextUser.id);
+  });
+  await openWorkspace(page, "medical-team");
+
+  await expect(page.locator(`[data-medical-roster-row="${removedPlayerId}"]`)).toHaveCount(0);
+  await expect(page.locator("#medicalTeamWorkspace")).not.toContainText("Cortnee Vine");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        ({ medicalStorageKey, removedPlayerId }) => {
+          const medicalState = JSON.parse(window.localStorage.getItem(medicalStorageKey) || "{}");
+          const player = Array.isArray(medicalState.players)
+            ? medicalState.players.find((entry) => entry.id === removedPlayerId)
+            : null;
+          const record = Array.isArray(medicalState.records)
+            ? medicalState.records.find((entry) => entry.id === "qa-cortnee-stale-record")
+            : null;
+          const plan = Array.isArray(medicalState.injuryPlans)
+            ? medicalState.injuryPlans.find((entry) => entry.id === "qa-cortnee-stale-plan")
+            : null;
+          return {
+            playerArchived: Boolean(player?.archivedAt),
+            recordArchived: Boolean(record?.archivedAt),
+            planArchived: Boolean(plan?.archivedAt),
+          };
+        },
+        { medicalStorageKey: medicalKey, removedPlayerId }
+      )
+    )
+    .toEqual({ playerArchived: true, recordArchived: true, planArchived: true });
+});
+
 test("Squad removal archives matching Medical player and removes planner availability", async ({ page }) => {
   const playerName = `QA Remove Everywhere ${Date.now()}`;
   const squadPlayerId = "qa-squad-remove-everywhere";
@@ -2856,7 +2964,7 @@ test("Squad availability status is editable and Medical injury status overrides 
   expect(manualPlayerId).toBeTruthy();
 
   await page.evaluate(
-    ({ medicalStorageKey, playerStorageKey, playerId }) => {
+    ({ medicalStorageKey, playerStorageKey, playerId, manualPlayerId }) => {
       const profiles = JSON.parse(window.localStorage.getItem(playerStorageKey) || "{}");
       const player = Array.isArray(profiles.players)
         ? profiles.players.find((candidate) => candidate.id === playerId)
@@ -2911,12 +3019,20 @@ test("Squad availability status is editable and Medical injury status overrides 
           createdBy: "qa",
         },
         ...(Array.isArray(medical.injuryPlans)
-          ? medical.injuryPlans.filter((plan) => plan.id !== "qa-active-squad-injury-plan" && plan.playerId !== player.id)
+          ? medical.injuryPlans.filter(
+              (plan) =>
+                plan.id !== "qa-active-squad-injury-plan" &&
+                plan.playerId !== player.id &&
+                plan.playerId !== manualPlayerId
+            )
           : []),
       ];
+      medical.records = Array.isArray(medical.records)
+        ? medical.records.filter((record) => record.playerId !== manualPlayerId)
+        : [];
       window.localStorage.setItem(medicalStorageKey, JSON.stringify(medical));
     },
-    { medicalStorageKey: medicalKey, playerStorageKey: playerProfilesKey, playerId: injuredPlayerId }
+    { medicalStorageKey: medicalKey, playerStorageKey: playerProfilesKey, playerId: injuredPlayerId, manualPlayerId }
   );
 
   await page.reload({ waitUntil: "domcontentloaded" });
@@ -2926,12 +3042,23 @@ test("Squad availability status is editable and Medical injury status overrides 
     page.locator(`[data-player-profile-select="${injuredPlayerId}"] .squad-status-pill`).first()
   ).toContainText("Injured");
   await expect(
+    page.locator(`[data-player-profile-select="${injuredPlayerId}"] .squad-return-date`).first()
+  ).toHaveText("Expected back Thu 31 Dec");
+  await expect(
     page.locator(`[data-player-profile-select="${injuredPlayerId}"] .squad-medical-cell`)
   ).toHaveCount(0);
+  await page.locator(`[data-player-profile-select="${injuredPlayerId}"]`).click();
+  await expect(page.locator(".squad-profile-identity .squad-return-date")).toHaveText("Expected back Thu 31 Dec");
+  await page.locator('[data-player-profile-tab="medical"]').click();
+  await expect(page.locator(".squad-medical-snapshot")).toContainText("Expected return");
+  await expect(page.locator(".squad-medical-snapshot")).toContainText("Thu 31 Dec");
+  await page.locator("[data-player-profile-modal-close]").click();
+  await expect(page.locator(".squad-profile-modal")).toHaveCount(0);
 
   await page.locator(`[data-player-profile-select="${manualPlayerId}"]`).click();
   const modal = page.locator(".squad-profile-modal:has(#playerProfileEditForm)").first();
   await expect(modal).toBeVisible();
+  await modal.locator('[data-player-profile-tab="overview"]').click();
   const statusSelect = modal.locator('select[name="status"]');
   await expect(statusSelect).toContainText("International duty");
   await expect(statusSelect).toContainText("Vacation");

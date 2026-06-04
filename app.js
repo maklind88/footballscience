@@ -25003,6 +25003,7 @@ function ensureMedicalState() {
 if (!medicalState) {
 medicalState = readMedicalState();
 }
+archiveMedicalPlayersRemovedFromSquad({ persist: canViewPrivateMedicalDetails() });
 return medicalState;
 }
 function getPlayerProfileOption(options, key, fallback = null) {
@@ -25566,6 +25567,11 @@ rtpStatus: String(summary.rtpStatus ?? "").trim(),
 coachNote: String(summary.coachNote ?? "").trim(),
 latestLogDate: String(summary.latestLogDate ?? "").trim(),
 latestLogSummary: String(summary.latestLogSummary ?? "").trim(),
+returnDate: String(summary.returnDate ?? "").trim(),
+returnDateLabel: String(summary.returnDateLabel ?? "").trim(),
+returnLabel: String(summary.returnLabel ?? "").trim(),
+activeInjuryLabel: String(summary.activeInjuryLabel ?? "").trim(),
+medicalSource: String(summary.medicalSource ?? "").trim(),
 };
 }
 function normalizePlayerProfileNumber(value, fallback = 3) {
@@ -26219,6 +26225,9 @@ return new Date(second.createdAt) - new Date(first.createdAt);
 })[0] ?? null;
 }
 function getPlayerProfileMedicalStatusOverride(snapshot = {}) {
+if (snapshot.medicalSource === "squad-availability" && !snapshot.hasActivePlan) {
+return "";
+}
 const statusKey = String(snapshot.medicalStatusKey || snapshot.tone || "").trim();
 const participation = Number(snapshot.participation);
 if (snapshot.hasActivePlan && Number.isFinite(participation) && participation < 100) {
@@ -26253,6 +26262,7 @@ latestLog.date <= dateValue &&
 : null;
 const medicalStatusKey = currentRecord?.status || activePlan?.status || openEndedLog?.status || "";
 const participation = currentRecord?.participation ?? activePlan?.participation ?? openEndedLog?.participation ?? null;
+const medicalSource = currentRecord?.source || (activePlan ? "injury-plan" : openEndedLog ? "manual-log" : "");
 const availabilityLabel = currentRecord
 ? `${getMedicalRecordStatus(currentRecord).label} / ${currentRecord.participation}%`
 : activePlan
@@ -26273,15 +26283,23 @@ const latestLogSummary = latestLog
 : activePlan
 ? `${formatMedicalDateLabel(dateValue)} - ${getMedicalRtpPhaseOption(activePlan.rtpPhase).label}`
 : "No medical log yet";
+const returnDate = activePlan?.endDate || "";
+const returnDateLabel = returnDate ? formatMedicalDateLabel(returnDate) : "";
+const activeInjuryLabel = activePlan ? [activePlan.injuryType, activePlan.bodyArea].filter(Boolean).join(" / ") : "";
 return {
 currentAvailability: availabilityLabel,
 rtpStatus,
 coachNote,
 latestLogDate: latestLog?.date || "",
 latestLogSummary,
+returnDate,
+returnDateLabel,
+returnLabel: returnDateLabel ? `Expected back ${returnDateLabel}` : "",
+activeInjuryLabel,
 tone: medicalStatusKey || "unset",
 participation,
 medicalStatusKey,
+medicalSource,
 hasActivePlan: Boolean(activePlan),
 isOpenEndedMedicalStatus: Boolean(openEndedLog),
 };
@@ -26397,9 +26415,19 @@ return `
     </label>
   `;
 }
-function renderPlayerProfileStatusChip(statusKey) {
+function renderPlayerProfileStatusChip(statusKey, medicalSnapshot = null) {
 const option = getPlayerProfileOption(playerProfileStatusOptions, statusKey, playerProfileStatusOptions[0]);
-return `<span class="squad-status-pill is-${escapeHtml(option.tone)}">${escapeHtml(option.label)}</span>`;
+const returnLabel = statusKey === "injured" ? String(medicalSnapshot?.returnLabel || "").trim() : "";
+const statusPill = `<span class="squad-status-pill is-${escapeHtml(option.tone)}">${escapeHtml(option.label)}</span>`;
+if (!returnLabel) {
+return statusPill;
+}
+return `
+    <span class="squad-status-stack" title="${escapeHtml(`${option.label} - ${returnLabel}`)}">
+      ${statusPill}
+      <small class="squad-return-date">${escapeHtml(returnLabel)}</small>
+    </span>
+  `;
 }
 function renderSquadOptionPill(options, key) {
 const option = getPlayerProfileOption(options, key);
@@ -27084,7 +27112,7 @@ return `
       <td>${renderSquadAgeCell(player)}</td>
       <td>${renderSquadRoleCell(player)}</td>
       <td>${renderSquadPlanningCell(player)}</td>
-      <td>${renderPlayerProfileStatusChip(effectiveStatus)}</td>
+      <td>${renderPlayerProfileStatusChip(effectiveStatus, medicalSnapshot)}</td>
       <td>${renderSquadIdpCell(player)}</td>
       <td>${renderSquadProfileProgressCell(completeness)}</td>
     </tr>
@@ -27240,6 +27268,15 @@ return `
           <span>Latest medical log</span>
           <strong>${escapeHtml(snapshot.latestLogSummary)}</strong>
         </div>
+        ${
+          snapshot.returnDateLabel
+            ? `<div>
+          <span>Expected return</span>
+          <strong>${escapeHtml(snapshot.returnDateLabel)}</strong>
+          ${snapshot.activeInjuryLabel ? `<small>${escapeHtml(snapshot.activeInjuryLabel)}</small>` : ""}
+        </div>`
+            : ""
+        }
       </div>
     </article>
   `;
@@ -27408,7 +27445,7 @@ return `
             <h2>${escapeHtml(player.name)}</h2>
             <span>${escapeHtml([player.number ? `#${player.number}` : "", player.position || "Position not set"].filter(Boolean).join(" - "))}</span>
           </div>
-          ${renderPlayerProfileStatusChip(effectiveStatus)}
+          ${renderPlayerProfileStatusChip(effectiveStatus, medicalSnapshot)}
         </header>
       </article>
       ${renderPlayerProfileTabs()}
@@ -28806,6 +28843,82 @@ return Array.from(matchesById.values());
 const nameMatches = activePlayers.filter((medicalPlayer) => normalizePlayerProfileName(medicalPlayer.name || medicalPlayer.displayName || "") === targetName);
 return nameMatches.length === 1 ? nameMatches : [];
 }
+function getMedicalRemovedSquadPlayerIdSet() {
+try {
+const profileState = ensurePlayerProfilesState();
+return new Set(normalizePlayerProfileRemovedIds(profileState?.removedPlayerIds));
+} catch {
+return new Set();
+}
+}
+function isMedicalPlayerRemovedFromSquad(player = {}, removedPlayerIdSet = getMedicalRemovedSquadPlayerIdSet()) {
+const playerId = String(player?.id || player?.playerId || player?.profileId || "").trim();
+return Boolean(playerId && removedPlayerIdSet.has(playerId));
+}
+function archiveMedicalPlayersRemovedFromSquad(options = {}) {
+if (!medicalState || !Array.isArray(medicalState.players)) {
+return [];
+}
+const removedPlayerIdSet = getMedicalRemovedSquadPlayerIdSet();
+if (!removedPlayerIdSet.size) {
+return [];
+}
+const activeRemovedPlayers = medicalState.players.filter(
+(player) => isMedicalPlayerRemovedFromSquad(player, removedPlayerIdSet) && !isMedicalItemArchived(player)
+);
+if (!activeRemovedPlayers.length) {
+return [];
+}
+const archivedAt = new Date().toISOString();
+const archivedBy = getCurrentMedicalActorId();
+const archivedIds = new Set(activeRemovedPlayers.map((player) => String(player.id || "").trim()).filter(Boolean));
+const archivedPlayers = [];
+medicalState.players = medicalState.players.map((player) => {
+if (!archivedIds.has(String(player.id || "").trim()) || isMedicalItemArchived(player)) {
+return player;
+}
+const archivedPlayer = normalizeMedicalPlayer({
+...player,
+updatedAt: archivedAt,
+archivedAt,
+archivedBy,
+archiveReason: "Removed from Squad Room",
+});
+if (archivedPlayer) {
+archivedPlayers.push(archivedPlayer);
+return archivedPlayer;
+}
+return player;
+});
+medicalState.records = medicalState.records.map((record) =>
+archivedIds.has(String(record.playerId || "").trim()) && !isMedicalItemArchived(record)
+? normalizeMedicalRecord({
+...record,
+updatedAt: archivedAt,
+archivedAt,
+archivedBy,
+archiveReason: "Player removed from Squad Room",
+}) || record
+: record
+);
+medicalState.injuryPlans = medicalState.injuryPlans.map((plan) =>
+archivedIds.has(String(plan.playerId || "").trim()) && !isMedicalItemArchived(plan)
+? normalizeMedicalInjuryPlan({
+...plan,
+updatedAt: archivedAt,
+archivedAt,
+archivedBy,
+archiveReason: "Player removed from Squad Room",
+}) || plan
+: plan
+);
+medicalState.selectedPlayerId =
+medicalState.players.find((player) => !isMedicalItemArchived(player) && !isMedicalPlayerRemovedFromSquad(player, removedPlayerIdSet))?.id || "";
+if (options.persist !== false && canViewPrivateMedicalDetails()) {
+writeMedicalState();
+}
+return archivedPlayers;
+}
 function archiveMedicalPlayersForRemovedPlayerProfile(playerProfile = {}) {
 const matchingPlayers = getMedicalPlayersMatchingPlayerProfile(playerProfile);
 if (!matchingPlayers.length) {
@@ -29092,7 +29205,12 @@ latestLogSummary: medicalSnapshot.latestLogSummary,
 participation: medicalSnapshot.participation,
 status: medicalSnapshot.medicalStatusKey,
 tone: medicalSnapshot.tone,
+medicalSource: medicalSnapshot.medicalSource,
 hasActivePlan: medicalSnapshot.hasActivePlan,
+returnDate: medicalSnapshot.returnDate,
+returnDateLabel: medicalSnapshot.returnDateLabel,
+returnLabel: medicalSnapshot.returnLabel,
+activeInjuryLabel: medicalSnapshot.activeInjuryLabel,
 },
 };
 }
@@ -29140,15 +29258,19 @@ return normalizePlatformStructureText(user?.team || user?.teamName || user?.club
 }
 function getSelectedMedicalPlayer() {
 ensureMedicalState();
+const activePlayers = getActiveMedicalPlayers();
 return (
-medicalState.players.find((player) => player.id === medicalState.selectedPlayerId && !isMedicalItemArchived(player)) ??
-medicalState.players.find((player) => !isMedicalItemArchived(player)) ??
+activePlayers.find((player) => player.id === medicalState.selectedPlayerId) ??
+activePlayers[0] ??
 null
 );
 }
 function getActiveMedicalPlayers() {
 ensureMedicalState();
-return medicalState.players.filter((player) => !isMedicalItemArchived(player));
+const removedPlayerIdSet = getMedicalRemovedSquadPlayerIdSet();
+return medicalState.players.filter(
+(player) => !isMedicalItemArchived(player) && !isMedicalPlayerRemovedFromSquad(player, removedPlayerIdSet)
+);
 }
 function isMedicalPlayerVisibleForDate(player = {}, dateValue = medicalState?.selectedDate) {
 return !isTemporaryPlayerProfile(player) || isPlayerProfileTemporaryActiveOnDate(player, dateValue);
@@ -32456,6 +32578,7 @@ return parsed;
 }
 function upsertMedicalPlayers(players) {
 ensureMedicalState();
+const removedPlayerIdSet = getMedicalRemovedSquadPlayerIdSet();
 const existingById = new Map(
 medicalState.players
 .filter((player) => player && player.id)
@@ -32469,6 +32592,19 @@ players.forEach((player) => {
 const signature = `${String(player.number || "").trim()}|${String(player.name || "").trim().toLowerCase()}`;
 const playerId = String(player.id || "").trim();
 const existingPlayer = existingById.get(playerId) || existingBySignature.get(signature);
+if (isMedicalPlayerRemovedFromSquad(player, removedPlayerIdSet)) {
+if (existingPlayer && !isMedicalItemArchived(existingPlayer)) {
+const archivedAt = new Date().toISOString();
+Object.assign(existingPlayer, {
+...existingPlayer,
+updatedAt: archivedAt,
+archivedAt,
+archivedBy: getCurrentMedicalActorId(),
+archiveReason: "Removed from Squad Room",
+});
+}
+return;
+}
 if (existingPlayer) {
 Object.assign(existingPlayer, {
 ...existingPlayer,

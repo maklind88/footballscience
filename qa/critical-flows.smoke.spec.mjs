@@ -2179,6 +2179,94 @@ test("Medical Room hides stale active players that were removed from Squad", asy
     .toEqual({ playerArchived: true, recordArchived: true, planArchived: true });
 });
 
+test("Medical Room keeps current selection when another removed Squad player gets archived", async ({ page }) => {
+  const removedPlayerId = "qa-removed-medical-player";
+  const activePlayerId = "qa-active-medical-player";
+  await page.addInitScript(
+    ({ profileStorageKey, medicalStorageKey, removedPlayerId, activePlayerId }) => {
+      const now = "2026-05-27T12:00:00.000Z";
+      window.localStorage.setItem(
+        profileStorageKey,
+        JSON.stringify({
+          rosterVersion: "qa-medical-selection-guard",
+          schemaVersion: 3,
+          selectedPlayerId: activePlayerId,
+          players: [
+            {
+              id: activePlayerId,
+              name: "QA Active Player",
+              number: "8",
+              position: "Midfielder",
+              status: "available",
+              rosterType: "squad",
+              countsInSquad: true,
+              createdAt: now,
+              updatedAt: now,
+            },
+          ],
+          removedPlayerIds: [removedPlayerId],
+          updatedAt: now,
+        })
+      );
+      window.localStorage.setItem(
+        medicalStorageKey,
+        JSON.stringify({
+          rosterVersion: "qa-medical-selection-guard",
+          selectedDate: "2026-05-19",
+          selectedPlayerId: activePlayerId,
+          players: [
+            {
+              id: activePlayerId,
+              name: "QA Active Player",
+              number: "8",
+              position: "Midfielder",
+              rosterType: "squad",
+              countsInSquad: true,
+              createdAt: now,
+              updatedAt: now,
+            },
+            {
+              id: removedPlayerId,
+              name: "QA Removed Player",
+              number: "17",
+              position: "Forward",
+              rosterType: "squad",
+              countsInSquad: true,
+              createdAt: now,
+              updatedAt: now,
+            },
+          ],
+          records: [],
+          injuryPlans: [],
+        })
+      );
+    },
+    { profileStorageKey: playerProfilesKey, medicalStorageKey: medicalKey, removedPlayerId, activePlayerId }
+  );
+
+  await bootApp(page);
+  await page.evaluate(() => {
+    const store = window.platformAuthStore;
+    const currentUser = store?.getCurrentUser?.();
+    if (!store || !currentUser) return;
+    const nextUser = { ...currentUser, role: "admin" };
+    store.writeUsers([nextUser, ...store.getUsers().filter((user) => user.id !== nextUser.id)]);
+    store.setCurrentUser(nextUser.id);
+  });
+  await openWorkspace(page, "medical-team");
+
+  await expect(page.locator(`[data-medical-roster-row="${removedPlayerId}"]`)).toHaveCount(0);
+  await expect(page.locator(`[data-medical-roster-row="${activePlayerId}"]`)).toContainText("QA Active Player");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        ({ medicalStorageKey }) => JSON.parse(window.localStorage.getItem(medicalStorageKey) || "{}").selectedPlayerId,
+        { medicalStorageKey: medicalKey }
+      )
+    )
+    .toBe(activePlayerId);
+});
+
 test("Squad removal archives matching Medical player and removes planner availability", async ({ page }) => {
   const playerName = `QA Remove Everywhere ${Date.now()}`;
   const squadPlayerId = "qa-squad-remove-everywhere";

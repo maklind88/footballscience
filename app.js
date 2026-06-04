@@ -28859,6 +28859,7 @@ function archiveMedicalPlayersRemovedFromSquad(options = {}) {
 if (!medicalState || !Array.isArray(medicalState.players)) {
 return [];
 }
+const previousSelectedPlayerId = String(medicalState.selectedPlayerId || "").trim();
 const removedPlayerIdSet = getMedicalRemovedSquadPlayerIdSet();
 if (!removedPlayerIdSet.size) {
 return [];
@@ -28912,8 +28913,13 @@ archiveReason: "Player removed from Squad Room",
 }) || plan
 : plan
 );
+const nextActivePlayers = medicalState.players.filter(
+(player) => !isMedicalItemArchived(player) && !isMedicalPlayerRemovedFromSquad(player, removedPlayerIdSet)
+);
 medicalState.selectedPlayerId =
-medicalState.players.find((player) => !isMedicalItemArchived(player) && !isMedicalPlayerRemovedFromSquad(player, removedPlayerIdSet))?.id || "";
+nextActivePlayers.find((player) => player.id === previousSelectedPlayerId)?.id ||
+nextActivePlayers[0]?.id ||
+"";
 if (options.persist !== false && canViewPrivateMedicalDetails()) {
 writeMedicalState();
 }

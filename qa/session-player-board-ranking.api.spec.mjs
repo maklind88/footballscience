@@ -20,6 +20,16 @@ test("Session Planner Player Board includes active temporary Squad profiles", ()
   expect(appSource).toContain("planningOnly: true");
 });
 
+test("Session Planner Player Board hides Squad-unavailable roster players", () => {
+  const appSource = readProjectFile("app.js");
+
+  expect(appSource).toContain("const medicalSquadAvailabilityBlockStatusKeys = new Set");
+  expect(appSource).toContain("function isMedicalPlayerBlockedBySquadAvailability");
+  expect(appSource).toContain("status: profile.status || player.status");
+  expect(appSource).toContain("availabilityStatus: profile.status || player.availabilityStatus");
+  expect(appSource).toContain(".filter((item) => !isMedicalPlayerBlockedBySquadAvailability(item.player))");
+});
+
 test("Session Planner Player Board ranks by role, squad status, and career phase", () => {
   const appSource = readProjectFile("app.js");
 

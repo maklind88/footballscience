@@ -19313,6 +19313,9 @@ function getSessionPlannerPlayerBoardSyncedPlayer(player = {}) {
   const careerPhasePriority = getSessionPlannerPlayerBoardCareerPhasePriority(profile.careerPhase);
   return {
     ...player,
+    status: profile.status || player.status,
+    availabilityStatus: profile.status || player.availabilityStatus,
+    availability_status: profile.status || player.availability_status,
     number: profile.number || player.number,
     name: profile.name || player.name,
     position: profile.position || player.position,
@@ -21934,6 +21937,11 @@ function getSessionPlannerTemporaryProfileAvailabilityItems(dateValue = medicalS
 }
 function getSessionPlannerAvailabilityItems(dateValue = medicalState?.selectedDate) {
   const medicalItems = getMedicalAvailabilityItems(dateValue)
+    .map((item) => ({
+      ...item,
+      player: getSessionPlannerPlayerBoardSyncedPlayer(item.player),
+    }))
+    .filter((item) => !isMedicalPlayerBlockedBySquadAvailability(item.player))
     .filter((item) => !isTemporaryPlayerProfile(item.player) || isPlayerProfileTemporaryActiveOnDate(item.player, dateValue))
     .map((item) =>
       !isTemporaryPlayerProfile(item.player) || item.record

@@ -8,6 +8,7 @@ const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const chatDatabaseSource = readFileSync(path.join(__dirname, "../api/_lib/chat-database.js"), "utf8");
 const appSource = readFileSync(path.join(__dirname, "../app.js"), "utf8");
+const chatApiUiActionsSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-api-ui-actions.mjs"), "utf8");
 const chatApi = require("../api/chat.js");
 const {
   applyChatActionToState,
@@ -368,9 +369,9 @@ test("custom database groups keep their own title instead of managed room templa
 
 test("custom groups support top placement, avatar metadata, and safe delete", () => {
   expect(appSource).toContain("createdAt: String(thread.created_at || thread.createdAt");
-  expect(appSource).toContain("Date.parse(apiThread?.createdAt || apiThread?.updatedAt || \"\")");
-  expect(appSource).toContain("archiveDashboardChatThreadWithApi");
-  expect(appSource).toContain('action: "archiveThread"');
+  expect(appSource).toContain("Date.parse(apiThread?.createdAt || \"\")");
+  expect(appSource).toContain("archiveThreadWithApi");
+  expect(chatApiUiActionsSource).toContain('action: "archiveThread"');
   expect(chatDatabaseSource).toContain("async function archiveThread");
   expect(chatDatabaseSource).toContain('thread?.type !== "group"');
   expect(chatDatabaseSource).toContain("archived_at: now");

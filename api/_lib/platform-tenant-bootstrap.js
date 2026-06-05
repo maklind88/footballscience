@@ -1,5 +1,5 @@
 const { randomUUID } = require("node:crypto");
-const { readConfig } = require("./supabase-admin.js");
+const { readConfig, buildSupabaseKeyHeaders } = require("./supabase-admin.js");
 
 const PLATFORM_TENANT_BOOTSTRAP_SCHEMA = "footballscience-platform-tenant-bootstrap-v1";
 const PLATFORM_ROLES = new Set(["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"]);
@@ -166,8 +166,7 @@ function sanitizeMetadata(value, depth = 0) {
 
 function serviceHeaders(serviceRoleKey, extra = {}) {
   return {
-    apikey: serviceRoleKey,
-    Authorization: `Bearer ${serviceRoleKey}`,
+    ...buildSupabaseKeyHeaders(serviceRoleKey),
     Accept: "application/json",
     "Content-Type": "application/json",
     ...extra,

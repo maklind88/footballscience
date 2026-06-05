@@ -2,6 +2,7 @@ const {
   DEFAULT_ROLES,
   getCurrentActor,
   readConfig,
+  buildSupabaseKeyHeaders,
   sendCorsHeaders,
   sendJson,
   parseJsonBody,
@@ -210,16 +211,7 @@ function clearStateListObjectsCache() {
 
 function storageHeaders(contentType = "application/json") {
   const { serviceRoleKey } = readConfig();
-  const headers = {
-    apikey: serviceRoleKey,
-    Authorization: `Bearer ${serviceRoleKey}`,
-  };
-
-  if (contentType) {
-    headers["Content-Type"] = contentType;
-  }
-
-  return headers;
+  return buildSupabaseKeyHeaders(serviceRoleKey, { contentType });
 }
 
 async function parseResponseJson(response) {

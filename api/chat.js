@@ -3,6 +3,7 @@ const {
   getCurrentActor,
   parseJsonBody,
   readConfig,
+  buildSupabaseKeyHeaders,
   sendCorsHeaders,
   sendJson,
 } = require("./_lib/supabase-admin.js");
@@ -1156,16 +1157,7 @@ function getStorageBaseUrl() {
 }
 
 function storageHeaders(serviceRoleKey, contentType = "application/json") {
-  const headers = {
-    apikey: serviceRoleKey,
-    Authorization: `Bearer ${serviceRoleKey}`,
-  };
-
-  if (contentType) {
-    headers["Content-Type"] = contentType;
-  }
-
-  return headers;
+  return buildSupabaseKeyHeaders(serviceRoleKey, { contentType });
 }
 
 async function parseStorageBody(response, raw = false) {

@@ -2,7 +2,7 @@
 
 const crypto = require("node:crypto");
 const { dataSafetyRegistry } = require("../../src/core/data-safety-contracts.cjs");
-const { readConfig } = require("./supabase-admin.js");
+const { readConfig, buildSupabaseKeyHeaders } = require("./supabase-admin.js");
 
 const STATE_BUCKET = "footballscience-app-state";
 const STATE_PREFIX = "global";
@@ -139,11 +139,7 @@ function getStorageBaseUrl() {
 }
 
 function storageHeaders(serviceRoleKey, contentType = "application/json") {
-  return {
-    apikey: serviceRoleKey,
-    Authorization: `Bearer ${serviceRoleKey}`,
-    ...(contentType ? { "Content-Type": contentType } : {}),
-  };
+  return buildSupabaseKeyHeaders(serviceRoleKey, { contentType });
 }
 
 async function parseStorageResponse(response, raw = false) {

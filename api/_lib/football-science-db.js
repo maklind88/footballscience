@@ -1,5 +1,5 @@
 const crypto = require("node:crypto");
-const { parseJsonBody, readConfig, sendJson } = require("./supabase-admin.js");
+const { parseJsonBody, readConfig, sendJson, buildSupabaseKeyHeaders } = require("./supabase-admin.js");
 
 const FOOTBALL_SCIENCE_DB_SCHEMA = "footballscience-db-v1";
 const DEFAULT_LIMIT = 25;
@@ -213,9 +213,7 @@ function restBaseUrl() {
 
 function restHeaders(serviceRoleKey, extra = {}) {
   return {
-    apikey: serviceRoleKey,
-    Authorization: `Bearer ${serviceRoleKey}`,
-    "Content-Type": "application/json",
+    ...buildSupabaseKeyHeaders(serviceRoleKey, { contentType: "application/json" }),
     ...extra,
   };
 }

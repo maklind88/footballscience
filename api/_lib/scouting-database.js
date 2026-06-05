@@ -1,5 +1,5 @@
 const crypto = require("crypto");
-const { parseJsonBody, readConfig, sendJson } = require("./supabase-admin.js");
+const { parseJsonBody, readConfig, sendJson, buildSupabaseKeyHeaders } = require("./supabase-admin.js");
 const { appendAuditLog } = require("./audit-log.js");
 const { fetchFootballScienceProfileForScoutingRecord } = require("./football-science-db.js");
 
@@ -316,9 +316,7 @@ function restBaseUrl() {
 
 function restHeaders(serviceRoleKey, extra = {}) {
   return {
-    apikey: serviceRoleKey,
-    Authorization: `Bearer ${serviceRoleKey}`,
-    "Content-Type": "application/json",
+    ...buildSupabaseKeyHeaders(serviceRoleKey, { contentType: "application/json" }),
     ...extra,
   };
 }

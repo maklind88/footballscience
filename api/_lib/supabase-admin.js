@@ -215,12 +215,32 @@ function parseResponseJson(response) {
   });
 }
 
-function buildHeaders(apiKey) {
-  return {
-    apikey: apiKey,
-    Authorization: `Bearer ${apiKey}`,
-    "Content-Type": "application/json",
+function isSupabaseOpaqueApiKey(value) {
+  return /^sb_(publishable|secret)_/i.test(String(value || "").trim());
+}
+
+function buildSupabaseKeyHeaders(apiKey, options = {}) {
+  const key = String(apiKey || "").trim();
+  const headers = {
+    apikey: key,
   };
+
+  if (!isSupabaseOpaqueApiKey(key)) {
+    headers.Authorization = `Bearer ${key}`;
+  }
+
+  if (options.contentType) {
+    headers["Content-Type"] = options.contentType;
+  }
+  if (options.accept) {
+    headers.Accept = options.accept;
+  }
+
+  return headers;
+}
+
+function buildHeaders(apiKey) {
+  return buildSupabaseKeyHeaders(apiKey, { contentType: "application/json" });
 }
 
 async function parseSupabaseResponse(response) {
@@ -287,9 +307,7 @@ async function callSupabaseStorage(path, method, body, options = {}) {
   }
 
   const headers = {
-    apikey: serviceRoleKey,
-    Authorization: `Bearer ${serviceRoleKey}`,
-    ...(options.contentType ? { "Content-Type": options.contentType } : {}),
+    ...buildSupabaseKeyHeaders(serviceRoleKey, { contentType: options.contentType }),
     ...(options.headers || {}),
   };
 
@@ -509,10 +527,7 @@ async function listAllAuthUsers(perPage = 200) {
 
     const response = await fetch(listUrl.toString(), {
       method: "GET",
-      headers: {
-        apikey: serviceRoleKey,
-        Authorization: `Bearer ${serviceRoleKey}`,
-      },
+      headers: buildSupabaseKeyHeaders(serviceRoleKey),
     });
 
     if (!response.ok) {
@@ -789,6 +804,8 @@ async function parseJsonBody(req, options = {}) {
 module.exports = {
   DEFAULT_ROLES,
   readConfig,
+  buildSupabaseKeyHeaders,
+  isSupabaseOpaqueApiKey,
   parseBearer,
   getCurrentActor,
   listAllAuthUsers,

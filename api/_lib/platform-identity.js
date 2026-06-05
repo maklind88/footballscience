@@ -1,4 +1,4 @@
-const { readConfig } = require("./supabase-admin.js");
+const { readConfig, buildSupabaseKeyHeaders } = require("./supabase-admin.js");
 
 const PLATFORM_IDENTITY_SCOPE_SCHEMA = "footballscience-platform-identity-scope-v1";
 const PLATFORM_ROLES = new Set(["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"]);
@@ -85,8 +85,7 @@ function mapById(rows = []) {
 
 function serviceHeaders(serviceRoleKey) {
   return {
-    apikey: serviceRoleKey,
-    Authorization: `Bearer ${serviceRoleKey}`,
+    ...buildSupabaseKeyHeaders(serviceRoleKey),
     Accept: "application/json",
     "Content-Type": "application/json",
   };

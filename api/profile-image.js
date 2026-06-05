@@ -1,5 +1,6 @@
 const {
   readConfig,
+  buildSupabaseKeyHeaders,
   getCurrentActor,
   getAuthUserById,
   updateAuthUser,
@@ -107,8 +108,9 @@ async function storageRequest(path, options = {}) {
   }
 
   const headers = new Headers(options.headers || {});
-  headers.set("apikey", serviceRoleKey);
-  headers.set("Authorization", `Bearer ${serviceRoleKey}`);
+  Object.entries(buildSupabaseKeyHeaders(serviceRoleKey)).forEach(([key, value]) => {
+    headers.set(key, value);
+  });
 
   const response = await fetch(`${url}/storage/v1${path}`, {
     ...options,

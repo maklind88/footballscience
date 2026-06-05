@@ -1,9 +1,11 @@
 import { expect, test } from "@playwright/test";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const require = createRequire(import.meta.url);
 
 function readProjectFile(relativePath) {
   return fs.readFileSync(path.join(rootDir, relativePath), "utf8");
@@ -105,6 +107,22 @@ test("protected product data remains covered by client safety, central state, an
   }
   expect(appStateSource).toContain("dataSafetyRegistry.keys()");
   expect(backupSource).toContain("dataSafetyRegistry.keys()");
+});
+
+test("server Supabase headers support both legacy JWT and opaque secret keys", () => {
+  const { buildSupabaseKeyHeaders } = require("../api/_lib/supabase-admin.js");
+  const legacyHeaders = buildSupabaseKeyHeaders("legacy-service-role-jwt", { contentType: "application/json" });
+  const secretHeaders = buildSupabaseKeyHeaders("sb_secret_backend-key_checksum", { contentType: "application/json" });
+
+  expect(legacyHeaders).toEqual({
+    apikey: "legacy-service-role-jwt",
+    Authorization: "Bearer legacy-service-role-jwt",
+    "Content-Type": "application/json",
+  });
+  expect(secretHeaders).toEqual({
+    apikey: "sb_secret_backend-key_checksum",
+    "Content-Type": "application/json",
+  });
 });
 
 test("platform evolution plan forbids risky rewrites and destructive data moves", () => {

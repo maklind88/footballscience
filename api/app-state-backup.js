@@ -2,6 +2,7 @@ const { createHash } = require("node:crypto");
 const {
   getCurrentActor,
   readConfig,
+  buildSupabaseKeyHeaders,
   sendCorsHeaders,
   sendJson,
 } = require("./_lib/supabase-admin.js");
@@ -25,16 +26,7 @@ function getStorageBaseUrl() {
 
 function storageHeaders(contentType = "application/json") {
   const { serviceRoleKey } = readConfig();
-  const headers = {
-    apikey: serviceRoleKey,
-    Authorization: `Bearer ${serviceRoleKey}`,
-  };
-
-  if (contentType) {
-    headers["Content-Type"] = contentType;
-  }
-
-  return headers;
+  return buildSupabaseKeyHeaders(serviceRoleKey, { contentType });
 }
 
 async function parseResponseJson(response) {

@@ -1,4 +1,10 @@
-const { parseJsonBody, readConfig, sendJson, listAllAuthUsers } = require("./supabase-admin.js");
+const {
+  parseJsonBody,
+  readConfig,
+  sendJson,
+  listAllAuthUsers,
+  buildSupabaseKeyHeaders,
+} = require("./supabase-admin.js");
 
 const CHAT_DATABASE_MODE_VALUES = new Set(["database", "db", "postgres", "supabase"]);
 const CHAT_LEGACY_MODE_VALUES = new Set(["legacy", "storage", "app-state", "appstate", "local", "off", "false", "0"]);
@@ -325,8 +331,7 @@ async function createSignedAttachmentUpload(bucket, path) {
       {
         method: "POST",
         headers: {
-          apikey: config.serviceRoleKey,
-          Authorization: `Bearer ${config.serviceRoleKey}`,
+          ...buildSupabaseKeyHeaders(config.serviceRoleKey),
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ expiresIn: 60 * 60 * 2 }),
@@ -441,8 +446,7 @@ async function uploadStorageObject(bucket, path, buffer, mimeType) {
   const response = await fetch(`${config.url}/storage/v1/object/${storageObjectPath(bucket, path)}`, {
     method: "POST",
     headers: {
-      apikey: config.serviceRoleKey,
-      Authorization: `Bearer ${config.serviceRoleKey}`,
+      ...buildSupabaseKeyHeaders(config.serviceRoleKey),
       "Cache-Control": "3600",
       "Content-Type": mimeType || "application/octet-stream",
       "x-upsert": "true",
@@ -470,9 +474,7 @@ function restBaseUrl() {
 
 function restHeaders(serviceRoleKey, extra = {}) {
   return {
-    apikey: serviceRoleKey,
-    Authorization: `Bearer ${serviceRoleKey}`,
-    "Content-Type": "application/json",
+    ...buildSupabaseKeyHeaders(serviceRoleKey, { contentType: "application/json" }),
     ...extra,
   };
 }

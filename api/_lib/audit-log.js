@@ -1,4 +1,4 @@
-const { readConfig } = require("./supabase-admin.js");
+const { readConfig, buildSupabaseKeyHeaders } = require("./supabase-admin.js");
 
 const AUDIT_BUCKET = "footballscience-app-state";
 const AUDIT_PREFIX = "global";
@@ -32,16 +32,7 @@ function getStorageBaseUrl() {
 }
 
 function storageHeaders(serviceRoleKey, contentType = "application/json") {
-  const headers = {
-    apikey: serviceRoleKey,
-    Authorization: `Bearer ${serviceRoleKey}`,
-  };
-
-  if (contentType) {
-    headers["Content-Type"] = contentType;
-  }
-
-  return headers;
+  return buildSupabaseKeyHeaders(serviceRoleKey, { contentType });
 }
 
 async function parseResponseBody(response, raw = false) {

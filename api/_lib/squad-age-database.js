@@ -1,4 +1,4 @@
-const { parseJsonBody, readConfig, sendJson } = require("./supabase-admin.js");
+const { parseJsonBody, readConfig, sendJson, buildSupabaseKeyHeaders } = require("./supabase-admin.js");
 
 const SQUAD_AGE_SCHEMA = "footballscience-squad-age-hydration-v1";
 const MAX_AGE_CANDIDATES = 120;
@@ -102,8 +102,7 @@ async function fetchSupabaseRest(path, searchParams = {}) {
   const response = await fetch(requestUrl.toString(), {
     method: "GET",
     headers: {
-      apikey: serviceRoleKey,
-      Authorization: `Bearer ${serviceRoleKey}`,
+      ...buildSupabaseKeyHeaders(serviceRoleKey),
       Accept: "application/json",
     },
   });

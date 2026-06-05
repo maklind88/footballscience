@@ -2,6 +2,7 @@ const {
   findAuthUserByIdentifier,
   parseJsonBody,
   readConfig,
+  buildSupabaseKeyHeaders,
   sendCorsHeaders,
   sendJson,
 } = require("./_lib/supabase-admin.js");
@@ -129,8 +130,7 @@ async function handleLogin(req, res) {
     const response = await fetch(`${url}/auth/v1/token?grant_type=password`, {
       method: "POST",
       headers: {
-        apikey: anonKey,
-        Authorization: `Bearer ${anonKey}`,
+        ...buildSupabaseKeyHeaders(anonKey),
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ email, password }),

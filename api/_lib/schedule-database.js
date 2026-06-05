@@ -1,5 +1,5 @@
 const crypto = require("crypto");
-const { readConfig } = require("./supabase-admin.js");
+const { readConfig, buildSupabaseKeyHeaders } = require("./supabase-admin.js");
 
 const SCHEDULE_DATABASE_SCHEMA = "footballscience-schedule-database-v1";
 const SCHEDULE_SYNC_TABLE = "schedule_state_sync_events";
@@ -249,9 +249,7 @@ function restBaseUrl() {
 
 function restHeaders(serviceRoleKey, extra = {}) {
   return {
-    apikey: serviceRoleKey,
-    Authorization: `Bearer ${serviceRoleKey}`,
-    "Content-Type": "application/json",
+    ...buildSupabaseKeyHeaders(serviceRoleKey, { contentType: "application/json" }),
     ...extra,
   };
 }

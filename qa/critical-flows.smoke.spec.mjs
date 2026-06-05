@@ -1375,7 +1375,9 @@ test("Medical availability blocks training recommendations for Squad non-availab
         selectedDate: "2026-05-19",
         selectedPlayerId: "qa-international",
         rosterVersion: "qa-medical-squad-block-v1",
-        players,
+        players: players.map((player) =>
+          player.id === "qa-international" ? { ...player, status: "available" } : player
+        ),
         records: [
           {
             id: "qa-stale-international-full",

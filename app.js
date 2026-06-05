@@ -24397,10 +24397,84 @@ function normalizeMedicalPlayerAvailabilityStatus(value, fallback = "available")
 const status = String(value ?? "").trim().toLowerCase();
 return playerProfileStatusOptions.some((option) => option.key === status) ? status : fallback;
 }
+function getMedicalLinkedPlayerProfile(player = {}) {
+const profileState = playerProfilesState || readPlayerProfilesState();
+const profiles = Array.isArray(profileState?.players) ? profileState.players : [];
+if (!profiles.length) {
+return null;
+}
+const playerIds = new Set(
+[player.id, player.playerId, player.profileId, player.medicalPlayerId]
+.map((value) => String(value ?? "").trim())
+.filter(Boolean)
+);
+if (playerIds.size) {
+const profile = profiles.find((candidate) => playerIds.has(String(candidate?.id ?? "").trim()));
+if (profile) {
+return profile;
+}
+}
+const targetName = normalizePlayerProfileName(player.name || player.displayName || "");
+const targetNumber = String(player.number || player.shirtNumber || player.shirt_number || "").trim().toLowerCase();
+if (!targetName) {
+return null;
+}
+if (targetNumber) {
+const profile = profiles.find((candidate) => {
+const candidateName = normalizePlayerProfileName(candidate?.name || candidate?.displayName || "");
+const candidateNumber = String(candidate?.number || candidate?.shirtNumber || candidate?.shirt_number || "").trim().toLowerCase();
+return candidateName === targetName && candidateNumber === targetNumber;
+});
+if (profile) {
+return profile;
+}
+}
+const nameMatches = profiles.filter((candidate) => normalizePlayerProfileName(candidate?.name || candidate?.displayName || "") === targetName);
+return nameMatches.length === 1 ? nameMatches[0] : null;
+}
+function syncMedicalPlayerAvailabilityStatusesFromProfiles() {
+if (!medicalState || !Array.isArray(medicalState.players)) {
+return false;
+}
+let changed = false;
+const nextPlayers = medicalState.players.map((player) => {
+const profile = getMedicalLinkedPlayerProfile(player);
+const profileStatus = normalizeMedicalPlayerAvailabilityStatus(
+profile?.status || profile?.availabilityStatus || profile?.availability_status,
+""
+);
+const playerStatus = normalizeMedicalPlayerAvailabilityStatus(
+player.status || player.availabilityStatus || player.availability_status,
+""
+);
+if (!profileStatus || profileStatus === playerStatus) {
+return player;
+}
+changed = true;
+return {
+...player,
+status: profileStatus,
+availabilityStatus: profileStatus,
+availability_status: profileStatus,
+};
+});
+if (changed) {
+medicalState.players = nextPlayers;
+}
+return changed;
+}
 function getMedicalPlayerAvailabilityStatus(player = {}) {
+const profile = getMedicalLinkedPlayerProfile(player);
+const profileStatus = normalizeMedicalPlayerAvailabilityStatus(
+profile?.status || profile?.availabilityStatus || profile?.availability_status,
+""
+);
+if (profileStatus && medicalSquadAvailabilityBlockStatusKeys.has(profileStatus)) {
+return profileStatus;
+}
 return normalizeMedicalPlayerAvailabilityStatus(
 player.status || player.availabilityStatus || player.availability_status,
-"available"
+profileStatus || "available"
 );
 }
 function getMedicalPlayerAvailabilityStatusOption(player = {}) {
@@ -25004,6 +25078,7 @@ if (!medicalState) {
 medicalState = readMedicalState();
 }
 archiveMedicalPlayersRemovedFromSquad({ persist: canViewPrivateMedicalDetails() });
+syncMedicalPlayerAvailabilityStatusesFromProfiles();
 return medicalState;
 }
 function getPlayerProfileOption(options, key, fallback = null) {
@@ -78474,6 +78549,10 @@ if (event.key === playerProfilesStorageKey) {
 playerProfilesState = readPlayerProfilesState();
 if (hubState?.activeWorkspaceId === "transfer-room") {
 syncTransferRoomLinkedState({ render: true });
+return;
+}
+if (hubState?.activeWorkspaceId === "medical-team") {
+renderMedicalTeamWorkspace();
 return;
 }
 if (hubState?.activeWorkspaceId === "player-profiles") {

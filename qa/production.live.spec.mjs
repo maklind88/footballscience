@@ -54,7 +54,7 @@ async function waitForAppReady(page) {
     .toBe("ready");
 }
 
-async function waitForCentralStateReady(page) {
+async function waitForCentralStateReady(page, options = {}) {
   await expect
     .poll(
       async () =>
@@ -79,9 +79,60 @@ async function waitForCentralStateReady(page) {
           const lastError = String(nextStatus.lastError || "").trim() || "none";
           return `hydrated=${Boolean(nextStatus.hydrated)} hydrating=${Boolean(nextStatus.hydrating)} error=${lastError}`;
         }),
-      { timeout: 75_000, intervals: [500, 1_000, 2_000, 3_000] }
+      { timeout: options.timeout ?? 75_000, intervals: [500, 1_000, 2_000, 3_000] }
     )
     .toBe("ready");
+}
+
+async function establishServerBackedSession(page) {
+  const endpointBase = new URL("/", page.url()).origin;
+  const loginResponse = await page.request.post(`${endpointBase}/api/client-config`, {
+    data: {
+      email: process.env.LIVE_QA_USERNAME,
+      password: process.env.LIVE_QA_PASSWORD,
+    },
+    timeout: 15_000,
+  });
+  const loginPayload = await loginResponse.json().catch(() => ({}));
+  expect(
+    loginResponse.ok(),
+    `API login failed: ${loginResponse.status()} ${loginPayload?.reason || loginPayload?.message || "no reason"}`
+  ).toBeTruthy();
+
+  const session = loginPayload?.session || {};
+  expect(session.access_token, "API login did not return an access token.").toBeTruthy();
+  expect(session.refresh_token, "API login did not return a refresh token.").toBeTruthy();
+
+  const centralResponse = await page.request.get(`${endpointBase}/api/app-state`, {
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    timeout: 15_000,
+  });
+  const centralPayload = await centralResponse.json().catch(() => ({}));
+  expect(
+    centralResponse.ok(),
+    `API app-state auth failed: ${centralResponse.status()} ${centralPayload?.reason || centralPayload?.message || "no reason"}`
+  ).toBeTruthy();
+
+  const setSessionStatus = await page.evaluate(async (nextSession) => {
+    const client = window.platformAuthStore?.getSupabaseClient?.();
+    if (!client?.auth?.setSession) {
+      return "missing Supabase client";
+    }
+    const { error } = await client.auth.setSession({
+      access_token: nextSession.access_token,
+      refresh_token: nextSession.refresh_token,
+    });
+    return error?.message || "ok";
+  }, session);
+  expect(setSessionStatus).toBe("ok");
+
+  await expect
+    .poll(() => page.evaluate(async () => String((await window.platformAuthStore?.getAccessToken?.()) || "")), {
+      timeout: 15_000,
+    })
+    .not.toBe("");
 }
 
 async function signIn(page) {
@@ -97,7 +148,12 @@ async function signIn(page) {
 
   await expect(page.locator("#hubShell")).toBeVisible({ timeout: 30_000 });
   await expect(page.locator("#loginScreen")).toBeHidden();
-  await waitForCentralStateReady(page);
+  try {
+    await waitForCentralStateReady(page, { timeout: 15_000 });
+  } catch {
+    await establishServerBackedSession(page);
+    await waitForCentralStateReady(page);
+  }
   await dismissDashboardModal(page);
 }
 

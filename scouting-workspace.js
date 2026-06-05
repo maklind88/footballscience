@@ -3849,6 +3849,21 @@ function getScoutingMyTeamCandidateRecords() {
   });
   return records;
 }
+function hasScoutingMyTeamCandidateRecordSources(state = null) {
+  const activeDatabase = window.__footballScienceScoutingDatabase;
+  const importedDatabase = window.__footballScienceImportedScoutingDatabase;
+  if (Array.isArray(activeDatabase?.records) && activeDatabase.records.length) {
+    return true;
+  }
+  if (Array.isArray(importedDatabase?.records) && importedDatabase.records.length) {
+    return true;
+  }
+  if (scoutingKnownRecordLookupCache.size) {
+    return true;
+  }
+  const sourceState = state || (activeContext ? activeContext.ensureState() : null);
+  return Boolean(sourceState?.playerSnapshots && typeof sourceState.playerSnapshots === "object" && Object.keys(sourceState.playerSnapshots).length);
+}
 function scoreScoutingMyTeamRecordMatch(player = {}, record = null) {
   if (!record || !areScoutingNamesInitialSurnameMatch(player.name, getScoutingRecordName(record))) {
     return -1;
@@ -4048,10 +4063,16 @@ function renderScoutingMyTeamInfoPanel(player = {}, slot = null) {
 }
 function renderScoutingMyTeamSpiderButton(player = {}, slot = null) {
   const age = formatScoutingMyTeamAge(player.age) || "Age unknown";
-  const linkedRecord = findScoutingRecordForMyTeamPlayer(player);
+  const canMatchScoutingRecord = hasScoutingMyTeamCandidateRecordSources();
+  const linkedRecord = canMatchScoutingRecord ? findScoutingRecordForMyTeamPlayer(player) : null;
   const role = linkedRecord ? getScoutingRecordBestRoleLabel(linkedRecord) : getScoutingMyTeamBestRoleLine(player);
   const status = normalizeScoutingText(player.status, 80) || "Current squad";
   const playerId = getScoutingMyTeamPlayerId(player);
+  const dataStatus = linkedRecord
+    ? `Linked to ${getScoutingRecordName(linkedRecord)}`
+    : canMatchScoutingRecord
+      ? "No scouting match yet"
+      : "Open Database to match";
   return `
     <details class="scouting-my-team-spider-menu" data-scouting-my-team-spider-shell="${escapeHtml(playerId)}" data-scouting-my-team-spider-linked="${escapeHtml(linkedRecord ? getScoutingRecordId(linkedRecord) : "")}">
       <summary aria-label="Open spider for ${escapeHtml(player.name || "player")}">◎</summary>
@@ -4070,8 +4091,8 @@ function renderScoutingMyTeamSpiderButton(player = {}, slot = null) {
                   <circle class="player-profile-scouting-ring" cx="110" cy="110" r="78" />
                   <circle class="player-profile-scouting-ring" cx="110" cy="110" r="52" />
                   <circle class="player-profile-scouting-ring" cx="110" cy="110" r="26" />
-                  <text class="player-profile-scouting-empty-text" x="110" y="106">Finding data</text>
-                  <text class="player-profile-scouting-empty-subtext" x="110" y="126">Initial + surname match</text>
+                  <text class="player-profile-scouting-empty-text" x="110" y="106">${canMatchScoutingRecord ? "No match" : "Database idle"}</text>
+                  <text class="player-profile-scouting-empty-subtext" x="110" y="126">${canMatchScoutingRecord ? "Initial + surname" : "Open Database"}</text>
                 </svg>
               `
           }
@@ -4079,7 +4100,7 @@ function renderScoutingMyTeamSpiderButton(player = {}, slot = null) {
         <dl>
           <div><dt>Position</dt><dd>${escapeHtml(slot?.label || player.position || "Unknown")}</dd></div>
           <div><dt>Fit</dt><dd>${escapeHtml(role || "No role model")}</dd></div>
-          <div><dt>Data</dt><dd>${linkedRecord ? escapeHtml(`Linked to ${getScoutingRecordName(linkedRecord)}`) : "Searching scouting database"}</dd></div>
+          <div><dt>Data</dt><dd>${escapeHtml(dataStatus)}</dd></div>
         </dl>
       </div>
     </details>
@@ -5088,6 +5109,10 @@ async function hydrateScoutingMyTeamSpiderShell(shell = null) {
     return;
   }
   let record = findScoutingRecordForMyTeamPlayer(player);
+  if (!record && !isScoutingDatabaseLoaded()) {
+    shell.dataset.scoutingMyTeamSpiderLoaded = "1";
+    return;
+  }
   if (!record && typeof Worker === "function") {
     if (scoutingMyTeamRecordHydrationInFlight.has(playerId)) {
       return;
@@ -16552,7 +16577,9 @@ function renderScoutingWorkspace(options = {}) {
   if (state.selectedRecordId && normalizeScoutingProfileTab(state.profileTab) === "overview") {
     queueFootballScienceDbProfileHydration(state.selectedRecordId);
   }
-  scheduleScoutingDatabaseWorkerPrewarm(state.activeTab === "database" ? 180 : 750);
+  if (state.activeTab === "database") {
+    scheduleScoutingDatabaseWorkerPrewarm(180);
+  }
   restoreScoutingScrollSnapshot(scrollSnapshot);
 }
 function refreshScoutingWorkspaceSummaryMetrics() {

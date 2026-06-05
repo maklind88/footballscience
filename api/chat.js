@@ -143,6 +143,9 @@ function normalizeThreadSettingPatch(value = {}) {
   if (hasOwn(source, "avatarLabel")) {
     patch.avatarLabel = normalizeString(source.avatarLabel, 2).toUpperCase();
   }
+  if (hasOwn(source, "avatarUrl")) {
+    patch.avatarUrl = normalizeString(source.avatarUrl, 800);
+  }
   return patch;
 }
 
@@ -401,8 +404,8 @@ function normalizeAuditDetails(value, depth = 0) {
 
 function addChatAuditEntry(state, actor, action, summary, details = {}) {
   const now = new Date().toISOString();
-  const isDestructive = ["deleteMessage", "clearThread"].includes(action);
-  const isAdminAction = ["setMessagePinned", "setMessagePriority", "setThreadSettings", "setThreadParticipants", "clearThread"].includes(action);
+  const isDestructive = ["deleteMessage", "clearThread", "archiveThread"].includes(action);
+  const isAdminAction = ["setMessagePinned", "setMessagePriority", "setThreadSettings", "setThreadParticipants", "clearThread", "archiveThread"].includes(action);
   const entry = {
     id: `${now}-${Math.random().toString(16).slice(2, 10)}`,
     createdAt: now,
@@ -866,9 +869,10 @@ function applySetThreadSettings(state, actor, body, now) {
     ...(hasOwn(body, "pinned") ? { pinned: body.pinned } : {}),
     ...(hasOwn(body, "customTitle") || hasOwn(body, "title") ? { customTitle: body.customTitle ?? body.title } : {}),
     ...(hasOwn(body, "avatarLabel") ? { avatarLabel: body.avatarLabel } : {}),
+    ...(hasOwn(body, "avatarUrl") ? { avatarUrl: body.avatarUrl } : {}),
   });
   const sharedPatch = {};
-  if (hasOwn(requestedPatch, "customTitle") || hasOwn(requestedPatch, "avatarLabel")) {
+  if (hasOwn(requestedPatch, "customTitle") || hasOwn(requestedPatch, "avatarLabel") || hasOwn(requestedPatch, "avatarUrl")) {
     if (!canManageChat(actor)) {
       return { ok: false, status: 403, reason: "Chat manager access required to rename or rebrand a thread." };
     }
@@ -881,6 +885,9 @@ function applySetThreadSettings(state, actor, body, now) {
     }
     if (hasOwn(requestedPatch, "avatarLabel")) {
       sharedPatch.avatarLabel = requestedPatch.avatarLabel;
+    }
+    if (hasOwn(requestedPatch, "avatarUrl")) {
+      sharedPatch.avatarUrl = requestedPatch.avatarUrl;
     }
   }
   const userPatch = {};
@@ -902,6 +909,7 @@ function applySetThreadSettings(state, actor, body, now) {
     pinned: Boolean(settingsByUser[actorKey]?.pinned),
     customTitle: sharedPatch.customTitle ?? thread.settings?.customTitle ?? "",
     avatarLabel: sharedPatch.avatarLabel ?? thread.settings?.avatarLabel ?? "",
+    avatarUrl: sharedPatch.avatarUrl ?? thread.settings?.avatarUrl ?? "",
     updatedAt: now,
   };
   thread.metadata = {
@@ -1045,6 +1053,45 @@ function applyClearThread(state, actor, body, now) {
   return { ok: true, status: 200, action: "clearThread", state, thread, auditEntry };
 }
 
+function applyArchiveThread(state, actor, body, now) {
+  const threadId = normalizeId(body.threadId || body.id || body.channelId, "");
+  const thread = getThreadById(state, threadId);
+  if (!thread) {
+    return { ok: false, status: 404, reason: "Thread not found." };
+  }
+
+  const access = ensureActionAllowed(actor, state, thread);
+  if (!access.ok) {
+    return access;
+  }
+
+  if (!canManageChat(actor)) {
+    return { ok: false, status: 403, reason: "Chat manager access required." };
+  }
+
+  if (normalizeThreadType(thread.type || thread.kind) !== "group") {
+    return { ok: false, status: 400, reason: "Only custom group chats can be deleted." };
+  }
+
+  touchThread(thread, {
+    archivedAt: now,
+    archivedBy: actor.id || "",
+    updatedAt: now,
+  });
+  state.messages = state.messages.filter((message) => normalizeId(message?.threadId, "") !== thread.id);
+  state.readReceipts = Object.fromEntries(
+    Object.entries(isPlainObject(state.readReceipts) ? state.readReceipts : {}).filter(([key]) => key !== thread.id)
+  );
+
+  const auditEntry = addChatAuditEntry(state, actor, "archiveThread", "Archived a group chat.", {
+    threadId: thread.id,
+    title: thread.title || thread.name || "",
+    type: normalizeThreadType(thread.type || thread.kind),
+  });
+
+  return { ok: true, status: 200, action: "archiveThread", state, thread, auditEntry };
+}
+
 function applyChatActionToState(rawState, actor, body = {}, context = {}) {
   const now = context.now || new Date().toISOString();
   const state = applyRetentionPolicy(rawState, now);
@@ -1083,6 +1130,8 @@ function applyChatActionToState(rawState, actor, body = {}, context = {}) {
     result = applySetThreadParticipants(state, actor, body, now);
   } else if (action === "clearThread") {
     result = applyClearThread(state, actor, body, now);
+  } else if (action === "archiveThread") {
+    result = applyArchiveThread(state, actor, body, now);
   }
 
   if (result?.ok) {

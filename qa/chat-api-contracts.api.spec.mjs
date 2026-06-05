@@ -376,3 +376,52 @@ test("custom groups support top placement, avatar metadata, and safe delete", ()
   expect(chatDatabaseSource).toContain("archived_at: now");
   expect(chatDatabaseSource).toContain("avatarUrl");
 });
+
+test("legacy custom groups support avatarUrl branding and archiveThread", () => {
+  const created = applyChatActionToState(
+    {},
+    staffActor,
+    {
+      action: "createThread",
+      threadId: "group:staff-room",
+      type: "group",
+      title: "Staff room",
+      participantIds: ["analyst-1"],
+    },
+    { now: "2026-05-07T13:00:00.000Z" }
+  );
+
+  const branded = applyChatActionToState(
+    created.state,
+    staffActor,
+    {
+      action: "setThreadSettings",
+      threadId: "group:staff-room",
+      avatarUrl: "https://img.example/group.png",
+    },
+    { now: "2026-05-07T13:01:00.000Z" }
+  );
+
+  expect(branded.ok).toBe(true);
+  expect(branded.thread.settings.avatarUrl).toBe("https://img.example/group.png");
+  expect(branded.thread.metadata.avatarUrl).toBe("https://img.example/group.png");
+
+  const archived = applyChatActionToState(
+    branded.state,
+    staffActor,
+    {
+      action: "archiveThread",
+      threadId: "group:staff-room",
+    },
+    { now: "2026-05-07T13:02:00.000Z" }
+  );
+
+  expect(archived.ok).toBe(true);
+  expect(archived.thread.archivedAt).toBe("2026-05-07T13:02:00.000Z");
+  expect(archived.state.messages.some((message) => message.threadId === "group:staff-room")).toBe(false);
+  expect(archived.state.audit[0]).toMatchObject({
+    action: "chat.archiveThread",
+    adminAction: true,
+    destructive: true,
+  });
+});

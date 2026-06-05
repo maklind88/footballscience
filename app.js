@@ -9077,7 +9077,6 @@ lastMessageId,
 lastMessagePreview: String(thread.lastMessagePreview || thread.last_message_preview || "").trim(),
 participants: Array.isArray(thread.participants) ? thread.participants.map(normalizeDashboardApiParticipant).filter(Boolean) : [],
 permissions: thread.permissions && typeof thread.permissions === "object" ? thread.permissions : {},
-avatarUrl: String(thread.avatarUrl || thread.avatar_url || "").trim(),
 settings: dashboardChatThreadSettings.normalize(thread.settings || thread.threadSettings || {}),
 metadata: thread.metadata || {},
 };

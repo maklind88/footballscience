@@ -1385,6 +1385,34 @@ function mergePlayerProfileChangeLog(existingEntries = [], incomingEntries = [])
   return normalizePlayerProfileChangeLog(Array.from(entriesByKey.values()));
 }
 
+function getPlayerProfileLifecycleChangeTime(entries = [], playerId = "", types = []) {
+  const normalizedPlayerId = String(playerId || "").trim();
+  const typeSet = new Set(types);
+  if (!normalizedPlayerId || !typeSet.size) {
+    return 0;
+  }
+
+  return normalizePlayerProfileChangeLog(entries).reduce((latestTime, entry) => {
+    if (String(entry?.playerId || "").trim() !== normalizedPlayerId || !typeSet.has(String(entry?.type || "").trim())) {
+      return latestTime;
+    }
+    return Math.max(latestTime, getPlayerProfileChangeLogTimestamp(entry));
+  }, 0);
+}
+
+function incomingStateExplicitlyRestoresRemovedPlayer(existingState = {}, incomingState = {}, playerId = "") {
+  const existingRemovalTime = getPlayerProfileLifecycleChangeTime(existingState.changeLog, playerId, [
+    "player-removed",
+    "player-deleted",
+    "player-archived",
+  ]);
+  const incomingRestoreTime = getPlayerProfileLifecycleChangeTime(incomingState.changeLog, playerId, [
+    "player-added",
+    "player-restored",
+  ]);
+  return Boolean(existingRemovalTime && incomingRestoreTime && incomingRestoreTime > existingRemovalTime);
+}
+
 function getPlayerProfileChangeFieldPath(change = {}) {
   return PLAYER_PROFILE_CHANGE_FIELD_PATHS[String(change?.field || "").trim()] || "";
 }
@@ -1526,7 +1554,12 @@ async function protectPlayerProfilesStateValue(rawValue, context = {}) {
   );
   const removedPlayerIds = new Set(incomingRemovedPlayerIds);
   normalizePlayerProfileRemovedIds(existingState.removedPlayerIds).forEach((removedPlayerId) => {
-    if (incomingIsStale || incomingLooksOlderThanExisting || !incomingActivePlayerIds.has(removedPlayerId)) {
+    const incomingRestoresRemovedPlayer =
+      !incomingIsStale &&
+      !incomingLooksOlderThanExisting &&
+      incomingActivePlayerIds.has(removedPlayerId) &&
+      incomingStateExplicitlyRestoresRemovedPlayer(existingState, incomingState, removedPlayerId);
+    if (!incomingRestoresRemovedPlayer) {
       removedPlayerIds.add(removedPlayerId);
     }
   });

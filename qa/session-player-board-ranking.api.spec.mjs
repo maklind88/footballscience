@@ -24,9 +24,13 @@ test("Session Planner Player Board hides Squad-unavailable roster players", () =
   const appSource = readProjectFile("app.js");
 
   expect(appSource).toContain("const medicalSquadAvailabilityBlockStatusKeys = new Set");
+  expect(appSource).toContain("...playerProfileStatusOptions.map((option) => option.key)");
+  expect(appSource).toContain('status !== "available"');
   expect(appSource).toContain("function isMedicalPlayerBlockedBySquadAvailability");
   expect(appSource).toContain("status: profile.status || player.status");
   expect(appSource).toContain("availabilityStatus: profile.status || player.availabilityStatus");
+  expect(appSource).toContain("record: createMedicalRecordFromSquadAvailabilityBlock(player, dateValue)");
+  expect(appSource).toContain("participation: record ? record.participation : 100");
   expect(appSource).toContain(".filter((item) => !isMedicalPlayerBlockedBySquadAvailability(item.player))");
 });
 

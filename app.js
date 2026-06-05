@@ -8504,6 +8504,13 @@ renderWidget: renderDashboardChatWidget,
 sendApiAction: sendDashboardChatApiAction,
 settingsStore: dashboardChatThreadSettings,
 showToast: showDashboardChatWidgetToast,
+archiveThreadLocal: (threadId) => {
+dashboardChatApiThreads = dashboardChatApiThreads.filter((thread) => thread.threadId !== threadId);
+clearDashboardMessagesForThread(threadId, { skipCentralSync: true });
+dashboardChatThreadSettings.remove(threadId);
+writeDashboardChatWidgetState({ isOpen: true, selectedThreadId: dashboardChatTeamThreadId });
+dashboardChatDetailsOpen = false;
+},
 updateMessageLocalStatus: updateDashboardMessageLocalStatus,
 });
 function setDashboardChatThreadSettingsWithApi(threadId = dashboardChatTeamThreadId, patch = {}) {
@@ -9060,7 +9067,6 @@ type,
 title: String(thread.title || thread.name || template?.title || (type === "team" ? getDashboardChatTeamChatTitle() : "Chat")).trim(),
 visibility: String(thread.visibility || "members").trim(),
 createdAt: String(thread.created_at || thread.createdAt || "").trim(),
-updatedAt: String(thread.updated_at || thread.updatedAt || "").trim(),
 avatarUrl: String(thread.avatarUrl || thread.avatar_url || thread.metadata?.avatarUrl || thread.metadata?.imageUrl || "").trim(),
 lastMessageAt: String(messageCount || lastMessage ? thread.last_message_at || thread.lastMessageAt || "" : "").trim(),
 messageCount,
@@ -10017,7 +10023,7 @@ const lastActivityMs = hasMessageActivity
 Date.parse(lastMessage?.createdAt || "") || 0,
 Date.parse(apiThread?.lastMessageAt || "") || 0
 )
-: Date.parse(apiThread?.createdAt || apiThread?.updatedAt || "") || 0;
+: Date.parse(apiThread?.createdAt || "") || 0;
 const managedTemplate = dashboardChatAdvancedThreadTemplates.find((template) => template.key === normalizedThreadId);
 const isDirectThread = !isTeamThread && !isManagedThread && normalizedThreadId.startsWith("dm:");
 const fallbackThreadLabel = formatDashboardChatThreadLabel(normalizedThreadId, currentUser, users);
@@ -10102,8 +10108,9 @@ const secondPinned = Boolean(second.settings?.pinned);
 if (firstPinned !== secondPinned) {
 return firstPinned ? -1 : 1;
 }
-const firstTime = Date.parse(first.lastActivityAt || first.lastMessage?.createdAt || first.apiThread?.lastMessageAt || first.apiThread?.createdAt || "") || 0;
-const secondTime = Date.parse(second.lastActivityAt || second.lastMessage?.createdAt || second.apiThread?.lastMessageAt || second.apiThread?.createdAt || "") || 0;
+const threadTime = (thread) => Date.parse(thread.lastActivityAt || thread.lastMessage?.createdAt || thread.apiThread?.lastMessageAt || thread.apiThread?.createdAt || "") || 0;
+const firstTime = threadTime(first);
+const secondTime = threadTime(second);
 if (firstTime === secondTime) {
 const firstName = getDashboardUserLabel(first.participant?.id, users);
 const secondName = getDashboardUserLabel(second.participant?.id, users);
@@ -10620,27 +10627,6 @@ queueDashboardChatThreadSummaryRefresh({ delayMs: 50 });
 return true;
 }
 );
-}
-async function archiveDashboardChatThreadWithApi(threadId) {
-const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
-const result = await sendDashboardChatApiAction({
-action: "archiveThread",
-threadId: normalizedThreadId,
-threadType: getDashboardChatThreadTypeForApi(normalizedThreadId),
-});
-if (!result.ok) {
-logDashboardChatApiFailure("archiveThread", result);
-showDashboardChatWidgetToast(result.reason || "Group could not be deleted.", normalizedThreadId);
-return false;
-}
-dashboardChatApiThreads = dashboardChatApiThreads.filter((thread) => thread.threadId !== normalizedThreadId);
-clearDashboardMessagesForThread(normalizedThreadId, { skipCentralSync: true });
-dashboardChatThreadSettings.remove(normalizedThreadId);
-writeDashboardChatWidgetState({ isOpen: true, selectedThreadId: dashboardChatTeamThreadId });
-dashboardChatDetailsOpen = false;
-queueDashboardChatThreadSummaryRefresh({ delayMs: 0, render: true });
-showDashboardChatWidgetToast("Group deleted.", dashboardChatTeamThreadId);
-return true;
 }
 function getDashboardChatRenderSignature(html = "") {
 let hash = 0;
@@ -20038,6 +20024,7 @@ status: { label: kind === "staff" ? "Staff added" : "Added manually" },
 function getSessionPlannerPlayerBoardPlayers(block = getSessionPlannerSelectedBlock()) {
 const rule = getSessionPlannerPlayerBoardRule(block);
 const availabilityItems = getSessionPlannerAvailabilityItems(sessionPlannerState?.selectedDate)
+.filter((item) => !isMedicalPlayerBlockedBySquadAvailability(item.player))
 .filter((item) => (item.record || item.planningOnly) && isSessionPlannerPlayerVisibleForBoard(item.participation, rule))
 .map((item) => ({
 ...item,
@@ -22136,10 +22123,16 @@ function getSessionPlannerTemporaryProfileAvailabilityItems(dateValue = medicalS
     .filter((player) => !isMedicalPlayerBlockedBySquadAvailability(player))
     .map((player) => ({
       player,
-      record: null,
-      status: { key: "planning-guest", label: "Planning guest", tone: "full", defaultParticipation: 100 },
-      participation: 100,
-      planningOnly: true,
+      record: createMedicalRecordFromSquadAvailabilityBlock(player, dateValue),
+    }))
+    .map(({ player, record }) => ({
+      player,
+      record,
+      status: record
+        ? getMedicalRecordStatus(record)
+        : { key: "planning-guest", label: "Planning guest", tone: "full", defaultParticipation: 100 },
+      participation: record ? record.participation : 100,
+      planningOnly: !record,
     }));
 }
 function getSessionPlannerAvailabilityItems(dateValue = medicalState?.selectedDate) {
@@ -24593,17 +24586,15 @@ return "modified";
 }
 return "full";
 }
-const medicalSquadAvailabilityBlockStatusKeys = new Set([
-"national-team",
-"vacation",
-"personal",
-"suspended",
-"loan",
-"unavailable",
-]);
+const medicalSquadAvailabilityBlockStatusKeys = new Set(
+[
+...playerProfileStatusOptions.map((option) => option.key),
+"unknown",
+].filter((status) => status && status !== "available")
+);
 function normalizeMedicalPlayerAvailabilityStatus(value, fallback = "available") {
 const status = String(value ?? "").trim().toLowerCase();
-return playerProfileStatusOptions.some((option) => option.key === status) ? status : fallback;
+return playerProfileStatusOptions.some((option) => option.key === status) || status === "unknown" ? status : fallback;
 }
 function getMedicalLinkedPlayerProfile(player = {}) {
 const profileState = playerProfilesState || readPlayerProfilesState();
@@ -74902,9 +74893,9 @@ const threadId = normalizeDashboardChatThreadId(archiveThreadButton.dataset.dash
 setDashboardChatConfirmAction({
 type: "archiveThread",
 threadId,
-title: "Delete this group?",
-message: "The group will disappear from the chat list. Messages stay protected in audit/history instead of being hard-deleted.",
-confirmLabel: "Delete group",
+title: "Delete group?",
+message: "History stays protected.",
+confirmLabel: "Delete",
 });
 renderDashboardChatWidget();
 return;
@@ -74922,7 +74913,7 @@ setDashboardChatConfirmAction(null);
 if (confirmAction?.type === "clearThread") {
 await clearDashboardMessagesForThreadWithApi(confirmAction.threadId);
 } else if (confirmAction?.type === "archiveThread") {
-await archiveDashboardChatThreadWithApi(confirmAction.threadId);
+await dashboardChatApiUiActions.archiveThreadWithApi(confirmAction.threadId);
 } else if (confirmAction?.type === "deleteMessage") {
 await removeDashboardMessageWithApi(confirmAction.messageId);
 renderTopIconMenu();

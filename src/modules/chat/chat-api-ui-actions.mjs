@@ -23,6 +23,7 @@ export function createDashboardChatApiUiActions(dependencies = {}) {
     getThreadLabel,
     getThreadType,
     getUsers,
+    archiveThreadLocal = () => {},
     logApiFailure = () => {},
     maxMessageLength = 1600,
     normalizeThreadId,
@@ -129,6 +130,29 @@ export function createDashboardChatApiUiActions(dependencies = {}) {
       return true;
     }
     showToast(result?.reason || "Participants could not be updated.", normalizedThreadId);
+    renderWidget();
+    return false;
+  }
+
+  async function archiveThreadWithApi(threadId = teamThreadId) {
+    const normalizedThreadId = getNormalizedThreadId(threadId);
+    const result = await sendApiAction({
+      action: "archiveThread",
+      threadId: normalizedThreadId,
+      threadType: getThreadType(normalizedThreadId),
+    });
+    if (result?.ok) {
+      applyApiPayload(result.result || {}, { threadId: normalizedThreadId });
+    }
+    if (result?.ok || canFallbackApiResult(result)) {
+      archiveThreadLocal(normalizedThreadId, result);
+      queueThreadSummaryRefresh({ delayMs: 0, render: true });
+      showToast("Group deleted.", teamThreadId);
+      renderWidget();
+      return true;
+    }
+    logApiFailure("archiveThread", result);
+    showToast(result?.reason || "Group could not be deleted.", normalizedThreadId);
     renderWidget();
     return false;
   }
@@ -266,6 +290,7 @@ export function createDashboardChatApiUiActions(dependencies = {}) {
 
   return Object.freeze({
     getRealtimeRenderState,
+    archiveThreadWithApi,
     handleThreadParticipantAction,
     handleThreadSettingAction,
     retryMessageWithApi,

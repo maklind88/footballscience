@@ -125,6 +125,30 @@ test("server Supabase headers support both legacy JWT and opaque secret keys", (
   });
 });
 
+test("server Supabase config prefers modern secret keys over legacy service role keys", () => {
+  const { readConfig } = require("../api/_lib/supabase-admin.js");
+  const previousSecret = process.env.SUPABASE_SECRET_KEY;
+  const previousServiceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  process.env.SUPABASE_SECRET_KEY = "sb_secret_current_checksum";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "legacy-or-stale-service-role";
+
+  try {
+    expect(readConfig().serviceRoleKey).toBe("sb_secret_current_checksum");
+  } finally {
+    if (previousSecret === undefined) {
+      delete process.env.SUPABASE_SECRET_KEY;
+    } else {
+      process.env.SUPABASE_SECRET_KEY = previousSecret;
+    }
+    if (previousServiceRole === undefined) {
+      delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    } else {
+      process.env.SUPABASE_SERVICE_ROLE_KEY = previousServiceRole;
+    }
+  }
+});
+
 test("platform evolution plan forbids risky rewrites and destructive data moves", () => {
   const plan = readProjectFile("docs/PLATFORM_EVOLUTION_PLAN.md");
 

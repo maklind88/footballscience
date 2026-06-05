@@ -51,8 +51,8 @@ function readConfig() {
       "NEXT_PUBLIC_SUPABASE_ANON_KEY",
       "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
     ]),
-    serviceRoleKey: getEnvValue("SUPABASE_SERVICE_ROLE_KEY", [
-      "SUPABASE_SECRET_KEY",
+    serviceRoleKey: getEnvValue("SUPABASE_SECRET_KEY", [
+      "SUPABASE_SERVICE_ROLE_KEY",
       "SUPABASE_SERVICE_ROLE",
     ]),
   };

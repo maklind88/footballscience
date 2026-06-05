@@ -259,6 +259,8 @@ const sessionPlannerBlockMergeFields = Object.freeze([
 "playerBoardColors",
 "playerBoardCustomPeople",
 "tacticalElements",
+"libraryExerciseId",
+"postSessionNotes",
 ]);
 const sessionPlannerBlockMergeFieldSet = new Set(sessionPlannerBlockMergeFields);
 const sessionPlannerExerciseLibraryStorageKey = "football-session-exercise-library-v1";
@@ -11953,6 +11955,60 @@ return new Date().toISOString();
 function getSessionPlannerLibraryUserId() {
 return typeof getCurrentPlatformUser === "function" ? getCurrentPlatformUser()?.id || "" : "";
 }
+function createSessionPlannerReviewNoteId(dateValue = "", blockId = "") {
+return `review-${String(dateValue || "date").trim()}-${String(blockId || "block").trim()}`;
+}
+function normalizeSessionPlannerExerciseReviewNote(note = {}) {
+if (!note || typeof note !== "object" || Array.isArray(note)) {
+return null;
+}
+const notes = String(note.notes ?? note.note ?? note.text ?? "").trim();
+if (!notes) {
+return null;
+}
+const sessionDate = String(note.sessionDate || note.date || "").trim();
+const blockId = String(note.blockId || "").trim();
+const updatedAt = normalizeSessionPlannerTimestamp(note.updatedAt) || getSessionPlannerLibraryNow();
+const createdAt = normalizeSessionPlannerTimestamp(note.createdAt) || updatedAt;
+return {
+id: String(note.id || createSessionPlannerReviewNoteId(sessionDate, blockId)).trim(),
+sessionDate,
+blockId,
+blockTitle: String(note.blockTitle || note.exerciseTitle || "").trim(),
+notes,
+createdAt,
+updatedAt,
+updatedBy: String(note.updatedBy || note.createdBy || "").trim(),
+};
+}
+function normalizeSessionPlannerExerciseReviewNotes(sourceNotes = [], legacyNotes = "") {
+const notes = Array.isArray(sourceNotes)
+? sourceNotes
+.map(normalizeSessionPlannerExerciseReviewNote)
+.filter(Boolean)
+: [];
+const legacyNoteText = String(legacyNotes || "").trim();
+if (legacyNoteText) {
+notes.push(
+normalizeSessionPlannerExerciseReviewNote({
+id: "review-legacy-note",
+notes: legacyNoteText,
+blockTitle: "Legacy review note",
+})
+);
+}
+const usedIds = new Set();
+return notes
+.map((note) => {
+let noteId = note.id || createSessionPlannerReviewNoteId(note.sessionDate, note.blockId);
+while (usedIds.has(noteId)) {
+noteId = `${noteId}-${usedIds.size + 1}`;
+}
+usedIds.add(noteId);
+return { ...note, id: noteId };
+})
+.sort((first, second) => parseSessionPlannerTimestampMs(second.updatedAt) - parseSessionPlannerTimestampMs(first.updatedAt));
+}
 function normalizeSessionPlannerBlockFieldMeta(source = {}) {
 if (!source || typeof source !== "object" || Array.isArray(source)) {
 return {};
@@ -12011,6 +12067,8 @@ objective: overrides.objective || "",
 why: overrides.why || "",
 organization: overrides.organization || "",
 principles: overrides.principles || "",
+libraryExerciseId: String(overrides.libraryExerciseId || overrides.sourceExerciseId || "").trim(),
+postSessionNotes: String(overrides.postSessionNotes || "").trim(),
 diagram: isUntouchedNewExercise ? "empty" : overrides.diagram || "empty",
 tacticalPitchMode: normalizeSessionPlannerTacticalPitchMode(overrides.tacticalPitchMode),
 tacticalFrames,
@@ -12048,6 +12106,7 @@ updatedBy,
 source: sourceType,
 tags: normalizeSessionPlannerLibraryTags(source.tags),
 versions: normalizeSessionPlannerLibraryVersions(source.versions),
+reviewNotes: normalizeSessionPlannerExerciseReviewNotes(source.reviewNotes, source.postSessionNotes),
 };
 }
 function cloneSessionPlannerLibraryExercise(exercise = {}) {
@@ -12058,6 +12117,7 @@ playerBoardColors: normalizeSessionPlannerPlayerBoardColors(exercise.playerBoard
 playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople(exercise.playerBoardCustomPeople),
 tacticalFrames: normalizeSessionPlannerTacticalFrames(exercise.tacticalFrames),
 tacticalActiveFrameId: exercise.tacticalActiveFrameId || "",
+reviewNotes: normalizeSessionPlannerExerciseReviewNotes(exercise.reviewNotes, exercise.postSessionNotes),
 tacticalElements: Array.isArray(exercise.tacticalElements)
 ? exercise.tacticalElements.map(cloneSessionPlannerTacticalElement)
 : [],
@@ -13162,6 +13222,7 @@ exercise.objective,
 exercise.phase,
 exercise.subPhase,
 formatSessionPlannerLibraryTags(exercise.tags),
+getSessionPlannerExerciseReviewNotes(exercise).map((note) => note.notes).join(" "),
 ]
 .filter(Boolean)
 .join(" ")
@@ -13529,9 +13590,44 @@ return getSessionPlannerExerciseLibrary().findIndex(
 normalizeSessionPlannerLibraryTitle(item.title) === normalizedTitle
 );
 }
+function createSessionPlannerReviewNoteFromBlock(block = {}, options = {}) {
+const notes = String(block.postSessionNotes || "").trim();
+if (!notes) {
+return null;
+}
+const sessionDate = String(options.sessionDate || sessionPlannerState?.selectedDate || "").trim();
+const blockId = String(block.id || "").trim();
+const existingNote = options.existingNote || null;
+const now = getSessionPlannerLibraryNow();
+return normalizeSessionPlannerExerciseReviewNote({
+id: existingNote?.id || createSessionPlannerReviewNoteId(sessionDate, blockId),
+sessionDate,
+blockId,
+blockTitle: String(block.title || block.label || "Exercise").trim(),
+notes,
+createdAt: existingNote?.createdAt || now,
+updatedAt: now,
+updatedBy: getSessionPlannerLibraryUserId(),
+});
+}
+function getSessionPlannerExerciseReviewNotes(exercise = {}) {
+return normalizeSessionPlannerExerciseReviewNotes(exercise.reviewNotes, exercise.postSessionNotes);
+}
+function getSessionPlannerExerciseReviewNotesForBlock(block = {}, options = {}) {
+const exercise = getSessionPlannerLibraryExerciseById(block.libraryExerciseId);
+if (!exercise) {
+return [];
+}
+const currentNoteId = createSessionPlannerReviewNoteId(
+String(options.sessionDate || sessionPlannerState?.selectedDate || "").trim(),
+String(block.id || "").trim()
+);
+return getSessionPlannerExerciseReviewNotes(exercise).filter((note) => note.id !== currentNoteId);
+}
 function buildSessionPlannerLibraryExerciseFromBlock(block) {
 const now = getSessionPlannerLibraryNow();
 const currentUserId = getSessionPlannerLibraryUserId();
+const reviewNote = createSessionPlannerReviewNoteFromBlock(block);
 return createSessionPlannerLibraryExercise({
 ...block,
 id: createSessionPlannerStableId("exercise"),
@@ -13557,6 +13653,8 @@ objective: block.objective || "",
 why: block.why || "",
 organization: block.organization || "",
 principles: block.principles || "",
+postSessionNotes: "",
+reviewNotes: reviewNote ? [reviewNote] : [],
 diagram: block.diagram || "empty",
 tacticalPitchMode: normalizeSessionPlannerTacticalPitchMode(block.tacticalPitchMode),
 playerBoardLayoutMode: block.playerBoardLayoutMode === "manual" ? "manual" : "auto",
@@ -17037,6 +17135,42 @@ showSessionPlannerToast("Uploaded image saved.");
 showSessionPlannerToast("The image could not be uploaded.", "error");
 }
 }
+function syncSessionPlannerPostSessionNotesToLibrary(block = getSessionPlannerSelectedBlock()) {
+if (!block?.libraryExerciseId || !canEditSessionPlanner()) {
+return false;
+}
+const library = getSessionPlannerExerciseLibrary().map(cloneSessionPlannerLibraryExercise);
+const exerciseIndex = library.findIndex((exercise) => exercise.id === block.libraryExerciseId);
+if (exerciseIndex < 0) {
+return false;
+}
+const exercise = library[exerciseIndex];
+const noteId = createSessionPlannerReviewNoteId(sessionPlannerState?.selectedDate || "", block.id || "");
+const existingReviewNotes = getSessionPlannerExerciseReviewNotes(exercise);
+const existingNote = existingReviewNotes.find((note) => note.id === noteId) || null;
+const nextNote = createSessionPlannerReviewNoteFromBlock(block, { existingNote });
+const nextReviewNotes = nextNote
+? [nextNote, ...existingReviewNotes.filter((note) => note.id !== noteId)]
+: existingReviewNotes.filter((note) => note.id !== noteId);
+if (JSON.stringify(existingReviewNotes) === JSON.stringify(nextReviewNotes)) {
+return true;
+}
+const now = getSessionPlannerLibraryNow();
+const nextExercise = cloneSessionPlannerLibraryExercise({
+...exercise,
+reviewNotes: nextReviewNotes,
+updatedAt: now,
+updatedBy: getSessionPlannerLibraryUserId(),
+});
+library[exerciseIndex] = nextExercise;
+const writeResult = writeSessionPlannerExerciseLibraryToStorage(library);
+if (!writeResult.saved) {
+showSessionPlannerToast("Post-session note saved on the block, but not in the exercise library.", "warning");
+return false;
+}
+sessionPlannerExerciseLibrary = writeResult.exercises;
+return true;
+}
 function applySessionPlannerExercise(exerciseId) {
 if (!canEditSessionPlanner()) {
 return;
@@ -17060,12 +17194,16 @@ tags,
 updatedAt,
 updatedBy,
 versions,
+reviewNotes,
+postSessionNotes,
 ...exerciseContent
 } = exercise;
 Object.assign(block, {
 ...exerciseContent,
 id: block.id,
 label: block.label,
+libraryExerciseId: exercise.id,
+postSessionNotes: block.postSessionNotes || "",
 visualImage: exercise.visualImage || "",
 playerBoardPositions: normalizeSessionPlannerPlayerBoardPositions(exercise.playerBoardPositions),
 playerBoardColors: normalizeSessionPlannerPlayerBoardColors(exercise.playerBoardColors),
@@ -17082,7 +17220,7 @@ sessionPlannerAddMenuOpen = false;
 writeSessionPlannerState();
 renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
-function updateSelectedSessionPlannerBlockField(field, rawValue) {
+function updateSelectedSessionPlannerBlockField(field, rawValue, options = {}) {
 if (!canEditSessionPlanner()) {
 return;
 }
@@ -17094,7 +17232,10 @@ return;
 if (block[field] !== previousValue) {
 markSessionPlannerBlockFieldsUpdated(block, [field]);
 }
-writeSessionPlannerState();
+const saved = writeSessionPlannerState();
+if (saved && field === "postSessionNotes" && options.syncExerciseReview) {
+syncSessionPlannerPostSessionNotesToLibrary(block);
+}
 }
 function getSessionPlannerDateLabel(dateValue, options = {}) {
 return new Intl.DateTimeFormat("en-GB", options).format(parseScheduleDateValue(dateValue));
@@ -17937,6 +18078,48 @@ return `
     />
   `;
 }
+function renderSessionPlannerReviewNoteHistory(block = {}) {
+const notes = getSessionPlannerExerciseReviewNotesForBlock(block).slice(0, 4);
+if (!notes.length) {
+return "";
+}
+return `
+    <details class="session-post-notes-history">
+      <summary>
+        <span>Previous Review Notes</span>
+        <small>${notes.length}</small>
+      </summary>
+      ${notes
+        .map((note) => {
+          const noteDate = note.sessionDate ? formatSessionPlannerLibraryDate(note.sessionDate) : formatSessionPlannerLibraryDate(note.updatedAt);
+          const title = [noteDate, note.blockTitle].filter(Boolean).join(" · ");
+          return `
+            <article class="session-post-notes-history-item">
+              <strong>${escapeHtml(title || "Review note")}</strong>
+              <p>${escapeHtml(note.notes).replaceAll("\n", "<br>")}</p>
+            </article>
+          `;
+        })
+        .join("")}
+    </details>
+  `;
+}
+function renderSessionPlannerPostSessionNotesCard(block = {}) {
+const hasCurrentNote = Boolean(String(block.postSessionNotes || "").trim());
+const previousNoteCount = getSessionPlannerExerciseReviewNotesForBlock(block).length;
+return `
+    <details class="session-detail-card session-detail-card-full session-post-notes-card">
+      <summary data-session-post-notes-toggle>
+        <span>Post Session Notes</span>
+        <small>${hasCurrentNote ? "Reflection added" : previousNoteCount ? `${previousNoteCount} previous` : "Optional review"}</small>
+      </summary>
+      <div class="session-builder-fields">
+        ${renderSessionPlannerEditableField(block, "postSessionNotes", "Post Session Notes", { rows: 4 })}
+      </div>
+      ${renderSessionPlannerReviewNoteHistory(block)}
+    </details>
+  `;
+}
 function resizeSessionPlannerTextarea(textarea) {
 if (!textarea || textarea.tagName !== "TEXTAREA") {
 return;
@@ -18404,6 +18587,29 @@ return `
     </div>
   `;
 }
+function renderSessionPlannerLibraryReviewNotesPreview(exercise = {}) {
+const notes = getSessionPlannerExerciseReviewNotes(exercise).slice(0, 6);
+if (!notes.length) {
+return renderSessionPlannerLibraryDetail("Review Notes", "");
+}
+return `
+    <div class="session-library-preview-detail session-library-review-notes">
+      <span>Review Notes</span>
+      ${notes
+        .map((note) => {
+          const noteDate = note.sessionDate ? formatSessionPlannerLibraryDate(note.sessionDate) : formatSessionPlannerLibraryDate(note.updatedAt);
+          const title = [noteDate, note.blockTitle].filter(Boolean).join(" · ");
+          return `
+            <article>
+              <strong>${escapeHtml(title || "Review note")}</strong>
+              <p>${escapeHtml(note.notes).replaceAll("\n", "<br>")}</p>
+            </article>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
 function renderSessionPlannerLibraryEditField(exercise, key, label, options = {}) {
 const value = key === "tags" ? formatSessionPlannerLibraryTags(exercise.tags) : exercise[key] ?? "";
 const isLong = options.long ?? true;
@@ -18539,7 +18745,7 @@ if (!exercise) return "";
 const isAdmin = canEditSessionPlanner();
 const isArchived = isSessionPlannerLibraryExerciseArchived(exercise);
 const actions = isAdmin && !isArchived ? `<button type="button" class="session-library-use-button" data-session-use-exercise="${escapeHtml(exercise.id)}">Use</button><button type="button" class="session-library-secondary-button" data-session-edit-library-exercise="${escapeHtml(exercise.id)}">Edit</button>` : isAdmin && isArchived ? `<button type="button" class="session-library-restore-button" data-session-restore-library-exercise="${escapeHtml(exercise.id)}">Restore</button>` : "";
-const details = [["Objective", exercise.objective], ["Why", exercise.why], ["Organization", exercise.organization], ["Measure & Material", exercise.material], ["Principles", exercise.principles], ["Pitch", exercise.pitchSize]].map(([label, value]) => renderSessionPlannerLibraryDetail(label, value)).join("");
+const details = `${[["Objective", exercise.objective], ["Why", exercise.why], ["Organization", exercise.organization], ["Measure & Material", exercise.material], ["Principles", exercise.principles], ["Pitch", exercise.pitchSize]].map(([label, value]) => renderSessionPlannerLibraryDetail(label, value)).join("")}${renderSessionPlannerLibraryReviewNotesPreview(exercise)}`;
 return `<div class="session-library-edit-dialog-backdrop" data-session-view-dialog><section class="session-library-edit-dialog session-library-view-dialog" role="dialog" aria-modal="true" aria-label="View exercise"><header class="session-library-edit-dialog-head"><div><span>View</span><h3>${escapeHtml(exercise.title || "Untitled Exercise")}</h3></div><button type="button" class="session-library-close-button" data-session-close-view>Close</button></header><div class="session-library-preview-head"><p>${renderSessionPlannerLibraryFieldText(exercise.focus || exercise.objective, "No description yet.")}</p></div><div class="session-library-preview-actions">${actions}</div><div class="session-library-preview-details">${details}</div></section></div>`;
 }
 function renderSessionPlannerLibraryActionButton(exercise, label, dataAttribute, className = "session-library-secondary-button", value = exercise.id) {
@@ -18562,7 +18768,8 @@ const isArchived = isSessionPlannerLibraryExerciseArchived(exercise);
 const metaDate = formatSessionPlannerLibraryDate(isArchived ? exercise.archivedAt : exercise.updatedAt || exercise.createdAt);
 const durationLabel = exercise.minutes ? `${exercise.minutes} min` : exercise.time || "No time";
 const selectedFolder = getSessionPlannerLibraryFolderById(sessionPlannerLibrarySelectedFolderId);
-return `<article class="session-library-item${isArchived ? " is-archived" : ""}" data-session-library-drag-exercise="${escapeHtml(exercise.id)}" draggable="${isAdmin && !isArchived ? "true" : "false"}"><div class="session-library-item-main"><strong>${escapeHtml(exercise.title || "Untitled Exercise")}</strong><div class="session-library-tags"><span>${escapeHtml(getSessionPlannerMultiValueSummary(exercise.phase, "No phase"))}</span><span>${escapeHtml(getSessionPlannerMultiValueSummary(exercise.subPhase, "No sub-phase"))}</span>${isArchived ? `<span class="session-library-archive-chip">Archived</span>` : ""}</div></div><div class="session-library-row-meta"><span>${escapeHtml(durationLabel)}</span><span>${escapeHtml(metaDate)}</span></div>${isAdmin ? renderSessionPlannerLibraryRowActions(exercise, selectedFolder) : ""}</article>`;
+const reviewNoteCount = getSessionPlannerExerciseReviewNotes(exercise).length;
+return `<article class="session-library-item${isArchived ? " is-archived" : ""}" data-session-library-drag-exercise="${escapeHtml(exercise.id)}" draggable="${isAdmin && !isArchived ? "true" : "false"}"><div class="session-library-item-main"><strong>${escapeHtml(exercise.title || "Untitled Exercise")}</strong><div class="session-library-tags"><span>${escapeHtml(getSessionPlannerMultiValueSummary(exercise.phase, "No phase"))}</span><span>${escapeHtml(getSessionPlannerMultiValueSummary(exercise.subPhase, "No sub-phase"))}</span>${reviewNoteCount ? `<span>${reviewNoteCount} review note${reviewNoteCount === 1 ? "" : "s"}</span>` : ""}${isArchived ? `<span class="session-library-archive-chip">Archived</span>` : ""}</div></div><div class="session-library-row-meta"><span>${escapeHtml(durationLabel)}</span><span>${escapeHtml(metaDate)}</span></div>${isAdmin ? renderSessionPlannerLibraryRowActions(exercise, selectedFolder) : ""}</article>`;
 }).join("");
 }
 function renderSessionPlannerLibraryOverlay() {
@@ -22649,6 +22856,7 @@ ${renderSessionPlannerEditableField(block, "material", "Measure & Material", { r
 ${renderSessionPlannerEditableField(block, "principles", "Principles & Coaching Points", { rows: 5 })}
 </div>
 </article>
+${renderSessionPlannerPostSessionNotesCard(block)}
 </section>
 `
             : `<p class="session-empty-state">Add a block to start building this session.</p>`
@@ -77600,7 +77808,9 @@ const field = event.target.closest("[data-session-field]");
 if (!field) {
 return;
 }
-updateSelectedSessionPlannerBlockField(field.dataset.sessionField, field.value);
+updateSelectedSessionPlannerBlockField(field.dataset.sessionField, field.value, {
+syncExerciseReview: field.dataset.sessionField === "postSessionNotes",
+});
 renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 });
 const SESSION_TACTICALBOARD_KEY_HANDLED = "__sessionTacticalboardKeyHandled";

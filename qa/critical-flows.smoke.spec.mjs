@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 const scheduleKey = "football-schedule-v1";
 const periodizationKey = "football-periodization-v2";
 const sessionPlannerKey = "football-session-planner-v3";
+const sessionPlannerLibraryKey = "football-session-exercise-library-v1";
 const medicalKey = "football-medical-team-v1";
 const playerProfilesKey = "football-player-profiles-v1";
 const dashboardChatKey = "football-dashboard-chat-v1";
@@ -1017,6 +1018,128 @@ test("Session Planner block edits persist after refresh", async ({ page }) => {
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.locator("#hubShell")).toBeVisible();
   await expectStorageContains(page, sessionPlannerKey, value);
+});
+
+test("Session Planner post-session notes stay attached to library exercises", async ({ page }) => {
+  const note = `QA post-session review ${Date.now()}`;
+  const exerciseId = "qa-library-review-exercise";
+  await page.addInitScript(
+    ({ sessionKey, libraryKey, exerciseId }) => {
+      const dateValue = "2026-05-19";
+      window.localStorage.setItem(
+        sessionKey,
+        JSON.stringify({
+          selectedDate: dateValue,
+          sessions: {
+            [dateValue]: {
+              id: `session-${dateValue}`,
+              date: dateValue,
+              title: "QA Training",
+              theme: "QA review notes",
+              selectedBlockId: "qa-review-block",
+              blocks: [
+                {
+                  id: "qa-review-block",
+                  label: "Block 1",
+                  title: "QA Library Exercise",
+                  focus: "Review attachment",
+                  phase: "In Possession",
+                  subPhase: "Build Up",
+                  minutes: 18,
+                  intensity: 3,
+                  pitchSize: "SSG",
+                  material: "",
+                  objective: "",
+                  why: "",
+                  organization: "",
+                  principles: "",
+                  diagram: "empty",
+                  libraryExerciseId: exerciseId,
+                  postSessionNotes: "",
+                  tacticalElements: [],
+                  playerBoardPositions: {},
+                  playerBoardColors: {},
+                },
+              ],
+            },
+          },
+        })
+      );
+      window.localStorage.setItem(
+        libraryKey,
+        JSON.stringify([
+          {
+            id: exerciseId,
+            label: "Library Exercise",
+            title: "QA Library Exercise",
+            focus: "Review attachment",
+            phase: "In Possession",
+            subPhase: "Build Up",
+            minutes: 18,
+            intensity: 3,
+            pitchSize: "SSG",
+            material: "",
+            objective: "",
+            why: "",
+            organization: "",
+            principles: "",
+            diagram: "empty",
+            tags: [],
+            versions: [],
+            reviewNotes: [],
+            createdAt: "2026-05-01T12:00:00.000Z",
+            updatedAt: "2026-05-01T12:00:00.000Z",
+          },
+        ])
+      );
+    },
+    { sessionKey: sessionPlannerKey, libraryKey: sessionPlannerLibraryKey, exerciseId }
+  );
+
+  await bootApp(page);
+  await openWorkspace(page, "session-planner");
+  const sessionPlannerWorkspace = await waitForSessionPlannerWorkspace(page);
+  const postNotesCard = sessionPlannerWorkspace.locator(".session-post-notes-card").first();
+  await expect(postNotesCard).not.toHaveAttribute("open", "");
+  await expect(postNotesCard.locator("summary")).toContainText("Optional review");
+  await postNotesCard.locator("[data-session-post-notes-toggle]").click();
+  const notesField = sessionPlannerWorkspace.locator('[data-session-field="postSessionNotes"]').first();
+  await expect(notesField).toBeVisible();
+  await notesField.fill(note);
+  await notesField.blur();
+  await expectStorageContains(page, sessionPlannerKey, note);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        ({ libraryKey, exerciseId }) => {
+          const library = JSON.parse(window.localStorage.getItem(libraryKey) || "[]");
+          const exercise = Array.isArray(library)
+            ? library.find((candidate) => candidate.id === exerciseId)
+            : null;
+          const reviewNote = exercise?.reviewNotes?.[0] || null;
+          return reviewNote
+            ? {
+                notes: reviewNote.notes,
+                sessionDate: reviewNote.sessionDate,
+                blockId: reviewNote.blockId,
+              }
+            : null;
+        },
+        { libraryKey: sessionPlannerLibraryKey, exerciseId }
+      )
+    )
+    .toEqual({
+      notes: note,
+      sessionDate: "2026-05-19",
+      blockId: "qa-review-block",
+    });
+
+  await sessionPlannerWorkspace.locator("[data-session-open-library]").click();
+  const libraryModal = page.locator(".session-library-modal").first();
+  await expect(libraryModal).toBeVisible();
+  await expect(libraryModal.locator(".session-library-item", { hasText: "1 review note" })).toBeVisible();
+  await libraryModal.locator(`[data-session-view-exercise="${exerciseId}"]`).click();
+  await expect(page.locator(".session-library-view-dialog")).toContainText(note);
 });
 
 test("Medical recommendation edits persist after refresh", async ({ page }) => {

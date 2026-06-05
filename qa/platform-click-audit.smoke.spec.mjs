@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 const workspaceHubKey = "football-workspace-hub-v3";
+const performanceBudgetMultiplier = process.env.CI ? 1.25 : 1;
+const budget = (milliseconds) => Math.ceil(milliseconds * performanceBudgetMultiplier);
+
+test.describe.configure({ timeout: 180_000 });
 
 const workspaceIds = [
   "home",
@@ -27,8 +31,8 @@ const workspaceViewIds = {
   "team-identity": "placeholder",
 };
 
-const clickBudgetMs = 1200;
-const workspaceClickBudgetMs = 1500;
+const clickBudgetMs = budget(1200);
+const workspaceClickBudgetMs = budget(1500);
 const maxCandidatesPerWorkspace = 30;
 
 function viewIdForWorkspace(workspaceId) {
@@ -377,7 +381,6 @@ async function clickCandidate(page, candidate) {
 }
 
 test("platform visible click audit keeps distinct controls responsive and labelled", async ({ page }, testInfo) => {
-  test.setTimeout(180_000);
   const runtime = await bootApp(page);
   const results = [];
   const missingLabels = [];

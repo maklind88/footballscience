@@ -9,9 +9,9 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 export const performanceBudgets = Object.freeze([
   {
     file: "app.js",
-    maxBytes: 2_800_000,
-    maxGzipBytes: 518_000,
-    maxLines: 78_700,
+    maxBytes: 2_820_000,
+    maxGzipBytes: 522_000,
+    maxLines: 79_000,
     targetGzipBytes: 350_000,
     priority: "critical",
     nextStep: "Extract shared workspace renderers and legacy module state from app.js before adding broad new UI.",

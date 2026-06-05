@@ -27,6 +27,7 @@ export function createPlatformAutosaveStatusController(options = {}) {
     updatedAt: "",
   };
   let idleTimer = null;
+  let visible = options.visible !== false;
 
   function getStatusElement() {
     if (!doc?.body) {
@@ -39,6 +40,7 @@ export function createPlatformAutosaveStatusController(options = {}) {
       statusElement.dataset.platformAutosaveStatus = "";
       statusElement.setAttribute("role", "status");
       statusElement.setAttribute("aria-live", "polite");
+      statusElement.hidden = !visible;
       doc.body.appendChild(statusElement);
     }
     return statusElement;
@@ -47,6 +49,10 @@ export function createPlatformAutosaveStatusController(options = {}) {
   function render() {
     const statusElement = getStatusElement();
     if (!statusElement) {
+      return;
+    }
+    statusElement.hidden = !visible;
+    if (!visible) {
       return;
     }
     const state = status.state || "saved";
@@ -79,9 +85,15 @@ export function createPlatformAutosaveStatusController(options = {}) {
     }
   }
 
+  function setVisible(nextVisible = true) {
+    visible = Boolean(nextVisible);
+    render();
+  }
+
   return Object.freeze({
     getStatus: () => ({ ...status }),
     render,
     set,
+    setVisible,
   });
 }

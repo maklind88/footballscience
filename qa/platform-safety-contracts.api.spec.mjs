@@ -387,7 +387,11 @@ test("Session Planner central sync conflicts retry silently instead of reopening
   expect(appSource).toContain("function showSessionPlannerCentralSyncNotice");
   expect(appSource).toContain("let sessionPlannerCentralSyncNoticeAt = 0;");
   expect(appSource).toContain("baseRevision: retryBaseRevision");
-  expect(appSource).toContain('setPlatformAutosaveStatus("issue", "Sync needs attention");');
+  expect(appSource).toContain("function isSessionPlannerAutosaveKey");
+  expect(appSource).toContain("function shouldShowPlatformAutosaveStatus");
+  expect(appSource).toContain("function setPlatformAutosaveStatusForKey");
+  expect(appSource).toContain('workspaceId === "session-planner"');
+  expect(appSource).toContain('setPlatformAutosaveStatusForKey(write.key, "issue", "Sync needs attention");');
   expect(appSource).not.toContain("${renderSessionPlannerCentralSyncConflictOverlay()}");
   expect(appSource).not.toContain("sessionPlannerCentralSyncConflict ||");
   expect(appSource).not.toContain('setPlatformAutosaveStatus("conflict", result?.reason || "Central newer.")');

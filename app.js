@@ -641,6 +641,22 @@ now: getDataSafetyNow,
 escapeHtml,
 });
 const setPlatformAutosaveStatus = platformAutosaveStatusController.set;
+function isSessionPlannerAutosaveKey(key = "") {
+return String(key || "") === sessionPlannerStorageKey;
+}
+function shouldShowPlatformAutosaveStatus(workspaceId = hubState?.activeWorkspaceId) {
+return workspaceId === "session-planner";
+}
+function syncPlatformAutosaveStatusVisibility(workspaceId = hubState?.activeWorkspaceId) {
+platformAutosaveStatusController.setVisible(shouldShowPlatformAutosaveStatus(workspaceId));
+}
+function setPlatformAutosaveStatusForKey(key, state, message = "") {
+if (!isSessionPlannerAutosaveKey(key) || !shouldShowPlatformAutosaveStatus()) {
+return;
+}
+setPlatformAutosaveStatus(state, message);
+}
+syncPlatformAutosaveStatusVisibility(null);
 function getCentralStateBridge() {
 return win.footballScienceCentralState ?? null;
 }
@@ -888,10 +904,10 @@ return;
 }
 if (!getCurrentPlatformUser() || !bridge?.syncKey) {
 queueCentralStateStatus("Central sync unavailable.");
-setPlatformAutosaveStatus("issue", "Central sync unavailable.");
+setPlatformAutosaveStatusForKey(normalizedKey, "issue", "Central sync unavailable.");
 return;
 }
-setPlatformAutosaveStatus("saving", "Saving");
+setPlatformAutosaveStatusForKey(normalizedKey, "saving", "Saving");
 setCentralSyncPendingState(normalizedKey, true, Boolean(options.removed));
 centralStateWriteQueue.set(normalizedKey, {
 key: normalizedKey,
@@ -911,6 +927,7 @@ if (!bridge?.syncKey || !centralStateWriteQueue.size) {
 return;
 }
 const writes = Array.from(centralStateWriteQueue.values());
+const touchedSessionPlannerAutosave = writes.some((write) => isSessionPlannerAutosaveKey(write.key));
 centralStateWriteQueue.clear();
 for (let index = 0; index < writes.length; index += 1) {
 const write = writes[index];
@@ -924,12 +941,12 @@ const retryResult = await retryCentralStateWriteAfterConflict(write, result, bri
 setCentralSyncPendingState(write.key, false, write.removed);
 if (retryResult?.ok) {
 queueCentralStateStatus("");
-setPlatformAutosaveStatus("saved", "Saved");
+setPlatformAutosaveStatusForKey(write.key, "saved", "Saved");
 continue;
 }
 queueCentralStateStatus(result?.reason || "Central newer.");
 registerSessionPlannerCentralSyncConflict(write, result);
-setPlatformAutosaveStatus("issue", "Sync needs attention");
+setPlatformAutosaveStatusForKey(write.key, "issue", "Sync needs attention");
 if (write.key !== sessionPlannerStorageKey) {
 await bridge.hydrate?.({ forceApply: true }).catch(() => {});
 }
@@ -940,7 +957,7 @@ const retryWrite = writes[retryIndex];
 centralStateWriteQueue.set(retryWrite.key, retryWrite);
 }
 queueCentralStateStatus(result?.reason || "Sync failed.");
-setPlatformAutosaveStatus("issue", result?.reason || "Sync failed.");
+setPlatformAutosaveStatusForKey(write.key, "issue", result?.reason || "Sync failed.");
 return;
 }
 applyCentralSyncedStateValue(write, result.value);
@@ -950,7 +967,9 @@ showSessionPlannerToast("Central sync merged.", "warning");
 setCentralSyncPendingState(write.key, false, write.removed);
 }
 queueCentralStateStatus("");
-setPlatformAutosaveStatus("saved", "Saved");
+if (touchedSessionPlannerAutosave) {
+setPlatformAutosaveStatusForKey(sessionPlannerStorageKey, "saved", "Saved");
+}
 }
 function recordDataSafetyWrite(key, value, options = {}) {
 const normalizedKey = String(key || "");
@@ -6442,15 +6461,10 @@ return mergedDays;
 function setPeriodizationStateStorageValue(state = periodizationState, options = {}) {
 const shouldSyncCentral = options.syncCentral !== false;
 if (!shouldSyncCentral) {
-centralStateWriteSuppressionKeys.add(periodizationStorageKey);
+rawDataSafetySetItem(periodizationStorageKey, JSON.stringify(state));
+return;
 }
-try {
 win.localStorage.setItem(periodizationStorageKey, JSON.stringify(state));
-} finally {
-if (!shouldSyncCentral) {
-centralStateWriteSuppressionKeys.delete(periodizationStorageKey);
-}
-}
 }
 function readPeriodizationState() {
 try {
@@ -6682,15 +6696,10 @@ visibleEventTypes: localState.visibleEventTypes ?? centralStateValue.visibleEven
 function setScheduleStateStorageValue(state = scheduleState, options = {}) {
 const shouldSyncCentral = options.syncCentral !== false;
 if (!shouldSyncCentral) {
-centralStateWriteSuppressionKeys.add(scheduleStorageKey);
+rawDataSafetySetItem(scheduleStorageKey, JSON.stringify(state));
+return;
 }
-try {
 win.localStorage.setItem(scheduleStorageKey, JSON.stringify(state));
-} finally {
-if (!shouldSyncCentral) {
-centralStateWriteSuppressionKeys.delete(scheduleStorageKey);
-}
-}
 }
 function readScheduleState() {
 try {
@@ -7132,15 +7141,10 @@ return nextState;
 function setScoutingStateStorageValue(state = scoutingState, options = {}) {
 const shouldSyncCentral = options.syncCentral !== false;
 if (!shouldSyncCentral) {
-centralStateWriteSuppressionKeys.add(scoutingStorageKey);
+rawDataSafetySetItem(scoutingStorageKey, JSON.stringify(state));
+return;
 }
-try {
 win.localStorage.setItem(scoutingStorageKey, JSON.stringify(state));
-} finally {
-if (!shouldSyncCentral) {
-centralStateWriteSuppressionKeys.delete(scoutingStorageKey);
-}
-}
 }
 function readScoutingState() {
 try {
@@ -25223,15 +25227,10 @@ policy: sanitizeMedicalGovernancePolicyForCoachView(),
 }
 function setMedicalStateStorageValue(state = medicalState, suppressCentralSync = false) {
 if (suppressCentralSync) {
-centralStateWriteSuppressionKeys.add(medicalTeamStorageKey);
+rawDataSafetySetItem(medicalTeamStorageKey, JSON.stringify(state));
+return;
 }
-try {
 win.localStorage.setItem(medicalTeamStorageKey, JSON.stringify(state));
-} finally {
-if (suppressCentralSync) {
-centralStateWriteSuppressionKeys.delete(medicalTeamStorageKey);
-}
-}
 }
 function readMedicalState() {
 try {
@@ -26251,13 +26250,13 @@ const raw = win.localStorage.getItem(playerProfilesStorageKey);
 const parsed = raw ? JSON.parse(raw) : {};
 const state = clonePlayerProfilesState(parsed);
 if (!raw || parsed?.schemaVersion !== playerProfilesSchemaVersion) {
-win.localStorage.setItem(playerProfilesStorageKey, JSON.stringify(state));
+rawDataSafetySetItem(playerProfilesStorageKey, JSON.stringify(state));
 }
 return state;
 } catch {
 const state = clonePlayerProfilesState({});
 try {
-win.localStorage.setItem(playerProfilesStorageKey, JSON.stringify(state));
+rawDataSafetySetItem(playerProfilesStorageKey, JSON.stringify(state));
 } catch {
 logEvent("Player Profiles data could not be written to local storage.");
 }
@@ -34467,6 +34466,7 @@ hubState.activeWorkspaceId = activeWorkspace.id;
 }
 const activeViewId = getWorkspaceViewId(activeWorkspace.id);
 hydrateWorkspaceModuleState(activeWorkspace.id);
+syncPlatformAutosaveStatusVisibility(activeWorkspace.id);
 document.body.dataset.appReady = "true";
 document.body.dataset.activeWorkspace = activeWorkspace.id;
 document.body.dataset.userRole = String(currentUser?.role || "guest").trim().toLowerCase() || "guest";
@@ -78721,7 +78721,9 @@ refreshCentralStateFromSource("interval");
 win.addEventListener("storage", (event) => {
 if (isDataSafetyProtectedStorageKey(event.key)) {
 queueDataSafetyStatusRefresh();
+if (event.key === sessionPlannerStorageKey) {
 queueDataSafetySnapshot("cross-tab-update");
+}
 }
 if (event.key === dashboardChatStorageKey) {
 dashboardChatRuntimeMessages = [];

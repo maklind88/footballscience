@@ -76841,7 +76841,7 @@ const editForm = event.target.closest("#playerProfileEditForm");
 if (editForm) {
 const label = event.target.type === "range" ? event.target.closest("label")?.querySelector("strong") : null;
 if (label) label.textContent = `${event.target.value}/5`;
-if (event.target.matches('textarea[name="coachNotes"]')) {
+if (event.target.matches('textarea[name="coachNotes"], input[name="temporaryGroup"], input[name="temporaryFrom"], input[name="temporaryTo"]')) {
 savePlayerProfileEditForm(editForm);
 } else {
 queuePlayerProfileAutosave(editForm);

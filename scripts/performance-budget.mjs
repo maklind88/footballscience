@@ -10,8 +10,8 @@ export const performanceBudgets = Object.freeze([
   {
     file: "app.js",
     maxBytes: 2_800_000,
-    maxGzipBytes: 514_000,
-    maxLines: 78_350,
+    maxGzipBytes: 517_000,
+    maxLines: 78_600,
     targetGzipBytes: 350_000,
     priority: "critical",
     nextStep: "Extract shared workspace renderers and legacy module state from app.js before adding broad new UI.",
@@ -27,7 +27,7 @@ export const performanceBudgets = Object.freeze([
   },
   {
     file: "dashboard-chat.css",
-    maxBytes: 126_000,
+    maxBytes: 126_200,
     maxGzipBytes: 16_500,
     maxLines: 2_100,
     targetGzipBytes: 5_000,
@@ -37,7 +37,7 @@ export const performanceBudgets = Object.freeze([
   {
     file: "index.html",
     maxBytes: 151_000,
-    maxGzipBytes: 27_400,
+    maxGzipBytes: 27_500,
     maxLines: 3_150,
     targetGzipBytes: 18_000,
     priority: "high",

@@ -46,6 +46,7 @@ async function seedGameplanEvidenceSources(page) {
     window.localStorage.setItem(
       "football-schedule-v1",
       JSON.stringify({
+        importVersion: "ncc-2026-numbers-v1",
         selectedYear: 2026,
         selectedMonthIndex: 5,
         selectedDate: "2026-06-03",

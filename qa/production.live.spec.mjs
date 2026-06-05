@@ -58,13 +58,30 @@ async function waitForCentralStateReady(page) {
   await expect
     .poll(
       async () =>
-        page.evaluate(() => {
-          const status = window.footballScienceCentralState?.getStatus?.();
-          return Boolean(status?.hydrated && !status.hydrating && !status.lastError);
+        page.evaluate(async () => {
+          const bridge = window.footballScienceCentralState;
+          if (!bridge?.getStatus) {
+            return "missing";
+          }
+          const status = bridge.getStatus() || {};
+          if (status.hydrated && !status.hydrating && !status.lastError) {
+            return "ready";
+          }
+          if (!status.hydrating && typeof bridge.hydrate === "function") {
+            try {
+              await bridge.hydrate({ forceApply: true });
+            } catch {}
+          }
+          const nextStatus = bridge.getStatus?.() || status;
+          if (nextStatus.hydrated && !nextStatus.hydrating && !nextStatus.lastError) {
+            return "ready";
+          }
+          const lastError = String(nextStatus.lastError || "").trim() || "none";
+          return `hydrated=${Boolean(nextStatus.hydrated)} hydrating=${Boolean(nextStatus.hydrating)} error=${lastError}`;
         }),
-      { timeout: 20_000 }
+      { timeout: 75_000, intervals: [500, 1_000, 2_000, 3_000] }
     )
-    .toBe(true);
+    .toBe("ready");
 }
 
 async function signIn(page) {

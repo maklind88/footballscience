@@ -1,0 +1,327 @@
+import { expect, test } from "@playwright/test";
+
+const workspaceHubKey = "football-workspace-hub-v3";
+const scoutingStorageKey = "football-scouting-v1";
+
+async function nextPaint(page) {
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+}
+
+async function dismissDashboardModal(page) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page
+      .evaluate(() => {
+        document
+          .querySelector(
+            "button[data-dashboard-news-dismiss], button[data-dashboard-tutorial-never], button[data-dashboard-tutorial-save], button[data-dashboard-modal-close], [data-dashboard-news-dismiss]"
+          )
+          ?.click?.();
+      })
+      .catch(() => {});
+    await page.waitForTimeout(80);
+  }
+}
+
+async function seedScoutingAccess(page) {
+  await page.addInitScript(
+    ({ hubKey, scoutKey }) => {
+      window.localStorage.removeItem(scoutKey);
+      window.localStorage.setItem(
+        hubKey,
+        JSON.stringify({
+          activeWorkspaceId: "home",
+          workspaceAccess: {
+            home: { view: ["admin", "coach"], edit: ["admin", "coach"] },
+            scouting: { view: ["admin", "coach"], edit: ["admin", "coach"] },
+          },
+        })
+      );
+    },
+    { hubKey: workspaceHubKey, scoutKey: scoutingStorageKey }
+  );
+}
+
+async function bootApp(page, browserErrors) {
+  page.on("pageerror", (error) => browserErrors.push(error.message));
+  page.on("console", (message) => {
+    const text = message.text();
+    if (message.type() === "error" && !/favicon/i.test(text)) {
+      browserErrors.push(text);
+    }
+  });
+  page.on("dialog", async (dialog) => {
+    await dialog.dismiss().catch(() => {});
+  });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("#hubShell")).toBeVisible({ timeout: 15_000 });
+  await page.waitForFunction(() => Boolean(window.footballScienceDataSafety), null, { timeout: 15_000 });
+  await dismissDashboardModal(page);
+}
+
+async function measure(page, results, label, budgetMs, action, ready = async () => {}) {
+  await nextPaint(page);
+  const startedAt = await page.evaluate(() => performance.now());
+  await action();
+  await ready();
+  await nextPaint(page);
+  const ms = Math.round(await page.evaluate((start) => performance.now() - start, startedAt));
+  results.push({ label, ms, budgetMs });
+  console.log(`[scouting-interaction-audit] ${label}: ${ms}ms / ${budgetMs}ms`);
+  expect(ms, `${label} took ${ms}ms, budget ${budgetMs}ms`).toBeLessThanOrEqual(budgetMs);
+}
+
+async function openScouting(page, results) {
+  await measure(
+    page,
+    results,
+    "open scouting",
+    1200,
+    async () => {
+      await page.locator('[data-open-workspace="scouting"]:visible').first().click();
+    },
+    async () => {
+      await expect(page.locator('[data-workspace-view="scouting"].is-active')).toBeVisible({ timeout: 10_000 });
+    }
+  );
+}
+
+async function clickScoutingTab(page, results, tabId, budgetMs = 1000) {
+  const tab = page.locator(`.scouting-tab[data-scouting-tab="${tabId}"]`).first();
+  if ((await tab.count()) === 0) {
+    return;
+  }
+  await measure(
+    page,
+    results,
+    `tab:${tabId}`,
+    budgetMs,
+    async () => {
+      await tab.click();
+    },
+    async () => {
+      await expect(tab).toHaveClass(/is-active/, { timeout: 8000 });
+    }
+  );
+}
+
+async function closeScoutingOverlays(page) {
+  const selectors = [
+    ".scouting-profile-close",
+    "[data-close-scouting-role-models]",
+    "[data-close-scouting-report-builder]",
+    "[data-close-scouting-saved-views]",
+    "[data-close-scouting-settings-panel]",
+  ];
+  for (const selector of selectors) {
+    const trigger = page.locator(selector).first();
+    if ((await trigger.count()) && (await trigger.isVisible().catch(() => false))) {
+      await trigger.click({ timeout: 3000 }).catch(() => {});
+      await page.waitForTimeout(50);
+    }
+  }
+  await page.keyboard.press("Escape").catch(() => {});
+  await nextPaint(page);
+}
+
+async function ensureDatabaseRows(page, results) {
+  await clickScoutingTab(page, results, "database");
+  await measure(
+    page,
+    results,
+    "load database",
+    5000,
+    async () => {
+      await page.evaluate(() => {
+        const button = Array.from(document.querySelectorAll("[data-scouting-load-database], [data-scouting-retry-database]")).find((node) => {
+          const rect = node.getBoundingClientRect();
+          const style = window.getComputedStyle(node);
+          return rect.width && rect.height && style.display !== "none" && style.visibility !== "hidden" && !node.disabled;
+        });
+        button?.click();
+      });
+    },
+    async () => {
+      await page.waitForSelector('[data-scouting-record-grid] [data-open-scouting-record]', { timeout: 15_000 });
+    }
+  );
+}
+
+test("Scouting interaction audit covers broad module clicks", async ({ page }) => {
+  test.setTimeout(180_000);
+  const browserErrors = [];
+  const results = [];
+  await seedScoutingAccess(page);
+  await bootApp(page, browserErrors);
+  await openScouting(page, results);
+
+  for (const tabId of ["shadow-xi", "my-team", "database", "lists", "comparison", "reports", "opposition"]) {
+    await clickScoutingTab(page, results, tabId);
+  }
+
+  await ensureDatabaseRows(page, results);
+  await measure(
+    page,
+    results,
+    "database advanced filters",
+    800,
+    async () => {
+      await page.locator("[data-toggle-scouting-advanced-filters]").first().click();
+    },
+    async () => {
+      await expect(page.locator(".scouting-database-advanced-filters").first()).toHaveClass(/is-open/);
+    }
+  );
+  await measure(page, results, "database advanced mode", 900, async () => {
+    await page.locator("[data-toggle-scouting-database-mode]:visible").first().click();
+  });
+
+  const firstRecord = page.locator('[data-workspace-view="scouting"].is-active [data-scouting-record-grid] [data-open-scouting-record]:visible').first();
+  await measure(
+    page,
+    results,
+    "profile open",
+    1000,
+    async () => {
+      await firstRecord.click();
+    },
+    async () => {
+      await expect(page.locator("[data-scouting-profile-modal]").first()).toBeVisible({ timeout: 10_000 });
+    }
+  );
+  for (const profileTab of ["overview", "performance", "squad", "reports", "contacts", "history", "market"]) {
+    const trigger = page.locator(`[data-scouting-profile-tab="${profileTab}"]`).first();
+    if ((await trigger.count()) && (await trigger.isVisible().catch(() => false))) {
+      await measure(page, results, `profile tab:${profileTab}`, 900, async () => trigger.click());
+    }
+  }
+  await measure(
+    page,
+    results,
+    "profile close",
+    600,
+    async () => {
+      await page.locator(".scouting-profile-close").first().click();
+    },
+    async () => {
+      await expect(page.locator("[data-scouting-profile-modal]").first()).toBeHidden({ timeout: 5000 });
+    }
+  );
+
+  await clickScoutingTab(page, results, "shadow-xi");
+  const boardVisibility = page.locator("[data-scouting-shadow-board-visibility]:visible").first();
+  if ((await boardVisibility.count()) && (await boardVisibility.isEnabled().catch(() => false))) {
+    await measure(
+      page,
+      results,
+      "shadow board visibility",
+      800,
+      async () => {
+        await boardVisibility.selectOption("team");
+      },
+      async () => {
+        await expect(boardVisibility).toHaveValue("team");
+      }
+    );
+  }
+  await measure(
+    page,
+    results,
+    "shadow slot to database",
+    900,
+    async () => {
+      await page.locator("[data-select-scouting-shadow-slot]").first().click();
+    },
+    async () => {
+      await expect(page.locator('.scouting-tab[data-scouting-tab="database"]').first()).toHaveClass(/is-active/, { timeout: 8000 });
+    }
+  );
+
+  await clickScoutingTab(page, results, "comparison");
+  await measure(
+    page,
+    results,
+    "comparison metric search",
+    900,
+    async () => {
+      await page.locator("[data-scouting-comparison-metric-summary]").first().click();
+      await page.locator("[data-scouting-comparison-metric-search]:visible").first().fill("minutes");
+    },
+    async () => {
+      await expect(page.locator("[data-scouting-comparison-metric-search]:visible").first()).toHaveValue("minutes");
+    }
+  );
+
+  await clickScoutingTab(page, results, "my-team");
+  const myTeamFormation = page.locator("[data-scouting-my-team-formation]").first();
+  if ((await myTeamFormation.count()) && (await myTeamFormation.isVisible().catch(() => false))) {
+    await measure(
+      page,
+      results,
+      "my-team formation",
+      800,
+      async () => {
+        await myTeamFormation.selectOption("4-2-3-1");
+      },
+      async () => {
+        await expect(myTeamFormation).toHaveValue("4-2-3-1");
+      }
+    );
+  }
+  const myTeamSpider = page.locator("[data-scouting-my-team-spider-shell] summary").first();
+  if ((await myTeamSpider.count()) && (await myTeamSpider.isVisible().catch(() => false))) {
+    await measure(
+      page,
+      results,
+      "my-team spider",
+      800,
+      async () => {
+        await myTeamSpider.click();
+      },
+      async () => {
+        await expect(page.locator(".scouting-my-team-spider-panel").first()).toBeVisible({ timeout: 5000 });
+      }
+    );
+  }
+
+  await clickScoutingTab(page, results, "lists");
+  const listForm = page.locator("[data-scouting-list-form]").first();
+  if ((await listForm.count()) && (await listForm.isVisible().catch(() => false))) {
+    await measure(
+      page,
+      results,
+      "lists create",
+      900,
+      async () => {
+        await listForm.locator('input[name="name"]').fill(`Audit ${Date.now()}`);
+        await listForm.locator('button[type="submit"]').click();
+      },
+      async () => {
+        await expect(page.locator(".scouting-list-card").first()).toBeVisible({ timeout: 5000 });
+      }
+    );
+  }
+
+  await clickScoutingTab(page, results, "reports");
+  const reportBuilder = page.locator("[data-open-scouting-report-builder]").first();
+  if ((await reportBuilder.count()) && (await reportBuilder.isVisible().catch(() => false))) {
+    await measure(
+      page,
+      results,
+      "report builder open",
+      900,
+      async () => {
+        await reportBuilder.click();
+      },
+      async () => {
+        await expect(page.locator("[data-scouting-report-builder-overlay]").first()).toBeVisible({ timeout: 5000 });
+      }
+    );
+    await closeScoutingOverlays(page);
+  }
+
+  expect(browserErrors).toEqual([]);
+  await test.info().attach("scouting-interaction-audit.json", {
+    body: JSON.stringify(results, null, 2),
+    contentType: "application/json",
+  });
+});

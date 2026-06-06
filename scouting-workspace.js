@@ -3064,6 +3064,7 @@ function requestScoutingDatabaseWorkerRecords(recordIds = [], options = {}) {
 function prewarmScoutingDatabaseWorker() {
   const filters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
   if (
+    ensureScoutingState().activeTab !== "database" ||
     filters.source === "fsdb" ||
     isScoutingDatabaseLoaded() ||
     scoutingDatabaseLoadPromise ||
@@ -3090,7 +3091,7 @@ function prewarmScoutingDatabaseWorker() {
 }
 function prewarmFullScoutingDatabaseWorker() {
   const filters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
-  if (filters.source === "fsdb" || typeof Worker !== "function") {
+  if (ensureScoutingState().activeTab !== "database" || filters.source === "fsdb" || typeof Worker !== "function") {
     return Promise.resolve(false);
   }
   if (scoutingDatabaseWorkerFullReady) {
@@ -3120,6 +3121,9 @@ function scheduleScoutingDatabaseWorkerPrewarm(delayMs = 180) {
   window.clearTimeout(scoutingDatabaseWorkerPreloadTimer);
   scoutingDatabaseWorkerPreloadTimer = window.setTimeout(() => {
     scoutingDatabaseWorkerPreloadTimer = 0;
+    if (ensureScoutingState().activeTab !== "database") {
+      return;
+    }
     prewarmScoutingDatabaseWorker();
   }, Math.max(0, Math.floor(Number(delayMs) || 0)));
 }
@@ -3127,6 +3131,9 @@ function scheduleFullScoutingDatabaseWorkerPreload(delayMs = 650) {
   window.clearTimeout(scoutingDatabaseWorkerFullPreloadTimer);
   scoutingDatabaseWorkerFullPreloadTimer = window.setTimeout(() => {
     scoutingDatabaseWorkerFullPreloadTimer = 0;
+    if (ensureScoutingState().activeTab !== "database") {
+      return;
+    }
     prewarmFullScoutingDatabaseWorker();
   }, Math.max(0, Math.floor(Number(delayMs) || 0)));
 }
@@ -3134,7 +3141,12 @@ function scheduleScoutingDatabaseWorkerFullRefresh(delayMs = 2500) {
   window.clearTimeout(scoutingDatabaseWorkerFullRefreshTimer);
   scoutingDatabaseWorkerFullRefreshTimer = window.setTimeout(() => {
     scoutingDatabaseWorkerFullRefreshTimer = 0;
-    if (!isScoutingWorkerDatabaseActive() || getScoutingAdvancedDatabaseFiltersOpen() || hasOpenScoutingOverlay()) {
+    if (
+      ensureScoutingState().activeTab !== "database" ||
+      !isScoutingWorkerDatabaseActive() ||
+      getScoutingAdvancedDatabaseFiltersOpen() ||
+      hasOpenScoutingOverlay()
+    ) {
       return;
     }
     scheduleScoutingDatabaseRefresh();
@@ -3239,7 +3251,17 @@ function queueScoutingDatabaseLoad(onReady = renderScoutingWorkspace) {
   }
   ensureScoutingDatabaseLoaded().then(scheduleRender).catch(scheduleRender);
 }
-function scheduleScoutingDatabaseAutoLoad(delayMs = 80) {
+function cancelScoutingDatabaseBackgroundTimers() {
+  window.clearTimeout(scoutingDatabaseAutoLoadTimer);
+  window.clearTimeout(scoutingDatabaseWorkerPreloadTimer);
+  window.clearTimeout(scoutingDatabaseWorkerFullPreloadTimer);
+  window.clearTimeout(scoutingDatabaseWorkerFullRefreshTimer);
+  scoutingDatabaseAutoLoadTimer = 0;
+  scoutingDatabaseWorkerPreloadTimer = 0;
+  scoutingDatabaseWorkerFullPreloadTimer = 0;
+  scoutingDatabaseWorkerFullRefreshTimer = 0;
+}
+function scheduleScoutingDatabaseAutoLoad(delayMs = 1200) {
   window.clearTimeout(scoutingDatabaseAutoLoadTimer);
   scoutingDatabaseAutoLoadTimer = window.setTimeout(() => {
     scoutingDatabaseAutoLoadTimer = 0;
@@ -3254,7 +3276,12 @@ function scheduleScoutingDatabaseAutoLoad(delayMs = 80) {
     ) {
       return;
     }
-    queueScoutingDatabaseLoad(renderScoutingActiveTabSurfaceOrWorkspace);
+    queueScoutingDatabaseLoad((renderOptions = {}) => {
+      if (ensureScoutingState().activeTab !== "database") {
+        return;
+      }
+      renderScoutingActiveTabSurfaceOrWorkspace(renderOptions);
+    });
   }, Math.max(0, Math.floor(Number(delayMs) || 0)));
 }
 function getScoutingMetricOptions() {
@@ -15782,8 +15809,12 @@ function renderScoutingWorkspace(options = {}) {
   restoreScoutingScrollSnapshot(scrollSnapshot);
 }
 function runScoutingPostRenderHooks(state = ensureScoutingState()) {
-  bindScoutingDragAndDrop();
-  bindScoutingMyTeamSpiderShells();
+  if (["database", "shadow-xi", "my-team", "reports"].includes(state.activeTab)) {
+    bindScoutingDragAndDrop();
+  }
+  if (state.activeTab === "my-team") {
+    bindScoutingMyTeamSpiderShells();
+  }
   if (state.activeTab === "database") {
     bindScoutingRecordMiniRadarShells();
     scheduleScoutingDatabaseAutoLoad();
@@ -15799,7 +15830,7 @@ function runScoutingPostRenderHooks(state = ensureScoutingState()) {
     queueFootballScienceDbProfileHydration(state.selectedRecordId);
   }
   if (state.activeTab === "database") {
-    scheduleScoutingDatabaseWorkerPrewarm(180);
+    scheduleScoutingDatabaseWorkerPrewarm(1200);
   }
 }
 function syncScoutingTabButtonsDom(state = ensureScoutingState()) {
@@ -15993,6 +16024,9 @@ function setScoutingActiveTab(tabId) {
   }
   if (tabId !== "reports" && scoutingReportsExpandedPanels.size) {
     scoutingReportsExpandedPanels = new Set();
+  }
+  if (tabId !== "database") {
+    cancelScoutingDatabaseBackgroundTimers();
   }
   writeScoutingState({ syncCentral: false });
   renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: false });

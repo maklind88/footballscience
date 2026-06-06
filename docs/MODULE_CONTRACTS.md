@@ -140,8 +140,8 @@ Database-primary migration priority: Schedule, Squad, Scouting, Medical Team, Ex
 - `data`: `football-schedule-v1`
 - `permissions`: platform/club/team admin and coach edit; broader staff view according to workspace access.
 - `events`: date selected, event created, event updated, event removed.
-- `qa`: schedule edits persist after refresh.
-- `migration`: current app-state remains active while the database foundation is staged in `schedule_events`, `schedule_event_versions`, `schedule_state_sync_events`, and `schedule_audit_events`. Schedule has an inert read-only adapter boundary in `src/modules/schedule/schedule-adapter.mjs` plus a feature-flagged server adapter in `api/_lib/schedule-database.js`; writes stay server-owned, row-version checked, RLS protected, and blocked from direct authenticated client writes until migration is explicit.
+- `qa`: schedule edits persist after refresh; `qa/schedule-module-contract.api.spec.mjs` locks the extracted state/actions/renderer boundary.
+- `migration`: current app-state remains active while the database foundation is staged in `schedule_events`, `schedule_event_versions`, `schedule_state_sync_events`, and `schedule_audit_events`. Schedule now owns state, actions, and rendering in `src/modules/schedule`, while `app.js` remains the integration shell for DOM wiring and cross-module Session/Periodization links. Writes stay server-owned, row-version checked, RLS protected, and blocked from direct authenticated client writes until migration is explicit.
 
 ## Gameplan
 

@@ -7,6 +7,31 @@ import { createDashboardChatThreadSettingsStore } from "./src/modules/chat/chat-
 import { uploadDashboardChatAttachmentFile as uploadDashboardChatAttachmentFileWithClient } from "./src/modules/chat/chat-attachment-storage.mjs";
 import { createDashboardHomeCardsRenderer } from "./src/modules/home/dashboard-renderer.mjs";
 import { selectHomeTaskQueues } from "./src/modules/home/tasks.mjs";
+import {
+  createScheduleDayClipboard,
+  createScheduleEventClipboard,
+  getScheduleNavigationStepForState,
+  pasteScheduleClipboard,
+  removeScheduleEventById,
+  selectScheduleStateDate,
+  setScheduleStateOverviewSpan,
+  setScheduleStateViewMode,
+  shiftScheduleStateWindow,
+  startScheduleEventEdit,
+  upsertScheduleEventFromValues,
+} from "./src/modules/schedule/schedule-actions.mjs";
+import { createScheduleWorkspaceRenderer } from "./src/modules/schedule/schedule-renderer.mjs";
+import {
+  cloneScheduleState,
+  createDefaultScheduleState,
+  formatScheduleDateValue,
+  getUniqueScheduleEvents,
+  mergeImportedScheduleEvents,
+  mergeScheduleStatePreservingLocalUi,
+  parseScheduleDateValue,
+  scheduleEventTypes,
+  scheduleMainEventPriority,
+} from "./src/modules/schedule/schedule-state.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
@@ -1713,33 +1738,12 @@ const dashboardNewsItems = [
 "Personal To-Do now lives on Home and mirrors to Profile.",
 "Team chat is ready for internal messages.",
 ];
-const scheduleEventTypes = {
-training: { label: "Training", tone: "training" },
-match: { label: "Match", tone: "match" },
-meeting: { label: "Meeting", tone: "meeting" },
-travel: { label: "Travel", tone: "travel" },
-recovery: { label: "Recovery", tone: "recovery" },
-off: { label: "Off", tone: "off" },
-};
-const scheduleMainEventPriority = {
-match: 1,
-training: 2,
-travel: 3,
-meeting: 4,
-recovery: 5,
-off: 6,
-};
-const scheduleLayerTypes = Object.freeze(Object.keys(scheduleEventTypes));
-const defaultScheduleState = {
-selectedYear: new Date().getFullYear(),
-selectedMonthIndex: new Date().getMonth(),
-selectedDate: formatScheduleDateValue(new Date()),
-viewMode: "month",
-overviewSpan: 6,
-visibleEventTypes: scheduleLayerTypes,
-importVersion: "",
-events: [],
-};
+const defaultScheduleState = createDefaultScheduleState();
+const scheduleWorkspaceRenderer = createScheduleWorkspaceRenderer({
+escapeHtml,
+getPeriodizationDay,
+getPeriodizationDayScheduleLabel,
+});
 const scoutingTabs = [
 { id: "my-team", label: "My Team" },
 { id: "shadow-xi", label: "Shadow XI" },
@@ -6571,126 +6575,10 @@ renderPeriodizationWorkspace();
 scrollPeriodizationDateIntoView(todayDateValue);
 }
 }
-function padDatePart(value) {
-return String(value).padStart(2, "0");
-}
-function formatScheduleDateValue(date) {
-return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}`;
-}
-function parseScheduleDateValue(dateValue) {
-const [year, month, day] = String(dateValue).split("-").map(Number);
-if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
-return new Date();
-}
-return new Date(year, month - 1, day);
-}
-function cloneScheduleEvent(event = {}) {
-const date = event.date || defaultScheduleState.selectedDate;
-const type = scheduleEventTypes[event.type] ? event.type : "training";
-return {
-id: event.id || `event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-date,
-time: event.time || "",
-type,
-title: event.title || "",
-note: event.note || "",
-};
-}
-function normalizeScheduleTextForDedup(value) {
-return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
-}
-function getScheduleEventDedupKey(event = {}) {
-return [
-event.date || "",
-event.time || "",
-event.type || "",
-normalizeScheduleTextForDedup(event.title),
-].join("::");
-}
-function getUniqueScheduleEvents(events = []) {
-const seen = new Set();
-return events.filter((event) => {
-const key = getScheduleEventDedupKey(event);
-if (seen.has(key)) {
-return false;
-}
-seen.add(key);
-return true;
-});
-}
-function normalizeScheduleVisibleEventTypes(value) {
-const candidateTypes = Array.isArray(value) ? value : scheduleLayerTypes;
-const visibleTypes = Array.from(new Set(candidateTypes.filter((type) => scheduleEventTypes[type])));
-return visibleTypes.length ? visibleTypes : [...scheduleLayerTypes];
-}
-function cloneScheduleState(source = defaultScheduleState) {
-const now = new Date();
-const selectedYear = Number.isFinite(Number(source.selectedYear))
-? Number(source.selectedYear)
-: now.getFullYear();
-const rawMonthIndex = Number(source.selectedMonthIndex);
-const selectedMonthIndex = Number.isFinite(rawMonthIndex)
-? Math.min(11, Math.max(0, rawMonthIndex))
-: now.getMonth();
-const selectedDate = source.selectedDate || formatScheduleDateValue(new Date(selectedYear, selectedMonthIndex, 1));
-const viewMode = ["month", "week", "overview"].includes(source.viewMode) ? source.viewMode : "month";
-const overviewSpanOptions = [3, 6, 9, 12];
-const overviewSpan = overviewSpanOptions.includes(Number(source.overviewSpan)) ? Number(source.overviewSpan) : 6;
-const events = getUniqueScheduleEvents(
-Array.isArray(source.events)
-? source.events.map(cloneScheduleEvent).filter((event) => event.title.trim())
-: []
-);
-return {
-selectedYear,
-selectedMonthIndex,
-selectedDate,
-viewMode,
-overviewSpan,
-visibleEventTypes: normalizeScheduleVisibleEventTypes(source.visibleEventTypes),
-importVersion: source.importVersion || "",
-events,
-};
-}
-function getScheduleEventSignature(event) {
-return getScheduleEventDedupKey(event);
-}
 function mergeImportedNccSchedule(state) {
-const mergedState = cloneScheduleState(state);
-if (!importedNccScheduleVersion || mergedState.importVersion === importedNccScheduleVersion) {
-return mergedState;
-}
-const existingIds = new Set(mergedState.events.map((event) => event.id));
-const existingSignatures = new Set(mergedState.events.map(getScheduleEventSignature));
-const importedEvents = importedNccScheduleEvents
-.map(cloneScheduleEvent)
-.filter((event) => !existingIds.has(event.id) && !existingSignatures.has(getScheduleEventSignature(event)));
-return {
-...mergedState,
+return mergeImportedScheduleEvents(state, {
 importVersion: importedNccScheduleVersion,
-events: [...mergedState.events, ...importedEvents],
-};
-}
-function mergeScheduleStatePreservingLocalUi(localValue, centralValue) {
-let localState = null;
-let centralStateValue = null;
-try {
-localState = localValue ? JSON.parse(localValue) : null;
-centralStateValue = centralValue ? JSON.parse(centralValue) : null;
-} catch {
-return centralValue;
-}
-if (!localState || typeof localState !== "object" || !centralStateValue || typeof centralStateValue !== "object") {
-return centralValue;
-}
-return JSON.stringify({
-...centralStateValue,
-selectedYear: localState.selectedYear ?? centralStateValue.selectedYear,
-selectedMonthIndex: localState.selectedMonthIndex ?? centralStateValue.selectedMonthIndex,
-selectedDate: localState.selectedDate ?? centralStateValue.selectedDate,
-viewMode: localState.viewMode ?? centralStateValue.viewMode,
-overviewSpan: localState.overviewSpan ?? centralStateValue.overviewSpan,
-visibleEventTypes: localState.visibleEventTypes ?? centralStateValue.visibleEventTypes,
+events: importedNccScheduleEvents,
 });
 }
 function setScheduleStateStorageValue(state = scheduleState, options = {}) {
@@ -7456,66 +7344,14 @@ return eventDate.getFullYear() === year && eventDate.getMonth() === monthIndex;
 function getScheduleVisibleMonthEvents(year, monthIndex) {
 return getScheduleVisibleEvents(getScheduleMonthEvents(year, monthIndex));
 }
-function getScheduleLegendTypes(events = []) {
-return Array.from(new Set(events.map((event) => event.type)))
-.filter((type) => scheduleEventTypes[type])
-.sort((typeA, typeB) => (scheduleMainEventPriority[typeA] ?? 99) - (scheduleMainEventPriority[typeB] ?? 99));
-}
-function renderScheduleOverviewLegend(events = []) {
-const types = getScheduleLegendTypes(events);
-if (!types.length) {
-return "";
-}
-return `
-    <div class="schedule-overview-legend" aria-label="Calendar colour legend">
-      ${types
-        .map((type) => {
-          const eventType = scheduleEventTypes[type];
-          return `
-<span class="schedule-overview-legend-item is-main-${escapeHtml(eventType.tone)}">
-<i aria-hidden="true"></i>
-${escapeHtml(eventType.label)}
-</span>
-`;
-        })
-        .join("")}
-    </div>
-  `;
-}
-function getScheduleDateLabel(dateValue) {
-return new Intl.DateTimeFormat("en-GB", {
-weekday: "long",
-day: "numeric",
-month: "long",
-year: "numeric",
-}).format(parseScheduleDateValue(dateValue));
-}
 function getScheduleNavigationStep() {
-if (!scheduleState) {
-return 1;
-}
-if (scheduleState.viewMode === "week") {
-return 7;
-}
-return scheduleState.viewMode === "overview" ? scheduleState.overviewSpan : 1;
+return getScheduleNavigationStepForState(scheduleState);
 }
 function shiftScheduleMonth(delta) {
 if (!scheduleState) {
 return;
 }
-if (scheduleState.viewMode === "week") {
-const nextDate = addCalendarDays(parseScheduleDateValue(scheduleState.selectedDate), delta);
-scheduleState.selectedYear = nextDate.getFullYear();
-scheduleState.selectedMonthIndex = nextDate.getMonth();
-scheduleState.selectedDate = formatScheduleDateValue(nextDate);
-writeScheduleState({ syncCentral: false });
-renderScheduleWorkspace();
-return;
-}
-const nextDate = new Date(scheduleState.selectedYear, scheduleState.selectedMonthIndex + delta, 1);
-scheduleState.selectedYear = nextDate.getFullYear();
-scheduleState.selectedMonthIndex = nextDate.getMonth();
-scheduleState.selectedDate = formatScheduleDateValue(nextDate);
+shiftScheduleStateWindow(scheduleState, delta);
 writeScheduleState({ syncCentral: false });
 renderScheduleWorkspace();
 }
@@ -7523,10 +7359,7 @@ function setScheduleViewMode(viewMode) {
 if (!scheduleState) {
 return;
 }
-scheduleState.viewMode = ["month", "week", "overview"].includes(viewMode) ? viewMode : "month";
-const selectedDate = parseScheduleDateValue(scheduleState.selectedDate);
-scheduleState.selectedYear = selectedDate.getFullYear();
-scheduleState.selectedMonthIndex = selectedDate.getMonth();
+setScheduleStateViewMode(scheduleState, viewMode);
 writeScheduleState({ syncCentral: false });
 renderScheduleWorkspace();
 }
@@ -7534,9 +7367,7 @@ function setScheduleOverviewSpan(span) {
 if (!scheduleState) {
 return;
 }
-const overviewSpan = Number(span);
-scheduleState.overviewSpan = [3, 6, 9, 12].includes(overviewSpan) ? overviewSpan : 6;
-scheduleState.viewMode = "overview";
+setScheduleStateOverviewSpan(scheduleState, span);
 writeScheduleState({ syncCentral: false });
 renderScheduleWorkspace();
 }
@@ -7565,23 +7396,7 @@ return;
 }
 scheduleDayPanelMode = "view";
 scheduleEditingEventId = null;
-const date = parseScheduleDateValue(dateValue);
-const windowStart = new Date(scheduleState.selectedYear, scheduleState.selectedMonthIndex, 1);
-const windowEnd = new Date(
-scheduleState.selectedYear,
-scheduleState.selectedMonthIndex + (scheduleState.viewMode === "overview" ? scheduleState.overviewSpan : 1),
-0
-);
-const keepOverviewWindow =
-options.keepOverviewWindow !== false &&
-scheduleState.viewMode === "overview" &&
-date >= windowStart &&
-date <= windowEnd;
-if (!keepOverviewWindow) {
-scheduleState.selectedYear = date.getFullYear();
-scheduleState.selectedMonthIndex = date.getMonth();
-}
-scheduleState.selectedDate = formatScheduleDateValue(date);
+selectScheduleStateDate(scheduleState, dateValue, options);
 writeScheduleState({ syncCentral: false });
 renderScheduleWorkspace();
 if (options.scrollIntoView) {
@@ -7603,10 +7418,7 @@ const event = scheduleState.events.find((item) => item.id === eventId);
 if (!event) {
 return;
 }
-scheduleClipboard = {
-kind: "event",
-events: [cloneScheduleEvent(event)],
-};
+scheduleClipboard = createScheduleEventClipboard(event);
 renderScheduleWorkspace();
 }
 function copySelectedScheduleDay() {
@@ -7617,30 +7429,14 @@ const events = getScheduleEventsForDate(scheduleState.selectedDate);
 if (!events.length) {
 return;
 }
-scheduleClipboard = {
-kind: "day",
-events: events.map(cloneScheduleEvent),
-};
+scheduleClipboard = createScheduleDayClipboard(events);
 renderScheduleWorkspace();
 }
 function pasteScheduleClipboardToSelectedDay() {
 if (!scheduleState || !canEditScheduleWorkspace() || !scheduleClipboard?.events?.length) {
 return;
 }
-const date = scheduleState.selectedDate;
-if (scheduleClipboard.kind === "day") {
-scheduleState.events = scheduleState.events.filter((event) => event.date !== date);
-}
-scheduleState.events.push(
-...scheduleClipboard.events.map((event) =>
-cloneScheduleEvent({
-...event,
-id: "",
-date,
-})
-)
-);
-scheduleState.events = getUniqueScheduleEvents(scheduleState.events);
+pasteScheduleClipboard(scheduleState, scheduleClipboard);
 writeScheduleState();
 renderScheduleWorkspace();
 }
@@ -7662,12 +7458,9 @@ const event = scheduleState.events.find((item) => item.id === eventId);
 if (!event) {
 return;
 }
+startScheduleEventEdit(scheduleState, eventId);
 scheduleEditingEventId = event.id;
 scheduleDayPanelMode = "edit";
-const date = parseScheduleDateValue(event.date);
-scheduleState.selectedYear = date.getFullYear();
-scheduleState.selectedMonthIndex = date.getMonth();
-scheduleState.selectedDate = event.date;
 writeScheduleState({ syncCentral: false });
 renderScheduleWorkspace();
 }
@@ -7680,148 +7473,6 @@ if (ui.scheduleEventForm) {
 ui.scheduleEventForm.reset();
 }
 renderScheduleWorkspace();
-}
-function renderScheduleEventPill(event) {
-const eventType = scheduleEventTypes[event.type] ?? scheduleEventTypes.training;
-return `
-    <span class="schedule-event-pill is-${escapeHtml(eventType.tone)}">
-      ${event.time ? `<small>${escapeHtml(event.time)}</small>` : ""}
-      ${escapeHtml(event.title)}
-    </span>
-  `;
-}
-function getScheduleMonthGridDates(year, monthIndex) {
-const firstDay = new Date(year, monthIndex, 1);
-const mondayOffset = (firstDay.getDay() + 6) % 7;
-const gridStart = new Date(year, monthIndex, 1 - mondayOffset);
-return Array.from({ length: 42 }, (_, index) => {
-const date = new Date(gridStart);
-date.setDate(gridStart.getDate() + index);
-return date;
-});
-}
-function getScheduleOverviewLabel() {
-if (!scheduleState) {
-return "Season Overview";
-}
-const startDate = new Date(scheduleState.selectedYear, scheduleState.selectedMonthIndex, 1);
-const endDate = new Date(scheduleState.selectedYear, scheduleState.selectedMonthIndex + scheduleState.overviewSpan - 1, 1);
-const startLabel = formatScheduleMonthLabel(startDate);
-const endLabel = formatScheduleMonthLabel(endDate);
-return `${startLabel} - ${endLabel}`;
-}
-function getScheduleWeekDates(dateValue = scheduleState?.selectedDate) {
-const selectedDate = parseScheduleDateValue(dateValue);
-const mondayOffset = (selectedDate.getDay() + 6) % 7;
-const weekStart = addCalendarDays(selectedDate, -mondayOffset);
-return Array.from({ length: 7 }, (_, index) => addCalendarDays(weekStart, index));
-}
-function getScheduleWeekLabel() {
-const weekDates = getScheduleWeekDates();
-const startDate = weekDates[0];
-const endDate = weekDates[6];
-const weekLabelFormatter = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
-const startLabel = weekLabelFormatter.format(startDate);
-const endLabel = weekLabelFormatter.format(endDate);
-return `${startLabel} - ${endLabel}`;
-}
-function renderScheduleMonthDay(date, isCompact = false, visibleMonthIndex = scheduleState?.selectedMonthIndex) {
-if (!scheduleState) {
-return "";
-}
-const dateValue = formatScheduleDateValue(date);
-const selectedDateValue = scheduleState.selectedDate;
-const todayValue = formatScheduleDateValue(new Date());
-const isCurrentMonth = date.getMonth() === visibleMonthIndex;
-const canHighlight = !isCompact || isCurrentMonth;
-const isSelected = canHighlight && dateValue === selectedDateValue;
-const isToday = canHighlight && dateValue === todayValue;
-const allEvents = getScheduleEventsForDate(dateValue);
-const events = getScheduleVisibleEvents(allEvents);
-const mainEvent = getScheduleMainEvent(events);
-const mainTone = mainEvent ? scheduleEventTypes[mainEvent.type]?.tone || "training" : "";
-const eventToneClass = mainTone ? ` is-main-${mainTone}` : "";
-const ariaLabel = getScheduleDateLabel(dateValue);
-if (isCompact) {
-if (!isCurrentMonth) {
-return `<span class="schedule-overview-day-spacer" aria-hidden="true"></span>`;
-}
-return `
-      <button
-        type="button"
-        class="schedule-overview-day${isSelected ? " is-selected" : ""}${isToday ? " is-today" : ""}${events.length ? ` has-events${eventToneClass}` : ""}"
-        data-schedule-date="${escapeHtml(dateValue)}"
-        aria-label="${escapeHtml(ariaLabel)}"
-      >
-        <span>${date.getDate()}</span>
-      </button>
-    `;
-}
-const visibleEvents = mainEvent ? renderScheduleEventPill(mainEvent) : "";
-const overflow = events.length > 1 ? `<span class="schedule-more-pill">+${events.length - 1}</span>` : "";
-return `
-    <button
-      type="button"
-      class="schedule-day-button${isCurrentMonth ? "" : " is-muted"}${isSelected ? " is-selected" : ""}${isToday ? " is-today" : ""}${events.length ? ` has-events${eventToneClass}` : ""}"
-      data-schedule-date="${escapeHtml(dateValue)}"
-      aria-label="${escapeHtml(ariaLabel)}"
-    >
-      <span class="schedule-day-number">${date.getDate()}</span>
-      <span class="schedule-day-events">${visibleEvents}${overflow}</span>
-    </button>
-  `;
-}
-function renderScheduleOverviewMonth(monthDate) {
-const monthLabel = formatScheduleMonthLabel(monthDate);
-const dates = getScheduleMonthGridDates(monthDate.getFullYear(), monthDate.getMonth());
-const monthEvents = getScheduleVisibleMonthEvents(monthDate.getFullYear(), monthDate.getMonth());
-return `
-    <article class="schedule-overview-month">
-      <header>
-        <h3>${escapeHtml(monthLabel)}</h3>
-      </header>
-      <div class="schedule-overview-weekdays" aria-hidden="true">
-        <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
-      </div>
-      <div class="schedule-overview-days">
-        ${dates.map((date) => renderScheduleMonthDay(date, true, monthDate.getMonth())).join("")}
-      </div>
-      ${renderScheduleOverviewLegend(monthEvents)}
-    </article>
-  `;
-}
-function renderScheduleWeekDay(date) {
-const dateValue = formatScheduleDateValue(date);
-const selectedDateValue = scheduleState?.selectedDate || "";
-const todayValue = formatScheduleDateValue(new Date());
-const allEvents = getScheduleEventsForDate(dateValue);
-const events = getScheduleVisibleEvents(allEvents);
-const mainEvent = getScheduleMainEvent(events);
-const mainTone = mainEvent ? scheduleEventTypes[mainEvent.type]?.tone || "training" : "";
-const eventToneClass = mainTone ? ` is-main-${mainTone}` : "";
-const periodizationDay = getPeriodizationDay(dateValue);
-const periodizationLabel = getPeriodizationDayScheduleLabel(periodizationDay);
-const session = sessionPlannerState?.sessions?.[dateValue] || null;
-const sessionBlockCount = Array.isArray(session?.blocks) ? session.blocks.length : 0;
-const weekdayLabel = new Intl.DateTimeFormat("en-GB", { weekday: "short" }).format(date);
-const eventSummary = events.length
-? `<span class="schedule-week-event-summary">${events.length} plan${events.length === 1 ? "" : "s"}</span>`
-: `<span class="schedule-week-empty"></span>`;
-return `
-    <article class="schedule-week-day${dateValue === selectedDateValue ? " is-selected" : ""}${dateValue === todayValue ? " is-today" : ""}${events.length ? ` has-events${eventToneClass}` : ""}" data-schedule-date="${escapeHtml(dateValue)}">
-      <button type="button" class="schedule-week-day-head" data-schedule-date="${escapeHtml(dateValue)}">
-        <span>${escapeHtml(weekdayLabel)}</span>
-        <strong>${date.getDate()}</strong>
-      </button>
-      <div class="schedule-week-day-meta">
-        ${periodizationLabel ? `<span>${escapeHtml(periodizationLabel)}</span>` : ""}
-        ${sessionBlockCount ? `<span>${sessionBlockCount} blocks</span>` : ""}
-      </div>
-      <div class="schedule-week-event-stack">
-        ${eventSummary}
-      </div>
-    </article>
-  `;
 }
 function getScheduleSelectedDayContext(dateValue) {
 ensurePeriodizationState();
@@ -7836,38 +7487,6 @@ periodizationLabel: getPeriodizationDayScheduleLabel(periodizationDay),
 matchDayLabel: getPeriodizationMatchDayLabel(periodizationDay.matchDay),
 phaseSummary: phaseLabels.join(" / "),
 };
-}
-function renderScheduleEventCard(event, isAdmin, dayContext = null) {
-const eventType = scheduleEventTypes[event.type] ?? scheduleEventTypes.training;
-const isLinkedSession = Boolean(dayContext?.sessionSnapshot?.hasSession && isScheduleSessionEvent(event));
-const sessionSummary = isLinkedSession
-? formatScheduleBlockSummary(dayContext.sessionSnapshot.blocks.length, dayContext.sessionSnapshot.minutes)
-: "";
-const titleBase = String(event.title || eventType.label);
-const eventTitle =
-isLinkedSession && !titleBase.includes(`(${sessionSummary})`) ? `${titleBase} (${sessionSummary})` : titleBase;
-const eventMeta = isLinkedSession
-? [event.time, dayContext.matchDayLabel || dayContext.periodizationLabel].filter(Boolean).join(" · ")
-: [event.time, eventType.label].filter(Boolean).join(" · ");
-const eventDetails = [event.note, isLinkedSession ? dayContext.phaseSummary : ""].filter(Boolean).join(" · ");
-const controls = isAdmin
-? `
-      <div class="schedule-event-actions">
-        <button type="button" data-edit-schedule-event="${escapeHtml(event.id)}" aria-label="Edit ${escapeHtml(event.title)}">Edit</button>
-        <button type="button" data-remove-schedule-event="${escapeHtml(event.id)}" aria-label="Remove ${escapeHtml(event.title)}">×</button>
-      </div>
-    `
-: "";
-return `
-    <article class="schedule-event-card is-${escapeHtml(eventType.tone)}">
-      <div>
-        <strong>${escapeHtml(eventTitle)}</strong>
-        ${eventMeta ? `<span>${escapeHtml(eventMeta)}</span>` : ""}
-        ${eventDetails ? `<p>${escapeHtml(eventDetails)}</p>` : ""}
-      </div>
-      ${controls}
-    </article>
-  `;
 }
 function getScheduleSessionSnapshot(dateValue) {
 if (!sessionPlannerState) {
@@ -7929,35 +7548,7 @@ function getScheduleDayWarningsForDate(dateValue, events = getScheduleEventsForD
 ensurePeriodizationState();
 return getScheduleDayWarnings(events, getPeriodizationDay(dateValue), getScheduleSessionSnapshot(dateValue));
 }
-function renderScheduleDayInsights(dateValue, selectedEvents = []) {
-const dayContext = getScheduleSelectedDayContext(dateValue);
-const canCreateSession = canEditSessionPlanner();
-const sessionAction = dayContext.sessionSnapshot.hasSession ? "Open Session" : canCreateSession ? "Create Session" : "Open Sessions";
-return `
-    <section class="schedule-day-ops${selectedEvents.length ? " is-compact" : ""}">
-      <div class="schedule-day-link-actions">
-        <button type="button" data-schedule-open-session-date="${escapeHtml(dateValue)}" data-schedule-create-session="${dayContext.sessionSnapshot.hasSession ? "false" : "true"}">${escapeHtml(sessionAction)}</button>
-        <button type="button" data-schedule-open-periodization-date="${escapeHtml(dateValue)}">Open Periodization</button>
-      </div>
-    </section>
-  `;
-}
 function renderScheduleWorkspace() {
-if (
-!scheduleState ||
-!ui.scheduleWorkspace ||
-!ui.scheduleMonthTitle ||
-!ui.scheduleCalendarGrid ||
-!ui.scheduleSelectedDateLabel ||
-!ui.scheduleEventList
-) {
-return;
-}
-const selectedMonthDate = new Date(scheduleState.selectedYear, scheduleState.selectedMonthIndex, 1);
-const selectedMonthLabel = formatScheduleMonthLabel(selectedMonthDate);
-const selectedDateValue = scheduleState.selectedDate;
-const isOverview = scheduleState.viewMode === "overview";
-const isWeek = scheduleState.viewMode === "week";
 const canEdit = canEditScheduleWorkspace();
 ensurePeriodizationState();
 if (!sessionPlannerState) {
@@ -7967,110 +7558,22 @@ if (!canEdit) {
 scheduleEditingEventId = null;
 scheduleDayPanelMode = "view";
 }
-const isEditingDay = isScheduleDayEditing();
-const editingEvent = scheduleState.events.find((event) => event.id === scheduleEditingEventId) ?? null;
-ui.scheduleMonthTitle.textContent = isOverview ? getScheduleOverviewLabel() : isWeek ? getScheduleWeekLabel() : selectedMonthLabel;
-ui.scheduleMonthTitle.hidden = false;
-ui.scheduleMonthViewButton?.classList.toggle("is-active", scheduleState.viewMode === "month");
-ui.scheduleWeekViewButton?.classList.toggle("is-active", isWeek);
-ui.scheduleOverviewViewButton?.classList.toggle("is-active", isOverview);
-ui.scheduleMonthViewButton?.setAttribute("aria-pressed", String(scheduleState.viewMode === "month"));
-ui.scheduleWeekViewButton?.setAttribute("aria-pressed", String(isWeek));
-ui.scheduleOverviewViewButton?.setAttribute("aria-pressed", String(isOverview));
-if (ui.scheduleOverviewSpanControl) {
-ui.scheduleOverviewSpanControl.hidden = !isOverview;
-}
-ui.scheduleOverviewSpanButtons?.forEach((button) => {
-const isActiveSpan = Number(button.dataset.scheduleSpan) === scheduleState.overviewSpan;
-button.classList.toggle("is-active", isActiveSpan);
-button.setAttribute("aria-pressed", String(isActiveSpan));
+scheduleWorkspaceRenderer.renderWorkspace({
+ui,
+state: scheduleState,
+clipboard: scheduleClipboard,
+editingEventId: scheduleEditingEventId,
+dayPanelMode: scheduleDayPanelMode,
+canEdit,
+canCreateSession: canEditSessionPlanner(),
+formatBlockSummary: formatScheduleBlockSummary,
+getEventsForDate: getScheduleEventsForDate,
+getSelectedDayContext: getScheduleSelectedDayContext,
+getSessionForDate: (dateValue) => sessionPlannerState?.sessions?.[dateValue] || null,
+getVisibleEvents: getScheduleVisibleEvents,
+getVisibleMonthEvents: getScheduleVisibleMonthEvents,
+isSessionEvent: isScheduleSessionEvent,
 });
-if (ui.scheduleOverviewSpanButtons?.length) {
-ui.scheduleOverviewSpanButtons.forEach((button) => {
-button.tabIndex = isOverview ? 0 : -1;
-});
-}
-if (ui.scheduleWeekdays) {
-ui.scheduleWeekdays.hidden = isOverview || isWeek;
-}
-if (ui.scheduleCalendarGrid) {
-ui.scheduleCalendarGrid.hidden = isOverview || isWeek;
-}
-if (ui.scheduleWeekGrid) {
-ui.scheduleWeekGrid.hidden = !isWeek;
-}
-if (ui.scheduleOverviewGrid) {
-ui.scheduleOverviewGrid.hidden = !isOverview;
-ui.scheduleOverviewGrid.dataset.months = String(scheduleState.overviewSpan);
-}
-if (ui.scheduleEventDate) {
-ui.scheduleEventDate.value = editingEvent?.date ?? selectedDateValue;
-}
-if (ui.scheduleEventTime) {
-ui.scheduleEventTime.value = editingEvent?.time ?? "";
-}
-if (ui.scheduleEventType) {
-ui.scheduleEventType.value = editingEvent?.type ?? "training";
-}
-if (ui.scheduleEventTitle) {
-ui.scheduleEventTitle.value = editingEvent?.title ?? "";
-}
-if (ui.scheduleEventNote) {
-ui.scheduleEventNote.value = editingEvent?.note ?? "";
-}
-if (ui.scheduleEventSubmitButton) {
-ui.scheduleEventSubmitButton.textContent = editingEvent ? "Save Plan" : "Add Plan";
-}
-if (ui.scheduleEventCancelButton) {
-ui.scheduleEventCancelButton.hidden = !editingEvent;
-}
-if (ui.scheduleSelectedDateLabel) {
-ui.scheduleSelectedDateLabel.textContent = getScheduleDateLabel(selectedDateValue);
-}
-if (ui.scheduleDayCard) {
-ui.scheduleDayCard.classList.toggle("is-admin-view", canEdit);
-ui.scheduleDayCard.classList.toggle("is-editing-view", isEditingDay);
-ui.scheduleDayCard.classList.toggle("is-readonly-view", !isEditingDay);
-}
-if (ui.scheduleDayEyebrow) {
-ui.scheduleDayEyebrow.textContent = isEditingDay ? "Edit Day" : "Selected Day";
-}
-if (ui.scheduleEditDayButton) {
-ui.scheduleEditDayButton.hidden = !canEdit;
-ui.scheduleEditDayButton.setAttribute("aria-pressed", String(isEditingDay));
-ui.scheduleEditDayButton.setAttribute("aria-label", isEditingDay ? "Close edit mode" : "Edit selected day");
-}
-if (ui.scheduleAdminActions) {
-ui.scheduleAdminActions.hidden = !isEditingDay;
-}
-if (ui.scheduleEventForm) {
-ui.scheduleEventForm.hidden = !isEditingDay;
-ui.scheduleEventForm.setAttribute("aria-hidden", String(!isEditingDay));
-}
-if (ui.schedulePasteDayButton) {
-ui.schedulePasteDayButton.disabled = !scheduleClipboard?.events?.length;
-}
-if (ui.scheduleCopyDayButton) {
-ui.scheduleCopyDayButton.disabled = !getScheduleEventsForDate(selectedDateValue).length;
-}
-if (isOverview && ui.scheduleOverviewGrid) {
-ui.scheduleOverviewGrid.innerHTML = Array.from({ length: scheduleState.overviewSpan }, (_, index) =>
-renderScheduleOverviewMonth(new Date(scheduleState.selectedYear, scheduleState.selectedMonthIndex + index, 1))
-).join("");
-} else if (isWeek && ui.scheduleWeekGrid) {
-ui.scheduleWeekGrid.innerHTML = getScheduleWeekDates().map(renderScheduleWeekDay).join("");
-} else {
-const days = getScheduleMonthGridDates(scheduleState.selectedYear, scheduleState.selectedMonthIndex);
-ui.scheduleCalendarGrid.innerHTML = days.map((date) => renderScheduleMonthDay(date)).join("");
-}
-const selectedEvents = getScheduleEventsForDate(selectedDateValue);
-const selectedDayContext = getScheduleSelectedDayContext(selectedDateValue);
-ui.scheduleEventList.innerHTML = selectedEvents.length
-? selectedEvents.map((event) => renderScheduleEventCard(event, isEditingDay, selectedDayContext)).join("")
-: `<p class="schedule-empty-state">No plans on this day yet.</p>`;
-if (ui.scheduleDayInsights) {
-ui.scheduleDayInsights.innerHTML = renderScheduleDayInsights(selectedDateValue, selectedEvents);
-}
 }
 function cloneHubState(source = defaultHubState) {
 return {
@@ -78286,7 +77789,7 @@ const removeTrigger = event.target.closest("[data-remove-schedule-event]");
 if (!removeTrigger || !scheduleState || !isScheduleDayEditing()) {
 return;
 }
-scheduleState.events = scheduleState.events.filter((item) => item.id !== removeTrigger.dataset.removeScheduleEvent);
+removeScheduleEventById(scheduleState, removeTrigger.dataset.removeScheduleEvent);
 if (scheduleEditingEventId === removeTrigger.dataset.removeScheduleEvent) {
 scheduleEditingEventId = null;
 }
@@ -78311,29 +77814,11 @@ const values = getPlatformFormValues(event.currentTarget);
 if (!values.date || !values.title) {
 return;
 }
-const date = parseScheduleDateValue(values.date);
-scheduleState.selectedYear = date.getFullYear();
-scheduleState.selectedMonthIndex = date.getMonth();
-scheduleState.selectedDate = formatScheduleDateValue(date);
-const eventPayload = {
-date: scheduleState.selectedDate,
-time: values.time,
-type: values.type,
-title: values.title,
-note: values.note,
-};
-if (scheduleEditingEventId) {
-scheduleState.events = scheduleState.events.map((item) =>
-item.id === scheduleEditingEventId ? cloneScheduleEvent({ ...item, ...eventPayload }) : item
-);
-scheduleEditingEventId = null;
-} else {
-const nextEvent = cloneScheduleEvent(eventPayload);
-if (!scheduleState.events.some((item) => getScheduleEventDedupKey(item) === getScheduleEventDedupKey(nextEvent))) {
-scheduleState.events.push(nextEvent);
+const result = upsertScheduleEventFromValues(scheduleState, values, scheduleEditingEventId);
+if (!result.changed) {
+return;
 }
-}
-scheduleState.events = getUniqueScheduleEvents(scheduleState.events);
+scheduleEditingEventId = result.editingEventId;
 writeScheduleState();
 event.currentTarget.reset();
 scheduleDayPanelMode = "view";

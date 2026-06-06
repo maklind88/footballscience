@@ -67,7 +67,7 @@ Practical order:
 
 1. Platform identity/readiness/appearance contracts stay first as guardrails.
 2. Home and Chat boundaries stay stable.
-3. Schedule is the first normal UI extraction target.
+3. Schedule is the first normal UI extraction target and is now partially extracted into state/actions/renderer files.
 4. Periodization follows Schedule.
 5. Squad / Player Profiles comes before Medical.
 6. Medical follows Squad/Profile.
@@ -86,4 +86,3 @@ Practical order:
 7. Move CSS last or alongside the renderer if isolated.
 8. Run the module contract test and targeted smoke.
 9. Only deploy when the user explicitly requests it.
-

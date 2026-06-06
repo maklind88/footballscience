@@ -38,7 +38,9 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch staging release candidate
-        run: git fetch --quiet origin +refs/heads/staging:refs/remotes/origin/staging
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git fetch --quiet origin +refs/heads/staging:refs/remotes/origin/staging
 
       - uses: actions/setup-node@v6
         with:

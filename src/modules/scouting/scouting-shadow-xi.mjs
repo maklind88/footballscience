@@ -134,3 +134,97 @@ export function renderScoutingShadowXiWorkspace(deps = {}) {
     </section>
   `;
 }
+
+export function handleScoutingShadowXiClick(event, deps = {}) {
+  const target = event.target;
+  const selectSlotTrigger = target.closest("[data-select-scouting-shadow-slot]");
+  if (selectSlotTrigger) {
+    deps.selectShadowSlot(selectSlotTrigger.dataset.selectScoutingShadowSlot);
+    return true;
+  }
+  const clearSlotTrigger = target.closest("[data-clear-scouting-shadow-slot-selection]");
+  if (clearSlotTrigger) {
+    deps.clearShadowSlotSelection();
+    return true;
+  }
+  const selectBoardTrigger = target.closest("[data-select-scouting-shadow-board]");
+  if (selectBoardTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    deps.setActiveShadowBoard(selectBoardTrigger.dataset.selectScoutingShadowBoard);
+    return true;
+  }
+  const removeRecordTrigger = target.closest("[data-remove-scouting-shadow-record]");
+  if (removeRecordTrigger) {
+    event.stopPropagation();
+    deps.removeRecordFromShadow(
+      removeRecordTrigger.dataset.removeScoutingShadowRecord,
+      removeRecordTrigger.dataset.removeScoutingShadowSlot
+    );
+    return true;
+  }
+  const moveRecordTrigger = target.closest("[data-move-scouting-shadow-record]");
+  if (moveRecordTrigger) {
+    event.stopPropagation();
+    deps.moveShadowRecord(
+      moveRecordTrigger.dataset.scoutingShadowSlot,
+      moveRecordTrigger.dataset.moveScoutingShadowRecord,
+      moveRecordTrigger.dataset.scoutingShadowDirection
+    );
+    return true;
+  }
+  const addToShadowTrigger = target.closest("[data-add-scouting-record-to-shadow]");
+  if (addToShadowTrigger) {
+    event.stopPropagation();
+    const slotSelect = deps.getWorkspaceRoot()?.querySelector("[data-scouting-profile-slot]");
+    deps.addRecordToShadow(
+      addToShadowTrigger.dataset.addScoutingRecordToShadow,
+      addToShadowTrigger.dataset.scoutingShadowSlotId || slotSelect?.value
+    );
+    return true;
+  }
+  return false;
+}
+
+export function handleScoutingShadowXiInput(event, deps = {}) {
+  const favoriteSearchInput = event.target.closest("[data-scouting-shadow-favorite-search]");
+  if (!favoriteSearchInput) {
+    return false;
+  }
+  deps.setShadowFavoriteSearchQuery(deps.normalizeText(favoriteSearchInput.value, 80));
+  deps.renderActiveTabSurfaceOrWorkspace({ preserveFocus: true });
+  return true;
+}
+
+export function handleScoutingShadowXiChange(event, deps = {}) {
+  const target = event.target;
+  const boardVisibilityTrigger = target.closest("[data-scouting-shadow-board-visibility]");
+  if (boardVisibilityTrigger) {
+    deps.setShadowBoardVisibility(boardVisibilityTrigger.dataset.scoutingShadowBoardVisibility, boardVisibilityTrigger.value);
+    return true;
+  }
+  const shadowTagTrigger = target.closest("[data-scouting-shadow-tag]");
+  if (shadowTagTrigger) {
+    deps.setShadowRecordMeta(shadowTagTrigger.dataset.scoutingShadowSlot, shadowTagTrigger.dataset.scoutingShadowTag, {
+      tag: shadowTagTrigger.value,
+    });
+    return true;
+  }
+  const formationTrigger = target.closest("[data-scouting-formation]");
+  if (formationTrigger) {
+    deps.setShadowFormation(formationTrigger.value);
+    return true;
+  }
+  return false;
+}
+
+export function handleScoutingShadowXiSubmit(event, deps = {}) {
+  const form = event.target.closest("[data-create-scouting-shadow-board-form]");
+  if (!form) {
+    return false;
+  }
+  event.preventDefault();
+  deps.createShadowBoard(new FormData(form).get("name"));
+  form.reset();
+  return true;
+}

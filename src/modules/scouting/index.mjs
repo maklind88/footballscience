@@ -1,9 +1,36 @@
-import { renderScoutingComparisonWorkspace } from "./scouting-comparison.mjs";
-import { renderScoutingDatabaseWorkspace } from "./scouting-database.mjs";
-import { renderScoutingListsWorkspace } from "./scouting-lists.mjs";
-import { renderScoutingMyTeamWorkspace } from "./scouting-my-team.mjs";
-import { renderScoutingReportsWorkspace } from "./scouting-reports.mjs";
-import { renderScoutingShadowXiWorkspace } from "./scouting-shadow-xi.mjs";
+import {
+  handleScoutingComparisonChange,
+  handleScoutingComparisonClick,
+  handleScoutingComparisonInput,
+  renderScoutingComparisonWorkspace,
+} from "./scouting-comparison.mjs";
+import {
+  handleScoutingDatabaseChange,
+  handleScoutingDatabaseClick,
+  handleScoutingDatabaseInput,
+  handleScoutingDatabaseSubmit,
+  renderScoutingDatabaseWorkspace,
+} from "./scouting-database.mjs";
+import { handleScoutingListsClick, handleScoutingListsSubmit, renderScoutingListsWorkspace } from "./scouting-lists.mjs";
+import {
+  handleScoutingMyTeamChange,
+  handleScoutingMyTeamClick,
+  handleScoutingMyTeamSubmit,
+  renderScoutingMyTeamWorkspace,
+} from "./scouting-my-team.mjs";
+import {
+  handleScoutingReportsChange,
+  handleScoutingReportsClick,
+  handleScoutingReportsSubmit,
+  renderScoutingReportsWorkspace,
+} from "./scouting-reports.mjs";
+import {
+  handleScoutingShadowXiChange,
+  handleScoutingShadowXiClick,
+  handleScoutingShadowXiInput,
+  handleScoutingShadowXiSubmit,
+  renderScoutingShadowXiWorkspace,
+} from "./scouting-shadow-xi.mjs";
 
 export function renderScoutingActiveContentByTab(deps = {}) {
   const activeTab = deps.activeTab || "shadow-xi";
@@ -26,4 +53,43 @@ export function renderScoutingActiveContentByTab(deps = {}) {
     return deps.renderFuturePanel(activeTab);
   }
   return renderScoutingShadowXiWorkspace(deps);
+}
+
+export function handleScoutingModuleClick(event, deps = {}) {
+  return (
+    handleScoutingComparisonClick(event, deps) ||
+    handleScoutingShadowXiClick(event, deps) ||
+    handleScoutingDatabaseClick(event, deps) ||
+    handleScoutingListsClick(event, deps) ||
+    handleScoutingReportsClick(event, deps) ||
+    handleScoutingMyTeamClick(event, deps)
+  );
+}
+
+export function handleScoutingModuleInput(event, deps = {}) {
+  return (
+    handleScoutingShadowXiInput(event, deps) ||
+    handleScoutingComparisonInput(event, deps) ||
+    handleScoutingDatabaseInput(event, deps)
+  );
+}
+
+export function handleScoutingModuleChange(event, deps = {}) {
+  return (
+    handleScoutingMyTeamChange(event, deps) ||
+    handleScoutingReportsChange(event, deps) ||
+    handleScoutingShadowXiChange(event, deps) ||
+    handleScoutingComparisonChange(event, deps) ||
+    handleScoutingDatabaseChange(event, deps)
+  );
+}
+
+export function handleScoutingModuleSubmit(event, deps = {}) {
+  return (
+    handleScoutingShadowXiSubmit(event, deps) ||
+    handleScoutingDatabaseSubmit(event, deps) ||
+    handleScoutingReportsSubmit(event, deps) ||
+    handleScoutingMyTeamSubmit(event, deps) ||
+    handleScoutingListsSubmit(event, deps)
+  );
 }

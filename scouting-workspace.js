@@ -1,4 +1,10 @@
-import { renderScoutingActiveContentByTab } from "./src/modules/scouting/index.mjs";
+import {
+  handleScoutingModuleChange,
+  handleScoutingModuleClick,
+  handleScoutingModuleInput,
+  handleScoutingModuleSubmit,
+  renderScoutingActiveContentByTab,
+} from "./src/modules/scouting/index.mjs";
 
 let activeContext = null;
 let scoutingTabs = [];
@@ -16851,54 +16857,160 @@ export function openRecord(recordId, context = activeContext) {
   }
   openScoutingRecordProfile(recordId);
 }
+function getScoutingEventDeps() {
+  return {
+    addComparisonPlayer: addScoutingComparisonPlayer,
+    addRecordToList: addScoutingRecordToList,
+    addRecordToShadow: addScoutingRecordToShadow,
+    addRoleModelMetricFromPicker: addScoutingRoleModelMetricFromPicker,
+    applyImportDraft: applyScoutingImportDraft,
+    applyImportSourcePreset: applyScoutingImportSourcePreset,
+    applyPresetView: applyScoutingPresetView,
+    applySavedView: applyScoutingSavedView,
+    assignMyTeamPlayerToSlot: assignScoutingMyTeamPlayerToSlot,
+    canEdit: canEditScoutingWorkspace,
+    clearCompareSet: clearScoutingCompareSet,
+    clearImportedDatabase: clearScoutingImportedDatabase,
+    clearShadowSlotSelection: clearScoutingShadowSlotSelection,
+    closeReportBuilder: closeScoutingReportBuilder,
+    closeRoleModels: closeScoutingRoleModels,
+    closeSavedViews: closeScoutingSavedViews,
+    closeSettingsPanel: closeScoutingSettingsPanel,
+    collapseReportsPanel: collapseScoutingReportsPanel,
+    createCompareSetReport: createScoutingCompareSetReport,
+    createContactLogEntry: createScoutingContactLogEntry,
+    createList: createScoutingList,
+    createReport: createScoutingReport,
+    createReportForRecord: createScoutingReportForRecord,
+    createReportFromForm: createScoutingReportFromForm,
+    createRoleModel: createScoutingRoleModel,
+    createSavedView: createScoutingSavedView,
+    createShadowBoard: createScoutingShadowBoard,
+    deleteContactLogEntry: deleteScoutingContactLogEntry,
+    deleteList: deleteScoutingList,
+    deleteReport: deleteScoutingReport,
+    deleteSavedView: deleteScoutingSavedView,
+    ensureState: ensureScoutingState,
+    expandReportsPanel: expandScoutingReportsPanel,
+    getAdvancedFiltersOpen: () => scoutingAdvancedDatabaseFiltersOpen,
+    getComparisonCandidatesOpen: () => scoutingComparisonCandidatesOpen,
+    getComparisonLab: getScoutingComparisonLab,
+    getComparisonMetricMenuOpen: () => scoutingComparisonMetricMenuOpen,
+    getComparisonPlayerSearchQuery: () => scoutingComparisonPlayerSearchQuery,
+    getMyTeamSelectedPlayerId: () => scoutingMyTeamSelectedPlayerId,
+    getOppositionContext: getScoutingOppositionContext,
+    getOppositionLatestSnapshot: () => scoutingOppositionLatestSnapshot,
+    getOppositionReportText: getScoutingOppositionReportText,
+    getWorkspaceRoot: () => ui.scoutingWorkspace,
+    hydrateFootballScienceDbProfileDetails,
+    isAdvancedDatabaseMode: isScoutingDatabaseAdvancedMode,
+    isDatabaseLoaded: isScoutingDatabaseLoaded,
+    loadImportFile: loadScoutingImportFile,
+    loadImportHistory: loadScoutingImportHistory,
+    moveShadowRecord: moveScoutingShadowRecord,
+    normalizeDatabaseFilters: normalizeScoutingDatabaseFilters,
+    normalizeTargetPriority: normalizeScoutingTargetPriority,
+    normalizeTargetStatus: normalizeScoutingTargetStatus,
+    normalizeText: normalizeScoutingText,
+    openFootballScienceDbProfileFromQueue,
+    openReportBuilder: openScoutingReportBuilder,
+    openRoleModels: openScoutingRoleModels,
+    openSavedViews: openScoutingSavedViews,
+    openSettingsPanel: openScoutingSettingsPanel,
+    printProfileReport: printScoutingProfileReport,
+    queueComparisonPlayerSearch: queueScoutingComparisonPlayerSearch,
+    queueDatabaseLoad: queueScoutingDatabaseLoad,
+    queueFootballScienceDbQualityLoad,
+    refreshDatabaseSurface: refreshScoutingDatabaseSurface,
+    removeComparisonPlayer: removeScoutingComparisonPlayer,
+    removeMyTeamPlayerFromSlot: removeScoutingMyTeamPlayerFromSlot,
+    removeRecordFromShadow: removeScoutingRecordFromShadow,
+    removeRoleModel: removeScoutingRoleModel,
+    removeTarget: removeScoutingTarget,
+    renderActiveTabSurfaceOrWorkspace: renderScoutingActiveTabSurfaceOrWorkspace,
+    renderComparisonWorkspace: renderScoutingComparisonWorkspace,
+    renderWorkspace: renderScoutingWorkspace,
+    requestSignIn: requestScoutingSignIn,
+    resetRangeFilter: resetScoutingRangeFilter,
+    rollbackImport: rollbackScoutingImport,
+    saveMarketInfo: saveScoutingMarketInfo,
+    saveTarget: saveScoutingTarget,
+    scheduleDatabaseFilterRefresh: scheduleScoutingDatabaseFilterRefresh,
+    selectShadowSlot: selectScoutingShadowSlot,
+    setActiveShadowBoard: setScoutingActiveShadowBoard,
+    setAdvancedDatabaseMode: setScoutingDatabaseAdvancedMode,
+    setAdvancedFiltersOpen: setScoutingAdvancedDatabaseFiltersOpen,
+    setComparisonCandidatesOpen: (open) => {
+      scoutingComparisonCandidatesOpen = Boolean(open);
+    },
+    setComparisonLab: setScoutingComparisonLab,
+    setComparisonMetricFilterQuery: (query) => {
+      scoutingComparisonMetricFilterQuery = query;
+    },
+    setComparisonMetricMenuOpen: (open) => {
+      scoutingComparisonMetricMenuOpen = Boolean(open);
+    },
+    setDatabaseError: (message) => {
+      scoutingDatabaseError = message || "";
+    },
+    setDatabaseFilter: setScoutingDatabaseFilter,
+    setDatabaseMetricFilterOpen: (open) => {
+      scoutingDatabaseMetricFilterOpen = Boolean(open);
+    },
+    setDatabaseMetricFilterQuery: (query) => {
+      scoutingDatabaseMetricFilterQuery = query;
+    },
+    setDatabasePageCursor: setScoutingDatabasePageCursor,
+    setDatabasePageNumber: setScoutingDatabasePageNumber,
+    setDatabasePageOffset: setScoutingDatabasePageOffset,
+    setDatabaseSearchDraft: (value) => {
+      scoutingDatabaseSearchDraft = value;
+    },
+    setImportDraftFailure: setScoutingImportDraftFailure,
+    setImportDraftPatch: setScoutingImportDraftPatch,
+    setImportMapField: setScoutingImportMapField,
+    setMyTeamFormation: setScoutingMyTeamFormation,
+    setMyTeamSelectedPlayerId: (playerId) => {
+      scoutingMyTeamSelectedPlayerId = playerId || "";
+    },
+    setOppositionFilters: setScoutingOppositionFilters,
+    setProfileRoleProfile: setScoutingProfileRoleProfile,
+    setProfileSpiderSeason: setScoutingProfileSpiderSeason,
+    setReportBuilderOpen: (open) => {
+      scoutingReportBuilderOpen = Boolean(open);
+    },
+    setRoleModelMetricRowSelected: setScoutingRoleModelMetricRowSelected,
+    setSavedViewNameDraft: (value) => {
+      scoutingSavedViewNameDraft = value;
+    },
+    setSavedViewsOpen: (open) => {
+      scoutingSavedViewsOpen = Boolean(open);
+    },
+    setShadowBoardVisibility: setScoutingShadowBoardVisibility,
+    setShadowFavoriteSearchQuery: (query) => {
+      scoutingShadowFavoriteSearchQuery = query;
+    },
+    setShadowFormation: setScoutingShadowFormation,
+    setShadowRecordMeta: setScoutingShadowRecordMeta,
+    toggleCompareRecord: toggleScoutingCompareRecord,
+    updateImportSeasonDraft: (value) => {
+      if (scoutingImportDraft) {
+        scoutingImportDraft = {
+          ...scoutingImportDraft,
+          seasonOverride: value,
+          importPreview: null,
+        };
+      }
+    },
+    updateRangeFilterDisplay: updateScoutingRangeFilterDisplay,
+    updateTarget: updateScoutingTarget,
+  };
+}
 export function handleClick(event, context) {
   setScoutingContext(context);
-  const comparisonMetricSummary = event.target.closest("[data-scouting-comparison-metric-summary]");
-  if (comparisonMetricSummary) {
-    event.preventDefault();
-    event.stopPropagation();
-    const details = comparisonMetricSummary.closest("[data-scouting-comparison-metric-details]");
-    scoutingComparisonMetricMenuOpen = !details?.hasAttribute("open");
-    if (details) {
-      if (scoutingComparisonMetricMenuOpen) {
-        details.setAttribute("open", "");
-      } else {
-        details.removeAttribute("open");
-      }
-    }
-    return;
-  }
-  if (scoutingComparisonMetricMenuOpen && !event.target.closest("[data-scouting-comparison-metric-details]")) {
-    scoutingComparisonMetricMenuOpen = false;
-    ui.scoutingWorkspace?.querySelector("[data-scouting-comparison-metric-details]")?.removeAttribute("open");
-  }
-  const comparisonCandidatesTrigger = event.target.closest("[data-toggle-scouting-comparison-candidates]");
-  if (comparisonCandidatesTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    scoutingComparisonCandidatesOpen = !scoutingComparisonCandidatesOpen;
-    if (scoutingComparisonCandidatesOpen && scoutingComparisonPlayerSearchQuery) {
-      queueScoutingComparisonPlayerSearch(scoutingComparisonPlayerSearchQuery);
-      return;
-    }
-    renderScoutingComparisonWorkspace({ preserveFocus: true });
-    return;
-  }
-  const addComparisonPlayerTrigger = event.target.closest("[data-add-scouting-comparison-player]");
-  if (addComparisonPlayerTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    addScoutingComparisonPlayer(addComparisonPlayerTrigger.dataset.addScoutingComparisonPlayer);
-    return;
-  }
-  const removeComparisonPlayerTrigger = event.target.closest("[data-remove-scouting-comparison-player]");
-  if (removeComparisonPlayerTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    removeScoutingComparisonPlayer(removeComparisonPlayerTrigger.dataset.removeScoutingComparisonPlayer);
-    return;
-  }
-  const recordMoreMenuTrigger = event.target.closest("[data-toggle-scouting-record-more-menu]");
+  const eventDeps = getScoutingEventDeps();
+  const target = event.target;
+  const recordMoreMenuTrigger = target.closest("[data-toggle-scouting-record-more-menu]");
   if (recordMoreMenuTrigger) {
     const menu = recordMoreMenuTrigger.closest(".scouting-record-more-menu");
     const recordId = normalizeScoutingText(recordMoreMenuTrigger.dataset.toggleScoutingRecordMoreMenu, 160);
@@ -16910,955 +17022,68 @@ export function handleClick(event, context) {
     });
     return;
   }
-  if (scoutingOpenRecordActionMenuId && !event.target.closest(".scouting-record-more-menu")) {
+  if (scoutingOpenRecordActionMenuId && !target.closest(".scouting-record-more-menu")) {
     scoutingOpenRecordActionMenuId = "";
     ui.scoutingWorkspace?.querySelectorAll(".scouting-record-more-menu[open]").forEach((openMenu) => openMenu.removeAttribute("open"));
   }
-  const closeProfileTrigger = event.target.closest("[data-close-scouting-profile]");
-  if (closeProfileTrigger && (!event.target.closest("[data-scouting-profile-modal]") || closeProfileTrigger.tagName === "BUTTON")) {
+  if (handleScoutingModuleClick(event, eventDeps)) {
+    return;
+  }
+  const closeProfileTrigger = target.closest("[data-close-scouting-profile]");
+  if (closeProfileTrigger && (!target.closest("[data-scouting-profile-modal]") || closeProfileTrigger.tagName === "BUTTON")) {
     closeScoutingRecordProfile();
     return;
   }
-  const profileTabTrigger = event.target.closest("[data-scouting-profile-tab]");
+  const profileTabTrigger = target.closest("[data-scouting-profile-tab]");
   if (profileTabTrigger) {
     setScoutingProfileTab(profileTabTrigger.dataset.scoutingProfileTab);
     return;
   }
-  const selectShadowSlotTrigger = event.target.closest("[data-select-scouting-shadow-slot]");
-  if (selectShadowSlotTrigger) {
-    selectScoutingShadowSlot(selectShadowSlotTrigger.dataset.selectScoutingShadowSlot);
-    return;
-  }
-  const clearShadowSlotTrigger = event.target.closest("[data-clear-scouting-shadow-slot-selection]");
-  if (clearShadowSlotTrigger) {
-    clearScoutingShadowSlotSelection();
-    return;
-  }
-  const selectShadowBoardTrigger = event.target.closest("[data-select-scouting-shadow-board]");
-  if (selectShadowBoardTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    setScoutingActiveShadowBoard(selectShadowBoardTrigger.dataset.selectScoutingShadowBoard);
-    return;
-  }
-  const removeShadowRecordTrigger = event.target.closest("[data-remove-scouting-shadow-record]");
-  if (removeShadowRecordTrigger) {
-    event.stopPropagation();
-    removeScoutingRecordFromShadow(
-      removeShadowRecordTrigger.dataset.removeScoutingShadowRecord,
-      removeShadowRecordTrigger.dataset.removeScoutingShadowSlot
-    );
-    return;
-  }
-  const moveShadowRecordTrigger = event.target.closest("[data-move-scouting-shadow-record]");
-  if (moveShadowRecordTrigger) {
-    event.stopPropagation();
-    moveScoutingShadowRecord(
-      moveShadowRecordTrigger.dataset.scoutingShadowSlot,
-      moveShadowRecordTrigger.dataset.moveScoutingShadowRecord,
-      moveShadowRecordTrigger.dataset.scoutingShadowDirection
-    );
-    return;
-  }
-  const tabTrigger = event.target.closest("[data-scouting-tab]");
+  const tabTrigger = target.closest("[data-scouting-tab]");
   if (tabTrigger) {
     event.preventDefault();
     event.stopPropagation();
     setScoutingActiveTab(tabTrigger.dataset.scoutingTab);
     return;
   }
-  const retryDatabaseTrigger = event.target.closest("[data-scouting-retry-database]");
-  if (retryDatabaseTrigger) {
-    scoutingDatabaseError = "";
-    queueScoutingDatabaseLoad(renderScoutingActiveTabSurfaceOrWorkspace);
-    renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: true });
-    return;
-  }
-  const signInTrigger = event.target.closest("[data-scouting-sign-in]");
-  if (signInTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    requestScoutingSignIn();
-    return;
-  }
-  const loadDatabaseTrigger = event.target.closest("[data-scouting-load-database]");
-  if (loadDatabaseTrigger) {
-    queueScoutingDatabaseLoad(renderScoutingActiveTabSurfaceOrWorkspace);
-    renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: true });
-    return;
-  }
-  const refreshFootballScienceDbQualityTrigger = event.target.closest("[data-refresh-fsdb-quality]");
-  if (refreshFootballScienceDbQualityTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    queueFootballScienceDbQualityLoad({ force: true });
-    renderScoutingWorkspace({ preserveFocus: true });
-    return;
-  }
-  const openFootballScienceDbProfileTrigger = event.target.closest("[data-open-fsdb-profile]");
-  if (openFootballScienceDbProfileTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    openFootballScienceDbProfileFromQueue({
-      id: openFootballScienceDbProfileTrigger.dataset.fsdbProfileId || openFootballScienceDbProfileTrigger.dataset.openFsdbProfile,
-      fsdbId: openFootballScienceDbProfileTrigger.dataset.fsdbProfileFsdbId,
-    });
-    return;
-  }
-  const loadFootballScienceDbProfileTrigger = event.target.closest("[data-load-fsdb-profile]");
-  if (loadFootballScienceDbProfileTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    hydrateFootballScienceDbProfileDetails(loadFootballScienceDbProfileTrigger.dataset.loadFsdbProfile, { force: true });
-    return;
-  }
-  const pageTrigger = event.target.closest("[data-scouting-page-offset]");
-  if (pageTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    setScoutingDatabasePageOffset(pageTrigger.dataset.scoutingPageOffset);
-    return;
-  }
-  const cursorPageTrigger = event.target.closest("[data-scouting-page-cursor]");
-  if (cursorPageTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    setScoutingDatabasePageCursor(cursorPageTrigger.dataset.scoutingPageCursor, cursorPageTrigger.dataset.scoutingNextCursor || "");
-    return;
-  }
-  const refreshImportHistoryTrigger = event.target.closest("[data-refresh-scouting-import-history]");
-  if (refreshImportHistoryTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    loadScoutingImportHistory({ force: true });
-    return;
-  }
-  const rollbackImportTrigger = event.target.closest("[data-rollback-scouting-import]");
-  if (rollbackImportTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    rollbackScoutingImport(rollbackImportTrigger.dataset.rollbackScoutingImport);
-    return;
-  }
-  const advancedFiltersTrigger = event.target.closest("[data-toggle-scouting-advanced-filters]");
-  if (advancedFiltersTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    setScoutingAdvancedDatabaseFiltersOpen(!scoutingAdvancedDatabaseFiltersOpen);
-    return;
-  }
-  const advancedModeTrigger = event.target.closest("[data-toggle-scouting-database-mode]");
-  if (advancedModeTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    setScoutingDatabaseAdvancedMode(!isScoutingDatabaseAdvancedMode());
-    return;
-  }
-  const metricFilterSummary = event.target.closest("[data-scouting-metric-filter-summary]");
-  if (metricFilterSummary) {
-    event.preventDefault();
-    event.stopPropagation();
-    const details = metricFilterSummary.closest("[data-scouting-metric-filter-details]");
-    scoutingDatabaseMetricFilterOpen = !details?.open;
-    if (details) {
-      details.open = scoutingDatabaseMetricFilterOpen;
-    }
-    return;
-  }
-  const resetRangeFilterTrigger = event.target.closest("[data-reset-scouting-range-filter]");
-  if (resetRangeFilterTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    resetScoutingRangeFilter(resetRangeFilterTrigger.dataset.resetScoutingRangeFilter);
-    return;
-  }
-  const openImportTrigger = event.target.closest("[data-scouting-import-open]");
-  if (openImportTrigger) {
-    if (!canEditScoutingWorkspace()) {
-      return;
-    }
-    const importFileInput = ui.scoutingWorkspace?.querySelector("[data-scouting-import-file]");
-    if (importFileInput) {
-      importFileInput.click();
-    }
-    return;
-  }
-  const openSettingsPanelTrigger = event.target.closest("[data-open-scouting-settings-panel]");
-  if (openSettingsPanelTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    openScoutingSettingsPanel(openSettingsPanelTrigger.dataset.openScoutingSettingsPanel);
-    return;
-  }
-  const closeSettingsPanelTrigger = event.target.closest("[data-close-scouting-settings-panel]");
-  if (closeSettingsPanelTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    closeScoutingSettingsPanel();
-    return;
-  }
-  const settingsOverlay = event.target.closest("[data-scouting-settings-overlay]");
-  if (settingsOverlay && event.target === settingsOverlay) {
-    closeScoutingSettingsPanel();
-    return;
-  }
-  const datasourceToggle = event.target.closest("[data-scouting-datasource-toggle]");
-  if (datasourceToggle) {
-    window.setTimeout(() => loadScoutingImportHistory(), 0);
-  }
-  const applyImportTrigger = event.target.closest("[data-apply-scouting-import]");
-  if (applyImportTrigger) {
-    applyScoutingImportDraft();
-    return;
-  }
-  const presetImportTrigger = event.target.closest("[data-scouting-import-preset]");
-  if (presetImportTrigger) {
-    applyScoutingImportSourcePreset(presetImportTrigger.dataset.scoutingImportPreset);
-    return;
-  }
-  const clearImportTrigger = event.target.closest("[data-clear-scouting-import]");
-  if (clearImportTrigger) {
-    clearScoutingImportedDatabase();
-    return;
-  }
-  const openSavedViewsTrigger = event.target.closest("[data-open-scouting-saved-views]");
-  if (openSavedViewsTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    openScoutingSavedViews();
-    return;
-  }
-  const closeSavedViewsTrigger = event.target.closest("[data-close-scouting-saved-views]");
-  if (closeSavedViewsTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    closeScoutingSavedViews();
-    return;
-  }
-  const saveCurrentViewTrigger = event.target.closest("[data-save-scouting-current-view]");
-  if (saveCurrentViewTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    const form = saveCurrentViewTrigger.closest("[data-scouting-saved-view-form]");
-    const input = form?.querySelector("[data-scouting-saved-view-name]");
-    createScoutingSavedView(input?.value || "");
-    return;
-  }
-  const savedViewsOverlay = event.target.closest("[data-scouting-saved-views-overlay]");
-  if (savedViewsOverlay && event.target === savedViewsOverlay) {
-    closeScoutingSavedViews();
-    return;
-  }
-  const applySavedViewTrigger = event.target.closest("[data-apply-scouting-saved-view]");
-  if (applySavedViewTrigger) {
-    scoutingSavedViewsOpen = false;
-    applyScoutingSavedView(applySavedViewTrigger.dataset.applyScoutingSavedView);
-    return;
-  }
-  const applyPresetViewTrigger = event.target.closest("[data-apply-scouting-preset-view]");
-  if (applyPresetViewTrigger) {
-    scoutingSavedViewsOpen = false;
-    applyScoutingPresetView(applyPresetViewTrigger.dataset.applyScoutingPresetView);
-    return;
-  }
-  const deleteSavedViewTrigger = event.target.closest("[data-delete-scouting-saved-view]");
-  if (deleteSavedViewTrigger) {
-    event.stopPropagation();
-    deleteScoutingSavedView(deleteSavedViewTrigger.dataset.deleteScoutingSavedView);
-    return;
-  }
-  const deleteListTrigger = event.target.closest("[data-delete-scouting-list]");
-  if (deleteListTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    deleteScoutingList(deleteListTrigger.dataset.deleteScoutingList);
-    return;
-  }
-  const deleteContactTrigger = event.target.closest("[data-delete-scouting-contact]");
-  if (deleteContactTrigger) {
-    event.stopPropagation();
-    deleteScoutingContactLogEntry(deleteContactTrigger.dataset.deleteScoutingContact);
-    return;
-  }
-  const printProfileReportTrigger = event.target.closest("[data-print-scouting-profile-report]");
-  if (printProfileReportTrigger) {
-    printScoutingProfileReport(printProfileReportTrigger.dataset.printScoutingProfileReport);
-    return;
-  }
-  const saveTargetTrigger = event.target.closest("[data-save-scouting-target]");
-  if (saveTargetTrigger) {
-    saveScoutingTarget(saveTargetTrigger.dataset.saveScoutingTarget, {
-      status: saveTargetTrigger.dataset.scoutingTargetStatus,
-      priority: saveTargetTrigger.dataset.scoutingTargetPriority,
-    });
-    return;
-  }
-      const removeTargetTrigger = event.target.closest("[data-remove-scouting-target]");
-  if (removeTargetTrigger) {
-    if (!canEditScoutingWorkspace()) {
-      return;
-    }
-    removeScoutingTarget(removeTargetTrigger.dataset.removeScoutingTarget);
-    return;
-  }
-  const deleteReportTrigger = event.target.closest("[data-delete-scouting-report]");
-  if (deleteReportTrigger) {
-    if (!canEditScoutingWorkspace()) {
-      return;
-    }
-    deleteScoutingReport(deleteReportTrigger.dataset.deleteScoutingReport);
-    return;
-  }
-  const openReportBuilderTrigger = event.target.closest("[data-open-scouting-report-builder]");
-  if (openReportBuilderTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    openScoutingReportBuilder();
-    return;
-  }
-  const closeReportBuilderTrigger = event.target.closest("[data-close-scouting-report-builder]");
-  if (closeReportBuilderTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    closeScoutingReportBuilder();
-    return;
-  }
-  const expandReportsPanelTrigger = event.target.closest("[data-expand-scouting-reports-panel]");
-  if (expandReportsPanelTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    expandScoutingReportsPanel(expandReportsPanelTrigger.dataset.expandScoutingReportsPanel);
-    return;
-  }
-  const collapseReportsPanelTrigger = event.target.closest("[data-collapse-scouting-reports-panel]");
-  if (collapseReportsPanelTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    collapseScoutingReportsPanel(collapseReportsPanelTrigger.dataset.collapseScoutingReportsPanel);
-    return;
-  }
-  const reportBuilderOverlay = event.target.closest("[data-scouting-report-builder-overlay]");
-  if (reportBuilderOverlay && event.target === reportBuilderOverlay) {
-    closeScoutingReportBuilder();
-    return;
-  }
-  const createOppositionReportTrigger = event.target.closest("[data-create-scouting-opposition-report]");
-  if (createOppositionReportTrigger) {
-    if (!canEditScoutingWorkspace()) {
-      return;
-    }
-    const snapshot = scoutingOppositionLatestSnapshot || getScoutingOppositionContext();
-    const title = `Opposition memo: ${snapshot.team || "Scouting analysis"}`;
-    const summary =
-      scoutingOppositionLatestSnapshot?.memo ||
-      getScoutingOppositionReportText() ||
-      `Opposition memo generated from current analysis (${snapshot.team || "all teams"}, ${snapshot.season === "all" ? "All seasons" : snapshot.season}).`;
-    createScoutingReportFromForm(title, "opposition", "", summary);
-    return;
-  }
-  const createProfileReportTrigger = event.target.closest("[data-create-scouting-profile-report]");
-  if (createProfileReportTrigger) {
-    createScoutingReportForRecord(createProfileReportTrigger.dataset.createScoutingProfileReport);
-    return;
-  }
-  const compareRecordTrigger = event.target.closest("[data-toggle-scouting-record-compare]");
-  if (compareRecordTrigger) {
-    event.stopPropagation();
-    toggleScoutingCompareRecord(compareRecordTrigger.dataset.toggleScoutingRecordCompare);
-    return;
-  }
-  const clearCompareTrigger = event.target.closest("[data-clear-scouting-compare-set]");
-  if (clearCompareTrigger) {
-    clearScoutingCompareSet();
-    return;
-  }
-  const createCompareReportTrigger = event.target.closest("[data-create-scouting-compare-report]");
-  if (createCompareReportTrigger) {
-    createScoutingCompareSetReport();
-    return;
-  }
-  const quickViewTrigger = event.target.closest("[data-toggle-scouting-record-details]");
+  const quickViewTrigger = target.closest("[data-toggle-scouting-record-details]");
   if (quickViewTrigger) {
     event.stopPropagation();
     toggleScoutingRecordQuickView(quickViewTrigger.dataset.toggleScoutingRecordDetails);
     return;
   }
-  const openRoleModelsTrigger = event.target.closest("[data-open-scouting-role-models]");
-  if (openRoleModelsTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    openScoutingRoleModels();
-    return;
-  }
-  const closeRoleModelsTrigger = event.target.closest("[data-close-scouting-role-models]");
-  if (closeRoleModelsTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    closeScoutingRoleModels();
-    return;
-  }
-  const newRoleModelTrigger = event.target.closest("[data-new-scouting-role-model]");
-  if (newRoleModelTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    openScoutingRoleModels("");
-    return;
-  }
-  const editRoleModelTrigger = event.target.closest("[data-edit-scouting-role-model]");
-  if (editRoleModelTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    openScoutingRoleModels(editRoleModelTrigger.dataset.editScoutingRoleModel);
-    return;
-  }
-  const addRoleModelMetricTrigger = event.target.closest("[data-add-scouting-role-model-metric]");
-  if (addRoleModelMetricTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    addScoutingRoleModelMetricFromPicker(addRoleModelMetricTrigger.closest("[data-scouting-role-model-form]"));
-    return;
-  }
-  const removeRoleModelMetricTrigger = event.target.closest("[data-remove-role-model-metric]");
-  if (removeRoleModelMetricTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    setScoutingRoleModelMetricRowSelected(removeRoleModelMetricTrigger.closest("[data-role-model-metric-row]"), false);
-    return;
-  }
-  const roleModelOverlay = event.target.closest("[data-scouting-role-model-overlay]");
-  if (roleModelOverlay && event.target === roleModelOverlay) {
-    closeScoutingRoleModels();
-    return;
-  }
-  const removeRoleModelTrigger = event.target.closest("[data-remove-scouting-role-model]");
-  if (removeRoleModelTrigger) {
-    if (!canEditScoutingWorkspace()) {
-      return;
-    }
-    removeScoutingRoleModel(removeRoleModelTrigger.dataset.removeScoutingRoleModel);
-    return;
-  }
-  const removeMyTeamSlotTrigger = event.target.closest("[data-remove-scouting-my-team-slot]");
-  if (removeMyTeamSlotTrigger) {
-    event.stopPropagation();
-    removeScoutingMyTeamPlayerFromSlot(removeMyTeamSlotTrigger.dataset.removeScoutingMyTeamSlot, removeMyTeamSlotTrigger.dataset.removeScoutingMyTeamPlayer || "");
-    return;
-  }
-  const selectMyTeamPlayerTrigger = event.target.closest("[data-select-scouting-my-team-player]");
-  if (selectMyTeamPlayerTrigger && !event.target.closest("button, details, summary, a, input, select, textarea")) {
-    if (!canEditScoutingWorkspace()) {
-      return;
-    }
-    scoutingMyTeamSelectedPlayerId = selectMyTeamPlayerTrigger.dataset.selectScoutingMyTeamPlayer || "";
-    ui.scoutingWorkspace?.querySelectorAll("[data-select-scouting-my-team-player].is-selected").forEach((playerNode) => {
-      playerNode.classList.remove("is-selected");
-    });
-    selectMyTeamPlayerTrigger.classList.add("is-selected");
-    ui.scoutingWorkspace?.querySelectorAll(".scouting-my-team-slot").forEach((slotNode) => {
-      slotNode.classList.toggle("is-ready-to-drop", Boolean(scoutingMyTeamSelectedPlayerId));
-    });
-    return;
-  }
-  const assignMyTeamSlotTrigger = event.target.closest("[data-assign-scouting-my-team-slot]");
-  if (assignMyTeamSlotTrigger) {
-    if (event.target.closest("details, summary, [data-open-scouting-role-models], [data-remove-scouting-my-team-slot], .scouting-my-team-info-trigger, [data-scouting-drag-my-team-slot]")) {
-      return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    if (scoutingMyTeamSelectedPlayerId) {
-      assignScoutingMyTeamPlayerToSlot(scoutingMyTeamSelectedPlayerId, assignMyTeamSlotTrigger.dataset.assignScoutingMyTeamSlot);
-    }
-    return;
-  }
-  const favoriteTrigger = event.target.closest("[data-toggle-scouting-favorite]");
+  const favoriteTrigger = target.closest("[data-toggle-scouting-favorite]");
   if (favoriteTrigger) {
     event.stopPropagation();
     toggleScoutingFavorite(favoriteTrigger.dataset.toggleScoutingFavorite);
     return;
   }
-  const addToListTrigger = event.target.closest("[data-add-scouting-record-to-list]");
-  if (addToListTrigger) {
-    event.stopPropagation();
-    const listSelect = ui.scoutingWorkspace?.querySelector("[data-scouting-profile-list]");
-    addScoutingRecordToList(addToListTrigger.dataset.addScoutingRecordToList, listSelect?.value);
-    return;
-  }
-  const sendToTransferRoomTrigger = event.target.closest("[data-send-scouting-record-to-transfer-room]");
+  const sendToTransferRoomTrigger = target.closest("[data-send-scouting-record-to-transfer-room]");
   if (sendToTransferRoomTrigger) {
     event.preventDefault();
     event.stopPropagation();
     sendScoutingRecordToTransferRoom(sendToTransferRoomTrigger.dataset.sendScoutingRecordToTransferRoom);
     return;
   }
-  const addToShadowTrigger = event.target.closest("[data-add-scouting-record-to-shadow]");
-  if (addToShadowTrigger) {
-    event.stopPropagation();
-    const slotSelect = ui.scoutingWorkspace?.querySelector("[data-scouting-profile-slot]");
-    addScoutingRecordToShadow(
-      addToShadowTrigger.dataset.addScoutingRecordToShadow,
-      addToShadowTrigger.dataset.scoutingShadowSlotId || slotSelect?.value
-    );
-    return;
-  }
-  const recordTrigger = event.target.closest("[data-open-scouting-record]");
+  const recordTrigger = target.closest("[data-open-scouting-record]");
   if (recordTrigger) {
     openScoutingRecordProfile(recordTrigger.dataset.openScoutingRecord);
     return;
   }
-  const recordRowTrigger = event.target.closest("[data-scouting-record-row]");
-  if (recordRowTrigger && !event.target.closest("button, a, input, select, textarea, details, summary")) {
+  const recordRowTrigger = target.closest("[data-scouting-record-row]");
+  if (recordRowTrigger && !target.closest("button, a, input, select, textarea, details, summary")) {
     openScoutingRecordProfile(recordRowTrigger.dataset.scoutingRecordRow);
   }
 }
 export function handleInput(event, context) {
   setScoutingContext(context);
-  const importSeasonInput = event.target.closest("[data-scouting-import-season]");
-  if (importSeasonInput) {
-    if (scoutingImportDraft) {
-      scoutingImportDraft = {
-        ...scoutingImportDraft,
-        seasonOverride: importSeasonInput.value,
-        importPreview: null,
-      };
-    }
-    return;
-  }
-  const favoriteSearchInput = event.target.closest("[data-scouting-shadow-favorite-search]");
-  if (favoriteSearchInput) {
-    scoutingShadowFavoriteSearchQuery = normalizeScoutingText(favoriteSearchInput.value, 80);
-    renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: true });
-    return;
-  }
-  const comparisonMetricSearchInput = event.target.closest("[data-scouting-comparison-metric-search]");
-  if (comparisonMetricSearchInput) {
-    scoutingComparisonMetricMenuOpen = true;
-    scoutingComparisonMetricFilterQuery = normalizeScoutingText(comparisonMetricSearchInput.value, 80);
-    renderScoutingComparisonWorkspace({ preserveFocus: true });
-    return;
-  }
-  const comparisonPlayerSearchInput = event.target.closest("[data-scouting-comparison-player-search]");
-  if (comparisonPlayerSearchInput) {
-    queueScoutingComparisonPlayerSearch(comparisonPlayerSearchInput.value);
-    return;
-  }
-  const databaseSearchInput = event.target.closest("[data-scouting-database-search-input]");
-  if (databaseSearchInput) {
-    scoutingDatabaseSearchDraft = databaseSearchInput.value;
-    return;
-  }
-  const savedViewNameInput = event.target.closest("[data-scouting-saved-view-name]");
-  if (savedViewNameInput) {
-    scoutingSavedViewNameDraft = savedViewNameInput.value;
-    return;
-  }
-  const metricFilterSearchInput = event.target.closest("[data-scouting-metric-filter-search]");
-  if (metricFilterSearchInput) {
-    scoutingDatabaseMetricFilterOpen = true;
-    scoutingDatabaseMetricFilterQuery = normalizeScoutingText(metricFilterSearchInput.value, 80);
-    refreshScoutingDatabaseSurface({ controls: true });
-    return;
-  }
-  const filterInput = event.target.closest("[data-scouting-filter]");
-  if (!filterInput) {
-    return;
-  }
-  if (filterInput.dataset.scoutingFilter === "query") {
-    return;
-  }
-  if (filterInput.type === "range") {
-    updateScoutingRangeFilterDisplay(filterInput);
-  }
-  const filterField = filterInput.dataset.scoutingFilter;
-  setScoutingDatabaseFilter(filterField, filterInput.value);
-  if (filterField === "source") {
-    renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: true });
-    const nextFilters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
-    if (nextFilters.source === "fsdb" && nextFilters.fsdbGenderSegment) {
-      queueScoutingDatabaseLoad(renderScoutingActiveTabSurfaceOrWorkspace);
-    }
-    return;
-  }
-  if (filterField === "fsdbGenderSegment") {
-    renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: true });
-    if (normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters).source === "fsdb") {
-      queueScoutingDatabaseLoad(renderScoutingActiveTabSurfaceOrWorkspace);
-    }
-    return;
-  }
-  if (isScoutingDatabaseLoaded()) {
-    scheduleScoutingDatabaseFilterRefresh();
-  }
+  handleScoutingModuleInput(event, getScoutingEventDeps());
 }
 export function handleChange(event, context) {
   setScoutingContext(context);
-  const roleModelMetricCheckbox = event.target.closest("[data-role-model-metric-checkbox]");
-  if (roleModelMetricCheckbox) {
-    setScoutingRoleModelMetricRowSelected(roleModelMetricCheckbox.closest("[data-role-model-metric-row]"), roleModelMetricCheckbox.checked);
-    return;
-  }
-  const importFileInput = event.target.closest("[data-scouting-import-file]");
-  if (importFileInput) {
-    const nextFile = importFileInput.files?.[0];
-    importFileInput.value = "";
-    loadScoutingImportFile(nextFile).catch((error) => {
-      setScoutingImportDraftFailure(error, nextFile?.name || "");
-    });
-    return;
-  }
-  const importSheetInput = event.target.closest("[data-scouting-import-sheet]");
-  if (importSheetInput) {
-    setScoutingImportDraftPatch({ selectedSheet: importSheetInput.value });
-    return;
-  }
-  const importMapInput = event.target.closest("[data-scouting-import-map]");
-  if (importMapInput) {
-    setScoutingImportMapField(importMapInput.dataset.scoutingImportMap, importMapInput.value);
-    return;
-  }
-  const targetStatusTrigger = event.target.closest("[data-scouting-target-status]");
-  if (targetStatusTrigger) {
-    if (!canEditScoutingWorkspace()) {
-      return;
-    }
-    updateScoutingTarget(targetStatusTrigger.dataset.scoutingTargetStatus, {
-      status: normalizeScoutingTargetStatus(targetStatusTrigger.value),
-    });
-    return;
-  }
-  const targetPriorityTrigger = event.target.closest("[data-scouting-target-priority]");
-  if (targetPriorityTrigger) {
-    if (!canEditScoutingWorkspace()) {
-      return;
-    }
-    updateScoutingTarget(targetPriorityTrigger.dataset.scoutingTargetPriority, {
-      priority: normalizeScoutingTargetPriority(targetPriorityTrigger.value),
-    });
-    return;
-  }
-  const profileRoleTemplateTrigger = event.target.closest("[data-scouting-profile-role-template]");
-  if (profileRoleTemplateTrigger) {
-    setScoutingProfileRoleProfile(profileRoleTemplateTrigger.value);
-    return;
-  }
-  const profileSpiderSeasonTrigger = event.target.closest("[data-scouting-profile-spider-season]");
-  if (profileSpiderSeasonTrigger) {
-    setScoutingProfileSpiderSeason(profileSpiderSeasonTrigger.value);
-    return;
-  }
-  const shadowBoardVisibilityTrigger = event.target.closest("[data-scouting-shadow-board-visibility]");
-  if (shadowBoardVisibilityTrigger) {
-    setScoutingShadowBoardVisibility(shadowBoardVisibilityTrigger.dataset.scoutingShadowBoardVisibility, shadowBoardVisibilityTrigger.value);
-    return;
-  }
-  const comparisonMetricChoice = event.target.closest("[data-scouting-comparison-metric-checkbox]");
-  if (comparisonMetricChoice) {
-    if (!canEditScoutingWorkspace()) {
-      return;
-    }
-    scoutingComparisonMetricMenuOpen = true;
-    const metricId = normalizeScoutingText(comparisonMetricChoice.value, 120);
-    const lab = getScoutingComparisonLab();
-    const metricIds = new Set((lab.metricIds || []).map((item) => normalizeScoutingText(item, 120)).filter(Boolean));
-    if (metricId) {
-      if (comparisonMetricChoice.checked) {
-        metricIds.add(metricId);
-      } else {
-        metricIds.delete(metricId);
-      }
-    }
-    const nextMetricIds = Array.from(metricIds);
-    setScoutingComparisonLab({
-      metricId: nextMetricIds[0] || "",
-      metricIds: nextMetricIds,
-      playerIds: lab.playerIds,
-    });
-    renderScoutingComparisonWorkspace({ preserveFocus: true });
-    return;
-  }
-  const comparisonForm = event.target.closest("[data-scouting-comparison-form]");
-  if (comparisonForm) {
-    if (!canEditScoutingWorkspace()) {
-      return;
-    }
-    scoutingComparisonMetricMenuOpen = Boolean(event.target.closest(".scouting-comparison-metric-choice"));
-    const formData = new FormData(comparisonForm);
-    const metricIds = formData.getAll("metricIds").map((metricId) => normalizeScoutingText(metricId, 120)).filter(Boolean);
-    const existingLab = getScoutingComparisonLab();
-    const playerFields = ["playerA", "playerB", "playerC", "playerD"].filter((fieldName) => comparisonForm.elements[fieldName]);
-    setScoutingComparisonLab({
-      metricId: metricIds[0],
-      metricIds,
-      playerIds: playerFields.length
-        ? [formData.get("playerA"), formData.get("playerB"), formData.get("playerC"), formData.get("playerD")]
-        : existingLab.playerIds,
-    });
-    renderScoutingComparisonWorkspace({ preserveFocus: true });
-    return;
-  }
-  const oppositionForm = event.target.closest("[data-scouting-opposition-form]");
-  if (oppositionForm) {
-    const formData = new FormData(oppositionForm);
-    setScoutingOppositionFilters({
-      team: formData.get("team"),
-      season: formData.get("season"),
-      minMinutes: formData.get("minMinutes"),
-    });
-    return;
-  }
-  const shadowTagTrigger = event.target.closest("[data-scouting-shadow-tag]");
-  if (shadowTagTrigger) {
-    setScoutingShadowRecordMeta(shadowTagTrigger.dataset.scoutingShadowSlot, shadowTagTrigger.dataset.scoutingShadowTag, {
-      tag: shadowTagTrigger.value,
-    });
-    return;
-  }
-  const formationTrigger = event.target.closest("[data-scouting-formation]");
-  if (formationTrigger) {
-    setScoutingShadowFormation(formationTrigger.value);
-    return;
-  }
-  const myTeamFormationTrigger = event.target.closest("[data-scouting-my-team-formation]");
-  if (myTeamFormationTrigger) {
-    setScoutingMyTeamFormation(myTeamFormationTrigger.value);
-    return;
-  }
-  const metricFilterChoice = event.target.closest("[data-scouting-metric-filter]");
-  if (metricFilterChoice) {
-    scoutingDatabaseMetricFilterOpen = true;
-    const filters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
-    const selectedMetricIds = new Set(
-      Array.isArray(filters.metricIds) && filters.metricIds.length
-        ? filters.metricIds
-        : filters.metricId && filters.metricId !== "all"
-          ? [filters.metricId]
-          : []
-    );
-    const metricId = normalizeScoutingText(metricFilterChoice.value, 120);
-    if (metricId) {
-      if (metricFilterChoice.checked) {
-        selectedMetricIds.add(metricId);
-      } else {
-        selectedMetricIds.delete(metricId);
-      }
-    }
-    const nextMetricIds = Array.from(selectedMetricIds);
-    setScoutingDatabaseFilter("metricIds", nextMetricIds);
-    const metricMin = Number(normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters).metricMin);
-    if (nextMetricIds.length && (!Number.isFinite(metricMin) || metricMin <= 0)) {
-      setScoutingDatabaseFilter("metricMin", 75);
-    } else if (!nextMetricIds.length && Number.isFinite(metricMin) && metricMin > 0) {
-      setScoutingDatabaseFilter("metricMin", 0);
-    }
-    refreshScoutingDatabaseSurface({ controls: true });
-    return;
-  }
-  const filterInput = event.target.closest("[data-scouting-filter]");
-  if (!filterInput) {
-    return;
-  }
-  const filterField = filterInput.dataset.scoutingFilter;
-  setScoutingDatabaseFilter(filterField, filterInput.value);
-  if (filterField === "source") {
-    renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: true });
-    const nextFilters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
-    if (nextFilters.source === "fsdb" && nextFilters.fsdbGenderSegment) {
-      queueScoutingDatabaseLoad(renderScoutingActiveTabSurfaceOrWorkspace);
-    }
-    return;
-  }
-  if (filterField === "fsdbGenderSegment") {
-    renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: true });
-    if (normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters).source === "fsdb") {
-      queueScoutingDatabaseLoad(renderScoutingActiveTabSurfaceOrWorkspace);
-    }
-    return;
-  }
-  if (isScoutingDatabaseLoaded()) {
-    scheduleScoutingDatabaseFilterRefresh();
-  }
+  handleScoutingModuleChange(event, getScoutingEventDeps());
 }
 export function handleSubmit(event, context) {
   setScoutingContext(context);
-  const createShadowBoardForm = event.target.closest("[data-create-scouting-shadow-board-form]");
-  if (createShadowBoardForm) {
-    event.preventDefault();
-    const formData = new FormData(createShadowBoardForm);
-    createScoutingShadowBoard(formData.get("name"));
-    createShadowBoardForm.reset();
-    return;
-  }
-  const pageJumpForm = event.target.closest("[data-scouting-page-jump-form]");
-  if (pageJumpForm) {
-    event.preventDefault();
-    const formData = new FormData(pageJumpForm);
-    setScoutingDatabasePageNumber(formData.get("page"));
-    return;
-  }
-  const databaseSearchForm = event.target.closest("[data-scouting-database-search-form]");
-  if (databaseSearchForm) {
-    event.preventDefault();
-    const formData = new FormData(databaseSearchForm);
-    const query = formData.get("query");
-    scoutingDatabaseSearchDraft = null;
-    setScoutingDatabaseFilter("query", query);
-    if (isScoutingDatabaseLoaded()) {
-      scheduleScoutingDatabaseFilterRefresh();
-    }
-    return;
-  }
-  const savedViewForm = event.target.closest("[data-scouting-saved-view-form]");
-  if (savedViewForm) {
-    if (!canEditScoutingWorkspace()) {
-      return;
-    }
-    event.preventDefault();
-    createScoutingSavedView(new FormData(savedViewForm).get("name"));
-    savedViewForm.reset();
-    return;
-  }
-  const contactForm = event.target.closest("[data-scouting-contact-form]");
-  if (contactForm) {
-    if (!canEditScoutingWorkspace()) {
-      return;
-    }
-    event.preventDefault();
-    const formData = new FormData(contactForm);
-    createScoutingContactLogEntry(contactForm.dataset.scoutingContactForm, {
-      date: formData.get("date"),
-      type: formData.get("type"),
-      contact: formData.get("contact"),
-      outcome: formData.get("outcome"),
-      nextStep: formData.get("nextStep"),
-      notes: formData.get("notes"),
-    });
-    contactForm.reset();
-    return;
-  }
-  const marketForm = event.target.closest("[data-scouting-market-form]");
-  if (marketForm) {
-    if (!canEditScoutingWorkspace()) {
-      return;
-    }
-    event.preventDefault();
-    const formData = new FormData(marketForm);
-    saveScoutingMarketInfo(marketForm.dataset.scoutingMarketForm, {
-      contractStatus: formData.get("contractStatus"),
-      contractEnd: formData.get("contractEnd"),
-      optionYears: formData.get("optionYears"),
-      agent: formData.get("agent"),
-      wageBand: formData.get("wageBand"),
-      estimatedFee: formData.get("estimatedFee"),
-      salaryRange: formData.get("salaryRange"),
-      dealProbability: formData.get("dealProbability"),
-      budgetImpact: formData.get("budgetImpact"),
-      transferStatus: formData.get("transferStatus"),
-      medicalLoad: formData.get("medicalLoad"),
-      roleTranslation: formData.get("roleTranslation"),
-      notes: formData.get("notes"),
-    });
-    return;
-  }
-  const targetForm = event.target.closest("[data-scouting-target-form]");
-  if (targetForm) {
-    if (!canEditScoutingWorkspace()) {
-      return;
-    }
-    event.preventDefault();
-    const recordId = targetForm.dataset.scoutingTargetForm;
-    const formData = new FormData(targetForm);
-    saveScoutingTarget(recordId, {
-      status: formData.get("status"),
-      priority: formData.get("priority"),
-      slotId: formData.get("slotId"),
-      notes: formData.get("notes"),
-      owner: formData.get("owner"),
-      nextAction: formData.get("nextAction"),
-      nextActionDate: formData.get("nextActionDate"),
-      lastContact: formData.get("lastContact"),
-      decisionDeadline: formData.get("decisionDeadline"),
-    });
-    return;
-  }
-  const roleModelForm = event.target.closest("[data-scouting-role-model-form]");
-  if (roleModelForm) {
-    if (!canEditScoutingWorkspace()) {
-      return;
-    }
-    event.preventDefault();
-    const formData = new FormData(roleModelForm);
-    const selectedMetricIds = formData.getAll("metricIds").map((metricId) => normalizeScoutingText(metricId, 120)).filter(Boolean);
-    const roleMetrics = selectedMetricIds.map((metricId) => ({
-      metricId,
-      direction: formData.get(`metricDirection:${metricId}`),
-      minPercentile: formData.get(`metricThreshold:${metricId}`) || formData.get("minPercentile"),
-      weight: formData.get(`metricWeight:${metricId}`),
-    }));
-    createScoutingRoleModel({
-      id: formData.get("id"),
-      name: formData.get("name"),
-      slotId: formData.get("slotId"),
-      metricId: selectedMetricIds[0],
-      minPercentile: formData.get("minPercentile"),
-      metrics: roleMetrics,
-      searchIntent: formData.get("searchIntent"),
-      notes: formData.get("notes"),
-    });
-    return;
-  }
-  const reportForm = event.target.closest("[data-scouting-report-form]");
-  if (reportForm) {
-    if (!canEditScoutingWorkspace()) {
-      return;
-    }
-    event.preventDefault();
-    const formData = new FormData(reportForm);
-    const summaryParts = [
-      ["Assessment", formData.get("summary")],
-      ["Strengths", formData.get("strengths")],
-      ["Risks / questions", formData.get("risks")],
-      ["Next step", formData.get("nextStep")],
-    ]
-      .map(([label, value]) => {
-        const text = normalizeScoutingText(value, 500);
-        return text ? `${label}: ${text}` : "";
-      })
-      .filter(Boolean)
-      .join("\n\n");
-    scoutingReportBuilderOpen = false;
-    createScoutingReport({
-      title: formData.get("title"),
-      type: formData.get("type"),
-      targetId: formData.get("targetId"),
-      summary: summaryParts || formData.get("summary"),
-      recommendation: formData.get("recommendation"),
-      confidence: formData.get("confidence"),
-      technical: formData.get("technical"),
-      tactical: formData.get("tactical"),
-      physical: formData.get("physical"),
-      psychological: formData.get("psychological"),
-      scoutType: formData.get("scoutType"),
-    });
-    if (reportForm.elements.type?.value !== "opposition") {
-      reportForm.reset();
-    }
-    return;
-  }
-  const oppositionForm = event.target.closest("[data-scouting-opposition-form]");
-  if (oppositionForm) {
-    event.preventDefault();
-    const formData = new FormData(oppositionForm);
-    setScoutingOppositionFilters({
-      team: formData.get("team"),
-      season: formData.get("season"),
-      minMinutes: formData.get("minMinutes"),
-    });
-    return;
-  }
-  const listForm = event.target.closest("[data-scouting-list-form]");
-  if (!listForm) {
-    return;
-  }
-  event.preventDefault();
-  createScoutingList(new FormData(listForm).get("name"));
+  handleScoutingModuleSubmit(event, getScoutingEventDeps());
 }

@@ -87,3 +87,143 @@ export function renderScoutingMyTeamWorkspace(deps = {}) {
     </section>
   `;
 }
+
+export function handleScoutingMyTeamClick(event, deps = {}) {
+  const target = event.target;
+  const openRoleModelsTrigger = target.closest("[data-open-scouting-role-models]");
+  if (openRoleModelsTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    deps.openRoleModels();
+    return true;
+  }
+  const closeRoleModelsTrigger = target.closest("[data-close-scouting-role-models]");
+  if (closeRoleModelsTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    deps.closeRoleModels();
+    return true;
+  }
+  const newRoleModelTrigger = target.closest("[data-new-scouting-role-model]");
+  if (newRoleModelTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    deps.openRoleModels("");
+    return true;
+  }
+  const editRoleModelTrigger = target.closest("[data-edit-scouting-role-model]");
+  if (editRoleModelTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    deps.openRoleModels(editRoleModelTrigger.dataset.editScoutingRoleModel);
+    return true;
+  }
+  const addMetricTrigger = target.closest("[data-add-scouting-role-model-metric]");
+  if (addMetricTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    deps.addRoleModelMetricFromPicker(addMetricTrigger.closest("[data-scouting-role-model-form]"));
+    return true;
+  }
+  const removeMetricTrigger = target.closest("[data-remove-role-model-metric]");
+  if (removeMetricTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    deps.setRoleModelMetricRowSelected(removeMetricTrigger.closest("[data-role-model-metric-row]"), false);
+    return true;
+  }
+  const roleModelOverlay = target.closest("[data-scouting-role-model-overlay]");
+  if (roleModelOverlay && target === roleModelOverlay) {
+    deps.closeRoleModels();
+    return true;
+  }
+  const removeRoleModelTrigger = target.closest("[data-remove-scouting-role-model]");
+  if (removeRoleModelTrigger) {
+    if (!deps.canEdit()) {
+      return true;
+    }
+    deps.removeRoleModel(removeRoleModelTrigger.dataset.removeScoutingRoleModel);
+    return true;
+  }
+  const removeSlotTrigger = target.closest("[data-remove-scouting-my-team-slot]");
+  if (removeSlotTrigger) {
+    event.stopPropagation();
+    deps.removeMyTeamPlayerFromSlot(removeSlotTrigger.dataset.removeScoutingMyTeamSlot, removeSlotTrigger.dataset.removeScoutingMyTeamPlayer || "");
+    return true;
+  }
+  const selectPlayerTrigger = target.closest("[data-select-scouting-my-team-player]");
+  if (selectPlayerTrigger && !target.closest("button, details, summary, a, input, select, textarea")) {
+    if (!deps.canEdit()) {
+      return true;
+    }
+    const playerId = selectPlayerTrigger.dataset.selectScoutingMyTeamPlayer || "";
+    deps.setMyTeamSelectedPlayerId(playerId);
+    const root = deps.getWorkspaceRoot();
+    root?.querySelectorAll("[data-select-scouting-my-team-player].is-selected").forEach((playerNode) => {
+      playerNode.classList.remove("is-selected");
+    });
+    selectPlayerTrigger.classList.add("is-selected");
+    root?.querySelectorAll(".scouting-my-team-slot").forEach((slotNode) => {
+      slotNode.classList.toggle("is-ready-to-drop", Boolean(playerId));
+    });
+    return true;
+  }
+  const assignSlotTrigger = target.closest("[data-assign-scouting-my-team-slot]");
+  if (assignSlotTrigger) {
+    if (target.closest("details, summary, [data-open-scouting-role-models], [data-remove-scouting-my-team-slot], .scouting-my-team-info-trigger, [data-scouting-drag-my-team-slot]")) {
+      return true;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    if (deps.getMyTeamSelectedPlayerId()) {
+      deps.assignMyTeamPlayerToSlot(deps.getMyTeamSelectedPlayerId(), assignSlotTrigger.dataset.assignScoutingMyTeamSlot);
+    }
+    return true;
+  }
+  return false;
+}
+
+export function handleScoutingMyTeamChange(event, deps = {}) {
+  const target = event.target;
+  const roleMetricCheckbox = target.closest("[data-role-model-metric-checkbox]");
+  if (roleMetricCheckbox) {
+    deps.setRoleModelMetricRowSelected(roleMetricCheckbox.closest("[data-role-model-metric-row]"), roleMetricCheckbox.checked);
+    return true;
+  }
+  const formationTrigger = target.closest("[data-scouting-my-team-formation]");
+  if (formationTrigger) {
+    deps.setMyTeamFormation(formationTrigger.value);
+    return true;
+  }
+  return false;
+}
+
+export function handleScoutingMyTeamSubmit(event, deps = {}) {
+  const form = event.target.closest("[data-scouting-role-model-form]");
+  if (!form) {
+    return false;
+  }
+  if (!deps.canEdit()) {
+    return true;
+  }
+  event.preventDefault();
+  const formData = new FormData(form);
+  const selectedMetricIds = formData.getAll("metricIds").map((metricId) => deps.normalizeText(metricId, 120)).filter(Boolean);
+  const roleMetrics = selectedMetricIds.map((metricId) => ({
+    metricId,
+    direction: formData.get(`metricDirection:${metricId}`),
+    minPercentile: formData.get(`metricThreshold:${metricId}`) || formData.get("minPercentile"),
+    weight: formData.get(`metricWeight:${metricId}`),
+  }));
+  deps.createRoleModel({
+    id: formData.get("id"),
+    name: formData.get("name"),
+    slotId: formData.get("slotId"),
+    metricId: selectedMetricIds[0],
+    minPercentile: formData.get("minPercentile"),
+    metrics: roleMetrics,
+    searchIntent: formData.get("searchIntent"),
+    notes: formData.get("notes"),
+  });
+  return true;
+}

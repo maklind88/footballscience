@@ -75,3 +75,32 @@ export function renderScoutingListsWorkspace(deps = {}) {
   </section>
   `;
 }
+
+export function handleScoutingListsClick(event, deps = {}) {
+  const target = event.target;
+  const deleteListTrigger = target.closest("[data-delete-scouting-list]");
+  if (deleteListTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    deps.deleteList(deleteListTrigger.dataset.deleteScoutingList);
+    return true;
+  }
+  const addToListTrigger = target.closest("[data-add-scouting-record-to-list]");
+  if (addToListTrigger) {
+    event.stopPropagation();
+    const listSelect = deps.getWorkspaceRoot()?.querySelector("[data-scouting-profile-list]");
+    deps.addRecordToList(addToListTrigger.dataset.addScoutingRecordToList, listSelect?.value);
+    return true;
+  }
+  return false;
+}
+
+export function handleScoutingListsSubmit(event, deps = {}) {
+  const listForm = event.target.closest("[data-scouting-list-form]");
+  if (!listForm) {
+    return false;
+  }
+  event.preventDefault();
+  deps.createList(new FormData(listForm).get("name"));
+  return true;
+}

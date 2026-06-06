@@ -1,3 +1,139 @@
+export function handleScoutingComparisonClick(event, deps = {}) {
+  const target = event.target;
+  const root = deps.getWorkspaceRoot?.();
+  const metricSummary = target.closest("[data-scouting-comparison-metric-summary]");
+  if (metricSummary) {
+    event.preventDefault();
+    event.stopPropagation();
+    const details = metricSummary.closest("[data-scouting-comparison-metric-details]");
+    const open = !details?.hasAttribute("open");
+    deps.setComparisonMetricMenuOpen(open);
+    if (details) {
+      if (open) {
+        details.setAttribute("open", "");
+      } else {
+        details.removeAttribute("open");
+      }
+    }
+    return true;
+  }
+  if (deps.getComparisonMetricMenuOpen() && !target.closest("[data-scouting-comparison-metric-details]")) {
+    deps.setComparisonMetricMenuOpen(false);
+    root?.querySelector("[data-scouting-comparison-metric-details]")?.removeAttribute("open");
+  }
+  const candidatesTrigger = target.closest("[data-toggle-scouting-comparison-candidates]");
+  if (candidatesTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    const open = !deps.getComparisonCandidatesOpen();
+    deps.setComparisonCandidatesOpen(open);
+    if (open && deps.getComparisonPlayerSearchQuery()) {
+      deps.queueComparisonPlayerSearch(deps.getComparisonPlayerSearchQuery());
+      return true;
+    }
+    deps.renderComparisonWorkspace({ preserveFocus: true });
+    return true;
+  }
+  const addPlayerTrigger = target.closest("[data-add-scouting-comparison-player]");
+  if (addPlayerTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    deps.addComparisonPlayer(addPlayerTrigger.dataset.addScoutingComparisonPlayer);
+    return true;
+  }
+  const removePlayerTrigger = target.closest("[data-remove-scouting-comparison-player]");
+  if (removePlayerTrigger) {
+    event.preventDefault();
+    event.stopPropagation();
+    deps.removeComparisonPlayer(removePlayerTrigger.dataset.removeScoutingComparisonPlayer);
+    return true;
+  }
+  const compareRecordTrigger = target.closest("[data-toggle-scouting-record-compare]");
+  if (compareRecordTrigger) {
+    event.stopPropagation();
+    deps.toggleCompareRecord(compareRecordTrigger.dataset.toggleScoutingRecordCompare);
+    return true;
+  }
+  const clearCompareTrigger = target.closest("[data-clear-scouting-compare-set]");
+  if (clearCompareTrigger) {
+    deps.clearCompareSet();
+    return true;
+  }
+  const createCompareReportTrigger = target.closest("[data-create-scouting-compare-report]");
+  if (createCompareReportTrigger) {
+    deps.createCompareSetReport();
+    return true;
+  }
+  return false;
+}
+
+export function handleScoutingComparisonInput(event, deps = {}) {
+  const target = event.target;
+  const metricSearchInput = target.closest("[data-scouting-comparison-metric-search]");
+  if (metricSearchInput) {
+    deps.setComparisonMetricMenuOpen(true);
+    deps.setComparisonMetricFilterQuery(deps.normalizeText(metricSearchInput.value, 80));
+    deps.renderComparisonWorkspace({ preserveFocus: true });
+    return true;
+  }
+  const playerSearchInput = target.closest("[data-scouting-comparison-player-search]");
+  if (playerSearchInput) {
+    deps.queueComparisonPlayerSearch(playerSearchInput.value);
+    return true;
+  }
+  return false;
+}
+
+export function handleScoutingComparisonChange(event, deps = {}) {
+  const target = event.target;
+  const metricChoice = target.closest("[data-scouting-comparison-metric-checkbox]");
+  if (metricChoice) {
+    if (!deps.canEdit()) {
+      return true;
+    }
+    deps.setComparisonMetricMenuOpen(true);
+    const metricId = deps.normalizeText(metricChoice.value, 120);
+    const lab = deps.getComparisonLab();
+    const metricIds = new Set((lab.metricIds || []).map((item) => deps.normalizeText(item, 120)).filter(Boolean));
+    if (metricId) {
+      if (metricChoice.checked) {
+        metricIds.add(metricId);
+      } else {
+        metricIds.delete(metricId);
+      }
+    }
+    const nextMetricIds = Array.from(metricIds);
+    deps.setComparisonLab({
+      metricId: nextMetricIds[0] || "",
+      metricIds: nextMetricIds,
+      playerIds: lab.playerIds,
+    });
+    deps.renderComparisonWorkspace({ preserveFocus: true });
+    return true;
+  }
+  const comparisonForm = target.closest("[data-scouting-comparison-form]");
+  if (comparisonForm) {
+    if (!deps.canEdit()) {
+      return true;
+    }
+    deps.setComparisonMetricMenuOpen(Boolean(target.closest(".scouting-comparison-metric-choice")));
+    const formData = new FormData(comparisonForm);
+    const metricIds = formData.getAll("metricIds").map((metricId) => deps.normalizeText(metricId, 120)).filter(Boolean);
+    const existingLab = deps.getComparisonLab();
+    const playerFields = ["playerA", "playerB", "playerC", "playerD"].filter((fieldName) => comparisonForm.elements[fieldName]);
+    deps.setComparisonLab({
+      metricId: metricIds[0],
+      metricIds,
+      playerIds: playerFields.length
+        ? [formData.get("playerA"), formData.get("playerB"), formData.get("playerC"), formData.get("playerD")]
+        : existingLab.playerIds,
+    });
+    deps.renderComparisonWorkspace({ preserveFocus: true });
+    return true;
+  }
+  return false;
+}
+
 export function renderScoutingComparisonWorkspace(deps = {}) {
   const {
     canEdit: canEditScoutingWorkspace,

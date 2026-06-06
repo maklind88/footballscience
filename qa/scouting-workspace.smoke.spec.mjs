@@ -305,51 +305,54 @@ test("Scouting database load, search and position filter stay stable", async ({ 
   await expect(page.locator(".scouting-tab.is-active")).toContainText("Database");
 });
 
-test("Every Scouting access role can visually reach the unified scouting database", async ({ page }) => {
-  test.setTimeout(120_000);
-  await seedScoutingAccessForRoles(page, scoutingAccessRoles, {
-    activeTab: "database",
-    databaseFilters: {
-      source: "fsdb",
-      fsdbGenderSegment: "women",
+async function expectScoutingDatabaseReachableForRole(page, role) {
+  await setQaCurrentRole(page, role);
+  await openWorkspace(page, "scouting");
+  const databaseTab = page.locator('.scouting-tab[data-scouting-tab="database"]').first();
+  await expect(databaseTab).toBeVisible({ timeout: 15_000 });
+  await databaseTab.click();
+  await expect(page.locator(".scouting-tab.is-active")).toContainText("Database");
+  await expect(page.locator("[data-scouting-load-fsdb]"), role).toHaveCount(0);
+  await page.waitForFunction(
+    () => {
+      const workspace = document.querySelector('[data-workspace-view="scouting"].is-active');
+      return Boolean(
+        workspace?.querySelector("[data-scouting-load-database]") ||
+          workspace?.querySelector(".scouting-database-loader") ||
+          workspace?.querySelector("[data-scouting-record-grid] [data-open-scouting-record]")
+      );
     },
-  });
-  const boot = await bootApp(page);
-  expect(boot.pageErrors).toEqual([]);
-
-  for (const role of scoutingAccessRoles) {
-    await setQaCurrentRole(page, role);
-    await openWorkspace(page, "scouting");
-    const databaseTab = page.locator('.scouting-tab[data-scouting-tab="database"]').first();
-    await expect(databaseTab).toBeVisible({ timeout: 15_000 });
-    await databaseTab.click();
-    await expect(page.locator(".scouting-tab.is-active")).toContainText("Database");
-    await expect(page.locator("[data-scouting-load-fsdb]"), role).toHaveCount(0);
-    await page.waitForFunction(
-      () => {
-        const workspace = document.querySelector('[data-workspace-view="scouting"].is-active');
-        return Boolean(
-          workspace?.querySelector("[data-scouting-load-database]") ||
-            workspace?.querySelector(".scouting-database-loader") ||
-            workspace?.querySelector("[data-scouting-record-grid] [data-open-scouting-record]")
-        );
-      },
-      null,
-      { timeout: 15_000 }
-    );
-    const loadDatabaseButton = page.locator("[data-scouting-load-database]").first();
-    if ((await loadDatabaseButton.count()) > 0) {
-      await expect(loadDatabaseButton, role).toBeVisible();
-      await expect(loadDatabaseButton, role).toBeEnabled();
-      await expect(loadDatabaseButton, role).toContainText("Load scouting player database");
-    } else {
-      const loadingOrLoadedDatabase = page
-        .locator(".scouting-database-loader, [data-scouting-record-grid] [data-open-scouting-record]")
-        .first();
-      await expect(loadingOrLoadedDatabase, role).toBeVisible();
-    }
+    null,
+    { timeout: 15_000 }
+  );
+  const loadDatabaseButton = page.locator("[data-scouting-load-database]").first();
+  if ((await loadDatabaseButton.count()) > 0) {
+    await expect(loadDatabaseButton, role).toBeVisible();
+    await expect(loadDatabaseButton, role).toBeEnabled();
+    await expect(loadDatabaseButton, role).toContainText("Load scouting player database");
+  } else {
+    const loadingOrLoadedDatabase = page
+      .locator(".scouting-database-loader, [data-scouting-record-grid] [data-open-scouting-record]")
+      .first();
+    await expect(loadingOrLoadedDatabase, role).toBeVisible();
   }
-});
+}
+
+for (const role of scoutingAccessRoles) {
+  test(`Scouting access role ${role} can visually reach the unified scouting database`, async ({ page }) => {
+    test.setTimeout(75_000);
+    await seedScoutingAccessForRoles(page, scoutingAccessRoles, {
+      activeTab: "database",
+      databaseFilters: {
+        source: "fsdb",
+        fsdbGenderSegment: "women",
+      },
+    });
+    const boot = await bootApp(page);
+    expect(boot.pageErrors).toEqual([]);
+    await expectScoutingDatabaseReachableForRole(page, role);
+  });
+}
 
 test("Scouting profile favorite and Shadow XI actions stay stable", async ({ page }) => {
   test.setTimeout(180_000);

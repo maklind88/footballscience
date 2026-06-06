@@ -1,3 +1,5 @@
+import { renderScoutingActiveContentByTab } from "./src/modules/scouting/index.mjs";
+
 let activeContext = null;
 let scoutingTabs = [];
 let scoutingShadowSlots = [];
@@ -14697,427 +14699,6 @@ function getScoutingDatabaseResultsMarkup() {
       : `<div class="scouting-empty-panel">No players match these filters yet.</div>`,
   };
 }
-function renderScoutingRecordListHeader() {
-  return `
-    <div class="scouting-record-table-head" aria-hidden="true">
-      <span class="scouting-record-head-cell scouting-record-head-cell--spacer"></span>
-      <span class="scouting-record-head-cell">Player</span>
-      <span class="scouting-record-head-cell">Position</span>
-      <span class="scouting-record-head-cell">Age</span>
-      <span class="scouting-record-head-cell">Club</span>
-      <span class="scouting-record-head-cell">Nationality</span>
-      <span class="scouting-record-head-cell">Best role</span>
-      <span class="scouting-record-head-cell">Recommendation</span>
-      <span class="scouting-record-head-cell">Actions</span>
-    </div>
-  `;
-}
-function renderScoutingDatabasePanel() {
-  if (scoutingDatabaseError) {
-    const filters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
-    const isFootballScienceDb = filters.source === "fsdb";
-    const isAuthError = /sign(?:ed)? in|authenticated|session/i.test(scoutingDatabaseError);
-    return `
-      <section class="scouting-load-panel">
-        <h2>${escapeHtml(isFootballScienceDb ? (isAuthError ? "Football Science DB needs an active session" : "Football Science DB failed to load") : "Scouting database failed to load")}</h2>
-        <p>${escapeHtml(scoutingDatabaseError)}</p>
-        ${
-          isFootballScienceDb && isAuthError
-            ? `<button type="button" class="scouting-primary-button" data-scouting-sign-in>Sign in again</button>`
-            : `<button type="button" class="scouting-primary-button" data-scouting-retry-database>${escapeHtml(isFootballScienceDb ? "Retry Football Science DB" : "Retry database")}</button>`
-        }
-      </section>
-    `;
-  }
-  const database = getScoutingDatabase();
-  if (!database) {
-    const state = ensureScoutingState();
-    const filters = normalizeScoutingDatabaseFilters(state.databaseFilters);
-    const isFootballScienceDb = filters.source === "fsdb";
-    const isLoading = Boolean(scoutingDatabaseLoadPromise);
-    const fsdbSegmentLabel = getFootballScienceDbGenderSegmentLabel(filters.fsdbGenderSegment);
-    return `
-      <section class="scouting-load-panel${isLoading ? " is-loading" : ""}">
-        ${
-          isLoading
-            ? `
-              <div class="scouting-database-loader" aria-hidden="true">
-                <div class="scouting-loader-pitch">
-                  <span class="scouting-loader-player">
-                    <i class="scouting-loader-head"></i>
-                    <i class="scouting-loader-body"></i>
-                    <i class="scouting-loader-leg is-left"></i>
-                    <i class="scouting-loader-leg is-right"></i>
-                  </span>
-                  <span class="scouting-loader-ball"></span>
-                  <span class="scouting-loader-goal"></span>
-                </div>
-              </div>
-            `
-            : ""
-        }
-        <h2>${isLoading ? (isFootballScienceDb ? `Loading ${fsdbSegmentLabel} source enrichment` : "Loading the scouting database") : isFootballScienceDb ? "Source enrichment is handled inside Scouting" : "Scouting database is ready"}</h2>
-        <p>${
-          isLoading
-            ? isFootballScienceDb
-              ? `${fsdbSegmentLabel} are loading through the server so the browser stays light.`
-              : "The scouting player database is being prepared. The rest of Scouting stays responsive while it loads."
-            : isFootballScienceDb
-              ? "Select women's or men's players before the database loads. Football Science DB keeps the segments separate in the server query."
-              : "Load the full scouting player database when you want to search, filter and open player profiles. Source enrichment stays attached inside each player profile."
-        }</p>
-        ${
-          isLoading
-            ? ""
-            : isFootballScienceDb
-              ? ""
-              : `
-                <div class="scouting-load-actions">
-                  <button type="button" class="scouting-primary-button" data-scouting-load-database>Load scouting player database</button>
-                </div>
-              `
-        }
-        ${isFootballScienceDb ? renderFootballScienceDbQualityPanel() : ""}
-      </section>
-    `;
-  }
-  const results = getScoutingDatabaseResultsMarkup();
-  const state = ensureScoutingState();
-  const isFootballScienceDb = normalizeScoutingText(database.source, 40) === "fsdb";
-  const advancedPanelsMarkup = isScoutingDatabaseAdvancedMode()
-    ? renderScoutingAdvancedDatabasePanelsMarkup(results.visibleRecords, state, results.records.length, { lightweight: true })
-    : "";
-  if (isFootballScienceDb) {
-    queueFootballScienceDbQualityLoad();
-  }
-  return `
-    <section class="scouting-database-panel">
-      <div class="scouting-database-workbench">
-        <main class="scouting-database-main">
-          <div class="scouting-database-results-header">
-            <div class="scouting-result-summary" data-scouting-result-summary>${escapeHtml(results.summary)}</div>
-            <div class="scouting-database-results-actions">
-              ${renderScoutingSavedViewsButton()}
-              ${renderScoutingDatabasePagingControls(results.paging)}
-            </div>
-          </div>
-          ${renderScoutingDatabaseControls()}
-          ${advancedPanelsMarkup}
-          <div class="scouting-record-table">
-            ${renderScoutingRecordListHeader()}
-            <div class="scouting-record-grid" data-scouting-record-grid>
-              ${results.html}
-            </div>
-          </div>
-          <div class="scouting-database-results-footer">
-            ${renderScoutingDatabasePagingControls(results.paging)}
-          </div>
-        </main>
-        ${isFootballScienceDb ? `<aside class="scouting-database-side">${renderFootballScienceDbQualityPanel()}</aside>` : ""}
-      </div>
-    </section>
-  `;
-}
-function renderScoutingShadowXi() {
-  const state = ensureScoutingState();
-  const canEdit = canEditScoutingWorkspace();
-  const favoriteSearchQuery = normalizeScoutingText(scoutingShadowFavoriteSearchQuery, 80).toLowerCase();
-  const favoriteRecordIds = normalizeScoutingRecordIds(state.favoriteRecordIds);
-  const allFavoriteRecords = favoriteRecordIds
-    .map((recordId) => getScoutingStoredPlayerRecord(recordId, state))
-    .filter(Boolean);
-  const favoriteRecords = allFavoriteRecords
-    .filter((record) => {
-      if (!favoriteSearchQuery) {
-        return true;
-      }
-      return [getScoutingRecordName(record), getScoutingRecordTeam(record), getScoutingRecordPosition(record), getScoutingRecordLeague(record)]
-        .join(" ")
-        .toLowerCase()
-        .includes(favoriteSearchQuery);
-    })
-    .slice(0, 30);
-  const selectedSlotId = getSelectedScoutingShadowSlotId(state);
-  const shadowCounts = getScoutingShadowSlotCounts(state);
-  const shadowBoards = getScoutingShadowBoards(state);
-  const activeShadowBoardId = normalizeScoutingText(state.shadowXi?.activeBoardId, 100) || shadowBoards[0]?.id || "default-shadow-xi";
-  const shadowSlotDepths = scoutingShadowSlots.map((slot) => getScoutingShadowSlotRecordIds(slot.id, state).length);
-  const totalShadowTargets = shadowSlotDepths.reduce((sum, count) => sum + count, 0);
-  const shadowPitchHeightRem = getScoutingUnifiedPitchHeightRem(shadowSlotDepths, totalShadowTargets);
-  return `
-    <section class="scouting-shadow-layout">
-      <div class="scouting-shadow-pitch scouting-my-team-pitch ${escapeHtml(getScoutingPitchFormationClass(state.shadowXi.formation))}" style="--scouting-shadow-pitch-height:${shadowPitchHeightRem}rem;--my-team-pitch-height:${shadowPitchHeightRem}rem;" aria-label="Shadow eleven ${escapeHtml(state.shadowXi.formation)}">
-        ${renderScoutingPitchFormationToolbar(state.shadowXi.formation, "data-scouting-formation", canEdit)}
-        <span class="scouting-pitch-line is-half"></span>
-        <span class="scouting-pitch-line is-box-top"></span>
-        <span class="scouting-pitch-line is-box-bottom"></span>
-        ${scoutingShadowSlots
-          .map((slot) => {
-            const pitchPosition = getScoutingShadowSlotPitchPosition(slot, state.shadowXi.formation);
-            const records = getScoutingShadowSlotRecords(slot.id, state);
-            return `
-              <article class="scouting-shadow-slot scouting-my-team-slot${records.length ? " is-filled" : ""}${selectedSlotId === slot.id ? " is-selected" : ""}" style="--x:${pitchPosition.x}%;--y:${pitchPosition.y}%;" data-shadow-slot-role="${escapeHtml(slot.id)}" data-scouting-shadow-drop-slot="${escapeHtml(slot.id)}">
-                <span class="scouting-shadow-slot-pin" draggable="${canEdit ? "true" : "false"}" data-scouting-drag-shadow-slot="${escapeHtml(slot.id)}" aria-label="Move ${escapeHtml(slot.label)} position"></span>
-                <div class="scouting-my-team-slot-card">
-                  <button type="button" class="scouting-my-team-slot-head scouting-shadow-slot-head" data-select-scouting-shadow-slot="${escapeHtml(slot.id)}">
-                    <span class="scouting-my-team-slot-role">${escapeHtml(slot.label)}</span>
-                    <small>${records.length ? `${records.length} ${records.length === 1 ? "target" : "targets"}` : "Wishlist"}</small>
-                  </button>
-                  <div class="scouting-my-team-slot-stack scouting-shadow-stack">
-                    ${
-                      records.length
-                        ? records
-                            .map((record) => {
-                              const recordId = getScoutingRecordId(record);
-                              return `
-                                <div class="scouting-my-team-slot-entry scouting-shadow-player-row" data-scouting-shadow-drop-slot="${escapeHtml(slot.id)}" data-scouting-shadow-drop-before="${escapeHtml(recordId)}">
-                                  ${renderScoutingPitchRecordCard(record, { slot })}
-                                </div>
-                              `;
-                            })
-                            .join("")
-                        : `<p class="scouting-shadow-empty"><strong>Drop target</strong><span>Drag a favorite or add from player profile.</span></p>`
-                    }
-                  </div>
-                  <button type="button" class="scouting-my-team-add-to-slot scouting-shadow-add" data-select-scouting-shadow-slot="${escapeHtml(slot.id)}" ${canEdit ? "" : "disabled"}>+ Add player</button>
-                </div>
-              </article>
-            `;
-          })
-          .join("")}
-      </div>
-      <aside class="scouting-shadow-side">
-        <div class="scouting-shadow-card scouting-shadow-board-card">
-          <div class="scouting-shadow-card-head">
-            <p class="placeholder-tag">Shadow XI boards</p>
-            <span>${shadowBoards.length}</span>
-          </div>
-          <form class="scouting-shadow-board-form" data-create-scouting-shadow-board-form>
-            <input name="name" placeholder="Name new Shadow XI..." ${canEdit ? "" : "disabled"} />
-            <button type="submit" ${canEdit ? "" : "disabled"}>Create</button>
-          </form>
-          <div class="scouting-shadow-board-list">
-            ${shadowBoards
-              .map(
-                (board) => `
-                  <article class="scouting-shadow-board-item${board.id === activeShadowBoardId ? " is-active" : ""}">
-                    <button type="button" data-select-scouting-shadow-board="${escapeHtml(board.id)}">
-                      <strong>${escapeHtml(board.name)}</strong>
-                      <span>${escapeHtml(board.ownerName)} · ${escapeHtml(getScoutingShadowBoardVisibilityLabel(board.visibility))}</span>
-                    </button>
-                    <select data-scouting-shadow-board-visibility="${escapeHtml(board.id)}" ${canEdit ? "" : "disabled"}>
-                      ${getScoutingShadowBoardVisibilityOptions()
-                        .map((option) => `<option value="${escapeHtml(option.value)}" ${normalizeScoutingShadowBoardVisibility(board.visibility) === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
-                        .join("")}
-                    </select>
-                  </article>
-                `
-              )
-              .join("")}
-          </div>
-        </div>
-        <div class="scouting-shadow-card">
-          <div class="scouting-shadow-card-head">
-            <p class="placeholder-tag">Favorites ready for XI</p>
-            <span>${favoriteRecordIds.length}</span>
-          </div>
-          <input
-            class="scouting-shadow-favorite-search"
-            type="search"
-            value="${escapeHtml(scoutingShadowFavoriteSearchQuery)}"
-            placeholder="Search favorites..."
-            data-scouting-shadow-favorite-search
-          />
-          <div class="scouting-mini-list scouting-shadow-favorites-list">
-            ${
-              favoriteRecords.length
-                ? favoriteRecords
-                    .map(
-                      (record) => {
-                        const recordId = getScoutingRecordId(record);
-                        return `
-                        <article class="scouting-favorite-drag-card" draggable="${canEdit ? "true" : "false"}" data-scouting-drag-favorite-record="${escapeHtml(recordId)}">
-                          ${renderScoutingRecordAvatar(record)}
-                          <button type="button" data-open-scouting-record="${escapeHtml(recordId)}">
-                            <strong>${escapeHtml(getScoutingRecordName(record))}</strong>
-                            <span>${escapeHtml(getScoutingRecordPosition(record))} / ${escapeHtml(getScoutingRecordTeam(record))}</span>
-                          </button>
-                        </article>
-                      `
-                      }
-                    )
-                    .join("")
-                : `<p class="scouting-muted">${favoriteRecordIds.length ? "No favorites match this search." : "Favorite players from the database, then drag them into Shadow XI."}</p>`
-            }
-          </div>
-        </div>
-      </aside>
-    </section>
-  `;
-}
-function renderScoutingMyTeam() {
-  const state = ensureScoutingState();
-  const canEdit = canEditScoutingWorkspace();
-  const players = getScoutingMyTeamPlayers();
-  const myTeam = getScoutingMyTeamState(state);
-  const assignedIds = getScoutingMyTeamAssignedIds(state);
-  const roleModelCount = getScoutingRoleModels(state).length;
-  const benchPlayers = players.filter((player) => !assignedIds.has(getScoutingMyTeamPlayerId(player)));
-  const pitchHeightRem = getScoutingUnifiedPitchHeightRem(
-    scoutingShadowSlots.map((slot) => normalizeScoutingMyTeamSlotPlayerIds(myTeam.slots[slot.id]).length),
-    assignedIds.size
-  );
-  return `
-    <section class="scouting-shadow-layout scouting-my-team-layout">
-      <div class="scouting-shadow-pitch scouting-my-team-pitch ${escapeHtml(getScoutingPitchFormationClass(myTeam.formation))}" style="--my-team-pitch-height:${pitchHeightRem}rem;" aria-label="My Team ${escapeHtml(myTeam.formation)}">
-        ${renderScoutingPitchFormationToolbar(myTeam.formation, "data-scouting-my-team-formation", canEdit, { right: true })}
-        <span class="scouting-pitch-line is-half"></span>
-        <span class="scouting-pitch-line is-box-top"></span>
-        <span class="scouting-pitch-line is-box-bottom"></span>
-        ${scoutingShadowSlots
-          .map((slot) => {
-            const pitchPosition = getScoutingMyTeamSlotPitchPosition(slot, myTeam.formation);
-            const slotPlayerIds = normalizeScoutingMyTeamSlotPlayerIds(myTeam.slots[slot.id]);
-            const slotPlayers = slotPlayerIds.map((playerId) => getScoutingMyTeamPlayerById(playerId, players)).filter(Boolean);
-            return `
-              <article class="scouting-shadow-slot scouting-my-team-slot${slotPlayers.length ? " is-filled" : ""}${scoutingMyTeamSelectedPlayerId ? " is-ready-to-drop" : ""}" style="--x:${pitchPosition.x}%;--y:${pitchPosition.y}%;" data-my-team-slot-role="${escapeHtml(slot.id)}" data-scouting-my-team-drop-slot="${escapeHtml(slot.id)}" data-assign-scouting-my-team-slot="${escapeHtml(slot.id)}">
-                <span class="scouting-my-team-slot-pin" draggable="false" data-scouting-drag-my-team-slot="${escapeHtml(slot.id)}" aria-label="Move ${escapeHtml(slot.label)} position"></span>
-                ${
-                  slotPlayers.length
-                    ? `
-                      <div class="scouting-my-team-slot-card">
-                        <div class="scouting-my-team-slot-head">
-                          <span class="scouting-my-team-slot-role">${escapeHtml(slot.label)}</span>
-                          <small>${slotPlayers.length} ${slotPlayers.length === 1 ? "player" : "players"}</small>
-                        </div>
-                        <div class="scouting-my-team-slot-stack">
-                          ${slotPlayers
-                            .map((player) => {
-                              const playerId = getScoutingMyTeamPlayerId(player);
-                              return `
-                                <div class="scouting-my-team-slot-entry" data-scouting-my-team-drop-slot="${escapeHtml(slot.id)}" data-scouting-my-team-drop-before="${escapeHtml(playerId)}">
-                                  ${renderScoutingMyTeamPlayerCard(player, { compact: true, slot })}
-                                </div>
-                              `;
-                            })
-                            .join("")}
-                        </div>
-                        ${canEdit ? `<button type="button" class="scouting-my-team-add-to-slot" data-assign-scouting-my-team-slot="${escapeHtml(slot.id)}">+ Add player</button>` : ""}
-                      </div>
-                    `
-                    : `
-                      <button type="button" class="scouting-my-team-drop-card" data-assign-scouting-my-team-slot="${escapeHtml(slot.id)}" aria-label="Drop squad player on ${escapeHtml(slot.label)}">
-                        <span>${escapeHtml(slot.label)}</span>
-                        <strong>Drop player</strong>
-                      </button>
-                    `
-                }
-              </article>
-            `;
-          })
-          .join("")}
-      </div>
-      <aside class="scouting-shadow-side scouting-my-team-side">
-        <div class="scouting-shadow-card scouting-my-team-tools">
-          <div class="scouting-shadow-card-head">
-            <p class="placeholder-tag">Team baseline</p>
-            <span>${roleModelCount}</span>
-          </div>
-          <button type="button" class="scouting-primary-button" data-open-scouting-role-models>${roleModelCount ? "Manage role models" : "Create role model"}</button>
-        </div>
-        <div class="scouting-shadow-card">
-          <div class="scouting-shadow-card-head">
-            <p class="placeholder-tag">Squad players</p>
-            <span>${players.length}</span>
-          </div>
-          <div class="scouting-my-team-player-list" data-scouting-my-team-bench-drop>
-            ${
-              benchPlayers.length
-                ? benchPlayers.map((player) => renderScoutingMyTeamPlayerCard(player)).join("")
-                : players.length
-                  ? `<p class="scouting-muted">All available players are placed on the pitch.</p>`
-                  : `<p class="scouting-muted">No current squad players found in Player Profiles yet.</p>`
-            }
-          </div>
-        </div>
-      </aside>
-    </section>
-  `;
-}
-function renderScoutingListsPanel() {
-  const state = ensureScoutingState();
-  const canEdit = canEditScoutingWorkspace();
-  const favoriteRecordIds = normalizeScoutingRecordIds(state.favoriteRecordIds);
-  return `
-    <section class="scouting-lists-panel">
-      ${
-        canEdit
-          ? `
-            <form class="scouting-list-form" data-scouting-list-form>
-              <input name="name" placeholder="Name a new scouting list" required />
-              <button type="submit" class="scouting-primary-button">Create list</button>
-            </form>
-          `
-          : ""
-      }
-      <div class="scouting-list-grid">
-        <article class="scouting-list-card is-featured">
-          <div>
-            <p class="placeholder-tag">Favorites</p>
-            <h2>${favoriteRecordIds.length} players</h2>
-          </div>
-          <div class="scouting-list-players">
-            ${
-              favoriteRecordIds.length
-                ? favoriteRecordIds
-                    .slice(0, 16)
-                    .map((recordId) => renderScoutingStoredPlayerButton(recordId, state, "position"))
-                    .join("")
-                : `<p class="scouting-muted">Favorites become your master live watchlist.</p>`
-            }
-          </div>
-        </article>
-        ${state.lists
-          .map((list) => {
-            const recordIds = normalizeScoutingRecordIds(list.recordIds);
-            return `
-              <article class="scouting-list-card">
-                <div class="scouting-list-card-head">
-                  <div>
-                    <p class="placeholder-tag">${recordIds.length} players</p>
-                    <h2>${escapeHtml(list.name)}</h2>
-                  </div>
-                  ${
-                    canEdit
-                      ? `
-                        <details class="scouting-list-menu">
-                          <summary aria-label="List actions for ${escapeHtml(list.name)}">•••</summary>
-                          <div>
-                            <button type="button" data-delete-scouting-list="${escapeHtml(list.id)}">Delete list</button>
-                          </div>
-                        </details>
-                      `
-                      : ""
-                  }
-                </div>
-                <div class="scouting-list-players">
-                  ${
-                    recordIds.length
-                      ? recordIds
-                          .slice(0, 16)
-                          .map((recordId) => renderScoutingStoredPlayerButton(recordId, state, "team"))
-                          .join("")
-                      : `<p class="scouting-muted">Add players from a scouting profile.</p>`
-                  }
-                </div>
-              </article>
-            `;
-          })
-          .join("")}
-      </div>
-  </section>
-  `;
-}
 function renderScoutingTargetCard(target) {
   const state = ensureScoutingState();
   const record = getScoutingTargetRecord(target);
@@ -16080,25 +15661,6 @@ function renderScoutingReportsPanel() {
     </div>
   `;
 }
-function renderScoutingReportsLazyPanel(panelId, title, detail, actionLabel, renderer) {
-  const id = normalizeScoutingText(panelId, 80);
-  if (scoutingReportsExpandedPanels.has(id)) {
-    return renderer();
-  }
-  return `
-    <section class="scouting-role-models scouting-role-model-launcher" data-scouting-reports-lazy-panel="${escapeHtml(id)}">
-      <div class="scouting-role-model-head">
-        <div>
-          <p class="placeholder-tag">${escapeHtml(detail)}</p>
-          <h2>${escapeHtml(title)}</h2>
-        </div>
-        <div class="scouting-role-model-toolbar">
-          <button type="button" class="scouting-primary-button" data-expand-scouting-reports-panel="${escapeHtml(id)}">${escapeHtml(actionLabel)}</button>
-        </div>
-      </div>
-    </section>
-  `;
-}
 function expandScoutingReportsPanel(panelId) {
   const id = normalizeScoutingText(panelId, 80);
   if (!["comparison-lab", "targets"].includes(id)) {
@@ -16118,29 +15680,6 @@ function collapseScoutingReportsPanel(panelId) {
   if (!rerenderScoutingActiveContent({ preserveFocus: true })) {
     renderScoutingWorkspace({ preserveFocus: true });
   }
-}
-function renderScoutingReportsHub() {
-  const state = ensureScoutingState();
-  const renderSection = (label, renderer) => {
-    if (!window.__footballScienceScoutingPerfDebug) {
-      return renderer();
-    }
-    const startedAt = performance.now();
-    const html = renderer();
-    console.log(`[scouting-render-performance] ${label}: ${Math.round(performance.now() - startedAt)}ms`);
-    return html;
-  };
-  return `
-    <div class="scouting-reports-shell">
-      ${renderSection("reports.next-action", () => renderScoutingNextActionCenter(state, { includeRecommendations: false }))}
-      ${renderSection("reports.panel", () => renderScoutingReportsPanel())}
-      ${renderSection("reports.role-models", () => renderScoutingRoleModelsPanel())}
-      ${renderSection("reports.targets", () =>
-        renderScoutingReportsLazyPanel("targets", "Funnel", "Pipeline board", "Load funnel", renderScoutingTargetsPanel)
-      )}
-      ${renderSection("reports.budget", () => renderScoutingBudgetBoard(state))}
-    </div>
-  `;
 }
 function renderScoutingOppositionPanel() {
   if (!isScoutingDatabaseLoaded()) {
@@ -16504,25 +16043,67 @@ function renderScoutingProfileModal() {
 }
 function renderScoutingActiveContent() {
   const state = ensureScoutingState();
-  if (state.activeTab === "database") {
-    return renderScoutingDatabasePanel();
-  }
-  if (state.activeTab === "my-team") {
-    return renderScoutingMyTeam();
-  }
-  if (state.activeTab === "lists") {
-    return isScoutingDatabaseLoaded() ? renderScoutingListsPanel() : renderScoutingDatabasePanel();
-  }
-  if (state.activeTab === "comparison") {
-    return renderScoutingComparisonLabPanel();
-  }
-  if (state.activeTab === "reports") {
-    return renderScoutingReportsHub();
-  }
-  if (state.activeTab === "opposition") {
-    return renderScoutingFuturePanel(state.activeTab);
-  }
-  return renderScoutingShadowXi();
+  return renderScoutingActiveContentByTab({
+    activeTab: state.activeTab,
+    canEdit: canEditScoutingWorkspace,
+    databaseError: scoutingDatabaseError,
+    expandedPanels: scoutingReportsExpandedPanels,
+    getDatabase: getScoutingDatabase,
+    getDatabaseResultsMarkup: getScoutingDatabaseResultsMarkup,
+    getFootballScienceDbGenderSegmentLabel,
+    getMyTeamAssignedIds: getScoutingMyTeamAssignedIds,
+    getMyTeamPlayerById: getScoutingMyTeamPlayerById,
+    getMyTeamPlayerId: getScoutingMyTeamPlayerId,
+    getMyTeamPlayers: getScoutingMyTeamPlayers,
+    getMyTeamSlotPitchPosition: getScoutingMyTeamSlotPitchPosition,
+    getMyTeamState: getScoutingMyTeamState,
+    getPitchFormationClass: getScoutingPitchFormationClass,
+    getRecordId: getScoutingRecordId,
+    getRecordLeague: getScoutingRecordLeague,
+    getRecordName: getScoutingRecordName,
+    getRecordPosition: getScoutingRecordPosition,
+    getRecordTeam: getScoutingRecordTeam,
+    getRoleModels: getScoutingRoleModels,
+    getSelectedShadowSlotId: getSelectedScoutingShadowSlotId,
+    getShadowBoardVisibilityLabel: getScoutingShadowBoardVisibilityLabel,
+    getShadowBoardVisibilityOptions: getScoutingShadowBoardVisibilityOptions,
+    getShadowBoards: getScoutingShadowBoards,
+    getShadowSlotPitchPosition: getScoutingShadowSlotPitchPosition,
+    getShadowSlotRecordIds: getScoutingShadowSlotRecordIds,
+    getShadowSlotRecords: getScoutingShadowSlotRecords,
+    getStoredPlayerRecord: getScoutingStoredPlayerRecord,
+    getUnifiedPitchHeightRem: getScoutingUnifiedPitchHeightRem,
+    ensureState: ensureScoutingState,
+    escapeHtml,
+    isAdvancedDatabaseMode: isScoutingDatabaseAdvancedMode,
+    isDatabaseLoading: Boolean(scoutingDatabaseLoadPromise),
+    normalizeDatabaseFilters: normalizeScoutingDatabaseFilters,
+    normalizeMyTeamSlotPlayerIds: normalizeScoutingMyTeamSlotPlayerIds,
+    normalizeRecordIds: normalizeScoutingRecordIds,
+    normalizeShadowBoardVisibility: normalizeScoutingShadowBoardVisibility,
+    normalizeText: normalizeScoutingText,
+    queueFootballScienceDbQualityLoad,
+    renderAdvancedDatabasePanelsMarkup: renderScoutingAdvancedDatabasePanelsMarkup,
+    renderBudgetBoard: renderScoutingBudgetBoard,
+    renderComparisonLab: renderScoutingComparisonLabPanel,
+    renderDatabaseControls: renderScoutingDatabaseControls,
+    renderDatabasePagingControls: renderScoutingDatabasePagingControls,
+    renderFuturePanel: renderScoutingFuturePanel,
+    renderFootballScienceDbQualityPanel,
+    renderMyTeamPlayerCard: renderScoutingMyTeamPlayerCard,
+    renderNextActionCenter: renderScoutingNextActionCenter,
+    renderPitchFormationToolbar: renderScoutingPitchFormationToolbar,
+    renderPitchRecordCard: renderScoutingPitchRecordCard,
+    renderRecordAvatar: renderScoutingRecordAvatar,
+    renderReportsPanel: renderScoutingReportsPanel,
+    renderRoleModelsPanel: renderScoutingRoleModelsPanel,
+    renderSavedViewsButton: renderScoutingSavedViewsButton,
+    renderStoredPlayerButton: renderScoutingStoredPlayerButton,
+    renderTargetsPanel: renderScoutingTargetsPanel,
+    selectedMyTeamPlayerId: scoutingMyTeamSelectedPlayerId,
+    shadowFavoriteSearchQuery: scoutingShadowFavoriteSearchQuery,
+    shadowSlots: scoutingShadowSlots,
+  });
 }
 function renderScoutingWorkspace(options = {}) {
   if (!ui.scoutingWorkspace) {

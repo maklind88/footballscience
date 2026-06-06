@@ -2,6 +2,8 @@
 
 Every module should eventually be extracted behind a stable contract. This file defines the contract before extraction so refactors stay boring and safe.
 
+The coded extraction standard lives in `src/core/module-standard.mjs`, with the operating guide in `docs/MODULE_STANDARD.md` and the guard test in `qa/module-standard.api.spec.mjs`.
+
 ## Contract Template
 
 Each module owns:

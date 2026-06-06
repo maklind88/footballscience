@@ -29,7 +29,9 @@ test("Scouting database keeps source enrichment behind one visual player databas
   expect(workspace).toContain("/api/football-science-db");
   expect(workspace).toContain("footballSciencePlayerToScoutingRecord");
   expect(workspace).toContain("SCOUTING_STANDALONE_FSDB_DATABASE_ENABLED = false");
-  expect(workspace).toContain("Source enrichment stays attached inside each player profile.");
+  expect(workspace).toContain("renderScoutingProfileOverviewPanelShell");
+  expect(workspace).toContain("return renderScoutingFootballScienceDbPanel(record);");
+  expect(workspace).toContain("data-scouting-profile-fsdb-panel");
   expect(workspace).not.toContain('data-scouting-load-fsdb');
   expect(workspace).not.toContain("data-fsdb-gender-segment");
   expect(workspace).toContain("fsdbGenderSegment");
@@ -58,9 +60,10 @@ test("Scouting database loader resets stale source promises before FSDB loads", 
   expect(workspace).toContain("scoutingDatabaseLoadSource !== filters.source");
   expect(workspace).toContain("scoutingDatabaseLoadPromise === loadPromise");
   expect(workspace).toContain('scoutingDatabaseLoadSource = "";');
-  expect(workspace).toContain("Football Science DB needs an active session");
-  expect(workspace).toContain("data-scouting-sign-in");
-  expect(workspace).toContain("Sign in again");
+  expect(workspace).toContain("Football Science DB requires an authenticated session.");
+  expect(workspace).toContain("requestScoutingSignIn");
+  expect(workspace).toContain('signOut({ scope: "local" })');
+  expect(workspace).toContain("window.location.reload()");
 });
 
 test("Football Science DB retries once with a refreshed auth token after server 401", () => {

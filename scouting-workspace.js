@@ -14784,6 +14784,9 @@ function renderScoutingDatabasePanel() {
   const results = getScoutingDatabaseResultsMarkup();
   const state = ensureScoutingState();
   const isFootballScienceDb = normalizeScoutingText(database.source, 40) === "fsdb";
+  const advancedPanelsMarkup = isScoutingDatabaseAdvancedMode()
+    ? renderScoutingAdvancedDatabasePanelsMarkup(results.visibleRecords, state, results.records.length, { lightweight: true })
+    : "";
   if (isFootballScienceDb) {
     queueFootballScienceDbQualityLoad();
   }
@@ -14799,10 +14802,7 @@ function renderScoutingDatabasePanel() {
             </div>
           </div>
           ${renderScoutingDatabaseControls()}
-          ${isScoutingDatabaseAdvancedMode() ? renderScoutingCompareSetPanel(state) : ""}
-          ${isScoutingDatabaseAdvancedMode() ? renderScoutingDatabaseIntelligenceBrief(results.visibleRecords, state, { totalCount: results.records.length }) : ""}
-          ${isScoutingDatabaseAdvancedMode() ? renderScoutingDatabaseActionQueue(results.visibleRecords, state) : ""}
-          ${isScoutingDatabaseAdvancedMode() ? renderScoutingMarketRadar(results.visibleRecords) : ""}
+          ${advancedPanelsMarkup}
           <div class="scouting-record-table">
             ${renderScoutingRecordListHeader()}
             <div class="scouting-record-grid" data-scouting-record-grid>

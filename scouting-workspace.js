@@ -5,6 +5,24 @@ import {
   handleScoutingModuleSubmit,
   renderScoutingActiveContentByTab,
 } from "./src/modules/scouting/index.mjs";
+import {
+  getScoutingAdvancedDatabaseFiltersOpen,
+  getScoutingDatabaseAdvancedMode,
+  getScoutingDatabaseApiRefreshTimer,
+  getScoutingDatabaseFilterDebounceTimer,
+  getScoutingDatabaseMetricFilterOpen,
+  getScoutingDatabaseMetricFilterQuery,
+  getScoutingDatabaseResultsFrame,
+  getScoutingDatabaseSearchDraft,
+  setScoutingAdvancedDatabaseFiltersOpen as setScoutingAdvancedDatabaseFiltersOpenState,
+  setScoutingDatabaseAdvancedMode as setScoutingDatabaseAdvancedModeState,
+  setScoutingDatabaseApiRefreshTimer,
+  setScoutingDatabaseFilterDebounceTimer,
+  setScoutingDatabaseMetricFilterOpen,
+  setScoutingDatabaseMetricFilterQuery,
+  setScoutingDatabaseResultsFrame,
+  setScoutingDatabaseSearchDraft,
+} from "./src/modules/scouting/scouting-database-state.mjs";
 
 let activeContext = null;
 let scoutingTabs = [];
@@ -68,7 +86,6 @@ let scoutingFilteredDatabaseNavigationCache = {
 };
 let scoutingMarketIntelVersion = 0;
 let preferredScoutingShadowSlotId = "";
-let scoutingDatabaseResultsFrame = 0;
 let scoutingImportedDatabaseLoaded = false;
 let scoutingPendingProfileFocusRecordId = "";
 let scoutingPendingProfileFocusUntil = 0;
@@ -81,12 +98,6 @@ let scoutingDragState = null;
 let scoutingMyTeamSelectedPlayerId = "";
 let scoutingDragAndDropDelegatesBound = false;
 let scoutingDragAndDropDelegateRoot = null;
-let scoutingDatabaseApiRefreshTimer = 0;
-let scoutingDatabaseFilterDebounceTimer = 0;
-let scoutingAdvancedDatabaseFiltersOpen = false;
-let scoutingDatabaseMetricFilterOpen = false;
-let scoutingDatabaseMetricFilterQuery = "";
-let scoutingDatabaseAdvancedMode = false;
 let scoutingIntelligenceCacheVersion = 0;
 let scoutingImportHistoryCache = { status: "idle", imports: [], error: "", promise: null };
 let scoutingFootballScienceDbQualityCache = { status: "idle", summary: null, error: "", promise: null };
@@ -424,7 +435,6 @@ const scoutingProfileTabs = Object.freeze([
   { value: "reports", label: "Reports" },
   { value: "history", label: "History" },
 ]);
-let scoutingDatabaseSearchDraft = null;
 let scoutingMyTeamDropPreviewKey = "";
 function setScoutingContext(context) {
   activeContext = context;
@@ -1562,8 +1572,9 @@ function getScoutingApiOffset(value) {
   return Number.isFinite(offset) && offset >= 0 ? offset : 0;
 }
 function getScoutingDatabaseLiveSearchQuery(fallbackQuery = "") {
-  if (scoutingDatabaseSearchDraft !== null) {
-    return normalizeScoutingText(scoutingDatabaseSearchDraft, 120);
+  const searchDraft = getScoutingDatabaseSearchDraft();
+  if (searchDraft !== null) {
+    return normalizeScoutingText(searchDraft, 120);
   }
   const searchInput = ui.scoutingWorkspace?.querySelector("[data-scouting-database-search-input]");
   const liveQuery = normalizeScoutingText(searchInput?.value, 120);
@@ -3123,7 +3134,7 @@ function scheduleScoutingDatabaseWorkerFullRefresh(delayMs = 2500) {
   window.clearTimeout(scoutingDatabaseWorkerFullRefreshTimer);
   scoutingDatabaseWorkerFullRefreshTimer = window.setTimeout(() => {
     scoutingDatabaseWorkerFullRefreshTimer = 0;
-    if (!isScoutingWorkerDatabaseActive() || scoutingAdvancedDatabaseFiltersOpen || hasOpenScoutingOverlay()) {
+    if (!isScoutingWorkerDatabaseActive() || getScoutingAdvancedDatabaseFiltersOpen() || hasOpenScoutingOverlay()) {
       return;
     }
     scheduleScoutingDatabaseRefresh();
@@ -13694,14 +13705,14 @@ function hasOpenScoutingOverlay(root = ui.scoutingWorkspace) {
   );
 }
 function isScoutingDatabaseAdvancedMode() {
-  return Boolean(scoutingDatabaseAdvancedMode);
+  return Boolean(getScoutingDatabaseAdvancedMode());
 }
 function setScoutingDatabaseAdvancedMode(enabled) {
   const nextMode = Boolean(enabled);
-  if (nextMode === scoutingDatabaseAdvancedMode) {
+  if (nextMode === getScoutingDatabaseAdvancedMode()) {
     return;
   }
-  scoutingDatabaseAdvancedMode = nextMode;
+  setScoutingDatabaseAdvancedModeState(nextMode);
   if (!syncScoutingAdvancedDatabaseModeDom()) {
     refreshScoutingDatabaseSurface({ controls: true });
   }
@@ -13912,7 +13923,8 @@ function resetScoutingRangeFilter(field) {
 function renderScoutingDatabaseControls() {
   const state = ensureScoutingState();
   const filters = normalizeScoutingDatabaseFilters(state.databaseFilters);
-  const searchValue = scoutingDatabaseSearchDraft === null ? filters.query : scoutingDatabaseSearchDraft;
+  const searchDraft = getScoutingDatabaseSearchDraft();
+  const searchValue = searchDraft === null ? filters.query : searchDraft;
   const options = getScoutingDatabaseOptions();
   const metricOptions = getScoutingMetricOptions();
   const sortOptions = [{ id: "role-fit", label: "Role fit" }, ...metricOptions];
@@ -13926,7 +13938,10 @@ function renderScoutingDatabaseControls() {
   const selectedMetricSummary = selectedMetricLabels.length > 2
     ? `${selectedMetricLabels.slice(0, 2).join(", ")} +${selectedMetricLabels.length - 2}`
     : selectedMetricLabels.join(", ");
-  const metricFilterQuery = scoutingDatabaseMetricFilterQuery.toLowerCase();
+  const advancedFiltersOpen = getScoutingAdvancedDatabaseFiltersOpen();
+  const metricFilterOpen = getScoutingDatabaseMetricFilterOpen();
+  const metricFilterInputValue = getScoutingDatabaseMetricFilterQuery();
+  const metricFilterQuery = metricFilterInputValue.toLowerCase();
   const filteredMetricOptions = metricFilterQuery
     ? metricOptions.filter((metric) => `${metric.label} ${metric.id}`.toLowerCase().includes(metricFilterQuery))
     : metricOptions;
@@ -13979,11 +13994,11 @@ function renderScoutingDatabaseControls() {
               .join("")}
           </select>
         </label>
-        <button type="button" class="scouting-filter-toggle${scoutingAdvancedDatabaseFiltersOpen ? " is-open" : ""}" data-toggle-scouting-advanced-filters aria-expanded="${scoutingAdvancedDatabaseFiltersOpen ? "true" : "false"}">
+        <button type="button" class="scouting-filter-toggle${advancedFiltersOpen ? " is-open" : ""}" data-toggle-scouting-advanced-filters aria-expanded="${advancedFiltersOpen ? "true" : "false"}">
           ${escapeHtml(`Advanced filters${advancedCount ? ` (${advancedCount})` : ""}`)}
         </button>
       </div>
-      <div class="scouting-database-advanced-filters${scoutingAdvancedDatabaseFiltersOpen ? " is-open" : ""}" ${scoutingAdvancedDatabaseFiltersOpen ? "" : "hidden"}>
+      <div class="scouting-database-advanced-filters${advancedFiltersOpen ? " is-open" : ""}" ${advancedFiltersOpen ? "" : "hidden"}>
         <div class="scouting-database-mode-inline">
           <span>Display mode</span>
           <button type="button" class="scouting-filter-toggle${isScoutingDatabaseAdvancedMode() ? " is-open" : ""}" data-toggle-scouting-database-mode aria-pressed="${isScoutingDatabaseAdvancedMode() ? "true" : "false"}">
@@ -14015,7 +14030,7 @@ function renderScoutingDatabaseControls() {
         </label>
         <div class="scouting-filter-multi scouting-filter-metric-picker">
           <span>Metric filters</span>
-          <details ${scoutingDatabaseMetricFilterOpen ? "open" : ""} data-scouting-metric-filter-details>
+          <details ${metricFilterOpen ? "open" : ""} data-scouting-metric-filter-details>
             <summary data-scouting-metric-filter-summary>
               <strong title="${escapeHtml(selectedMetricLabels.join(", "))}">${escapeHtml(selectedMetricSummary || "Choose metrics")}</strong>
               <em>${escapeHtml(selectedMetricLabels.length ? `${selectedMetricLabels.length} selected` : `${metricOptions.length} available`)}</em>
@@ -14023,7 +14038,7 @@ function renderScoutingDatabaseControls() {
             <div class="scouting-filter-multi-search">
               <input
                 type="search"
-                value="${escapeHtml(scoutingDatabaseMetricFilterQuery)}"
+                value="${escapeHtml(metricFilterInputValue)}"
                 placeholder="Search among ${escapeHtml(metricOptions.length)} metrics..."
                 data-scouting-metric-filter-search
               />
@@ -15985,7 +16000,7 @@ function setScoutingActiveTab(tabId) {
 function setScoutingDatabaseFilter(field, value) {
   const state = ensureScoutingState();
   if (field === "query") {
-    scoutingDatabaseSearchDraft = null;
+    setScoutingDatabaseSearchDraft(null);
   }
   const nextPatch = {
     ...state.databaseFilters,
@@ -16115,11 +16130,11 @@ function scheduleScoutingDatabaseFilterRefresh() {
     scheduleScoutingDatabaseRefresh();
     return;
   }
-  window.clearTimeout(scoutingDatabaseFilterDebounceTimer);
-  scoutingDatabaseFilterDebounceTimer = window.setTimeout(() => {
-    scoutingDatabaseFilterDebounceTimer = 0;
+  window.clearTimeout(getScoutingDatabaseFilterDebounceTimer());
+  setScoutingDatabaseFilterDebounceTimer(window.setTimeout(() => {
+    setScoutingDatabaseFilterDebounceTimer(0);
     scheduleScoutingDatabaseResultsRender();
-  }, 120);
+  }, 120));
 }
 function rollbackScoutingImport(importBatchId) {
   if (!canEditScoutingWorkspace()) {
@@ -16180,7 +16195,7 @@ function applyScoutingPresetView(presetId) {
     return;
   }
   const state = ensureScoutingState();
-  scoutingDatabaseSearchDraft = null;
+  setScoutingDatabaseSearchDraft(null);
   state.databaseFilters = normalizeScoutingDatabaseFilters({
     ...normalizeScoutingDatabaseFilters({}),
     ...preset.filters,
@@ -16196,7 +16211,7 @@ function applyScoutingSavedView(viewId) {
   if (!view) {
     return;
   }
-  scoutingDatabaseSearchDraft = null;
+  setScoutingDatabaseSearchDraft(null);
   state.databaseFilters = normalizeScoutingDatabaseFilters(view.filters);
   state.activeTab = "database";
   writeScoutingState({ syncCentral: false });
@@ -16481,20 +16496,21 @@ function syncScoutingAdvancedDatabaseFiltersDom() {
   if (!trigger || !panel) {
     return false;
   }
-  trigger.classList.toggle("is-open", scoutingAdvancedDatabaseFiltersOpen);
-  trigger.setAttribute("aria-expanded", scoutingAdvancedDatabaseFiltersOpen ? "true" : "false");
-  panel.classList.toggle("is-open", scoutingAdvancedDatabaseFiltersOpen);
-  panel.hidden = !scoutingAdvancedDatabaseFiltersOpen;
+  const isOpen = getScoutingAdvancedDatabaseFiltersOpen();
+  trigger.classList.toggle("is-open", isOpen);
+  trigger.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  panel.classList.toggle("is-open", isOpen);
+  panel.hidden = !isOpen;
   return true;
 }
 function setScoutingAdvancedDatabaseFiltersOpen(open) {
   const nextOpen = Boolean(open);
-  if (nextOpen === scoutingAdvancedDatabaseFiltersOpen) {
+  if (nextOpen === getScoutingAdvancedDatabaseFiltersOpen()) {
     return;
   }
-  scoutingAdvancedDatabaseFiltersOpen = nextOpen;
-  if (!scoutingAdvancedDatabaseFiltersOpen) {
-    scoutingDatabaseMetricFilterOpen = false;
+  setScoutingAdvancedDatabaseFiltersOpenState(nextOpen);
+  if (!nextOpen) {
+    setScoutingDatabaseMetricFilterOpen(false);
   }
   if (!syncScoutingAdvancedDatabaseFiltersDom()) {
     refreshScoutingDatabaseSurface({ controls: true });
@@ -16508,9 +16524,9 @@ function scheduleScoutingDatabaseRefresh() {
     scheduleScoutingDatabaseResultsRender();
     return;
   }
-  window.clearTimeout(scoutingDatabaseApiRefreshTimer);
-  scoutingDatabaseApiRefreshTimer = window.setTimeout(() => {
-    scoutingDatabaseApiRefreshTimer = 0;
+  window.clearTimeout(getScoutingDatabaseApiRefreshTimer());
+  setScoutingDatabaseApiRefreshTimer(window.setTimeout(() => {
+    setScoutingDatabaseApiRefreshTimer(0);
     const refreshPromise = isFootballScienceDb
       ? loadFootballScienceDbDatabase()
       : isApi
@@ -16525,16 +16541,17 @@ function scheduleScoutingDatabaseRefresh() {
     refreshPromise
       .then(() => renderScoutingDatabaseResults())
       .catch(() => scheduleScoutingDatabaseResultsRender());
-  }, isApi || isFootballScienceDb ? 260 : 80);
+  }, isApi || isFootballScienceDb ? 260 : 80));
 }
 function scheduleScoutingDatabaseResultsRender() {
-  if (scoutingDatabaseResultsFrame) {
-    cancelAnimationFrame(scoutingDatabaseResultsFrame);
+  const frame = getScoutingDatabaseResultsFrame();
+  if (frame) {
+    cancelAnimationFrame(frame);
   }
-  scoutingDatabaseResultsFrame = requestAnimationFrame(() => {
-    scoutingDatabaseResultsFrame = 0;
+  setScoutingDatabaseResultsFrame(requestAnimationFrame(() => {
+    setScoutingDatabaseResultsFrame(0);
     renderScoutingDatabaseResults();
-  });
+  }));
 }
 function focusScoutingProfileModal() {
   const modal = ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]");
@@ -16892,7 +16909,7 @@ function getScoutingEventDeps() {
     deleteSavedView: deleteScoutingSavedView,
     ensureState: ensureScoutingState,
     expandReportsPanel: expandScoutingReportsPanel,
-    getAdvancedFiltersOpen: () => scoutingAdvancedDatabaseFiltersOpen,
+    getAdvancedFiltersOpen: getScoutingAdvancedDatabaseFiltersOpen,
     getComparisonCandidatesOpen: () => scoutingComparisonCandidatesOpen,
     getComparisonLab: getScoutingComparisonLab,
     getComparisonMetricMenuOpen: () => scoutingComparisonMetricMenuOpen,
@@ -16954,18 +16971,12 @@ function getScoutingEventDeps() {
       scoutingDatabaseError = message || "";
     },
     setDatabaseFilter: setScoutingDatabaseFilter,
-    setDatabaseMetricFilterOpen: (open) => {
-      scoutingDatabaseMetricFilterOpen = Boolean(open);
-    },
-    setDatabaseMetricFilterQuery: (query) => {
-      scoutingDatabaseMetricFilterQuery = query;
-    },
+    setDatabaseMetricFilterOpen: setScoutingDatabaseMetricFilterOpen,
+    setDatabaseMetricFilterQuery: setScoutingDatabaseMetricFilterQuery,
     setDatabasePageCursor: setScoutingDatabasePageCursor,
     setDatabasePageNumber: setScoutingDatabasePageNumber,
     setDatabasePageOffset: setScoutingDatabasePageOffset,
-    setDatabaseSearchDraft: (value) => {
-      scoutingDatabaseSearchDraft = value;
-    },
+    setDatabaseSearchDraft: setScoutingDatabaseSearchDraft,
     setImportDraftFailure: setScoutingImportDraftFailure,
     setImportDraftPatch: setScoutingImportDraftPatch,
     setImportMapField: setScoutingImportMapField,

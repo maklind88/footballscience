@@ -85,15 +85,16 @@ async function openScouting(page, results) {
   );
 }
 
-async function clickScoutingTab(page, results, tabId, budgetMs = 1000) {
+async function clickScoutingTab(page, results, tabId, budgetMs = 1000, options = {}) {
   const tab = page.locator(`.scouting-tab[data-scouting-tab="${tabId}"]`).first();
   if ((await tab.count()) === 0) {
     return;
   }
+  const label = options.label || `${options.phase ? `${options.phase}:` : ""}tab:${tabId}`;
   await measure(
     page,
     results,
-    `tab:${tabId}`,
+    label,
     budgetMs,
     async () => {
       await tab.click();
@@ -102,6 +103,20 @@ async function clickScoutingTab(page, results, tabId, budgetMs = 1000) {
       await expect(tab).toHaveClass(/is-active/, { timeout: 8000 });
     }
   );
+}
+
+function logScoutingTabTimingSummary(results) {
+  const firstTabResults = results.filter((item) => item.label.startsWith("first:tab:"));
+  const warmTabResults = results.filter((item) => item.label.startsWith("warm:tab:"));
+  const slowest = (items) => [...items].sort((a, b) => b.ms - a.ms)[0];
+  const slowestFirst = slowest(firstTabResults);
+  const slowestWarm = slowest(warmTabResults);
+  if (slowestFirst) {
+    console.log(`[scouting-interaction-audit] slowest first tab: ${slowestFirst.label} ${slowestFirst.ms}ms`);
+  }
+  if (slowestWarm) {
+    console.log(`[scouting-interaction-audit] slowest warm tab: ${slowestWarm.label} ${slowestWarm.ms}ms`);
+  }
 }
 
 async function closeScoutingOverlays(page) {
@@ -124,7 +139,7 @@ async function closeScoutingOverlays(page) {
 }
 
 async function ensureDatabaseRows(page, results) {
-  await clickScoutingTab(page, results, "database");
+  await clickScoutingTab(page, results, "database", 1000, { phase: "setup" });
   await measure(
     page,
     results,
@@ -155,7 +170,7 @@ test("Scouting interaction audit covers broad module clicks", async ({ page }) =
   await openScouting(page, results);
 
   for (const tabId of ["shadow-xi", "my-team", "database", "lists", "comparison", "reports", "opposition"]) {
-    await clickScoutingTab(page, results, tabId);
+    await clickScoutingTab(page, results, tabId, 1000, { phase: "first" });
   }
 
   await ensureDatabaseRows(page, results);
@@ -207,7 +222,7 @@ test("Scouting interaction audit covers broad module clicks", async ({ page }) =
     }
   );
 
-  await clickScoutingTab(page, results, "shadow-xi");
+  await clickScoutingTab(page, results, "shadow-xi", 1000, { phase: "warm" });
   const boardVisibility = page.locator("[data-scouting-shadow-board-visibility]:visible").first();
   if ((await boardVisibility.count()) && (await boardVisibility.isEnabled().catch(() => false))) {
     await measure(
@@ -236,7 +251,7 @@ test("Scouting interaction audit covers broad module clicks", async ({ page }) =
     }
   );
 
-  await clickScoutingTab(page, results, "comparison");
+  await clickScoutingTab(page, results, "comparison", 1000, { phase: "warm" });
   await measure(
     page,
     results,
@@ -251,7 +266,7 @@ test("Scouting interaction audit covers broad module clicks", async ({ page }) =
     }
   );
 
-  await clickScoutingTab(page, results, "my-team");
+  await clickScoutingTab(page, results, "my-team", 1000, { phase: "warm" });
   const myTeamFormation = page.locator("[data-scouting-my-team-formation]").first();
   if ((await myTeamFormation.count()) && (await myTeamFormation.isVisible().catch(() => false))) {
     await measure(
@@ -283,7 +298,7 @@ test("Scouting interaction audit covers broad module clicks", async ({ page }) =
     );
   }
 
-  await clickScoutingTab(page, results, "lists");
+  await clickScoutingTab(page, results, "lists", 1000, { phase: "warm" });
   const listForm = page.locator("[data-scouting-list-form]").first();
   if ((await listForm.count()) && (await listForm.isVisible().catch(() => false))) {
     await measure(
@@ -301,7 +316,7 @@ test("Scouting interaction audit covers broad module clicks", async ({ page }) =
     );
   }
 
-  await clickScoutingTab(page, results, "reports");
+  await clickScoutingTab(page, results, "reports", 1000, { phase: "warm" });
   const reportBuilder = page.locator("[data-open-scouting-report-builder]").first();
   if ((await reportBuilder.count()) && (await reportBuilder.isVisible().catch(() => false))) {
     await measure(
@@ -320,6 +335,7 @@ test("Scouting interaction audit covers broad module clicks", async ({ page }) =
   }
 
   expect(browserErrors).toEqual([]);
+  logScoutingTabTimingSummary(results);
   await test.info().attach("scouting-interaction-audit.json", {
     body: JSON.stringify(results, null, 2),
     contentType: "application/json",

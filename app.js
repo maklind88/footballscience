@@ -7,20 +7,7 @@ import { createDashboardChatThreadSettingsStore } from "./src/modules/chat/chat-
 import { uploadDashboardChatAttachmentFile as uploadDashboardChatAttachmentFileWithClient } from "./src/modules/chat/chat-attachment-storage.mjs";
 import { createDashboardHomeCardsRenderer } from "./src/modules/home/dashboard-renderer.mjs";
 import { selectHomeTaskQueues } from "./src/modules/home/tasks.mjs";
-import {
-  createScheduleDayClipboard,
-  createScheduleEventClipboard,
-  getScheduleNavigationStepForState,
-  pasteScheduleClipboard,
-  removeScheduleEventById,
-  selectScheduleStateDate,
-  setScheduleStateOverviewSpan,
-  setScheduleStateViewMode,
-  shiftScheduleStateWindow,
-  startScheduleEventEdit,
-  upsertScheduleEventFromValues,
-} from "./src/modules/schedule/schedule-actions.mjs";
-import { createScheduleWorkspaceRenderer } from "./src/modules/schedule/schedule-renderer.mjs";
+import { createScheduleWorkspaceController } from "./src/modules/schedule/schedule-controller.mjs";
 import {
   cloneScheduleState,
   createDefaultScheduleState,
@@ -1739,11 +1726,6 @@ const dashboardNewsItems = [
 "Team chat is ready for internal messages.",
 ];
 const defaultScheduleState = createDefaultScheduleState();
-const scheduleWorkspaceRenderer = createScheduleWorkspaceRenderer({
-escapeHtml,
-getPeriodizationDay,
-getPeriodizationDayScheduleLabel,
-});
 const scoutingTabs = [
 { id: "my-team", label: "My Team" },
 { id: "shadow-xi", label: "Shadow XI" },
@@ -4650,9 +4632,6 @@ let periodizationState = null;
 let periodizationDayOverlayOpen = false;
 let periodizationDayOverlayMode = "view";
 let scheduleState = null;
-let scheduleClipboard = null;
-let scheduleEditingEventId = null;
-let scheduleDayPanelMode = "view";
 let medicalState = null;
 let medicalRosterSearchQuery = "";
 let medicalStatusFilter = "all";
@@ -7327,9 +7306,6 @@ return getScheduleEventsForDate(dateValue).find(isScheduleSessionEvent) ?? null;
 function getScheduledSessionTitleForDate(dateValue) {
 return getScheduleSessionEventForDate(dateValue)?.title || "";
 }
-function isScheduleDayEditing() {
-return scheduleDayPanelMode === "edit" && canEditScheduleWorkspace();
-}
 function getScheduleMonthEvents(year, monthIndex) {
 if (!scheduleState) {
 return [];
@@ -7344,135 +7320,12 @@ return eventDate.getFullYear() === year && eventDate.getMonth() === monthIndex;
 function getScheduleVisibleMonthEvents(year, monthIndex) {
 return getScheduleVisibleEvents(getScheduleMonthEvents(year, monthIndex));
 }
-function getScheduleNavigationStep() {
-return getScheduleNavigationStepForState(scheduleState);
-}
-function shiftScheduleMonth(delta) {
-if (!scheduleState) {
-return;
-}
-shiftScheduleStateWindow(scheduleState, delta);
-writeScheduleState({ syncCentral: false });
-renderScheduleWorkspace();
-}
-function setScheduleViewMode(viewMode) {
-if (!scheduleState) {
-return;
-}
-setScheduleStateViewMode(scheduleState, viewMode);
-writeScheduleState({ syncCentral: false });
-renderScheduleWorkspace();
-}
-function setScheduleOverviewSpan(span) {
-if (!scheduleState) {
-return;
-}
-setScheduleStateOverviewSpan(scheduleState, span);
-writeScheduleState({ syncCentral: false });
-renderScheduleWorkspace();
-}
-function scrollScheduleDateIntoView(dateValue) {
-const root =
-scheduleState?.viewMode === "overview"
-? ui.scheduleOverviewGrid
-: scheduleState?.viewMode === "week"
-? ui.scheduleWeekGrid
-: ui.scheduleCalendarGrid;
-if (!root || !dateValue) {
-return;
-}
-const prefersReducedMotion = win.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-win.requestAnimationFrame(() => {
-root.querySelector(`[data-schedule-date="${dateValue}"]`)?.scrollIntoView({
-block: "center",
-inline: "nearest",
-behavior: prefersReducedMotion ? "auto" : "smooth",
-});
-});
-}
-function selectScheduleDate(dateValue, options = {}) {
-if (!scheduleState) {
-return;
-}
-scheduleDayPanelMode = "view";
-scheduleEditingEventId = null;
-selectScheduleStateDate(scheduleState, dateValue, options);
-writeScheduleState({ syncCentral: false });
-renderScheduleWorkspace();
-if (options.scrollIntoView) {
-scrollScheduleDateIntoView(scheduleState.selectedDate);
-}
-}
-function jumpScheduleToToday() {
-const today = new Date();
-selectScheduleDate(formatScheduleDateValue(today), {
-keepOverviewWindow: false,
-scrollIntoView: true,
-});
-}
-function copyScheduleEvent(eventId) {
-if (!scheduleState || !canEditScheduleWorkspace()) {
-return;
-}
-const event = scheduleState.events.find((item) => item.id === eventId);
-if (!event) {
-return;
-}
-scheduleClipboard = createScheduleEventClipboard(event);
-renderScheduleWorkspace();
-}
-function copySelectedScheduleDay() {
-if (!scheduleState || !canEditScheduleWorkspace()) {
-return;
-}
-const events = getScheduleEventsForDate(scheduleState.selectedDate);
-if (!events.length) {
-return;
-}
-scheduleClipboard = createScheduleDayClipboard(events);
-renderScheduleWorkspace();
-}
-function pasteScheduleClipboardToSelectedDay() {
-if (!scheduleState || !canEditScheduleWorkspace() || !scheduleClipboard?.events?.length) {
-return;
-}
-pasteScheduleClipboard(scheduleState, scheduleClipboard);
-writeScheduleState();
-renderScheduleWorkspace();
-}
-function isScheduleWorkspaceActive() {
-return hubState?.activeWorkspaceId === "schedule";
-}
 function isEditableKeyboardTarget(target) {
 const element = target instanceof Element ? target : null;
 if (!element) {
 return false;
 }
 return Boolean(element.closest("input, textarea, select, [contenteditable='true']"));
-}
-function startEditingScheduleEvent(eventId) {
-if (!scheduleState || !canEditScheduleWorkspace()) {
-return;
-}
-const event = scheduleState.events.find((item) => item.id === eventId);
-if (!event) {
-return;
-}
-startScheduleEventEdit(scheduleState, eventId);
-scheduleEditingEventId = event.id;
-scheduleDayPanelMode = "edit";
-writeScheduleState({ syncCentral: false });
-renderScheduleWorkspace();
-}
-function clearScheduleEventEditor({ returnToView = false } = {}) {
-scheduleEditingEventId = null;
-if (returnToView) {
-scheduleDayPanelMode = "view";
-}
-if (ui.scheduleEventForm) {
-ui.scheduleEventForm.reset();
-}
-renderScheduleWorkspace();
 }
 function getScheduleSelectedDayContext(dateValue) {
 ensurePeriodizationState();
@@ -7548,24 +7401,33 @@ function getScheduleDayWarningsForDate(dateValue, events = getScheduleEventsForD
 ensurePeriodizationState();
 return getScheduleDayWarnings(events, getPeriodizationDay(dateValue), getScheduleSessionSnapshot(dateValue));
 }
-function renderScheduleWorkspace() {
-const canEdit = canEditScheduleWorkspace();
+const scheduleWorkspaceController = createScheduleWorkspaceController({
+ui,
+window: win,
+document,
+rendererOptions: {
+escapeHtml,
+getPeriodizationDay,
+getPeriodizationDayScheduleLabel,
+},
+getState: () => scheduleState,
+ensureState: () => {
+if (!scheduleState) {
+scheduleState = readScheduleState();
+}
+return scheduleState;
+},
+writeState: writeScheduleState,
+canEdit: canEditScheduleWorkspace,
+canCreateSession: canEditSessionPlanner,
+isActive: () => hubState?.activeWorkspaceId === "schedule",
+isEditableKeyboardTarget,
+prepareRender: () => {
 ensurePeriodizationState();
 if (!sessionPlannerState) {
 sessionPlannerState = readSessionPlannerState();
 }
-if (!canEdit) {
-scheduleEditingEventId = null;
-scheduleDayPanelMode = "view";
-}
-scheduleWorkspaceRenderer.renderWorkspace({
-ui,
-state: scheduleState,
-clipboard: scheduleClipboard,
-editingEventId: scheduleEditingEventId,
-dayPanelMode: scheduleDayPanelMode,
-canEdit,
-canCreateSession: canEditSessionPlanner(),
+},
 formatBlockSummary: formatScheduleBlockSummary,
 getEventsForDate: getScheduleEventsForDate,
 getSelectedDayContext: getScheduleSelectedDayContext,
@@ -7573,7 +7435,31 @@ getSessionForDate: (dateValue) => sessionPlannerState?.sessions?.[dateValue] || 
 getVisibleEvents: getScheduleVisibleEvents,
 getVisibleMonthEvents: getScheduleVisibleMonthEvents,
 isSessionEvent: isScheduleSessionEvent,
+getFormValues: getPlatformFormValues,
+onOpenSessionDate: (dateValue, options = {}) => {
+if (!sessionPlannerState) {
+sessionPlannerState = readSessionPlannerState();
+}
+if (!sessionPlannerState.sessions) {
+sessionPlannerState.sessions = {};
+}
+sessionPlannerState.selectedDate = dateValue;
+if (!sessionPlannerState.sessions[dateValue] && options.createSession && canEditSessionPlanner()) {
+sessionPlannerState.sessions[dateValue] = createSessionPlannerEmptySession(dateValue);
+}
+writeSessionPlannerState();
+setActiveWorkspace("session-planner");
+renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+},
+onOpenPeriodizationDate: (dateValue) => {
+ensurePeriodizationState();
+selectPeriodizationDate(dateValue, true, "view");
+setActiveWorkspace("periodization");
+renderPeriodizationWorkspace();
+},
 });
+function renderScheduleWorkspace() {
+scheduleWorkspaceController.render();
 }
 function cloneHubState(source = defaultHubState) {
 return {
@@ -77680,149 +77566,13 @@ if (periodizationMultiFields.has(fieldKey)) {
 refreshPeriodizationBoardDependentFields(fieldKey);
 }
 });
-ui.schedulePrevMonthButton?.addEventListener("click", () => {
-shiftScheduleMonth(-getScheduleNavigationStep());
-});
-ui.scheduleNextMonthButton?.addEventListener("click", () => {
-shiftScheduleMonth(getScheduleNavigationStep());
-});
-ui.scheduleTodayButton?.addEventListener("click", () => {
-jumpScheduleToToday();
-});
-ui.scheduleMonthViewButton?.addEventListener("click", () => {
-setScheduleViewMode("month");
-});
-ui.scheduleWeekViewButton?.addEventListener("click", () => {
-setScheduleViewMode("week");
-});
-ui.scheduleOverviewViewButton?.addEventListener("click", () => {
-setScheduleViewMode("overview");
-});
-ui.scheduleOverviewSpanButtons?.forEach((button) => {
-button.addEventListener("click", () => {
-setScheduleOverviewSpan(button.dataset.scheduleSpan);
-});
-});
+scheduleWorkspaceController.bind();
 ui.dashboardChatWidgetRoot?.addEventListener("change", async (event) => {
 const attachmentInput = event.target.closest("[data-dashboard-chat-attachment-input]");
 if (!attachmentInput) {
 return;
 }
 await handleDashboardChatAttachmentInputChange(attachmentInput);
-});
-ui.scheduleCalendarGrid?.addEventListener("click", (event) => {
-const dateTrigger = event.target.closest("[data-schedule-date]");
-if (!dateTrigger) {
-return;
-}
-selectScheduleDate(dateTrigger.dataset.scheduleDate);
-});
-ui.scheduleOverviewGrid?.addEventListener("click", (event) => {
-const dateTrigger = event.target.closest("[data-schedule-date]");
-if (!dateTrigger) {
-return;
-}
-selectScheduleDate(dateTrigger.dataset.scheduleDate);
-});
-ui.scheduleWeekGrid?.addEventListener("click", (event) => {
-const dateTrigger = event.target.closest("[data-schedule-date]");
-if (!dateTrigger) {
-return;
-}
-selectScheduleDate(dateTrigger.dataset.scheduleDate);
-});
-ui.scheduleDayCard?.addEventListener("click", (event) => {
-const sessionTrigger = event.target.closest("[data-schedule-open-session-date]");
-if (sessionTrigger) {
-const dateValue = sessionTrigger.dataset.scheduleOpenSessionDate;
-if (!dateValue) {
-return;
-}
-if (!sessionPlannerState) {
-sessionPlannerState = readSessionPlannerState();
-}
-if (!sessionPlannerState.sessions) {
-sessionPlannerState.sessions = {};
-}
-sessionPlannerState.selectedDate = dateValue;
-if (
-!sessionPlannerState.sessions[dateValue] &&
-sessionTrigger.dataset.scheduleCreateSession === "true" &&
-canEditSessionPlanner()
-) {
-sessionPlannerState.sessions[dateValue] = createSessionPlannerEmptySession(dateValue);
-}
-writeSessionPlannerState();
-setActiveWorkspace("session-planner");
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-return;
-}
-const periodizationTrigger = event.target.closest("[data-schedule-open-periodization-date]");
-if (periodizationTrigger) {
-const dateValue = periodizationTrigger.dataset.scheduleOpenPeriodizationDate;
-if (!dateValue) {
-return;
-}
-ensurePeriodizationState();
-selectPeriodizationDate(dateValue, true, "view");
-setActiveWorkspace("periodization");
-renderPeriodizationWorkspace();
-return;
-}
-const editDayTrigger = event.target.closest("[data-schedule-edit-day]");
-if (!editDayTrigger || !canEditScheduleWorkspace()) {
-return;
-}
-scheduleDayPanelMode = scheduleDayPanelMode === "edit" ? "view" : "edit";
-if (scheduleDayPanelMode === "view") {
-scheduleEditingEventId = null;
-}
-renderScheduleWorkspace();
-});
-ui.scheduleEventList?.addEventListener("click", (event) => {
-const editTrigger = event.target.closest("[data-edit-schedule-event]");
-if (editTrigger) {
-startEditingScheduleEvent(editTrigger.dataset.editScheduleEvent);
-return;
-}
-const removeTrigger = event.target.closest("[data-remove-schedule-event]");
-if (!removeTrigger || !scheduleState || !isScheduleDayEditing()) {
-return;
-}
-removeScheduleEventById(scheduleState, removeTrigger.dataset.removeScheduleEvent);
-if (scheduleEditingEventId === removeTrigger.dataset.removeScheduleEvent) {
-scheduleEditingEventId = null;
-}
-writeScheduleState();
-renderScheduleWorkspace();
-});
-ui.scheduleCopyDayButton?.addEventListener("click", () => {
-copySelectedScheduleDay();
-});
-ui.schedulePasteDayButton?.addEventListener("click", () => {
-pasteScheduleClipboardToSelectedDay();
-});
-ui.scheduleEventCancelButton?.addEventListener("click", () => {
-clearScheduleEventEditor({ returnToView: true });
-});
-ui.scheduleEventForm?.addEventListener("submit", (event) => {
-event.preventDefault();
-if (!scheduleState || !isScheduleDayEditing()) {
-return;
-}
-const values = getPlatformFormValues(event.currentTarget);
-if (!values.date || !values.title) {
-return;
-}
-const result = upsertScheduleEventFromValues(scheduleState, values, scheduleEditingEventId);
-if (!result.changed) {
-return;
-}
-scheduleEditingEventId = result.editingEventId;
-writeScheduleState();
-event.currentTarget.reset();
-scheduleDayPanelMode = "view";
-renderScheduleWorkspace();
 });
 ui.scoutingWorkspace?.addEventListener("click", (event) => {
 scoutingWorkspaceModule?.handleClick(event, getScoutingWorkspaceContext());
@@ -77903,27 +77653,9 @@ hideMetricTooltip();
 });
 document.addEventListener("keydown", (event) => {
 const key = String(event.key || "").toLowerCase();
-const isCopyShortcut = (event.metaKey || event.ctrlKey) && key === "c";
-const isPasteShortcut = (event.metaKey || event.ctrlKey) && key === "v";
-const isQuickScheduleCopy = key === "c" && !event.metaKey && !event.ctrlKey && !event.altKey;
-const isQuickSchedulePaste = key === "v" && !event.metaKey && !event.ctrlKey && !event.altKey;
 if (key === "enter" && isSimulatorIntroActive() && !isEditableKeyboardTarget(event.target)) {
 event.preventDefault();
 launchGameSimulatorFromIntro();
-return;
-}
-if (
-isScheduleWorkspaceActive() &&
-canEditScheduleWorkspace() &&
-!isEditableKeyboardTarget(event.target) &&
-(isCopyShortcut || isPasteShortcut || isQuickScheduleCopy || isQuickSchedulePaste)
-) {
-event.preventDefault();
-if (isCopyShortcut || isQuickScheduleCopy) {
-copySelectedScheduleDay();
-} else {
-pasteScheduleClipboardToSelectedDay();
-}
 return;
 }
 if (event.key === "Escape" && isProfileMenuOpen()) {
@@ -77949,31 +77681,6 @@ renderPeriodizationWorkspace();
 if (event.key === "Escape" && activeMetricTooltipTarget) {
 hideMetricTooltip({ force: true });
 }
-});
-document.addEventListener("copy", (event) => {
-if (!isScheduleWorkspaceActive() || !canEditScheduleWorkspace() || isEditableKeyboardTarget(event.target)) {
-return;
-}
-const events = getScheduleEventsForDate(scheduleState?.selectedDate);
-if (!events.length) {
-return;
-}
-event.preventDefault();
-copySelectedScheduleDay();
-event.clipboardData?.setData(
-"text/plain",
-events.map((item) => [item.time, item.title, item.note].filter(Boolean).join(" - ")).join("\n")
-);
-});
-document.addEventListener("paste", (event) => {
-if (!isScheduleWorkspaceActive() || !canEditScheduleWorkspace() || isEditableKeyboardTarget(event.target)) {
-return;
-}
-if (!scheduleClipboard?.events?.length) {
-return;
-}
-event.preventDefault();
-pasteScheduleClipboardToSelectedDay();
 });
 document.querySelectorAll(".hub-rail-button").forEach((button) => {
 button.addEventListener("click", () => {

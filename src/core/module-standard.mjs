@@ -166,6 +166,7 @@ export const moduleStandardContracts = Object.freeze([
       "src/modules/schedule/events.mjs",
       "src/modules/schedule/schedule-actions.mjs",
       "src/modules/schedule/schedule-adapter.mjs",
+      "src/modules/schedule/schedule-controller.mjs",
       "src/modules/schedule/schedule-renderer.mjs",
       "src/modules/schedule/schedule-state.mjs",
     ],
@@ -177,7 +178,7 @@ export const moduleStandardContracts = Object.freeze([
     ],
     extractionOrder: 7,
     riskLevel: "medium",
-    notes: "State, actions, and rendering have moved into src/modules/schedule while app.js remains the integration shell.",
+    notes: "State, actions, controller, and rendering have moved into src/modules/schedule while app.js remains the integration shell.",
   }),
   createModuleStandardContract({
     id: "periodization",

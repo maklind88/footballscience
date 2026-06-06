@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import {
+  createPeriodizationRenderer,
   createPeriodizationStateAdapter,
   normalizePeriodizationMultiValue,
   periodizationFieldUpdatedAtKey,
@@ -29,21 +30,36 @@ function parseDateValue(dateValue) {
   return new Date(year, month - 1, day);
 }
 
-test("Periodization extraction owns the state module file slots", () => {
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+test("Periodization extraction owns the state and renderer module file slots", () => {
   [
     "src/modules/periodization/index.mjs",
     "src/modules/periodization/periodization-state.mjs",
+    "src/modules/periodization/periodization-renderer.mjs",
   ].forEach((path) => {
     expect(existsSync(resolve(root, path)), `${path} should exist`).toBe(true);
   });
 });
 
-test("Periodization app integration delegates state and merge helpers to the module", () => {
+test("Periodization app integration delegates state, renderer, and merge helpers to the module", () => {
   const app = readProjectFile("app.js");
 
   expect(app).toContain("./src/modules/periodization/periodization-state.mjs");
+  expect(app).toContain("./src/modules/periodization/periodization-renderer.mjs");
   expect(app).toContain("createPeriodizationStateAdapter");
+  expect(app).toContain("createPeriodizationRenderer");
   expect(app).toContain("getPeriodizationDay: getPeriodizationDayFromState");
+  expect(app).toContain("periodizationRenderer.renderWorkspace");
+  expect(app).not.toContain("function renderPeriodizationDayCard(");
+  expect(app).not.toContain("function renderPeriodizationWeek(");
+  expect(app).not.toContain("function renderPeriodizationDayViewPanel(");
   expect(app).not.toContain("const periodizationPhaseLibrary =");
   expect(app).not.toContain("function normalizePeriodizationDay(day");
   expect(app).not.toContain("function clonePeriodizationState(");
@@ -70,6 +86,41 @@ test("Periodization state keeps the current default calendar and option contract
   expect(periodizationOptionLibrary.subPhases).toContain("Build Up");
   expect(periodizationMultiFields.has("teamPrinciples")).toBe(true);
   expect(normalizePeriodizationMultiValue(["Build Up", "Build Up", " High Press "])).toEqual(["Build Up", "High Press"]);
+});
+
+test("Periodization renderer keeps the day card and overlay contract", () => {
+  const renderer = createPeriodizationRenderer({
+    escapeHtml,
+    formatDateValue,
+    parseDateValue,
+    getState: () => ({ selectedDate: "2026-05-08" }),
+    getDay: () => ({
+      daySchedule: "Training",
+      sessionType: "Training",
+      physicalLoad: "Moderate",
+      pitchSize: "SSG",
+      preTrainingVideo: "Training Prep",
+      matchDay: "Match Day -2",
+      matchPhases: ["In Possession"],
+      subPhases: ["Build Up"],
+      teamPrinciples: ["Progress quickly once pressure is broken"],
+      miniGamePrinciples: ["Drive past press"],
+    }),
+    canEdit: () => true,
+    isOffDay: () => false,
+    getMultiSelectOpenField: () => "teamPrinciples",
+    renderActionIcon: () => "icon",
+  });
+
+  const card = renderer.renderDayCard(new Date(2026, 4, 8), 4);
+  expect(card).toContain("periodization-day-card");
+  expect(card).toContain("Match Day -2");
+  expect(card).toContain('data-periodization-edit-date="2026-05-08"');
+
+  const panel = renderer.renderDayPanel("2026-05-08", { isOverlay: true, mode: "edit" });
+  expect(panel).toContain("periodization-day-panel");
+  expect(panel).toContain('data-periodization-field="physicalLoad"');
+  expect(panel).toContain('data-periodization-multi-field="teamPrinciples"');
 });
 
 test("Periodization state derives match-day context from Schedule without overwriting manual match-day edits", () => {

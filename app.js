@@ -22,15 +22,12 @@ import {
 import {
   createPeriodizationStateAdapter,
   periodizationFieldUpdatedAtKey,
-  periodizationMiniGamePrinciplesBySubPhase,
-  periodizationMonthNames,
   periodizationMultiFields,
   periodizationOptionLibrary,
-  periodizationPhaseLibrary,
-  periodizationTeamPrinciplesBySubPhase,
   periodizationTrackedFields,
   periodizationYear,
 } from "./src/modules/periodization/periodization-state.mjs";
+import { createPeriodizationRenderer } from "./src/modules/periodization/periodization-renderer.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
@@ -2713,6 +2710,17 @@ mergePeriodizationStatePreservingLocalUi,
 normalizePeriodizationDay,
 normalizePeriodizationMultiValue,
 } = periodizationStateAdapter;
+const periodizationRenderer = createPeriodizationRenderer({
+escapeHtml,
+formatDateValue: formatScheduleDateValue,
+parseDateValue: parseScheduleDateValue,
+getState: () => periodizationState,
+getDay: getPeriodizationDay,
+canEdit: canEditPeriodizationWorkspace,
+isOffDay: isPeriodizationOffDay,
+getMultiSelectOpenField: () => periodizationMultiSelectOpenField,
+renderActionIcon: renderSessionPlannerActionIcon,
+});
 function getPlayerMagnetLabel(player) {
 if (!player) {
 return "";
@@ -32112,579 +32120,57 @@ const nextDate = new Date(date);
 nextDate.setDate(nextDate.getDate() + days);
 return nextDate;
 }
-function getFirstMondayInMonth(year, monthIndex) {
-const firstDay = new Date(year, monthIndex, 1);
-const offset = (8 - firstDay.getDay()) % 7;
-return addCalendarDays(firstDay, offset);
-}
-function getLastSundayForMonth(year, monthIndex) {
-const lastDay = new Date(year, monthIndex + 1, 0);
-const offset = (7 - lastDay.getDay()) % 7;
-return addCalendarDays(lastDay, offset);
-}
-function getIsoWeekNumber(date) {
-const utcDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-const dayNumber = utcDate.getUTCDay() || 7;
-utcDate.setUTCDate(utcDate.getUTCDate() + 4 - dayNumber);
-const yearStart = new Date(Date.UTC(utcDate.getUTCFullYear(), 0, 1));
-return Math.ceil(((utcDate - yearStart) / 86400000 + 1) / 7);
-}
-function getPeriodizationWeeksForMonth(year, monthIndex) {
-const startDate = getFirstMondayInMonth(year, monthIndex);
-const endDate = getLastSundayForMonth(year, monthIndex);
-const weeks = [];
-let cursor = new Date(startDate);
-while (cursor <= endDate) {
-weeks.push(Array.from({ length: 7 }, (_, index) => addCalendarDays(cursor, index)));
-cursor = addCalendarDays(cursor, 7);
-}
-return weeks;
-}
-function getPeriodizationWeekDatesForDate(date) {
-const dayOffset = (date.getDay() + 6) % 7;
-const weekStart = addCalendarDays(date, -dayOffset);
-return Array.from({ length: 7 }, (_, index) => addCalendarDays(weekStart, index));
-}
-function getPeriodizationLoadTone(value) {
-const key = String(value || "").toLowerCase();
-if (key.includes("match")) return "match";
-if (key.includes("hard")) return "hard";
-if (key.includes("moderate")) return "moderate";
-if (key.includes("low")) return "low";
-if (key.includes("off")) return "off";
-return "neutral";
-}
 function getPeriodizationDayScheduleLabel(day) {
-if (isPeriodizationOffDay(day)) {
-return "OFF";
-}
-return day.daySchedule || "";
+return periodizationRenderer.getDayScheduleLabel(day);
 }
 function getPeriodizationMatchDayLabel(value) {
-const label = String(value || "").trim();
-return label.toUpperCase() === "N/A" ? "" : label;
+return periodizationRenderer.getMatchDayLabel(value);
 }
-function getPeriodizationPitchTone(pitchSize) {
-const key = String(pitchSize || "").toLowerCase();
-if (!key) return "empty";
-if (key.includes("gym") || key.includes("recovery")) return "gym-recovery";
-if (key === "ssg" || key.includes("small")) return "ssg";
-if (key === "msg" || key.includes("9")) return "msg";
-if (key === "bsg" || key.includes("full")) return "bsg";
-if (key === "lsg" || key.includes("large")) return "lsg";
-if (key.includes("half")) return "half-pitch";
-if (key.includes("final")) return "final-third";
-return key.replace(/[^a-z0-9]+/g, "-");
+function getPeriodizationLoadTone(value) {
+return periodizationRenderer.getLoadTone(value);
 }
 function getPeriodizationPitchLabel(pitchSize) {
-const tone = getPeriodizationPitchTone(pitchSize);
-if (tone === "bsg") return "BSG";
-if (tone === "msg") return "MSG";
-if (tone === "ssg") return "SSG";
-return pitchSize || "";
+return periodizationRenderer.getPitchLabel(pitchSize);
 }
 function getPeriodizationDayTone(day) {
-const schedule = String(day.daySchedule || "").toLowerCase();
-if (isPeriodizationOffDay(day)) return "off";
-if (schedule.includes("match")) return "match";
-if (schedule.includes("travel")) return "travel";
-if (schedule.includes("recovery")) return "recovery";
-return getPeriodizationLoadTone(day.physicalLoad);
-}
-function renderPeriodizationOptions(options = [], selectedValue = "", includeBlank = true) {
-const selected = String(selectedValue ?? "");
-const blank = includeBlank ? `<option value=""></option>` : "";
-return `${blank}${options
-    .map((option) => {
-      const value = String(option);
-      return `<option value="${escapeHtml(value)}"${value === selected ? " selected" : ""}>${escapeHtml(value)}</option>`;
-    })
-    .join("")}`;
-}
-function renderPeriodizationMultiOptions(options = [], selectedValues = []) {
-const selectedSet = new Set(normalizePeriodizationMultiValue(selectedValues));
-return options
-.map((option) => {
-const value = String(option);
-return `<option value="${escapeHtml(value)}"${selectedSet.has(value) ? " selected" : ""}>${escapeHtml(value)}</option>`;
-})
-.join("");
-}
-function renderStaticDatalist(id, options = []) {
-if (!id || !options?.length) {
-return "";
-}
-return `
-    <datalist id="${escapeHtml(id)}">
-      ${options.map((option) => `<option value="${escapeHtml(String(option))}"></option>`).join("")}
-    </datalist>
-  `;
-}
-function getPeriodizationCustomValues(values = [], options = []) {
-const optionSet = new Set(options.map((option) => String(option)));
-return normalizePeriodizationMultiValue(values).filter((value) => value && !optionSet.has(value));
-}
-function parsePeriodizationCustomValues(value = "") {
-return String(value ?? "")
-.split(/[,\n]/)
-.map((item) => item.trim())
-.filter(Boolean);
+return periodizationRenderer.getDayTone(day);
 }
 function getPeriodizationMultiFieldOptions(key, dateValue) {
-const day = getPeriodizationDay(dateValue);
-if (key === "matchPhases") {
-return periodizationOptionLibrary.matchPhases;
-}
-if (key === "subPhases") {
-return getPeriodizationSubPhaseOptions(day);
-}
-if (key === "teamPrinciples") {
-return getPeriodizationPrincipleOptions(day, periodizationTeamPrinciplesBySubPhase);
-}
-if (key === "miniGamePrinciples") {
-return getPeriodizationPrincipleOptions(day, periodizationMiniGamePrinciplesBySubPhase);
-}
-return [];
+return periodizationRenderer.getMultiFieldOptions(key, dateValue);
 }
 function getPeriodizationMultiFieldValue(field, dateValue) {
-const key = field.dataset.periodizationField;
-const fieldContainer = field.closest(".periodization-field");
-const checkboxOptions = Array.from(
-fieldContainer?.querySelectorAll(`[data-periodization-multi-option="${key}"]`) ?? []
-);
-const staticOptions = checkboxOptions.length
-? checkboxOptions.map((option) => option.value).filter(Boolean)
-: getPeriodizationMultiFieldOptions(key, dateValue);
-const staticOptionSet = new Set(staticOptions);
-const currentValues = normalizePeriodizationMultiValue(getPeriodizationDay(dateValue)?.[key]);
-const selectedStaticValues = checkboxOptions.length
-? checkboxOptions.filter((option) => option.checked).map((option) => option.value)
-: currentValues.filter((value) => staticOptionSet.has(value));
-const customInput = fieldContainer?.querySelector("[data-periodization-custom-field]");
-const customValues = customInput
-? parsePeriodizationCustomValues(customInput.value)
-: currentValues.filter((value) => !staticOptionSet.has(value));
-return [...new Set([...selectedStaticValues, ...customValues.filter((value) => !staticOptionSet.has(value))])];
+return periodizationRenderer.getMultiFieldValue(field, dateValue);
 }
 function getPeriodizationCustomFieldValue(field, dateValue) {
-const key = field.dataset.periodizationCustomField;
-const fieldContainer = field.closest(".periodization-field");
-const checkboxOptions = Array.from(
-fieldContainer?.querySelectorAll(`[data-periodization-multi-option="${key}"]`) ?? []
-);
-const select = fieldContainer?.querySelector("select[data-periodization-field][multiple]");
-const staticOptions = checkboxOptions.length
-? checkboxOptions.map((option) => option.value).filter(Boolean)
-: select
-? Array.from(select.options).map((option) => option.value).filter(Boolean)
-: getPeriodizationMultiFieldOptions(key, dateValue);
-const staticOptionSet = new Set(staticOptions);
-const selectedStaticValues = checkboxOptions.length
-? checkboxOptions.filter((option) => option.checked).map((option) => option.value)
-: select
-? Array.from(select.selectedOptions).map((option) => option.value)
-: normalizePeriodizationMultiValue(getPeriodizationDay(dateValue)?.[key]).filter((value) => staticOptionSet.has(value));
-const customValues = parsePeriodizationCustomValues(field.value).filter((value) => !staticOptionSet.has(value));
-return [...new Set([...selectedStaticValues, ...customValues])];
-}
-function getPrincipleSourceKeys(subPhases = []) {
-const keys = new Set(normalizePeriodizationMultiValue(subPhases));
-if (keys.has("High Press") || keys.has("High Press vs GK")) {
-keys.add("High Press vs GK & High Press");
-}
-if (keys.has("Throw Ins (Off)") || keys.has("Throw Ins (Def)")) {
-keys.add("Throw Ins (Off & Def)");
-}
-return [...keys];
+return periodizationRenderer.getCustomFieldValue(field, dateValue);
 }
 function getPeriodizationSubPhaseOptions(day) {
-const phases = normalizePeriodizationMultiValue(day.matchPhases);
-if (!phases.length) {
-return periodizationOptionLibrary.subPhases;
-}
-return [...new Set(phases.flatMap((phase) => periodizationPhaseLibrary[phase] ?? []))];
+return periodizationRenderer.getSubPhaseOptions(day);
 }
 function getPeriodizationPrincipleOptions(day, source) {
-const keys = getPrincipleSourceKeys(day.subPhases);
-if (!keys.length) {
-return Object.values(source).flat();
-}
-const options = keys.flatMap((key) => source[key] ?? []);
-return options.length ? [...new Set(options)] : Object.values(source).flat();
-}
-function renderPeriodizationSelectField(label, key, value, options, className = "") {
-const listId = `periodization-${key}-options`;
-return `
-    <label class="periodization-field ${className}">
-      <span>${escapeHtml(label)}</span>
-      <input
-        data-periodization-field="${escapeHtml(key)}"
-        value="${escapeHtml(value ?? "")}"
-        list="${escapeHtml(listId)}"
-      />
-      ${renderStaticDatalist(listId, options)}
-    </label>
-  `;
+return periodizationRenderer.getPrincipleOptions(day, source);
 }
 function renderPeriodizationMultiField(label, key, value, options, className = "") {
-const customValues = getPeriodizationCustomValues(value, options);
-const selectedValues = normalizePeriodizationMultiValue(value);
-const selectedSet = new Set(selectedValues);
-const isOpen = periodizationMultiSelectOpenField === key;
-return `
-    <section
-      class="periodization-field periodization-field-multi ${className}"
-      data-periodization-multi-field="${escapeHtml(key)}"
-    >
-      <span>${escapeHtml(label)}</span>
-      <button
-        type="button"
-        class="periodization-multi-trigger${selectedValues.length ? " has-value" : ""}"
-        data-periodization-multi-toggle="${escapeHtml(key)}"
-        aria-expanded="${isOpen ? "true" : "false"}"
-      >
-        <span class="periodization-multi-value-list">
-          ${
-            selectedValues.length
-              ? selectedValues.map((item) => `<i>${escapeHtml(item)}</i>`).join("")
-              : `<em>Select ${escapeHtml(label)}</em>`
-          }
-        </span>
-        <span class="periodization-multi-caret">⌄</span>
-      </button>
-      ${
-        isOpen
-          ? `
-<div class="periodization-choice-menu" role="group" aria-label="${escapeHtml(label)}">
-${options
-.map((option) => {
-const optionValue = String(option);
-return `
-                    <label class="periodization-choice-option">
-                      <input
-                        type="checkbox"
-                        data-periodization-field="${escapeHtml(key)}"
-                        data-periodization-multi-option="${escapeHtml(key)}"
-                        value="${escapeHtml(optionValue)}"
-                        ${selectedSet.has(optionValue) ? "checked" : ""}
-                      />
-                      <span>${escapeHtml(optionValue)}</span>
-                    </label>
-                  `;
-})
-.join("")}
-</div>
-`
-          : ""
-      }
-      <input
-        class="periodization-custom-list-input"
-        data-periodization-custom-field="${escapeHtml(key)}"
-        value="${escapeHtml(customValues.join(", "))}"
-        placeholder="Own text"
-      />
-    </section>
-  `;
-}
-function renderPeriodizationTextField(label, key, value, optionsId = "", className = "") {
-return `
-    <label class="periodization-field ${className}">
-      <span>${escapeHtml(label)}</span>
-      <input
-        data-periodization-field="${escapeHtml(key)}"
-        value="${escapeHtml(value ?? "")}"
-        ${optionsId ? `list="${escapeHtml(optionsId)}"` : ""}
-      />
-    </label>
-  `;
-}
-function renderPeriodizationTextAreaField(label, key, value, className = "") {
-return `
-    <label class="periodization-field periodization-field-textarea ${className}">
-      <span>${escapeHtml(label)}</span>
-      <textarea data-periodization-field="${escapeHtml(key)}" rows="4">${escapeHtml(value ?? "")}</textarea>
-    </label>
-  `;
-}
-function renderPeriodizationChip(value, tone = "neutral") {
-if (!value) {
-return "";
-}
-return `<span class="periodization-chip is-${escapeHtml(tone)}">${escapeHtml(value)}</span>`;
-}
-function getPeriodizationLoadMeterModel(value) {
-const label = String(value || "").trim();
-if (!label) {
-return null;
-}
-const key = label.toLowerCase();
-if (key.includes("off")) {
-return null;
-}
-if (key.includes("hard") || key.includes("medium-high") || key.includes("medium high")) {
-return { label, level: 4, color: "#f57c2b", angle: 34 };
-}
-if (key.includes("match") || key.includes("high")) {
-return { label, level: 5, color: "#d92d3f", angle: 68 };
-}
-if (key.includes("moderate") || key === "medium") {
-return { label, level: 3, color: "#d9a514", angle: 0 };
-}
-if (key.includes("low")) {
-return { label, level: 2, color: "#1f9d61", angle: -34 };
-}
-if (key.includes("recovery") || key.includes("light")) {
-return { label, level: 1, color: "#74c69d", angle: -68 };
-}
-return { label, level: 3, color: "#d9a514", angle: 0 };
+return periodizationRenderer.renderMultiField(label, key, value, options, className);
 }
 function renderPeriodizationLoadMeter(value, className = "") {
-const model = getPeriodizationLoadMeterModel(value);
-if (!model) {
-return "";
+return periodizationRenderer.renderLoadMeter(value, className);
 }
-return `
-    <span
-      class="periodization-load-meter is-level-${model.level} ${className}"
-      style="--load-angle: ${model.angle}deg; --load-color: ${model.color};"
-      aria-label="Physical load: ${escapeHtml(model.label)}"
-    >
-      <span class="periodization-load-gauge" aria-hidden="true">
-        <span class="periodization-load-needle"></span>
-        <span class="periodization-load-pin"></span>
-      </span>
-      <span class="periodization-load-label">${escapeHtml(model.label)}</span>
-    </span>
-  `;
+function renderPeriodizationDayPanel(dateValue, options = {}) {
+return periodizationRenderer.renderDayPanel(dateValue, options);
 }
-function formatPeriodizationCardList(values, fallback = "") {
-const list = normalizePeriodizationMultiValue(values).filter(Boolean);
-if (!list.length) {
-return fallback;
+function renderPeriodizationDayOverlay(dateValue) {
+return periodizationRenderer.renderDayOverlay(dateValue, periodizationDayOverlayMode);
 }
-const visible = list.slice(0, 2).join(", ");
-return list.length > 2 ? `${visible} +${list.length - 2}` : visible;
-}
-function renderPeriodizationCardDetail(label, value, className = "") {
-const cleanValue = typeof value === "string" ? value.trim() : value;
-const emptyClass = cleanValue ? "" : " is-empty";
-return `
-    <span class="periodization-day-detail ${className}${emptyClass}">
-      ${cleanValue ? `<small>${escapeHtml(label)}</small><strong>${cleanValue}</strong>` : ""}
-    </span>
-  `;
-}
-function renderPeriodizationPitchIcon(pitchSize) {
-const tone = getPeriodizationPitchTone(pitchSize);
-return `
-    <span class="periodization-pitch-icon is-${escapeHtml(tone)}" aria-hidden="true">
-      <span class="periodization-pitch-lines"></span>
-      <span class="periodization-pitch-highlight"></span>
-    </span>
-  `;
-}
-function getPeriodizationLoadScore(value) {
-const key = String(value || "").toLowerCase();
-if (!key || key.includes("off")) return 0;
-if (key.includes("hard") || key.includes("medium-high") || key.includes("medium high")) return 4;
-if (key.includes("match") || key.includes("high")) return 5;
-if (key.includes("moderate") || key === "medium") return 3;
-if (key.includes("low")) return 2;
-if (key.includes("recovery") || key.includes("light")) return 1;
-return 3;
-}
-function getPeriodizationLoadScoreLabel(score) {
-if (score >= 5) return "Peak";
-if (score >= 4) return "High";
-if (score >= 3) return "Mod";
-if (score >= 2) return "Low";
-if (score >= 1) return "Rec";
-return "Off";
-}
-function getMostCommonPeriodizationValues(values = [], limit = 2) {
-const counts = new Map();
-values
-.flatMap((value) => normalizePeriodizationMultiValue(value))
-.filter(Boolean)
-.forEach((value) => counts.set(value, (counts.get(value) || 0) + 1));
-return [...counts.entries()]
-.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-.slice(0, limit)
-.map(([value]) => value);
+function getPeriodizationWeekDatesForDate(date) {
+return periodizationRenderer.getWeekDatesForDate(date);
 }
 function getPeriodizationMicrocycleModel(weekDates = []) {
-const days = weekDates.map((date) => {
-const dateValue = formatScheduleDateValue(date);
-const day = getPeriodizationDay(dateValue);
-const loadScore = getPeriodizationLoadScore(day.physicalLoad);
-const matchDayLabel = getPeriodizationMatchDayLabel(day.matchDay);
-return {
-date,
-dateValue,
-day,
-loadScore,
-matchDayLabel,
-isMatchDay:
-matchDayLabel === "MD" ||
-String(day.daySchedule || "").toLowerCase().includes("match") ||
-String(day.sessionType || "").toLowerCase().includes("match"),
-isOffDay: isPeriodizationOffDay(day),
-};
-});
-const activeDays = days.filter((item) => !item.isOffDay);
-const totalLoad = days.reduce((sum, item) => sum + item.loadScore, 0);
-const peakLoad = days.reduce((peak, item) => Math.max(peak, item.loadScore), 0);
-const highLoadCount = days.filter((item) => item.loadScore >= 4).length;
-const matchDays = days.filter((item) => item.isMatchDay);
-const focusValues = getMostCommonPeriodizationValues(days.map((item) => item.day.matchPhases), 2);
-const subFocusValues = getMostCommonPeriodizationValues(days.map((item) => item.day.subPhases), 2);
-const pitchValues = [...new Set(days.map((item) => getPeriodizationPitchLabel(item.day.pitchSize)).filter(Boolean))];
-const rangeLabel = days.length
-? `${days[0].date.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${days[days.length - 1].date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
-: "";
-return {
-days,
-activeDays,
-totalLoad,
-averageLoad: activeDays.length ? totalLoad / activeDays.length : 0,
-peakLoad,
-highLoadCount,
-matchDays,
-focusLabel: focusValues.length ? focusValues.join(" / ") : "",
-subFocusLabel: subFocusValues.length ? subFocusValues.join(" / ") : "",
-pitchLabel: pitchValues.slice(0, 3).join(" / "),
-rangeLabel,
-};
-}
-function renderPeriodizationMicrocycleMetric(label, value, tone = "") {
-const cleanValue = String(value || "").trim();
-if (!cleanValue) {
-return "";
-}
-return `
-    <span class="periodization-microcycle-metric${tone ? ` is-${escapeHtml(tone)}` : ""}">
-      <small>${escapeHtml(label)}</small>
-      <strong>${escapeHtml(cleanValue)}</strong>
-    </span>
-  `;
-}
-function renderPeriodizationMicrocycleLoadRail(model) {
-return `
-    <div class="periodization-microcycle-load-rail" aria-label="Microcycle load rhythm">
-      ${model.days
-        .map((item) => {
-          const score = item.loadScore;
-          const height = score ? 16 + score * 14 : 8;
-          const label = getPeriodizationLoadScoreLabel(score);
-          return `
-<span
-class="periodization-microcycle-load-day is-score-${score}${item.isMatchDay ? " is-match" : ""}${item.isOffDay ? " is-off" : ""}"
-style="--periodization-load-height: ${height}%;"
-title="${escapeHtml(`${item.date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}: ${label}`)}"
->
-<i aria-hidden="true"></i>
-<small>${escapeHtml(item.date.toLocaleDateString("en-US", { weekday: "short" }).slice(0, 2))}</small>
-</span>
-`;
-        })
-        .join("")}
-    </div>
-  `;
-}
-function renderPeriodizationDayCard(date, monthIndex) {
-const dateValue = formatScheduleDateValue(date);
-const day = getPeriodizationDay(dateValue);
-const isSelected = periodizationState?.selectedDate === dateValue;
-const isOutsideMonth = date.getMonth() !== monthIndex;
-const canEdit = canEditPeriodizationWorkspace();
-const dayTone = getPeriodizationDayTone(day);
-const loadTone = getPeriodizationLoadTone(day.physicalLoad);
-const isOffDay = isPeriodizationOffDay(day);
-const dayScheduleLabel = getPeriodizationDayScheduleLabel(day);
-const matchDayLabel = getPeriodizationMatchDayLabel(day.matchDay);
-const loadLabel = isOffDay && loadTone === "off" ? "" : day.physicalLoad;
-const pitchLabel = getPeriodizationPitchLabel(day.pitchSize);
-const preTrainingVideoLabel = day.preTrainingVideo || "";
-const phaseParts = [
-formatPeriodizationCardList(day.matchPhases),
-formatPeriodizationCardList(day.subPhases),
-].filter(Boolean);
-const phaseLabel = phaseParts.join(" · ");
-const pitchValue = pitchLabel
-? `${renderPeriodizationPitchIcon(day.pitchSize)}${escapeHtml(pitchLabel)}`
-: "";
-return `
-    <article
-      class="periodization-day-card is-${escapeHtml(dayTone)}${isSelected ? " is-selected" : ""}${isOutsideMonth ? " is-outside-month" : ""}"
-      ${matchDayLabel ? `style="grid-template-rows:auto minmax(2.35rem,auto) auto 1fr"` : ""}
-      data-periodization-date="${escapeHtml(dateValue)}"
-      role="button"
-      tabindex="0"
-    >
-      ${
-        canEdit
-          ? `
-<button
-type="button"
-class="periodization-day-edit"
-data-periodization-edit-date="${escapeHtml(dateValue)}"
-aria-label="Edit ${escapeHtml(date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }))}"
->
-${renderSessionPlannerActionIcon("pencil")}
-</button>
-`
-          : ""
-      }
-      <span class="periodization-day-topline">
-        <strong>${escapeHtml(date.toLocaleDateString("en-US", { weekday: "short" }))}</strong>
-        <span>${date.getDate()}</span>
-      </span>
-      <span class="periodization-day-main${dayScheduleLabel ? "" : " is-empty"}">
-        ${escapeHtml(dayScheduleLabel)}
-      </span>
-      ${matchDayLabel ? `<span><i class="periodization-day-md">${escapeHtml(matchDayLabel)}</i></span>` : ""}
-      <span class="periodization-day-details">
-        ${renderPeriodizationCardDetail("Video", escapeHtml(preTrainingVideoLabel))}
-        ${renderPeriodizationCardDetail("Phase", escapeHtml(phaseLabel))}
-        ${renderPeriodizationCardDetail("Load", renderPeriodizationLoadMeter(loadLabel), "is-load")}
-        ${renderPeriodizationCardDetail("Pitch", pitchValue, "is-pitch")}
-      </span>
-    </article>
-  `;
+return periodizationRenderer.getMicrocycleModel(weekDates);
 }
 function renderSessionPlannerPeriodizationSummary(dateValue) {
 ensurePeriodizationState();
-const date = parseScheduleDateValue(dateValue);
-const day = getPeriodizationDay(dateValue);
-const dayTone = getPeriodizationDayTone(day);
-const isOffDay = isPeriodizationOffDay(day);
-const loadTone = getPeriodizationLoadTone(day.physicalLoad);
-const loadLabel = isOffDay && loadTone === "off" ? "" : day.physicalLoad;
-const pitchLabel = getPeriodizationPitchLabel(day.pitchSize);
-const preTrainingVideoLabel = day.preTrainingVideo || "";
-const phaseParts = [
-formatPeriodizationCardList(day.matchPhases),
-formatPeriodizationCardList(day.subPhases),
-].filter(Boolean);
-const phaseLabel = phaseParts.join(" · ");
-const pitchValue = pitchLabel
-? `${renderPeriodizationPitchIcon(day.pitchSize)}${escapeHtml(pitchLabel)}`
-: "";
-return `
-    <button
-      type="button"
-      class="session-periodization-card periodization-day-card is-${escapeHtml(dayTone)}"
-      data-session-periodization-date="${escapeHtml(dateValue)}"
-      aria-label="Open periodization for ${escapeHtml(date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }))}"
-    >
-      <span class="periodization-day-details">
-        ${renderPeriodizationCardDetail("Video", escapeHtml(preTrainingVideoLabel))}
-        ${renderPeriodizationCardDetail("Phase", escapeHtml(phaseLabel))}
-        ${renderPeriodizationCardDetail("Load", renderPeriodizationLoadMeter(loadLabel), "is-load")}
-        ${renderPeriodizationCardDetail("Pitch", pitchValue, "is-pitch")}
-      </span>
-    </button>
-  `;
+return periodizationRenderer.renderSessionSummary(dateValue);
 }
 function openSessionPlannerPeriodizationOverlay(dateValue, mode = "view") {
 if (!dateValue || !isDateValueInYear(dateValue, periodizationYear)) {
@@ -32764,45 +32250,12 @@ function refreshSessionPlannerPeriodizationMultiField(key) {
 if (!sessionPlannerPeriodizationOverlayDate || !ui.sessionPlannerWorkspace) {
 return;
 }
-const day = getPeriodizationDay(sessionPlannerPeriodizationOverlayDate);
-const fieldConfigs = {
-matchPhases: {
-label: "Match Phase(s)",
-value: day.matchPhases,
-options: getPeriodizationMultiFieldOptions("matchPhases", sessionPlannerPeriodizationOverlayDate),
-className: "",
-},
-subPhases: {
-label: "Sub Phase(s)",
-value: day.subPhases,
-options: getPeriodizationMultiFieldOptions("subPhases", sessionPlannerPeriodizationOverlayDate),
-className: "",
-},
-teamPrinciples: {
-label: "Team Principles",
-value: day.teamPrinciples,
-options: getPeriodizationMultiFieldOptions("teamPrinciples", sessionPlannerPeriodizationOverlayDate),
-className: "periodization-field-wide",
-},
-miniGamePrinciples: {
-label: "Mini-Game Principles",
-value: day.miniGamePrinciples,
-options: getPeriodizationMultiFieldOptions("miniGamePrinciples", sessionPlannerPeriodizationOverlayDate),
-className: "periodization-field-wide",
-},
-};
-const config = fieldConfigs[key];
 const field = ui.sessionPlannerWorkspace.querySelector(`[data-periodization-multi-field="${key}"]`);
-if (!config || !field) {
+const html = periodizationRenderer.renderMultiFieldForDate(key, sessionPlannerPeriodizationOverlayDate);
+if (!field || !html) {
 return;
 }
-field.outerHTML = renderPeriodizationMultiField(
-config.label,
-key,
-config.value,
-config.options,
-config.className
-);
+field.outerHTML = html;
 }
 function refreshSessionPlannerPeriodizationMultiFields(keys = []) {
 Array.from(new Set((Array.isArray(keys) ? keys : [keys]).filter(Boolean))).forEach((key) => {
@@ -32830,45 +32283,12 @@ function refreshPeriodizationBoardMultiField(key) {
 if (!periodizationState?.selectedDate || !ui.periodizationBoard) {
 return;
 }
-const day = getPeriodizationDay(periodizationState.selectedDate);
-const fieldConfigs = {
-matchPhases: {
-label: "Match Phase(s)",
-value: day.matchPhases,
-options: getPeriodizationMultiFieldOptions("matchPhases", periodizationState.selectedDate),
-className: "",
-},
-subPhases: {
-label: "Sub Phase(s)",
-value: day.subPhases,
-options: getPeriodizationMultiFieldOptions("subPhases", periodizationState.selectedDate),
-className: "",
-},
-teamPrinciples: {
-label: "Team Principles",
-value: day.teamPrinciples,
-options: getPeriodizationMultiFieldOptions("teamPrinciples", periodizationState.selectedDate),
-className: "periodization-field-wide",
-},
-miniGamePrinciples: {
-label: "Mini-Game Principles",
-value: day.miniGamePrinciples,
-options: getPeriodizationMultiFieldOptions("miniGamePrinciples", periodizationState.selectedDate),
-className: "periodization-field-wide",
-},
-};
-const config = fieldConfigs[key];
 const field = ui.periodizationBoard.querySelector(`[data-periodization-multi-field="${key}"]`);
-if (!config || !field) {
+const html = periodizationRenderer.renderMultiFieldForDate(key, periodizationState.selectedDate);
+if (!field || !html) {
 return;
 }
-field.outerHTML = renderPeriodizationMultiField(
-config.label,
-key,
-config.value,
-config.options,
-config.className
-);
+field.outerHTML = html;
 }
 function refreshPeriodizationBoardMultiFields(keys = []) {
 Array.from(new Set((Array.isArray(keys) ? keys : [keys]).filter(Boolean))).forEach((key) => {
@@ -32883,236 +32303,6 @@ return;
 if (changedKey === "subPhases") {
 refreshPeriodizationBoardMultiFields(["teamPrinciples", "miniGamePrinciples"]);
 }
-}
-function renderPeriodizationWeek(weekDates, monthIndex) {
-const weekNumber = getIsoWeekNumber(weekDates[0]);
-const model = getPeriodizationMicrocycleModel(weekDates);
-return `
-    <section class="periodization-microcycle-card" data-periodization-week-start="${escapeHtml(formatScheduleDateValue(weekDates[0]))}">
-      <header class="periodization-microcycle-head">
-        <div>
-          <span>Microcycle</span>
-          <strong>Week ${weekNumber}</strong>
-        </div>
-        <p>${escapeHtml(model.rangeLabel)}</p>
-        ${renderPeriodizationMicrocycleLoadRail(model)}
-      </header>
-      <div class="periodization-week-grid">
-        ${weekDates.map((date) => renderPeriodizationDayCard(date, monthIndex)).join("")}
-      </div>
-    </section>
-  `;
-}
-function renderPeriodizationDatalists(day) {
-const teamPrinciples = getPeriodizationPrincipleOptions(day, periodizationTeamPrinciplesBySubPhase);
-return `
-    <datalist id="periodizationMainFocusOptions">
-      ${teamPrinciples.map((option) => `<option value="${escapeHtml(option)}"></option>`).join("")}
-    </datalist>
-    <datalist id="periodizationBlockOptions">
-      ${periodizationOptionLibrary.block.map((option) => `<option value="${escapeHtml(option)}"></option>`).join("")}
-    </datalist>
-  `;
-}
-function renderPeriodizationViewValue(value, fallback = "Not set") {
-if (Array.isArray(value)) {
-return value.length ? value.map(escapeHtml).join(", ") : fallback;
-}
-const text = String(value ?? "").trim();
-return text ? escapeHtml(text) : fallback;
-}
-function renderPeriodizationViewItem(label, value, className = "") {
-return `
-    <div class="periodization-view-item ${className}">
-      <span>${escapeHtml(label)}</span>
-      <strong>${value}</strong>
-    </div>
-  `;
-}
-function renderPeriodizationViewLink(label, value) {
-const url = String(value || "").trim();
-const content = url
-? `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">Open link</a>`
-: "Not set";
-return renderPeriodizationViewItem(label, content);
-}
-function renderPeriodizationViewSection(title, items) {
-return `
-    <section class="periodization-view-section">
-      <h3>${escapeHtml(title)}</h3>
-      <div class="periodization-view-list">
-        ${items.join("")}
-      </div>
-    </section>
-  `;
-}
-function renderPeriodizationDayViewPanel(dateValue, { isOverlay = false } = {}) {
-const date = parseScheduleDateValue(dateValue);
-const day = getPeriodizationDay(dateValue);
-const canEdit = canEditPeriodizationWorkspace();
-const matchDayLabel = getPeriodizationMatchDayLabel(day.matchDay) || "Not match day";
-const pitchLabel = getPeriodizationPitchLabel(day.pitchSize);
-const microcycleModel = getPeriodizationMicrocycleModel(getPeriodizationWeekDatesForDate(date));
-const trainingBlocks = [
-["Warm Up", day.warmUp],
-["Block 1", day.block1],
-["Block 2", day.block2],
-["Block 3", day.block3],
-["Block 4", day.block4],
-];
-return `
-    <aside class="periodization-day-panel periodization-day-view-panel${isOverlay ? " is-overlay" : ""}" aria-label="Selected training day">
-      <header class="periodization-day-panel-head">
-        <div>
-          <span>Training Day</span>
-          <h2>${escapeHtml(date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }))}</h2>
-        </div>
-        <div class="periodization-overlay-actions">
-          ${canEdit ? `<button type="button" class="periodization-overlay-action" data-periodization-edit-selected aria-label="Edit training day">Edit</button>` : ""}
-          ${isOverlay ? `<button type="button" class="periodization-overlay-close" data-periodization-close aria-label="Close training day">&times;</button>` : ""}
-        </div>
-      </header>
-      <div class="periodization-day-view-hero">
-        <div>
-          <span>Day schedule</span>
-          <strong>${escapeHtml(getPeriodizationDayScheduleLabel(day))}</strong>
-        </div>
-        <div class="periodization-view-load">
-          <span>Physical load</span>
-          ${renderPeriodizationLoadMeter(day.physicalLoad, "is-large")}
-        </div>
-        <div class="periodization-view-pitch">
-          <span>Pitch size</span>
-          <strong>${pitchLabel ? `${renderPeriodizationPitchIcon(day.pitchSize)}${escapeHtml(pitchLabel)}` : "Not set"}</strong>
-        </div>
-        <div class="periodization-view-microcycle">
-          <span>Microcycle</span>
-          <strong>${escapeHtml(microcycleModel.rangeLabel)}</strong>
-          ${renderPeriodizationMicrocycleLoadRail(microcycleModel)}
-        </div>
-      </div>
-      <div class="periodization-day-view-grid">
-        ${renderPeriodizationViewSection("Day Setup", [
-          renderPeriodizationViewItem("Season Phase", renderPeriodizationViewValue(day.seasonPhase)),
-          renderPeriodizationViewItem("Session Type", renderPeriodizationViewValue(day.sessionType)),
-          renderPeriodizationViewItem("Match Day", escapeHtml(matchDayLabel)),
-        ])}
-        ${renderPeriodizationViewSection("Preparation", [
-          renderPeriodizationViewItem("Pre-Training Video", renderPeriodizationViewValue(day.preTrainingVideo)),
-          renderPeriodizationViewItem("Psychological Focus", renderPeriodizationViewValue(day.psychologicalFocus)),
-          renderPeriodizationViewItem("Video Notes", renderPeriodizationViewValue(day.preTrainingNotes)),
-          renderPeriodizationViewItem("Psychological Notes", renderPeriodizationViewValue(day.psychologicalNotes)),
-        ])}
-        ${renderPeriodizationViewSection("Tactical Focus", [
-          renderPeriodizationViewItem("Match Phase(s)", renderPeriodizationViewValue(normalizePeriodizationMultiValue(day.matchPhases))),
-          renderPeriodizationViewItem("Sub Phase(s)", renderPeriodizationViewValue(normalizePeriodizationMultiValue(day.subPhases))),
-          renderPeriodizationViewItem("GK Focus", renderPeriodizationViewValue(day.gkFocus)),
-          renderPeriodizationViewItem("Team Principles", renderPeriodizationViewValue(normalizePeriodizationMultiValue(day.teamPrinciples))),
-          renderPeriodizationViewItem("Mini-Game Principles", renderPeriodizationViewValue(normalizePeriodizationMultiValue(day.miniGamePrinciples))),
-        ])}
-        ${renderPeriodizationViewSection("Training Blocks", [
-          ...trainingBlocks.map(([label, value]) => renderPeriodizationViewItem(label, renderPeriodizationViewValue(value))),
-          renderPeriodizationViewItem("Session Notes", renderPeriodizationViewValue(day.sessionNotes)),
-        ])}
-        ${renderPeriodizationViewSection("Links", [
-          renderPeriodizationViewLink("Session Plan Link", day.sessionPlanLink),
-          renderPeriodizationViewLink("Session Video Link", day.sessionVideoLink),
-          renderPeriodizationViewLink("Session GPS Report Link", day.sessionGpsReportLink),
-        ])}
-      </div>
-    </aside>
-  `;
-}
-function renderPeriodizationDayPanel(dateValue, { isOverlay = false, mode = "edit" } = {}) {
-if (mode === "view" || !canEditPeriodizationWorkspace()) {
-return renderPeriodizationDayViewPanel(dateValue, { isOverlay });
-}
-const date = parseScheduleDateValue(dateValue);
-const day = getPeriodizationDay(dateValue);
-const microcycleModel = getPeriodizationMicrocycleModel(getPeriodizationWeekDatesForDate(date));
-const subPhaseOptions = getPeriodizationSubPhaseOptions(day);
-const teamPrincipleOptions = getPeriodizationPrincipleOptions(day, periodizationTeamPrinciplesBySubPhase);
-const miniGamePrincipleOptions = getPeriodizationPrincipleOptions(day, periodizationMiniGamePrinciplesBySubPhase);
-return `
-    <aside class="periodization-day-panel${isOverlay ? " is-overlay" : ""}" aria-label="Selected training day">
-      ${renderPeriodizationDatalists(day)}
-      <header class="periodization-day-panel-head">
-        <div>
-          <span>Training Day</span>
-          <h2>${escapeHtml(date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }))}</h2>
-        </div>
-        <div class="periodization-overlay-actions">
-          <button type="button" class="periodization-overlay-action" data-periodization-view-selected aria-label="View training day">View</button>
-          ${isOverlay ? `<button type="button" class="periodization-overlay-close" data-periodization-close aria-label="Close training day">&times;</button>` : ""}
-        </div>
-      </header>
-      <div class="periodization-edit-context">
-        ${renderPeriodizationMicrocycleMetric("Week", microcycleModel.rangeLabel)}
-        ${renderPeriodizationMicrocycleMetric("Load", microcycleModel.activeDays.length ? `${microcycleModel.totalLoad} load` : "Recovery")}
-        ${renderPeriodizationMicrocycleMetric("Peak", microcycleModel.peakLoad ? getPeriodizationLoadScoreLabel(microcycleModel.peakLoad) : "")}
-        ${renderPeriodizationMicrocycleMetric("Focus", microcycleModel.focusLabel || microcycleModel.subFocusLabel)}
-        ${renderPeriodizationMicrocycleLoadRail(microcycleModel)}
-      </div>
-      <div class="periodization-form-grid">
-        <section class="periodization-form-section">
-          <h3>Day Setup</h3>
-          <div class="periodization-field-grid">
-            ${renderPeriodizationSelectField("Season Phase", "seasonPhase", day.seasonPhase, periodizationOptionLibrary.seasonPhase)}
-            ${renderPeriodizationSelectField("Day Schedule", "daySchedule", day.daySchedule, periodizationOptionLibrary.daySchedule)}
-            ${renderPeriodizationSelectField("Match Day", "matchDay", day.matchDay, periodizationOptionLibrary.matchDay)}
-            ${renderPeriodizationSelectField("Session Type", "sessionType", day.sessionType, periodizationOptionLibrary.sessionType)}
-            ${renderPeriodizationSelectField("Physical Load", "physicalLoad", day.physicalLoad, periodizationOptionLibrary.physicalLoad, `is-load-${getPeriodizationLoadTone(day.physicalLoad)}`)}
-            ${renderPeriodizationSelectField("Pitch Size", "pitchSize", day.pitchSize, periodizationOptionLibrary.pitchSize)}
-          </div>
-        </section>
-        <section class="periodization-form-section">
-          <h3>Preparation</h3>
-          <div class="periodization-field-grid">
-            ${renderPeriodizationSelectField("Pre-Training Video", "preTrainingVideo", day.preTrainingVideo, periodizationOptionLibrary.preTrainingVideo)}
-            ${renderPeriodizationTextField("Psychological Focus", "psychologicalFocus", day.psychologicalFocus, "", "")}
-            ${renderPeriodizationTextAreaField("Video Notes", "preTrainingNotes", day.preTrainingNotes)}
-            ${renderPeriodizationTextAreaField("Psychological Notes", "psychologicalNotes", day.psychologicalNotes)}
-          </div>
-        </section>
-        <section class="periodization-form-section">
-          <h3>Tactical Focus</h3>
-          <div class="periodization-field-grid">
-            ${renderPeriodizationMultiField("Match Phase(s)", "matchPhases", day.matchPhases, periodizationOptionLibrary.matchPhases)}
-            ${renderPeriodizationMultiField("Sub Phase(s)", "subPhases", day.subPhases, subPhaseOptions)}
-            ${renderPeriodizationTextField("GK Focus", "gkFocus", day.gkFocus, "", "")}
-            ${renderPeriodizationMultiField("Team Principles", "teamPrinciples", day.teamPrinciples, teamPrincipleOptions, "periodization-field-wide")}
-            ${renderPeriodizationMultiField("Mini-Game Principles", "miniGamePrinciples", day.miniGamePrinciples, miniGamePrincipleOptions, "periodization-field-wide")}
-          </div>
-        </section>
-        <section class="periodization-form-section">
-          <h3>Training Blocks</h3>
-          <div class="periodization-field-grid periodization-block-grid">
-            ${renderPeriodizationTextField("Warm Up", "warmUp", day.warmUp, "periodizationBlockOptions")}
-            ${renderPeriodizationTextField("Block 1", "block1", day.block1, "periodizationBlockOptions")}
-            ${renderPeriodizationTextField("Block 2", "block2", day.block2, "periodizationBlockOptions")}
-            ${renderPeriodizationTextField("Block 3", "block3", day.block3, "periodizationBlockOptions")}
-            ${renderPeriodizationTextField("Block 4", "block4", day.block4, "periodizationBlockOptions")}
-            ${renderPeriodizationTextAreaField("Session Notes", "sessionNotes", day.sessionNotes, "periodization-field-wide")}
-          </div>
-        </section>
-        <section class="periodization-form-section">
-          <h3>Links</h3>
-          <div class="periodization-field-grid">
-            ${renderPeriodizationTextField("Session Plan Link", "sessionPlanLink", day.sessionPlanLink)}
-            ${renderPeriodizationTextField("Session Video Link", "sessionVideoLink", day.sessionVideoLink)}
-            ${renderPeriodizationTextField("Session GPS Report Link", "sessionGpsReportLink", day.sessionGpsReportLink)}
-          </div>
-        </section>
-      </div>
-    </aside>
-  `;
-}
-function renderPeriodizationDayOverlay(dateValue) {
-return `
-    <div class="periodization-day-overlay" data-periodization-overlay>
-      ${renderPeriodizationDayPanel(dateValue, { isOverlay: true, mode: periodizationDayOverlayMode })}
-    </div>
-  `;
 }
 function renderPeriodizationWorkspace() {
 if (
@@ -33129,32 +32319,25 @@ const previousPeriodizationOverlayScrollTop = wasPeriodizationOverlayOpen
 if (!canEditPeriodizationWorkspace() && periodizationDayOverlayMode === "edit") {
 periodizationDayOverlayMode = "view";
 }
-const selectedMonthName = periodizationMonthNames[periodizationState.selectedMonthIndex];
-const selectedYear = periodizationState.selectedYear;
-const weeks = getPeriodizationWeeksForMonth(selectedYear, periodizationState.selectedMonthIndex);
-const selectedDayValue = periodizationState.selectedDate;
+const rendered = periodizationRenderer.renderWorkspace(periodizationState, {
+overlayOpen: periodizationDayOverlayOpen,
+overlayMode: periodizationDayOverlayMode,
+});
 ui.periodizationShell.classList.add("is-coach-board");
-ui.periodizationHeading.textContent = `${selectedMonthName} ${selectedYear}`;
+ui.periodizationHeading.textContent = `${rendered.selectedMonthName} ${rendered.selectedYear}`;
 if (ui.periodizationMonthSelect) {
-ui.periodizationMonthSelect.value = String(periodizationState.selectedMonthIndex);
+ui.periodizationMonthSelect.value = String(rendered.selectedMonthIndex);
 }
 if (ui.periodizationWindowLabel) {
-ui.periodizationWindowLabel.textContent = `${selectedMonthName} ${selectedYear}`;
+ui.periodizationWindowLabel.textContent = `${rendered.selectedMonthName} ${rendered.selectedYear}`;
 }
 if (ui.periodizationPrevMonthButton) {
-ui.periodizationPrevMonthButton.disabled = periodizationState.selectedMonthIndex === 0;
+ui.periodizationPrevMonthButton.disabled = rendered.prevDisabled;
 }
 if (ui.periodizationNextMonthButton) {
-ui.periodizationNextMonthButton.disabled = periodizationState.selectedMonthIndex === 11;
+ui.periodizationNextMonthButton.disabled = rendered.nextDisabled;
 }
-ui.periodizationBoard.innerHTML = `
-    <div class="periodization-board-grid">
-      <main class="periodization-week-stack">
-        ${weeks.map((week) => renderPeriodizationWeek(week, periodizationState.selectedMonthIndex)).join("")}
-      </main>
-    </div>
-    ${periodizationDayOverlayOpen ? renderPeriodizationDayOverlay(selectedDayValue) : ""}
-  `;
+ui.periodizationBoard.innerHTML = rendered.bodyHtml;
 if (wasPeriodizationOverlayOpen && periodizationDayOverlayOpen) {
 const overlayPanel = ui.periodizationBoard.querySelector(".periodization-day-overlay .periodization-day-panel");
 if (overlayPanel && Number.isFinite(previousPeriodizationOverlayScrollTop)) {

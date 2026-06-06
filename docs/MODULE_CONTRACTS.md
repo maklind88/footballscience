@@ -161,8 +161,8 @@ Database-primary migration priority: Schedule, Squad, Scouting, Medical Team, Ex
 - `data`: `football-periodization-v2`
 - `permissions`: platform/club/team admin, coach, and performance edit; other planning roles view as configured.
 - `events`: day updated, selected date changed, periodization opened from sessions.
-- `qa`: periodization day notes persist after refresh; `qa/periodization-module-contract.api.spec.mjs` locks the extracted state and merge boundary.
-- `migration`: current app-state remains active while state normalization and stale-tab merge helpers live in `src/modules/periodization`. Move to `periodization_days` after schedule and session foundations are stable; UI rendering/controller wiring remains in `app.js` until the next extraction pass.
+- `qa`: periodization day notes persist after refresh; `qa/periodization-module-contract.api.spec.mjs` locks the extracted state, renderer, and merge boundary.
+- `migration`: current app-state remains active while state normalization, stale-tab merge helpers, and rendering live in `src/modules/periodization`. Move to `periodization_days` after schedule and session foundations are stable; controller wiring remains in `app.js` until the next extraction pass.
 
 ## Sessions
 

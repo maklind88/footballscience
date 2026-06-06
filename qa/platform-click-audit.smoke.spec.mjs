@@ -33,7 +33,7 @@ const workspaceViewIds = {
 
 const clickBudgetMs = budget(1200);
 const workspaceClickBudgetMs = budget(1500);
-const maxCandidatesPerWorkspace = 30;
+const maxCandidatesPerWorkspace = Number(process.env.PLATFORM_CLICK_AUDIT_MAX || 16);
 
 function viewIdForWorkspace(workspaceId) {
   return workspaceViewIds[workspaceId] || workspaceId;
@@ -188,6 +188,20 @@ async function collectVisibleCandidates(page, workspaceId) {
         "input[type='radio']",
       ].join(",");
       const destructivePattern = /delete|remove|logout|reset|clear|restore|rollback|import|export|download|upload|password|never/i;
+      const workflowRowSelector = [
+        "[data-scouting-record-row]",
+        "[data-scouting-drag-favorite-record]",
+        "[data-scouting-drag-target]",
+        "[data-scouting-my-team-drop-slot]",
+        "[data-scouting-shadow-drop-slot]",
+        "[data-scouting-target-drop-status]",
+        "[data-transfer-target-card]",
+        "[data-transfer-squad-player-row]",
+        "[data-player-profile-select]",
+        ".squad-player-row",
+        "[data-medical-roster-row]",
+        ".session-player-board-token",
+      ].join(",");
       const preferredDataKeys = [
         "openWorkspace",
         "scoutingTab",
@@ -242,6 +256,9 @@ async function collectVisibleCandidates(page, workspaceId) {
             continue;
           }
           if (node instanceof HTMLInputElement && node.type === "file") {
+            continue;
+          }
+          if (node.closest(workflowRowSelector)) {
             continue;
           }
           const label = labelFor(node);

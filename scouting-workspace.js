@@ -611,7 +611,7 @@ function setScoutingActiveShadowBoard(boardId) {
   state.shadowXi.meta = cloneScoutingShadowMetaMap(board.meta);
   state.shadowXi.selectedSlotId = "";
   writeScoutingState({ syncShadowBoard: false });
-  renderScoutingWorkspace({ preserveFocus: true });
+  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: true });
 }
 function createScoutingShadowBoard(name = "") {
   const state = ensureScoutingState();
@@ -641,7 +641,7 @@ function createScoutingShadowBoard(name = "") {
   state.shadowXi.meta = {};
   state.shadowXi.selectedSlotId = "";
   writeScoutingState({ syncShadowBoard: false });
-  renderScoutingWorkspace({ preserveFocus: true });
+  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: true });
 }
 function setScoutingShadowBoardVisibility(boardId, visibility) {
   const state = ensureScoutingState();
@@ -660,7 +660,7 @@ function setScoutingShadowBoardVisibility(boardId, visibility) {
       : board
   );
   writeScoutingState({ syncShadowBoard: false });
-  renderScoutingWorkspace({ preserveFocus: true });
+  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: true });
 }
 
 function normalizeScoutingLeague(value = "") {
@@ -3235,7 +3235,7 @@ function scheduleScoutingDatabaseAutoLoad(delayMs = 80) {
     ) {
       return;
     }
-    queueScoutingDatabaseLoad(renderScoutingWorkspace);
+    queueScoutingDatabaseLoad(renderScoutingActiveTabSurfaceOrWorkspace);
   }, Math.max(0, Math.floor(Number(delayMs) || 0)));
 }
 function getScoutingMetricOptions() {
@@ -4061,9 +4061,11 @@ function renderScoutingMyTeamInfoPanel(player = {}, slot = null) {
     </aside>
   `;
 }
-function renderScoutingMyTeamSpiderButton(player = {}, slot = null) {
+function renderScoutingMyTeamSpiderButton(player = {}, slot = null, options = {}) {
+  const renderPanel = options.renderPanel !== false;
+  const isOpen = Boolean(options.open);
   const age = formatScoutingMyTeamAge(player.age) || "Age unknown";
-  const canMatchScoutingRecord = hasScoutingMyTeamCandidateRecordSources();
+  const canMatchScoutingRecord = renderPanel && hasScoutingMyTeamCandidateRecordSources();
   const linkedRecord = canMatchScoutingRecord ? findScoutingRecordForMyTeamPlayer(player) : null;
   const role = linkedRecord ? getScoutingRecordBestRoleLabel(linkedRecord) : getScoutingMyTeamBestRoleLine(player);
   const status = normalizeScoutingText(player.status, 80) || "Current squad";
@@ -4074,9 +4076,11 @@ function renderScoutingMyTeamSpiderButton(player = {}, slot = null) {
       ? "No scouting match yet"
       : "Open Database to match";
   return `
-    <details class="scouting-my-team-spider-menu" data-scouting-my-team-spider-shell="${escapeHtml(playerId)}" data-scouting-my-team-spider-linked="${escapeHtml(linkedRecord ? getScoutingRecordId(linkedRecord) : "")}">
+    <details class="scouting-my-team-spider-menu" data-scouting-my-team-spider-shell="${escapeHtml(playerId)}" data-scouting-my-team-spider-linked="${escapeHtml(linkedRecord ? getScoutingRecordId(linkedRecord) : "")}"${isOpen ? " open" : ""}>
       <summary aria-label="Open spider for ${escapeHtml(player.name || "player")}">◎</summary>
-      <div class="scouting-my-team-spider-panel">
+      ${
+        renderPanel
+          ? `<div class="scouting-my-team-spider-panel">
         <div>
           <span>Best profile fit</span>
           <strong>${escapeHtml(role || slot?.label || "No profile fit")}</strong>
@@ -4102,7 +4106,9 @@ function renderScoutingMyTeamSpiderButton(player = {}, slot = null) {
           <div><dt>Fit</dt><dd>${escapeHtml(role || "No role model")}</dd></div>
           <div><dt>Data</dt><dd>${escapeHtml(dataStatus)}</dd></div>
         </dl>
-      </div>
+      </div>`
+          : ""
+      }
     </details>
   `;
 }
@@ -4175,7 +4181,7 @@ function renderScoutingMyTeamPlayerCard(player, options = {}) {
   const metaLine = compact ? getScoutingMyTeamBestRoleLine(player) : getScoutingMyTeamMetaLine(player);
   const selected = !compact && scoutingMyTeamSelectedPlayerId === id;
   const menuMarkup = compact ? renderScoutingMyTeamPlayerMenu(player, slot) : "";
-  const spiderMarkup = compact ? renderScoutingMyTeamSpiderButton(player, slot) : "";
+  const spiderMarkup = compact ? renderScoutingMyTeamSpiderButton(player, slot, { renderPanel: false }) : "";
   return `
     <article class="scouting-my-team-player${compact ? " is-compact" : ""}${selected ? " is-selected" : ""}" draggable="${canEditScoutingWorkspace() ? "true" : "false"}" data-scouting-drag-my-team-player="${escapeHtml(id)}" data-select-scouting-my-team-player="${escapeHtml(id)}">
       <span class="scouting-my-team-avatar">${escapeHtml(getScoutingMyTeamInitials(player.name))}</span>
@@ -4229,7 +4235,7 @@ function assignScoutingMyTeamPlayerToSlot(playerId, slotId, beforePlayerId = "")
     scoutingMyTeamSelectedPlayerId = "";
   }
   writeScoutingState();
-  renderScoutingWorkspace({ preserveFocus: true });
+  refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
 }
 function removeScoutingMyTeamPlayerFromAllSlots(playerId = "") {
   if (!canEditScoutingWorkspace()) {
@@ -4254,7 +4260,7 @@ function removeScoutingMyTeamPlayerFromAllSlots(playerId = "") {
     scoutingMyTeamSelectedPlayerId = "";
   }
   writeScoutingState();
-  renderScoutingWorkspace({ preserveFocus: true });
+  refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
 }
 function removeScoutingMyTeamPlayerFromSlot(slotId, playerId = "") {
   if (!canEditScoutingWorkspace()) {
@@ -4279,7 +4285,7 @@ function removeScoutingMyTeamPlayerFromSlot(slotId, playerId = "") {
   }
   state.myTeam = myTeam;
   writeScoutingState();
-  renderScoutingWorkspace({ preserveFocus: true });
+  refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
 }
 function setScoutingMyTeamFormation(value) {
   if (!canEditScoutingWorkspace()) {
@@ -4291,7 +4297,7 @@ function setScoutingMyTeamFormation(value) {
   state.myTeam = myTeam;
   state.activeTab = "my-team";
   writeScoutingState();
-  renderScoutingWorkspace({ preserveFocus: true });
+  renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: true });
 }
 function setScoutingMyTeamSlotPitchPosition(slotId = "", xValue, yValue) {
   if (!canEditScoutingWorkspace()) {
@@ -4318,7 +4324,7 @@ function setScoutingMyTeamSlotPitchPosition(slotId = "", xValue, yValue) {
   };
   state.myTeam = myTeam;
   writeScoutingState();
-  renderScoutingWorkspace({ preserveFocus: true });
+  refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
 }
 function getScoutingTargetRecord(target) {
   return getScoutingRecordById(getScoutingTargetRecordId(target));
@@ -5099,7 +5105,8 @@ async function hydrateScoutingMyTeamSpiderShell(shell = null) {
   if (!shell || shell.dataset.scoutingMyTeamSpiderLoaded === "1") {
     return;
   }
-  if (normalizeScoutingText(shell.dataset.scoutingMyTeamSpiderLinked, 160)) {
+  const hasRenderedPanel = Boolean(shell.querySelector(".scouting-my-team-spider-panel"));
+  if (normalizeScoutingText(shell.dataset.scoutingMyTeamSpiderLinked, 160) && hasRenderedPanel) {
     shell.dataset.scoutingMyTeamSpiderLoaded = "1";
     return;
   }
@@ -5108,9 +5115,12 @@ async function hydrateScoutingMyTeamSpiderShell(shell = null) {
   if (!player) {
     return;
   }
+  const slotId = normalizeScoutingText(shell.closest("[data-my-team-slot-role]")?.dataset.myTeamSlotRole, 40);
+  const slot = scoutingShadowSlots.find((item) => item.id === slotId) || null;
   let record = findScoutingRecordForMyTeamPlayer(player);
   if (!record && !isScoutingDatabaseLoaded()) {
-    shell.dataset.scoutingMyTeamSpiderLoaded = "1";
+    shell.outerHTML = renderScoutingMyTeamSpiderButton(player, slot, { renderPanel: true, open: true });
+    bindScoutingMyTeamSpiderShells();
     return;
   }
   if (!record && typeof Worker === "function") {
@@ -5155,12 +5165,11 @@ async function hydrateScoutingMyTeamSpiderShell(shell = null) {
     }
   }
   if (!record) {
-    shell.dataset.scoutingMyTeamSpiderLoaded = "1";
+    shell.outerHTML = renderScoutingMyTeamSpiderButton(player, slot, { renderPanel: true, open: true });
+    bindScoutingMyTeamSpiderShells();
     return;
   }
-  const slotId = normalizeScoutingText(shell.closest("[data-my-team-slot-role]")?.dataset.myTeamSlotRole, 40);
-  const slot = scoutingShadowSlots.find((item) => item.id === slotId) || null;
-  shell.outerHTML = renderScoutingMyTeamSpiderButton(player, slot);
+  shell.outerHTML = renderScoutingMyTeamSpiderButton(player, slot, { renderPanel: true, open: true });
   bindScoutingMyTeamSpiderShells();
 }
 function bindScoutingMyTeamSpiderShells() {
@@ -5175,8 +5184,6 @@ function bindScoutingMyTeamSpiderShells() {
         hydrate();
       }
     });
-    shell.addEventListener("mouseenter", hydrate, { passive: true });
-    shell.addEventListener("focusin", hydrate, { passive: true });
     shell.dataset.scoutingMyTeamSpiderBound = "1";
   });
 }
@@ -9189,7 +9196,7 @@ function renderScoutingRoleSpiderSummary(record, template = [], metricRows = [])
 function renderScoutingTabButton(tab) {
   const active = ensureScoutingState().activeTab === tab.id;
   return `
-    <button type="button" class="scouting-tab${active ? " is-active" : ""}" data-scouting-tab="${escapeHtml(tab.id)}">
+    <button type="button" class="scouting-tab${active ? " is-active" : ""}" data-scouting-tab="${escapeHtml(tab.id)}" aria-selected="${active ? "true" : "false"}">
       ${escapeHtml(tab.label)}
     </button>
   `;
@@ -13476,14 +13483,14 @@ function selectScoutingShadowSlot(slotId) {
   state.shadowXi.selectedSlotId = slot.id;
   state.activeTab = "database";
   writeScoutingState({ syncCentral: false });
-  renderScoutingWorkspace();
+  renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: true });
 }
 function clearScoutingShadowSlotSelection() {
   const state = ensureScoutingState();
   preferredScoutingShadowSlotId = "";
   state.shadowXi.selectedSlotId = "";
   writeScoutingState({ syncCentral: false });
-  renderScoutingWorkspace({ preserveFocus: true });
+  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: true });
 }
 function setScoutingShadowFormation(value) {
   if (!canEditScoutingWorkspace()) {
@@ -13492,7 +13499,7 @@ function setScoutingShadowFormation(value) {
   const state = ensureScoutingState();
   state.shadowXi.formation = normalizeScoutingFormation(value);
   writeScoutingState();
-  renderScoutingWorkspace({ preserveFocus: true });
+  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: true });
 }
 function setScoutingShadowSlotPitchPosition(slotId = "", xValue, yValue) {
   if (!canEditScoutingWorkspace()) {
@@ -13521,7 +13528,7 @@ function setScoutingShadowSlotPitchPosition(slotId = "", xValue, yValue) {
     },
   };
   writeScoutingState();
-  renderScoutingWorkspace({ preserveFocus: true });
+  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: true });
 }
 function getScoutingFocusSnapshot() {
   const activeElement = document.activeElement;
@@ -16561,6 +16568,10 @@ function renderScoutingWorkspace(options = {}) {
   `;
   restoreScoutingDisclosureSnapshot(disclosureSnapshot);
   restoreScoutingFocus(focusSnapshot);
+  runScoutingPostRenderHooks(state);
+  restoreScoutingScrollSnapshot(scrollSnapshot);
+}
+function runScoutingPostRenderHooks(state = ensureScoutingState()) {
   bindScoutingDragAndDrop();
   bindScoutingMyTeamSpiderShells();
   if (state.activeTab === "database") {
@@ -16580,7 +16591,31 @@ function renderScoutingWorkspace(options = {}) {
   if (state.activeTab === "database") {
     scheduleScoutingDatabaseWorkerPrewarm(180);
   }
-  restoreScoutingScrollSnapshot(scrollSnapshot);
+}
+function syncScoutingTabButtonsDom(state = ensureScoutingState()) {
+  ui.scoutingWorkspace?.querySelectorAll("[data-scouting-tab]").forEach((button) => {
+    const active = normalizeScoutingText(button.dataset.scoutingTab, 80) === state.activeTab;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  });
+}
+function refreshScoutingActiveTabSurface(options = {}) {
+  if (!ui.scoutingWorkspace) {
+    return false;
+  }
+  const state = ensureScoutingState();
+  syncScoutingTabButtonsDom(state);
+  const updated = rerenderScoutingActiveContent({ preserveFocus: options.preserveFocus !== false });
+  if (!updated) {
+    return false;
+  }
+  refreshScoutingWorkspaceSummaryMetrics();
+  return true;
+}
+function renderScoutingActiveTabSurfaceOrWorkspace(options = {}) {
+  if (!refreshScoutingActiveTabSurface(options)) {
+    renderScoutingWorkspace(options);
+  }
 }
 function refreshScoutingWorkspaceSummaryMetrics() {
   if (!ui.scoutingWorkspace) {
@@ -16672,8 +16707,7 @@ function rerenderScoutingActiveContent(options = {}) {
   if (preserveOverlayState) {
     restoreScoutingFocus(focusSnapshot);
   }
-  bindScoutingDragAndDrop();
-  bindScoutingRecordMiniRadarShells();
+  runScoutingPostRenderHooks(ensureScoutingState());
   restoreScoutingScrollSnapshot(scrollSnapshot);
   return true;
 }
@@ -16681,7 +16715,7 @@ function refreshScoutingWorkspaceAfterLocalMutation(options = {}) {
   const state = ensureScoutingState();
   const preserveFocus = options.preserveFocus !== false;
   const activeProfileModal = Boolean(ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]"));
-  if (["database", "lists"].includes(state.activeTab) && !activeProfileModal) {
+  if (["database", "lists", "my-team", "shadow-xi", "comparison", "opposition", "reports"].includes(state.activeTab) && !activeProfileModal) {
     const updated = rerenderScoutingActiveContent({ preserveFocus });
     if (updated) {
       refreshScoutingWorkspaceSummaryMetrics();
@@ -16739,6 +16773,9 @@ function setScoutingActiveTab(tabId) {
   if (!scoutingTabs.some((tab) => tab.id === tabId)) {
     return;
   }
+  if (state.activeTab === tabId) {
+    return;
+  }
   state.activeTab = tabId;
   if (tabId === "shadow-xi") {
     preferredScoutingShadowSlotId = "";
@@ -16748,7 +16785,7 @@ function setScoutingActiveTab(tabId) {
     scoutingReportsExpandedPanels = new Set();
   }
   writeScoutingState({ syncCentral: false });
-  renderScoutingWorkspace();
+  renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: false });
 }
 function setScoutingDatabaseFilter(field, value) {
   const state = ensureScoutingState();
@@ -17498,7 +17535,7 @@ function createScoutingList(name) {
   const state = ensureScoutingState();
   state.lists = [cloneScoutingList({ name: listName, recordIds: [] }), ...state.lists];
   writeScoutingState();
-  renderScoutingWorkspace();
+  refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
 }
 function deleteScoutingList(listId) {
   if (!canEditScoutingWorkspace()) {
@@ -17744,8 +17781,8 @@ export function handleClick(event, context) {
   const retryDatabaseTrigger = event.target.closest("[data-scouting-retry-database]");
   if (retryDatabaseTrigger) {
     scoutingDatabaseError = "";
-    queueScoutingDatabaseLoad();
-    renderScoutingWorkspace();
+    queueScoutingDatabaseLoad(renderScoutingActiveTabSurfaceOrWorkspace);
+    renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: true });
     return;
   }
   const signInTrigger = event.target.closest("[data-scouting-sign-in]");
@@ -17757,8 +17794,8 @@ export function handleClick(event, context) {
   }
   const loadDatabaseTrigger = event.target.closest("[data-scouting-load-database]");
   if (loadDatabaseTrigger) {
-    queueScoutingDatabaseLoad();
-    renderScoutingWorkspace();
+    queueScoutingDatabaseLoad(renderScoutingActiveTabSurfaceOrWorkspace);
+    renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: true });
     return;
   }
   const refreshFootballScienceDbQualityTrigger = event.target.closest("[data-refresh-fsdb-quality]");
@@ -18201,7 +18238,7 @@ export function handleInput(event, context) {
   const favoriteSearchInput = event.target.closest("[data-scouting-shadow-favorite-search]");
   if (favoriteSearchInput) {
     scoutingShadowFavoriteSearchQuery = normalizeScoutingText(favoriteSearchInput.value, 80);
-    renderScoutingWorkspace({ preserveFocus: true });
+    renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: true });
     return;
   }
   const comparisonMetricSearchInput = event.target.closest("[data-scouting-comparison-metric-search]");
@@ -18246,17 +18283,17 @@ export function handleInput(event, context) {
   const filterField = filterInput.dataset.scoutingFilter;
   setScoutingDatabaseFilter(filterField, filterInput.value);
   if (filterField === "source") {
-    renderScoutingWorkspace({ preserveFocus: true });
+    renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: true });
     const nextFilters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
     if (nextFilters.source === "fsdb" && nextFilters.fsdbGenderSegment) {
-      queueScoutingDatabaseLoad(renderScoutingWorkspace);
+      queueScoutingDatabaseLoad(renderScoutingActiveTabSurfaceOrWorkspace);
     }
     return;
   }
   if (filterField === "fsdbGenderSegment") {
-    renderScoutingWorkspace({ preserveFocus: true });
+    renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: true });
     if (normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters).source === "fsdb") {
-      queueScoutingDatabaseLoad(renderScoutingWorkspace);
+      queueScoutingDatabaseLoad(renderScoutingActiveTabSurfaceOrWorkspace);
     }
     return;
   }
@@ -18434,17 +18471,17 @@ export function handleChange(event, context) {
   const filterField = filterInput.dataset.scoutingFilter;
   setScoutingDatabaseFilter(filterField, filterInput.value);
   if (filterField === "source") {
-    renderScoutingWorkspace({ preserveFocus: true });
+    renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: true });
     const nextFilters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
     if (nextFilters.source === "fsdb" && nextFilters.fsdbGenderSegment) {
-      queueScoutingDatabaseLoad(renderScoutingWorkspace);
+      queueScoutingDatabaseLoad(renderScoutingActiveTabSurfaceOrWorkspace);
     }
     return;
   }
   if (filterField === "fsdbGenderSegment") {
-    renderScoutingWorkspace({ preserveFocus: true });
+    renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: true });
     if (normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters).source === "fsdb") {
-      queueScoutingDatabaseLoad(renderScoutingWorkspace);
+      queueScoutingDatabaseLoad(renderScoutingActiveTabSurfaceOrWorkspace);
     }
     return;
   }

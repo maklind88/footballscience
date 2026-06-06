@@ -71,37 +71,52 @@ async function seedQaSessionPlannerTrainingSession(page, dateValue = qaSessionPl
 }
 
 async function dismissDashboardModal(page) {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const isOpen = await page.evaluate(() => {
+  const wasOpen = await page
+    .evaluate(() => {
       const modalRoot = document.getElementById("dashboardModalRoot");
-      return Boolean(modalRoot && !modalRoot.hidden);
-    });
+      if (!modalRoot || modalRoot.hidden) return false;
+      const closeButton = modalRoot.querySelector(
+        "button[data-dashboard-news-dismiss], button[data-dashboard-tutorial-never], button[data-dashboard-tutorial-save], button[data-dashboard-modal-close]"
+      );
+      closeButton?.click();
+      return true;
+    })
+    .catch(() => false);
 
-    if (isOpen) {
-      const closeButton = page
-        .locator(
-          "button[data-dashboard-news-dismiss], button[data-dashboard-tutorial-never], button[data-dashboard-tutorial-save], button[data-dashboard-modal-close]"
-        )
-        .first();
+  if (!wasOpen) return;
 
-      if ((await closeButton.count()) > 0) {
-        await closeButton.click({ force: true });
-      }
+  await expect
+    .poll(
+      () =>
+        page
+          .locator("#dashboardModalRoot")
+          .evaluate((node) => node.hidden)
+          .catch(() => true),
+      { timeout: 5_000 }
+    )
+    .toBe(true);
+}
 
-      await expect
-        .poll(
-          () =>
-            page
-              .locator("#dashboardModalRoot")
-              .evaluate((node) => node.hidden)
-              .catch(() => true),
-          { timeout: 5_000 }
-        )
-        .toBe(true);
-    }
-
-    await page.waitForTimeout(150);
-  }
+async function waitForPlatformShell(page) {
+  await page.waitForFunction(
+    () => {
+      const shell = document.getElementById("hubShell");
+      const loginScreen = document.getElementById("loginScreen");
+      return Boolean(
+        window.__footballScienceAppReady &&
+          document.body?.dataset.appReady === "true" &&
+          shell &&
+          !shell.hidden &&
+          loginScreen &&
+          loginScreen.hidden &&
+          !document.body.classList.contains("is-booting")
+      );
+    },
+    null,
+    { timeout: 20_000 }
+  );
+  await expect(page.locator("#hubShell")).toBeVisible();
+  await expect(page.locator("#loginScreen")).toBeHidden();
 }
 
 async function bootApp(page, options = {}) {
@@ -125,10 +140,8 @@ async function bootApp(page, options = {}) {
   });
 
   await page.goto(options.path || "/", { waitUntil: "domcontentloaded" });
-  await expect(page.locator("#hubShell")).toBeVisible();
-  await expect(page.locator("#loginScreen")).toBeHidden();
+  await waitForPlatformShell(page);
   await page.waitForFunction(() => Boolean(window.footballScienceDataSafety), null, { timeout: 15_000 });
-  await page.waitForTimeout(450);
   await dismissDashboardModal(page);
 
   return {
@@ -244,8 +257,7 @@ test("Refresh keeps the active workspace without flashing the login screen", asy
   });
 
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.locator("#hubShell")).toBeVisible();
-  await expect(page.locator("#loginScreen")).toBeHidden();
+  await waitForPlatformShell(page);
   await expect(page.locator("body")).toHaveAttribute("data-active-workspace", "schedule");
   await expect(page.locator('[data-workspace-view="schedule"].is-active')).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.__qaLoginFlashDuringBoot)).toBe(false);
@@ -274,8 +286,7 @@ test("Profile updates sync to the account menu and local dev keeps Mak signed in
   await expect(page.locator("#profileMenuPanelName")).toContainText(`QA Account ${stamp}`);
   await expect(page.locator("#profileMenuPanelClub")).toContainText(`Central Team ${stamp}`);
   await page.locator("#logoutButton").click();
-  await expect(page.locator("#hubShell")).toBeVisible();
-  await expect(page.locator("#loginScreen")).toBeHidden();
+  await waitForPlatformShell(page);
   await expect(page.locator("#coachName")).toContainText("Mak Lind");
 });
 
@@ -362,7 +373,7 @@ test("Schedule edits persist after refresh", async ({ page }) => {
   await expectStorageContains(page, scheduleKey, title);
 
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.locator("#hubShell")).toBeVisible();
+  await waitForPlatformShell(page);
   await openWorkspace(page, "schedule");
   await expectStorageContains(page, scheduleKey, title);
 });
@@ -940,7 +951,7 @@ test("Periodization derives match day tags from schedule while preserving manual
     .toEqual({ matchDay: "Match Day +1", hasManualTimestamp: true });
 
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.locator("#hubShell")).toBeVisible();
+  await waitForPlatformShell(page);
   await openWorkspace(page, "periodization");
   await expect(page.locator('[data-periodization-date="2026-05-08"] .periodization-day-md')).toHaveText("Match Day +1");
 });
@@ -971,7 +982,7 @@ test("Periodization day notes persist after refresh", async ({ page }) => {
     .toBe(true);
 
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.locator("#hubShell")).toBeVisible();
+  await waitForPlatformShell(page);
   await expectStorageContains(page, periodizationKey, note);
 });
 
@@ -1016,7 +1027,7 @@ test("Session Planner block edits persist after refresh", async ({ page }) => {
   await expectStorageContains(page, sessionPlannerKey, value);
 
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.locator("#hubShell")).toBeVisible();
+  await waitForPlatformShell(page);
   await expectStorageContains(page, sessionPlannerKey, value);
 });
 
@@ -1167,7 +1178,7 @@ test("Medical recommendation edits persist after refresh", async ({ page }) => {
   await expectStorageContains(page, medicalKey, comment);
 
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.locator("#hubShell")).toBeVisible();
+  await waitForPlatformShell(page);
   await expectStorageContains(page, medicalKey, comment);
 });
 
@@ -2190,7 +2201,7 @@ test("Squad removal keeps default roster players hidden after reload", async ({ 
     .toMatchObject({ isListed: false, isTombstoned: true });
 
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.locator("#hubShell")).toBeVisible();
+  await waitForPlatformShell(page);
   await dismissDashboardModal(page);
   await openWorkspace(page, "player-profiles");
   await expect(page.locator(`[data-player-profile-select="${removedPlayerId}"]`)).toHaveCount(0);
@@ -3085,7 +3096,7 @@ test("Squad profile modal autosaves edits and keeps its size across tabs", async
 
   await modal.locator("[data-player-profile-modal-close]").click();
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.locator("#hubShell")).toBeVisible();
+  await waitForPlatformShell(page);
   await expectStorageContains(page, playerProfilesKey, coachNote);
 });
 
@@ -3249,7 +3260,7 @@ test("Squad availability status is editable and Medical injury status overrides 
   );
 
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.locator("#hubShell")).toBeVisible();
+  await waitForPlatformShell(page);
   await openWorkspace(page, "player-profiles");
   await expect(
     page.locator(`[data-player-profile-select="${injuredPlayerId}"] .squad-status-pill`).first()

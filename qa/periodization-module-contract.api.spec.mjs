@@ -1,0 +1,166 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { expect, test } from "@playwright/test";
+import {
+  createPeriodizationStateAdapter,
+  normalizePeriodizationMultiValue,
+  periodizationFieldUpdatedAtKey,
+  periodizationMultiFields,
+  periodizationOptionLibrary,
+  periodizationYear,
+} from "../src/modules/periodization/index.mjs";
+
+const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
+
+function readProjectFile(path) {
+  return readFileSync(resolve(root, path), "utf8");
+}
+
+function formatDateValue(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateValue(dateValue) {
+  const [year, month, day] = String(dateValue).split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+test("Periodization extraction owns the state module file slots", () => {
+  [
+    "src/modules/periodization/index.mjs",
+    "src/modules/periodization/periodization-state.mjs",
+  ].forEach((path) => {
+    expect(existsSync(resolve(root, path)), `${path} should exist`).toBe(true);
+  });
+});
+
+test("Periodization app integration delegates state and merge helpers to the module", () => {
+  const app = readProjectFile("app.js");
+
+  expect(app).toContain("./src/modules/periodization/periodization-state.mjs");
+  expect(app).toContain("createPeriodizationStateAdapter");
+  expect(app).toContain("getPeriodizationDay: getPeriodizationDayFromState");
+  expect(app).not.toContain("const periodizationPhaseLibrary =");
+  expect(app).not.toContain("function normalizePeriodizationDay(day");
+  expect(app).not.toContain("function clonePeriodizationState(");
+  expect(app).not.toContain("function mergePeriodizationStatePreservingLocalUi(");
+});
+
+test("Periodization state keeps the current default calendar and option contract", () => {
+  const adapter = createPeriodizationStateAdapter({
+    formatDateValue,
+    parseDateValue,
+    importedVersion: "ncc-test",
+    importedDays: {},
+    today: new Date(2026, 4, 12),
+  });
+
+  expect(periodizationYear).toBe(2026);
+  expect(adapter.defaultPeriodizationState).toMatchObject({
+    selectedYear: 2026,
+    selectedMonthIndex: 4,
+    selectedDate: "2026-05-01",
+    importVersion: "ncc-test",
+  });
+  expect(periodizationOptionLibrary.matchPhases).toContain("In Possession");
+  expect(periodizationOptionLibrary.subPhases).toContain("Build Up");
+  expect(periodizationMultiFields.has("teamPrinciples")).toBe(true);
+  expect(normalizePeriodizationMultiValue(["Build Up", "Build Up", " High Press "])).toEqual(["Build Up", "High Press"]);
+});
+
+test("Periodization state derives match-day context from Schedule without overwriting manual match-day edits", () => {
+  const allScheduleEvents = [
+    { id: "training", date: "2026-05-08", type: "training", title: "Training" },
+    { id: "match", date: "2026-05-10", type: "match", title: "Match" },
+  ];
+  const adapter = createPeriodizationStateAdapter({
+    formatDateValue,
+    parseDateValue,
+    getScheduleEventsForDate: (dateValue) => allScheduleEvents.filter((event) => event.date === dateValue),
+    getAllScheduleEvents: () => allScheduleEvents,
+    getScheduleEventLabel: (type) => (type === "match" ? "Match" : "Training"),
+  });
+
+  const autoDay = adapter.getPeriodizationDay("2026-05-08", { days: {} });
+  expect(autoDay).toMatchObject({
+    daySchedule: "Training",
+    sessionType: "Training",
+    physicalLoad: "Moderate",
+    matchDay: "Match Day -2",
+  });
+
+  const manualDay = adapter.getPeriodizationDay("2026-05-08", {
+    days: {
+      "2026-05-08": {
+        daySchedule: "Training",
+        sessionType: "Training",
+        physicalLoad: "Moderate",
+        matchDay: "Match Day +1",
+        [periodizationFieldUpdatedAtKey]: {
+          matchDay: "2026-05-07T12:00:00.000Z",
+        },
+      },
+    },
+  });
+  expect(manualDay.matchDay).toBe("Match Day +1");
+});
+
+test("Periodization state merges stale local and central day edits by field timestamps", () => {
+  const adapter = createPeriodizationStateAdapter({
+    formatDateValue,
+    parseDateValue,
+    importedVersion: "ncc-test",
+  });
+  const localState = {
+    selectedYear: 2026,
+    selectedMonthIndex: 4,
+    selectedDate: "2026-05-09",
+    importVersion: "ncc-test",
+    days: {
+      "2026-05-09": {
+        daySchedule: "Training",
+        physicalLoad: "Low",
+        sessionNotes: "Fresh coach note",
+        [periodizationFieldUpdatedAtKey]: {
+          physicalLoad: "2026-05-07T14:00:00.000Z",
+          sessionNotes: "2026-05-07T16:00:00.000Z",
+        },
+      },
+    },
+  };
+  const centralState = {
+    selectedYear: 2026,
+    selectedMonthIndex: 3,
+    selectedDate: "2026-04-01",
+    importVersion: "ncc-test",
+    days: {
+      "2026-05-09": {
+        daySchedule: "Training",
+        physicalLoad: "High",
+        sessionNotes: "Older central note",
+        [periodizationFieldUpdatedAtKey]: {
+          physicalLoad: "2026-05-07T15:00:00.000Z",
+          sessionNotes: "2026-05-07T13:00:00.000Z",
+        },
+      },
+      "2026-05-10": {
+        daySchedule: "Recovery",
+        sessionNotes: "Central recovery",
+      },
+    },
+  };
+
+  const merged = JSON.parse(
+    adapter.mergePeriodizationStatePreservingLocalUi(JSON.stringify(localState), JSON.stringify(centralState))
+  );
+
+  expect(merged.selectedMonthIndex).toBe(4);
+  expect(merged.selectedDate).toBe("2026-05-09");
+  expect(merged.days["2026-05-09"].physicalLoad).toBe("High");
+  expect(merged.days["2026-05-09"].sessionNotes).toBe("Fresh coach note");
+  expect(merged.days["2026-05-10"].sessionNotes).toBe("Central recovery");
+});

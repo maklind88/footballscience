@@ -75,6 +75,8 @@ Purpose: shared coach board for macrocycle, microcycle, and training day plannin
 
 Important behavior:
 
+- State normalization and stale-tab merge helpers live in `src/modules/periodization`.
+- Rendering and controller wiring still live in `app.js` until the next extraction pass.
 - Month view starts from first Monday in the month and ends on final Sunday of the last week.
 - Week view should be visually clean and symmetrical.
 - Day card priority order:

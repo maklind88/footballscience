@@ -64,7 +64,7 @@ export const platformModuleImplementationStages = Object.freeze({
   gameplan: "lazy-module",
   "exercise-library": "legacy-monolith",
   "session-planner": "legacy-monolith",
-  periodization: "legacy-monolith",
+  periodization: "partial-extraction",
   "medical-team": "hybrid-secured-module",
   "player-profiles": "hybrid-adapter",
   "football-science-db": "server-first-foundation",

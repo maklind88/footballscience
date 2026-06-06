@@ -19,6 +19,18 @@ import {
   scheduleEventTypes,
   scheduleMainEventPriority,
 } from "./src/modules/schedule/schedule-state.mjs";
+import {
+  createPeriodizationStateAdapter,
+  periodizationFieldUpdatedAtKey,
+  periodizationMiniGamePrinciplesBySubPhase,
+  periodizationMonthNames,
+  periodizationMultiFields,
+  periodizationOptionLibrary,
+  periodizationPhaseLibrary,
+  periodizationTeamPrinciplesBySubPhase,
+  periodizationTrackedFields,
+  periodizationYear,
+} from "./src/modules/periodization/periodization-state.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
@@ -2674,263 +2686,33 @@ const playerProfileChangeFieldDefinitions = [
 { key: "attributeRatings.physical", label: "Physical rating" },
 { key: "attributeRatings.mental", label: "Mental rating" },
 ];
-const periodizationMonthNames = [
-"January",
-"February",
-"March",
-"April",
-"May",
-"June",
-"July",
-"August",
-"September",
-"October",
-"November",
-"December",
-];
-const periodizationYear = 2026;
-const importedNccPeriodizationVersion = win.__importedNccPeriodizationVersion || "";
-const importedNccPeriodizationDays =
+const periodizationStateAdapter = createPeriodizationStateAdapter({
+formatDateValue: formatScheduleDateValue,
+parseDateValue: parseScheduleDateValue,
+importedVersion: win.__importedNccPeriodizationVersion || "",
+importedDays:
 win.__importedNccPeriodizationDays && typeof win.__importedNccPeriodizationDays === "object"
 ? win.__importedNccPeriodizationDays
-: {};
-const todayPeriodizationDate = new Date();
-const defaultPeriodizationState = {
-selectedYear: periodizationYear,
-selectedMonthIndex: todayPeriodizationDate.getMonth(),
-selectedDate: formatScheduleDateValue(new Date(periodizationYear, todayPeriodizationDate.getMonth(), 1)),
-importVersion: importedNccPeriodizationVersion,
-days: importedNccPeriodizationDays,
-};
-const periodizationPhaseLibrary = {
-"In Possession": ["Build with GK", "Build Up", "Creating Phase", "Finishing Phase"],
-"Out of Possession": ["High Press vs GK", "High Press", "Block Defending", "Box Defending"],
-"Offensive Transition": ["Offensive Transition"],
-"Defensive Transition": ["Defensive Transition"],
-"Set Pieces": [
-"Goalkicks (Off)",
-"Goalkicks (Def)",
-"Offensive Set Pieces",
-"Defensive Set Pieces",
-"Throw Ins (Off)",
-"Throw Ins (Def)",
-],
-};
-const periodizationTeamPrinciplesBySubPhase = {
-"Build with GK": [
-"Create time and space with positioning",
-"Break the first line of pressure with control & escape high pressure together",
-'Create numbers around the ball; "lock" the opponent to open space',
-],
-"Build Up": [
-"Exploit the space created by the opponent's press",
-"Break pressure with control to progress play",
-"Progress quickly once pressure is broken",
-],
-"Creating Phase": [
-"Disorganise the opponent to open spaces",
-"Create and exploit advantage before the final action",
-'"Lock" defenders with positioning to free a teammate / open space',
-],
-"Finishing Phase": [
-"Attack the box with purpose and timing",
-"Create number and attack the box",
-"Balance the attack to sustain pressure (rest-defence)",
-],
-"Offensive Set Pieces": [
-"Create a clear scoring threat from set pieces",
-"Attack key zones with timing and purpose",
-"Balance for second balls to win ball",
-],
-"Defensive Set Pieces": [
-"Protect goal by prioritize highest-threat zones first",
-"Win the first duell and secure second balls",
-"Clear with control to planned spaces.",
-],
-"Throw Ins (Off & Def)": [
-"Create a clean first action (keep/advance)",
-"Exploit overloads and third-player options",
-"Be ready for transition (Balans behind attack).",
-],
-"High Press vs GK & High Press": [
-"Control the opponent's direction of play & force predictable areas",
-"Protect the centre first and then win the ball",
-"Defend collectively and stay compact",
-],
-"Block Defending": [
-"Protect lines and defend together",
-"Control the opponent around the ball",
-"Win ball and transition",
-],
-"Box Defending": [
-"Protect the goal",
-"Control central and high-value spaces in the box",
-"Defend the ball aggressively and with determination",
-],
-"Offensive Transition": [
-"Attack immediately after regaining the ball",
-"Progress forward with speed and purpose",
-"Exploit numerical advantage and weak-side space",
-],
-"Defensive Transition": [
-"Regain control: win it back or force predictable play",
-"Delay the opponent to allow recovery",
-"Protect the goal/centre immediately after losing the ball",
-],
-};
-const periodizationMiniGamePrinciplesBySubPhase = {
-"Build with GK": [
-"Drive past press",
-"1v1 (Weak side)",
-"Follow pressure",
-"Press-radius (Green, yellow, red)",
-"Counter movement (in Width)",
-"BUP + 3 passing lines",
-"Exit: Highest point",
-"Change corridor",
-"Pass N Move",
-],
-"Build Up": [
-"LRT (Left, Right, Through)",
-"Drive past press",
-"Numerical advantage (direct opponent)",
-"Provoke press",
-"1v1 (Away from toes)",
-"Change corridor",
-"FT3 (Find the Third)",
-"Close relations (Meters on quality)",
-"Follow pressure",
-"Press-radius",
-"BU Player in 2.5 corridors",
-"Pass N Move",
-"Curled balls into Zone 3",
-"Countermovement (in height / move with ball)",
-"SOP with Missile",
-],
-"Creating Phase": [
-"Ask question",
-"Direct opponent",
-"Change corridor",
-"Split / Double",
-"Highest point",
-"Overlap / Underlap",
-"Link player",
-"Air Gate",
-"Countermovement (in diagonals)",
-"SOP with Rytm",
-],
-"Finishing Phase": [
-"1v1",
-"Play n Go",
-"Find a Gate (Attack the same gate at the same time)",
-"Find sweet spot",
-"Timead run vs Backline (Cut offside line when ball leaves foot).",
-"Link player",
-"Distance shooting / uncomfortable shots",
-"Early crosses",
-"Passing zone - Cutfront (Angle forward towards second post)",
-"Passing zone - Cutback (Second post or pentalty spot)",
-"Timed runs into shooting zone",
-"Blinside run (Countermovement, away & arrive with ball)",
-"WTBBQ",
-"BBA (Balance Behind Attack) + 1 > Offensive marking",
-],
-"High Press vs GK & High Press": [
-"Ballside",
-"Trigger",
-"Press (within press-radius)",
-"1v1 duels > 1 touch smash",
-"Shift",
-"2nd ball positioning",
-"Zero player in +1",
-"Break pass",
-],
-"Block Defending": [
-"Prioritised areas (Show outside)",
-"Keep ball in front of lines",
-"Central line (Nearest central player)",
-"Press and smash within red press-radius zone.",
-"Cover lines by pressing in arrows or checkmarks",
-"Left & Right Connector",
-"Pump up the backline",
-"Shift over (Defend in 2,5-3 corridors)",
-"Defend Overlap/Underlap & Play N Go",
-],
-"Box Defending": [
-"Cover prioritised spaces",
-"Zonal marking",
-"Open body positioning",
-"Clearance into zones (Attack the ball)",
-"2-ball orientation",
-],
-"Offensive Transition": [
-"Direct transition to goal",
-"Run past ball holder",
-"Diagonal from winning area",
-"Change corridor",
-"Max sprint",
-"Numerical advantage ( 2v1, 3v2, 4v3)",
-],
-"Defensive Transition": [
-"WTTBQ (Immediate counter-press)",
-"Delay (stop progression)",
-"Protect central",
-"Lock in and squeeze",
-"Win it or force predictable play",
-],
-"Offensive Set Pieces": [
-"Delivery quality",
-"Attack zones with timing (arrive when ball arrive)",
-"Betweeen ball and direct opponent",
-"Screens / blocks",
-"Second ball positioning (between duel and direct opponent)",
-],
-"Defensive Set Pieces": [
-"Zonal + marking responsibilities",
-"First contact (human shield), then attack the ball.",
-"Second ball positioning (between duel and direct opponent)",
-"Clearance zones",
-"Counter attack on weak side first and then change corridors.",
-],
-"Throw Ins (Off)": ["Quick restart", "Create overload", "FT3 (Find the Third)", "Change corridor", "Rest-defence"],
-"Throw Ins (Def)": [
-"Zonal + man responsibilities ballside",
-"Duels 1v1",
-"Infront/behind targets",
-"Defend in 2,5 corridors.",
-],
-"Goalkicks (Off)": [
-"1. Speed (Ready to restart quickly, early positioning and readiness)",
-"2. Short structure (Orginasied Build Up With GK)",
-"3. Long structure (Play into defind area, players around the ball).",
-],
-};
-const periodizationOptionLibrary = {
-seasonPhase: ["Pre Season", "Competition", "Playoffs", "Transition", "Off Season"],
-daySchedule: ["Training", "Training + Travel", "Match", "Travel Day", "Recovery", "Meeting", "Off"],
-matchDay: ["Match Day -5", "Match Day -4", "Match Day -3", "Match Day -2", "Match Day -1", "Match Day", "Match Day +1", "Match Day +2", "Match Day +3"],
-sessionType: ["Training", "Training + Lift", "Training / IDP", "Match", "Recovery", "Activation", "Unit", "Off"],
-physicalLoad: ["Off", "Low", "Moderate", "Hard", "Match"],
-pitchSize: ["SSG", "MSG", "BSG", "LSG", "Half Pitch", "Full Pitch", "Final Third", "Gym / Recovery"],
-preTrainingVideo: ["None", "Match Review", "Training Prep", "Scout", "Match Review + Scout"],
-psychologicalFocus: ["Confidence", "Clarity", "Competition", "Connection", "Resilience", "Recovery"],
-gkFocus: ["Distribution", "Build with GK", "Shot Stopping", "Crosses", "Sweeper Actions", "Set Pieces", "Recovery"],
-block: [
-"Activators",
-"A - Rondos",
-"G - Regular Games (9v9 to 11v11)",
-"G - Regular Games (6v6 to 8v8)",
-"G - Duel Games (1v1 to 2v2)",
-"G - Constrained/Situational Games",
-"G - Transition Wave Games",
-"RS - 3v3 to 6v6 - Numbers even or mixed",
-"RS - 7v7 to 11v11 - Numbers even or mixed",
-],
-matchPhases: Object.keys(periodizationPhaseLibrary),
-subPhases: Object.values(periodizationPhaseLibrary).flat(),
-teamPrinciples: Object.values(periodizationTeamPrinciplesBySubPhase).flat(),
-miniGamePrinciples: Object.values(periodizationMiniGamePrinciplesBySubPhase).flat(),
-};
+: {},
+getScheduleEventsForDate,
+getAllScheduleEvents: () => {
+if (!scheduleState) {
+scheduleState = readScheduleState();
+}
+return scheduleState?.events || [];
+},
+getScheduleEventLabel: (type) => scheduleEventTypes[type]?.label ?? "Training",
+});
+const {
+clonePeriodizationState,
+defaultPeriodizationState,
+getPeriodizationDay: getPeriodizationDayFromState,
+isDateValueInYear,
+isPeriodizationOffDay,
+mergePeriodizationStatePreservingLocalUi,
+normalizePeriodizationDay,
+normalizePeriodizationMultiValue,
+} = periodizationStateAdapter;
 function getPlayerMagnetLabel(player) {
 if (!player) {
 return "";
@@ -6135,120 +5917,9 @@ try {
 win.localStorage.setItem(workspaceLastActiveStorageKey, safeWorkspaceId);
 } catch {}
 }
-const periodizationFieldUpdatedAtKey = "fieldUpdatedAt";
-const periodizationScalarFields = Object.freeze("seasonPhase|daySchedule|matchDay|sessionType|physicalLoad|pitchSize|preTrainingVideo|preTrainingNotes|psychologicalFocus|psychologicalNotes|mainFocus|gkFocus|warmUp|block1|block2|block3|block4|sessionNotes|sessionPlanLink|sessionVideoLink|sessionGpsReportLink".split("|"));
-const periodizationMultiFields = new Set("matchPhases|subPhases|teamPrinciples|miniGamePrinciples".split("|"));
-const periodizationTrackedFields = new Set([...periodizationScalarFields, ...periodizationMultiFields]);
 let periodizationMultiSelectOpenField = "";
-function isDateValueInYear(dateValue, year) {
-if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateValue))) {
-return false;
-}
-const date = parseScheduleDateValue(dateValue);
-return date.getFullYear() === year && formatScheduleDateValue(date) === dateValue;
-}
-function normalizePeriodizationMultiValue(value) {
-const rawValues = Array.isArray(value) ? value : String(value ?? "").split("|");
-return [...new Set(rawValues.map((item) => String(item).trim()).filter(Boolean))];
-}
-function normalizePeriodizationDay(day = {}) {
-const normalized = {};
-periodizationScalarFields.forEach((key) => {
-const value = String(day[key] ?? "").trim();
-normalized[key] = key === "matchDay" && value.toUpperCase() === "N/A" ? "" : value;
-});
-periodizationMultiFields.forEach((key) => {
-normalized[key] = normalizePeriodizationMultiValue(day[key]);
-});
-const fieldUpdatedAt = {};
-if (day?.[periodizationFieldUpdatedAtKey] && typeof day[periodizationFieldUpdatedAtKey] === "object") {
-Object.entries(day[periodizationFieldUpdatedAtKey]).forEach(([key, value]) => {
-if (!periodizationTrackedFields.has(key)) {
-return;
-}
-const timestamp = new Date(value || 0).getTime();
-if (Number.isFinite(timestamp) && timestamp > 0) {
-fieldUpdatedAt[key] = new Date(timestamp).toISOString();
-}
-});
-}
-if (Object.keys(fieldUpdatedAt).length) {
-normalized[periodizationFieldUpdatedAtKey] = fieldUpdatedAt;
-}
-return normalized;
-}
-function getPeriodizationAutoMd(dateValue) {
-if (!scheduleState) {
-scheduleState = readScheduleState();
-}
-const targetDay = Date.parse(`${dateValue}T00:00:00Z`) / 864e5;
-let best = 9;
-for (const event of scheduleState.events || []) {
-const offset = event.type === "match" ? targetDay - Date.parse(`${event.date}T00:00:00Z`) / 864e5 : 9;
-if (offset >= -5 && offset <= 3 && (Math.abs(offset) < Math.abs(best) || (Math.abs(offset) === Math.abs(best) && offset < best))) {
-best = offset;
-}
-}
-return best === 9 ? "" : `Match Day${best ? ` ${best > 0 ? "+" : ""}${best}` : ""}`;
-}
-function getPeriodizationScheduleDefaults(dateValue) {
-const events = getScheduleEventsForDate(dateValue);
-const mainEvent = events[0] ?? null;
-if (!mainEvent) {
-return {
-daySchedule: "Off",
-sessionType: "Off",
-physicalLoad: "Off",
-pitchSize: "",
-};
-}
-const type = mainEvent.type;
-const label = scheduleEventTypes[type]?.label ?? "Training";
-return {
-daySchedule: type === "travel" ? "Travel Day" : label,
-sessionType:
-type === "training"
-? "Training"
-: type === "match"
-? "Match"
-: type === "recovery"
-? "Recovery"
-: type === "off"
-? "Off"
-: "",
-physicalLoad:
-type === "match"
-? "Match"
-: type === "training"
-? "Moderate"
-: type === "recovery"
-? "Low"
-: type === "off"
-? "Off"
-: "",
-};
-}
-function getDefaultPeriodizationDay(dateValue) {
-return normalizePeriodizationDay({
-seasonPhase: "Competition",
-matchDay: "",
-...getPeriodizationScheduleDefaults(dateValue),
-});
-}
 function getPeriodizationDay(dateValue) {
-const savedDay = periodizationState?.days?.[dateValue] ?? {};
-const day = normalizePeriodizationDay({
-...getDefaultPeriodizationDay(dateValue),
-...savedDay,
-});
-if (getPeriodizationFieldUpdatedAtMs(savedDay, "matchDay")) {
-return day;
-}
-if (isPeriodizationOffDay(day)) {
-return { ...day, matchDay: "" };
-}
-const autoMatchDay = getPeriodizationAutoMd(dateValue);
-return autoMatchDay ? { ...day, matchDay: autoMatchDay } : day;
+return getPeriodizationDayFromState(dateValue, periodizationState);
 }
 function ensurePeriodizationState() {
 if (!periodizationState) {
@@ -6296,150 +5967,6 @@ periodizationDayOverlayOpen = shouldOpenOverlay;
 periodizationDayOverlayMode = safeOverlayMode;
 writePeriodizationState({ syncCentral: false });
 renderPeriodizationWorkspace();
-}
-function mergePeriodizationImportedDays(days = {}) {
-const mergedDays = {};
-const dateValues = new Set([
-...Object.keys(importedNccPeriodizationDays),
-...Object.keys(days || {}),
-]);
-dateValues.forEach((dateValue) => {
-if (!isDateValueInYear(dateValue, periodizationYear)) {
-return;
-}
-const importedDay = normalizePeriodizationDay(importedNccPeriodizationDays[dateValue] || {});
-const savedDay = normalizePeriodizationDay(days?.[dateValue] || {});
-const mergedDay = { ...importedDay };
-Object.entries(savedDay).forEach(([key, value]) => {
-if (Array.isArray(value)) {
-if (value.length) {
-mergedDay[key] = value;
-}
-return;
-}
-if (String(value ?? "").trim()) {
-mergedDay[key] = value;
-}
-});
-mergedDays[dateValue] = normalizePeriodizationDay(mergedDay);
-});
-return mergedDays;
-}
-function clonePeriodizationState(source = defaultPeriodizationState) {
-const rawMonthIndex = Number(source.selectedMonthIndex);
-const selectedMonthIndex = Number.isFinite(rawMonthIndex)
-? Math.min(11, Math.max(0, rawMonthIndex))
-: defaultPeriodizationState.selectedMonthIndex;
-const fallbackDate = formatScheduleDateValue(new Date(periodizationYear, selectedMonthIndex, 1));
-const selectedDate = isDateValueInYear(source.selectedDate, periodizationYear)
-? source.selectedDate
-: fallbackDate;
-const importVersion = String(source.importVersion || "");
-const days = {};
-if (source.days && typeof source.days === "object") {
-Object.entries(source.days).forEach(([dateValue, day]) => {
-if (isDateValueInYear(dateValue, periodizationYear) && day && typeof day === "object") {
-days[dateValue] = normalizePeriodizationDay(day);
-}
-});
-}
-const mergedDays = importVersion === importedNccPeriodizationVersion
-? days
-: mergePeriodizationImportedDays(days);
-return {
-selectedYear: periodizationYear,
-selectedMonthIndex,
-selectedDate,
-importVersion:
-importVersion === importedNccPeriodizationVersion
-? importVersion
-: importedNccPeriodizationVersion,
-days: mergedDays,
-};
-}
-function mergePeriodizationStatePreservingLocalUi(localValue, centralValue) {
-let localState = null;
-let centralStateValue = null;
-try {
-localState = localValue ? JSON.parse(localValue) : null;
-centralStateValue = centralValue ? JSON.parse(centralValue) : null;
-} catch {
-return centralValue;
-}
-if (!localState || typeof localState !== "object" || !centralStateValue || typeof centralStateValue !== "object") {
-return centralValue;
-}
-const mergedDays = mergePeriodizationDayMapPreservingLocalEdits(localState.days, centralStateValue.days);
-return JSON.stringify({
-...centralStateValue,
-days: mergedDays,
-selectedYear: localState.selectedYear ?? centralStateValue.selectedYear,
-selectedMonthIndex: localState.selectedMonthIndex ?? centralStateValue.selectedMonthIndex,
-selectedDate: localState.selectedDate ?? centralStateValue.selectedDate,
-});
-}
-function getPeriodizationFieldUpdatedAtMs(day = {}, field = "") {
-const timestamp = new Date(day?.[periodizationFieldUpdatedAtKey]?.[field] || 0).getTime();
-return Number.isFinite(timestamp) ? timestamp : 0;
-}
-function isEmptyPeriodizationMergeValue(value) {
-if (Array.isArray(value)) {
-return value.length === 0;
-}
-return String(value ?? "").trim() === "";
-}
-function mergePeriodizationDayPreservingLocalEdits(localDay = {}, centralDay = {}) {
-const local = normalizePeriodizationDay(localDay);
-const central = normalizePeriodizationDay(centralDay);
-const merged = { ...central };
-const mergedMeta = {
-...(central[periodizationFieldUpdatedAtKey] || {}),
-...(local[periodizationFieldUpdatedAtKey] || {}),
-};
-periodizationTrackedFields.forEach((field) => {
-const localTimestamp = getPeriodizationFieldUpdatedAtMs(local, field);
-const centralTimestamp = getPeriodizationFieldUpdatedAtMs(central, field);
-if (localTimestamp && (!centralTimestamp || localTimestamp >= centralTimestamp)) {
-merged[field] = Array.isArray(local[field]) ? [...local[field]] : local[field];
-mergedMeta[field] = new Date(localTimestamp).toISOString();
-return;
-}
-if (centralTimestamp && (!localTimestamp || centralTimestamp > localTimestamp)) {
-merged[field] = Array.isArray(central[field]) ? [...central[field]] : central[field];
-mergedMeta[field] = new Date(centralTimestamp).toISOString();
-return;
-}
-if (isEmptyPeriodizationMergeValue(central[field]) && !isEmptyPeriodizationMergeValue(local[field])) {
-merged[field] = Array.isArray(local[field]) ? [...local[field]] : local[field];
-}
-});
-if (Object.keys(mergedMeta).length) {
-merged[periodizationFieldUpdatedAtKey] = mergedMeta;
-}
-return normalizePeriodizationDay(merged);
-}
-function mergePeriodizationDayMapPreservingLocalEdits(localDays = {}, centralDays = {}) {
-const mergedDays = {};
-const dateValues = new Set([
-...Object.keys(centralDays || {}),
-...Object.keys(localDays || {}),
-]);
-dateValues.forEach((dateValue) => {
-const centralDay = centralDays?.[dateValue];
-const localDay = localDays?.[dateValue];
-if (centralDay && localDay) {
-mergedDays[dateValue] = mergePeriodizationDayPreservingLocalEdits(localDay, centralDay);
-return;
-}
-if (centralDay) {
-mergedDays[dateValue] = normalizePeriodizationDay(centralDay);
-return;
-}
-if (localDay) {
-mergedDays[dateValue] = normalizePeriodizationDay(localDay);
-}
-});
-return mergedDays;
 }
 function setPeriodizationStateStorageValue(state = periodizationState, options = {}) {
 const shouldSyncCentral = options.syncCentral !== false;
@@ -32626,12 +32153,6 @@ if (key.includes("moderate")) return "moderate";
 if (key.includes("low")) return "low";
 if (key.includes("off")) return "off";
 return "neutral";
-}
-function isPeriodizationOffDay(day) {
-const schedule = String(day?.daySchedule || "").toLowerCase();
-const sessionType = String(day?.sessionType || "").toLowerCase();
-const load = String(day?.physicalLoad || "").toLowerCase();
-return schedule.includes("off") || sessionType.includes("off") || load.includes("off");
 }
 function getPeriodizationDayScheduleLabel(day) {
 if (isPeriodizationOffDay(day)) {

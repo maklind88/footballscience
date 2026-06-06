@@ -35,6 +35,7 @@ test("legacy modules cannot be marked extracted before adapters and tests exist"
 
   expect(moduleStandardRegistry.require("session-planner").migrationStatus).toBe(moduleMigrationStatuses.legacy);
   expect(moduleStandardRegistry.require("schedule").migrationStatus).toBe(moduleMigrationStatuses.partialExtraction);
+  expect(moduleStandardRegistry.require("periodization").migrationStatus).toBe(moduleMigrationStatuses.partialExtraction);
   expect(moduleStandardRegistry.require("scouting").migrationStatus).toBe(moduleMigrationStatuses.partialExtraction);
 });
 

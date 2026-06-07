@@ -193,11 +193,12 @@ export const moduleStandardContracts = Object.freeze([
       "src/modules/periodization/index.mjs",
       "src/modules/periodization/periodization-state.mjs",
       "src/modules/periodization/periodization-renderer.mjs",
+      "src/modules/periodization/periodization-controller.mjs",
     ],
     testFiles: ["qa/critical-flows.smoke.spec.mjs", "qa/periodization-module-contract.api.spec.mjs"],
     extractionOrder: 8,
     riskLevel: "medium",
-    notes: "State, merge helpers, and rendering have moved into src/modules/periodization while app.js remains the controller integration shell.",
+    notes: "State, merge helpers, rendering, and workspace controller bindings have moved into src/modules/periodization while app.js remains the integration shell.",
   }),
   createModuleStandardContract({
     id: "player-profiles",

@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import {
+  createPeriodizationWorkspaceController,
   createPeriodizationRenderer,
   createPeriodizationStateAdapter,
   normalizePeriodizationMultiValue,
@@ -38,25 +39,41 @@ function escapeHtml(value) {
     .replace(/"/g, "&quot;");
 }
 
-test("Periodization extraction owns the state and renderer module file slots", () => {
+function createClosestTarget(selector, dataset = {}, extra = {}) {
+  const target = {
+    dataset,
+    tagName: extra.tagName || "BUTTON",
+    value: extra.value || "",
+    closest: (query) => (query === selector ? target : null),
+    matches: (query) => Boolean(extra.matches?.includes?.(query)),
+  };
+  return target;
+}
+
+test("Periodization extraction owns the state, renderer, and controller module file slots", () => {
   [
     "src/modules/periodization/index.mjs",
     "src/modules/periodization/periodization-state.mjs",
     "src/modules/periodization/periodization-renderer.mjs",
+    "src/modules/periodization/periodization-controller.mjs",
   ].forEach((path) => {
     expect(existsSync(resolve(root, path)), `${path} should exist`).toBe(true);
   });
 });
 
-test("Periodization app integration delegates state, renderer, and merge helpers to the module", () => {
+test("Periodization app integration delegates state, renderer, controller, and merge helpers to the module", () => {
   const app = readProjectFile("app.js");
 
   expect(app).toContain("./src/modules/periodization/periodization-state.mjs");
   expect(app).toContain("./src/modules/periodization/periodization-renderer.mjs");
+  expect(app).toContain("./src/modules/periodization/periodization-controller.mjs");
   expect(app).toContain("createPeriodizationStateAdapter");
   expect(app).toContain("createPeriodizationRenderer");
+  expect(app).toContain("createPeriodizationWorkspaceController");
   expect(app).toContain("getPeriodizationDay: getPeriodizationDayFromState");
   expect(app).toContain("periodizationRenderer.renderWorkspace");
+  expect(app).toContain("periodizationWorkspaceController.bind()");
+  expect(app).not.toContain('ui.periodizationBoard?.addEventListener("click"');
   expect(app).not.toContain("function renderPeriodizationDayCard(");
   expect(app).not.toContain("function renderPeriodizationWeek(");
   expect(app).not.toContain("function renderPeriodizationDayViewPanel(");
@@ -64,6 +81,66 @@ test("Periodization app integration delegates state, renderer, and merge helpers
   expect(app).not.toContain("function normalizePeriodizationDay(day");
   expect(app).not.toContain("function clonePeriodizationState(");
   expect(app).not.toContain("function mergePeriodizationStatePreservingLocalUi(");
+});
+
+test("Periodization controller delegates board clicks and field changes through the module boundary", () => {
+  const calls = [];
+  const registered = [];
+  const makeElement = (id) => ({
+    addEventListener: (type) => registered.push(`${id}:${type}`),
+  });
+  const controller = createPeriodizationWorkspaceController({
+    ui: {
+      periodizationTodayButton: makeElement("today"),
+      periodizationPrevMonthButton: makeElement("prev"),
+      periodizationNextMonthButton: makeElement("next"),
+      periodizationMonthSelect: makeElement("month"),
+      periodizationPickerGrid: makeElement("picker"),
+      periodizationBoard: makeElement("board"),
+    },
+    getState: () => ({ selectedDate: "2026-05-08" }),
+    canEdit: () => true,
+    selectDate: (...args) => calls.push(["selectDate", ...args]),
+    writeDay: (...args) => calls.push(["writeDay", ...args]),
+    getCustomFieldValue: () => ["Progress quickly once pressure is broken"],
+    getMultiFieldValue: () => ["In Possession"],
+    isMultiField: (fieldKey) => fieldKey === "matchPhases",
+    setMultiSelectOpenField: (fieldKey) => calls.push(["setOpen", fieldKey]),
+    getMultiSelectOpenField: () => "",
+    refreshMultiFields: (keys) => calls.push(["refreshMulti", keys]),
+    refreshDependentFields: (fieldKey) => calls.push(["refreshDependent", fieldKey]),
+    setOverlayState: (state) => calls.push(["overlay", state]),
+    render: () => calls.push(["render"]),
+  });
+
+  controller.bind();
+  expect(registered).toEqual([
+    "today:click",
+    "prev:click",
+    "next:click",
+    "month:change",
+    "picker:click",
+    "board:click",
+    "board:keydown",
+    "board:input",
+    "board:change",
+  ]);
+
+  controller.handleBoardClick({
+    target: createClosestTarget("[data-periodization-edit-date]", { periodizationEditDate: "2026-05-09" }),
+  });
+  expect(calls).toContainEqual(["setOpen", ""]);
+  expect(calls).toContainEqual(["selectDate", "2026-05-09", true, "edit"]);
+
+  controller.handleBoardChange({
+    target: createClosestTarget(
+      "[data-periodization-field]",
+      { periodizationField: "matchPhases" },
+      { tagName: "INPUT", value: "unused" }
+    ),
+  });
+  expect(calls).toContainEqual(["writeDay", "2026-05-08", { matchPhases: ["In Possession"] }, false]);
+  expect(calls).toContainEqual(["refreshDependent", "matchPhases"]);
 });
 
 test("Periodization state keeps the current default calendar and option contract", () => {

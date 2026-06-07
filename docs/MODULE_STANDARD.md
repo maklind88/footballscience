@@ -68,7 +68,7 @@ Practical order:
 1. Platform identity/readiness/appearance contracts stay first as guardrails.
 2. Home and Chat boundaries stay stable.
 3. Schedule is the first normal UI extraction target and is now partially extracted into state/actions/controller/renderer files.
-4. Periodization is now partially extracted into state/merge helpers and renderer; controller wiring follows Schedule's pattern next.
+4. Periodization is now partially extracted into state/merge helpers, renderer, and workspace controller bindings; cross-module Session Planner wiring follows Schedule's pattern next.
 5. Squad / Player Profiles comes before Medical.
 6. Medical follows Squad/Profile.
 7. Exercise Library comes before Session Planner.

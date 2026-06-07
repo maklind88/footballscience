@@ -27,6 +27,7 @@ import {
   periodizationTrackedFields,
   periodizationYear,
 } from "./src/modules/periodization/periodization-state.mjs";
+import { createPeriodizationWorkspaceController } from "./src/modules/periodization/periodization-controller.mjs";
 import { createPeriodizationRenderer } from "./src/modules/periodization/periodization-renderer.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
@@ -32345,6 +32346,30 @@ overlayPanel.scrollTop = previousPeriodizationOverlayScrollTop;
 }
 }
 }
+const periodizationWorkspaceController = createPeriodizationWorkspaceController({
+ui,
+getState: () => periodizationState,
+canEdit: canEditPeriodizationWorkspace,
+render: renderPeriodizationWorkspace,
+jumpToToday: jumpPeriodizationToToday,
+shiftMonth: shiftPeriodizationMonth,
+setMonth: setPeriodizationMonth,
+selectDate: selectPeriodizationDate,
+writeDay: writePeriodizationDay,
+getCustomFieldValue: getPeriodizationCustomFieldValue,
+getMultiFieldValue: getPeriodizationMultiFieldValue,
+isMultiField: (fieldKey) => periodizationMultiFields.has(fieldKey),
+getMultiSelectOpenField: () => periodizationMultiSelectOpenField,
+setMultiSelectOpenField: (fieldKey = "") => {
+periodizationMultiSelectOpenField = fieldKey;
+},
+setOverlayState: ({ open, mode }) => {
+periodizationDayOverlayOpen = Boolean(open);
+periodizationDayOverlayMode = mode === "edit" ? "edit" : "view";
+},
+refreshMultiFields: refreshPeriodizationBoardMultiFields,
+refreshDependentFields: refreshPeriodizationBoardDependentFields,
+});
 function isPitchFullscreenActive() { return gameSimulatorFullscreenController?.isActive() ?? false; }
 function syncPitchFullscreenButton() {
 gameSimulatorFullscreenController?.syncButton();
@@ -76117,159 +76142,7 @@ return;
 event.preventDefault();
 openSessionPlannerPeriodizationOverlay(sessionPeriodizationCard.dataset.sessionPeriodizationDate, "view");
 });
-ui.periodizationTodayButton?.addEventListener("click", () => {
-jumpPeriodizationToToday();
-});
-ui.periodizationPrevMonthButton?.addEventListener("click", () => {
-shiftPeriodizationMonth(-1);
-});
-ui.periodizationNextMonthButton?.addEventListener("click", () => {
-shiftPeriodizationMonth(1);
-});
-ui.periodizationMonthSelect?.addEventListener("change", (event) => {
-setPeriodizationMonth(Number(event.target.value));
-});
-ui.periodizationPickerGrid?.addEventListener("click", (event) => {
-const monthTrigger = event.target.closest("[data-periodization-month]");
-if (monthTrigger) {
-setPeriodizationMonth(Number(monthTrigger.dataset.periodizationMonth));
-}
-});
-ui.periodizationBoard?.addEventListener("click", (event) => {
-const closeTrigger = event.target.closest("[data-periodization-close]");
-if (closeTrigger) {
-periodizationDayOverlayOpen = false;
-periodizationDayOverlayMode = "view";
-periodizationMultiSelectOpenField = "";
-renderPeriodizationWorkspace();
-return;
-}
-if (event.target.matches("[data-periodization-overlay]")) {
-periodizationDayOverlayOpen = false;
-periodizationDayOverlayMode = "view";
-periodizationMultiSelectOpenField = "";
-renderPeriodizationWorkspace();
-return;
-}
-const editSelectedTrigger = event.target.closest("[data-periodization-edit-selected]");
-if (editSelectedTrigger) {
-if (!canEditPeriodizationWorkspace()) {
-return;
-}
-periodizationDayOverlayOpen = true;
-periodizationDayOverlayMode = "edit";
-periodizationMultiSelectOpenField = "";
-renderPeriodizationWorkspace();
-return;
-}
-const viewSelectedTrigger = event.target.closest("[data-periodization-view-selected]");
-if (viewSelectedTrigger) {
-periodizationDayOverlayOpen = true;
-periodizationDayOverlayMode = "view";
-periodizationMultiSelectOpenField = "";
-renderPeriodizationWorkspace();
-return;
-}
-const periodizationMultiToggle = event.target.closest("[data-periodization-multi-toggle]");
-if (periodizationMultiToggle) {
-if (!canEditPeriodizationWorkspace()) {
-return;
-}
-const field = periodizationMultiToggle.dataset.periodizationMultiToggle;
-const previousOpenField = periodizationMultiSelectOpenField;
-periodizationMultiSelectOpenField = previousOpenField === field ? "" : field;
-refreshPeriodizationBoardMultiFields([previousOpenField, field]);
-return;
-}
-const editDateTrigger = event.target.closest("[data-periodization-edit-date]");
-if (editDateTrigger) {
-if (!canEditPeriodizationWorkspace()) {
-return;
-}
-periodizationMultiSelectOpenField = "";
-selectPeriodizationDate(editDateTrigger.dataset.periodizationEditDate, true, "edit");
-return;
-}
-const dayTrigger = event.target.closest("[data-periodization-date]");
-if (dayTrigger) {
-periodizationMultiSelectOpenField = "";
-selectPeriodizationDate(dayTrigger.dataset.periodizationDate, true, "view");
-}
-});
-ui.periodizationBoard?.addEventListener("keydown", (event) => {
-if (event.key !== "Enter" && event.key !== " ") {
-return;
-}
-const dayTrigger = event.target.closest("[data-periodization-date]");
-if (!dayTrigger || event.target.closest("[data-periodization-edit-date]")) {
-return;
-}
-event.preventDefault();
-selectPeriodizationDate(dayTrigger.dataset.periodizationDate, true, "view");
-});
-ui.periodizationBoard?.addEventListener("input", (event) => {
-const customField = event.target.closest("[data-periodization-custom-field]");
-if (customField && periodizationState?.selectedDate) {
-if (!canEditPeriodizationWorkspace()) {
-return;
-}
-writePeriodizationDay(
-periodizationState.selectedDate,
-{
-[customField.dataset.periodizationCustomField]: getPeriodizationCustomFieldValue(
-customField,
-periodizationState.selectedDate
-),
-},
-false
-);
-return;
-}
-const field = event.target.closest("[data-periodization-field]");
-if (
-!field ||
-!periodizationState?.selectedDate ||
-!canEditPeriodizationWorkspace() ||
-field.tagName === "SELECT" ||
-field.matches("[data-periodization-multi-option]")
-) {
-return;
-}
-writePeriodizationDay(periodizationState.selectedDate, { [field.dataset.periodizationField]: field.value }, false);
-});
-ui.periodizationBoard?.addEventListener("change", (event) => {
-const customField = event.target.closest("[data-periodization-custom-field]");
-if (customField && periodizationState?.selectedDate) {
-if (!canEditPeriodizationWorkspace()) {
-return;
-}
-const fieldKey = customField.dataset.periodizationCustomField;
-writePeriodizationDay(
-periodizationState.selectedDate,
-{
-[fieldKey]: getPeriodizationCustomFieldValue(
-customField,
-periodizationState.selectedDate
-),
-},
-false
-);
-refreshPeriodizationBoardDependentFields(fieldKey);
-return;
-}
-const field = event.target.closest("[data-periodization-field]");
-if (!field || !periodizationState?.selectedDate || !canEditPeriodizationWorkspace()) {
-return;
-}
-const fieldKey = field.dataset.periodizationField;
-const value = periodizationMultiFields.has(fieldKey)
-? getPeriodizationMultiFieldValue(field, periodizationState.selectedDate)
-: field.value;
-writePeriodizationDay(periodizationState.selectedDate, { [fieldKey]: value }, false);
-if (periodizationMultiFields.has(fieldKey)) {
-refreshPeriodizationBoardDependentFields(fieldKey);
-}
-});
+periodizationWorkspaceController.bind();
 scheduleWorkspaceController.bind();
 ui.dashboardChatWidgetRoot?.addEventListener("change", async (event) => {
 const attachmentInput = event.target.closest("[data-dashboard-chat-attachment-input]");

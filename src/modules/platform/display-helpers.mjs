@@ -28,6 +28,21 @@ export function getPlatformUserInitials(user) {
   return `${firstInitial}${lastInitial}`.toUpperCase() || "U";
 }
 
+export function getPlatformRoleLabel(role) {
+  const labels = {
+    admin: "Platform Admin",
+    "club-admin": "Club Admin",
+    "team-admin": "Team Admin",
+    coach: "Coach",
+    scout: "Scout",
+    analyst: "Analyst",
+    performance: "Performance",
+    medical: "Medical",
+    guest: "Guest",
+  };
+  return labels[role] ?? "Coach";
+}
+
 export function normalizePlatformProfileImageUrl(value = "", limits = {}) {
   const cleanValue = String(value ?? "").trim();
   if (!cleanValue) {

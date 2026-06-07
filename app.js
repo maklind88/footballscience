@@ -54,7 +54,7 @@ import { createPlatformAutosaveStatusController } from "./src/core/platform-auto
 import { createPasswordRevealInputRenderer } from "./src/core/form-renderers.mjs";
 import { installPlatformOverlayStability } from "./src/core/overlay-stability.mjs";
 import { defaultHubState, placeholderWorkspaceContent, platformSidebarMoreOrder, platformSidebarPrimaryOrder, topIconMenuOrder } from "./src/core/workspace-defaults.mjs";
-import { createPlatformDisplayHelpers, formatPlatformUserName, getPlatformUserInitials, getPlatformUserProfileImageUrl, normalizePlatformProfileImageUrl } from "./src/modules/platform/display-helpers.mjs";
+import { createPlatformDisplayHelpers, formatPlatformUserName, getPlatformRoleLabel, getPlatformUserInitials, getPlatformUserProfileImageUrl, normalizePlatformProfileImageUrl } from "./src/modules/platform/display-helpers.mjs";
 import { createPlatformNavigationRenderer } from "./src/modules/platform/navigation-renderer.mjs";
 import { createPlatformStructureStateHelpers } from "./src/modules/platform/structure-state.mjs";
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
@@ -4648,18 +4648,7 @@ function isProfileMenuOpen() {
 return Boolean(ui.profileMenu && !ui.profileMenu.hidden);
 }
 function getRoleLabel(role) {
-const labels = {
-admin: "Platform Admin",
-"club-admin": "Club Admin",
-"team-admin": "Team Admin",
-coach: "Coach",
-scout: "Scout",
-analyst: "Analyst",
-performance: "Performance",
-medical: "Medical",
-guest: "Guest",
-};
-return labels[role] ?? "Coach";
+return getPlatformRoleLabel(role);
 }
 function normalizePlatformRole(role, fallback = "coach") {
 if (Array.isArray(role)) {

@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   createPlatformDisplayHelpers,
   formatPlatformUserName,
+  getPlatformRoleLabel,
   getPlatformUserInitials,
   getPlatformUserProfileImageUrl,
   normalizePlatformProfileImageUrl,
@@ -46,6 +47,14 @@ test("Platform display helpers own user naming and profile image normalization",
   );
   expect(normalizePlatformProfileImageUrl("data:image/png;base64,abc", { maxUploadDataUrlLength: 5 })).toBe("");
   expect(normalizePlatformProfileImageUrl("https://cdn.example.com/too-long.png", { maxUrlLength: 5 })).toBe("");
+});
+
+test("Platform display helpers own role label display text", () => {
+  expect(getPlatformRoleLabel("admin")).toBe("Platform Admin");
+  expect(getPlatformRoleLabel("club-admin")).toBe("Club Admin");
+  expect(getPlatformRoleLabel("team-admin")).toBe("Team Admin");
+  expect(getPlatformRoleLabel("guest")).toBe("Guest");
+  expect(getPlatformRoleLabel("unknown-role")).toBe("Coach");
 });
 
 test("Platform display helpers own team logo initials, upload, and image markup", () => {

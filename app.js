@@ -53,6 +53,7 @@ import { createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, 
 import { adminDepartmentSuggestions, adminTitleSuggestions, createAdminAccessRenderer, createAdminReadinessRenderer, createAdminStructureRenderer, createAdminUserRenderer, getAdminActiveUserCount, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
 import { createProfileWorkspaceRenderer } from "./src/modules/profile/index.mjs";
 import { createStaffWorkspaceRenderer } from "./src/modules/staff/index.mjs";
+import { createSquadRosterRenderer } from "./src/modules/squad/index.mjs";
 const getElement = document.getElementById.bind(document);
 const win = window;
 const canvas = getElement("pitchCanvas");
@@ -4986,6 +4987,29 @@ getUserScopeLabel,
 getUserTeamName,
 renderPasswordRevealInput,
 renderUserAvatar,
+});
+const squadRosterRenderer = createSquadRosterRenderer({
+escapeHtml,
+getAllPlayerProfiles: () => playerProfilesState.players,
+getAllTemporaryPlayerProfiles,
+getPlayerProfileCompleteness,
+getPlayerProfileDisplayAgeValue,
+getPlayerProfileEffectiveStatusFromSnapshot,
+getPlayerProfileIdpFollowUpLabel,
+getPlayerProfileMedicalSnapshot,
+getPlayerProfileOption,
+getPlayerProfileRosterLabel,
+getPlayerProfileRosterSummary,
+getPlayerProfileRosterTypeOption,
+getPlayerProfileTemporaryWindowLabel,
+getSelectedPlayerId: () => playerProfilesState.selectedPlayerId,
+getTemporarySectionCollapsed: () => playerProfilesTemporarySectionCollapsed,
+isTemporaryPlayerProfile,
+playerProfileCountsInSquad,
+playerProfileIdpStatusOptions,
+playerProfileStatusOptions,
+playerProfileSquadStatusOptions,
+renderPlayerProfileAvatar,
 });
 const platformDefaultRoles = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
 const platformManagementRoleSet = new Set(["admin", "club-admin", "team-admin"]);
@@ -21607,22 +21631,10 @@ return `
   `;
 }
 function renderPlayerProfileStatusChip(statusKey, medicalSnapshot = null) {
-const option = getPlayerProfileOption(playerProfileStatusOptions, statusKey, playerProfileStatusOptions[0]);
-const returnLabel = statusKey === "injured" ? String(medicalSnapshot?.returnLabel || "").trim() : "";
-const statusPill = `<span class="squad-status-pill is-${escapeHtml(option.tone)}">${escapeHtml(option.label)}</span>`;
-if (!returnLabel) {
-return statusPill;
-}
-return `
-    <span class="squad-status-stack" title="${escapeHtml(`${option.label} - ${returnLabel}`)}">
-      ${statusPill}
-      <small class="squad-return-date">${escapeHtml(returnLabel)}</small>
-    </span>
-  `;
+return squadRosterRenderer.renderStatusChip(statusKey, medicalSnapshot);
 }
 function renderSquadOptionPill(options, key) {
-const option = getPlayerProfileOption(options, key);
-return `<span class="squad-option-pill">${escapeHtml(option.label)}</span>`;
+return squadRosterRenderer.renderOptionPill(options, key);
 }
 const playerProfileScoutingDatabaseStorageKey = "football-scouting-imported-database-v1";
 const playerProfileScoutingRecordIndex = Object.freeze({
@@ -22157,45 +22169,22 @@ loan: 5,
 return ranks[statusKey] ?? 9;
 }
 function renderSquadRoleStack(player) {
-const roles = [player.primaryRole, ...player.secondaryRoles].filter(Boolean);
-return `
-    <div class="squad-role-stack">
-      ${roles.slice(0, 4).map((role, index) => `<span class="${index === 0 ? "is-primary" : ""}">${escapeHtml(role)}</span>`).join("")}
-    </div>
-  `;
+return squadRosterRenderer.renderRoleStack(player);
 }
 function renderSquadRosterTypePill(player) {
-const rosterOption = getPlayerProfileRosterTypeOption(player.rosterType);
-const isTemporary = isTemporaryPlayerProfile(player);
-const label = getPlayerProfileRosterLabel(player);
-return `<span class="squad-roster-pill${isTemporary ? " is-temporary" : ""} is-${escapeHtml(rosterOption.key)}">${escapeHtml(label)}</span>`;
+return squadRosterRenderer.renderRosterTypePill(player);
 }
 function renderSquadRosterMeta(player) {
-if (!isTemporaryPlayerProfile(player)) {
-return "";
-}
-const windowLabel = getPlayerProfileTemporaryWindowLabel(player);
-return `
-    <small class="squad-player-temporary-meta">
-      ${escapeHtml(getPlayerProfileRosterTypeOption(player.rosterType).shortLabel || "Temporary")}
-      ${windowLabel ? ` / ${escapeHtml(windowLabel)}` : ""}
-    </small>
-  `;
+return squadRosterRenderer.renderRosterMeta(player);
 }
 function renderSquadRoleCell(player) {
-return `<div class="squad-role-cell">${renderSquadRoleStack(player)}</div>`;
+return squadRosterRenderer.renderRoleCell(player);
 }
 function renderSquadAgeCell(player) {
-const age = getPlayerProfileDisplayAgeValue(player);
-return `<span class="squad-age-cell">${escapeHtml(age || "-")}</span>`;
+return squadRosterRenderer.renderAgeCell(player);
 }
 function renderSquadPlanningCell(player) {
-const isTemporary = isTemporaryPlayerProfile(player);
-const pills = [
-isTemporary ? "" : renderSquadOptionPill(playerProfileSquadStatusOptions, player.squadStatus),
-isTemporary ? renderSquadRosterTypePill(player) : "",
-].join("");
-return `<div class="squad-planning-cell"><div class="squad-pill-stack">${pills}</div></div>`;
+return squadRosterRenderer.renderPlanningCell(player);
 }
 function getPlayerProfileDateDiffDays(fromDateValue, toDateValue) {
 if (!isMedicalDateValue(fromDateValue) || !isMedicalDateValue(toDateValue)) {
@@ -22267,139 +22256,25 @@ return "Review needed";
 return "Set follow-up date";
 }
 function renderSquadIdpCell(player) {
-const statusOption = getPlayerProfileOption(playerProfileIdpStatusOptions, player.idp?.status || "none", playerProfileIdpStatusOptions[0]);
-const detail = getPlayerProfileIdpFollowUpLabel(player, statusOption);
-return `
-    <div class="squad-idp-cell">
-      <span class="squad-option-pill is-idp-${escapeHtml(statusOption.key)}">${escapeHtml(statusOption.label)}</span>
-      ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
-    </div>
-  `;
+return squadRosterRenderer.renderIdpCell(player);
 }
 function renderSquadProfileProgressCell(completeness) {
-return `<div class="squad-profile-progress-cell"><span class="squad-completion"><span style="width: ${completeness}%"></span></span><small class="squad-completion-label">${completeness}% complete</small></div>`;
+return squadRosterRenderer.renderProfileProgressCell(completeness);
 }
 function renderSquadPlayerRow(player) {
-const medicalSnapshot = getPlayerProfileMedicalSnapshot(player.id);
-const effectiveStatus = getPlayerProfileEffectiveStatusFromSnapshot(player, medicalSnapshot);
-const isSelected = player.id === playerProfilesState.selectedPlayerId;
-const completeness = getPlayerProfileCompleteness(player);
-return `
-    <tr
-      class="squad-player-row${isSelected ? " is-selected" : ""}${isTemporaryPlayerProfile(player) ? " is-temporary" : ""}"
-      data-player-profile-select="${escapeHtml(player.id)}"
-      tabindex="0"
-    >
-      <td>
-        <div class="squad-player-cell">
-          ${renderPlayerProfileAvatar(player, "squad-player-avatar")}
-          <div>
-            <strong>${escapeHtml(player.name)}</strong>
-            <small>${escapeHtml([player.number ? `#${player.number}` : "", player.position || "Position not set"].filter(Boolean).join(" - "))}</small>
-            ${renderSquadRosterMeta(player)}
-          </div>
-        </div>
-      </td>
-      <td>${renderSquadAgeCell(player)}</td>
-      <td>${renderSquadRoleCell(player)}</td>
-      <td>${renderSquadPlanningCell(player)}</td>
-      <td>${renderPlayerProfileStatusChip(effectiveStatus, medicalSnapshot)}</td>
-      <td>${renderSquadIdpCell(player)}</td>
-      <td>${renderSquadProfileProgressCell(completeness)}</td>
-    </tr>
-  `;
+return squadRosterRenderer.renderPlayerRow(player);
 }
 function renderSquadPlayerTable(players = [], emptyText = "No players found. Adjust search or role group filter.") {
-return `
-    <div class="squad-table-wrap">
-      <table class="squad-table">
-        <thead>
-          <tr>
-            <th>Player</th>
-            <th>Age</th>
-            <th>Roles</th>
-            <th>Squad</th>
-            <th>Status</th>
-            <th>IDP</th>
-            <th>Profile</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${
-            players.length
-              ? players.map(renderSquadPlayerRow).join("")
-              : `<tr><td colspan="7"><div class="squad-empty-row">${escapeHtml(emptyText)}</div></td></tr>`
-          }
-        </tbody>
-      </table>
-    </div>
-  `;
+return squadRosterRenderer.renderPlayerTable(players, emptyText);
 }
 function renderSquadRosterSection(section = {}) {
-const players = Array.isArray(section.players) ? section.players : [];
-const key = section.key || "squad";
-const isCollapsed = Boolean(section.collapsed);
-const toggleLabel = isCollapsed ? `Show ${players.length}` : "Hide";
-return `
-    <section class="squad-roster-section is-${escapeHtml(key)}${isCollapsed ? " is-collapsed" : ""}" data-squad-roster-section="${escapeHtml(key)}">
-      <header class="squad-roster-section-head">
-        <div>
-          <h2>${escapeHtml(section.title || "Squad")}</h2>
-          <span>${escapeHtml(section.subtitle || `${players.length} visible`)}</span>
-        </div>
-        ${
-          section.collapsible
-            ? `<button type="button" class="squad-roster-pill is-temporary squad-roster-section-toggle" style="margin-left:auto;border:0;cursor:pointer;" data-squad-temporary-toggle aria-expanded="${isCollapsed ? "false" : "true"}">${escapeHtml(toggleLabel)}</button>`
-            : ""
-        }
-      </header>
-      ${isCollapsed ? "" : renderSquadPlayerTable(players, section.emptyText)}
-    </section>
-  `;
+return squadRosterRenderer.renderRosterSection(section);
 }
 function getSquadRosterListSummary(visibleSummary = {}, rosterSummary = {}) {
-const squadText = `${visibleSummary.squadCount || 0}/${rosterSummary.squadCount || 0} squad`;
-const hasTemporaryPlayers = Boolean(rosterSummary.temporaryCount || 0);
-const temporaryText = hasTemporaryPlayers
-? ` + ${rosterSummary.temporaryCount || 0} temporary`
-: "";
-return `${squadText}${temporaryText}`;
+return squadRosterRenderer.getRosterListSummary(visibleSummary, rosterSummary);
 }
 function renderSquadRosterSections(visiblePlayers = [], summaries = {}) {
-const rosterSummary = summaries.rosterSummary || getPlayerProfilesRosterSummary(playerProfilesState.players);
-const visibleSummary = summaries.visibleSummary || getPlayerProfilesRosterSummary(visiblePlayers);
-const listSummary = getSquadRosterListSummary(visibleSummary, rosterSummary);
-const squadPlayers = visiblePlayers.filter(playerProfileCountsInSquad);
-const temporaryPlayers = getAllTemporaryPlayerProfiles();
-if (!squadPlayers.length && !temporaryPlayers.length) {
-return renderSquadRosterSection({
-key: "empty",
-title: "Squad List",
-subtitle: listSummary,
-players: [],
-emptyText: "No players found. Adjust search or role group filter.",
-});
-}
-return [
-squadPlayers.length
-? renderSquadRosterSection({
-key: "squad",
-title: "Squad List",
-subtitle: listSummary,
-players: squadPlayers,
-})
-: "",
-temporaryPlayers.length
-? renderSquadRosterSection({
-key: "temporary",
-title: "Training guests",
-subtitle: `${temporaryPlayers.length} not counted in squad total`,
-players: temporaryPlayers,
-collapsible: true,
-collapsed: playerProfilesTemporarySectionCollapsed,
-})
-: "",
-].join("");
+return squadRosterRenderer.renderRosterSections(visiblePlayers, summaries);
 }
 function renderPlayerProfilesRosterListOnly() {
 ensurePlayerProfilesState();

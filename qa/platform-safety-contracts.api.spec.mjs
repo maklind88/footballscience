@@ -100,6 +100,7 @@ const coreFiles = [
   "src/modules/game-simulator/fullscreen.mjs",
   "src/modules/game-simulator/runtime.mjs",
   "src/modules/game-simulator/workspace-controller.mjs",
+  "src/modules/game-simulator/sidebar-renderer.mjs",
   "src/modules/game-simulator/keyboard-state.mjs",
 ];
 
@@ -323,6 +324,7 @@ test("core module contracts are covered by dedicated QA", () => {
   const gameSimulatorControllersSpec = readProjectFile("qa/game-simulator-controllers.api.spec.mjs");
   const gameSimulatorBindingsSpec = readProjectFile("qa/game-simulator-control-bindings.api.spec.mjs");
   const gameSimulatorFullscreenSpec = readProjectFile("qa/game-simulator-fullscreen.api.spec.mjs");
+  const gameSimulatorSidebarSpec = readProjectFile("qa/game-simulator-sidebar-renderer.api.spec.mjs");
   const gameSimulatorKeyboardStateSpec = readProjectFile("qa/game-simulator-keyboard-state.api.spec.mjs");
 
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-safety-contracts.api.spec.mjs");
@@ -352,6 +354,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-controllers.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-control-bindings.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-fullscreen.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-sidebar-renderer.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-keyboard-state.api.spec.mjs");
   expect(modularCoreSpec).toContain("modular core covers protected storage keys");
   expect(modularCoreSpec).toContain("read-only storage adapter blocks accidental writes");
@@ -367,6 +370,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(gameSimulatorControllersSpec).toContain("game simulator controller loader");
   expect(gameSimulatorBindingsSpec).toContain("game simulator control bindings");
   expect(gameSimulatorFullscreenSpec).toContain("game simulator fullscreen controller");
+  expect(gameSimulatorSidebarSpec).toContain("game simulator sidebar renderer");
   expect(gameSimulatorKeyboardStateSpec).toContain("game simulator keyboard state");
 });
 
@@ -378,12 +382,14 @@ test("game simulator animation loop does not run globally outside the simulator 
   const fullscreenSource = readProjectFile("src/modules/game-simulator/fullscreen.mjs");
   const runtimeSource = readProjectFile("src/modules/game-simulator/runtime.mjs");
   const workspaceControllerSource = readProjectFile("src/modules/game-simulator/workspace-controller.mjs");
+  const sidebarRendererSource = readProjectFile("src/modules/game-simulator/sidebar-renderer.mjs");
 
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/control-bindings.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/controllers.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/fullscreen.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/runtime.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/workspace-controller.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/sidebar-renderer.mjs");
   expect(appSource).not.toContain('from "./src/modules/game-simulator/control-bindings.mjs"');
   expect(appSource).not.toContain('from "./src/modules/game-simulator/fullscreen.mjs"');
   expect(appSource).not.toContain('from "./src/modules/game-simulator/workspace-controller.mjs"');
@@ -403,6 +409,7 @@ test("game simulator animation loop does not run globally outside the simulator 
   expect(runtimeSource).toContain("window.requestAnimationFrame(tick)");
   expect(workspaceControllerSource).toContain("createSimulatorWorkspaceController");
   expect(workspaceControllerSource).toContain("launchFromIntro");
+  expect(sidebarRendererSource).toContain("createGameSimulatorSidebarRenderer");
 });
 
 test("Session Planner print mode keeps the coach sheet visible for browser printing", () => {

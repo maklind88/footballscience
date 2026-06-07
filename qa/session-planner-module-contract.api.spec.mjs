@@ -5,6 +5,7 @@ import { expect, test } from "@playwright/test";
 import {
   createSessionPlannerAutosaveBoundary,
   createSessionPlannerPlayerBoardRenderer,
+  createSessionPlannerPrintRenderer,
   createSessionPlannerRenderer,
   createSessionPlannerVisualRenderer,
   isSessionPlannerAutosaveKey,
@@ -29,6 +30,7 @@ test("Session Planner extraction owns autosave and renderer module boundaries", 
     "src/modules/session-planner/session-planner-renderer.mjs",
     "src/modules/session-planner/session-planner-visual-renderer.mjs",
     "src/modules/session-planner/session-planner-player-board-renderer.mjs",
+    "src/modules/session-planner/session-planner-print-renderer.mjs",
   ].forEach((path) => {
     expect(existsSync(resolve(root, path)), `${path} should exist`).toBe(true);
   });
@@ -36,6 +38,119 @@ test("Session Planner extraction owns autosave and renderer module boundaries", 
   expect(sessionPlannerModuleId).toBe("session-planner");
   expect(sessionPlannerStorageKey).toBe("football-session-planner-v3");
   expect(sessionPlannerAutosaveActiveWindowMs).toBeGreaterThanOrEqual(10000);
+});
+
+test("Session Planner print renderer owns coach sheet controls, document, sections, visuals, and mini player board markup", () => {
+  const block = {
+    id: "block-1",
+    label: "B1",
+    title: "Pressing Wave",
+    minutes: 18,
+    phase: ["Pressing"],
+    subPhase: ["High press"],
+    focus: "Win it high",
+    objective: "Force wide",
+    why: "Create transition",
+    organization: "Three zones",
+    material: "Balls and cones",
+    principles: "Compact distances",
+    playerBoardColors: { p1: "#1d8bff" },
+  };
+  const session = {
+    title: "Morning training",
+    blocks: [block],
+  };
+  const boardPlayers = [
+    {
+      player: {
+        id: "p1",
+        name: "Mak Lind",
+      },
+      record: {},
+      participation: 75,
+    },
+  ];
+  const renderer = createSessionPlannerPrintRenderer({
+    escapeHtml: (value) => String(value ?? "").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
+    getState: () => ({
+      printOverlayOpen: true,
+      printPaper: "letter",
+      printSections: {
+        overview: true,
+        blocks: true,
+        details: true,
+        visuals: true,
+        players: true,
+        medical: true,
+      },
+      selectedDate: "2026-05-19",
+    }),
+    getPaperOptions: () => ({
+      letter: {
+        label: "US Letter",
+        detail: "11 x 8.5 in landscape",
+        pageSize: "letter landscape",
+        width: "11in",
+        height: "8.5in",
+      },
+    }),
+    getSectionOptions: () => [
+      { key: "overview", label: "Overview" },
+      { key: "blocks", label: "Block flow" },
+      { key: "details", label: "Objectives & coaching points" },
+      { key: "visuals", label: "Tactical visuals" },
+      { key: "players", label: "Player boards" },
+      { key: "medical", label: "Medical availability" },
+    ],
+    normalizeMultiValue: (value) => (Array.isArray(value) ? value : String(value || "").split(",").map((item) => item.trim()).filter(Boolean)),
+    getPeriodizationDay: () => ({
+      matchPhases: ["Pressing"],
+      subPhases: ["High press"],
+      teamPrinciples: ["Compact"],
+      mainFocus: "Pressing",
+      matchDay: -1,
+      sessionType: "Training",
+    }),
+    getMedicalAvailability: () => ({
+      all: [{ record: {}, participation: 75 }],
+      available: [boardPlayers[0]],
+      limited: [],
+      unconfirmed: [],
+    }),
+    getPlayerBoardCustomColor: (_block, playerId) => (playerId === "p1" ? "#1d8bff" : ""),
+    getPlayerBoardTone: () => "modified",
+    getPlayerBoardSummary: () => ({
+      boardPlayers,
+      rule: { valueLabel: "75%+" },
+    }),
+    getInitialLabelMap: () => new Map([["p1", "ML"]]),
+    getReadablePlayerBoardPositions: () => new Map([["p1", { x: 42, y: 50 }]]),
+    getReadableSpacing: () => ({ minX: 8, minY: 7 }),
+    getPlayerBoardPosition: () => ({ x: 42, y: 50 }),
+    getPlayerBoardTextColor: () => "#ffffff",
+    getPlayerInitials: () => "ML",
+    renderExerciseVisual: () => '<div data-session-exercise-visual>Visual</div>',
+    getSessionDateLabel: (_dateValue, options = {}) => (options.weekday ? "Tuesday" : "19 May 2026"),
+    getMatchDayLabel: () => "Match Day -1",
+    getDayScheduleLabel: () => "Training",
+    getScheduledSessionTitle: () => "Scheduled session",
+    getTotalMinutes: () => 18,
+  });
+
+  const overlayMarkup = renderer.renderOverlay(session);
+  const documentMarkup = renderer.renderDocument(session);
+
+  expect(overlayMarkup).toContain("data-session-print-overlay");
+  expect(overlayMarkup).toContain("data-session-print-paper");
+  expect(overlayMarkup).toContain("data-session-print-section");
+  expect(overlayMarkup).toContain("data-session-print-now");
+  expect(documentMarkup).toContain("data-session-print-document");
+  expect(documentMarkup).toContain("session-print-page-front");
+  expect(documentMarkup).toContain("session-print-page-back");
+  expect(documentMarkup).toContain("session-print-flow");
+  expect(documentMarkup).toContain("data-session-exercise-visual");
+  expect(documentMarkup).toContain("session-print-player-board-mini");
+  expect(documentMarkup).toContain("session-print-player-token");
 });
 
 test("Session Planner visual renderer owns tactical board pitch, objects, preview, and toolbox markup", () => {
@@ -375,6 +490,7 @@ test("Session Planner app integration delegates autosave policy and block render
   expect(app).toContain("./src/modules/session-planner/index.mjs");
   expect(app).toContain("createSessionPlannerAutosaveBoundary");
   expect(app).toContain("createSessionPlannerPlayerBoardRenderer");
+  expect(app).toContain("createSessionPlannerPrintRenderer");
   expect(app).toContain("createSessionPlannerRenderer");
   expect(app).toContain("createSessionPlannerVisualRenderer");
   expect(app).toContain("sessionPlannerAutosaveBoundary.markSessionPlannerWrite();");
@@ -384,6 +500,8 @@ test("Session Planner app integration delegates autosave policy and block render
   expect(app).toContain("sessionPlannerVisualRenderer.renderTacticalboardOverlay(block)");
   expect(app).toContain("sessionPlannerPlayerBoardRenderer.renderPlayerBoard(block)");
   expect(app).toContain("sessionPlannerPlayerBoardRenderer.renderPlayerBoardOverlay(block)");
+  expect(app).toContain("sessionPlannerPrintRenderer.renderDocument(session)");
+  expect(app).toContain("sessionPlannerPrintRenderer.renderOverlay(session)");
   expect(app).not.toContain('const sessionPlannerStorageKey = "football-session-planner-v3";');
   expect(app).not.toContain('return workspaceId === "session-planner";');
 });
@@ -397,6 +515,7 @@ test("Session Planner is tracked as partial extraction while deeper UI remains i
   expect(contract.currentFiles).toContain("src/modules/session-planner/session-planner-renderer.mjs");
   expect(contract.currentFiles).toContain("src/modules/session-planner/session-planner-visual-renderer.mjs");
   expect(contract.currentFiles).toContain("src/modules/session-planner/session-planner-player-board-renderer.mjs");
+  expect(contract.currentFiles).toContain("src/modules/session-planner/session-planner-print-renderer.mjs");
   expect(contract.testFiles).toContain("qa/session-planner-module-contract.api.spec.mjs");
   expect(platformModuleImplementationStages["session-planner"]).toBe("partial-extraction");
 });

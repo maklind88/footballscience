@@ -83,12 +83,13 @@ test("Session Planner Player Board can add manual people directly on a block", (
 test("Session Planner Player Board spaces compact print and preview tokens for readability", () => {
   const appSource = readProjectFile("app.js");
   const playerBoardRendererSource = readProjectFile("src/modules/session-planner/session-planner-player-board-renderer.mjs");
+  const printRendererSource = readProjectFile("src/modules/session-planner/session-planner-print-renderer.mjs");
 
   expect(appSource).toContain("function getSessionPlannerPlayerBoardReadableSpacing");
   expect(appSource).toContain("function getSessionPlannerReadablePlayerBoardPositions");
   expect(playerBoardRendererSource).toContain('getReadableSpacing(boardPlayers.length, "preview")');
-  expect(appSource).toContain('getSessionPlannerPlayerBoardReadableSpacing(boardPlayers.length, "print")');
+  expect(printRendererSource).toContain('getReadableSpacing(boardPlayers.length, "print")');
   expect(playerBoardRendererSource).toContain("previewPositions.get(item.player.id)");
-  expect(appSource).toContain("printPositions.get(item.player.id)");
+  expect(printRendererSource).toContain("printPositions.get(item.player.id)");
   expect(appSource).toContain("overlapX <= 0 || overlapY <= 0");
 });

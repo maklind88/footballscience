@@ -171,8 +171,8 @@ Database-primary migration priority: Schedule, Squad, Scouting, Medical Team, Ex
 - `data`: `football-session-planner-v3`, `football-session-exercise-library-v1`, `football-session-exercise-library-backup-v1`, `football-session-exercise-library-folders-v1`, `football-session-exercise-library-folders-backup-v1`
 - `permissions`: platform/club/team admin and coach edit; analyst/performance/medical view where configured.
 - `events`: block updated, exercise saved, exercise archived, tactical image changed, medical availability read.
-- `qa`: session planner block edits persist after refresh; `qa/session-planner-module-contract.api.spec.mjs` locks the autosave boundary, block/form renderer selectors, tactical visual renderer markup, and Player Board renderer markup so autosave status only belongs to active Session Planner writes and UI extraction keeps the same controls.
-- `migration`: autosave policy, block/form rendering, tactical visual rendering, and Player Board rendering now live in `src/modules/session-planner`; tactical board event handling, print, and save flows remain in `app.js` for later passes. Migrate exercise library before session blocks if possible; preserve library entries with soft archive, never destructive seed overwrite.
+- `qa`: session planner block edits persist after refresh; `qa/session-planner-module-contract.api.spec.mjs` locks the autosave boundary, block/form renderer selectors, tactical visual renderer markup, Player Board renderer markup, and print renderer markup so autosave status only belongs to active Session Planner writes and UI extraction keeps the same controls.
+- `migration`: autosave policy, block/form rendering, tactical visual rendering, Player Board rendering, and print rendering now live in `src/modules/session-planner`; tactical board event handling, print runtime, and save flows remain in `app.js` for later passes. Migrate exercise library before session blocks if possible; preserve library entries with soft archive, never destructive seed overwrite.
 
 ## Medical Team
 

@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { createPlatformDisplayHelpers } from "../src/modules/platform/display-helpers.mjs";
+import {
+  createPlatformDisplayHelpers,
+  formatPlatformUserName,
+  getPlatformUserInitials,
+  getPlatformUserProfileImageUrl,
+  normalizePlatformProfileImageUrl,
+} from "../src/modules/platform/display-helpers.mjs";
 
 const helpers = createPlatformDisplayHelpers({
   escapeHtml: (value) =>
@@ -22,6 +28,24 @@ test("Platform display helpers own user avatar photo and fallback markup", () =>
       "profile-avatar"
     )
   ).toContain('<img src="https://cdn.example.com/mak.png" alt="" />');
+});
+
+test("Platform display helpers own user naming and profile image normalization", () => {
+  expect(formatPlatformUserName({ firstName: "Mak", lastName: "Lind" })).toBe("Mak Lind");
+  expect(formatPlatformUserName({})).toBe("Unknown User");
+  expect(getPlatformUserInitials({ firstName: "Mak", lastName: "Lind" })).toBe("ML");
+  expect(getPlatformUserInitials({})).toBe("U");
+
+  expect(
+    getPlatformUserProfileImageUrl({
+      user_metadata: { avatar_url: "https://cdn.example.com/avatar.png" },
+    })
+  ).toBe("https://cdn.example.com/avatar.png");
+  expect(normalizePlatformProfileImageUrl(" data:image/png;base64,abc ", { maxUploadDataUrlLength: 100 })).toBe(
+    "data:image/png;base64,abc"
+  );
+  expect(normalizePlatformProfileImageUrl("data:image/png;base64,abc", { maxUploadDataUrlLength: 5 })).toBe("");
+  expect(normalizePlatformProfileImageUrl("https://cdn.example.com/too-long.png", { maxUrlLength: 5 })).toBe("");
 });
 
 test("Platform display helpers own team logo initials, upload, and image markup", () => {

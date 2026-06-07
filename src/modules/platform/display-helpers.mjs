@@ -15,6 +15,51 @@ function defaultNormalizeImageUrl(value = "") {
   return String(value ?? "").trim();
 }
 
+export const defaultMaxProfileImageUrlLength = 1800;
+export const defaultMaxProfileImageUploadDataUrlLength = 900000;
+
+export function formatPlatformUserName(user) {
+  return [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || "Unknown User";
+}
+
+export function getPlatformUserInitials(user) {
+  const firstInitial = user?.firstName?.trim()?.[0] ?? "";
+  const lastInitial = user?.lastName?.trim()?.[0] ?? "";
+  return `${firstInitial}${lastInitial}`.toUpperCase() || "U";
+}
+
+export function normalizePlatformProfileImageUrl(value = "", limits = {}) {
+  const cleanValue = String(value ?? "").trim();
+  if (!cleanValue) {
+    return "";
+  }
+  const maxUploadDataUrlLength = Number(limits.maxUploadDataUrlLength) || defaultMaxProfileImageUploadDataUrlLength;
+  const maxUrlLength = Number(limits.maxUrlLength) || defaultMaxProfileImageUrlLength;
+  if (cleanValue.startsWith("data:image/")) {
+    return cleanValue.length <= maxUploadDataUrlLength ? cleanValue : "";
+  }
+  if (cleanValue.length > maxUrlLength) {
+    return "";
+  }
+  return cleanValue;
+}
+
+export function getPlatformUserProfileImageUrl(user, limits = {}) {
+  const metadata = user?.user_metadata && typeof user.user_metadata === "object" ? user.user_metadata : {};
+  const value =
+    [
+      user?.profileImageUrl,
+      user?.profile_image_url,
+      user?.avatarUrl,
+      user?.avatar_url,
+      metadata.profileImageUrl,
+      metadata.profile_image_url,
+      metadata.avatarUrl,
+      metadata.avatar_url,
+    ].find((candidate) => String(candidate || "").trim()) || "";
+  return normalizePlatformProfileImageUrl(value, limits);
+}
+
 export function createPlatformDisplayHelpers(options = {}) {
   const escapeHtml = typeof options.escapeHtml === "function" ? options.escapeHtml : defaultEscapeHtml;
   const normalizeText = typeof options.normalizeText === "function" ? options.normalizeText : defaultNormalizeText;

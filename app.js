@@ -54,7 +54,7 @@ import { createPlatformAutosaveStatusController } from "./src/core/platform-auto
 import { createPasswordRevealInputRenderer } from "./src/core/form-renderers.mjs";
 import { installPlatformOverlayStability } from "./src/core/overlay-stability.mjs";
 import { defaultHubState, placeholderWorkspaceContent, platformSidebarMoreOrder, platformSidebarPrimaryOrder, topIconMenuOrder } from "./src/core/workspace-defaults.mjs";
-import { createPlatformDisplayHelpers } from "./src/modules/platform/display-helpers.mjs";
+import { createPlatformDisplayHelpers, formatPlatformUserName, getPlatformUserInitials, getPlatformUserProfileImageUrl, normalizePlatformProfileImageUrl } from "./src/modules/platform/display-helpers.mjs";
 import { createPlatformNavigationRenderer } from "./src/modules/platform/navigation-renderer.mjs";
 import { createPlatformStructureStateHelpers } from "./src/modules/platform/structure-state.mjs";
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
@@ -4594,40 +4594,22 @@ return platformDefaultRoles;
 return platformDefaultRoles;
 }
 function formatUserName(user) {
-return [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || "Unknown User";
+return formatPlatformUserName(user);
 }
 function getUserInitials(user) {
-const firstInitial = user?.firstName?.trim()?.[0] ?? "";
-const lastInitial = user?.lastName?.trim()?.[0] ?? "";
-return `${firstInitial}${lastInitial}`.toUpperCase() || "U";
+return getPlatformUserInitials(user);
 }
 function getUserProfileImageUrl(user) {
-const metadata = user?.user_metadata && typeof user.user_metadata === "object" ? user.user_metadata : {};
-const value =
-[
-user?.profileImageUrl,
-user?.profile_image_url,
-user?.avatarUrl,
-user?.avatar_url,
-metadata.profileImageUrl,
-metadata.profile_image_url,
-metadata.avatarUrl,
-metadata.avatar_url,
-].find((candidate) => String(candidate || "").trim()) || "";
-return normalizePlatformImageUrl(value);
+return getPlatformUserProfileImageUrl(user, {
+maxUploadDataUrlLength: maxProfileImageUploadDataUrlLength,
+maxUrlLength: maxProfileImageUrlLength,
+});
 }
 function normalizePlatformImageUrl(value = "") {
-const cleanValue = String(value ?? "").trim();
-if (!cleanValue) {
-return "";
-}
-if (cleanValue.startsWith("data:image/")) {
-return cleanValue.length <= maxProfileImageUploadDataUrlLength ? cleanValue : "";
-}
-if (cleanValue.length > maxProfileImageUrlLength) {
-return "";
-}
-return cleanValue;
+return normalizePlatformProfileImageUrl(value, {
+maxUploadDataUrlLength: maxProfileImageUploadDataUrlLength,
+maxUrlLength: maxProfileImageUrlLength,
+});
 }
 function getUserClub(user) {
 const structure = getPlatformStructureState();

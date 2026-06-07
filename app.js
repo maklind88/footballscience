@@ -5,9 +5,9 @@ import { createDashboardChatAttachmentPreview } from "./src/modules/chat/chat-at
 import { createDashboardChatApiUiActions } from "./src/modules/chat/chat-api-ui-actions.mjs";
 import { createDashboardChatThreadSettingsStore } from "./src/modules/chat/chat-thread-settings.mjs";
 import { uploadDashboardChatAttachmentFile as uploadDashboardChatAttachmentFileWithClient } from "./src/modules/chat/chat-attachment-storage.mjs";
+import { createDashboardHomeContextSelectors } from "./src/modules/home/dashboard-context-selectors.mjs";
 import { createDashboardHomeCardsRenderer } from "./src/modules/home/dashboard-renderer.mjs";
 import { createDashboardTaskListRenderer } from "./src/modules/home/task-list-renderer.mjs";
-import { selectHomeTaskQueues } from "./src/modules/home/tasks.mjs";
 import { createScheduleWorkspaceController } from "./src/modules/schedule/schedule-controller.mjs";
 import {
   cloneScheduleState,
@@ -503,6 +503,33 @@ const platformNavigationRenderer = createPlatformNavigationRenderer({
 escapeHtml,
 getTopIconLabel,
 getTopIconSvg,
+});
+const dashboardHomeContextSelectors = createDashboardHomeContextSelectors({
+cloneSession: cloneSessionPlannerSession,
+createEmptySession: createSessionPlannerEmptySession,
+ensureMedicalState,
+ensurePeriodizationState,
+formatScheduleDateValue,
+getMedicalRecords: () => medicalState?.records ?? [],
+getPeriodizationDay,
+getScheduleEventsForDate,
+getScheduleMainEvent,
+getScheduleState: () => {
+if (!scheduleState) {
+scheduleState = readScheduleState();
+}
+return scheduleState;
+},
+getSessionPlannerState: () => {
+if (!sessionPlannerState) {
+sessionPlannerState = readSessionPlannerState();
+}
+return sessionPlannerState;
+},
+isScheduleSessionEvent,
+parseScheduleDateValue,
+scheduleEventTypes,
+scheduleMainEventPriority,
 });
 const dashboardTaskListRenderer = createDashboardTaskListRenderer({
 escapeHtml,
@@ -8818,226 +8845,46 @@ ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-input]")?.focus(
 }, 0);
 }
 function getDashboardScheduleState() {
-if (!scheduleState) {
-scheduleState = readScheduleState();
-}
-return scheduleState;
+return dashboardHomeContextSelectors.getScheduleState();
 }
 function getDashboardSessionPlannerState() {
-if (!sessionPlannerState) {
-sessionPlannerState = readSessionPlannerState();
-}
-return sessionPlannerState;
+return dashboardHomeContextSelectors.getSessionPlannerState();
 }
 function getDashboardTodayValue() {
-return formatScheduleDateValue(new Date());
+return dashboardHomeContextSelectors.getTodayValue();
 }
 function formatDashboardDateLabel(dateValue, variant = "short") {
-const date = parseScheduleDateValue(dateValue);
-const options =
-variant === "long"
-? { weekday: "long", day: "numeric", month: "long" }
-: { weekday: "short", day: "numeric", month: "short" };
-return new Intl.DateTimeFormat("en-GB", options).format(date);
+return dashboardHomeContextSelectors.formatDateLabel(dateValue, variant);
 }
 function getDashboardRelativeDateLabel(dateValue, todayValue = getDashboardTodayValue()) {
-const today = parseScheduleDateValue(todayValue);
-const date = parseScheduleDateValue(dateValue);
-const dayDelta = Math.round((date - today) / 86400000);
-if (dayDelta === 0) {
-return "Today";
-}
-if (dayDelta === 1) {
-return "Tomorrow";
-}
-return formatDashboardDateLabel(dateValue);
+return dashboardHomeContextSelectors.getRelativeDateLabel(dateValue, todayValue);
 }
 function getDashboardUpcomingEvents(todayValue = getDashboardTodayValue(), types = null) {
-const state = getDashboardScheduleState();
-const allowedTypes = Array.isArray(types) ? new Set(types) : null;
-return [...state.events]
-.filter((event) => event.date >= todayValue && (!allowedTypes || allowedTypes.has(event.type)))
-.sort((first, second) => {
-const dateComparison = first.date.localeCompare(second.date);
-if (dateComparison !== 0) {
-return dateComparison;
-}
-const priorityComparison =
-(scheduleMainEventPriority[first.type] ?? 99) - (scheduleMainEventPriority[second.type] ?? 99);
-if (priorityComparison !== 0) {
-return priorityComparison;
-}
-return `${first.time || "99:99"} ${first.title}`.localeCompare(`${second.time || "99:99"} ${second.title}`);
-});
+return dashboardHomeContextSelectors.getUpcomingEvents(todayValue, types);
 }
 function getDashboardSessionForDate(dateValue) {
-const state = getDashboardSessionPlannerState();
-return state.sessions?.[dateValue] ?? createSessionPlannerEmptySession(dateValue);
+return dashboardHomeContextSelectors.getSessionForDate(dateValue);
 }
 function getDashboardSessionTotalMinutes(session) {
-return (session?.blocks ?? []).reduce((total, block) => total + (Number(block.minutes) || 0), 0);
+return dashboardHomeContextSelectors.getSessionTotalMinutes(session);
 }
 function getDashboardNextSession(todayValue = getDashboardTodayValue()) {
-const state = getDashboardSessionPlannerState();
-const nextSessionEvent = getDashboardUpcomingEvents(todayValue).find(isScheduleSessionEvent) ?? null;
-if (nextSessionEvent) {
-const session = getDashboardSessionForDate(nextSessionEvent.date);
-return {
-date: nextSessionEvent.date,
-session,
-event: nextSessionEvent,
-isMissingPlan: !session.blocks.length,
-};
-}
-const plannedSessions = Object.entries(state.sessions ?? {})
-.map(([dateValue, session]) => cloneSessionPlannerSession({ ...session, date: session.date || dateValue }))
-.filter((session) => session.date >= todayValue && session.blocks.length)
-.sort((first, second) => first.date.localeCompare(second.date));
-if (plannedSessions.length) {
-return {
-date: plannedSessions[0].date,
-session: plannedSessions[0],
-event: getScheduleMainEvent(getScheduleEventsForDate(plannedSessions[0].date)) ?? null,
-isMissingPlan: false,
-};
-}
-const fallbackDate = todayValue;
-const fallbackSession = getDashboardSessionForDate(fallbackDate);
-return {
-date: fallbackDate,
-session: fallbackSession,
-event: null,
-isMissingPlan: !fallbackSession.blocks.length,
-};
+return dashboardHomeContextSelectors.getNextSession(todayValue);
 }
 function getDashboardLoadTone(load, eventType = "") {
-const cleanLoad = String(load ?? "").toLowerCase();
-if (eventType === "match" || cleanLoad.includes("match")) {
-return "match";
-}
-if (eventType === "off" || cleanLoad.includes("off")) {
-return "off";
-}
-if (cleanLoad.includes("hard") || cleanLoad.includes("high")) {
-return "high";
-}
-if (cleanLoad.includes("moderate") || cleanLoad.includes("medium")) {
-return "moderate";
-}
-if (cleanLoad.includes("low") || eventType === "recovery") {
-return "low";
-}
-return eventType || "neutral";
+return dashboardHomeContextSelectors.getLoadTone(load, eventType);
 }
 function getDashboardMicrocycle(todayValue = getDashboardTodayValue()) {
-getDashboardScheduleState();
-ensurePeriodizationState();
-const today = parseScheduleDateValue(todayValue);
-return Array.from({ length: 7 }, (_, index) => {
-const dateValue = formatScheduleDateValue(addCalendarDays(today, index));
-const events = getScheduleEventsForDate(dateValue);
-const mainEvent = getScheduleMainEvent(events) ?? null;
-const periodizationDay = getPeriodizationDay(dateValue);
-const load = periodizationDay.physicalLoad || scheduleEventTypes[mainEvent?.type]?.label || "";
-return {
-dateValue,
-dayLabel: new Intl.DateTimeFormat("en-GB", { weekday: "short" }).format(parseScheduleDateValue(dateValue)),
-dateLabel: new Intl.DateTimeFormat("en-GB", { day: "numeric" }).format(parseScheduleDateValue(dateValue)),
-event: mainEvent,
-load,
-matchDay: periodizationDay.matchDay,
-tone: getDashboardLoadTone(load, mainEvent?.type),
-};
-});
+return dashboardHomeContextSelectors.getMicrocycle(todayValue);
 }
 function getDashboardMedicalAlert(todayValue = getDashboardTodayValue()) {
-ensureMedicalState();
-const records = medicalState.records.filter((record) => record.date === todayValue);
-const limitedRecords = records.filter((record) => !["full", "monitor"].includes(record.status));
-if (limitedRecords.length) {
-return {
-title: "Medical availability",
-detail: `${limitedRecords.length} player${limitedRecords.length === 1 ? "" : "s"} limited today`,
-tone: "medical",
-workspaceId: "medical-team",
-};
-}
-if (!records.length) {
-return {
-title: "Medical availability",
-detail: "Not logged today",
-tone: "monitor",
-workspaceId: "medical-team",
-};
-}
-return {
-title: "Medical availability",
-detail: "Logged for today",
-tone: "good",
-workspaceId: "medical-team",
-};
+return dashboardHomeContextSelectors.getMedicalAlert(todayValue);
 }
 function getDashboardAlerts(context) {
-const alerts = [];
-if (context.nextSession.isMissingPlan) {
-alerts.push({
-title: "Training needs blocks",
-detail: `${getDashboardRelativeDateLabel(context.nextSession.date, context.todayValue)} is scheduled in Schedule`,
-tone: "alert",
-action: "session",
-dateValue: context.nextSession.date,
-});
-}
-if (context.nextMatch) {
-alerts.push({
-title: "Upcoming match prep",
-detail: `${getDashboardRelativeDateLabel(context.nextMatch.date, context.todayValue)} · ${context.nextMatch.title}`,
-tone: "match",
-workspaceId: "schedule",
-dateValue: context.nextMatch.date,
-});
-}
-alerts.push(getDashboardMedicalAlert(context.todayValue));
-if (context.delegatedOpenTasks.length) {
-alerts.push({
-title: "Staff follow-up",
-detail: `${context.delegatedOpenTasks.length} delegated task${context.delegatedOpenTasks.length === 1 ? "" : "s"} open`,
-tone: "task",
-focus: "task",
-});
-}
-return alerts.slice(0, 4);
+return dashboardHomeContextSelectors.getAlerts(context);
 }
 function getDashboardHomeContext(currentUser, users, tasks) {
-const todayValue = getDashboardTodayValue();
-getDashboardScheduleState();
-ensurePeriodizationState();
-const todayEvents = getScheduleEventsForDate(todayValue);
-const todayMainEvent = getScheduleMainEvent(todayEvents) ?? null;
-const todayPeriodization = getPeriodizationDay(todayValue);
-const nextEvent = getDashboardUpcomingEvents(todayValue)[0] ?? null;
-const nextMatch = getDashboardUpcomingEvents(todayValue, ["match"])[0] ?? null;
-const nextSession = getDashboardNextSession(todayValue);
-const microcycle = getDashboardMicrocycle(todayValue);
-const taskQueues = selectHomeTaskQueues(tasks, currentUser?.id);
-const context = {
-currentUser,
-users,
-tasks,
-todayValue,
-todayEvents,
-todayMainEvent,
-todayPeriodization,
-nextEvent,
-nextMatch,
-nextSession,
-microcycle,
-personalOpenTasks: taskQueues.personalOpenTasks,
-myOpenTasks: taskQueues.myOpenTasks,
-delegatedOpenTasks: taskQueues.delegatedOpenTasks,
-};
-context.alerts = getDashboardAlerts(context);
-return context;
+return dashboardHomeContextSelectors.getHomeContext(currentUser, users, tasks);
 }
 function readPlatformAppearanceState() {
 return normalizePlatformAppearanceConfig(rawDataSafetyGetItem(platformAppearanceStorageKey) || {});

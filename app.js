@@ -49,6 +49,7 @@ import { createPlatformAutosaveStatusController } from "./src/core/platform-auto
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
 import { getTopIconSvg } from "./top-icons.js";
 import { createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
+import { adminDepartmentSuggestions, adminTitleSuggestions, formatAdminDateTime, formatAuditActionLabel, formatAuditActor, formatAuditTarget, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
 const getElement = document.getElementById.bind(document);
 const win = window;
 const canvas = getElement("pitchCanvas");
@@ -4935,22 +4936,6 @@ const platformRoleAliases = Object.freeze({
 "owner": "admin",
 "admin-role": "admin",
 });
-const adminTitleSuggestions = Object.freeze([
-"Sporting Director",
-"Head of Scouting",
-"Scout",
-"Recruitment Analyst",
-"Opposition Analyst",
-"Coach",
-]);
-const adminDepartmentSuggestions = Object.freeze([
-"Football",
-"Scouting",
-"Recruitment",
-"Analysis",
-"Performance",
-"Medical",
-]);
 const platformDefaultClubId = "club-north-carolina-courage";
 const platformDefaultTeamId = "team-north-carolina-courage";
 const platformDefaultClubName = "North Carolina Courage";
@@ -19096,21 +19081,6 @@ ${renderUserAvatar(selectedUser, "profile-avatar")}
     </section>
   `;
 }
-function formatAdminDateTime(value) {
-if (!value) {
-return "Never";
-}
-const date = new Date(value);
-if (Number.isNaN(date.getTime())) {
-return "Never";
-}
-return new Intl.DateTimeFormat("en-GB", {
-day: "2-digit",
-month: "short",
-hour: "2-digit",
-minute: "2-digit",
-}).format(date);
-}
 function renderAdminAccountSummary(user) {
 if (!user) {
 return "";
@@ -19135,23 +19105,6 @@ return `
       </div>
     </section>
   `;
-}
-function formatAuditActor(entry) {
-return entry?.actor?.name || entry?.actor?.email || "System";
-}
-function formatAuditTarget(entry) {
-return entry?.target?.name || entry?.target?.email || "";
-}
-function formatAuditActionLabel(action) {
-const labels = {
-"user.created": "User created",
-"user.updated": "User updated",
-"user.removed": "User removed",
-"profile.updated": "Profile updated",
-"user.reset_email_sent": "Reset email",
-"access.updated": "Access changed",
-};
-return labels[action] || String(action || "Activity");
 }
 function renderAdminAuditLog() {
 if (adminAuditLoading && !adminAuditEntries.length) {
@@ -19196,10 +19149,10 @@ function getAdminActiveUserCount(users = []) {
 return users.filter((user) => user.status !== "paused").length;
 }
 function getAdminUserInitials(user = {}) {
-const name = formatUserName(user);
-const first = normalizePlatformStructureText(user.firstName || name.split(" ")[0], "");
-const last = normalizePlatformStructureText(user.lastName || name.split(" ").slice(-1)[0], "");
-return `${first[0] || "U"}${last[0] || ""}`.toUpperCase();
+return getAdminUserInitialsFromModule(user, {
+formatUserName,
+normalizeText: normalizePlatformStructureText,
+});
 }
 function renderAdminMiniUserStack(users = []) {
 const visibleUsers = users.slice(0, 5);

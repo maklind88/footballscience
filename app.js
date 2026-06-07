@@ -9,6 +9,7 @@ import { createDashboardHomeContextSelectors } from "./src/modules/home/dashboar
 import { createDashboardHomeCardsRenderer } from "./src/modules/home/dashboard-renderer.mjs";
 import { createDashboardTaskListRenderer } from "./src/modules/home/task-list-renderer.mjs";
 import { createScheduleWorkspaceController } from "./src/modules/schedule/schedule-controller.mjs";
+import { formatMonthYearLabel, formatScheduleBlockSummary as formatScheduleBlockSummaryFromModule, formatScheduleMonthName, getScheduleMainEvent as getScheduleMainEventFromModule, isScheduleSessionEvent as isScheduleSessionEventFromModule } from "./src/modules/schedule/schedule-selectors.mjs";
 import {
   cloneScheduleState,
   createDefaultScheduleState,
@@ -5449,15 +5450,10 @@ logEvent("Periodization settings could not be written to local storage.");
 }
 }
 function formatMonthLabel(date) {
-return new Intl.DateTimeFormat("en-US", {
-month: "long",
-year: "numeric",
-}).format(date);
+return formatMonthYearLabel(date);
 }
 function formatScheduleMonthLabel(date) {
-return new Intl.DateTimeFormat("en-GB", {
-month: "long",
-}).format(date);
+return formatScheduleMonthName(date);
 }
 function getSelectedPeriodizationDate() {
 if (!periodizationState) {
@@ -5846,18 +5842,10 @@ function getScheduleVisibleEventsForDate(dateValue) {
 return getScheduleVisibleEvents(getScheduleEventsForDate(dateValue));
 }
 function getScheduleMainEvent(events = []) {
-return [...events].sort((a, b) => {
-const priorityA = scheduleMainEventPriority[a.type] ?? 99;
-const priorityB = scheduleMainEventPriority[b.type] ?? 99;
-if (priorityA !== priorityB) {
-return priorityA - priorityB;
-}
-return `${a.time || "99:99"} ${a.title}`.localeCompare(`${b.time || "99:99"} ${b.title}`);
-})[0];
+return getScheduleMainEventFromModule(events);
 }
 function isScheduleSessionEvent(event) {
-const title = String(event?.title ?? "").toLowerCase();
-return event?.type === "training" || title.includes("training");
+return isScheduleSessionEventFromModule(event);
 }
 function getScheduleSessionEventForDate(dateValue) {
 return getScheduleEventsForDate(dateValue).find(isScheduleSessionEvent) ?? null;
@@ -5914,8 +5902,7 @@ minutes: blocks.reduce((total, block) => total + (Number(block.minutes) || 0), 0
 };
 }
 function formatScheduleBlockSummary(blockCount, minutes = 0) {
-const blockLabel = `${blockCount} block${blockCount === 1 ? "" : "s"}`;
-return minutes ? `${blockLabel} / ${minutes} min` : blockLabel;
+return formatScheduleBlockSummaryFromModule(blockCount, minutes);
 }
 function getScheduleDayWarnings(events, periodizationDay, sessionSnapshot) {
 const warnings = [];

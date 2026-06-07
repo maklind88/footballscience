@@ -48,6 +48,7 @@ import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mj
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createPasswordRevealInputRenderer } from "./src/core/form-renderers.mjs";
 import { installPlatformOverlayStability } from "./src/core/overlay-stability.mjs";
+import { defaultHubState, placeholderWorkspaceContent, platformSidebarMoreOrder, platformSidebarPrimaryOrder, topIconMenuOrder } from "./src/core/workspace-defaults.mjs";
 import { createPlatformNavigationRenderer } from "./src/modules/platform/navigation-renderer.mjs";
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
 import { getTopIconSvg } from "./top-icons.js";
@@ -1635,198 +1636,6 @@ const importedNccScheduleEvents = Array.isArray(win.__importedNccScheduleEvents)
 const importedNccScheduleVersion = importedNccScheduleEvents.length
 ? win.__importedNccScheduleVersion || "ncc-2026-numbers-v1"
 : "";
-const defaultHubState = {
-activeWorkspaceId: "home",
-sidebarCollapsed: false,
-profile: {
-name: "Mak Lind",
-shortName: "Mak",
-role: "Head Coach",
-},
-workspaces: [
-{
-id: "home",
-kind: "dashboard",
-title: "Football Science",
-meta: "",
-description: "Daily coaching platform.",
-status: "Live",
-icon: "⌂",
-hiddenFromNav: true,
-},
-{
-id: "game-simulator",
-kind: "simulator",
-title: "Game Simulator",
-meta: "Simulator",
-description: "22-player football sandbox for passes, dribbles, shots and scenario playback.",
-status: "Active",
-icon: "◎",
-},
-{
-id: "schedule",
-kind: "schedule",
-title: "Schedule",
-meta: "Season calendar",
-description: "Training, matches, travel, meetings and daily team planning.",
-status: "New",
-icon: "□",
-},
-{
-id: "gameplan",
-kind: "gameplan",
-title: "Gameplan",
-meta: "Match",
-description: "Match prep.",
-status: "New",
-icon: "▤",
-},
-{
-id: "my-profile",
-kind: "profile",
-title: "Profile",
-meta: "Account",
-description: "Personal account, role and staff details.",
-status: "Me",
-icon: "◉",
-hiddenFromNav: true,
-},
-{
-id: "staff",
-kind: "staff",
-title: "My Team",
-meta: "Users",
-description: "Admin workspace for coaches, analysts and staff access.",
-status: "Admin",
-icon: "◔",
-requiresAdmin: true,
-},
-{
-id: "medical-team",
-kind: "medical",
-title: "Medical Team",
-meta: "Availability",
-description: "Player availability, medical recommendations and training participation logs.",
-status: "New",
-icon: "♡",
-},
-{
-id: "admin",
-kind: "admin",
-title: "Admin",
-meta: "Access control",
-description: "Role access, users and platform permissions.",
-status: "Admin",
-icon: "⚿",
-requiresAdmin: true,
-},
-{
-id: "settings",
-kind: "placeholder",
-title: "Settings",
-meta: "Preferences",
-description: "Account, platform and workspace settings.",
-status: "Soon",
-icon: "⚙",
-hiddenFromNav: true,
-},
-{
-id: "team-identity",
-kind: "placeholder",
-title: "Identity",
-meta: "Principles and behaviours",
-description: "Your game model, phases, principles and style of play will live here.",
-status: "Build next",
-icon: "✦",
-},
-{
-id: "session-planner",
-kind: "session",
-title: "Sessions",
-meta: "Training design",
-description: "Plan daily sessions and connect exercises back to the game model.",
-status: "Active",
-icon: "▣",
-},
-{
-id: "periodization",
-kind: "periodization",
-title: "Periodization",
-meta: "Season rhythm",
-description: "Longer-term planning for months, weeks and match rhythm.",
-status: "Shell",
-icon: "◫",
-},
-{
-id: "player-profiles",
-kind: "player-profiles",
-title: "Squad Room",
-meta: "Roster and profiles",
-description: "Squad roster, player profiles, roles and availability.",
-status: "Active",
-icon: "☷",
-},
-{
-id: "scouting",
-kind: "scouting",
-title: "Scouting",
-meta: "Recruitment",
-description: "Targets, reports, watchlists and role-fit analysis.",
-status: "New",
-icon: "◇",
-},
-{
-id: "transfer-room",
-kind: "transfer-room",
-title: "Transfer Room",
-meta: "Confidential planning",
-description: "Squad decisions, scouted targets, budgets and league-rule checks.",
-status: "New",
-icon: "◍",
-},
-{
-id: "analysis-room",
-kind: "analysis-room",
-title: "Analysis Room",
-meta: "Team performance",
-description: "Own-team match review, performance trends and tactical feedback.",
-status: "Shell",
-icon: "◈",
-},
-],
-};
-const topIconMenuOrder = [
-"schedule",
-"gameplan",
-"periodization",
-"session-planner",
-"player-profiles",
-"scouting",
-"transfer-room",
-"analysis-room",
-"staff",
-"medical-team",
-"admin",
-"team-identity",
-"game-simulator",
-];
-const platformSidebarPrimaryOrder = [
-"schedule",
-"periodization",
-"medical-team",
-"session-planner",
-"player-profiles",
-"scouting",
-"game-simulator",
-];
-const platformSidebarMoreOrder = [
-"gameplan",
-"transfer-room",
-"analysis-room",
-"staff",
-"admin",
-"team-identity",
-];
 const defaultWorkspaceAccess = {
 chat: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
 schedule: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"],
@@ -1885,7 +1694,6 @@ view: ["admin", "club-admin", "team-admin", "coach"],
 edit: ["admin", "club-admin", "team-admin", "coach"],
 },
 };
-const placeholderWorkspaceContent = {};
 const playerProfilesDefaultRosterVersion = "player-profiles-ncc-2026-v1";
 const playerProfilesSchemaVersion = 3;
 const playerProfileChangeLogLimit = 250;

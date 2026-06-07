@@ -10,9 +10,15 @@ import { createDashboardChatAttachmentPreview } from "./src/modules/chat/chat-at
 import { createDashboardChatApiUiActions } from "./src/modules/chat/chat-api-ui-actions.mjs";
 import { createDashboardChatThreadSettingsStore } from "./src/modules/chat/chat-thread-settings.mjs";
 import { uploadDashboardChatAttachmentFile as uploadDashboardChatAttachmentFileWithClient } from "./src/modules/chat/chat-attachment-storage.mjs";
-import { createDashboardHomeContextSelectors } from "./src/modules/home/dashboard-context-selectors.mjs";
-import { createDashboardHomeCardsRenderer } from "./src/modules/home/dashboard-renderer.mjs";
-import { createDashboardTaskListRenderer } from "./src/modules/home/task-list-renderer.mjs";
+import {
+  createDashboardHomeCardsRenderer,
+  createDashboardHomeContextSelectors,
+  createDashboardRuntimeController,
+  createDashboardTaskListRenderer,
+  dashboardNewsSeenStorageKey,
+  dashboardTaskStorageKey,
+  dashboardTutorialPrefsStorageKey,
+} from "./src/modules/home/index.mjs";
 import { createScheduleWorkspaceController } from "./src/modules/schedule/schedule-controller.mjs";
 import { formatMonthYearLabel, formatScheduleBlockSummary as formatScheduleBlockSummaryFromModule, formatScheduleMonthName, getScheduleDayWarnings as getScheduleDayWarningsFromModule, getScheduleMainEvent as getScheduleMainEventFromModule, isScheduleSessionEvent as isScheduleSessionEventFromModule } from "./src/modules/schedule/schedule-selectors.mjs";
 import {
@@ -212,7 +218,6 @@ const sessionPlannerBlockMergeFields = Object.freeze([
 const sessionPlannerBlockMergeFieldSet = new Set(sessionPlannerBlockMergeFields);
 const playerProfilesStorageKey = "football-player-profiles-v1";
 const playerProfileAgeCacheStorageKey = "football-player-profile-age-cache-v1";
-const dashboardTaskStorageKey = "football-dashboard-tasks-v1";
 const dashboardChatStorageKey = "football-dashboard-chat-v1";
 const dashboardChatDeletedMessageIdsStorageKey = "football-dashboard-chat-deleted-message-ids-v1";
 const dashboardChatLocalCacheResetStorageKey = "football-dashboard-chat-local-cache-reset-v1";
@@ -245,8 +250,6 @@ const dashboardChatAdvancedThreadTemplates = [
 { key: "announcements", label: "Announcements", type: "announcement", title: "Announcements", visibility: "staff" },
 ];
 const dashboardNotificationSeenStorageKey = "football-dashboard-notification-seen-v1";
-const dashboardTutorialPrefsStorageKey = "football-dashboard-tutorial-prefs-v1";
-const dashboardNewsSeenStorageKey = "football-dashboard-news-seen-v1";
 const platformAppearanceStorageKey = "football-platform-appearance-v1";
 const medicalTeamStorageKey = "football-medical-team-v1";
 const scoutingStorageKey = "football-scouting-v1";
@@ -408,6 +411,102 @@ escapeHtml,
 renderTaskList: dashboardTaskListRenderer.renderTaskList,
 resolveUserLabel: (userId, users) => getDashboardUserLabel(userId, users),
 });
+const dashboardRuntimeController = createDashboardRuntimeController({
+documentRef: document,
+win,
+getElement,
+getUi: () => ui,
+homeContextSelectors: dashboardHomeContextSelectors,
+homeCardsRenderer: dashboardHomeCardsRenderer,
+appearanceStorageKey: platformAppearanceStorageKey,
+readJson: readDashboardJson,
+writeJson: writeDashboardJson,
+createId: createDashboardId,
+getCurrentUser: getCurrentPlatformUser,
+getUsers: getPlatformUsers,
+getActiveWorkspaceId: () => hubState?.activeWorkspaceId,
+formatUserName,
+escapeHtml,
+readAppearanceRaw: rawDataSafetyGetItem,
+writeAppearanceRaw: (key, value) => win.localStorage.setItem(key, value),
+normalizeAppearanceConfig: normalizePlatformAppearanceConfig,
+normalizeAppearanceValue: normalizePlatformAppearanceValue,
+renderProfileWorkspace: (message) => renderProfileWorkspace(message),
+syncChatNotificationCursor: syncDashboardChatWidgetNotificationCursor,
+setActiveWorkspace: (workspaceId) => setActiveWorkspace(workspaceId),
+getFormValues: getPlatformFormValues,
+confirm: (message) => win.confirm(message),
+openScheduleDate: (dateValue) => {
+if (dateValue) {
+if (!scheduleState) {
+scheduleState = readScheduleState();
+}
+selectScheduleDate(dateValue);
+}
+},
+openPeriodizationDate: (dateValue) => {
+ensurePeriodizationState();
+if (dateValue && isDateValueInYear(dateValue, periodizationYear)) {
+const date = parseScheduleDateValue(dateValue);
+periodizationState.selectedDate = dateValue;
+periodizationState.selectedMonthIndex = date.getMonth();
+periodizationDayOverlayOpen = true;
+periodizationDayOverlayMode = "view";
+writePeriodizationState({ syncCentral: false });
+}
+},
+openSessionDate: (dateValue) => {
+if (dateValue) {
+dashboardHomeContextSelectors.getSessionPlannerState();
+sessionPlannerState.selectedDate = dateValue;
+writeSessionPlannerState();
+}
+},
+createSessionDate: (dateValue) => {
+if (!canEditSessionPlanner()) {
+return;
+}
+dashboardHomeContextSelectors.getSessionPlannerState();
+if (!sessionPlannerState.sessions) {
+sessionPlannerState.sessions = {};
+}
+if (!sessionPlannerState.sessions[dateValue]?.blocks?.length) {
+sessionPlannerState.sessions[dateValue] = createSessionPlannerSessionForNewPlan(dateValue);
+}
+sessionPlannerState.selectedDate = dateValue;
+writeSessionPlannerState();
+},
+openTacticalBoardDate: (dateValue) => {
+dashboardHomeContextSelectors.getSessionPlannerState();
+if (!sessionPlannerState.sessions) {
+sessionPlannerState.sessions = {};
+}
+if (!sessionPlannerState.sessions[dateValue]?.blocks?.length && canEditSessionPlanner()) {
+sessionPlannerState.sessions[dateValue] = createSessionPlannerSessionForNewPlan(dateValue);
+}
+sessionPlannerState.selectedDate = dateValue;
+writeSessionPlannerState();
+setActiveWorkspace("session-planner");
+if (getSessionPlannerSelectedSession().blocks.length) {
+setSessionPlannerTacticalboardOpen(true);
+}
+},
+});
+const {
+closeModal: closeDashboardModal,
+createTask: createDashboardTask,
+getDashboardDateLabel,
+getSessionTotalMinutes: getDashboardSessionTotalMinutes,
+readAppearanceState: readPlatformAppearanceState,
+readTasks: readDashboardTasks,
+refreshSurfaces: refreshDashboardSurfaces,
+removeTask: removeDashboardTask,
+renderCards: renderDashboardCards,
+scheduleLoginPopups: scheduleDashboardLoginPopups,
+showTutorialModal: showDashboardTutorialModal,
+updateTask: updateDashboardTask,
+writeAppearanceState: writePlatformAppearanceState,
+} = dashboardRuntimeController;
 const dashboardChatAttachmentRenderer = createDashboardChatAttachmentRenderer({
 escapeHtml,
 getSupabaseClient: getDashboardSupabaseClient,
@@ -1350,13 +1449,6 @@ saveSnapshot: saveDataSafetySnapshot,
 }
 installFootballDataSafety();
 installPlatformOverlayStability({ win });
-const dashboardNewsVersion = "home-dashboard-personal-todo-v2";
-const dashboardNewsItems = [
-"Home is now a cleaner staff workspace.",
-"Tasks can be delegated from the dashboard.",
-"Personal To-Do now lives on Home and mirrors to Profile.",
-"Team chat is ready for internal messages.",
-];
 const defaultScheduleState = createDefaultScheduleState();
 const importedNccScheduleEvents = Array.isArray(win.__importedNccScheduleEvents)
 ? win.__importedNccScheduleEvents
@@ -4348,13 +4440,6 @@ return workspaces.filter((workspace) =>
 .includes(query)
 );
 }
-function getDashboardDateLabel() {
-return new Intl.DateTimeFormat("en-GB", {
-weekday: "long",
-day: "numeric",
-month: "long",
-}).format(new Date());
-}
 function escapeHtml(value) {
 return String(value)
 .replaceAll("&", "&amp;")
@@ -4383,68 +4468,6 @@ win.localStorage.setItem(key, JSON.stringify(value));
 logEvent("Dashboard data could not be written to local storage.");
 }
 }
-function normalizeDashboardTask(task) {
-const currentUser = getCurrentPlatformUser();
-const title = String(task?.title ?? "").trim();
-const assignedTo = task?.assignedTo || currentUser?.id || "";
-const createdBy = task?.createdBy || currentUser?.id || assignedTo;
-return {
-id: task?.id || createDashboardId("task"),
-title,
-note: String(task?.note ?? "").trim(),
-assignedTo,
-createdBy,
-scope: task?.scope === "personal" ? "personal" : "team",
-status: task?.status === "done" ? "done" : "open",
-createdAt: task?.createdAt || new Date().toISOString(),
-completedAt: task?.completedAt || "",
-};
-}
-function readDashboardTasks() {
-const parsed = readDashboardJson(dashboardTaskStorageKey, []);
-return Array.isArray(parsed)
-? parsed
-.map(normalizeDashboardTask)
-.filter((task) => task.title && task.assignedTo)
-.sort((first, second) => new Date(second.createdAt) - new Date(first.createdAt))
-: [];
-}
-function writeDashboardTasks(tasks) { writeDashboardJson(dashboardTaskStorageKey, tasks.map(normalizeDashboardTask)); }
-function createDashboardTask(values) {
-const currentUser = getCurrentPlatformUser();
-const title = String(values?.title ?? "").trim();
-if (!currentUser || !title) {
-return null;
-}
-const task = normalizeDashboardTask({
-title,
-note: values?.note ?? "",
-assignedTo: values?.assignedTo || currentUser.id,
-createdBy: currentUser.id,
-scope: values?.scope ?? "team",
-});
-writeDashboardTasks([task, ...readDashboardTasks()]);
-return task;
-}
-function updateDashboardTask(taskId, patch) {
-const tasks = readDashboardTasks();
-const nextTasks = tasks.map((task) => {
-if (task.id !== taskId) {
-return task;
-}
-const nextStatus = patch?.status ?? task.status;
-return normalizeDashboardTask({
-...task,
-...patch,
-completedAt:
-nextStatus === "done"
-? patch?.completedAt || task.completedAt || new Date().toISOString()
-: "",
-});
-});
-writeDashboardTasks(nextTasks);
-}
-function removeDashboardTask(taskId) { writeDashboardTasks(readDashboardTasks().filter((task) => task.id !== taskId)); }
 function normalizeDashboardChatThreadId(rawThreadId, fallbackThreadId = dashboardChatTeamThreadId) {
 const threadId = String(rawThreadId || fallbackThreadId || "").trim();
 if (!threadId || threadId === dashboardChatTeamThreadId) {
@@ -6962,145 +6985,6 @@ win.setTimeout(() => {
 ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-input]")?.focus();
 }, 0);
 }
-function getDashboardSessionPlannerState() { return dashboardHomeContextSelectors.getSessionPlannerState(); }
-function getDashboardTodayValue() { return dashboardHomeContextSelectors.getTodayValue(); }
-function getDashboardSessionTotalMinutes(session) { return dashboardHomeContextSelectors.getSessionTotalMinutes(session); }
-function getDashboardHomeContext(currentUser, users, tasks) { return dashboardHomeContextSelectors.getHomeContext(currentUser, users, tasks); }
-function readPlatformAppearanceState() {
-return normalizePlatformAppearanceConfig(rawDataSafetyGetItem(platformAppearanceStorageKey) || {});
-}
-function writePlatformAppearanceState(config) {
-const currentUser = getCurrentPlatformUser();
-const normalizedValue = normalizePlatformAppearanceValue(config, {
-updatedAt: new Date().toISOString(),
-updatedBy: currentUser?.id || "",
-});
-localStorage.setItem(platformAppearanceStorageKey, normalizedValue);
-return JSON.parse(normalizedValue);
-}
-function getDashboardTutorialPrefs() {
-const parsed = readDashboardJson(dashboardTutorialPrefsStorageKey, {});
-return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
-}
-function writeDashboardTutorialPrefs(prefs) { writeDashboardJson(dashboardTutorialPrefsStorageKey, prefs); }
-function getDashboardTutorialPreference(userId) { return getDashboardTutorialPrefs()[userId] ?? null; }
-function saveDashboardTutorialPreference(userId, showOnLogin) {
-if (!userId) {
-return;
-}
-writeDashboardTutorialPrefs({
-...getDashboardTutorialPrefs(),
-[userId]: {
-showOnLogin: Boolean(showOnLogin),
-seenAt: new Date().toISOString(),
-},
-});
-}
-function shouldShowDashboardTutorialOnLogin(user) {
-if (!user?.id) {
-return false;
-}
-const preference = getDashboardTutorialPreference(user.id);
-return Boolean(preference?.showOnLogin);
-}
-function getDashboardNewsSeenMap() {
-const parsed = readDashboardJson(dashboardNewsSeenStorageKey, {});
-return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
-}
-function hasSeenDashboardNews(userId) { return getDashboardNewsSeenMap()[userId] === dashboardNewsVersion; }
-function markDashboardNewsSeen(userId) {
-if (!userId) {
-return;
-}
-writeDashboardJson(dashboardNewsSeenStorageKey, {
-...getDashboardNewsSeenMap(),
-[userId]: dashboardNewsVersion,
-});
-}
-let dashboardModalAfterClose = null;
-let dashboardPopupsScheduledForUserId = null;
-function getDashboardModalRoot() {
-let root = getElement("dashboardModalRoot");
-if (!root) {
-root = document.createElement("div");
-root.id = "dashboardModalRoot";
-root.className = "dashboard-modal-root";
-root.hidden = true;
-document.body.appendChild(root);
-}
-return root;
-}
-function closeDashboardModal(runAfterClose = true) {
-const root = getDashboardModalRoot();
-root.hidden = true;
-root.innerHTML = "";
-const afterClose = dashboardModalAfterClose;
-dashboardModalAfterClose = null;
-if (runAfterClose && typeof afterClose === "function") {
-afterClose();
-}
-}
-function showDashboardTutorialModal(options = {}) {
-if (document.body?.dataset.activeWorkspace && document.body.dataset.activeWorkspace !== "home") {
-return;
-}
-const user = getCurrentPlatformUser();
-if (!user) {
-return;
-}
-const preference = getDashboardTutorialPreference(user.id);
-const shouldShowNext = Boolean(preference?.showOnLogin);
-const root = getDashboardModalRoot();
-dashboardModalAfterClose = options.afterClose ?? null;
-root.innerHTML = dashboardHomeCardsRenderer.renderTutorialModal({ shouldShowNext });
-root.hidden = false;
-root.querySelector(".dashboard-modal-actions [data-dashboard-tutorial-save]")?.focus();
-}
-function showDashboardNewsModal() {
-dashboardModalAfterClose = null;
-closeDashboardModal(false);
-if (document.body?.dataset.activeWorkspace && document.body.dataset.activeWorkspace !== "home") {
-return;
-}
-const newsSeenMap = getDashboardNewsSeenMap();
-const user = getCurrentPlatformUser();
-if (user?.id && newsSeenMap[user.id] !== dashboardNewsVersion) {
-markDashboardNewsSeen(user.id);
-}
-return;
-}
-function maybeShowDashboardNewsModal() {
-const user = getCurrentPlatformUser();
-if (!user || hasSeenDashboardNews(user.id)) {
-return;
-}
-showDashboardNewsModal();
-}
-function scheduleDashboardLoginPopups() {
-const user = getCurrentPlatformUser();
-if (!user) {
-dashboardPopupsScheduledForUserId = null;
-closeDashboardModal(false);
-return;
-}
-if (dashboardPopupsScheduledForUserId === user.id) {
-return;
-}
-dashboardPopupsScheduledForUserId = user.id;
-win.setTimeout(() => {
-const activeUser = getCurrentPlatformUser();
-if (!activeUser || activeUser.id !== user.id) {
-return;
-}
-if (shouldShowDashboardTutorialOnLogin(activeUser)) {
-showDashboardTutorialModal({
-afterClose: maybeShowDashboardNewsModal,
-});
-return;
-}
-maybeShowDashboardNewsModal();
-}, 350);
-}
 const gameSimulatorSidebarRenderer = createGameSimulatorSidebarRenderer({
 ui,
 getState: () => state,
@@ -7133,36 +7017,6 @@ escapeHtml,
 playerTendencyTemplates,
 });
 
-function renderDashboardCards() {
-if (!ui.dashboardGrid) {
-return;
-}
-const currentUser = getCurrentPlatformUser();
-if (!currentUser) {
-ui.dashboardGrid.innerHTML = "";
-return;
-}
-const users = getPlatformUsers().filter((user) => user.status === "active");
-const tasks = readDashboardTasks();
-const context = getDashboardHomeContext(currentUser, users, tasks);
-const appearance = readPlatformAppearanceState();
-const staffOptions = users
-.map(
-(user) =>
-`<option value="${escapeHtml(user.id)}" ${user.id === currentUser.id ? "selected" : ""}>${escapeHtml(formatUserName(user))}</option>`
-)
-.join("");
-ui.dashboardGrid.innerHTML = `
-    ${dashboardHomeCardsRenderer.render(context, staffOptions, appearance)}
-  `;
-syncDashboardChatWidgetNotificationCursor();
-}
-function refreshDashboardSurfaces(profileMessage = "") {
-renderDashboardCards();
-if (hubState?.activeWorkspaceId === "my-profile") {
-renderProfileWorkspace(profileMessage);
-}
-}
 function callExerciseLibraryRuntime(methodName, args) {
 const method = exerciseLibraryRuntime?.[methodName];
 if (typeof method !== "function") throw new Error(`Exercise Library runtime is missing method: ${methodName}`);
@@ -14475,144 +14329,7 @@ return;
 platformNavigationController.hideTopIconTooltip();
 }
 });
-ui.dashboardGrid?.addEventListener("click", (event) => {
-const readReceipt = event.target.closest("[data-dashboard-read-receipt]");
-if (readReceipt) {
-ui.dashboardGrid
-.querySelectorAll("[data-dashboard-read-receipt][open]")
-.forEach((receipt) => {
-if (receipt !== readReceipt) {
-receipt.removeAttribute("open");
-}
-});
-return;
-}
-const tutorialButton = event.target.closest("[data-dashboard-action='open-tutorial']");
-if (tutorialButton) {
-showDashboardTutorialModal();
-return;
-}
-const toggleTaskButton = event.target.closest("[data-dashboard-toggle-task]");
-if (toggleTaskButton) {
-const task = readDashboardTasks().find((candidate) => candidate.id === toggleTaskButton.dataset.dashboardToggleTask);
-if (!task) {
-return;
-}
-updateDashboardTask(task.id, {
-status: task.status === "done" ? "open" : "done",
-});
-refreshDashboardSurfaces();
-return;
-}
-const removeTaskButton = event.target.closest("[data-dashboard-remove-task]");
-if (removeTaskButton) {
-if (win.confirm("Remove this task?")) {
-removeDashboardTask(removeTaskButton.dataset.dashboardRemoveTask);
-refreshDashboardSurfaces();
-}
-return;
-}
-const scheduleDateButton = event.target.closest("[data-dashboard-open-schedule-date]");
-if (scheduleDateButton) {
-const dateValue = scheduleDateButton.dataset.dashboardOpenScheduleDate;
-if (dateValue) {
-if (!scheduleState) {
-scheduleState = readScheduleState();
-}
-selectScheduleDate(dateValue);
-}
-setActiveWorkspace("schedule");
-return;
-}
-const periodizationDateButton = event.target.closest("[data-dashboard-open-periodization-date]");
-if (periodizationDateButton) {
-const dateValue = periodizationDateButton.dataset.dashboardOpenPeriodizationDate;
-ensurePeriodizationState();
-if (dateValue && isDateValueInYear(dateValue, periodizationYear)) {
-const date = parseScheduleDateValue(dateValue);
-periodizationState.selectedDate = dateValue;
-periodizationState.selectedMonthIndex = date.getMonth();
-periodizationDayOverlayOpen = true;
-periodizationDayOverlayMode = "view";
-writePeriodizationState({ syncCentral: false });
-}
-setActiveWorkspace("periodization");
-return;
-}
-const openSessionDateButton = event.target.closest("[data-dashboard-open-session-date]");
-if (openSessionDateButton) {
-const dateValue = openSessionDateButton.dataset.dashboardOpenSessionDate;
-if (dateValue) {
-getDashboardSessionPlannerState();
-sessionPlannerState.selectedDate = dateValue;
-writeSessionPlannerState();
-}
-setActiveWorkspace("session-planner");
-return;
-}
-const createSessionDateButton = event.target.closest("[data-dashboard-create-session-date]");
-if (createSessionDateButton) {
-if (!canEditSessionPlanner()) {
-setActiveWorkspace("session-planner");
-return;
-}
-const dateValue = createSessionDateButton.dataset.dashboardCreateSessionDate || getDashboardTodayValue();
-getDashboardSessionPlannerState();
-if (!sessionPlannerState.sessions) {
-sessionPlannerState.sessions = {};
-}
-if (!sessionPlannerState.sessions[dateValue]?.blocks?.length) {
-sessionPlannerState.sessions[dateValue] = createSessionPlannerSessionForNewPlan(dateValue);
-}
-sessionPlannerState.selectedDate = dateValue;
-writeSessionPlannerState();
-setActiveWorkspace("session-planner");
-return;
-}
-const tacticalboardButton = event.target.closest("[data-dashboard-open-tacticalboard]");
-if (tacticalboardButton) {
-const dateValue = tacticalboardButton.dataset.dashboardOpenTacticalboard || getDashboardTodayValue();
-getDashboardSessionPlannerState();
-if (!sessionPlannerState.sessions) {
-sessionPlannerState.sessions = {};
-}
-if (!sessionPlannerState.sessions[dateValue]?.blocks?.length && canEditSessionPlanner()) {
-sessionPlannerState.sessions[dateValue] = createSessionPlannerSessionForNewPlan(dateValue);
-}
-sessionPlannerState.selectedDate = dateValue;
-writeSessionPlannerState();
-setActiveWorkspace("session-planner");
-if (getSessionPlannerSelectedSession().blocks.length) {
-setSessionPlannerTacticalboardOpen(true);
-}
-return;
-}
-const focusButton = event.target.closest("[data-dashboard-focus]");
-if (focusButton) {
-const targetKey = focusButton.dataset.dashboardFocus;
-const target =
-targetKey === "task"
-? ui.dashboardGrid.querySelector("#dashboardTaskForm input[name='title']")
-: null;
-target?.focus();
-return;
-}
-const openTopTasksButton = event.target.closest("[data-dashboard-open-top-tasks]");
-if (openTopTasksButton) {
-const taskTitleInput = ui.dashboardGrid.querySelector("#dashboardTaskForm input[name='title']");
-if (!taskTitleInput) {
-return;
-}
-taskTitleInput.scrollIntoView({ behavior: "smooth", block: "center" });
-taskTitleInput.focus();
-return;
-}
-const trigger = event.target.closest("[data-open-workspace]");
-if (!trigger) {
-return;
-}
-setActiveWorkspace(trigger.dataset.openWorkspace);
-});
+dashboardRuntimeController.bindInteractions();
 function closeChatMenus(x = null) { ui.dashboardChatWidgetRoot?.querySelectorAll(".dashboard-chat-message-menu[open]").forEach((menu) => { if (menu !== x) menu.removeAttribute("open"); }); }
 ui.dashboardChatWidgetRoot?.addEventListener("click", async (event) => {
 const activeMenu = event.target.closest(".dashboard-chat-message-menu");
@@ -15033,37 +14750,6 @@ ui.dashboardChatWidgetRoot
 ?.querySelectorAll("[data-dashboard-read-receipt][open]")
 .forEach((receipt) => receipt.removeAttribute("open"));
 });
-ui.dashboardGrid?.addEventListener("submit", (event) => {
-const personalTodoForm = event.target.closest("#dashboardPersonalTodoForm");
-if (personalTodoForm) {
-event.preventDefault();
-const user = getCurrentPlatformUser();
-const values = getPlatformFormValues(personalTodoForm);
-if (!user || !values.title) {
-return;
-}
-createDashboardTask({
-title: values.title,
-assignedTo: user.id,
-scope: "personal",
-});
-refreshDashboardSurfaces();
-return;
-}
-const taskForm = event.target.closest("#dashboardTaskForm");
-if (taskForm) {
-event.preventDefault();
-const values = getPlatformFormValues(taskForm);
-createDashboardTask({
-title: values.title,
-note: values.note,
-assignedTo: values.assignedTo,
-scope: "team",
-});
-renderDashboardCards();
-return;
-}
-});
 ui.dashboardChatWidgetRoot?.addEventListener("submit", async (event) => {
 const chatForm = event.target.closest("[data-dashboard-chat-form]");
 if (!chatForm) {
@@ -15113,45 +14799,6 @@ queueDashboardChatThreadSummaryRefresh({ delayMs: 50 });
 renderDashboardChatWidget();
 focusDashboardChatWidgetComposer();
 platformNavigationController.renderTopIconMenu();
-});
-document.addEventListener("click", (event) => {
-const modalRoot = getElement("dashboardModalRoot");
-if (!modalRoot || modalRoot.hidden) {
-return;
-}
-const user = getCurrentPlatformUser();
-if (event.target.closest("[data-dashboard-tutorial-never]")) {
-saveDashboardTutorialPreference(user?.id, false);
-closeDashboardModal();
-return;
-}
-if (event.target.closest("[data-dashboard-tutorial-save]") || event.target.matches("[data-dashboard-modal-close]")) {
-const showNext = Boolean(modalRoot.querySelector("#dashboardTutorialShowNext")?.checked);
-saveDashboardTutorialPreference(user?.id, showNext);
-closeDashboardModal();
-return;
-}
-if (event.target.closest("[data-dashboard-news-dismiss]")) {
-markDashboardNewsSeen(user?.id);
-closeDashboardModal();
-}
-});
-document.addEventListener("keydown", (event) => {
-if (event.key !== "Escape") {
-return;
-}
-const modalRoot = getElement("dashboardModalRoot");
-if (!modalRoot || modalRoot.hidden) {
-return;
-}
-const user = getCurrentPlatformUser();
-if (modalRoot.querySelector("#dashboardTutorialShowNext")) {
-const showNext = Boolean(modalRoot.querySelector("#dashboardTutorialShowNext")?.checked);
-saveDashboardTutorialPreference(user?.id, showNext);
-} else {
-markDashboardNewsSeen(user?.id);
-}
-closeDashboardModal();
 });
 ui.profileMenu?.addEventListener("click", (event) => {
 const trigger = event.target.closest("[data-open-workspace]");

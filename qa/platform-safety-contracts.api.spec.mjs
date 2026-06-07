@@ -70,6 +70,7 @@ const coreFiles = [
   "src/modules/manifest.mjs",
   "src/modules/home/tasks.mjs",
   "src/modules/home/tasks-adapter.mjs",
+  "src/modules/home/dashboard-runtime-controller.mjs",
   "src/modules/home/chat.mjs",
   "src/modules/home/chat-adapter.mjs",
   "src/modules/home/index.mjs",
@@ -125,6 +126,7 @@ test("protected product data remains covered by client safety, central state, an
   const appStateSource = readProjectFile("api/app-state.js");
   const backupSource = readProjectFile("api/app-state-backup.js");
   const dataSafetySource = readProjectFile("src/core/data-safety-contracts.cjs");
+  const homeRuntimeControllerSource = readProjectFile("src/modules/home/dashboard-runtime-controller.mjs");
   const exerciseLibraryActionsSource = readProjectFile("src/modules/exercise-library/exercise-library-actions.mjs");
   const exerciseLibraryRendererSource = readProjectFile("src/modules/exercise-library/exercise-library-renderer.mjs");
   const exerciseLibraryStateSource = readProjectFile("src/modules/exercise-library/exercise-library-state.mjs");
@@ -133,7 +135,7 @@ test("protected product data remains covered by client safety, central state, an
   const sessionPlannerVisualRendererSource = readProjectFile("src/modules/session-planner/session-planner-visual-renderer.mjs");
   const sessionPlannerPlayerBoardRendererSource = readProjectFile("src/modules/session-planner/session-planner-player-board-renderer.mjs");
   const sessionPlannerPrintRendererSource = readProjectFile("src/modules/session-planner/session-planner-print-renderer.mjs");
-  const clientSafetySource = `${appSource}\n${exerciseLibraryActionsSource}\n${exerciseLibraryRendererSource}\n${exerciseLibraryStateSource}\n${sessionPlannerAutosaveSource}\n${sessionPlannerRendererSource}\n${sessionPlannerVisualRendererSource}\n${sessionPlannerPlayerBoardRendererSource}\n${sessionPlannerPrintRendererSource}`;
+  const clientSafetySource = `${appSource}\n${homeRuntimeControllerSource}\n${exerciseLibraryActionsSource}\n${exerciseLibraryRendererSource}\n${exerciseLibraryStateSource}\n${sessionPlannerAutosaveSource}\n${sessionPlannerRendererSource}\n${sessionPlannerVisualRendererSource}\n${sessionPlannerPlayerBoardRendererSource}\n${sessionPlannerPrintRendererSource}`;
   const moduleContracts = readProjectFile("docs/MODULE_CONTRACTS.md");
 
   for (const key of protectedStorageKeys) {
@@ -372,6 +374,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-tasks-adapter.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-chat-adapter.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-dashboard-renderer.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-dashboard-runtime-controller.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-chat-widget-renderer.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/schedule-adapter.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/schedule-database-adapter.api.spec.mjs");

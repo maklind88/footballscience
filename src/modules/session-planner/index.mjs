@@ -1,5 +1,6 @@
 export * from "./session-planner-autosave.mjs";
 export * from "./session-planner-renderer.mjs";
+export * from "./session-planner-session-factory.mjs";
 export * from "./session-planner-options.mjs";
 export * from "./session-planner-block-helpers.mjs";
 export * from "./session-planner-workspace-renderer.mjs";

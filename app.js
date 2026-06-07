@@ -49,7 +49,7 @@ import {
   sessionPlannerExerciseLibraryVersionLimit,
   sessionPlannerLibrarySortOptions,
 } from "./src/modules/exercise-library/index.mjs";
-import { createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerPlayerBoardFormationHelpers, createSessionPlannerPlayerBoardHelpers, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerSelectionAssistant, createSessionPlannerTacticalHelpers, createSessionPlannerVisualRenderer, createSessionPlannerWorkspaceRenderer, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
+import { createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerPlayerBoardFormationHelpers, createSessionPlannerPlayerBoardHelpers, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerSelectionAssistant, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualRenderer, createSessionPlannerWorkspaceRenderer, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createPasswordRevealInputRenderer } from "./src/core/form-renderers.mjs";
@@ -3577,6 +3577,13 @@ normalizePlayerBoardPositions: normalizeSessionPlannerPlayerBoardPositions,
 normalizeTacticalActiveFrameId: normalizeSessionPlannerTacticalActiveFrameId,
 normalizeTacticalFrames: normalizeSessionPlannerTacticalFrames,
 normalizeTacticalPitchMode: normalizeSessionPlannerTacticalPitchMode,
+});
+const sessionPlannerSessionFactory = createSessionPlannerSessionFactory({
+createBlock: createSessionPlannerBlock,
+defaultExerciseLibrary: sessionPlannerDefaultExerciseLibrary,
+formatDateValue: formatScheduleDateValue,
+getActiveExerciseLibrary: getSessionPlannerActiveExerciseLibrary,
+getScheduledSessionTitle: getScheduledSessionTitleForDate,
 });
 const exerciseLibrarySelectors = createExerciseLibrarySelectors({
 normalizeTimestamp: normalizeSessionPlannerTimestamp,
@@ -10091,62 +10098,10 @@ function restoreSessionPlannerLibraryExercise(exerciseId) {
 exerciseLibraryActions.restoreExercise(exerciseId);
 }
 function createSessionPlannerDefaultSession(dateValue = formatScheduleDateValue(new Date())) {
-const possessionBlock = getSessionPlannerActiveExerciseLibrary()[0] || sessionPlannerDefaultExerciseLibrary[0];
-const blocks = [
-createSessionPlannerBlock({
-id: "warm-up",
-label: "Warm Up",
-title: "Activation",
-focus: "Prepare the body and the football brain",
-minutes: 12,
-intensity: 2,
-pitchSize: "20m x 20m",
-diagram: "build-up",
-}),
-createSessionPlannerBlock({
-id: "block-1",
-label: "Block 1",
-title: "Technical Rhythm",
-focus: "Passing detail and first touch direction",
-minutes: 16,
-intensity: 3,
-pitchSize: "30m x 24m",
-diagram: "build-up",
-}),
-createSessionPlannerBlock({
-...possessionBlock,
-id: "block-2",
-label: "Block 2",
-}),
-createSessionPlannerBlock({
-id: "game",
-label: "Game",
-title: "Game Form",
-focus: "Transfer the block into live decisions",
-minutes: 20,
-intensity: 4,
-pitchSize: "BSG",
-diagram: "final-third",
-}),
-];
-return {
-id: `session-${dateValue}`,
-date: dateValue,
-title: "Training Session",
-theme: "Possession and pressing connection",
-selectedBlockId: "block-2",
-blocks,
-};
+return sessionPlannerSessionFactory.createDefaultSession(dateValue);
 }
 function createSessionPlannerEmptySession(dateValue = formatScheduleDateValue(new Date())) {
-return {
-id: `session-${dateValue}`,
-date: dateValue,
-title: getScheduledSessionTitleForDate(dateValue) || "Session",
-theme: "",
-selectedBlockId: "",
-blocks: [],
-};
+return sessionPlannerSessionFactory.createEmptySession(dateValue);
 }
 function getSessionPlannerPeriodizationOverride(dateValue) {
 if (!dateValue) {
@@ -10173,19 +10128,7 @@ return isSessionPlannerOffDate(dateValue)
 : createSessionPlannerDefaultSession(dateValue);
 }
 function isGeneratedDefaultSessionPlannerSession(session = {}) {
-const blocks = Array.isArray(session.blocks) ? session.blocks : [];
-return (
-String(session.title || "").trim() === "Training Session" &&
-String(session.theme || "").trim() === "Possession and pressing connection" &&
-blocks.length === 4 &&
-blocks[0]?.id === "warm-up" &&
-blocks[0]?.title === "Activation" &&
-blocks[1]?.id === "block-1" &&
-blocks[1]?.title === "Technical Rhythm" &&
-blocks[2]?.id === "block-2" &&
-blocks[3]?.id === "game" &&
-blocks[3]?.title === "Game Form"
-);
+return sessionPlannerSessionFactory.isGeneratedDefaultSession(session);
 }
 function shouldStripSessionPlannerGeneratedDefaultSession(dateValue, session = {}) {
 if (!isGeneratedDefaultSessionPlannerSession(session)) {

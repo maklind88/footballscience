@@ -1,4 +1,5 @@
 export * from "./players.mjs";
+export * from "./player-profile-feedback.mjs";
 export * from "./player-profile-options.mjs";
 export * from "./squad-adapter.mjs";
 export * from "./squad-profile-selected-renderer.mjs";

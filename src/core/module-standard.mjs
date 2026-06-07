@@ -229,13 +229,21 @@ export const moduleStandardContracts = Object.freeze([
   createModuleStandardContract({
     id: "exercise-library",
     label: "Exercise Library",
-    migrationStatus: moduleMigrationStatuses.legacy,
+    migrationStatus: moduleMigrationStatuses.partialExtraction,
     mountId: "sessionPlannerWorkspace",
-    currentFiles: ["app.js"],
-    testFiles: ["qa/data-safety-contracts.api.spec.mjs", "qa/critical-flows.smoke.spec.mjs"],
+    currentFiles: [
+      "app.js",
+      "src/modules/exercise-library/index.mjs",
+      "src/modules/exercise-library/exercise-library-state.mjs",
+    ],
+    testFiles: [
+      "qa/data-safety-contracts.api.spec.mjs",
+      "qa/critical-flows.smoke.spec.mjs",
+      "qa/exercise-library-module-contract.api.spec.mjs",
+    ],
     extractionOrder: 11,
     riskLevel: "high",
-    notes: "Extract before Session Planner blocks. Never seed-overwrite or hard-delete saved exercises.",
+    notes: "State normalization, archive/folder normalization, version snapshots, and storage constants live in src/modules/exercise-library; UI and protected write pipeline stay in app.js until later passes. Never seed-overwrite or hard-delete saved exercises.",
   }),
   createModuleStandardContract({
     id: "session-planner",

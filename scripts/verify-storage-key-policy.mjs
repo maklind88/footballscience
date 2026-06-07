@@ -7,6 +7,7 @@ import { dataSafetyContracts } from "../src/core/data-safety-contracts.mjs";
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const appSource = fs.readFileSync(path.join(rootDir, "app.js"), "utf8");
 const modularStorageSourcePaths = Object.freeze([
+  "src/modules/exercise-library/exercise-library-state.mjs",
   "src/modules/session-planner/session-planner-autosave.mjs",
 ]);
 const modularStorageSource = modularStorageSourcePaths

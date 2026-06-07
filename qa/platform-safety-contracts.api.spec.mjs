@@ -78,6 +78,8 @@ const coreFiles = [
   "src/modules/chat/chat-api-client.mjs",
   "src/modules/chat/chat-widget-renderer.mjs",
   "src/modules/chat/index.mjs",
+  "src/modules/exercise-library/index.mjs",
+  "src/modules/exercise-library/exercise-library-state.mjs",
   "src/modules/session-planner/index.mjs",
   "src/modules/session-planner/session-planner-autosave.mjs",
   "src/modules/schedule/events.mjs",
@@ -100,8 +102,9 @@ test("protected product data remains covered by client safety, central state, an
   const appStateSource = readProjectFile("api/app-state.js");
   const backupSource = readProjectFile("api/app-state-backup.js");
   const dataSafetySource = readProjectFile("src/core/data-safety-contracts.cjs");
+  const exerciseLibraryStateSource = readProjectFile("src/modules/exercise-library/exercise-library-state.mjs");
   const sessionPlannerAutosaveSource = readProjectFile("src/modules/session-planner/session-planner-autosave.mjs");
-  const clientSafetySource = `${appSource}\n${sessionPlannerAutosaveSource}`;
+  const clientSafetySource = `${appSource}\n${exerciseLibraryStateSource}\n${sessionPlannerAutosaveSource}`;
   const moduleContracts = readProjectFile("docs/MODULE_CONTRACTS.md");
 
   for (const key of protectedStorageKeys) {
@@ -329,6 +332,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/schedule-adapter.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/schedule-database-adapter.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/schedule-database-schema.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/exercise-library-module-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-module-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-adapter.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-database-schema.api.spec.mjs");

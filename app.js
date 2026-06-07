@@ -30,6 +30,17 @@ import {
 import { createPeriodizationWorkspaceController } from "./src/modules/periodization/periodization-controller.mjs";
 import { createPeriodizationRenderer } from "./src/modules/periodization/periodization-renderer.mjs";
 import { createPeriodizationSessionBridge } from "./src/modules/periodization/periodization-session-bridge.mjs";
+import {
+  createExerciseLibraryStateAdapter,
+  sessionPlannerExerciseLibraryBackupSchema,
+  sessionPlannerExerciseLibraryBackupStorageKey,
+  sessionPlannerExerciseLibraryFoldersBackupSchema,
+  sessionPlannerExerciseLibraryFoldersBackupStorageKey,
+  sessionPlannerExerciseLibraryFoldersStorageKey,
+  sessionPlannerExerciseLibraryStorageKey,
+  sessionPlannerExerciseLibraryVersionLimit,
+  sessionPlannerLibrarySortOptions,
+} from "./src/modules/exercise-library/index.mjs";
 import { createSessionPlannerAutosaveBoundary, sessionPlannerStorageKey } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
@@ -286,19 +297,6 @@ const sessionPlannerBlockMergeFields = Object.freeze([
 "postSessionNotes",
 ]);
 const sessionPlannerBlockMergeFieldSet = new Set(sessionPlannerBlockMergeFields);
-const sessionPlannerExerciseLibraryStorageKey = "football-session-exercise-library-v1";
-const sessionPlannerExerciseLibraryBackupStorageKey = "football-session-exercise-library-backup-v1";
-const sessionPlannerExerciseLibraryBackupSchema = "football-session-exercise-library-backup-v1";
-const sessionPlannerExerciseLibraryFoldersStorageKey = "football-session-exercise-library-folders-v1";
-const sessionPlannerExerciseLibraryFoldersBackupStorageKey = "football-session-exercise-library-folders-backup-v1";
-const sessionPlannerExerciseLibraryFoldersBackupSchema = "football-session-exercise-library-folders-backup-v1";
-const sessionPlannerExerciseLibraryVersionLimit = 8;
-const sessionPlannerLibrarySortOptions = [
-{ value: "updated", label: "Recently updated" },
-{ value: "created", label: "Newest created" },
-{ value: "title", label: "Title A-Z" },
-{ value: "phase", label: "Phase" },
-];
 const playerProfilesStorageKey = "football-player-profiles-v1";
 const playerProfileAgeCacheStorageKey = "football-player-profile-age-cache-v1";
 const dashboardTaskStorageKey = "football-dashboard-tasks-v1";
@@ -4523,6 +4521,25 @@ player: new Map(),
 };
 let sessionPlannerSnapshotRecoveryQueued = false;
 let sessionPlannerExerciseLibrarySnapshotRecoveryQueued = false;
+const exerciseLibraryStateAdapter = createExerciseLibraryStateAdapter({
+createBlock: createSessionPlannerBlock,
+createStableId: createSessionPlannerStableId,
+normalizeTimestamp: normalizeSessionPlannerTimestamp,
+getNow: getSessionPlannerLibraryNow,
+getUserId: getSessionPlannerLibraryUserId,
+normalizeMultiValue: normalizeSessionPlannerMultiValue,
+formatMultiValue: formatSessionPlannerMultiValue,
+clamp,
+normalizeTacticalPitchMode: normalizeSessionPlannerTacticalPitchMode,
+normalizeReviewNotes: normalizeSessionPlannerExerciseReviewNotes,
+cloneTacticalElement: cloneSessionPlannerTacticalElement,
+normalizeTacticalFrames: normalizeSessionPlannerTacticalFrames,
+normalizeTacticalActiveFrameId: normalizeSessionPlannerTacticalActiveFrameId,
+normalizePlayerBoardPositions: normalizeSessionPlannerPlayerBoardPositions,
+normalizePlayerBoardColors: normalizeSessionPlannerPlayerBoardColors,
+normalizePlayerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople,
+versionLimit: sessionPlannerExerciseLibraryVersionLimit,
+});
 let sessionPlannerHistoryEntries = [];
 let sessionPlannerHistoryLoading = false;
 let sessionPlannerHistoryLoadedDate = "";
@@ -10998,174 +11015,37 @@ tacticalElements,
 };
 }
 function createSessionPlannerLibraryExercise(source = {}) {
-const now = getSessionPlannerLibraryNow();
-const createdAt = normalizeSessionPlannerTimestamp(source.createdAt) || now;
-const updatedAt = normalizeSessionPlannerTimestamp(source.updatedAt) || createdAt;
-const archivedAt = normalizeSessionPlannerTimestamp(source.archivedAt);
-const sourceType = String(source.source || "").trim() || "library";
-const createdBy = String(source.createdBy || "").trim();
-const updatedBy = String(source.updatedBy || createdBy || "").trim();
-const archivedBy = archivedAt ? String(source.archivedBy || "").trim() : "";
-return {
-...createSessionPlannerBlock({
-...source,
-id: source.id || createSessionPlannerStableId("exercise"),
-label: source.label || "Library Exercise",
-title: source.title || "Untitled Exercise",
-createdAt,
-updatedAt,
-}),
-archivedAt,
-archivedBy,
-createdBy,
-updatedBy,
-source: sourceType,
-tags: normalizeSessionPlannerLibraryTags(source.tags),
-versions: normalizeSessionPlannerLibraryVersions(source.versions),
-reviewNotes: normalizeSessionPlannerExerciseReviewNotes(source.reviewNotes, source.postSessionNotes),
-};
+return exerciseLibraryStateAdapter.createExercise(source);
 }
 function cloneSessionPlannerLibraryExercise(exercise = {}) {
-return createSessionPlannerLibraryExercise({
-...exercise,
-playerBoardPositions: normalizeSessionPlannerPlayerBoardPositions(exercise.playerBoardPositions),
-playerBoardColors: normalizeSessionPlannerPlayerBoardColors(exercise.playerBoardColors),
-playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople(exercise.playerBoardCustomPeople),
-tacticalFrames: normalizeSessionPlannerTacticalFrames(exercise.tacticalFrames),
-tacticalActiveFrameId: exercise.tacticalActiveFrameId || "",
-reviewNotes: normalizeSessionPlannerExerciseReviewNotes(exercise.reviewNotes, exercise.postSessionNotes),
-tacticalElements: Array.isArray(exercise.tacticalElements)
-? exercise.tacticalElements.map(cloneSessionPlannerTacticalElement)
-: [],
-});
+return exerciseLibraryStateAdapter.cloneExercise(exercise);
 }
 function normalizeSessionPlannerExerciseLibraryList(sourceLibrary = []) {
-if (!Array.isArray(sourceLibrary)) {
-return [];
-}
-const usedIds = new Set();
-return sourceLibrary
-.filter((exercise) => exercise && typeof exercise === "object" && !Array.isArray(exercise))
-.map((exercise) => {
-const clonedExercise = cloneSessionPlannerLibraryExercise(exercise);
-let exerciseId = String(clonedExercise.id || "").trim() || createSessionPlannerStableId("exercise");
-while (usedIds.has(exerciseId)) {
-exerciseId = createSessionPlannerStableId("exercise");
-}
-usedIds.add(exerciseId);
-return {
-...clonedExercise,
-id: exerciseId,
-};
-});
+return exerciseLibraryStateAdapter.normalizeExercises(sourceLibrary);
 }
 function normalizeSessionPlannerLibraryVersions(sourceVersions = []) {
-if (!Array.isArray(sourceVersions)) {
-return [];
-}
-return sourceVersions
-.filter((version) => version && typeof version === "object" && !Array.isArray(version))
-.map((version) => ({
-id: String(version.id || "").trim() || createSessionPlannerStableId("version"),
-createdAt: normalizeSessionPlannerTimestamp(version.createdAt) || getSessionPlannerLibraryNow(),
-createdBy: String(version.createdBy || "").trim(),
-reason: String(version.reason || "Updated").trim() || "Updated",
-title: String(version.title || "").trim(),
-focus: String(version.focus || "").trim(),
-phase: formatSessionPlannerMultiValue(version.phase),
-subPhase: formatSessionPlannerMultiValue(version.subPhase),
-tags: normalizeSessionPlannerLibraryTags(version.tags),
-minutes: Number.isFinite(Number(version.minutes)) ? Math.max(0, Number(version.minutes)) : 0,
-time: String(version.time || "").trim(),
-intensity: Number.isFinite(Number(version.intensity)) ? clamp(Number(version.intensity), 1, 5) : 3,
-pitchSize: String(version.pitchSize || "").trim(),
-material: String(version.material || "").trim(),
-objective: String(version.objective || "").trim(),
-why: String(version.why || "").trim(),
-organization: String(version.organization || "").trim(),
-principles: String(version.principles || "").trim(),
-diagram: String(version.diagram || "").trim() || "empty",
-tacticalPitchMode: normalizeSessionPlannerTacticalPitchMode(version.tacticalPitchMode),
-playerBoardLayoutMode: version.playerBoardLayoutMode === "manual" ? "manual" : "auto",
-}))
-.slice(0, sessionPlannerExerciseLibraryVersionLimit);
+return exerciseLibraryStateAdapter.normalizeVersions(sourceVersions);
 }
 function createSessionPlannerLibraryVersionSnapshot(exercise = {}, reason = "Updated") {
-return {
-id: createSessionPlannerStableId("version"),
-createdAt: getSessionPlannerLibraryNow(),
-createdBy: getSessionPlannerLibraryUserId(),
-reason: String(reason || "Updated").trim() || "Updated",
-title: String(exercise.title || "").trim(),
-focus: String(exercise.focus || "").trim(),
-phase: formatSessionPlannerMultiValue(exercise.phase),
-subPhase: formatSessionPlannerMultiValue(exercise.subPhase),
-tags: normalizeSessionPlannerLibraryTags(exercise.tags),
-minutes: Number.isFinite(Number(exercise.minutes)) ? Math.max(0, Number(exercise.minutes)) : 0,
-time: String(exercise.time || "").trim(),
-intensity: Number.isFinite(Number(exercise.intensity)) ? clamp(Number(exercise.intensity), 1, 5) : 3,
-pitchSize: String(exercise.pitchSize || "").trim(),
-material: String(exercise.material || "").trim(),
-objective: String(exercise.objective || "").trim(),
-why: String(exercise.why || "").trim(),
-organization: String(exercise.organization || "").trim(),
-principles: String(exercise.principles || "").trim(),
-diagram: String(exercise.diagram || "").trim() || "empty",
-tacticalPitchMode: normalizeSessionPlannerTacticalPitchMode(exercise.tacticalPitchMode),
-playerBoardLayoutMode: exercise.playerBoardLayoutMode === "manual" ? "manual" : "auto",
-};
+return exerciseLibraryStateAdapter.createVersionSnapshot(exercise, reason);
 }
 function appendSessionPlannerLibraryVersion(exercise = {}, reason = "Updated") {
-return [
-createSessionPlannerLibraryVersionSnapshot(exercise, reason),
-...normalizeSessionPlannerLibraryVersions(exercise.versions),
-].slice(0, sessionPlannerExerciseLibraryVersionLimit);
+return exerciseLibraryStateAdapter.appendVersion(exercise, reason);
 }
 function isSessionPlannerLibraryExerciseArchived(exercise = {}) {
-return Boolean(normalizeSessionPlannerTimestamp(exercise.archivedAt));
+return exerciseLibraryStateAdapter.isExerciseArchived(exercise);
 }
 function getSessionPlannerLibraryExercisesByArchiveState(archiveView = sessionPlannerLibraryArchiveView) {
-const view = archiveView === "archived" ? "archived" : "active";
-return getSessionPlannerExerciseLibrary().filter((exercise) =>
-view === "archived"
-? isSessionPlannerLibraryExerciseArchived(exercise)
-: !isSessionPlannerLibraryExerciseArchived(exercise)
-);
+return exerciseLibraryStateAdapter.getExercisesByArchiveState(getSessionPlannerExerciseLibrary(), archiveView);
 }
 function getSessionPlannerActiveExerciseLibrary() {
 return getSessionPlannerLibraryExercisesByArchiveState("active");
 }
 function getSessionPlannerLibraryArchiveCounts() {
-return getSessionPlannerExerciseLibrary().reduce(
-(counts, exercise) => {
-if (isSessionPlannerLibraryExerciseArchived(exercise)) {
-counts.archived += 1;
-} else {
-counts.active += 1;
-}
-return counts;
-},
-{ active: 0, archived: 0 }
-);
+return exerciseLibraryStateAdapter.getArchiveCounts(getSessionPlannerExerciseLibrary());
 }
 function parseSessionPlannerExerciseLibraryPayload(rawLibrary) {
-if (!rawLibrary) {
-return null;
-}
-try {
-const parsedLibrary = JSON.parse(rawLibrary);
-const sourceLibrary = Array.isArray(parsedLibrary)
-? parsedLibrary
-: parsedLibrary?.schema === sessionPlannerExerciseLibraryBackupSchema && Array.isArray(parsedLibrary.exercises)
-? parsedLibrary.exercises
-: null;
-if (!Array.isArray(sourceLibrary)) {
-return null;
-}
-return normalizeSessionPlannerExerciseLibraryList(sourceLibrary);
-} catch {
-return null;
-}
+return exerciseLibraryStateAdapter.parseExercisePayload(rawLibrary);
 }
 function readSessionPlannerExerciseLibraryFromStorage(storageKey) {
 try {
@@ -11180,12 +11060,7 @@ return null;
 }
 }
 function createSessionPlannerExerciseLibraryBackupEnvelope(exercises = []) {
-return {
-schema: sessionPlannerExerciseLibraryBackupSchema,
-savedAt: new Date().toISOString(),
-count: exercises.length,
-exercises,
-};
+return exerciseLibraryStateAdapter.createExerciseBackupEnvelope(exercises);
 }
 function writeSessionPlannerExerciseLibraryToStorage(exercises = []) {
 const normalizedLibrary = normalizeSessionPlannerExerciseLibraryList(exercises);
@@ -11292,96 +11167,25 @@ sessionPlannerExerciseLibrary = readSessionPlannerExerciseLibrary();
 return sessionPlannerExerciseLibrary;
 }
 function normalizeSessionPlannerLibraryFolderVisibility(value) {
-return value === "personal" ? "personal" : "team";
+return exerciseLibraryStateAdapter.normalizeFolderVisibility(value);
 }
 function normalizeSessionPlannerLibraryFolderExerciseIds(sourceIds = []) {
-if (!Array.isArray(sourceIds)) {
-return [];
-}
-return Array.from(
-new Set(
-sourceIds
-.map((exerciseId) => String(exerciseId || "").trim())
-.filter(Boolean)
-)
-);
+return exerciseLibraryStateAdapter.normalizeFolderExerciseIds(sourceIds);
 }
 function createSessionPlannerLibraryFolder(source = {}) {
-const now = getSessionPlannerLibraryNow();
-const createdAt = normalizeSessionPlannerTimestamp(source.createdAt) || now;
-const updatedAt = normalizeSessionPlannerTimestamp(source.updatedAt) || createdAt;
-const archivedAt = normalizeSessionPlannerTimestamp(source.archivedAt);
-const createdBy = String(source.createdBy || "").trim();
-const updatedBy = String(source.updatedBy || createdBy || "").trim();
-return {
-id: String(source.id || "").trim() || createSessionPlannerStableId("folder"),
-name: String(source.name || "Untitled Folder").trim() || "Untitled Folder",
-visibility: normalizeSessionPlannerLibraryFolderVisibility(source.visibility),
-exerciseIds: normalizeSessionPlannerLibraryFolderExerciseIds(source.exerciseIds),
-createdAt,
-createdBy,
-updatedAt,
-updatedBy,
-archivedAt,
-archivedBy: archivedAt ? String(source.archivedBy || "").trim() : "",
-source: String(source.source || "").trim() || "library",
-};
+return exerciseLibraryStateAdapter.createFolder(source);
 }
 function createSessionPlannerDefaultExerciseLibraryFolders() {
-const now = getSessionPlannerLibraryNow();
-return [
-createSessionPlannerLibraryFolder({
-id: "team-exercises",
-name: "Team Exercises",
-visibility: "team",
-exerciseIds: [],
-createdAt: now,
-updatedAt: now,
-source: "default",
-}),
-];
+return exerciseLibraryStateAdapter.createDefaultFolders();
 }
 function normalizeSessionPlannerExerciseLibraryFolders(sourceFolders = []) {
-if (!Array.isArray(sourceFolders)) {
-return [];
-}
-const usedIds = new Set();
-return sourceFolders
-.filter((folder) => folder && typeof folder === "object" && !Array.isArray(folder))
-.map((folder) => {
-const normalizedFolder = createSessionPlannerLibraryFolder(folder);
-let folderId = String(normalizedFolder.id || "").trim() || createSessionPlannerStableId("folder");
-while (usedIds.has(folderId)) {
-folderId = createSessionPlannerStableId("folder");
-}
-usedIds.add(folderId);
-return {
-...normalizedFolder,
-id: folderId,
-};
-});
+return exerciseLibraryStateAdapter.normalizeFolders(sourceFolders);
 }
 function isSessionPlannerLibraryFolderArchived(folder = {}) {
-return Boolean(normalizeSessionPlannerTimestamp(folder.archivedAt));
+return exerciseLibraryStateAdapter.isFolderArchived(folder);
 }
 function parseSessionPlannerExerciseLibraryFoldersPayload(rawFolders) {
-if (!rawFolders) {
-return null;
-}
-try {
-const parsedFolders = JSON.parse(rawFolders);
-const sourceFolders = Array.isArray(parsedFolders)
-? parsedFolders
-: parsedFolders?.schema === sessionPlannerExerciseLibraryFoldersBackupSchema && Array.isArray(parsedFolders.folders)
-? parsedFolders.folders
-: null;
-if (!Array.isArray(sourceFolders)) {
-return null;
-}
-return normalizeSessionPlannerExerciseLibraryFolders(sourceFolders);
-} catch {
-return null;
-}
+return exerciseLibraryStateAdapter.parseFoldersPayload(rawFolders);
 }
 function readSessionPlannerExerciseLibraryFoldersFromStorage(storageKey) {
 try {
@@ -11396,12 +11200,7 @@ return null;
 }
 }
 function createSessionPlannerExerciseLibraryFoldersBackupEnvelope(folders = []) {
-return {
-schema: sessionPlannerExerciseLibraryFoldersBackupSchema,
-savedAt: new Date().toISOString(),
-count: folders.length,
-folders,
-};
+return exerciseLibraryStateAdapter.createFoldersBackupEnvelope(folders);
 }
 function writeSessionPlannerExerciseLibraryFoldersToStorage(folders = []) {
 const normalizedFolders = normalizeSessionPlannerExerciseLibraryFolders(folders);
@@ -11478,19 +11277,7 @@ function formatSessionPlannerMultiValue(value) {
 return normalizeSessionPlannerMultiValue(value).join(", ");
 }
 function normalizeSessionPlannerLibraryTags(value) {
-const seenTags = new Set();
-return normalizeSessionPlannerMultiValue(value)
-.map((tag) => String(tag || "").replace(/^#+/, "").trim().replace(/\s+/g, " "))
-.filter(Boolean)
-.filter((tag) => {
-const normalizedTag = tag.toLowerCase();
-if (seenTags.has(normalizedTag)) {
-return false;
-}
-seenTags.add(normalizedTag);
-return true;
-})
-.slice(0, 24);
+return exerciseLibraryStateAdapter.normalizeTags(value);
 }
 function formatSessionPlannerLibraryTags(value) {
 return normalizeSessionPlannerLibraryTags(value).join(", ");

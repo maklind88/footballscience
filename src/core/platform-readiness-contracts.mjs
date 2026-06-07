@@ -62,7 +62,7 @@ export const platformModuleImplementationStages = Object.freeze({
   chat: "database-backed-module",
   schedule: "hybrid-adapter",
   gameplan: "lazy-module",
-  "exercise-library": "legacy-monolith",
+  "exercise-library": "partial-extraction",
   "session-planner": "partial-extraction",
   periodization: "partial-extraction",
   "medical-team": "hybrid-secured-module",
@@ -386,10 +386,10 @@ export const platformDatabasePrimaryMigrationPlan = Object.freeze([
   Object.freeze({
     moduleId: "exercise-library",
     priority: 5,
-    current: "legacy-monolith",
+    current: "partial-extraction",
     target: "database-primary versioned library",
     risk: "Library edits feed sessions; destructive seed or folder writes must never remove saved exercises.",
-    nextStep: "Move exercises/folders into versioned tables before Session Planner block migration.",
+    nextStep: "Continue small extractions, then move exercises/folders into versioned tables before Session Planner block migration.",
   }),
   Object.freeze({
     moduleId: "session-planner",

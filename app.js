@@ -54,7 +54,7 @@ import { adminDepartmentSuggestions, adminTitleSuggestions, createAdminAccessRen
 import { createProfileWorkspaceRenderer } from "./src/modules/profile/index.mjs";
 import { createStaffWorkspaceRenderer } from "./src/modules/staff/index.mjs";
 import { createSquadProfileSelectedRenderer, createSquadProfileSupportRenderer, createSquadRosterRenderer } from "./src/modules/squad/index.mjs";
-import { createMedicalOperationsRenderer, createMedicalRosterRenderer } from "./src/modules/medical/index.mjs";
+import { createMedicalOperationsRenderer, createMedicalRecommendationRenderer, createMedicalRosterRenderer } from "./src/modules/medical/index.mjs";
 const getElement = document.getElementById.bind(document);
 const win = window;
 const canvas = getElement("pitchCanvas");
@@ -5106,6 +5106,25 @@ renderMedicalOperationsSystem,
 renderMedicalPlayerAvatar,
 renderMedicalSquadAvailabilityBadge,
 renderMedicalTemporaryPlayerBadge,
+});
+const medicalRecommendationRenderer = createMedicalRecommendationRenderer({
+escapeHtml,
+canEditMedicalTeam,
+formatMedicalDateLabel,
+getMedicalPlayerInjuryPlans,
+getMedicalPlayerRestrictedLogRecords,
+getMedicalRecordStatus,
+getMedicalRtpPhaseOption,
+getMedicalStatusForParticipation,
+getMedicalStatusOption,
+getSelectedDate: () => medicalState.selectedDate,
+isMedicalInjuryPlanActive,
+isMedicalItemArchived,
+isMedicalPlanCleared,
+medicalActualParticipationFallback,
+medicalInjuryPlanStatusOptions,
+medicalParticipationOptions,
+normalizeMedicalActualParticipation,
 });
 const platformDefaultRoles = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
 const platformManagementRoleSet = new Set(["admin", "club-admin", "team-admin"]);
@@ -25863,131 +25882,19 @@ function renderMedicalRosterPanel() {
 return medicalRosterRenderer.renderRosterPanel();
 }
 function renderMedicalLog(player) {
-const records = player ? getMedicalPlayerRestrictedLogRecords(player.id) : [];
-if (!records.length) {
-return `<div class="medical-log-empty">No restricted recommendations yet.</div>`;
-}
-return records
-.map((record) => {
-const status = getMedicalRecordStatus(record);
-const actualText =
-record.actualParticipation === medicalActualParticipationFallback
-? "Actual not logged"
-: `Actual ${record.actualParticipation}%`;
-return `
-<article class="medical-log-item">
-<div class="medical-log-main">
-<span class="medical-status-chip medical-tone-${escapeHtml(status.tone)}">${escapeHtml(status.label)}</span>
-<strong>${escapeHtml(formatMedicalDateLabel(record.date, "long"))}</strong>
-<small>${record.participation}% recommended / ${escapeHtml(actualText)}</small>
-${record.comment ? `<p>${escapeHtml(record.comment)}</p>` : ""}
-</div>
-${canEditMedicalTeam() ? `<button type="button" class="medical-log-delete" data-medical-delete-record="${escapeHtml(record.id)}" aria-label="Archive log entry">Archive</button>` : ""}
-</article>
-`;
-})
-.join("");
+return medicalRecommendationRenderer.renderLog(player);
 }
 function renderMedicalRecommendationPresets(selectedParticipation, canEdit = canEditMedicalTeam()) {
-const labels = {
-0: "Out",
-10: "Return",
-25: "Rehab",
-50: "Controlled",
-75: "Modified",
-100: "Full",
-};
-return `
-<div class="medical-preset-grid" role="group" aria-label="Recommended participation">
-${medicalParticipationOptions
-.map((participation) => {
-const statusKey = getMedicalStatusForParticipation(participation);
-return `
-<button
-type="button"
-class="medical-preset-button${participation === selectedParticipation ? " is-selected" : ""}"
-data-medical-recommendation-preset
-data-medical-participation="${participation}"
-data-medical-status="${escapeHtml(statusKey)}"
-${canEdit ? "" : "disabled"}
->
-<strong>${participation}%</strong>
-<span>${escapeHtml(labels[participation] ?? getMedicalStatusOption(statusKey).label)}</span>
-</button>
-`;
-})
-.join("")}
-</div>
-`;
+return medicalRecommendationRenderer.renderRecommendationPresets(selectedParticipation, canEdit);
 }
 function renderMedicalActualPresets(selectedValue, canEdit = canEditMedicalTeam()) {
-const normalizedValue = normalizeMedicalActualParticipation(selectedValue);
-const values = [medicalActualParticipationFallback, ...medicalParticipationOptions];
-return `
-<div class="medical-actual-grid" role="group" aria-label="Actual participation">
-${values
-.map((value) => {
-const isFallback = value === medicalActualParticipationFallback;
-const isSelected = normalizedValue === value;
-return `
-<button
-type="button"
-class="medical-actual-button${isSelected ? " is-selected" : ""}"
-data-medical-actual-value="${escapeHtml(value)}"
-${canEdit ? "" : "disabled"}
->
-${isFallback ? "Not logged" : `${value}%`}
-</button>
-`;
-})
-.join("")}
-</div>
-`;
+return medicalRecommendationRenderer.renderActualPresets(selectedValue, canEdit);
 }
 function renderMedicalInjuryPlanStatusOptions(selectedStatus = "unavailable") {
-const currentStatus = medicalInjuryPlanStatusOptions.some((status) => status.key === selectedStatus)
-? selectedStatus
-: "unavailable";
-return medicalInjuryPlanStatusOptions
-.map(
-(status) =>
-`<option value="${escapeHtml(status.key)}"${status.key === currentStatus ? " selected" : ""}>${escapeHtml(status.label)}</option>`
-)
-.join("");
+return medicalRecommendationRenderer.renderInjuryPlanStatusOptions(selectedStatus);
 }
 function renderMedicalInjuryPlanList(player) {
-const plans = player ? getMedicalPlayerInjuryPlans(player.id) : [];
-if (!plans.length) {
-return `<div class="medical-log-empty">No active availability plan.</div>`;
-}
-return plans
-.map((plan) => {
-const status = getMedicalStatusOption(plan.status);
-const isActive = isMedicalInjuryPlanActive(plan, medicalState.selectedDate);
-const phase = getMedicalRtpPhaseOption(plan.rtpPhase);
-const isCleared = isMedicalPlanCleared(plan);
-return `
-<article class="medical-plan-item${isActive ? " is-active" : ""}">
-<div>
-<span class="medical-status-chip medical-tone-${escapeHtml(status.tone)}">${escapeHtml(isActive ? "Active" : status.label)}</span>
-<strong>${escapeHtml(plan.injuryType)}</strong>
-<small>${escapeHtml(formatMedicalDateLabel(plan.startDate))} - ${escapeHtml(formatMedicalDateLabel(plan.endDate))} / ${plan.participation}%</small>
-<small>${escapeHtml(phase.label)} / ${isCleared ? "cleared gates" : "clearance pending"}</small>
-${plan.bodyArea || plan.reviewDate ? `<small>${escapeHtml([plan.bodyArea, plan.reviewDate ? `Review ${formatMedicalDateLabel(plan.reviewDate)}` : ""].filter(Boolean).join(" / "))}</small>` : ""}
-${plan.comment ? `<p>${escapeHtml(plan.comment)}</p>` : ""}
-</div>
-${
-canEditMedicalTeam()
-? `<div class="medical-plan-actions">
-<button type="button" class="medical-plan-edit" data-medical-edit-injury-plan="${escapeHtml(plan.id)}" aria-label="Edit availability plan">Edit</button>
-<button type="button" class="medical-log-delete" data-medical-delete-injury-plan="${escapeHtml(plan.id)}" aria-label="Archive injury plan">Archive</button>
-</div>`
-: ""
-}
-</article>
-`;
-})
-.join("");
+return medicalRecommendationRenderer.renderInjuryPlanList(player);
 }
 function renderMedicalInjuryPlanForm(player, canEdit) {
 const draft = getMedicalInjuryPlanDraft(player.id);
@@ -26303,30 +26210,10 @@ ${renderMedicalActualPresets(formActual, canRecommend)}
 `;
 }
 function renderMedicalPlanListCard(player) {
-const activeCount = getMedicalPlayerInjuryPlans(player.id).length;
-const archivedCount = getMedicalPlayerInjuryPlans(player.id, { includeArchived: true }).filter(isMedicalItemArchived).length;
-return `
-<article class="medical-side-card medical-plan-list-card">
-<div class="medical-card-headline">
-<h2>Availability Plans</h2>
-<span>${activeCount}${archivedCount ? ` / ${archivedCount} archived` : ""}</span>
-</div>
-<div class="medical-plan-list">${renderMedicalInjuryPlanList(player)}</div>
-</article>
-`;
+return medicalRecommendationRenderer.renderPlanListCard(player);
 }
 function renderMedicalLogCard(player) {
-const activeCount = getMedicalPlayerRestrictedLogRecords(player.id).length;
-const archivedCount = getMedicalPlayerRestrictedLogRecords(player.id, { includeArchived: true }).filter(isMedicalItemArchived).length;
-return `
-<article class="medical-side-card medical-log-card">
-<div class="medical-card-headline">
-<h2>Medical Log</h2>
-<span>${activeCount}${archivedCount ? ` / ${archivedCount} archived` : ""}</span>
-</div>
-<div class="medical-log-list">${renderMedicalLog(player)}</div>
-</article>
-`;
+return medicalRecommendationRenderer.renderLogCard(player);
 }
 function renderMedicalPlayerModalBody(context) {
 const activeTab = normalizeMedicalPlayerModalTab(medicalPlayerModalTab);

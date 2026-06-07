@@ -194,6 +194,13 @@ test("Admin access renderer owns Transfer Room access markup", () => {
     escapeHtml: (value) => String(value ?? "").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
     getTransferRoomState: () => ({ accessByTeam: { "team-1": { userIds: ["coach-1"] } } }),
     getTransferRoomAccessTeamId: () => "team-1",
+    getManagedWorkspaces: () => [
+      { id: "admin", title: "Admin", meta: "System", requiresAdmin: true },
+      { id: "schedule", title: "Schedule", meta: "Planning", requiresAdmin: false },
+    ],
+    getRoleLabel: (role) => ({ admin: "Admin", coach: "Coach" })[role] || role,
+    getWorkspaceAccessConfig: () => ({ schedule: { view: ["coach"], edit: ["admin"] } }),
+    normalizeWorkspaceAccessEntry: (_workspaceId, entry = {}) => ({ view: entry.view || [], edit: entry.edit || [] }),
     normalizePlatformRole: (role, fallback) => role || fallback,
   });
   const markup = renderer.renderTransferRoomAccessPanel([
@@ -209,4 +216,10 @@ test("Admin access renderer owns Transfer Room access markup", () => {
   expect(markup).toContain('data-admin-transfer-room-access-user="coach-1"');
   expect(markup).toContain("disabled");
   expect(markup).not.toContain("Paused User");
+  const roleMarkup = renderer.renderRoleAccessForm(["admin", "coach"]);
+  expect(roleMarkup).toContain("adminAccessForm");
+  expect(roleMarkup).toContain("Role Access");
+  expect(roleMarkup).toContain("data-admin-access-workspace");
+  expect(roleMarkup).toContain('name="schedule::coach"');
+  expect(roleMarkup).toContain("Save access");
 });

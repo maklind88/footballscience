@@ -4960,6 +4960,10 @@ const adminAccessRenderer = createAdminAccessRenderer({
 escapeHtml,
 getTransferRoomState: ensureTransferRoomState,
 getTransferRoomAccessTeamId: getAdminTransferRoomAccessTeamId,
+getManagedWorkspaces: getAdminManagedWorkspaces,
+getRoleLabel,
+getWorkspaceAccessConfig,
+normalizeWorkspaceAccessEntry,
 normalizePlatformRole,
 });
 const platformDefaultRoles = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
@@ -19382,6 +19386,9 @@ return team.id || fallbackTeamId;
 function renderAdminTransferRoomAccessPanel(users = [], structure = getPlatformStructureState()) {
 return adminAccessRenderer.renderTransferRoomAccessPanel(users, structure);
 }
+function renderAdminRoleAccessForm(roles = getPlatformRoles()) {
+return adminAccessRenderer.renderRoleAccessForm(roles);
+}
 function renderAdminWorkspace(message = "") {
 if (!ui.adminWorkspace) {
 return;
@@ -19596,46 +19603,6 @@ const createUserEditor = adminCreateUserEditorOpen
       </div>
     `
 : "";
-const accessRows = currentUserIsPlatformAdmin
-? getAdminManagedWorkspaces()
-.map((workspace) => {
-const accessConfig = getWorkspaceAccessConfig();
-const permission = normalizeWorkspaceAccessEntry(workspace.id, accessConfig[workspace.id]);
-const viewRoles = new Set(workspace.requiresAdmin ? ["admin"] : permission.view);
-const editRoles = new Set(workspace.requiresAdmin ? ["admin"] : permission.edit);
-const roleControls = roles
-.map((role) => {
-const isLocked = workspace.requiresAdmin && role !== "admin";
-const value = isLocked ? "none" : editRoles.has(role) ? "edit" : viewRoles.has(role) ? "view" : "none";
-return `
-                <label class="admin-access-toggle admin-access-level${isLocked ? " is-locked" : ""}">
-                  <span>${escapeHtml(getRoleLabel(role))}</span>
-                  <select
-                    name="${escapeHtml(`${workspace.id}::${role}`)}"
-                    data-admin-access-workspace="${escapeHtml(workspace.id)}"
-                    data-admin-access-role="${escapeHtml(role)}"
-                    ${isLocked ? "disabled" : ""}
-                  >
-                    <option value="none"${value === "none" ? " selected" : ""}>Hidden</option>
-                    <option value="view"${value === "view" ? " selected" : ""}>View</option>
-                    <option value="edit"${value === "edit" ? " selected" : ""}>Edit</option>
-                  </select>
-                </label>
-              `;
-})
-.join("");
-return `
-            <article class="admin-access-row">
-              <div class="admin-access-title">
-                <strong>${escapeHtml(workspace.title)}</strong>
-                <small>${workspace.requiresAdmin ? "Admin only" : escapeHtml(workspace.meta ?? "Module")}</small>
-              </div>
-              <div class="admin-access-roles">${roleControls}</div>
-            </article>
-          `;
-})
-.join("")
-: "";
 ui.adminWorkspace.innerHTML = `
     <section class="admin-shell">
       <header class="admin-hero-card">
@@ -19665,17 +19632,7 @@ ui.adminWorkspace.innerHTML = `
       ${
         currentUserIsPlatformAdmin
           ? `
-<form id="adminAccessForm" class="admin-card admin-access-card">
-<div class="staff-card-head">
-<h2>Role Access</h2>
-<span>Sections</span>
-</div>
-<div class="admin-access-list">${accessRows}</div>
-<div class="profile-form-footer admin-access-footer">
-<span>Platform admin always keeps full access.</span>
-<button type="submit">Save access</button>
-</div>
-</form>
+${renderAdminRoleAccessForm(roles)}
 <article class="admin-card admin-audit-card">
 <div class="staff-card-head">
 <div>

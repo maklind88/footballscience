@@ -28,6 +28,7 @@ Design should feel clean, Apple/Mac-like, calm, professional, and modular. Avoid
 - Work one module at a time, but keep architecture future-proof.
 - Prefer implementation over long theory when the request is clear.
 - Parallel chats are allowed only by separated module ownership. Do not touch Team Chat in a non-chat thread when the user says chat is handled elsewhere.
+- Keep the architecture size targets from `AGENTS.md` in mind: `app.js` should trend toward a thin shell, new module files should usually stay under 500 lines, and new work should land in clear module boundaries rather than growing legacy globals.
 
 ## Current Codebase
 

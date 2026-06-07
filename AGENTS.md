@@ -103,6 +103,19 @@ This section exists because the platform is under heavy active product developme
 - When the same UI pattern is edited repeatedly, extract the renderer/style into `src/modules/<module>/...` or a dedicated stylesheet so future marked changes are faster.
 - Do not do large modularization in the Fast UI Lane unless it is a clearly isolated UI-only extraction.
 
+## Architecture Size Targets
+
+These targets guide future development and refactoring. Do not chase line counts at the expense of behavior, but treat size as an early warning that a file owns too many responsibilities.
+
+- `app.js` should trend toward a thin shell: ideal 1,000-2,500 lines, warning above 5,000 lines.
+- Existing large files should be reduced one safe extraction at a time, preserving behavior after every step.
+- New module files should usually stay under 500 lines. If a file must exceed that, explain why and consider splitting by responsibility.
+- Module folders should prefer clear boundaries: `index.mjs`, renderer/view files, state, actions, adapter/API access, constants/options, helpers/selectors, and contract tests.
+- Common per-file targets: renderer 200-500 lines, state/actions 100-400 lines, adapter/API 100-400 lines, constants/options 50-300 lines.
+- Functions should usually stay below 100 lines. Functions above 300 lines should be reviewed for extraction; functions above 500 lines are high-risk technical debt.
+- Prioritize extracting low-risk pure renderers, formatting helpers, constants/options, and display-only panels before moving writes, auth, sync, permissions, routing, simulator/autopilot, or data ownership.
+- Every new feature should be placed in the smallest appropriate module boundary instead of making `app.js` or `styles.css` larger.
+
 ## Release Status Wording
 
 Do not prefix replies with release-status labels. When release state matters, explain it briefly in plain Swedish, for example whether work is local, committed, pushed, deployed, production-verified, blocked, or waiting for `Deploy`/`Live`.

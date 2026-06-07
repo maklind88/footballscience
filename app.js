@@ -574,7 +574,7 @@ isCurrentPlatformUserAdmin(),
 });
 const dashboardHomeCardsRenderer = createDashboardHomeCardsRenderer({
 escapeHtml,
-renderTaskList: (tasks, users, currentUser, options) => renderDashboardTaskList(tasks, users, currentUser, options),
+renderTaskList: dashboardTaskListRenderer.renderTaskList,
 resolveUserLabel: (userId, users) => getDashboardUserLabel(userId, users),
 });
 const dashboardChatAttachmentRenderer = createDashboardChatAttachmentRenderer({
@@ -4195,7 +4195,7 @@ renderAdminRoleOptions,
 renderAdminStructurePanel: (currentUser, structure, visibleUsers) => adminStructureRenderer.renderStructurePanel(currentUser, structure, visibleUsers),
 renderAdminTeamOptions,
 renderAdminTransferRoomAccessPanel: (users, structure) => adminAccessRenderer.renderTransferRoomAccessPanel(users, structure),
-renderPasswordRevealInput,
+renderPasswordRevealInput: passwordRevealInputRenderer,
 renderPlatformAppearanceGovernancePanel: () => adminReadinessRenderer.renderAppearanceGovernancePanel(),
 renderPlatformReadinessDashboard: () => adminReadinessRenderer.renderReadinessDashboard(),
 titleSuggestions: adminTitleSuggestions,
@@ -4205,7 +4205,7 @@ const profileWorkspaceRenderer = createProfileWorkspaceRenderer({
 escapeHtml,
 formatUserName,
 getRoleLabel,
-renderTaskList: renderDashboardTaskList,
+renderTaskList: dashboardTaskListRenderer.renderTaskList,
 renderUserAvatar,
 });
 const staffWorkspaceRenderer = createStaffWorkspaceRenderer({
@@ -4215,7 +4215,7 @@ getRoleLabel,
 getUserClubName,
 getUserScopeLabel,
 getUserTeamName,
-renderPasswordRevealInput,
+renderPasswordRevealInput: passwordRevealInputRenderer,
 renderUserAvatar,
 });
 const squadRosterRenderer = createSquadRosterRenderer({
@@ -8507,9 +8507,6 @@ month: "short",
 hour: "2-digit",
 minute: "2-digit",
 }).format(date);
-}
-function renderDashboardTaskList(tasks, users, currentUser, options = {}) {
-return dashboardTaskListRenderer.renderTaskList(tasks, users, currentUser, options);
 }
 function getDashboardMessageById(messageId, messages = readDashboardMessages()) {
 return messages.find((message) => message.id === messageId) || null;
@@ -14439,9 +14436,6 @@ return true;
 } catch {
 return false;
 }
-}
-function renderPasswordRevealInput(name, placeholder, autocomplete = "new-password") {
-return passwordRevealInputRenderer(name, placeholder, autocomplete);
 }
 function togglePasswordInputVisibility(button) {
 const shell = button?.closest(".password-input-shell");

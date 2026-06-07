@@ -96,6 +96,7 @@ const coreFiles = [
   "src/modules/squad/index.mjs",
   "src/modules/game-simulator/index.mjs",
   "src/modules/game-simulator/autopilot-candidates.mjs",
+  "src/modules/game-simulator/autopilot-decision-engine.mjs",
   "src/modules/game-simulator/autopilot-targets.mjs",
   "src/modules/game-simulator/controllers.mjs",
   "src/modules/game-simulator/control-bindings.mjs",
@@ -328,6 +329,7 @@ test("core module contracts are covered by dedicated QA", () => {
   const gameSimulatorBindingsSpec = readProjectFile("qa/game-simulator-control-bindings.api.spec.mjs");
   const gameSimulatorFullscreenSpec = readProjectFile("qa/game-simulator-fullscreen.api.spec.mjs");
   const gameSimulatorAutopilotCandidatesSpec = readProjectFile("qa/game-simulator-autopilot-candidates.api.spec.mjs");
+  const gameSimulatorAutopilotDecisionEngineSpec = readProjectFile("qa/game-simulator-autopilot-decision-engine.api.spec.mjs");
   const gameSimulatorAutopilotTargetsSpec = readProjectFile("qa/game-simulator-autopilot-targets.api.spec.mjs");
   const gameSimulatorPointerSpec = readProjectFile("qa/game-simulator-pointer-controller.api.spec.mjs");
   const gameSimulatorSidebarSpec = readProjectFile("qa/game-simulator-sidebar-renderer.api.spec.mjs");
@@ -361,6 +363,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-control-bindings.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-fullscreen.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-candidates.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-decision-engine.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-targets.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-pointer-controller.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-sidebar-renderer.api.spec.mjs");
@@ -391,6 +394,7 @@ test("game simulator animation loop does not run globally outside the simulator 
   const controlBindingsSource = readProjectFile("src/modules/game-simulator/control-bindings.mjs");
   const fullscreenSource = readProjectFile("src/modules/game-simulator/fullscreen.mjs");
   const autopilotCandidatesSource = readProjectFile("src/modules/game-simulator/autopilot-candidates.mjs");
+  const autopilotDecisionEngineSource = readProjectFile("src/modules/game-simulator/autopilot-decision-engine.mjs");
   const autopilotTargetsSource = readProjectFile("src/modules/game-simulator/autopilot-targets.mjs");
   const pointerControllerSource = readProjectFile("src/modules/game-simulator/pointer-controller.mjs");
   const runtimeSource = readProjectFile("src/modules/game-simulator/runtime.mjs");
@@ -401,6 +405,7 @@ test("game simulator animation loop does not run globally outside the simulator 
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/controllers.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/fullscreen.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-candidates.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-decision-engine.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-targets.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/pointer-controller.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/runtime.mjs");

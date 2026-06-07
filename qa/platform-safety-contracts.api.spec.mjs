@@ -84,6 +84,7 @@ const coreFiles = [
   "src/modules/exercise-library/exercise-library-actions.mjs",
   "src/modules/exercise-library/exercise-library-renderer.mjs",
   "src/modules/exercise-library/exercise-library-review-helpers.mjs",
+  "src/modules/exercise-library/exercise-library-runtime-facade.mjs",
   "src/modules/exercise-library/exercise-library-runtime-controller.mjs",
   "src/modules/exercise-library/exercise-library-state.mjs",
   "src/modules/session-planner/index.mjs",

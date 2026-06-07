@@ -6,6 +6,7 @@ import {
   createExerciseLibraryActions,
   createExerciseLibraryRenderer,
   createExerciseLibraryReviewHelpers,
+  createExerciseLibraryRuntimeFacade,
   createExerciseLibraryRuntimeController,
   createExerciseLibrarySelectors,
   createExerciseLibraryStateAdapter,
@@ -46,6 +47,7 @@ test("Exercise Library extraction owns the first state module file slots", () =>
     "src/modules/exercise-library/exercise-library-actions.mjs",
     "src/modules/exercise-library/exercise-library-renderer.mjs",
     "src/modules/exercise-library/exercise-library-review-helpers.mjs",
+    "src/modules/exercise-library/exercise-library-runtime-facade.mjs",
     "src/modules/exercise-library/exercise-library-runtime-controller.mjs",
     "src/modules/exercise-library/exercise-library-selectors.mjs",
     "src/modules/exercise-library/exercise-library-state.mjs",
@@ -96,6 +98,26 @@ test("Exercise Library selectors own seed exercises, filters, and sort order", (
     "Middle",
     "Zulu",
   ]);
+});
+
+test("Exercise Library runtime facade preserves legacy app method names", () => {
+  const calls = [];
+  const facade = createExerciseLibraryRuntimeFacade({
+    getRuntime: () => ({
+      createSessionPlannerLibraryExercise: (...args) => {
+        calls.push(["create", ...args]);
+        return { id: "exercise-1" };
+      },
+      getSessionPlannerActiveExerciseLibrary: () => [{ id: "active" }],
+      normalizeSessionPlannerLibraryTitle: (value) => String(value || "").trim(),
+    }),
+  });
+
+  expect(facade.createSessionPlannerLibraryExercise({ title: "Press" })).toEqual({ id: "exercise-1" });
+  expect(facade.getSessionPlannerActiveExerciseLibrary()).toEqual([{ id: "active" }]);
+  expect(facade.normalizeSessionPlannerLibraryTitle("  rondo  ")).toBe("rondo");
+  expect(calls).toEqual([["create", { title: "Press" }]]);
+  expect(() => facade.writeSessionPlannerExerciseLibrary([])).toThrow("Exercise Library runtime is missing method");
 });
 
 test("Exercise Library review helpers own session block to library exercise mapping", () => {
@@ -468,12 +490,13 @@ test("Exercise Library app integration delegates runtime ownership to the module
 
   expect(app).toContain("./src/modules/exercise-library/index.mjs");
   expect(app).toContain("createExerciseLibraryActions");
+  expect(app).toContain("createExerciseLibraryRuntimeFacade");
   expect(app).toContain("createExerciseLibraryRuntimeController");
   expect(app).toContain("createExerciseLibraryReviewHelpers");
   expect(app).toContain("createExerciseLibraryStateAdapter");
   expect(app).toContain("createExerciseLibrarySelectors");
   expect(app).toContain("createExerciseLibraryRenderer");
-  expect(app).toContain("callExerciseLibraryRuntime");
+  expect(app).not.toContain("function callExerciseLibraryRuntime");
   expect(app).toContain("exerciseLibraryRenderer.renderOverlay()");
   expect(app).not.toContain("exerciseLibraryStateAdapter.createExercise(source)");
   expect(app).not.toContain("exerciseLibraryStateAdapter.createFolder(source)");
@@ -484,6 +507,7 @@ test("Exercise Library app integration delegates runtime ownership to the module
   expect(app).not.toContain('const sessionPlannerExerciseLibraryStorageKey = "football-session-exercise-library-v1";');
   expect(app).not.toContain("const sessionPlannerDefaultExerciseLibrary = [");
   expect(packageJson).toContain("src/modules/exercise-library/exercise-library-runtime-controller.mjs");
+  expect(packageJson).toContain("src/modules/exercise-library/exercise-library-runtime-facade.mjs");
   expect(packageJson).toContain("src/modules/exercise-library/exercise-library-review-helpers.mjs");
   expect(packageJson).toContain("qa/exercise-library-module-contract.api.spec.mjs");
   expect(storageGuard).toContain("src/modules/exercise-library/exercise-library-state.mjs");
@@ -497,6 +521,7 @@ test("Exercise Library is tracked as partial extraction while protected writes r
   expect(contract.currentFiles).toContain("src/modules/exercise-library/exercise-library-actions.mjs");
   expect(contract.currentFiles).toContain("src/modules/exercise-library/exercise-library-renderer.mjs");
   expect(contract.currentFiles).toContain("src/modules/exercise-library/exercise-library-review-helpers.mjs");
+  expect(contract.currentFiles).toContain("src/modules/exercise-library/exercise-library-runtime-facade.mjs");
   expect(contract.currentFiles).toContain("src/modules/exercise-library/exercise-library-runtime-controller.mjs");
   expect(contract.currentFiles).toContain("src/modules/exercise-library/exercise-library-state.mjs");
   expect(contract.testFiles).toContain("qa/exercise-library-module-contract.api.spec.mjs");

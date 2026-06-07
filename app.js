@@ -49,6 +49,7 @@ import {
   createExerciseLibraryActions,
   createExerciseLibraryRenderer,
   createExerciseLibraryReviewHelpers,
+  createExerciseLibraryRuntimeFacade,
   createExerciseLibraryRuntimeController,
   createExerciseLibrarySelectors,
   createExerciseLibraryStateAdapter,
@@ -2049,6 +2050,7 @@ sessionPlannerRenderer: {
 renderMultiSelectField: (...args) => sessionPlannerRenderer.renderMultiSelectField(...args),
 },
 });
+const { createSessionPlannerLibraryExercise, cloneSessionPlannerLibraryExercise, normalizeSessionPlannerExerciseLibraryList, normalizeSessionPlannerLibraryVersions, createSessionPlannerLibraryVersionSnapshot, appendSessionPlannerLibraryVersion, isSessionPlannerLibraryExerciseArchived, getSessionPlannerLibraryExercisesByArchiveState, getSessionPlannerActiveExerciseLibrary, getSessionPlannerLibraryArchiveCounts, parseSessionPlannerExerciseLibraryPayload, readSessionPlannerExerciseLibraryFromStorage, createSessionPlannerExerciseLibraryBackupEnvelope, writeSessionPlannerExerciseLibraryToStorage, findSessionPlannerExerciseLibraryInSnapshots, queueSessionPlannerExerciseLibrarySnapshotRecovery, readSessionPlannerExerciseLibrary, getSessionPlannerExerciseLibrary, normalizeSessionPlannerLibraryFolderVisibility, normalizeSessionPlannerLibraryFolderExerciseIds, createSessionPlannerLibraryFolder, createSessionPlannerDefaultExerciseLibraryFolders, normalizeSessionPlannerExerciseLibraryFolders, isSessionPlannerLibraryFolderArchived, parseSessionPlannerExerciseLibraryFoldersPayload, readSessionPlannerExerciseLibraryFoldersFromStorage, createSessionPlannerExerciseLibraryFoldersBackupEnvelope, writeSessionPlannerExerciseLibraryFoldersToStorage, readSessionPlannerExerciseLibraryFolders, getSessionPlannerExerciseLibraryFolders, writeSessionPlannerExerciseLibrary, normalizeSessionPlannerMultiValue, formatSessionPlannerMultiValue, normalizeSessionPlannerLibraryTags, formatSessionPlannerLibraryTags, getSessionPlannerMultiValueSummary, getSessionPlannerMultiSelectFieldConfig, refreshSessionPlannerMultiSelectFields, toggleSessionPlannerMultiSelectValue, clearSessionPlannerMultiSelectValue, normalizeSessionPlannerLibraryFilterValues, getSessionPlannerLibraryFilterValues, setSessionPlannerLibraryFilterValues, toggleSessionPlannerLibraryFilterOpen, toggleSessionPlannerLibraryFilterValue, clearSessionPlannerLibraryFilter, exerciseMatchesSessionPlannerLibraryFilterValue, getSessionPlannerVisibleLibraryFolders, getSessionPlannerArchivedLibraryFolders, getSessionPlannerLibraryFolderById, getSessionPlannerLibraryFolderExerciseIdSet, exerciseMatchesSessionPlannerLibraryFolder, getSessionPlannerLibraryFolderCount, getSessionPlannerLibraryFolderName, getUniqueSessionPlannerLibraryFolderName, selectSessionPlannerLibraryFolder, startSessionPlannerExerciseLibraryFolderEdit, cancelSessionPlannerExerciseLibraryFolderEdit, createSessionPlannerExerciseLibraryFolderFromForm, updateSessionPlannerExerciseLibraryFolderFromForm, archiveSessionPlannerExerciseLibraryFolder, restoreSessionPlannerExerciseLibraryFolder, addSessionPlannerExerciseToLibraryFolder, removeSessionPlannerExerciseFromLibraryFolder, getSessionPlannerLibraryOptionValues, normalizeSessionPlannerLibrarySortMode, compareSessionPlannerLibraryExercises, getFilteredSessionPlannerExerciseLibrary, updateSessionPlannerLibraryFilter, updateSessionPlannerLibraryArchiveView, updateSessionPlannerLibrarySortMode, renderSessionPlannerLibraryResults, updateSessionPlannerLibrarySearch, getSessionPlannerLibraryExerciseById, getSessionPlannerLibraryEditExercise, getSessionPlannerLibraryViewExercise, startSessionPlannerLibraryExerciseView, closeSessionPlannerLibraryExerciseView, startSessionPlannerLibraryExerciseEdit, cancelSessionPlannerLibraryExerciseEdit, getSessionPlannerLibraryExerciseEditFields, duplicateSessionPlannerLibraryExercise, updateSessionPlannerLibraryExerciseFromEdit, hasSessionPlannerLibraryExerciseEditChanges, saveSessionPlannerLibraryExerciseEditAsCopy, normalizeSessionPlannerLibraryTitle } = createExerciseLibraryRuntimeFacade({ getRuntime: () => exerciseLibraryRuntime });
 const {
 buildLibraryExerciseFromBlock: buildSessionPlannerLibraryExerciseFromBlock,
 createReviewNoteFromBlock: createSessionPlannerReviewNoteFromBlock,
@@ -7071,97 +7073,6 @@ escapeHtml,
 playerTendencyTemplates,
 });
 
-function callExerciseLibraryRuntime(methodName, args) {
-const method = exerciseLibraryRuntime?.[methodName];
-if (typeof method !== "function") throw new Error(`Exercise Library runtime is missing method: ${methodName}`);
-return method(...args);
-}
-function createSessionPlannerLibraryExercise(...args) { return callExerciseLibraryRuntime("createSessionPlannerLibraryExercise", args); }
-function cloneSessionPlannerLibraryExercise(...args) { return callExerciseLibraryRuntime("cloneSessionPlannerLibraryExercise", args); }
-function normalizeSessionPlannerExerciseLibraryList(...args) { return callExerciseLibraryRuntime("normalizeSessionPlannerExerciseLibraryList", args); }
-function normalizeSessionPlannerLibraryVersions(...args) { return callExerciseLibraryRuntime("normalizeSessionPlannerLibraryVersions", args); }
-function createSessionPlannerLibraryVersionSnapshot(...args) { return callExerciseLibraryRuntime("createSessionPlannerLibraryVersionSnapshot", args); }
-function appendSessionPlannerLibraryVersion(...args) { return callExerciseLibraryRuntime("appendSessionPlannerLibraryVersion", args); }
-function isSessionPlannerLibraryExerciseArchived(...args) { return callExerciseLibraryRuntime("isSessionPlannerLibraryExerciseArchived", args); }
-function getSessionPlannerLibraryExercisesByArchiveState(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryExercisesByArchiveState", args); }
-function getSessionPlannerActiveExerciseLibrary(...args) { return callExerciseLibraryRuntime("getSessionPlannerActiveExerciseLibrary", args); }
-function getSessionPlannerLibraryArchiveCounts(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryArchiveCounts", args); }
-function parseSessionPlannerExerciseLibraryPayload(...args) { return callExerciseLibraryRuntime("parseSessionPlannerExerciseLibraryPayload", args); }
-function readSessionPlannerExerciseLibraryFromStorage(...args) { return callExerciseLibraryRuntime("readSessionPlannerExerciseLibraryFromStorage", args); }
-function createSessionPlannerExerciseLibraryBackupEnvelope(...args) { return callExerciseLibraryRuntime("createSessionPlannerExerciseLibraryBackupEnvelope", args); }
-function writeSessionPlannerExerciseLibraryToStorage(...args) { return callExerciseLibraryRuntime("writeSessionPlannerExerciseLibraryToStorage", args); }
-function findSessionPlannerExerciseLibraryInSnapshots(...args) { return callExerciseLibraryRuntime("findSessionPlannerExerciseLibraryInSnapshots", args); }
-function queueSessionPlannerExerciseLibrarySnapshotRecovery(...args) { return callExerciseLibraryRuntime("queueSessionPlannerExerciseLibrarySnapshotRecovery", args); }
-function readSessionPlannerExerciseLibrary(...args) { return callExerciseLibraryRuntime("readSessionPlannerExerciseLibrary", args); }
-function getSessionPlannerExerciseLibrary(...args) { return callExerciseLibraryRuntime("getSessionPlannerExerciseLibrary", args); }
-function normalizeSessionPlannerLibraryFolderVisibility(...args) { return callExerciseLibraryRuntime("normalizeSessionPlannerLibraryFolderVisibility", args); }
-function normalizeSessionPlannerLibraryFolderExerciseIds(...args) { return callExerciseLibraryRuntime("normalizeSessionPlannerLibraryFolderExerciseIds", args); }
-function createSessionPlannerLibraryFolder(...args) { return callExerciseLibraryRuntime("createSessionPlannerLibraryFolder", args); }
-function createSessionPlannerDefaultExerciseLibraryFolders(...args) { return callExerciseLibraryRuntime("createSessionPlannerDefaultExerciseLibraryFolders", args); }
-function normalizeSessionPlannerExerciseLibraryFolders(...args) { return callExerciseLibraryRuntime("normalizeSessionPlannerExerciseLibraryFolders", args); }
-function isSessionPlannerLibraryFolderArchived(...args) { return callExerciseLibraryRuntime("isSessionPlannerLibraryFolderArchived", args); }
-function parseSessionPlannerExerciseLibraryFoldersPayload(...args) { return callExerciseLibraryRuntime("parseSessionPlannerExerciseLibraryFoldersPayload", args); }
-function readSessionPlannerExerciseLibraryFoldersFromStorage(...args) { return callExerciseLibraryRuntime("readSessionPlannerExerciseLibraryFoldersFromStorage", args); }
-function createSessionPlannerExerciseLibraryFoldersBackupEnvelope(...args) { return callExerciseLibraryRuntime("createSessionPlannerExerciseLibraryFoldersBackupEnvelope", args); }
-function writeSessionPlannerExerciseLibraryFoldersToStorage(...args) { return callExerciseLibraryRuntime("writeSessionPlannerExerciseLibraryFoldersToStorage", args); }
-function readSessionPlannerExerciseLibraryFolders(...args) { return callExerciseLibraryRuntime("readSessionPlannerExerciseLibraryFolders", args); }
-function getSessionPlannerExerciseLibraryFolders(...args) { return callExerciseLibraryRuntime("getSessionPlannerExerciseLibraryFolders", args); }
-function writeSessionPlannerExerciseLibrary(...args) { return callExerciseLibraryRuntime("writeSessionPlannerExerciseLibrary", args); }
-function normalizeSessionPlannerMultiValue(...args) { return callExerciseLibraryRuntime("normalizeSessionPlannerMultiValue", args); }
-function formatSessionPlannerMultiValue(...args) { return callExerciseLibraryRuntime("formatSessionPlannerMultiValue", args); }
-function normalizeSessionPlannerLibraryTags(...args) { return callExerciseLibraryRuntime("normalizeSessionPlannerLibraryTags", args); }
-function formatSessionPlannerLibraryTags(...args) { return callExerciseLibraryRuntime("formatSessionPlannerLibraryTags", args); }
-function getSessionPlannerMultiValueSummary(...args) { return callExerciseLibraryRuntime("getSessionPlannerMultiValueSummary", args); }
-function getSessionPlannerMultiSelectFieldConfig(...args) { return callExerciseLibraryRuntime("getSessionPlannerMultiSelectFieldConfig", args); }
-function refreshSessionPlannerMultiSelectFields(...args) { return callExerciseLibraryRuntime("refreshSessionPlannerMultiSelectFields", args); }
-function toggleSessionPlannerMultiSelectValue(...args) { return callExerciseLibraryRuntime("toggleSessionPlannerMultiSelectValue", args); }
-function clearSessionPlannerMultiSelectValue(...args) { return callExerciseLibraryRuntime("clearSessionPlannerMultiSelectValue", args); }
-function normalizeSessionPlannerLibraryFilterValues(...args) { return callExerciseLibraryRuntime("normalizeSessionPlannerLibraryFilterValues", args); }
-function getSessionPlannerLibraryFilterValues(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryFilterValues", args); }
-function setSessionPlannerLibraryFilterValues(...args) { return callExerciseLibraryRuntime("setSessionPlannerLibraryFilterValues", args); }
-function toggleSessionPlannerLibraryFilterOpen(...args) { return callExerciseLibraryRuntime("toggleSessionPlannerLibraryFilterOpen", args); }
-function toggleSessionPlannerLibraryFilterValue(...args) { return callExerciseLibraryRuntime("toggleSessionPlannerLibraryFilterValue", args); }
-function clearSessionPlannerLibraryFilter(...args) { return callExerciseLibraryRuntime("clearSessionPlannerLibraryFilter", args); }
-function exerciseMatchesSessionPlannerLibraryFilterValue(...args) { return callExerciseLibraryRuntime("exerciseMatchesSessionPlannerLibraryFilterValue", args); }
-function getSessionPlannerVisibleLibraryFolders(...args) { return callExerciseLibraryRuntime("getSessionPlannerVisibleLibraryFolders", args); }
-function getSessionPlannerArchivedLibraryFolders(...args) { return callExerciseLibraryRuntime("getSessionPlannerArchivedLibraryFolders", args); }
-function getSessionPlannerLibraryFolderById(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryFolderById", args); }
-function getSessionPlannerLibraryFolderExerciseIdSet(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryFolderExerciseIdSet", args); }
-function exerciseMatchesSessionPlannerLibraryFolder(...args) { return callExerciseLibraryRuntime("exerciseMatchesSessionPlannerLibraryFolder", args); }
-function getSessionPlannerLibraryFolderCount(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryFolderCount", args); }
-function getSessionPlannerLibraryFolderName(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryFolderName", args); }
-function getUniqueSessionPlannerLibraryFolderName(...args) { return callExerciseLibraryRuntime("getUniqueSessionPlannerLibraryFolderName", args); }
-function selectSessionPlannerLibraryFolder(...args) { return callExerciseLibraryRuntime("selectSessionPlannerLibraryFolder", args); }
-function startSessionPlannerExerciseLibraryFolderEdit(...args) { return callExerciseLibraryRuntime("startSessionPlannerExerciseLibraryFolderEdit", args); }
-function cancelSessionPlannerExerciseLibraryFolderEdit(...args) { return callExerciseLibraryRuntime("cancelSessionPlannerExerciseLibraryFolderEdit", args); }
-function createSessionPlannerExerciseLibraryFolderFromForm(...args) { return callExerciseLibraryRuntime("createSessionPlannerExerciseLibraryFolderFromForm", args); }
-function updateSessionPlannerExerciseLibraryFolderFromForm(...args) { return callExerciseLibraryRuntime("updateSessionPlannerExerciseLibraryFolderFromForm", args); }
-function archiveSessionPlannerExerciseLibraryFolder(...args) { return callExerciseLibraryRuntime("archiveSessionPlannerExerciseLibraryFolder", args); }
-function restoreSessionPlannerExerciseLibraryFolder(...args) { return callExerciseLibraryRuntime("restoreSessionPlannerExerciseLibraryFolder", args); }
-function addSessionPlannerExerciseToLibraryFolder(...args) { return callExerciseLibraryRuntime("addSessionPlannerExerciseToLibraryFolder", args); }
-function removeSessionPlannerExerciseFromLibraryFolder(...args) { return callExerciseLibraryRuntime("removeSessionPlannerExerciseFromLibraryFolder", args); }
-function getSessionPlannerLibraryOptionValues(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryOptionValues", args); }
-function normalizeSessionPlannerLibrarySortMode(...args) { return callExerciseLibraryRuntime("normalizeSessionPlannerLibrarySortMode", args); }
-function compareSessionPlannerLibraryExercises(...args) { return callExerciseLibraryRuntime("compareSessionPlannerLibraryExercises", args); }
-function getFilteredSessionPlannerExerciseLibrary(...args) { return callExerciseLibraryRuntime("getFilteredSessionPlannerExerciseLibrary", args); }
-function updateSessionPlannerLibraryFilter(...args) { return callExerciseLibraryRuntime("updateSessionPlannerLibraryFilter", args); }
-function updateSessionPlannerLibraryArchiveView(...args) { return callExerciseLibraryRuntime("updateSessionPlannerLibraryArchiveView", args); }
-function updateSessionPlannerLibrarySortMode(...args) { return callExerciseLibraryRuntime("updateSessionPlannerLibrarySortMode", args); }
-function renderSessionPlannerLibraryResults(...args) { return callExerciseLibraryRuntime("renderSessionPlannerLibraryResults", args); }
-function updateSessionPlannerLibrarySearch(...args) { return callExerciseLibraryRuntime("updateSessionPlannerLibrarySearch", args); }
-function getSessionPlannerLibraryExerciseById(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryExerciseById", args); }
-function getSessionPlannerLibraryEditExercise(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryEditExercise", args); }
-function getSessionPlannerLibraryViewExercise(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryViewExercise", args); }
-function startSessionPlannerLibraryExerciseView(...args) { return callExerciseLibraryRuntime("startSessionPlannerLibraryExerciseView", args); }
-function closeSessionPlannerLibraryExerciseView(...args) { return callExerciseLibraryRuntime("closeSessionPlannerLibraryExerciseView", args); }
-function startSessionPlannerLibraryExerciseEdit(...args) { return callExerciseLibraryRuntime("startSessionPlannerLibraryExerciseEdit", args); }
-function cancelSessionPlannerLibraryExerciseEdit(...args) { return callExerciseLibraryRuntime("cancelSessionPlannerLibraryExerciseEdit", args); }
-function getSessionPlannerLibraryExerciseEditFields(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryExerciseEditFields", args); }
-function duplicateSessionPlannerLibraryExercise(...args) { return callExerciseLibraryRuntime("duplicateSessionPlannerLibraryExercise", args); }
-function updateSessionPlannerLibraryExerciseFromEdit(...args) { return callExerciseLibraryRuntime("updateSessionPlannerLibraryExerciseFromEdit", args); }
-function hasSessionPlannerLibraryExerciseEditChanges(...args) { return callExerciseLibraryRuntime("hasSessionPlannerLibraryExerciseEditChanges", args); }
-function saveSessionPlannerLibraryExerciseEditAsCopy(...args) { return callExerciseLibraryRuntime("saveSessionPlannerLibraryExerciseEditAsCopy", args); }
-function normalizeSessionPlannerLibraryTitle(...args) { return callExerciseLibraryRuntime("normalizeSessionPlannerLibraryTitle", args); }
 function renderSessionPlannerToast() {
 if (!ui.sessionPlannerWorkspace) {
 return;

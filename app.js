@@ -9,7 +9,7 @@ import { createDashboardHomeContextSelectors } from "./src/modules/home/dashboar
 import { createDashboardHomeCardsRenderer } from "./src/modules/home/dashboard-renderer.mjs";
 import { createDashboardTaskListRenderer } from "./src/modules/home/task-list-renderer.mjs";
 import { createScheduleWorkspaceController } from "./src/modules/schedule/schedule-controller.mjs";
-import { formatMonthYearLabel, formatScheduleBlockSummary as formatScheduleBlockSummaryFromModule, formatScheduleMonthName, getScheduleMainEvent as getScheduleMainEventFromModule, isScheduleSessionEvent as isScheduleSessionEventFromModule } from "./src/modules/schedule/schedule-selectors.mjs";
+import { formatMonthYearLabel, formatScheduleBlockSummary as formatScheduleBlockSummaryFromModule, formatScheduleMonthName, getScheduleDayWarnings as getScheduleDayWarningsFromModule, getScheduleMainEvent as getScheduleMainEventFromModule, isScheduleSessionEvent as isScheduleSessionEventFromModule } from "./src/modules/schedule/schedule-selectors.mjs";
 import {
   cloneScheduleState,
   createDefaultScheduleState,
@@ -5905,43 +5905,11 @@ function formatScheduleBlockSummary(blockCount, minutes = 0) {
 return formatScheduleBlockSummaryFromModule(blockCount, minutes);
 }
 function getScheduleDayWarnings(events, periodizationDay, sessionSnapshot) {
-const warnings = [];
-const hasTraining = events.some((event) => isScheduleSessionEvent(event));
-const hasMatch = events.some((event) => event.type === "match");
-const hasOff = events.some((event) => event.type === "off");
-const hasActivePlan = events.some((event) => event.type !== "off");
-const periodizationLabel = getPeriodizationDayScheduleLabel(periodizationDay);
-const periodizationText = String(periodizationLabel || "").toLowerCase();
-const matchDayLabel = getPeriodizationMatchDayLabel(periodizationDay.matchDay);
-if (hasTraining && !sessionSnapshot.hasSession) {
-warnings.push("Training without session plan");
-}
-if (sessionSnapshot.hasSession && !hasTraining) {
-warnings.push("Session without schedule training");
-}
-if (periodizationText === "off" && hasActivePlan) {
-warnings.push("Periodization says OFF");
-}
-if (hasOff && hasActivePlan) {
-warnings.push("OFF mixed with active plan");
-}
-if (hasMatch && !matchDayLabel) {
-warnings.push("Match missing match day tag");
-}
-if (events.length && periodizationText.includes("training") && !hasTraining) {
-warnings.push("Periodization expects training");
-}
-if (events.length && periodizationText.includes("match") && !hasMatch) {
-warnings.push("Periodization expects match");
-}
-const timedEvents = events.filter((event) => event.time);
-const duplicateTime = timedEvents.find(
-(event, index) => timedEvents.findIndex((candidate) => candidate.time === event.time) !== index
-);
-if (duplicateTime) {
-warnings.push(`Time conflict at ${duplicateTime.time}`);
-}
-return warnings;
+return getScheduleDayWarningsFromModule(events, periodizationDay, sessionSnapshot, {
+isSessionEvent: isScheduleSessionEvent,
+getPeriodizationDayScheduleLabel,
+getPeriodizationMatchDayLabel,
+});
 }
 function getScheduleDayWarningsForDate(dateValue, events = getScheduleEventsForDate(dateValue)) {
 ensurePeriodizationState();

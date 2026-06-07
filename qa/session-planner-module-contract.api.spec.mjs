@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import {
   createSessionPlannerAutosaveBoundary,
+  createSessionPlannerPlayerBoardRenderer,
   createSessionPlannerRenderer,
   createSessionPlannerVisualRenderer,
   isSessionPlannerAutosaveKey,
@@ -27,6 +28,7 @@ test("Session Planner extraction owns autosave and renderer module boundaries", 
     "src/modules/session-planner/session-planner-autosave.mjs",
     "src/modules/session-planner/session-planner-renderer.mjs",
     "src/modules/session-planner/session-planner-visual-renderer.mjs",
+    "src/modules/session-planner/session-planner-player-board-renderer.mjs",
   ].forEach((path) => {
     expect(existsSync(resolve(root, path)), `${path} should exist`).toBe(true);
   });
@@ -105,6 +107,161 @@ test("Session Planner visual renderer owns tactical board pitch, objects, previe
   expect(tacticalboardMarkup).toContain('data-session-tactical-tool="blue-player"');
   expect(tacticalboardMarkup).toContain('data-session-tactical-frame="frame-1"');
   expect(tacticalboardMarkup).toContain("data-session-tactical-color");
+});
+
+test("Session Planner player board renderer owns player board, Squad Bridge, Assistant, and team tool markup", () => {
+  const block = {
+    id: "block-1",
+    label: "Block 1",
+    title: "Pressing Wave",
+    playerBoardColors: { p1: "#1d8bff" },
+    playerBoardPositions: { p1: { x: 30, y: 40 } },
+    playerBoardCustomPeople: [{ id: "person-1", name: "Coach Pat", role: "Coach", kind: "staff" }],
+  };
+  const boardPlayers = [
+    {
+      player: {
+        id: "p1",
+        name: "Mak Lind",
+        number: "9",
+        position: "ST",
+        profileId: "profile-1",
+        primaryRole: "ST",
+        secondaryRoles: ["8"],
+        roleFit: { ST: 88, 8: 62 },
+      },
+      record: { actualParticipation: 75, rtpPhase: "return-to-training", comment: "Ready with limits" },
+      status: { label: "Available" },
+      participation: 75,
+    },
+    {
+      player: {
+        id: "person-1",
+        name: "Coach Pat",
+        position: "Coach",
+        playerBoardCustom: true,
+        playerBoardRoleLabel: "Coach",
+      },
+      record: null,
+      planningOnly: true,
+      status: { label: "Staff added" },
+      participation: 100,
+    },
+  ];
+  const warnings = {
+    rule: { label: "Training gate", valueLabel: "75%+" },
+    available: boardPlayers,
+    belowLimit: [],
+    unavailable: [],
+    unconfirmed: [],
+    hasWarnings: false,
+  };
+  const renderer = createSessionPlannerPlayerBoardRenderer({
+    escapeHtml: (value) => String(value ?? "").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
+    getState: () => ({
+      playerBoardOpen: true,
+      selectedPlayerIds: ["p1"],
+      formationInput: "3-3-1",
+      teamCount: 2,
+      autoMode: "balanced",
+      assistantOpen: true,
+      customPersonEditor: { personId: "person-1" },
+      selectedDate: "2026-05-19",
+    }),
+    playerProfileRoleOptions: () => ["GK", "CB", "8", "10", "ST"],
+    positionGroups: () => [
+      { x: 18, shortLabel: "GK", label: "Goalkeeper" },
+      { x: 42, shortLabel: "MID", label: "Midfield" },
+      { x: 76, shortLabel: "ATT", label: "Attack" },
+    ],
+    colorOptions: () => [
+      { label: "Blue", value: "#1d8bff" },
+      { label: "Red", value: "#ff4f4f" },
+    ],
+    autoModeOptions: () => [{ key: "balanced", label: "Balanced" }],
+    maxTeamCount: () => 2,
+    getBridgeSummary: () => ({
+      linkedCount: 1,
+      totalCount: 2,
+      temporaryCount: 0,
+      roleDnaCount: 1,
+      roleSummary: "ST 1",
+      linkedItems: [boardPlayers[0]],
+    }),
+    getBridgeBestMatches: () => [{ role: "ST", score: 88 }],
+    getBridgeContract: () => ({
+      primaryRole: "ST",
+      secondaryRoles: ["8"],
+      preferredSide: "center",
+      roleFit: { ST: 88, 8: 62 },
+      idp: { primaryFocus: "Press to finish" },
+    }),
+    getBridgeRoleLabel: () => "ST",
+    buildSelectionAssistant: () => ({
+      profile: { label: "Balanced exercise", detail: "Builds a balanced group.", roles: ["ST", "8"] },
+      suggestions: [{ item: boardPlayers[0], score: 91, reason: "Role DNA ST 88%" }],
+      selectedRoleCoverage: [
+        { role: "ST", covered: true, score: 88 },
+        { role: "8", covered: false, score: 0 },
+      ],
+      missingRoles: [{ role: "8" }],
+    }),
+    getPlayerBoardWarnings: () => warnings,
+    formatPlayerWarningNames: () => "No players",
+    getSelectedColorIds: () => ["p1"],
+    getSelectedBlock: () => block,
+    getPlayerBoardPlayers: () => boardPlayers,
+    normalizeTeamCount: (value) => Number(value) || 2,
+    normalizeAutoMode: (value) => value || "balanced",
+    getPlayerBoardTextColor: () => "#ffffff",
+    getPlayerBoardSummary: () => ({
+      boardPlayers,
+      rule: warnings.rule,
+      temporaryBoardCount: 0,
+      belowLimitCount: 0,
+      hiddenZeroCount: 0,
+      unconfirmedCount: 0,
+    }),
+    getInitialLabelMap: () => new Map([["p1", "ML"], ["person-1", "CP"]]),
+    getReadablePlayerBoardPositions: () => new Map([["p1", { x: 30, y: 40 }], ["person-1", { x: 60, y: 50 }]]),
+    getReadableSpacing: () => ({ minX: 8.8, minY: 7.4 }),
+    getPlayerBoardPosition: (_block, _item, index) => (index ? { x: 60, y: 50 } : { x: 30, y: 40 }),
+    getPlayerBoardTone: () => "full",
+    getPlayerBoardCustomColor: (_block, playerId) => (playerId === "p1" ? "#1d8bff" : ""),
+    getPlayerBoardColorStyle: (color) => (color ? `--session-player-board-color: ${color};` : ""),
+    isTemporaryPlayer: () => false,
+    getRosterLabel: () => "Squad player",
+    getPlayerInitials: (player) => player.name.split(" ").map((part) => part[0]).join("").slice(0, 2),
+    getPlayerBoardCustomPerson: () => ({ id: "person-1", name: "Coach Pat", role: "Coach", kind: "staff" }),
+    getSourceBlocks: () => [{ block: { id: "source-1", title: "Warmup", playerBoardColors: { p1: "#1d8bff" }, playerBoardPositions: { p1: { x: 20, y: 20 } } }, index: 0 }],
+    getSourceLabel: () => "Block 1: Warmup",
+    getDataObject: (value) => value && typeof value === "object" && !Array.isArray(value) ? value : {},
+    syncSelection: () => boardPlayers[0],
+    normalizeActualParticipation: (value) => value,
+    medicalActualParticipationFallback: "not-logged",
+    getRtpPhaseOption: () => ({ label: "Return to training" }),
+    getCoachComment: () => "Ready with limits",
+    formatDateLabel: () => "19 May 2026",
+    renderPlayerAvatar: () => '<span class="session-player-board-profile-avatar">ML</span>',
+  });
+
+  const previewMarkup = renderer.renderPlayerBoard(block);
+  const overlayMarkup = renderer.renderPlayerBoardOverlay(block);
+  const toolMarkup = renderer.renderPlayerBoardTools();
+  const bridgeMarkup = renderer.renderSquadBridgePanel(boardPlayers);
+
+  expect(previewMarkup).toContain("data-session-open-player-board");
+  expect(previewMarkup).toContain("session-player-board-preview-token");
+  expect(overlayMarkup).toContain("data-session-player-board-overlay");
+  expect(overlayMarkup).toContain('data-session-player-board-token="p1"');
+  expect(overlayMarkup).toContain("data-session-player-board-tools");
+  expect(overlayMarkup).toContain("data-session-player-board-copy-form");
+  expect(overlayMarkup).toContain("data-session-selection-assistant-overlay");
+  expect(overlayMarkup).toContain("data-session-player-board-profile-overlay");
+  expect(overlayMarkup).toContain("data-session-player-board-person-form");
+  expect(toolMarkup).toContain("data-session-player-board-auto-form");
+  expect(toolMarkup).toContain("data-session-player-board-color");
+  expect(bridgeMarkup).toContain('data-session-squad-bridge-player="p1"');
 });
 
 test("Session Planner renderer owns block form fields, multiselects, notes, and block list markup", () => {
@@ -217,6 +374,7 @@ test("Session Planner app integration delegates autosave policy and block render
 
   expect(app).toContain("./src/modules/session-planner/index.mjs");
   expect(app).toContain("createSessionPlannerAutosaveBoundary");
+  expect(app).toContain("createSessionPlannerPlayerBoardRenderer");
   expect(app).toContain("createSessionPlannerRenderer");
   expect(app).toContain("createSessionPlannerVisualRenderer");
   expect(app).toContain("sessionPlannerAutosaveBoundary.markSessionPlannerWrite();");
@@ -224,6 +382,8 @@ test("Session Planner app integration delegates autosave policy and block render
   expect(app).toContain("sessionPlannerRenderer.renderEditableField(block, key, label, options)");
   expect(app).toContain("sessionPlannerVisualRenderer.renderExerciseVisual(block, options)");
   expect(app).toContain("sessionPlannerVisualRenderer.renderTacticalboardOverlay(block)");
+  expect(app).toContain("sessionPlannerPlayerBoardRenderer.renderPlayerBoard(block)");
+  expect(app).toContain("sessionPlannerPlayerBoardRenderer.renderPlayerBoardOverlay(block)");
   expect(app).not.toContain('const sessionPlannerStorageKey = "football-session-planner-v3";');
   expect(app).not.toContain('return workspaceId === "session-planner";');
 });
@@ -236,6 +396,7 @@ test("Session Planner is tracked as partial extraction while deeper UI remains i
   expect(contract.currentFiles).toContain("src/modules/session-planner/session-planner-autosave.mjs");
   expect(contract.currentFiles).toContain("src/modules/session-planner/session-planner-renderer.mjs");
   expect(contract.currentFiles).toContain("src/modules/session-planner/session-planner-visual-renderer.mjs");
+  expect(contract.currentFiles).toContain("src/modules/session-planner/session-planner-player-board-renderer.mjs");
   expect(contract.testFiles).toContain("qa/session-planner-module-contract.api.spec.mjs");
   expect(platformModuleImplementationStages["session-planner"]).toBe("partial-extraction");
 });

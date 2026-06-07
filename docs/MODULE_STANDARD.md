@@ -72,7 +72,7 @@ Practical order:
 5. Squad / Player Profiles comes before Medical.
 6. Medical follows Squad/Profile.
 7. Exercise Library comes before Session Planner block/state migration; state normalization, overlay rendering, and library actions are now extracted into `src/modules/exercise-library`.
-8. Session Planner is split into larger safe presentation/controller passes; autosave policy, block/form rendering, and tactical visual rendering are now extracted into `src/modules/session-planner`.
+8. Session Planner is split into larger safe presentation/controller passes; autosave policy, block/form rendering, tactical visual rendering, and player board rendering are now extracted into `src/modules/session-planner`.
 9. Gameplan, Football Science DB, Scouting, Transfer Room, and Game Simulator follow their own risk gates.
 
 ## How To Extract A Module

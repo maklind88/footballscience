@@ -86,6 +86,7 @@ const coreFiles = [
   "src/modules/session-planner/session-planner-autosave.mjs",
   "src/modules/session-planner/session-planner-renderer.mjs",
   "src/modules/session-planner/session-planner-visual-renderer.mjs",
+  "src/modules/session-planner/session-planner-player-board-renderer.mjs",
   "src/modules/schedule/events.mjs",
   "src/modules/schedule/schedule-adapter.mjs",
   "src/modules/schedule/index.mjs",
@@ -112,7 +113,8 @@ test("protected product data remains covered by client safety, central state, an
   const sessionPlannerAutosaveSource = readProjectFile("src/modules/session-planner/session-planner-autosave.mjs");
   const sessionPlannerRendererSource = readProjectFile("src/modules/session-planner/session-planner-renderer.mjs");
   const sessionPlannerVisualRendererSource = readProjectFile("src/modules/session-planner/session-planner-visual-renderer.mjs");
-  const clientSafetySource = `${appSource}\n${exerciseLibraryActionsSource}\n${exerciseLibraryRendererSource}\n${exerciseLibraryStateSource}\n${sessionPlannerAutosaveSource}\n${sessionPlannerRendererSource}\n${sessionPlannerVisualRendererSource}`;
+  const sessionPlannerPlayerBoardRendererSource = readProjectFile("src/modules/session-planner/session-planner-player-board-renderer.mjs");
+  const clientSafetySource = `${appSource}\n${exerciseLibraryActionsSource}\n${exerciseLibraryRendererSource}\n${exerciseLibraryStateSource}\n${sessionPlannerAutosaveSource}\n${sessionPlannerRendererSource}\n${sessionPlannerVisualRendererSource}\n${sessionPlannerPlayerBoardRendererSource}`;
   const moduleContracts = readProjectFile("docs/MODULE_CONTRACTS.md");
 
   for (const key of protectedStorageKeys) {

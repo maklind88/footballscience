@@ -397,7 +397,7 @@ export const platformDatabasePrimaryMigrationPlan = Object.freeze([
     current: "partial-extraction",
     target: "database-primary session blocks",
     risk: "Training sessions are frequently edited and must not lose block-level data from stale browser state.",
-    nextStep: "Continue player-board, print, and controller extraction packages before moving session block writes toward database-primary storage.",
+    nextStep: "Continue print and controller extraction packages before moving session block writes toward database-primary storage.",
   }),
   Object.freeze({
     moduleId: "periodization",

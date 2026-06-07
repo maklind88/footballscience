@@ -99,6 +99,7 @@ test("Squad player profile helpers are extracted from app.js and tracked by modu
     "src/modules/squad/player-profile-age-helpers.mjs",
     "src/modules/squad/player-profile-helpers.mjs",
     "src/modules/squad/player-profile-intelligence-helpers.mjs",
+    "src/modules/squad/squad-scouting-profile-helpers.mjs",
   ].forEach((path) => {
     expect(existsSync(resolve(root, path)), `${path} should exist`).toBe(true);
   });
@@ -111,12 +112,16 @@ test("Squad player profile helpers are extracted from app.js and tracked by modu
   expect(appSource).not.toContain("function validatePlayerProfileFormValues(");
   expect(appSource).not.toContain("function getPlayerRoleDnaScore(");
   expect(appSource).not.toContain("function getSquadPlayerDataQualityFlags(");
+  expect(appSource).not.toContain("function normalizePlayerProfileScoutingText(");
+  expect(appSource).not.toContain("function getPlayerProfileScoutingPercentile(");
   expect(packageJson).toContain("src/modules/squad/player-profile-age-helpers.mjs");
   expect(packageJson).toContain("src/modules/squad/player-profile-helpers.mjs");
   expect(packageJson).toContain("src/modules/squad/player-profile-intelligence-helpers.mjs");
+  expect(packageJson).toContain("src/modules/squad/squad-scouting-profile-helpers.mjs");
   expect(squadContract.currentFiles).toContain("src/modules/squad/player-profile-age-helpers.mjs");
   expect(squadContract.currentFiles).toContain("src/modules/squad/player-profile-helpers.mjs");
   expect(squadContract.currentFiles).toContain("src/modules/squad/player-profile-intelligence-helpers.mjs");
+  expect(squadContract.currentFiles).toContain("src/modules/squad/squad-scouting-profile-helpers.mjs");
 });
 
 test("Squad player profile intelligence helpers own role DNA and data quality scoring", () => {

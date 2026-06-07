@@ -84,6 +84,7 @@ import {
   squadFormationOptions,
 } from "./src/modules/squad/index.mjs";
 import {
+  createMedicalDisplayHelpers,
   createMedicalOptionRenderers,
   createMedicalCommandRenderer,
   createMedicalOperationsRenderer,
@@ -3677,6 +3678,23 @@ let sessionPlannerPlayerBoardAutoMode = "balanced";
 let sessionPlannerPlayerBoardAssistantOpen = false;
 let sessionPlannerPlayerBoardCustomPersonEditor = null;
 let sessionPlannerPrintRootElement = null;
+const {
+formatMedicalDateLabel,
+getMedicalPlayerInitials,
+renderMedicalPlayerAvatar,
+renderMedicalSquadAvailabilityBadge,
+renderMedicalTemporaryPlayerBadge,
+} = createMedicalDisplayHelpers({
+escapeHtml,
+getMedicalPlayerAvailabilityStatusOption,
+getPlayerProfileRosterLabel,
+getPlayerProfileTemporaryWindowLabel,
+getSelectedDate: () => medicalState?.selectedDate,
+isMedicalPlayerBlockedBySquadAvailability,
+isPlayerProfileTemporaryActiveOnDate,
+isTemporaryPlayerProfile,
+parseScheduleDateValue,
+});
 const sessionPlannerPlayerBoardRenderer = createSessionPlannerPlayerBoardRenderer({
 escapeHtml,
 getState: () => ({
@@ -22364,13 +22382,6 @@ const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 const dayCount = getMedicalDaySpan(formatScheduleDateValue(monthStart), formatScheduleDateValue(today)) ?? 1;
 return Array.from({ length: dayCount }, (_, index) => formatScheduleDateValue(addCalendarDays(monthStart, index)));
 }
-function formatMedicalDateLabel(dateValue, variant = "short") {
-const date = parseScheduleDateValue(dateValue);
-const options = variant === "long"
-? { weekday: "long", day: "numeric", month: "long" }
-: { weekday: "short", day: "numeric", month: "short" };
-return new Intl.DateTimeFormat("en-GB", options).format(date);
-}
 function getMedicalScheduleSummary(dateValue) {
 const events = getScheduleEventsForDate(dateValue);
 const mainEvent = getScheduleMainEvent(events);
@@ -22523,39 +22534,6 @@ if (!draft) {
 return null;
 }
 return setMedicalInjuryPlanDraft(draft.playerId, draft);
-}
-function getMedicalPlayerInitials(player) {
-const words = String(player?.name ?? "").trim().split(/\s+/).filter(Boolean);
-if (!words.length) {
-return "P";
-}
-return `${words[0][0] ?? ""}${words.length > 1 ? words[words.length - 1][0] ?? "" : ""}`.toUpperCase();
-}
-function renderMedicalPlayerAvatar(player, className = "medical-player-avatar") {
-if (player?.photoUrl) {
-return `
-<span class="${className} has-photo">
-<img src="${escapeHtml(player.photoUrl)}" alt="${escapeHtml(player.name)}" loading="lazy" />
-</span>
-`;
-}
-return `<span class="${className}">${escapeHtml(getMedicalPlayerInitials(player))}</span>`;
-}
-function renderMedicalTemporaryPlayerBadge(player = {}) {
-if (!isTemporaryPlayerProfile(player)) {
-return "";
-}
-const windowLabel = getPlayerProfileTemporaryWindowLabel(player);
-const isActiveToday = isPlayerProfileTemporaryActiveOnDate(player, medicalState?.selectedDate);
-const label = [getPlayerProfileRosterLabel(player), windowLabel].filter(Boolean).join(" / ");
-return `<span class="medical-temporary-badge${isActiveToday ? "" : " is-outside-window"}">${escapeHtml(label)}</span>`;
-}
-function renderMedicalSquadAvailabilityBadge(player = {}) {
-if (!isMedicalPlayerBlockedBySquadAvailability(player)) {
-return "";
-}
-const option = getMedicalPlayerAvailabilityStatusOption(player);
-return `<span class="medical-squad-availability-badge is-${escapeHtml(option.tone || option.key)}">${escapeHtml(option.label)}</span>`;
 }
 function getMedicalDailyStats(dateValue = medicalState?.selectedDate) {
 ensureMedicalState();

@@ -30,6 +30,7 @@ import {
 import { createPeriodizationWorkspaceController } from "./src/modules/periodization/periodization-controller.mjs";
 import { createPeriodizationRenderer } from "./src/modules/periodization/periodization-renderer.mjs";
 import { createPeriodizationSessionBridge } from "./src/modules/periodization/periodization-session-bridge.mjs";
+import { createSessionPlannerAutosaveBoundary, sessionPlannerStorageKey } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
@@ -217,7 +218,6 @@ const workspaceHubDefaultActiveWorkspaceId = "home";
 const workspaceLastActiveStorageKey = "football-workspace-last-active-local-v1";
 const periodizationStorageKey = "football-periodization-v2";
 const scheduleStorageKey = "football-schedule-v1";
-const sessionPlannerStorageKey = "football-session-planner-v3";
 const sessionPlannerBlockReductionGuardKey = "blockReductionGuard";
 const sessionPlannerBlockDeletionTombstoneKey = "blockDeletionTombstones";
 const sessionPlannerBlockReductionGuardMaxAgeMs = 30 * 60 * 1000;
@@ -664,20 +664,23 @@ now: getDataSafetyNow,
 escapeHtml,
 });
 const setPlatformAutosaveStatus = platformAutosaveStatusController.set;
+const sessionPlannerAutosaveBoundary = createSessionPlannerAutosaveBoundary({
+getActiveWorkspaceId: () => hubState?.activeWorkspaceId || "",
+setStatus: setPlatformAutosaveStatus,
+setVisible: platformAutosaveStatusController.setVisible,
+now: () => Date.now(),
+});
 function isSessionPlannerAutosaveKey(key = "") {
-return String(key || "") === sessionPlannerStorageKey;
+return sessionPlannerAutosaveBoundary.isAutosaveKey(key);
 }
 function shouldShowPlatformAutosaveStatus(workspaceId = hubState?.activeWorkspaceId) {
-return workspaceId === "session-planner";
+return sessionPlannerAutosaveBoundary.shouldShowStatus(workspaceId);
 }
 function syncPlatformAutosaveStatusVisibility(workspaceId = hubState?.activeWorkspaceId) {
-platformAutosaveStatusController.setVisible(shouldShowPlatformAutosaveStatus(workspaceId));
+sessionPlannerAutosaveBoundary.syncVisibility(workspaceId);
 }
 function setPlatformAutosaveStatusForKey(key, state, message = "") {
-if (!isSessionPlannerAutosaveKey(key) || !shouldShowPlatformAutosaveStatus()) {
-return;
-}
-setPlatformAutosaveStatus(state, message);
+sessionPlannerAutosaveBoundary.setStatusForKey(key, state, message);
 }
 syncPlatformAutosaveStatusVisibility(null);
 function getCentralStateBridge() {
@@ -13601,6 +13604,7 @@ const nextState = existingState
 ? mergeSessionPlannerStateForWrite(existingState, sessionPlannerState)
 : cloneSessionPlannerState(sessionPlannerState);
 sessionPlannerState = nextState;
+sessionPlannerAutosaveBoundary.markSessionPlannerWrite();
 win.localStorage.setItem(sessionPlannerStorageKey, JSON.stringify(nextState));
 return true;
 } catch {
@@ -17817,6 +17821,7 @@ return;
 }
 const conflict = sessionPlannerCentralSyncConflict;
 sessionPlannerCentralSyncConflict = null;
+sessionPlannerAutosaveBoundary.markSessionPlannerWrite();
 if (action === "save-local" && conflict.localValue) {
 win.__footballScienceCentralHydrating = true;
 try {
@@ -17826,7 +17831,7 @@ win.__footballScienceCentralHydrating = false;
 }
 sessionPlannerState = readSessionPlannerStatePreservingUiSelection();
 queueCentralStateWrite(sessionPlannerStorageKey, conflict.localValue);
-setPlatformAutosaveStatus("saving", "Saving");
+setPlatformAutosaveStatusForKey(sessionPlannerStorageKey, "saving", "Saving");
 } else if (conflict.centralValue) {
 win.__footballScienceCentralHydrating = true;
 try {
@@ -17835,9 +17840,9 @@ rawDataSafetySetItem(sessionPlannerStorageKey, conflict.centralValue);
 win.__footballScienceCentralHydrating = false;
 }
 sessionPlannerState = readSessionPlannerStatePreservingUiSelection();
-setPlatformAutosaveStatus("saved", "Saved");
+setPlatformAutosaveStatusForKey(sessionPlannerStorageKey, "saved", "Saved");
 } else {
-setPlatformAutosaveStatus("saved", "Saved");
+setPlatformAutosaveStatusForKey(sessionPlannerStorageKey, "saved", "Saved");
 }
 if (hubState?.activeWorkspaceId === "session-planner") {
 renderSessionPlannerWorkspace({ preserveDateStripScroll: true });

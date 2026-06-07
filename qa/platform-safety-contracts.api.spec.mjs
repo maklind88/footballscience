@@ -78,6 +78,8 @@ const coreFiles = [
   "src/modules/chat/chat-api-client.mjs",
   "src/modules/chat/chat-widget-renderer.mjs",
   "src/modules/chat/index.mjs",
+  "src/modules/session-planner/index.mjs",
+  "src/modules/session-planner/session-planner-autosave.mjs",
   "src/modules/schedule/events.mjs",
   "src/modules/schedule/schedule-adapter.mjs",
   "src/modules/schedule/index.mjs",
@@ -98,10 +100,12 @@ test("protected product data remains covered by client safety, central state, an
   const appStateSource = readProjectFile("api/app-state.js");
   const backupSource = readProjectFile("api/app-state-backup.js");
   const dataSafetySource = readProjectFile("src/core/data-safety-contracts.cjs");
+  const sessionPlannerAutosaveSource = readProjectFile("src/modules/session-planner/session-planner-autosave.mjs");
+  const clientSafetySource = `${appSource}\n${sessionPlannerAutosaveSource}`;
   const moduleContracts = readProjectFile("docs/MODULE_CONTRACTS.md");
 
   for (const key of protectedStorageKeys) {
-    expect(appSource, `${key} must stay in app.js data safety coverage`).toContain(key);
+    expect(clientSafetySource, `${key} must stay in client data safety coverage`).toContain(key);
     expect(dataSafetySource, `${key} must stay in the central Data Safety Contract`).toContain(key);
     expect(moduleContracts, `${key} must be assigned to a module contract`).toContain(key);
   }
@@ -325,6 +329,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/schedule-adapter.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/schedule-database-adapter.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/schedule-database-schema.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-module-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-adapter.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-database-schema.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-controller.api.spec.mjs");
@@ -432,7 +437,7 @@ test("Session Planner central sync conflicts retry silently instead of reopening
   expect(appSource).toContain("function isSessionPlannerAutosaveKey");
   expect(appSource).toContain("function shouldShowPlatformAutosaveStatus");
   expect(appSource).toContain("function setPlatformAutosaveStatusForKey");
-  expect(appSource).toContain('workspaceId === "session-planner"');
+  expect(appSource).toContain("createSessionPlannerAutosaveBoundary");
   expect(appSource).toContain('setPlatformAutosaveStatusForKey(write.key, "issue", "Sync needs attention");');
   expect(appSource).not.toContain("${renderSessionPlannerCentralSyncConflictOverlay()}");
   expect(appSource).not.toContain("sessionPlannerCentralSyncConflict ||");

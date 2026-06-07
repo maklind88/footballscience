@@ -71,7 +71,7 @@ test("platform module map exposes data ownership, api routes, permissions, and i
     scope: "team",
     status: platformReadinessStatuses.pass,
   });
-  expect(modules.find((module) => module.id === "session-planner")?.implementation).toBe("legacy-monolith");
+  expect(modules.find((module) => module.id === "session-planner")?.implementation).toBe("partial-extraction");
   expect(modules.find((module) => module.id === "platform-readiness")).toMatchObject({
     implementation: "core-contract",
     apiRoutes: ["/api/platform-readiness"],

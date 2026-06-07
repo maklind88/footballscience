@@ -240,14 +240,24 @@ export const moduleStandardContracts = Object.freeze([
   createModuleStandardContract({
     id: "session-planner",
     label: "Session Planner",
-    migrationStatus: moduleMigrationStatuses.legacy,
+    migrationStatus: moduleMigrationStatuses.partialExtraction,
     mountId: "sessionPlannerWorkspace",
-    currentFiles: ["app.js", "session-planner-overrides.css", "session-print-overrides.css"],
+    currentFiles: [
+      "app.js",
+      "session-planner-overrides.css",
+      "session-print-overrides.css",
+      "src/modules/session-planner/index.mjs",
+      "src/modules/session-planner/session-planner-autosave.mjs",
+    ],
     cssFiles: ["session-planner-overrides.css", "session-print-overrides.css"],
-    testFiles: ["qa/critical-flows.smoke.spec.mjs", "qa/central-state-revision.smoke.spec.mjs"],
+    testFiles: [
+      "qa/critical-flows.smoke.spec.mjs",
+      "qa/central-state-revision.smoke.spec.mjs",
+      "qa/session-planner-module-contract.api.spec.mjs",
+    ],
     extractionOrder: 12,
     riskLevel: "high",
-    notes: "Largest extraction. Split library, tactical board, player board, print, autosave, and overlays in separate passes.",
+    notes: "Autosave policy now lives in src/modules/session-planner; rendering, state, library, tactical board, player board, print, and overlays remain in app.js for later small passes.",
   }),
   createModuleStandardContract({
     id: "gameplan",

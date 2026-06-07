@@ -63,7 +63,7 @@ export const platformModuleImplementationStages = Object.freeze({
   schedule: "hybrid-adapter",
   gameplan: "lazy-module",
   "exercise-library": "legacy-monolith",
-  "session-planner": "legacy-monolith",
+  "session-planner": "partial-extraction",
   periodization: "partial-extraction",
   "medical-team": "hybrid-secured-module",
   "player-profiles": "hybrid-adapter",
@@ -394,10 +394,10 @@ export const platformDatabasePrimaryMigrationPlan = Object.freeze([
   Object.freeze({
     moduleId: "session-planner",
     priority: 6,
-    current: "legacy-monolith",
+    current: "partial-extraction",
     target: "database-primary session blocks",
     risk: "Training sessions are frequently edited and must not lose block-level data from stale browser state.",
-    nextStep: "Migrate after Exercise Library and Schedule foundations are database-primary.",
+    nextStep: "Continue small extractions after Exercise Library and Schedule foundations are database-primary.",
   }),
   Object.freeze({
     moduleId: "periodization",

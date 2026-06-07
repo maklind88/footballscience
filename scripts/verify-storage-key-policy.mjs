@@ -6,6 +6,13 @@ import { dataSafetyContracts } from "../src/core/data-safety-contracts.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const appSource = fs.readFileSync(path.join(rootDir, "app.js"), "utf8");
+const modularStorageSourcePaths = Object.freeze([
+  "src/modules/session-planner/session-planner-autosave.mjs",
+]);
+const modularStorageSource = modularStorageSourcePaths
+  .map((sourcePath) => fs.readFileSync(path.join(rootDir, sourcePath), "utf8"))
+  .join("\n");
+const clientStorageSource = `${appSource}\n${modularStorageSource}`;
 
 const approvedLocalOnlyStorageKeys = Object.freeze({
   "football-workspace-last-active-local-v1": "per-browser navigation memory; never shared between staff",
@@ -34,7 +41,7 @@ const dedicatedApiContractKeys = new Set(
 );
 
 function findStorageKeyConstants(source) {
-  return [...source.matchAll(/const\s+([A-Za-z0-9_$]+StorageKey)\s*=\s*(["'`])([^"'`]+)\2/g)].map((match) => ({
+  return [...source.matchAll(/(?:export\s+)?const\s+([A-Za-z0-9_$]+StorageKey)\s*=\s*(["'`])([^"'`]+)\2/g)].map((match) => ({
     name: match[1],
     key: match[3],
   }));
@@ -47,7 +54,7 @@ function findDataSafetyProtectedKeys(source) {
     return new Set();
   }
 
-  const byConstantName = new Map(findStorageKeyConstants(source).map((entry) => [entry.name, entry.key]));
+  const byConstantName = new Map(findStorageKeyConstants(clientStorageSource).map((entry) => [entry.name, entry.key]));
   const keys = new Set();
   for (const item of match[1].split(",")) {
     const token = item.trim().replace(/\/\/.*$/g, "");
@@ -79,23 +86,23 @@ function findLocalStorageMutations(source) {
   return mutations;
 }
 
-const storageConstants = findStorageKeyConstants(appSource);
+const storageConstants = findStorageKeyConstants(clientStorageSource);
 const keyByConstantName = new Map(storageConstants.map((entry) => [entry.name, entry.key]));
-const appStorageKeys = new Set(storageConstants.map((entry) => entry.key).filter((key) => key.startsWith("football-")));
+const clientStorageKeys = new Set(storageConstants.map((entry) => entry.key).filter((key) => key.startsWith("football-")));
 const appProtectedKeys = findDataSafetyProtectedKeys(appSource);
 
-for (const key of appStorageKeys) {
+for (const key of clientStorageKeys) {
   const hasCentralContract = contractByKey.has(key);
   const isApprovedLocalOnly = Object.hasOwn(approvedLocalOnlyStorageKeys, key);
 
   if (!hasCentralContract && !isApprovedLocalOnly) {
-    failures.push(`${key} is used by app.js but is not in the Data Safety Contract or approved local-only policy.`);
+    failures.push(`${key} is used by client storage but is not in the Data Safety Contract or approved local-only policy.`);
   }
 }
 
 for (const key of centralContractKeys) {
   if (!appProtectedKeys.has(key)) {
-    failures.push(`${key} has a central Data Safety Contract but is missing from app.js dataSafetyProtectedStorageKeys.`);
+    failures.push(`${key} has a central Data Safety Contract but is missing from client dataSafetyProtectedStorageKeys.`);
   }
 }
 
@@ -127,7 +134,7 @@ for (const mutation of findLocalStorageMutations(appSource)) {
 }
 
 console.log("Storage key policy report");
-console.log(`- app storage keys: ${appStorageKeys.size}`);
+console.log(`- client storage keys: ${clientStorageKeys.size}`);
 console.log(`- central protected keys: ${appProtectedKeys.size}`);
 console.log(`- dedicated API keys: ${dedicatedApiContractKeys.size}`);
 console.log(`- local-only keys: ${Object.keys(approvedLocalOnlyStorageKeys).length}`);

@@ -21,7 +21,7 @@ Scale direction:
 - Global chat styling is no longer a render-blocking HTML stylesheet; the shell loads it after the app starts and reuses the same promise.
 - Heavy workspace code should load on activation or navigation intent. Game Simulator controllers/runtime now go through the shell loader, and top navigation hover/focus preloads the simulator controllers before the click.
 - Home-only dashboard rendering should stay scoped to Home. Other workspaces should not re-render Home cards during normal workspace switches.
-- Next extraction target: move Schedule, Periodization, Sessions, IDP, and Medical state/renderers behind the same loader pattern so `app.js` can shrink in physical chunks.
+- Next extraction target: keep moving Sessions, IDP, and Medical state/renderers behind the same loader pattern so `app.js` can shrink in physical chunks.
 
 ## Profile / Account Menu
 
@@ -112,6 +112,7 @@ Important behavior:
 - Long text must not break cards; clamp or wrap cleanly in lists.
 - Minutes stays as a compact field. Time and Intensity were removed from the block header.
 - Match Day tag appears under Training Session title as `(Match Day -1)` style when present.
+- Autosave status belongs to Session Planner only and is governed by `src/modules/session-planner/session-planner-autosave.mjs`; other modules should use explicit save flows and central sync without showing Session autosave UI.
 
 ## Exercise Library
 

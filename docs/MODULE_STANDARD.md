@@ -68,11 +68,11 @@ Practical order:
 1. Platform identity/readiness/appearance contracts stay first as guardrails.
 2. Home and Chat boundaries stay stable.
 3. Schedule is the first normal UI extraction target and is now partially extracted into state/actions/controller/renderer files.
-4. Periodization is now partially extracted into state/merge helpers, renderer, workspace controller bindings, and Session Planner bridge; the next pass can move on to Squad / Player Profiles.
+4. Periodization is now partially extracted into state/merge helpers, renderer, workspace controller bindings, and Session Planner bridge.
 5. Squad / Player Profiles comes before Medical.
 6. Medical follows Squad/Profile.
-7. Exercise Library comes before Session Planner.
-8. Session Planner is split into smaller passes.
+7. Exercise Library comes before Session Planner block/state migration.
+8. Session Planner is split into smaller passes; autosave policy is now extracted into `src/modules/session-planner`.
 9. Gameplan, Football Science DB, Scouting, Transfer Room, and Game Simulator follow their own risk gates.
 
 ## How To Extract A Module

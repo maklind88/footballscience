@@ -119,9 +119,6 @@ function createRenderer(state, ui) {
     getEditableRadius: () => 15,
     getPlayerRoleModel: () => ({ label: "Creative 8" }),
     getCompetitionPhysicalLabel: () => "Elite",
-    renderSelectedMetric: (label, value, _helpKey, className = "") =>
-      `<div class="${className}" data-metric="${label}">${value}</div>`,
-    renderSelectedProfileControl: (player) => `<select data-profile="${player.id}"></select>`,
     hasBallAction: () => true,
     formatTime: (value) => `t:${Number(value).toFixed(2)}`,
     getRemainingBallTravelTime: () => 1.5,
@@ -133,6 +130,16 @@ function createRenderer(state, ui) {
     isPlayerRenderedSelected: (playerId) => playerId === selectedPlayer.id,
     describeStep: (_step, index) => ({ title: `Step ${index + 1}`, meta: "QA step" }),
     createStepThumbnail: () => "data:image/png;base64,qa",
+    escapeHtml: (value) =>
+      String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;"),
+    playerTendencyTemplates: {
+      balanced: { label: "Balanced" },
+      creator: { label: "Creator" },
+    },
   });
 }
 
@@ -149,8 +156,9 @@ test("game simulator sidebar renderer updates selected player, sequence, and sav
   expect(ui.ballEta.textContent).toBe("t:1.50");
   expect(ui.ballOwner.textContent).toBe("MH 8");
   expect(ui.selectedPlayerName.textContent).toBe("MH 8");
-  expect(ui.selectedPlayerCard.innerHTML).toContain('data-profile="p1"');
-  expect(ui.selectedPlayerCard.innerHTML).toContain('data-metric="Game Intelligence">74');
+  expect(ui.selectedPlayerCard.innerHTML).toContain('data-selected-player-profile="p1"');
+  expect(ui.selectedPlayerCard.innerHTML).toContain("Game Intelligence");
+  expect(ui.selectedPlayerCard.innerHTML).toContain("<strong>74</strong>");
   expect(ui.fullscreenSelectedPlayerCard.innerHTML).toContain("Creative 8");
   expect(ui.playerTable.innerHTML).toContain('data-player-id="p1"');
   expect(ui.playerTable.innerHTML).toContain("player-chip is-selected");

@@ -9062,93 +9062,6 @@ return;
 maybeShowDashboardNewsModal();
 }, 350);
 }
-const selectedPlayerMetricHelp = {
-team:
-"The team the selected player belongs to. Team context affects attacking direction, opponent pressure and formation labels.",
-formation:
-"The current formation for that team. Role labels such as RB/LB, WB, 6, 8, 10, W and 9 are shaped by this structure.",
-playerProfile:
-"Automatic tendency profile used by autopilot decisions. It biases behaviours such as dribbling, pass-and-move, line-breaking passes, early crosses, overlaps and box runs without changing the player's physical limits.",
-physicalProfile:
-"Competition physical level. It scales top speed, acceleration, reaction time, dribble speed and ball power for contexts such as elite women, elite men or academy football.",
-roleModel:
-"Your role model for how the player behaves in the simulator. It shapes whether the player acts more like a creator, runner, crosser, dribbler, finisher or holder.",
-topSpeed:
-"Maximum running speed in open movement after the physical level and positional role have been applied. It matters most over longer runs, not the first few metres.",
-acceleration:
-"How quickly the player builds speed from the first steps, adjusted by physical level and position. This is key in short presses, recoveries and duels.",
-reactionTime:
-"How long the player needs to recognise the situation and start the action. Lower is faster.",
-gameIntelligence:
-"Background football IQ score. It blends perception, decision speed, decision quality, tactical discipline and execution under pressure. The simulator uses it to shape reads, timing and action quality.",
-canReachNow:
-"How far the player can reach from the locked action start point by this moment in the current ball action.",
-maxMovement:
-"Maximum legal movement for this player during the planned action, based on ball travel time, reaction time, acceleration and top speed.",
-ballStatus:
-"Shows whether the player has the ball, is carrying it, or is currently off the ball.",
-distanceToBall:
-"Distance from the player's ball-control point near the feet, not from the middle of the magnet.",
-movedFromStart:
-"How far the player has been moved from the locked action start position in this planned step.",
-};
-function renderSelectedMetricLabel(label, helpKey = "") {
-const helpText = selectedPlayerMetricHelp[helpKey];
-if (!helpText) {
-return `<span class="selected-label">${escapeHtml(label)}</span>`;
-}
-return `
-    <span class="selected-label selected-label-row">
-      <span>${escapeHtml(label)}</span>
-      <span
-        class="selected-info"
-        tabindex="0"
-        data-metric-help="${escapeHtml(helpText)}"
-        data-metric-label="${escapeHtml(label)}"
-        aria-describedby="metricTooltip"
-        aria-expanded="false"
-        aria-label="${escapeHtml(helpText)}"
-      >
-        i
-      </span>
-    </span>
-  `;
-}
-function renderSelectedMetric(label, value, helpKey = "", className = "") {
-const classAttribute = className ? ` class="${className}"` : "";
-return `
-    <div${classAttribute}>
-      ${renderSelectedMetricLabel(label, helpKey)}
-      <strong>${escapeHtml(value)}</strong>
-    </div>
-  `;
-}
-function renderSelectedProfileControl(player) {
-const options = Object.entries(playerTendencyTemplates)
-.map(([key, profile]) => {
-const isSelected = player.tendencyProfile?.key === key;
-return `
-        <option value="${escapeHtml(key)}" ${isSelected ? "selected" : ""}>
-          ${escapeHtml(profile.label)}
-        </option>
-      `;
-})
-.join("");
-return `
-    <div class="selected-profile-control selected-span">
-      ${renderSelectedMetricLabel("Player Profile", "playerProfile")}
-      <label class="selected-profile-select-wrap">
-        <select
-          class="selected-profile-select"
-          data-selected-player-profile="${escapeHtml(player.id)}"
-          aria-label="Player profile"
-        >
-        ${options}
-        </select>
-      </label>
-    </div>
-  `;
-}
 const gameSimulatorSidebarRenderer = createGameSimulatorSidebarRenderer({
 ui,
 getState: () => state,
@@ -9166,8 +9079,6 @@ getActionOrigin,
 getEditableRadius,
 getPlayerRoleModel,
 getCompetitionPhysicalLabel,
-renderSelectedMetric,
-renderSelectedProfileControl,
 hasBallAction,
 formatTime,
 getRemainingBallTravelTime,
@@ -9179,6 +9090,8 @@ getActionTypeLabel,
 isPlayerRenderedSelected,
 describeStep,
 createStepThumbnail,
+escapeHtml,
+playerTendencyTemplates,
 });
 
 function renderDashboardCards() {

@@ -22,6 +22,13 @@ function requireText(relativePath, text, reason) {
   }
 }
 
+function requireTextInAny(relativePaths, text, reason) {
+  const matches = relativePaths.some((relativePath) => read(relativePath).includes(text));
+  if (!matches) {
+    failures.push(`${relativePaths.join(" or ")} must contain ${JSON.stringify(text)} (${reason}).`);
+  }
+}
+
 function forbidText(relativePath, text, reason) {
   const content = read(relativePath);
   if (content.includes(text)) {
@@ -61,7 +68,7 @@ requireText("package.json", "npm run platform:readiness", "full QA must include 
 requireText("src/core/platform-readiness-contracts.mjs", "PLATFORM_READINESS_SCHEMA", "platform readiness must have a stable schema");
 requireText("src/core/platform-readiness-contracts.mjs", "platform:identity:backfill", "platform readiness must expose the identity backfill operation");
 requireText("api/platform-readiness.js", "/api/platform-readiness", "admin dashboard must load readiness through the secured API");
-requireText("app.js", "Platform Readiness", "admin must expose a platform readiness dashboard");
+requireTextInAny(["app.js", "src/modules/admin/admin-readiness-renderer.mjs"], "Platform Readiness", "admin must expose a platform readiness dashboard");
 requireText("scripts/verify-storage-key-policy.mjs", "approvedLocalOnlyStorageKeys", "new local-only storage keys must be explicitly justified");
 requireText("scripts/verify-platform-security.mjs", "Platform security verification: ok", "platform tenant isolation and permission matrix must stay testable");
 requireText("src/core/permission-matrix.cjs", "platformPermissionMatrix", "backend permissions must live in the central permission matrix");

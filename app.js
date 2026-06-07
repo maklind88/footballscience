@@ -6,6 +6,7 @@ import { createDashboardChatApiUiActions } from "./src/modules/chat/chat-api-ui-
 import { createDashboardChatThreadSettingsStore } from "./src/modules/chat/chat-thread-settings.mjs";
 import { uploadDashboardChatAttachmentFile as uploadDashboardChatAttachmentFileWithClient } from "./src/modules/chat/chat-attachment-storage.mjs";
 import { createDashboardHomeCardsRenderer } from "./src/modules/home/dashboard-renderer.mjs";
+import { createDashboardTaskListRenderer } from "./src/modules/home/task-list-renderer.mjs";
 import { selectHomeTaskQueues } from "./src/modules/home/tasks.mjs";
 import { createScheduleWorkspaceController } from "./src/modules/schedule/schedule-controller.mjs";
 import {
@@ -502,6 +503,15 @@ const platformNavigationRenderer = createPlatformNavigationRenderer({
 escapeHtml,
 getTopIconLabel,
 getTopIconSvg,
+});
+const dashboardTaskListRenderer = createDashboardTaskListRenderer({
+escapeHtml,
+formatDateTime: formatDashboardDateTime,
+resolveUserLabel: (userId, users) => getDashboardUserLabel(userId, users),
+canRemoveTask: (task, currentUser) =>
+currentUser?.id === task.createdBy ||
+currentUser?.id === task.assignedTo ||
+isCurrentPlatformUserAdmin(),
 });
 const dashboardHomeCardsRenderer = createDashboardHomeCardsRenderer({
 escapeHtml,
@@ -8402,53 +8412,10 @@ minute: "2-digit",
 }).format(date);
 }
 function renderDashboardTaskRow(task, users, currentUser, options = {}) {
-const assignee = getDashboardUserLabel(task.assignedTo, users);
-const creator = getDashboardUserLabel(task.createdBy, users);
-const isDone = task.status === "done";
-const canRemove =
-currentUser?.id === task.createdBy ||
-currentUser?.id === task.assignedTo ||
-isCurrentPlatformUserAdmin();
-const meta = options.showCreator
-? `From ${creator}`
-: options.showAssignee
-? `To ${assignee}`
-: task.scope === "personal"
-? "Personal"
-: `From ${creator}`;
-return `
-    <div class="dashboard-task-row${isDone ? " is-done" : ""}">
-      <button
-        type="button"
-        class="dashboard-task-toggle"
-        data-dashboard-toggle-task="${escapeHtml(task.id)}"
-        aria-label="${isDone ? "Reopen task" : "Complete task"}"
-      >
-        <span></span>
-      </button>
-      <div class="dashboard-task-copy">
-        <strong>${escapeHtml(task.title)}</strong>
-        ${task.note ? `<span>${escapeHtml(task.note)}</span>` : ""}
-        <small>${escapeHtml(meta)}${task.createdAt ? ` · ${escapeHtml(formatDashboardDateTime(task.createdAt))}` : ""}</small>
-      </div>
-      ${
-        canRemove
-          ? `<button type="button" class="dashboard-row-action" data-dashboard-remove-task="${escapeHtml(task.id)}">Remove</button>`
-          : ""
-      }
-    </div>
-  `;
+return dashboardTaskListRenderer.renderTaskRow(task, users, currentUser, options);
 }
 function renderDashboardTaskList(tasks, users, currentUser, options = {}) {
-const visibleTasks = Number.isFinite(Number(options.limit)) ? tasks.slice(0, Number(options.limit)) : tasks;
-if (!visibleTasks.length) {
-return `<div class="dashboard-empty-space" aria-hidden="true"></div>`;
-}
-return `
-    <div class="dashboard-task-list">
-      ${visibleTasks.map((task) => renderDashboardTaskRow(task, users, currentUser, options)).join("")}
-    </div>
-  `;
+return dashboardTaskListRenderer.renderTaskList(tasks, users, currentUser, options);
 }
 function getDashboardMessageById(messageId, messages = readDashboardMessages()) {
 return messages.find((message) => message.id === messageId) || null;

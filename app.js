@@ -47,6 +47,7 @@ import { createSessionPlannerAutosaveBoundary, createSessionPlannerPlayerBoardRe
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createPasswordRevealInputRenderer } from "./src/core/form-renderers.mjs";
+import { createPlatformNavigationRenderer } from "./src/modules/platform/navigation-renderer.mjs";
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
 import { getTopIconSvg } from "./top-icons.js";
 import { createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
@@ -451,6 +452,11 @@ const dataSafetyRuntimeStatus = {
 lastError: "",
 lastSnapshotError: "",
 };
+const platformNavigationRenderer = createPlatformNavigationRenderer({
+escapeHtml,
+getTopIconLabel,
+getTopIconSvg,
+});
 const dashboardHomeCardsRenderer = createDashboardHomeCardsRenderer({
 escapeHtml,
 renderTaskList: (tasks, users, currentUser, options) => renderDashboardTaskList(tasks, users, currentUser, options),
@@ -10533,24 +10539,11 @@ const workspaces = topIconMenuOrder
 .map((workspaceId) => getWorkspaceById(workspaceId))
 .filter((workspace) => workspace && canCurrentUserAccessWorkspace(workspace) && (!workspace.hiddenFromNav || workspace.id === "home"));
 const hasHomeNotification = hasDashboardHomeNotifications();
-const nextMarkup = workspaces
-.map((workspace) => {
-const isActive = workspace.id === hubState.activeWorkspaceId;
-const label = getTopIconLabel(workspace);
-const hasNotification = workspace.id === "home" && hasHomeNotification;
-return `
-        <button
-          type="button"
-          class="top-icon-menu-item${isActive ? " is-active" : ""}${hasNotification ? " has-notification" : ""}"
-          data-open-workspace="${escapeHtml(workspace.id)}"
-          aria-label="${escapeHtml(hasNotification ? `${label}, new activity` : label)}"
-        >
-          <span class="top-icon-menu-graphic">${getTopIconSvg(workspace.id)}</span>
-          <span class="top-icon-menu-label">${escapeHtml(label)}</span>
-        </button>
-      `;
-})
-.join("");
+const nextMarkup = platformNavigationRenderer.renderTopIconMenu({
+workspaces,
+activeWorkspaceId: hubState.activeWorkspaceId,
+hasHomeNotification,
+});
 if (ui.topIconMenu.__lastRenderedMarkup === nextMarkup) {
 return;
 }
@@ -10568,45 +10561,14 @@ if (isPlatformNav) {
 const getSidebarWorkspace = (workspaceId) => getWorkspaceById(workspaceId);
 const isSidebarWorkspaceVisible = (workspace) =>
 workspace && canCurrentUserAccessWorkspace(workspace) && (!workspace.hiddenFromNav || workspace.id === "home");
-const renderSidebarItem = (workspace, extraClass = "") => {
-const label = getTopIconLabel(workspace);
-const activeClass = workspace.id === hubState.activeWorkspaceId ? " is-active" : "";
-return `
-          <button type="button" class="platform-nav-item${extraClass}${activeClass}" data-open-workspace="${escapeHtml(workspace.id)}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">
-            <span class="platform-nav-icon" aria-hidden="true">${getTopIconSvg(workspace.id)}</span>
-            <span class="platform-nav-text">
-              <strong>${escapeHtml(label)}</strong>
-              <small>${escapeHtml(workspace.meta)}</small>
-            </span>
-          </button>
-        `;
-};
 const primaryWorkspaces = platformSidebarPrimaryOrder.map(getSidebarWorkspace).filter(isSidebarWorkspaceVisible);
 const overflowWorkspaces = platformSidebarMoreOrder.map(getSidebarWorkspace).filter(isSidebarWorkspaceVisible);
-const hasActiveOverflowWorkspace = overflowWorkspaces.some((workspace) => workspace.id === hubState.activeWorkspaceId);
-const overflowMarkup = overflowWorkspaces.length
-? `
-        <details class="platform-nav-more">
-          <summary class="platform-nav-item platform-nav-more-trigger${hasActiveOverflowWorkspace ? " is-active" : ""}" aria-label="More sections" title="More sections">
-            <span class="platform-nav-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <circle cx="5" cy="12" r="1.5"></circle>
-                <circle cx="12" cy="12" r="1.5"></circle>
-                <circle cx="19" cy="12" r="1.5"></circle>
-              </svg>
-            </span>
-            <span class="platform-nav-text">
-              <strong>More</strong>
-              <small>Team, admin, identity</small>
-            </span>
-          </summary>
-          <div class="platform-nav-more-menu" role="menu" aria-label="More platform sections">
-            ${overflowWorkspaces.map((workspace) => renderSidebarItem(workspace, " platform-nav-more-item")).join("")}
-          </div>
-        </details>
-      `
-: "";
-ui.workspaceList.innerHTML = `${primaryWorkspaces.map((workspace) => renderSidebarItem(workspace)).join("")}${overflowMarkup}`;
+ui.workspaceList.innerHTML = platformNavigationRenderer.renderWorkspaceList({
+isPlatformNav,
+primaryWorkspaces,
+overflowWorkspaces,
+activeWorkspaceId: hubState.activeWorkspaceId,
+});
 return;
 }
 if (!visibleWorkspaces.length) {
@@ -10615,33 +10577,10 @@ ui.workspaceSearch.value = "";
 }
 visibleWorkspaces = hubState.workspaces;
 }
-ui.workspaceList.innerHTML = visibleWorkspaces
-.map((workspace) => {
-const activeClass = workspace.id === hubState.activeWorkspaceId ? " is-active" : "";
-if (isPlatformNav) {
-const label = getTopIconLabel(workspace);
-return `
-          <button type="button" class="platform-nav-item${activeClass}" data-open-workspace="${workspace.id}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">
-            <span class="platform-nav-icon" aria-hidden="true">${getTopIconSvg(workspace.id)}</span>
-            <span class="platform-nav-text">
-              <strong>${escapeHtml(label)}</strong>
-              <small>${escapeHtml(workspace.meta)}</small>
-            </span>
-          </button>
-        `;
-}
-return `
-        <button type="button" class="workspace-nav-item${activeClass}" data-open-workspace="${workspace.id}">
-          <div class="workspace-nav-head">
-            <span class="workspace-nav-title">${escapeHtml(workspace.title)}</span>
-            <span class="workspace-nav-status">${escapeHtml(workspace.status)}</span>
-          </div>
-          <span class="workspace-nav-meta">${escapeHtml(workspace.meta)}</span>
-          <span class="workspace-nav-copy">${escapeHtml(workspace.description)}</span>
-        </button>
-      `;
-})
-.join("");
+ui.workspaceList.innerHTML = platformNavigationRenderer.renderWorkspaceList({
+visibleWorkspaces,
+activeWorkspaceId: hubState.activeWorkspaceId,
+});
 }
 function renderWorkspaceQuickSwitch(activeWorkspaceId = hubState?.activeWorkspaceId) {
 if (!ui.workspaceQuickSwitch || !hubState) {
@@ -10650,12 +10589,7 @@ return;
 const workspaces = getAccessibleWorkspacePool().filter(
 (workspace) => !workspace.hiddenFromNav || workspace.id === activeWorkspaceId
 );
-ui.workspaceQuickSwitch.innerHTML = workspaces
-.map(
-(workspace) =>
-`<option value="${escapeHtml(workspace.id)}">${escapeHtml(workspace.title)}</option>`
-)
-.join("");
+ui.workspaceQuickSwitch.innerHTML = platformNavigationRenderer.renderWorkspaceQuickSwitchOptions(workspaces);
 ui.workspaceQuickSwitch.value = activeWorkspaceId;
 }
 function renderDashboardCards() {

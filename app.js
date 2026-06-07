@@ -3549,15 +3549,6 @@ tacticalMaxFrames: sessionPlannerTacticalMaxFrames,
 tacticalPitchModeKeys: sessionPlannerTacticalPitchModeKeys,
 tacticalPitchModeOptions: sessionPlannerTacticalPitchModeOptions,
 });
-function normalizeSessionPlannerPlayerBoardPositions(source = {}) {
-return normalizeSessionPlannerPlayerBoardPositionsFromModule(source);
-}
-function normalizeSessionPlannerPlayerBoardColors(source = {}) {
-return normalizeSessionPlannerPlayerBoardColorsFromModule(source);
-}
-function normalizeSessionPlannerPlayerBoardCustomPeople(source = []) {
-return normalizeSessionPlannerPlayerBoardCustomPeopleFromModule(source);
-}
 const {
 createBlock: createSessionPlannerBlock,
 createInitialBlockFieldMeta: createSessionPlannerInitialBlockFieldMeta,
@@ -3578,9 +3569,9 @@ cloneTacticalElement: cloneSessionPlannerTacticalElement,
 createStableId: createSessionPlannerStableId,
 formatMultiValue: formatSessionPlannerMultiValue,
 getCurrentUserId: () => (typeof getCurrentPlatformUser === "function" ? getCurrentPlatformUser()?.id || "" : ""),
-normalizePlayerBoardColors: normalizeSessionPlannerPlayerBoardColors,
-normalizePlayerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople,
-normalizePlayerBoardPositions: normalizeSessionPlannerPlayerBoardPositions,
+normalizePlayerBoardColors: normalizeSessionPlannerPlayerBoardColorsFromModule,
+normalizePlayerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeopleFromModule,
+normalizePlayerBoardPositions: normalizeSessionPlannerPlayerBoardPositionsFromModule,
 normalizeTacticalActiveFrameId: normalizeSessionPlannerTacticalActiveFrameId,
 normalizeTacticalFrames: normalizeSessionPlannerTacticalFrames,
 normalizeTacticalPitchMode: normalizeSessionPlannerTacticalPitchMode,
@@ -3610,9 +3601,9 @@ normalizeReviewNotes: normalizeSessionPlannerExerciseReviewNotes,
 cloneTacticalElement: cloneSessionPlannerTacticalElement,
 normalizeTacticalFrames: normalizeSessionPlannerTacticalFrames,
 normalizeTacticalActiveFrameId: normalizeSessionPlannerTacticalActiveFrameId,
-normalizePlayerBoardPositions: normalizeSessionPlannerPlayerBoardPositions,
-normalizePlayerBoardColors: normalizeSessionPlannerPlayerBoardColors,
-normalizePlayerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople,
+normalizePlayerBoardPositions: normalizeSessionPlannerPlayerBoardPositionsFromModule,
+normalizePlayerBoardColors: normalizeSessionPlannerPlayerBoardColorsFromModule,
+normalizePlayerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeopleFromModule,
 versionLimit: sessionPlannerExerciseLibraryVersionLimit,
 });
 const exerciseLibraryRenderer = createExerciseLibraryRenderer({
@@ -10043,9 +10034,9 @@ diagram: block.diagram || "empty",
 tacticalPitchMode: normalizeSessionPlannerTacticalPitchMode(block.tacticalPitchMode),
 playerBoardLayoutMode: block.playerBoardLayoutMode === "manual" ? "manual" : "auto",
 visualImage: block.visualImage || "",
-playerBoardPositions: normalizeSessionPlannerPlayerBoardPositions(block.playerBoardPositions),
-playerBoardColors: normalizeSessionPlannerPlayerBoardColors(block.playerBoardColors),
-playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople(block.playerBoardCustomPeople),
+playerBoardPositions: normalizeSessionPlannerPlayerBoardPositionsFromModule(block.playerBoardPositions),
+playerBoardColors: normalizeSessionPlannerPlayerBoardColorsFromModule(block.playerBoardColors),
+playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeopleFromModule(block.playerBoardCustomPeople),
 tacticalFrames: normalizeSessionPlannerTacticalFrames(block.tacticalFrames),
 tacticalActiveFrameId: block.tacticalActiveFrameId || "",
 tacticalElements: Array.isArray(block.tacticalElements)
@@ -10667,9 +10658,9 @@ return null;
 }
 return {
 playerBoardLayoutMode: block.playerBoardLayoutMode === "manual" ? "manual" : "auto",
-playerBoardPositions: normalizeSessionPlannerPlayerBoardPositions(block.playerBoardPositions),
-playerBoardColors: normalizeSessionPlannerPlayerBoardColors(block.playerBoardColors),
-playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople(block.playerBoardCustomPeople),
+playerBoardPositions: normalizeSessionPlannerPlayerBoardPositionsFromModule(block.playerBoardPositions),
+playerBoardColors: normalizeSessionPlannerPlayerBoardColorsFromModule(block.playerBoardColors),
+playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeopleFromModule(block.playerBoardCustomPeople),
 };
 }
 function createSessionPlannerBoardSnapshot(type, block = getSessionPlannerSelectedBlock()) {
@@ -10742,9 +10733,9 @@ sessionPlannerBoardHistoryApplying = true;
 try {
 if (type === "player") {
 block.playerBoardLayoutMode = snapshot.playerBoardLayoutMode === "manual" ? "manual" : "auto";
-block.playerBoardPositions = normalizeSessionPlannerPlayerBoardPositions(snapshot.playerBoardPositions);
-block.playerBoardColors = normalizeSessionPlannerPlayerBoardColors(snapshot.playerBoardColors);
-block.playerBoardCustomPeople = normalizeSessionPlannerPlayerBoardCustomPeople(snapshot.playerBoardCustomPeople);
+block.playerBoardPositions = normalizeSessionPlannerPlayerBoardPositionsFromModule(snapshot.playerBoardPositions);
+block.playerBoardColors = normalizeSessionPlannerPlayerBoardColorsFromModule(snapshot.playerBoardColors);
+block.playerBoardCustomPeople = normalizeSessionPlannerPlayerBoardCustomPeopleFromModule(snapshot.playerBoardCustomPeople);
 markSessionPlannerBlockFieldsUpdated(block, [
 "playerBoardLayoutMode",
 "playerBoardPositions",
@@ -13236,9 +13227,9 @@ label: block.label,
 libraryExerciseId: exercise.id,
 postSessionNotes: block.postSessionNotes || "",
 visualImage: exercise.visualImage || "",
-playerBoardPositions: normalizeSessionPlannerPlayerBoardPositions(exercise.playerBoardPositions),
-playerBoardColors: normalizeSessionPlannerPlayerBoardColors(exercise.playerBoardColors),
-playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople(exercise.playerBoardCustomPeople),
+playerBoardPositions: normalizeSessionPlannerPlayerBoardPositionsFromModule(exercise.playerBoardPositions),
+playerBoardColors: normalizeSessionPlannerPlayerBoardColorsFromModule(exercise.playerBoardColors),
+playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeopleFromModule(exercise.playerBoardCustomPeople),
 tacticalFrames: normalizeSessionPlannerTacticalFrames(exercise.tacticalFrames),
 tacticalActiveFrameId: exercise.tacticalActiveFrameId || "",
 tacticalElements: Array.isArray(exercise.tacticalElements)
@@ -13653,7 +13644,7 @@ function isSessionPlannerPlayerBoardCustomPersonId(playerId = "") {
 return String(playerId || "").startsWith("player-board-person-");
 }
 function getSessionPlannerPlayerBoardCustomPeople(block = getSessionPlannerSelectedBlock()) {
-return normalizeSessionPlannerPlayerBoardCustomPeople(block?.playerBoardCustomPeople);
+return normalizeSessionPlannerPlayerBoardCustomPeopleFromModule(block?.playerBoardCustomPeople);
 }
 function getSessionPlannerPlayerBoardCustomPerson(block, personId) {
 return getSessionPlannerPlayerBoardCustomPeople(block).find((person) => person.id === personId) || null;

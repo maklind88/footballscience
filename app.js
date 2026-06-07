@@ -94,6 +94,7 @@ import {
   createMedicalDisplayHelpers,
   createMedicalOptionRenderers,
   createMedicalCommandRenderer,
+  createMedicalCommandSelectors,
   createMedicalOperationsRenderer,
   createMedicalOperationsSelectors,
   createMedicalPlanFormRenderer,
@@ -4265,6 +4266,25 @@ medicalRtpPhaseOptions,
 medicalStatusOptions,
 normalizeMedicalActualParticipation,
 normalizeMedicalParticipation,
+});
+const medicalCommandSelectors = createMedicalCommandSelectors({
+addCalendarDays,
+compareMedicalPlayers,
+ensureMedicalState,
+formatDateValue: formatScheduleDateValue,
+formatMedicalDateLabel,
+getActiveMedicalPlayers,
+getLatestMedicalRecord,
+getMedicalAvailabilityItems,
+getMedicalCoachComment,
+getMedicalMonthToDateDates,
+getMedicalPastWindowDates,
+getMedicalRecordStatus,
+getMedicalReviewAlerts,
+getSelectedDate: () => medicalState?.selectedDate,
+medicalPositionOrder,
+normalizeMedicalPlayerPosition,
+parseDateValue: parseScheduleDateValue,
 });
 const medicalOperationsSelectors = createMedicalOperationsSelectors({
 compareMedicalPlayers,
@@ -19807,112 +19827,22 @@ return null;
 return setMedicalInjuryPlanDraft(draft.playerId, draft);
 }
 function getMedicalDailyStats(dateValue = medicalState?.selectedDate) {
-ensureMedicalState();
-const availabilityItems = getMedicalAvailabilityItems(dateValue);
-const loggedItems = availabilityItems.filter((item) => item.record);
-const loggedCount = loggedItems.length;
-const fullCount = loggedItems.filter((item) => item.participation === 100).length;
-const modifiedCount = loggedItems.filter((item) => item.participation > 0 && item.participation < 100).length;
-const unavailableCount = loggedItems.filter((item) => item.participation === 0).length;
-const unloggedCount = availabilityItems.filter((item) => !item.record).length;
-const averageParticipation = loggedItems.length
-? Math.round(loggedItems.reduce((sum, item) => sum + item.participation, 0) / loggedItems.length)
-: null;
-return {
-fullCount,
-modifiedCount,
-unavailableCount,
-unloggedCount,
-averageParticipation,
-loggedCount,
-};
+return medicalCommandSelectors.getMedicalDailyStats(dateValue);
 }
 function getMedicalWindowAverage() {
-ensureMedicalState();
-return getMedicalParticipationAverageForDates(getMedicalPastWindowDates()).averageParticipation;
+return medicalCommandSelectors.getMedicalWindowAverage();
 }
 function getMedicalParticipationAverageForDates(dateValues = []) {
-ensureMedicalState();
-const records = [];
-dateValues.forEach((dateValue) => {
-getActiveMedicalPlayers().forEach((player) => {
-const record = getLatestMedicalRecord(player.id, dateValue);
-if (record) {
-records.push(record);
-}
-});
-});
-return {
-averageParticipation: records.length
-? Math.round(records.reduce((sum, record) => sum + record.participation, 0) / records.length)
-: null,
-loggedCount: records.length,
-slotCount: Math.max(0, dateValues.length * getActiveMedicalPlayers().length),
-};
+return medicalCommandSelectors.getMedicalParticipationAverageForDates(dateValues);
 }
 function getMedicalMonthAverageStats() {
-return getMedicalParticipationAverageForDates(getMedicalMonthToDateDates(new Date()));
+return medicalCommandSelectors.getMedicalMonthAverageStats();
 }
 function getMedicalAttentionPlayers(dateValue = medicalState?.selectedDate) {
-ensureMedicalState();
-return getActiveMedicalPlayers()
-.map((player) => {
-const record = getLatestMedicalRecord(player.id, dateValue);
-const status = getMedicalRecordStatus(record);
-const priority = !record ? 0 : record.participation === 0 ? 1 : record.participation < 100 ? 2 : 3;
-return { player, record, status, priority };
-})
-.filter((item) => item.priority < 3)
-.sort((first, second) => {
-if (first.priority !== second.priority) {
-return first.priority - second.priority;
-}
-const firstParticipation = first.record?.participation ?? -1;
-const secondParticipation = second.record?.participation ?? -1;
-if (firstParticipation !== secondParticipation) {
-return firstParticipation - secondParticipation;
-}
-return compareMedicalPlayers(first.player, second.player);
-});
+return medicalCommandSelectors.getMedicalAttentionPlayers(dateValue);
 }
 function getMedicalPositionSummaries(dateValue = medicalState?.selectedDate) {
-ensureMedicalState();
-const summaries = new Map();
-getActiveMedicalPlayers().forEach((player) => {
-const position = normalizeMedicalPlayerPosition(player.position, player);
-const currentSummary = summaries.get(position) ?? {
-position,
-players: 0,
-logged: 0,
-full: 0,
-modified: 0,
-unavailable: 0,
-totalParticipation: 0,
-};
-const record = getLatestMedicalRecord(player.id, dateValue);
-currentSummary.players += 1;
-if (record) {
-currentSummary.logged += 1;
-currentSummary.totalParticipation += record.participation;
-if (record.participation === 100) {
-currentSummary.full += 1;
-} else if (record.participation === 0) {
-currentSummary.unavailable += 1;
-} else {
-currentSummary.modified += 1;
-}
-}
-summaries.set(position, currentSummary);
-});
-return Array.from(summaries.values())
-.map((summary) => ({
-...summary,
-average: summary.logged ? Math.round(summary.totalParticipation / summary.logged) : null,
-}))
-.sort((first, second) => {
-const positionComparison = (medicalPositionOrder[first.position] ?? 99) - (medicalPositionOrder[second.position] ?? 99);
-return positionComparison || first.position.localeCompare(second.position);
-});
+return medicalCommandSelectors.getMedicalPositionSummaries(dateValue);
 }
 function getMedicalDaySpan(startDateValue, endDateValue) {
 if (!isMedicalDateValue(startDateValue) || !isMedicalDateValue(endDateValue)) {
@@ -19921,87 +19851,14 @@ return null;
 const dayMs = 24 * 60 * 60 * 1000;
 return Math.max(1, Math.round((parseScheduleDateValue(endDateValue) - parseScheduleDateValue(startDateValue)) / dayMs) + 1);
 }
-function getMedicalRecordComparisonValue(record) {
-if (!record) {
-return "not-set";
-}
-return `${record.participation}|${record.status}|${record.rtpPhase ?? ""}`;
-}
 function getMedicalDailyHuddle(dateValue = medicalState?.selectedDate) {
-ensureMedicalState();
-const availabilityItems = getMedicalAvailabilityItems(dateValue);
-const previousDate = formatScheduleDateValue(addCalendarDays(parseScheduleDateValue(dateValue), -1));
-const changes = availabilityItems
-.map((item) => {
-const previousRecord = getLatestMedicalRecord(item.player.id, previousDate);
-if (getMedicalRecordComparisonValue(previousRecord) === getMedicalRecordComparisonValue(item.record)) {
-return null;
-}
-return {
-...item,
-previousRecord,
-previousParticipation: previousRecord ? previousRecord.participation : null,
-previousStatus: getMedicalRecordStatus(previousRecord),
-};
-})
-.filter(Boolean)
-.sort((first, second) => {
-const firstDelta = Math.abs((first.participation ?? -1) - (first.previousParticipation ?? -1));
-const secondDelta = Math.abs((second.participation ?? -1) - (second.previousParticipation ?? -1));
-if (firstDelta !== secondDelta) {
-return secondDelta - firstDelta;
-}
-return compareMedicalPlayers(first.player, second.player);
-});
-const restricted = availabilityItems
-.filter((item) => item.record && item.participation < 100)
-.sort((first, second) => {
-if (first.participation !== second.participation) {
-return first.participation - second.participation;
-}
-return compareMedicalPlayers(first.player, second.player);
-});
-const needsRecommendation = availabilityItems.filter((item) => !item.record);
-const coachHandover = availabilityItems.filter((item) => getMedicalCoachComment(item.record));
-return {
-availabilityItems,
-changes,
-restricted,
-needsRecommendation,
-coachHandover,
-reviewAlerts: getMedicalReviewAlerts(dateValue),
-};
+return medicalCommandSelectors.getMedicalDailyHuddle(dateValue);
 }
 function getMedicalCoachHandoverItems(dateValue = medicalState?.selectedDate) {
-ensureMedicalState();
-return getMedicalAvailabilityItems(dateValue)
-.filter((item) => item.record && (item.participation < 100 || getMedicalCoachComment(item.record)))
-.sort((first, second) => {
-if (first.participation !== second.participation) {
-return first.participation - second.participation;
-}
-const firstHasNote = Boolean(getMedicalCoachComment(first.record));
-const secondHasNote = Boolean(getMedicalCoachComment(second.record));
-if (firstHasNote !== secondHasNote) {
-return Number(secondHasNote) - Number(firstHasNote);
-}
-return compareMedicalPlayers(first.player, second.player);
-});
+return medicalCommandSelectors.getMedicalCoachHandoverItems(dateValue);
 }
 function buildMedicalCoachHandoverText(dateValue = medicalState?.selectedDate) {
-const dateLabel = formatMedicalDateLabel(dateValue, "long");
-const lines = [`Medical coach-safe handover - ${dateLabel}`];
-const items = getMedicalCoachHandoverItems(dateValue);
-if (!items.length) {
-lines.push("No managed players or coach-approved notes for this date.");
-return lines.join("\n");
-}
-items.forEach((item) => {
-const coachNote = getMedicalCoachComment(item.record);
-const noteText = coachNote ? ` - ${coachNote}` : "";
-lines.push(`${item.player.name}: ${item.participation}% / ${item.status.label}${noteText}`);
-});
-return lines.join("\n");
+return medicalCommandSelectors.buildMedicalCoachHandoverText(dateValue);
 }
 function recordMedicalAuditEvent(event = {}) {
 const auditBridge = win.footballScienceAudit;

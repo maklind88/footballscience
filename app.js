@@ -49,7 +49,7 @@ import {
   sessionPlannerExerciseLibraryVersionLimit,
   sessionPlannerLibrarySortOptions,
 } from "./src/modules/exercise-library/index.mjs";
-import { createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerPlayerBoardFormationHelpers, createSessionPlannerPlayerBoardHelpers, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerSelectionAssistant, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualRenderer, createSessionPlannerWorkspaceRenderer, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
+import { createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerPlayerBoardFormationHelpers, createSessionPlannerPlayerBoardHelpers, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerSelectionAssistant, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualRenderer, createSessionPlannerVisualUploadHelpers, createSessionPlannerWorkspaceRenderer, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createPasswordRevealInputRenderer } from "./src/core/form-renderers.mjs";
@@ -13139,25 +13139,12 @@ const nextIds = selection.additive
 setSessionPlannerPlayerBoardSelectedPlayers(nextIds);
 return true;
 }
-const sessionPlannerVisualUploadMaxSide = 1600;
-const sessionPlannerVisualUploadMaxPassthroughBytes = 700000;
-const sessionPlannerVisualUploadQuality = 0.84;
-const sessionPlannerVisualUploadPassthroughTypes = new Set(["image/gif", "image/svg+xml"]);
+const sessionPlannerVisualUploadHelpers = createSessionPlannerVisualUploadHelpers();
 function readSessionPlannerFileAsDataUrl(file) {
-return new Promise((resolve, reject) => {
-const reader = new FileReader();
-reader.addEventListener("load", () => resolve(String(reader.result || "")));
-reader.addEventListener("error", () => reject(reader.error || new Error("Image could not be read.")));
-reader.readAsDataURL(file);
-});
+return sessionPlannerVisualUploadHelpers.readFileAsDataUrl(file);
 }
 function loadSessionPlannerUploadImage(dataUrl) {
-return new Promise((resolve, reject) => {
-const image = new Image();
-image.addEventListener("load", () => resolve(image));
-image.addEventListener("error", () => reject(new Error("Image could not be loaded.")));
-image.src = dataUrl;
-});
+return sessionPlannerVisualUploadHelpers.loadUploadImage(dataUrl);
 }
 function findSessionPlannerBlockById(blockId) {
 const sessions = sessionPlannerState?.sessions || {};
@@ -13172,33 +13159,7 @@ return block;
 return null;
 }
 async function normalizeSessionPlannerVisualUpload(file) {
-const originalDataUrl = await readSessionPlannerFileAsDataUrl(file);
-if (sessionPlannerVisualUploadPassthroughTypes.has(file.type)) {
-return originalDataUrl;
-}
-try {
-const image = await loadSessionPlannerUploadImage(originalDataUrl);
-const sourceWidth = image.naturalWidth || image.width;
-const sourceHeight = image.naturalHeight || image.height;
-const largestSide = Math.max(sourceWidth, sourceHeight);
-if (file.size <= sessionPlannerVisualUploadMaxPassthroughBytes && largestSide <= sessionPlannerVisualUploadMaxSide) {
-return originalDataUrl;
-}
-const scale = Math.min(1, sessionPlannerVisualUploadMaxSide / largestSide);
-const canvas = document.createElement("canvas");
-canvas.width = Math.max(1, Math.round(sourceWidth * scale));
-canvas.height = Math.max(1, Math.round(sourceHeight * scale));
-const context = canvas.getContext("2d");
-if (!context) {
-return originalDataUrl;
-}
-context.fillStyle = "#ffffff";
-context.fillRect(0, 0, canvas.width, canvas.height);
-context.drawImage(image, 0, 0, canvas.width, canvas.height);
-return canvas.toDataURL("image/jpeg", sessionPlannerVisualUploadQuality);
-} catch {
-return originalDataUrl;
-}
+return sessionPlannerVisualUploadHelpers.normalizeVisualUpload(file);
 }
 async function handleSessionPlannerVisualUpload(file) {
 if (!canEditSessionPlanner() || !file) {

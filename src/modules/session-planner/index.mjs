@@ -6,6 +6,7 @@ export * from "./session-planner-block-helpers.mjs";
 export * from "./session-planner-workspace-renderer.mjs";
 export * from "./session-planner-tactical-helpers.mjs";
 export * from "./session-planner-visual-renderer.mjs";
+export * from "./session-planner-visual-upload.mjs";
 export * from "./session-planner-player-board-display-helpers.mjs";
 export * from "./session-planner-player-board-helpers.mjs";
 export * from "./session-planner-player-board-formation-layout-helpers.mjs";

@@ -4258,15 +4258,15 @@ playerProfileStatusOptions,
 playerProfileTabOptions,
 playerProfileCountsInSquad,
 renderPlayerProfileAvatarUpload,
-renderPlayerProfileFuturePanel,
-renderPlayerProfileHistoryPanel,
-renderPlayerProfileMedicalPanel,
-renderPlayerProfileOptionSet,
-renderPlayerProfileRoleOptions,
+renderPlayerProfileFuturePanel: (player) => squadProfileSupportRenderer.renderFuturePanel(player),
+renderPlayerProfileHistoryPanel: (player) => squadProfileSupportRenderer.renderHistoryPanel(player),
+renderPlayerProfileMedicalPanel: (player) => squadProfileSupportRenderer.renderMedicalPanel(player),
+renderPlayerProfileOptionSet: (options, selectedKey) => squadProfileSupportRenderer.renderOptionSet(options, selectedKey),
+renderPlayerProfileRoleOptions: (selectedRole) => squadProfileSupportRenderer.renderRoleOptions(selectedRole),
 renderPlayerProfileScoutingSpider,
-renderPlayerProfileSecondaryRoleOptions,
+renderPlayerProfileSecondaryRoleOptions: (selectedRoles) => squadProfileSupportRenderer.renderSecondaryRoleOptions(selectedRoles),
 renderPlayerProfileStatusChip,
-renderPlayerProfileTabs,
+renderPlayerProfileTabs: () => squadProfileSupportRenderer.renderTabs(),
 });
 const medicalOptionSelectors = createMedicalOptionSelectors({
 getMedicalRecommendationActivityContext,
@@ -17388,33 +17388,6 @@ visibleSummary: getPlayerProfilesRosterSummary(visiblePlayers),
 });
 queuePlayerProfileAgeHydration();
 }
-function renderPlayerProfileRoleOptions(selectedRole = "") {
-return squadProfileSupportRenderer.renderRoleOptions(selectedRole);
-}
-function renderPlayerProfileSecondaryRoleOptions(selectedRoles = []) {
-return squadProfileSupportRenderer.renderSecondaryRoleOptions(selectedRoles);
-}
-function renderPlayerProfileOptionSet(options, selectedKey = "") {
-return squadProfileSupportRenderer.renderOptionSet(options, selectedKey);
-}
-function renderPlayerProfileMedicalPanel(player) {
-return squadProfileSupportRenderer.renderMedicalPanel(player);
-}
-function renderPlayerProfileFuturePanel(player) {
-return squadProfileSupportRenderer.renderFuturePanel(player);
-}
-function renderPlayerProfileHistoryPanel(player) {
-return squadProfileSupportRenderer.renderHistoryPanel(player);
-}
-function renderPlayerProfileTabs() {
-return squadProfileSupportRenderer.renderTabs();
-}
-function renderPlayerProfileModal(player) {
-return squadProfileSelectedRenderer.renderModal(player);
-}
-function renderPlayerProfileNewPlayerModal() {
-return squadProfileSupportRenderer.renderNewPlayerModal();
-}
 function getSquadMatrixRoleGroup(role) {
 if (role === "GK") {
 return "goalkeeper";
@@ -18311,12 +18284,12 @@ const squadTeamName = squadTeam?.name || getPlatformTeamDisplayName(currentPlatf
 ui.playerProfilesWorkspace.innerHTML = squadWorkspaceRenderer.renderWorkspace({
 canEdit: canEditPlayerProfiles(),
 messageMarkup: message ? renderPlayerProfilesWorkspaceMessage(message) : "",
-newPlayerModalMarkup: renderPlayerProfileNewPlayerModal(),
+newPlayerModalMarkup: squadProfileSupportRenderer.renderNewPlayerModal(),
 pendingImportMarkup: renderPendingPlayerProfileImport(),
-playerModalMarkup: renderPlayerProfileModal(selectedPlayer),
+playerModalMarkup: squadProfileSelectedRenderer.renderModal(selectedPlayer),
 roleGroupFilter: playerProfilesRoleGroupFilter,
-roleGroupOptionsMarkup: renderPlayerProfileOptionSet(playerProfileRoleGroupOptions, playerProfilesRoleGroupFilter),
-rosterFilterOptionsMarkup: renderPlayerProfileOptionSet(playerProfileRosterFilterOptions, playerProfilesRosterFilter),
+roleGroupOptionsMarkup: squadProfileSupportRenderer.renderOptionSet(playerProfileRoleGroupOptions, playerProfilesRoleGroupFilter),
+rosterFilterOptionsMarkup: squadProfileSupportRenderer.renderOptionSet(playerProfileRosterFilterOptions, playerProfilesRosterFilter),
 rosterSectionsMarkup: renderSquadRosterSections(visiblePlayers, { rosterSummary, visibleSummary }),
 searchQuery: playerProfilesSearchQuery,
 teamLogoMarkup: renderPlatformTeamLogoMark(squadTeam || { name: squadTeamName }, { teamName: squadTeamName, canUpload: canEditPlayerProfiles() }),

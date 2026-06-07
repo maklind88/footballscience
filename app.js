@@ -73,7 +73,7 @@ import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
 import { getTopIconSvg } from "./top-icons.js";
 import { createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
 import { adminDepartmentSuggestions, adminTitleSuggestions, createAdminAccessRenderer, createAdminReadinessRenderer, createAdminStructureRenderer, createAdminUserRenderer, createAdminWorkspaceRenderer, formatAdminDateTime, getAdminActiveUserCount, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
-import { createProfileImageDataUrl as createProfileImageDataUrlFromModule, createProfileWorkspaceRenderer } from "./src/modules/profile/index.mjs";
+import { createProfileImageDataUrl as createProfileImageDataUrlFromModule, createProfileStaffWorkspaceController, createProfileWorkspaceRenderer } from "./src/modules/profile/index.mjs";
 import { SESSION_TACTICALBOARD_KEY_HANDLED, bindSessionPlannerTacticalShortcutController } from "./src/modules/session-planner/session-planner-shortcuts-controller.mjs";
 import { createStaffWorkspaceRenderer } from "./src/modules/staff/index.mjs";
 import {
@@ -9067,50 +9067,30 @@ const {
   prepareSessionPlannerPrintRoot,
   printSessionPlannerCurrentSession,
 } = sessionPlannerWorkspaceController;
-function getProfileWorkspaceMessage(message = "") {
-const nextMessage = String(message || "");
-if (!nextMessage) {
-return profileWorkspaceFlashMessage;
-}
-profileWorkspaceFlashMessage = nextMessage;
-if (profileWorkspaceFlashTimer) {
-win.clearTimeout(profileWorkspaceFlashTimer);
-}
-profileWorkspaceFlashTimer = win.setTimeout(() => {
-profileWorkspaceFlashTimer = null;
-profileWorkspaceFlashMessage = "";
-if (hubState?.activeWorkspaceId === "my-profile") {
-renderProfileWorkspace();
-}
-}, 5000);
-return profileWorkspaceFlashMessage;
-}
-function renderProfileWorkspace(message = "") {
-if (!ui.profileWorkspace) {
-return;
-}
-const user = getCurrentPlatformUser();
-if (!user) {
-ui.profileWorkspace.innerHTML = "";
-return;
-}
-const users = getPlatformUsers();
-const personalTasks = readDashboardTasks().filter(
-(task) => task.assignedTo === user.id && task.createdBy === user.id && task.scope === "personal"
-);
-const openPersonalTasks = personalTasks.filter((task) => task.status !== "done");
-const completedPersonalTasks = personalTasks.filter((task) => task.status === "done").slice(0, 3);
-const hasProfilePhoto = Boolean(getUserProfileImageUrl(user));
-const profileMessage = getProfileWorkspaceMessage(message);
-ui.profileWorkspace.innerHTML = profileWorkspaceRenderer.renderWorkspace({
-user,
-users,
-openPersonalTasks,
-completedPersonalTasks,
-hasProfilePhoto,
-message: profileMessage,
+const profileStaffWorkspaceController = createProfileStaffWorkspaceController({
+getActiveWorkspaceId: () => hubState?.activeWorkspaceId,
+getAssignableRolesForUser,
+getCurrentUser: getCurrentPlatformUser,
+getScopedUsers: getScopedPlatformUsers,
+getSelectedStaffUserId: () => selectedStaffUserId,
+getStaffCreateUserEditorOpen: () => staffCreateUserEditorOpen,
+getTeamId: getUserTeamId,
+getUi: () => ui,
+getUserProfileImageUrl,
+getUsers: getPlatformUsers,
+isAdmin: isCurrentPlatformUserAdmin,
+profileWorkspaceRenderer,
+readDashboardTasks,
+renderAdminRoleOptions,
+renderAdminTeamOptions,
+setSelectedStaffUserId: (userId) => {
+selectedStaffUserId = userId;
+},
+staffWorkspaceRenderer,
+syncStructure: syncPlatformStructureWithUsers,
+win,
 });
-}
+function renderProfileWorkspace(message = "") { return profileStaffWorkspaceController.renderProfileWorkspace(message); }
 function getPlatformFormValues(form) { return readPlatformFormValues(form); }
 function getPasswordValidationMessage(values = {}) {
 return getPlatformPasswordValidationMessage(values);
@@ -9195,35 +9175,7 @@ return topIconMenuOrder
 .map((workspaceId) => getWorkspaceByIdFromPool(workspaceId))
 .filter((workspace) => workspace && !workspace.hiddenFromNav);
 }
-function renderStaffWorkspace(message = "") {
-if (!ui.staffWorkspace) {
-return;
-}
-const user = getCurrentPlatformUser();
-const structure = syncPlatformStructureWithUsers(getPlatformUsers());
-const users = getScopedPlatformUsers(getPlatformUsers(), user, structure);
-const isAdmin = isCurrentPlatformUserAdmin();
-const selectedUser =
-users.find((staffUser) => staffUser.id === selectedStaffUserId) ??
-users.find((staffUser) => staffUser.id === user?.id) ??
-users[0] ??
-null;
-selectedStaffUserId = selectedUser?.id ?? null;
-const roleOptions = renderAdminRoleOptions(user, getAssignableRolesForUser(user).includes("coach") ? "coach" : getAssignableRolesForUser(user)[0]);
-const teamOptions = renderAdminTeamOptions(user, structure, getUserTeamId(user, structure));
-ui.staffWorkspace.innerHTML = staffWorkspaceRenderer.renderWorkspace({
-currentUser: user,
-users,
-structure,
-selectedUser,
-selectedUserId: selectedStaffUserId,
-isAdmin,
-createUserEditorOpen: staffCreateUserEditorOpen,
-roleOptions,
-teamOptions,
-message,
-});
-}
+function renderStaffWorkspace(message = "") { return profileStaffWorkspaceController.renderStaffWorkspace(message); }
 function getAdminUsersForTeam(users = [], teamId = "", structure = getPlatformStructureState()) {
 const normalizedTeamId = normalizePlatformStructureText(teamId, "");
 return users.filter((user) => !hasPlatformWorkspaceScope(user) && getUserTeamId(user, structure) === normalizedTeamId);

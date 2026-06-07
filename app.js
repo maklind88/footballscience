@@ -17106,47 +17106,7 @@ return;
 }
 await handleDashboardChatAttachmentInputChange(attachmentInput);
 });
-ui.scoutingWorkspace?.addEventListener("click", (event) => {
-scoutingWorkspaceModule?.handleClick(event, getScoutingWorkspaceContext());
-});
-ui.scoutingWorkspace?.addEventListener("input", (event) => {
-scoutingWorkspaceModule?.handleInput(event, getScoutingWorkspaceContext());
-});
-ui.scoutingWorkspace?.addEventListener("change", (event) => {
-scoutingWorkspaceModule?.handleChange(event, getScoutingWorkspaceContext());
-});
-ui.scoutingWorkspace?.addEventListener("submit", (event) => {
-scoutingWorkspaceModule?.handleSubmit(event, getScoutingWorkspaceContext());
-});
-["click", "input", "change", "submit"].forEach((type) => {
-ui.gameplanWorkspace?.addEventListener(type, (event) =>
-gpModule?.[`handle${type[0].toUpperCase()}${type.slice(1)}`]?.(event, getGameplanContext())
-);
-});
-ui.transferRoomWorkspace?.addEventListener("click", (event) => {
-transferRoomRuntime.workspaceModule?.handleClick(event, getTransferRoomWorkspaceContext());
-});
-ui.transferRoomWorkspace?.addEventListener("input", (event) => {
-transferRoomRuntime.workspaceModule?.handleInput(event, getTransferRoomWorkspaceContext());
-});
-ui.transferRoomWorkspace?.addEventListener("change", (event) => {
-transferRoomRuntime.workspaceModule?.handleChange(event, getTransferRoomWorkspaceContext());
-});
-ui.transferRoomWorkspace?.addEventListener("submit", (event) => {
-transferRoomRuntime.workspaceModule?.handleSubmit(event, getTransferRoomWorkspaceContext());
-});
-ui.analysisRoomWorkspace?.addEventListener("click", (event) => {
-scoutingWorkspaceModule?.handleClick(event, getScoutingAnalysisRoomContext());
-});
-ui.analysisRoomWorkspace?.addEventListener("input", (event) => {
-scoutingWorkspaceModule?.handleInput(event, getScoutingAnalysisRoomContext());
-});
-ui.analysisRoomWorkspace?.addEventListener("change", (event) => {
-scoutingWorkspaceModule?.handleChange(event, getScoutingAnalysisRoomContext());
-});
-ui.analysisRoomWorkspace?.addEventListener("submit", (event) => {
-scoutingWorkspaceModule?.handleSubmit(event, getScoutingAnalysisRoomContext());
-});
+workspaceModuleRuntimeController.bindWorkspaceModuleEvents();
 bindGameSimulatorLateUiEvents();
 document.addEventListener("keydown", (event) => {
 const key = String(event.key || "").toLowerCase();

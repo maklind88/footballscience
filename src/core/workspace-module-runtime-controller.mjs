@@ -274,7 +274,40 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     queueWorkspaceModulePreload(workspaceId);
   }
 
+  function getWorkspaceModuleEventHandlerName(eventType = "") {
+    const type = String(eventType || "").trim();
+    return type ? `handle${type[0].toUpperCase()}${type.slice(1)}` : "";
+  }
+
+  function bindWorkspaceModuleEvent(root, type, handler) {
+    if (!root || typeof root.addEventListener !== "function") {
+      return;
+    }
+    root.addEventListener(type, handler);
+  }
+
+  function bindWorkspaceModuleEvents() {
+    ["click", "input", "change", "submit"].forEach((type) => {
+      bindWorkspaceModuleEvent(ui.scoutingWorkspace, type, (event) => {
+        scoutingWorkspaceModule?.[getWorkspaceModuleEventHandlerName(type)]?.(event, getScoutingWorkspaceContext());
+      });
+      bindWorkspaceModuleEvent(ui.gameplanWorkspace, type, (event) => {
+        gameplanModule?.[getWorkspaceModuleEventHandlerName(type)]?.(event, getGameplanContext());
+      });
+      bindWorkspaceModuleEvent(ui.transferRoomWorkspace, type, (event) => {
+        transferRoomRuntime?.workspaceModule?.[getWorkspaceModuleEventHandlerName(type)]?.(
+          event,
+          getTransferRoomWorkspaceContext()
+        );
+      });
+      bindWorkspaceModuleEvent(ui.analysisRoomWorkspace, type, (event) => {
+        scoutingWorkspaceModule?.[getWorkspaceModuleEventHandlerName(type)]?.(event, getScoutingAnalysisRoomContext());
+      });
+    });
+  }
+
   return Object.freeze({
+    bindWorkspaceModuleEvents,
     getGameplanContext,
     getScoutingAnalysisRoomContext,
     getScoutingWorkspaceContext,

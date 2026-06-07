@@ -11,19 +11,36 @@ function createRuntime(overrides = {}) {
   const calls = {
     stylesheets: [],
     modules: [],
+    gameplanEvents: [],
     gameplanRender: [],
+    scoutingEvents: [],
     scoutingRender: [],
+    analysisEvents: [],
     analysisRender: [],
+    transferEvents: [],
     transferLoad: 0,
     transferRender: 0,
     hydrated: [],
   };
+  const createRoot = (fields = {}) => ({
+    handlers: {},
+    addEventListener(type, handler) {
+      this.handlers[type] = handler;
+    },
+    ...fields,
+  });
   const ui = {
-    gameplanWorkspace: { textContent: "" },
-    scoutingWorkspace: { innerHTML: "" },
-    analysisRoomWorkspace: { innerHTML: "" },
-    transferRoomWorkspace: { innerHTML: "" },
+    gameplanWorkspace: createRoot({ textContent: "" }),
+    scoutingWorkspace: createRoot({ innerHTML: "" }),
+    analysisRoomWorkspace: createRoot({ innerHTML: "" }),
+    transferRoomWorkspace: createRoot({ innerHTML: "" }),
   };
+  const createEventHandlers = (target) => ({
+    handleClick: (event, context) => target.push(["click", event, context]),
+    handleInput: (event, context) => target.push(["input", event, context]),
+    handleChange: (event, context) => target.push(["change", event, context]),
+    handleSubmit: (event, context) => target.push(["submit", event, context]),
+  });
   const controller = createWorkspaceModuleRuntimeController({
     ui,
     win: {
@@ -37,11 +54,15 @@ function createRuntime(overrides = {}) {
       loadModule: async (id) => {
         calls.modules.push(id);
         if (id === "gameplan") {
-          return { render: (context) => calls.gameplanRender.push(context) };
+          return {
+            render: (context) => calls.gameplanRender.push(context),
+            ...createEventHandlers(calls.gameplanEvents),
+          };
         }
         return {
           render: (context) => calls.scoutingRender.push(context),
           renderAnalysisRoom: (context) => calls.analysisRender.push(context),
+          ...createEventHandlers(calls.scoutingEvents),
         };
       },
     },
@@ -76,6 +97,7 @@ function createRuntime(overrides = {}) {
       render: () => {
         calls.transferRender += 1;
       },
+      workspaceModule: createEventHandlers(calls.transferEvents),
     },
     getWorkspaceViewId: (workspaceId) => ({
       schedule: "schedule",
@@ -158,4 +180,24 @@ test("workspace module runtime keeps Transfer Room delegated to its existing run
 
   expect(calls.transferLoad).toBe(1);
   expect(calls.transferRender).toBe(1);
+});
+
+test("workspace module runtime owns lazy workspace event delegation", async () => {
+  const { calls, controller, ui } = createRuntime();
+
+  controller.bindWorkspaceModuleEvents();
+  await controller.loadGameplanModule();
+  await controller.loadScoutingWorkspaceModule();
+
+  ui.gameplanWorkspace.handlers.click({ type: "click" });
+  ui.scoutingWorkspace.handlers.input({ type: "input" });
+  ui.analysisRoomWorkspace.handlers.change({ type: "change" });
+  ui.transferRoomWorkspace.handlers.submit({ type: "submit" });
+
+  expect(calls.gameplanEvents[0][0]).toBe("click");
+  expect(calls.gameplanEvents[0][2].canEdit()).toBe(true);
+  expect(calls.scoutingEvents.map(([type]) => type)).toEqual(["input", "change"]);
+  expect(calls.scoutingEvents[1][2].ui.scoutingWorkspace).toBe(ui.analysisRoomWorkspace);
+  expect(calls.transferEvents[0][0]).toBe("submit");
+  expect(calls.transferEvents[0][2]).toEqual({ room: true });
 });

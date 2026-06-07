@@ -59,6 +59,7 @@ import {
   createSquadProfileSupportRenderer,
   createSquadRosterRenderer,
   createSquadScoutingSpiderRenderer,
+  createSquadWorkspaceRenderer,
   playerProfileAttributeGroups,
   playerProfileCareerPhaseOptions,
   playerProfileChangeFieldDefinitions,
@@ -4623,6 +4624,9 @@ playerProfileIdpStatusOptions,
 playerProfileStatusOptions,
 playerProfileSquadStatusOptions,
 renderPlayerProfileAvatar,
+});
+const squadWorkspaceRenderer = createSquadWorkspaceRenderer({
+escapeHtml,
 });
 const squadProfileSupportRenderer = createSquadProfileSupportRenderer({
 escapeHtml,
@@ -20067,31 +20071,7 @@ return typeof entry === "string" ? entry : "";
 };
 }
 function renderPlayerProfilesWorkspaceMessage(message) {
-if (!message) {
-return "";
-}
-if (typeof message === "string") {
-    return `<div class="player-profile-message platform-inline-toast" role="status" aria-live="polite">${escapeHtml(message).replace(/\n/g, "<br>")}</div>`;
-}
-if (typeof message === "object") {
-const lines = Array.isArray(message.lines) ? message.lines.filter(Boolean) : [];
-const items = Array.isArray(message.items) ? message.items.filter(Boolean) : [];
-const status = message.status === "error"
-? "is-error"
-: message.status === "warning"
-? "is-warning"
-: message.status === "success"
-? "is-success"
-: "";
-const body = [
-...lines.map((line) => `<p>${escapeHtml(line)}</p>`),
-items.length
-? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
-: "",
-].join("");
-return `<div class="player-profile-message ${status} platform-inline-toast" role="status" aria-live="polite">${body || ""}</div>`;
-}
-return "";
+return squadWorkspaceRenderer.renderMessage(message);
 }
 function normalizePlayerProfileFutureData(futureData = {}) {
 return {
@@ -22432,36 +22412,7 @@ if (!pendingPlayerProfileImportPlan) {
 return "";
 }
 const preview = buildPlayerProfileImportPreviewMessage(pendingPlayerProfileImportPlan, { maxRows: 20 });
-const statusClass = preview.status === "error"
-? "is-error"
-: preview.status === "warning"
-? "is-warning"
-: "is-success";
-const rowItems = Array.isArray(preview.items) ? preview.items : [];
-return `
-<section class="player-profile-import-preview ${statusClass}">
-<div class="player-profile-import-preview-head">
-<strong>Import preview</strong>
-<span>${escapeHtml(preview.status || "info")}</span>
-</div>
-<p>Source rows: ${pendingPlayerProfileImportPlan.sourceRows || 0}</p>
-${preview.lines.length ? `<p>${preview.lines.map((line) => escapeHtml(line)).join("</p><p>")}</p>` : ""}
-${rowItems.length
-? `<div class="player-profile-import-preview-list-wrap"><ul>${rowItems.map((rowItem) => `<li>${escapeHtml(rowItem)}</li>`).join("")}</ul></div>`
-: ""}
-<div class="player-profile-import-preview-actions">
-<button
-type="button"
-class="player-profile-import-apply-button"
-data-player-profile-import-apply
-${pendingPlayerProfileImportPlan.canApply && canEditPlayerProfiles() ? "" : "disabled"}
->
-Apply previewed import
-</button>
-<button type="button" data-player-profile-import-cancel>Cancel import preview</button>
-</div>
-</section>
-`;
+return squadWorkspaceRenderer.renderPendingImport(pendingPlayerProfileImportPlan, preview, canEditPlayerProfiles());
 }
 function renderPlayerProfilesWorkspace(message = "") {
 if (!ui.playerProfilesWorkspace) {
@@ -22478,55 +22429,20 @@ const platformStructure = getPlatformStructureState();
 const currentPlatformUser = getCurrentPlatformUser();
 const squadTeam = getPlatformTeamDisplayTeam(currentPlatformUser, platformStructure);
 const squadTeamName = squadTeam?.name || getPlatformTeamDisplayName(currentPlatformUser, platformStructure);
-ui.playerProfilesWorkspace.innerHTML = `
-<div class="squad-board-shell">
-<header class="squad-command-bar">
-${renderPlatformTeamLogoMark(squadTeam || { name: squadTeamName }, { teamName: squadTeamName, canUpload: canEditPlayerProfiles() })}
-<div class="squad-command-title">
-<p>Squad Room</p>
-<h1>${escapeHtml(squadTeamName)}</h1>
-</div>
-<div class="squad-command-actions">
-<button
-type="button"
-class="squad-add-player-trigger squad-add-player-trigger-header"
-data-player-profile-new-open
-aria-label="Add player"
-title="Add player"
-${canEditPlayerProfiles() ? "" : "disabled"}
->
-+
-</button>
-</div>
-<div class="squad-command-tools" aria-label="Squad list controls">
-<div class="squad-list-tools">
-<input
-type="search"
-value="${escapeHtml(playerProfilesSearchQuery)}"
-placeholder="Search player, role, number..."
-data-player-profile-search
-/>
-<select data-player-profile-role-group-filter aria-label="Filter by role group">
-<option value="all" ${playerProfilesRoleGroupFilter === "all" ? "selected" : ""}>All groups</option>
-${renderPlayerProfileOptionSet(playerProfileRoleGroupOptions, playerProfilesRoleGroupFilter)}
-</select>
-<select data-player-profile-roster-filter aria-label="Filter by roster type">
-${renderPlayerProfileOptionSet(playerProfileRosterFilterOptions, playerProfilesRosterFilter)}
-</select>
-</div>
-</div>
-</header>
-${message ? renderPlayerProfilesWorkspaceMessage(message) : ""}
-${renderPendingPlayerProfileImport()}
-<section class="squad-workspace-layout squad-workspace-layout-list-first">
-<main class="squad-list-panel" aria-label="Squad overview">
-${renderSquadRosterSections(visiblePlayers, { rosterSummary, visibleSummary })}
-</main>
-</section>
-${renderPlayerProfileModal(selectedPlayer)}
-${renderPlayerProfileNewPlayerModal()}
-</div>
-`;
+ui.playerProfilesWorkspace.innerHTML = squadWorkspaceRenderer.renderWorkspace({
+canEdit: canEditPlayerProfiles(),
+messageMarkup: message ? renderPlayerProfilesWorkspaceMessage(message) : "",
+newPlayerModalMarkup: renderPlayerProfileNewPlayerModal(),
+pendingImportMarkup: renderPendingPlayerProfileImport(),
+playerModalMarkup: renderPlayerProfileModal(selectedPlayer),
+roleGroupFilter: playerProfilesRoleGroupFilter,
+roleGroupOptionsMarkup: renderPlayerProfileOptionSet(playerProfileRoleGroupOptions, playerProfilesRoleGroupFilter),
+rosterFilterOptionsMarkup: renderPlayerProfileOptionSet(playerProfileRosterFilterOptions, playerProfilesRosterFilter),
+rosterSectionsMarkup: renderSquadRosterSections(visiblePlayers, { rosterSummary, visibleSummary }),
+searchQuery: playerProfilesSearchQuery,
+teamLogoMarkup: renderPlatformTeamLogoMark(squadTeam || { name: squadTeamName }, { teamName: squadTeamName, canUpload: canEditPlayerProfiles() }),
+teamName: squadTeamName,
+});
 queuePlayerProfileAgeHydration();
 }
 function getPlayerProfileFormValues(form) {

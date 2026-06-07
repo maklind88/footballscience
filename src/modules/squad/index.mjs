@@ -5,3 +5,4 @@ export * from "./squad-profile-selected-renderer.mjs";
 export * from "./squad-profile-support-renderer.mjs";
 export * from "./squad-roster-renderer.mjs";
 export * from "./squad-scouting-spider-renderer.mjs";
+export * from "./squad-workspace-renderer.mjs";

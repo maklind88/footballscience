@@ -450,6 +450,8 @@ test("game simulator animation loop does not run globally outside the simulator 
 
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/control-bindings.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/app-runtime-controller.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/runtime-facade.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/initial-state.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/action-space-metrics.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/ball-resolution-engine.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-live-engine.mjs");
@@ -470,8 +472,9 @@ test("game simulator animation loop does not run globally outside the simulator 
   expect(appSource).not.toContain('from "./src/modules/game-simulator/fullscreen.mjs"');
   expect(appSource).not.toContain('from "./src/modules/game-simulator/workspace-controller.mjs"');
   expect(appSource).toContain("createGameSimulatorAppRuntimeController");
-  expect(appSource).toContain("function startSimulatorAnimationLoop(...args)");
-  expect(appSource).toContain("function stopSimulatorAnimationLoop(...args)");
+  expect(appSource).toContain("createGameSimulatorRuntimeFacade");
+  expect(appSource).not.toContain("function startSimulatorAnimationLoop(...args)");
+  expect(appSource).not.toContain("function stopSimulatorAnimationLoop(...args)");
   expect(appRuntimeControllerSource).toContain('import("./controllers.mjs")');
   expect(appRuntimeControllerSource).toContain('import("./runtime.mjs")');
   expect(appRuntimeControllerSource).toContain("createGameSimulatorSequenceEngine");

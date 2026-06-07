@@ -13,11 +13,14 @@ function readProjectFile(path) {
 test("game simulator app runtime controller owns simulator runtime wiring", () => {
   const app = readProjectFile("app.js");
   const controller = readProjectFile("src/modules/game-simulator/app-runtime-controller.mjs");
+  const facade = readProjectFile("src/modules/game-simulator/runtime-facade.mjs");
 
   expect(typeof createGameSimulatorAppRuntimeController).toBe("function");
   expect(app).toContain("createGameSimulatorAppRuntimeController");
+  expect(app).toContain("createGameSimulatorRuntimeFacade");
   expect(app).toContain("function invokeGameSimulatorAppRuntime");
-  expect(app).toContain("function executePlannedAction(...args)");
+  expect(app).not.toContain("function executePlannedAction(...args)");
+  expect(facade).toContain('"executePlannedAction"');
   expect(app).not.toContain("const gameSimulatorCanvasRenderer = createGameSimulatorCanvasRenderer");
   expect(app).not.toContain("const gameSimulatorPointerController = createGameSimulatorPointerController");
   expect(controller).toContain("createGameSimulatorSequenceEngine");

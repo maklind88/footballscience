@@ -834,12 +834,8 @@ now: () => Date.now(),
 });
 function isSessionPlannerAutosaveKey(key = "") { return sessionPlannerAutosaveBoundary.isAutosaveKey(key); }
 function shouldShowPlatformAutosaveStatus(workspaceId = hubState?.activeWorkspaceId) { return sessionPlannerAutosaveBoundary.shouldShowStatus(workspaceId); }
-function syncPlatformAutosaveStatusVisibility(workspaceId = hubState?.activeWorkspaceId) {
-sessionPlannerAutosaveBoundary.syncVisibility(workspaceId);
-}
-function setPlatformAutosaveStatusForKey(key, state, message = "") {
-sessionPlannerAutosaveBoundary.setStatusForKey(key, state, message);
-}
+function syncPlatformAutosaveStatusVisibility(workspaceId = hubState?.activeWorkspaceId) { sessionPlannerAutosaveBoundary.syncVisibility(workspaceId); }
+function setPlatformAutosaveStatusForKey(key, state, message = "") { sessionPlannerAutosaveBoundary.setStatusForKey(key, state, message); }
 syncPlatformAutosaveStatusVisibility(null);
 function getCentralStateBridge() { return win.footballScienceCentralState ?? null; }
 function getCentralStateMetadataForKey(key) {
@@ -6495,9 +6491,7 @@ setActiveWorkspace("periodization");
 renderPeriodizationWorkspace();
 },
 });
-function renderScheduleWorkspace() {
-scheduleWorkspaceController.render();
-}
+function renderScheduleWorkspace() { scheduleWorkspaceController.render(); }
 function cloneHubState(source = defaultHubState) {
 return {
 activeWorkspaceId: source.activeWorkspaceId,
@@ -6711,9 +6705,7 @@ return Array.isArray(parsed)
 .sort((first, second) => new Date(second.createdAt) - new Date(first.createdAt))
 : [];
 }
-function writeDashboardTasks(tasks) {
-writeDashboardJson(dashboardTaskStorageKey, tasks.map(normalizeDashboardTask));
-}
+function writeDashboardTasks(tasks) { writeDashboardJson(dashboardTaskStorageKey, tasks.map(normalizeDashboardTask)); }
 function createDashboardTask(values) {
 const currentUser = getCurrentPlatformUser();
 const title = String(values?.title ?? "").trim();
@@ -6748,9 +6740,7 @@ nextStatus === "done"
 });
 writeDashboardTasks(nextTasks);
 }
-function removeDashboardTask(taskId) {
-writeDashboardTasks(readDashboardTasks().filter((task) => task.id !== taskId));
-}
+function removeDashboardTask(taskId) { writeDashboardTasks(readDashboardTasks().filter((task) => task.id !== taskId)); }
 function normalizeDashboardChatThreadId(rawThreadId, fallbackThreadId = dashboardChatTeamThreadId) {
 const threadId = String(rawThreadId || fallbackThreadId || "").trim();
 if (!threadId || threadId === dashboardChatTeamThreadId) {
@@ -8369,9 +8359,7 @@ threadId: normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId),
 }
 : null;
 }
-function setDashboardChatPriorityDraft(priority) {
-dashboardChatPriorityDraft = normalizeDashboardChatPriority(priority);
-}
+function setDashboardChatPriorityDraft(priority) { dashboardChatPriorityDraft = normalizeDashboardChatPriority(priority); }
 function setDashboardChatConfirmAction(action = null) {
 dashboardChatConfirmAction = action
 ? {
@@ -8384,9 +8372,7 @@ confirmLabel: String(action.confirmLabel || "Confirm").trim(),
 }
 : null;
 }
-function clearDashboardMessages() {
-writeDashboardMessages([]);
-}
+function clearDashboardMessages() { writeDashboardMessages([]); }
 function resetDashboardChatLocalCacheIfNeeded() {
 try {
 if (localStorage.getItem(dashboardChatLocalCacheResetStorageKey) === dashboardChatLocalCacheResetVersion) {
@@ -8662,9 +8648,7 @@ return `
     </span>
   `;
 }
-function markDashboardPresenceActivity() {
-dashboardPresenceLastActivityAt = Date.now();
-}
+function markDashboardPresenceActivity() { dashboardPresenceLastActivityAt = Date.now(); }
 function getDashboardPresenceWorkspaceId() { return hubState?.activeWorkspaceId || ""; }
 function getActiveDashboardTypingThreadId() {
 if (!dashboardChatTypingThreadId || Date.now() - dashboardChatTypingAt > dashboardTypingTtlMs) {
@@ -9294,9 +9278,7 @@ function getDashboardTutorialPrefs() {
 const parsed = readDashboardJson(dashboardTutorialPrefsStorageKey, {});
 return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
 }
-function writeDashboardTutorialPrefs(prefs) {
-writeDashboardJson(dashboardTutorialPrefsStorageKey, prefs);
-}
+function writeDashboardTutorialPrefs(prefs) { writeDashboardJson(dashboardTutorialPrefsStorageKey, prefs); }
 function getDashboardTutorialPreference(userId) { return getDashboardTutorialPrefs()[userId] ?? null; }
 function saveDashboardTutorialPreference(userId, showOnLogin) {
 if (!userId) {
@@ -9913,30 +9895,14 @@ sessionPlannerLibraryEditingFolderId = "";
 sessionPlannerLibraryFilterOpen = "";
 renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
-function startSessionPlannerExerciseLibraryFolderEdit(folderId) {
-exerciseLibraryActions.startFolderEdit(folderId);
-}
-function cancelSessionPlannerExerciseLibraryFolderEdit() {
-exerciseLibraryActions.cancelFolderEdit();
-}
-function createSessionPlannerExerciseLibraryFolderFromForm(form) {
-exerciseLibraryActions.createFolderFromForm(form);
-}
-function updateSessionPlannerExerciseLibraryFolderFromForm(form) {
-exerciseLibraryActions.updateFolderFromForm(form);
-}
-function archiveSessionPlannerExerciseLibraryFolder(folderId) {
-exerciseLibraryActions.archiveFolder(folderId);
-}
-function restoreSessionPlannerExerciseLibraryFolder(folderId) {
-exerciseLibraryActions.restoreFolder(folderId);
-}
-function addSessionPlannerExerciseToLibraryFolder(exerciseId, folderId) {
-exerciseLibraryActions.addExerciseToFolder(exerciseId, folderId);
-}
-function removeSessionPlannerExerciseFromLibraryFolder(exerciseId, folderId = sessionPlannerLibrarySelectedFolderId) {
-exerciseLibraryActions.removeExerciseFromFolder(exerciseId, folderId);
-}
+function startSessionPlannerExerciseLibraryFolderEdit(folderId) { exerciseLibraryActions.startFolderEdit(folderId); }
+function cancelSessionPlannerExerciseLibraryFolderEdit() { exerciseLibraryActions.cancelFolderEdit(); }
+function createSessionPlannerExerciseLibraryFolderFromForm(form) { exerciseLibraryActions.createFolderFromForm(form); }
+function updateSessionPlannerExerciseLibraryFolderFromForm(form) { exerciseLibraryActions.updateFolderFromForm(form); }
+function archiveSessionPlannerExerciseLibraryFolder(folderId) { exerciseLibraryActions.archiveFolder(folderId); }
+function restoreSessionPlannerExerciseLibraryFolder(folderId) { exerciseLibraryActions.restoreFolder(folderId); }
+function addSessionPlannerExerciseToLibraryFolder(exerciseId, folderId) { exerciseLibraryActions.addExerciseToFolder(exerciseId, folderId); }
+function removeSessionPlannerExerciseFromLibraryFolder(exerciseId, folderId = sessionPlannerLibrarySelectedFolderId) { exerciseLibraryActions.removeExerciseFromFolder(exerciseId, folderId); }
 function getSessionPlannerLibraryOptionValues(key) {
 const values = getSessionPlannerLibraryExercisesByArchiveState()
 .flatMap((exercise) => normalizeSessionPlannerMultiValue(exercise[key]))
@@ -9991,9 +9957,7 @@ sessionPlannerLibraryEditExerciseId = "";
 sessionPlannerLibraryViewExerciseId = "";
 renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
-function renderSessionPlannerLibraryResults() {
-exerciseLibraryRenderer.renderResults(ui.sessionPlannerWorkspace);
-}
+function renderSessionPlannerLibraryResults() { exerciseLibraryRenderer.renderResults(ui.sessionPlannerWorkspace); }
 function updateSessionPlannerLibrarySearch(value) {
 sessionPlannerLibrarySearchQuery = String(value || "");
 sessionPlannerLibraryEditExerciseId = "";
@@ -10082,18 +10046,12 @@ fields[key] = field.value ?? "";
 });
 return fields;
 }
-function duplicateSessionPlannerLibraryExercise(exerciseId) {
-exerciseLibraryActions.duplicateExercise(exerciseId);
-}
-function updateSessionPlannerLibraryExerciseFromEdit(exerciseId) {
-exerciseLibraryActions.updateExerciseFromEdit(exerciseId);
-}
+function duplicateSessionPlannerLibraryExercise(exerciseId) { exerciseLibraryActions.duplicateExercise(exerciseId); }
+function updateSessionPlannerLibraryExerciseFromEdit(exerciseId) { exerciseLibraryActions.updateExerciseFromEdit(exerciseId); }
 function hasSessionPlannerLibraryExerciseEditChanges(exercise = {}, editFields = getSessionPlannerLibraryExerciseEditFields()) {
 return exerciseLibraryActions.hasExerciseEditChanges(exercise, editFields);
 }
-function saveSessionPlannerLibraryExerciseEditAsCopy(exerciseId) {
-exerciseLibraryActions.saveExerciseEditAsCopy(exerciseId);
-}
+function saveSessionPlannerLibraryExerciseEditAsCopy(exerciseId) { exerciseLibraryActions.saveExerciseEditAsCopy(exerciseId); }
 function normalizeSessionPlannerLibraryTitle(title = "") {
 return String(title || "")
 .trim()
@@ -10212,12 +10170,8 @@ renderSessionPlannerToast();
 }, 3200);
 }
 function commitSessionPlannerExerciseToLibrary(exercise, mode = "new", existingExerciseId = "") { return exerciseLibraryActions.commitExercise(exercise, mode, existingExerciseId); }
-function queueSessionPlannerLibrarySaveConflict(exercise, existingExercise) {
-exerciseLibraryActions.queueSaveConflict(exercise, existingExercise);
-}
-function resolveSessionPlannerLibrarySaveConflict(action) {
-exerciseLibraryActions.resolveSaveConflict(action);
-}
+function queueSessionPlannerLibrarySaveConflict(exercise, existingExercise) { exerciseLibraryActions.queueSaveConflict(exercise, existingExercise); }
+function resolveSessionPlannerLibrarySaveConflict(action) { exerciseLibraryActions.resolveSaveConflict(action); }
 function assignSessionPlannerBlockFieldValue(block, field, rawValue) {
 if (!block || !(field in block)) {
 return false;
@@ -10258,15 +10212,9 @@ markSessionPlannerBlockFieldsUpdated(block, changedFields);
 writeSessionPlannerState();
 }
 }
-function saveSelectedSessionPlannerExerciseToLibrary() {
-exerciseLibraryActions.saveSelectedExercise();
-}
-function deleteSessionPlannerLibraryExercise(exerciseId) {
-exerciseLibraryActions.archiveExercise(exerciseId);
-}
-function restoreSessionPlannerLibraryExercise(exerciseId) {
-exerciseLibraryActions.restoreExercise(exerciseId);
-}
+function saveSelectedSessionPlannerExerciseToLibrary() { exerciseLibraryActions.saveSelectedExercise(); }
+function deleteSessionPlannerLibraryExercise(exerciseId) { exerciseLibraryActions.archiveExercise(exerciseId); }
+function restoreSessionPlannerLibraryExercise(exerciseId) { exerciseLibraryActions.restoreExercise(exerciseId); }
 function createSessionPlannerDefaultSession(dateValue = formatScheduleDateValue(new Date())) { return sessionPlannerSessionFactory.createDefaultSession(dateValue); }
 function createSessionPlannerEmptySession(dateValue = formatScheduleDateValue(new Date())) { return sessionPlannerSessionFactory.createEmptySession(dateValue); }
 function getSessionPlannerPeriodizationOverride(dateValue) {
@@ -17043,9 +16991,7 @@ refreshMultiFields: refreshPeriodizationBoardMultiFields,
 refreshDependentFields: refreshPeriodizationBoardDependentFields,
 });
 function isPitchFullscreenActive() { return gameSimulatorFullscreenController?.isActive() ?? false; }
-function syncPitchFullscreenButton() {
-gameSimulatorFullscreenController?.syncButton();
-}
+function syncPitchFullscreenButton() { gameSimulatorFullscreenController?.syncButton(); }
 function updatePitchFullscreenHudLayout() { gameSimulatorFullscreenController?.updateHudLayout(); }
 async function togglePitchFullscreen() {
 await ensureGameSimulatorControllers();
@@ -17591,9 +17537,7 @@ null;
 state.selectedPlayerIds = normalized;
 state.selectedPlayerId = nextPrimary;
 }
-function setSingleSelectedPlayer(playerId) {
-setSelectedPlayers([playerId], playerId);
-}
+function setSingleSelectedPlayer(playerId) { setSelectedPlayers([playerId], playerId); }
 function clearSelectedPlayers() {
 state.selectedPlayerIds = [];
 state.selectedPlayerId = null;
@@ -17667,9 +17611,7 @@ defenseStyle: incoming.defenseStyle ?? defaults.defenseStyle ?? "balanced-block"
 };
 });
 }
-function resetTeamIdentities() {
-applyTeamIdentities(defaultTeamIdentities);
-}
+function resetTeamIdentities() { applyTeamIdentities(defaultTeamIdentities); }
 function getTeamAttackStyleKey(teamId) { return teams[teamId]?.identity?.attackStyle ?? defaultTeamIdentities[teamId]?.attackStyle ?? "balanced"; }
 function getTeamDefenseStyleKey(teamId) { return teams[teamId]?.identity?.defenseStyle ?? defaultTeamIdentities[teamId]?.defenseStyle ?? "balanced-block"; }
 function getTeamAttackStyleProfile(teamId) {
@@ -17905,9 +17847,7 @@ const gameSimulatorCanvasRenderer = createGameSimulatorCanvasRenderer({
   win,
   getState: () => state,
 });
-function render() {
-  gameSimulatorCanvasRenderer.render();
-}
+function render() {   gameSimulatorCanvasRenderer.render(); }
 win.renderGameSimulator = render;
 const gameSimulatorPointerController = createGameSimulatorPointerController({
 canvas,

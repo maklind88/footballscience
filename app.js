@@ -3756,7 +3756,7 @@ normalizeMultiValue: normalizeSessionPlannerMultiValue,
 getMultiSelectOpenField: () => sessionPlannerMultiSelectOpenField,
 multiSelectFields: sessionPlannerMultiSelectFields,
 getReviewNotesForBlock: getSessionPlannerExerciseReviewNotesForBlock,
-formatLibraryDate: formatSessionPlannerLibraryDate,
+formatLibraryDate: (value) => exerciseLibraryRenderer.formatDate(value),
 getScheduleSessionEventForDate,
 });
 const sessionPlannerWorkspaceRenderer = createSessionPlannerWorkspaceRenderer({
@@ -3765,22 +3765,28 @@ formatDateValue: formatScheduleDateValue,
 parseDateValue: parseScheduleDateValue,
 periodizationOptionLibrary,
 renderSessionPlannerActionIcon,
-renderSessionPlannerBlockList,
-renderSessionPlannerDateStrip,
-renderSessionPlannerEditableField,
+renderSessionPlannerBlockList: (session) => sessionPlannerRenderer.renderBlockList(session),
+renderSessionPlannerDateStrip: () =>
+sessionPlannerWorkspaceRenderer.renderDateStrip({
+selectedDate: sessionPlannerState.selectedDate,
+sessions: sessionPlannerState.sessions,
+hasScheduledSession: getScheduleSessionEventForDate,
+}),
+renderSessionPlannerEditableField: (block, key, label, options) => sessionPlannerRenderer.renderEditableField(block, key, label, options),
 renderSessionPlannerExerciseVisual,
-renderSessionPlannerHeaderField,
-renderSessionPlannerLibraryOverlay,
-renderSessionPlannerLibrarySaveConflictOverlay,
-renderSessionPlannerMedicalAvailability,
+renderSessionPlannerHeaderField: (block, key, fallback, options) => sessionPlannerRenderer.renderHeaderField(block, key, fallback, options),
+renderSessionPlannerLibraryOverlay: () => exerciseLibraryRenderer.renderOverlay(),
+renderSessionPlannerLibrarySaveConflictOverlay: () => exerciseLibraryRenderer.renderSaveConflictOverlay(),
+renderSessionPlannerMedicalAvailability: (dateValue) =>
+sessionPlannerWorkspaceRenderer.renderMedicalAvailability(getSessionPlannerMedicalAvailability(dateValue)),
 renderSessionPlannerPeriodizationOverlay,
 renderSessionPlannerPeriodizationSummary,
-renderSessionPlannerPlayerBoard,
-renderSessionPlannerPlayerBoardOverlay,
-renderSessionPlannerPostSessionNotesCard,
-renderSessionPlannerPrintOverlay,
-renderSessionPlannerTacticalboardOverlay,
-renderSessionPlannerVisualPreviewOverlay,
+renderSessionPlannerPlayerBoard: (block) => sessionPlannerPlayerBoardRenderer.renderPlayerBoard(block),
+renderSessionPlannerPlayerBoardOverlay: (block) => sessionPlannerPlayerBoardRenderer.renderPlayerBoardOverlay(block),
+renderSessionPlannerPostSessionNotesCard: (block) => sessionPlannerRenderer.renderPostSessionNotesCard(block),
+renderSessionPlannerPrintOverlay: (session) => sessionPlannerPrintRenderer.renderOverlay(session),
+renderSessionPlannerTacticalboardOverlay: (block) => sessionPlannerVisualRenderer.renderTacticalboardOverlay(block),
+renderSessionPlannerVisualPreviewOverlay: (block) => sessionPlannerVisualRenderer.renderVisualPreviewOverlay(block),
 });
 const sessionPlannerMedicalAvailabilitySelectors = createSessionPlannerMedicalAvailabilitySelectors({
 buildMedicalPlayerFromPlayerProfile,
@@ -9594,7 +9600,7 @@ const fieldElement = ui.sessionPlannerWorkspace?.querySelector(`[data-session-mu
 if (!config || !fieldElement) {
 return;
 }
-fieldElement.outerHTML = renderSessionPlannerMultiSelectField(block, field, config.label, {
+fieldElement.outerHTML = sessionPlannerRenderer.renderMultiSelectField(block, field, config.label, {
 long: false,
 listOptions: config.listOptions,
 });
@@ -13265,13 +13271,6 @@ syncSessionPlannerPostSessionNotesToLibrary(block);
 function getSessionPlannerDateLabel(dateValue, options = {}) {
 return new Intl.DateTimeFormat("en-GB", options).format(parseScheduleDateValue(dateValue));
 }
-function renderSessionPlannerDateStrip() {
-return sessionPlannerWorkspaceRenderer.renderDateStrip({
-selectedDate: sessionPlannerState.selectedDate,
-sessions: sessionPlannerState.sessions,
-hasScheduledSession: getScheduleSessionEventForDate,
-});
-}
 function syncSessionPlannerDateStripState(dateControls = ui.sessionPlannerWorkspace?.querySelector(".session-date-controls")) {
 const dateStrip = dateControls?.querySelector(".session-date-strip");
 if (!dateStrip || !sessionPlannerState) {
@@ -13304,24 +13303,6 @@ return sessionPlannerVisualRenderer.renderExerciseVisual(block, options);
 function renderSessionPlannerActionIcon(name) {
 return sessionPlannerVisualRenderer.renderActionIcon(name);
 }
-function renderSessionPlannerVisualPreviewOverlay(block) {
-return sessionPlannerVisualRenderer.renderVisualPreviewOverlay(block);
-}
-function renderSessionPlannerTacticalboardOverlay(block) {
-return sessionPlannerVisualRenderer.renderTacticalboardOverlay(block);
-}
-function renderSessionPlannerMultiSelectField(block, key, label, options = {}) {
-return sessionPlannerRenderer.renderMultiSelectField(block, key, label, options);
-}
-function renderSessionPlannerEditableField(block, key, label, options = {}) {
-return sessionPlannerRenderer.renderEditableField(block, key, label, options);
-}
-function renderSessionPlannerHeaderField(block, key, fallback, options = {}) {
-return sessionPlannerRenderer.renderHeaderField(block, key, fallback, options);
-}
-function renderSessionPlannerPostSessionNotesCard(block = {}) {
-return sessionPlannerRenderer.renderPostSessionNotesCard(block);
-}
 function resizeSessionPlannerTextarea(textarea) {
 if (!textarea || textarea.tagName !== "TEXTAREA") {
 return;
@@ -13353,9 +13334,6 @@ behavior: prefersReducedMotion ? "auto" : "smooth",
 function jumpSessionPlannerToToday() {
 selectSessionPlannerDate(formatScheduleDateValue(new Date()));
 }
-function renderSessionPlannerBlockList(session) {
-return sessionPlannerRenderer.renderBlockList(session);
-}
 function canRemoveSessionPlannerLibraryExerciseFromSelectedFolder(exercise = {}) {
 const selectedFolder = getSessionPlannerLibraryFolderById(sessionPlannerLibrarySelectedFolderId);
 return Boolean(
@@ -13366,15 +13344,6 @@ selectedFolder &&
 !isSessionPlannerLibraryFolderArchived(selectedFolder) &&
 normalizeSessionPlannerLibraryFolderExerciseIds(selectedFolder.exerciseIds).includes(exercise.id)
 );
-}
-function formatSessionPlannerLibraryDate(value = "") {
-return exerciseLibraryRenderer.formatDate(value);
-}
-function renderSessionPlannerLibraryOverlay() {
-return exerciseLibraryRenderer.renderOverlay();
-}
-function renderSessionPlannerLibrarySaveConflictOverlay() {
-return exerciseLibraryRenderer.renderSaveConflictOverlay();
 }
 function renderSessionPlannerCentralSyncConflictOverlay() {
 if (!sessionPlannerCentralSyncConflict) {
@@ -14161,12 +14130,6 @@ showSessionPlannerToast(
 `Copied ${copiedDetails || `${copiedPlayerIds.size} player${copiedPlayerIds.size === 1 ? "" : "s"}`} from ${sourceLabel}${skippedPlayers ? ` (${skippedPlayers} not visible here)` : ""}.`
 );
 }
-function renderSessionPlannerPlayerBoard(block) {
-return sessionPlannerPlayerBoardRenderer.renderPlayerBoard(block);
-}
-function renderSessionPlannerPlayerBoardOverlay(block) {
-return sessionPlannerPlayerBoardRenderer.renderPlayerBoardOverlay(block);
-}
 function formatSessionPlannerHistoryTime(value) {
 return formatSessionPlannerHistoryTimeFromModule(value);
 }
@@ -14285,15 +14248,6 @@ function getSessionPlannerAvailabilityItems(dateValue = medicalState?.selectedDa
 function getSessionPlannerMedicalAvailability(dateValue) {
 return sessionPlannerMedicalAvailabilitySelectors.getMedicalAvailability(dateValue);
 }
-function renderSessionPlannerMedicalAvailability(dateValue) {
-return sessionPlannerWorkspaceRenderer.renderMedicalAvailability(getSessionPlannerMedicalAvailability(dateValue));
-}
-function getSessionPlannerPrintPaperOption(value = sessionPlannerPrintPaper) {
-return sessionPlannerPrintRenderer.getPaperOption(value);
-}
-function renderSessionPlannerPrintOverlay(session) {
-return sessionPlannerPrintRenderer.renderOverlay(session);
-}
 function updateSessionPlannerPrintPaper(value) {
 if (!sessionPlannerPrintPaperOptions[value]) {
 return;
@@ -14313,7 +14267,7 @@ sessionPlannerPrintSections = {
 renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
 function ensureSessionPlannerPrintPageStyle() {
-const paper = getSessionPlannerPrintPaperOption();
+const paper = sessionPlannerPrintRenderer.getPaperOption(sessionPlannerPrintPaper);
 let styleElement = getElement("sessionPlannerPrintPageStyle");
 if (!styleElement) {
 styleElement = document.createElement("style");

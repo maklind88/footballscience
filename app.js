@@ -49,7 +49,7 @@ import {
   sessionPlannerExerciseLibraryVersionLimit,
   sessionPlannerLibrarySortOptions,
 } from "./src/modules/exercise-library/index.mjs";
-import { createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerMedicalAvailabilitySelectors, createSessionPlannerPlayerBoardFormationHelpers, createSessionPlannerPlayerBoardHelpers, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerSelectionAssistant, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualRenderer, createSessionPlannerVisualUploadHelpers, createSessionPlannerWorkspaceRenderer, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
+import { createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerMedicalAvailabilitySelectors, createSessionPlannerPlayerBoardFormationHelpers, createSessionPlannerPlayerBoardHelpers, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerSelectionAssistant, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualRenderer, createSessionPlannerVisualUploadHelpers, createSessionPlannerWorkspaceRenderer, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createPasswordRevealInputRenderer } from "./src/core/form-renderers.mjs";
@@ -14441,30 +14441,13 @@ function renderSessionPlannerPlayerBoardOverlay(block) {
 return sessionPlannerPlayerBoardRenderer.renderPlayerBoardOverlay(block);
 }
 function formatSessionPlannerHistoryTime(value) {
-const date = new Date(value);
-if (Number.isNaN(date.getTime())) {
-return "";
-}
-return new Intl.DateTimeFormat("en-GB", {
-day: "2-digit",
-month: "short",
-hour: "2-digit",
-minute: "2-digit",
-}).format(date);
+return formatSessionPlannerHistoryTimeFromModule(value);
 }
 function getSessionPlannerHistoryActorLabel(entry = {}) {
-return entry.actor?.name || entry.actor?.email || "Staff";
+return getSessionPlannerHistoryActorLabelFromModule(entry);
 }
 function getSessionPlannerHistoryActionLabel(action = "") {
-const labels = {
-"session.created": "Created",
-"session.updated": "Updated",
-"session.blocks_added": "Blocks added",
-"session.blocks_reduced": "Blocks reduced",
-"session.removed": "Removed",
-"session.restored": "Restored",
-};
-return labels[action] || "Updated";
+return getSessionPlannerHistoryActionLabelFromModule(action);
 }
 function getSessionPlannerHistoryPanelContext() {
 const dateValue = sessionPlannerState?.selectedDate || "";

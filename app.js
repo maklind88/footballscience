@@ -94,6 +94,7 @@ import {
   createSquadScoutingSpiderRenderer,
   createSquadWorkspaceRenderer,
   createSquadDataFoundationHelpers,
+  createSquadImportPlanner,
   createPlayerProfileHelpers,
   createPlayerProfileIntelligenceHelpers,
   createSquadScoutingProfileHelpers,
@@ -1653,6 +1654,17 @@ normalizeChangeLog: normalizePlayerProfileChangeLog,
 getChangeLog: () => playerProfilesState.changeLog,
 formatDateValue: formatScheduleDateValue,
 isMedicalDateValue,
+});
+const {
+buildPlayerProfileImportPlan,
+} = createSquadImportPlanner({
+ensureState: ensurePlayerProfilesState,
+getPlayers: () => playerProfilesState.players,
+normalizeProfile: normalizePlayerProfile,
+normalizeName: normalizePlayerProfileName,
+validateProfile: validatePlayerProfileFormValues,
+createId: createDashboardId,
+getNow: () => new Date().toISOString(),
 });
 const periodizationStateAdapter = createPeriodizationStateAdapter({
 formatDateValue: formatScheduleDateValue,
@@ -10222,40 +10234,6 @@ visibleSummary: getPlayerProfilesRosterSummary(visiblePlayers),
 });
 queuePlayerProfileAgeHydration();
 }
-function getImportedSquadPlayersFromPayload(payload = {}) {
-if (Array.isArray(payload.players)) {
-return payload.players;
-}
-if (Array.isArray(payload.sessionPlanner?.players)) {
-return payload.sessionPlanner.players;
-}
-if (Array.isArray(payload.state?.players)) {
-return payload.state.players;
-}
-return [];
-}
-function normalizeImportedSquadPlayerProfile(source = {}, existingPlayer = {}) {
-const roles = source.roles || {};
-const normalized = normalizePlayerProfile({
-...existingPlayer,
-...source,
-primaryRole: source.primaryRole || roles.primaryRole || existingPlayer.primaryRole,
-secondaryRoles: source.secondaryRoles || roles.secondaryRoles || existingPlayer.secondaryRoles,
-preferredSide: source.preferredSide || roles.preferredSide || existingPlayer.preferredSide,
-roleGroup: source.roleGroup || roles.roleGroup || existingPlayer.roleGroup,
-rosterType: source.rosterType || source.playerType || existingPlayer.rosterType,
-countsInSquad: typeof source.countsInSquad === "boolean" ? source.countsInSquad : existingPlayer.countsInSquad,
-temporaryGroup: source.temporaryGroup || source.subGroup || existingPlayer.temporaryGroup,
-temporaryFrom: source.temporaryFrom || source.startDate || existingPlayer.temporaryFrom,
-temporaryTo: source.temporaryTo || source.endDate || existingPlayer.temporaryTo,
-attributeRatings: source.attributeRatings || existingPlayer.attributeRatings,
-idp: source.idp || existingPlayer.idp,
-medicalSummary: source.medicalSummary || existingPlayer.medicalSummary,
-futureData: source.futureData || existingPlayer.futureData,
-coachNotes: source.coachNotes || existingPlayer.coachNotes,
-});
-return normalized;
-}
 function createPlayerProfileImportUndoSnapshot(plan = {}) {
 ensurePlayerProfilesState();
 ensureMedicalState();
@@ -10425,181 +10403,6 @@ writeMedicalState();
 return {
 status: "success",
 lines: [`Last player profile import was undone${restoredCount ? ` (${restoredCount} record${restoredCount === 1 ? "" : "s"})` : ""}.`],
-};
-}
-function buildPlayerProfileImportPlan(payload = {}, options = {}) {
-ensurePlayerProfilesState();
-const incomingPlayers = getImportedSquadPlayersFromPayload(payload);
-const sourceRows = Array.isArray(incomingPlayers) ? incomingPlayers.length : 0;
-if (!incomingPlayers.length) {
-return {
-ok: false,
-status: "error",
-sourceRows,
-importedCount: 0,
-createdCount: 0,
-updatedCount: 0,
-skippedCount: 0,
-duplicateRowsCount: 0,
-errors: [{ row: 0, message: "No players found in import file." }],
-warnings: [],
-rows: [],
-nextPlayers: [...playerProfilesState.players],
-profilesForMedicalSync: [],
-canApply: false,
-};
-}
-let createdCount = 0;
-let updatedCount = 0;
-let skippedCount = 0;
-let duplicateRowsCount = 0;
-const warnings = [];
-const errors = [];
-const profilesForMedicalSync = [];
-const nextPlayers = [...playerProfilesState.players];
-const seenIncomingRows = new Map();
-const rows = [];
-incomingPlayers.forEach((incomingPlayer, rowIndex) => {
-const row = rowIndex + 1;
-if (!incomingPlayer || typeof incomingPlayer !== "object") {
-errors.push({ row, message: "Import row must be an object." });
-rows.push({
-row,
-action: "skip",
-message: "Import row must be an object.",
-});
-skippedCount += 1;
-return;
-}
-const incomingName = String(incomingPlayer.name ?? "").trim();
-if (!incomingName) {
-errors.push({ row, message: "Player name is required." });
-rows.push({
-row,
-action: "skip",
-message: "Player name is required.",
-});
-skippedCount += 1;
-return;
-}
-const normalizedName = normalizePlayerProfileName(incomingName);
-const normalizedNumber = String(incomingPlayer.number || "").trim();
-const importIdentity = `${normalizedName}|${normalizedNumber}`;
-const previousRow = seenIncomingRows.get(importIdentity);
-if (previousRow) {
-const message = `Duplicate row in import file for ${incomingName}. Keeping row ${previousRow} first.`;
-warnings.push({ row, message });
-rows.push({
-row,
-action: "skip",
-message,
-});
-duplicateRowsCount += 1;
-skippedCount += 1;
-return;
-}
-seenIncomingRows.set(importIdentity, row);
-const existingIndex = nextPlayers.findIndex((player) =>
-(incomingPlayer.id && player.id === incomingPlayer.id) ||
-String(player?.name ?? "").toLowerCase() === incomingName.toLowerCase()
-);
-const existingPlayer = existingIndex >= 0 ? nextPlayers[existingIndex] : {};
-const normalized = normalizeImportedSquadPlayerProfile(incomingPlayer, existingPlayer);
-if (!normalized) {
-errors.push({ row, message: `Could not normalize ${incomingName}.` });
-rows.push({
-row,
-action: "skip",
-message: `Could not normalize ${incomingName}.`,
-});
-skippedCount += 1;
-return;
-}
-const validation = validatePlayerProfileFormValues(
-{
-...normalized,
-id: existingPlayer.id || normalized.id || createDashboardId("player-profile"),
-updatedAt: new Date().toISOString(),
-},
-{
-existingPlayers: nextPlayers,
-ignorePlayerId: existingPlayer.id || "",
-blockDuplicate: false,
-}
-);
-if (!validation.ok) {
-validation.errors.forEach((message) => errors.push({ row, message }));
-rows.push({
-row,
-action: "skip",
-message: validation.errors.join(", "),
-});
-skippedCount += 1;
-return;
-}
-const nextPlayer = validation.player;
-if (!nextPlayer) {
-errors.push({ row, message: `Could not normalize ${incomingName}.` });
-rows.push({
-row,
-action: "skip",
-message: `Could not normalize ${incomingName}.`,
-});
-skippedCount += 1;
-return;
-}
-validation.warnings.forEach((message) => warnings.push({ row, message }));
-if (existingIndex >= 0) {
-nextPlayers[existingIndex] = nextPlayer;
-updatedCount += 1;
-} else {
-nextPlayers.push(nextPlayer);
-createdCount += 1;
-}
-profilesForMedicalSync.push(nextPlayer);
-rows.push({
-row,
-action: existingIndex >= 0 ? "update" : "create",
-playerName: nextPlayer.name,
-playerId: nextPlayer.id,
-message: incomingPlayer.id ? `id ${nextPlayer.id}` : "new profile",
-matchType: existingIndex >= 0 ? (incomingPlayer.id ? "id match" : "name match") : "new profile",
-});
-});
-const importedCount = createdCount + updatedCount;
-if (!importedCount) {
-return {
-ok: false,
-status: errors.length ? "error" : "warning",
-sourceRows,
-importedCount,
-createdCount,
-updatedCount,
-skippedCount,
-duplicateRowsCount,
-errors,
-warnings,
-rows,
-nextPlayers,
-profilesForMedicalSync,
-canApply: false,
-};
-}
-return {
-ok: true,
-status: errors.length ? "warning" : "success",
-sourceRows,
-importedCount,
-createdCount,
-updatedCount,
-skippedCount,
-duplicateRowsCount,
-errors,
-warnings,
-rows,
-nextPlayers,
-profilesForMedicalSync,
-canApply: importedCount > 0,
 };
 }
 function importSquadDataFoundationPayload(payload = {}, options = {}) {

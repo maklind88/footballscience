@@ -55,6 +55,7 @@ import { createPasswordRevealInputRenderer } from "./src/core/form-renderers.mjs
 import { installPlatformOverlayStability } from "./src/core/overlay-stability.mjs";
 import { defaultHubState, placeholderWorkspaceContent, platformSidebarMoreOrder, platformSidebarPrimaryOrder, topIconMenuOrder } from "./src/core/workspace-defaults.mjs";
 import { createPlatformDisplayHelpers, formatPlatformUserName, getPlatformRoleLabel, getPlatformUserInitials, getPlatformUserProfileImageUrl, normalizePlatformProfileImageUrl } from "./src/modules/platform/display-helpers.mjs";
+import { buildPlatformTemporaryLoginMessage, buildPlatformUserCredentialMessage, getPlatformPasswordValidationMessage, readPlatformFormValues, stripPlatformPasswordConfirmation } from "./src/modules/platform/form-helpers.mjs";
 import { createPlatformNavigationRenderer } from "./src/modules/platform/navigation-renderer.mjs";
 import { createPlatformStructureStateHelpers } from "./src/modules/platform/structure-state.mjs";
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
@@ -15034,29 +15035,13 @@ message: profileMessage,
 });
 }
 function getPlatformFormValues(form) {
-const data = new FormData(form);
-return Object.fromEntries(
-Array.from(data.entries()).map(([key, value]) => [key, String(value).trim()])
-);
+return readPlatformFormValues(form);
 }
 function getPasswordValidationMessage(values = {}) {
-const password = String(values.password || "");
-const passwordConfirm = String(values.passwordConfirm || "");
-if (password && password.length < 6) {
-return "Password must be at least 6 characters.";
-}
-if (!password && passwordConfirm) {
-return "Enter the password first.";
-}
-if (password && password !== passwordConfirm) {
-return "Passwords do not match.";
-}
-return "";
+return getPlatformPasswordValidationMessage(values);
 }
 function stripPasswordConfirmation(values = {}) {
-const nextValues = { ...values };
-delete nextValues.passwordConfirm;
-return nextValues;
+return stripPlatformPasswordConfirmation(values);
 }
 function createProfileImageDataUrl(file) {
 return new Promise((resolve, reject) => {
@@ -15143,28 +15128,7 @@ user.id !== userId &&
 );
 }
 function buildUserCredentialMessage(user, temporaryPassword = "") {
-const name = `${user.firstName || ""} ${user.lastName || ""}`.trim() || "there";
-const lines = [
-`Hi ${name},`,
-"",
-"Here are your Football Science login details:",
-"Website: https://footballscience.xyz/",
-`Username: ${user.username}`,
-`Email: ${user.email}`,
-];
-if (temporaryPassword) {
-lines.push(`Temporary password: ${temporaryPassword}`);
-lines.push("");
-lines.push("Please sign in with this temporary password. You can change it from your profile afterward.");
-} else {
-lines.push("");
-lines.push("If you need a new password, use the Forgot password flow on the login screen.");
-}
-lines.push(
-"",
-"If you have any issues, ask your administrator for a reset.",
-);
-return lines.join("\n");
+return buildPlatformUserCredentialMessage(user, temporaryPassword);
 }
 async function openCredentialsMailto(user, temporaryPassword = "") {
 const body = buildUserCredentialMessage(user, temporaryPassword);
@@ -15190,7 +15154,7 @@ win.location.href = mailto;
 return { copied, copyText };
 }
 function buildTemporaryLoginMessage(user, temporaryPassword, copied = false) {
-return `New temporary login for ${user.email}: username ${user.username}, password ${temporaryPassword}. This replaces any previous password.${copied ? " Copied to clipboard." : ""}`;
+return buildPlatformTemporaryLoginMessage(user, temporaryPassword, copied);
 }
 async function maybeCopyToClipboard(text) {
 const safeText = String(text || "").trim();

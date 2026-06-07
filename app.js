@@ -56,6 +56,7 @@ import {
 } from "./src/modules/exercise-library/index.mjs";
 import { createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerTacticalController, createSessionPlannerWorkspaceController, createSessionPlannerMedicalAvailabilitySelectors, createSessionPlannerPlayerBoardFormationHelpers, createSessionPlannerPlayerBoardHelpers, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerSelectionAssistant, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualRenderer, createSessionPlannerVisualUploadHelpers, createSessionPlannerWorkspaceRenderer, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
+import { createPlatformShellRuntime } from "./src/core/platform-shell-runtime.mjs";
 import { createPlatformUiBindings } from "./src/core/platform-ui-bindings.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createPasswordRevealInputRenderer } from "./src/core/form-renderers.mjs";
@@ -161,41 +162,21 @@ const sessionPlannerBlockReductionGuardKey = "blockReductionGuard";
 const sessionPlannerBlockDeletionTombstoneKey = "blockDeletionTombstones";
 const sessionPlannerBlockReductionGuardMaxAgeMs = 30 * 60 * 1000;
 const sessionPlannerBlockFieldUpdatedAtKey = "fieldUpdatedAt";
-const platformThemeModeStorageKey = "football-platform-theme-mode-v1";
-const platformThemeModeDefault = "auto";
-function queuePlatformIdleTask(callback, timeout = 300) {
-if (typeof callback !== "function") {
-return;
-}
-if (typeof win.requestIdleCallback === "function") {
-win.requestIdleCallback(callback, { timeout });
-return;
-}
-win.setTimeout(callback, Math.min(timeout, 120));
-}
-function ensureDashboardChatStylesheet() {
-return platformModuleLoader.loadStylesheet("dashboard-chat", "dashboard-chat.css", {
-id: "dashboardChatStylesheet",
+const platformShellRuntime = createPlatformShellRuntime({
+documentRef: document,
+getUi: () => ui,
+platformModuleLoader,
+queueWorkspaceModulePreload,
+win,
 });
-}
-function queueDashboardChatStylesheetLoad() {
-queuePlatformIdleTask(() => {
-ensureDashboardChatStylesheet().catch(() => {});
-}, 220);
-}
-function queueCriticalWorkspacePreloads() {
-queuePlatformIdleTask(() => {
-queueWorkspaceModulePreload("transfer-room");
-}, 900);
-win.setTimeout(() => queuePlatformIdleTask(() => queueWorkspaceModulePreload("scouting"), 600), 1600);
-}
-const platformThemeModeSupported = new Set(["auto", "light", "dark"]);
-const platformDarkThemeStartHour = 19;
-const platformDarkThemeEndHour = 6;
-const platformThemeRefreshIntervalMs = 60 * 1000;
-let platformThemeRefreshTimer = null;
-let platformThemeMediaQuery = null;
-let platformThemeMediaQueryListener = null;
+const {
+applyPlatformThemeByTime,
+ensureDashboardChatStylesheet,
+queueCriticalWorkspacePreloads,
+queueDashboardChatStylesheetLoad,
+setPlatformThemeMode,
+startPlatformThemeScheduler,
+} = platformShellRuntime;
 const sessionPlannerBlockMergeFields = Object.freeze([
 "label",
 "title",
@@ -461,92 +442,6 @@ return null;
 }
 }
 function getDataSafetyNow() { return new Date().toISOString(); }
-function isPlatformDarkThemeActive(now = new Date()) {
-const mode = getPlatformThemeMode();
-if (mode === "dark") {
-return true;
-}
-if (mode === "light") {
-return false;
-}
-const query = platformThemeMediaQuery ?? getPlatformColorSchemeMediaQuery();
-if (query && typeof query.matches === "boolean") {
-return Boolean(query.matches);
-}
-const totalMinutes = now.getHours() * 60 + now.getMinutes();
-const start = platformDarkThemeStartHour * 60;
-const end = platformDarkThemeEndHour * 60;
-return totalMinutes >= start || totalMinutes < end;
-}
-function applyPlatformThemeByTime() {
-const nextMode = getPlatformThemeMode();
-const isDark = isPlatformDarkThemeActive();
-if (!document.body) {
-return;
-}
-document.body.classList.toggle("is-dark-mode", isDark);
-document.body.dataset.themeMode = isDark ? "dark" : "light";
-if (ui.platformThemeModeSelect) {
-ui.platformThemeModeSelect.value = platformThemeModeSupported.has(nextMode) ? nextMode : platformThemeModeDefault;
-}
-}
-function startPlatformThemeScheduler() {
-if (platformThemeMediaQueryListener && platformThemeMediaQuery) {
-if (typeof platformThemeMediaQuery.removeEventListener === "function") {
-platformThemeMediaQuery.removeEventListener("change", platformThemeMediaQueryListener);
-} else if (typeof platformThemeMediaQuery.removeListener === "function") {
-platformThemeMediaQuery.removeListener(platformThemeMediaQueryListener);
-}
-}
-platformThemeMediaQuery = getPlatformColorSchemeMediaQuery();
-if (platformThemeMediaQuery) {
-if (!platformThemeMediaQueryListener) {
-platformThemeMediaQueryListener = () => applyPlatformThemeByTime();
-}
-if (typeof platformThemeMediaQuery.addEventListener === "function") {
-platformThemeMediaQuery.addEventListener("change", platformThemeMediaQueryListener);
-} else if (typeof platformThemeMediaQuery.addListener === "function") {
-platformThemeMediaQuery.addListener(platformThemeMediaQueryListener);
-}
-}
-applyPlatformThemeByTime();
-if (platformThemeRefreshTimer) {
-win.clearInterval(platformThemeRefreshTimer);
-}
-platformThemeRefreshTimer = win.setInterval(applyPlatformThemeByTime, platformThemeRefreshIntervalMs);
-}
-function getPlatformThemeMode() { return normalizePlatformThemeMode(readPlatformThemeMode()); }
-function readPlatformThemeMode() {
-try {
-return win.localStorage.getItem(platformThemeModeStorageKey) || platformThemeModeDefault;
-} catch {
-return platformThemeModeDefault;
-}
-}
-function normalizePlatformThemeMode(value = "") {
-const normalizedMode = String(value || "").trim().toLowerCase();
-return platformThemeModeSupported.has(normalizedMode) ? normalizedMode : platformThemeModeDefault;
-}
-function setPlatformThemeMode(rawMode = platformThemeModeDefault) {
-const mode = normalizePlatformThemeMode(rawMode);
-try {
-win.localStorage.setItem(platformThemeModeStorageKey, mode);
-} catch {
-}
-if (ui.platformThemeModeSelect) {
-ui.platformThemeModeSelect.value = mode;
-}
-applyPlatformThemeByTime();
-}
-function getPlatformColorSchemeMediaQuery() {
-if (platformThemeMediaQuery) {
-return platformThemeMediaQuery;
-}
-if (typeof win.matchMedia !== "function") {
-return null;
-}
-return win.matchMedia("(prefers-color-scheme: dark)");
-}
 function isDataSafetyInternalStorageKey(key) {
 const normalizedKey = String(key || "");
 return normalizedKey === dataSafetyStorageKey || normalizedKey.startsWith("football-data-safety-");

@@ -15040,9 +15040,6 @@ normalizeText: normalizePlatformStructureText,
 function renderAdminMiniUserStack(users = []) {
 return adminUserRenderer.renderMiniUserStack(users);
 }
-function renderAdminUserRow(adminUser, currentUser, structure) {
-return adminUserRenderer.renderUserRow(adminUser, currentUser, structure);
-}
 function renderAdminGroupedUsers(users, currentUser, structure) {
 return adminUserRenderer.renderGroupedUsers(users, currentUser, structure);
 }
@@ -15153,18 +15150,6 @@ renderAdminWorkspace();
 }
 }
 }
-function normalizePlatformReadinessStatus(status) {
-return adminReadinessRenderer.normalizeReadinessStatus(status);
-}
-function renderPlatformReadinessStatus(status) {
-return adminReadinessRenderer.renderReadinessStatus(status);
-}
-function renderPlatformReadinessEmptyState() {
-return adminReadinessRenderer.renderReadinessEmptyState();
-}
-function createPlatformReadinessFallbackReport() {
-return adminReadinessRenderer.createReadinessFallbackReport();
-}
 function renderPlatformReadinessDashboard() {
 return adminReadinessRenderer.renderReadinessDashboard();
 }
@@ -15209,12 +15194,6 @@ if (hubState?.activeWorkspaceId === "admin") {
 renderAdminWorkspace();
 }
 }
-}
-function renderPlatformAppearanceSelect(name, options, selectedValue, labelMap = {}) {
-return adminReadinessRenderer.renderAppearanceSelect(name, options, selectedValue, labelMap);
-}
-function formatPlatformAppearanceImpact(impact) {
-return adminReadinessRenderer.formatAppearanceImpact(impact);
 }
 function renderPlatformAppearanceGovernancePanel() {
 return adminReadinessRenderer.renderAppearanceGovernancePanel();
@@ -20609,47 +20588,11 @@ return periodizationRenderer.getDayScheduleLabel(day);
 function getPeriodizationMatchDayLabel(value) {
 return periodizationRenderer.getMatchDayLabel(value);
 }
-function getPeriodizationLoadTone(value) {
-return periodizationRenderer.getLoadTone(value);
-}
-function getPeriodizationPitchLabel(pitchSize) {
-return periodizationRenderer.getPitchLabel(pitchSize);
-}
-function getPeriodizationDayTone(day) {
-return periodizationRenderer.getDayTone(day);
-}
-function getPeriodizationMultiFieldOptions(key, dateValue) {
-return periodizationRenderer.getMultiFieldOptions(key, dateValue);
-}
 function getPeriodizationMultiFieldValue(field, dateValue) {
 return periodizationRenderer.getMultiFieldValue(field, dateValue);
 }
 function getPeriodizationCustomFieldValue(field, dateValue) {
 return periodizationRenderer.getCustomFieldValue(field, dateValue);
-}
-function getPeriodizationSubPhaseOptions(day) {
-return periodizationRenderer.getSubPhaseOptions(day);
-}
-function getPeriodizationPrincipleOptions(day, source) {
-return periodizationRenderer.getPrincipleOptions(day, source);
-}
-function renderPeriodizationMultiField(label, key, value, options, className = "") {
-return periodizationRenderer.renderMultiField(label, key, value, options, className);
-}
-function renderPeriodizationLoadMeter(value, className = "") {
-return periodizationRenderer.renderLoadMeter(value, className);
-}
-function renderPeriodizationDayPanel(dateValue, options = {}) {
-return periodizationRenderer.renderDayPanel(dateValue, options);
-}
-function renderPeriodizationDayOverlay(dateValue) {
-return periodizationRenderer.renderDayOverlay(dateValue, periodizationDayOverlayMode);
-}
-function getPeriodizationWeekDatesForDate(date) {
-return periodizationRenderer.getWeekDatesForDate(date);
-}
-function getPeriodizationMicrocycleModel(weekDates = []) {
-return periodizationRenderer.getMicrocycleModel(weekDates);
 }
 function refreshSessionPlannerMatchDayChip() {
 if (!ui.sessionPlannerWorkspace || !sessionPlannerState) {

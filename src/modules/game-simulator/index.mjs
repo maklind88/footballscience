@@ -1,3 +1,4 @@
+export { createGameSimulatorAutopilotTargets } from "./autopilot-targets.mjs";
 export { createSimulatorControllers } from "./controllers.mjs";
 export { createSimulatorControlBindings } from "./control-bindings.mjs";
 export { createSimulatorFullscreenController } from "./fullscreen.mjs";

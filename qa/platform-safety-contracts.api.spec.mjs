@@ -104,6 +104,7 @@ const coreFiles = [
   "src/modules/game-simulator/autopilot-offball-targets.mjs",
   "src/modules/game-simulator/autopilot-targets.mjs",
   "src/modules/game-simulator/command-engine.mjs",
+  "src/modules/game-simulator/canvas-renderer.mjs",
   "src/modules/game-simulator/controllers.mjs",
   "src/modules/game-simulator/control-bindings.mjs",
   "src/modules/game-simulator/fullscreen.mjs",
@@ -343,6 +344,7 @@ test("core module contracts are covered by dedicated QA", () => {
   const gameSimulatorAutopilotOffballTargetsSpec = readProjectFile("qa/game-simulator-autopilot-offball-targets.api.spec.mjs");
   const gameSimulatorAutopilotTargetsSpec = readProjectFile("qa/game-simulator-autopilot-targets.api.spec.mjs");
   const gameSimulatorCommandEngineSpec = readProjectFile("qa/game-simulator-command-engine.api.spec.mjs");
+  const gameSimulatorCanvasRendererSpec = readProjectFile("qa/game-simulator-canvas-renderer.api.spec.mjs");
   const gameSimulatorPointerSpec = readProjectFile("qa/game-simulator-pointer-controller.api.spec.mjs");
   const gameSimulatorSidebarSpec = readProjectFile("qa/game-simulator-sidebar-renderer.api.spec.mjs");
   const gameSimulatorKeyboardStateSpec = readProjectFile("qa/game-simulator-keyboard-state.api.spec.mjs");
@@ -383,6 +385,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-offball-targets.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-targets.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-command-engine.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-canvas-renderer.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-pointer-controller.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-sidebar-renderer.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-keyboard-state.api.spec.mjs");

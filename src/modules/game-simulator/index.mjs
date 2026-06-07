@@ -7,6 +7,7 @@ export { createGameSimulatorAutopilotDefensiveTargets } from "./autopilot-defens
 export { createGameSimulatorAutopilotOffballTargets } from "./autopilot-offball-targets.mjs";
 export { createGameSimulatorAutopilotTargets } from "./autopilot-targets.mjs";
 export { createGameSimulatorCommandEngine } from "./command-engine.mjs";
+export { createGameSimulatorCanvasRenderer } from "./canvas-renderer.mjs";
 export { createSimulatorControllers } from "./controllers.mjs";
 export { createSimulatorControlBindings } from "./control-bindings.mjs";
 export { createSimulatorFullscreenController } from "./fullscreen.mjs";

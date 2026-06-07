@@ -1,5 +1,6 @@
 export { createGameSimulatorAutopilotCandidates } from "./autopilot-candidates.mjs";
 export { createGameSimulatorAutopilotDecisionEngine } from "./autopilot-decision-engine.mjs";
+export { createGameSimulatorAutopilotOffballTargets } from "./autopilot-offball-targets.mjs";
 export { createGameSimulatorAutopilotTargets } from "./autopilot-targets.mjs";
 export { createSimulatorControllers } from "./controllers.mjs";
 export { createSimulatorControlBindings } from "./control-bindings.mjs";

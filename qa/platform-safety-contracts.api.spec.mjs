@@ -85,6 +85,7 @@ const coreFiles = [
   "src/modules/session-planner/index.mjs",
   "src/modules/session-planner/session-planner-autosave.mjs",
   "src/modules/session-planner/session-planner-renderer.mjs",
+  "src/modules/session-planner/session-planner-visual-renderer.mjs",
   "src/modules/schedule/events.mjs",
   "src/modules/schedule/schedule-adapter.mjs",
   "src/modules/schedule/index.mjs",
@@ -110,7 +111,8 @@ test("protected product data remains covered by client safety, central state, an
   const exerciseLibraryStateSource = readProjectFile("src/modules/exercise-library/exercise-library-state.mjs");
   const sessionPlannerAutosaveSource = readProjectFile("src/modules/session-planner/session-planner-autosave.mjs");
   const sessionPlannerRendererSource = readProjectFile("src/modules/session-planner/session-planner-renderer.mjs");
-  const clientSafetySource = `${appSource}\n${exerciseLibraryActionsSource}\n${exerciseLibraryRendererSource}\n${exerciseLibraryStateSource}\n${sessionPlannerAutosaveSource}\n${sessionPlannerRendererSource}`;
+  const sessionPlannerVisualRendererSource = readProjectFile("src/modules/session-planner/session-planner-visual-renderer.mjs");
+  const clientSafetySource = `${appSource}\n${exerciseLibraryActionsSource}\n${exerciseLibraryRendererSource}\n${exerciseLibraryStateSource}\n${sessionPlannerAutosaveSource}\n${sessionPlannerRendererSource}\n${sessionPlannerVisualRendererSource}`;
   const moduleContracts = readProjectFile("docs/MODULE_CONTRACTS.md");
 
   for (const key of protectedStorageKeys) {
@@ -456,18 +458,20 @@ test("Session Planner central sync conflicts retry silently instead of reopening
 
 test("Session Planner tactical board keeps selection controls simple and explicit", () => {
   const appSource = readProjectFile("app.js");
+  const visualRendererSource = readProjectFile("src/modules/session-planner/session-planner-visual-renderer.mjs");
+  const tacticalBoardSource = `${appSource}\n${visualRendererSource}`;
 
   expect(appSource).toContain("let sessionPlannerTacticalSnapEnabled = false;");
-  expect(appSource).not.toContain("data-session-tactical-snap");
-  expect(appSource).not.toContain("Alt for precision");
-  expect(appSource).not.toContain("Alt gives precise movement");
+  expect(tacticalBoardSource).not.toContain("data-session-tactical-snap");
+  expect(tacticalBoardSource).not.toContain("Alt for precision");
+  expect(tacticalBoardSource).not.toContain("Alt gives precise movement");
   expect(appSource).toContain("function arrangeSelectedSessionPlannerTacticalElements(mode)");
-  expect(appSource).toContain('data-session-arrange-tactical="row"');
-  expect(appSource).toContain('data-session-arrange-tactical="column"');
-  expect(appSource).toContain('data-session-arrange-tactical="grid"');
-  expect(appSource).toContain('markerUnits="strokeWidth"');
-  expect(appSource).toContain('viewBox="0 0 6 6"');
-  expect(appSource).not.toContain("data-session-align-tactical");
-  expect(appSource).not.toContain("data-session-distribute-tactical");
+  expect(tacticalBoardSource).toContain('data-session-arrange-tactical="row"');
+  expect(tacticalBoardSource).toContain('data-session-arrange-tactical="column"');
+  expect(tacticalBoardSource).toContain('data-session-arrange-tactical="grid"');
+  expect(tacticalBoardSource).toContain('markerUnits="strokeWidth"');
+  expect(tacticalBoardSource).toContain('viewBox="0 0 6 6"');
+  expect(tacticalBoardSource).not.toContain("data-session-align-tactical");
+  expect(tacticalBoardSource).not.toContain("data-session-distribute-tactical");
   expect(appSource).toContain("clearSessionPlannerTacticalSelection();\nsessionPlannerTacticalPendingPoint = null;");
 });

@@ -95,6 +95,7 @@ import {
   createMedicalOptionRenderers,
   createMedicalCommandRenderer,
   createMedicalCommandSelectors,
+  createMedicalAvailabilitySelectors,
   createMedicalOperationsRenderer,
   createMedicalOperationsSelectors,
   createMedicalPlanFormRenderer,
@@ -4279,6 +4280,13 @@ medicalRtpPhaseOptions,
 medicalStatusOptions,
 normalizeMedicalActualParticipation,
 normalizeMedicalParticipation,
+});
+const medicalAvailabilitySelectors = createMedicalAvailabilitySelectors({
+compareMedicalPlayers,
+ensureMedicalState,
+getActiveMedicalPlayersForDate,
+getLatestMedicalRecord,
+getMedicalRecordStatus,
 });
 const medicalCommandSelectors = createMedicalCommandSelectors({
 addCalendarDays,
@@ -14553,27 +14561,7 @@ function renderSessionPlannerToolsPanel(block) {
 return sessionPlannerWorkspaceRenderer.renderToolsPanel(block, getSessionPlannerHistoryPanelContext());
 }
 function getMedicalAvailabilityItems(dateValue = medicalState?.selectedDate) {
-ensureMedicalState();
-return getActiveMedicalPlayersForDate(dateValue)
-.sort(compareMedicalPlayers)
-.map((player) => {
-const record = getLatestMedicalRecord(player.id, dateValue);
-const participation = record ? record.participation : null;
-const status = record ? getMedicalRecordStatus(record) : getMedicalRecordStatus(null);
-return { player, record, status, participation };
-})
-.sort((first, second) => {
-if (first.participation === null && second.participation !== null) {
-return 1;
-}
-if (first.participation !== null && second.participation === null) {
-return -1;
-}
-if (first.participation !== second.participation) {
-return first.participation - second.participation;
-}
-return compareMedicalPlayers(first.player, second.player);
-});
+return medicalAvailabilitySelectors.getMedicalAvailabilityItems(dateValue);
 }
 function getSessionPlannerTemporaryProfileAvailabilityItems(dateValue = medicalState?.selectedDate, existingItems = []) {
   const profileState = getSessionPlannerPlayerBoardProfileState();

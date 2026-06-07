@@ -12,11 +12,13 @@ function readProjectFile(path) {
 
 test("game simulator geometry helpers own pure pitch math and personality weighting", () => {
   const app = readProjectFile("app.js");
+  const engineWiring = readProjectFile("src/modules/game-simulator/engine-wiring.mjs");
   const helpers = readProjectFile("src/modules/game-simulator/geometry-helpers.mjs");
 
   expect(typeof createGameSimulatorGeometryHelpers).toBe("function");
-  expect(app).toContain("createGameSimulatorGeometryHelpers");
-  expect(app).toContain("} = createGameSimulatorGeometryHelpers({");
+  expect(app).not.toContain("createGameSimulatorGeometryHelpers");
+  expect(engineWiring).toContain("createGameSimulatorGeometryHelpers");
+  expect(engineWiring).toContain("} = createGameSimulatorGeometryHelpers({");
   expect(app).not.toContain("function chooseScoredCandidateWithVariation(candidates, profile = {}, options = {})");
   expect(helpers).toContain("function chooseScoredCandidateWithVariation(candidates, profile = {}, options = {})");
   expect(helpers).toContain("function getAutoPilotDecisionPersonalityWeight(candidate, profile = {}, options = {})");

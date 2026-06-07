@@ -20,3 +20,4 @@ export { createGameSimulatorPointerController } from "./pointer-controller.mjs";
 export { createSimulatorAnimationLoop } from "./runtime.mjs";
 export { createGameSimulatorSidebarRenderer } from "./sidebar-renderer.mjs";
 export { createSimulatorWorkspaceController } from "./workspace-controller.mjs";
+export { createGameSimulatorEngineBundle } from "./engine-wiring.mjs";

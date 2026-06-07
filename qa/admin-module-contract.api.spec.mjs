@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   adminDepartmentSuggestions,
   adminTitleSuggestions,
+  createAdminAccessRenderer,
   createAdminReadinessRenderer,
   createAdminStructureRenderer,
   createAdminUserRenderer,
@@ -186,4 +187,26 @@ test("Admin readiness renderer owns readiness status and appearance markup", () 
   expect(appearanceMarkup).toContain("Type rules");
   expect(appearanceMarkup).toContain("Home sections");
   expect(appearanceMarkup).toContain("Publish");
+});
+
+test("Admin access renderer owns Transfer Room access markup", () => {
+  const renderer = createAdminAccessRenderer({
+    escapeHtml: (value) => String(value ?? "").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
+    getTransferRoomState: () => ({ accessByTeam: { "team-1": { userIds: ["coach-1"] } } }),
+    getTransferRoomAccessTeamId: () => "team-1",
+    normalizePlatformRole: (role, fallback) => role || fallback,
+  });
+  const markup = renderer.renderTransferRoomAccessPanel([
+    { id: "admin-1", firstName: "Platform", lastName: "Admin", role: "admin", status: "active" },
+    { id: "coach-1", firstName: "Mak", lastName: "Lind", role: "coach", status: "active" },
+    { id: "paused-1", firstName: "Paused", lastName: "User", role: "coach", status: "paused" },
+  ]);
+
+  expect(markup).toContain("adminTransferRoomAccessForm");
+  expect(markup).toContain("Transfer Room");
+  expect(markup).toContain("Platform Admin");
+  expect(markup).toContain("Mak Lind");
+  expect(markup).toContain('data-admin-transfer-room-access-user="coach-1"');
+  expect(markup).toContain("disabled");
+  expect(markup).not.toContain("Paused User");
 });

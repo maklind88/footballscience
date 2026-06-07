@@ -49,7 +49,7 @@ import { createPlatformAutosaveStatusController } from "./src/core/platform-auto
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
 import { getTopIconSvg } from "./top-icons.js";
 import { createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
-import { adminDepartmentSuggestions, adminTitleSuggestions, createAdminReadinessRenderer, createAdminStructureRenderer, createAdminUserRenderer, getAdminActiveUserCount, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
+import { adminDepartmentSuggestions, adminTitleSuggestions, createAdminAccessRenderer, createAdminReadinessRenderer, createAdminStructureRenderer, createAdminUserRenderer, getAdminActiveUserCount, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
 const getElement = document.getElementById.bind(document);
 const win = window;
 const canvas = getElement("pitchCanvas");
@@ -4955,6 +4955,12 @@ platformAppearanceHomeComponentTypeIds,
 platformAppearanceHomeSectionDefaults,
 platformAppearanceThemeOptions,
 platformAppearanceToneOptions,
+});
+const adminAccessRenderer = createAdminAccessRenderer({
+escapeHtml,
+getTransferRoomState: ensureTransferRoomState,
+getTransferRoomAccessTeamId: getAdminTransferRoomAccessTeamId,
+normalizePlatformRole,
 });
 const platformDefaultRoles = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
 const platformManagementRoleSet = new Set(["admin", "club-admin", "team-admin"]);
@@ -19374,40 +19380,7 @@ getPlatformTeamById(fallbackTeamId, structure) ||
 return team.id || fallbackTeamId;
 }
 function renderAdminTransferRoomAccessPanel(users = [], structure = getPlatformStructureState()) {
-const state = ensureTransferRoomState();
-const teamId = getAdminTransferRoomAccessTeamId(state, structure);
-const selectedIds = new Set(state.accessByTeam?.[teamId]?.userIds || []);
-const activeUsers = users.filter((user) => user && user.status !== "paused");
-const userRows = activeUsers.length
-? activeUsers
-.map((user) => {
-const role = normalizePlatformRole(user.role, "coach");
-const isAutomatic = role === "admin" || role === "team-admin";
-const checked = isAutomatic || selectedIds.has(user.id);
-const name = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username || user.email || "User";
-return `
-              <label class="admin-access-toggle admin-access-level${isAutomatic ? " is-locked" : ""}">
-                <input
-                  type="checkbox"
-                  ${isAutomatic ? "" : `data-admin-transfer-room-access-user="${escapeHtml(user.id)}"`}
-                  ${checked ? "checked" : ""}
-                  ${isAutomatic ? "disabled" : ""}
-                />
-                <span>${escapeHtml(name)}</span>
-              </label>
-            `;
-})
-.join("")
-: `<p class="pr-empty">No active users.</p>`;
-return `
-<form id="adminTransferRoomAccessForm" class="admin-card admin-access-card">
-<h2>Transfer Room</h2>
-<div class="admin-access-roles">${userRows}</div>
-<div class="profile-form-footer admin-access-footer">
-<button type="submit">Save</button>
-</div>
-</form>
-`;
+return adminAccessRenderer.renderTransferRoomAccessPanel(users, structure);
 }
 function renderAdminWorkspace(message = "") {
 if (!ui.adminWorkspace) {

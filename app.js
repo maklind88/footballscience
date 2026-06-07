@@ -44,7 +44,7 @@ import {
   sessionPlannerExerciseLibraryVersionLimit,
   sessionPlannerLibrarySortOptions,
 } from "./src/modules/exercise-library/index.mjs";
-import { createSessionPlannerAutosaveBoundary, createSessionPlannerPlayerBoardHelpers, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerSelectionAssistant, createSessionPlannerVisualRenderer, createSessionPlannerWorkspaceRenderer, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
+import { createSessionPlannerAutosaveBoundary, createSessionPlannerPlayerBoardFormationHelpers, createSessionPlannerPlayerBoardHelpers, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerSelectionAssistant, createSessionPlannerVisualRenderer, createSessionPlannerWorkspaceRenderer, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createPasswordRevealInputRenderer } from "./src/core/form-renderers.mjs";
@@ -3734,6 +3734,59 @@ getPlayerInitials: getMedicalPlayerInitials,
 getSelectedSession: getSessionPlannerSelectedSession,
 normalizeColor: normalizeTacticalColor,
 normalizePlayerProfileRole,
+});
+const {
+addItemToAutoTeam: addSessionPlannerPlayerBoardItemToAutoTeam,
+assignAutoFormationTeams: assignSessionPlannerPlayerBoardAutoFormationTeams,
+assignAutoTeams: assignSessionPlannerPlayerBoardAutoTeams,
+assignFormationSlots: assignSessionPlannerPlayerBoardFormationSlots,
+cleanFormationInput: cleanSessionPlannerPlayerBoardFormationInput,
+createAutoAssignmentsFromTeams: createSessionPlannerPlayerBoardAutoAssignmentsFromTeams,
+createAutoTeamFormationSlots: createSessionPlannerPlayerBoardAutoTeamFormationSlots,
+createAutoTeamSlotPlan: createSessionPlannerPlayerBoardAutoTeamSlotPlan,
+createAutoTeams: createSessionPlannerPlayerBoardAutoTeams,
+createExtraTeamSlots: createSessionPlannerPlayerBoardExtraTeamSlots,
+createFormationSlots: createSessionPlannerPlayerBoardFormationSlots,
+getAutoTeamCell: getSessionPlannerPlayerBoardAutoTeamCell,
+getAutoTeamGrid: getSessionPlannerPlayerBoardAutoTeamGrid,
+getDefaultGridPosition: getSessionPlannerPlayerBoardDefaultGridPosition,
+getDefaultPosition: getSessionPlannerPlayerBoardDefaultPosition,
+getFormationLineRole: getSessionPlannerPlayerBoardFormationLineRole,
+getFormationLineY: getSessionPlannerPlayerBoardFormationLineY,
+getFormationSide: getSessionPlannerPlayerBoardFormationSide,
+getFormationSideOrder: getSessionPlannerPlayerBoardFormationSideOrder,
+getFormationSlotX: getSessionPlannerPlayerBoardFormationSlotX,
+getRelationLookupValue: getSessionPlannerPlayerBoardRelationLookupValue,
+getRelationPairs: getSessionPlannerPlayerBoardRelationPairs,
+getRelationScore: getSessionPlannerPlayerBoardRelationScore,
+getStoredRelationScore: getSessionPlannerPlayerBoardStoredRelationScore,
+mapSlotToAutoTeamCell: mapSessionPlannerPlayerBoardSlotToAutoTeamCell,
+normalizeAutoMode: normalizeSessionPlannerPlayerBoardAutoMode,
+normalizeFormationValue: normalizeSessionPlannerPlayerBoardFormationValue,
+normalizeTeamCount: normalizeSessionPlannerPlayerBoardTeamCount,
+parseFormation: parseSessionPlannerPlayerBoardFormation,
+pickAutoTeamSlotItem: pickSessionPlannerPlayerBoardAutoTeamSlotItem,
+pickBalancedTeamIndex: pickSessionPlannerPlayerBoardBalancedTeamIndex,
+scoreAutoTeamSlotCandidate: scoreSessionPlannerPlayerBoardAutoTeamSlotCandidate,
+scoreFormationFit: scoreSessionPlannerPlayerBoardFormationFit,
+shouldAutoUseGoalkeeperSlots: shouldSessionPlannerPlayerBoardAutoUseGoalkeeperSlots,
+} = createSessionPlannerPlayerBoardFormationHelpers({
+autoModeOptions: sessionPlannerPlayerBoardAutoModeOptions,
+clamp,
+getCareerScore: getSessionPlannerPlayerBoardCareerScore,
+getDirectRoleFitScore: getSessionPlannerPlayerBoardDirectRoleFitScore,
+getImportanceScore: getSessionPlannerPlayerBoardImportanceScore,
+getItemPriorityScore: getSessionPlannerPlayerBoardItemPriorityScore,
+getMinutesScore: getSessionPlannerPlayerBoardMinutesScore,
+getNumericPriorityValue: getSessionPlannerPlayerBoardNumericPriorityValue,
+getPlayerBoardPositionById: getSessionPlannerPlayerBoardPositionById,
+getPlayerInitials: getMedicalPlayerInitials,
+getPlayerRoleProfile: getSessionPlannerPlayerBoardPlayerRoleProfile,
+getPositionGroup: getSessionPlannerPlayerBoardPositionGroup,
+getPriorityScore: getSessionPlannerPlayerBoardPriorityScore,
+getRoleOrder: getSessionPlannerPlayerBoardRoleOrder,
+getRolePriorityValue: getSessionPlannerPlayerBoardRolePriorityValue,
+maxTeamCount: sessionPlannerPlayerBoardMaxTeamCount,
 });
 const {
 buildSelectionAssistant: buildSessionPlannerSelectionAssistant,
@@ -15349,364 +15402,6 @@ sessionPlannerPlayerBoardSelectedPlayerId = "";
 }
 return selectedItem;
 }
-function getSessionPlannerPlayerBoardDefaultGridPosition(index, total) {
-const playerTotal = Math.max(Number(total) || 1, 1);
-const columns =
-playerTotal > 30
-? 6
-: playerTotal > 22
-? 5
-: playerTotal > 12
-? 4
-: playerTotal > 4
-? 3
-: Math.max(playerTotal, 1);
-const rows = Math.max(Math.ceil(playerTotal / columns), 1);
-const column = index % columns;
-const row = Math.floor(index / columns);
-const x = columns === 1 ? 50 : 10 + column * (80 / (columns - 1));
-const y = rows === 1 ? 50 : 12 + row * (76 / (rows - 1));
-return {
-x: clamp(x, 8, 92),
-y: clamp(y, 12, 88),
-};
-}
-function getSessionPlannerPlayerBoardDefaultPosition(item, index, boardPlayers = []) {
-const playerId = item?.player?.id ?? item?.id ?? "";
-if (!playerId || !Array.isArray(boardPlayers) || !boardPlayers.length) {
-return getSessionPlannerPlayerBoardDefaultGridPosition(index, boardPlayers?.length || 1);
-}
-const group = getSessionPlannerPlayerBoardPositionGroup(item.player);
-const groupPlayers = boardPlayers.filter(
-(candidate) => getSessionPlannerPlayerBoardPositionGroup(candidate.player).key === group.key
-);
-const groupIndex = Math.max(groupPlayers.findIndex((candidate) => candidate.player.id === playerId), 0);
-const groupTotal = Math.max(groupPlayers.length, 1);
-const step = groupTotal > 7 ? 7.4 : groupTotal > 4 ? 9.2 : 12;
-const span = Math.min(60, (groupTotal - 1) * step);
-const y = groupTotal === 1 ? 50 : 50 - span / 2 + groupIndex * (span / (groupTotal - 1));
-return {
-x: group.x,
-y: clamp(y, 18, 84),
-};
-}
-function normalizeSessionPlannerPlayerBoardFormationValue(value) {
-return String(value ?? "")
-.replace(/[–—−]/g, "-")
-.replace(/[x×]/gi, "-")
-.replace(/[^0-9\-\s]/g, "")
-.replace(/\s+/g, "")
-.replace(/-+/g, "-")
-.replace(/^-|-$/g, "");
-}
-function cleanSessionPlannerPlayerBoardFormationInput(value) {
-return String(value ?? "")
-.replace(/[–—−]/g, "-")
-.replace(/[x×]/gi, "-")
-.replace(/[^0-9\-\s]/g, "")
-.replace(/\s+/g, "")
-.replace(/-+/g, "-")
-.replace(/^-/, "")
-.slice(0, 18);
-}
-function parseSessionPlannerPlayerBoardFormation(value) {
-const normalizedValue = normalizeSessionPlannerPlayerBoardFormationValue(value);
-if (!normalizedValue) {
-return [];
-}
-return normalizedValue
-.split("-")
-.map((item) => Number(item))
-.filter((item) => Number.isInteger(item) && item > 0 && item <= 11);
-}
-function normalizeSessionPlannerPlayerBoardTeamCount(value) {
-const numericValue = Math.round(Number(value));
-if (!Number.isFinite(numericValue)) {
-return 2;
-}
-return clamp(numericValue, 1, sessionPlannerPlayerBoardMaxTeamCount);
-}
-function normalizeSessionPlannerPlayerBoardAutoMode(value) {
-const mode = String(value ?? "").trim();
-return sessionPlannerPlayerBoardAutoModeOptions.some((option) => option.key === mode) ? mode : "balanced";
-}
-function getSessionPlannerPlayerBoardFormationLineRole(lineIndex, lineTotal) {
-if (lineTotal <= 1) {
-return "midfielder";
-}
-if (lineIndex === 0) {
-return "defender";
-}
-if (lineIndex === lineTotal - 1) {
-return "forward";
-}
-return "midfielder";
-}
-function getSessionPlannerPlayerBoardFormationSide(slotIndex, lineCount) {
-if (lineCount <= 1) {
-return "center";
-}
-const ratio = slotIndex / (lineCount - 1);
-if (ratio <= 0.34) {
-return "left";
-}
-if (ratio >= 0.66) {
-return "right";
-}
-return "center";
-}
-function getSessionPlannerPlayerBoardFormationSideOrder(side) {
-const orderBySide = {
-left: 0,
-center: 0.5,
-right: 1,
-};
-return orderBySide[side] ?? 0.5;
-}
-function getSessionPlannerPlayerBoardFormationSlotX(slotIndex, lineCount) {
-if (lineCount <= 1) {
-return 50;
-}
-const spreadByCount = {
-2: 8,
-3: 16,
-4: 24,
-5: 31,
-6: 37,
-};
-const spread = spreadByCount[lineCount] ?? Math.min(42, 12 + (lineCount - 2) * 5.5);
-const left = 50 - spread / 2;
-const right = 50 + spread / 2;
-return left + slotIndex * ((right - left) / (lineCount - 1));
-}
-function getSessionPlannerPlayerBoardFormationLineY(lineIndex, lineTotal, hasGoalkeeperSlot = false) {
-if (lineTotal <= 1) {
-return hasGoalkeeperSlot ? 52 : 50;
-}
-const top = hasGoalkeeperSlot ? 36 : 34;
-const bottom = hasGoalkeeperSlot ? 62 : 66;
-return bottom - lineIndex * ((bottom - top) / (lineTotal - 1));
-}
-function createSessionPlannerPlayerBoardFormationSlots(formation, hasGoalkeeperSlot = false) {
-const lineTotal = formation.length;
-const slots = [];
-if (hasGoalkeeperSlot) {
-slots.push({
-roleKey: "goalkeeper",
-roleOrder: getSessionPlannerPlayerBoardRoleOrder("goalkeeper"),
-side: "center",
-x: 50,
-y: 80,
-});
-}
-formation.forEach((lineCount, lineIndex) => {
-const roleKey = getSessionPlannerPlayerBoardFormationLineRole(lineIndex, lineTotal);
-const y = getSessionPlannerPlayerBoardFormationLineY(lineIndex, lineTotal, hasGoalkeeperSlot);
-for (let slotIndex = 0; slotIndex < lineCount; slotIndex += 1) {
-const side = getSessionPlannerPlayerBoardFormationSide(slotIndex, lineCount);
-slots.push({
-roleKey,
-roleOrder: getSessionPlannerPlayerBoardRoleOrder(roleKey),
-side,
-x: clamp(getSessionPlannerPlayerBoardFormationSlotX(slotIndex, lineCount), 18, 82),
-y: clamp(y, 14, 88),
-});
-}
-});
-return slots;
-}
-function getSessionPlannerPlayerBoardRelationLookupValue(source, otherPlayer = {}) {
-if (!source) {
-return null;
-}
-const playerKeys = [
-otherPlayer.id,
-otherPlayer.playerId,
-otherPlayer.profileId,
-otherPlayer.slug,
-otherPlayer.name,
-getMedicalPlayerInitials(otherPlayer),
-]
-.map((key) => String(key ?? "").trim())
-.filter(Boolean);
-if (typeof source === "object" && !Array.isArray(source)) {
-for (const key of playerKeys) {
-const directValue = getSessionPlannerPlayerBoardNumericPriorityValue(source[key]);
-if (directValue !== null) {
-return directValue;
-}
-}
-}
-if (Array.isArray(source)) {
-for (const item of source) {
-if (!item || typeof item !== "object") {
-continue;
-}
-const relationKeys = [item.playerId, item.id, item.profileId, item.name]
-.map((key) => String(key ?? "").trim())
-.filter(Boolean);
-if (!relationKeys.some((key) => playerKeys.includes(key))) {
-continue;
-}
-const value =
-getSessionPlannerPlayerBoardNumericPriorityValue(item.score) ??
-getSessionPlannerPlayerBoardNumericPriorityValue(item.minutes) ??
-getSessionPlannerPlayerBoardNumericPriorityValue(item.sharedMinutes) ??
-getSessionPlannerPlayerBoardNumericPriorityValue(item.count) ??
-getSessionPlannerPlayerBoardNumericPriorityValue(item.value);
-if (value !== null) {
-return value;
-}
-}
-}
-return null;
-}
-function getSessionPlannerPlayerBoardStoredRelationScore(firstPlayer = {}, secondPlayer = {}) {
-const sources = [
-firstPlayer.relationships,
-firstPlayer.relations,
-firstPlayer.partnerships,
-firstPlayer.chemistry,
-firstPlayer.sharedMinutes,
-firstPlayer.minutesWith,
-firstPlayer.playingTimeWith,
-firstPlayer.lineupMinutesWith,
-firstPlayer.nwslMinutesWith,
-];
-for (const source of sources) {
-const value = getSessionPlannerPlayerBoardRelationLookupValue(source, secondPlayer);
-if (value !== null) {
-return value;
-}
-}
-return null;
-}
-function getSessionPlannerPlayerBoardRelationScore(firstItem, secondItem, block) {
-const firstPlayer = firstItem?.player ?? {};
-const secondPlayer = secondItem?.player ?? {};
-const storedScore =
-getSessionPlannerPlayerBoardStoredRelationScore(firstPlayer, secondPlayer) ??
-getSessionPlannerPlayerBoardStoredRelationScore(secondPlayer, firstPlayer);
-if (storedScore !== null) {
-return storedScore;
-}
-const firstProfile = getSessionPlannerPlayerBoardPlayerRoleProfile(firstPlayer);
-const secondProfile = getSessionPlannerPlayerBoardPlayerRoleProfile(secondPlayer);
-const firstPosition = getSessionPlannerPlayerBoardPositionById(block, firstPlayer.id);
-const secondPosition = getSessionPlannerPlayerBoardPositionById(block, secondPlayer.id);
-const distance = Math.hypot(firstPosition.x - secondPosition.x, firstPosition.y - secondPosition.y);
-const roleGap = Math.abs(firstProfile.roleOrder - secondProfile.roleOrder);
-let score = Math.max(0, 28 - distance * 0.55);
-if (firstProfile.side === secondProfile.side) {
-score += 7;
-}
-if (roleGap === 1) {
-score += 8;
-} else if (roleGap === 0) {
-score += 4;
-}
-return score;
-}
-function createSessionPlannerPlayerBoardAutoTeams(teamCount) {
-return Array.from({ length: normalizeSessionPlannerPlayerBoardTeamCount(teamCount) }, () => ({
-items: [],
-priorityTotal: 0,
-roleCounts: {},
-}));
-}
-function addSessionPlannerPlayerBoardItemToAutoTeam(team, item) {
-const profile = getSessionPlannerPlayerBoardPlayerRoleProfile(item?.player);
-const priorityScore = getSessionPlannerPlayerBoardItemPriorityScore(item);
-team.items.push(item);
-team.priorityTotal += priorityScore;
-team.roleCounts[profile.roleKey] = (team.roleCounts[profile.roleKey] ?? 0) + 1;
-}
-function pickSessionPlannerPlayerBoardBalancedTeamIndex(teams, item, allowedTeamIndexes = null) {
-const profile = getSessionPlannerPlayerBoardPlayerRoleProfile(item?.player);
-const indexes = allowedTeamIndexes?.length ? allowedTeamIndexes : teams.map((team, index) => index);
-let bestIndex = indexes[0] ?? 0;
-let bestScore = Number.POSITIVE_INFINITY;
-indexes.forEach((teamIndex) => {
-const team = teams[teamIndex];
-const score =
-team.items.length * 100 +
-(team.roleCounts[profile.roleKey] ?? 0) * 18 +
-team.priorityTotal * 0.002 +
-teamIndex * 0.01;
-if (score < bestScore) {
-bestIndex = teamIndex;
-bestScore = score;
-}
-});
-return bestIndex;
-}
-function createSessionPlannerPlayerBoardAutoAssignmentsFromTeams(teams) {
-return teams.flatMap((team, teamIndex) =>
-team.items.map((item) => ({
-playerId: item.player.id,
-teamIndex,
-}))
-);
-}
-function getSessionPlannerPlayerBoardRelationPairs(items, block) {
-const remainingItems = [...items].sort(
-(first, second) => getSessionPlannerPlayerBoardItemPriorityScore(second) - getSessionPlannerPlayerBoardItemPriorityScore(first)
-);
-const pairs = [];
-while (remainingItems.length) {
-const firstItem = remainingItems.shift();
-if (!remainingItems.length) {
-pairs.push([firstItem]);
-break;
-}
-let bestIndex = 0;
-let bestScore = Number.NEGATIVE_INFINITY;
-remainingItems.forEach((candidate, index) => {
-const score = getSessionPlannerPlayerBoardRelationScore(firstItem, candidate, block);
-if (score > bestScore) {
-bestIndex = index;
-bestScore = score;
-}
-});
-const [secondItem] = remainingItems.splice(bestIndex, 1);
-pairs.push([firstItem, secondItem].filter(Boolean));
-}
-return pairs;
-}
-function assignSessionPlannerPlayerBoardAutoTeams(items, teamCount, mode, block) {
-const teams = createSessionPlannerPlayerBoardAutoTeams(teamCount);
-const normalizedMode = normalizeSessionPlannerPlayerBoardAutoMode(mode);
-const sortedItems = [...items].sort((first, second) => {
-const firstPriority = getSessionPlannerPlayerBoardItemPriorityScore(first);
-const secondPriority = getSessionPlannerPlayerBoardItemPriorityScore(second);
-return normalizedMode === "rotation" ? firstPriority - secondPriority : secondPriority - firstPriority;
-});
-if (normalizedMode === "relations") {
-getSessionPlannerPlayerBoardRelationPairs(sortedItems, block).forEach((pair) => {
-const teamIndex = pickSessionPlannerPlayerBoardBalancedTeamIndex(teams, pair[0]);
-pair.forEach((item) => addSessionPlannerPlayerBoardItemToAutoTeam(teams[teamIndex], item));
-});
-return createSessionPlannerPlayerBoardAutoAssignmentsFromTeams(teams);
-}
-if (normalizedMode === "best-xi") {
-const topTeamCount = Math.min(sortedItems.length, 11);
-sortedItems.slice(0, topTeamCount).forEach((item) => addSessionPlannerPlayerBoardItemToAutoTeam(teams[0], item));
-const remainingTeamIndexes = teams.length > 1 ? teams.slice(1).map((team, index) => index + 1) : [];
-sortedItems.slice(topTeamCount).forEach((item) => {
-if (!remainingTeamIndexes.length) {
-return;
-}
-const teamIndex = pickSessionPlannerPlayerBoardBalancedTeamIndex(teams, item, remainingTeamIndexes);
-addSessionPlannerPlayerBoardItemToAutoTeam(teams[teamIndex], item);
-});
-return createSessionPlannerPlayerBoardAutoAssignmentsFromTeams(teams);
-}
-sortedItems.forEach((item) => {
-const teamIndex = pickSessionPlannerPlayerBoardBalancedTeamIndex(teams, item);
-addSessionPlannerPlayerBoardItemToAutoTeam(teams[teamIndex], item);
-});
-return createSessionPlannerPlayerBoardAutoAssignmentsFromTeams(teams);
-}
 function getSessionPlannerPlayerBoardAutoTargetItems(block) {
 const boardPlayers = getSessionPlannerPlayerBoardPlayers(block);
 const selectedIds = normalizeSessionPlannerPlayerBoardSelectedIds(sessionPlannerPlayerBoardSelectedPlayerIds, block);
@@ -15732,183 +15427,6 @@ return null;
 }
 sessionPlannerPlayerBoardFormationInput = formationValue;
 return formation;
-}
-function getSessionPlannerPlayerBoardAutoTeamGrid(teamCount) {
-const normalizedTeamCount = normalizeSessionPlannerPlayerBoardTeamCount(teamCount);
-const columns = normalizedTeamCount <= 3 ? normalizedTeamCount : Math.ceil(normalizedTeamCount / 2);
-const rows = Math.ceil(normalizedTeamCount / columns);
-return {
-columns,
-rows,
-};
-}
-function getSessionPlannerPlayerBoardAutoTeamCell(teamIndex, teamCount) {
-const grid = getSessionPlannerPlayerBoardAutoTeamGrid(teamCount);
-const column = teamIndex % grid.columns;
-const row = Math.floor(teamIndex / grid.columns);
-const width = 100 / grid.columns;
-const height = 100 / grid.rows;
-return {
-left: column * width,
-top: row * height,
-width,
-height,
-};
-}
-function mapSessionPlannerPlayerBoardSlotToAutoTeamCell(slot, cell) {
-const horizontalScale = cell.width < 34 ? 1.38 : 1.24;
-const verticalScale = cell.height < 58 ? 1.05 : 0.86;
-const x = cell.left + cell.width / 2 + (slot.x - 50) * (cell.width / 100) * horizontalScale;
-const y = cell.top + cell.height / 2 + (slot.y - 50) * (cell.height / 100) * verticalScale;
-return {
-...slot,
-x: clamp(x, cell.left + 4, cell.left + cell.width - 4),
-y: clamp(y, cell.top + 8, cell.top + cell.height - 6),
-};
-}
-function createSessionPlannerPlayerBoardExtraTeamSlots(extraCount, cell) {
-if (!extraCount) {
-return [];
-}
-const columns = Math.min(extraCount, 4);
-const rows = Math.ceil(extraCount / columns);
-return Array.from({ length: extraCount }, (_, index) => {
-const column = index % columns;
-const row = Math.floor(index / columns);
-const x = columns === 1 ? 50 : 50 - 18 + column * (36 / (columns - 1));
-const y = rows === 1 ? 86 : 82 + row * (10 / Math.max(rows - 1, 1));
-return mapSessionPlannerPlayerBoardSlotToAutoTeamCell(
-{
-roleKey: "midfielder",
-roleOrder: getSessionPlannerPlayerBoardRoleOrder("midfielder"),
-side: getSessionPlannerPlayerBoardFormationSide(column, columns),
-x,
-y,
-},
-cell
-);
-});
-}
-function createSessionPlannerPlayerBoardAutoTeamFormationSlots(teamItems, formation, teamIndex, teamCount) {
-const outfieldSlotCount = formation.reduce((total, count) => total + count, 0);
-const hasGoalkeeper = teamItems.some(
-(item) => getSessionPlannerPlayerBoardPlayerRoleProfile(item.player).roleKey === "goalkeeper"
-);
-const hasGoalkeeperSlot = hasGoalkeeper && teamItems.length >= outfieldSlotCount + 1;
-const cell = getSessionPlannerPlayerBoardAutoTeamCell(teamIndex, teamCount);
-const formationSlots = createSessionPlannerPlayerBoardFormationSlots(formation, hasGoalkeeperSlot).map((slot) =>
-mapSessionPlannerPlayerBoardSlotToAutoTeamCell(slot, cell)
-);
-const extraSlots = createSessionPlannerPlayerBoardExtraTeamSlots(Math.max(0, teamItems.length - formationSlots.length), cell);
-return [...formationSlots, ...extraSlots];
-}
-function shouldSessionPlannerPlayerBoardAutoUseGoalkeeperSlots(items, formation, teamCount) {
-const normalizedTeamCount = normalizeSessionPlannerPlayerBoardTeamCount(teamCount);
-const outfieldSlotCount = formation.reduce((total, count) => total + count, 0);
-if (!outfieldSlotCount) {
-return false;
-}
-const goalkeeperCount = items.filter(
-(item) => getSessionPlannerPlayerBoardPlayerRoleProfile(item.player).roleKey === "goalkeeper"
-).length;
-return goalkeeperCount >= normalizedTeamCount && items.length >= normalizedTeamCount * (outfieldSlotCount + 1);
-}
-function scoreSessionPlannerPlayerBoardAutoTeamSlotCandidate(item, slot, teamItems, mode, block) {
-const normalizedMode = normalizeSessionPlannerPlayerBoardAutoMode(mode);
-let score = scoreSessionPlannerPlayerBoardFormationFit(item, slot, {
-prioritize: true,
-rotation: normalizedMode === "rotation",
-});
-if (normalizedMode === "relations" && teamItems.length) {
-const relationAverage =
-teamItems.reduce((total, teamItem) => total + getSessionPlannerPlayerBoardRelationScore(item, teamItem, block), 0) /
-teamItems.length;
-score -= relationAverage * 0.1;
-}
-return score;
-}
-function pickSessionPlannerPlayerBoardAutoTeamSlotItem(remainingItems, slot, teamItems, mode, block) {
-let bestIndex = 0;
-let bestScore = Number.POSITIVE_INFINITY;
-remainingItems.forEach((item, index) => {
-const score = scoreSessionPlannerPlayerBoardAutoTeamSlotCandidate(item, slot, teamItems, mode, block);
-if (score < bestScore) {
-bestIndex = index;
-bestScore = score;
-}
-});
-return bestIndex;
-}
-function createSessionPlannerPlayerBoardAutoTeamSlotPlan(formation, teamIndex, teamCount, includeGoalkeeperSlot) {
-const cell = getSessionPlannerPlayerBoardAutoTeamCell(teamIndex, teamCount);
-return createSessionPlannerPlayerBoardFormationSlots(formation, includeGoalkeeperSlot).map((slot) =>
-mapSessionPlannerPlayerBoardSlotToAutoTeamCell(slot, cell)
-);
-}
-function assignSessionPlannerPlayerBoardAutoFormationTeams(items, teamCount, mode, block, formation) {
-const normalizedTeamCount = normalizeSessionPlannerPlayerBoardTeamCount(teamCount);
-const normalizedMode = normalizeSessionPlannerPlayerBoardAutoMode(mode);
-const includeGoalkeeperSlot = shouldSessionPlannerPlayerBoardAutoUseGoalkeeperSlots(items, formation, normalizedTeamCount);
-const teams = Array.from({ length: normalizedTeamCount }, () => []);
-const assignments = [];
-const remainingItems = [...items];
-for (let teamIndex = 0; teamIndex < normalizedTeamCount; teamIndex += 1) {
-const slots = createSessionPlannerPlayerBoardAutoTeamSlotPlan(
-formation,
-teamIndex,
-normalizedTeamCount,
-includeGoalkeeperSlot
-);
-for (const slot of slots) {
-if (!remainingItems.length) {
-break;
-}
-const bestIndex = pickSessionPlannerPlayerBoardAutoTeamSlotItem(
-remainingItems,
-slot,
-teams[teamIndex],
-normalizedMode,
-block
-);
-const [item] = remainingItems.splice(bestIndex, 1);
-if (!item?.player?.id) {
-continue;
-}
-teams[teamIndex].push(item);
-assignments.push({
-playerId: item.player.id,
-teamIndex,
-position: {
-x: slot.x,
-y: slot.y,
-},
-});
-}
-}
-if (remainingItems.length) {
-const sortedRemainingItems = remainingItems.sort((first, second) => {
-const firstPriority = getSessionPlannerPlayerBoardItemPriorityScore(first);
-const secondPriority = getSessionPlannerPlayerBoardItemPriorityScore(second);
-return normalizedMode === "rotation" ? firstPriority - secondPriority : secondPriority - firstPriority;
-});
-sortedRemainingItems.forEach((item, index) => {
-const teamIndex = index % normalizedTeamCount;
-const cell = getSessionPlannerPlayerBoardAutoTeamCell(teamIndex, normalizedTeamCount);
-const slot = createSessionPlannerPlayerBoardExtraTeamSlots(1, cell)[0];
-if (!slot || !item?.player?.id) {
-return;
-}
-assignments.push({
-playerId: item.player.id,
-teamIndex,
-position: {
-x: clamp(slot.x + (Math.floor(index / normalizedTeamCount) % 4) * 4, cell.left + 4, cell.left + cell.width - 4),
-y: clamp(slot.y, cell.top + 8, cell.top + cell.height - 6),
-},
-});
-});
-}
-return assignments;
 }
 function applySessionPlannerPlayerBoardAutoTeamFormation(block, targetItems, assignments, formation) {
 if (assignments.some((assignment) => assignment?.position)) {
@@ -16018,69 +15536,6 @@ sessionPlannerPlayerBoardAutoModeOptions.find((option) => option.key === session
 showSessionPlannerToast(
 `${modeLabel}: ${assignments.length} player${assignments.length === 1 ? "" : "s"} assigned across ${sessionPlannerPlayerBoardTeamCount} team${sessionPlannerPlayerBoardTeamCount === 1 ? "" : "s"} in ${formation.join("-")}.`
 );
-}
-function scoreSessionPlannerPlayerBoardFormationFit(item, slot, options = {}) {
-  const profile = getSessionPlannerPlayerBoardPlayerRoleProfile(item?.player);
-  const roleDistance = Math.abs(profile.roleOrder - slot.roleOrder);
-  const sideDistance = Math.abs(
-    getSessionPlannerPlayerBoardFormationSideOrder(profile.side) -
-      getSessionPlannerPlayerBoardFormationSideOrder(slot.side)
-  );
-  const rosterOrder = Number(item?.player?.rosterOrder) || 999;
-  const rolePriority = getSessionPlannerPlayerBoardRolePriorityValue(item?.player, slot) ?? 0;
-  const directRoleFit = getSessionPlannerPlayerBoardDirectRoleFitScore(item?.player, slot);
-  const importanceScore = getSessionPlannerPlayerBoardImportanceScore(item?.player) ?? 0;
-  const careerScore = getSessionPlannerPlayerBoardCareerScore(item?.player);
-  const minutesScore = getSessionPlannerPlayerBoardMinutesScore(item?.player);
-  const priorityScore = options.prioritize ? getSessionPlannerPlayerBoardPriorityScore(item, slot) : 0;
-  const priorityAdjustment = priorityScore * 0.003;
-  const rotationAdjustment = options.rotation ? priorityAdjustment : -priorityAdjustment;
-  const roleMismatchPenalty = profile.roleKey === slot.roleKey ? 0 : 280;
-  const sideMismatchPenalty =
-    profile.roleKey === slot.roleKey && profile.side !== "center" && slot.side !== "center" && profile.side !== slot.side
-      ? 36
-      : 0;
-  return (
-    roleDistance * 220 +
-    roleMismatchPenalty +
-    sideDistance * 28 -
-    sideMismatchPenalty -
-    Math.max(rolePriority, directRoleFit) * 0.42 -
-    importanceScore * 0.18 -
-    careerScore * 0.06 -
-    minutesScore * 0.01 +
-    rosterOrder * 0.01 +
-    rotationAdjustment
-  );
-}
-function assignSessionPlannerPlayerBoardFormationSlots(selectedItems, slots, options = {}) {
-const remainingItems = [...selectedItems];
-const assignments = [];
-slots.forEach((slot) => {
-if (!remainingItems.length) {
-return;
-}
-let bestIndex = 0;
-let bestScore = Number.POSITIVE_INFINITY;
-remainingItems.forEach((item, index) => {
-const score = scoreSessionPlannerPlayerBoardFormationFit(item, slot, options);
-if (score < bestScore) {
-bestIndex = index;
-bestScore = score;
-}
-});
-const [item] = remainingItems.splice(bestIndex, 1);
-if (item?.player?.id) {
-assignments.push({
-playerId: item.player.id,
-position: {
-x: slot.x,
-y: slot.y,
-},
-});
-}
-});
-return assignments;
 }
 function applySessionPlannerPlayerBoardFormation(options = {}) {
 if (!canEditSessionPlanner()) {

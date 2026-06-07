@@ -36,14 +36,15 @@ test("Session Planner Player Board hides Squad-unavailable roster players", () =
 
 test("Session Planner Player Board ranks by role, squad status, and career phase", () => {
   const helperSource = readProjectFile("src/modules/session-planner/session-planner-player-board-helpers.mjs");
+  const formationHelperSource = readProjectFile("src/modules/session-planner/session-planner-player-board-formation-helpers.mjs");
   const profileHelperSource = readProjectFile("src/modules/session-planner/session-planner-player-board-profile-helpers.mjs");
 
   expect(profileHelperSource).toContain("function getRoleGroupForRole");
   expect(helperSource).toContain("function getDirectRoleFitScore");
   expect(helperSource).toContain("function normalizeSquadStatusKey");
   expect(helperSource).toContain("function getCareerPhasePriority");
-  expect(readProjectFile("app.js")).toContain("roleMismatchPenalty");
-  expect(readProjectFile("app.js")).toContain("careerScore");
+  expect(formationHelperSource).toContain("roleMismatchPenalty");
+  expect(formationHelperSource).toContain("careerScore");
 });
 
 test("Session Planner Player Board can copy team setup from another block", () => {

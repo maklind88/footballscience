@@ -4377,8 +4377,8 @@ getMedicalHistoryEvents,
 getMedicalRtpPhaseOption,
 medicalClearanceRoles,
 medicalLoadGateOptions,
-renderMedicalCoachHandoverPanel,
-renderMedicalDailyHuddle,
+renderMedicalCoachHandoverPanel: () => medicalCommandRenderer.renderCoachHandoverPanel(),
+renderMedicalDailyHuddle: () => medicalCommandRenderer.renderDailyHuddle(),
 });
 const medicalCommandRenderer = createMedicalCommandRenderer({
 escapeHtml,
@@ -4485,7 +4485,7 @@ normalizeMedicalClearance,
 normalizeMedicalLoadGates,
 renderMedicalDurationUnitOptions,
 renderMedicalGateOptions,
-renderMedicalInjuryPlanStatusOptions,
+renderMedicalInjuryPlanStatusOptions: (selectedStatus) => medicalRecommendationRenderer.renderInjuryPlanStatusOptions(selectedStatus),
 renderMedicalParticipationOptions,
 renderMedicalRtpPhaseOptions,
 });
@@ -4535,18 +4535,18 @@ getSelectedMedicalPlayer,
 medicalActualParticipationFallback,
 medicalPlayerModalTabOptions,
 normalizeMedicalPlayerModalTab,
-renderMedicalActualPresets,
-renderMedicalClearanceChecklist,
-renderMedicalInjuryPlanForm,
-renderMedicalLogCard,
-renderMedicalLog,
-renderMedicalNewPlayerCard,
-renderMedicalPlanListCard,
+renderMedicalActualPresets: (selectedValue, canEdit) => medicalRecommendationRenderer.renderActualPresets(selectedValue, canEdit),
+renderMedicalClearanceChecklist: (player, canEdit) => medicalPlanFormRenderer.renderClearanceChecklist(player, canEdit),
+renderMedicalInjuryPlanForm: (player, canEdit) => medicalPlanFormRenderer.renderInjuryPlanForm(player, canEdit),
+renderMedicalLogCard: (player) => medicalRecommendationRenderer.renderLogCard(player),
+renderMedicalLog: (player) => medicalRecommendationRenderer.renderLog(player),
+renderMedicalNewPlayerCard: () => medicalRosterRenderer.renderNewPlayerCard(),
+renderMedicalPlanListCard: (player) => medicalRecommendationRenderer.renderPlanListCard(player),
 renderMedicalActualParticipationOptions,
 renderMedicalParticipationOptions,
 renderMedicalPlayerAvatar,
-renderMedicalPlayerProfileSummary,
-renderMedicalRecommendationPresets,
+renderMedicalPlayerProfileSummary: (player) => medicalProfileSummaryRenderer.render(getMedicalPlayerProfileSummary(player, medicalState.selectedDate)),
+renderMedicalRecommendationPresets: (selectedParticipation, canEdit) => medicalRecommendationRenderer.renderRecommendationPresets(selectedParticipation, canEdit),
 renderMedicalRtpPhaseOptions,
 renderMedicalStatusOptions,
 });
@@ -19424,18 +19424,8 @@ renderMedicalTeamWorkspace("Coach-safe handover copied.");
 })
 .catch(() => renderMedicalTeamWorkspace("Coach-safe handover could not be copied."));
 }
-function renderMedicalCoachHandoverPanel() {
-return medicalCommandRenderer.renderCoachHandoverPanel();
-}
-function renderMedicalDailyHuddle() {
-return medicalCommandRenderer.renderDailyHuddle();
-}
 function getMedicalPlayerProfileSummary(player, dateValue = medicalState?.selectedDate) {
 return medicalProfileSummarySelectors.getMedicalPlayerProfileSummary(player, dateValue);
-}
-function renderMedicalPlayerProfileSummary(player) {
-const summary = getMedicalPlayerProfileSummary(player, medicalState.selectedDate);
-return medicalProfileSummaryRenderer.render(summary);
 }
 function getFilteredMedicalPlayers() {
 ensureMedicalState();
@@ -19722,55 +19712,19 @@ return "";
 medicalOperationsTab = normalizeMedicalOperationsTab(medicalOperationsTab);
 return medicalOperationsRenderer.renderTopMenu(medicalOperationsTab, medicalOperationsTabOptions);
 }
-function renderMedicalCoachSafeOperationsSummary() {
-return medicalOperationsRenderer.renderCoachSafeSummary(medicalState.selectedDate);
-}
 function renderMedicalOperationsSystem() {
 if (!canViewPrivateMedicalDetails()) {
-return renderMedicalCoachSafeOperationsSummary();
+return medicalOperationsRenderer.renderCoachSafeSummary(medicalState.selectedDate);
 }
 medicalOperationsTab = normalizeMedicalOperationsTab(medicalOperationsTab);
 const summary = getMedicalOperationsSummary(medicalState.selectedDate);
 return medicalOperationsRenderer.renderPrivateSystem(summary, medicalOperationsTab, medicalState.selectedDate);
-}
-function renderMedicalAvailabilityWorkspace(message = "") {
-return medicalRosterRenderer.renderAvailabilityWorkspace(message);
 }
 function getMedicalRosterPositionGroups(players = []) {
 return medicalRosterSelectors.getMedicalRosterPositionGroups(players);
 }
 function getMedicalRosterPositionStats(players = []) {
 return medicalRosterSelectors.getMedicalRosterPositionStats(players);
-}
-function renderMedicalNewPlayerCard() {
-return medicalRosterRenderer.renderNewPlayerCard();
-}
-function renderMedicalLog(player) {
-return medicalRecommendationRenderer.renderLog(player);
-}
-function renderMedicalRecommendationPresets(selectedParticipation, canEdit = canEditMedicalTeam()) {
-return medicalRecommendationRenderer.renderRecommendationPresets(selectedParticipation, canEdit);
-}
-function renderMedicalActualPresets(selectedValue, canEdit = canEditMedicalTeam()) {
-return medicalRecommendationRenderer.renderActualPresets(selectedValue, canEdit);
-}
-function renderMedicalInjuryPlanStatusOptions(selectedStatus = "unavailable") {
-return medicalRecommendationRenderer.renderInjuryPlanStatusOptions(selectedStatus);
-}
-function renderMedicalInjuryPlanForm(player, canEdit) {
-return medicalPlanFormRenderer.renderInjuryPlanForm(player, canEdit);
-}
-function renderMedicalClearanceChecklist(player, canEdit) {
-return medicalPlanFormRenderer.renderClearanceChecklist(player, canEdit);
-}
-function renderMedicalPlanListCard(player) {
-return medicalRecommendationRenderer.renderPlanListCard(player);
-}
-function renderMedicalLogCard(player) {
-return medicalRecommendationRenderer.renderLogCard(player);
-}
-function renderMedicalPlayerModal() {
-return medicalPlayerModalRenderer.renderPlayerModal();
 }
 function renderMedicalTeamWorkspace(message = "", options = {}) {
 if (!ui.medicalTeamWorkspace) {
@@ -19790,8 +19744,8 @@ ui.medicalTeamWorkspace.innerHTML = `
 <div class="medical-access-chip">${escapeHtml(getMedicalAccessLabel())}</div>
 </header>
 ${renderMedicalOperationsTopMenu()}
-${showAvailabilityWorkspace ? renderMedicalAvailabilityWorkspace(message) : `${message ? `<div class="medical-message platform-inline-toast" role="status" aria-live="polite">${escapeHtml(message)}</div>` : ""}${renderMedicalOperationsSystem()}`}
-${renderMedicalPlayerModal()}
+${showAvailabilityWorkspace ? medicalRosterRenderer.renderAvailabilityWorkspace(message) : `${message ? `<div class="medical-message platform-inline-toast" role="status" aria-live="polite">${escapeHtml(message)}</div>` : ""}${renderMedicalOperationsSystem()}`}
+${medicalPlayerModalRenderer.renderPlayerModal()}
 </div>
 `;
 if (options.focusRosterSearch) {

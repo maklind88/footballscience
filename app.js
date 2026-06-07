@@ -58,6 +58,7 @@ import {
   createSquadProfileSelectedRenderer,
   createSquadProfileSupportRenderer,
   createSquadRosterRenderer,
+  createSquadScoutingSpiderRenderer,
   playerProfileAttributeGroups,
   playerProfileCareerPhaseOptions,
   playerProfileChangeFieldDefinitions,
@@ -21202,6 +21203,18 @@ OTHER: [
 { label: "Creation", metricId: "xa-per-90" },
 ],
 });
+const squadScoutingSpiderRenderer = createSquadScoutingSpiderRenderer({
+escapeHtml,
+getDatabase: getPlayerProfileScoutingDatabase,
+queueDatabaseLoad: queuePlayerProfileScoutingDatabaseLoad,
+findRecord: findPlayerProfileNwslScoutingRecord,
+getPositionGroup: getPlayerProfileScoutingPositionGroup,
+getMetricValue: getPlayerProfileScoutingMetricValue,
+getPercentile: getPlayerProfileScoutingPercentile,
+getMetric: getPlayerProfileScoutingMetric,
+templates: playerProfileScoutingSpiderTemplates,
+recordIndex: playerProfileScoutingRecordIndex,
+});
 function normalizePlayerProfileScoutingText(value) {
 return String(value ?? "")
 .normalize("NFD")
@@ -21393,149 +21406,8 @@ high = middle;
 const rawPercentile = Math.max(1, Math.min(99, Math.round((low / values.length) * 100)));
 return direction === "lower" ? Math.max(1, Math.min(99, 101 - rawPercentile)) : rawPercentile;
 }
-function formatPlayerProfileScoutingNumber(value) {
-const number = Number(value);
-if (!Number.isFinite(number)) {
-return "n/a";
-}
-return number.toLocaleString("en-US", { maximumFractionDigits: Math.abs(number) < 10 ? 2 : 1 });
-}
-function renderPlayerProfileNoDataSpider(message = "No data") {
-return `
-    <svg class="player-profile-scouting-spider" viewBox="0 0 220 220" role="img" aria-label="${escapeHtml(message)}">
-      <circle class="player-profile-scouting-ring" cx="110" cy="110" r="74" />
-      <circle class="player-profile-scouting-ring" cx="110" cy="110" r="49" />
-      <circle class="player-profile-scouting-ring" cx="110" cy="110" r="25" />
-      <text class="player-profile-scouting-empty-text" x="110" y="108">${escapeHtml(message)}</text>
-      <text class="player-profile-scouting-empty-subtext" x="110" y="126">Scouting data</text>
-    </svg>
-  `;
-}
 function renderPlayerProfileScoutingSpider(player) {
-const database = getPlayerProfileScoutingDatabase();
-if (!database) {
-queuePlayerProfileScoutingDatabaseLoad();
-return `
-      <article class="squad-profile-section player-profile-scouting-spider-card">
-        <header class="squad-section-head">
-          <div>
-            <p>NWSL data spider</p>
-            <h2>Performance Radar</h2>
-          </div>
-          <span>Loading data</span>
-        </header>
-        <div class="player-profile-scouting-spider-layout">
-          ${renderPlayerProfileNoDataSpider("No data")}
-          <p>Scouting player database data is being loaded. If no matching row exists after import, this stays as a clean no-data spider.</p>
-        </div>
-      </article>
-    `;
-}
-const record = findPlayerProfileNwslScoutingRecord(player);
-if (!record) {
-return `
-      <article class="squad-profile-section player-profile-scouting-spider-card">
-        <header class="squad-section-head">
-          <div>
-            <p>NWSL data spider</p>
-            <h2>Performance Radar</h2>
-          </div>
-          <span>No verified data</span>
-        </header>
-        <div class="player-profile-scouting-spider-layout">
-          ${renderPlayerProfileNoDataSpider("No data")}
-          <p>No linked scouting player database row exists for this player yet. When imported data matches the profile name, this spider will become data-driven.</p>
-        </div>
-      </article>
-    `;
-}
-const group = getPlayerProfileScoutingPositionGroup(record, player);
-const template = playerProfileScoutingSpiderTemplates[group] || playerProfileScoutingSpiderTemplates.OTHER;
-const axes = template
-.map((axis) => {
-const value = getPlayerProfileScoutingMetricValue(record, axis.metricId);
-const percentile = getPlayerProfileScoutingPercentile(record, axis.metricId, axis.direction || "higher");
-const metric = getPlayerProfileScoutingMetric(database, axis.metricId);
-return metric && Number.isFinite(value) && Number.isFinite(percentile)
-? { ...axis, value, percentile, metric }
-: null;
-})
-.filter(Boolean);
-if (axes.length < 3) {
-return `
-      <article class="squad-profile-section player-profile-scouting-spider-card">
-        <header class="squad-section-head">
-          <div>
-            <p>NWSL data spider</p>
-            <h2>Performance Radar</h2>
-          </div>
-          <span>${escapeHtml(record[playerProfileScoutingRecordIndex.season] || "NWSL")}</span>
-        </header>
-        <div class="player-profile-scouting-spider-layout">
-          ${renderPlayerProfileNoDataSpider("No data")}
-          <p>NWSL row found, but not enough comparable KPI fields exist to draw a reliable spider.</p>
-        </div>
-      </article>
-    `;
-}
-const center = 110;
-const radius = 74;
-const angleOffset = -Math.PI / 2;
-const points = axes.map((axis, index) => {
-const angle = angleOffset + (index / axes.length) * Math.PI * 2;
-const valueRadius = radius * (axis.percentile / 100);
-return {
-...axis,
-x: center + Math.cos(angle) * valueRadius,
-y: center + Math.sin(angle) * valueRadius,
-axisX: center + Math.cos(angle) * radius,
-axisY: center + Math.sin(angle) * radius,
-labelX: center + Math.cos(angle) * (radius + 26),
-labelY: center + Math.sin(angle) * (radius + 26),
-};
-});
-const polygon = points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
-return `
-    <article class="squad-profile-section player-profile-scouting-spider-card">
-      <header class="squad-section-head">
-        <div>
-          <p>NWSL data spider</p>
-          <h2>Performance Radar</h2>
-        </div>
-        <span>${escapeHtml([record[playerProfileScoutingRecordIndex.team], record[playerProfileScoutingRecordIndex.season]].filter(Boolean).join(" / ") || "NWSL")}</span>
-      </header>
-      <div class="player-profile-scouting-spider-layout">
-        <svg class="player-profile-scouting-spider" viewBox="0 0 220 220" role="img" aria-label="NWSL performance spider">
-          <circle class="player-profile-scouting-ring" cx="${center}" cy="${center}" r="${radius}" />
-          <circle class="player-profile-scouting-ring" cx="${center}" cy="${center}" r="${radius * 0.66}" />
-          <circle class="player-profile-scouting-ring" cx="${center}" cy="${center}" r="${radius * 0.33}" />
-          ${points.map((point) => `<line class="player-profile-scouting-axis" x1="${center}" y1="${center}" x2="${point.axisX.toFixed(1)}" y2="${point.axisY.toFixed(1)}" />`).join("")}
-          <polygon class="player-profile-scouting-shape" points="${polygon}" />
-          ${points
-            .map(
-              (point) => `
-<circle class="player-profile-scouting-dot" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="3.1" />
-<text class="player-profile-scouting-label" x="${point.labelX.toFixed(1)}" y="${point.labelY.toFixed(1)}">${escapeHtml(point.label)}</text>
-`
-            )
-            .join("")}
-        </svg>
-        <div class="player-profile-scouting-metrics">
-          ${axes
-            .map(
-              (axis) => `
-<div>
-<span>${escapeHtml(axis.label)}</span>
-<strong>P${escapeHtml(axis.percentile)}</strong>
-<small>${escapeHtml(axis.metric.label)}: ${escapeHtml(formatPlayerProfileScoutingNumber(axis.value))}${axis.direction === "lower" ? " / low is good" : ""}</small>
-</div>
-`
-            )
-            .join("")}
-        </div>
-      </div>
-    </article>
-  `;
+return squadScoutingSpiderRenderer.render(player);
 }
 function getPlayerRoleDnaDefinition(role) {
 const roleKey = normalizePlayerProfileRole(role, "8");

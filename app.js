@@ -92,6 +92,7 @@ import {
   createSquadScoutingSpiderRenderer,
   createSquadWorkspaceRenderer,
   createPlayerProfileHelpers,
+  createPlayerProfileIntelligenceHelpers,
   buildPlayerProfileImportFeedback as buildPlayerProfileImportFeedbackMessage,
   buildPlayerProfileImportPreviewMessage,
   buildPlayerProfileOperationFeedback,
@@ -1586,6 +1587,36 @@ createId: createDashboardId,
 getAgeCacheEntry: getPlayerProfileAgeCacheEntry,
 getNow: () => new Date().toISOString(),
 isDateValue: isMedicalDateValue,
+});
+const {
+getPlayerProfileDateDiffDays,
+getPlayerProfileDateValueFromTimestamp,
+getPlayerProfileIdpFollowUpLabel,
+getPlayerProfileIdpMissingFocusLabel,
+getPlayerProfileIdpReviewLabel,
+getPlayerProfileRoleFitScore,
+getPlayerRoleDnaAttributeBreakdown,
+getPlayerRoleDnaAttributeFit,
+getPlayerRoleDnaBaseFit,
+getPlayerRoleDnaBestMatches,
+getPlayerRoleDnaDefinition,
+getPlayerRoleDnaReasons,
+getPlayerRoleDnaScore,
+getSquadMatrixAvailabilityAdjustment,
+getSquadMatrixCompatibleRoles,
+getSquadMatrixRoleGroup,
+getSquadMatrixSideAdjustment,
+getSquadPlayerDataQualityFlags,
+getSquadStatusRank,
+} = createPlayerProfileIntelligenceHelpers({
+formatDateValue: formatScheduleDateValue,
+formatMedicalDateLabel,
+getCompleteness: getPlayerProfileCompleteness,
+getMedicalSnapshot: getPlayerProfileMedicalSnapshot,
+isDateValue: isMedicalDateValue,
+normalizeNumber: normalizePlayerProfileNumber,
+normalizeRole: normalizePlayerProfileRole,
+parseDateValue: parseScheduleDateValue,
 });
 const periodizationStateAdapter = createPeriodizationStateAdapter({
 formatDateValue: formatScheduleDateValue,
@@ -10361,206 +10392,6 @@ const rawPercentile = Math.max(1, Math.min(99, Math.round((low / values.length) 
 return direction === "lower" ? Math.max(1, Math.min(99, 101 - rawPercentile)) : rawPercentile;
 }
 function renderPlayerProfileScoutingSpider(player) { return squadScoutingSpiderRenderer.render(player); }
-function getPlayerRoleDnaDefinition(role) {
-const roleKey = normalizePlayerProfileRole(role, "8");
-return playerRoleDnaDefinitions[roleKey] ?? playerRoleDnaDefinitions["8"];
-}
-function getPlayerRoleDnaAttributeBreakdown(player = {}) {
-const ratings = player.attributeRatings || {};
-return playerProfileAttributeGroups.map((group) => ({
-key: group.key,
-label: group.label,
-rating: normalizePlayerProfileNumber(ratings[group.key], 3),
-}));
-}
-function getPlayerRoleDnaAttributeFit(player = {}, role = "8") {
-const definition = getPlayerRoleDnaDefinition(role);
-const weightedTotal = playerProfileAttributeGroups.reduce((total, group) => {
-const weight = definition.weights?.[group.key] ?? 0.25;
-const rating = normalizePlayerProfileNumber(player.attributeRatings?.[group.key], 3);
-return total + rating * weight;
-}, 0);
-const weightTotal = playerProfileAttributeGroups.reduce((total, group) => total + (definition.weights?.[group.key] ?? 0.25), 0);
-return Math.round((weightedTotal / Math.max(weightTotal, 0.01)) * 20);
-}
-function getPlayerRoleDnaBaseFit(player = {}, role = "8") {
-const roleKey = normalizePlayerProfileRole(role, "");
-const primaryRole = normalizePlayerProfileRole(player.primaryRole, "");
-const secondaryRoles = Array.isArray(player.secondaryRoles)
-? player.secondaryRoles.map((candidate) => normalizePlayerProfileRole(candidate, "")).filter(Boolean)
-: [];
-const compatibleRoles = getSquadMatrixCompatibleRoles(roleKey);
-if (!roleKey) {
-return 0;
-}
-if (primaryRole === roleKey) {
-return 100;
-}
-if (secondaryRoles.includes(roleKey)) {
-return 86;
-}
-if (compatibleRoles.includes(primaryRole)) {
-return 72;
-}
-if (secondaryRoles.some((candidate) => compatibleRoles.includes(candidate))) {
-return 64;
-}
-if (primaryRole && getSquadMatrixRoleGroup(primaryRole) === getSquadMatrixRoleGroup(roleKey)) {
-return 52;
-}
-return 32;
-}
-function getPlayerRoleDnaScore(player = {}, role = "8") {
-const roleKey = normalizePlayerProfileRole(role, "");
-if (!roleKey) {
-return 0;
-}
-const baseFit = getPlayerRoleDnaBaseFit(player, roleKey);
-const attributeFit = getPlayerRoleDnaAttributeFit(player, roleKey);
-const sideAdjustment = getSquadMatrixSideAdjustment(player, roleKey);
-const score = Math.round(baseFit * 0.62 + attributeFit * 0.38 + sideAdjustment);
-return Math.max(25, Math.min(99, score));
-}
-function getPlayerRoleDnaBestMatches(player = {}, limit = 3) {
-return playerProfileRoleOptions
-.map((role) => ({
-role,
-score: getPlayerRoleDnaScore(player, role),
-definition: getPlayerRoleDnaDefinition(role),
-attributeFit: getPlayerRoleDnaAttributeFit(player, role),
-}))
-.sort((first, second) => second.score - first.score || second.attributeFit - first.attributeFit)
-.slice(0, limit);
-}
-function getPlayerRoleDnaReasons(player = {}, role = "8") {
-const roleKey = normalizePlayerProfileRole(role, "8");
-const definition = getPlayerRoleDnaDefinition(roleKey);
-const baseFit = getPlayerRoleDnaBaseFit(player, roleKey);
-const attributeFit = getPlayerRoleDnaAttributeFit(player, roleKey);
-const sideAdjustment = getSquadMatrixSideAdjustment(player, roleKey);
-const availabilityAdjustment = getSquadMatrixAvailabilityAdjustment(player);
-const strongestAttribute = getPlayerRoleDnaAttributeBreakdown(player).sort((first, second) => second.rating - first.rating)[0];
-const strengths = [];
-const risks = [];
-if (player.primaryRole === roleKey) {
-strengths.push(`Natural primary role as ${roleKey}`);
-} else if (Array.isArray(player.secondaryRoles) && player.secondaryRoles.includes(roleKey)) {
-strengths.push(`Secondary role coverage as ${roleKey}`);
-} else if (baseFit >= 64) {
-strengths.push(`Compatible role family for ${roleKey}`);
-}
-if (attributeFit >= 76) {
-strengths.push(`${definition.label} DNA fits the attribute model`);
-}
-if (strongestAttribute) {
-strengths.push(`${strongestAttribute.label} is the strongest current attribute`);
-}
-if (sideAdjustment > 0) {
-strengths.push("Preferred side supports the role");
-}
-if (baseFit < 58) {
-risks.push(`Not a natural ${roleKey} profile yet`);
-}
-if (attributeFit < 62) {
-risks.push("Attribute profile needs more evidence");
-}
-if (sideAdjustment < 0) {
-risks.push("Preferred side conflicts with the role");
-}
-if (availabilityAdjustment < 0) {
-risks.push("Availability reduces selection confidence");
-}
-return {
-strengths: strengths.slice(0, 3),
-risks: risks.slice(0, 3),
-};
-}
-function getPlayerProfileRoleFitScore(player, role) {
-const roleKey = normalizePlayerProfileRole(role, "");
-if (!player || !roleKey) {
-return 0;
-}
-return getPlayerRoleDnaScore(player, roleKey);
-}
-function getSquadStatusRank(statusKey) {
-const ranks = {
-important: 1,
-rotation: 2,
-depth: 3,
-development: 4,
-loan: 5,
-};
-return ranks[statusKey] ?? 9;
-}
-function getPlayerProfileDateDiffDays(fromDateValue, toDateValue) {
-if (!isMedicalDateValue(fromDateValue) || !isMedicalDateValue(toDateValue)) {
-return 0;
-}
-const fromDate = parseScheduleDateValue(fromDateValue);
-const toDate = parseScheduleDateValue(toDateValue);
-fromDate.setHours(0, 0, 0, 0);
-toDate.setHours(0, 0, 0, 0);
-return Math.round((toDate.getTime() - fromDate.getTime()) / 86400000);
-}
-function getPlayerProfileDateValueFromTimestamp(value = "") {
-const parsedTime = Date.parse(value);
-if (!Number.isFinite(parsedTime)) {
-return "";
-}
-return formatScheduleDateValue(new Date(parsedTime));
-}
-function getPlayerProfileIdpReviewLabel(reviewDate = "", todayValue = formatScheduleDateValue(new Date())) {
-if (!isMedicalDateValue(reviewDate)) {
-return "";
-}
-const daysUntilReview = getPlayerProfileDateDiffDays(todayValue, reviewDate);
-if (daysUntilReview < 0) {
-return `Review overdue ${Math.abs(daysUntilReview)}d`;
-}
-if (daysUntilReview === 0) {
-return "Review today";
-}
-if (daysUntilReview === 1) {
-return "Review tomorrow";
-}
-if (daysUntilReview <= 14) {
-return `Review in ${daysUntilReview}d`;
-}
-return `Review ${formatMedicalDateLabel(reviewDate)}`;
-}
-function getPlayerProfileIdpMissingFocusLabel(player, todayValue = formatScheduleDateValue(new Date())) {
-const anchorDate =
-getPlayerProfileDateValueFromTimestamp(player.updatedAt) ||
-getPlayerProfileDateValueFromTimestamp(player.createdAt) ||
-todayValue;
-const daysWithoutFocus = Math.max(0, getPlayerProfileDateDiffDays(anchorDate, todayValue));
-return `No IDP focus · ${daysWithoutFocus}d`;
-}
-function getPlayerProfileIdpFollowUpLabel(player, statusOption) {
-const idp = player.idp || {};
-const todayValue = formatScheduleDateValue(new Date());
-const nextAction = String(idp.nextAction || "").trim();
-const reviewLabel = getPlayerProfileIdpReviewLabel(idp.reviewDate, todayValue);
-if (statusOption.key === "none") {
-return "No active IDP";
-}
-if (!String(idp.primaryFocus || "").trim()) {
-return getPlayerProfileIdpMissingFocusLabel(player, todayValue);
-}
-if (nextAction && reviewLabel) {
-return `${nextAction} · ${reviewLabel}`;
-}
-if (reviewLabel) {
-return reviewLabel;
-}
-if (nextAction) {
-return `Next: ${nextAction}`;
-}
-if (statusOption.key === "review") {
-return "Review needed";
-}
-return "Set follow-up date";
-}
 function renderSquadRosterSections(visiblePlayers = [], summaries = {}) {
 return squadRosterRenderer.renderRosterSections(visiblePlayers, summaries);
 }
@@ -10577,108 +10408,6 @@ rosterSummary: getPlayerProfilesRosterSummary(playerProfilesState.players),
 visibleSummary: getPlayerProfilesRosterSummary(visiblePlayers),
 });
 queuePlayerProfileAgeHydration();
-}
-function getSquadMatrixRoleGroup(role) {
-if (role === "GK") {
-return "goalkeeper";
-}
-if (["LB", "CB", "RB", "LWB", "RWB"].includes(role)) {
-return "defender";
-}
-if (["6", "8", "10"].includes(role)) {
-return "midfielder";
-}
-return "forward";
-}
-function getSquadMatrixCompatibleRoles(role) {
-const compatibleRoles = {
-GK: ["GK"],
-LB: ["LWB", "CB", "RB"],
-CB: ["LB", "RB", "6"],
-RB: ["RWB", "CB", "LB"],
-LWB: ["LB", "LW", "RWB"],
-RWB: ["RB", "RW", "LWB"],
-6: ["8", "CB", "10"],
-8: ["6", "10", "LW", "RW"],
-10: ["8", "ST", "LW", "RW"],
-LW: ["LWB", "RW", "10", "ST"],
-RW: ["RWB", "LW", "10", "ST"],
-ST: ["10", "LW", "RW"],
-};
-return compatibleRoles[role] ?? [];
-}
-function getSquadMatrixSideAdjustment(player, role) {
-const preferredSide = String(player?.preferredSide ?? "").toLowerCase();
-if (!preferredSide || preferredSide === "any") {
-return 0;
-}
-if (["LB", "LWB", "LW"].includes(role)) {
-return preferredSide === "left" ? 4 : preferredSide === "right" ? -3 : 0;
-}
-if (["RB", "RWB", "RW"].includes(role)) {
-return preferredSide === "right" ? 4 : preferredSide === "left" ? -3 : 0;
-}
-if (["CB", "6", "8", "10", "ST", "GK"].includes(role)) {
-return preferredSide === "center" ? 3 : 0;
-}
-return 0;
-}
-function getSquadMatrixAvailabilityAdjustment(player) {
-const summary = player?.medicalSummary ?? {};
-const availabilityText = [
-player?.status,
-summary.currentAvailability,
-summary.availability,
-summary.rtpStatus,
-summary.status,
-]
-.filter(Boolean)
-.join(" ")
-.toLowerCase();
-if (/injur|unavailable|out|not available/.test(availabilityText)) {
-return -24;
-}
-if (/rehab|restricted|rtp|return/.test(availabilityText)) {
-return -12;
-}
-if (/limited|modified|partial|monitor/.test(availabilityText)) {
-return -7;
-}
-if (/available|fit|full|ready/.test(availabilityText)) {
-return 4;
-}
-return 0;
-}
-function getSquadPlayerDataQualityFlags(player = {}) {
-const flags = [];
-const completeness = getPlayerProfileCompleteness(player);
-const attributeValues = playerProfileAttributeGroups.map((group) =>
-normalizePlayerProfileNumber(player.attributeRatings?.[group.key], 3)
-);
-const baselineAttributes = attributeValues.every((value) => value === 3);
-const medicalSnapshot = player.id ? getPlayerProfileMedicalSnapshot(player.id) : null;
-if (!player.primaryRole) {
-flags.push({ key: "missing-role", label: "Missing primary role", severity: "critical" });
-}
-if (!Array.isArray(player.secondaryRoles) || player.secondaryRoles.length === 0) {
-flags.push({ key: "secondary-roles", label: "Add secondary roles", severity: "watch" });
-}
-if (!player.preferredSide) {
-flags.push({ key: "preferred-side", label: "Missing preferred side", severity: "watch" });
-}
-if (baselineAttributes) {
-flags.push({ key: "attributes", label: "Attribute ratings need review", severity: "watch" });
-}
-if (!player.idp?.primaryFocus && player.idp?.status !== "none") {
-flags.push({ key: "idp", label: "IDP focus missing", severity: "watch" });
-}
-if (!medicalSnapshot || medicalSnapshot.latestLogSummary === "No medical log yet") {
-flags.push({ key: "medical-link", label: "No medical log linked", severity: "watch" });
-}
-if (completeness < 70) {
-flags.push({ key: "profile-complete", label: `Profile ${completeness}% complete`, severity: "critical" });
-}
-return flags;
 }
 function buildSquadDataQualityReport() {
 ensurePlayerProfilesState();

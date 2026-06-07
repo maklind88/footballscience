@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import {
+  createPlayerProfileIntelligenceHelpers,
   createPlayerProfileHelpers,
   playerProfileAttributeGroups,
   playerProfileChangeFieldDefinitions,
@@ -97,6 +98,7 @@ test("Squad player profile helpers are extracted from app.js and tracked by modu
   [
     "src/modules/squad/player-profile-age-helpers.mjs",
     "src/modules/squad/player-profile-helpers.mjs",
+    "src/modules/squad/player-profile-intelligence-helpers.mjs",
   ].forEach((path) => {
     expect(existsSync(resolve(root, path)), `${path} should exist`).toBe(true);
   });
@@ -107,8 +109,48 @@ test("Squad player profile helpers are extracted from app.js and tracked by modu
   expect(appSource).toContain("createPlayerProfileHelpers");
   expect(appSource).not.toContain("function normalizePlayerProfile(");
   expect(appSource).not.toContain("function validatePlayerProfileFormValues(");
+  expect(appSource).not.toContain("function getPlayerRoleDnaScore(");
+  expect(appSource).not.toContain("function getSquadPlayerDataQualityFlags(");
   expect(packageJson).toContain("src/modules/squad/player-profile-age-helpers.mjs");
   expect(packageJson).toContain("src/modules/squad/player-profile-helpers.mjs");
+  expect(packageJson).toContain("src/modules/squad/player-profile-intelligence-helpers.mjs");
   expect(squadContract.currentFiles).toContain("src/modules/squad/player-profile-age-helpers.mjs");
   expect(squadContract.currentFiles).toContain("src/modules/squad/player-profile-helpers.mjs");
+  expect(squadContract.currentFiles).toContain("src/modules/squad/player-profile-intelligence-helpers.mjs");
+});
+
+test("Squad player profile intelligence helpers own role DNA and data quality scoring", () => {
+  const helpers = createPlayerProfileIntelligenceHelpers({
+    formatDateValue: (date) => new Date(date).toISOString().slice(0, 10),
+    formatMedicalDateLabel: (value) => `date:${value}`,
+    getCompleteness: (player) => player.completeness ?? 50,
+    getMedicalSnapshot: (playerId) => (playerId === "p1" ? { latestLogSummary: "Managed load" } : null),
+    isDateValue: (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || "")),
+    normalizeNumber: (value, fallback = 3) => {
+      const number = Number(value);
+      return Number.isFinite(number) ? Math.max(1, Math.min(5, Math.round(number))) : fallback;
+    },
+    normalizeRole: (value, fallback = "8") => playerProfileRoleOptions.includes(String(value || "").toUpperCase()) ? String(value).toUpperCase() : fallback,
+    parseDateValue: (value) => new Date(`${value}T00:00:00`),
+  });
+
+  const player = {
+    id: "p1",
+    primaryRole: "8",
+    secondaryRoles: ["10"],
+    preferredSide: "center",
+    status: "available",
+    completeness: 82,
+    attributeRatings: { technical: 5, tactical: 4, physical: 3, mental: 4 },
+    idp: { status: "active", primaryFocus: "Counter press", nextAction: "Review clips", reviewDate: "2026-06-10" },
+  };
+
+  expect(helpers.getSquadMatrixCompatibleRoles("8")).toContain("10");
+  expect(helpers.getPlayerRoleDnaDefinition("8").label).toContain("8");
+  expect(helpers.getPlayerRoleDnaScore(player, "8")).toBeGreaterThan(80);
+  expect(helpers.getPlayerRoleDnaBestMatches(player, 2).map((match) => match.role)).toContain("8");
+  expect(helpers.getPlayerRoleDnaReasons(player, "8").strengths.length).toBeGreaterThan(0);
+  expect(helpers.getPlayerProfileIdpFollowUpLabel(player, { key: "active" })).toContain("Review clips");
+  expect(helpers.getSquadPlayerDataQualityFlags(player).map((flag) => flag.key)).not.toContain("profile-complete");
+  expect(helpers.getSquadPlayerDataQualityFlags({ id: "p2", attributeRatings: {}, idp: { status: "active" }, completeness: 45 }).map((flag) => flag.key)).toContain("profile-complete");
 });

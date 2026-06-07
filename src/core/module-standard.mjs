@@ -222,6 +222,7 @@ export const moduleStandardContracts = Object.freeze([
       "src/modules/squad/players.mjs",
       "src/modules/squad/player-profile-age-helpers.mjs",
       "src/modules/squad/player-profile-helpers.mjs",
+      "src/modules/squad/player-profile-intelligence-helpers.mjs",
       "src/modules/squad/squad-adapter.mjs",
       "api/squad-ages.js",
     ],

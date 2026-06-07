@@ -12,16 +12,19 @@ function readProjectFile(relativePath) {
 
 test("Session Planner Player Board includes active temporary Squad profiles", () => {
   const appSource = readProjectFile("app.js");
+  const availabilitySource = readProjectFile("src/modules/session-planner/session-planner-medical-availability-selectors.mjs");
 
   expect(appSource).toContain("function getSessionPlannerTemporaryProfileAvailabilityItems");
-  expect(appSource).toContain(".filter((profile) => isTemporaryPlayerProfile(profile))");
-  expect(appSource).toContain(".filter((profile) => isPlayerProfileTemporaryActiveOnDate(profile, dateValue))");
-  expect(appSource).toContain(".map((profile) => buildMedicalPlayerFromPlayerProfile(profile))");
-  expect(appSource).toContain("planningOnly: true");
+  expect(appSource).toContain("sessionPlannerMedicalAvailabilitySelectors.getTemporaryProfileAvailabilityItems");
+  expect(availabilitySource).toContain(".filter((profile) => isTemporaryPlayerProfile(profile))");
+  expect(availabilitySource).toContain(".filter((profile) => isPlayerProfileTemporaryActiveOnDate(profile, dateValue))");
+  expect(availabilitySource).toContain(".map((profile) => buildMedicalPlayerFromPlayerProfile(profile))");
+  expect(availabilitySource).toContain("planningOnly: true");
 });
 
 test("Session Planner Player Board hides Squad-unavailable roster players", () => {
   const appSource = readProjectFile("app.js");
+  const availabilitySource = readProjectFile("src/modules/session-planner/session-planner-medical-availability-selectors.mjs");
 
   expect(appSource).toContain("const medicalSquadAvailabilityBlockStatusKeys = new Set");
   expect(appSource).toContain("...playerProfileStatusOptions.map((option) => option.key)");
@@ -29,9 +32,10 @@ test("Session Planner Player Board hides Squad-unavailable roster players", () =
   expect(appSource).toContain("function isMedicalPlayerBlockedBySquadAvailability");
   expect(appSource).toContain("status: profile.status || player.status");
   expect(appSource).toContain("availabilityStatus: profile.status || player.availabilityStatus");
-  expect(appSource).toContain("record: createMedicalRecordFromSquadAvailabilityBlock(player, dateValue)");
-  expect(appSource).toContain("participation: record ? record.participation : 100");
-  expect(appSource).toContain(".filter((item) => !isMedicalPlayerBlockedBySquadAvailability(item.player))");
+  expect(appSource).toContain("sessionPlannerMedicalAvailabilitySelectors.getAvailabilityItems");
+  expect(availabilitySource).toContain("record: createMedicalRecordFromSquadAvailabilityBlock(player, dateValue)");
+  expect(availabilitySource).toContain("participation: record ? record.participation : 100");
+  expect(availabilitySource).toContain(".filter((item) => !isMedicalPlayerBlockedBySquadAvailability(item.player))");
 });
 
 test("Session Planner Player Board ranks by role, squad status, and career phase", () => {

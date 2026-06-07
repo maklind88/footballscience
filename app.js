@@ -49,7 +49,7 @@ import {
   sessionPlannerExerciseLibraryVersionLimit,
   sessionPlannerLibrarySortOptions,
 } from "./src/modules/exercise-library/index.mjs";
-import { createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerPlayerBoardFormationHelpers, createSessionPlannerPlayerBoardHelpers, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerSelectionAssistant, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualRenderer, createSessionPlannerVisualUploadHelpers, createSessionPlannerWorkspaceRenderer, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
+import { createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerMedicalAvailabilitySelectors, createSessionPlannerPlayerBoardFormationHelpers, createSessionPlannerPlayerBoardHelpers, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerSelectionAssistant, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualRenderer, createSessionPlannerVisualUploadHelpers, createSessionPlannerWorkspaceRenderer, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createPasswordRevealInputRenderer } from "./src/core/form-renderers.mjs";
@@ -3780,6 +3780,18 @@ renderSessionPlannerPostSessionNotesCard,
 renderSessionPlannerPrintOverlay,
 renderSessionPlannerTacticalboardOverlay,
 renderSessionPlannerVisualPreviewOverlay,
+});
+const sessionPlannerMedicalAvailabilitySelectors = createSessionPlannerMedicalAvailabilitySelectors({
+buildMedicalPlayerFromPlayerProfile,
+createMedicalRecordFromSquadAvailabilityBlock,
+getMedicalAvailabilityItems,
+getMedicalRecordStatus,
+getSelectedDate: () => medicalState?.selectedDate,
+getSessionPlannerPlayerBoardProfileState,
+getSessionPlannerPlayerBoardSyncedPlayer,
+isMedicalPlayerBlockedBySquadAvailability,
+isPlayerProfileTemporaryActiveOnDate,
+isTemporaryPlayerProfile,
 });
 let sessionPlannerVisualPreviewOpen = false;
 let sessionPlannerTacticalboardOpen = false;
@@ -14564,68 +14576,13 @@ function getMedicalAvailabilityItems(dateValue = medicalState?.selectedDate) {
 return medicalAvailabilitySelectors.getMedicalAvailabilityItems(dateValue);
 }
 function getSessionPlannerTemporaryProfileAvailabilityItems(dateValue = medicalState?.selectedDate, existingItems = []) {
-  const profileState = getSessionPlannerPlayerBoardProfileState();
-  const profiles = Array.isArray(profileState?.players) ? profileState.players : [];
-  if (!profiles.length) {
-    return [];
-  }
-  const existingIds = new Set(
-    existingItems
-      .map((item) => item?.player)
-      .flatMap((player) => [player?.id, player?.playerId, player?.profileId, player?.medicalPlayerId])
-      .map((value) => String(value ?? "").trim())
-      .filter(Boolean)
-  );
-  return profiles
-    .filter((profile) => isTemporaryPlayerProfile(profile))
-    .filter((profile) => isPlayerProfileTemporaryActiveOnDate(profile, dateValue))
-    .filter((profile) => !existingIds.has(String(profile.id ?? "").trim()))
-    .map((profile) => buildMedicalPlayerFromPlayerProfile(profile))
-    .filter((player) => player && player.id && player.name)
-    .filter((player) => !isMedicalPlayerBlockedBySquadAvailability(player))
-    .map((player) => ({
-      player,
-      record: createMedicalRecordFromSquadAvailabilityBlock(player, dateValue),
-    }))
-    .map(({ player, record }) => ({
-      player,
-      record,
-      status: record
-        ? getMedicalRecordStatus(record)
-        : { key: "planning-guest", label: "Planning guest", tone: "full", defaultParticipation: 100 },
-      participation: record ? record.participation : 100,
-      planningOnly: !record,
-    }));
+  return sessionPlannerMedicalAvailabilitySelectors.getTemporaryProfileAvailabilityItems(dateValue, existingItems);
 }
 function getSessionPlannerAvailabilityItems(dateValue = medicalState?.selectedDate) {
-  const medicalItems = getMedicalAvailabilityItems(dateValue)
-    .map((item) => ({
-      ...item,
-      player: getSessionPlannerPlayerBoardSyncedPlayer(item.player),
-    }))
-    .filter((item) => !isMedicalPlayerBlockedBySquadAvailability(item.player))
-    .filter((item) => !isTemporaryPlayerProfile(item.player) || isPlayerProfileTemporaryActiveOnDate(item.player, dateValue))
-    .map((item) =>
-      !isTemporaryPlayerProfile(item.player) || item.record
-        ? item
-        : {
-            ...item,
-            status: { key: "planning-guest", label: "Planning guest", tone: "full", defaultParticipation: 100 },
-            participation: 100,
-            planningOnly: true,
-          }
-    );
-  const temporaryProfileItems = getSessionPlannerTemporaryProfileAvailabilityItems(dateValue, medicalItems);
-  return [...medicalItems, ...temporaryProfileItems];
+  return sessionPlannerMedicalAvailabilitySelectors.getAvailabilityItems(dateValue);
 }
 function getSessionPlannerMedicalAvailability(dateValue) {
-const items = getSessionPlannerAvailabilityItems(dateValue);
-return {
-all: items,
-limited: items.filter((item) => item.record && item.participation < 100),
-available: items.filter((item) => item.participation === 100),
-unconfirmed: items.filter((item) => !item.record && !item.planningOnly),
-};
+return sessionPlannerMedicalAvailabilitySelectors.getMedicalAvailability(dateValue);
 }
 function renderSessionPlannerMedicalAvailability(dateValue) {
 return sessionPlannerWorkspaceRenderer.renderMedicalAvailability(getSessionPlannerMedicalAvailability(dateValue));

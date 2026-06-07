@@ -44,7 +44,8 @@ For every request, Codex should:
 - Use feature flags, additive migrations, dual-read / dual-write, or shadow mode when changing data foundations.
 - Validate with focused tests plus the required release checks.
 - Commit and push intended files only.
-- Deploy only when the user explicitly asks for `Deploy`, `Deploy fast`, `Deploy safe`, or the standalone codeword `Live`.
+- Deploy when the product intent calls for a live result, the current chat owns the release, and all safety conditions pass. The user should not need to use a special deploy phrase for Codex to recognize this.
+- Codex should infer release ownership for Live/production bugs, marked Live UI changes, and concrete visible product outcomes that should be in front of users. Explicit phrases such as "Ta detta hela vägen", "Gör klart till live", "Du äger release för detta", or "Fixa och publicera när det är säkert" still clarify ownership but are not required.
 - `Live` is the short sync-to-production codeword: commit/push intended work, align branch/main/GitHub when safe, deploy with the correct fast/safe path, and run postdeploy verification.
 - Treat `Live` as this codeword only when it is a standalone command, not when the word appears inside normal product discussion.
 - Use the current fast/safe deploy split and never include unrelated parallel work.
@@ -59,6 +60,7 @@ Codex should stop and explain the blocker when:
 - Required QA or release gates fail.
 - Live credentials or environment separation are missing for a high-risk release.
 - The user asks for something that conflicts with privacy, security, or existing protected data rules.
+- The user asked only for analysis, planning, review, diagnosis, local prototype work, or explicitly said not to deploy.
 
 When stopping, Codex should explain the risk in plain Swedish and give the safest next action.
 
@@ -88,6 +90,7 @@ If multiple chats are active, each chat should say which module it owns and avoi
 - `Deploy` and `Deploy fast` mean the everyday fast path: `npm run deploy`, unless the change is risky.
 - `Deploy safe` means the full safe path: `npm run deploy:safe`.
 - `Live` means run the full sync-to-production flow and then verify production.
+- Clear product intent that requires a live result also authorizes the appropriate deploy path, but only when the chat is the active release-owner, the worktree contains only intended changes, required checks pass, and production verification can be completed.
 - Staging should prove the same tree before production when the release includes risky or data-related work.
 - Do not deploy from a dirty working tree.
 - Do not bypass the selected deploy path's checks to make a deploy easier.

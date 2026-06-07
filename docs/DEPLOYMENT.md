@@ -8,13 +8,15 @@ From `/Users/maklind/Documents/New project`:
 
 ### Current Rule
 
-Deploy only when the user explicitly says `Deploy`, `Deploy fast`, `Deploy safe`, or the standalone codeword `Live`.
+Deploy when the user's product intent calls for a live result, the current chat owns the release, and all safety conditions pass. The user should not need to use a special deploy phrase for Codex to recognize this.
 
 - `Deploy` and `Deploy fast` use the everyday fast path unless the change is risky.
 - `Deploy safe` uses the full safe path for auth/login, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, or broad multi-module changes.
 - `Live` is the short sync-to-production codeword. It means commit/push intended work, align the release branch with `main` when safe, deploy with the correct fast/safe path for the risk level, run postdeploy verification, and report branch/GitHub/production status.
 - Treat `Live` as the codeword only when it is a standalone command, not when the word appears inside normal discussion.
+- Codex should infer release ownership for Live/production bugs, marked Live UI changes, and concrete visible product outcomes that should be in front of users. Phrases like "Ta detta hela vägen", "Gör klart till live", "Du äger release för detta", and "Fixa och publicera när det är säkert" still clarify ownership but are not required.
 - Never deploy a bundle that includes unrelated or unfinished work from another parallel chat.
+- Stop before deployment if the user asked only for analysis/planning/review/diagnosis/local prototype work, the worktree has unrelated changes, another chat owns the module/release, required validation fails, Safe Lane requirements are not met, or production verification cannot be completed.
 
 ### Everyday Fast Deploy
 

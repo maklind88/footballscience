@@ -18,6 +18,7 @@ Design should feel clean, Apple/Mac-like, calm, professional, and modular. Avoid
 - Ask fewer technical questions. Decide implementation details yourself unless there is a real product, data-loss, security, or release-risk ambiguity.
 - Use the Fast UI Lane for narrow visible changes while the platform is under heavy development: make small text/layout/CSS/ordering/visibility fixes quickly with `npm run quick:ui` instead of the full safety gate. For clean committed UI-only work, `npm run deploy:ui` can push/deploy through Vercel CLI and then run production postdeploy verification while GitHub QA continues in the background. Keep the Safe Lane for auth, permissions, app-state/data, Supabase/API, backup/restore, migrations, security, secrets, or anything that can lose/leak data or take Live down.
 - Keep Live/deploy ownership in the user's designated release-owner chat. Other chats may build modules, but should not sync, merge, or deploy Live unless the user explicitly transfers release ownership.
+- When the product intent clearly means "make the live product correct", Codex should infer release ownership and may implement, validate, commit, push, deploy, and verify production without requiring a separate `Deploy`/`Live` message, as long as the chat is the active release-owner, the worktree contains only intended changes, checks pass, and production verification can be completed. Examples include Live/production bugs, marked Live UI changes, and concrete visible product outcomes that should be in front of users.
 - When the user marks an element on Live, go directly to the relevant selector/component/module and make same-type changes centrally rather than re-analyzing the whole platform.
 - Prefer extracting repeated UI into small module files over growing `app.js` and `styles.css`, but keep tiny legacy fixes narrow.
 - Do not prefix replies with release-status labels. When work/release state matters, explain it briefly in plain Swedish instead.
@@ -135,7 +136,7 @@ Before final response after code changes:
 - Localhost/127.0.0.1 has a dev-auth fallback in `index.html` that auto-authenticates a local admin user (`mak`) without Supabase so browser testing can run against isolated localhost localStorage. This must stay local-only and never replace production Supabase auth.
 - Check relevant UI flows in browser when possible.
 - Do not deploy automatically just because code/design work is finished.
-- Deploy only when the user explicitly says `Deploy`, `Deploy fast`, `Deploy safe`, or the standalone codeword `Live`.
+- Deploy only when the user's product intent calls for a live result, the current chat owns the release, and all safety conditions pass. The codewords `Deploy`, `Deploy fast`, `Deploy safe`, and standalone `Live` still work as convenience commands.
 - `Live` means the full sync-to-production flow: commit/push intended work, align branch/main/GitHub when safe, deploy with the correct fast/safe path, and run postdeploy verification.
 - Treat `Live` as a release codeword only when it is a standalone command, not when the word appears inside ordinary product discussion.
 - Use `npm run deploy` for routine fast releases unless the change is risky.

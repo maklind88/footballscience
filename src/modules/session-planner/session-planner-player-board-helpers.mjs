@@ -24,8 +24,18 @@ function defaultGetPlayerInitials(player = {}) {
 
 export function createSessionPlannerPlayerBoardHelpers(options = {}) {
   const clamp = typeof options.clamp === "function" ? options.clamp : defaultClamp;
+  const createStableId = typeof options.createStableId === "function"
+    ? options.createStableId
+    : (prefix = "item") => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const getPlayerInitials =
     typeof options.getPlayerInitials === "function" ? options.getPlayerInitials : defaultGetPlayerInitials;
+  const normalizeColor = typeof options.normalizeColor === "function" ? options.normalizeColor : (value = "", fallback = "") => fallback || String(value || "");
+  const normalizeTimestamp = typeof options.normalizeTimestamp === "function"
+    ? options.normalizeTimestamp
+    : (value = "") => {
+        const timestamp = typeof value === "number" ? value : new Date(value || 0).getTime();
+        return Number.isFinite(timestamp) && timestamp ? new Date(timestamp).toISOString() : "";
+      };
   const profileHelpers = createSessionPlannerPlayerBoardProfileHelpers({
     normalizePlayerProfileRole: options.normalizePlayerProfileRole,
   });
@@ -41,7 +51,7 @@ export function createSessionPlannerPlayerBoardHelpers(options = {}) {
   } = profileHelpers;
   const displayHelpers = createSessionPlannerPlayerBoardDisplayHelpers({
     getSelectedSession: options.getSelectedSession,
-    normalizeColor: options.normalizeColor,
+    normalizeColor,
   });
   function normalizeSquadStatusKey(value) {
     const key = normalizeSessionPlannerPlayerBoardProfileKey(value);
@@ -244,6 +254,74 @@ export function createSessionPlannerPlayerBoardHelpers(options = {}) {
     return `${names.join(", ")}${extraCount ? ` +${extraCount}` : ""}`;
   }
 
+  function normalizePlayerBoardPositions(source = {}) {
+    if (!source || typeof source !== "object" || Array.isArray(source)) {
+      return {};
+    }
+    return Object.entries(source).reduce((positions, [playerId, value]) => {
+      const x = Number(value?.x);
+      const y = Number(value?.y);
+      if (!playerId || !Number.isFinite(x) || !Number.isFinite(y)) {
+        return positions;
+      }
+      positions[playerId] = {
+        x: clamp(x, 0, 100),
+        y: clamp(y, 0, 100),
+      };
+      return positions;
+    }, {});
+  }
+
+  function normalizePlayerBoardColors(source = {}) {
+    if (!source || typeof source !== "object" || Array.isArray(source)) {
+      return {};
+    }
+    return Object.entries(source).reduce((colors, [playerId, value]) => {
+      const color = normalizeColor(value, "");
+      if (playerId && color) {
+        colors[playerId] = color;
+      }
+      return colors;
+    }, {});
+  }
+
+  function normalizePlayerBoardCustomPeople(source = []) {
+    if (!Array.isArray(source)) {
+      return [];
+    }
+    const usedIds = new Set();
+    return source
+      .filter((person) => person && typeof person === "object" && !Array.isArray(person))
+      .reduce((people, person) => {
+        const name = String(person.name || "").trim().replace(/\s+/g, " ").slice(0, 72);
+        if (!name) {
+          return people;
+        }
+        let id = String(person.id || "").trim();
+        while (!id || usedIds.has(id)) {
+          id = createStableId("player-board-person");
+        }
+        usedIds.add(id);
+        const kindValue = String(person.kind || person.type || "").trim().toLowerCase();
+        const role = String(person.role || person.position || "").trim().replace(/\s+/g, " ").slice(0, 36);
+        const kind =
+          kindValue.includes("staff") ||
+          kindValue.includes("coach") ||
+          kindValue.includes("leader") ||
+          kindValue.includes("ledare")
+            ? "staff"
+            : "player";
+        people.push({
+          id,
+          name,
+          role,
+          kind,
+          createdAt: normalizeTimestamp(person.createdAt) || "",
+        });
+        return people;
+      }, []);
+  }
+
   function getLabelCandidates(player) {
     const words = String(player?.name ?? "").trim().split(/\s+/).filter(Boolean);
     const first = words[0] ?? "Player";
@@ -314,6 +392,9 @@ export function createSessionPlannerPlayerBoardHelpers(options = {}) {
     getTone: displayHelpers.getTone,
     hasTeamData: displayHelpers.hasTeamData,
     normalizeProfileKey: normalizeSessionPlannerPlayerBoardProfileKey,
+    normalizePlayerBoardColors,
+    normalizePlayerBoardCustomPeople,
+    normalizePlayerBoardPositions,
     normalizeRoleGroupKey,
     normalizeSquadStatusKey,
     positionGroups: sessionPlannerPlayerBoardPositionGroups,

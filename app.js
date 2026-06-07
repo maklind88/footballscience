@@ -3500,6 +3500,15 @@ tacticalMaxFrames: sessionPlannerTacticalMaxFrames,
 tacticalPitchModeKeys: sessionPlannerTacticalPitchModeKeys,
 tacticalPitchModeOptions: sessionPlannerTacticalPitchModeOptions,
 });
+function normalizeSessionPlannerPlayerBoardPositions(source = {}) {
+return normalizeSessionPlannerPlayerBoardPositionsFromModule(source);
+}
+function normalizeSessionPlannerPlayerBoardColors(source = {}) {
+return normalizeSessionPlannerPlayerBoardColorsFromModule(source);
+}
+function normalizeSessionPlannerPlayerBoardCustomPeople(source = []) {
+return normalizeSessionPlannerPlayerBoardCustomPeopleFromModule(source);
+}
 const {
 createBlock: createSessionPlannerBlock,
 createInitialBlockFieldMeta: createSessionPlannerInitialBlockFieldMeta,
@@ -3790,15 +3799,20 @@ getSquadStatusPriority: getSessionPlannerPlayerBoardSquadStatusPriority,
 getTextColor: getSessionPlannerPlayerBoardTextColor,
 getTone: getSessionPlannerPlayerBoardTone,
 hasTeamData: hasSessionPlannerPlayerBoardTeamData,
+normalizePlayerBoardColors: normalizeSessionPlannerPlayerBoardColorsFromModule,
+normalizePlayerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeopleFromModule,
+normalizePlayerBoardPositions: normalizeSessionPlannerPlayerBoardPositionsFromModule,
 normalizeProfileKey: normalizeSessionPlannerPlayerBoardProfileKey,
 normalizeRoleGroupKey: normalizeSessionPlannerPlayerBoardRoleGroupKey,
 normalizeSquadStatusKey: normalizeSessionPlannerPlayerBoardSquadStatusKey,
 positionGroups: sessionPlannerPlayerBoardPositionGroups,
 } = createSessionPlannerPlayerBoardHelpers({
 clamp,
+createStableId: createSessionPlannerStableId,
 getPlayerInitials: getMedicalPlayerInitials,
 getSelectedSession: getSessionPlannerSelectedSession,
 normalizeColor: normalizeTacticalColor,
+normalizeTimestamp: normalizeSessionPlannerTimestamp,
 normalizePlayerProfileRole,
 });
 const {
@@ -10073,71 +10087,6 @@ return normalizeSessionPlannerLibraryTags(value).join(", ");
 function getSessionPlannerMultiValueSummary(value, fallback) {
 const values = normalizeSessionPlannerMultiValue(value);
 return values.length ? values.join(", ") : fallback;
-}
-function normalizeSessionPlannerPlayerBoardPositions(source = {}) {
-if (!source || typeof source !== "object" || Array.isArray(source)) {
-return {};
-}
-return Object.entries(source).reduce((positions, [playerId, value]) => {
-const x = Number(value?.x);
-const y = Number(value?.y);
-if (!playerId || !Number.isFinite(x) || !Number.isFinite(y)) {
-return positions;
-}
-positions[playerId] = {
-x: clamp(x, 0, 100),
-y: clamp(y, 0, 100),
-};
-return positions;
-}, {});
-}
-function normalizeSessionPlannerPlayerBoardColors(source = {}) {
-if (!source || typeof source !== "object" || Array.isArray(source)) {
-return {};
-}
-return Object.entries(source).reduce((colors, [playerId, value]) => {
-const color = normalizeTacticalColor(value, "");
-if (playerId && color) {
-colors[playerId] = color;
-}
-return colors;
-}, {});
-}
-function normalizeSessionPlannerPlayerBoardCustomPeople(source = []) {
-if (!Array.isArray(source)) {
-return [];
-}
-const usedIds = new Set();
-return source
-.filter((person) => person && typeof person === "object" && !Array.isArray(person))
-.reduce((people, person) => {
-const name = String(person.name || "").trim().replace(/\s+/g, " ").slice(0, 72);
-if (!name) {
-return people;
-}
-let id = String(person.id || "").trim();
-while (!id || usedIds.has(id)) {
-id = createSessionPlannerStableId("player-board-person");
-}
-usedIds.add(id);
-const kindValue = String(person.kind || person.type || "").trim().toLowerCase();
-const role = String(person.role || person.position || "").trim().replace(/\s+/g, " ").slice(0, 36);
-const kind =
-kindValue.includes("staff") ||
-kindValue.includes("coach") ||
-kindValue.includes("leader") ||
-kindValue.includes("ledare")
-? "staff"
-: "player";
-people.push({
-id,
-name,
-role,
-kind,
-createdAt: normalizeSessionPlannerTimestamp(person.createdAt) || "",
-});
-return people;
-}, []);
 }
 function getSessionPlannerMultiSelectFieldConfig(field) {
 const configs = {

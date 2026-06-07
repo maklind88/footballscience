@@ -67,10 +67,11 @@ test("Session Planner Player Board can copy team setup from another block", () =
 
 test("Session Planner Player Board can add manual people directly on a block", () => {
   const appSource = readProjectFile("app.js");
+  const playerBoardHelperSource = readProjectFile("src/modules/session-planner/session-planner-player-board-helpers.mjs");
   const playerBoardRendererSource = readProjectFile("src/modules/session-planner/session-planner-player-board-renderer.mjs");
 
   expect(appSource).toContain("\"playerBoardCustomPeople\"");
-  expect(appSource).toContain("function normalizeSessionPlannerPlayerBoardCustomPeople");
+  expect(playerBoardHelperSource).toContain("function normalizePlayerBoardCustomPeople");
   expect(appSource).toContain("function openSessionPlannerPlayerBoardCustomPersonEditor");
   expect(appSource).toContain("function removeSessionPlannerPlayerBoardCustomPerson");
   expect(playerBoardRendererSource).toContain("function renderSessionPlannerPlayerBoardCustomPersonEditor");

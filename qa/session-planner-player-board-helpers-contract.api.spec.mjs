@@ -5,6 +5,7 @@ import {
 } from "../src/modules/session-planner/index.mjs";
 
 function createHelpers(overrides = {}) {
+  let stableIdCounter = 0;
   const session = {
     blocks: [
       { id: "target", title: "Target", playerBoardColors: { p1: "#0055cc" } },
@@ -14,8 +15,10 @@ function createHelpers(overrides = {}) {
   };
   return createSessionPlannerPlayerBoardHelpers({
     clamp: (value, min, max) => Math.min(max, Math.max(min, Number(value))),
+    createStableId: (prefix) => `${prefix}-stable-${(stableIdCounter += 1)}`,
     getSelectedSession: () => session,
     normalizeColor: (value = "", fallback = "") => (/^#[0-9a-f]{6}$/i.test(String(value)) ? value : fallback),
+    normalizeTimestamp: (value = "") => (value === "valid" ? "2026-05-31T10:00:00.000Z" : ""),
     normalizePlayerProfileRole: (value = "") => String(value || "").trim().toUpperCase(),
     ...overrides,
   });
@@ -79,4 +82,42 @@ test("Session Planner Player Board helpers keep labels, colors, and source block
   expect(helpers.getColorStyle("#123456")).toContain("--session-player-board-text: #ffffff");
   expect(helpers.getSourceBlocks({ id: "target" }).map(({ block }) => block.id)).toEqual(["copy"]);
   expect(helpers.getSourceLabel({ title: "Pressing Game" }, 1)).toBe("Block 2: Pressing Game");
+});
+
+test("Session Planner Player Board helpers normalize manual board data", () => {
+  const helpers = createHelpers();
+
+  expect(
+    helpers.normalizePlayerBoardPositions({
+      p1: { x: -5, y: 140 },
+      p2: { x: "44.5", y: "52" },
+      bad: { x: "nope", y: 12 },
+    })
+  ).toEqual({
+    p1: { x: 0, y: 100 },
+    p2: { x: 44.5, y: 52 },
+  });
+  expect(helpers.normalizePlayerBoardColors({ p1: "#123456", p2: "red" })).toEqual({ p1: "#123456" });
+  expect(
+    helpers.normalizePlayerBoardCustomPeople([
+      { name: "  Coach   Lead  ", role: " Assistant Coach ", type: "staff", createdAt: "valid" },
+      { name: "Coach Lead", role: "Duplicate", type: "player" },
+      { name: "" },
+    ])
+  ).toEqual([
+    {
+      id: "player-board-person-stable-1",
+      name: "Coach Lead",
+      role: "Assistant Coach",
+      kind: "staff",
+      createdAt: "2026-05-31T10:00:00.000Z",
+    },
+    {
+      id: "player-board-person-stable-2",
+      name: "Coach Lead",
+      role: "Duplicate",
+      kind: "player",
+      createdAt: "",
+    },
+  ]);
 });

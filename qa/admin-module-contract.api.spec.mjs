@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   adminDepartmentSuggestions,
   adminTitleSuggestions,
+  createAdminStructureRenderer,
   createAdminUserRenderer,
   formatAdminDateTime,
   formatAuditActionLabel,
@@ -84,4 +85,45 @@ test("Admin user renderer owns account, audit, mini stack, rows, and grouped use
   expect(groupedMarkup).toContain("Football Science Live");
   expect(groupedMarkup).toContain("First Team");
   expect(groupedMarkup).toContain("Unassigned users");
+});
+
+test("Admin structure renderer owns role options, team options, and club structure markup", () => {
+  const structure = {
+    clubs: [{ id: "club-1", name: "North Carolina Courage", shortName: "NCC", status: "active" }],
+    teams: [{ id: "team-1", clubId: "club-1", name: "First Team", level: "Senior", season: "2026", status: "active" }],
+  };
+  const users = [
+    { id: "admin-1", role: "admin", workspaceScope: "platform", status: "active" },
+    { id: "coach-1", role: "coach", teamId: "team-1", clubId: "club-1", status: "active" },
+    { id: "coach-2", role: "coach", teamId: "team-1", clubId: "club-1", status: "paused" },
+  ];
+  const renderer = createAdminStructureRenderer({
+    escapeHtml: (value) => String(value ?? "").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
+    getAssignableRolesForUser: () => ["coach", "scout"],
+    getRoleLabel: (role) => ({ admin: "Admin", coach: "Coach", scout: "Scout" })[role] || role,
+    getScopedClubs: () => structure.clubs,
+    getScopedTeams: () => structure.teams,
+    getClubById: (clubId) => structure.clubs.find((club) => club.id === clubId),
+    getUsersForTeam: (sourceUsers, teamId) => sourceUsers.filter((user) => user.teamId === teamId),
+    getUserClubId: (user) => user.clubId,
+    getUserScopeLabel: () => "Platform",
+    isPlatformAdminUser: (user) => user?.role === "admin",
+    normalizePlatformRole: (role) => role || "",
+    hasWorkspaceScope: (user) => user.workspaceScope === "platform",
+    isLegacyTeam: () => false,
+    isLegacyTeamPlaceholderName: () => false,
+    renderTeamLogoMark: () => '<span class="team-logo"></span>',
+    renderMiniUserStack: (sourceUsers) => `<span class="stack">${sourceUsers.length}</span>`,
+    defaultTeamId: "team-1",
+  });
+
+  expect(renderer.renderRoleOptions(users[0], "admin")).toContain('value="admin" selected');
+  expect(renderer.renderTeamOptions(users[0], structure, "team-1")).toContain("North Carolina Courage / First Team");
+  const markup = renderer.renderStructurePanel(users[0], structure, users);
+  expect(markup).toContain("Club & Team Structure");
+  expect(markup).toContain("Football Science Live");
+  expect(markup).toContain("North Carolina Courage");
+  expect(markup).toContain("First Team");
+  expect(markup).toContain("Create club");
+  expect(markup).toContain("Create team");
 });

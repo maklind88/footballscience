@@ -57,6 +57,7 @@ import {
 import { createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerTacticalController, createSessionPlannerWorkspaceController, createSessionPlannerMedicalAvailabilitySelectors, createSessionPlannerPlayerBoardFormationHelpers, createSessionPlannerPlayerBoardHelpers, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerSelectionAssistant, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualRenderer, createSessionPlannerVisualUploadHelpers, createSessionPlannerWorkspaceRenderer, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformShellRuntime } from "./src/core/platform-shell-runtime.mjs";
+import { createWorkspaceShellController } from "./src/core/workspace-shell-controller.mjs";
 import { createPlatformUiBindings } from "./src/core/platform-ui-bindings.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createPasswordRevealInputRenderer } from "./src/core/form-renderers.mjs";
@@ -3836,7 +3837,7 @@ getAssetVersion: () => platformAssetVersion,
 escapeHtml,
 suppressCentralWrites: (key) => centralStateWriteSuppressionKeys.add(key),
 unsuppressCentralWrites: (key) => centralStateWriteSuppressionKeys.delete(key),
-setActiveWorkspace,
+setActiveWorkspace: (...args) => setActiveWorkspace(...args),
 loadScoutingWorkspaceModule: () => loadScoutingWorkspaceModule(),
 getScoutingWorkspaceContext: () => getScoutingWorkspaceContext(),
 logEvent,
@@ -14823,180 +14824,74 @@ return;
 }
 queueWorkspaceModulePreload(workspaceId);
 }
-function renderWorkspaceChrome() {
-if (!hubState) {
-return;
-}
-const currentUser = syncPlatformUserFromAuth();
-hubState = repairWorkspaceState(hubState);
-const workspacePool =
-Array.isArray(hubState.workspaces) && hubState.workspaces.length
-? hubState.workspaces
-: defaultHubState.workspaces;
-const accessibleWorkspacePool = getAccessibleWorkspacePool();
-const activeWorkspace =
-getWorkspaceById(hubState.activeWorkspaceId) ??
-accessibleWorkspacePool[0] ??
-workspacePool[0];
-if (activeWorkspace && hubState.activeWorkspaceId !== activeWorkspace.id) {
-hubState.activeWorkspaceId = activeWorkspace.id;
-}
-const activeViewId = getWorkspaceViewId(activeWorkspace.id);
-hydrateWorkspaceModuleState(activeWorkspace.id);
-syncPlatformAutosaveStatusVisibility(activeWorkspace.id);
-document.body.dataset.appReady = "true";
-document.body.dataset.activeWorkspace = activeWorkspace.id;
-document.body.dataset.userRole = String(currentUser?.role || "guest").trim().toLowerCase() || "guest";
-ui.hubShell?.classList.toggle("is-sidebar-collapsed", hubState.sidebarCollapsed);
-if (ui.workspaceTitle) {
-ui.workspaceTitle.textContent = activeWorkspace.title || "Football Science";
-}
-if (ui.workspaceMeta) {
-ui.workspaceMeta.textContent = "";
-}
-if (ui.workspaceStatus) {
-ui.workspaceStatus.textContent = activeWorkspace.status;
-}
-if (ui.coachName) {
-ui.coachName.textContent = currentUser ? formatUserName(currentUser) : hubState.profile.name;
-}
-if (ui.coachRole) {
-ui.coachRole.textContent = currentUser?.title ?? hubState.profile.role;
-}
-applyUserAvatar(ui.coachAvatar, currentUser);
-ui.profileMenuButton?.classList.toggle("is-active", activeWorkspace.id === "my-profile");
-syncAccountMenu(currentUser);
-if (ui.dashboardDate) {
-ui.dashboardDate.textContent = getDashboardDateLabel();
-}
-if (ui.dashboardGreeting) {
-ui.dashboardGreeting.textContent = `Welcome back, ${currentUser?.firstName ?? hubState.profile.shortName}.`;
-}
-if (activeWorkspace.id === "home") {
-markDashboardHomeSeenForCurrentUser();
-} else {
-closeDashboardModal(false);
-}
-platformNavigationController.renderWorkspaceList();
-platformNavigationController.renderTopIconMenu();
-platformNavigationController.renderWorkspaceQuickSwitch(activeWorkspace.id);
-if (activeWorkspace.id === "home") {
-renderDashboardCards();
-}
-renderDashboardChatWidget();
-syncDashboardChatWidgetNotificationCursor();
-document
-.querySelectorAll(".workspace-view")
-.forEach((view) => view.classList.toggle("is-active", view.dataset.workspaceView === activeViewId));
-document
-.querySelectorAll("[data-open-workspace]")
-.forEach((trigger) => trigger.classList.toggle("is-active", trigger.dataset.openWorkspace === activeWorkspace.id));
-if (activeViewId === "placeholder") {
-platformNavigationController.renderPlaceholderWorkspace();
-}
-if (activeViewId === "profile") {
-renderProfileWorkspace();
-}
-if (activeViewId === "staff") {
-renderStaffWorkspace();
-}
-if (activeViewId === "admin") {
-renderAdminWorkspace();
-}
-if (activeViewId === "medical-team") {
-renderMedicalTeamWorkspace();
-}
-if (activeViewId === "player-profiles") {
-renderPlayerProfilesWorkspace();
-}
-if (activeViewId === "scouting") {
-renderScoutingWorkspace();
-}
-if (activeViewId === "gameplan") {
-renderGameplanWorkspace();
-}
-if (activeViewId === "transfer-room") {
-renderTransferRoomWorkspace();
-}
-if (activeViewId === "analysis-room") {
-renderAnalysisRoomWorkspace();
-}
-if (activeViewId === "schedule") {
-renderScheduleWorkspace();
-}
-if (activeViewId === "periodization") {
-renderPeriodizationWorkspace();
-}
-if (activeViewId === "session-planner") {
-renderSessionPlannerWorkspace();
-}
-if (activeViewId === "game-simulator") {
-syncGameSimulatorIntroState();
-if (ui.gameSimulatorWorkspace?.classList.contains("is-simulator-launched")) {
-render();
-}
-startSimulatorAnimationLoop();
-} else {
-stopSimulatorAnimationLoop();
-}
-}
-function setActiveWorkspace(workspaceId) {
-const resolvedWorkspaceId = getSafeWorkspaceId(workspaceId);
-const workspace = getWorkspaceById(resolvedWorkspaceId ?? "home");
-if (!workspace) {
-return;
-}
-const previousWorkspaceId = hubState?.activeWorkspaceId;
-const targetWorkspaceId = workspace.id;
-if (previousWorkspaceId === "game-simulator" && targetWorkspaceId !== "game-simulator") {
-pauseSimulatorForWorkspaceSwitch();
-stopSimulatorAnimationLoop();
-}
-if (previousWorkspaceId === "player-profiles" && targetWorkspaceId !== "player-profiles") {
+const workspaceShellController = createWorkspaceShellController({
+applyUserAvatar,
+closeDashboardModal,
+defaultHubState,
+documentRef: document,
+formatUserName,
+getAccessibleWorkspacePool,
+getDashboardDateLabel,
+getHubState: () => hubState,
+getSafeWorkspaceId,
+getUi: () => ui,
+getWorkspaceById,
+getWorkspaceIdFromUrl,
+getWorkspaceViewId,
+hydrateWorkspaceModuleState,
+markDashboardHomeSeenForCurrentUser,
+onLeavePlayerProfiles: () => {
 playerProfileModalOpen = false;
 playerProfileNewPlayerModalOpen = false;
-}
-if (targetWorkspaceId === "game-simulator") {
-resetGameSimulatorIntro();
-}
-const targetViewId = getWorkspaceViewId(targetWorkspaceId);
-if (targetViewId && targetViewId !== "scouting") {
-queueWorkspaceModulePreload(targetWorkspaceId);
-}
-hubState.activeWorkspaceId = targetWorkspaceId;
-rememberActiveWorkspaceId(targetWorkspaceId);
-writeWorkspaceHubState();
-renderWorkspaceChrome();
-}
-function initializeWorkspaceHub() {
-startPlatformThemeScheduler();
-syncPlatformUserFromAuth();
-hubState = repairWorkspaceState(readWorkspaceHubState());
-const urlWorkspaceId = getWorkspaceIdFromUrl();
-const safeUrlWorkspaceId = getSafeWorkspaceId(urlWorkspaceId, hubState);
-const pendingWorkspaceId = win.__pendingWorkspaceId;
-const safePendingWorkspaceId = getSafeWorkspaceId(pendingWorkspaceId, hubState);
-const rememberedWorkspaceId = readRememberedWorkspaceId();
-const safeRememberedWorkspaceId = getSafeWorkspaceId(rememberedWorkspaceId, hubState);
-const safeHomeWorkspaceId = getSafeWorkspaceId(workspaceHubDefaultActiveWorkspaceId, hubState);
-if (safePendingWorkspaceId) {
-hubState.activeWorkspaceId = safePendingWorkspaceId;
-} else if (safeUrlWorkspaceId) {
-hubState.activeWorkspaceId = safeUrlWorkspaceId;
-} else if (safeRememberedWorkspaceId) {
-hubState.activeWorkspaceId = safeRememberedWorkspaceId;
-} else if (safeHomeWorkspaceId) {
-hubState.activeWorkspaceId = safeHomeWorkspaceId;
-}
-rememberActiveWorkspaceId(hubState.activeWorkspaceId);
-win.__pendingWorkspaceId = null;
-hydrateWorkspaceModuleState(hubState.activeWorkspaceId);
-writeWorkspaceHubState();
-renderWorkspaceChrome();
-queueDashboardChatStylesheetLoad();
-queueCriticalWorkspacePreloads();
-scheduleDashboardLoginPopups();
-}
+},
+pauseSimulatorForWorkspaceSwitch,
+platformNavigationController,
+queueCriticalWorkspacePreloads,
+queueDashboardChatStylesheetLoad,
+queueWorkspaceModulePreload,
+readRememberedWorkspaceId,
+readWorkspaceHubState,
+rememberActiveWorkspaceId,
+renderDashboardCards,
+renderDashboardChatWidget,
+renderWorkspaceByViewId: (activeViewId) => {
+if (activeViewId === "profile") renderProfileWorkspace();
+if (activeViewId === "staff") renderStaffWorkspace();
+if (activeViewId === "admin") renderAdminWorkspace();
+if (activeViewId === "medical-team") renderMedicalTeamWorkspace();
+if (activeViewId === "player-profiles") renderPlayerProfilesWorkspace();
+if (activeViewId === "scouting") renderScoutingWorkspace();
+if (activeViewId === "gameplan") renderGameplanWorkspace();
+if (activeViewId === "transfer-room") renderTransferRoomWorkspace();
+if (activeViewId === "analysis-room") renderAnalysisRoomWorkspace();
+if (activeViewId === "schedule") renderScheduleWorkspace();
+if (activeViewId === "periodization") renderPeriodizationWorkspace();
+if (activeViewId === "session-planner") renderSessionPlannerWorkspace();
+},
+repairWorkspaceState,
+resetGameSimulatorIntro,
+scheduleDashboardLoginPopups,
+setHubState: (nextState) => {
+hubState = nextState;
+},
+simulatorRender: render,
+startPlatformThemeScheduler,
+startSimulatorAnimationLoop,
+stopSimulatorAnimationLoop,
+syncAccountMenu,
+syncDashboardChatWidgetNotificationCursor,
+syncGameSimulatorIntroState,
+syncPlatformAutosaveStatusVisibility,
+syncPlatformUserFromAuth,
+win,
+workspaceHubDefaultActiveWorkspaceId,
+writeWorkspaceHubState,
+});
+const {
+initializeWorkspaceHub,
+renderWorkspaceChrome,
+setActiveWorkspace,
+} = workspaceShellController;
 function reloadCentralizedAppStateFromStorage() {
 if (!getCurrentPlatformUser()) {
 return;

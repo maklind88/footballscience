@@ -54,7 +54,7 @@ import { adminDepartmentSuggestions, adminTitleSuggestions, createAdminAccessRen
 import { createProfileWorkspaceRenderer } from "./src/modules/profile/index.mjs";
 import { createStaffWorkspaceRenderer } from "./src/modules/staff/index.mjs";
 import { createSquadProfileSelectedRenderer, createSquadProfileSupportRenderer, createSquadRosterRenderer } from "./src/modules/squad/index.mjs";
-import { createMedicalOperationsRenderer, createMedicalRecommendationRenderer, createMedicalRosterRenderer } from "./src/modules/medical/index.mjs";
+import { createMedicalOperationsRenderer, createMedicalPlanFormRenderer, createMedicalRecommendationRenderer, createMedicalRosterRenderer } from "./src/modules/medical/index.mjs";
 const getElement = document.getElementById.bind(document);
 const win = window;
 const canvas = getElement("pitchCanvas");
@@ -5146,6 +5146,24 @@ medicalActualParticipationFallback,
 medicalInjuryPlanStatusOptions,
 medicalParticipationOptions,
 normalizeMedicalActualParticipation,
+});
+const medicalPlanFormRenderer = createMedicalPlanFormRenderer({
+escapeHtml,
+getActiveMedicalInjuryPlan,
+getMedicalInjuryPlanDraft,
+getMedicalPlayerInjuryPlans,
+getSelectedDate: () => medicalState.selectedDate,
+isMedicalPlanCleared,
+medicalClearanceRoles,
+medicalInjuryDurationPresets,
+medicalLoadGateOptions,
+normalizeMedicalClearance,
+normalizeMedicalLoadGates,
+renderMedicalDurationUnitOptions,
+renderMedicalGateOptions,
+renderMedicalInjuryPlanStatusOptions,
+renderMedicalParticipationOptions,
+renderMedicalRtpPhaseOptions,
 });
 const platformDefaultRoles = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
 const platformManagementRoleSet = new Set(["admin", "club-admin", "team-admin"]);
@@ -25714,171 +25732,10 @@ function renderMedicalInjuryPlanList(player) {
 return medicalRecommendationRenderer.renderInjuryPlanList(player);
 }
 function renderMedicalInjuryPlanForm(player, canEdit) {
-const draft = getMedicalInjuryPlanDraft(player.id);
-const isEditing = Boolean(draft.planId);
-return `
-<article class="medical-modal-main-card medical-injury-plan-card">
-<div class="medical-card-headline">
-<h2>${isEditing ? "Edit Availability Plan" : "Availability Plan"}</h2>
-<span>${isEditing ? "Updates the active restriction and automatic availability" : "Auto-applies across date range, no daily entry needed"}</span>
-</div>
-<form id="medicalInjuryPlanForm" class="medical-profile-form">
-<input type="hidden" name="planId" value="${escapeHtml(draft.planId)}" />
-<input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
-<div class="medical-form-grid medical-plan-form-grid">
-<label>
-<span>Injury / reason</span>
-<input name="injuryType" list="medicalInjuryTypes" value="${escapeHtml(draft.injuryType)}" placeholder="ACL injury" required ${canEdit ? "" : "disabled"} />
-</label>
-<label>
-<span>Body area</span>
-<input name="bodyArea" value="${escapeHtml(draft.bodyArea)}" placeholder="Knee" ${canEdit ? "" : "disabled"} />
-</label>
-<label>
-<span>Start</span>
-<input name="startDate" type="date" value="${escapeHtml(draft.startDate)}" ${canEdit ? "" : "disabled"} />
-</label>
-<label>
-<span>Duration</span>
-<div class="medical-duration-fields">
-<input name="duration" type="number" min="1" value="${escapeHtml(draft.duration)}" ${canEdit ? "" : "disabled"} />
-<select name="durationUnit" ${canEdit ? "" : "disabled"}>
-${renderMedicalDurationUnitOptions(draft.durationUnit)}
-</select>
-</div>
-</label>
-<label>
-<span>Status</span>
-<select name="status" ${canEdit ? "" : "disabled"}>
-${renderMedicalInjuryPlanStatusOptions(draft.status)}
-</select>
-</label>
-<label>
-<span>RTP phase</span>
-<select name="rtpPhase" data-medical-plan-rtp-phase ${canEdit ? "" : "disabled"}>
-${renderMedicalRtpPhaseOptions(draft.rtpPhase)}
-</select>
-</label>
-<label>
-<span>Recommended</span>
-<select name="participation" data-medical-plan-participation ${canEdit ? "" : "disabled"}>
-${renderMedicalParticipationOptions(draft.participation)}
-</select>
-</label>
-<label>
-<span>Review date</span>
-<input name="reviewDate" type="date" value="${escapeHtml(draft.reviewDate)}" ${canEdit ? "" : "disabled"} />
-</label>
-<label>
-<span>Treatment note</span>
-<input name="phase" value="${escapeHtml(draft.phase)}" placeholder="Week 1-4 protected rehab" ${canEdit ? "" : "disabled"} />
-</label>
-</div>
-<div class="medical-duration-presets" aria-label="Duration presets">
-${medicalInjuryDurationPresets
-.map(
-(preset) => `
-<button
-type="button"
-data-medical-duration-preset
-data-medical-duration="${preset.duration}"
-data-medical-duration-unit="${escapeHtml(preset.unit)}"
-class="${draft.duration === preset.duration && draft.durationUnit === preset.unit ? "is-selected" : ""}"
-${canEdit ? "" : "disabled"}
->${escapeHtml(preset.label)}</button>
-`
-)
-.join("")}
-</div>
-<label>
-<span>Internal clinical note</span>
-<textarea name="comment" rows="3" ${canEdit ? "" : "disabled"}>${escapeHtml(draft.comment)}</textarea>
-</label>
-<label>
-<span>Coach-safe comment</span>
-<textarea name="coachNote" rows="2" placeholder="Shared note for coaches" ${canEdit ? "" : "disabled"}>${escapeHtml(draft.coachNote)}</textarea>
-</label>
-<label class="medical-inline-check">
-<input type="checkbox" name="shareWithCoach" ${draft.shareWithCoach ? "checked" : ""} ${canEdit ? "" : "disabled"} />
-<span>Approved to share with coaching staff</span>
-</label>
-<div class="medical-form-actions">
-<button type="submit" ${canEdit ? "" : "disabled"}>${isEditing ? "Update plan" : "Create plan"}</button>
-${isEditing ? `<button type="button" class="secondary medical-secondary-button" data-medical-cancel-injury-plan-edit ${canEdit ? "" : "disabled"}>Cancel edit</button>` : ""}
-</div>
-</form>
-<datalist id="medicalInjuryTypes">
-<option value="ACL injury"></option>
-<option value="Hamstring injury"></option>
-<option value="Adductor injury"></option>
-<option value="Ankle sprain"></option>
-<option value="Concussion protocol"></option>
-<option value="Illness"></option>
-<option value="Load management"></option>
-</datalist>
-</article>
-`;
+return medicalPlanFormRenderer.renderInjuryPlanForm(player, canEdit);
 }
 function renderMedicalClearanceChecklist(player, canEdit) {
-const plan = getActiveMedicalInjuryPlan(player.id, medicalState.selectedDate) ?? getMedicalPlayerInjuryPlans(player.id)[0] ?? null;
-if (!plan) {
-return `
-<article class="medical-side-card medical-clearance-card">
-<div class="medical-card-headline">
-<h2>Clearance Checklist</h2>
-<span>No plan</span>
-</div>
-<div class="medical-empty-inline">Create an availability plan before collecting sign-off and load gates.</div>
-</article>
-`;
-}
-const clearance = normalizeMedicalClearance(plan.clearance);
-const gates = normalizeMedicalLoadGates(plan.gates);
-const cleared = isMedicalPlanCleared(plan);
-return `
-<article class="medical-side-card medical-clearance-card">
-<div class="medical-card-headline">
-<h2>Clearance Checklist</h2>
-<span class="${cleared ? "is-cleared" : "is-pending"}">${cleared ? "Cleared" : "Pending"}</span>
-</div>
-<form id="medicalClearanceForm" class="medical-profile-form">
-<input type="hidden" name="planId" value="${escapeHtml(plan.id)}" />
-<label>
-<span>RTP phase</span>
-<select name="rtpPhase" ${canEdit ? "" : "disabled"}>
-${renderMedicalRtpPhaseOptions(plan.rtpPhase)}
-</select>
-</label>
-<div class="medical-check-grid">
-${medicalClearanceRoles
-.map(
-(role) => `
-<label class="medical-check-row">
-<input type="checkbox" name="clearance.${escapeHtml(role.key)}" ${clearance[role.key] ? "checked" : ""} ${canEdit ? "" : "disabled"} />
-<span>${escapeHtml(role.label)} sign-off</span>
-</label>
-`
-)
-.join("")}
-</div>
-<div class="medical-gate-grid">
-${medicalLoadGateOptions
-.map(
-(gate) => `
-<label>
-<span>${escapeHtml(gate.label)}</span>
-<select name="gates.${escapeHtml(gate.key)}" ${canEdit ? "" : "disabled"}>
-${renderMedicalGateOptions(gates[gate.key])}
-</select>
-</label>
-`
-)
-.join("")}
-</div>
-<button type="submit" ${canEdit ? "" : "disabled"}>Save clearance</button>
-</form>
-</article>
-`;
+return medicalPlanFormRenderer.renderClearanceChecklist(player, canEdit);
 }
 function renderMedicalCoachSafeModal(player, record, status) {
 const coachComment = getMedicalCoachComment(record);

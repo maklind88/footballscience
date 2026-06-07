@@ -42,6 +42,7 @@ import { createPeriodizationSessionBridge } from "./src/modules/periodization/pe
 import {
   createExerciseLibraryActions,
   createExerciseLibraryRenderer,
+  createExerciseLibraryRuntimeController,
   createExerciseLibrarySelectors,
   createExerciseLibraryStateAdapter,
   sessionPlannerDefaultExerciseLibrary,
@@ -1665,6 +1666,8 @@ let sessionPlannerDraggedLibraryExerciseId = "";
 let sessionPlannerLibraryPointerDrag = null;
 let sessionPlannerLibrarySuppressNextClick = false;
 let sessionPlannerPendingLibrarySave = null;
+const sessionPlannerMultiSelectFields = new Set(["phase", "subPhase"]);
+let sessionPlannerMultiSelectOpenField = "";
 let sessionPlannerCentralSyncConflict = null;
 let sessionPlannerCentralSyncNoticeAt = 0;
 const sessionPlannerBoardHistoryLimit = 80;
@@ -1678,7 +1681,7 @@ tactical: new Map(),
 player: new Map(),
 };
 let sessionPlannerSnapshotRecoveryQueued = false;
-let sessionPlannerExerciseLibrarySnapshotRecoveryQueued = false;
+let exerciseLibraryRuntime = null;
 const {
 cloneTacticalElement: cloneSessionPlannerTacticalElement,
 cloneTacticalFrame: cloneSessionPlannerTacticalFrame,
@@ -1750,13 +1753,6 @@ normalizeTacticalActiveFrameId: normalizeSessionPlannerTacticalActiveFrameId,
 normalizeTacticalFrames: normalizeSessionPlannerTacticalFrames,
 normalizeTacticalPitchMode: normalizeSessionPlannerTacticalPitchMode,
 });
-const sessionPlannerSessionFactory = createSessionPlannerSessionFactory({
-createBlock: createSessionPlannerBlock,
-defaultExerciseLibrary: sessionPlannerDefaultExerciseLibrary,
-formatDateValue: formatScheduleDateValue,
-getActiveExerciseLibrary: getSessionPlannerActiveExerciseLibrary,
-getScheduledSessionTitle: getScheduledSessionTitleForDate,
-});
 const exerciseLibrarySelectors = createExerciseLibrarySelectors({
 normalizeTimestamp: normalizeSessionPlannerTimestamp,
 sortOptions: sessionPlannerLibrarySortOptions,
@@ -1780,7 +1776,93 @@ normalizePlayerBoardColors: normalizeSessionPlannerPlayerBoardColors,
 normalizePlayerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople,
 versionLimit: sessionPlannerExerciseLibraryVersionLimit,
 });
-const exerciseLibraryRenderer = createExerciseLibraryRenderer({
+function getExerciseLibraryUiState() {
+return {
+open: sessionPlannerLibraryOpen,
+selectedFolderId: sessionPlannerLibrarySelectedFolderId,
+editExerciseId: sessionPlannerLibraryEditExerciseId,
+viewExerciseId: sessionPlannerLibraryViewExerciseId,
+editingFolderId: sessionPlannerLibraryEditingFolderId,
+archiveView: sessionPlannerLibraryArchiveView,
+filterOpen: sessionPlannerLibraryFilterOpen,
+searchQuery: sessionPlannerLibrarySearchQuery,
+sortMode: sessionPlannerLibrarySortMode,
+pendingSave: sessionPlannerPendingLibrarySave,
+phaseFilter: sessionPlannerLibraryPhaseFilter,
+subPhaseFilter: sessionPlannerLibrarySubPhaseFilter,
+phaseFilters: sessionPlannerLibraryPhaseFilters,
+subPhaseFilters: sessionPlannerLibrarySubPhaseFilters,
+};
+}
+function setExerciseLibraryUiState(nextState = {}) {
+if (Object.prototype.hasOwnProperty.call(nextState, "open")) sessionPlannerLibraryOpen = Boolean(nextState.open);
+if (Object.prototype.hasOwnProperty.call(nextState, "selectedFolderId")) sessionPlannerLibrarySelectedFolderId = nextState.selectedFolderId;
+if (Object.prototype.hasOwnProperty.call(nextState, "editExerciseId")) sessionPlannerLibraryEditExerciseId = nextState.editExerciseId;
+if (Object.prototype.hasOwnProperty.call(nextState, "viewExerciseId")) sessionPlannerLibraryViewExerciseId = nextState.viewExerciseId;
+if (Object.prototype.hasOwnProperty.call(nextState, "editingFolderId")) sessionPlannerLibraryEditingFolderId = nextState.editingFolderId;
+if (Object.prototype.hasOwnProperty.call(nextState, "archiveView")) sessionPlannerLibraryArchiveView = nextState.archiveView;
+if (Object.prototype.hasOwnProperty.call(nextState, "filterOpen")) sessionPlannerLibraryFilterOpen = nextState.filterOpen;
+if (Object.prototype.hasOwnProperty.call(nextState, "searchQuery")) sessionPlannerLibrarySearchQuery = nextState.searchQuery;
+if (Object.prototype.hasOwnProperty.call(nextState, "sortMode")) sessionPlannerLibrarySortMode = nextState.sortMode;
+if (Object.prototype.hasOwnProperty.call(nextState, "pendingSave")) sessionPlannerPendingLibrarySave = nextState.pendingSave;
+if (Object.prototype.hasOwnProperty.call(nextState, "phaseFilter")) sessionPlannerLibraryPhaseFilter = nextState.phaseFilter;
+if (Object.prototype.hasOwnProperty.call(nextState, "subPhaseFilter")) sessionPlannerLibrarySubPhaseFilter = nextState.subPhaseFilter;
+if (Object.prototype.hasOwnProperty.call(nextState, "phaseFilters")) sessionPlannerLibraryPhaseFilters = nextState.phaseFilters;
+if (Object.prototype.hasOwnProperty.call(nextState, "subPhaseFilters")) sessionPlannerLibrarySubPhaseFilters = nextState.subPhaseFilters;
+}
+let exerciseLibraryRenderer;
+let exerciseLibraryActions;
+exerciseLibraryRuntime = createExerciseLibraryRuntimeController({
+stateAdapter: exerciseLibraryStateAdapter,
+selectors: exerciseLibrarySelectors,
+getActions: () => exerciseLibraryActions,
+getRenderer: () => exerciseLibraryRenderer,
+getUi: () => ui,
+getUiState: getExerciseLibraryUiState,
+setUiState: setExerciseLibraryUiState,
+getExerciseLibrary: () => sessionPlannerExerciseLibrary,
+setExerciseLibrary: (exercises) => {
+sessionPlannerExerciseLibrary = exercises;
+},
+getExerciseFolders: () => sessionPlannerExerciseLibraryFolders,
+setExerciseFolders: (folders) => {
+sessionPlannerExerciseLibraryFolders = folders;
+},
+win,
+logEvent,
+saveDataSafetySnapshot,
+openDataSafetyDatabase,
+dataSafetySnapshotStoreName,
+exerciseLibraryStorageKey: sessionPlannerExerciseLibraryStorageKey,
+exerciseLibraryBackupStorageKey: sessionPlannerExerciseLibraryBackupStorageKey,
+exerciseLibraryFoldersStorageKey: sessionPlannerExerciseLibraryFoldersStorageKey,
+exerciseLibraryFoldersBackupStorageKey: sessionPlannerExerciseLibraryFoldersBackupStorageKey,
+defaultExerciseLibrary: sessionPlannerDefaultExerciseLibrary,
+getActiveWorkspaceId: () => hubState?.activeWorkspaceId,
+renderWorkspace: renderSessionPlannerWorkspace,
+showToast: showSessionPlannerToast,
+getLibraryUserId: getSessionPlannerLibraryUserId,
+periodizationOptionLibrary,
+getSelectedBlock: getSessionPlannerSelectedBlock,
+updateSelectedBlockField: updateSelectedSessionPlannerBlockField,
+getReviewNotes: getSessionPlannerExerciseReviewNotes,
+canEdit: canEditSessionPlanner,
+sessionPlannerMultiSelectFields,
+setMultiSelectOpenField: (field) => {
+sessionPlannerMultiSelectOpenField = field;
+},
+sessionPlannerRenderer: {
+renderMultiSelectField: (...args) => sessionPlannerRenderer.renderMultiSelectField(...args),
+},
+});
+const sessionPlannerSessionFactory = createSessionPlannerSessionFactory({
+createBlock: createSessionPlannerBlock,
+defaultExerciseLibrary: sessionPlannerDefaultExerciseLibrary,
+formatDateValue: formatScheduleDateValue,
+getActiveExerciseLibrary: getSessionPlannerActiveExerciseLibrary,
+getScheduledSessionTitle: getScheduledSessionTitleForDate,
+});
+exerciseLibraryRenderer = createExerciseLibraryRenderer({
 escapeHtml,
 normalizeTimestamp: normalizeSessionPlannerTimestamp,
 normalizeTags: normalizeSessionPlannerLibraryTags,
@@ -1816,7 +1898,7 @@ getViewExercise: getSessionPlannerLibraryViewExercise,
 getOptionValues: getSessionPlannerLibraryOptionValues,
 }),
 });
-const exerciseLibraryActions = createExerciseLibraryActions({
+exerciseLibraryActions = createExerciseLibraryActions({
 canEdit: canEditSessionPlanner,
 confirm: (message) => win.confirm(message),
 showToast: showSessionPlannerToast,
@@ -1856,52 +1938,8 @@ getEditFields: getSessionPlannerLibraryExerciseEditFields,
 syncSelectedBlockFields: syncSelectedSessionPlannerBlockFieldsFromDom,
 getSelectedBlock: getSessionPlannerSelectedBlock,
 buildExerciseFromBlock: buildSessionPlannerLibraryExerciseFromBlock,
-getUiState: () => ({
-open: sessionPlannerLibraryOpen,
-selectedFolderId: sessionPlannerLibrarySelectedFolderId,
-editExerciseId: sessionPlannerLibraryEditExerciseId,
-viewExerciseId: sessionPlannerLibraryViewExerciseId,
-editingFolderId: sessionPlannerLibraryEditingFolderId,
-archiveView: sessionPlannerLibraryArchiveView,
-filterOpen: sessionPlannerLibraryFilterOpen,
-searchQuery: sessionPlannerLibrarySearchQuery,
-pendingSave: sessionPlannerPendingLibrarySave,
-}),
-setUiState: (nextState = {}) => {
-if (Object.prototype.hasOwnProperty.call(nextState, "open")) {
-sessionPlannerLibraryOpen = Boolean(nextState.open);
-}
-if (Object.prototype.hasOwnProperty.call(nextState, "selectedFolderId")) {
-sessionPlannerLibrarySelectedFolderId = nextState.selectedFolderId;
-}
-if (Object.prototype.hasOwnProperty.call(nextState, "editExerciseId")) {
-sessionPlannerLibraryEditExerciseId = nextState.editExerciseId;
-}
-if (Object.prototype.hasOwnProperty.call(nextState, "viewExerciseId")) {
-sessionPlannerLibraryViewExerciseId = nextState.viewExerciseId;
-}
-if (Object.prototype.hasOwnProperty.call(nextState, "editingFolderId")) {
-sessionPlannerLibraryEditingFolderId = nextState.editingFolderId;
-}
-if (Object.prototype.hasOwnProperty.call(nextState, "archiveView")) {
-sessionPlannerLibraryArchiveView = nextState.archiveView;
-}
-if (Object.prototype.hasOwnProperty.call(nextState, "filterOpen")) {
-sessionPlannerLibraryFilterOpen = nextState.filterOpen;
-}
-if (Object.prototype.hasOwnProperty.call(nextState, "searchQuery")) {
-sessionPlannerLibrarySearchQuery = nextState.searchQuery;
-}
-if (Object.prototype.hasOwnProperty.call(nextState, "pendingSave")) {
-sessionPlannerPendingLibrarySave = nextState.pendingSave;
-}
-if (Object.prototype.hasOwnProperty.call(nextState, "phaseFilters")) {
-setSessionPlannerLibraryFilterValues("phase", nextState.phaseFilters);
-}
-if (Object.prototype.hasOwnProperty.call(nextState, "subPhaseFilters")) {
-setSessionPlannerLibraryFilterValues("subPhase", nextState.subPhaseFilters);
-}
-},
+getUiState: getExerciseLibraryUiState,
+setUiState: setExerciseLibraryUiState,
 });
 let sessionPlannerHistoryEntries = [];
 let sessionPlannerHistoryLoading = false;
@@ -1912,8 +1950,6 @@ let sessionPlannerToastMessage = "";
 let sessionPlannerToastTone = "success";
 let sessionPlannerToastTimeoutId = null;
 let sessionPlannerAddMenuOpen = false;
-const sessionPlannerMultiSelectFields = new Set(["phase", "subPhase"]);
-let sessionPlannerMultiSelectOpenField = "";
 const sessionPlannerRenderer = createSessionPlannerRenderer({
 escapeHtml,
 canEdit: canEditSessionPlanner,
@@ -7127,605 +7163,97 @@ if (hubState?.activeWorkspaceId === "my-profile") {
 renderProfileWorkspace(profileMessage);
 }
 }
-function createSessionPlannerLibraryExercise(source = {}) {
-return exerciseLibraryStateAdapter.createExercise(source);
-}
-function cloneSessionPlannerLibraryExercise(exercise = {}) {
-return exerciseLibraryStateAdapter.cloneExercise(exercise);
-}
-function normalizeSessionPlannerExerciseLibraryList(sourceLibrary = []) { return exerciseLibraryStateAdapter.normalizeExercises(sourceLibrary); }
-function normalizeSessionPlannerLibraryVersions(sourceVersions = []) { return exerciseLibraryStateAdapter.normalizeVersions(sourceVersions); }
-function createSessionPlannerLibraryVersionSnapshot(exercise = {}, reason = "Updated") {
-return exerciseLibraryStateAdapter.createVersionSnapshot(exercise, reason);
-}
-function appendSessionPlannerLibraryVersion(exercise = {}, reason = "Updated") {
-return exerciseLibraryStateAdapter.appendVersion(exercise, reason);
-}
-function isSessionPlannerLibraryExerciseArchived(exercise = {}) {
-return exerciseLibraryStateAdapter.isExerciseArchived(exercise);
-}
-function getSessionPlannerLibraryExercisesByArchiveState(archiveView = sessionPlannerLibraryArchiveView) { return exerciseLibraryStateAdapter.getExercisesByArchiveState(getSessionPlannerExerciseLibrary(), archiveView); }
-function getSessionPlannerActiveExerciseLibrary() { return getSessionPlannerLibraryExercisesByArchiveState("active"); }
-function getSessionPlannerLibraryArchiveCounts() { return exerciseLibraryStateAdapter.getArchiveCounts(getSessionPlannerExerciseLibrary()); }
-function parseSessionPlannerExerciseLibraryPayload(rawLibrary) { return exerciseLibraryStateAdapter.parseExercisePayload(rawLibrary); }
-function readSessionPlannerExerciseLibraryFromStorage(storageKey) {
-try {
-const rawLibrary = win.localStorage.getItem(storageKey);
-if (rawLibrary === null) {
-return null;
-}
-const exercises = parseSessionPlannerExerciseLibraryPayload(rawLibrary);
-return exercises ? { storageKey, exercises } : null;
-} catch {
-return null;
-}
-}
-function createSessionPlannerExerciseLibraryBackupEnvelope(exercises = []) { return exerciseLibraryStateAdapter.createExerciseBackupEnvelope(exercises); }
-function writeSessionPlannerExerciseLibraryToStorage(exercises = []) {
-const normalizedLibrary = normalizeSessionPlannerExerciseLibraryList(exercises);
-const libraryText = JSON.stringify(normalizedLibrary);
-try {
-win.localStorage.setItem(sessionPlannerExerciseLibraryStorageKey, libraryText);
-} catch (error) {
-logEvent(error?.message || "Exercise library could not be saved centrally.");
-return {
-saved: false,
-backupSaved: false,
-exercises: normalizedLibrary,
-error,
-};
-}
-let backupSaved = true;
-try {
-win.localStorage.setItem(
-sessionPlannerExerciseLibraryBackupStorageKey,
-JSON.stringify(createSessionPlannerExerciseLibraryBackupEnvelope(normalizedLibrary))
-);
-} catch (error) {
-backupSaved = false;
-logEvent(error?.message || "Exercise library backup could not be saved centrally.");
-}
-if (typeof saveDataSafetySnapshot === "function") {
-saveDataSafetySnapshot("exercise-library-save");
-}
-return {
-saved: true,
-backupSaved,
-exercises: normalizedLibrary,
-error: null,
-};
-}
-async function findSessionPlannerExerciseLibraryInSnapshots() {
-try {
-const database = await openDataSafetyDatabase();
-const snapshots = await new Promise((resolve, reject) => {
-const transaction = database.transaction(dataSafetySnapshotStoreName, "readonly");
-const request = transaction.objectStore(dataSafetySnapshotStoreName).getAll();
-request.onsuccess = () => resolve(Array.from(request.result || []));
-request.onerror = () => reject(request.error);
-});
-const orderedSnapshots = snapshots.sort((a, b) =>
-String(b?.createdAt || b?.id || "").localeCompare(String(a?.createdAt || a?.id || ""))
-);
-for (const snapshot of orderedSnapshots) {
-const storage = snapshot?.storage && typeof snapshot.storage === "object" ? snapshot.storage : {};
-const candidates = [
-storage[sessionPlannerExerciseLibraryStorageKey],
-storage[sessionPlannerExerciseLibraryBackupStorageKey],
-];
-for (const rawLibrary of candidates) {
-const exercises = parseSessionPlannerExerciseLibraryPayload(rawLibrary);
-if (exercises) {
-return exercises;
-}
-}
-}
-} catch {
-return null;
-}
-return null;
-}
-function queueSessionPlannerExerciseLibrarySnapshotRecovery() {
-if (sessionPlannerExerciseLibrarySnapshotRecoveryQueued) {
-return;
-}
-sessionPlannerExerciseLibrarySnapshotRecoveryQueued = true;
-findSessionPlannerExerciseLibraryInSnapshots().then((recoveredExercises) => {
-sessionPlannerExerciseLibrarySnapshotRecoveryQueued = false;
-if (!recoveredExercises || readSessionPlannerExerciseLibraryFromStorage(sessionPlannerExerciseLibraryStorageKey)) {
-return;
-}
-const writeResult = writeSessionPlannerExerciseLibraryToStorage(recoveredExercises);
-if (!writeResult.saved) {
-return;
-}
-sessionPlannerExerciseLibrary = writeResult.exercises;
-if (hubState?.activeWorkspaceId === "session-planner") {
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-showSessionPlannerToast("Exercise Library restored from local backup.");
-}
-});
-}
-function readSessionPlannerExerciseLibrary() {
-const mainLibrary = readSessionPlannerExerciseLibraryFromStorage(sessionPlannerExerciseLibraryStorageKey);
-if (mainLibrary) {
-return mainLibrary.exercises;
-}
-const backupLibrary = readSessionPlannerExerciseLibraryFromStorage(sessionPlannerExerciseLibraryBackupStorageKey);
-if (backupLibrary) {
-writeSessionPlannerExerciseLibraryToStorage(backupLibrary.exercises);
-return backupLibrary.exercises;
-}
-queueSessionPlannerExerciseLibrarySnapshotRecovery();
-return normalizeSessionPlannerExerciseLibraryList(sessionPlannerDefaultExerciseLibrary);
-}
-function getSessionPlannerExerciseLibrary() {
-if (!Array.isArray(sessionPlannerExerciseLibrary)) {
-sessionPlannerExerciseLibrary = readSessionPlannerExerciseLibrary();
-}
-return sessionPlannerExerciseLibrary;
-}
-function normalizeSessionPlannerLibraryFolderVisibility(value) { return exerciseLibraryStateAdapter.normalizeFolderVisibility(value); }
-function normalizeSessionPlannerLibraryFolderExerciseIds(sourceIds = []) { return exerciseLibraryStateAdapter.normalizeFolderExerciseIds(sourceIds); }
-function createSessionPlannerLibraryFolder(source = {}) {
-return exerciseLibraryStateAdapter.createFolder(source);
-}
-function createSessionPlannerDefaultExerciseLibraryFolders() { return exerciseLibraryStateAdapter.createDefaultFolders(); }
-function normalizeSessionPlannerExerciseLibraryFolders(sourceFolders = []) { return exerciseLibraryStateAdapter.normalizeFolders(sourceFolders); }
-function isSessionPlannerLibraryFolderArchived(folder = {}) {
-return exerciseLibraryStateAdapter.isFolderArchived(folder);
-}
-function parseSessionPlannerExerciseLibraryFoldersPayload(rawFolders) { return exerciseLibraryStateAdapter.parseFoldersPayload(rawFolders); }
-function readSessionPlannerExerciseLibraryFoldersFromStorage(storageKey) {
-try {
-const rawFolders = win.localStorage.getItem(storageKey);
-if (rawFolders === null) {
-return null;
-}
-const folders = parseSessionPlannerExerciseLibraryFoldersPayload(rawFolders);
-return folders ? { storageKey, folders } : null;
-} catch {
-return null;
-}
-}
-function createSessionPlannerExerciseLibraryFoldersBackupEnvelope(folders = []) { return exerciseLibraryStateAdapter.createFoldersBackupEnvelope(folders); }
-function writeSessionPlannerExerciseLibraryFoldersToStorage(folders = []) {
-const normalizedFolders = normalizeSessionPlannerExerciseLibraryFolders(folders);
-const foldersText = JSON.stringify(normalizedFolders);
-try {
-win.localStorage.setItem(sessionPlannerExerciseLibraryFoldersStorageKey, foldersText);
-} catch (error) {
-logEvent(error?.message || "Exercise library folders could not be saved centrally.");
-return {
-saved: false,
-backupSaved: false,
-folders: normalizedFolders,
-error,
-};
-}
-let backupSaved = true;
-try {
-win.localStorage.setItem(
-sessionPlannerExerciseLibraryFoldersBackupStorageKey,
-JSON.stringify(createSessionPlannerExerciseLibraryFoldersBackupEnvelope(normalizedFolders))
-);
-} catch (error) {
-backupSaved = false;
-logEvent(error?.message || "Exercise library folders backup could not be saved centrally.");
-}
-if (typeof saveDataSafetySnapshot === "function") {
-saveDataSafetySnapshot("exercise-library-folders-save");
-}
-return {
-saved: true,
-backupSaved,
-folders: normalizedFolders,
-error: null,
-};
-}
-function readSessionPlannerExerciseLibraryFolders() {
-const mainFolders = readSessionPlannerExerciseLibraryFoldersFromStorage(sessionPlannerExerciseLibraryFoldersStorageKey);
-if (mainFolders) {
-return mainFolders.folders;
-}
-const backupFolders = readSessionPlannerExerciseLibraryFoldersFromStorage(sessionPlannerExerciseLibraryFoldersBackupStorageKey);
-if (backupFolders) {
-writeSessionPlannerExerciseLibraryFoldersToStorage(backupFolders.folders);
-return backupFolders.folders;
-}
-return normalizeSessionPlannerExerciseLibraryFolders(createSessionPlannerDefaultExerciseLibraryFolders());
-}
-function getSessionPlannerExerciseLibraryFolders() {
-if (!Array.isArray(sessionPlannerExerciseLibraryFolders)) {
-sessionPlannerExerciseLibraryFolders = readSessionPlannerExerciseLibraryFolders();
-}
-return sessionPlannerExerciseLibraryFolders;
-}
-function writeSessionPlannerExerciseLibrary() {
-if (!Array.isArray(sessionPlannerExerciseLibrary)) {
-return false;
-}
-const result = writeSessionPlannerExerciseLibraryToStorage(sessionPlannerExerciseLibrary);
-if (result.saved) {
-sessionPlannerExerciseLibrary = result.exercises;
-}
-return result.saved;
-}
-function normalizeSessionPlannerMultiValue(value) { return exerciseLibrarySelectors.normalizeMultiValue(value); }
-function formatSessionPlannerMultiValue(value) { return exerciseLibrarySelectors.formatMultiValue(value); }
-function normalizeSessionPlannerLibraryTags(value) { return exerciseLibraryStateAdapter.normalizeTags(value); }
-function formatSessionPlannerLibraryTags(value) { return normalizeSessionPlannerLibraryTags(value).join(", "); }
-function getSessionPlannerMultiValueSummary(value, fallback) { return exerciseLibrarySelectors.getMultiValueSummary(value, fallback); }
-function getSessionPlannerMultiSelectFieldConfig(field) {
-const configs = {
-phase: {
-label: "Phase",
-listOptions: periodizationOptionLibrary.matchPhases,
-},
-subPhase: {
-label: "Sub Phase",
-listOptions: periodizationOptionLibrary.subPhases,
-},
-};
-return configs[field] ?? null;
-}
-function refreshSessionPlannerMultiSelectFields(fields = []) {
-const block = getSessionPlannerSelectedBlock();
-const fieldList = Array.from(new Set((Array.isArray(fields) ? fields : [fields]).filter(Boolean)));
-if (!block || !fieldList.length) {
-return;
-}
-let refreshedAnyField = false;
-fieldList.forEach((field) => {
-const config = getSessionPlannerMultiSelectFieldConfig(field);
-const fieldElement = ui.sessionPlannerWorkspace?.querySelector(`[data-session-multiselect="${field}"]`);
-if (!config || !fieldElement) {
-return;
-}
-fieldElement.outerHTML = sessionPlannerRenderer.renderMultiSelectField(block, field, config.label, {
-long: false,
-listOptions: config.listOptions,
-});
-refreshedAnyField = true;
-});
-if (!refreshedAnyField) {
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-}
-}
-function toggleSessionPlannerMultiSelectValue(field, value) {
-if (!sessionPlannerMultiSelectFields.has(field) || !value) {
-return;
-}
-const block = getSessionPlannerSelectedBlock();
-if (!block) {
-return;
-}
-const values = normalizeSessionPlannerMultiValue(block[field]);
-const nextValues = values.includes(value)
-? values.filter((item) => item !== value)
-: [...values, value];
-updateSelectedSessionPlannerBlockField(field, nextValues.join(", "));
-sessionPlannerMultiSelectOpenField = field;
-refreshSessionPlannerMultiSelectFields([field]);
-}
-function clearSessionPlannerMultiSelectValue(field) {
-if (!sessionPlannerMultiSelectFields.has(field)) {
-return;
-}
-updateSelectedSessionPlannerBlockField(field, "");
-sessionPlannerMultiSelectOpenField = field;
-refreshSessionPlannerMultiSelectFields([field]);
-}
-function normalizeSessionPlannerLibraryFilterValues(value) { return exerciseLibrarySelectors.normalizeFilterValues(value); }
-function getSessionPlannerLibraryFilterValues(filterKey) {
-if (filterKey === "phase") {
-return normalizeSessionPlannerLibraryFilterValues(
-sessionPlannerLibraryPhaseFilters.length ? sessionPlannerLibraryPhaseFilters : sessionPlannerLibraryPhaseFilter
-);
-}
-if (filterKey === "subPhase") {
-return normalizeSessionPlannerLibraryFilterValues(
-sessionPlannerLibrarySubPhaseFilters.length
-? sessionPlannerLibrarySubPhaseFilters
-: sessionPlannerLibrarySubPhaseFilter
-);
-}
-return [];
-}
-function setSessionPlannerLibraryFilterValues(filterKey, values = []) {
-const normalizedValues = normalizeSessionPlannerLibraryFilterValues(values);
-if (filterKey === "phase") {
-sessionPlannerLibraryPhaseFilters = normalizedValues;
-sessionPlannerLibraryPhaseFilter = normalizedValues[0] || "all";
-}
-if (filterKey === "subPhase") {
-sessionPlannerLibrarySubPhaseFilters = normalizedValues;
-sessionPlannerLibrarySubPhaseFilter = normalizedValues[0] || "all";
-}
-}
-function toggleSessionPlannerLibraryFilterOpen(filterKey) {
-sessionPlannerLibraryFilterOpen = sessionPlannerLibraryFilterOpen === filterKey ? "" : filterKey;
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-}
-function toggleSessionPlannerLibraryFilterValue(filterKey, value) {
-const cleanValue = String(value || "").trim();
-if (!cleanValue) {
-return;
-}
-const currentValues = getSessionPlannerLibraryFilterValues(filterKey);
-const nextValues = currentValues.includes(cleanValue)
-? currentValues.filter((item) => item !== cleanValue)
-: [...currentValues, cleanValue];
-setSessionPlannerLibraryFilterValues(filterKey, nextValues);
-sessionPlannerLibraryFilterOpen = filterKey;
-sessionPlannerLibraryEditExerciseId = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-}
-function clearSessionPlannerLibraryFilter(filterKey) {
-setSessionPlannerLibraryFilterValues(filterKey, []);
-sessionPlannerLibraryFilterOpen = filterKey;
-sessionPlannerLibraryEditExerciseId = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-}
-function exerciseMatchesSessionPlannerLibraryFilterValue(exerciseValue, selectedValues = []) { return exerciseLibrarySelectors.exerciseMatchesFilterValue(exerciseValue, selectedValues); }
-function getSessionPlannerVisibleLibraryFolders() {
-return getSessionPlannerExerciseLibraryFolders()
-.filter((folder) => !isSessionPlannerLibraryFolderArchived(folder))
-.sort((a, b) => {
-const visibilitySort = a.visibility.localeCompare(b.visibility);
-return visibilitySort || a.name.localeCompare(b.name);
-});
-}
-function getSessionPlannerArchivedLibraryFolders() {
-return getSessionPlannerExerciseLibraryFolders()
-.filter((folder) => isSessionPlannerLibraryFolderArchived(folder))
-.sort((a, b) => String(b.archivedAt || "").localeCompare(String(a.archivedAt || "")) || a.name.localeCompare(b.name));
-}
-function getSessionPlannerLibraryFolderById(folderId) {
-const targetId = String(folderId || "").trim();
-if (!targetId) {
-return null;
-}
-return getSessionPlannerExerciseLibraryFolders().find((folder) => folder.id === targetId) || null;
-}
-function getSessionPlannerLibraryFolderExerciseIdSet(folderId = sessionPlannerLibrarySelectedFolderId) {
-const targetFolderId = String(folderId || "all");
-const currentUserId = getSessionPlannerLibraryUserId();
-const visibleFolders = getSessionPlannerVisibleLibraryFolders();
-if (targetFolderId === "all") {
-return null;
-}
-if (targetFolderId === "team") {
-return new Set(
-visibleFolders
-.filter((folder) => folder.visibility === "team")
-.flatMap((folder) => normalizeSessionPlannerLibraryFolderExerciseIds(folder.exerciseIds))
-);
-}
-if (targetFolderId === "mine") {
-return new Set(
-visibleFolders
-.filter((folder) => folder.visibility === "personal" && (!folder.createdBy || folder.createdBy === currentUserId))
-.flatMap((folder) => normalizeSessionPlannerLibraryFolderExerciseIds(folder.exerciseIds))
-);
-}
-const folder = getSessionPlannerLibraryFolderById(targetFolderId);
-return new Set(normalizeSessionPlannerLibraryFolderExerciseIds(folder?.exerciseIds));
-}
-function exerciseMatchesSessionPlannerLibraryFolder(exercise = {}) {
-const folderExerciseIds = getSessionPlannerLibraryFolderExerciseIdSet();
-return !folderExerciseIds || folderExerciseIds.has(exercise.id);
-}
-function getSessionPlannerLibraryFolderCount(folderId, archiveView = sessionPlannerLibraryArchiveView) {
-const folderExerciseIds = getSessionPlannerLibraryFolderExerciseIdSet(folderId);
-return getSessionPlannerLibraryExercisesByArchiveState(archiveView).filter((exercise) =>
-!folderExerciseIds || folderExerciseIds.has(exercise.id)
-).length;
-}
-function getSessionPlannerLibraryFolderName(folderId = sessionPlannerLibrarySelectedFolderId) {
-if (folderId === "all") {
-return "All Exercises";
-}
-if (folderId === "team") {
-return "Team";
-}
-if (folderId === "mine") {
-return "Mine";
-}
-return getSessionPlannerLibraryFolderById(folderId)?.name || "Folder";
-}
-function getUniqueSessionPlannerLibraryFolderName(baseName = "Untitled Folder", excludeFolderId = "") {
-const cleanBaseName = String(baseName || "Untitled Folder").trim().replace(/\s+/g, " ") || "Untitled Folder";
-const existingFolderNames = new Set(
-getSessionPlannerExerciseLibraryFolders()
-.filter((folder) => folder.id !== excludeFolderId && !isSessionPlannerLibraryFolderArchived(folder))
-.map((folder) => normalizeSessionPlannerLibraryTitle(folder.name))
-.filter(Boolean)
-);
-let candidate = cleanBaseName;
-let suffix = 2;
-while (existingFolderNames.has(normalizeSessionPlannerLibraryTitle(candidate))) {
-candidate = `${cleanBaseName} ${suffix}`;
-suffix += 1;
-}
-return candidate;
-}
-function selectSessionPlannerLibraryFolder(folderId = "all") {
-const normalizedFolderId = String(folderId || "all").trim() || "all";
-const isVirtualFolder = ["all", "team", "mine"].includes(normalizedFolderId);
-const targetFolder = getSessionPlannerLibraryFolderById(normalizedFolderId);
-const targetFolderId = isVirtualFolder || (targetFolder && !isSessionPlannerLibraryFolderArchived(targetFolder))
-? normalizedFolderId
-: "all";
-sessionPlannerLibrarySelectedFolderId = targetFolderId;
-sessionPlannerLibraryEditExerciseId = "";
-sessionPlannerLibraryEditingFolderId = "";
-sessionPlannerLibraryFilterOpen = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-}
-function startSessionPlannerExerciseLibraryFolderEdit(folderId) { exerciseLibraryActions.startFolderEdit(folderId); }
-function cancelSessionPlannerExerciseLibraryFolderEdit() { exerciseLibraryActions.cancelFolderEdit(); }
-function createSessionPlannerExerciseLibraryFolderFromForm(form) { exerciseLibraryActions.createFolderFromForm(form); }
-function updateSessionPlannerExerciseLibraryFolderFromForm(form) { exerciseLibraryActions.updateFolderFromForm(form); }
-function archiveSessionPlannerExerciseLibraryFolder(folderId) { exerciseLibraryActions.archiveFolder(folderId); }
-function restoreSessionPlannerExerciseLibraryFolder(folderId) { exerciseLibraryActions.restoreFolder(folderId); }
-function addSessionPlannerExerciseToLibraryFolder(exerciseId, folderId) { exerciseLibraryActions.addExerciseToFolder(exerciseId, folderId); }
-function removeSessionPlannerExerciseFromLibraryFolder(exerciseId, folderId = sessionPlannerLibrarySelectedFolderId) { exerciseLibraryActions.removeExerciseFromFolder(exerciseId, folderId); }
-function getSessionPlannerLibraryOptionValues(key) {
-const values = getSessionPlannerLibraryExercisesByArchiveState()
-.flatMap((exercise) => normalizeSessionPlannerMultiValue(exercise[key]))
-.filter(Boolean);
-return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
-}
-function normalizeSessionPlannerLibrarySortMode(value) { return exerciseLibrarySelectors.normalizeSortMode(value); }
-function compareSessionPlannerLibraryExercises(a = {}, b = {}) {
-return exerciseLibrarySelectors.compareExercises(a, b, sessionPlannerLibrarySortMode);
-}
-function getFilteredSessionPlannerExerciseLibrary() {
-const phaseFilters = getSessionPlannerLibraryFilterValues("phase");
-const subPhaseFilters = getSessionPlannerLibraryFilterValues("subPhase");
-const searchQuery = String(sessionPlannerLibrarySearchQuery || "").trim().toLowerCase();
-return getSessionPlannerLibraryExercisesByArchiveState()
-.filter((exercise) => {
-const phaseMatches = exerciseMatchesSessionPlannerLibraryFilterValue(exercise.phase, phaseFilters);
-const subPhaseMatches = exerciseMatchesSessionPlannerLibraryFilterValue(exercise.subPhase, subPhaseFilters);
-const folderMatches = exerciseMatchesSessionPlannerLibraryFolder(exercise);
-const searchableText = [
-exercise.title,
-exercise.focus,
-exercise.objective,
-exercise.phase,
-exercise.subPhase,
-formatSessionPlannerLibraryTags(exercise.tags),
-getSessionPlannerExerciseReviewNotes(exercise).map((note) => note.notes).join(" "),
-]
-.filter(Boolean)
-.join(" ")
-.toLowerCase();
-const searchMatches = !searchQuery || searchableText.includes(searchQuery);
-return folderMatches && phaseMatches && subPhaseMatches && searchMatches;
-})
-.sort(compareSessionPlannerLibraryExercises);
-}
-function updateSessionPlannerLibraryFilter(filterKey, value) {
-setSessionPlannerLibraryFilterValues(filterKey, normalizeSessionPlannerLibraryFilterValues(value));
-sessionPlannerLibraryEditExerciseId = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-}
-function updateSessionPlannerLibraryArchiveView(value) {
-sessionPlannerLibraryArchiveView = value === "archived" ? "archived" : "active";
-sessionPlannerLibraryFilterOpen = "";
-sessionPlannerLibraryEditExerciseId = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-}
-function updateSessionPlannerLibrarySortMode(value) {
-sessionPlannerLibrarySortMode = normalizeSessionPlannerLibrarySortMode(value);
-sessionPlannerLibraryFilterOpen = "";
-sessionPlannerLibraryEditExerciseId = "";
-sessionPlannerLibraryViewExerciseId = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-}
-function renderSessionPlannerLibraryResults() { exerciseLibraryRenderer.renderResults(ui.sessionPlannerWorkspace); }
-function updateSessionPlannerLibrarySearch(value) {
-sessionPlannerLibrarySearchQuery = String(value || "");
-sessionPlannerLibraryEditExerciseId = "";
-sessionPlannerLibraryViewExerciseId = "";
-renderSessionPlannerLibraryResults();
-}
-function getSessionPlannerLibraryExerciseById(exerciseId) {
-const targetId = String(exerciseId || "").trim();
-if (!targetId) {
-return null;
-}
-return getSessionPlannerExerciseLibrary().find((exercise) => exercise.id === targetId) || null;
-}
-function getSessionPlannerLibraryEditExercise() {
-if (!sessionPlannerLibraryEditExerciseId) {
-return null;
-}
-const exercise = getSessionPlannerLibraryExerciseById(sessionPlannerLibraryEditExerciseId);
-if (!exercise || isSessionPlannerLibraryExerciseArchived(exercise)) {
-sessionPlannerLibraryEditExerciseId = "";
-return null;
-}
-return exercise;
-}
-function getSessionPlannerLibraryViewExercise() {
-if (!sessionPlannerLibraryViewExerciseId) return null;
-const exercise = getSessionPlannerLibraryExerciseById(sessionPlannerLibraryViewExerciseId);
-if (!exercise) {
-sessionPlannerLibraryViewExerciseId = "";
-return null;
-}
-return exercise;
-}
-function startSessionPlannerLibraryExerciseView(exerciseId) {
-const exercise = getSessionPlannerLibraryExerciseById(exerciseId);
-if (!exercise) return;
-sessionPlannerLibraryViewExerciseId = exercise.id;
-sessionPlannerLibraryEditExerciseId = "";
-sessionPlannerLibraryFilterOpen = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-}
-function closeSessionPlannerLibraryExerciseView() {
-sessionPlannerLibraryViewExerciseId = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-}
-function startSessionPlannerLibraryExerciseEdit(exerciseId) {
-if (!canEditSessionPlanner()) {
-return;
-}
-const exercise = getSessionPlannerLibraryExerciseById(exerciseId);
-if (!exercise) {
-return;
-}
-if (isSessionPlannerLibraryExerciseArchived(exercise)) {
-showSessionPlannerToast("Restore the exercise before editing it.", "warning");
-return;
-}
-sessionPlannerLibraryEditExerciseId = exercise.id;
-sessionPlannerLibraryViewExerciseId = "";
-sessionPlannerLibraryFilterOpen = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-}
-function cancelSessionPlannerLibraryExerciseEdit() {
-const exercise = getSessionPlannerLibraryExerciseById(sessionPlannerLibraryEditExerciseId);
-if (
-exercise &&
-hasSessionPlannerLibraryExerciseEditChanges(exercise) &&
-!win.confirm("Discard unsaved exercise edits?")
-) {
-return;
-}
-sessionPlannerLibraryEditExerciseId = "";
-sessionPlannerLibraryViewExerciseId = "";
-renderSessionPlannerLibraryResults();
-}
-function getSessionPlannerLibraryExerciseEditFields() {
-const fields = {};
-ui.sessionPlannerWorkspace
-?.querySelectorAll("[data-session-library-edit-field]")
-.forEach((field) => {
-const key = field.dataset.sessionLibraryEditField;
-if (!key) {
-return;
-}
-fields[key] = field.value ?? "";
-});
-return fields;
-}
-function duplicateSessionPlannerLibraryExercise(exerciseId) { exerciseLibraryActions.duplicateExercise(exerciseId); }
-function updateSessionPlannerLibraryExerciseFromEdit(exerciseId) { exerciseLibraryActions.updateExerciseFromEdit(exerciseId); }
-function hasSessionPlannerLibraryExerciseEditChanges(exercise = {}, editFields = getSessionPlannerLibraryExerciseEditFields()) {
-return exerciseLibraryActions.hasExerciseEditChanges(exercise, editFields);
-}
-function saveSessionPlannerLibraryExerciseEditAsCopy(exerciseId) { exerciseLibraryActions.saveExerciseEditAsCopy(exerciseId); }
-function normalizeSessionPlannerLibraryTitle(title = "") {
-return String(title || "")
-.trim()
-.replace(/\s+/g, " ")
-.toLowerCase();
-}
+function callExerciseLibraryRuntime(methodName, args) {
+const method = exerciseLibraryRuntime?.[methodName];
+if (typeof method !== "function") throw new Error(`Exercise Library runtime is missing method: ${methodName}`);
+return method(...args);
+}
+function createSessionPlannerLibraryExercise(...args) { return callExerciseLibraryRuntime("createSessionPlannerLibraryExercise", args); }
+function cloneSessionPlannerLibraryExercise(...args) { return callExerciseLibraryRuntime("cloneSessionPlannerLibraryExercise", args); }
+function normalizeSessionPlannerExerciseLibraryList(...args) { return callExerciseLibraryRuntime("normalizeSessionPlannerExerciseLibraryList", args); }
+function normalizeSessionPlannerLibraryVersions(...args) { return callExerciseLibraryRuntime("normalizeSessionPlannerLibraryVersions", args); }
+function createSessionPlannerLibraryVersionSnapshot(...args) { return callExerciseLibraryRuntime("createSessionPlannerLibraryVersionSnapshot", args); }
+function appendSessionPlannerLibraryVersion(...args) { return callExerciseLibraryRuntime("appendSessionPlannerLibraryVersion", args); }
+function isSessionPlannerLibraryExerciseArchived(...args) { return callExerciseLibraryRuntime("isSessionPlannerLibraryExerciseArchived", args); }
+function getSessionPlannerLibraryExercisesByArchiveState(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryExercisesByArchiveState", args); }
+function getSessionPlannerActiveExerciseLibrary(...args) { return callExerciseLibraryRuntime("getSessionPlannerActiveExerciseLibrary", args); }
+function getSessionPlannerLibraryArchiveCounts(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryArchiveCounts", args); }
+function parseSessionPlannerExerciseLibraryPayload(...args) { return callExerciseLibraryRuntime("parseSessionPlannerExerciseLibraryPayload", args); }
+function readSessionPlannerExerciseLibraryFromStorage(...args) { return callExerciseLibraryRuntime("readSessionPlannerExerciseLibraryFromStorage", args); }
+function createSessionPlannerExerciseLibraryBackupEnvelope(...args) { return callExerciseLibraryRuntime("createSessionPlannerExerciseLibraryBackupEnvelope", args); }
+function writeSessionPlannerExerciseLibraryToStorage(...args) { return callExerciseLibraryRuntime("writeSessionPlannerExerciseLibraryToStorage", args); }
+function findSessionPlannerExerciseLibraryInSnapshots(...args) { return callExerciseLibraryRuntime("findSessionPlannerExerciseLibraryInSnapshots", args); }
+function queueSessionPlannerExerciseLibrarySnapshotRecovery(...args) { return callExerciseLibraryRuntime("queueSessionPlannerExerciseLibrarySnapshotRecovery", args); }
+function readSessionPlannerExerciseLibrary(...args) { return callExerciseLibraryRuntime("readSessionPlannerExerciseLibrary", args); }
+function getSessionPlannerExerciseLibrary(...args) { return callExerciseLibraryRuntime("getSessionPlannerExerciseLibrary", args); }
+function normalizeSessionPlannerLibraryFolderVisibility(...args) { return callExerciseLibraryRuntime("normalizeSessionPlannerLibraryFolderVisibility", args); }
+function normalizeSessionPlannerLibraryFolderExerciseIds(...args) { return callExerciseLibraryRuntime("normalizeSessionPlannerLibraryFolderExerciseIds", args); }
+function createSessionPlannerLibraryFolder(...args) { return callExerciseLibraryRuntime("createSessionPlannerLibraryFolder", args); }
+function createSessionPlannerDefaultExerciseLibraryFolders(...args) { return callExerciseLibraryRuntime("createSessionPlannerDefaultExerciseLibraryFolders", args); }
+function normalizeSessionPlannerExerciseLibraryFolders(...args) { return callExerciseLibraryRuntime("normalizeSessionPlannerExerciseLibraryFolders", args); }
+function isSessionPlannerLibraryFolderArchived(...args) { return callExerciseLibraryRuntime("isSessionPlannerLibraryFolderArchived", args); }
+function parseSessionPlannerExerciseLibraryFoldersPayload(...args) { return callExerciseLibraryRuntime("parseSessionPlannerExerciseLibraryFoldersPayload", args); }
+function readSessionPlannerExerciseLibraryFoldersFromStorage(...args) { return callExerciseLibraryRuntime("readSessionPlannerExerciseLibraryFoldersFromStorage", args); }
+function createSessionPlannerExerciseLibraryFoldersBackupEnvelope(...args) { return callExerciseLibraryRuntime("createSessionPlannerExerciseLibraryFoldersBackupEnvelope", args); }
+function writeSessionPlannerExerciseLibraryFoldersToStorage(...args) { return callExerciseLibraryRuntime("writeSessionPlannerExerciseLibraryFoldersToStorage", args); }
+function readSessionPlannerExerciseLibraryFolders(...args) { return callExerciseLibraryRuntime("readSessionPlannerExerciseLibraryFolders", args); }
+function getSessionPlannerExerciseLibraryFolders(...args) { return callExerciseLibraryRuntime("getSessionPlannerExerciseLibraryFolders", args); }
+function writeSessionPlannerExerciseLibrary(...args) { return callExerciseLibraryRuntime("writeSessionPlannerExerciseLibrary", args); }
+function normalizeSessionPlannerMultiValue(...args) { return callExerciseLibraryRuntime("normalizeSessionPlannerMultiValue", args); }
+function formatSessionPlannerMultiValue(...args) { return callExerciseLibraryRuntime("formatSessionPlannerMultiValue", args); }
+function normalizeSessionPlannerLibraryTags(...args) { return callExerciseLibraryRuntime("normalizeSessionPlannerLibraryTags", args); }
+function formatSessionPlannerLibraryTags(...args) { return callExerciseLibraryRuntime("formatSessionPlannerLibraryTags", args); }
+function getSessionPlannerMultiValueSummary(...args) { return callExerciseLibraryRuntime("getSessionPlannerMultiValueSummary", args); }
+function getSessionPlannerMultiSelectFieldConfig(...args) { return callExerciseLibraryRuntime("getSessionPlannerMultiSelectFieldConfig", args); }
+function refreshSessionPlannerMultiSelectFields(...args) { return callExerciseLibraryRuntime("refreshSessionPlannerMultiSelectFields", args); }
+function toggleSessionPlannerMultiSelectValue(...args) { return callExerciseLibraryRuntime("toggleSessionPlannerMultiSelectValue", args); }
+function clearSessionPlannerMultiSelectValue(...args) { return callExerciseLibraryRuntime("clearSessionPlannerMultiSelectValue", args); }
+function normalizeSessionPlannerLibraryFilterValues(...args) { return callExerciseLibraryRuntime("normalizeSessionPlannerLibraryFilterValues", args); }
+function getSessionPlannerLibraryFilterValues(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryFilterValues", args); }
+function setSessionPlannerLibraryFilterValues(...args) { return callExerciseLibraryRuntime("setSessionPlannerLibraryFilterValues", args); }
+function toggleSessionPlannerLibraryFilterOpen(...args) { return callExerciseLibraryRuntime("toggleSessionPlannerLibraryFilterOpen", args); }
+function toggleSessionPlannerLibraryFilterValue(...args) { return callExerciseLibraryRuntime("toggleSessionPlannerLibraryFilterValue", args); }
+function clearSessionPlannerLibraryFilter(...args) { return callExerciseLibraryRuntime("clearSessionPlannerLibraryFilter", args); }
+function exerciseMatchesSessionPlannerLibraryFilterValue(...args) { return callExerciseLibraryRuntime("exerciseMatchesSessionPlannerLibraryFilterValue", args); }
+function getSessionPlannerVisibleLibraryFolders(...args) { return callExerciseLibraryRuntime("getSessionPlannerVisibleLibraryFolders", args); }
+function getSessionPlannerArchivedLibraryFolders(...args) { return callExerciseLibraryRuntime("getSessionPlannerArchivedLibraryFolders", args); }
+function getSessionPlannerLibraryFolderById(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryFolderById", args); }
+function getSessionPlannerLibraryFolderExerciseIdSet(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryFolderExerciseIdSet", args); }
+function exerciseMatchesSessionPlannerLibraryFolder(...args) { return callExerciseLibraryRuntime("exerciseMatchesSessionPlannerLibraryFolder", args); }
+function getSessionPlannerLibraryFolderCount(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryFolderCount", args); }
+function getSessionPlannerLibraryFolderName(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryFolderName", args); }
+function getUniqueSessionPlannerLibraryFolderName(...args) { return callExerciseLibraryRuntime("getUniqueSessionPlannerLibraryFolderName", args); }
+function selectSessionPlannerLibraryFolder(...args) { return callExerciseLibraryRuntime("selectSessionPlannerLibraryFolder", args); }
+function startSessionPlannerExerciseLibraryFolderEdit(...args) { return callExerciseLibraryRuntime("startSessionPlannerExerciseLibraryFolderEdit", args); }
+function cancelSessionPlannerExerciseLibraryFolderEdit(...args) { return callExerciseLibraryRuntime("cancelSessionPlannerExerciseLibraryFolderEdit", args); }
+function createSessionPlannerExerciseLibraryFolderFromForm(...args) { return callExerciseLibraryRuntime("createSessionPlannerExerciseLibraryFolderFromForm", args); }
+function updateSessionPlannerExerciseLibraryFolderFromForm(...args) { return callExerciseLibraryRuntime("updateSessionPlannerExerciseLibraryFolderFromForm", args); }
+function archiveSessionPlannerExerciseLibraryFolder(...args) { return callExerciseLibraryRuntime("archiveSessionPlannerExerciseLibraryFolder", args); }
+function restoreSessionPlannerExerciseLibraryFolder(...args) { return callExerciseLibraryRuntime("restoreSessionPlannerExerciseLibraryFolder", args); }
+function addSessionPlannerExerciseToLibraryFolder(...args) { return callExerciseLibraryRuntime("addSessionPlannerExerciseToLibraryFolder", args); }
+function removeSessionPlannerExerciseFromLibraryFolder(...args) { return callExerciseLibraryRuntime("removeSessionPlannerExerciseFromLibraryFolder", args); }
+function getSessionPlannerLibraryOptionValues(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryOptionValues", args); }
+function normalizeSessionPlannerLibrarySortMode(...args) { return callExerciseLibraryRuntime("normalizeSessionPlannerLibrarySortMode", args); }
+function compareSessionPlannerLibraryExercises(...args) { return callExerciseLibraryRuntime("compareSessionPlannerLibraryExercises", args); }
+function getFilteredSessionPlannerExerciseLibrary(...args) { return callExerciseLibraryRuntime("getFilteredSessionPlannerExerciseLibrary", args); }
+function updateSessionPlannerLibraryFilter(...args) { return callExerciseLibraryRuntime("updateSessionPlannerLibraryFilter", args); }
+function updateSessionPlannerLibraryArchiveView(...args) { return callExerciseLibraryRuntime("updateSessionPlannerLibraryArchiveView", args); }
+function updateSessionPlannerLibrarySortMode(...args) { return callExerciseLibraryRuntime("updateSessionPlannerLibrarySortMode", args); }
+function renderSessionPlannerLibraryResults(...args) { return callExerciseLibraryRuntime("renderSessionPlannerLibraryResults", args); }
+function updateSessionPlannerLibrarySearch(...args) { return callExerciseLibraryRuntime("updateSessionPlannerLibrarySearch", args); }
+function getSessionPlannerLibraryExerciseById(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryExerciseById", args); }
+function getSessionPlannerLibraryEditExercise(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryEditExercise", args); }
+function getSessionPlannerLibraryViewExercise(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryViewExercise", args); }
+function startSessionPlannerLibraryExerciseView(...args) { return callExerciseLibraryRuntime("startSessionPlannerLibraryExerciseView", args); }
+function closeSessionPlannerLibraryExerciseView(...args) { return callExerciseLibraryRuntime("closeSessionPlannerLibraryExerciseView", args); }
+function startSessionPlannerLibraryExerciseEdit(...args) { return callExerciseLibraryRuntime("startSessionPlannerLibraryExerciseEdit", args); }
+function cancelSessionPlannerLibraryExerciseEdit(...args) { return callExerciseLibraryRuntime("cancelSessionPlannerLibraryExerciseEdit", args); }
+function getSessionPlannerLibraryExerciseEditFields(...args) { return callExerciseLibraryRuntime("getSessionPlannerLibraryExerciseEditFields", args); }
+function duplicateSessionPlannerLibraryExercise(...args) { return callExerciseLibraryRuntime("duplicateSessionPlannerLibraryExercise", args); }
+function updateSessionPlannerLibraryExerciseFromEdit(...args) { return callExerciseLibraryRuntime("updateSessionPlannerLibraryExerciseFromEdit", args); }
+function hasSessionPlannerLibraryExerciseEditChanges(...args) { return callExerciseLibraryRuntime("hasSessionPlannerLibraryExerciseEditChanges", args); }
+function saveSessionPlannerLibraryExerciseEditAsCopy(...args) { return callExerciseLibraryRuntime("saveSessionPlannerLibraryExerciseEditAsCopy", args); }
+function normalizeSessionPlannerLibraryTitle(...args) { return callExerciseLibraryRuntime("normalizeSessionPlannerLibraryTitle", args); }
 function createSessionPlannerReviewNoteFromBlock(block = {}, options = {}) {
 const notes = String(block.postSessionNotes || "").trim();
 if (!notes) {

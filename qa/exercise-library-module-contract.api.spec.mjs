@@ -5,6 +5,7 @@ import { expect, test } from "@playwright/test";
 import {
   createExerciseLibraryActions,
   createExerciseLibraryRenderer,
+  createExerciseLibraryRuntimeController,
   createExerciseLibrarySelectors,
   createExerciseLibraryStateAdapter,
   exerciseLibraryModuleId,
@@ -43,6 +44,7 @@ test("Exercise Library extraction owns the first state module file slots", () =>
     "src/modules/exercise-library/index.mjs",
     "src/modules/exercise-library/exercise-library-actions.mjs",
     "src/modules/exercise-library/exercise-library-renderer.mjs",
+    "src/modules/exercise-library/exercise-library-runtime-controller.mjs",
     "src/modules/exercise-library/exercise-library-selectors.mjs",
     "src/modules/exercise-library/exercise-library-state.mjs",
   ].forEach((path) => {
@@ -309,26 +311,116 @@ test("Exercise Library folder normalization keeps folder membership separate fro
   expect(adapter.parseFoldersPayload(JSON.stringify(folderBackup))).toHaveLength(2);
 });
 
-test("Exercise Library app integration delegates state ownership to the module", () => {
+test("Exercise Library runtime controller owns storage, filters, folders, and app-facing delegates", () => {
+  const adapter = createTestAdapter();
+  const selectors = createExerciseLibrarySelectors({ normalizeTimestamp: (value) => value || "" });
+  const storage = new Map();
+  let exercises = null;
+  let folders = null;
+  let uiState = {
+    archiveView: "active",
+    filterOpen: "",
+    phaseFilter: "all",
+    phaseFilters: [],
+    searchQuery: "",
+    selectedFolderId: "all",
+    sortMode: "updated",
+    subPhaseFilter: "all",
+    subPhaseFilters: [],
+  };
+  const rendered = [];
+  const toasts = [];
+  const controller = createExerciseLibraryRuntimeController({
+    stateAdapter: adapter,
+    selectors,
+    getActions: () => ({
+      archiveFolder: (folderId) => {
+        uiState.archivedFolder = folderId;
+      },
+    }),
+    getRenderer: () => ({
+      renderResults: (target) => {
+        rendered.push(target);
+      },
+    }),
+    getUi: () => ({ sessionPlannerWorkspace: "workspace-node" }),
+    getUiState: () => uiState,
+    setUiState: (patch) => {
+      uiState = { ...uiState, ...patch };
+    },
+    getExerciseLibrary: () => exercises,
+    setExerciseLibrary: (nextExercises) => {
+      exercises = nextExercises;
+    },
+    getExerciseFolders: () => folders,
+    setExerciseFolders: (nextFolders) => {
+      folders = nextFolders;
+    },
+    win: {
+      localStorage: {
+        getItem: (key) => (storage.has(key) ? storage.get(key) : null),
+        setItem: (key, value) => storage.set(key, value),
+      },
+      confirm: () => true,
+    },
+    exerciseLibraryStorageKey: sessionPlannerExerciseLibraryStorageKey,
+    exerciseLibraryBackupStorageKey: "exercise-backup",
+    exerciseLibraryFoldersStorageKey: sessionPlannerExerciseLibraryFoldersStorageKey,
+    exerciseLibraryFoldersBackupStorageKey: "folders-backup",
+    defaultExerciseLibrary: [{ id: "seed", title: "Seed Exercise" }],
+    renderWorkspace: (options) => rendered.push(options),
+    showToast: (message) => toasts.push(message),
+    getLibraryUserId: () => "coach-1",
+    periodizationOptionLibrary: { matchPhases: ["Pressing"], subPhases: ["High Press"] },
+    getSelectedBlock: () => ({ phase: "" }),
+    updateSelectedBlockField: () => {},
+    getReviewNotes: () => [],
+    canEdit: () => true,
+  });
+
+  storage.set(
+    sessionPlannerExerciseLibraryStorageKey,
+    JSON.stringify([{ id: "press", title: "Press Game", phase: "Pressing", subPhase: "High Press" }])
+  );
+  storage.set(
+    sessionPlannerExerciseLibraryFoldersStorageKey,
+    JSON.stringify([{ id: "folder-1", name: "Team Press", visibility: "team", exerciseIds: ["press"] }])
+  );
+
+  expect(controller.getSessionPlannerExerciseLibrary().map((exercise) => exercise.id)).toEqual(["press"]);
+  expect(controller.getSessionPlannerExerciseLibraryFolders().map((folder) => folder.id)).toEqual(["folder-1"]);
+  controller.toggleSessionPlannerLibraryFilterValue("phase", "Pressing");
+  expect(controller.getSessionPlannerLibraryFilterValues("phase")).toEqual(["Pressing"]);
+  expect(controller.getFilteredSessionPlannerExerciseLibrary().map((exercise) => exercise.id)).toEqual(["press"]);
+  controller.selectSessionPlannerLibraryFolder("folder-1");
+  expect(uiState.selectedFolderId).toBe("folder-1");
+  controller.renderSessionPlannerLibraryResults();
+  expect(rendered).toContain("workspace-node");
+  controller.archiveSessionPlannerExerciseLibraryFolder("folder-1");
+  expect(uiState.archivedFolder).toBe("folder-1");
+  expect(toasts).toEqual([]);
+});
+
+test("Exercise Library app integration delegates runtime ownership to the module", () => {
   const app = readProjectFile("app.js");
   const packageJson = readProjectFile("package.json");
   const storageGuard = readProjectFile("scripts/verify-storage-key-policy.mjs");
 
   expect(app).toContain("./src/modules/exercise-library/index.mjs");
   expect(app).toContain("createExerciseLibraryActions");
+  expect(app).toContain("createExerciseLibraryRuntimeController");
   expect(app).toContain("createExerciseLibraryStateAdapter");
   expect(app).toContain("createExerciseLibrarySelectors");
   expect(app).toContain("createExerciseLibraryRenderer");
-  expect(app).toContain("exerciseLibraryActions.archiveExercise(exerciseId)");
-  expect(app).toContain("exerciseLibraryActions.createFolderFromForm(form)");
+  expect(app).toContain("callExerciseLibraryRuntime");
   expect(app).toContain("exerciseLibraryRenderer.renderOverlay()");
-  expect(app).toContain("exerciseLibraryRenderer.renderResults(ui.sessionPlannerWorkspace)");
-  expect(app).toContain("exerciseLibraryStateAdapter.createExercise(source)");
-  expect(app).toContain("exerciseLibraryStateAdapter.createFolder(source)");
-  expect(app).toContain("exerciseLibraryStateAdapter.parseExercisePayload(rawLibrary)");
-  expect(app).toContain("exerciseLibrarySelectors.compareExercises(a, b, sessionPlannerLibrarySortMode)");
+  expect(app).not.toContain("exerciseLibraryStateAdapter.createExercise(source)");
+  expect(app).not.toContain("exerciseLibraryStateAdapter.createFolder(source)");
+  expect(app).not.toContain("exerciseLibraryStateAdapter.parseExercisePayload(rawLibrary)");
+  expect(app).not.toContain("exerciseLibrarySelectors.compareExercises(a, b, sessionPlannerLibrarySortMode)");
   expect(app).not.toContain('const sessionPlannerExerciseLibraryStorageKey = "football-session-exercise-library-v1";');
   expect(app).not.toContain("const sessionPlannerDefaultExerciseLibrary = [");
+  expect(packageJson).toContain("src/modules/exercise-library/exercise-library-runtime-controller.mjs");
   expect(packageJson).toContain("qa/exercise-library-module-contract.api.spec.mjs");
   expect(storageGuard).toContain("src/modules/exercise-library/exercise-library-state.mjs");
 });
@@ -340,6 +432,7 @@ test("Exercise Library is tracked as partial extraction while protected writes r
   expect(contract.currentFiles).toContain("src/modules/exercise-library/index.mjs");
   expect(contract.currentFiles).toContain("src/modules/exercise-library/exercise-library-actions.mjs");
   expect(contract.currentFiles).toContain("src/modules/exercise-library/exercise-library-renderer.mjs");
+  expect(contract.currentFiles).toContain("src/modules/exercise-library/exercise-library-runtime-controller.mjs");
   expect(contract.currentFiles).toContain("src/modules/exercise-library/exercise-library-state.mjs");
   expect(contract.testFiles).toContain("qa/exercise-library-module-contract.api.spec.mjs");
   expect(platformModuleImplementationStages["exercise-library"]).toBe("partial-extraction");

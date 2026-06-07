@@ -49,7 +49,7 @@ import { createPlatformAutosaveStatusController } from "./src/core/platform-auto
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
 import { getTopIconSvg } from "./top-icons.js";
 import { createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
-import { adminDepartmentSuggestions, adminTitleSuggestions, createAdminStructureRenderer, createAdminUserRenderer, getAdminActiveUserCount, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
+import { adminDepartmentSuggestions, adminTitleSuggestions, createAdminReadinessRenderer, createAdminStructureRenderer, createAdminUserRenderer, getAdminActiveUserCount, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
 const getElement = document.getElementById.bind(document);
 const win = window;
 const canvas = getElement("pitchCanvas");
@@ -4940,10 +4940,21 @@ let platformReadinessReport = null;
 let platformReadinessLoading = false;
 let platformReadinessLoadedAt = 0;
 let platformReadinessLoadError = "";
-const platformReadinessStatusLabels = Object.freeze({
-pass: "Ready",
-warning: "Needs attention",
-missing: "Missing",
+const adminReadinessRenderer = createAdminReadinessRenderer({
+escapeHtml,
+getReadinessState: () => ({
+report: platformReadinessReport,
+loading: platformReadinessLoading,
+loadError: platformReadinessLoadError,
+loadedAt: platformReadinessLoadedAt,
+}),
+readAppearanceState: readPlatformAppearanceState,
+getHomeAppearanceImpactSummary,
+platformAppearanceDensityOptions,
+platformAppearanceHomeComponentTypeIds,
+platformAppearanceHomeSectionDefaults,
+platformAppearanceThemeOptions,
+platformAppearanceToneOptions,
 });
 const platformDefaultRoles = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
 const platformManagementRoleSet = new Set(["admin", "club-admin", "team-admin"]);
@@ -19239,82 +19250,19 @@ renderAdminWorkspace();
 }
 }
 function normalizePlatformReadinessStatus(status) {
-return ["pass", "warning", "missing"].includes(status) ? status : "warning";
+return adminReadinessRenderer.normalizeReadinessStatus(status);
 }
 function renderPlatformReadinessStatus(status) {
-const normalizedStatus = normalizePlatformReadinessStatus(status);
-return `<span class="pr-status is-${escapeHtml(normalizedStatus)}">${escapeHtml(
-platformReadinessStatusLabels[normalizedStatus] || normalizedStatus
-)}</span>`;
+return adminReadinessRenderer.renderReadinessStatus(status);
 }
 function renderPlatformReadinessEmptyState() {
-if (platformReadinessLoading) {
-return `<div class="pr-empty">Loading readiness...</div>`;
-}
-if (platformReadinessLoadError) {
-return `<div class="pr-empty is-error">${escapeHtml(platformReadinessLoadError)}</div>`;
-}
-return `<div class="pr-empty">Readiness loads from admin API.</div>`;
+return adminReadinessRenderer.renderReadinessEmptyState();
 }
 function createPlatformReadinessFallbackReport() {
-return { summary: { readySections: 0, totalSections: 0, totalModules: 0, legacyModules: 0 }, sections: [], modules: [], environment: [], observabilitySignals: [] };
+return adminReadinessRenderer.createReadinessFallbackReport();
 }
 function renderPlatformReadinessDashboard() {
-const report = platformReadinessReport || createPlatformReadinessFallbackReport();
-const esc = escapeHtml;
-const sections = Array.isArray(report.sections) ? report.sections : [];
-const modules = Array.isArray(report.modules) ? report.modules : [];
-const environment = Array.isArray(report.environment) ? report.environment : [];
-const signals = Array.isArray(report.observabilitySignals) ? report.observabilitySignals : [];
-const live = report.liveSignals || [];
-const priorities = Array.isArray(report.operatingPriorities) ? report.operatingPriorities : [];
-const migrations = Array.isArray(report.databasePrimaryMigrationPlan) ? report.databasePrimaryMigrationPlan : [];
-const scouting = report.scoutingPerformance || {};
-const score = report.summary ? `${report.summary.readySections}/${report.summary.totalSections}` : "0/0";
-const missingEnv = environment.filter((entry) => normalizePlatformReadinessStatus(entry.status) === "missing").length;
-const overallStatus = normalizePlatformReadinessStatus(report.overallStatus);
-const nextPriority = priorities[0] || null;
-const compactRow = (title, subtitle = "", status = "") => `<article class="pr-signal-row"><strong>${esc(title)}</strong><span>${esc(subtitle)}</span>${status ? renderPlatformReadinessStatus(status) : ""}</article>`;
-const moduleRow = (title, meta, scope, status) => `<article class="pr-module-row"><div><strong>${esc(title)}</strong><small>${esc(meta)}</small></div><span>${esc(scope || "")}</span>${renderPlatformReadinessStatus(status)}</article>`;
-const detailPanel = (title, rows) => `<div><h3>${esc(title)}</h3><div class="pr-list">${rows || renderPlatformReadinessEmptyState()}</div></div>`;
-const sectionCards = sections.map((section) => `<article class="pr-section is-${esc(normalizePlatformReadinessStatus(section.status))}"><div><strong>${esc(section.label)}</strong><p>${esc(section.details)}</p></div>${renderPlatformReadinessStatus(section.status)}</article>`).join("");
-const priorityRows = priorities.slice(0, 6).map((priority) => compactRow(`P${priority.priority} · ${priority.label}`, priority.nextStep || priority.target || priority.risk || "")).join("");
-const migrationRows = migrations.slice(0, 10).map((item) => compactRow(`P${item.priority} · ${item.moduleId}`, item.nextStep || item.target || "")).join("");
-const scoutingRows = `${compactRow("First page", `${scouting?.datasetRules?.firstPageMaxRecords || 0} records`)}${compactRow("Worker", scouting?.datasetRules?.requiresWorkerSource ? "Required" : "Not required")}${compactRow("Signals", `${scouting?.requiredSignals?.length || 0}`)}`;
-const moduleRows = modules.slice(0, 14).map((module) => moduleRow(module.label || module.id, `${module.id} · ${module.implementation || "unclassified"}`, module.scope || "scope", module.status)).join("");
-const environmentRows = environment.map((entry) => `<article class="pr-env-row is-${esc(normalizePlatformReadinessStatus(entry.status))}"><div><strong>${esc(entry.label)}</strong><small>${esc(entry.location)}</small></div><span>${esc(entry.missing?.length ? entry.missing.join(", ") : "OK")}</span>${renderPlatformReadinessStatus(entry.status)}</article>`).join("");
-const signalRows = signals.map((signal) => compactRow(signal.label, signal.source)).join("");
-const liveRows = live.map((signal) => compactRow(signal.label, signal.details||signal.source, signal.status)).join("");
-return `
-    <article class="admin-card pr-card">
-      <div class="staff-card-head">
-        <div>
-          <h2>Platform Health</h2>
-          <span>${platformReadinessLoadedAt ? `Updated ${esc(formatAdminDateTime(platformReadinessLoadedAt))}` : "Platform Readiness"}</span>
-        </div>
-        <button type="button" class="admin-send-button" data-pr-refresh>Refresh</button>
-      </div>
-      ${
-        !platformReadinessReport && (platformReadinessLoading || platformReadinessLoadError)
-          ? renderPlatformReadinessEmptyState()
-          : `
-      <section class="pr-section is-${esc(overallStatus)}">
-        <div><strong>Live Health</strong><p>${esc(nextPriority?.nextStep || `Ready ${score}, Missing env ${missingEnv}.`)}</p></div>${renderPlatformReadinessStatus(overallStatus)}
-      </section>
-      <section class="pr-section-grid">${sectionCards}</section>
-      <section class="pr-detail-grid">
-        ${detailPanel("Live Signals", liveRows)}
-        ${detailPanel("Next Actions", priorityRows)}
-        ${detailPanel("Database Migration", migrationRows)}
-        ${detailPanel("Scouting Speed", scoutingRows)}
-        ${detailPanel("Module Map", moduleRows)}
-        ${detailPanel("Secrets & Staging", environmentRows)}
-        ${detailPanel("Observability", signalRows)}
-      </section>
-      `
-      }
-    </article>
-  `;
+return adminReadinessRenderer.renderReadinessDashboard();
 }
 async function loadPlatformReadinessReport(options = {}) {
 if (platformReadinessLoading) {
@@ -19359,125 +19307,13 @@ renderAdminWorkspace();
 }
 }
 function renderPlatformAppearanceSelect(name, options, selectedValue, labelMap = {}) {
-return `
-    <select name="${escapeHtml(name)}">
-      ${options
-        .map(
-          (option) =>
-            `<option value="${escapeHtml(option)}" ${option === selectedValue ? "selected" : ""}>${escapeHtml(labelMap[option] || option)}</option>`
-        )
-        .join("")}
-    </select>
-  `;
+return adminReadinessRenderer.renderAppearanceSelect(name, options, selectedValue, labelMap);
 }
 function formatPlatformAppearanceImpact(impact) {
-if (!impact?.count) {
-return `<div class="appearance-impact-summary appearance-impact-empty"><strong>0</strong></div>`;
-}
-return `
-    <div class="appearance-impact-summary">
-      <strong>${escapeHtml(impact.enabledCount)} / ${escapeHtml(impact.count)}</strong>
-    </div>
-  `;
+return adminReadinessRenderer.formatAppearanceImpact(impact);
 }
 function renderPlatformAppearanceGovernancePanel() {
-const appearance = readPlatformAppearanceState();
-const home = appearance.modules.home;
-const densityLabels = { compact: "Compact", normal: "Normal", airy: "Airy" };
-const toneLabels = { default: "Default", calm: "Calm", pitch: "Pitch", contrast: "Contrast" };
-const themeLabels = { system: "Follow app theme", light: "Light", dark: "Dark" };
-const impactByType = Object.fromEntries(getHomeAppearanceImpactSummary(appearance).map((impact) => [impact.componentType, impact]));
-const componentTypeRows = platformAppearanceHomeComponentTypeIds
-.map((typeId) => {
-const defaults = home.componentTypes[typeId];
-const impact = impactByType[typeId];
-return `
-        <article class="appearance-type-row">
-          <div>
-            <strong>${escapeHtml(defaults.label)}</strong>
-          </div>
-          ${formatPlatformAppearanceImpact(impact)}
-          <label>
-            <span>Density</span>
-            ${renderPlatformAppearanceSelect(`componentType.${typeId}.density`, platformAppearanceDensityOptions, defaults.density, densityLabels)}
-          </label>
-          <label>
-            <span>Tone</span>
-            ${renderPlatformAppearanceSelect(`componentType.${typeId}.tone`, platformAppearanceToneOptions, defaults.tone, toneLabels)}
-          </label>
-        </article>
-      `;
-})
-.join("");
-const sectionRows = platformAppearanceHomeSectionDefaults
-.map((section) => {
-const value = home.sections[section.id] || section;
-return `
-        <article class="appearance-section-row">
-          <label class="appearance-section-visible">
-            <input type="checkbox" name="section.${escapeHtml(section.id)}.enabled" ${value.enabled ? "checked" : ""} />
-            <span>${escapeHtml(section.label)}</span>
-          </label>
-          <label>
-            <span>Order</span>
-            <input name="section.${escapeHtml(section.id)}.order" type="number" min="1" max="99" value="${escapeHtml(value.order)}" />
-          </label>
-          <label>
-            <span>Kicker</span>
-            <input name="section.${escapeHtml(section.id)}.eyebrow" value="${escapeHtml(value.eyebrow)}" maxlength="36" />
-          </label>
-          <label>
-            <span>Title</span>
-            <input name="section.${escapeHtml(section.id)}.title" value="${escapeHtml(value.title)}" maxlength="58" />
-          </label>
-        </article>
-      `;
-})
-.join("");
-return `
-    <form id="platformAppearanceForm" class="admin-card appearance-governance-card">
-      <div class="staff-card-head">
-        <div>
-          <h2>Appearance</h2>
-          <span>Platform Admin</span>
-        </div>
-        <span class="profile-role-pill">Home</span>
-      </div>
-      <section class="appearance-governance-block">
-        <div class="appearance-block-head">
-          <h3>Home defaults</h3>
-        </div>
-        <div class="appearance-home-defaults">
-          <label>
-            <span>Home density</span>
-            ${renderPlatformAppearanceSelect("home.density", platformAppearanceDensityOptions, home.density, densityLabels)}
-          </label>
-          <label>
-            <span>Theme scope</span>
-            ${renderPlatformAppearanceSelect("home.theme", platformAppearanceThemeOptions, home.theme, themeLabels)}
-          </label>
-        </div>
-      </section>
-      <section class="appearance-governance-block">
-        <div class="appearance-block-head">
-          <h3>Type rules</h3>
-        </div>
-        <div class="appearance-type-list">${componentTypeRows}</div>
-      </section>
-      <section class="appearance-governance-block">
-        <div class="appearance-block-head">
-          <h3>Home sections</h3>
-        </div>
-        <div class="appearance-section-list">${sectionRows}</div>
-      </section>
-      <div class="profile-form-footer admin-access-footer">
-        <span class="appearance-actions">
-          <button type="button" class="admin-send-button" data-platform-appearance-reset>Reset</button>
-          <button type="submit">Publish</button>
-        </span>
-      </div>
-    </form>
-  `;
+return adminReadinessRenderer.renderAppearanceGovernancePanel();
 }
 function buildPlatformAppearanceConfigFromForm(form) {
 const formData = new FormData(form);

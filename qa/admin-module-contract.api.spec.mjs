@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   adminDepartmentSuggestions,
   adminTitleSuggestions,
+  createAdminReadinessRenderer,
   createAdminStructureRenderer,
   createAdminUserRenderer,
   formatAdminDateTime,
@@ -126,4 +127,63 @@ test("Admin structure renderer owns role options, team options, and club structu
   expect(markup).toContain("First Team");
   expect(markup).toContain("Create club");
   expect(markup).toContain("Create team");
+});
+
+test("Admin readiness renderer owns readiness status and appearance markup", () => {
+  const appearance = {
+    modules: {
+      home: {
+        density: "normal",
+        theme: "system",
+        componentTypes: {
+          hero: { label: "Hero", density: "normal", tone: "default" },
+        },
+        sections: {
+          overview: { id: "overview", label: "Overview", enabled: true, order: "1", eyebrow: "Today", title: "Dashboard" },
+        },
+      },
+    },
+  };
+  const renderer = createAdminReadinessRenderer({
+    escapeHtml: (value) => String(value ?? "").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
+    getReadinessState: () => ({
+      report: {
+        overallStatus: "pass",
+        summary: { readySections: 2, totalSections: 3 },
+        sections: [{ label: "Deploy", details: "Ready", status: "pass" }],
+        modules: [{ id: "home", label: "Home", implementation: "module", scope: "ui", status: "pass" }],
+        environment: [{ label: "Vercel", location: "secret", missing: [], status: "pass" }],
+        observabilitySignals: [{ label: "API", source: "logs" }],
+        liveSignals: [{ label: "Production", details: "OK", status: "pass" }],
+        operatingPriorities: [{ priority: 1, label: "Keep stable", nextStep: "Monitor" }],
+        databasePrimaryMigrationPlan: [{ priority: 1, moduleId: "admin", nextStep: "Move pure UI" }],
+        scoutingPerformance: { datasetRules: { firstPageMaxRecords: 50, requiresWorkerSource: true }, requiredSignals: ["load"] },
+      },
+      loading: false,
+      loadError: "",
+      loadedAt: "2026-05-31T11:14:00Z",
+    }),
+    readAppearanceState: () => appearance,
+    getHomeAppearanceImpactSummary: () => [{ componentType: "hero", enabledCount: 1, count: 2 }],
+    platformAppearanceDensityOptions: ["compact", "normal", "airy"],
+    platformAppearanceHomeComponentTypeIds: ["hero"],
+    platformAppearanceHomeSectionDefaults: [{ id: "overview", label: "Overview", enabled: true, order: "1", eyebrow: "Today", title: "Dashboard" }],
+    platformAppearanceThemeOptions: ["system", "light", "dark"],
+    platformAppearanceToneOptions: ["default", "calm"],
+  });
+
+  expect(renderer.normalizeReadinessStatus("pass")).toBe("pass");
+  expect(renderer.normalizeReadinessStatus("unknown")).toBe("warning");
+  expect(renderer.renderReadinessStatus("missing")).toContain("Missing");
+  const readinessMarkup = renderer.renderReadinessDashboard();
+  expect(readinessMarkup).toContain("Platform Health");
+  expect(readinessMarkup).toContain("Live Health");
+  expect(readinessMarkup).toContain("Scouting Speed");
+  expect(readinessMarkup).toContain("Refresh");
+  const appearanceMarkup = renderer.renderAppearanceGovernancePanel();
+  expect(appearanceMarkup).toContain("Appearance");
+  expect(appearanceMarkup).toContain("Home density");
+  expect(appearanceMarkup).toContain("Type rules");
+  expect(appearanceMarkup).toContain("Home sections");
+  expect(appearanceMarkup).toContain("Publish");
 });

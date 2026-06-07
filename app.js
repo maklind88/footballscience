@@ -5177,8 +5177,10 @@ getMedicalRecordStatus,
 getMedicalRtpPhaseForRecommendation,
 getMedicalRtpPhaseOption,
 getMedicalStatusForParticipation,
+getMedicalStatusOption,
 getMedicalStatusOptionForDate,
 getMedicalWindowDates,
+getMedicalPlayerRestrictedLogRecords,
 getPlayerModalOpen: () => medicalPlayerModalOpen,
 getPlayerModalTab: () => medicalPlayerModalTab,
 getSelectedDate: () => medicalState.selectedDate,
@@ -5190,11 +5192,16 @@ renderMedicalActualPresets,
 renderMedicalClearanceChecklist,
 renderMedicalInjuryPlanForm,
 renderMedicalLogCard,
+renderMedicalLog,
+renderMedicalNewPlayerCard,
 renderMedicalPlanListCard,
+renderMedicalActualParticipationOptions,
+renderMedicalParticipationOptions,
 renderMedicalPlayerAvatar,
 renderMedicalPlayerProfileSummary,
 renderMedicalRecommendationPresets,
 renderMedicalRtpPhaseOptions,
+renderMedicalStatusOptions,
 });
 const platformDefaultRoles = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
 const platformManagementRoleSet = new Set(["admin", "club-admin", "team-admin"]);
@@ -25790,114 +25797,7 @@ function renderMedicalPlayerModal() {
 return medicalPlayerModalRenderer.renderPlayerModal();
 }
 function renderMedicalSelectedPanel() {
-const player = getSelectedMedicalPlayer();
-const canEdit = canEditMedicalTeam();
-if (!player) {
-return `
-<aside class="medical-detail-panel">
-${renderMedicalNewPlayerCard()}
-</aside>
-`;
-}
-const record = getLatestMedicalRecord(player.id, medicalState.selectedDate);
-const status = getMedicalRecordStatus(record);
-const formStatus = record?.status ?? status.key;
-const formParticipation = record?.participation ?? getMedicalStatusOption(formStatus).defaultParticipation ?? 100;
-return `
-<aside class="medical-detail-panel">
-<article class="medical-selected-card">
-<div class="medical-selected-head">
-${renderMedicalPlayerAvatar(player, "medical-selected-avatar")}
-<div>
-<p class="placeholder-tag">Player Medical</p>
-<h2>${escapeHtml(player.name)}</h2>
-<span>${player.number ? `#${escapeHtml(player.number)} / ` : ""}${escapeHtml(player.position || "Position")}</span>
-</div>
-</div>
-<div class="medical-selected-status medical-tone-${escapeHtml(status.tone)}">
-<strong>${record ? `${record.participation}%` : "Not set"}</strong>
-<span>${escapeHtml(status.label)}</span>
-</div>
-</article>
-<article class="medical-side-card">
-<div class="medical-card-headline">
-<h2>Recommendation</h2>
-<span>${escapeHtml(formatMedicalDateLabel(medicalState.selectedDate))}</span>
-</div>
-<form id="medicalSidebarRecommendationForm" class="medical-profile-form" data-medical-recommendation-form>
-<input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
-<div class="medical-form-grid">
-<label>
-<span>Date</span>
-<input name="date" type="date" value="${escapeHtml(medicalState.selectedDate)}" ${canEdit ? "" : "disabled"} />
-</label>
-<label>
-<span>Status</span>
-<select name="status" id="medicalRecommendationStatus" ${canEdit ? "" : "disabled"}>
-${renderMedicalStatusOptions(formStatus, medicalState.selectedDate)}
-</select>
-</label>
-<label>
-<span>Recommended</span>
-<select name="participation" id="medicalRecommendationParticipation" ${canEdit ? "" : "disabled"}>
-${renderMedicalParticipationOptions(formParticipation)}
-</select>
-</label>
-<label>
-<span>Actual</span>
-<select name="actualParticipation" ${canEdit ? "" : "disabled"}>
-${renderMedicalActualParticipationOptions(record?.actualParticipation)}
-</select>
-</label>
-</div>
-<label>
-<span>Internal medical note</span>
-<textarea name="comment" rows="4" ${canEdit ? "" : "disabled"}>${escapeHtml(record?.comment ?? "")}</textarea>
-</label>
-<button type="submit" ${canEdit ? "" : "disabled"}>Save status</button>
-</form>
-</article>
-<article class="medical-side-card">
-<div class="medical-card-headline">
-<h2>Player Profile</h2>
-<span>IDP-ready</span>
-</div>
-<form id="medicalPlayerProfileForm" class="medical-profile-form">
-<input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
-<div class="medical-form-grid">
-<label>
-<span>Number</span>
-<input name="number" value="${escapeHtml(player.number)}" ${canEdit ? "" : "disabled"} />
-</label>
-<label>
-<span>Name</span>
-<input name="name" value="${escapeHtml(player.name)}" required ${canEdit ? "" : "disabled"} />
-</label>
-<label>
-<span>Position</span>
-<input name="position" value="${escapeHtml(player.position)}" ${canEdit ? "" : "disabled"} />
-</label>
-<label>
-<span>Image URL</span>
-<input name="photoUrl" type="url" value="${escapeHtml(player.photoUrl)}" ${canEdit ? "" : "disabled"} />
-</label>
-</div>
-<div class="medical-form-actions">
-<button type="submit" ${canEdit ? "" : "disabled"}>Save profile</button>
-<button type="button" class="medical-danger-button" data-medical-remove-player="${escapeHtml(player.id)}" ${canEdit ? "" : "disabled"}>Remove</button>
-</div>
-</form>
-</article>
-<article class="medical-side-card medical-log-card">
-<div class="medical-card-headline">
-<h2>Medical Log</h2>
-<span>${getMedicalPlayerRestrictedLogRecords(player.id).length}</span>
-</div>
-<div class="medical-log-list">${renderMedicalLog(player)}</div>
-</article>
-${renderMedicalNewPlayerCard()}
-</aside>
-`;
+return medicalPlayerModalRenderer.renderSelectedPanel();
 }
 function renderMedicalTeamWorkspace(message = "", options = {}) {
 if (!ui.medicalTeamWorkspace) {

@@ -27,8 +27,10 @@ test("Medical player modal renderer keeps edit and coach-safe modal contracts", 
     getMedicalRtpPhaseForRecommendation: () => "phase-2",
     getMedicalRtpPhaseOption: () => ({ label: "Phase 2" }),
     getMedicalStatusForParticipation: () => "modified",
+    getMedicalStatusOption: () => ({ defaultParticipation: 75 }),
     getMedicalStatusOptionForDate: () => ({ label: "Modified" }),
     getMedicalWindowDates: () => ["2026-05-31"],
+    getMedicalPlayerRestrictedLogRecords: () => [record],
     getPlayerModalOpen: () => true,
     getPlayerModalTab: () => "availability",
     getSelectedDate: () => "2026-05-31",
@@ -43,12 +45,17 @@ test("Medical player modal renderer keeps edit and coach-safe modal contracts", 
     renderMedicalActualPresets: () => '<div data-actual-presets></div>',
     renderMedicalClearanceChecklist: () => '<section data-clearance></section>',
     renderMedicalInjuryPlanForm: () => '<form id="medicalInjuryPlanForm"></form>',
+    renderMedicalLog: () => '<article data-medical-log></article>',
     renderMedicalLogCard: () => '<article data-log-card></article>',
+    renderMedicalNewPlayerCard: () => '<article data-new-player></article>',
     renderMedicalPlanListCard: () => '<article data-plan-list></article>',
+    renderMedicalActualParticipationOptions: () => '<option value="not-logged">Not logged</option>',
+    renderMedicalParticipationOptions: () => '<option value="75">75%</option>',
     renderMedicalPlayerAvatar: () => '<span data-avatar></span>',
     renderMedicalPlayerProfileSummary: () => '<section data-profile-summary></section>',
     renderMedicalRecommendationPresets: () => '<div data-recommendation-presets></div>',
     renderMedicalRtpPhaseOptions: () => '<option value="phase-2">Phase 2</option>',
+    renderMedicalStatusOptions: () => '<option value="modified">Modified</option>',
   };
 
   const editRenderer = createMedicalPlayerModalRenderer({
@@ -70,4 +77,10 @@ test("Medical player modal renderer keeps edit and coach-safe modal contracts", 
   expect(coachModal).toContain("medical-coach-modal");
   expect(coachModal).toContain("Approved Share");
   expect(coachModal).toContain("Limit sprinting");
+
+  const selectedPanel = editRenderer.renderSelectedPanel();
+  expect(selectedPanel).toContain('id="medicalSidebarRecommendationForm"');
+  expect(selectedPanel).toContain('id="medicalPlayerProfileForm"');
+  expect(selectedPanel).toContain('data-medical-remove-player="p1"');
+  expect(selectedPanel).toContain("data-medical-log");
 });

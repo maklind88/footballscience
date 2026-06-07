@@ -87,3 +87,18 @@ test("home dashboard renderer applies safe same-type appearance rules", () => {
   expect(rendered).toContain("dashboard-appearance-tone-contrast");
   expect(rendered).toContain('data-dashboard-appearance-type="home.task-panel"');
 });
+
+test("home dashboard renderer owns tutorial modal markup without popup storage rules", () => {
+  const renderer = createDashboardHomeCardsRenderer({
+    escapeHtml: (value) => String(value ?? ""),
+    renderTaskList: () => "<div></div>",
+    resolveUserLabel: renderTestUserLabel,
+  });
+
+  const rendered = renderer.renderTutorialModal({ shouldShowNext: true });
+
+  expect(rendered).toContain('aria-labelledby="dashboardTutorialTitle"');
+  expect(rendered).toContain("Football Science Coaching Platform");
+  expect(rendered).toContain('id="dashboardTutorialShowNext" type="checkbox" checked');
+  expect(rendered).toContain("data-dashboard-tutorial-never");
+});

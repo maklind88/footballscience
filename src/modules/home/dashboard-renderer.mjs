@@ -227,6 +227,43 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
     return "";
   }
 
+  function renderTutorialModal({ shouldShowNext = false } = {}) {
+    return `
+    <div class="dashboard-modal-backdrop" data-dashboard-modal-close></div>
+    <section class="dashboard-modal-card" role="dialog" aria-modal="true" aria-labelledby="dashboardTutorialTitle">
+      <header class="dashboard-modal-head">
+        <div>
+          <p class="dashboard-modal-kicker">First login</p>
+          <h2 id="dashboardTutorialTitle">Football Science Coaching Platform</h2>
+        </div>
+        <button type="button" class="dashboard-modal-close" data-dashboard-tutorial-save aria-label="Close tutorial">x</button>
+      </header>
+      <div class="dashboard-tutorial-steps">
+        <div>
+          <strong>Home</strong>
+          <span>Your staff workspace for tasks, personal To-Do and team chat.</span>
+        </div>
+        <div>
+          <strong>Navigate</strong>
+          <span>Use the top icons for Schedule, Periodization, Sessions and the other modules.</span>
+        </div>
+        <div>
+          <strong>Profile</strong>
+          <span>Your own To-Do list starts on Home and stays mirrored on Profile.</span>
+        </div>
+      </div>
+      <label class="dashboard-modal-check">
+        <input id="dashboardTutorialShowNext" type="checkbox" ${shouldShowNext ? "checked" : ""} />
+        <span>Show this tutorial next login</span>
+      </label>
+      <footer class="dashboard-modal-actions">
+        <button type="button" class="secondary dashboard-link-button" data-dashboard-tutorial-never>Do not show again</button>
+        <button type="button" data-dashboard-tutorial-save>Done</button>
+      </footer>
+    </section>
+  `;
+  }
+
   function render(context, staffOptions, appearanceConfig = {}) {
     const homeAppearance = getHomeAppearanceConfig(appearanceConfig);
     const sections = getHomeAppearanceSections(appearanceConfig);
@@ -258,6 +295,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
     renderTopTasksRow,
     renderTodoCommand,
     renderAlertsCard,
+    renderTutorialModal,
     getDashboardTopPriorityTasks,
     renderTopTaskRow,
     getDashboardTopTaskMeta,

@@ -19881,9 +19881,6 @@ renderMedicalTeamWorkspace("Coach-safe handover copied.");
 function renderMedicalCoachHandoverPanel() {
 return medicalCommandRenderer.renderCoachHandoverPanel();
 }
-function renderMedicalHuddleList(items, renderItem, emptyLabel) {
-return medicalCommandRenderer.renderHuddleList(items, renderItem, emptyLabel);
-}
 function renderMedicalDailyHuddle() {
 return medicalCommandRenderer.renderDailyHuddle();
 }
@@ -20105,23 +20102,6 @@ ${meta ? `<small>${escapeHtml(meta)}</small>` : ""}
 </article>
 `;
 }
-function getMedicalGovernanceStatus() {
-const policy = normalizeMedicalGovernancePolicy(medicalState.policy);
-const todayValue = formatScheduleDateValue(new Date());
-const daysSinceReview = policy.lastReviewed
-? Math.max(0, Math.round((parseScheduleDateValue(todayValue) - parseScheduleDateValue(policy.lastReviewed)) / (24 * 60 * 60 * 1000)))
-: null;
-const reviewDue = daysSinceReview === null || daysSinceReview >= policy.reviewCadenceDays;
-return {
-policy,
-daysSinceReview,
-reviewDue,
-coachSharedItems:
-medicalState.records.filter((record) => !isMedicalItemArchived(record) && record.shareWithCoach).length +
-medicalState.injuryPlans.filter((plan) => !isMedicalItemArchived(plan) && plan.shareWithCoach).length,
-privateRecordCount: medicalState.records.filter((record) => !isMedicalItemArchived(record) && String(record.comment || "").trim()).length,
-};
-}
 function updateMedicalGovernancePolicy(values = {}) {
 if (!canViewPrivateMedicalDetails()) {
 return false;
@@ -20140,9 +20120,6 @@ updatedBy: getCurrentPlatformUser()?.id || "",
 });
 writeMedicalState();
 return true;
-}
-function renderMedicalCommandBoard() {
-return medicalCommandRenderer.renderCommandBoard();
 }
 function normalizeMedicalOperationsTab(tabKey) {
 return medicalOperationsTabOptions.some((tab) => tab.key === tabKey) ? tabKey : "availability";
@@ -20192,39 +20169,12 @@ return medicalOperationsSelectors.getMedicalRiskSignals(dateValue);
 function getMedicalOperationsSummary(dateValue = medicalState?.selectedDate) {
 return medicalOperationsSelectors.getMedicalOperationsSummary(dateValue);
 }
-function renderMedicalOpsStat(label, value, meta = "", tone = "") {
-return medicalOperationsRenderer.renderOpsStat(label, value, meta, tone);
-}
-function renderMedicalSignalDrivers(signal, limit = 3) {
-return medicalOperationsRenderer.renderSignalDrivers(signal, limit);
-}
-function renderMedicalOperationsTabs(extraClass = "") {
-return medicalOperationsRenderer.renderTabs(medicalOperationsTab, medicalOperationsTabOptions, extraClass);
-}
 function renderMedicalOperationsTopMenu() {
 if (!canViewPrivateMedicalDetails()) {
 return "";
 }
 medicalOperationsTab = normalizeMedicalOperationsTab(medicalOperationsTab);
 return medicalOperationsRenderer.renderTopMenu(medicalOperationsTab, medicalOperationsTabOptions);
-}
-function renderMedicalOperationsOverview(summary) {
-return medicalOperationsRenderer.renderOverview(summary, medicalState.selectedDate);
-}
-function renderMedicalOperationsPlayerAvailability(summary) {
-return medicalOperationsRenderer.renderPlayerAvailability(summary);
-}
-function renderMedicalOperationsSignals(summary) {
-return medicalOperationsRenderer.renderSignals(summary);
-}
-function renderMedicalOperationsCases(summary) {
-return medicalOperationsRenderer.renderCases(summary);
-}
-function renderMedicalOperationsHistory() {
-return medicalOperationsRenderer.renderHistory();
-}
-function renderMedicalOperationsSeason(summary) {
-return medicalOperationsRenderer.renderSeason(summary);
 }
 function renderMedicalCoachSafeOperationsSummary() {
 return medicalOperationsRenderer.renderCoachSafeSummary(medicalState.selectedDate);
@@ -20240,89 +20190,14 @@ return medicalOperationsRenderer.renderPrivateSystem(summary, medicalOperationsT
 function renderMedicalAvailabilityWorkspace(message = "") {
 return medicalRosterRenderer.renderAvailabilityWorkspace(message);
 }
-function formatMedicalTimestampLabel(timestamp) {
-const cleanTimestamp = normalizeMedicalTimestamp(timestamp);
-if (!cleanTimestamp) {
-return "No clinical save yet";
-}
-return new Intl.DateTimeFormat("en-GB", {
-day: "numeric",
-month: "short",
-hour: "2-digit",
-minute: "2-digit",
-}).format(new Date(cleanTimestamp));
-}
-function getMedicalDatabaseSyncLabel(status) {
-if (status === "stored") {
-return "Database shadow saved";
-}
-if (status === "duplicate") {
-return "Database already current";
-}
-if (status === "failed") {
-return "Sync needs retry";
-}
-if (status === "pending") {
-return "Sync pending";
-}
-return "Protected app-state";
-}
-function renderMedicalDataSafetyPanel() {
-const safety = normalizeMedicalDataSafety(medicalState.dataSafety, medicalState);
-const archiveTotal = safety.archivedRecordCount + safety.archivedPlanCount + safety.archivedPlayerCount;
-const lastChangeLabel = formatMedicalTimestampLabel(safety.lastClinicalChangeAt);
-const lastSummary = safety.lastClinicalChangeSummary || "Clinical changes are protected by merge and archive safeguards.";
-const syncLabel = getMedicalDatabaseSyncLabel(safety.lastDatabaseSyncStatus);
-return `
-<section class="medical-data-safety medical-data-safety-${escapeHtml(safety.lastDatabaseSyncStatus)}" data-medical-data-safety>
-<div>
-<span>Data safety</span>
-<strong>${escapeHtml(lastChangeLabel)}</strong>
-<small>${escapeHtml(lastSummary)}</small>
-</div>
-<div class="medical-data-safety-pills">
-<span>${escapeHtml(syncLabel)}</span>
-<span>${archiveTotal} archived</span>
-</div>
-</section>
-`;
-}
-function renderMedicalDateStrip() {
-ensureMedicalState();
-return medicalRosterRenderer.renderDateStrip();
-}
-function renderMedicalActivityContextPanel() {
-return medicalRosterRenderer.renderActivityContextPanel();
-}
-function renderMedicalDayCell(player, dateValue) {
-return medicalRosterRenderer.renderDayCell(player, dateValue);
-}
 function getMedicalRosterPositionGroups(players = []) {
 return medicalRosterSelectors.getMedicalRosterPositionGroups(players);
 }
 function getMedicalRosterPositionStats(players = []) {
 return medicalRosterSelectors.getMedicalRosterPositionStats(players);
 }
-function renderMedicalQuickRecommendationButtons(player, record) {
-return medicalRosterRenderer.renderQuickRecommendationButtons(player, record);
-}
-function renderMedicalRosterRow(player) {
-return medicalRosterRenderer.renderRosterRow(player);
-}
-function renderMedicalPositionGroup(group) {
-return medicalRosterRenderer.renderPositionGroup(group);
-}
-function renderMedicalTemporaryPlayerSection(players = []) {
-return medicalRosterRenderer.renderTemporaryPlayerSection(players);
-}
-function renderMedicalRosterSetup() {
-return medicalRosterRenderer.renderRosterSetup();
-}
 function renderMedicalNewPlayerCard() {
 return medicalRosterRenderer.renderNewPlayerCard();
-}
-function renderMedicalRosterPanel() {
-return medicalRosterRenderer.renderRosterPanel();
 }
 function renderMedicalLog(player) {
 return medicalRecommendationRenderer.renderLog(player);
@@ -20336,23 +20211,11 @@ return medicalRecommendationRenderer.renderActualPresets(selectedValue, canEdit)
 function renderMedicalInjuryPlanStatusOptions(selectedStatus = "unavailable") {
 return medicalRecommendationRenderer.renderInjuryPlanStatusOptions(selectedStatus);
 }
-function renderMedicalInjuryPlanList(player) {
-return medicalRecommendationRenderer.renderInjuryPlanList(player);
-}
 function renderMedicalInjuryPlanForm(player, canEdit) {
 return medicalPlanFormRenderer.renderInjuryPlanForm(player, canEdit);
 }
 function renderMedicalClearanceChecklist(player, canEdit) {
 return medicalPlanFormRenderer.renderClearanceChecklist(player, canEdit);
-}
-function renderMedicalCoachSafeModal(player, record, status) {
-return medicalPlayerModalRenderer.renderCoachSafeModal(player, record, status);
-}
-function renderMedicalPlayerModalTabs(activeTab = medicalPlayerModalTab) {
-return medicalPlayerModalRenderer.renderPlayerModalTabs(activeTab);
-}
-function renderMedicalRecommendationModalCard(context) {
-return medicalPlayerModalRenderer.renderRecommendationModalCard(context);
 }
 function renderMedicalPlanListCard(player) {
 return medicalRecommendationRenderer.renderPlanListCard(player);
@@ -20360,14 +20223,8 @@ return medicalRecommendationRenderer.renderPlanListCard(player);
 function renderMedicalLogCard(player) {
 return medicalRecommendationRenderer.renderLogCard(player);
 }
-function renderMedicalPlayerModalBody(context) {
-return medicalPlayerModalRenderer.renderPlayerModalBody(context);
-}
 function renderMedicalPlayerModal() {
 return medicalPlayerModalRenderer.renderPlayerModal();
-}
-function renderMedicalSelectedPanel() {
-return medicalPlayerModalRenderer.renderSelectedPanel();
 }
 function renderMedicalTeamWorkspace(message = "", options = {}) {
 if (!ui.medicalTeamWorkspace) {

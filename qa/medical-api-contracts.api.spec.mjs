@@ -159,7 +159,7 @@ test("medical room archives clinical items instead of hard deleting them", () =>
   expect(appSource).toContain("availability-plan-archived");
   expect(appSource).toContain("availability-plan-updated");
   expect(appSource).toContain("player-archived");
-  expect(appSource).toContain("data-medical-data-safety");
+  expect(appSource).toContain("footballscience-medical-data-safety-v1");
   expect(appSource).not.toContain("medicalState.records = medicalState.records.filter((record) => record.id !== recordId)");
   expect(appSource).not.toContain("medicalState.injuryPlans = medicalState.injuryPlans.filter((plan) => plan.id !== planId)");
 });

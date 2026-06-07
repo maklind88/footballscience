@@ -68,6 +68,11 @@ const expectedAppSource = fs.readFileSync(path.join(rootDir, "app.js"), "utf8");
 const expectedAppHash = sha256(expectedAppSource);
 const expectedRuntimeSource = fs.readFileSync(path.join(rootDir, "app-runtime.js"), "utf8");
 const expectedRuntimeHash = sha256(expectedRuntimeSource);
+const expectedNavigationControllerSource = fs.readFileSync(
+  path.join(rootDir, "src/modules/platform/navigation-controller.mjs"),
+  "utf8"
+);
+const expectedNavigationControllerHash = sha256(expectedNavigationControllerSource);
 const { app, hash: liveAppHash } = allowLiveHashMismatch
   ? await (async () => {
       const liveApp = await readText(urlFor("/app.js"));
@@ -80,11 +85,32 @@ const { app: runtime, hash: liveRuntimeHash } = allowLiveHashMismatch
       return { app: liveRuntime, hash: sha256(liveRuntime.text) };
     })()
   : await waitForExpectedAsset("/app-runtime.js", expectedRuntimeHash, "app-runtime.js");
+const { app: navigationController, hash: liveNavigationControllerHash } = allowLiveHashMismatch
+  ? await (async () => {
+      const liveNavigationController = await readText(urlFor("/src/modules/platform/navigation-controller.mjs"));
+      return { app: liveNavigationController, hash: sha256(liveNavigationController.text) };
+    })()
+  : await waitForExpectedAsset(
+      "/src/modules/platform/navigation-controller.mjs",
+      expectedNavigationControllerHash,
+      "navigation-controller.mjs"
+    );
 expect(app.response.ok, `app.js did not return 2xx: ${app.response.status}`);
 expect(runtime.response.ok, `app-runtime.js did not return 2xx: ${runtime.response.status}`);
+expect(
+  navigationController.response.ok,
+  `navigation-controller.mjs did not return 2xx: ${navigationController.response.status}`
+);
 expect(app.text.includes("app-runtime.js"), "app.js is missing runtime loader.");
 expect(runtime.text.includes("workspaceLastActiveStorageKey"), "app-runtime.js is missing refresh workspace persistence.");
-expect(runtime.text.includes("__lastRenderedMarkup"), "app-runtime.js is missing top menu rerender guard.");
+expect(
+  runtime.text.includes("createPlatformNavigationController"),
+  "app-runtime.js is missing platform navigation controller wiring."
+);
+expect(
+  navigationController.text.includes("__lastRenderedMarkup"),
+  "navigation-controller.mjs is missing top menu rerender guard."
+);
 expect(runtime.text.includes("football-dashboard-chat-v1"), "app-runtime.js is missing chat storage contract key.");
 if (!allowLiveHashMismatch) {
   expect(
@@ -94,6 +120,10 @@ if (!allowLiveHashMismatch) {
   expect(
     liveRuntimeHash === expectedRuntimeHash,
     `Live app-runtime.js hash does not match this release. expected=${expectedRuntimeHash} live=${liveRuntimeHash}`
+  );
+  expect(
+    liveNavigationControllerHash === expectedNavigationControllerHash,
+    `Live navigation-controller.mjs hash does not match this release. expected=${expectedNavigationControllerHash} live=${liveNavigationControllerHash}`
   );
 }
 
@@ -127,9 +157,18 @@ if (failures.length) {
   console.log(`- app.js hash: ${liveAppHash}`);
   console.log("- app-runtime.js: ok");
   console.log(`- app-runtime.js hash: ${liveRuntimeHash}`);
-  if (allowLiveHashMismatch && (liveAppHash !== expectedAppHash || liveRuntimeHash !== expectedRuntimeHash)) {
+  console.log("- navigation-controller.mjs: ok");
+  console.log(`- navigation-controller.mjs hash: ${liveNavigationControllerHash}`);
+  if (
+    allowLiveHashMismatch &&
+    (
+      liveAppHash !== expectedAppHash ||
+      liveRuntimeHash !== expectedRuntimeHash ||
+      liveNavigationControllerHash !== expectedNavigationControllerHash
+    )
+  ) {
     console.log(
-      `- app asset release hash match: skipped for monitor mode (app=${expectedAppHash}, runtime=${expectedRuntimeHash})`
+      `- app asset release hash match: skipped for monitor mode (app=${expectedAppHash}, runtime=${expectedRuntimeHash}, navigation=${expectedNavigationControllerHash})`
     );
   }
   console.log("- client config: ok");

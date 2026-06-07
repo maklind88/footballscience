@@ -6,6 +6,7 @@ export { createGameSimulatorAutopilotDecisionEngine } from "./autopilot-decision
 export { createGameSimulatorAutopilotDefensiveTargets } from "./autopilot-defensive-targets.mjs";
 export { createGameSimulatorAutopilotOffballTargets } from "./autopilot-offball-targets.mjs";
 export { createGameSimulatorAutopilotTargets } from "./autopilot-targets.mjs";
+export { createGameSimulatorCommandEngine } from "./command-engine.mjs";
 export { createSimulatorControllers } from "./controllers.mjs";
 export { createSimulatorControlBindings } from "./control-bindings.mjs";
 export { createSimulatorFullscreenController } from "./fullscreen.mjs";

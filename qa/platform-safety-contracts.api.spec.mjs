@@ -381,6 +381,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-adapter.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-database-schema.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-action-space-metrics.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-geometry-helpers.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-ball-resolution-engine.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-live-engine.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-controller.api.spec.mjs");

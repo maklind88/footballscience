@@ -8,6 +8,7 @@ export { createGameSimulatorAutopilotOffballTargets } from "./autopilot-offball-
 export { createGameSimulatorAutopilotTargets } from "./autopilot-targets.mjs";
 export { createGameSimulatorCommandEngine } from "./command-engine.mjs";
 export { createGameSimulatorCanvasRenderer } from "./canvas-renderer.mjs";
+export { createGameSimulatorGeometryHelpers } from "./geometry-helpers.mjs";
 export { createGameSimulatorSetupEngine } from "./setup-engine.mjs";
 export { createGameSimulatorSequenceEngine } from "./sequence-engine.mjs";
 export { createSimulatorControllers } from "./controllers.mjs";

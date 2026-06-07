@@ -130,8 +130,8 @@ Database-primary migration priority: Schedule, Squad, Scouting, Medical Team, Ex
 - `data`: `football-session-exercise-library-v1`, `football-session-exercise-library-backup-v1`, `football-session-exercise-library-folders-v1`, `football-session-exercise-library-folders-backup-v1`
 - `permissions`: platform/club/team admin and coach edit; planning roles view.
 - `events`: exercise saved, exercise archived, exercise restored, folder created, exercise assigned to folder.
-- `qa`: existing library entries must stay protected and restorable; folder changes must never delete exercise records; `qa/exercise-library-module-contract.api.spec.mjs` locks state normalization, archive/folder safety, renderer output, and app delegation.
-- `migration`: state normalization, archive/folder normalization, version snapshots, storage constants, and overlay rendering now live in `src/modules/exercise-library`; migrate before Session Planner blocks where possible; use soft archive, folder membership tables, and versioning instead of hard deletes.
+- `qa`: existing library entries must stay protected and restorable; folder changes must never delete exercise records; `qa/exercise-library-module-contract.api.spec.mjs` locks state normalization, archive/folder safety, action behavior, renderer output, and app delegation.
+- `migration`: state normalization, archive/folder normalization, version snapshots, storage constants, overlay rendering, and save/edit/archive/restore/folder actions now live in `src/modules/exercise-library`; migrate before Session Planner blocks where possible; use soft archive, folder membership tables, and versioning instead of hard deletes.
 
 ## Schedule
 

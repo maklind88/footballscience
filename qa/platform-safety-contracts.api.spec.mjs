@@ -79,6 +79,7 @@ const coreFiles = [
   "src/modules/chat/chat-widget-renderer.mjs",
   "src/modules/chat/index.mjs",
   "src/modules/exercise-library/index.mjs",
+  "src/modules/exercise-library/exercise-library-actions.mjs",
   "src/modules/exercise-library/exercise-library-renderer.mjs",
   "src/modules/exercise-library/exercise-library-state.mjs",
   "src/modules/session-planner/index.mjs",
@@ -103,10 +104,11 @@ test("protected product data remains covered by client safety, central state, an
   const appStateSource = readProjectFile("api/app-state.js");
   const backupSource = readProjectFile("api/app-state-backup.js");
   const dataSafetySource = readProjectFile("src/core/data-safety-contracts.cjs");
+  const exerciseLibraryActionsSource = readProjectFile("src/modules/exercise-library/exercise-library-actions.mjs");
   const exerciseLibraryRendererSource = readProjectFile("src/modules/exercise-library/exercise-library-renderer.mjs");
   const exerciseLibraryStateSource = readProjectFile("src/modules/exercise-library/exercise-library-state.mjs");
   const sessionPlannerAutosaveSource = readProjectFile("src/modules/session-planner/session-planner-autosave.mjs");
-  const clientSafetySource = `${appSource}\n${exerciseLibraryRendererSource}\n${exerciseLibraryStateSource}\n${sessionPlannerAutosaveSource}`;
+  const clientSafetySource = `${appSource}\n${exerciseLibraryActionsSource}\n${exerciseLibraryRendererSource}\n${exerciseLibraryStateSource}\n${sessionPlannerAutosaveSource}`;
   const moduleContracts = readProjectFile("docs/MODULE_CONTRACTS.md");
 
   for (const key of protectedStorageKeys) {

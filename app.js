@@ -31,6 +31,7 @@ import { createPeriodizationWorkspaceController } from "./src/modules/periodizat
 import { createPeriodizationRenderer } from "./src/modules/periodization/periodization-renderer.mjs";
 import { createPeriodizationSessionBridge } from "./src/modules/periodization/periodization-session-bridge.mjs";
 import {
+  createExerciseLibraryActions,
   createExerciseLibraryRenderer,
   createExerciseLibraryStateAdapter,
   sessionPlannerExerciseLibraryBackupSchema,
@@ -4576,6 +4577,93 @@ getEditExercise: getSessionPlannerLibraryEditExercise,
 getViewExercise: getSessionPlannerLibraryViewExercise,
 getOptionValues: getSessionPlannerLibraryOptionValues,
 }),
+});
+const exerciseLibraryActions = createExerciseLibraryActions({
+canEdit: canEditSessionPlanner,
+confirm: (message) => win.confirm(message),
+showToast: showSessionPlannerToast,
+renderWorkspace: renderSessionPlannerWorkspace,
+renderResults: renderSessionPlannerLibraryResults,
+getNow: getSessionPlannerLibraryNow,
+getUserId: getSessionPlannerLibraryUserId,
+createStableId: createSessionPlannerStableId,
+createFolder: createSessionPlannerLibraryFolder,
+normalizeFolderVisibility: normalizeSessionPlannerLibraryFolderVisibility,
+normalizeFolderExerciseIds: normalizeSessionPlannerLibraryFolderExerciseIds,
+isFolderArchived: isSessionPlannerLibraryFolderArchived,
+isExerciseArchived: isSessionPlannerLibraryExerciseArchived,
+normalizeTitle: normalizeSessionPlannerLibraryTitle,
+normalizeMultiValue: normalizeSessionPlannerMultiValue,
+formatMultiValue: formatSessionPlannerMultiValue,
+normalizeTags: normalizeSessionPlannerLibraryTags,
+clamp,
+cloneExercise: cloneSessionPlannerLibraryExercise,
+createVersionSnapshot: createSessionPlannerLibraryVersionSnapshot,
+appendVersion: appendSessionPlannerLibraryVersion,
+normalizeVersions: normalizeSessionPlannerLibraryVersions,
+getExercises: getSessionPlannerExerciseLibrary,
+setExercises: (exercises) => {
+sessionPlannerExerciseLibrary = exercises;
+},
+writeExercises: writeSessionPlannerExerciseLibraryToStorage,
+getFolders: getSessionPlannerExerciseLibraryFolders,
+setFolders: (folders) => {
+sessionPlannerExerciseLibraryFolders = folders;
+},
+writeFolders: writeSessionPlannerExerciseLibraryFoldersToStorage,
+getExerciseById: getSessionPlannerLibraryExerciseById,
+getFolderById: getSessionPlannerLibraryFolderById,
+getUniqueFolderName: getUniqueSessionPlannerLibraryFolderName,
+getEditFields: getSessionPlannerLibraryExerciseEditFields,
+syncSelectedBlockFields: syncSelectedSessionPlannerBlockFieldsFromDom,
+getSelectedBlock: getSessionPlannerSelectedBlock,
+buildExerciseFromBlock: buildSessionPlannerLibraryExerciseFromBlock,
+getUiState: () => ({
+open: sessionPlannerLibraryOpen,
+selectedFolderId: sessionPlannerLibrarySelectedFolderId,
+editExerciseId: sessionPlannerLibraryEditExerciseId,
+viewExerciseId: sessionPlannerLibraryViewExerciseId,
+editingFolderId: sessionPlannerLibraryEditingFolderId,
+archiveView: sessionPlannerLibraryArchiveView,
+filterOpen: sessionPlannerLibraryFilterOpen,
+searchQuery: sessionPlannerLibrarySearchQuery,
+pendingSave: sessionPlannerPendingLibrarySave,
+}),
+setUiState: (nextState = {}) => {
+if (Object.prototype.hasOwnProperty.call(nextState, "open")) {
+sessionPlannerLibraryOpen = Boolean(nextState.open);
+}
+if (Object.prototype.hasOwnProperty.call(nextState, "selectedFolderId")) {
+sessionPlannerLibrarySelectedFolderId = nextState.selectedFolderId;
+}
+if (Object.prototype.hasOwnProperty.call(nextState, "editExerciseId")) {
+sessionPlannerLibraryEditExerciseId = nextState.editExerciseId;
+}
+if (Object.prototype.hasOwnProperty.call(nextState, "viewExerciseId")) {
+sessionPlannerLibraryViewExerciseId = nextState.viewExerciseId;
+}
+if (Object.prototype.hasOwnProperty.call(nextState, "editingFolderId")) {
+sessionPlannerLibraryEditingFolderId = nextState.editingFolderId;
+}
+if (Object.prototype.hasOwnProperty.call(nextState, "archiveView")) {
+sessionPlannerLibraryArchiveView = nextState.archiveView;
+}
+if (Object.prototype.hasOwnProperty.call(nextState, "filterOpen")) {
+sessionPlannerLibraryFilterOpen = nextState.filterOpen;
+}
+if (Object.prototype.hasOwnProperty.call(nextState, "searchQuery")) {
+sessionPlannerLibrarySearchQuery = nextState.searchQuery;
+}
+if (Object.prototype.hasOwnProperty.call(nextState, "pendingSave")) {
+sessionPlannerPendingLibrarySave = nextState.pendingSave;
+}
+if (Object.prototype.hasOwnProperty.call(nextState, "phaseFilters")) {
+setSessionPlannerLibraryFilterValues("phase", nextState.phaseFilters);
+}
+if (Object.prototype.hasOwnProperty.call(nextState, "subPhaseFilters")) {
+setSessionPlannerLibraryFilterValues("subPhase", nextState.subPhaseFilters);
+}
+},
 });
 let sessionPlannerHistoryEntries = [];
 let sessionPlannerHistoryLoading = false;
@@ -11611,293 +11699,28 @@ sessionPlannerLibraryFilterOpen = "";
 renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
 function startSessionPlannerExerciseLibraryFolderEdit(folderId) {
-if (!canEditSessionPlanner()) {
-return;
-}
-const folder = getSessionPlannerLibraryFolderById(folderId);
-if (!folder || isSessionPlannerLibraryFolderArchived(folder)) {
-return;
-}
-sessionPlannerLibraryEditingFolderId = folder.id;
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+exerciseLibraryActions.startFolderEdit(folderId);
 }
 function cancelSessionPlannerExerciseLibraryFolderEdit() {
-sessionPlannerLibraryEditingFolderId = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+exerciseLibraryActions.cancelFolderEdit();
 }
 function createSessionPlannerExerciseLibraryFolderFromForm(form) {
-if (!canEditSessionPlanner() || !form) {
-return;
-}
-const nameField = form.querySelector("[data-session-library-folder-name]");
-const visibilityField = form.querySelector("[data-session-library-folder-visibility]");
-const folderName = String(nameField?.value || "").trim().replace(/\s+/g, " ");
-if (!folderName) {
-showSessionPlannerToast("Add a folder name first.", "warning");
-return;
-}
-const folders = getSessionPlannerExerciseLibraryFolders();
-const folderNameExists = folders.some(
-(folder) =>
-!isSessionPlannerLibraryFolderArchived(folder) &&
-normalizeSessionPlannerLibraryTitle(folder.name) === normalizeSessionPlannerLibraryTitle(folderName)
-);
-if (folderNameExists) {
-showSessionPlannerToast("A folder with that name already exists.", "warning");
-return;
-}
-const now = getSessionPlannerLibraryNow();
-const currentUserId = getSessionPlannerLibraryUserId();
-const newFolder = createSessionPlannerLibraryFolder({
-id: createSessionPlannerStableId("folder"),
-name: folderName,
-visibility: normalizeSessionPlannerLibraryFolderVisibility(visibilityField?.value),
-exerciseIds: [],
-createdAt: now,
-createdBy: currentUserId,
-updatedAt: now,
-updatedBy: currentUserId,
-source: "user",
-});
-const writeResult = writeSessionPlannerExerciseLibraryFoldersToStorage([newFolder, ...folders]);
-if (!writeResult.saved) {
-showSessionPlannerToast("The folder could not be saved. No exercises were changed.", "error");
-return;
-}
-sessionPlannerExerciseLibraryFolders = writeResult.folders;
-sessionPlannerLibrarySelectedFolderId = newFolder.id;
-sessionPlannerLibraryEditExerciseId = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-showSessionPlannerToast(
-writeResult.backupSaved
-? `Created folder: "${newFolder.name}".`
-: `Created folder: "${newFolder.name}". Backup could not be updated.`,
-writeResult.backupSaved ? "success" : "warning"
-);
+exerciseLibraryActions.createFolderFromForm(form);
 }
 function updateSessionPlannerExerciseLibraryFolderFromForm(form) {
-if (!canEditSessionPlanner() || !form) {
-return;
-}
-const folder = getSessionPlannerLibraryFolderById(form.dataset.sessionLibraryFolderEditForm);
-if (!folder || isSessionPlannerLibraryFolderArchived(folder)) {
-return;
-}
-const nameField = form.querySelector("[data-session-library-folder-edit-name]");
-const visibilityField = form.querySelector("[data-session-library-folder-edit-visibility]");
-const folderName = String(nameField?.value || "").trim().replace(/\s+/g, " ");
-if (!folderName) {
-showSessionPlannerToast("Folder name cannot be empty.", "warning");
-return;
-}
-const folderNameExists = getSessionPlannerExerciseLibraryFolders().some(
-(item) =>
-item.id !== folder.id &&
-!isSessionPlannerLibraryFolderArchived(item) &&
-normalizeSessionPlannerLibraryTitle(item.name) === normalizeSessionPlannerLibraryTitle(folderName)
-);
-if (folderNameExists) {
-showSessionPlannerToast("A folder with that name already exists.", "warning");
-return;
-}
-const now = getSessionPlannerLibraryNow();
-const currentUserId = getSessionPlannerLibraryUserId();
-const nextFolder = createSessionPlannerLibraryFolder({
-...folder,
-name: folderName,
-visibility: normalizeSessionPlannerLibraryFolderVisibility(visibilityField?.value),
-updatedAt: now,
-updatedBy: currentUserId,
-});
-const writeResult = writeSessionPlannerExerciseLibraryFoldersToStorage(
-getSessionPlannerExerciseLibraryFolders().map((item) => (item.id === folder.id ? nextFolder : item))
-);
-if (!writeResult.saved) {
-showSessionPlannerToast("The folder could not be updated. Exercises were not changed.", "error");
-return;
-}
-sessionPlannerExerciseLibraryFolders = writeResult.folders;
-sessionPlannerLibrarySelectedFolderId = nextFolder.id;
-sessionPlannerLibraryEditingFolderId = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-showSessionPlannerToast(
-writeResult.backupSaved
-? `Updated folder: "${nextFolder.name}".`
-: `Updated folder: "${nextFolder.name}". Backup could not be updated.`,
-writeResult.backupSaved ? "success" : "warning"
-);
+exerciseLibraryActions.updateFolderFromForm(form);
 }
 function archiveSessionPlannerExerciseLibraryFolder(folderId) {
-if (!canEditSessionPlanner()) {
-return;
-}
-const folder = getSessionPlannerLibraryFolderById(folderId);
-if (!folder || isSessionPlannerLibraryFolderArchived(folder)) {
-return;
-}
-const shouldArchive = win.confirm(`Archive folder "${folder.name}"?\n\nExercises inside it will stay in the library and remain available from All Exercises.`);
-if (!shouldArchive) {
-return;
-}
-const now = getSessionPlannerLibraryNow();
-const currentUserId = getSessionPlannerLibraryUserId();
-const writeResult = writeSessionPlannerExerciseLibraryFoldersToStorage(
-getSessionPlannerExerciseLibraryFolders().map((item) =>
-item.id === folder.id
-? {
-...item,
-archivedAt: now,
-archivedBy: currentUserId,
-updatedAt: now,
-updatedBy: currentUserId,
-}
-: item
-)
-);
-if (!writeResult.saved) {
-showSessionPlannerToast("The folder could not be archived. Exercises were not changed.", "error");
-return;
-}
-sessionPlannerExerciseLibraryFolders = writeResult.folders;
-if (sessionPlannerLibrarySelectedFolderId === folder.id) {
-sessionPlannerLibrarySelectedFolderId = "all";
-}
-sessionPlannerLibraryEditExerciseId = "";
-sessionPlannerLibraryEditingFolderId = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-showSessionPlannerToast(`Archived folder: "${folder.name}". Exercises stayed saved.`);
+exerciseLibraryActions.archiveFolder(folderId);
 }
 function restoreSessionPlannerExerciseLibraryFolder(folderId) {
-if (!canEditSessionPlanner()) {
-return;
-}
-const folder = getSessionPlannerLibraryFolderById(folderId);
-if (!folder || !isSessionPlannerLibraryFolderArchived(folder)) {
-return;
-}
-const now = getSessionPlannerLibraryNow();
-const currentUserId = getSessionPlannerLibraryUserId();
-const restoredName = getUniqueSessionPlannerLibraryFolderName(folder.name, folder.id);
-const writeResult = writeSessionPlannerExerciseLibraryFoldersToStorage(
-getSessionPlannerExerciseLibraryFolders().map((item) =>
-item.id === folder.id
-? {
-...item,
-name: restoredName,
-archivedAt: "",
-archivedBy: "",
-updatedAt: now,
-updatedBy: currentUserId,
-}
-: item
-)
-);
-if (!writeResult.saved) {
-showSessionPlannerToast("The folder could not be restored. Exercises were not changed.", "error");
-return;
-}
-sessionPlannerExerciseLibraryFolders = writeResult.folders;
-sessionPlannerLibrarySelectedFolderId = folder.id;
-sessionPlannerLibraryEditExerciseId = "";
-sessionPlannerLibraryEditingFolderId = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-showSessionPlannerToast(
-writeResult.backupSaved
-? `Restored folder: "${restoredName}".`
-: `Restored folder: "${restoredName}". Backup could not be updated.`,
-writeResult.backupSaved ? "success" : "warning"
-);
+exerciseLibraryActions.restoreFolder(folderId);
 }
 function addSessionPlannerExerciseToLibraryFolder(exerciseId, folderId) {
-if (!canEditSessionPlanner()) {
-return;
-}
-const exercise = getSessionPlannerLibraryExerciseById(exerciseId);
-const folder = getSessionPlannerLibraryFolderById(folderId);
-if (!exercise || !folder || isSessionPlannerLibraryFolderArchived(folder)) {
-return;
-}
-if (isSessionPlannerLibraryExerciseArchived(exercise)) {
-showSessionPlannerToast("Restore the exercise before placing it in a folder.", "warning");
-return;
-}
-const existingExerciseIds = normalizeSessionPlannerLibraryFolderExerciseIds(folder.exerciseIds);
-if (existingExerciseIds.includes(exercise.id)) {
-sessionPlannerLibrarySelectedFolderId = folder.id;
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-showSessionPlannerToast(`"${exercise.title || "Exercise"}" is already in "${folder.name}".`, "warning");
-return;
-}
-const now = getSessionPlannerLibraryNow();
-const currentUserId = getSessionPlannerLibraryUserId();
-const writeResult = writeSessionPlannerExerciseLibraryFoldersToStorage(
-getSessionPlannerExerciseLibraryFolders().map((item) =>
-item.id === folder.id
-? {
-...item,
-exerciseIds: [...existingExerciseIds, exercise.id],
-updatedAt: now,
-updatedBy: currentUserId,
-}
-: item
-)
-);
-if (!writeResult.saved) {
-showSessionPlannerToast("The folder could not be updated. The exercise stayed unchanged.", "error");
-return;
-}
-sessionPlannerExerciseLibraryFolders = writeResult.folders;
-sessionPlannerLibrarySelectedFolderId = folder.id;
-sessionPlannerLibraryEditExerciseId = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-showSessionPlannerToast(
-writeResult.backupSaved
-? `Added "${exercise.title || "Exercise"}" to "${folder.name}".`
-: `Added "${exercise.title || "Exercise"}" to "${folder.name}". Backup could not be updated.`,
-writeResult.backupSaved ? "success" : "warning"
-);
+exerciseLibraryActions.addExerciseToFolder(exerciseId, folderId);
 }
 function removeSessionPlannerExerciseFromLibraryFolder(exerciseId, folderId = sessionPlannerLibrarySelectedFolderId) {
-if (!canEditSessionPlanner()) {
-return;
-}
-const exercise = getSessionPlannerLibraryExerciseById(exerciseId);
-const folder = getSessionPlannerLibraryFolderById(folderId);
-if (!exercise || !folder || isSessionPlannerLibraryFolderArchived(folder)) {
-return;
-}
-const existingExerciseIds = normalizeSessionPlannerLibraryFolderExerciseIds(folder.exerciseIds);
-if (!existingExerciseIds.includes(exercise.id)) {
-showSessionPlannerToast(`"${exercise.title || "Exercise"}" is not in "${folder.name}".`, "warning");
-return;
-}
-const now = getSessionPlannerLibraryNow();
-const currentUserId = getSessionPlannerLibraryUserId();
-const writeResult = writeSessionPlannerExerciseLibraryFoldersToStorage(
-getSessionPlannerExerciseLibraryFolders().map((item) =>
-item.id === folder.id
-? {
-...item,
-exerciseIds: existingExerciseIds.filter((itemExerciseId) => itemExerciseId !== exercise.id),
-updatedAt: now,
-updatedBy: currentUserId,
-}
-: item
-)
-);
-if (!writeResult.saved) {
-showSessionPlannerToast("The folder could not be updated. The exercise stayed in place.", "error");
-return;
-}
-sessionPlannerExerciseLibraryFolders = writeResult.folders;
-sessionPlannerLibraryEditExerciseId = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-showSessionPlannerToast(
-writeResult.backupSaved
-? `Removed "${exercise.title || "Exercise"}" from "${folder.name}".`
-: `Removed "${exercise.title || "Exercise"}" from "${folder.name}". Backup could not be updated.`,
-writeResult.backupSaved ? "success" : "warning"
-);
+exerciseLibraryActions.removeExerciseFromFolder(exerciseId, folderId);
 }
 function getSessionPlannerLibraryOptionValues(key) {
 const values = getSessionPlannerLibraryExercisesByArchiveState()
@@ -12068,221 +11891,39 @@ sessionPlannerLibraryEditExerciseId = "";
 sessionPlannerLibraryViewExerciseId = "";
 renderSessionPlannerLibraryResults();
 }
-function getUniqueSessionPlannerLibraryTitle(baseTitle = "Untitled Exercise", excludeExerciseId = "") {
-const cleanBaseTitle = String(baseTitle || "Untitled Exercise").trim() || "Untitled Exercise";
-const existingTitles = new Set(
-getSessionPlannerExerciseLibrary()
-.filter((exercise) => exercise.id !== excludeExerciseId)
-.map((exercise) => normalizeSessionPlannerLibraryTitle(exercise.title))
-.filter(Boolean)
-);
-let candidate = cleanBaseTitle;
-let suffix = 2;
-while (existingTitles.has(normalizeSessionPlannerLibraryTitle(candidate))) {
-candidate = `${cleanBaseTitle} ${suffix}`;
-suffix += 1;
-}
-return candidate;
-}
-function duplicateSessionPlannerLibraryExercise(exerciseId) {
-if (!canEditSessionPlanner()) {
-return;
-}
-const exercise = getSessionPlannerLibraryExerciseById(exerciseId);
-if (!exercise) {
-return;
-}
-if (isSessionPlannerLibraryExerciseArchived(exercise)) {
-showSessionPlannerToast("Restore the exercise before duplicating it.", "warning");
-return;
-}
-const now = getSessionPlannerLibraryNow();
-const currentUserId = getSessionPlannerLibraryUserId();
-const duplicateTitle = getUniqueSessionPlannerLibraryTitle(`${exercise.title || "Untitled Exercise"} Copy`);
-const duplicate = cloneSessionPlannerLibraryExercise({
-...exercise,
-id: createSessionPlannerStableId("exercise"),
-title: duplicateTitle,
-createdAt: now,
-createdBy: currentUserId,
-updatedAt: now,
-updatedBy: currentUserId,
-archivedAt: "",
-archivedBy: "",
-source: "duplicate",
-versions: [createSessionPlannerLibraryVersionSnapshot(exercise, "Duplicated from original")],
-});
-const library = getSessionPlannerExerciseLibrary().map(cloneSessionPlannerLibraryExercise);
-const writeResult = writeSessionPlannerExerciseLibraryToStorage([duplicate, ...library]);
-if (!writeResult.saved) {
-showSessionPlannerToast("The duplicate could not be saved. The library was not changed.", "error");
-return;
-}
-sessionPlannerExerciseLibrary = writeResult.exercises;
-sessionPlannerLibraryEditExerciseId = "";
-sessionPlannerLibraryArchiveView = "active";
-sessionPlannerLibraryFilterOpen = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-showSessionPlannerToast(
-writeResult.backupSaved
-? `Duplicated and saved: "${duplicate.title}".`
-: `Duplicated and saved: "${duplicate.title}". Backup could not be updated.`,
-writeResult.backupSaved ? "success" : "warning"
-);
-}
-function updateSessionPlannerLibraryExerciseFromEdit(exerciseId) {
-if (!canEditSessionPlanner()) {
-return;
-}
-const exercise = getSessionPlannerLibraryExerciseById(exerciseId);
-if (!exercise || isSessionPlannerLibraryExerciseArchived(exercise)) {
-return;
-}
-const editFields = getSessionPlannerLibraryExerciseEditFields();
-const nextSnapshot = getSessionPlannerLibraryExerciseEditSnapshot(editFields);
-const nextTitle = nextSnapshot.title || "Untitled Exercise";
-const titleConflict = getSessionPlannerExerciseLibrary().some(
-(item) =>
-item.id !== exercise.id &&
-normalizeSessionPlannerLibraryTitle(item.title) === normalizeSessionPlannerLibraryTitle(nextTitle)
-);
-if (titleConflict) {
-showSessionPlannerToast("Another library exercise already uses that title.", "warning");
-return;
-}
-const hasChanges = hasSessionPlannerLibraryExerciseEditChanges(exercise, editFields);
-if (!hasChanges) {
-sessionPlannerLibraryEditExerciseId = "";
-renderSessionPlannerLibraryResults();
-showSessionPlannerToast("No library changes to save.", "warning");
-return;
-}
-const now = getSessionPlannerLibraryNow();
-const currentUserId = getSessionPlannerLibraryUserId();
-const nextExercise = cloneSessionPlannerLibraryExercise({
-...exercise,
-...nextSnapshot,
-updatedAt: now,
-updatedBy: currentUserId,
-versions: appendSessionPlannerLibraryVersion(exercise, "Edited"),
-});
-const writeResult = writeSessionPlannerExerciseLibraryToStorage(
-getSessionPlannerExerciseLibrary().map((item) => (item.id === exercise.id ? nextExercise : item))
-);
-if (!writeResult.saved) {
-showSessionPlannerToast("The edit could not be saved. The original exercise stayed intact.", "error");
-return;
-}
-sessionPlannerExerciseLibrary = writeResult.exercises;
-sessionPlannerLibraryEditExerciseId = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-showSessionPlannerToast(
-writeResult.backupSaved
-? `Updated in library: "${nextExercise.title}".`
-: `Updated in library: "${nextExercise.title}". Backup could not be updated.`,
-writeResult.backupSaved ? "success" : "warning"
-);
-}
 function getSessionPlannerLibraryExerciseEditFields() {
-const editFields = {};
+const fields = {};
 ui.sessionPlannerWorkspace
 ?.querySelectorAll("[data-session-library-edit-field]")
 .forEach((field) => {
-const fieldKey = field.dataset.sessionLibraryEditField;
-if (fieldKey) {
-editFields[fieldKey] = field.value;
+const key = field.dataset.sessionLibraryEditField;
+if (!key) {
+return;
 }
+fields[key] = field.value ?? "";
 });
-return editFields;
+return fields;
+}
+function getUniqueSessionPlannerLibraryTitle(baseTitle = "Untitled Exercise", excludeExerciseId = "") {
+return exerciseLibraryActions.getUniqueTitle(baseTitle, excludeExerciseId);
+}
+function duplicateSessionPlannerLibraryExercise(exerciseId) {
+exerciseLibraryActions.duplicateExercise(exerciseId);
+}
+function updateSessionPlannerLibraryExerciseFromEdit(exerciseId) {
+exerciseLibraryActions.updateExerciseFromEdit(exerciseId);
 }
 function getSessionPlannerLibraryExerciseEditSnapshot(source = {}) {
-return {
-title: String(source.title || "").trim() || "Untitled Exercise",
-focus: String(source.focus || "").trim(),
-phase: formatSessionPlannerMultiValue(source.phase),
-subPhase: formatSessionPlannerMultiValue(source.subPhase),
-tags: normalizeSessionPlannerLibraryTags(source.tags),
-minutes: Number.isFinite(Number(source.minutes)) ? Math.max(0, Number(source.minutes)) : 0,
-time: String(source.time || "").trim(),
-intensity: Number.isFinite(Number(source.intensity)) ? clamp(Number(source.intensity), 1, 5) : 3,
-pitchSize: String(source.pitchSize || "").trim(),
-material: String(source.material || "").trim(),
-objective: String(source.objective || "").trim(),
-why: String(source.why || "").trim(),
-organization: String(source.organization || "").trim(),
-principles: String(source.principles || "").trim(),
-};
+return exerciseLibraryActions.getExerciseEditSnapshot(source);
 }
 function getSessionPlannerLibraryExerciseComparableSnapshot(exercise = {}) {
-return getSessionPlannerLibraryExerciseEditSnapshot({
-title: exercise.title,
-focus: exercise.focus,
-phase: exercise.phase,
-subPhase: exercise.subPhase,
-tags: exercise.tags,
-minutes: exercise.minutes,
-time: exercise.time,
-intensity: exercise.intensity,
-pitchSize: exercise.pitchSize,
-material: exercise.material,
-objective: exercise.objective,
-why: exercise.why,
-organization: exercise.organization,
-principles: exercise.principles,
-});
+return exerciseLibraryActions.getExerciseComparableSnapshot(exercise);
 }
 function hasSessionPlannerLibraryExerciseEditChanges(exercise = {}, editFields = getSessionPlannerLibraryExerciseEditFields()) {
-return JSON.stringify(getSessionPlannerLibraryExerciseComparableSnapshot(exercise)) !==
-JSON.stringify(getSessionPlannerLibraryExerciseEditSnapshot(editFields));
+return exerciseLibraryActions.hasExerciseEditChanges(exercise, editFields);
 }
 function saveSessionPlannerLibraryExerciseEditAsCopy(exerciseId) {
-if (!canEditSessionPlanner()) {
-return;
-}
-const exercise = getSessionPlannerLibraryExerciseById(exerciseId);
-if (!exercise || isSessionPlannerLibraryExerciseArchived(exercise)) {
-return;
-}
-const nextSnapshot = getSessionPlannerLibraryExerciseEditSnapshot(getSessionPlannerLibraryExerciseEditFields());
-const requestedTitle = nextSnapshot.title || exercise.title || "Untitled Exercise";
-const copyTitle = getUniqueSessionPlannerLibraryTitle(
-normalizeSessionPlannerLibraryTitle(requestedTitle) === normalizeSessionPlannerLibraryTitle(exercise.title)
-? `${requestedTitle} Copy`
-: requestedTitle
-);
-const now = getSessionPlannerLibraryNow();
-const currentUserId = getSessionPlannerLibraryUserId();
-const copiedExercise = cloneSessionPlannerLibraryExercise({
-...exercise,
-...nextSnapshot,
-id: createSessionPlannerStableId("exercise"),
-title: copyTitle,
-createdAt: now,
-createdBy: currentUserId,
-updatedAt: now,
-updatedBy: currentUserId,
-archivedAt: "",
-archivedBy: "",
-source: "edited-copy",
-versions: [createSessionPlannerLibraryVersionSnapshot(exercise, "Copied before edit")],
-});
-const writeResult = writeSessionPlannerExerciseLibraryToStorage(
-[copiedExercise, ...getSessionPlannerExerciseLibrary()]
-);
-if (!writeResult.saved) {
-showSessionPlannerToast("The copy could not be saved. The original exercise stayed intact.", "error");
-return;
-}
-sessionPlannerExerciseLibrary = writeResult.exercises;
-sessionPlannerLibraryEditExerciseId = "";
-sessionPlannerLibraryArchiveView = "active";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-showSessionPlannerToast(
-writeResult.backupSaved
-? `Saved copy: "${copiedExercise.title}".`
-: `Saved copy: "${copiedExercise.title}". Backup could not be updated.`,
-writeResult.backupSaved ? "success" : "warning"
-);
+exerciseLibraryActions.saveExerciseEditAsCopy(exerciseId);
 }
 function normalizeSessionPlannerLibraryTitle(title = "") {
 return String(title || "")
@@ -12414,104 +12055,13 @@ renderSessionPlannerToast();
 }, 3200);
 }
 function commitSessionPlannerExerciseToLibrary(exercise, mode = "new", existingExerciseId = "") {
-if (!exercise) {
-return false;
-}
-const library = getSessionPlannerExerciseLibrary().map(cloneSessionPlannerLibraryExercise);
-const now = getSessionPlannerLibraryNow();
-const currentUserId = getSessionPlannerLibraryUserId();
-const replaceIndex =
-mode === "replace"
-? library.findIndex((item) =>
-existingExerciseId
-? item.id === existingExerciseId
-: normalizeSessionPlannerLibraryTitle(item.title) === normalizeSessionPlannerLibraryTitle(exercise.title)
-)
-: -1;
-let toastMessage = `Saved to library: "${exercise.title || "Untitled Exercise"}".`;
-if (replaceIndex >= 0) {
-const existingExercise = library[replaceIndex];
-exercise.id = library[replaceIndex].id;
-library[replaceIndex] = cloneSessionPlannerLibraryExercise({
-...exercise,
-createdAt: existingExercise.createdAt || exercise.createdAt || now,
-createdBy: existingExercise.createdBy || exercise.createdBy || currentUserId,
-updatedAt: now,
-updatedBy: currentUserId,
-archivedAt: "",
-archivedBy: "",
-source: existingExercise.source || exercise.source || "session",
-versions: appendSessionPlannerLibraryVersion(existingExercise, "Replaced from session"),
-});
-toastMessage = `Updated in library: "${exercise.title || "Untitled Exercise"}".`;
-} else {
-const nextExerciseTitle =
-mode === "duplicate"
-? getUniqueSessionPlannerLibraryTitle(`${exercise.title || "Untitled Exercise"} Copy`, existingExerciseId)
-: exercise.title;
-library.unshift(cloneSessionPlannerLibraryExercise({
-...exercise,
-title: nextExerciseTitle,
-createdAt: exercise.createdAt || now,
-createdBy: exercise.createdBy || currentUserId,
-updatedAt: now,
-updatedBy: currentUserId,
-archivedAt: "",
-archivedBy: "",
-source: exercise.source || "session",
-versions:
-mode === "duplicate"
-? [createSessionPlannerLibraryVersionSnapshot(exercise, "Duplicated from session")]
-: normalizeSessionPlannerLibraryVersions(exercise.versions),
-}));
-if (mode === "duplicate") {
-toastMessage = `Duplicated and saved: "${nextExerciseTitle || "Untitled Exercise"}".`;
-}
-}
-const writeResult = writeSessionPlannerExerciseLibraryToStorage(library);
-if (!writeResult.saved) {
-showSessionPlannerToast("The library could not be saved. Nothing was overwritten.", "error");
-return false;
-}
-sessionPlannerExerciseLibrary = writeResult.exercises;
-setSessionPlannerLibraryFilterValues("phase", normalizeSessionPlannerMultiValue(exercise.phase));
-setSessionPlannerLibraryFilterValues("subPhase", normalizeSessionPlannerMultiValue(exercise.subPhase));
-sessionPlannerLibrarySearchQuery = "";
-sessionPlannerLibraryOpen = true;
-sessionPlannerLibraryEditExerciseId = "";
-sessionPlannerLibraryFilterOpen = "";
-sessionPlannerPendingLibrarySave = null;
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-showSessionPlannerToast(
-writeResult.backupSaved ? toastMessage : `${toastMessage} Backup could not be updated.`,
-writeResult.backupSaved ? "success" : "warning"
-);
-return true;
+return exerciseLibraryActions.commitExercise(exercise, mode, existingExerciseId);
 }
 function queueSessionPlannerLibrarySaveConflict(exercise, existingExercise) {
-sessionPlannerPendingLibrarySave = {
-exercise: cloneSessionPlannerLibraryExercise(exercise),
-existingExerciseId: existingExercise.id,
-existingTitle: existingExercise.title || exercise.title || "Untitled Exercise",
-};
-sessionPlannerLibraryOpen = false;
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+exerciseLibraryActions.queueSaveConflict(exercise, existingExercise);
 }
 function resolveSessionPlannerLibrarySaveConflict(action) {
-if (!sessionPlannerPendingLibrarySave) {
-return;
-}
-const { exercise, existingExerciseId } = sessionPlannerPendingLibrarySave;
-if (action === "replace" || action === "duplicate") {
-commitSessionPlannerExerciseToLibrary(
-cloneSessionPlannerLibraryExercise(exercise),
-action,
-existingExerciseId
-);
-return;
-}
-sessionPlannerPendingLibrarySave = null;
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+exerciseLibraryActions.resolveSaveConflict(action);
 }
 function assignSessionPlannerBlockFieldValue(block, field, rawValue) {
 if (!block || !(field in block)) {
@@ -12554,97 +12104,13 @@ writeSessionPlannerState();
 }
 }
 function saveSelectedSessionPlannerExerciseToLibrary() {
-if (!canEditSessionPlanner()) {
-return;
-}
-syncSelectedSessionPlannerBlockFieldsFromDom();
-const block = getSessionPlannerSelectedBlock();
-if (!block) {
-return;
-}
-const exercise = buildSessionPlannerLibraryExerciseFromBlock(block);
-const existingIndex = findSessionPlannerLibraryExerciseIndexByTitle(exercise.title);
-if (existingIndex >= 0) {
-queueSessionPlannerLibrarySaveConflict(exercise, getSessionPlannerExerciseLibrary()[existingIndex]);
-return;
-}
-commitSessionPlannerExerciseToLibrary(exercise, "new");
+exerciseLibraryActions.saveSelectedExercise();
 }
 function deleteSessionPlannerLibraryExercise(exerciseId) {
-if (!canEditSessionPlanner()) {
-return;
-}
-const library = getSessionPlannerExerciseLibrary();
-const exercise = library.find((item) => item.id === exerciseId);
-if (!exercise) {
-return;
-}
-if (isSessionPlannerLibraryExerciseArchived(exercise)) {
-showSessionPlannerToast(`"${exercise.title || "Exercise"}" is already archived.`, "warning");
-return;
-}
-const shouldArchive = win.confirm(`Archive "${exercise.title || "this exercise"}" from the library?\n\nIt will stay saved and can be restored from Archive.`);
-if (!shouldArchive) {
-return;
-}
-const now = getSessionPlannerLibraryNow();
-const currentUserId = getSessionPlannerLibraryUserId();
-const writeResult = writeSessionPlannerExerciseLibraryToStorage(
-library.map((item) =>
-item.id === exerciseId
-? {
-...item,
-archivedAt: now,
-archivedBy: currentUserId,
-updatedAt: now,
-updatedBy: currentUserId,
-}
-: item
-)
-);
-if (!writeResult.saved) {
-showSessionPlannerToast("The library could not be updated. The exercise stayed active.", "error");
-return;
-}
-sessionPlannerExerciseLibrary = writeResult.exercises;
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-showSessionPlannerToast(`Archived in library: "${exercise.title || "Exercise"}".`);
+exerciseLibraryActions.archiveExercise(exerciseId);
 }
 function restoreSessionPlannerLibraryExercise(exerciseId) {
-if (!canEditSessionPlanner()) {
-return;
-}
-const library = getSessionPlannerExerciseLibrary();
-const exercise = library.find((item) => item.id === exerciseId);
-if (!exercise) {
-return;
-}
-if (!isSessionPlannerLibraryExerciseArchived(exercise)) {
-showSessionPlannerToast(`"${exercise.title || "Exercise"}" is already active.`, "warning");
-return;
-}
-const now = getSessionPlannerLibraryNow();
-const currentUserId = getSessionPlannerLibraryUserId();
-const writeResult = writeSessionPlannerExerciseLibraryToStorage(
-library.map((item) =>
-item.id === exerciseId
-? {
-...item,
-archivedAt: "",
-archivedBy: "",
-updatedAt: now,
-updatedBy: currentUserId,
-}
-: item
-)
-);
-if (!writeResult.saved) {
-showSessionPlannerToast("The exercise could not be restored. It stayed archived.", "error");
-return;
-}
-sessionPlannerExerciseLibrary = writeResult.exercises;
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-showSessionPlannerToast(`Restored to library: "${exercise.title || "Exercise"}".`);
+exerciseLibraryActions.restoreExercise(exerciseId);
 }
 function createSessionPlannerDefaultSession(dateValue = formatScheduleDateValue(new Date())) {
 const possessionBlock = getSessionPlannerActiveExerciseLibrary()[0] || sessionPlannerDefaultExerciseLibrary[0];

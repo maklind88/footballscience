@@ -71,7 +71,7 @@ Practical order:
 4. Periodization is now partially extracted into state/merge helpers, renderer, workspace controller bindings, and Session Planner bridge.
 5. Squad / Player Profiles comes before Medical.
 6. Medical follows Squad/Profile.
-7. Exercise Library comes before Session Planner block/state migration; state normalization and overlay rendering are now extracted into `src/modules/exercise-library`.
+7. Exercise Library comes before Session Planner block/state migration; state normalization, overlay rendering, and library actions are now extracted into `src/modules/exercise-library`.
 8. Session Planner is split into smaller passes; autosave policy is now extracted into `src/modules/session-planner`.
 9. Gameplan, Football Science DB, Scouting, Transfer Room, and Game Simulator follow their own risk gates.
 

@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import {
+  createExerciseLibraryActions,
   createExerciseLibraryRenderer,
   createExerciseLibraryStateAdapter,
   exerciseLibraryModuleId,
@@ -37,6 +38,7 @@ function createTestAdapter() {
 test("Exercise Library extraction owns the first state module file slots", () => {
   [
     "src/modules/exercise-library/index.mjs",
+    "src/modules/exercise-library/exercise-library-actions.mjs",
     "src/modules/exercise-library/exercise-library-renderer.mjs",
     "src/modules/exercise-library/exercise-library-state.mjs",
   ].forEach((path) => {
@@ -47,6 +49,81 @@ test("Exercise Library extraction owns the first state module file slots", () =>
   expect(sessionPlannerExerciseLibraryStorageKey).toBe("football-session-exercise-library-v1");
   expect(sessionPlannerExerciseLibraryFoldersStorageKey).toBe("football-session-exercise-library-folders-v1");
   expect(sessionPlannerExerciseLibraryVersionLimit).toBe(8);
+});
+
+test("Exercise Library actions archive, restore, and move folder membership without deleting exercises", () => {
+  const adapter = createTestAdapter();
+  let exercises = adapter.normalizeExercises([
+    { id: "ex-1", title: "Pressing Game" },
+    { id: "ex-2", title: "Possession Game", archivedAt: "2026-05-01T08:00:00.000Z" },
+  ]);
+  let folders = adapter.normalizeFolders([
+    { id: "folder-1", name: "Team Folder", visibility: "team", exerciseIds: ["ex-1"] },
+  ]);
+  const toasts = [];
+  let uiState = { selectedFolderId: "folder-1", editExerciseId: "", archiveView: "active", filterOpen: "" };
+  const actions = createExerciseLibraryActions({
+    canEdit: () => true,
+    confirm: () => true,
+    showToast: (message, tone = "success") => toasts.push({ message, tone }),
+    renderWorkspace: () => {},
+    getNow: () => "2026-05-02T10:00:00.000Z",
+    getUserId: () => "coach-1",
+    createStableId: (prefix) => `${prefix}-new`,
+    createFolder: (source) => adapter.createFolder(source),
+    normalizeFolderVisibility: (value) => adapter.normalizeFolderVisibility(value),
+    normalizeFolderExerciseIds: (value) => adapter.normalizeFolderExerciseIds(value),
+    isFolderArchived: (folder) => adapter.isFolderArchived(folder),
+    isExerciseArchived: (exercise) => adapter.isExerciseArchived(exercise),
+    normalizeTitle: (value) => String(value || "").trim().toLowerCase(),
+    cloneExercise: (exercise) => adapter.cloneExercise(exercise),
+    createVersionSnapshot: (exercise, reason) => adapter.createVersionSnapshot(exercise, reason),
+    appendVersion: (exercise, reason) => adapter.appendVersion(exercise, reason),
+    normalizeVersions: (versions) => adapter.normalizeVersions(versions),
+    getExercises: () => exercises,
+    setExercises: (nextExercises) => {
+      exercises = nextExercises;
+    },
+    writeExercises: (nextExercises) => ({ saved: true, backupSaved: true, exercises: adapter.normalizeExercises(nextExercises) }),
+    getFolders: () => folders,
+    setFolders: (nextFolders) => {
+      folders = nextFolders;
+    },
+    writeFolders: (nextFolders) => ({ saved: true, backupSaved: true, folders: adapter.normalizeFolders(nextFolders) }),
+    getExerciseById: (exerciseId) => exercises.find((exercise) => exercise.id === exerciseId) || null,
+    getFolderById: (folderId) => folders.find((folder) => folder.id === folderId) || null,
+    getUiState: () => uiState,
+    setUiState: (nextState) => {
+      uiState = { ...uiState, ...nextState };
+    },
+  });
+
+  actions.archiveExercise("ex-1");
+  expect(exercises).toHaveLength(2);
+  expect(exercises.find((exercise) => exercise.id === "ex-1")?.archivedAt).toBe("2026-05-02T10:00:00.000Z");
+
+  actions.restoreExercise("ex-1");
+  expect(exercises).toHaveLength(2);
+  expect(exercises.find((exercise) => exercise.id === "ex-1")?.archivedAt).toBe("");
+
+  actions.restoreExercise("ex-2");
+  expect(exercises).toHaveLength(2);
+  expect(exercises.find((exercise) => exercise.id === "ex-2")?.archivedAt).toBe("");
+
+  actions.addExerciseToFolder("ex-2", "folder-1");
+  expect(folders.find((folder) => folder.id === "folder-1")?.exerciseIds).toEqual(["ex-1", "ex-2"]);
+  expect(exercises.map((exercise) => exercise.id)).toEqual(["ex-1", "ex-2"]);
+
+  actions.removeExerciseFromFolder("ex-1", "folder-1");
+  expect(folders.find((folder) => folder.id === "folder-1")?.exerciseIds).toEqual(["ex-2"]);
+  expect(exercises.map((exercise) => exercise.id)).toEqual(["ex-1", "ex-2"]);
+
+  actions.duplicateExercise("ex-1");
+  expect(exercises).toHaveLength(3);
+  expect(exercises.find((exercise) => exercise.id === "ex-1")?.title).toBe("Pressing Game");
+  expect(exercises.find((exercise) => exercise.id === "exercise-new")?.title).toBe("Pressing Game Copy");
+
+  expect(toasts.some((toast) => toast.message.includes("Archived in library"))).toBe(true);
 });
 
 test("Exercise Library renderer owns overlay, folders, filters, and edit actions", () => {
@@ -195,8 +272,11 @@ test("Exercise Library app integration delegates state ownership to the module",
   const storageGuard = readProjectFile("scripts/verify-storage-key-policy.mjs");
 
   expect(app).toContain("./src/modules/exercise-library/index.mjs");
+  expect(app).toContain("createExerciseLibraryActions");
   expect(app).toContain("createExerciseLibraryStateAdapter");
   expect(app).toContain("createExerciseLibraryRenderer");
+  expect(app).toContain("exerciseLibraryActions.archiveExercise(exerciseId)");
+  expect(app).toContain("exerciseLibraryActions.createFolderFromForm(form)");
   expect(app).toContain("exerciseLibraryRenderer.renderOverlay()");
   expect(app).toContain("exerciseLibraryRenderer.renderResults(ui.sessionPlannerWorkspace)");
   expect(app).toContain("exerciseLibraryStateAdapter.createExercise(source)");
@@ -212,6 +292,7 @@ test("Exercise Library is tracked as partial extraction while protected writes r
 
   expect(contract.migrationStatus).toBe(moduleMigrationStatuses.partialExtraction);
   expect(contract.currentFiles).toContain("src/modules/exercise-library/index.mjs");
+  expect(contract.currentFiles).toContain("src/modules/exercise-library/exercise-library-actions.mjs");
   expect(contract.currentFiles).toContain("src/modules/exercise-library/exercise-library-renderer.mjs");
   expect(contract.currentFiles).toContain("src/modules/exercise-library/exercise-library-state.mjs");
   expect(contract.testFiles).toContain("qa/exercise-library-module-contract.api.spec.mjs");

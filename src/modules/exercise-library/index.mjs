@@ -1,2 +1,3 @@
+export * from "./exercise-library-actions.mjs";
 export * from "./exercise-library-state.mjs";
 export * from "./exercise-library-renderer.mjs";

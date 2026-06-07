@@ -44,7 +44,7 @@ import {
   sessionPlannerExerciseLibraryVersionLimit,
   sessionPlannerLibrarySortOptions,
 } from "./src/modules/exercise-library/index.mjs";
-import { createSessionPlannerAutosaveBoundary, createSessionPlannerPlayerBoardFormationHelpers, createSessionPlannerPlayerBoardHelpers, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerSelectionAssistant, createSessionPlannerTacticalHelpers, createSessionPlannerVisualRenderer, createSessionPlannerWorkspaceRenderer, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
+import { createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerPlayerBoardFormationHelpers, createSessionPlannerPlayerBoardHelpers, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerSelectionAssistant, createSessionPlannerTacticalHelpers, createSessionPlannerVisualRenderer, createSessionPlannerWorkspaceRenderer, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createPasswordRevealInputRenderer } from "./src/core/form-renderers.mjs";
@@ -3497,6 +3497,33 @@ getSelectedBlock: getSessionPlannerSelectedBlock,
 tacticalMaxFrames: sessionPlannerTacticalMaxFrames,
 tacticalPitchModeKeys: sessionPlannerTacticalPitchModeKeys,
 tacticalPitchModeOptions: sessionPlannerTacticalPitchModeOptions,
+});
+const {
+createBlock: createSessionPlannerBlock,
+createInitialBlockFieldMeta: createSessionPlannerInitialBlockFieldMeta,
+createReviewNoteId: createSessionPlannerReviewNoteId,
+getLibraryNow: getSessionPlannerLibraryNow,
+getLibraryUserId: getSessionPlannerLibraryUserId,
+normalizeBlockFieldMeta: normalizeSessionPlannerBlockFieldMeta,
+normalizeReviewNote: normalizeSessionPlannerExerciseReviewNote,
+normalizeReviewNotes: normalizeSessionPlannerExerciseReviewNotes,
+normalizeTimestamp: normalizeSessionPlannerTimestamp,
+parseTimestampMs: parseSessionPlannerTimestampMs,
+} = createSessionPlannerBlockHelpers({
+blockFieldUpdatedAtKey: sessionPlannerBlockFieldUpdatedAtKey,
+blockMergeFields: sessionPlannerBlockMergeFields,
+blockMergeFieldSet: sessionPlannerBlockMergeFieldSet,
+clamp,
+cloneTacticalElement: cloneSessionPlannerTacticalElement,
+createStableId: createSessionPlannerStableId,
+formatMultiValue: formatSessionPlannerMultiValue,
+getCurrentUserId: () => (typeof getCurrentPlatformUser === "function" ? getCurrentPlatformUser()?.id || "" : ""),
+normalizePlayerBoardColors: normalizeSessionPlannerPlayerBoardColors,
+normalizePlayerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople,
+normalizePlayerBoardPositions: normalizeSessionPlannerPlayerBoardPositions,
+normalizeTacticalActiveFrameId: normalizeSessionPlannerTacticalActiveFrameId,
+normalizeTacticalFrames: normalizeSessionPlannerTacticalFrames,
+normalizeTacticalPitchMode: normalizeSessionPlannerTacticalPitchMode,
 });
 const exerciseLibraryStateAdapter = createExerciseLibraryStateAdapter({
 createBlock: createSessionPlannerBlock,
@@ -10166,146 +10193,6 @@ principles: "Attack front zone, penalty spot, far post and edge. Time runs late.
 diagram: "final-third",
 },
 ];
-function parseSessionPlannerTimestampMs(value) {
-const timestamp = typeof value === "number" ? value : new Date(value || 0).getTime();
-return Number.isFinite(timestamp) ? timestamp : 0;
-}
-function normalizeSessionPlannerTimestamp(value) {
-const timestamp = parseSessionPlannerTimestampMs(value);
-return timestamp ? new Date(timestamp).toISOString() : "";
-}
-function getSessionPlannerLibraryNow() {
-return new Date().toISOString();
-}
-function getSessionPlannerLibraryUserId() {
-return typeof getCurrentPlatformUser === "function" ? getCurrentPlatformUser()?.id || "" : "";
-}
-function createSessionPlannerReviewNoteId(dateValue = "", blockId = "") {
-return `review-${String(dateValue || "date").trim()}-${String(blockId || "block").trim()}`;
-}
-function normalizeSessionPlannerExerciseReviewNote(note = {}) {
-if (!note || typeof note !== "object" || Array.isArray(note)) {
-return null;
-}
-const notes = String(note.notes ?? note.note ?? note.text ?? "").trim();
-if (!notes) {
-return null;
-}
-const sessionDate = String(note.sessionDate || note.date || "").trim();
-const blockId = String(note.blockId || "").trim();
-const updatedAt = normalizeSessionPlannerTimestamp(note.updatedAt) || getSessionPlannerLibraryNow();
-const createdAt = normalizeSessionPlannerTimestamp(note.createdAt) || updatedAt;
-return {
-id: String(note.id || createSessionPlannerReviewNoteId(sessionDate, blockId)).trim(),
-sessionDate,
-blockId,
-blockTitle: String(note.blockTitle || note.exerciseTitle || "").trim(),
-notes,
-createdAt,
-updatedAt,
-updatedBy: String(note.updatedBy || note.createdBy || "").trim(),
-};
-}
-function normalizeSessionPlannerExerciseReviewNotes(sourceNotes = [], legacyNotes = "") {
-const notes = Array.isArray(sourceNotes)
-? sourceNotes
-.map(normalizeSessionPlannerExerciseReviewNote)
-.filter(Boolean)
-: [];
-const legacyNoteText = String(legacyNotes || "").trim();
-if (legacyNoteText) {
-notes.push(
-normalizeSessionPlannerExerciseReviewNote({
-id: "review-legacy-note",
-notes: legacyNoteText,
-blockTitle: "Legacy review note",
-})
-);
-}
-const usedIds = new Set();
-return notes
-.map((note) => {
-let noteId = note.id || createSessionPlannerReviewNoteId(note.sessionDate, note.blockId);
-while (usedIds.has(noteId)) {
-noteId = `${noteId}-${usedIds.size + 1}`;
-}
-usedIds.add(noteId);
-return { ...note, id: noteId };
-})
-.sort((first, second) => parseSessionPlannerTimestampMs(second.updatedAt) - parseSessionPlannerTimestampMs(first.updatedAt));
-}
-function normalizeSessionPlannerBlockFieldMeta(source = {}) {
-if (!source || typeof source !== "object" || Array.isArray(source)) {
-return {};
-}
-return Object.entries(source).reduce((normalizedMeta, [field, timestampValue]) => {
-if (!sessionPlannerBlockMergeFieldSet.has(field)) {
-return normalizedMeta;
-}
-const timestamp = normalizeSessionPlannerTimestamp(timestampValue);
-if (timestamp) {
-normalizedMeta[field] = timestamp;
-}
-return normalizedMeta;
-}, {});
-}
-function createSessionPlannerInitialBlockFieldMeta(overrides = {}, timestamp = new Date().toISOString()) {
-const meta = normalizeSessionPlannerBlockFieldMeta(overrides[sessionPlannerBlockFieldUpdatedAtKey]);
-if (Object.keys(meta).length || overrides.id) {
-return meta;
-}
-return sessionPlannerBlockMergeFields.reduce((initialMeta, field) => {
-initialMeta[field] = timestamp;
-return initialMeta;
-}, {});
-}
-function createSessionPlannerBlock(overrides = {}) {
-const hasTacticalContent = Array.isArray(overrides.tacticalElements) && overrides.tacticalElements.length > 0;
-const hasUploadedVisual = Boolean(overrides.visualImage);
-const isUntouchedNewExercise =
-String(overrides.title || "").trim().toLowerCase() === "new exercise" &&
-!hasTacticalContent &&
-!hasUploadedVisual;
-const now = new Date().toISOString();
-const createdAt = normalizeSessionPlannerTimestamp(overrides.createdAt) || now;
-const updatedAt = normalizeSessionPlannerTimestamp(overrides.updatedAt) || (overrides.id ? "" : now);
-const tacticalFrames = normalizeSessionPlannerTacticalFrames(overrides.tacticalFrames);
-const tacticalElements = Array.isArray(overrides.tacticalElements)
-? overrides.tacticalElements.map(cloneSessionPlannerTacticalElement)
-: [];
-return {
-id: overrides.id || createSessionPlannerStableId("session-block"),
-label: overrides.label || "Block",
-createdAt,
-updatedAt,
-[sessionPlannerBlockFieldUpdatedAtKey]: createSessionPlannerInitialBlockFieldMeta(overrides, updatedAt || createdAt),
-title: overrides.title || "",
-focus: overrides.focus || "",
-phase: formatSessionPlannerMultiValue(overrides.phase),
-subPhase: formatSessionPlannerMultiValue(overrides.subPhase),
-minutes: Number.isFinite(Number(overrides.minutes)) ? Number(overrides.minutes) : 0,
-time: overrides.time || "",
-intensity: Number.isFinite(Number(overrides.intensity)) ? clamp(Number(overrides.intensity), 1, 5) : 3,
-pitchSize: overrides.pitchSize || "",
-material: overrides.material || "",
-objective: overrides.objective || "",
-why: overrides.why || "",
-organization: overrides.organization || "",
-principles: overrides.principles || "",
-libraryExerciseId: String(overrides.libraryExerciseId || overrides.sourceExerciseId || "").trim(),
-postSessionNotes: String(overrides.postSessionNotes || "").trim(),
-diagram: isUntouchedNewExercise ? "empty" : overrides.diagram || "empty",
-tacticalPitchMode: normalizeSessionPlannerTacticalPitchMode(overrides.tacticalPitchMode),
-tacticalFrames,
-tacticalActiveFrameId: normalizeSessionPlannerTacticalActiveFrameId(overrides.tacticalActiveFrameId, tacticalFrames),
-playerBoardLayoutMode: overrides.playerBoardLayoutMode === "manual" ? "manual" : "auto",
-visualImage: overrides.visualImage || "",
-playerBoardPositions: normalizeSessionPlannerPlayerBoardPositions(overrides.playerBoardPositions),
-playerBoardColors: normalizeSessionPlannerPlayerBoardColors(overrides.playerBoardColors),
-playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople(overrides.playerBoardCustomPeople),
-tacticalElements,
-};
-}
 function createSessionPlannerLibraryExercise(source = {}) {
 return exerciseLibraryStateAdapter.createExercise(source);
 }

@@ -86,6 +86,7 @@ const coreFiles = [
   "src/modules/session-planner/session-planner-autosave.mjs",
   "src/modules/session-planner/session-planner-renderer.mjs",
   "src/modules/session-planner/session-planner-tactical-controller.mjs",
+  "src/modules/session-planner/session-planner-workspace-controller.mjs",
   "src/modules/session-planner/session-planner-visual-renderer.mjs",
   "src/modules/session-planner/session-planner-player-board-renderer.mjs",
   "src/modules/session-planner/session-planner-print-renderer.mjs",
@@ -376,6 +377,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/exercise-library-module-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-module-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-tactical-controller-contract.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-workspace-controller-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-adapter.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-database-schema.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-action-space-metrics.api.spec.mjs");
@@ -488,16 +490,18 @@ test("game simulator animation loop does not run globally outside the simulator 
 
 test("Session Planner print mode keeps the coach sheet visible for browser printing", () => {
   const appSource = readProjectFile("app.js");
+  const workspaceControllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
   const indexSource = readProjectFile("index.html");
   const printOverrideSource = readProjectFile("session-print-overrides.css");
+  const sessionPlannerPrintSource = `${appSource}\n${workspaceControllerSource}`;
 
-  expect(appSource).toContain("@media print");
-  expect(appSource).toContain("body.is-session-printing .session-print-root,");
-  expect(appSource).toContain("body.is-session-printing .session-print-root *");
-  expect(appSource).toContain("body.is-session-printing .session-print-document *");
-  expect(appSource).toContain("visibility: visible !important");
-  expect(appSource).toContain("sessionPlannerPrintOverlayOpen ||");
-  expect(appSource).toMatch(/\b(?:window|win)\.print\(\);/);
+  expect(sessionPlannerPrintSource).toContain("@media print");
+  expect(sessionPlannerPrintSource).toContain("body.is-session-printing .session-print-root,");
+  expect(sessionPlannerPrintSource).toContain("body.is-session-printing .session-print-root *");
+  expect(sessionPlannerPrintSource).toContain("body.is-session-printing .session-print-document *");
+  expect(sessionPlannerPrintSource).toContain("visibility: visible !important");
+  expect(sessionPlannerPrintSource).toContain("sessionPlannerPrintOverlayOpen ||");
+  expect(sessionPlannerPrintSource).toMatch(/\b(?:window|win)\.print\(\);/);
   expect(indexSource).toContain("session-print-overrides.css");
   expect(printOverrideSource).toContain("@media print");
   expect(printOverrideSource).toContain("box-shadow: none !important");

@@ -12,10 +12,12 @@ function readProjectFile(relativePath) {
 
 test("Session Planner Player Board includes active temporary Squad profiles", () => {
   const appSource = readProjectFile("app.js");
+  const workspaceControllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
+  const runtimeSource = `${appSource}\n${workspaceControllerSource}`;
   const availabilitySource = readProjectFile("src/modules/session-planner/session-planner-medical-availability-selectors.mjs");
 
   expect(appSource).toContain("createSessionPlannerMedicalAvailabilitySelectors");
-  expect(appSource).toContain("sessionPlannerMedicalAvailabilitySelectors.getAvailabilityItems(dateValue)");
+  expect(runtimeSource).toContain("sessionPlannerMedicalAvailabilitySelectors.getAvailabilityItems(dateValue)");
   expect(availabilitySource).toContain("function getTemporaryProfileAvailabilityItems");
   expect(availabilitySource).toContain("getTemporaryProfileAvailabilityItems,");
   expect(availabilitySource).toContain(".filter((profile) => isTemporaryPlayerProfile(profile))");
@@ -26,15 +28,17 @@ test("Session Planner Player Board includes active temporary Squad profiles", ()
 
 test("Session Planner Player Board hides Squad-unavailable roster players", () => {
   const appSource = readProjectFile("app.js");
+  const workspaceControllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
+  const runtimeSource = `${appSource}\n${workspaceControllerSource}`;
   const availabilitySource = readProjectFile("src/modules/session-planner/session-planner-medical-availability-selectors.mjs");
 
   expect(appSource).toContain("const medicalSquadAvailabilityBlockStatusKeys = new Set");
   expect(appSource).toContain("...playerProfileStatusOptions.map((option) => option.key)");
   expect(appSource).toContain('status !== "available"');
   expect(appSource).toContain("function isMedicalPlayerBlockedBySquadAvailability");
-  expect(appSource).toContain("status: profile.status || player.status");
-  expect(appSource).toContain("availabilityStatus: profile.status || player.availabilityStatus");
-  expect(appSource).toContain("sessionPlannerMedicalAvailabilitySelectors.getAvailabilityItems");
+  expect(runtimeSource).toContain("status: profile.status || player.status");
+  expect(runtimeSource).toContain("availabilityStatus: profile.status || player.availabilityStatus");
+  expect(runtimeSource).toContain("sessionPlannerMedicalAvailabilitySelectors.getAvailabilityItems");
   expect(availabilitySource).toContain("record: createMedicalRecordFromSquadAvailabilityBlock(player, dateValue)");
   expect(availabilitySource).toContain("participation: record ? record.participation : 100");
   expect(availabilitySource).toContain(".filter((item) => !isMedicalPlayerBlockedBySquadAvailability(item.player))");
@@ -55,17 +59,19 @@ test("Session Planner Player Board ranks by role, squad status, and career phase
 
 test("Session Planner Player Board can copy team setup from another block", () => {
   const appSource = readProjectFile("app.js");
+  const workspaceControllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
+  const runtimeSource = `${appSource}\n${workspaceControllerSource}`;
   const playerBoardRendererSource = readProjectFile("src/modules/session-planner/session-planner-player-board-renderer.mjs");
   const styleSource = readProjectFile("styles.css");
 
   expect(playerBoardRendererSource).toContain("function renderSessionPlannerPlayerBoardCopyTools");
-  expect(appSource).toContain("function copySessionPlannerPlayerBoardTeamsFromBlock");
+  expect(runtimeSource).toContain("function copySessionPlannerPlayerBoardTeamsFromBlock");
   expect(playerBoardRendererSource).toContain("data-session-player-board-copy-form");
   expect(playerBoardRendererSource).toContain("data-session-player-board-copy-source");
   expect(playerBoardRendererSource).toContain("session-player-board-boardbar-actions");
-  expect(appSource).toContain("targetBlock.playerBoardColors = nextColors");
-  expect(appSource).toContain("targetBlock.playerBoardPositions = nextPositions");
-  expect(appSource).toContain("targetBlock.playerBoardLayoutMode = \"manual\"");
+  expect(runtimeSource).toContain("targetBlock.playerBoardColors = nextColors");
+  expect(runtimeSource).toContain("targetBlock.playerBoardPositions = nextPositions");
+  expect(runtimeSource).toContain("targetBlock.playerBoardLayoutMode = \"manual\"");
   expect(styleSource).toContain(".session-player-board-copy-tools");
   expect(styleSource).toContain(".session-player-board-boardbar-actions");
   expect(styleSource).toContain(".session-player-board-tool-button.is-copy");
@@ -73,32 +79,36 @@ test("Session Planner Player Board can copy team setup from another block", () =
 
 test("Session Planner Player Board can add manual people directly on a block", () => {
   const appSource = readProjectFile("app.js");
+  const workspaceControllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
+  const runtimeSource = `${appSource}\n${workspaceControllerSource}`;
   const playerBoardHelperSource = readProjectFile("src/modules/session-planner/session-planner-player-board-helpers.mjs");
   const playerBoardRendererSource = readProjectFile("src/modules/session-planner/session-planner-player-board-renderer.mjs");
 
-  expect(appSource).toContain("\"playerBoardCustomPeople\"");
+  expect(runtimeSource).toContain("\"playerBoardCustomPeople\"");
   expect(playerBoardHelperSource).toContain("function normalizePlayerBoardCustomPeople");
-  expect(appSource).toContain("function openSessionPlannerPlayerBoardCustomPersonEditor");
-  expect(appSource).toContain("function removeSessionPlannerPlayerBoardCustomPerson");
+  expect(runtimeSource).toContain("function openSessionPlannerPlayerBoardCustomPersonEditor");
+  expect(runtimeSource).toContain("function removeSessionPlannerPlayerBoardCustomPerson");
   expect(playerBoardRendererSource).toContain("function renderSessionPlannerPlayerBoardCustomPersonEditor");
-  expect(appSource).toContain("function saveSessionPlannerPlayerBoardCustomPersonFromForm");
+  expect(runtimeSource).toContain("function saveSessionPlannerPlayerBoardCustomPersonFromForm");
   expect(playerBoardRendererSource).toContain("data-session-player-board-token-kind=\"${item.player.playerBoardCustom ? \"custom\" : \"roster\"}\"");
   expect(playerBoardRendererSource).toContain("data-session-player-board-person-form");
-  expect(appSource).toContain("addEventListener(\"contextmenu\"");
-  expect(appSource).toContain("playerBoardCustom: true");
+  expect(runtimeSource).toContain("addEventListener(\"contextmenu\"");
+  expect(runtimeSource).toContain("playerBoardCustom: true");
   expect(playerBoardRendererSource).toContain("Manual board person");
 });
 
 test("Session Planner Player Board spaces compact print and preview tokens for readability", () => {
   const appSource = readProjectFile("app.js");
+  const workspaceControllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
+  const runtimeSource = `${appSource}\n${workspaceControllerSource}`;
   const playerBoardRendererSource = readProjectFile("src/modules/session-planner/session-planner-player-board-renderer.mjs");
   const printRendererSource = readProjectFile("src/modules/session-planner/session-planner-print-renderer.mjs");
 
-  expect(appSource).toContain("function getSessionPlannerPlayerBoardReadableSpacing");
-  expect(appSource).toContain("function getSessionPlannerReadablePlayerBoardPositions");
+  expect(runtimeSource).toContain("function getSessionPlannerPlayerBoardReadableSpacing");
+  expect(runtimeSource).toContain("function getSessionPlannerReadablePlayerBoardPositions");
   expect(playerBoardRendererSource).toContain('getReadableSpacing(boardPlayers.length, "preview")');
   expect(printRendererSource).toContain('getReadableSpacing(boardPlayers.length, "print")');
   expect(playerBoardRendererSource).toContain("previewPositions.get(item.player.id)");
   expect(printRendererSource).toContain("printPositions.get(item.player.id)");
-  expect(appSource).toContain("overlapX <= 0 || overlapY <= 0");
+  expect(runtimeSource).toContain("overlapX <= 0 || overlapY <= 0");
 });

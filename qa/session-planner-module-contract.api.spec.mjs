@@ -28,6 +28,7 @@ test("Session Planner extraction owns autosave and renderer module boundaries", 
     "src/modules/session-planner/index.mjs",
     "src/modules/session-planner/session-planner-autosave.mjs",
     "src/modules/session-planner/session-planner-renderer.mjs",
+    "src/modules/session-planner/session-planner-workspace-controller.mjs",
     "src/modules/session-planner/session-planner-visual-renderer.mjs",
     "src/modules/session-planner/session-planner-player-board-renderer.mjs",
     "src/modules/session-planner/session-planner-print-renderer.mjs",
@@ -486,22 +487,25 @@ test("Session Planner autosave boundary only surfaces active session writes and 
 
 test("Session Planner app integration delegates autosave policy and block rendering to the module", () => {
   const app = readProjectFile("app.js");
+  const workspaceController = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
   const printRenderer = readProjectFile("src/modules/session-planner/session-planner-print-renderer.mjs");
+  const runtimeSource = `${app}\n${workspaceController}`;
 
   expect(app).toContain("./src/modules/session-planner/index.mjs");
   expect(app).toContain("createSessionPlannerAutosaveBoundary");
+  expect(app).toContain("createSessionPlannerWorkspaceController");
   expect(app).toContain("createSessionPlannerPlayerBoardRenderer");
   expect(app).toContain("createSessionPlannerPrintRenderer");
   expect(app).toContain("createSessionPlannerRenderer");
   expect(app).toContain("createSessionPlannerVisualRenderer");
   expect(app).toContain("sessionPlannerAutosaveBoundary.markSessionPlannerWrite();");
-  expect(app).toContain("sessionPlannerRenderer.renderBlockList(session)");
-  expect(app).toContain("sessionPlannerRenderer.renderEditableField(block, key, label, options)");
-  expect(app).toContain("sessionPlannerVisualRenderer.renderExerciseVisual(block, options)");
-  expect(app).toContain("sessionPlannerVisualRenderer.renderTacticalboardOverlay(block)");
-  expect(app).toContain("sessionPlannerPlayerBoardRenderer.renderPlayerBoard(block)");
-  expect(app).toContain("sessionPlannerPlayerBoardRenderer.renderPlayerBoardOverlay(block)");
-  expect(app).toContain("sessionPlannerPrintRenderer.renderOverlay(session)");
+  expect(runtimeSource).toContain("sessionPlannerRenderer.renderBlockList(session)");
+  expect(runtimeSource).toContain("sessionPlannerRenderer.renderEditableField(block, key, label, options)");
+  expect(runtimeSource).toContain("sessionPlannerVisualRenderer.renderExerciseVisual(block, options)");
+  expect(runtimeSource).toContain("sessionPlannerVisualRenderer.renderTacticalboardOverlay(block)");
+  expect(runtimeSource).toContain("sessionPlannerPlayerBoardRenderer.renderPlayerBoard(block)");
+  expect(runtimeSource).toContain("sessionPlannerPlayerBoardRenderer.renderPlayerBoardOverlay(block)");
+  expect(runtimeSource).toContain("sessionPlannerPrintRenderer.renderOverlay(session)");
   expect(printRenderer).toContain("function renderSessionPlannerPrintDocument(session)");
   expect(printRenderer).toContain("renderDocument: renderSessionPlannerPrintDocument");
   expect(app).not.toContain('const sessionPlannerStorageKey = "football-session-planner-v3";');
@@ -515,6 +519,7 @@ test("Session Planner is tracked as partial extraction while deeper UI remains i
   expect(contract.currentFiles).toContain("src/modules/session-planner/index.mjs");
   expect(contract.currentFiles).toContain("src/modules/session-planner/session-planner-autosave.mjs");
   expect(contract.currentFiles).toContain("src/modules/session-planner/session-planner-renderer.mjs");
+  expect(contract.currentFiles).toContain("src/modules/session-planner/session-planner-workspace-controller.mjs");
   expect(contract.currentFiles).toContain("src/modules/session-planner/session-planner-visual-renderer.mjs");
   expect(contract.currentFiles).toContain("src/modules/session-planner/session-planner-player-board-renderer.mjs");
   expect(contract.currentFiles).toContain("src/modules/session-planner/session-planner-print-renderer.mjs");

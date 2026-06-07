@@ -259,6 +259,7 @@ export const moduleStandardContracts = Object.freeze([
       "src/modules/session-planner/index.mjs",
       "src/modules/session-planner/session-planner-autosave.mjs",
       "src/modules/session-planner/session-planner-renderer.mjs",
+      "src/modules/session-planner/session-planner-workspace-controller.mjs",
       "src/modules/session-planner/session-planner-visual-renderer.mjs",
       "src/modules/session-planner/session-planner-player-board-renderer.mjs",
       "src/modules/session-planner/session-planner-print-renderer.mjs",
@@ -271,7 +272,7 @@ export const moduleStandardContracts = Object.freeze([
     ],
     extractionOrder: 12,
     riskLevel: "high",
-    notes: "Autosave policy, block/form rendering, tactical visual rendering, player board rendering, and print rendering now live in src/modules/session-planner; state, tactical board events, print runtime, and save flows remain in app.js for later passes.",
+    notes: "Autosave policy, workspace UI controller, block/form rendering, tactical visual rendering, player board rendering, and print rendering now live in src/modules/session-planner; protected state normalization, central sync, and the save flow remain in app.js for later passes.",
   }),
   createModuleStandardContract({
     id: "gameplan",

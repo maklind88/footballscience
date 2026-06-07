@@ -7992,6 +7992,9 @@ sessionPlannerWorkspaceController = createSessionPlannerWorkspaceController({
   sessionPlannerTacticalSnapStep,
   sessionPlannerVisualRenderer,
   sessionPlannerWorkspaceRenderer,
+  setSessionPlannerExerciseLibrary: (exercises) => {
+    sessionPlannerExerciseLibrary = exercises;
+  },
   setPlatformAutosaveStatusForKey,
   showSessionPlannerToast,
   syncSessionPlannerBoardHistoryBaseline,

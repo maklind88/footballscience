@@ -1667,7 +1667,7 @@ toggleAutoV2DebugOverlay();
     isGameSimulatorWorkspaceActive, isPitchFullscreenActive, isPlayerRenderedSelected, isPlayerSelected, isSelectionModifierActive,
     isSimulatorIntroActive, launchGameSimulatorFromIntro, loadLowBlockPressExample, loadSavedSequenceEntry, loadSequenceData,
     loadSequenceFromLocal, logEvent, markSequenceDirty, markSimulatorDirty, markSimulatorSaved, normalizeSelectedPlayerIds,
-    hideMetricTooltip, positionMetricTooltip, showMetricTooltip,
+    hideMetricTooltip, hasActiveMetricTooltip, positionMetricTooltip, showMetricTooltip,
     pauseLiveSimulation, pauseSimulatorForWorkspaceSwitch, pointerController: gameSimulatorPointerController, queueGameSimulatorControllersLoad,
     queueNextSequenceStep, readSavedSequenceLibrary, removeSavedSequenceEntry, render, resetGameSimulatorIntro,
     resetSimulatorAnimationClock, resetTeamIdentities, resetUnsavedSimulatorSession, resumeLiveSimulation, sanitizeFileName,

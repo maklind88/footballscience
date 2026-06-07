@@ -26,6 +26,8 @@ test("Session Planner workspace controller owns workspace UI flow without owning
   expect(controller).toContain("createSessionPlannerTacticalController");
   expect(controller).toContain("getLocalState");
   expect(controller).toContain("setLocalState");
+  expect(controller).toContain("setSessionPlannerExerciseLibrary");
+  expect(controller).not.toContain("sessionPlannerExerciseLibrary = writeResult.exercises");
   expect(controller).toContain("writeSessionPlannerState,");
   expect(controller).not.toContain("function writeSessionPlannerState()");
   expect(app).toContain("function writeSessionPlannerState()");

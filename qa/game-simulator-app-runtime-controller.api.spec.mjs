@@ -28,6 +28,7 @@ test("game simulator app runtime controller owns simulator runtime wiring", () =
   expect(controller).toContain("createGameSimulatorPointerController");
   expect(controller).toContain("function executePlannedAction()");
   expect(controller).toContain("function pauseSimulatorForWorkspaceSwitch()");
+  expect(controller).toContain("hasActiveMetricTooltip, positionMetricTooltip");
   expect(controller).toContain("function createStateProxy(getAppState)");
   expect(controller).toContain('import("./controllers.mjs")');
   expect(controller).toContain('import("./runtime.mjs")');

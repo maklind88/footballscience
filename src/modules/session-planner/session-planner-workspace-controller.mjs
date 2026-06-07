@@ -103,6 +103,7 @@ export function createSessionPlannerWorkspaceController(deps = {}) {
     sessionPlannerTacticalSnapStep,
     sessionPlannerVisualRenderer,
     sessionPlannerWorkspaceRenderer,
+    setSessionPlannerExerciseLibrary = () => {},
     setPlatformAutosaveStatusForKey,
     showSessionPlannerToast,
     syncSessionPlannerBoardHistoryBaseline,
@@ -1464,9 +1465,9 @@ if (!writeResult.saved) {
 showSessionPlannerToast("Post-session note saved on the block, but not in the exercise library.", "warning");
 return false;
 }
-sessionPlannerExerciseLibrary = writeResult.exercises;
-return true;
-}
+	setSessionPlannerExerciseLibrary(writeResult.exercises);
+	return true;
+	}
 function applySessionPlannerExercise(exerciseId) {
 if (!canEditSessionPlanner()) {
 return;

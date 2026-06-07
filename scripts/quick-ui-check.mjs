@@ -85,6 +85,23 @@ function run(command, args = []) {
   }
 }
 
+function runNodeModuleSyntaxCheck(filePath) {
+  const label = `node --input-type=module --check < ${filePath}`;
+  console.log(`> ${label}`);
+  const result = spawnSync("node", ["--input-type=module", "--check"], {
+    cwd: rootDir,
+    encoding: "utf8",
+    input: fs.readFileSync(path.join(rootDir, filePath), "utf8"),
+    stdio: ["pipe", "inherit", "inherit"],
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(`${label} failed with exit code ${result.status ?? "unknown"}.`);
+  }
+}
+
 function splitLines(value) {
   return String(value || "")
     .split(/\r?\n/)
@@ -136,6 +153,9 @@ function runSyntaxChecks(files) {
   }
   for (const filePath of jsFiles) {
     run("node", ["--check", filePath]);
+    if (filePath === "app.js") {
+      runNodeModuleSyntaxCheck(filePath);
+    }
   }
 }
 

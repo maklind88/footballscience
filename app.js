@@ -44,7 +44,7 @@ import {
   sessionPlannerExerciseLibraryVersionLimit,
   sessionPlannerLibrarySortOptions,
 } from "./src/modules/exercise-library/index.mjs";
-import { createSessionPlannerAutosaveBoundary, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerSelectionAssistant, createSessionPlannerVisualRenderer, createSessionPlannerWorkspaceRenderer, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
+import { createSessionPlannerAutosaveBoundary, createSessionPlannerPlayerBoardHelpers, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerSelectionAssistant, createSessionPlannerVisualRenderer, createSessionPlannerWorkspaceRenderer, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createPasswordRevealInputRenderer } from "./src/core/form-renderers.mjs";
@@ -3694,6 +3694,46 @@ isMedicalPlayerBlockedBySquadAvailability,
 isPlayerProfileTemporaryActiveOnDate,
 isTemporaryPlayerProfile,
 parseScheduleDateValue,
+});
+const {
+formatWarningNames: formatSessionPlannerPlayerWarningNames,
+getCareerPhasePriority: getSessionPlannerPlayerBoardCareerPhasePriority,
+getCareerScore: getSessionPlannerPlayerBoardCareerScore,
+getColorStyle: getSessionPlannerPlayerBoardColorStyle,
+getCustomColor: getSessionPlannerPlayerBoardCustomColor,
+getDataObject: getSessionPlannerPlayerBoardDataObject,
+getDirectRoleFitScore: getSessionPlannerPlayerBoardDirectRoleFitScore,
+getExplicitRoles: getSessionPlannerPlayerBoardExplicitRoles,
+getImportanceScore: getSessionPlannerPlayerBoardImportanceScore,
+getInitialLabelMap: getSessionPlannerPlayerBoardInitialLabelMap,
+getItemPriorityScore: getSessionPlannerPlayerBoardItemPriorityScore,
+getLabelCandidates: getSessionPlannerPlayerBoardLabelCandidates,
+getMinutesScore: getSessionPlannerPlayerBoardMinutesScore,
+getNumericPriorityValue: getSessionPlannerPlayerBoardNumericPriorityValue,
+getPlayerRoleProfile: getSessionPlannerPlayerBoardPlayerRoleProfile,
+getPositionGroup: getSessionPlannerPlayerBoardPositionGroup,
+getPriorityScore: getSessionPlannerPlayerBoardPriorityScore,
+getRoleGroupForRole: getSessionPlannerPlayerBoardRoleGroupForRole,
+getRoleOrder: getSessionPlannerPlayerBoardRoleOrder,
+getRolePriorityKeys: getSessionPlannerPlayerBoardRolePriorityKeys,
+getRolePriorityValue: getSessionPlannerPlayerBoardRolePriorityValue,
+getSideForRole: getSessionPlannerPlayerBoardSideForRole,
+getSourceBlocks: getSessionPlannerPlayerBoardSourceBlocks,
+getSourceLabel: getSessionPlannerPlayerBoardSourceLabel,
+getSquadStatusPriority: getSessionPlannerPlayerBoardSquadStatusPriority,
+getTextColor: getSessionPlannerPlayerBoardTextColor,
+getTone: getSessionPlannerPlayerBoardTone,
+hasTeamData: hasSessionPlannerPlayerBoardTeamData,
+normalizeProfileKey: normalizeSessionPlannerPlayerBoardProfileKey,
+normalizeRoleGroupKey: normalizeSessionPlannerPlayerBoardRoleGroupKey,
+normalizeSquadStatusKey: normalizeSessionPlannerPlayerBoardSquadStatusKey,
+positionGroups: sessionPlannerPlayerBoardPositionGroups,
+} = createSessionPlannerPlayerBoardHelpers({
+clamp,
+getPlayerInitials: getMedicalPlayerInitials,
+getSelectedSession: getSessionPlannerSelectedSession,
+normalizeColor: normalizeTacticalColor,
+normalizePlayerProfileRole,
 });
 const {
 buildSelectionAssistant: buildSessionPlannerSelectionAssistant,
@@ -14982,199 +15022,6 @@ return { blockNumber, label: "Block 3", valueLabel: "50%+", min: 50 };
 }
 return { blockNumber, label: `Block ${blockNumber}`, valueLabel: "75%+", min: 75 };
 }
-const sessionPlannerPlayerBoardPositionGroups = [
-{ key: "goalkeeper", label: "Goalkeepers", shortLabel: "GK", order: 1, x: 12 },
-{ key: "defender", label: "Defenders", shortLabel: "DEF", order: 2, x: 35 },
-{ key: "midfielder", label: "Midfielders", shortLabel: "MID", order: 3, x: 58 },
-{ key: "forward", label: "Forwards", shortLabel: "FWD", order: 4, x: 82 },
-];
-function normalizeSessionPlannerPlayerBoardRoleGroupKey(value) {
-  const key = normalizeSessionPlannerPlayerBoardProfileKey(value);
-  if (!key) return "";
-  if (["gk", "goalkeeper", "keeper", "goalie", "malvakt", "målvakt"].includes(key)) return "goalkeeper";
-  if (["def", "defender", "defenders", "back", "backs", "defence", "defense"].includes(key)) return "defender";
-  if (["mid", "midfield", "midfielder", "midfielders", "mittfalt", "mittfält"].includes(key)) return "midfielder";
-  if (["fwd", "fw", "forward", "forwards", "attacker", "attack", "striker", "anfall"].includes(key)) return "forward";
-  return key;
-}
-function getSessionPlannerPlayerBoardRoleGroupForRole(roleKey) {
-  const key = normalizeSessionPlannerPlayerBoardProfileKey(roleKey);
-  if (!key) return "";
-  if (["gk", "goalkeeper", "keeper", "goalie"].includes(key)) return "goalkeeper";
-  if (
-    [
-      "cb",
-      "lcb",
-      "rcb",
-      "lb",
-      "rb",
-      "lwb",
-      "rwb",
-      "centerback",
-      "centreback",
-      "centraldefender",
-      "defender",
-      "fullback",
-      "wingback",
-    ].includes(key)
-  ) {
-    return "defender";
-  }
-  if (
-    [
-      "cm",
-      "dm",
-      "am",
-      "cdm",
-      "cam",
-      "lm",
-      "rm",
-      "midfielder",
-      "centralmidfielder",
-      "holdingmidfielder",
-      "attackingmidfielder",
-      "6",
-      "8",
-      "10",
-    ].includes(key)
-  ) {
-    return "midfielder";
-  }
-  if (
-    [
-      "st",
-      "cf",
-      "fw",
-      "fwd",
-      "lw",
-      "rw",
-      "winger",
-      "striker",
-      "forward",
-      "centerforward",
-      "centreforward",
-      "9",
-      "11",
-      "7",
-    ].includes(key)
-  ) {
-    return "forward";
-  }
-  return "";
-}
-function getSessionPlannerPlayerBoardSideForRole(roleKey) {
-  const key = normalizeSessionPlannerPlayerBoardProfileKey(roleKey);
-  if (
-    [
-      "lb",
-      "lcb",
-      "lwb",
-      "lm",
-      "lw",
-      "leftback",
-      "leftcenterback",
-      "leftcentreback",
-      "leftwingback",
-      "leftmidfielder",
-      "leftwing",
-      "leftforward",
-    ].includes(key)
-  ) {
-    return "left";
-  }
-  if (
-    [
-      "rb",
-      "rcb",
-      "rwb",
-      "rm",
-      "rw",
-      "rightback",
-      "rightcenterback",
-      "rightcentreback",
-      "rightwingback",
-      "rightmidfielder",
-      "rightwing",
-      "rightforward",
-    ].includes(key)
-  ) {
-    return "right";
-  }
-  if (["cb", "cm", "dm", "am", "cdm", "cam", "cf", "st", "gk", "goalkeeper", "keeper", "6", "8", "9", "10"].includes(key)) {
-    return "center";
-  }
-  return "";
-}
-function getSessionPlannerPlayerBoardExplicitRoles(player = {}) {
-  return [
-    player.primaryRole,
-    ...(Array.isArray(player.secondaryRoles) ? player.secondaryRoles : []),
-    player.position,
-    player.role,
-  ]
-    .map((role) => normalizePlayerProfileRole(role, ""))
-    .filter(Boolean);
-}
-function getSessionPlannerPlayerBoardPositionGroup(player = {}) {
-  const explicitRoleGroup = normalizeSessionPlannerPlayerBoardRoleGroupKey(player?.roleGroup);
-  const explicitGroup = sessionPlannerPlayerBoardPositionGroups.find((group) => group.key === explicitRoleGroup);
-  if (explicitGroup) {
-    return explicitGroup;
-  }
-  const explicitRoles = getSessionPlannerPlayerBoardExplicitRoles(player);
-  const explicitRoleGroupFromRole = explicitRoles
-    .map((role) => getSessionPlannerPlayerBoardRoleGroupForRole(role))
-    .find(Boolean);
-  const explicitRoleGroupMatch = sessionPlannerPlayerBoardPositionGroups.find(
-    (group) => group.key === explicitRoleGroupFromRole
-  );
-  if (explicitRoleGroupMatch) {
-    return explicitRoleGroupMatch;
-  }
-  const roleText = [
-    player?.position,
-    player?.primaryRole,
-    player?.role,
-    ...(Array.isArray(player?.secondaryRoles) ? player.secondaryRoles : []),
-  ].join(" ");
-  const position = String(roleText).toLowerCase();
-  const normalizedPosition = position.replace(/[^a-z0-9åäö]/gi, " ");
-  const positionParts = normalizedPosition.split(/\s+/).filter(Boolean);
-  const hasPositionPart = (...parts) => parts.some((part) => positionParts.includes(part));
-  if (
-    position.includes("goal") ||
-    position.includes("keeper") ||
-    hasPositionPart("gk", "målvakt", "malvakt")
-  ) {
-    return sessionPlannerPlayerBoardPositionGroups[0];
-  }
-  if (
-    position.includes("def") ||
-    position.includes("back") ||
-    hasPositionPart("lb", "cb", "rb", "lcb", "rcb", "wb", "lwb", "rwb")
-  ) {
-    return sessionPlannerPlayerBoardPositionGroups[1];
-  }
-  if (
-    position.includes("forward") ||
-    position.includes("striker") ||
-    position.includes("winger") ||
-    position.includes("attack") ||
-    position.includes("anfall") ||
-    hasPositionPart("st", "cf", "fw", "w", "lw", "rw", "9")
-  ) {
-    return sessionPlannerPlayerBoardPositionGroups[3];
-  }
-  return sessionPlannerPlayerBoardPositionGroups[2];
-}
-function normalizeSessionPlannerPlayerBoardProfileKey(value) {
-return String(value ?? "")
-.trim()
-.toLowerCase()
-.normalize("NFD")
-.replace(/[\u0300-\u036f]/g, "")
-.replace(/[^a-z0-9åäö]/g, "");
-}
 function getSessionPlannerPlayerBoardProfileState() {
 try {
 return ensurePlayerProfilesState();
@@ -15215,31 +15062,6 @@ return numberMatches[0];
 }
 }
 return null;
-}
-function normalizeSessionPlannerPlayerBoardSquadStatusKey(value) {
-  const key = normalizeSessionPlannerPlayerBoardProfileKey(value);
-  if (key === "squaddepth") return "depth";
-  if (key === "loanwatch") return "loan";
-  return key;
-}
-function getSessionPlannerPlayerBoardSquadStatusPriority(statusKey) {
-  const priorityByStatus = {
-    important: 100,
-    rotation: 74,
-    depth: 48,
-    development: 32,
-    loan: 12,
-  };
-  return priorityByStatus[normalizeSessionPlannerPlayerBoardSquadStatusKey(statusKey)] ?? null;
-}
-function getSessionPlannerPlayerBoardCareerPhasePriority(phaseKey) {
-  const priorityByPhase = {
-    peak: 100,
-    experienced: 86,
-    emerging: 70,
-    developing: 54,
-  };
-  return priorityByPhase[normalizeSessionPlannerPlayerBoardProfileKey(phaseKey)] ?? null;
 }
 function getSessionPlannerPlayerBoardProfileRoleFitMap(profile = {}) {
 if (!profile) {
@@ -15508,54 +15330,8 @@ unconfirmed,
 hasWarnings: Boolean(belowLimit.length || unavailable.length || unconfirmed.length),
 };
 }
-function formatSessionPlannerPlayerWarningNames(items = [], limit = 3) {
-const names = items.slice(0, limit).map((item) => item.player?.name).filter(Boolean);
-const extraCount = Math.max(0, items.length - names.length);
-if (!names.length) {
-return "No players";
-}
-return `${names.join(", ")}${extraCount ? ` +${extraCount}` : ""}`;
-}
 function renderSessionPlannerPlayerBoardWarnings(block, options = {}) {
 return sessionPlannerPlayerBoardRenderer.renderPlayerBoardWarnings(block, options);
-}
-function getSessionPlannerPlayerBoardLabelCandidates(player) {
-const words = String(player?.name ?? "").trim().split(/\s+/).filter(Boolean);
-const first = words[0] ?? "Player";
-const last = words.length > 1 ? words[words.length - 1] : "";
-const base = getMedicalPlayerInitials(player);
-const candidates = [
-base,
-`${first.slice(0, 1)}${last.slice(0, 2)}`,
-`${first.slice(0, 2)}${last.slice(0, 1)}`,
-`${first.slice(0, 1)}${last.slice(0, 3)}`,
-`${first.slice(0, 3)}${last.slice(0, 1)}`,
-first.slice(0, 3),
-String(player?.number ?? "").trim() ? `${base}${String(player.number).trim().slice(0, 1)}` : "",
-];
-return [...new Set(candidates.map((candidate) => candidate.replace(/[^a-z0-9]/gi, "").toUpperCase()).filter(Boolean))];
-}
-function getSessionPlannerPlayerBoardInitialLabelMap(boardPlayers = []) {
-const baseCounts = boardPlayers.reduce((counts, item) => {
-const base = getMedicalPlayerInitials(item.player);
-counts.set(base, (counts.get(base) ?? 0) + 1);
-return counts;
-}, new Map());
-const usedLabels = new Set();
-return boardPlayers.reduce((labels, item, index) => {
-const base = getMedicalPlayerInitials(item.player);
-const candidates = getSessionPlannerPlayerBoardLabelCandidates(item.player);
-const label =
-candidates.find((candidate) => {
-if (candidate === base && (baseCounts.get(base) ?? 0) > 1) {
-return false;
-}
-return !usedLabels.has(candidate);
-}) ?? `${base}${index + 1}`;
-usedLabels.add(label);
-labels.set(item.player.id, label);
-return labels;
-}, new Map());
 }
 function syncSessionPlannerPlayerBoardSelection(block = getSessionPlannerSelectedBlock()) {
 const boardPlayers = getSessionPlannerPlayerBoardPlayers(block);
@@ -15654,63 +15430,6 @@ function normalizeSessionPlannerPlayerBoardAutoMode(value) {
 const mode = String(value ?? "").trim();
 return sessionPlannerPlayerBoardAutoModeOptions.some((option) => option.key === mode) ? mode : "balanced";
 }
-function getSessionPlannerPlayerBoardRoleOrder(roleKey) {
-const orderByRole = {
-goalkeeper: 0,
-defender: 1,
-midfielder: 2,
-forward: 3,
-};
-return orderByRole[roleKey] ?? 2;
-}
-function getSessionPlannerPlayerBoardPlayerRoleProfile(player = {}) {
-  const explicitRoles = getSessionPlannerPlayerBoardExplicitRoles(player);
-  const position = [
-    player.position,
-    player.primaryRole,
-    player.role,
-    player.roleGroup,
-    ...(Array.isArray(player.secondaryRoles) ? player.secondaryRoles : []),
-  ]
-    .join(" ")
-    .toLowerCase();
-  const normalizedPosition = position.replace(/[^a-z0-9åäö]/gi, " ");
-  const parts = normalizedPosition.split(/\s+/).filter(Boolean);
-  const hasPart = (...tokens) => tokens.some((token) => parts.includes(token));
-  const group = getSessionPlannerPlayerBoardPositionGroup(player);
-  const preferredSide = String(player.preferredSide ?? "").trim().toLowerCase();
-  let side =
-    explicitRoles.map((role) => getSessionPlannerPlayerBoardSideForRole(role)).find(Boolean) ||
-    (["left", "center", "right"].includes(preferredSide) ? preferredSide : "center");
-  if (side === "center" && (
-    position.includes("left") ||
-    position.includes("vänster") ||
-    position.includes("vanster") ||
-    hasPart("lb", "lcb", "lm", "lw", "lwb")
-  )) {
-    side = "left";
-  } else if (side === "center" && (
-    position.includes("right") ||
-    position.includes("höger") ||
-    position.includes("hoger") ||
-    hasPart("rb", "rcb", "rm", "rw", "rwb")
-  )) {
-    side = "right";
-  } else if (side === "center" && (
-    position.includes("center") ||
-    position.includes("centre") ||
-    position.includes("central") ||
-    position.includes("mitt") ||
-    hasPart("cb", "cm", "dm", "am", "cf", "st", "9", "6", "8", "10")
-  )) {
-    side = "center";
-  }
-  return {
-    roleKey: group.key,
-    roleOrder: getSessionPlannerPlayerBoardRoleOrder(group.key),
-    side,
-  };
-}
 function getSessionPlannerPlayerBoardFormationLineRole(lineIndex, lineTotal) {
 if (lineTotal <= 1) {
 return "midfielder";
@@ -15795,175 +15514,6 @@ y: clamp(y, 14, 88),
 }
 });
 return slots;
-}
-function getSessionPlannerPlayerBoardNumericPriorityValue(value) {
-  if (value === "" || value === null || value === undefined) {
-    return null;
-  }
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue) ? numericValue : null;
-}
-function getSessionPlannerPlayerBoardRolePriorityKeys(slot = {}) {
-const roleKey = String(slot.roleKey ?? "").trim().toLowerCase();
-const side = String(slot.side ?? "center").trim().toLowerCase();
-const keys = [
-roleKey,
-side && side !== "center" ? `${side}-${roleKey}` : "",
-side && side !== "center" ? `${roleKey}-${side}` : "",
-];
-if (roleKey === "goalkeeper") {
-keys.push("GK", "gk", "keeper", "goalkeeper");
-} else if (roleKey === "defender") {
-if (side === "left") {
-keys.push("LB", "LWB", "leftBack", "leftWingBack", "left-defender");
-} else if (side === "right") {
-keys.push("RB", "RWB", "rightBack", "rightWingBack", "right-defender");
-} else {
-keys.push("CB", "LCB", "RCB", "centerBack", "centreBack", "central-defender");
-}
-keys.push("DEF", "defender", "back");
-} else if (roleKey === "midfielder") {
-keys.push("6", "8", "10", "CM", "DM", "AM", "MID", "midfielder");
-if (side === "left") {
-keys.push("LM", "leftMidfielder");
-} else if (side === "right") {
-keys.push("RM", "rightMidfielder");
-}
-} else if (roleKey === "forward") {
-if (side === "left") {
-keys.push("LW", "leftWing", "leftForward");
-} else if (side === "right") {
-keys.push("RW", "rightWing", "rightForward");
-} else {
-keys.push("ST", "CF", "9", "striker", "centerForward", "centreForward");
-}
-keys.push("FWD", "forward", "attacker");
-}
-return Array.from(new Set(keys.filter(Boolean)));
-}
-function getSessionPlannerPlayerBoardRolePriorityValue(player = {}, slot = {}) {
-const roleKeys = getSessionPlannerPlayerBoardRolePriorityKeys(slot);
-const profileSources = [
-player.roleFit,
-player.positionPriority,
-player.rolePriority,
-player.roleRatings,
-player.positionRatings,
-player.positionMinutes,
-player.minutesByPosition,
-player.nwslMinutesByPosition,
-player.nwslMinutes,
-].filter((source) => source && typeof source === "object" && !Array.isArray(source));
-for (const source of profileSources) {
-for (const key of roleKeys) {
-const keyVariants = [
-key,
-String(key).toUpperCase(),
-String(key).toLowerCase(),
-String(key).replace(/(^|-)([a-z])/g, (match) => match.toUpperCase()).replace(/-/g, ""),
-String(key).replace(/[^a-z0-9]/gi, "").toLowerCase(),
-];
-const directValue = keyVariants.reduce((value, variant) => {
-if (value !== null) {
-return value;
-}
-return getSessionPlannerPlayerBoardNumericPriorityValue(source[variant]);
-}, null);
-if (directValue !== null) {
-return directValue;
-}
-}
-}
-return null;
-}
-function getSessionPlannerPlayerBoardDirectRoleFitScore(player = {}, slot = {}) {
-  const profile = getSessionPlannerPlayerBoardPlayerRoleProfile(player);
-  const slotRole = String(slot.roleKey ?? "").trim().toLowerCase();
-  const slotSide = String(slot.side ?? "center").trim().toLowerCase();
-  let score = profile.roleKey === slotRole ? 74 : 38;
-  if (profile.roleKey === slotRole) {
-    if (profile.side === slotSide) {
-      score += 14;
-    } else if (slotSide === "center" || profile.side === "center") {
-      score += 6;
-    } else {
-      score -= 10;
-    }
-  }
-  const primaryRole = normalizePlayerProfileRole(player.primaryRole, "");
-  const secondaryRoles = Array.isArray(player.secondaryRoles)
-    ? player.secondaryRoles.map((role) => normalizePlayerProfileRole(role, "")).filter(Boolean)
-    : [];
-  const slotKeys = getSessionPlannerPlayerBoardRolePriorityKeys(slot).map((key) =>
-    normalizeSessionPlannerPlayerBoardProfileKey(key)
-  );
-  if (slotKeys.includes(normalizeSessionPlannerPlayerBoardProfileKey(primaryRole))) {
-    score += 20;
-  } else if (secondaryRoles.some((role) => slotKeys.includes(normalizeSessionPlannerPlayerBoardProfileKey(role)))) {
-    score += 10;
-  }
-  return clamp(score, 0, 100);
-}
-function getSessionPlannerPlayerBoardImportanceScore(player = {}) {
-const statusPriority =
-getSessionPlannerPlayerBoardNumericPriorityValue(player.squadImportance) ??
-getSessionPlannerPlayerBoardSquadStatusPriority(player.squadStatus);
-if (statusPriority !== null) {
-return statusPriority;
-}
-const rawImportance =
-getSessionPlannerPlayerBoardNumericPriorityValue(player.importance) ??
-getSessionPlannerPlayerBoardNumericPriorityValue(player.teamImportance) ??
-getSessionPlannerPlayerBoardNumericPriorityValue(player.roleImportance) ??
-getSessionPlannerPlayerBoardNumericPriorityValue(player.priority) ??
-getSessionPlannerPlayerBoardNumericPriorityValue(player.priorityScore);
-if (rawImportance === null) {
-return null;
-}
-if (rawImportance <= 1) {
-return rawImportance * 100;
-}
-if (rawImportance <= 5) {
-return rawImportance * 20;
-}
-if (rawImportance <= 10) {
-return rawImportance * 10;
-}
-return clamp(rawImportance, 0, 100);
-}
-function getSessionPlannerPlayerBoardCareerScore(player = {}) {
-  const rawCareer =
-    getSessionPlannerPlayerBoardNumericPriorityValue(player.careerPhasePriority) ??
-    getSessionPlannerPlayerBoardCareerPhasePriority(player.careerPhase);
-  if (rawCareer !== null) {
-    return clamp(rawCareer, 0, 100);
-  }
-  return 60;
-}
-function getSessionPlannerPlayerBoardMinutesScore(player = {}) {
-return (
-getSessionPlannerPlayerBoardNumericPriorityValue(player.nwslMinutes) ??
-getSessionPlannerPlayerBoardNumericPriorityValue(player.seasonMinutes) ??
-getSessionPlannerPlayerBoardNumericPriorityValue(player.minutesPlayed) ??
-getSessionPlannerPlayerBoardNumericPriorityValue(player.minutes) ??
-0
-);
-}
-function getSessionPlannerPlayerBoardPriorityScore(item, slot) {
-  const player = item?.player ?? {};
-  const rolePriority = getSessionPlannerPlayerBoardRolePriorityValue(player, slot);
-  const directRoleFit = getSessionPlannerPlayerBoardDirectRoleFitScore(player, slot);
-  const rolePriorityScore = rolePriority !== null && rolePriority > 0 ? rolePriority : directRoleFit;
-  const importanceScore = getSessionPlannerPlayerBoardImportanceScore(player) ?? 0;
-  const careerScore = getSessionPlannerPlayerBoardCareerScore(player);
-  const minutesScore = getSessionPlannerPlayerBoardMinutesScore(player);
-  const rosterOrder = Number(player.rosterOrder);
-  const rosterScore = Number.isFinite(rosterOrder) ? Math.max(0, 1000 - rosterOrder) / 10 : 0;
-  return rolePriorityScore * 95 + directRoleFit * 24 + importanceScore * 12 + careerScore * 4 + minutesScore * 0.04 + rosterScore;
-}
-function getSessionPlannerPlayerBoardItemPriorityScore(item) {
-const profile = getSessionPlannerPlayerBoardPlayerRoleProfile(item?.player);
-return getSessionPlannerPlayerBoardPriorityScore(item, profile);
 }
 function getSessionPlannerPlayerBoardRelationLookupValue(source, otherPlayer = {}) {
 if (!source) {
@@ -16680,47 +16230,6 @@ break;
 }
 return new Map(entries.map((entry) => [entry.id, { x: entry.x, y: entry.y }]));
 }
-function getSessionPlannerPlayerBoardTone(participation) {
-if (participation <= 10) {
-return "low";
-}
-if (participation <= 25) {
-return "rehab";
-}
-if (participation <= 50) {
-return "controlled";
-}
-if (participation < 100) {
-return "modified";
-}
-return "full";
-}
-function getSessionPlannerPlayerBoardCustomColor(block, playerId) {
-if (!block?.playerBoardColors || typeof block.playerBoardColors !== "object") {
-return "";
-}
-return normalizeTacticalColor(block.playerBoardColors[playerId], "");
-}
-function getSessionPlannerPlayerBoardTextColor(backgroundColor) {
-const color = normalizeTacticalColor(backgroundColor, "");
-const match = color.match(/^#([0-9a-f]{6})$/i);
-if (!match) {
-return "#1d1d1f";
-}
-const value = match[1];
-const red = parseInt(value.slice(0, 2), 16) / 255;
-const green = parseInt(value.slice(2, 4), 16) / 255;
-const blue = parseInt(value.slice(4, 6), 16) / 255;
-const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
-return luminance > 0.62 ? "#1d1d1f" : "#ffffff";
-}
-function getSessionPlannerPlayerBoardColorStyle(color) {
-const normalizedColor = normalizeTacticalColor(color, "");
-if (!normalizedColor) {
-return "";
-}
-return `--session-player-board-color: ${normalizedColor}; --session-player-board-text: ${getSessionPlannerPlayerBoardTextColor(normalizedColor)};`;
-}
 function renderSessionPlannerPlayerBoardLines() {
 return sessionPlannerPlayerBoardRenderer.renderPlayerBoardLines();
 }
@@ -16735,25 +16244,6 @@ return sessionPlannerPlayerBoardRenderer.renderPlayerBoardProfile(item, block, r
 }
 function renderSessionPlannerPlayerBoardProfileOverlay(selectedItem, block, rule, totalPlayers) {
 return sessionPlannerPlayerBoardRenderer.renderPlayerBoardProfileOverlay(selectedItem, block, rule, totalPlayers);
-}
-function getSessionPlannerPlayerBoardDataObject(value) {
-return value && typeof value === "object" && !Array.isArray(value) ? value : {};
-}
-function hasSessionPlannerPlayerBoardTeamData(block = {}) {
-const colors = getSessionPlannerPlayerBoardDataObject(block.playerBoardColors);
-const positions = getSessionPlannerPlayerBoardDataObject(block.playerBoardPositions);
-return Boolean(Object.keys(colors).length || Object.keys(positions).length);
-}
-function getSessionPlannerPlayerBoardSourceBlocks(targetBlock = getSessionPlannerSelectedBlock()) {
-const session = getSessionPlannerSelectedSession();
-const blocks = Array.isArray(session?.blocks) ? session.blocks : [];
-return blocks
-.map((block, index) => ({ block, index }))
-.filter(({ block }) => block?.id && block.id !== targetBlock?.id && hasSessionPlannerPlayerBoardTeamData(block));
-}
-function getSessionPlannerPlayerBoardSourceLabel(block, index) {
-const title = String(block?.title || block?.label || "Exercise").trim();
-return `Block ${index + 1}: ${title}`;
 }
 function renderSessionPlannerPlayerBoardCopyTools(block) {
 return sessionPlannerPlayerBoardRenderer.renderPlayerBoardCopyTools(block);

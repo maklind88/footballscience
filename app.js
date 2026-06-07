@@ -84,6 +84,7 @@ import {
   squadFormationOptions,
 } from "./src/modules/squad/index.mjs";
 import {
+  createMedicalOptionRenderers,
   createMedicalCommandRenderer,
   createMedicalOperationsRenderer,
   createMedicalPlanFormRenderer,
@@ -3976,6 +3977,28 @@ renderPlayerProfileScoutingSpider,
 renderPlayerProfileSecondaryRoleOptions,
 renderPlayerProfileStatusChip,
 renderPlayerProfileTabs,
+});
+const {
+renderMedicalActualParticipationOptions,
+renderMedicalDurationUnitOptions,
+renderMedicalGateOptions,
+renderMedicalParticipationOptions,
+renderMedicalRtpPhaseOptions,
+renderMedicalStatusOptions,
+} = createMedicalOptionRenderers({
+escapeHtml,
+getMedicalGateOption,
+getMedicalRtpPhaseOption,
+getMedicalStatusOption,
+getMedicalStatusOptionForDate,
+getSelectedDate: () => medicalState?.selectedDate,
+medicalActualParticipationFallback,
+medicalGateOptions,
+medicalParticipationOptions,
+medicalRtpPhaseOptions,
+medicalStatusOptions,
+normalizeMedicalActualParticipation,
+normalizeMedicalParticipation,
 });
 const medicalOperationsRenderer = createMedicalOperationsRenderer({
 escapeHtml,
@@ -22401,65 +22424,6 @@ defaultParticipation: null,
 };
 }
 return getMedicalStatusOptionForDate(record.status, record.date, record.rtpPhase);
-}
-function renderMedicalParticipationOptions(selectedValue) {
-const selectedParticipation = normalizeMedicalParticipation(selectedValue);
-return medicalParticipationOptions
-.map(
-(participation) =>
-`<option value="${participation}"${participation === selectedParticipation ? " selected" : ""}>${participation}%</option>`
-)
-.join("");
-}
-function renderMedicalActualParticipationOptions(selectedValue) {
-const normalizedValue = normalizeMedicalActualParticipation(selectedValue);
-return [
-`<option value="${medicalActualParticipationFallback}"${normalizedValue === medicalActualParticipationFallback ? " selected" : ""}>Not logged</option>`,
-...medicalParticipationOptions.map(
-(participation) =>
-`<option value="${participation}"${participation === normalizedValue ? " selected" : ""}>${participation}%</option>`
-),
-].join("");
-}
-function renderMedicalStatusOptions(selectedStatus, dateValue = medicalState?.selectedDate) {
-const currentStatus = getMedicalStatusOption(selectedStatus).key;
-return medicalStatusOptions
-.map(
-(status) =>
-`<option value="${escapeHtml(status.key)}"${status.key === currentStatus ? " selected" : ""}>${escapeHtml(getMedicalStatusOptionForDate(status.key, dateValue).label)}</option>`
-)
-.join("");
-}
-function renderMedicalRtpPhaseOptions(selectedPhase) {
-const currentPhase = getMedicalRtpPhaseOption(selectedPhase).key;
-return medicalRtpPhaseOptions
-.map(
-(phase) =>
-`<option value="${escapeHtml(phase.key)}"${phase.key === currentPhase ? " selected" : ""}>${escapeHtml(phase.label)}</option>`
-)
-.join("");
-}
-function renderMedicalDurationUnitOptions(selectedUnit) {
-const currentUnit = ["days", "weeks", "months"].includes(selectedUnit) ? selectedUnit : "weeks";
-return [
-["weeks", "Weeks"],
-["months", "Months"],
-["days", "Days"],
-]
-.map(
-([unit, label]) =>
-`<option value="${escapeHtml(unit)}"${unit === currentUnit ? " selected" : ""}>${escapeHtml(label)}</option>`
-)
-.join("");
-}
-function renderMedicalGateOptions(selectedGate) {
-const currentGate = getMedicalGateOption(selectedGate).key;
-return medicalGateOptions
-.map(
-(option) =>
-`<option value="${escapeHtml(option.key)}"${option.key === currentGate ? " selected" : ""}>${escapeHtml(option.label)}</option>`
-)
-.join("");
 }
 function getDefaultMedicalInjuryPlanDraft(playerId = medicalState?.selectedPlayerId || "") {
 return {

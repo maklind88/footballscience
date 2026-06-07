@@ -121,7 +121,8 @@ Purpose: scalable library of reusable exercises.
 Required direction:
 
 - Exercise Library state normalization, archive/folder normalization, version snapshots, and storage constants live in `src/modules/exercise-library`.
-- UI rendering, user actions, and protected write calls still run through `app.js` until the next smaller extraction pass.
+- Exercise Library overlay rendering now lives in `src/modules/exercise-library/exercise-library-renderer.mjs`.
+- User actions and protected write calls still run through `app.js` until the next smaller extraction pass.
 - Existing saved exercises are protected data. Development must not remove, reset, overwrite with seed data, or hard-delete user-built library exercises unless the user explicitly asks for that destructive action.
 - Open from Library button or plus menu.
 - Save current exercise into library.

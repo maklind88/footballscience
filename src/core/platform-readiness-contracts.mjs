@@ -389,7 +389,7 @@ export const platformDatabasePrimaryMigrationPlan = Object.freeze([
     current: "partial-extraction",
     target: "database-primary versioned library",
     risk: "Library edits feed sessions; destructive seed or folder writes must never remove saved exercises.",
-    nextStep: "Continue small extractions, then move exercises/folders into versioned tables before Session Planner block migration.",
+    nextStep: "Extract action/write helpers next, then move exercises/folders into versioned tables before Session Planner block migration.",
   }),
   Object.freeze({
     moduleId: "session-planner",

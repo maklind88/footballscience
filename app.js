@@ -31,6 +31,7 @@ import { createPeriodizationWorkspaceController } from "./src/modules/periodizat
 import { createPeriodizationRenderer } from "./src/modules/periodization/periodization-renderer.mjs";
 import { createPeriodizationSessionBridge } from "./src/modules/periodization/periodization-session-bridge.mjs";
 import {
+  createExerciseLibraryRenderer,
   createExerciseLibraryStateAdapter,
   sessionPlannerExerciseLibraryBackupSchema,
   sessionPlannerExerciseLibraryBackupStorageKey,
@@ -4539,6 +4540,42 @@ normalizePlayerBoardPositions: normalizeSessionPlannerPlayerBoardPositions,
 normalizePlayerBoardColors: normalizeSessionPlannerPlayerBoardColors,
 normalizePlayerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople,
 versionLimit: sessionPlannerExerciseLibraryVersionLimit,
+});
+const exerciseLibraryRenderer = createExerciseLibraryRenderer({
+escapeHtml,
+normalizeTimestamp: normalizeSessionPlannerTimestamp,
+normalizeTags: normalizeSessionPlannerLibraryTags,
+normalizeFolderExerciseIds: normalizeSessionPlannerLibraryFolderExerciseIds,
+getReviewNotes: getSessionPlannerExerciseReviewNotes,
+getMultiValueSummary: getSessionPlannerMultiValueSummary,
+canEdit: canEditSessionPlanner,
+sortOptions: sessionPlannerLibrarySortOptions,
+getState: () => ({
+isOpen: sessionPlannerLibraryOpen,
+archiveView: sessionPlannerLibraryArchiveView,
+editingFolderId: sessionPlannerLibraryEditingFolderId,
+filterOpen: sessionPlannerLibraryFilterOpen,
+searchQuery: sessionPlannerLibrarySearchQuery,
+selectedFolderId: sessionPlannerLibrarySelectedFolderId,
+sortMode: sessionPlannerLibrarySortMode,
+pendingSave: sessionPlannerPendingLibrarySave,
+getFilterValues: getSessionPlannerLibraryFilterValues,
+getArchiveCounts: getSessionPlannerLibraryArchiveCounts,
+normalizeSortMode: normalizeSessionPlannerLibrarySortMode,
+getFolderName: getSessionPlannerLibraryFolderName,
+getFolderCount: getSessionPlannerLibraryFolderCount,
+getVisibleFolders: getSessionPlannerVisibleLibraryFolders,
+getArchivedFolders: getSessionPlannerArchivedLibraryFolders,
+getCurrentUserId: getSessionPlannerLibraryUserId,
+isFolderArchived: isSessionPlannerLibraryFolderArchived,
+isExerciseArchived: isSessionPlannerLibraryExerciseArchived,
+canRemoveFromSelectedFolder: canRemoveSessionPlannerLibraryExerciseFromSelectedFolder,
+getSelectedFolder: () => getSessionPlannerLibraryFolderById(sessionPlannerLibrarySelectedFolderId),
+getFilteredExercises: getFilteredSessionPlannerExerciseLibrary,
+getEditExercise: getSessionPlannerLibraryEditExercise,
+getViewExercise: getSessionPlannerLibraryViewExercise,
+getOptionValues: getSessionPlannerLibraryOptionValues,
+}),
 });
 let sessionPlannerHistoryEntries = [];
 let sessionPlannerHistoryLoading = false;
@@ -11954,35 +11991,7 @@ sessionPlannerLibraryViewExerciseId = "";
 renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
 function renderSessionPlannerLibraryResults() {
-const filteredExercises = getFilteredSessionPlannerExerciseLibrary();
-const libraryGrid = ui.sessionPlannerWorkspace?.querySelector(".session-library-modal-grid");
-const folderPanel = ui.sessionPlannerWorkspace?.querySelector(".session-library-folder-panel");
-const libraryModal = ui.sessionPlannerWorkspace?.querySelector(".session-library-modal");
-const editDialog = ui.sessionPlannerWorkspace?.querySelector("[data-session-library-edit-dialog]");
-const libraryCount = ui.sessionPlannerWorkspace?.querySelector(".session-library-count");
-const archiveTabs = ui.sessionPlannerWorkspace?.querySelector(".session-library-archive-tabs");
-const editExercise = getSessionPlannerLibraryEditExercise();
-if (libraryGrid) {
-libraryGrid.innerHTML = renderSessionPlannerLibrary(filteredExercises);
-}
-if (folderPanel) {
-folderPanel.outerHTML = renderSessionPlannerLibraryFolders();
-}
-if (editDialog) {
-if (editExercise) {
-editDialog.outerHTML = renderSessionPlannerLibraryEditDialog(editExercise);
-} else {
-editDialog.remove();
-}
-} else if (libraryModal && editExercise) {
-libraryModal.insertAdjacentHTML("beforeend", renderSessionPlannerLibraryEditDialog(editExercise));
-}
-if (libraryCount) {
-libraryCount.textContent = getSessionPlannerLibraryCountLabel(filteredExercises.length);
-}
-if (archiveTabs) {
-archiveTabs.outerHTML = renderSessionPlannerLibraryArchiveTabs();
-}
+exerciseLibraryRenderer.renderResults(ui.sessionPlannerWorkspace);
 }
 function updateSessionPlannerLibrarySearch(value) {
 sessionPlannerLibrarySearchQuery = String(value || "");
@@ -16935,503 +16944,6 @@ aria-label="Delete ${escapeHtml(blockTitle)}"
 })
 .join("");
 }
-function renderSessionPlannerLibraryFilter(label, filterKey, options) {
-const selectedValues = getSessionPlannerLibraryFilterValues(filterKey);
-const selectedSet = new Set(selectedValues);
-const isOpen = sessionPlannerLibraryFilterOpen === filterKey;
-const summaryLabel = selectedValues.length ? selectedValues.join(", ") : `All ${label.toLowerCase()}s`;
-return `
-    <div class="session-library-filter${isOpen ? " is-open" : ""}">
-      <span>${escapeHtml(label)}</span>
-      <button
-        type="button"
-        class="session-library-filter-trigger${selectedValues.length ? " has-value" : ""}"
-        data-session-library-filter-toggle="${escapeHtml(filterKey)}"
-        aria-expanded="${isOpen ? "true" : "false"}"
-      >
-        <span>${escapeHtml(summaryLabel)}</span>
-        <small>${selectedValues.length || "All"}</small>
-      </button>
-      ${
-        isOpen
-          ? `
-<div class="session-library-filter-menu">
-<button
-type="button"
-class="session-library-filter-clear"
-data-session-library-filter-clear="${escapeHtml(filterKey)}"
->
-Clear selection
-</button>
-${
-options.length
-? options
-.map((option) => {
-const selected = selectedSet.has(option);
-return `
-                          <button
-                            type="button"
-                            class="session-library-filter-option${selected ? " is-selected" : ""}"
-                            data-session-library-filter-option="${escapeHtml(filterKey)}"
-                            data-session-library-filter-value="${escapeHtml(option)}"
-                            aria-pressed="${selected ? "true" : "false"}"
-                          >
-                            <i>${selected ? "✓" : ""}</i>
-                            <span>${escapeHtml(option)}</span>
-                          </button>
-                        `;
-})
-.join("")
-: `<p class="session-library-filter-empty">No values yet</p>`
-}
-</div>
-`
-          : ""
-      }
-    </div>
-  `;
-}
-function formatSessionPlannerLibraryDate(value = "") {
-const timestamp = normalizeSessionPlannerTimestamp(value);
-if (!timestamp) {
-return "";
-}
-return new Intl.DateTimeFormat("en-GB", {
-day: "numeric",
-month: "short",
-year: "numeric",
-}).format(new Date(timestamp));
-}
-function formatSessionPlannerLibraryDateTime(value = "") {
-const timestamp = normalizeSessionPlannerTimestamp(value);
-if (!timestamp) {
-return "";
-}
-return new Intl.DateTimeFormat("en-GB", {
-day: "numeric",
-month: "short",
-year: "numeric",
-hour: "2-digit",
-minute: "2-digit",
-}).format(new Date(timestamp));
-}
-function renderSessionPlannerLibraryArchiveTabs() {
-const counts = getSessionPlannerLibraryArchiveCounts();
-const tabs = [
-["active", `Active ${counts.active}`],
-["archived", `Archive ${counts.archived}`],
-];
-return `
-    <div class="session-library-archive-tabs" role="tablist" aria-label="Library status">
-      ${tabs
-        .map(([value, label]) => `
-<button
-type="button"
-class="${sessionPlannerLibraryArchiveView === value ? "is-active" : ""}"
-data-session-library-archive-view="${escapeHtml(value)}"
-role="tab"
-aria-selected="${sessionPlannerLibraryArchiveView === value ? "true" : "false"}"
->
-${escapeHtml(label)}
-</button>
-`)
-        .join("")}
-    </div>
-  `;
-}
-function renderSessionPlannerLibrarySortControl() {
-const sortMode = normalizeSessionPlannerLibrarySortMode(sessionPlannerLibrarySortMode);
-return `
-    <label class="session-library-sort">
-      <span>Sort</span>
-      <select data-session-library-sort aria-label="Sort exercises">
-        ${sessionPlannerLibrarySortOptions
-          .map((option) => `
-<option value="${escapeHtml(option.value)}"${option.value === sortMode ? " selected" : ""}>
-${escapeHtml(option.label)}
-</option>
-`)
-          .join("")}
-      </select>
-    </label>
-  `;
-}
-function getSessionPlannerLibraryCountLabel(count) {
-const statusLabel = sessionPlannerLibraryArchiveView === "archived" ? "archived " : "";
-const folderName = getSessionPlannerLibraryFolderName();
-const folderLabel = sessionPlannerLibrarySelectedFolderId === "all" ? "" : ` in ${folderName}`;
-return `${count} ${statusLabel}exercise${count === 1 ? "" : "s"}${folderLabel}`;
-}
-function renderSessionPlannerLibraryFolderButton(folderId, label, count, options = {}) {
-const isSelected = sessionPlannerLibrarySelectedFolderId === folderId;
-return `
-    <button
-      type="button"
-      class="session-library-folder-button${isSelected ? " is-selected" : ""}${options.drop ? " is-droppable" : ""}"
-      data-session-library-folder="${escapeHtml(folderId)}"
-      ${options.drop ? `data-session-library-folder-drop="${escapeHtml(folderId)}"` : ""}
-      aria-pressed="${isSelected ? "true" : "false"}"
-    >
-      <span>${escapeHtml(label)}</span>
-      <small>${count}</small>
-    </button>
-  `;
-}
-function renderSessionPlannerLibraryFolderEditForm(folder) {
-return `
-    <form
-      class="session-library-folder-form session-library-folder-edit-form"
-      data-session-library-folder-edit-form="${escapeHtml(folder.id)}"
-    >
-      <input
-        type="text"
-        value="${escapeHtml(folder.name)}"
-        maxlength="80"
-        data-session-library-folder-edit-name
-        aria-label="Folder name"
-      />
-      <select data-session-library-folder-edit-visibility aria-label="Folder visibility">
-        <option value="team"${folder.visibility === "team" ? " selected" : ""}>Team</option>
-        <option value="personal"${folder.visibility === "personal" ? " selected" : ""}>Personal</option>
-      </select>
-      <div class="session-library-folder-form-actions">
-        <button type="submit">Save</button>
-        <button
-          type="button"
-          class="session-library-folder-cancel"
-          data-session-library-cancel-folder-edit
-        >
-          Cancel
-        </button>
-      </div>
-    </form>
-  `;
-}
-function renderSessionPlannerLibraryFolderCard(folder, options = {}) {
-const isAdmin = canEditSessionPlanner();
-const currentUserId = getSessionPlannerLibraryUserId();
-const isArchived = options.archived ?? isSessionPlannerLibraryFolderArchived(folder);
-const count = isArchived
-? normalizeSessionPlannerLibraryFolderExerciseIds(folder.exerciseIds).length
-: getSessionPlannerLibraryFolderCount(folder.id);
-const ownerLabel = folder.visibility === "personal"
-? folder.createdBy && folder.createdBy !== currentUserId
-? "Personal"
-: "Mine"
-: "Team";
-const isSelected = !isArchived && sessionPlannerLibrarySelectedFolderId === folder.id;
-if (isAdmin && !isArchived && sessionPlannerLibraryEditingFolderId === folder.id) {
-return `
-      <div
-        class="session-library-folder-card is-editing${isSelected ? " is-selected" : ""}"
-        data-session-library-folder-drop="${escapeHtml(folder.id)}"
-      >
-        ${renderSessionPlannerLibraryFolderEditForm(folder)}
-      </div>
-    `;
-}
-return `
-    <div
-      class="session-library-folder-card${isSelected ? " is-selected" : ""}${isArchived ? " is-archived" : ""}"
-      ${isArchived ? "" : `data-session-library-folder-drop="${escapeHtml(folder.id)}"`}
-    >
-      ${
-        isArchived
-          ? `
-<div class="session-library-folder-card-main" aria-label="${escapeHtml(folder.name)}">
-<span>Archived ${escapeHtml(ownerLabel)}</span>
-<strong>${escapeHtml(folder.name)}</strong>
-<small>${count} saved reference${count === 1 ? "" : "s"}</small>
-</div>
-`
-          : `
-<button
-type="button"
-class="session-library-folder-card-main"
-data-session-library-folder="${escapeHtml(folder.id)}"
-aria-pressed="${isSelected ? "true" : "false"}"
->
-<span>${escapeHtml(ownerLabel)}</span>
-<strong>${escapeHtml(folder.name)}</strong>
-<small>${count} exercise${count === 1 ? "" : "s"}</small>
-</button>
-`
-      }
-      ${
-        isAdmin
-          ? `
-<div class="session-library-folder-card-actions">
-${
-isArchived
-? `
-                    <button
-                      type="button"
-                      class="session-library-folder-restore"
-                      data-session-library-restore-folder="${escapeHtml(folder.id)}"
-                      aria-label="Restore folder ${escapeHtml(folder.name)}"
-                    >
-                      Restore
-                    </button>
-                  `
-: `
-                    <button
-                      type="button"
-                      class="session-library-folder-edit"
-                      data-session-library-edit-folder="${escapeHtml(folder.id)}"
-                      aria-label="Rename folder ${escapeHtml(folder.name)}"
-                    >
-                      Rename
-                    </button>
-                    ${
-                      folder.source !== "default"
-                        ? `
-<button
-type="button"
-class="session-library-folder-archive"
-data-session-library-archive-folder="${escapeHtml(folder.id)}"
-aria-label="Archive folder ${escapeHtml(folder.name)}"
->
-Archive
-</button>
-`
-                        : ""
-                    }
-                  `
-}
-</div>
-`
-          : ""
-      }
-    </div>
-  `;
-}
-function renderSessionPlannerLibraryArchivedFolders() {
-const archivedFolders = getSessionPlannerArchivedLibraryFolders();
-if (!canEditSessionPlanner() || !archivedFolders.length) {
-return "";
-}
-return `
-    <details class="session-library-folder-archive-panel">
-      <summary>
-        <span>Archived folders</span>
-        <small>${archivedFolders.length}</small>
-      </summary>
-      <div class="session-library-folder-list">
-        ${archivedFolders.map((folder) => renderSessionPlannerLibraryFolderCard(folder, { archived: true })).join("")}
-      </div>
-    </details>
-  `;
-}
-function renderSessionPlannerLibraryFolders() {
-const isAdmin = canEditSessionPlanner();
-const folders = getSessionPlannerVisibleLibraryFolders();
-return `
-    <aside class="session-library-folder-panel">
-      <div class="session-library-folder-head">
-        <span>Folders</span>
-        <strong>${escapeHtml(getSessionPlannerLibraryFolderName())}</strong>
-      </div>
-      <div class="session-library-folder-quick">
-        ${renderSessionPlannerLibraryFolderButton("all", "All Exercises", getSessionPlannerLibraryFolderCount("all"))}
-        ${renderSessionPlannerLibraryFolderButton("team", "Team", getSessionPlannerLibraryFolderCount("team"))}
-        ${renderSessionPlannerLibraryFolderButton("mine", "Mine", getSessionPlannerLibraryFolderCount("mine"))}
-      </div>
-      ${
-        isAdmin
-          ? `
-<form class="session-library-folder-form" data-session-library-folder-form>
-<input
-type="text"
-placeholder="New folder..."
-maxlength="80"
-data-session-library-folder-name
-aria-label="New folder name"
-/>
-<select data-session-library-folder-visibility aria-label="Folder visibility">
-<option value="team">Team</option>
-<option value="personal">Personal</option>
-</select>
-<button type="submit">Create</button>
-</form>
-`
-          : ""
-      }
-      <div class="session-library-folder-list">
-        ${
-          folders.length
-            ? folders.map((folder) => renderSessionPlannerLibraryFolderCard(folder)).join("")
-            : `<p class="session-library-folder-empty">No folders yet.</p>`
-        }
-      </div>
-      ${renderSessionPlannerLibraryArchivedFolders()}
-    </aside>
-  `;
-}
-function renderSessionPlannerLibraryTagChips(tags) {
-const normalizedTags = normalizeSessionPlannerLibraryTags(tags);
-if (!normalizedTags.length) {
-return "";
-}
-return `
-    <div class="session-library-custom-tags" aria-label="Exercise tags">
-      ${normalizedTags.map((tag) => `<span>#${escapeHtml(tag)}</span>`).join("")}
-    </div>
-  `;
-}
-function renderSessionPlannerLibraryFieldText(value, fallback = "Not set") {
-const cleanValue = String(value || "").trim();
-return cleanValue ? escapeHtml(cleanValue).replaceAll("\n", "<br>") : escapeHtml(fallback);
-}
-function renderSessionPlannerLibraryDetail(label, value) {
-return `
-    <div class="session-library-preview-detail">
-      <span>${escapeHtml(label)}</span>
-      <p>${renderSessionPlannerLibraryFieldText(value)}</p>
-    </div>
-  `;
-}
-function renderSessionPlannerLibraryReviewNotesPreview(exercise = {}) {
-const notes = getSessionPlannerExerciseReviewNotes(exercise).slice(0, 6);
-if (!notes.length) {
-return renderSessionPlannerLibraryDetail("Review Notes", "");
-}
-return `
-    <div class="session-library-preview-detail session-library-review-notes">
-      <span>Review Notes</span>
-      ${notes
-        .map((note) => {
-          const noteDate = note.sessionDate ? formatSessionPlannerLibraryDate(note.sessionDate) : formatSessionPlannerLibraryDate(note.updatedAt);
-          const title = [noteDate, note.blockTitle].filter(Boolean).join(" · ");
-          return `
-            <article>
-              <strong>${escapeHtml(title || "Review note")}</strong>
-              <p>${escapeHtml(note.notes).replaceAll("\n", "<br>")}</p>
-            </article>
-          `;
-        })
-        .join("")}
-    </div>
-  `;
-}
-function renderSessionPlannerLibraryEditField(exercise, key, label, options = {}) {
-const value = key === "tags" ? formatSessionPlannerLibraryTags(exercise.tags) : exercise[key] ?? "";
-const isLong = options.long ?? true;
-const rows = options.rows ?? 3;
-const type = options.type || "text";
-const minAttribute = options.min !== undefined ? `min="${escapeHtml(options.min)}"` : "";
-const maxAttribute = options.max !== undefined ? `max="${escapeHtml(options.max)}"` : "";
-const stepAttribute = options.step !== undefined ? `step="${escapeHtml(options.step)}"` : "";
-if (isLong) {
-return `
-      <label class="session-library-edit-field session-library-edit-field-long">
-        <span>${escapeHtml(label)}</span>
-        <textarea
-          rows="${rows}"
-          data-session-library-edit-field="${escapeHtml(key)}"
-        >${escapeHtml(value)}</textarea>
-      </label>
-    `;
-}
-return `
-    <label class="session-library-edit-field">
-      <span>${escapeHtml(label)}</span>
-      <input
-        type="${escapeHtml(type)}"
-        value="${escapeHtml(value)}"
-        data-session-library-edit-field="${escapeHtml(key)}"
-        ${minAttribute}
-        ${maxAttribute}
-        ${stepAttribute}
-      />
-    </label>
-  `;
-}
-function renderSessionPlannerLibraryEditSection(label, fields = []) {
-return `
-    <section class="session-library-edit-section">
-      <span>${escapeHtml(label)}</span>
-      <div class="session-library-edit-grid">
-        ${fields.join("")}
-      </div>
-    </section>
-  `;
-}
-function renderSessionPlannerLibraryEditPanel(exercise) {
-return `
-    <div class="session-library-edit-panel">
-      <div class="session-library-edit-head">
-        <span>Edit exercise</span>
-        <strong>${escapeHtml(exercise.title || "Untitled Exercise")}</strong>
-      </div>
-      ${renderSessionPlannerLibraryEditSection("Identity", [
-        renderSessionPlannerLibraryEditField(exercise, "title", "Title", { long: false }),
-        renderSessionPlannerLibraryEditField(exercise, "tags", "Tags", { long: false }),
-        renderSessionPlannerLibraryEditField(exercise, "phase", "Phase", { long: false }),
-        renderSessionPlannerLibraryEditField(exercise, "subPhase", "Sub-phase", { long: false }),
-      ])}
-      ${renderSessionPlannerLibraryEditSection("Load", [
-        renderSessionPlannerLibraryEditField(exercise, "minutes", "Minutes", { long: false, type: "number", min: 0 }),
-        renderSessionPlannerLibraryEditField(exercise, "intensity", "Intensity", { long: false, type: "number", min: 1, max: 5 }),
-        renderSessionPlannerLibraryEditField(exercise, "time", "Time", { long: false }),
-        renderSessionPlannerLibraryEditField(exercise, "pitchSize", "Pitch size", { long: false }),
-      ])}
-      ${renderSessionPlannerLibraryEditSection("Purpose", [
-        renderSessionPlannerLibraryEditField(exercise, "focus", "Focus", { rows: 2 }),
-        renderSessionPlannerLibraryEditField(exercise, "objective", "Objective", { rows: 3 }),
-        renderSessionPlannerLibraryEditField(exercise, "why", "Why", { rows: 3 }),
-      ])}
-      ${renderSessionPlannerLibraryEditSection("Setup", [
-        renderSessionPlannerLibraryEditField(exercise, "organization", "Organization", { rows: 3 }),
-        renderSessionPlannerLibraryEditField(exercise, "material", "Measure & Material", { rows: 2 }),
-      ])}
-      ${renderSessionPlannerLibraryEditSection("Coaching", [
-        renderSessionPlannerLibraryEditField(exercise, "principles", "Principles & Coaching Points", { rows: 4 }),
-      ])}
-      <div class="session-library-preview-actions">
-        <button
-          type="button"
-          class="session-library-use-button"
-          data-session-save-library-edit="${escapeHtml(exercise.id)}"
-        >
-          Save changes
-        </button>
-        <button
-          type="button"
-          class="session-library-secondary-button"
-          data-session-save-library-edit-copy="${escapeHtml(exercise.id)}"
-        >
-          Save as copy
-        </button>
-        <button
-          type="button"
-          class="session-library-secondary-button"
-          data-session-cancel-library-edit
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  `;
-}
-function renderSessionPlannerLibraryEditDialog(exercise) {
-if (!exercise) {
-return "";
-}
-return `
-    <div class="session-library-edit-dialog-backdrop" data-session-library-edit-dialog>
-      <section class="session-library-edit-dialog" role="dialog" aria-modal="true" aria-label="Edit library exercise">
-        <header class="session-library-edit-dialog-head">
-          <div>
-            <span>Library edit</span>
-            <h3>${escapeHtml(exercise.title || "Untitled Exercise")}</h3>
-          </div>
-          <button type="button" class="session-library-close-button" data-session-cancel-library-edit aria-label="Close edit">Close</button>
-        </header>
-        ${renderSessionPlannerLibraryEditPanel(exercise)}
-      </section>
-    </div>
-  `;
-}
 function canRemoveSessionPlannerLibraryExerciseFromSelectedFolder(exercise = {}) {
 const selectedFolder = getSessionPlannerLibraryFolderById(sessionPlannerLibrarySelectedFolderId);
 return Boolean(
@@ -17443,126 +16955,53 @@ selectedFolder &&
 normalizeSessionPlannerLibraryFolderExerciseIds(selectedFolder.exerciseIds).includes(exercise.id)
 );
 }
+function renderSessionPlannerLibraryFilter(label, filterKey, options) {
+return exerciseLibraryRenderer.renderFilter(label, filterKey, options);
+}
+function formatSessionPlannerLibraryDate(value = "") {
+return exerciseLibraryRenderer.formatDate(value);
+}
+function formatSessionPlannerLibraryDateTime(value = "") {
+return exerciseLibraryRenderer.formatDateTime(value);
+}
+function renderSessionPlannerLibraryArchiveTabs() {
+return exerciseLibraryRenderer.renderArchiveTabs();
+}
+function renderSessionPlannerLibrarySortControl() {
+return exerciseLibraryRenderer.renderSortControl();
+}
+function getSessionPlannerLibraryCountLabel(count) {
+return exerciseLibraryRenderer.getCountLabel(count);
+}
+function renderSessionPlannerLibraryFolderButton(folderId, label, count, options = {}) {
+return exerciseLibraryRenderer.renderFolderButton(folderId, label, count, options);
+}
+function renderSessionPlannerLibraryFolderEditForm(folder) {
+return exerciseLibraryRenderer.renderFolderEditForm(folder);
+}
+function renderSessionPlannerLibraryFolderCard(folder, options = {}) {
+return exerciseLibraryRenderer.renderFolderCard(folder, options);
+}
+function renderSessionPlannerLibraryFolders() {
+return exerciseLibraryRenderer.renderFolders();
+}
+function renderSessionPlannerLibraryTagChips(tags) {
+return exerciseLibraryRenderer.renderTagChips(tags);
+}
+function renderSessionPlannerLibraryEditDialog(exercise) {
+return exerciseLibraryRenderer.renderEditDialog(exercise);
+}
 function renderSessionPlannerLibraryViewDialog(exercise) {
-if (!exercise) return "";
-const isAdmin = canEditSessionPlanner();
-const isArchived = isSessionPlannerLibraryExerciseArchived(exercise);
-const actions = isAdmin && !isArchived ? `<button type="button" class="session-library-use-button" data-session-use-exercise="${escapeHtml(exercise.id)}">Use</button><button type="button" class="session-library-secondary-button" data-session-edit-library-exercise="${escapeHtml(exercise.id)}">Edit</button>` : isAdmin && isArchived ? `<button type="button" class="session-library-restore-button" data-session-restore-library-exercise="${escapeHtml(exercise.id)}">Restore</button>` : "";
-const details = `${[["Objective", exercise.objective], ["Why", exercise.why], ["Organization", exercise.organization], ["Measure & Material", exercise.material], ["Principles", exercise.principles], ["Pitch", exercise.pitchSize]].map(([label, value]) => renderSessionPlannerLibraryDetail(label, value)).join("")}${renderSessionPlannerLibraryReviewNotesPreview(exercise)}`;
-return `<div class="session-library-edit-dialog-backdrop" data-session-view-dialog><section class="session-library-edit-dialog session-library-view-dialog" role="dialog" aria-modal="true" aria-label="View exercise"><header class="session-library-edit-dialog-head"><div><span>View</span><h3>${escapeHtml(exercise.title || "Untitled Exercise")}</h3></div><button type="button" class="session-library-close-button" data-session-close-view>Close</button></header><div class="session-library-preview-head"><p>${renderSessionPlannerLibraryFieldText(exercise.focus || exercise.objective, "No description yet.")}</p></div><div class="session-library-preview-actions">${actions}</div><div class="session-library-preview-details">${details}</div></section></div>`;
-}
-function renderSessionPlannerLibraryActionButton(exercise, label, dataAttribute, className = "session-library-secondary-button", value = exercise.id) {
-return `<button type="button" class="${className}" ${dataAttribute}="${escapeHtml(value)}">${escapeHtml(label)}</button>`;
-}
-function renderSessionPlannerLibraryRowActions(exercise, selectedFolder) {
-const isArchived = isSessionPlannerLibraryExerciseArchived(exercise);
-const removeButton = canRemoveSessionPlannerLibraryExerciseFromSelectedFolder(exercise)
-? `<button type="button" class="session-library-secondary-button" data-session-remove-library-exercise-from-folder="${escapeHtml(exercise.id)}" data-session-remove-library-folder="${escapeHtml(selectedFolder?.id || sessionPlannerLibrarySelectedFolderId)}">Remove from folder</button>`
-: "";
-return `<div class="session-library-actions">${isArchived
-    ? `${renderSessionPlannerLibraryActionButton(exercise, "View", "data-session-view-exercise")}${renderSessionPlannerLibraryActionButton(exercise, "Restore", "data-session-restore-library-exercise", "session-library-restore-button")}`
-    : `${renderSessionPlannerLibraryActionButton(exercise, "Use", "data-session-use-exercise", "session-library-use-button")}${renderSessionPlannerLibraryActionButton(exercise, "View", "data-session-view-exercise")}${renderSessionPlannerLibraryActionButton(exercise, "Edit", "data-session-edit-library-exercise")}${removeButton}${renderSessionPlannerLibraryActionButton(exercise, "Archive", "data-session-delete-library-exercise", "session-library-delete-button")}`}</div>`;
+return exerciseLibraryRenderer.renderViewDialog(exercise);
 }
 function renderSessionPlannerLibrary(exercises = getFilteredSessionPlannerExerciseLibrary()) {
-const isAdmin = canEditSessionPlanner();
-if (!exercises.length) return `<p class="session-library-empty">No ${sessionPlannerLibraryArchiveView === "archived" ? "archived " : ""}exercises found for this filter.</p>`;
-return exercises.map((exercise) => {
-const isArchived = isSessionPlannerLibraryExerciseArchived(exercise);
-const metaDate = formatSessionPlannerLibraryDate(isArchived ? exercise.archivedAt : exercise.updatedAt || exercise.createdAt);
-const durationLabel = exercise.minutes ? `${exercise.minutes} min` : exercise.time || "No time";
-const selectedFolder = getSessionPlannerLibraryFolderById(sessionPlannerLibrarySelectedFolderId);
-const reviewNoteCount = getSessionPlannerExerciseReviewNotes(exercise).length;
-return `<article class="session-library-item${isArchived ? " is-archived" : ""}" data-session-library-drag-exercise="${escapeHtml(exercise.id)}" draggable="${isAdmin && !isArchived ? "true" : "false"}"><div class="session-library-item-main"><strong>${escapeHtml(exercise.title || "Untitled Exercise")}</strong><div class="session-library-tags"><span>${escapeHtml(getSessionPlannerMultiValueSummary(exercise.phase, "No phase"))}</span><span>${escapeHtml(getSessionPlannerMultiValueSummary(exercise.subPhase, "No sub-phase"))}</span>${reviewNoteCount ? `<span>${reviewNoteCount} review note${reviewNoteCount === 1 ? "" : "s"}</span>` : ""}${isArchived ? `<span class="session-library-archive-chip">Archived</span>` : ""}</div></div><div class="session-library-row-meta"><span>${escapeHtml(durationLabel)}</span><span>${escapeHtml(metaDate)}</span></div>${isAdmin ? renderSessionPlannerLibraryRowActions(exercise, selectedFolder) : ""}</article>`;
-}).join("");
+return exerciseLibraryRenderer.renderList(exercises);
 }
 function renderSessionPlannerLibraryOverlay() {
-if (!sessionPlannerLibraryOpen) {
-return "";
-}
-const filteredExercises = getFilteredSessionPlannerExerciseLibrary();
-const editExercise = getSessionPlannerLibraryEditExercise();
-const viewExercise = getSessionPlannerLibraryViewExercise();
-const phaseOptions = getSessionPlannerLibraryOptionValues("phase");
-const subPhaseOptions = getSessionPlannerLibraryOptionValues("subPhase");
-return `
-    <div class="session-library-overlay" data-session-library-overlay>
-      <section class="session-library-modal" role="dialog" aria-modal="true" aria-label="Exercise Library">
-        <header class="session-library-modal-head">
-          <div>
-            <span>Library</span>
-            <h2>Exercise Library</h2>
-          </div>
-          <button type="button" class="session-library-close-button" data-session-close-library aria-label="Close library">Close</button>
-        </header>
-        <div class="session-library-controls">
-          <label class="session-library-search">
-            <span>Search</span>
-            <input
-              type="search"
-              value="${escapeHtml(sessionPlannerLibrarySearchQuery)}"
-              placeholder="Find exercise..."
-              data-session-library-search
-            />
-          </label>
-          <div class="session-library-filter-row">
-            ${renderSessionPlannerLibraryArchiveTabs()}
-            ${renderSessionPlannerLibraryFilter("Phase", "phase", phaseOptions)}
-            ${renderSessionPlannerLibraryFilter("Sub-phase", "subPhase", subPhaseOptions)}
-            ${renderSessionPlannerLibrarySortControl()}
-          </div>
-          <span class="session-library-count">
-            ${getSessionPlannerLibraryCountLabel(filteredExercises.length)}
-          </span>
-        </div>
-        <div class="session-library-modal-body">
-          ${renderSessionPlannerLibraryFolders()}
-          <div class="session-library-modal-grid">
-            ${renderSessionPlannerLibrary(filteredExercises)}
-          </div>
-        </div>
-        ${renderSessionPlannerLibraryEditDialog(editExercise)}
-        ${renderSessionPlannerLibraryViewDialog(viewExercise)}
-      </section>
-    </div>
-  `;
+return exerciseLibraryRenderer.renderOverlay();
 }
 function renderSessionPlannerLibrarySaveConflictOverlay() {
-if (!sessionPlannerPendingLibrarySave) {
-return "";
-}
-const title = sessionPlannerPendingLibrarySave.existingTitle || "Untitled Exercise";
-return `
-    <div class="session-library-overlay session-save-conflict-overlay" data-session-save-conflict-overlay>
-      <section class="session-library-modal session-save-conflict-modal" role="dialog" aria-modal="true" aria-label="Exercise already exists">
-        <header class="session-library-modal-head">
-          <div>
-            <span>Library</span>
-            <h2>This name already exists</h2>
-          </div>
-          <button
-            type="button"
-            class="session-library-close-button"
-            data-session-save-conflict-action="cancel"
-            aria-label="Cancel"
-          >
-            Cancel
-          </button>
-        </header>
-        <div class="session-save-conflict-copy">
-          <strong>${escapeHtml(title)}</strong>
-          <p>Do you want to replace the saved exercise with your latest changes, or save this as a copy?</p>
-        </div>
-        <div class="session-save-conflict-actions">
-          <button type="button" class="session-save-conflict-secondary" data-session-save-conflict-action="duplicate">
-            Duplicate
-          </button>
-          <button type="button" class="session-save-conflict-primary" data-session-save-conflict-action="replace">
-            Replace
-          </button>
-        </div>
-      </section>
-    </div>
-  `;
+return exerciseLibraryRenderer.renderSaveConflictOverlay();
 }
 function renderSessionPlannerCentralSyncConflictOverlay() {
 if (!sessionPlannerCentralSyncConflict) {

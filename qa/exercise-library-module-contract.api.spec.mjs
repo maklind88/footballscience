@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import {
+  createExerciseLibraryRenderer,
   createExerciseLibraryStateAdapter,
   exerciseLibraryModuleId,
   sessionPlannerExerciseLibraryBackupSchema,
@@ -36,6 +37,7 @@ function createTestAdapter() {
 test("Exercise Library extraction owns the first state module file slots", () => {
   [
     "src/modules/exercise-library/index.mjs",
+    "src/modules/exercise-library/exercise-library-renderer.mjs",
     "src/modules/exercise-library/exercise-library-state.mjs",
   ].forEach((path) => {
     expect(existsSync(resolve(root, path)), `${path} should exist`).toBe(true);
@@ -45,6 +47,61 @@ test("Exercise Library extraction owns the first state module file slots", () =>
   expect(sessionPlannerExerciseLibraryStorageKey).toBe("football-session-exercise-library-v1");
   expect(sessionPlannerExerciseLibraryFoldersStorageKey).toBe("football-session-exercise-library-folders-v1");
   expect(sessionPlannerExerciseLibraryVersionLimit).toBe(8);
+});
+
+test("Exercise Library renderer owns overlay, folders, filters, and edit actions", () => {
+  const renderer = createExerciseLibraryRenderer({
+    escapeHtml: (value) => String(value ?? "").replaceAll("<", "&lt;").replaceAll(">", "&gt;"),
+    normalizeTimestamp: (value) => value || "",
+    normalizeTags: (value) => (Array.isArray(value) ? value : []),
+    normalizeFolderExerciseIds: (value) => (Array.isArray(value) ? value : []),
+    getReviewNotes: (exercise) => exercise.reviewNotes || [],
+    getMultiValueSummary: (value, fallback) => value || fallback,
+    canEdit: () => true,
+    getState: () => ({
+      isOpen: true,
+      archiveView: "active",
+      filterOpen: "phase",
+      searchQuery: "press",
+      selectedFolderId: "folder-1",
+      sortMode: "title",
+      getFilterValues: () => ["Pressing"],
+      getArchiveCounts: () => ({ active: 1, archived: 1 }),
+      normalizeSortMode: (value) => value,
+      getFolderName: () => "Team Press",
+      getFolderCount: () => 1,
+      getVisibleFolders: () => [
+        { id: "folder-1", name: "Team Press", visibility: "team", exerciseIds: ["ex-1"], source: "user" },
+      ],
+      getArchivedFolders: () => [],
+      getCurrentUserId: () => "coach-1",
+      isFolderArchived: () => false,
+      isExerciseArchived: () => false,
+      canRemoveFromSelectedFolder: () => true,
+      getSelectedFolder: () => ({ id: "folder-1" }),
+      getFilteredExercises: () => [
+        {
+          id: "ex-1",
+          title: "Pressing Game",
+          phase: "Pressing",
+          subPhase: "High Press",
+          minutes: 12,
+          updatedAt: "2026-05-01T10:00:00.000Z",
+          reviewNotes: [{ id: "note-1", notes: "Good load" }],
+        },
+      ],
+      getEditExercise: () => null,
+      getViewExercise: () => null,
+      getOptionValues: () => ["Pressing"],
+    }),
+  });
+
+  const markup = renderer.renderOverlay();
+  expect(markup).toContain("Exercise Library");
+  expect(markup).toContain("data-session-library-folder=\"folder-1\"");
+  expect(markup).toContain("data-session-library-filter-option=\"phase\"");
+  expect(markup).toContain("data-session-remove-library-exercise-from-folder=\"ex-1\"");
+  expect(markup).toContain("Pressing Game");
 });
 
 test("Exercise Library state adapter normalizes without dropping saved or archived exercises", () => {
@@ -139,6 +196,9 @@ test("Exercise Library app integration delegates state ownership to the module",
 
   expect(app).toContain("./src/modules/exercise-library/index.mjs");
   expect(app).toContain("createExerciseLibraryStateAdapter");
+  expect(app).toContain("createExerciseLibraryRenderer");
+  expect(app).toContain("exerciseLibraryRenderer.renderOverlay()");
+  expect(app).toContain("exerciseLibraryRenderer.renderResults(ui.sessionPlannerWorkspace)");
   expect(app).toContain("exerciseLibraryStateAdapter.createExercise(source)");
   expect(app).toContain("exerciseLibraryStateAdapter.createFolder(source)");
   expect(app).toContain("exerciseLibraryStateAdapter.parseExercisePayload(rawLibrary)");
@@ -152,6 +212,7 @@ test("Exercise Library is tracked as partial extraction while protected writes r
 
   expect(contract.migrationStatus).toBe(moduleMigrationStatuses.partialExtraction);
   expect(contract.currentFiles).toContain("src/modules/exercise-library/index.mjs");
+  expect(contract.currentFiles).toContain("src/modules/exercise-library/exercise-library-renderer.mjs");
   expect(contract.currentFiles).toContain("src/modules/exercise-library/exercise-library-state.mjs");
   expect(contract.testFiles).toContain("qa/exercise-library-module-contract.api.spec.mjs");
   expect(platformModuleImplementationStages["exercise-library"]).toBe("partial-extraction");

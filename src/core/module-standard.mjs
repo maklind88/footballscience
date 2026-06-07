@@ -234,6 +234,7 @@ export const moduleStandardContracts = Object.freeze([
     currentFiles: [
       "app.js",
       "src/modules/exercise-library/index.mjs",
+      "src/modules/exercise-library/exercise-library-renderer.mjs",
       "src/modules/exercise-library/exercise-library-state.mjs",
     ],
     testFiles: [
@@ -243,7 +244,7 @@ export const moduleStandardContracts = Object.freeze([
     ],
     extractionOrder: 11,
     riskLevel: "high",
-    notes: "State normalization, archive/folder normalization, version snapshots, and storage constants live in src/modules/exercise-library; UI and protected write pipeline stay in app.js until later passes. Never seed-overwrite or hard-delete saved exercises.",
+    notes: "State normalization, archive/folder normalization, version snapshots, storage constants, and library overlay rendering live in src/modules/exercise-library; protected write pipeline stays in app.js until later passes. Never seed-overwrite or hard-delete saved exercises.",
   }),
   createModuleStandardContract({
     id: "session-planner",

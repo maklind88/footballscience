@@ -17,8 +17,20 @@ import {
   platformScoutingPerformanceContract,
 } from "../src/core/platform-readiness-contracts.mjs";
 import { platformModules, protectedStorageKeys } from "../src/core/platform-contracts.mjs";
+import { createAdminReadinessRenderer } from "../src/modules/admin/index.mjs";
 
 const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const readinessScripts = {
+  deploy: "npm run release:ship:fast -- --push --deploy",
+  "deploy:safe": "npm run release:ship:safe -- --push --deploy",
+  check: "node --check app.js",
+  qa: "npm run check",
+  "release:postdeploy": "node scripts/verify-production-deploy.mjs",
+  "release:monitor": "npm run release:monitor-postdeploy",
+  "platform:readiness": "node scripts/verify-platform-readiness.mjs",
+  "platform:health": "node scripts/platform-health-report.mjs",
+  "platform:identity:backfill": "node scripts/platform-identity-backfill.mjs",
+};
 const completeEnv = Object.fromEntries(
   platformReadinessEnvironmentRequirements.flatMap((requirement) => [
     ...requirement.required.map((name) => [name, `${name.toLowerCase()}-value`]),
@@ -31,23 +43,12 @@ function readProjectFile(filePath) {
 }
 
 test("platform readiness contract covers every requested operating area", () => {
-  const scripts = {
-    deploy: "npm run release:ship:fast -- --push --deploy",
-    "deploy:safe": "npm run release:ship:safe -- --push --deploy",
-    check: "node --check app.js",
-    qa: "npm run check",
-    "release:postdeploy": "node scripts/verify-production-deploy.mjs",
-    "release:monitor": "npm run release:monitor-postdeploy",
-    "platform:readiness": "node scripts/verify-platform-readiness.mjs",
-    "platform:health": "node scripts/platform-health-report.mjs",
-    "platform:identity:backfill": "node scripts/platform-identity-backfill.mjs",
-  };
   const report = createPlatformReadinessReport({
     env: completeEnv,
-    scripts,
+    scripts: readinessScripts,
   });
 
-  expect(assertPlatformReadinessContract({ env: completeEnv, scripts })).toBe(true);
+  expect(assertPlatformReadinessContract({ env: completeEnv, scripts: readinessScripts })).toBe(true);
   for (const area of platformReadinessAreas) {
     expect(report.sections.map((section) => section.id)).toContain(area.id);
   }
@@ -255,17 +256,29 @@ test("scouting performance contract stays explicit and conservative", () => {
 });
 
 test("admin workspace exposes the platform health cockpit", () => {
-  const appSource = readProjectFile("app.js");
   const apiSource = readProjectFile("api/platform-readiness.js");
+  const report = createPlatformReadinessReport({
+    env: completeEnv,
+    scripts: readinessScripts,
+  });
+  const readinessRenderer = createAdminReadinessRenderer({
+    getReadinessState: () => ({
+      report,
+      loading: false,
+      loadError: "",
+      loadedAt: "2026-05-31T11:14:00Z",
+    }),
+  });
+  const markup = readinessRenderer.renderReadinessDashboard();
 
-  expect(appSource).toContain("Platform Health");
-  expect(appSource).toContain("Live Health");
-  expect(appSource).toContain("Live Signals");
-  expect(appSource).toContain("Next Actions");
-  expect(appSource).toContain("Database Migration");
-  expect(appSource).toContain("Scouting Speed");
-  expect(appSource).toContain("Missing env");
-  expect(appSource).toContain("data-pr-refresh");
+  expect(markup).toContain("Platform Health");
+  expect(markup).toContain("Live Health");
+  expect(markup).toContain("Live Signals");
+  expect(markup).toContain("Next Actions");
+  expect(markup).toContain("Database Migration");
+  expect(markup).toContain("Scouting Speed");
+  expect(markup).toContain("Missing VERCEL_ENV");
+  expect(markup).toContain("data-pr-refresh");
   expect(apiSource).toContain("collectPlatformLiveSignals");
   expect(apiSource).toContain("/api/app-state-backup-status");
 });

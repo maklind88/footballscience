@@ -11394,585 +11394,207 @@ sessionPlannerWorkspaceController = createSessionPlannerWorkspaceController({
     if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerPrintSections")) sessionPlannerPrintSections = patch.sessionPlannerPrintSections;
   },
 });
-function getSessionPlannerSelectedSession(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerSelectedSession(...args);
-}
-function ensureSessionPlannerSelectedSession(...args) {
-return sessionPlannerWorkspaceController.ensureSessionPlannerSelectedSession(...args);
-}
-function getSessionPlannerSelectedBlock(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerSelectedBlock(...args);
-}
-function selectSessionPlannerDate(...args) {
-return sessionPlannerWorkspaceController.selectSessionPlannerDate(...args);
-}
-function selectSessionPlannerBlock(...args) {
-return sessionPlannerWorkspaceController.selectSessionPlannerBlock(...args);
-}
-function addSessionPlannerBlock(...args) {
-return sessionPlannerWorkspaceController.addSessionPlannerBlock(...args);
-}
-function renumberSessionPlannerExerciseBlocks(...args) {
-return sessionPlannerWorkspaceController.renumberSessionPlannerExerciseBlocks(...args);
-}
-function moveSessionPlannerBlock(...args) {
-return sessionPlannerWorkspaceController.moveSessionPlannerBlock(...args);
-}
-function reorderSessionPlannerBlock(...args) {
-return sessionPlannerWorkspaceController.reorderSessionPlannerBlock(...args);
-}
-function getSessionPlannerBlockDropPlacement(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerBlockDropPlacement(...args);
-}
-function clearSessionPlannerBlockDragState(...args) {
-return sessionPlannerWorkspaceController.clearSessionPlannerBlockDragState(...args);
-}
-function clearSessionPlannerLibraryDragState(...args) {
-return sessionPlannerWorkspaceController.clearSessionPlannerLibraryDragState(...args);
-}
-function updateSessionPlannerLibraryPointerDropTarget(...args) {
-return sessionPlannerWorkspaceController.updateSessionPlannerLibraryPointerDropTarget(...args);
-}
-function startSessionPlannerLibraryPointerDrag(...args) {
-return sessionPlannerWorkspaceController.startSessionPlannerLibraryPointerDrag(...args);
-}
-function updateSessionPlannerLibraryPointerDrag(...args) {
-return sessionPlannerWorkspaceController.updateSessionPlannerLibraryPointerDrag(...args);
-}
-function finishSessionPlannerLibraryPointerDrag(...args) {
-return sessionPlannerWorkspaceController.finishSessionPlannerLibraryPointerDrag(...args);
-}
-function deleteSessionPlannerBlock(...args) {
-return sessionPlannerWorkspaceController.deleteSessionPlannerBlock(...args);
-}
-function setSessionPlannerLibraryOpen(...args) {
-return sessionPlannerWorkspaceController.setSessionPlannerLibraryOpen(...args);
-}
-function closeSessionPlannerLibrary(...args) {
-return sessionPlannerWorkspaceController.closeSessionPlannerLibrary(...args);
-}
-function setSessionPlannerAddMenuOpen(...args) {
-return sessionPlannerWorkspaceController.setSessionPlannerAddMenuOpen(...args);
-}
-function setSessionPlannerVisualPreviewOpen(...args) {
-return sessionPlannerWorkspaceController.setSessionPlannerVisualPreviewOpen(...args);
-}
-function syncSessionPlannerPrintModeClass(...args) {
-return sessionPlannerWorkspaceController.syncSessionPlannerPrintModeClass(...args);
-}
-function setSessionPlannerPrintOverlayOpen(...args) {
-return sessionPlannerWorkspaceController.setSessionPlannerPrintOverlayOpen(...args);
-}
-function setSessionPlannerTacticalboardOpen(...args) {
-return sessionPlannerWorkspaceController.setSessionPlannerTacticalboardOpen(...args);
-}
-function setSessionPlannerPlayerBoardOpen(...args) {
-return sessionPlannerWorkspaceController.setSessionPlannerPlayerBoardOpen(...args);
-}
-function openSessionPlannerPlayerBoardProfile(...args) {
-return sessionPlannerWorkspaceController.openSessionPlannerPlayerBoardProfile(...args);
-}
-function closeSessionPlannerPlayerBoardProfile(...args) {
-return sessionPlannerWorkspaceController.closeSessionPlannerPlayerBoardProfile(...args);
-}
-function getSessionPlannerPlayerBoardVisiblePlayerIds(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardVisiblePlayerIds(...args);
-}
-function normalizeSessionPlannerPlayerBoardSelectedIds(...args) {
-return sessionPlannerWorkspaceController.normalizeSessionPlannerPlayerBoardSelectedIds(...args);
-}
-function setSessionPlannerPlayerBoardSelectedPlayers(...args) {
-return sessionPlannerWorkspaceController.setSessionPlannerPlayerBoardSelectedPlayers(...args);
-}
-function toggleSessionPlannerPlayerBoardSelectedPlayer(...args) {
-return sessionPlannerWorkspaceController.toggleSessionPlannerPlayerBoardSelectedPlayer(...args);
-}
-function syncSessionPlannerPlayerBoardSelectionUi(...args) {
-return sessionPlannerWorkspaceController.syncSessionPlannerPlayerBoardSelectionUi(...args);
-}
-function getSessionPlannerPlayerBoardSelectedColorIds(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardSelectedColorIds(...args);
-}
-function updateSessionPlannerPlayerBoardSelectedColor(...args) {
-return sessionPlannerWorkspaceController.updateSessionPlannerPlayerBoardSelectedColor(...args);
-}
-function clearSessionPlannerPlayerBoardSelectedColors(...args) {
-return sessionPlannerWorkspaceController.clearSessionPlannerPlayerBoardSelectedColors(...args);
-}
-function getSessionPlannerPlayerBoardContextPosition(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardContextPosition(...args);
-}
-function normalizeSessionPlannerPlayerBoardCustomPersonPromptValue(...args) {
-return sessionPlannerWorkspaceController.normalizeSessionPlannerPlayerBoardCustomPersonPromptValue(...args);
-}
-function getSessionPlannerPlayerBoardCustomPersonKind(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardCustomPersonKind(...args);
-}
-function removeSessionPlannerPlayerBoardCustomPerson(...args) {
-return sessionPlannerWorkspaceController.removeSessionPlannerPlayerBoardCustomPerson(...args);
-}
-function openSessionPlannerPlayerBoardCustomPersonEditor(...args) {
-return sessionPlannerWorkspaceController.openSessionPlannerPlayerBoardCustomPersonEditor(...args);
-}
-function closeSessionPlannerPlayerBoardCustomPersonEditor(...args) {
-return sessionPlannerWorkspaceController.closeSessionPlannerPlayerBoardCustomPersonEditor(...args);
-}
-function saveSessionPlannerPlayerBoardCustomPersonFromForm(...args) {
-return sessionPlannerWorkspaceController.saveSessionPlannerPlayerBoardCustomPersonFromForm(...args);
-}
-function handleSessionPlannerPlayerBoardContextMenu(...args) {
-return sessionPlannerWorkspaceController.handleSessionPlannerPlayerBoardContextMenu(...args);
-}
-function resetSessionPlannerPlayerBoardPositions(...args) {
-return sessionPlannerWorkspaceController.resetSessionPlannerPlayerBoardPositions(...args);
-}
-function getSessionPlannerTacticalFrames(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerTacticalFrames(...args);
-}
-function getSessionPlannerTacticalActiveFrameId(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerTacticalActiveFrameId(...args);
-}
-function ensureSessionPlannerTacticalFrames(...args) {
-return sessionPlannerWorkspaceController.ensureSessionPlannerTacticalFrames(...args);
-}
-function syncSessionPlannerTacticalActiveFrame(...args) {
-return sessionPlannerWorkspaceController.syncSessionPlannerTacticalActiveFrame(...args);
-}
-function persistSessionPlannerTacticalElements(...args) {
-return sessionPlannerWorkspaceController.persistSessionPlannerTacticalElements(...args);
-}
-function commitSessionPlannerTacticalFrames(...args) {
-return sessionPlannerWorkspaceController.commitSessionPlannerTacticalFrames(...args);
-}
-function addSessionPlannerTacticalFrame(...args) {
-return sessionPlannerWorkspaceController.addSessionPlannerTacticalFrame(...args);
-}
-function selectSessionPlannerTacticalFrame(...args) {
-return sessionPlannerWorkspaceController.selectSessionPlannerTacticalFrame(...args);
-}
-function duplicateSessionPlannerTacticalFrame(...args) {
-return sessionPlannerWorkspaceController.duplicateSessionPlannerTacticalFrame(...args);
-}
-function deleteSessionPlannerTacticalFrame(...args) {
-return sessionPlannerWorkspaceController.deleteSessionPlannerTacticalFrame(...args);
-}
-function refreshSessionPlannerTacticalboardCanvas(...args) {
-return sessionPlannerWorkspaceController.refreshSessionPlannerTacticalboardCanvas(...args);
-}
-function isSessionPlannerTacticalLineTool(...args) {
-return sessionPlannerWorkspaceController.isSessionPlannerTacticalLineTool(...args);
-}
-function isSessionPlannerTacticalStrokeElement(...args) {
-return sessionPlannerWorkspaceController.isSessionPlannerTacticalStrokeElement(...args);
-}
-function isSessionPlannerTacticalPlacementTool(...args) {
-return sessionPlannerWorkspaceController.isSessionPlannerTacticalPlacementTool(...args);
-}
-function uniqueValues(...args) {
-return sessionPlannerWorkspaceController.uniqueValues(...args);
-}
-function getSessionPlannerTacticalSelectedElementIds(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerTacticalSelectedElementIds(...args);
-}
-function setSessionPlannerTacticalSelectedElements(...args) {
-return sessionPlannerWorkspaceController.setSessionPlannerTacticalSelectedElements(...args);
-}
-function isSessionPlannerTacticalSelectionToggleModifier(...args) {
-return sessionPlannerWorkspaceController.isSessionPlannerTacticalSelectionToggleModifier(...args);
-}
-function toggleSessionPlannerTacticalElementSelection(...args) {
-return sessionPlannerWorkspaceController.toggleSessionPlannerTacticalElementSelection(...args);
-}
-function clearSessionPlannerTacticalSelection(...args) {
-return sessionPlannerWorkspaceController.clearSessionPlannerTacticalSelection(...args);
-}
-function setSessionPlannerTacticalClickSuppression(...args) {
-return sessionPlannerWorkspaceController.setSessionPlannerTacticalClickSuppression(...args);
-}
-function setSessionPlannerTacticalPitchMode(...args) {
-return sessionPlannerWorkspaceController.setSessionPlannerTacticalPitchMode(...args);
-}
-function openSessionPlannerTacticalNumberPicker(...args) {
-return sessionPlannerWorkspaceController.openSessionPlannerTacticalNumberPicker(...args);
-}
-function updateSessionPlannerTacticalPlayerNumber(...args) {
-return sessionPlannerWorkspaceController.updateSessionPlannerTacticalPlayerNumber(...args);
-}
-function updateSelectedSessionPlannerTacticalPlayerBadges(...args) {
-return sessionPlannerWorkspaceController.updateSelectedSessionPlannerTacticalPlayerBadges(...args);
-}
-function isSessionPlannerTacticalElementSelected(...args) {
-return sessionPlannerWorkspaceController.isSessionPlannerTacticalElementSelected(...args);
-}
-function shouldDragSessionPlannerTacticalSelectionGroup(...args) {
-return sessionPlannerWorkspaceController.shouldDragSessionPlannerTacticalSelectionGroup(...args);
-}
-function getSessionPlannerTacticalDragElementIds(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerTacticalDragElementIds(...args);
-}
-function setSessionPlannerTacticalTool(...args) {
-return sessionPlannerWorkspaceController.setSessionPlannerTacticalTool(...args);
-}
 function clearSelectedSessionPlannerTacticalBoard(...args) {
 return sessionPlannerWorkspaceController.clearSelectedSessionPlannerTacticalBoard(...args);
-}
-function undoSelectedSessionPlannerTacticalBoardAction(...args) {
-return sessionPlannerWorkspaceController.undoSelectedSessionPlannerTacticalBoardAction(...args);
-}
-function removeSessionPlannerTacticalElement(...args) {
-return sessionPlannerWorkspaceController.removeSessionPlannerTacticalElement(...args);
-}
-function removeSelectedSessionPlannerTacticalElement(...args) {
-return sessionPlannerWorkspaceController.removeSelectedSessionPlannerTacticalElement(...args);
-}
-function addSessionPlannerTacticalElement(...args) {
-return sessionPlannerWorkspaceController.addSessionPlannerTacticalElement(...args);
-}
-function snapSessionPlannerTacticalValue(...args) {
-return sessionPlannerWorkspaceController.snapSessionPlannerTacticalValue(...args);
-}
-function snapSessionPlannerTacticalPoint(...args) {
-return sessionPlannerWorkspaceController.snapSessionPlannerTacticalPoint(...args);
-}
-function shouldSnapSessionPlannerTacticalEvent(...args) {
-return sessionPlannerWorkspaceController.shouldSnapSessionPlannerTacticalEvent(...args);
-}
-function getSessionPlannerTacticalCanvasPoint(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerTacticalCanvasPoint(...args);
-}
-function getSessionPlannerTacticalPointFromRect(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerTacticalPointFromRect(...args);
-}
-function getSessionPlannerTacticalElementById(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerTacticalElementById(...args);
-}
-function getSessionPlannerTacticalSelectionRect(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerTacticalSelectionRect(...args);
-}
-function getSessionPlannerTacticalElementBounds(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerTacticalElementBounds(...args);
-}
-function isSessionPlannerTacticalPointInRect(...args) {
-return sessionPlannerWorkspaceController.isSessionPlannerTacticalPointInRect(...args);
-}
-function getSessionPlannerTacticalElementSelectionPoints(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerTacticalElementSelectionPoints(...args);
-}
-function isSessionPlannerTacticalElementInSelectionRect(...args) {
-return sessionPlannerWorkspaceController.isSessionPlannerTacticalElementInSelectionRect(...args);
-}
-function getSessionPlannerTacticalElementsInRect(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerTacticalElementsInRect(...args);
-}
-function renderSessionPlannerTacticalSelectionBox(...args) {
-return sessionPlannerWorkspaceController.renderSessionPlannerTacticalSelectionBox(...args);
-}
-function getSelectedSessionPlannerTacticalElement(...args) {
-return sessionPlannerWorkspaceController.getSelectedSessionPlannerTacticalElement(...args);
-}
-function getSelectedSessionPlannerTacticalElements(...args) {
-return sessionPlannerWorkspaceController.getSelectedSessionPlannerTacticalElements(...args);
-}
-function syncSessionPlannerTacticalboardInspector(...args) {
-return sessionPlannerWorkspaceController.syncSessionPlannerTacticalboardInspector(...args);
-}
-function updateSelectedSessionPlannerTacticalElement(...args) {
-return sessionPlannerWorkspaceController.updateSelectedSessionPlannerTacticalElement(...args);
-}
-function updateSessionPlannerTacticalLineStyle(...args) {
-return sessionPlannerWorkspaceController.updateSessionPlannerTacticalLineStyle(...args);
-}
-function clampMovedTacticalPoint(...args) {
-return sessionPlannerWorkspaceController.clampMovedTacticalPoint(...args);
-}
-function moveSessionPlannerTacticalElementFromInitial(...args) {
-return sessionPlannerWorkspaceController.moveSessionPlannerTacticalElementFromInitial(...args);
-}
-function moveSessionPlannerTacticalElements(...args) {
-return sessionPlannerWorkspaceController.moveSessionPlannerTacticalElements(...args);
-}
-function moveSessionPlannerTacticalElementByDelta(...args) {
-return sessionPlannerWorkspaceController.moveSessionPlannerTacticalElementByDelta(...args);
-}
-function getSessionPlannerTacticalBoundsCollection(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerTacticalBoundsCollection(...args);
-}
-function getSessionPlannerTacticalArrangeSpacing(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerTacticalArrangeSpacing(...args);
-}
-function moveSessionPlannerTacticalElementCenterTo(...args) {
-return sessionPlannerWorkspaceController.moveSessionPlannerTacticalElementCenterTo(...args);
-}
-function arrangeSelectedSessionPlannerTacticalElements(...args) {
-return sessionPlannerWorkspaceController.arrangeSelectedSessionPlannerTacticalElements(...args);
-}
-function copySelectedSessionPlannerTacticalElements(...args) {
-return sessionPlannerWorkspaceController.copySelectedSessionPlannerTacticalElements(...args);
-}
-function pasteSessionPlannerTacticalClipboard(...args) {
-return sessionPlannerWorkspaceController.pasteSessionPlannerTacticalClipboard(...args);
-}
-function isSessionPlannerTacticalEndpointElement(...args) {
-return sessionPlannerWorkspaceController.isSessionPlannerTacticalEndpointElement(...args);
-}
-function updateSessionPlannerTacticalElementHandle(...args) {
-return sessionPlannerWorkspaceController.updateSessionPlannerTacticalElementHandle(...args);
-}
-function getSessionPlannerTacticalRotationFromEvent(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerTacticalRotationFromEvent(...args);
-}
-function shouldPlaceSessionPlannerTacticalDoubleClick(...args) {
-return sessionPlannerWorkspaceController.shouldPlaceSessionPlannerTacticalDoubleClick(...args);
-}
-function shouldSkipRepeatedSessionPlannerTacticalPlacement(...args) {
-return sessionPlannerWorkspaceController.shouldSkipRepeatedSessionPlannerTacticalPlacement(...args);
-}
-function addSessionPlannerTacticalPlacementElement(...args) {
-return sessionPlannerWorkspaceController.addSessionPlannerTacticalPlacementElement(...args);
-}
-function handleSessionPlannerTacticalCanvasClick(...args) {
-return sessionPlannerWorkspaceController.handleSessionPlannerTacticalCanvasClick(...args);
-}
-function handleSessionPlannerTacticalCanvasDoubleClick(...args) {
-return sessionPlannerWorkspaceController.handleSessionPlannerTacticalCanvasDoubleClick(...args);
-}
-function startSessionPlannerTacticalDrag(...args) {
-return sessionPlannerWorkspaceController.startSessionPlannerTacticalDrag(...args);
-}
-function updateSessionPlannerTacticalDrag(...args) {
-return sessionPlannerWorkspaceController.updateSessionPlannerTacticalDrag(...args);
-}
-function finishSessionPlannerTacticalDrag(...args) {
-return sessionPlannerWorkspaceController.finishSessionPlannerTacticalDrag(...args);
-}
-function startSessionPlannerPlayerBoardDrag(...args) {
-return sessionPlannerWorkspaceController.startSessionPlannerPlayerBoardDrag(...args);
-}
-function updateSessionPlannerPlayerBoardDrag(...args) {
-return sessionPlannerWorkspaceController.updateSessionPlannerPlayerBoardDrag(...args);
-}
-function finishSessionPlannerPlayerBoardDrag(...args) {
-return sessionPlannerWorkspaceController.finishSessionPlannerPlayerBoardDrag(...args);
-}
-function getSessionPlannerPlayerBoardEventPoint(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardEventPoint(...args);
-}
-function getSessionPlannerPlayerBoardSelectionRect(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardSelectionRect(...args);
-}
-function syncSessionPlannerPlayerBoardSelectionBox(...args) {
-return sessionPlannerWorkspaceController.syncSessionPlannerPlayerBoardSelectionBox(...args);
-}
-function startSessionPlannerPlayerBoardSelection(...args) {
-return sessionPlannerWorkspaceController.startSessionPlannerPlayerBoardSelection(...args);
-}
-function updateSessionPlannerPlayerBoardSelection(...args) {
-return sessionPlannerWorkspaceController.updateSessionPlannerPlayerBoardSelection(...args);
-}
-function finishSessionPlannerPlayerBoardSelection(...args) {
-return sessionPlannerWorkspaceController.finishSessionPlannerPlayerBoardSelection(...args);
-}
-function findSessionPlannerBlockById(...args) {
-return sessionPlannerWorkspaceController.findSessionPlannerBlockById(...args);
-}
-function normalizeSessionPlannerVisualUpload(...args) {
-return sessionPlannerWorkspaceController.normalizeSessionPlannerVisualUpload(...args);
-}
-function handleSessionPlannerVisualUpload(...args) {
-return sessionPlannerWorkspaceController.handleSessionPlannerVisualUpload(...args);
-}
-function syncSessionPlannerPostSessionNotesToLibrary(...args) {
-return sessionPlannerWorkspaceController.syncSessionPlannerPostSessionNotesToLibrary(...args);
-}
-function applySessionPlannerExercise(...args) {
-return sessionPlannerWorkspaceController.applySessionPlannerExercise(...args);
-}
-function updateSelectedSessionPlannerBlockField(...args) {
-return sessionPlannerWorkspaceController.updateSelectedSessionPlannerBlockField(...args);
-}
-function getSessionPlannerDateLabel(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerDateLabel(...args);
-}
-function syncSessionPlannerDateStripState(...args) {
-return sessionPlannerWorkspaceController.syncSessionPlannerDateStripState(...args);
-}
-function scrollSessionPlannerSelectedDateIntoView(...args) {
-return sessionPlannerWorkspaceController.scrollSessionPlannerSelectedDateIntoView(...args);
 }
 function getSessionPlannerTacticalEndpointCoordinates(...args) {
 return sessionPlannerWorkspaceController.getSessionPlannerTacticalEndpointCoordinates(...args);
 }
-function renderSessionPlannerExerciseVisual(...args) {
-return sessionPlannerWorkspaceController.renderSessionPlannerExerciseVisual(...args);
-}
-function renderSessionPlannerActionIcon(...args) {
-return sessionPlannerWorkspaceController.renderSessionPlannerActionIcon(...args);
-}
-function resizeSessionPlannerTextarea(...args) {
-return sessionPlannerWorkspaceController.resizeSessionPlannerTextarea(...args);
-}
-function resizeSessionPlannerTextareas(...args) {
-return sessionPlannerWorkspaceController.resizeSessionPlannerTextareas(...args);
-}
-function scrollSessionPlannerDateStrip(...args) {
-return sessionPlannerWorkspaceController.scrollSessionPlannerDateStrip(...args);
-}
-function jumpSessionPlannerToToday(...args) {
-return sessionPlannerWorkspaceController.jumpSessionPlannerToToday(...args);
-}
-function canRemoveSessionPlannerLibraryExerciseFromSelectedFolder(...args) {
-return sessionPlannerWorkspaceController.canRemoveSessionPlannerLibraryExerciseFromSelectedFolder(...args);
-}
-function renderSessionPlannerCentralSyncConflictOverlay(...args) {
-return sessionPlannerWorkspaceController.renderSessionPlannerCentralSyncConflictOverlay(...args);
-}
-function resolveSessionPlannerCentralSyncConflict(...args) {
-return sessionPlannerWorkspaceController.resolveSessionPlannerCentralSyncConflict(...args);
-}
-function getSessionPlannerBlockNumber(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerBlockNumber(...args);
-}
-function getSessionPlannerPlayerBoardRule(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardRule(...args);
-}
-function getSessionPlannerPlayerBoardProfileState(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardProfileState(...args);
-}
-function getSessionPlannerPlayerBoardProfileForPlayer(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardProfileForPlayer(...args);
-}
-function getSessionPlannerPlayerBoardProfileRoleFitMap(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardProfileRoleFitMap(...args);
-}
-function getSessionPlannerPlayerBoardFutureMinutesValue(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardFutureMinutesValue(...args);
-}
-function getSessionPlannerPlayerBoardSyncedPlayer(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardSyncedPlayer(...args);
-}
-function getSessionPlannerPlayerBoardBridgeContract(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardBridgeContract(...args);
-}
-function getSessionPlannerPlayerBoardBridgeRoleLabel(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardBridgeRoleLabel(...args);
-}
-function getSessionPlannerPlayerBoardBridgeBestMatches(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardBridgeBestMatches(...args);
-}
-function getSessionPlannerPlayerBoardBridgeSummary(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardBridgeSummary(...args);
-}
-function applySessionPlannerSelectionAssistant(...args) {
-return sessionPlannerWorkspaceController.applySessionPlannerSelectionAssistant(...args);
-}
-function compareSessionPlannerPlayerBoardItems(...args) {
-return sessionPlannerWorkspaceController.compareSessionPlannerPlayerBoardItems(...args);
-}
-function isSessionPlannerPlayerVisibleForBoard(...args) {
-return sessionPlannerWorkspaceController.isSessionPlannerPlayerVisibleForBoard(...args);
-}
-function isSessionPlannerPlayerBoardCustomPersonId(...args) {
-return sessionPlannerWorkspaceController.isSessionPlannerPlayerBoardCustomPersonId(...args);
-}
-function getSessionPlannerPlayerBoardCustomPeople(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardCustomPeople(...args);
-}
-function getSessionPlannerPlayerBoardCustomPerson(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardCustomPerson(...args);
-}
-function createSessionPlannerPlayerBoardCustomItem(...args) {
-return sessionPlannerWorkspaceController.createSessionPlannerPlayerBoardCustomItem(...args);
-}
-function getSessionPlannerPlayerBoardPlayers(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardPlayers(...args);
-}
-function getSessionPlannerPlayerBoardSummary(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardSummary(...args);
-}
-function getSessionPlannerPlayerBoardWarnings(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardWarnings(...args);
-}
-function syncSessionPlannerPlayerBoardSelection(...args) {
-return sessionPlannerWorkspaceController.syncSessionPlannerPlayerBoardSelection(...args);
-}
-function getSessionPlannerPlayerBoardAutoTargetItems(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardAutoTargetItems(...args);
-}
-function getSessionPlannerPlayerBoardAutoSelectFormation(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardAutoSelectFormation(...args);
-}
-function applySessionPlannerPlayerBoardAutoTeamFormation(...args) {
-return sessionPlannerWorkspaceController.applySessionPlannerPlayerBoardAutoTeamFormation(...args);
-}
-function applySessionPlannerPlayerBoardAutoSelect(...args) {
-return sessionPlannerWorkspaceController.applySessionPlannerPlayerBoardAutoSelect(...args);
-}
-function applySessionPlannerPlayerBoardFormation(...args) {
-return sessionPlannerWorkspaceController.applySessionPlannerPlayerBoardFormation(...args);
-}
-function getSessionPlannerPlayerBoardPosition(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardPosition(...args);
-}
-function getSessionPlannerPlayerBoardPositionById(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardPositionById(...args);
-}
-function getSessionPlannerPlayerBoardReadableSpacing(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardReadableSpacing(...args);
-}
-function getSessionPlannerReadablePlayerBoardPositions(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerReadablePlayerBoardPositions(...args);
-}
-function copySessionPlannerPlayerBoardTeamsFromBlock(...args) {
-return sessionPlannerWorkspaceController.copySessionPlannerPlayerBoardTeamsFromBlock(...args);
-}
-function formatSessionPlannerHistoryTime(...args) {
-return sessionPlannerWorkspaceController.formatSessionPlannerHistoryTime(...args);
-}
-function getSessionPlannerHistoryActorLabel(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerHistoryActorLabel(...args);
-}
-function getSessionPlannerHistoryActionLabel(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerHistoryActionLabel(...args);
-}
-function getSessionPlannerHistoryPanelContext(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerHistoryPanelContext(...args);
-}
-function loadSessionPlannerHistory(...args) {
-return sessionPlannerWorkspaceController.loadSessionPlannerHistory(...args);
-}
-function restoreSessionPlannerHistoryEntry(...args) {
-return sessionPlannerWorkspaceController.restoreSessionPlannerHistoryEntry(...args);
-}
 function getMedicalAvailabilityItems(...args) {
 return sessionPlannerWorkspaceController.getMedicalAvailabilityItems(...args);
 }
-function getSessionPlannerAvailabilityItems(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerAvailabilityItems(...args);
-}
-function getSessionPlannerMedicalAvailability(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerMedicalAvailability(...args);
-}
-function updateSessionPlannerPrintPaper(...args) {
-return sessionPlannerWorkspaceController.updateSessionPlannerPrintPaper(...args);
-}
-function updateSessionPlannerPrintSection(...args) {
-return sessionPlannerWorkspaceController.updateSessionPlannerPrintSection(...args);
-}
-function ensureSessionPlannerPrintPageStyle(...args) {
-return sessionPlannerWorkspaceController.ensureSessionPlannerPrintPageStyle(...args);
-}
-function removeSessionPlannerPrintRoot(...args) {
-return sessionPlannerWorkspaceController.removeSessionPlannerPrintRoot(...args);
-}
-function prepareSessionPlannerPrintRoot(...args) {
-return sessionPlannerWorkspaceController.prepareSessionPlannerPrintRoot(...args);
-}
-function printSessionPlannerCurrentSession(...args) {
-return sessionPlannerWorkspaceController.printSessionPlannerCurrentSession(...args);
-}
-function renderSessionPlannerWorkspace(...args) {
-return sessionPlannerWorkspaceController.renderSessionPlannerWorkspace(...args);
-}
+const {
+  getSessionPlannerSelectedSession,
+  ensureSessionPlannerSelectedSession,
+  getSessionPlannerSelectedBlock,
+  selectSessionPlannerDate,
+  selectSessionPlannerBlock,
+  addSessionPlannerBlock,
+  renumberSessionPlannerExerciseBlocks,
+  moveSessionPlannerBlock,
+  reorderSessionPlannerBlock,
+  getSessionPlannerBlockDropPlacement,
+  clearSessionPlannerBlockDragState,
+  clearSessionPlannerLibraryDragState,
+  updateSessionPlannerLibraryPointerDropTarget,
+  startSessionPlannerLibraryPointerDrag,
+  updateSessionPlannerLibraryPointerDrag,
+  finishSessionPlannerLibraryPointerDrag,
+  deleteSessionPlannerBlock,
+  setSessionPlannerLibraryOpen,
+  closeSessionPlannerLibrary,
+  setSessionPlannerAddMenuOpen,
+  setSessionPlannerVisualPreviewOpen,
+  syncSessionPlannerPrintModeClass,
+  setSessionPlannerPrintOverlayOpen,
+  setSessionPlannerTacticalboardOpen,
+  setSessionPlannerPlayerBoardOpen,
+  openSessionPlannerPlayerBoardProfile,
+  closeSessionPlannerPlayerBoardProfile,
+  getSessionPlannerPlayerBoardVisiblePlayerIds,
+  normalizeSessionPlannerPlayerBoardSelectedIds,
+  setSessionPlannerPlayerBoardSelectedPlayers,
+  toggleSessionPlannerPlayerBoardSelectedPlayer,
+  syncSessionPlannerPlayerBoardSelectionUi,
+  getSessionPlannerPlayerBoardSelectedColorIds,
+  updateSessionPlannerPlayerBoardSelectedColor,
+  clearSessionPlannerPlayerBoardSelectedColors,
+  getSessionPlannerPlayerBoardContextPosition,
+  normalizeSessionPlannerPlayerBoardCustomPersonPromptValue,
+  getSessionPlannerPlayerBoardCustomPersonKind,
+  removeSessionPlannerPlayerBoardCustomPerson,
+  openSessionPlannerPlayerBoardCustomPersonEditor,
+  closeSessionPlannerPlayerBoardCustomPersonEditor,
+  saveSessionPlannerPlayerBoardCustomPersonFromForm,
+  handleSessionPlannerPlayerBoardContextMenu,
+  resetSessionPlannerPlayerBoardPositions,
+  getSessionPlannerTacticalFrames,
+  getSessionPlannerTacticalActiveFrameId,
+  ensureSessionPlannerTacticalFrames,
+  syncSessionPlannerTacticalActiveFrame,
+  persistSessionPlannerTacticalElements,
+  commitSessionPlannerTacticalFrames,
+  addSessionPlannerTacticalFrame,
+  selectSessionPlannerTacticalFrame,
+  duplicateSessionPlannerTacticalFrame,
+  deleteSessionPlannerTacticalFrame,
+  refreshSessionPlannerTacticalboardCanvas,
+  isSessionPlannerTacticalLineTool,
+  isSessionPlannerTacticalStrokeElement,
+  isSessionPlannerTacticalPlacementTool,
+  uniqueValues,
+  getSessionPlannerTacticalSelectedElementIds,
+  setSessionPlannerTacticalSelectedElements,
+  isSessionPlannerTacticalSelectionToggleModifier,
+  toggleSessionPlannerTacticalElementSelection,
+  clearSessionPlannerTacticalSelection,
+  setSessionPlannerTacticalClickSuppression,
+  setSessionPlannerTacticalPitchMode,
+  openSessionPlannerTacticalNumberPicker,
+  updateSessionPlannerTacticalPlayerNumber,
+  updateSelectedSessionPlannerTacticalPlayerBadges,
+  isSessionPlannerTacticalElementSelected,
+  shouldDragSessionPlannerTacticalSelectionGroup,
+  getSessionPlannerTacticalDragElementIds,
+  setSessionPlannerTacticalTool,
+  undoSelectedSessionPlannerTacticalBoardAction,
+  removeSessionPlannerTacticalElement,
+  removeSelectedSessionPlannerTacticalElement,
+  addSessionPlannerTacticalElement,
+  snapSessionPlannerTacticalValue,
+  snapSessionPlannerTacticalPoint,
+  shouldSnapSessionPlannerTacticalEvent,
+  getSessionPlannerTacticalCanvasPoint,
+  getSessionPlannerTacticalPointFromRect,
+  getSessionPlannerTacticalElementById,
+  getSessionPlannerTacticalSelectionRect,
+  getSessionPlannerTacticalElementBounds,
+  isSessionPlannerTacticalPointInRect,
+  getSessionPlannerTacticalElementSelectionPoints,
+  isSessionPlannerTacticalElementInSelectionRect,
+  getSessionPlannerTacticalElementsInRect,
+  renderSessionPlannerTacticalSelectionBox,
+  getSelectedSessionPlannerTacticalElement,
+  getSelectedSessionPlannerTacticalElements,
+  syncSessionPlannerTacticalboardInspector,
+  updateSelectedSessionPlannerTacticalElement,
+  updateSessionPlannerTacticalLineStyle,
+  clampMovedTacticalPoint,
+  moveSessionPlannerTacticalElementFromInitial,
+  moveSessionPlannerTacticalElements,
+  moveSessionPlannerTacticalElementByDelta,
+  getSessionPlannerTacticalBoundsCollection,
+  getSessionPlannerTacticalArrangeSpacing,
+  moveSessionPlannerTacticalElementCenterTo,
+  arrangeSelectedSessionPlannerTacticalElements,
+  copySelectedSessionPlannerTacticalElements,
+  pasteSessionPlannerTacticalClipboard,
+  isSessionPlannerTacticalEndpointElement,
+  updateSessionPlannerTacticalElementHandle,
+  getSessionPlannerTacticalRotationFromEvent,
+  shouldPlaceSessionPlannerTacticalDoubleClick,
+  shouldSkipRepeatedSessionPlannerTacticalPlacement,
+  addSessionPlannerTacticalPlacementElement,
+  handleSessionPlannerTacticalCanvasClick,
+  handleSessionPlannerTacticalCanvasDoubleClick,
+  startSessionPlannerTacticalDrag,
+  updateSessionPlannerTacticalDrag,
+  finishSessionPlannerTacticalDrag,
+  startSessionPlannerPlayerBoardDrag,
+  updateSessionPlannerPlayerBoardDrag,
+  finishSessionPlannerPlayerBoardDrag,
+  getSessionPlannerPlayerBoardEventPoint,
+  getSessionPlannerPlayerBoardSelectionRect,
+  syncSessionPlannerPlayerBoardSelectionBox,
+  startSessionPlannerPlayerBoardSelection,
+  updateSessionPlannerPlayerBoardSelection,
+  finishSessionPlannerPlayerBoardSelection,
+  findSessionPlannerBlockById,
+  normalizeSessionPlannerVisualUpload,
+  handleSessionPlannerVisualUpload,
+  syncSessionPlannerPostSessionNotesToLibrary,
+  applySessionPlannerExercise,
+  updateSelectedSessionPlannerBlockField,
+  getSessionPlannerDateLabel,
+  syncSessionPlannerDateStripState,
+  scrollSessionPlannerSelectedDateIntoView,
+  renderSessionPlannerExerciseVisual,
+  renderSessionPlannerActionIcon,
+  resizeSessionPlannerTextarea,
+  resizeSessionPlannerTextareas,
+  scrollSessionPlannerDateStrip,
+  jumpSessionPlannerToToday,
+  canRemoveSessionPlannerLibraryExerciseFromSelectedFolder,
+  renderSessionPlannerCentralSyncConflictOverlay,
+  resolveSessionPlannerCentralSyncConflict,
+  getSessionPlannerBlockNumber,
+  getSessionPlannerPlayerBoardRule,
+  getSessionPlannerPlayerBoardProfileState,
+  getSessionPlannerPlayerBoardProfileForPlayer,
+  getSessionPlannerPlayerBoardProfileRoleFitMap,
+  getSessionPlannerPlayerBoardFutureMinutesValue,
+  getSessionPlannerPlayerBoardSyncedPlayer,
+  getSessionPlannerPlayerBoardBridgeContract,
+  getSessionPlannerPlayerBoardBridgeRoleLabel,
+  getSessionPlannerPlayerBoardBridgeBestMatches,
+  getSessionPlannerPlayerBoardBridgeSummary,
+  applySessionPlannerSelectionAssistant,
+  compareSessionPlannerPlayerBoardItems,
+  isSessionPlannerPlayerVisibleForBoard,
+  isSessionPlannerPlayerBoardCustomPersonId,
+  getSessionPlannerPlayerBoardCustomPeople,
+  getSessionPlannerPlayerBoardCustomPerson,
+  createSessionPlannerPlayerBoardCustomItem,
+  getSessionPlannerPlayerBoardPlayers,
+  getSessionPlannerPlayerBoardSummary,
+  getSessionPlannerPlayerBoardWarnings,
+  syncSessionPlannerPlayerBoardSelection,
+  getSessionPlannerPlayerBoardAutoTargetItems,
+  getSessionPlannerPlayerBoardAutoSelectFormation,
+  applySessionPlannerPlayerBoardAutoTeamFormation,
+  applySessionPlannerPlayerBoardAutoSelect,
+  applySessionPlannerPlayerBoardFormation,
+  getSessionPlannerPlayerBoardPosition,
+  getSessionPlannerPlayerBoardPositionById,
+  getSessionPlannerPlayerBoardReadableSpacing,
+  getSessionPlannerReadablePlayerBoardPositions,
+  copySessionPlannerPlayerBoardTeamsFromBlock,
+  formatSessionPlannerHistoryTime,
+  getSessionPlannerHistoryActorLabel,
+  getSessionPlannerHistoryActionLabel,
+  getSessionPlannerHistoryPanelContext,
+  loadSessionPlannerHistory,
+  restoreSessionPlannerHistoryEntry,
+  getSessionPlannerAvailabilityItems,
+  getSessionPlannerMedicalAvailability,
+  updateSessionPlannerPrintPaper,
+  updateSessionPlannerPrintSection,
+  ensureSessionPlannerPrintPageStyle,
+  removeSessionPlannerPrintRoot,
+  prepareSessionPlannerPrintRoot,
+  printSessionPlannerCurrentSession,
+  renderSessionPlannerWorkspace,
+} = sessionPlannerWorkspaceController;
 function getProfileWorkspaceMessage(message = "") {
 const nextMessage = String(message || "");
 if (!nextMessage) {

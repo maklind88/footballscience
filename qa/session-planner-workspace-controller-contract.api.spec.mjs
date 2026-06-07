@@ -17,7 +17,8 @@ test("Session Planner workspace controller owns workspace UI flow without owning
   expect(typeof createSessionPlannerWorkspaceController).toBe("function");
   expect(app).toContain("createSessionPlannerWorkspaceController");
   expect(app).toContain("var sessionPlannerWorkspaceController;");
-  expect(app).toContain("return sessionPlannerWorkspaceController.renderSessionPlannerWorkspace(...args);");
+  expect(app).toContain("} = sessionPlannerWorkspaceController;");
+  expect(app).toContain("renderSessionPlannerWorkspace,");
   expect(controller).toContain("function renderSessionPlannerWorkspace(options = {})");
   expect(controller).toContain("function getSessionPlannerSelectedSession()");
   expect(controller).toContain("function setSessionPlannerPlayerBoardOpen(isOpen)");

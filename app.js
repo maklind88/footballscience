@@ -16972,9 +16972,6 @@ return `
 function renderPlayerProfileStatusChip(statusKey, medicalSnapshot = null) {
 return squadRosterRenderer.renderStatusChip(statusKey, medicalSnapshot);
 }
-function renderSquadOptionPill(options, key) {
-return squadRosterRenderer.renderOptionPill(options, key);
-}
 const playerProfileScoutingDatabaseStorageKey = "football-scouting-imported-database-v1";
 const playerProfileScoutingRecordIndex = Object.freeze({
 id: 0,
@@ -17378,24 +17375,6 @@ loan: 5,
 };
 return ranks[statusKey] ?? 9;
 }
-function renderSquadRoleStack(player) {
-return squadRosterRenderer.renderRoleStack(player);
-}
-function renderSquadRosterTypePill(player) {
-return squadRosterRenderer.renderRosterTypePill(player);
-}
-function renderSquadRosterMeta(player) {
-return squadRosterRenderer.renderRosterMeta(player);
-}
-function renderSquadRoleCell(player) {
-return squadRosterRenderer.renderRoleCell(player);
-}
-function renderSquadAgeCell(player) {
-return squadRosterRenderer.renderAgeCell(player);
-}
-function renderSquadPlanningCell(player) {
-return squadRosterRenderer.renderPlanningCell(player);
-}
 function getPlayerProfileDateDiffDays(fromDateValue, toDateValue) {
 if (!isMedicalDateValue(fromDateValue) || !isMedicalDateValue(toDateValue)) {
 return 0;
@@ -17465,24 +17444,6 @@ return "Review needed";
 }
 return "Set follow-up date";
 }
-function renderSquadIdpCell(player) {
-return squadRosterRenderer.renderIdpCell(player);
-}
-function renderSquadProfileProgressCell(completeness) {
-return squadRosterRenderer.renderProfileProgressCell(completeness);
-}
-function renderSquadPlayerRow(player) {
-return squadRosterRenderer.renderPlayerRow(player);
-}
-function renderSquadPlayerTable(players = [], emptyText = "No players found. Adjust search or role group filter.") {
-return squadRosterRenderer.renderPlayerTable(players, emptyText);
-}
-function renderSquadRosterSection(section = {}) {
-return squadRosterRenderer.renderRosterSection(section);
-}
-function getSquadRosterListSummary(visibleSummary = {}, rosterSummary = {}) {
-return squadRosterRenderer.getRosterListSummary(visibleSummary, rosterSummary);
-}
 function renderSquadRosterSections(visiblePlayers = [], summaries = {}) {
 return squadRosterRenderer.renderRosterSections(visiblePlayers, summaries);
 }
@@ -17515,23 +17476,14 @@ return squadProfileSupportRenderer.renderMedicalPanel(player);
 function renderPlayerProfileFuturePanel(player) {
 return squadProfileSupportRenderer.renderFuturePanel(player);
 }
-function renderPlayerProfileChangeLogRows(entries = []) {
-return squadProfileSupportRenderer.renderChangeLogRows(entries);
-}
 function renderPlayerProfileHistoryPanel(player) {
 return squadProfileSupportRenderer.renderHistoryPanel(player);
 }
 function renderPlayerProfileTabs() {
 return squadProfileSupportRenderer.renderTabs();
 }
-function renderPlayerProfileSelectedPanel(player) {
-return squadProfileSelectedRenderer.renderSelectedPanel(player);
-}
 function renderPlayerProfileModal(player) {
 return squadProfileSelectedRenderer.renderModal(player);
-}
-function renderPlayerProfileNewPlayerCard() {
-return squadProfileSupportRenderer.renderNewPlayerCard();
 }
 function renderPlayerProfileNewPlayerModal() {
 return squadProfileSupportRenderer.renderNewPlayerModal();

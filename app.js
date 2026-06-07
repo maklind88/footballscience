@@ -49,7 +49,7 @@ import { createPlatformAutosaveStatusController } from "./src/core/platform-auto
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
 import { getTopIconSvg } from "./top-icons.js";
 import { createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
-import { adminDepartmentSuggestions, adminTitleSuggestions, formatAdminDateTime, formatAuditActionLabel, formatAuditActor, formatAuditTarget, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
+import { adminDepartmentSuggestions, adminTitleSuggestions, createAdminUserRenderer, getAdminActiveUserCount, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
 const getElement = document.getElementById.bind(document);
 const win = window;
 const canvas = getElement("pitchCanvas");
@@ -4915,6 +4915,27 @@ let adminAuditEntries = [];
 let adminAuditLoading = false;
 let adminAuditLoadedAt = 0;
 let adminAuditLoadError = "";
+const adminUserRenderer = createAdminUserRenderer({
+escapeHtml,
+formatUserName,
+getRoleLabel,
+getUserScopeLabel,
+renderUserAvatar,
+getAdminUserInitials,
+getAuditState: () => ({
+entries: adminAuditEntries,
+loading: adminAuditLoading,
+loadError: adminAuditLoadError,
+}),
+getSelectedUserId: () => selectedAdminUserId,
+canManageUser: canAdminManageUser,
+hasWorkspaceScope: hasPlatformWorkspaceScope,
+getScopedTeams: getScopedPlatformTeams,
+getClubById: getPlatformClubById,
+getUsersForTeam: getAdminUsersForTeam,
+isLegacyTeam: isLegacyPlatformTeam,
+isLegacyTeamPlaceholderName: isLegacyPlatformTeamPlaceholderName,
+});
 let platformReadinessReport = null;
 let platformReadinessLoading = false;
 let platformReadinessLoadedAt = 0;
@@ -19082,71 +19103,14 @@ ${renderUserAvatar(selectedUser, "profile-avatar")}
   `;
 }
 function renderAdminAccountSummary(user) {
-if (!user) {
-return "";
-}
-return `
-    <section class="admin-account-summary" aria-label="Account summary">
-      <div>
-        <span>Account status</span>
-        <strong>${escapeHtml(user.status === "paused" ? "Paused" : "Active")}</strong>
-      </div>
-      <div>
-        <span>Last sign in</span>
-        <strong>${escapeHtml(formatAdminDateTime(user.lastSignInAt))}</strong>
-      </div>
-      <div>
-        <span>Created</span>
-        <strong>${escapeHtml(formatAdminDateTime(user.createdAt))}</strong>
-      </div>
-      <div>
-        <span>Updated</span>
-        <strong>${escapeHtml(formatAdminDateTime(user.updatedAt))}</strong>
-      </div>
-    </section>
-  `;
+return adminUserRenderer.renderAccountSummary(user);
 }
 function renderAdminAuditLog() {
-if (adminAuditLoading && !adminAuditEntries.length) {
-return `<div class="admin-audit-empty">Loading recent activity...</div>`;
-}
-if (adminAuditLoadError) {
-return `<div class="admin-audit-empty is-error">${escapeHtml(adminAuditLoadError)}</div>`;
-}
-if (!adminAuditEntries.length) {
-return `<div class="admin-audit-empty">No admin activity logged yet.</div>`;
-}
-return adminAuditEntries
-.slice(0, 12)
-.map((entry) => {
-const targetLabel = formatAuditTarget(entry);
-const details = Array.isArray(entry?.details?.changedFields) && entry.details.changedFields.length
-? `${entry.details.changedFields.length} field${entry.details.changedFields.length === 1 ? "" : "s"} changed`
-: entry?.details?.passwordAction
-? "Password access changed"
-: entry?.details?.changedAccess?.length
-? `${entry.details.changedAccess.length} section${entry.details.changedAccess.length === 1 ? "" : "s"} changed`
-: "";
-return `
-        <article class="admin-audit-row">
-          <span class="admin-audit-dot" aria-hidden="true"></span>
-          <div>
-            <strong>${escapeHtml(formatAuditActionLabel(entry.action))}</strong>
-            <small>${escapeHtml(entry.summary || targetLabel || "Admin activity")}</small>
-            <small>${escapeHtml(formatAuditActor(entry))}${details ? ` · ${escapeHtml(details)}` : ""}</small>
-          </div>
-          <time>${escapeHtml(formatAdminDateTime(entry.createdAt))}</time>
-        </article>
-      `;
-})
-.join("");
+return adminUserRenderer.renderAuditLog();
 }
 function getAdminUsersForTeam(users = [], teamId = "", structure = getPlatformStructureState()) {
 const normalizedTeamId = normalizePlatformStructureText(teamId, "");
 return users.filter((user) => !hasPlatformWorkspaceScope(user) && getUserTeamId(user, structure) === normalizedTeamId);
-}
-function getAdminActiveUserCount(users = []) {
-return users.filter((user) => user.status !== "paused").length;
 }
 function getAdminUserInitials(user = {}) {
 return getAdminUserInitialsFromModule(user, {
@@ -19155,142 +19119,13 @@ normalizeText: normalizePlatformStructureText,
 });
 }
 function renderAdminMiniUserStack(users = []) {
-const visibleUsers = users.slice(0, 5);
-if (!visibleUsers.length) {
-return `<span class="admin-org-empty">No users assigned</span>`;
-}
-const extraCount = Math.max(0, users.length - visibleUsers.length);
-return `
-    <div class="admin-org-user-stack" aria-label="${escapeHtml(`${users.length} users`)}">
-      ${visibleUsers
-        .map(
-          (user) => `
-            <button type="button" title="${escapeHtml(formatUserName(user))}" data-admin-select-user="${escapeHtml(user.id)}">
-              ${escapeHtml(getAdminUserInitials(user))}
-            </button>
-          `
-        )
-        .join("")}
-      ${extraCount ? `<span>+${extraCount}</span>` : ""}
-    </div>
-  `;
+return adminUserRenderer.renderMiniUserStack(users);
 }
 function renderAdminUserRow(adminUser, currentUser, structure) {
-const isSelected = adminUser.id === selectedAdminUserId;
-const isSelf = adminUser.id === currentUser?.id;
-const statusLabel = adminUser.status === "paused" ? "Paused" : "Active";
-const canManageAccount = canAdminManageUser(currentUser, adminUser, structure);
-const canRemoveUser = canAdminManageUser(currentUser, adminUser, structure, { remove: true });
-return `
-          <article class="admin-user-row${isSelected ? " is-selected" : ""}">
-            <button type="button" class="admin-user-main" data-admin-select-user="${escapeHtml(adminUser.id)}">
-              ${renderUserAvatar(adminUser, "staff-user-avatar")}
-              <span class="admin-user-copy">
-                <span class="admin-user-name-line">
-                  <strong>${escapeHtml(formatUserName(adminUser))}</strong>
-                  <em>${escapeHtml(getRoleLabel(adminUser.role))}</em>
-                  <b class="is-${escapeHtml(adminUser.status === "paused" ? "paused" : "active")}">${escapeHtml(statusLabel)}</b>
-                </span>
-                <small>${escapeHtml(adminUser.title || "Staff")} · ${escapeHtml(adminUser.department || "Football")}</small>
-                <small>${escapeHtml(getUserScopeLabel(adminUser, structure))}</small>
-                <small>${escapeHtml(adminUser.email)}</small>
-              </span>
-            </button>
-            <div class="admin-user-row-actions">
-              <button type="button" class="admin-send-button admin-edit-user-button" data-admin-select-user="${escapeHtml(adminUser.id)}">
-Edit
-</button>
-              ${
-                canManageAccount
-                  ? `
-<button type="button" class="admin-send-button" data-admin-send-credentials="${escapeHtml(adminUser.id)}">
-Send login
-</button>
-<button type="button" class="admin-send-button" data-admin-generate-password="${escapeHtml(adminUser.id)}">
-Reset pass
-</button>
-`
-                  : ""
-              }
-              ${canRemoveUser ? `<button type="button" class="staff-remove-button" data-admin-remove-user="${escapeHtml(adminUser.id)}">Remove</button>` : ""}
-              ${isSelf ? `<span class="staff-self-pill">You</span>` : ""}
-            </div>
-          </article>
-        `;
+return adminUserRenderer.renderUserRow(adminUser, currentUser, structure);
 }
 function renderAdminGroupedUsers(users, currentUser, structure) {
-const platformScopedUsers = users.filter((user) => hasPlatformWorkspaceScope(user));
-const platformScopedUserIds = new Set(platformScopedUsers.map((user) => user.id));
-const scopedTeams = getScopedPlatformTeams(currentUser, structure).filter(
-(team) => !isLegacyPlatformTeam(team) && !isLegacyPlatformTeamPlaceholderName(team.name)
-);
-const teamGroups = scopedTeams
-.map((team) => ({
-team,
-club: getPlatformClubById(team.clubId, structure),
-users: getAdminUsersForTeam(users, team.id, structure),
-}))
-.filter((group) => group.users.length);
-const groupedIds = new Set(teamGroups.flatMap((group) => group.users.map((user) => user.id)));
-const unassignedUsers = users.filter((user) => !groupedIds.has(user.id) && !platformScopedUserIds.has(user.id));
-const platformMarkup = platformScopedUsers.length
-? `
-      <section class="admin-user-team-group is-platform-scope">
-        <header>
-          <div>
-            <strong>Football Science Live</strong>
-            <span>Platform operators and system admins</span>
-          </div>
-          <b>${platformScopedUsers.length}</b>
-        </header>
-        <div class="admin-user-team-list">
-          ${platformScopedUsers.map((adminUser) => renderAdminUserRow(adminUser, currentUser, structure)).join("")}
-        </div>
-      </section>
-    `
-: "";
-const groupMarkup = teamGroups
-.map(
-(group) => `
-      <section class="admin-user-team-group">
-        <header>
-          <div>
-            <strong>${escapeHtml(group.team.name)}</strong>
-            <span>${escapeHtml(group.club?.name || "Club")} · ${escapeHtml(group.team.level || "Team")}</span>
-          </div>
-          <div class="admin-user-team-actions">
-            <b>${group.users.length}</b>
-            <button type="button" class="admin-send-button admin-add-user-button" data-admin-open-create-user="${escapeHtml(group.team.id)}">
-Add user
-</button>
-          </div>
-        </header>
-        <div class="admin-user-team-list">
-          ${group.users.map((adminUser) => renderAdminUserRow(adminUser, currentUser, structure)).join("")}
-        </div>
-      </section>
-    `
-)
-.join("");
-const unassignedMarkup = unassignedUsers.length
-? `
-      <section class="admin-user-team-group is-unassigned">
-        <header>
-          <div>
-            <strong>Unassigned users</strong>
-            <span>Needs team scope review</span>
-          </div>
-          <b>${unassignedUsers.length}</b>
-        </header>
-        <div class="admin-user-team-list">
-          ${unassignedUsers.map((adminUser) => renderAdminUserRow(adminUser, currentUser, structure)).join("")}
-        </div>
-      </section>
-    `
-: "";
-return platformMarkup || groupMarkup || unassignedMarkup
-? `${platformMarkup}${groupMarkup}${unassignedMarkup}`
-: `<p class="staff-message">No users in this admin scope.</p>`;
+return adminUserRenderer.renderGroupedUsers(users, currentUser, structure);
 }
 function renderAdminStructurePanel(currentUser, structure, visibleUsers) {
 const scopedClubs = getScopedPlatformClubs(currentUser, structure);

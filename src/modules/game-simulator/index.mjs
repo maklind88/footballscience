@@ -1,4 +1,5 @@
 export { createGameSimulatorActionSpaceMetrics } from "./action-space-metrics.mjs";
+export { createGameSimulatorAppRuntimeController } from "./app-runtime-controller.mjs";
 export { createGameSimulatorAutopilotLiveEngine } from "./autopilot-live-engine.mjs";
 export { createGameSimulatorBallResolutionEngine } from "./ball-resolution-engine.mjs";
 export { createGameSimulatorAutopilotCandidates } from "./autopilot-candidates.mjs";

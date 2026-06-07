@@ -339,6 +339,7 @@ test("core module contracts are covered by dedicated QA", () => {
   const gameSimulatorBallResolutionEngineSpec = readProjectFile("qa/game-simulator-ball-resolution-engine.api.spec.mjs");
   const gameSimulatorAutopilotLiveEngineSpec = readProjectFile("qa/game-simulator-autopilot-live-engine.api.spec.mjs");
   const gameSimulatorSpec = readProjectFile("qa/game-simulator-controller.api.spec.mjs");
+  const gameSimulatorAppRuntimeSpec = readProjectFile("qa/game-simulator-app-runtime-controller.api.spec.mjs");
   const gameSimulatorControllersSpec = readProjectFile("qa/game-simulator-controllers.api.spec.mjs");
   const gameSimulatorBindingsSpec = readProjectFile("qa/game-simulator-control-bindings.api.spec.mjs");
   const gameSimulatorFullscreenSpec = readProjectFile("qa/game-simulator-fullscreen.api.spec.mjs");
@@ -381,6 +382,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-adapter.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-database-schema.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-action-space-metrics.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-app-runtime-controller.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-geometry-helpers.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-ball-resolution-engine.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-live-engine.api.spec.mjs");
@@ -413,6 +415,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(gameSimulatorBallResolutionEngineSpec).toContain("game simulator ball resolution engine");
   expect(gameSimulatorAutopilotLiveEngineSpec).toContain("game simulator autopilot live engine");
   expect(gameSimulatorSpec).toContain("game simulator workspace controller");
+  expect(gameSimulatorAppRuntimeSpec).toContain("game simulator app runtime controller");
   expect(gameSimulatorControllersSpec).toContain("game simulator controller loader");
   expect(gameSimulatorBindingsSpec).toContain("game simulator control bindings");
   expect(gameSimulatorFullscreenSpec).toContain("game simulator fullscreen controller");
@@ -427,6 +430,7 @@ test("game simulator animation loop does not run globally outside the simulator 
   const packageJson = readJson("package.json");
   const appSource = readProjectFile("app.js");
   const actionSpaceMetricsSource = readProjectFile("src/modules/game-simulator/action-space-metrics.mjs");
+  const appRuntimeControllerSource = readProjectFile("src/modules/game-simulator/app-runtime-controller.mjs");
   const ballResolutionEngineSource = readProjectFile("src/modules/game-simulator/ball-resolution-engine.mjs");
   const autopilotLiveEngineSource = readProjectFile("src/modules/game-simulator/autopilot-live-engine.mjs");
   const controllersSource = readProjectFile("src/modules/game-simulator/controllers.mjs");
@@ -445,6 +449,7 @@ test("game simulator animation loop does not run globally outside the simulator 
   const sidebarRendererSource = readProjectFile("src/modules/game-simulator/sidebar-renderer.mjs");
 
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/control-bindings.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/app-runtime-controller.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/action-space-metrics.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/ball-resolution-engine.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-live-engine.mjs");
@@ -464,13 +469,15 @@ test("game simulator animation loop does not run globally outside the simulator 
   expect(appSource).not.toContain('from "./src/modules/game-simulator/control-bindings.mjs"');
   expect(appSource).not.toContain('from "./src/modules/game-simulator/fullscreen.mjs"');
   expect(appSource).not.toContain('from "./src/modules/game-simulator/workspace-controller.mjs"');
-  expect(appSource).toContain('import("./src/modules/game-simulator/controllers.mjs")');
-  expect(appSource).toContain('import("./src/modules/game-simulator/runtime.mjs")');
-  expect(appSource).toContain('createGameSimulatorSequenceEngine');
-  expect(appSource).toContain("function startSimulatorAnimationLoop()");
-  expect(appSource).toContain("function stopSimulatorAnimationLoop()");
-  expect(appSource).toContain('hubState?.activeWorkspaceId === "game-simulator"');
+  expect(appSource).toContain("createGameSimulatorAppRuntimeController");
+  expect(appSource).toContain("function startSimulatorAnimationLoop(...args)");
+  expect(appSource).toContain("function stopSimulatorAnimationLoop(...args)");
+  expect(appRuntimeControllerSource).toContain('import("./controllers.mjs")');
+  expect(appRuntimeControllerSource).toContain('import("./runtime.mjs")');
+  expect(appRuntimeControllerSource).toContain("createGameSimulatorSequenceEngine");
+  expect(appRuntimeControllerSource).toContain('getHubState()?.activeWorkspaceId === "game-simulator"');
   expect(appSource).not.toContain("\nwindow.requestAnimationFrame(animationFrame);\n");
+  expect(appRuntimeControllerSource).toContain("createGameSimulatorAppRuntimeController");
   expect(controllersSource).toContain("createSimulatorControllers");
   expect(controllersSource).toContain("createSimulatorControlBindings");
   expect(controlBindingsSource).toContain("createSimulatorControlBindings");

@@ -33,6 +33,7 @@ import {
 } from "./scouting-shadow-xi.mjs";
 
 export * from "./scouting-defaults.mjs";
+export * from "./scouting-state.mjs";
 
 export function renderScoutingActiveContentByTab(deps = {}) {
   const activeTab = deps.activeTab || "shadow-xi";

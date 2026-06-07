@@ -38,6 +38,22 @@ qa/<module>-module-contract.api.spec.mjs
 
 Modules can have extra files when useful, but these slots define the baseline.
 
+## Size Targets
+
+Use `docs/ARCHITECTURE_SIZE_TARGETS.md` and `src/core/architecture-size-targets.mjs` as the source of truth.
+
+- `app.js`: 1-50 lines; hard guard above 100.
+- `app-runtime.js`: target 1,500-3,000 lines; warning above 5,000-6,000; temporary guard above 16,000 while Phase 2 is active.
+- `index.mjs`: 50-150 lines; warn above 250.
+- Renderer/view: 150-400 lines; warn above 500.
+- Controller/actions: 100-400 lines; warn above 500.
+- Adapter/data-layer: 100-350 lines; warn above 500.
+- Constants/options: 50-250 lines; warn above 400.
+- Module CSS: 150-500 lines; warn above 700.
+- Single function: 10-50 lines; review above 100; extract above 300 where possible.
+
+Run `npm run architecture:budgets` after module extraction work. It fails if the shell starts growing again and warns on large module files.
+
 ## Migration Statuses
 
 - `core`: platform shell or generated core health/identity surface.

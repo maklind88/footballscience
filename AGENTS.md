@@ -107,12 +107,20 @@ This section exists because the platform is under heavy active product developme
 
 These targets guide future development and refactoring. Do not chase line counts at the expense of behavior, but treat size as an early warning that a file owns too many responsibilities.
 
-- `app.js` should trend toward a thin shell: ideal 1,000-2,500 lines, warning above 5,000 lines.
-- Existing large files should be reduced one safe extraction at a time, preserving behavior after every step.
-- New module files should usually stay under 500 lines. If a file must exceed that, explain why and consider splitting by responsibility.
+- The canonical size guide lives in `docs/ARCHITECTURE_SIZE_TARGETS.md` and the coded guard lives in `src/core/architecture-size-targets.mjs`.
+- Run `npm run architecture:budgets` after architecture/refactor work and before broad releases; `npm run qa` also runs it.
+- `app.js` must stay a thin loader/shell: ideal 1-50 lines, warning above 100 lines, hard guard above 100 lines.
+- `app-runtime.js` is a temporary wiring shell: ideal 1,500-3,000 lines, warning above 5,000-6,000 lines, temporary hard guard above 16,000 lines while Phase 2 extracts it.
+- Module `index.mjs` files should usually be 50-150 lines and warn above 250.
+- Renderer/view files should usually be 150-400 lines and warn above 500.
+- Controller/actions files should usually be 100-400 lines and warn above 500.
+- Adapter/data-layer files should usually be 100-350 lines and warn above 500.
+- Constants/options files should usually be 50-250 lines and warn above 400.
+- Module CSS should usually be 150-500 lines and warn above 700; global `styles.css` should trend below 2,000-4,000 lines.
+- Functions should usually be 10-50 lines. Functions above 100 lines need scrutiny; above 300 lines need an extraction plan; above 500 lines are high-risk technical debt.
+- Existing large files are migration debt, not a pattern to copy. Reduce them one safe extraction at a time, preserving behavior after every step.
+- New module files should usually stay under 500 lines. If a file must exceed that, explain why and add a follow-up split plan.
 - Module folders should prefer clear boundaries: `index.mjs`, renderer/view files, state, actions, adapter/API access, constants/options, helpers/selectors, and contract tests.
-- Common per-file targets: renderer 200-500 lines, state/actions 100-400 lines, adapter/API 100-400 lines, constants/options 50-300 lines.
-- Functions should usually stay below 100 lines. Functions above 300 lines should be reviewed for extraction; functions above 500 lines are high-risk technical debt.
 - Prioritize extracting low-risk pure renderers, formatting helpers, constants/options, and display-only panels before moving writes, auth, sync, permissions, routing, simulator/autopilot, or data ownership.
 - Every new feature should be placed in the smallest appropriate module boundary instead of making `app.js` or `styles.css` larger.
 

@@ -54,7 +54,7 @@ import { createPlatformNavigationRenderer } from "./src/modules/platform/navigat
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
 import { getTopIconSvg } from "./top-icons.js";
 import { createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
-import { adminDepartmentSuggestions, adminTitleSuggestions, createAdminAccessRenderer, createAdminReadinessRenderer, createAdminStructureRenderer, createAdminUserRenderer, createAdminWorkspaceRenderer, getAdminActiveUserCount, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
+import { adminDepartmentSuggestions, adminTitleSuggestions, createAdminAccessRenderer, createAdminReadinessRenderer, createAdminStructureRenderer, createAdminUserRenderer, createAdminWorkspaceRenderer, formatAdminDateTime, getAdminActiveUserCount, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
 import { createProfileWorkspaceRenderer } from "./src/modules/profile/index.mjs";
 import { createStaffWorkspaceRenderer } from "./src/modules/staff/index.mjs";
 import {
@@ -3903,7 +3903,7 @@ getPlayerProfileIdpFollowUpLabel,
 getPlayerProfileMedicalSnapshot,
 getPlayerProfileOption,
 getPlayerProfileRosterLabel,
-getPlayerProfileRosterSummary,
+getPlayerProfileRosterSummary: getPlayerProfilesRosterSummary,
 getPlayerProfileRosterTypeOption,
 getPlayerProfileTemporaryWindowLabel,
 getSelectedPlayerId: () => playerProfilesState.selectedPlayerId,

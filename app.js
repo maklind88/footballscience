@@ -58,6 +58,7 @@ import { createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers,
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformShellRuntime } from "./src/core/platform-shell-runtime.mjs";
 import { createWorkspaceShellController } from "./src/core/workspace-shell-controller.mjs";
+import { bindPlatformNavigationInteractions } from "./src/core/platform-navigation-bindings.mjs";
 import { createPlatformUiBindings } from "./src/core/platform-ui-bindings.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createPasswordRevealInputRenderer } from "./src/core/form-renderers.mjs";
@@ -72,7 +73,8 @@ import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
 import { getTopIconSvg } from "./top-icons.js";
 import { createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
 import { adminDepartmentSuggestions, adminTitleSuggestions, createAdminAccessRenderer, createAdminReadinessRenderer, createAdminStructureRenderer, createAdminUserRenderer, createAdminWorkspaceRenderer, formatAdminDateTime, getAdminActiveUserCount, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
-import { createProfileWorkspaceRenderer } from "./src/modules/profile/index.mjs";
+import { createProfileImageDataUrl as createProfileImageDataUrlFromModule, createProfileWorkspaceRenderer } from "./src/modules/profile/index.mjs";
+import { SESSION_TACTICALBOARD_KEY_HANDLED, bindSessionPlannerTacticalShortcutController } from "./src/modules/session-planner/session-planner-shortcuts-controller.mjs";
 import { createStaffWorkspaceRenderer } from "./src/modules/staff/index.mjs";
 import {
   createSquadProfileSelectedRenderer,
@@ -9117,72 +9119,11 @@ function stripPasswordConfirmation(values = {}) {
 return stripPlatformPasswordConfirmation(values);
 }
 function createProfileImageDataUrl(file) {
-return new Promise((resolve, reject) => {
-if (!file || !file.type?.startsWith("image/")) {
-reject(new Error("Choose an image file."));
-return;
-}
-if (file.size > 18 * 1024 * 1024) {
-reject(new Error("Choose an image under 18 MB."));
-return;
-}
-const image = new Image();
-const objectUrl = URL.createObjectURL(file);
-image.onload = () => {
-try {
-const naturalWidth = image.naturalWidth;
-const naturalHeight = image.naturalHeight;
-if (!naturalWidth || !naturalHeight) {
-throw new Error("The image could not be read.");
-}
-const outputSizes = [512, 448, 384, 320, 256, 192, 128];
-const outputFormats = [
-["image/webp", [0.82, 0.72, 0.62, 0.52]],
-["image/jpeg", [0.78, 0.68, 0.58, 0.48]],
-];
-const sourceSize = Math.min(naturalWidth, naturalHeight);
-const sourceX = (naturalWidth - sourceSize) / 2;
-const sourceY = (naturalHeight - sourceSize) / 2;
-const imageCanvas = document.createElement("canvas");
-const imageContext = imageCanvas.getContext("2d");
-if (!imageContext) {
-throw new Error("The image could not be prepared.");
-}
-let fallbackDataUrl = "";
-for (const outputSize of outputSizes) {
-imageCanvas.width = outputSize;
-imageCanvas.height = outputSize;
-imageContext.clearRect(0, 0, outputSize, outputSize);
-imageContext.drawImage(image, sourceX, sourceY, sourceSize, sourceSize, 0, 0, outputSize, outputSize);
-for (const [format, qualities] of outputFormats) {
-for (const quality of qualities) {
-const candidate = imageCanvas.toDataURL(format, quality);
-if (!fallbackDataUrl || candidate.length < fallbackDataUrl.length) {
-fallbackDataUrl = candidate;
-}
-if (candidate.length <= maxProfileImageUploadDataUrlLength) {
-resolve(candidate);
-return;
-}
-}
-}
-}
-if (fallbackDataUrl.length <= maxProfileImageUploadDataUrlLength) {
-resolve(fallbackDataUrl);
-return;
-}
-throw new Error("Profile image is still too large. Choose a simpler image under 1 MB.");
-} catch (error) {
-reject(error);
-} finally {
-URL.revokeObjectURL(objectUrl);
-}
-};
-image.onerror = () => {
-URL.revokeObjectURL(objectUrl);
-reject(new Error("The image could not be read."));
-};
-image.src = objectUrl;
+return createProfileImageDataUrlFromModule(file, {
+documentRef: document,
+ImageCtor: Image,
+maxUploadDataUrlLength: maxProfileImageUploadDataUrlLength,
+URLRef: URL,
 });
 }
 function hasUserFieldConflict(userId, values) {
@@ -15028,83 +14969,22 @@ gameSimulatorAppRuntimeController = createGameSimulatorAppRuntimeController({
   defaultPhysicalProfileKey, formatSpeed, getRequestedActionMode, setBallOwner,
 });
 const gameSimulatorPointerController = gameSimulatorAppRuntimeController.pointerController;
-ui.sidebarToggle?.addEventListener("click", () => {
-if (!hubState) {
-return;
-}
-hubState.sidebarCollapsed = !hubState.sidebarCollapsed;
-writeWorkspaceHubState();
-renderWorkspaceChrome();
+bindPlatformNavigationInteractions({
+getHubState: () => hubState,
+platformNavigationController,
+preloadWorkspaceFromTrigger,
+renderWorkspaceChrome,
+setActiveWorkspace,
+ui,
+win,
+writeWorkspaceHubState,
 });
 ui.workspaceSearch?.addEventListener("input", () => {
 renderWorkspaceChrome();
 });
-ui.workspaceQuickSwitch?.addEventListener("change", () => {
-setActiveWorkspace(ui.workspaceQuickSwitch.value);
-});
 ui.platformThemeModeSelect?.addEventListener("change", () => {
 setPlatformThemeMode(ui.platformThemeModeSelect?.value);
 });
-ui.workspaceList?.addEventListener("click", (event) => {
-const trigger = event.target.closest("[data-open-workspace]");
-if (!trigger) {
-return;
-}
-setActiveWorkspace(trigger.dataset.openWorkspace);
-});
-ui.workspaceList?.addEventListener("mouseover", (event) => {
-const trigger = event.target.closest("[data-open-workspace]");
-preloadWorkspaceFromTrigger(trigger);
-platformNavigationController.showTopIconTooltip(trigger);
-});
-ui.workspaceList?.addEventListener("mouseout", (event) => {
-const trigger = event.target.closest("[data-open-workspace]");
-if (trigger && !trigger.contains(event.relatedTarget)) {
-platformNavigationController.hideTopIconTooltip();
-}
-});
-ui.workspaceList?.addEventListener("focusin", (event) => {
-const trigger = event.target.closest("[data-open-workspace]");
-preloadWorkspaceFromTrigger(trigger);
-platformNavigationController.showTopIconTooltip(trigger);
-});
-ui.workspaceList?.addEventListener("focusout", (event) => {
-const trigger = event.target.closest("[data-open-workspace]");
-if (trigger && !trigger.contains(event.relatedTarget)) {
-platformNavigationController.hideTopIconTooltip();
-}
-});
-ui.topIconMenu?.addEventListener("click", (event) => {
-const trigger = event.target.closest("[data-open-workspace]");
-if (!trigger) {
-return;
-}
-setActiveWorkspace(trigger.dataset.openWorkspace);
-});
-ui.topIconMenu?.addEventListener("mouseover", (event) => {
-const trigger = event.target.closest("[data-open-workspace]");
-preloadWorkspaceFromTrigger(trigger);
-platformNavigationController.showTopIconTooltip(trigger);
-});
-ui.topIconMenu?.addEventListener("mouseout", (event) => {
-const trigger = event.target.closest("[data-open-workspace]");
-if (trigger && !trigger.contains(event.relatedTarget)) {
-platformNavigationController.hideTopIconTooltip();
-}
-});
-ui.topIconMenu?.addEventListener("focusin", (event) => {
-const trigger = event.target.closest("[data-open-workspace]");
-preloadWorkspaceFromTrigger(trigger);
-platformNavigationController.showTopIconTooltip(trigger);
-});
-ui.topIconMenu?.addEventListener("focusout", (event) => {
-const trigger = event.target.closest("[data-open-workspace]");
-if (trigger && !trigger.contains(event.relatedTarget)) {
-platformNavigationController.hideTopIconTooltip();
-}
-});
-win.addEventListener("scroll", platformNavigationController.hideTopIconTooltip, { passive: true });
-win.addEventListener("resize", platformNavigationController.hideTopIconTooltip);
 document.addEventListener("keydown", (event) => {
 if (event.key === "Escape") {
 if (dashboardChatGroupCreatorOpen) {
@@ -15114,19 +14994,6 @@ return;
 }
 platformNavigationController.hideTopIconTooltip();
 }
-});
-ui.workspaceTitle?.addEventListener("click", () => {
-if (!hubState) {
-return;
-}
-setActiveWorkspace("home");
-});
-ui.workspaceTitle?.addEventListener("keydown", (event) => {
-if (!hubState || (event.key !== "Enter" && event.key !== " ")) {
-return;
-}
-event.preventDefault();
-setActiveWorkspace("home");
 });
 ui.dashboardGrid?.addEventListener("click", (event) => {
 const readReceipt = event.target.closest("[data-dashboard-read-receipt]");
@@ -18146,132 +18013,28 @@ syncExerciseReview: field.dataset.sessionField === "postSessionNotes",
 });
 renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 });
-const SESSION_TACTICALBOARD_KEY_HANDLED = "__sessionTacticalboardKeyHandled";
-function isSessionPlannerShortcutTextEditingTarget(target) { return Boolean(target?.closest?.("input, textarea, select, [contenteditable='true']")); }
-function hasSessionPlannerActiveTextSelection() {
-const selection = win.getSelection?.();
-return Boolean(selection && !selection.isCollapsed && String(selection).trim());
-}
-function shouldHandleSessionPlannerTacticalboardShortcut(event, options = {}) {
-if (!sessionPlannerTacticalboardOpen || event[SESSION_TACTICALBOARD_KEY_HANDLED]) {
-return false;
-}
-if (isSessionPlannerShortcutTextEditingTarget(event.target)) {
-return false;
-}
-if (options.skipWhenTextSelected && hasSessionPlannerActiveTextSelection()) {
-return false;
-}
-if (options.requireSelection && !getSessionPlannerTacticalSelectedElementIds().length) {
-return false;
-}
-return true;
-}
-function handleSessionPlannerTacticalboardKeydown(event) {
-if (!shouldHandleSessionPlannerTacticalboardShortcut(event)) {
-return;
-}
-const isTextEditingTarget = isSessionPlannerShortcutTextEditingTarget(event.target);
-const isUndoShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z";
-const isCopyShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c";
-const isPasteShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "v";
-const isDeleteKey = event.key === "Backspace" || event.key === "Delete";
-const hasSelectedTacticalElements = getSessionPlannerTacticalSelectedElementIds().length > 0;
-if (isUndoShortcut && !isTextEditingTarget) {
-event.preventDefault();
-event[SESSION_TACTICALBOARD_KEY_HANDLED] = true;
-undoSelectedSessionPlannerTacticalBoardAction();
-return;
-}
-if (event.key === "Escape") {
-event.preventDefault();
-event[SESSION_TACTICALBOARD_KEY_HANDLED] = true;
+bindSessionPlannerTacticalShortcutController({
+clearPendingPoint: ({ clearSelection = false } = {}) => {
 sessionPlannerTacticalPendingPoint = null;
 sessionPlannerTacticalDraftLineState = null;
+if (clearSelection) {
 sessionPlannerTacticalSelectionState = null;
 clearSessionPlannerTacticalSelection();
+}
 refreshSessionPlannerTacticalboardCanvas();
-return;
-}
-if (isCopyShortcut && !isTextEditingTarget && hasSelectedTacticalElements) {
-event.preventDefault();
-event[SESSION_TACTICALBOARD_KEY_HANDLED] = true;
-copySelectedSessionPlannerTacticalElements();
-return;
-}
-if (isPasteShortcut && !isTextEditingTarget) {
-event.preventDefault();
-event[SESSION_TACTICALBOARD_KEY_HANDLED] = true;
-pasteSessionPlannerTacticalClipboard();
-return;
-}
-const playerBadgeKey = getSessionPlannerTacticalPlayerBadgeFromKeyboardEvent(event);
-if (playerBadgeKey && updateSelectedSessionPlannerTacticalPlayerBadges(playerBadgeKey)) {
-event.preventDefault();
-event[SESSION_TACTICALBOARD_KEY_HANDLED] = true;
-return;
-}
-if (isDeleteKey && !isTextEditingTarget && (sessionPlannerTacticalPendingPoint || hasSelectedTacticalElements)) {
-event.preventDefault();
-event[SESSION_TACTICALBOARD_KEY_HANDLED] = true;
-if (sessionPlannerTacticalPendingPoint) {
-sessionPlannerTacticalPendingPoint = null;
-sessionPlannerTacticalDraftLineState = null;
-refreshSessionPlannerTacticalboardCanvas();
-return;
-}
-removeSelectedSessionPlannerTacticalElement();
-}
-}
-function handleSessionPlannerTacticalboardCopy(event) {
-if (
-!shouldHandleSessionPlannerTacticalboardShortcut(event, {
-requireSelection: true,
-skipWhenTextSelected: true,
-})
-) {
-return;
-}
-event.preventDefault();
-event[SESSION_TACTICALBOARD_KEY_HANDLED] = true;
-const selectedCount = getSessionPlannerTacticalSelectedElementIds().length;
-event.clipboardData?.setData("text/plain", `Football Science tactical selection (${selectedCount} item${selectedCount === 1 ? "" : "s"})`);
-copySelectedSessionPlannerTacticalElements();
-}
-function handleSessionPlannerTacticalboardPaste(event) {
-if (
-!sessionPlannerTacticalClipboard.length ||
-!shouldHandleSessionPlannerTacticalboardShortcut(event, { skipWhenTextSelected: true })
-) {
-return;
-}
-event.preventDefault();
-event[SESSION_TACTICALBOARD_KEY_HANDLED] = true;
-pasteSessionPlannerTacticalClipboard();
-}
-function handleSessionPlannerTacticalboardDeleteKeyup(event) {
-const isDeleteKey = event.key === "Backspace" || event.key === "Delete";
-if (!isDeleteKey || !shouldHandleSessionPlannerTacticalboardShortcut(event)) {
-return;
-}
-const hasSelectedTacticalElements = getSessionPlannerTacticalSelectedElementIds().length > 0;
-if (!sessionPlannerTacticalPendingPoint && !hasSelectedTacticalElements) {
-return;
-}
-event.preventDefault();
-event[SESSION_TACTICALBOARD_KEY_HANDLED] = true;
-if (sessionPlannerTacticalPendingPoint) {
-sessionPlannerTacticalPendingPoint = null;
-sessionPlannerTacticalDraftLineState = null;
-refreshSessionPlannerTacticalboardCanvas();
-return;
-}
-removeSelectedSessionPlannerTacticalElement();
-}
-win.addEventListener("keydown", handleSessionPlannerTacticalboardKeydown, true);
-win.addEventListener("keyup", handleSessionPlannerTacticalboardDeleteKeyup, true);
-win.addEventListener("copy", handleSessionPlannerTacticalboardCopy, true);
-win.addEventListener("paste", handleSessionPlannerTacticalboardPaste, true);
+},
+copySelectedElements: copySelectedSessionPlannerTacticalElements,
+getPendingPoint: () => sessionPlannerTacticalPendingPoint,
+getPlayerBadgeFromKeyboardEvent: getSessionPlannerTacticalPlayerBadgeFromKeyboardEvent,
+getSelectedElementIds: getSessionPlannerTacticalSelectedElementIds,
+hasClipboard: () => sessionPlannerTacticalClipboard.length > 0,
+isTacticalboardOpen: () => sessionPlannerTacticalboardOpen,
+pasteClipboard: pasteSessionPlannerTacticalClipboard,
+removeSelectedElement: removeSelectedSessionPlannerTacticalElement,
+updateSelectedPlayerBadges: updateSelectedSessionPlannerTacticalPlayerBadges,
+undoSelectedBoardAction: undoSelectedSessionPlannerTacticalBoardAction,
+win,
+});
 win.addEventListener("afterprint", removeSessionPlannerPrintRoot);
 ui.sessionPlannerWorkspace?.addEventListener("keydown", (event) => {
 if (event[SESSION_TACTICALBOARD_KEY_HANDLED]) {

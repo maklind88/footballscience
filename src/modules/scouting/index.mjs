@@ -32,6 +32,8 @@ import {
   renderScoutingShadowXiWorkspace,
 } from "./scouting-shadow-xi.mjs";
 
+export * from "./scouting-defaults.mjs";
+
 export function renderScoutingActiveContentByTab(deps = {}) {
   const activeTab = deps.activeTab || "shadow-xi";
   if (activeTab === "database") {

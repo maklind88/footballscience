@@ -628,9 +628,7 @@ return win.localStorage;
 return null;
 }
 }
-function getDataSafetyNow() {
-return new Date().toISOString();
-}
+function getDataSafetyNow() { return new Date().toISOString(); }
 function isPlatformDarkThemeActive(now = new Date()) {
 const mode = getPlatformThemeMode();
 if (mode === "dark") {
@@ -685,9 +683,7 @@ win.clearInterval(platformThemeRefreshTimer);
 }
 platformThemeRefreshTimer = win.setInterval(applyPlatformThemeByTime, platformThemeRefreshIntervalMs);
 }
-function getPlatformThemeMode() {
-return normalizePlatformThemeMode(readPlatformThemeMode());
-}
+function getPlatformThemeMode() { return normalizePlatformThemeMode(readPlatformThemeMode()); }
 function readPlatformThemeMode() {
 try {
 return win.localStorage.getItem(platformThemeModeStorageKey) || platformThemeModeDefault;
@@ -819,9 +815,7 @@ hash = Math.imul(hash, 16777619);
 }
 return (hash >>> 0).toString(36);
 }
-function getDataSafetyStorageLabel(key) {
-return dataSafetyStorageLabels[key] || key.replace(/^football-/, "").replaceAll("-", " ");
-}
+function getDataSafetyStorageLabel(key) { return dataSafetyStorageLabels[key] || key.replace(/^football-/, "").replaceAll("-", " "); }
 let centralStateWriteTimer = null, centralStateRefreshTimer = null, centralStateLastRefreshAt = 0, centralStateRefreshInFlight = false;
 const centralStateWriteQueue = new Map(), centralStateWriteSuppressionKeys = new Set();
 const centralStateRefreshIntervalMs = 120000, centralStateActiveRefreshMinMs = 30000, centralStateIntervalRefreshMinMs = 120000;
@@ -838,12 +832,8 @@ setStatus: setPlatformAutosaveStatus,
 setVisible: platformAutosaveStatusController.setVisible,
 now: () => Date.now(),
 });
-function isSessionPlannerAutosaveKey(key = "") {
-return sessionPlannerAutosaveBoundary.isAutosaveKey(key);
-}
-function shouldShowPlatformAutosaveStatus(workspaceId = hubState?.activeWorkspaceId) {
-return sessionPlannerAutosaveBoundary.shouldShowStatus(workspaceId);
-}
+function isSessionPlannerAutosaveKey(key = "") { return sessionPlannerAutosaveBoundary.isAutosaveKey(key); }
+function shouldShowPlatformAutosaveStatus(workspaceId = hubState?.activeWorkspaceId) { return sessionPlannerAutosaveBoundary.shouldShowStatus(workspaceId); }
 function syncPlatformAutosaveStatusVisibility(workspaceId = hubState?.activeWorkspaceId) {
 sessionPlannerAutosaveBoundary.syncVisibility(workspaceId);
 }
@@ -851,9 +841,7 @@ function setPlatformAutosaveStatusForKey(key, state, message = "") {
 sessionPlannerAutosaveBoundary.setStatusForKey(key, state, message);
 }
 syncPlatformAutosaveStatusVisibility(null);
-function getCentralStateBridge() {
-return win.footballScienceCentralState ?? null;
-}
+function getCentralStateBridge() { return win.footballScienceCentralState ?? null; }
 function getCentralStateMetadataForKey(key) {
 const metadata = getCentralStateBridge()?.getStatus?.()?.metadata;
 const entry = metadata?.[String(key || "")];
@@ -870,9 +858,7 @@ return true;
 const bridge = getCentralStateBridge();
 return Boolean(getCurrentPlatformUser() && bridge?.syncKey);
 }
-function createCentralBackedStorageError() {
-return new Error("Central sync is not ready.");
-}
+function createCentralBackedStorageError() { return new Error("Central sync is not ready."); }
 function setCentralSyncPendingState(key, isPending = false, isRemoved = false) {
 const normalizedKey = String(key || "");
 mutateDataSafetyManifest((manifest) => {
@@ -1833,18 +1819,10 @@ x: a.x - b.x,
 y: a.y - b.y,
 };
 }
-function clamp(value, min, max) {
-return Math.max(min, Math.min(max, value));
-}
-function lerp(start, end, ratio) {
-return start + (end - start) * ratio;
-}
-function randomBetween(min, max) {
-return min + Math.random() * (max - min);
-}
-function randomSign() {
-return Math.random() < 0.5 ? -1 : 1;
-}
+function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+function lerp(start, end, ratio) { return start + (end - start) * ratio; }
+function randomBetween(min, max) { return min + Math.random() * (max - min); }
+function randomSign() { return Math.random() < 0.5 ? -1 : 1; }
 function addPointNoise(point, radiusMeters = 0, inset = pitch.inset) {
 if (!point || radiusMeters <= 0) {
 return point ? cloneVector(point) : point;
@@ -2152,18 +2130,10 @@ next += Math.PI * 2;
 }
 return next;
 }
-function angleBetween(from, to) {
-return Math.atan2(to.y - from.y, to.x - from.x);
-}
-function angleDifference(a, b) {
-return Math.abs(normalizeAngle(a - b));
-}
-function getTeamAttackAngle(teamId) {
-return teamId === "home" ? 0 : Math.PI;
-}
-function getPlayerFacingAngle(player) {
-return Number.isFinite(player.bodyAngle) ? player.bodyAngle : getTeamAttackAngle(player.team);
-}
+function angleBetween(from, to) { return Math.atan2(to.y - from.y, to.x - from.x); }
+function angleDifference(a, b) { return Math.abs(normalizeAngle(a - b)); }
+function getTeamAttackAngle(teamId) { return teamId === "home" ? 0 : Math.PI; }
+function getPlayerFacingAngle(player) { return Number.isFinite(player.bodyAngle) ? player.bodyAngle : getTeamAttackAngle(player.team); }
 function rotatePlayerBodyToward(player, targetPoint, blend = 1) {
 if (!targetPoint) {
 return;
@@ -2214,9 +2184,7 @@ x: player.position.x + Math.cos(facingAngle) * controlOffset,
 y: player.position.y + Math.sin(facingAngle) * controlOffset,
 });
 }
-function getPreferredFootOffsetAngle(player) {
-return player?.preferredFoot === "left" ? Math.PI / 7.5 : -Math.PI / 7.5;
-}
+function getPreferredFootOffsetAngle(player) { return player?.preferredFoot === "left" ? Math.PI / 7.5 : -Math.PI / 7.5; }
 function getFootUsageScore(player, referenceAngle, baseAngle = getPlayerFacingAngle(player)) {
 if (!player || !Number.isFinite(referenceAngle)) {
 return 0.82;
@@ -4088,9 +4056,7 @@ return normalizeSessionPlannerPlayerBoardPositionsFromModule(source);
 function normalizeSessionPlannerPlayerBoardColors(source = {}) {
 return normalizeSessionPlannerPlayerBoardColorsFromModule(source);
 }
-function normalizeSessionPlannerPlayerBoardCustomPeople(source = []) {
-return normalizeSessionPlannerPlayerBoardCustomPeopleFromModule(source);
-}
+function normalizeSessionPlannerPlayerBoardCustomPeople(source = []) { return normalizeSessionPlannerPlayerBoardCustomPeopleFromModule(source); }
 const {
 createBlock: createSessionPlannerBlock,
 createInitialBlockFieldMeta: createSessionPlannerInitialBlockFieldMeta,
@@ -5158,9 +5124,7 @@ const dashboardTypingSendThrottleMs = 1800;
 let dashboardPresenceEntriesByUserId = {};
 let dashboardPresenceHeartbeatTimer = null, dashboardPresencePollTimer = null, dashboardPresenceStarted = false, dashboardPresenceInFlight = false;
 let dashboardPresenceLastActivityAt = Date.now(), dashboardPresenceLastRenderedSignature = "", dashboardPresenceLastPushAt = 0, dashboardPresenceLastPollAt = 0;
-function getPlatformAuthStore() {
-return win.platformAuthStore ?? null;
-}
+function getPlatformAuthStore() { return win.platformAuthStore ?? null; }
 async function getPlatformApiAccessToken() {
 if (win.platformAuthReadyPromise instanceof Promise) {
 try {
@@ -5223,9 +5187,7 @@ reject(new Error(timeoutMessage || "Request timed out."));
 }),
 ]);
 }
-function getCurrentPlatformUser() {
-return platformUser ?? syncPlatformUserFromAuth();
-}
+function getCurrentPlatformUser() { return platformUser ?? syncPlatformUserFromAuth(); }
 function updatePlatformUserFromPayload(nextUser) {
 const authStore = getPlatformAuthStore();
 if (!nextUser?.id || !authStore?.getUsers || !authStore?.writeUsers || !authStore?.setCurrentUser) {
@@ -5245,9 +5207,7 @@ function isCurrentPlatformUserAdmin() {
 const user = getCurrentPlatformUser();
 return isPlatformManagementUser(user);
 }
-function getPlatformUsers() {
-return getPlatformAuthStore()?.getUsers?.() ?? [];
-}
+function getPlatformUsers() { return getPlatformAuthStore()?.getUsers?.() ?? []; }
 function getPlatformRoles() {
 const roles = getPlatformAuthStore()?.roles;
 if (Array.isArray(roles)) {
@@ -5263,12 +5223,8 @@ return platformDefaultRoles;
 }
 return platformDefaultRoles;
 }
-function formatUserName(user) {
-return formatPlatformUserName(user);
-}
-function getUserInitials(user) {
-return getPlatformUserInitials(user);
-}
+function formatUserName(user) { return formatPlatformUserName(user); }
+function getUserInitials(user) { return getPlatformUserInitials(user); }
 function getUserProfileImageUrl(user) {
 return getPlatformUserProfileImageUrl(user, {
 maxUploadDataUrlLength: maxProfileImageUploadDataUrlLength,
@@ -5314,12 +5270,8 @@ return;
 ui.profileMenu.hidden = !isOpen;
 ui.profileMenuButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
 }
-function isProfileMenuOpen() {
-return Boolean(ui.profileMenu && !ui.profileMenu.hidden);
-}
-function getRoleLabel(role) {
-return getPlatformRoleLabel(role);
-}
+function isProfileMenuOpen() { return Boolean(ui.profileMenu && !ui.profileMenu.hidden); }
+function getRoleLabel(role) { return getPlatformRoleLabel(role); }
 function normalizePlatformRole(role, fallback = "coach") {
 if (Array.isArray(role)) {
 return normalizePlatformRole(role.find((entry) => typeof entry === "string" && entry.trim()) || "", fallback);
@@ -5331,15 +5283,9 @@ const normalizedRole = String(role || "").trim().toLowerCase();
 const mappedRole = platformRoleAliases[normalizedRole] || normalizedRole;
 return platformDefaultRoles.includes(mappedRole) ? mappedRole : fallback;
 }
-function isPlatformAdminUser(user) {
-return normalizePlatformRole(user?.role, "") === "admin";
-}
-function isPlatformManagementUser(user) {
-return platformManagementRoleSet.has(normalizePlatformRole(user?.role, ""));
-}
-function isPlatformStaffUser(user) {
-return platformStaffRoleSet.has(normalizePlatformRole(user?.role, ""));
-}
+function isPlatformAdminUser(user) { return normalizePlatformRole(user?.role, "") === "admin"; }
+function isPlatformManagementUser(user) { return platformManagementRoleSet.has(normalizePlatformRole(user?.role, "")); }
+function isPlatformStaffUser(user) { return platformStaffRoleSet.has(normalizePlatformRole(user?.role, "")); }
 function getAssignableRolesForUser(user = getCurrentPlatformUser()) {
 const role = normalizePlatformRole(user?.role, "");
 if (role === "admin") {
@@ -5385,24 +5331,12 @@ normalizePlatformStructureText: normalizePlatformStructureTextFromModule,
 normalizePlatformTeam: normalizePlatformTeamFromModule,
 slugifyPlatformStructureValue: slugifyPlatformStructureValueFromModule,
 } = platformStructureStateHelpers;
-function cloneDefaultPlatformStructureState() {
-return cloneDefaultPlatformStructureStateFromModule();
-}
-function normalizePlatformStructureText(value, fallback = "") {
-return normalizePlatformStructureTextFromModule(value, fallback);
-}
-function normalizePlatformStructureComparable(value = "") {
-return normalizePlatformStructureComparableFromModule(value);
-}
-function isLegacyPlatformStructureValue(value = "") {
-return isLegacyPlatformStructureValueFromModule(value);
-}
-function isCanonicalPlatformClubValue(value = "") {
-return isCanonicalPlatformClubValueFromModule(value);
-}
-function isCanonicalPlatformTeamValue(value = "") {
-return isCanonicalPlatformTeamValueFromModule(value);
-}
+function cloneDefaultPlatformStructureState() { return cloneDefaultPlatformStructureStateFromModule(); }
+function normalizePlatformStructureText(value, fallback = "") { return normalizePlatformStructureTextFromModule(value, fallback); }
+function normalizePlatformStructureComparable(value = "") { return normalizePlatformStructureComparableFromModule(value); }
+function isLegacyPlatformStructureValue(value = "") { return isLegacyPlatformStructureValueFromModule(value); }
+function isCanonicalPlatformClubValue(value = "") { return isCanonicalPlatformClubValueFromModule(value); }
+function isCanonicalPlatformTeamValue(value = "") { return isCanonicalPlatformTeamValueFromModule(value); }
 function isLegacyPlatformClub(candidate = {}) {
 return isLegacyPlatformClubFromModule(candidate);
 }
@@ -5418,15 +5352,9 @@ return isCanonicalPlatformTeamFromModule(candidate);
 function hasPlatformWorkspaceScope(user = {}) {
 return hasPlatformWorkspaceScopeFromModule(user);
 }
-function slugifyPlatformStructureValue(value, fallback = "scope") {
-return slugifyPlatformStructureValueFromModule(value, fallback);
-}
-function normalizePlatformStructureId(value, prefix, fallbackLabel) {
-return normalizePlatformStructureIdFromModule(value, prefix, fallbackLabel);
-}
-function createPlatformStructureId(prefix, label, usedIds = new Set()) {
-return createPlatformStructureIdFromModule(prefix, label, usedIds);
-}
+function slugifyPlatformStructureValue(value, fallback = "scope") { return slugifyPlatformStructureValueFromModule(value, fallback); }
+function normalizePlatformStructureId(value, prefix, fallbackLabel) { return normalizePlatformStructureIdFromModule(value, prefix, fallbackLabel); }
+function createPlatformStructureId(prefix, label, usedIds = new Set()) { return createPlatformStructureIdFromModule(prefix, label, usedIds); }
 function normalizePlatformClub(club = {}, fallback = {}) {
 return normalizePlatformClubFromModule(club, fallback);
 }
@@ -5436,9 +5364,7 @@ return normalizePlatformTeamFromModule(team, fallback);
 function normalizePlatformStructureState(candidate = {}) {
 return normalizePlatformStructureStateFromModule(candidate);
 }
-function isLegacyPlatformTeamPlaceholderName(value = "") {
-return isLegacyPlatformTeamPlaceholderNameFromModule(value);
-}
+function isLegacyPlatformTeamPlaceholderName(value = "") { return isLegacyPlatformTeamPlaceholderNameFromModule(value); }
 function readPlatformStructureState() {
 try {
 const raw = win.localStorage.getItem(platformStructureStorageKey);
@@ -5454,15 +5380,9 @@ win.localStorage.setItem(platformStructureStorageKey, JSON.stringify(normalizePl
 logEvent("Club and team structure could not be written to local storage.");
 }
 }
-function getPlatformStructureState() {
-return readPlatformStructureState();
-}
-function getPlatformClubById(clubId, structure = getPlatformStructureState()) {
-return structure.clubs.find((club) => club.id === clubId) ?? structure.clubs[0] ?? null;
-}
-function getPlatformTeamById(teamId, structure = getPlatformStructureState()) {
-return structure.teams.find((team) => team.id === teamId) ?? structure.teams[0] ?? null;
-}
+function getPlatformStructureState() { return readPlatformStructureState(); }
+function getPlatformClubById(clubId, structure = getPlatformStructureState()) { return structure.clubs.find((club) => club.id === clubId) ?? structure.clubs[0] ?? null; }
+function getPlatformTeamById(teamId, structure = getPlatformStructureState()) { return structure.teams.find((team) => team.id === teamId) ?? structure.teams[0] ?? null; }
 function findPlatformTeamByName(teamName, structure = getPlatformStructureState()) {
 const normalizedName = String(teamName || "").trim().toLowerCase();
 return normalizedName && !isLegacyPlatformStructureValue(normalizedName)
@@ -5712,12 +5632,8 @@ const clubName = getUserClubName(user, structure);
 const teamName = getUserTeamName(user, structure);
 return clubName && teamName && clubName !== teamName ? `${clubName} · ${teamName}` : teamName || clubName;
 }
-function isSamePlatformClub(firstUser, secondUser, structure = getPlatformStructureState()) {
-return getUserClubId(firstUser, structure) === getUserClubId(secondUser, structure);
-}
-function isSamePlatformTeam(firstUser, secondUser, structure = getPlatformStructureState()) {
-return getUserTeamId(firstUser, structure) === getUserTeamId(secondUser, structure);
-}
+function isSamePlatformClub(firstUser, secondUser, structure = getPlatformStructureState()) { return getUserClubId(firstUser, structure) === getUserClubId(secondUser, structure); }
+function isSamePlatformTeam(firstUser, secondUser, structure = getPlatformStructureState()) { return getUserTeamId(firstUser, structure) === getUserTeamId(secondUser, structure); }
 function canAdminViewUser(actor, targetUser, structure = getPlatformStructureState()) {
 if (!actor || !targetUser) {
 return false;
@@ -5757,9 +5673,7 @@ return isSamePlatformTeam(actor, targetUser, structure) && !platformManagementRo
 }
 return false;
 }
-function getScopedPlatformUsers(users = getPlatformUsers(), actor = getCurrentPlatformUser(), structure = getPlatformStructureState()) {
-return users.filter((user) => canAdminViewUser(actor, user, structure));
-}
+function getScopedPlatformUsers(users = getPlatformUsers(), actor = getCurrentPlatformUser(), structure = getPlatformStructureState()) { return users.filter((user) => canAdminViewUser(actor, user, structure)); }
 function getScopedPlatformClubs(actor = getCurrentPlatformUser(), structure = getPlatformStructureState()) {
 if (isPlatformAdminUser(actor)) {
 return structure.clubs;
@@ -5779,12 +5693,8 @@ return structure.teams.filter((team) => team.clubId === clubId);
 const team = getPlatformTeamById(getUserTeamId(actor, structure), structure);
 return team ? [team] : [];
 }
-function renderAdminRoleOptions(actor, selectedRole = "coach") {
-return adminStructureRenderer.renderRoleOptions(actor, selectedRole);
-}
-function renderAdminTeamOptions(actor, structure, selectedTeamId = "") {
-return adminStructureRenderer.renderTeamOptions(actor, structure, selectedTeamId);
-}
+function renderAdminRoleOptions(actor, selectedRole = "coach") { return adminStructureRenderer.renderRoleOptions(actor, selectedRole); }
+function renderAdminTeamOptions(actor, structure, selectedTeamId = "") { return adminStructureRenderer.renderTeamOptions(actor, structure, selectedTeamId); }
 function normalizeAdminUserSubmissionValues(values = {}, actor = getCurrentPlatformUser(), existingUser = null, structure = getPlatformStructureState()) {
 const allowedRoles = getAssignableRolesForUser(actor);
 const fallbackRole = existingUser?.role || (allowedRoles.includes("coach") ? "coach" : allowedRoles[0] || "coach");
@@ -5877,9 +5787,7 @@ config[workspaceId] = normalizeWorkspaceAccessEntry(workspaceId, configuredAcces
 return config;
 }, {});
 }
-function getWorkspaceByIdFromPool(workspaceId, sourceState = hubState) {
-return getAllWorkspacePool(sourceState).find((workspace) => workspace.id === workspaceId) ?? null;
-}
+function getWorkspaceByIdFromPool(workspaceId, sourceState = hubState) { return getAllWorkspacePool(sourceState).find((workspace) => workspace.id === workspaceId) ?? null; }
 function canUserAccessWorkspace(
 workspace,
 user = getCurrentPlatformUser(),
@@ -5904,9 +5812,7 @@ return true;
 }
 return permission.view.includes(normalizedRole);
 }
-function canCurrentUserAccessWorkspace(workspace) {
-return canUserAccessWorkspace(workspace);
-}
+function canCurrentUserAccessWorkspace(workspace) { return canUserAccessWorkspace(workspace); }
 function canUserEditWorkspace(
 workspaceId,
 user = getCurrentPlatformUser(),
@@ -5932,30 +5838,14 @@ return false;
 const permission = normalizeWorkspaceAccessEntry(workspaceId, accessConfig[workspaceId]);
 return permission.view.includes(normalizedRole) && permission.edit.includes(normalizedRole);
 }
-function canCurrentUserEditWorkspace(workspaceId) {
-return canUserEditWorkspace(workspaceId);
-}
-function canEditScheduleWorkspace() {
-return canCurrentUserEditWorkspace("schedule");
-}
-function canEditSessionPlanner() {
-return canCurrentUserEditWorkspace("session-planner");
-}
-function canEditPeriodizationWorkspace() {
-return canCurrentUserEditWorkspace("periodization");
-}
-function canEditGameSimulatorWorkspace() {
-return canCurrentUserEditWorkspace("game-simulator");
-}
-function canEditScoutingWorkspace() {
-return canCurrentUserEditWorkspace("scouting");
-}
-function getAccessibleWorkspacePool() {
-return getAllWorkspacePool().filter((workspace) => canCurrentUserAccessWorkspace(workspace));
-}
-function getVisibleWorkspacePool() {
-return getAccessibleWorkspacePool().filter((workspace) => !workspace.hiddenFromNav);
-}
+function canCurrentUserEditWorkspace(workspaceId) { return canUserEditWorkspace(workspaceId); }
+function canEditScheduleWorkspace() { return canCurrentUserEditWorkspace("schedule"); }
+function canEditSessionPlanner() { return canCurrentUserEditWorkspace("session-planner"); }
+function canEditPeriodizationWorkspace() { return canCurrentUserEditWorkspace("periodization"); }
+function canEditGameSimulatorWorkspace() { return canCurrentUserEditWorkspace("game-simulator"); }
+function canEditScoutingWorkspace() { return canCurrentUserEditWorkspace("scouting"); }
+function getAccessibleWorkspacePool() { return getAllWorkspacePool().filter((workspace) => canCurrentUserAccessWorkspace(workspace)); }
+function getVisibleWorkspacePool() { return getAccessibleWorkspacePool().filter((workspace) => !workspace.hiddenFromNav); }
 function mergeWorkspaceDefinitions(sourceWorkspaces = []) {
 const sourceById = new Map(sourceWorkspaces.map((workspace) => [workspace.id, workspace]));
 const defaultsById = new Map(defaultHubState.workspaces.map((workspace) => [workspace.id, workspace]));
@@ -6032,9 +5922,7 @@ win.localStorage.setItem(workspaceLastActiveStorageKey, safeWorkspaceId);
 } catch {}
 }
 let periodizationMultiSelectOpenField = "";
-function getPeriodizationDay(dateValue) {
-return getPeriodizationDayFromState(dateValue, periodizationState);
-}
+function getPeriodizationDay(dateValue) { return getPeriodizationDayFromState(dateValue, periodizationState); }
 function ensurePeriodizationState() {
 if (!periodizationState) {
 periodizationState = readPeriodizationState();
@@ -6491,21 +6379,11 @@ scheduleState = readScheduleState();
 return getUniqueScheduleEvents(scheduleState.events.filter((event) => event.date === dateValue))
 .sort((a, b) => `${a.time || "99:99"} ${a.title}`.localeCompare(`${b.time || "99:99"} ${b.title}`));
 }
-function getScheduleVisibleEvents(events = []) {
-return getUniqueScheduleEvents(events);
-}
-function getScheduleMainEvent(events = []) {
-return getScheduleMainEventFromModule(events);
-}
-function isScheduleSessionEvent(event) {
-return isScheduleSessionEventFromModule(event);
-}
-function getScheduleSessionEventForDate(dateValue) {
-return getScheduleEventsForDate(dateValue).find(isScheduleSessionEvent) ?? null;
-}
-function getScheduledSessionTitleForDate(dateValue) {
-return getScheduleSessionEventForDate(dateValue)?.title || "";
-}
+function getScheduleVisibleEvents(events = []) { return getUniqueScheduleEvents(events); }
+function getScheduleMainEvent(events = []) { return getScheduleMainEventFromModule(events); }
+function isScheduleSessionEvent(event) { return isScheduleSessionEventFromModule(event); }
+function getScheduleSessionEventForDate(dateValue) { return getScheduleEventsForDate(dateValue).find(isScheduleSessionEvent) ?? null; }
+function getScheduledSessionTitleForDate(dateValue) { return getScheduleSessionEventForDate(dateValue)?.title || ""; }
 function getScheduleMonthEvents(year, monthIndex) {
 if (!scheduleState) {
 return [];
@@ -6517,9 +6395,7 @@ return eventDate.getFullYear() === year && eventDate.getMonth() === monthIndex;
 })
 );
 }
-function getScheduleVisibleMonthEvents(year, monthIndex) {
-return getScheduleVisibleEvents(getScheduleMonthEvents(year, monthIndex));
-}
+function getScheduleVisibleMonthEvents(year, monthIndex) { return getScheduleVisibleEvents(getScheduleMonthEvents(year, monthIndex)); }
 function isEditableKeyboardTarget(target) {
 const element = target instanceof Element ? target : null;
 if (!element) {
@@ -6554,9 +6430,7 @@ hasSession: blocks.length > 0,
 minutes: blocks.reduce((total, block) => total + (Number(block.minutes) || 0), 0),
 };
 }
-function formatScheduleBlockSummary(blockCount, minutes = 0) {
-return formatScheduleBlockSummaryFromModule(blockCount, minutes);
-}
+function formatScheduleBlockSummary(blockCount, minutes = 0) { return formatScheduleBlockSummaryFromModule(blockCount, minutes); }
 function getScheduleDayWarnings(events, periodizationDay, sessionSnapshot) {
 return getScheduleDayWarningsFromModule(events, periodizationDay, sessionSnapshot, {
 isSessionEvent: isScheduleSessionEvent,
@@ -6763,9 +6637,7 @@ return "session-planner";
 }
 return "placeholder";
 }
-function getWorkspaceQuery() {
-return ui.workspaceSearch?.value.trim().toLowerCase() ?? "";
-}
+function getWorkspaceQuery() { return ui.workspaceSearch?.value.trim().toLowerCase() ?? ""; }
 function getVisibleWorkspaces() {
 const workspaces = getVisibleWorkspacePool();
 const query = getWorkspaceQuery();
@@ -6947,9 +6819,7 @@ const partnerId = firstId === currentUserId ? secondId : firstId;
 const partner = users.find((user) => user.id === partnerId);
 return partner ? formatUserName(partner) : "Direct Message";
 }
-function normalizeDashboardUserIdentityValue(value = "") {
-return String(value || "").trim().toLowerCase();
-}
+function normalizeDashboardUserIdentityValue(value = "") { return String(value || "").trim().toLowerCase(); }
 function isSameDashboardUser(firstUser = {}, secondUser = {}) {
 if (!firstUser || !secondUser) {
 return false;
@@ -6995,9 +6865,7 @@ return getDashboardChatTeamChatTitle();
 }
 return formatDashboardChatThreadLabel(threadId, currentUser, users);
 }
-function getDashboardChatActiveToastThreadId() {
-return normalizeDashboardChatThreadId(readDashboardChatWidgetState().selectedThreadId, dashboardChatTeamThreadId);
-}
+function getDashboardChatActiveToastThreadId() { return normalizeDashboardChatThreadId(readDashboardChatWidgetState().selectedThreadId, dashboardChatTeamThreadId); }
 function readDashboardChatWidgetState() {
 const parsed = readDashboardJson(dashboardChatWidgetStateStorageKey, {
 isOpen: false,
@@ -7155,9 +7023,7 @@ userId: latestMessage.userId,
 threadId: latestMessage.threadId,
 });
 }
-function isDashboardDocumentActivelyViewed() {
-return document.visibilityState === "visible" && document.hasFocus();
-}
+function isDashboardDocumentActivelyViewed() { return document.visibilityState === "visible" && document.hasFocus(); }
 function isDashboardChatThreadActivelyViewed(threadId = "") {
 const state = readDashboardChatWidgetState();
 const selectedThreadId = normalizeDashboardChatThreadId(state.selectedThreadId, dashboardChatTeamThreadId);
@@ -7366,9 +7232,7 @@ getDashboardMessageIdentityKeys(existingMessage).forEach((key) => messageMap.del
 }
 getDashboardMessageIdentityKeys(nextMessage).forEach((key) => messageMap.set(key, nextMessage));
 }
-function getDashboardMessagesFromIdentityMap(messageMap) {
-return Array.from(new Set(messageMap.values())).sort(compareDashboardChatMessages);
-}
+function getDashboardMessagesFromIdentityMap(messageMap) { return Array.from(new Set(messageMap.values())).sort(compareDashboardChatMessages); }
 function normalizeDashboardMessageCollection(messages = [], options = {}) {
 const deletedMessageIds = options.deletedMessageIds || readDashboardDeletedMessageIds();
 const messageMap = new Map();
@@ -8301,9 +8165,7 @@ showDashboardChatWidgetToast(result.reason || "Message could not be sent.", norm
 renderDashboardChatWidget();
 return null;
 }
-function retryDashboardMessageWithApi(messageId) {
-return dashboardChatApiUiActions.retryMessageWithApi(messageId);
-}
+function retryDashboardMessageWithApi(messageId) { return dashboardChatApiUiActions.retryMessageWithApi(messageId); }
 function markDashboardChatApiThreadRead(threadId) {
 const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
 if (!normalizedThreadId) return;
@@ -8759,12 +8621,8 @@ return;
 dashboardPresenceLastRenderedSignature = nextSignature;
 renderDashboardChatWidget();
 }
-function getDashboardPresenceEntry(userId) {
-return dashboardPresenceEntriesByUserId[String(userId || "").trim()] || null;
-}
-function getDashboardPresenceStatus(userId) {
-return resolveDashboardPresenceStatus(getDashboardPresenceEntry(userId), String(userId || "").trim());
-}
+function getDashboardPresenceEntry(userId) { return dashboardPresenceEntriesByUserId[String(userId || "").trim()] || null; }
+function getDashboardPresenceStatus(userId) { return resolveDashboardPresenceStatus(getDashboardPresenceEntry(userId), String(userId || "").trim()); }
 function getDashboardPresenceLabel(status) {
 const normalizedStatus = normalizeDashboardPresenceStatus(status);
 if (normalizedStatus === "online") {
@@ -8807,9 +8665,7 @@ return `
 function markDashboardPresenceActivity() {
 dashboardPresenceLastActivityAt = Date.now();
 }
-function getDashboardPresenceWorkspaceId() {
-return hubState?.activeWorkspaceId || "";
-}
+function getDashboardPresenceWorkspaceId() { return hubState?.activeWorkspaceId || ""; }
 function getActiveDashboardTypingThreadId() {
 if (!dashboardChatTypingThreadId || Date.now() - dashboardChatTypingAt > dashboardTypingTtlMs) {
 return "";
@@ -9020,9 +8876,7 @@ hour: "2-digit",
 minute: "2-digit",
 }).format(date);
 }
-function getDashboardMessageById(messageId, messages = readDashboardMessages()) {
-return messages.find((message) => message.id === messageId) || null;
-}
+function getDashboardMessageById(messageId, messages = readDashboardMessages()) { return messages.find((message) => message.id === messageId) || null; }
 function getDashboardMessageAuthorName(message, users = getPlatformUsers()) {
 const author = users.find((user) => user.id === message?.userId) || message?.author || null;
 return author ? formatUserName(author) : "Staff";
@@ -9420,18 +9274,10 @@ win.setTimeout(() => {
 ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-input]")?.focus();
 }, 0);
 }
-function getDashboardSessionPlannerState() {
-return dashboardHomeContextSelectors.getSessionPlannerState();
-}
-function getDashboardTodayValue() {
-return dashboardHomeContextSelectors.getTodayValue();
-}
-function getDashboardSessionTotalMinutes(session) {
-return dashboardHomeContextSelectors.getSessionTotalMinutes(session);
-}
-function getDashboardHomeContext(currentUser, users, tasks) {
-return dashboardHomeContextSelectors.getHomeContext(currentUser, users, tasks);
-}
+function getDashboardSessionPlannerState() { return dashboardHomeContextSelectors.getSessionPlannerState(); }
+function getDashboardTodayValue() { return dashboardHomeContextSelectors.getTodayValue(); }
+function getDashboardSessionTotalMinutes(session) { return dashboardHomeContextSelectors.getSessionTotalMinutes(session); }
+function getDashboardHomeContext(currentUser, users, tasks) { return dashboardHomeContextSelectors.getHomeContext(currentUser, users, tasks); }
 function readPlatformAppearanceState() {
 return normalizePlatformAppearanceConfig(rawDataSafetyGetItem(platformAppearanceStorageKey) || {});
 }
@@ -9451,9 +9297,7 @@ return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed :
 function writeDashboardTutorialPrefs(prefs) {
 writeDashboardJson(dashboardTutorialPrefsStorageKey, prefs);
 }
-function getDashboardTutorialPreference(userId) {
-return getDashboardTutorialPrefs()[userId] ?? null;
-}
+function getDashboardTutorialPreference(userId) { return getDashboardTutorialPrefs()[userId] ?? null; }
 function saveDashboardTutorialPreference(userId, showOnLogin) {
 if (!userId) {
 return;
@@ -9477,9 +9321,7 @@ function getDashboardNewsSeenMap() {
 const parsed = readDashboardJson(dashboardNewsSeenStorageKey, {});
 return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
 }
-function hasSeenDashboardNews(userId) {
-return getDashboardNewsSeenMap()[userId] === dashboardNewsVersion;
-}
+function hasSeenDashboardNews(userId) { return getDashboardNewsSeenMap()[userId] === dashboardNewsVersion; }
 function markDashboardNewsSeen(userId) {
 if (!userId) {
 return;
@@ -9641,12 +9483,8 @@ return exerciseLibraryStateAdapter.createExercise(source);
 function cloneSessionPlannerLibraryExercise(exercise = {}) {
 return exerciseLibraryStateAdapter.cloneExercise(exercise);
 }
-function normalizeSessionPlannerExerciseLibraryList(sourceLibrary = []) {
-return exerciseLibraryStateAdapter.normalizeExercises(sourceLibrary);
-}
-function normalizeSessionPlannerLibraryVersions(sourceVersions = []) {
-return exerciseLibraryStateAdapter.normalizeVersions(sourceVersions);
-}
+function normalizeSessionPlannerExerciseLibraryList(sourceLibrary = []) { return exerciseLibraryStateAdapter.normalizeExercises(sourceLibrary); }
+function normalizeSessionPlannerLibraryVersions(sourceVersions = []) { return exerciseLibraryStateAdapter.normalizeVersions(sourceVersions); }
 function createSessionPlannerLibraryVersionSnapshot(exercise = {}, reason = "Updated") {
 return exerciseLibraryStateAdapter.createVersionSnapshot(exercise, reason);
 }
@@ -9656,18 +9494,10 @@ return exerciseLibraryStateAdapter.appendVersion(exercise, reason);
 function isSessionPlannerLibraryExerciseArchived(exercise = {}) {
 return exerciseLibraryStateAdapter.isExerciseArchived(exercise);
 }
-function getSessionPlannerLibraryExercisesByArchiveState(archiveView = sessionPlannerLibraryArchiveView) {
-return exerciseLibraryStateAdapter.getExercisesByArchiveState(getSessionPlannerExerciseLibrary(), archiveView);
-}
-function getSessionPlannerActiveExerciseLibrary() {
-return getSessionPlannerLibraryExercisesByArchiveState("active");
-}
-function getSessionPlannerLibraryArchiveCounts() {
-return exerciseLibraryStateAdapter.getArchiveCounts(getSessionPlannerExerciseLibrary());
-}
-function parseSessionPlannerExerciseLibraryPayload(rawLibrary) {
-return exerciseLibraryStateAdapter.parseExercisePayload(rawLibrary);
-}
+function getSessionPlannerLibraryExercisesByArchiveState(archiveView = sessionPlannerLibraryArchiveView) { return exerciseLibraryStateAdapter.getExercisesByArchiveState(getSessionPlannerExerciseLibrary(), archiveView); }
+function getSessionPlannerActiveExerciseLibrary() { return getSessionPlannerLibraryExercisesByArchiveState("active"); }
+function getSessionPlannerLibraryArchiveCounts() { return exerciseLibraryStateAdapter.getArchiveCounts(getSessionPlannerExerciseLibrary()); }
+function parseSessionPlannerExerciseLibraryPayload(rawLibrary) { return exerciseLibraryStateAdapter.parseExercisePayload(rawLibrary); }
 function readSessionPlannerExerciseLibraryFromStorage(storageKey) {
 try {
 const rawLibrary = win.localStorage.getItem(storageKey);
@@ -9680,9 +9510,7 @@ return exercises ? { storageKey, exercises } : null;
 return null;
 }
 }
-function createSessionPlannerExerciseLibraryBackupEnvelope(exercises = []) {
-return exerciseLibraryStateAdapter.createExerciseBackupEnvelope(exercises);
-}
+function createSessionPlannerExerciseLibraryBackupEnvelope(exercises = []) { return exerciseLibraryStateAdapter.createExerciseBackupEnvelope(exercises); }
 function writeSessionPlannerExerciseLibraryToStorage(exercises = []) {
 const normalizedLibrary = normalizeSessionPlannerExerciseLibraryList(exercises);
 const libraryText = JSON.stringify(normalizedLibrary);
@@ -9787,27 +9615,17 @@ sessionPlannerExerciseLibrary = readSessionPlannerExerciseLibrary();
 }
 return sessionPlannerExerciseLibrary;
 }
-function normalizeSessionPlannerLibraryFolderVisibility(value) {
-return exerciseLibraryStateAdapter.normalizeFolderVisibility(value);
-}
-function normalizeSessionPlannerLibraryFolderExerciseIds(sourceIds = []) {
-return exerciseLibraryStateAdapter.normalizeFolderExerciseIds(sourceIds);
-}
+function normalizeSessionPlannerLibraryFolderVisibility(value) { return exerciseLibraryStateAdapter.normalizeFolderVisibility(value); }
+function normalizeSessionPlannerLibraryFolderExerciseIds(sourceIds = []) { return exerciseLibraryStateAdapter.normalizeFolderExerciseIds(sourceIds); }
 function createSessionPlannerLibraryFolder(source = {}) {
 return exerciseLibraryStateAdapter.createFolder(source);
 }
-function createSessionPlannerDefaultExerciseLibraryFolders() {
-return exerciseLibraryStateAdapter.createDefaultFolders();
-}
-function normalizeSessionPlannerExerciseLibraryFolders(sourceFolders = []) {
-return exerciseLibraryStateAdapter.normalizeFolders(sourceFolders);
-}
+function createSessionPlannerDefaultExerciseLibraryFolders() { return exerciseLibraryStateAdapter.createDefaultFolders(); }
+function normalizeSessionPlannerExerciseLibraryFolders(sourceFolders = []) { return exerciseLibraryStateAdapter.normalizeFolders(sourceFolders); }
 function isSessionPlannerLibraryFolderArchived(folder = {}) {
 return exerciseLibraryStateAdapter.isFolderArchived(folder);
 }
-function parseSessionPlannerExerciseLibraryFoldersPayload(rawFolders) {
-return exerciseLibraryStateAdapter.parseFoldersPayload(rawFolders);
-}
+function parseSessionPlannerExerciseLibraryFoldersPayload(rawFolders) { return exerciseLibraryStateAdapter.parseFoldersPayload(rawFolders); }
 function readSessionPlannerExerciseLibraryFoldersFromStorage(storageKey) {
 try {
 const rawFolders = win.localStorage.getItem(storageKey);
@@ -9820,9 +9638,7 @@ return folders ? { storageKey, folders } : null;
 return null;
 }
 }
-function createSessionPlannerExerciseLibraryFoldersBackupEnvelope(folders = []) {
-return exerciseLibraryStateAdapter.createFoldersBackupEnvelope(folders);
-}
+function createSessionPlannerExerciseLibraryFoldersBackupEnvelope(folders = []) { return exerciseLibraryStateAdapter.createFoldersBackupEnvelope(folders); }
 function writeSessionPlannerExerciseLibraryFoldersToStorage(folders = []) {
 const normalizedFolders = normalizeSessionPlannerExerciseLibraryFolders(folders);
 const foldersText = JSON.stringify(normalizedFolders);
@@ -9885,21 +9701,11 @@ sessionPlannerExerciseLibrary = result.exercises;
 }
 return result.saved;
 }
-function normalizeSessionPlannerMultiValue(value) {
-return exerciseLibrarySelectors.normalizeMultiValue(value);
-}
-function formatSessionPlannerMultiValue(value) {
-return exerciseLibrarySelectors.formatMultiValue(value);
-}
-function normalizeSessionPlannerLibraryTags(value) {
-return exerciseLibraryStateAdapter.normalizeTags(value);
-}
-function formatSessionPlannerLibraryTags(value) {
-return normalizeSessionPlannerLibraryTags(value).join(", ");
-}
-function getSessionPlannerMultiValueSummary(value, fallback) {
-return exerciseLibrarySelectors.getMultiValueSummary(value, fallback);
-}
+function normalizeSessionPlannerMultiValue(value) { return exerciseLibrarySelectors.normalizeMultiValue(value); }
+function formatSessionPlannerMultiValue(value) { return exerciseLibrarySelectors.formatMultiValue(value); }
+function normalizeSessionPlannerLibraryTags(value) { return exerciseLibraryStateAdapter.normalizeTags(value); }
+function formatSessionPlannerLibraryTags(value) { return normalizeSessionPlannerLibraryTags(value).join(", "); }
+function getSessionPlannerMultiValueSummary(value, fallback) { return exerciseLibrarySelectors.getMultiValueSummary(value, fallback); }
 function getSessionPlannerMultiSelectFieldConfig(field) {
 const configs = {
 phase: {
@@ -9960,9 +9766,7 @@ updateSelectedSessionPlannerBlockField(field, "");
 sessionPlannerMultiSelectOpenField = field;
 refreshSessionPlannerMultiSelectFields([field]);
 }
-function normalizeSessionPlannerLibraryFilterValues(value) {
-return exerciseLibrarySelectors.normalizeFilterValues(value);
-}
+function normalizeSessionPlannerLibraryFilterValues(value) { return exerciseLibrarySelectors.normalizeFilterValues(value); }
 function getSessionPlannerLibraryFilterValues(filterKey) {
 if (filterKey === "phase") {
 return normalizeSessionPlannerLibraryFilterValues(
@@ -10013,9 +9817,7 @@ sessionPlannerLibraryFilterOpen = filterKey;
 sessionPlannerLibraryEditExerciseId = "";
 renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
-function exerciseMatchesSessionPlannerLibraryFilterValue(exerciseValue, selectedValues = []) {
-return exerciseLibrarySelectors.exerciseMatchesFilterValue(exerciseValue, selectedValues);
-}
+function exerciseMatchesSessionPlannerLibraryFilterValue(exerciseValue, selectedValues = []) { return exerciseLibrarySelectors.exerciseMatchesFilterValue(exerciseValue, selectedValues); }
 function getSessionPlannerVisibleLibraryFolders() {
 return getSessionPlannerExerciseLibraryFolders()
 .filter((folder) => !isSessionPlannerLibraryFolderArchived(folder))
@@ -10141,9 +9943,7 @@ const values = getSessionPlannerLibraryExercisesByArchiveState()
 .filter(Boolean);
 return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
 }
-function normalizeSessionPlannerLibrarySortMode(value) {
-return exerciseLibrarySelectors.normalizeSortMode(value);
-}
+function normalizeSessionPlannerLibrarySortMode(value) { return exerciseLibrarySelectors.normalizeSortMode(value); }
 function compareSessionPlannerLibraryExercises(a = {}, b = {}) {
 return exerciseLibrarySelectors.compareExercises(a, b, sessionPlannerLibrarySortMode);
 }
@@ -10411,9 +10211,7 @@ sessionPlannerToastMessage = "";
 renderSessionPlannerToast();
 }, 3200);
 }
-function commitSessionPlannerExerciseToLibrary(exercise, mode = "new", existingExerciseId = "") {
-return exerciseLibraryActions.commitExercise(exercise, mode, existingExerciseId);
-}
+function commitSessionPlannerExerciseToLibrary(exercise, mode = "new", existingExerciseId = "") { return exerciseLibraryActions.commitExercise(exercise, mode, existingExerciseId); }
 function queueSessionPlannerLibrarySaveConflict(exercise, existingExercise) {
 exerciseLibraryActions.queueSaveConflict(exercise, existingExercise);
 }
@@ -10469,12 +10267,8 @@ exerciseLibraryActions.archiveExercise(exerciseId);
 function restoreSessionPlannerLibraryExercise(exerciseId) {
 exerciseLibraryActions.restoreExercise(exerciseId);
 }
-function createSessionPlannerDefaultSession(dateValue = formatScheduleDateValue(new Date())) {
-return sessionPlannerSessionFactory.createDefaultSession(dateValue);
-}
-function createSessionPlannerEmptySession(dateValue = formatScheduleDateValue(new Date())) {
-return sessionPlannerSessionFactory.createEmptySession(dateValue);
-}
+function createSessionPlannerDefaultSession(dateValue = formatScheduleDateValue(new Date())) { return sessionPlannerSessionFactory.createDefaultSession(dateValue); }
+function createSessionPlannerEmptySession(dateValue = formatScheduleDateValue(new Date())) { return sessionPlannerSessionFactory.createEmptySession(dateValue); }
 function getSessionPlannerPeriodizationOverride(dateValue) {
 if (!dateValue) {
 return {};
@@ -10569,9 +10363,7 @@ normalizedGuard[dateValue] = timestamp;
 return normalizedGuard;
 }, {});
 }
-function canReduceSessionPlannerBlocksForDate(source, dateValue) {
-return Boolean(normalizeSessionPlannerBlockReductionGuard(source)[dateValue]);
-}
+function canReduceSessionPlannerBlocksForDate(source, dateValue) { return Boolean(normalizeSessionPlannerBlockReductionGuard(source)[dateValue]); }
 function normalizeSessionPlannerBlockDeletionTombstones(source = {}) {
 const tombstones = source?.[sessionPlannerBlockDeletionTombstoneKey];
 if (!tombstones || typeof tombstones !== "object" || Array.isArray(tombstones)) {
@@ -11394,15 +11186,9 @@ sessionPlannerWorkspaceController = createSessionPlannerWorkspaceController({
     if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerPrintSections")) sessionPlannerPrintSections = patch.sessionPlannerPrintSections;
   },
 });
-function clearSelectedSessionPlannerTacticalBoard(...args) {
-return sessionPlannerWorkspaceController.clearSelectedSessionPlannerTacticalBoard(...args);
-}
-function getSessionPlannerTacticalEndpointCoordinates(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerTacticalEndpointCoordinates(...args);
-}
-function getMedicalAvailabilityItems(...args) {
-return sessionPlannerWorkspaceController.getMedicalAvailabilityItems(...args);
-}
+function clearSelectedSessionPlannerTacticalBoard(...args) { return sessionPlannerWorkspaceController.clearSelectedSessionPlannerTacticalBoard(...args); }
+function getSessionPlannerTacticalEndpointCoordinates(...args) { return sessionPlannerWorkspaceController.getSessionPlannerTacticalEndpointCoordinates(...args); }
+function getMedicalAvailabilityItems(...args) { return sessionPlannerWorkspaceController.getMedicalAvailabilityItems(...args); }
 const {
   getSessionPlannerSelectedSession,
   ensureSessionPlannerSelectedSession,
@@ -11639,9 +11425,7 @@ hasProfilePhoto,
 message: profileMessage,
 });
 }
-function getPlatformFormValues(form) {
-return readPlatformFormValues(form);
-}
+function getPlatformFormValues(form) { return readPlatformFormValues(form); }
 function getPasswordValidationMessage(values = {}) {
 return getPlatformPasswordValidationMessage(values);
 }
@@ -11732,9 +11516,7 @@ user.id !== userId &&
 )
 );
 }
-function buildUserCredentialMessage(user, temporaryPassword = "") {
-return buildPlatformUserCredentialMessage(user, temporaryPassword);
-}
+function buildUserCredentialMessage(user, temporaryPassword = "") { return buildPlatformUserCredentialMessage(user, temporaryPassword); }
 async function openCredentialsMailto(user, temporaryPassword = "") {
 const body = buildUserCredentialMessage(user, temporaryPassword);
 const recipient = (user.email || "").trim();
@@ -11758,9 +11540,7 @@ copied = true;
 win.location.href = mailto;
 return { copied, copyText };
 }
-function buildTemporaryLoginMessage(user, temporaryPassword, copied = false) {
-return buildPlatformTemporaryLoginMessage(user, temporaryPassword, copied);
-}
+function buildTemporaryLoginMessage(user, temporaryPassword, copied = false) { return buildPlatformTemporaryLoginMessage(user, temporaryPassword, copied); }
 async function maybeCopyToClipboard(text) {
 const safeText = String(text || "").trim();
 if (!safeText || !win.navigator?.clipboard?.writeText) {
@@ -12101,27 +11881,13 @@ return false;
 const parsedDate = parseScheduleDateValue(dateValue);
 return formatScheduleDateValue(parsedDate) === dateValue;
 }
-function getMedicalStatusOption(statusKey) {
-return medicalOptionSelectors.getMedicalStatusOption(statusKey);
-}
-function getMedicalStatusActivityType(dateValue, rtpPhase = "") {
-return medicalOptionSelectors.getMedicalStatusActivityType(dateValue, rtpPhase);
-}
-function getMedicalStatusOptionForActivity(statusKey, activityType = "training") {
-return medicalOptionSelectors.getMedicalStatusOptionForActivity(statusKey, activityType);
-}
-function getMedicalStatusOptionForDate(statusKey, dateValue = medicalState?.selectedDate, rtpPhase = "") {
-return medicalOptionSelectors.getMedicalStatusOptionForDate(statusKey, dateValue, rtpPhase);
-}
-function getMedicalRtpPhaseOption(phaseKey) {
-return medicalOptionSelectors.getMedicalRtpPhaseOption(phaseKey);
-}
-function getMedicalGateOption(value) {
-return medicalOptionSelectors.getMedicalGateOption(value);
-}
-function getMedicalStatusForParticipation(participation) {
-return medicalOptionSelectors.getMedicalStatusForParticipation(participation);
-}
+function getMedicalStatusOption(statusKey) { return medicalOptionSelectors.getMedicalStatusOption(statusKey); }
+function getMedicalStatusActivityType(dateValue, rtpPhase = "") { return medicalOptionSelectors.getMedicalStatusActivityType(dateValue, rtpPhase); }
+function getMedicalStatusOptionForActivity(statusKey, activityType = "training") { return medicalOptionSelectors.getMedicalStatusOptionForActivity(statusKey, activityType); }
+function getMedicalStatusOptionForDate(statusKey, dateValue = medicalState?.selectedDate, rtpPhase = "") { return medicalOptionSelectors.getMedicalStatusOptionForDate(statusKey, dateValue, rtpPhase); }
+function getMedicalRtpPhaseOption(phaseKey) { return medicalOptionSelectors.getMedicalRtpPhaseOption(phaseKey); }
+function getMedicalGateOption(value) { return medicalOptionSelectors.getMedicalGateOption(value); }
+function getMedicalStatusForParticipation(participation) { return medicalOptionSelectors.getMedicalStatusForParticipation(participation); }
 const medicalSquadAvailabilityBlockStatusKeys = new Set(
 [
 ...playerProfileStatusOptions.map((option) => option.key),
@@ -12232,15 +11998,9 @@ return "";
 const option = getMedicalPlayerAvailabilityStatusOption(player);
 return `${player.name || "Player"} is marked ${option.label} in Squad Room and should not receive a team-activity recommendation.`;
 }
-function getMedicalRtpPhaseForRecommendation(statusKey, participation, activityType = "training") {
-return medicalOptionSelectors.getMedicalRtpPhaseForRecommendation(statusKey, participation, activityType);
-}
-function normalizeMedicalParticipation(value, fallback = 100) {
-return medicalOptionSelectors.normalizeMedicalParticipation(value, fallback);
-}
-function normalizeMedicalActualParticipation(value) {
-return medicalOptionSelectors.normalizeMedicalActualParticipation(value);
-}
+function getMedicalRtpPhaseForRecommendation(statusKey, participation, activityType = "training") { return medicalOptionSelectors.getMedicalRtpPhaseForRecommendation(statusKey, participation, activityType); }
+function normalizeMedicalParticipation(value, fallback = 100) { return medicalOptionSelectors.normalizeMedicalParticipation(value, fallback); }
+function normalizeMedicalActualParticipation(value) { return medicalOptionSelectors.normalizeMedicalActualParticipation(value); }
 function normalizeMedicalPositionText(value) {
 return String(value ?? "")
 .trim()
@@ -12315,9 +12075,7 @@ archivedBy: String(player.archivedBy ?? player.deletedBy ?? "").trim(),
 archiveReason: String(player.archiveReason ?? player.deleteReason ?? "").trim().slice(0, 160),
 };
 }
-function normalizeMedicalShareValue(value) {
-return value === true || value === "true" || value === "on" || value === "1";
-}
+function normalizeMedicalShareValue(value) { return value === true || value === "true" || value === "on" || value === "1"; }
 function normalizeMedicalTimestamp(value) {
 const cleanValue = String(value ?? "").trim().slice(0, 40);
 return Number.isFinite(Date.parse(cleanValue)) ? cleanValue : "";
@@ -12605,9 +12363,7 @@ function getMedicalPlayerRosterOrder(player) {
 const rosterOrder = Number(player?.rosterOrder);
 return Number.isFinite(rosterOrder) ? rosterOrder : null;
 }
-function getMedicalPlayerPositionRank(player) {
-return medicalPositionOrder[normalizeMedicalPlayerPosition(player?.position, player)] ?? 99;
-}
+function getMedicalPlayerPositionRank(player) { return medicalPositionOrder[normalizeMedicalPlayerPosition(player?.position, player)] ?? 99; }
 function compareMedicalPlayers(first, second) {
 const firstNumber = getMedicalPlayerNumberRank(first);
 const secondNumber = getMedicalPlayerNumberRank(second);
@@ -12675,9 +12431,7 @@ policy: normalizeMedicalGovernancePolicy(source.policy),
 rosterVersion: source.rosterVersion || medicalDefaultRosterVersion,
 };
 }
-function canViewPrivateMedicalDetails() {
-return canEditMedicalTeam();
-}
+function canViewPrivateMedicalDetails() { return canEditMedicalTeam(); }
 function sanitizeMedicalRecordForCoachView(record = {}) {
 const participation = normalizeMedicalParticipation(record.participation, 100);
 const statusKey = medicalStatusOptions.some((status) => status.key === record.status)
@@ -12791,12 +12545,8 @@ archiveMedicalPlayersRemovedFromSquad({ persist: canViewPrivateMedicalDetails() 
 syncMedicalPlayerAvailabilityStatusesFromProfiles();
 return medicalState;
 }
-function getPlayerProfileOption(options, key, fallback = null) {
-return options.find((option) => option.key === key) ?? fallback ?? options[0];
-}
-function getPlayerProfileRosterTypeOption(value) {
-return getPlayerProfileOption(playerProfileRosterTypeOptions, normalizePlayerProfileRosterType(value), playerProfileRosterTypeOptions[0]);
-}
+function getPlayerProfileOption(options, key, fallback = null) { return options.find((option) => option.key === key) ?? fallback ?? options[0]; }
+function getPlayerProfileRosterTypeOption(value) { return getPlayerProfileOption(playerProfileRosterTypeOptions, normalizePlayerProfileRosterType(value), playerProfileRosterTypeOptions[0]); }
 function normalizePlayerProfileRosterTypeKey(value) {
 const cleanValue = String(value ?? "").trim().toLowerCase();
 if (!cleanValue) {
@@ -12815,9 +12565,7 @@ function normalizePlayerProfileRosterType(value, fallback = "squad") {
 const rosterType = normalizePlayerProfileRosterTypeKey(value);
 return playerProfileRosterTypeOptions.some((option) => option.key === rosterType) ? rosterType : fallback;
 }
-function playerProfileRosterTypeCountsInSquad(value) {
-return getPlayerProfileRosterTypeOption(value).countsInSquad !== false;
-}
+function playerProfileRosterTypeCountsInSquad(value) { return getPlayerProfileRosterTypeOption(value).countsInSquad !== false; }
 function normalizePlayerProfileTemporaryDate(value) {
 const cleanValue = String(value ?? "").trim();
 if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanValue)) {
@@ -12829,9 +12577,7 @@ return "";
 }
 return cleanValue;
 }
-function normalizePlayerProfileBirthDate(value) {
-return normalizePlayerProfileTemporaryDate(value);
-}
+function normalizePlayerProfileBirthDate(value) { return normalizePlayerProfileTemporaryDate(value); }
 function normalizePlayerProfileAgeValue(value) {
 const cleanValue = String(value ?? "").trim();
 if (!cleanValue) {
@@ -13028,9 +12774,7 @@ const option = getPlayerProfileRosterTypeOption(player.rosterType);
 const group = String(player.temporaryGroup ?? "").trim();
 return group ? `${option.shortLabel || option.label} / ${group}` : option.label;
 }
-function normalizePlayerProfileTab(tabKey) {
-return playerProfileTabOptions.some((tab) => tab.key === tabKey) ? tabKey : "overview";
-}
+function normalizePlayerProfileTab(tabKey) { return playerProfileTabOptions.some((tab) => tab.key === tabKey) ? tabKey : "overview"; }
 function normalizePlayerProfileRole(value, fallback = "CB") {
 const cleanValue = String(value ?? "").trim().toUpperCase();
 return playerProfileRoleOptions.includes(cleanValue) ? cleanValue : fallback;
@@ -13230,9 +12974,7 @@ duplicates,
 function buildPlayerProfileImportFeedback(result = {}) {
 return buildPlayerProfileImportFeedbackMessage(result, { undoState: getPlayerProfileImportUndoState() });
 }
-function renderPlayerProfilesWorkspaceMessage(message) {
-return squadWorkspaceRenderer.renderMessage(message);
-}
+function renderPlayerProfilesWorkspaceMessage(message) { return squadWorkspaceRenderer.renderMessage(message); }
 function normalizePlayerProfileFutureData(futureData = {}) {
 return {
 matchData: Array.isArray(futureData.matchData) ? futureData.matchData : [],
@@ -13845,9 +13587,7 @@ playerProfilesState = readPlayerProfilesState();
 }
 return playerProfilesState;
 }
-function canEditPlayerProfiles() {
-return canCurrentUserEditWorkspace("player-profiles");
-}
+function canEditPlayerProfiles() { return canCurrentUserEditWorkspace("player-profiles"); }
 function getPlayerProfilesAccessLabel() {
 if (canEditPlayerProfiles()) {
 return isCurrentPlatformUserAdmin() ? "Admin edit access" : "Coach edit access";
@@ -14098,9 +13838,7 @@ return `
     </label>
   `;
 }
-function renderPlayerProfileStatusChip(statusKey, medicalSnapshot = null) {
-return squadRosterRenderer.renderStatusChip(statusKey, medicalSnapshot);
-}
+function renderPlayerProfileStatusChip(statusKey, medicalSnapshot = null) { return squadRosterRenderer.renderStatusChip(statusKey, medicalSnapshot); }
 const playerProfileScoutingDatabaseStorageKey = "football-scouting-imported-database-v1";
 const playerProfileScoutingRecordIndex = Object.freeze({
 id: 0,
@@ -14187,9 +13925,7 @@ return String(value ?? "")
 .replace(/[^a-z0-9]+/g, " ")
 .trim();
 }
-function getPlayerProfileScoutingNameParts(value) {
-return normalizePlayerProfileScoutingText(value).split(" ").filter(Boolean);
-}
+function getPlayerProfileScoutingNameParts(value) { return normalizePlayerProfileScoutingText(value).split(" ").filter(Boolean); }
 function doPlayerProfileScoutingNamesMatch(playerName, recordName) {
 const playerText = normalizePlayerProfileScoutingText(playerName);
 const recordText = normalizePlayerProfileScoutingText(recordName);
@@ -14245,9 +13981,7 @@ renderPlayerProfilesWorkspace();
 playerProfileScoutingDatabaseLoadPromise = null;
 });
 }
-function getPlayerProfileScoutingMetric(database, metricId) {
-return (database?.metrics || []).find((metric) => metric.id === metricId) || null;
-}
+function getPlayerProfileScoutingMetric(database, metricId) { return (database?.metrics || []).find((metric) => metric.id === metricId) || null; }
 function getPlayerProfileScoutingMetricIndex(database, metricId) {
 if (!database) {
 return -1;
@@ -14370,9 +14104,7 @@ high = middle;
 const rawPercentile = Math.max(1, Math.min(99, Math.round((low / values.length) * 100)));
 return direction === "lower" ? Math.max(1, Math.min(99, 101 - rawPercentile)) : rawPercentile;
 }
-function renderPlayerProfileScoutingSpider(player) {
-return squadScoutingSpiderRenderer.render(player);
-}
+function renderPlayerProfileScoutingSpider(player) { return squadScoutingSpiderRenderer.render(player); }
 function getPlayerRoleDnaDefinition(role) {
 const roleKey = normalizePlayerProfileRole(role, "8");
 return playerRoleDnaDefinitions[roleKey] ?? playerRoleDnaDefinitions["8"];
@@ -14870,9 +14602,7 @@ players: buildSquadSessionPlannerContracts(),
 },
 };
 }
-function getSquadFoundationFileStamp() {
-return new Date().toISOString().slice(0, 10);
-}
+function getSquadFoundationFileStamp() { return new Date().toISOString().slice(0, 10); }
 function downloadSquadFoundationTextFile(filename, contents, type = "text/plain") {
 const blob = new Blob([contents], { type });
 const url = URL.createObjectURL(blob);
@@ -16020,9 +15750,7 @@ getDataFoundationPayload: buildSquadDataFoundationPayload,
 getDataQualityReport: buildSquadDataQualityReport,
 getSessionPlannerContractsV2: buildSquadSessionPlannerContracts,
 };
-function canEditMedicalTeam() {
-return canCurrentUserEditWorkspace("medical-team");
-}
+function canEditMedicalTeam() { return canCurrentUserEditWorkspace("medical-team"); }
 function getMedicalAccessLabel() {
 if (canEditMedicalTeam()) {
 return isCurrentPlatformUserAdmin() ? "Admin oversight" : "Medical edit access";
@@ -16056,12 +15784,8 @@ return medicalState.players.filter(
 function isMedicalPlayerVisibleForDate(player = {}, dateValue = medicalState?.selectedDate) {
 return !isTemporaryPlayerProfile(player) || isPlayerProfileTemporaryActiveOnDate(player, dateValue);
 }
-function getActiveMedicalPlayersForDate(dateValue = medicalState?.selectedDate) {
-return getActiveMedicalPlayers().filter((player) => isMedicalPlayerVisibleForDate(player, dateValue));
-}
-function isMedicalInjuryPlanActive(plan, dateValue = medicalState?.selectedDate) {
-return Boolean(plan && !isMedicalItemArchived(plan) && isMedicalDateValue(dateValue) && plan.startDate <= dateValue && plan.endDate >= dateValue);
-}
+function getActiveMedicalPlayersForDate(dateValue = medicalState?.selectedDate) { return getActiveMedicalPlayers().filter((player) => isMedicalPlayerVisibleForDate(player, dateValue)); }
+function isMedicalInjuryPlanActive(plan, dateValue = medicalState?.selectedDate) { return Boolean(plan && !isMedicalItemArchived(plan) && isMedicalDateValue(dateValue) && plan.startDate <= dateValue && plan.endDate >= dateValue); }
 function getMedicalPlayerInjuryPlans(playerId, options = {}) {
 ensureMedicalState();
 const includeArchived = Boolean(options.includeArchived);
@@ -16228,9 +15952,7 @@ return dateComparison;
 return new Date(second.updatedAt || second.createdAt) - new Date(first.updatedAt || first.createdAt);
 });
 }
-function isMedicalRestrictedRecommendationRecord(record) {
-return normalizeMedicalParticipation(record?.participation, 100) !== 100;
-}
+function isMedicalRestrictedRecommendationRecord(record) { return normalizeMedicalParticipation(record?.participation, 100) !== 100; }
 function getMedicalPlayerRestrictedLogRecords(playerId, options = {}) {
 return getMedicalPlayerRecords(playerId, options).filter(isMedicalRestrictedRecommendationRecord);
 }
@@ -16407,24 +16129,12 @@ return null;
 }
 return setMedicalInjuryPlanDraft(draft.playerId, draft);
 }
-function getMedicalDailyStats(dateValue = medicalState?.selectedDate) {
-return medicalCommandSelectors.getMedicalDailyStats(dateValue);
-}
-function getMedicalWindowAverage() {
-return medicalCommandSelectors.getMedicalWindowAverage();
-}
-function getMedicalParticipationAverageForDates(dateValues = []) {
-return medicalCommandSelectors.getMedicalParticipationAverageForDates(dateValues);
-}
-function getMedicalMonthAverageStats() {
-return medicalCommandSelectors.getMedicalMonthAverageStats();
-}
-function getMedicalAttentionPlayers(dateValue = medicalState?.selectedDate) {
-return medicalCommandSelectors.getMedicalAttentionPlayers(dateValue);
-}
-function getMedicalPositionSummaries(dateValue = medicalState?.selectedDate) {
-return medicalCommandSelectors.getMedicalPositionSummaries(dateValue);
-}
+function getMedicalDailyStats(dateValue = medicalState?.selectedDate) { return medicalCommandSelectors.getMedicalDailyStats(dateValue); }
+function getMedicalWindowAverage() { return medicalCommandSelectors.getMedicalWindowAverage(); }
+function getMedicalParticipationAverageForDates(dateValues = []) { return medicalCommandSelectors.getMedicalParticipationAverageForDates(dateValues); }
+function getMedicalMonthAverageStats() { return medicalCommandSelectors.getMedicalMonthAverageStats(); }
+function getMedicalAttentionPlayers(dateValue = medicalState?.selectedDate) { return medicalCommandSelectors.getMedicalAttentionPlayers(dateValue); }
+function getMedicalPositionSummaries(dateValue = medicalState?.selectedDate) { return medicalCommandSelectors.getMedicalPositionSummaries(dateValue); }
 function getMedicalDaySpan(startDateValue, endDateValue) {
 if (!isMedicalDateValue(startDateValue) || !isMedicalDateValue(endDateValue)) {
 return null;
@@ -16432,15 +16142,9 @@ return null;
 const dayMs = 24 * 60 * 60 * 1000;
 return Math.max(1, Math.round((parseScheduleDateValue(endDateValue) - parseScheduleDateValue(startDateValue)) / dayMs) + 1);
 }
-function getMedicalDailyHuddle(dateValue = medicalState?.selectedDate) {
-return medicalCommandSelectors.getMedicalDailyHuddle(dateValue);
-}
-function getMedicalCoachHandoverItems(dateValue = medicalState?.selectedDate) {
-return medicalCommandSelectors.getMedicalCoachHandoverItems(dateValue);
-}
-function buildMedicalCoachHandoverText(dateValue = medicalState?.selectedDate) {
-return medicalCommandSelectors.buildMedicalCoachHandoverText(dateValue);
-}
+function getMedicalDailyHuddle(dateValue = medicalState?.selectedDate) { return medicalCommandSelectors.getMedicalDailyHuddle(dateValue); }
+function getMedicalCoachHandoverItems(dateValue = medicalState?.selectedDate) { return medicalCommandSelectors.getMedicalCoachHandoverItems(dateValue); }
+function buildMedicalCoachHandoverText(dateValue = medicalState?.selectedDate) { return medicalCommandSelectors.buildMedicalCoachHandoverText(dateValue); }
 function recordMedicalAuditEvent(event = {}) {
 const auditBridge = win.footballScienceAudit;
 if (!getCurrentPlatformUser() || !auditBridge?.record) {
@@ -16553,9 +16257,7 @@ renderMedicalTeamWorkspace("Coach-safe handover copied.");
 })
 .catch(() => renderMedicalTeamWorkspace("Coach-safe handover could not be copied."));
 }
-function getMedicalPlayerProfileSummary(player, dateValue = medicalState?.selectedDate) {
-return medicalProfileSummarySelectors.getMedicalPlayerProfileSummary(player, dateValue);
-}
+function getMedicalPlayerProfileSummary(player, dateValue = medicalState?.selectedDate) { return medicalProfileSummarySelectors.getMedicalPlayerProfileSummary(player, dateValue); }
 function getFilteredMedicalPlayers() {
 ensureMedicalState();
 const query = medicalRosterSearchQuery.trim().toLowerCase();
@@ -16586,9 +16288,7 @@ function getMedicalBulkSelectedPlayers() {
 const selectedIds = getMedicalValidBulkSelection();
 return getActiveMedicalPlayersForDate(medicalState.selectedDate).filter((player) => selectedIds.has(player.id)).sort(compareMedicalPlayers);
 }
-function getMedicalBulkRecommendationEligiblePlayers(players = getFilteredMedicalPlayers()) {
-return players.filter((player) => !isMedicalPlayerBlockedBySquadAvailability(player));
-}
+function getMedicalBulkRecommendationEligiblePlayers(players = getFilteredMedicalPlayers()) { return players.filter((player) => !isMedicalPlayerBlockedBySquadAvailability(player)); }
 function toggleMedicalBulkPlayer(playerId) {
 const selectedIds = getMedicalValidBulkSelection();
 const player = getActiveMedicalPlayersForDate(medicalState.selectedDate).find((candidate) => candidate.id === playerId);
@@ -16786,54 +16486,22 @@ updatedBy: getCurrentPlatformUser()?.id || "",
 writeMedicalState();
 return true;
 }
-function normalizeMedicalOperationsTab(tabKey) {
-return medicalOperationsTabOptions.some((tab) => tab.key === tabKey) ? tabKey : "availability";
-}
-function normalizeMedicalPlayerModalTab(tabKey) {
-return medicalPlayerModalTabOptions.some((tab) => tab.key === tabKey) ? tabKey : "availability";
-}
-function getMedicalPlanTotalDays(plan) {
-return medicalPlanSelectors.getMedicalPlanTotalDays(plan);
-}
-function getMedicalPlanElapsedDays(plan, dateValue = medicalState?.selectedDate) {
-return medicalPlanSelectors.getMedicalPlanElapsedDays(plan, dateValue);
-}
-function getMedicalPlanDaysRemaining(plan, dateValue = medicalState?.selectedDate) {
-return medicalPlanSelectors.getMedicalPlanDaysRemaining(plan, dateValue);
-}
-function getMedicalPlanSeverity(plan) {
-return medicalPlanSelectors.getMedicalPlanSeverity(plan);
-}
-function getMedicalPlanClearanceSummary(plan) {
-return medicalPlanSelectors.getMedicalPlanClearanceSummary(plan);
-}
-function getMedicalPlanReviewState(plan, dateValue = medicalState?.selectedDate) {
-return medicalPlanSelectors.getMedicalPlanReviewState(plan, dateValue);
-}
-function getMedicalTrailingRecommendationSummary(playerId, dateValue = medicalState?.selectedDate) {
-return medicalPlanSelectors.getMedicalTrailingRecommendationSummary(playerId, dateValue);
-}
-function getMedicalSeasonPlans(dateValue = medicalState?.selectedDate) {
-return medicalOperationsSelectors.getMedicalSeasonPlans(dateValue);
-}
-function getMedicalActiveCaseItems(dateValue = medicalState?.selectedDate) {
-return medicalOperationsSelectors.getMedicalActiveCaseItems(dateValue);
-}
-function getMedicalHistoryEvents(limit = 40) {
-return medicalOperationsSelectors.getMedicalHistoryEvents(limit);
-}
-function getMedicalSeasonSummary(dateValue = medicalState?.selectedDate) {
-return medicalOperationsSelectors.getMedicalSeasonSummary(dateValue);
-}
-function getMedicalPlayerRiskSignal(player, dateValue = medicalState?.selectedDate) {
-return medicalOperationsSelectors.getMedicalPlayerRiskSignal(player, dateValue);
-}
-function getMedicalRiskSignals(dateValue = medicalState?.selectedDate) {
-return medicalOperationsSelectors.getMedicalRiskSignals(dateValue);
-}
-function getMedicalOperationsSummary(dateValue = medicalState?.selectedDate) {
-return medicalOperationsSelectors.getMedicalOperationsSummary(dateValue);
-}
+function normalizeMedicalOperationsTab(tabKey) { return medicalOperationsTabOptions.some((tab) => tab.key === tabKey) ? tabKey : "availability"; }
+function normalizeMedicalPlayerModalTab(tabKey) { return medicalPlayerModalTabOptions.some((tab) => tab.key === tabKey) ? tabKey : "availability"; }
+function getMedicalPlanTotalDays(plan) { return medicalPlanSelectors.getMedicalPlanTotalDays(plan); }
+function getMedicalPlanElapsedDays(plan, dateValue = medicalState?.selectedDate) { return medicalPlanSelectors.getMedicalPlanElapsedDays(plan, dateValue); }
+function getMedicalPlanDaysRemaining(plan, dateValue = medicalState?.selectedDate) { return medicalPlanSelectors.getMedicalPlanDaysRemaining(plan, dateValue); }
+function getMedicalPlanSeverity(plan) { return medicalPlanSelectors.getMedicalPlanSeverity(plan); }
+function getMedicalPlanClearanceSummary(plan) { return medicalPlanSelectors.getMedicalPlanClearanceSummary(plan); }
+function getMedicalPlanReviewState(plan, dateValue = medicalState?.selectedDate) { return medicalPlanSelectors.getMedicalPlanReviewState(plan, dateValue); }
+function getMedicalTrailingRecommendationSummary(playerId, dateValue = medicalState?.selectedDate) { return medicalPlanSelectors.getMedicalTrailingRecommendationSummary(playerId, dateValue); }
+function getMedicalSeasonPlans(dateValue = medicalState?.selectedDate) { return medicalOperationsSelectors.getMedicalSeasonPlans(dateValue); }
+function getMedicalActiveCaseItems(dateValue = medicalState?.selectedDate) { return medicalOperationsSelectors.getMedicalActiveCaseItems(dateValue); }
+function getMedicalHistoryEvents(limit = 40) { return medicalOperationsSelectors.getMedicalHistoryEvents(limit); }
+function getMedicalSeasonSummary(dateValue = medicalState?.selectedDate) { return medicalOperationsSelectors.getMedicalSeasonSummary(dateValue); }
+function getMedicalPlayerRiskSignal(player, dateValue = medicalState?.selectedDate) { return medicalOperationsSelectors.getMedicalPlayerRiskSignal(player, dateValue); }
+function getMedicalRiskSignals(dateValue = medicalState?.selectedDate) { return medicalOperationsSelectors.getMedicalRiskSignals(dateValue); }
+function getMedicalOperationsSummary(dateValue = medicalState?.selectedDate) { return medicalOperationsSelectors.getMedicalOperationsSummary(dateValue); }
 function renderMedicalOperationsTopMenu() {
 if (!canViewPrivateMedicalDetails()) {
 return "";
@@ -16849,12 +16517,8 @@ medicalOperationsTab = normalizeMedicalOperationsTab(medicalOperationsTab);
 const summary = getMedicalOperationsSummary(medicalState.selectedDate);
 return medicalOperationsRenderer.renderPrivateSystem(summary, medicalOperationsTab, medicalState.selectedDate);
 }
-function getMedicalRosterPositionGroups(players = []) {
-return medicalRosterSelectors.getMedicalRosterPositionGroups(players);
-}
-function getMedicalRosterPositionStats(players = []) {
-return medicalRosterSelectors.getMedicalRosterPositionStats(players);
-}
+function getMedicalRosterPositionGroups(players = []) { return medicalRosterSelectors.getMedicalRosterPositionGroups(players); }
+function getMedicalRosterPositionStats(players = []) { return medicalRosterSelectors.getMedicalRosterPositionStats(players); }
 function renderMedicalTeamWorkspace(message = "", options = {}) {
 if (!ui.medicalTeamWorkspace) {
 return;
@@ -17232,18 +16896,10 @@ const nextDate = new Date(date);
 nextDate.setDate(nextDate.getDate() + days);
 return nextDate;
 }
-function getPeriodizationDayScheduleLabel(day) {
-return periodizationRenderer.getDayScheduleLabel(day);
-}
-function getPeriodizationMatchDayLabel(value) {
-return periodizationRenderer.getMatchDayLabel(value);
-}
-function getPeriodizationMultiFieldValue(field, dateValue) {
-return periodizationRenderer.getMultiFieldValue(field, dateValue);
-}
-function getPeriodizationCustomFieldValue(field, dateValue) {
-return periodizationRenderer.getCustomFieldValue(field, dateValue);
-}
+function getPeriodizationDayScheduleLabel(day) { return periodizationRenderer.getDayScheduleLabel(day); }
+function getPeriodizationMatchDayLabel(value) { return periodizationRenderer.getMatchDayLabel(value); }
+function getPeriodizationMultiFieldValue(field, dateValue) { return periodizationRenderer.getMultiFieldValue(field, dateValue); }
+function getPeriodizationCustomFieldValue(field, dateValue) { return periodizationRenderer.getCustomFieldValue(field, dateValue); }
 function refreshSessionPlannerMatchDayChip() {
 if (!ui.sessionPlannerWorkspace || !sessionPlannerState) {
 return;
@@ -17294,12 +16950,8 @@ periodizationState.selectedMonthIndex = Number.isInteger(monthIndex)
 },
 refreshMatchDayChip: refreshSessionPlannerMatchDayChip,
 });
-function renderSessionPlannerPeriodizationSummary(dateValue) {
-return sessionPlannerPeriodizationBridge.renderSummary(dateValue);
-}
-function renderSessionPlannerPeriodizationOverlay() {
-return sessionPlannerPeriodizationBridge.renderOverlay();
-}
+function renderSessionPlannerPeriodizationSummary(dateValue) { return sessionPlannerPeriodizationBridge.renderSummary(dateValue); }
+function renderSessionPlannerPeriodizationOverlay() { return sessionPlannerPeriodizationBridge.renderOverlay(); }
 function refreshPeriodizationBoardMultiField(key) {
 if (!periodizationState?.selectedDate || !ui.periodizationBoard) {
 return;
@@ -17871,9 +17523,7 @@ queueCentralStateStatus(error?.message || `${reason} failed.`);
 centralStateRefreshInFlight = false;
 });
 }
-function canEditScenario() {
-return canEditGameSimulatorWorkspace() && !state.isRunning && !state.sequence.isPlaying;
-}
+function canEditScenario() { return canEditGameSimulatorWorkspace() && !state.isRunning && !state.sequence.isPlaying; }
 function applyTeamFormation(teamId, formation) {
 teams[teamId].formation = formation;
 setTeamFormationOnPlayers(state.players, teamId, formation);
@@ -17888,15 +17538,9 @@ state.ball.target = cloneVector(controlPoint);
 }
 }
 }
-function getScaleX() {
-return canvas.width / pitch.length;
-}
-function getScaleY() {
-return canvas.height / pitch.width;
-}
-function getMetersToPixels() {
-return getScaleX();
-}
+function getScaleX() { return canvas.width / pitch.length; }
+function getScaleY() { return canvas.height / pitch.width; }
+function getMetersToPixels() { return getScaleX(); }
 function toCanvas(point) {
 return {
 x: point.x * getScaleX(),
@@ -17921,9 +17565,7 @@ state.eventLog = state.eventLog.slice(-18);
 }
 }
 }
-function getPlayerById(playerId) {
-return state.players.find((player) => player.id === playerId) ?? null;
-}
+function getPlayerById(playerId) { return state.players.find((player) => player.id === playerId) ?? null; }
 function normalizeSelectedPlayerIds(playerIds = [], fallbackId = null) {
 const seen = new Set();
 const normalized = [];
@@ -17939,9 +17581,7 @@ normalized.push(fallbackId);
 }
 return normalized;
 }
-function getSelectedPlayerIds() {
-return normalizeSelectedPlayerIds(state.selectedPlayerIds, state.selectedPlayerId);
-}
+function getSelectedPlayerIds() { return normalizeSelectedPlayerIds(state.selectedPlayerIds, state.selectedPlayerId); }
 function setSelectedPlayers(playerIds, primaryId = null) {
 const normalized = normalizeSelectedPlayerIds(playerIds, primaryId ?? state.selectedPlayerId);
 const nextPrimary =
@@ -17972,36 +17612,24 @@ return;
 }
 setSelectedPlayers([...selectedIds, playerId], state.selectedPlayerId ?? playerId);
 }
-function isPlayerSelected(playerId) {
-return getSelectedPlayerIds().includes(playerId);
-}
+function isPlayerSelected(playerId) { return getSelectedPlayerIds().includes(playerId); }
 function getSelectionPreviewIds() {
 if (state.drag?.type === "selection" && state.drag.moved && Array.isArray(state.drag.previewSelectedPlayerIds)) {
 return state.drag.previewSelectedPlayerIds;
 }
 return null;
 }
-function getRenderedSelectedPlayerIds() {
-return getSelectionPreviewIds() ?? getSelectedPlayerIds();
-}
-function isPlayerRenderedSelected(playerId) {
-return getRenderedSelectedPlayerIds().includes(playerId);
-}
+function getRenderedSelectedPlayerIds() { return getSelectionPreviewIds() ?? getSelectedPlayerIds(); }
+function isPlayerRenderedSelected(playerId) { return getRenderedSelectedPlayerIds().includes(playerId); }
 function getRenderedPrimarySelectedPlayerId() {
 if (state.drag?.type === "selection" && state.drag.moved && state.drag.previewPrimaryPlayerId) {
 return state.drag.previewPrimaryPlayerId;
 }
 return state.selectedPlayerId;
 }
-function isSelectionModifierActive(event) {
-return event.shiftKey || event.metaKey || event.ctrlKey;
-}
-function getSelectedPlayer() {
-return getPlayerById(state.selectedPlayerId) ?? getPlayerById(getSelectedPlayerIds()[0]) ?? null;
-}
-function getBallOwner() {
-return getPlayerById(state.ball.ownerPlayerId);
-}
+function isSelectionModifierActive(event) { return event.shiftKey || event.metaKey || event.ctrlKey; }
+function getSelectedPlayer() { return getPlayerById(state.selectedPlayerId) ?? getPlayerById(getSelectedPlayerIds()[0]) ?? null; }
+function getBallOwner() { return getPlayerById(state.ball.ownerPlayerId); }
 function cloneTeamIdentity(identity) {
 return {
 attackStyle: identity?.attackStyle ?? "balanced",
@@ -18042,12 +17670,8 @@ defenseStyle: incoming.defenseStyle ?? defaults.defenseStyle ?? "balanced-block"
 function resetTeamIdentities() {
 applyTeamIdentities(defaultTeamIdentities);
 }
-function getTeamAttackStyleKey(teamId) {
-return teams[teamId]?.identity?.attackStyle ?? defaultTeamIdentities[teamId]?.attackStyle ?? "balanced";
-}
-function getTeamDefenseStyleKey(teamId) {
-return teams[teamId]?.identity?.defenseStyle ?? defaultTeamIdentities[teamId]?.defenseStyle ?? "balanced-block";
-}
+function getTeamAttackStyleKey(teamId) { return teams[teamId]?.identity?.attackStyle ?? defaultTeamIdentities[teamId]?.attackStyle ?? "balanced"; }
+function getTeamDefenseStyleKey(teamId) { return teams[teamId]?.identity?.defenseStyle ?? defaultTeamIdentities[teamId]?.defenseStyle ?? "balanced-block"; }
 function getTeamAttackStyleProfile(teamId) {
 const styleKey = getTeamAttackStyleKey(teamId);
 return attackStylePresets[styleKey] ?? attackStylePresets.balanced;
@@ -18129,42 +17753,18 @@ throw new Error(`Game simulator sequence engine is not ready: ${methodName}`);
 }
 return gameSimulatorSequenceEngine[methodName](...args);
 }
-function captureSnapshot(...args) {
-return invokeGameSimulatorSequenceEngine("captureSnapshot", args);
-}
-function applySnapshot(...args) {
-return invokeGameSimulatorSequenceEngine("applySnapshot", args);
-}
-function cloneSnapshot(...args) {
-return invokeGameSimulatorSequenceEngine("cloneSnapshot", args);
-}
-function cloneSequenceStep(...args) {
-return invokeGameSimulatorSequenceEngine("cloneSequenceStep", args);
-}
-function buildSnapshotFromFormations(...args) {
-return invokeGameSimulatorSequenceEngine("buildSnapshotFromFormations", args);
-}
-function withSnapshotOverrides(...args) {
-return invokeGameSimulatorSequenceEngine("withSnapshotOverrides", args);
-}
-function createLowBlockPressExample(...args) {
-return invokeGameSimulatorSequenceEngine("createLowBlockPressExample", args);
-}
-function loadLowBlockPressExample(...args) {
-return invokeGameSimulatorSequenceEngine("loadLowBlockPressExample", args);
-}
-function cloneScenarioInfo(...args) {
-return invokeGameSimulatorSequenceEngine("cloneScenarioInfo", args);
-}
-function markSimulatorDirty(...args) {
-return invokeGameSimulatorSequenceEngine("markSimulatorDirty", args);
-}
-function markSequenceDirty(...args) {
-return invokeGameSimulatorSequenceEngine("markSequenceDirty", args);
-}
-function markSimulatorSaved(...args) {
-return invokeGameSimulatorSequenceEngine("markSimulatorSaved", args);
-}
+function captureSnapshot(...args) { return invokeGameSimulatorSequenceEngine("captureSnapshot", args); }
+function applySnapshot(...args) { return invokeGameSimulatorSequenceEngine("applySnapshot", args); }
+function cloneSnapshot(...args) { return invokeGameSimulatorSequenceEngine("cloneSnapshot", args); }
+function cloneSequenceStep(...args) { return invokeGameSimulatorSequenceEngine("cloneSequenceStep", args); }
+function buildSnapshotFromFormations(...args) { return invokeGameSimulatorSequenceEngine("buildSnapshotFromFormations", args); }
+function withSnapshotOverrides(...args) { return invokeGameSimulatorSequenceEngine("withSnapshotOverrides", args); }
+function createLowBlockPressExample(...args) { return invokeGameSimulatorSequenceEngine("createLowBlockPressExample", args); }
+function loadLowBlockPressExample(...args) { return invokeGameSimulatorSequenceEngine("loadLowBlockPressExample", args); }
+function cloneScenarioInfo(...args) { return invokeGameSimulatorSequenceEngine("cloneScenarioInfo", args); }
+function markSimulatorDirty(...args) { return invokeGameSimulatorSequenceEngine("markSimulatorDirty", args); }
+function markSequenceDirty(...args) { return invokeGameSimulatorSequenceEngine("markSequenceDirty", args); }
+function markSimulatorSaved(...args) { return invokeGameSimulatorSequenceEngine("markSimulatorSaved", args); }
 function readSavedSequenceLibrary(...args) {
 if (!gameSimulatorSequenceEngine?.readSavedSequenceLibrary) {
 try {
@@ -18185,72 +17785,28 @@ return [];
 }
 return invokeGameSimulatorSequenceEngine("readSavedSequenceLibrary", args);
 }
-function writeSavedSequenceLibrary(...args) {
-return invokeGameSimulatorSequenceEngine("writeSavedSequenceLibrary", args);
-}
-function sanitizeFileName(...args) {
-return invokeGameSimulatorSequenceEngine("sanitizeFileName", args);
-}
-function goToSequenceFrame(...args) {
-return invokeGameSimulatorSequenceEngine("goToSequenceFrame", args);
-}
-function cancelSequenceAdvance(...args) {
-return invokeGameSimulatorSequenceEngine("cancelSequenceAdvance", args);
-}
-function stopSequencePlayback(...args) {
-return invokeGameSimulatorSequenceEngine("stopSequencePlayback", args);
-}
-function finishSequencePlayback(...args) {
-return invokeGameSimulatorSequenceEngine("finishSequencePlayback", args);
-}
-function queueNextSequenceStep(...args) {
-return invokeGameSimulatorSequenceEngine("queueNextSequenceStep", args);
-}
-function startRecordedAction(...args) {
-return invokeGameSimulatorSequenceEngine("startRecordedAction", args);
-}
-function createCommittedSnapshotFromCurrentState(...args) {
-return invokeGameSimulatorSequenceEngine("createCommittedSnapshotFromCurrentState", args);
-}
-function applyCommittedSnapshot(...args) {
-return invokeGameSimulatorSequenceEngine("applyCommittedSnapshot", args);
-}
-function serializeSequence(...args) {
-return invokeGameSimulatorSequenceEngine("serializeSequence", args);
-}
-function loadSequenceData(...args) {
-return invokeGameSimulatorSequenceEngine("loadSequenceData", args);
-}
-function saveSequenceToLocal(...args) {
-return invokeGameSimulatorSequenceEngine("saveSequenceToLocal", args);
-}
-function loadSequenceFromLocal(...args) {
-return invokeGameSimulatorSequenceEngine("loadSequenceFromLocal", args);
-}
-function downloadSequence(...args) {
-return invokeGameSimulatorSequenceEngine("downloadSequence", args);
-}
-function createStepThumbnail(...args) {
-return invokeGameSimulatorSequenceEngine("createStepThumbnail", args);
-}
-function startSequenceStep(...args) {
-return invokeGameSimulatorSequenceEngine("startSequenceStep", args);
-}
-function startSequencePlayback(...args) {
-return invokeGameSimulatorSequenceEngine("startSequencePlayback", args);
-}
-function getActiveExampleOverlay(...args) {
-return invokeGameSimulatorSequenceEngine("getActiveExampleOverlay", args);
-}
-function getSavedSequenceById(...args) {
-return invokeGameSimulatorSequenceEngine("getSavedSequenceById", args);
-}
-function loadSavedSequenceEntry(...args) {
-return invokeGameSimulatorSequenceEngine("loadSavedSequenceEntry", args);
-}
-function removeSavedSequenceEntry(...args) {
-return invokeGameSimulatorSequenceEngine("removeSavedSequenceEntry", args);
-}
+function writeSavedSequenceLibrary(...args) { return invokeGameSimulatorSequenceEngine("writeSavedSequenceLibrary", args); }
+function sanitizeFileName(...args) { return invokeGameSimulatorSequenceEngine("sanitizeFileName", args); }
+function goToSequenceFrame(...args) { return invokeGameSimulatorSequenceEngine("goToSequenceFrame", args); }
+function cancelSequenceAdvance(...args) { return invokeGameSimulatorSequenceEngine("cancelSequenceAdvance", args); }
+function stopSequencePlayback(...args) { return invokeGameSimulatorSequenceEngine("stopSequencePlayback", args); }
+function finishSequencePlayback(...args) { return invokeGameSimulatorSequenceEngine("finishSequencePlayback", args); }
+function queueNextSequenceStep(...args) { return invokeGameSimulatorSequenceEngine("queueNextSequenceStep", args); }
+function startRecordedAction(...args) { return invokeGameSimulatorSequenceEngine("startRecordedAction", args); }
+function createCommittedSnapshotFromCurrentState(...args) { return invokeGameSimulatorSequenceEngine("createCommittedSnapshotFromCurrentState", args); }
+function applyCommittedSnapshot(...args) { return invokeGameSimulatorSequenceEngine("applyCommittedSnapshot", args); }
+function serializeSequence(...args) { return invokeGameSimulatorSequenceEngine("serializeSequence", args); }
+function loadSequenceData(...args) { return invokeGameSimulatorSequenceEngine("loadSequenceData", args); }
+function saveSequenceToLocal(...args) { return invokeGameSimulatorSequenceEngine("saveSequenceToLocal", args); }
+function loadSequenceFromLocal(...args) { return invokeGameSimulatorSequenceEngine("loadSequenceFromLocal", args); }
+function downloadSequence(...args) { return invokeGameSimulatorSequenceEngine("downloadSequence", args); }
+function createStepThumbnail(...args) { return invokeGameSimulatorSequenceEngine("createStepThumbnail", args); }
+function startSequenceStep(...args) { return invokeGameSimulatorSequenceEngine("startSequenceStep", args); }
+function startSequencePlayback(...args) { return invokeGameSimulatorSequenceEngine("startSequencePlayback", args); }
+function getActiveExampleOverlay(...args) { return invokeGameSimulatorSequenceEngine("getActiveExampleOverlay", args); }
+function getSavedSequenceById(...args) { return invokeGameSimulatorSequenceEngine("getSavedSequenceById", args); }
+function loadSavedSequenceEntry(...args) { return invokeGameSimulatorSequenceEngine("loadSavedSequenceEntry", args); }
+function removeSavedSequenceEntry(...args) { return invokeGameSimulatorSequenceEngine("removeSavedSequenceEntry", args); }
 gameSimulatorSequenceEngine = createGameSimulatorSequenceEngine({
   applyBallExecutionProfile: (...args) => applyBallExecutionProfile(...args),
   applyPhysicalProfileToPlayers: (...args) => applyPhysicalProfileToPlayers(...args),
@@ -18391,9 +17947,7 @@ markSimulatorDirty,
 clearSelectedPlayers,
 render,
 });
-function isGameSimulatorWorkspaceActive() {
-return hubState?.activeWorkspaceId === "game-simulator";
-}
+function isGameSimulatorWorkspaceActive() { return hubState?.activeWorkspaceId === "game-simulator"; }
 function shouldIgnoreSimulatorTextOrModifierTarget(event) { const t = event?.target, tag = t?.tagName; return Boolean(event?.metaKey || event?.ctrlKey || event?.altKey || ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(tag) || t?.isContentEditable); }
 async function ensureGameSimulatorControllers() {
 if (gameSimulatorWorkspaceController) return;
@@ -18886,9 +18440,7 @@ if (gameSimulatorKeyboardState) return gameSimulatorKeyboardState.armKeyboardAct
 state.keyboardActionGraceMode = mode;
 state.keyboardActionGraceUntil = Date.now() + durationMs;
 }
-function getPointerRequestedActionMode() {
-return gameSimulatorKeyboardState?.getPointerRequestedActionMode(state) ?? state.keyboardActionMode ?? state.actionMode;
-}
+function getPointerRequestedActionMode() { return gameSimulatorKeyboardState?.getPointerRequestedActionMode(state) ?? state.keyboardActionMode ?? state.actionMode; }
 function consumePointerActionMode(mode) { gameSimulatorKeyboardState?.consumePointerActionMode(state, mode); }
 function setKeyboardActionMode(mode) {
 if (gameSimulatorKeyboardState) return gameSimulatorKeyboardState.setKeyboardActionMode(state, mode);
@@ -22312,9 +21864,7 @@ syncExerciseReview: field.dataset.sessionField === "postSessionNotes",
 renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 });
 const SESSION_TACTICALBOARD_KEY_HANDLED = "__sessionTacticalboardKeyHandled";
-function isSessionPlannerShortcutTextEditingTarget(target) {
-return Boolean(target?.closest?.("input, textarea, select, [contenteditable='true']"));
-}
+function isSessionPlannerShortcutTextEditingTarget(target) { return Boolean(target?.closest?.("input, textarea, select, [contenteditable='true']")); }
 function hasSessionPlannerActiveTextSelection() {
 const selection = win.getSelection?.();
 return Boolean(selection && !selection.isCollapsed && String(selection).trim());

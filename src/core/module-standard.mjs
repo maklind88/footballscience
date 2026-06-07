@@ -204,6 +204,7 @@ export const moduleStandardContracts = Object.freeze([
       "src/modules/periodization/periodization-renderer.mjs",
       "src/modules/periodization/periodization-controller.mjs",
       "src/modules/periodization/periodization-session-bridge.mjs",
+      "src/modules/periodization/periodization-workspace-shell.mjs",
     ],
     testFiles: ["qa/critical-flows.smoke.spec.mjs", "qa/periodization-module-contract.api.spec.mjs"],
     extractionOrder: 8,

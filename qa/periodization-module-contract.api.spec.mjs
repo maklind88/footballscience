@@ -5,6 +5,7 @@ import { expect, test } from "@playwright/test";
 import {
   createPeriodizationSessionBridge,
   createPeriodizationWorkspaceController,
+  createPeriodizationWorkspaceShell,
   createPeriodizationRenderer,
   createPeriodizationStateAdapter,
   normalizePeriodizationMultiValue,
@@ -58,6 +59,7 @@ test("Periodization extraction owns the state, renderer, controller, and bridge 
     "src/modules/periodization/periodization-renderer.mjs",
     "src/modules/periodization/periodization-controller.mjs",
     "src/modules/periodization/periodization-session-bridge.mjs",
+    "src/modules/periodization/periodization-workspace-shell.mjs",
   ].forEach((path) => {
     expect(existsSync(resolve(root, path)), `${path} should exist`).toBe(true);
   });
@@ -70,12 +72,14 @@ test("Periodization app integration delegates state, renderer, controller, bridg
   expect(app).toContain("./src/modules/periodization/periodization-renderer.mjs");
   expect(app).toContain("./src/modules/periodization/periodization-controller.mjs");
   expect(app).toContain("./src/modules/periodization/periodization-session-bridge.mjs");
+  expect(app).toContain("./src/modules/periodization/periodization-workspace-shell.mjs");
   expect(app).toContain("createPeriodizationStateAdapter");
   expect(app).toContain("createPeriodizationRenderer");
   expect(app).toContain("createPeriodizationWorkspaceController");
   expect(app).toContain("createPeriodizationSessionBridge");
+  expect(app).toContain("createPeriodizationWorkspaceShell");
   expect(app).toContain("getPeriodizationDay: getPeriodizationDayFromState");
-  expect(app).toContain("periodizationRenderer.renderWorkspace");
+  expect(app).toContain("renderWorkspace: renderPeriodizationWorkspace");
   expect(app).toContain("periodizationWorkspaceController.bind()");
   expect(app).toContain("sessionPlannerPeriodizationBridge.handleClick(event)");
   expect(app).not.toContain("let sessionPlannerPeriodizationOverlayDate");
@@ -83,10 +87,71 @@ test("Periodization app integration delegates state, renderer, controller, bridg
   expect(app).not.toContain("function renderPeriodizationDayCard(");
   expect(app).not.toContain("function renderPeriodizationWeek(");
   expect(app).not.toContain("function renderPeriodizationDayViewPanel(");
+  expect(app).not.toContain("function renderPeriodizationWorkspace(");
+  expect(app).not.toContain("function refreshPeriodizationBoardMultiField(");
   expect(app).not.toContain("const periodizationPhaseLibrary =");
   expect(app).not.toContain("function normalizePeriodizationDay(day");
   expect(app).not.toContain("function clonePeriodizationState(");
   expect(app).not.toContain("function mergePeriodizationStatePreservingLocalUi(");
+});
+
+test("Periodization workspace shell renders chrome and refreshes dependent fields", () => {
+  const classNames = new Set();
+  const multiField = { outerHTML: "" };
+  const overlayPanel = { scrollTop: 42 };
+  const boardQueries = [];
+  const ui = {
+    periodizationShell: { classList: { add: (className) => classNames.add(className) } },
+    periodizationHeading: { textContent: "" },
+    periodizationBoard: {
+      innerHTML: "",
+      querySelector: (selector) => {
+        boardQueries.push(selector);
+        if (selector.includes('data-periodization-multi-field="subPhases"')) return multiField;
+        if (selector === ".periodization-day-overlay .periodization-day-panel") return overlayPanel;
+        return null;
+      },
+    },
+    periodizationMonthSelect: { value: "" },
+    periodizationWindowLabel: { textContent: "" },
+    periodizationPrevMonthButton: { disabled: false },
+    periodizationNextMonthButton: { disabled: false },
+  };
+  let overlayMode = "edit";
+  const shell = createPeriodizationWorkspaceShell({
+    ui,
+    getState: () => ({ selectedDate: "2026-05-08" }),
+    canEdit: () => false,
+    getOverlayState: () => ({ open: true, mode: overlayMode }),
+    setOverlayMode: (mode) => {
+      overlayMode = mode;
+    },
+    renderer: {
+      renderWorkspace: (_state, overlay) => {
+        expect(overlay).toEqual({ overlayOpen: true, overlayMode: "view" });
+        return {
+          bodyHtml: "<section>Board</section>",
+          nextDisabled: true,
+          prevDisabled: false,
+          selectedMonthIndex: 4,
+          selectedMonthName: "May",
+          selectedYear: 2026,
+        };
+      },
+      renderMultiFieldForDate: (key, dateValue) => `<div>${key}:${dateValue}</div>`,
+    },
+  });
+
+  shell.renderWorkspace();
+  expect(overlayMode).toBe("view");
+  expect(classNames.has("is-coach-board")).toBe(true);
+  expect(ui.periodizationHeading.textContent).toBe("May 2026");
+  expect(ui.periodizationBoard.innerHTML).toBe("<section>Board</section>");
+  expect(overlayPanel.scrollTop).toBe(42);
+
+  shell.refreshDependentFields("matchPhases");
+  expect(multiField.outerHTML).toBe("<div>subPhases:2026-05-08</div>");
+  expect(boardQueries.some((selector) => selector.includes("miniGamePrinciples"))).toBe(true);
 });
 
 test("Periodization controller delegates board clicks and field changes through the module boundary", () => {

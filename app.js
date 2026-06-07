@@ -45,6 +45,7 @@ import {
 import { createPeriodizationWorkspaceController } from "./src/modules/periodization/periodization-controller.mjs";
 import { createPeriodizationRenderer } from "./src/modules/periodization/periodization-renderer.mjs";
 import { createPeriodizationSessionBridge } from "./src/modules/periodization/periodization-session-bridge.mjs";
+import { createPeriodizationWorkspaceShell } from "./src/modules/periodization/periodization-workspace-shell.mjs";
 import {
   createExerciseLibraryActions,
   createExerciseLibraryRenderer,
@@ -12716,72 +12717,21 @@ refreshMatchDayChip: refreshSessionPlannerMatchDayChip,
 });
 function renderSessionPlannerPeriodizationSummary(dateValue) { return sessionPlannerPeriodizationBridge.renderSummary(dateValue); }
 function renderSessionPlannerPeriodizationOverlay() { return sessionPlannerPeriodizationBridge.renderOverlay(); }
-function refreshPeriodizationBoardMultiField(key) {
-if (!periodizationState?.selectedDate || !ui.periodizationBoard) {
-return;
-}
-const field = ui.periodizationBoard.querySelector(`[data-periodization-multi-field="${key}"]`);
-const html = periodizationRenderer.renderMultiFieldForDate(key, periodizationState.selectedDate);
-if (!field || !html) {
-return;
-}
-field.outerHTML = html;
-}
-function refreshPeriodizationBoardMultiFields(keys = []) {
-Array.from(new Set((Array.isArray(keys) ? keys : [keys]).filter(Boolean))).forEach((key) => {
-refreshPeriodizationBoardMultiField(key);
+const periodizationWorkspaceShell = createPeriodizationWorkspaceShell({
+ui,
+renderer: periodizationRenderer,
+getState: () => periodizationState,
+canEdit: canEditPeriodizationWorkspace,
+getOverlayState: () => ({ open: periodizationDayOverlayOpen, mode: periodizationDayOverlayMode }),
+setOverlayMode: (mode) => {
+periodizationDayOverlayMode = mode === "edit" ? "edit" : "view";
+},
 });
-}
-function refreshPeriodizationBoardDependentFields(changedKey = "") {
-if (changedKey === "matchPhases") {
-refreshPeriodizationBoardMultiFields(["subPhases", "teamPrinciples", "miniGamePrinciples"]);
-return;
-}
-if (changedKey === "subPhases") {
-refreshPeriodizationBoardMultiFields(["teamPrinciples", "miniGamePrinciples"]);
-}
-}
-function renderPeriodizationWorkspace() {
-if (
-!ui.periodizationShell ||
-!ui.periodizationHeading ||
-!ui.periodizationBoard
-) {
-return;
-}
-const wasPeriodizationOverlayOpen = periodizationDayOverlayOpen;
-const previousPeriodizationOverlayScrollTop = wasPeriodizationOverlayOpen
-? ui.periodizationBoard.querySelector(".periodization-day-overlay .periodization-day-panel")?.scrollTop ?? 0
-: 0;
-if (!canEditPeriodizationWorkspace() && periodizationDayOverlayMode === "edit") {
-periodizationDayOverlayMode = "view";
-}
-const rendered = periodizationRenderer.renderWorkspace(periodizationState, {
-overlayOpen: periodizationDayOverlayOpen,
-overlayMode: periodizationDayOverlayMode,
-});
-ui.periodizationShell.classList.add("is-coach-board");
-ui.periodizationHeading.textContent = `${rendered.selectedMonthName} ${rendered.selectedYear}`;
-if (ui.periodizationMonthSelect) {
-ui.periodizationMonthSelect.value = String(rendered.selectedMonthIndex);
-}
-if (ui.periodizationWindowLabel) {
-ui.periodizationWindowLabel.textContent = `${rendered.selectedMonthName} ${rendered.selectedYear}`;
-}
-if (ui.periodizationPrevMonthButton) {
-ui.periodizationPrevMonthButton.disabled = rendered.prevDisabled;
-}
-if (ui.periodizationNextMonthButton) {
-ui.periodizationNextMonthButton.disabled = rendered.nextDisabled;
-}
-ui.periodizationBoard.innerHTML = rendered.bodyHtml;
-if (wasPeriodizationOverlayOpen && periodizationDayOverlayOpen) {
-const overlayPanel = ui.periodizationBoard.querySelector(".periodization-day-overlay .periodization-day-panel");
-if (overlayPanel && Number.isFinite(previousPeriodizationOverlayScrollTop)) {
-overlayPanel.scrollTop = previousPeriodizationOverlayScrollTop;
-}
-}
-}
+const {
+renderWorkspace: renderPeriodizationWorkspace,
+refreshBoardMultiFields: refreshPeriodizationBoardMultiFields,
+refreshDependentFields: refreshPeriodizationBoardDependentFields,
+} = periodizationWorkspaceShell;
 const periodizationWorkspaceController = createPeriodizationWorkspaceController({
 ui,
 getState: () => periodizationState,

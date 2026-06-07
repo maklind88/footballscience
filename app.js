@@ -44,7 +44,7 @@ import {
   sessionPlannerExerciseLibraryVersionLimit,
   sessionPlannerLibrarySortOptions,
 } from "./src/modules/exercise-library/index.mjs";
-import { createSessionPlannerAutosaveBoundary, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerVisualRenderer, createSessionPlannerWorkspaceRenderer, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
+import { createSessionPlannerAutosaveBoundary, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerSelectionAssistant, createSessionPlannerVisualRenderer, createSessionPlannerWorkspaceRenderer, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createPasswordRevealInputRenderer } from "./src/core/form-renderers.mjs";
@@ -3694,6 +3694,25 @@ isMedicalPlayerBlockedBySquadAvailability,
 isPlayerProfileTemporaryActiveOnDate,
 isTemporaryPlayerProfile,
 parseScheduleDateValue,
+});
+const {
+buildSelectionAssistant: buildSessionPlannerSelectionAssistant,
+} = createSessionPlannerSelectionAssistant({
+clamp,
+comparePlayers: compareMedicalPlayers,
+getBridgeBestMatches: getSessionPlannerPlayerBoardBridgeBestMatches,
+getCareerScore: getSessionPlannerPlayerBoardCareerScore,
+getFormationInput: () => sessionPlannerPlayerBoardFormationInput,
+getImportanceScore: getSessionPlannerPlayerBoardImportanceScore,
+getMinutesScore: getSessionPlannerPlayerBoardMinutesScore,
+getPlayerBoardPlayers: getSessionPlannerPlayerBoardPlayers,
+getRoleGroupForRole: getSessionPlannerPlayerBoardRoleGroupForRole,
+getSelectedBlock: getSessionPlannerSelectedBlock,
+normalizePlayerProfileRole,
+normalizeProfileKey: normalizeSessionPlannerPlayerBoardProfileKey,
+normalizeRoleGroupKey: normalizeSessionPlannerPlayerBoardRoleGroupKey,
+normalizeSquadStatusKey: normalizeSessionPlannerPlayerBoardSquadStatusKey,
+parseFormation: parseSessionPlannerPlayerBoardFormation,
 });
 const sessionPlannerPlayerBoardRenderer = createSessionPlannerPlayerBoardRenderer({
 escapeHtml,
@@ -15376,205 +15395,6 @@ return sessionPlannerPlayerBoardRenderer.renderSquadBridgePanel(boardPlayers);
 }
 function renderSessionPlannerPlayerBoardSquadProfile(contract) {
 return sessionPlannerPlayerBoardRenderer.renderPlayerBoardSquadProfile(contract);
-}
-function getSessionPlannerSelectionAssistantBlockText(block = getSessionPlannerSelectedBlock()) {
-return [
-block?.label,
-block?.title,
-block?.focus,
-block?.phase,
-block?.subPhase,
-block?.objective,
-block?.why,
-block?.organization,
-block?.principles,
-block?.intensity,
-]
-.filter(Boolean)
-.join(" ")
-.toLowerCase();
-}
-function getSessionPlannerSelectionAssistantProfile(block = getSessionPlannerSelectedBlock()) {
-const text = getSessionPlannerSelectionAssistantBlockText(block);
-const includesAny = (...patterns) => patterns.some((pattern) => pattern.test(text));
-if (includesAny(/final|finish|shoot|shot|score|chance|box|cross|cutback|attack|attacking|avslut|anfall|mål|mal/)) {
-return {
-key: "final-third",
-label: "Final third",
-detail: "Prioritises creators, wide attackers and finishers.",
-roles: ["LW", "RW", "ST", "10", "8"],
-};
-}
-if (includesAny(/defen|press|block|out of possession|compact|mark|duel|protect|försvar|forsvar|pressing/)) {
-return {
-key: "defensive",
-label: "Defensive block",
-detail: "Prioritises back line, screening and availability security.",
-roles: ["GK", "CB", "LB", "RB", "6", "8"],
-};
-}
-if (includesAny(/transition|counter|recover|regain|omställ|omstall|counterpress/)) {
-return {
-key: "transition",
-label: "Transition",
-detail: "Prioritises runners, central connectors and front-line threat.",
-roles: ["6", "8", "10", "LW", "RW", "ST"],
-};
-}
-if (includesAny(/possession|build|rondo|passing|pass|circulation|switch|tempo|retain|uppspel|bollinnehav|speluppbygg/)) {
-return {
-key: "possession",
-label: "Possession",
-detail: "Prioritises centre-backs, pivots, connectors and creators.",
-roles: ["CB", "6", "8", "10", "LB", "RB"],
-};
-}
-if (includesAny(/speed|sprint|physical|conditioning|load|running|fitness|fys|löp|lop/)) {
-return {
-key: "physical",
-label: "Physical / load",
-detail: "Prioritises wide runners, box-to-box profiles and robust availability.",
-roles: ["LWB", "RWB", "LB", "RB", "8", "LW", "RW", "ST"],
-};
-}
-return {
-key: "balanced",
-label: "Balanced exercise",
-detail: "Builds a balanced group across lines with Squad role context.",
-roles: ["GK", "CB", "LB", "RB", "6", "8", "10", "LW", "RW", "ST"],
-};
-}
-function getSessionPlannerSelectionAssistantTargetCount(boardPlayers = []) {
-const formationCount = parseSessionPlannerPlayerBoardFormation(sessionPlannerPlayerBoardFormationInput)
-.reduce((total, lineCount) => total + lineCount, 0);
-if (formationCount > 0) {
-return Math.min(formationCount, boardPlayers.length);
-}
-return Math.min(boardPlayers.length, boardPlayers.length >= 12 ? 10 : boardPlayers.length);
-}
-function getSessionPlannerSelectionAssistantRoleScore(player = {}, targetRoles = []) {
-  const roleFit = player.roleFit && typeof player.roleFit === "object" && !Array.isArray(player.roleFit)
-    ? player.roleFit
-    : {};
-  const directScore = targetRoles.reduce((best, role) => {
-    const value = Number(roleFit[role]);
-    return Number.isFinite(value) ? Math.max(best, value) : best;
-  }, 0);
-  if (directScore > 0) {
-    return directScore;
-  }
-  const primaryRole = normalizePlayerProfileRole(player.primaryRole, "");
-  if (targetRoles.includes(primaryRole)) {
-    return 78;
-  }
-  const secondaryRoles = Array.isArray(player.secondaryRoles)
-    ? player.secondaryRoles.map((role) => normalizePlayerProfileRole(role, "")).filter(Boolean)
-    : [];
-  if (secondaryRoles.some((role) => targetRoles.includes(role))) {
-    return 68;
-  }
-  const targetGroups = new Set(targetRoles.map((role) => getSessionPlannerPlayerBoardRoleGroupForRole(role)).filter(Boolean));
-  if (targetGroups.has(normalizeSessionPlannerPlayerBoardRoleGroupKey(player.roleGroup))) {
-    return 58;
-  }
-  return 48;
-}
-function getSessionPlannerSelectionAssistantReason(item, profile, roleScore) {
-  const player = item?.player ?? {};
-  const bestMatches = getSessionPlannerPlayerBoardBridgeBestMatches(player, 2);
-  const primaryRole = normalizePlayerProfileRole(player.primaryRole, "");
-  const secondaryRoles = Array.isArray(player.secondaryRoles) ? player.secondaryRoles : [];
-  const reasons = [];
-  if (bestMatches.length) {
-    reasons.push(`Role DNA ${bestMatches[0].role} ${bestMatches[0].score}%`);
-  } else if (primaryRole) {
-    reasons.push(`Primary ${primaryRole}`);
-  } else {
-    reasons.push("Medical fallback profile");
-  }
-  if (profile.roles.includes(primaryRole)) {
-    reasons.push(`Natural ${primaryRole}`);
-  } else if (secondaryRoles.some((role) => profile.roles.includes(role))) {
-    reasons.push("Secondary role fit");
-  }
-  if (item?.participation !== null && item?.participation !== undefined) {
-    reasons.push(`${item.participation}% available`);
-  }
-  const squadStatus = normalizeSessionPlannerPlayerBoardSquadStatusKey(player.squadStatus);
-  if (squadStatus) {
-    reasons.push(`Squad ${squadStatus}`);
-  }
-  const careerPhase = normalizeSessionPlannerPlayerBoardProfileKey(player.careerPhase);
-  if (careerPhase) {
-    reasons.push(`Career ${careerPhase}`);
-  }
-  if (player.idp?.primaryFocus) {
-    reasons.push(`IDP: ${player.idp.primaryFocus}`);
-  }
-  if (roleScore < 60) {
-    reasons.push("Fallback selection");
-  }
-  return reasons.slice(0, 3).join(" / ");
-}
-function scoreSessionPlannerSelectionAssistantItem(item, profile) {
-  const player = item?.player ?? {};
-  const roleScore = getSessionPlannerSelectionAssistantRoleScore(player, profile.roles);
-  const availabilityScore = Number.isFinite(Number(item?.participation)) ? Number(item.participation) : 0;
-  const squadImportance = getSessionPlannerPlayerBoardImportanceScore(player) ?? 45;
-  const careerScore = getSessionPlannerPlayerBoardCareerScore(player);
-  const minutesScore = getSessionPlannerPlayerBoardMinutesScore(player);
-  const primaryRole = normalizePlayerProfileRole(player.primaryRole, "");
-  const secondaryRoles = Array.isArray(player.secondaryRoles) ? player.secondaryRoles : [];
-  const roleBonus =
-    profile.roles.includes(primaryRole)
-      ? 8
-      : secondaryRoles.some((role) => profile.roles.includes(role))
-        ? 5
-        : 0;
-  const linkedBonus = player.profileId ? 4 : 0;
-  const score = Math.round(
-    roleScore * 0.5 +
-      availabilityScore * 0.26 +
-      squadImportance * 0.1 +
-      careerScore * 0.05 +
-      minutesScore * 0.006 +
-      roleBonus +
-      linkedBonus
-  );
-  return {
-    item,
-    score: clamp(score, 0, 100),
-    roleScore: Math.round(roleScore),
-    availabilityScore,
-    reason: getSessionPlannerSelectionAssistantReason(item, profile, roleScore),
-  };
-}
-function buildSessionPlannerSelectionAssistant(block, boardPlayers = getSessionPlannerPlayerBoardPlayers(block)) {
-const profile = getSessionPlannerSelectionAssistantProfile(block);
-const targetCount = getSessionPlannerSelectionAssistantTargetCount(boardPlayers);
-const ranked = boardPlayers
-.map((item) => scoreSessionPlannerSelectionAssistantItem(item, profile))
-.sort((first, second) =>
-second.score - first.score ||
-second.roleScore - first.roleScore ||
-compareMedicalPlayers(first.item.player, second.item.player)
-);
-const suggestions = ranked.slice(0, targetCount);
-const selectedRoleCoverage = profile.roles.map((role) => {
-const best = suggestions.reduce((bestScore, suggestion) => {
-const value = Number(suggestion.item.player?.roleFit?.[role]);
-return Number.isFinite(value) ? Math.max(bestScore, value) : bestScore;
-}, 0);
-return { role, covered: best >= 66, score: Math.round(best) };
-});
-return {
-profile,
-targetCount,
-ranked,
-suggestions,
-selectedRoleCoverage,
-missingRoles: selectedRoleCoverage.filter((entry) => !entry.covered),
-};
 }
 function renderSessionPlannerSelectionAssistantPanel(block, boardPlayers = [], options = {}) {
 return sessionPlannerPlayerBoardRenderer.renderSelectionAssistantPanel(block, boardPlayers, options);

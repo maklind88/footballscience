@@ -5578,18 +5578,6 @@ setPeriodizationStateStorageValue(periodizationState, options);
 logEvent("Periodization settings could not be written to local storage.");
 }
 }
-function formatMonthLabel(date) {
-return formatMonthYearLabel(date);
-}
-function formatScheduleMonthLabel(date) {
-return formatScheduleMonthName(date);
-}
-function getSelectedPeriodizationDate() {
-if (!periodizationState) {
-return new Date(periodizationYear, 0, 1);
-}
-return new Date(periodizationState.selectedYear, periodizationState.selectedMonthIndex, 1);
-}
 function setPeriodizationMonth(monthIndex) {
 if (!periodizationState || monthIndex < 0 || monthIndex > 11) {
 return;
@@ -5967,9 +5955,6 @@ return getUniqueScheduleEvents(scheduleState.events.filter((event) => event.date
 function getScheduleVisibleEvents(events = []) {
 return getUniqueScheduleEvents(events);
 }
-function getScheduleVisibleEventsForDate(dateValue) {
-return getScheduleVisibleEvents(getScheduleEventsForDate(dateValue));
-}
 function getScheduleMainEvent(events = []) {
 return getScheduleMainEventFromModule(events);
 }
@@ -6039,10 +6024,6 @@ isSessionEvent: isScheduleSessionEvent,
 getPeriodizationDayScheduleLabel,
 getPeriodizationMatchDayLabel,
 });
-}
-function getScheduleDayWarningsForDate(dateValue, events = getScheduleEventsForDate(dateValue)) {
-ensurePeriodizationState();
-return getScheduleDayWarnings(events, getPeriodizationDay(dateValue), getScheduleSessionSnapshot(dateValue));
 }
 const scheduleWorkspaceController = createScheduleWorkspaceController({
 ui,

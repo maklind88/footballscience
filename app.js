@@ -20289,12 +20289,6 @@ refreshMatchDayChip: refreshSessionPlannerMatchDayChip,
 function renderSessionPlannerPeriodizationSummary(dateValue) {
 return sessionPlannerPeriodizationBridge.renderSummary(dateValue);
 }
-function openSessionPlannerPeriodizationOverlay(dateValue, mode = "view") {
-sessionPlannerPeriodizationBridge.open(dateValue, mode);
-}
-function closeSessionPlannerPeriodizationOverlay() {
-sessionPlannerPeriodizationBridge.close();
-}
 function renderSessionPlannerPeriodizationOverlay() {
 return sessionPlannerPeriodizationBridge.renderOverlay();
 }

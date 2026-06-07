@@ -4116,8 +4116,6 @@ getDayScheduleLabel: getPeriodizationDayScheduleLabel,
 getScheduledSessionTitle: getScheduledSessionTitleForDate,
 getTotalMinutes: getDashboardSessionTotalMinutes,
 });
-let activeMetricTooltipTarget = null;
-let pinnedMetricTooltipTarget = null;
 let selectedStaffUserId = null;
 let staffCreateUserEditorOpen = false;
 let selectedAdminUserId = null;
@@ -17126,6 +17124,8 @@ function executePlannedAction(...args) { return invokeGameSimulatorAppRuntime("e
 function pauseLiveSimulation(...args) { return invokeGameSimulatorAppRuntime("pauseLiveSimulation", args); }
 function resumeLiveSimulation(...args) { return invokeGameSimulatorAppRuntime("resumeLiveSimulation", args); }
 function toggleSpaceAutopilotPlayback(...args) { return invokeGameSimulatorAppRuntime("toggleSpaceAutopilotPlayback", args); }
+function bindGameSimulatorLateUiEvents(...args) { return invokeGameSimulatorAppRuntime("bindGameSimulatorLateUiEvents", args); }
+function bindGameSimulatorSequenceUiEvents(...args) { return invokeGameSimulatorAppRuntime("bindGameSimulatorSequenceUiEvents", args); }
 gameSimulatorAppRuntimeController = createGameSimulatorAppRuntimeController({
   applyBallExecutionProfile, applyKickoffSetup, applyNearbyBallOrientation, applyPhysicalProfileToPlayers,
   applyResolvedBallProfile, attackStylePresets, ballRadiusMeters, buildPlayerIntelligenceProfile,
@@ -17136,7 +17136,7 @@ gameSimulatorAppRuntimeController = createGameSimulatorAppRuntimeController({
   computeReachDistance, configureBallTravelProfile, createInitialState, createPlayer, createTransitionPlan, ctx,
   defaultKickoffTeamId, defaultScenarioInfo, defaultTeamIdentities, defenseStylePresets, describeStep, distance,
   documentRef: document, gameSimulatorSidebarRenderer, getActionOrigin, getActionSpeed,
-  getActiveMetricTooltipTarget: () => activeMetricTooltipTarget, getEditableRadius, getGoalDirectionSign,
+  getEditableRadius, getGoalDirectionSign,
   getHubState: () => hubState, getPlayerBallControlPoint, getPlayerFacingAngle, getPlayerMagnetLabel,
   getProjectedActionDuration, getRecordedStepEndSnapshot, getSequenceFrameSnapshot, getState: () => state,
   hasBallAction, issueBallCommand, issuePassCommand, lerp, normalize, pauseAutoPilotPlay, pitch,
@@ -17144,225 +17144,36 @@ gameSimulatorAppRuntimeController = createGameSimulatorAppRuntimeController({
   refreshPlannedBallActionProfile, renderWorkspaceChrome, resolveExecutedShotTarget, resolveRecordedStepProfile,
   rotatePlayerBodyAlongMovement, sequenceLibraryStorageKey, sequenceStorageKey, setDribbleCarryPathForBall,
   setState: (nextState) => { state = nextState; }, setTeamFormationOnPlayers, snapshotsMatch, squadBlueprints,
-  stepSimulation, subtract, syncAutoV2DebugButton, syncBallSpeedControls, syncDefensiveAggressionControls,
-  syncDefensiveAutopilotButton, syncDribbleSpeedControls, syncFirstTouchControls, syncFormationControls,
-  syncOffensiveAutopilotButton, syncPhysicalProfileControls, syncSurfaceControls, syncTeamIdentityControls,
-  syncWeatherControls, teamRosterOrder, teams, ui, updateModeButtons, updateSequenceButtons, vec, win,
+  stepSimulation, subtract, teamRosterOrder, teams, ui, vec, win,
+  applyAutopilotsForCurrentAction, applyDefensiveAutopilotForCurrentAction, applyOffensiveAutopilotForCurrentAction,
+  defaultPhysicalProfileKey, formatSpeed, getRequestedActionMode, setBallOwner,
 });
 const gameSimulatorPointerController = gameSimulatorAppRuntimeController.pointerController;
-function positionMetricTooltip(target) {
-if (!ui.metricTooltip || !target) {
-return;
-}
-if (!target.isConnected) {
-hideMetricTooltip({ force: true });
-return;
-}
-const rect = target.getBoundingClientRect();
-const padding = 12;
-const tooltipWidth = ui.metricTooltip.offsetWidth;
-const tooltipHeight = ui.metricTooltip.offsetHeight;
-let left = rect.left + rect.width / 2 - tooltipWidth / 2;
-let top = rect.bottom + 10;
-left = clamp(left, padding, win.innerWidth - tooltipWidth - padding);
-if (top + tooltipHeight > win.innerHeight - padding) {
-top = rect.top - tooltipHeight - 10;
-}
-top = clamp(top, padding, win.innerHeight - tooltipHeight - padding);
-ui.metricTooltip.style.left = `${left}px`;
-ui.metricTooltip.style.top = `${top}px`;
-}
-function ensureMetricTooltipLayer() {
-if (!ui.metricTooltip) {
-return;
-}
-const layerRoot = document.fullscreenElement ?? document.body;
-if (ui.metricTooltip.parentElement !== layerRoot) {
-layerRoot.appendChild(ui.metricTooltip);
-}
-}
-function showMetricTooltip(target, { pinned = false } = {}) {
-const helpText = target?.dataset?.metricHelp;
-if (!ui.metricTooltip || !helpText) {
-return;
-}
-ensureMetricTooltipLayer();
-activeMetricTooltipTarget = target;
-pinnedMetricTooltipTarget = pinned ? target : pinnedMetricTooltipTarget;
-ui.metricTooltip.textContent = helpText;
-ui.metricTooltip.hidden = false;
-ui.metricTooltip.classList.add("is-visible");
-ui.metricTooltip.dataset.metricLabel = target.dataset.metricLabel ?? "";
-target.setAttribute("aria-expanded", "true");
-positionMetricTooltip(target);
-}
-function hideMetricTooltip({ force = false } = {}) {
-if (!ui.metricTooltip) {
-return;
-}
-if (!force && pinnedMetricTooltipTarget) {
-return;
-}
-if (activeMetricTooltipTarget) {
-activeMetricTooltipTarget.setAttribute("aria-expanded", "false");
-}
-activeMetricTooltipTarget = null;
-pinnedMetricTooltipTarget = null;
-ui.metricTooltip.classList.remove("is-visible");
-ui.metricTooltip.hidden = true;
-delete ui.metricTooltip.dataset.metricLabel;
-}
-ui.playPauseButton.addEventListener("click", () => {
-if (state.isRunning) {
-state.isRunning = false;
-ui.playPauseButton.textContent = "Start";
-logEvent("Simulation paused.");
-return;
-}
-executePlannedAction();
-});
-ui.resetButton.addEventListener("click", () => {
-cancelAutoPilotContinuation();
-cancelSequenceAdvance();
-state = createInitialState();
-resetSimulatorAnimationClock();
-ui.playPauseButton.textContent = "Start";
-ui.playbackSpeed.value = "1";
-ui.playbackSpeedLabel.textContent = "1.00x";
-ui.ballSpeed.value = "12";
-ui.ballSpeedLabel.textContent = "Auto";
-ui.dribbleSpeed.value = "4.5";
-ui.dribbleSpeedLabel.textContent = "Auto";
-if (ui.firstTouchSelect) {
-ui.firstTouchSelect.value = "auto";
-}
-if (ui.defensiveAggressionSelect) {
-ui.defensiveAggressionSelect.value = "balanced";
-}
-syncSurfaceControls();
-syncWeatherControls();
-syncFirstTouchControls();
-syncDefensiveAggressionControls();
-syncBallSpeedControls();
-syncDribbleSpeedControls();
-updateModeButtons();
-updateSequenceButtons();
-logEvent("Reset complete: new sequence starts with a kick-off.");
-render();
-});
-ui.playbackSpeed.addEventListener("input", (event) => {
-const value = Number(event.target.value);
-state.playbackSpeed = value;
-ui.playbackSpeedLabel.textContent = `${value.toFixed(2)}x`;
-});
-ui.ballSpeedAutoButton.addEventListener("click", () => {
-state.ballSpeedMode = "auto";
-refreshPlannedBallActionProfile();
-syncBallSpeedControls();
-render();
-});
-ui.ballSpeedManualButton.addEventListener("click", () => {
-state.ballSpeedMode = "manual";
-state.ball.speed = state.ball.manualSpeed;
-refreshPlannedBallActionProfile();
-syncBallSpeedControls();
-render();
-});
-ui.ballSpeed.addEventListener("input", (event) => {
-const value = Number(event.target.value);
-state.ball.manualSpeed = value;
-if (state.ballSpeedMode === "manual") {
-state.ball.speed = value;
-}
-refreshPlannedBallActionProfile();
-syncBallSpeedControls();
-render();
-});
-ui.dribbleSpeedAutoButton?.addEventListener("click", () => {
-state.dribbleSpeedMode = "auto";
-refreshPlannedBallActionProfile();
-syncDribbleSpeedControls();
-render();
-});
-ui.dribbleSpeedManualButton?.addEventListener("click", () => {
-state.dribbleSpeedMode = "manual";
-refreshPlannedBallActionProfile();
-syncDribbleSpeedControls();
-render();
-});
-ui.dribbleSpeed.addEventListener("input", (event) => {
-const value = Number(event.target.value);
-state.dribbleSpeed = value;
-refreshPlannedBallActionProfile();
-syncDribbleSpeedControls();
-render();
-});
-ui.pitchSurfaceSelect?.addEventListener("input", (event) => {
-state.surfacePreset = event.target.value;
-refreshPlannedBallActionProfile();
-render();
-});
-ui.weatherSelect?.addEventListener("input", (event) => {
-state.weatherPreset = event.target.value;
-refreshPlannedBallActionProfile();
-render();
-});
-ui.firstTouchSelect?.addEventListener("input", (event) => {
-state.firstTouchMode = event.target.value;
-if (state.draftStep?.actionType === "pass") {
-state.draftStep.firstTouchMode = state.firstTouchMode;
-state.ball.firstTouchMode = state.firstTouchMode;
-}
-render();
-});
-ui.defensiveAggressionSelect?.addEventListener("input", (event) => {
-state.defensiveAggressionPreset = event.target.value;
-syncDefensiveAggressionControls();
-render();
-});
-function updateModeButtons() {
-const activeMode = getRequestedActionMode();
-ui.passModeButton.classList.toggle("is-active", activeMode === "pass");
-ui.dribbleModeButton.classList.toggle("is-active", activeMode === "dribble");
-ui.shotModeButton.classList.toggle("is-active", activeMode === "shot");
-}
-function syncDefensiveAutopilotButton() {
-if (!ui.defensiveAutopilotButton) {
-return;
-}
-ui.defensiveAutopilotButton.classList.toggle("is-active", state.defensiveAutopilot);
-ui.defensiveAutopilotButton.setAttribute("aria-pressed", String(state.defensiveAutopilot));
-ui.defensiveAutopilotButton.textContent = state.defensiveAutopilot
-? "Defence Auto"
-: "Defence Manual";
-ui.defensiveAutopilotButton.disabled = state.isRunning || state.sequence.isPlaying;
-}
-function syncOffensiveAutopilotButton() {
-if (!ui.offensiveAutopilotButton) {
-return;
-}
-ui.offensiveAutopilotButton.classList.toggle("is-active", state.offensiveAutopilot);
-ui.offensiveAutopilotButton.setAttribute("aria-pressed", String(state.offensiveAutopilot));
-ui.offensiveAutopilotButton.textContent = state.offensiveAutopilot
-? "Attack Auto"
-: "Attack Manual";
-ui.offensiveAutopilotButton.disabled = state.isRunning || state.sequence.isPlaying;
-}
-function syncAutoV2DebugButton() {
-if (!ui.autoV2DebugButton) {
-return;
-}
-ui.autoV2DebugButton.classList.toggle("is-active", Boolean(win.__autoV2DebugEnabled));
-ui.autoV2DebugButton.setAttribute("aria-pressed", String(Boolean(win.__autoV2DebugEnabled)));
-ui.autoV2DebugButton.textContent = win.__autoV2DebugEnabled ? "Auto v2 Debug On" : "Auto v2 Debug";
-}
-function toggleAutoV2DebugOverlay() {
-state.autoV2Debug = !state.autoV2Debug;
-win.__autoV2DebugEnabled = state.autoV2Debug;
-logEvent(state.autoV2Debug ? "Auto v2 debug overlay is on." : "Auto v2 debug overlay is off.");
-render();
-}
-win.toggleAutoV2DebugOverlay = toggleAutoV2DebugOverlay;
+function positionMetricTooltip(...args) { return invokeGameSimulatorAppRuntime("positionMetricTooltip", args); }
+function ensureMetricTooltipLayer(...args) { return invokeGameSimulatorAppRuntime("ensureMetricTooltipLayer", args); }
+function showMetricTooltip(...args) { return invokeGameSimulatorAppRuntime("showMetricTooltip", args); }
+function hideMetricTooltip(...args) { return invokeGameSimulatorAppRuntime("hideMetricTooltip", args); }
+function hasActiveMetricTooltip(...args) { return invokeGameSimulatorAppRuntime("hasActiveMetricTooltip", args); }
+function updateModeButtons(...args) { return invokeGameSimulatorAppRuntime("updateModeButtons", args); }
+function syncDefensiveAutopilotButton(...args) { return invokeGameSimulatorAppRuntime("syncDefensiveAutopilotButton", args); }
+function syncOffensiveAutopilotButton(...args) { return invokeGameSimulatorAppRuntime("syncOffensiveAutopilotButton", args); }
+function syncAutoV2DebugButton(...args) { return invokeGameSimulatorAppRuntime("syncAutoV2DebugButton", args); }
+function toggleAutoV2DebugOverlay(...args) { return invokeGameSimulatorAppRuntime("toggleAutoV2DebugOverlay", args); }
+function toggleActionMode(...args) { return invokeGameSimulatorAppRuntime("toggleActionMode", args); }
+function syncFormationControls(...args) { return invokeGameSimulatorAppRuntime("syncFormationControls", args); }
+function syncTeamIdentityControls(...args) { return invokeGameSimulatorAppRuntime("syncTeamIdentityControls", args); }
+function syncPhysicalProfileControls(...args) { return invokeGameSimulatorAppRuntime("syncPhysicalProfileControls", args); }
+function syncSurfaceControls(...args) { return invokeGameSimulatorAppRuntime("syncSurfaceControls", args); }
+function syncWeatherControls(...args) { return invokeGameSimulatorAppRuntime("syncWeatherControls", args); }
+function syncFirstTouchControls(...args) { return invokeGameSimulatorAppRuntime("syncFirstTouchControls", args); }
+function syncDefensiveAggressionControls(...args) { return invokeGameSimulatorAppRuntime("syncDefensiveAggressionControls", args); }
+function syncBallSpeedControls(...args) { return invokeGameSimulatorAppRuntime("syncBallSpeedControls", args); }
+function syncDribbleSpeedControls(...args) { return invokeGameSimulatorAppRuntime("syncDribbleSpeedControls", args); }
+function updateSequenceButtons(...args) { return invokeGameSimulatorAppRuntime("updateSequenceButtons", args); }
+function refreshKickoffSetupIfWaitingToStart(...args) { return invokeGameSimulatorAppRuntime("refreshKickoffSetupIfWaitingToStart", args); }
+function updateTeamIdentity(...args) { return invokeGameSimulatorAppRuntime("updateTeamIdentity", args); }
+function updatePhysicalProfile(...args) { return invokeGameSimulatorAppRuntime("updatePhysicalProfile", args); }
+function updateSelectedPlayerProfile(...args) { return invokeGameSimulatorAppRuntime("updateSelectedPlayerProfile", args); }
 function shouldIgnoreHotkey(event) { return shouldIgnoreSimulatorTextOrModifierTarget(event); }
 function shouldIgnoreSpaceAutopilotHotkey(event) { return shouldIgnoreSimulatorTextOrModifierTarget(event); }
 function clearKeyboardActionGrace(...args) { return invokeGameSimulatorAppRuntime("clearKeyboardActionGrace", args); }
@@ -17370,302 +17181,6 @@ function armKeyboardActionGrace(...args) { return invokeGameSimulatorAppRuntime(
 function getPointerRequestedActionMode(...args) { return invokeGameSimulatorAppRuntime("getPointerRequestedActionMode", args); }
 function consumePointerActionMode(...args) { return invokeGameSimulatorAppRuntime("consumePointerActionMode", args); }
 function setKeyboardActionMode(...args) { return invokeGameSimulatorAppRuntime("setKeyboardActionMode", args); }
-function toggleActionMode(mode) {
-state.actionMode = state.actionMode === mode ? null : mode;
-updateModeButtons();
-render();
-}
-function syncFormationControls() {
-ui.homeFormationSelect.value = teams.home.formation;
-ui.awayFormationSelect.value = teams.away.formation;
-ui.homeLegendLabel.innerHTML = `<i class="swatch swatch-home"></i>${teams.home.name} ${teams.home.formation}`;
-ui.awayLegendLabel.innerHTML = `<i class="swatch swatch-away"></i>${teams.away.name} ${teams.away.formation}`;
-}
-function syncTeamIdentityControls() {
-if (ui.homeAttackStyleSelect) {
-ui.homeAttackStyleSelect.value = getTeamAttackStyleKey("home");
-ui.homeAttackStyleSelect.disabled = state.isRunning || state.sequence.isPlaying;
-}
-if (ui.homeDefenseStyleSelect) {
-ui.homeDefenseStyleSelect.value = getTeamDefenseStyleKey("home");
-ui.homeDefenseStyleSelect.disabled = state.isRunning || state.sequence.isPlaying;
-}
-if (ui.awayAttackStyleSelect) {
-ui.awayAttackStyleSelect.value = getTeamAttackStyleKey("away");
-ui.awayAttackStyleSelect.disabled = state.isRunning || state.sequence.isPlaying;
-}
-if (ui.awayDefenseStyleSelect) {
-ui.awayDefenseStyleSelect.value = getTeamDefenseStyleKey("away");
-ui.awayDefenseStyleSelect.disabled = state.isRunning || state.sequence.isPlaying;
-}
-}
-function syncPhysicalProfileControls() {
-if (ui.physicalProfileSelect) {
-ui.physicalProfileSelect.value = state.physicalProfile ?? defaultPhysicalProfileKey;
-ui.physicalProfileSelect.disabled = state.isRunning || state.sequence.isPlaying;
-}
-}
-function syncSurfaceControls() {
-if (ui.pitchSurfaceSelect) {
-ui.pitchSurfaceSelect.value = state.surfacePreset;
-ui.pitchSurfaceSelect.disabled = state.isRunning || state.sequence.isPlaying;
-}
-}
-function syncWeatherControls() {
-if (ui.weatherSelect) {
-ui.weatherSelect.value = state.weatherPreset;
-ui.weatherSelect.disabled = state.isRunning || state.sequence.isPlaying;
-}
-}
-function syncFirstTouchControls() {
-if (ui.firstTouchSelect) {
-ui.firstTouchSelect.value = state.firstTouchMode;
-ui.firstTouchSelect.disabled = state.isRunning || state.sequence.isPlaying;
-}
-}
-function syncDefensiveAggressionControls() {
-if (ui.defensiveAggressionSelect) {
-ui.defensiveAggressionSelect.value = state.defensiveAggressionPreset;
-ui.defensiveAggressionSelect.disabled = state.isRunning || state.sequence.isPlaying;
-}
-}
-function syncBallSpeedControls() {
-const isAuto = state.ballSpeedMode === "auto";
-ui.ballSpeedAutoButton.classList.toggle("is-active", isAuto);
-ui.ballSpeedManualButton.classList.toggle("is-active", !isAuto);
-ui.ballSpeed.disabled = isAuto;
-ui.ballSpeed.closest(".speed-control")?.classList.toggle("is-disabled", isAuto);
-ui.ballSpeed.value = String(state.ball.manualSpeed);
-ui.ballSpeedLabel.textContent = isAuto
-? hasBallAction() || state.ball.inTransit
-? `Auto • ${formatSpeed(state.ball.speed)}`
-: "Auto"
-: formatSpeed(state.ball.manualSpeed);
-}
-function syncDribbleSpeedControls() {
-const isAuto = state.dribbleSpeedMode === "auto";
-ui.dribbleSpeedAutoButton?.classList.toggle("is-active", isAuto);
-ui.dribbleSpeedManualButton?.classList.toggle("is-active", !isAuto);
-ui.dribbleSpeed.disabled = isAuto;
-ui.dribbleSpeed.closest(".speed-control")?.classList.toggle("is-disabled", isAuto);
-ui.dribbleSpeed.value = String(state.dribbleSpeed);
-const isLiveDribble = (hasBallAction() || state.ball.inTransit || !!state.draftStep) &&
-(state.ball.actionType === "dribble" || state.draftStep?.actionType === "dribble");
-const displayedSpeed = state.draftStep?.actionType === "dribble"
-? state.draftStep.speed
-: state.ball.actionType === "dribble"
-? state.ball.currentSpeed || state.ball.speed || state.dribbleSpeed
-: state.dribbleSpeed;
-ui.dribbleSpeedLabel.textContent = isAuto
-? isLiveDribble
-? `Auto • ${formatSpeed(displayedSpeed)}`
-: "Auto"
-: formatSpeed(state.dribbleSpeed);
-}
-function updateSequenceButtons() {
-ui.playSequenceButton.textContent = state.sequence.isPlaying
-? "Stop Playback"
-: "Play From Here";
-const isLocked = !canEditScenario() || hasBallAction() || !!state.draftStep;
-const hasPrevious = state.sequence.currentFrameIndex > -1;
-const hasNext = state.sequence.currentFrameIndex < state.sequence.steps.length - 1;
-ui.previousStepButton.disabled = isLocked || !hasPrevious;
-ui.nextStepButton.disabled = isLocked || !hasNext;
-ui.playSequenceButton.disabled =
-(state.sequence.steps.length === 0 && !state.sequence.isPlaying) ||
-(!state.sequence.isPlaying && isLocked);
-ui.clearSequenceButton.disabled = state.sequence.isPlaying || state.isRunning;
-if (!state.sequence.steps.length) {
-ui.sequenceStepLabel.textContent = "Start";
-return;
-}
-ui.sequenceStepLabel.textContent =
-state.sequence.currentFrameIndex < 0
-? `Start / ${state.sequence.steps.length}`
-: `Step ${state.sequence.currentFrameIndex + 1} / ${state.sequence.steps.length}`;
-}
-function refreshKickoffSetupIfWaitingToStart() {
-if (
-state.restartPhase?.type !== "kickoff" ||
-state.isRunning ||
-state.sequence.isPlaying ||
-state.sequence.steps.length ||
-hasBallAction() ||
-state.draftStep
-) {
-return;
-}
-applyKickoffSetup(state, {
-teamId: state.restartPhase.teamId ?? defaultKickoffTeamId,
-resetFormations: false,
-});
-}
-ui.passModeButton.addEventListener("click", () => {
-toggleActionMode("pass");
-});
-ui.dribbleModeButton.addEventListener("click", () => {
-toggleActionMode("dribble");
-});
-ui.shotModeButton.addEventListener("click", () => {
-toggleActionMode("shot");
-});
-ui.homeFormationSelect.addEventListener("change", (event) => {
-if (!canEditScenario()) {
-syncFormationControls();
-return;
-}
-if (hasBallAction() || state.draftStep) {
-clearBallAction();
-}
-applyTeamFormation("home", event.target.value);
-refreshKickoffSetupIfWaitingToStart();
-state.example = null;
-state.scenario = { ...defaultScenarioInfo };
-logEvent(`Blue Team switched to a ${event.target.value} shape.`);
-render();
-});
-ui.awayFormationSelect.addEventListener("change", (event) => {
-if (!canEditScenario()) {
-syncFormationControls();
-return;
-}
-if (hasBallAction() || state.draftStep) {
-clearBallAction();
-}
-applyTeamFormation("away", event.target.value);
-refreshKickoffSetupIfWaitingToStart();
-state.example = null;
-state.scenario = { ...defaultScenarioInfo };
-logEvent(`Red Team switched to a ${event.target.value} shape.`);
-render();
-});
-function updateTeamIdentity(teamId, type, styleKey) {
-if (!canEditScenario()) {
-syncTeamIdentityControls();
-return;
-}
-const team = teams[teamId];
-if (!team) {
-return;
-}
-if (type === "attack") {
-team.identity.attackStyle = attackStylePresets[styleKey] ? styleKey : "balanced";
-const style = getTeamAttackStyleProfile(teamId);
-logEvent(`${team.name} attack identity set to ${style.label}.`);
-} else {
-team.identity.defenseStyle = defenseStylePresets[styleKey] ? styleKey : "balanced-block";
-const style = getTeamDefenseStyleProfile(teamId);
-logEvent(`${team.name} defensive identity set to ${style.label}.`);
-}
-if (!state.isRunning && !state.sequence.isPlaying && hasBallAction()) {
-applyAutopilotsForCurrentAction({ silent: true });
-}
-syncTeamIdentityControls();
-render();
-}
-function updatePhysicalProfile(profileKey) {
-if (!canEditScenario()) {
-syncPhysicalProfileControls();
-return;
-}
-const nextProfile = competitionPhysicalProfiles[profileKey] ?? competitionPhysicalProfiles[defaultPhysicalProfileKey];
-state.physicalProfile = nextProfile.key;
-applyPhysicalProfileToPlayers(state.players, nextProfile.key);
-refreshPlannedBallActionProfile();
-if (!state.isRunning && !state.sequence.isPlaying && hasBallAction()) {
-applyAutopilotsForCurrentAction({ silent: true });
-}
-logEvent(`Physical level set to ${nextProfile.label}. Player speed, acceleration and auto carry speed now use that profile.`);
-syncPhysicalProfileControls();
-render();
-}
-function updateSelectedPlayerProfile(playerId, profileKey) {
-if (!canEditScenario()) {
-render();
-return;
-}
-const player = getPlayerById(playerId);
-const profile = playerTendencyTemplates[profileKey];
-if (!player || !profile) {
-render();
-return;
-}
-player.tendencyProfile = buildPlayerTendencyProfile({
-...player,
-tendencyKey: profileKey,
-});
-if (hasBallAction()) {
-applyAutopilotsForCurrentAction({ silent: true });
-}
-logEvent(`${player.shortLabel} ${player.role} profile set to ${profile.label}.`);
-render();
-}
-ui.homeAttackStyleSelect?.addEventListener("change", (event) => {
-updateTeamIdentity("home", "attack", event.target.value);
-});
-ui.homeDefenseStyleSelect?.addEventListener("change", (event) => {
-updateTeamIdentity("home", "defense", event.target.value);
-});
-ui.awayAttackStyleSelect?.addEventListener("change", (event) => {
-updateTeamIdentity("away", "attack", event.target.value);
-});
-ui.awayDefenseStyleSelect?.addEventListener("change", (event) => {
-updateTeamIdentity("away", "defense", event.target.value);
-});
-ui.physicalProfileSelect?.addEventListener("change", (event) => {
-updatePhysicalProfile(event.target.value);
-});
-ui.assignBallButton.addEventListener("click", () => {
-if (!canEditScenario()) {
-return;
-}
-if (!state.selectedPlayerId) {
-logEvent("Select a player before setting the ball carrier.");
-render();
-return;
-}
-setBallOwner(state.selectedPlayerId);
-render();
-});
-ui.defensiveAutopilotButton?.addEventListener("click", () => {
-if (!canEditScenario()) {
-return;
-}
-state.defensiveAutopilot = !state.defensiveAutopilot;
-if (state.defensiveAutopilot) {
-const applied = applyDefensiveAutopilotForCurrentAction();
-if (!applied) {
-logEvent("Defensive autopilot is on and will shape the team without the ball on the next action.");
-}
-} else {
-logEvent("Defensive autopilot is off.");
-}
-render();
-});
-ui.offensiveAutopilotButton?.addEventListener("click", () => {
-if (!canEditScenario()) {
-return;
-}
-state.offensiveAutopilot = !state.offensiveAutopilot;
-if (state.offensiveAutopilot) {
-const applied = applyOffensiveAutopilotForCurrentAction();
-if (!applied) {
-logEvent("Offensive autopilot is on and will shape the team with the ball on the next action.");
-}
-} else {
-if (state.autoPilotPlay?.active || state.isRunning) {
-pauseAutoPilotPlay("Auto play paused because offensive autopilot is off.");
-} else {
-cancelAutoPilotContinuation();
-state.autoPilotPlay.active = false;
-}
-logEvent("Offensive autopilot is off.");
-}
-render();
-});
-ui.autoV2DebugButton?.addEventListener("click", () => {
-toggleAutoV2DebugOverlay();
-});
 ui.sidebarToggle?.addEventListener("click", () => {
 if (!hubState) {
 return;
@@ -21045,42 +20560,7 @@ scoutingWorkspaceModule?.handleChange(event, getScoutingAnalysisRoomContext());
 ui.analysisRoomWorkspace?.addEventListener("submit", (event) => {
 scoutingWorkspaceModule?.handleSubmit(event, getScoutingAnalysisRoomContext());
 });
-ui.simulatorIntroEnterButton?.addEventListener("click", () => launchGameSimulatorFromIntro().catch(console.error));
-ui.pitchFullscreenButton?.addEventListener("click", () => togglePitchFullscreen().catch(console.error));
-document.addEventListener("mousemove", (event) => {
-const trigger = event.target.closest?.("[data-metric-help]");
-if (trigger) {
-showMetricTooltip(trigger);
-return;
-}
-hideMetricTooltip();
-});
-document.addEventListener("click", (event) => {
-const trigger = event.target.closest?.("[data-metric-help]");
-if (!trigger) {
-hideMetricTooltip({ force: true });
-return;
-}
-event.preventDefault();
-event.stopPropagation();
-if (pinnedMetricTooltipTarget === trigger && !ui.metricTooltip?.hidden) {
-hideMetricTooltip({ force: true });
-return;
-}
-showMetricTooltip(trigger, { pinned: true });
-});
-document.addEventListener("focusin", (event) => {
-const trigger = event.target.closest?.("[data-metric-help]");
-if (trigger) {
-showMetricTooltip(trigger);
-}
-});
-document.addEventListener("focusout", (event) => {
-const trigger = event.target.closest?.("[data-metric-help]");
-if (trigger && pinnedMetricTooltipTarget !== trigger) {
-hideMetricTooltip();
-}
-});
+bindGameSimulatorLateUiEvents();
 document.addEventListener("keydown", (event) => {
 const key = String(event.key || "").toLowerCase();
 if (key === "enter" && isSimulatorIntroActive() && !isEditableKeyboardTarget(event.target)) {
@@ -21108,7 +20588,7 @@ periodizationDayOverlayOpen = false;
 periodizationDayOverlayMode = "view";
 renderPeriodizationWorkspace();
 }
-if (event.key === "Escape" && activeMetricTooltipTarget) {
+if (event.key === "Escape" && hasActiveMetricTooltip()) {
 hideMetricTooltip({ force: true });
 }
 });
@@ -21117,146 +20597,7 @@ button.addEventListener("click", () => {
 setActiveWorkspace(button.dataset.openWorkspace);
 });
 });
-ui.previousStepButton.addEventListener("click", () => {
-if (!canEditScenario()) {
-return;
-}
-goToSequenceFrame(state.sequence.currentFrameIndex - 1);
-updateSequenceButtons();
-render();
-});
-ui.nextStepButton.addEventListener("click", () => {
-if (!canEditScenario()) {
-return;
-}
-goToSequenceFrame(state.sequence.currentFrameIndex + 1);
-updateSequenceButtons();
-render();
-});
-ui.playSequenceButton.addEventListener("click", () => {
-if (state.sequence.isPlaying) {
-stopSequencePlayback();
-render();
-return;
-}
-if (state.isRunning) {
-return;
-}
-startSequencePlayback();
-updateSequenceButtons();
-render();
-});
-ui.clearSequenceButton.addEventListener("click", () => {
-if (state.isRunning && !state.sequence.isPlaying) {
-return;
-}
-if (state.sequence.isPlaying) {
-stopSequencePlayback(false);
-}
-state.sequence.steps = [];
-state.sequence.initialSnapshot = null;
-state.sequence.dirty = false;
-state.sequence.playbackIndex = -1;
-state.sequence.currentFrameIndex = -1;
-state.example = null;
-state.scenario = { ...defaultScenarioInfo };
-state.simulatorDirty = false;
-cancelSequenceAdvance();
-clearBallAction();
-applyKickoffSetup(state, {
-teamId: defaultKickoffTeamId,
-resetFormations: true,
-});
-state.time = 0;
-logEvent("Sequence cleared. New sequence starts with a kick-off.");
-updateSequenceButtons();
-render();
-});
-ui.saveSequenceButton.addEventListener("click", () => {
-if (!canEditScenario()) {
-return;
-}
-saveSequenceToLocal();
-render();
-});
-ui.loadSequenceButton.addEventListener("click", () => {
-if (!canEditScenario()) {
-return;
-}
-loadSequenceFromLocal();
-render();
-});
-ui.downloadSequenceButton.addEventListener("click", () => {
-downloadSequence();
-});
-ui.playerTable.addEventListener("click", (event) => {
-const button = event.target.closest("[data-player-id]");
-if (!button) {
-return;
-}
-if (!hasBallAction() && isSelectionModifierActive(event)) {
-toggleSelectedPlayer(button.dataset.playerId);
-} else {
-setSingleSelectedPlayer(button.dataset.playerId);
-}
-render();
-});
-function handleSelectedPlayerProfileChange(event) {
-const select = event.target.closest("[data-selected-player-profile]");
-if (!select) {
-return;
-}
-updateSelectedPlayerProfile(select.dataset.selectedPlayerProfile, select.value);
-}
-function handleSelectedPlayerProfileClick(event) {
-const button = event.target.closest("[data-selected-player-profile-option]");
-if (!button) {
-return;
-}
-updateSelectedPlayerProfile(
-button.dataset.selectedPlayerProfileOption,
-button.dataset.playerProfileKey
-);
-}
-ui.selectedPlayerCard?.addEventListener("change", handleSelectedPlayerProfileChange);
-ui.fullscreenSelectedPlayerCard?.addEventListener("change", handleSelectedPlayerProfileChange);
-ui.selectedPlayerCard?.addEventListener("click", handleSelectedPlayerProfileClick);
-ui.fullscreenSelectedPlayerCard?.addEventListener("click", handleSelectedPlayerProfileClick);
-ui.sequenceList.addEventListener("click", (event) => {
-const stepCard = event.target.closest("[data-sequence-frame-index]");
-if (!stepCard || !canEditScenario()) {
-return;
-}
-goToSequenceFrame(Number(stepCard.dataset.sequenceFrameIndex));
-updateSequenceButtons();
-render();
-});
-ui.savedSequenceList.addEventListener("click", (event) => {
-const button = event.target.closest("[data-saved-sequence-action]");
-if (!button || !canEditScenario()) {
-return;
-}
-const { savedSequenceAction, savedSequenceId } = button.dataset;
-if (!savedSequenceId) {
-return;
-}
-if (savedSequenceAction === "load") {
-loadSavedSequenceEntry(savedSequenceId);
-render();
-return;
-}
-if (savedSequenceAction === "download") {
-const entry = getSavedSequenceById(savedSequenceId);
-if (entry) {
-downloadSequence(entry.sequence, entry.name);
-}
-return;
-}
-if (savedSequenceAction === "delete") {
-removeSavedSequenceEntry(savedSequenceId);
-render();
-}
-});
+bindGameSimulatorSequenceUiEvents();
 win.addEventListener("blur", () => {
 setProfileMenuOpen(false);
 });

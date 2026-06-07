@@ -13524,9 +13524,6 @@ return sessionPlannerRenderer.renderEditableField(block, key, label, options);
 function renderSessionPlannerHeaderField(block, key, fallback, options = {}) {
 return sessionPlannerRenderer.renderHeaderField(block, key, fallback, options);
 }
-function renderSessionPlannerReviewNoteHistory(block = {}) {
-return sessionPlannerRenderer.renderReviewNoteHistory(block);
-}
 function renderSessionPlannerPostSessionNotesCard(block = {}) {
 return sessionPlannerRenderer.renderPostSessionNotesCard(block);
 }
@@ -13580,42 +13577,6 @@ return exerciseLibraryRenderer.renderFilter(label, filterKey, options);
 }
 function formatSessionPlannerLibraryDate(value = "") {
 return exerciseLibraryRenderer.formatDate(value);
-}
-function formatSessionPlannerLibraryDateTime(value = "") {
-return exerciseLibraryRenderer.formatDateTime(value);
-}
-function renderSessionPlannerLibraryArchiveTabs() {
-return exerciseLibraryRenderer.renderArchiveTabs();
-}
-function renderSessionPlannerLibrarySortControl() {
-return exerciseLibraryRenderer.renderSortControl();
-}
-function getSessionPlannerLibraryCountLabel(count) {
-return exerciseLibraryRenderer.getCountLabel(count);
-}
-function renderSessionPlannerLibraryFolderButton(folderId, label, count, options = {}) {
-return exerciseLibraryRenderer.renderFolderButton(folderId, label, count, options);
-}
-function renderSessionPlannerLibraryFolderEditForm(folder) {
-return exerciseLibraryRenderer.renderFolderEditForm(folder);
-}
-function renderSessionPlannerLibraryFolderCard(folder, options = {}) {
-return exerciseLibraryRenderer.renderFolderCard(folder, options);
-}
-function renderSessionPlannerLibraryFolders() {
-return exerciseLibraryRenderer.renderFolders();
-}
-function renderSessionPlannerLibraryTagChips(tags) {
-return exerciseLibraryRenderer.renderTagChips(tags);
-}
-function renderSessionPlannerLibraryEditDialog(exercise) {
-return exerciseLibraryRenderer.renderEditDialog(exercise);
-}
-function renderSessionPlannerLibraryViewDialog(exercise) {
-return exerciseLibraryRenderer.renderViewDialog(exercise);
-}
-function renderSessionPlannerLibrary(exercises = getFilteredSessionPlannerExerciseLibrary()) {
-return exerciseLibraryRenderer.renderList(exercises);
 }
 function renderSessionPlannerLibraryOverlay() {
 return exerciseLibraryRenderer.renderOverlay();
@@ -14480,9 +14441,6 @@ getHistoryActionLabel: getSessionPlannerHistoryActionLabel,
 getHistoryActorLabel: getSessionPlannerHistoryActorLabel,
 };
 }
-function renderSessionPlannerHistoryPanel() {
-return sessionPlannerWorkspaceRenderer.renderHistoryPanel(getSessionPlannerHistoryPanelContext());
-}
 async function loadSessionPlannerHistory(dateValue = sessionPlannerState?.selectedDate, options = {}) {
 const cleanDate = String(dateValue || "").trim();
 if (!cleanDate || sessionPlannerHistoryLoading || !isCurrentPlatformUserAdmin()) {
@@ -14567,9 +14525,6 @@ showSessionPlannerToast("Session restored from version history.");
 } catch (error) {
 showSessionPlannerToast(error?.message || "Session could not be restored.", "error");
 }
-}
-function renderSessionPlannerToolsPanel(block) {
-return sessionPlannerWorkspaceRenderer.renderToolsPanel(block, getSessionPlannerHistoryPanelContext());
 }
 function getMedicalAvailabilityItems(dateValue = medicalState?.selectedDate) {
 return medicalAvailabilitySelectors.getMedicalAvailabilityItems(dateValue);

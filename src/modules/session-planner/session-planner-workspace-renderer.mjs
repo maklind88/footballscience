@@ -65,6 +65,43 @@ export function createSessionPlannerWorkspaceRenderer({
     }).join("");
   }
 
+  function renderMedicalAvailability(availability = {}) {
+    const buckets = [0, 10, 25, 50, 75, 100].map((participation) => ({
+      participation,
+      count: (availability.all ?? []).filter((item) => item.record && item.participation === participation).length,
+    }));
+    const summaryParts = [
+      `${availability.available?.length ?? 0} available`,
+      `${availability.limited?.length ?? 0} limited`,
+    ];
+    if ((availability.unconfirmed?.length ?? 0) > 0) {
+      summaryParts.push(`${availability.unconfirmed.length} not set`);
+    }
+    const summaryLabel = summaryParts.join(" / ");
+    return `
+    <section class="session-medical-availability" aria-label="Medical availability for selected session">
+      <header>
+        <div>
+          <span>Medical availability</span>
+          <strong>${escapeHtml(summaryLabel)}</strong>
+        </div>
+      </header>
+      <div class="session-medical-summary">
+        ${buckets
+          .map(
+            (bucket) => `
+<span class="session-medical-bucket is-availability-${bucket.participation}${bucket.count ? " has-count" : ""}">
+<strong>${bucket.participation}%</strong>
+<small>${bucket.count}</small>
+</span>
+`
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+  }
+
   const renderHistoryPanel = ({
     entries = [],
     isAdmin = false,
@@ -329,6 +366,7 @@ ${renderSessionPlannerPostSessionNotesCard(block)}
   return {
     renderDateStrip,
     renderHistoryPanel,
+    renderMedicalAvailability,
     renderToolsPanel,
     renderWorkspace,
   };

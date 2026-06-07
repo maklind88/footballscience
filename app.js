@@ -14602,41 +14602,7 @@ unconfirmed: items.filter((item) => !item.record && !item.planningOnly),
 };
 }
 function renderSessionPlannerMedicalAvailability(dateValue) {
-const availability = getSessionPlannerMedicalAvailability(dateValue);
-const buckets = [0, 10, 25, 50, 75, 100].map((participation) => ({
-participation,
-count: availability.all.filter((item) => item.record && item.participation === participation).length,
-}));
-const summaryParts = [
-`${availability.available.length} available`,
-`${availability.limited.length} limited`,
-];
-if (availability.unconfirmed.length > 0) {
-summaryParts.push(`${availability.unconfirmed.length} not set`);
-}
-const summaryLabel = summaryParts.join(" / ");
-return `
-    <section class="session-medical-availability" aria-label="Medical availability for selected session">
-      <header>
-        <div>
-          <span>Medical availability</span>
-          <strong>${summaryLabel}</strong>
-        </div>
-      </header>
-      <div class="session-medical-summary">
-        ${buckets
-          .map(
-            (bucket) => `
-<span class="session-medical-bucket is-availability-${bucket.participation}${bucket.count ? " has-count" : ""}">
-<strong>${bucket.participation}%</strong>
-<small>${bucket.count}</small>
-</span>
-`
-          )
-          .join("")}
-      </div>
-    </section>
-  `;
+return sessionPlannerWorkspaceRenderer.renderMedicalAvailability(getSessionPlannerMedicalAvailability(dateValue));
 }
 function getSessionPlannerPrintPaperOption(value = sessionPlannerPrintPaper) {
 return sessionPlannerPrintRenderer.getPaperOption(value);

@@ -81,4 +81,18 @@ test("Session Planner workspace renderer keeps shell, builder, tools, and histor
   expect(dateStrip).toContain('data-session-date="2026-05-31"');
   expect(dateStrip).toContain("session-date-pill is-active");
   expect(dateStrip.match(/has-session/g)).toHaveLength(2);
+
+  const medicalAvailability = renderer.renderMedicalAvailability({
+    all: [
+      { record: { id: "r1" }, participation: 75 },
+      { record: { id: "r2" }, participation: 100 },
+      { record: null, participation: 100 },
+    ],
+    available: [{ participation: 100 }],
+    limited: [{ participation: 75 }],
+    unconfirmed: [{ participation: 100 }],
+  });
+  expect(medicalAvailability).toContain("Medical availability");
+  expect(medicalAvailability).toContain("1 available / 1 limited / 1 not set");
+  expect(medicalAvailability).toContain("is-availability-75 has-count");
 });

@@ -8481,9 +8481,6 @@ hour: "2-digit",
 minute: "2-digit",
 }).format(date);
 }
-function renderDashboardTaskRow(task, users, currentUser, options = {}) {
-return dashboardTaskListRenderer.renderTaskRow(task, users, currentUser, options);
-}
 function renderDashboardTaskList(tasks, users, currentUser, options = {}) {
 return dashboardTaskListRenderer.renderTaskList(tasks, users, currentUser, options);
 }
@@ -8887,44 +8884,14 @@ win.setTimeout(() => {
 ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-input]")?.focus();
 }, 0);
 }
-function getDashboardScheduleState() {
-return dashboardHomeContextSelectors.getScheduleState();
-}
 function getDashboardSessionPlannerState() {
 return dashboardHomeContextSelectors.getSessionPlannerState();
 }
 function getDashboardTodayValue() {
 return dashboardHomeContextSelectors.getTodayValue();
 }
-function formatDashboardDateLabel(dateValue, variant = "short") {
-return dashboardHomeContextSelectors.formatDateLabel(dateValue, variant);
-}
-function getDashboardRelativeDateLabel(dateValue, todayValue = getDashboardTodayValue()) {
-return dashboardHomeContextSelectors.getRelativeDateLabel(dateValue, todayValue);
-}
-function getDashboardUpcomingEvents(todayValue = getDashboardTodayValue(), types = null) {
-return dashboardHomeContextSelectors.getUpcomingEvents(todayValue, types);
-}
-function getDashboardSessionForDate(dateValue) {
-return dashboardHomeContextSelectors.getSessionForDate(dateValue);
-}
 function getDashboardSessionTotalMinutes(session) {
 return dashboardHomeContextSelectors.getSessionTotalMinutes(session);
-}
-function getDashboardNextSession(todayValue = getDashboardTodayValue()) {
-return dashboardHomeContextSelectors.getNextSession(todayValue);
-}
-function getDashboardLoadTone(load, eventType = "") {
-return dashboardHomeContextSelectors.getLoadTone(load, eventType);
-}
-function getDashboardMicrocycle(todayValue = getDashboardTodayValue()) {
-return dashboardHomeContextSelectors.getMicrocycle(todayValue);
-}
-function getDashboardMedicalAlert(todayValue = getDashboardTodayValue()) {
-return dashboardHomeContextSelectors.getMedicalAlert(todayValue);
-}
-function getDashboardAlerts(context) {
-return dashboardHomeContextSelectors.getAlerts(context);
 }
 function getDashboardHomeContext(currentUser, users, tasks) {
 return dashboardHomeContextSelectors.getHomeContext(currentUser, users, tasks);
@@ -8940,9 +8907,6 @@ updatedBy: currentUser?.id || "",
 });
 localStorage.setItem(platformAppearanceStorageKey, normalizedValue);
 return JSON.parse(normalizedValue);
-}
-function getHomeAppearanceState() {
-return readPlatformAppearanceState().modules.home;
 }
 function getDashboardTutorialPrefs() {
 const parsed = readDashboardJson(dashboardTutorialPrefsStorageKey, {});

@@ -46,6 +46,7 @@ import {
 import { createSessionPlannerAutosaveBoundary, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerVisualRenderer, sessionPlannerStorageKey } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
+import { createPasswordRevealInputRenderer } from "./src/core/form-renderers.mjs";
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
 import { getTopIconSvg } from "./top-icons.js";
 import { createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
@@ -4942,6 +4943,7 @@ let platformReadinessReport = null;
 let platformReadinessLoading = false;
 let platformReadinessLoadedAt = 0;
 let platformReadinessLoadError = "";
+const passwordRevealInputRenderer = createPasswordRevealInputRenderer({ escapeHtml });
 const adminReadinessRenderer = createAdminReadinessRenderer({
 escapeHtml,
 getReadinessState: () => ({
@@ -18886,23 +18888,7 @@ return false;
 }
 }
 function renderPasswordRevealInput(name, placeholder, autocomplete = "new-password") {
-return `
-    <span class="password-input-shell">
-      <input name="${escapeHtml(name)}" type="password" autocomplete="${escapeHtml(autocomplete)}" placeholder="${escapeHtml(placeholder)}" />
-      <button
-        type="button"
-        class="password-visibility-toggle"
-        data-toggle-password-visibility
-        aria-label="Show password"
-        aria-pressed="false"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path>
-          <circle cx="12" cy="12" r="3"></circle>
-        </svg>
-      </button>
-    </span>
-  `;
+return passwordRevealInputRenderer(name, placeholder, autocomplete);
 }
 function togglePasswordInputVisibility(button) {
 const shell = button?.closest(".password-input-shell");

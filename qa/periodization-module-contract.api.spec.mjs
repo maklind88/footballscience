@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import {
+  createPeriodizationSessionBridge,
   createPeriodizationWorkspaceController,
   createPeriodizationRenderer,
   createPeriodizationStateAdapter,
@@ -50,29 +51,34 @@ function createClosestTarget(selector, dataset = {}, extra = {}) {
   return target;
 }
 
-test("Periodization extraction owns the state, renderer, and controller module file slots", () => {
+test("Periodization extraction owns the state, renderer, controller, and bridge module file slots", () => {
   [
     "src/modules/periodization/index.mjs",
     "src/modules/periodization/periodization-state.mjs",
     "src/modules/periodization/periodization-renderer.mjs",
     "src/modules/periodization/periodization-controller.mjs",
+    "src/modules/periodization/periodization-session-bridge.mjs",
   ].forEach((path) => {
     expect(existsSync(resolve(root, path)), `${path} should exist`).toBe(true);
   });
 });
 
-test("Periodization app integration delegates state, renderer, controller, and merge helpers to the module", () => {
+test("Periodization app integration delegates state, renderer, controller, bridge, and merge helpers to the module", () => {
   const app = readProjectFile("app.js");
 
   expect(app).toContain("./src/modules/periodization/periodization-state.mjs");
   expect(app).toContain("./src/modules/periodization/periodization-renderer.mjs");
   expect(app).toContain("./src/modules/periodization/periodization-controller.mjs");
+  expect(app).toContain("./src/modules/periodization/periodization-session-bridge.mjs");
   expect(app).toContain("createPeriodizationStateAdapter");
   expect(app).toContain("createPeriodizationRenderer");
   expect(app).toContain("createPeriodizationWorkspaceController");
+  expect(app).toContain("createPeriodizationSessionBridge");
   expect(app).toContain("getPeriodizationDay: getPeriodizationDayFromState");
   expect(app).toContain("periodizationRenderer.renderWorkspace");
   expect(app).toContain("periodizationWorkspaceController.bind()");
+  expect(app).toContain("sessionPlannerPeriodizationBridge.handleClick(event)");
+  expect(app).not.toContain("let sessionPlannerPeriodizationOverlayDate");
   expect(app).not.toContain('ui.periodizationBoard?.addEventListener("click"');
   expect(app).not.toContain("function renderPeriodizationDayCard(");
   expect(app).not.toContain("function renderPeriodizationWeek(");
@@ -141,6 +147,54 @@ test("Periodization controller delegates board clicks and field changes through 
   });
   expect(calls).toContainEqual(["writeDay", "2026-05-08", { matchPhases: ["In Possession"] }, false]);
   expect(calls).toContainEqual(["refreshDependent", "matchPhases"]);
+});
+
+test("Periodization Session Planner bridge owns overlay state and save delegation", () => {
+  const calls = [];
+  const summaryCard = { outerHTML: "" };
+  const bridge = createPeriodizationSessionBridge({
+    ui: {
+      sessionPlannerWorkspace: {
+        querySelector: (selector) =>
+          selector === '[data-session-periodization-date="2026-05-08"]' ? summaryCard : null,
+      },
+    },
+    renderer: {
+      renderSessionSummary: (dateValue) => `<button data-session-periodization-date="${dateValue}">Summary</button>`,
+      renderDayPanel: (dateValue, options) => `<aside data-date="${dateValue}" data-mode="${options.mode}"></aside>`,
+      renderMultiFieldForDate: () => "",
+    },
+    parseDateValue,
+    ensurePeriodizationState: () => calls.push(["ensure"]),
+    isDateValueInYear: (dateValue) => dateValue.startsWith("2026-"),
+    canEdit: () => true,
+    setPeriodizationSelection: (...args) => calls.push(["selectPeriodization", ...args]),
+    setMultiSelectOpenField: (fieldKey) => calls.push(["openField", fieldKey]),
+    getMultiSelectOpenField: () => "",
+    writePeriodizationState: (options) => calls.push(["writeState", options]),
+    renderSessionPlanner: (options) => calls.push(["renderSession", options]),
+    writeDay: (...args) => calls.push(["writeDay", ...args]),
+    getMultiFieldValue: () => ["Build Up"],
+    isMultiField: (fieldKey) => fieldKey === "subPhases",
+    refreshMatchDayChip: () => calls.push(["matchDayChip"]),
+  });
+
+  expect(bridge.open("2026-05-08", "edit")).toBe(true);
+  expect(bridge.getOverlayState()).toEqual({ date: "2026-05-08", mode: "edit" });
+  expect(bridge.renderOverlay()).toContain('data-mode="edit"');
+  expect(calls).toContainEqual(["selectPeriodization", "2026-05-08", 4]);
+  expect(calls).toContainEqual(["writeState", { syncCentral: false }]);
+
+  bridge.handleChange({
+    target: createClosestTarget(
+      "[data-periodization-field]",
+      { periodizationField: "subPhases" },
+      { tagName: "INPUT", value: "unused" }
+    ),
+  });
+  expect(calls).toContainEqual(["writeDay", "2026-05-08", { subPhases: ["Build Up"] }, false]);
+  expect(calls).toContainEqual(["matchDayChip"]);
+  expect(summaryCard.outerHTML).toContain('data-session-periodization-date="2026-05-08"');
 });
 
 test("Periodization state keeps the current default calendar and option contract", () => {

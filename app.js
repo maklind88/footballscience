@@ -29,6 +29,7 @@ import {
 } from "./src/modules/periodization/periodization-state.mjs";
 import { createPeriodizationWorkspaceController } from "./src/modules/periodization/periodization-controller.mjs";
 import { createPeriodizationRenderer } from "./src/modules/periodization/periodization-renderer.mjs";
+import { createPeriodizationSessionBridge } from "./src/modules/periodization/periodization-session-bridge.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
@@ -4454,7 +4455,6 @@ let transferRoomState = null;
 let sessionPlannerState = null;
 let sessionPlannerExerciseLibrary = null;
 let sessionPlannerExerciseLibraryFolders = null;
-let sessionPlannerPeriodizationOverlayDate = null;
 let dashboardChatThreadId = "team";
 let dashboardChatWidgetToastTimer = null;
 let dashboardChatWidgetToastState = null;
@@ -4489,7 +4489,6 @@ let dashboardChatThreadSummaryLastRequestedAt = 0;
 let dashboardChatComposerAttachmentDraft = null;
 let dashboardChatGroupCreatorOpen = false;
 let dashboardChatSubmittedComposerDrafts = new Map();
-let sessionPlannerPeriodizationOverlayMode = "view";
 let sessionPlannerLibraryOpen = false;
 let sessionPlannerLibraryPhaseFilter = "all";
 let sessionPlannerLibrarySubPhaseFilter = "all";
@@ -13639,8 +13638,7 @@ if (!sessionPlannerState || !dateValue) {
 return;
 }
 sessionPlannerState.selectedDate = dateValue;
-sessionPlannerPeriodizationOverlayDate = null;
-sessionPlannerPeriodizationOverlayMode = "view";
+sessionPlannerPeriodizationBridge.close({ render: false });
 sessionPlannerLibraryOpen = false;
 sessionPlannerAddMenuOpen = false;
 sessionPlannerVisualPreviewOpen = false;
@@ -32169,59 +32167,6 @@ return periodizationRenderer.getWeekDatesForDate(date);
 function getPeriodizationMicrocycleModel(weekDates = []) {
 return periodizationRenderer.getMicrocycleModel(weekDates);
 }
-function renderSessionPlannerPeriodizationSummary(dateValue) {
-ensurePeriodizationState();
-return periodizationRenderer.renderSessionSummary(dateValue);
-}
-function openSessionPlannerPeriodizationOverlay(dateValue, mode = "view") {
-if (!dateValue || !isDateValueInYear(dateValue, periodizationYear)) {
-return;
-}
-ensurePeriodizationState();
-const date = parseScheduleDateValue(dateValue);
-const safeMode = mode === "edit" && !canEditPeriodizationWorkspace() ? "view" : mode;
-periodizationState.selectedDate = dateValue;
-periodizationState.selectedMonthIndex = date.getMonth();
-sessionPlannerPeriodizationOverlayDate = dateValue;
-sessionPlannerPeriodizationOverlayMode = safeMode;
-periodizationMultiSelectOpenField = "";
-writePeriodizationState({ syncCentral: false });
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-}
-function closeSessionPlannerPeriodizationOverlay() {
-sessionPlannerPeriodizationOverlayDate = null;
-sessionPlannerPeriodizationOverlayMode = "view";
-periodizationMultiSelectOpenField = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-}
-function renderSessionPlannerPeriodizationOverlay() {
-if (!sessionPlannerPeriodizationOverlayDate) {
-return "";
-}
-ensurePeriodizationState();
-if (!canEditPeriodizationWorkspace() && sessionPlannerPeriodizationOverlayMode === "edit") {
-sessionPlannerPeriodizationOverlayMode = "view";
-}
-return `
-    <div class="periodization-day-overlay session-periodization-overlay" data-session-periodization-overlay>
-      ${renderPeriodizationDayPanel(sessionPlannerPeriodizationOverlayDate, {
-        isOverlay: true,
-        mode: sessionPlannerPeriodizationOverlayMode,
-      })}
-    </div>
-  `;
-}
-function refreshSessionPlannerPeriodizationSummaryCard(dateValue = sessionPlannerPeriodizationOverlayDate) {
-if (!dateValue || !ui.sessionPlannerWorkspace) {
-return;
-}
-const summaryCard = ui.sessionPlannerWorkspace.querySelector(
-`[data-session-periodization-date="${dateValue}"]`
-);
-if (summaryCard) {
-summaryCard.outerHTML = renderSessionPlannerPeriodizationSummary(dateValue);
-}
-}
 function refreshSessionPlannerMatchDayChip() {
 if (!ui.sessionPlannerWorkspace || !sessionPlannerState) {
 return;
@@ -32247,38 +32192,42 @@ headerInfo.insertAdjacentHTML(
 `<strong class="session-matchday-chip">(${escapeHtml(matchDayLabel)})</strong>`
 );
 }
-function refreshSessionPlannerPeriodizationMultiField(key) {
-if (!sessionPlannerPeriodizationOverlayDate || !ui.sessionPlannerWorkspace) {
-return;
-}
-const field = ui.sessionPlannerWorkspace.querySelector(`[data-periodization-multi-field="${key}"]`);
-const html = periodizationRenderer.renderMultiFieldForDate(key, sessionPlannerPeriodizationOverlayDate);
-if (!field || !html) {
-return;
-}
-field.outerHTML = html;
-}
-function refreshSessionPlannerPeriodizationMultiFields(keys = []) {
-Array.from(new Set((Array.isArray(keys) ? keys : [keys]).filter(Boolean))).forEach((key) => {
-refreshSessionPlannerPeriodizationMultiField(key);
+const sessionPlannerPeriodizationBridge = createPeriodizationSessionBridge({
+ui,
+renderer: periodizationRenderer,
+parseDateValue: parseScheduleDateValue,
+ensurePeriodizationState,
+isDateValueInYear: (dateValue) => isDateValueInYear(dateValue, periodizationYear),
+canEdit: canEditPeriodizationWorkspace,
+writeDay: writePeriodizationDay,
+writePeriodizationState,
+renderSessionPlanner: renderSessionPlannerWorkspace,
+getCustomFieldValue: getPeriodizationCustomFieldValue,
+getMultiFieldValue: getPeriodizationMultiFieldValue,
+isMultiField: (fieldKey) => periodizationMultiFields.has(fieldKey),
+getMultiSelectOpenField: () => periodizationMultiSelectOpenField,
+setMultiSelectOpenField: (fieldKey = "") => {
+periodizationMultiSelectOpenField = fieldKey;
+},
+setPeriodizationSelection: (dateValue, monthIndex) => {
+periodizationState.selectedDate = dateValue;
+periodizationState.selectedMonthIndex = Number.isInteger(monthIndex)
+? monthIndex
+: parseScheduleDateValue(dateValue).getMonth();
+},
+refreshMatchDayChip: refreshSessionPlannerMatchDayChip,
 });
+function renderSessionPlannerPeriodizationSummary(dateValue) {
+return sessionPlannerPeriodizationBridge.renderSummary(dateValue);
 }
-function refreshSessionPlannerPeriodizationDependentFields(changedKey = "") {
-if (changedKey === "matchPhases") {
-refreshSessionPlannerPeriodizationMultiField("subPhases");
-refreshSessionPlannerPeriodizationMultiField("teamPrinciples");
-refreshSessionPlannerPeriodizationMultiField("miniGamePrinciples");
-return;
+function openSessionPlannerPeriodizationOverlay(dateValue, mode = "view") {
+sessionPlannerPeriodizationBridge.open(dateValue, mode);
 }
-if (changedKey === "subPhases") {
-refreshSessionPlannerPeriodizationMultiField("teamPrinciples");
-refreshSessionPlannerPeriodizationMultiField("miniGamePrinciples");
+function closeSessionPlannerPeriodizationOverlay() {
+sessionPlannerPeriodizationBridge.close();
 }
-}
-function refreshSessionPlannerPeriodizationEditSurfaces(changedKey = "") {
-refreshSessionPlannerPeriodizationSummaryCard();
-refreshSessionPlannerMatchDayChip();
-refreshSessionPlannerPeriodizationDependentFields(changedKey);
+function renderSessionPlannerPeriodizationOverlay() {
+return sessionPlannerPeriodizationBridge.renderOverlay();
 }
 function refreshPeriodizationBoardMultiField(key) {
 if (!periodizationState?.selectedDate || !ui.periodizationBoard) {
@@ -75065,46 +75014,7 @@ sessionPlannerLibrarySuppressNextClick = false;
 event.preventDefault();
 return;
 }
-const sessionPeriodizationClose = event.target.closest("[data-periodization-close]");
-if (sessionPeriodizationClose && sessionPlannerPeriodizationOverlayDate) {
-closeSessionPlannerPeriodizationOverlay();
-return;
-}
-if (event.target.matches("[data-session-periodization-overlay]")) {
-closeSessionPlannerPeriodizationOverlay();
-return;
-}
-const sessionPeriodizationEdit = event.target.closest("[data-periodization-edit-selected]");
-if (sessionPeriodizationEdit && sessionPlannerPeriodizationOverlayDate) {
-if (!canEditPeriodizationWorkspace()) {
-return;
-}
-sessionPlannerPeriodizationOverlayMode = "edit";
-periodizationMultiSelectOpenField = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-return;
-}
-const sessionPeriodizationView = event.target.closest("[data-periodization-view-selected]");
-if (sessionPeriodizationView && sessionPlannerPeriodizationOverlayDate) {
-sessionPlannerPeriodizationOverlayMode = "view";
-periodizationMultiSelectOpenField = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-return;
-}
-const periodizationMultiToggle = event.target.closest("[data-periodization-multi-toggle]");
-if (periodizationMultiToggle && sessionPlannerPeriodizationOverlayDate) {
-if (!canEditPeriodizationWorkspace()) {
-return;
-}
-const field = periodizationMultiToggle.dataset.periodizationMultiToggle;
-const previousOpenField = periodizationMultiSelectOpenField;
-periodizationMultiSelectOpenField = previousOpenField === field ? "" : field;
-refreshSessionPlannerPeriodizationMultiFields([previousOpenField, field]);
-return;
-}
-const sessionPeriodizationCard = event.target.closest("[data-session-periodization-date]");
-if (sessionPeriodizationCard) {
-openSessionPlannerPeriodizationOverlay(sessionPeriodizationCard.dataset.sessionPeriodizationDate, "view");
+if (sessionPlannerPeriodizationBridge.handleClick(event)) {
 return;
 }
 if (event.target.matches("[data-session-library-overlay]")) {
@@ -75774,36 +75684,7 @@ if (tacticalStyleInput) {
 updateSessionPlannerTacticalLineStyle(tacticalStyleInput.value);
 return;
 }
-const periodizationCustomField = event.target.closest("[data-periodization-custom-field]");
-if (periodizationCustomField && sessionPlannerPeriodizationOverlayDate) {
-if (!canEditPeriodizationWorkspace()) {
-return;
-}
-writePeriodizationDay(
-sessionPlannerPeriodizationOverlayDate,
-{
-[periodizationCustomField.dataset.periodizationCustomField]: getPeriodizationCustomFieldValue(
-periodizationCustomField,
-sessionPlannerPeriodizationOverlayDate
-),
-},
-false
-);
-return;
-}
-const periodizationField = event.target.closest("[data-periodization-field]");
-if (periodizationField && sessionPlannerPeriodizationOverlayDate) {
-if (!canEditPeriodizationWorkspace()) {
-return;
-}
-if (periodizationField.tagName === "SELECT" || periodizationField.matches("[data-periodization-multi-option]")) {
-return;
-}
-writePeriodizationDay(
-sessionPlannerPeriodizationOverlayDate,
-{ [periodizationField.dataset.periodizationField]: periodizationField.value },
-false
-);
+if (sessionPlannerPeriodizationBridge.handleInput(event)) {
 return;
 }
 const librarySearchField = event.target.closest("[data-session-library-search]");
@@ -75866,40 +75747,7 @@ handleSessionPlannerVisualUpload(visualUploadField.files?.[0]);
 visualUploadField.value = "";
 return;
 }
-const periodizationCustomField = event.target.closest("[data-periodization-custom-field]");
-if (periodizationCustomField && sessionPlannerPeriodizationOverlayDate) {
-if (!canEditPeriodizationWorkspace()) {
-return;
-}
-const fieldKey = periodizationCustomField.dataset.periodizationCustomField;
-writePeriodizationDay(
-sessionPlannerPeriodizationOverlayDate,
-{
-[fieldKey]: getPeriodizationCustomFieldValue(
-periodizationCustomField,
-sessionPlannerPeriodizationOverlayDate
-),
-},
-false
-);
-refreshSessionPlannerPeriodizationEditSurfaces(fieldKey);
-return;
-}
-const periodizationField = event.target.closest("[data-periodization-field]");
-if (periodizationField && sessionPlannerPeriodizationOverlayDate) {
-if (!canEditPeriodizationWorkspace()) {
-return;
-}
-const fieldKey = periodizationField.dataset.periodizationField;
-const value = periodizationMultiFields.has(fieldKey)
-? getPeriodizationMultiFieldValue(periodizationField, sessionPlannerPeriodizationOverlayDate)
-: periodizationField.value;
-writePeriodizationDay(
-sessionPlannerPeriodizationOverlayDate,
-{ [fieldKey]: value },
-false
-);
-refreshSessionPlannerPeriodizationEditSurfaces(fieldKey);
+if (sessionPlannerPeriodizationBridge.handleChange(event)) {
 return;
 }
 const libraryFilter = event.target.closest("[data-session-library-filter]");
@@ -76132,15 +75980,7 @@ event.preventDefault();
 removeSelectedSessionPlannerTacticalElement();
 return;
 }
-if (event.key !== "Enter" && event.key !== " ") {
-return;
-}
-const sessionPeriodizationCard = event.target.closest("[data-session-periodization-date]");
-if (!sessionPeriodizationCard) {
-return;
-}
-event.preventDefault();
-openSessionPlannerPeriodizationOverlay(sessionPeriodizationCard.dataset.sessionPeriodizationDate, "view");
+sessionPlannerPeriodizationBridge.handleKeydown(event);
 });
 periodizationWorkspaceController.bind();
 scheduleWorkspaceController.bind();

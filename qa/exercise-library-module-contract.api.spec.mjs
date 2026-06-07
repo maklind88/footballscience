@@ -5,6 +5,7 @@ import { expect, test } from "@playwright/test";
 import {
   createExerciseLibraryActions,
   createExerciseLibraryRenderer,
+  createExerciseLibraryReviewHelpers,
   createExerciseLibraryRuntimeController,
   createExerciseLibrarySelectors,
   createExerciseLibraryStateAdapter,
@@ -44,6 +45,7 @@ test("Exercise Library extraction owns the first state module file slots", () =>
     "src/modules/exercise-library/index.mjs",
     "src/modules/exercise-library/exercise-library-actions.mjs",
     "src/modules/exercise-library/exercise-library-renderer.mjs",
+    "src/modules/exercise-library/exercise-library-review-helpers.mjs",
     "src/modules/exercise-library/exercise-library-runtime-controller.mjs",
     "src/modules/exercise-library/exercise-library-selectors.mjs",
     "src/modules/exercise-library/exercise-library-state.mjs",
@@ -94,6 +96,64 @@ test("Exercise Library selectors own seed exercises, filters, and sort order", (
     "Middle",
     "Zulu",
   ]);
+});
+
+test("Exercise Library review helpers own session block to library exercise mapping", () => {
+  const helpers = createExerciseLibraryReviewHelpers({
+    cloneTacticalElement: (element) => ({ ...element, cloned: true }),
+    createLibraryExercise: (source) => ({ ...source, normalized: true }),
+    createReviewNoteId: (sessionDate, blockId) => `note-${sessionDate}-${blockId}`,
+    createStableId: () => "exercise-new",
+    getExerciseById: () => ({
+      id: "source-exercise",
+      reviewNotes: [
+        { id: "note-2026-05-01-block-1", notes: "Current note" },
+        { id: "older-note", notes: "Older note" },
+      ],
+      postSessionNotes: "Legacy note",
+    }),
+    getLibraryUserId: () => "coach-1",
+    getNow: () => "2026-05-01T10:00:00.000Z",
+    getSelectedDate: () => "2026-05-01",
+    normalizePlayerBoardColors: () => ({ team: "#123456" }),
+    normalizePlayerBoardCustomPeople: () => [{ id: "guest-1" }],
+    normalizePlayerBoardPositions: () => ({ p1: { x: 10, y: 20 } }),
+    normalizeReviewNote: (note) => ({ ...note, normalized: true }),
+    normalizeReviewNotes: (notes, legacyNotes) => [...notes, { id: "legacy", notes: legacyNotes }],
+    normalizeTacticalActiveFrameId: (value) => value || "frame-1",
+    normalizeTacticalFrames: () => [{ id: "frame-1" }],
+    normalizeTacticalPitchMode: () => "half",
+  });
+
+  const block = {
+    id: "block-1",
+    libraryExerciseId: "source-exercise",
+    title: "Pressing Wave",
+    focus: "Press",
+    postSessionNotes: "Worked well",
+    tacticalElements: [{ id: "line-1" }],
+  };
+
+  expect(helpers.createReviewNoteFromBlock(block)).toMatchObject({
+    id: "note-2026-05-01-block-1",
+    notes: "Worked well",
+    normalized: true,
+    updatedBy: "coach-1",
+  });
+  expect(helpers.getExerciseReviewNotesForBlock(block).map((note) => note.id)).toEqual(["older-note", "legacy"]);
+
+  const exercise = helpers.buildLibraryExerciseFromBlock(block);
+  expect(exercise).toMatchObject({
+    id: "exercise-new",
+    label: "Library Exercise",
+    normalized: true,
+    postSessionNotes: "",
+    reviewNotes: [{ id: "note-2026-05-01-block-1" }],
+    source: "session",
+    title: "Pressing Wave",
+  });
+  expect(exercise.tacticalElements).toEqual([{ id: "line-1", cloned: true }]);
+  expect(exercise.playerBoardPositions).toEqual({ p1: { x: 10, y: 20 } });
 });
 
 test("Exercise Library actions archive, restore, and move folder membership without deleting exercises", () => {
@@ -409,6 +469,7 @@ test("Exercise Library app integration delegates runtime ownership to the module
   expect(app).toContain("./src/modules/exercise-library/index.mjs");
   expect(app).toContain("createExerciseLibraryActions");
   expect(app).toContain("createExerciseLibraryRuntimeController");
+  expect(app).toContain("createExerciseLibraryReviewHelpers");
   expect(app).toContain("createExerciseLibraryStateAdapter");
   expect(app).toContain("createExerciseLibrarySelectors");
   expect(app).toContain("createExerciseLibraryRenderer");
@@ -416,11 +477,14 @@ test("Exercise Library app integration delegates runtime ownership to the module
   expect(app).toContain("exerciseLibraryRenderer.renderOverlay()");
   expect(app).not.toContain("exerciseLibraryStateAdapter.createExercise(source)");
   expect(app).not.toContain("exerciseLibraryStateAdapter.createFolder(source)");
+  expect(app).not.toContain("function buildSessionPlannerLibraryExerciseFromBlock");
+  expect(app).not.toContain("function createSessionPlannerReviewNoteFromBlock");
   expect(app).not.toContain("exerciseLibraryStateAdapter.parseExercisePayload(rawLibrary)");
   expect(app).not.toContain("exerciseLibrarySelectors.compareExercises(a, b, sessionPlannerLibrarySortMode)");
   expect(app).not.toContain('const sessionPlannerExerciseLibraryStorageKey = "football-session-exercise-library-v1";');
   expect(app).not.toContain("const sessionPlannerDefaultExerciseLibrary = [");
   expect(packageJson).toContain("src/modules/exercise-library/exercise-library-runtime-controller.mjs");
+  expect(packageJson).toContain("src/modules/exercise-library/exercise-library-review-helpers.mjs");
   expect(packageJson).toContain("qa/exercise-library-module-contract.api.spec.mjs");
   expect(storageGuard).toContain("src/modules/exercise-library/exercise-library-state.mjs");
 });
@@ -432,6 +496,7 @@ test("Exercise Library is tracked as partial extraction while protected writes r
   expect(contract.currentFiles).toContain("src/modules/exercise-library/index.mjs");
   expect(contract.currentFiles).toContain("src/modules/exercise-library/exercise-library-actions.mjs");
   expect(contract.currentFiles).toContain("src/modules/exercise-library/exercise-library-renderer.mjs");
+  expect(contract.currentFiles).toContain("src/modules/exercise-library/exercise-library-review-helpers.mjs");
   expect(contract.currentFiles).toContain("src/modules/exercise-library/exercise-library-runtime-controller.mjs");
   expect(contract.currentFiles).toContain("src/modules/exercise-library/exercise-library-state.mjs");
   expect(contract.testFiles).toContain("qa/exercise-library-module-contract.api.spec.mjs");

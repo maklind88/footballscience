@@ -245,6 +245,7 @@ export const moduleStandardContracts = Object.freeze([
       "src/modules/exercise-library/index.mjs",
       "src/modules/exercise-library/exercise-library-actions.mjs",
       "src/modules/exercise-library/exercise-library-renderer.mjs",
+      "src/modules/exercise-library/exercise-library-review-helpers.mjs",
       "src/modules/exercise-library/exercise-library-runtime-controller.mjs",
       "src/modules/exercise-library/exercise-library-state.mjs",
     ],

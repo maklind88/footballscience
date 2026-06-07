@@ -48,6 +48,7 @@ import { createPeriodizationSessionBridge } from "./src/modules/periodization/pe
 import {
   createExerciseLibraryActions,
   createExerciseLibraryRenderer,
+  createExerciseLibraryReviewHelpers,
   createExerciseLibraryRuntimeController,
   createExerciseLibrarySelectors,
   createExerciseLibraryStateAdapter,
@@ -1954,6 +1955,29 @@ sessionPlannerMultiSelectOpenField = field;
 sessionPlannerRenderer: {
 renderMultiSelectField: (...args) => sessionPlannerRenderer.renderMultiSelectField(...args),
 },
+});
+const {
+buildLibraryExerciseFromBlock: buildSessionPlannerLibraryExerciseFromBlock,
+createReviewNoteFromBlock: createSessionPlannerReviewNoteFromBlock,
+getExerciseReviewNotes: getSessionPlannerExerciseReviewNotes,
+getExerciseReviewNotesForBlock: getSessionPlannerExerciseReviewNotesForBlock,
+} = createExerciseLibraryReviewHelpers({
+cloneTacticalElement: cloneSessionPlannerTacticalElement,
+createLibraryExercise: createSessionPlannerLibraryExercise,
+createReviewNoteId: createSessionPlannerReviewNoteId,
+createStableId: createSessionPlannerStableId,
+getExerciseById: getSessionPlannerLibraryExerciseById,
+getLibraryUserId: getSessionPlannerLibraryUserId,
+getNow: getSessionPlannerLibraryNow,
+getSelectedDate: () => sessionPlannerState?.selectedDate || "",
+normalizePlayerBoardColors: normalizeSessionPlannerPlayerBoardColors,
+normalizePlayerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople,
+normalizePlayerBoardPositions: normalizeSessionPlannerPlayerBoardPositions,
+normalizeReviewNote: normalizeSessionPlannerExerciseReviewNote,
+normalizeReviewNotes: normalizeSessionPlannerExerciseReviewNotes,
+normalizeTacticalActiveFrameId: normalizeSessionPlannerTacticalActiveFrameId,
+normalizeTacticalFrames: normalizeSessionPlannerTacticalFrames,
+normalizeTacticalPitchMode: normalizeSessionPlannerTacticalPitchMode,
 });
 const sessionPlannerSessionFactory = createSessionPlannerSessionFactory({
 createBlock: createSessionPlannerBlock,
@@ -7045,85 +7069,6 @@ function updateSessionPlannerLibraryExerciseFromEdit(...args) { return callExerc
 function hasSessionPlannerLibraryExerciseEditChanges(...args) { return callExerciseLibraryRuntime("hasSessionPlannerLibraryExerciseEditChanges", args); }
 function saveSessionPlannerLibraryExerciseEditAsCopy(...args) { return callExerciseLibraryRuntime("saveSessionPlannerLibraryExerciseEditAsCopy", args); }
 function normalizeSessionPlannerLibraryTitle(...args) { return callExerciseLibraryRuntime("normalizeSessionPlannerLibraryTitle", args); }
-function createSessionPlannerReviewNoteFromBlock(block = {}, options = {}) {
-const notes = String(block.postSessionNotes || "").trim();
-if (!notes) {
-return null;
-}
-const sessionDate = String(options.sessionDate || sessionPlannerState?.selectedDate || "").trim();
-const blockId = String(block.id || "").trim();
-const existingNote = options.existingNote || null;
-const now = getSessionPlannerLibraryNow();
-return normalizeSessionPlannerExerciseReviewNote({
-id: existingNote?.id || createSessionPlannerReviewNoteId(sessionDate, blockId),
-sessionDate,
-blockId,
-blockTitle: String(block.title || block.label || "Exercise").trim(),
-notes,
-createdAt: existingNote?.createdAt || now,
-updatedAt: now,
-updatedBy: getSessionPlannerLibraryUserId(),
-});
-}
-function getSessionPlannerExerciseReviewNotes(exercise = {}) {
-return normalizeSessionPlannerExerciseReviewNotes(exercise.reviewNotes, exercise.postSessionNotes);
-}
-function getSessionPlannerExerciseReviewNotesForBlock(block = {}, options = {}) {
-const exercise = getSessionPlannerLibraryExerciseById(block.libraryExerciseId);
-if (!exercise) {
-return [];
-}
-const currentNoteId = createSessionPlannerReviewNoteId(
-String(options.sessionDate || sessionPlannerState?.selectedDate || "").trim(),
-String(block.id || "").trim()
-);
-return getSessionPlannerExerciseReviewNotes(exercise).filter((note) => note.id !== currentNoteId);
-}
-function buildSessionPlannerLibraryExerciseFromBlock(block) {
-const now = getSessionPlannerLibraryNow();
-const currentUserId = getSessionPlannerLibraryUserId();
-const reviewNote = createSessionPlannerReviewNoteFromBlock(block);
-return createSessionPlannerLibraryExercise({
-...block,
-id: createSessionPlannerStableId("exercise"),
-label: "Library Exercise",
-createdAt: now,
-updatedAt: now,
-createdBy: currentUserId,
-updatedBy: currentUserId,
-archivedAt: "",
-archivedBy: "",
-source: "session",
-title: String(block.title || "").trim() || "Untitled Exercise",
-focus: String(block.focus || "").trim(),
-phase: block.phase || "",
-subPhase: block.subPhase || "",
-tags: [],
-minutes: block.minutes,
-time: block.time || "",
-intensity: block.intensity,
-pitchSize: block.pitchSize || "",
-material: block.material || "",
-objective: block.objective || "",
-why: block.why || "",
-organization: block.organization || "",
-principles: block.principles || "",
-postSessionNotes: "",
-reviewNotes: reviewNote ? [reviewNote] : [],
-diagram: block.diagram || "empty",
-tacticalPitchMode: normalizeSessionPlannerTacticalPitchMode(block.tacticalPitchMode),
-playerBoardLayoutMode: block.playerBoardLayoutMode === "manual" ? "manual" : "auto",
-visualImage: block.visualImage || "",
-playerBoardPositions: normalizeSessionPlannerPlayerBoardPositions(block.playerBoardPositions),
-playerBoardColors: normalizeSessionPlannerPlayerBoardColors(block.playerBoardColors),
-playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople(block.playerBoardCustomPeople),
-tacticalFrames: normalizeSessionPlannerTacticalFrames(block.tacticalFrames),
-tacticalActiveFrameId: block.tacticalActiveFrameId || "",
-tacticalElements: Array.isArray(block.tacticalElements)
-? block.tacticalElements.map(cloneSessionPlannerTacticalElement)
-: [],
-});
-}
 function renderSessionPlannerToast() {
 if (!ui.sessionPlannerWorkspace) {
 return;

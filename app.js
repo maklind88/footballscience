@@ -13452,53 +13452,8 @@ block: "nearest",
 inline: "center",
 });
 }
-function renderSessionPlannerPitchDiagram(diagram = "empty", options = {}) {
-return sessionPlannerVisualRenderer.renderPitchDiagram(diagram, options);
-}
-function getSessionPlannerVisualElementId(block) {
-return sessionPlannerVisualRenderer.getVisualElementId(block);
-}
-function renderSessionPlannerTacticalSvgElement(element, arrowId) {
-return sessionPlannerVisualRenderer.renderTacticalSvgElement(element, arrowId);
-}
-function renderSessionPlannerTacticalHtmlElement(element) {
-return sessionPlannerVisualRenderer.renderTacticalHtmlElement(element);
-}
 function getSessionPlannerTacticalEndpointCoordinates(element) {
 return sessionPlannerVisualRenderer.getTacticalEndpointCoordinates(element);
-}
-function getSessionPlannerTacticalPointDistanceMeters(from = {}, to = {}) {
-return sessionPlannerVisualRenderer.getTacticalPointDistanceMeters(from, to);
-}
-function formatSessionPlannerTacticalMeters(value) {
-return sessionPlannerVisualRenderer.formatTacticalMeters(value);
-}
-function getSessionPlannerTacticalCurveLengthMeters(element, coordinates) {
-return sessionPlannerVisualRenderer.getTacticalCurveLengthMeters(element, coordinates);
-}
-function getSessionPlannerTacticalFreehandLengthMeters(element) {
-return sessionPlannerVisualRenderer.getTacticalFreehandLengthMeters(element);
-}
-function getSessionPlannerTacticalElementMeasurement(element) {
-return sessionPlannerVisualRenderer.getTacticalElementMeasurement(element);
-}
-function renderSessionPlannerTacticalMeasurementLabel(element) {
-return sessionPlannerVisualRenderer.renderTacticalMeasurementLabel(element);
-}
-function renderSessionPlannerTacticalMeasurementLabels(elements = []) {
-return sessionPlannerVisualRenderer.renderTacticalMeasurementLabels(elements);
-}
-function renderSessionPlannerTacticalSelectionHandles(element) {
-return sessionPlannerVisualRenderer.renderTacticalSelectionHandles(element);
-}
-function renderSessionPlannerTacticalRotationHandle(element) {
-return sessionPlannerVisualRenderer.renderTacticalRotationHandle(element);
-}
-function renderSessionPlannerTacticalPendingMarkers() {
-return sessionPlannerVisualRenderer.renderTacticalPendingMarkers();
-}
-function renderSessionPlannerTacticalNumberPicker(elements = []) {
-return sessionPlannerVisualRenderer.renderTacticalNumberPicker(elements);
 }
 function renderSessionPlannerExerciseVisual(block, options = {}) {
 return sessionPlannerVisualRenderer.renderExerciseVisual(block, options);
@@ -13508,9 +13463,6 @@ return sessionPlannerVisualRenderer.renderActionIcon(name);
 }
 function renderSessionPlannerVisualPreviewOverlay(block) {
 return sessionPlannerVisualRenderer.renderVisualPreviewOverlay(block);
-}
-function renderSessionPlannerTacticalToolIcon(tool) {
-return sessionPlannerVisualRenderer.renderTacticalToolIcon(tool);
 }
 function renderSessionPlannerTacticalboardOverlay(block) {
 return sessionPlannerVisualRenderer.renderTacticalboardOverlay(block);
@@ -13571,9 +13523,6 @@ selectedFolder &&
 !isSessionPlannerLibraryFolderArchived(selectedFolder) &&
 normalizeSessionPlannerLibraryFolderExerciseIds(selectedFolder.exerciseIds).includes(exercise.id)
 );
-}
-function renderSessionPlannerLibraryFilter(label, filterKey, options) {
-return exerciseLibraryRenderer.renderFilter(label, filterKey, options);
 }
 function formatSessionPlannerLibraryDate(value = "") {
 return exerciseLibraryRenderer.formatDate(value);
@@ -13860,21 +13809,6 @@ roleSummary,
 linkedItems,
 };
 }
-function renderSessionPlannerSquadBridgeStrip(boardPlayers = []) {
-return sessionPlannerPlayerBoardRenderer.renderSquadBridgeStrip(boardPlayers);
-}
-function renderSessionPlannerSquadBridgePanel(boardPlayers = []) {
-return sessionPlannerPlayerBoardRenderer.renderSquadBridgePanel(boardPlayers);
-}
-function renderSessionPlannerPlayerBoardSquadProfile(contract) {
-return sessionPlannerPlayerBoardRenderer.renderPlayerBoardSquadProfile(contract);
-}
-function renderSessionPlannerSelectionAssistantPanel(block, boardPlayers = [], options = {}) {
-return sessionPlannerPlayerBoardRenderer.renderSelectionAssistantPanel(block, boardPlayers, options);
-}
-function renderSessionPlannerSelectionAssistantOverlay(block, boardPlayers = []) {
-return sessionPlannerPlayerBoardRenderer.renderSelectionAssistantOverlay(block, boardPlayers);
-}
 function applySessionPlannerSelectionAssistant() {
 const block = getSessionPlannerSelectedBlock();
 const boardPlayers = getSessionPlannerPlayerBoardPlayers(block);
@@ -13980,9 +13914,6 @@ unavailable,
 unconfirmed,
 hasWarnings: Boolean(belowLimit.length || unavailable.length || unconfirmed.length),
 };
-}
-function renderSessionPlannerPlayerBoardWarnings(block, options = {}) {
-return sessionPlannerPlayerBoardRenderer.renderPlayerBoardWarnings(block, options);
 }
 function syncSessionPlannerPlayerBoardSelection(block = getSessionPlannerSelectedBlock()) {
 const boardPlayers = getSessionPlannerPlayerBoardPlayers(block);
@@ -14283,24 +14214,6 @@ break;
 }
 return new Map(entries.map((entry) => [entry.id, { x: entry.x, y: entry.y }]));
 }
-function renderSessionPlannerPlayerBoardLines() {
-return sessionPlannerPlayerBoardRenderer.renderPlayerBoardLines();
-}
-function renderSessionPlannerPlayerBoardPositionLabels() {
-return sessionPlannerPlayerBoardRenderer.renderPlayerBoardPositionLabels();
-}
-function renderSessionPlannerPlayerBoardToken(item, index, block, total, labelMap, selectedPlayerIds = new Set(), boardPlayers = []) {
-return sessionPlannerPlayerBoardRenderer.renderPlayerBoardToken(item, index, block, total, labelMap, selectedPlayerIds, boardPlayers);
-}
-function renderSessionPlannerPlayerBoardProfile(item, block, rule, totalPlayers) {
-return sessionPlannerPlayerBoardRenderer.renderPlayerBoardProfile(item, block, rule, totalPlayers);
-}
-function renderSessionPlannerPlayerBoardProfileOverlay(selectedItem, block, rule, totalPlayers) {
-return sessionPlannerPlayerBoardRenderer.renderPlayerBoardProfileOverlay(selectedItem, block, rule, totalPlayers);
-}
-function renderSessionPlannerPlayerBoardCopyTools(block) {
-return sessionPlannerPlayerBoardRenderer.renderPlayerBoardCopyTools(block);
-}
 function copySessionPlannerPlayerBoardTeamsFromBlock(sourceBlockId) {
 if (!canEditSessionPlanner()) {
 return;
@@ -14405,14 +14318,8 @@ showSessionPlannerToast(
 `Copied ${copiedDetails || `${copiedPlayerIds.size} player${copiedPlayerIds.size === 1 ? "" : "s"}`} from ${sourceLabel}${skippedPlayers ? ` (${skippedPlayers} not visible here)` : ""}.`
 );
 }
-function renderSessionPlannerPlayerBoardTools() {
-return sessionPlannerPlayerBoardRenderer.renderPlayerBoardTools();
-}
 function renderSessionPlannerPlayerBoard(block) {
 return sessionPlannerPlayerBoardRenderer.renderPlayerBoard(block);
-}
-function renderSessionPlannerPlayerBoardCustomPersonEditor(block) {
-return sessionPlannerPlayerBoardRenderer.renderPlayerBoardCustomPersonEditor(block);
 }
 function renderSessionPlannerPlayerBoardOverlay(block) {
 return sessionPlannerPlayerBoardRenderer.renderPlayerBoardOverlay(block);
@@ -14529,9 +14436,6 @@ showSessionPlannerToast(error?.message || "Session could not be restored.", "err
 function getMedicalAvailabilityItems(dateValue = medicalState?.selectedDate) {
 return medicalAvailabilitySelectors.getMedicalAvailabilityItems(dateValue);
 }
-function getSessionPlannerTemporaryProfileAvailabilityItems(dateValue = medicalState?.selectedDate, existingItems = []) {
-  return sessionPlannerMedicalAvailabilitySelectors.getTemporaryProfileAvailabilityItems(dateValue, existingItems);
-}
 function getSessionPlannerAvailabilityItems(dateValue = medicalState?.selectedDate) {
   return sessionPlannerMedicalAvailabilitySelectors.getAvailabilityItems(dateValue);
 }
@@ -14543,66 +14447,6 @@ return sessionPlannerWorkspaceRenderer.renderMedicalAvailability(getSessionPlann
 }
 function getSessionPlannerPrintPaperOption(value = sessionPlannerPrintPaper) {
 return sessionPlannerPrintRenderer.getPaperOption(value);
-}
-function getSessionPlannerPrintFieldValue(value, fallback = "-") {
-return sessionPlannerPrintRenderer.getFieldValue(value, fallback);
-}
-function getSessionPlannerPrintMultiValue(value, fallback = "-") {
-return sessionPlannerPrintRenderer.getMultiValue(value, fallback);
-}
-function getSessionPlannerPrintBlocks(session) {
-return sessionPlannerPrintRenderer.getBlocks(session);
-}
-function renderSessionPlannerPrintPaperSelect() {
-return sessionPlannerPrintRenderer.renderPaperSelect();
-}
-function renderSessionPlannerPrintSectionToggles() {
-return sessionPlannerPrintRenderer.renderSectionToggles();
-}
-function renderSessionPlannerPrintMetaItem(label, value) {
-return sessionPlannerPrintRenderer.renderMetaItem(label, value);
-}
-function renderSessionPlannerPrintPeriodizationCard(dateValue) {
-return sessionPlannerPrintRenderer.renderPeriodizationCard(dateValue);
-}
-function renderSessionPlannerPrintMedicalCard(dateValue) {
-return sessionPlannerPrintRenderer.renderMedicalCard(dateValue);
-}
-function renderSessionPlannerPrintMaterialCard(blocks) {
-return sessionPlannerPrintRenderer.renderMaterialCard(blocks);
-}
-function renderSessionPlannerPrintBlockFlow(session) {
-return sessionPlannerPrintRenderer.renderBlockFlow(session);
-}
-function getSessionPlannerPrintPlayerColor(item, block) {
-return sessionPlannerPrintRenderer.getPlayerColor(item, block);
-}
-function renderSessionPlannerPrintPlayerBoardMini(block) {
-return sessionPlannerPrintRenderer.renderPlayerBoardMini(block);
-}
-function renderSessionPlannerPrintVisual(block, options = {}) {
-return sessionPlannerPrintRenderer.renderVisual(block, options);
-}
-function renderSessionPlannerPrintBlockCopyItems(block) {
-return sessionPlannerPrintRenderer.renderBlockCopyItems(block);
-}
-function renderSessionPlannerPrintFeatureNote(label, value) {
-return sessionPlannerPrintRenderer.renderFeatureNote(label, value);
-}
-function renderSessionPlannerPrintFeatureBlock(block, index) {
-return sessionPlannerPrintRenderer.renderFeatureBlock(block, index);
-}
-function renderSessionPlannerPrintFeaturedBlocks(blocks, startIndex = 0) {
-return sessionPlannerPrintRenderer.renderFeaturedBlocks(blocks, startIndex);
-}
-function renderSessionPlannerPrintBlockDetail(block, index) {
-return sessionPlannerPrintRenderer.renderBlockDetail(block, index);
-}
-function renderSessionPlannerPrintNotes() {
-return sessionPlannerPrintRenderer.renderNotes();
-}
-function renderSessionPlannerPrintDocument(session) {
-return sessionPlannerPrintRenderer.renderDocument(session);
 }
 function renderSessionPlannerPrintOverlay(session) {
 return sessionPlannerPrintRenderer.renderOverlay(session);

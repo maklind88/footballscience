@@ -14,8 +14,10 @@ test("Session Planner Player Board includes active temporary Squad profiles", ()
   const appSource = readProjectFile("app.js");
   const availabilitySource = readProjectFile("src/modules/session-planner/session-planner-medical-availability-selectors.mjs");
 
-  expect(appSource).toContain("function getSessionPlannerTemporaryProfileAvailabilityItems");
-  expect(appSource).toContain("sessionPlannerMedicalAvailabilitySelectors.getTemporaryProfileAvailabilityItems");
+  expect(appSource).toContain("createSessionPlannerMedicalAvailabilitySelectors");
+  expect(appSource).toContain("sessionPlannerMedicalAvailabilitySelectors.getAvailabilityItems(dateValue)");
+  expect(availabilitySource).toContain("function getTemporaryProfileAvailabilityItems");
+  expect(availabilitySource).toContain("getTemporaryProfileAvailabilityItems,");
   expect(availabilitySource).toContain(".filter((profile) => isTemporaryPlayerProfile(profile))");
   expect(availabilitySource).toContain(".filter((profile) => isPlayerProfileTemporaryActiveOnDate(profile, dateValue))");
   expect(availabilitySource).toContain(".map((profile) => buildMedicalPlayerFromPlayerProfile(profile))");

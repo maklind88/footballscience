@@ -486,6 +486,7 @@ test("Session Planner autosave boundary only surfaces active session writes and 
 
 test("Session Planner app integration delegates autosave policy and block rendering to the module", () => {
   const app = readProjectFile("app.js");
+  const printRenderer = readProjectFile("src/modules/session-planner/session-planner-print-renderer.mjs");
 
   expect(app).toContain("./src/modules/session-planner/index.mjs");
   expect(app).toContain("createSessionPlannerAutosaveBoundary");
@@ -500,8 +501,9 @@ test("Session Planner app integration delegates autosave policy and block render
   expect(app).toContain("sessionPlannerVisualRenderer.renderTacticalboardOverlay(block)");
   expect(app).toContain("sessionPlannerPlayerBoardRenderer.renderPlayerBoard(block)");
   expect(app).toContain("sessionPlannerPlayerBoardRenderer.renderPlayerBoardOverlay(block)");
-  expect(app).toContain("sessionPlannerPrintRenderer.renderDocument(session)");
   expect(app).toContain("sessionPlannerPrintRenderer.renderOverlay(session)");
+  expect(printRenderer).toContain("function renderSessionPlannerPrintDocument(session)");
+  expect(printRenderer).toContain("renderDocument: renderSessionPlannerPrintDocument");
   expect(app).not.toContain('const sessionPlannerStorageKey = "football-session-planner-v3";');
   expect(app).not.toContain('return workspaceId === "session-planner";');
 });

@@ -6,8 +6,18 @@ const defaultEscapeHtml = (value) =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 
+function defaultParseDateValue(dateValue) {
+  return new Date(dateValue);
+}
+
+function defaultFormatDateValue(date) {
+  return new Date(date).toISOString().slice(0, 10);
+}
+
 export function createSessionPlannerWorkspaceRenderer({
   escapeHtml = defaultEscapeHtml,
+  formatDateValue = defaultFormatDateValue,
+  parseDateValue = defaultParseDateValue,
   periodizationOptionLibrary = {},
   renderSessionPlannerActionIcon,
   renderSessionPlannerBlockList,
@@ -27,6 +37,34 @@ export function createSessionPlannerWorkspaceRenderer({
   renderSessionPlannerTacticalboardOverlay,
   renderSessionPlannerVisualPreviewOverlay,
 } = {}) {
+  function getDateLabel(dateValue, options = {}) {
+    return new Intl.DateTimeFormat("en-GB", options).format(parseDateValue(dateValue));
+  }
+
+  function renderDateStrip({ selectedDate = "", sessions = {}, hasScheduledSession = () => false } = {}) {
+    const selectedDateObject = parseDateValue(selectedDate);
+    const startDate = new Date(selectedDateObject);
+    startDate.setDate(selectedDateObject.getDate() - 10);
+    return Array.from({ length: 21 }, (_, index) => {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + index);
+      const dateValue = formatDateValue(date);
+      const isSelected = dateValue === selectedDate;
+      const hasSession = Boolean(sessions?.[dateValue]?.blocks?.length) || Boolean(hasScheduledSession(dateValue));
+      return `
+      <button
+        type="button"
+        class="session-date-pill${isSelected ? " is-active" : ""}${hasSession ? " has-session" : ""}"
+        data-session-date="${escapeHtml(dateValue)}"
+      >
+        <span>${escapeHtml(getDateLabel(dateValue, { weekday: "short" }))}</span>
+        <strong>${escapeHtml(getDateLabel(dateValue, { day: "numeric" }))}</strong>
+        <em>${escapeHtml(getDateLabel(dateValue, { month: "short" }))}</em>
+      </button>
+    `;
+    }).join("");
+  }
+
   const renderHistoryPanel = ({
     entries = [],
     isAdmin = false,
@@ -289,6 +327,7 @@ ${renderSessionPlannerPostSessionNotesCard(block)}
   `;
 
   return {
+    renderDateStrip,
     renderHistoryPanel,
     renderToolsPanel,
     renderWorkspace,

@@ -3754,6 +3754,8 @@ getScheduleSessionEventForDate,
 });
 const sessionPlannerWorkspaceRenderer = createSessionPlannerWorkspaceRenderer({
 escapeHtml,
+formatDateValue: formatScheduleDateValue,
+parseDateValue: parseScheduleDateValue,
 periodizationOptionLibrary,
 renderSessionPlannerActionIcon,
 renderSessionPlannerBlockList,
@@ -13301,29 +13303,11 @@ function getSessionPlannerDateLabel(dateValue, options = {}) {
 return new Intl.DateTimeFormat("en-GB", options).format(parseScheduleDateValue(dateValue));
 }
 function renderSessionPlannerDateStrip() {
-const selectedDate = parseScheduleDateValue(sessionPlannerState.selectedDate);
-const startDate = new Date(selectedDate);
-startDate.setDate(selectedDate.getDate() - 10);
-return Array.from({ length: 21 }, (_, index) => {
-const date = new Date(startDate);
-date.setDate(startDate.getDate() + index);
-const dateValue = formatScheduleDateValue(date);
-const isSelected = dateValue === sessionPlannerState.selectedDate;
-const hasSession =
-Boolean(sessionPlannerState.sessions?.[dateValue]?.blocks?.length) ||
-Boolean(getScheduleSessionEventForDate(dateValue));
-return `
-      <button
-        type="button"
-        class="session-date-pill${isSelected ? " is-active" : ""}${hasSession ? " has-session" : ""}"
-        data-session-date="${escapeHtml(dateValue)}"
-      >
-        <span>${escapeHtml(getSessionPlannerDateLabel(dateValue, { weekday: "short" }))}</span>
-        <strong>${escapeHtml(getSessionPlannerDateLabel(dateValue, { day: "numeric" }))}</strong>
-        <em>${escapeHtml(getSessionPlannerDateLabel(dateValue, { month: "short" }))}</em>
-      </button>
-    `;
-}).join("");
+return sessionPlannerWorkspaceRenderer.renderDateStrip({
+selectedDate: sessionPlannerState.selectedDate,
+sessions: sessionPlannerState.sessions,
+hasScheduledSession: getScheduleSessionEventForDate,
+});
 }
 function syncSessionPlannerDateStripState(dateControls = ui.sessionPlannerWorkspace?.querySelector(".session-date-controls")) {
 const dateStrip = dateControls?.querySelector(".session-date-strip");

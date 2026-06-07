@@ -72,4 +72,13 @@ test("Session Planner workspace renderer keeps shell, builder, tools, and histor
   const emptyTools = renderer.renderToolsPanel(null, historyContext);
   expect(emptyTools).toContain("Select a block");
   expect(emptyTools).toContain("session-history-panel");
+
+  const dateStrip = renderer.renderDateStrip({
+    selectedDate: "2026-05-31",
+    sessions: { "2026-05-30": { blocks: [{ id: "b1" }] } },
+    hasScheduledSession: (dateValue) => dateValue === "2026-06-01",
+  });
+  expect(dateStrip).toContain('data-session-date="2026-05-31"');
+  expect(dateStrip).toContain("session-date-pill is-active");
+  expect(dateStrip.match(/has-session/g)).toHaveLength(2);
 });

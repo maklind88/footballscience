@@ -10641,11 +10641,6 @@ return JSON.stringify(snapshot);
 return "";
 }
 }
-function cloneSessionPlannerBoardDataObject(value = {}) {
-return value && typeof value === "object" && !Array.isArray(value)
-? JSON.parse(JSON.stringify(value))
-: {};
-}
 function createSessionPlannerTacticalBoardSnapshot(block = getSessionPlannerSelectedBlock()) {
 if (!block) {
 return null;
@@ -12014,13 +12009,6 @@ right: clamp(right + padding, 0, 100),
 bottom: clamp(bottom + padding, 0, 100),
 };
 }
-function doSessionPlannerTacticalBoundsIntersect(bounds, rect) {
-return Boolean(bounds && rect) &&
-bounds.left <= rect.right &&
-bounds.right >= rect.left &&
-bounds.top <= rect.bottom &&
-bounds.bottom >= rect.top;
-}
 function isSessionPlannerTacticalPointInRect(point, rect) {
 return Boolean(point && rect) &&
 Number(point.x) >= rect.left &&
@@ -12211,15 +12199,6 @@ if (Array.isArray(initial.points)) {
 element.points = initial.points.map((point) => clampMovedTacticalPoint(point, deltaX, deltaY));
 }
 }
-function moveSessionPlannerTacticalElement(elementId, deltaX, deltaY) {
-const element = getSessionPlannerTacticalElementById(elementId);
-moveSessionPlannerTacticalElementFromInitial(
-element,
-sessionPlannerTacticalDragState?.initialElement,
-deltaX,
-deltaY
-);
-}
 function moveSessionPlannerTacticalElements(elementIds = [], deltaX, deltaY) {
 const initialElements = Array.isArray(sessionPlannerTacticalDragState?.initialElements)
 ? sessionPlannerTacticalDragState.initialElements
@@ -12269,54 +12248,6 @@ right: Math.max(...items.map((item) => item.bounds.right)),
 top: Math.min(...items.map((item) => item.bounds.top)),
 bottom: Math.max(...items.map((item) => item.bounds.bottom)),
 };
-}
-function alignSelectedSessionPlannerTacticalElements(edge) {
-if (!canEditSessionPlanner()) {
-return;
-}
-const collection = getSessionPlannerTacticalBoundsCollection(getSelectedSessionPlannerTacticalElements());
-if (!collection || collection.items.length < 2) {
-showSessionPlannerToast("Select at least two items to align.", "warning");
-return;
-}
-collection.items.forEach(({ element, bounds, centerX, centerY }) => {
-let deltaX = 0;
-let deltaY = 0;
-if (edge === "left") deltaX = collection.left - bounds.left;
-if (edge === "center") deltaX = (collection.left + collection.right) / 2 - centerX;
-if (edge === "right") deltaX = collection.right - bounds.right;
-if (edge === "top") deltaY = collection.top - bounds.top;
-if (edge === "middle") deltaY = (collection.top + collection.bottom) / 2 - centerY;
-if (edge === "bottom") deltaY = collection.bottom - bounds.bottom;
-moveSessionPlannerTacticalElementByDelta(element, deltaX, deltaY);
-});
-refreshSessionPlannerTacticalboardCanvas({ persist: true });
-}
-function distributeSelectedSessionPlannerTacticalElements(axis) {
-if (!canEditSessionPlanner()) {
-return;
-}
-const collection = getSessionPlannerTacticalBoundsCollection(getSelectedSessionPlannerTacticalElements());
-if (!collection || collection.items.length < 3) {
-showSessionPlannerToast("Select at least three items to distribute.", "warning");
-return;
-}
-const isHorizontal = axis === "x";
-const sortedItems = [...collection.items].sort((a, b) =>
-isHorizontal ? a.centerX - b.centerX : a.centerY - b.centerY
-);
-const firstCenter = isHorizontal ? sortedItems[0].centerX : sortedItems[0].centerY;
-const lastCenter = isHorizontal
-? sortedItems.at(-1).centerX
-: sortedItems.at(-1).centerY;
-const step = (lastCenter - firstCenter) / (sortedItems.length - 1);
-sortedItems.forEach((item, index) => {
-const targetCenter = firstCenter + step * index;
-const deltaX = isHorizontal ? targetCenter - item.centerX : 0;
-const deltaY = isHorizontal ? 0 : targetCenter - item.centerY;
-moveSessionPlannerTacticalElementByDelta(item.element, deltaX, deltaY);
-});
-refreshSessionPlannerTacticalboardCanvas({ persist: true });
 }
 function getSessionPlannerTacticalArrangeSpacing(count, span, fallback = 5.2) {
 if (count <= 1) {
@@ -13180,12 +13111,6 @@ setSessionPlannerPlayerBoardSelectedPlayers(nextIds);
 return true;
 }
 const sessionPlannerVisualUploadHelpers = createSessionPlannerVisualUploadHelpers();
-function readSessionPlannerFileAsDataUrl(file) {
-return sessionPlannerVisualUploadHelpers.readFileAsDataUrl(file);
-}
-function loadSessionPlannerUploadImage(dataUrl) {
-return sessionPlannerVisualUploadHelpers.loadUploadImage(dataUrl);
-}
 function findSessionPlannerBlockById(blockId) {
 const sessions = sessionPlannerState?.sessions || {};
 for (const session of Object.values(sessions)) {

@@ -112,7 +112,7 @@ Important behavior:
 - Long text must not break cards; clamp or wrap cleanly in lists.
 - Minutes stays as a compact field. Time and Intensity were removed from the block header.
 - Match Day tag appears under Training Session title as `(Match Day -1)` style when present.
-- Autosave status belongs to Session Planner only and is governed by `src/modules/session-planner/session-planner-autosave.mjs`; other modules should use explicit save flows and central sync without showing Session autosave UI.
+- Autosave status belongs to Session Planner only and is governed by `src/modules/session-planner/session-planner-autosave.mjs`; block/form rendering is governed by `src/modules/session-planner/session-planner-renderer.mjs`. Other modules should use explicit save flows and central sync without showing Session autosave UI.
 
 ## Exercise Library
 

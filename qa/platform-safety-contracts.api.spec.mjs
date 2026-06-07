@@ -85,6 +85,7 @@ const coreFiles = [
   "src/modules/session-planner/index.mjs",
   "src/modules/session-planner/session-planner-autosave.mjs",
   "src/modules/session-planner/session-planner-renderer.mjs",
+  "src/modules/session-planner/session-planner-tactical-controller.mjs",
   "src/modules/session-planner/session-planner-visual-renderer.mjs",
   "src/modules/session-planner/session-planner-player-board-renderer.mjs",
   "src/modules/session-planner/session-planner-print-renderer.mjs",
@@ -374,6 +375,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/schedule-database-schema.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/exercise-library-module-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-module-contract.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-tactical-controller-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-adapter.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-database-schema.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-action-space-metrics.api.spec.mjs");
@@ -541,14 +543,15 @@ test("Session Planner central sync conflicts retry silently instead of reopening
 
 test("Session Planner tactical board keeps selection controls simple and explicit", () => {
   const appSource = readProjectFile("app.js");
+  const tacticalControllerSource = readProjectFile("src/modules/session-planner/session-planner-tactical-controller.mjs");
   const visualRendererSource = readProjectFile("src/modules/session-planner/session-planner-visual-renderer.mjs");
-  const tacticalBoardSource = `${appSource}\n${visualRendererSource}`;
+  const tacticalBoardSource = `${appSource}\n${tacticalControllerSource}\n${visualRendererSource}`;
 
   expect(appSource).toContain("let sessionPlannerTacticalSnapEnabled = false;");
   expect(tacticalBoardSource).not.toContain("data-session-tactical-snap");
   expect(tacticalBoardSource).not.toContain("Alt for precision");
   expect(tacticalBoardSource).not.toContain("Alt gives precise movement");
-  expect(appSource).toContain("function arrangeSelectedSessionPlannerTacticalElements(mode)");
+  expect(tacticalControllerSource).toContain("function arrangeSelectedSessionPlannerTacticalElements(mode)");
   expect(tacticalBoardSource).toContain('data-session-arrange-tactical="row"');
   expect(tacticalBoardSource).toContain('data-session-arrange-tactical="column"');
   expect(tacticalBoardSource).toContain('data-session-arrange-tactical="grid"');
@@ -556,5 +559,5 @@ test("Session Planner tactical board keeps selection controls simple and explici
   expect(tacticalBoardSource).toContain('viewBox="0 0 6 6"');
   expect(tacticalBoardSource).not.toContain("data-session-align-tactical");
   expect(tacticalBoardSource).not.toContain("data-session-distribute-tactical");
-  expect(appSource).toContain("clearSessionPlannerTacticalSelection();\nsessionPlannerTacticalPendingPoint = null;");
+  expect(tacticalControllerSource).toMatch(/clearSessionPlannerTacticalSelection\(\);\s+local\.sessionPlannerTacticalPendingPoint = null;/);
 });

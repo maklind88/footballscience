@@ -9,6 +9,7 @@ export * from "./medical-option-renderers.mjs";
 export * from "./medical-plan-form-renderer.mjs";
 export * from "./medical-player-modal-renderer.mjs";
 export * from "./medical-profile-summary-renderer.mjs";
+export * from "./medical-profile-summary-selectors.mjs";
 export * from "./medical-recommendation-renderer.mjs";
 export * from "./medical-roster-helpers.mjs";
 export * from "./medical-roster-renderer.mjs";

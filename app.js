@@ -4160,17 +4160,17 @@ escapeHtml,
 formatAdminDateTime,
 formatUserName,
 getRoleLabel,
-renderAdminAccountSummary,
-renderAdminAuditLog,
-renderAdminGroupedUsers,
-renderAdminRoleAccessForm,
+renderAdminAccountSummary: (user) => adminUserRenderer.renderAccountSummary(user),
+renderAdminAuditLog: () => adminUserRenderer.renderAuditLog(),
+renderAdminGroupedUsers: (users, currentUser, structure) => adminUserRenderer.renderGroupedUsers(users, currentUser, structure),
+renderAdminRoleAccessForm: (roles) => adminAccessRenderer.renderRoleAccessForm(roles),
 renderAdminRoleOptions,
-renderAdminStructurePanel,
+renderAdminStructurePanel: (currentUser, structure, visibleUsers) => adminStructureRenderer.renderStructurePanel(currentUser, structure, visibleUsers),
 renderAdminTeamOptions,
-renderAdminTransferRoomAccessPanel,
+renderAdminTransferRoomAccessPanel: (users, structure) => adminAccessRenderer.renderTransferRoomAccessPanel(users, structure),
 renderPasswordRevealInput,
-renderPlatformAppearanceGovernancePanel,
-renderPlatformReadinessDashboard,
+renderPlatformAppearanceGovernancePanel: () => adminReadinessRenderer.renderAppearanceGovernancePanel(),
+renderPlatformReadinessDashboard: () => adminReadinessRenderer.renderReadinessDashboard(),
 titleSuggestions: adminTitleSuggestions,
 departmentSuggestions: adminDepartmentSuggestions,
 });
@@ -4584,7 +4584,7 @@ hasWorkspaceScope: hasPlatformWorkspaceScope,
 isLegacyTeam: isLegacyPlatformTeam,
 isLegacyTeamPlaceholderName: isLegacyPlatformTeamPlaceholderName,
 renderTeamLogoMark: renderPlatformTeamLogoMark,
-renderMiniUserStack: renderAdminMiniUserStack,
+renderMiniUserStack: (users) => adminUserRenderer.renderMiniUserStack(users),
 defaultTeamId: platformDefaultTeamId,
 });
 const legacyPlatformStructureValues = new Set([
@@ -14663,12 +14663,6 @@ teamOptions,
 message,
 });
 }
-function renderAdminAccountSummary(user) {
-return adminUserRenderer.renderAccountSummary(user);
-}
-function renderAdminAuditLog() {
-return adminUserRenderer.renderAuditLog();
-}
 function getAdminUsersForTeam(users = [], teamId = "", structure = getPlatformStructureState()) {
 const normalizedTeamId = normalizePlatformStructureText(teamId, "");
 return users.filter((user) => !hasPlatformWorkspaceScope(user) && getUserTeamId(user, structure) === normalizedTeamId);
@@ -14678,15 +14672,6 @@ return getAdminUserInitialsFromModule(user, {
 formatUserName,
 normalizeText: normalizePlatformStructureText,
 });
-}
-function renderAdminMiniUserStack(users = []) {
-return adminUserRenderer.renderMiniUserStack(users);
-}
-function renderAdminGroupedUsers(users, currentUser, structure) {
-return adminUserRenderer.renderGroupedUsers(users, currentUser, structure);
-}
-function renderAdminStructurePanel(currentUser, structure, visibleUsers) {
-return adminStructureRenderer.renderStructurePanel(currentUser, structure, visibleUsers);
 }
 function createAdminClubFromForm(form) {
 const currentUser = getCurrentPlatformUser();
@@ -14792,9 +14777,6 @@ renderAdminWorkspace();
 }
 }
 }
-function renderPlatformReadinessDashboard() {
-return adminReadinessRenderer.renderReadinessDashboard();
-}
 async function loadPlatformReadinessReport(options = {}) {
 if (platformReadinessLoading) {
 return;
@@ -14836,9 +14818,6 @@ if (hubState?.activeWorkspaceId === "admin") {
 renderAdminWorkspace();
 }
 }
-}
-function renderPlatformAppearanceGovernancePanel() {
-return adminReadinessRenderer.renderAppearanceGovernancePanel();
 }
 function buildPlatformAppearanceConfigFromForm(form) {
 const formData = new FormData(form);
@@ -14897,12 +14876,6 @@ getPlatformTeamById(fallbackTeamId, structure) ||
 (state.teams || [])[0] ||
 {};
 return team.id || fallbackTeamId;
-}
-function renderAdminTransferRoomAccessPanel(users = [], structure = getPlatformStructureState()) {
-return adminAccessRenderer.renderTransferRoomAccessPanel(users, structure);
-}
-function renderAdminRoleAccessForm(roles = getPlatformRoles()) {
-return adminAccessRenderer.renderRoleAccessForm(roles);
 }
 function renderAdminWorkspace(message = "") {
 if (!ui.adminWorkspace) {

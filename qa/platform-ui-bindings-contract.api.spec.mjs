@@ -11,7 +11,7 @@ function readProjectFile(path) {
 }
 
 test("platform UI bindings keep DOM selectors outside the app shell", () => {
-  const app = readProjectFile("app.js");
+  const app = readProjectFile("app-runtime.js");
   const bindings = readProjectFile("src/core/platform-ui-bindings.mjs");
 
   expect(app).toContain('import { createPlatformUiBindings } from "./src/core/platform-ui-bindings.mjs";');

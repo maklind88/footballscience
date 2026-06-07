@@ -11,7 +11,7 @@ function readProjectFile(path) {
 }
 
 test("game simulator app runtime controller owns simulator runtime wiring", () => {
-  const app = readProjectFile("app.js");
+  const app = readProjectFile("app-runtime.js");
   const controller = readProjectFile("src/modules/game-simulator/app-runtime-controller.mjs");
   const facade = readProjectFile("src/modules/game-simulator/runtime-facade.mjs");
 

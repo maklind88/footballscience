@@ -36,7 +36,7 @@ test("Schedule extraction owns the required module file slots", () => {
 });
 
 test("Schedule app integration delegates controller wiring to the module", () => {
-  const app = readProjectFile("app.js");
+  const app = readProjectFile("app-runtime.js");
 
   expect(app).toContain("./src/modules/schedule/schedule-controller.mjs");
   expect(app).toContain("./src/modules/schedule/schedule-state.mjs");

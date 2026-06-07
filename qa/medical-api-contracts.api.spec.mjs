@@ -153,7 +153,7 @@ test("medical archive events are first-class sync events", () => {
 });
 
 test("medical room archives clinical items instead of hard deleting them", () => {
-  const appSource = readFileSync(resolve(__dirname, "../app.js"), "utf8");
+  const appSource = readFileSync(resolve(__dirname, "../app-runtime.js"), "utf8");
   expect(appSource).toContain("archiveReason: \"Manual archive from Medical Room\"");
   expect(appSource).toContain("record-archived");
   expect(appSource).toContain("availability-plan-archived");

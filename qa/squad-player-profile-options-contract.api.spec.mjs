@@ -104,7 +104,7 @@ test("Squad player profile helpers are extracted from app.js and tracked by modu
     expect(existsSync(resolve(root, path)), `${path} should exist`).toBe(true);
   });
 
-  const appSource = readProjectFile("app.js");
+  const appSource = readProjectFile("app-runtime.js");
   const packageJson = readProjectFile("package.json");
   const squadContract = moduleStandardRegistry.get("player-profiles");
   expect(appSource).toContain("createPlayerProfileHelpers");

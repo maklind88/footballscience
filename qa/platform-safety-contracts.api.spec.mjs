@@ -131,7 +131,7 @@ const coreFiles = [
 ];
 
 test("protected product data remains covered by client safety, central state, and backups", () => {
-  const appSource = readProjectFile("app.js");
+  const appSource = readProjectFile("app-runtime.js");
   const appStateSource = readProjectFile("api/app-state.js");
   const backupSource = readProjectFile("api/app-state-backup.js");
   const dataSafetySource = readProjectFile("src/core/data-safety-contracts.cjs");
@@ -442,7 +442,7 @@ test("core module contracts are covered by dedicated QA", () => {
 
 test("game simulator animation loop does not run globally outside the simulator workspace", () => {
   const packageJson = readJson("package.json");
-  const appSource = readProjectFile("app.js");
+  const appSource = readProjectFile("app-runtime.js");
   const actionSpaceMetricsSource = readProjectFile("src/modules/game-simulator/action-space-metrics.mjs");
   const appRuntimeControllerSource = readProjectFile("src/modules/game-simulator/app-runtime-controller.mjs");
   const ballResolutionEngineSource = readProjectFile("src/modules/game-simulator/ball-resolution-engine.mjs");
@@ -514,7 +514,7 @@ test("game simulator animation loop does not run globally outside the simulator 
 });
 
 test("Session Planner print mode keeps the coach sheet visible for browser printing", () => {
-  const appSource = readProjectFile("app.js");
+  const appSource = readProjectFile("app-runtime.js");
   const workspaceControllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
   const indexSource = readProjectFile("index.html");
   const printOverrideSource = readProjectFile("session-print-overrides.css");
@@ -537,7 +537,7 @@ test("Session Planner print mode keeps the coach sheet visible for browser print
 });
 
 test("Session Planner never seeds generated training blocks onto an off day", () => {
-  const appSource = readProjectFile("app.js");
+  const appSource = readProjectFile("app-runtime.js");
 
   expect(appSource).toContain("[selectedDate]: createSessionPlannerEmptySession(selectedDate)");
   expect(appSource).toContain("function isSessionPlannerOffDate");
@@ -553,7 +553,7 @@ test("Session Planner never seeds generated training blocks onto an off day", ()
 });
 
 test("Session Planner central sync conflicts retry silently instead of reopening a modal", () => {
-  const appSource = readProjectFile("app.js");
+  const appSource = readProjectFile("app-runtime.js");
 
   expect(appSource).toContain("function retryCentralStateWriteAfterConflict");
   expect(appSource).toContain("function getCentralSyncResultRevision");
@@ -571,7 +571,7 @@ test("Session Planner central sync conflicts retry silently instead of reopening
 });
 
 test("Session Planner tactical board keeps selection controls simple and explicit", () => {
-  const appSource = readProjectFile("app.js");
+  const appSource = readProjectFile("app-runtime.js");
   const tacticalControllerSource = readProjectFile("src/modules/session-planner/session-planner-tactical-controller.mjs");
   const visualRendererSource = readProjectFile("src/modules/session-planner/session-planner-visual-renderer.mjs");
   const tacticalBoardSource = `${appSource}\n${tacticalControllerSource}\n${visualRendererSource}`;

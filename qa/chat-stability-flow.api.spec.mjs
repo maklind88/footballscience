@@ -9,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const chatApi = require("../api/chat.js");
 const { applyChatActionToState, filterChatStateForActor } = chatApi._private;
 
-const appSource = readFileSync(path.join(__dirname, "../app.js"), "utf8");
+const appSource = readFileSync(path.join(__dirname, "../app-runtime.js"), "utf8");
 const rendererSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-widget-renderer.mjs"), "utf8");
 const chatCssSource = readFileSync(path.join(__dirname, "../dashboard-chat.css"), "utf8");
 const attachmentPreviewSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-attachment-preview.mjs"), "utf8");

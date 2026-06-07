@@ -5,8 +5,11 @@ import { fileURLToPath } from "node:url";
 import { dataSafetyContracts } from "../src/core/data-safety-contracts.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const appSource = fs.readFileSync(path.join(rootDir, "app.js"), "utf8");
+const appEntrypointSource = fs.readFileSync(path.join(rootDir, "app.js"), "utf8");
+const appRuntimeSource = fs.readFileSync(path.join(rootDir, "app-runtime.js"), "utf8");
+const appSource = `${appEntrypointSource}\n${appRuntimeSource}`;
 const modularStorageSourcePaths = Object.freeze([
+  "src/modules/home/dashboard-runtime-controller.mjs",
   "src/modules/exercise-library/exercise-library-state.mjs",
   "src/modules/session-planner/session-planner-autosave.mjs",
 ]);
@@ -51,7 +54,7 @@ function findStorageKeyConstants(source) {
 function findDataSafetyProtectedKeys(source) {
   const match = /const\s+dataSafetyProtectedStorageKeys\s*=\s*\[([\s\S]*?)\];/.exec(source);
   if (!match) {
-    failures.push("app.js must define dataSafetyProtectedStorageKeys.");
+    failures.push("app runtime must define dataSafetyProtectedStorageKeys.");
     return new Set();
   }
 
@@ -115,7 +118,7 @@ for (const key of dedicatedApiContractKeys) {
 
 for (const key of appProtectedKeys) {
   if (!centralContractKeys.has(key)) {
-    failures.push(`${key} is in app.js dataSafetyProtectedStorageKeys but has no central app-state contract.`);
+    failures.push(`${key} is in app runtime dataSafetyProtectedStorageKeys but has no central app-state contract.`);
   }
 }
 
@@ -129,7 +132,7 @@ for (const mutation of findLocalStorageMutations(appSource)) {
   const isApprovedLocalOnly = Object.hasOwn(approvedLocalOnlyStorageKeys, key);
   if (!hasCentralContract && !isApprovedLocalOnly) {
     failures.push(
-      `app.js:${mutation.line} mutates ${key} without a Data Safety Contract or approved local-only policy.`
+      `app runtime:${mutation.line} mutates ${key} without a Data Safety Contract or approved local-only policy.`
     );
   }
 }

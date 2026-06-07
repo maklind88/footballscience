@@ -11,7 +11,7 @@ function readProjectFile(path) {
 }
 
 test("game simulator runtime facade owns app runtime wrappers and fallbacks", () => {
-  const app = readProjectFile("app.js");
+  const app = readProjectFile("app-runtime.js");
   const facade = readProjectFile("src/modules/game-simulator/runtime-facade.mjs");
   const index = readProjectFile("src/modules/game-simulator/index.mjs");
 

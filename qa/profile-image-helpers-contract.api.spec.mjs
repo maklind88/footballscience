@@ -35,7 +35,7 @@ function createProfileImageTestDeps() {
 }
 
 test("Profile image helper compresses square profile images outside app.js", async ({}, testInfo) => {
-  const appSource = await import("node:fs/promises").then((fs) => fs.readFile("app.js", "utf8"));
+  const appSource = await import("node:fs/promises").then((fs) => fs.readFile("app-runtime.js", "utf8"));
   expect(appSource).not.toContain("const outputSizes = [512, 448, 384, 320, 256, 192, 128]");
 
   const deps = createProfileImageTestDeps();

@@ -18,7 +18,7 @@ function readNumericConstant(source, constantName) {
 }
 
 test("client egress guardrails keep central state and presence sync sparse", () => {
-  const appSource = readProjectFile("app.js");
+  const appSource = readProjectFile("app-runtime.js");
 
   expect(readNumericConstant(appSource, "centralStateRefreshIntervalMs")).toBeGreaterThanOrEqual(60000);
   expect(readNumericConstant(appSource, "centralStateActiveRefreshMinMs")).toBeGreaterThanOrEqual(30000);

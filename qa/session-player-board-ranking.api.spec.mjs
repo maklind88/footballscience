@@ -11,7 +11,7 @@ function readProjectFile(relativePath) {
 }
 
 test("Session Planner Player Board includes active temporary Squad profiles", () => {
-  const appSource = readProjectFile("app.js");
+  const appSource = readProjectFile("app-runtime.js");
   const workspaceControllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
   const runtimeSource = `${appSource}\n${workspaceControllerSource}`;
   const availabilitySource = readProjectFile("src/modules/session-planner/session-planner-medical-availability-selectors.mjs");
@@ -27,7 +27,7 @@ test("Session Planner Player Board includes active temporary Squad profiles", ()
 });
 
 test("Session Planner Player Board hides Squad-unavailable roster players", () => {
-  const appSource = readProjectFile("app.js");
+  const appSource = readProjectFile("app-runtime.js");
   const workspaceControllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
   const runtimeSource = `${appSource}\n${workspaceControllerSource}`;
   const availabilitySource = readProjectFile("src/modules/session-planner/session-planner-medical-availability-selectors.mjs");
@@ -58,7 +58,7 @@ test("Session Planner Player Board ranks by role, squad status, and career phase
 });
 
 test("Session Planner Player Board can copy team setup from another block", () => {
-  const appSource = readProjectFile("app.js");
+  const appSource = readProjectFile("app-runtime.js");
   const workspaceControllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
   const runtimeSource = `${appSource}\n${workspaceControllerSource}`;
   const playerBoardRendererSource = readProjectFile("src/modules/session-planner/session-planner-player-board-renderer.mjs");
@@ -78,7 +78,7 @@ test("Session Planner Player Board can copy team setup from another block", () =
 });
 
 test("Session Planner Player Board can add manual people directly on a block", () => {
-  const appSource = readProjectFile("app.js");
+  const appSource = readProjectFile("app-runtime.js");
   const workspaceControllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
   const runtimeSource = `${appSource}\n${workspaceControllerSource}`;
   const playerBoardHelperSource = readProjectFile("src/modules/session-planner/session-planner-player-board-helpers.mjs");
@@ -98,7 +98,7 @@ test("Session Planner Player Board can add manual people directly on a block", (
 });
 
 test("Session Planner Player Board spaces compact print and preview tokens for readability", () => {
-  const appSource = readProjectFile("app.js");
+  const appSource = readProjectFile("app-runtime.js");
   const workspaceControllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
   const runtimeSource = `${appSource}\n${workspaceControllerSource}`;
   const playerBoardRendererSource = readProjectFile("src/modules/session-planner/session-planner-player-board-renderer.mjs");

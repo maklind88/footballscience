@@ -122,7 +122,7 @@ function createHarness(options = {}) {
 }
 
 test("workspace shell controller owns the render/init shell outside app.js", () => {
-  const app = readProjectFile("app.js");
+  const app = readProjectFile("app-runtime.js");
   const controller = readProjectFile("src/core/workspace-shell-controller.mjs");
 
   expect(app).toContain('import { createWorkspaceShellController } from "./src/core/workspace-shell-controller.mjs";');

@@ -16,7 +16,7 @@ function createKeyboardEvent(key, patch = {}) {
 }
 
 test("Session Planner shortcut controller owns tactical board keyboard events outside app.js", async ({}, testInfo) => {
-  const appSource = await import("node:fs/promises").then((fs) => fs.readFile("app.js", "utf8"));
+  const appSource = await import("node:fs/promises").then((fs) => fs.readFile("app-runtime.js", "utf8"));
   expect(appSource).not.toContain("function handleSessionPlannerTacticalboardKeydown");
   expect(appSource).toContain("bindSessionPlannerTacticalShortcutController");
   expect(SESSION_TACTICALBOARD_KEY_HANDLED).toBe("__sessionTacticalboardKeyHandled");

@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const chatDatabaseSource = readFileSync(path.join(__dirname, "../api/_lib/chat-database.js"), "utf8");
-const appSource = readFileSync(path.join(__dirname, "../app.js"), "utf8");
+const appSource = readFileSync(path.join(__dirname, "../app-runtime.js"), "utf8");
 const chatApiUiActionsSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-api-ui-actions.mjs"), "utf8");
 const chatApi = require("../api/chat.js");
 const {

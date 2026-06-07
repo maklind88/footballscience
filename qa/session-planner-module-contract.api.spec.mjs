@@ -486,7 +486,7 @@ test("Session Planner autosave boundary only surfaces active session writes and 
 });
 
 test("Session Planner app integration delegates autosave policy and block rendering to the module", () => {
-  const app = readProjectFile("app.js");
+  const app = readProjectFile("app-runtime.js");
   const workspaceController = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
   const printRenderer = readProjectFile("src/modules/session-planner/session-planner-print-renderer.mjs");
   const runtimeSource = `${app}\n${workspaceController}`;

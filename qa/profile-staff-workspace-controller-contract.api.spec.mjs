@@ -3,7 +3,7 @@ import { createProfileStaffWorkspaceController } from "../src/modules/profile/in
 
 test("Profile and staff workspace controller owns render state outside app.js", async () => {
   const fs = await import("node:fs/promises");
-  const appSource = await fs.readFile("app.js", "utf8");
+  const appSource = await fs.readFile("app-runtime.js", "utf8");
   expect(appSource).not.toContain("function getProfileWorkspaceMessage");
   expect(appSource).toContain("createProfileStaffWorkspaceController");
 });

@@ -484,7 +484,7 @@ test("Exercise Library runtime controller owns storage, filters, folders, and ap
 });
 
 test("Exercise Library app integration delegates runtime ownership to the module", () => {
-  const app = readProjectFile("app.js");
+  const app = readProjectFile("app-runtime.js");
   const packageJson = readProjectFile("package.json");
   const storageGuard = readProjectFile("scripts/verify-storage-key-policy.mjs");
 

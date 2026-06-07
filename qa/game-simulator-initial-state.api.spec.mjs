@@ -11,7 +11,7 @@ function readProjectFile(path) {
 }
 
 test("game simulator initial state factory owns kickoff default state", () => {
-  const app = readProjectFile("app.js");
+  const app = readProjectFile("app-runtime.js");
   const initialState = readProjectFile("src/modules/game-simulator/initial-state.mjs");
   const index = readProjectFile("src/modules/game-simulator/index.mjs");
 

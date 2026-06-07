@@ -23,7 +23,7 @@ class FakeElement {
 
 test("platform navigation bindings keep sidebar and workspace interactions outside app.js", async ({}, testInfo) => {
   const fs = await import("node:fs/promises");
-  const appSource = testInfo.config.configFile ? await fs.readFile("app.js", "utf8") : "";
+  const appSource = testInfo.config.configFile ? await fs.readFile("app-runtime.js", "utf8") : "";
   expect(appSource).not.toContain("ui.workspaceList?.addEventListener(\"mouseover\"");
   expect(appSource).not.toContain("ui.topIconMenu?.addEventListener(\"focusin\"");
 });

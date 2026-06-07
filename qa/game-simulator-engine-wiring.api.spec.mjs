@@ -11,7 +11,7 @@ function readProjectFile(path) {
 }
 
 test("game simulator engine wiring is isolated from app.js", () => {
-  const app = readProjectFile("app.js");
+  const app = readProjectFile("app-runtime.js");
   const engineWiring = readProjectFile("src/modules/game-simulator/engine-wiring.mjs");
   const index = readProjectFile("src/modules/game-simulator/index.mjs");
 

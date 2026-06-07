@@ -9,12 +9,21 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 export const performanceBudgets = Object.freeze([
   {
     file: "app.js",
-    maxBytes: 2_820_000,
-    maxGzipBytes: 522_000,
-    maxLines: 79_000,
-    targetGzipBytes: 350_000,
+    maxBytes: 4_000,
+    maxGzipBytes: 2_000,
+    maxLines: 120,
+    targetGzipBytes: 1_000,
     priority: "critical",
-    nextStep: "Extract shared workspace renderers and legacy module state from app.js before adding broad new UI.",
+    nextStep: "Keep app.js as the stable cache-busting entrypoint.",
+  },
+  {
+    file: "app-runtime.js",
+    maxBytes: 640_000,
+    maxGzipBytes: 125_000,
+    maxLines: 16_000,
+    targetGzipBytes: 90_000,
+    priority: "critical",
+    nextStep: "Extract large legacy runtime domains into module-owned files without growing the entrypoint.",
   },
   {
     file: "styles.css",

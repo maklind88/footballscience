@@ -82,7 +82,7 @@ function createRuntimeHarness(options = {}) {
 }
 
 test("platform shell runtime owns theme and preload wiring outside app.js", () => {
-  const app = readProjectFile("app.js");
+  const app = readProjectFile("app-runtime.js");
   const runtime = readProjectFile("src/core/platform-shell-runtime.mjs");
 
   expect(app).toContain('import { createPlatformShellRuntime } from "./src/core/platform-shell-runtime.mjs";');

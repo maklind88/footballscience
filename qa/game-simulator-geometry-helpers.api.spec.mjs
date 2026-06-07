@@ -11,7 +11,7 @@ function readProjectFile(path) {
 }
 
 test("game simulator geometry helpers own pure pitch math and personality weighting", () => {
-  const app = readProjectFile("app.js");
+  const app = readProjectFile("app-runtime.js");
   const engineWiring = readProjectFile("src/modules/game-simulator/engine-wiring.mjs");
   const helpers = readProjectFile("src/modules/game-simulator/geometry-helpers.mjs");
 

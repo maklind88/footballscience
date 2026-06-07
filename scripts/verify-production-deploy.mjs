@@ -31,20 +31,21 @@ async function sleep(ms) {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitForExpectedApp(url, expectedAppHash) {
+async function waitForExpectedAsset(pathname, expectedHash, label) {
+  const url = urlFor(pathname);
   const deadline = Date.now() + Math.max(releaseHashWaitMs, 0);
   let lastApp = await readText(url);
   let lastHash = sha256(lastApp.text);
   let announcedWait = false;
-  while (lastApp.response.ok && lastHash !== expectedAppHash && Date.now() < deadline) {
+  while (lastApp.response.ok && lastHash !== expectedHash && Date.now() < deadline) {
     if (!announcedWait) {
       console.log(
-        `- waiting for live app.js hash to match release for up to ${Math.round(releaseHashWaitMs / 1000)}s`,
+        `- waiting for live ${label} hash to match release for up to ${Math.round(releaseHashWaitMs / 1000)}s`,
       );
       announcedWait = true;
     }
     await sleep(releaseHashRetryDelayMs);
-    lastApp = await readText(urlFor("/app.js"));
+    lastApp = await readText(urlFor(pathname));
     lastHash = sha256(lastApp.text);
   }
   return { app: lastApp, hash: lastHash };
@@ -65,20 +66,34 @@ expect(home.text.includes("Loading..."), "Home HTML is missing premium loading m
 
 const expectedAppSource = fs.readFileSync(path.join(rootDir, "app.js"), "utf8");
 const expectedAppHash = sha256(expectedAppSource);
+const expectedRuntimeSource = fs.readFileSync(path.join(rootDir, "app-runtime.js"), "utf8");
+const expectedRuntimeHash = sha256(expectedRuntimeSource);
 const { app, hash: liveAppHash } = allowLiveHashMismatch
   ? await (async () => {
       const liveApp = await readText(urlFor("/app.js"));
       return { app: liveApp, hash: sha256(liveApp.text) };
     })()
-  : await waitForExpectedApp(urlFor("/app.js"), expectedAppHash);
+  : await waitForExpectedAsset("/app.js", expectedAppHash, "app.js");
+const { app: runtime, hash: liveRuntimeHash } = allowLiveHashMismatch
+  ? await (async () => {
+      const liveRuntime = await readText(urlFor("/app-runtime.js"));
+      return { app: liveRuntime, hash: sha256(liveRuntime.text) };
+    })()
+  : await waitForExpectedAsset("/app-runtime.js", expectedRuntimeHash, "app-runtime.js");
 expect(app.response.ok, `app.js did not return 2xx: ${app.response.status}`);
-expect(app.text.includes("workspaceLastActiveStorageKey"), "app.js is missing refresh workspace persistence.");
-expect(app.text.includes("__lastRenderedMarkup"), "app.js is missing top menu rerender guard.");
-expect(app.text.includes("football-dashboard-chat-v1"), "app.js is missing chat storage contract key.");
+expect(runtime.response.ok, `app-runtime.js did not return 2xx: ${runtime.response.status}`);
+expect(app.text.includes("app-runtime.js"), "app.js is missing runtime loader.");
+expect(runtime.text.includes("workspaceLastActiveStorageKey"), "app-runtime.js is missing refresh workspace persistence.");
+expect(runtime.text.includes("__lastRenderedMarkup"), "app-runtime.js is missing top menu rerender guard.");
+expect(runtime.text.includes("football-dashboard-chat-v1"), "app-runtime.js is missing chat storage contract key.");
 if (!allowLiveHashMismatch) {
   expect(
     liveAppHash === expectedAppHash,
     `Live app.js hash does not match this release. expected=${expectedAppHash} live=${liveAppHash}`
+  );
+  expect(
+    liveRuntimeHash === expectedRuntimeHash,
+    `Live app-runtime.js hash does not match this release. expected=${expectedRuntimeHash} live=${liveRuntimeHash}`
   );
 }
 
@@ -110,8 +125,12 @@ if (failures.length) {
   console.log("- home: ok");
   console.log("- app.js: ok");
   console.log(`- app.js hash: ${liveAppHash}`);
-  if (allowLiveHashMismatch && liveAppHash !== expectedAppHash) {
-    console.log(`- app.js release hash match: skipped for monitor mode (checkout=${expectedAppHash})`);
+  console.log("- app-runtime.js: ok");
+  console.log(`- app-runtime.js hash: ${liveRuntimeHash}`);
+  if (allowLiveHashMismatch && (liveAppHash !== expectedAppHash || liveRuntimeHash !== expectedRuntimeHash)) {
+    console.log(
+      `- app asset release hash match: skipped for monitor mode (app=${expectedAppHash}, runtime=${expectedRuntimeHash})`
+    );
   }
   console.log("- client config: ok");
   console.log("- backup protection: ok");

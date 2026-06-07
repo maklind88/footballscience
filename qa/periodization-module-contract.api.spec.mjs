@@ -66,7 +66,7 @@ test("Periodization extraction owns the state, renderer, controller, and bridge 
 });
 
 test("Periodization app integration delegates state, renderer, controller, bridge, and merge helpers to the module", () => {
-  const app = readProjectFile("app.js");
+  const app = readProjectFile("app-runtime.js");
 
   expect(app).toContain("./src/modules/periodization/periodization-state.mjs");
   expect(app).toContain("./src/modules/periodization/periodization-renderer.mjs");

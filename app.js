@@ -64,6 +64,7 @@ import {
 import { createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerTacticalController, createSessionPlannerWorkspaceController, createSessionPlannerMedicalAvailabilitySelectors, createSessionPlannerPlayerBoardFormationHelpers, createSessionPlannerPlayerBoardHelpers, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerSelectionAssistant, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualRenderer, createSessionPlannerVisualUploadHelpers, createSessionPlannerWorkspaceRenderer, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformShellRuntime } from "./src/core/platform-shell-runtime.mjs";
+import { createWorkspaceModuleRuntimeController } from "./src/core/workspace-module-runtime-controller.mjs";
 import { createWorkspaceShellController } from "./src/core/workspace-shell-controller.mjs";
 import { bindPlatformNavigationInteractions } from "./src/core/platform-navigation-bindings.mjs";
 import { createPlatformUiBindings } from "./src/core/platform-ui-bindings.mjs";
@@ -161,6 +162,13 @@ if (!gameSimulatorAppRuntimeController?.[methodName]) {
 throw new Error(`Game simulator app runtime is not ready: ${methodName}`);
 }
 return gameSimulatorAppRuntimeController[methodName](...args);
+}
+let workspaceModuleRuntimeController = null;
+function queueWorkspaceModulePreload(workspaceId = "") {
+return workspaceModuleRuntimeController?.queueWorkspaceModulePreload?.(workspaceId);
+}
+function preloadWorkspaceFromTrigger(trigger = null) {
+return workspaceModuleRuntimeController?.preloadWorkspaceFromTrigger?.(trigger);
 }
 const workspaceHubStorageKey = "football-workspace-hub-v3";
 const platformStructureStorageKey = "football-platform-structure-v1";
@@ -3968,10 +3976,113 @@ escapeHtml,
 suppressCentralWrites: (key) => centralStateWriteSuppressionKeys.add(key),
 unsuppressCentralWrites: (key) => centralStateWriteSuppressionKeys.delete(key),
 setActiveWorkspace: (...args) => setActiveWorkspace(...args),
-loadScoutingWorkspaceModule: () => loadScoutingWorkspaceModule(),
-getScoutingWorkspaceContext: () => getScoutingWorkspaceContext(),
+loadScoutingWorkspaceModule: () => workspaceModuleRuntimeController.loadScoutingWorkspaceModule(),
+getScoutingWorkspaceContext: () => workspaceModuleRuntimeController.getScoutingWorkspaceContext(),
 logEvent,
 });
+workspaceModuleRuntimeController = createWorkspaceModuleRuntimeController({
+ui,
+win,
+platformModuleLoader,
+getAssetVersion: () => platformAssetVersion,
+getUsers: getPlatformUsers,
+getCurrentUser: getCurrentPlatformUser,
+getScheduleStateForGameplan: () => scheduleState || readScheduleState(),
+getPlayerProfilesStateForGameplan: () => playerProfilesState || readPlayerProfilesState(),
+canEditGameplan: () => canCurrentUserEditWorkspace("gameplan"),
+getAuthToken: getPlatformApiAccessToken,
+suppressCentralWrites: (key) => centralStateWriteSuppressionKeys.add(key),
+unsuppressCentralWrites: (key) => centralStateWriteSuppressionKeys.delete(key),
+escapeHtml,
+getScoutingTeamName: () => {
+const currentUser = getCurrentPlatformUser();
+return normalizePlatformStructureText(currentUser?.team || currentUser?.teamName || currentUser?.clubName || currentUser?.club, "") || getUserTeamName(currentUser);
+},
+ensureScoutingState,
+writeScoutingState,
+canEditScouting: canEditScoutingWorkspace,
+canSendToTransferRoom: canUserEditTransferRoom,
+sendToTransferRoom: addTransferRoomTargetFromScoutingSnapshot,
+scoutingTabs,
+scoutingShadowSlots,
+scoutingCoreMetricOptions,
+scoutingStatusOptions,
+scoutingPriorityOptions,
+transferRoomRuntime,
+getWorkspaceViewId,
+getSafeWorkspaceId,
+getHubState: () => hubState,
+workspaceHubDefaultActiveWorkspaceId,
+shouldDeferCentralizedAppStateReload,
+hydrateState: {
+schedule: () => {
+if (!scheduleState) {
+scheduleState = readScheduleState();
+}
+},
+periodization: () => {
+if (!periodizationState) {
+periodizationState = readPeriodizationState();
+}
+if (!scheduleState) {
+scheduleState = readScheduleState();
+}
+},
+sessionPlanner: () => {
+if (!sessionPlannerState) {
+sessionPlannerState = readSessionPlannerState();
+}
+if (!sessionPlannerExerciseLibrary) {
+sessionPlannerExerciseLibrary = readSessionPlannerExerciseLibrary();
+}
+if (!sessionPlannerExerciseLibraryFolders) {
+sessionPlannerExerciseLibraryFolders = readSessionPlannerExerciseLibraryFolders();
+}
+if (!periodizationState) {
+periodizationState = readPeriodizationState();
+}
+if (!medicalState) {
+medicalState = readMedicalState();
+}
+},
+medical: () => {
+if (!medicalState) {
+medicalState = readMedicalState();
+}
+if (!playerProfilesState) {
+playerProfilesState = readPlayerProfilesState();
+}
+},
+playerProfiles: () => {
+if (!playerProfilesState) {
+playerProfilesState = readPlayerProfilesState();
+}
+if (!medicalState) {
+medicalState = readMedicalState();
+}
+},
+transferRoom: () => {
+syncTransferRoomLinkedState();
+},
+gameSimulator: () => {
+queueGameSimulatorControllersLoad();
+},
+},
+});
+const {
+getGameplanContext,
+getScoutingAnalysisRoomContext,
+getScoutingWorkspaceContext,
+getTransferRoomWorkspaceContext,
+hydrateWorkspaceModuleState,
+loadGameplanModule,
+loadScoutingWorkspaceModule,
+loadTransferRoomWorkspaceModule,
+renderAnalysisRoomWorkspace,
+renderGameplanWorkspace,
+renderScoutingWorkspace,
+renderTransferRoomWorkspace,
+} = workspaceModuleRuntimeController;
 function readTransferRoomState() { return transferRoomRuntime.readState(); }
 function ensureTransferRoomState() { return transferRoomRuntime.ensureState(); }
 function syncTransferRoomLinkedState(options = {}) {
@@ -3990,180 +4101,6 @@ function canUserEditTransferRoom(user = getCurrentPlatformUser()) { return trans
 function addTransferRoomTargetFromScoutingSnapshot(snapshot = {}, options = {}) {
 return transferRoomRuntime.addTargetFromScoutingSnapshot(snapshot, options);
 }
-let gpModule = null;
-function getGameplanContext() {
-return {
-users: getPlatformUsers(),
-currentUser: getCurrentPlatformUser(),
-getScheduleState: () => scheduleState || readScheduleState(),
-getPlayerProfilesState: () => playerProfilesState || readPlayerProfilesState(),
-canEdit: () => canCurrentUserEditWorkspace("gameplan"),
-getAuthToken: getPlatformApiAccessToken,
-suppressCentralWrites: (key) => centralStateWriteSuppressionKeys.add(key),
-unsuppressCentralWrites: (key) => centralStateWriteSuppressionKeys.delete(key),
-};
-}
-function loadGameplanModule() {
-if (gpModule) {
-return Promise.resolve(gpModule);
-}
-return Promise.all([
-platformModuleLoader.loadStylesheet("gameplan", "gameplan.css", {
-id: "gameplanStylesheet",
-required: true,
-}),
-platformModuleLoader.loadModule("gameplan", () => import(`./gameplan.js?v=${encodeURIComponent(platformAssetVersion)}`)),
-])
-.then(([, module]) => {
-gpModule = module;
-return module;
-});
-}
-function renderGameplanWorkspace() {
-if (!ui.gameplanWorkspace) {
-return;
-}
-if (!gpModule) {
-ui.gameplanWorkspace.textContent = "Loading Gameplan";
-loadGameplanModule()
-.then((module) => module.render(getGameplanContext()))
-.catch(() => {
-ui.gameplanWorkspace.textContent = "Gameplan could not load";
-});
-return;
-}
-gpModule.render(getGameplanContext());
-}
-let scoutingWorkspaceModulePromise = null;
-let scoutingWorkspaceModule = null;
-let scoutingMenuPreloadTimer = 0;
-function getScoutingWorkspaceContext() {
-return {
-ui,
-platformModuleLoader,
-escapeHtml,
-teamName: (() => {
-const currentUser = getCurrentPlatformUser();
-return normalizePlatformStructureText(currentUser?.team || currentUser?.teamName || currentUser?.clubName || currentUser?.club, "") || getUserTeamName(currentUser);
-})(),
-ensureState: ensureScoutingState,
-writeState: writeScoutingState,
-canEdit: canEditScoutingWorkspace,
-canSendToTransferRoom: canUserEditTransferRoom,
-sendToTransferRoom: addTransferRoomTargetFromScoutingSnapshot,
-tabs: scoutingTabs,
-shadowSlots: scoutingShadowSlots,
-coreMetricOptions: scoutingCoreMetricOptions,
-scoutingStatusOptions,
-scoutingPriorityOptions,
-};
-}
-function getScoutingAnalysisRoomContext() {
-const context = getScoutingWorkspaceContext();
-return {
-...context,
-ui: {
-...context.ui,
-scoutingWorkspace: ui.analysisRoomWorkspace,
-},
-};
-}
-function loadScoutingWorkspaceModule() {
-if (scoutingWorkspaceModule) {
-return Promise.resolve(scoutingWorkspaceModule);
-}
-if (!scoutingWorkspaceModulePromise) {
-scoutingWorkspaceModulePromise = Promise.all([
-platformModuleLoader.loadStylesheet("scouting-workspace", "scouting-workspace.css", {
-id: "scoutingWorkspaceStylesheet",
-required: true,
-}),
-platformModuleLoader.loadModule("scouting-workspace", () => import(`./scouting-workspace.js?v=${encodeURIComponent(platformAssetVersion)}`)),
-])
-.then(([, module]) => {
-scoutingWorkspaceModule = module;
-return module;
-})
-.catch((error) => {
-scoutingWorkspaceModulePromise = null;
-throw error;
-});
-}
-return scoutingWorkspaceModulePromise;
-}
-function loadScoutingWorkspaceModuleAfterPaint() {
-return new Promise((resolve, reject) => {
-const scheduleLoad = () => {
-loadScoutingWorkspaceModule().then(resolve).catch(reject);
-};
-if (typeof win.requestAnimationFrame === "function") {
-win.requestAnimationFrame(() => win.requestAnimationFrame(scheduleLoad));
-return;
-}
-win.setTimeout(scheduleLoad, 0);
-});
-}
-function renderScoutingWorkspace() {
-if (!ui.scoutingWorkspace) {
-return;
-}
-if (!scoutingWorkspaceModule) {
-ui.scoutingWorkspace.innerHTML = `
-      <section class="scouting-shell">
-        <section class="scouting-load-panel">
-          <h2>Loading Scouting</h2>
-          <p>Preparing the Shadow XI workspace and scouting database.</p>
-        </section>
-      </section>
-    `;
-loadScoutingWorkspaceModuleAfterPaint()
-.then((module) => module.render(getScoutingWorkspaceContext()))
-.catch(() => {
-ui.scoutingWorkspace.innerHTML = `
-          <section class="scouting-shell">
-            <section class="scouting-load-panel">
-              <h2>Scouting could not load</h2>
-              <p>Refresh and try again.</p>
-            </section>
-          </section>
-        `;
-});
-return;
-}
-scoutingWorkspaceModule.render(getScoutingWorkspaceContext());
-}
-function renderAnalysisRoomWorkspace() {
-if (!ui.analysisRoomWorkspace) {
-return;
-}
-if (!scoutingWorkspaceModule) {
-ui.analysisRoomWorkspace.innerHTML = `
-      <section class="scouting-shell">
-        <section class="scouting-load-panel">
-          <h2>Loading Analysis Room</h2>
-          <p>Preparing the own-team performance room.</p>
-        </section>
-      </section>
-    `;
-loadScoutingWorkspaceModule()
-.then((module) => module.renderAnalysisRoom(getScoutingAnalysisRoomContext()))
-.catch(() => {
-ui.analysisRoomWorkspace.innerHTML = `
-          <section class="scouting-shell">
-            <section class="scouting-load-panel">
-              <h2>Analysis Room could not load</h2>
-              <p>Refresh and try again.</p>
-            </section>
-          </section>
-        `;
-});
-return;
-}
-scoutingWorkspaceModule.renderAnalysisRoom(getScoutingAnalysisRoomContext());
-}
-function getTransferRoomWorkspaceContext() { return transferRoomRuntime.getContext(); }
-function loadTransferRoomWorkspaceModule() { return transferRoomRuntime.loadWorkspaceModule(); }
-function renderTransferRoomWorkspace() { return transferRoomRuntime.render(); }
 function getScheduleEventsForDate(dateValue) {
 if (!scheduleState) {
 scheduleState = readScheduleState();
@@ -14012,93 +13949,6 @@ function resetGameSimulatorIntro(...args) { return invokeGameSimulatorAppRuntime
 function syncGameSimulatorIntroState(...args) { return invokeGameSimulatorAppRuntime("syncGameSimulatorIntroState", args); }
 function launchGameSimulatorFromIntro(...args) { return invokeGameSimulatorAppRuntime("launchGameSimulatorFromIntro", args); }
 function pauseSimulatorForWorkspaceSwitch(...args) { return invokeGameSimulatorAppRuntime("pauseSimulatorForWorkspaceSwitch", args); }
-function hydrateWorkspaceModuleState(workspaceId = hubState?.activeWorkspaceId) {
-const viewId = getWorkspaceViewId(workspaceId || workspaceHubDefaultActiveWorkspaceId);
-if (viewId === "schedule") {
-if (!scheduleState) {
-scheduleState = readScheduleState();
-}
-return;
-}
-if (viewId === "periodization") {
-if (!periodizationState) {
-periodizationState = readPeriodizationState();
-}
-if (!scheduleState) {
-scheduleState = readScheduleState();
-}
-return;
-}
-if (viewId === "session-planner") {
-if (!sessionPlannerState) {
-sessionPlannerState = readSessionPlannerState();
-}
-if (!sessionPlannerExerciseLibrary) {
-sessionPlannerExerciseLibrary = readSessionPlannerExerciseLibrary();
-}
-if (!sessionPlannerExerciseLibraryFolders) {
-sessionPlannerExerciseLibraryFolders = readSessionPlannerExerciseLibraryFolders();
-}
-if (!periodizationState) {
-periodizationState = readPeriodizationState();
-}
-if (!medicalState) {
-medicalState = readMedicalState();
-}
-return;
-}
-if (viewId === "medical-team") {
-if (!medicalState) {
-medicalState = readMedicalState();
-}
-if (!playerProfilesState) {
-playerProfilesState = readPlayerProfilesState();
-}
-return;
-}
-if (viewId === "player-profiles") {
-if (!playerProfilesState) {
-playerProfilesState = readPlayerProfilesState();
-}
-if (!medicalState) {
-medicalState = readMedicalState();
-}
-return;
-}
-if (viewId === "scouting") {
-ensureScoutingState();
-return;
-}
-if (viewId === "transfer-room") {
-syncTransferRoomLinkedState();
-return;
-}
-}
-function queueWorkspaceModulePreload(workspaceId = "") {
-const safeWorkspaceId = getSafeWorkspaceId(workspaceId, hubState) || workspaceId;
-const viewId = getWorkspaceViewId(safeWorkspaceId || workspaceHubDefaultActiveWorkspaceId);
-if (viewId === "game-simulator") {
-queueGameSimulatorControllersLoad();
-}
-if (viewId === "analysis-room" || viewId === "scouting") {
-loadScoutingWorkspaceModule();
-}
-if (viewId === "transfer-room") {
-loadTransferRoomWorkspaceModule();
-}
-}
-function preloadWorkspaceFromTrigger(trigger) {
-const workspaceId = trigger?.dataset?.openWorkspace || "";
-if (!workspaceId) {
-return;
-}
-if (getWorkspaceViewId(getSafeWorkspaceId(workspaceId, hubState) || workspaceId) === "scouting") {
-win.clearTimeout(scoutingMenuPreloadTimer);
-scoutingMenuPreloadTimer = win.setTimeout(() => queueWorkspaceModulePreload(workspaceId), 180);
-return;
-}
-queueWorkspaceModulePreload(workspaceId);
-}
 const workspaceShellController = createWorkspaceShellController({
 applyUserAvatar,
 closeDashboardModal,

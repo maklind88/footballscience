@@ -67,6 +67,7 @@ const coreFiles = [
   "src/core/storage-adapters.mjs",
   "src/core/index.mjs",
   "src/core/platform-readiness-contracts.mjs",
+  "src/core/workspace-module-runtime-controller.mjs",
   "src/modules/manifest.mjs",
   "src/modules/home/tasks.mjs",
   "src/modules/home/tasks-adapter.mjs",
@@ -362,6 +363,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-safety-contracts.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-security-contracts.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-readiness.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/workspace-module-runtime-controller-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/incident-alert-contracts.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/data-safety-contracts.api.spec.mjs");
   expect(platformSecuritySpec).toContain("permission matrix covers every module action");

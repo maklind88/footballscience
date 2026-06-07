@@ -1,3 +1,4 @@
+export { createGameSimulatorActionSpaceMetrics } from "./action-space-metrics.mjs";
 export { createGameSimulatorAutopilotCandidates } from "./autopilot-candidates.mjs";
 export { createGameSimulatorAutopilotDecisionEngine } from "./autopilot-decision-engine.mjs";
 export { createGameSimulatorAutopilotDefensiveTargets } from "./autopilot-defensive-targets.mjs";

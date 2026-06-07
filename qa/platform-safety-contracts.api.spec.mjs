@@ -95,6 +95,7 @@ const coreFiles = [
   "src/modules/squad/squad-adapter.mjs",
   "src/modules/squad/index.mjs",
   "src/modules/game-simulator/index.mjs",
+  "src/modules/game-simulator/action-space-metrics.mjs",
   "src/modules/game-simulator/autopilot-candidates.mjs",
   "src/modules/game-simulator/autopilot-decision-engine.mjs",
   "src/modules/game-simulator/autopilot-defensive-targets.mjs",
@@ -326,6 +327,7 @@ test("core module contracts are covered by dedicated QA", () => {
   const scheduleDatabaseSpec = readProjectFile("qa/schedule-database-schema.api.spec.mjs");
   const squadAdapterSpec = readProjectFile("qa/squad-adapter.api.spec.mjs");
   const squadDatabaseSpec = readProjectFile("qa/squad-database-schema.api.spec.mjs");
+  const gameSimulatorActionSpaceMetricsSpec = readProjectFile("qa/game-simulator-action-space-metrics.api.spec.mjs");
   const gameSimulatorSpec = readProjectFile("qa/game-simulator-controller.api.spec.mjs");
   const gameSimulatorControllersSpec = readProjectFile("qa/game-simulator-controllers.api.spec.mjs");
   const gameSimulatorBindingsSpec = readProjectFile("qa/game-simulator-control-bindings.api.spec.mjs");
@@ -362,6 +364,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-module-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-adapter.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-database-schema.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-action-space-metrics.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-controller.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-controllers.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-control-bindings.api.spec.mjs");
@@ -396,6 +399,7 @@ test("core module contracts are covered by dedicated QA", () => {
 test("game simulator animation loop does not run globally outside the simulator workspace", () => {
   const packageJson = readJson("package.json");
   const appSource = readProjectFile("app.js");
+  const actionSpaceMetricsSource = readProjectFile("src/modules/game-simulator/action-space-metrics.mjs");
   const controllersSource = readProjectFile("src/modules/game-simulator/controllers.mjs");
   const controlBindingsSource = readProjectFile("src/modules/game-simulator/control-bindings.mjs");
   const fullscreenSource = readProjectFile("src/modules/game-simulator/fullscreen.mjs");
@@ -410,6 +414,7 @@ test("game simulator animation loop does not run globally outside the simulator 
   const sidebarRendererSource = readProjectFile("src/modules/game-simulator/sidebar-renderer.mjs");
 
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/control-bindings.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/action-space-metrics.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/controllers.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/fullscreen.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-candidates.mjs");

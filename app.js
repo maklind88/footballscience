@@ -51,6 +51,7 @@ import { getTopIconSvg } from "./top-icons.js";
 import { createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
 import { adminDepartmentSuggestions, adminTitleSuggestions, createAdminAccessRenderer, createAdminReadinessRenderer, createAdminStructureRenderer, createAdminUserRenderer, getAdminActiveUserCount, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
 import { createProfileWorkspaceRenderer } from "./src/modules/profile/index.mjs";
+import { createStaffWorkspaceRenderer } from "./src/modules/staff/index.mjs";
 const getElement = document.getElementById.bind(document);
 const win = window;
 const canvas = getElement("pitchCanvas");
@@ -4972,6 +4973,16 @@ escapeHtml,
 formatUserName,
 getRoleLabel,
 renderTaskList: renderDashboardTaskList,
+renderUserAvatar,
+});
+const staffWorkspaceRenderer = createStaffWorkspaceRenderer({
+escapeHtml,
+formatUserName,
+getRoleLabel,
+getUserClubName,
+getUserScopeLabel,
+getUserTeamName,
+renderPasswordRevealInput,
 renderUserAvatar,
 });
 const platformDefaultRoles = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
@@ -18925,140 +18936,19 @@ users[0] ??
 null;
 selectedStaffUserId = selectedUser?.id ?? null;
 const roleOptions = renderAdminRoleOptions(user, getAssignableRolesForUser(user).includes("coach") ? "coach" : getAssignableRolesForUser(user)[0]);
-const userRows = users
-.map((staffUser) => {
-const isSelected = staffUser.id === selectedStaffUserId;
-const isSelf = staffUser.id === user?.id;
-return `
-        <article class="staff-user-row${isSelected ? " is-selected" : ""}">
-          <button type="button" data-staff-select-user="${escapeHtml(staffUser.id)}">
-            ${renderUserAvatar(staffUser, "staff-user-avatar")}
-            <span>
-              <strong>${escapeHtml(formatUserName(staffUser))}</strong>
-              <small>${escapeHtml(staffUser.title)} · ${escapeHtml(getRoleLabel(staffUser.role))}</small>
-              <small>${escapeHtml(getUserScopeLabel(staffUser, structure))}</small>
-            </span>
-          </button>
-          ${
-            isAdmin
-              ? isSelf
-                ? `<span class="staff-self-pill">You</span>`
-                : `<button type="button" class="staff-remove-button" data-staff-remove-user="${escapeHtml(staffUser.id)}">Remove</button>`
-              : ""
-          }
-        </article>
-      `;
-})
-.join("");
-const staffCreateUserEditor =
-isAdmin && staffCreateUserEditorOpen
-? `
-      <div class="admin-user-editor-overlay" data-staff-create-user-overlay role="dialog" aria-modal="true" aria-label="Add user">
-        <article class="admin-card admin-user-editor-modal staff-create-user-modal">
-          <div class="staff-card-head admin-user-editor-head">
-            <div>
-              <h2>Add user</h2>
-              <span>${escapeHtml(getUserScopeLabel(user, structure))}</span>
-            </div>
-            <button type="button" class="admin-send-button admin-user-editor-close" data-staff-close-create-user>Close</button>
-          </div>
-          <form id="staffUserForm" class="platform-form staff-create-form">
-            <label>
-              <span>First name</span>
-              <input name="firstName" required />
-            </label>
-            <label>
-              <span>Last name</span>
-              <input name="lastName" required />
-            </label>
-            <label>
-              <span>Email</span>
-              <input name="email" type="email" required />
-            </label>
-            <label>
-              <span>Username</span>
-              <input name="username" required />
-            </label>
-            <label>
-              <span>Password</span>
-              ${renderPasswordRevealInput("password", "Optional; leave empty for temporary")}
-            </label>
-            <label>
-              <span>Confirm password</span>
-              ${renderPasswordRevealInput("passwordConfirm", "Repeat password")}
-            </label>
-            <label>
-              <span>Role</span>
-              <select name="role">${roleOptions}</select>
-            </label>
-            <label>
-              <span>Title</span>
-              <input name="title" value="Coach" />
-            </label>
-            <label>
-              <span>Department</span>
-              <input name="department" value="Football" />
-            </label>
-            <label class="profile-wide">
-              <span>Team scope</span>
-              <select name="teamId">${renderAdminTeamOptions(user, structure, getUserTeamId(user, structure))}</select>
-            </label>
-            <div class="profile-form-footer">
-              <span>Creates a central Supabase account in this team scope.</span>
-              <button type="submit">Add user</button>
-            </div>
-          </form>
-        </article>
-      </div>
-    `
-: "";
-ui.staffWorkspace.innerHTML = `
-    <section class="staff-shell">
-      <header class="staff-hero-card">
-        <div>
-          <p class="placeholder-tag">Staff</p>
-          <h1 class="profile-title">People</h1>
-        </div>
-        <span class="profile-role-pill">${isAdmin ? "Admin" : "View"}</span>
-      </header>
-      ${message ? `<p class="staff-message platform-inline-toast" role="status" aria-live="polite">${escapeHtml(message)}</p>` : ""}
-      <section class="staff-layout">
-        <div class="staff-list-card">
-          <div class="staff-card-head">
-            <h2>Users</h2>
-            <span>${users.length}</span>
-            ${isAdmin ? `<button type="button" class="admin-send-button staff-open-create-user" data-staff-open-create-user>Add user</button>` : ""}
-          </div>
-          <div class="staff-user-list">${userRows}</div>
-        </div>
-        <div class="staff-profile-card">
-          ${
-            selectedUser
-              ? `
-<div class="profile-preview-head">
-${renderUserAvatar(selectedUser, "profile-avatar")}
-<div>
-<h2>${escapeHtml(formatUserName(selectedUser))}</h2>
-<span>${escapeHtml(selectedUser.email)}</span>
-</div>
-</div>
-<dl class="profile-detail-list">
-<div><dt>Role</dt><dd>${escapeHtml(getRoleLabel(selectedUser.role))}</dd></div>
-<div><dt>Title</dt><dd>${escapeHtml(selectedUser.title)}</dd></div>
-<div><dt>Department</dt><dd>${escapeHtml(selectedUser.department)}</dd></div>
-<div><dt>Club</dt><dd>${escapeHtml(getUserClubName(selectedUser, structure))}</dd></div>
-<div><dt>Team</dt><dd>${escapeHtml(getUserTeamName(selectedUser, structure))}</dd></div>
-<div><dt>Status</dt><dd>${escapeHtml(selectedUser.status)}</dd></div>
-</dl>
-`
-              : ""
-          }
-        </div>
-      </section>
-      ${staffCreateUserEditor}
-      ${isAdmin ? "" : `<div class="staff-create-card"><h2>Admin only</h2></div>`}
-    </section>
-  `;
+const teamOptions = renderAdminTeamOptions(user, structure, getUserTeamId(user, structure));
+ui.staffWorkspace.innerHTML = staffWorkspaceRenderer.renderWorkspace({
+currentUser: user,
+users,
+structure,
+selectedUser,
+selectedUserId: selectedStaffUserId,
+isAdmin,
+createUserEditorOpen: staffCreateUserEditorOpen,
+roleOptions,
+teamOptions,
+message,
+});
 }
 function renderAdminAccountSummary(user) {
 return adminUserRenderer.renderAccountSummary(user);

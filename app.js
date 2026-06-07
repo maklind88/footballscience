@@ -43,7 +43,7 @@ import {
   sessionPlannerExerciseLibraryVersionLimit,
   sessionPlannerLibrarySortOptions,
 } from "./src/modules/exercise-library/index.mjs";
-import { createSessionPlannerAutosaveBoundary, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerVisualRenderer, sessionPlannerStorageKey } from "./src/modules/session-planner/index.mjs";
+import { createSessionPlannerAutosaveBoundary, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerVisualRenderer, createSessionPlannerWorkspaceRenderer, sessionPlannerStorageKey } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createPasswordRevealInputRenderer } from "./src/core/form-renderers.mjs";
@@ -4691,6 +4691,27 @@ multiSelectFields: sessionPlannerMultiSelectFields,
 getReviewNotesForBlock: getSessionPlannerExerciseReviewNotesForBlock,
 formatLibraryDate: formatSessionPlannerLibraryDate,
 getScheduleSessionEventForDate,
+});
+const sessionPlannerWorkspaceRenderer = createSessionPlannerWorkspaceRenderer({
+escapeHtml,
+periodizationOptionLibrary,
+renderSessionPlannerActionIcon,
+renderSessionPlannerBlockList,
+renderSessionPlannerDateStrip,
+renderSessionPlannerEditableField,
+renderSessionPlannerExerciseVisual,
+renderSessionPlannerHeaderField,
+renderSessionPlannerLibraryOverlay,
+renderSessionPlannerLibrarySaveConflictOverlay,
+renderSessionPlannerMedicalAvailability,
+renderSessionPlannerPeriodizationOverlay,
+renderSessionPlannerPeriodizationSummary,
+renderSessionPlannerPlayerBoard,
+renderSessionPlannerPlayerBoardOverlay,
+renderSessionPlannerPostSessionNotesCard,
+renderSessionPlannerPrintOverlay,
+renderSessionPlannerTacticalboardOverlay,
+renderSessionPlannerVisualPreviewOverlay,
 });
 let sessionPlannerVisualPreviewOpen = false;
 let sessionPlannerTacticalboardOpen = false;
@@ -18169,53 +18190,23 @@ const labels = {
 };
 return labels[action] || "Updated";
 }
-function renderSessionPlannerHistoryPanel() {
-if (!isCurrentPlatformUserAdmin()) {
-return "";
-}
+function getSessionPlannerHistoryPanelContext() {
 const dateValue = sessionPlannerState?.selectedDate || "";
-const visibleEntries = sessionPlannerHistoryEntries.filter((entry) => entry.date === dateValue).slice(0, 6);
-let body = "";
-if (sessionPlannerHistoryLoading && sessionPlannerHistoryLoadedDate !== dateValue) {
-body = `<p class="session-history-empty">Loading versions...</p>`;
-} else if (sessionPlannerHistoryLoadError) {
-body = `<p class="session-history-empty is-error">${escapeHtml(sessionPlannerHistoryLoadError)}</p>`;
-} else if (!visibleEntries.length) {
-body = `<p class="session-history-empty">No versions saved for this date yet. New changes will be tracked from now.</p>`;
-} else {
-body = visibleEntries
-.map((entry) => {
-const beforeCount = Number(entry.beforeBlockCount) || 0;
-const afterCount = Number(entry.afterBlockCount) || 0;
-const restoreLabel = entry.beforeSession ? "Restore" : "Undo";
-return `
-          <article class="session-history-row">
-            <div>
-              <strong>${escapeHtml(getSessionPlannerHistoryActionLabel(entry.action))}</strong>
-              <span>${escapeHtml(beforeCount)} → ${escapeHtml(afterCount)} blocks</span>
-              <small>${escapeHtml(getSessionPlannerHistoryActorLabel(entry))} · ${escapeHtml(formatSessionPlannerHistoryTime(entry.createdAt))}</small>
-            </div>
-            <button type="button" data-session-restore-history="${escapeHtml(entry.id)}">${escapeHtml(restoreLabel)}</button>
-          </article>
-        `;
-})
-.join("");
+return {
+entries: sessionPlannerHistoryEntries,
+isAdmin: isCurrentPlatformUserAdmin(),
+isLoading: sessionPlannerHistoryLoading,
+loadedDate: sessionPlannerHistoryLoadedDate,
+loadError: sessionPlannerHistoryLoadError,
+open: sessionPlannerHistoryOpen,
+selectedDate: dateValue,
+formatHistoryTime: formatSessionPlannerHistoryTime,
+getHistoryActionLabel: getSessionPlannerHistoryActionLabel,
+getHistoryActorLabel: getSessionPlannerHistoryActorLabel,
+};
 }
-return `
-    <section class="session-tool-panel session-history-panel${sessionPlannerHistoryOpen ? " is-open" : " is-collapsed"}">
-      <div class="session-tool-panel-head session-history-head">
-        <button type="button" class="session-history-toggle" data-session-toggle-history aria-expanded="${sessionPlannerHistoryOpen ? "true" : "false"}">
-          <div>
-            <span>Version history</span>
-            <strong>Session restore</strong>
-          </div>
-          <small>${sessionPlannerHistoryOpen ? "Hide" : "Show"}</small>
-        </button>
-        ${sessionPlannerHistoryOpen ? `<button type="button" data-session-refresh-history>Refresh</button>` : ""}
-      </div>
-      ${sessionPlannerHistoryOpen ? `<div class="session-history-list">${body}</div>` : ""}
-    </section>
-  `;
+function renderSessionPlannerHistoryPanel() {
+return sessionPlannerWorkspaceRenderer.renderHistoryPanel(getSessionPlannerHistoryPanelContext());
 }
 async function loadSessionPlannerHistory(dateValue = sessionPlannerState?.selectedDate, options = {}) {
 const cleanDate = String(dateValue || "").trim();
@@ -18303,52 +18294,7 @@ showSessionPlannerToast(error?.message || "Session could not be restored.", "err
 }
 }
 function renderSessionPlannerToolsPanel(block) {
-if (!block) {
-return `
-      <aside class="session-card session-tools-card">
-        <div class="session-card-head">
-          <div>
-            <span>Detail</span>
-            <h2>Exercise Tools</h2>
-          </div>
-        </div>
-        <p class="session-empty-state">Select a block to work with media and player setup.</p>
-        ${renderSessionPlannerHistoryPanel()}
-      </aside>
-    `;
-}
-return `
-    <aside class="session-card session-tools-card">
-      <section class="session-tool-panel">
-        <div class="session-tool-panel-head">
-          <span>Board</span>
-          <strong>Exercise visual</strong>
-        </div>
-        <div class="session-media-drop">
-          <div class="session-media-preview">
-            ${renderSessionPlannerExerciseVisual(block)}
-          </div>
-          <div class="session-media-actions">
-            <button type="button" data-session-preview-visual>
-              ${renderSessionPlannerActionIcon("eye")}
-              <span>Preview</span>
-            </button>
-            <button type="button" data-session-open-tacticalboard>
-              ${renderSessionPlannerActionIcon("pencil")}
-              <span>Edit</span>
-            </button>
-            <label class="session-media-upload-button">
-              ${renderSessionPlannerActionIcon("upload")}
-              <span>Upload</span>
-              <input class="session-upload-input" type="file" accept="image/*" data-session-upload-visual />
-            </label>
-          </div>
-        </div>
-      </section>
-      ${renderSessionPlannerPlayerBoard(block)}
-      ${renderSessionPlannerHistoryPanel()}
-    </aside>
-  `;
+return sessionPlannerWorkspaceRenderer.renderToolsPanel(block, getSessionPlannerHistoryPanelContext());
 }
 function getMedicalAvailabilityItems(dateValue = medicalState?.selectedDate) {
 ensureMedicalState();
@@ -18646,147 +18592,18 @@ sessionPlannerHistoryLoadedDate !== sessionPlannerState.selectedDate &&
 ) {
 loadSessionPlannerHistory(sessionPlannerState.selectedDate).catch(() => {});
 }
-ui.sessionPlannerWorkspace.innerHTML = `
-    <header class="session-planner-hero">
-      <div>
-        <p class="placeholder-tag">Sessions</p>
-        <h1>Session Planner</h1>
-      </div>
-      <div class="session-date-controls" aria-label="Session date navigation">
-        <button type="button" class="session-date-nav-button" data-session-scroll-dates="-1" aria-label="Previous dates">←</button>
-        <div class="session-date-strip" aria-label="Session date selector">
-          ${renderSessionPlannerDateStrip()}
-        </div>
-        <button type="button" class="session-date-nav-button" data-session-scroll-dates="1" aria-label="Next dates">→</button>
-        <button type="button" class="session-date-today-button" data-session-today>Today</button>
-      </div>
-    </header>
-    <section class="session-planner-grid">
-      <aside class="session-card session-blocks-card">
-        <div class="session-card-head">
-          <div>
-            <span>${escapeHtml(selectedDateLabel)}</span>
-            <h2>${escapeHtml(sessionTitle)}</h2>
-            <div class="session-planner-summary-chips">
-              ${sessionMatchDayLabel ? `<strong class="session-matchday-chip">(${escapeHtml(sessionMatchDayLabel)})</strong>` : ""}
-              <strong class="session-total-time-chip" aria-label="Total training time">
-                <span>Total time</span>
-                <b>${sessionTotalMinutes || 0} min</b>
-              </strong>
-            </div>
-          </div>
-          <div class="session-card-actions">
-            <button type="button" class="session-print-open-button" data-session-open-print>Print</button>
-            ${
-              isAdmin
-                ? `
-<div class="session-add-menu-wrap">
-<button
-type="button"
-class="session-add-block-button"
-data-session-add-menu-toggle
-aria-label="Add exercise"
-aria-expanded="${sessionPlannerAddMenuOpen ? "true" : "false"}"
->+</button>
-${
-sessionPlannerAddMenuOpen
-? `
-                          <div class="session-add-menu" role="menu">
-                            <button type="button" data-session-add-new>
-                              <strong>New exercise</strong>
-                              <span>Start from a clean block</span>
-                            </button>
-                            <button type="button" data-session-add-from-library>
-                              <strong>From Library</strong>
-                              <span>Use a saved exercise template</span>
-                            </button>
-                            <button type="button" data-session-add-tacticalboard>
-                              <strong>Tacticalboard</strong>
-                              <span>Create and draw directly</span>
-                            </button>
-                          </div>
-                        `
-: ""
-}
-</div>
-`
-                : ""
-            }
-          </div>
-        </div>
-        <div class="session-block-list">
-          ${renderSessionPlannerPeriodizationSummary(sessionPlannerState.selectedDate)}
-          ${renderSessionPlannerMedicalAvailability(sessionPlannerState.selectedDate)}
-          ${renderSessionPlannerBlockList(session)}
-        </div>
-      </aside>
-      <main class="session-card session-builder-card">
-        ${
-          block
-            ? `
-<div class="session-builder-head">
-<div>
-<span>${escapeHtml(block.label)}</span>
-${renderSessionPlannerHeaderField(block, "title", "New Exercise", {
-tag: "textarea",
-className: "session-builder-title-input",
-})}
-${renderSessionPlannerHeaderField(block, "focus", "Add the focus for this exercise.", {
-tag: "textarea",
-className: "session-builder-focus-input",
-})}
-</div>
-<div class="session-builder-side-actions">
-<div class="session-builder-metrics">
-${renderSessionPlannerEditableField(block, "minutes", "Minutes", { long: false, type: "number" })}
-</div>
-${
-isAdmin
-? `
-                        <div class="session-builder-action-row">
-                          <button type="button" class="session-builder-action-button session-builder-action-button-save" data-session-save-exercise>Save</button>
-                          <button type="button" class="session-builder-action-button" data-session-open-library>Library</button>
-                          <button
-                            type="button"
-                            class="session-builder-action-button session-builder-action-button-danger"
-                            data-session-delete-block="${escapeHtml(block.id)}"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      `
-: ""
-}
-</div>
-</div>
-<section class="session-builder-main">
-<article class="session-detail-card session-detail-card-full">
-<div class="session-builder-fields">
-${renderSessionPlannerEditableField(block, "phase", "Phase", { long: false, listOptions: periodizationOptionLibrary.matchPhases })}
-${renderSessionPlannerEditableField(block, "subPhase", "Sub Phase", { long: false, listOptions: periodizationOptionLibrary.subPhases })}
-${renderSessionPlannerEditableField(block, "objective", "Objective", { rows: 3 })}
-${renderSessionPlannerEditableField(block, "why", "Why", { rows: 3 })}
-${renderSessionPlannerEditableField(block, "organization", "Organization", { rows: 3 })}
-${renderSessionPlannerEditableField(block, "material", "Measure & Material", { rows: 2 })}
-${renderSessionPlannerEditableField(block, "principles", "Principles & Coaching Points", { rows: 5 })}
-</div>
-</article>
-${renderSessionPlannerPostSessionNotesCard(block)}
-</section>
-`
-            : `<p class="session-empty-state">Add a block to start building this session.</p>`
-        }
-      </main>
-      ${renderSessionPlannerToolsPanel(block)}
-    </section>
-    ${renderSessionPlannerPeriodizationOverlay()}
-    ${renderSessionPlannerLibraryOverlay()}
-    ${renderSessionPlannerLibrarySaveConflictOverlay()}
-    ${renderSessionPlannerVisualPreviewOverlay(block)}
-    ${renderSessionPlannerTacticalboardOverlay(block)}
-    ${renderSessionPlannerPlayerBoardOverlay(block)}
-    ${renderSessionPlannerPrintOverlay(session)}
-  `;
+ui.sessionPlannerWorkspace.innerHTML = sessionPlannerWorkspaceRenderer.renderWorkspace({
+addMenuOpen: sessionPlannerAddMenuOpen,
+block,
+historyContext: getSessionPlannerHistoryPanelContext(),
+isAdmin,
+selectedDate: sessionPlannerState.selectedDate,
+selectedDateLabel,
+session,
+sessionMatchDayLabel,
+sessionTitle,
+sessionTotalMinutes,
+});
 if (canReuseDateControls) {
 const nextDateControls = ui.sessionPlannerWorkspace.querySelector(".session-date-controls");
 nextDateControls?.replaceWith(previousDateControls);

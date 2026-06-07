@@ -98,6 +98,7 @@ const coreFiles = [
   "src/modules/game-simulator/controllers.mjs",
   "src/modules/game-simulator/control-bindings.mjs",
   "src/modules/game-simulator/fullscreen.mjs",
+  "src/modules/game-simulator/pointer-controller.mjs",
   "src/modules/game-simulator/runtime.mjs",
   "src/modules/game-simulator/workspace-controller.mjs",
   "src/modules/game-simulator/sidebar-renderer.mjs",
@@ -324,6 +325,7 @@ test("core module contracts are covered by dedicated QA", () => {
   const gameSimulatorControllersSpec = readProjectFile("qa/game-simulator-controllers.api.spec.mjs");
   const gameSimulatorBindingsSpec = readProjectFile("qa/game-simulator-control-bindings.api.spec.mjs");
   const gameSimulatorFullscreenSpec = readProjectFile("qa/game-simulator-fullscreen.api.spec.mjs");
+  const gameSimulatorPointerSpec = readProjectFile("qa/game-simulator-pointer-controller.api.spec.mjs");
   const gameSimulatorSidebarSpec = readProjectFile("qa/game-simulator-sidebar-renderer.api.spec.mjs");
   const gameSimulatorKeyboardStateSpec = readProjectFile("qa/game-simulator-keyboard-state.api.spec.mjs");
 
@@ -354,6 +356,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-controllers.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-control-bindings.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-fullscreen.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-pointer-controller.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-sidebar-renderer.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-keyboard-state.api.spec.mjs");
   expect(modularCoreSpec).toContain("modular core covers protected storage keys");
@@ -370,6 +373,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(gameSimulatorControllersSpec).toContain("game simulator controller loader");
   expect(gameSimulatorBindingsSpec).toContain("game simulator control bindings");
   expect(gameSimulatorFullscreenSpec).toContain("game simulator fullscreen controller");
+  expect(gameSimulatorPointerSpec).toContain("game simulator pointer controller");
   expect(gameSimulatorSidebarSpec).toContain("game simulator sidebar renderer");
   expect(gameSimulatorKeyboardStateSpec).toContain("game simulator keyboard state");
 });
@@ -380,6 +384,7 @@ test("game simulator animation loop does not run globally outside the simulator 
   const controllersSource = readProjectFile("src/modules/game-simulator/controllers.mjs");
   const controlBindingsSource = readProjectFile("src/modules/game-simulator/control-bindings.mjs");
   const fullscreenSource = readProjectFile("src/modules/game-simulator/fullscreen.mjs");
+  const pointerControllerSource = readProjectFile("src/modules/game-simulator/pointer-controller.mjs");
   const runtimeSource = readProjectFile("src/modules/game-simulator/runtime.mjs");
   const workspaceControllerSource = readProjectFile("src/modules/game-simulator/workspace-controller.mjs");
   const sidebarRendererSource = readProjectFile("src/modules/game-simulator/sidebar-renderer.mjs");
@@ -387,6 +392,7 @@ test("game simulator animation loop does not run globally outside the simulator 
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/control-bindings.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/controllers.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/fullscreen.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/pointer-controller.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/runtime.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/workspace-controller.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/sidebar-renderer.mjs");
@@ -405,6 +411,7 @@ test("game simulator animation loop does not run globally outside the simulator 
   expect(controlBindingsSource).toContain("handleKeyDown");
   expect(fullscreenSource).toContain("createSimulatorFullscreenController");
   expect(fullscreenSource).toContain("updateHudLayout");
+  expect(pointerControllerSource).toContain("createGameSimulatorPointerController");
   expect(runtimeSource).toContain("createSimulatorAnimationLoop");
   expect(runtimeSource).toContain("window.requestAnimationFrame(tick)");
   expect(workspaceControllerSource).toContain("createSimulatorWorkspaceController");

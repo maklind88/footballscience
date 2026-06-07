@@ -9812,12 +9812,6 @@ return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
 function normalizeSessionPlannerLibrarySortMode(value) {
 return exerciseLibrarySelectors.normalizeSortMode(value);
 }
-function getSessionPlannerLibrarySortTimestamp(exercise = {}, key = "updated") {
-return exerciseLibrarySelectors.getSortTimestamp(exercise, key);
-}
-function compareSessionPlannerLibraryExerciseTitles(a = {}, b = {}) {
-return exerciseLibrarySelectors.compareExerciseTitles(a, b);
-}
 function compareSessionPlannerLibraryExercises(a = {}, b = {}) {
 return exerciseLibrarySelectors.compareExercises(a, b, sessionPlannerLibrarySortMode);
 }
@@ -9956,20 +9950,11 @@ fields[key] = field.value ?? "";
 });
 return fields;
 }
-function getUniqueSessionPlannerLibraryTitle(baseTitle = "Untitled Exercise", excludeExerciseId = "") {
-return exerciseLibraryActions.getUniqueTitle(baseTitle, excludeExerciseId);
-}
 function duplicateSessionPlannerLibraryExercise(exerciseId) {
 exerciseLibraryActions.duplicateExercise(exerciseId);
 }
 function updateSessionPlannerLibraryExerciseFromEdit(exerciseId) {
 exerciseLibraryActions.updateExerciseFromEdit(exerciseId);
-}
-function getSessionPlannerLibraryExerciseEditSnapshot(source = {}) {
-return exerciseLibraryActions.getExerciseEditSnapshot(source);
-}
-function getSessionPlannerLibraryExerciseComparableSnapshot(exercise = {}) {
-return exerciseLibraryActions.getExerciseComparableSnapshot(exercise);
 }
 function hasSessionPlannerLibraryExerciseEditChanges(exercise = {}, editFields = getSessionPlannerLibraryExerciseEditFields()) {
 return exerciseLibraryActions.hasExerciseEditChanges(exercise, editFields);
@@ -9982,18 +9967,6 @@ return String(title || "")
 .trim()
 .replace(/\s+/g, " ")
 .toLowerCase();
-}
-function findSessionPlannerLibraryExerciseIndexByTitle(title = "", options = {}) {
-const normalizedTitle = normalizeSessionPlannerLibraryTitle(title);
-if (!normalizedTitle) {
-return -1;
-}
-const includeArchived = options.includeArchived ?? false;
-return getSessionPlannerExerciseLibrary().findIndex(
-(item) =>
-(includeArchived || !isSessionPlannerLibraryExerciseArchived(item)) &&
-normalizeSessionPlannerLibraryTitle(item.title) === normalizedTitle
-);
 }
 function createSessionPlannerReviewNoteFromBlock(block = {}, options = {}) {
 const notes = String(block.postSessionNotes || "").trim();

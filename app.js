@@ -50,6 +50,7 @@ import { createPlatformAutosaveStatusController } from "./src/core/platform-auto
 import { createPasswordRevealInputRenderer } from "./src/core/form-renderers.mjs";
 import { installPlatformOverlayStability } from "./src/core/overlay-stability.mjs";
 import { defaultHubState, placeholderWorkspaceContent, platformSidebarMoreOrder, platformSidebarPrimaryOrder, topIconMenuOrder } from "./src/core/workspace-defaults.mjs";
+import { createPlatformDisplayHelpers } from "./src/modules/platform/display-helpers.mjs";
 import { createPlatformNavigationRenderer } from "./src/modules/platform/navigation-renderer.mjs";
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
 import { getTopIconSvg } from "./top-icons.js";
@@ -409,6 +410,19 @@ const dataSafetyExportSchema = "football-science-backup-v1";
 const dataSafetyDatabaseName = "football-science-data-safety-v1";
 const maxProfileImageUrlLength = 1800;
 const maxProfileImageUploadDataUrlLength = 900000;
+const {
+applyUserAvatar,
+getPlatformTeamLogoInitials,
+getPlatformTeamLogoUrl,
+renderPlatformTeamLogoMark,
+renderUserAvatar,
+} = createPlatformDisplayHelpers({
+escapeHtml,
+getUserInitials,
+getUserProfileImageUrl,
+normalizeImageUrl: normalizePlatformImageUrl,
+normalizeText: normalizePlatformStructureText,
+});
 const dataSafetySnapshotStoreName = "snapshots";
 const dataSafetyLatestStoreName = "latest";
 const dataSafetyMaxSnapshots = 30;
@@ -4317,60 +4331,6 @@ if (cleanValue.length > maxProfileImageUrlLength) {
 return "";
 }
 return cleanValue;
-}
-function getPlatformTeamLogoUrl(team) {
-return normalizePlatformImageUrl(team?.logoUrl || team?.logo_url || team?.logo || team?.badgeUrl || team?.crestUrl || "");
-}
-function getPlatformTeamLogoInitials(team = {}, fallbackName = "Team") {
-const shortName = normalizePlatformStructureText(team?.shortName || team?.short_name, "");
-if (shortName && shortName.length <= 4) {
-return shortName.toUpperCase();
-}
-const name = normalizePlatformStructureText(team?.name || fallbackName, "Team");
-return (
-name
-.split(/\s+/)
-.map((part) => part[0])
-.join("")
-.slice(0, 3)
-.toUpperCase() || "TM"
-);
-}
-function renderPlatformTeamLogoMark(team = {}, options = {}) {
-const teamName = normalizePlatformStructureText(team?.name || options.teamName, "Team");
-const logoUrl = getPlatformTeamLogoUrl(team);
-const canUpload = Boolean(options.canUpload);
-const content = logoUrl
-? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(`${teamName} logo`)}" />`
-: `<strong>${escapeHtml(getPlatformTeamLogoInitials(team, teamName))}</strong>`;
-const uploadInput = canUpload
-? `<input type="file" accept="image/*" data-squad-team-logo-upload aria-label="Upload team logo" />`
-: "";
-const uploadDot = canUpload ? `<span class="squad-team-logo-upload-dot" aria-hidden="true">+</span>` : "";
-const className = `squad-module-mark squad-team-logo-mark${logoUrl ? " has-logo" : " is-empty"}${canUpload ? " can-upload" : ""}`;
-const label = logoUrl ? `Change ${teamName} logo` : `Upload ${teamName} logo`;
-return canUpload
-? `<label class="${className}" title="${escapeHtml(label)}">${content}${uploadInput}${uploadDot}</label>`
-: `<span class="${className}" aria-label="${escapeHtml(`${teamName} logo`)}">${content}</span>`;
-}
-function renderUserAvatar(user, className) {
-const profileImageUrl = getUserProfileImageUrl(user);
-const avatarClassName = `${className}${profileImageUrl ? " has-photo" : ""}`;
-return `
-    <span class="${avatarClassName}">
-      ${profileImageUrl ? `<img src="${escapeHtml(profileImageUrl)}" alt="" />` : escapeHtml(getUserInitials(user))}
-    </span>
-  `;
-}
-function applyUserAvatar(element, user) {
-if (!element) {
-return;
-}
-const profileImageUrl = getUserProfileImageUrl(user);
-element.classList.toggle("has-photo", Boolean(profileImageUrl));
-element.innerHTML = profileImageUrl
-? `<img src="${escapeHtml(profileImageUrl)}" alt="" />`
-: escapeHtml(getUserInitials(user));
 }
 function getUserClub(user) {
 const structure = getPlatformStructureState();

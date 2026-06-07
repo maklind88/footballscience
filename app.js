@@ -57,6 +57,7 @@ import { installPlatformOverlayStability } from "./src/core/overlay-stability.mj
 import { defaultHubState, placeholderWorkspaceContent, platformSidebarMoreOrder, platformSidebarPrimaryOrder, topIconMenuOrder } from "./src/core/workspace-defaults.mjs";
 import { createPlatformDisplayHelpers, formatPlatformUserName, getPlatformRoleLabel, getPlatformUserInitials, getPlatformUserProfileImageUrl, normalizePlatformProfileImageUrl } from "./src/modules/platform/display-helpers.mjs";
 import { buildPlatformTemporaryLoginMessage, buildPlatformUserCredentialMessage, getPlatformPasswordValidationMessage, readPlatformFormValues, stripPlatformPasswordConfirmation } from "./src/modules/platform/form-helpers.mjs";
+import { createPlatformNavigationController, getPlatformTopIconLabel } from "./src/modules/platform/navigation-controller.mjs";
 import { createPlatformNavigationRenderer } from "./src/modules/platform/navigation-renderer.mjs";
 import { createPlatformStructureStateHelpers } from "./src/modules/platform/structure-state.mjs";
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
@@ -512,8 +513,28 @@ lastSnapshotError: "",
 };
 const platformNavigationRenderer = createPlatformNavigationRenderer({
 escapeHtml,
-getTopIconLabel,
+getTopIconLabel: getPlatformTopIconLabel,
 getTopIconSvg,
+});
+const platformNavigationController = createPlatformNavigationController({
+document,
+window: win,
+renderer: platformNavigationRenderer,
+getUi: () => ui,
+getHubState: () => hubState,
+setHubState: (nextState) => {
+hubState = nextState;
+},
+getWorkspaceById,
+getVisibleWorkspaces,
+getAccessibleWorkspacePool,
+canAccessWorkspace: canCurrentUserAccessWorkspace,
+repairWorkspaceState,
+hasHomeNotifications: hasDashboardHomeNotifications,
+topIconMenuOrder,
+sidebarPrimaryOrder: platformSidebarPrimaryOrder,
+sidebarMoreOrder: platformSidebarMoreOrder,
+placeholderContent: placeholderWorkspaceContent,
 });
 const dashboardHomeContextSelectors = createDashboardHomeContextSelectors({
 cloneSession: cloneSessionPlannerSession,
@@ -933,13 +954,13 @@ if (key === dashboardChatStorageKey) {
 dashboardChatRuntimeMessages = [];
 purgeDashboardDeletedMessagesFromStorage();
 renderDashboardChatWidget();
-renderTopIconMenu();
+platformNavigationController.renderTopIconMenu();
 return;
 }
 if (key === dashboardChatDeletedMessageIdsStorageKey) {
 purgeDashboardDeletedMessagesFromStorage();
 renderDashboardChatWidget();
-renderTopIconMenu();
+platformNavigationController.renderTopIconMenu();
 return;
 }
 if (key === platformAppearanceStorageKey) {
@@ -3549,6 +3570,15 @@ tacticalMaxFrames: sessionPlannerTacticalMaxFrames,
 tacticalPitchModeKeys: sessionPlannerTacticalPitchModeKeys,
 tacticalPitchModeOptions: sessionPlannerTacticalPitchModeOptions,
 });
+function normalizeSessionPlannerPlayerBoardPositions(source = {}) {
+return normalizeSessionPlannerPlayerBoardPositionsFromModule(source);
+}
+function normalizeSessionPlannerPlayerBoardColors(source = {}) {
+return normalizeSessionPlannerPlayerBoardColorsFromModule(source);
+}
+function normalizeSessionPlannerPlayerBoardCustomPeople(source = []) {
+return normalizeSessionPlannerPlayerBoardCustomPeopleFromModule(source);
+}
 const {
 createBlock: createSessionPlannerBlock,
 createInitialBlockFieldMeta: createSessionPlannerInitialBlockFieldMeta,
@@ -3569,9 +3599,9 @@ cloneTacticalElement: cloneSessionPlannerTacticalElement,
 createStableId: createSessionPlannerStableId,
 formatMultiValue: formatSessionPlannerMultiValue,
 getCurrentUserId: () => (typeof getCurrentPlatformUser === "function" ? getCurrentPlatformUser()?.id || "" : ""),
-normalizePlayerBoardColors: normalizeSessionPlannerPlayerBoardColorsFromModule,
-normalizePlayerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeopleFromModule,
-normalizePlayerBoardPositions: normalizeSessionPlannerPlayerBoardPositionsFromModule,
+normalizePlayerBoardColors: normalizeSessionPlannerPlayerBoardColors,
+normalizePlayerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople,
+normalizePlayerBoardPositions: normalizeSessionPlannerPlayerBoardPositions,
 normalizeTacticalActiveFrameId: normalizeSessionPlannerTacticalActiveFrameId,
 normalizeTacticalFrames: normalizeSessionPlannerTacticalFrames,
 normalizeTacticalPitchMode: normalizeSessionPlannerTacticalPitchMode,
@@ -3601,9 +3631,9 @@ normalizeReviewNotes: normalizeSessionPlannerExerciseReviewNotes,
 cloneTacticalElement: cloneSessionPlannerTacticalElement,
 normalizeTacticalFrames: normalizeSessionPlannerTacticalFrames,
 normalizeTacticalActiveFrameId: normalizeSessionPlannerTacticalActiveFrameId,
-normalizePlayerBoardPositions: normalizeSessionPlannerPlayerBoardPositionsFromModule,
-normalizePlayerBoardColors: normalizeSessionPlannerPlayerBoardColorsFromModule,
-normalizePlayerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeopleFromModule,
+normalizePlayerBoardPositions: normalizeSessionPlannerPlayerBoardPositions,
+normalizePlayerBoardColors: normalizeSessionPlannerPlayerBoardColors,
+normalizePlayerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople,
 versionLimit: sessionPlannerExerciseLibraryVersionLimit,
 });
 const exerciseLibraryRenderer = createExerciseLibraryRenderer({
@@ -7604,7 +7634,7 @@ if (messageId && (deletedAt || eventType === "DELETE")) {
 removeDashboardMessage(messageId);
 renderDashboardChatWidget();
 syncDashboardChatWidgetNotificationCursor();
-renderTopIconMenu();
+platformNavigationController.renderTopIconMenu();
 }
 queueDashboardChatApiRefresh({ delayMs: 250 });
 queueDashboardChatThreadSummaryRefresh({ delayMs: 350 });
@@ -8701,7 +8731,7 @@ if (shouldClearSubmittedComposerDraft) {
 dashboardChatSubmittedComposerDrafts.delete(previousComposerThreadId);
 }
 dashboardChatPageScroll = false;
-renderTopIconMenu();
+platformNavigationController.renderTopIconMenu();
 return;
 }
 const previousMessageSearchInput = root.querySelector("[data-dashboard-chat-message-search]");
@@ -8753,7 +8783,7 @@ nextComposer.setSelectionRange(previousComposerSelectionStart, previousComposerS
 }
 }
 }
-renderTopIconMenu();
+platformNavigationController.renderTopIconMenu();
 }
 function syncDashboardChatWidgetNotificationCursor() {
 const currentUser = getCurrentPlatformUser();
@@ -9121,139 +9151,6 @@ return `
     </div>
   `;
 }
-function getTopIconLabel(workspace) {
-const labels = {
-home: "Home",
-schedule: "Schedule",
-periodization: "Period",
-"session-planner": "Sessions",
-"player-profiles": "Squad Room",
-scouting: "Scouting",
-"transfer-room": "Transfers",
-"analysis-room": "Analysis",
-staff: "Team",
-"medical-team": "Medical",
-admin: "Admin",
-"team-identity": "Identity",
-"game-simulator": "Game",
-};
-return labels[workspace?.id] ?? workspace?.title ?? "";
-}
-function getTopIconTriggerLabel(trigger) {
-return (
-trigger?.querySelector(".top-icon-menu-label")?.textContent?.trim() ||
-trigger?.querySelector(".platform-nav-text strong")?.textContent?.trim() ||
-trigger?.getAttribute("aria-label") ||
-""
-);
-}
-function ensureTopIconTooltip() {
-let tooltip = document.querySelector(".top-icon-menu-floating-label");
-if (!tooltip) {
-tooltip = document.createElement("div");
-tooltip.className = "top-icon-menu-floating-label";
-tooltip.setAttribute("role", "tooltip");
-document.body.append(tooltip);
-}
-return tooltip;
-}
-function showTopIconTooltip(trigger) {
-const label = getTopIconTriggerLabel(trigger);
-if (!trigger || !label) {
-hideTopIconTooltip();
-return;
-}
-const tooltip = ensureTopIconTooltip();
-tooltip.textContent = label;
-tooltip.classList.add("is-visible");
-const triggerRect = trigger.getBoundingClientRect();
-const tooltipRect = tooltip.getBoundingClientRect();
-const edgeGap = 10;
-if (trigger.closest(".platform-sidebar")) {
-const left = Math.min(triggerRect.right + 12, win.innerWidth - tooltipRect.width - edgeGap);
-const top = Math.min(
-Math.max(triggerRect.top + triggerRect.height / 2 - tooltipRect.height / 2, edgeGap),
-win.innerHeight - tooltipRect.height - edgeGap
-);
-tooltip.style.left = `${Math.round(left)}px`;
-tooltip.style.top = `${Math.round(top)}px`;
-return;
-}
-const left = Math.min(
-Math.max(triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2, edgeGap),
-win.innerWidth - tooltipRect.width - edgeGap
-);
-tooltip.style.left = `${left}px`;
-tooltip.style.top = `${Math.round(triggerRect.bottom + 8)}px`;
-}
-function hideTopIconTooltip() {
-const tooltip = document.querySelector(".top-icon-menu-floating-label");
-if (!tooltip) {
-return;
-}
-tooltip.classList.remove("is-visible");
-}
-function renderTopIconMenu() {
-if (!ui.topIconMenu || !hubState) {
-return;
-}
-const workspaces = topIconMenuOrder
-.map((workspaceId) => getWorkspaceById(workspaceId))
-.filter((workspace) => workspace && canCurrentUserAccessWorkspace(workspace) && (!workspace.hiddenFromNav || workspace.id === "home"));
-const hasHomeNotification = hasDashboardHomeNotifications();
-const nextMarkup = platformNavigationRenderer.renderTopIconMenu({
-workspaces,
-activeWorkspaceId: hubState.activeWorkspaceId,
-hasHomeNotification,
-});
-if (ui.topIconMenu.__lastRenderedMarkup === nextMarkup) {
-return;
-}
-ui.topIconMenu.__lastRenderedMarkup = nextMarkup;
-ui.topIconMenu.innerHTML = nextMarkup;
-}
-function renderWorkspaceList() {
-if (!ui.workspaceList) {
-return;
-}
-hubState = repairWorkspaceState(hubState);
-let visibleWorkspaces = getVisibleWorkspaces();
-const isPlatformNav = ui.workspaceList.classList.contains("platform-nav");
-if (isPlatformNav) {
-const getSidebarWorkspace = (workspaceId) => getWorkspaceById(workspaceId);
-const isSidebarWorkspaceVisible = (workspace) =>
-workspace && canCurrentUserAccessWorkspace(workspace) && (!workspace.hiddenFromNav || workspace.id === "home");
-const primaryWorkspaces = platformSidebarPrimaryOrder.map(getSidebarWorkspace).filter(isSidebarWorkspaceVisible);
-const overflowWorkspaces = platformSidebarMoreOrder.map(getSidebarWorkspace).filter(isSidebarWorkspaceVisible);
-ui.workspaceList.innerHTML = platformNavigationRenderer.renderWorkspaceList({
-isPlatformNav,
-primaryWorkspaces,
-overflowWorkspaces,
-activeWorkspaceId: hubState.activeWorkspaceId,
-});
-return;
-}
-if (!visibleWorkspaces.length) {
-if (ui.workspaceSearch) {
-ui.workspaceSearch.value = "";
-}
-visibleWorkspaces = hubState.workspaces;
-}
-ui.workspaceList.innerHTML = platformNavigationRenderer.renderWorkspaceList({
-visibleWorkspaces,
-activeWorkspaceId: hubState.activeWorkspaceId,
-});
-}
-function renderWorkspaceQuickSwitch(activeWorkspaceId = hubState?.activeWorkspaceId) {
-if (!ui.workspaceQuickSwitch || !hubState) {
-return;
-}
-const workspaces = getAccessibleWorkspacePool().filter(
-(workspace) => !workspace.hiddenFromNav || workspace.id === activeWorkspaceId
-);
-ui.workspaceQuickSwitch.innerHTML = platformNavigationRenderer.renderWorkspaceQuickSwitchOptions(workspaces);
-ui.workspaceQuickSwitch.value = activeWorkspaceId;
-}
 function renderDashboardCards() {
 if (!ui.dashboardGrid) {
 return;
@@ -9283,22 +9180,6 @@ renderDashboardCards();
 if (hubState?.activeWorkspaceId === "my-profile") {
 renderProfileWorkspace(profileMessage);
 }
-}
-function renderPlaceholderWorkspace() {
-if (!ui.placeholderTag || !ui.placeholderTitle || !ui.placeholderDescription || !ui.placeholderModules) {
-return;
-}
-const workspace = getWorkspaceById(hubState.activeWorkspaceId);
-const content = placeholderWorkspaceContent[workspace?.id] ?? {
-tag: "Workspace",
-title: workspace?.title ?? "Workspace",
-description: workspace?.description ?? "This workspace shell is ready for the next module.",
-modules: [],
-};
-ui.placeholderTag.textContent = content.tag;
-ui.placeholderTitle.textContent = content.title;
-ui.placeholderDescription.textContent = content.description;
-ui.placeholderModules.innerHTML = "";
 }
 function createSessionPlannerLibraryExercise(source = {}) {
 return exerciseLibraryStateAdapter.createExercise(source);
@@ -10034,9 +9915,9 @@ diagram: block.diagram || "empty",
 tacticalPitchMode: normalizeSessionPlannerTacticalPitchMode(block.tacticalPitchMode),
 playerBoardLayoutMode: block.playerBoardLayoutMode === "manual" ? "manual" : "auto",
 visualImage: block.visualImage || "",
-playerBoardPositions: normalizeSessionPlannerPlayerBoardPositionsFromModule(block.playerBoardPositions),
-playerBoardColors: normalizeSessionPlannerPlayerBoardColorsFromModule(block.playerBoardColors),
-playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeopleFromModule(block.playerBoardCustomPeople),
+playerBoardPositions: normalizeSessionPlannerPlayerBoardPositions(block.playerBoardPositions),
+playerBoardColors: normalizeSessionPlannerPlayerBoardColors(block.playerBoardColors),
+playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople(block.playerBoardCustomPeople),
 tacticalFrames: normalizeSessionPlannerTacticalFrames(block.tacticalFrames),
 tacticalActiveFrameId: block.tacticalActiveFrameId || "",
 tacticalElements: Array.isArray(block.tacticalElements)
@@ -10658,9 +10539,9 @@ return null;
 }
 return {
 playerBoardLayoutMode: block.playerBoardLayoutMode === "manual" ? "manual" : "auto",
-playerBoardPositions: normalizeSessionPlannerPlayerBoardPositionsFromModule(block.playerBoardPositions),
-playerBoardColors: normalizeSessionPlannerPlayerBoardColorsFromModule(block.playerBoardColors),
-playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeopleFromModule(block.playerBoardCustomPeople),
+playerBoardPositions: normalizeSessionPlannerPlayerBoardPositions(block.playerBoardPositions),
+playerBoardColors: normalizeSessionPlannerPlayerBoardColors(block.playerBoardColors),
+playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople(block.playerBoardCustomPeople),
 };
 }
 function createSessionPlannerBoardSnapshot(type, block = getSessionPlannerSelectedBlock()) {
@@ -10733,9 +10614,9 @@ sessionPlannerBoardHistoryApplying = true;
 try {
 if (type === "player") {
 block.playerBoardLayoutMode = snapshot.playerBoardLayoutMode === "manual" ? "manual" : "auto";
-block.playerBoardPositions = normalizeSessionPlannerPlayerBoardPositionsFromModule(snapshot.playerBoardPositions);
-block.playerBoardColors = normalizeSessionPlannerPlayerBoardColorsFromModule(snapshot.playerBoardColors);
-block.playerBoardCustomPeople = normalizeSessionPlannerPlayerBoardCustomPeopleFromModule(snapshot.playerBoardCustomPeople);
+block.playerBoardPositions = normalizeSessionPlannerPlayerBoardPositions(snapshot.playerBoardPositions);
+block.playerBoardColors = normalizeSessionPlannerPlayerBoardColors(snapshot.playerBoardColors);
+block.playerBoardCustomPeople = normalizeSessionPlannerPlayerBoardCustomPeople(snapshot.playerBoardCustomPeople);
 markSessionPlannerBlockFieldsUpdated(block, [
 "playerBoardLayoutMode",
 "playerBoardPositions",
@@ -13227,9 +13108,9 @@ label: block.label,
 libraryExerciseId: exercise.id,
 postSessionNotes: block.postSessionNotes || "",
 visualImage: exercise.visualImage || "",
-playerBoardPositions: normalizeSessionPlannerPlayerBoardPositionsFromModule(exercise.playerBoardPositions),
-playerBoardColors: normalizeSessionPlannerPlayerBoardColorsFromModule(exercise.playerBoardColors),
-playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeopleFromModule(exercise.playerBoardCustomPeople),
+playerBoardPositions: normalizeSessionPlannerPlayerBoardPositions(exercise.playerBoardPositions),
+playerBoardColors: normalizeSessionPlannerPlayerBoardColors(exercise.playerBoardColors),
+playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople(exercise.playerBoardCustomPeople),
 tacticalFrames: normalizeSessionPlannerTacticalFrames(exercise.tacticalFrames),
 tacticalActiveFrameId: exercise.tacticalActiveFrameId || "",
 tacticalElements: Array.isArray(exercise.tacticalElements)
@@ -13644,7 +13525,7 @@ function isSessionPlannerPlayerBoardCustomPersonId(playerId = "") {
 return String(playerId || "").startsWith("player-board-person-");
 }
 function getSessionPlannerPlayerBoardCustomPeople(block = getSessionPlannerSelectedBlock()) {
-return normalizeSessionPlannerPlayerBoardCustomPeopleFromModule(block?.playerBoardCustomPeople);
+return normalizeSessionPlannerPlayerBoardCustomPeople(block?.playerBoardCustomPeople);
 }
 function getSessionPlannerPlayerBoardCustomPerson(block, personId) {
 return getSessionPlannerPlayerBoardCustomPeople(block).find((person) => person.id === personId) || null;
@@ -20427,9 +20308,9 @@ markDashboardHomeSeenForCurrentUser();
 } else {
 closeDashboardModal(false);
 }
-renderWorkspaceList();
-renderTopIconMenu();
-renderWorkspaceQuickSwitch(activeWorkspace.id);
+platformNavigationController.renderWorkspaceList();
+platformNavigationController.renderTopIconMenu();
+platformNavigationController.renderWorkspaceQuickSwitch(activeWorkspace.id);
 if (activeWorkspace.id === "home") {
 renderDashboardCards();
 }
@@ -20442,7 +20323,7 @@ document
 .querySelectorAll("[data-open-workspace]")
 .forEach((trigger) => trigger.classList.toggle("is-active", trigger.dataset.openWorkspace === activeWorkspace.id));
 if (activeViewId === "placeholder") {
-renderPlaceholderWorkspace();
+platformNavigationController.renderPlaceholderWorkspace();
 }
 if (activeViewId === "profile") {
 renderProfileWorkspace();
@@ -60538,23 +60419,23 @@ setActiveWorkspace(trigger.dataset.openWorkspace);
 ui.workspaceList?.addEventListener("mouseover", (event) => {
 const trigger = event.target.closest("[data-open-workspace]");
 preloadWorkspaceFromTrigger(trigger);
-showTopIconTooltip(trigger);
+platformNavigationController.showTopIconTooltip(trigger);
 });
 ui.workspaceList?.addEventListener("mouseout", (event) => {
 const trigger = event.target.closest("[data-open-workspace]");
 if (trigger && !trigger.contains(event.relatedTarget)) {
-hideTopIconTooltip();
+platformNavigationController.hideTopIconTooltip();
 }
 });
 ui.workspaceList?.addEventListener("focusin", (event) => {
 const trigger = event.target.closest("[data-open-workspace]");
 preloadWorkspaceFromTrigger(trigger);
-showTopIconTooltip(trigger);
+platformNavigationController.showTopIconTooltip(trigger);
 });
 ui.workspaceList?.addEventListener("focusout", (event) => {
 const trigger = event.target.closest("[data-open-workspace]");
 if (trigger && !trigger.contains(event.relatedTarget)) {
-hideTopIconTooltip();
+platformNavigationController.hideTopIconTooltip();
 }
 });
 ui.topIconMenu?.addEventListener("click", (event) => {
@@ -60567,27 +60448,27 @@ setActiveWorkspace(trigger.dataset.openWorkspace);
 ui.topIconMenu?.addEventListener("mouseover", (event) => {
 const trigger = event.target.closest("[data-open-workspace]");
 preloadWorkspaceFromTrigger(trigger);
-showTopIconTooltip(trigger);
+platformNavigationController.showTopIconTooltip(trigger);
 });
 ui.topIconMenu?.addEventListener("mouseout", (event) => {
 const trigger = event.target.closest("[data-open-workspace]");
 if (trigger && !trigger.contains(event.relatedTarget)) {
-hideTopIconTooltip();
+platformNavigationController.hideTopIconTooltip();
 }
 });
 ui.topIconMenu?.addEventListener("focusin", (event) => {
 const trigger = event.target.closest("[data-open-workspace]");
 preloadWorkspaceFromTrigger(trigger);
-showTopIconTooltip(trigger);
+platformNavigationController.showTopIconTooltip(trigger);
 });
 ui.topIconMenu?.addEventListener("focusout", (event) => {
 const trigger = event.target.closest("[data-open-workspace]");
 if (trigger && !trigger.contains(event.relatedTarget)) {
-hideTopIconTooltip();
+platformNavigationController.hideTopIconTooltip();
 }
 });
-win.addEventListener("scroll", hideTopIconTooltip, { passive: true });
-win.addEventListener("resize", hideTopIconTooltip);
+win.addEventListener("scroll", platformNavigationController.hideTopIconTooltip, { passive: true });
+win.addEventListener("resize", platformNavigationController.hideTopIconTooltip);
 document.addEventListener("keydown", (event) => {
 if (event.key === "Escape") {
 if (dashboardChatGroupCreatorOpen) {
@@ -60595,7 +60476,7 @@ dashboardChatGroupCreatorOpen = false;
 renderDashboardChatWidget();
 return;
 }
-hideTopIconTooltip();
+platformNavigationController.hideTopIconTooltip();
 }
 });
 ui.workspaceTitle?.addEventListener("click", () => {
@@ -60842,7 +60723,7 @@ await clearDashboardMessagesForThreadWithApi(confirmAction.threadId);
 await dashboardChatApiUiActions.archiveThreadWithApi(confirmAction.threadId);
 } else if (confirmAction?.type === "deleteMessage") {
 await removeDashboardMessageWithApi(confirmAction.messageId);
-renderTopIconMenu();
+platformNavigationController.renderTopIconMenu();
 }
 renderDashboardChatWidget();
 return;
@@ -61248,7 +61129,7 @@ setDashboardChatPriorityDraft("normal");
 queueDashboardChatThreadSummaryRefresh({ delayMs: 50 });
 renderDashboardChatWidget();
 focusDashboardChatWidgetComposer();
-renderTopIconMenu();
+platformNavigationController.renderTopIconMenu();
 });
 document.addEventListener("click", (event) => {
 const modalRoot = getElement("dashboardModalRoot");
@@ -64199,14 +64080,14 @@ dashboardChatRuntimeMessages = [];
 purgeDashboardDeletedMessagesFromStorage();
 renderDashboardChatWidget();
 syncDashboardChatWidgetNotificationCursor();
-renderTopIconMenu();
+platformNavigationController.renderTopIconMenu();
 return;
 }
 if (event.key === dashboardChatDeletedMessageIdsStorageKey) {
 purgeDashboardDeletedMessagesFromStorage();
 renderDashboardChatWidget();
 syncDashboardChatWidgetNotificationCursor();
-renderTopIconMenu();
+platformNavigationController.renderTopIconMenu();
 return;
 }
 if (
@@ -64254,7 +64135,7 @@ if (hubState?.activeWorkspaceId === "home") {
 markDashboardHomeSeenForCurrentUser();
 renderDashboardCards();
 }
-renderTopIconMenu();
+platformNavigationController.renderTopIconMenu();
 }
 });
 win.addEventListener("pagehide", () => {

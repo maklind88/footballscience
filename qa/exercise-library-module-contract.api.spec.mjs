@@ -5,13 +5,16 @@ import { expect, test } from "@playwright/test";
 import {
   createExerciseLibraryActions,
   createExerciseLibraryRenderer,
+  createExerciseLibrarySelectors,
   createExerciseLibraryStateAdapter,
   exerciseLibraryModuleId,
+  sessionPlannerDefaultExerciseLibrary,
   sessionPlannerExerciseLibraryBackupSchema,
   sessionPlannerExerciseLibraryFoldersBackupSchema,
   sessionPlannerExerciseLibraryFoldersStorageKey,
   sessionPlannerExerciseLibraryStorageKey,
   sessionPlannerExerciseLibraryVersionLimit,
+  sessionPlannerLibrarySortOptions,
 } from "../src/modules/exercise-library/index.mjs";
 import { moduleMigrationStatuses, moduleStandardRegistry } from "../src/core/index.mjs";
 import { platformModuleImplementationStages } from "../src/core/platform-readiness-contracts.mjs";
@@ -40,6 +43,7 @@ test("Exercise Library extraction owns the first state module file slots", () =>
     "src/modules/exercise-library/index.mjs",
     "src/modules/exercise-library/exercise-library-actions.mjs",
     "src/modules/exercise-library/exercise-library-renderer.mjs",
+    "src/modules/exercise-library/exercise-library-selectors.mjs",
     "src/modules/exercise-library/exercise-library-state.mjs",
   ].forEach((path) => {
     expect(existsSync(resolve(root, path)), `${path} should exist`).toBe(true);
@@ -49,6 +53,45 @@ test("Exercise Library extraction owns the first state module file slots", () =>
   expect(sessionPlannerExerciseLibraryStorageKey).toBe("football-session-exercise-library-v1");
   expect(sessionPlannerExerciseLibraryFoldersStorageKey).toBe("football-session-exercise-library-folders-v1");
   expect(sessionPlannerExerciseLibraryVersionLimit).toBe(8);
+});
+
+test("Exercise Library selectors own seed exercises, filters, and sort order", () => {
+  const selectors = createExerciseLibrarySelectors({
+    normalizeTimestamp: (value) => value || "",
+    sortOptions: sessionPlannerLibrarySortOptions,
+  });
+
+  expect(sessionPlannerDefaultExerciseLibrary.map((exercise) => exercise.id)).toEqual([
+    "possession-block-defending-high-press",
+    "build-up-positional-rhythm",
+    "finishing-from-cutback-zone",
+  ]);
+  expect(selectors.normalizeMultiValue("Build Up; Press\nFinish")).toEqual(["Build Up", "Press", "Finish"]);
+  expect(selectors.formatMultiValue(["Build Up", " Press "])).toBe("Build Up, Press");
+  expect(selectors.normalizeFilterValues(["all", "Build Up", "Build Up", " "])).toEqual(["Build Up"]);
+  expect(selectors.exerciseMatchesFilterValue("Build Up, Press", ["Press"])).toBe(true);
+  expect(selectors.exerciseMatchesFilterValue("Build Up", ["Final Third"])).toBe(false);
+  expect(selectors.normalizeSortMode("phase")).toBe("phase");
+  expect(selectors.normalizeSortMode("unknown")).toBe("updated");
+
+  const exercises = [
+    { title: "Zulu", phase: "Out of Possession", subPhase: "Press", createdAt: "2026-05-01", updatedAt: "2026-05-03" },
+    { title: "Alpha", phase: "In Possession", subPhase: "Build Up", createdAt: "2026-05-02", updatedAt: "2026-05-02" },
+    { title: "Middle", phase: "In Possession", subPhase: "Final Third", createdAt: "2026-05-03", updatedAt: "2026-05-01" },
+  ];
+
+  expect([...exercises].sort((a, b) => selectors.compareExercises(a, b, "title")).map((exercise) => exercise.title)).toEqual([
+    "Alpha",
+    "Middle",
+    "Zulu",
+  ]);
+  expect([...exercises].sort((a, b) => selectors.compareExercises(a, b, "created"))[0].title).toBe("Middle");
+  expect([...exercises].sort((a, b) => selectors.compareExercises(a, b, "updated"))[0].title).toBe("Zulu");
+  expect([...exercises].sort((a, b) => selectors.compareExercises(a, b, "phase")).map((exercise) => exercise.title)).toEqual([
+    "Alpha",
+    "Middle",
+    "Zulu",
+  ]);
 });
 
 test("Exercise Library actions archive, restore, and move folder membership without deleting exercises", () => {
@@ -274,6 +317,7 @@ test("Exercise Library app integration delegates state ownership to the module",
   expect(app).toContain("./src/modules/exercise-library/index.mjs");
   expect(app).toContain("createExerciseLibraryActions");
   expect(app).toContain("createExerciseLibraryStateAdapter");
+  expect(app).toContain("createExerciseLibrarySelectors");
   expect(app).toContain("createExerciseLibraryRenderer");
   expect(app).toContain("exerciseLibraryActions.archiveExercise(exerciseId)");
   expect(app).toContain("exerciseLibraryActions.createFolderFromForm(form)");
@@ -282,7 +326,9 @@ test("Exercise Library app integration delegates state ownership to the module",
   expect(app).toContain("exerciseLibraryStateAdapter.createExercise(source)");
   expect(app).toContain("exerciseLibraryStateAdapter.createFolder(source)");
   expect(app).toContain("exerciseLibraryStateAdapter.parseExercisePayload(rawLibrary)");
+  expect(app).toContain("exerciseLibrarySelectors.compareExercises(a, b, sessionPlannerLibrarySortMode)");
   expect(app).not.toContain('const sessionPlannerExerciseLibraryStorageKey = "football-session-exercise-library-v1";');
+  expect(app).not.toContain("const sessionPlannerDefaultExerciseLibrary = [");
   expect(packageJson).toContain("qa/exercise-library-module-contract.api.spec.mjs");
   expect(storageGuard).toContain("src/modules/exercise-library/exercise-library-state.mjs");
 });

@@ -36,7 +36,9 @@ import { createPeriodizationSessionBridge } from "./src/modules/periodization/pe
 import {
   createExerciseLibraryActions,
   createExerciseLibraryRenderer,
+  createExerciseLibrarySelectors,
   createExerciseLibraryStateAdapter,
+  sessionPlannerDefaultExerciseLibrary,
   sessionPlannerExerciseLibraryBackupSchema,
   sessionPlannerExerciseLibraryBackupStorageKey,
   sessionPlannerExerciseLibraryFoldersBackupSchema,
@@ -3573,6 +3575,10 @@ normalizePlayerBoardPositions: normalizeSessionPlannerPlayerBoardPositions,
 normalizeTacticalActiveFrameId: normalizeSessionPlannerTacticalActiveFrameId,
 normalizeTacticalFrames: normalizeSessionPlannerTacticalFrames,
 normalizeTacticalPitchMode: normalizeSessionPlannerTacticalPitchMode,
+});
+const exerciseLibrarySelectors = createExerciseLibrarySelectors({
+normalizeTimestamp: normalizeSessionPlannerTimestamp,
+sortOptions: sessionPlannerLibrarySortOptions,
 });
 const exerciseLibraryStateAdapter = createExerciseLibraryStateAdapter({
 createBlock: createSessionPlannerBlock,
@@ -9329,63 +9335,6 @@ ui.placeholderTitle.textContent = content.title;
 ui.placeholderDescription.textContent = content.description;
 ui.placeholderModules.innerHTML = "";
 }
-const sessionPlannerDefaultExerciseLibrary = [
-{
-id: "possession-block-defending-high-press",
-title: "Possession",
-focus: "Out of Possession Block defending & High Press",
-phase: "Out of Possession",
-subPhase: "Block Defending / High Press",
-minutes: 27,
-time: "10:18-10:45",
-intensity: 5,
-pitchSize: "55m x full width",
-material: "3 mini-goals, one big goal, balls, bibs.",
-objective:
-"We practice keeping possession within the team in our positional structure. We repeatedly work on fundamentals of in-possession positioning, breaking lines and scoring.",
-why:
-"We do this so we feel secure on the ball and can play with rhythm. When positioning is trusted, decisions become quicker and the opponent has to chase us.",
-organization:
-"Open big goal. Work on climbing or pumping the back line and finding the high-press moment on the offensive half.",
-principles:
-"Create and maintain passing options, stretch the opponent, play forward with rhythm, pass to away foot, open body shape, directional first touch, quick pass and immediate movement.",
-diagram: "possession-lanes",
-},
-{
-id: "build-up-positional-rhythm",
-title: "Build-up Rhythm",
-focus: "Create width, depth and third-player options",
-phase: "In Possession",
-subPhase: "Build Up",
-minutes: 20,
-time: "",
-intensity: 3,
-pitchSize: "Half pitch",
-material: "Balls, bibs, mannequins, two mini-goals.",
-objective: "Connect the first and second line with tempo while keeping the team balanced behind the ball.",
-why: "The team learns to attract pressure, find the free player and arrive in the next space with control.",
-organization: "Start with goalkeeper and back line. Score by playing through pressure into mini-goals.",
-principles: "Scan early, create angles, play away from pressure, move after pass, protect central rest-defence.",
-diagram: "build-up",
-},
-{
-id: "finishing-from-cutback-zone",
-title: "Cutback Finishing",
-focus: "Arrive in the box with timing and clear finishing roles",
-phase: "In Possession",
-subPhase: "Final Third",
-minutes: 18,
-time: "",
-intensity: 4,
-pitchSize: "Final third",
-material: "One big goal, wide balls, mannequins, bibs.",
-objective: "Create high-value finishes from wide entries, cutbacks and second-wave arrivals.",
-why: "The team needs repeatable spacing in the box so attacks end with control instead of random crosses.",
-organization: "Wide player receives, support runner overlaps or underlaps, two finishing lines attack different zones.",
-principles: "Attack front zone, penalty spot, far post and edge. Time runs late. Finish across goal when possible.",
-diagram: "final-third",
-},
-];
 function createSessionPlannerLibraryExercise(source = {}) {
 return exerciseLibraryStateAdapter.createExercise(source);
 }
@@ -9637,16 +9586,10 @@ sessionPlannerExerciseLibrary = result.exercises;
 return result.saved;
 }
 function normalizeSessionPlannerMultiValue(value) {
-if (Array.isArray(value)) {
-return value.map((item) => String(item).trim()).filter(Boolean);
-}
-return String(value || "")
-.split(/[,;\n]+/)
-.map((item) => item.trim())
-.filter(Boolean);
+return exerciseLibrarySelectors.normalizeMultiValue(value);
 }
 function formatSessionPlannerMultiValue(value) {
-return normalizeSessionPlannerMultiValue(value).join(", ");
+return exerciseLibrarySelectors.formatMultiValue(value);
 }
 function normalizeSessionPlannerLibraryTags(value) {
 return exerciseLibraryStateAdapter.normalizeTags(value);
@@ -9655,8 +9598,7 @@ function formatSessionPlannerLibraryTags(value) {
 return normalizeSessionPlannerLibraryTags(value).join(", ");
 }
 function getSessionPlannerMultiValueSummary(value, fallback) {
-const values = normalizeSessionPlannerMultiValue(value);
-return values.length ? values.join(", ") : fallback;
+return exerciseLibrarySelectors.getMultiValueSummary(value, fallback);
 }
 function getSessionPlannerMultiSelectFieldConfig(field) {
 const configs = {
@@ -9719,14 +9661,7 @@ sessionPlannerMultiSelectOpenField = field;
 refreshSessionPlannerMultiSelectFields([field]);
 }
 function normalizeSessionPlannerLibraryFilterValues(value) {
-const values = Array.isArray(value) ? value : normalizeSessionPlannerMultiValue(value);
-return Array.from(
-new Set(
-values
-.map((item) => String(item || "").trim())
-.filter((item) => item && item.toLowerCase() !== "all")
-)
-);
+return exerciseLibrarySelectors.normalizeFilterValues(value);
 }
 function getSessionPlannerLibraryFilterValues(filterKey) {
 if (filterKey === "phase") {
@@ -9779,11 +9714,7 @@ sessionPlannerLibraryEditExerciseId = "";
 renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
 function exerciseMatchesSessionPlannerLibraryFilterValue(exerciseValue, selectedValues = []) {
-if (!selectedValues.length) {
-return true;
-}
-const exerciseValues = normalizeSessionPlannerMultiValue(exerciseValue);
-return selectedValues.some((value) => exerciseValues.includes(value));
+return exerciseLibrarySelectors.exerciseMatchesFilterValue(exerciseValue, selectedValues);
 }
 function getSessionPlannerVisibleLibraryFolders() {
 return getSessionPlannerExerciseLibraryFolders()
@@ -9911,45 +9842,16 @@ const values = getSessionPlannerLibraryExercisesByArchiveState()
 return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
 }
 function normalizeSessionPlannerLibrarySortMode(value) {
-const sortValue = String(value || "").trim();
-return sessionPlannerLibrarySortOptions.some((option) => option.value === sortValue) ? sortValue : "updated";
+return exerciseLibrarySelectors.normalizeSortMode(value);
 }
 function getSessionPlannerLibrarySortTimestamp(exercise = {}, key = "updated") {
-const value = key === "created" ? exercise.createdAt : exercise.updatedAt || exercise.createdAt;
-const timestamp = Date.parse(normalizeSessionPlannerTimestamp(value) || "");
-return Number.isFinite(timestamp) ? timestamp : 0;
+return exerciseLibrarySelectors.getSortTimestamp(exercise, key);
 }
 function compareSessionPlannerLibraryExerciseTitles(a = {}, b = {}) {
-return String(a.title || "").localeCompare(String(b.title || ""), undefined, { sensitivity: "base" });
+return exerciseLibrarySelectors.compareExerciseTitles(a, b);
 }
 function compareSessionPlannerLibraryExercises(a = {}, b = {}) {
-const sortMode = normalizeSessionPlannerLibrarySortMode(sessionPlannerLibrarySortMode);
-if (sortMode === "created") {
-return (
-getSessionPlannerLibrarySortTimestamp(b, "created") -
-getSessionPlannerLibrarySortTimestamp(a, "created") ||
-compareSessionPlannerLibraryExerciseTitles(a, b)
-);
-}
-if (sortMode === "title") {
-return compareSessionPlannerLibraryExerciseTitles(a, b);
-}
-if (sortMode === "phase") {
-return (
-`${a.phase || ""} ${a.subPhase || ""} ${a.title || ""}`.localeCompare(
-`${b.phase || ""} ${b.subPhase || ""} ${b.title || ""}`,
-undefined,
-{ sensitivity: "base" }
-) ||
-getSessionPlannerLibrarySortTimestamp(b, "updated") -
-getSessionPlannerLibrarySortTimestamp(a, "updated")
-);
-}
-return (
-getSessionPlannerLibrarySortTimestamp(b, "updated") -
-getSessionPlannerLibrarySortTimestamp(a, "updated") ||
-compareSessionPlannerLibraryExerciseTitles(a, b)
-);
+return exerciseLibrarySelectors.compareExercises(a, b, sessionPlannerLibrarySortMode);
 }
 function getFilteredSessionPlannerExerciseLibrary() {
 const phaseFilters = getSessionPlannerLibraryFilterValues("phase");

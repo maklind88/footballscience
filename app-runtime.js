@@ -1,9 +1,3 @@
-import { attackStylePresets, autoBallProfiles, autoDribbleProfiles, ballRadiusMeters, competitionPhysicalProfiles, defaultFormations, defaultKickoffTeamId, defaultPhysicalProfileKey, defaultScenarioInfo, defaultTeamIdentities, defenseStylePresets, defensiveAggressionPresets, defensiveAutopilotProfiles, defensivePhaseProfiles, firstTouchModes, formationLayouts, formationMagnetLabels, gameRoleProfiles, getAttackStyleRhythmProfile, intelligenceLabelBoosts, intelligenceRoleArchetypes, matchPhaseModel, offensiveAutopilotProfiles, offensivePhaseProfiles, pitch, pitchSurfacePresets, playerRadiusMeters, playerTendencyTemplates, possessionRhythmByAttackStyle, possessionRhythmDefaults, resolvePreferredFoot, resolveWeakFootQuality, setPiecePhaseProfiles, sprintRoleArchetypes, squadBlueprints, teamRosterOrder, teams, weatherPresets } from "./src/modules/game-simulator/model-data.mjs";
-import { createGameSimulatorSidebarRenderer } from "./src/modules/game-simulator/sidebar-renderer.mjs";
-import { createGameSimulatorAppRuntimeController } from "./src/modules/game-simulator/app-runtime-controller.mjs";
-import { createGameSimulatorEngineBundle } from "./src/modules/game-simulator/engine-wiring.mjs";
-import { createGameSimulatorInitialStateFactory } from "./src/modules/game-simulator/initial-state.mjs";
-import { createGameSimulatorRuntimeFacade } from "./src/modules/game-simulator/runtime-facade.mjs";
 import { createDashboardChatMessageTextRenderer, createDashboardChatWidgetRenderer, renderDashboardChatMessageStatus } from "./src/modules/chat/chat-widget-renderer.mjs";
 import { createDashboardChatAttachmentRenderer } from "./src/modules/chat/chat-attachment-renderer.mjs";
 import { createDashboardChatAttachmentPreview } from "./src/modules/chat/chat-attachment-preview.mjs";
@@ -157,19 +151,75 @@ import {
 } from "./src/modules/medical/index.mjs";
 const getElement = document.getElementById.bind(document);
 const win = window;
-const canvas = getElement("pitchCanvas");
-const ctx = canvas.getContext("2d");
 const ui = createPlatformUiBindings(document);const platformAssetVersion = win.__assetVersion || Date.now();
 const platformModuleLoader = createPlatformModuleLoader({
 documentRef: document,
 assetVersion: platformAssetVersion,
 });
-let gameSimulatorAppRuntimeController = null;
-function invokeGameSimulatorAppRuntime(methodName, args) {
-if (!gameSimulatorAppRuntimeController?.[methodName]) {
-throw new Error(`Game simulator app runtime is not ready: ${methodName}`);
+function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+function logEvent(message) {
+if (message) console.warn(message);
 }
-return gameSimulatorAppRuntimeController[methodName](...args);
+let gameSimulatorRuntime = null;
+let gameSimulatorRuntimePromise = null;
+function readSavedSequenceLibraryFallback() {
+try {
+const raw = win.localStorage?.getItem(sequenceLibraryStorageKey);
+if (!raw) return [];
+const parsed = JSON.parse(raw);
+if (!Array.isArray(parsed)) return [];
+return parsed
+.filter((entry) => entry && entry.id && entry.name && entry.sequence?.steps)
+.sort((a, b) => new Date(b.savedAt ?? 0) - new Date(a.savedAt ?? 0));
+} catch {
+return [];
+}
+}
+function logGameSimulatorRuntimeError(error) {
+console.error("Game simulator runtime failed to load.", error);
+}
+function ensureGameSimulatorRuntime() {
+if (gameSimulatorRuntime) return Promise.resolve(gameSimulatorRuntime);
+if (!gameSimulatorRuntimePromise) {
+gameSimulatorRuntimePromise = platformModuleLoader
+.loadModule("game-simulator.runtime-entry", () =>
+import(platformModuleLoader.versionedHref("./src/modules/game-simulator/runtime-entry.mjs"))
+)
+.then(({ createGameSimulatorRuntimeEntry }) => {
+gameSimulatorRuntime = createGameSimulatorRuntimeEntry({
+canEditGameSimulatorWorkspace,
+documentRef: document,
+escapeHtml,
+getHubState: () => hubState,
+platformModuleLoader,
+renderWorkspaceChrome,
+sequenceLibraryStorageKey,
+sequenceStorageKey,
+ui,
+win,
+});
+gameSimulatorRuntime.initialize();
+return gameSimulatorRuntime;
+})
+.catch((error) => {
+gameSimulatorRuntimePromise = null;
+throw error;
+});
+}
+return gameSimulatorRuntimePromise;
+}
+function queueGameSimulatorRuntimeLoad() {
+return ensureGameSimulatorRuntime().catch(logGameSimulatorRuntimeError);
+}
+function invokeGameSimulatorRuntime(methodName, args = [], fallbackValue) {
+if (gameSimulatorRuntime?.[methodName]) {
+return gameSimulatorRuntime[methodName](...args);
+}
+queueGameSimulatorRuntimeLoad();
+return typeof fallbackValue === "function" ? fallbackValue() : fallbackValue;
+}
+function invokeGameSimulatorRuntimeAsync(methodName, args = []) {
+return ensureGameSimulatorRuntime().then((runtime) => runtime?.[methodName]?.(...args));
 }
 let workspaceModuleRuntimeController = null;
 function queueWorkspaceModulePreload(workspaceId = "") {
@@ -1704,122 +1754,61 @@ isOffDay: isPeriodizationOffDay,
 getMultiSelectOpenField: () => periodizationMultiSelectOpenField,
 renderActionIcon: renderSessionPlannerActionIcon,
 });
-const gameSimulatorRuntimeFacade = createGameSimulatorRuntimeFacade({
-  attackStylePresets,
-  defaultTeamIdentities,
-  defenseStylePresets,
-  getController: () => gameSimulatorAppRuntimeController,
-  invoke: invokeGameSimulatorAppRuntime,
-  sequenceLibraryStorageKey,
-  teams,
-  win,
-});
-const {
-  readSavedSequenceLibrary, cloneTeamIdentity, cloneTeamIdentities, applyTeamIdentities,
-  resetTeamIdentities, getTeamAttackStyleKey, getTeamDefenseStyleKey, getTeamAttackStyleProfile,
-  getTeamDefenseStyleProfile, canEditScenario, applyTeamFormation, getScaleX,
-  getScaleY, getMetersToPixels, toCanvas, eventToPitch,
-  logEvent, getPlayerById, normalizeSelectedPlayerIds, getSelectedPlayerIds,
-  setSelectedPlayers, setSingleSelectedPlayer, clearSelectedPlayers, toggleSelectedPlayer,
-  isPlayerSelected, getSelectionPreviewIds, getRenderedSelectedPlayerIds, isPlayerRenderedSelected,
-  getRenderedPrimarySelectedPlayerId, isSelectionModifierActive, getSelectedPlayer, getBallOwner,
-  cloneRestartPhase, getPlayerPressureLoad, getNearestOpponentGap, getPlayerDecisionContext,
-  captureSnapshot, applySnapshot, cloneSnapshot, cloneSequenceStep,
-  buildSnapshotFromFormations, withSnapshotOverrides, createLowBlockPressExample, loadLowBlockPressExample,
-  cloneScenarioInfo, markSimulatorDirty, markSequenceDirty, markSimulatorSaved,
-  writeSavedSequenceLibrary, sanitizeFileName, goToSequenceFrame, cancelSequenceAdvance,
-  stopSequencePlayback, finishSequencePlayback, queueNextSequenceStep, startRecordedAction,
-  createCommittedSnapshotFromCurrentState, applyCommittedSnapshot, serializeSequence, loadSequenceData,
-  saveSequenceToLocal, loadSequenceFromLocal, downloadSequence, createStepThumbnail,
-  startSequenceStep, startSequencePlayback, getActiveExampleOverlay, getSavedSequenceById,
-  loadSavedSequenceEntry, removeSavedSequenceEntry, render, isGameSimulatorWorkspaceActive,
-  shouldIgnoreSimulatorTextOrModifierTarget, ensureGameSimulatorControllers, queueGameSimulatorControllersLoad, resetSimulatorAnimationClock,
-  startSimulatorAnimationLoop, stopSimulatorAnimationLoop, animationFrame, executePlannedAction,
-  pauseLiveSimulation, resumeLiveSimulation, toggleSpaceAutopilotPlayback, bindGameSimulatorLateUiEvents,
-  bindGameSimulatorSequenceUiEvents, positionMetricTooltip, ensureMetricTooltipLayer, showMetricTooltip,
-  hideMetricTooltip, hasActiveMetricTooltip, updateModeButtons, syncDefensiveAutopilotButton,
-  syncOffensiveAutopilotButton, syncAutoV2DebugButton, toggleAutoV2DebugOverlay, toggleActionMode,
-  syncFormationControls, syncTeamIdentityControls, syncPhysicalProfileControls, syncSurfaceControls,
-  syncWeatherControls, syncFirstTouchControls, syncDefensiveAggressionControls, syncBallSpeedControls,
-  syncDribbleSpeedControls, updateSequenceButtons, refreshKickoffSetupIfWaitingToStart, updateTeamIdentity,
-  updatePhysicalProfile, updateSelectedPlayerProfile, clearKeyboardActionGrace, armKeyboardActionGrace,
-  getPointerRequestedActionMode, consumePointerActionMode, setKeyboardActionMode, shouldIgnoreHotkey,
-  shouldIgnoreSpaceAutopilotHotkey
-} = gameSimulatorRuntimeFacade;
-
-const {
-applyAutopilotsForCurrentAction, applyBallExecutionProfile, applyDefensiveAutopilotForCurrentAction, applyKickoffSetup,
-applyNearbyBallOrientation, applyOffensiveAutopilotForCurrentAction, applyPhysicalProfileToPlayers, applyResolvedBallProfile,
-buildPlayerIntelligenceProfile, buildPlayerSprintProfile, buildPlayerTendencyProfile, cancelAutoPilotContinuation,
-clamp, clampToCircle, clampToPitch, clearAutoPilotReceiveMomentum,
-clearBallAction, clearSecurePossession, cloneAutoV2DecisionTriggers, cloneDefensiveAutopilotIntents,
-cloneGoalEvent, cloneOffensiveAutopilotIntents, cloneSecurePossession, cloneShotPlacement,
-cloneVector, computeReachDistance, configureBallTravelProfile, createPlayer,
-createTransitionPlan, describeStep, distance, formatMeters,
-formatSpeed, formatTime, getActionDistance, getActionOrigin,
-getActionSpeed, getActionTypeLabel, getBallProfileLabel, getBallStatus,
-getCompetitionPhysicalLabel, getCurrentActionDuration, getDisplayedBallSpeed, getEditableRadius,
-getGoalDirectionSign, getKickoffSpot, getKickoffTakerId, getPlayerBallControlPoint,
-getPlayerFacingAngle, getPlayerMagnetLabel, getPlayerRoleModel, getProjectedActionDuration,
-getRecordedStepEndSnapshot, getRemainingBallTravelTime, getRequestedActionMode, getSequenceFrameSnapshot,
-hasBallAction, issueBallCommand, issuePassCommand, lerp,
-normalize, pauseAutoPilotPlay, planAutoPilotNextAction, refreshPlannedBallActionProfile,
-resolveExecutedShotTarget, resolveRecordedStepProfile, rotatePlayerBodyAlongMovement, setBallOwner,
-setDribbleCarryPathForBall, setTeamFormationOnPlayers, snapshotsMatch, stepSimulation,
-subtract, vec
-} = createGameSimulatorEngineBundle({
-applyCommittedSnapshot: applyCommittedSnapshot, applySnapshot: applySnapshot,
-autoBallProfiles: autoBallProfiles, autoDribbleProfiles: autoDribbleProfiles,
-ballRadiusMeters: ballRadiusMeters, canEditScenario: canEditScenario,
-captureSnapshot: captureSnapshot, clearKeyboardActionGrace: clearKeyboardActionGrace,
-cloneRestartPhase: cloneRestartPhase, cloneSnapshot: cloneSnapshot,
-competitionPhysicalProfiles: competitionPhysicalProfiles, createCommittedSnapshotFromCurrentState: createCommittedSnapshotFromCurrentState,
-defaultKickoffTeamId: defaultKickoffTeamId, defaultPhysicalProfileKey: defaultPhysicalProfileKey,
-defensiveAggressionPresets: defensiveAggressionPresets, defensiveAutopilotProfiles: defensiveAutopilotProfiles,
-defensivePhaseProfiles: defensivePhaseProfiles, executePlannedAction: executePlannedAction,
-finishSequencePlayback: finishSequencePlayback, firstTouchModes: firstTouchModes,
-formationLayouts: formationLayouts, formationMagnetLabels: formationMagnetLabels,
-gameRoleProfiles: gameRoleProfiles, getAttackStyleRhythmProfile: getAttackStyleRhythmProfile,
-getBallOwner: getBallOwner, getNearestOpponentGap: getNearestOpponentGap,
-getPlayerById: getPlayerById, getPlayerDecisionContext: getPlayerDecisionContext,
-getPlayerPressureLoad: getPlayerPressureLoad, getSelectedPlayer: getSelectedPlayer,
-getState: () => state, getTeamAttackStyleKey: getTeamAttackStyleKey,
-getTeamAttackStyleProfile: getTeamAttackStyleProfile, getTeamDefenseStyleKey: getTeamDefenseStyleKey,
-getTeamDefenseStyleProfile: getTeamDefenseStyleProfile, intelligenceLabelBoosts: intelligenceLabelBoosts,
-intelligenceRoleArchetypes: intelligenceRoleArchetypes, logEvent: logEvent,
-markSequenceDirty: markSequenceDirty, offensiveAutopilotProfiles: offensiveAutopilotProfiles,
-offensivePhaseProfiles: offensivePhaseProfiles, pauseLiveSimulation: pauseLiveSimulation,
-pitch: pitch, pitchSurfacePresets: pitchSurfacePresets,
-playerRadiusMeters: playerRadiusMeters, playerTendencyTemplates: playerTendencyTemplates,
-possessionRhythmDefaults: possessionRhythmDefaults, queueNextSequenceStep: queueNextSequenceStep,
-render: render, resolvePreferredFoot: resolvePreferredFoot,
-resolveWeakFootQuality: resolveWeakFootQuality, setPiecePhaseProfiles: setPiecePhaseProfiles,
-setSelectedPlayers: setSelectedPlayers, sprintRoleArchetypes: sprintRoleArchetypes,
-squadBlueprints: squadBlueprints, startRecordedAction: startRecordedAction,
-teamRosterOrder: teamRosterOrder, teams: teams,
-ui: ui, updateSequenceButtons: updateSequenceButtons,
-weatherPresets: weatherPresets, win: win
-});
-
-const createInitialState = createGameSimulatorInitialStateFactory({
-  applyKickoffSetup,
-  cloneVector,
-  createPlayer,
-  defaultFormations,
-  defaultKickoffTeamId,
-  defaultPhysicalProfileKey,
-  defaultScenarioInfo,
-  getKickoffSpot,
-  getKickoffTakerId,
-  readSavedSequenceLibrary,
-  resetTeamIdentities,
-  setPiecePhaseProfiles,
-  setTeamFormationOnPlayers,
-  squadBlueprints,
-  teams,
-});
-let state = createInitialState();
-win.__autoV2DebugEnabled = Boolean(win.__autoV2DebugEnabled);
+function readSavedSequenceLibrary(...args) {
+return gameSimulatorRuntime?.readSavedSequenceLibrary
+? gameSimulatorRuntime.readSavedSequenceLibrary(...args)
+: readSavedSequenceLibraryFallback();
+}
+function syncGameSimulatorSavedSequencesFromStorage() {
+gameSimulatorRuntime?.syncSavedSequencesFromStorage?.();
+}
+function render(...args) { return invokeGameSimulatorRuntime("render", args); }
+function queueGameSimulatorControllersLoad(...args) {
+return invokeGameSimulatorRuntimeAsync("queueGameSimulatorControllersLoad", args).catch(logGameSimulatorRuntimeError);
+}
+function startSimulatorAnimationLoop(...args) {
+return invokeGameSimulatorRuntimeAsync("startSimulatorAnimationLoop", args).catch(logGameSimulatorRuntimeError);
+}
+function stopSimulatorAnimationLoop(...args) {
+return gameSimulatorRuntime?.stopSimulatorAnimationLoop?.(...args);
+}
+function resetGameSimulatorIntro(...args) {
+if (gameSimulatorRuntime?.resetGameSimulatorIntro) {
+return gameSimulatorRuntime.resetGameSimulatorIntro(...args);
+}
+ui.gameSimulatorWorkspace?.classList.add("is-simulator-intro");
+ui.gameSimulatorWorkspace?.classList.remove("is-simulator-launched");
+}
+function syncGameSimulatorIntroState(...args) {
+if (gameSimulatorRuntime?.syncGameSimulatorIntroState) {
+return gameSimulatorRuntime.syncGameSimulatorIntroState(...args);
+}
+const workspace = ui.gameSimulatorWorkspace;
+if (workspace && hubState?.activeWorkspaceId === "game-simulator" && !workspace.classList.contains("is-simulator-launched")) {
+workspace.classList.add("is-simulator-intro");
+}
+queueGameSimulatorRuntimeLoad();
+}
+function pauseSimulatorForWorkspaceSwitch(...args) {
+return gameSimulatorRuntime?.pauseSimulatorForWorkspaceSwitch?.(...args);
+}
+function isSimulatorIntroActive(...args) {
+if (gameSimulatorRuntime?.isSimulatorIntroActive) {
+return gameSimulatorRuntime.isSimulatorIntroActive(...args);
+}
+return Boolean(hubState?.activeWorkspaceId === "game-simulator" && ui.gameSimulatorWorkspace?.classList.contains("is-simulator-intro"));
+}
+function launchGameSimulatorFromIntro(...args) {
+return invokeGameSimulatorRuntimeAsync("launchGameSimulatorFromIntro", args).catch(logGameSimulatorRuntimeError);
+}
+function isPitchFullscreenActive(...args) { return gameSimulatorRuntime?.isPitchFullscreenActive?.(...args) ?? false; }
+function syncPitchFullscreenButton(...args) { return gameSimulatorRuntime?.syncPitchFullscreenButton?.(...args); }
+function updatePitchFullscreenHudLayout(...args) { return gameSimulatorRuntime?.updatePitchFullscreenHudLayout?.(...args); }
+function togglePitchFullscreen(...args) { return invokeGameSimulatorRuntimeAsync("togglePitchFullscreen", args).catch(logGameSimulatorRuntimeError); }
+function hasUnsavedSimulatorWork(...args) { return gameSimulatorRuntime?.hasUnsavedSimulatorWork?.(...args) ?? false; }
+function resetUnsavedSimulatorSession(...args) { return gameSimulatorRuntime?.resetUnsavedSimulatorSession?.(...args); }
+function hasActiveMetricTooltip(...args) { return gameSimulatorRuntime?.hasActiveMetricTooltip?.(...args) ?? false; }
+function hideMetricTooltip(...args) { return gameSimulatorRuntime?.hideMetricTooltip?.(...args); }
 let hubState = null;
 let periodizationState = null;
 let periodizationDayOverlayOpen = false;
@@ -7087,38 +7076,6 @@ win.setTimeout(() => {
 ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-input]")?.focus();
 }, 0);
 }
-const gameSimulatorSidebarRenderer = createGameSimulatorSidebarRenderer({
-ui,
-getState: () => state,
-teams,
-getSelectedPlayer,
-getBallOwner,
-getProjectedActionDuration,
-formatMeters,
-getActionDistance,
-computeReachDistance,
-getCurrentActionDuration,
-getPlayerBallControlPoint,
-distance,
-getActionOrigin,
-getEditableRadius,
-getPlayerRoleModel: (...args) => getPlayerRoleModel(...args),
-getCompetitionPhysicalLabel,
-hasBallAction,
-formatTime,
-getRemainingBallTravelTime,
-getBallProfileLabel,
-getDisplayedBallSpeed,
-formatSpeed,
-getBallStatus,
-getActionTypeLabel,
-isPlayerRenderedSelected,
-describeStep,
-createStepThumbnail,
-escapeHtml,
-playerTendencyTemplates,
-});
-
 function renderSessionPlannerToast() {
 if (!ui.sessionPlannerWorkspace) {
 return;
@@ -12290,17 +12247,6 @@ periodizationDayOverlayMode = mode === "edit" ? "edit" : "view";
 refreshMultiFields: refreshPeriodizationBoardMultiFields,
 refreshDependentFields: refreshPeriodizationBoardDependentFields,
 });
-function isPitchFullscreenActive(...args) { return invokeGameSimulatorAppRuntime("isPitchFullscreenActive", args); }
-function syncPitchFullscreenButton(...args) { return invokeGameSimulatorAppRuntime("syncPitchFullscreenButton", args); }
-function updatePitchFullscreenHudLayout(...args) { return invokeGameSimulatorAppRuntime("updatePitchFullscreenHudLayout", args); }
-function togglePitchFullscreen(...args) { return invokeGameSimulatorAppRuntime("togglePitchFullscreen", args); }
-function hasUnsavedSimulatorWork(...args) { return invokeGameSimulatorAppRuntime("hasUnsavedSimulatorWork", args); }
-function resetUnsavedSimulatorSession(...args) { return invokeGameSimulatorAppRuntime("resetUnsavedSimulatorSession", args); }
-function isSimulatorIntroActive(...args) { return invokeGameSimulatorAppRuntime("isSimulatorIntroActive", args); }
-function resetGameSimulatorIntro(...args) { return invokeGameSimulatorAppRuntime("resetGameSimulatorIntro", args); }
-function syncGameSimulatorIntroState(...args) { return invokeGameSimulatorAppRuntime("syncGameSimulatorIntroState", args); }
-function launchGameSimulatorFromIntro(...args) { return invokeGameSimulatorAppRuntime("launchGameSimulatorFromIntro", args); }
-function pauseSimulatorForWorkspaceSwitch(...args) { return invokeGameSimulatorAppRuntime("pauseSimulatorForWorkspaceSwitch", args); }
 const workspaceShellController = createWorkspaceShellController({
 applyUserAvatar,
 closeDashboardModal,
@@ -12390,7 +12336,7 @@ scoutingState = readScoutingState();
 transferRoomState = readTransferRoomState();
 sessionPlannerState = readSessionPlannerStatePreservingUiSelection(previousSessionPlannerSelection);
 sessionPlannerExerciseLibrary = readSessionPlannerExerciseLibrary();
-state.savedSequences = readSavedSequenceLibrary();
+syncGameSimulatorSavedSequencesFromStorage();
 queueSessionPlannerSnapshotRecovery();
 renderWorkspaceChrome();
 scheduleDashboardLoginPopups();
@@ -12482,29 +12428,6 @@ queueCentralStateStatus(error?.message || `${reason} failed.`);
 centralStateRefreshInFlight = false;
 });
 }
-gameSimulatorAppRuntimeController = createGameSimulatorAppRuntimeController({
-  applyBallExecutionProfile, applyKickoffSetup, applyNearbyBallOrientation, applyPhysicalProfileToPlayers,
-  applyResolvedBallProfile, attackStylePresets, ballRadiusMeters, buildPlayerIntelligenceProfile,
-  buildPlayerSprintProfile, buildPlayerTendencyProfile, canEditGameSimulatorWorkspace, cancelAutoPilotContinuation,
-  canvas, clamp, clampToCircle, clampToPitch, clearAutoPilotReceiveMomentum, clearBallAction,
-  clearSecurePossession, cloneAutoV2DecisionTriggers, cloneDefensiveAutopilotIntents, cloneGoalEvent,
-  cloneOffensiveAutopilotIntents, cloneSecurePossession, cloneShotPlacement, cloneVector, competitionPhysicalProfiles,
-  computeReachDistance, configureBallTravelProfile, createInitialState, createPlayer, createTransitionPlan, ctx,
-  defaultKickoffTeamId, defaultScenarioInfo, defaultTeamIdentities, defenseStylePresets, describeStep, distance,
-  documentRef: document, gameSimulatorSidebarRenderer, getActionOrigin, getActionSpeed,
-  getEditableRadius, getGoalDirectionSign,
-  getHubState: () => hubState, getPlayerBallControlPoint, getPlayerFacingAngle, getPlayerMagnetLabel,
-  getProjectedActionDuration, getRecordedStepEndSnapshot, getSequenceFrameSnapshot, getState: () => state,
-  hasBallAction, issueBallCommand, issuePassCommand, lerp, normalize, pauseAutoPilotPlay, pitch,
-  planAutoPilotNextAction, platformModuleLoader, playerRadiusMeters, playerTendencyTemplates,
-  refreshPlannedBallActionProfile, renderWorkspaceChrome, resolveExecutedShotTarget, resolveRecordedStepProfile,
-  rotatePlayerBodyAlongMovement, sequenceLibraryStorageKey, sequenceStorageKey, setDribbleCarryPathForBall,
-  setState: (nextState) => { state = nextState; }, setTeamFormationOnPlayers, snapshotsMatch, squadBlueprints,
-  stepSimulation, subtract, teamRosterOrder, teams, ui, vec, win,
-  applyAutopilotsForCurrentAction, applyDefensiveAutopilotForCurrentAction, applyOffensiveAutopilotForCurrentAction,
-  defaultPhysicalProfileKey, formatSpeed, getRequestedActionMode, setBallOwner,
-});
-const gameSimulatorPointerController = gameSimulatorAppRuntimeController.pointerController;
 bindPlatformNavigationInteractions({
 getHubState: () => hubState,
 platformNavigationController,
@@ -15459,7 +15382,6 @@ return;
 await handleDashboardChatAttachmentInputChange(attachmentInput);
 });
 workspaceModuleRuntimeController.bindWorkspaceModuleEvents();
-bindGameSimulatorLateUiEvents();
 document.addEventListener("keydown", (event) => {
 const key = String(event.key || "").toLowerCase();
 if (key === "enter" && isSimulatorIntroActive() && !isEditableKeyboardTarget(event.target)) {
@@ -15496,7 +15418,6 @@ button.addEventListener("click", () => {
 setActiveWorkspace(button.dataset.openWorkspace);
 });
 });
-bindGameSimulatorSequenceUiEvents();
 win.addEventListener("blur", () => {
 setProfileMenuOpen(false);
 });
@@ -15672,27 +15593,9 @@ return;
 }
 setProfileMenuOpen(false);
 });
-canvas.addEventListener("pointerdown", gameSimulatorPointerController.handlePointerDown);
-canvas.addEventListener("pointermove", gameSimulatorPointerController.handlePointerMove);
-canvas.addEventListener("pointerup", gameSimulatorPointerController.handlePointerUp);
-canvas.addEventListener("pointercancel", gameSimulatorPointerController.handlePointerCancel);
-canvas.addEventListener("dblclick", gameSimulatorPointerController.handleCanvasDoubleClick);
-ui.playbackSpeedLabel.textContent = `${state.playbackSpeed.toFixed(2)}x`;
-syncBallSpeedControls();
-syncDribbleSpeedControls();
-syncSurfaceControls();
-syncWeatherControls();
-syncDefensiveAggressionControls();
-syncTeamIdentityControls();
-syncPhysicalProfileControls();
 refreshDataSafetyStatus();
 initializeWorkspaceHub();
 startDashboardPresenceRuntime();
-updateModeButtons();
-syncDefensiveAutopilotButton();
-syncOffensiveAutopilotButton();
-syncFormationControls();
-updateSequenceButtons();
 if (hubState?.activeWorkspaceId === "game-simulator") {
 queueGameSimulatorControllersLoad();
 render();

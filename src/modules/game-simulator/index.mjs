@@ -22,4 +22,5 @@ export { createGameSimulatorSidebarRenderer } from "./sidebar-renderer.mjs";
 export { createSimulatorWorkspaceController } from "./workspace-controller.mjs";
 export { createGameSimulatorEngineBundle } from "./engine-wiring.mjs";
 export { createGameSimulatorInitialStateFactory } from "./initial-state.mjs";
+export { createGameSimulatorRuntimeEntry } from "./runtime-entry.mjs";
 export { createGameSimulatorRuntimeFacade } from "./runtime-facade.mjs";

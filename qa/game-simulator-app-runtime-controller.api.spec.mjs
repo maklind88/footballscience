@@ -14,11 +14,16 @@ test("game simulator app runtime controller owns simulator runtime wiring", () =
   const app = readProjectFile("app-runtime.js");
   const controller = readProjectFile("src/modules/game-simulator/app-runtime-controller.mjs");
   const facade = readProjectFile("src/modules/game-simulator/runtime-facade.mjs");
+  const runtimeEntry = readProjectFile("src/modules/game-simulator/runtime-entry.mjs");
 
   expect(typeof createGameSimulatorAppRuntimeController).toBe("function");
-  expect(app).toContain("createGameSimulatorAppRuntimeController");
-  expect(app).toContain("createGameSimulatorRuntimeFacade");
-  expect(app).toContain("function invokeGameSimulatorAppRuntime");
+  expect(app).toContain('import(platformModuleLoader.versionedHref("./src/modules/game-simulator/runtime-entry.mjs"))');
+  expect(app).toContain("function ensureGameSimulatorRuntime()");
+  expect(app).toContain("function invokeGameSimulatorRuntime");
+  expect(app).not.toContain('from "./src/modules/game-simulator/app-runtime-controller.mjs"');
+  expect(runtimeEntry).toContain("createGameSimulatorAppRuntimeController({");
+  expect(runtimeEntry).toContain("createGameSimulatorRuntimeFacade({");
+  expect(runtimeEntry).toContain("function invokeGameSimulatorAppRuntime");
   expect(app).not.toContain("function executePlannedAction(...args)");
   expect(facade).toContain('"executePlannedAction"');
   expect(app).not.toContain("const gameSimulatorCanvasRenderer = createGameSimulatorCanvasRenderer");

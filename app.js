@@ -51,7 +51,7 @@ import { createPlatformNavigationRenderer } from "./src/modules/platform/navigat
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
 import { getTopIconSvg } from "./top-icons.js";
 import { createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
-import { adminDepartmentSuggestions, adminTitleSuggestions, createAdminAccessRenderer, createAdminReadinessRenderer, createAdminStructureRenderer, createAdminUserRenderer, getAdminActiveUserCount, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
+import { adminDepartmentSuggestions, adminTitleSuggestions, createAdminAccessRenderer, createAdminReadinessRenderer, createAdminStructureRenderer, createAdminUserRenderer, createAdminWorkspaceRenderer, getAdminActiveUserCount, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
 import { createProfileWorkspaceRenderer } from "./src/modules/profile/index.mjs";
 import { createStaffWorkspaceRenderer } from "./src/modules/staff/index.mjs";
 import {
@@ -4564,6 +4564,25 @@ getRoleLabel,
 getWorkspaceAccessConfig,
 normalizeWorkspaceAccessEntry,
 normalizePlatformRole,
+});
+const adminWorkspaceRenderer = createAdminWorkspaceRenderer({
+escapeHtml,
+formatAdminDateTime,
+formatUserName,
+getRoleLabel,
+renderAdminAccountSummary,
+renderAdminAuditLog,
+renderAdminGroupedUsers,
+renderAdminRoleAccessForm,
+renderAdminRoleOptions,
+renderAdminStructurePanel,
+renderAdminTeamOptions,
+renderAdminTransferRoomAccessPanel,
+renderPasswordRevealInput,
+renderPlatformAppearanceGovernancePanel,
+renderPlatformReadinessDashboard,
+titleSuggestions: adminTitleSuggestions,
+departmentSuggestions: adminDepartmentSuggestions,
 });
 const profileWorkspaceRenderer = createProfileWorkspaceRenderer({
 escapeHtml,
@@ -18735,17 +18754,7 @@ if (!ui.adminWorkspace) {
 return;
 }
 if (!isCurrentPlatformUserAdmin()) {
-ui.adminWorkspace.innerHTML = `
-      <section class="admin-shell">
-        <header class="admin-hero-card">
-          <div>
-            <p class="placeholder-tag">Admin</p>
-            <h1 class="profile-title">Admin</h1>
-          </div>
-          <span class="profile-role-pill">Admin only</span>
-        </header>
-      </section>
-    `;
+ui.adminWorkspace.innerHTML = adminWorkspaceRenderer.renderNotAdmin();
 return;
 }
 const allUsers = getPlatformUsers();
@@ -18770,225 +18779,36 @@ const selectedUserIsSelf = Boolean(selectedUser?.id && selectedUser.id === curre
 const canManageSelectedUser = Boolean(selectedUser && canAdminManageUser(currentUser, selectedUser, structure));
 const canRemoveSelectedUser = Boolean(selectedUser && canAdminManageUser(currentUser, selectedUser, structure, { remove: true }));
 const selectedUserFieldDisabled = canManageSelectedUser ? "" : "disabled";
-const roleOptions = renderAdminRoleOptions(currentUser, selectedUser?.role || "coach");
-const createRoleOptions = renderAdminRoleOptions(
-currentUser,
-getAssignableRolesForUser(currentUser).includes("scout")
+const assignableRoles = getAssignableRolesForUser(currentUser);
+const createRole = assignableRoles.includes("scout")
 ? "scout"
-: getAssignableRolesForUser(currentUser).includes("coach")
+: assignableRoles.includes("coach")
 ? "coach"
-: getAssignableRolesForUser(currentUser)[0]
-);
-const statusOptions = ["active", "paused"]
-.map(
-(status) =>
-`<option value="${escapeHtml(status)}" ${status === selectedUser?.status ? "selected" : ""}>${escapeHtml(
-          status === "active" ? "Active" : "Paused"
-        )}</option>`
-)
-.join("");
-const titleSuggestionOptions = adminTitleSuggestions
-.map((title) => `<option value="${escapeHtml(title)}"></option>`)
-.join("");
-const departmentSuggestionOptions = adminDepartmentSuggestions
-.map((department) => `<option value="${escapeHtml(department)}"></option>`)
-.join("");
-const userRows = renderAdminGroupedUsers(users, currentUser, structure);
-const selectedUserEditor =
-selectedUser && adminUserEditorOpen
-? `
-      <div class="admin-user-editor-overlay" data-admin-user-editor-overlay role="dialog" aria-modal="true" aria-label="${escapeHtml(`Edit ${formatUserName(selectedUser)}`)}">
-        <article class="admin-card admin-user-editor-modal">
-          <div class="staff-card-head admin-user-editor-head">
-            <div>
-              <h2>Edit User</h2>
-              <span>${escapeHtml(formatUserName(selectedUser))} · ${escapeHtml(getRoleLabel(selectedUser.role))}</span>
-            </div>
-            <button type="button" class="admin-send-button admin-user-editor-close" data-admin-close-user-editor>Close</button>
-          </div>
-          ${renderAdminAccountSummary(selectedUser)}
-          <form id="adminUserForm" class="platform-form admin-user-form">
-<label>
-<span>First name</span>
-<input name="firstName" value="${escapeHtml(selectedUser.firstName)}" ${selectedUserFieldDisabled} required />
-</label>
-<label>
-<span>Last name</span>
-<input name="lastName" value="${escapeHtml(selectedUser.lastName)}" ${selectedUserFieldDisabled} required />
-</label>
-<label>
-<span>Email</span>
-<input name="email" type="email" value="${escapeHtml(selectedUser.email)}" ${selectedUserFieldDisabled} required />
-</label>
-<label>
-<span>Username</span>
-<input name="username" value="${escapeHtml(selectedUser.username)}" ${selectedUserFieldDisabled} required />
-</label>
-<label>
-<span>Role</span>
-<select name="role" ${selectedUserIsSelf || !canManageSelectedUser ? "disabled" : ""}>${roleOptions}</select>
-</label>
-<label>
-<span>Status</span>
-<select name="status" ${selectedUserIsSelf || !canManageSelectedUser ? "disabled" : ""}>${statusOptions}</select>
-</label>
-<label>
-<span>Title</span>
-<input name="title" list="adminTitleSuggestions" value="${escapeHtml(selectedUser.title)}" ${selectedUserFieldDisabled} />
-</label>
-<label>
-<span>Department</span>
-<input name="department" list="adminDepartmentSuggestions" value="${escapeHtml(selectedUser.department)}" ${selectedUserFieldDisabled} />
-</label>
-<label>
-<span>Set password</span>
-${renderPasswordRevealInput("password", "Optional; leave empty to keep current")}
-</label>
-<label>
-<span>Confirm password</span>
-${renderPasswordRevealInput("passwordConfirm", "Repeat new password")}
-</label>
-<label class="profile-wide">
-<span>Team scope</span>
-<select name="teamId" ${selectedUserIsSelf || !canManageSelectedUser ? "disabled" : ""}>
-${renderAdminTeamOptions(currentUser, structure, getUserTeamId(selectedUser, structure))}
-</select>
-</label>
-<div class="profile-form-footer">
-<span>${selectedUserIsSelf ? "Your own admin role and status are protected." : "Save user sets this password in Supabase. Reset actions replace the old password."}</span>
-<span class="admin-selected-user-actions">
-${canManageSelectedUser ? `<button type="submit">Save</button>` : ""}
-${canManageSelectedUser ? `<button type="button" data-admin-reset-password="${escapeHtml(selectedUser.id)}">Reset email</button>` : ""}
-${canManageSelectedUser ? `<button type="button" data-admin-generate-selected-password="${escapeHtml(selectedUser.id)}">Reset pass</button>` : ""}
-${canManageSelectedUser ? `<button type="button" data-admin-send-selected="${escapeHtml(selectedUser.id)}">Send login</button>` : ""}
-${canRemoveSelectedUser ? `<button type="button" class="staff-remove-button" data-admin-remove-user="${escapeHtml(selectedUser.id)}">Remove</button>` : ""}
-</span>
-</div>
-</form>
-        </article>
-      </div>
-    `
-: "";
-const adminSuggestionDatalists = `
-      <datalist id="adminTitleSuggestions">${titleSuggestionOptions}</datalist>
-      <datalist id="adminDepartmentSuggestions">${departmentSuggestionOptions}</datalist>
-    `;
+: assignableRoles[0];
 const createUserTeamId = adminCreateUserTeamId || getUserTeamId(currentUser, structure);
 const createUserTeam = getPlatformTeamById(createUserTeamId, structure);
 const createUserClub = createUserTeam ? getPlatformClubById(createUserTeam.clubId, structure) : null;
-const createUserEditor = adminCreateUserEditorOpen
-? `
-      <div class="admin-user-editor-overlay" data-admin-create-user-overlay role="dialog" aria-modal="true" aria-label="Create user">
-        <article class="admin-card admin-user-editor-modal admin-create-user-modal">
-          <div class="staff-card-head admin-user-editor-head">
-            <div>
-              <h2>New User</h2>
-              <span>${escapeHtml(createUserTeam ? `${createUserClub?.name || "Club"} · ${createUserTeam.name}` : "Choose team scope")}</span>
-            </div>
-            <button type="button" class="admin-send-button admin-user-editor-close" data-admin-close-create-user>Close</button>
-          </div>
-          <form id="adminCreateUserForm" class="platform-form admin-user-form admin-create-form">
-            <label>
-              <span>First name</span>
-              <input name="firstName" required />
-            </label>
-            <label>
-              <span>Last name</span>
-              <input name="lastName" required />
-            </label>
-            <label>
-              <span>Email</span>
-              <input name="email" type="email" required />
-            </label>
-            <label>
-              <span>Username</span>
-              <input name="username" required />
-            </label>
-            <label>
-              <span>Role</span>
-              <select name="role">${createRoleOptions}</select>
-            </label>
-            <label>
-              <span>Status</span>
-              <select name="status">
-                <option value="active" selected>Active</option>
-                <option value="paused">Paused</option>
-              </select>
-            </label>
-            <label>
-              <span>Title</span>
-              <input name="title" list="adminTitleSuggestions" value="Scout" />
-            </label>
-            <label>
-              <span>Password</span>
-              ${renderPasswordRevealInput("password", "Optional; leave empty for temporary")}
-            </label>
-            <label>
-              <span>Confirm password</span>
-              ${renderPasswordRevealInput("passwordConfirm", "Repeat password")}
-            </label>
-            <label>
-              <span>Department</span>
-              <input name="department" list="adminDepartmentSuggestions" value="Scouting" />
-            </label>
-            <label class="profile-wide">
-              <span>Team scope</span>
-              <select name="teamId">${renderAdminTeamOptions(currentUser, structure, createUserTeamId)}</select>
-            </label>
-            <div class="profile-form-footer">
-              <span>Creates the account directly in this team's admin scope.</span>
-              <button type="button" data-admin-create-user-submit>Create user</button>
-            </div>
-          </form>
-        </article>
-      </div>
-    `
-: "";
-ui.adminWorkspace.innerHTML = `
-    <section class="admin-shell">
-      <header class="admin-hero-card">
-        <div>
-          <p class="placeholder-tag">Admin</p>
-          <h1 class="profile-title">Access & Users</h1>
-        </div>
-        <span class="profile-role-pill">Admin</span>
-      </header>
-      ${message ? `<p class="staff-message platform-inline-toast" role="status" aria-live="polite">${escapeHtml(message)}</p>` : ""}
-      ${renderAdminStructurePanel(currentUser, structure, users)}
-      ${currentUserIsPlatformAdmin ? renderPlatformReadinessDashboard() : ""}
-      ${currentUserIsPlatformAdmin ? renderPlatformAppearanceGovernancePanel() : ""}
-      <section class="admin-layout is-users-only">
-        <article class="admin-card">
-          <div class="staff-card-head">
-            <h2>Users</h2>
-            <span>${users.length}</span>
-          </div>
-          <div class="admin-user-list">${userRows}</div>
-        </article>
-      </section>
-      ${selectedUserEditor}
-      ${createUserEditor}
-      ${adminSuggestionDatalists}
-      ${currentUserIsPlatformAdmin ? renderAdminTransferRoomAccessPanel(users, structure) : ""}
-      ${
-        currentUserIsPlatformAdmin
-          ? `
-${renderAdminRoleAccessForm(roles)}
-<article class="admin-card admin-audit-card">
-<div class="staff-card-head">
-<div>
-<h2>Recent Admin Activity</h2>
-<span>${adminAuditLoadedAt ? `Updated ${escapeHtml(formatAdminDateTime(adminAuditLoadedAt))}` : "Central audit log"}</span>
-</div>
-<button type="button" class="admin-send-button" data-admin-refresh-audit>Refresh</button>
-</div>
-<div class="admin-audit-list">${renderAdminAuditLog()}</div>
-</article>
-`
-          : ""
-      }
-    </section>
-  `;
+ui.adminWorkspace.innerHTML = adminWorkspaceRenderer.renderWorkspace({
+adminAuditLoadedAt,
+adminCreateUserEditorOpen,
+adminUserEditorOpen,
+canManageSelectedUser,
+canRemoveSelectedUser,
+createRole,
+createUserClub,
+createUserTeam,
+createUserTeamId,
+currentUser,
+currentUserIsPlatformAdmin,
+message,
+roles,
+selectedUser,
+selectedUserFieldDisabled,
+selectedUserIsSelf,
+selectedUserTeamId: selectedUser ? getUserTeamId(selectedUser, structure) : "",
+structure,
+users,
+});
 }
 function isMedicalDateValue(dateValue) {
 if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateValue))) {

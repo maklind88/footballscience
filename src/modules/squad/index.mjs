@@ -5,6 +5,7 @@ export * from "./player-profile-helpers.mjs";
 export * from "./player-profile-intelligence-helpers.mjs";
 export * from "./player-profile-options.mjs";
 export * from "./squad-adapter.mjs";
+export * from "./squad-data-foundation.mjs";
 export * from "./squad-profile-selected-renderer.mjs";
 export * from "./squad-profile-support-renderer.mjs";
 export * from "./squad-roster-renderer.mjs";

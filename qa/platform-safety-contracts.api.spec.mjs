@@ -103,6 +103,7 @@ const coreFiles = [
   "src/modules/squad/player-profile-helpers.mjs",
   "src/modules/squad/player-profile-intelligence-helpers.mjs",
   "src/modules/squad/squad-adapter.mjs",
+  "src/modules/squad/squad-data-foundation.mjs",
   "src/modules/squad/squad-scouting-profile-helpers.mjs",
   "src/modules/squad/index.mjs",
   "src/modules/game-simulator/index.mjs",

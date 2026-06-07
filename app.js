@@ -93,6 +93,7 @@ import {
   createSquadRosterRenderer,
   createSquadScoutingSpiderRenderer,
   createSquadWorkspaceRenderer,
+  createSquadDataFoundationHelpers,
   createPlayerProfileHelpers,
   createPlayerProfileIntelligenceHelpers,
   createSquadScoutingProfileHelpers,
@@ -1620,6 +1621,38 @@ isDateValue: isMedicalDateValue,
 normalizeNumber: normalizePlayerProfileNumber,
 normalizeRole: normalizePlayerProfileRole,
 parseDateValue: parseScheduleDateValue,
+});
+const {
+buildSquadDataQualityReport,
+buildSquadSessionPlannerContracts,
+buildSquadDataFoundationPayload,
+getSquadFoundationFileStamp,
+downloadSquadFoundationTextFile,
+exportSquadDataFoundationJson,
+exportSquadSessionPlannerCsv,
+createSessionPlannerPlayerProfileContract,
+getSessionPlannerPlayerProfileContracts,
+getSessionPlannerPlayerProfileContract,
+} = createSquadDataFoundationHelpers({
+ensureState: ensurePlayerProfilesState,
+getPlayers: () => playerProfilesState.players,
+getStorageKey: () => playerProfilesStorageKey,
+getNow: () => new Date().toISOString(),
+getFileDate: () => new Date().toISOString().slice(0, 10),
+getDataQualityFlags: getSquadPlayerDataQualityFlags,
+getPlayerCompleteness: getPlayerProfileCompleteness,
+getRoleOptions: () => playerProfileRoleOptions,
+getRoleDnaScore: getPlayerRoleDnaScore,
+getRoleFitScore: getPlayerProfileRoleFitScore,
+getRoleDnaBestMatches: getPlayerRoleDnaBestMatches,
+getMedicalSnapshot: getPlayerProfileMedicalSnapshot,
+getEffectiveStatus: getPlayerProfileEffectiveStatusFromSnapshot,
+getRosterSummary: getPlayerProfilesRosterSummary,
+getAttributeGroups: () => playerProfileAttributeGroups,
+normalizeChangeLog: normalizePlayerProfileChangeLog,
+getChangeLog: () => playerProfilesState.changeLog,
+formatDateValue: formatScheduleDateValue,
+isMedicalDateValue,
 });
 const periodizationStateAdapter = createPeriodizationStateAdapter({
 formatDateValue: formatScheduleDateValue,
@@ -10189,244 +10222,6 @@ visibleSummary: getPlayerProfilesRosterSummary(visiblePlayers),
 });
 queuePlayerProfileAgeHydration();
 }
-function buildSquadDataQualityReport() {
-ensurePlayerProfilesState();
-const playerReports = playerProfilesState.players.map((player) => {
-const flags = getSquadPlayerDataQualityFlags(player);
-return {
-player,
-flags,
-criticalCount: flags.filter((flag) => flag.severity === "critical").length,
-watchCount: flags.filter((flag) => flag.severity === "watch").length,
-completeness: getPlayerProfileCompleteness(player),
-};
-});
-const totalFlags = playerReports.reduce((total, report) => total + report.flags.length, 0);
-const criticalFlags = playerReports.reduce((total, report) => total + report.criticalCount, 0);
-const sessionPlannerReady = playerReports.filter((report) =>
-report.player.name &&
-report.player.primaryRole &&
-report.player.roleGroup &&
-report.player.preferredSide &&
-report.completeness >= 70
-).length;
-return {
-playerReports,
-totalFlags,
-criticalFlags,
-sessionPlannerReady,
-reviewPlayers: playerReports
-.filter((report) => report.flags.length)
-.sort((first, second) =>
-second.criticalCount - first.criticalCount ||
-second.flags.length - first.flags.length ||
-first.completeness - second.completeness
-),
-};
-}
-function buildSquadSessionPlannerContracts() {
-ensurePlayerProfilesState();
-return playerProfilesState.players.map((player) => {
-const roleScores = playerProfileRoleOptions.reduce((scores, role) => {
-scores[role] = getPlayerRoleDnaScore(player, role);
-return scores;
-}, {});
-const bestRoleMatches = getPlayerRoleDnaBestMatches(player, 4).map((match) => ({
-role: match.role,
-score: match.score,
-label: match.definition.label,
-}));
-const medicalSnapshot = getPlayerProfileMedicalSnapshot(player.id);
-const effectiveStatus = getPlayerProfileEffectiveStatusFromSnapshot(player, medicalSnapshot);
-return {
-id: player.id,
-name: player.name,
-number: player.number,
-position: player.position,
-primaryRole: player.primaryRole,
-secondaryRoles: player.secondaryRoles,
-preferredSide: player.preferredSide,
-roleGroup: player.roleGroup,
-status: effectiveStatus,
-profileStatus: player.status,
-squadStatus: player.squadStatus,
-rosterType: player.rosterType,
-countsInSquad: player.countsInSquad,
-temporaryGroup: player.temporaryGroup,
-temporaryFrom: player.temporaryFrom,
-temporaryTo: player.temporaryTo,
-availability: medicalSnapshot.currentAvailability,
-rtpStatus: medicalSnapshot.rtpStatus,
-roleDnaScores: roleScores,
-bestRoleMatches,
-dataQualityFlags: getSquadPlayerDataQualityFlags(player).map((flag) => flag.key),
-updatedAt: player.updatedAt,
-};
-});
-}
-function buildSquadDataFoundationPayload() {
-ensurePlayerProfilesState();
-const dataQuality = buildSquadDataQualityReport();
-return {
-schemaVersion: 3,
-module: "player-profiles",
-source: "football-science",
-exportedAt: new Date().toISOString(),
-storageKey: playerProfilesStorageKey,
-supabaseReady: {
-recommendedTables: [
-"players",
-"player_roles",
-"player_attribute_ratings",
-"player_role_dna",
-"player_idp",
-"player_medical_summary_links",
-"player_future_data",
-"player_change_log",
-],
-primaryKey: "players.id",
-sessionPlannerContract: "sessionPlanner.players.v2",
-},
-schema: {
-players: [
-"id",
-"name",
-"number",
-"position",
-"photoUrl",
-"status",
-"squadStatus",
-"careerPhase",
-"rosterType",
-"countsInSquad",
-"temporaryGroup",
-"temporaryFrom",
-"temporaryTo",
-],
-roles: ["primaryRole", "secondaryRoles", "preferredSide", "roleGroup"],
-attributeRatings: playerProfileAttributeGroups.map((group) => group.key),
-roleDna: playerProfileRoleOptions,
-idp: ["status", "primaryFocus", "strengths", "focusAreas", "nextAction", "reviewDate"],
-medicalSummary: ["currentAvailability", "rtpStatus", "coachNote", "latestLogDate", "latestLogSummary"],
-futureData: ["matchData", "load", "minutes", "performanceNotes", "scoutingNotes", "analysisNotes"],
-changeLog: ["id", "type", "playerId", "actor", "summary", "changes", "createdAt"],
-},
-dataQuality: {
-totalFlags: dataQuality.totalFlags,
-criticalFlags: dataQuality.criticalFlags,
-sessionPlannerReady: dataQuality.sessionPlannerReady,
-totalPlayers: playerProfilesState.players.length,
-squadPlayers: getPlayerProfilesRosterSummary(playerProfilesState.players).squadCount,
-temporaryPlayers: getPlayerProfilesRosterSummary(playerProfilesState.players).temporaryCount,
-},
-players: playerProfilesState.players.map((player) => ({
-id: player.id,
-name: player.name,
-number: player.number,
-position: player.position,
-photoUrl: player.photoUrl,
-sourceUrl: player.sourceUrl,
-status: player.status,
-squadStatus: player.squadStatus,
-careerPhase: player.careerPhase,
-rosterType: player.rosterType,
-countsInSquad: player.countsInSquad,
-temporaryGroup: player.temporaryGroup,
-temporaryFrom: player.temporaryFrom,
-temporaryTo: player.temporaryTo,
-roles: {
-primaryRole: player.primaryRole,
-secondaryRoles: player.secondaryRoles,
-preferredSide: player.preferredSide,
-roleGroup: player.roleGroup,
-},
-attributeRatings: player.attributeRatings,
-roleDna: {
-bestMatches: getPlayerRoleDnaBestMatches(player, 4).map((match) => ({
-role: match.role,
-label: match.definition.label,
-score: match.score,
-})),
-scores: playerProfileRoleOptions.reduce((scores, role) => {
-scores[role] = getPlayerRoleDnaScore(player, role);
-return scores;
-}, {}),
-},
-idp: player.idp,
-medicalSummary: getPlayerProfileMedicalSnapshot(player.id),
-futureData: player.futureData,
-coachNotes: player.coachNotes,
-dataQualityFlags: getSquadPlayerDataQualityFlags(player),
-rosterOrder: player.rosterOrder,
-createdAt: player.createdAt,
-updatedAt: player.updatedAt,
-})),
-changeLog: normalizePlayerProfileChangeLog(playerProfilesState.changeLog),
-sessionPlanner: {
-players: buildSquadSessionPlannerContracts(),
-},
-};
-}
-function getSquadFoundationFileStamp() { return new Date().toISOString().slice(0, 10); }
-function downloadSquadFoundationTextFile(filename, contents, type = "text/plain") {
-const blob = new Blob([contents], { type });
-const url = URL.createObjectURL(blob);
-const link = document.createElement("a");
-link.href = url;
-link.download = filename;
-document.body.appendChild(link);
-link.click();
-link.remove();
-URL.revokeObjectURL(url);
-}
-function exportSquadDataFoundationJson() {
-const payload = buildSquadDataFoundationPayload();
-downloadSquadFoundationTextFile(
-`football-science-squad-data-${getSquadFoundationFileStamp()}.json`,
-`${JSON.stringify(payload, null, 2)}\n`,
-"application/json"
-);
-}
-function exportSquadSessionPlannerCsv() {
-const contracts = buildSquadSessionPlannerContracts();
-const headers = [
-"id",
-"name",
-"number",
-"primaryRole",
-"secondaryRoles",
-"preferredSide",
-"roleGroup",
-"status",
-"rosterType",
-"countsInSquad",
-"temporaryGroup",
-"availability",
-"bestRoleMatches",
-];
-const rows = contracts.map((player) => [
-player.id,
-player.name,
-player.number,
-player.primaryRole,
-player.secondaryRoles.join("|"),
-player.preferredSide,
-player.roleGroup,
-player.status,
-player.rosterType,
-player.countsInSquad ? "true" : "false",
-player.temporaryGroup,
-player.availability,
-player.bestRoleMatches.map((match) => `${match.role}:${match.score}`).join("|"),
-]);
-const escapeCsv = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
-const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\n");
-downloadSquadFoundationTextFile(
-`football-science-session-planner-contract-${getSquadFoundationFileStamp()}.csv`,
-`${csv}\n`,
-"text/csv"
-);
-}
 function getImportedSquadPlayersFromPayload(payload = {}) {
 if (Array.isArray(payload.players)) {
 return payload.players;
@@ -11439,73 +11234,6 @@ recordPlayerProfileChange("player-removed", removedPlayer, [
 writePlayerProfilesState();
 archiveMedicalPlayersForRemovedPlayerProfile(removedPlayer || { id: playerId });
 return true;
-}
-function createSessionPlannerPlayerProfileContract(player, dateValue = formatScheduleDateValue(new Date())) {
-if (!player) {
-return null;
-}
-const medicalSnapshot = getPlayerProfileMedicalSnapshot(player.id, dateValue);
-const effectiveStatus = getPlayerProfileEffectiveStatusFromSnapshot(player, medicalSnapshot);
-return {
-id: player.id,
-name: player.name,
-number: player.number,
-position: player.position,
-status: effectiveStatus,
-profileStatus: player.status,
-squadStatus: player.squadStatus,
-careerPhase: player.careerPhase,
-rosterType: player.rosterType,
-countsInSquad: player.countsInSquad,
-temporaryGroup: player.temporaryGroup,
-temporaryFrom: player.temporaryFrom,
-temporaryTo: player.temporaryTo,
-roleGroup: player.roleGroup,
-primaryRole: player.primaryRole,
-secondaryRoles: [...player.secondaryRoles],
-preferredSide: player.preferredSide,
-roleFit: Object.fromEntries(
-playerProfileRoleOptions.map((role) => [role, getPlayerProfileRoleFitScore(player, role)])
-),
-idp: {
-status: player.idp?.status || "none",
-primaryFocus: player.idp?.primaryFocus || "",
-nextAction: player.idp?.nextAction || "",
-reviewDate: player.idp?.reviewDate || "",
-},
-medical: {
-availability: medicalSnapshot.currentAvailability,
-rtpStatus: medicalSnapshot.rtpStatus,
-coachNote: medicalSnapshot.coachNote,
-latestLogSummary: medicalSnapshot.latestLogSummary,
-participation: medicalSnapshot.participation,
-status: medicalSnapshot.medicalStatusKey,
-tone: medicalSnapshot.tone,
-medicalSource: medicalSnapshot.medicalSource,
-hasActivePlan: medicalSnapshot.hasActivePlan,
-returnDate: medicalSnapshot.returnDate,
-returnDateLabel: medicalSnapshot.returnDateLabel,
-returnLabel: medicalSnapshot.returnLabel,
-activeInjuryLabel: medicalSnapshot.activeInjuryLabel,
-},
-};
-}
-function getSessionPlannerPlayerProfileContracts(options = {}) {
-ensurePlayerProfilesState();
-const dateValue = isMedicalDateValue(options.dateValue)
-? options.dateValue
-: formatScheduleDateValue(new Date());
-return playerProfilesState.players
-.map((player) => createSessionPlannerPlayerProfileContract(player, dateValue))
-.filter(Boolean);
-}
-function getSessionPlannerPlayerProfileContract(playerId, options = {}) {
-ensurePlayerProfilesState();
-const player = playerProfilesState.players.find((candidate) => candidate.id === playerId) ?? null;
-return createSessionPlannerPlayerProfileContract(
-player,
-isMedicalDateValue(options.dateValue) ? options.dateValue : formatScheduleDateValue(new Date())
-);
 }
 win.footballSciencePlayerProfiles = {
 getState: () => clonePlayerProfilesState(ensurePlayerProfilesState()),

@@ -54,6 +54,7 @@ import { adminDepartmentSuggestions, adminTitleSuggestions, createAdminAccessRen
 import { createProfileWorkspaceRenderer } from "./src/modules/profile/index.mjs";
 import { createStaffWorkspaceRenderer } from "./src/modules/staff/index.mjs";
 import { createSquadProfileSelectedRenderer, createSquadProfileSupportRenderer, createSquadRosterRenderer } from "./src/modules/squad/index.mjs";
+import { createMedicalOperationsRenderer } from "./src/modules/medical/index.mjs";
 const getElement = document.getElementById.bind(document);
 const win = window;
 const canvas = getElement("pitchCanvas");
@@ -5055,6 +5056,18 @@ renderPlayerProfileScoutingSpider,
 renderPlayerProfileSecondaryRoleOptions,
 renderPlayerProfileStatusChip,
 renderPlayerProfileTabs,
+});
+const medicalOperationsRenderer = createMedicalOperationsRenderer({
+escapeHtml,
+formatMedicalDateLabel,
+getMedicalCoachHandoverItems,
+getMedicalDailyStats,
+getMedicalHistoryEvents,
+getMedicalRtpPhaseOption,
+medicalClearanceRoles,
+medicalLoadGateOptions,
+renderMedicalCoachHandoverPanel,
+renderMedicalDailyHuddle,
 });
 const platformDefaultRoles = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
 const platformManagementRoleSet = new Set(["admin", "club-admin", "team-admin"]);
@@ -25645,340 +25658,41 @@ season: getMedicalSeasonSummary(dateValue),
 };
 }
 function renderMedicalOpsStat(label, value, meta = "", tone = "") {
-return `
-<article class="medical-ops-stat${tone ? ` medical-ops-stat-${escapeHtml(tone)}` : ""}">
-<span>${escapeHtml(label)}</span>
-<strong>${escapeHtml(value)}</strong>
-${meta ? `<small>${escapeHtml(meta)}</small>` : ""}
-</article>
-`;
+return medicalOperationsRenderer.renderOpsStat(label, value, meta, tone);
 }
 function renderMedicalSignalDrivers(signal, limit = 3) {
-const drivers = signal.drivers.slice(0, limit);
-if (!drivers.length) {
-return `<span class="medical-ops-chip medical-ops-chip-clear">Clear</span>`;
-}
-return drivers
-.map((driver) => `<span class="medical-ops-chip medical-ops-chip-${driver.severity >= 3 ? "high" : driver.severity === 2 ? "medium" : "low"}">${escapeHtml(driver.label)}</span>`)
-.join("");
+return medicalOperationsRenderer.renderSignalDrivers(signal, limit);
 }
 function renderMedicalOperationsTabs(extraClass = "") {
-const className = ["medical-ops-tabs", extraClass].filter(Boolean).join(" ");
-return `
-<nav class="${escapeHtml(className)}" aria-label="Medical operations tabs">
-${medicalOperationsTabOptions
-.map(
-(tab) => `
-<button
-type="button"
-class="${medicalOperationsTab === tab.key ? "is-active" : ""}"
-data-medical-ops-tab="${escapeHtml(tab.key)}"
-aria-pressed="${medicalOperationsTab === tab.key ? "true" : "false"}"
->${escapeHtml(tab.label)}</button>
-`
-)
-.join("")}
-</nav>
-`;
+return medicalOperationsRenderer.renderTabs(medicalOperationsTab, medicalOperationsTabOptions, extraClass);
 }
 function renderMedicalOperationsTopMenu() {
 if (!canViewPrivateMedicalDetails()) {
 return "";
 }
 medicalOperationsTab = normalizeMedicalOperationsTab(medicalOperationsTab);
-return `
-<section class="medical-ops-top-menu" data-medical-ops-top-menu aria-label="Medical operations menu">
-${renderMedicalOperationsTabs("medical-ops-tabs-top")}
-</section>
-`;
+return medicalOperationsRenderer.renderTopMenu(medicalOperationsTab, medicalOperationsTabOptions);
 }
 function renderMedicalOperationsOverview(summary) {
-const actionSignals = summary.actionSignals.slice(0, 5);
-const briefing = summary.actionRequired
-? `${summary.actionRequired} player${summary.actionRequired === 1 ? "" : "s"} need medical action before the next football decision.`
-: summary.activeCases.length
-? `${summary.activeCases.length} active case${summary.activeCases.length === 1 ? "" : "s"} under control.`
-: "No active medical blockers for the selected date.";
-return `
-<div class="medical-ops-overview">
-<article class="medical-ops-brief">
-<span>Medical Briefing</span>
-<strong>${escapeHtml(briefing)}</strong>
-<small>${escapeHtml(formatMedicalDateLabel(medicalState.selectedDate, "long"))}</small>
-</article>
-<div class="medical-ops-stats">
-${renderMedicalOpsStat("Action required", String(summary.actionRequired), "review / clearance / mismatch", summary.actionRequired ? "high" : "clear")}
-${renderMedicalOpsStat("Active cases", String(summary.activeCases.length), "current plans", summary.activeCases.length ? "medium" : "clear")}
-${renderMedicalOpsStat("Clearance blockers", String(summary.clearanceBlockers.length), "sign-off / gates", summary.clearanceBlockers.length ? "high" : "clear")}
-${renderMedicalOpsStat("Actual missing", String(summary.actualMissing), "today's participation", summary.actualMissing ? "low" : "clear")}
-${renderMedicalOpsStat("GPS / match load", "Pending", "Performance Room bridge", "neutral")}
-</div>
-<article class="medical-ops-card">
-<div class="medical-command-head">
-<span>Action Required</span>
-<strong>${summary.actionRequired}</strong>
-</div>
-<div class="medical-ops-signal-list">
-${actionSignals.length
-? actionSignals
-.map(
-(signal) => `
-<button type="button" data-medical-select-player="${escapeHtml(signal.player.id)}" class="medical-ops-signal-row medical-ops-tone-${escapeHtml(signal.actionTone)}">
-<span>${escapeHtml(signal.player.name)}</span>
-<strong>${escapeHtml(signal.actionLabel)}</strong>
-<small>${escapeHtml(signal.primaryActionDriver)}</small>
-</button>
-`
-)
-.join("")
-: `<div class="medical-empty-inline">No medical actions required for the selected date.</div>`}
-</div>
-</article>
-${renderMedicalDailyHuddle()}
-${renderMedicalCoachHandoverPanel()}
-${renderMedicalOperationsPlayerAvailability(summary)}
-<article class="medical-ops-card">
-<div class="medical-command-head">
-<span>Active Case Board</span>
-<strong>${summary.activeCases.length}</strong>
-</div>
-<div class="medical-ops-case-list">
-${summary.activeCases.length
-? summary.activeCases
-.slice(0, 6)
-.map(
-({ player, plan, severity, daysRemaining, review, clearance }) => `
-<button type="button" data-medical-edit-injury-plan="${escapeHtml(plan.id)}" class="medical-ops-case-row medical-ops-tone-${escapeHtml(severity.tone)}" aria-label="Edit ${escapeHtml(player.name)} medical plan">
-<span class="medical-case-player">
-<strong>${escapeHtml(player.name)}</strong>
-<small>${escapeHtml(player.position || "Position")} / ${escapeHtml(severity.label)}</small>
-</span>
-<span class="medical-case-plan">
-<strong>${escapeHtml(plan.injuryType)}</strong>
-<small>${escapeHtml([plan.bodyArea, getMedicalRtpPhaseOption(plan.rtpPhase).label].filter(Boolean).join(" / "))}</small>
-</span>
-<span class="medical-case-metric">
-<strong>${plan.participation}%</strong>
-<small>recommended</small>
-</span>
-<span class="medical-case-metric">
-<strong>${daysRemaining}</strong>
-<small>days left</small>
-</span>
-<span class="medical-case-footer">
-<small>${escapeHtml(review.label)}</small>
-<small>${clearance.signOffCount}/${medicalClearanceRoles.length} sign-off / ${clearance.gatePassCount}/${medicalLoadGateOptions.length} gates</small>
-<b>Edit plan</b>
-</span>
-</button>
-`
-)
-.join("")
-: `<div class="medical-empty-inline">No active availability plans today.</div>`}
-</div>
-</article>
-</div>
-`;
+return medicalOperationsRenderer.renderOverview(summary, medicalState.selectedDate);
 }
 function renderMedicalOperationsPlayerAvailability(summary) {
-const players = summary.signals;
-return `
-<article class="medical-ops-card medical-ops-player-availability-card">
-<div class="medical-command-head">
-<span>Player Availability</span>
-<strong>${players.length}</strong>
-</div>
-<div class="medical-ops-player-table">
-<div class="medical-ops-player-table-head" aria-hidden="true">
-<span>Player</span>
-<span>Status</span>
-<span>7 days</span>
-</div>
-<div class="medical-ops-player-table-body">
-${
-players.length
-? players
-.map((signal) => {
-const participationLabel = signal.record ? `${signal.record.participation}%` : "Not set";
-const trailingLabel = signal.trailing.average === null ? "-" : `${signal.trailing.average}%`;
-const trailingMeta = signal.trailing.records.length ? `${signal.trailing.records.length}/7 logged` : "No trend";
-return `
-<button type="button" data-medical-select-player="${escapeHtml(signal.player.id)}" class="medical-ops-player-row medical-ops-tone-${escapeHtml(signal.tone)}">
-<span>
-<strong>${escapeHtml(signal.player.name)}</strong>
-<small>${escapeHtml(signal.player.position || "Position")}</small>
-</span>
-<span>
-<strong>${escapeHtml(signal.status.label)}</strong>
-<small>${escapeHtml(participationLabel)}</small>
-</span>
-<span>
-<strong>${escapeHtml(trailingLabel)}</strong>
-<small>${escapeHtml(trailingMeta)}</small>
-</span>
-</button>
-`;
-})
-.join("")
-: `<div class="medical-empty-inline">No players available in the medical roster.</div>`
-}
-</div>
-</div>
-</article>
-`;
+return medicalOperationsRenderer.renderPlayerAvailability(summary);
 }
 function renderMedicalOperationsSignals(summary) {
-return `
-<div class="medical-ops-table medical-ops-signals-table">
-<div class="medical-ops-table-head" aria-hidden="true">
-<span>Player</span>
-<span>Availability</span>
-<span>Case / RTP</span>
-<span>Signals</span>
-<span>Action</span>
-</div>
-${summary.signals
-.map((signal) => {
-const planLabel = signal.activePlan
-? `${signal.activePlan.injuryType} / ${getMedicalRtpPhaseOption(signal.activePlan.rtpPhase).label}`
-: "No active case";
-return `
-<button type="button" data-medical-select-player="${escapeHtml(signal.player.id)}" class="medical-ops-table-row medical-ops-tone-${escapeHtml(signal.tone)}">
-<span>${escapeHtml(signal.player.name)}<small>${escapeHtml(signal.player.position || "Position")}</small></span>
-<strong>${signal.record ? `${signal.record.participation}%` : "Not set"}<small>${escapeHtml(signal.status.label)}</small></strong>
-<span>${escapeHtml(planLabel)}<small>${signal.trailing.average === null ? "No 7-day trend" : `${signal.trailing.average}% trailing average`}</small></span>
-<span class="medical-ops-driver-cell">${renderMedicalSignalDrivers(signal, 4)}</span>
-<strong>${escapeHtml(signal.actionSeverity ? signal.actionLabel : signal.label)}<small>${escapeHtml(signal.actionSeverity ? signal.primaryActionDriver : "No action")}</small></strong>
-</button>
-`;
-})
-.join("")}
-</div>
-`;
+return medicalOperationsRenderer.renderSignals(summary);
 }
 function renderMedicalOperationsCases(summary) {
-return `
-<div class="medical-ops-table medical-ops-cases-table">
-<div class="medical-ops-table-head" aria-hidden="true">
-<span>Player</span>
-<span>Case</span>
-<span>Window</span>
-<span>RTP / Recommendation</span>
-<span>Clearance</span>
-</div>
-${summary.activeCases.length
-? summary.activeCases
-.map(
-({ player, plan, severity, daysRemaining, elapsedDays, review, clearance }) => `
-<button type="button" data-medical-select-player="${escapeHtml(player.id)}" class="medical-ops-table-row medical-ops-tone-${escapeHtml(severity.tone)}">
-<span>${escapeHtml(player.name)}<small>${escapeHtml(player.position || "Position")}</small></span>
-<strong>${escapeHtml(plan.injuryType)}<small>${escapeHtml([plan.bodyArea, severity.label].filter(Boolean).join(" / "))}</small></strong>
-<span>${escapeHtml(formatMedicalDateLabel(plan.startDate))} - ${escapeHtml(formatMedicalDateLabel(plan.endDate))}<small>${elapsedDays} done / ${daysRemaining} left</small></span>
-<strong>${escapeHtml(getMedicalRtpPhaseOption(plan.rtpPhase).label)}<small>${plan.participation}% recommended</small></strong>
-<span>${clearance.signOffCount}/${medicalClearanceRoles.length} sign-off<small>${clearance.gatePassCount}/${medicalLoadGateOptions.length} gates / ${escapeHtml(review.label)}</small></span>
-</button>
-`
-)
-.join("")
-: `<div class="medical-empty-inline">No active availability plans today.</div>`}
-</div>
-`;
+return medicalOperationsRenderer.renderCases(summary);
 }
 function renderMedicalOperationsHistory() {
-const events = getMedicalHistoryEvents();
-return `
-<div class="medical-ops-table medical-ops-history-table">
-<div class="medical-ops-table-head" aria-hidden="true">
-<span>Date</span>
-<span>Player</span>
-<span>Type</span>
-<span>Detail</span>
-<span>Share</span>
-</div>
-${events.length
-? events
-.map(
-(event) => `
-<button type="button" data-medical-select-player="${escapeHtml(event.player.id)}" class="medical-ops-table-row">
-<span>${escapeHtml(formatMedicalDateLabel(event.date))}</span>
-<strong>${escapeHtml(event.player.name)}<small>${escapeHtml(event.player.position || "Position")}</small></strong>
-<span>${escapeHtml(event.type)}</span>
-<span>${escapeHtml(event.title)}<small>${escapeHtml(event.detail)}</small></span>
-<strong>${event.coachShared ? "Approved" : "Private"}<small>${event.coachShared ? "coach-safe" : "medical only"}</small></strong>
-</button>
-`
-)
-.join("")
-: `<div class="medical-empty-inline">No medical history yet.</div>`}
-</div>
-`;
+return medicalOperationsRenderer.renderHistory();
 }
 function renderMedicalOperationsSeason(summary) {
-const season = summary.season;
-return `
-<div class="medical-ops-season">
-<div class="medical-ops-stats">
-${renderMedicalOpsStat("Season cases", String(season.plans.length), "medical plans", season.plans.length ? "medium" : "clear")}
-${renderMedicalOpsStat("Active now", String(season.activeCount), "current cases", season.activeCount ? "medium" : "clear")}
-${renderMedicalOpsStat("Returned", String(season.returnedCount), "closed windows", "clear")}
-${renderMedicalOpsStat("Managed days", String(season.managedDays), `${season.unavailableDays} unavailable`, season.managedDays ? "low" : "clear")}
-</div>
-<article class="medical-ops-card">
-<div class="medical-command-head">
-<span>Case Severity</span>
-<strong>${season.plans.length}</strong>
-</div>
-<div class="medical-ops-severity-grid">
-<div><span>Major</span><strong>${season.major}</strong></div>
-<div><span>Moderate</span><strong>${season.moderate}</strong></div>
-<div><span>Minor</span><strong>${season.minor}</strong></div>
-<div><span>Light</span><strong>${season.light}</strong></div>
-</div>
-</article>
-<article class="medical-ops-card">
-<div class="medical-command-head">
-<span>Most Managed Days</span>
-<strong>${season.topPlayerDays.length}</strong>
-</div>
-<div class="medical-ops-signal-list">
-${season.topPlayerDays.length
-? season.topPlayerDays
-.map(
-({ player, days }) => `
-<button type="button" data-medical-select-player="${escapeHtml(player.id)}" class="medical-ops-signal-row">
-<span>${escapeHtml(player.name)}</span>
-<strong>${days} days</strong>
-<small>${escapeHtml(player.position || "Position")}</small>
-</button>
-`
-)
-.join("")
-: `<div class="medical-empty-inline">No managed medical days this season.</div>`}
-</div>
-</article>
-</div>
-`;
+return medicalOperationsRenderer.renderSeason(summary);
 }
 function renderMedicalCoachSafeOperationsSummary() {
-const items = getMedicalCoachHandoverItems(medicalState.selectedDate);
-const stats = getMedicalDailyStats(medicalState.selectedDate);
-return `
-<section class="medical-operations-system is-coach-safe" data-medical-operations-system>
-<header class="medical-ops-header">
-<div>
-<p class="placeholder-tag">Medical Operations</p>
-<h2>Coach-Safe Summary</h2>
-</div>
-<span class="medical-ops-boundary">Approved share only</span>
-</header>
-<div class="medical-ops-stats">
-${renderMedicalOpsStat("Full", String(stats.fullCount), "100%", "clear")}
-${renderMedicalOpsStat("Modified", String(stats.modifiedCount), "10-75%", stats.modifiedCount ? "medium" : "clear")}
-${renderMedicalOpsStat("Unavailable", String(stats.unavailableCount), "0%", stats.unavailableCount ? "high" : "clear")}
-${renderMedicalOpsStat("Coach notes", String(items.length), "approved", items.length ? "low" : "clear")}
-</div>
-</section>
-`;
+return medicalOperationsRenderer.renderCoachSafeSummary(medicalState.selectedDate);
 }
 function renderMedicalOperationsSystem() {
 if (!canViewPrivateMedicalDetails()) {
@@ -25986,21 +25700,7 @@ return renderMedicalCoachSafeOperationsSummary();
 }
 medicalOperationsTab = normalizeMedicalOperationsTab(medicalOperationsTab);
 const summary = getMedicalOperationsSummary(medicalState.selectedDate);
-const body =
-medicalOperationsTab === "signals"
-? renderMedicalOperationsSignals(summary)
-: medicalOperationsTab === "cases"
-? renderMedicalOperationsCases(summary)
-: medicalOperationsTab === "history"
-? renderMedicalOperationsHistory(summary)
-: medicalOperationsTab === "season"
-? renderMedicalOperationsSeason(summary)
-: renderMedicalOperationsOverview(summary);
-return `
-<section class="medical-operations-system" data-medical-operations-system aria-label="Medical operations intelligence board">
-${body}
-</section>
-`;
+return medicalOperationsRenderer.renderPrivateSystem(summary, medicalOperationsTab, medicalState.selectedDate);
 }
 function renderMedicalAvailabilityWorkspace(message = "") {
 const stats = getMedicalDailyStats(medicalState.selectedDate);

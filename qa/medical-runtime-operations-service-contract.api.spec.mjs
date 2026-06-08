@@ -140,14 +140,16 @@ test("Medical runtime operations service owns operations outside app-runtime", (
   const index = readProjectFile("src/modules/medical/index.mjs");
 
   expect(typeof createMedicalRuntimeOperationsService).toBe("function");
-  expect(app).toContain("createMedicalRuntimeOperationsService({");
+  expect(app).toContain("createMedicalRuntimeFacade({");
   expect(app).toContain("function applyMedicalBulkRecommendation(...args)");
+  expect(app).not.toContain("createMedicalRuntimeOperationsService({");
   expect(app).not.toContain("function applyMedicalBulkRecommendation(values = {}) {");
   expect(app).not.toContain("function recordMedicalDatabaseSyncEvent(eventType, payload = {}) {");
   expect(service).toContain("function applyMedicalBulkRecommendation(values = {})");
   expect(service).toContain("function recordMedicalDatabaseSyncEvent(eventType, payload = {})");
   expect(service).not.toContain("renderDashboardChatWidget");
   expect(index).toContain('export * from "./medical-runtime-operations-service.mjs";');
+  expect(index).toContain('export * from "./medical-runtime-facade.mjs";');
 });
 
 test("Medical runtime operations service preserves database sync, audit, and coach handover copy", async () => {

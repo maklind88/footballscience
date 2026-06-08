@@ -36,6 +36,7 @@ test("Medical runtime renderer factory does not own protected write paths", () =
 
 test("Medical workspace runtime renderer owns shell rendering outside app-runtime", () => {
   const app = readProjectFile("app-runtime.js");
+  const facade = readProjectFile("src/modules/medical/medical-runtime-facade.mjs");
   const workspaceRenderer = readProjectFile("src/modules/medical/medical-workspace-runtime-renderer.mjs");
   const index = readProjectFile("src/modules/medical/index.mjs");
   const workspace = {
@@ -64,8 +65,10 @@ test("Medical workspace runtime renderer owns shell rendering outside app-runtim
   expect(workspace.innerHTML).toContain("Medical Team");
   expect(workspace.innerHTML).toContain("First Team");
   expect(workspace.innerHTML).toContain("<main>Saved.</main>");
-  expect(app).toContain("createMedicalWorkspaceRuntimeRenderer({");
-  expect(app).not.toContain("function renderMedicalTeamWorkspace(");
+  expect(app).toContain("createMedicalRuntimeFacade({");
+  expect(app).toContain("function renderMedicalTeamWorkspace(...args)");
+  expect(app).not.toContain("createMedicalWorkspaceRuntimeRenderer({");
+  expect(facade).toContain("createMedicalWorkspaceRuntimeRenderer({");
   expect(workspaceRenderer).not.toContain("writeMedicalState");
   expect(workspaceRenderer).not.toContain("recordMedicalDatabaseSyncEvent");
   expect(workspaceRenderer).not.toContain("localStorage");

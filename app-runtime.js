@@ -121,13 +121,10 @@ import {
 } from "./src/modules/squad/index.mjs";
 import {
   bindMedicalRuntimeBindings,
-  createMedicalRuntimeActivitySelectors,
+  createMedicalRuntimeFacade,
   createMedicalRuntimeHelpers,
-  createMedicalRuntimeOperationsService,
   createMedicalRuntimeRenderers,
   createMedicalRuntimeStateService,
-  createMedicalRuntimeWriteService,
-  createMedicalWorkspaceRuntimeRenderer,
   defaultMedicalPlayers,
   medicalActualParticipationFallback,
   medicalClearanceRoles,
@@ -5864,58 +5861,42 @@ function getPendingPlayerProfileImportPlan(...args) { return playerProfileRuntim
 function setPendingPlayerProfileImportPlan(...args) { return playerProfileRuntimeFacade.setPendingPlayerProfileImportPlan(...args); }
 function setPlayerProfileAutosaveLastSignature(...args) { return playerProfileRuntimeFacade.setPlayerProfileAutosaveLastSignature(...args); }
 function canEditMedicalTeam() { return canCurrentUserEditWorkspace("medical-team"); }
-let medicalRuntimeActivitySelectors = null;
-function getMedicalAccessLabel(...args) { return medicalRuntimeActivitySelectors.getMedicalAccessLabel(...args); }
-function getMedicalHeroTeamName(...args) { return medicalRuntimeActivitySelectors.getMedicalHeroTeamName(...args); }
-function getSelectedMedicalPlayer(...args) { return medicalRuntimeActivitySelectors.getSelectedMedicalPlayer(...args); }
-function getActiveMedicalPlayers(...args) { return medicalRuntimeActivitySelectors.getActiveMedicalPlayers(...args); }
-function isMedicalPlayerVisibleForDate(...args) { return medicalRuntimeActivitySelectors.isMedicalPlayerVisibleForDate(...args); }
-function getActiveMedicalPlayersForDate(...args) { return medicalRuntimeActivitySelectors.getActiveMedicalPlayersForDate(...args); }
-function isMedicalInjuryPlanActive(...args) { return medicalRuntimeActivitySelectors.isMedicalInjuryPlanActive(...args); }
-function getMedicalPlayerInjuryPlans(...args) { return medicalRuntimeActivitySelectors.getMedicalPlayerInjuryPlans(...args); }
-function getActiveMedicalInjuryPlan(...args) { return medicalRuntimeActivitySelectors.getActiveMedicalInjuryPlan(...args); }
-function createMedicalRecordFromSquadAvailabilityBlock(...args) { return medicalRuntimeActivitySelectors.createMedicalRecordFromSquadAvailabilityBlock(...args); }
-function isMedicalPlanCleared(...args) { return medicalRuntimeActivitySelectors.isMedicalPlanCleared(...args); }
-function getMedicalRecommendationBlockReason(...args) { return medicalRuntimeActivitySelectors.getMedicalRecommendationBlockReason(...args); }
-function getMedicalReviewAlerts(...args) { return medicalRuntimeActivitySelectors.getMedicalReviewAlerts(...args); }
-function getMedicalCoachComment(...args) { return medicalRuntimeActivitySelectors.getMedicalCoachComment(...args); }
-function getMedicalVisibleComment(...args) { return medicalRuntimeActivitySelectors.getMedicalVisibleComment(...args); }
-function createMedicalRecordFromInjuryPlan(...args) { return medicalRuntimeActivitySelectors.createMedicalRecordFromInjuryPlan(...args); }
-function getLatestMedicalRecord(...args) { return medicalRuntimeActivitySelectors.getLatestMedicalRecord(...args); }
-function getMedicalPlayerRecords(...args) { return medicalRuntimeActivitySelectors.getMedicalPlayerRecords(...args); }
-function isMedicalRestrictedRecommendationRecord(...args) { return medicalRuntimeActivitySelectors.isMedicalRestrictedRecommendationRecord(...args); }
-function getMedicalPlayerRestrictedLogRecords(...args) { return medicalRuntimeActivitySelectors.getMedicalPlayerRestrictedLogRecords(...args); }
-function getMedicalWindowDates(...args) { return medicalRuntimeActivitySelectors.getMedicalWindowDates(...args); }
-function getMedicalPastWindowDates(...args) { return medicalRuntimeActivitySelectors.getMedicalPastWindowDates(...args); }
-function getMedicalMonthToDateDates(...args) { return medicalRuntimeActivitySelectors.getMedicalMonthToDateDates(...args); }
-function getMedicalScheduleSummary(...args) { return medicalRuntimeActivitySelectors.getMedicalScheduleSummary(...args); }
-function getMedicalRecommendationEvent(...args) { return medicalRuntimeActivitySelectors.getMedicalRecommendationEvent(...args); }
-function getMedicalRecommendationActivityContext(...args) { return medicalRuntimeActivitySelectors.getMedicalRecommendationActivityContext(...args); }
-function getMedicalRecordStatus(...args) { return medicalRuntimeActivitySelectors.getMedicalRecordStatus(...args); }
-function getDefaultMedicalInjuryPlanDraft(...args) { return medicalRuntimeActivitySelectors.getDefaultMedicalInjuryPlanDraft(...args); }
-function normalizeMedicalInjuryPlanDraft(...args) { return medicalRuntimeActivitySelectors.normalizeMedicalInjuryPlanDraft(...args); }
-function getMedicalInjuryPlanDraft(...args) { return medicalRuntimeActivitySelectors.getMedicalInjuryPlanDraft(...args); }
-function setMedicalInjuryPlanDraft(...args) { return medicalRuntimeActivitySelectors.setMedicalInjuryPlanDraft(...args); }
-function setMedicalInjuryPlanDraftFromPlan(...args) { return medicalRuntimeActivitySelectors.setMedicalInjuryPlanDraftFromPlan(...args); }
-function clearMedicalInjuryPlanDraft(...args) { return medicalRuntimeActivitySelectors.clearMedicalInjuryPlanDraft(...args); }
-function getMedicalInjuryPlanFormDraft(...args) { return medicalRuntimeActivitySelectors.getMedicalInjuryPlanFormDraft(...args); }
-function persistMedicalInjuryPlanDraftFromForm(...args) { return medicalRuntimeActivitySelectors.persistMedicalInjuryPlanDraftFromForm(...args); }
-medicalRuntimeActivitySelectors = createMedicalRuntimeActivitySelectors({
+const medicalRuntimeFacade = createMedicalRuntimeFacade({
 addCalendarDays,
 canEditMedicalTeam,
+canViewPrivateMedicalDetails,
+cloneMedicalState,
+commitMedicalClinicalState,
+compareMedicalPlayers,
 ensureMedicalState,
+escapeHtml,
 formatDateValue: formatScheduleDateValue,
+getCurrentMedicalActorId,
+getCurrentPlatformUser,
 getCurrentUser: getCurrentPlatformUser,
 getFormValues: getPlatformFormValues,
+getMedicalBulkRecommendationOpen: () => medicalBulkRecommendationOpen,
+getMedicalBulkSelectedPlayerIds: () => medicalBulkSelectedPlayerIds,
+getMedicalClearanceValues,
+getMedicalDataSafetyCounts,
 getMedicalEntityUpdatedMs,
+getMedicalLoadGateValues,
+getMedicalOperationsTab: () => medicalOperationsTab,
 getMedicalPlayerAvailabilityStatusOption,
 getMedicalPlayerSquadAvailabilityBlockReason,
+getMedicalRemovedSquadPlayerIdSet,
+getMedicalRosterSearchQuery: () => medicalRosterSearchQuery,
 getMedicalRtpPhaseOption,
+getMedicalRtpPhaseForRecommendation,
 getMedicalState: () => medicalState,
+getMedicalStatusFilter: () => medicalStatusFilter,
+getMedicalStatusForParticipation,
 getMedicalStatusOptionForDate,
+getPlayerProfileRosterLabel,
 getPlatformStructureState,
 getPlatformTeamDisplayName,
 getRemovedSquadPlayerIdSet: getMedicalRemovedSquadPlayerIdSet,
+getWorkspace: () => ui.medicalTeamWorkspace,
 getScheduleEventsForDate,
 getScheduleMainEvent,
 isAdmin: isCurrentPlatformUserAdmin,
@@ -5931,198 +5912,143 @@ medicalClearanceRoles,
 medicalInjuryPlanDraftsByPlayerId,
 medicalInjuryPlanStatusOptions,
 medicalLoadGateOptions,
+medicalCommandSelectors,
+medicalOperationsRenderer,
+medicalOperationsSelectors,
+medicalOperationsTabOptions,
+medicalPlanSelectors,
+medicalPlayerModalRenderer,
+medicalProfileSummarySelectors,
+medicalRosterRenderer,
+medicalRosterSelectors,
+medicalRtpPhaseOptions,
+medicalStatusOptions,
+medicalTeamStorageKey,
 medicalWindowLength,
+normalizeMedicalGovernancePolicy,
+normalizeMedicalInjuryPlan,
+normalizeMedicalPlayer,
+normalizeMedicalRecord,
+normalizeMedicalOperationsTab,
 normalizeClearance: normalizeMedicalClearance,
 normalizeLoadGates: normalizeMedicalLoadGates,
 normalizeParticipation: normalizeMedicalParticipation,
 normalizePlatformText: normalizePlatformStructureText,
 normalizeShareValue: normalizeMedicalShareValue,
+navigatorRef: navigator,
 parseDateValue: parseScheduleDateValue,
 scheduleEventTypes,
-});
-function getMedicalDailyStats(dateValue = medicalState?.selectedDate) { return medicalCommandSelectors.getMedicalDailyStats(dateValue); }
-function getMedicalWindowAverage() { return medicalCommandSelectors.getMedicalWindowAverage(); }
-function getMedicalParticipationAverageForDates(dateValues = []) { return medicalCommandSelectors.getMedicalParticipationAverageForDates(dateValues); }
-function getMedicalMonthAverageStats() { return medicalCommandSelectors.getMedicalMonthAverageStats(); }
-function getMedicalAttentionPlayers(dateValue = medicalState?.selectedDate) { return medicalCommandSelectors.getMedicalAttentionPlayers(dateValue); }
-function getMedicalPositionSummaries(dateValue = medicalState?.selectedDate) { return medicalCommandSelectors.getMedicalPositionSummaries(dateValue); }
-function getMedicalDaySpan(startDateValue, endDateValue) {
-if (!isMedicalDateValue(startDateValue) || !isMedicalDateValue(endDateValue)) {
-return null;
-}
-const dayMs = 24 * 60 * 60 * 1000;
-return Math.max(1, Math.round((parseScheduleDateValue(endDateValue) - parseScheduleDateValue(startDateValue)) / dayMs) + 1);
-}
-function getMedicalDailyHuddle(dateValue = medicalState?.selectedDate) { return medicalCommandSelectors.getMedicalDailyHuddle(dateValue); }
-function getMedicalCoachHandoverItems(dateValue = medicalState?.selectedDate) { return medicalCommandSelectors.getMedicalCoachHandoverItems(dateValue); }
-function buildMedicalCoachHandoverText(dateValue = medicalState?.selectedDate) { return medicalCommandSelectors.buildMedicalCoachHandoverText(dateValue); }
-let medicalRuntimeOperationsService = null;
-function recordMedicalAuditEvent(...args) { return medicalRuntimeOperationsService.recordMedicalAuditEvent(...args); }
-function getMedicalDatabasePlayer(...args) { return medicalRuntimeOperationsService.getMedicalDatabasePlayer(...args); }
-function buildMedicalDatabaseStateSummary(...args) { return medicalRuntimeOperationsService.buildMedicalDatabaseStateSummary(...args); }
-function getMedicalDatabaseIdempotencyKey(...args) { return medicalRuntimeOperationsService.getMedicalDatabaseIdempotencyKey(...args); }
-function recordMedicalDatabaseSyncEvent(...args) { return medicalRuntimeOperationsService.recordMedicalDatabaseSyncEvent(...args); }
-function copyMedicalCoachHandoverToClipboard(...args) { return medicalRuntimeOperationsService.copyMedicalCoachHandoverToClipboard(...args); }
-function getMedicalPlayerProfileSummary(player, dateValue = medicalState?.selectedDate) { return medicalProfileSummarySelectors.getMedicalPlayerProfileSummary(player, dateValue); }
-function getFilteredMedicalPlayers(...args) { return medicalRuntimeOperationsService.getFilteredMedicalPlayers(...args); }
-function getMedicalValidBulkSelection(...args) { return medicalRuntimeOperationsService.getMedicalValidBulkSelection(...args); }
-function getMedicalBulkSelectedPlayers(...args) { return medicalRuntimeOperationsService.getMedicalBulkSelectedPlayers(...args); }
-function getMedicalBulkRecommendationEligiblePlayers(...args) { return medicalRuntimeOperationsService.getMedicalBulkRecommendationEligiblePlayers(...args); }
-function toggleMedicalBulkPlayer(...args) { return medicalRuntimeOperationsService.toggleMedicalBulkPlayer(...args); }
-function setMedicalBulkSelection(...args) { return medicalRuntimeOperationsService.setMedicalBulkSelection(...args); }
-function setMedicalBulkNotSetSelection(...args) { return medicalRuntimeOperationsService.setMedicalBulkNotSetSelection(...args); }
-function applyMedicalQuickRecommendation(...args) { return medicalRuntimeOperationsService.applyMedicalQuickRecommendation(...args); }
-function applyMedicalBulkRecommendation(...args) { return medicalRuntimeOperationsService.applyMedicalBulkRecommendation(...args); }
-function updateMedicalBulkActivityControls(...args) { return medicalRuntimeOperationsService.updateMedicalBulkActivityControls(...args); }
-function updateMedicalGovernancePolicy(...args) { return medicalRuntimeOperationsService.updateMedicalGovernancePolicy(...args); }
-function getMedicalPlanTotalDays(plan) { return medicalPlanSelectors.getMedicalPlanTotalDays(plan); }
-function getMedicalPlanElapsedDays(plan, dateValue = medicalState?.selectedDate) { return medicalPlanSelectors.getMedicalPlanElapsedDays(plan, dateValue); }
-function getMedicalPlanDaysRemaining(plan, dateValue = medicalState?.selectedDate) { return medicalPlanSelectors.getMedicalPlanDaysRemaining(plan, dateValue); }
-function getMedicalPlanSeverity(plan) { return medicalPlanSelectors.getMedicalPlanSeverity(plan); }
-function getMedicalPlanClearanceSummary(plan) { return medicalPlanSelectors.getMedicalPlanClearanceSummary(plan); }
-function getMedicalPlanReviewState(plan, dateValue = medicalState?.selectedDate) { return medicalPlanSelectors.getMedicalPlanReviewState(plan, dateValue); }
-function getMedicalTrailingRecommendationSummary(playerId, dateValue = medicalState?.selectedDate) { return medicalPlanSelectors.getMedicalTrailingRecommendationSummary(playerId, dateValue); }
-function getMedicalSeasonPlans(dateValue = medicalState?.selectedDate) { return medicalOperationsSelectors.getMedicalSeasonPlans(dateValue); }
-function getMedicalActiveCaseItems(dateValue = medicalState?.selectedDate) { return medicalOperationsSelectors.getMedicalActiveCaseItems(dateValue); }
-function getMedicalHistoryEvents(limit = 40) { return medicalOperationsSelectors.getMedicalHistoryEvents(limit); }
-function getMedicalSeasonSummary(dateValue = medicalState?.selectedDate) { return medicalOperationsSelectors.getMedicalSeasonSummary(dateValue); }
-function getMedicalPlayerRiskSignal(player, dateValue = medicalState?.selectedDate) { return medicalOperationsSelectors.getMedicalPlayerRiskSignal(player, dateValue); }
-function getMedicalRiskSignals(dateValue = medicalState?.selectedDate) { return medicalOperationsSelectors.getMedicalRiskSignals(dateValue); }
-function getMedicalOperationsSummary(dateValue = medicalState?.selectedDate) { return medicalOperationsSelectors.getMedicalOperationsSummary(dateValue); }
-function renderMedicalOperationsTopMenu() {
-if (!canViewPrivateMedicalDetails()) {
-return "";
-}
-medicalOperationsTab = normalizeMedicalOperationsTab(medicalOperationsTab);
-return medicalOperationsRenderer.renderTopMenu(medicalOperationsTab, medicalOperationsTabOptions);
-}
-function renderMedicalOperationsSystem() {
-if (!canViewPrivateMedicalDetails()) {
-return medicalOperationsRenderer.renderCoachSafeSummary(medicalState.selectedDate);
-}
-medicalOperationsTab = normalizeMedicalOperationsTab(medicalOperationsTab);
-const summary = getMedicalOperationsSummary(medicalState.selectedDate);
-return medicalOperationsRenderer.renderPrivateSystem(summary, medicalOperationsTab, medicalState.selectedDate);
-}
-function getMedicalRosterPositionGroups(players = []) { return medicalRosterSelectors.getMedicalRosterPositionGroups(players); }
-function getMedicalRosterPositionStats(players = []) { return medicalRosterSelectors.getMedicalRosterPositionStats(players); }
-const { renderMedicalTeamWorkspace } = createMedicalWorkspaceRuntimeRenderer({
-canViewPrivateDetails: canViewPrivateMedicalDetails,
-ensureState: ensureMedicalState,
-escapeHtml,
-getAccessLabel: getMedicalAccessLabel,
-getHeroTeamName: getMedicalHeroTeamName,
-getOperationsTab: () => medicalOperationsTab,
-getWorkspace: () => ui.medicalTeamWorkspace,
-normalizeOperationsTab: normalizeMedicalOperationsTab,
-playerModalRenderer: medicalPlayerModalRenderer,
-renderOperationsSystem: renderMedicalOperationsSystem,
-renderOperationsTopMenu: renderMedicalOperationsTopMenu,
-rosterRenderer: medicalRosterRenderer,
-setOperationsTab: (tab) => {
-medicalOperationsTab = tab;
-},
-});
-medicalRuntimeOperationsService = createMedicalRuntimeOperationsService({
-addMedicalRecord,
-buildMedicalCoachHandoverText,
-canEditMedicalTeam,
-canViewPrivateMedicalDetails,
-commitMedicalClinicalState,
-compareMedicalPlayers,
-ensureMedicalState,
-formatDateValue: formatScheduleDateValue,
-getActiveMedicalPlayers,
-getActiveMedicalPlayersForDate,
-getBulkRecommendationOpen: () => medicalBulkRecommendationOpen,
-getBulkSelectedPlayerIds: () => medicalBulkSelectedPlayerIds,
-getCurrentPlatformUser,
-getLatestMedicalRecord,
-getMedicalCoachHandoverItems,
-getMedicalDataSafetyCounts,
-getMedicalDailyStats,
-getMedicalPlayerSquadAvailabilityBlockReason,
-getMedicalRecommendationActivityContext,
-getMedicalRecommendationBlockReason,
-getMedicalRecordStatus,
-getMedicalRtpPhaseForRecommendation,
-getMedicalRtpPhaseOption,
-getMedicalState: () => medicalState,
-getMedicalStatusForParticipation,
-getPlayerProfileRosterLabel,
-getRosterSearchQuery: () => medicalRosterSearchQuery,
-getStatusFilter: () => medicalStatusFilter,
-isMedicalDateValue,
-isMedicalItemArchived,
-isMedicalPlayerBlockedBySquadAvailability,
-medicalActualParticipationFallback,
-medicalRtpPhaseOptions,
-medicalTeamStorageKey,
-navigatorRef: navigator,
-normalizeMedicalGovernancePolicy,
-normalizeMedicalParticipation,
-renderMedicalTeamWorkspace,
-setBulkRecommendationOpen: (isOpen) => {
-medicalBulkRecommendationOpen = Boolean(isOpen);
-},
+setBulkRecommendationOpen: (isOpen) => { medicalBulkRecommendationOpen = Boolean(isOpen); },
 setBulkSelectedPlayerIds: (selectedIds) => {
 medicalBulkSelectedPlayerIds = selectedIds instanceof Set ? selectedIds : new Set(selectedIds || []);
 },
+setMedicalBulkRecommendationOpen: (isOpen) => { medicalBulkRecommendationOpen = Boolean(isOpen); },
+setMedicalBulkSelectedPlayerIds: (selectedIds) => {
+medicalBulkSelectedPlayerIds = selectedIds instanceof Set ? selectedIds : new Set(selectedIds || []);
+},
+setMedicalOperationsTab: (tab) => { medicalOperationsTab = tab; },
+setMedicalPlayerModalOpen: (isOpen) => { medicalPlayerModalOpen = Boolean(isOpen); },
+setMedicalPlayerModalTab: (tab) => { medicalPlayerModalTab = tab; },
+setMedicalState: (nextState) => { medicalState = nextState; },
 updateMedicalDatabaseSyncStatus,
 win,
 writeMedicalState,
 });
-const medicalRuntimeWriteService = createMedicalRuntimeWriteService({
-addCalendarDays,
-cloneMedicalState,
-commitMedicalClinicalState,
-ensureMedicalState,
-formatDateValue: formatScheduleDateValue,
-getActiveMedicalPlayers,
-getCurrentMedicalActorId,
-getCurrentPlatformUser,
-getMedicalClearanceValues,
-getMedicalLoadGateValues,
-getMedicalRecommendationActivityContext,
-getMedicalRemovedSquadPlayerIdSet,
-getMedicalRtpPhaseOption,
-getMedicalState: () => medicalState,
-getMedicalStatusForParticipation,
-isDateValue: isMedicalDateValue,
-isMedicalItemArchived,
-isMedicalPlayerBlockedBySquadAvailability,
-isMedicalPlayerRemovedFromSquad,
-medicalStatusOptions,
-normalizeMedicalInjuryPlan,
-normalizeMedicalParticipation,
-normalizeMedicalPlayer,
-normalizeMedicalRecord,
-parseDateValue: parseScheduleDateValue,
-renderMedicalTeamWorkspace,
-setMedicalPlayerModalOpen: (isOpen) => {
-medicalPlayerModalOpen = Boolean(isOpen);
-},
-setMedicalPlayerModalTab: (tab) => {
-medicalPlayerModalTab = tab;
-},
-setMedicalState: (nextState) => {
-medicalState = nextState;
-},
-writeMedicalState,
-});
-function upsertMedicalPlayers(...args) { return medicalRuntimeWriteService.upsertMedicalPlayers(...args); }
-function addMedicalRecord(...args) { return medicalRuntimeWriteService.addMedicalRecord(...args); }
-function updateMedicalPlayerProfile(...args) { return medicalRuntimeWriteService.updateMedicalPlayerProfile(...args); }
-function removeMedicalPlayer(...args) { return medicalRuntimeWriteService.removeMedicalPlayer(...args); }
-function removeMedicalRecord(...args) { return medicalRuntimeWriteService.removeMedicalRecord(...args); }
-function addMedicalInjuryPlan(...args) { return medicalRuntimeWriteService.addMedicalInjuryPlan(...args); }
-function updateMedicalInjuryPlan(...args) { return medicalRuntimeWriteService.updateMedicalInjuryPlan(...args); }
-function updateMedicalPlanClearance(...args) { return medicalRuntimeWriteService.updateMedicalPlanClearance(...args); }
-function removeMedicalInjuryPlan(...args) { return medicalRuntimeWriteService.removeMedicalInjuryPlan(...args); }
-function openMedicalPlayerModal(...args) { return medicalRuntimeWriteService.openMedicalPlayerModal(...args); }
-function closeMedicalPlayerModal(...args) { return medicalRuntimeWriteService.closeMedicalPlayerModal(...args); }
-function setMedicalSelectedDate(...args) { return medicalRuntimeWriteService.setMedicalSelectedDate(...args); }
-function shiftMedicalSelectedDate(...args) { return medicalRuntimeWriteService.shiftMedicalSelectedDate(...args); }
+function getMedicalAccessLabel(...args) { return medicalRuntimeFacade.getMedicalAccessLabel(...args); }
+function getMedicalHeroTeamName(...args) { return medicalRuntimeFacade.getMedicalHeroTeamName(...args); }
+function getSelectedMedicalPlayer(...args) { return medicalRuntimeFacade.getSelectedMedicalPlayer(...args); }
+function getActiveMedicalPlayers(...args) { return medicalRuntimeFacade.getActiveMedicalPlayers(...args); }
+function isMedicalPlayerVisibleForDate(...args) { return medicalRuntimeFacade.isMedicalPlayerVisibleForDate(...args); }
+function getActiveMedicalPlayersForDate(...args) { return medicalRuntimeFacade.getActiveMedicalPlayersForDate(...args); }
+function isMedicalInjuryPlanActive(...args) { return medicalRuntimeFacade.isMedicalInjuryPlanActive(...args); }
+function getMedicalPlayerInjuryPlans(...args) { return medicalRuntimeFacade.getMedicalPlayerInjuryPlans(...args); }
+function getActiveMedicalInjuryPlan(...args) { return medicalRuntimeFacade.getActiveMedicalInjuryPlan(...args); }
+function createMedicalRecordFromSquadAvailabilityBlock(...args) { return medicalRuntimeFacade.createMedicalRecordFromSquadAvailabilityBlock(...args); }
+function isMedicalPlanCleared(...args) { return medicalRuntimeFacade.isMedicalPlanCleared(...args); }
+function getMedicalRecommendationBlockReason(...args) { return medicalRuntimeFacade.getMedicalRecommendationBlockReason(...args); }
+function getMedicalReviewAlerts(...args) { return medicalRuntimeFacade.getMedicalReviewAlerts(...args); }
+function getMedicalCoachComment(...args) { return medicalRuntimeFacade.getMedicalCoachComment(...args); }
+function getMedicalVisibleComment(...args) { return medicalRuntimeFacade.getMedicalVisibleComment(...args); }
+function createMedicalRecordFromInjuryPlan(...args) { return medicalRuntimeFacade.createMedicalRecordFromInjuryPlan(...args); }
+function getLatestMedicalRecord(...args) { return medicalRuntimeFacade.getLatestMedicalRecord(...args); }
+function getMedicalPlayerRecords(...args) { return medicalRuntimeFacade.getMedicalPlayerRecords(...args); }
+function isMedicalRestrictedRecommendationRecord(...args) { return medicalRuntimeFacade.isMedicalRestrictedRecommendationRecord(...args); }
+function getMedicalPlayerRestrictedLogRecords(...args) { return medicalRuntimeFacade.getMedicalPlayerRestrictedLogRecords(...args); }
+function getMedicalWindowDates(...args) { return medicalRuntimeFacade.getMedicalWindowDates(...args); }
+function getMedicalPastWindowDates(...args) { return medicalRuntimeFacade.getMedicalPastWindowDates(...args); }
+function getMedicalMonthToDateDates(...args) { return medicalRuntimeFacade.getMedicalMonthToDateDates(...args); }
+function getMedicalScheduleSummary(...args) { return medicalRuntimeFacade.getMedicalScheduleSummary(...args); }
+function getMedicalRecommendationEvent(...args) { return medicalRuntimeFacade.getMedicalRecommendationEvent(...args); }
+function getMedicalRecommendationActivityContext(...args) { return medicalRuntimeFacade.getMedicalRecommendationActivityContext(...args); }
+function getMedicalRecordStatus(...args) { return medicalRuntimeFacade.getMedicalRecordStatus(...args); }
+function getDefaultMedicalInjuryPlanDraft(...args) { return medicalRuntimeFacade.getDefaultMedicalInjuryPlanDraft(...args); }
+function normalizeMedicalInjuryPlanDraft(...args) { return medicalRuntimeFacade.normalizeMedicalInjuryPlanDraft(...args); }
+function getMedicalInjuryPlanDraft(...args) { return medicalRuntimeFacade.getMedicalInjuryPlanDraft(...args); }
+function setMedicalInjuryPlanDraft(...args) { return medicalRuntimeFacade.setMedicalInjuryPlanDraft(...args); }
+function setMedicalInjuryPlanDraftFromPlan(...args) { return medicalRuntimeFacade.setMedicalInjuryPlanDraftFromPlan(...args); }
+function clearMedicalInjuryPlanDraft(...args) { return medicalRuntimeFacade.clearMedicalInjuryPlanDraft(...args); }
+function getMedicalInjuryPlanFormDraft(...args) { return medicalRuntimeFacade.getMedicalInjuryPlanFormDraft(...args); }
+function persistMedicalInjuryPlanDraftFromForm(...args) { return medicalRuntimeFacade.persistMedicalInjuryPlanDraftFromForm(...args); }
+function getMedicalDailyStats(...args) { return medicalRuntimeFacade.getMedicalDailyStats(...args); }
+function getMedicalWindowAverage(...args) { return medicalRuntimeFacade.getMedicalWindowAverage(...args); }
+function getMedicalParticipationAverageForDates(...args) { return medicalRuntimeFacade.getMedicalParticipationAverageForDates(...args); }
+function getMedicalMonthAverageStats(...args) { return medicalRuntimeFacade.getMedicalMonthAverageStats(...args); }
+function getMedicalAttentionPlayers(...args) { return medicalRuntimeFacade.getMedicalAttentionPlayers(...args); }
+function getMedicalPositionSummaries(...args) { return medicalRuntimeFacade.getMedicalPositionSummaries(...args); }
+function getMedicalDaySpan(...args) { return medicalRuntimeFacade.getMedicalDaySpan(...args); }
+function getMedicalDailyHuddle(...args) { return medicalRuntimeFacade.getMedicalDailyHuddle(...args); }
+function getMedicalCoachHandoverItems(...args) { return medicalRuntimeFacade.getMedicalCoachHandoverItems(...args); }
+function buildMedicalCoachHandoverText(...args) { return medicalRuntimeFacade.buildMedicalCoachHandoverText(...args); }
+function recordMedicalAuditEvent(...args) { return medicalRuntimeFacade.recordMedicalAuditEvent(...args); }
+function getMedicalDatabasePlayer(...args) { return medicalRuntimeFacade.getMedicalDatabasePlayer(...args); }
+function buildMedicalDatabaseStateSummary(...args) { return medicalRuntimeFacade.buildMedicalDatabaseStateSummary(...args); }
+function getMedicalDatabaseIdempotencyKey(...args) { return medicalRuntimeFacade.getMedicalDatabaseIdempotencyKey(...args); }
+function recordMedicalDatabaseSyncEvent(...args) { return medicalRuntimeFacade.recordMedicalDatabaseSyncEvent(...args); }
+function copyMedicalCoachHandoverToClipboard(...args) { return medicalRuntimeFacade.copyMedicalCoachHandoverToClipboard(...args); }
+function getMedicalPlayerProfileSummary(...args) { return medicalRuntimeFacade.getMedicalPlayerProfileSummary(...args); }
+function getFilteredMedicalPlayers(...args) { return medicalRuntimeFacade.getFilteredMedicalPlayers(...args); }
+function getMedicalValidBulkSelection(...args) { return medicalRuntimeFacade.getMedicalValidBulkSelection(...args); }
+function getMedicalBulkSelectedPlayers(...args) { return medicalRuntimeFacade.getMedicalBulkSelectedPlayers(...args); }
+function getMedicalBulkRecommendationEligiblePlayers(...args) { return medicalRuntimeFacade.getMedicalBulkRecommendationEligiblePlayers(...args); }
+function toggleMedicalBulkPlayer(...args) { return medicalRuntimeFacade.toggleMedicalBulkPlayer(...args); }
+function setMedicalBulkSelection(...args) { return medicalRuntimeFacade.setMedicalBulkSelection(...args); }
+function setMedicalBulkNotSetSelection(...args) { return medicalRuntimeFacade.setMedicalBulkNotSetSelection(...args); }
+function applyMedicalQuickRecommendation(...args) { return medicalRuntimeFacade.applyMedicalQuickRecommendation(...args); }
+function applyMedicalBulkRecommendation(...args) { return medicalRuntimeFacade.applyMedicalBulkRecommendation(...args); }
+function updateMedicalBulkActivityControls(...args) { return medicalRuntimeFacade.updateMedicalBulkActivityControls(...args); }
+function updateMedicalGovernancePolicy(...args) { return medicalRuntimeFacade.updateMedicalGovernancePolicy(...args); }
+function getMedicalPlanTotalDays(...args) { return medicalRuntimeFacade.getMedicalPlanTotalDays(...args); }
+function getMedicalPlanElapsedDays(...args) { return medicalRuntimeFacade.getMedicalPlanElapsedDays(...args); }
+function getMedicalPlanDaysRemaining(...args) { return medicalRuntimeFacade.getMedicalPlanDaysRemaining(...args); }
+function getMedicalPlanSeverity(...args) { return medicalRuntimeFacade.getMedicalPlanSeverity(...args); }
+function getMedicalPlanClearanceSummary(...args) { return medicalRuntimeFacade.getMedicalPlanClearanceSummary(...args); }
+function getMedicalPlanReviewState(...args) { return medicalRuntimeFacade.getMedicalPlanReviewState(...args); }
+function getMedicalTrailingRecommendationSummary(...args) { return medicalRuntimeFacade.getMedicalTrailingRecommendationSummary(...args); }
+function getMedicalSeasonPlans(...args) { return medicalRuntimeFacade.getMedicalSeasonPlans(...args); }
+function getMedicalActiveCaseItems(...args) { return medicalRuntimeFacade.getMedicalActiveCaseItems(...args); }
+function getMedicalHistoryEvents(...args) { return medicalRuntimeFacade.getMedicalHistoryEvents(...args); }
+function getMedicalSeasonSummary(...args) { return medicalRuntimeFacade.getMedicalSeasonSummary(...args); }
+function getMedicalPlayerRiskSignal(...args) { return medicalRuntimeFacade.getMedicalPlayerRiskSignal(...args); }
+function getMedicalRiskSignals(...args) { return medicalRuntimeFacade.getMedicalRiskSignals(...args); }
+function getMedicalOperationsSummary(...args) { return medicalRuntimeFacade.getMedicalOperationsSummary(...args); }
+function renderMedicalOperationsTopMenu(...args) { return medicalRuntimeFacade.renderMedicalOperationsTopMenu(...args); }
+function renderMedicalOperationsSystem(...args) { return medicalRuntimeFacade.renderMedicalOperationsSystem(...args); }
+function getMedicalRosterPositionGroups(...args) { return medicalRuntimeFacade.getMedicalRosterPositionGroups(...args); }
+function getMedicalRosterPositionStats(...args) { return medicalRuntimeFacade.getMedicalRosterPositionStats(...args); }
+function renderMedicalTeamWorkspace(...args) { return medicalRuntimeFacade.renderMedicalTeamWorkspace(...args); }
+function upsertMedicalPlayers(...args) { return medicalRuntimeFacade.upsertMedicalPlayers(...args); }
+function addMedicalRecord(...args) { return medicalRuntimeFacade.addMedicalRecord(...args); }
+function updateMedicalPlayerProfile(...args) { return medicalRuntimeFacade.updateMedicalPlayerProfile(...args); }
+function removeMedicalPlayer(...args) { return medicalRuntimeFacade.removeMedicalPlayer(...args); }
+function removeMedicalRecord(...args) { return medicalRuntimeFacade.removeMedicalRecord(...args); }
+function addMedicalInjuryPlan(...args) { return medicalRuntimeFacade.addMedicalInjuryPlan(...args); }
+function updateMedicalInjuryPlan(...args) { return medicalRuntimeFacade.updateMedicalInjuryPlan(...args); }
+function updateMedicalPlanClearance(...args) { return medicalRuntimeFacade.updateMedicalPlanClearance(...args); }
+function removeMedicalInjuryPlan(...args) { return medicalRuntimeFacade.removeMedicalInjuryPlan(...args); }
+function openMedicalPlayerModal(...args) { return medicalRuntimeFacade.openMedicalPlayerModal(...args); }
+function closeMedicalPlayerModal(...args) { return medicalRuntimeFacade.closeMedicalPlayerModal(...args); }
+function setMedicalSelectedDate(...args) { return medicalRuntimeFacade.setMedicalSelectedDate(...args); }
+function shiftMedicalSelectedDate(...args) { return medicalRuntimeFacade.shiftMedicalSelectedDate(...args); }
 function getPeriodizationDayScheduleLabel(day) { return periodizationRenderer.getDayScheduleLabel(day); }
 function getPeriodizationMatchDayLabel(value) { return periodizationRenderer.getMatchDayLabel(value); }
 function getPeriodizationMultiFieldValue(field, dateValue) { return periodizationRenderer.getMultiFieldValue(field, dateValue); }

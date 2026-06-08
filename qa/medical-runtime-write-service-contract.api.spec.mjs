@@ -99,9 +99,10 @@ test("Medical runtime write service owns protected Medical writes outside app-ru
   const index = readProjectFile("src/modules/medical/index.mjs");
 
   expect(typeof createMedicalRuntimeWriteService).toBe("function");
-  expect(app).toContain("createMedicalRuntimeWriteService({");
+  expect(app).toContain("createMedicalRuntimeFacade({");
   expect(app).toContain("function addMedicalRecord(...args)");
   expect(app).toContain("function removeMedicalPlayer(...args)");
+  expect(app).not.toContain("createMedicalRuntimeWriteService({");
   expect(app).not.toContain("function addMedicalRecord(values, options = {}) {");
   expect(app).not.toContain("function updateMedicalPlanClearance(values) {");
   expect(service).toContain("function addMedicalRecord(values, options = {})");
@@ -109,6 +110,7 @@ test("Medical runtime write service owns protected Medical writes outside app-ru
   expect(service).toContain("commitMedicalClinicalState");
   expect(service).not.toContain("renderDashboardChatWidget");
   expect(index).toContain('export * from "./medical-runtime-write-service.mjs";');
+  expect(index).toContain('export * from "./medical-runtime-facade.mjs";');
 });
 
 test("Medical runtime write service preserves record saves and protected archiving", () => {

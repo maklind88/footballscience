@@ -110,14 +110,16 @@ test("Medical runtime activity selectors own read and draft logic outside app-ru
   const index = readProjectFile("src/modules/medical/index.mjs");
 
   expect(typeof createMedicalRuntimeActivitySelectors).toBe("function");
-  expect(app).toContain("medicalRuntimeActivitySelectors = createMedicalRuntimeActivitySelectors({");
+  expect(app).toContain("createMedicalRuntimeFacade({");
   expect(app).toContain("function getActiveMedicalPlayers(...args)");
+  expect(app).not.toContain("createMedicalRuntimeActivitySelectors({");
   expect(app).not.toContain("function getActiveMedicalPlayers() {");
   expect(app).not.toContain("function getMedicalRecommendationActivityContext(dateValue = medicalState?.selectedDate)");
   expect(app).not.toContain("function normalizeMedicalInjuryPlanDraft(draft = {}, playerId = draft.playerId)");
   expect(activity).toContain("function getActiveMedicalPlayers()");
   expect(activity).toContain("function getMedicalRecommendationActivityContext(");
   expect(index).toContain('export * from "./medical-runtime-activity-selectors.mjs";');
+  expect(index).toContain('export * from "./medical-runtime-facade.mjs";');
 });
 
 test("Medical runtime activity selectors stay read-only and do not own writes", () => {

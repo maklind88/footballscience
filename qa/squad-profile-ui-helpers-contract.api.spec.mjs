@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   createPlayerProfileFormValueReader,
+  createPlayerProfileRosterUiSelectors,
   getPlayerProfileCompleteness,
   getPlayerProfileImportUndoRelativeTimeLabel,
   getSquadChangeSummary,
@@ -62,6 +63,50 @@ test("Squad profile UI helpers parse profile form values without owning writes",
     age: "24",
     photoUrl: "https://cdn.test/ada.png",
   });
+});
+
+test("Squad profile UI helpers filter roster profiles without owning state", () => {
+  const selectors = createPlayerProfileRosterUiSelectors({
+    countsInSquad: (player) => player.countsInSquad !== false,
+    getRosterLabel: (player) => player.temporaryGroup || player.rosterType || "",
+    normalizeRosterType: (value) => String(value || "").trim().toLowerCase(),
+    compareProfiles: (first, second) => String(first.name || "").localeCompare(String(second.name || "")),
+    isTemporaryProfile: (player) => player.countsInSquad === false,
+  });
+  const players = [
+    {
+      id: "p2",
+      name: "Bea Forward",
+      primaryRole: "ST",
+      secondaryRoles: ["RW"],
+      roleGroup: "forward",
+      rosterType: "squad",
+      countsInSquad: true,
+      idp: { primaryFocus: "Press" },
+    },
+    {
+      id: "p1",
+      name: "Ada Midfielder",
+      primaryRole: "8",
+      secondaryRoles: ["10"],
+      roleGroup: "midfielder",
+      rosterType: "academy",
+      temporaryGroup: "Academy",
+      countsInSquad: false,
+      idp: { focusAreas: "Scanning" },
+    },
+  ];
+
+  expect(selectors.getRosterSummary(players)).toMatchObject({
+    squadCount: 1,
+    temporaryCount: 1,
+    totalCount: 2,
+    temporaryGroups: ["Academy"],
+  });
+  expect(selectors.matchesRosterFilter(players[0], "squad")).toBe(true);
+  expect(selectors.matchesRosterFilter(players[1], "temporary")).toBe(true);
+  expect(selectors.getVisibleProfiles(players, { query: "scan", roleGroupFilter: "midfielder", rosterFilter: "temporary" }).map((player) => player.id)).toEqual(["p1"]);
+  expect(selectors.getTemporaryProfiles(players).map((player) => player.id)).toEqual(["p1"]);
 });
 
 test("Squad profile UI helpers preserve change summaries and completeness scoring", () => {

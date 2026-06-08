@@ -67,6 +67,90 @@ export function createPlayerProfileFormValueReader(options = {}) {
   };
 }
 
+export function createPlayerProfileRosterUiSelectors(options = {}) {
+  const countsInSquad = typeof options.countsInSquad === "function" ? options.countsInSquad : (player) => Boolean(player?.countsInSquad);
+  const getRosterLabel = typeof options.getRosterLabel === "function" ? options.getRosterLabel : () => "";
+  const normalizeRosterType = typeof options.normalizeRosterType === "function" ? options.normalizeRosterType : (value) => String(value || "").trim().toLowerCase();
+  const compareProfiles = typeof options.compareProfiles === "function"
+    ? options.compareProfiles
+    : (first = {}, second = {}) => String(first.name || "").localeCompare(String(second.name || ""));
+  const isTemporaryProfile = typeof options.isTemporaryProfile === "function" ? options.isTemporaryProfile : (player) => !countsInSquad(player);
+
+  function getRosterSummary(players = []) {
+    const sourcePlayers = Array.isArray(players) ? players : [];
+    const squadPlayers = sourcePlayers.filter(countsInSquad);
+    const temporaryPlayers = sourcePlayers.filter((player) => !countsInSquad(player));
+    const temporaryGroups = Array.from(new Set(temporaryPlayers.map(getRosterLabel).filter(Boolean)));
+    return {
+      squadCount: squadPlayers.length,
+      temporaryCount: temporaryPlayers.length,
+      totalCount: sourcePlayers.length,
+      temporaryGroups,
+    };
+  }
+
+  function matchesRosterFilter(player = {}, filterValue = "all") {
+    const filterKey = String(filterValue || "all").trim().toLowerCase();
+    if (filterKey === "all") {
+      return true;
+    }
+    if (filterKey === "squad") {
+      return countsInSquad(player);
+    }
+    if (filterKey === "temporary") {
+      return !countsInSquad(player);
+    }
+    return normalizeRosterType(player.rosterType) === filterKey;
+  }
+
+  function getVisibleProfiles(players = [], options = {}) {
+    const query = String(options.query || "").trim().toLowerCase();
+    const roleGroupFilter = String(options.roleGroupFilter || "all");
+    const rosterFilter = String(options.rosterFilter || "all");
+    return (Array.isArray(players) ? players : []).filter((player) => {
+      const groupMatch = roleGroupFilter === "all" || player.roleGroup === roleGroupFilter;
+      if (!groupMatch) {
+        return false;
+      }
+      if (!matchesRosterFilter(player, rosterFilter)) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      return [
+        player.name,
+        player.number,
+        player.position,
+        player.primaryRole,
+        Array.isArray(player.secondaryRoles) ? player.secondaryRoles.join(" ") : "",
+        player.roleGroup,
+        player.status,
+        player.squadStatus,
+        player.careerPhase,
+        player.rosterType,
+        player.temporaryGroup,
+        player.idp?.primaryFocus,
+        player.idp?.focusAreas,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    }).sort(compareProfiles);
+  }
+
+  function getTemporaryProfiles(players = []) {
+    return (Array.isArray(players) ? players : []).filter(isTemporaryProfile).sort(compareProfiles);
+  }
+
+  return {
+    getRosterSummary,
+    getTemporaryProfiles,
+    getVisibleProfiles,
+    matchesRosterFilter,
+  };
+}
+
 export function getSquadChangeSummary(type, player = {}, changes = []) {
   if (type === "player-added") {
     return `${player?.name || "Player"} added to Squad`;

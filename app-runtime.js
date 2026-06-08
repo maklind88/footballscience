@@ -90,6 +90,7 @@ import {
   buildPlayerProfileImportPreviewMessage,
   buildPlayerProfileOperationFeedback,
   createPlayerProfileFormValueReader,
+  createPlayerProfileRosterUiSelectors,
   getPlayerProfileCompleteness,
   getPlayerProfileImportUndoRelativeTimeLabel,
   getSquadChangeSummary,
@@ -1569,6 +1570,14 @@ const getPlayerProfileFormValues = createPlayerProfileFormValueReader({
 attributeGroups: playerProfileAttributeGroups,
 normalizeNumber: normalizePlayerProfileNumber,
 });
+const playerProfileRosterUiSelectors = createPlayerProfileRosterUiSelectors({
+compareProfiles: compareMedicalPlayers,
+countsInSquad: playerProfileCountsInSquad,
+getRosterLabel: getPlayerProfileRosterLabel,
+isTemporaryProfile: isTemporaryPlayerProfile,
+normalizeRosterType: normalizePlayerProfileRosterType,
+});
+const getPlayerProfilesRosterSummary = playerProfileRosterUiSelectors.getRosterSummary;
 const {
 getPlayerProfileDateDiffDays,
 getPlayerProfileDateValueFromTimestamp,
@@ -8232,67 +8241,17 @@ hasActivePlan: Boolean(activePlan),
 isOpenEndedMedicalStatus: Boolean(openEndedLog),
 };
 }
-function getPlayerProfilesRosterSummary(players = []) {
-const squadPlayers = players.filter(playerProfileCountsInSquad);
-const temporaryPlayers = players.filter((player) => !playerProfileCountsInSquad(player));
-const temporaryGroups = Array.from(new Set(temporaryPlayers.map(getPlayerProfileRosterLabel).filter(Boolean)));
-return {
-squadCount: squadPlayers.length,
-temporaryCount: temporaryPlayers.length,
-totalCount: players.length,
-temporaryGroups,
-};
-}
-function matchesPlayerProfileRosterFilter(player = {}, filterValue = playerProfilesRosterFilter) {
-const filterKey = String(filterValue || "all").trim().toLowerCase();
-if (filterKey === "all") {
-return true;
-}
-if (filterKey === "squad") {
-return playerProfileCountsInSquad(player);
-}
-if (filterKey === "temporary") {
-return !playerProfileCountsInSquad(player);
-}
-return normalizePlayerProfileRosterType(player.rosterType) === filterKey;
-}
 function getVisiblePlayerProfiles() {
 ensurePlayerProfilesState();
-const query = playerProfilesSearchQuery.trim().toLowerCase();
-return playerProfilesState.players.filter((player) => {
-const groupMatch = playerProfilesRoleGroupFilter === "all" || player.roleGroup === playerProfilesRoleGroupFilter;
-if (!groupMatch) {
-return false;
-}
-if (!matchesPlayerProfileRosterFilter(player)) {
-return false;
-}
-if (!query) {
-return true;
-}
-return [
-player.name,
-player.number,
-player.position,
-player.primaryRole,
-player.secondaryRoles.join(" "),
-player.roleGroup,
-player.status,
-player.squadStatus,
-player.careerPhase,
-player.rosterType,
-player.temporaryGroup,
-player.idp?.primaryFocus,
-player.idp?.focusAreas,
-]
-.join(" ")
-.toLowerCase()
-.includes(query);
-}).sort(comparePlayerProfiles);
+return playerProfileRosterUiSelectors.getVisibleProfiles(playerProfilesState.players, {
+query: playerProfilesSearchQuery,
+roleGroupFilter: playerProfilesRoleGroupFilter,
+rosterFilter: playerProfilesRosterFilter,
+});
 }
 function getAllTemporaryPlayerProfiles() {
 ensurePlayerProfilesState();
-return playerProfilesState.players.filter(isTemporaryPlayerProfile).sort(comparePlayerProfiles);
+return playerProfileRosterUiSelectors.getTemporaryProfiles(playerProfilesState.players);
 }
 function renderPlayerProfileStatusChip(statusKey, medicalSnapshot = null) { return squadRosterRenderer.renderStatusChip(statusKey, medicalSnapshot); }
 function renderSquadRosterSections(visiblePlayers = [], summaries = {}) {

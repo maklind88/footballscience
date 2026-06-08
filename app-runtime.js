@@ -62,6 +62,7 @@ import { configurePlatformRuntimeAccessors, mergePeriodizationStatePreservingLoc
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createDashboardId, createDashboardJsonStorage, createDashboardWorkspaceQueryEngine } from "./src/core/dashboard-runtime-utils.mjs";
 import { createPlatformRuntimeHelpers } from "./src/core/platform-runtime-helpers.mjs";
+import { createPlatformShellRuntimeHelpers } from "./src/core/platform-shell-runtime-helpers.mjs";
 import { createCentralRuntimeFacade, dataSafetySnapshotStoreName } from "./src/core/central-runtime-facade.mjs";
 import { bindPlatformWorkspaceRuntimeBindings } from "./src/core/platform-workspace-runtime-bindings.mjs";
 import { bindPlatformGlobalRuntimeEvents } from "./src/core/platform-global-runtime-bindings.mjs";
@@ -248,12 +249,18 @@ documentRef: document,
 assetVersion: platformAssetVersion,
 });
 let workspaceModuleRuntimeController = null;
-function queueWorkspaceModulePreload(workspaceId = "") {
-return workspaceModuleRuntimeController?.queueWorkspaceModulePreload?.(workspaceId);
-}
-function preloadWorkspaceFromTrigger(trigger = null) {
-return workspaceModuleRuntimeController?.preloadWorkspaceFromTrigger?.(trigger);
-}
+const {
+  queueWorkspaceModulePreload,
+  preloadWorkspaceFromTrigger,
+  isSessionPlannerAutosaveKey,
+  shouldShowPlatformAutosaveStatus,
+  syncPlatformAutosaveStatusVisibility,
+  setPlatformAutosaveStatusForKey,
+} = createPlatformShellRuntimeHelpers({
+  getActiveWorkspaceId: () => hubState?.activeWorkspaceId || "",
+  getSessionPlannerAutosaveBoundary: () => sessionPlannerAutosaveBoundary,
+  getWorkspaceModuleRuntimeController: () => workspaceModuleRuntimeController,
+});
 const workspaceHubStorageKey = "football-workspace-hub-v3";
 const platformStructureStorageKey = "football-platform-structure-v1";
 const workspaceHubDefaultActiveWorkspaceId = "home";
@@ -649,15 +656,11 @@ escapeHtml,
 });
 const setPlatformAutosaveStatus = platformAutosaveStatusController.set;
 const sessionPlannerAutosaveBoundary = createSessionPlannerAutosaveBoundary({
-getActiveWorkspaceId: () => hubState?.activeWorkspaceId || "",
-setStatus: setPlatformAutosaveStatus,
-setVisible: platformAutosaveStatusController.setVisible,
-now: () => Date.now(),
+  getActiveWorkspaceId: () => hubState?.activeWorkspaceId || "",
+  setStatus: setPlatformAutosaveStatus,
+  setVisible: platformAutosaveStatusController.setVisible,
+  now: () => Date.now(),
 });
-function isSessionPlannerAutosaveKey(key = "") { return sessionPlannerAutosaveBoundary.isAutosaveKey(key); }
-function shouldShowPlatformAutosaveStatus(workspaceId = hubState?.activeWorkspaceId) { return sessionPlannerAutosaveBoundary.shouldShowStatus(workspaceId); }
-function syncPlatformAutosaveStatusVisibility(workspaceId = hubState?.activeWorkspaceId) { sessionPlannerAutosaveBoundary.syncVisibility(workspaceId); }
-function setPlatformAutosaveStatusForKey(key, state, message = "") { sessionPlannerAutosaveBoundary.setStatusForKey(key, state, message); }
 syncPlatformAutosaveStatusVisibility(null);
 function handleCentralSyncedStateValue(key) {
 if (key === sessionPlannerStorageKey) {

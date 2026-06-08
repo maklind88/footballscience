@@ -2182,7 +2182,19 @@ createBlock: createSessionPlannerBlock,
 defaultExerciseLibrary: sessionPlannerDefaultExerciseLibrary,
 formatDateValue: formatScheduleDateValue,
 getActiveExerciseLibrary: getSessionPlannerActiveExerciseLibrary,
+getPeriodizationOverride: (dateValue) => {
+if (!dateValue) {
+return {};
+}
+if (!periodizationState) {
+periodizationState = readPeriodizationState();
+}
+return periodizationState?.days?.[dateValue] ?? {};
+},
+getScheduleEventsForDate,
+getScheduleMainEvent,
 getScheduledSessionTitle: getScheduledSessionTitleForDate,
+isScheduleSessionEvent,
 });
 exerciseLibraryRenderer = createExerciseLibraryRenderer({
 escapeHtml,
@@ -6750,53 +6762,12 @@ function deleteSessionPlannerLibraryExercise(exerciseId) { exerciseLibraryAction
 function restoreSessionPlannerLibraryExercise(exerciseId) { exerciseLibraryActions.restoreExercise(exerciseId); }
 function createSessionPlannerDefaultSession(dateValue = formatScheduleDateValue(new Date())) { return sessionPlannerSessionFactory.createDefaultSession(dateValue); }
 function createSessionPlannerEmptySession(dateValue = formatScheduleDateValue(new Date())) { return sessionPlannerSessionFactory.createEmptySession(dateValue); }
-function getSessionPlannerPeriodizationOverride(dateValue) {
-if (!dateValue) {
-return {};
-}
-if (!periodizationState) {
-periodizationState = readPeriodizationState();
-}
-return periodizationState?.days?.[dateValue] ?? {};
-}
-function isSessionPlannerOffDate(dateValue) {
-if (!dateValue) {
-return false;
-}
-const periodizationOverride = getSessionPlannerPeriodizationOverride(dateValue);
-const savedDaySchedule = String(periodizationOverride.daySchedule || "").trim().toUpperCase();
-const savedSessionType = String(periodizationOverride.sessionType || "").trim().toUpperCase();
-const scheduleEvent = getScheduleMainEvent(getScheduleEventsForDate(dateValue));
-return savedDaySchedule === "OFF" || savedSessionType === "OFF" || scheduleEvent?.type === "off";
-}
-function createSessionPlannerSessionForNewPlan(dateValue = formatScheduleDateValue(new Date())) {
-return isSessionPlannerOffDate(dateValue)
-? createSessionPlannerEmptySession(dateValue)
-: createSessionPlannerDefaultSession(dateValue);
-}
-function isGeneratedDefaultSessionPlannerSession(session = {}) {
-return sessionPlannerSessionFactory.isGeneratedDefaultSession(session);
-}
-function shouldStripSessionPlannerGeneratedDefaultSession(dateValue, session = {}) {
-if (!isGeneratedDefaultSessionPlannerSession(session)) {
-return false;
-}
-const scheduleEvents = getScheduleEventsForDate(dateValue);
-const hasSessionEvent = scheduleEvents.some(isScheduleSessionEvent);
-const periodizationOverride = getSessionPlannerPeriodizationOverride(dateValue);
-const savedDaySchedule = String(periodizationOverride.daySchedule || "").trim().toLowerCase();
-const savedSessionType = String(periodizationOverride.sessionType || "").trim().toLowerCase();
-const hasSavedTrainingSignal = [savedDaySchedule, savedSessionType].some((value) =>
-value.includes("training") || value.includes("match") || value.includes("recovery")
-);
-return isSessionPlannerOffDate(dateValue) || (!hasSessionEvent && !hasSavedTrainingSignal);
-}
-function shouldClearSessionPlannerSessionForDate(dateValue, session = {}) {
-if (isSessionPlannerOffDate(dateValue)) {
-return true;
-}
-return shouldStripSessionPlannerGeneratedDefaultSession(dateValue, session);
-}
+function getSessionPlannerPeriodizationOverride(dateValue) { return sessionPlannerSessionFactory.getPeriodizationOverride(dateValue); }
+function isSessionPlannerOffDate(dateValue) { return sessionPlannerSessionFactory.isOffDate(dateValue); }
+function createSessionPlannerSessionForNewPlan(dateValue = formatScheduleDateValue(new Date())) { return sessionPlannerSessionFactory.createSessionForNewPlan(dateValue); }
+function isGeneratedDefaultSessionPlannerSession(session = {}) { return sessionPlannerSessionFactory.isGeneratedDefaultSession(session); }
+function shouldStripSessionPlannerGeneratedDefaultSession(dateValue, session = {}) { return sessionPlannerSessionFactory.shouldStripGeneratedDefaultSession(dateValue, session); }
+function shouldClearSessionPlannerSessionForDate(dateValue, session = {}) { return sessionPlannerSessionFactory.shouldClearSessionForDate(dateValue, session); }
 const {
 cloneSessionPlannerSession,
 createSessionPlannerDefaultState,

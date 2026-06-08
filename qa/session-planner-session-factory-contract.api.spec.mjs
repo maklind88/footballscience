@@ -7,7 +7,12 @@ function createFactory(overrides = {}) {
     defaultExerciseLibrary: [{ id: "seed-exercise", title: "Seed Exercise", minutes: 18 }],
     formatDateValue: () => "2026-05-01",
     getActiveExerciseLibrary: () => [{ id: "active-exercise", title: "Active Exercise", minutes: 20 }],
+    getPeriodizationOverride: (dateValue) => (dateValue === "2026-05-04" ? { daySchedule: "OFF" } : {}),
+    getScheduleEventsForDate: (dateValue) =>
+      dateValue === "2026-05-05" ? [{ type: "training", title: "Training" }] : [],
+    getScheduleMainEvent: (events) => events[0] ?? null,
     getScheduledSessionTitle: () => "Scheduled Training",
+    isScheduleSessionEvent: (event) => event?.type === "training",
     ...overrides,
   });
 }
@@ -46,4 +51,16 @@ test("Session Planner session factory recognizes generated default sessions only
   expect(factory.isGeneratedDefaultSession(defaultSession)).toBe(true);
   expect(factory.isGeneratedDefaultSession(editedSession)).toBe(false);
   expect(factory.isGeneratedDefaultSession({ title: "Training Session", blocks: [] })).toBe(false);
+});
+
+test("Session Planner session factory keeps generated sessions off off-days", () => {
+  const factory = createFactory();
+  const defaultSession = factory.createDefaultSession("2026-05-06");
+
+  expect(factory.isOffDate("2026-05-04")).toBe(true);
+  expect(factory.createSessionForNewPlan("2026-05-04").blocks).toEqual([]);
+  expect(factory.createSessionForNewPlan("2026-05-05").blocks).toHaveLength(4);
+  expect(factory.shouldStripGeneratedDefaultSession("2026-05-04", defaultSession)).toBe(true);
+  expect(factory.shouldStripGeneratedDefaultSession("2026-05-05", defaultSession)).toBe(false);
+  expect(factory.shouldClearSessionForDate("2026-05-04", defaultSession)).toBe(true);
 });

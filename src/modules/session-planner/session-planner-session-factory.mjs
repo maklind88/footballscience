@@ -11,8 +11,16 @@ export function createSessionPlannerSessionFactory(options = {}) {
   const formatDateValue = typeof options.formatDateValue === "function" ? options.formatDateValue : defaultFormatDateValue;
   const getActiveExerciseLibrary =
     typeof options.getActiveExerciseLibrary === "function" ? options.getActiveExerciseLibrary : () => [];
+  const getPeriodizationOverride =
+    typeof options.getPeriodizationOverride === "function" ? options.getPeriodizationOverride : () => ({});
+  const getScheduleEventsForDate =
+    typeof options.getScheduleEventsForDate === "function" ? options.getScheduleEventsForDate : () => [];
+  const getScheduleMainEvent =
+    typeof options.getScheduleMainEvent === "function" ? options.getScheduleMainEvent : (events = []) => events[0] ?? null;
   const getScheduledSessionTitle =
     typeof options.getScheduledSessionTitle === "function" ? options.getScheduledSessionTitle : () => "";
+  const isScheduleSessionEvent =
+    typeof options.isScheduleSessionEvent === "function" ? options.isScheduleSessionEvent : (event) => event?.type === "training";
 
   function createDefaultSession(dateValue = formatDateValue(new Date())) {
     const possessionBlock = getActiveExerciseLibrary()[0] || defaultExerciseLibrary[0];
@@ -90,9 +98,48 @@ export function createSessionPlannerSessionFactory(options = {}) {
     );
   }
 
+  function isOffDate(dateValue) {
+    if (!dateValue) {
+      return false;
+    }
+    const periodizationOverride = getPeriodizationOverride(dateValue);
+    const savedDaySchedule = String(periodizationOverride.daySchedule || "").trim().toUpperCase();
+    const savedSessionType = String(periodizationOverride.sessionType || "").trim().toUpperCase();
+    const scheduleEvent = getScheduleMainEvent(getScheduleEventsForDate(dateValue));
+    return savedDaySchedule === "OFF" || savedSessionType === "OFF" || scheduleEvent?.type === "off";
+  }
+
+  function createSessionForNewPlan(dateValue = formatDateValue(new Date())) {
+    return isOffDate(dateValue) ? createEmptySession(dateValue) : createDefaultSession(dateValue);
+  }
+
+  function shouldStripGeneratedDefaultSession(dateValue, session = {}) {
+    if (!isGeneratedDefaultSession(session)) {
+      return false;
+    }
+    const scheduleEvents = getScheduleEventsForDate(dateValue);
+    const hasSessionEvent = scheduleEvents.some(isScheduleSessionEvent);
+    const periodizationOverride = getPeriodizationOverride(dateValue);
+    const savedDaySchedule = String(periodizationOverride.daySchedule || "").trim().toLowerCase();
+    const savedSessionType = String(periodizationOverride.sessionType || "").trim().toLowerCase();
+    const hasSavedTrainingSignal = [savedDaySchedule, savedSessionType].some((value) =>
+      value.includes("training") || value.includes("match") || value.includes("recovery")
+    );
+    return isOffDate(dateValue) || (!hasSessionEvent && !hasSavedTrainingSignal);
+  }
+
+  function shouldClearSessionForDate(dateValue, session = {}) {
+    return isOffDate(dateValue) || shouldStripGeneratedDefaultSession(dateValue, session);
+  }
+
   return Object.freeze({
     createDefaultSession,
     createEmptySession,
+    createSessionForNewPlan,
+    getPeriodizationOverride,
     isGeneratedDefaultSession,
+    isOffDate,
+    shouldClearSessionForDate,
+    shouldStripGeneratedDefaultSession,
   });
 }

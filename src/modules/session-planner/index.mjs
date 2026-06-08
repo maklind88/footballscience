@@ -5,6 +5,7 @@ export * from "./session-planner-history-helpers.mjs";
 export * from "./session-planner-medical-availability-selectors.mjs";
 export * from "./session-planner-options.mjs";
 export * from "./session-planner-block-helpers.mjs";
+export * from "./session-planner-board-history-controller.mjs";
 export * from "./session-planner-workspace-renderer.mjs";
 export * from "./session-planner-workspace-controller.mjs";
 export * from "./session-planner-runtime-delegates.mjs";

@@ -58,7 +58,7 @@ import {
   sessionPlannerExerciseLibraryVersionLimit,
   sessionPlannerLibrarySortOptions,
 } from "./src/modules/exercise-library/index.mjs";
-import { createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerRuntimeDelegates, createSessionPlannerRuntimeRenderers, createSessionPlannerStateMergeHelpers, createSessionPlannerTacticalController, createSessionPlannerWorkspaceController, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualUploadHelpers, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
+import { createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerBoardHistoryController, createSessionPlannerRuntimeDelegates, createSessionPlannerRuntimeRenderers, createSessionPlannerStateMergeHelpers, createSessionPlannerTacticalController, createSessionPlannerWorkspaceController, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualUploadHelpers, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformShellRuntime } from "./src/core/platform-shell-runtime.mjs";
 import { createWorkspaceModuleRuntimeController } from "./src/core/workspace-module-runtime-controller.mjs";
@@ -1794,16 +1794,6 @@ const sessionPlannerMultiSelectFields = new Set(["phase", "subPhase"]);
 let sessionPlannerMultiSelectOpenField = "";
 let sessionPlannerCentralSyncConflict = null;
 let sessionPlannerCentralSyncNoticeAt = 0;
-const sessionPlannerBoardHistoryLimit = 80;
-let sessionPlannerBoardHistoryApplying = false;
-const sessionPlannerBoardHistoryBaselines = {
-tactical: new Map(),
-player: new Map(),
-};
-const sessionPlannerBoardHistoryStacks = {
-tactical: new Map(),
-player: new Map(),
-};
 let sessionPlannerSnapshotRecoveryQueued = false;
 let exerciseLibraryRuntime = null;
 let sessionPlannerWorkspaceController;
@@ -7034,180 +7024,34 @@ showSessionPlannerToast("Session planner restored from local backup.");
 }
 });
 }
-function getSessionPlannerBoardHistoryKey(block = getSessionPlannerSelectedBlock()) {
-return `${sessionPlannerState?.selectedDate || "date"}::${block?.id || "block"}`;
-}
-function stringifySessionPlannerBoardSnapshot(snapshot = {}) {
-try {
-return JSON.stringify(snapshot);
-} catch {
-return "";
-}
-}
-function createSessionPlannerTacticalBoardSnapshot(block = getSessionPlannerSelectedBlock()) {
-if (!block) {
-return null;
-}
-const frames = normalizeSessionPlannerTacticalFrames(block.tacticalFrames);
-return {
-tacticalPitchMode: normalizeSessionPlannerTacticalPitchMode(block.tacticalPitchMode),
-tacticalFrames: frames,
-tacticalActiveFrameId: normalizeSessionPlannerTacticalActiveFrameId(block.tacticalActiveFrameId, frames),
-tacticalElements: Array.isArray(block.tacticalElements)
-? block.tacticalElements.map(cloneSessionPlannerTacticalElement)
-: [],
-};
-}
-function createSessionPlannerPlayerBoardSnapshot(block = getSessionPlannerSelectedBlock()) {
-if (!block) {
-return null;
-}
-return {
-playerBoardLayoutMode: block.playerBoardLayoutMode === "manual" ? "manual" : "auto",
-playerBoardPositions: normalizeSessionPlannerPlayerBoardPositions(block.playerBoardPositions),
-playerBoardColors: normalizeSessionPlannerPlayerBoardColors(block.playerBoardColors),
-playerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople(block.playerBoardCustomPeople),
-};
-}
-function createSessionPlannerBoardSnapshot(type, block = getSessionPlannerSelectedBlock()) {
-return type === "player"
-? createSessionPlannerPlayerBoardSnapshot(block)
-: createSessionPlannerTacticalBoardSnapshot(block);
-}
-function getSessionPlannerBoardHistoryStack(type, key) {
-const store = sessionPlannerBoardHistoryStacks[type] || sessionPlannerBoardHistoryStacks.tactical;
-if (!store.has(key)) {
-store.set(key, { undo: [], redo: [] });
-}
-return store.get(key);
-}
-function trimSessionPlannerBoardHistoryStack(stack) {
-while (stack.undo.length > sessionPlannerBoardHistoryLimit) {
-stack.undo.shift();
-}
-while (stack.redo.length > sessionPlannerBoardHistoryLimit) {
-stack.redo.shift();
-}
-}
-function syncSessionPlannerBoardHistoryBaseline(type, block = getSessionPlannerSelectedBlock()) {
-const snapshot = createSessionPlannerBoardSnapshot(type, block);
-if (!snapshot || !block) {
-return;
-}
-sessionPlannerBoardHistoryBaselines[type]?.set(getSessionPlannerBoardHistoryKey(block), snapshot);
-}
-function syncSessionPlannerBoardHistoryBaselines(block = getSessionPlannerSelectedBlock()) {
-syncSessionPlannerBoardHistoryBaseline("tactical", block);
-syncSessionPlannerBoardHistoryBaseline("player", block);
-}
-function captureSessionPlannerBoardHistoryFromState() {
-if (sessionPlannerBoardHistoryApplying) {
-return;
-}
-const block = getSessionPlannerSelectedBlock();
-if (!block) {
-return;
-}
-["tactical", "player"].forEach((type) => {
-const snapshot = createSessionPlannerBoardSnapshot(type, block);
-const baselineStore = sessionPlannerBoardHistoryBaselines[type];
-if (!snapshot || !baselineStore) {
-return;
-}
-const key = getSessionPlannerBoardHistoryKey(block);
-const previousSnapshot = baselineStore.get(key);
-if (!previousSnapshot) {
-baselineStore.set(key, snapshot);
-return;
-}
-if (stringifySessionPlannerBoardSnapshot(previousSnapshot) === stringifySessionPlannerBoardSnapshot(snapshot)) {
-return;
-}
-const stack = getSessionPlannerBoardHistoryStack(type, key);
-stack.undo.push(previousSnapshot);
-stack.redo = [];
-trimSessionPlannerBoardHistoryStack(stack);
-baselineStore.set(key, snapshot);
-});
-}
-function applySessionPlannerBoardSnapshot(type, snapshot) {
-const block = getSessionPlannerSelectedBlock();
-if (!block || !snapshot) {
-return false;
-}
-sessionPlannerBoardHistoryApplying = true;
-try {
-if (type === "player") {
-block.playerBoardLayoutMode = snapshot.playerBoardLayoutMode === "manual" ? "manual" : "auto";
-block.playerBoardPositions = normalizeSessionPlannerPlayerBoardPositions(snapshot.playerBoardPositions);
-block.playerBoardColors = normalizeSessionPlannerPlayerBoardColors(snapshot.playerBoardColors);
-block.playerBoardCustomPeople = normalizeSessionPlannerPlayerBoardCustomPeople(snapshot.playerBoardCustomPeople);
-markSessionPlannerBlockFieldsUpdated(block, [
-"playerBoardLayoutMode",
-"playerBoardPositions",
-"playerBoardColors",
-"playerBoardCustomPeople",
-]);
-} else {
-const frames = normalizeSessionPlannerTacticalFrames(snapshot.tacticalFrames);
-block.tacticalPitchMode = normalizeSessionPlannerTacticalPitchMode(snapshot.tacticalPitchMode);
-block.tacticalFrames = frames;
-block.tacticalActiveFrameId = normalizeSessionPlannerTacticalActiveFrameId(snapshot.tacticalActiveFrameId, frames);
-block.tacticalElements = Array.isArray(snapshot.tacticalElements)
-? snapshot.tacticalElements.map(cloneSessionPlannerTacticalElement)
-: [];
-markSessionPlannerBlockFieldsUpdated(block, ["tacticalPitchMode", "tacticalElements", "tacticalFrames", "tacticalActiveFrameId"]);
+const {
+captureFromState: captureSessionPlannerBoardHistoryFromState,
+syncBaseline: syncSessionPlannerBoardHistoryBaseline,
+syncBaselines: syncSessionPlannerBoardHistoryBaselines,
+undo: undoSessionPlannerBoardHistory,
+redo: redoSessionPlannerBoardHistory,
+} = createSessionPlannerBoardHistoryController({
+canEdit: canEditSessionPlanner,
+clearTacticalSelection: clearSessionPlannerTacticalSelection,
+cloneTacticalElement: cloneSessionPlannerTacticalElement,
+getSelectedBlock: getSessionPlannerSelectedBlock,
+getSelectedDate: () => sessionPlannerState?.selectedDate || "date",
+markBlockFieldsUpdated: markSessionPlannerBlockFieldsUpdated,
+normalizePlayerBoardColors: normalizeSessionPlannerPlayerBoardColors,
+normalizePlayerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople,
+normalizePlayerBoardPositions: normalizeSessionPlannerPlayerBoardPositions,
+normalizeTacticalActiveFrameId: normalizeSessionPlannerTacticalActiveFrameId,
+normalizeTacticalFrames: normalizeSessionPlannerTacticalFrames,
+normalizeTacticalPitchMode: normalizeSessionPlannerTacticalPitchMode,
+renderWorkspace: renderSessionPlannerWorkspace,
+resetTacticalDraftState: () => {
 sessionPlannerTacticalPendingPoint = null;
 sessionPlannerTacticalDraftLineState = null;
 sessionPlannerTacticalSelectionState = null;
-clearSessionPlannerTacticalSelection();
-}
-writeSessionPlannerState();
-} finally {
-sessionPlannerBoardHistoryApplying = false;
-}
-syncSessionPlannerBoardHistoryBaseline(type, block);
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-return true;
-}
-function undoSessionPlannerBoardHistory(type) {
-const block = getSessionPlannerSelectedBlock();
-if (!block || !canEditSessionPlanner()) {
-return false;
-}
-const key = getSessionPlannerBoardHistoryKey(block);
-const stack = getSessionPlannerBoardHistoryStack(type, key);
-if (!stack.undo.length) {
-showSessionPlannerToast("Nothing to undo yet.", "warning");
-return false;
-}
-const currentSnapshot = createSessionPlannerBoardSnapshot(type, block);
-const previousSnapshot = stack.undo.pop();
-if (currentSnapshot) {
-stack.redo.push(currentSnapshot);
-}
-trimSessionPlannerBoardHistoryStack(stack);
-return applySessionPlannerBoardSnapshot(type, previousSnapshot);
-}
-function redoSessionPlannerBoardHistory(type) {
-const block = getSessionPlannerSelectedBlock();
-if (!block || !canEditSessionPlanner()) {
-return false;
-}
-const key = getSessionPlannerBoardHistoryKey(block);
-const stack = getSessionPlannerBoardHistoryStack(type, key);
-if (!stack.redo.length) {
-showSessionPlannerToast("Nothing to redo yet.", "warning");
-return false;
-}
-const currentSnapshot = createSessionPlannerBoardSnapshot(type, block);
-const nextSnapshot = stack.redo.pop();
-if (currentSnapshot) {
-stack.undo.push(currentSnapshot);
-}
-trimSessionPlannerBoardHistoryStack(stack);
-return applySessionPlannerBoardSnapshot(type, nextSnapshot);
-}
+},
+showToast: showSessionPlannerToast,
+writeState: writeSessionPlannerState,
+});
 function writeSessionPlannerState() {
 if (!sessionPlannerState) {
 return false;

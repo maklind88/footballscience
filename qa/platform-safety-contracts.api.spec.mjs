@@ -97,6 +97,7 @@ const coreFiles = [
   "src/modules/session-planner/session-planner-print-renderer.mjs",
   "src/modules/session-planner/session-planner-runtime-renderers.mjs",
   "src/modules/session-planner/session-planner-state-merge-helpers.mjs",
+  "src/modules/session-planner/session-planner-board-history-controller.mjs",
   "src/modules/schedule/events.mjs",
   "src/modules/schedule/schedule-adapter.mjs",
   "src/modules/schedule/index.mjs",
@@ -378,6 +379,7 @@ test("core module contracts are covered by dedicated QA", () => {
   const squadScoutingRuntimeSpec = readProjectFile("qa/squad-scouting-runtime-contract.api.spec.mjs");
   const sessionPlannerRuntimeRenderersSpec = readProjectFile("qa/session-planner-runtime-renderers-contract.api.spec.mjs");
   const sessionPlannerStateMergeHelpersSpec = readProjectFile("qa/session-planner-state-merge-helpers-contract.api.spec.mjs");
+  const sessionPlannerBoardHistoryControllerSpec = readProjectFile("qa/session-planner-board-history-controller-contract.api.spec.mjs");
 
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-safety-contracts.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-security-contracts.api.spec.mjs");
@@ -416,6 +418,9 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-state-merge-helpers-contract.api.spec.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/session-planner/session-planner-state-merge-helpers.mjs");
   expect(sessionPlannerStateMergeHelpersSpec).toContain("Session Planner state merge helpers preserve newer block fields");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-board-history-controller-contract.api.spec.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/session-planner/session-planner-board-history-controller.mjs");
+  expect(sessionPlannerBoardHistoryControllerSpec).toContain("Session Planner board history owns undo redo outside app-runtime");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-tactical-controller-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-workspace-controller-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-adapter.api.spec.mjs");

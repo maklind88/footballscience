@@ -28,11 +28,14 @@ function createClick(target) {
 
 test("Session Planner click controller owns workspace click routing outside app-runtime", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const platformBindingsSource = readProjectFile("src/core/platform-workspace-runtime-bindings.mjs");
   const bindingsSource = readProjectFile("src/modules/session-planner/session-planner-runtime-bindings.mjs");
   const controllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-click-controller.mjs");
   const indexSource = readProjectFile("src/modules/session-planner/index.mjs");
 
-  expect(appSource).toContain("bindSessionPlannerRuntimeBindings({");
+  expect(appSource).toContain("bindPlatformWorkspaceRuntimeBindings({");
+  expect(appSource).not.toContain("bindSessionPlannerRuntimeBindings({");
+  expect(platformBindingsSource).toContain("bindSessionPlannerRuntimeBindings({");
   expect(appSource).not.toContain("bindSessionPlannerWorkspaceClickController({");
   expect(bindingsSource).toContain("bindSessionPlannerWorkspaceClickController({");
   expect(appSource).not.toContain('ui.sessionPlannerWorkspace?.addEventListener("click"');

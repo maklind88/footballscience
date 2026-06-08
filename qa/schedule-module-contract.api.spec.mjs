@@ -37,10 +37,13 @@ test("Schedule extraction owns the required module file slots", () => {
 
 test("Schedule app integration delegates controller wiring to the module", () => {
   const app = readProjectFile("app-runtime.js");
+  const platformBindings = readProjectFile("src/core/platform-workspace-runtime-bindings.mjs");
 
   expect(app).toContain("./src/modules/schedule/schedule-controller.mjs");
   expect(app).toContain("./src/modules/schedule/schedule-state.mjs");
-  expect(app).toContain("scheduleWorkspaceController.bind()");
+  expect(app).toContain("bindPlatformWorkspaceRuntimeBindings({");
+  expect(app).not.toContain("scheduleWorkspaceController.bind()");
+  expect(platformBindings).toContain("scheduleWorkspaceController?.bind?.()");
   expect(app).toContain("scheduleWorkspaceController.render()");
   expect(app).not.toContain("ui.schedulePrevMonthButton?.addEventListener");
   expect(app).not.toContain("data-edit-schedule-event");

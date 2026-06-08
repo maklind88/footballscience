@@ -69,6 +69,7 @@ test("Periodization extraction owns the state, renderer, controller, and bridge 
 
 test("Periodization app integration delegates state, renderer, controller, bridge, and merge helpers to the module", () => {
   const app = readProjectFile("app-runtime.js");
+  const platformBindings = readProjectFile("src/core/platform-workspace-runtime-bindings.mjs");
   const runtimeBindings = readProjectFile("src/modules/periodization/periodization-runtime-bindings.mjs");
   const sessionPlannerBindings = readProjectFile("src/modules/session-planner/session-planner-runtime-bindings.mjs");
 
@@ -84,7 +85,9 @@ test("Periodization app integration delegates state, renderer, controller, bridg
   expect(runtimeBindings).toContain("function refreshSessionPlannerMatchDayChip()");
   expect(app).toContain("getPeriodizationDay: getPeriodizationDayFromState");
   expect(runtimeBindings).toContain("renderWorkspace: renderPeriodizationWorkspace");
-  expect(app).toContain("periodizationWorkspaceController.bind()");
+  expect(app).toContain("bindPlatformWorkspaceRuntimeBindings({");
+  expect(app).not.toContain("periodizationWorkspaceController.bind()");
+  expect(platformBindings).toContain("periodizationWorkspaceController?.bind?.()");
   expect(app).toContain("periodizationBridge: sessionPlannerPeriodizationBridge");
   expect(app).not.toContain("function refreshSessionPlannerMatchDayChip()");
   expect(sessionPlannerBindings).toContain('callOptional(periodizationBridge, "handleClick", event)');

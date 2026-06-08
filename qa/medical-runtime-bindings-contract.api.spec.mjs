@@ -136,10 +136,13 @@ function createHarness({ canEdit = true } = {}) {
 
 test("Medical runtime bindings own Medical workspace event binding outside app-runtime", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const platformBindingsSource = readProjectFile("src/core/platform-workspace-runtime-bindings.mjs");
   const bindingsSource = readProjectFile("src/modules/medical/medical-runtime-bindings.mjs");
   const indexSource = readProjectFile("src/modules/medical/index.mjs");
 
-  expect(appSource).toContain("bindMedicalRuntimeBindings({");
+  expect(appSource).toContain("bindPlatformWorkspaceRuntimeBindings({");
+  expect(appSource).not.toContain("bindMedicalRuntimeBindings({");
+  expect(platformBindingsSource).toContain("bindMedicalRuntimeBindings({");
   expect(appSource).not.toContain('ui.medicalTeamWorkspace?.addEventListener("click"');
   expect(appSource).not.toContain('ui.medicalTeamWorkspace?.addEventListener("submit"');
   expect(bindingsSource).toContain('workspaceElement.addEventListener("click"');

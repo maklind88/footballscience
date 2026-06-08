@@ -68,6 +68,7 @@ import { createPlatformUiBindings } from "./src/core/platform-ui-bindings.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createCentralAppStateReloadService } from "./src/core/central-app-state-reload-service.mjs";
 import { createCentralRuntimeFacade, dataSafetySnapshotStoreName } from "./src/core/central-runtime-facade.mjs";
+import { bindPlatformWorkspaceRuntimeBindings } from "./src/core/platform-workspace-runtime-bindings.mjs";
 import { createWorkspaceDataRuntimeService } from "./src/core/workspace-data-runtime-service.mjs";
 import { createWorkspaceAccessRuntimeService } from "./src/core/workspace-access-runtime-service.mjs";
 import { addCalendarDays, clamp, escapeHtml, formatDashboardDateTime, formatDashboardTime, formatDataSafetyTime, isEditableKeyboardTarget, logEvent, maybeCopyToClipboard, setFormSubmitButtonState, togglePasswordInputVisibility } from "./src/core/runtime-ui-helpers.mjs";
@@ -6652,115 +6653,23 @@ renderDashboardChatWidget();
 focusDashboardChatWidgetComposer();
 platformNavigationController.renderTopIconMenu();
 });
-bindProfileStaffRuntimeBindings({
-ui: {
-profileMenu: ui.profileMenu,
-profileWorkspace: ui.profileWorkspace,
-staffWorkspace: ui.staffWorkspace,
-},
+bindPlatformWorkspaceRuntimeBindings({
+ui,
 win,
-state: {
+bindProfileStaffRuntimeBindings,
+bindAdminRuntimeBindings,
+bindMedicalRuntimeBindings,
+bindPlayerProfileRuntimeBindings,
+bindSessionPlannerRuntimeBindings,
+periodizationWorkspaceController,
+scheduleWorkspaceController,
+profileState: {
 getSelectedStaffUserId: () => selectedStaffUserId,
 setSelectedStaffUserId: (userId) => { selectedStaffUserId = userId; },
 getStaffCreateUserEditorOpen: () => staffCreateUserEditorOpen,
 setStaffCreateUserEditorOpen: (isOpen) => { staffCreateUserEditorOpen = isOpen; },
 },
-actions: {
-canAdminManageUser,
-createDashboardTask,
-createProfileImageDataUrl,
-formatUserName,
-getCurrentPlatformUser,
-getPasswordValidationMessage,
-getPlatformAuthStore,
-getPlatformFormValues,
-getPlatformUsers,
-hasHubState: () => Boolean(hubState),
-hasUserFieldConflict,
-isCurrentPlatformUserAdmin,
-maybeCopyToClipboard,
-normalizeAdminUserSubmissionValues,
-readDashboardTasks,
-refreshDashboardSurfaces,
-removeDashboardTask,
-renderProfileWorkspace,
-renderStaffWorkspace,
-renderWorkspaceChrome,
-setActiveWorkspace,
-setFormSubmitButtonState,
-setProfileMenuOpen,
-stripPasswordConfirmation,
-syncPlatformStructureWithUsers,
-syncPlatformUserFromAuth,
-togglePasswordInputVisibility,
-updateDashboardTask,
-updatePlatformUserFromPayload,
-},
-});
-ui.dataSafetyExportButton?.addEventListener("click", () => {
-exportFootballScienceDataBackup();
-setProfileMenuOpen(false);
-});
-ui.dataSafetyImportButton?.addEventListener("click", () => {
-ui.dataSafetyImportInput?.click();
-});
-ui.dataSafetyImportInput?.addEventListener("change", (event) => {
-const file = event.target.files?.[0] ?? null;
-event.target.value = "";
-importFootballScienceDataBackupFile(file);
-setProfileMenuOpen(false);
-});
-bindAdminRuntimeBindings({
-workspaceElement: ui.adminWorkspace,
-win,
-state: adminRuntimeService.getBindingStateAccessors(),
-actions: {
-buildPlatformAppearanceConfigFromForm,
-buildTemporaryLoginMessage,
-canAdminManageUser,
-createAdminClubFromForm,
-createAdminTeamFromForm,
-createDefaultPlatformAppearanceConfig,
-formatUserName,
-getAdminManagedWorkspaces,
-getAdminTransferRoomAccessTeamId,
-getCurrentPlatformUser,
-getPasswordValidationMessage,
-getPlatformAuthStore,
-getPlatformFormValues,
-getPlatformRoles,
-getPlatformStructureState,
-getPlatformUsers,
-getUserTeamId,
-getWorkspaceAccessConfig,
-hasUserFieldConflict,
-isCurrentPlatformUserAdmin,
-isPlatformAdminUser,
-loadAdminAuditLog,
-loadPlatformReadinessReport,
-maybeCopyToClipboard,
-normalizeAdminUserSubmissionValues,
-openCredentialsMailto,
-publishPlatformAppearanceConfig,
-readPlatformAppearanceState,
-renderAdminWorkspace,
-renderWorkspaceChrome,
-repairWorkspaceState,
-setFormSubmitButtonState,
-stripPasswordConfirmation,
-syncPlatformStructureWithUsers,
-syncPlatformUserFromAuth,
-togglePasswordInputVisibility,
-transferRoomRuntime,
-ensureTransferRoomState,
-withUiTimeout,
-writeWorkspaceHubState,
-},
-});
-bindMedicalRuntimeBindings({
-workspaceElement: ui.medicalTeamWorkspace,
-win,
-state: {
+medicalState: {
 getMedicalState: () => medicalState,
 setMedicalSelectedPlayerId: (playerId) => { medicalState.selectedPlayerId = playerId; },
 setMedicalPlayerModalOpen: (isOpen) => { medicalPlayerModalOpen = isOpen; },
@@ -6771,59 +6680,7 @@ setMedicalOperationsTab: (tab) => { medicalOperationsTab = tab; },
 setMedicalRosterSearchQuery: (query) => { medicalRosterSearchQuery = query; },
 setMedicalStatusFilter: (filter) => { medicalStatusFilter = filter; },
 },
-actions: {
-addMedicalInjuryPlan,
-addMedicalRecord,
-applyMedicalBulkRecommendation,
-applyMedicalQuickRecommendation,
-canEditMedicalTeam,
-clearMedicalInjuryPlanDraft,
-closeMedicalPlayerModal,
-copyMedicalCoachHandoverToClipboard,
-formatScheduleDateValue,
-getFilteredMedicalPlayers,
-getMedicalBulkSelectedPlayers,
-getMedicalDatabasePlayer,
-getMedicalInjuryPlanFormDraft,
-getMedicalRecommendationActivityContext,
-getMedicalRecommendationBlockReason,
-getMedicalRtpPhaseForRecommendation,
-getMedicalRtpPhaseOption,
-getMedicalStatusForParticipation,
-getMedicalStatusOption,
-getMedicalStatusOptionForDate,
-getPlatformFormValues,
-isMedicalItemArchived,
-normalizeMedicalOperationsTab,
-normalizeMedicalParticipation,
-normalizeMedicalPlayer,
-normalizeMedicalPlayerModalTab,
-openMedicalPlayerModal,
-parseMedicalRosterText,
-persistMedicalInjuryPlanDraftFromForm,
-recordMedicalDatabaseSyncEvent,
-removeMedicalInjuryPlan,
-removeMedicalPlayer,
-removeMedicalRecord,
-renderMedicalTeamWorkspace,
-setMedicalBulkNotSetSelection,
-setMedicalBulkSelection,
-setMedicalInjuryPlanDraftFromPlan,
-setMedicalSelectedDate,
-shiftMedicalSelectedDate,
-toggleMedicalBulkPlayer,
-updateMedicalBulkActivityControls,
-updateMedicalGovernancePolicy,
-updateMedicalInjuryPlan,
-updateMedicalPlanClearance,
-updateMedicalPlayerProfile,
-upsertMedicalPlayers,
-},
-});
-bindPlayerProfileRuntimeBindings({
-workspaceElement: ui.playerProfilesWorkspace,
-win,
-state: {
+playerProfileState: {
 getPendingPlayerProfileImportPlan,
 setPendingPlayerProfileImportPlan,
 getPlayerProfilesState: () => playerProfilesState,
@@ -6837,51 +6694,13 @@ setPlayerProfilesRosterFilter: (filter) => { playerProfilesRosterFilter = filter
 setPlayerProfileModalOpen: (isOpen) => { playerProfileModalOpen = isOpen; },
 setPlayerProfileNewPlayerModalOpen: (isOpen) => { playerProfileNewPlayerModalOpen = isOpen; },
 },
-helpers: {
-getPlayerProfileFormSignature,
-isTemporaryPlayerProfile,
-normalizePlayerProfileTab,
-},
-actions: {
-addPlayerProfile,
-applyPlayerProfileImportUndo,
-buildPlayerProfileImportFeedback,
-buildPlayerProfileOperationFeedback,
-canEditPlayerProfiles,
-closePlayerProfileModal,
-closePlayerProfileNewPlayerModal,
-ensurePlayerProfilesState,
-exportSquadDataFoundationJson,
-exportSquadSessionPlannerCsv,
-flushPlayerProfileAutosave,
-getPlatformFormValues,
-handlePhotoInput,
-importSquadDataFoundationFile,
-importSquadDataFoundationPayload,
-isCurrentPlatformUserAdmin,
-openPlayerProfileModal,
-openPlayerProfileNewPlayerModal,
-queuePlayerProfileAutosave,
-removePlayerProfile,
-renderPlayerProfilesRosterListOnly,
-renderPlayerProfilesWorkspace,
-savePlayerProfileEditForm,
-uploadSquadTeamLogo,
-},
-});
-bindSessionPlannerRuntimeBindings({
-workspaceElement: ui.sessionPlannerWorkspace,
-win,
-canEditSessionPlanner,
+sessionPlannerState: {
 localUiState: sessionPlannerLocalUiState,
 runtimeDelegates: sessionPlannerRuntimeDelegates,
 exerciseLibrary: exerciseLibraryRuntimeFacade,
 exerciseLibraryActions,
 periodizationBridge: sessionPlannerPeriodizationBridge,
-boardHistory: {
-undo: undoSessionPlannerBoardHistory,
-redo: redoSessionPlannerBoardHistory,
-},
+boardHistory: { undo: undoSessionPlannerBoardHistory, redo: redoSessionPlannerBoardHistory },
 normalizers: {
 cleanPlayerBoardFormationInput: cleanSessionPlannerPlayerBoardFormationInput,
 normalizePlayerBoardAutoMode: normalizeSessionPlannerPlayerBoardAutoMode,
@@ -6890,15 +6709,42 @@ normalizePlayerBoardTeamCount: normalizeSessionPlannerPlayerBoardTeamCount,
 normalizeTacticalColor,
 normalizeTacticalLineWidth,
 },
-getPlayerBadgeFromKeyboardEvent: getSessionPlannerTacticalPlayerBadgeFromKeyboardEvent,
 getSelectedDate: () => sessionPlannerState?.selectedDate,
 getMultiSelectOpenField: () => sessionPlannerMultiSelectOpenField,
-setMultiSelectOpenField: (field) => {
-sessionPlannerMultiSelectOpenField = field;
+setMultiSelectOpenField: (field) => { sessionPlannerMultiSelectOpenField = field; },
+},
+actions: {
+addMedicalInjuryPlan, addMedicalRecord, addPlayerProfile, applyMedicalBulkRecommendation, applyMedicalQuickRecommendation,
+applyPlayerProfileImportUndo, buildPlatformAppearanceConfigFromForm, buildPlayerProfileImportFeedback, buildPlayerProfileOperationFeedback,
+buildTemporaryLoginMessage, canAdminManageUser, canEditMedicalTeam, canEditPlayerProfiles, canEditSessionPlanner,
+clearMedicalInjuryPlanDraft, closeMedicalPlayerModal, closePlayerProfileModal, closePlayerProfileNewPlayerModal,
+copyMedicalCoachHandoverToClipboard, createAdminClubFromForm, createAdminTeamFromForm, createDashboardTask,
+createDefaultPlatformAppearanceConfig, createProfileImageDataUrl, ensurePlayerProfilesState, ensureTransferRoomState,
+exportFootballScienceDataBackup, exportSquadDataFoundationJson, exportSquadSessionPlannerCsv, flushPlayerProfileAutosave,
+formatScheduleDateValue, formatUserName, getAdminManagedWorkspaces, getAdminRuntimeBindingState: () => adminRuntimeService.getBindingStateAccessors(),
+getAdminTransferRoomAccessTeamId, getCurrentPlatformUser, getFilteredMedicalPlayers, getMedicalBulkSelectedPlayers,
+getMedicalDatabasePlayer, getMedicalInjuryPlanFormDraft, getMedicalRecommendationActivityContext, getMedicalRecommendationBlockReason,
+getMedicalRtpPhaseForRecommendation, getMedicalRtpPhaseOption, getMedicalStatusForParticipation, getMedicalStatusOption,
+getMedicalStatusOptionForDate, getPasswordValidationMessage, getPlatformAuthStore, getPlatformFormValues, getPlatformRoles,
+getPlatformStructureState, getPlatformUsers, getPlayerProfileFormSignature, getSessionPlannerTacticalPlayerBadgeFromKeyboardEvent,
+getUserTeamId, getWorkspaceAccessConfig, handlePhotoInput, hasHubState: () => Boolean(hubState), hasUserFieldConflict,
+importFootballScienceDataBackupFile, importSquadDataFoundationFile, importSquadDataFoundationPayload, isCurrentPlatformUserAdmin,
+isMedicalItemArchived, isPlatformAdminUser, isTemporaryPlayerProfile, loadAdminAuditLog, loadPlatformReadinessReport,
+maybeCopyToClipboard, normalizeAdminUserSubmissionValues, normalizeMedicalOperationsTab, normalizeMedicalParticipation,
+normalizeMedicalPlayer, normalizeMedicalPlayerModalTab, normalizePlayerProfileTab, openCredentialsMailto, openMedicalPlayerModal,
+openPlayerProfileModal, openPlayerProfileNewPlayerModal, parseMedicalRosterText, persistMedicalInjuryPlanDraftFromForm,
+publishPlatformAppearanceConfig, queuePlayerProfileAutosave, readDashboardTasks, readPlatformAppearanceState,
+recordMedicalDatabaseSyncEvent, refreshDashboardSurfaces, removeDashboardTask, removeMedicalInjuryPlan, removeMedicalPlayer,
+removeMedicalRecord, removePlayerProfile, renderAdminWorkspace, renderMedicalTeamWorkspace, renderPlayerProfilesRosterListOnly,
+renderPlayerProfilesWorkspace, renderProfileWorkspace, renderStaffWorkspace, renderWorkspaceChrome, repairWorkspaceState,
+savePlayerProfileEditForm, setFormSubmitButtonState, setMedicalBulkNotSetSelection, setMedicalBulkSelection,
+setMedicalInjuryPlanDraftFromPlan, setMedicalSelectedDate, setProfileMenuOpen, shiftMedicalSelectedDate,
+stripPasswordConfirmation, syncPlatformStructureWithUsers, syncPlatformUserFromAuth, toggleMedicalBulkPlayer,
+togglePasswordInputVisibility, transferRoomRuntime, updateDashboardTask, updateMedicalBulkActivityControls,
+updateMedicalGovernancePolicy, updateMedicalInjuryPlan, updateMedicalPlanClearance, updateMedicalPlayerProfile,
+updatePlatformUserFromPayload, uploadSquadTeamLogo, upsertMedicalPlayers, withUiTimeout, writeWorkspaceHubState,
 },
 });
-periodizationWorkspaceController.bind();
-scheduleWorkspaceController.bind();
 ui.dashboardChatWidgetRoot?.addEventListener("change", async (event) => {
 const attachmentInput = event.target.closest("[data-dashboard-chat-attachment-input]");
 if (!attachmentInput) {

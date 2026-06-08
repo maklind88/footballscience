@@ -28,10 +28,13 @@ function createRuntimeDelegates(calls = []) {
 
 test("Session Planner runtime bindings own controller composition outside app-runtime", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const platformBindingsSource = readProjectFile("src/core/platform-workspace-runtime-bindings.mjs");
   const bindingsSource = readProjectFile("src/modules/session-planner/session-planner-runtime-bindings.mjs");
   const indexSource = readProjectFile("src/modules/session-planner/index.mjs");
 
-  expect(appSource).toContain("bindSessionPlannerRuntimeBindings({");
+  expect(appSource).toContain("bindPlatformWorkspaceRuntimeBindings({");
+  expect(appSource).not.toContain("bindSessionPlannerRuntimeBindings({");
+  expect(platformBindingsSource).toContain("bindSessionPlannerRuntimeBindings({");
   expect(appSource).not.toContain("bindSessionPlannerWorkspaceClickController({");
   expect(appSource).not.toContain("bindSessionPlannerWorkspaceFormController({");
   expect(appSource).not.toContain("bindSessionPlannerWorkspaceDragPointerController({");

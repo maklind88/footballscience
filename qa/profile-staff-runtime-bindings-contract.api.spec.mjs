@@ -123,10 +123,13 @@ function createHarness() {
 
 test("Profile/Staff runtime bindings own profile and staff event binding outside app-runtime", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const platformBindingsSource = readProjectFile("src/core/platform-workspace-runtime-bindings.mjs");
   const bindingsSource = readProjectFile("src/modules/profile/profile-staff-runtime-bindings.mjs");
   const indexSource = readProjectFile("src/modules/profile/index.mjs");
 
-  expect(appSource).toContain("bindProfileStaffRuntimeBindings({");
+  expect(appSource).toContain("bindPlatformWorkspaceRuntimeBindings({");
+  expect(appSource).not.toContain("bindProfileStaffRuntimeBindings({");
+  expect(platformBindingsSource).toContain("bindProfileStaffRuntimeBindings({");
   expect(appSource).not.toContain('ui.profileWorkspace?.addEventListener("submit"');
   expect(appSource).not.toContain('ui.staffWorkspace?.addEventListener("click"');
   expect(appSource).not.toContain('win.addEventListener("platform:open-workspace"');

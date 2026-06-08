@@ -125,10 +125,13 @@ function createHarness({ canEdit = true } = {}) {
 
 test("Player profile runtime bindings own Squad workspace event binding outside app-runtime", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const platformBindingsSource = readProjectFile("src/core/platform-workspace-runtime-bindings.mjs");
   const bindingsSource = readProjectFile("src/modules/squad/player-profile-runtime-bindings.mjs");
   const indexSource = readProjectFile("src/modules/squad/index.mjs");
 
-  expect(appSource).toContain("bindPlayerProfileRuntimeBindings({");
+  expect(appSource).toContain("bindPlatformWorkspaceRuntimeBindings({");
+  expect(appSource).not.toContain("bindPlayerProfileRuntimeBindings({");
+  expect(platformBindingsSource).toContain("bindPlayerProfileRuntimeBindings({");
   expect(appSource).not.toContain('ui.playerProfilesWorkspace?.addEventListener("click"');
   expect(appSource).not.toContain('ui.playerProfilesWorkspace?.addEventListener("input"');
   expect(appSource).not.toContain('ui.playerProfilesWorkspace?.addEventListener("submit"');

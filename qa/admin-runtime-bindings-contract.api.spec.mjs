@@ -135,10 +135,13 @@ function createHarness() {
 
 test("Admin runtime bindings own Admin workspace event binding outside app-runtime", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const platformBindingsSource = readProjectFile("src/core/platform-workspace-runtime-bindings.mjs");
   const bindingsSource = readProjectFile("src/modules/admin/admin-runtime-bindings.mjs");
   const indexSource = readProjectFile("src/modules/admin/index.mjs");
 
-  expect(appSource).toContain("bindAdminRuntimeBindings({");
+  expect(appSource).toContain("bindPlatformWorkspaceRuntimeBindings({");
+  expect(appSource).not.toContain("bindAdminRuntimeBindings({");
+  expect(platformBindingsSource).toContain("bindAdminRuntimeBindings({");
   expect(appSource).not.toContain("async function createAdminUserFromForm");
   expect(appSource).not.toContain('ui.adminWorkspace?.addEventListener("click"');
   expect(appSource).not.toContain('ui.adminWorkspace?.addEventListener("submit"');

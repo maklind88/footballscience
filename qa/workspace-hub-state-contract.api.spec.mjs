@@ -57,8 +57,10 @@ test("workspace hub state helpers own clone and persistable snapshots outside ap
 
 test("app-runtime delegates workspace hub cloning to the core helper", () => {
   const appRuntime = readProjectFile("app-runtime.js");
-  expect(appRuntime).toContain('import { createWorkspaceHubStateHelpers } from "./src/core/workspace-hub-state.mjs";');
-  expect(appRuntime).toContain("const {\ncloneHubState,\nclonePersistableWorkspaceHubState,");
-  expect(appRuntime).not.toContain("function cloneHubState(");
-  expect(appRuntime).not.toContain("function clonePersistableWorkspaceHubState(");
+  const accessRuntime = readProjectFile("src/core/workspace-access-runtime-service.mjs");
+  expect(appRuntime).toContain('import { createWorkspaceAccessRuntimeService } from "./src/core/workspace-access-runtime-service.mjs";');
+  expect(appRuntime).toContain("function cloneHubState(...args)");
+  expect(appRuntime).toContain("function clonePersistableWorkspaceHubState(...args)");
+  expect(accessRuntime).toContain('import { createWorkspaceHubStateHelpers } from "./workspace-hub-state.mjs";');
+  expect(accessRuntime).toContain("cloneHubState,\nclonePersistableWorkspaceHubState,");
 });

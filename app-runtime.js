@@ -89,6 +89,7 @@ import {
   buildPlayerProfileImportFeedback as buildPlayerProfileImportFeedbackMessage,
   buildPlayerProfileImportPreviewMessage,
   buildPlayerProfileOperationFeedback,
+  createPlayerProfileFormValueReader,
   getPlayerProfileCompleteness,
   getPlayerProfileImportUndoRelativeTimeLabel,
   getSquadChangeSummary,
@@ -1563,6 +1564,10 @@ createId: createDashboardId,
 getAgeCacheEntry: getPlayerProfileAgeCacheEntry,
 getNow: () => new Date().toISOString(),
 isDateValue: isMedicalDateValue,
+});
+const getPlayerProfileFormValues = createPlayerProfileFormValueReader({
+attributeGroups: playerProfileAttributeGroups,
+normalizeNumber: normalizePlayerProfileNumber,
 });
 const {
 getPlayerProfileDateDiffDays,
@@ -8631,51 +8636,6 @@ teamLogoMarkup: renderPlatformTeamLogoMark(squadTeam || { name: squadTeamName },
 teamName: squadTeamName,
 });
 queuePlayerProfileAgeHydration();
-}
-function getPlayerProfileFormValues(form) {
-const data = new FormData(form);
-const hasField = (name) => Boolean(form?.querySelector(`[name="${name}"]`));
-const attributeRatings = playerProfileAttributeGroups.reduce((result, group) => {
-result[group.key] = normalizePlayerProfileNumber(data.get(`rating.${group.key}`), 3);
-return result;
-}, {});
-const futureData = {
-performanceNotes: String(data.get("performanceNotes") ?? "").trim(),
-scoutingNotes: String(data.get("scoutingNotes") ?? "").trim(),
-analysisNotes: String(data.get("analysisNotes") ?? "").trim(),
-};
-const values = {
-playerId: String(data.get("playerId") ?? "").trim(),
-name: String(data.get("name") ?? "").trim(),
-number: String(data.get("number") ?? "").trim(),
-position: String(data.get("position") ?? "").trim(),
-status: String(data.get("status") ?? "").trim(),
-squadStatus: String(data.get("squadStatus") ?? "").trim(),
-careerPhase: String(data.get("careerPhase") ?? "").trim(),
-primaryRole: String(data.get("primaryRole") ?? "").trim(),
-secondaryRoles: data.getAll("secondaryRoles").map((role) => String(role).trim()),
-preferredSide: String(data.get("preferredSide") ?? "").trim(),
-roleGroup: String(data.get("roleGroup") ?? "").trim(),
-coachNotes: String(data.get("coachNotes") ?? "").trim(),
-attributeRatings,
-idp: {
-status: String(data.get("idpStatus") ?? "").trim(),
-primaryFocus: String(data.get("idpPrimaryFocus") ?? "").trim(),
-strengths: String(data.get("idpStrengths") ?? "").trim(),
-focusAreas: String(data.get("idpFocusAreas") ?? "").trim(),
-nextAction: String(data.get("idpNextAction") ?? "").trim(),
-reviewDate: String(data.get("idpReviewDate") ?? "").trim(),
-},
-futureData,
-};
-if (hasField("age")) values.age = String(data.get("age") ?? "").trim();
-if (hasField("birthDate")) values.birthDate = String(data.get("birthDate") ?? "").trim();
-if (hasField("rosterType")) values.rosterType = String(data.get("rosterType") ?? "").trim();
-if (hasField("temporaryGroup")) values.temporaryGroup = String(data.get("temporaryGroup") ?? "").trim();
-if (hasField("temporaryFrom")) values.temporaryFrom = String(data.get("temporaryFrom") ?? "").trim();
-if (hasField("temporaryTo")) values.temporaryTo = String(data.get("temporaryTo") ?? "").trim();
-if (hasField("photoUrl")) values.photoUrl = String(data.get("photoUrl") ?? "").trim();
-return values;
 }
 function getPlayerProfileFormSignature(form) { try { return form ? JSON.stringify(getPlayerProfileFormValues(form)) : ""; } catch { return ""; } }
 function savePlayerProfileEditForm(form) {

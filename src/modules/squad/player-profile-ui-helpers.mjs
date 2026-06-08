@@ -1,5 +1,72 @@
 import { escapeHtml } from "../../core/runtime-ui-helpers.mjs";
 
+const defaultNormalizeNumber = (value, fallback = 3) => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? Math.max(1, Math.min(5, Math.round(numericValue))) : fallback;
+};
+
+function getProfileFormData(form) {
+  return form && typeof form.get === "function" && typeof form.getAll === "function" ? form : new FormData(form);
+}
+
+function profileFormHasField(form, formData, name) {
+  if (form && typeof form.querySelector === "function") {
+    return Boolean(form.querySelector(`[name="${name}"]`));
+  }
+  return Boolean(formData?.has?.(name));
+}
+
+export function createPlayerProfileFormValueReader(options = {}) {
+  const attributeGroups = Array.isArray(options.attributeGroups) ? options.attributeGroups : [];
+  const normalizeNumber = typeof options.normalizeNumber === "function" ? options.normalizeNumber : defaultNormalizeNumber;
+
+  return function getPlayerProfileFormValues(form) {
+    const data = getProfileFormData(form);
+    const hasField = (name) => profileFormHasField(form, data, name);
+    const attributeRatings = attributeGroups.reduce((result, group) => {
+      result[group.key] = normalizeNumber(data.get(`rating.${group.key}`), 3);
+      return result;
+    }, {});
+    const futureData = {
+      performanceNotes: String(data.get("performanceNotes") ?? "").trim(),
+      scoutingNotes: String(data.get("scoutingNotes") ?? "").trim(),
+      analysisNotes: String(data.get("analysisNotes") ?? "").trim(),
+    };
+    const values = {
+      playerId: String(data.get("playerId") ?? "").trim(),
+      name: String(data.get("name") ?? "").trim(),
+      number: String(data.get("number") ?? "").trim(),
+      position: String(data.get("position") ?? "").trim(),
+      status: String(data.get("status") ?? "").trim(),
+      squadStatus: String(data.get("squadStatus") ?? "").trim(),
+      careerPhase: String(data.get("careerPhase") ?? "").trim(),
+      primaryRole: String(data.get("primaryRole") ?? "").trim(),
+      secondaryRoles: data.getAll("secondaryRoles").map((role) => String(role).trim()),
+      preferredSide: String(data.get("preferredSide") ?? "").trim(),
+      roleGroup: String(data.get("roleGroup") ?? "").trim(),
+      coachNotes: String(data.get("coachNotes") ?? "").trim(),
+      attributeRatings,
+      idp: {
+        status: String(data.get("idpStatus") ?? "").trim(),
+        primaryFocus: String(data.get("idpPrimaryFocus") ?? "").trim(),
+        strengths: String(data.get("idpStrengths") ?? "").trim(),
+        focusAreas: String(data.get("idpFocusAreas") ?? "").trim(),
+        nextAction: String(data.get("idpNextAction") ?? "").trim(),
+        reviewDate: String(data.get("idpReviewDate") ?? "").trim(),
+      },
+      futureData,
+    };
+    if (hasField("age")) values.age = String(data.get("age") ?? "").trim();
+    if (hasField("birthDate")) values.birthDate = String(data.get("birthDate") ?? "").trim();
+    if (hasField("rosterType")) values.rosterType = String(data.get("rosterType") ?? "").trim();
+    if (hasField("temporaryGroup")) values.temporaryGroup = String(data.get("temporaryGroup") ?? "").trim();
+    if (hasField("temporaryFrom")) values.temporaryFrom = String(data.get("temporaryFrom") ?? "").trim();
+    if (hasField("temporaryTo")) values.temporaryTo = String(data.get("temporaryTo") ?? "").trim();
+    if (hasField("photoUrl")) values.photoUrl = String(data.get("photoUrl") ?? "").trim();
+    return values;
+  };
+}
+
 export function getSquadChangeSummary(type, player = {}, changes = []) {
   if (type === "player-added") {
     return `${player?.name || "Player"} added to Squad`;

@@ -1,11 +1,68 @@
 import { expect, test } from "@playwright/test";
 import {
+  createPlayerProfileFormValueReader,
   getPlayerProfileCompleteness,
   getPlayerProfileImportUndoRelativeTimeLabel,
   getSquadChangeSummary,
   renderPlayerProfileAvatar,
   renderPlayerProfileAvatarUpload,
 } from "../src/modules/squad/index.mjs";
+
+test("Squad profile UI helpers parse profile form values without owning writes", () => {
+  const formData = new FormData();
+  formData.set("playerId", " p-1 ");
+  formData.set("name", " Ada ");
+  formData.set("number", " 8 ");
+  formData.set("position", " CM ");
+  formData.set("status", " available ");
+  formData.set("squadStatus", " important ");
+  formData.set("careerPhase", " prime ");
+  formData.set("primaryRole", " 8 ");
+  formData.append("secondaryRoles", " 10 ");
+  formData.append("secondaryRoles", " 6 ");
+  formData.set("preferredSide", " right ");
+  formData.set("roleGroup", " midfielder ");
+  formData.set("coachNotes", " Trusted ");
+  formData.set("rating.technical", "4.6");
+  formData.set("rating.physical", "2");
+  formData.set("idpStatus", " active ");
+  formData.set("idpPrimaryFocus", " Scanning ");
+  formData.set("idpStrengths", " Passing ");
+  formData.set("idpFocusAreas", " Timing ");
+  formData.set("idpNextAction", " Video ");
+  formData.set("idpReviewDate", "2026-06-20");
+  formData.set("performanceNotes", "High ceiling ");
+  formData.set("scoutingNotes", " Watch ");
+  formData.set("analysisNotes", " Good ");
+  formData.set("age", "24");
+  formData.set("photoUrl", "https://cdn.test/ada.png");
+
+  const readValues = createPlayerProfileFormValueReader({
+    attributeGroups: [{ key: "technical" }, { key: "physical" }],
+  });
+
+  expect(readValues(formData)).toMatchObject({
+    playerId: "p-1",
+    name: "Ada",
+    number: "8",
+    position: "CM",
+    secondaryRoles: ["10", "6"],
+    attributeRatings: { technical: 5, physical: 2 },
+    idp: {
+      status: "active",
+      primaryFocus: "Scanning",
+      nextAction: "Video",
+      reviewDate: "2026-06-20",
+    },
+    futureData: {
+      performanceNotes: "High ceiling",
+      scoutingNotes: "Watch",
+      analysisNotes: "Good",
+    },
+    age: "24",
+    photoUrl: "https://cdn.test/ada.png",
+  });
+});
 
 test("Squad profile UI helpers preserve change summaries and completeness scoring", () => {
   expect(getSquadChangeSummary("player-added", { name: "Ada" })).toBe("Ada added to Squad");

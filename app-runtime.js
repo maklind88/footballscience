@@ -87,6 +87,7 @@ import {
   createSquadImportPlanner,
   createPlayerProfileHelpers,
   createPlayerProfileIntelligenceHelpers,
+  createPlayerProfileRuntimeStateService,
   createSquadMedicalStatusService,
   createSquadScoutingRuntime,
   buildPlayerProfileImportFeedback as buildPlayerProfileImportFeedbackMessage,
@@ -1565,6 +1566,7 @@ let playerProfileActiveTab = "overview";
 let playerProfileModalOpen = false;
 let playerProfileNewPlayerModalOpen = false;
 let playerProfileAutosaveTimer = 0, playerProfileAutosaveLastSignature = "";
+let playerProfileRuntimeStateService = null;
 const playerProfileImportUndoHistoryLimit = 3;
 let playerProfileImportUndoHistory = [];
 let playerProfileLastImportSnapshot = null;
@@ -7303,431 +7305,111 @@ function setMedicalStateStorageValue(...args) { return medicalRuntimeStateServic
 function readMedicalState(...args) { return medicalRuntimeStateService.readMedicalState(...args); }
 function writeMedicalState(...args) { return medicalRuntimeStateService.writeMedicalState(...args); }
 function ensureMedicalState(...args) { return medicalRuntimeStateService.ensureMedicalState(...args); }
-function readPlayerProfileAgeCache() {
-try {
-const raw = win.localStorage.getItem(playerProfileAgeCacheStorageKey);
-const parsed = raw ? JSON.parse(raw) : {};
-const sourcePlayers = parsed?.players && typeof parsed.players === "object" ? parsed.players : {};
-const players = Object.entries(sourcePlayers).reduce((result, [key, entry]) => {
-const normalizedKey = String(key || "").trim();
-if (!normalizedKey) {
-return result;
-}
-const normalizedEntry = normalizePlayerProfileAgeCacheEntry(entry);
-if (normalizedEntry.signature || normalizedEntry.checkedAt || normalizedEntry.birthDate || normalizedEntry.age) {
-result[normalizedKey] = normalizedEntry;
-}
-return result;
-}, {});
-return {
-schemaVersion: "football-squad-age-cache-v1",
-players,
-updatedAt: String(parsed?.updatedAt || "").trim(),
-};
-} catch {
-return { schemaVersion: "football-squad-age-cache-v1", players: {}, updatedAt: "" };
-}
-}
-function ensurePlayerProfileAgeCache() {
-if (!playerProfileAgeCacheState) {
-playerProfileAgeCacheState = readPlayerProfileAgeCache();
-}
-return playerProfileAgeCacheState;
-}
-function writePlayerProfileAgeCache(cache = playerProfileAgeCacheState) {
-if (!cache) {
-return;
-}
-playerProfileAgeCacheState = {
-schemaVersion: "football-squad-age-cache-v1",
-players: cache.players && typeof cache.players === "object" ? cache.players : {},
-updatedAt: new Date().toISOString(),
-};
-try {
-win.localStorage.setItem(playerProfileAgeCacheStorageKey, JSON.stringify(playerProfileAgeCacheState));
-} catch {
-logEvent("Squad age cache could not be written to local storage.");
-}
-}
-function getPlayerProfileAgeCacheEntry(player = {}, cache = ensurePlayerProfileAgeCache()) {
-const key = getPlayerProfileAgeCacheKey(player);
-const entry = key ? cache.players?.[key] : null;
-if (!entry) {
-return null;
-}
-const signature = getPlayerProfileAgeLookupSignature(player);
-if (entry.signature && entry.signature !== signature) {
-return null;
-}
-return entry;
-}
-function buildPlayerProfileImportFeedback(result = {}) {
-return buildPlayerProfileImportFeedbackMessage(result, { undoState: getPlayerProfileImportUndoState() });
-}
-function renderPlayerProfilesWorkspaceMessage(message) { return squadWorkspaceRenderer.renderMessage(message); }
-function getCurrentSquadActorLabel() {
-const user = getCurrentPlatformUser?.();
-const firstName = String(user?.firstName || user?.user_metadata?.firstName || "").trim();
-const lastName = String(user?.lastName || user?.user_metadata?.lastName || "").trim();
-const displayName = String(user?.name || user?.displayName || [firstName, lastName].filter(Boolean).join(" ")).trim();
-return displayName || String(user?.email || "Football Science").trim();
-}
-function recordPlayerProfileChange(type, player = {}, changes = [], options = {}) {
-ensurePlayerProfilesState();
-const safeChanges = Array.isArray(changes) ? changes.filter(Boolean) : [];
-const summary = options.summary || getSquadChangeSummary(type, player, safeChanges);
-const entry = normalizePlayerProfileChangeLogEntry({
-id: createDashboardId("squad-change"),
-type,
-playerId: player?.id || options.playerId || "",
-playerName: player?.name || options.playerName || "",
-actor: options.actor || getCurrentSquadActorLabel(),
-summary,
-changes: safeChanges,
-createdAt: options.createdAt || new Date().toISOString(),
-});
-playerProfilesState.changeLog = normalizePlayerProfileChangeLog([entry, ...(playerProfilesState.changeLog || [])]);
-}
-function getPlayerProfileChangeLog(playerId = "") {
-ensurePlayerProfilesState();
-return normalizePlayerProfileChangeLog(playerProfilesState.changeLog).filter((entry) => entry.playerId === playerId);
-}
-function getRecentPlayerProfileChangeLog(limit = 5) {
-ensurePlayerProfilesState();
-return normalizePlayerProfileChangeLog(playerProfilesState.changeLog).slice(0, limit);
-}
-function clonePlayerProfilesState(source = {}) {
-const removedPlayerIds = normalizePlayerProfileRemovedIds(
-source.removedPlayerIds || source.deletedPlayerIds || source.removedIds
-);
-const removedPlayerIdSet = new Set(removedPlayerIds);
-const seededPlayers = defaultMedicalPlayers.map((player) =>
-normalizePlayerProfile({
-...player,
-primaryRole: getDefaultPlayerProfileRole(player),
-roleGroup: getPlayerProfileRoleGroupForRole(getDefaultPlayerProfileRole(player), player.position),
-})
-);
-const incomingPlayers = Array.isArray(source.players)
-? source.players.map(normalizePlayerProfile).filter(Boolean)
-: [];
-const playersById = new Map();
-seededPlayers.filter(Boolean).forEach((player) => {
-if (removedPlayerIdSet.has(player.id)) {
-return;
-}
-playersById.set(player.id, player);
-});
-incomingPlayers.forEach((player) => {
-if (removedPlayerIdSet.has(player.id)) {
-return;
-}
-const seededPlayer = playersById.get(player.id);
-playersById.set(player.id, seededPlayer ? { ...seededPlayer, ...player } : player);
-});
-const players = Array.from(playersById.values()).sort(comparePlayerProfiles);
-const selectedPlayerId = players.some((player) => player.id === source.selectedPlayerId)
-? source.selectedPlayerId
-: players[0]?.id || "";
-return {
-selectedPlayerId,
-players,
-removedPlayerIds,
-rosterVersion: source.rosterVersion || playerProfilesDefaultRosterVersion,
-changeLog: normalizePlayerProfileChangeLog(source.changeLog || source.history || []),
-schemaVersion: playerProfilesSchemaVersion,
-updatedAt: source.updatedAt || new Date().toISOString(),
-};
-}
-function buildPlayerProfileFromMedicalTrainingGuest(medicalPlayer = {}) {
-const rosterType = getTemporaryRosterTypeFromPlayerSource(medicalPlayer);
-return normalizePlayerProfile({
-...medicalPlayer,
-rosterType,
-countsInSquad: false,
-temporaryGroup: medicalPlayer.temporaryGroup || medicalPlayer.subGroup || medicalPlayer.trainingGroup || getPlayerProfileRosterTypeOption(rosterType).shortLabel,
-temporaryFrom: medicalPlayer.temporaryFrom || medicalPlayer.startDate,
-temporaryTo: medicalPlayer.temporaryTo || medicalPlayer.endDate,
-});
-}
-function syncPlayerProfilesFromMedicalTrainingGuests(options = {}) {
-if (!playerProfilesState) {
-return false;
-}
-ensureMedicalState();
-const medicalPlayers = Array.isArray(medicalState?.players) ? medicalState.players : [];
-const removedPlayerIdSet = new Set(normalizePlayerProfileRemovedIds(playerProfilesState.removedPlayerIds));
-const existingIdentityKeys = new Set();
-(Array.isArray(playerProfilesState.players) ? playerProfilesState.players : []).forEach((player) => {
-getPlayerProfileSyncIdentityKeys(player).forEach((key) => existingIdentityKeys.add(key));
-});
-const importedProfiles = [];
-medicalPlayers
-.filter((player) => player && !isMedicalItemArchived(player))
-.filter(isTemporaryPlayerProfile)
-.forEach((medicalPlayer) => {
-const identityKeys = getPlayerProfileSyncIdentityKeys(medicalPlayer);
-const playerId = String(medicalPlayer.id || "").trim();
-if ((playerId && removedPlayerIdSet.has(playerId)) || identityKeys.some((key) => existingIdentityKeys.has(key))) {
-return;
-}
-const profile = buildPlayerProfileFromMedicalTrainingGuest(medicalPlayer);
-if (!profile || playerProfileCountsInSquad(profile)) {
-return;
-}
-importedProfiles.push(profile);
-getPlayerProfileSyncIdentityKeys(profile).forEach((key) => existingIdentityKeys.add(key));
-});
-if (!importedProfiles.length) {
-return false;
-}
-playerProfilesState.players = [...playerProfilesState.players, ...importedProfiles].sort(comparePlayerProfiles);
-if (!playerProfilesState.selectedPlayerId && playerProfilesState.players[0]) {
-playerProfilesState.selectedPlayerId = playerProfilesState.players[0].id;
-}
-if (options.persist !== false) {
-writePlayerProfilesState();
-}
-return true;
-}
-function readPlayerProfilesState() {
-try {
-const raw = win.localStorage.getItem(playerProfilesStorageKey);
-const parsed = raw ? JSON.parse(raw) : {};
-const state = clonePlayerProfilesState(parsed);
-if (!raw || parsed?.schemaVersion !== playerProfilesSchemaVersion) {
-rawDataSafetySetItem(playerProfilesStorageKey, JSON.stringify(state));
-}
-return state;
-} catch {
-const state = clonePlayerProfilesState({});
-try {
-rawDataSafetySetItem(playerProfilesStorageKey, JSON.stringify(state));
-} catch {
-logEvent("Player Profiles data could not be written to local storage.");
-}
-return state;
-}
-}
-function writePlayerProfilesState() {
-if (!playerProfilesState) {
-return;
-}
-try {
-const removedPlayerIdSet = new Set(normalizePlayerProfileRemovedIds(playerProfilesState.removedPlayerIds));
-playerProfilesState.removedPlayerIds = Array.from(removedPlayerIdSet);
-playerProfilesState.players = (Array.isArray(playerProfilesState.players) ? playerProfilesState.players : [])
-.filter((player) => !removedPlayerIdSet.has(player?.id));
-playerProfilesState.updatedAt = new Date().toISOString();
-win.localStorage.setItem(playerProfilesStorageKey, JSON.stringify(playerProfilesState));
-} catch {
-logEvent("Player Profiles data could not be written to local storage.");
-}
-}
-function getPlayerProfileAgeHydrationCandidates(players = []) {
-const cache = ensurePlayerProfileAgeCache();
-const seenKeys = new Set();
-return (Array.isArray(players) ? players : [])
-.filter((player) => player?.id && player?.name)
-.filter((player) => {
-if (getPlayerProfileBirthDateValue(player)) {
-return false;
-}
-const cacheKey = getPlayerProfileAgeCacheKey(player);
-if (!cacheKey || seenKeys.has(cacheKey)) {
-return false;
-}
-const cachedEntry = getPlayerProfileAgeCacheEntry(player, cache);
-if (cachedEntry?.birthDate || cachedEntry?.birthDateCheckedAt || (cachedEntry?.checkedAt && !cachedEntry?.age)) {
-return false;
-}
-seenKeys.add(cacheKey);
-return true;
-})
-.map((player) => ({
-profileId: player.id,
-cacheKey: getPlayerProfileAgeCacheKey(player),
-signature: getPlayerProfileAgeLookupSignature(player),
-name: player.name,
-number: player.number,
-position: player.position,
-}));
-}
-function buildPlayerProfileAgeHydrationPayload(candidates = []) {
-const user = getCurrentPlatformUser();
-const platformStructure = getPlatformStructureState();
-const squadTeam = getPlatformTeamDisplayTeam(user, platformStructure);
-const teamName = squadTeam?.name || getPlatformTeamDisplayName(user, platformStructure);
-return {
-schemaVersion: "football-squad-age-hydration-request-v1",
-team: {
-id: squadTeam?.id || user?.teamId || "",
-name: teamName,
-clubId: squadTeam?.clubId || user?.clubId || "",
-clubName: user?.clubName || user?.club || "",
+playerProfileRuntimeStateService = createPlayerProfileRuntimeStateService({
+canCurrentUserEditWorkspace,
+comparePlayerProfiles,
+createDashboardId,
+defaultMedicalPlayers,
+ensureMedicalState,
+fetchFn: (...args) => fetch(...args),
+flushPlayerProfileAutosave,
+getCurrentPlatformUser,
+getDefaultPlayerProfileRole,
+getHubState: () => hubState,
+getMedicalState: () => medicalState,
+getNow: () => new Date().toISOString(),
+getPlatformApiAccessToken,
+getPlatformStructureState,
+getPlatformTeamDisplayName,
+getPlatformTeamDisplayTeam,
+getPlayerProfileAgeCacheKey,
+getPlayerProfileAgeCacheState: () => playerProfileAgeCacheState,
+getPlayerProfileAgeHydrationLastFingerprint: () => playerProfileAgeHydrationLastFingerprint,
+getPlayerProfileAgeHydrationPending: () => playerProfileAgeHydrationPending,
+getPlayerProfileAgeHydrationTimer: () => playerProfileAgeHydrationTimer,
+getPlayerProfileAgeLookupSignature,
+getPlayerProfileBirthDateValue,
+getPlayerProfileFormSignature,
+getPlayerProfileModalOpen: () => playerProfileModalOpen,
+getPlayerProfileNewPlayerModalOpen: () => playerProfileNewPlayerModalOpen,
+getPlayerProfileRoleGroupForRole,
+getPlayerProfileRosterTypeOption,
+getPlayerProfileSyncIdentityKeys,
+getPlayerProfilesState: () => playerProfilesState,
+getPlayerProfilesWorkspace: () => ui.playerProfilesWorkspace,
+getSquadChangeSummary,
+getTemporaryRosterTypeFromPlayerSource,
+isCurrentPlatformUserAdmin,
+isMedicalItemArchived,
+isTemporaryPlayerProfile,
+logEvent,
+normalizePlayerProfile,
+normalizePlayerProfileAgeCacheEntry,
+normalizePlayerProfileAgeValue,
+normalizePlayerProfileBirthDate,
+normalizePlayerProfileChangeLog,
+normalizePlayerProfileChangeLogEntry,
+normalizePlayerProfileRemovedIds,
+playerProfileAgeCacheStorageKey,
+playerProfileCountsInSquad,
+playerProfilesDefaultRosterVersion,
+playerProfilesSchemaVersion,
+playerProfilesStorageKey,
+rawDataSafetySetItem,
+renderPlayerProfilesRosterListOnly,
+renderPlayerProfilesWorkspace,
+setPlayerProfileAgeCacheState: (nextState) => {
+playerProfileAgeCacheState = nextState;
 },
-players: candidates.map((candidate) => ({
-profileId: candidate.profileId,
-name: candidate.name,
-number: candidate.number,
-position: candidate.position,
-})),
-};
-}
-function mergePlayerProfileAgeHydrationResult(candidates = [], payload = {}) {
-const cache = ensurePlayerProfileAgeCache();
-const now = new Date().toISOString();
-const candidatesByProfileId = new Map(candidates.map((candidate) => [candidate.profileId, candidate]));
-candidates.forEach((candidate) => {
-if (!candidate.cacheKey) {
-return;
-}
-cache.players[candidate.cacheKey] = {
-...(cache.players[candidate.cacheKey] || {}),
-signature: candidate.signature,
-checkedAt: now,
-birthDateCheckedAt: now,
-source: "squad_players",
-};
-});
-const hydratedPlayers = Array.isArray(payload?.players) ? payload.players : [];
-hydratedPlayers.forEach((entry) => {
-const profileId = String(entry?.profileId || "").trim();
-const candidate = candidatesByProfileId.get(profileId);
-if (!candidate?.cacheKey) {
-return;
-}
-const birthDate = normalizePlayerProfileBirthDate(entry.birthDate || entry.dateOfBirth || entry.date_of_birth);
-const age = normalizePlayerProfileAgeValue(entry.age);
-if (!birthDate && !age) {
-return;
-}
-cache.players[candidate.cacheKey] = {
-signature: candidate.signature,
-birthDate,
-age,
-databasePlayerId: String(entry.databasePlayerId || entry.playerId || "").trim(),
-source: String(entry.source || "squad_players").trim(),
-checkedAt: now,
-birthDateCheckedAt: now,
-};
-});
-writePlayerProfileAgeCache(cache);
-return hydratedPlayers.length > 0;
-}
-async function hydratePlayerProfileAgesOnce() {
-if (playerProfileAgeHydrationPending || hubState?.activeWorkspaceId !== "player-profiles") {
-return;
-}
-ensurePlayerProfilesState();
-const candidates = getPlayerProfileAgeHydrationCandidates(playerProfilesState.players);
-if (!candidates.length) {
-return;
-}
-const fingerprint = candidates.map((candidate) => `${candidate.cacheKey}:${candidate.signature}`).join(";");
-if (fingerprint && fingerprint === playerProfileAgeHydrationLastFingerprint) {
-return;
-}
-playerProfileAgeHydrationLastFingerprint = fingerprint;
-playerProfileAgeHydrationPending = true;
-try {
-const token = await getPlatformApiAccessToken();
-if (!token) {
-playerProfileAgeHydrationLastFingerprint = "";
-return;
-}
-const response = await fetch("/api/squad-ages", {
-method: "POST",
-headers: {
-"Content-Type": "application/json",
-Authorization: `Bearer ${token}`,
+setPlayerProfileAgeHydrationLastFingerprint: (nextFingerprint) => {
+playerProfileAgeHydrationLastFingerprint = nextFingerprint;
 },
-body: JSON.stringify(buildPlayerProfileAgeHydrationPayload(candidates)),
+setPlayerProfileAgeHydrationPending: (nextPending) => {
+playerProfileAgeHydrationPending = Boolean(nextPending);
+},
+setPlayerProfileAgeHydrationTimer: (nextTimer) => {
+playerProfileAgeHydrationTimer = nextTimer;
+},
+setPlayerProfileAutosaveLastSignature: (nextSignature) => {
+playerProfileAutosaveLastSignature = nextSignature;
+},
+setPlayerProfileModalOpen: (nextOpen) => {
+playerProfileModalOpen = Boolean(nextOpen);
+},
+setPlayerProfileNewPlayerModalOpen: (nextOpen) => {
+playerProfileNewPlayerModalOpen = Boolean(nextOpen);
+},
+setPlayerProfilesState: (nextState) => {
+playerProfilesState = nextState;
+},
+win,
 });
-const text = await response.text();
-let payload = {};
-if (text) {
-try {
-payload = JSON.parse(text);
-} catch {
-payload = {};
-}
-}
-if (!response.ok || payload?.ok === false) {
-playerProfileAgeHydrationLastFingerprint = "";
-return;
-}
-const didHydrate = mergePlayerProfileAgeHydrationResult(candidates, payload);
-if (didHydrate && hubState?.activeWorkspaceId === "player-profiles") {
-renderPlayerProfilesRosterListOnly();
-}
-} catch {
-playerProfileAgeHydrationLastFingerprint = "";
-} finally {
-playerProfileAgeHydrationPending = false;
-}
-}
-function queuePlayerProfileAgeHydration() {
-win.clearTimeout(playerProfileAgeHydrationTimer);
-playerProfileAgeHydrationTimer = win.setTimeout(() => {
-playerProfileAgeHydrationTimer = 0;
-hydratePlayerProfileAgesOnce();
-}, 80);
-}
-function ensurePlayerProfilesState() {
-if (!playerProfilesState) {
-playerProfilesState = readPlayerProfilesState();
-}
-return playerProfilesState;
-}
-function canEditPlayerProfiles() { return canCurrentUserEditWorkspace("player-profiles"); }
-function getPlayerProfilesAccessLabel() {
-if (canEditPlayerProfiles()) {
-return isCurrentPlatformUserAdmin() ? "Admin edit access" : "Coach edit access";
-}
-return "Read only";
-}
-function getSelectedPlayerProfile() {
-ensurePlayerProfilesState();
-return (
-playerProfilesState.players.find((player) => player.id === playerProfilesState.selectedPlayerId) ??
-playerProfilesState.players[0] ??
-null
-);
-}
-function openPlayerProfileModal(playerId) {
-ensurePlayerProfilesState();
-if (!playerProfilesState.players.some((player) => player.id === playerId)) {
-return;
-}
-playerProfilesState.selectedPlayerId = playerId;
-playerProfileModalOpen = true;
-playerProfileNewPlayerModalOpen = false;
-writePlayerProfilesState();
-renderPlayerProfilesWorkspace(); playerProfileAutosaveLastSignature = getPlayerProfileFormSignature(ui.playerProfilesWorkspace?.querySelector("#playerProfileEditForm"));
-}
-function closePlayerProfileModal() {
-if (!playerProfileModalOpen) {
-return;
-}
-flushPlayerProfileAutosave(); playerProfileModalOpen = false;
-renderPlayerProfilesWorkspace();
-}
-function openPlayerProfileNewPlayerModal() {
-if (!canEditPlayerProfiles()) {
-return;
-}
-playerProfileModalOpen = false;
-playerProfileNewPlayerModalOpen = true;
-renderPlayerProfilesWorkspace();
-}
-function closePlayerProfileNewPlayerModal() {
-if (!playerProfileNewPlayerModalOpen) {
-return;
-}
-playerProfileNewPlayerModalOpen = false;
-renderPlayerProfilesWorkspace();
-}
+function readPlayerProfileAgeCache(...args) { return playerProfileRuntimeStateService.readPlayerProfileAgeCache(...args); }
+function ensurePlayerProfileAgeCache(...args) { return playerProfileRuntimeStateService.ensurePlayerProfileAgeCache(...args); }
+function writePlayerProfileAgeCache(...args) { return playerProfileRuntimeStateService.writePlayerProfileAgeCache(...args); }
+function getPlayerProfileAgeCacheEntry(...args) { return playerProfileRuntimeStateService.getPlayerProfileAgeCacheEntry(...args); }
+function getCurrentSquadActorLabel(...args) { return playerProfileRuntimeStateService.getCurrentSquadActorLabel(...args); }
+function recordPlayerProfileChange(...args) { return playerProfileRuntimeStateService.recordPlayerProfileChange(...args); }
+function getPlayerProfileChangeLog(...args) { return playerProfileRuntimeStateService.getPlayerProfileChangeLog(...args); }
+function getRecentPlayerProfileChangeLog(...args) { return playerProfileRuntimeStateService.getRecentPlayerProfileChangeLog(...args); }
+function clonePlayerProfilesState(...args) { return playerProfileRuntimeStateService.clonePlayerProfilesState(...args); }
+function buildPlayerProfileFromMedicalTrainingGuest(...args) { return playerProfileRuntimeStateService.buildPlayerProfileFromMedicalTrainingGuest(...args); }
+function syncPlayerProfilesFromMedicalTrainingGuests(...args) { return playerProfileRuntimeStateService.syncPlayerProfilesFromMedicalTrainingGuests(...args); }
+function readPlayerProfilesState(...args) { return playerProfileRuntimeStateService.readPlayerProfilesState(...args); }
+function writePlayerProfilesState(...args) { return playerProfileRuntimeStateService.writePlayerProfilesState(...args); }
+function getPlayerProfileAgeHydrationCandidates(...args) { return playerProfileRuntimeStateService.getPlayerProfileAgeHydrationCandidates(...args); }
+function buildPlayerProfileAgeHydrationPayload(...args) { return playerProfileRuntimeStateService.buildPlayerProfileAgeHydrationPayload(...args); }
+function mergePlayerProfileAgeHydrationResult(...args) { return playerProfileRuntimeStateService.mergePlayerProfileAgeHydrationResult(...args); }
+function hydratePlayerProfileAgesOnce(...args) { return playerProfileRuntimeStateService.hydratePlayerProfileAgesOnce(...args); }
+function queuePlayerProfileAgeHydration(...args) { return playerProfileRuntimeStateService.queuePlayerProfileAgeHydration(...args); }
+function ensurePlayerProfilesState(...args) { return playerProfileRuntimeStateService.ensurePlayerProfilesState(...args); }
+function canEditPlayerProfiles(...args) { return playerProfileRuntimeStateService.canEditPlayerProfiles(...args); }
+function getPlayerProfilesAccessLabel(...args) { return playerProfileRuntimeStateService.getPlayerProfilesAccessLabel(...args); }
+function getSelectedPlayerProfile(...args) { return playerProfileRuntimeStateService.getSelectedPlayerProfile(...args); }
+function openPlayerProfileModal(...args) { return playerProfileRuntimeStateService.openPlayerProfileModal(...args); }
+function closePlayerProfileModal(...args) { return playerProfileRuntimeStateService.closePlayerProfileModal(...args); }
+function openPlayerProfileNewPlayerModal(...args) { return playerProfileRuntimeStateService.openPlayerProfileNewPlayerModal(...args); }
+function closePlayerProfileNewPlayerModal(...args) { return playerProfileRuntimeStateService.closePlayerProfileNewPlayerModal(...args); }
 let squadMedicalStatusService = null;
 function getLatestManualMedicalLog(...args) { return squadMedicalStatusService.getLatestManualMedicalLog(...args); }
 function getPlayerProfileMedicalStatusOverride(...args) { return squadMedicalStatusService.getPlayerProfileMedicalStatusOverride(...args); }

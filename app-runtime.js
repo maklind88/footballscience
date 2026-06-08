@@ -62,6 +62,7 @@ import { configurePlatformRuntimeAccessors, mergePeriodizationStatePreservingLoc
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createCentralRuntimeFacade, dataSafetySnapshotStoreName } from "./src/core/central-runtime-facade.mjs";
 import { bindPlatformWorkspaceRuntimeBindings } from "./src/core/platform-workspace-runtime-bindings.mjs";
+import { canonicalPlatformClubValues, canonicalPlatformTeamValues, dashboardNotificationSeenStorageKey, dataSafetyDatabaseName, dataSafetyExportSchema, dataSafetyStorageKey, defaultWorkspaceAccess, defaultWorkspaceEditAccess, gameplanStorageKey, legacyPlatformStructureValues, maxProfileImageUploadDataUrlLength, maxProfileImageUrlLength, medicalTeamStorageKey, platformAppearanceStorageKey, platformDefaultClubId, platformDefaultClubName, platformDefaultClubShortName, platformDefaultTeamId, platformDefaultTeamLevel, platformDefaultTeamName, playerProfileAgeCacheStorageKey, playerProfileChangeLogLimit, playerProfilesDefaultRosterVersion, playerProfilesSchemaVersion, playerProfilesStorageKey, requiredWorkspaceAccess, scoutingStorageKey, sequenceLibraryStorageKey, sequenceStorageKey, sessionPlannerBlockMergeFields, sessionPlannerBlockMergeFieldSet, transferRoomStorageKey } from "./src/core/app-runtime-constants.mjs";
 import { addCalendarDays, clamp, escapeHtml, formatDashboardDateTime, formatDashboardTime, formatDataSafetyTime, isEditableKeyboardTarget, logEvent, maybeCopyToClipboard, setFormSubmitButtonState, togglePasswordInputVisibility } from "./src/core/runtime-ui-helpers.mjs";
 import { installPlatformOverlayStability } from "./src/core/overlay-stability.mjs";
 import { defaultHubState, placeholderWorkspaceContent, platformSidebarMoreOrder, platformSidebarPrimaryOrder, topIconMenuOrder } from "./src/core/workspace-defaults.mjs";
@@ -252,37 +253,6 @@ queueDashboardChatStylesheetLoad,
 setPlatformThemeMode,
 startPlatformThemeScheduler,
 } = platformShellRuntime;
-const sessionPlannerBlockMergeFields = Object.freeze([
-"label",
-"title",
-"focus",
-"phase",
-"subPhase",
-"minutes",
-"time",
-"intensity",
-"pitchSize",
-"material",
-"objective",
-"why",
-"organization",
-"principles",
-"diagram",
-"tacticalPitchMode",
-"tacticalFrames",
-"tacticalActiveFrameId",
-"playerBoardLayoutMode",
-"visualImage",
-"playerBoardPositions",
-"playerBoardColors",
-"playerBoardCustomPeople",
-"tacticalElements",
-"libraryExerciseId",
-"postSessionNotes",
-]);
-const sessionPlannerBlockMergeFieldSet = new Set(sessionPlannerBlockMergeFields);
-const playerProfilesStorageKey = "football-player-profiles-v1";
-const playerProfileAgeCacheStorageKey = "football-player-profile-age-cache-v1";
 const dashboardChatStorageKey = "football-dashboard-chat-v1";
 const dashboardChatDeletedMessageIdsStorageKey = "football-dashboard-chat-deleted-message-ids-v1";
 const dashboardChatLocalCacheResetStorageKey = "football-dashboard-chat-local-cache-reset-v1";
@@ -314,19 +284,6 @@ const dashboardChatAdvancedThreadTemplates = [
 { key: "training", label: "Training", type: "training", title: "Training Room", visibility: "members" },
 { key: "announcements", label: "Announcements", type: "announcement", title: "Announcements", visibility: "staff" },
 ];
-const dashboardNotificationSeenStorageKey = "football-dashboard-notification-seen-v1";
-const platformAppearanceStorageKey = "football-platform-appearance-v1";
-const medicalTeamStorageKey = "football-medical-team-v1";
-const scoutingStorageKey = "football-scouting-v1";
-const gameplanStorageKey = "football-gameplan-v1";
-const transferRoomStorageKey = "football-transfer-room-v1";
-const sequenceStorageKey = "football-simulator-sequence-v1";
-const sequenceLibraryStorageKey = "football-simulator-sequence-library-v2";
-const dataSafetyStorageKey = "football-data-safety-v1";
-const dataSafetyExportSchema = "football-science-backup-v1";
-const dataSafetyDatabaseName = "football-science-data-safety-v1";
-const maxProfileImageUrlLength = 1800;
-const maxProfileImageUploadDataUrlLength = 900000;
 const platformUserRuntimeService = createPlatformUserRuntimeService({
 formatPlatformUserName,
 getPlatformRoleLabel,
@@ -773,67 +730,6 @@ const importedNccScheduleEvents = Array.isArray(win.__importedNccScheduleEvents)
 const importedNccScheduleVersion = importedNccScheduleEvents.length
 ? win.__importedNccScheduleVersion || "ncc-2026-numbers-v1"
 : "";
-const defaultWorkspaceAccess = {
-chat: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
-schedule: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"],
-gameplan: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
-periodization: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
-"session-planner": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
-"player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout", "performance", "medical"],
-scouting: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
-"transfer-room": ["admin", "team-admin"],
-"analysis-room": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
-"medical-team": ["admin", "club-admin", "team-admin", "coach", "performance", "medical"],
-staff: ["admin"],
-admin: ["admin"],
-"team-identity": ["admin", "club-admin", "team-admin", "coach"],
-"game-simulator": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance"],
-};
-const defaultWorkspaceEditAccess = {
-chat: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
-schedule: ["admin", "club-admin", "team-admin", "coach"],
-gameplan: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
-periodization: ["admin", "club-admin", "team-admin", "coach", "performance"],
-"session-planner": ["admin", "club-admin", "team-admin", "coach"],
-"player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout"],
-scouting: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
-"transfer-room": ["admin", "team-admin"],
-"analysis-room": ["admin", "club-admin", "team-admin", "scout", "analyst"],
-"medical-team": ["admin", "club-admin", "team-admin", "medical", "performance"],
-staff: ["admin"],
-admin: ["admin"],
-"team-identity": ["admin", "club-admin", "team-admin", "coach"],
-"game-simulator": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
-};
-const requiredWorkspaceAccess = {
-"session-planner": {
-view: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
-edit: ["admin", "club-admin", "team-admin", "coach"],
-},
-"player-profiles": {
-view: ["admin", "club-admin", "team-admin", "coach", "scout", "performance", "medical"],
-edit: ["admin", "club-admin", "team-admin", "coach", "scout"],
-},
-"medical-team": {
-view: ["admin", "club-admin", "team-admin", "coach", "performance", "medical"],
-edit: ["admin", "club-admin", "team-admin", "medical", "performance"],
-},
-scouting: {
-view: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
-edit: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
-},
-"transfer-room": {
-view: ["admin", "team-admin"],
-edit: ["admin", "team-admin"],
-},
-"team-identity": {
-view: ["admin", "club-admin", "team-admin", "coach"],
-edit: ["admin", "club-admin", "team-admin", "coach"],
-},
-};
-const playerProfilesDefaultRosterVersion = "player-profiles-ncc-2026-v1";
-const playerProfilesSchemaVersion = 3;
-const playerProfileChangeLogLimit = 250;
 const {
 comparePlayerProfiles,
 formatPlayerProfileChangeTime,
@@ -1453,34 +1349,6 @@ writeSessionPlannerExerciseLibrary,
 writeSessionPlannerExerciseLibraryFoldersToStorage,
 writeSessionPlannerExerciseLibraryToStorage
 } = sessionPlannerAppRuntimeComposition;
-const platformDefaultClubId = "club-north-carolina-courage";
-const platformDefaultTeamId = "team-north-carolina-courage";
-const platformDefaultClubName = "North Carolina Courage";
-const platformDefaultClubShortName = "NCC";
-const platformDefaultTeamName = "North Carolina Courage";
-const platformDefaultTeamLevel = "First Team";
-const legacyPlatformStructureValues = new Set([
-"football science live",
-"club football science live",
-"team football science live",
-"football-science-live",
-"club-football-science-live",
-"team-football-science-live",
-"fsl",
-]);
-const canonicalPlatformClubValues = new Set([
-"north carolina courage",
-"club north carolina courage",
-"club-north-carolina-courage",
-"ncc",
-]);
-const canonicalPlatformTeamValues = new Set([
-"north carolina courage",
-"team north carolina courage",
-"team-north-carolina-courage",
-"first team",
-"ncc",
-]);
 const {
 doPlayerProfileScoutingNamesMatch,
 findPlayerProfileNwslScoutingRecord,

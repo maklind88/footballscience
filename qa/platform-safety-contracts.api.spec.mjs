@@ -138,6 +138,7 @@ const coreFiles = [
 
 test("protected product data remains covered by client safety, central state, and backups", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const appRuntimeConstantsSource = readProjectFile("src/core/app-runtime-constants.mjs");
   const appStateSource = readProjectFile("api/app-state.js");
   const backupSource = readProjectFile("api/app-state-backup.js");
   const dataSafetySource = readProjectFile("src/core/data-safety-contracts.cjs");
@@ -150,7 +151,7 @@ test("protected product data remains covered by client safety, central state, an
   const sessionPlannerVisualRendererSource = readProjectFile("src/modules/session-planner/session-planner-visual-renderer.mjs");
   const sessionPlannerPlayerBoardRendererSource = readProjectFile("src/modules/session-planner/session-planner-player-board-renderer.mjs");
   const sessionPlannerPrintRendererSource = readProjectFile("src/modules/session-planner/session-planner-print-renderer.mjs");
-  const clientSafetySource = `${appSource}\n${homeRuntimeControllerSource}\n${exerciseLibraryActionsSource}\n${exerciseLibraryRendererSource}\n${exerciseLibraryStateSource}\n${sessionPlannerAutosaveSource}\n${sessionPlannerRendererSource}\n${sessionPlannerVisualRendererSource}\n${sessionPlannerPlayerBoardRendererSource}\n${sessionPlannerPrintRendererSource}`;
+  const clientSafetySource = `${appSource}\n${appRuntimeConstantsSource}\n${homeRuntimeControllerSource}\n${exerciseLibraryActionsSource}\n${exerciseLibraryRendererSource}\n${exerciseLibraryStateSource}\n${sessionPlannerAutosaveSource}\n${sessionPlannerRendererSource}\n${sessionPlannerVisualRendererSource}\n${sessionPlannerPlayerBoardRendererSource}\n${sessionPlannerPrintRendererSource}`;
   const moduleContracts = readProjectFile("docs/MODULE_CONTRACTS.md");
 
   for (const key of protectedStorageKeys) {

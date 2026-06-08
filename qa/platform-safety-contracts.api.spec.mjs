@@ -607,6 +607,7 @@ test("Session Planner print mode keeps the coach sheet visible for browser print
 
 test("Session Planner never seeds generated training blocks onto an off day", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const accessorsSource = readProjectFile("src/modules/session-planner/session-planner-runtime-accessors.mjs");
   const sessionFactorySource = readProjectFile("src/modules/session-planner/session-planner-session-factory.mjs");
   const stateMergeHelpersSource = readProjectFile("src/modules/session-planner/session-planner-state-merge-helpers.mjs");
 
@@ -618,8 +619,9 @@ test("Session Planner never seeds generated training blocks onto an off day", ()
   expect(sessionFactorySource).toContain("function shouldStripGeneratedDefaultSession");
   expect(sessionFactorySource).toContain("function shouldClearSessionForDate");
   expect(sessionFactorySource).toContain("return isOffDate(dateValue) ? createEmptySession(dateValue) : createDefaultSession(dateValue);");
-  expect(appSource).toContain("function isSessionPlannerOffDate(dateValue) { return sessionPlannerSessionFactory.isOffDate(dateValue); }");
-  expect(appSource).toContain("function createSessionPlannerSessionForNewPlan(dateValue = formatScheduleDateValue(new Date())) { return sessionPlannerSessionFactory.createSessionForNewPlan(dateValue); }");
+  expect(accessorsSource).toContain("function isSessionPlannerOffDate(dateValue)");
+  expect(accessorsSource).toContain("function createSessionPlannerSessionForNewPlan(dateValue = getDefaultDateValue())");
+  expect(appSource).toContain("getDefaultDateValue: () => formatScheduleDateValue(new Date())");
   expect(stateMergeHelpersSource).toContain("shouldClearSessionForDate(dateValue, clonedSession)");
   expect(appSource).toContain(
     "sessionPlannerState.sessions[dateValue] = createSessionPlannerSessionForNewPlan(dateValue);"

@@ -12,11 +12,12 @@ function readProjectFile(relativePath) {
 
 test("Session Planner Player Board includes active temporary Squad profiles", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const runtimeRenderersSource = readProjectFile("src/modules/session-planner/session-planner-runtime-renderers.mjs");
   const workspaceControllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
-  const runtimeSource = `${appSource}\n${workspaceControllerSource}`;
+  const runtimeSource = `${appSource}\n${runtimeRenderersSource}\n${workspaceControllerSource}`;
   const availabilitySource = readProjectFile("src/modules/session-planner/session-planner-medical-availability-selectors.mjs");
 
-  expect(appSource).toContain("createSessionPlannerMedicalAvailabilitySelectors");
+  expect(runtimeRenderersSource).toContain("createSessionPlannerMedicalAvailabilitySelectors");
   expect(runtimeSource).toContain("sessionPlannerMedicalAvailabilitySelectors.getAvailabilityItems(dateValue)");
   expect(availabilitySource).toContain("function getTemporaryProfileAvailabilityItems");
   expect(availabilitySource).toContain("getTemporaryProfileAvailabilityItems,");
@@ -28,14 +29,17 @@ test("Session Planner Player Board includes active temporary Squad profiles", ()
 
 test("Session Planner Player Board hides Squad-unavailable roster players", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const medicalRuntimeHelpersSource = readProjectFile("src/modules/medical/medical-runtime-helpers.mjs");
+  const runtimeRenderersSource = readProjectFile("src/modules/session-planner/session-planner-runtime-renderers.mjs");
   const workspaceControllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
-  const runtimeSource = `${appSource}\n${workspaceControllerSource}`;
+  const runtimeSource = `${appSource}\n${runtimeRenderersSource}\n${workspaceControllerSource}`;
   const availabilitySource = readProjectFile("src/modules/session-planner/session-planner-medical-availability-selectors.mjs");
 
-  expect(appSource).toContain("const medicalSquadAvailabilityBlockStatusKeys = new Set");
-  expect(appSource).toContain("...playerProfileStatusOptions.map((option) => option.key)");
-  expect(appSource).toContain('status !== "available"');
-  expect(appSource).toContain("function isMedicalPlayerBlockedBySquadAvailability");
+  expect(medicalRuntimeHelpersSource).toContain("const medicalSquadAvailabilityBlockStatusKeys = new Set");
+  expect(medicalRuntimeHelpersSource).toContain("...playerProfileStatusOptions.map((option) => option.key)");
+  expect(medicalRuntimeHelpersSource).toContain('status !== "available"');
+  expect(medicalRuntimeHelpersSource).toContain("function isMedicalPlayerBlockedBySquadAvailability");
+  expect(appSource).toContain("isMedicalPlayerBlockedBySquadAvailability,");
   expect(runtimeSource).toContain("status: profile.status || player.status");
   expect(runtimeSource).toContain("availabilityStatus: profile.status || player.availabilityStatus");
   expect(runtimeSource).toContain("sessionPlannerMedicalAvailabilitySelectors.getAvailabilityItems");
@@ -59,8 +63,9 @@ test("Session Planner Player Board ranks by role, squad status, and career phase
 
 test("Session Planner Player Board can copy team setup from another block", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const accessorsSource = readProjectFile("src/modules/session-planner/session-planner-runtime-accessors.mjs");
   const workspaceControllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
-  const runtimeSource = `${appSource}\n${workspaceControllerSource}`;
+  const runtimeSource = `${appSource}\n${accessorsSource}\n${workspaceControllerSource}`;
   const playerBoardRendererSource = readProjectFile("src/modules/session-planner/session-planner-player-board-renderer.mjs");
   const styleSource = readProjectFile("styles.css");
 
@@ -79,8 +84,11 @@ test("Session Planner Player Board can copy team setup from another block", () =
 
 test("Session Planner Player Board can add manual people directly on a block", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const accessorsSource = readProjectFile("src/modules/session-planner/session-planner-runtime-accessors.mjs");
+  const runtimeBindingsSource = readProjectFile("src/modules/session-planner/session-planner-runtime-bindings.mjs");
+  const formControllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-form-controller.mjs");
   const workspaceControllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
-  const runtimeSource = `${appSource}\n${workspaceControllerSource}`;
+  const runtimeSource = `${appSource}\n${accessorsSource}\n${runtimeBindingsSource}\n${formControllerSource}\n${workspaceControllerSource}`;
   const playerBoardHelperSource = readProjectFile("src/modules/session-planner/session-planner-player-board-helpers.mjs");
   const playerBoardRendererSource = readProjectFile("src/modules/session-planner/session-planner-player-board-renderer.mjs");
 
@@ -92,15 +100,16 @@ test("Session Planner Player Board can add manual people directly on a block", (
   expect(runtimeSource).toContain("function saveSessionPlannerPlayerBoardCustomPersonFromForm");
   expect(playerBoardRendererSource).toContain("data-session-player-board-token-kind=\"${item.player.playerBoardCustom ? \"custom\" : \"roster\"}\"");
   expect(playerBoardRendererSource).toContain("data-session-player-board-person-form");
-  expect(runtimeSource).toContain("addEventListener(\"contextmenu\"");
+  expect(runtimeSource).toContain('addEventListener?.("contextmenu"');
   expect(runtimeSource).toContain("playerBoardCustom: true");
   expect(playerBoardRendererSource).toContain("Manual board person");
 });
 
 test("Session Planner Player Board spaces compact print and preview tokens for readability", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const accessorsSource = readProjectFile("src/modules/session-planner/session-planner-runtime-accessors.mjs");
   const workspaceControllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
-  const runtimeSource = `${appSource}\n${workspaceControllerSource}`;
+  const runtimeSource = `${appSource}\n${accessorsSource}\n${workspaceControllerSource}`;
   const playerBoardRendererSource = readProjectFile("src/modules/session-planner/session-planner-player-board-renderer.mjs");
   const printRendererSource = readProjectFile("src/modules/session-planner/session-planner-print-renderer.mjs");
 

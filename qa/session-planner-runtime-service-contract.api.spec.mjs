@@ -101,6 +101,7 @@ function getTopLevelPropertyNames(objectSource) {
 
 test("Session Planner runtime service owns controller composition outside app-runtime", () => {
   const app = readProjectFile("app-runtime.js");
+  const accessors = readProjectFile("src/modules/session-planner/session-planner-runtime-accessors.mjs");
   const service = readProjectFile("src/modules/session-planner/session-planner-runtime-service.mjs");
   const index = readProjectFile("src/modules/session-planner/index.mjs");
 
@@ -109,7 +110,9 @@ test("Session Planner runtime service owns controller composition outside app-ru
   expect(app).not.toContain("createSessionPlannerRuntimeStateService({");
   expect(app).not.toContain("createSessionPlannerBoardHistoryController({");
   expect(app).not.toContain("createSessionPlannerWorkspaceController({");
-  expect(app).toContain("function writeSessionPlannerState(...args)");
+  expect(app).toContain("configureSessionPlannerRuntimeAccessors(() => ({");
+  expect(app).toContain("runtimeStateService: sessionPlannerRuntimeStateService");
+  expect(accessors).toContain("function writeSessionPlannerState(...args)");
   expect(app).toContain("sessionPlannerWorkspaceController = sessionPlannerRuntimeService.workspaceController;");
   expect(service).toContain("createSessionPlannerRuntimeStateService({");
   expect(service).toContain("createSessionPlannerBoardHistoryController({");

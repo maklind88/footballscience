@@ -2,7 +2,7 @@
 
 Read this file first when starting a new thread on Football Science.
 
-Also read `AGENTS.md`, `docs/LIVE_FIRST_WORKFLOW.md`, `docs/QUICK_UI_WORKFLOW.md`, and `docs/CODEX_TEAM_ROSTER.md`. Read `docs/PLATFORM_SCALE_PROGRAM.md` when working on multi-tenant identity, app-state migrations, `app.js` extraction, Chat server-first, or Scouting server-first. The durable working model is live-first: the user describes the desired product outcome on `https://footballscience.xyz`, and Codex owns the technical implementation path, QA, GitHub, deploy discipline, and production verification.
+Also read `AGENTS.md`, `docs/LIVE_FIRST_WORKFLOW.md`, `docs/QUICK_UI_WORKFLOW.md`, `docs/CODEX_TEAM_ROSTER.md`, and `docs/CURRENT_OPERATING_PLAN.md`. Read `docs/PLATFORM_SCALE_PROGRAM.md` when working on multi-tenant identity, app-state migrations, `app.js` extraction, Chat server-first, or Scouting server-first. The durable working model is live-first: the user describes the desired product outcome on `https://footballscience.xyz`, and Codex owns the technical implementation path, QA, GitHub, deploy discipline, and production verification.
 
 Architecture size targets are now project rules, not memory. Read `docs/ARCHITECTURE_SIZE_TARGETS.md` before adding/refactoring module code. Keep `app.js` at 1-50 lines with a hard guard above 100, keep `app-runtime.js` shrinking toward 1,500-3,000 lines, keep new module files around 500 lines or less, and run `npm run architecture:budgets` after architecture work.
 

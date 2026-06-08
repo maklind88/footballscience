@@ -10,7 +10,7 @@ The user should primarily speak with the Project Lead chat. The Project Lead tra
 - Only one chat owns release coordination at a time.
 - Specialist chats should not work freely across the platform.
 - Free exploration is allowed for strategy and analysis, but code changes require clear ownership.
-- Every chat must read `AGENTS.md`, `docs/AI_HANDOFF.md`, `docs/LIVE_FIRST_WORKFLOW.md`, and `docs/DEPLOYMENT.md` before doing work.
+- Every chat must read `AGENTS.md`, `docs/AI_HANDOFF.md`, `docs/CURRENT_OPERATING_PLAN.md`, `docs/LIVE_FIRST_WORKFLOW.md`, and `docs/DEPLOYMENT.md` before doing work.
 - System/security/backend/data/sync/Supabase/refactor work must also read `docs/SECURITY_CONTROL_PLANE.md` and `docs/PLATFORM_SCALE_PROGRAM.md`.
 - If a chat sees unrelated local changes, another module owner, failed checks, or Safe Lane risk, it must stop and report in Swedish.
 - Product-intent release ownership applies only when the current chat owns the task, the worktree contains only intended changes, checks pass, and production verification can be completed.
@@ -201,4 +201,3 @@ After work, every chat reports:
 - Checks/tests run.
 - Whether work is local, committed, pushed, deployed, and/or production-verified.
 - Risks or follow-up recommendations.
-

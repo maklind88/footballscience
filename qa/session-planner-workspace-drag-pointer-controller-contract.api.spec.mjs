@@ -46,10 +46,13 @@ function createDragEvent(target) {
 
 test("Session Planner drag and pointer controller owns workspace drag bindings outside app-runtime", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const bindingsSource = readProjectFile("src/modules/session-planner/session-planner-runtime-bindings.mjs");
   const controllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-drag-pointer-controller.mjs");
   const indexSource = readProjectFile("src/modules/session-planner/index.mjs");
 
-  expect(appSource).toContain("bindSessionPlannerWorkspaceDragPointerController({");
+  expect(appSource).toContain("bindSessionPlannerRuntimeBindings({");
+  expect(appSource).not.toContain("bindSessionPlannerWorkspaceDragPointerController({");
+  expect(bindingsSource).toContain("bindSessionPlannerWorkspaceDragPointerController({");
   expect(appSource).not.toContain('ui.sessionPlannerWorkspace?.addEventListener("dragstart"');
   expect(appSource).not.toContain('ui.sessionPlannerWorkspace?.addEventListener("dragover"');
   expect(appSource).not.toContain('ui.sessionPlannerWorkspace?.addEventListener("drop"');

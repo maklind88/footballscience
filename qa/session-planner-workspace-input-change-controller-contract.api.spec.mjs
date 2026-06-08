@@ -18,10 +18,13 @@ function createTarget(matches = {}) {
 
 test("Session Planner input/change controller owns workspace field bindings outside app-runtime", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const bindingsSource = readProjectFile("src/modules/session-planner/session-planner-runtime-bindings.mjs");
   const controllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-input-change-controller.mjs");
   const indexSource = readProjectFile("src/modules/session-planner/index.mjs");
 
-  expect(appSource).toContain("bindSessionPlannerWorkspaceInputChangeController({");
+  expect(appSource).toContain("bindSessionPlannerRuntimeBindings({");
+  expect(appSource).not.toContain("bindSessionPlannerWorkspaceInputChangeController({");
+  expect(bindingsSource).toContain("bindSessionPlannerWorkspaceInputChangeController({");
   expect(appSource).not.toContain('ui.sessionPlannerWorkspace?.addEventListener("input"');
   expect(appSource).not.toContain('ui.sessionPlannerWorkspace?.addEventListener("change"');
   expect(controllerSource).toContain('workspaceElement?.addEventListener?.("input"');

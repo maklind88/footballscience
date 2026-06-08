@@ -24,10 +24,13 @@ function createForm(fields = {}) {
 
 test("Session Planner form controller owns workspace form bindings outside app-runtime", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const bindingsSource = readProjectFile("src/modules/session-planner/session-planner-runtime-bindings.mjs");
   const controllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-form-controller.mjs");
   const indexSource = readProjectFile("src/modules/session-planner/index.mjs");
 
-  expect(appSource).toContain("bindSessionPlannerWorkspaceFormController({");
+  expect(appSource).toContain("bindSessionPlannerRuntimeBindings({");
+  expect(appSource).not.toContain("bindSessionPlannerWorkspaceFormController({");
+  expect(bindingsSource).toContain("bindSessionPlannerWorkspaceFormController({");
   expect(appSource).not.toContain('ui.sessionPlannerWorkspace?.addEventListener("dblclick"');
   expect(appSource).not.toContain('ui.sessionPlannerWorkspace?.addEventListener("contextmenu"');
   expect(appSource).not.toContain('ui.sessionPlannerWorkspace?.addEventListener("submit"');

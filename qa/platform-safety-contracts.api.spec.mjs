@@ -378,6 +378,7 @@ test("core module contracts are covered by dedicated QA", () => {
   const gameSimulatorKeyboardStateSpec = readProjectFile("qa/game-simulator-keyboard-state.api.spec.mjs");
   const squadScoutingRuntimeSpec = readProjectFile("qa/squad-scouting-runtime-contract.api.spec.mjs");
   const sessionPlannerRuntimeRenderersSpec = readProjectFile("qa/session-planner-runtime-renderers-contract.api.spec.mjs");
+  const sessionPlannerRuntimeBindingsSpec = readProjectFile("qa/session-planner-runtime-bindings-contract.api.spec.mjs");
   const sessionPlannerStateMergeHelpersSpec = readProjectFile("qa/session-planner-state-merge-helpers-contract.api.spec.mjs");
   const sessionPlannerBoardHistoryControllerSpec = readProjectFile("qa/session-planner-board-history-controller-contract.api.spec.mjs");
 
@@ -413,8 +414,11 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-module-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-runtime-delegates-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-runtime-renderers-contract.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-runtime-bindings-contract.api.spec.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/session-planner/session-planner-runtime-renderers.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/session-planner/session-planner-runtime-bindings.mjs");
   expect(sessionPlannerRuntimeRenderersSpec).toContain("Session Planner runtime renderers own renderer wiring outside app-runtime");
+  expect(sessionPlannerRuntimeBindingsSpec).toContain("Session Planner runtime bindings own controller composition outside app-runtime");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-state-merge-helpers-contract.api.spec.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/session-planner/session-planner-state-merge-helpers.mjs");
   expect(sessionPlannerStateMergeHelpersSpec).toContain("Session Planner state merge helpers preserve newer block fields");

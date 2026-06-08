@@ -67,7 +67,6 @@ import { bindPlatformNavigationInteractions } from "./src/core/platform-navigati
 import { createPlatformUiBindings } from "./src/core/platform-ui-bindings.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { addCalendarDays, clamp, escapeHtml, formatDashboardDateTime, formatDashboardTime, logEvent, setFormSubmitButtonState } from "./src/core/runtime-ui-helpers.mjs";
-import { createPasswordRevealInputRenderer } from "./src/core/form-renderers.mjs";
 import { installPlatformOverlayStability } from "./src/core/overlay-stability.mjs";
 import { defaultHubState, placeholderWorkspaceContent, platformSidebarMoreOrder, platformSidebarPrimaryOrder, topIconMenuOrder } from "./src/core/workspace-defaults.mjs";
 import { createPlatformDisplayHelpers, formatPlatformUserName, getPlatformRoleLabel, getPlatformUserInitials, getPlatformUserProfileImageUrl, normalizePlatformProfileImageUrl } from "./src/modules/platform/display-helpers.mjs";
@@ -75,19 +74,15 @@ import { buildPlatformTemporaryLoginMessage, buildPlatformUserCredentialMessage,
 import { createPlatformNavigationController, getPlatformTopIconLabel } from "./src/modules/platform/navigation-controller.mjs";
 import { createPlatformNavigationRenderer } from "./src/modules/platform/navigation-renderer.mjs";
 import { createPlatformStructureStateHelpers } from "./src/modules/platform/structure-state.mjs";
+import { createPlatformWorkspaceRenderers } from "./src/modules/platform/workspace-renderers.mjs";
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
 import { getTopIconSvg } from "./top-icons.js";
 import { createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
-import { adminDepartmentSuggestions, adminTitleSuggestions, createAdminAccessRenderer, createAdminReadinessRenderer, createAdminStructureRenderer, createAdminUserRenderer, createAdminWorkspaceRenderer, formatAdminDateTime, getAdminActiveUserCount, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
-import { createProfileImageDataUrl as createProfileImageDataUrlFromModule, createProfileStaffWorkspaceController, createProfileWorkspaceRenderer } from "./src/modules/profile/index.mjs";
+import { getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
+import { createProfileImageDataUrl as createProfileImageDataUrlFromModule, createProfileStaffWorkspaceController } from "./src/modules/profile/index.mjs";
 import { SESSION_TACTICALBOARD_KEY_HANDLED, bindSessionPlannerTacticalShortcutController } from "./src/modules/session-planner/session-planner-shortcuts-controller.mjs";
-import { createStaffWorkspaceRenderer } from "./src/modules/staff/index.mjs";
 import {
-  createSquadProfileSelectedRenderer,
-  createSquadProfileSupportRenderer,
-  createSquadRosterRenderer,
   createSquadScoutingSpiderRenderer,
-  createSquadWorkspaceRenderer,
   createSquadDataFoundationHelpers,
   createSquadImportPlanner,
   createPlayerProfileHelpers,
@@ -2732,6 +2727,46 @@ getDayScheduleLabel: getPeriodizationDayScheduleLabel,
 getScheduledSessionTitle: getScheduledSessionTitleForDate,
 getTotalMinutes: getDashboardSessionTotalMinutes,
 });
+const platformDefaultRoles = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
+const platformManagementRoleSet = new Set(["admin", "club-admin", "team-admin"]);
+const platformStaffRoleSet = new Set(["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"]);
+const platformRoleAliases = Object.freeze({
+"super-admin": "admin",
+"superadmin": "admin",
+"administrator": "admin",
+"platform-admin": "admin",
+"platform owner": "admin",
+"owner": "admin",
+"admin-role": "admin",
+});
+const platformDefaultClubId = "club-north-carolina-courage";
+const platformDefaultTeamId = "team-north-carolina-courage";
+const platformDefaultClubName = "North Carolina Courage";
+const platformDefaultClubShortName = "NCC";
+const platformDefaultTeamName = "North Carolina Courage";
+const platformDefaultTeamLevel = "First Team";
+const legacyPlatformStructureValues = new Set([
+"football science live",
+"club football science live",
+"team football science live",
+"football-science-live",
+"club-football-science-live",
+"team-football-science-live",
+"fsl",
+]);
+const canonicalPlatformClubValues = new Set([
+"north carolina courage",
+"club north carolina courage",
+"club-north-carolina-courage",
+"ncc",
+]);
+const canonicalPlatformTeamValues = new Set([
+"north carolina courage",
+"team north carolina courage",
+"team-north-carolina-courage",
+"first team",
+"ncc",
+]);
 let selectedStaffUserId = null;
 let staffCreateUserEditorOpen = false;
 let selectedAdminUserId = null;
@@ -2742,100 +2777,49 @@ let adminAuditEntries = [];
 let adminAuditLoading = false;
 let adminAuditLoadedAt = 0;
 let adminAuditLoadError = "";
-const adminUserRenderer = createAdminUserRenderer({
-escapeHtml,
-formatUserName,
-getRoleLabel,
-getUserScopeLabel,
-renderUserAvatar,
-getAdminUserInitials,
-getAuditState: () => ({
-entries: adminAuditEntries,
-loading: adminAuditLoading,
-loadError: adminAuditLoadError,
-}),
-getSelectedUserId: () => selectedAdminUserId,
-canManageUser: canAdminManageUser,
-hasWorkspaceScope: hasPlatformWorkspaceScope,
-getScopedTeams: getScopedPlatformTeams,
-getClubById: getPlatformClubById,
-getUsersForTeam: getAdminUsersForTeam,
-isLegacyTeam: isLegacyPlatformTeam,
-isLegacyTeamPlaceholderName: isLegacyPlatformTeamPlaceholderName,
-});
 let platformReadinessReport = null;
 let platformReadinessLoading = false;
 let platformReadinessLoadedAt = 0;
 let platformReadinessLoadError = "";
-const passwordRevealInputRenderer = createPasswordRevealInputRenderer({ escapeHtml });
-const adminReadinessRenderer = createAdminReadinessRenderer({
+const {
+adminAccessRenderer,
+adminReadinessRenderer,
+adminStructureRenderer,
+adminUserRenderer,
+adminWorkspaceRenderer,
+passwordRevealInputRenderer,
+profileWorkspaceRenderer,
+staffWorkspaceRenderer,
+squadProfileSelectedRenderer,
+squadProfileSupportRenderer,
+squadRosterRenderer,
+squadWorkspaceRenderer,
+} = createPlatformWorkspaceRenderers({
+canAdminManageUser,
+canEditPlayerProfiles,
+dashboardTaskListRenderer,
+defaultTeamId: platformDefaultTeamId,
 escapeHtml,
-getReadinessState: () => ({
-report: platformReadinessReport,
-loading: platformReadinessLoading,
-loadError: platformReadinessLoadError,
-loadedAt: platformReadinessLoadedAt,
+formatPlayerProfileChangeTime,
+formatUserName,
+getAdminAuditState: () => ({
+entries: adminAuditEntries,
+loading: adminAuditLoading,
+loadError: adminAuditLoadError,
 }),
-readAppearanceState: readPlatformAppearanceState,
-getHomeAppearanceImpactSummary,
-platformAppearanceDensityOptions,
-platformAppearanceHomeComponentTypeIds,
-platformAppearanceHomeSectionDefaults,
-platformAppearanceThemeOptions,
-platformAppearanceToneOptions,
-});
-const adminAccessRenderer = createAdminAccessRenderer({
-escapeHtml,
-getTransferRoomState: ensureTransferRoomState,
-getTransferRoomAccessTeamId: getAdminTransferRoomAccessTeamId,
-getManagedWorkspaces: getAdminManagedWorkspaces,
-getRoleLabel,
-getWorkspaceAccessConfig,
-normalizeWorkspaceAccessEntry,
-normalizePlatformRole,
-});
-const adminWorkspaceRenderer = createAdminWorkspaceRenderer({
-escapeHtml,
-formatAdminDateTime,
-formatUserName,
-getRoleLabel,
-renderAdminAccountSummary: (user) => adminUserRenderer.renderAccountSummary(user),
-renderAdminAuditLog: () => adminUserRenderer.renderAuditLog(),
-renderAdminGroupedUsers: (users, currentUser, structure) => adminUserRenderer.renderGroupedUsers(users, currentUser, structure),
-renderAdminRoleAccessForm: (roles) => adminAccessRenderer.renderRoleAccessForm(roles),
-renderAdminRoleOptions,
-renderAdminStructurePanel: (currentUser, structure, visibleUsers) => adminStructureRenderer.renderStructurePanel(currentUser, structure, visibleUsers),
-renderAdminTeamOptions,
-renderAdminTransferRoomAccessPanel: (users, structure) => adminAccessRenderer.renderTransferRoomAccessPanel(users, structure),
-renderPasswordRevealInput: passwordRevealInputRenderer,
-renderPlatformAppearanceGovernancePanel: () => adminReadinessRenderer.renderAppearanceGovernancePanel(),
-renderPlatformReadinessDashboard: () => adminReadinessRenderer.renderReadinessDashboard(),
-titleSuggestions: adminTitleSuggestions,
-departmentSuggestions: adminDepartmentSuggestions,
-});
-const profileWorkspaceRenderer = createProfileWorkspaceRenderer({
-escapeHtml,
-formatUserName,
-getRoleLabel,
-renderTaskList: dashboardTaskListRenderer.renderTaskList,
-renderUserAvatar,
-});
-const staffWorkspaceRenderer = createStaffWorkspaceRenderer({
-escapeHtml,
-formatUserName,
-getRoleLabel,
-getUserClubName,
-getUserScopeLabel,
-getUserTeamName,
-renderPasswordRevealInput: passwordRevealInputRenderer,
-renderUserAvatar,
-});
-const squadRosterRenderer = createSquadRosterRenderer({
-escapeHtml,
-getAllPlayerProfiles: () => playerProfilesState.players,
+getAdminManagedWorkspaces,
+getAdminTransferRoomAccessTeamId,
+getAdminUserInitials,
 getAllTemporaryPlayerProfiles,
+getAssignableRolesForUser,
+getClubById: getPlatformClubById,
+getFilteredPlayerProfiles: () => playerProfilesState.players,
+getHomeAppearanceImpactSummary,
+getPlayerProfileActiveTab: () => playerProfileActiveTab,
+getPlayerProfileChangeLog,
 getPlayerProfileCompleteness,
 getPlayerProfileDisplayAgeValue,
+getPlayerProfileDisplayBirthDateValue,
 getPlayerProfileEffectiveStatusFromSnapshot,
 getPlayerProfileIdpFollowUpLabel,
 getPlayerProfileMedicalSnapshot,
@@ -2844,62 +2828,58 @@ getPlayerProfileRosterLabel,
 getPlayerProfileRosterSummary: getPlayerProfilesRosterSummary,
 getPlayerProfileRosterTypeOption,
 getPlayerProfileTemporaryWindowLabel,
+getRecentPlayerProfileChangeLog,
+getRoleLabel,
+getScopedClubs: getScopedPlatformClubs,
+getScopedTeams: getScopedPlatformTeams,
+getSelectedAdminUserId: () => selectedAdminUserId,
 getSelectedPlayerId: () => playerProfilesState.selectedPlayerId,
 getTemporarySectionCollapsed: () => playerProfilesTemporarySectionCollapsed,
-isTemporaryPlayerProfile,
-playerProfileCountsInSquad,
-playerProfileIdpStatusOptions,
-playerProfileStatusOptions,
-playerProfileSquadStatusOptions,
-renderPlayerProfileAvatar,
-});
-const squadWorkspaceRenderer = createSquadWorkspaceRenderer({
-escapeHtml,
-});
-const squadProfileSupportRenderer = createSquadProfileSupportRenderer({
-escapeHtml,
-formatPlayerProfileChangeTime,
-getActiveTab: () => playerProfileActiveTab,
-getPlayerProfileChangeLog,
-getPlayerProfileMedicalSnapshot,
-getRecentPlayerProfileChangeLog,
-isNewPlayerModalOpen: () => playerProfileNewPlayerModalOpen,
-canEditPlayerProfiles,
-playerProfileRoleOptions,
-playerProfileRosterTypeOptions,
-playerProfileTabOptions,
-});
-const squadProfileSelectedRenderer = createSquadProfileSelectedRenderer({
-escapeHtml,
-canEditPlayerProfiles,
-getActiveTab: () => playerProfileActiveTab,
-getPlayerProfileDisplayBirthDateValue,
-getPlayerProfileEffectiveStatusFromSnapshot,
-getPlayerProfileMedicalSnapshot,
-getPlayerProfileOption,
+getTransferRoomState: ensureTransferRoomState,
+getUserClubId,
+getUserClubName,
+getUserScopeLabel,
+getUsersForTeam: getAdminUsersForTeam,
+getUserTeamId,
+getUserTeamName,
+getWorkspaceAccessConfig,
+hasWorkspaceScope: hasPlatformWorkspaceScope,
 isCurrentPlatformUserAdmin,
+isLegacyTeam: isLegacyPlatformTeam,
+isLegacyTeamPlaceholderName: isLegacyPlatformTeamPlaceholderName,
+isNewPlayerModalOpen: () => playerProfileNewPlayerModalOpen,
+isPlatformAdminUser,
 isProfileModalOpen: () => playerProfileModalOpen,
+isTemporaryPlayerProfile,
+normalizePlatformRole,
 normalizePlayerProfileTab,
+normalizeWorkspaceAccessEntry,
+platformAppearanceDensityOptions,
+platformAppearanceHomeComponentTypeIds,
+platformAppearanceHomeSectionDefaults,
+platformAppearanceThemeOptions,
+platformAppearanceToneOptions,
 playerProfileAttributeGroups,
 playerProfileCareerPhaseOptions,
+playerProfileCountsInSquad,
 playerProfileIdpStatusOptions,
 playerProfilePreferredSideOptions,
 playerProfileRoleGroupOptions,
+playerProfileRoleOptions,
 playerProfileRosterTypeOptions,
 playerProfileSquadStatusOptions,
 playerProfileStatusOptions,
 playerProfileTabOptions,
-playerProfileCountsInSquad,
+readAppearanceState: readPlatformAppearanceState,
+renderAdminRoleOptions,
+renderAdminTeamOptions,
+renderPlayerProfileAvatar,
 renderPlayerProfileAvatarUpload,
-renderPlayerProfileFuturePanel: (player) => squadProfileSupportRenderer.renderFuturePanel(player),
-renderPlayerProfileHistoryPanel: (player) => squadProfileSupportRenderer.renderHistoryPanel(player),
-renderPlayerProfileMedicalPanel: (player) => squadProfileSupportRenderer.renderMedicalPanel(player),
-renderPlayerProfileOptionSet: (options, selectedKey) => squadProfileSupportRenderer.renderOptionSet(options, selectedKey),
-renderPlayerProfileRoleOptions: (selectedRole) => squadProfileSupportRenderer.renderRoleOptions(selectedRole),
 renderPlayerProfileScoutingSpider,
-renderPlayerProfileSecondaryRoleOptions: (selectedRoles) => squadProfileSupportRenderer.renderSecondaryRoleOptions(selectedRoles),
 renderPlayerProfileStatusChip,
-renderPlayerProfileTabs: () => squadProfileSupportRenderer.renderTabs(),
+renderTaskList: dashboardTaskListRenderer.renderTaskList,
+renderTeamLogoMark: renderPlatformTeamLogoMark,
+renderUserAvatar,
 });
 const {
 medicalAvailabilitySelectors,
@@ -3024,65 +3004,6 @@ renderMedicalPlayerAvatar,
 renderMedicalSquadAvailabilityBadge,
 renderMedicalTemporaryPlayerBadge,
 });
-const platformDefaultRoles = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
-const platformManagementRoleSet = new Set(["admin", "club-admin", "team-admin"]);
-const platformStaffRoleSet = new Set(["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"]);
-const platformRoleAliases = Object.freeze({
-"super-admin": "admin",
-"superadmin": "admin",
-"administrator": "admin",
-"platform-admin": "admin",
-"platform owner": "admin",
-"owner": "admin",
-"admin-role": "admin",
-});
-const platformDefaultClubId = "club-north-carolina-courage";
-const platformDefaultTeamId = "team-north-carolina-courage";
-const platformDefaultClubName = "North Carolina Courage";
-const platformDefaultClubShortName = "NCC";
-const platformDefaultTeamName = "North Carolina Courage";
-const platformDefaultTeamLevel = "First Team";
-const adminStructureRenderer = createAdminStructureRenderer({
-escapeHtml,
-getAssignableRolesForUser,
-getRoleLabel,
-getScopedClubs: getScopedPlatformClubs,
-getScopedTeams: getScopedPlatformTeams,
-getClubById: getPlatformClubById,
-getUsersForTeam: getAdminUsersForTeam,
-getUserClubId,
-getUserScopeLabel,
-isPlatformAdminUser,
-normalizePlatformRole,
-hasWorkspaceScope: hasPlatformWorkspaceScope,
-isLegacyTeam: isLegacyPlatformTeam,
-isLegacyTeamPlaceholderName: isLegacyPlatformTeamPlaceholderName,
-renderTeamLogoMark: renderPlatformTeamLogoMark,
-renderMiniUserStack: (users) => adminUserRenderer.renderMiniUserStack(users),
-defaultTeamId: platformDefaultTeamId,
-});
-const legacyPlatformStructureValues = new Set([
-"football science live",
-"club football science live",
-"team football science live",
-"football-science-live",
-"club-football-science-live",
-"team-football-science-live",
-"fsl",
-]);
-const canonicalPlatformClubValues = new Set([
-"north carolina courage",
-"club north carolina courage",
-"club-north-carolina-courage",
-"ncc",
-]);
-const canonicalPlatformTeamValues = new Set([
-"north carolina courage",
-"team north carolina courage",
-"team-north-carolina-courage",
-"first team",
-"ncc",
-]);
 const dashboardPresenceHeartbeatMs = 60000, dashboardPresencePollMs = 45000, dashboardPresenceSteadyPushMinMs = 30000;
 const dashboardPresenceTypingPushMinMs = 5000, dashboardPresencePollMinMs = 30000;
 const dashboardPresenceIdleMs = 90000;

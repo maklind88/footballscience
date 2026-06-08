@@ -340,6 +340,7 @@ test("core module contracts are covered by dedicated QA", () => {
   const platformReadinessSpec = readProjectFile("qa/platform-readiness.api.spec.mjs");
   const dataSafetySpec = readProjectFile("qa/data-safety-contracts.api.spec.mjs");
   const runtimeUiHelpersSpec = readProjectFile("qa/runtime-ui-helpers.api.spec.mjs");
+  const platformWorkspaceRenderersSpec = readProjectFile("qa/platform-workspace-renderers-contract.api.spec.mjs");
   const homeTasksSpec = readProjectFile("qa/home-tasks-adapter.api.spec.mjs");
   const homeChatSpec = readProjectFile("qa/home-chat-adapter.api.spec.mjs");
   const homeChatWidgetSpec = readProjectFile("qa/home-chat-widget-renderer.api.spec.mjs");
@@ -379,6 +380,8 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/data-safety-contracts.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/runtime-ui-helpers.api.spec.mjs");
   expect(packageJson.scripts["check"]).toContain("src/core/runtime-ui-helpers.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-workspace-renderers-contract.api.spec.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/platform/workspace-renderers.mjs");
   expect(platformSecuritySpec).toContain("permission matrix covers every module action");
   expect(platformSecuritySpec).toContain("API guard rate limits abusive public requests");
   expect(platformSecuritySpec).toContain("tenant isolation and permission matrix are enforced");
@@ -387,6 +390,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(dataSafetySpec).toContain("data safety registry covers every protected module storage key");
   expect(dataSafetySpec).toContain("central app-state rejects stale versioned writes");
   expect(runtimeUiHelpersSpec).toContain("runtime UI helpers preserve app-runtime formatting behavior");
+  expect(platformWorkspaceRenderersSpec).toContain("Platform workspace renderers own Admin Profile Staff and Squad renderer wiring");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/medical-runtime-renderers-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-tasks-adapter.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-chat-adapter.api.spec.mjs");

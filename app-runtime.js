@@ -58,7 +58,7 @@ import {
   sessionPlannerExerciseLibraryVersionLimit,
   sessionPlannerLibrarySortOptions,
 } from "./src/modules/exercise-library/index.mjs";
-import { bindSessionPlannerWorkspaceDragPointerController, bindSessionPlannerWorkspaceFormController, bindSessionPlannerWorkspaceInputChangeController, createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerBoardHistoryController, createSessionPlannerRuntimeDelegates, createSessionPlannerRuntimeRenderers, createSessionPlannerStateMergeHelpers, createSessionPlannerTacticalController, createSessionPlannerWorkspaceController, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualUploadHelpers, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
+import { bindSessionPlannerWorkspaceClickController, bindSessionPlannerWorkspaceDragPointerController, bindSessionPlannerWorkspaceFormController, bindSessionPlannerWorkspaceInputChangeController, createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerBoardHistoryController, createSessionPlannerRuntimeDelegates, createSessionPlannerRuntimeRenderers, createSessionPlannerStateMergeHelpers, createSessionPlannerTacticalController, createSessionPlannerWorkspaceController, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualUploadHelpers, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformShellRuntime } from "./src/core/platform-shell-runtime.mjs";
 import { createWorkspaceModuleRuntimeController } from "./src/core/workspace-module-runtime-controller.mjs";
@@ -13336,465 +13336,103 @@ return;
 const result = savePlayerProfileEditForm(editForm);
 if (result && !result.ok) renderPlayerProfilesWorkspace(buildPlayerProfileOperationFeedback(result, "Player profile could not be saved."));
 });
-ui.sessionPlannerWorkspace?.addEventListener("click", (event) => {
-if (sessionPlannerLibrarySuppressNextClick) {
-sessionPlannerLibrarySuppressNextClick = false;
-event.preventDefault();
-return;
-}
-if (sessionPlannerPeriodizationBridge.handleClick(event)) {
-return;
-}
-if (event.target.matches("[data-session-library-overlay]")) {
-closeSessionPlannerLibrary();
-return;
-}
-if (event.target.matches("[data-session-save-conflict-overlay]")) {
-resolveSessionPlannerLibrarySaveConflict("cancel");
-return;
-}
-if (event.target.matches("[data-session-central-conflict-overlay]")) {
-resolveSessionPlannerCentralSyncConflict("keep-central");
-return;
-}
-const saveConflictAction = event.target.closest("[data-session-save-conflict-action]");
-if (saveConflictAction) {
-resolveSessionPlannerLibrarySaveConflict(saveConflictAction.dataset.sessionSaveConflictAction);
-return;
-}
-const centralConflictAction = event.target.closest("[data-session-central-conflict-action]");
-if (centralConflictAction) {
-resolveSessionPlannerCentralSyncConflict(centralConflictAction.dataset.sessionCentralConflictAction);
-return;
-}
-if (event.target.matches("[data-session-visual-preview-overlay]")) {
-setSessionPlannerVisualPreviewOpen(false);
-return;
-}
-const closeVisualPreviewButton = event.target.closest("[data-session-close-visual-preview]");
-if (closeVisualPreviewButton) {
-setSessionPlannerVisualPreviewOpen(false);
-return;
-}
-if (event.target.matches("[data-session-print-overlay]")) {
-setSessionPlannerPrintOverlayOpen(false);
-return;
-}
-const closePrintButton = event.target.closest("[data-session-close-print]");
-if (closePrintButton) {
-setSessionPlannerPrintOverlayOpen(false);
-return;
-}
-const printNowButton = event.target.closest("[data-session-print-now]");
-if (printNowButton) {
-printSessionPlannerCurrentSession();
-return;
-}
-if (event.target.matches("[data-session-tacticalboard-overlay]")) {
-setSessionPlannerTacticalboardOpen(false);
-return;
-}
-const closeTacticalboardButton = event.target.closest("[data-session-close-tacticalboard]");
-if (closeTacticalboardButton) {
-setSessionPlannerTacticalboardOpen(false);
-return;
-}
-const tacticalNumberButton = event.target.closest("[data-session-tactical-number]");
-if (tacticalNumberButton) {
-updateSessionPlannerTacticalPlayerNumber(
-tacticalNumberButton.dataset.sessionTacticalNumberElement,
-tacticalNumberButton.dataset.sessionTacticalNumber
-);
-return;
-}
-if (event.target.matches("[data-session-player-board-profile-overlay]")) {
-closeSessionPlannerPlayerBoardProfile();
-return;
-}
-if (event.target.matches("[data-session-selection-assistant-overlay]")) {
-sessionPlannerPlayerBoardAssistantOpen = false;
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-return;
-}
-const closePlayerBoardProfileButton = event.target.closest("[data-session-close-player-board-profile]");
-if (closePlayerBoardProfileButton) {
-closeSessionPlannerPlayerBoardProfile();
-return;
-}
-const selectionAssistantOpenButton = event.target.closest("[data-session-selection-assistant-open]");
-if (selectionAssistantOpenButton) {
-sessionPlannerPlayerBoardAssistantOpen = true;
-sessionPlannerPlayerBoardSelectedPlayerId = "";
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-return;
-}
-const selectionAssistantCloseButton = event.target.closest("[data-session-selection-assistant-close]");
-if (selectionAssistantCloseButton) {
-sessionPlannerPlayerBoardAssistantOpen = false;
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-return;
-}
-const squadBridgePlayerButton = event.target.closest("[data-session-squad-bridge-player]");
-if (squadBridgePlayerButton) {
-openSessionPlannerPlayerBoardProfile(squadBridgePlayerButton.dataset.sessionSquadBridgePlayer);
-return;
-}
-const selectionAssistantApplyButton = event.target.closest("[data-session-selection-assistant-apply]");
-if (selectionAssistantApplyButton) {
-applySessionPlannerSelectionAssistant();
-return;
-}
-const playerBoardPrioritizeButton = event.target.closest("[data-session-player-board-prioritize]");
-if (playerBoardPrioritizeButton) {
-const formationInput = ui.sessionPlannerWorkspace?.querySelector("[data-session-player-board-formation-input]");
-sessionPlannerPlayerBoardFormationInput = normalizeSessionPlannerPlayerBoardFormationValue(formationInput?.value);
-applySessionPlannerPlayerBoardFormation({ prioritize: true });
-return;
-}
-const playerBoardColorButton = event.target.closest("[data-session-player-board-color]");
-if (playerBoardColorButton) {
-updateSessionPlannerPlayerBoardSelectedColor(playerBoardColorButton.dataset.sessionPlayerBoardColor);
-return;
-}
-const playerBoardResetPositionsButton = event.target.closest("[data-session-player-board-reset-positions]");
-if (playerBoardResetPositionsButton) {
-resetSessionPlannerPlayerBoardPositions();
-return;
-}
-const playerBoardClearColorsButton = event.target.closest("[data-session-player-board-clear-colors]");
-if (playerBoardClearColorsButton) {
-clearSessionPlannerPlayerBoardSelectedColors();
-return;
-}
-const playerBoardPersonCancelButton = event.target.closest("[data-session-player-board-person-cancel]");
-if (playerBoardPersonCancelButton) {
-closeSessionPlannerPlayerBoardCustomPersonEditor();
-return;
-}
-const playerBoardPersonRemoveButton = event.target.closest("[data-session-player-board-person-remove]");
-if (playerBoardPersonRemoveButton) {
+bindSessionPlannerWorkspaceClickController({
+workspaceElement: ui.sessionPlannerWorkspace,
+getSuppressNextClick: () => sessionPlannerLibrarySuppressNextClick,
+setSuppressNextClick: (value) => {
+sessionPlannerLibrarySuppressNextClick = value;
+},
+handlePeriodizationClick: (event) => sessionPlannerPeriodizationBridge.handleClick(event),
+closeLibrary: closeSessionPlannerLibrary,
+resolveLibrarySaveConflict: resolveSessionPlannerLibrarySaveConflict,
+resolveCentralSyncConflict: resolveSessionPlannerCentralSyncConflict,
+setVisualPreviewOpen: setSessionPlannerVisualPreviewOpen,
+setPrintOverlayOpen: setSessionPlannerPrintOverlayOpen,
+printCurrentSession: printSessionPlannerCurrentSession,
+setTacticalboardOpen: setSessionPlannerTacticalboardOpen,
+updateTacticalPlayerNumber: updateSessionPlannerTacticalPlayerNumber,
+closePlayerBoardProfile: closeSessionPlannerPlayerBoardProfile,
+setPlayerBoardAssistantOpen: (open) => {
+sessionPlannerPlayerBoardAssistantOpen = open;
+},
+setPlayerBoardSelectedPlayerId: (playerId) => {
+sessionPlannerPlayerBoardSelectedPlayerId = playerId;
+},
+renderWorkspace: renderSessionPlannerWorkspace,
+openPlayerBoardProfile: openSessionPlannerPlayerBoardProfile,
+applySelectionAssistant: applySessionPlannerSelectionAssistant,
+normalizePlayerBoardFormationValue: normalizeSessionPlannerPlayerBoardFormationValue,
+setPlayerBoardFormationInput: (formationInput) => {
+sessionPlannerPlayerBoardFormationInput = formationInput;
+},
+applyPlayerBoardFormation: applySessionPlannerPlayerBoardFormation,
+updatePlayerBoardSelectedColor: updateSessionPlannerPlayerBoardSelectedColor,
+resetPlayerBoardPositions: resetSessionPlannerPlayerBoardPositions,
+clearPlayerBoardSelectedColors: clearSessionPlannerPlayerBoardSelectedColors,
+closePlayerBoardCustomPersonEditor: closeSessionPlannerPlayerBoardCustomPersonEditor,
+clearPlayerBoardCustomPersonEditor: () => {
 sessionPlannerPlayerBoardCustomPersonEditor = null;
-removeSessionPlannerPlayerBoardCustomPerson(playerBoardPersonRemoveButton.dataset.sessionPlayerBoardPersonRemove);
-return;
-}
-if (event.target.matches("[data-session-player-board-overlay]")) {
-setSessionPlannerPlayerBoardOpen(false);
-return;
-}
-const closePlayerBoardButton = event.target.closest("[data-session-close-player-board]");
-if (closePlayerBoardButton) {
-setSessionPlannerPlayerBoardOpen(false);
-return;
-}
-const tacticalFrameButton = event.target.closest("[data-session-tactical-frame]");
-if (tacticalFrameButton) {
-selectSessionPlannerTacticalFrame(tacticalFrameButton.dataset.sessionTacticalFrame);
-return;
-}
-const tacticalAddFrameButton = event.target.closest("[data-session-add-tactical-frame]");
-if (tacticalAddFrameButton) {
-addSessionPlannerTacticalFrame();
-return;
-}
-const tacticalDuplicateFrameButton = event.target.closest("[data-session-duplicate-tactical-frame]");
-if (tacticalDuplicateFrameButton) {
-duplicateSessionPlannerTacticalFrame();
-return;
-}
-const tacticalDeleteFrameButton = event.target.closest("[data-session-delete-tactical-frame]");
-if (tacticalDeleteFrameButton) {
-deleteSessionPlannerTacticalFrame();
-return;
-}
-const tacticalArrangeButton = event.target.closest("[data-session-arrange-tactical]");
-if (tacticalArrangeButton) {
-arrangeSelectedSessionPlannerTacticalElements(tacticalArrangeButton.dataset.sessionArrangeTactical);
-return;
-}
-const tacticalToolButton = event.target.closest("[data-session-tactical-tool]");
-if (tacticalToolButton) {
-setSessionPlannerTacticalTool(tacticalToolButton.dataset.sessionTacticalTool);
-return;
-}
-const tacticalClearButton = event.target.closest("[data-session-clear-board]");
-if (tacticalClearButton) {
-clearSelectedSessionPlannerTacticalBoard();
-return;
-}
-const tacticalUndoButton = event.target.closest("[data-session-undo-board]");
-if (tacticalUndoButton) {
-undoSessionPlannerBoardHistory(tacticalUndoButton.dataset.sessionUndoBoard || "tactical");
-return;
-}
-const boardRedoButton = event.target.closest("[data-session-redo-board]");
-if (boardRedoButton) {
-redoSessionPlannerBoardHistory(boardRedoButton.dataset.sessionRedoBoard || "tactical");
-return;
-}
-const tacticalCopySelectedButton = event.target.closest("[data-session-copy-tactical-selected]");
-if (tacticalCopySelectedButton) {
-copySelectedSessionPlannerTacticalElements();
-return;
-}
-const tacticalPasteButton = event.target.closest("[data-session-paste-tactical-clipboard]");
-if (tacticalPasteButton) {
-pasteSessionPlannerTacticalClipboard();
-return;
-}
-const tacticalDeleteSelectedButton = event.target.closest("[data-session-delete-tactical-selected]");
-if (tacticalDeleteSelectedButton) {
-removeSelectedSessionPlannerTacticalElement();
-return;
-}
-const tacticalCanvas = event.target.closest("[data-session-tactical-canvas]");
-if (tacticalCanvas) {
-handleSessionPlannerTacticalCanvasClick(event, tacticalCanvas);
-return;
-}
-const previewVisualButton = event.target.closest("[data-session-preview-visual]");
-if (previewVisualButton) {
-setSessionPlannerVisualPreviewOpen(true);
-return;
-}
-const openTacticalboardButton = event.target.closest("[data-session-open-tacticalboard]");
-if (openTacticalboardButton) {
-setSessionPlannerTacticalboardOpen(true);
-return;
-}
-const openPlayerBoardButton = event.target.closest("[data-session-open-player-board]");
-if (openPlayerBoardButton) {
-setSessionPlannerPlayerBoardOpen(true);
-return;
-}
-const openPrintButton = event.target.closest("[data-session-open-print]");
-if (openPrintButton) {
-setSessionPlannerPrintOverlayOpen(true);
-return;
-}
-const toggleHistoryButton = event.target.closest("[data-session-toggle-history]");
-if (toggleHistoryButton) {
-sessionPlannerHistoryOpen = !sessionPlannerHistoryOpen;
-if (sessionPlannerHistoryOpen) {
-loadSessionPlannerHistory(sessionPlannerState?.selectedDate).catch(() => {});
-}
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-return;
-}
-const refreshHistoryButton = event.target.closest("[data-session-refresh-history]");
-if (refreshHistoryButton) {
-loadSessionPlannerHistory(sessionPlannerState?.selectedDate, { force: true }).catch(() => {});
-return;
-}
-const restoreHistoryButton = event.target.closest("[data-session-restore-history]");
-if (restoreHistoryButton) {
-restoreSessionPlannerHistoryEntry(restoreHistoryButton.dataset.sessionRestoreHistory);
-return;
-}
-const closeLibraryButton = event.target.closest("[data-session-close-library]");
-if (closeLibraryButton) {
-closeSessionPlannerLibrary();
-return;
-}
-const openLibraryButton = event.target.closest("[data-session-open-library]");
-if (openLibraryButton) {
-setSessionPlannerLibraryOpen(true);
-return;
-}
-const libraryFolderButton = event.target.closest("[data-session-library-folder]");
-if (libraryFolderButton) {
-selectSessionPlannerLibraryFolder(libraryFolderButton.dataset.sessionLibraryFolder);
-return;
-}
-const archiveLibraryFolderButton = event.target.closest("[data-session-library-archive-folder]");
-if (archiveLibraryFolderButton) {
-archiveSessionPlannerExerciseLibraryFolder(archiveLibraryFolderButton.dataset.sessionLibraryArchiveFolder);
-return;
-}
-const editLibraryFolderButton = event.target.closest("[data-session-library-edit-folder]");
-if (editLibraryFolderButton) {
-startSessionPlannerExerciseLibraryFolderEdit(editLibraryFolderButton.dataset.sessionLibraryEditFolder);
-return;
-}
-const cancelLibraryFolderEditButton = event.target.closest("[data-session-library-cancel-folder-edit]");
-if (cancelLibraryFolderEditButton) {
-cancelSessionPlannerExerciseLibraryFolderEdit();
-return;
-}
-const restoreLibraryFolderButton = event.target.closest("[data-session-library-restore-folder]");
-if (restoreLibraryFolderButton) {
-restoreSessionPlannerExerciseLibraryFolder(restoreLibraryFolderButton.dataset.sessionLibraryRestoreFolder);
-return;
-}
-const saveExerciseButton = event.target.closest("[data-session-save-exercise]");
-if (saveExerciseButton) {
-saveSelectedSessionPlannerExerciseToLibrary();
-return;
-}
-const multiSelectToggle = event.target.closest("[data-session-multiselect-toggle]");
-if (multiSelectToggle) {
-const field = multiSelectToggle.dataset.sessionMultiselectToggle;
-const previousOpenField = sessionPlannerMultiSelectOpenField;
-sessionPlannerMultiSelectOpenField = sessionPlannerMultiSelectOpenField === field ? "" : field;
-refreshSessionPlannerMultiSelectFields([previousOpenField, field]);
-return;
-}
-const multiSelectOption = event.target.closest("[data-session-multiselect-option]");
-if (multiSelectOption) {
-toggleSessionPlannerMultiSelectValue(
-multiSelectOption.dataset.sessionMultiselectOption,
-multiSelectOption.dataset.sessionMultiselectValue
-);
-return;
-}
-const multiSelectClear = event.target.closest("[data-session-multiselect-clear]");
-if (multiSelectClear) {
-clearSessionPlannerMultiSelectValue(multiSelectClear.dataset.sessionMultiselectClear);
-return;
-}
-const todayButton = event.target.closest("[data-session-today]");
-if (todayButton) {
-jumpSessionPlannerToToday();
-return;
-}
-const scrollDatesButton = event.target.closest("[data-session-scroll-dates]");
-if (scrollDatesButton) {
-scrollSessionPlannerDateStrip(Number(scrollDatesButton.dataset.sessionScrollDates) || 0);
-return;
-}
-const dateButton = event.target.closest("[data-session-date]");
-if (dateButton) {
-selectSessionPlannerDate(dateButton.dataset.sessionDate);
-return;
-}
-const moveBlockButton = event.target.closest("[data-session-move-block]");
-if (moveBlockButton) {
-moveSessionPlannerBlock(
-moveBlockButton.dataset.sessionMoveBlock,
-Number(moveBlockButton.dataset.sessionMoveDirection) || 0
-);
-return;
-}
-const deleteBlockButton = event.target.closest("[data-session-delete-block]");
-if (deleteBlockButton) {
-deleteSessionPlannerBlock(deleteBlockButton.dataset.sessionDeleteBlock);
-return;
-}
-const blockButton = event.target.closest("[data-session-block-id]");
-if (blockButton) {
-selectSessionPlannerBlock(blockButton.dataset.sessionBlockId);
-return;
-}
-const addMenuButton = event.target.closest("[data-session-add-menu-toggle]");
-if (addMenuButton) {
-setSessionPlannerAddMenuOpen(!sessionPlannerAddMenuOpen);
-return;
-}
-const addNewExerciseButton = event.target.closest("[data-session-add-new]");
-if (addNewExerciseButton) {
-addSessionPlannerBlock();
-return;
-}
-const addFromLibraryButton = event.target.closest("[data-session-add-from-library]");
-if (addFromLibraryButton) {
-addSessionPlannerBlock();
-setSessionPlannerLibraryOpen(true);
-return;
-}
-const addTacticalboardButton = event.target.closest("[data-session-add-tacticalboard]");
-if (addTacticalboardButton) {
-addSessionPlannerBlock();
-setSessionPlannerTacticalboardOpen(true);
-return;
-}
-const libraryButton = event.target.closest("[data-session-use-exercise]");
-if (libraryButton) {
-applySessionPlannerExercise(libraryButton.dataset.sessionUseExercise);
-return;
-}
-const duplicateLibraryExerciseButton = event.target.closest("[data-session-duplicate-library-exercise]");
-if (duplicateLibraryExerciseButton) {
-duplicateSessionPlannerLibraryExercise(duplicateLibraryExerciseButton.dataset.sessionDuplicateLibraryExercise);
-return;
-}
-const viewLibraryExerciseButton = event.target.closest("[data-session-view-exercise]");
-if (viewLibraryExerciseButton) {
-startSessionPlannerLibraryExerciseView(viewLibraryExerciseButton.dataset.sessionViewExercise);
-return;
-}
-const editLibraryExerciseButton = event.target.closest("[data-session-edit-library-exercise]");
-if (editLibraryExerciseButton) {
-startSessionPlannerLibraryExerciseEdit(editLibraryExerciseButton.dataset.sessionEditLibraryExercise);
-return;
-}
-const saveLibraryEditButton = event.target.closest("[data-session-save-library-edit]");
-if (saveLibraryEditButton) {
-updateSessionPlannerLibraryExerciseFromEdit(saveLibraryEditButton.dataset.sessionSaveLibraryEdit);
-return;
-}
-const saveLibraryEditCopyButton = event.target.closest("[data-session-save-library-edit-copy]");
-if (saveLibraryEditCopyButton) {
-saveSessionPlannerLibraryExerciseEditAsCopy(saveLibraryEditCopyButton.dataset.sessionSaveLibraryEditCopy);
-return;
-}
-const cancelLibraryEditButton = event.target.closest("[data-session-cancel-library-edit]");
-if (cancelLibraryEditButton) {
-cancelSessionPlannerLibraryExerciseEdit();
-return;
-}
-if (event.target.matches("[data-session-library-edit-dialog]")) {
-cancelSessionPlannerLibraryExerciseEdit();
-return;
-}
-const closeLibraryViewButton = event.target.closest("[data-session-close-view]");
-if (closeLibraryViewButton) {
-closeSessionPlannerLibraryExerciseView();
-return;
-}
-if (event.target.matches("[data-session-view-dialog]")) {
-closeSessionPlannerLibraryExerciseView();
-return;
-}
-const deleteLibraryExerciseButton = event.target.closest("[data-session-delete-library-exercise]");
-if (deleteLibraryExerciseButton) {
-deleteSessionPlannerLibraryExercise(deleteLibraryExerciseButton.dataset.sessionDeleteLibraryExercise);
-return;
-}
-const restoreLibraryExerciseButton = event.target.closest("[data-session-restore-library-exercise]");
-if (restoreLibraryExerciseButton) {
-restoreSessionPlannerLibraryExercise(restoreLibraryExerciseButton.dataset.sessionRestoreLibraryExercise);
-return;
-}
-const removeLibraryExerciseFromFolderButton = event.target.closest("[data-session-remove-library-exercise-from-folder]");
-if (removeLibraryExerciseFromFolderButton) {
-removeSessionPlannerExerciseFromLibraryFolder(
-removeLibraryExerciseFromFolderButton.dataset.sessionRemoveLibraryExerciseFromFolder,
-removeLibraryExerciseFromFolderButton.dataset.sessionRemoveLibraryFolder
-);
-return;
-}
-const libraryFilterToggle = event.target.closest("[data-session-library-filter-toggle]");
-if (libraryFilterToggle) {
-toggleSessionPlannerLibraryFilterOpen(libraryFilterToggle.dataset.sessionLibraryFilterToggle);
-return;
-}
-const libraryFilterOption = event.target.closest("[data-session-library-filter-option]");
-if (libraryFilterOption) {
-toggleSessionPlannerLibraryFilterValue(
-libraryFilterOption.dataset.sessionLibraryFilterOption,
-libraryFilterOption.dataset.sessionLibraryFilterValue
-);
-return;
-}
-const libraryFilterClear = event.target.closest("[data-session-library-filter-clear]");
-if (libraryFilterClear) {
-clearSessionPlannerLibraryFilter(libraryFilterClear.dataset.sessionLibraryFilterClear);
-return;
-}
-const libraryArchiveViewButton = event.target.closest("[data-session-library-archive-view]");
-if (libraryArchiveViewButton) {
-updateSessionPlannerLibraryArchiveView(libraryArchiveViewButton.dataset.sessionLibraryArchiveView);
-return;
-}
+},
+removePlayerBoardCustomPerson: removeSessionPlannerPlayerBoardCustomPerson,
+setPlayerBoardOpen: setSessionPlannerPlayerBoardOpen,
+selectTacticalFrame: selectSessionPlannerTacticalFrame,
+addTacticalFrame: addSessionPlannerTacticalFrame,
+duplicateTacticalFrame: duplicateSessionPlannerTacticalFrame,
+deleteTacticalFrame: deleteSessionPlannerTacticalFrame,
+arrangeTacticalElements: arrangeSelectedSessionPlannerTacticalElements,
+setTacticalTool: setSessionPlannerTacticalTool,
+clearTacticalBoard: clearSelectedSessionPlannerTacticalBoard,
+undoBoardHistory: undoSessionPlannerBoardHistory,
+redoBoardHistory: redoSessionPlannerBoardHistory,
+copySelectedTacticalElements: copySelectedSessionPlannerTacticalElements,
+pasteTacticalClipboard: pasteSessionPlannerTacticalClipboard,
+removeSelectedTacticalElement: removeSelectedSessionPlannerTacticalElement,
+handleTacticalCanvasClick: handleSessionPlannerTacticalCanvasClick,
+getHistoryOpen: () => sessionPlannerHistoryOpen,
+setHistoryOpen: (open) => {
+sessionPlannerHistoryOpen = open;
+},
+getSelectedDate: () => sessionPlannerState?.selectedDate,
+loadHistory: loadSessionPlannerHistory,
+restoreHistoryEntry: restoreSessionPlannerHistoryEntry,
+setLibraryOpen: setSessionPlannerLibraryOpen,
+selectLibraryFolder: selectSessionPlannerLibraryFolder,
+archiveLibraryFolder: archiveSessionPlannerExerciseLibraryFolder,
+startLibraryFolderEdit: startSessionPlannerExerciseLibraryFolderEdit,
+cancelLibraryFolderEdit: cancelSessionPlannerExerciseLibraryFolderEdit,
+restoreLibraryFolder: restoreSessionPlannerExerciseLibraryFolder,
+saveSelectedExerciseToLibrary: saveSelectedSessionPlannerExerciseToLibrary,
+getMultiSelectOpenField: () => sessionPlannerMultiSelectOpenField,
+setMultiSelectOpenField: (field) => {
+sessionPlannerMultiSelectOpenField = field;
+},
+refreshMultiSelectFields: refreshSessionPlannerMultiSelectFields,
+toggleMultiSelectValue: toggleSessionPlannerMultiSelectValue,
+clearMultiSelectValue: clearSessionPlannerMultiSelectValue,
+jumpToToday: jumpSessionPlannerToToday,
+scrollDateStrip: scrollSessionPlannerDateStrip,
+selectDate: selectSessionPlannerDate,
+moveBlock: moveSessionPlannerBlock,
+deleteBlock: deleteSessionPlannerBlock,
+selectBlock: selectSessionPlannerBlock,
+getAddMenuOpen: () => sessionPlannerAddMenuOpen,
+setAddMenuOpen: setSessionPlannerAddMenuOpen,
+addBlock: addSessionPlannerBlock,
+applyExercise: applySessionPlannerExercise,
+duplicateLibraryExercise: duplicateSessionPlannerLibraryExercise,
+startLibraryExerciseView: startSessionPlannerLibraryExerciseView,
+startLibraryExerciseEdit: startSessionPlannerLibraryExerciseEdit,
+updateLibraryExerciseFromEdit: updateSessionPlannerLibraryExerciseFromEdit,
+saveLibraryExerciseEditAsCopy: saveSessionPlannerLibraryExerciseEditAsCopy,
+cancelLibraryExerciseEdit: cancelSessionPlannerLibraryExerciseEdit,
+closeLibraryExerciseView: closeSessionPlannerLibraryExerciseView,
+deleteLibraryExercise: deleteSessionPlannerLibraryExercise,
+restoreLibraryExercise: restoreSessionPlannerLibraryExercise,
+removeExerciseFromLibraryFolder: removeSessionPlannerExerciseFromLibraryFolder,
+toggleLibraryFilterOpen: toggleSessionPlannerLibraryFilterOpen,
+toggleLibraryFilterValue: toggleSessionPlannerLibraryFilterValue,
+clearLibraryFilter: clearSessionPlannerLibraryFilter,
+updateLibraryArchiveView: updateSessionPlannerLibraryArchiveView,
 });
 bindSessionPlannerWorkspaceFormController({
 workspaceElement: ui.sessionPlannerWorkspace,

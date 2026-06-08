@@ -69,6 +69,7 @@ import { createPlatformAutosaveStatusController } from "./src/core/platform-auto
 import { createCentralAppStateReloadService } from "./src/core/central-app-state-reload-service.mjs";
 import { createCentralSyncRuntimeService } from "./src/core/central-sync-runtime-service.mjs";
 import { createDataSafetyRuntimeService } from "./src/core/data-safety-runtime-service.mjs";
+import { createWorkspaceDataRuntimeService } from "./src/core/workspace-data-runtime-service.mjs";
 import { createWorkspaceAccessRuntimeService } from "./src/core/workspace-access-runtime-service.mjs";
 import { addCalendarDays, clamp, escapeHtml, formatDashboardDateTime, formatDashboardTime, formatDataSafetyTime, isEditableKeyboardTarget, logEvent, maybeCopyToClipboard, setFormSubmitButtonState, togglePasswordInputVisibility } from "./src/core/runtime-ui-helpers.mjs";
 import { installPlatformOverlayStability } from "./src/core/overlay-stability.mjs";
@@ -481,15 +482,7 @@ selectScheduleDate(dateValue);
 }
 },
 openPeriodizationDate: (dateValue) => {
-ensurePeriodizationState();
-if (dateValue && isDateValueInYear(dateValue, periodizationYear)) {
-const date = parseScheduleDateValue(dateValue);
-periodizationState.selectedDate = dateValue;
-periodizationState.selectedMonthIndex = date.getMonth();
-periodizationDayOverlayOpen = true;
-periodizationDayOverlayMode = "view";
-writePeriodizationState({ syncCentral: false });
-}
+openPeriodizationDateForDashboard(dateValue);
 },
 openSessionDate: (dateValue) => {
 if (dateValue) {
@@ -971,7 +964,7 @@ getState: () => periodizationState,
 getDay: getPeriodizationDay,
 canEdit: canEditPeriodizationWorkspace,
 isOffDay: isPeriodizationOffDay,
-getMultiSelectOpenField: () => periodizationMultiSelectOpenField,
+getMultiSelectOpenField: getPeriodizationMultiSelectOpenField,
 renderActionIcon: renderSessionPlannerActionIcon,
 });
 const {
@@ -1010,8 +1003,6 @@ win,
 });
 let hubState = null;
 let periodizationState = null;
-let periodizationDayOverlayOpen = false;
-let periodizationDayOverlayMode = "view";
 let scheduleState = null;
 let medicalState = null;
 let medicalRosterSearchQuery = "";
@@ -1048,6 +1039,7 @@ let transferRoomState = null;
 let sessionPlannerState = null;
 let sessionPlannerExerciseLibrary = null;
 let sessionPlannerExerciseLibraryFolders = null;
+let workspaceDataRuntimeService = null;
 let dashboardChatThreadId = "team";
 let dashboardChatWidgetToastTimer = null;
 let dashboardChatWidgetToastState = null;
@@ -2449,231 +2441,78 @@ function getWorkspaceById(...args) { return workspaceAccessRuntimeService.getWor
 function getWorkspaceByIdUnfiltered(...args) { return workspaceAccessRuntimeService.getWorkspaceByIdUnfiltered(...args); }
 function getSafeWorkspaceId(...args) { return workspaceAccessRuntimeService.getSafeWorkspaceId(...args); }
 function getWorkspaceViewId(...args) { return workspaceAccessRuntimeService.getWorkspaceViewId(...args); }
-let periodizationMultiSelectOpenField = "";
-function getPeriodizationDay(dateValue) { return getPeriodizationDayFromState(dateValue, periodizationState); }
-function ensurePeriodizationState() {
-if (!periodizationState) {
-periodizationState = readPeriodizationState();
-}
-return periodizationState;
-}
-function writePeriodizationDay(dateValue, patch = {}, shouldRender = true) {
-if (!periodizationState || !isDateValueInYear(dateValue, periodizationYear) || !canEditPeriodizationWorkspace()) {
-return;
-}
-const previousDay = getPeriodizationDay(dateValue);
-const nextDay = normalizePeriodizationDay({
-...previousDay,
-...patch,
+workspaceDataRuntimeService = createWorkspaceDataRuntimeService({
+win,
+ui,
+periodizationFieldUpdatedAtKey,
+periodizationStorageKey,
+periodizationTrackedFields,
+periodizationYear,
+scheduleStorageKey,
+scoutingStorageKey,
+defaultPeriodizationState,
+defaultScheduleState,
+defaultScoutingState,
+importedNccScheduleEvents,
+importedNccScheduleVersion,
+canEditPeriodizationWorkspace,
+clonePeriodizationState,
+cloneScheduleState,
+cloneScoutingState,
+formatScheduleDateValue,
+getActiveWorkspaceId: () => hubState?.activeWorkspaceId,
+getCurrentPlatformUser,
+getPeriodizationDayFromState,
+getPeriodizationState: () => periodizationState,
+getPlayerProfilesState: () => playerProfilesState,
+getScheduleState: () => scheduleState,
+getScoutingState: () => scoutingState,
+getTransferRoomRuntime: () => transferRoomRuntime,
+getTransferRoomState: () => transferRoomState,
+isDateValueInYear: (dateValue) => isDateValueInYear(dateValue, periodizationYear),
+logEvent,
+mergeImportedScheduleEvents,
+normalizePeriodizationDay,
+parseScheduleDateValue,
+preserveScoutingTransientUiState,
+rawDataSafetySetItem,
+readPlayerProfilesState,
+renderPeriodizationWorkspace,
+renderTransferRoomWorkspace,
+setPeriodizationState: (nextState) => { periodizationState = nextState; },
+setPlayerProfilesState: (nextState) => { playerProfilesState = nextState; },
+setScheduleState: (nextState) => { scheduleState = nextState; },
+setScoutingState: (nextState) => { scoutingState = nextState; },
+setTransferRoomState: (nextState) => { transferRoomState = nextState; },
+shouldDeferCentralizedAppStateReload,
 });
-const fieldUpdatedAt = {
-...(previousDay[periodizationFieldUpdatedAtKey] || {}),
-...(nextDay[periodizationFieldUpdatedAtKey] || {}),
-};
-const now = new Date().toISOString();
-Object.keys(patch || {}).forEach((key) => {
-if (periodizationTrackedFields.has(key)) {
-fieldUpdatedAt[key] = now;
-}
-});
-if (Object.keys(fieldUpdatedAt).length) {
-nextDay[periodizationFieldUpdatedAtKey] = fieldUpdatedAt;
-}
-periodizationState.days[dateValue] = nextDay;
-writePeriodizationState();
-if (shouldRender) {
-renderPeriodizationWorkspace();
-}
-}
-function selectPeriodizationDate(dateValue, shouldOpenOverlay = true, overlayMode = "view") {
-if (!periodizationState || !isDateValueInYear(dateValue, periodizationYear)) {
-return;
-}
-const date = parseScheduleDateValue(dateValue);
-const safeOverlayMode = overlayMode === "edit" && !canEditPeriodizationWorkspace() ? "view" : overlayMode;
-periodizationState.selectedDate = dateValue;
-periodizationState.selectedMonthIndex = date.getMonth();
-periodizationDayOverlayOpen = shouldOpenOverlay;
-periodizationDayOverlayMode = safeOverlayMode;
-writePeriodizationState({ syncCentral: false });
-renderPeriodizationWorkspace();
-}
-function setPeriodizationStateStorageValue(state = periodizationState, options = {}) {
-const shouldSyncCentral = options.syncCentral !== false;
-if (!shouldSyncCentral) {
-rawDataSafetySetItem(periodizationStorageKey, JSON.stringify(state));
-return;
-}
-win.localStorage.setItem(periodizationStorageKey, JSON.stringify(state));
-}
-function readPeriodizationState() {
-try {
-const raw = win.localStorage.getItem(periodizationStorageKey);
-const state = raw ? clonePeriodizationState(JSON.parse(raw)) : clonePeriodizationState(defaultPeriodizationState);
-const normalizedValue = JSON.stringify(state);
-if (raw !== normalizedValue) {
-setPeriodizationStateStorageValue(state, { syncCentral: false });
-}
-return state;
-} catch {
-const state = clonePeriodizationState(defaultPeriodizationState);
-try {
-setPeriodizationStateStorageValue(state, { syncCentral: false });
-} catch {}
-return state;
-}
-}
-function writePeriodizationState(options = {}) {
-if (!periodizationState) {
-return;
-}
-try {
-setPeriodizationStateStorageValue(periodizationState, options);
-} catch {
-logEvent("Periodization settings could not be written to local storage.");
-}
-}
-function setPeriodizationMonth(monthIndex) {
-if (!periodizationState || monthIndex < 0 || monthIndex > 11) {
-return;
-}
-periodizationDayOverlayOpen = false;
-periodizationDayOverlayMode = "view";
-periodizationState.selectedMonthIndex = monthIndex;
-const monthStart = new Date(periodizationYear, monthIndex, 1);
-const selectedDate = parseScheduleDateValue(periodizationState.selectedDate);
-if (selectedDate.getFullYear() !== periodizationYear || selectedDate.getMonth() !== monthIndex) {
-periodizationState.selectedDate = formatScheduleDateValue(monthStart);
-}
-writePeriodizationState({ syncCentral: false });
-if (hubState?.activeWorkspaceId === "periodization") {
-renderPeriodizationWorkspace();
-}
-}
-function shiftPeriodizationMonth(delta) {
-if (!periodizationState) {
-return;
-}
-setPeriodizationMonth(periodizationState.selectedMonthIndex + delta);
-}
-function scrollPeriodizationDateIntoView(dateValue, options = {}) {
-if (!ui.periodizationBoard || !dateValue) {
-return;
-}
-const prefersReducedMotion = win.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-win.requestAnimationFrame(() => {
-const selectedCard = ui.periodizationBoard.querySelector(`[data-periodization-date="${dateValue}"]`);
-if (!selectedCard) {
-return;
-}
-selectedCard.scrollIntoView({
-block: options.block || "center",
-inline: "nearest",
-behavior: options.behavior || (prefersReducedMotion ? "auto" : "smooth"),
-});
-});
-}
-function jumpPeriodizationToToday() {
-ensurePeriodizationState();
-if (!periodizationState) {
-return;
-}
-const today = new Date();
-const todayDateValue = formatScheduleDateValue(new Date(periodizationYear, today.getMonth(), today.getDate()));
-periodizationDayOverlayOpen = false;
-periodizationDayOverlayMode = "view";
-periodizationState = clonePeriodizationState({
-...periodizationState,
-selectedMonthIndex: today.getMonth(),
-selectedDate: todayDateValue,
-days: periodizationState?.days ?? {},
-});
-writePeriodizationState({ syncCentral: false });
-if (hubState?.activeWorkspaceId === "periodization") {
-renderPeriodizationWorkspace();
-scrollPeriodizationDateIntoView(todayDateValue);
-}
-}
-function mergeImportedNccSchedule(state) {
-return mergeImportedScheduleEvents(state, {
-importVersion: importedNccScheduleVersion,
-events: importedNccScheduleEvents,
-});
-}
-function setScheduleStateStorageValue(state = scheduleState, options = {}) {
-const shouldSyncCentral = options.syncCentral !== false;
-if (!shouldSyncCentral) {
-rawDataSafetySetItem(scheduleStorageKey, JSON.stringify(state));
-return;
-}
-win.localStorage.setItem(scheduleStorageKey, JSON.stringify(state));
-}
-function readScheduleState() {
-try {
-const raw = win.localStorage.getItem(scheduleStorageKey);
-const state = raw ? cloneScheduleState(JSON.parse(raw)) : cloneScheduleState(defaultScheduleState);
-const mergedState = mergeImportedNccSchedule(state);
-const mergedValue = JSON.stringify(mergedState);
-if (raw !== mergedValue) {
-setScheduleStateStorageValue(mergedState, { syncCentral: false });
-}
-return mergedState;
-} catch {
-return mergeImportedNccSchedule(defaultScheduleState);
-}
-}
-function writeScheduleState(options = {}) {
-if (!scheduleState) {
-return;
-}
-try {
-setScheduleStateStorageValue(scheduleState, options);
-} catch {
-logEvent("Schedule could not be written to local storage.");
-}
-}
-function setScoutingStateStorageValue(state = scoutingState, options = {}) {
-const shouldSyncCentral = options.syncCentral !== false;
-if (!shouldSyncCentral) {
-rawDataSafetySetItem(scoutingStorageKey, JSON.stringify(state));
-return;
-}
-win.localStorage.setItem(scoutingStorageKey, JSON.stringify(state));
-}
-function readScoutingState() {
-try {
-const raw = win.localStorage.getItem(scoutingStorageKey);
-const state = raw ? cloneScoutingState(JSON.parse(raw)) : cloneScoutingState(defaultScoutingState);
-const nextState = hubState?.activeWorkspaceId === "scouting" ? preserveScoutingTransientUiState(state, scoutingState) : state;
-const normalizedValue = JSON.stringify(nextState);
-if (raw !== normalizedValue) {
-setScoutingStateStorageValue(nextState, { syncCentral: false });
-}
-return nextState;
-} catch {
-const state = cloneScoutingState(defaultScoutingState);
-try {
-setScoutingStateStorageValue(state, { syncCentral: false });
-} catch {}
-return state;
-}
-}
-function writeScoutingState(options = {}) {
-if (!scoutingState) {
-return;
-}
-try {
-setScoutingStateStorageValue(scoutingState, options);
-} catch {
-logEvent("Scouting could not be written to local storage.");
-}
-}
-function ensureScoutingState() {
-if (!scoutingState) {
-scoutingState = readScoutingState();
-}
-return scoutingState;
-}
+function getPeriodizationDay(...args) { return workspaceDataRuntimeService.getPeriodizationDay(...args); }
+function ensurePeriodizationState(...args) { return workspaceDataRuntimeService.ensurePeriodizationState(...args); }
+function writePeriodizationDay(...args) { return workspaceDataRuntimeService.writePeriodizationDay(...args); }
+function selectPeriodizationDate(...args) { return workspaceDataRuntimeService.selectPeriodizationDate(...args); }
+function openPeriodizationDateForDashboard(...args) { return workspaceDataRuntimeService.openPeriodizationDateForDashboard(...args); }
+function setPeriodizationStateStorageValue(...args) { return workspaceDataRuntimeService.setPeriodizationStateStorageValue(...args); }
+function readPeriodizationState(...args) { return workspaceDataRuntimeService.readPeriodizationState(...args); }
+function writePeriodizationState(...args) { return workspaceDataRuntimeService.writePeriodizationState(...args); }
+function setPeriodizationMonth(...args) { return workspaceDataRuntimeService.setPeriodizationMonth(...args); }
+function shiftPeriodizationMonth(...args) { return workspaceDataRuntimeService.shiftPeriodizationMonth(...args); }
+function scrollPeriodizationDateIntoView(...args) { return workspaceDataRuntimeService.scrollPeriodizationDateIntoView(...args); }
+function jumpPeriodizationToToday(...args) { return workspaceDataRuntimeService.jumpPeriodizationToToday(...args); }
+function mergeImportedNccSchedule(...args) { return workspaceDataRuntimeService.mergeImportedNccSchedule(...args); }
+function setScheduleStateStorageValue(...args) { return workspaceDataRuntimeService.setScheduleStateStorageValue(...args); }
+function readScheduleState(...args) { return workspaceDataRuntimeService.readScheduleState(...args); }
+function ensureScheduleState(...args) { return workspaceDataRuntimeService.ensureScheduleState(...args); }
+function writeScheduleState(...args) { return workspaceDataRuntimeService.writeScheduleState(...args); }
+function setScoutingStateStorageValue(...args) { return workspaceDataRuntimeService.setScoutingStateStorageValue(...args); }
+function readScoutingState(...args) { return workspaceDataRuntimeService.readScoutingState(...args); }
+function writeScoutingState(...args) { return workspaceDataRuntimeService.writeScoutingState(...args); }
+function ensureScoutingState(...args) { return workspaceDataRuntimeService.ensureScoutingState(...args); }
+function getPeriodizationMultiSelectOpenField(...args) { return workspaceDataRuntimeService.getPeriodizationMultiSelectOpenField(...args); }
+function setPeriodizationMultiSelectOpenField(...args) { return workspaceDataRuntimeService.setPeriodizationMultiSelectOpenField(...args); }
+function setPeriodizationSelection(...args) { return workspaceDataRuntimeService.setPeriodizationSelection(...args); }
+function getPeriodizationOverlayState(...args) { return workspaceDataRuntimeService.getPeriodizationOverlayState(...args); }
+function setPeriodizationOverlayMode(...args) { return workspaceDataRuntimeService.setPeriodizationOverlayMode(...args); }
+function setPeriodizationOverlayState(...args) { return workspaceDataRuntimeService.setPeriodizationOverlayState(...args); }
 const transferRoomRuntime = createTransferRoomRuntime({
 storageKey: transferRoomStorageKey,
 getCachedState: () => transferRoomState,
@@ -2811,24 +2650,12 @@ renderGameplanWorkspace,
 renderScoutingWorkspace,
 renderTransferRoomWorkspace,
 } = workspaceModuleRuntimeController;
-function readTransferRoomState() { return transferRoomRuntime.readState(); }
-function ensureTransferRoomState() { return transferRoomRuntime.ensureState(); }
-function syncTransferRoomLinkedState(options = {}) {
-if (!playerProfilesState) {
-playerProfilesState = readPlayerProfilesState();
-}
-ensureScoutingState();
-transferRoomState = ensureTransferRoomState();
-if (options.render && hubState?.activeWorkspaceId === "transfer-room" && !shouldDeferCentralizedAppStateReload()) {
-renderTransferRoomWorkspace();
-}
-return transferRoomState;
-}
-function canUserAccessTransferRoom(user = getCurrentPlatformUser()) { return transferRoomRuntime.canAccess(user); }
-function canUserEditTransferRoom(user = getCurrentPlatformUser()) { return transferRoomRuntime.canAccess(user); }
-function addTransferRoomTargetFromScoutingSnapshot(snapshot = {}, options = {}) {
-return transferRoomRuntime.addTargetFromScoutingSnapshot(snapshot, options);
-}
+function readTransferRoomState(...args) { return workspaceDataRuntimeService.readTransferRoomState(...args); }
+function ensureTransferRoomState(...args) { return workspaceDataRuntimeService.ensureTransferRoomState(...args); }
+function syncTransferRoomLinkedState(...args) { return workspaceDataRuntimeService.syncTransferRoomLinkedState(...args); }
+function canUserAccessTransferRoom(...args) { return workspaceDataRuntimeService.canUserAccessTransferRoom(...args); }
+function canUserEditTransferRoom(...args) { return workspaceDataRuntimeService.canUserEditTransferRoom(...args); }
+function addTransferRoomTargetFromScoutingSnapshot(...args) { return workspaceDataRuntimeService.addTransferRoomTargetFromScoutingSnapshot(...args); }
 const scheduleRuntimeSelectors = createScheduleRuntimeSelectors({
 ensurePeriodizationState,
 ensureScheduleState: () => {
@@ -6480,30 +6307,18 @@ renderSessionPlanner: renderSessionPlannerWorkspace,
 getCustomFieldValue: getPeriodizationCustomFieldValue,
 getMultiFieldValue: getPeriodizationMultiFieldValue,
 isMultiField: (fieldKey) => periodizationMultiFields.has(fieldKey),
-getMultiSelectOpenField: () => periodizationMultiSelectOpenField,
-setMultiSelectOpenField: (fieldKey = "") => {
-periodizationMultiSelectOpenField = fieldKey;
-},
-setPeriodizationSelection: (dateValue, monthIndex) => {
-periodizationState.selectedDate = dateValue;
-periodizationState.selectedMonthIndex = Number.isInteger(monthIndex)
-? monthIndex
-: parseScheduleDateValue(dateValue).getMonth();
-},
+getMultiSelectOpenField: getPeriodizationMultiSelectOpenField,
+setMultiSelectOpenField: setPeriodizationMultiSelectOpenField,
+setPeriodizationSelection,
 getState: () => periodizationState,
 getPeriodizationState: () => periodizationState,
-getOverlayState: () => ({ open: periodizationDayOverlayOpen, mode: periodizationDayOverlayMode }),
-setOverlayMode: (mode) => {
-periodizationDayOverlayMode = mode === "edit" ? "edit" : "view";
-},
+getOverlayState: getPeriodizationOverlayState,
+setOverlayMode: setPeriodizationOverlayMode,
 jumpToToday: jumpPeriodizationToToday,
 shiftMonth: shiftPeriodizationMonth,
 setMonth: setPeriodizationMonth,
 selectDate: selectPeriodizationDate,
-setOverlayState: ({ open, mode }) => {
-periodizationDayOverlayOpen = Boolean(open);
-periodizationDayOverlayMode = mode === "edit" ? "edit" : "view";
-},
+setOverlayState: setPeriodizationOverlayState,
 escapeHtml,
 getPeriodizationDay,
 getPeriodizationMatchDayLabel,
@@ -7411,9 +7226,8 @@ closePlayerProfileModal();
 if (event.key === "Escape" && playerProfileNewPlayerModalOpen) {
 closePlayerProfileNewPlayerModal();
 }
-if (event.key === "Escape" && periodizationDayOverlayOpen) {
-periodizationDayOverlayOpen = false;
-periodizationDayOverlayMode = "view";
+if (event.key === "Escape" && getPeriodizationOverlayState().open) {
+setPeriodizationOverlayState({ open: false, mode: "view" });
 renderPeriodizationWorkspace();
 }
 if (event.key === "Escape" && hasActiveMetricTooltip()) {

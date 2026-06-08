@@ -1,0 +1,66 @@
+name: Production Squad Status Repair Execute
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_current_revision:
+        description: Expected current app-state revision.
+        required: true
+      expected_current_sha256:
+        description: Expected current football-player-profiles-v1 value hash.
+        required: true
+      expected_backup_sha256:
+        description: Expected latest backup content hash.
+        required: true
+      expected_plan_sha256:
+        description: Expected sanitized repair plan hash.
+        required: true
+      expected_dry_run_sha256:
+        description: Expected sanitized dry-run hash.
+        required: true
+      expected_candidate_count:
+        description: Expected repair candidate count.
+        required: true
+      expected_field_write_count:
+        description: Expected total field write count.
+        required: true
+      expected_status_field_count:
+        description: Expected status field write count.
+        required: true
+      expected_squad_status_field_count:
+        description: Expected squadStatus field write count.
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-squad-status-repair-execute
+  cancel-in-progress: false
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      LIVE_QA_BASE_URL: ${{ vars.LIVE_QA_BASE_URL || 'https://footballscience.xyz' }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      EXPECTED_CURRENT_REVISION: ${{ inputs.expected_current_revision }}
+      EXPECTED_CURRENT_SHA256: ${{ inputs.expected_current_sha256 }}
+      EXPECTED_BACKUP_SHA256: ${{ inputs.expected_backup_sha256 }}
+      EXPECTED_PLAN_SHA256: ${{ inputs.expected_plan_sha256 }}
+      EXPECTED_DRY_RUN_SHA256: ${{ inputs.expected_dry_run_sha256 }}
+      EXPECTED_CANDIDATE_COUNT: ${{ inputs.expected_candidate_count }}
+      EXPECTED_FIELD_WRITE_COUNT: ${{ inputs.expected_field_write_count }}
+      EXPECTED_STATUS_FIELD_COUNT: ${{ inputs.expected_status_field_count }}
+      EXPECTED_SQUAD_STATUS_FIELD_COUNT: ${{ inputs.expected_squad_status_field_count }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run release:squad-status-repair-execute
+      - run: npm run release:squad-status-audit
+      - run: npm run release:postdeploy

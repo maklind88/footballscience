@@ -143,6 +143,31 @@ async function readStateObject(key) {
   }
 }
 
+async function writeStateObject(entry) {
+  const path = objectPathForKey(entry.key);
+  const result = await storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${path}`, {
+    method: "PUT",
+    headers: {
+      "x-upsert": "true",
+      "Cache-Control": "no-store",
+    },
+    body: JSON.stringify(entry),
+  });
+
+  if (!result.ok && result.status === 404) {
+    return storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${path}`, {
+      method: "POST",
+      headers: {
+        "x-upsert": "true",
+        "Cache-Control": "no-store",
+      },
+      body: JSON.stringify(entry),
+    });
+  }
+
+  return result;
+}
+
 function hashText(value) {
   return createHash("sha256").update(String(value ?? ""), "utf8").digest("hex");
 }
@@ -747,6 +772,121 @@ function createSquadStatusRepairCandidates(currentState = {}, backupState = {}) 
   };
 }
 
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value || {}));
+}
+
+function createSquadStatusRepairApplication(currentState = {}, backupState = {}) {
+  const nextState = cloneJson(currentState);
+  const players = Array.isArray(nextState.players) ? nextState.players : [];
+  const currentPlayers = Array.isArray(currentState?.players) ? currentState.players : [];
+  const changeIndex = createPlayerProfileAuditChangeIndex(currentState);
+  const backupPlayers = getBackupPlayerProfileMap(backupState);
+  const fieldCounts = {
+    status: 0,
+    squadStatus: 0,
+  };
+  const candidates = [];
+
+  players.forEach((player, index) => {
+    const sourcePlayer = currentPlayers[index] || player;
+    const mergeKey = getPlayerProfileAuditMergeKey(sourcePlayer);
+    if (!mergeKey) {
+      return;
+    }
+
+    const backupPlayer = backupPlayers.get(mergeKey);
+    const fields = [];
+
+    PLAYER_PROFILE_REPAIR_FIELDS.forEach((field) => {
+      const change = changeIndex.get(`${mergeKey}:${field}`);
+      if (!change || String(sourcePlayer?.[field] ?? "") === String(change.value)) {
+        return;
+      }
+
+      player[field] = change.value;
+      fieldCounts[field] += 1;
+      fields.push({
+        field,
+        trustedSource: "latest-explicit-changeLog-entry",
+        restorable: true,
+        backupHasComparablePlayer: Boolean(backupPlayer),
+        backupSupportsTarget: backupPlayer ? String(backupPlayer?.[field] ?? "") === String(change.value) : false,
+      });
+    });
+
+    if (!fields.length) {
+      return;
+    }
+
+    const candidateSeed = JSON.stringify({
+      mergeKey,
+      fields: fields.map((field) => {
+        const change = changeIndex.get(`${mergeKey}:${field.field}`);
+        return {
+          field: field.field,
+          targetValue: change?.value || "",
+          source: field.trustedSource,
+        };
+      }),
+    });
+
+    candidates.push({
+      candidateSha256: hashText(candidateSeed),
+      fieldCount: fields.length,
+      fields,
+      allFieldsAllowed: fields.every((field) => PLAYER_PROFILE_REPAIR_FIELDS.includes(field.field)),
+      restorableFromTrustedSource: fields.every((field) => field.restorable === true),
+    });
+  });
+
+  const totalFieldCount = fieldCounts.status + fieldCounts.squadStatus;
+  return {
+    repairedState: nextState,
+    candidateCount: candidates.length,
+    fieldCounts,
+    totalFieldCount,
+    allCandidateFieldsAllowed: candidates.every((candidate) => candidate.allFieldsAllowed === true),
+    allCandidatesRestorableFromTrustedSource: candidates.every(
+      (candidate) => candidate.restorableFromTrustedSource === true
+    ),
+    candidates,
+    planSha256: hashText(
+      JSON.stringify({
+        fieldCounts,
+        totalFieldCount,
+        candidates: candidates.map((candidate) => ({
+          candidateSha256: candidate.candidateSha256,
+          fields: candidate.fields.map((field) => ({
+            field: field.field,
+            trustedSource: field.trustedSource,
+            backupSupportsTarget: field.backupSupportsTarget,
+          })),
+        })),
+      })
+    ),
+  };
+}
+
+function createRepairedStateEntry(currentEntry = {}, repairedState = {}, actor = {}) {
+  const value = JSON.stringify(repairedState);
+  const contract = dataSafetyRegistry.getByKey(PLAYER_PROFILES_KEY);
+  return {
+    ...currentEntry,
+    schema: "footballscience-app-state-v1",
+    key: PLAYER_PROFILES_KEY,
+    moduleId: currentEntry.moduleId || contract?.moduleId || "squad",
+    organizationId: currentEntry.organizationId || contract?.defaultOrganizationId || "global",
+    mergePolicy: currentEntry.mergePolicy || contract?.mergePolicy || "server-merge",
+    value,
+    removed: false,
+    revision: Number(currentEntry.revision || 0) + 1,
+    updatedAt: new Date().toISOString(),
+    updatedBy: actor?.id || "system-squad-status-repair",
+    hash: hashText(value),
+  };
+}
+
 async function createSquadStatusAuditSummary() {
   const currentEntry = await readStateObject(PLAYER_PROFILES_KEY);
   const currentState = parseStateValue(currentEntry);
@@ -938,6 +1078,380 @@ async function createSquadStatusRepairDryRunSummary() {
   };
 }
 
+async function readRequestJson(req) {
+  const chunks = [];
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+  }
+
+  const text = Buffer.concat(chunks).toString("utf8").trim();
+  if (!text) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function firstPresent(source, keys) {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(source || {}, key)) {
+      return source[key];
+    }
+  }
+  return undefined;
+}
+
+function parseGuardInteger(value) {
+  const numeric = Number(value);
+  return Number.isInteger(numeric) ? numeric : null;
+}
+
+function parseGuardSha256(value) {
+  const text = String(value || "").trim().toLowerCase();
+  return /^[a-f0-9]{64}$/.test(text) ? text : "";
+}
+
+function normalizeSquadStatusRepairExecuteGuards(body = {}) {
+  return {
+    expectedCurrentRevision: parseGuardInteger(
+      firstPresent(body, ["expectedCurrentRevision", "currentRevision", "expected_current_revision"])
+    ),
+    expectedCurrentSha256: parseGuardSha256(
+      firstPresent(body, ["expectedCurrentSha256", "currentSha256", "expected_current_sha256"])
+    ),
+    expectedBackupSha256: parseGuardSha256(
+      firstPresent(body, ["expectedBackupSha256", "backupSha256", "expected_backup_sha256"])
+    ),
+    expectedPlanSha256: parseGuardSha256(firstPresent(body, ["expectedPlanSha256", "planSha256", "expected_plan_sha256"])),
+    expectedDryRunSha256: parseGuardSha256(
+      firstPresent(body, ["expectedDryRunSha256", "dryRunSha256", "expected_dry_run_sha256"])
+    ),
+    expectedCandidateCount: parseGuardInteger(
+      firstPresent(body, ["expectedCandidateCount", "candidateCount", "expected_candidate_count"])
+    ),
+    expectedFieldWriteCount: parseGuardInteger(
+      firstPresent(body, ["expectedFieldWriteCount", "fieldWriteCount", "expected_field_write_count"])
+    ),
+    expectedStatusFieldCount: parseGuardInteger(
+      firstPresent(body, ["expectedStatusFieldCount", "statusFieldCount", "expected_status_field_count"])
+    ),
+    expectedSquadStatusFieldCount: parseGuardInteger(
+      firstPresent(body, ["expectedSquadStatusFieldCount", "squadStatusFieldCount", "expected_squad_status_field_count"])
+    ),
+    allowedFields: Array.isArray(body?.allowedFields) ? body.allowedFields.map((field) => String(field)) : [],
+  };
+}
+
+function validateSquadStatusRepairExecuteGuards(summary, guards) {
+  const failures = [];
+  const repairDryRun = summary?.repairDryRun || {};
+  const fieldCounts = repairDryRun.fieldCounts || {};
+  const allowedFields =
+    guards.allowedFields.length > 0 ? guards.allowedFields : [...PLAYER_PROFILE_REPAIR_FIELDS];
+
+  if (guards.expectedCurrentRevision === null) {
+    failures.push("expected-current-revision-missing");
+  } else if (Number(summary?.current?.revision || 0) !== guards.expectedCurrentRevision) {
+    failures.push("current-revision-mismatch");
+  }
+
+  if (!guards.expectedCurrentSha256) {
+    failures.push("expected-current-sha256-missing");
+  } else if (String(summary?.current?.valueSha256 || "") !== guards.expectedCurrentSha256) {
+    failures.push("current-sha256-mismatch");
+  }
+
+  if (!guards.expectedBackupSha256) {
+    failures.push("expected-backup-sha256-missing");
+  } else if (String(summary?.latestBackup?.pointerContentSha256 || "") !== guards.expectedBackupSha256) {
+    failures.push("backup-sha256-mismatch");
+  }
+
+  if (!guards.expectedPlanSha256) {
+    failures.push("expected-plan-sha256-missing");
+  } else if (String(repairDryRun.planSha256 || "") !== guards.expectedPlanSha256) {
+    failures.push("plan-sha256-mismatch");
+  }
+
+  if (!guards.expectedDryRunSha256) {
+    failures.push("expected-dry-run-sha256-missing");
+  } else if (String(summary?.dryRunSha256 || "") !== guards.expectedDryRunSha256) {
+    failures.push("dry-run-sha256-mismatch");
+  }
+
+  if (guards.expectedCandidateCount === null) {
+    failures.push("expected-candidate-count-missing");
+  } else if (Number(repairDryRun.candidateCount || 0) !== guards.expectedCandidateCount) {
+    failures.push("candidate-count-mismatch");
+  }
+
+  if (guards.expectedFieldWriteCount === null) {
+    failures.push("expected-field-write-count-missing");
+  } else if (Number(repairDryRun.totalFieldCount || 0) !== guards.expectedFieldWriteCount) {
+    failures.push("field-write-count-mismatch");
+  }
+
+  if (guards.expectedStatusFieldCount === null) {
+    failures.push("expected-status-field-count-missing");
+  } else if (Number(fieldCounts.status || 0) !== guards.expectedStatusFieldCount) {
+    failures.push("status-field-count-mismatch");
+  }
+
+  if (guards.expectedSquadStatusFieldCount === null) {
+    failures.push("expected-squad-status-field-count-missing");
+  } else if (Number(fieldCounts.squadStatus || 0) !== guards.expectedSquadStatusFieldCount) {
+    failures.push("squad-status-field-count-mismatch");
+  }
+
+  if (guards.expectedCandidateCount !== null && Number(repairDryRun.candidateCount || 0) > guards.expectedCandidateCount) {
+    failures.push("candidate-count-over-limit");
+  }
+  if (guards.expectedFieldWriteCount !== null && Number(repairDryRun.totalFieldCount || 0) > guards.expectedFieldWriteCount) {
+    failures.push("field-write-count-over-limit");
+  }
+  if (
+    allowedFields.length !== PLAYER_PROFILE_REPAIR_FIELDS.length ||
+    !PLAYER_PROFILE_REPAIR_FIELDS.every((field) => allowedFields.includes(field))
+  ) {
+    failures.push("allowed-fields-mismatch");
+  }
+  if (repairDryRun.allCandidateFieldsAllowed !== true) {
+    failures.push("candidate-fields-not-allowed");
+  }
+  if (repairDryRun.allCandidatesRestorableFromTrustedSource !== true) {
+    failures.push("candidates-not-restorable-from-trusted-source");
+  }
+  if (repairDryRun.safeToExecuteAsSeparateRepair !== true) {
+    failures.push("separate-repair-not-safe");
+  }
+
+  return failures;
+}
+
+function createSquadStatusRepairGuardSnapshot(summary = {}) {
+  return {
+    current: {
+      revision: Number(summary?.current?.revision || 0),
+      valueSha256: String(summary?.current?.valueSha256 || ""),
+    },
+    latestBackup: {
+      pointerContentSha256: String(summary?.latestBackup?.pointerContentSha256 || ""),
+      backupMatchesPointer: summary?.latestBackup?.backupMatchesPointer === true,
+    },
+    repairDryRun: {
+      candidateCount: Number(summary?.repairDryRun?.candidateCount || 0),
+      fieldCounts: {
+        status: Number(summary?.repairDryRun?.fieldCounts?.status || 0),
+        squadStatus: Number(summary?.repairDryRun?.fieldCounts?.squadStatus || 0),
+      },
+      totalFieldCount: Number(summary?.repairDryRun?.totalFieldCount || 0),
+      planSha256: String(summary?.repairDryRun?.planSha256 || ""),
+    },
+    dryRunSha256: String(summary?.dryRunSha256 || ""),
+  };
+}
+
+async function createSquadStatusRepairPreWriteSnapshot(actor) {
+  const backupSource = await collectCentralStateBackupEntries();
+  const envelope = createBackupEnvelope({ actor, ...backupSource });
+  const timestamp = envelope.createdAt.replace(/[:.]/g, "-");
+  const snapshotPath = `${BACKUP_PREFIX}/repair-snapshots/squad-status/${timestamp}-${envelope.contentSha256.slice(0, 12)}.json`;
+  const result = await writeBackupObject(snapshotPath, envelope, false);
+  if (!result.ok) {
+    return {
+      ok: false,
+      reason: result.reason || "Squad status repair pre-write snapshot could not be written.",
+    };
+  }
+
+  return {
+    ok: true,
+    createdAt: envelope.createdAt,
+    path: snapshotPath,
+    pathSha256: hashText(snapshotPath),
+    entryCount: envelope.entryCount,
+    contentSha256: envelope.contentSha256,
+  };
+}
+
+async function loadSquadStatusRepairExecutionContext() {
+  const currentEntry = await readStateObject(PLAYER_PROFILES_KEY);
+  const currentState = parseStateValue(currentEntry);
+  const pointerResult = await readBackupObject(LATEST_BACKUP_PATH);
+  let backupState = null;
+
+  if (pointerResult.ok && isSafeBackupPath(pointerResult.payload?.path)) {
+    const backupResult = await readBackupObject(pointerResult.payload.path);
+    if (backupResult.ok) {
+      backupState = parseBackupEntryValue(backupResult.payload || {}, PLAYER_PROFILES_KEY);
+    }
+  }
+
+  return {
+    currentEntry,
+    currentState,
+    backupState,
+  };
+}
+
+async function sendSquadStatusRepairExecute(req, res, actor) {
+  const body = await readRequestJson(req);
+  if (!body) {
+    return sendJson(res, 400, { ok: false, reason: "Request body must be valid JSON." });
+  }
+
+  const guards = normalizeSquadStatusRepairExecuteGuards(body);
+  const initialSummary = await createSquadStatusRepairDryRunSummary();
+  const initialGuardFailures = validateSquadStatusRepairExecuteGuards(initialSummary, guards);
+  if (initialGuardFailures.length) {
+    return sendJson(res, 409, {
+      ok: false,
+      schema: "footballscience-squad-status-repair-execution-v1",
+      reason: "Squad status repair execution guards did not match current live state.",
+      writes: false,
+      executed: false,
+      guardFailures: initialGuardFailures,
+      guardSnapshot: createSquadStatusRepairGuardSnapshot(initialSummary),
+    });
+  }
+
+  const snapshot = await createSquadStatusRepairPreWriteSnapshot(actor);
+  if (!snapshot.ok) {
+    return sendJson(res, 500, {
+      ok: false,
+      schema: "footballscience-squad-status-repair-execution-v1",
+      reason: snapshot.reason,
+      writes: false,
+      executed: false,
+    });
+  }
+
+  const preWriteSummary = await createSquadStatusRepairDryRunSummary();
+  const preWriteGuardFailures = validateSquadStatusRepairExecuteGuards(preWriteSummary, guards);
+  if (preWriteGuardFailures.length) {
+    return sendJson(res, 409, {
+      ok: false,
+      schema: "footballscience-squad-status-repair-execution-v1",
+      reason: "Squad status repair execution guards changed after pre-write snapshot.",
+      writes: false,
+      executed: false,
+      preWriteSnapshot: snapshot,
+      guardFailures: preWriteGuardFailures,
+      guardSnapshot: createSquadStatusRepairGuardSnapshot(preWriteSummary),
+    });
+  }
+
+  const context = await loadSquadStatusRepairExecutionContext();
+  if (!context.currentEntry?.key || !context.currentState || !context.backupState) {
+    return sendJson(res, 409, {
+      ok: false,
+      schema: "footballscience-squad-status-repair-execution-v1",
+      reason: "Squad status repair execution context is not restorable.",
+      writes: false,
+      executed: false,
+      preWriteSnapshot: snapshot,
+    });
+  }
+
+  const application = createSquadStatusRepairApplication(context.currentState, context.backupState);
+  const expectedFields = preWriteSummary.repairDryRun?.fieldCounts || {};
+  if (
+    application.planSha256 !== preWriteSummary.repairDryRun.planSha256 ||
+    application.candidateCount !== preWriteSummary.repairDryRun.candidateCount ||
+    application.totalFieldCount !== preWriteSummary.repairDryRun.totalFieldCount ||
+    application.fieldCounts.status !== Number(expectedFields.status || 0) ||
+    application.fieldCounts.squadStatus !== Number(expectedFields.squadStatus || 0) ||
+    application.allCandidateFieldsAllowed !== true ||
+    application.allCandidatesRestorableFromTrustedSource !== true
+  ) {
+    return sendJson(res, 409, {
+      ok: false,
+      schema: "footballscience-squad-status-repair-execution-v1",
+      reason: "Squad status repair execution application does not match the dry-run plan.",
+      writes: false,
+      executed: false,
+      preWriteSnapshot: snapshot,
+      guardSnapshot: createSquadStatusRepairGuardSnapshot(preWriteSummary),
+    });
+  }
+
+  const repairedEntry = createRepairedStateEntry(context.currentEntry, application.repairedState, actor);
+  const writeResult = await writeStateObject(repairedEntry);
+  if (!writeResult.ok) {
+    return sendJson(res, 500, {
+      ok: false,
+      schema: "footballscience-squad-status-repair-execution-v1",
+      reason: writeResult.reason || "Squad status repair state write failed.",
+      writes: false,
+      executed: false,
+      preWriteSnapshot: snapshot,
+      rollbackPlan: {
+        available: true,
+        snapshotPath: snapshot.path,
+        snapshotContentSha256: snapshot.contentSha256,
+        restoreKey: PLAYER_PROFILES_KEY,
+        restoreRequiresSeparateApproval: true,
+      },
+    });
+  }
+
+  const afterEntry = await readStateObject(PLAYER_PROFILES_KEY);
+  const afterValue = String(afterEntry?.value || "");
+  const afterSummary = await createSquadStatusRepairDryRunSummary();
+  const afterFieldCounts = afterSummary.repairDryRun?.fieldCounts || {};
+  const postWriteCandidateCount = Number(afterSummary.repairDryRun?.candidateCount || 0);
+  const postWriteFieldCount = Number(afterSummary.repairDryRun?.totalFieldCount || 0);
+
+  return sendJson(res, 200, {
+    ok: true,
+    schema: "footballscience-squad-status-repair-execution-v1",
+    generatedAt: new Date().toISOString(),
+    dryRun: false,
+    writes: true,
+    executed: true,
+    targetKey: PLAYER_PROFILES_KEY,
+    fieldsOnly: [...PLAYER_PROFILE_REPAIR_FIELDS],
+    repairedCandidateCount: application.candidateCount,
+    repairedFieldCounts: application.fieldCounts,
+    repairedTotalFieldCount: application.totalFieldCount,
+    before: {
+      revision: preWriteSummary.current.revision,
+      valueSha256: preWriteSummary.current.valueSha256,
+      planSha256: preWriteSummary.repairDryRun.planSha256,
+      dryRunSha256: preWriteSummary.dryRunSha256,
+      backupSha256: preWriteSummary.latestBackup.pointerContentSha256,
+    },
+    after: {
+      revision: Number.isInteger(Number(afterEntry?.revision)) ? Number(afterEntry.revision) : 0,
+      valueSha256: afterValue ? hashText(afterValue) : "",
+    },
+    preWriteSnapshot: snapshot,
+    postWriteAudit: {
+      candidateCount: postWriteCandidateCount,
+      fieldCounts: {
+        status: Number(afterFieldCounts.status || 0),
+        squadStatus: Number(afterFieldCounts.squadStatus || 0),
+      },
+      totalFieldCount: postWriteFieldCount,
+      cleared: postWriteCandidateCount === 0 && postWriteFieldCount === 0,
+      dryRunSha256: afterSummary.dryRunSha256,
+    },
+    rollbackPlan: {
+      available: true,
+      snapshotPath: snapshot.path,
+      snapshotPathSha256: snapshot.pathSha256,
+      snapshotContentSha256: snapshot.contentSha256,
+      restoreKey: PLAYER_PROFILES_KEY,
+      restoreRequiresSeparateApproval: true,
+      rawBackupExposed: false,
+    },
+  });
+}
+
 function getAuthorizationHeader(req) {
   return req.headers?.authorization || req.headers?.Authorization || "";
 }
@@ -993,6 +1507,15 @@ function isSquadStatusRepairDryRunRequest(req) {
   try {
     const url = new URL(req.url || "", "https://footballscience.local");
     return url.searchParams.get("mode") === "squad-status-repair-dry-run";
+  } catch {
+    return false;
+  }
+}
+
+function isSquadStatusRepairExecuteRequest(req) {
+  try {
+    const url = new URL(req.url || "", "https://footballscience.local");
+    return url.searchParams.get("mode") === "squad-status-repair-execute";
   } catch {
     return false;
   }
@@ -1117,9 +1640,14 @@ module.exports = async (req, res) => {
   const restoreDrillRequest = isRestoreDrillRequest(req);
   const squadStatusAuditRequest = isSquadStatusAuditRequest(req);
   const squadStatusRepairDryRunRequest = isSquadStatusRepairDryRunRequest(req);
+  const squadStatusRepairExecuteRequest = isSquadStatusRepairExecuteRequest(req);
   const readonlyMetadataRequest =
     backupStatusRequest || restoreDrillRequest || squadStatusAuditRequest || squadStatusRepairDryRunRequest;
-  if ((readonlyMetadataRequest && req.method !== "GET") || (!readonlyMetadataRequest && req.method !== "GET" && req.method !== "POST")) {
+  if (
+    (readonlyMetadataRequest && req.method !== "GET") ||
+    (squadStatusRepairExecuteRequest && req.method !== "POST") ||
+    (!readonlyMetadataRequest && !squadStatusRepairExecuteRequest && req.method !== "GET" && req.method !== "POST")
+  ) {
     return sendJson(res, 405, { ok: false, reason: "Method not allowed." });
   }
 
@@ -1132,7 +1660,7 @@ module.exports = async (req, res) => {
     route: backupStatusRequest ? "/api/app-state-backup-status" : "/api/app-state-backup",
     moduleId: "app-state",
     actor: authorization.actor,
-    action: readonlyMetadataRequest ? "restore" : "export",
+    action: readonlyMetadataRequest || squadStatusRepairExecuteRequest ? "restore" : "export",
   });
   if (!security.ok) {
     return;
@@ -1153,6 +1681,10 @@ module.exports = async (req, res) => {
 
     if (squadStatusRepairDryRunRequest) {
       return sendSquadStatusRepairDryRun(res);
+    }
+
+    if (squadStatusRepairExecuteRequest) {
+      return sendSquadStatusRepairExecute(req, res, authorization.actor);
     }
 
     const bucket = await ensureStateBucket();

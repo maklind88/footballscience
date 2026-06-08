@@ -119,6 +119,116 @@ function createAppStateStorageEntry(key, value, updatedAt = "2026-05-07T00:00:00
   };
 }
 
+function createSquadStatusRepairFixture() {
+  const currentState = {
+    players: [
+      {
+        id: "player-1",
+        name: "Private Player Name",
+        status: "available",
+        squadStatus: "depth",
+        shirtNumber: 9,
+      },
+    ],
+    changeLog: [
+      {
+        id: "change-status",
+        playerId: "player-1",
+        changes: [
+          { field: "Availability status", from: "Available", to: "International duty" },
+          { field: "Squad status", from: "Squad depth", to: "Development" },
+        ],
+        createdAt: "2026-06-08T12:00:00.000Z",
+      },
+    ],
+  };
+  const backupState = {
+    ...currentState,
+    players: [
+      {
+        id: "player-1",
+        name: "Private Player Name",
+        status: "national-team",
+        squadStatus: "development",
+        shirtNumber: 9,
+      },
+    ],
+  };
+  const currentEntry = {
+    ...createAppStateStorageEntry(playerProfilesKey, currentState),
+    revision: 12,
+    moduleId: "squad",
+    organizationId: "global",
+    mergePolicy: "server-merge",
+    updatedAt: "2026-06-08T13:56:46.000Z",
+  };
+  const backupValue = JSON.stringify(backupState);
+  const backupManifest = Object.fromEntries(
+    dataSafetyRegistry.keys().map((key) => {
+      const contract = dataSafetyRegistry.getByKey(key);
+      return [
+        key,
+        {
+          present: false,
+          moduleId: contract.moduleId,
+        },
+      ];
+    })
+  );
+  backupManifest[playerProfilesKey] = {
+    present: true,
+    moduleId: "squad",
+    organizationId: "global",
+    revision: 11,
+    mergePolicy: "server-merge",
+    updatedAt: "2026-06-08T08:00:00.000Z",
+    updatedBy: "qa",
+    bytes: Buffer.byteLength(backupValue, "utf8"),
+    sha256: sha256(backupValue),
+  };
+  const backupCore = {
+    schema: "footballscience-app-state-backup-v1",
+    createdAt: "2026-06-08T08:00:00.000Z",
+    source: "api/app-state-backup",
+    actor: {
+      id: "vercel-cron",
+      role: "system",
+      email: "",
+    },
+    entryCount: 1,
+    manifest: backupManifest,
+    entries: {
+      [playerProfilesKey]: backupValue,
+    },
+  };
+  const backupEnvelope = {
+    ...backupCore,
+    contentSha256: sha256(JSON.stringify(backupCore)),
+  };
+  const backupPath = `backups/app-state/2026-06-08/${backupEnvelope.contentSha256.slice(0, 12)}.json`;
+  const latestPointer = {
+    schema: "footballscience-app-state-backup-pointer-v1",
+    createdAt: backupEnvelope.createdAt,
+    path: backupPath,
+    entryCount: backupEnvelope.entryCount,
+    contentSha256: backupEnvelope.contentSha256,
+  };
+
+  return {
+    currentState,
+    backupState,
+    currentEntry,
+    backupEnvelope,
+    backupPath,
+    latestPointer,
+    storageObjects: {
+      [playerProfilesPath]: currentEntry,
+      "backups/app-state/latest.json": latestPointer,
+      [backupPath]: backupEnvelope,
+    },
+  };
+}
+
 function createMockPlatformUser(role = "coach") {
   return {
     id: "coach-1",
@@ -3087,6 +3197,191 @@ test("app-state Squad status repair dry-run reports only sanitized repair metada
     expect(payloadText).not.toContain('"changeLog"');
     expect(payloadText).not.toContain("service-role-test-key");
     expect(storage.writes).toEqual([]);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state Squad status repair execute refuses guard mismatch without writes", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.CRON_SECRET = "cron-test-secret";
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  const fixture = createSquadStatusRepairFixture();
+  const storage = createAppStateFetchMock(fixture.storageObjects, "admin");
+  global.fetch = storage.fetchMock;
+
+  try {
+    const dryRun = await callHandler(appStateBackupHandler, {
+      method: "GET",
+      url: "/api/app-state-backup?mode=squad-status-repair-dry-run",
+      headers: {
+        authorization: "Bearer cron-test-secret",
+      },
+    });
+
+    const response = await callHandler(appStateBackupHandler, {
+      method: "POST",
+      url: "/api/app-state-backup?mode=squad-status-repair-execute",
+      headers: {
+        authorization: "Bearer cron-test-secret",
+      },
+      body: JSON.stringify({
+        expectedCurrentRevision: 999,
+        expectedCurrentSha256: dryRun.payload.current.valueSha256,
+        expectedBackupSha256: dryRun.payload.latestBackup.pointerContentSha256,
+        expectedPlanSha256: dryRun.payload.repairDryRun.planSha256,
+        expectedDryRunSha256: dryRun.payload.dryRunSha256,
+        expectedCandidateCount: 1,
+        expectedFieldWriteCount: 2,
+        expectedStatusFieldCount: 1,
+        expectedSquadStatusFieldCount: 1,
+        allowedFields: ["status", "squadStatus"],
+      }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(response.payload).toMatchObject({
+      ok: false,
+      schema: "footballscience-squad-status-repair-execution-v1",
+      writes: false,
+      executed: false,
+    });
+    expect(response.payload.guardFailures).toContain("current-revision-mismatch");
+    const payloadText = JSON.stringify(response.payload);
+    expect(payloadText).not.toContain("Private Player Name");
+    expect(payloadText).not.toContain("national-team");
+    expect(payloadText).not.toContain("development");
+    expect(payloadText).not.toContain('"entries"');
+    expect(payloadText).not.toContain('"players"');
+    expect(payloadText).not.toContain('"changeLog"');
+    expect(payloadText).not.toContain("service-role-test-key");
+    expect(storage.writes).toEqual([]);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state Squad status repair execute writes only guarded status fields with sanitized response", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.CRON_SECRET = "cron-test-secret";
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  const fixture = createSquadStatusRepairFixture();
+  const storage = createAppStateFetchMock(fixture.storageObjects, "admin");
+  global.fetch = storage.fetchMock;
+
+  try {
+    const dryRun = await callHandler(appStateBackupHandler, {
+      method: "GET",
+      url: "/api/app-state-backup?mode=squad-status-repair-dry-run",
+      headers: {
+        authorization: "Bearer cron-test-secret",
+      },
+    });
+
+    const response = await callHandler(appStateBackupHandler, {
+      method: "POST",
+      url: "/api/app-state-backup?mode=squad-status-repair-execute",
+      headers: {
+        authorization: "Bearer cron-test-secret",
+      },
+      body: JSON.stringify({
+        expectedCurrentRevision: dryRun.payload.current.revision,
+        expectedCurrentSha256: dryRun.payload.current.valueSha256,
+        expectedBackupSha256: dryRun.payload.latestBackup.pointerContentSha256,
+        expectedPlanSha256: dryRun.payload.repairDryRun.planSha256,
+        expectedDryRunSha256: dryRun.payload.dryRunSha256,
+        expectedCandidateCount: 1,
+        expectedFieldWriteCount: 2,
+        expectedStatusFieldCount: 1,
+        expectedSquadStatusFieldCount: 1,
+        allowedFields: ["status", "squadStatus"],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload).toMatchObject({
+      ok: true,
+      schema: "footballscience-squad-status-repair-execution-v1",
+      dryRun: false,
+      writes: true,
+      executed: true,
+      targetKey: playerProfilesKey,
+      fieldsOnly: ["status", "squadStatus"],
+      repairedCandidateCount: 1,
+      repairedFieldCounts: {
+        status: 1,
+        squadStatus: 1,
+      },
+      repairedTotalFieldCount: 2,
+      before: {
+        revision: 12,
+        valueSha256: dryRun.payload.current.valueSha256,
+        planSha256: dryRun.payload.repairDryRun.planSha256,
+        dryRunSha256: dryRun.payload.dryRunSha256,
+        backupSha256: dryRun.payload.latestBackup.pointerContentSha256,
+      },
+      after: {
+        revision: 13,
+      },
+      postWriteAudit: {
+        candidateCount: 0,
+        fieldCounts: {
+          status: 0,
+          squadStatus: 0,
+        },
+        totalFieldCount: 0,
+        cleared: true,
+      },
+      rollbackPlan: {
+        available: true,
+        restoreKey: playerProfilesKey,
+        restoreRequiresSeparateApproval: true,
+        rawBackupExposed: false,
+      },
+    });
+    expect(response.payload.preWriteSnapshot.path).toContain("backups/app-state/repair-snapshots/squad-status/");
+    expect(response.payload.preWriteSnapshot.contentSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(response.payload.after.valueSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(response.payload.after.valueSha256).not.toBe(response.payload.before.valueSha256);
+    expect(response.payload.postWriteAudit.dryRunSha256).toMatch(/^[a-f0-9]{64}$/);
+
+    const payloadText = JSON.stringify(response.payload);
+    expect(payloadText).not.toContain("Private Player Name");
+    expect(payloadText).not.toContain("national-team");
+    expect(payloadText).not.toContain("development");
+    expect(payloadText).not.toContain('"entries"');
+    expect(payloadText).not.toContain('"players"');
+    expect(payloadText).not.toContain('"changeLog"');
+    expect(payloadText).not.toContain("service-role-test-key");
+
+    const stateWrite = storage.writes.find((write) => write.objectPath === playerProfilesPath);
+    const snapshotWrite = storage.writes.find((write) =>
+      write.objectPath.startsWith("backups/app-state/repair-snapshots/squad-status/")
+    );
+    expect(stateWrite).toBeTruthy();
+    expect(snapshotWrite).toBeTruthy();
+    expect(storage.writes).toHaveLength(2);
+
+    const savedState = JSON.parse(stateWrite.entry.value);
+    expect(savedState.players[0]).toMatchObject({
+      id: "player-1",
+      name: "Private Player Name",
+      status: "national-team",
+      squadStatus: "development",
+      shirtNumber: 9,
+    });
+    expect(savedState.changeLog).toEqual(fixture.currentState.changeLog);
+    expect(stateWrite.entry.revision).toBe(13);
+    expect(stateWrite.entry.key).toBe(playerProfilesKey);
+    expect(snapshotWrite.entry.entries[playerProfilesKey]).toBe(JSON.stringify(fixture.currentState));
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);

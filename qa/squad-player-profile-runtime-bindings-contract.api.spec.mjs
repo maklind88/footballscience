@@ -201,3 +201,15 @@ test("Player profile runtime bindings preserve filters, search, remove, and new-
   expect(calls).toContain("reset-new-player");
   expect(calls.at(-2)).toEqual(["render", expect.stringContaining("Player added")]);
 });
+
+test("Player profile runtime bindings save status changes immediately", () => {
+  const { calls, workspace } = createHarness();
+
+  workspace.listeners.change(createEvent(createTarget({
+    closest: { "#playerProfileEditForm": {} },
+    matches: { 'select[name="status"]': true },
+  })));
+
+  expect(calls).toContainEqual(["render", undefined]);
+  expect(calls.some((entry) => String(entry).startsWith("autosave:"))).toBe(false);
+});

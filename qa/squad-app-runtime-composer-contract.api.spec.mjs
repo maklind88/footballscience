@@ -49,6 +49,34 @@ function createComposition() {
   });
 }
 
+function createCompositionWithDefaultComparator() {
+  return createSquadAppRuntimeComposition({
+    createDashboardId: (prefix) => `${prefix}-created`,
+    ensurePlayerProfilesState: () => {},
+    formatMedicalDateLabel: (value) => `date:${value}`,
+    formatScheduleDateValue: (value) => String(value || "2026-06-08").slice(0, 10),
+    getPlayerProfileAgeCacheEntry: () => null,
+    getPlayerProfileCompleteness: () => 75,
+    getPlayerProfileEffectiveStatusFromSnapshot: () => "available",
+    getPlayerProfileMedicalSnapshot: () => ({
+      currentAvailability: "available",
+      rtpStatus: "clear",
+      coachNote: "Full",
+      participation: 100,
+      medicalStatusKey: "available",
+      tone: "available",
+      medicalSource: "qa",
+    }),
+    getPlayerProfilesState: () => ({ players: [] }),
+    isMedicalDateValue: (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || "")),
+    parseScheduleDateValue: (value) => new Date(`${value}T00:00:00Z`),
+    playerProfileAttributeGroups: [{ key: "technical" }, { key: "tactical" }],
+    playerProfileChangeLogLimit: 2,
+    playerProfileRoleOptions: ["GK", "LB", "RB", "CB", "6", "8", "10", "LW", "RW", "ST"],
+    playerProfilesStorageKey: "football-player-profiles-v1",
+  });
+}
+
 test("Squad app runtime composer owns helper wiring outside app-runtime", () => {
   const appSource = readProjectFile("app-runtime.js");
   const composerSource = readProjectFile("src/modules/squad/squad-app-runtime-composer.mjs");
@@ -112,4 +140,24 @@ test("Squad app runtime composer preserves helper, foundation, and import behavi
     updatedCount: 0,
   });
   expect(plan.nextPlayers[1]).toMatchObject({ id: "player-profile-created", name: "Created Player" });
+});
+
+test("Squad app runtime composer sorts roster profiles by squad role order by default", () => {
+  const composition = createCompositionWithDefaultComparator();
+  const ordered = composition.playerProfileRosterUiSelectors.getVisibleProfiles(
+    [
+      { id: "rw", name: "Wide Right", primaryRole: "RW", roleGroup: "forward", rosterType: "squad", countsInSquad: true, number: "7", position: "RW" },
+      { id: "cm", name: "Central Mid", primaryRole: "8", roleGroup: "midfielder", rosterType: "squad", countsInSquad: true, number: "4", position: "CM" },
+      { id: "gk", name: "Keeper", primaryRole: "GK", roleGroup: "goalkeeper", rosterType: "squad", countsInSquad: true, number: "1", position: "GK" },
+      { id: "st", name: "Striker", primaryRole: "ST", roleGroup: "forward", rosterType: "squad", countsInSquad: true, number: "9", position: "ST" },
+      { id: "rb", name: "Right Back", primaryRole: "RB", roleGroup: "defender", rosterType: "squad", countsInSquad: true, number: "2", position: "RB" },
+      { id: "cb", name: "Centre Back", primaryRole: "CB", roleGroup: "defender", rosterType: "squad", countsInSquad: true, number: "5", position: "CB" },
+    ],
+    {
+      roleGroupFilter: "all",
+      rosterFilter: "all",
+    }
+  ).map((player) => player.id);
+
+  expect(ordered).toEqual(["gk", "rb", "cb", "cm", "rw", "st"]);
 });

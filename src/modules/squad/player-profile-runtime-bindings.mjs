@@ -201,10 +201,16 @@ export function bindPlayerProfileRuntimeBindings(deps = {}) {
     }
     const editForm = event.target.closest("#playerProfileEditForm");
     if (editForm) {
-      if (event.target.matches('select[name="rosterType"]')) {
+      if (
+        event.target.matches('select[name="rosterType"]')
+        || event.target.matches('select[name="status"]')
+        || event.target.matches('select[name="squadStatus"]')
+      ) {
         const result = actions.savePlayerProfileEditForm?.(editForm);
         if (result?.ok) {
           renderWorkspace();
+        } else if (result) {
+          renderWorkspace(actions.buildPlayerProfileOperationFeedback?.(result, "Player profile could not be saved."));
         }
         return;
       }

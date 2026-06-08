@@ -5,14 +5,22 @@ import { createSquadDataFoundationHelpers } from "./squad-data-foundation.mjs";
 import { createSquadImportPlanner } from "./squad-import-planner.mjs";
 
 export function createSquadAppRuntimeComposition(deps = {}) {
+  const fallbackComparePlayers = typeof deps.compareMedicalPlayers === "function"
+    ? deps.compareMedicalPlayers
+    : undefined;
+
   const playerProfileHelpers = createPlayerProfileHelpers({
     changeLogLimit: deps.playerProfileChangeLogLimit,
-    comparePlayers: deps.compareMedicalPlayers,
+    comparePlayers: fallbackComparePlayers,
     createId: deps.createDashboardId,
     getAgeCacheEntry: deps.getPlayerProfileAgeCacheEntry,
     getNow: () => new Date().toISOString(),
     isDateValue: deps.isMedicalDateValue,
   });
+
+  const comparePlayerProfiles = typeof deps.comparePlayerProfiles === "function"
+    ? deps.comparePlayerProfiles
+    : playerProfileHelpers.comparePlayerProfiles;
 
   const getPlayerProfileFormValues = createPlayerProfileFormValueReader({
     attributeGroups: deps.playerProfileAttributeGroups,
@@ -20,7 +28,7 @@ export function createSquadAppRuntimeComposition(deps = {}) {
   });
 
   const playerProfileRosterUiSelectors = createPlayerProfileRosterUiSelectors({
-    compareProfiles: deps.compareMedicalPlayers,
+    compareProfiles: comparePlayerProfiles,
     countsInSquad: playerProfileHelpers.playerProfileCountsInSquad,
     getRosterLabel: playerProfileHelpers.getPlayerProfileRosterLabel,
     isTemporaryProfile: playerProfileHelpers.isTemporaryPlayerProfile,

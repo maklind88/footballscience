@@ -121,6 +121,7 @@ import {
   squadFormationOptions,
 } from "./src/modules/squad/index.mjs";
 import {
+  bindMedicalRuntimeBindings,
   createMedicalRuntimeActivitySelectors,
   createMedicalRuntimeHelpers,
   createMedicalRuntimeOperationsService,
@@ -9424,543 +9425,68 @@ renderWorkspaceChrome();
 renderAdminWorkspace("Access saved.");
 }
 });
-ui.medicalTeamWorkspace?.addEventListener("click", (event) => {
-const closeModalButton = event.target.closest("[data-medical-close-modal]");
-if (closeModalButton) {
-closeMedicalPlayerModal();
-return;
-}
-const modalTabButton = event.target.closest("[data-medical-modal-tab]");
-if (modalTabButton) {
-medicalPlayerModalTab = normalizeMedicalPlayerModalTab(modalTabButton.dataset.medicalModalTab);
-renderMedicalTeamWorkspace();
-return;
-}
-const recommendationPreset = event.target.closest("[data-medical-recommendation-preset]");
-if (recommendationPreset) {
-const form = recommendationPreset.closest("[data-medical-recommendation-form]");
-const participationInput = form?.querySelector("#medicalRecommendationParticipation");
-const statusInput = form?.querySelector("#medicalRecommendationStatus");
-const rtpSelect = form?.querySelector("#medicalRecommendationRtpPhase");
-const dateInput = form?.querySelector("[name='date']");
-const preview = form?.querySelector("[data-medical-recommendation-preview]") ??
-ui.medicalTeamWorkspace.querySelector("[data-medical-recommendation-preview]");
-const participation = normalizeMedicalParticipation(recommendationPreset.dataset.medicalParticipation);
-const status = getMedicalStatusOption(recommendationPreset.dataset.medicalStatus);
-const activityContext = getMedicalRecommendationActivityContext(dateInput?.value || medicalState.selectedDate);
-const phase = getMedicalRtpPhaseOption(getMedicalRtpPhaseForRecommendation(status.key, participation, activityContext.type));
-const displayStatus = getMedicalStatusOptionForDate(status.key, dateInput?.value || medicalState.selectedDate, phase.key);
-if (participationInput && statusInput) {
-participationInput.value = String(participation);
-statusInput.value = status.key;
-if (rtpSelect) {
-rtpSelect.value = phase.key;
-}
-form.querySelectorAll("[data-medical-recommendation-preset]").forEach((button) => {
-button.classList.toggle("is-selected", button === recommendationPreset);
-});
-if (preview) {
-preview.textContent = `${participation}% / ${displayStatus.label}`;
-}
-}
-return;
-}
-const actualPreset = event.target.closest("[data-medical-actual-value]");
-if (actualPreset) {
-const form = actualPreset.closest("[data-medical-recommendation-form]");
-const actualInput = form?.querySelector("#medicalActualParticipation");
-if (actualInput) {
-actualInput.value = actualPreset.dataset.medicalActualValue;
-form.querySelectorAll("[data-medical-actual-value]").forEach((button) => {
-button.classList.toggle("is-selected", button === actualPreset);
-});
-}
-return;
-}
-const durationPreset = event.target.closest("[data-medical-duration-preset]");
-if (durationPreset) {
-const form = durationPreset.closest("#medicalInjuryPlanForm");
-const durationInput = form?.querySelector("[name='duration']");
-const durationUnitInput = form?.querySelector("[name='durationUnit']");
-if (durationInput && durationUnitInput) {
-durationInput.value = durationPreset.dataset.medicalDuration;
-durationUnitInput.value = durationPreset.dataset.medicalDurationUnit;
-form.querySelectorAll("[data-medical-duration-preset]").forEach((button) => {
-button.classList.toggle("is-selected", button === durationPreset);
-});
-persistMedicalInjuryPlanDraftFromForm(form);
-}
-return;
-}
-const copyHandoverButton = event.target.closest("[data-medical-copy-handover]");
-if (copyHandoverButton) {
-copyMedicalCoachHandoverToClipboard();
-return;
-}
-const quickRecommendationButton = event.target.closest("[data-medical-quick-recommend]");
-if (quickRecommendationButton) {
-event.preventDefault();
-event.stopPropagation();
-if (!canEditMedicalTeam()) {
-return;
-}
-const result = applyMedicalQuickRecommendation(
-quickRecommendationButton.dataset.medicalQuickRecommend,
-quickRecommendationButton.dataset.medicalQuickParticipation
-);
-if (result.record) {
-void recordMedicalDatabaseSyncEvent("recommendation-saved", {
-playerId: result.record.playerId,
-record: result.record,
-idempotencyKey: `recommendation-saved:${result.record.id}`,
-});
-}
-const playerName = result.player?.name || "Player";
-renderMedicalTeamWorkspace(result.record ? `${playerName}: ${result.record.participation}% recommendation saved.` : result.blockReason || "Recommendation could not be saved.");
-return;
-}
-const bulkToggleButton = event.target.closest("[data-medical-bulk-toggle]");
-if (bulkToggleButton && canEditMedicalTeam()) {
-event.preventDefault();
-event.stopPropagation();
-toggleMedicalBulkPlayer(bulkToggleButton.dataset.medicalBulkToggle);
-return;
-}
-const bulkMenuToggleButton = event.target.closest("[data-medical-bulk-menu-toggle]");
-if (bulkMenuToggleButton && canEditMedicalTeam()) {
-medicalBulkRecommendationOpen = !medicalBulkRecommendationOpen;
-renderMedicalTeamWorkspace();
-return;
-}
-const bulkSelectVisibleButton = event.target.closest("[data-medical-bulk-select-visible]");
-if (bulkSelectVisibleButton && canEditMedicalTeam()) {
-setMedicalBulkSelection(getFilteredMedicalPlayers().map((player) => player.id));
-return;
-}
-const bulkSelectNotSetButton = event.target.closest("[data-medical-bulk-select-not-set]");
-if (bulkSelectNotSetButton && canEditMedicalTeam()) {
-const form = bulkSelectNotSetButton.closest("#medicalBulkRecommendationForm");
-const dateValue = form?.querySelector("[data-medical-bulk-date]")?.value;
-setMedicalBulkNotSetSelection(dateValue, getFilteredMedicalPlayers());
-return;
-}
-const bulkClearButton = event.target.closest("[data-medical-bulk-clear]");
-if (bulkClearButton && canEditMedicalTeam()) {
-setMedicalBulkSelection([]);
-return;
-}
-const operationsTabButton = event.target.closest("[data-medical-ops-tab]");
-if (operationsTabButton) {
-medicalOperationsTab = normalizeMedicalOperationsTab(operationsTabButton.dataset.medicalOpsTab);
-renderMedicalTeamWorkspace();
-return;
-}
-const selectPlayerCard = event.target.closest("[data-medical-select-player]");
-if (selectPlayerCard) {
-openMedicalPlayerModal(selectPlayerCard.dataset.medicalSelectPlayer);
-return;
-}
-const shiftDateButton = event.target.closest("[data-medical-shift-date]");
-if (shiftDateButton) {
-shiftMedicalSelectedDate(Number(shiftDateButton.dataset.medicalShiftDate) || 0);
-return;
-}
-const todayButton = event.target.closest("[data-medical-today]");
-if (todayButton) {
-setMedicalSelectedDate(formatScheduleDateValue(new Date()));
-return;
-}
-const setDateButton = event.target.closest("[data-medical-set-date]");
-if (setDateButton) {
-setMedicalSelectedDate(setDateButton.dataset.medicalSetDate);
-return;
-}
-const deleteRecordButton = event.target.closest("[data-medical-delete-record]");
-if (deleteRecordButton && canEditMedicalTeam()) {
-if (win.confirm("Archive this medical log entry? It will remain in protected clinical history.")) {
-const recordId = deleteRecordButton.dataset.medicalDeleteRecord;
-const record = medicalState.records.find((entry) => entry.id === recordId) ?? null;
-const archivedRecord = removeMedicalRecord(recordId);
-void recordMedicalDatabaseSyncEvent("record-archived", {
-playerId: record?.playerId || "",
-recordId,
-record: archivedRecord || record,
-idempotencyKey: `record-archived:${recordId}:${archivedRecord?.archivedAt || Date.now()}`,
-});
-renderMedicalTeamWorkspace("Log entry archived in protected clinical history.");
-}
-return;
-}
-const deleteInjuryPlanButton = event.target.closest("[data-medical-delete-injury-plan]");
-if (deleteInjuryPlanButton && canEditMedicalTeam()) {
-if (win.confirm("Archive this availability plan? It will remain in protected clinical history.")) {
-const planId = deleteInjuryPlanButton.dataset.medicalDeleteInjuryPlan;
-const plan = medicalState.injuryPlans.find((entry) => entry.id === planId) ?? null;
-const archivedPlan = removeMedicalInjuryPlan(planId);
-void recordMedicalDatabaseSyncEvent("availability-plan-archived", {
-playerId: plan?.playerId || "",
-planId,
-plan: archivedPlan || plan,
-idempotencyKey: `availability-plan-archived:${planId}:${archivedPlan?.archivedAt || Date.now()}`,
-});
-renderMedicalTeamWorkspace("Availability plan archived in protected clinical history.");
-}
-return;
-}
-const editInjuryPlanButton = event.target.closest("[data-medical-edit-injury-plan]");
-if (editInjuryPlanButton && canEditMedicalTeam()) {
-const planId = editInjuryPlanButton.dataset.medicalEditInjuryPlan;
-const plan = medicalState.injuryPlans.find((entry) => entry.id === planId && !isMedicalItemArchived(entry));
-if (plan) {
-event.preventDefault();
-event.stopPropagation();
-setMedicalInjuryPlanDraftFromPlan(plan);
-medicalState.selectedPlayerId = plan.playerId;
-medicalPlayerModalOpen = true;
-medicalPlayerModalTab = "plan";
-renderMedicalTeamWorkspace("Availability plan ready to edit.");
-}
-return;
-}
-const cancelInjuryPlanEditButton = event.target.closest("[data-medical-cancel-injury-plan-edit]");
-if (cancelInjuryPlanEditButton && canEditMedicalTeam()) {
-const form = cancelInjuryPlanEditButton.closest("#medicalInjuryPlanForm");
-const playerId = form?.querySelector("[name='playerId']")?.value || medicalState.selectedPlayerId;
-clearMedicalInjuryPlanDraft(playerId);
-renderMedicalTeamWorkspace("Plan edit cancelled.");
-return;
-}
-const removePlayerButton = event.target.closest("[data-medical-remove-player]");
-if (removePlayerButton && canEditMedicalTeam()) {
-const player = medicalState.players.find((candidate) => candidate.id === removePlayerButton.dataset.medicalRemovePlayer);
-if (player && win.confirm(`Archive ${player.name} from Medical Room? Medical history will remain protected.`)) {
-const archivedPlayer = removeMedicalPlayer(player.id);
-void recordMedicalDatabaseSyncEvent("player-archived", {
-playerId: player.id,
-player: archivedPlayer || player,
-idempotencyKey: `player-archived:${player.id}:${archivedPlayer?.archivedAt || Date.now()}`,
-});
-medicalPlayerModalOpen = false;
-renderMedicalTeamWorkspace("Player archived with protected medical history.");
-}
-}
-});
-ui.medicalTeamWorkspace?.addEventListener("keydown", (event) => {
-if (event.key !== "Enter" && event.key !== " ") {
-return;
-}
-if (event.target.closest("button, input, select, textarea, label")) {
-return;
-}
-const selectPlayerCard = event.target.closest("[data-medical-select-player]");
-if (!selectPlayerCard) {
-return;
-}
-event.preventDefault();
-openMedicalPlayerModal(selectPlayerCard.dataset.medicalSelectPlayer);
-});
-ui.medicalTeamWorkspace?.addEventListener("input", (event) => {
-const injuryPlanForm = event.target.closest("#medicalInjuryPlanForm");
-if (injuryPlanForm) {
-persistMedicalInjuryPlanDraftFromForm(injuryPlanForm);
-return;
-}
-const searchInput = event.target.closest("[data-medical-roster-search]");
-if (!searchInput) {
-return;
-}
-const selectionStart = searchInput.selectionStart ?? searchInput.value.length;
-const selectionEnd = searchInput.selectionEnd ?? selectionStart;
-medicalRosterSearchQuery = searchInput.value;
-renderMedicalTeamWorkspace("", {
-focusRosterSearch: true,
-searchSelectionStart: selectionStart,
-searchSelectionEnd: selectionEnd,
-});
-});
-ui.medicalTeamWorkspace?.addEventListener("change", (event) => {
-const datePicker = event.target.closest("[data-medical-date-picker]");
-if (datePicker) {
-setMedicalSelectedDate(datePicker.value);
-return;
-}
-const statusFilter = event.target.closest("[data-medical-status-filter]");
-if (statusFilter) {
-medicalStatusFilter = statusFilter.value;
-renderMedicalTeamWorkspace();
-return;
-}
-const bulkDate = event.target.closest("[data-medical-bulk-date]");
-if (bulkDate) {
-updateMedicalBulkActivityControls(bulkDate.closest("#medicalBulkRecommendationForm"));
-return;
-}
-const recommendationStatus = event.target.closest("#medicalRecommendationStatus");
-if (recommendationStatus) {
-const form = recommendationStatus.closest("[data-medical-recommendation-form]");
-const participationSelect = form?.querySelector("#medicalRecommendationParticipation") ??
-ui.medicalTeamWorkspace.querySelector("#medicalRecommendationParticipation");
-const preview = form?.querySelector("[data-medical-recommendation-preview]") ??
-ui.medicalTeamWorkspace.querySelector("[data-medical-recommendation-preview]");
-const dateInput = form?.querySelector("[name='date']");
-const status = getMedicalStatusOption(recommendationStatus.value);
-if (participationSelect && status.defaultParticipation !== null) {
-participationSelect.value = String(status.defaultParticipation);
-}
-if (preview) {
-const participation = normalizeMedicalParticipation(participationSelect?.value, status.defaultParticipation ?? 100);
-preview.textContent = `${participation}% / ${getMedicalStatusOptionForDate(status.key, dateInput?.value || medicalState.selectedDate).label}`;
-}
-}
-const recommendationRtpPhase = event.target.closest("#medicalRecommendationRtpPhase");
-if (recommendationRtpPhase) {
-const form = recommendationRtpPhase.closest("[data-medical-recommendation-form]");
-const participationInput = form?.querySelector("#medicalRecommendationParticipation");
-const statusInput = form?.querySelector("#medicalRecommendationStatus");
-const dateInput = form?.querySelector("[name='date']");
-const preview = form?.querySelector("[data-medical-recommendation-preview]") ??
-ui.medicalTeamWorkspace.querySelector("[data-medical-recommendation-preview]");
-const phase = getMedicalRtpPhaseOption(recommendationRtpPhase.value);
-if (participationInput && statusInput) {
-participationInput.value = String(phase.participation);
-statusInput.value = phase.status;
-form.querySelectorAll("[data-medical-recommendation-preset]").forEach((button) => {
-button.classList.toggle(
-"is-selected",
-normalizeMedicalParticipation(button.dataset.medicalParticipation) === phase.participation
-);
-});
-if (preview) {
-preview.textContent = `${phase.participation}% / ${getMedicalStatusOptionForDate(phase.status, dateInput?.value || medicalState.selectedDate, phase.key).label}`;
-}
-}
-return;
-}
-const bulkParticipation = event.target.closest("[data-medical-bulk-participation]");
-if (bulkParticipation) {
-const form = bulkParticipation.closest("#medicalBulkRecommendationForm");
-const phaseSelect = form?.querySelector("[data-medical-bulk-rtp-phase]");
-const phasePreview = form?.querySelector("[data-medical-bulk-rtp-preview]");
-const dateValue = form?.querySelector("[data-medical-bulk-date]")?.value || medicalState.selectedDate;
-const activityContext = getMedicalRecommendationActivityContext(dateValue);
-const participation = normalizeMedicalParticipation(bulkParticipation.value, 75);
-const phaseKey = getMedicalRtpPhaseForRecommendation(getMedicalStatusForParticipation(participation), participation, activityContext.type);
-if (phaseSelect) {
-phaseSelect.value = phaseKey;
-}
-if (phasePreview) {
-if ("value" in phasePreview) {
-phasePreview.value = getMedicalRtpPhaseOption(phaseKey).label;
-} else {
-phasePreview.textContent = getMedicalRtpPhaseOption(phaseKey).label;
-}
-}
-return;
-}
-const bulkRtpPhase = event.target.closest("[data-medical-bulk-rtp-phase]");
-if (bulkRtpPhase) {
-const form = bulkRtpPhase.closest("#medicalBulkRecommendationForm");
-const participationSelect = form?.querySelector("[data-medical-bulk-participation]");
-const phase = getMedicalRtpPhaseOption(bulkRtpPhase.value);
-if (participationSelect) {
-participationSelect.value = String(phase.participation);
-}
-return;
-}
-const planRtpPhase = event.target.closest("[data-medical-plan-rtp-phase]");
-if (planRtpPhase) {
-const form = planRtpPhase.closest("#medicalInjuryPlanForm");
-const statusSelect = form?.querySelector("[name='status']");
-const participationSelect = form?.querySelector("[data-medical-plan-participation]");
-const phase = getMedicalRtpPhaseOption(planRtpPhase.value);
-if (statusSelect) {
-statusSelect.value = phase.status;
-}
-if (participationSelect) {
-participationSelect.value = String(phase.participation);
-}
-}
-const injuryPlanForm = event.target.closest("#medicalInjuryPlanForm");
-if (injuryPlanForm) {
-persistMedicalInjuryPlanDraftFromForm(injuryPlanForm);
-return;
-}
-});
-ui.medicalTeamWorkspace?.addEventListener("submit", (event) => {
-const governanceForm = event.target.closest("#medicalGovernanceForm");
-if (governanceForm) {
-event.preventDefault();
-const saved = updateMedicalGovernancePolicy(getPlatformFormValues(governanceForm));
-if (saved) {
-void recordMedicalDatabaseSyncEvent("governance-saved", {
-policy: medicalState.policy,
-idempotencyKey: `governance-saved:${medicalState.policy?.updatedAt || Date.now()}`,
-});
-}
-renderMedicalTeamWorkspace(saved ? "Medical governance policy saved." : "Medical governance policy could not be saved.");
-return;
-}
-const rosterImportForm = event.target.closest("#medicalRosterImportForm");
-if (rosterImportForm) {
-event.preventDefault();
-if (!canEditMedicalTeam()) {
-return;
-}
-const values = getPlatformFormValues(rosterImportForm);
-const importResult = parseMedicalRosterText(values.rosterText);
-const players = importResult.players;
-const skippedCount = importResult.skippedLines.length;
-if (!players.length) {
-const skippedMessage = skippedCount ? ` ${skippedCount} line(s) could not be parsed.` : "";
-renderMedicalTeamWorkspace(`No players found in the roster paste.${skippedMessage}`);
-return;
-}
-upsertMedicalPlayers(players);
-void recordMedicalDatabaseSyncEvent("players-imported", {
-players,
-importedCount: players.length,
-idempotencyKey: `players-imported:${Date.now()}`,
-});
-rosterImportForm.reset();
-const skippedMessage = skippedCount
-? ` ${skippedCount} line${skippedCount === 1 ? "" : "s"} could not be parsed and were skipped.`
-: "";
-renderMedicalTeamWorkspace(`${players.length} player${players.length === 1 ? "" : "s"} imported.${skippedMessage}`);
-return;
-}
-const bulkRecommendationForm = event.target.closest("#medicalBulkRecommendationForm");
-if (bulkRecommendationForm) {
-event.preventDefault();
-if (!canEditMedicalTeam()) {
-return;
-}
-const selectedCount = getMedicalBulkSelectedPlayers().length;
-if (!selectedCount) {
-renderMedicalTeamWorkspace("Select players before applying a bulk recommendation.");
-return;
-}
-const result = applyMedicalBulkRecommendation(getPlatformFormValues(bulkRecommendationForm));
-if (result.savedCount) {
-void recordMedicalDatabaseSyncEvent("bulk-recommendation-saved", {
-records: result.records,
-recordIds: result.records.map((record) => record.id),
-date: result.records[0]?.date || medicalState.selectedDate,
-idempotencyKey: `bulk-recommendation-saved:${result.records.map((record) => record.id).join("|")}`,
-});
-}
-const skippedText = result.blockReason
-? ` ${result.blockReason}`
-: result.blockedCount
-? ` ${result.blockedCount} skipped for clearance: ${result.blockedNames.slice(0, 3).join(", ")}${result.blockedNames.length > 3 ? "..." : ""}.`
-: "";
-const bulkMessage = result.savedCount
-? `${result.savedCount} bulk recommendation${result.savedCount === 1 ? "" : "s"} saved.${skippedText}`
-: result.blockReason || "No bulk recommendations saved.";
-renderMedicalTeamWorkspace(bulkMessage);
-return;
-}
-const newPlayerForm = event.target.closest("#medicalNewPlayerForm");
-if (newPlayerForm) {
-event.preventDefault();
-if (!canEditMedicalTeam()) {
-return;
-}
-const player = normalizeMedicalPlayer(getPlatformFormValues(newPlayerForm));
-if (!player) {
-renderMedicalTeamWorkspace("Player name is required.");
-return;
-}
-upsertMedicalPlayers([player]);
-void recordMedicalDatabaseSyncEvent("player-added", {
-playerId: player.id,
-player,
-idempotencyKey: `player-added:${player.id}`,
-});
-newPlayerForm.reset();
-renderMedicalTeamWorkspace("Player added.");
-return;
-}
-const injuryPlanForm = event.target.closest("#medicalInjuryPlanForm");
-if (injuryPlanForm) {
-event.preventDefault();
-if (!canEditMedicalTeam()) {
-return;
-}
-const draft = getMedicalInjuryPlanFormDraft(injuryPlanForm);
-const plan = draft?.planId ? updateMedicalInjuryPlan(draft) : addMedicalInjuryPlan(draft);
-if (plan) {
-clearMedicalInjuryPlanDraft(plan.playerId);
-const eventType = draft?.planId ? "availability-plan-updated" : "availability-plan-created";
-void recordMedicalDatabaseSyncEvent(eventType, {
-playerId: plan.playerId,
-planId: plan.id,
-plan,
-idempotencyKey: `${eventType}:${plan.id}:${plan.updatedAt || Date.now()}`,
-});
-}
-renderMedicalTeamWorkspace(plan ? `Availability plan ${draft?.planId ? "updated" : "created"}.` : "Availability plan could not be saved.");
-return;
-}
-const recommendationForm = event.target.closest("[data-medical-recommendation-form]");
-if (recommendationForm) {
-event.preventDefault();
-if (!canEditMedicalTeam()) {
-return;
-}
-const values = getPlatformFormValues(recommendationForm);
-const participation = normalizeMedicalParticipation(values.participation);
-const blockReason = getMedicalRecommendationBlockReason(values.playerId, participation, values.date);
-if (blockReason) {
-renderMedicalTeamWorkspace(blockReason);
-return;
-}
-const record = addMedicalRecord(values);
-if (record) {
-void recordMedicalDatabaseSyncEvent("recommendation-saved", {
-playerId: record.playerId,
-record,
-idempotencyKey: `recommendation-saved:${record.id}`,
-});
-}
-medicalPlayerModalOpen = false;
-renderMedicalTeamWorkspace(record ? "Status saved." : "Status could not be saved.");
-return;
-}
-const clearanceForm = event.target.closest("#medicalClearanceForm");
-if (clearanceForm) {
-event.preventDefault();
-if (!canEditMedicalTeam()) {
-return;
-}
-const saved = updateMedicalPlanClearance(getPlatformFormValues(clearanceForm));
-if (saved) {
-void recordMedicalDatabaseSyncEvent("clearance-saved", {
-playerId: saved.playerId,
-plan: saved,
-idempotencyKey: `clearance-saved:${saved.id}:${saved.updatedAt || Date.now()}`,
-});
-}
-renderMedicalTeamWorkspace(saved ? "Clearance checklist saved." : "Clearance checklist could not be saved.");
-return;
-}
-const playerProfileForm = event.target.closest("#medicalPlayerProfileForm");
-if (playerProfileForm) {
-event.preventDefault();
-if (!canEditMedicalTeam()) {
-return;
-}
-const profileValues = getPlatformFormValues(playerProfileForm);
-const saved = updateMedicalPlayerProfile(profileValues);
-if (saved) {
-const player = getMedicalDatabasePlayer(profileValues.playerId);
-void recordMedicalDatabaseSyncEvent("player-profile-saved", {
-playerId: profileValues.playerId,
-player,
-idempotencyKey: `player-profile-saved:${profileValues.playerId}:${player?.updatedAt || Date.now()}`,
-});
-}
-renderMedicalTeamWorkspace(saved ? "Player profile saved." : "Player profile could not be saved.");
-}
+bindMedicalRuntimeBindings({
+workspaceElement: ui.medicalTeamWorkspace,
+win,
+state: {
+getMedicalState: () => medicalState,
+setMedicalSelectedPlayerId: (playerId) => { medicalState.selectedPlayerId = playerId; },
+setMedicalPlayerModalOpen: (isOpen) => { medicalPlayerModalOpen = isOpen; },
+setMedicalPlayerModalTab: (tab) => { medicalPlayerModalTab = tab; },
+getMedicalBulkRecommendationOpen: () => medicalBulkRecommendationOpen,
+setMedicalBulkRecommendationOpen: (isOpen) => { medicalBulkRecommendationOpen = isOpen; },
+setMedicalOperationsTab: (tab) => { medicalOperationsTab = tab; },
+setMedicalRosterSearchQuery: (query) => { medicalRosterSearchQuery = query; },
+setMedicalStatusFilter: (filter) => { medicalStatusFilter = filter; },
+},
+actions: {
+addMedicalInjuryPlan,
+addMedicalRecord,
+applyMedicalBulkRecommendation,
+applyMedicalQuickRecommendation,
+canEditMedicalTeam,
+clearMedicalInjuryPlanDraft,
+closeMedicalPlayerModal,
+copyMedicalCoachHandoverToClipboard,
+formatScheduleDateValue,
+getFilteredMedicalPlayers,
+getMedicalBulkSelectedPlayers,
+getMedicalDatabasePlayer,
+getMedicalInjuryPlanFormDraft,
+getMedicalRecommendationActivityContext,
+getMedicalRecommendationBlockReason,
+getMedicalRtpPhaseForRecommendation,
+getMedicalRtpPhaseOption,
+getMedicalStatusForParticipation,
+getMedicalStatusOption,
+getMedicalStatusOptionForDate,
+getPlatformFormValues,
+isMedicalItemArchived,
+normalizeMedicalOperationsTab,
+normalizeMedicalParticipation,
+normalizeMedicalPlayer,
+normalizeMedicalPlayerModalTab,
+openMedicalPlayerModal,
+parseMedicalRosterText,
+persistMedicalInjuryPlanDraftFromForm,
+recordMedicalDatabaseSyncEvent,
+removeMedicalInjuryPlan,
+removeMedicalPlayer,
+removeMedicalRecord,
+renderMedicalTeamWorkspace,
+setMedicalBulkNotSetSelection,
+setMedicalBulkSelection,
+setMedicalInjuryPlanDraftFromPlan,
+setMedicalSelectedDate,
+shiftMedicalSelectedDate,
+toggleMedicalBulkPlayer,
+updateMedicalBulkActivityControls,
+updateMedicalGovernancePolicy,
+updateMedicalInjuryPlan,
+updateMedicalPlanClearance,
+updateMedicalPlayerProfile,
+upsertMedicalPlayers,
+},
 });
 bindPlayerProfileRuntimeBindings({
 workspaceElement: ui.playerProfilesWorkspace,

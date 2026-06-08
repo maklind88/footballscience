@@ -6,6 +6,7 @@ import {
   createPeriodizationSessionBridge,
   createPeriodizationWorkspaceController,
   createPeriodizationWorkspaceShell,
+  createPeriodizationRuntimeBindings,
   createPeriodizationRenderer,
   createPeriodizationStateAdapter,
   normalizePeriodizationMultiValue,
@@ -58,6 +59,7 @@ test("Periodization extraction owns the state, renderer, controller, and bridge 
     "src/modules/periodization/periodization-state.mjs",
     "src/modules/periodization/periodization-renderer.mjs",
     "src/modules/periodization/periodization-controller.mjs",
+    "src/modules/periodization/periodization-runtime-bindings.mjs",
     "src/modules/periodization/periodization-session-bridge.mjs",
     "src/modules/periodization/periodization-workspace-shell.mjs",
   ].forEach((path) => {
@@ -67,22 +69,24 @@ test("Periodization extraction owns the state, renderer, controller, and bridge 
 
 test("Periodization app integration delegates state, renderer, controller, bridge, and merge helpers to the module", () => {
   const app = readProjectFile("app-runtime.js");
+  const runtimeBindings = readProjectFile("src/modules/periodization/periodization-runtime-bindings.mjs");
   const sessionPlannerBindings = readProjectFile("src/modules/session-planner/session-planner-runtime-bindings.mjs");
 
   expect(app).toContain("./src/modules/periodization/periodization-state.mjs");
   expect(app).toContain("./src/modules/periodization/periodization-renderer.mjs");
-  expect(app).toContain("./src/modules/periodization/periodization-controller.mjs");
-  expect(app).toContain("./src/modules/periodization/periodization-session-bridge.mjs");
-  expect(app).toContain("./src/modules/periodization/periodization-workspace-shell.mjs");
+  expect(app).toContain("./src/modules/periodization/periodization-runtime-bindings.mjs");
   expect(app).toContain("createPeriodizationStateAdapter");
   expect(app).toContain("createPeriodizationRenderer");
-  expect(app).toContain("createPeriodizationWorkspaceController");
-  expect(app).toContain("createPeriodizationSessionBridge");
-  expect(app).toContain("createPeriodizationWorkspaceShell");
+  expect(app).toContain("createPeriodizationRuntimeBindings");
+  expect(runtimeBindings).toContain("createPeriodizationWorkspaceController");
+  expect(runtimeBindings).toContain("createPeriodizationSessionBridge");
+  expect(runtimeBindings).toContain("createPeriodizationWorkspaceShell");
+  expect(runtimeBindings).toContain("function refreshSessionPlannerMatchDayChip()");
   expect(app).toContain("getPeriodizationDay: getPeriodizationDayFromState");
-  expect(app).toContain("renderWorkspace: renderPeriodizationWorkspace");
+  expect(runtimeBindings).toContain("renderWorkspace: renderPeriodizationWorkspace");
   expect(app).toContain("periodizationWorkspaceController.bind()");
   expect(app).toContain("periodizationBridge: sessionPlannerPeriodizationBridge");
+  expect(app).not.toContain("function refreshSessionPlannerMatchDayChip()");
   expect(sessionPlannerBindings).toContain('callOptional(periodizationBridge, "handleClick", event)');
   expect(app).not.toContain("let sessionPlannerPeriodizationOverlayDate");
   expect(app).not.toContain('ui.periodizationBoard?.addEventListener("click"');
@@ -95,6 +99,88 @@ test("Periodization app integration delegates state, renderer, controller, bridg
   expect(app).not.toContain("function normalizePeriodizationDay(day");
   expect(app).not.toContain("function clonePeriodizationState(");
   expect(app).not.toContain("function mergePeriodizationStatePreservingLocalUi(");
+});
+
+test("Periodization runtime bindings own Session Planner bridge and match-day chip wiring", () => {
+  expect(typeof createPeriodizationRuntimeBindings).toBe("function");
+
+  let insertedChipHtml = "";
+  const header = {
+    querySelector: () => null,
+    insertAdjacentHTML: (_position, html) => {
+      insertedChipHtml = html;
+    },
+  };
+  const workspace = {
+    querySelector: (selector) =>
+      selector === ".session-blocks-card .session-card-head > div" ? header : null,
+  };
+  const registered = [];
+  const makeElement = (id) => ({
+    addEventListener: (type) => registered.push(`${id}:${type}`),
+  });
+  const state = { selectedDate: "2026-05-08", selectedMonthIndex: 4 };
+  let overlayMode = "view";
+  const bindings = createPeriodizationRuntimeBindings({
+    ui: {
+      sessionPlannerWorkspace: workspace,
+      periodizationTodayButton: makeElement("today"),
+      periodizationPrevMonthButton: makeElement("prev"),
+      periodizationNextMonthButton: makeElement("next"),
+      periodizationMonthSelect: makeElement("month"),
+      periodizationPickerGrid: makeElement("picker"),
+      periodizationBoard: makeElement("board"),
+    },
+    renderer: {
+      renderSessionSummary: (dateValue) => `<button>${dateValue}</button>`,
+      renderDayPanel: (dateValue, options) => `<aside data-date="${dateValue}" data-mode="${options.mode}"></aside>`,
+      renderWorkspace: () => ({
+        bodyHtml: "",
+        nextDisabled: false,
+        prevDisabled: false,
+        selectedMonthIndex: 4,
+        selectedMonthName: "May",
+        selectedYear: 2026,
+      }),
+    },
+    parseDateValue,
+    ensurePeriodizationState: () => state,
+    isDateValueInYear: () => true,
+    canEdit: () => true,
+    writeDay: () => {},
+    writePeriodizationState: () => {},
+    renderSessionPlanner: () => {},
+    getCustomFieldValue: () => "",
+    getMultiFieldValue: () => [],
+    isMultiField: () => false,
+    getMultiSelectOpenField: () => "",
+    setMultiSelectOpenField: () => {},
+    setPeriodizationSelection: (dateValue, monthIndex) => {
+      state.selectedDate = dateValue;
+      state.selectedMonthIndex = monthIndex;
+    },
+    getPeriodizationState: () => state,
+    getOverlayState: () => ({ open: false, mode: overlayMode }),
+    setOverlayMode: (mode) => {
+      overlayMode = mode;
+    },
+    jumpToToday: () => {},
+    shiftMonth: () => {},
+    setMonth: () => {},
+    selectDate: () => {},
+    setOverlayState: () => {},
+    escapeHtml,
+    getPeriodizationDay: () => ({ matchDay: "match-day-minus-2" }),
+    getPeriodizationMatchDayLabel: (value) => (value === "match-day-minus-2" ? "Match Day -2" : ""),
+    getSessionPlannerState: () => ({ selectedDate: "2026-05-08" }),
+  });
+
+  bindings.refreshSessionPlannerMatchDayChip();
+  expect(insertedChipHtml).toContain("session-matchday-chip");
+  expect(insertedChipHtml).toContain("(Match Day -2)");
+  bindings.periodizationWorkspaceController.bind();
+  expect(registered).toContain("today:click");
+  expect(bindings.renderSessionPlannerPeriodizationSummary("2026-05-08")).toContain("2026-05-08");
 });
 
 test("Periodization workspace shell renders chrome and refreshes dependent fields", () => {

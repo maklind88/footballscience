@@ -37,10 +37,8 @@ import {
   periodizationTrackedFields,
   periodizationYear,
 } from "./src/modules/periodization/periodization-state.mjs";
-import { createPeriodizationWorkspaceController } from "./src/modules/periodization/periodization-controller.mjs";
 import { createPeriodizationRenderer } from "./src/modules/periodization/periodization-renderer.mjs";
-import { createPeriodizationSessionBridge } from "./src/modules/periodization/periodization-session-bridge.mjs";
-import { createPeriodizationWorkspaceShell } from "./src/modules/periodization/periodization-workspace-shell.mjs";
+import { createPeriodizationRuntimeBindings } from "./src/modules/periodization/periodization-runtime-bindings.mjs";
 import {
   createExerciseLibraryActions,
   createExerciseLibraryRenderer,
@@ -10066,32 +10064,7 @@ function getPeriodizationDayScheduleLabel(day) { return periodizationRenderer.ge
 function getPeriodizationMatchDayLabel(value) { return periodizationRenderer.getMatchDayLabel(value); }
 function getPeriodizationMultiFieldValue(field, dateValue) { return periodizationRenderer.getMultiFieldValue(field, dateValue); }
 function getPeriodizationCustomFieldValue(field, dateValue) { return periodizationRenderer.getCustomFieldValue(field, dateValue); }
-function refreshSessionPlannerMatchDayChip() {
-if (!ui.sessionPlannerWorkspace || !sessionPlannerState) {
-return;
-}
-const headerInfo = ui.sessionPlannerWorkspace.querySelector(".session-blocks-card .session-card-head > div");
-if (!headerInfo) {
-return;
-}
-const existingChip = headerInfo.querySelector(".session-matchday-chip");
-const matchDayLabel = getPeriodizationMatchDayLabel(
-getPeriodizationDay(sessionPlannerState.selectedDate).matchDay
-);
-if (!matchDayLabel) {
-existingChip?.remove();
-return;
-}
-if (existingChip) {
-existingChip.textContent = `(${matchDayLabel})`;
-return;
-}
-headerInfo.insertAdjacentHTML(
-"beforeend",
-`<strong class="session-matchday-chip">(${escapeHtml(matchDayLabel)})</strong>`
-);
-}
-const sessionPlannerPeriodizationBridge = createPeriodizationSessionBridge({
+const periodizationRuntimeBindings = createPeriodizationRuntimeBindings({
 ui,
 renderer: periodizationRenderer,
 parseDateValue: parseScheduleDateValue,
@@ -10114,49 +10087,35 @@ periodizationState.selectedMonthIndex = Number.isInteger(monthIndex)
 ? monthIndex
 : parseScheduleDateValue(dateValue).getMonth();
 },
-refreshMatchDayChip: refreshSessionPlannerMatchDayChip,
-});
-function renderSessionPlannerPeriodizationSummary(dateValue) { return sessionPlannerPeriodizationBridge.renderSummary(dateValue); }
-function renderSessionPlannerPeriodizationOverlay() { return sessionPlannerPeriodizationBridge.renderOverlay(); }
-const periodizationWorkspaceShell = createPeriodizationWorkspaceShell({
-ui,
-renderer: periodizationRenderer,
 getState: () => periodizationState,
-canEdit: canEditPeriodizationWorkspace,
+getPeriodizationState: () => periodizationState,
 getOverlayState: () => ({ open: periodizationDayOverlayOpen, mode: periodizationDayOverlayMode }),
 setOverlayMode: (mode) => {
 periodizationDayOverlayMode = mode === "edit" ? "edit" : "view";
 },
-});
-const {
-renderWorkspace: renderPeriodizationWorkspace,
-refreshBoardMultiFields: refreshPeriodizationBoardMultiFields,
-refreshDependentFields: refreshPeriodizationBoardDependentFields,
-} = periodizationWorkspaceShell;
-const periodizationWorkspaceController = createPeriodizationWorkspaceController({
-ui,
-getState: () => periodizationState,
-canEdit: canEditPeriodizationWorkspace,
-render: renderPeriodizationWorkspace,
 jumpToToday: jumpPeriodizationToToday,
 shiftMonth: shiftPeriodizationMonth,
 setMonth: setPeriodizationMonth,
 selectDate: selectPeriodizationDate,
-writeDay: writePeriodizationDay,
-getCustomFieldValue: getPeriodizationCustomFieldValue,
-getMultiFieldValue: getPeriodizationMultiFieldValue,
-isMultiField: (fieldKey) => periodizationMultiFields.has(fieldKey),
-getMultiSelectOpenField: () => periodizationMultiSelectOpenField,
-setMultiSelectOpenField: (fieldKey = "") => {
-periodizationMultiSelectOpenField = fieldKey;
-},
 setOverlayState: ({ open, mode }) => {
 periodizationDayOverlayOpen = Boolean(open);
 periodizationDayOverlayMode = mode === "edit" ? "edit" : "view";
 },
-refreshMultiFields: refreshPeriodizationBoardMultiFields,
-refreshDependentFields: refreshPeriodizationBoardDependentFields,
+escapeHtml,
+getPeriodizationDay,
+getPeriodizationMatchDayLabel,
+getSessionPlannerState: () => sessionPlannerState,
 });
+const {
+periodizationWorkspaceController,
+refreshPeriodizationBoardMultiFields,
+refreshPeriodizationBoardDependentFields,
+refreshSessionPlannerMatchDayChip,
+renderPeriodizationWorkspace,
+renderSessionPlannerPeriodizationOverlay,
+renderSessionPlannerPeriodizationSummary,
+sessionPlannerPeriodizationBridge,
+} = periodizationRuntimeBindings;
 const workspaceShellController = createWorkspaceShellController({
 applyUserAvatar,
 closeDashboardModal,

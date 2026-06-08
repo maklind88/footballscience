@@ -79,6 +79,7 @@ const accessorNames = [
 
 test("Squad player profile runtime accessors preserve app-runtime pass-through names", () => {
   const app = readProjectFile("app-runtime.js");
+  const workspaceComposer = readProjectFile("src/core/workspace-runtime-composer.mjs");
   const accessors = readProjectFile("src/modules/squad/player-profile-runtime-accessors.mjs");
   const index = readProjectFile("src/modules/squad/index.mjs");
 
@@ -90,7 +91,8 @@ test("Squad player profile runtime accessors preserve app-runtime pass-through n
   }
 
   expect(app).toContain('import * as playerProfileRuntimeAccessors from "./src/modules/squad/player-profile-runtime-accessors.mjs";');
-  expect(app).toContain("configurePlayerProfileRuntimeAccessors(() => playerProfileRuntimeFacade);");
+  expect(app).toContain("createWorkspaceRuntimeComposition({");
+  expect(workspaceComposer).toContain("deps.configurePlayerProfileRuntimeAccessors(() => playerProfileRuntimeFacade);");
   expect(app).not.toContain("function readPlayerProfileAgeCache(...args)");
   expect(app).not.toContain("function setPlayerProfileAutosaveLastSignature(...args)");
   expect(accessors).toContain("callPlayerProfileRuntimeFacade(methodName, args)");

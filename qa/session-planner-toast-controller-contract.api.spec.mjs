@@ -54,13 +54,16 @@ test("Session Planner toast controller renders and clears transient UI only", ()
 test("Session Planner toast controller stays outside persistence boundaries", () => {
   const moduleSource = readProjectFile("src/modules/session-planner/session-planner-toast-controller.mjs");
   const appRuntime = readProjectFile("app-runtime.js");
+  const workspaceComposerSource = readProjectFile("src/core/workspace-runtime-composer.mjs");
   const composerSource = readProjectFile("src/modules/session-planner/session-planner-runtime-service-composer.mjs");
   const accessorsSource = readProjectFile("src/modules/session-planner/session-planner-runtime-accessors.mjs");
 
   expect(moduleSource).not.toContain("localStorage");
   expect(moduleSource).not.toContain("queueCentralStateWrite");
   expect(moduleSource).not.toContain("writeSessionPlannerState");
-  expect(appRuntime).toContain("createSessionPlannerRuntimeServiceComposition({");
+  expect(appRuntime).toContain("createWorkspaceRuntimeComposition({");
+  expect(appRuntime).not.toContain("createSessionPlannerRuntimeServiceComposition({");
+  expect(workspaceComposerSource).toContain("createSessionPlannerRuntimeServiceComposition({");
   expect(appRuntime).not.toContain("createSessionPlannerToastController({");
   expect(composerSource).toContain("createSessionPlannerToastController({");
   expect(appRuntime).toContain("toastController: sessionPlannerToastController");

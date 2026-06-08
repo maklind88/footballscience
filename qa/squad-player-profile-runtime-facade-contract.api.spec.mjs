@@ -221,15 +221,18 @@ function createHarness() {
 
 test("Squad player profile runtime facade is the only app-runtime boundary for profile runtime services", () => {
   const app = readProjectFile("app-runtime.js");
+  const workspaceComposer = readProjectFile("src/core/workspace-runtime-composer.mjs");
   const facade = readProjectFile("src/modules/squad/player-profile-runtime-facade.mjs");
   const index = readProjectFile("src/modules/squad/index.mjs");
 
   expect(typeof createPlayerProfileRuntimeFacade).toBe("function");
-  expect(app).toContain("createPlayerProfileRuntimeFacade({");
+  expect(app).toContain("createWorkspaceRuntimeComposition({");
+  expect(app).not.toContain("createPlayerProfileRuntimeFacade({");
+  expect(workspaceComposer).toContain("createPlayerProfileRuntimeFacade({");
   expect(app).toContain('import * as playerProfileRuntimeAccessors from "./src/modules/squad/player-profile-runtime-accessors.mjs";');
   expect(app).toContain("renderPlayerProfilesWorkspace,");
   expect(app).toContain("queuePlayerProfileAutosave,");
-  expect(app).toContain("configurePlayerProfileRuntimeAccessors(() => playerProfileRuntimeFacade);");
+  expect(workspaceComposer).toContain("deps.configurePlayerProfileRuntimeAccessors(() => playerProfileRuntimeFacade);");
   expect(app).not.toContain("createPlayerProfileRuntimeStateService({");
   expect(app).not.toContain("createPlayerProfileRuntimeWriteService({");
   expect(app).not.toContain("createPlayerProfileRuntimeImportService({");

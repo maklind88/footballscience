@@ -123,10 +123,13 @@ function createHarness(options = {}) {
 
 test("workspace shell controller owns the render/init shell outside app.js", () => {
   const app = readProjectFile("app-runtime.js");
+  const workspaceComposer = readProjectFile("src/core/workspace-runtime-composer.mjs");
   const controller = readProjectFile("src/core/workspace-shell-controller.mjs");
 
-  expect(app).toContain('import { createWorkspaceShellController } from "./src/core/workspace-shell-controller.mjs";');
-  expect(app).toContain("const workspaceShellController = createWorkspaceShellController({");
+  expect(app).toContain("createWorkspaceRuntimeComposition({");
+  expect(app).not.toContain("createWorkspaceShellController({");
+  expect(workspaceComposer).toContain('import { createWorkspaceShellController } from "./workspace-shell-controller.mjs";');
+  expect(workspaceComposer).toContain("const workspaceShellController = createWorkspaceShellController({");
   expect(app).not.toContain("function renderWorkspaceChrome()");
   expect(app).not.toContain("function initializeWorkspaceHub()");
   expect(controller).toContain("renderWorkspaceChrome");

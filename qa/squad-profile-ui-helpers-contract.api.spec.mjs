@@ -171,13 +171,16 @@ test("Squad medical status service is a read-only extracted runtime boundary", (
   const serviceSource = readFileSync(new URL("../src/modules/squad/squad-medical-status-service.mjs", import.meta.url), "utf8");
   const facadeSource = readFileSync(new URL("../src/modules/squad/player-profile-runtime-facade.mjs", import.meta.url), "utf8");
   const runtimeSource = readFileSync(new URL("../app-runtime.js", import.meta.url), "utf8");
+  const workspaceComposerSource = readFileSync(new URL("../src/core/workspace-runtime-composer.mjs", import.meta.url), "utf8");
 
   expect(serviceSource).toContain("export function createSquadMedicalStatusService");
   expect(serviceSource).not.toMatch(/localStorage|sessionStorage|fetch\(|setItem\(|writePlayerProfilesState|writeMedicalState/);
-  expect(runtimeSource).toContain("createPlayerProfileRuntimeFacade({");
+  expect(runtimeSource).toContain("createWorkspaceRuntimeComposition({");
+  expect(runtimeSource).not.toContain("createPlayerProfileRuntimeFacade({");
+  expect(workspaceComposerSource).toContain("createPlayerProfileRuntimeFacade({");
   expect(runtimeSource).toContain('import * as playerProfileRuntimeAccessors from "./src/modules/squad/player-profile-runtime-accessors.mjs";');
   expect(runtimeSource).toContain("getPlayerProfileMedicalSnapshot,");
-  expect(runtimeSource).toContain("configurePlayerProfileRuntimeAccessors(() => playerProfileRuntimeFacade);");
+  expect(workspaceComposerSource).toContain("deps.configurePlayerProfileRuntimeAccessors(() => playerProfileRuntimeFacade);");
   expect(runtimeSource).not.toContain("function getPlayerProfileMedicalSnapshot(...args)");
   expect(runtimeSource).not.toContain("createSquadMedicalStatusService({");
   expect(facadeSource).toContain("createSquadMedicalStatusService({");

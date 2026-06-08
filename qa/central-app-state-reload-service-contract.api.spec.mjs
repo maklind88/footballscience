@@ -83,9 +83,12 @@ function createHarness(options = {}) {
 test("central app-state reload service owns reload and refresh bodies outside app-runtime", () => {
   const runtimeSource = readFileSync(new URL("../app-runtime.js", import.meta.url), "utf8");
   const accessorsSource = readFileSync(new URL("../src/core/platform-runtime-accessors.mjs", import.meta.url), "utf8");
+  const composerSource = readFileSync(new URL("../src/core/workspace-runtime-composer.mjs", import.meta.url), "utf8");
   const serviceSource = readFileSync(new URL("../src/core/central-app-state-reload-service.mjs", import.meta.url), "utf8");
 
-  expect(runtimeSource).toContain("createCentralAppStateReloadService({");
+  expect(runtimeSource).toContain("createWorkspaceRuntimeComposition({");
+  expect(runtimeSource).not.toContain("createCentralAppStateReloadService({");
+  expect(composerSource).toContain("createCentralAppStateReloadService({");
   expect(runtimeSource).toContain("platform-runtime-accessors.mjs");
   expect(runtimeSource).toContain("centralAppStateReloadService,");
   expect(accessorsSource).toContain("reloadCentralizedAppStateFromStorage");

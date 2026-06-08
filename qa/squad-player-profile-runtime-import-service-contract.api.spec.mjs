@@ -128,16 +128,19 @@ function createHarness(options = {}) {
 
 test("Squad player profile import service owns import feedback and undo bodies outside app-runtime", () => {
   const app = readProjectFile("app-runtime.js");
+  const workspaceComposer = readProjectFile("src/core/workspace-runtime-composer.mjs");
   const service = readProjectFile("src/modules/squad/player-profile-runtime-import-service.mjs");
   const index = readProjectFile("src/modules/squad/index.mjs");
 
   expect(typeof createPlayerProfileRuntimeImportService).toBe("function");
-  expect(app).toContain("createPlayerProfileRuntimeFacade({");
+  expect(app).toContain("createWorkspaceRuntimeComposition({");
+  expect(app).not.toContain("createPlayerProfileRuntimeFacade({");
+  expect(workspaceComposer).toContain("createPlayerProfileRuntimeFacade({");
   expect(app).toContain('import * as playerProfileRuntimeAccessors from "./src/modules/squad/player-profile-runtime-accessors.mjs";');
   expect(app).toContain("buildPlayerProfileImportFeedback,");
   expect(app).toContain("importSquadDataFoundationPayload,");
   expect(app).toContain("applyPlayerProfileImportUndo,");
-  expect(app).toContain("configurePlayerProfileRuntimeAccessors(() => playerProfileRuntimeFacade);");
+  expect(workspaceComposer).toContain("deps.configurePlayerProfileRuntimeAccessors(() => playerProfileRuntimeFacade);");
   expect(app).not.toContain("createPlayerProfileRuntimeImportService({");
   expect(app).not.toContain("function buildPlayerProfileImportFeedback(...args)");
   expect(app).not.toContain("function importSquadDataFoundationPayload(payload = {}, options = {}) {\nif (!canEditPlayerProfiles())");

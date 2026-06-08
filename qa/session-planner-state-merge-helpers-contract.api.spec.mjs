@@ -72,12 +72,15 @@ function createHelpers(stateRef = { current: null }) {
 test("Session Planner state merge helpers own pure merge logic outside app-runtime", () => {
   const appSource = readProjectFile("app-runtime.js");
   const accessorsSource = readProjectFile("src/modules/session-planner/session-planner-runtime-accessors.mjs");
+  const workspaceComposerSource = readProjectFile("src/core/workspace-runtime-composer.mjs");
   const composerSource = readProjectFile("src/modules/session-planner/session-planner-runtime-service-composer.mjs");
   const helperSource = readProjectFile("src/modules/session-planner/session-planner-state-merge-helpers.mjs");
   const runtimeStateSource = readProjectFile("src/modules/session-planner/session-planner-runtime-state-service.mjs");
   const indexSource = readProjectFile("src/modules/session-planner/index.mjs");
 
-  expect(appSource).toContain("createSessionPlannerRuntimeServiceComposition({");
+  expect(appSource).toContain("createWorkspaceRuntimeComposition({");
+  expect(appSource).not.toContain("createSessionPlannerRuntimeServiceComposition({");
+  expect(workspaceComposerSource).toContain("createSessionPlannerRuntimeServiceComposition({");
   expect(appSource).not.toContain("createSessionPlannerStateMergeHelpers({");
   expect(composerSource).toContain("createSessionPlannerStateMergeHelpers({");
   expect(appSource).toContain("stateMergeHelpers: sessionPlannerStateMergeHelpers");

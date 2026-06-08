@@ -4,8 +4,11 @@ import { createProfileStaffWorkspaceController } from "../src/modules/profile/in
 test("Profile and staff workspace controller owns render state outside app.js", async () => {
   const fs = await import("node:fs/promises");
   const appSource = await fs.readFile("app-runtime.js", "utf8");
+  const composerSource = await fs.readFile("src/core/workspace-runtime-composer.mjs", "utf8");
   expect(appSource).not.toContain("function getProfileWorkspaceMessage");
-  expect(appSource).toContain("createProfileStaffWorkspaceController");
+  expect(appSource).toContain("createWorkspaceRuntimeComposition({");
+  expect(appSource).not.toContain("createProfileStaffWorkspaceController({");
+  expect(composerSource).toContain("createProfileStaffWorkspaceController({");
 });
 
 test("Profile and staff workspace controller renders profile tasks and selected staff", () => {

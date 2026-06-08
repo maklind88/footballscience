@@ -62,16 +62,19 @@ function createHarness(options = {}) {
 
 test("Squad player profile Medical sync service owns sync and archive bodies outside app-runtime", () => {
   const app = readProjectFile("app-runtime.js");
+  const workspaceComposer = readProjectFile("src/core/workspace-runtime-composer.mjs");
   const service = readProjectFile("src/modules/squad/player-profile-runtime-medical-sync-service.mjs");
   const index = readProjectFile("src/modules/squad/index.mjs");
 
   expect(typeof createPlayerProfileRuntimeMedicalSyncService).toBe("function");
-  expect(app).toContain("createPlayerProfileRuntimeFacade({");
+  expect(app).toContain("createWorkspaceRuntimeComposition({");
+  expect(app).not.toContain("createPlayerProfileRuntimeFacade({");
+  expect(workspaceComposer).toContain("createPlayerProfileRuntimeFacade({");
   expect(app).toContain('import * as playerProfileRuntimeAccessors from "./src/modules/squad/player-profile-runtime-accessors.mjs";');
   expect(app).toContain("archiveMedicalPlayersRemovedFromSquad,");
   expect(app).toContain("buildMedicalPlayerFromPlayerProfile,");
   expect(app).toContain("syncMedicalPlayersFromPlayerProfiles,");
-  expect(app).toContain("configurePlayerProfileRuntimeAccessors(() => playerProfileRuntimeFacade);");
+  expect(workspaceComposer).toContain("deps.configurePlayerProfileRuntimeAccessors(() => playerProfileRuntimeFacade);");
   expect(app).not.toContain("createPlayerProfileRuntimeMedicalSyncService({");
   expect(app).not.toContain("function archiveMedicalPlayersRemovedFromSquad(...args)");
   expect(app).not.toContain("function buildMedicalPlayerFromPlayerProfile(player = {}) {\nconst now = new Date().toISOString();");

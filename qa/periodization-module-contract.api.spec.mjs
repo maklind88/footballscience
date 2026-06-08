@@ -69,6 +69,7 @@ test("Periodization extraction owns the state, renderer, controller, and bridge 
 
 test("Periodization app integration delegates state, renderer, controller, bridge, and merge helpers to the module", () => {
   const app = readProjectFile("app-runtime.js");
+  const workspaceComposer = readProjectFile("src/core/workspace-runtime-composer.mjs");
   const accessors = readProjectFile("src/core/platform-runtime-accessors.mjs");
   const platformBindings = readProjectFile("src/core/platform-workspace-runtime-bindings.mjs");
   const runtimeBindings = readProjectFile("src/modules/periodization/periodization-runtime-bindings.mjs");
@@ -76,10 +77,12 @@ test("Periodization app integration delegates state, renderer, controller, bridg
 
   expect(app).toContain("./src/modules/periodization/periodization-state.mjs");
   expect(app).toContain("./src/modules/periodization/periodization-renderer.mjs");
-  expect(app).toContain("./src/modules/periodization/periodization-runtime-bindings.mjs");
   expect(app).toContain("createPeriodizationStateAdapter");
   expect(app).toContain("createPeriodizationRenderer");
-  expect(app).toContain("createPeriodizationRuntimeBindings");
+  expect(app).toContain("createWorkspaceRuntimeComposition({");
+  expect(app).not.toContain("createPeriodizationRuntimeBindings({");
+  expect(workspaceComposer).toContain("../modules/periodization/periodization-runtime-bindings.mjs");
+  expect(workspaceComposer).toContain("createPeriodizationRuntimeBindings({");
   expect(runtimeBindings).toContain("createPeriodizationWorkspaceController");
   expect(runtimeBindings).toContain("createPeriodizationSessionBridge");
   expect(runtimeBindings).toContain("createPeriodizationWorkspaceShell");

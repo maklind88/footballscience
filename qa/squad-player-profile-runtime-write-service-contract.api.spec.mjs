@@ -88,17 +88,20 @@ function createHarness(options = {}) {
 
 test("Squad player profile write service owns add/update/remove bodies outside app-runtime", () => {
   const app = readProjectFile("app-runtime.js");
+  const workspaceComposer = readProjectFile("src/core/workspace-runtime-composer.mjs");
   const facade = readProjectFile("src/modules/squad/player-profile-runtime-facade.mjs");
   const service = readProjectFile("src/modules/squad/player-profile-runtime-write-service.mjs");
   const index = readProjectFile("src/modules/squad/index.mjs");
 
   expect(typeof createPlayerProfileRuntimeWriteService).toBe("function");
-  expect(app).toContain("createPlayerProfileRuntimeFacade({");
+  expect(app).toContain("createWorkspaceRuntimeComposition({");
+  expect(app).not.toContain("createPlayerProfileRuntimeFacade({");
+  expect(workspaceComposer).toContain("createPlayerProfileRuntimeFacade({");
   expect(app).toContain('import * as playerProfileRuntimeAccessors from "./src/modules/squad/player-profile-runtime-accessors.mjs";');
   expect(app).toContain("addPlayerProfile,");
   expect(app).toContain("updatePlayerProfile,");
   expect(app).toContain("removePlayerProfile,");
-  expect(app).toContain("configurePlayerProfileRuntimeAccessors(() => playerProfileRuntimeFacade);");
+  expect(workspaceComposer).toContain("deps.configurePlayerProfileRuntimeAccessors(() => playerProfileRuntimeFacade);");
   expect(facade).toContain("createPlayerProfileRuntimeWriteService({");
   expect(app).not.toContain("function addPlayerProfile(values = {}) {\nensurePlayerProfilesState();");
   expect(app).not.toContain("function addPlayerProfile(...args)");

@@ -139,3 +139,116 @@ export function createSessionPlannerTacticalShortcutController(deps = {}) {
 export function bindSessionPlannerTacticalShortcutController(deps = {}) {
   return createSessionPlannerTacticalShortcutController(deps).bind();
 }
+
+export function bindSessionPlannerWorkspaceKeydownController(deps = {}) {
+  const {
+    clearTacticalPendingPoint = () => {},
+    clearTacticalSelection = () => {},
+    closePlayerBoardAssistant = () => {},
+    closePlayerBoardProfile = () => {},
+    getSelectedTacticalElementIds = () => [],
+    handlePeriodizationKeydown = () => false,
+    hasPlayerBoardProfile = () => false,
+    hasTacticalPendingPoint = () => false,
+    isPlayerBoardAssistantOpen = () => false,
+    isPlayerBoardOpen = () => false,
+    isPrintOverlayOpen = () => false,
+    isTacticalboardOpen = () => false,
+    refreshTacticalboardCanvas = () => {},
+    removeSelectedTacticalElement = () => false,
+    renderWorkspace = () => {},
+    redoBoardHistory = () => false,
+    setPlayerBoardOpen = () => {},
+    setPrintOverlayOpen = () => {},
+    undoBoardHistory = () => false,
+    workspaceElement = null,
+  } = deps;
+
+  function handleKeydown(event) {
+    if (event[SESSION_TACTICALBOARD_KEY_HANDLED]) {
+      return;
+    }
+    const isTextEditingTarget = isShortcutTextEditingTarget(event.target);
+    if (isPlayerBoardOpen() && event.key === "Escape") {
+      event.preventDefault();
+      if (isPlayerBoardAssistantOpen()) {
+        closePlayerBoardAssistant();
+        renderWorkspace({ preserveDateStripScroll: true });
+        return;
+      }
+      if (hasPlayerBoardProfile()) {
+        closePlayerBoardProfile();
+        return;
+      }
+      setPlayerBoardOpen(false);
+      return;
+    }
+    if (isPrintOverlayOpen() && event.key === "Escape") {
+      event.preventDefault();
+      setPrintOverlayOpen(false);
+      return;
+    }
+    if (
+      isTacticalboardOpen() &&
+      (event.metaKey || event.ctrlKey) &&
+      event.key.toLowerCase() === "z"
+    ) {
+      event.preventDefault();
+      if (event.shiftKey) {
+        redoBoardHistory("tactical");
+      } else {
+        undoBoardHistory("tactical");
+      }
+      return;
+    }
+    if (
+      isPlayerBoardOpen() &&
+      (event.metaKey || event.ctrlKey) &&
+      event.key.toLowerCase() === "z" &&
+      !isTextEditingTarget
+    ) {
+      event.preventDefault();
+      if (event.shiftKey) {
+        redoBoardHistory("player");
+      } else {
+        undoBoardHistory("player");
+      }
+      return;
+    }
+    if (isTacticalboardOpen() && event.key === "Escape") {
+      event.preventDefault();
+      clearTacticalPendingPoint({ clearSelectionState: true });
+      clearTacticalSelection();
+      refreshTacticalboardCanvas();
+      return;
+    }
+    if (
+      isTacticalboardOpen() &&
+      (event.key === "Backspace" || event.key === "Delete") &&
+      hasTacticalPendingPoint()
+    ) {
+      event.preventDefault();
+      clearTacticalPendingPoint();
+      refreshTacticalboardCanvas();
+      return;
+    }
+    const hasSelectedTacticalElements = getSelectedTacticalElementIds().length > 0;
+    if (
+      isTacticalboardOpen() &&
+      !isTextEditingTarget &&
+      (event.key === "Backspace" || event.key === "Delete") &&
+      hasSelectedTacticalElements
+    ) {
+      event.preventDefault();
+      removeSelectedTacticalElement();
+      return;
+    }
+    handlePeriodizationKeydown(event);
+  }
+
+  workspaceElement?.addEventListener?.("keydown", handleKeydown);
+  return {
+    handleKeydown,
+    unbind: () => workspaceElement?.removeEventListener?.("keydown", handleKeydown),
+  };
+}

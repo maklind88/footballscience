@@ -80,7 +80,7 @@ import { getTopIconSvg } from "./top-icons.js";
 import { createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
 import { getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
 import { createProfileImageDataUrl as createProfileImageDataUrlFromModule, createProfileStaffWorkspaceController } from "./src/modules/profile/index.mjs";
-import { SESSION_TACTICALBOARD_KEY_HANDLED, bindSessionPlannerTacticalShortcutController } from "./src/modules/session-planner/session-planner-shortcuts-controller.mjs";
+import { bindSessionPlannerTacticalShortcutController, bindSessionPlannerWorkspaceKeydownController } from "./src/modules/session-planner/session-planner-shortcuts-controller.mjs";
 import {
   createSquadDataFoundationHelpers,
   createSquadImportPlanner,
@@ -14120,89 +14120,34 @@ undoSelectedBoardAction: undoSelectedSessionPlannerTacticalBoardAction,
 win,
 });
 win.addEventListener("afterprint", removeSessionPlannerPrintRoot);
-ui.sessionPlannerWorkspace?.addEventListener("keydown", (event) => {
-if (event[SESSION_TACTICALBOARD_KEY_HANDLED]) {
-return;
-}
-const isTextEditingTarget = Boolean(event.target.closest?.("input, textarea, select, [contenteditable='true']"));
-if (sessionPlannerPlayerBoardOpen && event.key === "Escape") {
-event.preventDefault();
-if (sessionPlannerPlayerBoardAssistantOpen) {
+bindSessionPlannerWorkspaceKeydownController({
+workspaceElement: ui.sessionPlannerWorkspace,
+isPlayerBoardOpen: () => sessionPlannerPlayerBoardOpen,
+isPlayerBoardAssistantOpen: () => sessionPlannerPlayerBoardAssistantOpen,
+closePlayerBoardAssistant: () => {
 sessionPlannerPlayerBoardAssistantOpen = false;
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-return;
-}
-if (sessionPlannerPlayerBoardSelectedPlayerId) {
-closeSessionPlannerPlayerBoardProfile();
-return;
-}
-setSessionPlannerPlayerBoardOpen(false);
-return;
-}
-if (sessionPlannerPrintOverlayOpen && event.key === "Escape") {
-event.preventDefault();
-setSessionPlannerPrintOverlayOpen(false);
-return;
-}
-if (
-sessionPlannerTacticalboardOpen &&
-(event.metaKey || event.ctrlKey) &&
-event.key.toLowerCase() === "z"
-) {
-event.preventDefault();
-if (event.shiftKey) {
-redoSessionPlannerBoardHistory("tactical");
-} else {
-undoSessionPlannerBoardHistory("tactical");
-}
-return;
-}
-if (
-sessionPlannerPlayerBoardOpen &&
-(event.metaKey || event.ctrlKey) &&
-event.key.toLowerCase() === "z" &&
-!isTextEditingTarget
-) {
-event.preventDefault();
-if (event.shiftKey) {
-redoSessionPlannerBoardHistory("player");
-} else {
-undoSessionPlannerBoardHistory("player");
-}
-return;
-}
-if (sessionPlannerTacticalboardOpen && event.key === "Escape") {
-event.preventDefault();
+},
+hasPlayerBoardProfile: () => Boolean(sessionPlannerPlayerBoardSelectedPlayerId),
+closePlayerBoardProfile: closeSessionPlannerPlayerBoardProfile,
+setPlayerBoardOpen: setSessionPlannerPlayerBoardOpen,
+isPrintOverlayOpen: () => sessionPlannerPrintOverlayOpen,
+setPrintOverlayOpen: setSessionPlannerPrintOverlayOpen,
+isTacticalboardOpen: () => sessionPlannerTacticalboardOpen,
+redoBoardHistory: redoSessionPlannerBoardHistory,
+undoBoardHistory: undoSessionPlannerBoardHistory,
+hasTacticalPendingPoint: () => Boolean(sessionPlannerTacticalPendingPoint),
+clearTacticalPendingPoint: ({ clearSelectionState = false } = {}) => {
 sessionPlannerTacticalPendingPoint = null;
 sessionPlannerTacticalDraftLineState = null;
+if (clearSelectionState) {
 sessionPlannerTacticalSelectionState = null;
-clearSessionPlannerTacticalSelection();
-refreshSessionPlannerTacticalboardCanvas();
-return;
 }
-if (
-sessionPlannerTacticalboardOpen &&
-(event.key === "Backspace" || event.key === "Delete") &&
-sessionPlannerTacticalPendingPoint
-) {
-event.preventDefault();
-sessionPlannerTacticalPendingPoint = null;
-sessionPlannerTacticalDraftLineState = null;
-refreshSessionPlannerTacticalboardCanvas();
-return;
-}
-const hasSelectedTacticalElements = getSessionPlannerTacticalSelectedElementIds().length > 0;
-if (
-sessionPlannerTacticalboardOpen &&
-!isTextEditingTarget &&
-(event.key === "Backspace" || event.key === "Delete") &&
-hasSelectedTacticalElements
-) {
-event.preventDefault();
-removeSelectedSessionPlannerTacticalElement();
-return;
-}
-sessionPlannerPeriodizationBridge.handleKeydown(event);
+},
+clearTacticalSelection: clearSessionPlannerTacticalSelection,
+refreshTacticalboardCanvas: refreshSessionPlannerTacticalboardCanvas,
+getSelectedTacticalElementIds: getSessionPlannerTacticalSelectedElementIds,
+removeSelectedTacticalElement: removeSelectedSessionPlannerTacticalElement,
+handlePeriodizationKeydown: (event) => sessionPlannerPeriodizationBridge.handleKeydown(event),
 });
 periodizationWorkspaceController.bind();
 scheduleWorkspaceController.bind();

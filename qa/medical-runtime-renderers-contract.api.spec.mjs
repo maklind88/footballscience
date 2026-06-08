@@ -12,11 +12,14 @@ function readProjectFile(path) {
 
 test("Medical runtime renderers own renderer and selector wiring outside app-runtime", () => {
   const app = readProjectFile("app-runtime.js");
+  const runtimeService = readProjectFile("src/modules/medical/medical-runtime-service.mjs");
   const runtimeRenderers = readProjectFile("src/modules/medical/medical-runtime-renderers.mjs");
   const index = readProjectFile("src/modules/medical/index.mjs");
 
   expect(typeof createMedicalRuntimeRenderers).toBe("function");
-  expect(app).toContain("createMedicalRuntimeRenderers({");
+  expect(app).toContain("createMedicalRuntimeService({");
+  expect(app).not.toContain("createMedicalRuntimeRenderers({");
+  expect(runtimeService).toContain("createMedicalRuntimeRenderers({");
   expect(app).not.toContain("createMedicalOptionSelectors({");
   expect(app).not.toContain("createMedicalRosterRenderer({");
   expect(runtimeRenderers).toContain("createMedicalOptionSelectors({");
@@ -36,6 +39,7 @@ test("Medical runtime renderer factory does not own protected write paths", () =
 
 test("Medical workspace runtime renderer owns shell rendering outside app-runtime", () => {
   const app = readProjectFile("app-runtime.js");
+  const runtimeService = readProjectFile("src/modules/medical/medical-runtime-service.mjs");
   const facade = readProjectFile("src/modules/medical/medical-runtime-facade.mjs");
   const workspaceRenderer = readProjectFile("src/modules/medical/medical-workspace-runtime-renderer.mjs");
   const index = readProjectFile("src/modules/medical/index.mjs");
@@ -65,7 +69,8 @@ test("Medical workspace runtime renderer owns shell rendering outside app-runtim
   expect(workspace.innerHTML).toContain("Medical Team");
   expect(workspace.innerHTML).toContain("First Team");
   expect(workspace.innerHTML).toContain("<main>Saved.</main>");
-  expect(app).toContain("createMedicalRuntimeFacade({");
+  expect(app).toContain("const medicalRuntimeFacade = medicalRuntimeService.facade;");
+  expect(runtimeService).toContain("createMedicalRuntimeFacade({");
   expect(app).toContain("function renderMedicalTeamWorkspace(...args)");
   expect(app).not.toContain("createMedicalWorkspaceRuntimeRenderer({");
   expect(facade).toContain("createMedicalWorkspaceRuntimeRenderer({");

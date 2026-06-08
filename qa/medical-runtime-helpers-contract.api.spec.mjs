@@ -70,12 +70,15 @@ function createHelpers(options = {}) {
 
 test("Medical runtime helpers own pure helper wiring outside app-runtime", () => {
   const app = readProjectFile("app-runtime.js");
+  const runtimeService = readProjectFile("src/modules/medical/medical-runtime-service.mjs");
   const helpers = readProjectFile("src/modules/medical/medical-runtime-helpers.mjs");
   const clinical = readProjectFile("src/modules/medical/medical-clinical-normalizers.mjs");
   const index = readProjectFile("src/modules/medical/index.mjs");
 
   expect(typeof createMedicalRuntimeHelpers).toBe("function");
-  expect(app).toContain("createMedicalRuntimeHelpers({");
+  expect(app).toContain("const medicalRuntimeHelpers = medicalRuntimeService.helpers;");
+  expect(app).not.toContain("createMedicalRuntimeHelpers({");
+  expect(runtimeService).toContain("createMedicalRuntimeHelpers({");
   expect(app).toContain("function normalizeMedicalPlayer(...args) { return medicalRuntimeHelpers.normalizeMedicalPlayer(...args); }");
   expect(app).toContain("function normalizeMedicalRecord(...args) { return medicalRuntimeHelpers.normalizeMedicalRecord(...args); }");
   expect(app).toContain("function normalizeMedicalInjuryPlan(...args) { return medicalRuntimeHelpers.normalizeMedicalInjuryPlan(...args); }");

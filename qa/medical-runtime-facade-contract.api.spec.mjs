@@ -166,11 +166,14 @@ function createHarness() {
 
 test("Medical runtime facade is the app-runtime boundary for Medical runtime services", () => {
   const app = readProjectFile("app-runtime.js");
+  const runtimeService = readProjectFile("src/modules/medical/medical-runtime-service.mjs");
   const facade = readProjectFile("src/modules/medical/medical-runtime-facade.mjs");
   const index = readProjectFile("src/modules/medical/index.mjs");
 
   expect(typeof createMedicalRuntimeFacade).toBe("function");
-  expect(app).toContain("createMedicalRuntimeFacade({");
+  expect(app).toContain("const medicalRuntimeFacade = medicalRuntimeService.facade;");
+  expect(app).not.toContain("createMedicalRuntimeFacade({");
+  expect(runtimeService).toContain("createMedicalRuntimeFacade({");
   expect(app).toContain("function addMedicalRecord(...args)");
   expect(app).toContain("function renderMedicalTeamWorkspace(...args)");
   expect(app).toContain("function getSelectedMedicalPlayer(...args)");

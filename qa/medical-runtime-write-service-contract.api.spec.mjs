@@ -95,11 +95,13 @@ function createHarness(overrides = {}) {
 
 test("Medical runtime write service owns protected Medical writes outside app-runtime", () => {
   const app = readProjectFile("app-runtime.js");
+  const runtimeService = readProjectFile("src/modules/medical/medical-runtime-service.mjs");
   const service = readProjectFile("src/modules/medical/medical-runtime-write-service.mjs");
   const index = readProjectFile("src/modules/medical/index.mjs");
 
   expect(typeof createMedicalRuntimeWriteService).toBe("function");
-  expect(app).toContain("createMedicalRuntimeFacade({");
+  expect(app).toContain("const medicalRuntimeFacade = medicalRuntimeService.facade;");
+  expect(runtimeService).toContain("createMedicalRuntimeFacade({");
   expect(app).toContain("function addMedicalRecord(...args)");
   expect(app).toContain("function removeMedicalPlayer(...args)");
   expect(app).not.toContain("createMedicalRuntimeWriteService({");

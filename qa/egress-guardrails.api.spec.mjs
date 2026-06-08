@@ -20,6 +20,7 @@ function readNumericConstant(source, constantName) {
 test("client egress guardrails keep central state and presence sync sparse", () => {
   const appSource = readProjectFile("app-runtime.js");
   const centralReloadSource = readProjectFile("src/core/central-app-state-reload-service.mjs");
+  const globalBindingsSource = readProjectFile("src/core/platform-global-runtime-bindings.mjs");
 
   expect(readNumericConstant(centralReloadSource, "refreshIntervalMs")).toBeGreaterThanOrEqual(60000);
   expect(readNumericConstant(centralReloadSource, "activeRefreshMinMs")).toBeGreaterThanOrEqual(30000);
@@ -29,7 +30,8 @@ test("client egress guardrails keep central state and presence sync sparse", () 
   expect(readNumericConstant(appSource, "dashboardPresencePollMinMs")).toBeGreaterThanOrEqual(30000);
   expect(centralReloadSource).toContain("refreshInFlight");
   expect(centralReloadSource).toContain("reason === \"interval\" && !documentRef.hasFocus()");
-  expect(appSource).toContain("pauseDashboardPresenceRuntime();");
+  expect(appSource).toContain("bindPlatformGlobalRuntimeEvents({");
+  expect(globalBindingsSource).toContain("pauseDashboardPresenceRuntime?.();");
 });
 
 test("server app-state API caches burst reads without caching writes", () => {

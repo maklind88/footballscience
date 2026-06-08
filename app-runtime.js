@@ -62,6 +62,7 @@ import { configurePlatformRuntimeAccessors, mergePeriodizationStatePreservingLoc
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createCentralRuntimeFacade, dataSafetySnapshotStoreName } from "./src/core/central-runtime-facade.mjs";
 import { bindPlatformWorkspaceRuntimeBindings } from "./src/core/platform-workspace-runtime-bindings.mjs";
+import { bindPlatformGlobalRuntimeEvents } from "./src/core/platform-global-runtime-bindings.mjs";
 import { canonicalPlatformClubValues, canonicalPlatformTeamValues, dashboardNotificationSeenStorageKey, dataSafetyDatabaseName, dataSafetyExportSchema, dataSafetyStorageKey, defaultWorkspaceAccess, defaultWorkspaceEditAccess, gameplanStorageKey, legacyPlatformStructureValues, maxProfileImageUploadDataUrlLength, maxProfileImageUrlLength, medicalTeamStorageKey, platformAppearanceStorageKey, platformDefaultClubId, platformDefaultClubName, platformDefaultClubShortName, platformDefaultTeamId, platformDefaultTeamLevel, platformDefaultTeamName, playerProfileAgeCacheStorageKey, playerProfileChangeLogLimit, playerProfilesDefaultRosterVersion, playerProfilesSchemaVersion, playerProfilesStorageKey, requiredWorkspaceAccess, scoutingStorageKey, sequenceLibraryStorageKey, sequenceStorageKey, sessionPlannerBlockMergeFields, sessionPlannerBlockMergeFieldSet, transferRoomStorageKey } from "./src/core/app-runtime-constants.mjs";
 import { addCalendarDays, clamp, escapeHtml, formatDashboardDateTime, formatDashboardTime, formatDataSafetyTime, isEditableKeyboardTarget, logEvent, maybeCopyToClipboard, setFormSubmitButtonState, togglePasswordInputVisibility } from "./src/core/runtime-ui-helpers.mjs";
 import { installPlatformOverlayStability } from "./src/core/overlay-stability.mjs";
@@ -5209,214 +5210,91 @@ return;
 }
 await handleDashboardChatAttachmentInputChange(attachmentInput);
 });
-workspaceModuleRuntimeController.bindWorkspaceModuleEvents();
-document.addEventListener("keydown", (event) => {
-const key = String(event.key || "").toLowerCase();
-if (key === "enter" && isSimulatorIntroActive() && !isEditableKeyboardTarget(event.target)) {
-event.preventDefault();
-launchGameSimulatorFromIntro();
-return;
-}
-if (event.key === "Escape" && isProfileMenuOpen()) {
-setProfileMenuOpen(false);
-ui.profileMenuButton?.focus();
-}
-if (event.key === "Escape" && medicalPlayerModalOpen) {
-medicalPlayerModalOpen = false;
-medicalPlayerModalTab = "availability";
-renderMedicalTeamWorkspace();
-}
-if (event.key === "Escape" && playerProfileModalOpen) {
-closePlayerProfileModal();
-}
-if (event.key === "Escape" && playerProfileNewPlayerModalOpen) {
-closePlayerProfileNewPlayerModal();
-}
-if (event.key === "Escape" && getPeriodizationOverlayState().open) {
-setPeriodizationOverlayState({ open: false, mode: "view" });
-renderPeriodizationWorkspace();
-}
-if (event.key === "Escape" && hasActiveMetricTooltip()) {
-hideMetricTooltip({ force: true });
-}
+bindPlatformGlobalRuntimeEvents({
+documentRef: document,
+win,
+ui,
+workspaceModuleRuntimeController,
+isSimulatorIntroActive,
+isEditableKeyboardTarget,
+launchGameSimulatorFromIntro,
+isProfileMenuOpen,
+setProfileMenuOpen,
+getMedicalPlayerModalOpen: () => medicalPlayerModalOpen,
+setMedicalPlayerModalOpen: (isOpen) => { medicalPlayerModalOpen = isOpen; },
+setMedicalPlayerModalTab: (tab) => { medicalPlayerModalTab = tab; },
+renderMedicalTeamWorkspace,
+getPlayerProfileModalOpen: () => playerProfileModalOpen,
+closePlayerProfileModal,
+getPlayerProfileNewPlayerModalOpen: () => playerProfileNewPlayerModalOpen,
+closePlayerProfileNewPlayerModal,
+getPeriodizationOverlayState,
+setPeriodizationOverlayState,
+renderPeriodizationWorkspace,
+hasActiveMetricTooltip,
+hideMetricTooltip,
+setActiveWorkspace,
+syncPlatformUserFromAuth,
+syncAccountMenu,
+getCurrentPlatformUser,
+startDashboardPresenceRuntime,
+stopDashboardPresenceRuntime,
+getCentralStateBridge,
+reloadCentralizedAppStateFromStorage,
+getHubState: () => hubState,
+setHubActiveWorkspaceId: (workspaceId) => { hubState.activeWorkspaceId = workspaceId; },
+renderWorkspaceChrome,
+scheduleDashboardLoginPopups,
+getDataSafetyRuntimeStatus: () => dataSafetyRuntimeStatus,
+retryCentral,
+flushCentralStateWrites,
+refreshDashboardPresence,
+requestCentralizedAppStateReload,
+refreshDataSafetyStatus,
+flushDeferredCentralizedAppStateReload,
+applyPlatformThemeByTime,
+markDashboardPresenceActivity,
+pushDashboardPresence,
+queueDashboardChatCurrentViewRefresh,
+refreshCentralStateFromSource,
+pauseDashboardPresenceRuntime,
+renderDashboardChatWidget,
+centralAppStateReloadService,
+isDataSafetyProtectedStorageKey,
+queueDataSafetyStatusRefresh,
+sessionPlannerStorageKey,
+queueDataSafetySnapshot,
+dashboardChatStorageKey,
+clearDashboardChatRuntimeMessages: () => { dashboardChatRuntimeMessages = []; },
+purgeDashboardDeletedMessagesFromStorage,
+syncDashboardChatWidgetNotificationCursor,
+platformNavigationController,
+dashboardChatDeletedMessageIdsStorageKey,
+dashboardTaskStorageKey,
+dashboardNotificationSeenStorageKey,
+playerProfilesStorageKey,
+scoutingStorageKey,
+transferRoomStorageKey,
+setPlayerProfilesState: (nextState) => { playerProfilesState = nextState; },
+readPlayerProfilesState,
+syncTransferRoomLinkedState,
+renderPlayerProfilesWorkspace,
+setScoutingState: (nextState) => { scoutingState = nextState; },
+readScoutingState,
+getScoutingState: () => scoutingState,
+preserveScoutingTransientUiState,
+shouldDeferCentralizedAppStateReload,
+setCentralizedAppStateReloadPending,
+renderScoutingWorkspace,
+setTransferRoomState: (nextState) => { transferRoomState = nextState; },
+readTransferRoomState,
+renderTransferRoomWorkspace,
+markDashboardHomeSeenForCurrentUser,
+renderDashboardCards,
+clearCentralStateWriteTimer,
+flushQueuedDataSafetySnapshot,
+initializeWorkspaceHub,
+queueGameSimulatorControllersLoad,
+renderSimulator: render,
+startSimulatorAnimationLoop,
 });
-document.querySelectorAll(".hub-rail-button").forEach((button) => {
-button.addEventListener("click", () => {
-setActiveWorkspace(button.dataset.openWorkspace);
-});
-});
-win.addEventListener("blur", () => {
-setProfileMenuOpen(false);
-});
-win.addEventListener("platform:user-change", () => {
-syncPlatformUserFromAuth();
-syncAccountMenu();
-setProfileMenuOpen(false);
-if (getCurrentPlatformUser()) {
-startDashboardPresenceRuntime();
-} else {
-stopDashboardPresenceRuntime();
-}
-if (getCurrentPlatformUser() && getCentralStateBridge()?.isHydrated?.()) {
-reloadCentralizedAppStateFromStorage();
-return;
-}
-if (hubState) {
-if (!getCurrentPlatformUser()) {
-hubState.activeWorkspaceId = "home";
-}
-renderWorkspaceChrome();
-}
-scheduleDashboardLoginPopups();
-});
-win.addEventListener("footballscience:central-state-ready", () => {
-dataSafetyRuntimeStatus.lastError = "";
-retryCentral();
-flushCentralStateWrites();
-startDashboardPresenceRuntime();
-refreshDashboardPresence({ forceRender: true }).catch(() => {});
-requestCentralizedAppStateReload();
-refreshDataSafetyStatus();
-});
-document.addEventListener("focusout", () => {
-win.setTimeout(flushDeferredCentralizedAppStateReload, 180);
-}, true);
-document.addEventListener("pointerup", () => {
-win.setTimeout(flushDeferredCentralizedAppStateReload, 180);
-}, true);
-win.addEventListener("focus", () => {
-applyPlatformThemeByTime();
-markDashboardPresenceActivity();
-startDashboardPresenceRuntime();
-pushDashboardPresence("online").catch(() => {});
-refreshDashboardPresence({ forceRender: true }).catch(() => {});
-queueDashboardChatCurrentViewRefresh({ delayMs: 250 });
-refreshCentralStateFromSource("focus");
-win.setTimeout(flushDeferredCentralizedAppStateReload, 180);
-});
-win.addEventListener("blur", () => {
-pushDashboardPresence("away", { force: true }).catch(() => {});
-});
-document.addEventListener("visibilitychange", () => {
-if (document.visibilityState !== "visible") {
-pushDashboardPresence("away", { force: true }).catch(() => {});
-pauseDashboardPresenceRuntime();
-renderDashboardChatWidget();
-return;
-}
-applyPlatformThemeByTime();
-markDashboardPresenceActivity();
-startDashboardPresenceRuntime();
-pushDashboardPresence("online").catch(() => {});
-refreshDashboardPresence({ forceRender: true }).catch(() => {});
-if (document.visibilityState !== "visible") {
-return;
-}
-queueDashboardChatCurrentViewRefresh({ delayMs: 250 });
-refreshCentralStateFromSource("visibility");
-win.setTimeout(flushDeferredCentralizedAppStateReload, 180);
-});
-["pointerdown", "keydown", "mousemove", "touchstart"].forEach((eventName) => {
-document.addEventListener(
-eventName,
-() => {
-markDashboardPresenceActivity();
-},
-{ passive: true }
-);
-});
-centralAppStateReloadService.startCentralStateRefreshTimer();
-win.addEventListener("storage", (event) => {
-if (isDataSafetyProtectedStorageKey(event.key)) {
-queueDataSafetyStatusRefresh();
-if (event.key === sessionPlannerStorageKey) {
-queueDataSafetySnapshot("cross-tab-update");
-}
-}
-if (event.key === dashboardChatStorageKey) {
-dashboardChatRuntimeMessages = [];
-purgeDashboardDeletedMessagesFromStorage();
-renderDashboardChatWidget();
-syncDashboardChatWidgetNotificationCursor();
-platformNavigationController.renderTopIconMenu();
-return;
-}
-if (event.key === dashboardChatDeletedMessageIdsStorageKey) {
-purgeDashboardDeletedMessagesFromStorage();
-renderDashboardChatWidget();
-syncDashboardChatWidgetNotificationCursor();
-platformNavigationController.renderTopIconMenu();
-return;
-}
-if (
-event.key === dashboardTaskStorageKey ||
-event.key === dashboardNotificationSeenStorageKey ||
-event.key === playerProfilesStorageKey ||
-event.key === scoutingStorageKey ||
-event.key === transferRoomStorageKey
-) {
-if (event.key === playerProfilesStorageKey) {
-playerProfilesState = readPlayerProfilesState();
-if (hubState?.activeWorkspaceId === "transfer-room") {
-syncTransferRoomLinkedState({ render: true });
-return;
-}
-if (hubState?.activeWorkspaceId === "medical-team") {
-renderMedicalTeamWorkspace();
-return;
-}
-if (hubState?.activeWorkspaceId === "player-profiles") {
-renderPlayerProfilesWorkspace();
-return;
-}
-}
-if (event.key === scoutingStorageKey && hubState?.activeWorkspaceId === "transfer-room") {
-scoutingState = readScoutingState();
-syncTransferRoomLinkedState({ render: true });
-return;
-}
-if (event.key === scoutingStorageKey && hubState?.activeWorkspaceId === "scouting") {
-scoutingState = preserveScoutingTransientUiState(readScoutingState(), scoutingState);
-if (shouldDeferCentralizedAppStateReload()) {
-setCentralizedAppStateReloadPending(true);
-return;
-}
-renderScoutingWorkspace();
-return;
-}
-if (event.key === transferRoomStorageKey && hubState?.activeWorkspaceId === "transfer-room") {
-transferRoomState = readTransferRoomState();
-renderTransferRoomWorkspace();
-return;
-}
-if (hubState?.activeWorkspaceId === "home") {
-markDashboardHomeSeenForCurrentUser();
-renderDashboardCards();
-}
-platformNavigationController.renderTopIconMenu();
-}
-});
-win.addEventListener("pagehide", () => {
-pushDashboardPresence("away").catch(() => {});
-if (clearCentralStateWriteTimer()) {
-flushCentralStateWrites();
-}
-flushQueuedDataSafetySnapshot("pagehide");
-});
-document.addEventListener("click", (event) => {
-if (!ui.profileMenu || !isProfileMenuOpen()) {
-return;
-}
-if (event.target.closest(".platform-account-menu")) {
-return;
-}
-setProfileMenuOpen(false);
-});
-refreshDataSafetyStatus();
-initializeWorkspaceHub();
-startDashboardPresenceRuntime();
-if (hubState?.activeWorkspaceId === "game-simulator") {
-queueGameSimulatorControllersLoad();
-render();
-startSimulatorAnimationLoop();
-}

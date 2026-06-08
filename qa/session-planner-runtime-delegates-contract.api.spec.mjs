@@ -15,12 +15,14 @@ function readProjectFile(path) {
 
 test("Session Planner runtime delegates keep app-runtime pass-through out of the shell", () => {
   const app = readProjectFile("app-runtime.js");
+  const appRuntimeComposer = readProjectFile("src/modules/session-planner/session-planner-app-runtime-composer.mjs");
   const index = readProjectFile("src/modules/session-planner/index.mjs");
 
   expect(sessionPlannerRuntimeDelegateMethodNames).toContain("renderSessionPlannerWorkspace");
   expect(sessionPlannerRuntimeDelegateMethodNames).toContain("updateSelectedSessionPlannerBlockField");
   expect(sessionPlannerRuntimeDelegateMethodNames).toContain("printSessionPlannerCurrentSession");
-  expect(app).toContain("createSessionPlannerRuntimeDelegates({");
+  expect(app).toContain("createSessionPlannerAppRuntimeComposition({");
+  expect(appRuntimeComposer).toContain("createSessionPlannerRuntimeDelegates({");
   expect(app).not.toContain("function renderSessionPlannerWorkspace(...args)");
   expect(app).not.toContain("} = sessionPlannerWorkspaceController;");
   expect(index).toContain('export * from "./session-planner-runtime-delegates.mjs";');

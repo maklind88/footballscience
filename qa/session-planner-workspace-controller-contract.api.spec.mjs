@@ -13,6 +13,7 @@ function readProjectFile(path) {
 test("Session Planner workspace controller owns workspace UI flow without owning the save pipeline", () => {
   const app = readProjectFile("app-runtime.js");
   const accessors = readProjectFile("src/modules/session-planner/session-planner-runtime-accessors.mjs");
+  const appRuntimeComposer = readProjectFile("src/modules/session-planner/session-planner-app-runtime-composer.mjs");
   const workspaceComposer = readProjectFile("src/core/workspace-runtime-composer.mjs");
   const composer = readProjectFile("src/modules/session-planner/session-planner-runtime-service-composer.mjs");
   const runtimeService = readProjectFile("src/modules/session-planner/session-planner-runtime-service.mjs");
@@ -28,7 +29,8 @@ test("Session Planner workspace controller owns workspace UI flow without owning
   expect(app).not.toContain("createSessionPlannerWorkspaceController({");
   expect(runtimeService).toContain("createSessionPlannerWorkspaceController({");
   expect(app).toContain("let sessionPlannerWorkspaceController;");
-  expect(app).toContain("createSessionPlannerRuntimeDelegates({");
+  expect(app).toContain("createSessionPlannerAppRuntimeComposition({");
+  expect(appRuntimeComposer).toContain("createSessionPlannerRuntimeDelegates({");
   expect(app).not.toContain("} = sessionPlannerWorkspaceController;");
   expect(app).not.toContain("function renderSessionPlannerWorkspace(...args)");
   expect(app).toContain("renderSessionPlannerWorkspace,");
@@ -47,7 +49,7 @@ test("Session Planner workspace controller owns workspace UI flow without owning
   expect(controller).not.toContain("function writeSessionPlannerState()");
   expect(app).not.toContain("createSessionPlannerRuntimeStateService({");
   expect(runtimeService).toContain("createSessionPlannerRuntimeStateService({");
-  expect(app).toContain("runtimeStateService: sessionPlannerRuntimeStateService");
+  expect(appRuntimeComposer).toContain("runtimeStateService: sources.getSessionPlannerRuntimeStateService()");
   expect(accessors).toContain("function writeSessionPlannerState(...args)");
   expect(app).not.toContain("const previousDateControls = ui.sessionPlannerWorkspace.querySelector");
 });

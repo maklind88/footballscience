@@ -110,14 +110,16 @@ test("Exercise Library UI state bridge owns transient library panel mapping only
 test("Exercise Library UI state bridge does not own persisted library data", () => {
   const moduleSource = readProjectFile("src/modules/exercise-library/exercise-library-ui-state.mjs");
   const appRuntime = readProjectFile("app-runtime.js");
+  const appRuntimeComposer = readProjectFile("src/modules/session-planner/session-planner-app-runtime-composer.mjs");
 
   expect(moduleSource).not.toContain("localStorage");
   expect(moduleSource).not.toContain("writeSessionPlannerExerciseLibrary");
   expect(moduleSource).not.toContain("queueCentralStateWrite");
   expect(moduleSource).not.toContain("saveDataSafetySnapshot");
-  expect(appRuntime).toContain("createExerciseLibraryUiStateBridge");
-  expect(appRuntime).toContain("getUiState: getExerciseLibraryUiState");
-  expect(appRuntime).toContain("setUiState: setExerciseLibraryUiState");
+  expect(appRuntime).toContain("createSessionPlannerAppRuntimeComposition({");
+  expect(appRuntimeComposer).toContain("createExerciseLibraryUiStateBridge");
+  expect(appRuntimeComposer).toContain("getUiState: getExerciseLibraryUiState");
+  expect(appRuntimeComposer).toContain("setUiState: setExerciseLibraryUiState");
 });
 
 test("Exercise Library selectors own seed exercises, filters, and sort order", () => {
@@ -544,20 +546,22 @@ test("Exercise Library runtime controller owns storage, filters, folders, and ap
 
 test("Exercise Library app integration delegates runtime ownership to the module", () => {
   const app = readProjectFile("app-runtime.js");
+  const sessionPlannerAppRuntimeComposer = readProjectFile("src/modules/session-planner/session-planner-app-runtime-composer.mjs");
   const sessionPlannerRuntimeRenderers = readProjectFile("src/modules/session-planner/session-planner-runtime-renderers.mjs");
   const packageJson = readProjectFile("package.json");
   const storageGuard = readProjectFile("scripts/verify-storage-key-policy.mjs");
 
   expect(app).toContain("./src/modules/exercise-library/index.mjs");
-  expect(app).toContain("createExerciseLibraryActions");
-  expect(app).toContain("createExerciseLibraryRuntimeFacade");
-  expect(app).toContain("createExerciseLibraryRuntimeController");
-  expect(app).toContain("createExerciseLibraryReviewHelpers");
-  expect(app).toContain("createExerciseLibraryStateAdapter");
-  expect(app).toContain("createExerciseLibrarySelectors");
-  expect(app).toContain("createExerciseLibraryRenderer");
+  expect(app).toContain("createSessionPlannerAppRuntimeComposition({");
+  expect(sessionPlannerAppRuntimeComposer).toContain("createExerciseLibraryActions");
+  expect(sessionPlannerAppRuntimeComposer).toContain("createExerciseLibraryRuntimeFacade");
+  expect(sessionPlannerAppRuntimeComposer).toContain("createExerciseLibraryRuntimeController");
+  expect(sessionPlannerAppRuntimeComposer).toContain("createExerciseLibraryReviewHelpers");
+  expect(sessionPlannerAppRuntimeComposer).toContain("createExerciseLibraryStateAdapter");
+  expect(sessionPlannerAppRuntimeComposer).toContain("createExerciseLibrarySelectors");
+  expect(sessionPlannerAppRuntimeComposer).toContain("createExerciseLibraryRenderer");
   expect(app).not.toContain("function callExerciseLibraryRuntime");
-  expect(app).toContain("createSessionPlannerRuntimeRenderers({");
+  expect(sessionPlannerAppRuntimeComposer).toContain("createSessionPlannerRuntimeRenderers({");
   expect(sessionPlannerRuntimeRenderers).toContain("deps.exerciseLibraryRenderer.renderOverlay()");
   expect(app).not.toContain("exerciseLibraryStateAdapter.createExercise(source)");
   expect(app).not.toContain("exerciseLibraryStateAdapter.createFolder(source)");

@@ -11,10 +11,12 @@ function readProjectFile(relativePath) {
 
 test("Session Planner runtime renderers own renderer wiring outside app-runtime", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const appRuntimeComposerSource = readProjectFile("src/modules/session-planner/session-planner-app-runtime-composer.mjs");
   const runtimeSource = readProjectFile("src/modules/session-planner/session-planner-runtime-renderers.mjs");
   const indexSource = readProjectFile("src/modules/session-planner/index.mjs");
 
-  expect(appSource).toContain("createSessionPlannerRuntimeRenderers({");
+  expect(appSource).toContain("createSessionPlannerAppRuntimeComposition({");
+  expect(appRuntimeComposerSource).toContain("createSessionPlannerRuntimeRenderers({");
   expect(appSource).not.toContain("createSessionPlannerRenderer({");
   expect(appSource).not.toContain("createSessionPlannerWorkspaceRenderer({");
   expect(appSource).not.toContain("createSessionPlannerPlayerBoardRenderer({");

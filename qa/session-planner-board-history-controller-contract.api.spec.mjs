@@ -13,6 +13,7 @@ function readProjectFile(relativePath) {
 test("Session Planner board history owns undo redo outside app-runtime", () => {
   const appSource = readProjectFile("app-runtime.js");
   const accessorsSource = readProjectFile("src/modules/session-planner/session-planner-runtime-accessors.mjs");
+  const appRuntimeComposerSource = readProjectFile("src/modules/session-planner/session-planner-app-runtime-composer.mjs");
   const workspaceComposerSource = readProjectFile("src/core/workspace-runtime-composer.mjs");
   const composerSource = readProjectFile("src/modules/session-planner/session-planner-runtime-service-composer.mjs");
   const runtimeServiceSource = readProjectFile("src/modules/session-planner/session-planner-runtime-service.mjs");
@@ -30,7 +31,7 @@ test("Session Planner board history owns undo redo outside app-runtime", () => {
   expect(appSource).not.toContain("function redoSessionPlannerBoardHistory(");
   expect(appSource).not.toContain("createSessionPlannerRuntimeStateService({");
   expect(runtimeServiceSource).toContain("createSessionPlannerRuntimeStateService({");
-  expect(appSource).toContain("runtimeStateService: sessionPlannerRuntimeStateService");
+  expect(appRuntimeComposerSource).toContain("runtimeStateService: sources.getSessionPlannerRuntimeStateService()");
   expect(accessorsSource).toContain("function writeSessionPlannerState(...args)");
   expect(controllerSource).toContain("function undo(type)");
   expect(controllerSource).toContain("function redo(type)");

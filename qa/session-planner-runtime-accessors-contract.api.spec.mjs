@@ -66,6 +66,7 @@ const extraAccessorNames = Object.freeze([
 test("Session Planner runtime accessors own app-runtime pass-through names", () => {
   const app = readProjectFile("app-runtime.js");
   const accessors = readProjectFile("src/modules/session-planner/session-planner-runtime-accessors.mjs");
+  const appRuntimeComposer = readProjectFile("src/modules/session-planner/session-planner-app-runtime-composer.mjs");
   const packageJson = readProjectFile("package.json");
 
   expect(sessionPlannerRuntimeAccessorNames).toEqual([
@@ -73,9 +74,11 @@ test("Session Planner runtime accessors own app-runtime pass-through names", () 
     ...extraAccessorNames,
   ]);
   expect(app).toContain("session-planner-runtime-accessors.mjs");
-  expect(app).toContain("configureSessionPlannerRuntimeAccessors(() => ({");
-  expect(app).toContain("runtimeDelegates: sessionPlannerRuntimeDelegates");
-  expect(app).toContain("runtimeStateService: sessionPlannerRuntimeStateService");
+  expect(app).toContain("createSessionPlannerAppRuntimeComposition({");
+  expect(app).toContain("configureSessionPlannerAppRuntimeAccessors({");
+  expect(appRuntimeComposer).toContain("configureSessionPlannerRuntimeAccessors(() => ({");
+  expect(appRuntimeComposer).toContain("runtimeDelegates: sessionPlannerRuntimeDelegates");
+  expect(appRuntimeComposer).toContain("runtimeStateService: sources.getSessionPlannerRuntimeStateService()");
   expect(app).not.toContain("} = sessionPlannerRuntimeDelegates;");
   expect(app).not.toContain("function renderSessionPlannerActionIcon(...args)");
   expect(app).not.toContain("function writeSessionPlannerState(...args)");

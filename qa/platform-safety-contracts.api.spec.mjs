@@ -608,6 +608,7 @@ test("Session Planner print mode keeps the coach sheet visible for browser print
 test("Session Planner never seeds generated training blocks onto an off day", () => {
   const appSource = readProjectFile("app-runtime.js");
   const accessorsSource = readProjectFile("src/modules/session-planner/session-planner-runtime-accessors.mjs");
+  const appRuntimeComposerSource = readProjectFile("src/modules/session-planner/session-planner-app-runtime-composer.mjs");
   const composerSource = readProjectFile("src/modules/session-planner/session-planner-runtime-service-composer.mjs");
   const sessionFactorySource = readProjectFile("src/modules/session-planner/session-planner-session-factory.mjs");
   const stateMergeHelpersSource = readProjectFile("src/modules/session-planner/session-planner-state-merge-helpers.mjs");
@@ -623,7 +624,7 @@ test("Session Planner never seeds generated training blocks onto an off day", ()
   expect(sessionFactorySource).toContain("return isOffDate(dateValue) ? createEmptySession(dateValue) : createDefaultSession(dateValue);");
   expect(accessorsSource).toContain("function isSessionPlannerOffDate(dateValue)");
   expect(accessorsSource).toContain("function createSessionPlannerSessionForNewPlan(dateValue = getDefaultDateValue())");
-  expect(appSource).toContain("getDefaultDateValue: () => formatScheduleDateValue(new Date())");
+  expect(appRuntimeComposerSource).toContain("getDefaultDateValue: () => deps.formatScheduleDateValue(new Date())");
   expect(stateMergeHelpersSource).toContain("shouldClearSessionForDate(dateValue, clonedSession)");
   expect(appSource).toContain(
     "sessionPlannerState.sessions[dateValue] = createSessionPlannerSessionForNewPlan(dateValue);"
@@ -657,13 +658,14 @@ test("Session Planner central sync conflicts retry silently instead of reopening
 
 test("Session Planner tactical board keeps selection controls simple and explicit", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const appRuntimeComposerSource = readProjectFile("src/modules/session-planner/session-planner-app-runtime-composer.mjs");
   const localUiStateSource = readProjectFile("src/modules/session-planner/session-planner-local-ui-state.mjs");
   const tacticalControllerSource = readProjectFile("src/modules/session-planner/session-planner-tactical-controller.mjs");
   const visualRendererSource = readProjectFile("src/modules/session-planner/session-planner-visual-renderer.mjs");
-  const tacticalBoardSource = `${appSource}\n${tacticalControllerSource}\n${visualRendererSource}`;
+  const tacticalBoardSource = `${appSource}\n${appRuntimeComposerSource}\n${tacticalControllerSource}\n${visualRendererSource}`;
 
   expect(localUiStateSource).toContain("sessionPlannerTacticalSnapEnabled: false");
-  expect(appSource).toContain("createSessionPlannerLocalUiState");
+  expect(appRuntimeComposerSource).toContain("createSessionPlannerLocalUiState");
   expect(tacticalBoardSource).not.toContain("data-session-tactical-snap");
   expect(tacticalBoardSource).not.toContain("Alt for precision");
   expect(tacticalBoardSource).not.toContain("Alt gives precise movement");

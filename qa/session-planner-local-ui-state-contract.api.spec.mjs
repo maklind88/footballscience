@@ -36,11 +36,13 @@ test("Session Planner local UI state keeps transient state outside app-runtime w
 test("Session Planner local UI state does not own persistence or central sync", () => {
   const moduleSource = readProjectFile("src/modules/session-planner/session-planner-local-ui-state.mjs");
   const appRuntime = readProjectFile("app-runtime.js");
+  const appRuntimeComposer = readProjectFile("src/modules/session-planner/session-planner-app-runtime-composer.mjs");
 
   expect(moduleSource).not.toContain("localStorage");
   expect(moduleSource).not.toContain("queueCentralStateWrite");
   expect(moduleSource).not.toContain("writeSessionPlannerState");
-  expect(appRuntime).toContain("createSessionPlannerLocalUiState");
-  expect(appRuntime).toContain("getLocalState: () => ({");
-  expect(appRuntime).toContain("sessionPlannerLocalUiState.applyPatch(patch)");
+  expect(appRuntime).toContain("createSessionPlannerAppRuntimeComposition({");
+  expect(appRuntimeComposer).toContain("createSessionPlannerLocalUiState");
+  expect(appRuntimeComposer).toContain("getLocalState: () => sessionPlannerLocalUiState.state");
+  expect(appRuntimeComposer).toContain("sessionPlannerLocalUiState.applyPatch(patch)");
 });

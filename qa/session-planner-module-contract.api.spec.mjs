@@ -487,6 +487,7 @@ test("Session Planner autosave boundary only surfaces active session writes and 
 
 test("Session Planner app integration delegates autosave policy and block rendering to the module", () => {
   const app = readProjectFile("app-runtime.js");
+  const appRuntimeComposer = readProjectFile("src/modules/session-planner/session-planner-app-runtime-composer.mjs");
   const workspaceRuntimeComposer = readProjectFile("src/core/workspace-runtime-composer.mjs");
   const workspaceController = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
   const runtimeRenderers = readProjectFile("src/modules/session-planner/session-planner-runtime-renderers.mjs");
@@ -500,7 +501,8 @@ test("Session Planner app integration delegates autosave policy and block render
   expect(app).toContain("createSessionPlannerAutosaveBoundary");
   expect(app).not.toContain("createSessionPlannerWorkspaceController");
   expect(runtimeService).toContain("createSessionPlannerWorkspaceController({");
-  expect(app).toContain("createSessionPlannerRuntimeRenderers");
+  expect(app).toContain("createSessionPlannerAppRuntimeComposition({");
+  expect(appRuntimeComposer).toContain("createSessionPlannerRuntimeRenderers");
   expect(runtimeRenderers).toContain("createSessionPlannerPlayerBoardRenderer");
   expect(runtimeRenderers).toContain("createSessionPlannerPrintRenderer");
   expect(runtimeRenderers).toContain("createSessionPlannerRenderer");

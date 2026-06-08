@@ -34,9 +34,11 @@ test("platform runtime services composer owns platform-wide service wiring outsi
 
 test("platform runtime services composer preserves periodization hydration assignments", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const appRuntimeComposerSource = readProjectFile("src/modules/session-planner/session-planner-app-runtime-composer.mjs");
   const composerSource = readProjectFile("src/core/platform-runtime-services-composer.mjs");
 
-  expect(appSource).toContain("periodizationState = readPeriodizationState();");
+  expect(appSource).toContain("readPeriodizationState,");
+  expect(appRuntimeComposerSource).toContain("deps.setPeriodizationState(deps.readPeriodizationState());");
   expect(composerSource).toContain("setPeriodizationState(workspaceDataRuntimeService.readPeriodizationState());");
   expect(composerSource).not.toContain("workspaceDataRuntimeService.readPeriodizationState();");
 });

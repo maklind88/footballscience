@@ -107,6 +107,7 @@ import {
   squadFormationOptions,
 } from "./src/modules/squad/index.mjs";
 import {
+  createMedicalRuntimeHelpers,
   createMedicalRuntimeRenderers,
   defaultMedicalPlayers,
   medicalActualParticipationFallback,
@@ -7492,57 +7493,58 @@ return false;
 const parsedDate = parseScheduleDateValue(dateValue);
 return formatScheduleDateValue(parsedDate) === dateValue;
 }
-function getMedicalStatusOption(statusKey) { return medicalOptionSelectors.getMedicalStatusOption(statusKey); }
-function getMedicalStatusActivityType(dateValue, rtpPhase = "") { return medicalOptionSelectors.getMedicalStatusActivityType(dateValue, rtpPhase); }
-function getMedicalStatusOptionForActivity(statusKey, activityType = "training") { return medicalOptionSelectors.getMedicalStatusOptionForActivity(statusKey, activityType); }
-function getMedicalStatusOptionForDate(statusKey, dateValue = medicalState?.selectedDate, rtpPhase = "") { return medicalOptionSelectors.getMedicalStatusOptionForDate(statusKey, dateValue, rtpPhase); }
-function getMedicalRtpPhaseOption(phaseKey) { return medicalOptionSelectors.getMedicalRtpPhaseOption(phaseKey); }
-function getMedicalGateOption(value) { return medicalOptionSelectors.getMedicalGateOption(value); }
-function getMedicalStatusForParticipation(participation) { return medicalOptionSelectors.getMedicalStatusForParticipation(participation); }
-const medicalSquadAvailabilityBlockStatusKeys = new Set(
-[
-...playerProfileStatusOptions.map((option) => option.key),
-"unknown",
-].filter((status) => status && status !== "available")
-);
-function normalizeMedicalPlayerAvailabilityStatus(value, fallback = "available") {
-const status = String(value ?? "").trim().toLowerCase();
-return playerProfileStatusOptions.some((option) => option.key === status) || status === "unknown" ? status : fallback;
-}
-function getMedicalLinkedPlayerProfile(player = {}) {
-const profileState = playerProfilesState || readPlayerProfilesState();
-const profiles = Array.isArray(profileState?.players) ? profileState.players : [];
-if (!profiles.length) {
-return null;
-}
-const playerIds = new Set(
-[player.id, player.playerId, player.profileId, player.medicalPlayerId]
-.map((value) => String(value ?? "").trim())
-.filter(Boolean)
-);
-if (playerIds.size) {
-const profile = profiles.find((candidate) => playerIds.has(String(candidate?.id ?? "").trim()));
-if (profile) {
-return profile;
-}
-}
-const targetName = normalizePlayerProfileName(player.name || player.displayName || "");
-const targetNumber = String(player.number || player.shirtNumber || player.shirt_number || "").trim().toLowerCase();
-if (!targetName) {
-return null;
-}
-if (targetNumber) {
-const profile = profiles.find((candidate) => {
-const candidateName = normalizePlayerProfileName(candidate?.name || candidate?.displayName || "");
-const candidateNumber = String(candidate?.number || candidate?.shirtNumber || candidate?.shirt_number || "").trim().toLowerCase();
-return candidateName === targetName && candidateNumber === targetNumber;
+const medicalRuntimeHelpers = createMedicalRuntimeHelpers({
+createId: createDashboardId,
+getCurrentUser: getCurrentPlatformUser,
+getPlayerProfilesState: () => playerProfilesState || readPlayerProfilesState(),
+medicalDataSafetySyncStatusOptions,
+medicalOptionSelectors,
+medicalPositionAliases,
+medicalPositionOrder,
+playerProfileStatusOptions,
+normalizePlayerProfileName,
+normalizePlayerProfileRole,
+normalizePlayerProfileRoleList,
+normalizePlayerProfileRosterType,
+normalizePlayerProfileTemporaryDate,
+playerProfileRosterTypeCountsInSquad,
 });
-if (profile) {
-return profile;
-}
-}
-const nameMatches = profiles.filter((candidate) => normalizePlayerProfileName(candidate?.name || candidate?.displayName || "") === targetName);
-return nameMatches.length === 1 ? nameMatches[0] : null;
+const {
+compareMedicalPlayers,
+getCurrentMedicalActorId,
+getMedicalCanonicalPositionFromText,
+getMedicalDataSafetyCounts,
+getMedicalEntityUpdatedMs,
+getMedicalGateOption,
+getMedicalLinkedPlayerProfile,
+getMedicalPlayerAvailabilityStatus,
+getMedicalPlayerAvailabilityStatusOption,
+getMedicalPlayerNumberRank,
+getMedicalPlayerPositionRank,
+getMedicalPlayerRosterOrder,
+getMedicalPlayerSquadAvailabilityBlockReason,
+getMedicalRtpPhaseForRecommendation,
+getMedicalRtpPhaseOption,
+getMedicalStatusActivityType,
+getMedicalStatusForParticipation,
+getMedicalStatusOption,
+getMedicalStatusOptionForActivity,
+getMedicalStatusOptionForDate: getMedicalStatusOptionForDateFromHelper,
+getMedicalTimestampMs,
+isMedicalItemArchived,
+isMedicalPlayerBlockedBySquadAvailability,
+normalizeMedicalActualParticipation,
+normalizeMedicalDataSafety,
+normalizeMedicalParticipation,
+normalizeMedicalPlayer,
+normalizeMedicalPlayerAvailabilityStatus,
+normalizeMedicalPlayerPosition,
+normalizeMedicalPositionText,
+normalizeMedicalShareValue,
+normalizeMedicalTimestamp,
+} = medicalRuntimeHelpers;
+function getMedicalStatusOptionForDate(statusKey, dateValue = medicalState?.selectedDate, rtpPhase = "") {
+return getMedicalStatusOptionForDateFromHelper(statusKey, dateValue, rtpPhase);
 }
 function syncMedicalPlayerAvailabilityStatusesFromProfiles() {
 if (!medicalState || !Array.isArray(medicalState.players)) {
@@ -7574,429 +7576,6 @@ if (changed) {
 medicalState.players = nextPlayers;
 }
 return changed;
-}
-function getMedicalPlayerAvailabilityStatus(player = {}) {
-const profile = getMedicalLinkedPlayerProfile(player);
-const profileStatus = normalizeMedicalPlayerAvailabilityStatus(
-profile?.status || profile?.availabilityStatus || profile?.availability_status,
-""
-);
-if (profileStatus && medicalSquadAvailabilityBlockStatusKeys.has(profileStatus)) {
-return profileStatus;
-}
-return normalizeMedicalPlayerAvailabilityStatus(
-player.status || player.availabilityStatus || player.availability_status,
-profileStatus || "available"
-);
-}
-function getMedicalPlayerAvailabilityStatusOption(player = {}) {
-const statusKey = getMedicalPlayerAvailabilityStatus(player);
-return (
-playerProfileStatusOptions.find((option) => option.key === statusKey) || {
-key: statusKey,
-label: statusKey ? statusKey.replace(/-/g, " ") : "Available",
-tone: "unavailable",
-}
-);
-}
-function isMedicalPlayerBlockedBySquadAvailability(player = {}) {
-return medicalSquadAvailabilityBlockStatusKeys.has(getMedicalPlayerAvailabilityStatus(player));
-}
-function getMedicalPlayerSquadAvailabilityBlockReason(player = {}) {
-if (!isMedicalPlayerBlockedBySquadAvailability(player)) {
-return "";
-}
-const option = getMedicalPlayerAvailabilityStatusOption(player);
-return `${player.name || "Player"} is marked ${option.label} in Squad Room and should not receive a team-activity recommendation.`;
-}
-function getMedicalRtpPhaseForRecommendation(statusKey, participation, activityType = "training") { return medicalOptionSelectors.getMedicalRtpPhaseForRecommendation(statusKey, participation, activityType); }
-function normalizeMedicalParticipation(value, fallback = 100) { return medicalOptionSelectors.normalizeMedicalParticipation(value, fallback); }
-function normalizeMedicalActualParticipation(value) { return medicalOptionSelectors.normalizeMedicalActualParticipation(value); }
-function normalizeMedicalPositionText(value) {
-return String(value ?? "")
-.trim()
-.toLowerCase()
-.normalize("NFD")
-.replace(/[\u0300-\u036f]/g, "")
-.replace(/[^a-z0-9]+/g, " ")
-.trim();
-}
-function getMedicalCanonicalPositionFromText(value) {
-const normalizedText = normalizeMedicalPositionText(value);
-if (!normalizedText) {
-return "";
-}
-const compactText = normalizedText.replace(/\s+/g, "");
-const parts = normalizedText.split(/\s+/).filter(Boolean);
-return (
-Object.entries(medicalPositionAliases).find(([, aliases]) =>
-aliases.some((alias) => compactText === alias || parts.includes(alias) || (alias.length >= 4 && compactText.includes(alias)))
-)?.[0] || ""
-);
-}
-function normalizeMedicalPlayerPosition(value, player = {}) {
-const fields = [
-value,
-player.position,
-player.roleGroup,
-player.primaryRole,
-player.role,
-player.squadRole,
-...(Array.isArray(player.secondaryRoles) ? player.secondaryRoles : []),
-];
-for (const field of fields) {
-const position = getMedicalCanonicalPositionFromText(field);
-if (position) {
-return position;
-}
-}
-return "Midfielder";
-}
-function normalizeMedicalPlayer(player = {}) {
-const name = String(player.name ?? "").trim();
-if (!name) {
-return null;
-}
-const rosterOrder = Number(player.rosterOrder);
-const rosterType = normalizePlayerProfileRosterType(player.rosterType || player.playerType || player.squadType);
-const position = normalizeMedicalPlayerPosition(player.position, player);
-return {
-id: player.id || createDashboardId("medical-player"),
-name,
-number: String(player.number ?? "").trim(),
-position,
-photoUrl: String(player.photoUrl ?? "").trim(),
-sourceUrl: String(player.sourceUrl ?? "").trim(),
-status: normalizeMedicalPlayerAvailabilityStatus(player.status || player.availabilityStatus || player.availability_status),
-rosterType,
-countsInSquad: typeof player.countsInSquad === "boolean"
-? player.countsInSquad
-: playerProfileRosterTypeCountsInSquad(rosterType),
-temporaryGroup: String(player.temporaryGroup ?? player.subGroup ?? player.trainingGroup ?? "").trim(),
-temporaryFrom: normalizePlayerProfileTemporaryDate(player.temporaryFrom || player.startDate),
-temporaryTo: normalizePlayerProfileTemporaryDate(player.temporaryTo || player.endDate),
-primaryRole: normalizePlayerProfileRole(player.primaryRole, ""),
-secondaryRoles: normalizePlayerProfileRoleList(player.secondaryRoles),
-roleGroup: String(player.roleGroup ?? "").trim(),
-rosterOrder: Number.isFinite(rosterOrder) ? rosterOrder : null,
-createdAt: player.createdAt || new Date().toISOString(),
-updatedAt: player.updatedAt || new Date().toISOString(),
-archivedAt: normalizeMedicalTimestamp(player.archivedAt || player.deletedAt),
-archivedBy: String(player.archivedBy ?? player.deletedBy ?? "").trim(),
-archiveReason: String(player.archiveReason ?? player.deleteReason ?? "").trim().slice(0, 160),
-};
-}
-function normalizeMedicalShareValue(value) { return value === true || value === "true" || value === "on" || value === "1"; }
-function normalizeMedicalTimestamp(value) {
-const cleanValue = String(value ?? "").trim().slice(0, 40);
-return Number.isFinite(Date.parse(cleanValue)) ? cleanValue : "";
-}
-function getMedicalTimestampMs(value, fallback = 0) {
-const cleanValue = normalizeMedicalTimestamp(value);
-if (!cleanValue) {
-return fallback;
-}
-const timestamp = Date.parse(cleanValue);
-return Number.isFinite(timestamp) ? timestamp : fallback;
-}
-function getMedicalEntityUpdatedMs(entity = {}) {
-return Math.max(getMedicalTimestampMs(entity.updatedAt), getMedicalTimestampMs(entity.createdAt));
-}
-function isMedicalItemArchived(item = {}) {
-return Boolean(normalizeMedicalTimestamp(item.archivedAt || item.deletedAt));
-}
-function getCurrentMedicalActorId() {
-const user = getCurrentPlatformUser();
-return String(user?.id || user?.username || user?.email || "").trim();
-}
-function getMedicalDataSafetyCounts(source = {}) {
-const players = Array.isArray(source.players) ? source.players : [];
-const records = Array.isArray(source.records) ? source.records : [];
-const injuryPlans = Array.isArray(source.injuryPlans) ? source.injuryPlans : [];
-return {
-archivedPlayers: players.filter(isMedicalItemArchived).length,
-archivedRecords: records.filter(isMedicalItemArchived).length,
-archivedPlans: injuryPlans.filter(isMedicalItemArchived).length,
-};
-}
-function normalizeMedicalDataSafety(dataSafety = {}, source = {}) {
-const counts = getMedicalDataSafetyCounts(source);
-const syncStatus = String(dataSafety.lastDatabaseSyncStatus ?? "idle").trim().toLowerCase();
-return {
-schema: "footballscience-medical-data-safety-v1",
-lastClinicalChangeAt: normalizeMedicalTimestamp(dataSafety.lastClinicalChangeAt),
-lastClinicalChangeBy: String(dataSafety.lastClinicalChangeBy ?? "").trim().slice(0, 160),
-lastClinicalChangeType: String(dataSafety.lastClinicalChangeType ?? "").trim().slice(0, 80),
-lastClinicalChangeSummary: String(dataSafety.lastClinicalChangeSummary ?? "").trim().slice(0, 220),
-lastDatabaseSyncAt: normalizeMedicalTimestamp(dataSafety.lastDatabaseSyncAt),
-lastDatabaseSyncStatus: medicalDataSafetySyncStatusOptions.has(syncStatus) ? syncStatus : "idle",
-lastDatabaseSyncEvent: String(dataSafety.lastDatabaseSyncEvent ?? "").trim().slice(0, 80),
-lastPayloadHash: String(dataSafety.lastPayloadHash ?? "").trim().slice(0, 80),
-archivedRecordCount: counts.archivedRecords,
-archivedPlanCount: counts.archivedPlans,
-archivedPlayerCount: counts.archivedPlayers,
-};
-}
-function markMedicalClinicalChange(changeType, summary) {
-ensureMedicalState();
-medicalState.dataSafety = normalizeMedicalDataSafety(
-{
-...medicalState.dataSafety,
-lastClinicalChangeAt: new Date().toISOString(),
-lastClinicalChangeBy: getCurrentMedicalActorId(),
-lastClinicalChangeType: changeType,
-lastClinicalChangeSummary: summary,
-lastDatabaseSyncStatus: "pending",
-lastDatabaseSyncEvent: changeType,
-},
-medicalState
-);
-}
-function commitMedicalClinicalState(changeType, summary) {
-markMedicalClinicalChange(changeType, summary);
-writeMedicalState();
-}
-function updateMedicalDatabaseSyncStatus(eventType, result = {}) {
-if (!medicalState) {
-return;
-}
-const status = result.ok
-? result.stored
-? "stored"
-: result.duplicate
-? "duplicate"
-: result.enabled === false || result.localDev
-? "legacy"
-: "legacy"
-: "failed";
-medicalState.dataSafety = normalizeMedicalDataSafety(
-{
-...medicalState.dataSafety,
-lastDatabaseSyncAt: new Date().toISOString(),
-lastDatabaseSyncStatus: status,
-lastDatabaseSyncEvent: eventType,
-lastPayloadHash: result.payloadHash || medicalState.dataSafety?.lastPayloadHash || "",
-},
-medicalState
-);
-writeMedicalState();
-}
-function normalizeMedicalClearance(clearance = {}) {
-return medicalClearanceRoles.reduce((result, role) => {
-const value = clearance?.[role.key];
-result[role.key] = value === true || value === "true" || value === "on" || value === "1";
-return result;
-}, {});
-}
-function normalizeMedicalLoadGates(gates = {}) {
-return medicalLoadGateOptions.reduce((result, gate) => {
-const value = gates?.[gate.key];
-result[gate.key] = medicalGateOptions.some((option) => option.key === value) ? value : "pending";
-return result;
-}, {});
-}
-function getMedicalClearanceValues(values = {}) {
-return medicalClearanceRoles.reduce((result, role) => {
-result[role.key] = values[`clearance.${role.key}`];
-return result;
-}, {});
-}
-function getMedicalLoadGateValues(values = {}) {
-return medicalLoadGateOptions.reduce((result, gate) => {
-result[gate.key] = values[`gates.${gate.key}`];
-return result;
-}, {});
-}
-function normalizeMedicalRecord(record = {}) {
-const playerId = String(record.playerId ?? "").trim();
-const date = isMedicalDateValue(record.date) ? record.date : formatScheduleDateValue(new Date());
-if (!playerId) {
-return null;
-}
-const participation = normalizeMedicalParticipation(record.participation);
-const statusKey = medicalStatusOptions.some((status) => status.key === record.status)
-? record.status
-: getMedicalStatusForParticipation(participation);
-const createdAt = normalizeMedicalTimestamp(record.createdAt) || new Date().toISOString();
-const archivedAt = normalizeMedicalTimestamp(record.archivedAt || record.deletedAt);
-return {
-id: record.id || createDashboardId("medical-record"),
-playerId,
-date,
-status: statusKey,
-participation,
-actualParticipation: normalizeMedicalActualParticipation(record.actualParticipation),
-comment: String(record.comment ?? "").trim(),
-coachNote: String(record.coachNote ?? "").trim(),
-shareWithCoach: normalizeMedicalShareValue(record.shareWithCoach),
-rtpPhase: medicalRtpPhaseOptions.some((phase) => phase.key === record.rtpPhase)
-? record.rtpPhase
-: getMedicalRtpPhaseForRecommendation(
-statusKey,
-participation,
-getMedicalRecommendationActivityContext(date).type
-),
-createdAt,
-updatedAt: normalizeMedicalTimestamp(record.updatedAt) || archivedAt || createdAt,
-createdBy: record.createdBy || getCurrentPlatformUser()?.id || "",
-archivedAt,
-archivedBy: String(record.archivedBy ?? record.deletedBy ?? "").trim(),
-archiveReason: String(record.archiveReason ?? record.deleteReason ?? "").trim().slice(0, 160),
-};
-}
-function addMedicalCalendarMonths(date, months) {
-const nextDate = new Date(date);
-const originalDay = nextDate.getDate();
-nextDate.setMonth(nextDate.getMonth() + months);
-if (nextDate.getDate() !== originalDay) {
-nextDate.setDate(0);
-}
-return nextDate;
-}
-function getMedicalPlanEndDate(startDateValue, duration, durationUnit) {
-const cleanDuration = Math.max(1, Number(duration) || 1);
-const startDate = parseScheduleDateValue(startDateValue);
-if (durationUnit === "months") {
-return formatScheduleDateValue(addCalendarDays(addMedicalCalendarMonths(startDate, cleanDuration), -1));
-}
-if (durationUnit === "days") {
-return formatScheduleDateValue(addCalendarDays(startDate, cleanDuration - 1));
-}
-return formatScheduleDateValue(addCalendarDays(startDate, cleanDuration * 7 - 1));
-}
-function normalizeMedicalInjuryPlan(plan = {}) {
-const playerId = String(plan.playerId ?? "").trim();
-const startDate = isMedicalDateValue(plan.startDate) ? plan.startDate : formatScheduleDateValue(new Date());
-const duration = Math.max(1, Number(plan.duration) || 1);
-const durationUnit = ["days", "weeks", "months"].includes(plan.durationUnit) ? plan.durationUnit : "weeks";
-const endDate = isMedicalDateValue(plan.endDate)
-? plan.endDate
-: getMedicalPlanEndDate(startDate, duration, durationUnit);
-if (!playerId || endDate < startDate) {
-return null;
-}
-const initialParticipation = normalizeMedicalParticipation(plan.participation, 0);
-const fallbackPhaseKey = getMedicalRtpPhaseForRecommendation(plan.status, initialParticipation);
-const phaseOption = medicalRtpPhaseOptions.some((phase) => phase.key === plan.rtpPhase)
-? getMedicalRtpPhaseOption(plan.rtpPhase)
-: getMedicalRtpPhaseOption(fallbackPhaseKey);
-const participation = normalizeMedicalParticipation(plan.participation, phaseOption.participation);
-const status = medicalInjuryPlanStatusOptions.some((option) => option.key === plan.status)
-? plan.status
-: phaseOption.status;
-const createdAt = normalizeMedicalTimestamp(plan.createdAt) || new Date().toISOString();
-const archivedAt = normalizeMedicalTimestamp(plan.archivedAt || plan.deletedAt);
-return {
-id: plan.id || createDashboardId("medical-injury-plan"),
-playerId,
-injuryType: String(plan.injuryType ?? "").trim() || "Injury",
-bodyArea: String(plan.bodyArea ?? "").trim(),
-startDate,
-endDate,
-duration,
-durationUnit,
-status,
-participation,
-reviewDate: isMedicalDateValue(plan.reviewDate) ? plan.reviewDate : "",
-rtpPhase: phaseOption.key,
-phase: String(plan.phase ?? "").trim() || phaseOption.label,
-clearance: normalizeMedicalClearance(plan.clearance),
-gates: normalizeMedicalLoadGates(plan.gates),
-coachNote: String(plan.coachNote ?? "").trim(),
-shareWithCoach: normalizeMedicalShareValue(plan.shareWithCoach),
-comment: String(plan.comment ?? "").trim(),
-createdAt,
-updatedAt: normalizeMedicalTimestamp(plan.updatedAt) || archivedAt || createdAt,
-createdBy: plan.createdBy || getCurrentPlatformUser()?.id || "",
-archivedAt,
-archivedBy: String(plan.archivedBy ?? plan.deletedBy ?? "").trim(),
-archiveReason: String(plan.archiveReason ?? plan.deleteReason ?? "").trim().slice(0, 160),
-};
-}
-function createDefaultMedicalGovernancePolicy() {
-return {
-schema: "football-medical-governance-v1",
-dataLevel: "private-medical",
-coachShareBoundary: "availability-approved-note",
-consentRequired: true,
-retentionMonths: 24,
-reviewCadenceDays: 30,
-policyOwner: "Medical Lead",
-incidentContact: "Admin",
-lastReviewed: "",
-updatedAt: "",
-updatedBy: "",
-};
-}
-function normalizeMedicalGovernancePolicy(policy = {}) {
-const defaults = createDefaultMedicalGovernancePolicy();
-const retentionMonths = clamp(Number(policy.retentionMonths) || defaults.retentionMonths, 1, 120);
-const reviewCadenceDays = clamp(Number(policy.reviewCadenceDays) || defaults.reviewCadenceDays, 1, 90);
-return {
-...defaults,
-dataLevel: "private-medical",
-coachShareBoundary: "availability-approved-note",
-consentRequired: normalizeMedicalShareValue(policy.consentRequired ?? defaults.consentRequired),
-retentionMonths: Math.round(retentionMonths),
-reviewCadenceDays: Math.round(reviewCadenceDays),
-policyOwner: String(policy.policyOwner ?? defaults.policyOwner).trim().slice(0, 80) || defaults.policyOwner,
-incidentContact: String(policy.incidentContact ?? defaults.incidentContact).trim().slice(0, 120) || defaults.incidentContact,
-lastReviewed: isMedicalDateValue(policy.lastReviewed) ? policy.lastReviewed : "",
-updatedAt: String(policy.updatedAt ?? "").trim(),
-updatedBy: String(policy.updatedBy ?? "").trim(),
-};
-}
-function sanitizeMedicalGovernancePolicyForCoachView() {
-const defaults = createDefaultMedicalGovernancePolicy();
-return {
-schema: defaults.schema,
-dataLevel: "coach-safe",
-coachShareBoundary: defaults.coachShareBoundary,
-consentRequired: true,
-retentionMonths: 0,
-reviewCadenceDays: 0,
-policyOwner: "",
-incidentContact: "",
-lastReviewed: "",
-updatedAt: "",
-updatedBy: "",
-};
-}
-function getMedicalPlayerNumberRank(player) {
-const value = String(player?.number ?? "").trim();
-if (!/^\d+$/.test(value)) {
-return null;
-}
-const numericValue = Number(value);
-return Number.isFinite(numericValue) ? numericValue : null;
-}
-function getMedicalPlayerRosterOrder(player) {
-const rosterOrder = Number(player?.rosterOrder);
-return Number.isFinite(rosterOrder) ? rosterOrder : null;
-}
-function getMedicalPlayerPositionRank(player) { return medicalPositionOrder[normalizeMedicalPlayerPosition(player?.position, player)] ?? 99; }
-function compareMedicalPlayers(first, second) {
-const firstNumber = getMedicalPlayerNumberRank(first);
-const secondNumber = getMedicalPlayerNumberRank(second);
-if (firstNumber !== null && secondNumber !== null && firstNumber !== secondNumber) {
-return firstNumber - secondNumber;
-}
-if (firstNumber !== null || secondNumber !== null) {
-return firstNumber !== null ? -1 : 1;
-}
-const firstOrder = getMedicalPlayerRosterOrder(first);
-const secondOrder = getMedicalPlayerRosterOrder(second);
-if (firstOrder !== null && secondOrder !== null && firstOrder !== secondOrder) {
-return firstOrder - secondOrder;
-}
-if (firstOrder !== null || secondOrder !== null) {
-return firstOrder !== null ? -1 : 1;
-}
-const positionComparison = getMedicalPlayerPositionRank(first) - getMedicalPlayerPositionRank(second);
-if (positionComparison !== 0) {
-return positionComparison;
-}
-return first.name.localeCompare(second.name);
 }
 function cloneMedicalState(source = {}) {
 const shouldSeedDefaultRoster =

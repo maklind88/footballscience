@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createDashboardHomeCardsRenderer } from "../src/modules/home/dashboard-renderer.mjs";
-import { normalizePlatformAppearanceConfig } from "../src/core/appearance-governance.mjs";
+import { buildPlatformAppearanceConfigFromForm, normalizePlatformAppearanceConfig } from "../src/core/appearance-governance.mjs";
 
 function normalizeUserId(userId) {
   return String(userId ?? "").trim();
@@ -86,6 +86,37 @@ test("home dashboard renderer applies safe same-type appearance rules", () => {
   expect(rendered).toContain("dashboard-appearance-density-airy");
   expect(rendered).toContain("dashboard-appearance-tone-contrast");
   expect(rendered).toContain('data-dashboard-appearance-type="home.task-panel"');
+});
+
+test("appearance governance builds Home config from form data outside app-runtime", () => {
+  const formData = new FormData();
+  formData.set("home.density", "compact");
+  formData.set("home.theme", "dark");
+  formData.set("componentType.home.task-panel.density", "airy");
+  formData.set("componentType.home.task-panel.tone", "contrast");
+  formData.set("section.todo.enabled", "on");
+  formData.set("section.todo.order", "7");
+  formData.set("section.todo.eyebrow", "Work");
+  formData.set("section.todo.title", "Tasks");
+  formData.set("section.alerts.order", "3");
+  formData.set("section.alerts.eyebrow", "Unsafe <script>");
+  formData.set("section.alerts.title", "Signals");
+
+  const config = buildPlatformAppearanceConfigFromForm(formData, normalizePlatformAppearanceConfig());
+
+  expect(config.modules.home.density).toBe("compact");
+  expect(config.modules.home.theme).toBe("dark");
+  expect(config.modules.home.componentTypes["home.task-panel"]).toMatchObject({
+    density: "airy",
+    tone: "contrast",
+  });
+  expect(config.modules.home.sections.todo).toMatchObject({
+    enabled: true,
+    order: 7,
+    eyebrow: "Work",
+    title: "Tasks",
+  });
+  expect(config.modules.home.sections.alerts.eyebrow).toBe("Player / Team Alerts");
 });
 
 test("home dashboard renderer owns tutorial modal markup without popup storage rules", () => {

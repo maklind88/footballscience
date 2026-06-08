@@ -272,11 +272,59 @@ function summarizePlatformAppearanceChange(previousValue = "", nextValue = "") {
   };
 }
 
+function getAppearanceFormData(source) {
+  if (source && typeof source.get === "function") {
+    return source;
+  }
+  return new FormData(source);
+}
+
+function buildPlatformAppearanceConfigFromForm(form, currentConfig = {}) {
+  const formData = getAppearanceFormData(form);
+  const current = normalizePlatformAppearanceConfig(currentConfig);
+  const componentTypes = Object.fromEntries(
+    platformAppearanceHomeComponentTypeIds.map((typeId) => [
+      typeId,
+      {
+        ...(current.modules.home.componentTypes[typeId] || {}),
+        density: String(formData.get(`componentType.${typeId}.density`) || ""),
+        tone: String(formData.get(`componentType.${typeId}.tone`) || ""),
+      },
+    ])
+  );
+  const sections = Object.fromEntries(
+    platformAppearanceHomeSectionDefaults.map((section) => [
+      section.id,
+      {
+        ...(current.modules.home.sections[section.id] || section),
+        enabled: formData.get(`section.${section.id}.enabled`) === "on",
+        order: String(formData.get(`section.${section.id}.order`) || section.order),
+        eyebrow: String(formData.get(`section.${section.id}.eyebrow`) || ""),
+        title: String(formData.get(`section.${section.id}.title`) || ""),
+      },
+    ])
+  );
+  return normalizePlatformAppearanceConfig({
+    ...current,
+    modules: {
+      ...current.modules,
+      home: {
+        ...current.modules.home,
+        density: String(formData.get("home.density") || ""),
+        theme: String(formData.get("home.theme") || ""),
+        componentTypes,
+        sections,
+      },
+    },
+  });
+}
+
 const appearanceGovernance = {
 
   PLATFORM_APPEARANCE_SCHEMA,
   PLATFORM_APPEARANCE_STORAGE_KEY,
   PLATFORM_APPEARANCE_VERSION,
+  buildPlatformAppearanceConfigFromForm,
   createDefaultPlatformAppearanceConfig,
   getHomeAppearanceImpactSummary,
   getHomeAppearanceConfig,
@@ -299,6 +347,7 @@ export {
   PLATFORM_APPEARANCE_SCHEMA,
   PLATFORM_APPEARANCE_STORAGE_KEY,
   PLATFORM_APPEARANCE_VERSION,
+  buildPlatformAppearanceConfigFromForm,
   createDefaultPlatformAppearanceConfig,
   getHomeAppearanceImpactSummary,
   getHomeAppearanceConfig,

@@ -77,7 +77,7 @@ import { createPlatformStructureStateHelpers } from "./src/modules/platform/stru
 import { createPlatformWorkspaceRenderers } from "./src/modules/platform/workspace-renderers.mjs";
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
 import { getTopIconSvg } from "./top-icons.js";
-import { createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
+import { buildPlatformAppearanceConfigFromForm, createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
 import { getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
 import { createProfileImageDataUrl as createProfileImageDataUrlFromModule, createProfileStaffWorkspaceController } from "./src/modules/profile/index.mjs";
 import {
@@ -7312,45 +7312,6 @@ renderAdminWorkspace();
 }
 }
 }
-function buildPlatformAppearanceConfigFromForm(form) {
-const formData = new FormData(form);
-const current = readPlatformAppearanceState();
-const componentTypes = Object.fromEntries(
-platformAppearanceHomeComponentTypeIds.map((typeId) => [
-typeId,
-{
-...(current.modules.home.componentTypes[typeId] || {}),
-density: String(formData.get(`componentType.${typeId}.density`) || ""),
-tone: String(formData.get(`componentType.${typeId}.tone`) || ""),
-},
-])
-);
-const sections = Object.fromEntries(
-platformAppearanceHomeSectionDefaults.map((section) => [
-section.id,
-{
-...(current.modules.home.sections[section.id] || section),
-enabled: formData.get(`section.${section.id}.enabled`) === "on",
-order: String(formData.get(`section.${section.id}.order`) || section.order),
-eyebrow: String(formData.get(`section.${section.id}.eyebrow`) || ""),
-title: String(formData.get(`section.${section.id}.title`) || ""),
-},
-])
-);
-return normalizePlatformAppearanceConfig({
-...current,
-modules: {
-...current.modules,
-home: {
-...current.modules.home,
-density: String(formData.get("home.density") || ""),
-theme: String(formData.get("home.theme") || ""),
-componentTypes,
-sections,
-},
-},
-});
-}
 async function publishPlatformAppearanceConfig(config, message = "Published.") {
 if (!isPlatformAdminUser(getCurrentPlatformUser())) {
 renderAdminWorkspace("Platform admin required.");
@@ -11449,7 +11410,7 @@ submittingLabel: "Publishing...",
 defaultLabel: "Publish",
 });
 try {
-await publishPlatformAppearanceConfig(buildPlatformAppearanceConfigFromForm(appearanceForm));
+await publishPlatformAppearanceConfig(buildPlatformAppearanceConfigFromForm(appearanceForm, readPlatformAppearanceState()));
 } catch (error) {
 renderAdminWorkspace(error?.message || "Could not publish.");
 } finally {

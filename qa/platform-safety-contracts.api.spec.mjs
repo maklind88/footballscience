@@ -622,11 +622,13 @@ test("Session Planner central sync conflicts retry silently instead of reopening
 
 test("Session Planner tactical board keeps selection controls simple and explicit", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const localUiStateSource = readProjectFile("src/modules/session-planner/session-planner-local-ui-state.mjs");
   const tacticalControllerSource = readProjectFile("src/modules/session-planner/session-planner-tactical-controller.mjs");
   const visualRendererSource = readProjectFile("src/modules/session-planner/session-planner-visual-renderer.mjs");
   const tacticalBoardSource = `${appSource}\n${tacticalControllerSource}\n${visualRendererSource}`;
 
-  expect(appSource).toContain("let sessionPlannerTacticalSnapEnabled = false;");
+  expect(localUiStateSource).toContain("sessionPlannerTacticalSnapEnabled: false");
+  expect(appSource).toContain("createSessionPlannerLocalUiState");
   expect(tacticalBoardSource).not.toContain("data-session-tactical-snap");
   expect(tacticalBoardSource).not.toContain("Alt for precision");
   expect(tacticalBoardSource).not.toContain("Alt gives precise movement");

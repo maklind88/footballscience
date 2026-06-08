@@ -59,7 +59,7 @@ import {
   sessionPlannerExerciseLibraryVersionLimit,
   sessionPlannerLibrarySortOptions,
 } from "./src/modules/exercise-library/index.mjs";
-import { bindSessionPlannerWorkspaceClickController, bindSessionPlannerWorkspaceDragPointerController, bindSessionPlannerWorkspaceFormController, bindSessionPlannerWorkspaceInputChangeController, createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerBoardHistoryController, createSessionPlannerRuntimeDelegates, createSessionPlannerRuntimeRenderers, createSessionPlannerStateMergeHelpers, createSessionPlannerTacticalController, createSessionPlannerWorkspaceController, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualUploadHelpers, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
+import { bindSessionPlannerWorkspaceClickController, bindSessionPlannerWorkspaceDragPointerController, bindSessionPlannerWorkspaceFormController, bindSessionPlannerWorkspaceInputChangeController, createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerBoardHistoryController, createSessionPlannerLocalUiState, createSessionPlannerRuntimeDelegates, createSessionPlannerRuntimeRenderers, createSessionPlannerStateMergeHelpers, createSessionPlannerTacticalController, createSessionPlannerWorkspaceController, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualUploadHelpers, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformShellRuntime } from "./src/core/platform-shell-runtime.mjs";
 import { createWorkspaceModuleRuntimeController } from "./src/core/workspace-module-runtime-controller.mjs";
@@ -872,7 +872,7 @@ function registerSessionPlannerCentralSyncConflict(write = {}, result = {}) {
 if (String(write.key || "") !== sessionPlannerStorageKey) {
 return;
 }
-sessionPlannerCentralSyncConflict = null;
+sessionPlannerLocalUiState.state.sessionPlannerCentralSyncConflict = null;
 showSessionPlannerCentralSyncNotice(
 result?.reason ? `Session sync needs attention: ${result.reason}` : "Session sync needs attention. Your latest edit stayed local.",
 "warning"
@@ -1774,26 +1774,8 @@ let dashboardChatThreadSummaryLastRequestedAt = 0;
 let dashboardChatComposerAttachmentDraft = null;
 let dashboardChatGroupCreatorOpen = false;
 let dashboardChatSubmittedComposerDrafts = new Map();
-let sessionPlannerLibraryOpen = false;
-let sessionPlannerLibraryPhaseFilter = "all";
-let sessionPlannerLibrarySubPhaseFilter = "all";
-let sessionPlannerLibraryPhaseFilters = [];
-let sessionPlannerLibrarySubPhaseFilters = [];
-let sessionPlannerLibraryFilterOpen = "";
-let sessionPlannerLibrarySearchQuery = "";
-let sessionPlannerLibraryArchiveView = "active";
-let sessionPlannerLibrarySortMode = "updated";
-let sessionPlannerLibraryEditExerciseId = "";
-let sessionPlannerLibraryViewExerciseId = "";
-let sessionPlannerLibrarySelectedFolderId = "all";
-let sessionPlannerLibraryEditingFolderId = "";
-let sessionPlannerDraggedLibraryExerciseId = "";
-let sessionPlannerLibraryPointerDrag = null;
-let sessionPlannerLibrarySuppressNextClick = false;
-let sessionPlannerPendingLibrarySave = null;
 const sessionPlannerMultiSelectFields = new Set(["phase", "subPhase"]);
 let sessionPlannerMultiSelectOpenField = "";
-let sessionPlannerCentralSyncConflict = null;
 let sessionPlannerCentralSyncNoticeAt = 0;
 let sessionPlannerSnapshotRecoveryQueued = false;
 let exerciseLibraryRuntime = null;
@@ -2023,9 +2005,9 @@ normalizeTacticalRotation,
 } = createSessionPlannerTacticalHelpers({
 clamp,
 getLineState: () => ({
-color: sessionPlannerTacticalColor,
-lineWidth: sessionPlannerTacticalLineWidth,
-lineStyle: sessionPlannerTacticalLineStyle,
+color: sessionPlannerLocalUiState.state.sessionPlannerTacticalColor,
+lineWidth: sessionPlannerLocalUiState.state.sessionPlannerTacticalLineWidth,
+lineStyle: sessionPlannerLocalUiState.state.sessionPlannerTacticalLineStyle,
 }),
 getSelectedBlock: getSessionPlannerSelectedBlock,
 tacticalMaxFrames: sessionPlannerTacticalMaxFrames,
@@ -2091,37 +2073,37 @@ versionLimit: sessionPlannerExerciseLibraryVersionLimit,
 });
 function getExerciseLibraryUiState() {
 return {
-open: sessionPlannerLibraryOpen,
-selectedFolderId: sessionPlannerLibrarySelectedFolderId,
-editExerciseId: sessionPlannerLibraryEditExerciseId,
-viewExerciseId: sessionPlannerLibraryViewExerciseId,
-editingFolderId: sessionPlannerLibraryEditingFolderId,
-archiveView: sessionPlannerLibraryArchiveView,
-filterOpen: sessionPlannerLibraryFilterOpen,
-searchQuery: sessionPlannerLibrarySearchQuery,
-sortMode: sessionPlannerLibrarySortMode,
-pendingSave: sessionPlannerPendingLibrarySave,
-phaseFilter: sessionPlannerLibraryPhaseFilter,
-subPhaseFilter: sessionPlannerLibrarySubPhaseFilter,
-phaseFilters: sessionPlannerLibraryPhaseFilters,
-subPhaseFilters: sessionPlannerLibrarySubPhaseFilters,
+open: sessionPlannerLocalUiState.state.sessionPlannerLibraryOpen,
+selectedFolderId: sessionPlannerLocalUiState.state.sessionPlannerLibrarySelectedFolderId,
+editExerciseId: sessionPlannerLocalUiState.state.sessionPlannerLibraryEditExerciseId,
+viewExerciseId: sessionPlannerLocalUiState.state.sessionPlannerLibraryViewExerciseId,
+editingFolderId: sessionPlannerLocalUiState.state.sessionPlannerLibraryEditingFolderId,
+archiveView: sessionPlannerLocalUiState.state.sessionPlannerLibraryArchiveView,
+filterOpen: sessionPlannerLocalUiState.state.sessionPlannerLibraryFilterOpen,
+searchQuery: sessionPlannerLocalUiState.state.sessionPlannerLibrarySearchQuery,
+sortMode: sessionPlannerLocalUiState.state.sessionPlannerLibrarySortMode,
+pendingSave: sessionPlannerLocalUiState.state.sessionPlannerPendingLibrarySave,
+phaseFilter: sessionPlannerLocalUiState.state.sessionPlannerLibraryPhaseFilter,
+subPhaseFilter: sessionPlannerLocalUiState.state.sessionPlannerLibrarySubPhaseFilter,
+phaseFilters: sessionPlannerLocalUiState.state.sessionPlannerLibraryPhaseFilters,
+subPhaseFilters: sessionPlannerLocalUiState.state.sessionPlannerLibrarySubPhaseFilters,
 };
 }
 function setExerciseLibraryUiState(nextState = {}) {
-if (Object.prototype.hasOwnProperty.call(nextState, "open")) sessionPlannerLibraryOpen = Boolean(nextState.open);
-if (Object.prototype.hasOwnProperty.call(nextState, "selectedFolderId")) sessionPlannerLibrarySelectedFolderId = nextState.selectedFolderId;
-if (Object.prototype.hasOwnProperty.call(nextState, "editExerciseId")) sessionPlannerLibraryEditExerciseId = nextState.editExerciseId;
-if (Object.prototype.hasOwnProperty.call(nextState, "viewExerciseId")) sessionPlannerLibraryViewExerciseId = nextState.viewExerciseId;
-if (Object.prototype.hasOwnProperty.call(nextState, "editingFolderId")) sessionPlannerLibraryEditingFolderId = nextState.editingFolderId;
-if (Object.prototype.hasOwnProperty.call(nextState, "archiveView")) sessionPlannerLibraryArchiveView = nextState.archiveView;
-if (Object.prototype.hasOwnProperty.call(nextState, "filterOpen")) sessionPlannerLibraryFilterOpen = nextState.filterOpen;
-if (Object.prototype.hasOwnProperty.call(nextState, "searchQuery")) sessionPlannerLibrarySearchQuery = nextState.searchQuery;
-if (Object.prototype.hasOwnProperty.call(nextState, "sortMode")) sessionPlannerLibrarySortMode = nextState.sortMode;
-if (Object.prototype.hasOwnProperty.call(nextState, "pendingSave")) sessionPlannerPendingLibrarySave = nextState.pendingSave;
-if (Object.prototype.hasOwnProperty.call(nextState, "phaseFilter")) sessionPlannerLibraryPhaseFilter = nextState.phaseFilter;
-if (Object.prototype.hasOwnProperty.call(nextState, "subPhaseFilter")) sessionPlannerLibrarySubPhaseFilter = nextState.subPhaseFilter;
-if (Object.prototype.hasOwnProperty.call(nextState, "phaseFilters")) sessionPlannerLibraryPhaseFilters = nextState.phaseFilters;
-if (Object.prototype.hasOwnProperty.call(nextState, "subPhaseFilters")) sessionPlannerLibrarySubPhaseFilters = nextState.subPhaseFilters;
+if (Object.prototype.hasOwnProperty.call(nextState, "open")) sessionPlannerLocalUiState.state.sessionPlannerLibraryOpen = Boolean(nextState.open);
+if (Object.prototype.hasOwnProperty.call(nextState, "selectedFolderId")) sessionPlannerLocalUiState.state.sessionPlannerLibrarySelectedFolderId = nextState.selectedFolderId;
+if (Object.prototype.hasOwnProperty.call(nextState, "editExerciseId")) sessionPlannerLocalUiState.state.sessionPlannerLibraryEditExerciseId = nextState.editExerciseId;
+if (Object.prototype.hasOwnProperty.call(nextState, "viewExerciseId")) sessionPlannerLocalUiState.state.sessionPlannerLibraryViewExerciseId = nextState.viewExerciseId;
+if (Object.prototype.hasOwnProperty.call(nextState, "editingFolderId")) sessionPlannerLocalUiState.state.sessionPlannerLibraryEditingFolderId = nextState.editingFolderId;
+if (Object.prototype.hasOwnProperty.call(nextState, "archiveView")) sessionPlannerLocalUiState.state.sessionPlannerLibraryArchiveView = nextState.archiveView;
+if (Object.prototype.hasOwnProperty.call(nextState, "filterOpen")) sessionPlannerLocalUiState.state.sessionPlannerLibraryFilterOpen = nextState.filterOpen;
+if (Object.prototype.hasOwnProperty.call(nextState, "searchQuery")) sessionPlannerLocalUiState.state.sessionPlannerLibrarySearchQuery = nextState.searchQuery;
+if (Object.prototype.hasOwnProperty.call(nextState, "sortMode")) sessionPlannerLocalUiState.state.sessionPlannerLibrarySortMode = nextState.sortMode;
+if (Object.prototype.hasOwnProperty.call(nextState, "pendingSave")) sessionPlannerLocalUiState.state.sessionPlannerPendingLibrarySave = nextState.pendingSave;
+if (Object.prototype.hasOwnProperty.call(nextState, "phaseFilter")) sessionPlannerLocalUiState.state.sessionPlannerLibraryPhaseFilter = nextState.phaseFilter;
+if (Object.prototype.hasOwnProperty.call(nextState, "subPhaseFilter")) sessionPlannerLocalUiState.state.sessionPlannerLibrarySubPhaseFilter = nextState.subPhaseFilter;
+if (Object.prototype.hasOwnProperty.call(nextState, "phaseFilters")) sessionPlannerLocalUiState.state.sessionPlannerLibraryPhaseFilters = nextState.phaseFilters;
+if (Object.prototype.hasOwnProperty.call(nextState, "subPhaseFilters")) sessionPlannerLocalUiState.state.sessionPlannerLibrarySubPhaseFilters = nextState.subPhaseFilters;
 }
 let exerciseLibraryRenderer;
 let exerciseLibraryActions;
@@ -2209,14 +2191,14 @@ getMultiValueSummary: getSessionPlannerMultiValueSummary,
 canEdit: canEditSessionPlanner,
 sortOptions: sessionPlannerLibrarySortOptions,
 getState: () => ({
-isOpen: sessionPlannerLibraryOpen,
-archiveView: sessionPlannerLibraryArchiveView,
-editingFolderId: sessionPlannerLibraryEditingFolderId,
-filterOpen: sessionPlannerLibraryFilterOpen,
-searchQuery: sessionPlannerLibrarySearchQuery,
-selectedFolderId: sessionPlannerLibrarySelectedFolderId,
-sortMode: sessionPlannerLibrarySortMode,
-pendingSave: sessionPlannerPendingLibrarySave,
+isOpen: sessionPlannerLocalUiState.state.sessionPlannerLibraryOpen,
+archiveView: sessionPlannerLocalUiState.state.sessionPlannerLibraryArchiveView,
+editingFolderId: sessionPlannerLocalUiState.state.sessionPlannerLibraryEditingFolderId,
+filterOpen: sessionPlannerLocalUiState.state.sessionPlannerLibraryFilterOpen,
+searchQuery: sessionPlannerLocalUiState.state.sessionPlannerLibrarySearchQuery,
+selectedFolderId: sessionPlannerLocalUiState.state.sessionPlannerLibrarySelectedFolderId,
+sortMode: sessionPlannerLocalUiState.state.sessionPlannerLibrarySortMode,
+pendingSave: sessionPlannerLocalUiState.state.sessionPlannerPendingLibrarySave,
 getFilterValues: getSessionPlannerLibraryFilterValues,
 getArchiveCounts: getSessionPlannerLibraryArchiveCounts,
 normalizeSortMode: normalizeSessionPlannerLibrarySortMode,
@@ -2228,7 +2210,7 @@ getCurrentUserId: getSessionPlannerLibraryUserId,
 isFolderArchived: isSessionPlannerLibraryFolderArchived,
 isExerciseArchived: isSessionPlannerLibraryExerciseArchived,
 canRemoveFromSelectedFolder: canRemoveSessionPlannerLibraryExerciseFromSelectedFolder,
-getSelectedFolder: () => getSessionPlannerLibraryFolderById(sessionPlannerLibrarySelectedFolderId),
+getSelectedFolder: () => getSessionPlannerLibraryFolderById(sessionPlannerLocalUiState.state.sessionPlannerLibrarySelectedFolderId),
 getFilteredExercises: getFilteredSessionPlannerExerciseLibrary,
 getEditExercise: getSessionPlannerLibraryEditExercise,
 getViewExercise: getSessionPlannerLibraryViewExercise,
@@ -2278,59 +2260,15 @@ buildExerciseFromBlock: buildSessionPlannerLibraryExerciseFromBlock,
 getUiState: getExerciseLibraryUiState,
 setUiState: setExerciseLibraryUiState,
 });
-let sessionPlannerHistoryEntries = [];
-let sessionPlannerHistoryLoading = false;
-let sessionPlannerHistoryLoadedDate = "";
-let sessionPlannerHistoryLoadError = "";
-let sessionPlannerHistoryOpen = false;
-let sessionPlannerToastMessage = "";
-let sessionPlannerToastTone = "success";
-let sessionPlannerToastTimeoutId = null;
-let sessionPlannerAddMenuOpen = false;
-let sessionPlannerVisualPreviewOpen = false;
-let sessionPlannerTacticalboardOpen = false;
-let sessionPlannerTacticalTool = "blue-player";
-let sessionPlannerTacticalColor = "#0d4f86";
-let sessionPlannerTacticalLineWidth = 1.1;
-let sessionPlannerTacticalLineStyle = "solid";
-let sessionPlannerTacticalSnapEnabled = false;
-let sessionPlannerTacticalPendingPoint = null;
-let sessionPlannerTacticalSelectedElementId = "";
-let sessionPlannerTacticalSelectedElementIds = [];
-let sessionPlannerTacticalDragState = null;
-let sessionPlannerTacticalDraftLineState = null;
-let sessionPlannerTacticalFreehandState = null;
-let sessionPlannerTacticalSelectionState = null;
-let sessionPlannerTacticalSuppressNextClick = false;
-let sessionPlannerTacticalSuppressNextClickAt = 0;
-let sessionPlannerTacticalLastPlacementClick = null;
-let sessionPlannerTacticalLastPlacement = null;
-let sessionPlannerTacticalClipboard = [];
-let sessionPlannerTacticalClipboardPasteCount = 0;
-let sessionPlannerTacticalNumberPickerElementId = "";
-let sessionPlannerDraggedBlockId = "";
-let sessionPlannerPlayerBoardOpen = false;
-let sessionPlannerPlayerBoardSelectedPlayerId = "";
-let sessionPlannerPlayerBoardSelectedPlayerIds = [];
-let sessionPlannerPlayerBoardDragState = null;
-let sessionPlannerPlayerBoardSelectionState = null;
-let sessionPlannerPlayerBoardFormationInput = "";
-let sessionPlannerPlayerBoardTeamCount = 2;
-let sessionPlannerPlayerBoardAutoMode = "balanced";
-let sessionPlannerPlayerBoardAssistantOpen = false;
-let sessionPlannerPlayerBoardCustomPersonEditor = null;
-let sessionPlannerPrintRootElement = null;
-let sessionPlannerPrintOverlayOpen = false;
-let sessionPlannerPrintPaper = "letter";
-let sessionPlannerPrintSections = Object.fromEntries(
-sessionPlannerPrintSectionOptions.map((option) => [option.key, true])
-);
+const sessionPlannerLocalUiState = createSessionPlannerLocalUiState({
+printSectionOptions: sessionPlannerPrintSectionOptions,
+});
 const sessionPlannerRuntimeRenderers = createSessionPlannerRuntimeRenderers({
 buildMedicalPlayerFromPlayerProfile,
 canEditSessionPlanner,
 clamp,
 clearSessionPlannerTacticalNumberPickerElementId: () => {
-sessionPlannerTacticalNumberPickerElementId = "";
+sessionPlannerLocalUiState.state.sessionPlannerTacticalNumberPickerElementId = "";
 },
 cloneSessionPlannerTacticalElement,
 compareMedicalPlayers,
@@ -2367,7 +2305,7 @@ getSessionPlannerPlayerBoardBridgeRoleLabel,
 getSessionPlannerPlayerBoardBridgeSummary,
 getSessionPlannerPlayerBoardColorOptions: () => sessionPlannerPlayerBoardColorOptions,
 getSessionPlannerPlayerBoardCustomPerson,
-getSessionPlannerPlayerBoardFormationInput: () => sessionPlannerPlayerBoardFormationInput,
+getSessionPlannerPlayerBoardFormationInput: () => sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardFormationInput,
 getSessionPlannerPlayerBoardMaxTeamCount: () => sessionPlannerPlayerBoardMaxTeamCount,
 getSessionPlannerPlayerBoardPlayers,
 getSessionPlannerPlayerBoardPosition,
@@ -2376,13 +2314,13 @@ getSessionPlannerPlayerBoardProfileState,
 getSessionPlannerPlayerBoardReadableSpacing,
 getSessionPlannerPlayerBoardSelectedColorIds,
 getSessionPlannerPlayerBoardState: () => ({
-playerBoardOpen: sessionPlannerPlayerBoardOpen,
-selectedPlayerIds: sessionPlannerPlayerBoardSelectedPlayerIds,
-formationInput: sessionPlannerPlayerBoardFormationInput,
-teamCount: sessionPlannerPlayerBoardTeamCount,
-autoMode: sessionPlannerPlayerBoardAutoMode,
-assistantOpen: sessionPlannerPlayerBoardAssistantOpen,
-customPersonEditor: sessionPlannerPlayerBoardCustomPersonEditor,
+playerBoardOpen: sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardOpen,
+selectedPlayerIds: sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardSelectedPlayerIds,
+formationInput: sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardFormationInput,
+teamCount: sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardTeamCount,
+autoMode: sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardAutoMode,
+assistantOpen: sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardAssistantOpen,
+customPersonEditor: sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardCustomPersonEditor,
 selectedDate: sessionPlannerState?.selectedDate || "",
 }),
 getSessionPlannerPlayerBoardSummary,
@@ -2391,9 +2329,9 @@ getSessionPlannerPlayerBoardWarnings,
 getSessionPlannerPrintPaperOptions: () => sessionPlannerPrintPaperOptions,
 getSessionPlannerPrintSectionOptions: () => sessionPlannerPrintSectionOptions,
 getSessionPlannerPrintState: () => ({
-printOverlayOpen: sessionPlannerPrintOverlayOpen,
-printPaper: sessionPlannerPrintPaper,
-printSections: sessionPlannerPrintSections,
+printOverlayOpen: sessionPlannerLocalUiState.state.sessionPlannerPrintOverlayOpen,
+printPaper: sessionPlannerLocalUiState.state.sessionPlannerPrintPaper,
+printSections: sessionPlannerLocalUiState.state.sessionPlannerPrintSections,
 selectedDate: sessionPlannerState?.selectedDate || "",
 }),
 getSessionPlannerReadablePlayerBoardPositions,
@@ -2408,18 +2346,18 @@ getSessionPlannerTacticalPitchModeOption,
 getSessionPlannerTacticalPitchModeOptions: () => sessionPlannerTacticalPitchModeOptions,
 getSessionPlannerTacticalRenderStrokeWidth,
 getSessionPlannerTacticalSelectedElementIds,
-getSessionPlannerTacticalNumberPickerElementId: () => sessionPlannerTacticalNumberPickerElementId,
+getSessionPlannerTacticalNumberPickerElementId: () => sessionPlannerLocalUiState.state.sessionPlannerTacticalNumberPickerElementId,
 getSessionPlannerVisualState: () => ({
-visualPreviewOpen: sessionPlannerVisualPreviewOpen,
-tacticalboardOpen: sessionPlannerTacticalboardOpen,
-tool: sessionPlannerTacticalTool,
-color: sessionPlannerTacticalColor,
-lineWidth: sessionPlannerTacticalLineWidth,
-lineStyle: sessionPlannerTacticalLineStyle,
-pendingPoint: sessionPlannerTacticalPendingPoint,
-selectedElementId: sessionPlannerTacticalSelectedElementId,
-draftLineState: sessionPlannerTacticalDraftLineState,
-freehandState: sessionPlannerTacticalFreehandState,
+visualPreviewOpen: sessionPlannerLocalUiState.state.sessionPlannerVisualPreviewOpen,
+tacticalboardOpen: sessionPlannerLocalUiState.state.sessionPlannerTacticalboardOpen,
+tool: sessionPlannerLocalUiState.state.sessionPlannerTacticalTool,
+color: sessionPlannerLocalUiState.state.sessionPlannerTacticalColor,
+lineWidth: sessionPlannerLocalUiState.state.sessionPlannerTacticalLineWidth,
+lineStyle: sessionPlannerLocalUiState.state.sessionPlannerTacticalLineStyle,
+pendingPoint: sessionPlannerLocalUiState.state.sessionPlannerTacticalPendingPoint,
+selectedElementId: sessionPlannerLocalUiState.state.sessionPlannerTacticalSelectedElementId,
+draftLineState: sessionPlannerLocalUiState.state.sessionPlannerTacticalDraftLineState,
+freehandState: sessionPlannerLocalUiState.state.sessionPlannerTacticalFreehandState,
 }),
 getScheduledSessionTitleForDate,
 getTacticalStrokeDasharray,
@@ -6758,13 +6696,13 @@ if (!ui.sessionPlannerWorkspace) {
 return;
 }
 const existingToast = ui.sessionPlannerWorkspace.querySelector("[data-session-toast]");
-if (!sessionPlannerToastMessage) {
+if (!sessionPlannerLocalUiState.state.sessionPlannerToastMessage) {
 existingToast?.remove();
 return;
 }
 const toastMarkup = `
-    <div class="session-toast is-${escapeHtml(sessionPlannerToastTone)}" data-session-toast role="status" aria-live="polite">
-      <strong>${escapeHtml(sessionPlannerToastMessage)}</strong>
+    <div class="session-toast is-${escapeHtml(sessionPlannerLocalUiState.state.sessionPlannerToastTone)}" data-session-toast role="status" aria-live="polite">
+      <strong>${escapeHtml(sessionPlannerLocalUiState.state.sessionPlannerToastMessage)}</strong>
     </div>
   `;
 if (existingToast) {
@@ -6774,14 +6712,14 @@ return;
 ui.sessionPlannerWorkspace.insertAdjacentHTML("beforeend", toastMarkup);
 }
 function showSessionPlannerToast(message, tone = "success") {
-sessionPlannerToastMessage = String(message || "");
-sessionPlannerToastTone = tone;
+sessionPlannerLocalUiState.state.sessionPlannerToastMessage = String(message || "");
+sessionPlannerLocalUiState.state.sessionPlannerToastTone = tone;
 renderSessionPlannerToast();
-if (sessionPlannerToastTimeoutId) {
-win.clearTimeout(sessionPlannerToastTimeoutId);
+if (sessionPlannerLocalUiState.state.sessionPlannerToastTimeoutId) {
+win.clearTimeout(sessionPlannerLocalUiState.state.sessionPlannerToastTimeoutId);
 }
-sessionPlannerToastTimeoutId = win.setTimeout(() => {
-sessionPlannerToastMessage = "";
+sessionPlannerLocalUiState.state.sessionPlannerToastTimeoutId = win.setTimeout(() => {
+sessionPlannerLocalUiState.state.sessionPlannerToastMessage = "";
 renderSessionPlannerToast();
 }, 3200);
 }
@@ -7026,9 +6964,9 @@ normalizeTacticalFrames: normalizeSessionPlannerTacticalFrames,
 normalizeTacticalPitchMode: normalizeSessionPlannerTacticalPitchMode,
 renderWorkspace: renderSessionPlannerWorkspace,
 resetTacticalDraftState: () => {
-sessionPlannerTacticalPendingPoint = null;
-sessionPlannerTacticalDraftLineState = null;
-sessionPlannerTacticalSelectionState = null;
+sessionPlannerLocalUiState.state.sessionPlannerTacticalPendingPoint = null;
+sessionPlannerLocalUiState.state.sessionPlannerTacticalDraftLineState = null;
+sessionPlannerLocalUiState.state.sessionPlannerTacticalSelectionState = null;
 },
 showToast: showSessionPlannerToast,
 writeState: writeSessionPlannerState,
@@ -7178,118 +7116,12 @@ sessionPlannerWorkspaceController = createSessionPlannerWorkspaceController({
   writeSessionPlannerState,
   getSessionPlannerPeriodizationBridge: () => sessionPlannerPeriodizationBridge,
   getLocalState: () => ({
+    ...sessionPlannerLocalUiState.getState(),
     sessionPlannerState,
-    sessionPlannerLibraryOpen,
-    sessionPlannerLibraryEditExerciseId,
-    sessionPlannerLibraryViewExerciseId,
-    sessionPlannerLibraryFilterOpen,
-    sessionPlannerLibrarySelectedFolderId,
-    sessionPlannerDraggedLibraryExerciseId,
-    sessionPlannerLibraryPointerDrag,
-    sessionPlannerLibrarySuppressNextClick,
-    sessionPlannerCentralSyncConflict,
-    sessionPlannerHistoryEntries,
-    sessionPlannerHistoryLoading,
-    sessionPlannerHistoryLoadedDate,
-    sessionPlannerHistoryLoadError,
-    sessionPlannerHistoryOpen,
-    sessionPlannerToastMessage,
-    sessionPlannerToastTone,
-    sessionPlannerToastTimeoutId,
-    sessionPlannerAddMenuOpen,
-    sessionPlannerVisualPreviewOpen,
-    sessionPlannerTacticalboardOpen,
-    sessionPlannerTacticalTool,
-    sessionPlannerTacticalColor,
-    sessionPlannerTacticalLineWidth,
-    sessionPlannerTacticalLineStyle,
-    sessionPlannerTacticalSnapEnabled,
-    sessionPlannerTacticalPendingPoint,
-    sessionPlannerTacticalSelectedElementId,
-    sessionPlannerTacticalSelectedElementIds,
-    sessionPlannerTacticalDragState,
-    sessionPlannerTacticalDraftLineState,
-    sessionPlannerTacticalFreehandState,
-    sessionPlannerTacticalSelectionState,
-    sessionPlannerTacticalSuppressNextClick,
-    sessionPlannerTacticalSuppressNextClickAt,
-    sessionPlannerTacticalLastPlacementClick,
-    sessionPlannerTacticalLastPlacement,
-    sessionPlannerTacticalClipboard,
-    sessionPlannerTacticalClipboardPasteCount,
-    sessionPlannerTacticalNumberPickerElementId,
-    sessionPlannerDraggedBlockId,
-    sessionPlannerPlayerBoardOpen,
-    sessionPlannerPlayerBoardSelectedPlayerId,
-    sessionPlannerPlayerBoardSelectedPlayerIds,
-    sessionPlannerPlayerBoardDragState,
-    sessionPlannerPlayerBoardSelectionState,
-    sessionPlannerPlayerBoardFormationInput,
-    sessionPlannerPlayerBoardTeamCount,
-    sessionPlannerPlayerBoardAutoMode,
-    sessionPlannerPlayerBoardAssistantOpen,
-    sessionPlannerPlayerBoardCustomPersonEditor,
-    sessionPlannerPrintRootElement,
-    sessionPlannerPrintOverlayOpen,
-    sessionPlannerPrintPaper,
-    sessionPlannerPrintSections,
   }),
   setLocalState: (patch = {}) => {
     if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerState")) sessionPlannerState = patch.sessionPlannerState;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerLibraryOpen")) sessionPlannerLibraryOpen = patch.sessionPlannerLibraryOpen;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerLibraryEditExerciseId")) sessionPlannerLibraryEditExerciseId = patch.sessionPlannerLibraryEditExerciseId;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerLibraryViewExerciseId")) sessionPlannerLibraryViewExerciseId = patch.sessionPlannerLibraryViewExerciseId;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerLibraryFilterOpen")) sessionPlannerLibraryFilterOpen = patch.sessionPlannerLibraryFilterOpen;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerLibrarySelectedFolderId")) sessionPlannerLibrarySelectedFolderId = patch.sessionPlannerLibrarySelectedFolderId;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerDraggedLibraryExerciseId")) sessionPlannerDraggedLibraryExerciseId = patch.sessionPlannerDraggedLibraryExerciseId;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerLibraryPointerDrag")) sessionPlannerLibraryPointerDrag = patch.sessionPlannerLibraryPointerDrag;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerLibrarySuppressNextClick")) sessionPlannerLibrarySuppressNextClick = patch.sessionPlannerLibrarySuppressNextClick;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerCentralSyncConflict")) sessionPlannerCentralSyncConflict = patch.sessionPlannerCentralSyncConflict;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerHistoryEntries")) sessionPlannerHistoryEntries = patch.sessionPlannerHistoryEntries;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerHistoryLoading")) sessionPlannerHistoryLoading = patch.sessionPlannerHistoryLoading;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerHistoryLoadedDate")) sessionPlannerHistoryLoadedDate = patch.sessionPlannerHistoryLoadedDate;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerHistoryLoadError")) sessionPlannerHistoryLoadError = patch.sessionPlannerHistoryLoadError;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerHistoryOpen")) sessionPlannerHistoryOpen = patch.sessionPlannerHistoryOpen;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerToastMessage")) sessionPlannerToastMessage = patch.sessionPlannerToastMessage;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerToastTone")) sessionPlannerToastTone = patch.sessionPlannerToastTone;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerToastTimeoutId")) sessionPlannerToastTimeoutId = patch.sessionPlannerToastTimeoutId;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerAddMenuOpen")) sessionPlannerAddMenuOpen = patch.sessionPlannerAddMenuOpen;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerVisualPreviewOpen")) sessionPlannerVisualPreviewOpen = patch.sessionPlannerVisualPreviewOpen;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerTacticalboardOpen")) sessionPlannerTacticalboardOpen = patch.sessionPlannerTacticalboardOpen;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerTacticalTool")) sessionPlannerTacticalTool = patch.sessionPlannerTacticalTool;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerTacticalColor")) sessionPlannerTacticalColor = patch.sessionPlannerTacticalColor;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerTacticalLineWidth")) sessionPlannerTacticalLineWidth = patch.sessionPlannerTacticalLineWidth;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerTacticalLineStyle")) sessionPlannerTacticalLineStyle = patch.sessionPlannerTacticalLineStyle;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerTacticalSnapEnabled")) sessionPlannerTacticalSnapEnabled = patch.sessionPlannerTacticalSnapEnabled;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerTacticalPendingPoint")) sessionPlannerTacticalPendingPoint = patch.sessionPlannerTacticalPendingPoint;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerTacticalSelectedElementId")) sessionPlannerTacticalSelectedElementId = patch.sessionPlannerTacticalSelectedElementId;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerTacticalSelectedElementIds")) sessionPlannerTacticalSelectedElementIds = patch.sessionPlannerTacticalSelectedElementIds;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerTacticalDragState")) sessionPlannerTacticalDragState = patch.sessionPlannerTacticalDragState;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerTacticalDraftLineState")) sessionPlannerTacticalDraftLineState = patch.sessionPlannerTacticalDraftLineState;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerTacticalFreehandState")) sessionPlannerTacticalFreehandState = patch.sessionPlannerTacticalFreehandState;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerTacticalSelectionState")) sessionPlannerTacticalSelectionState = patch.sessionPlannerTacticalSelectionState;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerTacticalSuppressNextClick")) sessionPlannerTacticalSuppressNextClick = patch.sessionPlannerTacticalSuppressNextClick;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerTacticalSuppressNextClickAt")) sessionPlannerTacticalSuppressNextClickAt = patch.sessionPlannerTacticalSuppressNextClickAt;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerTacticalLastPlacementClick")) sessionPlannerTacticalLastPlacementClick = patch.sessionPlannerTacticalLastPlacementClick;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerTacticalLastPlacement")) sessionPlannerTacticalLastPlacement = patch.sessionPlannerTacticalLastPlacement;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerTacticalClipboard")) sessionPlannerTacticalClipboard = patch.sessionPlannerTacticalClipboard;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerTacticalClipboardPasteCount")) sessionPlannerTacticalClipboardPasteCount = patch.sessionPlannerTacticalClipboardPasteCount;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerTacticalNumberPickerElementId")) sessionPlannerTacticalNumberPickerElementId = patch.sessionPlannerTacticalNumberPickerElementId;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerDraggedBlockId")) sessionPlannerDraggedBlockId = patch.sessionPlannerDraggedBlockId;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerPlayerBoardOpen")) sessionPlannerPlayerBoardOpen = patch.sessionPlannerPlayerBoardOpen;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerPlayerBoardSelectedPlayerId")) sessionPlannerPlayerBoardSelectedPlayerId = patch.sessionPlannerPlayerBoardSelectedPlayerId;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerPlayerBoardSelectedPlayerIds")) sessionPlannerPlayerBoardSelectedPlayerIds = patch.sessionPlannerPlayerBoardSelectedPlayerIds;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerPlayerBoardDragState")) sessionPlannerPlayerBoardDragState = patch.sessionPlannerPlayerBoardDragState;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerPlayerBoardSelectionState")) sessionPlannerPlayerBoardSelectionState = patch.sessionPlannerPlayerBoardSelectionState;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerPlayerBoardFormationInput")) sessionPlannerPlayerBoardFormationInput = patch.sessionPlannerPlayerBoardFormationInput;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerPlayerBoardTeamCount")) sessionPlannerPlayerBoardTeamCount = patch.sessionPlannerPlayerBoardTeamCount;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerPlayerBoardAutoMode")) sessionPlannerPlayerBoardAutoMode = patch.sessionPlannerPlayerBoardAutoMode;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerPlayerBoardAssistantOpen")) sessionPlannerPlayerBoardAssistantOpen = patch.sessionPlannerPlayerBoardAssistantOpen;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerPlayerBoardCustomPersonEditor")) sessionPlannerPlayerBoardCustomPersonEditor = patch.sessionPlannerPlayerBoardCustomPersonEditor;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerPrintRootElement")) sessionPlannerPrintRootElement = patch.sessionPlannerPrintRootElement;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerPrintOverlayOpen")) sessionPlannerPrintOverlayOpen = patch.sessionPlannerPrintOverlayOpen;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerPrintPaper")) sessionPlannerPrintPaper = patch.sessionPlannerPrintPaper;
-    if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerPrintSections")) sessionPlannerPrintSections = patch.sessionPlannerPrintSections;
+    sessionPlannerLocalUiState.applyPatch(patch);
   },
 });
 const profileStaffWorkspaceController = createProfileStaffWorkspaceController({
@@ -11193,17 +11025,17 @@ return true;
 }
 }
 return Boolean(
-sessionPlannerLibraryOpen ||
-sessionPlannerPendingLibrarySave ||
-sessionPlannerVisualPreviewOpen ||
-sessionPlannerPrintOverlayOpen ||
-sessionPlannerTacticalboardOpen ||
-sessionPlannerPlayerBoardOpen ||
-sessionPlannerPlayerBoardSelectedPlayerId ||
-sessionPlannerTacticalDragState ||
-sessionPlannerTacticalSelectionState ||
-sessionPlannerPlayerBoardSelectionState ||
-sessionPlannerPlayerBoardDragState
+sessionPlannerLocalUiState.state.sessionPlannerLibraryOpen ||
+sessionPlannerLocalUiState.state.sessionPlannerPendingLibrarySave ||
+sessionPlannerLocalUiState.state.sessionPlannerVisualPreviewOpen ||
+sessionPlannerLocalUiState.state.sessionPlannerPrintOverlayOpen ||
+sessionPlannerLocalUiState.state.sessionPlannerTacticalboardOpen ||
+sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardOpen ||
+sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardSelectedPlayerId ||
+sessionPlannerLocalUiState.state.sessionPlannerTacticalDragState ||
+sessionPlannerLocalUiState.state.sessionPlannerTacticalSelectionState ||
+sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardSelectionState ||
+sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardDragState
 );
 }
 function requestCentralizedAppStateReload() {
@@ -13319,9 +13151,9 @@ if (result && !result.ok) renderPlayerProfilesWorkspace(buildPlayerProfileOperat
 });
 bindSessionPlannerWorkspaceClickController({
 workspaceElement: ui.sessionPlannerWorkspace,
-getSuppressNextClick: () => sessionPlannerLibrarySuppressNextClick,
+getSuppressNextClick: () => sessionPlannerLocalUiState.state.sessionPlannerLibrarySuppressNextClick,
 setSuppressNextClick: (value) => {
-sessionPlannerLibrarySuppressNextClick = value;
+sessionPlannerLocalUiState.state.sessionPlannerLibrarySuppressNextClick = value;
 },
 handlePeriodizationClick: (event) => sessionPlannerPeriodizationBridge.handleClick(event),
 closeLibrary: closeSessionPlannerLibrary,
@@ -13334,17 +13166,17 @@ setTacticalboardOpen: setSessionPlannerTacticalboardOpen,
 updateTacticalPlayerNumber: updateSessionPlannerTacticalPlayerNumber,
 closePlayerBoardProfile: closeSessionPlannerPlayerBoardProfile,
 setPlayerBoardAssistantOpen: (open) => {
-sessionPlannerPlayerBoardAssistantOpen = open;
+sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardAssistantOpen = open;
 },
 setPlayerBoardSelectedPlayerId: (playerId) => {
-sessionPlannerPlayerBoardSelectedPlayerId = playerId;
+sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardSelectedPlayerId = playerId;
 },
 renderWorkspace: renderSessionPlannerWorkspace,
 openPlayerBoardProfile: openSessionPlannerPlayerBoardProfile,
 applySelectionAssistant: applySessionPlannerSelectionAssistant,
 normalizePlayerBoardFormationValue: normalizeSessionPlannerPlayerBoardFormationValue,
 setPlayerBoardFormationInput: (formationInput) => {
-sessionPlannerPlayerBoardFormationInput = formationInput;
+sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardFormationInput = formationInput;
 },
 applyPlayerBoardFormation: applySessionPlannerPlayerBoardFormation,
 updatePlayerBoardSelectedColor: updateSessionPlannerPlayerBoardSelectedColor,
@@ -13352,7 +13184,7 @@ resetPlayerBoardPositions: resetSessionPlannerPlayerBoardPositions,
 clearPlayerBoardSelectedColors: clearSessionPlannerPlayerBoardSelectedColors,
 closePlayerBoardCustomPersonEditor: closeSessionPlannerPlayerBoardCustomPersonEditor,
 clearPlayerBoardCustomPersonEditor: () => {
-sessionPlannerPlayerBoardCustomPersonEditor = null;
+sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardCustomPersonEditor = null;
 },
 removePlayerBoardCustomPerson: removeSessionPlannerPlayerBoardCustomPerson,
 setPlayerBoardOpen: setSessionPlannerPlayerBoardOpen,
@@ -13369,9 +13201,9 @@ copySelectedTacticalElements: copySelectedSessionPlannerTacticalElements,
 pasteTacticalClipboard: pasteSessionPlannerTacticalClipboard,
 removeSelectedTacticalElement: removeSelectedSessionPlannerTacticalElement,
 handleTacticalCanvasClick: handleSessionPlannerTacticalCanvasClick,
-getHistoryOpen: () => sessionPlannerHistoryOpen,
+getHistoryOpen: () => sessionPlannerLocalUiState.state.sessionPlannerHistoryOpen,
 setHistoryOpen: (open) => {
-sessionPlannerHistoryOpen = open;
+sessionPlannerLocalUiState.state.sessionPlannerHistoryOpen = open;
 },
 getSelectedDate: () => sessionPlannerState?.selectedDate,
 loadHistory: loadSessionPlannerHistory,
@@ -13396,7 +13228,7 @@ selectDate: selectSessionPlannerDate,
 moveBlock: moveSessionPlannerBlock,
 deleteBlock: deleteSessionPlannerBlock,
 selectBlock: selectSessionPlannerBlock,
-getAddMenuOpen: () => sessionPlannerAddMenuOpen,
+getAddMenuOpen: () => sessionPlannerLocalUiState.state.sessionPlannerAddMenuOpen,
 setAddMenuOpen: setSessionPlannerAddMenuOpen,
 addBlock: addSessionPlannerBlock,
 applyExercise: applySessionPlannerExercise,
@@ -13427,13 +13259,13 @@ normalizePlayerBoardTeamCount: normalizeSessionPlannerPlayerBoardTeamCount,
 normalizePlayerBoardAutoMode: normalizeSessionPlannerPlayerBoardAutoMode,
 normalizePlayerBoardFormationValue: normalizeSessionPlannerPlayerBoardFormationValue,
 setPlayerBoardTeamCount: (teamCount) => {
-sessionPlannerPlayerBoardTeamCount = teamCount;
+sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardTeamCount = teamCount;
 },
 setPlayerBoardAutoMode: (autoMode) => {
-sessionPlannerPlayerBoardAutoMode = autoMode;
+sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardAutoMode = autoMode;
 },
 setPlayerBoardFormationInput: (formationInput) => {
-sessionPlannerPlayerBoardFormationInput = formationInput;
+sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardFormationInput = formationInput;
 },
 applyPlayerBoardAutoSelect: applySessionPlannerPlayerBoardAutoSelect,
 copyPlayerBoardTeamsFromBlock: copySessionPlannerPlayerBoardTeamsFromBlock,
@@ -13443,13 +13275,13 @@ bindSessionPlannerWorkspaceDragPointerController({
 workspaceElement: ui.sessionPlannerWorkspace,
 win,
 canEditSessionPlanner,
-getDraggedLibraryExerciseId: () => sessionPlannerDraggedLibraryExerciseId,
+getDraggedLibraryExerciseId: () => sessionPlannerLocalUiState.state.sessionPlannerDraggedLibraryExerciseId,
 setDraggedLibraryExerciseId: (exerciseId) => {
-sessionPlannerDraggedLibraryExerciseId = exerciseId;
+sessionPlannerLocalUiState.state.sessionPlannerDraggedLibraryExerciseId = exerciseId;
 },
-getDraggedBlockId: () => sessionPlannerDraggedBlockId,
+getDraggedBlockId: () => sessionPlannerLocalUiState.state.sessionPlannerDraggedBlockId,
 setDraggedBlockId: (blockId) => {
-sessionPlannerDraggedBlockId = blockId;
+sessionPlannerLocalUiState.state.sessionPlannerDraggedBlockId = blockId;
 },
 getBlockDropPlacement: getSessionPlannerBlockDropPlacement,
 addExerciseToLibraryFolder: addSessionPlannerExerciseToLibraryFolder,
@@ -13473,17 +13305,17 @@ bindSessionPlannerWorkspaceInputChangeController({
 workspaceElement: ui.sessionPlannerWorkspace,
 cleanPlayerBoardFormationInput: cleanSessionPlannerPlayerBoardFormationInput,
 setPlayerBoardFormationInput: (formationInput) => {
-sessionPlannerPlayerBoardFormationInput = formationInput;
+sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardFormationInput = formationInput;
 },
 normalizeTacticalColor,
-getTacticalColor: () => sessionPlannerTacticalColor,
+getTacticalColor: () => sessionPlannerLocalUiState.state.sessionPlannerTacticalColor,
 setTacticalColor: (color) => {
-sessionPlannerTacticalColor = color;
+sessionPlannerLocalUiState.state.sessionPlannerTacticalColor = color;
 },
 normalizeTacticalLineWidth,
-getTacticalLineWidth: () => sessionPlannerTacticalLineWidth,
+getTacticalLineWidth: () => sessionPlannerLocalUiState.state.sessionPlannerTacticalLineWidth,
 setTacticalLineWidth: (lineWidth) => {
-sessionPlannerTacticalLineWidth = lineWidth;
+sessionPlannerLocalUiState.state.sessionPlannerTacticalLineWidth = lineWidth;
 },
 getSelectedTacticalElementIds: getSessionPlannerTacticalSelectedElementIds,
 getSelectedTacticalElements: getSelectedSessionPlannerTacticalElements,
@@ -13498,11 +13330,11 @@ resizeTextarea: resizeSessionPlannerTextarea,
 updatePlayerBoardSelectedColor: updateSessionPlannerPlayerBoardSelectedColor,
 normalizePlayerBoardTeamCount: normalizeSessionPlannerPlayerBoardTeamCount,
 setPlayerBoardTeamCount: (teamCount) => {
-sessionPlannerPlayerBoardTeamCount = teamCount;
+sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardTeamCount = teamCount;
 },
 normalizePlayerBoardAutoMode: normalizeSessionPlannerPlayerBoardAutoMode,
 setPlayerBoardAutoMode: (autoMode) => {
-sessionPlannerPlayerBoardAutoMode = autoMode;
+sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardAutoMode = autoMode;
 },
 updatePrintPaper: updateSessionPlannerPrintPaper,
 updatePrintSection: updateSessionPlannerPrintSection,
@@ -13514,20 +13346,20 @@ renderWorkspace: renderSessionPlannerWorkspace,
 });
 bindSessionPlannerTacticalShortcutController({
 clearPendingPoint: ({ clearSelection = false } = {}) => {
-sessionPlannerTacticalPendingPoint = null;
-sessionPlannerTacticalDraftLineState = null;
+sessionPlannerLocalUiState.state.sessionPlannerTacticalPendingPoint = null;
+sessionPlannerLocalUiState.state.sessionPlannerTacticalDraftLineState = null;
 if (clearSelection) {
-sessionPlannerTacticalSelectionState = null;
+sessionPlannerLocalUiState.state.sessionPlannerTacticalSelectionState = null;
 clearSessionPlannerTacticalSelection();
 }
 refreshSessionPlannerTacticalboardCanvas();
 },
 copySelectedElements: copySelectedSessionPlannerTacticalElements,
-getPendingPoint: () => sessionPlannerTacticalPendingPoint,
+getPendingPoint: () => sessionPlannerLocalUiState.state.sessionPlannerTacticalPendingPoint,
 getPlayerBadgeFromKeyboardEvent: getSessionPlannerTacticalPlayerBadgeFromKeyboardEvent,
 getSelectedElementIds: getSessionPlannerTacticalSelectedElementIds,
-hasClipboard: () => sessionPlannerTacticalClipboard.length > 0,
-isTacticalboardOpen: () => sessionPlannerTacticalboardOpen,
+hasClipboard: () => sessionPlannerLocalUiState.state.sessionPlannerTacticalClipboard.length > 0,
+isTacticalboardOpen: () => sessionPlannerLocalUiState.state.sessionPlannerTacticalboardOpen,
 pasteClipboard: pasteSessionPlannerTacticalClipboard,
 removeSelectedElement: removeSelectedSessionPlannerTacticalElement,
 updateSelectedPlayerBadges: updateSelectedSessionPlannerTacticalPlayerBadges,
@@ -13537,25 +13369,25 @@ win,
 win.addEventListener("afterprint", removeSessionPlannerPrintRoot);
 bindSessionPlannerWorkspaceKeydownController({
 workspaceElement: ui.sessionPlannerWorkspace,
-isPlayerBoardOpen: () => sessionPlannerPlayerBoardOpen,
-isPlayerBoardAssistantOpen: () => sessionPlannerPlayerBoardAssistantOpen,
+isPlayerBoardOpen: () => sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardOpen,
+isPlayerBoardAssistantOpen: () => sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardAssistantOpen,
 closePlayerBoardAssistant: () => {
-sessionPlannerPlayerBoardAssistantOpen = false;
+sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardAssistantOpen = false;
 },
-hasPlayerBoardProfile: () => Boolean(sessionPlannerPlayerBoardSelectedPlayerId),
+hasPlayerBoardProfile: () => Boolean(sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardSelectedPlayerId),
 closePlayerBoardProfile: closeSessionPlannerPlayerBoardProfile,
 setPlayerBoardOpen: setSessionPlannerPlayerBoardOpen,
-isPrintOverlayOpen: () => sessionPlannerPrintOverlayOpen,
+isPrintOverlayOpen: () => sessionPlannerLocalUiState.state.sessionPlannerPrintOverlayOpen,
 setPrintOverlayOpen: setSessionPlannerPrintOverlayOpen,
-isTacticalboardOpen: () => sessionPlannerTacticalboardOpen,
+isTacticalboardOpen: () => sessionPlannerLocalUiState.state.sessionPlannerTacticalboardOpen,
 redoBoardHistory: redoSessionPlannerBoardHistory,
 undoBoardHistory: undoSessionPlannerBoardHistory,
-hasTacticalPendingPoint: () => Boolean(sessionPlannerTacticalPendingPoint),
+hasTacticalPendingPoint: () => Boolean(sessionPlannerLocalUiState.state.sessionPlannerTacticalPendingPoint),
 clearTacticalPendingPoint: ({ clearSelectionState = false } = {}) => {
-sessionPlannerTacticalPendingPoint = null;
-sessionPlannerTacticalDraftLineState = null;
+sessionPlannerLocalUiState.state.sessionPlannerTacticalPendingPoint = null;
+sessionPlannerLocalUiState.state.sessionPlannerTacticalDraftLineState = null;
 if (clearSelectionState) {
-sessionPlannerTacticalSelectionState = null;
+sessionPlannerLocalUiState.state.sessionPlannerTacticalSelectionState = null;
 }
 },
 clearTacticalSelection: clearSessionPlannerTacticalSelection,

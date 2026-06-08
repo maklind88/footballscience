@@ -36,6 +36,7 @@ export * from "./scouting-defaults.mjs";
 export * from "./scouting-state.mjs";
 export * from "./scouting-import-helpers.mjs";
 export * from "./scouting-role-scoring-profiles.mjs";
+export * from "./scouting-database-filter-service.mjs";
 export * from "./scouting-role-additional-profiles.mjs";
 export * from "./scouting-role-spider-profiles.mjs";
 

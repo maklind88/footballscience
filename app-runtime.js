@@ -81,7 +81,7 @@ import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
 import { getTopIconSvg } from "./top-icons.js";
 import { buildPlatformAppearanceConfigFromForm, createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
 import { getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
-import { createProfileImageDataUrl as createProfileImageDataUrlFromModule, createProfileStaffWorkspaceController } from "./src/modules/profile/index.mjs";
+import { bindProfileStaffRuntimeBindings, createProfileImageDataUrl as createProfileImageDataUrlFromModule, createProfileStaffWorkspaceController } from "./src/modules/profile/index.mjs";
 import {
   createSquadDataFoundationHelpers,
   createSquadImportPlanner,
@@ -8621,13 +8621,50 @@ renderDashboardChatWidget();
 focusDashboardChatWidgetComposer();
 platformNavigationController.renderTopIconMenu();
 });
-ui.profileMenu?.addEventListener("click", (event) => {
-const trigger = event.target.closest("[data-open-workspace]");
-if (!trigger) {
-return;
-}
-setProfileMenuOpen(false);
-setActiveWorkspace(trigger.dataset.openWorkspace);
+bindProfileStaffRuntimeBindings({
+ui: {
+profileMenu: ui.profileMenu,
+profileWorkspace: ui.profileWorkspace,
+staffWorkspace: ui.staffWorkspace,
+},
+win,
+state: {
+getSelectedStaffUserId: () => selectedStaffUserId,
+setSelectedStaffUserId: (userId) => { selectedStaffUserId = userId; },
+getStaffCreateUserEditorOpen: () => staffCreateUserEditorOpen,
+setStaffCreateUserEditorOpen: (isOpen) => { staffCreateUserEditorOpen = isOpen; },
+},
+actions: {
+canAdminManageUser,
+createDashboardTask,
+createProfileImageDataUrl,
+formatUserName,
+getCurrentPlatformUser,
+getPasswordValidationMessage,
+getPlatformAuthStore,
+getPlatformFormValues,
+getPlatformUsers,
+hasHubState: () => Boolean(hubState),
+hasUserFieldConflict,
+isCurrentPlatformUserAdmin,
+maybeCopyToClipboard,
+normalizeAdminUserSubmissionValues,
+readDashboardTasks,
+refreshDashboardSurfaces,
+removeDashboardTask,
+renderProfileWorkspace,
+renderStaffWorkspace,
+renderWorkspaceChrome,
+setActiveWorkspace,
+setFormSubmitButtonState,
+setProfileMenuOpen,
+stripPasswordConfirmation,
+syncPlatformStructureWithUsers,
+syncPlatformUserFromAuth,
+togglePasswordInputVisibility,
+updateDashboardTask,
+updatePlatformUserFromPayload,
+},
 });
 ui.dataSafetyExportButton?.addEventListener("click", () => {
 exportFootballScienceDataBackup();
@@ -8641,289 +8678,6 @@ const file = event.target.files?.[0] ?? null;
 event.target.value = "";
 importFootballScienceDataBackupFile(file);
 setProfileMenuOpen(false);
-});
-win.addEventListener("platform:open-workspace", (event) => {
-const workspaceId = event.detail?.workspaceId;
-if (!workspaceId) {
-return;
-}
-win.__pendingWorkspaceId = workspaceId;
-if (!hubState) {
-return;
-}
-setProfileMenuOpen(false);
-setActiveWorkspace(workspaceId);
-});
-ui.profileWorkspace?.addEventListener("submit", async (event) => {
-event.preventDefault();
-if (win.platformAuthReadyPromise instanceof Promise) {
-try {
-await win.platformAuthReadyPromise;
-} catch {
-}
-}
-const todoForm = event.target.closest("#profileTodoForm");
-if (todoForm) {
-const user = getCurrentPlatformUser();
-const values = getPlatformFormValues(todoForm);
-if (!user || !values.title) {
-return;
-}
-createDashboardTask({
-title: values.title,
-assignedTo: user.id,
-scope: "personal",
-});
-refreshDashboardSurfaces();
-return;
-}
-const form = event.target.closest("#profileForm");
-if (!form) {
-return;
-}
-const user = getCurrentPlatformUser();
-const authStore = getPlatformAuthStore();
-if (!user || !authStore) {
-return;
-}
-const values = getPlatformFormValues(form);
-const profileValues = { ...values };
-delete profileValues.role;
-delete profileValues.status;
-setFormSubmitButtonState(form, {
-isSubmitting: true,
-submittingLabel: "Saving...",
-defaultLabel: "Save",
-});
-if (hasUserFieldConflict(user.id, values)) {
-setFormSubmitButtonState(form, { isSubmitting: false });
-renderProfileWorkspace("Username or email already exists.");
-return;
-}
-try {
-const result = await authStore.updateUser(user.id, profileValues);
-if (!result?.ok) {
-renderProfileWorkspace(result?.reason || "Profile could not be saved.");
-return;
-}
-updatePlatformUserFromPayload({ ...user, ...(result.user || result.payload?.user), ...profileValues });
-syncPlatformUserFromAuth();
-renderWorkspaceChrome();
-renderProfileWorkspace("Saved.");
-} catch (error) {
-renderProfileWorkspace(
-error?.message || "Profile details could not be saved right now. Make sure you are signed in and try again."
-);
-} finally {
-setFormSubmitButtonState(form, { isSubmitting: false, defaultLabel: "Save" });
-}
-});
-ui.profileWorkspace?.addEventListener("change", async (event) => {
-const imageInput = event.target.closest("#profileImageUpload");
-if (!imageInput) {
-return;
-}
-if (win.platformAuthReadyPromise instanceof Promise) {
-try {
-await win.platformAuthReadyPromise;
-} catch {
-}
-}
-const file = imageInput.files?.[0];
-if (!file) {
-return;
-}
-const user = getCurrentPlatformUser();
-const authStore = getPlatformAuthStore();
-if (!user || !authStore) {
-return;
-}
-const form = imageInput.closest("#profileForm");
-const values = form ? getPlatformFormValues(form) : {};
-if (form && hasUserFieldConflict(user.id, values)) {
-renderProfileWorkspace("Username or email already exists.");
-return;
-}
-try {
-const profileImageUrl = await createProfileImageDataUrl(file);
-const profileValues = { ...values };
-delete profileValues.role;
-delete profileValues.status;
-renderProfileWorkspace("Uploading profile image...");
-const uploadImage = authStore.uploadProfileImage || ((userId, imageDataUrl, patch) =>
-authStore.updateUser?.(userId, { ...patch, profileImageUrl: imageDataUrl }));
-const result = await uploadImage(user.id, profileImageUrl, profileValues);
-if (!result?.ok) {
-renderProfileWorkspace(result?.reason || "Profile image could not be saved.");
-return;
-}
-updatePlatformUserFromPayload(result.user || result.payload?.user);
-syncPlatformUserFromAuth();
-renderWorkspaceChrome();
-renderProfileWorkspace("Profile image saved.");
-} catch (error) {
-const message =
-error?.name === "QuotaExceededError"
-? "Profile image could not be saved because local storage is full."
-: error?.message ?? "Profile image could not be saved.";
-renderProfileWorkspace(message);
-}
-});
-ui.profileWorkspace?.addEventListener("click", async (event) => {
-const removePhotoButton = event.target.closest("[data-profile-remove-photo]");
-if (removePhotoButton) {
-if (win.platformAuthReadyPromise instanceof Promise) {
-try {
-await win.platformAuthReadyPromise;
-} catch {
-}
-}
-const user = getCurrentPlatformUser();
-const authStore = getPlatformAuthStore();
-if (!user || !authStore) {
-return;
-}
-try {
-const removeImage = authStore.removeProfileImage || ((userId) => authStore.updateUser?.(userId, { profileImageUrl: "" }));
-const result = await removeImage(user.id);
-if (!result?.ok) {
-renderProfileWorkspace(result?.reason || "Profile image could not be removed.");
-return;
-}
-updatePlatformUserFromPayload(result.user || result.payload?.user);
-syncPlatformUserFromAuth();
-renderWorkspaceChrome();
-renderProfileWorkspace("Profile image removed.");
-} catch (error) {
-renderProfileWorkspace(error?.message || "Profile image could not be removed.");
-}
-return;
-}
-const toggleTaskButton = event.target.closest("[data-dashboard-toggle-task]");
-if (toggleTaskButton) {
-const task = readDashboardTasks().find((candidate) => candidate.id === toggleTaskButton.dataset.dashboardToggleTask);
-if (!task) {
-return;
-}
-updateDashboardTask(task.id, {
-status: task.status === "done" ? "open" : "done",
-});
-refreshDashboardSurfaces();
-return;
-}
-const removeTaskButton = event.target.closest("[data-dashboard-remove-task]");
-if (!removeTaskButton) {
-return;
-}
-if (win.confirm("Remove this To-Do?")) {
-removeDashboardTask(removeTaskButton.dataset.dashboardRemoveTask);
-refreshDashboardSurfaces();
-}
-});
-ui.staffWorkspace?.addEventListener("click", async (event) => {
-const passwordToggle = event.target.closest("[data-toggle-password-visibility]");
-if (passwordToggle) {
-togglePasswordInputVisibility(passwordToggle);
-return;
-}
-const openCreateUserButton = event.target.closest("[data-staff-open-create-user]");
-if (openCreateUserButton) {
-staffCreateUserEditorOpen = true;
-renderStaffWorkspace();
-return;
-}
-const closeCreateUserButton = event.target.closest("[data-staff-close-create-user]");
-if (closeCreateUserButton) {
-staffCreateUserEditorOpen = false;
-renderStaffWorkspace();
-return;
-}
-const createUserOverlay = event.target.closest("[data-staff-create-user-overlay]");
-if (createUserOverlay && event.target === createUserOverlay) {
-staffCreateUserEditorOpen = false;
-renderStaffWorkspace();
-return;
-}
-const selectButton = event.target.closest("[data-staff-select-user]");
-if (selectButton) {
-selectedStaffUserId = selectButton.dataset.staffSelectUser;
-staffCreateUserEditorOpen = false;
-renderStaffWorkspace();
-return;
-}
-const removeButton = event.target.closest("[data-staff-remove-user]");
-if (!removeButton || !isCurrentPlatformUserAdmin()) {
-return;
-}
-const userId = removeButton.dataset.staffRemoveUser;
-const staffUser = getPlatformUsers().find((user) => user.id === userId);
-if (!staffUser) {
-return;
-}
-const structure = syncPlatformStructureWithUsers(getPlatformUsers());
-if (!canAdminManageUser(getCurrentPlatformUser(), staffUser, structure, { remove: true })) {
-renderStaffWorkspace("This user is outside your admin scope.");
-return;
-}
-if (!win.confirm(`Remove ${formatUserName(staffUser)}?`)) {
-return;
-}
-const result = await getPlatformAuthStore()?.removeUser?.(userId);
-if (!result?.ok) {
-renderStaffWorkspace(result?.reason ?? "User could not be removed.");
-return;
-}
-selectedStaffUserId = null;
-renderWorkspaceChrome();
-renderStaffWorkspace("Removed.");
-});
-ui.staffWorkspace?.addEventListener("submit", async (event) => {
-const form = event.target.closest("#staffUserForm");
-if (!form || !isCurrentPlatformUserAdmin()) {
-return;
-}
-event.preventDefault();
-const values = getPlatformFormValues(form);
-const passwordError = getPasswordValidationMessage(values);
-if (passwordError) {
-renderStaffWorkspace(passwordError);
-return;
-}
-const submissionValues = normalizeAdminUserSubmissionValues(
-stripPasswordConfirmation({
-...values,
-status: "active",
-}),
-getCurrentPlatformUser(),
-null,
-syncPlatformStructureWithUsers(getPlatformUsers())
-);
-const result = await getPlatformAuthStore()?.createUser?.(submissionValues);
-if (!result?.ok) {
-renderStaffWorkspace(result?.reason ?? "User could not be added.");
-return;
-}
-selectedStaffUserId = result.user?.id ?? null;
-staffCreateUserEditorOpen = false;
-form.reset();
-renderWorkspaceChrome();
-const generatedPassword = result.generatedPassword || "";
-const passwordForMessage = submissionValues.password || generatedPassword;
-const copied = passwordForMessage
-? await maybeCopyToClipboard(
-[
-"Website: https://footballscience.xyz/",
-`Username: ${result.user?.username || submissionValues.username}`,
-`Email: ${result.user?.email || submissionValues.email}`,
-`Password: ${passwordForMessage}`,
-].join("\n")
-)
-: false;
-renderStaffWorkspace(
-passwordForMessage
-? `User added. Password: ${passwordForMessage}.${copied ? " Copied to clipboard." : ""}`
-: "User added."
-);
 });
 async function createAdminUserFromForm(createUserForm) {
 if (!createUserForm) {

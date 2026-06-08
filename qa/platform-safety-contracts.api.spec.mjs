@@ -106,6 +106,7 @@ const coreFiles = [
   "src/modules/squad/squad-data-foundation.mjs",
   "src/modules/squad/squad-import-planner.mjs",
   "src/modules/squad/squad-scouting-profile-helpers.mjs",
+  "src/modules/squad/squad-scouting-runtime.mjs",
   "src/modules/squad/index.mjs",
   "src/modules/game-simulator/index.mjs",
   "src/modules/game-simulator/action-space-metrics.mjs",
@@ -372,6 +373,7 @@ test("core module contracts are covered by dedicated QA", () => {
   const gameSimulatorPointerSpec = readProjectFile("qa/game-simulator-pointer-controller.api.spec.mjs");
   const gameSimulatorSidebarSpec = readProjectFile("qa/game-simulator-sidebar-renderer.api.spec.mjs");
   const gameSimulatorKeyboardStateSpec = readProjectFile("qa/game-simulator-keyboard-state.api.spec.mjs");
+  const squadScoutingRuntimeSpec = readProjectFile("qa/squad-scouting-runtime-contract.api.spec.mjs");
 
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-safety-contracts.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-security-contracts.api.spec.mjs");
@@ -407,6 +409,9 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-tactical-controller-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-workspace-controller-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-adapter.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-scouting-runtime-contract.api.spec.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/squad/squad-scouting-runtime.mjs");
+  expect(squadScoutingRuntimeSpec).toContain("Squad Scouting runtime owns read-only scouting spider wiring outside app-runtime");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-database-schema.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-action-space-metrics.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-app-runtime-controller.api.spec.mjs");

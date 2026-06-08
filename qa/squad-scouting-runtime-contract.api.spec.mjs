@@ -1,0 +1,35 @@
+import { expect, test } from "@playwright/test";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+function readProjectFile(relativePath) {
+  return fs.readFileSync(path.join(rootDir, relativePath), "utf8");
+}
+
+test("Squad Scouting runtime owns read-only scouting spider wiring outside app-runtime", () => {
+  const appSource = readProjectFile("app-runtime.js");
+  const runtimeSource = readProjectFile("src/modules/squad/squad-scouting-runtime.mjs");
+  const indexSource = readProjectFile("src/modules/squad/index.mjs");
+
+  expect(appSource).toContain("createSquadScoutingRuntime({");
+  expect(appSource).not.toContain("playerProfileScoutingSpiderTemplates");
+  expect(appSource).not.toContain("function getPlayerProfileScoutingDatabase()");
+  expect(appSource).not.toContain("function queuePlayerProfileScoutingDatabaseLoad()");
+  expect(runtimeSource).toContain("createSquadScoutingProfileHelpers({");
+  expect(runtimeSource).toContain("createSquadScoutingSpiderRenderer({");
+  expect(runtimeSource).toContain("renderPlayerProfileScoutingSpider:");
+  expect(indexSource).toContain('export * from "./squad-scouting-runtime.mjs";');
+});
+
+test("Squad Scouting runtime stays read-only and does not own Squad writes", () => {
+  const runtimeSource = readProjectFile("src/modules/squad/squad-scouting-runtime.mjs");
+
+  expect(runtimeSource).not.toContain("setItem");
+  expect(runtimeSource).not.toContain("rawDataSafetySetItem");
+  expect(runtimeSource).not.toContain("queueCentralStateWrite");
+  expect(runtimeSource).not.toContain("writePlayerProfilesState");
+  expect(runtimeSource).not.toContain("writeMedicalState");
+});

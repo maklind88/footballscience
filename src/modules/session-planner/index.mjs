@@ -9,6 +9,7 @@ export * from "./session-planner-workspace-renderer.mjs";
 export * from "./session-planner-workspace-controller.mjs";
 export * from "./session-planner-runtime-delegates.mjs";
 export * from "./session-planner-runtime-renderers.mjs";
+export * from "./session-planner-state-merge-helpers.mjs";
 export * from "./session-planner-shortcuts-controller.mjs";
 export * from "./session-planner-tactical-helpers.mjs";
 export * from "./session-planner-tactical-controller.mjs";

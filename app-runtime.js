@@ -58,7 +58,7 @@ import {
   sessionPlannerExerciseLibraryVersionLimit,
   sessionPlannerLibrarySortOptions,
 } from "./src/modules/exercise-library/index.mjs";
-import { createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerRuntimeDelegates, createSessionPlannerRuntimeRenderers, createSessionPlannerTacticalController, createSessionPlannerWorkspaceController, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualUploadHelpers, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
+import { createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerRuntimeDelegates, createSessionPlannerRuntimeRenderers, createSessionPlannerStateMergeHelpers, createSessionPlannerTacticalController, createSessionPlannerWorkspaceController, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualUploadHelpers, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformShellRuntime } from "./src/core/platform-shell-runtime.mjs";
 import { createWorkspaceModuleRuntimeController } from "./src/core/workspace-module-runtime-controller.mjs";
@@ -6909,290 +6909,44 @@ return true;
 }
 return shouldStripSessionPlannerGeneratedDefaultSession(dateValue, session);
 }
-function cloneSessionPlannerSession(session = {}) {
-const date = session.date || formatScheduleDateValue(new Date());
-const blocks = Array.isArray(session.blocks) ? session.blocks.map(createSessionPlannerBlock) : [];
-const selectedBlockId = blocks.some((block) => block.id === session.selectedBlockId)
-? session.selectedBlockId
-: blocks[0]?.id ?? "";
-const rawTitle = String(session.title ?? "").trim();
-const isLegacyEmptyTitle = rawTitle.toLowerCase() === "no session planned";
-const title = !isLegacyEmptyTitle && rawTitle
-? rawTitle
-: getScheduledSessionTitleForDate(date) || (blocks.length ? "Training Session" : "Session");
-return {
-id: session.id || `session-${date}`,
-date,
-title,
-theme: session.theme || "",
-selectedBlockId,
-blocks,
-};
-}
-function createSessionPlannerDefaultState() {
-const selectedDate = formatScheduleDateValue(new Date());
-return {
-selectedDate,
-sessions: {
-[selectedDate]: createSessionPlannerEmptySession(selectedDate),
-},
-};
-}
-function parseSessionPlannerBlockReductionGuardTime(value) {
-const timestamp = typeof value === "number" ? value : new Date(value || 0).getTime();
-return Number.isFinite(timestamp) ? timestamp : 0;
-}
-function normalizeSessionPlannerBlockReductionGuard(source = {}) {
-const guard = source?.[sessionPlannerBlockReductionGuardKey];
-if (!guard || typeof guard !== "object" || Array.isArray(guard)) {
-return {};
-}
-const now = Date.now();
-return Object.entries(guard).reduce((normalizedGuard, [dateValue, timestampValue]) => {
-const timestamp = parseSessionPlannerBlockReductionGuardTime(timestampValue);
-if (timestamp && now - timestamp <= sessionPlannerBlockReductionGuardMaxAgeMs) {
-normalizedGuard[dateValue] = timestamp;
-}
-return normalizedGuard;
-}, {});
-}
-function canReduceSessionPlannerBlocksForDate(source, dateValue) { return Boolean(normalizeSessionPlannerBlockReductionGuard(source)[dateValue]); }
-function normalizeSessionPlannerBlockDeletionTombstones(source = {}) {
-const tombstones = source?.[sessionPlannerBlockDeletionTombstoneKey];
-if (!tombstones || typeof tombstones !== "object" || Array.isArray(tombstones)) {
-return {};
-}
-return Object.entries(tombstones).reduce((normalized, [dateValue, blockMap]) => {
-if (!blockMap || typeof blockMap !== "object" || Array.isArray(blockMap)) {
-return normalized;
-}
-const normalizedBlocks = Object.entries(blockMap).reduce((blocks, [blockId, timestampValue]) => {
-const cleanBlockId = String(blockId || "").trim();
-const timestamp = parseSessionPlannerBlockReductionGuardTime(timestampValue);
-if (cleanBlockId && timestamp) {
-blocks[cleanBlockId] = new Date(timestamp).toISOString();
-}
-return blocks;
-}, {});
-const cleanDate = String(dateValue || "").trim();
-if (cleanDate && Object.keys(normalizedBlocks).length) {
-normalized[cleanDate] = normalizedBlocks;
-}
-return normalized;
-}, {});
-}
-function markSessionPlannerBlockReductionAllowed(dateValue) {
-if (!sessionPlannerState || !dateValue) {
-return;
-}
-sessionPlannerState[sessionPlannerBlockReductionGuardKey] = {
-...normalizeSessionPlannerBlockReductionGuard(sessionPlannerState),
-[dateValue]: Date.now(),
-};
-}
-function markSessionPlannerBlockDeleted(dateValue, blockId) {
-const cleanDate = String(dateValue || "").trim();
-const cleanBlockId = String(blockId || "").trim();
-if (!sessionPlannerState || !cleanDate || !cleanBlockId) {
-return;
-}
-const tombstones = normalizeSessionPlannerBlockDeletionTombstones(sessionPlannerState);
-sessionPlannerState[sessionPlannerBlockDeletionTombstoneKey] = {
-...tombstones,
-[cleanDate]: {
-...(tombstones[cleanDate] || {}),
-[cleanBlockId]: new Date().toISOString(),
-},
-};
-markSessionPlannerBlockReductionAllowed(cleanDate);
-}
-function applySessionPlannerBlockReductionGuard(targetState, sourceState) {
-const guard = normalizeSessionPlannerBlockReductionGuard(sourceState);
-if (Object.keys(guard).length) {
-targetState[sessionPlannerBlockReductionGuardKey] = guard;
-} else {
-delete targetState[sessionPlannerBlockReductionGuardKey];
-}
-return targetState;
-}
-function applySessionPlannerBlockDeletionTombstones(targetState, ...sourceStates) {
-const tombstones = sourceStates.reduce((merged, sourceState) => {
-const next = normalizeSessionPlannerBlockDeletionTombstones(sourceState);
-Object.entries(next).forEach(([dateValue, blockMap]) => {
-merged[dateValue] = {
-...(merged[dateValue] || {}),
-...blockMap,
-};
+const {
+cloneSessionPlannerSession,
+createSessionPlannerDefaultState,
+parseSessionPlannerBlockReductionGuardTime,
+normalizeSessionPlannerBlockReductionGuard,
+canReduceSessionPlannerBlocksForDate,
+normalizeSessionPlannerBlockDeletionTombstones,
+markSessionPlannerBlockReductionAllowed,
+markSessionPlannerBlockDeleted,
+applySessionPlannerBlockReductionGuard,
+applySessionPlannerBlockDeletionTombstones,
+getSessionPlannerDeletedBlockIds,
+cloneSessionPlannerBlockMergeValue,
+isSessionPlannerBlockFieldEmptyValue,
+getSessionPlannerBlockFieldUpdatedAtMs,
+markSessionPlannerBlockFieldsUpdated,
+mergeSessionPlannerBlockForWrite,
+filterSessionPlannerDeletedBlocksForWrite,
+mergeSessionPlannerSessionForWrite,
+cloneSessionPlannerState,
+mergeSessionPlannerStateForWrite,
+mergeSessionPlannerStateFromBackup,
+} = createSessionPlannerStateMergeHelpers({
+blockDeletionTombstoneKey: sessionPlannerBlockDeletionTombstoneKey,
+blockFieldUpdatedAtKey: sessionPlannerBlockFieldUpdatedAtKey,
+blockMergeFields: sessionPlannerBlockMergeFields,
+blockMergeFieldSet: sessionPlannerBlockMergeFieldSet,
+blockReductionGuardKey: sessionPlannerBlockReductionGuardKey,
+blockReductionGuardMaxAgeMs: sessionPlannerBlockReductionGuardMaxAgeMs,
+createBlock: createSessionPlannerBlock,
+createEmptySession: createSessionPlannerEmptySession,
+formatDateValue: formatScheduleDateValue,
+getScheduledSessionTitleForDate,
+getSessionPlannerState: () => sessionPlannerState,
+normalizeBlockFieldMeta: normalizeSessionPlannerBlockFieldMeta,
+parseTimestampMs: parseSessionPlannerTimestampMs,
+shouldClearSessionForDate: shouldClearSessionPlannerSessionForDate,
 });
-return merged;
-}, {});
-if (Object.keys(tombstones).length) {
-targetState[sessionPlannerBlockDeletionTombstoneKey] = tombstones;
-} else {
-delete targetState[sessionPlannerBlockDeletionTombstoneKey];
-}
-return targetState;
-}
-function getSessionPlannerDeletedBlockIds(source, dateValue) {
-return new Set(Object.keys(normalizeSessionPlannerBlockDeletionTombstones(source)[dateValue] || {}));
-}
-function cloneSessionPlannerBlockMergeValue(value) {
-if (!value || typeof value !== "object") {
-return value;
-}
-try {
-return JSON.parse(JSON.stringify(value));
-} catch {
-return Array.isArray(value) ? [...value] : { ...value };
-}
-}
-function isSessionPlannerBlockFieldEmptyValue(value) {
-if (value === null || value === undefined) {
-return true;
-}
-if (typeof value === "string") {
-return value.trim() === "";
-}
-if (Array.isArray(value)) {
-return value.length === 0;
-}
-if (typeof value === "object") {
-return Object.keys(value).length === 0;
-}
-return false;
-}
-function getSessionPlannerBlockFieldUpdatedAtMs(block = {}, field) {
-return parseSessionPlannerTimestampMs(block?.[sessionPlannerBlockFieldUpdatedAtKey]?.[field]);
-}
-function markSessionPlannerBlockFieldsUpdated(block, fields = []) {
-if (!block) {
-return;
-}
-const validFields = fields.filter((field) => sessionPlannerBlockMergeFieldSet.has(field));
-if (!validFields.length) {
-return;
-}
-const timestamp = new Date().toISOString();
-block[sessionPlannerBlockFieldUpdatedAtKey] = {
-...normalizeSessionPlannerBlockFieldMeta(block[sessionPlannerBlockFieldUpdatedAtKey]),
-};
-validFields.forEach((field) => {
-block[sessionPlannerBlockFieldUpdatedAtKey][field] = timestamp;
-});
-block.updatedAt = timestamp;
-}
-function mergeSessionPlannerBlockForWrite(existingBlock, incomingBlock) {
-const existing = createSessionPlannerBlock(existingBlock);
-const incoming = createSessionPlannerBlock(incomingBlock);
-const merged = createSessionPlannerBlock({
-...incoming,
-id: incoming.id || existing.id,
-createdAt: incoming.createdAt || existing.createdAt,
-});
-const mergedMeta = {
-...normalizeSessionPlannerBlockFieldMeta(existing[sessionPlannerBlockFieldUpdatedAtKey]),
-...normalizeSessionPlannerBlockFieldMeta(incoming[sessionPlannerBlockFieldUpdatedAtKey]),
-};
-sessionPlannerBlockMergeFields.forEach((field) => {
-const existingTimestamp = getSessionPlannerBlockFieldUpdatedAtMs(existing, field);
-const incomingTimestamp = getSessionPlannerBlockFieldUpdatedAtMs(incoming, field);
-const existingValue = existing[field];
-const incomingValue = incoming[field];
-if (existingTimestamp && (!incomingTimestamp || existingTimestamp > incomingTimestamp)) {
-merged[field] = cloneSessionPlannerBlockMergeValue(existingValue);
-mergedMeta[field] = new Date(existingTimestamp).toISOString();
-return;
-}
-if (!existingTimestamp && !incomingTimestamp && isSessionPlannerBlockFieldEmptyValue(incomingValue) && !isSessionPlannerBlockFieldEmptyValue(existingValue)) {
-merged[field] = cloneSessionPlannerBlockMergeValue(existingValue);
-return;
-}
-merged[field] = cloneSessionPlannerBlockMergeValue(incomingValue);
-if (incomingTimestamp) {
-mergedMeta[field] = new Date(incomingTimestamp).toISOString();
-}
-});
-const newestFieldTimestamp = Object.values(mergedMeta).reduce(
-(latest, timestampValue) => Math.max(latest, parseSessionPlannerTimestampMs(timestampValue)),
-0
-);
-const newestBlockTimestamp = Math.max(
-parseSessionPlannerTimestampMs(existing.updatedAt),
-parseSessionPlannerTimestampMs(incoming.updatedAt),
-newestFieldTimestamp
-);
-merged[sessionPlannerBlockFieldUpdatedAtKey] = mergedMeta;
-merged.updatedAt = newestBlockTimestamp ? new Date(newestBlockTimestamp).toISOString() : incoming.updatedAt || existing.updatedAt || "";
-return createSessionPlannerBlock(merged);
-}
-function filterSessionPlannerDeletedBlocksForWrite(session, dateValue, deletedBlockIds = new Set()) {
-const filteredSession = cloneSessionPlannerSession({ ...session, date: session?.date || dateValue });
-if (!deletedBlockIds.size) {
-return filteredSession;
-}
-filteredSession.blocks = filteredSession.blocks.filter((block) => !deletedBlockIds.has(block.id));
-if (!filteredSession.blocks.some((block) => block.id === filteredSession.selectedBlockId)) {
-filteredSession.selectedBlockId = filteredSession.blocks[0]?.id ?? "";
-}
-return filteredSession;
-}
-function mergeSessionPlannerSessionForWrite(existingSession, incomingSession, dateValue, canReduceBlocks = false, deletedBlockIds = new Set()) {
-const existing = cloneSessionPlannerSession({ ...existingSession, date: existingSession?.date || dateValue });
-const incoming = cloneSessionPlannerSession({ ...incomingSession, date: incomingSession?.date || dateValue });
-const existingById = new Map(existing.blocks.map((block) => [block.id, block]));
-const incomingIds = new Set();
-const blocks = incoming.blocks.flatMap((incomingBlock) => {
-incomingIds.add(incomingBlock.id);
-if (deletedBlockIds.has(incomingBlock.id)) {
-return [];
-}
-const existingBlock = existingById.get(incomingBlock.id);
-return [existingBlock ? mergeSessionPlannerBlockForWrite(existingBlock, incomingBlock) : createSessionPlannerBlock(incomingBlock)];
-});
-if (!canReduceBlocks) {
-existing.blocks.forEach((existingBlock) => {
-if (!incomingIds.has(existingBlock.id) && !deletedBlockIds.has(existingBlock.id)) {
-blocks.push(createSessionPlannerBlock(existingBlock));
-}
-});
-}
-const selectedBlockId = blocks.some((block) => block.id === incoming.selectedBlockId)
-? incoming.selectedBlockId
-: blocks.some((block) => block.id === existing.selectedBlockId)
-? existing.selectedBlockId
-: blocks[0]?.id ?? "";
-return {
-...existing,
-...incoming,
-title: isSessionPlannerBlockFieldEmptyValue(incoming.title) && !isSessionPlannerBlockFieldEmptyValue(existing.title)
-? existing.title
-: incoming.title,
-theme: isSessionPlannerBlockFieldEmptyValue(incoming.theme) && !isSessionPlannerBlockFieldEmptyValue(existing.theme)
-? existing.theme
-: incoming.theme,
-date: incoming.date || existing.date || dateValue,
-selectedBlockId,
-blocks,
-};
-}
-function cloneSessionPlannerState(source = createSessionPlannerDefaultState()) {
-const fallback = createSessionPlannerDefaultState();
-const selectedDate = source.selectedDate || fallback.selectedDate;
-const sessions = {};
-Object.entries(source.sessions ?? {}).forEach(([dateValue, session]) => {
-const clonedSession = cloneSessionPlannerSession({ ...session, date: session.date || dateValue });
-sessions[dateValue] = shouldClearSessionPlannerSessionForDate(dateValue, clonedSession)
-? createSessionPlannerEmptySession(dateValue)
-: clonedSession;
-});
-if (!Object.keys(sessions).length) {
-sessions[fallback.selectedDate] = fallback.sessions[fallback.selectedDate];
-}
-return applySessionPlannerBlockDeletionTombstones(applySessionPlannerBlockReductionGuard({
-selectedDate,
-sessions,
-}, source), source);
-}
 function readSessionPlannerState() {
 try {
 const raw = win.localStorage.getItem(sessionPlannerStorageKey);
@@ -7207,74 +6961,6 @@ return state;
 } catch {
 return createSessionPlannerDefaultState();
 }
-}
-function mergeSessionPlannerStateForWrite(existingState, incomingState) {
-const existing = cloneSessionPlannerState(existingState);
-const incoming = cloneSessionPlannerState(incomingState);
-const merged = {
-...incoming,
-sessions: {},
-};
-applySessionPlannerBlockDeletionTombstones(merged, existing, incoming);
-const sessionDates = new Set([
-...Object.keys(existing.sessions || {}),
-...Object.keys(incoming.sessions || {}),
-]);
-sessionDates.forEach((dateValue) => {
-const existingSession = existing.sessions?.[dateValue];
-const incomingSession = incoming.sessions?.[dateValue];
-if (existingSession && incomingSession) {
-merged.sessions[dateValue] = mergeSessionPlannerSessionForWrite(
-existingSession,
-incomingSession,
-dateValue,
-canReduceSessionPlannerBlocksForDate(incoming, dateValue),
-getSessionPlannerDeletedBlockIds(merged, dateValue)
-);
-return;
-}
-const deletedBlockIds = getSessionPlannerDeletedBlockIds(merged, dateValue);
-if (existingSession) {
-merged.sessions[dateValue] = filterSessionPlannerDeletedBlocksForWrite(existingSession, dateValue, deletedBlockIds);
-return;
-}
-if (incomingSession) {
-merged.sessions[dateValue] = filterSessionPlannerDeletedBlocksForWrite(incomingSession, dateValue, deletedBlockIds);
-}
-});
-return applySessionPlannerBlockDeletionTombstones(applySessionPlannerBlockReductionGuard(merged, incoming), existing, incoming);
-}
-function mergeSessionPlannerStateFromBackup(currentState, backupState) {
-const current = cloneSessionPlannerState(currentState);
-const backup = cloneSessionPlannerState(backupState);
-const merged = {
-...current,
-sessions: {
-...current.sessions,
-},
-};
-let recoveredSessions = 0;
-Object.entries(backup.sessions || {}).forEach(([dateValue, backupSession]) => {
-const currentSession = merged.sessions?.[dateValue];
-const currentBlockCount = Array.isArray(currentSession?.blocks) ? currentSession.blocks.length : 0;
-const backupSessionWithoutDeletedBlocks = filterSessionPlannerDeletedBlocksForWrite(
-backupSession,
-dateValue,
-getSessionPlannerDeletedBlockIds(current, dateValue)
-);
-const backupBlockCount = Array.isArray(backupSessionWithoutDeletedBlocks?.blocks) ? backupSessionWithoutDeletedBlocks.blocks.length : 0;
-if (
-backupBlockCount > currentBlockCount &&
-!canReduceSessionPlannerBlocksForDate(current, dateValue)
-) {
-merged.sessions[dateValue] = backupSessionWithoutDeletedBlocks;
-recoveredSessions += 1;
-}
-});
-return {
-state: applySessionPlannerBlockDeletionTombstones(applySessionPlannerBlockReductionGuard(merged, current), current, backup),
-recoveredSessions,
-};
 }
 function persistNormalizedSessionPlannerState(nextState) {
 const nextValue = JSON.stringify(nextState);

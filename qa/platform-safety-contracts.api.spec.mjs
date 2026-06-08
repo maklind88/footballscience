@@ -96,6 +96,7 @@ const coreFiles = [
   "src/modules/session-planner/session-planner-player-board-renderer.mjs",
   "src/modules/session-planner/session-planner-print-renderer.mjs",
   "src/modules/session-planner/session-planner-runtime-renderers.mjs",
+  "src/modules/session-planner/session-planner-state-merge-helpers.mjs",
   "src/modules/schedule/events.mjs",
   "src/modules/schedule/schedule-adapter.mjs",
   "src/modules/schedule/index.mjs",
@@ -376,6 +377,7 @@ test("core module contracts are covered by dedicated QA", () => {
   const gameSimulatorKeyboardStateSpec = readProjectFile("qa/game-simulator-keyboard-state.api.spec.mjs");
   const squadScoutingRuntimeSpec = readProjectFile("qa/squad-scouting-runtime-contract.api.spec.mjs");
   const sessionPlannerRuntimeRenderersSpec = readProjectFile("qa/session-planner-runtime-renderers-contract.api.spec.mjs");
+  const sessionPlannerStateMergeHelpersSpec = readProjectFile("qa/session-planner-state-merge-helpers-contract.api.spec.mjs");
 
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-safety-contracts.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-security-contracts.api.spec.mjs");
@@ -411,6 +413,9 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-runtime-renderers-contract.api.spec.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/session-planner/session-planner-runtime-renderers.mjs");
   expect(sessionPlannerRuntimeRenderersSpec).toContain("Session Planner runtime renderers own renderer wiring outside app-runtime");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-state-merge-helpers-contract.api.spec.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/session-planner/session-planner-state-merge-helpers.mjs");
+  expect(sessionPlannerStateMergeHelpersSpec).toContain("Session Planner state merge helpers preserve newer block fields");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-tactical-controller-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-workspace-controller-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-adapter.api.spec.mjs");
@@ -575,14 +580,17 @@ test("Session Planner print mode keeps the coach sheet visible for browser print
 
 test("Session Planner never seeds generated training blocks onto an off day", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const stateMergeHelpersSource = readProjectFile("src/modules/session-planner/session-planner-state-merge-helpers.mjs");
 
-  expect(appSource).toContain("[selectedDate]: createSessionPlannerEmptySession(selectedDate)");
+  expect(appSource).toContain("createEmptySession: createSessionPlannerEmptySession");
+  expect(appSource).toContain("shouldClearSessionForDate: shouldClearSessionPlannerSessionForDate");
+  expect(stateMergeHelpersSource).toContain("[selectedDate]: createEmptySession(selectedDate)");
   expect(appSource).toContain("function isSessionPlannerOffDate");
   expect(appSource).toContain("function createSessionPlannerSessionForNewPlan");
   expect(appSource).toContain("function shouldStripSessionPlannerGeneratedDefaultSession");
   expect(appSource).toContain("function shouldClearSessionPlannerSessionForDate");
   expect(appSource).toContain("if (isSessionPlannerOffDate(dateValue))");
-  expect(appSource).toContain("shouldClearSessionPlannerSessionForDate(dateValue, clonedSession)");
+  expect(stateMergeHelpersSource).toContain("shouldClearSessionForDate(dateValue, clonedSession)");
   expect(appSource).toContain(
     "sessionPlannerState.sessions[dateValue] = createSessionPlannerSessionForNewPlan(dateValue);"
   );

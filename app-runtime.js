@@ -58,7 +58,7 @@ import {
   sessionPlannerExerciseLibraryVersionLimit,
   sessionPlannerLibrarySortOptions,
 } from "./src/modules/exercise-library/index.mjs";
-import { createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerTacticalController, createSessionPlannerWorkspaceController, createSessionPlannerMedicalAvailabilitySelectors, createSessionPlannerPlayerBoardFormationHelpers, createSessionPlannerPlayerBoardHelpers, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerSelectionAssistant, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualRenderer, createSessionPlannerVisualUploadHelpers, createSessionPlannerWorkspaceRenderer, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
+import { createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerRuntimeDelegates, createSessionPlannerTacticalController, createSessionPlannerWorkspaceController, createSessionPlannerMedicalAvailabilitySelectors, createSessionPlannerPlayerBoardFormationHelpers, createSessionPlannerPlayerBoardHelpers, createSessionPlannerPlayerBoardRenderer, createSessionPlannerPrintRenderer, createSessionPlannerRenderer, createSessionPlannerSelectionAssistant, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualRenderer, createSessionPlannerVisualUploadHelpers, createSessionPlannerWorkspaceRenderer, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformShellRuntime } from "./src/core/platform-shell-runtime.mjs";
 import { createWorkspaceModuleRuntimeController } from "./src/core/workspace-module-runtime-controller.mjs";
@@ -1909,6 +1909,204 @@ player: new Map(),
 };
 let sessionPlannerSnapshotRecoveryQueued = false;
 let exerciseLibraryRuntime = null;
+let sessionPlannerWorkspaceController;
+const {
+clearSelectedSessionPlannerTacticalBoard,
+getSessionPlannerTacticalEndpointCoordinates,
+getMedicalAvailabilityItems,
+getSessionPlannerSelectedSession,
+getSessionPlannerSelectedBlock,
+getSessionPlannerPlayerBoardSelectedColorIds,
+getSessionPlannerTacticalActiveFrameId,
+ensureSessionPlannerTacticalFrames,
+getSessionPlannerTacticalSelectedElementIds,
+clearSessionPlannerTacticalSelection,
+isSessionPlannerTacticalElementSelected,
+renderSessionPlannerTacticalSelectionBox,
+isSessionPlannerTacticalEndpointElement,
+updateSelectedSessionPlannerBlockField,
+getSessionPlannerDateLabel,
+renderSessionPlannerExerciseVisual,
+renderSessionPlannerActionIcon,
+canRemoveSessionPlannerLibraryExerciseFromSelectedFolder,
+getSessionPlannerPlayerBoardProfileState,
+getSessionPlannerPlayerBoardSyncedPlayer,
+getSessionPlannerPlayerBoardBridgeContract,
+getSessionPlannerPlayerBoardBridgeRoleLabel,
+getSessionPlannerPlayerBoardBridgeBestMatches,
+getSessionPlannerPlayerBoardBridgeSummary,
+getSessionPlannerPlayerBoardCustomPerson,
+getSessionPlannerPlayerBoardPlayers,
+getSessionPlannerPlayerBoardSummary,
+getSessionPlannerPlayerBoardWarnings,
+syncSessionPlannerPlayerBoardSelection,
+getSessionPlannerPlayerBoardPosition,
+getSessionPlannerPlayerBoardPositionById,
+getSessionPlannerPlayerBoardReadableSpacing,
+getSessionPlannerReadablePlayerBoardPositions,
+formatSessionPlannerHistoryTime,
+getSessionPlannerHistoryActorLabel,
+getSessionPlannerHistoryActionLabel,
+getSessionPlannerMedicalAvailability,
+renderSessionPlannerWorkspace,
+ensureSessionPlannerSelectedSession,
+selectSessionPlannerDate,
+selectSessionPlannerBlock,
+addSessionPlannerBlock,
+renumberSessionPlannerExerciseBlocks,
+moveSessionPlannerBlock,
+reorderSessionPlannerBlock,
+getSessionPlannerBlockDropPlacement,
+clearSessionPlannerBlockDragState,
+clearSessionPlannerLibraryDragState,
+updateSessionPlannerLibraryPointerDropTarget,
+startSessionPlannerLibraryPointerDrag,
+updateSessionPlannerLibraryPointerDrag,
+finishSessionPlannerLibraryPointerDrag,
+deleteSessionPlannerBlock,
+setSessionPlannerLibraryOpen,
+closeSessionPlannerLibrary,
+setSessionPlannerAddMenuOpen,
+setSessionPlannerVisualPreviewOpen,
+syncSessionPlannerPrintModeClass,
+setSessionPlannerPrintOverlayOpen,
+setSessionPlannerTacticalboardOpen,
+setSessionPlannerPlayerBoardOpen,
+openSessionPlannerPlayerBoardProfile,
+closeSessionPlannerPlayerBoardProfile,
+getSessionPlannerPlayerBoardVisiblePlayerIds,
+normalizeSessionPlannerPlayerBoardSelectedIds,
+setSessionPlannerPlayerBoardSelectedPlayers,
+toggleSessionPlannerPlayerBoardSelectedPlayer,
+syncSessionPlannerPlayerBoardSelectionUi,
+updateSessionPlannerPlayerBoardSelectedColor,
+clearSessionPlannerPlayerBoardSelectedColors,
+getSessionPlannerPlayerBoardContextPosition,
+normalizeSessionPlannerPlayerBoardCustomPersonPromptValue,
+getSessionPlannerPlayerBoardCustomPersonKind,
+removeSessionPlannerPlayerBoardCustomPerson,
+openSessionPlannerPlayerBoardCustomPersonEditor,
+closeSessionPlannerPlayerBoardCustomPersonEditor,
+saveSessionPlannerPlayerBoardCustomPersonFromForm,
+handleSessionPlannerPlayerBoardContextMenu,
+resetSessionPlannerPlayerBoardPositions,
+getSessionPlannerTacticalFrames,
+syncSessionPlannerTacticalActiveFrame,
+persistSessionPlannerTacticalElements,
+commitSessionPlannerTacticalFrames,
+addSessionPlannerTacticalFrame,
+selectSessionPlannerTacticalFrame,
+duplicateSessionPlannerTacticalFrame,
+deleteSessionPlannerTacticalFrame,
+refreshSessionPlannerTacticalboardCanvas,
+isSessionPlannerTacticalLineTool,
+isSessionPlannerTacticalStrokeElement,
+isSessionPlannerTacticalPlacementTool,
+uniqueValues,
+setSessionPlannerTacticalSelectedElements,
+isSessionPlannerTacticalSelectionToggleModifier,
+toggleSessionPlannerTacticalElementSelection,
+setSessionPlannerTacticalClickSuppression,
+setSessionPlannerTacticalPitchMode,
+openSessionPlannerTacticalNumberPicker,
+updateSessionPlannerTacticalPlayerNumber,
+updateSelectedSessionPlannerTacticalPlayerBadges,
+shouldDragSessionPlannerTacticalSelectionGroup,
+getSessionPlannerTacticalDragElementIds,
+setSessionPlannerTacticalTool,
+undoSelectedSessionPlannerTacticalBoardAction,
+removeSessionPlannerTacticalElement,
+removeSelectedSessionPlannerTacticalElement,
+addSessionPlannerTacticalElement,
+snapSessionPlannerTacticalValue,
+snapSessionPlannerTacticalPoint,
+shouldSnapSessionPlannerTacticalEvent,
+getSessionPlannerTacticalCanvasPoint,
+getSessionPlannerTacticalPointFromRect,
+getSessionPlannerTacticalElementById,
+getSessionPlannerTacticalSelectionRect,
+getSessionPlannerTacticalElementBounds,
+isSessionPlannerTacticalPointInRect,
+getSessionPlannerTacticalElementSelectionPoints,
+isSessionPlannerTacticalElementInSelectionRect,
+getSessionPlannerTacticalElementsInRect,
+getSelectedSessionPlannerTacticalElement,
+getSelectedSessionPlannerTacticalElements,
+syncSessionPlannerTacticalboardInspector,
+updateSelectedSessionPlannerTacticalElement,
+updateSessionPlannerTacticalLineStyle,
+clampMovedTacticalPoint,
+moveSessionPlannerTacticalElementFromInitial,
+moveSessionPlannerTacticalElements,
+moveSessionPlannerTacticalElementByDelta,
+getSessionPlannerTacticalBoundsCollection,
+getSessionPlannerTacticalArrangeSpacing,
+moveSessionPlannerTacticalElementCenterTo,
+arrangeSelectedSessionPlannerTacticalElements,
+copySelectedSessionPlannerTacticalElements,
+pasteSessionPlannerTacticalClipboard,
+updateSessionPlannerTacticalElementHandle,
+getSessionPlannerTacticalRotationFromEvent,
+shouldPlaceSessionPlannerTacticalDoubleClick,
+shouldSkipRepeatedSessionPlannerTacticalPlacement,
+addSessionPlannerTacticalPlacementElement,
+handleSessionPlannerTacticalCanvasClick,
+handleSessionPlannerTacticalCanvasDoubleClick,
+startSessionPlannerTacticalDrag,
+updateSessionPlannerTacticalDrag,
+finishSessionPlannerTacticalDrag,
+startSessionPlannerPlayerBoardDrag,
+updateSessionPlannerPlayerBoardDrag,
+finishSessionPlannerPlayerBoardDrag,
+getSessionPlannerPlayerBoardEventPoint,
+getSessionPlannerPlayerBoardSelectionRect,
+syncSessionPlannerPlayerBoardSelectionBox,
+startSessionPlannerPlayerBoardSelection,
+updateSessionPlannerPlayerBoardSelection,
+finishSessionPlannerPlayerBoardSelection,
+findSessionPlannerBlockById,
+normalizeSessionPlannerVisualUpload,
+handleSessionPlannerVisualUpload,
+syncSessionPlannerPostSessionNotesToLibrary,
+applySessionPlannerExercise,
+syncSessionPlannerDateStripState,
+scrollSessionPlannerSelectedDateIntoView,
+resizeSessionPlannerTextarea,
+resizeSessionPlannerTextareas,
+scrollSessionPlannerDateStrip,
+jumpSessionPlannerToToday,
+renderSessionPlannerCentralSyncConflictOverlay,
+resolveSessionPlannerCentralSyncConflict,
+getSessionPlannerBlockNumber,
+getSessionPlannerPlayerBoardRule,
+getSessionPlannerPlayerBoardProfileForPlayer,
+getSessionPlannerPlayerBoardProfileRoleFitMap,
+getSessionPlannerPlayerBoardFutureMinutesValue,
+applySessionPlannerSelectionAssistant,
+compareSessionPlannerPlayerBoardItems,
+isSessionPlannerPlayerVisibleForBoard,
+isSessionPlannerPlayerBoardCustomPersonId,
+getSessionPlannerPlayerBoardCustomPeople,
+createSessionPlannerPlayerBoardCustomItem,
+getSessionPlannerPlayerBoardAutoTargetItems,
+getSessionPlannerPlayerBoardAutoSelectFormation,
+applySessionPlannerPlayerBoardAutoTeamFormation,
+applySessionPlannerPlayerBoardAutoSelect,
+applySessionPlannerPlayerBoardFormation,
+copySessionPlannerPlayerBoardTeamsFromBlock,
+getSessionPlannerHistoryPanelContext,
+loadSessionPlannerHistory,
+restoreSessionPlannerHistoryEntry,
+getSessionPlannerAvailabilityItems,
+updateSessionPlannerPrintPaper,
+updateSessionPlannerPrintSection,
+ensureSessionPlannerPrintPageStyle,
+removeSessionPlannerPrintRoot,
+prepareSessionPlannerPrintRoot,
+printSessionPlannerCurrentSession,
+} = createSessionPlannerRuntimeDelegates({
+getController: () => sessionPlannerWorkspaceController,
+});
 const {
 cloneTacticalElement: cloneSessionPlannerTacticalElement,
 cloneTacticalFrame: cloneSessionPlannerTacticalFrame,
@@ -7770,7 +7968,6 @@ logEvent("Session planner could not be written to local storage.");
 return false;
 }
 }
-var sessionPlannerWorkspaceController;
 sessionPlannerWorkspaceController = createSessionPlannerWorkspaceController({
   assignSessionPlannerBlockFieldValue,
   assignSessionPlannerPlayerBoardAutoFormationTeams,
@@ -8005,271 +8202,6 @@ sessionPlannerWorkspaceController = createSessionPlannerWorkspaceController({
     if (Object.prototype.hasOwnProperty.call(patch, "sessionPlannerPrintSections")) sessionPlannerPrintSections = patch.sessionPlannerPrintSections;
   },
 });
-function clearSelectedSessionPlannerTacticalBoard(...args) { return sessionPlannerWorkspaceController.clearSelectedSessionPlannerTacticalBoard(...args); }
-function getSessionPlannerTacticalEndpointCoordinates(...args) { return sessionPlannerWorkspaceController.getSessionPlannerTacticalEndpointCoordinates(...args); }
-function getMedicalAvailabilityItems(...args) { return sessionPlannerWorkspaceController.getMedicalAvailabilityItems(...args); }
-function getSessionPlannerSelectedSession(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerSelectedSession(...args);
-}
-function getSessionPlannerSelectedBlock(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerSelectedBlock(...args);
-}
-function getSessionPlannerPlayerBoardSelectedColorIds(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardSelectedColorIds(...args);
-}
-function getSessionPlannerTacticalActiveFrameId(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerTacticalActiveFrameId(...args);
-}
-function ensureSessionPlannerTacticalFrames(...args) {
-return sessionPlannerWorkspaceController.ensureSessionPlannerTacticalFrames(...args);
-}
-function getSessionPlannerTacticalSelectedElementIds(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerTacticalSelectedElementIds(...args);
-}
-function clearSessionPlannerTacticalSelection(...args) {
-return sessionPlannerWorkspaceController.clearSessionPlannerTacticalSelection(...args);
-}
-function isSessionPlannerTacticalElementSelected(...args) {
-return sessionPlannerWorkspaceController.isSessionPlannerTacticalElementSelected(...args);
-}
-function renderSessionPlannerTacticalSelectionBox(...args) {
-return sessionPlannerWorkspaceController.renderSessionPlannerTacticalSelectionBox(...args);
-}
-function isSessionPlannerTacticalEndpointElement(...args) {
-return sessionPlannerWorkspaceController.isSessionPlannerTacticalEndpointElement(...args);
-}
-function updateSelectedSessionPlannerBlockField(...args) {
-return sessionPlannerWorkspaceController.updateSelectedSessionPlannerBlockField(...args);
-}
-function getSessionPlannerDateLabel(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerDateLabel(...args);
-}
-function renderSessionPlannerExerciseVisual(...args) {
-return sessionPlannerWorkspaceController.renderSessionPlannerExerciseVisual(...args);
-}
-function renderSessionPlannerActionIcon(...args) {
-return sessionPlannerWorkspaceController.renderSessionPlannerActionIcon(...args);
-}
-function canRemoveSessionPlannerLibraryExerciseFromSelectedFolder(...args) {
-return sessionPlannerWorkspaceController.canRemoveSessionPlannerLibraryExerciseFromSelectedFolder(...args);
-}
-function getSessionPlannerPlayerBoardProfileState(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardProfileState(...args);
-}
-function getSessionPlannerPlayerBoardSyncedPlayer(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardSyncedPlayer(...args);
-}
-function getSessionPlannerPlayerBoardBridgeContract(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardBridgeContract(...args);
-}
-function getSessionPlannerPlayerBoardBridgeRoleLabel(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardBridgeRoleLabel(...args);
-}
-function getSessionPlannerPlayerBoardBridgeBestMatches(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardBridgeBestMatches(...args);
-}
-function getSessionPlannerPlayerBoardBridgeSummary(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardBridgeSummary(...args);
-}
-function getSessionPlannerPlayerBoardCustomPerson(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardCustomPerson(...args);
-}
-function getSessionPlannerPlayerBoardPlayers(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardPlayers(...args);
-}
-function getSessionPlannerPlayerBoardSummary(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardSummary(...args);
-}
-function getSessionPlannerPlayerBoardWarnings(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardWarnings(...args);
-}
-function syncSessionPlannerPlayerBoardSelection(...args) {
-return sessionPlannerWorkspaceController.syncSessionPlannerPlayerBoardSelection(...args);
-}
-function getSessionPlannerPlayerBoardPosition(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardPosition(...args);
-}
-function getSessionPlannerPlayerBoardPositionById(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardPositionById(...args);
-}
-function getSessionPlannerPlayerBoardReadableSpacing(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerPlayerBoardReadableSpacing(...args);
-}
-function getSessionPlannerReadablePlayerBoardPositions(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerReadablePlayerBoardPositions(...args);
-}
-function formatSessionPlannerHistoryTime(...args) {
-return sessionPlannerWorkspaceController.formatSessionPlannerHistoryTime(...args);
-}
-function getSessionPlannerHistoryActorLabel(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerHistoryActorLabel(...args);
-}
-function getSessionPlannerHistoryActionLabel(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerHistoryActionLabel(...args);
-}
-function getSessionPlannerMedicalAvailability(...args) {
-return sessionPlannerWorkspaceController.getSessionPlannerMedicalAvailability(...args);
-}
-function renderSessionPlannerWorkspace(...args) {
-return sessionPlannerWorkspaceController.renderSessionPlannerWorkspace(...args);
-}
-const {
-  ensureSessionPlannerSelectedSession,
-  selectSessionPlannerDate,
-  selectSessionPlannerBlock,
-  addSessionPlannerBlock,
-  renumberSessionPlannerExerciseBlocks,
-  moveSessionPlannerBlock,
-  reorderSessionPlannerBlock,
-  getSessionPlannerBlockDropPlacement,
-  clearSessionPlannerBlockDragState,
-  clearSessionPlannerLibraryDragState,
-  updateSessionPlannerLibraryPointerDropTarget,
-  startSessionPlannerLibraryPointerDrag,
-  updateSessionPlannerLibraryPointerDrag,
-  finishSessionPlannerLibraryPointerDrag,
-  deleteSessionPlannerBlock,
-  setSessionPlannerLibraryOpen,
-  closeSessionPlannerLibrary,
-  setSessionPlannerAddMenuOpen,
-  setSessionPlannerVisualPreviewOpen,
-  syncSessionPlannerPrintModeClass,
-  setSessionPlannerPrintOverlayOpen,
-  setSessionPlannerTacticalboardOpen,
-  setSessionPlannerPlayerBoardOpen,
-  openSessionPlannerPlayerBoardProfile,
-  closeSessionPlannerPlayerBoardProfile,
-  getSessionPlannerPlayerBoardVisiblePlayerIds,
-  normalizeSessionPlannerPlayerBoardSelectedIds,
-  setSessionPlannerPlayerBoardSelectedPlayers,
-  toggleSessionPlannerPlayerBoardSelectedPlayer,
-  syncSessionPlannerPlayerBoardSelectionUi,
-  updateSessionPlannerPlayerBoardSelectedColor,
-  clearSessionPlannerPlayerBoardSelectedColors,
-  getSessionPlannerPlayerBoardContextPosition,
-  normalizeSessionPlannerPlayerBoardCustomPersonPromptValue,
-  getSessionPlannerPlayerBoardCustomPersonKind,
-  removeSessionPlannerPlayerBoardCustomPerson,
-  openSessionPlannerPlayerBoardCustomPersonEditor,
-  closeSessionPlannerPlayerBoardCustomPersonEditor,
-  saveSessionPlannerPlayerBoardCustomPersonFromForm,
-  handleSessionPlannerPlayerBoardContextMenu,
-  resetSessionPlannerPlayerBoardPositions,
-  getSessionPlannerTacticalFrames,
-  syncSessionPlannerTacticalActiveFrame,
-  persistSessionPlannerTacticalElements,
-  commitSessionPlannerTacticalFrames,
-  addSessionPlannerTacticalFrame,
-  selectSessionPlannerTacticalFrame,
-  duplicateSessionPlannerTacticalFrame,
-  deleteSessionPlannerTacticalFrame,
-  refreshSessionPlannerTacticalboardCanvas,
-  isSessionPlannerTacticalLineTool,
-  isSessionPlannerTacticalStrokeElement,
-  isSessionPlannerTacticalPlacementTool,
-  uniqueValues,
-  setSessionPlannerTacticalSelectedElements,
-  isSessionPlannerTacticalSelectionToggleModifier,
-  toggleSessionPlannerTacticalElementSelection,
-  setSessionPlannerTacticalClickSuppression,
-  setSessionPlannerTacticalPitchMode,
-  openSessionPlannerTacticalNumberPicker,
-  updateSessionPlannerTacticalPlayerNumber,
-  updateSelectedSessionPlannerTacticalPlayerBadges,
-  shouldDragSessionPlannerTacticalSelectionGroup,
-  getSessionPlannerTacticalDragElementIds,
-  setSessionPlannerTacticalTool,
-  undoSelectedSessionPlannerTacticalBoardAction,
-  removeSessionPlannerTacticalElement,
-  removeSelectedSessionPlannerTacticalElement,
-  addSessionPlannerTacticalElement,
-  snapSessionPlannerTacticalValue,
-  snapSessionPlannerTacticalPoint,
-  shouldSnapSessionPlannerTacticalEvent,
-  getSessionPlannerTacticalCanvasPoint,
-  getSessionPlannerTacticalPointFromRect,
-  getSessionPlannerTacticalElementById,
-  getSessionPlannerTacticalSelectionRect,
-  getSessionPlannerTacticalElementBounds,
-  isSessionPlannerTacticalPointInRect,
-  getSessionPlannerTacticalElementSelectionPoints,
-  isSessionPlannerTacticalElementInSelectionRect,
-  getSessionPlannerTacticalElementsInRect,
-  getSelectedSessionPlannerTacticalElement,
-  getSelectedSessionPlannerTacticalElements,
-  syncSessionPlannerTacticalboardInspector,
-  updateSelectedSessionPlannerTacticalElement,
-  updateSessionPlannerTacticalLineStyle,
-  clampMovedTacticalPoint,
-  moveSessionPlannerTacticalElementFromInitial,
-  moveSessionPlannerTacticalElements,
-  moveSessionPlannerTacticalElementByDelta,
-  getSessionPlannerTacticalBoundsCollection,
-  getSessionPlannerTacticalArrangeSpacing,
-  moveSessionPlannerTacticalElementCenterTo,
-  arrangeSelectedSessionPlannerTacticalElements,
-  copySelectedSessionPlannerTacticalElements,
-  pasteSessionPlannerTacticalClipboard,
-  updateSessionPlannerTacticalElementHandle,
-  getSessionPlannerTacticalRotationFromEvent,
-  shouldPlaceSessionPlannerTacticalDoubleClick,
-  shouldSkipRepeatedSessionPlannerTacticalPlacement,
-  addSessionPlannerTacticalPlacementElement,
-  handleSessionPlannerTacticalCanvasClick,
-  handleSessionPlannerTacticalCanvasDoubleClick,
-  startSessionPlannerTacticalDrag,
-  updateSessionPlannerTacticalDrag,
-  finishSessionPlannerTacticalDrag,
-  startSessionPlannerPlayerBoardDrag,
-  updateSessionPlannerPlayerBoardDrag,
-  finishSessionPlannerPlayerBoardDrag,
-  getSessionPlannerPlayerBoardEventPoint,
-  getSessionPlannerPlayerBoardSelectionRect,
-  syncSessionPlannerPlayerBoardSelectionBox,
-  startSessionPlannerPlayerBoardSelection,
-  updateSessionPlannerPlayerBoardSelection,
-  finishSessionPlannerPlayerBoardSelection,
-  findSessionPlannerBlockById,
-  normalizeSessionPlannerVisualUpload,
-  handleSessionPlannerVisualUpload,
-  syncSessionPlannerPostSessionNotesToLibrary,
-  applySessionPlannerExercise,
-  syncSessionPlannerDateStripState,
-  scrollSessionPlannerSelectedDateIntoView,
-  resizeSessionPlannerTextarea,
-  resizeSessionPlannerTextareas,
-  scrollSessionPlannerDateStrip,
-  jumpSessionPlannerToToday,
-  renderSessionPlannerCentralSyncConflictOverlay,
-  resolveSessionPlannerCentralSyncConflict,
-  getSessionPlannerBlockNumber,
-  getSessionPlannerPlayerBoardRule,
-  getSessionPlannerPlayerBoardProfileForPlayer,
-  getSessionPlannerPlayerBoardProfileRoleFitMap,
-  getSessionPlannerPlayerBoardFutureMinutesValue,
-  applySessionPlannerSelectionAssistant,
-  compareSessionPlannerPlayerBoardItems,
-  isSessionPlannerPlayerVisibleForBoard,
-  isSessionPlannerPlayerBoardCustomPersonId,
-  getSessionPlannerPlayerBoardCustomPeople,
-  createSessionPlannerPlayerBoardCustomItem,
-  getSessionPlannerPlayerBoardAutoTargetItems,
-  getSessionPlannerPlayerBoardAutoSelectFormation,
-  applySessionPlannerPlayerBoardAutoTeamFormation,
-  applySessionPlannerPlayerBoardAutoSelect,
-  applySessionPlannerPlayerBoardFormation,
-  copySessionPlannerPlayerBoardTeamsFromBlock,
-  getSessionPlannerHistoryPanelContext,
-  loadSessionPlannerHistory,
-  restoreSessionPlannerHistoryEntry,
-  getSessionPlannerAvailabilityItems,
-  updateSessionPlannerPrintPaper,
-  updateSessionPlannerPrintSection,
-  ensureSessionPlannerPrintPageStyle,
-  removeSessionPlannerPrintRoot,
-  prepareSessionPlannerPrintRoot,
-  printSessionPlannerCurrentSession,
-} = sessionPlannerWorkspaceController;
 const profileStaffWorkspaceController = createProfileStaffWorkspaceController({
 getActiveWorkspaceId: () => hubState?.activeWorkspaceId,
 getAssignableRolesForUser,

@@ -346,6 +346,7 @@ test("core module contracts are covered by dedicated QA", () => {
   const scheduleSpec = readProjectFile("qa/schedule-adapter.api.spec.mjs");
   const scheduleDatabaseAdapterSpec = readProjectFile("qa/schedule-database-adapter.api.spec.mjs");
   const scheduleDatabaseSpec = readProjectFile("qa/schedule-database-schema.api.spec.mjs");
+  const sessionPlannerRuntimeDelegatesSpec = readProjectFile("qa/session-planner-runtime-delegates-contract.api.spec.mjs");
   const squadAdapterSpec = readProjectFile("qa/squad-adapter.api.spec.mjs");
   const squadDatabaseSpec = readProjectFile("qa/squad-database-schema.api.spec.mjs");
   const gameSimulatorActionSpaceMetricsSpec = readProjectFile("qa/game-simulator-action-space-metrics.api.spec.mjs");
@@ -395,6 +396,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/schedule-database-schema.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/exercise-library-module-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-module-contract.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-runtime-delegates-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-tactical-controller-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-workspace-controller-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-adapter.api.spec.mjs");
@@ -428,6 +430,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(scheduleSpec).toContain("Schedule legacy read adapter uses the protected storage key");
   expect(scheduleDatabaseAdapterSpec).toContain("schedule database adapter remains feature flagged");
   expect(scheduleDatabaseSpec).toContain("server-write first and RLS protected");
+  expect(sessionPlannerRuntimeDelegatesSpec).toContain("Session Planner runtime delegates keep app-runtime pass-through out of the shell");
   expect(squadAdapterSpec).toContain("Squad legacy read adapter uses the protected storage key");
   expect(squadDatabaseSpec).toContain("multi-tenant roster model");
   expect(gameSimulatorBallResolutionEngineSpec).toContain("game simulator ball resolution engine");

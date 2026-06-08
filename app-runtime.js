@@ -66,6 +66,7 @@ import { createWorkspaceShellController } from "./src/core/workspace-shell-contr
 import { bindPlatformNavigationInteractions } from "./src/core/platform-navigation-bindings.mjs";
 import { createPlatformUiBindings } from "./src/core/platform-ui-bindings.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
+import { createWorkspaceHubStateHelpers } from "./src/core/workspace-hub-state.mjs";
 import { addCalendarDays, clamp, escapeHtml, formatDashboardDateTime, formatDashboardTime, logEvent, setFormSubmitButtonState } from "./src/core/runtime-ui-helpers.mjs";
 import { installPlatformOverlayStability } from "./src/core/overlay-stability.mjs";
 import { defaultHubState, placeholderWorkspaceContent, platformSidebarMoreOrder, platformSidebarPrimaryOrder, topIconMenuOrder } from "./src/core/workspace-defaults.mjs";
@@ -3515,6 +3516,14 @@ mergedWorkspace.description = defaultWorkspace.description;
 return mergedWorkspace;
 });
 }
+const {
+cloneHubState,
+clonePersistableWorkspaceHubState,
+} = createWorkspaceHubStateHelpers({
+defaultHubState,
+defaultWorkspaceAccess,
+mergeWorkspaceDefinitions,
+});
 function repairWorkspaceState(candidateState = hubState) {
 const repairedState = candidateState ?? cloneHubState(defaultHubState);
 const mergedWorkspaces = mergeWorkspaceDefinitions(
@@ -4049,37 +4058,6 @@ renderPeriodizationWorkspace();
 },
 });
 function renderScheduleWorkspace() { scheduleWorkspaceController.render(); }
-function cloneHubState(source = defaultHubState) {
-return {
-activeWorkspaceId: source.activeWorkspaceId,
-sidebarCollapsed: Boolean(source.sidebarCollapsed),
-profile: {
-name: source.profile?.name ?? defaultHubState.profile.name,
-shortName: source.profile?.shortName ?? defaultHubState.profile.shortName,
-role: source.profile?.role ?? defaultHubState.profile.role,
-},
-workspaces: mergeWorkspaceDefinitions(source.workspaces ?? defaultHubState.workspaces).map((workspace) => ({
-id: workspace.id,
-kind: workspace.kind,
-title: workspace.title,
-meta: workspace.meta,
-description: workspace.description,
-status: workspace.status,
-icon: workspace.icon,
-requiresAdmin: Boolean(workspace.requiresAdmin),
-hiddenFromNav: Boolean(workspace.hiddenFromNav),
-})),
-workspaceAccess: {
-...defaultWorkspaceAccess,
-...(source.workspaceAccess ?? {}),
-},
-};
-}
-function clonePersistableWorkspaceHubState(source = hubState) {
-const clonedState = cloneHubState(source ?? defaultHubState);
-delete clonedState.activeWorkspaceId;
-return clonedState;
-}
 function readWorkspaceHubState() {
 try {
 const raw = win.localStorage.getItem(workspaceHubStorageKey);

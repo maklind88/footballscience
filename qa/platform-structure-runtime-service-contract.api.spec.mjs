@@ -10,6 +10,10 @@ const platformRuntimeAccessorsSource = fs.readFileSync(
   path.join(repoRoot, "src/core/platform-runtime-accessors.mjs"),
   "utf8"
 );
+const platformRuntimeServicesComposerSource = fs.readFileSync(
+  path.join(repoRoot, "src/core/platform-runtime-services-composer.mjs"),
+  "utf8"
+);
 const serviceSource = fs.readFileSync(
   path.join(repoRoot, "src/modules/platform/platform-structure-runtime-service.mjs"),
   "utf8"
@@ -52,7 +56,9 @@ function createService(options = {}) {
 }
 
 test("Platform structure runtime owns structure and admin scope bodies outside app-runtime", () => {
-  expect(appRuntimeSource).toContain("createPlatformStructureRuntimeService({");
+  expect(appRuntimeSource).toContain("createPlatformRuntimeServices({");
+  expect(appRuntimeSource).not.toContain("createPlatformStructureRuntimeService({");
+  expect(platformRuntimeServicesComposerSource).toContain("createPlatformStructureRuntimeService({");
   expect(appRuntimeSource).toContain("platform-runtime-accessors.mjs");
   expect(appRuntimeSource).toContain("platformStructureRuntimeService,");
   expect(platformRuntimeAccessorsSource).toContain("syncPlatformStructureWithUsers");

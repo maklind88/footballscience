@@ -12,10 +12,13 @@ function readProjectFile(relativePath) {
 
 test("Schedule runtime selectors own read-only app bridge outside app-runtime", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const composerSource = readProjectFile("src/core/platform-runtime-services-composer.mjs");
   const selectorSource = readProjectFile("src/modules/schedule/schedule-runtime-selectors.mjs");
   const indexSource = readProjectFile("src/modules/schedule/index.mjs");
 
-  expect(appSource).toContain("createScheduleRuntimeSelectors({");
+  expect(appSource).toContain("createPlatformRuntimeServices({");
+  expect(appSource).not.toContain("createScheduleRuntimeSelectors({");
+  expect(composerSource).toContain("createScheduleRuntimeSelectors({");
   expect(appSource).not.toContain("function getScheduleSelectedDayContext");
   expect(appSource).not.toContain("function getScheduleSessionSnapshot");
   expect(selectorSource).not.toContain("localStorage");

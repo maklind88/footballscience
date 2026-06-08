@@ -104,10 +104,13 @@ function createHarness(options = {}) {
 
 test("workspace data runtime service owns state bodies outside app-runtime", () => {
   const runtimeSource = readFileSync(new URL("../app-runtime.js", import.meta.url), "utf8");
+  const composerSource = readFileSync(new URL("../src/core/platform-runtime-services-composer.mjs", import.meta.url), "utf8");
   const accessorsSource = readFileSync(new URL("../src/core/platform-runtime-accessors.mjs", import.meta.url), "utf8");
   const serviceSource = readFileSync(new URL("../src/core/workspace-data-runtime-service.mjs", import.meta.url), "utf8");
 
-  expect(runtimeSource).toContain("createWorkspaceDataRuntimeService({");
+  expect(runtimeSource).toContain("createPlatformRuntimeServices({");
+  expect(runtimeSource).not.toContain("createWorkspaceDataRuntimeService({");
+  expect(composerSource).toContain("createWorkspaceDataRuntimeService({");
   expect(runtimeSource).toContain("platform-runtime-accessors.mjs");
   expect(runtimeSource).toContain("workspaceDataRuntimeService,");
   expect(accessorsSource).toContain('callAccessorSource("workspaceDataRuntimeService", "readScheduleState"');

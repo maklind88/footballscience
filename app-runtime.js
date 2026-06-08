@@ -13,8 +13,6 @@ import {
   dashboardTaskStorageKey,
   dashboardTutorialPrefsStorageKey,
 } from "./src/modules/home/index.mjs";
-import { createScheduleWorkspaceController } from "./src/modules/schedule/schedule-controller.mjs";
-import { createScheduleRuntimeSelectors } from "./src/modules/schedule/schedule-runtime-selectors.mjs";
 import { formatMonthYearLabel, formatScheduleBlockSummary as formatScheduleBlockSummaryFromModule, formatScheduleMonthName, getScheduleDayWarnings as getScheduleDayWarningsFromModule, getScheduleMainEvent as getScheduleMainEventFromModule, isScheduleSessionEvent as isScheduleSessionEventFromModule } from "./src/modules/schedule/schedule-selectors.mjs";
 import {
   cloneScheduleState,
@@ -63,18 +61,16 @@ import { createSessionPlannerRuntimeServiceComposition } from "./src/modules/ses
 import { configureSessionPlannerRuntimeAccessors, clearSelectedSessionPlannerTacticalBoard, getSessionPlannerTacticalEndpointCoordinates, getMedicalAvailabilityItems, getSessionPlannerSelectedSession, getSessionPlannerSelectedBlock, getSessionPlannerPlayerBoardSelectedColorIds, getSessionPlannerTacticalActiveFrameId, ensureSessionPlannerTacticalFrames, getSessionPlannerTacticalSelectedElementIds, clearSessionPlannerTacticalSelection, isSessionPlannerTacticalElementSelected, renderSessionPlannerTacticalSelectionBox, isSessionPlannerTacticalEndpointElement, updateSelectedSessionPlannerBlockField, getSessionPlannerDateLabel, renderSessionPlannerExerciseVisual, renderSessionPlannerActionIcon, canRemoveSessionPlannerLibraryExerciseFromSelectedFolder, getSessionPlannerPlayerBoardProfileState, getSessionPlannerPlayerBoardSyncedPlayer, getSessionPlannerPlayerBoardBridgeContract, getSessionPlannerPlayerBoardBridgeRoleLabel, getSessionPlannerPlayerBoardBridgeBestMatches, getSessionPlannerPlayerBoardBridgeSummary, getSessionPlannerPlayerBoardCustomPerson, getSessionPlannerPlayerBoardPlayers, getSessionPlannerPlayerBoardSummary, getSessionPlannerPlayerBoardWarnings, syncSessionPlannerPlayerBoardSelection, getSessionPlannerPlayerBoardPosition, getSessionPlannerPlayerBoardPositionById, getSessionPlannerPlayerBoardReadableSpacing, getSessionPlannerReadablePlayerBoardPositions, formatSessionPlannerHistoryTime, getSessionPlannerHistoryActorLabel, getSessionPlannerHistoryActionLabel, getSessionPlannerMedicalAvailability, renderSessionPlannerWorkspace, ensureSessionPlannerSelectedSession, selectSessionPlannerDate, selectSessionPlannerBlock, addSessionPlannerBlock, renumberSessionPlannerExerciseBlocks, moveSessionPlannerBlock, reorderSessionPlannerBlock, getSessionPlannerBlockDropPlacement, clearSessionPlannerBlockDragState, clearSessionPlannerLibraryDragState, updateSessionPlannerLibraryPointerDropTarget, startSessionPlannerLibraryPointerDrag, updateSessionPlannerLibraryPointerDrag, finishSessionPlannerLibraryPointerDrag, deleteSessionPlannerBlock, setSessionPlannerLibraryOpen, closeSessionPlannerLibrary, setSessionPlannerAddMenuOpen, setSessionPlannerVisualPreviewOpen, syncSessionPlannerPrintModeClass, setSessionPlannerPrintOverlayOpen, setSessionPlannerTacticalboardOpen, setSessionPlannerPlayerBoardOpen, openSessionPlannerPlayerBoardProfile, closeSessionPlannerPlayerBoardProfile, getSessionPlannerPlayerBoardVisiblePlayerIds, normalizeSessionPlannerPlayerBoardSelectedIds, setSessionPlannerPlayerBoardSelectedPlayers, toggleSessionPlannerPlayerBoardSelectedPlayer, syncSessionPlannerPlayerBoardSelectionUi, updateSessionPlannerPlayerBoardSelectedColor, clearSessionPlannerPlayerBoardSelectedColors, getSessionPlannerPlayerBoardContextPosition, normalizeSessionPlannerPlayerBoardCustomPersonPromptValue, getSessionPlannerPlayerBoardCustomPersonKind, removeSessionPlannerPlayerBoardCustomPerson, openSessionPlannerPlayerBoardCustomPersonEditor, closeSessionPlannerPlayerBoardCustomPersonEditor, saveSessionPlannerPlayerBoardCustomPersonFromForm, handleSessionPlannerPlayerBoardContextMenu, resetSessionPlannerPlayerBoardPositions, getSessionPlannerTacticalFrames, syncSessionPlannerTacticalActiveFrame, persistSessionPlannerTacticalElements, commitSessionPlannerTacticalFrames, addSessionPlannerTacticalFrame, selectSessionPlannerTacticalFrame, duplicateSessionPlannerTacticalFrame, deleteSessionPlannerTacticalFrame, refreshSessionPlannerTacticalboardCanvas, isSessionPlannerTacticalLineTool, isSessionPlannerTacticalStrokeElement, isSessionPlannerTacticalPlacementTool, uniqueValues, setSessionPlannerTacticalSelectedElements, isSessionPlannerTacticalSelectionToggleModifier, toggleSessionPlannerTacticalElementSelection, setSessionPlannerTacticalClickSuppression, setSessionPlannerTacticalPitchMode, openSessionPlannerTacticalNumberPicker, updateSessionPlannerTacticalPlayerNumber, updateSelectedSessionPlannerTacticalPlayerBadges, shouldDragSessionPlannerTacticalSelectionGroup, getSessionPlannerTacticalDragElementIds, setSessionPlannerTacticalTool, undoSelectedSessionPlannerTacticalBoardAction, removeSessionPlannerTacticalElement, removeSelectedSessionPlannerTacticalElement, addSessionPlannerTacticalElement, snapSessionPlannerTacticalValue, snapSessionPlannerTacticalPoint, shouldSnapSessionPlannerTacticalEvent, getSessionPlannerTacticalCanvasPoint, getSessionPlannerTacticalPointFromRect, getSessionPlannerTacticalElementById, getSessionPlannerTacticalSelectionRect, getSessionPlannerTacticalElementBounds, isSessionPlannerTacticalPointInRect, getSessionPlannerTacticalElementSelectionPoints, isSessionPlannerTacticalElementInSelectionRect, getSessionPlannerTacticalElementsInRect, getSelectedSessionPlannerTacticalElement, getSelectedSessionPlannerTacticalElements, syncSessionPlannerTacticalboardInspector, updateSelectedSessionPlannerTacticalElement, updateSessionPlannerTacticalLineStyle, clampMovedTacticalPoint, moveSessionPlannerTacticalElementFromInitial, moveSessionPlannerTacticalElements, moveSessionPlannerTacticalElementByDelta, getSessionPlannerTacticalBoundsCollection, getSessionPlannerTacticalArrangeSpacing, moveSessionPlannerTacticalElementCenterTo, arrangeSelectedSessionPlannerTacticalElements, copySelectedSessionPlannerTacticalElements, pasteSessionPlannerTacticalClipboard, updateSessionPlannerTacticalElementHandle, getSessionPlannerTacticalRotationFromEvent, shouldPlaceSessionPlannerTacticalDoubleClick, shouldSkipRepeatedSessionPlannerTacticalPlacement, addSessionPlannerTacticalPlacementElement, handleSessionPlannerTacticalCanvasClick, handleSessionPlannerTacticalCanvasDoubleClick, startSessionPlannerTacticalDrag, updateSessionPlannerTacticalDrag, finishSessionPlannerTacticalDrag, startSessionPlannerPlayerBoardDrag, updateSessionPlannerPlayerBoardDrag, finishSessionPlannerPlayerBoardDrag, getSessionPlannerPlayerBoardEventPoint, getSessionPlannerPlayerBoardSelectionRect, syncSessionPlannerPlayerBoardSelectionBox, startSessionPlannerPlayerBoardSelection, updateSessionPlannerPlayerBoardSelection, finishSessionPlannerPlayerBoardSelection, findSessionPlannerBlockById, normalizeSessionPlannerVisualUpload, handleSessionPlannerVisualUpload, syncSessionPlannerPostSessionNotesToLibrary, applySessionPlannerExercise, syncSessionPlannerDateStripState, scrollSessionPlannerSelectedDateIntoView, resizeSessionPlannerTextarea, resizeSessionPlannerTextareas, scrollSessionPlannerDateStrip, jumpSessionPlannerToToday, renderSessionPlannerCentralSyncConflictOverlay, resolveSessionPlannerCentralSyncConflict, getSessionPlannerBlockNumber, getSessionPlannerPlayerBoardRule, getSessionPlannerPlayerBoardProfileForPlayer, getSessionPlannerPlayerBoardProfileRoleFitMap, getSessionPlannerPlayerBoardFutureMinutesValue, applySessionPlannerSelectionAssistant, compareSessionPlannerPlayerBoardItems, isSessionPlannerPlayerVisibleForBoard, isSessionPlannerPlayerBoardCustomPersonId, getSessionPlannerPlayerBoardCustomPeople, createSessionPlannerPlayerBoardCustomItem, getSessionPlannerPlayerBoardAutoTargetItems, getSessionPlannerPlayerBoardAutoSelectFormation, applySessionPlannerPlayerBoardAutoTeamFormation, applySessionPlannerPlayerBoardAutoSelect, applySessionPlannerPlayerBoardFormation, copySessionPlannerPlayerBoardTeamsFromBlock, getSessionPlannerHistoryPanelContext, loadSessionPlannerHistory, restoreSessionPlannerHistoryEntry, getSessionPlannerAvailabilityItems, updateSessionPlannerPrintPaper, updateSessionPlannerPrintSection, ensureSessionPlannerPrintPageStyle, removeSessionPlannerPrintRoot, prepareSessionPlannerPrintRoot, printSessionPlannerCurrentSession, renderSessionPlannerToast, showSessionPlannerToast, commitSessionPlannerExerciseToLibrary, queueSessionPlannerLibrarySaveConflict, resolveSessionPlannerLibrarySaveConflict, saveSelectedSessionPlannerExerciseToLibrary, deleteSessionPlannerLibraryExercise, restoreSessionPlannerLibraryExercise, createSessionPlannerDefaultSession, createSessionPlannerEmptySession, getSessionPlannerPeriodizationOverride, isSessionPlannerOffDate, createSessionPlannerSessionForNewPlan, isGeneratedDefaultSessionPlannerSession, shouldStripSessionPlannerGeneratedDefaultSession, shouldClearSessionPlannerSessionForDate, cloneSessionPlannerSession, createSessionPlannerDefaultState, parseSessionPlannerBlockReductionGuardTime, normalizeSessionPlannerBlockReductionGuard, canReduceSessionPlannerBlocksForDate, normalizeSessionPlannerBlockDeletionTombstones, markSessionPlannerBlockReductionAllowed, markSessionPlannerBlockDeleted, applySessionPlannerBlockReductionGuard, applySessionPlannerBlockDeletionTombstones, getSessionPlannerDeletedBlockIds, cloneSessionPlannerBlockMergeValue, isSessionPlannerBlockFieldEmptyValue, getSessionPlannerBlockFieldUpdatedAtMs, markSessionPlannerBlockFieldsUpdated, mergeSessionPlannerBlockForWrite, filterSessionPlannerDeletedBlocksForWrite, mergeSessionPlannerSessionForWrite, cloneSessionPlannerState, mergeSessionPlannerStateForWrite, mergeSessionPlannerStateFromBackup, assignSessionPlannerBlockFieldValue, syncSelectedSessionPlannerBlockFieldsFromDom, readSessionPlannerState, persistNormalizedSessionPlannerState, findSessionPlannerStateInSnapshots, queueSessionPlannerSnapshotRecovery, writeSessionPlannerState } from "./src/modules/session-planner/session-planner-runtime-accessors.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformShellRuntime } from "./src/core/platform-shell-runtime.mjs";
-import { createWorkspaceModuleRuntimeController } from "./src/core/workspace-module-runtime-controller.mjs";
 import { createWorkspaceShellController } from "./src/core/workspace-shell-controller.mjs";
 import { bindPlatformNavigationInteractions } from "./src/core/platform-navigation-bindings.mjs";
 import { createPlatformUiBindings } from "./src/core/platform-ui-bindings.mjs";
+import { createPlatformRuntimeServices } from "./src/core/platform-runtime-services-composer.mjs";
 import { createMedicalRuntimeServiceComposition } from "./src/modules/medical/medical-runtime-service-composer.mjs";
 import { configurePlatformRuntimeAccessors, mergePeriodizationStatePreservingLocalUi, renderPlayerProfilesWorkspaceMessage, cloneDefaultPlatformStructureState, normalizePlatformStructureText, normalizePlatformStructureComparable, isLegacyPlatformStructureValue, isCanonicalPlatformClubValue, isCanonicalPlatformTeamValue, isLegacyPlatformClub, isLegacyPlatformTeam, isCanonicalPlatformClub, isCanonicalPlatformTeam, hasPlatformWorkspaceScope, slugifyPlatformStructureValue, normalizePlatformStructureId, createPlatformStructureId, normalizePlatformClub, normalizePlatformTeam, normalizePlatformStructureState, isLegacyPlatformTeamPlaceholderName, readPlatformStructureState, writePlatformStructureState, getPlatformStructureState, getPlatformClubById, getPlatformTeamById, findPlatformTeamByName, syncPlatformStructureWithUsers, getUserTeamId, getUserClubId, getUserTeamName, getActivePlatformTeam, getPlatformTeamDisplayTeam, getPlatformTeamDisplayName, writePlatformTeamLogo, getUserClubName, getUserScopeLabel, isSamePlatformClub, isSamePlatformTeam, canAdminViewUser, canAdminManageUser, getScopedPlatformUsers, getScopedPlatformClubs, getScopedPlatformTeams, normalizeAdminUserSubmissionValues, getAllWorkspacePool, normalizeWorkspaceRoleList, normalizeWorkspaceAccessEntry, getWorkspaceAccessConfig, getWorkspaceByIdFromPool, canUserAccessWorkspace, canCurrentUserAccessWorkspace, canUserEditWorkspace, canCurrentUserEditWorkspace, canEditScheduleWorkspace, canEditSessionPlanner, canEditPeriodizationWorkspace, canEditGameSimulatorWorkspace, canEditScoutingWorkspace, getAccessibleWorkspacePool, getVisibleWorkspacePool, mergeWorkspaceDefinitions, cloneHubState, clonePersistableWorkspaceHubState, repairWorkspaceState, getWorkspaceIdFromUrl, readRememberedWorkspaceId, rememberActiveWorkspaceId, readWorkspaceHubState, writeWorkspaceHubState, getWorkspaceById, getWorkspaceByIdUnfiltered, getSafeWorkspaceId, getWorkspaceViewId, getPeriodizationDay, ensurePeriodizationState, writePeriodizationDay, selectPeriodizationDate, openPeriodizationDateForDashboard, setPeriodizationStateStorageValue, readPeriodizationState, writePeriodizationState, setPeriodizationMonth, shiftPeriodizationMonth, scrollPeriodizationDateIntoView, jumpPeriodizationToToday, mergeImportedNccSchedule, setScheduleStateStorageValue, readScheduleState, ensureScheduleState, writeScheduleState, setScoutingStateStorageValue, readScoutingState, writeScoutingState, ensureScoutingState, getPeriodizationMultiSelectOpenField, setPeriodizationMultiSelectOpenField, setPeriodizationSelection, getPeriodizationOverlayState, setPeriodizationOverlayMode, setPeriodizationOverlayState, readTransferRoomState, ensureTransferRoomState, syncTransferRoomLinkedState, canUserAccessTransferRoom, canUserEditTransferRoom, addTransferRoomTargetFromScoutingSnapshot, getGameplanContext, getScoutingAnalysisRoomContext, getScoutingWorkspaceContext, getTransferRoomWorkspaceContext, hydrateWorkspaceModuleState, loadGameplanModule, loadScoutingWorkspaceModule, loadTransferRoomWorkspaceModule, renderAnalysisRoomWorkspace, renderGameplanWorkspace, renderScoutingWorkspace, renderTransferRoomWorkspace, renderPeriodizationWorkspace, renderSessionPlannerPeriodizationOverlay, renderSessionPlannerPeriodizationSummary, initializeWorkspaceHub, renderWorkspaceChrome, setActiveWorkspace, reloadCentralizedAppStateFromStorage, getCurrentSessionPlannerUiSelection, readSessionPlannerStatePreservingUiSelection, shouldDeferCentralizedAppStateReload, setCentralizedAppStateReloadPending, requestCentralizedAppStateReload, flushDeferredCentralizedAppStateReload, refreshCentralStateFromSource, formatScheduleBlockSummary, getScheduleEventsForDate, getScheduleMainEvent, getScheduleMonthEvents, getScheduleDayWarnings, getScheduledSessionTitleForDate, getScheduleSelectedDayContext, getScheduleSessionEventForDate, getScheduleSessionSnapshot, getScheduleVisibleEvents, getScheduleVisibleMonthEvents, isScheduleSessionEvent, openCredentialsMailto, buildTemporaryLoginMessage, getAdminManagedWorkspaces, getAdminAuditState, getReadinessState, getSelectedAdminUserId, getAdminUsersForTeam, getAdminUserInitials, createAdminClubFromForm, createAdminTeamFromForm, loadAdminAuditLog, loadPlatformReadinessReport, publishPlatformAppearanceConfig, getAdminTransferRoomAccessTeamId, renderAdminWorkspace } from "./src/core/platform-runtime-accessors.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createCentralAppStateReloadService } from "./src/core/central-app-state-reload-service.mjs";
 import { createCentralRuntimeFacade, dataSafetySnapshotStoreName } from "./src/core/central-runtime-facade.mjs";
 import { bindPlatformWorkspaceRuntimeBindings } from "./src/core/platform-workspace-runtime-bindings.mjs";
-import { createWorkspaceDataRuntimeService } from "./src/core/workspace-data-runtime-service.mjs";
-import { createWorkspaceAccessRuntimeService } from "./src/core/workspace-access-runtime-service.mjs";
 import { addCalendarDays, clamp, escapeHtml, formatDashboardDateTime, formatDashboardTime, formatDataSafetyTime, isEditableKeyboardTarget, logEvent, maybeCopyToClipboard, setFormSubmitButtonState, togglePasswordInputVisibility } from "./src/core/runtime-ui-helpers.mjs";
 import { installPlatformOverlayStability } from "./src/core/overlay-stability.mjs";
 import { defaultHubState, placeholderWorkspaceContent, platformSidebarMoreOrder, platformSidebarPrimaryOrder, topIconMenuOrder } from "./src/core/workspace-defaults.mjs";
@@ -82,9 +78,7 @@ import { createPlatformDisplayHelpers, formatPlatformUserName, getPlatformRoleLa
 import { buildPlatformTemporaryLoginMessage, buildPlatformUserCredentialMessage, getPlatformPasswordValidationMessage, readPlatformFormValues, stripPlatformPasswordConfirmation } from "./src/modules/platform/form-helpers.mjs";
 import { createPlatformNavigationController, getPlatformTopIconLabel } from "./src/modules/platform/navigation-controller.mjs";
 import { createPlatformNavigationRenderer } from "./src/modules/platform/navigation-renderer.mjs";
-import { createPlatformStructureRuntimeService } from "./src/modules/platform/platform-structure-runtime-service.mjs";
 import { createPlatformWorkspaceRenderers } from "./src/modules/platform/workspace-renderers.mjs";
-import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
 import { getTopIconSvg } from "./top-icons.js";
 import { buildPlatformAppearanceConfigFromForm, createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
 import { bindAdminRuntimeBindings, createAdminRuntimeService, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
@@ -2067,31 +2061,155 @@ return ["coach", "scout", "analyst", "performance", "medical", "guest"];
 }
 return [];
 }
-const platformStructureRuntimeService = createPlatformStructureRuntimeService({
-window: win,
-storageKey: platformStructureStorageKey,
-defaultRoles: platformDefaultRoles,
-managementRoleSet: platformManagementRoleSet,
-defaultClubId: platformDefaultClubId,
-defaultTeamId: platformDefaultTeamId,
-defaultClubName: platformDefaultClubName,
-defaultClubShortName: platformDefaultClubShortName,
-defaultTeamName: platformDefaultTeamName,
-defaultTeamLevel: platformDefaultTeamLevel,
-legacyValues: legacyPlatformStructureValues,
-canonicalClubValues: canonicalPlatformClubValues,
-canonicalTeamValues: canonicalPlatformTeamValues,
+const platformRuntimeServices = createPlatformRuntimeServices({
+canCurrentUserEditWorkspace,
+canEditPeriodizationWorkspace,
+canEditScheduleWorkspace,
+canEditScoutingWorkspace,
+canEditSessionPlanner,
+canUserAccessTransferRoom,
+canUserEditTransferRoom,
+canonicalPlatformClubValues,
+canonicalPlatformTeamValues,
+clonePeriodizationState,
+cloneScheduleState,
+cloneScoutingState,
+createSessionPlannerEmptySession,
+defaultHubState,
+defaultPeriodizationState,
+defaultScheduleState,
+defaultScoutingState,
+defaultWorkspaceAccess,
+defaultWorkspaceEditAccess,
+documentRef: document,
+ensurePeriodizationState,
+ensureScoutingState,
+escapeHtml,
+formatScheduleBlockSummary,
+formatScheduleBlockSummaryFromModule,
+formatScheduleDateValue,
+getAssignableRolesForUser,
+getCurrentPlatformUser,
+getHubState: () => hubState,
+getMedicalState: () => medicalState,
+getPeriodizationDay,
+getPeriodizationDayFromState,
+getPeriodizationDayScheduleLabel,
+getPeriodizationMatchDayLabel,
+getPeriodizationState: () => periodizationState,
+getPlatformApiAccessToken,
+getPlatformAuthStore,
+getPlatformFormValues,
 getPlatformTeamLogoUrl,
 getPlatformUsers,
-getCurrentPlatformUser,
-getPlatformAuthStore,
-normalizePlatformRole,
-getAssignableRolesForUser,
+getPlayerProfilesState: () => playerProfilesState,
+getPlayerProfilesStateForGameplan: () => playerProfilesState || readPlayerProfilesState(),
+getPlayerProfilesStateForTransferRoom: () => playerProfilesState || readPlayerProfilesState(),
+getSafeWorkspaceId,
+getScheduleDayWarningsFromModule,
+getScheduleMainEventFromModule,
+getScheduleState: () => scheduleState,
+getScheduleStateForGameplan: () => scheduleState || readScheduleState(),
+getScoutingState: () => scoutingState,
+getScoutingStateForTransferRoom: () => scoutingState || readScoutingState(),
+getScoutingTeamName: () => {
+const currentUser = getCurrentPlatformUser();
+return normalizePlatformStructureText(currentUser?.team || currentUser?.teamName || currentUser?.clubName || currentUser?.club, "") || getUserTeamName(currentUser);
+},
+getSessionPlannerExerciseLibrary: () => sessionPlannerExerciseLibrary,
+getSessionPlannerExerciseLibraryFolders: () => sessionPlannerExerciseLibraryFolders,
+getSessionPlannerState: () => sessionPlannerState,
+getTransferRoomState: () => transferRoomState,
+getUniqueScheduleEvents,
+getUserTeamId,
+getWorkspaceViewId,
+importedNccScheduleEvents,
+importedNccScheduleVersion,
+isDateValueInYear,
+isEditableKeyboardTarget,
 isPlatformAdminUser,
 isPlatformManagementUser,
-normalizePlatformImageUrl,
+isPlatformStaffUser,
+isScheduleSessionEvent,
+isScheduleSessionEventFromModule,
+legacyPlatformStructureValues,
 logEvent,
+mergeImportedScheduleEvents,
+normalizePeriodizationDay,
+normalizePlatformImageUrl,
+normalizePlatformRole,
+normalizePlatformStructureText,
+parseScheduleDateValue,
+periodizationFieldUpdatedAtKey,
+periodizationStorageKey,
+periodizationTrackedFields,
+periodizationYear,
+platformAssetVersion,
+platformDefaultClubId,
+platformDefaultClubName,
+platformDefaultClubShortName,
+platformDefaultRoles,
+platformDefaultTeamId,
+platformDefaultTeamLevel,
+platformDefaultTeamName,
+platformManagementRoleSet,
+platformModuleLoader,
+platformStructureStorageKey,
+preserveScoutingTransientUiState,
+queueGameSimulatorControllersLoad,
+rawDataSafetySetItem,
+readMedicalState,
+readPlayerProfilesState,
+readScheduleState,
+readSessionPlannerExerciseLibrary,
+readSessionPlannerExerciseLibraryFolders,
+readSessionPlannerState,
+renderPeriodizationWorkspace,
+renderSessionPlannerWorkspace,
+renderTransferRoomWorkspace,
+requiredWorkspaceAccess,
+scheduleEventTypes,
+scheduleStorageKey,
+scoutingCoreMetricOptions,
+scoutingPriorityOptions,
+scoutingShadowSlots,
+scoutingStatusOptions,
+scoutingStorageKey,
+scoutingTabs,
+selectPeriodizationDate,
+setActiveWorkspace: (...args) => setActiveWorkspace(...args),
+setMedicalState: (nextState) => { medicalState = nextState; },
+setPeriodizationState: (nextState) => { periodizationState = nextState; },
+setPlayerProfilesState: (nextState) => { playerProfilesState = nextState; },
+setScheduleState: (nextState) => { scheduleState = nextState; },
+setScoutingState: (nextState) => { scoutingState = nextState; },
+setSessionPlannerExerciseLibrary: (nextLibrary) => { sessionPlannerExerciseLibrary = nextLibrary; },
+setSessionPlannerExerciseLibraryFolders: (nextFolders) => { sessionPlannerExerciseLibraryFolders = nextFolders; },
+setSessionPlannerState: (nextState) => { sessionPlannerState = nextState; },
+setTransferRoomState: (nextState) => { transferRoomState = nextState; },
+shouldDeferCentralizedAppStateReload,
+suppressCentralWrites: (key) => centralStateWriteSuppressionKeys.add(key),
+transferRoomStorageKey,
+ui,
+unsuppressCentralWrites: (key) => centralStateWriteSuppressionKeys.delete(key),
+win,
+workspaceHubDefaultActiveWorkspaceId,
+workspaceHubStorageKey,
+workspaceLastActiveStorageKey,
+writeScheduleState,
+writeScoutingState,
+writeSessionPlannerState,
 });
+const {
+platformStructureRuntimeService,
+scheduleRuntimeSelectors,
+scheduleWorkspaceController,
+transferRoomRuntime,
+workspaceAccessRuntimeService,
+renderScheduleWorkspace,
+} = platformRuntimeServices;
+workspaceDataRuntimeService = platformRuntimeServices.workspaceDataRuntimeService;
+workspaceModuleRuntimeController = platformRuntimeServices.workspaceModuleRuntimeController;
 async function uploadSquadTeamLogo(file) {
 if (!canEditPlayerProfiles()) {
 renderPlayerProfilesWorkspace({
@@ -2166,276 +2284,6 @@ void uploadPlayerProfilePhoto(playerPhotoInput.dataset.playerProfilePhotoUpload 
 }
 function renderAdminRoleOptions(actor, selectedRole = "coach") { return adminStructureRenderer.renderRoleOptions(actor, selectedRole); }
 function renderAdminTeamOptions(actor, structure, selectedTeamId = "") { return adminStructureRenderer.renderTeamOptions(actor, structure, selectedTeamId); }
-const workspaceAccessRuntimeService = createWorkspaceAccessRuntimeService({
-window: win,
-defaultHubState,
-defaultWorkspaceAccess,
-defaultWorkspaceEditAccess,
-requiredWorkspaceAccess,
-defaultRoles: platformDefaultRoles,
-workspaceHubStorageKey,
-workspaceLastActiveStorageKey,
-defaultActiveWorkspaceId: workspaceHubDefaultActiveWorkspaceId,
-getHubState: () => hubState,
-getCurrentPlatformUser,
-normalizePlatformRole,
-isPlatformManagementUser,
-isPlatformStaffUser,
-canUserAccessTransferRoom,
-canUserEditTransferRoom,
-logEvent,
-});
-workspaceDataRuntimeService = createWorkspaceDataRuntimeService({
-win,
-ui,
-periodizationFieldUpdatedAtKey,
-periodizationStorageKey,
-periodizationTrackedFields,
-periodizationYear,
-scheduleStorageKey,
-scoutingStorageKey,
-defaultPeriodizationState,
-defaultScheduleState,
-defaultScoutingState,
-importedNccScheduleEvents,
-importedNccScheduleVersion,
-canEditPeriodizationWorkspace,
-clonePeriodizationState,
-cloneScheduleState,
-cloneScoutingState,
-formatScheduleDateValue,
-getActiveWorkspaceId: () => hubState?.activeWorkspaceId,
-getCurrentPlatformUser,
-getPeriodizationDayFromState,
-getPeriodizationState: () => periodizationState,
-getPlayerProfilesState: () => playerProfilesState,
-getScheduleState: () => scheduleState,
-getScoutingState: () => scoutingState,
-getTransferRoomRuntime: () => transferRoomRuntime,
-getTransferRoomState: () => transferRoomState,
-isDateValueInYear: (dateValue) => isDateValueInYear(dateValue, periodizationYear),
-logEvent,
-mergeImportedScheduleEvents,
-normalizePeriodizationDay,
-parseScheduleDateValue,
-preserveScoutingTransientUiState,
-rawDataSafetySetItem,
-readPlayerProfilesState,
-renderPeriodizationWorkspace,
-renderTransferRoomWorkspace,
-setPeriodizationState: (nextState) => { periodizationState = nextState; },
-setPlayerProfilesState: (nextState) => { playerProfilesState = nextState; },
-setScheduleState: (nextState) => { scheduleState = nextState; },
-setScoutingState: (nextState) => { scoutingState = nextState; },
-setTransferRoomState: (nextState) => { transferRoomState = nextState; },
-shouldDeferCentralizedAppStateReload,
-});
-const transferRoomRuntime = createTransferRoomRuntime({
-storageKey: transferRoomStorageKey,
-getCachedState: () => transferRoomState,
-setCachedState: (state) => {
-transferRoomState = state;
-},
-getPlatformStructureState,
-getPlatformTeamById,
-getUserTeamId,
-defaultTeam: {
-id: platformDefaultTeamId,
-clubId: platformDefaultClubId,
-name: platformDefaultTeamName,
-shortName: platformDefaultClubShortName,
-},
-getPlayerProfilesState: () => playerProfilesState || readPlayerProfilesState(),
-getScoutingState: () => scoutingState || readScoutingState(),
-ensureScoutingState,
-getCurrentUser: getCurrentPlatformUser,
-getUsers: getPlatformUsers,
-normalizeRole: normalizePlatformRole,
-getDefaultTeamAliases: () => [platformDefaultTeamId, platformDefaultTeamName, "team-ncc-first"],
-getActiveWorkspaceId: () => hubState?.activeWorkspaceId,
-getRoot: () => ui.transferRoomWorkspace,
-platformModuleLoader,
-getAssetVersion: () => platformAssetVersion,
-escapeHtml,
-suppressCentralWrites: (key) => centralStateWriteSuppressionKeys.add(key),
-unsuppressCentralWrites: (key) => centralStateWriteSuppressionKeys.delete(key),
-setActiveWorkspace: (...args) => setActiveWorkspace(...args),
-loadScoutingWorkspaceModule: () => workspaceModuleRuntimeController.loadScoutingWorkspaceModule(),
-getScoutingWorkspaceContext: () => workspaceModuleRuntimeController.getScoutingWorkspaceContext(),
-logEvent,
-});
-workspaceModuleRuntimeController = createWorkspaceModuleRuntimeController({
-ui,
-win,
-platformModuleLoader,
-getAssetVersion: () => platformAssetVersion,
-getUsers: getPlatformUsers,
-getCurrentUser: getCurrentPlatformUser,
-getScheduleStateForGameplan: () => scheduleState || readScheduleState(),
-getPlayerProfilesStateForGameplan: () => playerProfilesState || readPlayerProfilesState(),
-canEditGameplan: () => canCurrentUserEditWorkspace("gameplan"),
-getAuthToken: getPlatformApiAccessToken,
-suppressCentralWrites: (key) => centralStateWriteSuppressionKeys.add(key),
-unsuppressCentralWrites: (key) => centralStateWriteSuppressionKeys.delete(key),
-escapeHtml,
-getScoutingTeamName: () => {
-const currentUser = getCurrentPlatformUser();
-return normalizePlatformStructureText(currentUser?.team || currentUser?.teamName || currentUser?.clubName || currentUser?.club, "") || getUserTeamName(currentUser);
-},
-ensureScoutingState,
-writeScoutingState,
-canEditScouting: canEditScoutingWorkspace,
-canSendToTransferRoom: canUserEditTransferRoom,
-sendToTransferRoom: addTransferRoomTargetFromScoutingSnapshot,
-scoutingTabs,
-scoutingShadowSlots,
-scoutingCoreMetricOptions,
-scoutingStatusOptions,
-scoutingPriorityOptions,
-transferRoomRuntime,
-getWorkspaceViewId,
-getSafeWorkspaceId,
-getHubState: () => hubState,
-workspaceHubDefaultActiveWorkspaceId,
-shouldDeferCentralizedAppStateReload,
-hydrateState: {
-schedule: () => {
-if (!scheduleState) {
-scheduleState = readScheduleState();
-}
-},
-periodization: () => {
-if (!periodizationState) {
-periodizationState = readPeriodizationState();
-}
-if (!scheduleState) {
-scheduleState = readScheduleState();
-}
-},
-sessionPlanner: () => {
-if (!sessionPlannerState) {
-sessionPlannerState = readSessionPlannerState();
-}
-if (!sessionPlannerExerciseLibrary) {
-sessionPlannerExerciseLibrary = readSessionPlannerExerciseLibrary();
-}
-if (!sessionPlannerExerciseLibraryFolders) {
-sessionPlannerExerciseLibraryFolders = readSessionPlannerExerciseLibraryFolders();
-}
-if (!periodizationState) {
-periodizationState = readPeriodizationState();
-}
-if (!medicalState) {
-medicalState = readMedicalState();
-}
-},
-medical: () => {
-if (!medicalState) {
-medicalState = readMedicalState();
-}
-if (!playerProfilesState) {
-playerProfilesState = readPlayerProfilesState();
-}
-},
-playerProfiles: () => {
-if (!playerProfilesState) {
-playerProfilesState = readPlayerProfilesState();
-}
-if (!medicalState) {
-medicalState = readMedicalState();
-}
-},
-transferRoom: () => {
-syncTransferRoomLinkedState();
-},
-gameSimulator: () => {
-queueGameSimulatorControllersLoad();
-},
-},
-});
-const scheduleRuntimeSelectors = createScheduleRuntimeSelectors({
-ensurePeriodizationState,
-ensureScheduleState: () => {
-if (!scheduleState) {
-scheduleState = readScheduleState();
-}
-return scheduleState;
-},
-ensureSessionPlannerState: () => {
-if (!sessionPlannerState) {
-sessionPlannerState = readSessionPlannerState();
-}
-return sessionPlannerState;
-},
-formatBlockSummary: formatScheduleBlockSummaryFromModule,
-getDayWarnings: getScheduleDayWarningsFromModule,
-getMainEvent: getScheduleMainEventFromModule,
-getPeriodizationDay,
-getPeriodizationDayScheduleLabel,
-getPeriodizationMatchDayLabel,
-getScheduleState: () => scheduleState,
-getUniqueEvents: getUniqueScheduleEvents,
-isSessionEvent: isScheduleSessionEventFromModule,
-parseDateValue: parseScheduleDateValue,
-});
-const scheduleWorkspaceController = createScheduleWorkspaceController({
-ui,
-window: win,
-document,
-rendererOptions: {
-escapeHtml,
-getPeriodizationDay,
-getPeriodizationDayScheduleLabel,
-},
-getState: () => scheduleState,
-ensureState: () => {
-if (!scheduleState) {
-scheduleState = readScheduleState();
-}
-return scheduleState;
-},
-writeState: writeScheduleState,
-canEdit: canEditScheduleWorkspace,
-canCreateSession: canEditSessionPlanner,
-isActive: () => hubState?.activeWorkspaceId === "schedule",
-isEditableKeyboardTarget,
-prepareRender: () => {
-ensurePeriodizationState();
-if (!sessionPlannerState) {
-sessionPlannerState = readSessionPlannerState();
-}
-},
-formatBlockSummary: formatScheduleBlockSummary,
-getEventsForDate: getScheduleEventsForDate,
-getSelectedDayContext: getScheduleSelectedDayContext,
-getSessionForDate: (dateValue) => sessionPlannerState?.sessions?.[dateValue] || null,
-getVisibleEvents: getScheduleVisibleEvents,
-getVisibleMonthEvents: getScheduleVisibleMonthEvents,
-isSessionEvent: isScheduleSessionEvent,
-getFormValues: getPlatformFormValues,
-onOpenSessionDate: (dateValue, options = {}) => {
-if (!sessionPlannerState) {
-sessionPlannerState = readSessionPlannerState();
-}
-if (!sessionPlannerState.sessions) {
-sessionPlannerState.sessions = {};
-}
-sessionPlannerState.selectedDate = dateValue;
-if (!sessionPlannerState.sessions[dateValue] && options.createSession && canEditSessionPlanner()) {
-sessionPlannerState.sessions[dateValue] = createSessionPlannerEmptySession(dateValue);
-}
-writeSessionPlannerState();
-setActiveWorkspace("session-planner");
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-},
-onOpenPeriodizationDate: (dateValue) => {
-ensurePeriodizationState();
-selectPeriodizationDate(dateValue, true, "view");
-setActiveWorkspace("periodization");
-renderPeriodizationWorkspace();
-},
-});
-function renderScheduleWorkspace() { scheduleWorkspaceController.render(); }
 function getWorkspaceQuery() { return ui.workspaceSearch?.value.trim().toLowerCase() ?? ""; }
 function getVisibleWorkspaces() {
 const workspaces = getVisibleWorkspacePool();

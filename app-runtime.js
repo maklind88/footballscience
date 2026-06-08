@@ -87,6 +87,7 @@ import {
   createSquadImportPlanner,
   createPlayerProfileHelpers,
   createPlayerProfileIntelligenceHelpers,
+  createPlayerProfileRuntimeImportService,
   createPlayerProfileRuntimeStateService,
   createSquadMedicalStatusService,
   createSquadScoutingRuntime,
@@ -1566,6 +1567,7 @@ let playerProfileActiveTab = "overview";
 let playerProfileModalOpen = false;
 let playerProfileNewPlayerModalOpen = false;
 let playerProfileAutosaveTimer = 0, playerProfileAutosaveLastSignature = "";
+let playerProfileRuntimeImportService = null;
 let playerProfileRuntimeStateService = null;
 const playerProfileImportUndoHistoryLimit = 3;
 let playerProfileImportUndoHistory = [];
@@ -7446,300 +7448,60 @@ visibleSummary: getPlayerProfilesRosterSummary(visiblePlayers),
 });
 queuePlayerProfileAgeHydration();
 }
-function createPlayerProfileImportUndoSnapshot(plan = {}) {
-ensurePlayerProfilesState();
-ensureMedicalState();
-return {
-createdAt: new Date().toISOString(),
-playerProfilesState: clonePlayerProfilesState(playerProfilesState),
-medicalState: cloneMedicalState(medicalState),
-preApplyChangeLogId: getRecentPlayerProfileChangeLog(1)[0]?.id || "",
-plan: {
-importedCount: Number(plan.importedCount) || 0,
-createdCount: Number(plan.createdCount) || 0,
-updatedCount: Number(plan.updatedCount) || 0,
-sourceRows: Number(plan.sourceRows) || 0,
+playerProfileRuntimeImportService = createPlayerProfileRuntimeImportService({
+buildPlayerProfileImportFeedbackMessage,
+buildPlayerProfileImportPlan,
+buildPlayerProfileImportPreviewMessage,
+canEditPlayerProfiles,
+cloneMedicalState,
+clonePlayerProfilesState,
+comparePlayerProfiles,
+ensureMedicalState,
+ensurePlayerProfilesState,
+FileReaderCtor: win.FileReader || (typeof FileReader !== "undefined" ? FileReader : null),
+getCurrentSquadActorLabel,
+getMedicalState: () => medicalState,
+getNow: () => new Date().toISOString(),
+getPendingPlayerProfileImportPlan: () => pendingPlayerProfileImportPlan,
+getPlayerProfileImportUndoHistoryState: () => playerProfileImportUndoHistory,
+getPlayerProfileImportUndoRelativeTimeLabel,
+getPlayerProfileLastImportSnapshot: () => playerProfileLastImportSnapshot,
+getPlayerProfilesState: () => playerProfilesState,
+getRecentPlayerProfileChangeLog,
+normalizePlayerProfileRemovedIds,
+playerProfileImportUndoHistoryLimit,
+recordPlayerProfileChange,
+renderPendingPlayerProfileImport: (plan, preview, canEdit) => squadWorkspaceRenderer.renderPendingImport(plan, preview, canEdit),
+renderPlayerProfilesWorkspace,
+setMedicalState: (nextState) => {
+medicalState = nextState;
 },
-undoChangeLogId: "",
-};
-}
-function clearPlayerProfileImportUndoSnapshots() {
-playerProfileImportUndoHistory = [];
-playerProfileLastImportSnapshot = null;
-}
-function registerPlayerProfileImportUndoSnapshot(snapshot = {}) {
-if (!snapshot || typeof snapshot !== "object") {
-return;
-}
-playerProfileImportUndoHistory = [
-{ ...snapshot },
-...(Array.isArray(playerProfileImportUndoHistory) ? playerProfileImportUndoHistory : []),
-].slice(0, playerProfileImportUndoHistoryLimit);
-playerProfileLastImportSnapshot = playerProfileImportUndoHistory[0] || null;
-}
-function getPlayerProfileImportUndoHistory(limit = playerProfileImportUndoHistoryLimit) {
-const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : playerProfileImportUndoHistoryLimit;
-const history = Array.isArray(playerProfileImportUndoHistory) ? playerProfileImportUndoHistory : [];
-return history.slice(0, safeLimit);
-}
-function getPlayerProfileImportUndoState() {
-if (!canEditPlayerProfiles()) {
-return {
-canUndo: false,
-reason: "Undo is disabled because your role is read-only.",
-summary: "",
-title: "Undo is disabled in read-only mode.",
-label: "Undo import",
-};
-}
-const latestSnapshot = playerProfileImportUndoHistory[0] || playerProfileLastImportSnapshot;
-if (!latestSnapshot) {
-return {
-canUndo: false,
-reason: "No player profile import can be undone right now.",
-summary: "",
-title: "No import available to undo.",
-label: "Undo import",
-};
-}
-const expectedChangeLogHead = latestSnapshot?.undoChangeLogId || "";
-const currentChangeLogHead = getRecentPlayerProfileChangeLog(1)[0]?.id || "";
-if (expectedChangeLogHead && currentChangeLogHead && expectedChangeLogHead !== currentChangeLogHead) {
-return {
-canUndo: false,
-reason: "Undo blocked because newer player profile changes were made after this import.",
-summary: "",
-title: "Undo is no longer safe. Newer profile changes were made after the import.",
-label: "Undo import",
-};
-}
-const importedCount = Number(latestSnapshot?.plan?.importedCount) || 0;
-const createdCount = Number(latestSnapshot?.plan?.createdCount) || 0;
-const updatedCount = Number(latestSnapshot?.plan?.updatedCount) || 0;
-const appliedBy = String(latestSnapshot?.appliedBy || latestSnapshot?.actor || "Unknown");
-const importedAt = latestSnapshot?.createdAt || "";
-const appliedAt = latestSnapshot?.appliedAt || importedAt;
-const appliedAtLabel = appliedAt ? new Date(appliedAt).toLocaleString() : "";
-const appliedAgo = appliedAt ? getPlayerProfileImportUndoRelativeTimeLabel(appliedAt) : "";
-return {
-canUndo: true,
-title: `Undo last import (${importedCount} records, ${createdCount} added, ${updatedCount} updated).`
-+ ` Applied by ${appliedBy}${appliedAtLabel ? ` • ${appliedAtLabel}` : ""}`,
-label: importedCount ? `Undo import (${importedCount})` : "Undo import",
-reason: "",
-summary: `Undo is available for ${importedCount} records (${createdCount} created, ${updatedCount} updated). Applied by ${appliedBy}${
-      appliedAtLabel ? ` at ${appliedAtLabel}` : ""
-    }${appliedAgo ? ` (${appliedAgo})` : ""}`,
-};
-}
-function applyPlayerProfileImportUndo() {
-if (!canEditPlayerProfiles()) {
-return {
-status: "warning",
-lines: ["Your role cannot undo player profile imports."],
-};
-}
-if (!playerProfileImportUndoHistory.length || !playerProfileLastImportSnapshot) {
-clearPlayerProfileImportUndoSnapshots();
-return {
-status: "warning",
-lines: ["No import undo state was available."],
-};
-}
-const topSnapshot = playerProfileImportUndoHistory[0];
-if (!topSnapshot?.playerProfilesState) {
-clearPlayerProfileImportUndoSnapshots();
-return {
-status: "warning",
-lines: ["No valid import undo snapshot was available."],
-};
-}
-const undoState = getPlayerProfileImportUndoState();
-if (!undoState.canUndo) {
-return {
-status: "warning",
-lines: [undoState.reason || "The last import cannot be undone at this time."],
-};
-}
-const currentChangeLogHead = getRecentPlayerProfileChangeLog(1)[0]?.id || "";
-const expectedChangeLogHead = topSnapshot.undoChangeLogId || "";
-if (expectedChangeLogHead && currentChangeLogHead && currentChangeLogHead !== expectedChangeLogHead) {
-return {
-status: "warning",
-lines: [
-"Import cannot be undone because newer player profile changes were made after the import.",
-"Re-import or revert manually from history.",
-],
-};
-}
-playerProfilesState = clonePlayerProfilesState(topSnapshot.playerProfilesState);
-medicalState = cloneMedicalState(topSnapshot.medicalState || {});
-playerProfileImportUndoHistory = playerProfileImportUndoHistory.slice(1);
-playerProfileLastImportSnapshot = playerProfileImportUndoHistory[0] || null;
-const restoredCount = Number(topSnapshot?.plan?.importedCount) || 0;
-writePlayerProfilesState();
-writeMedicalState();
-return {
-status: "success",
-lines: [`Last player profile import was undone${restoredCount ? ` (${restoredCount} record${restoredCount === 1 ? "" : "s"})` : ""}.`],
-};
-}
-function importSquadDataFoundationPayload(payload = {}, options = {}) {
-if (!canEditPlayerProfiles()) {
-return {
-ok: false,
-status: "warning",
-importedCount: 0,
-createdCount: 0,
-updatedCount: 0,
-skippedCount: 0,
-errors: [{ row: 0, message: "Your role cannot apply player profile imports." }],
-warnings: [],
-rows: [],
-canApply: false,
-};
-}
-const applyChanges = options.apply !== false;
-const basePlan = options.plan || buildPlayerProfileImportPlan(payload, options);
-if (!basePlan || typeof basePlan !== "object") {
-return {
-ok: false,
-status: "error",
-importedCount: 0,
-createdCount: 0,
-updatedCount: 0,
-skippedCount: 0,
-errors: [{ row: 0, message: "Unable to build import plan." }],
-warnings: [],
-rows: [],
-canApply: false,
-};
-}
-if (!applyChanges || !basePlan.canApply) {
-return {
-...basePlan,
-ok: basePlan.ok,
-status: basePlan.status,
-};
-}
-const preApplyChangeLogId = getRecentPlayerProfileChangeLog(1)[0]?.id || "";
-if (options.playerProfilesImportLogHeadId && options.playerProfilesImportLogHeadId !== preApplyChangeLogId) {
-return {
-ok: false,
-status: "warning",
-importedCount: 0,
-createdCount: 0,
-updatedCount: 0,
-skippedCount: 0,
-errors: [{ row: 0, message: "Import preview is stale. Please re-run the import file and apply again." }],
-warnings: [],
-rows: [],
-sourceRows: 0,
-duplicateRowsCount: 0,
-canApply: false,
-};
-}
-const preApplySnapshot = createPlayerProfileImportUndoSnapshot(basePlan);
-const importedCount = basePlan.importedCount || 0;
-const importedPlayerIds = new Set(
-(basePlan.profilesForMedicalSync || []).map((player) => String(player?.id || "").trim()).filter(Boolean)
-);
-if (importedPlayerIds.size) {
-playerProfilesState.removedPlayerIds = normalizePlayerProfileRemovedIds(playerProfilesState.removedPlayerIds)
-.filter((removedPlayerId) => !importedPlayerIds.has(removedPlayerId));
-}
-playerProfilesState.players = [...(Array.isArray(basePlan.nextPlayers) ? basePlan.nextPlayers : playerProfilesState.players)]
-.sort(comparePlayerProfiles);
-if (!playerProfilesState.selectedPlayerId && playerProfilesState.players[0]) {
-playerProfilesState.selectedPlayerId = playerProfilesState.players[0].id;
-}
-if (importedCount) {
-recordPlayerProfileChange(
-"squad-import",
-null,
-Array.from({ length: importedCount }, (_, index) => ({
-field: `Player ${index + 1}`,
-from: "Import file",
-to: "Squad profile",
-}))
-);
-const latestLog = getRecentPlayerProfileChangeLog(1)[0];
-preApplySnapshot.undoChangeLogId = latestLog?.id || "";
-preApplySnapshot.appliedBy = latestLog?.actor || getCurrentSquadActorLabel();
-preApplySnapshot.appliedAt = latestLog?.createdAt || new Date().toISOString();
-preApplySnapshot.actor = preApplySnapshot.appliedBy;
-registerPlayerProfileImportUndoSnapshot(preApplySnapshot);
-}
-writePlayerProfilesState();
-syncMedicalPlayersFromPlayerProfiles(basePlan.profilesForMedicalSync || []);
-writeMedicalState();
-return {
-ok: basePlan.ok !== false,
-status: basePlan.errors && basePlan.errors.length ? "warning" : "success",
-importedCount: basePlan.importedCount || 0,
-createdCount: basePlan.createdCount || 0,
-updatedCount: basePlan.updatedCount || 0,
-skippedCount: basePlan.skippedCount || 0,
-errors: basePlan.errors || [],
-warnings: basePlan.warnings || [],
-rows: basePlan.rows || [],
-sourceRows: basePlan.sourceRows || 0,
-duplicateRowsCount: basePlan.duplicateRowsCount || 0,
-canApply: false,
-};
-}
-function importSquadDataFoundationFile(file) {
-if (!canEditPlayerProfiles()) {
-renderPlayerProfilesWorkspace({
-status: "warning",
-lines: ["Your role cannot import player profile changes."],
+setPendingPlayerProfileImportPlan: (nextPlan) => {
+pendingPlayerProfileImportPlan = nextPlan;
+},
+setPlayerProfileImportUndoHistoryState: (nextHistory) => {
+playerProfileImportUndoHistory = nextHistory;
+},
+setPlayerProfileLastImportSnapshot: (nextSnapshot) => {
+playerProfileLastImportSnapshot = nextSnapshot;
+},
+setPlayerProfilesState: (nextState) => {
+playerProfilesState = nextState;
+},
+syncMedicalPlayersFromPlayerProfiles,
+writeMedicalState,
+writePlayerProfilesState,
 });
-return;
-}
-if (!file) {
-return;
-}
-const reader = new FileReader();
-reader.onload = () => {
-try {
-const payload = JSON.parse(String(reader.result || "{}"));
-const preview = importSquadDataFoundationPayload(payload, { apply: false });
-if (!preview.canApply) {
-pendingPlayerProfileImportPlan = null;
-renderPlayerProfilesWorkspace(buildPlayerProfileImportFeedback(preview));
-return;
-}
-const preApplyChangeLogId = getRecentPlayerProfileChangeLog(1)[0]?.id || "";
-pendingPlayerProfileImportPlan = {
-...preview,
-playerProfilesImportLogHeadId: preApplyChangeLogId,
-};
-const previewMessage = buildPlayerProfileImportPreviewMessage(preview, { maxRows: 20 });
-renderPlayerProfilesWorkspace({
-status: previewMessage.status || "success",
-lines: [...previewMessage.lines, "Review changes then choose Apply or Cancel."],
-items: [],
-});
-} catch {
-pendingPlayerProfileImportPlan = null;
-renderPlayerProfilesWorkspace(
-buildPlayerProfileImportFeedback({
-ok: false,
-status: "error",
-errors: [{ row: 0, message: "Import failed. Please use a valid Squad JSON export." }],
-})
-);
-}
-};
-reader.readAsText(file);
-}
-function renderPendingPlayerProfileImport() {
-if (!pendingPlayerProfileImportPlan) {
-return "";
-}
-const preview = buildPlayerProfileImportPreviewMessage(pendingPlayerProfileImportPlan, { maxRows: 20 });
-return squadWorkspaceRenderer.renderPendingImport(pendingPlayerProfileImportPlan, preview, canEditPlayerProfiles());
-}
+function buildPlayerProfileImportFeedback(...args) { return playerProfileRuntimeImportService.buildPlayerProfileImportFeedback(...args); }
+function createPlayerProfileImportUndoSnapshot(...args) { return playerProfileRuntimeImportService.createPlayerProfileImportUndoSnapshot(...args); }
+function clearPlayerProfileImportUndoSnapshots(...args) { return playerProfileRuntimeImportService.clearPlayerProfileImportUndoSnapshots(...args); }
+function registerPlayerProfileImportUndoSnapshot(...args) { return playerProfileRuntimeImportService.registerPlayerProfileImportUndoSnapshot(...args); }
+function getPlayerProfileImportUndoHistory(...args) { return playerProfileRuntimeImportService.getPlayerProfileImportUndoHistory(...args); }
+function getPlayerProfileImportUndoState(...args) { return playerProfileRuntimeImportService.getPlayerProfileImportUndoState(...args); }
+function applyPlayerProfileImportUndo(...args) { return playerProfileRuntimeImportService.applyPlayerProfileImportUndo(...args); }
+function importSquadDataFoundationPayload(...args) { return playerProfileRuntimeImportService.importSquadDataFoundationPayload(...args); }
+function importSquadDataFoundationFile(...args) { return playerProfileRuntimeImportService.importSquadDataFoundationFile(...args); }
+function renderPendingPlayerProfileImport(...args) { return playerProfileRuntimeImportService.renderPendingPlayerProfileImport(...args); }
 function renderPlayerProfilesWorkspace(message = "") {
 if (!ui.playerProfilesWorkspace) {
 return;

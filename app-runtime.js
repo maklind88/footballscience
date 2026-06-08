@@ -81,7 +81,7 @@ import { createPlatformWorkspaceRenderers } from "./src/modules/platform/workspa
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
 import { getTopIconSvg } from "./top-icons.js";
 import { buildPlatformAppearanceConfigFromForm, createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
-import { bindAdminRuntimeBindings, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
+import { bindAdminRuntimeBindings, createAdminRuntimeService, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
 import { bindProfileStaffRuntimeBindings, createProfileImageDataUrl as createProfileImageDataUrlFromModule, createProfileStaffWorkspaceController } from "./src/modules/profile/index.mjs";
 import {
   createSquadDataFoundationHelpers,
@@ -1835,18 +1835,7 @@ win,
 });
 let selectedStaffUserId = null;
 let staffCreateUserEditorOpen = false;
-let selectedAdminUserId = null;
-let adminUserEditorOpen = false;
-let adminCreateUserEditorOpen = false;
-let adminCreateUserTeamId = "";
-let adminAuditEntries = [];
-let adminAuditLoading = false;
-let adminAuditLoadedAt = 0;
-let adminAuditLoadError = "";
-let platformReadinessReport = null;
-let platformReadinessLoading = false;
-let platformReadinessLoadedAt = 0;
-let platformReadinessLoadError = "";
+let adminRuntimeService = null;
 const {
 adminAccessRenderer,
 adminReadinessRenderer,
@@ -1868,11 +1857,7 @@ defaultTeamId: platformDefaultTeamId,
 escapeHtml,
 formatPlayerProfileChangeTime,
 formatUserName,
-getAdminAuditState: () => ({
-entries: adminAuditEntries,
-loading: adminAuditLoading,
-loadError: adminAuditLoadError,
-}),
+getAdminAuditState,
 getAdminManagedWorkspaces,
 getAdminTransferRoomAccessTeamId,
 getAdminUserInitials,
@@ -1898,7 +1883,7 @@ getRecentPlayerProfileChangeLog,
 getRoleLabel,
 getScopedClubs: getScopedPlatformClubs,
 getScopedTeams: getScopedPlatformTeams,
-getSelectedAdminUserId: () => selectedAdminUserId,
+getSelectedAdminUserId,
 getSelectedPlayerId: () => playerProfilesState.selectedPlayerId,
 getTemporarySectionCollapsed: () => playerProfilesTemporarySectionCollapsed,
 getTransferRoomState: ensureTransferRoomState,
@@ -1946,6 +1931,51 @@ renderPlayerProfileStatusChip,
 renderTaskList: dashboardTaskListRenderer.renderTaskList,
 renderTeamLogoMark: renderPlatformTeamLogoMark,
 renderUserAvatar,
+});
+adminRuntimeService = createAdminRuntimeService({
+adminWorkspaceRenderer,
+buildPlatformTemporaryLoginMessage,
+buildPlatformUserCredentialMessage,
+canAdminManageUser,
+createPlatformStructureId,
+ensureTransferRoomState,
+fetchRef: (...args) => fetch(...args),
+flushCentralStateWrites,
+formatUserName,
+getAdminUserInitialsFromModule,
+getAssignableRolesForUser,
+getCurrentPlatformUser,
+getHubState: () => hubState,
+getPlatformApiAccessToken,
+getPlatformAuthStore,
+getPlatformClubById,
+getPlatformFormValues,
+getPlatformRoles,
+getPlatformStructureState,
+getPlatformTeamById,
+getPlatformUsers,
+getScopedPlatformClubs,
+getScopedPlatformUsers,
+getUserTeamId,
+getWorkspaceByIdFromPool,
+hasPlatformWorkspaceScope,
+isCurrentPlatformUserAdmin,
+isLegacyPlatformStructureValue,
+isPlatformAdminUser,
+normalizePlatformClub,
+normalizePlatformRole,
+normalizePlatformStructureText,
+normalizePlatformTeam,
+platformDefaultTeamId,
+readPlatformStructureState,
+renderDashboardCards,
+setHubState: (nextHubState) => { hubState = nextHubState; },
+syncPlatformStructureWithUsers,
+topIconMenuOrder,
+ui,
+win,
+writePlatformAppearanceState,
+writePlatformStructureState,
 });
 const {
 medicalAvailabilitySelectors,
@@ -5716,273 +5746,22 @@ user.id !== userId &&
 )
 );
 }
-function buildUserCredentialMessage(user, temporaryPassword = "") { return buildPlatformUserCredentialMessage(user, temporaryPassword); }
-async function openCredentialsMailto(user, temporaryPassword = "") {
-const body = buildUserCredentialMessage(user, temporaryPassword);
-const recipient = (user.email || "").trim();
-const mailto = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent("Your Football Science login")}&body=${encodeURIComponent(
-    body
-  )}`;
-const copyText = [
-"Website: https://footballscience.xyz/",
-`Username: ${user.username}`,
-`Email: ${user.email}`,
-temporaryPassword ? `Temporary password: ${temporaryPassword}` : "",
-].filter(Boolean).join("\n");
-let copied = false;
-if (win.navigator?.clipboard?.writeText) {
-try {
-await win.navigator.clipboard.writeText(copyText);
-copied = true;
-} catch {
-}
-}
-win.location.href = mailto;
-return { copied, copyText };
-}
-function buildTemporaryLoginMessage(user, temporaryPassword, copied = false) { return buildPlatformTemporaryLoginMessage(user, temporaryPassword, copied); }
-function getAdminManagedWorkspaces() {
-return topIconMenuOrder
-.map((workspaceId) => getWorkspaceByIdFromPool(workspaceId))
-.filter((workspace) => workspace && !workspace.hiddenFromNav);
-}
+async function openCredentialsMailto(...args) { return adminRuntimeService.openCredentialsMailto(...args); }
+function buildTemporaryLoginMessage(...args) { return adminRuntimeService.buildTemporaryLoginMessage(...args); }
+function getAdminManagedWorkspaces(...args) { return adminRuntimeService.getAdminManagedWorkspaces(...args); }
 function renderStaffWorkspace(message = "") { return profileStaffWorkspaceController.renderStaffWorkspace(message); }
-function getAdminUsersForTeam(users = [], teamId = "", structure = getPlatformStructureState()) {
-const normalizedTeamId = normalizePlatformStructureText(teamId, "");
-return users.filter((user) => !hasPlatformWorkspaceScope(user) && getUserTeamId(user, structure) === normalizedTeamId);
-}
-function getAdminUserInitials(user = {}) {
-return getAdminUserInitialsFromModule(user, {
-formatUserName,
-normalizeText: normalizePlatformStructureText,
-});
-}
-function createAdminClubFromForm(form) {
-const currentUser = getCurrentPlatformUser();
-if (!form || !isPlatformAdminUser(currentUser)) {
-renderAdminWorkspace("Platform admin required.");
-return;
-}
-const values = getPlatformFormValues(form);
-const clubName = normalizePlatformStructureText(values.clubName, "");
-if (!clubName) {
-renderAdminWorkspace("Club name is required.");
-return;
-}
-if (isLegacyPlatformStructureValue(clubName)) {
-renderAdminWorkspace("Football Science Live is a legacy workspace label, not a club.");
-return;
-}
-const structure = readPlatformStructureState();
-const existingClub = structure.clubs.find((club) => club.name.toLowerCase() === clubName.toLowerCase());
-if (existingClub) {
-renderAdminWorkspace("Club already exists.");
-return;
-}
-const clubIds = new Set(structure.clubs.map((club) => club.id));
-const club = normalizePlatformClub({
-id: createPlatformStructureId("club", clubName, clubIds),
-name: clubName,
-shortName: clubName,
-});
-structure.clubs.push(club);
-structure.activeClubId = club.id;
-writePlatformStructureState(structure);
-renderAdminWorkspace("Club added.");
-}
-function createAdminTeamFromForm(form) {
-const currentUser = getCurrentPlatformUser();
-if (!form || !(isPlatformAdminUser(currentUser) || normalizePlatformRole(currentUser?.role, "") === "club-admin")) {
-renderAdminWorkspace("Club admin access required.");
-return;
-}
-const values = getPlatformFormValues(form);
-const structure = readPlatformStructureState();
-const allowedClubs = getScopedPlatformClubs(currentUser, structure);
-const club = allowedClubs.find((candidate) => candidate.id === values.clubId) || allowedClubs[0];
-const teamName = normalizePlatformStructureText(values.teamName, "");
-if (!club || !teamName) {
-renderAdminWorkspace("Team name is required.");
-return;
-}
-if (isLegacyPlatformStructureValue(teamName)) {
-renderAdminWorkspace("Football Science Live is a legacy workspace label, not a team.");
-return;
-}
-const existingTeam = structure.teams.find(
-(team) => team.clubId === club.id && team.name.toLowerCase() === teamName.toLowerCase()
-);
-if (existingTeam) {
-renderAdminWorkspace("Team already exists.");
-return;
-}
-const teamIds = new Set(structure.teams.map((team) => team.id));
-const team = normalizePlatformTeam({
-id: createPlatformStructureId("team", `${club.name}-${teamName}`, teamIds),
-clubId: club.id,
-name: teamName,
-shortName: teamName,
-});
-structure.teams.push(team);
-structure.activeClubId = club.id;
-structure.activeTeamId = team.id;
-writePlatformStructureState(structure);
-renderAdminWorkspace("Team added.");
-}
-async function loadAdminAuditLog(options = {}) {
-if (adminAuditLoading) {
-return;
-}
-const force = Boolean(options.force);
-if (!force && adminAuditLoadedAt && Date.now() - adminAuditLoadedAt < 60000) {
-return;
-}
-const authStore = getPlatformAuthStore();
-if (!authStore?.getAuditLog) {
-adminAuditLoadError = "Audit log is not ready yet.";
-return;
-}
-adminAuditLoading = true;
-adminAuditLoadError = "";
-try {
-const result = await authStore.getAuditLog(80);
-if (!result?.ok) {
-adminAuditLoadError = result?.reason || "Audit log could not be loaded.";
-return;
-}
-adminAuditEntries = Array.isArray(result.entries) ? result.entries : [];
-adminAuditLoadedAt = Date.now();
-} catch (error) {
-adminAuditLoadError = error?.message || "Audit log could not be loaded.";
-} finally {
-adminAuditLoading = false;
-if (hubState?.activeWorkspaceId === "admin") {
-renderAdminWorkspace();
-}
-}
-}
-async function loadPlatformReadinessReport(options = {}) {
-if (platformReadinessLoading) {
-return;
-}
-const force = Boolean(options.force);
-if (!force && platformReadinessLoadedAt && Date.now() - platformReadinessLoadedAt < 60000) {
-return;
-}
-platformReadinessLoading = true;
-platformReadinessLoadError = "";
-const token = await getPlatformApiAccessToken();
-if (!token) {
-platformReadinessLoadError = "Admin session required.";
-platformReadinessLoading = false;
-if (hubState?.activeWorkspaceId === "admin") {
-renderAdminWorkspace();
-}
-return;
-}
-try {
-const response = await fetch("/api/platform-readiness", {
-headers: {
-Authorization: `Bearer ${token}`,
-},
-cache: "no-store",
-});
-const payload = await response.json().catch(() => ({}));
-if (!response.ok || payload?.ok === false) {
-platformReadinessLoadError = payload?.reason || `Platform readiness failed (${response.status}).`;
-return;
-}
-platformReadinessReport = payload.report || null;
-platformReadinessLoadedAt = Date.now();
-} catch (error) {
-platformReadinessLoadError = error?.message || "Platform readiness could not be loaded.";
-} finally {
-platformReadinessLoading = false;
-if (hubState?.activeWorkspaceId === "admin") {
-renderAdminWorkspace();
-}
-}
-}
-async function publishPlatformAppearanceConfig(config, message = "Published.") {
-if (!isPlatformAdminUser(getCurrentPlatformUser())) {
-renderAdminWorkspace("Platform admin required.");
-return;
-}
-writePlatformAppearanceState(config);
-await flushCentralStateWrites();
-renderDashboardCards();
-renderAdminWorkspace(message);
-}
-function getAdminTransferRoomAccessTeamId(state = ensureTransferRoomState(), structure = getPlatformStructureState()) {
-const fallbackTeamId = state.activeTeamId || state.settings?.activeTeamId || platformDefaultTeamId;
-const team =
-(state.teams || []).find((item) => item.id === fallbackTeamId) ||
-getPlatformTeamById(fallbackTeamId, structure) ||
-(state.teams || [])[0] ||
-{};
-return team.id || fallbackTeamId;
-}
-function renderAdminWorkspace(message = "") {
-if (!ui.adminWorkspace) {
-return;
-}
-if (!isCurrentPlatformUserAdmin()) {
-ui.adminWorkspace.innerHTML = adminWorkspaceRenderer.renderNotAdmin();
-return;
-}
-const allUsers = getPlatformUsers();
-const currentUser = getCurrentPlatformUser();
-const structure = syncPlatformStructureWithUsers(allUsers);
-const users = getScopedPlatformUsers(allUsers, currentUser, structure);
-const currentUserIsPlatformAdmin = isPlatformAdminUser(currentUser);
-const roles = getPlatformRoles();
-if (currentUserIsPlatformAdmin && !adminAuditLoadedAt && !adminAuditLoading) {
-loadAdminAuditLog().catch(() => {});
-}
-if (currentUserIsPlatformAdmin && !platformReadinessLoadedAt && !platformReadinessLoading && !platformReadinessLoadError) {
-loadPlatformReadinessReport().catch(() => {});
-}
-const selectedUser =
-users.find((adminUser) => adminUser.id === selectedAdminUserId) ??
-users.find((adminUser) => adminUser.id === currentUser?.id) ??
-users[0] ??
-null;
-selectedAdminUserId = selectedUser?.id ?? null;
-const selectedUserIsSelf = Boolean(selectedUser?.id && selectedUser.id === currentUser?.id);
-const canManageSelectedUser = Boolean(selectedUser && canAdminManageUser(currentUser, selectedUser, structure));
-const canRemoveSelectedUser = Boolean(selectedUser && canAdminManageUser(currentUser, selectedUser, structure, { remove: true }));
-const selectedUserFieldDisabled = canManageSelectedUser ? "" : "disabled";
-const assignableRoles = getAssignableRolesForUser(currentUser);
-const createRole = assignableRoles.includes("scout")
-? "scout"
-: assignableRoles.includes("coach")
-? "coach"
-: assignableRoles[0];
-const createUserTeamId = adminCreateUserTeamId || getUserTeamId(currentUser, structure);
-const createUserTeam = getPlatformTeamById(createUserTeamId, structure);
-const createUserClub = createUserTeam ? getPlatformClubById(createUserTeam.clubId, structure) : null;
-ui.adminWorkspace.innerHTML = adminWorkspaceRenderer.renderWorkspace({
-adminAuditLoadedAt,
-adminCreateUserEditorOpen,
-adminUserEditorOpen,
-canManageSelectedUser,
-canRemoveSelectedUser,
-createRole,
-createUserClub,
-createUserTeam,
-createUserTeamId,
-currentUser,
-currentUserIsPlatformAdmin,
-message,
-roles,
-selectedUser,
-selectedUserFieldDisabled,
-selectedUserIsSelf,
-selectedUserTeamId: selectedUser ? getUserTeamId(selectedUser, structure) : "",
-structure,
-users,
-});
-}
+function getAdminAuditState(...args) { return adminRuntimeService?.getAdminAuditState?.(...args) ?? {}; }
+function getReadinessState(...args) { return adminRuntimeService?.getReadinessState?.(...args) ?? {}; }
+function getSelectedAdminUserId(...args) { return adminRuntimeService?.getSelectedAdminUserId?.(...args) ?? null; }
+function getAdminUsersForTeam(...args) { return adminRuntimeService.getAdminUsersForTeam(...args); }
+function getAdminUserInitials(...args) { return adminRuntimeService.getAdminUserInitials(...args); }
+function createAdminClubFromForm(...args) { return adminRuntimeService.createAdminClubFromForm(...args); }
+function createAdminTeamFromForm(...args) { return adminRuntimeService.createAdminTeamFromForm(...args); }
+async function loadAdminAuditLog(...args) { return adminRuntimeService.loadAdminAuditLog(...args); }
+async function loadPlatformReadinessReport(...args) { return adminRuntimeService.loadPlatformReadinessReport(...args); }
+async function publishPlatformAppearanceConfig(...args) { return adminRuntimeService.publishPlatformAppearanceConfig(...args); }
+function getAdminTransferRoomAccessTeamId(...args) { return adminRuntimeService.getAdminTransferRoomAccessTeamId(...args); }
+function renderAdminWorkspace(...args) { return adminRuntimeService.renderAdminWorkspace(...args); }
 function isMedicalDateValue(dateValue) {
 if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateValue))) {
 return false;
@@ -7479,15 +7258,7 @@ setProfileMenuOpen(false);
 bindAdminRuntimeBindings({
 workspaceElement: ui.adminWorkspace,
 win,
-state: {
-getSelectedAdminUserId: () => selectedAdminUserId,
-setSelectedAdminUserId: (userId) => { selectedAdminUserId = userId; },
-setAdminCreateUserEditorOpen: (isOpen) => { adminCreateUserEditorOpen = isOpen; },
-setAdminUserEditorOpen: (isOpen) => { adminUserEditorOpen = isOpen; },
-setAdminCreateUserTeamId: (teamId) => { adminCreateUserTeamId = teamId; },
-getHubState: () => hubState,
-setHubState: (nextHubState) => { hubState = nextHubState; },
-},
+state: adminRuntimeService.getBindingStateAccessors(),
 actions: {
 buildPlatformAppearanceConfigFromForm,
 buildTemporaryLoginMessage,

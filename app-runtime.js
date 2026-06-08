@@ -67,7 +67,7 @@ import { bindPlatformNavigationInteractions } from "./src/core/platform-navigati
 import { createPlatformUiBindings } from "./src/core/platform-ui-bindings.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createWorkspaceHubStateHelpers } from "./src/core/workspace-hub-state.mjs";
-import { addCalendarDays, clamp, escapeHtml, formatDashboardDateTime, formatDashboardTime, logEvent, setFormSubmitButtonState } from "./src/core/runtime-ui-helpers.mjs";
+import { addCalendarDays, clamp, escapeHtml, formatDashboardDateTime, formatDashboardTime, isEditableKeyboardTarget, logEvent, maybeCopyToClipboard, setFormSubmitButtonState, togglePasswordInputVisibility } from "./src/core/runtime-ui-helpers.mjs";
 import { installPlatformOverlayStability } from "./src/core/overlay-stability.mjs";
 import { defaultHubState, placeholderWorkspaceContent, platformSidebarMoreOrder, platformSidebarPrimaryOrder, topIconMenuOrder } from "./src/core/workspace-defaults.mjs";
 import { createPlatformDisplayHelpers, formatPlatformUserName, getPlatformRoleLabel, getPlatformUserInitials, getPlatformUserProfileImageUrl, normalizePlatformProfileImageUrl } from "./src/modules/platform/display-helpers.mjs";
@@ -3993,13 +3993,6 @@ getVisibleEvents: getScheduleVisibleEvents,
 getVisibleMonthEvents: getScheduleVisibleMonthEvents,
 isSessionEvent: isScheduleSessionEvent,
 } = scheduleRuntimeSelectors;
-function isEditableKeyboardTarget(target) {
-const element = target instanceof Element ? target : null;
-if (!element) {
-return false;
-}
-return Boolean(element.closest("input, textarea, select, [contenteditable='true']"));
-}
 const scheduleWorkspaceController = createScheduleWorkspaceController({
 ui,
 window: win,
@@ -7128,30 +7121,6 @@ win.location.href = mailto;
 return { copied, copyText };
 }
 function buildTemporaryLoginMessage(user, temporaryPassword, copied = false) { return buildPlatformTemporaryLoginMessage(user, temporaryPassword, copied); }
-async function maybeCopyToClipboard(text) {
-const safeText = String(text || "").trim();
-if (!safeText || !win.navigator?.clipboard?.writeText) {
-return false;
-}
-try {
-await win.navigator.clipboard.writeText(safeText);
-return true;
-} catch {
-return false;
-}
-}
-function togglePasswordInputVisibility(button) {
-const shell = button?.closest(".password-input-shell");
-const input = shell?.querySelector("input");
-if (!input) {
-return;
-}
-const shouldShow = input.type === "password";
-input.type = shouldShow ? "text" : "password";
-button.setAttribute("aria-pressed", shouldShow ? "true" : "false");
-button.setAttribute("aria-label", shouldShow ? "Hide password" : "Show password");
-button.classList.toggle("is-visible", shouldShow);
-}
 function getAdminManagedWorkspaces() {
 return topIconMenuOrder
 .map((workspaceId) => getWorkspaceByIdFromPool(workspaceId))

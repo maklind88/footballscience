@@ -4,7 +4,10 @@ import {
   clamp,
   escapeHtml,
   formatDashboardDateTime,
+  isEditableKeyboardTarget,
+  maybeCopyToClipboard,
   setFormSubmitButtonState,
+  togglePasswordInputVisibility,
 } from "../src/core/runtime-ui-helpers.mjs";
 
 test("runtime UI helpers preserve app-runtime formatting behavior", () => {
@@ -33,4 +36,49 @@ test("runtime UI helpers keep submit button state reversible", () => {
   expect(button.disabled).toBe(false);
   expect(button.textContent).toBe("Save");
   expect(button.dataset.savedLabel).toBeUndefined();
+});
+
+test("runtime UI helpers own DOM-only interaction helpers outside app-runtime", async () => {
+  class FakeElement {
+    constructor(match = false) {
+      this.match = match;
+    }
+
+    closest(selector) {
+      this.lastSelector = selector;
+      return this.match ? {} : null;
+    }
+  }
+
+  expect(isEditableKeyboardTarget(new FakeElement(true), FakeElement)).toBe(true);
+  expect(isEditableKeyboardTarget(new FakeElement(false), FakeElement)).toBe(false);
+
+  const writes = [];
+  await expect(maybeCopyToClipboard("  login details  ", {
+    writeText: async (value) => writes.push(value),
+  })).resolves.toBe(true);
+  expect(writes).toEqual(["login details"]);
+  await expect(maybeCopyToClipboard(" ", {
+    writeText: async () => writes.push("should-not-run"),
+  })).resolves.toBe(false);
+
+  const input = { type: "password" };
+  const button = {
+    attributes: {},
+    classList: {
+      isVisible: false,
+      toggle(_className, state) {
+        this.isVisible = state;
+      },
+    },
+    closest: () => ({ querySelector: () => input }),
+    setAttribute(name, value) {
+      this.attributes[name] = value;
+    },
+  };
+  togglePasswordInputVisibility(button);
+  expect(input.type).toBe("text");
+  expect(button.attributes["aria-pressed"]).toBe("true");
+  expect(button.attributes["aria-label"]).toBe("Hide password");
+  expect(button.classList.isVisible).toBe(true);
 });

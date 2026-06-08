@@ -40,6 +40,40 @@ export function setFormSubmitButtonState(form, options = {}) {
   delete submitButton.dataset.savedLabel;
 }
 
+export function isEditableKeyboardTarget(target, ElementConstructor = globalThis.Element) {
+  const element = ElementConstructor && target instanceof ElementConstructor ? target : null;
+  if (!element) {
+    return false;
+  }
+  return Boolean(element.closest("input, textarea, select, [contenteditable='true']"));
+}
+
+export async function maybeCopyToClipboard(text, clipboard = globalThis.navigator?.clipboard) {
+  const safeText = String(text || "").trim();
+  if (!safeText || typeof clipboard?.writeText !== "function") {
+    return false;
+  }
+  try {
+    await clipboard.writeText(safeText);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function togglePasswordInputVisibility(button) {
+  const shell = button?.closest(".password-input-shell");
+  const input = shell?.querySelector("input");
+  if (!input) {
+    return;
+  }
+  const shouldShow = input.type === "password";
+  input.type = shouldShow ? "text" : "password";
+  button.setAttribute("aria-pressed", shouldShow ? "true" : "false");
+  button.setAttribute("aria-label", shouldShow ? "Hide password" : "Show password");
+  button.classList.toggle("is-visible", shouldShow);
+}
+
 export function formatDashboardTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {

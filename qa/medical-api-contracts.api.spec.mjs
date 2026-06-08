@@ -154,14 +154,17 @@ test("medical archive events are first-class sync events", () => {
 
 test("medical room archives clinical items instead of hard deleting them", () => {
   const appSource = readFileSync(resolve(__dirname, "../app-runtime.js"), "utf8");
-  expect(appSource).toContain("archiveReason: \"Manual archive from Medical Room\"");
-  expect(appSource).toContain("record-archived");
-  expect(appSource).toContain("availability-plan-archived");
-  expect(appSource).toContain("availability-plan-updated");
-  expect(appSource).toContain("player-archived");
-  expect(appSource).toContain("footballscience-medical-data-safety-v1");
-  expect(appSource).not.toContain("medicalState.records = medicalState.records.filter((record) => record.id !== recordId)");
-  expect(appSource).not.toContain("medicalState.injuryPlans = medicalState.injuryPlans.filter((plan) => plan.id !== planId)");
+  const writeServiceSource = readFileSync(resolve(__dirname, "../src/modules/medical/medical-runtime-write-service.mjs"), "utf8");
+  const helpersSource = readFileSync(resolve(__dirname, "../src/modules/medical/medical-runtime-helpers.mjs"), "utf8");
+  expect(appSource).toContain("createWorkspaceRuntimeComposition({");
+  expect(writeServiceSource).toContain("archiveReason: \"Manual archive from Medical Room\"");
+  expect(writeServiceSource).toContain("record-archived");
+  expect(writeServiceSource).toContain("availability-plan-archived");
+  expect(writeServiceSource).toContain("availability-plan-updated");
+  expect(writeServiceSource).toContain("player-archived");
+  expect(helpersSource).toContain("footballscience-medical-data-safety-v1");
+  expect(writeServiceSource).not.toContain("medicalState.records = medicalState.records.filter((record) => record.id !== recordId)");
+  expect(writeServiceSource).not.toContain("medicalState.injuryPlans = medicalState.injuryPlans.filter((plan) => plan.id !== planId)");
 });
 
 test("medical API route is auth protected and delegates to database handler", () => {

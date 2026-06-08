@@ -92,7 +92,7 @@ test("Periodization app integration delegates state, renderer, controller, bridg
   expect(app).toContain("bindPlatformWorkspaceRuntimeBindings({");
   expect(app).not.toContain("periodizationWorkspaceController.bind()");
   expect(platformBindings).toContain("periodizationWorkspaceController?.bind?.()");
-  expect(app).toContain("periodizationBridge: sessionPlannerPeriodizationBridge");
+  expect(app).toContain("periodizationBridge: workspaceRuntimeComposition.sessionPlannerPeriodizationBridge");
   expect(app).not.toContain("function refreshSessionPlannerMatchDayChip()");
   expect(sessionPlannerBindings).toContain('callOptional(periodizationBridge, "handleClick", event)');
   expect(app).not.toContain("let sessionPlannerPeriodizationOverlayDate");

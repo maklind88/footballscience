@@ -38,7 +38,7 @@ export function createGameSimulatorLazyRuntimeBridge(deps = {}) {
     if (!runtimePromise) {
       runtimePromise = platformModuleLoader
         .loadModule("game-simulator.runtime-entry", () =>
-          import(platformModuleLoader.versionedHref("./src/modules/game-simulator/runtime-entry.mjs"))
+          import(platformModuleLoader.versionedHref("/src/modules/game-simulator/runtime-entry.mjs"))
         )
         .then(({ createGameSimulatorRuntimeEntry }) => {
           runtime = createGameSimulatorRuntimeEntry({

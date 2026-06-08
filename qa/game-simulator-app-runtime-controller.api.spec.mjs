@@ -22,7 +22,7 @@ test("game simulator app runtime controller owns simulator runtime wiring", () =
   expect(app).not.toContain('import(platformModuleLoader.versionedHref("./src/modules/game-simulator/runtime-entry.mjs"))');
   expect(app).not.toContain("function ensureGameSimulatorRuntime()");
   expect(app).not.toContain("function invokeGameSimulatorRuntime");
-  expect(lazyBridge).toContain('import(platformModuleLoader.versionedHref("./src/modules/game-simulator/runtime-entry.mjs"))');
+  expect(lazyBridge).toContain('import(platformModuleLoader.versionedHref("/src/modules/game-simulator/runtime-entry.mjs"))');
   expect(lazyBridge).toContain("ensureGameSimulatorRuntime: ensureRuntime");
   expect(lazyBridge).toContain("function invokeRuntime");
   expect(app).not.toContain('from "./src/modules/game-simulator/app-runtime-controller.mjs"');

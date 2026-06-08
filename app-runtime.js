@@ -5107,7 +5107,7 @@ localUiState: sessionPlannerLocalUiState,
 runtimeDelegates: sessionPlannerRuntimeDelegates,
 exerciseLibrary: exerciseLibraryRuntimeFacade,
 exerciseLibraryActions,
-periodizationBridge: sessionPlannerPeriodizationBridge,
+periodizationBridge: workspaceRuntimeComposition.sessionPlannerPeriodizationBridge,
 boardHistory: { undo: undoSessionPlannerBoardHistory, redo: redoSessionPlannerBoardHistory },
 normalizers: {
 cleanPlayerBoardFormationInput: cleanSessionPlannerPlayerBoardFormationInput,

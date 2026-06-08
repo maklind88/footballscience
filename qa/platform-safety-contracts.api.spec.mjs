@@ -552,7 +552,7 @@ test("game simulator animation loop does not run globally outside the simulator 
   expect(appSource).toContain('from "./src/modules/game-simulator/index.mjs"');
   expect(appSource).toContain("createGameSimulatorLazyRuntimeBridge({");
   expect(appSource).not.toContain('import(platformModuleLoader.versionedHref("./src/modules/game-simulator/runtime-entry.mjs"))');
-  expect(lazyRuntimeBridgeSource).toContain('import(platformModuleLoader.versionedHref("./src/modules/game-simulator/runtime-entry.mjs"))');
+  expect(lazyRuntimeBridgeSource).toContain('import(platformModuleLoader.versionedHref("/src/modules/game-simulator/runtime-entry.mjs"))');
   expect(lazyRuntimeBridgeSource).toContain("startSimulatorAnimationLoop:");
   expect(lazyRuntimeBridgeSource).toContain("stopSimulatorAnimationLoop:");
   expect(runtimeEntrySource).toContain("createGameSimulatorAppRuntimeController({");

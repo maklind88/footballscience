@@ -6,6 +6,38 @@ import { createPlayerProfileRuntimeFacade } from "../modules/squad/index.mjs";
 import { createSessionPlannerRuntimeServiceComposition } from "../modules/session-planner/session-planner-runtime-service-composer.mjs";
 
 export function createWorkspaceRuntimeComposition(deps = {}) {
+  const periodizationRuntimeBindings = createPeriodizationRuntimeBindings({
+    ui: deps.ui,
+    renderer: deps.periodizationRenderer,
+    parseDateValue: deps.parseScheduleDateValue,
+    ensurePeriodizationState: deps.ensurePeriodizationState,
+    isDateValueInYear: deps.isDateValueInYear,
+    canEdit: deps.canEditPeriodizationWorkspace,
+    writeDay: deps.writePeriodizationDay,
+    writePeriodizationState: deps.writePeriodizationState,
+    renderSessionPlanner: deps.renderSessionPlannerWorkspace,
+    getCustomFieldValue: deps.getPeriodizationCustomFieldValue,
+    getMultiFieldValue: deps.getPeriodizationMultiFieldValue,
+    isMultiField: deps.isPeriodizationMultiField,
+    getMultiSelectOpenField: deps.getPeriodizationMultiSelectOpenField,
+    setMultiSelectOpenField: deps.setPeriodizationMultiSelectOpenField,
+    setPeriodizationSelection: deps.setPeriodizationSelection,
+    getState: deps.getPeriodizationState,
+    getPeriodizationState: deps.getPeriodizationState,
+    getOverlayState: deps.getPeriodizationOverlayState,
+    setOverlayMode: deps.setPeriodizationOverlayMode,
+    jumpToToday: deps.jumpPeriodizationToToday,
+    shiftMonth: deps.shiftPeriodizationMonth,
+    setMonth: deps.setPeriodizationMonth,
+    selectDate: deps.selectPeriodizationDate,
+    setOverlayState: deps.setPeriodizationOverlayState,
+    escapeHtml: deps.escapeHtml,
+    getPeriodizationDay: deps.getPeriodizationDay,
+    getPeriodizationMatchDayLabel: deps.getPeriodizationMatchDayLabel,
+    getSessionPlannerState: deps.getSessionPlannerState,
+  });
+  const { sessionPlannerPeriodizationBridge } = periodizationRuntimeBindings;
+
   const sessionPlannerRuntimeServiceComposition = createSessionPlannerRuntimeServiceComposition({
     sessionPlannerBlockDeletionTombstoneKey: deps.sessionPlannerBlockDeletionTombstoneKey,
     sessionPlannerBlockFieldUpdatedAtKey: deps.sessionPlannerBlockFieldUpdatedAtKey,
@@ -224,37 +256,6 @@ export function createWorkspaceRuntimeComposition(deps = {}) {
     writeMedicalState: deps.writeMedicalState,
   });
   deps.configurePlayerProfileRuntimeAccessors(() => playerProfileRuntimeFacade);
-
-  const periodizationRuntimeBindings = createPeriodizationRuntimeBindings({
-    ui: deps.ui,
-    renderer: deps.periodizationRenderer,
-    parseDateValue: deps.parseScheduleDateValue,
-    ensurePeriodizationState: deps.ensurePeriodizationState,
-    isDateValueInYear: deps.isDateValueInYear,
-    canEdit: deps.canEditPeriodizationWorkspace,
-    writeDay: deps.writePeriodizationDay,
-    writePeriodizationState: deps.writePeriodizationState,
-    renderSessionPlanner: deps.renderSessionPlannerWorkspace,
-    getCustomFieldValue: deps.getPeriodizationCustomFieldValue,
-    getMultiFieldValue: deps.getPeriodizationMultiFieldValue,
-    isMultiField: deps.isPeriodizationMultiField,
-    getMultiSelectOpenField: deps.getPeriodizationMultiSelectOpenField,
-    setMultiSelectOpenField: deps.setPeriodizationMultiSelectOpenField,
-    setPeriodizationSelection: deps.setPeriodizationSelection,
-    getState: deps.getPeriodizationState,
-    getPeriodizationState: deps.getPeriodizationState,
-    getOverlayState: deps.getPeriodizationOverlayState,
-    setOverlayMode: deps.setPeriodizationOverlayMode,
-    jumpToToday: deps.jumpPeriodizationToToday,
-    shiftMonth: deps.shiftPeriodizationMonth,
-    setMonth: deps.setPeriodizationMonth,
-    selectDate: deps.selectPeriodizationDate,
-    setOverlayState: deps.setPeriodizationOverlayState,
-    escapeHtml: deps.escapeHtml,
-    getPeriodizationDay: deps.getPeriodizationDay,
-    getPeriodizationMatchDayLabel: deps.getPeriodizationMatchDayLabel,
-    getSessionPlannerState: deps.getSessionPlannerState,
-  });
 
   const workspaceShellController = createWorkspaceShellController({
     applyUserAvatar: deps.applyUserAvatar,

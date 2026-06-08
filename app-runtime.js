@@ -63,6 +63,7 @@ import { bindPlatformNavigationInteractions } from "./src/core/platform-navigati
 import { createPlatformUiBindings } from "./src/core/platform-ui-bindings.mjs";
 import { createPlatformRuntimeServices } from "./src/core/platform-runtime-services-composer.mjs";
 import { createWorkspaceRuntimeComposition } from "./src/core/workspace-runtime-composer.mjs";
+import { createPlatformUserRuntimeService } from "./src/core/platform-user-runtime-service.mjs";
 import { createMedicalRuntimeServiceComposition } from "./src/modules/medical/medical-runtime-service-composer.mjs";
 import { configurePlatformRuntimeAccessors, mergePeriodizationStatePreservingLocalUi, renderPlayerProfilesWorkspaceMessage, cloneDefaultPlatformStructureState, normalizePlatformStructureText, normalizePlatformStructureComparable, isLegacyPlatformStructureValue, isCanonicalPlatformClubValue, isCanonicalPlatformTeamValue, isLegacyPlatformClub, isLegacyPlatformTeam, isCanonicalPlatformClub, isCanonicalPlatformTeam, hasPlatformWorkspaceScope, slugifyPlatformStructureValue, normalizePlatformStructureId, createPlatformStructureId, normalizePlatformClub, normalizePlatformTeam, normalizePlatformStructureState, isLegacyPlatformTeamPlaceholderName, readPlatformStructureState, writePlatformStructureState, getPlatformStructureState, getPlatformClubById, getPlatformTeamById, findPlatformTeamByName, syncPlatformStructureWithUsers, getUserTeamId, getUserClubId, getUserTeamName, getActivePlatformTeam, getPlatformTeamDisplayTeam, getPlatformTeamDisplayName, writePlatformTeamLogo, getUserClubName, getUserScopeLabel, isSamePlatformClub, isSamePlatformTeam, canAdminViewUser, canAdminManageUser, getScopedPlatformUsers, getScopedPlatformClubs, getScopedPlatformTeams, normalizeAdminUserSubmissionValues, getAllWorkspacePool, normalizeWorkspaceRoleList, normalizeWorkspaceAccessEntry, getWorkspaceAccessConfig, getWorkspaceByIdFromPool, canUserAccessWorkspace, canCurrentUserAccessWorkspace, canUserEditWorkspace, canCurrentUserEditWorkspace, canEditScheduleWorkspace, canEditSessionPlanner, canEditPeriodizationWorkspace, canEditGameSimulatorWorkspace, canEditScoutingWorkspace, getAccessibleWorkspacePool, getVisibleWorkspacePool, mergeWorkspaceDefinitions, cloneHubState, clonePersistableWorkspaceHubState, repairWorkspaceState, getWorkspaceIdFromUrl, readRememberedWorkspaceId, rememberActiveWorkspaceId, readWorkspaceHubState, writeWorkspaceHubState, getWorkspaceById, getWorkspaceByIdUnfiltered, getSafeWorkspaceId, getWorkspaceViewId, getPeriodizationDay, ensurePeriodizationState, writePeriodizationDay, selectPeriodizationDate, openPeriodizationDateForDashboard, setPeriodizationStateStorageValue, readPeriodizationState, writePeriodizationState, setPeriodizationMonth, shiftPeriodizationMonth, scrollPeriodizationDateIntoView, jumpPeriodizationToToday, mergeImportedNccSchedule, setScheduleStateStorageValue, readScheduleState, ensureScheduleState, writeScheduleState, setScoutingStateStorageValue, readScoutingState, writeScoutingState, ensureScoutingState, getPeriodizationMultiSelectOpenField, setPeriodizationMultiSelectOpenField, setPeriodizationSelection, getPeriodizationOverlayState, setPeriodizationOverlayMode, setPeriodizationOverlayState, readTransferRoomState, ensureTransferRoomState, syncTransferRoomLinkedState, canUserAccessTransferRoom, canUserEditTransferRoom, addTransferRoomTargetFromScoutingSnapshot, getGameplanContext, getScoutingAnalysisRoomContext, getScoutingWorkspaceContext, getTransferRoomWorkspaceContext, hydrateWorkspaceModuleState, loadGameplanModule, loadScoutingWorkspaceModule, loadTransferRoomWorkspaceModule, renderAnalysisRoomWorkspace, renderGameplanWorkspace, renderScoutingWorkspace, renderTransferRoomWorkspace, renderPeriodizationWorkspace, renderSessionPlannerPeriodizationOverlay, renderSessionPlannerPeriodizationSummary, initializeWorkspaceHub, renderWorkspaceChrome, setActiveWorkspace, reloadCentralizedAppStateFromStorage, getCurrentSessionPlannerUiSelection, readSessionPlannerStatePreservingUiSelection, shouldDeferCentralizedAppStateReload, setCentralizedAppStateReloadPending, requestCentralizedAppStateReload, flushDeferredCentralizedAppStateReload, refreshCentralStateFromSource, formatScheduleBlockSummary, getScheduleEventsForDate, getScheduleMainEvent, getScheduleMonthEvents, getScheduleDayWarnings, getScheduledSessionTitleForDate, getScheduleSelectedDayContext, getScheduleSessionEventForDate, getScheduleSessionSnapshot, getScheduleVisibleEvents, getScheduleVisibleMonthEvents, isScheduleSessionEvent, openCredentialsMailto, buildTemporaryLoginMessage, getAdminManagedWorkspaces, getAdminAuditState, getReadinessState, getSelectedAdminUserId, getAdminUsersForTeam, getAdminUserInitials, createAdminClubFromForm, createAdminTeamFromForm, loadAdminAuditLog, loadPlatformReadinessReport, publishPlatformAppearanceConfig, getAdminTransferRoomAccessTeamId, renderAdminWorkspace } from "./src/core/platform-runtime-accessors.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
@@ -333,6 +334,47 @@ const dataSafetyExportSchema = "football-science-backup-v1";
 const dataSafetyDatabaseName = "football-science-data-safety-v1";
 const maxProfileImageUrlLength = 1800;
 const maxProfileImageUploadDataUrlLength = 900000;
+const platformUserRuntimeService = createPlatformUserRuntimeService({
+formatPlatformUserName,
+getPlatformRoleLabel,
+getPlatformUserInitials,
+getPlatformUserProfileImageUrl,
+getUserClubName,
+getUserTeamName,
+isLegacyPlatformStructureValue,
+maxProfileImageUploadDataUrlLength,
+maxProfileImageUrlLength,
+normalizePlatformProfileImageUrl,
+normalizePlatformStructureText,
+win,
+});
+const {
+formatUserName,
+getAssignableRolesForUser,
+getCurrentPlatformUser,
+getPlatformApiAccessToken,
+getPlatformAuthStore,
+getPlatformRoles,
+getPlatformUsers,
+getRoleLabel,
+getUserInitials,
+getUserProfileImageUrl,
+isCurrentPlatformUserAdmin,
+isPlatformAdminUser,
+isPlatformManagementUser,
+isPlatformStaffUser,
+isProfileMenuOpen,
+normalizePlatformImageUrl,
+normalizePlatformRole,
+platformDefaultRoles,
+platformManagementRoleSet,
+platformStaffRoleSet,
+setProfileMenuOpen,
+syncAccountMenu,
+syncPlatformUserFromAuth,
+updatePlatformUserFromPayload,
+withUiTimeout,
+} = platformUserRuntimeService;
 const {
 applyUserAvatar,
 getPlatformTeamLogoInitials,
@@ -345,6 +387,11 @@ getUserInitials,
 getUserProfileImageUrl,
 normalizeImageUrl: normalizePlatformImageUrl,
 normalizeText: normalizePlatformStructureText,
+});
+platformUserRuntimeService.configureAccountMenu({
+applyUserAvatar,
+getPlatformStructureState,
+ui,
 });
 const centralRuntimeFacade = createCentralRuntimeFacade({
 win,
@@ -433,7 +480,6 @@ queueCentralStateWrite,
 flushCentralStateWrites,
 clearCentralStateWriteTimer,
 } = centralRuntimeFacade;
-let platformUser = null;
 const platformNavigationRenderer = createPlatformNavigationRenderer({
 escapeHtml,
 getTopIconLabel: getPlatformTopIconLabel,
@@ -1579,18 +1625,6 @@ sessionPlannerRenderer,
 sessionPlannerVisualRenderer,
 sessionPlannerWorkspaceRenderer,
 } = sessionPlannerRuntimeRenderers;
-const platformDefaultRoles = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
-const platformManagementRoleSet = new Set(["admin", "club-admin", "team-admin"]);
-const platformStaffRoleSet = new Set(["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"]);
-const platformRoleAliases = Object.freeze({
-"super-admin": "admin",
-"superadmin": "admin",
-"administrator": "admin",
-"platform-admin": "admin",
-"platform owner": "admin",
-"owner": "admin",
-"admin-role": "admin",
-});
 const platformDefaultClubId = "club-north-carolina-courage";
 const platformDefaultTeamId = "team-north-carolina-courage";
 const platformDefaultClubName = "North Carolina Courage";
@@ -1907,156 +1941,6 @@ const dashboardTypingSendThrottleMs = 1800;
 let dashboardPresenceEntriesByUserId = {};
 let dashboardPresenceHeartbeatTimer = null, dashboardPresencePollTimer = null, dashboardPresenceStarted = false, dashboardPresenceInFlight = false;
 let dashboardPresenceLastActivityAt = Date.now(), dashboardPresenceLastRenderedSignature = "", dashboardPresenceLastPushAt = 0, dashboardPresenceLastPollAt = 0;
-function getPlatformAuthStore() { return win.platformAuthStore ?? null; }
-async function getPlatformApiAccessToken() {
-if (win.platformAuthReadyPromise instanceof Promise) {
-try {
-await win.platformAuthReadyPromise;
-} catch {
-}
-}
-const authStore = getPlatformAuthStore();
-if (typeof authStore?.getAccessToken !== "function") {
-return "";
-}
-try {
-return String((await authStore.getAccessToken()) || "").trim();
-} catch {
-return "";
-}
-}
-function syncPlatformUserFromAuth() {
-const authStore = getPlatformAuthStore();
-platformUser = authStore?.getCurrentUser?.() ?? win.platformSession ?? null;
-return platformUser;
-}
-function withUiTimeout(promise, timeoutMs, timeoutMessage) {
-let timeoutId = 0;
-return Promise.race([
-Promise.resolve(promise).finally(() => {
-if (timeoutId) {
-win.clearTimeout(timeoutId);
-}
-}),
-new Promise((_, reject) => {
-timeoutId = win.setTimeout(() => {
-reject(new Error(timeoutMessage || "Request timed out."));
-}, timeoutMs);
-}),
-]);
-}
-function getCurrentPlatformUser() { return platformUser ?? syncPlatformUserFromAuth(); }
-function updatePlatformUserFromPayload(nextUser) {
-const authStore = getPlatformAuthStore();
-if (!nextUser?.id || !authStore?.getUsers || !authStore?.writeUsers || !authStore?.setCurrentUser) {
-return;
-}
-const users = Array.isArray(authStore.getUsers()) ? authStore.getUsers() : [];
-const nextUsers = users.some((entry) => entry.id === nextUser.id)
-? users.map((entry) => (entry.id === nextUser.id ? { ...entry, ...nextUser } : entry))
-: [nextUser, ...users];
-authStore.writeUsers(nextUsers);
-const currentUser = getCurrentPlatformUser();
-if (currentUser?.id === nextUser.id) {
-authStore.setCurrentUser(nextUser.id);
-}
-}
-function isCurrentPlatformUserAdmin() {
-const user = getCurrentPlatformUser();
-return isPlatformManagementUser(user);
-}
-function getPlatformUsers() { return getPlatformAuthStore()?.getUsers?.() ?? []; }
-function getPlatformRoles() {
-const roles = getPlatformAuthStore()?.roles;
-if (Array.isArray(roles)) {
-return Array.from(new Set([...platformDefaultRoles, ...roles]));
-}
-if (typeof roles === "function") {
-try {
-const nextRoles = roles();
-return Array.isArray(nextRoles) ? Array.from(new Set([...platformDefaultRoles, ...nextRoles])) : platformDefaultRoles;
-} catch {
-return platformDefaultRoles;
-}
-}
-return platformDefaultRoles;
-}
-function formatUserName(user) { return formatPlatformUserName(user); }
-function getUserInitials(user) { return getPlatformUserInitials(user); }
-function getUserProfileImageUrl(user) {
-return getPlatformUserProfileImageUrl(user, {
-maxUploadDataUrlLength: maxProfileImageUploadDataUrlLength,
-maxUrlLength: maxProfileImageUrlLength,
-});
-}
-function normalizePlatformImageUrl(value = "") {
-return normalizePlatformProfileImageUrl(value, {
-maxUploadDataUrlLength: maxProfileImageUploadDataUrlLength,
-maxUrlLength: maxProfileImageUrlLength,
-});
-}
-function getUserClub(user) {
-const structure = getPlatformStructureState();
-return getUserTeamName(user, structure) || getUserClubName(user, structure) || "Football Science";
-}
-function syncAccountMenu(user = getCurrentPlatformUser()) {
-const name = user ? formatUserName(user) : "Profile";
-const rawTeamLabel = normalizePlatformStructureText(user?.team || user?.teamName, "");
-const club = rawTeamLabel && !isLegacyPlatformStructureValue(rawTeamLabel) ? rawTeamLabel : getUserClub(user);
-applyUserAvatar(ui.profileMenuAvatar, user);
-applyUserAvatar(ui.profileMenuPanelAvatar, user);
-const accountFields = [
-[ui.profileMenuName, name],
-[ui.profileMenuPanelName, name],
-[ui.profileMenuClub, club],
-[ui.profileMenuPanelClub, club],
-];
-accountFields.forEach(([element, value]) => {
-if (element) {
-element.textContent = value;
-}
-});
-if (ui.profileMenuButton) {
-ui.profileMenuButton.setAttribute("aria-label", `Open profile menu for ${name}`);
-ui.profileMenuButton.setAttribute("title", name);
-}
-}
-function setProfileMenuOpen(isOpen) {
-if (!ui.profileMenu || !ui.profileMenuButton) {
-return;
-}
-ui.profileMenu.hidden = !isOpen;
-ui.profileMenuButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
-}
-function isProfileMenuOpen() { return Boolean(ui.profileMenu && !ui.profileMenu.hidden); }
-function getRoleLabel(role) { return getPlatformRoleLabel(role); }
-function normalizePlatformRole(role, fallback = "coach") {
-if (Array.isArray(role)) {
-return normalizePlatformRole(role.find((entry) => typeof entry === "string" && entry.trim()) || "", fallback);
-}
-if (role && typeof role === "object") {
-return normalizePlatformRole(role?.role || role?.name || role?.value || "", fallback);
-}
-const normalizedRole = String(role || "").trim().toLowerCase();
-const mappedRole = platformRoleAliases[normalizedRole] || normalizedRole;
-return platformDefaultRoles.includes(mappedRole) ? mappedRole : fallback;
-}
-function isPlatformAdminUser(user) { return normalizePlatformRole(user?.role, "") === "admin"; }
-function isPlatformManagementUser(user) { return platformManagementRoleSet.has(normalizePlatformRole(user?.role, "")); }
-function isPlatformStaffUser(user) { return platformStaffRoleSet.has(normalizePlatformRole(user?.role, "")); }
-function getAssignableRolesForUser(user = getCurrentPlatformUser()) {
-const role = normalizePlatformRole(user?.role, "");
-if (role === "admin") {
-return platformDefaultRoles;
-}
-if (role === "club-admin") {
-return ["team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
-}
-if (role === "team-admin") {
-return ["coach", "scout", "analyst", "performance", "medical", "guest"];
-}
-return [];
-}
 const platformRuntimeServices = createPlatformRuntimeServices({
 canCurrentUserEditWorkspace,
 canEditPeriodizationWorkspace,

@@ -60,6 +60,7 @@ import { createPlatformUserRuntimeService } from "./src/core/platform-user-runti
 import { createMedicalRuntimeServiceComposition } from "./src/modules/medical/medical-runtime-service-composer.mjs";
 import { configurePlatformRuntimeAccessors, mergePeriodizationStatePreservingLocalUi, renderPlayerProfilesWorkspaceMessage, cloneDefaultPlatformStructureState, normalizePlatformStructureText, normalizePlatformStructureComparable, isLegacyPlatformStructureValue, isCanonicalPlatformClubValue, isCanonicalPlatformTeamValue, isLegacyPlatformClub, isLegacyPlatformTeam, isCanonicalPlatformClub, isCanonicalPlatformTeam, hasPlatformWorkspaceScope, slugifyPlatformStructureValue, normalizePlatformStructureId, createPlatformStructureId, normalizePlatformClub, normalizePlatformTeam, normalizePlatformStructureState, isLegacyPlatformTeamPlaceholderName, readPlatformStructureState, writePlatformStructureState, getPlatformStructureState, getPlatformClubById, getPlatformTeamById, findPlatformTeamByName, syncPlatformStructureWithUsers, getUserTeamId, getUserClubId, getUserTeamName, getActivePlatformTeam, getPlatformTeamDisplayTeam, getPlatformTeamDisplayName, writePlatformTeamLogo, getUserClubName, getUserScopeLabel, isSamePlatformClub, isSamePlatformTeam, canAdminViewUser, canAdminManageUser, getScopedPlatformUsers, getScopedPlatformClubs, getScopedPlatformTeams, normalizeAdminUserSubmissionValues, getAllWorkspacePool, normalizeWorkspaceRoleList, normalizeWorkspaceAccessEntry, getWorkspaceAccessConfig, getWorkspaceByIdFromPool, canUserAccessWorkspace, canCurrentUserAccessWorkspace, canUserEditWorkspace, canCurrentUserEditWorkspace, canEditScheduleWorkspace, canEditSessionPlanner, canEditPeriodizationWorkspace, canEditGameSimulatorWorkspace, canEditScoutingWorkspace, getAccessibleWorkspacePool, getVisibleWorkspacePool, mergeWorkspaceDefinitions, cloneHubState, clonePersistableWorkspaceHubState, repairWorkspaceState, getWorkspaceIdFromUrl, readRememberedWorkspaceId, rememberActiveWorkspaceId, readWorkspaceHubState, writeWorkspaceHubState, getWorkspaceById, getWorkspaceByIdUnfiltered, getSafeWorkspaceId, getWorkspaceViewId, getPeriodizationDay, ensurePeriodizationState, writePeriodizationDay, selectPeriodizationDate, openPeriodizationDateForDashboard, setPeriodizationStateStorageValue, readPeriodizationState, writePeriodizationState, setPeriodizationMonth, shiftPeriodizationMonth, scrollPeriodizationDateIntoView, jumpPeriodizationToToday, mergeImportedNccSchedule, setScheduleStateStorageValue, readScheduleState, ensureScheduleState, writeScheduleState, setScoutingStateStorageValue, readScoutingState, writeScoutingState, ensureScoutingState, getPeriodizationMultiSelectOpenField, setPeriodizationMultiSelectOpenField, setPeriodizationSelection, getPeriodizationOverlayState, setPeriodizationOverlayMode, setPeriodizationOverlayState, readTransferRoomState, ensureTransferRoomState, syncTransferRoomLinkedState, canUserAccessTransferRoom, canUserEditTransferRoom, addTransferRoomTargetFromScoutingSnapshot, getGameplanContext, getScoutingAnalysisRoomContext, getScoutingWorkspaceContext, getTransferRoomWorkspaceContext, hydrateWorkspaceModuleState, loadGameplanModule, loadScoutingWorkspaceModule, loadTransferRoomWorkspaceModule, renderAnalysisRoomWorkspace, renderGameplanWorkspace, renderScoutingWorkspace, renderTransferRoomWorkspace, renderPeriodizationWorkspace, renderSessionPlannerPeriodizationOverlay, renderSessionPlannerPeriodizationSummary, initializeWorkspaceHub, renderWorkspaceChrome, setActiveWorkspace, reloadCentralizedAppStateFromStorage, getCurrentSessionPlannerUiSelection, readSessionPlannerStatePreservingUiSelection, shouldDeferCentralizedAppStateReload, setCentralizedAppStateReloadPending, requestCentralizedAppStateReload, flushDeferredCentralizedAppStateReload, refreshCentralStateFromSource, formatScheduleBlockSummary, getScheduleEventsForDate, getScheduleMainEvent, getScheduleMonthEvents, getScheduleDayWarnings, getScheduledSessionTitleForDate, getScheduleSelectedDayContext, getScheduleSessionEventForDate, getScheduleSessionSnapshot, getScheduleVisibleEvents, getScheduleVisibleMonthEvents, isScheduleSessionEvent, openCredentialsMailto, buildTemporaryLoginMessage, getAdminManagedWorkspaces, getAdminAuditState, getReadinessState, getSelectedAdminUserId, getAdminUsersForTeam, getAdminUserInitials, createAdminClubFromForm, createAdminTeamFromForm, loadAdminAuditLog, loadPlatformReadinessReport, publishPlatformAppearanceConfig, getAdminTransferRoomAccessTeamId, renderAdminWorkspace } from "./src/core/platform-runtime-accessors.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
+import { createDashboardId, createDashboardJsonStorage, createDashboardWorkspaceQueryEngine } from "./src/core/dashboard-runtime-utils.mjs";
 import { createCentralRuntimeFacade, dataSafetySnapshotStoreName } from "./src/core/central-runtime-facade.mjs";
 import { bindPlatformWorkspaceRuntimeBindings } from "./src/core/platform-workspace-runtime-bindings.mjs";
 import { bindPlatformGlobalRuntimeEvents } from "./src/core/platform-global-runtime-bindings.mjs";
@@ -199,7 +200,16 @@ openMedicalPlayerModal, closeMedicalPlayerModal, setMedicalSelectedDate, shiftMe
 } = medicalRuntimeAccessors;
 const getElement = document.getElementById.bind(document);
 const win = window;
-const ui = createPlatformUiBindings(document);const platformAssetVersion = win.__assetVersion || Date.now();
+const ui = createPlatformUiBindings(document);
+const platformAssetVersion = win.__assetVersion || Date.now();
+const { readDashboardJson, writeDashboardJson } = createDashboardJsonStorage({
+  windowRef: win,
+  logEvent,
+});
+const { getVisibleWorkspaces } = createDashboardWorkspaceQueryEngine({
+  ui,
+  getVisibleWorkspacePool,
+});
 configurePlatformRuntimeAccessors(() => ({
 adminRuntimeService,
 centralAppStateReloadService,
@@ -1715,40 +1725,6 @@ uploadSquadTeamLogo,
 } = profileImageRuntimeActions;
 function renderAdminRoleOptions(actor, selectedRole = "coach") { return adminStructureRenderer.renderRoleOptions(actor, selectedRole); }
 function renderAdminTeamOptions(actor, structure, selectedTeamId = "") { return adminStructureRenderer.renderTeamOptions(actor, structure, selectedTeamId); }
-function getWorkspaceQuery() { return ui.workspaceSearch?.value.trim().toLowerCase() ?? ""; }
-function getVisibleWorkspaces() {
-const workspaces = getVisibleWorkspacePool();
-const query = getWorkspaceQuery();
-if (!query) {
-return workspaces;
-}
-return workspaces.filter((workspace) =>
-`${workspace.title} ${workspace.meta} ${workspace.description} ${workspace.status}`
-.toLowerCase()
-.includes(query)
-);
-}
-function createDashboardId(prefix) {
-return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-function readDashboardJson(key, fallback) {
-try {
-const raw = win.localStorage.getItem(key);
-if (!raw) {
-return fallback;
-}
-return JSON.parse(raw);
-} catch {
-return fallback;
-}
-}
-function writeDashboardJson(key, value) {
-try {
-win.localStorage.setItem(key, JSON.stringify(value));
-} catch {
-logEvent("Dashboard data could not be written to local storage.");
-}
-}
 function normalizeDashboardChatThreadId(rawThreadId, fallbackThreadId = dashboardChatTeamThreadId) {
 const threadId = String(rawThreadId || fallbackThreadId || "").trim();
 if (!threadId || threadId === dashboardChatTeamThreadId) {

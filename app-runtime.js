@@ -66,6 +66,7 @@ import { createWorkspaceShellController } from "./src/core/workspace-shell-contr
 import { bindPlatformNavigationInteractions } from "./src/core/platform-navigation-bindings.mjs";
 import { createPlatformUiBindings } from "./src/core/platform-ui-bindings.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
+import { addCalendarDays, clamp, escapeHtml, formatDashboardDateTime, formatDashboardTime, logEvent, setFormSubmitButtonState } from "./src/core/runtime-ui-helpers.mjs";
 import { createPasswordRevealInputRenderer } from "./src/core/form-renderers.mjs";
 import { installPlatformOverlayStability } from "./src/core/overlay-stability.mjs";
 import { defaultHubState, placeholderWorkspaceContent, platformSidebarMoreOrder, platformSidebarPrimaryOrder, topIconMenuOrder } from "./src/core/workspace-defaults.mjs";
@@ -156,10 +157,6 @@ const platformModuleLoader = createPlatformModuleLoader({
 documentRef: document,
 assetVersion: platformAssetVersion,
 });
-function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
-function logEvent(message) {
-if (message) console.warn(message);
-}
 let gameSimulatorRuntime = null;
 let gameSimulatorRuntimePromise = null;
 function readSavedSequenceLibraryFallback() {
@@ -3101,31 +3098,6 @@ const authStore = getPlatformAuthStore();
 platformUser = authStore?.getCurrentUser?.() ?? win.platformSession ?? null;
 return platformUser;
 }
-function setFormSubmitButtonState(form, options = {}) {
-const {
-isSubmitting = false,
-submittingLabel = "Saving...",
-defaultLabel = "Save",
-} = options;
-if (!form || typeof form.querySelector !== "function") {
-return;
-}
-const submitButton = form.querySelector('button[type="submit"], [data-admin-create-user-submit]');
-if (!submitButton) {
-return;
-}
-if (isSubmitting) {
-if (submitButton.dataset.savedLabel == null) {
-submitButton.dataset.savedLabel = String(submitButton.textContent || defaultLabel);
-}
-submitButton.disabled = true;
-submitButton.textContent = submittingLabel;
-return;
-}
-submitButton.disabled = false;
-submitButton.textContent = submitButton.dataset.savedLabel || defaultLabel;
-delete submitButton.dataset.savedLabel;
-}
 function withUiTimeout(promise, timeoutMs, timeoutMessage) {
 let timeoutId = 0;
 return Promise.race([
@@ -4530,13 +4502,6 @@ return workspaces.filter((workspace) =>
 .toLowerCase()
 .includes(query)
 );
-}
-function escapeHtml(value) {
-return String(value)
-.replaceAll("&", "&amp;")
-.replaceAll("<", "&lt;")
-.replaceAll(">", "&gt;")
-.replaceAll('"', "&quot;");
 }
 function createDashboardId(prefix) {
 return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -6641,42 +6606,6 @@ writeDashboardNotificationSeenMap({
 function getDashboardUserLabel(userId, users = getPlatformUsers()) {
 const user = users.find((candidate) => candidate.id === userId);
 return user ? formatUserName(user) : "Unknown";
-}
-function formatDashboardTime(value) {
-const date = new Date(value);
-if (Number.isNaN(date.getTime())) {
-return "";
-}
-const today = new Date();
-const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-const dayDiff = Math.round((startOfToday - startOfDate) / (24 * 60 * 60 * 1000));
-const timeLabel = new Intl.DateTimeFormat("en-GB", {
-hour: "2-digit",
-minute: "2-digit",
-}).format(date);
-if (dayDiff === 0) {
-return timeLabel;
-}
-if (dayDiff === 1) {
-return `Yesterday ${timeLabel}`;
-}
-const dateOptions = date.getFullYear() === today.getFullYear()
-? { day: "2-digit", month: "short" }
-: { day: "2-digit", month: "short", year: "numeric" };
-return `${new Intl.DateTimeFormat("en-GB", dateOptions).format(date)} ${timeLabel}`;
-}
-function formatDashboardDateTime(value) {
-const date = new Date(value);
-if (Number.isNaN(date.getTime())) {
-return "";
-}
-return new Intl.DateTimeFormat("en-GB", {
-day: "2-digit",
-month: "short",
-hour: "2-digit",
-minute: "2-digit",
-}).format(date);
 }
 function getDashboardMessageById(messageId, messages = readDashboardMessages()) { return messages.find((message) => message.id === messageId) || null; }
 function getDashboardMessageAuthorName(message, users = getPlatformUsers()) {
@@ -12146,11 +12075,6 @@ function shiftMedicalSelectedDate(deltaDays) {
 ensureMedicalState();
 const currentDate = parseScheduleDateValue(medicalState.selectedDate);
 setMedicalSelectedDate(formatScheduleDateValue(addCalendarDays(currentDate, deltaDays)));
-}
-function addCalendarDays(date, days) {
-const nextDate = new Date(date);
-nextDate.setDate(nextDate.getDate() + days);
-return nextDate;
 }
 function getPeriodizationDayScheduleLabel(day) { return periodizationRenderer.getDayScheduleLabel(day); }
 function getPeriodizationMatchDayLabel(value) { return periodizationRenderer.getMatchDayLabel(value); }

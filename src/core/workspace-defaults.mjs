@@ -18,15 +18,6 @@ export const defaultHubState = {
       hiddenFromNav: true,
     },
     {
-      id: "game-simulator",
-      kind: "simulator",
-      title: "Game Simulator",
-      meta: "Simulator",
-      description: "22-player football sandbox for passes, dribbles, shots and scenario playback.",
-      status: "Active",
-      icon: "◎",
-    },
-    {
       id: "schedule",
       kind: "schedule",
       title: "Schedule",
@@ -172,7 +163,6 @@ export const topIconMenuOrder = [
   "medical-team",
   "admin",
   "team-identity",
-  "game-simulator",
 ];
 
 export const platformSidebarPrimaryOrder = [
@@ -182,7 +172,6 @@ export const platformSidebarPrimaryOrder = [
   "session-planner",
   "player-profiles",
   "scouting",
-  "game-simulator",
 ];
 
 export const platformSidebarMoreOrder = [

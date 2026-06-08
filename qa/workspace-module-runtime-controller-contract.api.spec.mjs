@@ -118,7 +118,6 @@ function createRuntime(overrides = {}) {
       medical: () => calls.hydrated.push("medical"),
       playerProfiles: () => calls.hydrated.push("player-profiles"),
       transferRoom: () => calls.hydrated.push("transfer-room"),
-      gameSimulator: () => calls.hydrated.push("game-simulator"),
     },
     ...overrides,
   });
@@ -167,7 +166,7 @@ test("workspace module runtime hydrates and preloads the correct module families
   controller.queueWorkspaceModulePreload("transfer");
   controller.preloadWorkspaceFromTrigger({ dataset: { openWorkspace: "scouting" } });
 
-  expect(calls.hydrated).toContain("game-simulator");
+  expect(calls.hydrated).not.toContain("game-simulator");
   expect(calls.transferLoad).toBe(1);
 });
 

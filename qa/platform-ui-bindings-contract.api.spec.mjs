@@ -19,7 +19,6 @@ test("platform UI bindings keep DOM selectors outside the app shell", () => {
   expect(app).not.toContain("const ui = {");
   expect(bindings).toContain("dashboardChatWidgetRoot");
   expect(bindings).toContain("sessionPlannerWorkspace");
-  expect(bindings).toContain("gameSimulatorWorkspace");
 });
 
 test("platform UI bindings preserve element ids and non-id selectors", () => {
@@ -46,10 +45,9 @@ test("platform UI bindings preserve element ids and non-id selectors", () => {
   expect(ui.hubShell).toEqual({ id: "hubShell" });
   expect(ui.dashboardChatWidgetRoot).toEqual({ id: "dashboardChatWidgetRoot" });
   expect(ui.sessionPlannerWorkspace).toEqual({ id: "sessionPlannerWorkspace" });
-  expect(ui.gameSimulatorWorkspace).toEqual({ selector: '[data-workspace-view="game-simulator"]' });
   expect(ui.scheduleOverviewSpanButtons).toEqual([{ selector: "[data-schedule-span]" }]);
   expect(lookedUpIds).toContain("pitchStage");
   expect(lookedUpIds).toContain("savedSequenceList");
-  expect(queriedSelectors).toEqual(['[data-workspace-view="game-simulator"]']);
+  expect(queriedSelectors).toEqual([]);
   expect(queriedAllSelectors).toEqual(["[data-schedule-span]"]);
 });

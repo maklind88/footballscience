@@ -250,9 +250,6 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
   function queueWorkspaceModulePreload(workspaceId = "") {
     const safeWorkspaceId = getSafeWorkspaceId(workspaceId, getHubState()) || workspaceId;
     const viewId = getWorkspaceViewId(safeWorkspaceId || workspaceHubDefaultActiveWorkspaceId);
-    if (viewId === "game-simulator") {
-      hydrateState.gameSimulator?.();
-    }
     if (viewId === "analysis-room" || viewId === "scouting") {
       loadScoutingWorkspaceModule();
     }

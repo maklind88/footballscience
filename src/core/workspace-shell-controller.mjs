@@ -9,6 +9,7 @@ export function createWorkspaceShellController(deps = {}) {
     getDashboardDateLabel = () => "",
     getHubState = () => null,
     getSafeWorkspaceId = (workspaceId) => workspaceId,
+    getFirstAccessibleWorkspaceId = () => "home",
     getUi = () => ({}),
     getWorkspaceById = () => null,
     getWorkspaceIdFromUrl = () => "",
@@ -105,20 +106,12 @@ export function createWorkspaceShellController(deps = {}) {
     } else {
       renderWorkspaceByViewId(activeViewId);
     }
-    if (activeViewId === "game-simulator") {
-      syncGameSimulatorIntroState();
-      if (ui.gameSimulatorWorkspace?.classList.contains("is-simulator-launched")) {
-        simulatorRender();
-      }
-      startSimulatorAnimationLoop();
-    } else {
-      stopSimulatorAnimationLoop();
-    }
+    stopSimulatorAnimationLoop();
   }
 
   function setActiveWorkspace(workspaceId) {
-    const resolvedWorkspaceId = getSafeWorkspaceId(workspaceId);
-    const workspace = getWorkspaceById(resolvedWorkspaceId ?? "home");
+    const resolvedWorkspaceId = getSafeWorkspaceId(workspaceId) || getFirstAccessibleWorkspaceId(getHubState());
+    const workspace = getWorkspaceById(resolvedWorkspaceId);
     if (!workspace) return;
     const hubState = getHubState();
     const previousWorkspaceId = hubState?.activeWorkspaceId;
@@ -129,9 +122,6 @@ export function createWorkspaceShellController(deps = {}) {
     }
     if (previousWorkspaceId === "player-profiles" && targetWorkspaceId !== "player-profiles") {
       onLeavePlayerProfiles();
-    }
-    if (targetWorkspaceId === "game-simulator") {
-      resetGameSimulatorIntro();
     }
     const targetViewId = getWorkspaceViewId(targetWorkspaceId);
     if (targetViewId && targetViewId !== "scouting") {
@@ -155,6 +145,7 @@ export function createWorkspaceShellController(deps = {}) {
     const rememberedWorkspaceId = readRememberedWorkspaceId();
     const safeRememberedWorkspaceId = getSafeWorkspaceId(rememberedWorkspaceId, nextHubState);
     const safeHomeWorkspaceId = getSafeWorkspaceId(workspaceHubDefaultActiveWorkspaceId, nextHubState);
+    const fallbackWorkspaceId = getFirstAccessibleWorkspaceId(nextHubState);
     if (safePendingWorkspaceId) {
       nextHubState.activeWorkspaceId = safePendingWorkspaceId;
     } else if (safeUrlWorkspaceId) {
@@ -163,7 +154,10 @@ export function createWorkspaceShellController(deps = {}) {
       nextHubState.activeWorkspaceId = safeRememberedWorkspaceId;
     } else if (safeHomeWorkspaceId) {
       nextHubState.activeWorkspaceId = safeHomeWorkspaceId;
+    } else {
+      nextHubState.activeWorkspaceId = fallbackWorkspaceId;
     }
+    nextHubState.activeWorkspaceId = getSafeWorkspaceId(nextHubState.activeWorkspaceId, nextHubState) || fallbackWorkspaceId;
     rememberActiveWorkspaceId(nextHubState.activeWorkspaceId);
     win.__pendingWorkspaceId = null;
     hydrateWorkspaceModuleState(nextHubState.activeWorkspaceId);

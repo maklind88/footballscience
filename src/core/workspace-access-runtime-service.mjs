@@ -134,8 +134,18 @@ function canEditSessionPlanner() { return canCurrentUserEditWorkspace("session-p
 function canEditPeriodizationWorkspace() { return canCurrentUserEditWorkspace("periodization"); }
 function canEditGameSimulatorWorkspace() { return canCurrentUserEditWorkspace("game-simulator"); }
 function canEditScoutingWorkspace() { return canCurrentUserEditWorkspace("scouting"); }
-function getAccessibleWorkspacePool() { return getAllWorkspacePool().filter((workspace) => canCurrentUserAccessWorkspace(workspace)); }
-function getVisibleWorkspacePool() { return getAccessibleWorkspacePool().filter((workspace) => !workspace.hiddenFromNav); }
+function getAccessibleWorkspacePool(sourceState = getHubState()) {
+  return getAllWorkspacePool(sourceState).filter((workspace) =>
+    canUserAccessWorkspace(workspace, getCurrentPlatformUser(), getWorkspaceAccessConfig(sourceState))
+  );
+}
+function getVisibleWorkspacePool(sourceState = getHubState()) {
+  return getAccessibleWorkspacePool(sourceState).filter((workspace) => !workspace.hiddenFromNav);
+}
+function getFirstAccessibleWorkspaceId(sourceState = getHubState()) {
+  const fallbackWorkspace = getAccessibleWorkspacePool(sourceState)[0];
+  return fallbackWorkspace ? fallbackWorkspace.id : workspaceHubDefaultActiveWorkspaceId;
+}
 function mergeWorkspaceDefinitions(sourceWorkspaces = []) {
 const sourceById = new Map(sourceWorkspaces.map((workspace) => [workspace.id, workspace]));
 const defaultsById = new Map(defaultHubState.workspaces.map((workspace) => [workspace.id, workspace]));
@@ -170,23 +180,24 @@ defaultWorkspaceAccess,
 mergeWorkspaceDefinitions,
 });
 function repairWorkspaceState(candidateState = getHubState()) {
-const repairedState = candidateState ?? cloneHubState(defaultHubState);
-const mergedWorkspaces = mergeWorkspaceDefinitions(
-Array.isArray(repairedState.workspaces) && repairedState.workspaces.length
-? repairedState.workspaces
-: defaultHubState.workspaces
-);
-const activeExists = mergedWorkspaces.some(
-(workspace) =>
-workspace.id === repairedState.activeWorkspaceId &&
-canUserAccessWorkspace(workspace, getCurrentPlatformUser(), getWorkspaceAccessConfig(repairedState))
-);
-repairedState.workspaces = mergedWorkspaces;
-repairedState.workspaceAccess = getWorkspaceAccessConfig(repairedState);
-if (!activeExists) {
-repairedState.activeWorkspaceId = "home";
-}
-return repairedState;
+  const repairedState = candidateState ?? cloneHubState(defaultHubState);
+  const mergedWorkspaces = mergeWorkspaceDefinitions(
+    Array.isArray(repairedState.workspaces) && repairedState.workspaces.length
+      ? repairedState.workspaces
+      : defaultHubState.workspaces
+  );
+  const accessConfig = getWorkspaceAccessConfig(repairedState);
+  const activeExists = mergedWorkspaces.some(
+    (workspace) =>
+      workspace.id === repairedState.activeWorkspaceId &&
+      canUserAccessWorkspace(workspace, getCurrentPlatformUser(), accessConfig)
+  );
+  repairedState.workspaces = mergedWorkspaces;
+  repairedState.workspaceAccess = accessConfig;
+  if (!activeExists) {
+    repairedState.activeWorkspaceId = getFirstAccessibleWorkspaceId(repairedState);
+  }
+  return repairedState;
 }
 function getWorkspaceIdFromUrl() {
 try {
@@ -343,14 +354,15 @@ canEditScheduleWorkspace,
 canEditSessionPlanner,
 canEditPeriodizationWorkspace,
 canEditGameSimulatorWorkspace,
-canEditScoutingWorkspace,
-getAccessibleWorkspacePool,
-getVisibleWorkspacePool,
-mergeWorkspaceDefinitions,
-cloneHubState,
-clonePersistableWorkspaceHubState,
-repairWorkspaceState,
-getWorkspaceIdFromUrl,
+  canEditScoutingWorkspace,
+  getAccessibleWorkspacePool,
+  getVisibleWorkspacePool,
+  mergeWorkspaceDefinitions,
+  cloneHubState,
+  clonePersistableWorkspaceHubState,
+  repairWorkspaceState,
+  getFirstAccessibleWorkspaceId,
+  getWorkspaceIdFromUrl,
 readRememberedWorkspaceId,
 rememberActiveWorkspaceId,
 readWorkspaceHubState,

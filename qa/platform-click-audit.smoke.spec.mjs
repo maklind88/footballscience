@@ -400,10 +400,10 @@ async function clickCandidate(page, candidate) {
 test("platform visible click audit keeps distinct controls responsive and labelled", async ({ page }, testInfo) => {
   const runtime = await bootApp(page);
   const results = [];
+  const navigationCandidates = await collectWorkspaceNavigation(page);
+  const availableWorkspaceIds = new Set(navigationCandidates.map((candidate) => candidate.targetWorkspaceId));
   const missingLabels = [];
   const smallTargets = [];
-
-  const navigationCandidates = await collectWorkspaceNavigation(page);
   for (const candidate of navigationCandidates) {
     const result = await clickCandidate(page, candidate);
     if (!result.skipped) {
@@ -411,7 +411,8 @@ test("platform visible click audit keeps distinct controls responsive and labell
     }
   }
 
-  for (const workspaceId of workspaceIds) {
+  const testableWorkspaceIds = workspaceIds.filter((workspaceId) => availableWorkspaceIds.has(workspaceId));
+  for (const workspaceId of testableWorkspaceIds) {
     await openWorkspace(page, workspaceId);
     const candidates = await collectVisibleCandidates(page, workspaceId);
     console.log(`[platform-click-audit] ${workspaceId}: ${candidates.length} controls`);

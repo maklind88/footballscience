@@ -58,7 +58,7 @@ import {
   sessionPlannerExerciseLibraryVersionLimit,
   sessionPlannerLibrarySortOptions,
 } from "./src/modules/exercise-library/index.mjs";
-import { bindSessionPlannerRuntimeBindings, createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerBoardHistoryController, createSessionPlannerLocalUiState, createSessionPlannerRuntimeDelegates, createSessionPlannerRuntimeRenderers, createSessionPlannerStateMergeHelpers, createSessionPlannerTacticalController, createSessionPlannerToastController, createSessionPlannerWorkspaceController, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualUploadHelpers, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
+import { bindSessionPlannerRuntimeBindings, createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerBoardHistoryController, createSessionPlannerLocalUiState, createSessionPlannerRuntimeDelegates, createSessionPlannerRuntimeRenderers, createSessionPlannerRuntimeStateService, createSessionPlannerStateMergeHelpers, createSessionPlannerTacticalController, createSessionPlannerToastController, createSessionPlannerWorkspaceController, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualUploadHelpers, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformShellRuntime } from "./src/core/platform-shell-runtime.mjs";
 import { createWorkspaceModuleRuntimeController } from "./src/core/workspace-module-runtime-controller.mjs";
@@ -1084,7 +1084,6 @@ let dashboardChatGroupCreatorOpen = false;
 let dashboardChatSubmittedComposerDrafts = new Map();
 const sessionPlannerMultiSelectFields = new Set(["phase", "subPhase"]);
 let sessionPlannerMultiSelectOpenField = "";
-let sessionPlannerSnapshotRecoveryQueued = false;
 let exerciseLibraryRuntime = null;
 let sessionPlannerWorkspaceController;
 const sessionPlannerRuntimeDelegates = createSessionPlannerRuntimeDelegates({
@@ -5972,46 +5971,6 @@ function showSessionPlannerToast(message, tone = "success") { sessionPlannerToas
 function commitSessionPlannerExerciseToLibrary(exercise, mode = "new", existingExerciseId = "") { return exerciseLibraryActions.commitExercise(exercise, mode, existingExerciseId); }
 function queueSessionPlannerLibrarySaveConflict(exercise, existingExercise) { exerciseLibraryActions.queueSaveConflict(exercise, existingExercise); }
 function resolveSessionPlannerLibrarySaveConflict(action) { exerciseLibraryActions.resolveSaveConflict(action); }
-function assignSessionPlannerBlockFieldValue(block, field, rawValue) {
-if (!block || !(field in block)) {
-return false;
-}
-if (field === "minutes") {
-block[field] = Math.max(0, Number(rawValue) || 0);
-} else if (field === "intensity") {
-block[field] = clamp(Number(rawValue) || 1, 1, 5);
-} else if (sessionPlannerMultiSelectFields.has(field)) {
-block[field] = formatSessionPlannerMultiValue(rawValue);
-} else {
-block[field] = rawValue;
-}
-return true;
-}
-function syncSelectedSessionPlannerBlockFieldsFromDom() {
-const block = getSessionPlannerSelectedBlock();
-if (!block) {
-return;
-}
-let hasChanged = false;
-const changedFields = [];
-ui.sessionPlannerWorkspace
-?.querySelectorAll("[data-session-field]")
-.forEach((field) => {
-const fieldKey = field.dataset.sessionField;
-if (!fieldKey || !(fieldKey in block)) {
-return;
-}
-const previousValue = block[fieldKey];
-if (assignSessionPlannerBlockFieldValue(block, fieldKey, field.value) && block[fieldKey] !== previousValue) {
-hasChanged = true;
-changedFields.push(fieldKey);
-}
-});
-if (hasChanged) {
-markSessionPlannerBlockFieldsUpdated(block, changedFields);
-writeSessionPlannerState();
-}
-}
 function saveSelectedSessionPlannerExerciseToLibrary() { exerciseLibraryActions.saveSelectedExercise(); }
 function deleteSessionPlannerLibraryExercise(exerciseId) { exerciseLibraryActions.archiveExercise(exerciseId); }
 function restoreSessionPlannerLibraryExercise(exerciseId) { exerciseLibraryActions.restoreExercise(exerciseId); }
@@ -6061,93 +6020,41 @@ normalizeBlockFieldMeta: normalizeSessionPlannerBlockFieldMeta,
 parseTimestampMs: parseSessionPlannerTimestampMs,
 shouldClearSessionForDate: shouldClearSessionPlannerSessionForDate,
 });
-function readSessionPlannerState() {
-try {
-const raw = win.localStorage.getItem(sessionPlannerStorageKey);
-if (!raw) {
-return createSessionPlannerDefaultState();
-}
-const state = cloneSessionPlannerState(JSON.parse(raw));
-if (JSON.stringify(state) !== raw) {
-persistNormalizedSessionPlannerState(state);
-}
-return state;
-} catch {
-return createSessionPlannerDefaultState();
-}
-}
-function persistNormalizedSessionPlannerState(nextState) {
-const nextValue = JSON.stringify(nextState);
-try {
-rawDataSafetySetItem(sessionPlannerStorageKey, nextValue);
-if (win.__footballScienceCentralHydrating) {
-win.setTimeout(() => {
-if (rawDataSafetyGetItem(sessionPlannerStorageKey) === nextValue && canWriteCentralBackedCache()) {
-recordDataSafetyWrite(sessionPlannerStorageKey, nextValue);
-}
-}, 0);
-return;
-}
-if (canWriteCentralBackedCache()) {
-recordDataSafetyWrite(sessionPlannerStorageKey, nextValue);
-}
-} catch {
-}
-}
-async function findSessionPlannerStateInSnapshots(currentState) {
-try {
-const database = await openDataSafetyDatabase();
-const snapshots = await new Promise((resolve, reject) => {
-const transaction = database.transaction(dataSafetySnapshotStoreName, "readonly");
-const request = transaction.objectStore(dataSafetySnapshotStoreName).getAll();
-request.onsuccess = () => resolve(Array.from(request.result || []));
-request.onerror = () => reject(request.error);
+const sessionPlannerRuntimeStateService = createSessionPlannerRuntimeStateService({
+canWriteCentralBackedCache,
+captureBoardHistoryFromState: () => captureSessionPlannerBoardHistoryFromState(),
+clamp,
+cloneState: cloneSessionPlannerState,
+createDefaultState: createSessionPlannerDefaultState,
+dataSafetySnapshotStoreName,
+findWorkspaceFieldElements: () => Array.from(ui.sessionPlannerWorkspace?.querySelectorAll("[data-session-field]") || []),
+formatMultiValue: formatSessionPlannerMultiValue,
+getActiveWorkspaceId: () => hubState?.activeWorkspaceId || "",
+getSelectedBlock: getSessionPlannerSelectedBlock,
+getSessionPlannerState: () => sessionPlannerState,
+logEvent,
+markBlockFieldsUpdated: markSessionPlannerBlockFieldsUpdated,
+mergeStateForWrite: mergeSessionPlannerStateForWrite,
+mergeStateFromBackup: mergeSessionPlannerStateFromBackup,
+openDataSafetyDatabase,
+rawDataSafetyGetItem,
+rawDataSafetySetItem,
+recordDataSafetyWrite,
+renderWorkspace: renderSessionPlannerWorkspace,
+sessionPlannerAutosaveBoundary,
+sessionPlannerMultiSelectFields,
+sessionPlannerStorageKey,
+setSessionPlannerState: (nextState) => { sessionPlannerState = nextState; },
+showToast: showSessionPlannerToast,
+win,
 });
-const orderedSnapshots = snapshots.sort((a, b) =>
-String(b?.createdAt || b?.id || "").localeCompare(String(a?.createdAt || a?.id || ""))
-);
-let recoveredState = cloneSessionPlannerState(currentState);
-let recoveredSessions = 0;
-orderedSnapshots.forEach((snapshot) => {
-const storage = snapshot?.storage && typeof snapshot.storage === "object" ? snapshot.storage : {};
-const rawState = storage[sessionPlannerStorageKey];
-if (typeof rawState !== "string") {
-return;
-}
-try {
-const backupState = cloneSessionPlannerState(JSON.parse(rawState));
-const mergeResult = mergeSessionPlannerStateFromBackup(recoveredState, backupState);
-recoveredState = mergeResult.state;
-recoveredSessions += mergeResult.recoveredSessions;
-} catch {
-}
-});
-return recoveredSessions ? recoveredState : null;
-} catch {
-return null;
-}
-}
-function queueSessionPlannerSnapshotRecovery() {
-if (sessionPlannerSnapshotRecoveryQueued) {
-return;
-}
-sessionPlannerSnapshotRecoveryQueued = true;
-const currentState = sessionPlannerState || readSessionPlannerState();
-findSessionPlannerStateInSnapshots(currentState).then((recoveredState) => {
-sessionPlannerSnapshotRecoveryQueued = false;
-if (!recoveredState) {
-return;
-}
-sessionPlannerState = recoveredState;
-if (!writeSessionPlannerState()) {
-return;
-}
-if (hubState?.activeWorkspaceId === "session-planner") {
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-showSessionPlannerToast("Session planner restored from local backup.");
-}
-});
-}
+function assignSessionPlannerBlockFieldValue(...args) { return sessionPlannerRuntimeStateService.assignBlockFieldValue(...args); }
+function syncSelectedSessionPlannerBlockFieldsFromDom(...args) { return sessionPlannerRuntimeStateService.syncSelectedBlockFieldsFromDom(...args); }
+function readSessionPlannerState(...args) { return sessionPlannerRuntimeStateService.readState(...args); }
+function persistNormalizedSessionPlannerState(...args) { return sessionPlannerRuntimeStateService.persistNormalizedState(...args); }
+function findSessionPlannerStateInSnapshots(...args) { return sessionPlannerRuntimeStateService.findStateInSnapshots(...args); }
+function queueSessionPlannerSnapshotRecovery(...args) { return sessionPlannerRuntimeStateService.queueSnapshotRecovery(...args); }
+function writeSessionPlannerState(...args) { return sessionPlannerRuntimeStateService.writeState(...args); }
 const {
 captureFromState: captureSessionPlannerBoardHistoryFromState,
 syncBaseline: syncSessionPlannerBoardHistoryBaseline,
@@ -6176,31 +6083,6 @@ sessionPlannerLocalUiState.state.sessionPlannerTacticalSelectionState = null;
 showToast: showSessionPlannerToast,
 writeState: writeSessionPlannerState,
 });
-function writeSessionPlannerState() {
-if (!sessionPlannerState) {
-return false;
-}
-try {
-captureSessionPlannerBoardHistoryFromState();
-let existingState = null;
-try {
-const rawExistingState = win.localStorage.getItem(sessionPlannerStorageKey);
-existingState = rawExistingState ? cloneSessionPlannerState(JSON.parse(rawExistingState)) : null;
-} catch {
-existingState = null;
-}
-const nextState = existingState
-? mergeSessionPlannerStateForWrite(existingState, sessionPlannerState)
-: cloneSessionPlannerState(sessionPlannerState);
-sessionPlannerState = nextState;
-sessionPlannerAutosaveBoundary.markSessionPlannerWrite();
-win.localStorage.setItem(sessionPlannerStorageKey, JSON.stringify(nextState));
-return true;
-} catch {
-logEvent("Session planner could not be written to local storage.");
-return false;
-}
-}
 sessionPlannerWorkspaceController = createSessionPlannerWorkspaceController({
   assignSessionPlannerBlockFieldValue,
   assignSessionPlannerPlayerBoardAutoFormationTeams,

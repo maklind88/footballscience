@@ -489,8 +489,9 @@ test("Session Planner app integration delegates autosave policy and block render
   const app = readProjectFile("app-runtime.js");
   const workspaceController = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
   const runtimeRenderers = readProjectFile("src/modules/session-planner/session-planner-runtime-renderers.mjs");
+  const runtimeStateService = readProjectFile("src/modules/session-planner/session-planner-runtime-state-service.mjs");
   const printRenderer = readProjectFile("src/modules/session-planner/session-planner-print-renderer.mjs");
-  const runtimeSource = `${app}\n${workspaceController}\n${runtimeRenderers}`;
+  const runtimeSource = `${app}\n${workspaceController}\n${runtimeRenderers}\n${runtimeStateService}`;
 
   expect(app).toContain("./src/modules/session-planner/index.mjs");
   expect(app).toContain("createSessionPlannerAutosaveBoundary");
@@ -500,7 +501,8 @@ test("Session Planner app integration delegates autosave policy and block render
   expect(runtimeRenderers).toContain("createSessionPlannerPrintRenderer");
   expect(runtimeRenderers).toContain("createSessionPlannerRenderer");
   expect(runtimeRenderers).toContain("createSessionPlannerVisualRenderer");
-  expect(app).toContain("sessionPlannerAutosaveBoundary.markSessionPlannerWrite();");
+  expect(app).toContain("createSessionPlannerRuntimeStateService({");
+  expect(runtimeStateService).toContain("sessionPlannerAutosaveBoundary.markSessionPlannerWrite();");
   expect(runtimeSource).toContain("sessionPlannerRenderer.renderBlockList(session)");
   expect(runtimeSource).toContain("sessionPlannerRenderer.renderEditableField(block, key, label, options)");
   expect(runtimeSource).toContain("sessionPlannerVisualRenderer.renderExerciseVisual(block, options)");

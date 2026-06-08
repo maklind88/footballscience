@@ -72,16 +72,21 @@ function createHelpers(stateRef = { current: null }) {
 test("Session Planner state merge helpers own pure merge logic outside app-runtime", () => {
   const appSource = readProjectFile("app-runtime.js");
   const helperSource = readProjectFile("src/modules/session-planner/session-planner-state-merge-helpers.mjs");
+  const runtimeStateSource = readProjectFile("src/modules/session-planner/session-planner-runtime-state-service.mjs");
   const indexSource = readProjectFile("src/modules/session-planner/index.mjs");
 
   expect(appSource).toContain("createSessionPlannerStateMergeHelpers({");
   expect(appSource).not.toContain("function mergeSessionPlannerBlockForWrite(");
   expect(appSource).not.toContain("function cloneSessionPlannerState(");
-  expect(appSource).toContain("function readSessionPlannerState()");
-  expect(appSource).toContain("function writeSessionPlannerState()");
+  expect(appSource).toContain("createSessionPlannerRuntimeStateService({");
+  expect(appSource).not.toContain("function readSessionPlannerState()");
+  expect(appSource).not.toContain("function writeSessionPlannerState()");
   expect(helperSource).toContain("mergeSessionPlannerBlockForWrite");
   expect(helperSource).toContain("mergeSessionPlannerStateFromBackup");
+  expect(runtimeStateSource).toContain("function readState()");
+  expect(runtimeStateSource).toContain("function writeState()");
   expect(indexSource).toContain('export * from "./session-planner-state-merge-helpers.mjs";');
+  expect(indexSource).toContain('export * from "./session-planner-runtime-state-service.mjs";');
 });
 
 test("Session Planner state merge helpers do not own protected save pipelines", () => {

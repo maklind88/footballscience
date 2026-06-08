@@ -18,7 +18,8 @@ test("Session Planner board history owns undo redo outside app-runtime", () => {
   expect(appSource).toContain("createSessionPlannerBoardHistoryController({");
   expect(appSource).not.toContain("function undoSessionPlannerBoardHistory(");
   expect(appSource).not.toContain("function redoSessionPlannerBoardHistory(");
-  expect(appSource).toContain("function writeSessionPlannerState()");
+  expect(appSource).toContain("createSessionPlannerRuntimeStateService({");
+  expect(appSource).toContain("function writeSessionPlannerState(...args)");
   expect(controllerSource).toContain("function undo(type)");
   expect(controllerSource).toContain("function redo(type)");
   expect(controllerSource).toContain("writeState();");

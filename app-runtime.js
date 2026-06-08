@@ -62,8 +62,6 @@ import { configurePlatformRuntimeAccessors, mergePeriodizationStatePreservingLoc
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createDashboardId, createDashboardJsonStorage, createDashboardWorkspaceQueryEngine } from "./src/core/dashboard-runtime-utils.mjs";
 import { createPlatformRuntimeHelpers } from "./src/core/platform-runtime-helpers.mjs";
-import { createCentralSyncStateHandler } from "./src/core/platform-central-sync-helpers.mjs";
-import { createPlatformShellRuntimeHelpers } from "./src/core/platform-shell-runtime-helpers.mjs";
 import { createCentralRuntimeFacade, dataSafetySnapshotStoreName } from "./src/core/central-runtime-facade.mjs";
 import { bindPlatformWorkspaceRuntimeBindings } from "./src/core/platform-workspace-runtime-bindings.mjs";
 import { bindPlatformGlobalRuntimeEvents } from "./src/core/platform-global-runtime-bindings.mjs";
@@ -250,18 +248,12 @@ documentRef: document,
 assetVersion: platformAssetVersion,
 });
 let workspaceModuleRuntimeController = null;
-const {
-  queueWorkspaceModulePreload,
-  preloadWorkspaceFromTrigger,
-  isSessionPlannerAutosaveKey,
-  shouldShowPlatformAutosaveStatus,
-  syncPlatformAutosaveStatusVisibility,
-  setPlatformAutosaveStatusForKey,
-} = createPlatformShellRuntimeHelpers({
-  getActiveWorkspaceId: () => hubState?.activeWorkspaceId || "",
-  getSessionPlannerAutosaveBoundary: () => sessionPlannerAutosaveBoundary,
-  getWorkspaceModuleRuntimeController: () => workspaceModuleRuntimeController,
-});
+function queueWorkspaceModulePreload(workspaceId = "") {
+  return workspaceModuleRuntimeController?.queueWorkspaceModulePreload?.(workspaceId);
+}
+function preloadWorkspaceFromTrigger(trigger = null) {
+  return workspaceModuleRuntimeController?.preloadWorkspaceFromTrigger?.(trigger);
+}
 const workspaceHubStorageKey = "football-workspace-hub-v3";
 const platformStructureStorageKey = "football-platform-structure-v1";
 const workspaceHubDefaultActiveWorkspaceId = "home";
@@ -662,64 +654,107 @@ const sessionPlannerAutosaveBoundary = createSessionPlannerAutosaveBoundary({
   setVisible: platformAutosaveStatusController.setVisible,
   now: () => Date.now(),
 });
+function isSessionPlannerAutosaveKey(key = "") {
+  return sessionPlannerAutosaveBoundary.isAutosaveKey(key);
+}
+function shouldShowPlatformAutosaveStatus(workspaceId = hubState?.activeWorkspaceId) {
+  return sessionPlannerAutosaveBoundary.shouldShowStatus(workspaceId);
+}
+function syncPlatformAutosaveStatusVisibility(workspaceId = hubState?.activeWorkspaceId) {
+  sessionPlannerAutosaveBoundary.syncVisibility(workspaceId);
+}
+function setPlatformAutosaveStatusForKey(key, state, message = "") {
+  return sessionPlannerAutosaveBoundary.setStatusForKey(key, state, message);
+}
 syncPlatformAutosaveStatusVisibility(null);
-const { handleCentralSyncedStateValue } = createCentralSyncStateHandler({
-getHubState: () => hubState,
-  dashboardChatDeletedMessageIdsStorageKey,
-  dashboardChatStorageKey,
-  medicalTeamStorageKey,
-  platformAppearanceStorageKey,
-  playerProfilesStorageKey,
-  readMedicalState,
-  readPlayerProfilesState,
-  readScoutingState,
-  readSessionPlannerExerciseLibrary,
-  readSessionPlannerExerciseLibraryFolders,
-  readSessionPlannerStatePreservingUiSelection,
-  readTransferRoomState,
-  renderAdminWorkspace,
-  renderDashboardCards,
-  renderDashboardChatWidget,
-  renderMedicalTeamWorkspace,
-  renderPlayerProfilesWorkspace,
-  renderScoutingWorkspace,
-  renderSessionPlannerWorkspace,
-  renderTopIconMenu: platformNavigationController.renderTopIconMenu,
-  renderTransferRoomWorkspace,
-  sessionPlannerExerciseLibraryFoldersStorageKey,
-  sessionPlannerExerciseLibraryStorageKey,
-  sessionPlannerStorageKey,
-  scoutingStorageKey,
-  transferRoomStorageKey,
-  clearPlayerProfileImportUndoSnapshots,
-  getSessionPlannerSelectedBlock,
-  purgeDashboardDeletedMessagesFromStorage,
-  setCentralizedAppStateReloadPending,
-  shouldDeferCentralizedAppStateReload,
-  setMedicalState: (nextState) => {
-    medicalState = nextState;
-  },
-  setPlayerProfilesState: (nextState) => {
-    playerProfilesState = nextState;
-  },
-  setScoutingState: (nextState) => {
-    scoutingState = nextState;
-  },
-  setSessionPlannerState: (nextState) => {
-    sessionPlannerState = nextState;
-  },
-  setSessionPlannerExerciseLibrary: (nextLibrary) => {
-    sessionPlannerExerciseLibrary = nextLibrary;
-  },
-  setSessionPlannerExerciseLibraryFolders: (nextFolders) => {
-    sessionPlannerExerciseLibraryFolders = nextFolders;
-  },
-  setTransferRoomState: (nextState) => {
-    transferRoomState = nextState;
-  },
-  syncSessionPlannerBoardHistoryBaselines,
-  syncTransferRoomLinkedState,
-});
+function handleCentralSyncedStateValue(key) {
+  if (key === sessionPlannerStorageKey) {
+    sessionPlannerState = readSessionPlannerStatePreservingUiSelection();
+    syncSessionPlannerBoardHistoryBaselines(getSessionPlannerSelectedBlock());
+    if (hubState?.activeWorkspaceId === "session-planner" && !shouldDeferCentralizedAppStateReload()) {
+      renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+    }
+    return;
+  }
+  if (key === sessionPlannerExerciseLibraryStorageKey) {
+    sessionPlannerExerciseLibrary = readSessionPlannerExerciseLibrary();
+    if (hubState?.activeWorkspaceId === "session-planner" && !shouldDeferCentralizedAppStateReload()) {
+      renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+    }
+    return;
+  }
+  if (key === sessionPlannerExerciseLibraryFoldersStorageKey) {
+    sessionPlannerExerciseLibraryFolders = readSessionPlannerExerciseLibraryFolders();
+    if (hubState?.activeWorkspaceId === "session-planner" && !shouldDeferCentralizedAppStateReload()) {
+      renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+    }
+    return;
+  }
+  if (key === dashboardChatStorageKey) {
+    dashboardChatRuntimeMessages = [];
+    purgeDashboardDeletedMessagesFromStorage();
+    renderDashboardChatWidget();
+    platformNavigationController.renderTopIconMenu();
+    return;
+  }
+  if (key === dashboardChatDeletedMessageIdsStorageKey) {
+    purgeDashboardDeletedMessagesFromStorage();
+    renderDashboardChatWidget();
+    platformNavigationController.renderTopIconMenu();
+    return;
+  }
+  if (key === platformAppearanceStorageKey) {
+    if (hubState?.activeWorkspaceId === "home") {
+      renderDashboardCards();
+    }
+    if (hubState?.activeWorkspaceId === "admin") {
+      renderAdminWorkspace();
+    }
+    return;
+  }
+  if (key === playerProfilesStorageKey) {
+    clearPlayerProfileImportUndoSnapshots();
+    playerProfilesState = readPlayerProfilesState();
+    if (hubState?.activeWorkspaceId === "transfer-room" && !shouldDeferCentralizedAppStateReload()) {
+      syncTransferRoomLinkedState({ render: true });
+    }
+    if (hubState?.activeWorkspaceId === "player-profiles" && !shouldDeferCentralizedAppStateReload()) {
+      renderPlayerProfilesWorkspace();
+    }
+    return;
+  }
+  if (key === medicalTeamStorageKey) {
+    clearPlayerProfileImportUndoSnapshots();
+    medicalState = readMedicalState();
+    if (hubState?.activeWorkspaceId === "player-profiles" && !shouldDeferCentralizedAppStateReload()) {
+      renderPlayerProfilesWorkspace();
+    }
+    if (hubState?.activeWorkspaceId === "medical-team" && !shouldDeferCentralizedAppStateReload()) {
+      renderMedicalTeamWorkspace();
+    }
+    return;
+  }
+  if (key === scoutingStorageKey) {
+    scoutingState = readScoutingState();
+    if (hubState?.activeWorkspaceId === "transfer-room" && !shouldDeferCentralizedAppStateReload()) {
+      syncTransferRoomLinkedState({ render: true });
+    }
+    if (hubState?.activeWorkspaceId === "scouting" && shouldDeferCentralizedAppStateReload()) {
+      setCentralizedAppStateReloadPending(true);
+      return;
+    }
+    if (hubState?.activeWorkspaceId === "scouting") {
+      renderScoutingWorkspace();
+    }
+    return;
+  }
+  if (key === transferRoomStorageKey) {
+    transferRoomState = readTransferRoomState();
+    if (hubState?.activeWorkspaceId === "transfer-room" && !shouldDeferCentralizedAppStateReload()) {
+      renderTransferRoomWorkspace();
+    }
+  }
+}
 installFootballDataSafety();
 installPlatformOverlayStability({ win });
 const {
@@ -1551,31 +1586,31 @@ win,
 const { medicalRuntimeService } = medicalRuntimeServiceComposition;
 configureMedicalRuntimeAccessors(() => medicalRuntimeService);
 const {
-medicalAvailabilitySelectors,
-medicalCommandRenderer,
-medicalCommandSelectors,
-medicalOperationsRenderer,
-medicalOperationsSelectors,
-medicalOptionSelectors,
-medicalPlanFormRenderer,
-medicalPlanSelectors,
-medicalPlayerModalRenderer,
-medicalProfileSummaryRenderer,
-medicalProfileSummarySelectors,
-medicalRecommendationRenderer,
-medicalRosterRenderer,
-medicalRosterSelectors,
-parseMedicalRosterCsvLine,
-parseMedicalRosterLine,
-parseMedicalRosterLineParts,
-parseMedicalRosterText,
-renderMedicalActualParticipationOptions,
-renderMedicalBulkUpdatePanel,
-renderMedicalDurationUnitOptions,
-renderMedicalGateOptions,
-renderMedicalParticipationOptions,
-renderMedicalRtpPhaseOptions,
-renderMedicalStatusOptions,
+  medicalAvailabilitySelectors,
+  medicalCommandRenderer,
+  medicalCommandSelectors,
+  medicalOperationsRenderer,
+  medicalOperationsSelectors,
+  medicalOptionSelectors,
+  medicalPlanFormRenderer,
+  medicalPlanSelectors,
+  medicalPlayerModalRenderer,
+  medicalProfileSummaryRenderer,
+  medicalProfileSummarySelectors,
+  medicalRecommendationRenderer,
+  medicalRosterRenderer,
+  medicalRosterSelectors,
+  parseMedicalRosterCsvLine,
+  parseMedicalRosterLine,
+  parseMedicalRosterLineParts,
+  parseMedicalRosterText,
+  renderMedicalActualParticipationOptions,
+  renderMedicalBulkUpdatePanel,
+  renderMedicalDurationUnitOptions,
+  renderMedicalGateOptions,
+  renderMedicalParticipationOptions,
+  renderMedicalRtpPhaseOptions,
+  renderMedicalStatusOptions,
 } = medicalRuntimeServiceComposition;
 const dashboardPresenceHeartbeatMs = 60000, dashboardPresencePollMs = 45000, dashboardPresenceSteadyPushMinMs = 30000;
 const dashboardPresenceTypingPushMinMs = 5000, dashboardPresencePollMinMs = 30000;

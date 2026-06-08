@@ -2376,6 +2376,8 @@ isSessionPlannerTacticalGoalType,
 isSessionPlannerTacticalPlayerType,
 isTemporaryPlayerProfile,
 medicalActualParticipationFallback,
+medicalOperationsTabOptions,
+medicalPlayerModalTabOptions,
 normalizeMedicalActualParticipation,
 normalizePlayerProfileRole,
 normalizeSessionPlannerMultiValue,
@@ -2400,6 +2402,9 @@ ensureSessionPlannerTacticalFrames,
 const {
 formatMedicalDateLabel,
 getMedicalPlayerInitials,
+normalizeMedicalOperationsTab,
+normalizeMedicalPlayerModalTab,
+renderMedicalMetric,
 renderMedicalPlayerAvatar,
 renderMedicalSquadAvailabilityBadge,
 renderMedicalTemporaryPlayerBadge,
@@ -9409,17 +9414,6 @@ if (submitButton) {
 submitButton.disabled = !canRecommend || !getMedicalBulkSelectedPlayers().length;
 }
 }
-function renderMedicalMetric(label, value, meta = "", tone = "") {
-const toneClass = tone ? ` medical-metric-card-${escapeHtml(tone)}` : "";
-const noMetaClass = meta ? "" : " medical-metric-card-no-meta";
-return `
-<article class="medical-metric-card${toneClass}${noMetaClass}">
-<span>${escapeHtml(label)}</span>
-<strong>${escapeHtml(value)}</strong>
-${meta ? `<small>${escapeHtml(meta)}</small>` : ""}
-</article>
-`;
-}
 function updateMedicalGovernancePolicy(values = {}) {
 if (!canViewPrivateMedicalDetails()) {
 return false;
@@ -9439,8 +9433,6 @@ updatedBy: getCurrentPlatformUser()?.id || "",
 writeMedicalState();
 return true;
 }
-function normalizeMedicalOperationsTab(tabKey) { return medicalOperationsTabOptions.some((tab) => tab.key === tabKey) ? tabKey : "availability"; }
-function normalizeMedicalPlayerModalTab(tabKey) { return medicalPlayerModalTabOptions.some((tab) => tab.key === tabKey) ? tabKey : "availability"; }
 function getMedicalPlanTotalDays(plan) { return medicalPlanSelectors.getMedicalPlanTotalDays(plan); }
 function getMedicalPlanElapsedDays(plan, dateValue = medicalState?.selectedDate) { return medicalPlanSelectors.getMedicalPlanElapsedDays(plan, dateValue); }
 function getMedicalPlanDaysRemaining(plan, dateValue = medicalState?.selectedDate) { return medicalPlanSelectors.getMedicalPlanDaysRemaining(plan, dateValue); }

@@ -75,6 +75,8 @@ export function createSessionPlannerRuntimeRenderers(deps = {}) {
     isMedicalPlayerBlockedBySquadAvailability: deps.isMedicalPlayerBlockedBySquadAvailability,
     isPlayerProfileTemporaryActiveOnDate: deps.isPlayerProfileTemporaryActiveOnDate,
     isTemporaryPlayerProfile: deps.isTemporaryPlayerProfile,
+    medicalOperationsTabOptions: deps.medicalOperationsTabOptions,
+    medicalPlayerModalTabOptions: deps.medicalPlayerModalTabOptions,
     parseScheduleDateValue: deps.parseScheduleDateValue,
   });
   const { formatMedicalDateLabel, getMedicalPlayerInitials, renderMedicalPlayerAvatar } = medicalDisplayHelpers;

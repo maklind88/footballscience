@@ -23,6 +23,8 @@ export function createMedicalDisplayHelpers(options = {}) {
     typeof options.getMedicalPlayerAvailabilityStatusOption === "function"
       ? options.getMedicalPlayerAvailabilityStatusOption
       : () => ({ key: "unknown", tone: "unknown", label: "Unknown" });
+  const medicalOperationsTabOptions = Array.isArray(options.medicalOperationsTabOptions) ? options.medicalOperationsTabOptions : [];
+  const medicalPlayerModalTabOptions = Array.isArray(options.medicalPlayerModalTabOptions) ? options.medicalPlayerModalTabOptions : [];
   const isMedicalPlayerBlockedBySquadAvailability =
     typeof options.isMedicalPlayerBlockedBySquadAvailability === "function"
       ? options.isMedicalPlayerBlockedBySquadAvailability
@@ -80,9 +82,32 @@ export function createMedicalDisplayHelpers(options = {}) {
     return `<span class="medical-squad-availability-badge is-${escapeHtml(option.tone || option.key)}">${escapeHtml(option.label)}</span>`;
   }
 
+  function renderMedicalMetric(label, value, meta = "", tone = "") {
+    const toneClass = tone ? ` medical-metric-card-${escapeHtml(tone)}` : "";
+    const noMetaClass = meta ? "" : " medical-metric-card-no-meta";
+    return `
+<article class="medical-metric-card${toneClass}${noMetaClass}">
+<span>${escapeHtml(label)}</span>
+<strong>${escapeHtml(value)}</strong>
+${meta ? `<small>${escapeHtml(meta)}</small>` : ""}
+</article>
+`;
+  }
+
+  function normalizeMedicalOperationsTab(tabKey) {
+    return medicalOperationsTabOptions.some((tab) => tab.key === tabKey) ? tabKey : "availability";
+  }
+
+  function normalizeMedicalPlayerModalTab(tabKey) {
+    return medicalPlayerModalTabOptions.some((tab) => tab.key === tabKey) ? tabKey : "availability";
+  }
+
   return {
     formatMedicalDateLabel,
     getMedicalPlayerInitials,
+    normalizeMedicalOperationsTab,
+    normalizeMedicalPlayerModalTab,
+    renderMedicalMetric,
     renderMedicalPlayerAvatar,
     renderMedicalSquadAvailabilityBadge,
     renderMedicalTemporaryPlayerBadge,

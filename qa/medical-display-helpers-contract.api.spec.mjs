@@ -15,6 +15,8 @@ const helpers = createMedicalDisplayHelpers({
   isMedicalPlayerBlockedBySquadAvailability: (player = {}) => player.blocked,
   isPlayerProfileTemporaryActiveOnDate: (_player, dateValue) => dateValue === "2026-05-29",
   isTemporaryPlayerProfile: (player = {}) => player.temporary,
+  medicalOperationsTabOptions: [{ key: "availability" }, { key: "system" }],
+  medicalPlayerModalTabOptions: [{ key: "availability" }, { key: "clinical" }],
   parseScheduleDateValue: (value) => {
     const [year, month, day] = String(value).split("-").map(Number);
     return new Date(year, month - 1, day);
@@ -50,4 +52,13 @@ test("Medical display helpers own temporary and squad availability badges", () =
   expect(helpers.renderMedicalSquadAvailabilityBadge({ blocked: true })).toContain(
     '<span class="medical-squad-availability-badge is-danger">Unavailable</span>'
   );
+});
+
+test("Medical display helpers own metric cards and tab normalization", () => {
+  expect(helpers.renderMedicalMetric("Full", "12", "100%", "full")).toContain("medical-metric-card-full");
+  expect(helpers.renderMedicalMetric("Not set", "2")).toContain("medical-metric-card-no-meta");
+  expect(helpers.normalizeMedicalOperationsTab("system")).toBe("system");
+  expect(helpers.normalizeMedicalOperationsTab("bad")).toBe("availability");
+  expect(helpers.normalizeMedicalPlayerModalTab("clinical")).toBe("clinical");
+  expect(helpers.normalizeMedicalPlayerModalTab("bad")).toBe("availability");
 });

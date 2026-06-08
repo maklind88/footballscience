@@ -114,14 +114,20 @@ function createHarness(overrides = {}) {
 
 test("Admin runtime service owns admin bodies outside app-runtime", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const accessorsSource = readProjectFile("src/core/platform-runtime-accessors.mjs");
   const serviceSource = readProjectFile("src/modules/admin/admin-runtime-service.mjs");
   const indexSource = readProjectFile("src/modules/admin/index.mjs");
 
   expect(appSource).toContain("createAdminRuntimeService({");
-  expect(appSource).toContain("function renderAdminWorkspace(...args) { return adminRuntimeService.renderAdminWorkspace(...args); }");
-  expect(appSource).toContain("function createAdminClubFromForm(...args) { return adminRuntimeService.createAdminClubFromForm(...args); }");
+  expect(appSource).toContain("platform-runtime-accessors.mjs");
+  expect(appSource).toContain("adminRuntimeService,");
+  expect(accessorsSource).toContain("renderAdminWorkspace");
+  expect(accessorsSource).toContain('callAccessorSource("adminRuntimeService", "renderAdminWorkspace"');
+  expect(accessorsSource).toContain('callAccessorSource("adminRuntimeService", "createAdminClubFromForm"');
   expect(appSource).not.toContain("async function loadPlatformReadinessReport(options = {}) {\nif (platformReadinessLoading)");
   expect(appSource).not.toContain("function createAdminTeamFromForm(form) {\nconst currentUser = getCurrentPlatformUser();");
+  expect(appSource).not.toContain("function renderAdminWorkspace(...args)");
+  expect(appSource).not.toContain("function createAdminClubFromForm(...args)");
   expect(serviceSource).toContain("async function loadPlatformReadinessReport(options = {})");
   expect(serviceSource).toContain("function createAdminTeamFromForm(form)");
   expect(indexSource).toContain('export * from "./admin-runtime-service.mjs";');

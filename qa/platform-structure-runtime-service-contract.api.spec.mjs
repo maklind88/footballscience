@@ -6,6 +6,10 @@ import { createPlatformStructureRuntimeService } from "../src/modules/platform/p
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const appRuntimeSource = fs.readFileSync(path.join(repoRoot, "app-runtime.js"), "utf8");
+const platformRuntimeAccessorsSource = fs.readFileSync(
+  path.join(repoRoot, "src/core/platform-runtime-accessors.mjs"),
+  "utf8"
+);
 const serviceSource = fs.readFileSync(
   path.join(repoRoot, "src/modules/platform/platform-structure-runtime-service.mjs"),
   "utf8"
@@ -49,11 +53,16 @@ function createService(options = {}) {
 
 test("Platform structure runtime owns structure and admin scope bodies outside app-runtime", () => {
   expect(appRuntimeSource).toContain("createPlatformStructureRuntimeService({");
-  expect(appRuntimeSource).toContain("function syncPlatformStructureWithUsers(...args)");
-  expect(appRuntimeSource).toContain("function normalizeAdminUserSubmissionValues(...args)");
+  expect(appRuntimeSource).toContain("platform-runtime-accessors.mjs");
+  expect(appRuntimeSource).toContain("platformStructureRuntimeService,");
+  expect(platformRuntimeAccessorsSource).toContain("syncPlatformStructureWithUsers");
+  expect(platformRuntimeAccessorsSource).toContain('callAccessorSource("platformStructureRuntimeService", "syncPlatformStructureWithUsers"');
+  expect(platformRuntimeAccessorsSource).toContain('callAccessorSource("platformStructureRuntimeService", "normalizeAdminUserSubmissionValues"');
   expect(appRuntimeSource).not.toContain("const platformStructureStateHelpers = createPlatformStructureStateHelpers({");
   expect(appRuntimeSource).not.toContain("function syncPlatformStructureWithUsers(users = getPlatformUsers()) {");
   expect(appRuntimeSource).not.toContain("function normalizeAdminUserSubmissionValues(values = {}, actor = getCurrentPlatformUser()");
+  expect(appRuntimeSource).not.toContain("function syncPlatformStructureWithUsers(...args)");
+  expect(appRuntimeSource).not.toContain("function normalizeAdminUserSubmissionValues(...args)");
 
   expect(serviceSource).toContain("createPlatformStructureStateHelpers({");
   expect(serviceSource).toContain("function syncPlatformStructureWithUsers(users = getPlatformUsers()) {");

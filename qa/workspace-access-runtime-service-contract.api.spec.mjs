@@ -6,6 +6,7 @@ import { createWorkspaceAccessRuntimeService } from "../src/core/workspace-acces
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const appRuntimeSource = fs.readFileSync(path.join(repoRoot, "app-runtime.js"), "utf8");
+const platformRuntimeAccessorsSource = fs.readFileSync(path.join(repoRoot, "src/core/platform-runtime-accessors.mjs"), "utf8");
 const serviceSource = fs.readFileSync(path.join(repoRoot, "src/core/workspace-access-runtime-service.mjs"), "utf8");
 
 const defaultHubState = {
@@ -88,10 +89,14 @@ function createService(overrides = {}) {
 
 test("Workspace access runtime owns access and hub-state bodies outside app-runtime", () => {
   expect(appRuntimeSource).toContain("createWorkspaceAccessRuntimeService({");
-  expect(appRuntimeSource).toContain("function canUserAccessWorkspace(...args)");
-  expect(appRuntimeSource).toContain("function readWorkspaceHubState(...args)");
+  expect(appRuntimeSource).toContain("platform-runtime-accessors.mjs");
+  expect(appRuntimeSource).toContain("workspaceAccessRuntimeService,");
+  expect(platformRuntimeAccessorsSource).toContain('callAccessorSource("workspaceAccessRuntimeService", "canUserAccessWorkspace"');
+  expect(platformRuntimeAccessorsSource).toContain('callAccessorSource("workspaceAccessRuntimeService", "readWorkspaceHubState"');
   expect(appRuntimeSource).not.toContain("function canUserAccessWorkspace(\nworkspace,");
   expect(appRuntimeSource).not.toContain("function readWorkspaceHubState() {\ntry {");
+  expect(appRuntimeSource).not.toContain("function canUserAccessWorkspace(...args)");
+  expect(appRuntimeSource).not.toContain("function readWorkspaceHubState(...args)");
 
   expect(serviceSource).toContain("createWorkspaceHubStateHelpers({");
   expect(serviceSource).toContain("function canUserAccessWorkspace(");

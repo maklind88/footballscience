@@ -104,14 +104,19 @@ function createHarness(options = {}) {
 
 test("workspace data runtime service owns state bodies outside app-runtime", () => {
   const runtimeSource = readFileSync(new URL("../app-runtime.js", import.meta.url), "utf8");
+  const accessorsSource = readFileSync(new URL("../src/core/platform-runtime-accessors.mjs", import.meta.url), "utf8");
   const serviceSource = readFileSync(new URL("../src/core/workspace-data-runtime-service.mjs", import.meta.url), "utf8");
 
   expect(runtimeSource).toContain("createWorkspaceDataRuntimeService({");
-  expect(runtimeSource).toContain("function readScheduleState(...args)");
-  expect(runtimeSource).toContain("function syncTransferRoomLinkedState(...args)");
+  expect(runtimeSource).toContain("platform-runtime-accessors.mjs");
+  expect(runtimeSource).toContain("workspaceDataRuntimeService,");
+  expect(accessorsSource).toContain('callAccessorSource("workspaceDataRuntimeService", "readScheduleState"');
+  expect(accessorsSource).toContain('callAccessorSource("workspaceDataRuntimeService", "syncTransferRoomLinkedState"');
   expect(runtimeSource).not.toContain("function readScheduleState() {");
   expect(runtimeSource).not.toContain("function readScoutingState() {");
   expect(runtimeSource).not.toContain("function syncTransferRoomLinkedState(options = {})");
+  expect(runtimeSource).not.toContain("function readScheduleState(...args)");
+  expect(runtimeSource).not.toContain("function syncTransferRoomLinkedState(...args)");
   expect(serviceSource).toContain("function readScheduleState()");
   expect(serviceSource).toContain("function readScoutingState()");
   expect(serviceSource).toContain("function syncTransferRoomLinkedState(options = {})");

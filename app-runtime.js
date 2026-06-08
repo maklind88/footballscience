@@ -66,6 +66,7 @@ import { createWorkspaceModuleRuntimeController } from "./src/core/workspace-mod
 import { createWorkspaceShellController } from "./src/core/workspace-shell-controller.mjs";
 import { bindPlatformNavigationInteractions } from "./src/core/platform-navigation-bindings.mjs";
 import { createPlatformUiBindings } from "./src/core/platform-ui-bindings.mjs";
+import { configurePlatformRuntimeAccessors, mergePeriodizationStatePreservingLocalUi, renderPlayerProfilesWorkspaceMessage, cloneDefaultPlatformStructureState, normalizePlatformStructureText, normalizePlatformStructureComparable, isLegacyPlatformStructureValue, isCanonicalPlatformClubValue, isCanonicalPlatformTeamValue, isLegacyPlatformClub, isLegacyPlatformTeam, isCanonicalPlatformClub, isCanonicalPlatformTeam, hasPlatformWorkspaceScope, slugifyPlatformStructureValue, normalizePlatformStructureId, createPlatformStructureId, normalizePlatformClub, normalizePlatformTeam, normalizePlatformStructureState, isLegacyPlatformTeamPlaceholderName, readPlatformStructureState, writePlatformStructureState, getPlatformStructureState, getPlatformClubById, getPlatformTeamById, findPlatformTeamByName, syncPlatformStructureWithUsers, getUserTeamId, getUserClubId, getUserTeamName, getActivePlatformTeam, getPlatformTeamDisplayTeam, getPlatformTeamDisplayName, writePlatformTeamLogo, getUserClubName, getUserScopeLabel, isSamePlatformClub, isSamePlatformTeam, canAdminViewUser, canAdminManageUser, getScopedPlatformUsers, getScopedPlatformClubs, getScopedPlatformTeams, normalizeAdminUserSubmissionValues, getAllWorkspacePool, normalizeWorkspaceRoleList, normalizeWorkspaceAccessEntry, getWorkspaceAccessConfig, getWorkspaceByIdFromPool, canUserAccessWorkspace, canCurrentUserAccessWorkspace, canUserEditWorkspace, canCurrentUserEditWorkspace, canEditScheduleWorkspace, canEditSessionPlanner, canEditPeriodizationWorkspace, canEditGameSimulatorWorkspace, canEditScoutingWorkspace, getAccessibleWorkspacePool, getVisibleWorkspacePool, mergeWorkspaceDefinitions, cloneHubState, clonePersistableWorkspaceHubState, repairWorkspaceState, getWorkspaceIdFromUrl, readRememberedWorkspaceId, rememberActiveWorkspaceId, readWorkspaceHubState, writeWorkspaceHubState, getWorkspaceById, getWorkspaceByIdUnfiltered, getSafeWorkspaceId, getWorkspaceViewId, getPeriodizationDay, ensurePeriodizationState, writePeriodizationDay, selectPeriodizationDate, openPeriodizationDateForDashboard, setPeriodizationStateStorageValue, readPeriodizationState, writePeriodizationState, setPeriodizationMonth, shiftPeriodizationMonth, scrollPeriodizationDateIntoView, jumpPeriodizationToToday, mergeImportedNccSchedule, setScheduleStateStorageValue, readScheduleState, ensureScheduleState, writeScheduleState, setScoutingStateStorageValue, readScoutingState, writeScoutingState, ensureScoutingState, getPeriodizationMultiSelectOpenField, setPeriodizationMultiSelectOpenField, setPeriodizationSelection, getPeriodizationOverlayState, setPeriodizationOverlayMode, setPeriodizationOverlayState, readTransferRoomState, ensureTransferRoomState, syncTransferRoomLinkedState, canUserAccessTransferRoom, canUserEditTransferRoom, addTransferRoomTargetFromScoutingSnapshot, getGameplanContext, getScoutingAnalysisRoomContext, getScoutingWorkspaceContext, getTransferRoomWorkspaceContext, hydrateWorkspaceModuleState, loadGameplanModule, loadScoutingWorkspaceModule, loadTransferRoomWorkspaceModule, renderAnalysisRoomWorkspace, renderGameplanWorkspace, renderScoutingWorkspace, renderTransferRoomWorkspace, renderPeriodizationWorkspace, renderSessionPlannerPeriodizationOverlay, renderSessionPlannerPeriodizationSummary, initializeWorkspaceHub, renderWorkspaceChrome, setActiveWorkspace, reloadCentralizedAppStateFromStorage, getCurrentSessionPlannerUiSelection, readSessionPlannerStatePreservingUiSelection, shouldDeferCentralizedAppStateReload, setCentralizedAppStateReloadPending, requestCentralizedAppStateReload, flushDeferredCentralizedAppStateReload, refreshCentralStateFromSource, formatScheduleBlockSummary, getScheduleEventsForDate, getScheduleMainEvent, getScheduleMonthEvents, getScheduleDayWarnings, getScheduledSessionTitleForDate, getScheduleSelectedDayContext, getScheduleSessionEventForDate, getScheduleSessionSnapshot, getScheduleVisibleEvents, getScheduleVisibleMonthEvents, isScheduleSessionEvent, openCredentialsMailto, buildTemporaryLoginMessage, getAdminManagedWorkspaces, getAdminAuditState, getReadinessState, getSelectedAdminUserId, getAdminUsersForTeam, getAdminUserInitials, createAdminClubFromForm, createAdminTeamFromForm, loadAdminAuditLog, loadPlatformReadinessReport, publishPlatformAppearanceConfig, getAdminTransferRoomAccessTeamId, renderAdminWorkspace } from "./src/core/platform-runtime-accessors.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createCentralAppStateReloadService } from "./src/core/central-app-state-reload-service.mjs";
 import { createCentralRuntimeFacade, dataSafetySnapshotStoreName } from "./src/core/central-runtime-facade.mjs";
@@ -216,6 +217,19 @@ openMedicalPlayerModal, closeMedicalPlayerModal, setMedicalSelectedDate, shiftMe
 const getElement = document.getElementById.bind(document);
 const win = window;
 const ui = createPlatformUiBindings(document);const platformAssetVersion = win.__assetVersion || Date.now();
+configurePlatformRuntimeAccessors(() => ({
+adminRuntimeService,
+centralAppStateReloadService,
+periodizationRuntimeBindings,
+periodizationStateAdapter,
+platformStructureRuntimeService,
+scheduleRuntimeSelectors,
+squadWorkspaceRenderer,
+workspaceAccessRuntimeService,
+workspaceDataRuntimeService,
+workspaceModuleRuntimeController,
+workspaceShellController,
+}));
 const platformModuleLoader = createPlatformModuleLoader({
 documentRef: document,
 assetVersion: platformAssetVersion,
@@ -960,7 +974,6 @@ isPeriodizationOffDay,
 normalizePeriodizationDay,
 normalizePeriodizationMultiValue,
 } = periodizationStateAdapter;
-function mergePeriodizationStatePreservingLocalUi(...args) { return periodizationStateAdapter.mergePeriodizationStatePreservingLocalUi(...args); }
 const periodizationRenderer = createPeriodizationRenderer({
 escapeHtml,
 formatDateValue: formatScheduleDateValue,
@@ -1734,7 +1747,6 @@ renderTaskList: dashboardTaskListRenderer.renderTaskList,
 renderTeamLogoMark: renderPlatformTeamLogoMark,
 renderUserAvatar,
 });
-function renderPlayerProfilesWorkspaceMessage(...args) { return squadWorkspaceRenderer.renderMessage(...args); }
 adminRuntimeService = createAdminRuntimeService({
 adminWorkspaceRenderer,
 buildPlatformTemporaryLoginMessage,
@@ -2083,38 +2095,6 @@ isPlatformManagementUser,
 normalizePlatformImageUrl,
 logEvent,
 });
-function cloneDefaultPlatformStructureState(...args) { return platformStructureRuntimeService.cloneDefaultPlatformStructureState(...args); }
-function normalizePlatformStructureText(...args) { return platformStructureRuntimeService.normalizePlatformStructureText(...args); }
-function normalizePlatformStructureComparable(...args) { return platformStructureRuntimeService.normalizePlatformStructureComparable(...args); }
-function isLegacyPlatformStructureValue(...args) { return platformStructureRuntimeService.isLegacyPlatformStructureValue(...args); }
-function isCanonicalPlatformClubValue(...args) { return platformStructureRuntimeService.isCanonicalPlatformClubValue(...args); }
-function isCanonicalPlatformTeamValue(...args) { return platformStructureRuntimeService.isCanonicalPlatformTeamValue(...args); }
-function isLegacyPlatformClub(...args) { return platformStructureRuntimeService.isLegacyPlatformClub(...args); }
-function isLegacyPlatformTeam(...args) { return platformStructureRuntimeService.isLegacyPlatformTeam(...args); }
-function isCanonicalPlatformClub(...args) { return platformStructureRuntimeService.isCanonicalPlatformClub(...args); }
-function isCanonicalPlatformTeam(...args) { return platformStructureRuntimeService.isCanonicalPlatformTeam(...args); }
-function hasPlatformWorkspaceScope(...args) { return platformStructureRuntimeService.hasPlatformWorkspaceScope(...args); }
-function slugifyPlatformStructureValue(...args) { return platformStructureRuntimeService.slugifyPlatformStructureValue(...args); }
-function normalizePlatformStructureId(...args) { return platformStructureRuntimeService.normalizePlatformStructureId(...args); }
-function createPlatformStructureId(...args) { return platformStructureRuntimeService.createPlatformStructureId(...args); }
-function normalizePlatformClub(...args) { return platformStructureRuntimeService.normalizePlatformClub(...args); }
-function normalizePlatformTeam(...args) { return platformStructureRuntimeService.normalizePlatformTeam(...args); }
-function normalizePlatformStructureState(...args) { return platformStructureRuntimeService.normalizePlatformStructureState(...args); }
-function isLegacyPlatformTeamPlaceholderName(...args) { return platformStructureRuntimeService.isLegacyPlatformTeamPlaceholderName(...args); }
-function readPlatformStructureState(...args) { return platformStructureRuntimeService.readPlatformStructureState(...args); }
-function writePlatformStructureState(...args) { return platformStructureRuntimeService.writePlatformStructureState(...args); }
-function getPlatformStructureState(...args) { return platformStructureRuntimeService.getPlatformStructureState(...args); }
-function getPlatformClubById(...args) { return platformStructureRuntimeService.getPlatformClubById(...args); }
-function getPlatformTeamById(...args) { return platformStructureRuntimeService.getPlatformTeamById(...args); }
-function findPlatformTeamByName(...args) { return platformStructureRuntimeService.findPlatformTeamByName(...args); }
-function syncPlatformStructureWithUsers(...args) { return platformStructureRuntimeService.syncPlatformStructureWithUsers(...args); }
-function getUserTeamId(...args) { return platformStructureRuntimeService.getUserTeamId(...args); }
-function getUserClubId(...args) { return platformStructureRuntimeService.getUserClubId(...args); }
-function getUserTeamName(...args) { return platformStructureRuntimeService.getUserTeamName(...args); }
-function getActivePlatformTeam(...args) { return platformStructureRuntimeService.getActivePlatformTeam(...args); }
-function getPlatformTeamDisplayTeam(...args) { return platformStructureRuntimeService.getPlatformTeamDisplayTeam(...args); }
-function getPlatformTeamDisplayName(...args) { return platformStructureRuntimeService.getPlatformTeamDisplayName(...args); }
-function writePlatformTeamLogo(...args) { return platformStructureRuntimeService.writePlatformTeamLogo(...args); }
 async function uploadSquadTeamLogo(file) {
 if (!canEditPlayerProfiles()) {
 renderPlayerProfilesWorkspace({
@@ -2187,16 +2167,6 @@ const file = playerPhotoInput.files?.[0] ?? null;
 playerPhotoInput.value = "";
 void uploadPlayerProfilePhoto(playerPhotoInput.dataset.playerProfilePhotoUpload || "", file);
 }
-function getUserClubName(...args) { return platformStructureRuntimeService.getUserClubName(...args); }
-function getUserScopeLabel(...args) { return platformStructureRuntimeService.getUserScopeLabel(...args); }
-function isSamePlatformClub(...args) { return platformStructureRuntimeService.isSamePlatformClub(...args); }
-function isSamePlatformTeam(...args) { return platformStructureRuntimeService.isSamePlatformTeam(...args); }
-function canAdminViewUser(...args) { return platformStructureRuntimeService.canAdminViewUser(...args); }
-function canAdminManageUser(...args) { return platformStructureRuntimeService.canAdminManageUser(...args); }
-function getScopedPlatformUsers(...args) { return platformStructureRuntimeService.getScopedPlatformUsers(...args); }
-function getScopedPlatformClubs(...args) { return platformStructureRuntimeService.getScopedPlatformClubs(...args); }
-function getScopedPlatformTeams(...args) { return platformStructureRuntimeService.getScopedPlatformTeams(...args); }
-function normalizeAdminUserSubmissionValues(...args) { return platformStructureRuntimeService.normalizeAdminUserSubmissionValues(...args); }
 function renderAdminRoleOptions(actor, selectedRole = "coach") { return adminStructureRenderer.renderRoleOptions(actor, selectedRole); }
 function renderAdminTeamOptions(actor, structure, selectedTeamId = "") { return adminStructureRenderer.renderTeamOptions(actor, structure, selectedTeamId); }
 const workspaceAccessRuntimeService = createWorkspaceAccessRuntimeService({
@@ -2218,35 +2188,6 @@ canUserAccessTransferRoom,
 canUserEditTransferRoom,
 logEvent,
 });
-function getAllWorkspacePool(...args) { return workspaceAccessRuntimeService.getAllWorkspacePool(...args); }
-function normalizeWorkspaceRoleList(...args) { return workspaceAccessRuntimeService.normalizeWorkspaceRoleList(...args); }
-function normalizeWorkspaceAccessEntry(...args) { return workspaceAccessRuntimeService.normalizeWorkspaceAccessEntry(...args); }
-function getWorkspaceAccessConfig(...args) { return workspaceAccessRuntimeService.getWorkspaceAccessConfig(...args); }
-function getWorkspaceByIdFromPool(...args) { return workspaceAccessRuntimeService.getWorkspaceByIdFromPool(...args); }
-function canUserAccessWorkspace(...args) { return workspaceAccessRuntimeService.canUserAccessWorkspace(...args); }
-function canCurrentUserAccessWorkspace(...args) { return workspaceAccessRuntimeService.canCurrentUserAccessWorkspace(...args); }
-function canUserEditWorkspace(...args) { return workspaceAccessRuntimeService.canUserEditWorkspace(...args); }
-function canCurrentUserEditWorkspace(...args) { return workspaceAccessRuntimeService.canCurrentUserEditWorkspace(...args); }
-function canEditScheduleWorkspace(...args) { return workspaceAccessRuntimeService.canEditScheduleWorkspace(...args); }
-function canEditSessionPlanner(...args) { return workspaceAccessRuntimeService.canEditSessionPlanner(...args); }
-function canEditPeriodizationWorkspace(...args) { return workspaceAccessRuntimeService.canEditPeriodizationWorkspace(...args); }
-function canEditGameSimulatorWorkspace(...args) { return workspaceAccessRuntimeService.canEditGameSimulatorWorkspace(...args); }
-function canEditScoutingWorkspace(...args) { return workspaceAccessRuntimeService.canEditScoutingWorkspace(...args); }
-function getAccessibleWorkspacePool(...args) { return workspaceAccessRuntimeService.getAccessibleWorkspacePool(...args); }
-function getVisibleWorkspacePool(...args) { return workspaceAccessRuntimeService.getVisibleWorkspacePool(...args); }
-function mergeWorkspaceDefinitions(...args) { return workspaceAccessRuntimeService.mergeWorkspaceDefinitions(...args); }
-function cloneHubState(...args) { return workspaceAccessRuntimeService.cloneHubState(...args); }
-function clonePersistableWorkspaceHubState(...args) { return workspaceAccessRuntimeService.clonePersistableWorkspaceHubState(...args); }
-function repairWorkspaceState(...args) { return workspaceAccessRuntimeService.repairWorkspaceState(...args); }
-function getWorkspaceIdFromUrl(...args) { return workspaceAccessRuntimeService.getWorkspaceIdFromUrl(...args); }
-function readRememberedWorkspaceId(...args) { return workspaceAccessRuntimeService.readRememberedWorkspaceId(...args); }
-function rememberActiveWorkspaceId(...args) { return workspaceAccessRuntimeService.rememberActiveWorkspaceId(...args); }
-function readWorkspaceHubState(...args) { return workspaceAccessRuntimeService.readWorkspaceHubState(...args); }
-function writeWorkspaceHubState(...args) { return workspaceAccessRuntimeService.writeWorkspaceHubState(...args); }
-function getWorkspaceById(...args) { return workspaceAccessRuntimeService.getWorkspaceById(...args); }
-function getWorkspaceByIdUnfiltered(...args) { return workspaceAccessRuntimeService.getWorkspaceByIdUnfiltered(...args); }
-function getSafeWorkspaceId(...args) { return workspaceAccessRuntimeService.getSafeWorkspaceId(...args); }
-function getWorkspaceViewId(...args) { return workspaceAccessRuntimeService.getWorkspaceViewId(...args); }
 workspaceDataRuntimeService = createWorkspaceDataRuntimeService({
 win,
 ui,
@@ -2292,33 +2233,6 @@ setScoutingState: (nextState) => { scoutingState = nextState; },
 setTransferRoomState: (nextState) => { transferRoomState = nextState; },
 shouldDeferCentralizedAppStateReload,
 });
-function getPeriodizationDay(...args) { return workspaceDataRuntimeService.getPeriodizationDay(...args); }
-function ensurePeriodizationState(...args) { return workspaceDataRuntimeService.ensurePeriodizationState(...args); }
-function writePeriodizationDay(...args) { return workspaceDataRuntimeService.writePeriodizationDay(...args); }
-function selectPeriodizationDate(...args) { return workspaceDataRuntimeService.selectPeriodizationDate(...args); }
-function openPeriodizationDateForDashboard(...args) { return workspaceDataRuntimeService.openPeriodizationDateForDashboard(...args); }
-function setPeriodizationStateStorageValue(...args) { return workspaceDataRuntimeService.setPeriodizationStateStorageValue(...args); }
-function readPeriodizationState(...args) { return workspaceDataRuntimeService.readPeriodizationState(...args); }
-function writePeriodizationState(...args) { return workspaceDataRuntimeService.writePeriodizationState(...args); }
-function setPeriodizationMonth(...args) { return workspaceDataRuntimeService.setPeriodizationMonth(...args); }
-function shiftPeriodizationMonth(...args) { return workspaceDataRuntimeService.shiftPeriodizationMonth(...args); }
-function scrollPeriodizationDateIntoView(...args) { return workspaceDataRuntimeService.scrollPeriodizationDateIntoView(...args); }
-function jumpPeriodizationToToday(...args) { return workspaceDataRuntimeService.jumpPeriodizationToToday(...args); }
-function mergeImportedNccSchedule(...args) { return workspaceDataRuntimeService.mergeImportedNccSchedule(...args); }
-function setScheduleStateStorageValue(...args) { return workspaceDataRuntimeService.setScheduleStateStorageValue(...args); }
-function readScheduleState(...args) { return workspaceDataRuntimeService.readScheduleState(...args); }
-function ensureScheduleState(...args) { return workspaceDataRuntimeService.ensureScheduleState(...args); }
-function writeScheduleState(...args) { return workspaceDataRuntimeService.writeScheduleState(...args); }
-function setScoutingStateStorageValue(...args) { return workspaceDataRuntimeService.setScoutingStateStorageValue(...args); }
-function readScoutingState(...args) { return workspaceDataRuntimeService.readScoutingState(...args); }
-function writeScoutingState(...args) { return workspaceDataRuntimeService.writeScoutingState(...args); }
-function ensureScoutingState(...args) { return workspaceDataRuntimeService.ensureScoutingState(...args); }
-function getPeriodizationMultiSelectOpenField(...args) { return workspaceDataRuntimeService.getPeriodizationMultiSelectOpenField(...args); }
-function setPeriodizationMultiSelectOpenField(...args) { return workspaceDataRuntimeService.setPeriodizationMultiSelectOpenField(...args); }
-function setPeriodizationSelection(...args) { return workspaceDataRuntimeService.setPeriodizationSelection(...args); }
-function getPeriodizationOverlayState(...args) { return workspaceDataRuntimeService.getPeriodizationOverlayState(...args); }
-function setPeriodizationOverlayMode(...args) { return workspaceDataRuntimeService.setPeriodizationOverlayMode(...args); }
-function setPeriodizationOverlayState(...args) { return workspaceDataRuntimeService.setPeriodizationOverlayState(...args); }
 const transferRoomRuntime = createTransferRoomRuntime({
 storageKey: transferRoomStorageKey,
 getCachedState: () => transferRoomState,
@@ -2442,24 +2356,6 @@ queueGameSimulatorControllersLoad();
 },
 },
 });
-function getGameplanContext(...args) { return workspaceModuleRuntimeController.getGameplanContext(...args); }
-function getScoutingAnalysisRoomContext(...args) { return workspaceModuleRuntimeController.getScoutingAnalysisRoomContext(...args); }
-function getScoutingWorkspaceContext(...args) { return workspaceModuleRuntimeController.getScoutingWorkspaceContext(...args); }
-function getTransferRoomWorkspaceContext(...args) { return workspaceModuleRuntimeController.getTransferRoomWorkspaceContext(...args); }
-function hydrateWorkspaceModuleState(...args) { return workspaceModuleRuntimeController.hydrateWorkspaceModuleState(...args); }
-function loadGameplanModule(...args) { return workspaceModuleRuntimeController.loadGameplanModule(...args); }
-function loadScoutingWorkspaceModule(...args) { return workspaceModuleRuntimeController.loadScoutingWorkspaceModule(...args); }
-function loadTransferRoomWorkspaceModule(...args) { return workspaceModuleRuntimeController.loadTransferRoomWorkspaceModule(...args); }
-function renderAnalysisRoomWorkspace(...args) { return workspaceModuleRuntimeController.renderAnalysisRoomWorkspace(...args); }
-function renderGameplanWorkspace(...args) { return workspaceModuleRuntimeController.renderGameplanWorkspace(...args); }
-function renderScoutingWorkspace(...args) { return workspaceModuleRuntimeController.renderScoutingWorkspace(...args); }
-function renderTransferRoomWorkspace(...args) { return workspaceModuleRuntimeController.renderTransferRoomWorkspace(...args); }
-function readTransferRoomState(...args) { return workspaceDataRuntimeService.readTransferRoomState(...args); }
-function ensureTransferRoomState(...args) { return workspaceDataRuntimeService.ensureTransferRoomState(...args); }
-function syncTransferRoomLinkedState(...args) { return workspaceDataRuntimeService.syncTransferRoomLinkedState(...args); }
-function canUserAccessTransferRoom(...args) { return workspaceDataRuntimeService.canUserAccessTransferRoom(...args); }
-function canUserEditTransferRoom(...args) { return workspaceDataRuntimeService.canUserEditTransferRoom(...args); }
-function addTransferRoomTargetFromScoutingSnapshot(...args) { return workspaceDataRuntimeService.addTransferRoomTargetFromScoutingSnapshot(...args); }
 const scheduleRuntimeSelectors = createScheduleRuntimeSelectors({
 ensurePeriodizationState,
 ensureScheduleState: () => {
@@ -2485,18 +2381,6 @@ getUniqueEvents: getUniqueScheduleEvents,
 isSessionEvent: isScheduleSessionEventFromModule,
 parseDateValue: parseScheduleDateValue,
 });
-function formatScheduleBlockSummary(...args) { return scheduleRuntimeSelectors.formatBlockSummary(...args); }
-function getScheduleEventsForDate(...args) { return scheduleRuntimeSelectors.getEventsForDate(...args); }
-function getScheduleMainEvent(...args) { return scheduleRuntimeSelectors.getMainEvent(...args); }
-function getScheduleMonthEvents(...args) { return scheduleRuntimeSelectors.getMonthEvents(...args); }
-function getScheduleDayWarnings(...args) { return scheduleRuntimeSelectors.getScheduleDayWarnings(...args); }
-function getScheduledSessionTitleForDate(...args) { return scheduleRuntimeSelectors.getScheduledSessionTitleForDate(...args); }
-function getScheduleSelectedDayContext(...args) { return scheduleRuntimeSelectors.getSelectedDayContext(...args); }
-function getScheduleSessionEventForDate(...args) { return scheduleRuntimeSelectors.getSessionEventForDate(...args); }
-function getScheduleSessionSnapshot(...args) { return scheduleRuntimeSelectors.getSessionSnapshot(...args); }
-function getScheduleVisibleEvents(...args) { return scheduleRuntimeSelectors.getVisibleEvents(...args); }
-function getScheduleVisibleMonthEvents(...args) { return scheduleRuntimeSelectors.getVisibleMonthEvents(...args); }
-function isScheduleSessionEvent(...args) { return scheduleRuntimeSelectors.isSessionEvent(...args); }
 const scheduleWorkspaceController = createScheduleWorkspaceController({
 ui,
 window: win,
@@ -5226,22 +5110,7 @@ user.id !== userId &&
 )
 );
 }
-async function openCredentialsMailto(...args) { return adminRuntimeService.openCredentialsMailto(...args); }
-function buildTemporaryLoginMessage(...args) { return adminRuntimeService.buildTemporaryLoginMessage(...args); }
-function getAdminManagedWorkspaces(...args) { return adminRuntimeService.getAdminManagedWorkspaces(...args); }
 function renderStaffWorkspace(message = "") { return profileStaffWorkspaceController.renderStaffWorkspace(message); }
-function getAdminAuditState(...args) { return adminRuntimeService?.getAdminAuditState?.(...args) ?? {}; }
-function getReadinessState(...args) { return adminRuntimeService?.getReadinessState?.(...args) ?? {}; }
-function getSelectedAdminUserId(...args) { return adminRuntimeService?.getSelectedAdminUserId?.(...args) ?? null; }
-function getAdminUsersForTeam(...args) { return adminRuntimeService.getAdminUsersForTeam(...args); }
-function getAdminUserInitials(...args) { return adminRuntimeService.getAdminUserInitials(...args); }
-function createAdminClubFromForm(...args) { return adminRuntimeService.createAdminClubFromForm(...args); }
-function createAdminTeamFromForm(...args) { return adminRuntimeService.createAdminTeamFromForm(...args); }
-async function loadAdminAuditLog(...args) { return adminRuntimeService.loadAdminAuditLog(...args); }
-async function loadPlatformReadinessReport(...args) { return adminRuntimeService.loadPlatformReadinessReport(...args); }
-async function publishPlatformAppearanceConfig(...args) { return adminRuntimeService.publishPlatformAppearanceConfig(...args); }
-function getAdminTransferRoomAccessTeamId(...args) { return adminRuntimeService.getAdminTransferRoomAccessTeamId(...args); }
-function renderAdminWorkspace(...args) { return adminRuntimeService.renderAdminWorkspace(...args); }
 function isMedicalDateValue(dateValue) {
 if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateValue))) {
 return false;
@@ -5391,9 +5260,6 @@ refreshPeriodizationBoardDependentFields,
 refreshSessionPlannerMatchDayChip,
 sessionPlannerPeriodizationBridge,
 } = periodizationRuntimeBindings;
-function renderPeriodizationWorkspace(...args) { return periodizationRuntimeBindings.renderPeriodizationWorkspace(...args); }
-function renderSessionPlannerPeriodizationOverlay(...args) { return periodizationRuntimeBindings.renderSessionPlannerPeriodizationOverlay(...args); }
-function renderSessionPlannerPeriodizationSummary(...args) { return periodizationRuntimeBindings.renderSessionPlannerPeriodizationSummary(...args); }
 const workspaceShellController = createWorkspaceShellController({
 applyUserAvatar,
 closeDashboardModal,
@@ -5457,9 +5323,6 @@ win,
 workspaceHubDefaultActiveWorkspaceId,
 writeWorkspaceHubState,
 });
-function initializeWorkspaceHub(...args) { return workspaceShellController.initializeWorkspaceHub(...args); }
-function renderWorkspaceChrome(...args) { return workspaceShellController.renderWorkspaceChrome(...args); }
-function setActiveWorkspace(...args) { return workspaceShellController.setActiveWorkspace(...args); }
 centralAppStateReloadService = createCentralAppStateReloadService({
 activeRefreshMinMs: 30000,
 defaultActiveWorkspaceId: workspaceHubDefaultActiveWorkspaceId,
@@ -5502,14 +5365,6 @@ syncSelectedSessionPlannerBlockFieldsFromDom,
 ui,
 win,
 });
-function reloadCentralizedAppStateFromStorage(...args) { return centralAppStateReloadService.reloadCentralizedAppStateFromStorage(...args); }
-function getCurrentSessionPlannerUiSelection(...args) { return centralAppStateReloadService.getCurrentSessionPlannerUiSelection(...args); }
-function readSessionPlannerStatePreservingUiSelection(...args) { return centralAppStateReloadService.readSessionPlannerStatePreservingUiSelection(...args); }
-function shouldDeferCentralizedAppStateReload(...args) { return centralAppStateReloadService.shouldDeferCentralizedAppStateReload(...args); }
-function setCentralizedAppStateReloadPending(...args) { return centralAppStateReloadService.setCentralizedAppStateReloadPending(...args); }
-function requestCentralizedAppStateReload(...args) { return centralAppStateReloadService.requestCentralizedAppStateReload(...args); }
-function flushDeferredCentralizedAppStateReload(...args) { return centralAppStateReloadService.flushDeferredCentralizedAppStateReload(...args); }
-function refreshCentralStateFromSource(...args) { return centralAppStateReloadService.refreshCentralStateFromSource(...args); }
 bindPlatformNavigationInteractions({
 getHubState: () => hubState,
 platformNavigationController,

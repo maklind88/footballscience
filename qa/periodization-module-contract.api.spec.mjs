@@ -69,6 +69,7 @@ test("Periodization extraction owns the state, renderer, controller, and bridge 
 
 test("Periodization app integration delegates state, renderer, controller, bridge, and merge helpers to the module", () => {
   const app = readProjectFile("app-runtime.js");
+  const accessors = readProjectFile("src/core/platform-runtime-accessors.mjs");
   const platformBindings = readProjectFile("src/core/platform-workspace-runtime-bindings.mjs");
   const runtimeBindings = readProjectFile("src/modules/periodization/periodization-runtime-bindings.mjs");
   const sessionPlannerBindings = readProjectFile("src/modules/session-planner/session-planner-runtime-bindings.mjs");
@@ -96,13 +97,18 @@ test("Periodization app integration delegates state, renderer, controller, bridg
   expect(app).not.toContain("function renderPeriodizationDayCard(");
   expect(app).not.toContain("function renderPeriodizationWeek(");
   expect(app).not.toContain("function renderPeriodizationDayViewPanel(");
-  expect(app).toContain("function renderPeriodizationWorkspace(...args) { return periodizationRuntimeBindings.renderPeriodizationWorkspace(...args); }");
+  expect(app).toContain("platform-runtime-accessors.mjs");
+  expect(app).toContain("periodizationRuntimeBindings,");
+  expect(accessors).toContain('callAccessorSource("periodizationRuntimeBindings", "renderPeriodizationWorkspace"');
   expect(app).not.toContain("function renderPeriodizationWorkspace() {");
+  expect(app).not.toContain("function renderPeriodizationWorkspace(...args)");
   expect(app).not.toContain("function refreshPeriodizationBoardMultiField(");
   expect(app).not.toContain("const periodizationPhaseLibrary =");
   expect(app).not.toContain("function normalizePeriodizationDay(day");
   expect(app).not.toContain("function clonePeriodizationState(");
-  expect(app).toContain("function mergePeriodizationStatePreservingLocalUi(...args) { return periodizationStateAdapter.mergePeriodizationStatePreservingLocalUi(...args); }");
+  expect(app).toContain("periodizationStateAdapter,");
+  expect(accessors).toContain('callAccessorSource("periodizationStateAdapter", "mergePeriodizationStatePreservingLocalUi"');
+  expect(app).not.toContain("function mergePeriodizationStatePreservingLocalUi(...args)");
   expect(app).not.toContain("function mergePeriodizationStatePreservingLocalUi(localValue");
 });
 

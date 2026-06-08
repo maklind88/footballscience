@@ -133,8 +133,13 @@ test("Squad player profile import service owns import feedback and undo bodies o
 
   expect(typeof createPlayerProfileRuntimeImportService).toBe("function");
   expect(app).toContain("createPlayerProfileRuntimeFacade({");
-  expect(app).toContain("function buildPlayerProfileImportFeedback(...args)");
+  expect(app).toContain('import * as playerProfileRuntimeAccessors from "./src/modules/squad/player-profile-runtime-accessors.mjs";');
+  expect(app).toContain("buildPlayerProfileImportFeedback,");
+  expect(app).toContain("importSquadDataFoundationPayload,");
+  expect(app).toContain("applyPlayerProfileImportUndo,");
+  expect(app).toContain("configurePlayerProfileRuntimeAccessors(() => playerProfileRuntimeFacade);");
   expect(app).not.toContain("createPlayerProfileRuntimeImportService({");
+  expect(app).not.toContain("function buildPlayerProfileImportFeedback(...args)");
   expect(app).not.toContain("function importSquadDataFoundationPayload(payload = {}, options = {}) {\nif (!canEditPlayerProfiles())");
   expect(app).not.toContain("function applyPlayerProfileImportUndo() {\nif (!canEditPlayerProfiles())");
   expect(service).toContain("createPlayerProfileRuntimeImportService");

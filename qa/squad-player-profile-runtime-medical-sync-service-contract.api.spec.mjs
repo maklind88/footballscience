@@ -67,8 +67,13 @@ test("Squad player profile Medical sync service owns sync and archive bodies out
 
   expect(typeof createPlayerProfileRuntimeMedicalSyncService).toBe("function");
   expect(app).toContain("createPlayerProfileRuntimeFacade({");
-  expect(app).toContain("function archiveMedicalPlayersRemovedFromSquad(...args)");
+  expect(app).toContain('import * as playerProfileRuntimeAccessors from "./src/modules/squad/player-profile-runtime-accessors.mjs";');
+  expect(app).toContain("archiveMedicalPlayersRemovedFromSquad,");
+  expect(app).toContain("buildMedicalPlayerFromPlayerProfile,");
+  expect(app).toContain("syncMedicalPlayersFromPlayerProfiles,");
+  expect(app).toContain("configurePlayerProfileRuntimeAccessors(() => playerProfileRuntimeFacade);");
   expect(app).not.toContain("createPlayerProfileRuntimeMedicalSyncService({");
+  expect(app).not.toContain("function archiveMedicalPlayersRemovedFromSquad(...args)");
   expect(app).not.toContain("function buildMedicalPlayerFromPlayerProfile(player = {}) {\nconst now = new Date().toISOString();");
   expect(app).not.toContain("function archiveMedicalPlayersRemovedFromSquad(options = {}) {\nif (!medicalState");
   expect(service).toContain("createPlayerProfileRuntimeMedicalSyncService");

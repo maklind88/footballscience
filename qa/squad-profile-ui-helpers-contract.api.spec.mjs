@@ -175,7 +175,10 @@ test("Squad medical status service is a read-only extracted runtime boundary", (
   expect(serviceSource).toContain("export function createSquadMedicalStatusService");
   expect(serviceSource).not.toMatch(/localStorage|sessionStorage|fetch\(|setItem\(|writePlayerProfilesState|writeMedicalState/);
   expect(runtimeSource).toContain("createPlayerProfileRuntimeFacade({");
-  expect(runtimeSource).toContain("function getPlayerProfileMedicalSnapshot(...args)");
+  expect(runtimeSource).toContain('import * as playerProfileRuntimeAccessors from "./src/modules/squad/player-profile-runtime-accessors.mjs";');
+  expect(runtimeSource).toContain("getPlayerProfileMedicalSnapshot,");
+  expect(runtimeSource).toContain("configurePlayerProfileRuntimeAccessors(() => playerProfileRuntimeFacade);");
+  expect(runtimeSource).not.toContain("function getPlayerProfileMedicalSnapshot(...args)");
   expect(runtimeSource).not.toContain("createSquadMedicalStatusService({");
   expect(facadeSource).toContain("createSquadMedicalStatusService({");
   expect(facadeSource).toContain('method(squadMedicalStatusService, "getPlayerProfileMedicalSnapshot"');

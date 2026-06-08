@@ -226,8 +226,10 @@ test("Squad player profile runtime facade is the only app-runtime boundary for p
 
   expect(typeof createPlayerProfileRuntimeFacade).toBe("function");
   expect(app).toContain("createPlayerProfileRuntimeFacade({");
-  expect(app).toContain("function renderPlayerProfilesWorkspace(...args)");
-  expect(app).toContain("function queuePlayerProfileAutosave(...args)");
+  expect(app).toContain('import * as playerProfileRuntimeAccessors from "./src/modules/squad/player-profile-runtime-accessors.mjs";');
+  expect(app).toContain("renderPlayerProfilesWorkspace,");
+  expect(app).toContain("queuePlayerProfileAutosave,");
+  expect(app).toContain("configurePlayerProfileRuntimeAccessors(() => playerProfileRuntimeFacade);");
   expect(app).not.toContain("createPlayerProfileRuntimeStateService({");
   expect(app).not.toContain("createPlayerProfileRuntimeWriteService({");
   expect(app).not.toContain("createPlayerProfileRuntimeImportService({");

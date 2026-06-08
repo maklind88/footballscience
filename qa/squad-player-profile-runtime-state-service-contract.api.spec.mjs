@@ -209,9 +209,12 @@ test("Squad player profile runtime state service owns state/cache/modal bodies o
 
   expect(typeof createPlayerProfileRuntimeStateService).toBe("function");
   expect(app).toContain("createPlayerProfileRuntimeFacade({");
-  expect(app).toContain("function readPlayerProfilesState(...args)");
+  expect(app).toContain('import * as playerProfileRuntimeAccessors from "./src/modules/squad/player-profile-runtime-accessors.mjs";');
+  expect(app).toContain("readPlayerProfilesState,");
+  expect(app).toContain("configurePlayerProfileRuntimeAccessors(() => playerProfileRuntimeFacade);");
   expect(facade).toContain("createPlayerProfileRuntimeStateService({");
   expect(app).not.toContain("function readPlayerProfilesState() {\ntry {");
+  expect(app).not.toContain("function readPlayerProfilesState(...args)");
   expect(app).not.toContain("function hydratePlayerProfileAgesOnce() {\nif (playerProfileAgeHydrationPending");
   expect(service).toContain("function readPlayerProfilesState()");
   expect(service).toContain("function hydratePlayerProfileAgesOnce()");

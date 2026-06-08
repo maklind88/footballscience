@@ -119,6 +119,7 @@ import {
   renderPlayerProfileAvatarUpload,
   squadFormationOptions,
 } from "./src/modules/squad/index.mjs";
+import * as playerProfileRuntimeAccessors from "./src/modules/squad/player-profile-runtime-accessors.mjs";
 import {
   bindMedicalRuntimeBindings,
   createMedicalRuntimeService,
@@ -144,6 +145,28 @@ import {
 } from "./src/modules/medical/index.mjs";
 import * as medicalRuntimeAccessors from "./src/modules/medical/medical-runtime-accessors.mjs";
 import { createGameSimulatorLazyRuntimeBridge } from "./src/modules/game-simulator/index.mjs";
+const {
+configurePlayerProfileRuntimeAccessors,
+readPlayerProfileAgeCache, ensurePlayerProfileAgeCache, writePlayerProfileAgeCache, getPlayerProfileAgeCacheEntry,
+getCurrentSquadActorLabel, recordPlayerProfileChange, getPlayerProfileChangeLog, getRecentPlayerProfileChangeLog,
+clonePlayerProfilesState, buildPlayerProfileFromMedicalTrainingGuest, syncPlayerProfilesFromMedicalTrainingGuests,
+readPlayerProfilesState, writePlayerProfilesState, getPlayerProfileAgeHydrationCandidates,
+buildPlayerProfileAgeHydrationPayload, mergePlayerProfileAgeHydrationResult, hydratePlayerProfileAgesOnce,
+queuePlayerProfileAgeHydration, ensurePlayerProfilesState, canEditPlayerProfiles, getPlayerProfilesAccessLabel,
+getSelectedPlayerProfile, openPlayerProfileModal, closePlayerProfileModal, openPlayerProfileNewPlayerModal,
+closePlayerProfileNewPlayerModal, getLatestManualMedicalLog, getPlayerProfileMedicalStatusOverride,
+getPlayerProfileEffectiveStatusFromSnapshot, getPlayerProfileEffectiveStatus, getPlayerProfileMedicalSnapshot,
+getVisiblePlayerProfiles, getAllTemporaryPlayerProfiles, renderPlayerProfileStatusChip, renderSquadRosterSections,
+renderPlayerProfilesRosterListOnly, buildPlayerProfileImportFeedback, createPlayerProfileImportUndoSnapshot,
+clearPlayerProfileImportUndoSnapshots, registerPlayerProfileImportUndoSnapshot, getPlayerProfileImportUndoHistory,
+getPlayerProfileImportUndoState, applyPlayerProfileImportUndo, importSquadDataFoundationPayload,
+importSquadDataFoundationFile, renderPendingPlayerProfileImport, renderPlayerProfilesWorkspace,
+getPlayerProfileFormSignature, savePlayerProfileEditForm, queuePlayerProfileAutosave, flushPlayerProfileAutosave,
+buildMedicalPlayerFromPlayerProfile, syncMedicalPlayersFromPlayerProfiles, getMedicalPlayersMatchingPlayerProfile,
+getMedicalRemovedSquadPlayerIdSet, isMedicalPlayerRemovedFromSquad, archiveMedicalPlayersRemovedFromSquad,
+archiveMedicalPlayersForRemovedPlayerProfile, addPlayerProfile, updatePlayerProfile, removePlayerProfile,
+getPendingPlayerProfileImportPlan, setPendingPlayerProfileImportPlan, setPlayerProfileAutosaveLastSignature,
+} = playerProfileRuntimeAccessors;
 const {
 configureMedicalRuntimeAccessors,
 compareMedicalPlayers, getCurrentMedicalActorId, getMedicalCanonicalPositionFromText, getMedicalClearanceValues,
@@ -5554,70 +5577,7 @@ validatePlayerProfileFormValues,
 win,
 writeMedicalState,
 });
-function readPlayerProfileAgeCache(...args) { return playerProfileRuntimeFacade.readPlayerProfileAgeCache(...args); }
-function ensurePlayerProfileAgeCache(...args) { return playerProfileRuntimeFacade.ensurePlayerProfileAgeCache(...args); }
-function writePlayerProfileAgeCache(...args) { return playerProfileRuntimeFacade.writePlayerProfileAgeCache(...args); }
-function getPlayerProfileAgeCacheEntry(...args) { return playerProfileRuntimeFacade.getPlayerProfileAgeCacheEntry(...args); }
-function getCurrentSquadActorLabel(...args) { return playerProfileRuntimeFacade.getCurrentSquadActorLabel(...args); }
-function recordPlayerProfileChange(...args) { return playerProfileRuntimeFacade.recordPlayerProfileChange(...args); }
-function getPlayerProfileChangeLog(...args) { return playerProfileRuntimeFacade.getPlayerProfileChangeLog(...args); }
-function getRecentPlayerProfileChangeLog(...args) { return playerProfileRuntimeFacade.getRecentPlayerProfileChangeLog(...args); }
-function clonePlayerProfilesState(...args) { return playerProfileRuntimeFacade.clonePlayerProfilesState(...args); }
-function buildPlayerProfileFromMedicalTrainingGuest(...args) { return playerProfileRuntimeFacade.buildPlayerProfileFromMedicalTrainingGuest(...args); }
-function syncPlayerProfilesFromMedicalTrainingGuests(...args) { return playerProfileRuntimeFacade.syncPlayerProfilesFromMedicalTrainingGuests(...args); }
-function readPlayerProfilesState(...args) { return playerProfileRuntimeFacade.readPlayerProfilesState(...args); }
-function writePlayerProfilesState(...args) { return playerProfileRuntimeFacade.writePlayerProfilesState(...args); }
-function getPlayerProfileAgeHydrationCandidates(...args) { return playerProfileRuntimeFacade.getPlayerProfileAgeHydrationCandidates(...args); }
-function buildPlayerProfileAgeHydrationPayload(...args) { return playerProfileRuntimeFacade.buildPlayerProfileAgeHydrationPayload(...args); }
-function mergePlayerProfileAgeHydrationResult(...args) { return playerProfileRuntimeFacade.mergePlayerProfileAgeHydrationResult(...args); }
-function hydratePlayerProfileAgesOnce(...args) { return playerProfileRuntimeFacade.hydratePlayerProfileAgesOnce(...args); }
-function queuePlayerProfileAgeHydration(...args) { return playerProfileRuntimeFacade.queuePlayerProfileAgeHydration(...args); }
-function ensurePlayerProfilesState(...args) { return playerProfileRuntimeFacade.ensurePlayerProfilesState(...args); }
-function canEditPlayerProfiles(...args) { return playerProfileRuntimeFacade.canEditPlayerProfiles(...args); }
-function getPlayerProfilesAccessLabel(...args) { return playerProfileRuntimeFacade.getPlayerProfilesAccessLabel(...args); }
-function getSelectedPlayerProfile(...args) { return playerProfileRuntimeFacade.getSelectedPlayerProfile(...args); }
-function openPlayerProfileModal(...args) { return playerProfileRuntimeFacade.openPlayerProfileModal(...args); }
-function closePlayerProfileModal(...args) { return playerProfileRuntimeFacade.closePlayerProfileModal(...args); }
-function openPlayerProfileNewPlayerModal(...args) { return playerProfileRuntimeFacade.openPlayerProfileNewPlayerModal(...args); }
-function closePlayerProfileNewPlayerModal(...args) { return playerProfileRuntimeFacade.closePlayerProfileNewPlayerModal(...args); }
-function getLatestManualMedicalLog(...args) { return playerProfileRuntimeFacade.getLatestManualMedicalLog(...args); }
-function getPlayerProfileMedicalStatusOverride(...args) { return playerProfileRuntimeFacade.getPlayerProfileMedicalStatusOverride(...args); }
-function getPlayerProfileEffectiveStatusFromSnapshot(...args) { return playerProfileRuntimeFacade.getPlayerProfileEffectiveStatusFromSnapshot(...args); }
-function getPlayerProfileEffectiveStatus(...args) { return playerProfileRuntimeFacade.getPlayerProfileEffectiveStatus(...args); }
-function getPlayerProfileMedicalSnapshot(...args) { return playerProfileRuntimeFacade.getPlayerProfileMedicalSnapshot(...args); }
-function getVisiblePlayerProfiles(...args) { return playerProfileRuntimeFacade.getVisiblePlayerProfiles(...args); }
-function getAllTemporaryPlayerProfiles(...args) { return playerProfileRuntimeFacade.getAllTemporaryPlayerProfiles(...args); }
-function renderPlayerProfileStatusChip(...args) { return playerProfileRuntimeFacade.renderPlayerProfileStatusChip(...args); }
-function renderSquadRosterSections(...args) { return playerProfileRuntimeFacade.renderSquadRosterSections(...args); }
-function renderPlayerProfilesRosterListOnly(...args) { return playerProfileRuntimeFacade.renderPlayerProfilesRosterListOnly(...args); }
-function buildPlayerProfileImportFeedback(...args) { return playerProfileRuntimeFacade.buildPlayerProfileImportFeedback(...args); }
-function createPlayerProfileImportUndoSnapshot(...args) { return playerProfileRuntimeFacade.createPlayerProfileImportUndoSnapshot(...args); }
-function clearPlayerProfileImportUndoSnapshots(...args) { return playerProfileRuntimeFacade.clearPlayerProfileImportUndoSnapshots(...args); }
-function registerPlayerProfileImportUndoSnapshot(...args) { return playerProfileRuntimeFacade.registerPlayerProfileImportUndoSnapshot(...args); }
-function getPlayerProfileImportUndoHistory(...args) { return playerProfileRuntimeFacade.getPlayerProfileImportUndoHistory(...args); }
-function getPlayerProfileImportUndoState(...args) { return playerProfileRuntimeFacade.getPlayerProfileImportUndoState(...args); }
-function applyPlayerProfileImportUndo(...args) { return playerProfileRuntimeFacade.applyPlayerProfileImportUndo(...args); }
-function importSquadDataFoundationPayload(...args) { return playerProfileRuntimeFacade.importSquadDataFoundationPayload(...args); }
-function importSquadDataFoundationFile(...args) { return playerProfileRuntimeFacade.importSquadDataFoundationFile(...args); }
-function renderPendingPlayerProfileImport(...args) { return playerProfileRuntimeFacade.renderPendingPlayerProfileImport(...args); }
-function renderPlayerProfilesWorkspace(...args) { return playerProfileRuntimeFacade.renderPlayerProfilesWorkspace(...args); }
-function getPlayerProfileFormSignature(...args) { return playerProfileRuntimeFacade.getPlayerProfileFormSignature(...args); }
-function savePlayerProfileEditForm(...args) { return playerProfileRuntimeFacade.savePlayerProfileEditForm(...args); }
-function queuePlayerProfileAutosave(...args) { return playerProfileRuntimeFacade.queuePlayerProfileAutosave(...args); }
-function flushPlayerProfileAutosave(...args) { return playerProfileRuntimeFacade.flushPlayerProfileAutosave(...args); }
-function buildMedicalPlayerFromPlayerProfile(...args) { return playerProfileRuntimeFacade.buildMedicalPlayerFromPlayerProfile(...args); }
-function syncMedicalPlayersFromPlayerProfiles(...args) { return playerProfileRuntimeFacade.syncMedicalPlayersFromPlayerProfiles(...args); }
-function getMedicalPlayersMatchingPlayerProfile(...args) { return playerProfileRuntimeFacade.getMedicalPlayersMatchingPlayerProfile(...args); }
-function getMedicalRemovedSquadPlayerIdSet(...args) { return playerProfileRuntimeFacade.getMedicalRemovedSquadPlayerIdSet(...args); }
-function isMedicalPlayerRemovedFromSquad(...args) { return playerProfileRuntimeFacade.isMedicalPlayerRemovedFromSquad(...args); }
-function archiveMedicalPlayersRemovedFromSquad(...args) { return playerProfileRuntimeFacade.archiveMedicalPlayersRemovedFromSquad(...args); }
-function archiveMedicalPlayersForRemovedPlayerProfile(...args) { return playerProfileRuntimeFacade.archiveMedicalPlayersForRemovedPlayerProfile(...args); }
-function addPlayerProfile(...args) { return playerProfileRuntimeFacade.addPlayerProfile(...args); }
-function updatePlayerProfile(...args) { return playerProfileRuntimeFacade.updatePlayerProfile(...args); }
-function removePlayerProfile(...args) { return playerProfileRuntimeFacade.removePlayerProfile(...args); }
-function getPendingPlayerProfileImportPlan(...args) { return playerProfileRuntimeFacade.getPendingPlayerProfileImportPlan(...args); }
-function setPendingPlayerProfileImportPlan(...args) { return playerProfileRuntimeFacade.setPendingPlayerProfileImportPlan(...args); }
-function setPlayerProfileAutosaveLastSignature(...args) { return playerProfileRuntimeFacade.setPlayerProfileAutosaveLastSignature(...args); }
+configurePlayerProfileRuntimeAccessors(() => playerProfileRuntimeFacade);
 function canEditMedicalTeam() { return canCurrentUserEditWorkspace("medical-team"); }
 function getPeriodizationDayScheduleLabel(day) { return periodizationRenderer.getDayScheduleLabel(day); }
 function getPeriodizationMatchDayLabel(value) { return periodizationRenderer.getMatchDayLabel(value); }

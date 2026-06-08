@@ -94,9 +94,14 @@ test("Squad player profile write service owns add/update/remove bodies outside a
 
   expect(typeof createPlayerProfileRuntimeWriteService).toBe("function");
   expect(app).toContain("createPlayerProfileRuntimeFacade({");
-  expect(app).toContain("function addPlayerProfile(...args)");
+  expect(app).toContain('import * as playerProfileRuntimeAccessors from "./src/modules/squad/player-profile-runtime-accessors.mjs";');
+  expect(app).toContain("addPlayerProfile,");
+  expect(app).toContain("updatePlayerProfile,");
+  expect(app).toContain("removePlayerProfile,");
+  expect(app).toContain("configurePlayerProfileRuntimeAccessors(() => playerProfileRuntimeFacade);");
   expect(facade).toContain("createPlayerProfileRuntimeWriteService({");
   expect(app).not.toContain("function addPlayerProfile(values = {}) {\nensurePlayerProfilesState();");
+  expect(app).not.toContain("function addPlayerProfile(...args)");
   expect(app).not.toContain("function updatePlayerProfile(values = {}) {\nensurePlayerProfilesState();");
   expect(service).toContain("function removePlayerProfile(playerId)");
   expect(service).not.toContain("createDashboardChat");

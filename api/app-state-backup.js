@@ -47,6 +47,7 @@ const PLAYER_PROFILE_AUDIT_VALUE_ALIASES = Object.freeze({
     loan: "loan",
   },
 });
+const PLAYER_PROFILE_REPAIR_FIELDS = Object.freeze(["status", "squadStatus"]);
 
 function getStorageBaseUrl() {
   const { url, serviceRoleKey } = readConfig();
@@ -633,6 +634,119 @@ function comparePlayerProfileAuditStates(currentState = {}, backupState = {}) {
   return comparison;
 }
 
+function getBackupPlayerProfileMap(backupState = {}) {
+  return new Map(
+    (Array.isArray(backupState?.players) ? backupState.players : [])
+      .map((player) => [getPlayerProfileAuditMergeKey(player), player])
+      .filter(([key]) => Boolean(key))
+  );
+}
+
+function createSquadStatusRepairCandidates(currentState = {}, backupState = {}) {
+  const players = Array.isArray(currentState?.players) ? currentState.players : [];
+  const changeIndex = createPlayerProfileAuditChangeIndex(currentState);
+  const backupPlayers = getBackupPlayerProfileMap(backupState);
+  const candidates = [];
+  const fieldCounts = {
+    status: 0,
+    squadStatus: 0,
+  };
+  let candidatesWithBothFields = 0;
+  let candidateFieldsWithBackupSupport = 0;
+
+  players.forEach((player) => {
+    const mergeKey = getPlayerProfileAuditMergeKey(player);
+    if (!mergeKey) {
+      return;
+    }
+
+    const backupPlayer = backupPlayers.get(mergeKey);
+    const fields = PLAYER_PROFILE_REPAIR_FIELDS.map((field) => {
+      const change = changeIndex.get(`${mergeKey}:${field}`);
+      if (!change) {
+        return null;
+      }
+
+      if (String(player?.[field] ?? "") === String(change.value)) {
+        return null;
+      }
+
+      const backupSupportsTarget = backupPlayer
+        ? String(backupPlayer?.[field] ?? "") === String(change.value)
+        : false;
+      if (backupSupportsTarget) {
+        candidateFieldsWithBackupSupport += 1;
+      }
+      fieldCounts[field] += 1;
+
+      return {
+        field,
+        trustedSource: "latest-explicit-changeLog-entry",
+        restorable: true,
+        backupHasComparablePlayer: Boolean(backupPlayer),
+        backupSupportsTarget,
+      };
+    }).filter(Boolean);
+
+    if (!fields.length) {
+      return;
+    }
+
+    if (fields.length === PLAYER_PROFILE_REPAIR_FIELDS.length) {
+      candidatesWithBothFields += 1;
+    }
+
+    const candidateSeed = JSON.stringify({
+      mergeKey,
+      fields: fields.map((field) => {
+        const change = changeIndex.get(`${mergeKey}:${field.field}`);
+        return {
+          field: field.field,
+          targetValue: change?.value || "",
+          source: field.trustedSource,
+        };
+      }),
+    });
+    candidates.push({
+      candidateSha256: hashText(candidateSeed),
+      fieldCount: fields.length,
+      fields,
+      allFieldsAllowed: fields.every((field) => PLAYER_PROFILE_REPAIR_FIELDS.includes(field.field)),
+      restorableFromTrustedSource: fields.every((field) => field.restorable === true),
+    });
+  });
+
+  const totalFieldCount = fieldCounts.status + fieldCounts.squadStatus;
+
+  return {
+    candidateCount: candidates.length,
+    fieldCounts,
+    totalFieldCount,
+    candidatesWithBothFields,
+    candidateFieldsWithBackupSupport,
+    allowedFields: [...PLAYER_PROFILE_REPAIR_FIELDS],
+    allCandidatesRestorableFromTrustedSource: candidates.every(
+      (candidate) => candidate.restorableFromTrustedSource === true
+    ),
+    allCandidateFieldsAllowed: candidates.every((candidate) => candidate.allFieldsAllowed === true),
+    candidates,
+    planSha256: hashText(
+      JSON.stringify({
+        fieldCounts,
+        totalFieldCount,
+        candidates: candidates.map((candidate) => ({
+          candidateSha256: candidate.candidateSha256,
+          fields: candidate.fields.map((field) => ({
+            field: field.field,
+            trustedSource: field.trustedSource,
+            backupSupportsTarget: field.backupSupportsTarget,
+          })),
+        })),
+      })
+    ),
+  };
+}
+
 async function createSquadStatusAuditSummary() {
   const currentEntry = await readStateObject(PLAYER_PROFILES_KEY);
   const currentState = parseStateValue(currentEntry);
@@ -711,6 +825,119 @@ async function createSquadStatusAuditSummary() {
   };
 }
 
+async function createSquadStatusRepairDryRunSummary() {
+  const currentEntry = await readStateObject(PLAYER_PROFILES_KEY);
+  const currentState = parseStateValue(currentEntry);
+  const currentValue = String(currentEntry?.value || "");
+  const currentGuard = {
+    key: PLAYER_PROFILES_KEY,
+    present: Boolean(currentEntry?.key && currentState),
+    revision: Number.isInteger(Number(currentEntry?.revision)) ? Number(currentEntry.revision) : 0,
+    updatedAt: String(currentEntry?.updatedAt || ""),
+    moduleId: String(currentEntry?.moduleId || dataSafetyRegistry.getByKey(PLAYER_PROFILES_KEY)?.moduleId || ""),
+    valueSha256: currentValue ? hashText(currentValue) : "",
+    valueBytes: currentValue ? Buffer.byteLength(currentValue, "utf8") : 0,
+  };
+
+  const pointerResult = await readBackupObject(LATEST_BACKUP_PATH);
+  let backupGuard = {
+    present: false,
+    hasPlayerProfilesEntry: false,
+    backupMatchesPointer: false,
+    pointerCreatedAt: "",
+    pointerEntryCount: 0,
+    pointerContentSha256: "",
+    playerProfilesRevision: 0,
+    playerProfilesUpdatedAt: "",
+    playerProfilesValueSha256: "",
+    playerProfilesValueBytes: 0,
+  };
+  let backupState = null;
+
+  if (pointerResult.ok) {
+    const pointer = pointerResult.payload || {};
+    backupGuard = {
+      ...backupGuard,
+      pointerCreatedAt: String(pointer.createdAt || ""),
+      pointerEntryCount: Number.isInteger(Number(pointer.entryCount)) ? Number(pointer.entryCount) : 0,
+      pointerContentSha256: String(pointer.contentSha256 || ""),
+    };
+
+    if (isSafeBackupPath(pointer.path)) {
+      const backupResult = await readBackupObject(pointer.path);
+      if (backupResult.ok) {
+        const backup = backupResult.payload || {};
+        const statusSummary = summarizeBackupStatus(pointer, backup);
+        backupState = parseBackupEntryValue(backup, PLAYER_PROFILES_KEY);
+        const manifestEntry = backup?.manifest?.[PLAYER_PROFILES_KEY] || {};
+        backupGuard = {
+          ...backupGuard,
+          present: true,
+          hasPlayerProfilesEntry: Boolean(backupState),
+          backupMatchesPointer: statusSummary.backupMatchesPointer === true,
+          playerProfilesRevision: Number.isInteger(Number(manifestEntry.revision)) ? Number(manifestEntry.revision) : 0,
+          playerProfilesUpdatedAt: String(manifestEntry.updatedAt || ""),
+          playerProfilesValueSha256: String(manifestEntry.sha256 || ""),
+          playerProfilesValueBytes: Number.isInteger(Number(manifestEntry.bytes)) ? Number(manifestEntry.bytes) : 0,
+        };
+      }
+    }
+  }
+
+  const candidates = createSquadStatusRepairCandidates(currentState || {}, backupState || {});
+  const summary = {
+    current: {
+      ...currentGuard,
+      ...summarizePlayerProfileAuditState(currentState || {}),
+    },
+    latestBackup: backupGuard,
+    repairDryRun: {
+      ...candidates,
+      snapshotGuardReady: currentGuard.present === true && Boolean(currentGuard.valueSha256),
+      backupGuardReady: backupGuard.present === true && backupGuard.hasPlayerProfilesEntry === true && backupGuard.backupMatchesPointer === true,
+      writePlan: {
+        writes: false,
+        targetKey: PLAYER_PROFILES_KEY,
+        fieldsOnly: [...PLAYER_PROFILE_REPAIR_FIELDS],
+        preWriteSnapshotRequired: true,
+        revisionGuardRequired: true,
+        maxCandidateCount: candidates.candidateCount,
+        maxFieldWriteCount: candidates.totalFieldCount,
+      },
+      safeToExecuteAsSeparateRepair:
+        currentGuard.present === true &&
+        backupGuard.present === true &&
+        backupGuard.hasPlayerProfilesEntry === true &&
+        backupGuard.backupMatchesPointer === true &&
+        candidates.candidateCount > 0 &&
+        candidates.allCandidateFieldsAllowed === true &&
+        candidates.allCandidatesRestorableFromTrustedSource === true,
+    },
+    rollbackPlan: {
+      available: backupGuard.present === true && backupGuard.hasPlayerProfilesEntry === true && backupGuard.backupMatchesPointer === true,
+      source: "latest-verified-app-state-backup-plus-required-pre-write-snapshot",
+      restoreKey: PLAYER_PROFILES_KEY,
+      restoreRequiresSeparateApproval: true,
+      rawBackupExposed: false,
+    },
+  };
+
+  return {
+    ...summary,
+    dryRunSha256: hashText(
+      JSON.stringify({
+        current: currentGuard,
+        latestBackup: backupGuard,
+        repairDryRun: {
+          candidateCount: summary.repairDryRun.candidateCount,
+          fieldCounts: summary.repairDryRun.fieldCounts,
+          planSha256: summary.repairDryRun.planSha256,
+        },
+      })
+    ),
+  };
+}
+
 function getAuthorizationHeader(req) {
   return req.headers?.authorization || req.headers?.Authorization || "";
 }
@@ -757,6 +984,15 @@ function isSquadStatusAuditRequest(req) {
   try {
     const url = new URL(req.url || "", "https://footballscience.local");
     return url.searchParams.get("mode") === "squad-status-audit";
+  } catch {
+    return false;
+  }
+}
+
+function isSquadStatusRepairDryRunRequest(req) {
+  try {
+    const url = new URL(req.url || "", "https://footballscience.local");
+    return url.searchParams.get("mode") === "squad-status-repair-dry-run";
   } catch {
     return false;
   }
@@ -856,6 +1092,18 @@ async function sendSquadStatusAudit(res) {
   });
 }
 
+async function sendSquadStatusRepairDryRun(res) {
+  const summary = await createSquadStatusRepairDryRunSummary();
+  return sendJson(res, 200, {
+    ok: true,
+    schema: "footballscience-squad-status-repair-dry-run-v1",
+    generatedAt: new Date().toISOString(),
+    dryRun: true,
+    writes: false,
+    ...summary,
+  });
+}
+
 module.exports = async (req, res) => {
   sendCorsHeaders(res);
 
@@ -868,7 +1116,9 @@ module.exports = async (req, res) => {
   const backupStatusRequest = isBackupStatusRequest(req);
   const restoreDrillRequest = isRestoreDrillRequest(req);
   const squadStatusAuditRequest = isSquadStatusAuditRequest(req);
-  const readonlyMetadataRequest = backupStatusRequest || restoreDrillRequest || squadStatusAuditRequest;
+  const squadStatusRepairDryRunRequest = isSquadStatusRepairDryRunRequest(req);
+  const readonlyMetadataRequest =
+    backupStatusRequest || restoreDrillRequest || squadStatusAuditRequest || squadStatusRepairDryRunRequest;
   if ((readonlyMetadataRequest && req.method !== "GET") || (!readonlyMetadataRequest && req.method !== "GET" && req.method !== "POST")) {
     return sendJson(res, 405, { ok: false, reason: "Method not allowed." });
   }
@@ -899,6 +1149,10 @@ module.exports = async (req, res) => {
 
     if (squadStatusAuditRequest) {
       return sendSquadStatusAudit(res);
+    }
+
+    if (squadStatusRepairDryRunRequest) {
+      return sendSquadStatusRepairDryRun(res);
     }
 
     const bucket = await ensureStateBucket();

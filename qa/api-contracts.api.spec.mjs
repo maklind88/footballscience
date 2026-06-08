@@ -2906,3 +2906,189 @@ test("app-state Squad status audit reports only sanitized drift metadata", async
     restoreEnv(env);
   }
 });
+
+test("app-state Squad status repair dry-run reports only sanitized repair metadata", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.CRON_SECRET = "cron-test-secret";
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  const currentState = {
+    players: [
+      {
+        id: "player-1",
+        name: "Private Player Name",
+        status: "available",
+        squadStatus: "depth",
+      },
+    ],
+    changeLog: [
+      {
+        id: "change-status",
+        playerId: "player-1",
+        changes: [
+          { field: "Availability status", from: "Available", to: "International duty" },
+          { field: "Squad status", from: "Squad depth", to: "Development" },
+        ],
+        createdAt: "2026-06-08T12:00:00.000Z",
+      },
+    ],
+  };
+  const backupState = {
+    ...currentState,
+    players: [
+      {
+        id: "player-1",
+        name: "Private Player Name",
+        status: "national-team",
+        squadStatus: "development",
+      },
+    ],
+  };
+  const currentEntry = {
+    ...createAppStateStorageEntry(playerProfilesKey, currentState),
+    revision: 12,
+    moduleId: "squad",
+    updatedAt: "2026-06-08T13:56:46.000Z",
+  };
+  const backupValue = JSON.stringify(backupState);
+  const backupManifest = Object.fromEntries(
+    dataSafetyRegistry.keys().map((key) => {
+      const contract = dataSafetyRegistry.getByKey(key);
+      return [
+        key,
+        {
+          present: false,
+          moduleId: contract.moduleId,
+        },
+      ];
+    })
+  );
+  backupManifest[playerProfilesKey] = {
+    present: true,
+    moduleId: "squad",
+    organizationId: "global",
+    revision: 11,
+    mergePolicy: "server-merge",
+    updatedAt: "2026-06-08T08:00:00.000Z",
+    updatedBy: "qa",
+    bytes: Buffer.byteLength(backupValue, "utf8"),
+    sha256: sha256(backupValue),
+  };
+  const backupCore = {
+    schema: "footballscience-app-state-backup-v1",
+    createdAt: "2026-06-08T08:00:00.000Z",
+    source: "api/app-state-backup",
+    actor: {
+      id: "vercel-cron",
+      role: "system",
+      email: "",
+    },
+    entryCount: 1,
+    manifest: backupManifest,
+    entries: {
+      [playerProfilesKey]: backupValue,
+    },
+  };
+  const backupEnvelope = {
+    ...backupCore,
+    contentSha256: sha256(JSON.stringify(backupCore)),
+  };
+  const backupPath = `backups/app-state/2026-06-08/${backupEnvelope.contentSha256.slice(0, 12)}.json`;
+  const latestPointer = {
+    schema: "footballscience-app-state-backup-pointer-v1",
+    createdAt: backupEnvelope.createdAt,
+    path: backupPath,
+    entryCount: backupEnvelope.entryCount,
+    contentSha256: backupEnvelope.contentSha256,
+  };
+  const storage = createAppStateFetchMock(
+    {
+      [playerProfilesPath]: currentEntry,
+      "backups/app-state/latest.json": latestPointer,
+      [backupPath]: backupEnvelope,
+    },
+    "admin"
+  );
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateBackupHandler, {
+      method: "GET",
+      url: "/api/app-state-backup?mode=squad-status-repair-dry-run",
+      headers: {
+        authorization: "Bearer cron-test-secret",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload).toMatchObject({
+      ok: true,
+      schema: "footballscience-squad-status-repair-dry-run-v1",
+      dryRun: true,
+      writes: false,
+      current: {
+        key: playerProfilesKey,
+        present: true,
+        revision: 12,
+        playerCount: 1,
+        statusSelfHealCandidateCount: 1,
+        squadStatusSelfHealCandidateCount: 1,
+      },
+      latestBackup: {
+        present: true,
+        hasPlayerProfilesEntry: true,
+        backupMatchesPointer: true,
+      },
+      repairDryRun: {
+        candidateCount: 1,
+        fieldCounts: {
+          status: 1,
+          squadStatus: 1,
+        },
+        totalFieldCount: 2,
+        candidatesWithBothFields: 1,
+        candidateFieldsWithBackupSupport: 2,
+        allowedFields: ["status", "squadStatus"],
+        allCandidatesRestorableFromTrustedSource: true,
+        allCandidateFieldsAllowed: true,
+        snapshotGuardReady: true,
+        backupGuardReady: true,
+        safeToExecuteAsSeparateRepair: true,
+        writePlan: {
+          writes: false,
+          targetKey: playerProfilesKey,
+          fieldsOnly: ["status", "squadStatus"],
+          preWriteSnapshotRequired: true,
+          revisionGuardRequired: true,
+          maxCandidateCount: 1,
+          maxFieldWriteCount: 2,
+        },
+      },
+      rollbackPlan: {
+        available: true,
+        restoreKey: playerProfilesKey,
+        restoreRequiresSeparateApproval: true,
+        rawBackupExposed: false,
+      },
+    });
+    expect(response.payload.repairDryRun.candidates).toHaveLength(1);
+    expect(response.payload.repairDryRun.candidates[0].fields.map((field) => field.field)).toEqual([
+      "status",
+      "squadStatus",
+    ]);
+    const payloadText = JSON.stringify(response.payload);
+    expect(payloadText).not.toContain("Private Player Name");
+    expect(payloadText).not.toContain("national-team");
+    expect(payloadText).not.toContain("development");
+    expect(payloadText).not.toContain('"entries"');
+    expect(payloadText).not.toContain('"players"');
+    expect(payloadText).not.toContain('"changeLog"');
+    expect(payloadText).not.toContain("service-role-test-key");
+    expect(storage.writes).toEqual([]);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});

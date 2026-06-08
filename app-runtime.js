@@ -66,6 +66,7 @@ import { createWorkspaceShellController } from "./src/core/workspace-shell-contr
 import { bindPlatformNavigationInteractions } from "./src/core/platform-navigation-bindings.mjs";
 import { createPlatformUiBindings } from "./src/core/platform-ui-bindings.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
+import { createCentralSyncRuntimeService } from "./src/core/central-sync-runtime-service.mjs";
 import { createWorkspaceHubStateHelpers } from "./src/core/workspace-hub-state.mjs";
 import { addCalendarDays, clamp, escapeHtml, formatDashboardDateTime, formatDashboardTime, formatDataSafetyTime, isEditableKeyboardTarget, logEvent, maybeCopyToClipboard, setFormSubmitButtonState, togglePasswordInputVisibility } from "./src/core/runtime-ui-helpers.mjs";
 import { installPlatformOverlayStability } from "./src/core/overlay-stability.mjs";
@@ -638,8 +639,7 @@ hash = Math.imul(hash, 16777619);
 return (hash >>> 0).toString(36);
 }
 function getDataSafetyStorageLabel(key) { return dataSafetyStorageLabels[key] || key.replace(/^football-/, "").replaceAll("-", " "); }
-let centralStateWriteTimer = null, centralStateRefreshTimer = null, centralStateLastRefreshAt = 0, centralStateRefreshInFlight = false;
-const centralStateWriteQueue = new Map(), centralStateWriteSuppressionKeys = new Set();
+let centralStateRefreshTimer = null, centralStateLastRefreshAt = 0, centralStateRefreshInFlight = false;
 const centralStateRefreshIntervalMs = 120000, centralStateActiveRefreshMinMs = 30000, centralStateIntervalRefreshMinMs = 120000;
 const platformAutosaveStatusController = createPlatformAutosaveStatusController({
 documentRef: document,
@@ -659,93 +659,7 @@ function shouldShowPlatformAutosaveStatus(workspaceId = hubState?.activeWorkspac
 function syncPlatformAutosaveStatusVisibility(workspaceId = hubState?.activeWorkspaceId) { sessionPlannerAutosaveBoundary.syncVisibility(workspaceId); }
 function setPlatformAutosaveStatusForKey(key, state, message = "") { sessionPlannerAutosaveBoundary.setStatusForKey(key, state, message); }
 syncPlatformAutosaveStatusVisibility(null);
-function getCentralStateBridge() { return win.footballScienceCentralState ?? null; }
-function getCentralStateMetadataForKey(key) {
-const metadata = getCentralStateBridge()?.getStatus?.()?.metadata;
-const entry = metadata?.[String(key || "")];
-return entry && typeof entry === "object" ? entry : {};
-}
-function getCentralStateRevisionForKey(key) {
-const revision = Number(getCentralStateMetadataForKey(key).revision);
-return Number.isInteger(revision) && revision >= 0 ? revision : 0;
-}
-function canWriteCentralBackedCache() {
-if (win.__footballScienceCentralHydrating) {
-return true;
-}
-const bridge = getCentralStateBridge();
-return Boolean(getCurrentPlatformUser() && bridge?.syncKey);
-}
-function createCentralBackedStorageError() { return new Error("Central sync is not ready."); }
-function setCentralSyncPendingState(key, isPending = false, isRemoved = false) {
-const normalizedKey = String(key || "");
-mutateDataSafetyManifest((manifest) => {
-const currentEntry = manifest.entries[normalizedKey] || {};
-manifest.entries[normalizedKey] = {
-...(currentEntry?.label ? currentEntry : { label: getDataSafetyStorageLabel(normalizedKey), writes: 0, size: 0, hash: "", updatedAt: "", deletedAt: "" }),
-...currentEntry,
-pendingCentralSync: Boolean(isPending),
-deletedAt: isRemoved ? getDataSafetyNow() : currentEntry.deletedAt || "",
-};
-});
-queueDataSafetyStatusRefresh();
-}
-function queueCentralStateStatus(error = "") {
-mutateDataSafetyManifest((manifest) => {
-if (error) {
-manifest.lastCentralError = error;
-return;
-}
-manifest.lastCentralError = "";
-manifest.lastCentralSyncedAt = getDataSafetyNow();
-});
-queueDataSafetyStatusRefresh();
-}
-function hasPendingCentralStateWrites() {
-if (centralStateWriteTimer || centralStateWriteQueue.size) {
-return true;
-}
-return Object.values(readDataSafetyManifest().entries || {}).some((entry) => entry?.pendingCentralSync);
-}
-function retryCentral() {
-if (centralStateWriteTimer || centralStateWriteQueue.size || win.__footballScienceCentralHydrating || !getCurrentPlatformUser() || !getCentralStateBridge()?.syncKey) return;
-for (const [key, entry] of Object.entries(readDataSafetyManifest().entries)) {
-const value = rawDataSafetyGetItem(key);
-if (entry?.pendingCentralSync && (entry.deletedAt || value !== null)) queueCentralStateWrite(key, value ?? "", { removed: !!entry.deletedAt });
-}
-}
-function applyCentralSyncedStateValue(write = {}, syncedValue) {
-const key = String(write.key || "");
-if (!key || write.removed || typeof syncedValue !== "string") {
-return;
-}
-if (centralStateWriteQueue.has(key) || rawDataSafetyGetItem(key) !== write.value || syncedValue === write.value) {
-return;
-}
-const valueToApply =
-key === scheduleStorageKey
-? mergeScheduleStatePreservingLocalUi(rawDataSafetyGetItem(key), syncedValue)
-: key === periodizationStorageKey
-? mergePeriodizationStatePreservingLocalUi(rawDataSafetyGetItem(key), syncedValue)
-: syncedValue;
-win.__footballScienceCentralHydrating = true;
-try {
-rawDataSafetySetItem(key, valueToApply);
-} finally {
-win.__footballScienceCentralHydrating = false;
-}
-mutateDataSafetyManifest((manifest) => {
-const currentEntry = manifest.entries[key] || {};
-manifest.entries[key] = {
-...(currentEntry?.label ? currentEntry : { label: getDataSafetyStorageLabel(key), writes: 0 }),
-...currentEntry,
-updatedAt: getDataSafetyNow(),
-size: valueToApply.length,
-hash: hashDataSafetyString(valueToApply),
-pendingCentralSync: false,
-};
-});
-queueDataSafetySnapshot("central-merge");
+function handleCentralSyncedStateValue(key) {
 if (key === sessionPlannerStorageKey) {
 sessionPlannerState = readSessionPlannerStatePreservingUiSelection();
 syncSessionPlannerBoardHistoryBaselines(getSessionPlannerSelectedBlock());
@@ -833,142 +747,47 @@ renderTransferRoomWorkspace();
 }
 }
 }
-function getCentralSyncResultValue(result = {}) {
-const candidates = [
-result?.value,
-result?.currentValue,
-result?.serverValue,
-result?.data?.value,
-result?.record?.value,
-];
-return candidates.find((value) => typeof value === "string") ?? "";
-}
-function getCentralSyncResultRevision(result = {}) {
-const revision = Number(result?.currentRevision ?? result?.revision ?? result?.metadata?.revision);
-return Number.isInteger(revision) && revision > 0 ? revision : 0;
-}
-function showSessionPlannerCentralSyncNotice(message = "Session synced with the latest team changes.", tone = "warning") {
-const now = Date.now();
-if (now - sessionPlannerCentralSyncNoticeAt < 12000) {
-return;
-}
-sessionPlannerCentralSyncNoticeAt = now;
-if (hubState?.activeWorkspaceId === "session-planner") {
-showSessionPlannerToast(message, tone);
-}
-}
-async function retryCentralStateWriteAfterConflict(write = {}, result = {}, bridge = getCentralStateBridge()) {
-if (String(write.key || "") !== sessionPlannerStorageKey || write.removed || Number(write.retryCount || 0) > 0) {
-return null;
-}
-const retryBaseRevision = getCentralSyncResultRevision(result);
-if (!retryBaseRevision || !bridge?.syncKey) {
-return null;
-}
-const retryResult = await bridge.syncKey(write.key, write.value, {
-removed: false,
-baseRevision: retryBaseRevision,
+const centralSyncRuntimeService = createCentralSyncRuntimeService({
+getActiveWorkspaceId: () => hubState?.activeWorkspaceId || "",
+getCurrentUser: getCurrentPlatformUser,
+getDataSafetyNow,
+getStorageLabel: getDataSafetyStorageLabel,
+handleSyncedStateValue: handleCentralSyncedStateValue,
+hashString: hashDataSafetyString,
+isProtectedStorageKey: isDataSafetyProtectedStorageKey,
+isSessionPlannerAutosaveKey,
+mergePeriodizationStatePreservingLocalUi,
+mergeScheduleStatePreservingLocalUi,
+mutateManifest: mutateDataSafetyManifest,
+periodizationStorageKey,
+queueSnapshot: queueDataSafetySnapshot,
+queueStatusRefresh: queueDataSafetyStatusRefresh,
+rawGetItem: rawDataSafetyGetItem,
+rawSetItem: rawDataSafetySetItem,
+scheduleStorageKey,
+getSessionPlannerLocalUiState: () => sessionPlannerLocalUiState,
+sessionPlannerStorageKey,
+setAutosaveStatusForKey: setPlatformAutosaveStatusForKey,
+shouldDeferReload: shouldDeferCentralizedAppStateReload,
+showSessionPlannerToast,
+win,
 });
-if (!retryResult?.ok) {
-return retryResult || null;
-}
-applyCentralSyncedStateValue(write, retryResult.value);
-if (retryResult?.merged) {
-showSessionPlannerCentralSyncNotice("Session synced with the latest team changes.");
-}
-return retryResult;
-}
-function registerSessionPlannerCentralSyncConflict(write = {}, result = {}) {
-if (String(write.key || "") !== sessionPlannerStorageKey) {
-return;
-}
-sessionPlannerLocalUiState.state.sessionPlannerCentralSyncConflict = null;
-showSessionPlannerCentralSyncNotice(
-result?.reason ? `Session sync needs attention: ${result.reason}` : "Session sync needs attention. Your latest edit stayed local.",
-"warning"
-);
-}
-function queueCentralStateWrite(key, value, options = {}) {
-if (win.__footballScienceCentralHydrating) {
-return;
-}
-const normalizedKey = String(key || "");
-if (!isDataSafetyProtectedStorageKey(normalizedKey)) {
-return;
-}
-const bridge = getCentralStateBridge();
-if (typeof bridge?.isCentralKey === "function" && !bridge.isCentralKey(normalizedKey)) {
-return;
-}
-if (!getCurrentPlatformUser() || !bridge?.syncKey) {
-queueCentralStateStatus("Central sync unavailable.");
-setPlatformAutosaveStatusForKey(normalizedKey, "issue", "Central sync unavailable.");
-return;
-}
-setPlatformAutosaveStatusForKey(normalizedKey, "saving", "Saving");
-setCentralSyncPendingState(normalizedKey, true, Boolean(options.removed));
-centralStateWriteQueue.set(normalizedKey, {
-key: normalizedKey,
-value: String(value ?? ""),
-removed: Boolean(options.removed),
-baseRevision: getCentralStateRevisionForKey(normalizedKey),
-});
-if (centralStateWriteTimer) {
-win.clearTimeout(centralStateWriteTimer);
-}
-centralStateWriteTimer = win.setTimeout(flushCentralStateWrites, 120);
-}
-async function flushCentralStateWrites() {
-centralStateWriteTimer = null;
-const bridge = getCentralStateBridge();
-if (!bridge?.syncKey || !centralStateWriteQueue.size) {
-return;
-}
-const writes = Array.from(centralStateWriteQueue.values());
-const touchedSessionPlannerAutosave = writes.some((write) => isSessionPlannerAutosaveKey(write.key));
-centralStateWriteQueue.clear();
-for (let index = 0; index < writes.length; index += 1) {
-const write = writes[index];
-const result = await bridge.syncKey(write.key, write.value, {
-removed: write.removed,
-baseRevision: write.baseRevision,
-});
-if (!result?.ok) {
-if (result?.conflict || result?.status === 409) {
-const retryResult = await retryCentralStateWriteAfterConflict(write, result, bridge);
-setCentralSyncPendingState(write.key, false, write.removed);
-if (retryResult?.ok) {
-queueCentralStateStatus("");
-setPlatformAutosaveStatusForKey(write.key, "saved", "Saved");
-continue;
-}
-queueCentralStateStatus(result?.reason || "Central newer.");
-registerSessionPlannerCentralSyncConflict(write, result);
-setPlatformAutosaveStatusForKey(write.key, "issue", "Sync needs attention");
-if (write.key !== sessionPlannerStorageKey) {
-await bridge.hydrate?.({ forceApply: true }).catch(() => {});
-}
-continue;
-}
-for (let retryIndex = index; retryIndex < writes.length; retryIndex += 1) {
-const retryWrite = writes[retryIndex];
-centralStateWriteQueue.set(retryWrite.key, retryWrite);
-}
-queueCentralStateStatus(result?.reason || "Sync failed.");
-setPlatformAutosaveStatusForKey(write.key, "issue", result?.reason || "Sync failed.");
-return;
-}
-applyCentralSyncedStateValue(write, result.value);
-if (result?.merged && write.key === sessionPlannerStorageKey && hubState?.activeWorkspaceId === "session-planner") {
-showSessionPlannerToast("Central sync merged.", "warning");
-}
-setCentralSyncPendingState(write.key, false, write.removed);
-}
-queueCentralStateStatus("");
-if (touchedSessionPlannerAutosave) {
-setPlatformAutosaveStatusForKey(sessionPlannerStorageKey, "saved", "Saved");
-}
-}
+const centralStateWriteSuppressionKeys = centralSyncRuntimeService.centralStateWriteSuppressionKeys;
+function getCentralStateBridge(...args) { return centralSyncRuntimeService.getCentralStateBridge(...args); }
+function getCentralStateMetadataForKey(...args) { return centralSyncRuntimeService.getCentralStateMetadataForKey(...args); }
+function getCentralStateRevisionForKey(...args) { return centralSyncRuntimeService.getCentralStateRevisionForKey(...args); }
+function canWriteCentralBackedCache(...args) { return centralSyncRuntimeService.canWriteCentralBackedCache(...args); }
+function createCentralBackedStorageError(...args) { return centralSyncRuntimeService.createCentralBackedStorageError(...args); }
+function queueCentralStateStatus(...args) { return centralSyncRuntimeService.queueCentralStateStatus(...args); }
+function hasPendingCentralStateWrites() { return centralSyncRuntimeService.hasPendingCentralStateWrites(readDataSafetyManifest); }
+function retryCentral() { return centralSyncRuntimeService.retryCentral(readDataSafetyManifest); }
+function applyCentralSyncedStateValue(...args) { return centralSyncRuntimeService.applyCentralSyncedStateValue(...args); }
+function getCentralSyncResultValue(...args) { return centralSyncRuntimeService.getCentralSyncResultValue(...args); }
+function getCentralSyncResultRevision(...args) { return centralSyncRuntimeService.getCentralSyncResultRevision(...args); }
+function retryCentralStateWriteAfterConflict(...args) { return centralSyncRuntimeService.retryCentralStateWriteAfterConflict(...args); }
+function registerSessionPlannerCentralSyncConflict(...args) { return centralSyncRuntimeService.registerSessionPlannerCentralSyncConflict(...args); }
+function queueCentralStateWrite(...args) { return centralSyncRuntimeService.queueCentralStateWrite(...args); }
+function flushCentralStateWrites(...args) { return centralSyncRuntimeService.flushCentralStateWrites(...args); }
 function recordDataSafetyWrite(key, value, options = {}) {
 const normalizedKey = String(key || "");
 if (!isDataSafetyProtectedStorageKey(normalizedKey)) {
@@ -1788,7 +1607,6 @@ let dashboardChatGroupCreatorOpen = false;
 let dashboardChatSubmittedComposerDrafts = new Map();
 const sessionPlannerMultiSelectFields = new Set(["phase", "subPhase"]);
 let sessionPlannerMultiSelectOpenField = "";
-let sessionPlannerCentralSyncNoticeAt = 0;
 let sessionPlannerSnapshotRecoveryQueued = false;
 let exerciseLibraryRuntime = null;
 let sessionPlannerWorkspaceController;
@@ -12223,9 +12041,7 @@ platformNavigationController.renderTopIconMenu();
 });
 win.addEventListener("pagehide", () => {
 pushDashboardPresence("away").catch(() => {});
-if (centralStateWriteTimer) {
-win.clearTimeout(centralStateWriteTimer);
-centralStateWriteTimer = null;
+if (centralSyncRuntimeService.clearCentralStateWriteTimer()) {
 flushCentralStateWrites();
 }
 if (dataSafetySnapshotTimer) {

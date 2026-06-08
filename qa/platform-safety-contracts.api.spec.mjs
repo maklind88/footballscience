@@ -615,17 +615,20 @@ test("Session Planner never seeds generated training blocks onto an off day", ()
 
 test("Session Planner central sync conflicts retry silently instead of reopening a modal", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const centralSyncSource = readProjectFile("src/core/central-sync-runtime-service.mjs");
 
-  expect(appSource).toContain("function retryCentralStateWriteAfterConflict");
-  expect(appSource).toContain("function getCentralSyncResultRevision");
-  expect(appSource).toContain("function showSessionPlannerCentralSyncNotice");
-  expect(appSource).toContain("let sessionPlannerCentralSyncNoticeAt = 0;");
-  expect(appSource).toContain("baseRevision: retryBaseRevision");
+  expect(appSource).toContain("createCentralSyncRuntimeService");
+  expect(appSource).toContain("function retryCentralStateWriteAfterConflict(...args) { return centralSyncRuntimeService.retryCentralStateWriteAfterConflict(...args); }");
+  expect(centralSyncSource).toContain("function retryCentralStateWriteAfterConflict");
+  expect(centralSyncSource).toContain("function getCentralSyncResultRevision");
+  expect(centralSyncSource).toContain("function showSessionPlannerCentralSyncNotice");
+  expect(centralSyncSource).toContain("let sessionPlannerCentralSyncNoticeAt = 0;");
+  expect(centralSyncSource).toContain("baseRevision: retryBaseRevision");
   expect(appSource).toContain("function isSessionPlannerAutosaveKey");
   expect(appSource).toContain("function shouldShowPlatformAutosaveStatus");
   expect(appSource).toContain("function setPlatformAutosaveStatusForKey");
   expect(appSource).toContain("createSessionPlannerAutosaveBoundary");
-  expect(appSource).toContain('setPlatformAutosaveStatusForKey(write.key, "issue", "Sync needs attention");');
+  expect(centralSyncSource).toContain('setAutosaveStatusForKey(write.key, "issue", "Sync needs attention");');
   expect(appSource).not.toContain("${renderSessionPlannerCentralSyncConflictOverlay()}");
   expect(appSource).not.toContain("sessionPlannerCentralSyncConflict ||");
   expect(appSource).not.toContain('setPlatformAutosaveStatus("conflict", result?.reason || "Central newer.")');

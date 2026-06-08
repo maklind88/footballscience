@@ -58,7 +58,7 @@ import {
   sessionPlannerExerciseLibraryVersionLimit,
   sessionPlannerLibrarySortOptions,
 } from "./src/modules/exercise-library/index.mjs";
-import { bindSessionPlannerWorkspaceDragPointerController, createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerBoardHistoryController, createSessionPlannerRuntimeDelegates, createSessionPlannerRuntimeRenderers, createSessionPlannerStateMergeHelpers, createSessionPlannerTacticalController, createSessionPlannerWorkspaceController, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualUploadHelpers, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
+import { bindSessionPlannerWorkspaceDragPointerController, bindSessionPlannerWorkspaceFormController, createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerBoardHistoryController, createSessionPlannerRuntimeDelegates, createSessionPlannerRuntimeRenderers, createSessionPlannerStateMergeHelpers, createSessionPlannerTacticalController, createSessionPlannerWorkspaceController, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualUploadHelpers, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformShellRuntime } from "./src/core/platform-shell-runtime.mjs";
 import { createWorkspaceModuleRuntimeController } from "./src/core/workspace-module-runtime-controller.mjs";
@@ -13796,65 +13796,29 @@ updateSessionPlannerLibraryArchiveView(libraryArchiveViewButton.dataset.sessionL
 return;
 }
 });
-ui.sessionPlannerWorkspace?.addEventListener("dblclick", (event) => {
-const playerBoardToken = event.target.closest("[data-session-player-board-token]");
-if (playerBoardToken) {
-openSessionPlannerPlayerBoardProfile(playerBoardToken.dataset.sessionPlayerBoardToken);
-return;
-}
-const tacticalCanvas = event.target.closest("[data-session-tactical-canvas]");
-if (!tacticalCanvas) {
-return;
-}
-handleSessionPlannerTacticalCanvasDoubleClick(event, tacticalCanvas);
-});
-ui.sessionPlannerWorkspace?.addEventListener("contextmenu", (event) => {
-handleSessionPlannerPlayerBoardContextMenu(event);
-});
-ui.sessionPlannerWorkspace?.addEventListener("submit", (event) => {
-const libraryFolderEditForm = event.target.closest?.("[data-session-library-folder-edit-form]");
-if (libraryFolderEditForm) {
-event.preventDefault();
-updateSessionPlannerExerciseLibraryFolderFromForm(libraryFolderEditForm);
-return;
-}
-const libraryFolderForm = event.target.closest?.("[data-session-library-folder-form]");
-if (libraryFolderForm) {
-event.preventDefault();
-createSessionPlannerExerciseLibraryFolderFromForm(libraryFolderForm);
-return;
-}
-const playerBoardPersonForm = event.target.closest?.("[data-session-player-board-person-form]");
-if (playerBoardPersonForm) {
-event.preventDefault();
-saveSessionPlannerPlayerBoardCustomPersonFromForm(playerBoardPersonForm);
-return;
-}
-const playerBoardAutoForm = event.target.closest?.("[data-session-player-board-auto-form]");
-if (playerBoardAutoForm) {
-event.preventDefault();
-const teamCountField = playerBoardAutoForm.querySelector("[data-session-player-board-team-count]");
-const autoModeField = playerBoardAutoForm.querySelector("[data-session-player-board-auto-mode]");
-sessionPlannerPlayerBoardTeamCount = normalizeSessionPlannerPlayerBoardTeamCount(teamCountField?.value);
-sessionPlannerPlayerBoardAutoMode = normalizeSessionPlannerPlayerBoardAutoMode(autoModeField?.value);
-applySessionPlannerPlayerBoardAutoSelect();
-return;
-}
-const playerBoardCopyForm = event.target.closest?.("[data-session-player-board-copy-form]");
-if (playerBoardCopyForm) {
-event.preventDefault();
-const sourceField = playerBoardCopyForm.querySelector("[data-session-player-board-copy-source]");
-copySessionPlannerPlayerBoardTeamsFromBlock(sourceField?.value);
-return;
-}
-const playerBoardFormationForm = event.target.closest?.("[data-session-player-board-formation-form]");
-if (!playerBoardFormationForm) {
-return;
-}
-event.preventDefault();
-const formationInput = playerBoardFormationForm.querySelector("[data-session-player-board-formation-input]");
-sessionPlannerPlayerBoardFormationInput = normalizeSessionPlannerPlayerBoardFormationValue(formationInput?.value);
-applySessionPlannerPlayerBoardFormation();
+bindSessionPlannerWorkspaceFormController({
+workspaceElement: ui.sessionPlannerWorkspace,
+openPlayerBoardProfile: openSessionPlannerPlayerBoardProfile,
+handleTacticalCanvasDoubleClick: handleSessionPlannerTacticalCanvasDoubleClick,
+handlePlayerBoardContextMenu: handleSessionPlannerPlayerBoardContextMenu,
+updateExerciseLibraryFolderFromForm: updateSessionPlannerExerciseLibraryFolderFromForm,
+createExerciseLibraryFolderFromForm: createSessionPlannerExerciseLibraryFolderFromForm,
+savePlayerBoardCustomPersonFromForm: saveSessionPlannerPlayerBoardCustomPersonFromForm,
+normalizePlayerBoardTeamCount: normalizeSessionPlannerPlayerBoardTeamCount,
+normalizePlayerBoardAutoMode: normalizeSessionPlannerPlayerBoardAutoMode,
+normalizePlayerBoardFormationValue: normalizeSessionPlannerPlayerBoardFormationValue,
+setPlayerBoardTeamCount: (teamCount) => {
+sessionPlannerPlayerBoardTeamCount = teamCount;
+},
+setPlayerBoardAutoMode: (autoMode) => {
+sessionPlannerPlayerBoardAutoMode = autoMode;
+},
+setPlayerBoardFormationInput: (formationInput) => {
+sessionPlannerPlayerBoardFormationInput = formationInput;
+},
+applyPlayerBoardAutoSelect: applySessionPlannerPlayerBoardAutoSelect,
+copyPlayerBoardTeamsFromBlock: copySessionPlannerPlayerBoardTeamsFromBlock,
+applyPlayerBoardFormation: applySessionPlannerPlayerBoardFormation,
 });
 bindSessionPlannerWorkspaceDragPointerController({
 workspaceElement: ui.sessionPlannerWorkspace,

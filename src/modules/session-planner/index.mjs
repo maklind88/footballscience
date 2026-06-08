@@ -13,6 +13,7 @@ export * from "./session-planner-runtime-renderers.mjs";
 export * from "./session-planner-state-merge-helpers.mjs";
 export * from "./session-planner-shortcuts-controller.mjs";
 export * from "./session-planner-workspace-drag-pointer-controller.mjs";
+export * from "./session-planner-workspace-form-controller.mjs";
 export * from "./session-planner-tactical-helpers.mjs";
 export * from "./session-planner-tactical-controller.mjs";
 export * from "./session-planner-visual-renderer.mjs";

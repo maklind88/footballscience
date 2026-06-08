@@ -116,10 +116,14 @@ test("central sync runtime applies newer server values through the injected rend
 
 test("central sync runtime keeps chat and workspace rendering outside the service", () => {
   const serviceSource = readFileSync(new URL("../src/core/central-sync-runtime-service.mjs", import.meta.url), "utf8");
+  const facadeSource = readFileSync(new URL("../src/core/central-runtime-facade.mjs", import.meta.url), "utf8");
   const runtimeSource = readFileSync(new URL("../app-runtime.js", import.meta.url), "utf8");
 
   expect(serviceSource).toContain("handleSyncedStateValue");
   expect(serviceSource).not.toMatch(/renderDashboardChatWidget|renderMedicalTeamWorkspace|renderPlayerProfilesWorkspace|renderScoutingWorkspace/);
+  expect(facadeSource).toContain("createCentralSyncRuntimeService({");
+  expect(facadeSource).not.toMatch(/renderDashboardChatWidget|renderMedicalTeamWorkspace|renderPlayerProfilesWorkspace|renderScoutingWorkspace/);
   expect(runtimeSource).toContain("function handleCentralSyncedStateValue");
-  expect(runtimeSource).toContain("createCentralSyncRuntimeService");
+  expect(runtimeSource).toContain("createCentralRuntimeFacade({");
+  expect(runtimeSource).not.toContain("createCentralSyncRuntimeService({");
 });

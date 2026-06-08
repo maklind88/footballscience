@@ -67,8 +67,7 @@ import { bindPlatformNavigationInteractions } from "./src/core/platform-navigati
 import { createPlatformUiBindings } from "./src/core/platform-ui-bindings.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createCentralAppStateReloadService } from "./src/core/central-app-state-reload-service.mjs";
-import { createCentralSyncRuntimeService } from "./src/core/central-sync-runtime-service.mjs";
-import { createDataSafetyRuntimeService } from "./src/core/data-safety-runtime-service.mjs";
+import { createCentralRuntimeFacade, dataSafetySnapshotStoreName } from "./src/core/central-runtime-facade.mjs";
 import { createWorkspaceDataRuntimeService } from "./src/core/workspace-data-runtime-service.mjs";
 import { createWorkspaceAccessRuntimeService } from "./src/core/workspace-access-runtime-service.mjs";
 import { addCalendarDays, clamp, escapeHtml, formatDashboardDateTime, formatDashboardTime, formatDataSafetyTime, isEditableKeyboardTarget, logEvent, maybeCopyToClipboard, setFormSubmitButtonState, togglePasswordInputVisibility } from "./src/core/runtime-ui-helpers.mjs";
@@ -273,10 +272,15 @@ getUserProfileImageUrl,
 normalizeImageUrl: normalizePlatformImageUrl,
 normalizeText: normalizePlatformStructureText,
 });
-const dataSafetySnapshotStoreName = "snapshots";
-const dataSafetyLatestStoreName = "latest";
-const dataSafetyMaxSnapshots = 30;
-const dataSafetyProtectedStorageKeys = [
+const centralRuntimeFacade = createCentralRuntimeFacade({
+win,
+documentRef: document,
+navigatorRef: typeof navigator === "undefined" ? null : navigator,
+storageConstructor: typeof Storage === "undefined" ? null : Storage,
+blobConstructor: typeof Blob === "undefined" ? null : Blob,
+urlApi: typeof URL === "undefined" ? null : URL,
+ui,
+storageKeys: {
 workspaceHubStorageKey,
 platformStructureStorageKey,
 periodizationStorageKey,
@@ -288,6 +292,7 @@ sessionPlannerExerciseLibraryFoldersStorageKey,
 sessionPlannerExerciseLibraryFoldersBackupStorageKey,
 playerProfilesStorageKey,
 dashboardTaskStorageKey,
+dashboardChatStorageKey,
 dashboardNotificationSeenStorageKey,
 dashboardTutorialPrefsStorageKey,
 dashboardNewsSeenStorageKey,
@@ -298,82 +303,62 @@ gameplanStorageKey,
 transferRoomStorageKey,
 sequenceStorageKey,
 sequenceLibraryStorageKey,
-];
-const dataSafetyProtectedStorageKeySet = new Set(dataSafetyProtectedStorageKeys);
-const dataSafetyStorageLabels = {
-[workspaceHubStorageKey]: "Workspace",
-[platformStructureStorageKey]: "Club and Team Structure",
-[periodizationStorageKey]: "Periodization",
-[scheduleStorageKey]: "Schedule",
-[sessionPlannerStorageKey]: "Session Planner",
-[sessionPlannerExerciseLibraryStorageKey]: "Exercise Library",
-[sessionPlannerExerciseLibraryBackupStorageKey]: "Exercise Library Backup",
-[sessionPlannerExerciseLibraryFoldersStorageKey]: "Exercise Library Folders",
-[sessionPlannerExerciseLibraryFoldersBackupStorageKey]: "Exercise Library Folders Backup",
-[dashboardTaskStorageKey]: "Dashboard Tasks",
-[dashboardChatStorageKey]: "Team Chat",
-[dashboardNotificationSeenStorageKey]: "Home Notifications",
-[dashboardTutorialPrefsStorageKey]: "Dashboard Preferences",
-[dashboardNewsSeenStorageKey]: "Dashboard News",
-[platformAppearanceStorageKey]: "Appearance",
-[medicalTeamStorageKey]: "Medical Room",
-[playerProfilesStorageKey]: "Player Profiles",
-[scoutingStorageKey]: "Scouting",
-[transferRoomStorageKey]: "Transfer Room",
-[sequenceStorageKey]: "Current Simulator Sequence",
-[sequenceLibraryStorageKey]: "Simulator Sequence Library",
-};
-const dataSafetyLegacyStorageKeys = {
-[workspaceHubStorageKey]: ["football-workspace-hub-v2", "football-workspace-hub-v1"],
-[periodizationStorageKey]: ["football-periodization-v1"],
-[sessionPlannerStorageKey]: ["football-session-planner-v2", "football-session-planner-v1"],
-[sequenceLibraryStorageKey]: ["football-simulator-sequence-library-v1"],
-};
-const dataSafetyRuntimeService = createDataSafetyRuntimeService({
-win,
-documentRef: document,
-navigatorRef: typeof navigator === "undefined" ? null : navigator,
-storageConstructor: typeof Storage === "undefined" ? null : Storage,
-blobConstructor: typeof Blob === "undefined" ? null : Blob,
-urlApi: typeof URL === "undefined" ? null : URL,
-ui,
-storageKey: dataSafetyStorageKey,
-exportSchema: dataSafetyExportSchema,
-databaseName: dataSafetyDatabaseName,
-snapshotStoreName: dataSafetySnapshotStoreName,
-latestStoreName: dataSafetyLatestStoreName,
-maxSnapshots: dataSafetyMaxSnapshots,
-protectedStorageKeys: dataSafetyProtectedStorageKeys,
-storageLabels: dataSafetyStorageLabels,
-legacyStorageKeys: dataSafetyLegacyStorageKeys,
+dataSafetyStorageKey,
+dataSafetyExportSchema,
+dataSafetyDatabaseName,
+},
 formatDataSafetyTime,
-canWriteCentralBackedCache: () => canWriteCentralBackedCache(),
-createCentralBackedStorageError: () => createCentralBackedStorageError(),
-getCentralStateBridge: () => getCentralStateBridge(),
-getCentralStateWriteSuppressionKeys: () => centralStateWriteSuppressionKeys,
-queueCentralStateWrite: (...args) => queueCentralStateWrite(...args),
+getActiveWorkspaceId: () => hubState?.activeWorkspaceId || "",
+getCurrentPlatformUser,
+handleSyncedStateValue: handleCentralSyncedStateValue,
+isSessionPlannerAutosaveKey,
+mergePeriodizationStatePreservingLocalUi,
+mergeScheduleStatePreservingLocalUi,
+getSessionPlannerLocalUiState: () => sessionPlannerLocalUiState,
+setAutosaveStatusForKey: setPlatformAutosaveStatusForKey,
+shouldDeferCentralizedAppStateReload,
+showSessionPlannerToast,
 });
-const dataSafetyRuntimeStatus = dataSafetyRuntimeService.status;
-function getDataSafetyNow(...args) { return dataSafetyRuntimeService.getNow(...args); }
-function isDataSafetyInternalStorageKey(...args) { return dataSafetyRuntimeService.isInternalStorageKey(...args); }
-function isDataSafetyProtectedStorageKey(...args) { return dataSafetyRuntimeService.isProtectedStorageKey(...args); }
-function rawDataSafetyGetItem(...args) { return dataSafetyRuntimeService.rawGetItem(...args); }
-function rawDataSafetySetItem(...args) { return dataSafetyRuntimeService.rawSetItem(...args); }
-function rawDataSafetyRemoveItem(...args) { return dataSafetyRuntimeService.rawRemoveItem(...args); }
-function readDataSafetyManifest(...args) { return dataSafetyRuntimeService.readManifest(...args); }
-function mutateDataSafetyManifest(...args) { return dataSafetyRuntimeService.mutateManifest(...args); }
-function hashDataSafetyString(...args) { return dataSafetyRuntimeService.hashString(...args); }
-function getDataSafetyStorageLabel(...args) { return dataSafetyRuntimeService.getStorageLabel(...args); }
-function recordDataSafetyWrite(...args) { return dataSafetyRuntimeService.recordWrite(...args); }
-function saveDataSafetySnapshot(...args) { return dataSafetyRuntimeService.saveSnapshot(...args); }
-function queueDataSafetySnapshot(...args) { return dataSafetyRuntimeService.queueSnapshot(...args); }
-function refreshDataSafetyStatus(...args) { return dataSafetyRuntimeService.refreshStatus(...args); }
-function queueDataSafetyStatusRefresh(...args) { return dataSafetyRuntimeService.queueStatusRefresh(...args); }
-function exportFootballScienceDataBackup(...args) { return dataSafetyRuntimeService.exportBackup(...args); }
-function importFootballScienceDataBackupFile(...args) { return dataSafetyRuntimeService.importBackupFile(...args); }
-function openDataSafetyDatabase(...args) { return dataSafetyRuntimeService.openDatabase(...args); }
-function flushQueuedDataSafetySnapshot(...args) { return dataSafetyRuntimeService.flushQueuedSnapshot(...args); }
-function installFootballDataSafety(...args) { return dataSafetyRuntimeService.install(...args); }
+const {
+dataSafetyRuntimeStatus,
+centralStateWriteSuppressionKeys,
+getDataSafetyNow,
+isDataSafetyInternalStorageKey,
+isDataSafetyProtectedStorageKey,
+rawDataSafetyGetItem,
+rawDataSafetySetItem,
+rawDataSafetyRemoveItem,
+readDataSafetyManifest,
+mutateDataSafetyManifest,
+hashDataSafetyString,
+getDataSafetyStorageLabel,
+recordDataSafetyWrite,
+saveDataSafetySnapshot,
+queueDataSafetySnapshot,
+refreshDataSafetyStatus,
+queueDataSafetyStatusRefresh,
+exportFootballScienceDataBackup,
+importFootballScienceDataBackupFile,
+openDataSafetyDatabase,
+flushQueuedDataSafetySnapshot,
+installFootballDataSafety,
+getCentralStateBridge,
+getCentralStateMetadataForKey,
+getCentralStateRevisionForKey,
+canWriteCentralBackedCache,
+createCentralBackedStorageError,
+queueCentralStateStatus,
+hasPendingCentralStateWrites,
+retryCentral,
+applyCentralSyncedStateValue,
+getCentralSyncResultValue,
+getCentralSyncResultRevision,
+retryCentralStateWriteAfterConflict,
+registerSessionPlannerCentralSyncConflict,
+queueCentralStateWrite,
+flushCentralStateWrites,
+clearCentralStateWriteTimer,
+} = centralRuntimeFacade;
 let platformUser = null;
 const platformNavigationRenderer = createPlatformNavigationRenderer({
 escapeHtml,
@@ -666,47 +651,6 @@ renderTransferRoomWorkspace();
 }
 }
 }
-const centralSyncRuntimeService = createCentralSyncRuntimeService({
-getActiveWorkspaceId: () => hubState?.activeWorkspaceId || "",
-getCurrentUser: getCurrentPlatformUser,
-getDataSafetyNow,
-getStorageLabel: getDataSafetyStorageLabel,
-handleSyncedStateValue: handleCentralSyncedStateValue,
-hashString: hashDataSafetyString,
-isProtectedStorageKey: isDataSafetyProtectedStorageKey,
-isSessionPlannerAutosaveKey,
-mergePeriodizationStatePreservingLocalUi,
-mergeScheduleStatePreservingLocalUi,
-mutateManifest: mutateDataSafetyManifest,
-periodizationStorageKey,
-queueSnapshot: queueDataSafetySnapshot,
-queueStatusRefresh: queueDataSafetyStatusRefresh,
-rawGetItem: rawDataSafetyGetItem,
-rawSetItem: rawDataSafetySetItem,
-scheduleStorageKey,
-getSessionPlannerLocalUiState: () => sessionPlannerLocalUiState,
-sessionPlannerStorageKey,
-setAutosaveStatusForKey: setPlatformAutosaveStatusForKey,
-shouldDeferReload: shouldDeferCentralizedAppStateReload,
-showSessionPlannerToast,
-win,
-});
-const centralStateWriteSuppressionKeys = centralSyncRuntimeService.centralStateWriteSuppressionKeys;
-function getCentralStateBridge(...args) { return centralSyncRuntimeService.getCentralStateBridge(...args); }
-function getCentralStateMetadataForKey(...args) { return centralSyncRuntimeService.getCentralStateMetadataForKey(...args); }
-function getCentralStateRevisionForKey(...args) { return centralSyncRuntimeService.getCentralStateRevisionForKey(...args); }
-function canWriteCentralBackedCache(...args) { return centralSyncRuntimeService.canWriteCentralBackedCache(...args); }
-function createCentralBackedStorageError(...args) { return centralSyncRuntimeService.createCentralBackedStorageError(...args); }
-function queueCentralStateStatus(...args) { return centralSyncRuntimeService.queueCentralStateStatus(...args); }
-function hasPendingCentralStateWrites() { return centralSyncRuntimeService.hasPendingCentralStateWrites(readDataSafetyManifest); }
-function retryCentral() { return centralSyncRuntimeService.retryCentral(readDataSafetyManifest); }
-function applyCentralSyncedStateValue(...args) { return centralSyncRuntimeService.applyCentralSyncedStateValue(...args); }
-function getCentralSyncResultValue(...args) { return centralSyncRuntimeService.getCentralSyncResultValue(...args); }
-function getCentralSyncResultRevision(...args) { return centralSyncRuntimeService.getCentralSyncResultRevision(...args); }
-function retryCentralStateWriteAfterConflict(...args) { return centralSyncRuntimeService.retryCentralStateWriteAfterConflict(...args); }
-function registerSessionPlannerCentralSyncConflict(...args) { return centralSyncRuntimeService.registerSessionPlannerCentralSyncConflict(...args); }
-function queueCentralStateWrite(...args) { return centralSyncRuntimeService.queueCentralStateWrite(...args); }
-function flushCentralStateWrites(...args) { return centralSyncRuntimeService.flushCentralStateWrites(...args); }
 installFootballDataSafety();
 installPlatformOverlayStability({ win });
 const defaultScheduleState = createDefaultScheduleState();
@@ -7151,7 +7095,7 @@ platformNavigationController.renderTopIconMenu();
 });
 win.addEventListener("pagehide", () => {
 pushDashboardPresence("away").catch(() => {});
-if (centralSyncRuntimeService.clearCentralStateWriteTimer()) {
+if (clearCentralStateWriteTimer()) {
 flushCentralStateWrites();
 }
 flushQueuedDataSafetySnapshot("pagehide");

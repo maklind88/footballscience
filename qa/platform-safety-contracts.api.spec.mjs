@@ -616,10 +616,13 @@ test("Session Planner never seeds generated training blocks onto an off day", ()
 
 test("Session Planner central sync conflicts retry silently instead of reopening a modal", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const centralRuntimeFacadeSource = readProjectFile("src/core/central-runtime-facade.mjs");
   const centralSyncSource = readProjectFile("src/core/central-sync-runtime-service.mjs");
 
-  expect(appSource).toContain("createCentralSyncRuntimeService");
-  expect(appSource).toContain("function retryCentralStateWriteAfterConflict(...args) { return centralSyncRuntimeService.retryCentralStateWriteAfterConflict(...args); }");
+  expect(appSource).toContain("createCentralRuntimeFacade({");
+  expect(appSource).toContain("retryCentralStateWriteAfterConflict");
+  expect(centralRuntimeFacadeSource).toContain("createCentralSyncRuntimeService({");
+  expect(centralRuntimeFacadeSource).toContain("retryCentralStateWriteAfterConflict: (...args) => centralSyncRuntimeService.retryCentralStateWriteAfterConflict(...args)");
   expect(centralSyncSource).toContain("function retryCentralStateWriteAfterConflict");
   expect(centralSyncSource).toContain("function getCentralSyncResultRevision");
   expect(centralSyncSource).toContain("function showSessionPlannerCentralSyncNotice");

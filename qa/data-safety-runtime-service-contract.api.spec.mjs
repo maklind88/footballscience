@@ -119,9 +119,12 @@ function createHarness(options = {}) {
 test("data safety runtime service owns protected storage body outside app-runtime", () => {
   const runtimeSource = readProjectFile("app-runtime.js");
   const serviceSource = readProjectFile("src/core/data-safety-runtime-service.mjs");
+  const facadeSource = readProjectFile("src/core/central-runtime-facade.mjs");
 
-  expect(runtimeSource).toContain("createDataSafetyRuntimeService({");
-  expect(runtimeSource).toContain("function recordDataSafetyWrite(...args)");
+  expect(runtimeSource).toContain("createCentralRuntimeFacade({");
+  expect(runtimeSource).not.toContain("createDataSafetyRuntimeService({");
+  expect(facadeSource).toContain("createDataSafetyRuntimeService({");
+  expect(facadeSource).toContain("recordDataSafetyWrite");
   expect(runtimeSource).not.toContain("function collectFootballScienceStorageData");
   expect(runtimeSource).not.toContain("function exportFootballScienceDataBackup() {");
   expect(runtimeSource).not.toContain("function installFootballDataSafety() {");

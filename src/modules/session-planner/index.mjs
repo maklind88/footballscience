@@ -11,6 +11,7 @@ export * from "./session-planner-workspace-renderer.mjs";
 export * from "./session-planner-workspace-controller.mjs";
 export * from "./session-planner-runtime-delegates.mjs";
 export * from "./session-planner-runtime-renderers.mjs";
+export * from "./session-planner-runtime-service.mjs";
 export * from "./session-planner-runtime-bindings.mjs";
 export * from "./session-planner-runtime-state-service.mjs";
 export * from "./session-planner-state-merge-helpers.mjs";

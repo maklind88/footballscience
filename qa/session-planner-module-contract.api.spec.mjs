@@ -489,19 +489,22 @@ test("Session Planner app integration delegates autosave policy and block render
   const app = readProjectFile("app-runtime.js");
   const workspaceController = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
   const runtimeRenderers = readProjectFile("src/modules/session-planner/session-planner-runtime-renderers.mjs");
+  const runtimeService = readProjectFile("src/modules/session-planner/session-planner-runtime-service.mjs");
   const runtimeStateService = readProjectFile("src/modules/session-planner/session-planner-runtime-state-service.mjs");
   const printRenderer = readProjectFile("src/modules/session-planner/session-planner-print-renderer.mjs");
-  const runtimeSource = `${app}\n${workspaceController}\n${runtimeRenderers}\n${runtimeStateService}`;
+  const runtimeSource = `${app}\n${workspaceController}\n${runtimeRenderers}\n${runtimeService}\n${runtimeStateService}`;
 
   expect(app).toContain("./src/modules/session-planner/index.mjs");
   expect(app).toContain("createSessionPlannerAutosaveBoundary");
-  expect(app).toContain("createSessionPlannerWorkspaceController");
+  expect(app).not.toContain("createSessionPlannerWorkspaceController");
+  expect(runtimeService).toContain("createSessionPlannerWorkspaceController({");
   expect(app).toContain("createSessionPlannerRuntimeRenderers");
   expect(runtimeRenderers).toContain("createSessionPlannerPlayerBoardRenderer");
   expect(runtimeRenderers).toContain("createSessionPlannerPrintRenderer");
   expect(runtimeRenderers).toContain("createSessionPlannerRenderer");
   expect(runtimeRenderers).toContain("createSessionPlannerVisualRenderer");
-  expect(app).toContain("createSessionPlannerRuntimeStateService({");
+  expect(app).toContain("createSessionPlannerRuntimeService({");
+  expect(app).not.toContain("createSessionPlannerRuntimeStateService({");
   expect(runtimeStateService).toContain("sessionPlannerAutosaveBoundary.markSessionPlannerWrite();");
   expect(runtimeSource).toContain("sessionPlannerRenderer.renderBlockList(session)");
   expect(runtimeSource).toContain("sessionPlannerRenderer.renderEditableField(block, key, label, options)");

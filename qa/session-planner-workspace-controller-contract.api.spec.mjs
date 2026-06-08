@@ -12,11 +12,14 @@ function readProjectFile(path) {
 
 test("Session Planner workspace controller owns workspace UI flow without owning the save pipeline", () => {
   const app = readProjectFile("app-runtime.js");
+  const runtimeService = readProjectFile("src/modules/session-planner/session-planner-runtime-service.mjs");
   const controller = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
   const delegates = readProjectFile("src/modules/session-planner/session-planner-runtime-delegates.mjs");
 
   expect(typeof createSessionPlannerWorkspaceController).toBe("function");
-  expect(app).toContain("createSessionPlannerWorkspaceController");
+  expect(app).toContain("createSessionPlannerRuntimeService({");
+  expect(app).not.toContain("createSessionPlannerWorkspaceController({");
+  expect(runtimeService).toContain("createSessionPlannerWorkspaceController({");
   expect(app).toContain("let sessionPlannerWorkspaceController;");
   expect(app).toContain("createSessionPlannerRuntimeDelegates({");
   expect(app).not.toContain("} = sessionPlannerWorkspaceController;");
@@ -35,7 +38,8 @@ test("Session Planner workspace controller owns workspace UI flow without owning
   expect(controller).not.toContain("sessionPlannerExerciseLibrary = writeResult.exercises");
   expect(controller).toContain("writeSessionPlannerState,");
   expect(controller).not.toContain("function writeSessionPlannerState()");
-  expect(app).toContain("createSessionPlannerRuntimeStateService({");
+  expect(app).not.toContain("createSessionPlannerRuntimeStateService({");
+  expect(runtimeService).toContain("createSessionPlannerRuntimeStateService({");
   expect(app).toContain("function writeSessionPlannerState(...args)");
   expect(app).not.toContain("const previousDateControls = ui.sessionPlannerWorkspace.querySelector");
 });

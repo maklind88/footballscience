@@ -106,10 +106,13 @@ function createHarness(options = {}) {
 
 test("Session Planner runtime state service owns read write and recovery bodies outside app-runtime", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const runtimeServiceSource = readProjectFile("src/modules/session-planner/session-planner-runtime-service.mjs");
   const serviceSource = readProjectFile("src/modules/session-planner/session-planner-runtime-state-service.mjs");
   const indexSource = readProjectFile("src/modules/session-planner/index.mjs");
 
-  expect(appSource).toContain("createSessionPlannerRuntimeStateService({");
+  expect(appSource).toContain("createSessionPlannerRuntimeService({");
+  expect(appSource).not.toContain("createSessionPlannerRuntimeStateService({");
+  expect(runtimeServiceSource).toContain("createSessionPlannerRuntimeStateService({");
   expect(appSource).not.toContain("function persistNormalizedSessionPlannerState(nextState)");
   expect(appSource).not.toContain("function findSessionPlannerStateInSnapshots(currentState)");
   expect(appSource).not.toContain("function queueSessionPlannerSnapshotRecovery()");
@@ -117,6 +120,7 @@ test("Session Planner runtime state service owns read write and recovery bodies 
   expect(serviceSource).toContain("function writeState()");
   expect(serviceSource).toContain("function queueSnapshotRecovery()");
   expect(indexSource).toContain('export * from "./session-planner-runtime-state-service.mjs";');
+  expect(indexSource).toContain('export * from "./session-planner-runtime-service.mjs";');
 });
 
 test("Session Planner runtime state service preserves field assignment and DOM sync writes", () => {

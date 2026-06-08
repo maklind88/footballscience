@@ -130,6 +130,7 @@ import {
   medicalStatusOptions,
   medicalWindowLength,
 } from "./src/modules/medical/index.mjs";
+import { createGameSimulatorLazyRuntimeBridge } from "./src/modules/game-simulator/index.mjs";
 const getElement = document.getElementById.bind(document);
 const win = window;
 const ui = createPlatformUiBindings(document);const platformAssetVersion = win.__assetVersion || Date.now();
@@ -137,67 +138,6 @@ const platformModuleLoader = createPlatformModuleLoader({
 documentRef: document,
 assetVersion: platformAssetVersion,
 });
-let gameSimulatorRuntime = null;
-let gameSimulatorRuntimePromise = null;
-function readSavedSequenceLibraryFallback() {
-try {
-const raw = win.localStorage?.getItem(sequenceLibraryStorageKey);
-if (!raw) return [];
-const parsed = JSON.parse(raw);
-if (!Array.isArray(parsed)) return [];
-return parsed
-.filter((entry) => entry && entry.id && entry.name && entry.sequence?.steps)
-.sort((a, b) => new Date(b.savedAt ?? 0) - new Date(a.savedAt ?? 0));
-} catch {
-return [];
-}
-}
-function logGameSimulatorRuntimeError(error) {
-console.error("Game simulator runtime failed to load.", error);
-}
-function ensureGameSimulatorRuntime() {
-if (gameSimulatorRuntime) return Promise.resolve(gameSimulatorRuntime);
-if (!gameSimulatorRuntimePromise) {
-gameSimulatorRuntimePromise = platformModuleLoader
-.loadModule("game-simulator.runtime-entry", () =>
-import(platformModuleLoader.versionedHref("./src/modules/game-simulator/runtime-entry.mjs"))
-)
-.then(({ createGameSimulatorRuntimeEntry }) => {
-gameSimulatorRuntime = createGameSimulatorRuntimeEntry({
-canEditGameSimulatorWorkspace,
-documentRef: document,
-escapeHtml,
-getHubState: () => hubState,
-platformModuleLoader,
-renderWorkspaceChrome,
-sequenceLibraryStorageKey,
-sequenceStorageKey,
-ui,
-win,
-});
-gameSimulatorRuntime.initialize();
-return gameSimulatorRuntime;
-})
-.catch((error) => {
-gameSimulatorRuntimePromise = null;
-throw error;
-});
-}
-return gameSimulatorRuntimePromise;
-}
-function queueGameSimulatorRuntimeLoad() {
-return ensureGameSimulatorRuntime().catch(logGameSimulatorRuntimeError);
-}
-function invokeGameSimulatorRuntime(methodName, args = [], fallbackValue) {
-if (gameSimulatorRuntime?.[methodName]) {
-return gameSimulatorRuntime[methodName](...args);
-}
-queueGameSimulatorRuntimeLoad();
-return typeof fallbackValue === "function" ? fallbackValue() : fallbackValue;
-}
-function invokeGameSimulatorRuntimeAsync(methodName, args = []) {
-return ensureGameSimulatorRuntime().then((runtime) => runtime?.[methodName]?.(...args));
-}
 let workspaceModuleRuntimeController = null;
 function queueWorkspaceModulePreload(workspaceId = "") {
 return workspaceModuleRuntimeController?.queueWorkspaceModulePreload?.(workspaceId);
@@ -1731,61 +1671,40 @@ isOffDay: isPeriodizationOffDay,
 getMultiSelectOpenField: () => periodizationMultiSelectOpenField,
 renderActionIcon: renderSessionPlannerActionIcon,
 });
-function readSavedSequenceLibrary(...args) {
-return gameSimulatorRuntime?.readSavedSequenceLibrary
-? gameSimulatorRuntime.readSavedSequenceLibrary(...args)
-: readSavedSequenceLibraryFallback();
-}
-function syncGameSimulatorSavedSequencesFromStorage() {
-gameSimulatorRuntime?.syncSavedSequencesFromStorage?.();
-}
-function render(...args) { return invokeGameSimulatorRuntime("render", args); }
-function queueGameSimulatorControllersLoad(...args) {
-return invokeGameSimulatorRuntimeAsync("queueGameSimulatorControllersLoad", args).catch(logGameSimulatorRuntimeError);
-}
-function startSimulatorAnimationLoop(...args) {
-return invokeGameSimulatorRuntimeAsync("startSimulatorAnimationLoop", args).catch(logGameSimulatorRuntimeError);
-}
-function stopSimulatorAnimationLoop(...args) {
-return gameSimulatorRuntime?.stopSimulatorAnimationLoop?.(...args);
-}
-function resetGameSimulatorIntro(...args) {
-if (gameSimulatorRuntime?.resetGameSimulatorIntro) {
-return gameSimulatorRuntime.resetGameSimulatorIntro(...args);
-}
-ui.gameSimulatorWorkspace?.classList.add("is-simulator-intro");
-ui.gameSimulatorWorkspace?.classList.remove("is-simulator-launched");
-}
-function syncGameSimulatorIntroState(...args) {
-if (gameSimulatorRuntime?.syncGameSimulatorIntroState) {
-return gameSimulatorRuntime.syncGameSimulatorIntroState(...args);
-}
-const workspace = ui.gameSimulatorWorkspace;
-if (workspace && hubState?.activeWorkspaceId === "game-simulator" && !workspace.classList.contains("is-simulator-launched")) {
-workspace.classList.add("is-simulator-intro");
-}
-queueGameSimulatorRuntimeLoad();
-}
-function pauseSimulatorForWorkspaceSwitch(...args) {
-return gameSimulatorRuntime?.pauseSimulatorForWorkspaceSwitch?.(...args);
-}
-function isSimulatorIntroActive(...args) {
-if (gameSimulatorRuntime?.isSimulatorIntroActive) {
-return gameSimulatorRuntime.isSimulatorIntroActive(...args);
-}
-return Boolean(hubState?.activeWorkspaceId === "game-simulator" && ui.gameSimulatorWorkspace?.classList.contains("is-simulator-intro"));
-}
-function launchGameSimulatorFromIntro(...args) {
-return invokeGameSimulatorRuntimeAsync("launchGameSimulatorFromIntro", args).catch(logGameSimulatorRuntimeError);
-}
-function isPitchFullscreenActive(...args) { return gameSimulatorRuntime?.isPitchFullscreenActive?.(...args) ?? false; }
-function syncPitchFullscreenButton(...args) { return gameSimulatorRuntime?.syncPitchFullscreenButton?.(...args); }
-function updatePitchFullscreenHudLayout(...args) { return gameSimulatorRuntime?.updatePitchFullscreenHudLayout?.(...args); }
-function togglePitchFullscreen(...args) { return invokeGameSimulatorRuntimeAsync("togglePitchFullscreen", args).catch(logGameSimulatorRuntimeError); }
-function hasUnsavedSimulatorWork(...args) { return gameSimulatorRuntime?.hasUnsavedSimulatorWork?.(...args) ?? false; }
-function resetUnsavedSimulatorSession(...args) { return gameSimulatorRuntime?.resetUnsavedSimulatorSession?.(...args); }
-function hasActiveMetricTooltip(...args) { return gameSimulatorRuntime?.hasActiveMetricTooltip?.(...args) ?? false; }
-function hideMetricTooltip(...args) { return gameSimulatorRuntime?.hideMetricTooltip?.(...args); }
+const {
+ensureGameSimulatorRuntime,
+hasActiveMetricTooltip,
+hasUnsavedSimulatorWork,
+hideMetricTooltip,
+isPitchFullscreenActive,
+isSimulatorIntroActive,
+launchGameSimulatorFromIntro,
+pauseSimulatorForWorkspaceSwitch,
+queueGameSimulatorControllersLoad,
+queueGameSimulatorRuntimeLoad,
+readSavedSequenceLibrary,
+render,
+resetGameSimulatorIntro,
+resetUnsavedSimulatorSession,
+startSimulatorAnimationLoop,
+stopSimulatorAnimationLoop,
+syncGameSimulatorIntroState,
+syncGameSimulatorSavedSequencesFromStorage,
+syncPitchFullscreenButton,
+togglePitchFullscreen,
+updatePitchFullscreenHudLayout,
+} = createGameSimulatorLazyRuntimeBridge({
+canEditGameSimulatorWorkspace,
+documentRef: document,
+escapeHtml,
+getHubState: () => hubState,
+platformModuleLoader,
+renderWorkspaceChrome,
+sequenceLibraryStorageKey,
+sequenceStorageKey,
+ui,
+win,
+});
 let hubState = null;
 let periodizationState = null;
 let periodizationDayOverlayOpen = false;

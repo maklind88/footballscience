@@ -13,12 +13,14 @@ function readProjectFile(path) {
 test("game simulator runtime facade owns app runtime wrappers and fallbacks", () => {
   const app = readProjectFile("app-runtime.js");
   const facade = readProjectFile("src/modules/game-simulator/runtime-facade.mjs");
+  const lazyBridge = readProjectFile("src/modules/game-simulator/lazy-runtime-bridge.mjs");
   const runtimeEntry = readProjectFile("src/modules/game-simulator/runtime-entry.mjs");
   const index = readProjectFile("src/modules/game-simulator/index.mjs");
 
   expect(typeof createGameSimulatorRuntimeFacade).toBe("function");
   expect(app).not.toContain("createGameSimulatorRuntimeFacade({");
-  expect(app).toContain("gameSimulatorRuntime = createGameSimulatorRuntimeEntry({");
+  expect(app).not.toContain("gameSimulatorRuntime = createGameSimulatorRuntimeEntry({");
+  expect(lazyBridge).toContain("runtime = createGameSimulatorRuntimeEntry({");
   expect(runtimeEntry).toContain("createGameSimulatorRuntimeFacade({");
   expect(runtimeEntry).toContain("} = gameSimulatorRuntimeFacade;");
   expect(app).not.toContain('function canEditScenario(...args) { return invokeGameSimulatorAppRuntime("canEditScenario", args); }');
@@ -27,6 +29,7 @@ test("game simulator runtime facade owns app runtime wrappers and fallbacks", ()
   expect(facade).toContain("function readSavedSequenceLibrary(...args)");
   expect(facade).toContain("function cloneTeamIdentity(identity)");
   expect(facade).toContain("facade.shouldIgnoreHotkey");
+  expect(index).toContain('export { createGameSimulatorLazyRuntimeBridge } from "./lazy-runtime-bridge.mjs";');
   expect(index).toContain('export { createGameSimulatorRuntimeEntry } from "./runtime-entry.mjs";');
   expect(index).toContain('export { createGameSimulatorRuntimeFacade } from "./runtime-facade.mjs";');
 });

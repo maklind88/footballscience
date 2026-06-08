@@ -117,6 +117,7 @@ const coreFiles = [
   "src/modules/game-simulator/autopilot-offball-targets.mjs",
   "src/modules/game-simulator/autopilot-targets.mjs",
   "src/modules/game-simulator/command-engine.mjs",
+  "src/modules/game-simulator/lazy-runtime-bridge.mjs",
   "src/modules/game-simulator/canvas-renderer.mjs",
   "src/modules/game-simulator/setup-engine.mjs",
   "src/modules/game-simulator/sequence-engine.mjs",
@@ -473,6 +474,7 @@ test("game simulator animation loop does not run globally outside the simulator 
   const sequenceEngineSource = readProjectFile("src/modules/game-simulator/sequence-engine.mjs");
   const pointerControllerSource = readProjectFile("src/modules/game-simulator/pointer-controller.mjs");
   const runtimeSource = readProjectFile("src/modules/game-simulator/runtime.mjs");
+  const lazyRuntimeBridgeSource = readProjectFile("src/modules/game-simulator/lazy-runtime-bridge.mjs");
   const runtimeEntrySource = readProjectFile("src/modules/game-simulator/runtime-entry.mjs");
   const workspaceControllerSource = readProjectFile("src/modules/game-simulator/workspace-controller.mjs");
   const sidebarRendererSource = readProjectFile("src/modules/game-simulator/sidebar-renderer.mjs");
@@ -481,6 +483,7 @@ test("game simulator animation loop does not run globally outside the simulator 
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/app-runtime-controller.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/runtime-entry.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/runtime-facade.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/lazy-runtime-bridge.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/initial-state.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/action-space-metrics.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/ball-resolution-engine.mjs");
@@ -504,9 +507,12 @@ test("game simulator animation loop does not run globally outside the simulator 
   expect(appSource).not.toContain('from "./src/modules/game-simulator/model-data.mjs"');
   expect(appSource).not.toContain('from "./src/modules/game-simulator/engine-wiring.mjs"');
   expect(appSource).not.toContain('from "./src/modules/game-simulator/app-runtime-controller.mjs"');
-  expect(appSource).toContain('import(platformModuleLoader.versionedHref("./src/modules/game-simulator/runtime-entry.mjs"))');
-  expect(appSource).toContain("function startSimulatorAnimationLoop(...args)");
-  expect(appSource).toContain("function stopSimulatorAnimationLoop(...args)");
+  expect(appSource).toContain('from "./src/modules/game-simulator/index.mjs"');
+  expect(appSource).toContain("createGameSimulatorLazyRuntimeBridge({");
+  expect(appSource).not.toContain('import(platformModuleLoader.versionedHref("./src/modules/game-simulator/runtime-entry.mjs"))');
+  expect(lazyRuntimeBridgeSource).toContain('import(platformModuleLoader.versionedHref("./src/modules/game-simulator/runtime-entry.mjs"))');
+  expect(lazyRuntimeBridgeSource).toContain("startSimulatorAnimationLoop:");
+  expect(lazyRuntimeBridgeSource).toContain("stopSimulatorAnimationLoop:");
   expect(runtimeEntrySource).toContain("createGameSimulatorAppRuntimeController({");
   expect(runtimeEntrySource).toContain("createGameSimulatorRuntimeFacade({");
   expect(runtimeEntrySource).toContain("createGameSimulatorEngineBundle({");

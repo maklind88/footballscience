@@ -14,12 +14,17 @@ test("game simulator app runtime controller owns simulator runtime wiring", () =
   const app = readProjectFile("app-runtime.js");
   const controller = readProjectFile("src/modules/game-simulator/app-runtime-controller.mjs");
   const facade = readProjectFile("src/modules/game-simulator/runtime-facade.mjs");
+  const lazyBridge = readProjectFile("src/modules/game-simulator/lazy-runtime-bridge.mjs");
   const runtimeEntry = readProjectFile("src/modules/game-simulator/runtime-entry.mjs");
 
   expect(typeof createGameSimulatorAppRuntimeController).toBe("function");
-  expect(app).toContain('import(platformModuleLoader.versionedHref("./src/modules/game-simulator/runtime-entry.mjs"))');
-  expect(app).toContain("function ensureGameSimulatorRuntime()");
-  expect(app).toContain("function invokeGameSimulatorRuntime");
+  expect(app).toContain("createGameSimulatorLazyRuntimeBridge({");
+  expect(app).not.toContain('import(platformModuleLoader.versionedHref("./src/modules/game-simulator/runtime-entry.mjs"))');
+  expect(app).not.toContain("function ensureGameSimulatorRuntime()");
+  expect(app).not.toContain("function invokeGameSimulatorRuntime");
+  expect(lazyBridge).toContain('import(platformModuleLoader.versionedHref("./src/modules/game-simulator/runtime-entry.mjs"))');
+  expect(lazyBridge).toContain("ensureGameSimulatorRuntime: ensureRuntime");
+  expect(lazyBridge).toContain("function invokeRuntime");
   expect(app).not.toContain('from "./src/modules/game-simulator/app-runtime-controller.mjs"');
   expect(runtimeEntry).toContain("createGameSimulatorAppRuntimeController({");
   expect(runtimeEntry).toContain("createGameSimulatorRuntimeFacade({");

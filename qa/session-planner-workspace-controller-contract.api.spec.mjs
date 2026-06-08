@@ -13,12 +13,15 @@ function readProjectFile(path) {
 test("Session Planner workspace controller owns workspace UI flow without owning the save pipeline", () => {
   const app = readProjectFile("app-runtime.js");
   const accessors = readProjectFile("src/modules/session-planner/session-planner-runtime-accessors.mjs");
+  const composer = readProjectFile("src/modules/session-planner/session-planner-runtime-service-composer.mjs");
   const runtimeService = readProjectFile("src/modules/session-planner/session-planner-runtime-service.mjs");
   const controller = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
   const delegates = readProjectFile("src/modules/session-planner/session-planner-runtime-delegates.mjs");
 
   expect(typeof createSessionPlannerWorkspaceController).toBe("function");
-  expect(app).toContain("createSessionPlannerRuntimeService({");
+  expect(app).toContain("createSessionPlannerRuntimeServiceComposition({");
+  expect(app).not.toContain("createSessionPlannerRuntimeService({");
+  expect(composer).toContain("createSessionPlannerRuntimeService({");
   expect(app).not.toContain("createSessionPlannerWorkspaceController({");
   expect(runtimeService).toContain("createSessionPlannerWorkspaceController({");
   expect(app).toContain("let sessionPlannerWorkspaceController;");

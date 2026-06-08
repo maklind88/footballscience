@@ -608,11 +608,13 @@ test("Session Planner print mode keeps the coach sheet visible for browser print
 test("Session Planner never seeds generated training blocks onto an off day", () => {
   const appSource = readProjectFile("app-runtime.js");
   const accessorsSource = readProjectFile("src/modules/session-planner/session-planner-runtime-accessors.mjs");
+  const composerSource = readProjectFile("src/modules/session-planner/session-planner-runtime-service-composer.mjs");
   const sessionFactorySource = readProjectFile("src/modules/session-planner/session-planner-session-factory.mjs");
   const stateMergeHelpersSource = readProjectFile("src/modules/session-planner/session-planner-state-merge-helpers.mjs");
 
   expect(appSource).toContain("createEmptySession: createSessionPlannerEmptySession");
-  expect(appSource).toContain("shouldClearSessionForDate: shouldClearSessionPlannerSessionForDate");
+  expect(appSource).toContain("shouldClearSessionPlannerSessionForDate,");
+  expect(composerSource).toContain("shouldClearSessionForDate: deps.shouldClearSessionPlannerSessionForDate");
   expect(stateMergeHelpersSource).toContain("[selectedDate]: createEmptySession(selectedDate)");
   expect(sessionFactorySource).toContain("function isOffDate");
   expect(sessionFactorySource).toContain("function createSessionForNewPlan");

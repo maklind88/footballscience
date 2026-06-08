@@ -102,18 +102,23 @@ function getTopLevelPropertyNames(objectSource) {
 test("Session Planner runtime service owns controller composition outside app-runtime", () => {
   const app = readProjectFile("app-runtime.js");
   const accessors = readProjectFile("src/modules/session-planner/session-planner-runtime-accessors.mjs");
+  const composer = readProjectFile("src/modules/session-planner/session-planner-runtime-service-composer.mjs");
   const service = readProjectFile("src/modules/session-planner/session-planner-runtime-service.mjs");
   const index = readProjectFile("src/modules/session-planner/index.mjs");
 
   expect(typeof createSessionPlannerRuntimeService).toBe("function");
-  expect(app).toContain("createSessionPlannerRuntimeService({");
+  expect(app).toContain("createSessionPlannerRuntimeServiceComposition({");
+  expect(app).not.toContain("createSessionPlannerRuntimeService({");
+  expect(composer).toContain("createSessionPlannerRuntimeService({");
+  expect(composer).toContain("createSessionPlannerStateMergeHelpers({");
+  expect(composer).toContain("createSessionPlannerToastController({");
   expect(app).not.toContain("createSessionPlannerRuntimeStateService({");
   expect(app).not.toContain("createSessionPlannerBoardHistoryController({");
   expect(app).not.toContain("createSessionPlannerWorkspaceController({");
   expect(app).toContain("configureSessionPlannerRuntimeAccessors(() => ({");
   expect(app).toContain("runtimeStateService: sessionPlannerRuntimeStateService");
   expect(accessors).toContain("function writeSessionPlannerState(...args)");
-  expect(app).toContain("sessionPlannerWorkspaceController = sessionPlannerRuntimeService.workspaceController;");
+  expect(app).toContain("sessionPlannerWorkspaceController = sessionPlannerRuntimeServiceComposition.sessionPlannerWorkspaceController;");
   expect(service).toContain("createSessionPlannerRuntimeStateService({");
   expect(service).toContain("createSessionPlannerBoardHistoryController({");
   expect(service).toContain("createSessionPlannerWorkspaceController({");
@@ -121,6 +126,7 @@ test("Session Planner runtime service owns controller composition outside app-ru
   expect(service).toContain("stateMergeHelpers");
   expect(service).toContain("exerciseLibraryRuntimeFacade");
   expect(index).toContain('export * from "./session-planner-runtime-service.mjs";');
+  expect(index).toContain('export * from "./session-planner-runtime-service-composer.mjs";');
 });
 
 test("Session Planner runtime service does not own raw save implementations", () => {
@@ -135,11 +141,11 @@ test("Session Planner runtime service does not own raw save implementations", ()
 
 test("Session Planner runtime service receives every dependency it consumes", () => {
   const app = readProjectFile("app-runtime.js");
-  const service = readProjectFile("src/modules/session-planner/session-planner-runtime-service.mjs");
-  const appServiceCall = extractObjectAfter(app, "createSessionPlannerRuntimeService({");
+  const composer = readProjectFile("src/modules/session-planner/session-planner-runtime-service-composer.mjs");
+  const appServiceCall = extractObjectAfter(app, "createSessionPlannerRuntimeServiceComposition({");
   const providedDependencies = new Set(getTopLevelPropertyNames(appServiceCall));
   const consumedDependencies = new Set(
-    Array.from(service.matchAll(/deps\.([A-Za-z_$][\w$]*)/g), (match) => match[1])
+    Array.from(composer.matchAll(/deps\.([A-Za-z_$][\w$]*)/g), (match) => match[1])
   );
 
   const missingDependencies = Array.from(consumedDependencies)

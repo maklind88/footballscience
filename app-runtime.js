@@ -890,10 +890,10 @@ defaultPeriodizationState,
 getPeriodizationDay: getPeriodizationDayFromState,
 isDateValueInYear,
 isPeriodizationOffDay,
-mergePeriodizationStatePreservingLocalUi,
 normalizePeriodizationDay,
 normalizePeriodizationMultiValue,
 } = periodizationStateAdapter;
+function mergePeriodizationStatePreservingLocalUi(...args) { return periodizationStateAdapter.mergePeriodizationStatePreservingLocalUi(...args); }
 const periodizationRenderer = createPeriodizationRenderer({
 escapeHtml,
 formatDateValue: formatScheduleDateValue,
@@ -1024,7 +1024,6 @@ isSessionPlannerTacticalEndpointElement,
 updateSelectedSessionPlannerBlockField,
 getSessionPlannerDateLabel,
 renderSessionPlannerExerciseVisual,
-renderSessionPlannerActionIcon,
 canRemoveSessionPlannerLibraryExerciseFromSelectedFolder,
 getSessionPlannerPlayerBoardProfileState,
 getSessionPlannerPlayerBoardSyncedPlayer,
@@ -1202,6 +1201,7 @@ removeSessionPlannerPrintRoot,
 prepareSessionPlannerPrintRoot,
 printSessionPlannerCurrentSession,
 } = sessionPlannerRuntimeDelegates;
+function renderSessionPlannerActionIcon(...args) { return sessionPlannerRuntimeDelegates.renderSessionPlannerActionIcon(...args); }
 const {
 cloneTacticalElement: cloneSessionPlannerTacticalElement,
 cloneTacticalFrame: cloneSessionPlannerTacticalFrame,
@@ -1850,6 +1850,7 @@ renderTaskList: dashboardTaskListRenderer.renderTaskList,
 renderTeamLogoMark: renderPlatformTeamLogoMark,
 renderUserAvatar,
 });
+function renderPlayerProfilesWorkspaceMessage(...args) { return squadWorkspaceRenderer.renderMessage(...args); }
 adminRuntimeService = createAdminRuntimeService({
 adminWorkspaceRenderer,
 buildPlatformTemporaryLoginMessage,
@@ -2562,20 +2563,18 @@ queueGameSimulatorControllersLoad();
 },
 },
 });
-const {
-getGameplanContext,
-getScoutingAnalysisRoomContext,
-getScoutingWorkspaceContext,
-getTransferRoomWorkspaceContext,
-hydrateWorkspaceModuleState,
-loadGameplanModule,
-loadScoutingWorkspaceModule,
-loadTransferRoomWorkspaceModule,
-renderAnalysisRoomWorkspace,
-renderGameplanWorkspace,
-renderScoutingWorkspace,
-renderTransferRoomWorkspace,
-} = workspaceModuleRuntimeController;
+function getGameplanContext(...args) { return workspaceModuleRuntimeController.getGameplanContext(...args); }
+function getScoutingAnalysisRoomContext(...args) { return workspaceModuleRuntimeController.getScoutingAnalysisRoomContext(...args); }
+function getScoutingWorkspaceContext(...args) { return workspaceModuleRuntimeController.getScoutingWorkspaceContext(...args); }
+function getTransferRoomWorkspaceContext(...args) { return workspaceModuleRuntimeController.getTransferRoomWorkspaceContext(...args); }
+function hydrateWorkspaceModuleState(...args) { return workspaceModuleRuntimeController.hydrateWorkspaceModuleState(...args); }
+function loadGameplanModule(...args) { return workspaceModuleRuntimeController.loadGameplanModule(...args); }
+function loadScoutingWorkspaceModule(...args) { return workspaceModuleRuntimeController.loadScoutingWorkspaceModule(...args); }
+function loadTransferRoomWorkspaceModule(...args) { return workspaceModuleRuntimeController.loadTransferRoomWorkspaceModule(...args); }
+function renderAnalysisRoomWorkspace(...args) { return workspaceModuleRuntimeController.renderAnalysisRoomWorkspace(...args); }
+function renderGameplanWorkspace(...args) { return workspaceModuleRuntimeController.renderGameplanWorkspace(...args); }
+function renderScoutingWorkspace(...args) { return workspaceModuleRuntimeController.renderScoutingWorkspace(...args); }
+function renderTransferRoomWorkspace(...args) { return workspaceModuleRuntimeController.renderTransferRoomWorkspace(...args); }
 function readTransferRoomState(...args) { return workspaceDataRuntimeService.readTransferRoomState(...args); }
 function ensureTransferRoomState(...args) { return workspaceDataRuntimeService.ensureTransferRoomState(...args); }
 function syncTransferRoomLinkedState(...args) { return workspaceDataRuntimeService.syncTransferRoomLinkedState(...args); }
@@ -2607,20 +2606,18 @@ getUniqueEvents: getUniqueScheduleEvents,
 isSessionEvent: isScheduleSessionEventFromModule,
 parseDateValue: parseScheduleDateValue,
 });
-const {
-formatBlockSummary: formatScheduleBlockSummary,
-getEventsForDate: getScheduleEventsForDate,
-getMainEvent: getScheduleMainEvent,
-getMonthEvents: getScheduleMonthEvents,
-getScheduleDayWarnings,
-getScheduledSessionTitleForDate,
-getSelectedDayContext: getScheduleSelectedDayContext,
-getSessionEventForDate: getScheduleSessionEventForDate,
-getSessionSnapshot: getScheduleSessionSnapshot,
-getVisibleEvents: getScheduleVisibleEvents,
-getVisibleMonthEvents: getScheduleVisibleMonthEvents,
-isSessionEvent: isScheduleSessionEvent,
-} = scheduleRuntimeSelectors;
+function formatScheduleBlockSummary(...args) { return scheduleRuntimeSelectors.formatBlockSummary(...args); }
+function getScheduleEventsForDate(...args) { return scheduleRuntimeSelectors.getEventsForDate(...args); }
+function getScheduleMainEvent(...args) { return scheduleRuntimeSelectors.getMainEvent(...args); }
+function getScheduleMonthEvents(...args) { return scheduleRuntimeSelectors.getMonthEvents(...args); }
+function getScheduleDayWarnings(...args) { return scheduleRuntimeSelectors.getScheduleDayWarnings(...args); }
+function getScheduledSessionTitleForDate(...args) { return scheduleRuntimeSelectors.getScheduledSessionTitleForDate(...args); }
+function getScheduleSelectedDayContext(...args) { return scheduleRuntimeSelectors.getSelectedDayContext(...args); }
+function getScheduleSessionEventForDate(...args) { return scheduleRuntimeSelectors.getSessionEventForDate(...args); }
+function getScheduleSessionSnapshot(...args) { return scheduleRuntimeSelectors.getSessionSnapshot(...args); }
+function getScheduleVisibleEvents(...args) { return scheduleRuntimeSelectors.getVisibleEvents(...args); }
+function getScheduleVisibleMonthEvents(...args) { return scheduleRuntimeSelectors.getVisibleMonthEvents(...args); }
+function isScheduleSessionEvent(...args) { return scheduleRuntimeSelectors.isSessionEvent(...args); }
 const scheduleWorkspaceController = createScheduleWorkspaceController({
 ui,
 window: win,
@@ -5216,29 +5213,7 @@ function createSessionPlannerSessionForNewPlan(dateValue = formatScheduleDateVal
 function isGeneratedDefaultSessionPlannerSession(session = {}) { return sessionPlannerSessionFactory.isGeneratedDefaultSession(session); }
 function shouldStripSessionPlannerGeneratedDefaultSession(dateValue, session = {}) { return sessionPlannerSessionFactory.shouldStripGeneratedDefaultSession(dateValue, session); }
 function shouldClearSessionPlannerSessionForDate(dateValue, session = {}) { return sessionPlannerSessionFactory.shouldClearSessionForDate(dateValue, session); }
-const {
-cloneSessionPlannerSession,
-createSessionPlannerDefaultState,
-parseSessionPlannerBlockReductionGuardTime,
-normalizeSessionPlannerBlockReductionGuard,
-canReduceSessionPlannerBlocksForDate,
-normalizeSessionPlannerBlockDeletionTombstones,
-markSessionPlannerBlockReductionAllowed,
-markSessionPlannerBlockDeleted,
-applySessionPlannerBlockReductionGuard,
-applySessionPlannerBlockDeletionTombstones,
-getSessionPlannerDeletedBlockIds,
-cloneSessionPlannerBlockMergeValue,
-isSessionPlannerBlockFieldEmptyValue,
-getSessionPlannerBlockFieldUpdatedAtMs,
-markSessionPlannerBlockFieldsUpdated,
-mergeSessionPlannerBlockForWrite,
-filterSessionPlannerDeletedBlocksForWrite,
-mergeSessionPlannerSessionForWrite,
-cloneSessionPlannerState,
-mergeSessionPlannerStateForWrite,
-mergeSessionPlannerStateFromBackup,
-} = createSessionPlannerStateMergeHelpers({
+const sessionPlannerStateMergeHelpers = createSessionPlannerStateMergeHelpers({
 blockDeletionTombstoneKey: sessionPlannerBlockDeletionTombstoneKey,
 blockFieldUpdatedAtKey: sessionPlannerBlockFieldUpdatedAtKey,
 blockMergeFields: sessionPlannerBlockMergeFields,
@@ -5254,6 +5229,27 @@ normalizeBlockFieldMeta: normalizeSessionPlannerBlockFieldMeta,
 parseTimestampMs: parseSessionPlannerTimestampMs,
 shouldClearSessionForDate: shouldClearSessionPlannerSessionForDate,
 });
+function cloneSessionPlannerSession(...args) { return sessionPlannerStateMergeHelpers.cloneSessionPlannerSession(...args); }
+function createSessionPlannerDefaultState(...args) { return sessionPlannerStateMergeHelpers.createSessionPlannerDefaultState(...args); }
+function parseSessionPlannerBlockReductionGuardTime(...args) { return sessionPlannerStateMergeHelpers.parseSessionPlannerBlockReductionGuardTime(...args); }
+function normalizeSessionPlannerBlockReductionGuard(...args) { return sessionPlannerStateMergeHelpers.normalizeSessionPlannerBlockReductionGuard(...args); }
+function canReduceSessionPlannerBlocksForDate(...args) { return sessionPlannerStateMergeHelpers.canReduceSessionPlannerBlocksForDate(...args); }
+function normalizeSessionPlannerBlockDeletionTombstones(...args) { return sessionPlannerStateMergeHelpers.normalizeSessionPlannerBlockDeletionTombstones(...args); }
+function markSessionPlannerBlockReductionAllowed(...args) { return sessionPlannerStateMergeHelpers.markSessionPlannerBlockReductionAllowed(...args); }
+function markSessionPlannerBlockDeleted(...args) { return sessionPlannerStateMergeHelpers.markSessionPlannerBlockDeleted(...args); }
+function applySessionPlannerBlockReductionGuard(...args) { return sessionPlannerStateMergeHelpers.applySessionPlannerBlockReductionGuard(...args); }
+function applySessionPlannerBlockDeletionTombstones(...args) { return sessionPlannerStateMergeHelpers.applySessionPlannerBlockDeletionTombstones(...args); }
+function getSessionPlannerDeletedBlockIds(...args) { return sessionPlannerStateMergeHelpers.getSessionPlannerDeletedBlockIds(...args); }
+function cloneSessionPlannerBlockMergeValue(...args) { return sessionPlannerStateMergeHelpers.cloneSessionPlannerBlockMergeValue(...args); }
+function isSessionPlannerBlockFieldEmptyValue(...args) { return sessionPlannerStateMergeHelpers.isSessionPlannerBlockFieldEmptyValue(...args); }
+function getSessionPlannerBlockFieldUpdatedAtMs(...args) { return sessionPlannerStateMergeHelpers.getSessionPlannerBlockFieldUpdatedAtMs(...args); }
+function markSessionPlannerBlockFieldsUpdated(...args) { return sessionPlannerStateMergeHelpers.markSessionPlannerBlockFieldsUpdated(...args); }
+function mergeSessionPlannerBlockForWrite(...args) { return sessionPlannerStateMergeHelpers.mergeSessionPlannerBlockForWrite(...args); }
+function filterSessionPlannerDeletedBlocksForWrite(...args) { return sessionPlannerStateMergeHelpers.filterSessionPlannerDeletedBlocksForWrite(...args); }
+function mergeSessionPlannerSessionForWrite(...args) { return sessionPlannerStateMergeHelpers.mergeSessionPlannerSessionForWrite(...args); }
+function cloneSessionPlannerState(...args) { return sessionPlannerStateMergeHelpers.cloneSessionPlannerState(...args); }
+function mergeSessionPlannerStateForWrite(...args) { return sessionPlannerStateMergeHelpers.mergeSessionPlannerStateForWrite(...args); }
+function mergeSessionPlannerStateFromBackup(...args) { return sessionPlannerStateMergeHelpers.mergeSessionPlannerStateFromBackup(...args); }
 const sessionPlannerRuntimeStateService = createSessionPlannerRuntimeStateService({
 canWriteCentralBackedCache,
 captureBoardHistoryFromState: () => captureSessionPlannerBoardHistoryFromState(),
@@ -5550,48 +5546,46 @@ normalizePlayerProfileRosterType,
 normalizePlayerProfileTemporaryDate,
 playerProfileRosterTypeCountsInSquad,
 });
-const {
-compareMedicalPlayers,
-getCurrentMedicalActorId,
-getMedicalCanonicalPositionFromText,
-getMedicalClearanceValues,
-getMedicalDataSafetyCounts,
-getMedicalEntityUpdatedMs,
-getMedicalGateOption,
-getMedicalLoadGateValues,
-getMedicalLinkedPlayerProfile,
-getMedicalPlayerAvailabilityStatus,
-getMedicalPlayerAvailabilityStatusOption,
-getMedicalPlayerNumberRank,
-getMedicalPlayerPositionRank,
-getMedicalPlayerRosterOrder,
-getMedicalPlayerSquadAvailabilityBlockReason,
-getMedicalRtpPhaseForRecommendation,
-getMedicalRtpPhaseOption,
-getMedicalStatusActivityType,
-getMedicalStatusForParticipation,
-getMedicalStatusOption,
-getMedicalStatusOptionForActivity,
-getMedicalStatusOptionForDate: getMedicalStatusOptionForDateFromHelper,
-getMedicalTimestampMs,
-isMedicalItemArchived,
-isMedicalPlayerBlockedBySquadAvailability,
-normalizeMedicalActualParticipation,
-normalizeMedicalClearance,
-normalizeMedicalDataSafety,
-normalizeMedicalGovernancePolicy,
-normalizeMedicalInjuryPlan,
-normalizeMedicalLoadGates,
-normalizeMedicalParticipation,
-normalizeMedicalPlayer,
-normalizeMedicalPlayerAvailabilityStatus,
-normalizeMedicalPlayerPosition,
-normalizeMedicalPositionText,
-normalizeMedicalShareValue,
-normalizeMedicalTimestamp,
-normalizeMedicalRecord,
-sanitizeMedicalGovernancePolicyForCoachView,
-} = medicalRuntimeHelpers;
+function compareMedicalPlayers(...args) { return medicalRuntimeHelpers.compareMedicalPlayers(...args); }
+function getCurrentMedicalActorId(...args) { return medicalRuntimeHelpers.getCurrentMedicalActorId(...args); }
+function getMedicalCanonicalPositionFromText(...args) { return medicalRuntimeHelpers.getMedicalCanonicalPositionFromText(...args); }
+function getMedicalClearanceValues(...args) { return medicalRuntimeHelpers.getMedicalClearanceValues(...args); }
+function getMedicalDataSafetyCounts(...args) { return medicalRuntimeHelpers.getMedicalDataSafetyCounts(...args); }
+function getMedicalEntityUpdatedMs(...args) { return medicalRuntimeHelpers.getMedicalEntityUpdatedMs(...args); }
+function getMedicalGateOption(...args) { return medicalRuntimeHelpers.getMedicalGateOption(...args); }
+function getMedicalLoadGateValues(...args) { return medicalRuntimeHelpers.getMedicalLoadGateValues(...args); }
+function getMedicalLinkedPlayerProfile(...args) { return medicalRuntimeHelpers.getMedicalLinkedPlayerProfile(...args); }
+function getMedicalPlayerAvailabilityStatus(...args) { return medicalRuntimeHelpers.getMedicalPlayerAvailabilityStatus(...args); }
+function getMedicalPlayerAvailabilityStatusOption(...args) { return medicalRuntimeHelpers.getMedicalPlayerAvailabilityStatusOption(...args); }
+function getMedicalPlayerNumberRank(...args) { return medicalRuntimeHelpers.getMedicalPlayerNumberRank(...args); }
+function getMedicalPlayerPositionRank(...args) { return medicalRuntimeHelpers.getMedicalPlayerPositionRank(...args); }
+function getMedicalPlayerRosterOrder(...args) { return medicalRuntimeHelpers.getMedicalPlayerRosterOrder(...args); }
+function getMedicalPlayerSquadAvailabilityBlockReason(...args) { return medicalRuntimeHelpers.getMedicalPlayerSquadAvailabilityBlockReason(...args); }
+function getMedicalRtpPhaseForRecommendation(...args) { return medicalRuntimeHelpers.getMedicalRtpPhaseForRecommendation(...args); }
+function getMedicalRtpPhaseOption(...args) { return medicalRuntimeHelpers.getMedicalRtpPhaseOption(...args); }
+function getMedicalStatusActivityType(...args) { return medicalRuntimeHelpers.getMedicalStatusActivityType(...args); }
+function getMedicalStatusForParticipation(...args) { return medicalRuntimeHelpers.getMedicalStatusForParticipation(...args); }
+function getMedicalStatusOption(...args) { return medicalRuntimeHelpers.getMedicalStatusOption(...args); }
+function getMedicalStatusOptionForActivity(...args) { return medicalRuntimeHelpers.getMedicalStatusOptionForActivity(...args); }
+function getMedicalStatusOptionForDateFromHelper(...args) { return medicalRuntimeHelpers.getMedicalStatusOptionForDate(...args); }
+function getMedicalTimestampMs(...args) { return medicalRuntimeHelpers.getMedicalTimestampMs(...args); }
+function isMedicalItemArchived(...args) { return medicalRuntimeHelpers.isMedicalItemArchived(...args); }
+function isMedicalPlayerBlockedBySquadAvailability(...args) { return medicalRuntimeHelpers.isMedicalPlayerBlockedBySquadAvailability(...args); }
+function normalizeMedicalActualParticipation(...args) { return medicalRuntimeHelpers.normalizeMedicalActualParticipation(...args); }
+function normalizeMedicalClearance(...args) { return medicalRuntimeHelpers.normalizeMedicalClearance(...args); }
+function normalizeMedicalDataSafety(...args) { return medicalRuntimeHelpers.normalizeMedicalDataSafety(...args); }
+function normalizeMedicalGovernancePolicy(...args) { return medicalRuntimeHelpers.normalizeMedicalGovernancePolicy(...args); }
+function normalizeMedicalInjuryPlan(...args) { return medicalRuntimeHelpers.normalizeMedicalInjuryPlan(...args); }
+function normalizeMedicalLoadGates(...args) { return medicalRuntimeHelpers.normalizeMedicalLoadGates(...args); }
+function normalizeMedicalParticipation(...args) { return medicalRuntimeHelpers.normalizeMedicalParticipation(...args); }
+function normalizeMedicalPlayer(...args) { return medicalRuntimeHelpers.normalizeMedicalPlayer(...args); }
+function normalizeMedicalPlayerAvailabilityStatus(...args) { return medicalRuntimeHelpers.normalizeMedicalPlayerAvailabilityStatus(...args); }
+function normalizeMedicalPlayerPosition(...args) { return medicalRuntimeHelpers.normalizeMedicalPlayerPosition(...args); }
+function normalizeMedicalPositionText(...args) { return medicalRuntimeHelpers.normalizeMedicalPositionText(...args); }
+function normalizeMedicalShareValue(...args) { return medicalRuntimeHelpers.normalizeMedicalShareValue(...args); }
+function normalizeMedicalTimestamp(...args) { return medicalRuntimeHelpers.normalizeMedicalTimestamp(...args); }
+function normalizeMedicalRecord(...args) { return medicalRuntimeHelpers.normalizeMedicalRecord(...args); }
+function sanitizeMedicalGovernancePolicyForCoachView(...args) { return medicalRuntimeHelpers.sanitizeMedicalGovernancePolicyForCoachView(...args); }
 let medicalRuntimeStateService = createMedicalRuntimeStateService({
 archiveMedicalPlayersRemovedFromSquad,
 canEditMedicalTeam,
@@ -6033,11 +6027,11 @@ periodizationWorkspaceController,
 refreshPeriodizationBoardMultiFields,
 refreshPeriodizationBoardDependentFields,
 refreshSessionPlannerMatchDayChip,
-renderPeriodizationWorkspace,
-renderSessionPlannerPeriodizationOverlay,
-renderSessionPlannerPeriodizationSummary,
 sessionPlannerPeriodizationBridge,
 } = periodizationRuntimeBindings;
+function renderPeriodizationWorkspace(...args) { return periodizationRuntimeBindings.renderPeriodizationWorkspace(...args); }
+function renderSessionPlannerPeriodizationOverlay(...args) { return periodizationRuntimeBindings.renderSessionPlannerPeriodizationOverlay(...args); }
+function renderSessionPlannerPeriodizationSummary(...args) { return periodizationRuntimeBindings.renderSessionPlannerPeriodizationSummary(...args); }
 const workspaceShellController = createWorkspaceShellController({
 applyUserAvatar,
 closeDashboardModal,
@@ -6101,11 +6095,9 @@ win,
 workspaceHubDefaultActiveWorkspaceId,
 writeWorkspaceHubState,
 });
-const {
-initializeWorkspaceHub,
-renderWorkspaceChrome,
-setActiveWorkspace,
-} = workspaceShellController;
+function initializeWorkspaceHub(...args) { return workspaceShellController.initializeWorkspaceHub(...args); }
+function renderWorkspaceChrome(...args) { return workspaceShellController.renderWorkspaceChrome(...args); }
+function setActiveWorkspace(...args) { return workspaceShellController.setActiveWorkspace(...args); }
 centralAppStateReloadService = createCentralAppStateReloadService({
 activeRefreshMinMs: 30000,
 defaultActiveWorkspaceId: workspaceHubDefaultActiveWorkspaceId,

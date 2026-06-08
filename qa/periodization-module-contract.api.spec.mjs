@@ -96,12 +96,14 @@ test("Periodization app integration delegates state, renderer, controller, bridg
   expect(app).not.toContain("function renderPeriodizationDayCard(");
   expect(app).not.toContain("function renderPeriodizationWeek(");
   expect(app).not.toContain("function renderPeriodizationDayViewPanel(");
-  expect(app).not.toContain("function renderPeriodizationWorkspace(");
+  expect(app).toContain("function renderPeriodizationWorkspace(...args) { return periodizationRuntimeBindings.renderPeriodizationWorkspace(...args); }");
+  expect(app).not.toContain("function renderPeriodizationWorkspace() {");
   expect(app).not.toContain("function refreshPeriodizationBoardMultiField(");
   expect(app).not.toContain("const periodizationPhaseLibrary =");
   expect(app).not.toContain("function normalizePeriodizationDay(day");
   expect(app).not.toContain("function clonePeriodizationState(");
-  expect(app).not.toContain("function mergePeriodizationStatePreservingLocalUi(");
+  expect(app).toContain("function mergePeriodizationStatePreservingLocalUi(...args) { return periodizationStateAdapter.mergePeriodizationStatePreservingLocalUi(...args); }");
+  expect(app).not.toContain("function mergePeriodizationStatePreservingLocalUi(localValue");
 });
 
 test("Periodization runtime bindings own Session Planner bridge and match-day chip wiring", () => {

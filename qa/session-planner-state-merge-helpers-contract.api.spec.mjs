@@ -76,8 +76,10 @@ test("Session Planner state merge helpers own pure merge logic outside app-runti
   const indexSource = readProjectFile("src/modules/session-planner/index.mjs");
 
   expect(appSource).toContain("createSessionPlannerStateMergeHelpers({");
-  expect(appSource).not.toContain("function mergeSessionPlannerBlockForWrite(");
-  expect(appSource).not.toContain("function cloneSessionPlannerState(");
+  expect(appSource).toContain("function mergeSessionPlannerBlockForWrite(...args) { return sessionPlannerStateMergeHelpers.mergeSessionPlannerBlockForWrite(...args); }");
+  expect(appSource).toContain("function cloneSessionPlannerState(...args) { return sessionPlannerStateMergeHelpers.cloneSessionPlannerState(...args); }");
+  expect(appSource).not.toContain("function mergeSessionPlannerBlockForWrite(existingBlock");
+  expect(appSource).not.toContain("function cloneSessionPlannerState(source");
   expect(appSource).toContain("createSessionPlannerRuntimeStateService({");
   expect(appSource).not.toContain("function readSessionPlannerState()");
   expect(appSource).not.toContain("function writeSessionPlannerState()");

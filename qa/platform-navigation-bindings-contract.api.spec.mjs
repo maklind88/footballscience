@@ -34,13 +34,16 @@ test("platform navigation bindings preserve shell navigation behavior", () => {
   const ui = {
     sidebarToggle: new FakeElement(),
     topIconMenu: new FakeElement(),
+    profileMenu: new FakeElement(),
     workspaceList: new FakeElement(),
     workspaceQuickSwitch: new FakeElement("schedule"),
     workspaceTitle: new FakeElement(),
   };
+  const documentRef = new FakeElement();
   const win = new FakeElement();
   const trigger = new FakeElement("medical-team");
   bindPlatformNavigationInteractions({
+    documentRef,
     getHubState: () => hubState,
     platformNavigationController: {
       hideTopIconTooltip: () => calls.push("hide"),
@@ -63,8 +66,14 @@ test("platform navigation bindings preserve shell navigation behavior", () => {
   expect(calls).toContain("set:schedule");
 
   ui.workspaceList.listeners.get("click")({ target: trigger });
+  ui.profileMenu.listeners.get("click")({ target: new FakeElement("my-profile") });
+  documentRef.listeners.get("click")({ target: new FakeElement("home") });
+  win.listeners.get("platform:open-workspace")({ detail: { workspaceId: "player-profiles" } });
   ui.topIconMenu.listeners.get("mouseover")({ target: trigger });
   expect(calls).toContain("set:medical-team");
+  expect(calls).toContain("set:my-profile");
+  expect(calls).toContain("set:home");
+  expect(calls).toContain("set:player-profiles");
   expect(calls).toContain("preload:medical-team");
   expect(calls).toContain("show:medical-team");
 

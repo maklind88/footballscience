@@ -1,5 +1,6 @@
 export function bindPlatformNavigationInteractions(deps = {}) {
   const {
+    documentRef = globalThis.document,
     getHubState = () => null,
     platformNavigationController = {},
     preloadWorkspaceFromTrigger = () => {},
@@ -15,9 +16,17 @@ export function bindPlatformNavigationInteractions(deps = {}) {
   }
 
   function handleOpenWorkspace(event) {
+    if (event?.__footballScienceWorkspaceHandled) return;
     const trigger = getWorkspaceTrigger(event);
     if (!trigger) return;
+    event.__footballScienceWorkspaceHandled = true;
     setActiveWorkspace(trigger.dataset.openWorkspace);
+  }
+
+  function handleOpenWorkspaceEvent(event) {
+    const workspaceId = String(event?.detail?.workspaceId || event?.detail?.id || "").trim();
+    if (!workspaceId) return;
+    setActiveWorkspace(workspaceId);
   }
 
   function handleWorkspaceHover(event) {
@@ -45,7 +54,9 @@ export function bindPlatformNavigationInteractions(deps = {}) {
     setActiveWorkspace(ui.workspaceQuickSwitch.value);
   });
 
-  [ui.workspaceList, ui.topIconMenu].forEach((menu) => {
+  documentRef?.addEventListener?.("click", handleOpenWorkspace);
+
+  [ui.workspaceList, ui.topIconMenu, ui.profileMenu].forEach((menu) => {
     menu?.addEventListener("click", handleOpenWorkspace);
     menu?.addEventListener("mouseover", handleWorkspaceHover);
     menu?.addEventListener("mouseout", handleWorkspaceLeave);
@@ -55,6 +66,7 @@ export function bindPlatformNavigationInteractions(deps = {}) {
 
   win.addEventListener?.("scroll", platformNavigationController.hideTopIconTooltip, { passive: true });
   win.addEventListener?.("resize", platformNavigationController.hideTopIconTooltip);
+  win.addEventListener?.("platform:open-workspace", handleOpenWorkspaceEvent);
 
   ui.workspaceTitle?.addEventListener("click", () => {
     if (!getHubState()) return;

@@ -279,7 +279,7 @@ export function createMedicalRuntimeFacade(deps = {}) {
     getMedicalRosterPositionStats, getMedicalScheduleSummary, getMedicalSeasonPlans, getMedicalSeasonSummary,
     getMedicalTrailingRecommendationSummary, getMedicalValidBulkSelection, getMedicalVisibleComment,
     getMedicalWindowAverage, getMedicalWindowDates, isMedicalInjuryPlanActive, isMedicalPlanCleared,
-    isMedicalPlayerVisibleForDate, isMedicalRestrictedRecommendationRecord, normalizeMedicalInjuryPlanDraft,
+    getSelectedMedicalPlayer, isMedicalPlayerVisibleForDate, isMedicalRestrictedRecommendationRecord, normalizeMedicalInjuryPlanDraft,
     openMedicalPlayerModal, persistMedicalInjuryPlanDraftFromForm, recordMedicalAuditEvent,
     recordMedicalDatabaseSyncEvent, removeMedicalInjuryPlan, removeMedicalPlayer, removeMedicalRecord,
     renderMedicalOperationsSystem, renderMedicalOperationsTopMenu, renderMedicalTeamWorkspace,

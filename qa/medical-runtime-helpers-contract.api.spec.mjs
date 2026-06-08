@@ -76,11 +76,16 @@ test("Medical runtime helpers own pure helper wiring outside app-runtime", () =>
 
   expect(typeof createMedicalRuntimeHelpers).toBe("function");
   expect(app).toContain("createMedicalRuntimeHelpers({");
-  expect(app).not.toContain("function normalizeMedicalPlayer(");
-  expect(app).not.toContain("function normalizeMedicalRecord(");
-  expect(app).not.toContain("function normalizeMedicalInjuryPlan(");
-  expect(app).not.toContain("function getMedicalPlayerAvailabilityStatus(");
-  expect(app).not.toContain("function compareMedicalPlayers(");
+  expect(app).toContain("function normalizeMedicalPlayer(...args) { return medicalRuntimeHelpers.normalizeMedicalPlayer(...args); }");
+  expect(app).toContain("function normalizeMedicalRecord(...args) { return medicalRuntimeHelpers.normalizeMedicalRecord(...args); }");
+  expect(app).toContain("function normalizeMedicalInjuryPlan(...args) { return medicalRuntimeHelpers.normalizeMedicalInjuryPlan(...args); }");
+  expect(app).toContain("function getMedicalPlayerAvailabilityStatus(...args) { return medicalRuntimeHelpers.getMedicalPlayerAvailabilityStatus(...args); }");
+  expect(app).toContain("function compareMedicalPlayers(...args) { return medicalRuntimeHelpers.compareMedicalPlayers(...args); }");
+  expect(app).not.toContain("function normalizeMedicalPlayer(player");
+  expect(app).not.toContain("function normalizeMedicalRecord(record");
+  expect(app).not.toContain("function normalizeMedicalInjuryPlan(plan");
+  expect(app).not.toContain("function getMedicalPlayerAvailabilityStatus(player");
+  expect(app).not.toContain("function compareMedicalPlayers(first, second)");
   expect(app).toContain("function commitMedicalClinicalState(");
   expect(app).toContain("function updateMedicalDatabaseSyncStatus(");
   expect(helpers).toContain("createMedicalClinicalNormalizers({");

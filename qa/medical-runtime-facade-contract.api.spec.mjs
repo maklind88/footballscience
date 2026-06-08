@@ -173,6 +173,7 @@ test("Medical runtime facade is the app-runtime boundary for Medical runtime ser
   expect(app).toContain("createMedicalRuntimeFacade({");
   expect(app).toContain("function addMedicalRecord(...args)");
   expect(app).toContain("function renderMedicalTeamWorkspace(...args)");
+  expect(app).toContain("function getSelectedMedicalPlayer(...args)");
   expect(app).not.toContain("createMedicalRuntimeActivitySelectors({");
   expect(app).not.toContain("createMedicalRuntimeOperationsService({");
   expect(app).not.toContain("createMedicalRuntimeWriteService({");
@@ -187,6 +188,7 @@ test("Medical runtime facade preserves render, selector, and write-service behav
   const harness = createHarness();
 
   expect(harness.facade.getActiveMedicalPlayers().map((player) => player.id)).toEqual(["p1"]);
+  expect(harness.facade.getSelectedMedicalPlayer()).toMatchObject({ id: "p1", name: "Alex Morgan" });
   harness.facade.renderMedicalTeamWorkspace("Saved");
   expect(harness.workspace.innerHTML).toContain("North Carolina Courage");
   expect(harness.workspace.innerHTML).toContain("availability:Saved");

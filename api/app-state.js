@@ -1300,6 +1300,67 @@ const PLAYER_PROFILE_EXPLICIT_CHANGE_FIELDS = new Set([
   "idp.nextAction",
   "idp.reviewDate",
 ]);
+const PLAYER_PROFILE_CHANGE_VALUE_ALIASES = Object.freeze({
+  status: {
+    available: "available",
+    "managed load": "managed",
+    managed: "managed",
+    injured: "injured",
+    rehab: "rehab",
+    unavailable: "unavailable",
+    "international duty": "national-team",
+    "national team": "national-team",
+    "national-team": "national-team",
+    vacation: "vacation",
+    "personal leave": "personal",
+    personal: "personal",
+    suspended: "suspended",
+    "loan / external": "loan",
+    loan: "loan",
+  },
+  squadStatus: {
+    important: "important",
+    rotation: "rotation",
+    "squad depth": "depth",
+    depth: "depth",
+    development: "development",
+    "loan watch": "loan",
+    loan: "loan",
+  },
+  careerPhase: {
+    developing: "developing",
+    emerging: "emerging",
+    peak: "peak",
+    experienced: "experienced",
+  },
+  roleGroup: {
+    goalkeeper: "goalkeeper",
+    defender: "defender",
+    midfielder: "midfielder",
+    forward: "forward",
+  },
+  rosterType: {
+    "squad player": "squad",
+    squad: "squad",
+    "academy training": "academy",
+    academy: "academy",
+    trialist: "trialist",
+    trial: "trialist",
+    "guest player": "guest",
+    guest: "guest",
+    "loan / external": "loan",
+    loan: "loan",
+  },
+  "idp.status": {
+    "active idp": "active",
+    active: "active",
+    "review due": "review",
+    review: "review",
+    monitor: "monitor",
+    "no idp": "none",
+    none: "none",
+  },
+});
 
 function getNestedPlayerProfileValue(source = {}, path = "") {
   return path.split(".").reduce((value, key) => (value && typeof value === "object" ? value[key] : undefined), source);
@@ -1330,6 +1391,37 @@ function hasPlayerProfileValue(value) {
     return Object.keys(value).length > 0;
   }
   return String(value ?? "").trim() !== "";
+}
+
+function normalizePlayerProfileChangeValueForPath(path = "", value) {
+  if (path === "secondaryRoles") {
+    return Array.isArray(value)
+      ? value.map((entry) => String(entry || "").trim()).filter(Boolean)
+      : String(value ?? "").split(/[\/,]/).map((entry) => entry.trim()).filter(Boolean);
+  }
+  if (path === "countsInSquad") {
+    const cleanValue = String(value ?? "").trim().toLowerCase();
+    if (["true", "yes", "1", "squad", "squad player"].includes(cleanValue)) {
+      return true;
+    }
+    if (["false", "no", "0", "temporary", "academy", "trialist", "guest", "loan"].includes(cleanValue)) {
+      return false;
+    }
+    return undefined;
+  }
+
+  const cleanValue = String(value ?? "").trim();
+  if (!cleanValue || cleanValue === "-") {
+    return "";
+  }
+
+  const aliases = PLAYER_PROFILE_CHANGE_VALUE_ALIASES[path];
+  if (!aliases) {
+    return cleanValue;
+  }
+
+  const aliasKey = cleanValue.toLowerCase();
+  return Object.prototype.hasOwnProperty.call(aliases, aliasKey) ? aliases[aliasKey] : undefined;
 }
 
 function hasNestedPlayerProfilePath(source = {}, path = "") {
@@ -1499,9 +1591,72 @@ function createPlayerProfileFieldChangeIndex(changeLog = []) {
   return index;
 }
 
+function createPlayerProfileFieldChangeValueIndex(changeLog = []) {
+  const index = new Map();
+  normalizePlayerProfileChangeLog(changeLog).forEach((entry) => {
+    const playerKey = entry.playerId
+      ? `id:${entry.playerId}`
+      : entry.playerName
+        ? `name:${String(entry.playerName).trim().toLowerCase()}`
+        : "";
+    if (!playerKey) {
+      return;
+    }
+
+    const entryTimestamp = getPlayerProfileChangeLogTimestamp(entry);
+    (Array.isArray(entry.changes) ? entry.changes : []).forEach((change) => {
+      const path = getPlayerProfileChangeFieldPath(change);
+      if (!path || !PLAYER_PROFILE_EXPLICIT_CHANGE_FIELDS.has(path)) {
+        return;
+      }
+
+      const value = normalizePlayerProfileChangeValueForPath(path, change?.to);
+      if (typeof value === "undefined") {
+        return;
+      }
+
+      const fieldKey = `${playerKey}:${path}`;
+      const currentEntry = index.get(fieldKey);
+      if (!currentEntry || entryTimestamp >= currentEntry.timestamp) {
+        index.set(fieldKey, { timestamp: entryTimestamp, value });
+      }
+    });
+  });
+  return index;
+}
+
 function getPlayerProfileFieldChangeTime(index, player = {}, path = "") {
   const mergeKey = getPlayerProfileMergeKey(player);
   return mergeKey ? index.get(`${mergeKey}:${path}`) || 0 : 0;
+}
+
+function restorePlayerProfileExplicitFieldsFromChangeLog(state = {}, player = {}) {
+  const changeValueIndex = createPlayerProfileFieldChangeValueIndex(state.changeLog);
+  const mergeKey = getPlayerProfileMergeKey(player);
+  if (!mergeKey) {
+    return player;
+  }
+
+  const restoredPlayer = { ...player };
+  PLAYER_PROFILE_EXPLICIT_CHANGE_FIELDS.forEach((path) => {
+    const entry = changeValueIndex.get(`${mergeKey}:${path}`);
+    if (!entry) {
+      return;
+    }
+    setNestedPlayerProfileValue(restoredPlayer, path, entry.value);
+  });
+  return restoredPlayer;
+}
+
+function restorePlayerProfilesStateExplicitFieldsFromChangeLog(state = {}) {
+  if (!state || typeof state !== "object" || !Array.isArray(state.players)) {
+    return state;
+  }
+
+  return {
+    ...state,
+    players: state.players.map((player) => restorePlayerProfileExplicitFieldsFromChangeLog(state, player)),
+  };
 }
 
 function getIncomingPlayerProfileChangedPaths(existingState = {}, incomingState = {}, incomingPlayer = {}) {
@@ -1573,7 +1728,8 @@ function mergeStalePlayerProfile(existingState = {}, incomingState = {}, existin
 }
 
 async function protectPlayerProfilesStateValue(rawValue, context = {}) {
-  const incomingState = parsePlayerProfilesStateValue(rawValue);
+  const parsedIncomingState = parsePlayerProfilesStateValue(rawValue);
+  const incomingState = restorePlayerProfilesStateExplicitFieldsFromChangeLog(parsedIncomingState);
   if (!incomingState || !Array.isArray(incomingState.players)) {
     return { ok: false, reason: "Squad player data is invalid and was not saved." };
   }
@@ -1586,7 +1742,7 @@ async function protectPlayerProfilesStateValue(rawValue, context = {}) {
     removedPlayerIds: incomingRemovedPlayerIds,
   };
   const existingEntry = context.previousEntry || await readStateObject(PLAYER_PROFILES_KEY);
-  const existingState = parsePlayerProfilesStateValue(existingEntry?.value);
+  const existingState = restorePlayerProfilesStateExplicitFieldsFromChangeLog(parsePlayerProfilesStateValue(existingEntry?.value));
   if (!existingState || !Array.isArray(existingState.players)) {
     const normalizedValue = JSON.stringify(incomingStateWithRemovals);
     return { ok: true, value: normalizedValue, merged: normalizedValue !== rawValue };

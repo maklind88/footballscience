@@ -92,6 +92,18 @@ test("Squad player profile helpers own normalization, validation, and display co
   ]);
   expect(helpers.normalizePlayerProfileChangeLog([{ id: "1" }, { id: "2" }, { id: "3" }])).toHaveLength(2);
   expect([normalized, { ...normalized, id: "gk", name: "Goalkeeper", primaryRole: "GK", roleGroup: "goalkeeper" }].sort(helpers.comparePlayerProfiles)[0].id).toBe("gk");
+  expect(
+    [
+      { id: "st", name: "Forward", primaryRole: "ST", roleGroup: "forward" },
+      { id: "cb", name: "Centre Back", primaryRole: "CB", roleGroup: "defender" },
+      { id: "rb", name: "Right Back", primaryRole: "RB", roleGroup: "defender" },
+      { id: "cm", name: "Central Midfielder", primaryRole: "8", roleGroup: "midfielder" },
+      { id: "rw", name: "Wide Midfielder", primaryRole: "RW", roleGroup: "forward" },
+      { id: "gk", name: "Goalkeeper", primaryRole: "GK", roleGroup: "goalkeeper" },
+    ]
+      .sort(helpers.comparePlayerProfiles)
+      .map((player) => player.id)
+  ).toEqual(["gk", "rb", "cb", "cm", "rw", "st"]);
 });
 
 test("Squad player profile helpers are extracted from app.js and tracked by module contracts", () => {

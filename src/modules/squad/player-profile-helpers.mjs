@@ -400,23 +400,42 @@ export function createPlayerProfileHelpers(options = {}) {
   }
 
   function getPlayerProfileSquadSortGroup(player = {}) {
-    const group = String(player.roleGroup || "").trim().toLowerCase();
-    if (group === "goalkeeper") return 0;
-    if (group === "defender") return 1;
-    if (group === "midfielder") return 2;
-    if (group === "forward") return 3;
+    const role = normalizePlayerProfileRole(player.primaryRole, "");
+    if (role === "GK") return 0;
+    if (["LB", "RB", "LWB", "RWB"].includes(role)) return 1;
+    if (role === "CB") return 2;
+    if (["6", "8", "10"].includes(role)) return 3;
+    if (["LW", "RW"].includes(role)) return 4;
+    if (role === "ST") return 5;
+
     const position = String(player.position || "").trim().toLowerCase();
     if (position.includes("goal")) return 0;
-    if (position.includes("def") || position.includes("back")) return 1;
-    if (position.includes("mid")) return 2;
-    if (position.includes("for") || position.includes("wing") || position.includes("strik")) return 3;
+    if (position.includes("fullback") || position.includes("full back") || position.includes("wingback") || position.includes("wing back")) return 1;
+    if (position.includes("centre back") || position.includes("center back") || position.includes("central defender")) return 2;
+    if (position.includes("def") || position.includes("back")) return 2;
+    if (position.includes("wing") || position.includes("wide")) return 4;
+    if (position.includes("mid")) return 3;
+    if (position.includes("for") || position.includes("strik")) return 5;
     return 9;
   }
 
   function getPlayerProfileRoleSortIndex(player = {}) {
     const role = normalizePlayerProfileRole(player.primaryRole, "");
-    const index = playerProfileRoleOptions.indexOf(role);
-    return index >= 0 ? index : playerProfileRoleOptions.length;
+    const sortOrder = {
+      GK: 0,
+      LB: 10,
+      RB: 11,
+      LWB: 12,
+      RWB: 13,
+      CB: 20,
+      6: 30,
+      8: 31,
+      10: 32,
+      LW: 40,
+      RW: 41,
+      ST: 50,
+    };
+    return sortOrder[role] ?? playerProfileRoleOptions.length * 10;
   }
 
   function comparePlayerProfiles(first, second) {

@@ -14,6 +14,39 @@ const STATE_PREFIX = "global";
 const BACKUP_PREFIX = "backups/app-state";
 const LATEST_BACKUP_PATH = `${BACKUP_PREFIX}/latest.json`;
 const CENTRAL_STATE_KEYS = new Set(dataSafetyRegistry.keys());
+const PLAYER_PROFILES_KEY = "football-player-profiles-v1";
+const PLAYER_PROFILE_AUDIT_FIELDS = new Map([
+  ["Availability status", "status"],
+  ["Squad status", "squadStatus"],
+]);
+const PLAYER_PROFILE_AUDIT_VALUE_ALIASES = Object.freeze({
+  status: {
+    available: "available",
+    "managed load": "managed",
+    managed: "managed",
+    injured: "injured",
+    rehab: "rehab",
+    unavailable: "unavailable",
+    "international duty": "national-team",
+    "national team": "national-team",
+    "national-team": "national-team",
+    vacation: "vacation",
+    "personal leave": "personal",
+    personal: "personal",
+    suspended: "suspended",
+    "loan / external": "loan",
+    loan: "loan",
+  },
+  squadStatus: {
+    important: "important",
+    rotation: "rotation",
+    "squad depth": "depth",
+    depth: "depth",
+    development: "development",
+    "loan watch": "loan",
+    loan: "loan",
+  },
+});
 
 function getStorageBaseUrl() {
   const { url, serviceRoleKey } = readConfig();
@@ -433,6 +466,251 @@ function createRestoreDrillSummary(backup, statusSummary) {
   };
 }
 
+function parseStateValue(entry) {
+  if (!entry?.value) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(String(entry.value || "{}"));
+  } catch {
+    return null;
+  }
+}
+
+function parseBackupEntryValue(backup, key) {
+  const entries = backup?.entries && typeof backup.entries === "object" && !Array.isArray(backup.entries) ? backup.entries : {};
+  if (!Object.prototype.hasOwnProperty.call(entries, key)) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(String(entries[key] || "{}"));
+  } catch {
+    return null;
+  }
+}
+
+function getPlayerProfileAuditMergeKey(player = {}) {
+  const id = String(player?.id || "").trim();
+  if (id) {
+    return `id:${id}`;
+  }
+
+  const name = String(player?.name || "").trim().toLowerCase();
+  return name ? `name:${name}` : "";
+}
+
+function normalizePlayerProfileAuditValue(path = "", value) {
+  const cleanValue = String(value ?? "").trim();
+  if (!cleanValue || cleanValue === "-") {
+    return "";
+  }
+
+  const aliases = PLAYER_PROFILE_AUDIT_VALUE_ALIASES[path];
+  const aliasKey = cleanValue.toLowerCase();
+  return aliases && Object.prototype.hasOwnProperty.call(aliases, aliasKey) ? aliases[aliasKey] : undefined;
+}
+
+function getChangeLogTimestamp(entry = {}) {
+  const timestamp = Date.parse(String(entry?.createdAt || entry?.updatedAt || ""));
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function createPlayerProfileAuditChangeIndex(state = {}) {
+  const index = new Map();
+  const changeLog = Array.isArray(state?.changeLog) ? state.changeLog : [];
+
+  changeLog.forEach((entry) => {
+    const mergeKey = entry?.playerId
+      ? `id:${entry.playerId}`
+      : entry?.playerName
+        ? `name:${String(entry.playerName).trim().toLowerCase()}`
+        : "";
+    if (!mergeKey) {
+      return;
+    }
+
+    const timestamp = getChangeLogTimestamp(entry);
+    (Array.isArray(entry?.changes) ? entry.changes : []).forEach((change) => {
+      const path = PLAYER_PROFILE_AUDIT_FIELDS.get(String(change?.field || "").trim());
+      if (!path) {
+        return;
+      }
+
+      const value = normalizePlayerProfileAuditValue(path, change?.to);
+      if (typeof value === "undefined") {
+        return;
+      }
+
+      const key = `${mergeKey}:${path}`;
+      const current = index.get(key);
+      if (!current || timestamp >= current.timestamp) {
+        index.set(key, { timestamp, value });
+      }
+    });
+  });
+
+  return index;
+}
+
+function summarizePlayerProfileAuditState(state = {}) {
+  const players = Array.isArray(state?.players) ? state.players : [];
+  const changeLog = Array.isArray(state?.changeLog) ? state.changeLog : [];
+  const changeIndex = createPlayerProfileAuditChangeIndex(state);
+  const driftPlayers = new Set();
+  const summary = {
+    present: Boolean(state && typeof state === "object" && !Array.isArray(state)),
+    playerCount: players.length,
+    changeLogCount: changeLog.length,
+    explicitStatusChangeCount: 0,
+    explicitSquadStatusChangeCount: 0,
+    statusSelfHealCandidateCount: 0,
+    squadStatusSelfHealCandidateCount: 0,
+    playersWithSelfHealCandidates: 0,
+  };
+
+  players.forEach((player) => {
+    const mergeKey = getPlayerProfileAuditMergeKey(player);
+    if (!mergeKey) {
+      return;
+    }
+
+    ["status", "squadStatus"].forEach((path) => {
+      const entry = changeIndex.get(`${mergeKey}:${path}`);
+      if (!entry) {
+        return;
+      }
+
+      if (path === "status") {
+        summary.explicitStatusChangeCount += 1;
+      } else {
+        summary.explicitSquadStatusChangeCount += 1;
+      }
+
+      if (String(player?.[path] ?? "") !== String(entry.value)) {
+        driftPlayers.add(mergeKey);
+        if (path === "status") {
+          summary.statusSelfHealCandidateCount += 1;
+        } else {
+          summary.squadStatusSelfHealCandidateCount += 1;
+        }
+      }
+    });
+  });
+
+  summary.playersWithSelfHealCandidates = driftPlayers.size;
+  return summary;
+}
+
+function comparePlayerProfileAuditStates(currentState = {}, backupState = {}) {
+  const currentPlayers = new Map(
+    (Array.isArray(currentState?.players) ? currentState.players : [])
+      .map((player) => [getPlayerProfileAuditMergeKey(player), player])
+      .filter(([key]) => Boolean(key))
+  );
+  const comparison = {
+    comparablePlayers: 0,
+    statusDifferenceCount: 0,
+    squadStatusDifferenceCount: 0,
+  };
+
+  (Array.isArray(backupState?.players) ? backupState.players : []).forEach((backupPlayer) => {
+    const currentPlayer = currentPlayers.get(getPlayerProfileAuditMergeKey(backupPlayer));
+    if (!currentPlayer) {
+      return;
+    }
+
+    comparison.comparablePlayers += 1;
+    if (String(currentPlayer.status ?? "") !== String(backupPlayer.status ?? "")) {
+      comparison.statusDifferenceCount += 1;
+    }
+    if (String(currentPlayer.squadStatus ?? "") !== String(backupPlayer.squadStatus ?? "")) {
+      comparison.squadStatusDifferenceCount += 1;
+    }
+  });
+
+  return comparison;
+}
+
+async function createSquadStatusAuditSummary() {
+  const currentEntry = await readStateObject(PLAYER_PROFILES_KEY);
+  const currentState = parseStateValue(currentEntry);
+  const currentSummary = {
+    key: PLAYER_PROFILES_KEY,
+    present: Boolean(currentEntry?.key && currentState),
+    revision: Number.isInteger(Number(currentEntry?.revision)) ? Number(currentEntry.revision) : 0,
+    updatedAt: String(currentEntry?.updatedAt || ""),
+    moduleId: String(currentEntry?.moduleId || dataSafetyRegistry.getByKey(PLAYER_PROFILES_KEY)?.moduleId || ""),
+    valueSha256: currentEntry?.value ? hashText(currentEntry.value) : "",
+    ...summarizePlayerProfileAuditState(currentState || {}),
+  };
+
+  const pointerResult = await readBackupObject(LATEST_BACKUP_PATH);
+  if (!pointerResult.ok) {
+    return {
+      current: currentSummary,
+      latestBackup: {
+        present: false,
+        hasPlayerProfilesEntry: false,
+      },
+      backupComparison: {
+        comparablePlayers: 0,
+        statusDifferenceCount: 0,
+        squadStatusDifferenceCount: 0,
+      },
+      codeReleaseLikelyEnough:
+        currentSummary.present &&
+        currentSummary.playersWithSelfHealCandidates === 0 &&
+        currentSummary.explicitStatusChangeCount + currentSummary.explicitSquadStatusChangeCount > 0,
+      dataRepairLikelyRequired: currentSummary.playersWithSelfHealCandidates > 0,
+      reason: pointerResult.reason || "Latest app-state backup pointer is not available.",
+    };
+  }
+
+  const pointer = pointerResult.payload || {};
+  let backupSummary = {
+    present: false,
+    hasPlayerProfilesEntry: false,
+    path: "",
+    createdAt: String(pointer.createdAt || ""),
+    entryCount: Number.isInteger(Number(pointer.entryCount)) ? Number(pointer.entryCount) : 0,
+  };
+  let backupComparison = {
+    comparablePlayers: 0,
+    statusDifferenceCount: 0,
+    squadStatusDifferenceCount: 0,
+  };
+
+  if (isSafeBackupPath(pointer.path)) {
+    const backupResult = await readBackupObject(pointer.path);
+    if (backupResult.ok) {
+      const backup = backupResult.payload || {};
+      const backupState = parseBackupEntryValue(backup, PLAYER_PROFILES_KEY);
+      backupSummary = {
+        ...backupSummary,
+        present: true,
+        hasPlayerProfilesEntry: Boolean(backupState),
+        path: String(pointer.path || ""),
+        backupMatchesPointer: summarizeBackupStatus(pointer, backup).backupMatchesPointer,
+        ...summarizePlayerProfileAuditState(backupState || {}),
+      };
+      backupComparison = comparePlayerProfileAuditStates(currentState || {}, backupState || {});
+    }
+  }
+
+  const explicitChangeCount = currentSummary.explicitStatusChangeCount + currentSummary.explicitSquadStatusChangeCount;
+  const driftCount = currentSummary.statusSelfHealCandidateCount + currentSummary.squadStatusSelfHealCandidateCount;
+
+  return {
+    current: currentSummary,
+    latestBackup: backupSummary,
+    backupComparison,
+    codeReleaseLikelyEnough: currentSummary.present && explicitChangeCount > 0 && driftCount === 0,
+    dataRepairLikelyRequired: currentSummary.present && driftCount > 0,
+  };
+}
+
 function getAuthorizationHeader(req) {
   return req.headers?.authorization || req.headers?.Authorization || "";
 }
@@ -470,6 +748,15 @@ function isRestoreDrillRequest(req) {
   try {
     const url = new URL(req.url || "", "https://footballscience.local");
     return url.searchParams.get("mode") === "restore-drill";
+  } catch {
+    return false;
+  }
+}
+
+function isSquadStatusAuditRequest(req) {
+  try {
+    const url = new URL(req.url || "", "https://footballscience.local");
+    return url.searchParams.get("mode") === "squad-status-audit";
   } catch {
     return false;
   }
@@ -557,6 +844,18 @@ async function sendBackupRestoreDrill(res) {
   });
 }
 
+async function sendSquadStatusAudit(res) {
+  const summary = await createSquadStatusAuditSummary();
+  return sendJson(res, 200, {
+    ok: true,
+    schema: "footballscience-squad-status-audit-v1",
+    generatedAt: new Date().toISOString(),
+    dryRun: true,
+    writes: false,
+    ...summary,
+  });
+}
+
 module.exports = async (req, res) => {
   sendCorsHeaders(res);
 
@@ -568,7 +867,8 @@ module.exports = async (req, res) => {
 
   const backupStatusRequest = isBackupStatusRequest(req);
   const restoreDrillRequest = isRestoreDrillRequest(req);
-  const readonlyMetadataRequest = backupStatusRequest || restoreDrillRequest;
+  const squadStatusAuditRequest = isSquadStatusAuditRequest(req);
+  const readonlyMetadataRequest = backupStatusRequest || restoreDrillRequest || squadStatusAuditRequest;
   if ((readonlyMetadataRequest && req.method !== "GET") || (!readonlyMetadataRequest && req.method !== "GET" && req.method !== "POST")) {
     return sendJson(res, 405, { ok: false, reason: "Method not allowed." });
   }
@@ -595,6 +895,10 @@ module.exports = async (req, res) => {
 
     if (restoreDrillRequest) {
       return sendBackupRestoreDrill(res);
+    }
+
+    if (squadStatusAuditRequest) {
+      return sendSquadStatusAudit(res);
     }
 
     const bucket = await ensureStateBucket();

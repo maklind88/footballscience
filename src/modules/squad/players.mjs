@@ -22,6 +22,20 @@ export const squadRosterTypeKeys = Object.freeze(["squad", "academy", "trial", "
 const defaultPageLimit = 50;
 const maxPageLimit = 200;
 const squadRoleSortOrder = Object.freeze(Object.fromEntries(squadRoleOptions.map((role, index) => [role, index])));
+const squadPositionSortOrder = Object.freeze({
+  GK: 0,
+  LB: 10,
+  RB: 11,
+  LWB: 12,
+  RWB: 13,
+  CB: 20,
+  6: 30,
+  8: 31,
+  10: 32,
+  LW: 40,
+  RW: 41,
+  ST: 50,
+});
 const squadRoleGroupSortOrder = Object.freeze({
   goalkeeper: 0,
   defender: 1,
@@ -300,11 +314,30 @@ export function compareSquadPlayers(first, second) {
 }
 
 function getSquadPlayerSortGroup(player = {}) {
+  const role = normalizeSquadRole(player.primaryRole, "");
+  if (role === "GK") {
+    return 0;
+  }
+  if (["LB", "RB", "LWB", "RWB"].includes(role)) {
+    return 1;
+  }
+  if (role === "CB") {
+    return 2;
+  }
+  if (["6", "8", "10"].includes(role)) {
+    return 3;
+  }
+  if (["LW", "RW"].includes(role)) {
+    return 4;
+  }
+  if (role === "ST") {
+    return 5;
+  }
   return squadRoleGroupSortOrder[player.roleGroup] ?? 9;
 }
 
 function getSquadPlayerRoleSortIndex(player = {}) {
-  return squadRoleSortOrder[player.primaryRole] ?? squadRoleOptions.length;
+  return squadPositionSortOrder[player.primaryRole] ?? squadRoleSortOrder[player.primaryRole] ?? squadRoleOptions.length * 10;
 }
 
 export function normalizeSquadState(rawValue, options = {}) {

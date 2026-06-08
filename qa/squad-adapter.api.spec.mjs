@@ -65,6 +65,24 @@ test("Squad adapter normalizes legacy player profile state for the new module bo
   });
 });
 
+test("Squad adapter sorts roster pages by football position before roster numbers", () => {
+  const state = normalizeSquadState(
+    {
+      players: [
+        { id: "st", name: "Forward", number: "1", position: "Forward", primaryRole: "ST", rosterOrder: 1 },
+        { id: "cb", name: "Centre Back", number: "2", position: "Centre Back", primaryRole: "CB", rosterOrder: 2 },
+        { id: "rb", name: "Right Back", number: "99", position: "Right Back", primaryRole: "RB", rosterOrder: 99 },
+        { id: "cm", name: "Central Midfielder", number: "4", position: "Midfielder", primaryRole: "8", rosterOrder: 4 },
+        { id: "rw", name: "Wide Midfielder", number: "3", position: "Right Wing", primaryRole: "RW", rosterOrder: 3 },
+        { id: "gk", name: "Goalkeeper", number: "10", position: "Goalkeeper", primaryRole: "GK", rosterOrder: 10 },
+      ],
+    },
+    { now, idFactory }
+  );
+
+  expect(state.players.map((player) => player.id)).toEqual(["gk", "rb", "cb", "cm", "rw", "st"]);
+});
+
 test("Squad selectors support filtering, counts, and cursor-friendly pages", () => {
   const state = normalizeSquadState(
     {

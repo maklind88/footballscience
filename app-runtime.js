@@ -87,6 +87,7 @@ import {
   createSquadImportPlanner,
   createPlayerProfileHelpers,
   createPlayerProfileIntelligenceHelpers,
+  bindPlayerProfileRuntimeBindings,
   createPlayerProfileRuntimeImportService,
   createPlayerProfileRuntimeMedicalSyncService,
   createPlayerProfileRuntimeStateService,
@@ -9961,242 +9962,54 @@ idempotencyKey: `player-profile-saved:${profileValues.playerId}:${player?.update
 renderMedicalTeamWorkspace(saved ? "Player profile saved." : "Player profile could not be saved.");
 }
 });
-ui.playerProfilesWorkspace?.addEventListener("click", (event) => {
-if (event.target.matches("[data-player-profile-modal-overlay]") || event.target.closest("[data-player-profile-modal-close]")) {
-closePlayerProfileModal();
-return;
-}
-if (
-event.target.matches("[data-player-profile-new-modal-overlay]") ||
-event.target.closest("[data-player-profile-new-modal-close]")
-) {
-closePlayerProfileNewPlayerModal();
-return;
-}
-if (event.target.closest("[data-player-profile-new-open]")) {
-openPlayerProfileNewPlayerModal();
-return;
-}
-const tabButton = event.target.closest("[data-player-profile-tab]");
-if (tabButton) {
-flushPlayerProfileAutosave(); playerProfileActiveTab = normalizePlayerProfileTab(tabButton.dataset.playerProfileTab);
-renderPlayerProfilesWorkspace(); playerProfileAutosaveLastSignature = getPlayerProfileFormSignature(ui.playerProfilesWorkspace?.querySelector("#playerProfileEditForm"));
-return;
-}
-if (event.target.closest("[data-squad-data-export]")) {
-exportSquadDataFoundationJson();
-return;
-}
-if (event.target.closest("[data-squad-session-export]")) {
-exportSquadSessionPlannerCsv();
-return;
-}
-if (event.target.closest("[data-squad-data-import-open]")) {
-if (!canEditPlayerProfiles()) {
-renderPlayerProfilesWorkspace({
-status: "warning",
-lines: ["Your role cannot import player profile changes."],
-});
-return;
-}
-ui.playerProfilesWorkspace.querySelector("[data-squad-data-import-file]")?.click();
-return;
-}
-const applyImportButton = event.target.closest("[data-player-profile-import-apply]");
-if (applyImportButton) {
-if (!canEditPlayerProfiles()) {
-renderPlayerProfilesWorkspace({
-status: "warning",
-lines: ["Your role cannot apply player profile imports."],
-});
-return;
-}
-const pendingImport = pendingPlayerProfileImportPlan;
-pendingPlayerProfileImportPlan = null;
-if (!pendingImport || !pendingImport.canApply) {
-renderPlayerProfilesWorkspace({
-status: "warning",
-lines: ["No pending import was available to apply."],
-});
-return;
-}
-const result = importSquadDataFoundationPayload({}, { apply: true, plan: pendingImport });
-renderPlayerProfilesWorkspace(buildPlayerProfileImportFeedback(result));
-return;
-}
-const undoImportButton = event.target.closest("[data-player-profile-import-undo]");
-if (undoImportButton) {
-renderPlayerProfilesWorkspace(applyPlayerProfileImportUndo());
-return;
-}
-const undoHistoryButton = event.target.closest("[data-player-profile-import-undo-history]");
-if (undoHistoryButton) {
-const requestedIndex = Number(undoHistoryButton.dataset?.playerProfileImportUndoHistory);
-if (!Number.isFinite(requestedIndex) || requestedIndex !== 0) {
-renderPlayerProfilesWorkspace({
-status: "warning",
-lines: ["Only the latest import snapshot can be undone from this view."],
-});
-return;
-}
-renderPlayerProfilesWorkspace(applyPlayerProfileImportUndo());
-return;
-}
-const cancelImportButton = event.target.closest("[data-player-profile-import-cancel]");
-if (cancelImportButton) {
-const pendingImport = pendingPlayerProfileImportPlan;
-pendingPlayerProfileImportPlan = null;
-renderPlayerProfilesWorkspace({
-status: "warning",
-lines: ["Import preview cancelled before applying changes."],
-items: pendingImport?.rows
-? pendingImport.rows.slice(0, 8).map(
-(entry) => `Row ${entry.row}: ${String(entry.action || "skip").toUpperCase()} ${entry.playerName || "Unknown"} (${entry.message || "skipped"})`
-)
-: [],
-});
-return;
-}
-const temporaryToggle = event.target.closest("[data-squad-temporary-toggle]");
-if (temporaryToggle) {
-event.preventDefault();
-event.stopPropagation();
-playerProfilesTemporarySectionCollapsed = !playerProfilesTemporarySectionCollapsed;
-renderPlayerProfilesRosterListOnly();
-return;
-}
-const selectButton = event.target.closest("[data-player-profile-select]");
-if (selectButton) {
-openPlayerProfileModal(selectButton.dataset.playerProfileSelect);
-return;
-}
-const removeButton = event.target.closest("[data-player-profile-remove]");
-if (!removeButton) return;
-if (!isCurrentPlatformUserAdmin()) { renderPlayerProfilesWorkspace({ status: "warning", lines: ["Only team admins can remove players from Squad Room."] }); return; }
-ensurePlayerProfilesState();
-const player = playerProfilesState.players.find((candidate) => candidate.id === removeButton.dataset.playerProfileRemove);
-if (player && win.confirm(`Remove ${player.name} from Player Profiles?`)) {
-const removed = removePlayerProfile(player.id);
-playerProfileModalOpen = false;
-playerProfileNewPlayerModalOpen = false;
-renderPlayerProfilesWorkspace(removed ? "Player removed." : { status: "warning", lines: ["Only team admins can remove players from Squad Room."] });
-}
-});
-ui.playerProfilesWorkspace?.addEventListener("input", (event) => {
-const playerPhotoInput = event.target.closest("[data-player-profile-photo-upload]");
-if (playerPhotoInput) {
-handlePhotoInput(playerPhotoInput);
-return;
-}
-const searchInput = event.target.closest("[data-player-profile-search]");
-if (searchInput) {
-playerProfilesSearchQuery = searchInput.value;
-renderPlayerProfilesRosterListOnly();
-return;
-}
-const editForm = event.target.closest("#playerProfileEditForm");
-if (editForm) {
-const label = event.target.type === "range" ? event.target.closest("label")?.querySelector("strong") : null;
-if (label) label.textContent = `${event.target.value}/5`;
-if (event.target.matches('textarea[name="coachNotes"], input[name="temporaryGroup"], input[name="temporaryFrom"], input[name="temporaryTo"]')) {
-savePlayerProfileEditForm(editForm);
-} else {
-queuePlayerProfileAutosave(editForm);
-}
-}
-});
-ui.playerProfilesWorkspace?.addEventListener("change", (event) => {
-const teamLogoInput = event.target.closest("[data-squad-team-logo-upload]");
-if (teamLogoInput) {
-const file = teamLogoInput.files?.[0] ?? null;
-teamLogoInput.value = "";
-void uploadSquadTeamLogo(file);
-return;
-}
-const playerPhotoInput = event.target.closest("[data-player-profile-photo-upload]");
-if (playerPhotoInput) {
-handlePhotoInput(playerPhotoInput);
-return;
-}
-const editForm = event.target.closest("#playerProfileEditForm");
-if (editForm) {
-if (event.target.matches('select[name="rosterType"]')) {
-const result = savePlayerProfileEditForm(editForm);
-if (result?.ok) {
-renderPlayerProfilesWorkspace();
-}
-return;
-}
-queuePlayerProfileAutosave(editForm, 0);
-return;
-}
-const importInput = event.target.closest("[data-squad-data-import-file]");
-if (importInput) {
-const file = importInput.files?.[0] ?? null;
-importInput.value = "";
-importSquadDataFoundationFile(file);
-return;
-}
-});
-ui.playerProfilesWorkspace?.addEventListener("keydown", (event) => {
-if (event.key !== "Enter" && event.key !== " ") {
-return;
-}
-const selectRow = event.target.closest("[data-player-profile-select]");
-if (!selectRow) {
-return;
-}
-event.preventDefault();
-selectRow.click();
-});
-ui.playerProfilesWorkspace?.addEventListener("change", (event) => {
-const roleGroupFilter = event.target.closest("[data-player-profile-role-group-filter]");
-if (roleGroupFilter) {
-playerProfilesRoleGroupFilter = roleGroupFilter.value;
-renderPlayerProfilesWorkspace();
-return;
-}
-const rosterFilter = event.target.closest("[data-player-profile-roster-filter]");
-if (rosterFilter) {
-playerProfilesRosterFilter = rosterFilter.value;
-renderPlayerProfilesWorkspace();
-}
-});
-ui.playerProfilesWorkspace?.addEventListener("submit", (event) => {
-const newPlayerForm = event.target.closest("#playerProfileNewPlayerForm");
-if (newPlayerForm) {
-event.preventDefault();
-if (!canEditPlayerProfiles()) {
-return;
-}
-const result = addPlayerProfile(getPlatformFormValues(newPlayerForm));
-const player = result?.player ?? null;
-if (result?.ok) {
-playerProfileNewPlayerModalOpen = false;
-}
-renderPlayerProfilesWorkspace(
-buildPlayerProfileOperationFeedback(
-result,
-player
-? `${isTemporaryPlayerProfile(player) ? "Temporary player added. Planner placement is ready without Medical clearance." : "Player added. Medical roster slot and planner placement are ready for clearance."}`
-: "Could not add player profile."
-)
-);
-if (result?.ok) {
-newPlayerForm.reset();
-}
-return;
-}
-const editForm = event.target.closest("#playerProfileEditForm");
-if (!editForm) {
-return;
-}
-event.preventDefault();
-if (!canEditPlayerProfiles()) {
-return;
-}
-const result = savePlayerProfileEditForm(editForm);
-if (result && !result.ok) renderPlayerProfilesWorkspace(buildPlayerProfileOperationFeedback(result, "Player profile could not be saved."));
+bindPlayerProfileRuntimeBindings({
+workspaceElement: ui.playerProfilesWorkspace,
+win,
+state: {
+getPendingPlayerProfileImportPlan: () => pendingPlayerProfileImportPlan,
+setPendingPlayerProfileImportPlan: (plan) => { pendingPlayerProfileImportPlan = plan; },
+getPlayerProfilesState: () => playerProfilesState,
+setPlayerProfileActiveTab: (tab) => { playerProfileActiveTab = tab; },
+setPlayerProfileAutosaveLastSignature: (signature) => { playerProfileAutosaveLastSignature = signature; },
+getPlayerProfilesTemporarySectionCollapsed: () => playerProfilesTemporarySectionCollapsed,
+setPlayerProfilesTemporarySectionCollapsed: (isCollapsed) => { playerProfilesTemporarySectionCollapsed = isCollapsed; },
+setPlayerProfilesSearchQuery: (query) => { playerProfilesSearchQuery = query; },
+setPlayerProfilesRoleGroupFilter: (filter) => { playerProfilesRoleGroupFilter = filter; },
+setPlayerProfilesRosterFilter: (filter) => { playerProfilesRosterFilter = filter; },
+setPlayerProfileModalOpen: (isOpen) => { playerProfileModalOpen = isOpen; },
+setPlayerProfileNewPlayerModalOpen: (isOpen) => { playerProfileNewPlayerModalOpen = isOpen; },
+},
+helpers: {
+getPlayerProfileFormSignature,
+isTemporaryPlayerProfile,
+normalizePlayerProfileTab,
+},
+actions: {
+addPlayerProfile,
+applyPlayerProfileImportUndo,
+buildPlayerProfileImportFeedback,
+buildPlayerProfileOperationFeedback,
+canEditPlayerProfiles,
+closePlayerProfileModal,
+closePlayerProfileNewPlayerModal,
+ensurePlayerProfilesState,
+exportSquadDataFoundationJson,
+exportSquadSessionPlannerCsv,
+flushPlayerProfileAutosave,
+getPlatformFormValues,
+handlePhotoInput,
+importSquadDataFoundationFile,
+importSquadDataFoundationPayload,
+isCurrentPlatformUserAdmin,
+openPlayerProfileModal,
+openPlayerProfileNewPlayerModal,
+queuePlayerProfileAutosave,
+removePlayerProfile,
+renderPlayerProfilesRosterListOnly,
+renderPlayerProfilesWorkspace,
+savePlayerProfileEditForm,
+uploadSquadTeamLogo,
+},
 });
 bindSessionPlannerRuntimeBindings({
 workspaceElement: ui.sessionPlannerWorkspace,

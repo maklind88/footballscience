@@ -5,6 +5,7 @@ export * from "./player-profile-helpers.mjs";
 export * from "./player-profile-intelligence-helpers.mjs";
 export * from "./player-profile-options.mjs";
 export * from "./player-profile-runtime-import-service.mjs";
+export * from "./player-profile-runtime-bindings.mjs";
 export * from "./player-profile-runtime-medical-sync-service.mjs";
 export * from "./player-profile-runtime-state-service.mjs";
 export * from "./player-profile-runtime-write-service.mjs";

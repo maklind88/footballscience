@@ -14,6 +14,7 @@ import {
   dashboardTutorialPrefsStorageKey,
 } from "./src/modules/home/index.mjs";
 import { createScheduleWorkspaceController } from "./src/modules/schedule/schedule-controller.mjs";
+import { createScheduleRuntimeSelectors } from "./src/modules/schedule/schedule-runtime-selectors.mjs";
 import { formatMonthYearLabel, formatScheduleBlockSummary as formatScheduleBlockSummaryFromModule, formatScheduleMonthName, getScheduleDayWarnings as getScheduleDayWarningsFromModule, getScheduleMainEvent as getScheduleMainEventFromModule, isScheduleSessionEvent as isScheduleSessionEventFromModule } from "./src/modules/schedule/schedule-selectors.mjs";
 import {
   cloneScheduleState,
@@ -3994,71 +3995,51 @@ function canUserEditTransferRoom(user = getCurrentPlatformUser()) { return trans
 function addTransferRoomTargetFromScoutingSnapshot(snapshot = {}, options = {}) {
 return transferRoomRuntime.addTargetFromScoutingSnapshot(snapshot, options);
 }
-function getScheduleEventsForDate(dateValue) {
+const scheduleRuntimeSelectors = createScheduleRuntimeSelectors({
+ensurePeriodizationState,
+ensureScheduleState: () => {
 if (!scheduleState) {
 scheduleState = readScheduleState();
 }
-return getUniqueScheduleEvents(scheduleState.events.filter((event) => event.date === dateValue))
-.sort((a, b) => `${a.time || "99:99"} ${a.title}`.localeCompare(`${b.time || "99:99"} ${b.title}`));
+return scheduleState;
+},
+ensureSessionPlannerState: () => {
+if (!sessionPlannerState) {
+sessionPlannerState = readSessionPlannerState();
 }
-function getScheduleVisibleEvents(events = []) { return getUniqueScheduleEvents(events); }
-function getScheduleMainEvent(events = []) { return getScheduleMainEventFromModule(events); }
-function isScheduleSessionEvent(event) { return isScheduleSessionEventFromModule(event); }
-function getScheduleSessionEventForDate(dateValue) { return getScheduleEventsForDate(dateValue).find(isScheduleSessionEvent) ?? null; }
-function getScheduledSessionTitleForDate(dateValue) { return getScheduleSessionEventForDate(dateValue)?.title || ""; }
-function getScheduleMonthEvents(year, monthIndex) {
-if (!scheduleState) {
-return [];
-}
-return getUniqueScheduleEvents(
-scheduleState.events.filter((event) => {
-const eventDate = parseScheduleDateValue(event.date);
-return eventDate.getFullYear() === year && eventDate.getMonth() === monthIndex;
-})
-);
-}
-function getScheduleVisibleMonthEvents(year, monthIndex) { return getScheduleVisibleEvents(getScheduleMonthEvents(year, monthIndex)); }
+return sessionPlannerState;
+},
+formatBlockSummary: formatScheduleBlockSummaryFromModule,
+getDayWarnings: getScheduleDayWarningsFromModule,
+getMainEvent: getScheduleMainEventFromModule,
+getPeriodizationDay,
+getPeriodizationDayScheduleLabel,
+getPeriodizationMatchDayLabel,
+getScheduleState: () => scheduleState,
+getUniqueEvents: getUniqueScheduleEvents,
+isSessionEvent: isScheduleSessionEventFromModule,
+parseDateValue: parseScheduleDateValue,
+});
+const {
+formatBlockSummary: formatScheduleBlockSummary,
+getEventsForDate: getScheduleEventsForDate,
+getMainEvent: getScheduleMainEvent,
+getMonthEvents: getScheduleMonthEvents,
+getScheduleDayWarnings,
+getScheduledSessionTitleForDate,
+getSelectedDayContext: getScheduleSelectedDayContext,
+getSessionEventForDate: getScheduleSessionEventForDate,
+getSessionSnapshot: getScheduleSessionSnapshot,
+getVisibleEvents: getScheduleVisibleEvents,
+getVisibleMonthEvents: getScheduleVisibleMonthEvents,
+isSessionEvent: isScheduleSessionEvent,
+} = scheduleRuntimeSelectors;
 function isEditableKeyboardTarget(target) {
 const element = target instanceof Element ? target : null;
 if (!element) {
 return false;
 }
 return Boolean(element.closest("input, textarea, select, [contenteditable='true']"));
-}
-function getScheduleSelectedDayContext(dateValue) {
-ensurePeriodizationState();
-const periodizationDay = getPeriodizationDay(dateValue);
-const phaseLabels = [
-...(Array.isArray(periodizationDay.matchPhases) ? periodizationDay.matchPhases : []),
-...(Array.isArray(periodizationDay.subPhases) ? periodizationDay.subPhases : []),
-].slice(0, 3);
-return {
-sessionSnapshot: getScheduleSessionSnapshot(dateValue),
-periodizationLabel: getPeriodizationDayScheduleLabel(periodizationDay),
-matchDayLabel: getPeriodizationMatchDayLabel(periodizationDay.matchDay),
-phaseSummary: phaseLabels.join(" / "),
-};
-}
-function getScheduleSessionSnapshot(dateValue) {
-if (!sessionPlannerState) {
-sessionPlannerState = readSessionPlannerState();
-}
-const session = sessionPlannerState?.sessions?.[dateValue] || null;
-const blocks = Array.isArray(session?.blocks) ? session.blocks : [];
-return {
-session,
-blocks,
-hasSession: blocks.length > 0,
-minutes: blocks.reduce((total, block) => total + (Number(block.minutes) || 0), 0),
-};
-}
-function formatScheduleBlockSummary(blockCount, minutes = 0) { return formatScheduleBlockSummaryFromModule(blockCount, minutes); }
-function getScheduleDayWarnings(events, periodizationDay, sessionSnapshot) {
-return getScheduleDayWarningsFromModule(events, periodizationDay, sessionSnapshot, {
-isSessionEvent: isScheduleSessionEvent,
-getPeriodizationDayScheduleLabel,
-getPeriodizationMatchDayLabel,
-});
 }
 const scheduleWorkspaceController = createScheduleWorkspaceController({
 ui,

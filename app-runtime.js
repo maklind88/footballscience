@@ -67,6 +67,7 @@ import { createWorkspaceModuleRuntimeController } from "./src/core/workspace-mod
 import { createWorkspaceShellController } from "./src/core/workspace-shell-controller.mjs";
 import { bindPlatformNavigationInteractions } from "./src/core/platform-navigation-bindings.mjs";
 import { createPlatformUiBindings } from "./src/core/platform-ui-bindings.mjs";
+import { createMedicalRuntimeServiceComposition } from "./src/modules/medical/medical-runtime-service-composer.mjs";
 import { configurePlatformRuntimeAccessors, mergePeriodizationStatePreservingLocalUi, renderPlayerProfilesWorkspaceMessage, cloneDefaultPlatformStructureState, normalizePlatformStructureText, normalizePlatformStructureComparable, isLegacyPlatformStructureValue, isCanonicalPlatformClubValue, isCanonicalPlatformTeamValue, isLegacyPlatformClub, isLegacyPlatformTeam, isCanonicalPlatformClub, isCanonicalPlatformTeam, hasPlatformWorkspaceScope, slugifyPlatformStructureValue, normalizePlatformStructureId, createPlatformStructureId, normalizePlatformClub, normalizePlatformTeam, normalizePlatformStructureState, isLegacyPlatformTeamPlaceholderName, readPlatformStructureState, writePlatformStructureState, getPlatformStructureState, getPlatformClubById, getPlatformTeamById, findPlatformTeamByName, syncPlatformStructureWithUsers, getUserTeamId, getUserClubId, getUserTeamName, getActivePlatformTeam, getPlatformTeamDisplayTeam, getPlatformTeamDisplayName, writePlatformTeamLogo, getUserClubName, getUserScopeLabel, isSamePlatformClub, isSamePlatformTeam, canAdminViewUser, canAdminManageUser, getScopedPlatformUsers, getScopedPlatformClubs, getScopedPlatformTeams, normalizeAdminUserSubmissionValues, getAllWorkspacePool, normalizeWorkspaceRoleList, normalizeWorkspaceAccessEntry, getWorkspaceAccessConfig, getWorkspaceByIdFromPool, canUserAccessWorkspace, canCurrentUserAccessWorkspace, canUserEditWorkspace, canCurrentUserEditWorkspace, canEditScheduleWorkspace, canEditSessionPlanner, canEditPeriodizationWorkspace, canEditGameSimulatorWorkspace, canEditScoutingWorkspace, getAccessibleWorkspacePool, getVisibleWorkspacePool, mergeWorkspaceDefinitions, cloneHubState, clonePersistableWorkspaceHubState, repairWorkspaceState, getWorkspaceIdFromUrl, readRememberedWorkspaceId, rememberActiveWorkspaceId, readWorkspaceHubState, writeWorkspaceHubState, getWorkspaceById, getWorkspaceByIdUnfiltered, getSafeWorkspaceId, getWorkspaceViewId, getPeriodizationDay, ensurePeriodizationState, writePeriodizationDay, selectPeriodizationDate, openPeriodizationDateForDashboard, setPeriodizationStateStorageValue, readPeriodizationState, writePeriodizationState, setPeriodizationMonth, shiftPeriodizationMonth, scrollPeriodizationDateIntoView, jumpPeriodizationToToday, mergeImportedNccSchedule, setScheduleStateStorageValue, readScheduleState, ensureScheduleState, writeScheduleState, setScoutingStateStorageValue, readScoutingState, writeScoutingState, ensureScoutingState, getPeriodizationMultiSelectOpenField, setPeriodizationMultiSelectOpenField, setPeriodizationSelection, getPeriodizationOverlayState, setPeriodizationOverlayMode, setPeriodizationOverlayState, readTransferRoomState, ensureTransferRoomState, syncTransferRoomLinkedState, canUserAccessTransferRoom, canUserEditTransferRoom, addTransferRoomTargetFromScoutingSnapshot, getGameplanContext, getScoutingAnalysisRoomContext, getScoutingWorkspaceContext, getTransferRoomWorkspaceContext, hydrateWorkspaceModuleState, loadGameplanModule, loadScoutingWorkspaceModule, loadTransferRoomWorkspaceModule, renderAnalysisRoomWorkspace, renderGameplanWorkspace, renderScoutingWorkspace, renderTransferRoomWorkspace, renderPeriodizationWorkspace, renderSessionPlannerPeriodizationOverlay, renderSessionPlannerPeriodizationSummary, initializeWorkspaceHub, renderWorkspaceChrome, setActiveWorkspace, reloadCentralizedAppStateFromStorage, getCurrentSessionPlannerUiSelection, readSessionPlannerStatePreservingUiSelection, shouldDeferCentralizedAppStateReload, setCentralizedAppStateReloadPending, requestCentralizedAppStateReload, flushDeferredCentralizedAppStateReload, refreshCentralStateFromSource, formatScheduleBlockSummary, getScheduleEventsForDate, getScheduleMainEvent, getScheduleMonthEvents, getScheduleDayWarnings, getScheduledSessionTitleForDate, getScheduleSelectedDayContext, getScheduleSessionEventForDate, getScheduleSessionSnapshot, getScheduleVisibleEvents, getScheduleVisibleMonthEvents, isScheduleSessionEvent, openCredentialsMailto, buildTemporaryLoginMessage, getAdminManagedWorkspaces, getAdminAuditState, getReadinessState, getSelectedAdminUserId, getAdminUsersForTeam, getAdminUserInitials, createAdminClubFromForm, createAdminTeamFromForm, loadAdminAuditLog, loadPlatformReadinessReport, publishPlatformAppearanceConfig, getAdminTransferRoomAccessTeamId, renderAdminWorkspace } from "./src/core/platform-runtime-accessors.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createCentralAppStateReloadService } from "./src/core/central-app-state-reload-service.mjs";
@@ -1793,20 +1794,17 @@ win,
 writePlatformAppearanceState,
 writePlatformStructureState,
 });
-const medicalRuntimeService = createMedicalRuntimeService({
+const medicalRuntimeServiceComposition = createMedicalRuntimeServiceComposition({
 addCalendarDays,
 archiveMedicalPlayersRemovedFromSquad,
 canEditMedicalTeam,
 clamp,
-createId: createDashboardId,
+createDashboardId,
 defaultMedicalPlayers,
 escapeHtml,
-formatDateValue: formatScheduleDateValue,
 formatMedicalDateLabel,
 formatScheduleDateValue,
 getCurrentPlatformUser,
-getCurrentUser: getCurrentPlatformUser,
-getFormValues: getPlatformFormValues,
 getMedicalAvailabilityItems,
 getMedicalBulkRecommendationOpen: () => medicalBulkRecommendationOpen,
 getMedicalBulkSelectedPlayerIds: () => medicalBulkSelectedPlayerIds,
@@ -1817,19 +1815,20 @@ getMedicalRemovedSquadPlayerIdSet,
 getMedicalRosterSearchQuery: () => medicalRosterSearchQuery,
 getMedicalState: () => medicalState,
 getMedicalStatusFilter: () => medicalStatusFilter,
+getPlatformFormValues,
 getPlayerProfileRosterLabel,
 getPlayerProfilesState: () => playerProfilesState || readPlayerProfilesState(),
 getPlatformStructureState,
 getPlatformTeamDisplayName,
 getScheduleEventsForDate,
 getScheduleMainEvent,
-getWorkspace: () => ui.medicalTeamWorkspace,
-isAdmin: isCurrentPlatformUserAdmin,
+getMedicalWorkspace: () => ui.medicalTeamWorkspace,
+isCurrentPlatformUserAdmin,
 isMedicalDateValue,
 isMedicalPlayerRemovedFromSquad,
 isScheduleSessionEvent,
 isTemporaryPlayerProfile,
-isTemporaryPlayerProfileActiveOnDate: isPlayerProfileTemporaryActiveOnDate,
+isPlayerProfileTemporaryActiveOnDate,
 logEvent,
 medicalActualParticipationFallback,
 medicalClearanceRoles,
@@ -1854,13 +1853,12 @@ medicalWindowLength,
 navigatorRef: navigator,
 normalizeMedicalOperationsTab,
 normalizeMedicalPlayerModalTab,
-normalizePlatformText: normalizePlatformStructureText,
+normalizePlatformStructureText,
 normalizePlayerProfileName,
 normalizePlayerProfileRole,
 normalizePlayerProfileRoleList,
 normalizePlayerProfileRosterType,
 normalizePlayerProfileTemporaryDate,
-parseDateValue: parseScheduleDateValue,
 parseScheduleDateValue,
 playerProfileRosterTypeCountsInSquad,
 playerProfileStatusOptions,
@@ -1880,9 +1878,7 @@ setMedicalPlayerModalTab: (tab) => { medicalPlayerModalTab = tab; },
 setMedicalState: (nextState) => { medicalState = nextState; },
 win,
 });
-medicalRuntimeService.helpers;
-medicalRuntimeService.stateService;
-medicalRuntimeService.facade;
+const { medicalRuntimeService } = medicalRuntimeServiceComposition;
 configureMedicalRuntimeAccessors(() => medicalRuntimeService);
 const {
 medicalAvailabilitySelectors,
@@ -1910,7 +1906,7 @@ renderMedicalGateOptions,
 renderMedicalParticipationOptions,
 renderMedicalRtpPhaseOptions,
 renderMedicalStatusOptions,
-} = medicalRuntimeService.renderers;
+} = medicalRuntimeServiceComposition;
 const dashboardPresenceHeartbeatMs = 60000, dashboardPresencePollMs = 45000, dashboardPresenceSteadyPushMinMs = 30000;
 const dashboardPresenceTypingPushMinMs = 5000, dashboardPresencePollMinMs = 30000;
 const dashboardPresenceIdleMs = 90000;

@@ -13,12 +13,15 @@ function readProjectFile(path) {
 test("Medical runtime renderers own renderer and selector wiring outside app-runtime", () => {
   const app = readProjectFile("app-runtime.js");
   const accessors = readProjectFile("src/modules/medical/medical-runtime-accessors.mjs");
+  const composer = readProjectFile("src/modules/medical/medical-runtime-service-composer.mjs");
   const runtimeService = readProjectFile("src/modules/medical/medical-runtime-service.mjs");
   const runtimeRenderers = readProjectFile("src/modules/medical/medical-runtime-renderers.mjs");
   const index = readProjectFile("src/modules/medical/index.mjs");
 
   expect(typeof createMedicalRuntimeRenderers).toBe("function");
-  expect(app).toContain("createMedicalRuntimeService({");
+  expect(app).toContain("createMedicalRuntimeServiceComposition({");
+  expect(app).not.toContain("createMedicalRuntimeService({");
+  expect(composer).toContain("createMedicalRuntimeService({");
   expect(app).not.toContain("createMedicalRuntimeRenderers({");
   expect(runtimeService).toContain("createMedicalRuntimeRenderers({");
   expect(app).not.toContain("createMedicalOptionSelectors({");

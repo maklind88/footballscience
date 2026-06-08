@@ -171,6 +171,7 @@ const facadeNames = [
 test("Medical runtime accessors preserve app-runtime pass-through names", () => {
   const app = readProjectFile("app-runtime.js");
   const accessors = readProjectFile("src/modules/medical/medical-runtime-accessors.mjs");
+  const composer = readProjectFile("src/modules/medical/medical-runtime-service-composer.mjs");
   const index = readProjectFile("src/modules/medical/index.mjs");
 
   expect(typeof medicalRuntimeAccessors.configureMedicalRuntimeAccessors).toBe("function");
@@ -180,9 +181,9 @@ test("Medical runtime accessors preserve app-runtime pass-through names", () => 
   }
 
   expect(app).toContain('import * as medicalRuntimeAccessors from "./src/modules/medical/medical-runtime-accessors.mjs";');
-  expect(app).toContain("medicalRuntimeService.helpers;");
-  expect(app).toContain("medicalRuntimeService.stateService;");
-  expect(app).toContain("medicalRuntimeService.facade;");
+  expect(composer).toContain("medicalRuntimeService.helpers;");
+  expect(composer).toContain("medicalRuntimeService.stateService;");
+  expect(composer).toContain("medicalRuntimeService.facade;");
   expect(app).toContain("configureMedicalRuntimeAccessors(() => medicalRuntimeService);");
   expect(app).not.toContain("const medicalRuntimeHelpers = medicalRuntimeService.helpers;");
   expect(app).not.toContain("const medicalRuntimeStateService = medicalRuntimeService.stateService;");

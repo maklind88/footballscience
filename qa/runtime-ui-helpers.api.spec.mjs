@@ -4,6 +4,7 @@ import {
   clamp,
   escapeHtml,
   formatDashboardDateTime,
+  formatDataSafetyTime,
   isEditableKeyboardTarget,
   maybeCopyToClipboard,
   setFormSubmitButtonState,
@@ -15,6 +16,9 @@ test("runtime UI helpers preserve app-runtime formatting behavior", () => {
   expect(clamp(-2, 1, 5)).toBe(1);
   expect(escapeHtml('<button title="x">')).toBe("&lt;button title=&quot;x&quot;&gt;");
   expect(formatDashboardDateTime("2026-05-31T11:14:00Z")).toBeTruthy();
+  expect(formatDataSafetyTime("")).toBe("");
+  expect(formatDataSafetyTime("not-a-date")).toBe("");
+  expect(formatDataSafetyTime("2026-05-31T11:14:00Z")).toBeTruthy();
   expect(addCalendarDays(new Date("2026-05-31T00:00:00Z"), 2).getUTCDate()).toBe(2);
 });
 

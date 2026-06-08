@@ -67,7 +67,7 @@ import { bindPlatformNavigationInteractions } from "./src/core/platform-navigati
 import { createPlatformUiBindings } from "./src/core/platform-ui-bindings.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createWorkspaceHubStateHelpers } from "./src/core/workspace-hub-state.mjs";
-import { addCalendarDays, clamp, escapeHtml, formatDashboardDateTime, formatDashboardTime, isEditableKeyboardTarget, logEvent, maybeCopyToClipboard, setFormSubmitButtonState, togglePasswordInputVisibility } from "./src/core/runtime-ui-helpers.mjs";
+import { addCalendarDays, clamp, escapeHtml, formatDashboardDateTime, formatDashboardTime, formatDataSafetyTime, isEditableKeyboardTarget, logEvent, maybeCopyToClipboard, setFormSubmitButtonState, togglePasswordInputVisibility } from "./src/core/runtime-ui-helpers.mjs";
 import { installPlatformOverlayStability } from "./src/core/overlay-stability.mjs";
 import { defaultHubState, placeholderWorkspaceContent, platformSidebarMoreOrder, platformSidebarPrimaryOrder, topIconMenuOrder } from "./src/core/workspace-defaults.mjs";
 import { createPlatformDisplayHelpers, formatPlatformUserName, getPlatformRoleLabel, getPlatformUserInitials, getPlatformUserProfileImageUrl, normalizePlatformProfileImageUrl } from "./src/modules/platform/display-helpers.mjs";
@@ -1137,16 +1137,6 @@ dataSafetySnapshotTimer = win.setTimeout(() => {
 dataSafetySnapshotTimer = null;
 saveDataSafetySnapshot(reason);
 }, 900);
-}
-function formatDataSafetyTime(value) {
-if (!value) {
-return "";
-}
-const date = new Date(value);
-if (Number.isNaN(date.getTime())) {
-return "";
-}
-return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 function refreshDataSafetyStatus() {
 if (!ui.dataSafetyStatus) {

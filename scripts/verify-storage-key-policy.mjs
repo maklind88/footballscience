@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { createCentralRuntimeStorageConfig } from "../src/core/central-runtime-facade.mjs";
 import { dataSafetyContracts } from "../src/core/data-safety-contracts.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -9,6 +10,7 @@ const appEntrypointSource = fs.readFileSync(path.join(rootDir, "app.js"), "utf8"
 const appRuntimeSource = fs.readFileSync(path.join(rootDir, "app-runtime.js"), "utf8");
 const appSource = `${appEntrypointSource}\n${appRuntimeSource}`;
 const modularStorageSourcePaths = Object.freeze([
+  "src/core/app-runtime-constants.mjs",
   "src/modules/home/dashboard-runtime-controller.mjs",
   "src/modules/exercise-library/exercise-library-state.mjs",
   "src/modules/session-planner/session-planner-autosave.mjs",
@@ -51,24 +53,15 @@ function findStorageKeyConstants(source) {
   }));
 }
 
-function findDataSafetyProtectedKeys(source) {
-  const match = /const\s+dataSafetyProtectedStorageKeys\s*=\s*\[([\s\S]*?)\];/.exec(source);
-  if (!match) {
-    failures.push("app runtime must define dataSafetyProtectedStorageKeys.");
-    return new Set();
+function findDataSafetyProtectedKeys() {
+  const byConstantName = new Map(findStorageKeyConstants(clientStorageSource).map((entry) => [entry.name, entry.key]));
+  const storageKeys = Object.fromEntries(byConstantName.entries());
+  const keys = new Set(createCentralRuntimeStorageConfig(storageKeys).protectedStorageKeys);
+
+  if (!keys.size) {
+    failures.push("central runtime storage config must define protected storage keys.");
   }
 
-  const byConstantName = new Map(findStorageKeyConstants(clientStorageSource).map((entry) => [entry.name, entry.key]));
-  const keys = new Set();
-  for (const item of match[1].split(",")) {
-    const token = item.trim().replace(/\/\/.*$/g, "");
-    if (!token) {
-      continue;
-    }
-    if (byConstantName.has(token)) {
-      keys.add(byConstantName.get(token));
-    }
-  }
   return keys;
 }
 
@@ -93,7 +86,7 @@ function findLocalStorageMutations(source) {
 const storageConstants = findStorageKeyConstants(clientStorageSource);
 const keyByConstantName = new Map(storageConstants.map((entry) => [entry.name, entry.key]));
 const clientStorageKeys = new Set(storageConstants.map((entry) => entry.key).filter((key) => key.startsWith("football-")));
-const appProtectedKeys = findDataSafetyProtectedKeys(appSource);
+const appProtectedKeys = findDataSafetyProtectedKeys();
 
 for (const key of clientStorageKeys) {
   const hasCentralContract = contractByKey.has(key);

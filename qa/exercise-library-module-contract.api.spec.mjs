@@ -485,6 +485,7 @@ test("Exercise Library runtime controller owns storage, filters, folders, and ap
 
 test("Exercise Library app integration delegates runtime ownership to the module", () => {
   const app = readProjectFile("app-runtime.js");
+  const sessionPlannerRuntimeRenderers = readProjectFile("src/modules/session-planner/session-planner-runtime-renderers.mjs");
   const packageJson = readProjectFile("package.json");
   const storageGuard = readProjectFile("scripts/verify-storage-key-policy.mjs");
 
@@ -497,7 +498,8 @@ test("Exercise Library app integration delegates runtime ownership to the module
   expect(app).toContain("createExerciseLibrarySelectors");
   expect(app).toContain("createExerciseLibraryRenderer");
   expect(app).not.toContain("function callExerciseLibraryRuntime");
-  expect(app).toContain("exerciseLibraryRenderer.renderOverlay()");
+  expect(app).toContain("createSessionPlannerRuntimeRenderers({");
+  expect(sessionPlannerRuntimeRenderers).toContain("deps.exerciseLibraryRenderer.renderOverlay()");
   expect(app).not.toContain("exerciseLibraryStateAdapter.createExercise(source)");
   expect(app).not.toContain("exerciseLibraryStateAdapter.createFolder(source)");
   expect(app).not.toContain("function buildSessionPlannerLibraryExerciseFromBlock");

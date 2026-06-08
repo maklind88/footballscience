@@ -95,6 +95,7 @@ const coreFiles = [
   "src/modules/session-planner/session-planner-visual-renderer.mjs",
   "src/modules/session-planner/session-planner-player-board-renderer.mjs",
   "src/modules/session-planner/session-planner-print-renderer.mjs",
+  "src/modules/session-planner/session-planner-runtime-renderers.mjs",
   "src/modules/schedule/events.mjs",
   "src/modules/schedule/schedule-adapter.mjs",
   "src/modules/schedule/index.mjs",
@@ -374,6 +375,7 @@ test("core module contracts are covered by dedicated QA", () => {
   const gameSimulatorSidebarSpec = readProjectFile("qa/game-simulator-sidebar-renderer.api.spec.mjs");
   const gameSimulatorKeyboardStateSpec = readProjectFile("qa/game-simulator-keyboard-state.api.spec.mjs");
   const squadScoutingRuntimeSpec = readProjectFile("qa/squad-scouting-runtime-contract.api.spec.mjs");
+  const sessionPlannerRuntimeRenderersSpec = readProjectFile("qa/session-planner-runtime-renderers-contract.api.spec.mjs");
 
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-safety-contracts.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/platform-security-contracts.api.spec.mjs");
@@ -406,6 +408,9 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/exercise-library-module-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-module-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-runtime-delegates-contract.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-runtime-renderers-contract.api.spec.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/session-planner/session-planner-runtime-renderers.mjs");
+  expect(sessionPlannerRuntimeRenderersSpec).toContain("Session Planner runtime renderers own renderer wiring outside app-runtime");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-tactical-controller-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/session-planner-workspace-controller-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/squad-adapter.api.spec.mjs");

@@ -58,7 +58,7 @@ import {
   sessionPlannerExerciseLibraryVersionLimit,
   sessionPlannerLibrarySortOptions,
 } from "./src/modules/exercise-library/index.mjs";
-import { bindSessionPlannerWorkspaceDragPointerController, bindSessionPlannerWorkspaceFormController, createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerBoardHistoryController, createSessionPlannerRuntimeDelegates, createSessionPlannerRuntimeRenderers, createSessionPlannerStateMergeHelpers, createSessionPlannerTacticalController, createSessionPlannerWorkspaceController, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualUploadHelpers, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
+import { bindSessionPlannerWorkspaceDragPointerController, bindSessionPlannerWorkspaceFormController, bindSessionPlannerWorkspaceInputChangeController, createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerBoardHistoryController, createSessionPlannerRuntimeDelegates, createSessionPlannerRuntimeRenderers, createSessionPlannerStateMergeHelpers, createSessionPlannerTacticalController, createSessionPlannerWorkspaceController, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualUploadHelpers, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformShellRuntime } from "./src/core/platform-shell-runtime.mjs";
 import { createWorkspaceModuleRuntimeController } from "./src/core/workspace-module-runtime-controller.mjs";
@@ -13850,121 +13850,48 @@ startTacticalDrag: startSessionPlannerTacticalDrag,
 updateTacticalDrag: updateSessionPlannerTacticalDrag,
 finishTacticalDrag: finishSessionPlannerTacticalDrag,
 });
-ui.sessionPlannerWorkspace?.addEventListener("input", (event) => {
-const playerBoardFormationInput = event.target.closest("[data-session-player-board-formation-input]");
-if (playerBoardFormationInput) {
-sessionPlannerPlayerBoardFormationInput = cleanSessionPlannerPlayerBoardFormationInput(playerBoardFormationInput.value);
-playerBoardFormationInput.value = sessionPlannerPlayerBoardFormationInput;
-return;
-}
-const tacticalColorField = event.target.closest("[data-session-tactical-color]");
-if (tacticalColorField) {
-sessionPlannerTacticalColor = normalizeTacticalColor(tacticalColorField.value, sessionPlannerTacticalColor);
-if (getSessionPlannerTacticalSelectedElementIds().length) {
-updateSelectedSessionPlannerTacticalElement({ color: sessionPlannerTacticalColor });
-}
-return;
-}
-const tacticalWidthField = event.target.closest("[data-session-tactical-width]");
-if (tacticalWidthField) {
-sessionPlannerTacticalLineWidth = normalizeTacticalLineWidth(
-tacticalWidthField.value,
-sessionPlannerTacticalLineWidth
-);
-if (getSelectedSessionPlannerTacticalElements().some(isSessionPlannerTacticalStrokeElement)) {
-updateSelectedSessionPlannerTacticalElement({ lineWidth: sessionPlannerTacticalLineWidth });
-}
-return;
-}
-const tacticalStyleInput = event.target.closest("[data-session-tactical-style]");
-if (tacticalStyleInput) {
-updateSessionPlannerTacticalLineStyle(tacticalStyleInput.value);
-return;
-}
-if (sessionPlannerPeriodizationBridge.handleInput(event)) {
-return;
-}
-const librarySearchField = event.target.closest("[data-session-library-search]");
-if (librarySearchField) {
-updateSessionPlannerLibrarySearch(librarySearchField.value);
-return;
-}
-const field = event.target.closest("[data-session-field]");
-if (!field) {
-return;
-}
-updateSelectedSessionPlannerBlockField(field.dataset.sessionField, field.value);
-resizeSessionPlannerTextarea(field);
-});
-ui.sessionPlannerWorkspace?.addEventListener("change", (event) => {
-const playerBoardColorSelect = event.target.closest("[data-session-player-board-color-select]");
-if (playerBoardColorSelect) {
-const colorValue = playerBoardColorSelect.value;
-if (colorValue) {
-updateSessionPlannerPlayerBoardSelectedColor(colorValue);
-}
-playerBoardColorSelect.value = "";
-return;
-}
-const playerBoardTeamCountField = event.target.closest("[data-session-player-board-team-count]");
-if (playerBoardTeamCountField) {
-sessionPlannerPlayerBoardTeamCount = normalizeSessionPlannerPlayerBoardTeamCount(playerBoardTeamCountField.value);
-playerBoardTeamCountField.value = String(sessionPlannerPlayerBoardTeamCount);
-return;
-}
-const playerBoardAutoModeField = event.target.closest("[data-session-player-board-auto-mode]");
-if (playerBoardAutoModeField) {
-sessionPlannerPlayerBoardAutoMode = normalizeSessionPlannerPlayerBoardAutoMode(playerBoardAutoModeField.value);
-playerBoardAutoModeField.value = sessionPlannerPlayerBoardAutoMode;
-return;
-}
-const printPaperField = event.target.closest("[data-session-print-paper]");
-if (printPaperField) {
-updateSessionPlannerPrintPaper(printPaperField.value);
-return;
-}
-const printSectionField = event.target.closest("[data-session-print-section]");
-if (printSectionField) {
-updateSessionPlannerPrintSection(printSectionField.dataset.sessionPrintSection, printSectionField.checked);
-return;
-}
-const tacticalPitchModeField = event.target.closest("[data-session-tactical-pitch-mode]");
-if (tacticalPitchModeField) {
-setSessionPlannerTacticalPitchMode(tacticalPitchModeField.value);
-return;
-}
-const tacticalStyleField = event.target.closest("[data-session-tactical-style]");
-if (tacticalStyleField) {
-updateSessionPlannerTacticalLineStyle(tacticalStyleField.value);
-return;
-}
-const visualUploadField = event.target.closest("[data-session-upload-visual]");
-if (visualUploadField) {
-handleSessionPlannerVisualUpload(visualUploadField.files?.[0]);
-visualUploadField.value = "";
-return;
-}
-if (sessionPlannerPeriodizationBridge.handleChange(event)) {
-return;
-}
-const libraryFilter = event.target.closest("[data-session-library-filter]");
-if (libraryFilter) {
-updateSessionPlannerLibraryFilter(libraryFilter.dataset.sessionLibraryFilter, libraryFilter.value);
-return;
-}
-const librarySort = event.target.closest("[data-session-library-sort]");
-if (librarySort) {
-updateSessionPlannerLibrarySortMode(librarySort.value);
-return;
-}
-const field = event.target.closest("[data-session-field]");
-if (!field) {
-return;
-}
-updateSelectedSessionPlannerBlockField(field.dataset.sessionField, field.value, {
-syncExerciseReview: field.dataset.sessionField === "postSessionNotes",
-});
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+bindSessionPlannerWorkspaceInputChangeController({
+workspaceElement: ui.sessionPlannerWorkspace,
+cleanPlayerBoardFormationInput: cleanSessionPlannerPlayerBoardFormationInput,
+setPlayerBoardFormationInput: (formationInput) => {
+sessionPlannerPlayerBoardFormationInput = formationInput;
+},
+normalizeTacticalColor,
+getTacticalColor: () => sessionPlannerTacticalColor,
+setTacticalColor: (color) => {
+sessionPlannerTacticalColor = color;
+},
+normalizeTacticalLineWidth,
+getTacticalLineWidth: () => sessionPlannerTacticalLineWidth,
+setTacticalLineWidth: (lineWidth) => {
+sessionPlannerTacticalLineWidth = lineWidth;
+},
+getSelectedTacticalElementIds: getSessionPlannerTacticalSelectedElementIds,
+getSelectedTacticalElements: getSelectedSessionPlannerTacticalElements,
+isTacticalStrokeElement: isSessionPlannerTacticalStrokeElement,
+updateSelectedTacticalElement: updateSelectedSessionPlannerTacticalElement,
+updateTacticalLineStyle: updateSessionPlannerTacticalLineStyle,
+handlePeriodizationInput: (event) => sessionPlannerPeriodizationBridge.handleInput(event),
+handlePeriodizationChange: (event) => sessionPlannerPeriodizationBridge.handleChange(event),
+updateLibrarySearch: updateSessionPlannerLibrarySearch,
+updateSelectedBlockField: updateSelectedSessionPlannerBlockField,
+resizeTextarea: resizeSessionPlannerTextarea,
+updatePlayerBoardSelectedColor: updateSessionPlannerPlayerBoardSelectedColor,
+normalizePlayerBoardTeamCount: normalizeSessionPlannerPlayerBoardTeamCount,
+setPlayerBoardTeamCount: (teamCount) => {
+sessionPlannerPlayerBoardTeamCount = teamCount;
+},
+normalizePlayerBoardAutoMode: normalizeSessionPlannerPlayerBoardAutoMode,
+setPlayerBoardAutoMode: (autoMode) => {
+sessionPlannerPlayerBoardAutoMode = autoMode;
+},
+updatePrintPaper: updateSessionPlannerPrintPaper,
+updatePrintSection: updateSessionPlannerPrintSection,
+setTacticalPitchMode: setSessionPlannerTacticalPitchMode,
+handleVisualUpload: handleSessionPlannerVisualUpload,
+updateLibraryFilter: updateSessionPlannerLibraryFilter,
+updateLibrarySortMode: updateSessionPlannerLibrarySortMode,
+renderWorkspace: renderSessionPlannerWorkspace,
 });
 bindSessionPlannerTacticalShortcutController({
 clearPendingPoint: ({ clearSelection = false } = {}) => {

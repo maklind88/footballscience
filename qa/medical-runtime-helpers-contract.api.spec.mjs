@@ -70,27 +70,28 @@ function createHelpers(options = {}) {
 
 test("Medical runtime helpers own pure helper wiring outside app-runtime", () => {
   const app = readProjectFile("app-runtime.js");
+  const accessors = readProjectFile("src/modules/medical/medical-runtime-accessors.mjs");
   const runtimeService = readProjectFile("src/modules/medical/medical-runtime-service.mjs");
   const helpers = readProjectFile("src/modules/medical/medical-runtime-helpers.mjs");
   const clinical = readProjectFile("src/modules/medical/medical-clinical-normalizers.mjs");
   const index = readProjectFile("src/modules/medical/index.mjs");
 
   expect(typeof createMedicalRuntimeHelpers).toBe("function");
-  expect(app).toContain("const medicalRuntimeHelpers = medicalRuntimeService.helpers;");
+  expect(app).toContain("configureMedicalRuntimeAccessors(() => medicalRuntimeService);");
   expect(app).not.toContain("createMedicalRuntimeHelpers({");
   expect(runtimeService).toContain("createMedicalRuntimeHelpers({");
-  expect(app).toContain("function normalizeMedicalPlayer(...args) { return medicalRuntimeHelpers.normalizeMedicalPlayer(...args); }");
-  expect(app).toContain("function normalizeMedicalRecord(...args) { return medicalRuntimeHelpers.normalizeMedicalRecord(...args); }");
-  expect(app).toContain("function normalizeMedicalInjuryPlan(...args) { return medicalRuntimeHelpers.normalizeMedicalInjuryPlan(...args); }");
-  expect(app).toContain("function getMedicalPlayerAvailabilityStatus(...args) { return medicalRuntimeHelpers.getMedicalPlayerAvailabilityStatus(...args); }");
-  expect(app).toContain("function compareMedicalPlayers(...args) { return medicalRuntimeHelpers.compareMedicalPlayers(...args); }");
+  expect(accessors).toContain('export function normalizeMedicalPlayer(...args) { return callHelper("normalizeMedicalPlayer", args); }');
+  expect(accessors).toContain('export function normalizeMedicalRecord(...args) { return callHelper("normalizeMedicalRecord", args); }');
+  expect(accessors).toContain('export function normalizeMedicalInjuryPlan(...args) { return callHelper("normalizeMedicalInjuryPlan", args); }');
+  expect(accessors).toContain('export function getMedicalPlayerAvailabilityStatus(...args) { return callHelper("getMedicalPlayerAvailabilityStatus", args); }');
+  expect(accessors).toContain('export function compareMedicalPlayers(...args) { return callHelper("compareMedicalPlayers", args); }');
   expect(app).not.toContain("function normalizeMedicalPlayer(player");
   expect(app).not.toContain("function normalizeMedicalRecord(record");
   expect(app).not.toContain("function normalizeMedicalInjuryPlan(plan");
   expect(app).not.toContain("function getMedicalPlayerAvailabilityStatus(player");
   expect(app).not.toContain("function compareMedicalPlayers(first, second)");
-  expect(app).toContain("function commitMedicalClinicalState(");
-  expect(app).toContain("function updateMedicalDatabaseSyncStatus(");
+  expect(accessors).toContain('export function commitMedicalClinicalState(...args) { return callStateService("commitMedicalClinicalState", args); }');
+  expect(accessors).toContain('export function updateMedicalDatabaseSyncStatus(...args) { return callStateService("updateMedicalDatabaseSyncStatus", args); }');
   expect(helpers).toContain("createMedicalClinicalNormalizers({");
   expect(helpers).toContain("function normalizeMedicalPlayer(");
   expect(helpers).toContain("function getMedicalPlayerAvailabilityStatus(");

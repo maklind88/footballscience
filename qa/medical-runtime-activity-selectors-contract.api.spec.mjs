@@ -106,14 +106,15 @@ function createSelectors(overrides = {}) {
 
 test("Medical runtime activity selectors own read and draft logic outside app-runtime", () => {
   const app = readProjectFile("app-runtime.js");
+  const accessors = readProjectFile("src/modules/medical/medical-runtime-accessors.mjs");
   const runtimeService = readProjectFile("src/modules/medical/medical-runtime-service.mjs");
   const activity = readProjectFile("src/modules/medical/medical-runtime-activity-selectors.mjs");
   const index = readProjectFile("src/modules/medical/index.mjs");
 
   expect(typeof createMedicalRuntimeActivitySelectors).toBe("function");
-  expect(app).toContain("const medicalRuntimeFacade = medicalRuntimeService.facade;");
+  expect(app).toContain("configureMedicalRuntimeAccessors(() => medicalRuntimeService);");
   expect(runtimeService).toContain("createMedicalRuntimeFacade({");
-  expect(app).toContain("function getActiveMedicalPlayers(...args)");
+  expect(accessors).toContain('export function getActiveMedicalPlayers(...args) { return callFacade("getActiveMedicalPlayers", args); }');
   expect(app).not.toContain("createMedicalRuntimeActivitySelectors({");
   expect(app).not.toContain("function getActiveMedicalPlayers() {");
   expect(app).not.toContain("function getMedicalRecommendationActivityContext(dateValue = medicalState?.selectedDate)");

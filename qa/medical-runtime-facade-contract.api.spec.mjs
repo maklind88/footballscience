@@ -166,17 +166,18 @@ function createHarness() {
 
 test("Medical runtime facade is the app-runtime boundary for Medical runtime services", () => {
   const app = readProjectFile("app-runtime.js");
+  const accessors = readProjectFile("src/modules/medical/medical-runtime-accessors.mjs");
   const runtimeService = readProjectFile("src/modules/medical/medical-runtime-service.mjs");
   const facade = readProjectFile("src/modules/medical/medical-runtime-facade.mjs");
   const index = readProjectFile("src/modules/medical/index.mjs");
 
   expect(typeof createMedicalRuntimeFacade).toBe("function");
-  expect(app).toContain("const medicalRuntimeFacade = medicalRuntimeService.facade;");
+  expect(app).toContain("configureMedicalRuntimeAccessors(() => medicalRuntimeService);");
   expect(app).not.toContain("createMedicalRuntimeFacade({");
   expect(runtimeService).toContain("createMedicalRuntimeFacade({");
-  expect(app).toContain("function addMedicalRecord(...args)");
-  expect(app).toContain("function renderMedicalTeamWorkspace(...args)");
-  expect(app).toContain("function getSelectedMedicalPlayer(...args)");
+  expect(accessors).toContain('export function addMedicalRecord(...args) { return callFacade("addMedicalRecord", args); }');
+  expect(accessors).toContain('export function renderMedicalTeamWorkspace(...args) { return callFacade("renderMedicalTeamWorkspace", args); }');
+  expect(accessors).toContain('export function getSelectedMedicalPlayer(...args) { return callFacade("getSelectedMedicalPlayer", args); }');
   expect(app).not.toContain("createMedicalRuntimeActivitySelectors({");
   expect(app).not.toContain("createMedicalRuntimeOperationsService({");
   expect(app).not.toContain("createMedicalRuntimeWriteService({");

@@ -136,14 +136,15 @@ function createHarness(overrides = {}) {
 
 test("Medical runtime operations service owns operations outside app-runtime", () => {
   const app = readProjectFile("app-runtime.js");
+  const accessors = readProjectFile("src/modules/medical/medical-runtime-accessors.mjs");
   const runtimeService = readProjectFile("src/modules/medical/medical-runtime-service.mjs");
   const service = readProjectFile("src/modules/medical/medical-runtime-operations-service.mjs");
   const index = readProjectFile("src/modules/medical/index.mjs");
 
   expect(typeof createMedicalRuntimeOperationsService).toBe("function");
-  expect(app).toContain("const medicalRuntimeFacade = medicalRuntimeService.facade;");
+  expect(app).toContain("configureMedicalRuntimeAccessors(() => medicalRuntimeService);");
   expect(runtimeService).toContain("createMedicalRuntimeFacade({");
-  expect(app).toContain("function applyMedicalBulkRecommendation(...args)");
+  expect(accessors).toContain('export function applyMedicalBulkRecommendation(...args) { return callFacade("applyMedicalBulkRecommendation", args); }');
   expect(app).not.toContain("createMedicalRuntimeOperationsService({");
   expect(app).not.toContain("function applyMedicalBulkRecommendation(values = {}) {");
   expect(app).not.toContain("function recordMedicalDatabaseSyncEvent(eventType, payload = {}) {");

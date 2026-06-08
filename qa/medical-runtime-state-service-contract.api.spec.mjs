@@ -123,15 +123,16 @@ function createStoredMedicalState() {
 
 test("Medical runtime state service owns protected storage and sanitizer bodies outside app-runtime", () => {
   const app = readProjectFile("app-runtime.js");
+  const accessors = readProjectFile("src/modules/medical/medical-runtime-accessors.mjs");
   const runtimeService = readProjectFile("src/modules/medical/medical-runtime-service.mjs");
   const service = readProjectFile("src/modules/medical/medical-runtime-state-service.mjs");
   const index = readProjectFile("src/modules/medical/index.mjs");
 
   expect(typeof createMedicalRuntimeStateService).toBe("function");
-  expect(app).toContain("const medicalRuntimeStateService = medicalRuntimeService.stateService;");
+  expect(app).toContain("configureMedicalRuntimeAccessors(() => medicalRuntimeService);");
   expect(app).not.toContain("createMedicalRuntimeStateService({");
   expect(runtimeService).toContain("createMedicalRuntimeStateService({");
-  expect(app).toContain("function readMedicalState(...args)");
+  expect(accessors).toContain('export function readMedicalState(...args) { return callStateService("readMedicalState", args); }');
   expect(app).not.toContain("function readMedicalState() {\ntry {");
   expect(app).not.toContain("function cloneMedicalState(source = {}) {");
   expect(service).toContain("function readMedicalState()");

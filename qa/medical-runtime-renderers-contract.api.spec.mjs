@@ -12,6 +12,7 @@ function readProjectFile(path) {
 
 test("Medical runtime renderers own renderer and selector wiring outside app-runtime", () => {
   const app = readProjectFile("app-runtime.js");
+  const accessors = readProjectFile("src/modules/medical/medical-runtime-accessors.mjs");
   const runtimeService = readProjectFile("src/modules/medical/medical-runtime-service.mjs");
   const runtimeRenderers = readProjectFile("src/modules/medical/medical-runtime-renderers.mjs");
   const index = readProjectFile("src/modules/medical/index.mjs");
@@ -39,6 +40,7 @@ test("Medical runtime renderer factory does not own protected write paths", () =
 
 test("Medical workspace runtime renderer owns shell rendering outside app-runtime", () => {
   const app = readProjectFile("app-runtime.js");
+  const accessors = readProjectFile("src/modules/medical/medical-runtime-accessors.mjs");
   const runtimeService = readProjectFile("src/modules/medical/medical-runtime-service.mjs");
   const facade = readProjectFile("src/modules/medical/medical-runtime-facade.mjs");
   const workspaceRenderer = readProjectFile("src/modules/medical/medical-workspace-runtime-renderer.mjs");
@@ -69,9 +71,9 @@ test("Medical workspace runtime renderer owns shell rendering outside app-runtim
   expect(workspace.innerHTML).toContain("Medical Team");
   expect(workspace.innerHTML).toContain("First Team");
   expect(workspace.innerHTML).toContain("<main>Saved.</main>");
-  expect(app).toContain("const medicalRuntimeFacade = medicalRuntimeService.facade;");
+  expect(app).toContain("configureMedicalRuntimeAccessors(() => medicalRuntimeService);");
   expect(runtimeService).toContain("createMedicalRuntimeFacade({");
-  expect(app).toContain("function renderMedicalTeamWorkspace(...args)");
+  expect(accessors).toContain('export function renderMedicalTeamWorkspace(...args) { return callFacade("renderMedicalTeamWorkspace", args); }');
   expect(app).not.toContain("createMedicalWorkspaceRuntimeRenderer({");
   expect(facade).toContain("createMedicalWorkspaceRuntimeRenderer({");
   expect(workspaceRenderer).not.toContain("writeMedicalState");

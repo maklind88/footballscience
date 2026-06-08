@@ -12,6 +12,7 @@ function readProjectFile(path) {
 
 test("Medical runtime service owns composition wiring outside app-runtime", () => {
   const app = readProjectFile("app-runtime.js");
+  const accessors = readProjectFile("src/modules/medical/medical-runtime-accessors.mjs");
   const service = readProjectFile("src/modules/medical/medical-runtime-service.mjs");
   const index = readProjectFile("src/modules/medical/index.mjs");
 
@@ -21,8 +22,9 @@ test("Medical runtime service owns composition wiring outside app-runtime", () =
   expect(app).not.toContain("createMedicalRuntimeHelpers({");
   expect(app).not.toContain("createMedicalRuntimeStateService({");
   expect(app).not.toContain("createMedicalRuntimeFacade({");
-  expect(app).toContain("function addMedicalRecord(...args)");
-  expect(app).toContain("function renderMedicalTeamWorkspace(...args)");
+  expect(app).toContain("configureMedicalRuntimeAccessors(() => medicalRuntimeService);");
+  expect(accessors).toContain('export function addMedicalRecord(...args) { return callFacade("addMedicalRecord", args); }');
+  expect(accessors).toContain('export function renderMedicalTeamWorkspace(...args) { return callFacade("renderMedicalTeamWorkspace", args); }');
   expect(service).toContain("createMedicalRuntimeRenderers({");
   expect(service).toContain("createMedicalRuntimeHelpers({");
   expect(service).toContain("createMedicalRuntimeStateService({");
@@ -31,6 +33,7 @@ test("Medical runtime service owns composition wiring outside app-runtime", () =
   expect(service).toContain("get stateService() { return getStateService(); }");
   expect(service).toContain("get facade() { return getFacade(); }");
   expect(index).toContain('export * from "./medical-runtime-service.mjs";');
+  expect(index).toContain('export * from "./medical-runtime-accessors.mjs";');
 });
 
 test("Medical runtime service preserves protected write ownership", () => {

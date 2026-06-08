@@ -47,6 +47,7 @@ import {
   createExerciseLibraryReviewHelpers,
   createExerciseLibraryRuntimeFacade,
   createExerciseLibraryRuntimeController,
+  createExerciseLibraryUiStateBridge,
   createExerciseLibrarySelectors,
   createExerciseLibraryStateAdapter,
   sessionPlannerDefaultExerciseLibrary,
@@ -2073,40 +2074,14 @@ normalizePlayerBoardColors: normalizeSessionPlannerPlayerBoardColors,
 normalizePlayerBoardCustomPeople: normalizeSessionPlannerPlayerBoardCustomPeople,
 versionLimit: sessionPlannerExerciseLibraryVersionLimit,
 });
-function getExerciseLibraryUiState() {
-return {
-open: sessionPlannerLocalUiState.state.sessionPlannerLibraryOpen,
-selectedFolderId: sessionPlannerLocalUiState.state.sessionPlannerLibrarySelectedFolderId,
-editExerciseId: sessionPlannerLocalUiState.state.sessionPlannerLibraryEditExerciseId,
-viewExerciseId: sessionPlannerLocalUiState.state.sessionPlannerLibraryViewExerciseId,
-editingFolderId: sessionPlannerLocalUiState.state.sessionPlannerLibraryEditingFolderId,
-archiveView: sessionPlannerLocalUiState.state.sessionPlannerLibraryArchiveView,
-filterOpen: sessionPlannerLocalUiState.state.sessionPlannerLibraryFilterOpen,
-searchQuery: sessionPlannerLocalUiState.state.sessionPlannerLibrarySearchQuery,
-sortMode: sessionPlannerLocalUiState.state.sessionPlannerLibrarySortMode,
-pendingSave: sessionPlannerLocalUiState.state.sessionPlannerPendingLibrarySave,
-phaseFilter: sessionPlannerLocalUiState.state.sessionPlannerLibraryPhaseFilter,
-subPhaseFilter: sessionPlannerLocalUiState.state.sessionPlannerLibrarySubPhaseFilter,
-phaseFilters: sessionPlannerLocalUiState.state.sessionPlannerLibraryPhaseFilters,
-subPhaseFilters: sessionPlannerLocalUiState.state.sessionPlannerLibrarySubPhaseFilters,
-};
-}
-function setExerciseLibraryUiState(nextState = {}) {
-if (Object.prototype.hasOwnProperty.call(nextState, "open")) sessionPlannerLocalUiState.state.sessionPlannerLibraryOpen = Boolean(nextState.open);
-if (Object.prototype.hasOwnProperty.call(nextState, "selectedFolderId")) sessionPlannerLocalUiState.state.sessionPlannerLibrarySelectedFolderId = nextState.selectedFolderId;
-if (Object.prototype.hasOwnProperty.call(nextState, "editExerciseId")) sessionPlannerLocalUiState.state.sessionPlannerLibraryEditExerciseId = nextState.editExerciseId;
-if (Object.prototype.hasOwnProperty.call(nextState, "viewExerciseId")) sessionPlannerLocalUiState.state.sessionPlannerLibraryViewExerciseId = nextState.viewExerciseId;
-if (Object.prototype.hasOwnProperty.call(nextState, "editingFolderId")) sessionPlannerLocalUiState.state.sessionPlannerLibraryEditingFolderId = nextState.editingFolderId;
-if (Object.prototype.hasOwnProperty.call(nextState, "archiveView")) sessionPlannerLocalUiState.state.sessionPlannerLibraryArchiveView = nextState.archiveView;
-if (Object.prototype.hasOwnProperty.call(nextState, "filterOpen")) sessionPlannerLocalUiState.state.sessionPlannerLibraryFilterOpen = nextState.filterOpen;
-if (Object.prototype.hasOwnProperty.call(nextState, "searchQuery")) sessionPlannerLocalUiState.state.sessionPlannerLibrarySearchQuery = nextState.searchQuery;
-if (Object.prototype.hasOwnProperty.call(nextState, "sortMode")) sessionPlannerLocalUiState.state.sessionPlannerLibrarySortMode = nextState.sortMode;
-if (Object.prototype.hasOwnProperty.call(nextState, "pendingSave")) sessionPlannerLocalUiState.state.sessionPlannerPendingLibrarySave = nextState.pendingSave;
-if (Object.prototype.hasOwnProperty.call(nextState, "phaseFilter")) sessionPlannerLocalUiState.state.sessionPlannerLibraryPhaseFilter = nextState.phaseFilter;
-if (Object.prototype.hasOwnProperty.call(nextState, "subPhaseFilter")) sessionPlannerLocalUiState.state.sessionPlannerLibrarySubPhaseFilter = nextState.subPhaseFilter;
-if (Object.prototype.hasOwnProperty.call(nextState, "phaseFilters")) sessionPlannerLocalUiState.state.sessionPlannerLibraryPhaseFilters = nextState.phaseFilters;
-if (Object.prototype.hasOwnProperty.call(nextState, "subPhaseFilters")) sessionPlannerLocalUiState.state.sessionPlannerLibrarySubPhaseFilters = nextState.subPhaseFilters;
-}
+const exerciseLibraryUiStateBridge = createExerciseLibraryUiStateBridge({
+getLocalState: () => sessionPlannerLocalUiState.state,
+applyLocalPatch: (patch) => sessionPlannerLocalUiState.applyPatch(patch),
+});
+const {
+getUiState: getExerciseLibraryUiState,
+setUiState: setExerciseLibraryUiState,
+} = exerciseLibraryUiStateBridge;
 let exerciseLibraryRenderer;
 let exerciseLibraryActions;
 exerciseLibraryRuntime = createExerciseLibraryRuntimeController({

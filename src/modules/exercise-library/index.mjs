@@ -5,3 +5,4 @@ export * from "./exercise-library-renderer.mjs";
 export * from "./exercise-library-review-helpers.mjs";
 export * from "./exercise-library-runtime-facade.mjs";
 export * from "./exercise-library-runtime-controller.mjs";
+export * from "./exercise-library-ui-state.mjs";

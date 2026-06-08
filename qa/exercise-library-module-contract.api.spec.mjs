@@ -10,6 +10,7 @@ import {
   createExerciseLibraryRuntimeController,
   createExerciseLibrarySelectors,
   createExerciseLibraryStateAdapter,
+  createExerciseLibraryUiStateBridge,
   exerciseLibraryModuleId,
   sessionPlannerDefaultExerciseLibrary,
   sessionPlannerExerciseLibraryBackupSchema,
@@ -21,6 +22,7 @@ import {
 } from "../src/modules/exercise-library/index.mjs";
 import { moduleMigrationStatuses, moduleStandardRegistry } from "../src/core/index.mjs";
 import { platformModuleImplementationStages } from "../src/core/platform-readiness-contracts.mjs";
+import { createSessionPlannerLocalUiState } from "../src/modules/session-planner/index.mjs";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
@@ -51,6 +53,7 @@ test("Exercise Library extraction owns the first state module file slots", () =>
     "src/modules/exercise-library/exercise-library-runtime-controller.mjs",
     "src/modules/exercise-library/exercise-library-selectors.mjs",
     "src/modules/exercise-library/exercise-library-state.mjs",
+    "src/modules/exercise-library/exercise-library-ui-state.mjs",
   ].forEach((path) => {
     expect(existsSync(resolve(root, path)), `${path} should exist`).toBe(true);
   });
@@ -59,6 +62,62 @@ test("Exercise Library extraction owns the first state module file slots", () =>
   expect(sessionPlannerExerciseLibraryStorageKey).toBe("football-session-exercise-library-v1");
   expect(sessionPlannerExerciseLibraryFoldersStorageKey).toBe("football-session-exercise-library-folders-v1");
   expect(sessionPlannerExerciseLibraryVersionLimit).toBe(8);
+});
+
+test("Exercise Library UI state bridge owns transient library panel mapping only", () => {
+  const localUiState = createSessionPlannerLocalUiState({
+    printSectionOptions: [{ key: "overview" }],
+  });
+  const bridge = createExerciseLibraryUiStateBridge({
+    getLocalState: () => localUiState.state,
+    applyLocalPatch: (patch) => localUiState.applyPatch(patch),
+  });
+
+  expect(bridge.getUiState()).toMatchObject({
+    open: false,
+    selectedFolderId: "all",
+    archiveView: "active",
+    searchQuery: "",
+    sortMode: "updated",
+    pendingSave: null,
+  });
+
+  bridge.setUiState({
+    open: "yes",
+    selectedFolderId: "warmups",
+    editExerciseId: "exercise-1",
+    viewExerciseId: "exercise-2",
+    archiveView: "archived",
+    searchQuery: "rondo",
+    sortMode: "title",
+    pendingSave: { id: "save-1" },
+    phaseFilters: ["Build Up"],
+    unknownKey: "ignored",
+  });
+
+  expect(localUiState.state.sessionPlannerLibraryOpen).toBe(true);
+  expect(localUiState.state.sessionPlannerLibrarySelectedFolderId).toBe("warmups");
+  expect(localUiState.state.sessionPlannerLibraryEditExerciseId).toBe("exercise-1");
+  expect(localUiState.state.sessionPlannerLibraryViewExerciseId).toBe("exercise-2");
+  expect(localUiState.state.sessionPlannerLibraryArchiveView).toBe("archived");
+  expect(localUiState.state.sessionPlannerLibrarySearchQuery).toBe("rondo");
+  expect(localUiState.state.sessionPlannerLibrarySortMode).toBe("title");
+  expect(localUiState.state.sessionPlannerPendingLibrarySave).toEqual({ id: "save-1" });
+  expect(localUiState.state.sessionPlannerLibraryPhaseFilters).toEqual(["Build Up"]);
+  expect(localUiState.state.unknownKey).toBeUndefined();
+});
+
+test("Exercise Library UI state bridge does not own persisted library data", () => {
+  const moduleSource = readProjectFile("src/modules/exercise-library/exercise-library-ui-state.mjs");
+  const appRuntime = readProjectFile("app-runtime.js");
+
+  expect(moduleSource).not.toContain("localStorage");
+  expect(moduleSource).not.toContain("writeSessionPlannerExerciseLibrary");
+  expect(moduleSource).not.toContain("queueCentralStateWrite");
+  expect(moduleSource).not.toContain("saveDataSafetySnapshot");
+  expect(appRuntime).toContain("createExerciseLibraryUiStateBridge");
+  expect(appRuntime).toContain("getUiState: getExerciseLibraryUiState");
+  expect(appRuntime).toContain("setUiState: setExerciseLibraryUiState");
 });
 
 test("Exercise Library selectors own seed exercises, filters, and sort order", () => {

@@ -29,7 +29,14 @@ Responsibilities:
 - Keep the user informed in plain Swedish.
 - Coordinate with System / Security / Release for risky or production-facing releases.
 
-The Project Lead may give instructions but should not casually edit specialist modules unless explicitly taking ownership for that task.
+Hard rules:
+
+- The Project Lead coordinates and delegates by default.
+- The Project Lead must not directly implement, fix, commit, push, deploy, or production-verify specialist module work while an active specialist chat owns that module.
+- If the user asks the Project Lead to fix or make a specialist module live, the Project Lead should route the task to the responsible specialist chat and coordinate release with System / Security / Release.
+- The Project Lead may edit governance/process docs for coordination clarity.
+- The Project Lead may take operational ownership only when the user explicitly transfers ownership or an urgent incident requires it.
+- If the Project Lead bypasses this delegation model, record it as a process incident and notify the affected specialist team plus System / Security / Release.
 
 ## System / Security / Release
 

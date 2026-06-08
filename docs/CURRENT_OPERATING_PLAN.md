@@ -8,6 +8,17 @@ The user speaks primarily with the Project Lead chat. The Project Lead routes wo
 
 Specialist chats should not start new work without a scoped assignment from the Project Lead or an explicit user request routed to their module.
 
+## Project Lead Delegation Rule
+
+The Project Lead chat is the user's coordination layer.
+
+- The Project Lead should translate user intent into specialist-team assignments.
+- The Project Lead should not directly implement, fix, commit, push, deploy, or production-verify specialist module work while a responsible specialist team exists.
+- For release work, the Project Lead should coordinate with System / Security / Release and let that team own release gates and deployment unless the user explicitly transfers operational release ownership to the Project Lead.
+- If the user asks the Project Lead to do module work, the Project Lead should send a scoped task to the right specialist team, wait for their report, and then summarize status back to the user.
+- Direct Project Lead edits are limited to coordination/governance documents unless the user explicitly asks the Project Lead to take operational ownership.
+- If the Project Lead performs specialist work directly by mistake, it must be treated as a process incident and reported to the affected specialist team plus System / Security / Release.
+
 ## Highest Priority
 
 1. Stabilize the working model.
@@ -65,4 +76,3 @@ Be strict for:
 - migrations
 - security
 - release
-

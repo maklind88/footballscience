@@ -90,6 +90,7 @@ import {
   createPlayerProfileRuntimeImportService,
   createPlayerProfileRuntimeMedicalSyncService,
   createPlayerProfileRuntimeStateService,
+  createPlayerProfileRuntimeWriteService,
   createSquadMedicalStatusService,
   createSquadScoutingRuntime,
   buildPlayerProfileImportFeedback as buildPlayerProfileImportFeedbackMessage,
@@ -1571,6 +1572,7 @@ let playerProfileAutosaveTimer = 0, playerProfileAutosaveLastSignature = "";
 let playerProfileRuntimeImportService = null;
 let playerProfileRuntimeMedicalSyncService = null;
 let playerProfileRuntimeStateService = null;
+let playerProfileRuntimeWriteService = null;
 const playerProfileImportUndoHistoryLimit = 3;
 let playerProfileImportUndoHistory = [];
 let playerProfileLastImportSnapshot = null;
@@ -7576,197 +7578,35 @@ function getMedicalRemovedSquadPlayerIdSet(...args) { return playerProfileRuntim
 function isMedicalPlayerRemovedFromSquad(...args) { return playerProfileRuntimeMedicalSyncService.isMedicalPlayerRemovedFromSquad(...args); }
 function archiveMedicalPlayersRemovedFromSquad(...args) { return playerProfileRuntimeMedicalSyncService.archiveMedicalPlayersRemovedFromSquad(...args); }
 function archiveMedicalPlayersForRemovedPlayerProfile(...args) { return playerProfileRuntimeMedicalSyncService.archiveMedicalPlayersForRemovedPlayerProfile(...args); }
-function addPlayerProfile(values = {}) {
-ensurePlayerProfilesState();
-const roleGroup = getPlayerProfileRoleGroupForRole(values.primaryRole, values.position);
-const result = validatePlayerProfileFormValues(
-{
-...values,
-roleGroup,
+playerProfileRuntimeWriteService = createPlayerProfileRuntimeWriteService({
+archiveMedicalPlayersForRemovedPlayerProfile,
+comparePlayerProfiles,
+ensurePlayerProfilesState,
+formatPlayerProfileChangeValue,
+getNow: () => new Date().toISOString(),
+getPlayerProfileChangeDiffs,
+getPlayerProfileRoleGroupForRole,
+getPlayerProfilesState: () => playerProfilesState,
+isCurrentPlatformUserAdmin,
+normalizePlayerProfile,
+normalizePlayerProfileRemovedIds,
+normalizePlayerProfileRole,
+normalizePlayerProfileRosterType,
+playerProfileRoleGroupOptions,
+playerProfileRosterTypeCountsInSquad,
+playerProfileRosterTypeOptions,
+playerProfileSquadStatusOptions,
+recordPlayerProfileChange,
+setPlayerProfilesState: (nextState) => {
+playerProfilesState = nextState;
 },
-{
-existingPlayers: playerProfilesState.players,
-}
-);
-if (!result.ok) {
-return {
-ok: false,
-status: result.status || "error",
-errors: result.errors,
-warnings: result.warnings,
-duplicates: result.duplicates,
-player: null,
-};
-}
-const player = result.player;
-if (!player) {
-return {
-ok: false,
-status: "error",
-errors: ["Player could not be normalized."],
-warnings: [],
-duplicates: [],
-player: null,
-};
-}
-playerProfilesState.removedPlayerIds = normalizePlayerProfileRemovedIds(playerProfilesState.removedPlayerIds)
-.filter((removedPlayerId) => removedPlayerId !== player.id);
-playerProfilesState.players = [...playerProfilesState.players, player].sort(comparePlayerProfiles);
-playerProfilesState.selectedPlayerId = player.id;
-recordPlayerProfileChange("player-added", player, [
-{ field: "Primary role", from: "-", to: player.primaryRole },
-{ field: "Role group", from: "-", to: formatPlayerProfileChangeValue(player.roleGroup, { options: playerProfileRoleGroupOptions }) },
-{ field: "Squad status", from: "-", to: formatPlayerProfileChangeValue(player.squadStatus, { options: playerProfileSquadStatusOptions }) },
-{ field: "Roster type", from: "-", to: formatPlayerProfileChangeValue(player.rosterType, { options: playerProfileRosterTypeOptions }) },
-]);
-writePlayerProfilesState();
-syncMedicalPlayersFromPlayerProfiles([player]);
-return {
-ok: true,
-status: result.status || "success",
-errors: [],
-warnings: result.warnings,
-duplicates: result.duplicates,
-player,
-};
-}
-function updatePlayerProfile(values = {}) {
-ensurePlayerProfilesState();
-const playerIndex = playerProfilesState.players.findIndex((player) => player.id === values.playerId);
-if (playerIndex < 0) {
-return {
-ok: false,
-status: "error",
-errors: ["Player profile could not be found."],
-warnings: [],
-duplicates: [],
-player: null,
-};
-}
-const currentPlayer = playerProfilesState.players[playerIndex];
-const currentNaturalRoleGroup = getPlayerProfileRoleGroupForRole(currentPlayer.primaryRole, currentPlayer.position);
-const nextPrimaryRole = normalizePlayerProfileRole(values.primaryRole, currentPlayer.primaryRole);
-const nextPosition = values.position || currentPlayer.position;
-const nextNaturalRoleGroup = getPlayerProfileRoleGroupForRole(nextPrimaryRole, nextPosition);
-const submittedRoleGroup = String(values.roleGroup || "").trim();
-const shouldAutoAlignRoleGroup =
-(!submittedRoleGroup || submittedRoleGroup === currentPlayer.roleGroup) &&
-currentPlayer.roleGroup === currentNaturalRoleGroup &&
-nextNaturalRoleGroup !== currentPlayer.roleGroup;
-const hasSubmittedValue = (key) => Object.prototype.hasOwnProperty.call(values, key);
-const currentRosterType = normalizePlayerProfileRosterType(currentPlayer.rosterType, "squad");
-const currentIsSquadPlayer = playerProfileCountsInSquad(currentPlayer);
-const submittedRosterType = hasSubmittedValue("rosterType")
-? normalizePlayerProfileRosterType(values.rosterType, currentRosterType)
-: currentRosterType;
-const nextRosterType = submittedRosterType;
-const nextCountsInSquad = playerProfileRosterTypeCountsInSquad(nextRosterType);
-const nextTemporaryGroup = nextCountsInSquad
-? ""
-: hasSubmittedValue("temporaryGroup")
-? values.temporaryGroup
-: currentPlayer.temporaryGroup;
-const nextTemporaryFrom = nextCountsInSquad
-? ""
-: hasSubmittedValue("temporaryFrom")
-? values.temporaryFrom
-: currentPlayer.temporaryFrom;
-const nextTemporaryTo = nextCountsInSquad
-? ""
-: hasSubmittedValue("temporaryTo")
-? values.temporaryTo
-: currentPlayer.temporaryTo;
-const nextPhotoUrl = hasSubmittedValue("photoUrl") ? values.photoUrl : currentPlayer.photoUrl;
-const nextPlayer = normalizePlayerProfile({
-...currentPlayer,
-...values,
-primaryRole: nextPrimaryRole,
-roleGroup: shouldAutoAlignRoleGroup ? nextNaturalRoleGroup : submittedRoleGroup || nextNaturalRoleGroup,
-rosterType: nextRosterType,
-countsInSquad: nextCountsInSquad,
-temporaryGroup: nextTemporaryGroup,
-temporaryFrom: nextTemporaryFrom,
-temporaryTo: nextTemporaryTo,
-photoUrl: nextPhotoUrl,
-attributeRatings: {
-...currentPlayer.attributeRatings,
-...values.attributeRatings,
-},
-idp: {
-...currentPlayer.idp,
-...values.idp,
-},
-futureData: {
-...currentPlayer.futureData,
-...values.futureData,
-},
-updatedAt: new Date().toISOString(),
+syncMedicalPlayersFromPlayerProfiles,
+validatePlayerProfileFormValues,
+writePlayerProfilesState,
 });
-const validation = validatePlayerProfileFormValues(nextPlayer, {
-existingPlayers: playerProfilesState.players,
-ignorePlayerId: currentPlayer.id,
-});
-if (!validation.ok) {
-return {
-ok: false,
-status: validation.status || "error",
-errors: validation.errors,
-warnings: validation.warnings,
-duplicates: validation.duplicates,
-player: null,
-};
-}
-if (!validation.player) {
-return {
-ok: false,
-status: "error",
-errors: ["Player could not be normalized."],
-warnings: [],
-duplicates: [],
-player: null,
-};
-}
-const normalizedNextPlayer = validation.player;
-const changes = getPlayerProfileChangeDiffs(currentPlayer, normalizedNextPlayer);
-const nextPlayers = [...playerProfilesState.players];
-nextPlayers[playerIndex] = normalizedNextPlayer;
-playerProfilesState.players = nextPlayers.sort(comparePlayerProfiles);
-playerProfilesState.selectedPlayerId = normalizedNextPlayer.id;
-if (changes.length) {
-recordPlayerProfileChange("profile-updated", normalizedNextPlayer, changes);
-}
-writePlayerProfilesState();
-syncMedicalPlayersFromPlayerProfiles([normalizedNextPlayer]);
-return {
-ok: true,
-status: validation.status || "success",
-errors: [],
-warnings: validation.warnings,
-duplicates: validation.duplicates,
-player: normalizedNextPlayer,
-};
-}
-function removePlayerProfile(playerId) {
-if (!isCurrentPlatformUserAdmin()) return false;
-ensurePlayerProfilesState();
-const removedPlayer = playerProfilesState.players.find((player) => player.id === playerId) ?? null;
-const removedPlayerIds = normalizePlayerProfileRemovedIds(playerProfilesState.removedPlayerIds);
-if (playerId && !removedPlayerIds.includes(playerId)) {
-removedPlayerIds.push(playerId);
-}
-playerProfilesState.removedPlayerIds = removedPlayerIds;
-const nextPlayers = playerProfilesState.players.filter((player) => player.id !== playerId);
-playerProfilesState.players = nextPlayers;
-playerProfilesState.selectedPlayerId = nextPlayers[0]?.id || "";
-if (removedPlayer) {
-recordPlayerProfileChange("player-removed", removedPlayer, [
-{ field: "Squad status", from: formatPlayerProfileChangeValue(removedPlayer.squadStatus, { options: playerProfileSquadStatusOptions }), to: "Removed" },
-]);
-}
-writePlayerProfilesState();
-archiveMedicalPlayersForRemovedPlayerProfile(removedPlayer || { id: playerId });
-return true;
-}
+function addPlayerProfile(...args) { return playerProfileRuntimeWriteService.addPlayerProfile(...args); }
+function updatePlayerProfile(...args) { return playerProfileRuntimeWriteService.updatePlayerProfile(...args); }
+function removePlayerProfile(...args) { return playerProfileRuntimeWriteService.removePlayerProfile(...args); }
 win.footballSciencePlayerProfiles = {
 getState: () => clonePlayerProfilesState(ensurePlayerProfilesState()),
 getPlayersForSessionPlanner: getSessionPlannerPlayerProfileContracts,

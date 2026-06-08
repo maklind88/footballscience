@@ -105,9 +105,12 @@ test("Squad player profile helpers are extracted from app.js and tracked by modu
   });
 
   const appSource = readProjectFile("app-runtime.js");
+  const composerSource = readProjectFile("src/modules/squad/squad-app-runtime-composer.mjs");
   const packageJson = readProjectFile("package.json");
   const squadContract = moduleStandardRegistry.get("player-profiles");
-  expect(appSource).toContain("createPlayerProfileHelpers");
+  expect(appSource).toContain("createSquadAppRuntimeComposition({");
+  expect(appSource).not.toContain("createPlayerProfileHelpers({");
+  expect(composerSource).toContain("createPlayerProfileHelpers({");
   expect(appSource).not.toContain("function normalizePlayerProfile(");
   expect(appSource).not.toContain("function validatePlayerProfileFormValues(");
   expect(appSource).not.toContain("function getPlayerRoleDnaScore(");

@@ -88,17 +88,20 @@ function createHarness(options = {}) {
 
 test("Squad player profile write service owns add/update/remove bodies outside app-runtime", () => {
   const app = readProjectFile("app-runtime.js");
+  const facade = readProjectFile("src/modules/squad/player-profile-runtime-facade.mjs");
   const service = readProjectFile("src/modules/squad/player-profile-runtime-write-service.mjs");
   const index = readProjectFile("src/modules/squad/index.mjs");
 
   expect(typeof createPlayerProfileRuntimeWriteService).toBe("function");
-  expect(app).toContain("createPlayerProfileRuntimeWriteService({");
+  expect(app).toContain("createPlayerProfileRuntimeFacade({");
   expect(app).toContain("function addPlayerProfile(...args)");
+  expect(facade).toContain("createPlayerProfileRuntimeWriteService({");
   expect(app).not.toContain("function addPlayerProfile(values = {}) {\nensurePlayerProfilesState();");
   expect(app).not.toContain("function updatePlayerProfile(values = {}) {\nensurePlayerProfilesState();");
   expect(service).toContain("function removePlayerProfile(playerId)");
   expect(service).not.toContain("createDashboardChat");
   expect(index).toContain('export * from "./player-profile-runtime-write-service.mjs";');
+  expect(index).toContain('export * from "./player-profile-runtime-facade.mjs";');
 });
 
 test("Squad player profile write service preserves add behavior and Medical sync", () => {

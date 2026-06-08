@@ -66,14 +66,17 @@ test("Squad player profile Medical sync service owns sync and archive bodies out
   const index = readProjectFile("src/modules/squad/index.mjs");
 
   expect(typeof createPlayerProfileRuntimeMedicalSyncService).toBe("function");
-  expect(app).toContain("createPlayerProfileRuntimeMedicalSyncService({");
+  expect(app).toContain("createPlayerProfileRuntimeFacade({");
   expect(app).toContain("function archiveMedicalPlayersRemovedFromSquad(...args)");
+  expect(app).not.toContain("createPlayerProfileRuntimeMedicalSyncService({");
   expect(app).not.toContain("function buildMedicalPlayerFromPlayerProfile(player = {}) {\nconst now = new Date().toISOString();");
   expect(app).not.toContain("function archiveMedicalPlayersRemovedFromSquad(options = {}) {\nif (!medicalState");
+  expect(service).toContain("createPlayerProfileRuntimeMedicalSyncService");
   expect(service).toContain("function archiveMedicalPlayersRemovedFromSquad(archiveOptions = {})");
   expect(service).toContain("commitMedicalClinicalState");
   expect(service).not.toContain("createDashboardChat");
   expect(index).toContain('export * from "./player-profile-runtime-medical-sync-service.mjs";');
+  expect(index).toContain('export * from "./player-profile-runtime-facade.mjs";');
 });
 
 test("Squad player profile Medical sync service converts profiles and upserts Medical players", () => {

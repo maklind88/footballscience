@@ -203,12 +203,14 @@ function createHarness(options = {}) {
 
 test("Squad player profile runtime state service owns state/cache/modal bodies outside app-runtime", () => {
   const app = readProjectFile("app-runtime.js");
+  const facade = readProjectFile("src/modules/squad/player-profile-runtime-facade.mjs");
   const service = readProjectFile("src/modules/squad/player-profile-runtime-state-service.mjs");
   const index = readProjectFile("src/modules/squad/index.mjs");
 
   expect(typeof createPlayerProfileRuntimeStateService).toBe("function");
-  expect(app).toContain("createPlayerProfileRuntimeStateService({");
+  expect(app).toContain("createPlayerProfileRuntimeFacade({");
   expect(app).toContain("function readPlayerProfilesState(...args)");
+  expect(facade).toContain("createPlayerProfileRuntimeStateService({");
   expect(app).not.toContain("function readPlayerProfilesState() {\ntry {");
   expect(app).not.toContain("function hydratePlayerProfileAgesOnce() {\nif (playerProfileAgeHydrationPending");
   expect(service).toContain("function readPlayerProfilesState()");
@@ -216,6 +218,7 @@ test("Squad player profile runtime state service owns state/cache/modal bodies o
   expect(service).toContain("rawDataSafetySetItem");
   expect(service).not.toContain("createDashboardChat");
   expect(index).toContain('export * from "./player-profile-runtime-state-service.mjs";');
+  expect(index).toContain('export * from "./player-profile-runtime-facade.mjs";');
 });
 
 test("Squad player profile runtime state service preserves clone/read/write behavior", () => {

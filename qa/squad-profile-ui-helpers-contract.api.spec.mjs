@@ -169,12 +169,16 @@ test("Squad medical status service preserves medical snapshot golden-master beha
 
 test("Squad medical status service is a read-only extracted runtime boundary", () => {
   const serviceSource = readFileSync(new URL("../src/modules/squad/squad-medical-status-service.mjs", import.meta.url), "utf8");
+  const facadeSource = readFileSync(new URL("../src/modules/squad/player-profile-runtime-facade.mjs", import.meta.url), "utf8");
   const runtimeSource = readFileSync(new URL("../app-runtime.js", import.meta.url), "utf8");
 
   expect(serviceSource).toContain("export function createSquadMedicalStatusService");
   expect(serviceSource).not.toMatch(/localStorage|sessionStorage|fetch\(|setItem\(|writePlayerProfilesState|writeMedicalState/);
-  expect(runtimeSource).toContain("createSquadMedicalStatusService");
-  expect(runtimeSource).toContain("squadMedicalStatusService.getPlayerProfileMedicalSnapshot");
+  expect(runtimeSource).toContain("createPlayerProfileRuntimeFacade({");
+  expect(runtimeSource).toContain("function getPlayerProfileMedicalSnapshot(...args)");
+  expect(runtimeSource).not.toContain("createSquadMedicalStatusService({");
+  expect(facadeSource).toContain("createSquadMedicalStatusService({");
+  expect(facadeSource).toContain('method(squadMedicalStatusService, "getPlayerProfileMedicalSnapshot"');
 });
 
 test("Squad profile UI helpers filter roster profiles without owning state", () => {

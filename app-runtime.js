@@ -62,6 +62,7 @@ import { configurePlatformRuntimeAccessors, mergePeriodizationStatePreservingLoc
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createDashboardId, createDashboardJsonStorage, createDashboardWorkspaceQueryEngine } from "./src/core/dashboard-runtime-utils.mjs";
 import { createPlatformRuntimeHelpers } from "./src/core/platform-runtime-helpers.mjs";
+import { createCentralSyncStateHandler } from "./src/core/platform-central-sync-helpers.mjs";
 import { createPlatformShellRuntimeHelpers } from "./src/core/platform-shell-runtime-helpers.mjs";
 import { createCentralRuntimeFacade, dataSafetySnapshotStoreName } from "./src/core/central-runtime-facade.mjs";
 import { bindPlatformWorkspaceRuntimeBindings } from "./src/core/platform-workspace-runtime-bindings.mjs";
@@ -662,94 +663,63 @@ const sessionPlannerAutosaveBoundary = createSessionPlannerAutosaveBoundary({
   now: () => Date.now(),
 });
 syncPlatformAutosaveStatusVisibility(null);
-function handleCentralSyncedStateValue(key) {
-if (key === sessionPlannerStorageKey) {
-sessionPlannerState = readSessionPlannerStatePreservingUiSelection();
-syncSessionPlannerBoardHistoryBaselines(getSessionPlannerSelectedBlock());
-if (hubState?.activeWorkspaceId === "session-planner" && !shouldDeferCentralizedAppStateReload()) {
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-}
-return;
-}
-if (key === sessionPlannerExerciseLibraryStorageKey) {
-sessionPlannerExerciseLibrary = readSessionPlannerExerciseLibrary();
-if (hubState?.activeWorkspaceId === "session-planner" && !shouldDeferCentralizedAppStateReload()) {
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-}
-return;
-}
-if (key === sessionPlannerExerciseLibraryFoldersStorageKey) {
-sessionPlannerExerciseLibraryFolders = readSessionPlannerExerciseLibraryFolders();
-if (hubState?.activeWorkspaceId === "session-planner" && !shouldDeferCentralizedAppStateReload()) {
-renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
-}
-return;
-}
-if (key === dashboardChatStorageKey) {
-dashboardChatRuntimeMessages = [];
-purgeDashboardDeletedMessagesFromStorage();
-renderDashboardChatWidget();
-platformNavigationController.renderTopIconMenu();
-return;
-}
-if (key === dashboardChatDeletedMessageIdsStorageKey) {
-purgeDashboardDeletedMessagesFromStorage();
-renderDashboardChatWidget();
-platformNavigationController.renderTopIconMenu();
-return;
-}
-if (key === platformAppearanceStorageKey) {
-if (hubState?.activeWorkspaceId === "home") {
-renderDashboardCards();
-}
-if (hubState?.activeWorkspaceId === "admin") {
-renderAdminWorkspace();
-}
-return;
-}
-if (key === playerProfilesStorageKey) {
-clearPlayerProfileImportUndoSnapshots();
-playerProfilesState = readPlayerProfilesState();
-if (hubState?.activeWorkspaceId === "transfer-room" && !shouldDeferCentralizedAppStateReload()) {
-syncTransferRoomLinkedState({ render: true });
-}
-if (hubState?.activeWorkspaceId === "player-profiles" && !shouldDeferCentralizedAppStateReload()) {
-renderPlayerProfilesWorkspace();
-}
-return;
-}
-if (key === medicalTeamStorageKey) {
-clearPlayerProfileImportUndoSnapshots();
-medicalState = readMedicalState();
-if (hubState?.activeWorkspaceId === "player-profiles" && !shouldDeferCentralizedAppStateReload()) {
-renderPlayerProfilesWorkspace();
-}
-if (hubState?.activeWorkspaceId === "medical-team" && !shouldDeferCentralizedAppStateReload()) {
-renderMedicalTeamWorkspace();
-}
-return;
-}
-if (key === scoutingStorageKey) {
-scoutingState = readScoutingState();
-if (hubState?.activeWorkspaceId === "transfer-room" && !shouldDeferCentralizedAppStateReload()) {
-syncTransferRoomLinkedState({ render: true });
-}
-if (hubState?.activeWorkspaceId === "scouting" && shouldDeferCentralizedAppStateReload()) {
-setCentralizedAppStateReloadPending(true);
-return;
-}
-if (hubState?.activeWorkspaceId === "scouting") {
-renderScoutingWorkspace();
-}
-return;
-}
-if (key === transferRoomStorageKey) {
-transferRoomState = readTransferRoomState();
-if (hubState?.activeWorkspaceId === "transfer-room" && !shouldDeferCentralizedAppStateReload()) {
-renderTransferRoomWorkspace();
-}
-}
-}
+const { handleCentralSyncedStateValue } = createCentralSyncStateHandler({
+getHubState: () => hubState,
+  dashboardChatDeletedMessageIdsStorageKey,
+  dashboardChatStorageKey,
+  medicalTeamStorageKey,
+  platformAppearanceStorageKey,
+  playerProfilesStorageKey,
+  readMedicalState,
+  readPlayerProfilesState,
+  readScoutingState,
+  readSessionPlannerExerciseLibrary,
+  readSessionPlannerExerciseLibraryFolders,
+  readSessionPlannerStatePreservingUiSelection,
+  readTransferRoomState,
+  renderAdminWorkspace,
+  renderDashboardCards,
+  renderDashboardChatWidget,
+  renderMedicalTeamWorkspace,
+  renderPlayerProfilesWorkspace,
+  renderScoutingWorkspace,
+  renderSessionPlannerWorkspace,
+  renderTopIconMenu: platformNavigationController.renderTopIconMenu,
+  renderTransferRoomWorkspace,
+  sessionPlannerExerciseLibraryFoldersStorageKey,
+  sessionPlannerExerciseLibraryStorageKey,
+  sessionPlannerStorageKey,
+  scoutingStorageKey,
+  transferRoomStorageKey,
+  clearPlayerProfileImportUndoSnapshots,
+  getSessionPlannerSelectedBlock,
+  purgeDashboardDeletedMessagesFromStorage,
+  setCentralizedAppStateReloadPending,
+  shouldDeferCentralizedAppStateReload,
+  setMedicalState: (nextState) => {
+    medicalState = nextState;
+  },
+  setPlayerProfilesState: (nextState) => {
+    playerProfilesState = nextState;
+  },
+  setScoutingState: (nextState) => {
+    scoutingState = nextState;
+  },
+  setSessionPlannerState: (nextState) => {
+    sessionPlannerState = nextState;
+  },
+  setSessionPlannerExerciseLibrary: (nextLibrary) => {
+    sessionPlannerExerciseLibrary = nextLibrary;
+  },
+  setSessionPlannerExerciseLibraryFolders: (nextFolders) => {
+    sessionPlannerExerciseLibraryFolders = nextFolders;
+  },
+  setTransferRoomState: (nextState) => {
+    transferRoomState = nextState;
+  },
+  syncSessionPlannerBoardHistoryBaselines,
+  syncTransferRoomLinkedState,
+});
 installFootballDataSafety();
 installPlatformOverlayStability({ win });
 const {

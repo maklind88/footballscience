@@ -80,7 +80,7 @@ import { createPlatformWorkspaceRenderers } from "./src/modules/platform/workspa
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
 import { getTopIconSvg } from "./top-icons.js";
 import { buildPlatformAppearanceConfigFromForm, createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
-import { getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
+import { bindAdminRuntimeBindings, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
 import { bindProfileStaffRuntimeBindings, createProfileImageDataUrl as createProfileImageDataUrlFromModule, createProfileStaffWorkspaceController } from "./src/modules/profile/index.mjs";
 import {
   createSquadDataFoundationHelpers,
@@ -8679,505 +8679,60 @@ event.target.value = "";
 importFootballScienceDataBackupFile(file);
 setProfileMenuOpen(false);
 });
-async function createAdminUserFromForm(createUserForm) {
-if (!createUserForm) {
-return;
-}
-if (!isCurrentPlatformUserAdmin()) {
-renderAdminWorkspace("Admin access required. Sign in as an admin and try again.");
-return;
-}
-const values = getPlatformFormValues(createUserForm);
-const passwordError = getPasswordValidationMessage(values);
-if (passwordError) {
-renderAdminWorkspace(passwordError);
-return;
-}
-const authStore = getPlatformAuthStore();
-if (!authStore?.createUser) {
-renderAdminWorkspace("Supabase user creation is not ready yet. Reload the page and try again.");
-return;
-}
-const submissionValues = normalizeAdminUserSubmissionValues(
-stripPasswordConfirmation(values),
-getCurrentPlatformUser(),
-null,
-syncPlatformStructureWithUsers(getPlatformUsers())
-);
-setFormSubmitButtonState(createUserForm, { isSubmitting: true, submittingLabel: "Creating...", defaultLabel: "Create user" });
-try {
-const result = await authStore.createUser(submissionValues);
-if (!result?.ok) {
-renderAdminWorkspace(result?.reason ?? "User could not be created.");
-return;
-}
-selectedAdminUserId = result.user?.id ?? null;
-adminCreateUserEditorOpen = false;
-adminUserEditorOpen = Boolean(selectedAdminUserId);
-createUserForm.reset();
-renderWorkspaceChrome();
-const generatedPassword = result.generatedPassword || "";
-const passwordForMessage = submissionValues.password || generatedPassword;
-const copied = passwordForMessage
-? await maybeCopyToClipboard(
-[
-"Website: https://footballscience.xyz/",
-`Username: ${result.user?.username || submissionValues.username}`,
-`Email: ${result.user?.email || submissionValues.email}`,
-`Password: ${passwordForMessage}`,
-].join("\n")
-)
-: false;
-renderAdminWorkspace(
-passwordForMessage
-? `User created in Supabase. Password: ${passwordForMessage}.${copied ? " Copied to clipboard." : ""} Use "Send login" only if you want to replace this password with a fresh temporary one.`
-: `User created in Supabase. Use "Send login" to create and email a temporary password.`
-);
-} catch (error) {
-renderAdminWorkspace(error?.message || "User could not be created in Supabase.");
-} finally {
-setFormSubmitButtonState(createUserForm, { isSubmitting: false, defaultLabel: "Create user" });
-}
-}
-ui.adminWorkspace?.addEventListener("click", async (event) => {
-const passwordToggle = event.target.closest("[data-toggle-password-visibility]");
-if (passwordToggle) {
-togglePasswordInputVisibility(passwordToggle);
-return;
-}
-const openCreateUserButton = event.target.closest("[data-admin-open-create-user]");
-if (openCreateUserButton) {
-adminCreateUserTeamId = openCreateUserButton.dataset.adminOpenCreateUser || getUserTeamId(getCurrentPlatformUser(), getPlatformStructureState());
-adminCreateUserEditorOpen = true;
-adminUserEditorOpen = false;
-renderAdminWorkspace();
-return;
-}
-const closeCreateUserButton = event.target.closest("[data-admin-close-create-user]");
-if (closeCreateUserButton) {
-adminCreateUserEditorOpen = false;
-renderAdminWorkspace();
-return;
-}
-const createUserOverlay = event.target.closest("[data-admin-create-user-overlay]");
-if (createUserOverlay && event.target === createUserOverlay) {
-adminCreateUserEditorOpen = false;
-renderAdminWorkspace();
-return;
-}
-const createUserButton = event.target.closest("[data-admin-create-user-submit]");
-if (createUserButton) {
-event.preventDefault();
-await createAdminUserFromForm(createUserButton.closest("#adminCreateUserForm"));
-return;
-}
-const closeUserEditorButton = event.target.closest("[data-admin-close-user-editor]");
-if (closeUserEditorButton) {
-adminUserEditorOpen = false;
-renderAdminWorkspace();
-return;
-}
-const userEditorOverlay = event.target.closest("[data-admin-user-editor-overlay]");
-if (userEditorOverlay && event.target === userEditorOverlay) {
-adminUserEditorOpen = false;
-renderAdminWorkspace();
-return;
-}
-const selectButton = event.target.closest("[data-admin-select-user]");
-if (selectButton) {
-selectedAdminUserId = selectButton.dataset.adminSelectUser;
-adminUserEditorOpen = true;
-adminCreateUserEditorOpen = false;
-renderAdminWorkspace();
-return;
-}
-const refreshAuditButton = event.target.closest("[data-admin-refresh-audit]");
-if (refreshAuditButton) {
-if (!isPlatformAdminUser(getCurrentPlatformUser())) {
-renderAdminWorkspace("Platform admin required.");
-return;
-}
-await loadAdminAuditLog({ force: true });
-return;
-}
-const refreshReadinessButton = event.target.closest("[data-pr-refresh]");
-if (refreshReadinessButton) {
-if (!isPlatformAdminUser(getCurrentPlatformUser())) {
-renderAdminWorkspace("Platform admin required.");
-return;
-}
-await loadPlatformReadinessReport({ force: true });
-return;
-}
-const appearanceResetButton = event.target.closest("[data-platform-appearance-reset]");
-if (appearanceResetButton) {
-if (!isPlatformAdminUser(getCurrentPlatformUser())) {
-renderAdminWorkspace("Platform admin required.");
-return;
-}
-await publishPlatformAppearanceConfig(
-createDefaultPlatformAppearanceConfig({
-updatedAt: new Date().toISOString(),
-updatedBy: getCurrentPlatformUser()?.id || "",
-}),
-"Defaults reset."
-);
-return;
-}
-const removeButton = event.target.closest("[data-admin-remove-user]");
-const sendButton = event.target.closest("[data-admin-send-credentials]");
-const sendSelectedButton = event.target.closest("[data-admin-send-selected]");
-const resetPasswordButton = event.target.closest("[data-admin-reset-password]");
-const generatePasswordButton = event.target.closest("[data-admin-generate-password]");
-const generateSelectedPasswordButton = event.target.closest("[data-admin-generate-selected-password]");
-if (!isCurrentPlatformUserAdmin()) {
-return;
-}
-const currentAdminUser = getCurrentPlatformUser();
-const adminActionStructure = syncPlatformStructureWithUsers(getPlatformUsers());
-const canRunAdminUserAction = (adminUser, options = {}) => {
-if (canAdminManageUser(currentAdminUser, adminUser, adminActionStructure, options)) {
-return true;
-}
-renderAdminWorkspace("This user is outside your admin scope.");
-return false;
-};
-if (generatePasswordButton) {
-const userId = generatePasswordButton.dataset.adminGeneratePassword;
-const adminUser = getPlatformUsers().find((user) => user.id === userId);
-if (!adminUser) {
-return;
-}
-if (!canRunAdminUserAction(adminUser)) {
-return;
-}
-const result = await getPlatformAuthStore()?.updateUser?.(adminUser.id, { generatePassword: true });
-if (!result?.ok) {
-renderAdminWorkspace(result?.reason || "Could not generate a temporary password.");
-return;
-}
-if (!result.generatedPassword) {
-renderAdminWorkspace(`Password generated for ${adminUser.email}, but no password was returned.`);
-return;
-}
-const copied = await maybeCopyToClipboard(
-[
-"Website: https://footballscience.xyz/",
-`Username: ${adminUser.username}`,
-`Email: ${adminUser.email}`,
-`Temporary password: ${result.generatedPassword}`,
-].join("\n")
-);
-renderAdminWorkspace(
-`Temporary password for ${adminUser.email}: ${result.generatedPassword}. This replaces any previous password.${copied ? " Copied to clipboard." : ""}`
-);
-return;
-}
-if (generateSelectedPasswordButton) {
-const userId = generateSelectedPasswordButton.dataset.adminGenerateSelectedPassword;
-const adminUser = getPlatformUsers().find((user) => user.id === userId);
-if (!adminUser) {
-return;
-}
-if (!canRunAdminUserAction(adminUser)) {
-return;
-}
-const result = await getPlatformAuthStore()?.updateUser?.(adminUser.id, { generatePassword: true });
-if (!result?.ok) {
-renderAdminWorkspace(result?.reason || "Could not generate a temporary password.");
-return;
-}
-if (!result.generatedPassword) {
-renderAdminWorkspace(`Password generated for ${adminUser.email}, but no password was returned.`);
-return;
-}
-const copied = await maybeCopyToClipboard(
-[
-"Website: https://footballscience.xyz/",
-`Username: ${adminUser.username}`,
-`Email: ${adminUser.email}`,
-`Temporary password: ${result.generatedPassword}`,
-].join("\n")
-);
-renderAdminWorkspace(
-`Temporary password for ${adminUser.email}: ${result.generatedPassword}. This replaces any previous password.${copied ? " Copied to clipboard." : ""}`
-);
-return;
-}
-if (resetPasswordButton) {
-const userId = resetPasswordButton.dataset.adminResetPassword;
-const adminUser = getPlatformUsers().find((user) => user.id === userId);
-if (!adminUser) {
-return;
-}
-if (!canRunAdminUserAction(adminUser)) {
-return;
-}
-const result = await getPlatformAuthStore()?.sendPasswordReset?.(adminUser.id);
-if (!result?.ok) {
-renderAdminWorkspace(result?.reason || "Could not send reset email.");
-return;
-}
-renderAdminWorkspace(`Password reset sent to ${adminUser.email}.`);
-return;
-}
-if (sendButton) {
-const userId = sendButton.dataset.adminSendCredentials;
-const adminUser = getPlatformUsers().find((user) => user.id === userId);
-if (!adminUser) {
-return;
-}
-if (!canRunAdminUserAction(adminUser)) {
-return;
-}
-if (!adminUser.email) {
-renderAdminWorkspace("No email saved for this user.");
-return;
-}
-const result = await getPlatformAuthStore()?.updateUser?.(adminUser.id, { generatePassword: true });
-if (!result?.ok) {
-renderAdminWorkspace(result?.reason || "Could not create a temporary password.");
-return;
-}
-if (!result.generatedPassword) {
-renderAdminWorkspace(`Temporary password was created for ${adminUser.email}, but no password was returned.`);
-return;
-}
-const nextUser = result.user || adminUser;
-const sendResult = await openCredentialsMailto(nextUser, result.generatedPassword);
-renderAdminWorkspace(buildTemporaryLoginMessage(nextUser, result.generatedPassword, Boolean(sendResult?.copied)));
-return;
-}
-if (sendSelectedButton) {
-const userId = sendSelectedButton.dataset.adminSendSelected;
-const adminUser = getPlatformUsers().find((user) => user.id === userId);
-if (!adminUser) {
-return;
-}
-if (!canRunAdminUserAction(adminUser)) {
-return;
-}
-if (!adminUser.email) {
-renderAdminWorkspace("No email saved for this user.");
-return;
-}
-const result = await getPlatformAuthStore()?.updateUser?.(adminUser.id, { generatePassword: true });
-if (!result?.ok) {
-renderAdminWorkspace(result?.reason || "Could not create a temporary password.");
-return;
-}
-if (!result.generatedPassword) {
-renderAdminWorkspace(`Temporary password was created for ${adminUser.email}, but no password was returned.`);
-return;
-}
-const nextUser = result.user || adminUser;
-const sendResult = await openCredentialsMailto(nextUser, result.generatedPassword);
-renderAdminWorkspace(buildTemporaryLoginMessage(nextUser, result.generatedPassword, Boolean(sendResult?.copied)));
-return;
-}
-if (!removeButton) {
-return;
-}
-const userId = removeButton.dataset.adminRemoveUser;
-const adminUser = getPlatformUsers().find((user) => user.id === userId);
-if (!adminUser) {
-return;
-}
-if (!canRunAdminUserAction(adminUser, { remove: true })) {
-return;
-}
-if (!win.confirm(`Remove ${formatUserName(adminUser)}?`)) {
-return;
-}
-const result = await getPlatformAuthStore()?.removeUser?.(userId);
-if (!result?.ok) {
-renderAdminWorkspace(result?.reason ?? "User could not be removed.");
-return;
-}
-selectedAdminUserId = null;
-renderWorkspaceChrome();
-renderAdminWorkspace("User removed.");
-});
-ui.adminWorkspace?.addEventListener("submit", async (event) => {
-const clubForm = event.target.closest("#adminClubForm");
-if (clubForm) {
-event.preventDefault();
-createAdminClubFromForm(clubForm);
-return;
-}
-const teamForm = event.target.closest("#adminTeamForm");
-if (teamForm) {
-event.preventDefault();
-createAdminTeamFromForm(teamForm);
-return;
-}
-const createUserForm = event.target.closest("#adminCreateUserForm");
-if (createUserForm) {
-event.preventDefault();
-await createAdminUserFromForm(createUserForm);
-return;
-}
-const appearanceForm = event.target.closest("#platformAppearanceForm");
-if (appearanceForm) {
-event.preventDefault();
-if (!isPlatformAdminUser(getCurrentPlatformUser())) {
-renderAdminWorkspace("Platform admin required.");
-return;
-}
-setFormSubmitButtonState(appearanceForm, {
-isSubmitting: true,
-submittingLabel: "Publishing...",
-defaultLabel: "Publish",
-});
-try {
-await publishPlatformAppearanceConfig(buildPlatformAppearanceConfigFromForm(appearanceForm, readPlatformAppearanceState()));
-} catch (error) {
-renderAdminWorkspace(error?.message || "Could not publish.");
-} finally {
-setFormSubmitButtonState(appearanceForm, { isSubmitting: false, defaultLabel: "Publish" });
-}
-return;
-}
-const userForm = event.target.closest("#adminUserForm");
-if (userForm) {
-event.preventDefault();
-if (!isCurrentPlatformUserAdmin()) {
-renderAdminWorkspace("Admin access required. Sign in as an admin and try again.");
-return;
-}
-const selectedUser = getPlatformUsers().find((user) => user.id === selectedAdminUserId);
-if (!selectedUser) {
-return;
-}
-const currentAdminUser = getCurrentPlatformUser();
-const structure = syncPlatformStructureWithUsers(getPlatformUsers());
-if (!canAdminManageUser(currentAdminUser, selectedUser, structure)) {
-renderAdminWorkspace("This user is outside your admin scope.");
-return;
-}
-const values = getPlatformFormValues(userForm);
-const passwordError = getPasswordValidationMessage(values);
-if (passwordError) {
-renderAdminWorkspace(passwordError);
-return;
-}
-if (hasUserFieldConflict(selectedUser.id, values)) {
-renderAdminWorkspace("Username or email already exists.");
-return;
-}
-const submissionValues = normalizeAdminUserSubmissionValues(
-stripPasswordConfirmation(values),
-currentAdminUser,
-selectedUser,
-structure
-);
-try {
-const authStore = getPlatformAuthStore();
-if (!authStore?.updateUser) {
-renderAdminWorkspace("Supabase user update is not ready yet. Reload the page and try again.");
-return;
-}
-setFormSubmitButtonState(userForm, { isSubmitting: true, submittingLabel: "Saving...", defaultLabel: "Save user" });
-const result = await withUiTimeout(
-authStore.updateUser(selectedUser.id, submissionValues),
-26000,
-"Saving took too long. Refresh the page and check if the change was saved."
-);
-if (!result?.ok) {
-renderAdminWorkspace(result?.reason ?? "User could not be saved.");
-return;
-}
-syncPlatformUserFromAuth();
-renderWorkspaceChrome();
-const generatedPassword = result.generatedPassword ? ` Temporary password: ${result.generatedPassword}.` : "";
-const successMessage = submissionValues.password
-? "User saved and password updated in Supabase. Only the latest saved or reset password works."
-: "User saved.";
-renderAdminWorkspace(`${successMessage}${generatedPassword}`);
-} catch (error) {
-renderAdminWorkspace(error?.message || "User could not be saved.");
-} finally {
-setFormSubmitButtonState(userForm, { isSubmitting: false, defaultLabel: "Save" });
-}
-return;
-}
-const transferRoomAccessForm = event.target.closest("#adminTransferRoomAccessForm");
-if (transferRoomAccessForm) {
-event.preventDefault();
-if (!isPlatformAdminUser(getCurrentPlatformUser()) || !transferRoomRuntime.canManageAccess(getCurrentPlatformUser())) {
-renderAdminWorkspace("Platform admin required.");
-return;
-}
-const controls = Array.from(transferRoomAccessForm.querySelectorAll("[data-admin-transfer-room-access-user]"));
-const editableIds = new Set(controls.map((control) => control.dataset.adminTransferRoomAccessUser).filter(Boolean));
-const nextSelectedIds = new Set(
-controls
-.filter((control) => control.checked)
-.map((control) => control.dataset.adminTransferRoomAccessUser)
-.filter(Boolean)
-);
-const state = ensureTransferRoomState();
-const teamId = getAdminTransferRoomAccessTeamId(state, getPlatformStructureState());
-const currentSelectedIds = new Set(state.accessByTeam?.[teamId]?.userIds || []);
-let hasChanges = false;
-currentSelectedIds.forEach((userId) => {
-if (editableIds.has(userId) && !nextSelectedIds.has(userId)) {
-transferRoomRuntime.toggleAccessUser(userId, false);
-hasChanges = true;
-}
-});
-nextSelectedIds.forEach((userId) => {
-if (!currentSelectedIds.has(userId)) {
-transferRoomRuntime.toggleAccessUser(userId, true);
-hasChanges = true;
-}
-});
-renderWorkspaceChrome();
-renderAdminWorkspace(hasChanges ? "Transfer Room access saved." : "Transfer Room access is already up to date.");
-return;
-}
-const accessForm = event.target.closest("#adminAccessForm");
-if (accessForm) {
-event.preventDefault();
-if (!isPlatformAdminUser(getCurrentPlatformUser())) {
-renderAdminWorkspace("Platform admin required.");
-return;
-}
-const roles = getPlatformRoles();
-const controls = Array.from(accessForm.querySelectorAll("[data-admin-access-workspace][data-admin-access-role]"));
-const nextAccess = { ...getWorkspaceAccessConfig() };
-getAdminManagedWorkspaces().forEach((workspace) => {
-if (workspace.requiresAdmin) {
-nextAccess[workspace.id] = { view: ["admin"], edit: ["admin"] };
-return;
-}
-const viewRoles = new Set(["admin"]);
-const editRoles = new Set(["admin"]);
-controls
-.filter((control) => control.dataset.adminAccessWorkspace === workspace.id)
-.forEach((control) => {
-const role = control.dataset.adminAccessRole;
-if (!roles.includes(role)) {
-return;
-}
-if (control.value === "view" || control.value === "edit") {
-viewRoles.add(role);
-}
-if (control.value === "edit") {
-editRoles.add(role);
-}
-});
-nextAccess[workspace.id] = {
-view: Array.from(viewRoles),
-edit: Array.from(editRoles).filter((role) => viewRoles.has(role)),
-};
-});
-hubState.workspaceAccess = nextAccess;
-hubState = repairWorkspaceState(hubState);
-writeWorkspaceHubState();
-renderWorkspaceChrome();
-renderAdminWorkspace("Access saved.");
-}
+bindAdminRuntimeBindings({
+workspaceElement: ui.adminWorkspace,
+win,
+state: {
+getSelectedAdminUserId: () => selectedAdminUserId,
+setSelectedAdminUserId: (userId) => { selectedAdminUserId = userId; },
+setAdminCreateUserEditorOpen: (isOpen) => { adminCreateUserEditorOpen = isOpen; },
+setAdminUserEditorOpen: (isOpen) => { adminUserEditorOpen = isOpen; },
+setAdminCreateUserTeamId: (teamId) => { adminCreateUserTeamId = teamId; },
+getHubState: () => hubState,
+setHubState: (nextHubState) => { hubState = nextHubState; },
+},
+actions: {
+buildPlatformAppearanceConfigFromForm,
+buildTemporaryLoginMessage,
+canAdminManageUser,
+createAdminClubFromForm,
+createAdminTeamFromForm,
+createDefaultPlatformAppearanceConfig,
+formatUserName,
+getAdminManagedWorkspaces,
+getAdminTransferRoomAccessTeamId,
+getCurrentPlatformUser,
+getPasswordValidationMessage,
+getPlatformAuthStore,
+getPlatformFormValues,
+getPlatformRoles,
+getPlatformStructureState,
+getPlatformUsers,
+getUserTeamId,
+getWorkspaceAccessConfig,
+hasUserFieldConflict,
+isCurrentPlatformUserAdmin,
+isPlatformAdminUser,
+loadAdminAuditLog,
+loadPlatformReadinessReport,
+maybeCopyToClipboard,
+normalizeAdminUserSubmissionValues,
+openCredentialsMailto,
+publishPlatformAppearanceConfig,
+readPlatformAppearanceState,
+renderAdminWorkspace,
+renderWorkspaceChrome,
+repairWorkspaceState,
+setFormSubmitButtonState,
+stripPasswordConfirmation,
+syncPlatformStructureWithUsers,
+syncPlatformUserFromAuth,
+togglePasswordInputVisibility,
+transferRoomRuntime,
+ensureTransferRoomState,
+withUiTimeout,
+writeWorkspaceHubState,
+},
 });
 bindMedicalRuntimeBindings({
 workspaceElement: ui.medicalTeamWorkspace,

@@ -107,6 +107,7 @@ import {
   squadFormationOptions,
 } from "./src/modules/squad/index.mjs";
 import {
+  createMedicalRuntimeActivitySelectors,
   createMedicalRuntimeHelpers,
   createMedicalRuntimeRenderers,
   defaultMedicalPlayers,
@@ -9277,384 +9278,82 @@ getDataQualityReport: buildSquadDataQualityReport,
 getSessionPlannerContractsV2: buildSquadSessionPlannerContracts,
 };
 function canEditMedicalTeam() { return canCurrentUserEditWorkspace("medical-team"); }
-function getMedicalAccessLabel() {
-if (canEditMedicalTeam()) {
-return isCurrentPlatformUserAdmin() ? "Admin oversight" : "Medical edit access";
-}
-return "Coach view";
-}
-function getMedicalHeroTeamName() {
-const user = getCurrentPlatformUser();
-const teamName = getPlatformTeamDisplayName(user, getPlatformStructureState());
-if (teamName && teamName !== "Team") {
-return teamName;
-}
-return normalizePlatformStructureText(user?.team || user?.teamName || user?.clubName || user?.club, "") || "Medical Team";
-}
-function getSelectedMedicalPlayer() {
-ensureMedicalState();
-const activePlayers = getActiveMedicalPlayers();
-return (
-activePlayers.find((player) => player.id === medicalState.selectedPlayerId) ??
-activePlayers[0] ??
-null
-);
-}
-function getActiveMedicalPlayers() {
-ensureMedicalState();
-const removedPlayerIdSet = getMedicalRemovedSquadPlayerIdSet();
-return medicalState.players.filter(
-(player) => !isMedicalItemArchived(player) && !isMedicalPlayerRemovedFromSquad(player, removedPlayerIdSet)
-);
-}
-function isMedicalPlayerVisibleForDate(player = {}, dateValue = medicalState?.selectedDate) {
-return !isTemporaryPlayerProfile(player) || isPlayerProfileTemporaryActiveOnDate(player, dateValue);
-}
-function getActiveMedicalPlayersForDate(dateValue = medicalState?.selectedDate) { return getActiveMedicalPlayers().filter((player) => isMedicalPlayerVisibleForDate(player, dateValue)); }
-function isMedicalInjuryPlanActive(plan, dateValue = medicalState?.selectedDate) { return Boolean(plan && !isMedicalItemArchived(plan) && isMedicalDateValue(dateValue) && plan.startDate <= dateValue && plan.endDate >= dateValue); }
-function getMedicalPlayerInjuryPlans(playerId, options = {}) {
-ensureMedicalState();
-const includeArchived = Boolean(options.includeArchived);
-return medicalState.injuryPlans
-.filter((plan) => plan.playerId === playerId && (includeArchived || !isMedicalItemArchived(plan)))
-.sort((first, second) => {
-const activeComparison =
-Number(isMedicalInjuryPlanActive(second, medicalState.selectedDate)) -
-Number(isMedicalInjuryPlanActive(first, medicalState.selectedDate));
-if (activeComparison !== 0) {
-return activeComparison;
-}
-const startComparison = second.startDate.localeCompare(first.startDate);
-if (startComparison !== 0) {
-return startComparison;
-}
-return new Date(second.createdAt) - new Date(first.createdAt);
+let medicalRuntimeActivitySelectors = null;
+function getMedicalAccessLabel(...args) { return medicalRuntimeActivitySelectors.getMedicalAccessLabel(...args); }
+function getMedicalHeroTeamName(...args) { return medicalRuntimeActivitySelectors.getMedicalHeroTeamName(...args); }
+function getSelectedMedicalPlayer(...args) { return medicalRuntimeActivitySelectors.getSelectedMedicalPlayer(...args); }
+function getActiveMedicalPlayers(...args) { return medicalRuntimeActivitySelectors.getActiveMedicalPlayers(...args); }
+function isMedicalPlayerVisibleForDate(...args) { return medicalRuntimeActivitySelectors.isMedicalPlayerVisibleForDate(...args); }
+function getActiveMedicalPlayersForDate(...args) { return medicalRuntimeActivitySelectors.getActiveMedicalPlayersForDate(...args); }
+function isMedicalInjuryPlanActive(...args) { return medicalRuntimeActivitySelectors.isMedicalInjuryPlanActive(...args); }
+function getMedicalPlayerInjuryPlans(...args) { return medicalRuntimeActivitySelectors.getMedicalPlayerInjuryPlans(...args); }
+function getActiveMedicalInjuryPlan(...args) { return medicalRuntimeActivitySelectors.getActiveMedicalInjuryPlan(...args); }
+function createMedicalRecordFromSquadAvailabilityBlock(...args) { return medicalRuntimeActivitySelectors.createMedicalRecordFromSquadAvailabilityBlock(...args); }
+function isMedicalPlanCleared(...args) { return medicalRuntimeActivitySelectors.isMedicalPlanCleared(...args); }
+function getMedicalRecommendationBlockReason(...args) { return medicalRuntimeActivitySelectors.getMedicalRecommendationBlockReason(...args); }
+function getMedicalReviewAlerts(...args) { return medicalRuntimeActivitySelectors.getMedicalReviewAlerts(...args); }
+function getMedicalCoachComment(...args) { return medicalRuntimeActivitySelectors.getMedicalCoachComment(...args); }
+function getMedicalVisibleComment(...args) { return medicalRuntimeActivitySelectors.getMedicalVisibleComment(...args); }
+function createMedicalRecordFromInjuryPlan(...args) { return medicalRuntimeActivitySelectors.createMedicalRecordFromInjuryPlan(...args); }
+function getLatestMedicalRecord(...args) { return medicalRuntimeActivitySelectors.getLatestMedicalRecord(...args); }
+function getMedicalPlayerRecords(...args) { return medicalRuntimeActivitySelectors.getMedicalPlayerRecords(...args); }
+function isMedicalRestrictedRecommendationRecord(...args) { return medicalRuntimeActivitySelectors.isMedicalRestrictedRecommendationRecord(...args); }
+function getMedicalPlayerRestrictedLogRecords(...args) { return medicalRuntimeActivitySelectors.getMedicalPlayerRestrictedLogRecords(...args); }
+function getMedicalWindowDates(...args) { return medicalRuntimeActivitySelectors.getMedicalWindowDates(...args); }
+function getMedicalPastWindowDates(...args) { return medicalRuntimeActivitySelectors.getMedicalPastWindowDates(...args); }
+function getMedicalMonthToDateDates(...args) { return medicalRuntimeActivitySelectors.getMedicalMonthToDateDates(...args); }
+function getMedicalScheduleSummary(...args) { return medicalRuntimeActivitySelectors.getMedicalScheduleSummary(...args); }
+function getMedicalRecommendationEvent(...args) { return medicalRuntimeActivitySelectors.getMedicalRecommendationEvent(...args); }
+function getMedicalRecommendationActivityContext(...args) { return medicalRuntimeActivitySelectors.getMedicalRecommendationActivityContext(...args); }
+function getMedicalRecordStatus(...args) { return medicalRuntimeActivitySelectors.getMedicalRecordStatus(...args); }
+function getDefaultMedicalInjuryPlanDraft(...args) { return medicalRuntimeActivitySelectors.getDefaultMedicalInjuryPlanDraft(...args); }
+function normalizeMedicalInjuryPlanDraft(...args) { return medicalRuntimeActivitySelectors.normalizeMedicalInjuryPlanDraft(...args); }
+function getMedicalInjuryPlanDraft(...args) { return medicalRuntimeActivitySelectors.getMedicalInjuryPlanDraft(...args); }
+function setMedicalInjuryPlanDraft(...args) { return medicalRuntimeActivitySelectors.setMedicalInjuryPlanDraft(...args); }
+function setMedicalInjuryPlanDraftFromPlan(...args) { return medicalRuntimeActivitySelectors.setMedicalInjuryPlanDraftFromPlan(...args); }
+function clearMedicalInjuryPlanDraft(...args) { return medicalRuntimeActivitySelectors.clearMedicalInjuryPlanDraft(...args); }
+function getMedicalInjuryPlanFormDraft(...args) { return medicalRuntimeActivitySelectors.getMedicalInjuryPlanFormDraft(...args); }
+function persistMedicalInjuryPlanDraftFromForm(...args) { return medicalRuntimeActivitySelectors.persistMedicalInjuryPlanDraftFromForm(...args); }
+medicalRuntimeActivitySelectors = createMedicalRuntimeActivitySelectors({
+addCalendarDays,
+canEditMedicalTeam,
+ensureMedicalState,
+formatDateValue: formatScheduleDateValue,
+getCurrentUser: getCurrentPlatformUser,
+getFormValues: getPlatformFormValues,
+getMedicalEntityUpdatedMs,
+getMedicalPlayerAvailabilityStatusOption,
+getMedicalPlayerSquadAvailabilityBlockReason,
+getMedicalRtpPhaseOption,
+getMedicalState: () => medicalState,
+getMedicalStatusOptionForDate,
+getPlatformStructureState,
+getPlatformTeamDisplayName,
+getRemovedSquadPlayerIdSet: getMedicalRemovedSquadPlayerIdSet,
+getScheduleEventsForDate,
+getScheduleMainEvent,
+isAdmin: isCurrentPlatformUserAdmin,
+isDateValue: isMedicalDateValue,
+isItemArchived: isMedicalItemArchived,
+isPlayerBlockedBySquadAvailability: isMedicalPlayerBlockedBySquadAvailability,
+isPlayerRemovedFromSquad: isMedicalPlayerRemovedFromSquad,
+isScheduleSessionEvent,
+isTemporaryPlayerProfile,
+isTemporaryPlayerProfileActiveOnDate: isPlayerProfileTemporaryActiveOnDate,
+medicalActualParticipationFallback,
+medicalClearanceRoles,
+medicalInjuryPlanDraftsByPlayerId,
+medicalInjuryPlanStatusOptions,
+medicalLoadGateOptions,
+medicalWindowLength,
+normalizeClearance: normalizeMedicalClearance,
+normalizeLoadGates: normalizeMedicalLoadGates,
+normalizeParticipation: normalizeMedicalParticipation,
+normalizePlatformText: normalizePlatformStructureText,
+normalizeShareValue: normalizeMedicalShareValue,
+parseDateValue: parseScheduleDateValue,
+scheduleEventTypes,
 });
-}
-function getActiveMedicalInjuryPlan(playerId, dateValue = medicalState?.selectedDate) {
-ensureMedicalState();
-return medicalState.injuryPlans
-.filter((plan) => plan.playerId === playerId && isMedicalInjuryPlanActive(plan, dateValue))
-.sort((first, second) => new Date(second.updatedAt || second.createdAt) - new Date(first.updatedAt || first.createdAt))[0] ?? null;
-}
-function createMedicalRecordFromSquadAvailabilityBlock(player, dateValue) {
-if (!player || !isMedicalDateValue(dateValue) || !isMedicalPlayerBlockedBySquadAvailability(player)) {
-return null;
-}
-const option = getMedicalPlayerAvailabilityStatusOption(player);
-const reason = option.label || "Unavailable";
-return {
-id: `squad-availability:${player.id}:${dateValue}`,
-playerId: player.id,
-date: dateValue,
-status: "unavailable",
-participation: 0,
-actualParticipation: medicalActualParticipationFallback,
-comment: `${reason} in Squad Room`,
-coachNote: `${reason} - not available for team activity`,
-shareWithCoach: true,
-rtpPhase: "medical-restriction",
-createdAt: player.updatedAt || new Date().toISOString(),
-updatedAt: player.updatedAt || new Date().toISOString(),
-createdBy: "squad-room",
-source: "squad-availability",
-};
-}
-function isMedicalPlanCleared(plan) {
-if (!plan) {
-return true;
-}
-const clearance = normalizeMedicalClearance(plan.clearance);
-const gates = normalizeMedicalLoadGates(plan.gates);
-return (
-medicalClearanceRoles.every((role) => clearance[role.key]) &&
-medicalLoadGateOptions.every((gate) => gates[gate.key] === "pass")
-);
-}
-function getMedicalRecommendationBlockReason(playerId, participation, dateValue) {
-const activityContext = getMedicalRecommendationActivityContext(dateValue);
-if (!activityContext.isRecommendable) {
-return activityContext.blockReason;
-}
-const player = medicalState.players.find((candidate) => candidate.id === playerId);
-const squadBlockReason = getMedicalPlayerSquadAvailabilityBlockReason(player);
-if (squadBlockReason) {
-return squadBlockReason;
-}
-const activePlan = getActiveMedicalInjuryPlan(playerId, dateValue);
-if (participation === 100 && activePlan && !isMedicalPlanCleared(activePlan)) {
-return activityContext.type === "match"
-? "Clearance checklist required before match availability."
-: "Clearance checklist required before full training.";
-}
-return "";
-}
-function getMedicalReviewAlerts(dateValue = medicalState?.selectedDate) {
-ensureMedicalState();
-if (!isMedicalDateValue(dateValue)) {
-return [];
-}
-const endDate = formatScheduleDateValue(addCalendarDays(parseScheduleDateValue(dateValue), 7));
-return medicalState.injuryPlans
-.filter((plan) => !isMedicalItemArchived(plan) && plan.reviewDate && plan.reviewDate <= endDate && plan.endDate >= dateValue)
-.map((plan) => ({
-plan,
-player: medicalState.players.find((player) => player.id === plan.playerId) ?? null,
-isOverdue: plan.reviewDate < dateValue,
-}))
-.filter((item) => item.player)
-.sort((first, second) => {
-if (first.isOverdue !== second.isOverdue) {
-return Number(second.isOverdue) - Number(first.isOverdue);
-}
-return first.plan.reviewDate.localeCompare(second.plan.reviewDate);
-});
-}
-function getMedicalCoachComment(record) {
-if (!record || !record.shareWithCoach) {
-return "";
-}
-return String(record.coachNote ?? "").trim();
-}
-function getMedicalVisibleComment(record) {
-if (!record) {
-return "";
-}
-return canEditMedicalTeam() ? String(record.comment ?? "").trim() : getMedicalCoachComment(record);
-}
-function createMedicalRecordFromInjuryPlan(plan, dateValue) {
-if (!plan) {
-return null;
-}
-const injuryLabel = [plan.injuryType, plan.bodyArea].filter(Boolean).join(" / ");
-const clearancePending = plan.participation === 100 && !isMedicalPlanCleared(plan);
-return {
-id: `injury-plan:${plan.id}:${dateValue}`,
-playerId: plan.playerId,
-date: dateValue,
-status: clearancePending ? "modified" : plan.status,
-participation: clearancePending ? 75 : plan.participation,
-actualParticipation: medicalActualParticipationFallback,
-comment: [injuryLabel, plan.phase, clearancePending ? "Clearance pending" : "", plan.comment].filter(Boolean).join(" - "),
-coachNote: plan.coachNote,
-shareWithCoach: plan.shareWithCoach,
-rtpPhase: plan.rtpPhase,
-clearance: plan.clearance,
-gates: plan.gates,
-createdAt: plan.createdAt,
-updatedAt: plan.updatedAt,
-createdBy: plan.createdBy,
-source: "injury-plan",
-injuryPlanId: plan.id,
-};
-}
-function getLatestMedicalRecord(playerId, dateValue = medicalState?.selectedDate) {
-ensureMedicalState();
-const player = medicalState.players.find((candidate) => candidate.id === playerId);
-const squadBlockRecord = createMedicalRecordFromSquadAvailabilityBlock(player, dateValue);
-if (squadBlockRecord) {
-return squadBlockRecord;
-}
-const manualRecord = medicalState.records
-.filter((record) => record.playerId === playerId && record.date === dateValue && !isMedicalItemArchived(record))
-.sort((first, second) => new Date(second.updatedAt || second.createdAt) - new Date(first.updatedAt || first.createdAt))[0] ?? null;
-const activePlan = getActiveMedicalInjuryPlan(playerId, dateValue);
-const planRecord = createMedicalRecordFromInjuryPlan(activePlan, dateValue);
-if (manualRecord && planRecord) {
-return getMedicalEntityUpdatedMs(activePlan) >= getMedicalEntityUpdatedMs(manualRecord) ? planRecord : manualRecord;
-}
-return manualRecord || planRecord;
-}
-function getMedicalPlayerRecords(playerId, options = {}) {
-ensureMedicalState();
-const includeArchived = Boolean(options.includeArchived);
-return medicalState.records
-.filter((record) => record.playerId === playerId && (includeArchived || !isMedicalItemArchived(record)))
-.sort((first, second) => {
-const dateComparison = second.date.localeCompare(first.date);
-if (dateComparison !== 0) {
-return dateComparison;
-}
-return new Date(second.updatedAt || second.createdAt) - new Date(first.updatedAt || first.createdAt);
-});
-}
-function isMedicalRestrictedRecommendationRecord(record) { return normalizeMedicalParticipation(record?.participation, 100) !== 100; }
-function getMedicalPlayerRestrictedLogRecords(playerId, options = {}) {
-return getMedicalPlayerRecords(playerId, options).filter(isMedicalRestrictedRecommendationRecord);
-}
-function getMedicalWindowDates() {
-ensureMedicalState();
-const startDate = parseScheduleDateValue(medicalState.selectedDate);
-return Array.from({ length: medicalWindowLength }, (_, index) =>
-formatScheduleDateValue(addCalendarDays(startDate, index))
-);
-}
-function getMedicalPastWindowDates(dateValue = medicalState?.selectedDate) {
-ensureMedicalState();
-const endDate = parseScheduleDateValue(dateValue);
-return Array.from({ length: medicalWindowLength }, (_, index) =>
-formatScheduleDateValue(addCalendarDays(endDate, index - medicalWindowLength + 1))
-);
-}
-function getMedicalMonthToDateDates(referenceDate = new Date()) {
-const today = new Date(referenceDate);
-const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-const dayCount = getMedicalDaySpan(formatScheduleDateValue(monthStart), formatScheduleDateValue(today)) ?? 1;
-return Array.from({ length: dayCount }, (_, index) => formatScheduleDateValue(addCalendarDays(monthStart, index)));
-}
-function getMedicalScheduleSummary(dateValue) {
-const events = getScheduleEventsForDate(dateValue);
-const mainEvent = getScheduleMainEvent(events);
-if (!mainEvent) {
-return "No team event";
-}
-return mainEvent.title || scheduleEventTypes[mainEvent.type]?.label || "Team event";
-}
-function getMedicalRecommendationEvent(events = []) {
-const matchEvent = events.find((event) => event?.type === "match");
-if (matchEvent) {
-return { event: matchEvent, type: "match" };
-}
-const trainingEvent = events.find(isScheduleSessionEvent);
-if (trainingEvent) {
-return { event: trainingEvent, type: "training" };
-}
-return { event: getScheduleMainEvent(events) ?? null, type: "none" };
-}
-function getMedicalRecommendationActivityContext(dateValue = medicalState?.selectedDate) {
-const cleanDate = isMedicalDateValue(dateValue) ? dateValue : formatScheduleDateValue(new Date());
-const events = getScheduleEventsForDate(cleanDate);
-const { event: mainEvent, type: activityType } = getMedicalRecommendationEvent(events);
-const rawType = mainEvent?.type || activityType;
-const isMatch = activityType === "match";
-const isTraining = activityType === "training";
-const isRecommendable = isMatch || isTraining;
-const scheduleLabel = mainEvent?.title || scheduleEventTypes[rawType]?.label || "No team event";
-const activityLabel = isMatch ? "Match" : isTraining ? "Training" : "No team activity";
-return {
-date: cleanDate,
-type: isRecommendable ? activityType : "none",
-rawType,
-mainEvent,
-scheduleLabel,
-isRecommendable,
-activityLabel,
-availabilityLabel: isRecommendable ? `${activityLabel} Availability` : "No Team Activity",
-recommendationLabel: isRecommendable ? `${activityLabel} Recommendation` : "No Team Recommendation",
-quickLabel: isRecommendable ? `Quick ${activityLabel.toLowerCase()} recommendation` : "Locked",
-blockReason: isRecommendable ? "" : "No scheduled training or match for this date.",
-};
-}
-function getMedicalRecordStatus(record) {
-if (!record) {
-return {
-key: "not-set",
-label: "Not set",
-tone: "unset",
-defaultParticipation: null,
-};
-}
-return getMedicalStatusOptionForDate(record.status, record.date, record.rtpPhase);
-}
-function getDefaultMedicalInjuryPlanDraft(playerId = medicalState?.selectedPlayerId || "") {
-return {
-planId: "",
-playerId: String(playerId ?? "").trim(),
-injuryType: "",
-bodyArea: "",
-startDate: isMedicalDateValue(medicalState?.selectedDate) ? medicalState.selectedDate : formatScheduleDateValue(new Date()),
-duration: 4,
-durationUnit: "weeks",
-status: "unavailable",
-rtpPhase: "medical-restriction",
-participation: 0,
-reviewDate: "",
-phase: "",
-comment: "",
-coachNote: "",
-shareWithCoach: false,
-};
-}
-function normalizeMedicalInjuryPlanDraft(draft = {}, playerId = draft.playerId) {
-const defaults = getDefaultMedicalInjuryPlanDraft(playerId);
-const draftPlayerId = String(draft.playerId ?? defaults.playerId).trim() || defaults.playerId;
-const rtpPhase = getMedicalRtpPhaseOption(draft.rtpPhase || defaults.rtpPhase);
-const status = medicalInjuryPlanStatusOptions.some((option) => option.key === draft.status)
-? draft.status
-: rtpPhase.status;
-const durationUnit = ["days", "weeks", "months"].includes(draft.durationUnit) ? draft.durationUnit : defaults.durationUnit;
-return {
-...defaults,
-planId: String(draft.planId ?? draft.id ?? defaults.planId).trim(),
-playerId: draftPlayerId,
-injuryType: String(draft.injuryType ?? defaults.injuryType).trim(),
-bodyArea: String(draft.bodyArea ?? defaults.bodyArea).trim(),
-startDate: isMedicalDateValue(draft.startDate) ? draft.startDate : defaults.startDate,
-duration: Math.max(1, Number(draft.duration) || defaults.duration),
-durationUnit,
-status,
-rtpPhase: rtpPhase.key,
-participation: normalizeMedicalParticipation(draft.participation, rtpPhase.participation),
-reviewDate: isMedicalDateValue(draft.reviewDate) ? draft.reviewDate : "",
-phase: String(draft.phase ?? defaults.phase).trim(),
-comment: String(draft.comment ?? defaults.comment).trim(),
-coachNote: String(draft.coachNote ?? defaults.coachNote).trim(),
-shareWithCoach: normalizeMedicalShareValue(draft.shareWithCoach),
-};
-}
-function getMedicalInjuryPlanDraft(playerId = medicalState?.selectedPlayerId || "") {
-const draftPlayerId = String(playerId ?? "").trim();
-const draft = normalizeMedicalInjuryPlanDraft(
-medicalInjuryPlanDraftsByPlayerId.get(draftPlayerId) ?? { playerId: draftPlayerId },
-draftPlayerId
-);
-if (draftPlayerId) {
-medicalInjuryPlanDraftsByPlayerId.set(draftPlayerId, draft);
-}
-return draft;
-}
-function setMedicalInjuryPlanDraft(playerId, values = {}) {
-const draftPlayerId = String(playerId ?? values.playerId ?? "").trim();
-if (!draftPlayerId) {
-return null;
-}
-const draft = normalizeMedicalInjuryPlanDraft({ ...values, playerId: draftPlayerId }, draftPlayerId);
-medicalInjuryPlanDraftsByPlayerId.set(draftPlayerId, draft);
-return draft;
-}
-function setMedicalInjuryPlanDraftFromPlan(plan) {
-if (!plan?.playerId) {
-return null;
-}
-return setMedicalInjuryPlanDraft(plan.playerId, {
-...plan,
-planId: plan.id,
-});
-}
-function clearMedicalInjuryPlanDraft(playerId) {
-const draftPlayerId = String(playerId ?? "").trim();
-if (draftPlayerId) {
-medicalInjuryPlanDraftsByPlayerId.delete(draftPlayerId);
-}
-}
-function getMedicalInjuryPlanFormDraft(form) {
-if (!form) {
-return null;
-}
-const values = getPlatformFormValues(form);
-return {
-...values,
-playerId: values.playerId || form.querySelector("[name='playerId']")?.value || medicalState?.selectedPlayerId || "",
-shareWithCoach: Boolean(form.querySelector("[name='shareWithCoach']")?.checked),
-};
-}
-function persistMedicalInjuryPlanDraftFromForm(form) {
-const draft = getMedicalInjuryPlanFormDraft(form);
-if (!draft) {
-return null;
-}
-return setMedicalInjuryPlanDraft(draft.playerId, draft);
-}
 function getMedicalDailyStats(dateValue = medicalState?.selectedDate) { return medicalCommandSelectors.getMedicalDailyStats(dateValue); }
 function getMedicalWindowAverage() { return medicalCommandSelectors.getMedicalWindowAverage(); }
 function getMedicalParticipationAverageForDates(dateValues = []) { return medicalCommandSelectors.getMedicalParticipationAverageForDates(dateValues); }

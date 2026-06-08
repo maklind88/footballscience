@@ -1243,6 +1243,7 @@ const PLAYER_PROFILE_CHANGE_FIELD_PATHS = {
   "Temporary group": "temporaryGroup",
   "Temporary from": "temporaryFrom",
   "Temporary to": "temporaryTo",
+  "Birth date": "birthDate",
   "Primary role": "primaryRole",
   "Secondary roles": "secondaryRoles",
   "Preferred side": "preferredSide",
@@ -1278,6 +1279,27 @@ const PLAYER_PROFILE_NON_DESTRUCTIVE_FIELDS = new Set([
   "temporaryFrom",
   "temporaryTo",
 ]);
+const PLAYER_PROFILE_EXPLICIT_CHANGE_FIELDS = new Set([
+  "number",
+  "position",
+  "birthDate",
+  "status",
+  "squadStatus",
+  "careerPhase",
+  "primaryRole",
+  "secondaryRoles",
+  "preferredSide",
+  "roleGroup",
+  "rosterType",
+  "countsInSquad",
+  "temporaryGroup",
+  "temporaryFrom",
+  "temporaryTo",
+  "idp.status",
+  "idp.primaryFocus",
+  "idp.nextAction",
+  "idp.reviewDate",
+]);
 
 function getNestedPlayerProfileValue(source = {}, path = "") {
   return path.split(".").reduce((value, key) => (value && typeof value === "object" ? value[key] : undefined), source);
@@ -1310,6 +1332,21 @@ function hasPlayerProfileValue(value) {
   return String(value ?? "").trim() !== "";
 }
 
+function hasNestedPlayerProfilePath(source = {}, path = "") {
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    return false;
+  }
+
+  let current = source;
+  return path.split(".").filter(Boolean).every((key) => {
+    if (!current || typeof current !== "object" || Array.isArray(current) || !Object.prototype.hasOwnProperty.call(current, key)) {
+      return false;
+    }
+    current = current[key];
+    return true;
+  });
+}
+
 function preserveNonDestructivePlayerProfileFields(existingPlayer = {}, incomingPlayer = {}) {
   const mergedPlayer = { ...incomingPlayer };
   PLAYER_PROFILE_NON_DESTRUCTIVE_FIELDS.forEach((path) => {
@@ -1320,6 +1357,31 @@ function preserveNonDestructivePlayerProfileFields(existingPlayer = {}, incoming
     }
   });
   return mergedPlayer;
+}
+
+function preserveExplicitPlayerProfileFields(existingState = {}, incomingState = {}, existingPlayer = {}, incomingPlayer = {}, mergedPlayer = {}) {
+  const existingFieldChangeIndex = createPlayerProfileFieldChangeIndex(existingState.changeLog);
+  const incomingFieldChangeIndex = createPlayerProfileFieldChangeIndex(incomingState.changeLog);
+  const protectedPlayer = { ...mergedPlayer };
+
+  PLAYER_PROFILE_EXPLICIT_CHANGE_FIELDS.forEach((path) => {
+    const incomingChangeTime = getPlayerProfileFieldChangeTime(incomingFieldChangeIndex, incomingPlayer, path);
+    const existingChangeTime = getPlayerProfileFieldChangeTime(existingFieldChangeIndex, existingPlayer, path);
+    if (incomingChangeTime && (!existingChangeTime || incomingChangeTime > existingChangeTime)) {
+      return;
+    }
+    if (existingChangeTime && (!incomingChangeTime || incomingChangeTime <= existingChangeTime)) {
+      setNestedPlayerProfileValue(protectedPlayer, path, getNestedPlayerProfileValue(existingPlayer, path));
+      return;
+    }
+
+    const incomingValue = getNestedPlayerProfileValue(incomingPlayer, path);
+    if (hasNestedPlayerProfilePath(existingPlayer, path) && !hasPlayerProfileValue(incomingValue)) {
+      setNestedPlayerProfileValue(protectedPlayer, path, getNestedPlayerProfileValue(existingPlayer, path));
+    }
+  });
+
+  return protectedPlayer;
 }
 
 function preservePlayerProfileMediaFields(player = {}, fallbackPlayer = {}) {
@@ -1582,9 +1644,15 @@ async function protectPlayerProfilesStateValue(rawValue, context = {}) {
       if (!existingPlayer) {
         return incomingPlayer;
       }
-      return incomingIsStale
-        ? mergeStalePlayerProfile(existingState, incomingState, existingPlayer, incomingPlayer)
-        : preserveNonDestructivePlayerProfileFields(existingPlayer, chooseNewestPlayerProfile(existingPlayer, incomingPlayer));
+      if (incomingIsStale) {
+        return mergeStalePlayerProfile(existingState, incomingState, existingPlayer, incomingPlayer);
+      }
+
+      const newestPlayer = preserveNonDestructivePlayerProfileFields(
+        existingPlayer,
+        chooseNewestPlayerProfile(existingPlayer, incomingPlayer)
+      );
+      return preserveExplicitPlayerProfileFields(existingState, incomingState, existingPlayer, incomingPlayer, newestPlayer);
     });
 
   existingState.players.forEach((existingPlayer) => {

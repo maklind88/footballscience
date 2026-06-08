@@ -1288,6 +1288,270 @@ test("app-state preserves Squad position when a stale role save carries older pl
   }
 });
 
+test("app-state preserves Squad profile fields from newer default snapshots without explicit field changes", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const existingSquadState = {
+    selectedPlayerId: "player-1",
+    players: [
+      {
+        id: "player-1",
+        name: "Protected Player",
+        number: "14",
+        position: "Left Wing",
+        birthDate: "1998-04-12",
+        status: "national-team",
+        squadStatus: "development",
+        careerPhase: "experienced",
+        primaryRole: "LW",
+        secondaryRoles: ["RW"],
+        preferredSide: "Left",
+        roleGroup: "forward",
+        rosterType: "squad",
+        countsInSquad: true,
+        idp: {
+          status: "review",
+          primaryFocus: "Wide isolation and final action",
+          nextAction: "Video review",
+          reviewDate: "2026-06-20",
+        },
+        updatedAt: "2026-05-07T12:10:00.000Z",
+      },
+    ],
+    changeLog: [
+      {
+        id: "change-status",
+        type: "profile-updated",
+        playerId: "player-1",
+        summary: "Protected Player Squad fields updated",
+        changes: [
+          { field: "Position", from: "Forward", to: "Left Wing" },
+          { field: "Birth date", from: "", to: "1998-04-12" },
+          { field: "Availability status", from: "Available", to: "International duty" },
+          { field: "Squad status", from: "Squad depth", to: "Development" },
+          { field: "Career phase", from: "Developing", to: "Experienced" },
+          { field: "Primary role", from: "ST", to: "LW" },
+          { field: "Secondary roles", from: "", to: "RW" },
+          { field: "Preferred side", from: "Center", to: "Left" },
+          { field: "Role group", from: "Forward", to: "Forward" },
+          { field: "IDP status", from: "Active IDP", to: "Review" },
+          { field: "IDP focus", from: "", to: "Wide isolation and final action" },
+          { field: "IDP next action", from: "", to: "Video review" },
+          { field: "IDP review date", from: "", to: "2026-06-20" },
+        ],
+        createdAt: "2026-05-07T12:10:01.000Z",
+      },
+    ],
+    updatedAt: "2026-05-07T12:10:00.000Z",
+  };
+  const defaultSnapshotState = {
+    selectedPlayerId: "player-1",
+    players: [
+      {
+        id: "player-1",
+        name: "Protected Player",
+        number: "",
+        position: "Forward",
+        birthDate: "",
+        status: "available",
+        squadStatus: "squad-depth",
+        careerPhase: "developing",
+        primaryRole: "ST",
+        secondaryRoles: [],
+        preferredSide: "Center",
+        roleGroup: "forward",
+        rosterType: "squad",
+        countsInSquad: true,
+        idp: {
+          status: "active",
+          primaryFocus: "",
+          nextAction: "",
+          reviewDate: "",
+        },
+        updatedAt: "2026-05-07T12:20:00.000Z",
+      },
+    ],
+    changeLog: existingSquadState.changeLog,
+    updatedAt: "2026-05-07T12:20:00.000Z",
+  };
+  const storage = createAppStateFetchMock(
+    {
+      [workspaceHubPath]: createAppStateStorageEntry(workspaceHubKey, {
+        workspaceAccess: {
+          "player-profiles": { view: ["admin", "coach"], edit: ["admin", "coach"] },
+        },
+      }),
+      [playerProfilesPath]: {
+        ...createAppStateStorageEntry(playerProfilesKey, existingSquadState),
+        revision: 2,
+      },
+    },
+    "coach"
+  );
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        key: playerProfilesKey,
+        value: JSON.stringify(defaultSnapshotState),
+        metadata: { baseRevision: 2 },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload.merged).toBe(true);
+    const syncedPlayer = JSON.parse(response.payload.value).players[0];
+    expect(syncedPlayer).toMatchObject({
+      number: "14",
+      position: "Left Wing",
+      birthDate: "1998-04-12",
+      status: "national-team",
+      squadStatus: "development",
+      careerPhase: "experienced",
+      primaryRole: "LW",
+      secondaryRoles: ["RW"],
+      preferredSide: "Left",
+      roleGroup: "forward",
+      rosterType: "squad",
+      countsInSquad: true,
+      idp: {
+        status: "review",
+        primaryFocus: "Wide isolation and final action",
+        nextAction: "Video review",
+        reviewDate: "2026-06-20",
+      },
+    });
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state allows explicit newer Squad profile field changes back to default values", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const existingSquadState = {
+    selectedPlayerId: "player-1",
+    players: [
+      {
+        id: "player-1",
+        name: "Protected Player",
+        status: "national-team",
+        squadStatus: "development",
+        careerPhase: "experienced",
+        primaryRole: "LW",
+        secondaryRoles: ["RW"],
+        roleGroup: "forward",
+        updatedAt: "2026-05-07T12:10:00.000Z",
+      },
+    ],
+    changeLog: [
+      {
+        id: "change-old-status",
+        type: "profile-updated",
+        playerId: "player-1",
+        summary: "Protected Player availability changed to international duty",
+        changes: [
+          { field: "Availability status", from: "Available", to: "International duty" },
+          { field: "Squad status", from: "Squad depth", to: "Development" },
+          { field: "Career phase", from: "Developing", to: "Experienced" },
+          { field: "Primary role", from: "ST", to: "LW" },
+          { field: "Secondary roles", from: "", to: "RW" },
+        ],
+        createdAt: "2026-05-07T12:10:01.000Z",
+      },
+    ],
+    updatedAt: "2026-05-07T12:10:00.000Z",
+  };
+  const explicitStatusState = {
+    selectedPlayerId: "player-1",
+    players: [
+      {
+        id: "player-1",
+        name: "Protected Player",
+        status: "available",
+        squadStatus: "squad-depth",
+        careerPhase: "developing",
+        primaryRole: "ST",
+        secondaryRoles: [],
+        roleGroup: "forward",
+        updatedAt: "2026-05-07T12:20:00.000Z",
+      },
+    ],
+    changeLog: [
+      {
+        id: "change-new-status",
+        type: "profile-updated",
+        playerId: "player-1",
+        summary: "Protected Player availability changed to available",
+        changes: [{ field: "Availability status", from: "International duty", to: "Available" }],
+        createdAt: "2026-05-07T12:20:01.000Z",
+      },
+    ],
+    updatedAt: "2026-05-07T12:20:00.000Z",
+  };
+  const storage = createAppStateFetchMock(
+    {
+      [workspaceHubPath]: createAppStateStorageEntry(workspaceHubKey, {
+        workspaceAccess: {
+          "player-profiles": { view: ["admin", "coach"], edit: ["admin", "coach"] },
+        },
+      }),
+      [playerProfilesPath]: {
+        ...createAppStateStorageEntry(playerProfilesKey, existingSquadState),
+        revision: 2,
+      },
+    },
+    "coach"
+  );
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        key: playerProfilesKey,
+        value: JSON.stringify(explicitStatusState),
+        metadata: { baseRevision: 2 },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload.merged).toBe(true);
+    const syncedPlayer = JSON.parse(response.payload.value).players[0];
+    expect(syncedPlayer).toMatchObject({
+      status: "available",
+      squadStatus: "development",
+      careerPhase: "experienced",
+      primaryRole: "LW",
+      secondaryRoles: ["RW"],
+    });
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
 test("app-state keeps temporary Squad player flags during stale profile saves", async () => {
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;

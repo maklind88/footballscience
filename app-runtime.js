@@ -59,7 +59,7 @@ import {
   sessionPlannerExerciseLibraryVersionLimit,
   sessionPlannerLibrarySortOptions,
 } from "./src/modules/exercise-library/index.mjs";
-import { bindSessionPlannerWorkspaceClickController, bindSessionPlannerWorkspaceDragPointerController, bindSessionPlannerWorkspaceFormController, bindSessionPlannerWorkspaceInputChangeController, createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerBoardHistoryController, createSessionPlannerLocalUiState, createSessionPlannerRuntimeDelegates, createSessionPlannerRuntimeRenderers, createSessionPlannerStateMergeHelpers, createSessionPlannerTacticalController, createSessionPlannerWorkspaceController, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualUploadHelpers, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
+import { bindSessionPlannerWorkspaceClickController, bindSessionPlannerWorkspaceDragPointerController, bindSessionPlannerWorkspaceFormController, bindSessionPlannerWorkspaceInputChangeController, createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerBoardHistoryController, createSessionPlannerLocalUiState, createSessionPlannerRuntimeDelegates, createSessionPlannerRuntimeRenderers, createSessionPlannerStateMergeHelpers, createSessionPlannerTacticalController, createSessionPlannerToastController, createSessionPlannerWorkspaceController, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualUploadHelpers, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformShellRuntime } from "./src/core/platform-shell-runtime.mjs";
 import { createWorkspaceModuleRuntimeController } from "./src/core/workspace-module-runtime-controller.mjs";
@@ -6691,38 +6691,14 @@ win.setTimeout(() => {
 ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-input]")?.focus();
 }, 0);
 }
-function renderSessionPlannerToast() {
-if (!ui.sessionPlannerWorkspace) {
-return;
-}
-const existingToast = ui.sessionPlannerWorkspace.querySelector("[data-session-toast]");
-if (!sessionPlannerLocalUiState.state.sessionPlannerToastMessage) {
-existingToast?.remove();
-return;
-}
-const toastMarkup = `
-    <div class="session-toast is-${escapeHtml(sessionPlannerLocalUiState.state.sessionPlannerToastTone)}" data-session-toast role="status" aria-live="polite">
-      <strong>${escapeHtml(sessionPlannerLocalUiState.state.sessionPlannerToastMessage)}</strong>
-    </div>
-  `;
-if (existingToast) {
-existingToast.outerHTML = toastMarkup;
-return;
-}
-ui.sessionPlannerWorkspace.insertAdjacentHTML("beforeend", toastMarkup);
-}
-function showSessionPlannerToast(message, tone = "success") {
-sessionPlannerLocalUiState.state.sessionPlannerToastMessage = String(message || "");
-sessionPlannerLocalUiState.state.sessionPlannerToastTone = tone;
-renderSessionPlannerToast();
-if (sessionPlannerLocalUiState.state.sessionPlannerToastTimeoutId) {
-win.clearTimeout(sessionPlannerLocalUiState.state.sessionPlannerToastTimeoutId);
-}
-sessionPlannerLocalUiState.state.sessionPlannerToastTimeoutId = win.setTimeout(() => {
-sessionPlannerLocalUiState.state.sessionPlannerToastMessage = "";
-renderSessionPlannerToast();
-}, 3200);
-}
+const sessionPlannerToastController = createSessionPlannerToastController({
+escapeHtml,
+getState: sessionPlannerLocalUiState.getState,
+getWorkspace: () => ui.sessionPlannerWorkspace,
+win,
+});
+function renderSessionPlannerToast() { sessionPlannerToastController.render(); }
+function showSessionPlannerToast(message, tone = "success") { sessionPlannerToastController.show(message, tone); }
 function commitSessionPlannerExerciseToLibrary(exercise, mode = "new", existingExerciseId = "") { return exerciseLibraryActions.commitExercise(exercise, mode, existingExerciseId); }
 function queueSessionPlannerLibrarySaveConflict(exercise, existingExercise) { exerciseLibraryActions.queueSaveConflict(exercise, existingExercise); }
 function resolveSessionPlannerLibrarySaveConflict(action) { exerciseLibraryActions.resolveSaveConflict(action); }

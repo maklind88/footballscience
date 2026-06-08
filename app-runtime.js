@@ -58,7 +58,7 @@ import {
   sessionPlannerExerciseLibraryVersionLimit,
   sessionPlannerLibrarySortOptions,
 } from "./src/modules/exercise-library/index.mjs";
-import { createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerBoardHistoryController, createSessionPlannerRuntimeDelegates, createSessionPlannerRuntimeRenderers, createSessionPlannerStateMergeHelpers, createSessionPlannerTacticalController, createSessionPlannerWorkspaceController, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualUploadHelpers, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
+import { bindSessionPlannerWorkspaceDragPointerController, createSessionPlannerAutosaveBoundary, createSessionPlannerBlockHelpers, createSessionPlannerBoardHistoryController, createSessionPlannerRuntimeDelegates, createSessionPlannerRuntimeRenderers, createSessionPlannerStateMergeHelpers, createSessionPlannerTacticalController, createSessionPlannerWorkspaceController, createSessionPlannerSessionFactory, createSessionPlannerTacticalHelpers, createSessionPlannerVisualUploadHelpers, formatSessionPlannerHistoryTime as formatSessionPlannerHistoryTimeFromModule, getSessionPlannerHistoryActionLabel as getSessionPlannerHistoryActionLabelFromModule, getSessionPlannerHistoryActorLabel as getSessionPlannerHistoryActorLabelFromModule, sessionPlannerPlayerBoardAutoModeOptions, sessionPlannerPlayerBoardColorOptions, sessionPlannerPlayerBoardMaxTeamCount, sessionPlannerPrintPaperOptions, sessionPlannerPrintSectionOptions, sessionPlannerStorageKey, sessionPlannerTacticalMaxFrames, sessionPlannerTacticalPitchDimensions, sessionPlannerTacticalPitchModeKeys, sessionPlannerTacticalPitchModeOptions, sessionPlannerTacticalSnapStep } from "./src/modules/session-planner/index.mjs";
 import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mjs";
 import { createPlatformShellRuntime } from "./src/core/platform-shell-runtime.mjs";
 import { createWorkspaceModuleRuntimeController } from "./src/core/workspace-module-runtime-controller.mjs";
@@ -13856,130 +13856,35 @@ const formationInput = playerBoardFormationForm.querySelector("[data-session-pla
 sessionPlannerPlayerBoardFormationInput = normalizeSessionPlannerPlayerBoardFormationValue(formationInput?.value);
 applySessionPlannerPlayerBoardFormation();
 });
-ui.sessionPlannerWorkspace?.addEventListener("dragstart", (event) => {
-const libraryExerciseItem = event.target.closest("[data-session-library-drag-exercise]");
-if (libraryExerciseItem && canEditSessionPlanner()) {
-sessionPlannerDraggedLibraryExerciseId = libraryExerciseItem.dataset.sessionLibraryDragExercise;
-libraryExerciseItem.classList.add("is-dragging");
-event.dataTransfer.effectAllowed = "copy";
-event.dataTransfer.setData("text/plain", sessionPlannerDraggedLibraryExerciseId);
-return;
-}
-const row = event.target.closest("[data-session-block-drop-id]");
-if (!row || !canEditSessionPlanner()) {
-return;
-}
-sessionPlannerDraggedBlockId = row.dataset.sessionBlockDropId;
-row.classList.add("is-dragging");
-event.dataTransfer.effectAllowed = "move";
-event.dataTransfer.setData("text/plain", sessionPlannerDraggedBlockId);
-});
-ui.sessionPlannerWorkspace?.addEventListener("dragover", (event) => {
-const folderDropTarget = event.target.closest("[data-session-library-folder-drop]");
-if (folderDropTarget && sessionPlannerDraggedLibraryExerciseId) {
-event.preventDefault();
-ui.sessionPlannerWorkspace
-?.querySelectorAll(".session-library-folder-card.is-drop-target")
-.forEach((folderCard) => {
-if (folderCard !== folderDropTarget) {
-folderCard.classList.remove("is-drop-target");
-}
-});
-folderDropTarget.classList.add("is-drop-target");
-event.dataTransfer.dropEffect = "copy";
-return;
-}
-const row = event.target.closest("[data-session-block-drop-id]");
-if (!row || !sessionPlannerDraggedBlockId || row.dataset.sessionBlockDropId === sessionPlannerDraggedBlockId) {
-return;
-}
-event.preventDefault();
-const placement = getSessionPlannerBlockDropPlacement(event, row);
-ui.sessionPlannerWorkspace
-?.querySelectorAll(".session-block-row.is-drop-before, .session-block-row.is-drop-after")
-.forEach((dropRow) => {
-if (dropRow !== row) {
-dropRow.classList.remove("is-drop-before", "is-drop-after");
-}
-});
-row.classList.toggle("is-drop-before", placement === "before");
-row.classList.toggle("is-drop-after", placement === "after");
-event.dataTransfer.dropEffect = "move";
-});
-ui.sessionPlannerWorkspace?.addEventListener("dragleave", (event) => {
-const folderDropTarget = event.target.closest("[data-session-library-folder-drop]");
-if (folderDropTarget) {
-folderDropTarget.classList.remove("is-drop-target");
-return;
-}
-const row = event.target.closest("[data-session-block-drop-id]");
-if (!row) {
-return;
-}
-row.classList.remove("is-drop-before", "is-drop-after");
-});
-ui.sessionPlannerWorkspace?.addEventListener("drop", (event) => {
-const folderDropTarget = event.target.closest("[data-session-library-folder-drop]");
-if (folderDropTarget && sessionPlannerDraggedLibraryExerciseId) {
-event.preventDefault();
-addSessionPlannerExerciseToLibraryFolder(
-sessionPlannerDraggedLibraryExerciseId,
-folderDropTarget.dataset.sessionLibraryFolderDrop
-);
-clearSessionPlannerLibraryDragState();
-return;
-}
-const row = event.target.closest("[data-session-block-drop-id]");
-if (!row || !sessionPlannerDraggedBlockId) {
-return;
-}
-event.preventDefault();
-reorderSessionPlannerBlock(
-sessionPlannerDraggedBlockId,
-row.dataset.sessionBlockDropId,
-getSessionPlannerBlockDropPlacement(event, row)
-);
-clearSessionPlannerBlockDragState();
-});
-ui.sessionPlannerWorkspace?.addEventListener("dragend", () => {
-clearSessionPlannerBlockDragState();
-clearSessionPlannerLibraryDragState();
-});
-ui.sessionPlannerWorkspace?.addEventListener("pointerdown", (event) => {
-if (startSessionPlannerLibraryPointerDrag(event)) {
-return;
-}
-if (startSessionPlannerPlayerBoardDrag(event)) {
-return;
-}
-if (startSessionPlannerPlayerBoardSelection(event)) {
-return;
-}
-startSessionPlannerTacticalDrag(event);
-});
-win.addEventListener("pointermove", (event) => {
-if (updateSessionPlannerLibraryPointerDrag(event)) {
-return;
-}
-if (updateSessionPlannerPlayerBoardDrag(event)) {
-return;
-}
-if (updateSessionPlannerPlayerBoardSelection(event)) {
-return;
-}
-updateSessionPlannerTacticalDrag(event);
-});
-win.addEventListener("pointerup", (event) => {
-if (finishSessionPlannerLibraryPointerDrag(event)) {
-return;
-}
-if (finishSessionPlannerPlayerBoardDrag()) {
-return;
-}
-if (finishSessionPlannerPlayerBoardSelection()) {
-return;
-}
-finishSessionPlannerTacticalDrag();
+bindSessionPlannerWorkspaceDragPointerController({
+workspaceElement: ui.sessionPlannerWorkspace,
+win,
+canEditSessionPlanner,
+getDraggedLibraryExerciseId: () => sessionPlannerDraggedLibraryExerciseId,
+setDraggedLibraryExerciseId: (exerciseId) => {
+sessionPlannerDraggedLibraryExerciseId = exerciseId;
+},
+getDraggedBlockId: () => sessionPlannerDraggedBlockId,
+setDraggedBlockId: (blockId) => {
+sessionPlannerDraggedBlockId = blockId;
+},
+getBlockDropPlacement: getSessionPlannerBlockDropPlacement,
+addExerciseToLibraryFolder: addSessionPlannerExerciseToLibraryFolder,
+clearBlockDragState: clearSessionPlannerBlockDragState,
+clearLibraryDragState: clearSessionPlannerLibraryDragState,
+reorderBlock: reorderSessionPlannerBlock,
+startLibraryPointerDrag: startSessionPlannerLibraryPointerDrag,
+updateLibraryPointerDrag: updateSessionPlannerLibraryPointerDrag,
+finishLibraryPointerDrag: finishSessionPlannerLibraryPointerDrag,
+startPlayerBoardDrag: startSessionPlannerPlayerBoardDrag,
+updatePlayerBoardDrag: updateSessionPlannerPlayerBoardDrag,
+finishPlayerBoardDrag: finishSessionPlannerPlayerBoardDrag,
+startPlayerBoardSelection: startSessionPlannerPlayerBoardSelection,
+updatePlayerBoardSelection: updateSessionPlannerPlayerBoardSelection,
+finishPlayerBoardSelection: finishSessionPlannerPlayerBoardSelection,
+startTacticalDrag: startSessionPlannerTacticalDrag,
+updateTacticalDrag: updateSessionPlannerTacticalDrag,
+finishTacticalDrag: finishSessionPlannerTacticalDrag,
 });
 ui.sessionPlannerWorkspace?.addEventListener("input", (event) => {
 const playerBoardFormationInput = event.target.closest("[data-session-player-board-formation-input]");

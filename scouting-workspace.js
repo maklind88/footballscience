@@ -23,6 +23,7 @@ import {
   setScoutingDatabaseResultsFrame,
   setScoutingDatabaseSearchDraft,
 } from "./src/modules/scouting/scouting-database-state.mjs";
+import { createScoutingImportHelpers } from "./src/modules/scouting/scouting-import-helpers.mjs";
 
 let activeContext = null;
 let scoutingTabs = [];
@@ -243,6 +244,46 @@ const scoutingImportSupportedFileExts = Object.freeze(
     .map((extension) => normalizeScoutingText(extension, 16).toLowerCase())
     .join(",")
 );
+const scoutingImportHelpers = createScoutingImportHelpers({
+  supportedSourceTypes: scoutingImportSupportedSourceTypes,
+  normalizeText: normalizeScoutingText,
+  normalizeDateValue: normalizeScoutingDateValue,
+  normalizeIdentityPart: normalizeScoutingIdentityPart,
+  normalizeLeague: normalizeScoutingLeague,
+  getImportDraft: () => scoutingImportDraft,
+  getPdfParserPromise: () => scoutingImportPdfParserPromise,
+  setPdfParserPromise: (promise) => { scoutingImportPdfParserPromise = promise; },
+  windowRef: window,
+  documentRef: document,
+});
+const {
+  buildScoutingImportCollectionHash,
+  buildScoutingImportHash,
+  buildScoutingImportRecordId,
+  buildScoutingPlayerSourceId,
+  buildScoutingRecordSourceId,
+  buildScoutingScopedId,
+  detectScoutingImportDelimiter,
+  ensureScoutingPdfParserLoaded,
+  getScoutingImportHeadersForBatch,
+  getScoutingImportIdentityCandidates,
+  getScoutingImportMergeKey,
+  getScoutingImportMetricDirection,
+  getScoutingImportMetricHeaders,
+  getScoutingImportMetricQuality,
+  getScoutingImportSheetsForBatch,
+  getScoutingImportSourceFromFile,
+  getScoutingImportSourceSystem,
+  isScoutingVerifiedImportIdentityKey,
+  normalizeScoutingImportText,
+  parseScoutingJsonRows,
+  parseScoutingMetricValue,
+  parseScoutingPdfSource,
+  parseScoutingSeparatedLine,
+  parseScoutingSeparatedRows,
+  parseScoutingTextRowsToRecords,
+  readScoutingText,
+} = scoutingImportHelpers;
 const scoutingStatusFallbackOptions = [
   { value: "new", label: "Longlist" },
   { value: "monitoring", label: "Monitoring" },
@@ -3298,283 +3339,6 @@ function getScoutingStatusOptions() {
     };
   });
 }
-function getScoutingImportSourceFromFile(fileName = "") {
-  const extension = normalizeScoutingText(fileName, 80).toLowerCase().match(/\.[a-z0-9]+$/)?.[0] || "";
-  return (
-    scoutingImportSupportedSourceTypes.find((sourceType) => sourceType.extensions.includes(extension)) || scoutingImportSupportedSourceTypes[0]
-  );
-}
-function buildScoutingImportHash(value = "") {
-  const text = String(value ?? "").replace(/\s+/g, " ").trim().toLowerCase().slice(0, 50000);
-  let hash = 2166136261;
-  for (let index = 0; index < text.length; index += 1) {
-    hash ^= text.charCodeAt(index);
-    hash = Math.imul(hash, 16777619) >>> 0;
-  }
-  return hash.toString(36);
-}
-function buildScoutingImportCollectionHash(parts = []) {
-  let hash = 2166136261;
-  (Array.isArray(parts) ? parts : [parts]).forEach((part) => {
-    const text = String(part ?? "").replace(/\s+/g, " ").trim().toLowerCase();
-    for (let index = 0; index < text.length; index += 1) {
-      hash ^= text.charCodeAt(index);
-      hash = Math.imul(hash, 16777619) >>> 0;
-    }
-    hash ^= 31;
-    hash = Math.imul(hash, 16777619) >>> 0;
-  });
-  return hash.toString(36);
-}
-function buildScoutingImportRecordId(seed = "", fallback = "record", maxLength = 160) {
-  const normalized = normalizeScoutingText(seed, 240).toLowerCase().replace(/[^a-z0-9]+/g, "-");
-  const hash = buildScoutingImportHash(seed);
-  const base = normalized || fallback;
-  return `${base.slice(0, Math.max(20, maxLength - hash.length - 1))}-${hash}`.slice(0, maxLength);
-}
-function buildScoutingScopedId(value = "", sourceSystem = "file-import") {
-  const source = normalizeScoutingText(sourceSystem, 40) || "file-import";
-  const normalized = normalizeScoutingText(value, 160);
-  if (!normalized) {
-    return "";
-  }
-  return normalized.includes("::") ? normalized : normalizeScoutingText(`${source}::${normalized}`, 160);
-}
-function getScoutingImportSourceSystem(draft = scoutingImportDraft) {
-  return normalizeScoutingText(draft?.sourceSystem, 40) || "file-import";
-}
-function isScoutingVerifiedImportIdentityKey(key = "") {
-  return ["federationId", "wyscoutId", "fbrefId", "transfermarktId", "footballScienceDb"].includes(
-    normalizeScoutingText(key, 60)
-  );
-}
-function buildScoutingPlayerSourceId(row = {}, map = {}) {
-  const primary = getScoutingImportIdentityCandidates(row, map)[0];
-  if (primary?.value && isScoutingVerifiedImportIdentityKey(primary.key)) {
-    return buildScoutingImportRecordId(`${primary.key} ${primary.value}`, "player", 140);
-  }
-  const player = normalizeScoutingText(row?.[map.player], 120);
-  const dateOfBirth = normalizeScoutingDateValue(row?.[map.dateOfBirth]);
-  const birthCountry = normalizeScoutingText(row?.[map.birthCountry], 120);
-  const passportCountry = normalizeScoutingText(row?.[map.passportCountry], 120);
-  const nationality = passportCountry || birthCountry;
-  return buildScoutingImportRecordId(
-    [
-      normalizeScoutingIdentityPart(player),
-      normalizeScoutingIdentityPart(dateOfBirth),
-      normalizeScoutingIdentityPart(nationality),
-    ].filter(Boolean).join("::"),
-    "player",
-    140
-  );
-}
-function buildScoutingRecordSourceId(row = {}, map = {}, playerSourceId = "") {
-  const sourceSystem = getScoutingImportSourceSystem();
-  const mapped = normalizeScoutingText(row?.[map.sourceRecordId], 160);
-  if (mapped) {
-    return buildScoutingScopedId(mapped, sourceSystem);
-  }
-  const seed = [
-    playerSourceId,
-    normalizeScoutingText(scoutingImportDraft?.seasonOverride, 80) || normalizeScoutingText(row?.[map.season], 80),
-    normalizeScoutingLeague(row?.[map.league]),
-    normalizeScoutingText(row?.[map.team], 120),
-  ].join("::");
-  return buildScoutingScopedId(buildScoutingImportRecordId(seed, `record`), sourceSystem);
-}
-function getScoutingImportIdentityCandidates(row = {}, map = {}) {
-  const candidates = [
-    { key: "playerIdentityId", label: "player identity id", header: map.playerIdentityId },
-    { key: "sourceIdentityId", label: "source identity id", header: map.sourceIdentityId },
-    { key: "federationId", label: "federation id", header: map.federationId },
-    { key: "wyscoutId", label: "Wyscout ID", header: map.wyscoutId },
-    { key: "fbrefId", label: "FBref ID", header: map.fbrefId },
-    { key: "transfermarktId", label: "Transfermarkt ID", header: map.transfermarktId },
-    { key: "playerSourceId", label: "player source id", header: map.playerSourceId },
-  ];
-  const seen = new Set();
-  return candidates
-    .map((candidate) => ({
-      key: candidate.key,
-      label: candidate.label,
-      value: normalizeScoutingText(row?.[candidate.header], 160),
-    }))
-    .filter((candidate) => candidate.value && !seen.has(candidate.value) && seen.add(candidate.value));
-}
-function parseScoutingMetricValue(value) {
-  const numeric = Number(String(value ?? "").replace(/,/g, ".").replace(/[^0-9.+-]/g, ""));
-  return Number.isFinite(numeric) ? numeric : null;
-}
-function readScoutingText(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("Could not read the selected file."));
-    reader.readAsText(file);
-  });
-}
-function parseScoutingSeparatedLine(line = "", delimiter = ",") {
-  const cells = [];
-  let current = "";
-  let inQuotes = false;
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    const next = line[index + 1];
-    if (char === '"') {
-      if (inQuotes && next === '"') {
-        current += '"';
-        index += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-    if (char === delimiter && !inQuotes) {
-      cells.push(current);
-      current = "";
-      continue;
-    }
-    current += char;
-  }
-  cells.push(current);
-  return cells.map((item) => item.trim());
-}
-function detectScoutingImportDelimiter(lines = []) {
-  const candidates = [",", "\t", ";", "|"];
-  const counts = candidates.map((delimiter) => {
-    const count = lines.slice(0, 20).reduce((total, line) => {
-      return total + Math.max(0, line.split(delimiter).length - 1);
-    }, 0);
-    return { delimiter, count };
-  });
-  const winner = counts.sort((a, b) => b.count - a.count)[0];
-  return winner && winner.count > 0 ? winner.delimiter : ",";
-}
-function parseScoutingSeparatedRows(text = "", delimiter = ",") {
-  return String(text || "")
-    .split(/\r\n|\r|\n/)
-    .filter((line) => line.trim())
-    .map((line) => parseScoutingSeparatedLine(line, delimiter));
-}
-function parseScoutingTextRowsToRecords(rows = [], fallbackHeaders = []) {
-  if (!rows.length) {
-    return { headers: [], rows: [] };
-  }
-  const headers = rows[0]
-    .map((header) => String(header || "").trim())
-    .filter((header) => header.length > 0);
-  if (!headers.length) {
-    return { headers: fallbackHeaders, rows: [] };
-  }
-  const parsedRows = rows
-    .slice(1)
-    .map((row) => {
-      const record = {};
-      headers.forEach((header, index) => {
-        record[header] = row[index] ?? "";
-      });
-      return record;
-    })
-    .filter((record) => {
-      if (!record || typeof record !== "object") {
-        return false;
-      }
-      return Object.values(record).some((value) => normalizeScoutingText(value, 12));
-    });
-  return { headers, rows: parsedRows };
-}
-function parseScoutingJsonRows(payload = null) {
-  const records = Array.isArray(payload)
-    ? payload
-    : Array.isArray(payload?.records)
-      ? payload.records
-      : Array.isArray(payload?.data)
-        ? payload.data
-        : Array.isArray(payload?.players)
-          ? payload.players
-          : [];
-  if (!Array.isArray(records)) {
-    return { headers: [], rows: [] };
-  }
-  const headers = [...new Set(records.flatMap((row) => (row && typeof row === "object" && !Array.isArray(row) ? Object.keys(row) : [])))];
-  const rows = records
-    .filter((row) => row && typeof row === "object" && !Array.isArray(row))
-    .map((row) => {
-      const values = {};
-      headers.forEach((header) => {
-        values[header] = row?.[header] ?? "";
-      });
-      return values;
-    })
-    .filter((record) => Object.values(record).some((value) => normalizeScoutingText(value, 12)));
-  return { headers, rows };
-}
-function normalizeScoutingImportText(value = "") {
-  return String(value ?? "").replace(/\s+/g, " ").trim();
-}
-function parseScoutingPdfSource(file, sourceType) {
-  return ensureScoutingPdfParserLoaded().then(async (pdfjs) => {
-    const buffer = await file.arrayBuffer();
-    const documentHandle = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise;
-    const tables = [];
-    const pageCount = Math.min(documentHandle.numPages, 16);
-    for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
-      const page = await documentHandle.getPage(pageNumber);
-      const textContent = await page.getTextContent();
-      const lines = textContent.items
-        .map((item) => normalizeScoutingImportText(item?.str || ""))
-        .filter(Boolean);
-      const delimiter = detectScoutingImportDelimiter(lines);
-      const parsedRows = parseScoutingSeparatedRows(lines.join("\n"), delimiter);
-      const parsed = parseScoutingTextRowsToRecords(parsedRows);
-      if (parsed.headers.length > 1 && parsed.rows.length) {
-        tables.push({ name: `${sourceType.label} page ${pageNumber}`, headers: parsed.headers, rows: parsed.rows });
-      }
-    }
-    return tables;
-  });
-}
-function ensureScoutingPdfParserLoaded() {
-  if (scoutingImportPdfParserPromise) {
-    return scoutingImportPdfParserPromise;
-  }
-  scoutingImportPdfParserPromise = new Promise((resolve, reject) => {
-    if (window.pdfjsLib?.getDocument) {
-      resolve(window.pdfjsLib);
-      return;
-    }
-    const existing = document.getElementById("scoutingPdfParserScript");
-    if (existing) {
-      existing.addEventListener("load", () => {
-        if (!window.pdfjsLib?.getDocument) {
-          reject(new Error("PDF parser did not load."));
-          return;
-        }
-        resolve(window.pdfjsLib);
-      }, { once: true });
-      existing.addEventListener("error", () => reject(new Error("PDF parser could not be loaded.")), { once: true });
-      return;
-    }
-    const script = document.createElement("script");
-    script.id = "scoutingPdfParserScript";
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
-    script.async = true;
-    script.onload = () => {
-      if (!window.pdfjsLib?.getDocument) {
-        reject(new Error("PDF parser did not load."));
-        return;
-      }
-      if (window.pdfjsLib.GlobalWorkerOptions) {
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-      }
-      resolve(window.pdfjsLib);
-    };
-    script.onerror = () => reject(new Error("PDF parser could not be loaded."));
-    document.head.appendChild(script);
-  });
-  return scoutingImportPdfParserPromise;
-}
 function getScoutingPriorityOptions() {
   return Array.isArray(scoutingPriorityOptions) && scoutingPriorityOptions.length
     ? scoutingPriorityOptions
@@ -6192,49 +5956,6 @@ function setScoutingImportMapField(field, value) {
       [field]: normalizeScoutingText(value, 120),
     },
   };
-}
-function getScoutingImportMetricHeaders(headers = [], map = {}) {
-  const coreHeaders = new Set(Object.values(map).filter(Boolean));
-  return headers.filter((header) => !coreHeaders.has(header));
-}
-function getScoutingImportSheetsForBatch(draft = scoutingImportDraft) {
-  return (Array.isArray(draft?.sheets) ? draft.sheets : []).filter((sheet) => Array.isArray(sheet?.rows) && sheet.rows.length);
-}
-function getScoutingImportHeadersForBatch(sheets = []) {
-  const seen = new Set();
-  return (Array.isArray(sheets) ? sheets : [])
-    .flatMap((sheet) => (Array.isArray(sheet?.headers) ? sheet.headers : []))
-    .filter((header) => {
-      const normalized = normalizeScoutingText(header, 160);
-      if (!normalized || seen.has(normalized)) {
-        return false;
-      }
-      seen.add(normalized);
-      return true;
-    });
-}
-function getScoutingImportMetricDirection(header = "") {
-  const label = normalizeScoutingText(header, 120).toLowerCase();
-  return /(against|conceded|lost|errors|fouls|cards|turnovers|losses)/.test(label) ? "lower" : "higher";
-}
-function getScoutingImportMetricQuality(rawValue, minutes = 0) {
-  const text = normalizeScoutingText(rawValue, 120).toLowerCase();
-  if (!Number.isFinite(parseScoutingMetricValue(rawValue))) {
-    return "missing";
-  }
-  if (/(^|[^a-z])(est|estimated|estimate|approx|approximate)([^a-z]|$)|~/.test(text)) {
-    return "estimated";
-  }
-  return Number(minutes) > 0 && Number(minutes) < 450 ? "estimated" : "trusted";
-}
-function getScoutingImportMergeKey(sourceSystem = "", playerIdentityId = "", season = "", league = "", team = "") {
-  return [
-    normalizeScoutingIdentityPart(sourceSystem || "file-import", 40),
-    normalizeScoutingIdentityPart(playerIdentityId, 160),
-    normalizeScoutingIdentityPart(season, 80),
-    normalizeScoutingIdentityPart(normalizeScoutingLeague(league), 180),
-    normalizeScoutingIdentityPart(team, 180),
-  ].join("|");
 }
 function getScoutingRecordMergeKey(record) {
   const personIdentityKey = getScoutingRecordStrongPersonKey(record) || getScoutingRecordCanonicalPersonKey(record) || getScoutingRecordPlayerIdentityId(record);

@@ -1,3 +1,5 @@
+import { createMedicalClinicalNormalizers } from "./medical-clinical-normalizers.mjs";
+
 function defaultNormalizeText(value = "") {
   return String(value ?? "").trim();
 }
@@ -8,13 +10,29 @@ function defaultCreateId(prefix = "medical") {
 
 export function createMedicalRuntimeHelpers(deps = {}) {
   const {
+    addCalendarDays = (date, days) => {
+      const nextDate = new Date(date);
+      nextDate.setDate(nextDate.getDate() + Number(days || 0));
+      return nextDate;
+    },
+    clamp = (value, min, max) => Math.min(max, Math.max(min, value)),
     createId = defaultCreateId,
+    formatDateValue = (date) => new Date(date).toISOString().slice(0, 10),
+    getActivityContext = () => ({ type: "training" }),
     getCurrentUser = () => null,
     getPlayerProfilesState = () => null,
+    isDateValue = () => false,
+    medicalClearanceRoles = [],
     medicalDataSafetySyncStatusOptions = new Set(["idle", "pending", "stored", "legacy", "duplicate", "failed"]),
+    medicalGateOptions = [],
+    medicalInjuryPlanStatusOptions = [],
+    medicalLoadGateOptions = [],
     medicalOptionSelectors = {},
     medicalPositionAliases = {},
     medicalPositionOrder = {},
+    medicalRtpPhaseOptions = [],
+    medicalStatusOptions = [],
+    parseDateValue = (value) => new Date(value),
     playerProfileStatusOptions = [],
     normalizePlayerProfileName = defaultNormalizeText,
     normalizePlayerProfileRole = (value, fallback = "") => String(value || fallback || "").trim(),
@@ -251,6 +269,30 @@ export function createMedicalRuntimeHelpers(deps = {}) {
       archivedPlayerCount: counts.archivedPlayers,
     };
   }
+
+  const medicalClinicalNormalizers = createMedicalClinicalNormalizers({
+    addCalendarDays,
+    clamp,
+    createId,
+    formatDateValue,
+    getActivityContext,
+    getCurrentUser,
+    getMedicalRtpPhaseForRecommendation,
+    getMedicalRtpPhaseOption,
+    getMedicalStatusForParticipation,
+    isDateValue,
+    medicalClearanceRoles,
+    medicalGateOptions,
+    medicalInjuryPlanStatusOptions,
+    medicalLoadGateOptions,
+    medicalRtpPhaseOptions,
+    medicalStatusOptions,
+    normalizeMedicalActualParticipation,
+    normalizeMedicalParticipation,
+    normalizeMedicalShareValue,
+    normalizeMedicalTimestamp,
+    parseDateValue,
+  });
   function getMedicalPlayerNumberRank(player) {
     const value = String(player?.number ?? "").trim();
     if (!/^\d+$/.test(value)) {
@@ -290,6 +332,7 @@ export function createMedicalRuntimeHelpers(deps = {}) {
 
   return {
     compareMedicalPlayers,
+    ...medicalClinicalNormalizers,
     getCurrentMedicalActorId,
     getMedicalCanonicalPositionFromText,
     getMedicalDataSafetyCounts,

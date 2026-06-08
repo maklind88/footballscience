@@ -7494,13 +7494,25 @@ const parsedDate = parseScheduleDateValue(dateValue);
 return formatScheduleDateValue(parsedDate) === dateValue;
 }
 const medicalRuntimeHelpers = createMedicalRuntimeHelpers({
+addCalendarDays,
+clamp,
 createId: createDashboardId,
+formatDateValue: formatScheduleDateValue,
+getActivityContext: getMedicalRecommendationActivityContext,
 getCurrentUser: getCurrentPlatformUser,
 getPlayerProfilesState: () => playerProfilesState || readPlayerProfilesState(),
+isDateValue: isMedicalDateValue,
+medicalClearanceRoles,
 medicalDataSafetySyncStatusOptions,
+medicalGateOptions,
+medicalInjuryPlanStatusOptions,
+medicalLoadGateOptions,
 medicalOptionSelectors,
 medicalPositionAliases,
 medicalPositionOrder,
+medicalRtpPhaseOptions,
+medicalStatusOptions,
+parseDateValue: parseScheduleDateValue,
 playerProfileStatusOptions,
 normalizePlayerProfileName,
 normalizePlayerProfileRole,
@@ -7513,9 +7525,11 @@ const {
 compareMedicalPlayers,
 getCurrentMedicalActorId,
 getMedicalCanonicalPositionFromText,
+getMedicalClearanceValues,
 getMedicalDataSafetyCounts,
 getMedicalEntityUpdatedMs,
 getMedicalGateOption,
+getMedicalLoadGateValues,
 getMedicalLinkedPlayerProfile,
 getMedicalPlayerAvailabilityStatus,
 getMedicalPlayerAvailabilityStatusOption,
@@ -7534,7 +7548,11 @@ getMedicalTimestampMs,
 isMedicalItemArchived,
 isMedicalPlayerBlockedBySquadAvailability,
 normalizeMedicalActualParticipation,
+normalizeMedicalClearance,
 normalizeMedicalDataSafety,
+normalizeMedicalGovernancePolicy,
+normalizeMedicalInjuryPlan,
+normalizeMedicalLoadGates,
 normalizeMedicalParticipation,
 normalizeMedicalPlayer,
 normalizeMedicalPlayerAvailabilityStatus,
@@ -7542,6 +7560,8 @@ normalizeMedicalPlayerPosition,
 normalizeMedicalPositionText,
 normalizeMedicalShareValue,
 normalizeMedicalTimestamp,
+normalizeMedicalRecord,
+sanitizeMedicalGovernancePolicyForCoachView,
 } = medicalRuntimeHelpers;
 function getMedicalStatusOptionForDate(statusKey, dateValue = medicalState?.selectedDate, rtpPhase = "") {
 return getMedicalStatusOptionForDateFromHelper(statusKey, dateValue, rtpPhase);
@@ -7576,6 +7596,50 @@ if (changed) {
 medicalState.players = nextPlayers;
 }
 return changed;
+}
+function markMedicalClinicalChange(changeType, summary) {
+ensureMedicalState();
+medicalState.dataSafety = normalizeMedicalDataSafety(
+{
+...medicalState.dataSafety,
+lastClinicalChangeAt: new Date().toISOString(),
+lastClinicalChangeBy: getCurrentMedicalActorId(),
+lastClinicalChangeType: changeType,
+lastClinicalChangeSummary: summary,
+lastDatabaseSyncStatus: "pending",
+lastDatabaseSyncEvent: changeType,
+},
+medicalState
+);
+}
+function commitMedicalClinicalState(changeType, summary) {
+markMedicalClinicalChange(changeType, summary);
+writeMedicalState();
+}
+function updateMedicalDatabaseSyncStatus(eventType, result = {}) {
+if (!medicalState) {
+return;
+}
+const status = result.ok
+? result.stored
+? "stored"
+: result.duplicate
+? "duplicate"
+: result.enabled === false || result.localDev
+? "legacy"
+: "legacy"
+: "failed";
+medicalState.dataSafety = normalizeMedicalDataSafety(
+{
+...medicalState.dataSafety,
+lastDatabaseSyncAt: new Date().toISOString(),
+lastDatabaseSyncStatus: status,
+lastDatabaseSyncEvent: eventType,
+lastPayloadHash: result.payloadHash || medicalState.dataSafety?.lastPayloadHash || "",
+},
+medicalState
+);
+writeMedicalState();
 }
 function cloneMedicalState(source = {}) {
 const shouldSeedDefaultRoster =

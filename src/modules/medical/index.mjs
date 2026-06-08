@@ -1,4 +1,5 @@
 export * from "./medical-default-roster.mjs";
+export * from "./medical-clinical-normalizers.mjs";
 export * from "./medical-availability-selectors.mjs";
 export * from "./medical-command-renderer.mjs";
 export * from "./medical-command-selectors.mjs";

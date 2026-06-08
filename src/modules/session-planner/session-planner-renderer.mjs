@@ -232,15 +232,45 @@ ${listOptions
   function renderPostSessionNotesCard(block = {}) {
     const hasCurrentNote = Boolean(String(block.postSessionNotes || "").trim());
     const previousNoteCount = getReviewNotesForBlock(block).length;
+    const statusLabel = hasCurrentNote ? "Saved review" : previousNoteCount ? `${previousNoteCount} previous` : "Ready after training";
+    const noteValue = block.postSessionNotes ?? "";
+    const isAdmin = canEdit();
 
     return `
-    <details class="session-detail-card session-detail-card-full session-post-notes-card">
+    <details class="session-detail-card session-detail-card-full session-post-notes-card${
+      hasCurrentNote ? " has-current-note" : ""
+    }${previousNoteCount ? " has-review-history" : ""}">
       <summary data-session-post-notes-toggle>
-        <span>Post Session Notes</span>
-        <small>${hasCurrentNote ? "Reflection added" : previousNoteCount ? `${previousNoteCount} previous` : "Optional review"}</small>
+        <span class="session-post-notes-summary-copy">
+          <b>Post Session Notes</b>
+          <small>${escapeHtml(statusLabel)}</small>
+        </span>
+        <span class="session-post-notes-summary-meta">
+          <i>${hasCurrentNote ? "Current note" : "Reflection"}</i>
+          <em>${previousNoteCount}</em>
+        </span>
       </summary>
-      <div class="session-builder-fields">
-        ${renderEditableField(block, "postSessionNotes", "Post Session Notes", { rows: 4 })}
+      <div class="session-post-notes-body">
+        <div class="session-post-notes-prompt-grid" aria-hidden="true">
+          <span>What worked</span>
+          <span>What to adjust</span>
+          <span>Player response</span>
+          <span>Next session</span>
+        </div>
+        ${
+          isAdmin
+            ? `
+              <label class="session-post-notes-field">
+                <span>Coach reflection</span>
+                <textarea
+                  data-session-field="postSessionNotes"
+                  rows="6"
+                  placeholder="Capture the session while it is fresh..."
+                >${escapeHtml(noteValue)}</textarea>
+              </label>
+            `
+            : renderEditableField(block, "postSessionNotes", "Coach reflection", { rows: 6 })
+        }
       </div>
       ${renderReviewNoteHistory(block)}
     </details>

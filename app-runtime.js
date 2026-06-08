@@ -54,7 +54,7 @@ import { createPlatformModuleLoader } from "./src/core/platform-module-loader.mj
 import { createPlatformShellRuntime } from "./src/core/platform-shell-runtime.mjs";
 import { bindPlatformNavigationInteractions } from "./src/core/platform-navigation-bindings.mjs";
 import { createPlatformUiBindings } from "./src/core/platform-ui-bindings.mjs";
-import { createPlatformRuntimeServices } from "./src/core/platform-runtime-services-composer.mjs";
+import { createPlatformAppRuntimeServices } from "./src/core/platform-app-runtime-services-composer.mjs";
 import { createWorkspaceRuntimeComposition } from "./src/core/workspace-runtime-composer.mjs";
 import { createPlatformUserRuntimeService } from "./src/core/platform-user-runtime-service.mjs";
 import { createMedicalRuntimeServiceComposition } from "./src/modules/medical/medical-runtime-service-composer.mjs";
@@ -719,13 +719,6 @@ renderTransferRoomWorkspace();
 }
 installFootballDataSafety();
 installPlatformOverlayStability({ win });
-const defaultScheduleState = createDefaultScheduleState();
-const importedNccScheduleEvents = Array.isArray(win.__importedNccScheduleEvents)
-? win.__importedNccScheduleEvents
-: [];
-const importedNccScheduleVersion = importedNccScheduleEvents.length
-? win.__importedNccScheduleVersion || "ncc-2026-numbers-v1"
-: "";
 const {
 comparePlayerProfiles,
 formatPlayerProfileChangeTime,
@@ -1591,7 +1584,13 @@ const dashboardTypingSendThrottleMs = 1800;
 let dashboardPresenceEntriesByUserId = {};
 let dashboardPresenceHeartbeatTimer = null, dashboardPresencePollTimer = null, dashboardPresenceStarted = false, dashboardPresenceInFlight = false;
 let dashboardPresenceLastActivityAt = Date.now(), dashboardPresenceLastRenderedSignature = "", dashboardPresenceLastPushAt = 0, dashboardPresenceLastPollAt = 0;
-const platformRuntimeServices = createPlatformRuntimeServices({
+const platformRuntimeServices = createPlatformAppRuntimeServices({
+documentRef: document,
+win,
+ui,
+platformAssetVersion,
+platformModuleLoader,
+periodizationStateAdapter,
 canCurrentUserEditWorkspace,
 canEditPeriodizationWorkspace,
 canEditScheduleWorkspace,
@@ -1599,31 +1598,16 @@ canEditScoutingWorkspace,
 canEditSessionPlanner,
 canUserAccessTransferRoom,
 canUserEditTransferRoom,
-canonicalPlatformClubValues,
-canonicalPlatformTeamValues,
-clonePeriodizationState,
-cloneScheduleState,
-cloneScoutingState,
 createSessionPlannerEmptySession,
-defaultHubState,
-defaultPeriodizationState,
-defaultScheduleState,
-defaultScoutingState,
-defaultWorkspaceAccess,
-defaultWorkspaceEditAccess,
-documentRef: document,
 ensurePeriodizationState,
 ensureScoutingState,
-escapeHtml,
 formatScheduleBlockSummary,
-formatScheduleBlockSummaryFromModule,
 formatScheduleDateValue,
 getAssignableRolesForUser,
 getCurrentPlatformUser,
 getHubState: () => hubState,
 getMedicalState: () => medicalState,
 getPeriodizationDay,
-getPeriodizationDayFromState,
 getPeriodizationDayScheduleLabel,
 getPeriodizationMatchDayLabel,
 getPeriodizationState: () => periodizationState,
@@ -1636,36 +1620,21 @@ getPlayerProfilesState: () => playerProfilesState,
 getPlayerProfilesStateForGameplan: () => playerProfilesState || readPlayerProfilesState(),
 getPlayerProfilesStateForTransferRoom: () => playerProfilesState || readPlayerProfilesState(),
 getSafeWorkspaceId,
-getScheduleDayWarningsFromModule,
-getScheduleMainEventFromModule,
 getScheduleState: () => scheduleState,
 getScheduleStateForGameplan: () => scheduleState || readScheduleState(),
 getScoutingState: () => scoutingState,
 getScoutingStateForTransferRoom: () => scoutingState || readScoutingState(),
-getScoutingTeamName: () => {
-const currentUser = getCurrentPlatformUser();
-return normalizePlatformStructureText(currentUser?.team || currentUser?.teamName || currentUser?.clubName || currentUser?.club, "") || getUserTeamName(currentUser);
-},
 getSessionPlannerExerciseLibrary: () => sessionPlannerExerciseLibrary,
 getSessionPlannerExerciseLibraryFolders: () => sessionPlannerExerciseLibraryFolders,
 getSessionPlannerState: () => sessionPlannerState,
 getTransferRoomState: () => transferRoomState,
-getUniqueScheduleEvents,
 getUserTeamId,
+getUserTeamName,
 getWorkspaceViewId,
-importedNccScheduleEvents,
-importedNccScheduleVersion,
-isDateValueInYear,
-isEditableKeyboardTarget,
 isPlatformAdminUser,
 isPlatformManagementUser,
 isPlatformStaffUser,
 isScheduleSessionEvent,
-isScheduleSessionEventFromModule,
-legacyPlatformStructureValues,
-logEvent,
-mergeImportedScheduleEvents,
-normalizePeriodizationDay,
 normalizePlatformImageUrl,
 normalizePlatformRole,
 normalizePlatformStructureText,
@@ -1674,18 +1643,9 @@ periodizationFieldUpdatedAtKey,
 periodizationStorageKey,
 periodizationTrackedFields,
 periodizationYear,
-platformAssetVersion,
-platformDefaultClubId,
-platformDefaultClubName,
-platformDefaultClubShortName,
 platformDefaultRoles,
-platformDefaultTeamId,
-platformDefaultTeamLevel,
-platformDefaultTeamName,
 platformManagementRoleSet,
-platformModuleLoader,
 platformStructureStorageKey,
-preserveScoutingTransientUiState,
 queueGameSimulatorControllersLoad,
 rawDataSafetySetItem,
 readMedicalState,
@@ -1697,15 +1657,8 @@ readSessionPlannerState,
 renderPeriodizationWorkspace,
 renderSessionPlannerWorkspace,
 renderTransferRoomWorkspace,
-requiredWorkspaceAccess,
-scheduleEventTypes,
 scheduleStorageKey,
-scoutingCoreMetricOptions,
-scoutingPriorityOptions,
-scoutingShadowSlots,
-scoutingStatusOptions,
 scoutingStorageKey,
-scoutingTabs,
 selectPeriodizationDate,
 setActiveWorkspace: (...args) => setActiveWorkspace(...args),
 setMedicalState: (nextState) => { medicalState = nextState; },
@@ -1719,10 +1672,7 @@ setSessionPlannerState: (nextState) => { sessionPlannerState = nextState; },
 setTransferRoomState: (nextState) => { transferRoomState = nextState; },
 shouldDeferCentralizedAppStateReload,
 suppressCentralWrites: (key) => centralStateWriteSuppressionKeys.add(key),
-transferRoomStorageKey,
-ui,
 unsuppressCentralWrites: (key) => centralStateWriteSuppressionKeys.delete(key),
-win,
 workspaceHubDefaultActiveWorkspaceId,
 workspaceHubStorageKey,
 workspaceLastActiveStorageKey,

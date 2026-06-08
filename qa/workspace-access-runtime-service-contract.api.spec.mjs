@@ -89,7 +89,7 @@ function createService(overrides = {}) {
 }
 
 test("Workspace access runtime owns access and hub-state bodies outside app-runtime", () => {
-  expect(appRuntimeSource).toContain("createPlatformRuntimeServices({");
+  expect(appRuntimeSource).toContain("createPlatformAppRuntimeServices({");
   expect(appRuntimeSource).not.toContain("createWorkspaceAccessRuntimeService({");
   expect(platformRuntimeServicesComposerSource).toContain("createWorkspaceAccessRuntimeService({");
   expect(appRuntimeSource).toContain("platform-runtime-accessors.mjs");

@@ -60,7 +60,7 @@ test("app-runtime delegates workspace hub cloning to the core helper", () => {
   const accessors = readProjectFile("src/core/platform-runtime-accessors.mjs");
   const accessRuntime = readProjectFile("src/core/workspace-access-runtime-service.mjs");
   const composer = readProjectFile("src/core/platform-runtime-services-composer.mjs");
-  expect(appRuntime).toContain('import { createPlatformRuntimeServices } from "./src/core/platform-runtime-services-composer.mjs";');
+  expect(appRuntime).toContain('import { createPlatformAppRuntimeServices } from "./src/core/platform-app-runtime-services-composer.mjs";');
   expect(appRuntime).not.toContain('import { createWorkspaceAccessRuntimeService } from "./src/core/workspace-access-runtime-service.mjs";');
   expect(composer).toContain('import { createWorkspaceAccessRuntimeService } from "./workspace-access-runtime-service.mjs";');
   expect(appRuntime).toContain("platform-runtime-accessors.mjs");

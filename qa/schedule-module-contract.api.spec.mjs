@@ -37,10 +37,12 @@ test("Schedule extraction owns the required module file slots", () => {
 
 test("Schedule app integration delegates controller wiring to the module", () => {
   const app = readProjectFile("app-runtime.js");
+  const appComposer = readProjectFile("src/core/platform-app-runtime-services-composer.mjs");
   const composer = readProjectFile("src/core/platform-runtime-services-composer.mjs");
   const platformBindings = readProjectFile("src/core/platform-workspace-runtime-bindings.mjs");
 
-  expect(app).toContain("./src/core/platform-runtime-services-composer.mjs");
+  expect(app).toContain("./src/core/platform-app-runtime-services-composer.mjs");
+  expect(appComposer).toContain("./platform-runtime-services-composer.mjs");
   expect(app).not.toContain("./src/modules/schedule/schedule-controller.mjs");
   expect(composer).toContain("../modules/schedule/schedule-controller.mjs");
   expect(composer).toContain("createScheduleWorkspaceController({");

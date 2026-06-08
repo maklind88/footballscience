@@ -16,7 +16,7 @@ test("Schedule runtime selectors own read-only app bridge outside app-runtime", 
   const selectorSource = readProjectFile("src/modules/schedule/schedule-runtime-selectors.mjs");
   const indexSource = readProjectFile("src/modules/schedule/index.mjs");
 
-  expect(appSource).toContain("createPlatformRuntimeServices({");
+  expect(appSource).toContain("createPlatformAppRuntimeServices({");
   expect(appSource).not.toContain("createScheduleRuntimeSelectors({");
   expect(composerSource).toContain("createScheduleRuntimeSelectors({");
   expect(appSource).not.toContain("function getScheduleSelectedDayContext");

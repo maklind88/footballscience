@@ -56,7 +56,7 @@ function createService(options = {}) {
 }
 
 test("Platform structure runtime owns structure and admin scope bodies outside app-runtime", () => {
-  expect(appRuntimeSource).toContain("createPlatformRuntimeServices({");
+  expect(appRuntimeSource).toContain("createPlatformAppRuntimeServices({");
   expect(appRuntimeSource).not.toContain("createPlatformStructureRuntimeService({");
   expect(platformRuntimeServicesComposerSource).toContain("createPlatformStructureRuntimeService({");
   expect(appRuntimeSource).toContain("platform-runtime-accessors.mjs");

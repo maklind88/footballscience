@@ -74,7 +74,7 @@ import { createPlatformWorkspaceRenderers } from "./src/modules/platform/workspa
 import { getTopIconSvg } from "./top-icons.js";
 import { buildPlatformAppearanceConfigFromForm, createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
 import { bindAdminRuntimeBindings, createAdminRuntimeService, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
-import { bindProfileStaffRuntimeBindings, createProfileImageDataUrl as createProfileImageDataUrlFromModule } from "./src/modules/profile/index.mjs";
+import { bindProfileStaffRuntimeBindings, createProfileImageDataUrl as createProfileImageDataUrlFromModule, createProfileImageRuntimeActions } from "./src/modules/profile/index.mjs";
 import {
   createSquadDataFoundationHelpers,
   createSquadImportPlanner,
@@ -1786,78 +1786,29 @@ renderScheduleWorkspace,
 } = platformRuntimeServices;
 workspaceDataRuntimeService = platformRuntimeServices.workspaceDataRuntimeService;
 workspaceModuleRuntimeController = platformRuntimeServices.workspaceModuleRuntimeController;
-async function uploadSquadTeamLogo(file) {
-if (!canEditPlayerProfiles()) {
-renderPlayerProfilesWorkspace({
-status: "warning",
-lines: ["Your role cannot update the team logo."],
+const profileImageRuntimeActions = createProfileImageRuntimeActions({
+buildPlayerProfileOperationFeedback,
+canEditPlayerProfiles,
+createProfileImageDataUrl: createProfileImageDataUrlFromModule,
+documentRef: document,
+ensurePlayerProfilesState,
+getCurrentPlatformUser,
+getPlatformTeamDisplayTeam,
+getPlayerProfilesState: () => playerProfilesState,
+ImageCtor: Image,
+maxProfileImageUploadDataUrlLength,
+readPlatformStructureState,
+renderPlayerProfilesWorkspace,
+updatePlayerProfile,
+URLRef: URL,
+writePlatformTeamLogo,
 });
-return;
-}
-if (!file) {
-return;
-}
-const structure = readPlatformStructureState();
-const team = getPlatformTeamDisplayTeam(getCurrentPlatformUser(), structure);
-if (!team?.id) {
-renderPlayerProfilesWorkspace({
-status: "warning",
-lines: ["No active team was available for logo upload."],
-});
-return;
-}
-try {
-const logoUrl = await createProfileImageDataUrl(file);
-writePlatformTeamLogo(team.id, logoUrl);
-renderPlayerProfilesWorkspace("Team logo saved.");
-} catch (error) {
-const message =
-error?.name === "QuotaExceededError"
-? "Team logo could not be saved because local storage is full."
-: String(error?.message || "Team logo could not be saved.").replace(/profile image/gi, "team logo");
-renderPlayerProfilesWorkspace(message);
-}
-}
-async function uploadPlayerProfilePhoto(playerId, file) {
-if (!canEditPlayerProfiles()) {
-renderPlayerProfilesWorkspace({
-status: "warning",
-lines: ["Your role cannot update player images."],
-});
-return;
-}
-if (!file) {
-return;
-}
-ensurePlayerProfilesState();
-const player = playerProfilesState.players.find((candidate) => candidate.id === playerId);
-if (!player) {
-renderPlayerProfilesWorkspace({
-status: "warning",
-lines: ["Player profile could not be found for image upload."],
-});
-return;
-}
-try {
-const photoUrl = await createProfileImageDataUrl(file);
-const result = updatePlayerProfile({ ...player, playerId: player.id, photoUrl });
-renderPlayerProfilesWorkspace(
-buildPlayerProfileOperationFeedback(result, result?.ok ? "Player image saved." : "Player image could not be saved.")
-);
-} catch (error) {
-const message =
-error?.name === "QuotaExceededError"
-? "Player image could not be saved because local storage is full."
-: String(error?.message || "Player image could not be saved.").replace(/profile image/gi, "player image");
-renderPlayerProfilesWorkspace(message);
-}
-}
-function handlePhotoInput(playerPhotoInput) {
-if (!playerPhotoInput) return;
-const file = playerPhotoInput.files?.[0] ?? null;
-playerPhotoInput.value = "";
-void uploadPlayerProfilePhoto(playerPhotoInput.dataset.playerProfilePhotoUpload || "", file);
-}
+const {
+createProfileImageDataUrl,
+handlePhotoInput,
+uploadPlayerProfilePhoto,
+uploadSquadTeamLogo,
+} = profileImageRuntimeActions;
 function renderAdminRoleOptions(actor, selectedRole = "coach") { return adminStructureRenderer.renderRoleOptions(actor, selectedRole); }
 function renderAdminTeamOptions(actor, structure, selectedTeamId = "") { return adminStructureRenderer.renderTeamOptions(actor, structure, selectedTeamId); }
 function getWorkspaceQuery() { return ui.workspaceSearch?.value.trim().toLowerCase() ?? ""; }
@@ -4681,14 +4632,6 @@ return getPlatformPasswordValidationMessage(values);
 }
 function stripPasswordConfirmation(values = {}) {
 return stripPlatformPasswordConfirmation(values);
-}
-function createProfileImageDataUrl(file) {
-return createProfileImageDataUrlFromModule(file, {
-documentRef: document,
-ImageCtor: Image,
-maxUploadDataUrlLength: maxProfileImageUploadDataUrlLength,
-URLRef: URL,
-});
 }
 function hasUserFieldConflict(userId, values) {
 const username = String(values?.username || "").trim().toLowerCase();

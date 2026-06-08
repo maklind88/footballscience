@@ -117,6 +117,7 @@ import {
   createMedicalRuntimeActivitySelectors,
   createMedicalRuntimeHelpers,
   createMedicalRuntimeRenderers,
+  createMedicalWorkspaceRuntimeRenderer,
   defaultMedicalPlayers,
   medicalActualParticipationFallback,
   medicalClearanceRoles,
@@ -9411,41 +9412,23 @@ return medicalOperationsRenderer.renderPrivateSystem(summary, medicalOperationsT
 }
 function getMedicalRosterPositionGroups(players = []) { return medicalRosterSelectors.getMedicalRosterPositionGroups(players); }
 function getMedicalRosterPositionStats(players = []) { return medicalRosterSelectors.getMedicalRosterPositionStats(players); }
-function renderMedicalTeamWorkspace(message = "", options = {}) {
-if (!ui.medicalTeamWorkspace) {
-return;
-}
-ensureMedicalState();
-const teamName = getMedicalHeroTeamName();
-medicalOperationsTab = normalizeMedicalOperationsTab(medicalOperationsTab);
-const showAvailabilityWorkspace = !canViewPrivateMedicalDetails() || medicalOperationsTab === "availability";
-ui.medicalTeamWorkspace.innerHTML = `
-<div class="medical-shell">
-<header class="medical-hero">
-<div>
-<p class="placeholder-tag">Medical Team</p>
-<h1>${escapeHtml(teamName)}</h1>
-</div>
-<div class="medical-access-chip">${escapeHtml(getMedicalAccessLabel())}</div>
-</header>
-${renderMedicalOperationsTopMenu()}
-${showAvailabilityWorkspace ? medicalRosterRenderer.renderAvailabilityWorkspace(message) : `${message ? `<div class="medical-message platform-inline-toast" role="status" aria-live="polite">${escapeHtml(message)}</div>` : ""}${renderMedicalOperationsSystem()}`}
-${medicalPlayerModalRenderer.renderPlayerModal()}
-</div>
-`;
-if (options.focusRosterSearch) {
-const searchInput = ui.medicalTeamWorkspace.querySelector("[data-medical-roster-search]");
-if (searchInput) {
-searchInput.focus({ preventScroll: true });
-const valueLength = searchInput.value.length;
-const selectionStart = Math.min(Number(options.searchSelectionStart ?? valueLength), valueLength);
-const selectionEnd = Math.min(Number(options.searchSelectionEnd ?? selectionStart), valueLength);
-if (typeof searchInput.setSelectionRange === "function") {
-searchInput.setSelectionRange(selectionStart, selectionEnd);
-}
-}
-}
-}
+const { renderMedicalTeamWorkspace } = createMedicalWorkspaceRuntimeRenderer({
+canViewPrivateDetails: canViewPrivateMedicalDetails,
+ensureState: ensureMedicalState,
+escapeHtml,
+getAccessLabel: getMedicalAccessLabel,
+getHeroTeamName: getMedicalHeroTeamName,
+getOperationsTab: () => medicalOperationsTab,
+getWorkspace: () => ui.medicalTeamWorkspace,
+normalizeOperationsTab: normalizeMedicalOperationsTab,
+playerModalRenderer: medicalPlayerModalRenderer,
+renderOperationsSystem: renderMedicalOperationsSystem,
+renderOperationsTopMenu: renderMedicalOperationsTopMenu,
+rosterRenderer: medicalRosterRenderer,
+setOperationsTab: (tab) => {
+medicalOperationsTab = tab;
+},
+});
 function upsertMedicalPlayers(players) {
 ensureMedicalState();
 const removedPlayerIdSet = getMedicalRemovedSquadPlayerIdSet();

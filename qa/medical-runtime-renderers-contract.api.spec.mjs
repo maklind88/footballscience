@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createMedicalRuntimeRenderers } from "../src/modules/medical/index.mjs";
+import { createMedicalRuntimeRenderers, createMedicalWorkspaceRuntimeRenderer } from "../src/modules/medical/index.mjs";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
@@ -32,4 +32,42 @@ test("Medical runtime renderer factory does not own protected write paths", () =
   expect(runtimeRenderers).not.toContain("writeMedical");
   expect(runtimeRenderers).not.toContain("recordMedicalDatabaseSyncEvent");
   expect(runtimeRenderers).not.toContain("rawDataSafetySetItem");
+});
+
+test("Medical workspace runtime renderer owns shell rendering outside app-runtime", () => {
+  const app = readProjectFile("app-runtime.js");
+  const workspaceRenderer = readProjectFile("src/modules/medical/medical-workspace-runtime-renderer.mjs");
+  const index = readProjectFile("src/modules/medical/index.mjs");
+  const workspace = {
+    innerHTML: "",
+    querySelector: () => null,
+  };
+  const renderer = createMedicalWorkspaceRuntimeRenderer({
+    canViewPrivateDetails: () => true,
+    ensureState: () => {},
+    escapeHtml: (value) => String(value).replaceAll("<", "&lt;"),
+    getAccessLabel: () => "Private",
+    getHeroTeamName: () => "First Team",
+    getOperationsTab: () => "availability",
+    getWorkspace: () => workspace,
+    normalizeOperationsTab: (value) => value,
+    playerModalRenderer: { renderPlayerModal: () => "<aside>Modal</aside>" },
+    renderOperationsTopMenu: () => "<nav>Tabs</nav>",
+    renderOperationsSystem: () => "<section>System</section>",
+    rosterRenderer: { renderAvailabilityWorkspace: (message) => `<main>${message}</main>` },
+    setOperationsTab: () => {},
+  });
+
+  renderer.renderMedicalTeamWorkspace("Saved.");
+
+  expect(typeof createMedicalWorkspaceRuntimeRenderer).toBe("function");
+  expect(workspace.innerHTML).toContain("Medical Team");
+  expect(workspace.innerHTML).toContain("First Team");
+  expect(workspace.innerHTML).toContain("<main>Saved.</main>");
+  expect(app).toContain("createMedicalWorkspaceRuntimeRenderer({");
+  expect(app).not.toContain("function renderMedicalTeamWorkspace(");
+  expect(workspaceRenderer).not.toContain("writeMedicalState");
+  expect(workspaceRenderer).not.toContain("recordMedicalDatabaseSyncEvent");
+  expect(workspaceRenderer).not.toContain("localStorage");
+  expect(index).toContain('export * from "./medical-workspace-runtime-renderer.mjs";');
 });

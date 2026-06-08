@@ -21,3 +21,4 @@ export * from "./medical-roster-renderer.mjs";
 export * from "./medical-runtime-helpers.mjs";
 export * from "./medical-runtime-activity-selectors.mjs";
 export * from "./medical-runtime-renderers.mjs";
+export * from "./medical-workspace-runtime-renderer.mjs";

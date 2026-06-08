@@ -76,7 +76,7 @@ import { createPlatformDisplayHelpers, formatPlatformUserName, getPlatformRoleLa
 import { buildPlatformTemporaryLoginMessage, buildPlatformUserCredentialMessage, getPlatformPasswordValidationMessage, readPlatformFormValues, stripPlatformPasswordConfirmation } from "./src/modules/platform/form-helpers.mjs";
 import { createPlatformNavigationController, getPlatformTopIconLabel } from "./src/modules/platform/navigation-controller.mjs";
 import { createPlatformNavigationRenderer } from "./src/modules/platform/navigation-renderer.mjs";
-import { createPlatformStructureStateHelpers } from "./src/modules/platform/structure-state.mjs";
+import { createPlatformStructureRuntimeService } from "./src/modules/platform/platform-structure-runtime-service.mjs";
 import { createPlatformWorkspaceRenderers } from "./src/modules/platform/workspace-renderers.mjs";
 import { createTransferRoomRuntime } from "./transfer-room-runtime.js";
 import { getTopIconSvg } from "./top-icons.js";
@@ -2230,7 +2230,11 @@ return ["coach", "scout", "analyst", "performance", "medical", "guest"];
 }
 return [];
 }
-const platformStructureStateHelpers = createPlatformStructureStateHelpers({
+const platformStructureRuntimeService = createPlatformStructureRuntimeService({
+window: win,
+storageKey: platformStructureStorageKey,
+defaultRoles: platformDefaultRoles,
+managementRoleSet: platformManagementRoleSet,
 defaultClubId: platformDefaultClubId,
 defaultTeamId: platformDefaultTeamId,
 defaultClubName: platformDefaultClubName,
@@ -2240,245 +2244,49 @@ defaultTeamLevel: platformDefaultTeamLevel,
 legacyValues: legacyPlatformStructureValues,
 canonicalClubValues: canonicalPlatformClubValues,
 canonicalTeamValues: canonicalPlatformTeamValues,
-getTeamLogoUrl: getPlatformTeamLogoUrl,
+getPlatformTeamLogoUrl,
+getPlatformUsers,
+getCurrentPlatformUser,
+getPlatformAuthStore,
+normalizePlatformRole,
+getAssignableRolesForUser,
+isPlatformAdminUser,
+isPlatformManagementUser,
+normalizePlatformImageUrl,
+logEvent,
 });
-const {
-cloneDefaultPlatformStructureState: cloneDefaultPlatformStructureStateFromModule,
-createPlatformStructureId: createPlatformStructureIdFromModule,
-hasPlatformWorkspaceScope: hasPlatformWorkspaceScopeFromModule,
-isCanonicalPlatformClub: isCanonicalPlatformClubFromModule,
-isCanonicalPlatformClubValue: isCanonicalPlatformClubValueFromModule,
-isCanonicalPlatformTeam: isCanonicalPlatformTeamFromModule,
-isCanonicalPlatformTeamValue: isCanonicalPlatformTeamValueFromModule,
-isLegacyPlatformClub: isLegacyPlatformClubFromModule,
-isLegacyPlatformStructureValue: isLegacyPlatformStructureValueFromModule,
-isLegacyPlatformTeam: isLegacyPlatformTeamFromModule,
-isLegacyPlatformTeamPlaceholderName: isLegacyPlatformTeamPlaceholderNameFromModule,
-normalizePlatformClub: normalizePlatformClubFromModule,
-normalizePlatformStructureComparable: normalizePlatformStructureComparableFromModule,
-normalizePlatformStructureId: normalizePlatformStructureIdFromModule,
-normalizePlatformStructureState: normalizePlatformStructureStateFromModule,
-normalizePlatformStructureText: normalizePlatformStructureTextFromModule,
-normalizePlatformTeam: normalizePlatformTeamFromModule,
-slugifyPlatformStructureValue: slugifyPlatformStructureValueFromModule,
-} = platformStructureStateHelpers;
-function cloneDefaultPlatformStructureState() { return cloneDefaultPlatformStructureStateFromModule(); }
-function normalizePlatformStructureText(value, fallback = "") { return normalizePlatformStructureTextFromModule(value, fallback); }
-function normalizePlatformStructureComparable(value = "") { return normalizePlatformStructureComparableFromModule(value); }
-function isLegacyPlatformStructureValue(value = "") { return isLegacyPlatformStructureValueFromModule(value); }
-function isCanonicalPlatformClubValue(value = "") { return isCanonicalPlatformClubValueFromModule(value); }
-function isCanonicalPlatformTeamValue(value = "") { return isCanonicalPlatformTeamValueFromModule(value); }
-function isLegacyPlatformClub(candidate = {}) {
-return isLegacyPlatformClubFromModule(candidate);
-}
-function isLegacyPlatformTeam(candidate = {}) {
-return isLegacyPlatformTeamFromModule(candidate);
-}
-function isCanonicalPlatformClub(candidate = {}) {
-return isCanonicalPlatformClubFromModule(candidate);
-}
-function isCanonicalPlatformTeam(candidate = {}) {
-return isCanonicalPlatformTeamFromModule(candidate);
-}
-function hasPlatformWorkspaceScope(user = {}) {
-return hasPlatformWorkspaceScopeFromModule(user);
-}
-function slugifyPlatformStructureValue(value, fallback = "scope") { return slugifyPlatformStructureValueFromModule(value, fallback); }
-function normalizePlatformStructureId(value, prefix, fallbackLabel) { return normalizePlatformStructureIdFromModule(value, prefix, fallbackLabel); }
-function createPlatformStructureId(prefix, label, usedIds = new Set()) { return createPlatformStructureIdFromModule(prefix, label, usedIds); }
-function normalizePlatformClub(club = {}, fallback = {}) {
-return normalizePlatformClubFromModule(club, fallback);
-}
-function normalizePlatformTeam(team = {}, fallback = {}) {
-return normalizePlatformTeamFromModule(team, fallback);
-}
-function normalizePlatformStructureState(candidate = {}) {
-return normalizePlatformStructureStateFromModule(candidate);
-}
-function isLegacyPlatformTeamPlaceholderName(value = "") { return isLegacyPlatformTeamPlaceholderNameFromModule(value); }
-function readPlatformStructureState() {
-try {
-const raw = win.localStorage.getItem(platformStructureStorageKey);
-return normalizePlatformStructureState(raw ? JSON.parse(raw) : cloneDefaultPlatformStructureState());
-} catch {
-return cloneDefaultPlatformStructureState();
-}
-}
-function writePlatformStructureState(nextState) {
-try {
-win.localStorage.setItem(platformStructureStorageKey, JSON.stringify(normalizePlatformStructureState(nextState)));
-} catch {
-logEvent("Club and team structure could not be written to local storage.");
-}
-}
-function getPlatformStructureState() { return readPlatformStructureState(); }
-function getPlatformClubById(clubId, structure = getPlatformStructureState()) { return structure.clubs.find((club) => club.id === clubId) ?? structure.clubs[0] ?? null; }
-function getPlatformTeamById(teamId, structure = getPlatformStructureState()) { return structure.teams.find((team) => team.id === teamId) ?? structure.teams[0] ?? null; }
-function findPlatformTeamByName(teamName, structure = getPlatformStructureState()) {
-const normalizedName = String(teamName || "").trim().toLowerCase();
-return normalizedName && !isLegacyPlatformStructureValue(normalizedName)
-? structure.teams.find((team) => team.name.toLowerCase() === normalizedName) ?? null
-: null;
-}
-function syncPlatformStructureWithUsers(users = getPlatformUsers()) {
-const structure = readPlatformStructureState();
-const clubIds = new Set(structure.clubs.map((club) => club.id));
-const teamIds = new Set(structure.teams.map((team) => team.id));
-let changed = false;
-users.forEach((user) => {
-const rawClubName = normalizePlatformStructureText(user.clubName || user.club || "", "");
-const rawClubId = normalizePlatformStructureText(user.clubId || user.club_id || "", "");
-const useDefaultClub =
-isLegacyPlatformStructureValue(rawClubName) ||
-isLegacyPlatformStructureValue(rawClubId) ||
-isCanonicalPlatformClub({ id: rawClubId, name: rawClubName });
-const clubName = useDefaultClub ? platformDefaultClubName : rawClubName;
-const fallbackClubId = useDefaultClub
-? platformDefaultClubId
-: clubName
-? normalizePlatformStructureId(user.clubId, "club", clubName)
-: platformDefaultClubId;
-const clubId = useDefaultClub ? platformDefaultClubId : normalizePlatformStructureText(user.clubId, fallbackClubId);
-if (clubId && !clubIds.has(clubId)) {
-structure.clubs.push(normalizePlatformClub({ id: clubId, name: clubName || "Club", shortName: user.clubShortName || clubName || "Club" }));
-clubIds.add(clubId);
-changed = true;
-}
-const rawTeamName = normalizePlatformStructureText(user.teamName || user.team || "", "");
-const rawTeamId = normalizePlatformStructureText(user.teamId || user.team_id || "", "");
-const useDefaultTeam =
-isLegacyPlatformStructureValue(rawTeamName) ||
-isLegacyPlatformStructureValue(rawTeamId) ||
-isCanonicalPlatformTeam({ id: rawTeamId, name: rawTeamName });
-const teamName = useDefaultTeam ? platformDefaultTeamName : rawTeamName;
-const existingTeam = findPlatformTeamByName(teamName, structure);
-const fallbackTeamId = useDefaultTeam
-? platformDefaultTeamId
-: existingTeam?.id || (teamName ? normalizePlatformStructureId(user.teamId, "team", teamName) : platformDefaultTeamId);
-const teamId = useDefaultTeam ? platformDefaultTeamId : normalizePlatformStructureText(user.teamId, fallbackTeamId);
-if (teamId && !teamIds.has(teamId)) {
-structure.teams.push(
-normalizePlatformTeam({
-id: teamId,
-clubId,
-name: teamName || "Team",
-shortName: user.teamShortName || teamName || "Team",
-})
-);
-teamIds.add(teamId);
-changed = true;
-}
-});
-const normalizedStructure = normalizePlatformStructureState(structure);
-if (changed) {
-writePlatformStructureState(normalizedStructure);
-}
-return normalizedStructure;
-}
-function getUserTeamId(user, structure = getPlatformStructureState()) {
-const explicitTeamId = normalizePlatformStructureText(user?.teamId || user?.team_id, "");
-if (isLegacyPlatformStructureValue(explicitTeamId)) {
-return platformDefaultTeamId;
-}
-if (explicitTeamId && structure.teams.some((team) => team.id === explicitTeamId)) {
-return explicitTeamId;
-}
-const team = findPlatformTeamByName(user?.teamName || user?.team, structure);
-return team?.id || platformDefaultTeamId;
-}
-function getUserClubId(user, structure = getPlatformStructureState()) {
-const explicitClubId = normalizePlatformStructureText(user?.clubId || user?.club_id, "");
-if (isLegacyPlatformStructureValue(explicitClubId)) {
-return platformDefaultClubId;
-}
-if (explicitClubId && structure.clubs.some((club) => club.id === explicitClubId)) {
-return explicitClubId;
-}
-const team = getPlatformTeamById(getUserTeamId(user, structure), structure);
-return team?.clubId || platformDefaultClubId;
-}
-function getUserTeamName(user, structure = getPlatformStructureState()) {
-const explicitTeamName = normalizePlatformStructureText(user?.teamName || user?.team, "");
-const explicitTeamId = normalizePlatformStructureText(user?.teamId || user?.team_id, "");
-if (explicitTeamId) {
-if (isLegacyPlatformStructureValue(explicitTeamId)) {
-return platformDefaultTeamName;
-}
-const team = getPlatformTeamById(explicitTeamId, structure);
-if (team?.name) {
-return team.name;
-}
-}
-const matchedTeam = findPlatformTeamByName(explicitTeamName, structure);
-if (matchedTeam?.name) {
-return matchedTeam.name;
-}
-const fallbackTeam = getPlatformTeamById(platformDefaultTeamId, structure);
-return explicitTeamName && !isLegacyPlatformStructureValue(explicitTeamName)
-? explicitTeamName
-: fallbackTeam?.name || platformDefaultTeamName;
-}
-function getActivePlatformTeam(structure = getPlatformStructureState()) {
-const activeTeam = structure.teams.find((team) => team.id === structure.activeTeamId && team.status !== "archived") ?? null;
-if (activeTeam && !isLegacyPlatformTeamPlaceholderName(activeTeam.name)) {
-return activeTeam;
-}
-const defaultTeam = structure.teams.find((team) => team.id === platformDefaultTeamId && team.status !== "archived") ?? null;
-if (defaultTeam && !isLegacyPlatformTeamPlaceholderName(defaultTeam.name)) {
-return defaultTeam;
-}
-return (
-structure.teams.find((team) => team.status !== "archived" && !isLegacyPlatformTeamPlaceholderName(team.name)) ??
-activeTeam ??
-structure.teams.find((team) => team.status !== "archived") ??
-structure.teams[0] ??
-null
-);
-}
-function getPlatformTeamDisplayTeam(user = getCurrentPlatformUser(), structure = getPlatformStructureState()) {
-const currentAuthUser = getPlatformAuthStore()?.getCurrentUser?.() ?? null;
-const displayUser = currentAuthUser || user || {};
-const explicitTeamId = normalizePlatformStructureText(displayUser?.teamId || displayUser?.team_id, "");
-if (explicitTeamId) {
-const team = structure.teams.find((candidate) => candidate.id === explicitTeamId);
-if (team?.name && !isLegacyPlatformTeamPlaceholderName(team.name)) {
-return team;
-}
-}
-const activeTeam = getActivePlatformTeam(structure);
-if (activeTeam?.name) {
-return activeTeam;
-}
-const matchedTeam = findPlatformTeamByName(displayUser?.teamName || displayUser?.team, structure);
-if (matchedTeam?.name && !isLegacyPlatformTeamPlaceholderName(matchedTeam.name)) {
-return matchedTeam;
-}
-return null;
-}
-function getPlatformTeamDisplayName(user = getCurrentPlatformUser(), structure = getPlatformStructureState()) {
-const currentAuthUser = getPlatformAuthStore()?.getCurrentUser?.() ?? null;
-const displayUser = currentAuthUser || user || {};
-const displayTeam = getPlatformTeamDisplayTeam(displayUser, structure);
-if (displayTeam?.name) {
-return displayTeam.name;
-}
-const explicitTeamName = normalizePlatformStructureText(displayUser?.teamName || displayUser?.team, "");
-return explicitTeamName && !isLegacyPlatformTeamPlaceholderName(explicitTeamName) ? explicitTeamName : "Team";
-}
-function writePlatformTeamLogo(teamId, logoUrl) {
-const structure = readPlatformStructureState();
-const targetTeam = structure.teams.find((team) => team.id === teamId);
-if (!targetTeam) {
-return null;
-}
-const nextLogoUrl = normalizePlatformImageUrl(logoUrl);
-const nextStructure = {
-...structure,
-teams: structure.teams.map((team) => (team.id === teamId ? { ...team, logoUrl: nextLogoUrl } : team)),
-};
-writePlatformStructureState(nextStructure);
-return getPlatformTeamById(teamId, readPlatformStructureState());
-}
+function cloneDefaultPlatformStructureState(...args) { return platformStructureRuntimeService.cloneDefaultPlatformStructureState(...args); }
+function normalizePlatformStructureText(...args) { return platformStructureRuntimeService.normalizePlatformStructureText(...args); }
+function normalizePlatformStructureComparable(...args) { return platformStructureRuntimeService.normalizePlatformStructureComparable(...args); }
+function isLegacyPlatformStructureValue(...args) { return platformStructureRuntimeService.isLegacyPlatformStructureValue(...args); }
+function isCanonicalPlatformClubValue(...args) { return platformStructureRuntimeService.isCanonicalPlatformClubValue(...args); }
+function isCanonicalPlatformTeamValue(...args) { return platformStructureRuntimeService.isCanonicalPlatformTeamValue(...args); }
+function isLegacyPlatformClub(...args) { return platformStructureRuntimeService.isLegacyPlatformClub(...args); }
+function isLegacyPlatformTeam(...args) { return platformStructureRuntimeService.isLegacyPlatformTeam(...args); }
+function isCanonicalPlatformClub(...args) { return platformStructureRuntimeService.isCanonicalPlatformClub(...args); }
+function isCanonicalPlatformTeam(...args) { return platformStructureRuntimeService.isCanonicalPlatformTeam(...args); }
+function hasPlatformWorkspaceScope(...args) { return platformStructureRuntimeService.hasPlatformWorkspaceScope(...args); }
+function slugifyPlatformStructureValue(...args) { return platformStructureRuntimeService.slugifyPlatformStructureValue(...args); }
+function normalizePlatformStructureId(...args) { return platformStructureRuntimeService.normalizePlatformStructureId(...args); }
+function createPlatformStructureId(...args) { return platformStructureRuntimeService.createPlatformStructureId(...args); }
+function normalizePlatformClub(...args) { return platformStructureRuntimeService.normalizePlatformClub(...args); }
+function normalizePlatformTeam(...args) { return platformStructureRuntimeService.normalizePlatformTeam(...args); }
+function normalizePlatformStructureState(...args) { return platformStructureRuntimeService.normalizePlatformStructureState(...args); }
+function isLegacyPlatformTeamPlaceholderName(...args) { return platformStructureRuntimeService.isLegacyPlatformTeamPlaceholderName(...args); }
+function readPlatformStructureState(...args) { return platformStructureRuntimeService.readPlatformStructureState(...args); }
+function writePlatformStructureState(...args) { return platformStructureRuntimeService.writePlatformStructureState(...args); }
+function getPlatformStructureState(...args) { return platformStructureRuntimeService.getPlatformStructureState(...args); }
+function getPlatformClubById(...args) { return platformStructureRuntimeService.getPlatformClubById(...args); }
+function getPlatformTeamById(...args) { return platformStructureRuntimeService.getPlatformTeamById(...args); }
+function findPlatformTeamByName(...args) { return platformStructureRuntimeService.findPlatformTeamByName(...args); }
+function syncPlatformStructureWithUsers(...args) { return platformStructureRuntimeService.syncPlatformStructureWithUsers(...args); }
+function getUserTeamId(...args) { return platformStructureRuntimeService.getUserTeamId(...args); }
+function getUserClubId(...args) { return platformStructureRuntimeService.getUserClubId(...args); }
+function getUserTeamName(...args) { return platformStructureRuntimeService.getUserTeamName(...args); }
+function getActivePlatformTeam(...args) { return platformStructureRuntimeService.getActivePlatformTeam(...args); }
+function getPlatformTeamDisplayTeam(...args) { return platformStructureRuntimeService.getPlatformTeamDisplayTeam(...args); }
+function getPlatformTeamDisplayName(...args) { return platformStructureRuntimeService.getPlatformTeamDisplayName(...args); }
+function writePlatformTeamLogo(...args) { return platformStructureRuntimeService.writePlatformTeamLogo(...args); }
 async function uploadSquadTeamLogo(file) {
 if (!canEditPlayerProfiles()) {
 renderPlayerProfilesWorkspace({
@@ -2551,115 +2359,18 @@ const file = playerPhotoInput.files?.[0] ?? null;
 playerPhotoInput.value = "";
 void uploadPlayerProfilePhoto(playerPhotoInput.dataset.playerProfilePhotoUpload || "", file);
 }
-function getUserClubName(user, structure = getPlatformStructureState()) {
-const club = getPlatformClubById(getUserClubId(user, structure), structure);
-return club?.name || normalizePlatformStructureText(user?.clubName || user?.club, "Club");
-}
-function getUserScopeLabel(user, structure = getPlatformStructureState()) {
-if (hasPlatformWorkspaceScope(user)) {
-return "Football Science Live · Platform";
-}
-const clubName = getUserClubName(user, structure);
-const teamName = getUserTeamName(user, structure);
-return clubName && teamName && clubName !== teamName ? `${clubName} · ${teamName}` : teamName || clubName;
-}
-function isSamePlatformClub(firstUser, secondUser, structure = getPlatformStructureState()) { return getUserClubId(firstUser, structure) === getUserClubId(secondUser, structure); }
-function isSamePlatformTeam(firstUser, secondUser, structure = getPlatformStructureState()) { return getUserTeamId(firstUser, structure) === getUserTeamId(secondUser, structure); }
-function canAdminViewUser(actor, targetUser, structure = getPlatformStructureState()) {
-if (!actor || !targetUser) {
-return false;
-}
-if (isPlatformAdminUser(actor) || actor.id === targetUser.id) {
-return true;
-}
-const role = normalizePlatformRole(actor.role, "");
-if (role === "club-admin") {
-return isSamePlatformClub(actor, targetUser, structure);
-}
-if (role === "team-admin") {
-return isSamePlatformTeam(actor, targetUser, structure);
-}
-return targetUser.status === "active" && isSamePlatformTeam(actor, targetUser, structure);
-}
-function canAdminManageUser(actor, targetUser, structure = getPlatformStructureState(), options = {}) {
-if (!actor || !targetUser) {
-return false;
-}
-if (isPlatformAdminUser(actor)) {
-return options.remove ? actor.id !== targetUser.id : true;
-}
-if (actor.id === targetUser.id) {
-return !options.remove;
-}
-if (!isPlatformManagementUser(actor)) {
-return false;
-}
-const actorRole = normalizePlatformRole(actor.role, "");
-const targetRole = normalizePlatformRole(targetUser.role, "");
-if (actorRole === "club-admin") {
-return isSamePlatformClub(actor, targetUser, structure) && targetRole !== "admin" && targetRole !== "club-admin";
-}
-if (actorRole === "team-admin") {
-return isSamePlatformTeam(actor, targetUser, structure) && !platformManagementRoleSet.has(targetRole);
-}
-return false;
-}
-function getScopedPlatformUsers(users = getPlatformUsers(), actor = getCurrentPlatformUser(), structure = getPlatformStructureState()) { return users.filter((user) => canAdminViewUser(actor, user, structure)); }
-function getScopedPlatformClubs(actor = getCurrentPlatformUser(), structure = getPlatformStructureState()) {
-if (isPlatformAdminUser(actor)) {
-return structure.clubs;
-}
-const club = getPlatformClubById(getUserClubId(actor, structure), structure);
-return club ? [club] : [];
-}
-function getScopedPlatformTeams(actor = getCurrentPlatformUser(), structure = getPlatformStructureState()) {
-if (isPlatformAdminUser(actor)) {
-return structure.teams;
-}
-const role = normalizePlatformRole(actor?.role, "");
-if (role === "club-admin") {
-const clubId = getUserClubId(actor, structure);
-return structure.teams.filter((team) => team.clubId === clubId);
-}
-const team = getPlatformTeamById(getUserTeamId(actor, structure), structure);
-return team ? [team] : [];
-}
+function getUserClubName(...args) { return platformStructureRuntimeService.getUserClubName(...args); }
+function getUserScopeLabel(...args) { return platformStructureRuntimeService.getUserScopeLabel(...args); }
+function isSamePlatformClub(...args) { return platformStructureRuntimeService.isSamePlatformClub(...args); }
+function isSamePlatformTeam(...args) { return platformStructureRuntimeService.isSamePlatformTeam(...args); }
+function canAdminViewUser(...args) { return platformStructureRuntimeService.canAdminViewUser(...args); }
+function canAdminManageUser(...args) { return platformStructureRuntimeService.canAdminManageUser(...args); }
+function getScopedPlatformUsers(...args) { return platformStructureRuntimeService.getScopedPlatformUsers(...args); }
+function getScopedPlatformClubs(...args) { return platformStructureRuntimeService.getScopedPlatformClubs(...args); }
+function getScopedPlatformTeams(...args) { return platformStructureRuntimeService.getScopedPlatformTeams(...args); }
+function normalizeAdminUserSubmissionValues(...args) { return platformStructureRuntimeService.normalizeAdminUserSubmissionValues(...args); }
 function renderAdminRoleOptions(actor, selectedRole = "coach") { return adminStructureRenderer.renderRoleOptions(actor, selectedRole); }
 function renderAdminTeamOptions(actor, structure, selectedTeamId = "") { return adminStructureRenderer.renderTeamOptions(actor, structure, selectedTeamId); }
-function normalizeAdminUserSubmissionValues(values = {}, actor = getCurrentPlatformUser(), existingUser = null, structure = getPlatformStructureState()) {
-const allowedRoles = getAssignableRolesForUser(actor);
-const fallbackRole = existingUser?.role || (allowedRoles.includes("coach") ? "coach" : allowedRoles[0] || "coach");
-let role = normalizePlatformRole(values.role || fallbackRole, fallbackRole);
-if (!allowedRoles.includes(role)) {
-role = allowedRoles.includes(fallbackRole) ? fallbackRole : allowedRoles[0] || "coach";
-}
-if (existingUser?.id && existingUser.id === actor?.id) {
-role = existingUser.role;
-}
-let status = String(values.status || existingUser?.status || "active").trim().toLowerCase() === "paused" ? "paused" : "active";
-if (existingUser?.id && existingUser.id === actor?.id) {
-status = existingUser.status || "active";
-}
-const allowedTeams = getScopedPlatformTeams(actor, structure);
-const requestedTeamId = values.teamId || existingUser?.teamId || getUserTeamId(actor, structure);
-const requestedTeamName = values.team || values.teamName || existingUser?.team || "";
-const selectedTeam =
-allowedTeams.find((team) => team.id === requestedTeamId) ||
-allowedTeams.find((team) => team.name.toLowerCase() === String(requestedTeamName).trim().toLowerCase()) ||
-allowedTeams[0] ||
-getPlatformTeamById(platformDefaultTeamId, structure);
-const selectedClub = getPlatformClubById(selectedTeam?.clubId, structure) || getPlatformClubById(platformDefaultClubId, structure);
-return {
-...values,
-role,
-status,
-clubId: selectedClub?.id || platformDefaultClubId,
-clubName: selectedClub?.name || "North Carolina Courage",
-teamId: selectedTeam?.id || platformDefaultTeamId,
-teamName: selectedTeam?.name || "North Carolina Courage",
-team: selectedTeam?.name || "North Carolina Courage",
-};
-}
 function getAllWorkspacePool(sourceState = hubState) {
 return Array.isArray(sourceState?.workspaces) && sourceState.workspaces.length
 ? sourceState.workspaces

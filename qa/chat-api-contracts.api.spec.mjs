@@ -8,6 +8,8 @@ const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const chatDatabaseSource = readFileSync(path.join(__dirname, "../api/_lib/chat-database.js"), "utf8");
 const appSource = readFileSync(path.join(__dirname, "../app-runtime.js"), "utf8");
+const chatDomainSource = readFileSync(path.join(__dirname, "../src/modules/chat/dashboard-chat-api-domain-runtime.mjs"), "utf8");
+const chatThreadRuntimeSource = readFileSync(path.join(__dirname, "../src/modules/chat/dashboard-chat-thread-runtime.mjs"), "utf8");
 const chatApiUiActionsSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-api-ui-actions.mjs"), "utf8");
 const chatApi = require("../api/chat.js");
 const {
@@ -362,15 +364,16 @@ test("database chat group creation normalizes unsupported team visibility before
 });
 
 test("custom database groups keep their own title instead of managed room templates", () => {
-  expect(appSource).toContain("const templateByLegacyId = legacyThreadId");
-  expect(appSource).toContain('const templateByManagedType = ["medical", "matchday", "training", "announcement"].includes(type)');
-  expect(appSource).toContain("title: String(thread.title || thread.name || template?.title");
+  expect(chatDomainSource).toContain("const templateByLegacyId = legacyThreadId");
+  expect(chatDomainSource).toContain('const templateByManagedType = ["medical", "matchday", "training", "announcement"].includes(type)');
+  expect(/title:\s*String\(\s*thread\.title\s*\|\|\s*thread\.name\s*\|\|\s*template\?\.title/.test(chatDomainSource)).toBe(true);
 });
 
 test("custom groups support top placement, avatar metadata, and safe delete", () => {
-  expect(appSource).toContain("createdAt: String(thread.created_at || thread.createdAt");
-  expect(appSource).toContain("Date.parse(apiThread?.createdAt || \"\")");
-  expect(appSource).toContain("archiveThreadWithApi");
+  expect(chatDomainSource).toContain("createdAt: String(thread.created_at || thread.createdAt || \"\").trim()");
+  expect(chatThreadRuntimeSource).toMatch(/Date\.parse\([^)]*apiThread\?\.createdAt/);
+  expect(appSource).toContain("createDashboardChatThreadRuntime");
+  expect(chatApiUiActionsSource).toContain("archiveThreadWithApi");
   expect(chatApiUiActionsSource).toContain('action: "archiveThread"');
   expect(chatDatabaseSource).toContain("async function archiveThread");
   expect(chatDatabaseSource).toContain('thread?.type !== "group"');

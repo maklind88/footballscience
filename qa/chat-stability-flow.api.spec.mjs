@@ -10,6 +10,8 @@ const chatApi = require("../api/chat.js");
 const { applyChatActionToState, filterChatStateForActor } = chatApi._private;
 
 const appSource = readFileSync(path.join(__dirname, "../app-runtime.js"), "utf8");
+const chatApiRuntimeSource = readFileSync(path.join(__dirname, "../src/modules/chat/dashboard-chat-api-runtime.mjs"), "utf8");
+const chatWidgetRuntimeSource = readFileSync(path.join(__dirname, "../src/modules/chat/dashboard-chat-widget-runtime.mjs"), "utf8");
 const rendererSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-widget-renderer.mjs"), "utf8");
 const chatCssSource = readFileSync(path.join(__dirname, "../dashboard-chat.css"), "utf8");
 const attachmentPreviewSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-attachment-preview.mjs"), "utf8");
@@ -315,15 +317,17 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(appSource).toContain("data-dashboard-chat-moderation-filter-form");
   expect(appSource).toContain("dashboardChatMessageSearchActiveIndex");
   expect(appSource).toContain("data-dashboard-chat-search-step");
-  expect(appSource).toContain("data-dashboard-chat-search-active");
+  expect(rendererSource).toContain("data-dashboard-chat-search-active");
   expect(appSource).toContain("handleDashboardChatRealtimeRelatedChange");
-  expect(appSource).toContain('table: "chat_threads"');
-  expect(appSource).toContain('table: "chat_attachments"');
-  expect(appSource).toContain('table: "chat_thread_participants"');
-  expect(appSource).toContain("latestApiThreadMessage");
-  expect(appSource).toContain("markDashboardMessagesReadForCurrentUser");
-  expect(appSource).toContain("previousThreadListScrollTop");
-  expect(appSource).toContain("previousChatListWasAtBottom");
+  const chatRealtimePatterns = `${appSource}\n${chatApiRuntimeSource}`;
+  expect(chatRealtimePatterns).toContain('table: "chat_threads"');
+  expect(chatRealtimePatterns).toContain('table: "chat_attachments"');
+  expect(chatRealtimePatterns).toContain('table: "chat_thread_participants"');
+  const chatWidgetRuntimeContractSource = `${chatWidgetRuntimeSource}\n${rendererSource}`;
+  expect(chatWidgetRuntimeContractSource).toContain("latestApiThreadMessage");
+  expect(chatWidgetRuntimeContractSource).toContain("markDashboardMessagesReadForCurrentUser");
+  expect(chatWidgetRuntimeContractSource).toContain("previousThreadListScrollTop");
+  expect(chatWidgetRuntimeContractSource).toContain("previousChatListWasAtBottom");
 
   expect(rendererSource).toContain("data-dashboard-chat-message-retry");
   expect(rendererSource).toContain("data-dashboard-chat-mobile-back");

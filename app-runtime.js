@@ -61,6 +61,7 @@ import { createMedicalRuntimeServiceComposition } from "./src/modules/medical/me
 import { configurePlatformRuntimeAccessors, mergePeriodizationStatePreservingLocalUi, renderPlayerProfilesWorkspaceMessage, cloneDefaultPlatformStructureState, normalizePlatformStructureText, normalizePlatformStructureComparable, isLegacyPlatformStructureValue, isCanonicalPlatformClubValue, isCanonicalPlatformTeamValue, isLegacyPlatformClub, isLegacyPlatformTeam, isCanonicalPlatformClub, isCanonicalPlatformTeam, hasPlatformWorkspaceScope, slugifyPlatformStructureValue, normalizePlatformStructureId, createPlatformStructureId, normalizePlatformClub, normalizePlatformTeam, normalizePlatformStructureState, isLegacyPlatformTeamPlaceholderName, readPlatformStructureState, writePlatformStructureState, getPlatformStructureState, getPlatformClubById, getPlatformTeamById, findPlatformTeamByName, syncPlatformStructureWithUsers, getUserTeamId, getUserClubId, getUserTeamName, getActivePlatformTeam, getPlatformTeamDisplayTeam, getPlatformTeamDisplayName, writePlatformTeamLogo, getUserClubName, getUserScopeLabel, isSamePlatformClub, isSamePlatformTeam, canAdminViewUser, canAdminManageUser, getScopedPlatformUsers, getScopedPlatformClubs, getScopedPlatformTeams, normalizeAdminUserSubmissionValues, getAllWorkspacePool, normalizeWorkspaceRoleList, normalizeWorkspaceAccessEntry, getWorkspaceAccessConfig, getWorkspaceByIdFromPool, canUserAccessWorkspace, canCurrentUserAccessWorkspace, canUserEditWorkspace, canCurrentUserEditWorkspace, canEditScheduleWorkspace, canEditSessionPlanner, canEditPeriodizationWorkspace, canEditGameSimulatorWorkspace, canEditScoutingWorkspace, getAccessibleWorkspacePool, getVisibleWorkspacePool, mergeWorkspaceDefinitions, cloneHubState, clonePersistableWorkspaceHubState, repairWorkspaceState, getWorkspaceIdFromUrl, readRememberedWorkspaceId, rememberActiveWorkspaceId, readWorkspaceHubState, writeWorkspaceHubState, getWorkspaceById, getWorkspaceByIdUnfiltered, getSafeWorkspaceId, getWorkspaceViewId, getPeriodizationDay, ensurePeriodizationState, writePeriodizationDay, selectPeriodizationDate, openPeriodizationDateForDashboard, setPeriodizationStateStorageValue, readPeriodizationState, writePeriodizationState, setPeriodizationMonth, shiftPeriodizationMonth, scrollPeriodizationDateIntoView, jumpPeriodizationToToday, mergeImportedNccSchedule, setScheduleStateStorageValue, readScheduleState, ensureScheduleState, writeScheduleState, setScoutingStateStorageValue, readScoutingState, writeScoutingState, ensureScoutingState, getPeriodizationMultiSelectOpenField, setPeriodizationMultiSelectOpenField, setPeriodizationSelection, getPeriodizationOverlayState, setPeriodizationOverlayMode, setPeriodizationOverlayState, readTransferRoomState, ensureTransferRoomState, syncTransferRoomLinkedState, canUserAccessTransferRoom, canUserEditTransferRoom, addTransferRoomTargetFromScoutingSnapshot, getGameplanContext, getScoutingAnalysisRoomContext, getScoutingWorkspaceContext, getTransferRoomWorkspaceContext, hydrateWorkspaceModuleState, loadGameplanModule, loadScoutingWorkspaceModule, loadTransferRoomWorkspaceModule, renderAnalysisRoomWorkspace, renderGameplanWorkspace, renderScoutingWorkspace, renderTransferRoomWorkspace, renderPeriodizationWorkspace, renderSessionPlannerPeriodizationOverlay, renderSessionPlannerPeriodizationSummary, initializeWorkspaceHub, renderWorkspaceChrome, setActiveWorkspace, reloadCentralizedAppStateFromStorage, getCurrentSessionPlannerUiSelection, readSessionPlannerStatePreservingUiSelection, shouldDeferCentralizedAppStateReload, setCentralizedAppStateReloadPending, requestCentralizedAppStateReload, flushDeferredCentralizedAppStateReload, refreshCentralStateFromSource, formatScheduleBlockSummary, getScheduleEventsForDate, getScheduleMainEvent, getScheduleMonthEvents, getScheduleDayWarnings, getScheduledSessionTitleForDate, getScheduleSelectedDayContext, getScheduleSessionEventForDate, getScheduleSessionSnapshot, getScheduleVisibleEvents, getScheduleVisibleMonthEvents, isScheduleSessionEvent, openCredentialsMailto, buildTemporaryLoginMessage, getAdminManagedWorkspaces, getAdminAuditState, getReadinessState, getSelectedAdminUserId, getAdminUsersForTeam, getAdminUserInitials, createAdminClubFromForm, createAdminTeamFromForm, loadAdminAuditLog, loadPlatformReadinessReport, publishPlatformAppearanceConfig, getAdminTransferRoomAccessTeamId, renderAdminWorkspace } from "./src/core/platform-runtime-accessors.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createDashboardId, createDashboardJsonStorage, createDashboardWorkspaceQueryEngine } from "./src/core/dashboard-runtime-utils.mjs";
+import { createPlatformRuntimeHelpers } from "./src/core/platform-runtime-helpers.mjs";
 import { createCentralRuntimeFacade, dataSafetySnapshotStoreName } from "./src/core/central-runtime-facade.mjs";
 import { bindPlatformWorkspaceRuntimeBindings } from "./src/core/platform-workspace-runtime-bindings.mjs";
 import { bindPlatformGlobalRuntimeEvents } from "./src/core/platform-global-runtime-bindings.mjs";
@@ -209,6 +210,25 @@ const { readDashboardJson, writeDashboardJson } = createDashboardJsonStorage({
 const { getVisibleWorkspaces } = createDashboardWorkspaceQueryEngine({
   ui,
   getVisibleWorkspacePool,
+});
+const {
+  getPlatformFormValues,
+  getPasswordValidationMessage,
+  stripPasswordConfirmation,
+  hasUserFieldConflict,
+  isMedicalDateValue,
+  getPeriodizationDayScheduleLabel,
+  getPeriodizationMatchDayLabel,
+  getPeriodizationMultiFieldValue,
+  getPeriodizationCustomFieldValue,
+} = createPlatformRuntimeHelpers({
+  getPlatformUsers,
+  parseScheduleDateValue,
+  formatScheduleDateValue,
+  periodizationRenderer,
+  readPlatformFormValues,
+  getPlatformPasswordValidationMessage,
+  stripPlatformPasswordConfirmation,
 });
 configurePlatformRuntimeAccessors(() => ({
 adminRuntimeService,
@@ -4506,40 +4526,7 @@ getSessionPlannerRuntimeStateService: () => sessionPlannerRuntimeStateService,
 getSessionPlannerStateMergeHelpers: () => sessionPlannerStateMergeHelpers,
 getSessionPlannerToastController: () => sessionPlannerToastController,
 });
-function getPlatformFormValues(form) { return readPlatformFormValues(form); }
-function getPasswordValidationMessage(values = {}) {
-return getPlatformPasswordValidationMessage(values);
-}
-function stripPasswordConfirmation(values = {}) {
-return stripPlatformPasswordConfirmation(values);
-}
-function hasUserFieldConflict(userId, values) {
-const username = String(values?.username || "").trim().toLowerCase();
-const email = String(values?.email || "").trim().toLowerCase();
-if (!username && !email) {
-return false;
-}
-return getPlatformUsers().some(
-(user) =>
-user.id !== userId &&
-(
-(username && String(user.username || "").toLowerCase() === username) ||
-(email && String(user.email || "").toLowerCase() === email)
-)
-);
-}
-function isMedicalDateValue(dateValue) {
-if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateValue))) {
-return false;
-}
-const parsedDate = parseScheduleDateValue(dateValue);
-return formatScheduleDateValue(parsedDate) === dateValue;
-}
 function canEditMedicalTeam() { return canCurrentUserEditWorkspace("medical-team"); }
-function getPeriodizationDayScheduleLabel(day) { return periodizationRenderer.getDayScheduleLabel(day); }
-function getPeriodizationMatchDayLabel(value) { return periodizationRenderer.getMatchDayLabel(value); }
-function getPeriodizationMultiFieldValue(field, dateValue) { return periodizationRenderer.getMultiFieldValue(field, dateValue); }
-function getPeriodizationCustomFieldValue(field, dateValue) { return periodizationRenderer.getCustomFieldValue(field, dateValue); }
 bindPlatformNavigationInteractions({
 getHubState: () => hubState,
 platformNavigationController,

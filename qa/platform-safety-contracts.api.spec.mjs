@@ -343,6 +343,7 @@ test("core module contracts are covered by dedicated QA", () => {
   const homeTasksSpec = readProjectFile("qa/home-tasks-adapter.api.spec.mjs");
   const homeChatSpec = readProjectFile("qa/home-chat-adapter.api.spec.mjs");
   const homeChatWidgetSpec = readProjectFile("qa/home-chat-widget-renderer.api.spec.mjs");
+  const medicalRuntimeRenderersSpec = readProjectFile("qa/medical-runtime-renderers-contract.api.spec.mjs");
   const scheduleSpec = readProjectFile("qa/schedule-adapter.api.spec.mjs");
   const scheduleDatabaseAdapterSpec = readProjectFile("qa/schedule-database-adapter.api.spec.mjs");
   const scheduleDatabaseSpec = readProjectFile("qa/schedule-database-schema.api.spec.mjs");
@@ -386,6 +387,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(dataSafetySpec).toContain("data safety registry covers every protected module storage key");
   expect(dataSafetySpec).toContain("central app-state rejects stale versioned writes");
   expect(runtimeUiHelpersSpec).toContain("runtime UI helpers preserve app-runtime formatting behavior");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/medical-runtime-renderers-contract.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-tasks-adapter.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-chat-adapter.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/home-dashboard-renderer.api.spec.mjs");
@@ -427,6 +429,7 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(homeTasksSpec).toContain("Home Tasks legacy read adapter uses the protected storage key");
   expect(homeChatSpec).toContain("Home Chat legacy read adapter uses the protected storage key");
   expect(homeChatWidgetSpec).toContain("home chat widget renderer");
+  expect(medicalRuntimeRenderersSpec).toContain("Medical runtime renderers own renderer and selector wiring outside app-runtime");
   expect(scheduleSpec).toContain("Schedule legacy read adapter uses the protected storage key");
   expect(scheduleDatabaseAdapterSpec).toContain("schedule database adapter remains feature flagged");
   expect(scheduleDatabaseSpec).toContain("server-write first and RLS protected");

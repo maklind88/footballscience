@@ -88,6 +88,7 @@ import {
   createPlayerProfileHelpers,
   createPlayerProfileIntelligenceHelpers,
   createPlayerProfileRuntimeImportService,
+  createPlayerProfileRuntimeMedicalSyncService,
   createPlayerProfileRuntimeStateService,
   createSquadMedicalStatusService,
   createSquadScoutingRuntime,
@@ -1568,6 +1569,7 @@ let playerProfileModalOpen = false;
 let playerProfileNewPlayerModalOpen = false;
 let playerProfileAutosaveTimer = 0, playerProfileAutosaveLastSignature = "";
 let playerProfileRuntimeImportService = null;
+let playerProfileRuntimeMedicalSyncService = null;
 let playerProfileRuntimeStateService = null;
 const playerProfileImportUndoHistoryLimit = 3;
 let playerProfileImportUndoHistory = [];
@@ -7545,204 +7547,35 @@ if (result?.ok) playerProfileAutosaveLastSignature = getPlayerProfileFormSignatu
 return result;
 }
 function queuePlayerProfileAutosave(form, delayMs = 420) { if (!form || !canEditPlayerProfiles()) return; win.clearTimeout(playerProfileAutosaveTimer); playerProfileAutosaveTimer = win.setTimeout(() => { playerProfileAutosaveTimer = 0; savePlayerProfileEditForm(form); }, delayMs); } function flushPlayerProfileAutosave() { const form = ui.playerProfilesWorkspace?.querySelector("#playerProfileEditForm"); win.clearTimeout(playerProfileAutosaveTimer); playerProfileAutosaveTimer = 0; return savePlayerProfileEditForm(form); }
-function buildMedicalPlayerFromPlayerProfile(player = {}) {
-const now = new Date().toISOString();
-const createdAt = String(player.createdAt || "").trim() || now;
-const updatedAt = String(player.updatedAt || "").trim() || now;
-return normalizeMedicalPlayer({
-id: player.id || createDashboardId("medical-player"),
-name: player.name,
-number: player.number,
-position: player.position,
-status: player.status,
-primaryRole: player.primaryRole,
-secondaryRoles: player.secondaryRoles,
-roleGroup: player.roleGroup,
-photoUrl: player.photoUrl,
-sourceUrl: player.sourceUrl,
-rosterType: player.rosterType,
-countsInSquad: player.countsInSquad,
-temporaryGroup: player.temporaryGroup,
-temporaryFrom: player.temporaryFrom,
-temporaryTo: player.temporaryTo,
-rosterOrder: player.rosterOrder,
-createdAt,
-updatedAt,
+playerProfileRuntimeMedicalSyncService = createPlayerProfileRuntimeMedicalSyncService({
+canViewPrivateMedicalDetails,
+commitMedicalClinicalState,
+createDashboardId,
+ensureMedicalState,
+ensurePlayerProfilesState,
+getActiveMedicalPlayers,
+getCurrentMedicalActorId,
+getMedicalState: () => medicalState,
+getNow: () => new Date().toISOString(),
+isMedicalItemArchived,
+normalizeMedicalInjuryPlan,
+normalizeMedicalPlayer,
+normalizeMedicalRecord,
+normalizePlayerProfileName,
+normalizePlayerProfileRemovedIds,
+setMedicalState: (nextState) => {
+medicalState = nextState;
+},
+upsertMedicalPlayers,
+writeMedicalState,
 });
-}
-function syncMedicalPlayersFromPlayerProfiles(players = []) {
-if (!Array.isArray(players) || !players.length) {
-return;
-}
-const medicalPlayers = players
-.map(buildMedicalPlayerFromPlayerProfile)
-.filter((player) => player && player.id && player.name);
-if (!medicalPlayers.length) {
-return;
-}
-upsertMedicalPlayers(medicalPlayers);
-}
-function getMedicalPlayersMatchingPlayerProfile(playerProfile = {}) {
-ensureMedicalState();
-const targetId = String(playerProfile.id || playerProfile.playerId || playerProfile.profileId || "").trim();
-const targetName = normalizePlayerProfileName(playerProfile.name || playerProfile.displayName || "");
-const targetNumber = String(playerProfile.number || playerProfile.shirtNumber || playerProfile.shirt_number || "").trim().toLowerCase();
-const activePlayers = medicalState.players.filter((player) => !isMedicalItemArchived(player));
-const matchesById = new Map();
-activePlayers.forEach((medicalPlayer) => {
-const medicalId = String(medicalPlayer.id || medicalPlayer.playerId || medicalPlayer.profileId || "").trim();
-const medicalName = normalizePlayerProfileName(medicalPlayer.name || medicalPlayer.displayName || "");
-const medicalNumber = String(medicalPlayer.number || medicalPlayer.shirtNumber || medicalPlayer.shirt_number || "").trim().toLowerCase();
-if (targetId && medicalId === targetId) {
-matchesById.set(medicalPlayer.id, medicalPlayer);
-return;
-}
-if (targetName && targetNumber && medicalName === targetName && medicalNumber === targetNumber) {
-matchesById.set(medicalPlayer.id, medicalPlayer);
-}
-});
-if (matchesById.size || !targetName || targetNumber) {
-return Array.from(matchesById.values());
-}
-const nameMatches = activePlayers.filter((medicalPlayer) => normalizePlayerProfileName(medicalPlayer.name || medicalPlayer.displayName || "") === targetName);
-return nameMatches.length === 1 ? nameMatches : [];
-}
-function getMedicalRemovedSquadPlayerIdSet() {
-try {
-const profileState = ensurePlayerProfilesState();
-return new Set(normalizePlayerProfileRemovedIds(profileState?.removedPlayerIds));
-} catch {
-return new Set();
-}
-}
-function isMedicalPlayerRemovedFromSquad(player = {}, removedPlayerIdSet = getMedicalRemovedSquadPlayerIdSet()) {
-const playerId = String(player?.id || player?.playerId || player?.profileId || "").trim();
-return Boolean(playerId && removedPlayerIdSet.has(playerId));
-}
-function archiveMedicalPlayersRemovedFromSquad(options = {}) {
-if (!medicalState || !Array.isArray(medicalState.players)) {
-return [];
-}
-const previousSelectedPlayerId = String(medicalState.selectedPlayerId || "").trim();
-const removedPlayerIdSet = getMedicalRemovedSquadPlayerIdSet();
-if (!removedPlayerIdSet.size) {
-return [];
-}
-const activeRemovedPlayers = medicalState.players.filter(
-(player) => isMedicalPlayerRemovedFromSquad(player, removedPlayerIdSet) && !isMedicalItemArchived(player)
-);
-if (!activeRemovedPlayers.length) {
-return [];
-}
-const archivedAt = new Date().toISOString();
-const archivedBy = getCurrentMedicalActorId();
-const archivedIds = new Set(activeRemovedPlayers.map((player) => String(player.id || "").trim()).filter(Boolean));
-const archivedPlayers = [];
-medicalState.players = medicalState.players.map((player) => {
-if (!archivedIds.has(String(player.id || "").trim()) || isMedicalItemArchived(player)) {
-return player;
-}
-const archivedPlayer = normalizeMedicalPlayer({
-...player,
-updatedAt: archivedAt,
-archivedAt,
-archivedBy,
-archiveReason: "Removed from Squad Room",
-});
-if (archivedPlayer) {
-archivedPlayers.push(archivedPlayer);
-return archivedPlayer;
-}
-return player;
-});
-medicalState.records = medicalState.records.map((record) =>
-archivedIds.has(String(record.playerId || "").trim()) && !isMedicalItemArchived(record)
-? normalizeMedicalRecord({
-...record,
-updatedAt: archivedAt,
-archivedAt,
-archivedBy,
-archiveReason: "Player removed from Squad Room",
-}) || record
-: record
-);
-medicalState.injuryPlans = medicalState.injuryPlans.map((plan) =>
-archivedIds.has(String(plan.playerId || "").trim()) && !isMedicalItemArchived(plan)
-? normalizeMedicalInjuryPlan({
-...plan,
-updatedAt: archivedAt,
-archivedAt,
-archivedBy,
-archiveReason: "Player removed from Squad Room",
-}) || plan
-: plan
-);
-const nextActivePlayers = medicalState.players.filter(
-(player) => !isMedicalItemArchived(player) && !isMedicalPlayerRemovedFromSquad(player, removedPlayerIdSet)
-);
-medicalState.selectedPlayerId =
-nextActivePlayers.find((player) => player.id === previousSelectedPlayerId)?.id ||
-nextActivePlayers[0]?.id ||
-"";
-if (options.persist !== false && canViewPrivateMedicalDetails()) {
-writeMedicalState();
-}
-return archivedPlayers;
-}
-function archiveMedicalPlayersForRemovedPlayerProfile(playerProfile = {}) {
-const matchingPlayers = getMedicalPlayersMatchingPlayerProfile(playerProfile);
-if (!matchingPlayers.length) {
-return [];
-}
-const archivedAt = new Date().toISOString();
-const matchingPlayerIds = new Set(matchingPlayers.map((player) => String(player.id || "").trim()).filter(Boolean));
-const archivedPlayers = [];
-medicalState.players = medicalState.players.map((medicalPlayer) => {
-if (!matchingPlayerIds.has(String(medicalPlayer.id || "").trim()) || isMedicalItemArchived(medicalPlayer)) {
-return medicalPlayer;
-}
-const archivedPlayer = normalizeMedicalPlayer({
-...medicalPlayer,
-updatedAt: archivedAt,
-archivedAt,
-archivedBy: getCurrentMedicalActorId(),
-archiveReason: "Removed from Squad Room",
-});
-if (archivedPlayer) {
-archivedPlayers.push(archivedPlayer);
-return archivedPlayer;
-}
-return medicalPlayer;
-});
-medicalState.records = medicalState.records.map((record) =>
-matchingPlayerIds.has(String(record.playerId || "").trim()) && !isMedicalItemArchived(record)
-? normalizeMedicalRecord({
-...record,
-updatedAt: archivedAt,
-archivedAt,
-archivedBy: getCurrentMedicalActorId(),
-archiveReason: "Player removed from Squad Room",
-}) || record
-: record
-);
-medicalState.injuryPlans = medicalState.injuryPlans.map((plan) =>
-matchingPlayerIds.has(String(plan.playerId || "").trim()) && !isMedicalItemArchived(plan)
-? normalizeMedicalInjuryPlan({
-...plan,
-updatedAt: archivedAt,
-archivedAt,
-archivedBy: getCurrentMedicalActorId(),
-archiveReason: "Player removed from Squad Room",
-}) || plan
-: plan
-);
-medicalState.selectedPlayerId = getActiveMedicalPlayers()[0]?.id || "";
-commitMedicalClinicalState(
-"player-removed-from-squad",
-`${archivedPlayers.map((player) => player.name).join(", ")} archived after Squad Room removal.`
-);
-return archivedPlayers;
-}
+function buildMedicalPlayerFromPlayerProfile(...args) { return playerProfileRuntimeMedicalSyncService.buildMedicalPlayerFromPlayerProfile(...args); }
+function syncMedicalPlayersFromPlayerProfiles(...args) { return playerProfileRuntimeMedicalSyncService.syncMedicalPlayersFromPlayerProfiles(...args); }
+function getMedicalPlayersMatchingPlayerProfile(...args) { return playerProfileRuntimeMedicalSyncService.getMedicalPlayersMatchingPlayerProfile(...args); }
+function getMedicalRemovedSquadPlayerIdSet(...args) { return playerProfileRuntimeMedicalSyncService.getMedicalRemovedSquadPlayerIdSet(...args); }
+function isMedicalPlayerRemovedFromSquad(...args) { return playerProfileRuntimeMedicalSyncService.isMedicalPlayerRemovedFromSquad(...args); }
+function archiveMedicalPlayersRemovedFromSquad(...args) { return playerProfileRuntimeMedicalSyncService.archiveMedicalPlayersRemovedFromSquad(...args); }
+function archiveMedicalPlayersForRemovedPlayerProfile(...args) { return playerProfileRuntimeMedicalSyncService.archiveMedicalPlayersForRemovedPlayerProfile(...args); }
 function addPlayerProfile(values = {}) {
 ensurePlayerProfilesState();
 const roleGroup = getPlayerProfileRoleGroupForRole(values.primaryRole, values.position);

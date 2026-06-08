@@ -67,6 +67,7 @@ import { bindPlatformNavigationInteractions } from "./src/core/platform-navigati
 import { createPlatformUiBindings } from "./src/core/platform-ui-bindings.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
 import { createCentralSyncRuntimeService } from "./src/core/central-sync-runtime-service.mjs";
+import { createDataSafetyRuntimeService } from "./src/core/data-safety-runtime-service.mjs";
 import { createWorkspaceHubStateHelpers } from "./src/core/workspace-hub-state.mjs";
 import { addCalendarDays, clamp, escapeHtml, formatDashboardDateTime, formatDashboardTime, formatDataSafetyTime, isEditableKeyboardTarget, logEvent, maybeCopyToClipboard, setFormSubmitButtonState, togglePasswordInputVisibility } from "./src/core/runtime-ui-helpers.mjs";
 import { installPlatformOverlayStability } from "./src/core/overlay-stability.mjs";
@@ -333,20 +334,52 @@ const dataSafetyLegacyStorageKeys = {
 [sessionPlannerStorageKey]: ["football-session-planner-v2", "football-session-planner-v1"],
 [sequenceLibraryStorageKey]: ["football-simulator-sequence-library-v1"],
 };
-let dataSafetyNativeGetItem = null;
-let dataSafetyNativeSetItem = null;
-let dataSafetyNativeRemoveItem = null;
-let dataSafetyNativeClear = null;
-let dataSafetyNativeKey = null;
-let dataSafetySnapshotTimer = null;
-let dataSafetyStatusTimer = null;
-let dataSafetyDbPromise = null;
-let dataSafetyInstalled = false;
+const dataSafetyRuntimeService = createDataSafetyRuntimeService({
+win,
+documentRef: document,
+navigatorRef: typeof navigator === "undefined" ? null : navigator,
+storageConstructor: typeof Storage === "undefined" ? null : Storage,
+blobConstructor: typeof Blob === "undefined" ? null : Blob,
+urlApi: typeof URL === "undefined" ? null : URL,
+ui,
+storageKey: dataSafetyStorageKey,
+exportSchema: dataSafetyExportSchema,
+databaseName: dataSafetyDatabaseName,
+snapshotStoreName: dataSafetySnapshotStoreName,
+latestStoreName: dataSafetyLatestStoreName,
+maxSnapshots: dataSafetyMaxSnapshots,
+protectedStorageKeys: dataSafetyProtectedStorageKeys,
+storageLabels: dataSafetyStorageLabels,
+legacyStorageKeys: dataSafetyLegacyStorageKeys,
+formatDataSafetyTime,
+canWriteCentralBackedCache: () => canWriteCentralBackedCache(),
+createCentralBackedStorageError: () => createCentralBackedStorageError(),
+getCentralStateBridge: () => getCentralStateBridge(),
+getCentralStateWriteSuppressionKeys: () => centralStateWriteSuppressionKeys,
+queueCentralStateWrite: (...args) => queueCentralStateWrite(...args),
+});
+const dataSafetyRuntimeStatus = dataSafetyRuntimeService.status;
+function getDataSafetyNow(...args) { return dataSafetyRuntimeService.getNow(...args); }
+function isDataSafetyInternalStorageKey(...args) { return dataSafetyRuntimeService.isInternalStorageKey(...args); }
+function isDataSafetyProtectedStorageKey(...args) { return dataSafetyRuntimeService.isProtectedStorageKey(...args); }
+function rawDataSafetyGetItem(...args) { return dataSafetyRuntimeService.rawGetItem(...args); }
+function rawDataSafetySetItem(...args) { return dataSafetyRuntimeService.rawSetItem(...args); }
+function rawDataSafetyRemoveItem(...args) { return dataSafetyRuntimeService.rawRemoveItem(...args); }
+function readDataSafetyManifest(...args) { return dataSafetyRuntimeService.readManifest(...args); }
+function mutateDataSafetyManifest(...args) { return dataSafetyRuntimeService.mutateManifest(...args); }
+function hashDataSafetyString(...args) { return dataSafetyRuntimeService.hashString(...args); }
+function getDataSafetyStorageLabel(...args) { return dataSafetyRuntimeService.getStorageLabel(...args); }
+function recordDataSafetyWrite(...args) { return dataSafetyRuntimeService.recordWrite(...args); }
+function saveDataSafetySnapshot(...args) { return dataSafetyRuntimeService.saveSnapshot(...args); }
+function queueDataSafetySnapshot(...args) { return dataSafetyRuntimeService.queueSnapshot(...args); }
+function refreshDataSafetyStatus(...args) { return dataSafetyRuntimeService.refreshStatus(...args); }
+function queueDataSafetyStatusRefresh(...args) { return dataSafetyRuntimeService.queueStatusRefresh(...args); }
+function exportFootballScienceDataBackup(...args) { return dataSafetyRuntimeService.exportBackup(...args); }
+function importFootballScienceDataBackupFile(...args) { return dataSafetyRuntimeService.importBackupFile(...args); }
+function openDataSafetyDatabase(...args) { return dataSafetyRuntimeService.openDatabase(...args); }
+function flushQueuedDataSafetySnapshot(...args) { return dataSafetyRuntimeService.flushQueuedSnapshot(...args); }
+function installFootballDataSafety(...args) { return dataSafetyRuntimeService.install(...args); }
 let platformUser = null;
-const dataSafetyRuntimeStatus = {
-lastError: "",
-lastSnapshotError: "",
-};
 const platformNavigationRenderer = createPlatformNavigationRenderer({
 escapeHtml,
 getTopIconLabel: getPlatformTopIconLabel,
@@ -539,115 +572,6 @@ getMessageById: getDashboardMessageById,
 canDeleteMessage: isCurrentPlatformUserAdmin,
 canPinMessage: canPinDashboardChatMessage,
 });
-function getDataSafetyStorage() {
-try {
-return win.localStorage;
-} catch {
-return null;
-}
-}
-function getDataSafetyNow() { return new Date().toISOString(); }
-function isDataSafetyInternalStorageKey(key) {
-const normalizedKey = String(key || "");
-return normalizedKey === dataSafetyStorageKey || normalizedKey.startsWith("football-data-safety-");
-}
-function isDataSafetyProtectedStorageKey(key) {
-const normalizedKey = String(key || "");
-if (!normalizedKey || isDataSafetyInternalStorageKey(normalizedKey)) {
-return false;
-}
-return dataSafetyProtectedStorageKeySet.has(normalizedKey);
-}
-function rawDataSafetyGetItem(key) {
-const storage = getDataSafetyStorage();
-if (!storage || !dataSafetyNativeGetItem) {
-return null;
-}
-return dataSafetyNativeGetItem.call(storage, key);
-}
-function rawDataSafetySetItem(key, value) {
-const storage = getDataSafetyStorage();
-if (!storage || !dataSafetyNativeSetItem) {
-return;
-}
-dataSafetyNativeSetItem.call(storage, key, value);
-}
-function rawDataSafetyRemoveItem(key) {
-const storage = getDataSafetyStorage();
-if (!storage || !dataSafetyNativeRemoveItem) {
-return;
-}
-dataSafetyNativeRemoveItem.call(storage, key);
-}
-function rawDataSafetyKey(index) {
-const storage = getDataSafetyStorage();
-if (!storage || !dataSafetyNativeKey) {
-return null;
-}
-return dataSafetyNativeKey.call(storage, index);
-}
-function createDataSafetyManifest() {
-return {
-version: 1,
-createdAt: getDataSafetyNow(),
-updatedAt: "",
-lastSavedAt: "",
-lastSnapshotAt: "",
-lastExportAt: "",
-lastImportedAt: "",
-lastCentralSyncedAt: "",
-lastKey: "",
-lastError: "",
-lastSnapshotError: "",
-lastCentralError: "",
-persistentStorage: null,
-entries: {},
-};
-}
-function readDataSafetyManifest() {
-try {
-const raw = rawDataSafetyGetItem(dataSafetyStorageKey);
-if (!raw) {
-return createDataSafetyManifest();
-}
-const parsed = JSON.parse(raw);
-return {
-...createDataSafetyManifest(),
-...parsed,
-entries: parsed?.entries && typeof parsed.entries === "object" ? parsed.entries : {},
-};
-} catch {
-return createDataSafetyManifest();
-}
-}
-function writeDataSafetyManifest(manifest) {
-const normalizedManifest = {
-...createDataSafetyManifest(),
-...manifest,
-updatedAt: getDataSafetyNow(),
-};
-try {
-rawDataSafetySetItem(dataSafetyStorageKey, JSON.stringify(normalizedManifest));
-} catch (error) {
-dataSafetyRuntimeStatus.lastError = error?.message || "Data safety manifest could not be saved.";
-}
-}
-function mutateDataSafetyManifest(mutator) {
-const manifest = readDataSafetyManifest();
-mutator(manifest);
-writeDataSafetyManifest(manifest);
-return manifest;
-}
-function hashDataSafetyString(value) {
-const text = String(value ?? "");
-let hash = 2166136261;
-for (let index = 0; index < text.length; index += 1) {
-hash ^= text.charCodeAt(index);
-hash = Math.imul(hash, 16777619);
-}
-return (hash >>> 0).toString(36);
-}
-function getDataSafetyStorageLabel(key) { return dataSafetyStorageLabels[key] || key.replace(/^football-/, "").replaceAll("-", " "); }
 let centralStateRefreshTimer = null, centralStateLastRefreshAt = 0, centralStateRefreshInFlight = false;
 const centralStateRefreshIntervalMs = 120000, centralStateActiveRefreshMinMs = 30000, centralStateIntervalRefreshMinMs = 120000;
 const platformAutosaveStatusController = createPlatformAutosaveStatusController({
@@ -797,466 +721,6 @@ function retryCentralStateWriteAfterConflict(...args) { return centralSyncRuntim
 function registerSessionPlannerCentralSyncConflict(...args) { return centralSyncRuntimeService.registerSessionPlannerCentralSyncConflict(...args); }
 function queueCentralStateWrite(...args) { return centralSyncRuntimeService.queueCentralStateWrite(...args); }
 function flushCentralStateWrites(...args) { return centralSyncRuntimeService.flushCentralStateWrites(...args); }
-function recordDataSafetyWrite(key, value, options = {}) {
-const normalizedKey = String(key || "");
-if (!isDataSafetyProtectedStorageKey(normalizedKey)) {
-return;
-}
-const textValue = String(value ?? "");
-const now = getDataSafetyNow();
-dataSafetyRuntimeStatus.lastError = "";
-mutateDataSafetyManifest((manifest) => {
-const previousEntry = manifest.entries[normalizedKey] || {};
-manifest.lastSavedAt = now;
-manifest.lastKey = normalizedKey;
-manifest.lastError = "";
-manifest.entries[normalizedKey] = {
-label: getDataSafetyStorageLabel(normalizedKey),
-updatedAt: now,
-size: textValue.length,
-hash: hashDataSafetyString(textValue),
-writes: Number(previousEntry.writes || 0) + 1,
-deletedAt: options.removed ? now : "",
-};
-});
-queueDataSafetySnapshot(options.removed ? "after-remove" : "autosave");
-if (!centralStateWriteSuppressionKeys.has(normalizedKey)) {
-queueCentralStateWrite(normalizedKey, textValue, options);
-}
-queueDataSafetyStatusRefresh();
-}
-function handleDataSafetyWriteError(key, error) {
-const message = error?.message || "Save failed.";
-dataSafetyRuntimeStatus.lastError = message;
-mutateDataSafetyManifest((manifest) => {
-manifest.lastKey = String(key || "");
-manifest.lastError = message;
-});
-queueDataSafetyStatusRefresh();
-}
-function collectFootballScienceStorageData() {
-const storage = getDataSafetyStorage();
-const data = {};
-if (!storage) {
-return data;
-}
-const keys = new Set(dataSafetyProtectedStorageKeys);
-for (let index = 0; index < storage.length; index += 1) {
-const key = rawDataSafetyKey(index);
-if (isDataSafetyProtectedStorageKey(key)) {
-keys.add(key);
-}
-}
-keys.forEach((key) => {
-const value = rawDataSafetyGetItem(key);
-if (value !== null) {
-data[key] = value;
-}
-});
-return data;
-}
-function createFootballScienceBackupEnvelope(reason = "manual") {
-const storage = collectFootballScienceStorageData();
-const entries = Object.entries(storage).map(([key, value]) => ({
-key,
-label: getDataSafetyStorageLabel(key),
-size: value.length,
-hash: hashDataSafetyString(value),
-}));
-return {
-schema: dataSafetyExportSchema,
-app: "Football Science",
-createdAt: getDataSafetyNow(),
-reason,
-source: win.location.href,
-summary: {
-keyCount: entries.length,
-totalBytes: entries.reduce((total, entry) => total + entry.size, 0),
-entries,
-},
-storage,
-};
-}
-function waitForDataSafetyTransaction(transaction) {
-return new Promise((resolve, reject) => {
-transaction.oncomplete = () => resolve();
-transaction.onerror = () => reject(transaction.error);
-transaction.onabort = () => reject(transaction.error);
-});
-}
-function openDataSafetyDatabase() {
-if (dataSafetyDbPromise) {
-return dataSafetyDbPromise;
-}
-dataSafetyDbPromise = new Promise((resolve, reject) => {
-if (!win.indexedDB) {
-reject(new Error("IndexedDB is not available."));
-return;
-}
-const request = win.indexedDB.open(dataSafetyDatabaseName, 1);
-request.onupgradeneeded = () => {
-const database = request.result;
-if (!database.objectStoreNames.contains(dataSafetySnapshotStoreName)) {
-database.createObjectStore(dataSafetySnapshotStoreName, { keyPath: "id" });
-}
-if (!database.objectStoreNames.contains(dataSafetyLatestStoreName)) {
-database.createObjectStore(dataSafetyLatestStoreName, { keyPath: "id" });
-}
-};
-request.onsuccess = () => resolve(request.result);
-request.onerror = () => reject(request.error);
-});
-return dataSafetyDbPromise;
-}
-async function pruneDataSafetySnapshots(database) {
-const keys = await new Promise((resolve, reject) => {
-const transaction = database.transaction(dataSafetySnapshotStoreName, "readonly");
-const request = transaction.objectStore(dataSafetySnapshotStoreName).getAllKeys();
-request.onsuccess = () => resolve(Array.from(request.result || []));
-request.onerror = () => reject(request.error);
-});
-if (keys.length <= dataSafetyMaxSnapshots) {
-return;
-}
-const keysToDelete = keys.sort().slice(0, keys.length - dataSafetyMaxSnapshots);
-const transaction = database.transaction(dataSafetySnapshotStoreName, "readwrite");
-const store = transaction.objectStore(dataSafetySnapshotStoreName);
-keysToDelete.forEach((key) => store.delete(key));
-await waitForDataSafetyTransaction(transaction);
-}
-async function saveDataSafetySnapshot(reason = "autosave") {
-const snapshot = {
-...createFootballScienceBackupEnvelope(reason),
-id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-};
-try {
-const database = await openDataSafetyDatabase();
-const transaction = database.transaction(
-[dataSafetySnapshotStoreName, dataSafetyLatestStoreName],
-"readwrite"
-);
-transaction.objectStore(dataSafetySnapshotStoreName).put(snapshot);
-transaction.objectStore(dataSafetyLatestStoreName).put({ ...snapshot, id: "latest" });
-await waitForDataSafetyTransaction(transaction);
-await pruneDataSafetySnapshots(database);
-dataSafetyRuntimeStatus.lastError = "";
-dataSafetyRuntimeStatus.lastSnapshotError = "";
-mutateDataSafetyManifest((manifest) => {
-manifest.lastSnapshotAt = snapshot.createdAt;
-manifest.lastError = "";
-manifest.lastSnapshotError = "";
-});
-queueDataSafetyStatusRefresh();
-return true;
-} catch (error) {
-const message = error?.message || "Backup snapshot could not be saved.";
-dataSafetyRuntimeStatus.lastSnapshotError = message;
-mutateDataSafetyManifest((manifest) => {
-manifest.lastSnapshotError = message;
-});
-queueDataSafetyStatusRefresh();
-return false;
-}
-}
-function queueDataSafetySnapshot(reason = "autosave") {
-if (dataSafetySnapshotTimer) {
-win.clearTimeout(dataSafetySnapshotTimer);
-}
-dataSafetySnapshotTimer = win.setTimeout(() => {
-dataSafetySnapshotTimer = null;
-saveDataSafetySnapshot(reason);
-}, 900);
-}
-function refreshDataSafetyStatus() {
-if (!ui.dataSafetyStatus) {
-return;
-}
-const manifest = readDataSafetyManifest();
-const centralStatus = getCentralStateBridge()?.getStatus?.() ?? {};
-const error = dataSafetyRuntimeStatus.lastError || manifest.lastError;
-const centralError = centralStatus.lastError || manifest.lastCentralError;
-const snapshotWarning = dataSafetyRuntimeStatus.lastSnapshotError || manifest.lastSnapshotError;
-const hasPendingCentralSync = Object.values(manifest.entries || {}).some((entry) => entry?.pendingCentralSync);
-ui.dataSafetyStatus.classList.toggle("is-error", Boolean(error || centralError));
-ui.dataSafetyStatus.classList.toggle(
-"is-backed-up",
-Boolean((centralStatus.lastSyncedAt || manifest.lastCentralSyncedAt) && !hasPendingCentralSync && !error && !centralError)
-);
-if (centralError) {
-ui.dataSafetyStatus.textContent = "Sync needs attention";
-ui.dataSafetyStatus.title = centralError;
-return;
-}
-if (error) {
-ui.dataSafetyStatus.textContent = "Autosave needs attention";
-ui.dataSafetyStatus.title = error;
-return;
-}
-const centralTime = formatDataSafetyTime(centralStatus.lastSyncedAt || manifest.lastCentralSyncedAt);
-const snapshotTime = formatDataSafetyTime(manifest.lastSnapshotAt);
-const savedTime = formatDataSafetyTime(manifest.lastSavedAt);
-if (centralStatus.localDev) {
-ui.dataSafetyStatus.textContent = "Local dev cache";
-ui.dataSafetyStatus.title = "Localhost cache only.";
-return;
-}
-if (hasPendingCentralSync) {
-ui.dataSafetyStatus.textContent = savedTime ? `Sync pending ${savedTime}` : "Sync pending";
-ui.dataSafetyStatus.title = "Saved locally; waiting for Supabase.";
-return;
-}
-if (centralTime) {
-ui.dataSafetyStatus.textContent = `Central sync ${centralTime}`;
-ui.dataSafetyStatus.title = "Synced centrally.";
-return;
-}
-if (snapshotTime) {
-ui.dataSafetyStatus.textContent = `Central cache ${snapshotTime}`;
-ui.dataSafetyStatus.title = "Browser cache snapshot exists.";
-return;
-}
-if (savedTime) {
-ui.dataSafetyStatus.textContent = `Waiting for central sync ${savedTime}`;
-ui.dataSafetyStatus.title = snapshotWarning
-? `Supabase is the source of truth. Browser cache snapshot issue: ${snapshotWarning}`
-: "Waiting for central sync.";
-return;
-}
-ui.dataSafetyStatus.textContent = "Sync ready";
-ui.dataSafetyStatus.title = snapshotWarning
-? `Supabase sync is ready. Browser cache snapshot issue: ${snapshotWarning}`
-: "Sync starts after login.";
-}
-function queueDataSafetyStatusRefresh() {
-if (dataSafetyStatusTimer) {
-win.clearTimeout(dataSafetyStatusTimer);
-}
-dataSafetyStatusTimer = win.setTimeout(() => {
-dataSafetyStatusTimer = null;
-refreshDataSafetyStatus();
-}, 120);
-}
-function requestDataSafetyPersistentStorage() {
-if (!navigator.storage?.persist) {
-return;
-}
-navigator.storage
-.persist()
-.then((granted) => {
-mutateDataSafetyManifest((manifest) => {
-manifest.persistentStorage = Boolean(granted);
-});
-queueDataSafetyStatusRefresh();
-})
-.catch(() => {
-mutateDataSafetyManifest((manifest) => {
-manifest.persistentStorage = false;
-});
-});
-}
-function exportFootballScienceDataBackup() {
-try {
-const backup = createFootballScienceBackupEnvelope("manual-export");
-const backupText = JSON.stringify(backup, null, 2);
-const blob = new Blob([backupText], { type: "application/json" });
-const url = URL.createObjectURL(blob);
-const datePart = new Date().toISOString().slice(0, 19).replaceAll(":", "-");
-const link = document.createElement("a");
-link.href = url;
-link.download = `football-science-backup-${datePart}.json`;
-document.body.appendChild(link);
-link.click();
-link.remove();
-win.setTimeout(() => URL.revokeObjectURL(url), 1000);
-mutateDataSafetyManifest((manifest) => {
-manifest.lastExportAt = backup.createdAt;
-});
-saveDataSafetySnapshot("manual-export");
-refreshDataSafetyStatus();
-} catch (error) {
-const message = error?.message || "The backup could not be exported.";
-dataSafetyRuntimeStatus.lastError = message;
-refreshDataSafetyStatus();
-win.alert(message);
-}
-}
-function getStorageFromFootballScienceBackup(backup) {
-if (!backup || typeof backup !== "object") {
-return null;
-}
-if (backup.schema === dataSafetyExportSchema && backup.storage && typeof backup.storage === "object") {
-return backup.storage;
-}
-if (backup.keys && typeof backup.keys === "object") {
-return backup.keys;
-}
-return null;
-}
-async function importFootballScienceDataBackupFile(file) {
-if (!file) {
-return;
-}
-let backup;
-try {
-backup = JSON.parse(await file.text());
-} catch {
-win.alert("That file is not a valid Football Science backup.");
-return;
-}
-const storage = getStorageFromFootballScienceBackup(backup);
-const entries = Object.entries(storage || {}).filter(
-([key, value]) => isDataSafetyProtectedStorageKey(key) && typeof value === "string"
-);
-if (!entries.length) {
-win.alert("That backup did not contain any restorable Football Science data.");
-return;
-}
-const createdAt = backup.createdAt ? new Date(backup.createdAt).toLocaleString() : "unknown time";
-const confirmed = win.confirm(
-`Restore Football Science data from ${createdAt}?\n\nCurrent local data will be snapshotted first, then the page will reload.`
-);
-if (!confirmed) {
-return;
-}
-await saveDataSafetySnapshot("before-restore");
-try {
-entries.forEach(([key, value]) => {
-rawDataSafetySetItem(key, value);
-recordDataSafetyWrite(key, value);
-});
-mutateDataSafetyManifest((manifest) => {
-manifest.lastImportedAt = getDataSafetyNow();
-manifest.lastError = "";
-});
-await saveDataSafetySnapshot("after-restore");
-win.alert("Backup restored. The page will reload now.");
-win.setTimeout(() => win.location.reload(), 250);
-} catch (error) {
-const message = error?.message || "The backup could not be restored.";
-dataSafetyRuntimeStatus.lastError = message;
-refreshDataSafetyStatus();
-win.alert(message);
-}
-}
-function migrateDataSafetyLegacyStorageKeys() {
-Object.entries(dataSafetyLegacyStorageKeys).forEach(([currentKey, legacyKeys]) => {
-if (rawDataSafetyGetItem(currentKey) !== null) {
-return;
-}
-const legacyKey = legacyKeys.find((key) => rawDataSafetyGetItem(key) !== null);
-if (!legacyKey) {
-return;
-}
-const legacyValue = rawDataSafetyGetItem(legacyKey);
-try {
-rawDataSafetySetItem(currentKey, legacyValue);
-recordDataSafetyWrite(currentKey, legacyValue);
-mutateDataSafetyManifest((manifest) => {
-manifest.entries[currentKey] = {
-...(manifest.entries[currentKey] || {}),
-migratedFrom: legacyKey,
-migratedAt: getDataSafetyNow(),
-};
-});
-} catch (error) {
-handleDataSafetyWriteError(currentKey, error);
-}
-});
-}
-function installFootballDataSafety() {
-if (dataSafetyInstalled || typeof window === "undefined" || typeof Storage === "undefined") {
-return;
-}
-const storage = getDataSafetyStorage();
-if (!storage) {
-return;
-}
-dataSafetyNativeGetItem = Storage.prototype.getItem;
-dataSafetyNativeSetItem = Storage.prototype.setItem;
-dataSafetyNativeRemoveItem = Storage.prototype.removeItem;
-dataSafetyNativeClear = Storage.prototype.clear;
-dataSafetyNativeKey = Storage.prototype.key;
-Storage.prototype.setItem = function patchedDataSafetySetItem(key, value) {
-const normalizedKey = String(key || "");
-const normalizedValue = String(value ?? "");
-if (this !== storage || !isDataSafetyProtectedStorageKey(normalizedKey)) {
-return dataSafetyNativeSetItem.call(this, key, value);
-}
-if (!canWriteCentralBackedCache()) {
-const error = createCentralBackedStorageError();
-handleDataSafetyWriteError(normalizedKey, error);
-throw error;
-}
-const previousValue = rawDataSafetyGetItem(normalizedKey);
-try {
-const result = dataSafetyNativeSetItem.call(this, normalizedKey, normalizedValue);
-if (previousValue !== normalizedValue) {
-recordDataSafetyWrite(normalizedKey, normalizedValue);
-}
-return result;
-} catch (error) {
-handleDataSafetyWriteError(normalizedKey, error);
-throw error;
-}
-};
-Storage.prototype.removeItem = function patchedDataSafetyRemoveItem(key) {
-const normalizedKey = String(key || "");
-if (this !== storage || !isDataSafetyProtectedStorageKey(normalizedKey)) {
-return dataSafetyNativeRemoveItem.call(this, key);
-}
-if (!canWriteCentralBackedCache()) {
-const error = createCentralBackedStorageError();
-handleDataSafetyWriteError(normalizedKey, error);
-throw error;
-}
-const previousValue = rawDataSafetyGetItem(normalizedKey);
-if (previousValue !== null) {
-saveDataSafetySnapshot("before-remove");
-}
-const result = dataSafetyNativeRemoveItem.call(this, normalizedKey);
-if (previousValue !== null) {
-recordDataSafetyWrite(normalizedKey, "", { removed: true });
-}
-return result;
-};
-Storage.prototype.clear = function patchedDataSafetyClear() {
-const removedKeys = this === storage ? Object.keys(collectFootballScienceStorageData()) : [];
-if (this === storage && removedKeys.length && !canWriteCentralBackedCache()) {
-const error = createCentralBackedStorageError();
-handleDataSafetyWriteError(removedKeys[0], error);
-throw error;
-}
-if (this === storage && Object.keys(collectFootballScienceStorageData()).length) {
-saveDataSafetySnapshot("before-clear");
-}
-const result = dataSafetyNativeClear.call(this);
-if (this === storage) {
-mutateDataSafetyManifest((manifest) => {
-manifest.lastSavedAt = getDataSafetyNow();
-manifest.lastKey = "localStorage.clear";
-manifest.entries = {};
-});
-removedKeys.forEach((key) => queueCentralStateWrite(key, "", { removed: true }));
-queueDataSafetyStatusRefresh();
-}
-return result;
-};
-dataSafetyInstalled = true;
-migrateDataSafetyLegacyStorageKeys();
-mutateDataSafetyManifest((manifest) => {
-manifest.lastSeenAt = getDataSafetyNow();
-});
-requestDataSafetyPersistentStorage();
-queueDataSafetySnapshot("startup");
-refreshDataSafetyStatus();
-win.footballScienceDataSafety = {
-collect: collectFootballScienceStorageData,
-createBackup: createFootballScienceBackupEnvelope,
-exportBackup: exportFootballScienceDataBackup,
-importBackupFile: importFootballScienceDataBackupFile,
-saveSnapshot: saveDataSafetySnapshot,
-};
-}
 installFootballDataSafety();
 installPlatformOverlayStability({ win });
 const defaultScheduleState = createDefaultScheduleState();
@@ -9078,11 +8542,7 @@ pushDashboardPresence("away").catch(() => {});
 if (centralSyncRuntimeService.clearCentralStateWriteTimer()) {
 flushCentralStateWrites();
 }
-if (dataSafetySnapshotTimer) {
-win.clearTimeout(dataSafetySnapshotTimer);
-dataSafetySnapshotTimer = null;
-saveDataSafetySnapshot("pagehide");
-}
+flushQueuedDataSafetySnapshot("pagehide");
 });
 document.addEventListener("click", (event) => {
 if (!ui.profileMenu || !isProfileMenuOpen()) {

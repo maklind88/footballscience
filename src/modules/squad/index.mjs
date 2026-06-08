@@ -11,6 +11,7 @@ export * from "./squad-import-planner.mjs";
 export * from "./squad-profile-selected-renderer.mjs";
 export * from "./squad-profile-support-renderer.mjs";
 export * from "./squad-roster-renderer.mjs";
+export * from "./squad-medical-status-service.mjs";
 export * from "./squad-scouting-profile-helpers.mjs";
 export * from "./squad-scouting-runtime.mjs";
 export * from "./squad-scouting-spider-renderer.mjs";

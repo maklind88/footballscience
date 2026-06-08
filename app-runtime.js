@@ -86,6 +86,7 @@ import {
   createSquadImportPlanner,
   createPlayerProfileHelpers,
   createPlayerProfileIntelligenceHelpers,
+  createSquadMedicalStatusService,
   createSquadScoutingRuntime,
   buildPlayerProfileImportFeedback as buildPlayerProfileImportFeedbackMessage,
   buildPlayerProfileImportPreviewMessage,
@@ -8092,98 +8093,12 @@ return;
 playerProfileNewPlayerModalOpen = false;
 renderPlayerProfilesWorkspace();
 }
-function getLatestManualMedicalLog(playerId) {
-ensureMedicalState();
-return medicalState.records
-.filter((record) => record.playerId === playerId)
-.sort((first, second) => {
-const dateComparison = second.date.localeCompare(first.date);
-if (dateComparison !== 0) {
-return dateComparison;
-}
-return new Date(second.createdAt) - new Date(first.createdAt);
-})[0] ?? null;
-}
-function getPlayerProfileMedicalStatusOverride(snapshot = {}) {
-if (snapshot.medicalSource === "squad-availability" && !snapshot.hasActivePlan) {
-return "";
-}
-const statusKey = String(snapshot.medicalStatusKey || snapshot.tone || "").trim();
-const participation = Number(snapshot.participation);
-if (snapshot.hasActivePlan && Number.isFinite(participation) && participation < 100) {
-return "injured";
-}
-if (statusKey === "unavailable" || statusKey === "rehab") {
-return "injured";
-}
-if (statusKey === "modified" || statusKey === "controlled") {
-return "managed";
-}
-return "";
-}
-function getPlayerProfileEffectiveStatusFromSnapshot(player = {}, snapshot = {}) {
-return getPlayerProfileMedicalStatusOverride(snapshot) || player.status || "available";
-}
-function getPlayerProfileEffectiveStatus(player = {}, dateValue = formatScheduleDateValue(new Date())) {
-return getPlayerProfileEffectiveStatusFromSnapshot(player, getPlayerProfileMedicalSnapshot(player.id, dateValue));
-}
-function getPlayerProfileMedicalSnapshot(playerId, dateValue = formatScheduleDateValue(new Date())) {
-ensureMedicalState();
-const currentRecord = getLatestMedicalRecord(playerId, dateValue);
-const latestLog = getLatestManualMedicalLog(playerId);
-const activePlan = getActiveMedicalInjuryPlan(playerId, dateValue);
-const openEndedLog =
-!currentRecord &&
-!activePlan &&
-latestLog &&
-latestLog.date <= dateValue &&
-["unavailable", "rehab", "modified", "controlled"].includes(latestLog.status)
-? latestLog
-: null;
-const medicalStatusKey = currentRecord?.status || activePlan?.status || openEndedLog?.status || "";
-const participation = currentRecord?.participation ?? activePlan?.participation ?? openEndedLog?.participation ?? null;
-const medicalSource = currentRecord?.source || (activePlan ? "injury-plan" : openEndedLog ? "manual-log" : "");
-const availabilityLabel = currentRecord
-? `${getMedicalRecordStatus(currentRecord).label} / ${currentRecord.participation}%`
-: activePlan
-? `${getMedicalRtpPhaseOption(activePlan.rtpPhase).label} / ${activePlan.participation}%`
-: openEndedLog
-? `${getMedicalRecordStatus(openEndedLog).label} / ${openEndedLog.participation}% ongoing`
-: "Not logged today";
-const rtpStatus = activePlan
-? getMedicalRtpPhaseOption(activePlan.rtpPhase).label
-: currentRecord
-? getMedicalRtpPhaseOption(currentRecord.rtpPhase).label
-: openEndedLog
-? getMedicalRtpPhaseOption(openEndedLog.rtpPhase).label
-: "No RTP restriction";
-const coachNote = currentRecord?.coachNote || activePlan?.coachNote || latestLog?.coachNote || "";
-const latestLogSummary = latestLog
-? `${formatMedicalDateLabel(latestLog.date)} - ${getMedicalRecordStatus(latestLog).label} / ${latestLog.participation}%`
-: activePlan
-? `${formatMedicalDateLabel(dateValue)} - ${getMedicalRtpPhaseOption(activePlan.rtpPhase).label}`
-: "No medical log yet";
-const returnDate = activePlan?.endDate || "";
-const returnDateLabel = returnDate ? formatMedicalDateLabel(returnDate) : "";
-const activeInjuryLabel = activePlan ? [activePlan.injuryType, activePlan.bodyArea].filter(Boolean).join(" / ") : "";
-return {
-currentAvailability: availabilityLabel,
-rtpStatus,
-coachNote,
-latestLogDate: latestLog?.date || "",
-latestLogSummary,
-returnDate,
-returnDateLabel,
-returnLabel: returnDateLabel ? `Expected back ${returnDateLabel}` : "",
-activeInjuryLabel,
-tone: medicalStatusKey || "unset",
-participation,
-medicalStatusKey,
-medicalSource,
-hasActivePlan: Boolean(activePlan),
-isOpenEndedMedicalStatus: Boolean(openEndedLog),
-};
-}
+let squadMedicalStatusService = null;
+function getLatestManualMedicalLog(...args) { return squadMedicalStatusService.getLatestManualMedicalLog(...args); }
+function getPlayerProfileMedicalStatusOverride(...args) { return squadMedicalStatusService.getPlayerProfileMedicalStatusOverride(...args); }
+function getPlayerProfileEffectiveStatusFromSnapshot(...args) { return squadMedicalStatusService.getPlayerProfileEffectiveStatusFromSnapshot(...args); }
+function getPlayerProfileEffectiveStatus(...args) { return squadMedicalStatusService.getPlayerProfileEffectiveStatus(...args); }
+function getPlayerProfileMedicalSnapshot(...args) { return squadMedicalStatusService.getPlayerProfileMedicalSnapshot(...args); }
 function getVisiblePlayerProfiles() {
 ensurePlayerProfilesState();
 return playerProfileRosterUiSelectors.getVisibleProfiles(playerProfilesState.players, {
@@ -9024,6 +8939,16 @@ normalizePlatformText: normalizePlatformStructureText,
 normalizeShareValue: normalizeMedicalShareValue,
 parseDateValue: parseScheduleDateValue,
 scheduleEventTypes,
+});
+squadMedicalStatusService = createSquadMedicalStatusService({
+ensureMedicalState,
+formatDateValue: formatScheduleDateValue,
+formatMedicalDateLabel,
+getActiveMedicalInjuryPlan,
+getLatestMedicalRecord,
+getMedicalRecordStatus,
+getMedicalRtpPhaseOption,
+getMedicalState: () => medicalState,
 });
 function getMedicalDailyStats(dateValue = medicalState?.selectedDate) { return medicalCommandSelectors.getMedicalDailyStats(dateValue); }
 function getMedicalWindowAverage() { return medicalCommandSelectors.getMedicalWindowAverage(); }

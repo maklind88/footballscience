@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import {
   createPlayerProfileFormValueReader,
   createPlayerProfileRosterUiSelectors,
+  createSquadMedicalStatusService,
   getPlayerProfileCompleteness,
   getPlayerProfileImportUndoRelativeTimeLabel,
   getSquadChangeSummary,
@@ -63,6 +65,116 @@ test("Squad profile UI helpers parse profile form values without owning writes",
     age: "24",
     photoUrl: "https://cdn.test/ada.png",
   });
+});
+
+test("Squad medical status service preserves medical snapshot golden-master behavior", () => {
+  const records = [
+    {
+      playerId: "p1",
+      date: "2026-06-05",
+      createdAt: "2026-06-05T09:00:00.000Z",
+      status: "modified",
+      participation: 70,
+      rtpPhase: "phase-2",
+      coachNote: "Earlier note",
+    },
+    {
+      playerId: "p1",
+      date: "2026-06-05",
+      createdAt: "2026-06-05T12:00:00.000Z",
+      status: "controlled",
+      participation: 80,
+      rtpPhase: "phase-3",
+      coachNote: "Latest note",
+    },
+    {
+      playerId: "p2",
+      date: "2026-06-07",
+      createdAt: "2026-06-07T08:00:00.000Z",
+      status: "modified",
+      participation: 75,
+      rtpPhase: "modified-team",
+      source: "squad-availability",
+      coachNote: "Squad availability only",
+    },
+    {
+      playerId: "p3",
+      date: "2026-06-06",
+      createdAt: "2026-06-06T10:00:00.000Z",
+      status: "unavailable",
+      participation: 0,
+      rtpPhase: "medical-restriction",
+      coachNote: "Still out",
+    },
+  ];
+  const activePlan = {
+    playerId: "p1",
+    status: "rehab",
+    participation: 60,
+    rtpPhase: "return-to-train",
+    coachNote: "Plan note",
+    endDate: "2026-06-20",
+    injuryType: "Hamstring",
+    bodyArea: "Posterior chain",
+  };
+  const service = createSquadMedicalStatusService({
+    ensureMedicalState: () => {},
+    formatDateValue: () => "2026-06-07",
+    formatMedicalDateLabel: (value) => `Label ${value}`,
+    getActiveMedicalInjuryPlan: (playerId, dateValue) => (playerId === "p1" && dateValue === "2026-06-07" ? activePlan : null),
+    getLatestMedicalRecord: (playerId, dateValue) => records.find((record) => record.playerId === playerId && record.date === dateValue) ?? null,
+    getMedicalRecordStatus: (record) => ({ label: `Status ${record.status}` }),
+    getMedicalRtpPhaseOption: (phaseKey) => ({ label: `RTP ${phaseKey}` }),
+    getMedicalState: () => ({ records }),
+  });
+
+  expect(service.getLatestManualMedicalLog("p1")).toMatchObject({ status: "controlled", participation: 80 });
+  expect(service.getPlayerProfileMedicalSnapshot("p1", "2026-06-07")).toEqual({
+    currentAvailability: "RTP return-to-train / 60%",
+    rtpStatus: "RTP return-to-train",
+    coachNote: "Plan note",
+    latestLogDate: "2026-06-05",
+    latestLogSummary: "Label 2026-06-05 - Status controlled / 80%",
+    returnDate: "2026-06-20",
+    returnDateLabel: "Label 2026-06-20",
+    returnLabel: "Expected back Label 2026-06-20",
+    activeInjuryLabel: "Hamstring / Posterior chain",
+    tone: "rehab",
+    participation: 60,
+    medicalStatusKey: "rehab",
+    medicalSource: "injury-plan",
+    hasActivePlan: true,
+    isOpenEndedMedicalStatus: false,
+  });
+  expect(service.getPlayerProfileEffectiveStatus({ id: "p1", status: "available" }, "2026-06-07")).toBe("injured");
+
+  const squadAvailabilitySnapshot = service.getPlayerProfileMedicalSnapshot("p2", "2026-06-07");
+  expect(squadAvailabilitySnapshot).toMatchObject({
+    currentAvailability: "Status modified / 75%",
+    medicalSource: "squad-availability",
+    medicalStatusKey: "modified",
+    hasActivePlan: false,
+  });
+  expect(service.getPlayerProfileEffectiveStatusFromSnapshot({ status: "available" }, squadAvailabilitySnapshot)).toBe("available");
+
+  const openEndedSnapshot = service.getPlayerProfileMedicalSnapshot("p3", "2026-06-07");
+  expect(openEndedSnapshot).toMatchObject({
+    currentAvailability: "Status unavailable / 0% ongoing",
+    rtpStatus: "RTP medical-restriction",
+    medicalSource: "manual-log",
+    isOpenEndedMedicalStatus: true,
+  });
+  expect(service.getPlayerProfileEffectiveStatusFromSnapshot({ status: "available" }, openEndedSnapshot)).toBe("injured");
+});
+
+test("Squad medical status service is a read-only extracted runtime boundary", () => {
+  const serviceSource = readFileSync(new URL("../src/modules/squad/squad-medical-status-service.mjs", import.meta.url), "utf8");
+  const runtimeSource = readFileSync(new URL("../app-runtime.js", import.meta.url), "utf8");
+
+  expect(serviceSource).toContain("export function createSquadMedicalStatusService");
+  expect(serviceSource).not.toMatch(/localStorage|sessionStorage|fetch\(|setItem\(|writePlayerProfilesState|writeMedicalState/);
+  expect(runtimeSource).toContain("createSquadMedicalStatusService");
+  expect(runtimeSource).toContain("squadMedicalStatusService.getPlayerProfileMedicalSnapshot");
 });
 
 test("Squad profile UI helpers filter roster profiles without owning state", () => {

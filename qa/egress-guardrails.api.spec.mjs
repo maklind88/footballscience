@@ -10,7 +10,7 @@ function readProjectFile(relativePath) {
 }
 
 function readNumericConstant(source, constantName) {
-  const match = source.match(new RegExp(`(?:const|,)\\s+${constantName}\\s*=\\s*([^,;]+)`));
+  const match = source.match(new RegExp(`(?:const|,|\\{)\\s+${constantName}\\s*=\\s*([^,;}]+)`));
   expect(match, `${constantName} must be declared`).toBeTruthy();
   const expression = match[1].trim();
   expect(expression, `${constantName} must stay a simple numeric expression`).toMatch(/^[\d\s*+/-]+$/);
@@ -19,15 +19,16 @@ function readNumericConstant(source, constantName) {
 
 test("client egress guardrails keep central state and presence sync sparse", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const centralReloadSource = readProjectFile("src/core/central-app-state-reload-service.mjs");
 
-  expect(readNumericConstant(appSource, "centralStateRefreshIntervalMs")).toBeGreaterThanOrEqual(60000);
-  expect(readNumericConstant(appSource, "centralStateActiveRefreshMinMs")).toBeGreaterThanOrEqual(30000);
+  expect(readNumericConstant(centralReloadSource, "refreshIntervalMs")).toBeGreaterThanOrEqual(60000);
+  expect(readNumericConstant(centralReloadSource, "activeRefreshMinMs")).toBeGreaterThanOrEqual(30000);
   expect(readNumericConstant(appSource, "dashboardPresenceHeartbeatMs")).toBeGreaterThanOrEqual(60000);
   expect(readNumericConstant(appSource, "dashboardPresencePollMs")).toBeGreaterThanOrEqual(30000);
   expect(readNumericConstant(appSource, "dashboardPresenceSteadyPushMinMs")).toBeGreaterThanOrEqual(30000);
   expect(readNumericConstant(appSource, "dashboardPresencePollMinMs")).toBeGreaterThanOrEqual(30000);
-  expect(appSource).toContain("centralStateRefreshInFlight");
-  expect(appSource).toContain("reason === \"interval\" && !document.hasFocus()");
+  expect(centralReloadSource).toContain("refreshInFlight");
+  expect(centralReloadSource).toContain("reason === \"interval\" && !documentRef.hasFocus()");
   expect(appSource).toContain("pauseDashboardPresenceRuntime();");
 });
 

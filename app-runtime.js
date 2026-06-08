@@ -66,6 +66,7 @@ import { createWorkspaceShellController } from "./src/core/workspace-shell-contr
 import { bindPlatformNavigationInteractions } from "./src/core/platform-navigation-bindings.mjs";
 import { createPlatformUiBindings } from "./src/core/platform-ui-bindings.mjs";
 import { createPlatformAutosaveStatusController } from "./src/core/platform-autosave-status.mjs";
+import { createCentralAppStateReloadService } from "./src/core/central-app-state-reload-service.mjs";
 import { createCentralSyncRuntimeService } from "./src/core/central-sync-runtime-service.mjs";
 import { createDataSafetyRuntimeService } from "./src/core/data-safety-runtime-service.mjs";
 import { createWorkspaceAccessRuntimeService } from "./src/core/workspace-access-runtime-service.mjs";
@@ -572,8 +573,7 @@ getMessageById: getDashboardMessageById,
 canDeleteMessage: isCurrentPlatformUserAdmin,
 canPinMessage: canPinDashboardChatMessage,
 });
-let centralStateRefreshTimer = null, centralStateLastRefreshAt = 0, centralStateRefreshInFlight = false;
-const centralStateRefreshIntervalMs = 120000, centralStateActiveRefreshMinMs = 30000, centralStateIntervalRefreshMinMs = 120000;
+let centralAppStateReloadService = null;
 const platformAutosaveStatusController = createPlatformAutosaveStatusController({
 documentRef: document,
 windowRef: window,
@@ -665,7 +665,7 @@ if (hubState?.activeWorkspaceId === "transfer-room" && !shouldDeferCentralizedAp
 syncTransferRoomLinkedState({ render: true });
 }
 if (hubState?.activeWorkspaceId === "scouting" && shouldDeferCentralizedAppStateReload()) {
-centralizedAppStateReloadPending = true;
+setCentralizedAppStateReloadPending(true);
 return;
 }
 if (hubState?.activeWorkspaceId === "scouting") {
@@ -6587,119 +6587,56 @@ initializeWorkspaceHub,
 renderWorkspaceChrome,
 setActiveWorkspace,
 } = workspaceShellController;
-function reloadCentralizedAppStateFromStorage() {
-if (!getCurrentPlatformUser()) {
-return;
-}
-const previousSessionPlannerSelection = getCurrentSessionPlannerUiSelection();
-const previousWorkspaceId = hubState?.activeWorkspaceId || workspaceHubDefaultActiveWorkspaceId;
-if (hubState?.activeWorkspaceId === "session-planner") {
-syncSelectedSessionPlannerBlockFieldsFromDom();
-}
-hubState = repairWorkspaceState({
-...readWorkspaceHubState(),
-activeWorkspaceId: previousWorkspaceId,
+centralAppStateReloadService = createCentralAppStateReloadService({
+activeRefreshMinMs: 30000,
+defaultActiveWorkspaceId: workspaceHubDefaultActiveWorkspaceId,
+documentRef: document,
+getCentralStateBridge,
+getCurrentPlatformUser,
+getHubState: () => hubState,
+getSessionPlannerState: () => sessionPlannerState,
+hasPendingCentralStateWrites,
+intervalRefreshMinMs: 120000,
+isEditableKeyboardTarget,
+queueCentralStateStatus,
+queueSessionPlannerSnapshotRecovery,
+readMedicalState,
+readPeriodizationState,
+readPlayerProfilesState,
+readScheduleState,
+readScoutingState,
+readSessionPlannerExerciseLibrary,
+readSessionPlannerState,
+readTransferRoomState,
+readWorkspaceHubState,
+refreshIntervalMs: 120000,
+renderWorkspaceChrome,
+repairWorkspaceState,
+retryCentral,
+scheduleDashboardLoginPopups,
+sessionPlannerLocalUiState,
+setHubState: (nextState) => { hubState = nextState; },
+setMedicalState: (nextState) => { medicalState = nextState; },
+setPeriodizationState: (nextState) => { periodizationState = nextState; },
+setPlayerProfilesState: (nextState) => { playerProfilesState = nextState; },
+setScheduleState: (nextState) => { scheduleState = nextState; },
+setScoutingState: (nextState) => { scoutingState = nextState; },
+setSessionPlannerExerciseLibrary: (nextLibrary) => { sessionPlannerExerciseLibrary = nextLibrary; },
+setSessionPlannerState: (nextState) => { sessionPlannerState = nextState; },
+setTransferRoomState: (nextState) => { transferRoomState = nextState; },
+syncGameSimulatorSavedSequencesFromStorage,
+syncSelectedSessionPlannerBlockFieldsFromDom,
+ui,
+win,
 });
-periodizationState = readPeriodizationState();
-scheduleState = readScheduleState();
-medicalState = readMedicalState();
-playerProfilesState = readPlayerProfilesState();
-scoutingState = readScoutingState();
-transferRoomState = readTransferRoomState();
-sessionPlannerState = readSessionPlannerStatePreservingUiSelection(previousSessionPlannerSelection);
-sessionPlannerExerciseLibrary = readSessionPlannerExerciseLibrary();
-syncGameSimulatorSavedSequencesFromStorage();
-queueSessionPlannerSnapshotRecovery();
-renderWorkspaceChrome();
-scheduleDashboardLoginPopups();
-}
-let centralizedAppStateReloadPending = false;
-function getCurrentSessionPlannerUiSelection() {
-const dateValue = sessionPlannerState?.selectedDate || "";
-return {
-dateValue,
-blockId: dateValue ? sessionPlannerState?.sessions?.[dateValue]?.selectedBlockId || "" : "",
-};
-}
-function readSessionPlannerStatePreservingUiSelection(previousSelection = getCurrentSessionPlannerUiSelection()) {
-const nextState = readSessionPlannerState();
-if (hubState?.activeWorkspaceId !== "session-planner" || !previousSelection.dateValue) {
-return nextState;
-}
-const previousSession = nextState.sessions?.[previousSelection.dateValue];
-if (!previousSession) {
-return nextState;
-}
-nextState.selectedDate = previousSelection.dateValue;
-if (previousSession.blocks.some((block) => block.id === previousSelection.blockId)) {
-previousSession.selectedBlockId = previousSelection.blockId;
-}
-return nextState;
-}
-function shouldDeferCentralizedAppStateReload() {
-const activeElement = document.activeElement;
-if (isEditableKeyboardTarget(activeElement)) {
-return true;
-}
-if (hubState?.activeWorkspaceId === "scouting") {
-const scoutingRoot = ui.scoutingWorkspace;
-if (
-scoutingRoot?.querySelector(
-".scouting-profile-backdrop,[data-scouting-role-model-overlay],[data-scouting-report-builder-overlay],[data-scouting-saved-views-overlay],[data-scouting-settings-overlay],details[open],[data-scouting-active-content] .is-dragging"
-)
-) {
-return true;
-}
-}
-return Boolean(
-sessionPlannerLocalUiState.state.sessionPlannerLibraryOpen ||
-sessionPlannerLocalUiState.state.sessionPlannerPendingLibrarySave ||
-sessionPlannerLocalUiState.state.sessionPlannerVisualPreviewOpen ||
-sessionPlannerLocalUiState.state.sessionPlannerPrintOverlayOpen ||
-sessionPlannerLocalUiState.state.sessionPlannerTacticalboardOpen ||
-sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardOpen ||
-sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardSelectedPlayerId ||
-sessionPlannerLocalUiState.state.sessionPlannerTacticalDragState ||
-sessionPlannerLocalUiState.state.sessionPlannerTacticalSelectionState ||
-sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardSelectionState ||
-sessionPlannerLocalUiState.state.sessionPlannerPlayerBoardDragState
-);
-}
-function requestCentralizedAppStateReload() {
-if (!getCurrentPlatformUser()) {
-return;
-}
-if (shouldDeferCentralizedAppStateReload()) {
-centralizedAppStateReloadPending = true;
-return;
-}
-centralizedAppStateReloadPending = false;
-reloadCentralizedAppStateFromStorage();
-}
-function flushDeferredCentralizedAppStateReload() {
-if (!centralizedAppStateReloadPending || shouldDeferCentralizedAppStateReload()) {
-return;
-}
-requestCentralizedAppStateReload();
-}
-function refreshCentralStateFromSource(reason = "refresh", options = {}) {
-const bridge = getCentralStateBridge();
-if (document.visibilityState === "hidden" || centralStateRefreshInFlight || !getCurrentPlatformUser() || !bridge?.hydrate) return;
-if (reason === "interval" && !document.hasFocus()) return;
-const now = Date.now();
-const minInterval = options.force ? 0 : reason === "interval" ? centralStateIntervalRefreshMinMs : centralStateActiveRefreshMinMs;
-if (minInterval && now - centralStateLastRefreshAt < minInterval) return;
-centralStateRefreshInFlight = true;
-centralStateLastRefreshAt = now;
-const retryAfterHydrate = hasPendingCentralStateWrites();
-bridge.hydrate().then(() => {
-if (retryAfterHydrate) retryCentral();
-}).catch((error) => {
-queueCentralStateStatus(error?.message || `${reason} failed.`);
-}).finally(() => {
-centralStateRefreshInFlight = false;
-});
-}
+function reloadCentralizedAppStateFromStorage(...args) { return centralAppStateReloadService.reloadCentralizedAppStateFromStorage(...args); }
+function getCurrentSessionPlannerUiSelection(...args) { return centralAppStateReloadService.getCurrentSessionPlannerUiSelection(...args); }
+function readSessionPlannerStatePreservingUiSelection(...args) { return centralAppStateReloadService.readSessionPlannerStatePreservingUiSelection(...args); }
+function shouldDeferCentralizedAppStateReload(...args) { return centralAppStateReloadService.shouldDeferCentralizedAppStateReload(...args); }
+function setCentralizedAppStateReloadPending(...args) { return centralAppStateReloadService.setCentralizedAppStateReloadPending(...args); }
+function requestCentralizedAppStateReload(...args) { return centralAppStateReloadService.requestCentralizedAppStateReload(...args); }
+function flushDeferredCentralizedAppStateReload(...args) { return centralAppStateReloadService.flushDeferredCentralizedAppStateReload(...args); }
+function refreshCentralStateFromSource(...args) { return centralAppStateReloadService.refreshCentralStateFromSource(...args); }
 bindPlatformNavigationInteractions({
 getHubState: () => hubState,
 platformNavigationController,
@@ -7568,9 +7505,7 @@ markDashboardPresenceActivity();
 { passive: true }
 );
 });
-centralStateRefreshTimer = win.setInterval(() => {
-refreshCentralStateFromSource("interval");
-}, centralStateRefreshIntervalMs);
+centralAppStateReloadService.startCentralStateRefreshTimer();
 win.addEventListener("storage", (event) => {
 if (isDataSafetyProtectedStorageKey(event.key)) {
 queueDataSafetyStatusRefresh();
@@ -7623,7 +7558,7 @@ return;
 if (event.key === scoutingStorageKey && hubState?.activeWorkspaceId === "scouting") {
 scoutingState = preserveScoutingTransientUiState(readScoutingState(), scoutingState);
 if (shouldDeferCentralizedAppStateReload()) {
-centralizedAppStateReloadPending = true;
+setCentralizedAppStateReloadPending(true);
 return;
 }
 renderScoutingWorkspace();

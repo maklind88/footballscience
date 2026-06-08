@@ -570,10 +570,11 @@ test("game simulator animation loop does not run globally outside the simulator 
 
 test("Session Planner print mode keeps the coach sheet visible for browser printing", () => {
   const appSource = readProjectFile("app-runtime.js");
+  const centralReloadSource = readProjectFile("src/core/central-app-state-reload-service.mjs");
   const workspaceControllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
   const indexSource = readProjectFile("index.html");
   const printOverrideSource = readProjectFile("session-print-overrides.css");
-  const sessionPlannerPrintSource = `${appSource}\n${workspaceControllerSource}`;
+  const sessionPlannerPrintSource = `${appSource}\n${centralReloadSource}\n${workspaceControllerSource}`;
 
   expect(sessionPlannerPrintSource).toContain("@media print");
   expect(sessionPlannerPrintSource).toContain("body.is-session-printing .session-print-root,");

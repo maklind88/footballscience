@@ -385,6 +385,7 @@ const dashboardChatMessageRenderRuntimeBindings = {
   renderDashboardPinnedMessages: () => "",
   renderDashboardMessageReactions: () => "",
 };
+let syncDashboardChatWidgetNotificationCursor = () => {};
 const dashboardChatApiRuntimeBindings = {
   dashboardChatSubmittedComposerDrafts: new Map(),
 };
@@ -591,7 +592,6 @@ const dashboardHomeCardsRenderer = createDashboardHomeCardsRenderer({
   renderTaskList: dashboardTaskListRenderer.renderTaskList,
   resolveUserLabel: (userId, users) => getDashboardUserLabel(userId, users),
   });
-let syncDashboardChatWidgetNotificationCursor = () => {};
 const dashboardRuntimeController = createDashboardRuntimeController({
 documentRef: document,
 win,

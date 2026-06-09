@@ -1965,6 +1965,7 @@ const {
   sendDashboardChatApiAction,
 } = dashboardChatApiDomainRuntime;
 normalizeDashboardApiMessage = resolvedNormalizeDashboardApiMessage;
+let updateDashboardMessageLocalStatus = () => {};
 const getIsCurrentPlatformUserAdmin = () => {
   if (typeof isCurrentPlatformUserAdmin === "function") {
     return isCurrentPlatformUserAdmin();
@@ -2335,8 +2336,9 @@ const {
   setDashboardChatReplyDraft: setDashboardChatReplyDraftFromRuntime,
   setDashboardChatPriorityDraft: setDashboardChatPriorityDraftFromRuntime,
   setDashboardChatConfirmAction: setDashboardChatConfirmActionFromRuntime,
-  updateDashboardMessageLocalStatus,
+  updateDashboardMessageLocalStatus: runtimeUpdateDashboardMessageLocalStatus = () => {},
 } = dashboardChatMessageActionsRuntime;
+updateDashboardMessageLocalStatus = runtimeUpdateDashboardMessageLocalStatus;
 
 function clearDashboardMessagesForThread(threadId, options = {}) {
   return dashboardChatMessageActionsRuntime?.clearDashboardMessagesForThread?.(threadId, options);

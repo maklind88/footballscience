@@ -587,10 +587,11 @@ currentUser?.id === task.assignedTo ||
 isCurrentPlatformUserAdmin(),
 });
 const dashboardHomeCardsRenderer = createDashboardHomeCardsRenderer({
-escapeHtml,
-renderTaskList: dashboardTaskListRenderer.renderTaskList,
-resolveUserLabel: (userId, users) => getDashboardUserLabel(userId, users),
-});
+  escapeHtml,
+  renderTaskList: dashboardTaskListRenderer.renderTaskList,
+  resolveUserLabel: (userId, users) => getDashboardUserLabel(userId, users),
+  });
+let syncDashboardChatWidgetNotificationCursor = () => {};
 const dashboardRuntimeController = createDashboardRuntimeController({
 documentRef: document,
 win,
@@ -1037,7 +1038,7 @@ let dashboardChatWidgetRuntimeFunctions = {
 let dashboardChatWidgetRuntime = null;
 
 const renderDashboardChatWidget = (...args) => dashboardChatWidgetRuntimeFunctions.renderDashboardChatWidget(...args);
-const syncDashboardChatWidgetNotificationCursor = (...args) =>
+syncDashboardChatWidgetNotificationCursor = (...args) =>
   dashboardChatWidgetRuntimeFunctions.syncDashboardChatWidgetNotificationCursor(...args);
 const showDashboardChatWidgetToast = (...args) => dashboardChatWidgetRuntimeFunctions.showDashboardChatWidgetToast(...args);
 const hideDashboardChatWidgetToast = (...args) => dashboardChatWidgetRuntimeFunctions.hideDashboardChatWidgetToast(...args);

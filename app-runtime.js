@@ -272,6 +272,12 @@ const { getVisibleWorkspaces } = createDashboardWorkspaceQueryEngine({
   ui,
   getVisibleWorkspacePool,
 });
+const platformRuntimePeriodizationRenderer = {
+  getDayScheduleLabel: (...args) => periodizationRenderer?.getDayScheduleLabel?.(...args),
+  getMatchDayLabel: (...args) => periodizationRenderer?.getMatchDayLabel?.(...args),
+  getMultiFieldValue: (...args) => periodizationRenderer?.getMultiFieldValue?.(...args),
+  getCustomFieldValue: (...args) => periodizationRenderer?.getCustomFieldValue?.(...args),
+};
 const {
   getPlatformFormValues,
   getPasswordValidationMessage,
@@ -286,7 +292,7 @@ const {
   getPlatformUsers,
   parseScheduleDateValue,
   formatScheduleDateValue,
-  periodizationRenderer,
+  periodizationRenderer: platformRuntimePeriodizationRenderer,
   readPlatformFormValues,
   getPlatformPasswordValidationMessage,
   stripPlatformPasswordConfirmation,
@@ -906,7 +912,6 @@ getSessionPlannerPlayerProfileContracts,
 getSessionPlannerPlayerProfileContract,
 buildPlayerProfileImportPlan,
 } = createSquadAppRuntimeComposition({
-compareMedicalPlayers,
 createDashboardId,
 ensurePlayerProfilesState,
 formatMedicalDateLabel: (...args) => formatMedicalDateLabel(...args),

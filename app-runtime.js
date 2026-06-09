@@ -209,10 +209,51 @@ upsertMedicalPlayers, addMedicalRecord, updateMedicalPlayerProfile, removeMedica
 addMedicalInjuryPlan, updateMedicalInjuryPlan, updateMedicalPlanClearance, removeMedicalInjuryPlan,
 openMedicalPlayerModal, closeMedicalPlayerModal, setMedicalSelectedDate, shiftMedicalSelectedDate,
 } = medicalRuntimeAccessors;
-const getElement = document.getElementById.bind(document);
 const win = window;
+const getElement = document.getElementById.bind(document);
 const ui = createPlatformUiBindings(document);
 const platformAssetVersion = win.__assetVersion || Date.now();
+const platformUserRuntimeService = createPlatformUserRuntimeService({
+  formatPlatformUserName,
+  getPlatformRoleLabel,
+  getPlatformUserInitials,
+  getPlatformUserProfileImageUrl,
+  getUserClubName,
+  getUserTeamName,
+  isLegacyPlatformStructureValue,
+  maxProfileImageUploadDataUrlLength,
+  maxProfileImageUrlLength,
+  normalizePlatformProfileImageUrl,
+  normalizePlatformStructureText,
+  win,
+});
+const {
+  formatUserName,
+  getAssignableRolesForUser,
+  getCurrentPlatformUser,
+  getPlatformApiAccessToken,
+  getPlatformAuthStore,
+  getPlatformRoles,
+  getPlatformUsers,
+  getRoleLabel,
+  getUserInitials,
+  getUserProfileImageUrl,
+  isCurrentPlatformUserAdmin,
+  isPlatformAdminUser,
+  isPlatformManagementUser,
+  isPlatformStaffUser,
+  isProfileMenuOpen,
+  normalizePlatformImageUrl,
+  normalizePlatformRole,
+  platformDefaultRoles,
+  platformManagementRoleSet,
+  platformStaffRoleSet,
+  setProfileMenuOpen,
+  syncAccountMenu,
+  syncPlatformUserFromAuth,
+  updatePlatformUserFromPayload,
+  withUiTimeout,
+} = platformUserRuntimeService;
 const dashboardPresenceHeartbeatMs = 60000;
 const dashboardPresencePollMs = 45000;
 const dashboardPresenceSteadyPushMinMs = 30000;
@@ -373,64 +414,23 @@ const dashboardChatAdvancedThreadTemplates = [
 { key: "training", label: "Training", type: "training", title: "Training Room", visibility: "members" },
 { key: "announcements", label: "Announcements", type: "announcement", title: "Announcements", visibility: "staff" },
 ];
-const platformUserRuntimeService = createPlatformUserRuntimeService({
-formatPlatformUserName,
-getPlatformRoleLabel,
-getPlatformUserInitials,
-getPlatformUserProfileImageUrl,
-getUserClubName,
-getUserTeamName,
-isLegacyPlatformStructureValue,
-maxProfileImageUploadDataUrlLength,
-maxProfileImageUrlLength,
-normalizePlatformProfileImageUrl,
-normalizePlatformStructureText,
-win,
-});
 const {
-formatUserName,
-getAssignableRolesForUser,
-getCurrentPlatformUser,
-getPlatformApiAccessToken,
-getPlatformAuthStore,
-getPlatformRoles,
-getPlatformUsers,
-getRoleLabel,
-getUserInitials,
-getUserProfileImageUrl,
-isCurrentPlatformUserAdmin,
-isPlatformAdminUser,
-isPlatformManagementUser,
-isPlatformStaffUser,
-isProfileMenuOpen,
-normalizePlatformImageUrl,
-normalizePlatformRole,
-platformDefaultRoles,
-platformManagementRoleSet,
-platformStaffRoleSet,
-setProfileMenuOpen,
-syncAccountMenu,
-syncPlatformUserFromAuth,
-updatePlatformUserFromPayload,
-withUiTimeout,
-} = platformUserRuntimeService;
-const {
-applyUserAvatar,
-getPlatformTeamLogoInitials,
-getPlatformTeamLogoUrl,
-renderPlatformTeamLogoMark,
-renderUserAvatar,
+  applyUserAvatar,
+  getPlatformTeamLogoInitials,
+  getPlatformTeamLogoUrl,
+  renderPlatformTeamLogoMark,
+  renderUserAvatar,
 } = createPlatformDisplayHelpers({
-escapeHtml,
-getUserInitials,
-getUserProfileImageUrl,
-normalizeImageUrl: normalizePlatformImageUrl,
-normalizeText: normalizePlatformStructureText,
+  escapeHtml,
+  getUserInitials,
+  getUserProfileImageUrl,
+  normalizeImageUrl: normalizePlatformImageUrl,
+  normalizeText: normalizePlatformStructureText,
 });
 platformUserRuntimeService.configureAccountMenu({
-applyUserAvatar,
-getPlatformStructureState,
-ui,
+  applyUserAvatar,
+  getPlatformStructureState,
+  ui,
 });
 const centralRuntimeFacade = createCentralRuntimeFacade({
 win,

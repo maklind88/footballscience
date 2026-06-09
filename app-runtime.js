@@ -2188,7 +2188,7 @@ const dashboardChatMessageActionsRuntime = createDashboardChatMessageActionsRunt
   setDashboardChatThreads: (nextThreads) => {
     dashboardChatApiThreads = Array.isArray(nextThreads) ? nextThreads : [];
   },
-  getDashboardComposerAttachmentDraft,
+  getDashboardComposerAttachmentDraft: getDashboardChatComposerAttachmentDraft,
   getDashboardChatReplyDraft: () => dashboardChatReplyDraft,
   getDashboardChatPriorityDraft: () => dashboardChatPriorityDraft,
   logDashboardChatApiFailure,

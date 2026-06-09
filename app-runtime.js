@@ -1852,6 +1852,7 @@ let dashboardChatThreadSettings = null;
 let readDashboardMessages = () => [];
 let normalizeDashboardApiMessage = (message = {}, thread = null) => ({ ...message, threadId: thread?.threadId || message?.threadId || "" });
 const resolveDashboardChatApiMessageForDomain = (...args) => normalizeDashboardApiMessage(...args);
+let mergeDashboardChatApiMessages = () => [];
 const dashboardChatDomainRuntime = createDashboardChatDomainRuntime({
   getCurrentPlatformUser,
   getPlatformUsers: () => getPlatformUsers(),
@@ -2164,8 +2165,9 @@ const {
   readDashboardMessages: runtimeReadDashboardMessages = () => [],
   rememberDashboardDeletedMessageId,
   writeDashboardMessages,
-  mergeDashboardChatApiMessages,
+  mergeDashboardChatApiMessages: runtimeMergeDashboardChatApiMessages = () => [],
 } = dashboardChatMessageRuntime;
+mergeDashboardChatApiMessages = runtimeMergeDashboardChatApiMessages;
 readDashboardMessages = runtimeReadDashboardMessages;
 const dashboardChatMessageActionsRuntime = createDashboardChatMessageActionsRuntime({
   dashboardChatTeamThreadId,

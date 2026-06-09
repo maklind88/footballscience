@@ -1964,6 +1964,15 @@ const {
   sendDashboardChatApiAction,
 } = dashboardChatApiDomainRuntime;
 normalizeDashboardApiMessage = resolvedNormalizeDashboardApiMessage;
+const getIsCurrentPlatformUserAdmin = () => {
+  if (typeof isCurrentPlatformUserAdmin === "function") {
+    return isCurrentPlatformUserAdmin();
+  }
+  if (typeof isPlatformAdminUser === "function") {
+    return isPlatformAdminUser();
+  }
+  return false;
+};
 
 dashboardChatApiRuntime = createDashboardChatApiRuntime({
   dashboardChatTeamThreadId,

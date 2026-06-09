@@ -1849,6 +1849,7 @@ uploadSquadTeamLogo,
 function renderAdminRoleOptions(actor, selectedRole = "coach") { return adminStructureRenderer.renderRoleOptions(actor, selectedRole); }
 function renderAdminTeamOptions(actor, structure, selectedTeamId = "") { return adminStructureRenderer.renderTeamOptions(actor, structure, selectedTeamId); }
 let dashboardChatThreadSettings = null;
+let readDashboardMessages = () => [];
 let normalizeDashboardApiMessage = (message = {}, thread = null) => ({ ...message, threadId: thread?.threadId || message?.threadId || "" });
 const resolveDashboardChatApiMessageForDomain = (...args) => normalizeDashboardApiMessage(...args);
 const dashboardChatDomainRuntime = createDashboardChatDomainRuntime({
@@ -2151,11 +2152,12 @@ const {
   isDashboardMessageRememberedDeleted,
   purgeDashboardDeletedMessagesFromStorage,
   readDashboardDeletedMessageIds,
-  readDashboardMessages,
+  readDashboardMessages: runtimeReadDashboardMessages = () => [],
   rememberDashboardDeletedMessageId,
   writeDashboardMessages,
   mergeDashboardChatApiMessages,
 } = dashboardChatMessageRuntime;
+readDashboardMessages = runtimeReadDashboardMessages;
 const dashboardChatMessageActionsRuntime = createDashboardChatMessageActionsRuntime({
   dashboardChatTeamThreadId,
   dashboardChatMaxMessageLength,

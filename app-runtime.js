@@ -213,6 +213,16 @@ const getElement = document.getElementById.bind(document);
 const win = window;
 const ui = createPlatformUiBindings(document);
 const platformAssetVersion = win.__assetVersion || Date.now();
+const dashboardPresenceHeartbeatMs = 60000;
+const dashboardPresencePollMs = 45000;
+const dashboardPresenceSteadyPushMinMs = 30000;
+const dashboardPresenceTypingPushMinMs = 5000;
+const dashboardPresenceTypingSendThrottleMs = 1800;
+const dashboardPresenceTypingTtlMs = 9000;
+const dashboardPresencePollMinMs = 30000;
+const dashboardPresenceIdleMs = 90000;
+const dashboardPresenceOnlineTtlMs = 85000;
+const dashboardPresenceAwayTtlMs = 6 * 60 * 1000;
 const { readDashboardJson, writeDashboardJson } = createDashboardJsonStorage({
   windowRef: win,
   logEvent,
@@ -2186,6 +2196,16 @@ const dashboardChatMessageActionsRuntime = createDashboardChatMessageActionsRunt
   writeDashboardMessages,
 });
 const dashboardChatPresenceRuntime = createDashboardChatPresenceRuntime({
+  dashboardPresenceHeartbeatMs,
+  dashboardPresencePollMs,
+  dashboardPresenceSteadyPushMinMs,
+  dashboardPresenceTypingPushMinMs,
+  dashboardPresenceTypingSendThrottleMs,
+  dashboardPresenceTypingTtlMs,
+  dashboardPresencePollMinMs,
+  dashboardPresenceIdleMs,
+  dashboardPresenceOnlineTtlMs,
+  dashboardPresenceAwayTtlMs,
   dashboardChatTeamThreadId,
   normalizeDashboardChatThreadId,
   getCurrentPlatformUser,

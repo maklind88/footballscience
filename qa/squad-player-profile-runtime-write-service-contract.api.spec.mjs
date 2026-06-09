@@ -156,6 +156,21 @@ test("Squad player profile write service preserves update behavior and nested st
   expect(harness.medicalSyncs).toHaveLength(1);
 });
 
+test("Squad player profile write service updates status fields", () => {
+  const harness = createHarness();
+  const result = harness.service.updatePlayerProfile({
+    playerId: "p1",
+    status: "managed",
+    squadStatus: "active",
+  });
+
+  expect(result).toMatchObject({ ok: true, player: { id: "p1", status: "managed", squadStatus: "active" } });
+  expect(harness.getState().players[0]).toMatchObject({
+    status: "managed",
+    squadStatus: "active",
+  });
+});
+
 test("Squad player profile write service preserves remove admin guard and Medical archive hook", () => {
   const readOnlyHarness = createHarness({ admin: false });
   expect(readOnlyHarness.service.removePlayerProfile("p1")).toBe(false);

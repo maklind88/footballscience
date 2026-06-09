@@ -440,9 +440,25 @@ export function createPlayerProfileHelpers(options = {}) {
 
   function comparePlayerProfiles(first, second) {
     const groupComparison = getPlayerProfileSquadSortGroup(first) - getPlayerProfileSquadSortGroup(second);
-    if (groupComparison !== 0) return groupComparison;
+    if (groupComparison !== 0) {
+      return groupComparison;
+    }
     const roleComparison = getPlayerProfileRoleSortIndex(first) - getPlayerProfileRoleSortIndex(second);
-    return roleComparison !== 0 ? roleComparison : comparePlayers(first, second);
+    if (roleComparison !== 0) {
+      return roleComparison;
+    }
+    const firstName = String(first?.name || "").trim();
+    const secondName = String(second?.name || "").trim();
+    const nameComparison = firstName.localeCompare(secondName);
+    if (nameComparison !== 0) {
+      return nameComparison;
+    }
+    const firstId = String(first?.id || "").trim();
+    const secondId = String(second?.id || "").trim();
+    if (firstId !== secondId) {
+      return firstId.localeCompare(secondId);
+    }
+    return comparePlayers(first, second);
   }
 
   function normalizePlayerProfileRemovedIds(value = []) {

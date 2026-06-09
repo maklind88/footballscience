@@ -259,6 +259,25 @@ test("Squad player profile runtime state service preserves clone/read/write beha
   expect(written.updatedAt).toBe("2026-05-31T11:14:00.000Z");
 });
 
+test("Squad player profile runtime state service respects legacy removedIds during clone", () => {
+  const storedState = {
+    schemaVersion: 2,
+    removedIds: ["legacy-1"],
+    players: [
+      { id: "legacy-1", name: "Legacy Removed", rosterType: "squad" },
+      { id: "active-1", name: "Active Player", rosterType: "squad" },
+    ],
+  };
+  const harness = createHarness({
+    storage: { "football-player-profiles-v1": JSON.stringify(storedState) },
+  });
+
+  const state = harness.service.readPlayerProfilesState();
+
+  expect(state.removedPlayerIds).toEqual(["legacy-1"]);
+  expect(state.players.map((player) => player.id)).toContain("active-1");
+});
+
 test("Squad player profile runtime state service preserves change-log and guest sync behavior", () => {
   const harness = createHarness({
     playerProfilesState: {

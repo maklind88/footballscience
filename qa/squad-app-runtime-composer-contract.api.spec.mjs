@@ -161,3 +161,20 @@ test("Squad app runtime composer sorts roster profiles by squad role order by de
 
   expect(ordered).toEqual(["gk", "rb", "cb", "cm", "rw", "st"]);
 });
+
+test("Squad app runtime composer keeps unknown-role squad members ordered by name as stable fallback", () => {
+  const composition = createCompositionWithDefaultComparator();
+  const ordered = composition.playerProfileRosterUiSelectors.getVisibleProfiles(
+    [
+      { id: "r-two", name: "Zara", primaryRole: "", roleGroup: "forward", rosterType: "squad", countsInSquad: true, number: "99", position: "Striker" },
+      { id: "r-one", name: "Adam", primaryRole: "", roleGroup: "forward", rosterType: "squad", countsInSquad: true, number: "11", position: "Striker" },
+      { id: "r-three", name: "Mia", primaryRole: "", roleGroup: "forward", rosterType: "squad", countsInSquad: true, number: "2", position: "Striker" },
+    ],
+    {
+      roleGroupFilter: "all",
+      rosterFilter: "all",
+    }
+  ).map((player) => player.id);
+
+  expect(ordered).toEqual(["r-one", "r-three", "r-two"]);
+});

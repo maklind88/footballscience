@@ -43,3 +43,19 @@
 .schedule-workspace.is-planner-view .schedule-planner-note-overlay{width:min(21.5rem,calc(100vw - 1.5rem))}
 @media (max-width:1180px){.schedule-workspace.is-planner-view .schedule-planner-grid{grid-template-columns:repeat(var(--schedule-planner-months,3),minmax(0,1fr))}}
 @media (max-width:760px){.schedule-workspace.is-planner-view .schedule-hero-card{padding:.8rem}.schedule-workspace.is-planner-view .schedule-title{font-size:2.25rem}.schedule-workspace.is-planner-view .schedule-planner-day{grid-template-columns:2.9rem minmax(0,1fr);min-height:1.24rem}.schedule-workspace.is-planner-view .schedule-planner-event-chip,.schedule-workspace.is-planner-view .schedule-planner-add,.schedule-workspace.is-planner-view .schedule-planner-edit{width:100%;flex-basis:100%}}
+
+/* Schedule toolbar stability */
+.schedule-toolbar{position:relative;display:grid;grid-template-columns:auto auto auto auto;align-items:center;gap:.5rem;min-height:3.42rem}
+.schedule-view-switch{display:grid;grid-template-columns:repeat(4,5.05rem);align-items:center;gap:.22rem}
+.schedule-view-button{width:100%;min-width:0;justify-content:center;white-space:nowrap}
+.schedule-nav-button{width:2.6rem;min-width:2.6rem}
+.schedule-today-button{width:5.1rem;min-width:5.1rem;padding-inline:.8rem;white-space:nowrap}
+.schedule-span-select{position:absolute;right:8.35rem;top:calc(100% + .45rem);z-index:25;box-shadow:0 12px 28px #1d1d1f17}
+.schedule-workspace.is-planner-view .schedule-toolbar{gap:.5rem;padding:.35rem}
+.schedule-workspace.is-planner-view .schedule-view-button{min-height:2.25rem;padding:0 .9rem;font-size:.84rem}
+.schedule-workspace.is-planner-view .schedule-nav-button,.schedule-workspace.is-planner-view .schedule-today-button{min-width:2.6rem;min-height:2.6rem}
+.schedule-workspace.is-planner-view .schedule-today-button{padding-inline:.8rem}
+.schedule-hero-card{padding:.72rem .92rem;border-radius:22px}
+.schedule-title{font-size:clamp(2rem,3.6vw,3.25rem);letter-spacing:-.045em}
+.schedule-hero-card:has(#scheduleOverviewSpanControl:not([hidden])){padding-bottom:calc(.72rem + 2.35rem)}
+@media (max-width:760px){.schedule-toolbar{width:100%;grid-template-columns:minmax(0,1fr) auto auto auto}.schedule-view-switch{grid-template-columns:repeat(4,minmax(0,1fr));width:100%}.schedule-view-button,.schedule-workspace.is-planner-view .schedule-view-button{padding:0 .38rem;font-size:.72rem}.schedule-today-button,.schedule-workspace.is-planner-view .schedule-today-button{width:4.7rem;min-width:4.7rem}.schedule-span-select{right:0;top:calc(100% + .38rem)}}

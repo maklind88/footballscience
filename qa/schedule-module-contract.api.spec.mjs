@@ -138,6 +138,77 @@ test("Schedule controller owns date navigation and shortcut clipboard wiring", (
   expect(state.events.map((event) => event.date)).toEqual(["2026-06-01", "2026-06-02"]);
 });
 
+test("Schedule controller remeasures planner width after the view becomes active", () => {
+  const state = createDefaultScheduleState(new Date(2026, 5, 1));
+  state.viewMode = "planner";
+  state.selectedYear = 2026;
+  state.selectedMonthIndex = 5;
+  state.selectedDate = "2026-06-01";
+
+  let renderCount = 0;
+  const rafCallbacks = new Map();
+  let nextFrameId = 1;
+  const ui = {
+    schedulePlannerGrid: {
+      clientWidth: 1280,
+      dataset: { months: "3" },
+      parentElement: { clientWidth: 1280 },
+    },
+    scheduleWorkspace: { clientWidth: 1280 },
+  };
+  const window = {
+    requestAnimationFrame(callback) {
+      const id = nextFrameId;
+      nextFrameId += 1;
+      rafCallbacks.set(id, callback);
+      return id;
+    },
+    cancelAnimationFrame(id) {
+      rafCallbacks.delete(id);
+    },
+  };
+  const flushAnimationFrame = () => {
+    const callbacks = Array.from(rafCallbacks.values());
+    rafCallbacks.clear();
+    callbacks.forEach((callback) => callback());
+  };
+
+  const controller = createScheduleWorkspaceController({
+    ui,
+    window,
+    renderer: {
+      getPlannerMonthCountForWidth: (width) => (width >= 1180 ? 4 : 3),
+      renderWorkspace() {
+        renderCount += 1;
+        ui.schedulePlannerGrid.dataset.months = renderCount === 1 ? "3" : "4";
+      },
+    },
+    getState: () => state,
+    ensureState: () => state,
+    canEdit: () => true,
+    canCreateSession: () => true,
+    isActive: () => true,
+    getEventsForDate: () => [],
+    getVisibleEvents: (events) => events,
+    getVisibleMonthEvents: () => [],
+    getSelectedDayContext: () => ({ sessionSnapshot: { hasSession: false, blocks: [], minutes: 0 } }),
+  });
+
+  controller.render();
+  expect(renderCount).toBe(1);
+
+  flushAnimationFrame();
+  expect(renderCount).toBe(1);
+
+  flushAnimationFrame();
+  expect(renderCount).toBe(2);
+  expect(ui.schedulePlannerGrid.dataset.months).toBe("4");
+
+  flushAnimationFrame();
+  flushAnimationFrame();
+  expect(renderCount).toBe(2);
+});
+
 test("Schedule actions preserve navigation, copy paste, and upsert behavior", () => {
   const state = createDefaultScheduleState(new Date(2026, 4, 7));
   expect(state.dayNotes).toEqual({});

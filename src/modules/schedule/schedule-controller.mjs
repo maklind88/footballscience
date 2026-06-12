@@ -80,6 +80,8 @@ export function createScheduleWorkspaceController(options = {}) {
   let plannerDragGhost = null;
   let suppressPlannerClick = false;
   let plannerResizeTimer = 0;
+  let plannerLayoutSyncFrame = 0;
+  let plannerLayoutSyncTimer = 0;
   let plannerClickTimer = 0;
   let dayPanelMode = "view";
   let isBound = false;
@@ -132,6 +134,72 @@ export function createScheduleWorkspaceController(options = {}) {
     return [2, 3, 4].includes(monthCount) ? monthCount : 3;
   }
 
+  function clearPlannerLayoutSync() {
+    if (plannerLayoutSyncFrame) {
+      win.cancelAnimationFrame?.(plannerLayoutSyncFrame);
+      plannerLayoutSyncFrame = 0;
+    }
+    if (plannerLayoutSyncTimer) {
+      win.clearTimeout?.(plannerLayoutSyncTimer);
+      plannerLayoutSyncTimer = 0;
+    }
+  }
+
+  function getPlannerLayoutWidth() {
+    const grid = ui.schedulePlannerGrid;
+    return (
+      Number(grid?.clientWidth) ||
+      Number(grid?.parentElement?.clientWidth) ||
+      Number(ui.scheduleWorkspace?.clientWidth) ||
+      0
+    );
+  }
+
+  function getExpectedPlannerVisibleMonthCount() {
+    const layoutWidth = getPlannerLayoutWidth();
+    if (!layoutWidth || typeof renderer.getPlannerMonthCountForWidth !== "function") {
+      return getPlannerVisibleMonthCount();
+    }
+    return renderer.getPlannerMonthCountForWidth(layoutWidth);
+  }
+
+  function runPlannerLayoutSync() {
+    plannerLayoutSyncFrame = 0;
+    plannerLayoutSyncTimer = 0;
+    const state = getState();
+    if (!isActive() || state?.viewMode !== "planner") {
+      return;
+    }
+    if (getExpectedPlannerVisibleMonthCount() !== getPlannerVisibleMonthCount()) {
+      render();
+    }
+  }
+
+  function schedulePlannerLayoutSync() {
+    clearPlannerLayoutSync();
+    const state = getState();
+    if (!isActive() || state?.viewMode !== "planner") {
+      return;
+    }
+    if (typeof win.requestAnimationFrame === "function") {
+      plannerLayoutSyncFrame = win.requestAnimationFrame(() => {
+        plannerLayoutSyncFrame = 0;
+        plannerLayoutSyncFrame =
+          typeof win.requestAnimationFrame === "function"
+            ? win.requestAnimationFrame(runPlannerLayoutSync)
+            : 0;
+        if (!plannerLayoutSyncFrame) {
+          runPlannerLayoutSync();
+        }
+      });
+      return;
+    }
+    plannerLayoutSyncTimer = win.setTimeout?.(runPlannerLayoutSync, 0) || 0;
+    if (!plannerLayoutSyncTimer) {
+      runPlannerLayoutSync();
+    }
+  }
+
   function render() {
     const state = ensureState();
     const canEditWorkspace = canEdit();
@@ -165,6 +233,7 @@ export function createScheduleWorkspaceController(options = {}) {
       getVisibleMonthEvents: options.getVisibleMonthEvents,
       isSessionEvent: options.isSessionEvent,
     });
+    schedulePlannerLayoutSync();
   }
 
   function scrollDateIntoView(dateValue) {

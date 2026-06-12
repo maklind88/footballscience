@@ -1,14 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang=en>
   <head>
     <meta charset=UTF-8>
     <meta name=viewport content="width=device-width,initial-scale=1">
     <meta http-equiv=Cache-Control content=no-store>
     <meta http-equiv=Pragma content=no-cache>
     <meta http-equiv=Expires content=0>
-    <title>Football Science Coaching Platform</title>
-    <link rel="icon" type="image/png" href="assets/football-science-mark.png">
-    <link rel="apple-touch-icon" href="assets/football-science-mark.png">
+    <title>Football Science Platform</title>
+    <link rel=icon type=image/png href=assets/football-science-mark.png>
+    <link rel=apple-touch-icon href=assets/football-science-mark.png>
     <style>
       body.is-booting{overflow:hidden}
       body.is-booting:before{
@@ -3146,6 +3146,4 @@
         const start=()=>{let w=!1;const f=async()=>{if(w||document.hidden)return;w=!0;try{await u(L)}finally{w=!1}};setInterval(f,n);addEventListener("visibilitychange",()=>{if(!document.hidden)f()})};
         Promise.all([window.platformAuthReadyPromise?.catch(()=>0),...["periodization-import-data.js","schedule-import-data.js"].map(q=>load(`${q}?v=${L}`))]).then(()=>import(`./app.js?v=${L}`).then(()=>{window.platformMarkAppReady?.();start()},err=>{document.body.dataset.appLoadError=err?.message||"Load failed";console.error(err)}));
       })();
-    </script>
-  </body>
-</html>
+    </script></body></html>

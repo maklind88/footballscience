@@ -388,6 +388,12 @@ export function createPlatformRuntimeServices(deps = {}) {
     isActive: () => getHubState()?.activeWorkspaceId === "schedule",
     isEditableKeyboardTarget,
     prepareRender: () => {
+      platformModuleLoader?.loadStylesheet?.("schedule", "src/modules/schedule/schedule.css", {
+        id: "scheduleStylesheet",
+        required: true,
+      })?.catch?.(() => {
+        logEvent?.("Schedule stylesheet could not load.");
+      });
       ensurePeriodizationState();
       if (!getSessionPlannerState()) {
         setSessionPlannerState(readSessionPlannerState());

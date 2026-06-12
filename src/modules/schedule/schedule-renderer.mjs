@@ -25,6 +25,12 @@ function formatScheduleMonthLabel(date) {
   }).format(date);
 }
 
+function formatSchedulePlannerWeekday(date) {
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+  }).format(date);
+}
+
 function getScheduleDateLabel(dateValue) {
   return new Intl.DateTimeFormat("en-GB", {
     weekday: "long",
@@ -200,6 +206,99 @@ ${escapeHtml(eventType.label)}
   `;
   }
 
+  function getScheduleMonthDates(year, monthIndex) {
+    const monthLength = new Date(year, monthIndex + 1, 0).getDate();
+    return Array.from({ length: monthLength }, (_, index) => new Date(year, monthIndex, index + 1));
+  }
+
+  function inferPlannerTone(events = []) {
+    const mainEvent = getMainEvent(events);
+    return mainEvent ? scheduleEventTypes[mainEvent.type]?.tone || "training" : "";
+  }
+
+  function renderPlannerEventChip(event, canEdit, isPlannerEditing = false) {
+    const eventType = scheduleEventTypes[event.type] ?? scheduleEventTypes.training;
+    const eventMeta = [event.time, event.note].filter(Boolean).join(" · ");
+    if (isPlannerEditing && canEdit) {
+      return `
+        <form class="schedule-planner-edit" data-schedule-planner-edit-event="${escapeHtml(event.id)}">
+          <input name="plannerTitle" type="text" autocomplete="off" value="${escapeHtml(event.title)}" aria-label="Edit ${escapeHtml(event.title)}" />
+        </form>
+      `;
+    }
+    const controls = canEdit
+      ? `
+        <span class="schedule-planner-event-actions">
+          <button type="button" data-planner-edit-schedule-event="${escapeHtml(event.id)}" aria-label="Edit ${escapeHtml(event.title)}">Edit</button>
+          <button type="button" data-planner-remove-schedule-event="${escapeHtml(event.id)}" aria-label="Remove ${escapeHtml(event.title)}">×</button>
+        </span>
+      `
+      : "";
+    return `
+      <span class="schedule-planner-event-chip is-${escapeHtml(eventType.tone)}" data-planner-event-id="${escapeHtml(event.id)}">
+        <span>
+          <strong>${escapeHtml(event.title)}</strong>
+          ${eventMeta ? `<small>${escapeHtml(eventMeta)}</small>` : ""}
+        </span>
+        ${controls}
+      </span>
+    `;
+  }
+
+  function renderPlannerDay(context, date) {
+    const { state, getEventsForDate, getVisibleEvents = (events) => events, canEdit } = context;
+    const dateValue = formatScheduleDateValue(date);
+    const selectedDateValue = state?.selectedDate || "";
+    const todayValue = formatScheduleDateValue(getNow());
+    const allEvents = getEventsForDate(dateValue);
+    const events = getVisibleEvents(allEvents);
+    const plannerEditingEventId = context.plannerEditingEventId || "";
+    const mainTone = inferPlannerTone(events);
+    const eventToneClass = mainTone ? ` is-main-${mainTone}` : "";
+    const isSelected = dateValue === selectedDateValue;
+    const isToday = dateValue === todayValue;
+    const weekdayLabel = formatSchedulePlannerWeekday(date);
+    const eventMarkup = events.length
+      ? events.map((event) => renderPlannerEventChip(event, canEdit, event.id === plannerEditingEventId)).join("")
+      : `<span class="schedule-planner-empty">No plan</span>`;
+    const addForm = canEdit
+      ? `
+        <form class="schedule-planner-add" data-schedule-planner-add-date="${escapeHtml(dateValue)}">
+          <input name="plannerTitle" type="text" autocomplete="off" placeholder="Add plan..." aria-label="Add plan for ${escapeHtml(getScheduleDateLabel(dateValue))}" />
+        </form>
+      `
+      : "";
+    return `
+      <article class="schedule-planner-day${isSelected ? " is-selected" : ""}${isToday ? " is-today" : ""}${events.length ? ` has-events${eventToneClass}` : ""}" data-schedule-date="${escapeHtml(dateValue)}">
+        <button type="button" class="schedule-planner-date" data-schedule-date="${escapeHtml(dateValue)}" aria-label="${escapeHtml(getScheduleDateLabel(dateValue))}">
+          <span>${escapeHtml(weekdayLabel)}</span>
+          <strong>${date.getDate()}</strong>
+        </button>
+        <div class="schedule-planner-events">
+          ${eventMarkup}
+          ${addForm}
+        </div>
+      </article>
+    `;
+  }
+
+  function renderPlannerMonth(context, monthDate) {
+    const monthLabel = formatScheduleMonthLabel(monthDate);
+    const dates = getScheduleMonthDates(monthDate.getFullYear(), monthDate.getMonth());
+    const monthEvents = context.getVisibleMonthEvents(monthDate.getFullYear(), monthDate.getMonth());
+    return `
+      <article class="schedule-planner-month">
+        <header>
+          <h3>${escapeHtml(monthLabel)}</h3>
+          ${renderOverviewLegend(monthEvents)}
+        </header>
+        <div class="schedule-planner-days">
+          ${dates.map((date) => renderPlannerDay(context, date)).join("")}
+        </div>
+      </article>
+    `;
+  }
+
   function renderWeekDay(context, date) {
     const { state, getEventsForDate, getVisibleEvents = (events) => events, getSessionForDate = () => null } = context;
     const dateValue = formatScheduleDateValue(date);
@@ -296,6 +395,15 @@ ${escapeHtml(eventType.label)}
     return `${formatScheduleMonthLabel(startDate)} - ${formatScheduleMonthLabel(endDate)}`;
   }
 
+  function getPlannerLabel(state) {
+    if (!state) {
+      return "Planner";
+    }
+    const startDate = new Date(state.selectedYear, state.selectedMonthIndex, 1);
+    const endDate = new Date(state.selectedYear, state.selectedMonthIndex + 1, 1);
+    return `${formatScheduleMonthLabel(startDate)} - ${formatScheduleMonthLabel(endDate)}`;
+  }
+
   function getWeekLabel(state) {
     const weekDates = getScheduleWeekDates(state?.selectedDate);
     const startDate = weekDates[0];
@@ -315,17 +423,26 @@ ${escapeHtml(eventType.label)}
     const selectedDateValue = state.selectedDate;
     const isOverview = state.viewMode === "overview";
     const isWeek = state.viewMode === "week";
+    const isPlanner = state.viewMode === "planner";
     const isEditingDay = dayPanelMode === "edit" && canEdit;
     const editingEvent = state.events.find((event) => event.id === editingEventId) ?? null;
 
-    ui.scheduleMonthTitle.textContent = isOverview ? getOverviewLabel(state) : isWeek ? getWeekLabel(state) : selectedMonthLabel;
+    ui.scheduleMonthTitle.textContent = isOverview
+      ? getOverviewLabel(state)
+      : isWeek
+        ? getWeekLabel(state)
+        : isPlanner
+          ? getPlannerLabel(state)
+          : selectedMonthLabel;
     ui.scheduleMonthTitle.hidden = false;
     ui.scheduleMonthViewButton?.classList.toggle("is-active", state.viewMode === "month");
     ui.scheduleWeekViewButton?.classList.toggle("is-active", isWeek);
     ui.scheduleOverviewViewButton?.classList.toggle("is-active", isOverview);
+    ui.schedulePlannerViewButton?.classList.toggle("is-active", isPlanner);
     ui.scheduleMonthViewButton?.setAttribute("aria-pressed", String(state.viewMode === "month"));
     ui.scheduleWeekViewButton?.setAttribute("aria-pressed", String(isWeek));
     ui.scheduleOverviewViewButton?.setAttribute("aria-pressed", String(isOverview));
+    ui.schedulePlannerViewButton?.setAttribute("aria-pressed", String(isPlanner));
 
     if (ui.scheduleOverviewSpanControl) {
       ui.scheduleOverviewSpanControl.hidden = !isOverview;
@@ -337,10 +454,10 @@ ${escapeHtml(eventType.label)}
       button.tabIndex = isOverview ? 0 : -1;
     });
     if (ui.scheduleWeekdays) {
-      ui.scheduleWeekdays.hidden = isOverview || isWeek;
+      ui.scheduleWeekdays.hidden = isOverview || isWeek || isPlanner;
     }
     if (ui.scheduleCalendarGrid) {
-      ui.scheduleCalendarGrid.hidden = isOverview || isWeek;
+      ui.scheduleCalendarGrid.hidden = isOverview || isWeek || isPlanner;
     }
     if (ui.scheduleWeekGrid) {
       ui.scheduleWeekGrid.hidden = !isWeek;
@@ -348,6 +465,9 @@ ${escapeHtml(eventType.label)}
     if (ui.scheduleOverviewGrid) {
       ui.scheduleOverviewGrid.hidden = !isOverview;
       ui.scheduleOverviewGrid.dataset.months = String(state.overviewSpan);
+    }
+    if (ui.schedulePlannerGrid) {
+      ui.schedulePlannerGrid.hidden = !isPlanner;
     }
 
     if (ui.scheduleEventDate) {
@@ -405,6 +525,10 @@ ${escapeHtml(eventType.label)}
       ui.scheduleOverviewGrid.innerHTML = Array.from({ length: state.overviewSpan }, (_, index) =>
         renderOverviewMonth(context, new Date(state.selectedYear, state.selectedMonthIndex + index, 1))
       ).join("");
+    } else if (isPlanner && ui.schedulePlannerGrid) {
+      ui.schedulePlannerGrid.innerHTML = Array.from({ length: 2 }, (_, index) =>
+        renderPlannerMonth(context, new Date(state.selectedYear, state.selectedMonthIndex + index, 1))
+      ).join("");
     } else if (isWeek && ui.scheduleWeekGrid) {
       ui.scheduleWeekGrid.innerHTML = getScheduleWeekDates(state.selectedDate).map((date) => renderWeekDay(context, date)).join("");
     } else {
@@ -425,6 +549,7 @@ ${escapeHtml(eventType.label)}
   return Object.freeze({
     getMonthGridDates: getScheduleMonthGridDates,
     getOverviewLabel,
+    getPlannerLabel,
     getWeekDates: getScheduleWeekDates,
     getWeekLabel,
     renderDayInsights,
@@ -433,6 +558,8 @@ ${escapeHtml(eventType.label)}
     renderMonthDay,
     renderOverviewLegend,
     renderOverviewMonth,
+    renderPlannerDay,
+    renderPlannerMonth,
     renderWeekDay,
     renderWorkspace,
   });

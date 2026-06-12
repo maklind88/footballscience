@@ -28,10 +28,38 @@ function getClosest(target, selector) {
   return target?.closest?.(selector) || null;
 }
 
+function inferScheduleTypeFromPlannerTitle(title = "", fallbackType = "training") {
+  const text = String(title).trim().toLowerCase();
+  if (!text) {
+    return fallbackType;
+  }
+  if (/\b(training|train|lift|gym|idp)\b/.test(text)) {
+    return "training";
+  }
+  if (/\b(match|game|fixture|vs|v)\b/.test(text) || /\s-\s/.test(text)) {
+    return "match";
+  }
+  if (/\b(travel|departure|depart|flight|bus|hotel|resa|resor)\b/.test(text)) {
+    return "travel";
+  }
+  if (/\b(recovery|recover|regen)\b/.test(text)) {
+    return "recovery";
+  }
+  if (/\b(meeting|meet|video|analysis)\b/.test(text)) {
+    return "meeting";
+  }
+  if (/\b(off|ledig)\b/.test(text)) {
+    return "off";
+  }
+  return fallbackType;
+}
+
 export function createScheduleWorkspaceController(options = {}) {
-  const ui = options.ui || {};
+  const ui = { ...(options.ui || {}) };
   const win = options.window || globalThis.window || {};
   const doc = options.document || globalThis.document || null;
+  ui.schedulePlannerViewButton = ui.schedulePlannerViewButton || doc?.getElementById?.("schedulePlannerViewButton") || null;
+  ui.schedulePlannerGrid = ui.schedulePlannerGrid || doc?.getElementById?.("schedulePlannerGrid") || null;
   const renderer = options.renderer || createScheduleWorkspaceRenderer(options.rendererOptions);
   const isEditableKeyboardTarget =
     typeof options.isEditableKeyboardTarget === "function"
@@ -40,6 +68,7 @@ export function createScheduleWorkspaceController(options = {}) {
 
   let clipboard = null;
   let editingEventId = "";
+  let plannerEditingEventId = "";
   let dayPanelMode = "view";
   let isBound = false;
 
@@ -86,6 +115,7 @@ export function createScheduleWorkspaceController(options = {}) {
       state,
       clipboard,
       editingEventId,
+      plannerEditingEventId,
       dayPanelMode,
       canEdit: canEditWorkspace,
       canCreateSession: Boolean(options.canCreateSession?.()),
@@ -106,7 +136,9 @@ export function createScheduleWorkspaceController(options = {}) {
         ? ui.scheduleOverviewGrid
         : state?.viewMode === "week"
           ? ui.scheduleWeekGrid
-          : ui.scheduleCalendarGrid;
+          : state?.viewMode === "planner"
+            ? ui.schedulePlannerGrid
+            : ui.scheduleCalendarGrid;
     if (!root || !dateValue) {
       return;
     }
@@ -163,6 +195,7 @@ export function createScheduleWorkspaceController(options = {}) {
     }
     dayPanelMode = "view";
     editingEventId = "";
+    plannerEditingEventId = "";
     selectScheduleStateDate(state, dateValue, selectOptions);
     writeState({ syncCentral: false });
     render();
@@ -224,6 +257,7 @@ export function createScheduleWorkspaceController(options = {}) {
       return;
     }
     editingEventId = event.id;
+    plannerEditingEventId = "";
     dayPanelMode = "edit";
     writeState({ syncCentral: false });
     render();
@@ -231,6 +265,7 @@ export function createScheduleWorkspaceController(options = {}) {
 
   function clearEventEditor({ returnToView = false } = {}) {
     editingEventId = "";
+    plannerEditingEventId = "";
     if (returnToView) {
       dayPanelMode = "view";
     }
@@ -250,6 +285,7 @@ export function createScheduleWorkspaceController(options = {}) {
     if (dayPanelMode === "view") {
       editingEventId = "";
     }
+    plannerEditingEventId = "";
     render();
   }
 
@@ -262,8 +298,115 @@ export function createScheduleWorkspaceController(options = {}) {
     if (editingEventId === eventId) {
       editingEventId = "";
     }
+    if (plannerEditingEventId === eventId) {
+      plannerEditingEventId = "";
+    }
     writeState();
     render();
+  }
+
+  function removePlannerEvent(eventId) {
+    const state = getState();
+    if (!state || !canEdit()) {
+      return;
+    }
+    removeScheduleEventById(state, eventId);
+    if (editingEventId === eventId) {
+      editingEventId = "";
+      dayPanelMode = "view";
+    }
+    if (plannerEditingEventId === eventId) {
+      plannerEditingEventId = "";
+    }
+    writeState();
+    render();
+  }
+
+  function focusPlannerEditor(eventId) {
+    const run = () => {
+      const input = ui.schedulePlannerGrid?.querySelector?.(`[data-schedule-planner-edit-event="${eventId}"] input`);
+      input?.focus?.();
+      input?.select?.();
+    };
+    if (typeof win.requestAnimationFrame === "function") {
+      win.requestAnimationFrame(run);
+      return;
+    }
+    run();
+  }
+
+  function startPlannerInlineEdit(eventId) {
+    const state = getState();
+    if (!state || !canEdit() || !eventId) {
+      return;
+    }
+    const event = state.events.find((item) => item.id === eventId);
+    if (!event) {
+      return;
+    }
+    editingEventId = "";
+    plannerEditingEventId = event.id;
+    dayPanelMode = "view";
+    selectScheduleStateDate(state, event.date, { keepOverviewWindow: true });
+    writeState({ syncCentral: false });
+    render();
+    focusPlannerEditor(event.id);
+  }
+
+  function savePlannerEvent(eventId, title) {
+    const state = getState();
+    const event = state?.events?.find?.((item) => item.id === eventId);
+    const cleanTitle = String(title || "").trim();
+    if (!state || !event || !canEdit() || !cleanTitle) {
+      return false;
+    }
+    const result = upsertScheduleEventFromValues(
+      state,
+      {
+        date: event.date,
+        time: event.time,
+        type: inferScheduleTypeFromPlannerTitle(cleanTitle, event.type),
+        title: cleanTitle,
+        note: event.note,
+      },
+      event.id
+    );
+    if (!result.changed) {
+      return false;
+    }
+    plannerEditingEventId = "";
+    editingEventId = "";
+    dayPanelMode = "view";
+    writeState();
+    render();
+    return true;
+  }
+
+  function addPlannerEvent(dateValue, title) {
+    const state = getState();
+    const cleanTitle = String(title || "").trim();
+    if (!state || !canEdit() || !dateValue || !cleanTitle) {
+      return false;
+    }
+    const result = upsertScheduleEventFromValues(
+      state,
+      {
+        date: dateValue,
+        time: "",
+        type: inferScheduleTypeFromPlannerTitle(cleanTitle, "training"),
+        title: cleanTitle,
+        note: "",
+      },
+      ""
+    );
+    if (!result.changed) {
+      return false;
+    }
+    dayPanelMode = "view";
+    editingEventId = "";
+    writeState();
+    render();
+    return true;
   }
 
   function submitEventForm(event) {
@@ -337,6 +480,79 @@ export function createScheduleWorkspaceController(options = {}) {
     removeEvent(removeTrigger.dataset.removeScheduleEvent);
   }
 
+  function handlePlannerClick(event) {
+    const removeTrigger = getClosest(event.target, "[data-planner-remove-schedule-event]");
+    if (removeTrigger) {
+      event.preventDefault?.();
+      removePlannerEvent(removeTrigger.dataset.plannerRemoveScheduleEvent);
+      return;
+    }
+
+    const editTrigger = getClosest(event.target, "[data-planner-edit-schedule-event]");
+    if (editTrigger) {
+      event.preventDefault?.();
+      startPlannerInlineEdit(editTrigger.dataset.plannerEditScheduleEvent);
+      return;
+    }
+
+    if (getClosest(event.target, ".schedule-planner-add")) {
+      return;
+    }
+
+    const dateTrigger = getClosest(event.target, "[data-schedule-date]");
+    if (dateTrigger) {
+      selectDate(dateTrigger.dataset.scheduleDate);
+    }
+  }
+
+  function handlePlannerDblClick(event) {
+    if (getClosest(event.target, ".schedule-planner-add, .schedule-planner-edit, button")) {
+      return;
+    }
+    const chip = getClosest(event.target, "[data-planner-event-id]");
+    if (!chip) {
+      return;
+    }
+    event.preventDefault?.();
+    startPlannerInlineEdit(chip.dataset.plannerEventId);
+  }
+
+  function handlePlannerSubmit(event) {
+    const editForm = getClosest(event.target, "[data-schedule-planner-edit-event]");
+    if (editForm) {
+      event.preventDefault?.();
+      const input = editForm.querySelector?.("[name='plannerTitle']");
+      savePlannerEvent(editForm.dataset.schedulePlannerEditEvent, input?.value);
+      return;
+    }
+
+    const form = getClosest(event.target, "[data-schedule-planner-add-date]");
+    if (!form) {
+      return;
+    }
+    event.preventDefault?.();
+    const input = form.querySelector?.("[name='plannerTitle']");
+    addPlannerEvent(form.dataset.schedulePlannerAddDate, input?.value);
+  }
+
+  function handlePlannerKeydown(event) {
+    if (event.key !== "Escape") {
+      return;
+    }
+    const editInput = getClosest(event.target, ".schedule-planner-edit input");
+    if (editInput) {
+      plannerEditingEventId = "";
+      render();
+      return;
+    }
+    const input = getClosest(event.target, ".schedule-planner-add input");
+    if (!input) {
+      return;
+    }
+    input.value = "";
+    input.blur?.();
+  }
+
   function handleDocumentKeydown(event) {
     const key = String(event.key || "").toLowerCase();
     const isCopyShortcut = (event.metaKey || event.ctrlKey) && key === "c";
@@ -401,12 +617,17 @@ export function createScheduleWorkspaceController(options = {}) {
     ui.scheduleMonthViewButton?.addEventListener?.("click", () => setViewMode("month"));
     ui.scheduleWeekViewButton?.addEventListener?.("click", () => setViewMode("week"));
     ui.scheduleOverviewViewButton?.addEventListener?.("click", () => setViewMode("overview"));
+    ui.schedulePlannerViewButton?.addEventListener?.("click", () => setViewMode("planner"));
     ui.scheduleOverviewSpanButtons?.forEach?.((button) => {
       button.addEventListener?.("click", () => setOverviewSpan(button.dataset.scheduleSpan));
     });
     ui.scheduleCalendarGrid?.addEventListener?.("click", handleDateGridClick);
     ui.scheduleOverviewGrid?.addEventListener?.("click", handleDateGridClick);
     ui.scheduleWeekGrid?.addEventListener?.("click", handleDateGridClick);
+    ui.schedulePlannerGrid?.addEventListener?.("click", handlePlannerClick);
+    ui.schedulePlannerGrid?.addEventListener?.("dblclick", handlePlannerDblClick);
+    ui.schedulePlannerGrid?.addEventListener?.("submit", handlePlannerSubmit);
+    ui.schedulePlannerGrid?.addEventListener?.("keydown", handlePlannerKeydown);
     ui.scheduleDayCard?.addEventListener?.("click", handleDayCardClick);
     ui.scheduleEventList?.addEventListener?.("click", handleEventListClick);
     ui.scheduleCopyDayButton?.addEventListener?.("click", copySelectedDay);

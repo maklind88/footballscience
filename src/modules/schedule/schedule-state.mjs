@@ -20,7 +20,7 @@ export {
   scheduleStorageKey,
 };
 
-export const scheduleViewModes = Object.freeze(["month", "week", "overview"]);
+export const scheduleViewModes = Object.freeze(["month", "week", "overview", "planner"]);
 
 function normalizeText(value) {
   return String(value ?? "").trim();

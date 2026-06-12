@@ -80,9 +80,52 @@ export function createPlayerProfileRuntimeMedicalSyncService(options = {}) {
     }
   }
 
+  function getActiveSquadProfiles() {
+    try {
+      const profileState = options.ensurePlayerProfilesState();
+      return (Array.isArray(profileState?.players) ? profileState.players : [])
+        .filter((player) => !options.isMedicalItemArchived(player))
+        .filter((player) => player.countsInSquad !== false && String(player.rosterType || "squad").trim() === "squad");
+    } catch {
+      return [];
+    }
+  }
+
+  function getMedicalPlayerProfileIdentity(player = {}) {
+    const id = String(player?.id || player?.playerId || player?.profileId || "").trim();
+    const name = options.normalizePlayerProfileName(player?.name || player?.displayName || "");
+    const number = String(player?.number || player?.shirtNumber || player?.shirt_number || "").trim().toLowerCase();
+    return { id, name, number };
+  }
+
+  function hasActiveSquadProfileMatch(player = {}) {
+    const identity = getMedicalPlayerProfileIdentity(player);
+    const activeProfiles = getActiveSquadProfiles();
+    if (!activeProfiles.length || !identity.name) {
+      return true;
+    }
+    if (identity.id && activeProfiles.some((profile) => getMedicalPlayerProfileIdentity(profile).id === identity.id)) {
+      return true;
+    }
+    const nameMatches = activeProfiles.filter((profile) => getMedicalPlayerProfileIdentity(profile).name === identity.name);
+    if (!nameMatches.length) {
+      return false;
+    }
+    if (identity.number) {
+      return nameMatches.some((profile) => getMedicalPlayerProfileIdentity(profile).number === identity.number);
+    }
+    return nameMatches.length === 1;
+  }
+
   function isMedicalPlayerRemovedFromSquad(player = {}, removedPlayerIdSet = getMedicalRemovedSquadPlayerIdSet()) {
-    const playerId = String(player?.id || player?.playerId || player?.profileId || "").trim();
-    return Boolean(playerId && removedPlayerIdSet.has(playerId));
+    const identity = getMedicalPlayerProfileIdentity(player);
+    if (identity.id && removedPlayerIdSet.has(identity.id)) {
+      return true;
+    }
+    if (!hasActiveSquadProfileMatch(player)) {
+      return true;
+    }
+    return false;
   }
 
   function archiveMedicalPlayersRemovedFromSquad(archiveOptions = {}) {
@@ -92,12 +135,19 @@ export function createPlayerProfileRuntimeMedicalSyncService(options = {}) {
     }
     const previousSelectedPlayerId = String(medicalState.selectedPlayerId || "").trim();
     const removedPlayerIdSet = getMedicalRemovedSquadPlayerIdSet();
-    if (!removedPlayerIdSet.size) {
+    const activeSquadProfiles = getActiveSquadProfiles();
+    if (!removedPlayerIdSet.size && !activeSquadProfiles.length) {
       return [];
     }
-    const activeRemovedPlayers = medicalState.players.filter(
-      (player) => isMedicalPlayerRemovedFromSquad(player, removedPlayerIdSet) && !options.isMedicalItemArchived(player)
-    );
+    const activeRemovedPlayers = medicalState.players.filter((player) => {
+      if (options.isMedicalItemArchived(player)) {
+        return false;
+      }
+      if (isMedicalPlayerRemovedFromSquad(player, removedPlayerIdSet)) {
+        return true;
+      }
+      return !hasActiveSquadProfileMatch(player);
+    });
     if (!activeRemovedPlayers.length) {
       return [];
     }

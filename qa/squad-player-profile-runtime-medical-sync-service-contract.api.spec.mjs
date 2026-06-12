@@ -136,6 +136,46 @@ test("Squad player profile Medical sync service matches and archives removed squ
   expect(harness.writes).toEqual(["medical"]);
 });
 
+test("Squad player profile Medical sync service archives stale Medical players outside active Squad", () => {
+  const harness = createHarness({
+    playerProfilesState: {
+      removedPlayerIds: [],
+      players: [
+        { id: "p1", name: "Active Player", number: "10", rosterType: "squad", countsInSquad: true },
+        { id: "p3", name: "Other Squad Player", number: "11", rosterType: "squad", countsInSquad: true },
+      ],
+    },
+    medicalState: {
+      selectedPlayerId: "legacy-cortnee",
+      players: [
+        { id: "p1", name: "Active Player", number: "10" },
+        { id: "legacy-cortnee", name: "Cortnee Vine", number: "" },
+      ],
+      records: [{ id: "r1", playerId: "legacy-cortnee", comment: "Old recommendation" }],
+      injuryPlans: [{ id: "plan1", playerId: "legacy-cortnee", injuryType: "Old plan" }],
+    },
+  });
+
+  expect(harness.service.isMedicalPlayerRemovedFromSquad({ id: "legacy-cortnee", name: "Cortnee Vine" })).toBe(true);
+  expect(harness.service.isMedicalPlayerRemovedFromSquad({ id: "p1", name: "Active Player", number: "10" })).toBe(false);
+
+  const archived = harness.service.archiveMedicalPlayersRemovedFromSquad();
+  expect(archived.map((player) => player.id)).toEqual(["legacy-cortnee"]);
+  expect(harness.getMedicalState().players.find((player) => player.id === "legacy-cortnee")).toMatchObject({
+    archivedAt: "2026-05-31T11:14:00.000Z",
+    archiveReason: "Removed from Squad Room",
+  });
+  expect(harness.getMedicalState().records[0]).toMatchObject({
+    archivedAt: "2026-05-31T11:14:00.000Z",
+    archiveReason: "Player removed from Squad Room",
+  });
+  expect(harness.getMedicalState().injuryPlans[0]).toMatchObject({
+    archivedAt: "2026-05-31T11:14:00.000Z",
+    archiveReason: "Player removed from Squad Room",
+  });
+  expect(harness.getMedicalState().selectedPlayerId).toBe("p1");
+});
+
 test("Squad player profile Medical sync service archives direct profile removals with clinical commit", () => {
   const harness = createHarness({
     playerProfilesState: { removedPlayerIds: [] },

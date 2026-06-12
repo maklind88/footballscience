@@ -392,7 +392,7 @@ ${escapeHtml(eventType.label)}
       return "Planner";
     }
     const startDate = new Date(state.selectedYear, state.selectedMonthIndex, 1);
-    const endDate = new Date(state.selectedYear, state.selectedMonthIndex + 1, 1);
+    const endDate = new Date(state.selectedYear, state.selectedMonthIndex + 2, 1);
     return `${formatScheduleMonthLabel(startDate)} - ${formatScheduleMonthLabel(endDate)}`;
   }
 
@@ -520,7 +520,7 @@ ${escapeHtml(eventType.label)}
         renderOverviewMonth(context, new Date(state.selectedYear, state.selectedMonthIndex + index, 1))
       ).join("");
     } else if (isPlanner && ui.schedulePlannerGrid) {
-      ui.schedulePlannerGrid.innerHTML = Array.from({ length: 2 }, (_, index) =>
+      ui.schedulePlannerGrid.innerHTML = Array.from({ length: 3 }, (_, index) =>
         renderPlannerMonth(context, new Date(state.selectedYear, state.selectedMonthIndex + index, 1))
       ).join("");
     } else if (isWeek && ui.scheduleWeekGrid) {

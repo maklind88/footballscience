@@ -537,6 +537,10 @@ export function createScheduleWorkspaceController(options = {}) {
       return;
     }
 
+    if (getClosest(event.target, "[data-planner-event-id]")) {
+      return;
+    }
+
     const dateTrigger = getClosest(event.target, "[data-schedule-date]");
     if (dateTrigger) {
       selectDate(dateTrigger.dataset.scheduleDate);
@@ -544,7 +548,7 @@ export function createScheduleWorkspaceController(options = {}) {
   }
 
   function handlePlannerDblClick(event) {
-    if (getClosest(event.target, ".schedule-planner-add, .schedule-planner-edit, button")) {
+    if (getClosest(event.target, ".schedule-planner-add, .schedule-planner-edit")) {
       return;
     }
     const chip = getClosest(event.target, "[data-planner-event-id]");

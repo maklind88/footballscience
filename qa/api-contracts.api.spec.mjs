@@ -1288,6 +1288,207 @@ test("app-state keeps removed Squad players hidden when a fresh client tries to 
   }
 });
 
+test("app-state keeps guest roster classification when availability status changes", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const existingSquadState = {
+    selectedPlayerId: "erin-guest",
+    players: [
+      {
+        id: "erin-guest",
+        name: "Erin Guest",
+        primaryRole: "ST",
+        roleGroup: "forward",
+        status: "available",
+        rosterType: "guest",
+        countsInSquad: false,
+        temporaryGroup: "Training guest",
+        temporaryFrom: "2026-06-10",
+        temporaryTo: "2026-06-14",
+        updatedAt: "2026-06-10T12:00:00.000Z",
+      },
+    ],
+    changeLog: [],
+    updatedAt: "2026-06-10T12:00:00.000Z",
+  };
+  const statusSaveWithDefaultRoster = {
+    selectedPlayerId: "erin-guest",
+    players: [
+      {
+        id: "erin-guest",
+        name: "Erin Guest",
+        primaryRole: "ST",
+        roleGroup: "forward",
+        status: "vacation",
+        rosterType: "squad",
+        countsInSquad: true,
+        temporaryGroup: "",
+        temporaryFrom: "",
+        temporaryTo: "",
+        updatedAt: "2026-06-10T12:05:00.000Z",
+      },
+    ],
+    changeLog: [
+      {
+        id: "change-vacation",
+        type: "profile-updated",
+        playerId: "erin-guest",
+        playerName: "Erin Guest",
+        summary: "Erin Guest updated: Availability status",
+        changes: [{ field: "Availability status", from: "Available", to: "Vacation" }],
+        createdAt: "2026-06-10T12:05:01.000Z",
+      },
+    ],
+    updatedAt: "2026-06-10T12:05:00.000Z",
+  };
+  const storage = createAppStateFetchMock(
+    {
+      [workspaceHubPath]: createAppStateStorageEntry(workspaceHubKey, {
+        workspaceAccess: {
+          "player-profiles": { view: ["admin", "coach"], edit: ["admin", "coach"] },
+        },
+      }),
+      [playerProfilesPath]: {
+        ...createAppStateStorageEntry(playerProfilesKey, existingSquadState),
+        revision: 2,
+      },
+    },
+    "coach"
+  );
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        key: playerProfilesKey,
+        value: JSON.stringify(statusSaveWithDefaultRoster),
+        metadata: { baseRevision: 2 },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload.merged).toBe(true);
+    const syncedPlayer = JSON.parse(response.payload.value).players[0];
+    expect(syncedPlayer).toMatchObject({
+      status: "vacation",
+      rosterType: "guest",
+      countsInSquad: false,
+      temporaryGroup: "Training guest",
+      temporaryFrom: "2026-06-10",
+      temporaryTo: "2026-06-14",
+    });
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state keeps removed Squad players hidden when later snapshots use a different id", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const existingSquadState = {
+    selectedPlayerId: "player-kept",
+    removedPlayerIds: ["cortnee-vine-old"],
+    players: [
+      {
+        id: "player-kept",
+        name: "Kept Player",
+        primaryRole: "GK",
+        roleGroup: "goalkeeper",
+        updatedAt: "2026-06-10T12:00:00.000Z",
+      },
+    ],
+    changeLog: [
+      {
+        id: "change-remove-cortnee",
+        type: "player-removed",
+        playerId: "cortnee-vine-old",
+        playerName: "Cortnee Vine",
+        summary: "Cortnee Vine removed from Squad",
+        changes: [{ field: "Squad status", from: "Squad depth", to: "Removed" }],
+        createdAt: "2026-06-10T12:00:01.000Z",
+      },
+    ],
+    updatedAt: "2026-06-10T12:00:00.000Z",
+  };
+  const incomingDefaultSnapshot = {
+    selectedPlayerId: "cortnee-vine-new",
+    removedPlayerIds: [],
+    players: [
+      {
+        id: "cortnee-vine-new",
+        name: "Cortnee Vine",
+        primaryRole: "RW",
+        roleGroup: "forward",
+        updatedAt: "2026-06-10T12:05:00.000Z",
+      },
+      {
+        id: "player-kept",
+        name: "Kept Player",
+        primaryRole: "GK",
+        roleGroup: "goalkeeper",
+        updatedAt: "2026-06-10T12:05:00.000Z",
+      },
+    ],
+    updatedAt: "2026-06-10T12:05:00.000Z",
+  };
+  const storage = createAppStateFetchMock(
+    {
+      [workspaceHubPath]: createAppStateStorageEntry(workspaceHubKey, {
+        workspaceAccess: {
+          "player-profiles": { view: ["admin", "coach"], edit: ["admin", "coach"] },
+        },
+      }),
+      [playerProfilesPath]: {
+        ...createAppStateStorageEntry(playerProfilesKey, existingSquadState),
+        revision: 2,
+      },
+    },
+    "coach"
+  );
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer test-access-token",
+      },
+      body: JSON.stringify({
+        key: playerProfilesKey,
+        value: JSON.stringify(incomingDefaultSnapshot),
+        metadata: { baseRevision: 2 },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload.merged).toBe(true);
+    const syncedState = JSON.parse(response.payload.value);
+    expect(syncedState.players.map((player) => player.name)).toEqual(["Kept Player"]);
+    expect(syncedState.removedPlayerIds).toContain("cortnee-vine-old");
+    expect(syncedState.selectedPlayerId).toBe("player-kept");
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
 test("app-state preserves Squad position when a stale role save carries older player fields", async () => {
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;

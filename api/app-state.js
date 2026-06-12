@@ -1300,6 +1300,22 @@ const PLAYER_PROFILE_EXPLICIT_CHANGE_FIELDS = new Set([
   "idp.nextAction",
   "idp.reviewDate",
 ]);
+const PLAYER_PROFILE_ROSTER_CLASSIFICATION_FIELDS = new Set([
+  "rosterType",
+  "countsInSquad",
+  "temporaryGroup",
+  "temporaryFrom",
+  "temporaryTo",
+]);
+const PLAYER_PROFILE_REMOVAL_TYPES = new Set([
+  "player-removed",
+  "player-deleted",
+  "player-archived",
+]);
+const PLAYER_PROFILE_RESTORE_TYPES = new Set([
+  "player-added",
+  "player-restored",
+]);
 const PLAYER_PROFILE_CHANGE_VALUE_ALIASES = Object.freeze({
   status: {
     available: "available",
@@ -1468,6 +1484,10 @@ function preserveExplicitPlayerProfileFields(existingState = {}, incomingState =
     }
 
     const incomingValue = getNestedPlayerProfileValue(incomingPlayer, path);
+    if (PLAYER_PROFILE_ROSTER_CLASSIFICATION_FIELDS.has(path) && hasNestedPlayerProfilePath(existingPlayer, path)) {
+      setNestedPlayerProfileValue(protectedPlayer, path, getNestedPlayerProfileValue(existingPlayer, path));
+      return;
+    }
     if (hasNestedPlayerProfilePath(existingPlayer, path) && !hasPlayerProfileValue(incomingValue)) {
       setNestedPlayerProfileValue(protectedPlayer, path, getNestedPlayerProfileValue(existingPlayer, path));
     }
@@ -1507,6 +1527,37 @@ function getPlayerProfileChangeLogKey(entry = {}) {
   return createdAt || playerId || summary ? `fallback:${createdAt}:${playerId}:${summary}` : "";
 }
 
+function normalizePlayerProfileIdentityName(value = "") {
+  return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function getPlayerProfileIdentityKeys(source = {}) {
+  if (typeof source === "string") {
+    const id = String(source || "").trim();
+    return id ? [`id:${id}`] : [];
+  }
+
+  const keys = [];
+  const id = String(source?.id || source?.playerId || "").trim();
+  if (id) {
+    keys.push(`id:${id}`);
+  }
+
+  const name = normalizePlayerProfileIdentityName(source?.name || source?.playerName);
+  if (name) {
+    keys.push(`name:${name}`);
+  }
+
+  return keys;
+}
+
+function getPlayerProfileChangeLogIdentityKeys(entry = {}) {
+  return getPlayerProfileIdentityKeys({
+    id: entry?.playerId,
+    playerName: entry?.playerName,
+  });
+}
+
 function normalizePlayerProfileChangeLog(entries = []) {
   return (Array.isArray(entries) ? entries : [])
     .filter((entry) => entry && typeof entry === "object" && !Array.isArray(entry))
@@ -1532,31 +1583,70 @@ function mergePlayerProfileChangeLog(existingEntries = [], incomingEntries = [])
 }
 
 function getPlayerProfileLifecycleChangeTime(entries = [], playerId = "", types = []) {
-  const normalizedPlayerId = String(playerId || "").trim();
-  const typeSet = new Set(types);
-  if (!normalizedPlayerId || !typeSet.size) {
+  return getPlayerProfileLifecycleChangeTimeForKeys(entries, getPlayerProfileIdentityKeys(playerId), types);
+}
+
+function getPlayerProfileLifecycleChangeTimeForKeys(entries = [], identityKeys = [], types = []) {
+  const keySet = new Set(identityKeys);
+  const typeSet = types instanceof Set ? types : new Set(types);
+  if (!keySet.size || !typeSet.size) {
     return 0;
   }
 
   return normalizePlayerProfileChangeLog(entries).reduce((latestTime, entry) => {
-    if (String(entry?.playerId || "").trim() !== normalizedPlayerId || !typeSet.has(String(entry?.type || "").trim())) {
+    if (!typeSet.has(String(entry?.type || "").trim())) {
+      return latestTime;
+    }
+    if (!getPlayerProfileChangeLogIdentityKeys(entry).some((key) => keySet.has(key))) {
       return latestTime;
     }
     return Math.max(latestTime, getPlayerProfileChangeLogTimestamp(entry));
   }, 0);
 }
 
-function incomingStateExplicitlyRestoresRemovedPlayer(existingState = {}, incomingState = {}, playerId = "") {
-  const existingRemovalTime = getPlayerProfileLifecycleChangeTime(existingState.changeLog, playerId, [
-    "player-removed",
-    "player-deleted",
-    "player-archived",
-  ]);
-  const incomingRestoreTime = getPlayerProfileLifecycleChangeTime(incomingState.changeLog, playerId, [
-    "player-added",
-    "player-restored",
-  ]);
+function incomingStateExplicitlyRestoresRemovedPlayer(existingState = {}, incomingState = {}, player = "") {
+  const identityKeys = getPlayerProfileIdentityKeys(player);
+  const existingRemovalTime = getPlayerProfileLifecycleChangeTimeForKeys(
+    existingState.changeLog,
+    identityKeys,
+    PLAYER_PROFILE_REMOVAL_TYPES
+  );
+  const incomingRestoreTime = getPlayerProfileLifecycleChangeTimeForKeys(
+    incomingState.changeLog,
+    identityKeys,
+    PLAYER_PROFILE_RESTORE_TYPES
+  );
   return Boolean(existingRemovalTime && incomingRestoreTime && incomingRestoreTime > existingRemovalTime);
+}
+
+function getPlayerProfileRemovalIdentityKeys(state = {}) {
+  const removalKeys = new Set(
+    normalizePlayerProfileRemovedIds(state?.removedPlayerIds).map((id) => `id:${id}`)
+  );
+  const entries = normalizePlayerProfileChangeLog(state?.changeLog);
+
+  entries.forEach((entry) => {
+    if (!PLAYER_PROFILE_REMOVAL_TYPES.has(String(entry?.type || "").trim())) {
+      return;
+    }
+
+    const identityKeys = getPlayerProfileChangeLogIdentityKeys(entry);
+    if (!identityKeys.length) {
+      return;
+    }
+
+    const removalTime = getPlayerProfileLifecycleChangeTimeForKeys(entries, identityKeys, PLAYER_PROFILE_REMOVAL_TYPES);
+    const restoreTime = getPlayerProfileLifecycleChangeTimeForKeys(entries, identityKeys, PLAYER_PROFILE_RESTORE_TYPES);
+    if (removalTime && removalTime >= restoreTime) {
+      identityKeys.forEach((key) => removalKeys.add(key));
+    }
+  });
+
+  return removalKeys;
+}
+
+function playerProfileMatchesIdentityKeys(player = {}, identityKeys = new Set()) {
+  return getPlayerProfileIdentityKeys(player).some((key) => identityKeys.has(key));
 }
 
 function getPlayerProfileChangeFieldPath(change = {}) {
@@ -1736,9 +1826,13 @@ async function protectPlayerProfilesStateValue(rawValue, context = {}) {
 
   const incomingRemovedPlayerIds = normalizePlayerProfileRemovedIds(incomingState.removedPlayerIds);
   const incomingRemovedPlayerIdSet = new Set(incomingRemovedPlayerIds);
+  const incomingRemovedPlayerIdentityKeys = getPlayerProfileRemovalIdentityKeys(incomingState);
   const incomingStateWithRemovals = {
     ...incomingState,
-    players: incomingState.players.filter((player) => !incomingRemovedPlayerIdSet.has(getPlayerProfileId(player))),
+    players: incomingState.players.filter((player) =>
+      !incomingRemovedPlayerIdSet.has(getPlayerProfileId(player)) &&
+      !playerProfileMatchesIdentityKeys(player, incomingRemovedPlayerIdentityKeys)
+    ),
     removedPlayerIds: incomingRemovedPlayerIds,
   };
   const existingEntry = context.previousEntry || await readStateObject(PLAYER_PROFILES_KEY);
@@ -1763,20 +1857,36 @@ async function protectPlayerProfilesStateValue(rawValue, context = {}) {
     incomingState.players.map(getPlayerProfileId).filter(Boolean)
   );
   const removedPlayerIds = new Set(incomingRemovedPlayerIds);
+  const removedPlayerIdentityKeys = new Set(incomingRemovedPlayerIdentityKeys);
+  getPlayerProfileRemovalIdentityKeys(existingState).forEach((key) => removedPlayerIdentityKeys.add(key));
   normalizePlayerProfileRemovedIds(existingState.removedPlayerIds).forEach((removedPlayerId) => {
+    const incomingPlayer = incomingState.players.find((player) => getPlayerProfileId(player) === removedPlayerId);
     const incomingRestoresRemovedPlayer =
       !incomingIsStale &&
       !incomingLooksOlderThanExisting &&
+      incomingPlayer &&
       incomingActivePlayerIds.has(removedPlayerId) &&
-      incomingStateExplicitlyRestoresRemovedPlayer(existingState, incomingState, removedPlayerId);
+      incomingStateExplicitlyRestoresRemovedPlayer(existingState, incomingState, incomingPlayer);
     if (!incomingRestoresRemovedPlayer) {
       removedPlayerIds.add(removedPlayerId);
     }
   });
   const removedPlayerIdSet = new Set(removedPlayerIds);
+  const shouldKeepPlayerRemoved = (player) => {
+    if (removedPlayerIdSet.has(getPlayerProfileId(player))) {
+      return true;
+    }
+    if (!playerProfileMatchesIdentityKeys(player, removedPlayerIdentityKeys)) {
+      return false;
+    }
+    if (incomingIsStale || incomingLooksOlderThanExisting) {
+      return true;
+    }
+    return !incomingStateExplicitlyRestoresRemovedPlayer(existingState, incomingState, player);
+  };
   const existingByKey = new Map();
   existingState.players.forEach((player) => {
-    if (removedPlayerIdSet.has(getPlayerProfileId(player))) {
+    if (shouldKeepPlayerRemoved(player)) {
       return;
     }
     const key = getPlayerProfileMergeKey(player);
@@ -1788,7 +1898,7 @@ async function protectPlayerProfilesStateValue(rawValue, context = {}) {
   const usedKeys = new Set();
   const mergedPlayers = incomingState.players
     .filter((player) => player && typeof player === "object" && !Array.isArray(player))
-    .filter((player) => !removedPlayerIdSet.has(getPlayerProfileId(player)))
+    .filter((player) => !shouldKeepPlayerRemoved(player))
     .map((incomingPlayer) => {
       const key = getPlayerProfileMergeKey(incomingPlayer);
       if (!key) {
@@ -1812,7 +1922,7 @@ async function protectPlayerProfilesStateValue(rawValue, context = {}) {
     });
 
   existingState.players.forEach((existingPlayer) => {
-    if (removedPlayerIdSet.has(getPlayerProfileId(existingPlayer))) {
+    if (shouldKeepPlayerRemoved(existingPlayer)) {
       return;
     }
     const key = getPlayerProfileMergeKey(existingPlayer);

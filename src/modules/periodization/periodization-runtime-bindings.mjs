@@ -63,6 +63,7 @@ export function createPeriodizationRuntimeBindings(options = {}) {
     renderer,
     getState: options.getPeriodizationState,
     canEdit,
+    beforeRender: options.beforeRender,
     getOverlayState: options.getOverlayState,
     setOverlayMode: options.setOverlayMode,
   });

@@ -3,6 +3,7 @@ export function createPeriodizationWorkspaceShell(options = {}) {
   const renderer = options.renderer || {};
   const getState = typeof options.getState === "function" ? options.getState : () => ({});
   const canEdit = typeof options.canEdit === "function" ? options.canEdit : () => false;
+  const beforeRender = typeof options.beforeRender === "function" ? options.beforeRender : () => {};
   const getOverlayState =
     typeof options.getOverlayState === "function" ? options.getOverlayState : () => ({ open: false, mode: "view" });
   const setOverlayMode = typeof options.setOverlayMode === "function" ? options.setOverlayMode : () => {};
@@ -34,6 +35,7 @@ export function createPeriodizationWorkspaceShell(options = {}) {
 
   function renderWorkspace() {
     if (!ui.periodizationShell || !ui.periodizationHeading || !ui.periodizationBoard) return;
+    beforeRender();
     const previousOverlay = getOverlayState();
     const previousScrollTop = previousOverlay.open
       ? ui.periodizationBoard.querySelector(".periodization-day-overlay .periodization-day-panel")?.scrollTop ?? 0

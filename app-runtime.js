@@ -2639,6 +2639,9 @@ getSessionPlannerHistoryActorLabelFromModule,
 getSessionPlannerPlayerProfileContract,
 getSessionPlannerPlayerProfileContracts,
 getSessionPlannerState: () => sessionPlannerState,
+refreshScheduleStateForPeriodization: () => {
+scheduleState = readScheduleState();
+},
 getSquadChangeSummary,
 getStaffCreateUserEditorOpen: () => staffCreateUserEditorOpen,
 getTemporaryRosterTypeFromPlayerSource,

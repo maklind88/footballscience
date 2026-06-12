@@ -24,6 +24,7 @@ export function createWorkspaceRuntimeComposition(deps = {}) {
     setPeriodizationSelection: deps.setPeriodizationSelection,
     getState: deps.getPeriodizationState,
     getPeriodizationState: deps.getPeriodizationState,
+    beforeRender: deps.refreshScheduleStateForPeriodization,
     getOverlayState: deps.getPeriodizationOverlayState,
     setOverlayMode: deps.setPeriodizationOverlayMode,
     jumpToToday: deps.jumpPeriodizationToToday,

@@ -3,6 +3,7 @@ import {
   formatScheduleDateValue,
   getScheduleEventDedupKey,
   getUniqueScheduleEvents,
+  normalizeScheduleDayNotes,
   parseScheduleDateValue,
   scheduleOverviewSpanOptions,
   scheduleViewModes,
@@ -126,6 +127,22 @@ export function pasteScheduleClipboard(state, clipboard) {
   );
   state.events = getUniqueScheduleEvents(state.events);
   return state;
+}
+
+export function setScheduleDayNote(state, dateValue, note) {
+  if (!state || !dateValue) {
+    return false;
+  }
+  const normalizedNotes = normalizeScheduleDayNotes(state.dayNotes);
+  const normalizedNote = String(note ?? "").replace(/\r\n?/g, "\n").trim();
+  const previousNote = normalizedNotes[dateValue] || "";
+  if (normalizedNote) {
+    normalizedNotes[dateValue] = normalizedNote;
+  } else {
+    delete normalizedNotes[dateValue];
+  }
+  state.dayNotes = normalizedNotes;
+  return previousNote !== (normalizedNotes[dateValue] || "");
 }
 
 export function startScheduleEventEdit(state, eventId) {

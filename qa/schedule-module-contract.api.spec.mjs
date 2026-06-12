@@ -9,6 +9,7 @@ import {
   createScheduleWorkspaceRenderer,
   pasteScheduleClipboard,
   selectScheduleStateDate,
+  setScheduleDayNote,
   setScheduleStateOverviewSpan,
   setScheduleStateViewMode,
   shiftScheduleStateWindow,
@@ -138,6 +139,7 @@ test("Schedule controller owns date navigation and shortcut clipboard wiring", (
 
 test("Schedule actions preserve navigation, copy paste, and upsert behavior", () => {
   const state = createDefaultScheduleState(new Date(2026, 4, 7));
+  expect(state.dayNotes).toEqual({});
 
   setScheduleStateViewMode(state, "overview");
   setScheduleStateOverviewSpan(state, 6);
@@ -164,6 +166,11 @@ test("Schedule actions preserve navigation, copy paste, and upsert behavior", ()
   selectScheduleStateDate(state, "2026-05-09");
   pasteScheduleClipboard(state, clipboard);
   expect(state.events.map((event) => event.date)).toEqual(["2026-05-08", "2026-05-09"]);
+
+  expect(setScheduleDayNote(state, "2026-05-09", "Bus leaves after lunch")).toBe(true);
+  expect(state.dayNotes["2026-05-09"]).toBe("Bus leaves after lunch");
+  expect(setScheduleDayNote(state, "2026-05-09", "")).toBe(true);
+  expect(state.dayNotes["2026-05-09"]).toBeUndefined();
 
   shiftScheduleStateWindow(state, 6);
   expect(state.selectedDate).toBe("2026-11-01");

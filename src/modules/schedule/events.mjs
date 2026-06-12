@@ -22,6 +22,10 @@ function normalizeText(value) {
   return String(value ?? "").trim();
 }
 
+function normalizeNoteText(value) {
+  return String(value ?? "").replace(/\r\n?/g, "\n").trim();
+}
+
 function padDatePart(value) {
   return String(value).padStart(2, "0");
 }
@@ -113,6 +117,19 @@ function selectUniqueScheduleEvents(events = []) {
   });
 }
 
+function normalizeScheduleDayNotes(dayNotes = {}) {
+  if (!dayNotes || typeof dayNotes !== "object" || Array.isArray(dayNotes)) {
+    return Object.freeze({});
+  }
+  return Object.freeze(
+    Object.fromEntries(
+      Object.entries(dayNotes)
+        .map(([dateValue, note]) => [normalizeText(dateValue), normalizeNoteText(note)])
+        .filter(([dateValue, note]) => dateValue && note)
+    )
+  );
+}
+
 export function normalizeScheduleEvent(event = {}, options = {}) {
   const fallbackDate = normalizeText(options.selectedDate) || formatScheduleDateValue(options.now || defaultNow());
   const idFactory = typeof options.idFactory === "function" ? options.idFactory : defaultIdFactory;
@@ -123,7 +140,7 @@ export function normalizeScheduleEvent(event = {}, options = {}) {
     time: normalizeText(event?.time),
     type: normalizeScheduleEventType(event?.type),
     title: normalizeText(event?.title),
-    note: normalizeText(event?.note),
+    note: normalizeNoteText(event?.note),
   });
 }
 
@@ -161,6 +178,7 @@ export function normalizeScheduleState(rawValue, options = {}) {
     visibleEventTypes: normalizeScheduleVisibleEventTypes(source.visibleEventTypes),
     importVersion: normalizeText(source.importVersion),
     events: Object.freeze(events),
+    dayNotes: normalizeScheduleDayNotes(source.dayNotes),
   });
 }
 

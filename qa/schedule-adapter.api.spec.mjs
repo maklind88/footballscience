@@ -22,6 +22,10 @@ test("Schedule adapter normalizes current schedule storage without changing the 
     overviewSpan: 9,
     visibleEventTypes: ["match", "training", "match", "bad"],
     importVersion: "ncc-2026-numbers-v1",
+    dayNotes: {
+      "2026-05-07": " Travel note ",
+      "2026-05-08": "",
+    },
     events: [
       {
         id: "match",
@@ -62,6 +66,9 @@ test("Schedule adapter normalizes current schedule storage without changing the 
     overviewSpan: 9,
     visibleEventTypes: ["match", "training"],
     importVersion: "ncc-2026-numbers-v1",
+    dayNotes: {
+      "2026-05-07": "Travel note",
+    },
   });
   expect(state.events).toHaveLength(2);
   expect(state.events[0]).toMatchObject({

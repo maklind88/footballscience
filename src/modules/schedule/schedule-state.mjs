@@ -26,6 +26,10 @@ function normalizeText(value) {
   return String(value ?? "").trim();
 }
 
+function normalizeNoteText(value) {
+  return String(value ?? "").replace(/\r\n?/g, "\n").trim();
+}
+
 function createScheduleEventId() {
   return `event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -41,6 +45,7 @@ export function createDefaultScheduleState(now = new Date()) {
     visibleEventTypes: [...scheduleEventTypeKeys],
     importVersion: "",
     events: [],
+    dayNotes: {},
   };
 }
 
@@ -55,8 +60,19 @@ export function cloneScheduleEvent(event = {}, options = {}) {
     time: normalizeText(event.time),
     type,
     title: normalizeText(event.title),
-    note: normalizeText(event.note),
+    note: normalizeNoteText(event.note),
   };
+}
+
+export function normalizeScheduleDayNotes(dayNotes = {}) {
+  if (!dayNotes || typeof dayNotes !== "object" || Array.isArray(dayNotes)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(dayNotes)
+      .map(([dateValue, note]) => [normalizeText(dateValue), normalizeNoteText(note)])
+      .filter(([dateValue, note]) => dateValue && note)
+  );
 }
 
 export function normalizeScheduleTextForDedup(value) {
@@ -116,6 +132,7 @@ export function cloneScheduleState(source = createDefaultScheduleState(), option
     visibleEventTypes: normalizeScheduleVisibleEventTypes(source.visibleEventTypes),
     importVersion: normalizeText(source.importVersion),
     events,
+    dayNotes: normalizeScheduleDayNotes(source.dayNotes),
   };
 }
 

@@ -300,7 +300,6 @@ ${escapeHtml(eventType.label)}
           class="schedule-planner-note-indicator"
           data-open-schedule-day-note="${escapeHtml(dateValue)}"
           data-note-preview="${escapeHtml(formatNotePreview(dayNote))}"
-          title="${escapeHtml(formatNotePreview(dayNote))}"
           aria-label="Open note for ${escapeHtml(getScheduleDateLabel(dateValue))}"
         >i</button>
       `
@@ -337,6 +336,22 @@ ${escapeHtml(eventType.label)}
     `;
   }
 
+  function getPlannerNoteOverlayAnchor(context) {
+    const anchor = context.plannerNoteAnchor || null;
+    if (!anchor) {
+      return null;
+    }
+    const left = Number(anchor.x);
+    const top = Number(anchor.y);
+    if (!Number.isFinite(left) || !Number.isFinite(top)) {
+      return null;
+    }
+    return {
+      left: Math.max(0, Math.round(left)),
+      top: Math.max(0, Math.round(top)),
+    };
+  }
+
   function renderPlannerNoteOverlay(context) {
     const { state, canEdit } = context;
     const dateValue = context.plannerNoteDate || "";
@@ -344,9 +359,14 @@ ${escapeHtml(eventType.label)}
       return "";
     }
     const note = state?.dayNotes?.[dateValue] || "";
+    const anchor = getPlannerNoteOverlayAnchor(context);
+    const anchoredClass = anchor ? " is-anchored" : "";
+    const anchorStyle = anchor
+      ? ` style="--schedule-note-left:${anchor.left}px;--schedule-note-top:${anchor.top}px"`
+      : "";
     return `
       <div class="schedule-planner-note-backdrop" data-close-schedule-day-note></div>
-      <section class="schedule-planner-note-overlay" role="dialog" aria-modal="true" aria-label="Day note" data-schedule-planner-note-dialog="${escapeHtml(dateValue)}">
+      <section class="schedule-planner-note-overlay${anchoredClass}" role="dialog" aria-modal="true" aria-label="Day note" data-schedule-planner-note-dialog="${escapeHtml(dateValue)}"${anchorStyle}>
         <form data-schedule-day-note-form="${escapeHtml(dateValue)}">
           <header>
             <div>

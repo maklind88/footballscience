@@ -17,7 +17,7 @@
 .schedule-planner-date strong{width:1.26rem;height:1.26rem;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;border-radius:999px;background:#1d1d1f10;color:#1d1d1f;font-size:.68rem;font-weight:950}
 .schedule-planner-day.is-today .schedule-planner-date strong{color:#fff;background:var(--schedule-event-solid,#0a84ff)}
 .schedule-planner-events{min-width:0;min-height:1.28rem;display:flex;align-items:center;flex-wrap:wrap;gap:.14rem}
-.schedule-planner-day.has-note .schedule-planner-events{padding-right:1.25rem}
+.schedule-planner-day.has-note .schedule-planner-events{padding-right:.9rem}
 .schedule-planner-empty{display:inline-flex;align-items:center;min-height:1.28rem;padding:0 .4rem;border-radius:999px;color:#86868b;background:#1d1d1f08;font-size:.62rem;font-weight:780}
 .schedule-planner-event-chip{min-width:0;max-width:100%;display:inline-flex;align-items:center;gap:.22rem;padding:.19rem .4rem;border:1px solid #0000000a;border-radius:999px;background:#1d1d1f0f;color:#1d1d1fc7;font:inherit;font-size:.66rem;font-weight:840;line-height:1.05;text-align:left;cursor:pointer;appearance:none}
 .schedule-planner-event-chip.can-drag{cursor:grab;touch-action:none;user-select:none;-webkit-user-drag:none}
@@ -40,10 +40,11 @@
 .schedule-planner-add input,.schedule-planner-edit input{width:100%;min-height:1.42rem;padding:.18rem .42rem;border:1px solid #0000000f;border-radius:999px;background:#ffffffe0;color:#1d1d1f;font:inherit;font-size:.66rem;font-weight:800;outline:0}
 .schedule-planner-add input::placeholder{color:#86868bb0}
 .schedule-planner-add input:focus,.schedule-planner-edit input:focus{border-color:#0071e36b;box-shadow:0 0 0 3px #0071e321;background:#fff}
-.schedule-planner-note-indicator{position:absolute;right:.26rem;top:50%;z-index:2;width:1.05rem;height:1.05rem;display:inline-flex;align-items:center;justify-content:center;border:1px solid #1d1d1f18;border-radius:999px;background:#fffffff2;color:#1d1d1fa3;box-shadow:0 3px 10px #00000010;font:inherit;font-size:.58rem;font-weight:950;line-height:1;cursor:pointer}
-.schedule-planner-note-indicator:focus-visible{outline:0;box-shadow:0 0 0 3px #0071e326,0 3px 10px #00000010}
-.schedule-planner-note-indicator::after{content:attr(data-note-preview);position:absolute;right:calc(100% + .38rem);top:50%;z-index:5;width:max-content;max-width:min(18rem,42vw);padding:.42rem .52rem;border-radius:9px;background:#1d1d1ff2;color:#fff;box-shadow:0 12px 26px #00000030;font-size:.66rem;font-weight:760;line-height:1.28;text-align:left;opacity:0;pointer-events:none;transform:translateY(-50%) translateX(.24rem);transition:opacity 120ms ease,transform 120ms ease;white-space:normal}
-.schedule-planner-note-indicator:hover::after,.schedule-planner-note-indicator:focus-visible::after{opacity:1;transform:translateY(-50%)}
+.schedule-planner-note-indicator{position:absolute;right:.18rem;top:50%;z-index:2;width:.76rem;height:.76rem;min-width:0;min-height:0;padding:0!important;display:inline-flex;align-items:center;justify-content:center;border:1px solid #0071e333;border-radius:999px;background:linear-gradient(180deg,#fffffffa,#eef6ffef);color:#0a63b7;box-shadow:0 2px 7px #0071e31f;font:inherit;font-size:.45rem;font-weight:950;line-height:1;cursor:pointer;appearance:none;transform:translateY(-50%);transition:background 120ms ease,box-shadow 120ms ease,transform 120ms ease}
+.schedule-planner-note-indicator:hover{background:#fff;box-shadow:0 4px 11px #0071e32b;transform:translateY(-50%) scale(1.06)}
+.schedule-planner-note-indicator:focus-visible{outline:0;box-shadow:0 0 0 3px #0071e326,0 4px 11px #0071e32b}
+.schedule-planner-note-indicator::after{content:attr(data-note-preview);position:absolute;right:0;top:calc(100% + .32rem);z-index:5;width:max-content;max-width:min(12rem,36vw);padding:.38rem .46rem;border-radius:8px;background:#1d1d1ff2;color:#fff;box-shadow:0 12px 26px #00000030;font-size:.6rem;font-weight:760;line-height:1.25;text-align:left;opacity:0;pointer-events:none;transform:translateY(.2rem);transition:opacity 120ms ease,transform 120ms ease;white-space:normal}
+.schedule-planner-note-indicator:hover::after,.schedule-planner-note-indicator:focus-visible::after{opacity:1;transform:translateY(0)}
 .schedule-workspace.is-dragging-planner-event .schedule-planner-day{cursor:move}
 .schedule-planner-day.is-drop-target{border-color:#0071e36e;box-shadow:inset 0 0 0 2px #0071e35c,0 10px 24px #0071e31c;transform:translateY(-1px)}
 .schedule-planner-drag-ghost{position:fixed;left:0;top:0;z-index:9999;max-width:min(15rem,48vw);padding:.28rem .52rem;border:1px solid #ffffffcc;border-radius:999px;background:#1d1d1ff0;color:#fff;box-shadow:0 16px 36px #00000030;font-size:.68rem;font-weight:900;line-height:1.1;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;will-change:transform}
@@ -51,15 +52,17 @@
 .schedule-planner-drag-ghost.is-match{background:#d92d20f2}
 .schedule-planner-drag-ghost.is-travel{background:#b86500f2}
 .schedule-planner-drag-ghost.is-recovery{background:#14828ff2}
-.schedule-planner-note-backdrop{position:fixed;inset:0;z-index:280;background:#1d1d1f26;backdrop-filter:blur(8px)}
-.schedule-planner-note-overlay{position:fixed;z-index:281;top:clamp(5.5rem,13vh,8rem);right:clamp(1rem,4vw,3.2rem);width:min(26rem,calc(100vw - 2rem));padding:.72rem;border-radius:18px;background:linear-gradient(180deg,#fffffff7,#f8f8faef),#fffffff0;border:1px solid #ffffffe0;box-shadow:0 30px 90px #0000002e;animation:schedulePlannerNoteIn 140ms ease both}
+.schedule-planner-note-backdrop{position:fixed;inset:0;z-index:280;background:#1d1d1f14;backdrop-filter:blur(5px)}
+.schedule-planner-note-overlay{position:fixed;z-index:281;top:clamp(5.5rem,13vh,8rem);right:clamp(1rem,4vw,3.2rem);width:min(22.5rem,calc(100vw - 1.5rem));padding:.62rem;border-radius:16px;background:radial-gradient(circle at 18% 0,#eaf3ff 0,#ffffff00 42%),linear-gradient(180deg,#fffffffa,#f7f7f9f2);border:1px solid #ffffffe8;box-shadow:0 24px 70px #0000002a,0 1px 0 #ffffff inset;animation:schedulePlannerNoteIn 140ms cubic-bezier(.2,.8,.2,1) both}
+.schedule-planner-note-overlay.is-anchored{top:var(--schedule-note-top,5.5rem);left:var(--schedule-note-left,1rem);right:auto;transform-origin:1rem 1rem}
+.schedule-planner-note-overlay.is-anchored::before{content:"";position:absolute;top:.95rem;left:-.34rem;width:.68rem;height:.68rem;background:#fff;border-left:1px solid #ffffffe8;border-bottom:1px solid #ffffffe8;box-shadow:-6px 8px 18px #00000008;transform:rotate(45deg)}
 .schedule-planner-note-overlay form{display:grid;gap:.62rem}
 .schedule-planner-note-overlay header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
 .schedule-planner-note-overlay header div{display:grid;gap:.14rem;min-width:0}
 .schedule-planner-note-overlay p{margin:0;color:#86868b;font-size:.62rem;font-weight:950;letter-spacing:.09em;text-transform:uppercase}
 .schedule-planner-note-overlay h3{margin:0;color:#1d1d1f;font-size:.94rem;font-weight:900;letter-spacing:-.02em;line-height:1.12}
-.schedule-planner-note-overlay header button{width:2rem;height:2rem;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;border:0;border-radius:999px;background:#1d1d1f0d;color:#1d1d1f;font-size:1rem;font-weight:900;cursor:pointer}
-.schedule-planner-note-overlay textarea{width:100%;min-height:11rem;resize:vertical;border:1px solid #00000012;border-radius:12px;padding:.68rem .72rem;background:#ffffffe8;color:#1d1d1f;font:inherit;font-size:.8rem;font-weight:700;line-height:1.38;outline:0}
+.schedule-planner-note-overlay header button{width:1.85rem;height:1.85rem;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;border:0;border-radius:999px;background:#1d1d1f0d;color:#1d1d1f;font-size:.95rem;font-weight:900;cursor:pointer}
+.schedule-planner-note-overlay textarea{width:100%;min-height:9.25rem;resize:vertical;border:1px solid #00000012;border-radius:12px;padding:.68rem .72rem;background:#fffffff0;color:#1d1d1f;font:inherit;font-size:.8rem;font-weight:700;line-height:1.38;outline:0}
 .schedule-planner-note-overlay textarea:focus{border-color:#0071e36b;box-shadow:0 0 0 3px #0071e321;background:#fff}
 .schedule-planner-note-overlay footer{display:flex;align-items:center;justify-content:space-between;gap:.7rem}
 .schedule-planner-note-overlay footer div{display:flex;justify-content:flex-end;gap:.45rem}
@@ -86,6 +89,7 @@ body.is-dark-mode .platform-schedule-view .schedule-planner-add input,body.is-da
 body.is-dark-mode .platform-schedule-view .schedule-planner-add input:focus,body.is-dark-mode .platform-schedule-view .schedule-planner-edit input:focus{border-color:#60a5fa73!important;box-shadow:0 0 0 3px #60a5fa2e!important}
 body.is-dark-mode .platform-schedule-view .schedule-planner-note-indicator{background:#0f172af0!important;border-color:var(--dark-line-strong)!important;color:var(--dark-text)!important}
 body.is-dark-mode .platform-schedule-view .schedule-planner-note-overlay{background:var(--dark-surface-soft)!important;border-color:var(--dark-line)!important;color:var(--dark-text)!important}
+body.is-dark-mode .platform-schedule-view .schedule-planner-note-overlay.is-anchored::before{background:var(--dark-surface-soft)!important;border-color:var(--dark-line)!important}
 body.is-dark-mode .platform-schedule-view .schedule-planner-note-overlay h3,body.is-dark-mode .platform-schedule-view .schedule-planner-note-overlay header button{color:var(--dark-text)!important}
 body.is-dark-mode .platform-schedule-view .schedule-planner-note-overlay p{color:var(--dark-muted)!important}
 body.is-dark-mode .platform-schedule-view .schedule-planner-note-overlay header button,body.is-dark-mode .platform-schedule-view .schedule-planner-note-overlay footer button{background:#ffffff18!important;color:var(--dark-text)!important}

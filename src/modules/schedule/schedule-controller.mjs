@@ -74,6 +74,7 @@ export function createScheduleWorkspaceController(options = {}) {
   let plannerEditingDate = "";
   let selectedPlannerEventId = "";
   let plannerNoteDate = "";
+  let plannerNoteAnchor = null;
   let draggedPlannerEventId = "";
   let plannerPointerDrag = null;
   let plannerDragGhost = null;
@@ -147,6 +148,7 @@ export function createScheduleWorkspaceController(options = {}) {
       plannerEditingDate,
       selectedPlannerEventId,
       plannerNoteDate,
+      plannerNoteAnchor,
       dayPanelMode,
       canEdit: canEditWorkspace,
       canCreateSession: Boolean(options.canCreateSession?.()),
@@ -576,7 +578,40 @@ export function createScheduleWorkspaceController(options = {}) {
     run();
   }
 
-  function openPlannerNote(dateValue) {
+  function getPlannerNoteAnchor(point = null) {
+    if (!point) {
+      return null;
+    }
+
+    const rawX = Number(point.x ?? point.clientX);
+    const rawY = Number(point.y ?? point.clientY);
+    if (!Number.isFinite(rawX) || !Number.isFinite(rawY)) {
+      return null;
+    }
+
+    const viewportWidth = Number(win.innerWidth) || 0;
+    const viewportHeight = Number(win.innerHeight) || 0;
+    if (!viewportWidth || !viewportHeight) {
+      return {
+        x: Math.max(12, Math.round(rawX - 12)),
+        y: Math.max(72, Math.round(rawY - 12)),
+      };
+    }
+
+    const overlayWidth = Math.min(360, Math.max(280, viewportWidth - 24));
+    const overlayHeight = Math.min(330, Math.max(260, viewportHeight - 32));
+    const minLeft = 12;
+    const minTop = 72;
+    const maxLeft = Math.max(minLeft, viewportWidth - overlayWidth - 12);
+    const maxTop = Math.max(minTop, viewportHeight - overlayHeight - 12);
+
+    return {
+      x: Math.round(Math.min(Math.max(minLeft, rawX - 12), maxLeft)),
+      y: Math.round(Math.min(Math.max(minTop, rawY - 12), maxTop)),
+    };
+  }
+
+  function openPlannerNote(dateValue, anchor = null) {
     const state = getState();
     if (!state || !dateValue) {
       return;
@@ -587,6 +622,7 @@ export function createScheduleWorkspaceController(options = {}) {
     plannerEditingDate = "";
     selectedPlannerEventId = "";
     plannerNoteDate = dateValue;
+    plannerNoteAnchor = getPlannerNoteAnchor(anchor);
     dayPanelMode = "view";
     state.selectedDate = dateValue;
     writeState({ syncCentral: false });
@@ -599,6 +635,7 @@ export function createScheduleWorkspaceController(options = {}) {
       return;
     }
     plannerNoteDate = "";
+    plannerNoteAnchor = null;
     render();
   }
 
@@ -609,6 +646,7 @@ export function createScheduleWorkspaceController(options = {}) {
     }
     const changed = setScheduleDayNote(state, dateValue, note);
     plannerNoteDate = "";
+    plannerNoteAnchor = null;
     if (changed) {
       writeState();
     }
@@ -722,7 +760,7 @@ export function createScheduleWorkspaceController(options = {}) {
       return;
     }
     event.preventDefault?.();
-    openPlannerNote(day.dataset.scheduleDate);
+    openPlannerNote(day.dataset.scheduleDate, { x: event.clientX, y: event.clientY });
   }
 
   function handlePlannerDragStart(event) {
@@ -934,7 +972,11 @@ export function createScheduleWorkspaceController(options = {}) {
     const openNoteTrigger = getClosest(event.target, "[data-open-schedule-day-note]");
     if (openNoteTrigger) {
       event.preventDefault?.();
-      openPlannerNote(openNoteTrigger.dataset.openScheduleDayNote);
+      const rect = openNoteTrigger.getBoundingClientRect?.();
+      openPlannerNote(
+        openNoteTrigger.dataset.openScheduleDayNote,
+        rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null
+      );
       return;
     }
 

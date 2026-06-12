@@ -69,18 +69,26 @@ export function selectScheduleStateDate(state, dateValue, options = {}) {
 
   const date = parseScheduleDateValue(dateValue);
   const windowStart = new Date(state.selectedYear, state.selectedMonthIndex, 1);
-  const windowEnd = new Date(
-    state.selectedYear,
-    state.selectedMonthIndex + (state.viewMode === "overview" ? state.overviewSpan : 1),
-    0
-  );
+  const plannerWindowMonths = Math.max(1, Math.floor(Number(options.plannerWindowMonths) || 1));
+  let visibleMonthCount = 1;
+  if (state.viewMode === "overview") {
+    visibleMonthCount = state.overviewSpan;
+  } else if (state.viewMode === "planner") {
+    visibleMonthCount = plannerWindowMonths;
+  }
+  const windowEnd = new Date(state.selectedYear, state.selectedMonthIndex + visibleMonthCount, 0);
   const keepOverviewWindow =
     options.keepOverviewWindow !== false &&
     state.viewMode === "overview" &&
     date >= windowStart &&
     date <= windowEnd;
+  const keepPlannerWindow =
+    options.keepPlannerWindow !== false &&
+    state.viewMode === "planner" &&
+    date >= windowStart &&
+    date <= windowEnd;
 
-  if (!keepOverviewWindow) {
+  if (!keepOverviewWindow && !keepPlannerWindow) {
     state.selectedYear = date.getFullYear();
     state.selectedMonthIndex = date.getMonth();
   }

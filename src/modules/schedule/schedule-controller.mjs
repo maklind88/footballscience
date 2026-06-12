@@ -127,6 +127,11 @@ export function createScheduleWorkspaceController(options = {}) {
     state.selectedMonthIndex = snapshot.selectedMonthIndex;
   }
 
+  function getPlannerVisibleMonthCount() {
+    const monthCount = Number(ui.schedulePlannerGrid?.dataset?.months);
+    return [2, 3, 4].includes(monthCount) ? monthCount : 3;
+  }
+
   function render() {
     const state = ensureState();
     const canEditWorkspace = canEdit();
@@ -251,6 +256,7 @@ export function createScheduleWorkspaceController(options = {}) {
   function jumpToToday() {
     selectDate(formatScheduleDateValue(new Date()), {
       keepOverviewWindow: false,
+      keepPlannerWindow: false,
       scrollIntoView: true,
     });
   }
@@ -1032,7 +1038,11 @@ export function createScheduleWorkspaceController(options = {}) {
     const dateTrigger = getClosest(event.target, "[data-schedule-date]");
     if (dateTrigger) {
       const dateValue = dateTrigger.dataset.scheduleDate;
-      schedulePlannerSingleClick(() => selectDate(dateValue));
+      schedulePlannerSingleClick(() =>
+        selectDate(dateValue, {
+          plannerWindowMonths: getPlannerVisibleMonthCount(),
+        })
+      );
     }
   }
 

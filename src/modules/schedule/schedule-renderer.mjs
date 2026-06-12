@@ -226,21 +226,12 @@ ${escapeHtml(eventType.label)}
         </form>
       `;
     }
-    const controls = canEdit
-      ? `
-        <span class="schedule-planner-event-actions">
-          <button type="button" data-planner-edit-schedule-event="${escapeHtml(event.id)}" aria-label="Edit ${escapeHtml(event.title)}">Edit</button>
-          <button type="button" data-planner-remove-schedule-event="${escapeHtml(event.id)}" aria-label="Remove ${escapeHtml(event.title)}">×</button>
-        </span>
-      `
-      : "";
     return `
       <span class="schedule-planner-event-chip is-${escapeHtml(eventType.tone)}" data-planner-event-id="${escapeHtml(event.id)}">
         <span>
           <strong>${escapeHtml(event.title)}</strong>
           ${eventMeta ? `<small>${escapeHtml(eventMeta)}</small>` : ""}
         </span>
-        ${controls}
       </span>
     `;
   }
@@ -253,6 +244,7 @@ ${escapeHtml(eventType.label)}
     const allEvents = getEventsForDate(dateValue);
     const events = getVisibleEvents(allEvents);
     const plannerEditingEventId = context.plannerEditingEventId || "";
+    const plannerEditingDate = context.plannerEditingDate || "";
     const mainTone = inferPlannerTone(events);
     const eventToneClass = mainTone ? ` is-main-${mainTone}` : "";
     const isSelected = dateValue === selectedDateValue;
@@ -260,11 +252,11 @@ ${escapeHtml(eventType.label)}
     const weekdayLabel = formatSchedulePlannerWeekday(date);
     const eventMarkup = events.length
       ? events.map((event) => renderPlannerEventChip(event, canEdit, event.id === plannerEditingEventId)).join("")
-      : `<span class="schedule-planner-empty">No plan</span>`;
-    const addForm = canEdit
+      : "";
+    const addForm = canEdit && plannerEditingDate === dateValue
       ? `
         <form class="schedule-planner-add" data-schedule-planner-add-date="${escapeHtml(dateValue)}">
-          <input name="plannerTitle" type="text" autocomplete="off" placeholder="Add plan..." aria-label="Add plan for ${escapeHtml(getScheduleDateLabel(dateValue))}" />
+          <input name="plannerTitle" type="text" autocomplete="off" aria-label="Add plan for ${escapeHtml(getScheduleDateLabel(dateValue))}" />
         </form>
       `
       : "";
@@ -427,6 +419,7 @@ ${escapeHtml(eventType.label)}
     const isEditingDay = dayPanelMode === "edit" && canEdit;
     const editingEvent = state.events.find((event) => event.id === editingEventId) ?? null;
 
+    ui.scheduleWorkspace?.classList.toggle("is-planner-view", isPlanner);
     ui.scheduleMonthTitle.textContent = isOverview
       ? getOverviewLabel(state)
       : isWeek
@@ -495,6 +488,7 @@ ${escapeHtml(eventType.label)}
       ui.scheduleSelectedDateLabel.textContent = getScheduleDateLabel(selectedDateValue);
     }
     if (ui.scheduleDayCard) {
+      ui.scheduleDayCard.hidden = isPlanner;
       ui.scheduleDayCard.classList.toggle("is-admin-view", canEdit);
       ui.scheduleDayCard.classList.toggle("is-editing-view", isEditingDay);
       ui.scheduleDayCard.classList.toggle("is-readonly-view", !isEditingDay);

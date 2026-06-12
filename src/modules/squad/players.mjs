@@ -251,8 +251,13 @@ export function normalizeSquadPlayer(player = {}, options = {}) {
   const secondaryRoles = normalizeSquadRoleList(player.secondaryRoles || player.secondary_roles).filter((role) => role !== primaryRole);
   const createdAt = normalizeText(player.createdAt || player.created_at) || normalizeText(options.now) || defaultNow();
   const updatedAt = normalizeText(player.updatedAt || player.updated_at) || createdAt;
-  const rosterType = normalizeSquadRosterType(player.rosterType || player.roster_type || player.playerType || player.player_type, "squad");
-  const countsInSquad = normalizeBoolean(player.countsInSquad ?? player.counts_in_squad, rosterType === "squad");
+  const hasRosterTypeValue = Boolean(normalizeText(player.rosterType || player.roster_type || player.playerType || player.player_type));
+  const rosterTypeFallback = normalizeBoolean(player.countsInSquad ?? player.counts_in_squad, true) ? "squad" : "guest";
+  const rosterType = normalizeSquadRosterType(
+    player.rosterType || player.roster_type || player.playerType || player.player_type,
+    hasRosterTypeValue ? "squad" : rosterTypeFallback
+  );
+  const countsInSquad = rosterType === "squad";
 
   return Object.freeze({
     id: normalizeText(player.id) || normalizeText(idFactory(player, index)),

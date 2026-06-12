@@ -284,8 +284,13 @@ export function createPlayerProfileHelpers(options = {}) {
     const preferredSide = playerProfilePreferredSideOptions.some((option) => option.key === player.preferredSide) ? player.preferredSide : "center";
     const status = playerProfileStatusOptions.some((option) => option.key === player.status) ? player.status : "available";
     const squadStatus = playerProfileSquadStatusOptions.some((option) => option.key === player.squadStatus) ? player.squadStatus : getDefaultPlayerProfileSquadStatus(player);
-    const rosterType = normalizePlayerProfileRosterType(player.rosterType || player.playerType || player.squadType);
-    const countsInSquad = typeof player.countsInSquad === "boolean" ? player.countsInSquad : playerProfileRosterTypeCountsInSquad(rosterType);
+    const hasRosterTypeValue = Boolean(String(player.rosterType || player.playerType || player.squadType || "").trim());
+    const rosterTypeFallback = player.countsInSquad === false ? "guest" : "squad";
+    const rosterType = normalizePlayerProfileRosterType(
+      player.rosterType || player.playerType || player.squadType,
+      hasRosterTypeValue ? "squad" : rosterTypeFallback
+    );
+    const countsInSquad = playerProfileRosterTypeCountsInSquad(rosterType);
     const careerPhase = playerProfileCareerPhaseOptions.some((option) => option.key === player.careerPhase) ? player.careerPhase : getDefaultPlayerProfileCareerPhase(player);
     const rosterOrder = Number(player.rosterOrder);
     const attributeRatings = normalizePlayerProfileAttributeRatings({ ...getDefaultPlayerProfileAttributeRatings({ ...player, primaryRole }), ...(player.attributeRatings || {}) });

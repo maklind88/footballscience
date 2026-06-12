@@ -23,8 +23,9 @@ function normalizeProfile(player = {}) {
   const name = String(player.name || player.displayName || "").trim();
   const id = String(player.id || player.playerId || player.profileId || name.toLowerCase().replace(/[^a-z0-9]+/g, "-")).trim();
   if (!id || !name) return null;
-  const rosterType = String(player.rosterType || "squad").trim();
-  const countsInSquad = typeof player.countsInSquad === "boolean" ? player.countsInSquad : rosterType === "squad";
+  const explicitRosterType = String(player.rosterType || "").trim();
+  const rosterType = explicitRosterType || (player.countsInSquad === false ? "guest" : "squad");
+  const countsInSquad = rosterType === "squad";
   return {
     ...player,
     id,
@@ -136,8 +137,18 @@ function createHarness(options = {}) {
     normalizePlayerProfileChangeLog: (entries = []) => (Array.isArray(entries) ? entries : []).map(normalizeChangeLogEntry),
     normalizePlayerProfileChangeLogEntry: normalizeChangeLogEntry,
     normalizePlayerProfileRemovedIds: (value = []) => Array.from(new Set((Array.isArray(value) ? value : []).map((entry) => String(entry || "").trim()).filter(Boolean))),
+    normalizePlayerProfileRosterType: (value, fallback = "squad") => {
+      const cleanValue = String(value || "").trim().toLowerCase();
+      if (["squad", "squad player"].includes(cleanValue)) return "squad";
+      if (["academy", "academy training"].includes(cleanValue)) return "academy";
+      if (["trialist", "trial"].includes(cleanValue)) return "trialist";
+      if (["guest", "guest player"].includes(cleanValue)) return "guest";
+      if (["loan", "loan / external"].includes(cleanValue)) return "loan";
+      return fallback;
+    },
     playerProfileAgeCacheStorageKey,
     playerProfileCountsInSquad,
+    playerProfileRosterTypeCountsInSquad: (value) => String(value || "squad").trim() === "squad",
     playerProfilesDefaultRosterVersion: "player-profiles-test-roster",
     playerProfilesSchemaVersion: 3,
     playerProfilesStorageKey,
@@ -276,6 +287,68 @@ test("Squad player profile runtime state service respects legacy removedIds duri
 
   expect(state.removedPlayerIds).toEqual(["legacy-1"]);
   expect(state.players.map((player) => player.id)).toContain("active-1");
+});
+
+test("Squad player profile runtime state service hides removed players restored with a different id", () => {
+  const storedState = {
+    schemaVersion: 3,
+    selectedPlayerId: "cortnee-new",
+    removedPlayerIds: ["cortnee-old"],
+    players: [
+      { id: "cortnee-new", name: "Cortnee Vine", rosterType: "squad" },
+      { id: "active-1", name: "Active Player", rosterType: "squad" },
+    ],
+    changeLog: [
+      {
+        id: "remove-cortnee",
+        type: "player-removed",
+        playerId: "cortnee-old",
+        playerName: "Cortnee Vine",
+        createdAt: "2026-06-10T12:00:00.000Z",
+      },
+    ],
+  };
+  const harness = createHarness({
+    storage: { "football-player-profiles-v1": JSON.stringify(storedState) },
+  });
+
+  const state = harness.service.readPlayerProfilesState();
+
+  expect(state.players.map((player) => player.name)).toEqual(["Active Player", "Seed Player"]);
+  expect(state.selectedPlayerId).toBe("active-1");
+});
+
+test("Squad player profile runtime state service restores guest roster type from history when stored row drifted", () => {
+  const storedState = {
+    schemaVersion: 3,
+    selectedPlayerId: "erin-1",
+    players: [
+      { id: "erin-1", name: "Erin", rosterType: "squad", countsInSquad: true, status: "vacation" },
+      { id: "active-1", name: "Active Player", rosterType: "squad" },
+    ],
+    changeLog: [
+      {
+        id: "erin-to-guest",
+        type: "profile-updated",
+        playerId: "erin-1",
+        playerName: "Erin",
+        changes: [{ field: "Roster type", from: "Squad player", to: "Guest player" }],
+        createdAt: "2026-06-10T12:00:00.000Z",
+      },
+    ],
+  };
+  const harness = createHarness({
+    storage: { "football-player-profiles-v1": JSON.stringify(storedState) },
+  });
+
+  const state = harness.service.readPlayerProfilesState();
+  const erin = state.players.find((player) => player.id === "erin-1");
+
+  expect(erin).toMatchObject({
+    rosterType: "guest",
+    countsInSquad: false,
+    status: "vacation",
+  });
 });
 
 test("Squad player profile runtime state service preserves change-log and guest sync behavior", () => {

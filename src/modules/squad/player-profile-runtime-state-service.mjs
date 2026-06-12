@@ -105,11 +105,154 @@ export function createPlayerProfileRuntimeStateService(options = {}) {
     return options.normalizePlayerProfileChangeLog(state.changeLog).slice(0, limit);
   }
 
+  function normalizePlayerProfileRemovalName(value = "") {
+    return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+  }
+
+  function getPlayerProfileChangeTimestamp(entry = {}) {
+    const timestamp = Date.parse(String(entry.createdAt || entry.updatedAt || ""));
+    return Number.isFinite(timestamp) ? timestamp : 0;
+  }
+
+  function getPlayerProfileRemovalIdentityKeys(state = {}) {
+    const keys = new Set();
+    options.normalizePlayerProfileRemovedIds(
+      state.removedPlayerIds || state.deletedPlayerIds || state.removedIds
+    ).forEach((id) => {
+      keys.add(`id:${id}`);
+    });
+
+    const latestLifecycleByKey = new Map();
+    options.normalizePlayerProfileChangeLog(state.changeLog || state.history || []).forEach((entry) => {
+      const type = String(entry.type || "").trim();
+      const isRemoval = ["player-removed", "player-deleted", "player-archived"].includes(type);
+      const isRestore = ["player-added", "player-restored"].includes(type);
+      if (!isRemoval && !isRestore) {
+        return;
+      }
+
+      const identityKeys = [];
+      const playerId = String(entry.playerId || "").trim();
+      const playerName = normalizePlayerProfileRemovalName(entry.playerName);
+      if (playerId) {
+        identityKeys.push(`id:${playerId}`);
+      }
+      if (playerName) {
+        identityKeys.push(`name:${playerName}`);
+      }
+
+      const timestamp = getPlayerProfileChangeTimestamp(entry);
+      identityKeys.forEach((key) => {
+        const current = latestLifecycleByKey.get(key);
+        if (!current || timestamp >= current.timestamp) {
+          latestLifecycleByKey.set(key, { type, timestamp });
+        }
+      });
+    });
+
+    latestLifecycleByKey.forEach((entry, key) => {
+      if (["player-removed", "player-deleted", "player-archived"].includes(entry.type)) {
+        keys.add(key);
+      }
+    });
+
+    return keys;
+  }
+
+  function playerProfileMatchesRemovalIdentity(player = {}, identityKeys = new Set()) {
+    const id = String(player.id || "").trim();
+    const name = normalizePlayerProfileRemovalName(player.name || player.displayName);
+    return Boolean((id && identityKeys.has(`id:${id}`)) || (name && identityKeys.has(`name:${name}`)));
+  }
+
+  function getPlayerProfileIdentityKeys(source = {}) {
+    const keys = [];
+    const id = String(source.id || source.playerId || "").trim();
+    const name = normalizePlayerProfileRemovalName(source.name || source.playerName || source.displayName);
+    if (id) {
+      keys.push(`id:${id}`);
+    }
+    if (name) {
+      keys.push(`name:${name}`);
+    }
+    return keys;
+  }
+
+  function getPlayerProfileRosterChangePath(change = {}) {
+    const field = String(change.field || "").trim().toLowerCase();
+    if (field === "roster type") {
+      return "rosterType";
+    }
+    if (field === "temporary group") {
+      return "temporaryGroup";
+    }
+    if (field === "temporary from") {
+      return "temporaryFrom";
+    }
+    if (field === "temporary to") {
+      return "temporaryTo";
+    }
+    return "";
+  }
+
+  function normalizePlayerProfileRosterChangeValue(path = "", value = "") {
+    if (path === "rosterType") {
+      return options.normalizePlayerProfileRosterType?.(value, "") || "";
+    }
+    const cleanValue = String(value || "").trim();
+    return cleanValue === "-" ? "" : cleanValue;
+  }
+
+  function restorePlayerProfileRosterFieldsFromChangeLog(source = {}, player = {}) {
+    const playerKeys = new Set(getPlayerProfileIdentityKeys(player));
+    if (!playerKeys.size) {
+      return player;
+    }
+
+    const latestRosterChanges = new Map();
+    options.normalizePlayerProfileChangeLog(source.changeLog || source.history || []).forEach((entry) => {
+      const entryKeys = getPlayerProfileIdentityKeys(entry);
+      if (!entryKeys.some((key) => playerKeys.has(key))) {
+        return;
+      }
+
+      const timestamp = getPlayerProfileChangeTimestamp(entry);
+      (Array.isArray(entry.changes) ? entry.changes : []).forEach((change) => {
+        const path = getPlayerProfileRosterChangePath(change);
+        if (!path) {
+          return;
+        }
+        const value = normalizePlayerProfileRosterChangeValue(path, change.to);
+        if (path === "rosterType" && !value) {
+          return;
+        }
+        const current = latestRosterChanges.get(path);
+        if (!current || timestamp >= current.timestamp) {
+          latestRosterChanges.set(path, { value, timestamp });
+        }
+      });
+    });
+
+    if (!latestRosterChanges.size) {
+      return player;
+    }
+
+    const restoredPlayer = { ...player };
+    latestRosterChanges.forEach((entry, path) => {
+      restoredPlayer[path] = entry.value;
+    });
+    if (latestRosterChanges.has("rosterType")) {
+      restoredPlayer.countsInSquad = options.playerProfileRosterTypeCountsInSquad?.(restoredPlayer.rosterType) !== false;
+    }
+    return restoredPlayer;
+  }
+
   function clonePlayerProfilesState(source = {}) {
     const removedPlayerIds = options.normalizePlayerProfileRemovedIds(
       source.removedPlayerIds || source.deletedPlayerIds || source.removedIds
     );
     const removedPlayerIdSet = new Set(removedPlayerIds);
+    const removedPlayerIdentityKeys = getPlayerProfileRemovalIdentityKeys(source);
     const seededPlayers = options.defaultMedicalPlayers.map((player) =>
       options.normalizePlayerProfile({
         ...player,
@@ -118,17 +261,20 @@ export function createPlayerProfileRuntimeStateService(options = {}) {
       })
     );
     const incomingPlayers = Array.isArray(source.players)
-      ? source.players.map(options.normalizePlayerProfile).filter(Boolean)
+      ? source.players
+        .map((player) => restorePlayerProfileRosterFieldsFromChangeLog(source, player))
+        .map(options.normalizePlayerProfile)
+        .filter(Boolean)
       : [];
     const playersById = new Map();
     seededPlayers.filter(Boolean).forEach((player) => {
-      if (removedPlayerIdSet.has(player.id)) {
+      if (removedPlayerIdSet.has(player.id) || playerProfileMatchesRemovalIdentity(player, removedPlayerIdentityKeys)) {
         return;
       }
       playersById.set(player.id, player);
     });
     incomingPlayers.forEach((player) => {
-      if (removedPlayerIdSet.has(player.id)) {
+      if (removedPlayerIdSet.has(player.id) || playerProfileMatchesRemovalIdentity(player, removedPlayerIdentityKeys)) {
         return;
       }
       const seededPlayer = playersById.get(player.id);
@@ -230,9 +376,10 @@ export function createPlayerProfileRuntimeStateService(options = {}) {
     }
     try {
       const removedPlayerIdSet = new Set(options.normalizePlayerProfileRemovedIds(state.removedPlayerIds));
+      const removedPlayerIdentityKeys = getPlayerProfileRemovalIdentityKeys(state);
       state.removedPlayerIds = Array.from(removedPlayerIdSet);
       state.players = (Array.isArray(state.players) ? state.players : [])
-        .filter((player) => !removedPlayerIdSet.has(player?.id));
+        .filter((player) => !removedPlayerIdSet.has(player?.id) && !playerProfileMatchesRemovalIdentity(player, removedPlayerIdentityKeys));
       state.updatedAt = getNow();
       setPlayerProfilesState(state);
       win.localStorage.setItem(options.playerProfilesStorageKey, JSON.stringify(state));

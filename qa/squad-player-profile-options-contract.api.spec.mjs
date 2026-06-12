@@ -76,6 +76,27 @@ test("Squad player profile helpers own normalization, validation, and display co
     countsInSquad: false,
     secondaryRoles: ["10", "RW"],
   });
+  expect(
+    helpers.normalizePlayerProfile({
+      id: "erin",
+      name: "Erin",
+      rosterType: "guest",
+      countsInSquad: true,
+    })
+  ).toMatchObject({
+    rosterType: "guest",
+    countsInSquad: false,
+  });
+  expect(
+    helpers.normalizePlayerProfile({
+      id: "legacy-guest",
+      name: "Legacy Guest",
+      countsInSquad: false,
+    })
+  ).toMatchObject({
+    rosterType: "guest",
+    countsInSquad: false,
+  });
 
   expect(
     helpers.validatePlayerProfileFormValues(

@@ -7,6 +7,7 @@ import {
   createScheduleDayClipboard,
   createScheduleWorkspaceController,
   createScheduleWorkspaceRenderer,
+  moveScheduleEventToDate,
   pasteScheduleClipboard,
   selectScheduleStateDate,
   setScheduleDayNote,
@@ -167,6 +168,16 @@ test("Schedule actions preserve navigation, copy paste, and upsert behavior", ()
   pasteScheduleClipboard(state, clipboard);
   expect(state.events.map((event) => event.date)).toEqual(["2026-05-08", "2026-05-09"]);
 
+  const movedEventId = state.events.find((event) => event.date === "2026-05-09")?.id;
+  const moveResult = moveScheduleEventToDate(state, movedEventId, "2026-05-10");
+  expect(moveResult.changed).toBe(true);
+  expect(state.events.find((event) => event.id === movedEventId)?.date).toBe("2026-05-10");
+
+  const duplicateMoveResult = moveScheduleEventToDate(state, movedEventId, "2026-05-08");
+  expect(duplicateMoveResult.changed).toBe(true);
+  expect(state.events).toHaveLength(1);
+  expect(state.events[0]).toMatchObject({ date: "2026-05-08", title: "Training" });
+
   expect(setScheduleDayNote(state, "2026-05-09", "Bus leaves after lunch")).toBe(true);
   expect(state.dayNotes["2026-05-09"]).toBe("Bus leaves after lunch");
   expect(setScheduleDayNote(state, "2026-05-09", "")).toBe(true);
@@ -217,4 +228,23 @@ test("Schedule renderer keeps the visible day operations contract", () => {
   );
   expect(insights).toContain("Create Session");
   expect(insights).toContain("Open Periodization");
+
+  expect(renderer.getPlannerMonthCountForWidth(1280)).toBe(4);
+  expect(renderer.getPlannerMonthCountForWidth(980)).toBe(3);
+  expect(renderer.getPlannerMonthCountForWidth(640)).toBe(2);
+
+  const plannerDay = renderer.renderPlannerDay(
+    {
+      state: {
+        selectedDate: "2026-05-08",
+        dayNotes: { "2026-05-08": "Bus leaves after lunch" },
+      },
+      canEdit: true,
+      getEventsForDate: () => [],
+      getVisibleEvents: (events) => events,
+    },
+    new Date(2026, 4, 8)
+  );
+  expect(plannerDay).toContain("schedule-planner-note-indicator");
+  expect(plannerDay).toContain("Bus leaves after lunch");
 });

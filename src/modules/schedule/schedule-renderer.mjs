@@ -216,6 +216,32 @@ ${escapeHtml(eventType.label)}
     return mainEvent ? scheduleEventTypes[mainEvent.type]?.tone || "training" : "";
   }
 
+  function formatNotePreview(note = "") {
+    return String(note).replace(/\s+/g, " ").trim();
+  }
+
+  function getPlannerMonthCountForWidth(width = 0) {
+    const cleanWidth = Number(width) || 0;
+    if (cleanWidth >= 1180) {
+      return 4;
+    }
+    if (cleanWidth >= 820) {
+      return 3;
+    }
+    return 2;
+  }
+
+  function getPlannerMonthCount(context = {}) {
+    const explicitCount = Number(context.plannerMonthCount);
+    if ([2, 3, 4].includes(explicitCount)) {
+      return explicitCount;
+    }
+    const gridWidth = Number(context.ui?.schedulePlannerGrid?.clientWidth) || 0;
+    const boardWidth = Number(context.ui?.schedulePlannerGrid?.parentElement?.clientWidth) || 0;
+    const workspaceWidth = Number(context.ui?.scheduleWorkspace?.clientWidth) || 0;
+    return getPlannerMonthCountForWidth(gridWidth || boardWidth || workspaceWidth);
+  }
+
   function renderPlannerEventChip(event, canEdit, isPlannerEditing = false, selectedPlannerEventId = "") {
     const eventType = scheduleEventTypes[event.type] ?? scheduleEventTypes.training;
     const eventMeta = [event.time, event.note].filter(Boolean).join(" · ");
@@ -228,7 +254,7 @@ ${escapeHtml(eventType.label)}
       `;
     }
     return `
-      <button type="button" class="schedule-planner-event-chip is-${escapeHtml(eventType.tone)}${isSelected ? " is-selected" : ""}" data-planner-event-id="${escapeHtml(event.id)}" aria-pressed="${isSelected ? "true" : "false"}">
+      <button type="button" class="schedule-planner-event-chip is-${escapeHtml(eventType.tone)}${isSelected ? " is-selected" : ""}" data-planner-event-id="${escapeHtml(event.id)}" aria-pressed="${isSelected ? "true" : "false"}" draggable="${canEdit ? "true" : "false"}">
         <span>
           <strong>${escapeHtml(event.title)}</strong>
           ${eventMeta ? `<small>${escapeHtml(eventMeta)}</small>` : ""}
@@ -247,6 +273,7 @@ ${escapeHtml(eventType.label)}
     const plannerEditingEventId = context.plannerEditingEventId || "";
     const plannerEditingDate = context.plannerEditingDate || "";
     const selectedPlannerEventId = context.selectedPlannerEventId || "";
+    const dayNote = state?.dayNotes?.[dateValue] || "";
     const mainTone = inferPlannerTone(events);
     const eventToneClass = mainTone ? ` is-main-${mainTone}` : "";
     const isSelected = dateValue === selectedDateValue;
@@ -266,8 +293,20 @@ ${escapeHtml(eventType.label)}
         </form>
       `
       : "";
+    const noteButton = dayNote
+      ? `
+        <button
+          type="button"
+          class="schedule-planner-note-indicator"
+          data-open-schedule-day-note="${escapeHtml(dateValue)}"
+          data-note-preview="${escapeHtml(formatNotePreview(dayNote))}"
+          title="${escapeHtml(formatNotePreview(dayNote))}"
+          aria-label="Open note for ${escapeHtml(getScheduleDateLabel(dateValue))}"
+        >i</button>
+      `
+      : "";
     return `
-      <article class="schedule-planner-day${isSelected ? " is-selected" : ""}${isToday ? " is-today" : ""}${events.length ? ` has-events${eventToneClass}` : ""}" data-schedule-date="${escapeHtml(dateValue)}">
+      <article class="schedule-planner-day${isSelected ? " is-selected" : ""}${isToday ? " is-today" : ""}${dayNote ? " has-note" : ""}${events.length ? ` has-events${eventToneClass}` : ""}" data-schedule-date="${escapeHtml(dateValue)}">
         <button type="button" class="schedule-planner-date" data-schedule-date="${escapeHtml(dateValue)}" aria-label="${escapeHtml(getScheduleDateLabel(dateValue))}">
           <span>${escapeHtml(weekdayLabel)}</span>
           <strong>${date.getDate()}</strong>
@@ -276,6 +315,7 @@ ${escapeHtml(eventType.label)}
           ${eventMarkup}
           ${addForm}
         </div>
+        ${noteButton}
       </article>
     `;
   }
@@ -297,28 +337,40 @@ ${escapeHtml(eventType.label)}
     `;
   }
 
-  function renderPlannerNotesPanel(context) {
+  function renderPlannerNoteOverlay(context) {
     const { state, canEdit } = context;
-    const dateValue = state?.selectedDate || formatScheduleDateValue(getNow());
+    const dateValue = context.plannerNoteDate || "";
+    if (!dateValue) {
+      return "";
+    }
     const note = state?.dayNotes?.[dateValue] || "";
-    const selectedEvents = context.getEventsForDate(dateValue);
     return `
-      <aside class="schedule-planner-notes" data-schedule-planner-notes-date="${escapeHtml(dateValue)}">
-        <header>
-          <p>Notes</p>
-          <h3>${escapeHtml(getScheduleDateLabel(dateValue))}</h3>
-        </header>
-        <textarea
-          data-schedule-day-note="${escapeHtml(dateValue)}"
-          aria-label="Notes for ${escapeHtml(getScheduleDateLabel(dateValue))}"
-          rows="8"
-          ${canEdit ? "" : "readonly"}
-        >${escapeHtml(note)}</textarea>
-        <footer>
-          <span>${selectedEvents.length ? `${selectedEvents.length} plan${selectedEvents.length === 1 ? "" : "s"}` : "No plans"}</span>
-          <button type="button" data-clear-schedule-day-note="${escapeHtml(dateValue)}" ${canEdit && note ? "" : "disabled"}>Clear</button>
-        </footer>
-      </aside>
+      <div class="schedule-planner-note-backdrop" data-close-schedule-day-note></div>
+      <section class="schedule-planner-note-overlay" role="dialog" aria-modal="true" aria-label="Day note" data-schedule-planner-note-dialog="${escapeHtml(dateValue)}">
+        <form data-schedule-day-note-form="${escapeHtml(dateValue)}">
+          <header>
+            <div>
+              <p>Note</p>
+              <h3>${escapeHtml(getScheduleDateLabel(dateValue))}</h3>
+            </div>
+            <button type="button" data-close-schedule-day-note aria-label="Close note">×</button>
+          </header>
+          <textarea
+            name="dayNote"
+            data-schedule-day-note="${escapeHtml(dateValue)}"
+            aria-label="Note for ${escapeHtml(getScheduleDateLabel(dateValue))}"
+            rows="7"
+            ${canEdit ? "" : "readonly"}
+          >${escapeHtml(note)}</textarea>
+          <footer>
+            <button type="button" data-clear-schedule-day-note="${escapeHtml(dateValue)}" ${canEdit && note ? "" : "disabled"}>Clear</button>
+            <div>
+              <button type="button" data-close-schedule-day-note>Close</button>
+              ${canEdit ? `<button type="submit">Save</button>` : ""}
+            </div>
+          </footer>
+        </form>
+      </section>
     `;
   }
 
@@ -418,12 +470,12 @@ ${escapeHtml(eventType.label)}
     return `${formatScheduleMonthLabel(startDate)} - ${formatScheduleMonthLabel(endDate)}`;
   }
 
-  function getPlannerLabel(state) {
+  function getPlannerLabel(state, monthCount = 3) {
     if (!state) {
       return "Planner";
     }
     const startDate = new Date(state.selectedYear, state.selectedMonthIndex, 1);
-    const endDate = new Date(state.selectedYear, state.selectedMonthIndex + 2, 1);
+    const endDate = new Date(state.selectedYear, state.selectedMonthIndex + Math.max(1, monthCount) - 1, 1);
     return `${formatScheduleMonthLabel(startDate)} - ${formatScheduleMonthLabel(endDate)}`;
   }
 
@@ -447,6 +499,7 @@ ${escapeHtml(eventType.label)}
     const isOverview = state.viewMode === "overview";
     const isWeek = state.viewMode === "week";
     const isPlanner = state.viewMode === "planner";
+    const plannerMonthCount = isPlanner ? getPlannerMonthCount(context) : 3;
     const isEditingDay = dayPanelMode === "edit" && canEdit;
     const editingEvent = state.events.find((event) => event.id === editingEventId) ?? null;
 
@@ -456,7 +509,7 @@ ${escapeHtml(eventType.label)}
       : isWeek
         ? getWeekLabel(state)
         : isPlanner
-          ? getPlannerLabel(state)
+          ? getPlannerLabel(state, plannerMonthCount)
           : selectedMonthLabel;
     ui.scheduleMonthTitle.hidden = false;
     ui.scheduleMonthViewButton?.classList.toggle("is-active", state.viewMode === "month");
@@ -492,6 +545,8 @@ ${escapeHtml(eventType.label)}
     }
     if (ui.schedulePlannerGrid) {
       ui.schedulePlannerGrid.hidden = !isPlanner;
+      ui.schedulePlannerGrid.dataset.months = String(plannerMonthCount);
+      ui.schedulePlannerGrid.style?.setProperty?.("--schedule-planner-months", String(plannerMonthCount));
     }
 
     if (ui.scheduleEventDate) {
@@ -551,9 +606,9 @@ ${escapeHtml(eventType.label)}
         renderOverviewMonth(context, new Date(state.selectedYear, state.selectedMonthIndex + index, 1))
       ).join("");
     } else if (isPlanner && ui.schedulePlannerGrid) {
-      ui.schedulePlannerGrid.innerHTML = `${Array.from({ length: 3 }, (_, index) =>
+      ui.schedulePlannerGrid.innerHTML = `${Array.from({ length: plannerMonthCount }, (_, index) =>
         renderPlannerMonth(context, new Date(state.selectedYear, state.selectedMonthIndex + index, 1))
-      ).join("")}${renderPlannerNotesPanel(context)}`;
+      ).join("")}${renderPlannerNoteOverlay(context)}`;
     } else if (isWeek && ui.scheduleWeekGrid) {
       ui.scheduleWeekGrid.innerHTML = getScheduleWeekDates(state.selectedDate).map((date) => renderWeekDay(context, date)).join("");
     } else {
@@ -575,6 +630,7 @@ ${escapeHtml(eventType.label)}
     getMonthGridDates: getScheduleMonthGridDates,
     getOverviewLabel,
     getPlannerLabel,
+    getPlannerMonthCountForWidth,
     getWeekDates: getScheduleWeekDates,
     getWeekLabel,
     renderDayInsights,

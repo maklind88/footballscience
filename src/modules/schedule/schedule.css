@@ -1,6 +1,6 @@
 /* Schedule Planner */
 .schedule-workspace.is-planner-view .schedule-layout{grid-template-columns:minmax(0,1fr)}
-.schedule-planner-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(14rem,.9fr);align-items:start;gap:.56rem}
+.schedule-planner-grid{position:relative;display:grid;grid-template-columns:repeat(var(--schedule-planner-months,3),minmax(0,1fr));align-items:start;gap:.56rem}
 .schedule-planner-grid[hidden]{display:none!important}
 .schedule-planner-month{min-width:0;display:grid;grid-template-rows:auto minmax(0,1fr);gap:.38rem;padding:.58rem;border-radius:16px;background:linear-gradient(180deg,#ffffffe8,#f8f8f9bd),#ffffffcc;border:1px solid #0000000b}
 .schedule-planner-month>header{display:flex;align-items:center;justify-content:space-between;gap:.48rem;padding:.02rem .04rem .08rem}
@@ -8,7 +8,7 @@
 .schedule-planner-month .schedule-overview-legend{justify-content:flex-end;margin:0;padding:0;gap:.18rem .28rem}
 .schedule-planner-month .schedule-overview-legend-item{font-size:.52rem}
 .schedule-planner-days{display:grid;gap:.13rem}
-.schedule-planner-day{position:relative;min-width:0;display:grid;grid-template-columns:3.35rem minmax(0,1fr);align-items:center;gap:.24rem;min-height:1.82rem;padding:.13rem .18rem;border-radius:9px;background:#ffffffa8;border:1px solid #0000000a;color:#1d1d1f;transition:background 150ms ease,border-color 150ms ease,box-shadow 150ms ease}
+.schedule-planner-day{position:relative;min-width:0;display:grid;grid-template-columns:3.35rem minmax(0,1fr);align-items:center;gap:.24rem;min-height:1.82rem;padding:.13rem .18rem;border-radius:9px;background:#ffffffa8;border:1px solid #0000000a;color:#1d1d1f;transition:background 150ms ease,border-color 150ms ease,box-shadow 150ms ease,transform 150ms ease}
 .schedule-planner-day.has-events{border-color:#0000000a;background:#ffffffa8}
 .schedule-planner-day.is-selected{border-color:#1d1d1f2e;box-shadow:inset 0 0 0 1px #1d1d1f21,0 10px 20px #1d1d1f10}
 .schedule-planner-day.is-today:not(.is-selected){box-shadow:inset 0 0 0 2px var(--schedule-event-solid,#0a84ff)}
@@ -17,8 +17,12 @@
 .schedule-planner-date strong{width:1.26rem;height:1.26rem;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;border-radius:999px;background:#1d1d1f10;color:#1d1d1f;font-size:.68rem;font-weight:950}
 .schedule-planner-day.is-today .schedule-planner-date strong{color:#fff;background:var(--schedule-event-solid,#0a84ff)}
 .schedule-planner-events{min-width:0;min-height:1.28rem;display:flex;align-items:center;flex-wrap:wrap;gap:.14rem}
+.schedule-planner-day.has-note .schedule-planner-events{padding-right:1.25rem}
 .schedule-planner-empty{display:inline-flex;align-items:center;min-height:1.28rem;padding:0 .4rem;border-radius:999px;color:#86868b;background:#1d1d1f08;font-size:.62rem;font-weight:780}
 .schedule-planner-event-chip{min-width:0;max-width:100%;display:inline-flex;align-items:center;gap:.22rem;padding:.19rem .4rem;border:1px solid #0000000a;border-radius:999px;background:#1d1d1f0f;color:#1d1d1fc7;font:inherit;font-size:.66rem;font-weight:840;line-height:1.05;text-align:left;cursor:pointer;appearance:none}
+.schedule-planner-event-chip[draggable=true]{cursor:grab;touch-action:none}
+.schedule-planner-event-chip[draggable=true]:active{cursor:grabbing}
+.schedule-planner-event-chip.is-dragging{opacity:.45;transform:scale(.98)}
 .schedule-planner-event-chip.is-selected{box-shadow:0 0 0 2px #1d1d1f1f,inset 0 0 0 1px #ffffffc9}
 .schedule-planner-event-chip:focus-visible{outline:0;box-shadow:0 0 0 3px #0071e333}
 .schedule-planner-event-chip>span:first-child{min-width:0;display:grid;gap:.02rem}
@@ -36,16 +40,28 @@
 .schedule-planner-add input,.schedule-planner-edit input{width:100%;min-height:1.42rem;padding:.18rem .42rem;border:1px solid #0000000f;border-radius:999px;background:#ffffffe0;color:#1d1d1f;font:inherit;font-size:.66rem;font-weight:800;outline:0}
 .schedule-planner-add input::placeholder{color:#86868bb0}
 .schedule-planner-add input:focus,.schedule-planner-edit input:focus{border-color:#0071e36b;box-shadow:0 0 0 3px #0071e321;background:#fff}
-.schedule-planner-notes{min-width:0;position:sticky;top:.75rem;display:grid;gap:.58rem;padding:.72rem;border-radius:14px;background:linear-gradient(180deg,#fffffff2,#f8f8f9d6),#ffffffe0;border:1px solid #0000000c;box-shadow:0 16px 34px #0000000b}
-.schedule-planner-notes header{display:grid;gap:.18rem}
-.schedule-planner-notes p{margin:0;color:#86868b;font-size:.62rem;font-weight:950;letter-spacing:.09em;text-transform:uppercase}
-.schedule-planner-notes h3{margin:0;color:#1d1d1f;font-size:.88rem;font-weight:900;letter-spacing:-.02em;line-height:1.12}
-.schedule-planner-notes textarea{width:100%;min-height:13.5rem;resize:vertical;border:1px solid #00000012;border-radius:11px;padding:.58rem .64rem;background:#ffffffe8;color:#1d1d1f;font:inherit;font-size:.74rem;font-weight:700;line-height:1.35;outline:0}
-.schedule-planner-notes textarea:focus{border-color:#0071e36b;box-shadow:0 0 0 3px #0071e321;background:#fff}
-.schedule-planner-notes footer{display:flex;align-items:center;justify-content:space-between;gap:.6rem}
-.schedule-planner-notes footer span{min-width:0;color:#86868b;font-size:.66rem;font-weight:800}
-.schedule-planner-notes footer button{min-height:1.7rem;padding:0 .62rem;border:0;border-radius:999px;background:#1d1d1f0f;color:#1d1d1f;font-size:.66rem;font-weight:900;cursor:pointer}
-.schedule-planner-notes footer button:disabled{cursor:default;opacity:.38}
+.schedule-planner-note-indicator{position:absolute;right:.26rem;top:50%;z-index:2;width:1.05rem;height:1.05rem;display:inline-flex;align-items:center;justify-content:center;border:1px solid #1d1d1f18;border-radius:999px;background:#fffffff2;color:#1d1d1fa3;box-shadow:0 3px 10px #00000010;font:inherit;font-size:.58rem;font-weight:950;line-height:1;cursor:pointer}
+.schedule-planner-note-indicator:focus-visible{outline:0;box-shadow:0 0 0 3px #0071e326,0 3px 10px #00000010}
+.schedule-planner-note-indicator::after{content:attr(data-note-preview);position:absolute;right:calc(100% + .38rem);top:50%;z-index:5;width:max-content;max-width:min(18rem,42vw);padding:.42rem .52rem;border-radius:9px;background:#1d1d1ff2;color:#fff;box-shadow:0 12px 26px #00000030;font-size:.66rem;font-weight:760;line-height:1.28;text-align:left;opacity:0;pointer-events:none;transform:translateY(-50%) translateX(.24rem);transition:opacity 120ms ease,transform 120ms ease;white-space:normal}
+.schedule-planner-note-indicator:hover::after,.schedule-planner-note-indicator:focus-visible::after{opacity:1;transform:translateY(-50%)}
+.schedule-workspace.is-dragging-planner-event .schedule-planner-day{cursor:move}
+.schedule-planner-day.is-drop-target{border-color:#0071e36e;box-shadow:inset 0 0 0 2px #0071e35c,0 10px 24px #0071e31c;transform:translateY(-1px)}
+.schedule-planner-note-backdrop{position:fixed;inset:0;z-index:280;background:#1d1d1f26;backdrop-filter:blur(8px)}
+.schedule-planner-note-overlay{position:fixed;z-index:281;top:clamp(5.5rem,13vh,8rem);right:clamp(1rem,4vw,3.2rem);width:min(26rem,calc(100vw - 2rem));padding:.72rem;border-radius:18px;background:linear-gradient(180deg,#fffffff7,#f8f8faef),#fffffff0;border:1px solid #ffffffe0;box-shadow:0 30px 90px #0000002e;animation:schedulePlannerNoteIn 140ms ease both}
+.schedule-planner-note-overlay form{display:grid;gap:.62rem}
+.schedule-planner-note-overlay header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
+.schedule-planner-note-overlay header div{display:grid;gap:.14rem;min-width:0}
+.schedule-planner-note-overlay p{margin:0;color:#86868b;font-size:.62rem;font-weight:950;letter-spacing:.09em;text-transform:uppercase}
+.schedule-planner-note-overlay h3{margin:0;color:#1d1d1f;font-size:.94rem;font-weight:900;letter-spacing:-.02em;line-height:1.12}
+.schedule-planner-note-overlay header button{width:2rem;height:2rem;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;border:0;border-radius:999px;background:#1d1d1f0d;color:#1d1d1f;font-size:1rem;font-weight:900;cursor:pointer}
+.schedule-planner-note-overlay textarea{width:100%;min-height:11rem;resize:vertical;border:1px solid #00000012;border-radius:12px;padding:.68rem .72rem;background:#ffffffe8;color:#1d1d1f;font:inherit;font-size:.8rem;font-weight:700;line-height:1.38;outline:0}
+.schedule-planner-note-overlay textarea:focus{border-color:#0071e36b;box-shadow:0 0 0 3px #0071e321;background:#fff}
+.schedule-planner-note-overlay footer{display:flex;align-items:center;justify-content:space-between;gap:.7rem}
+.schedule-planner-note-overlay footer div{display:flex;justify-content:flex-end;gap:.45rem}
+.schedule-planner-note-overlay footer button{min-height:2rem;padding:0 .72rem;border:0;border-radius:999px;background:#1d1d1f0f;color:#1d1d1f;font:inherit;font-size:.68rem;font-weight:900;cursor:pointer}
+.schedule-planner-note-overlay footer button[type=submit]{background:#1d1d1f;color:#fff}
+.schedule-planner-note-overlay footer button:disabled{cursor:default;opacity:.38}
+@keyframes schedulePlannerNoteIn{from{opacity:0;transform:translateY(.36rem) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
 body.is-dark-mode .platform-schedule-view .schedule-planner-month{background:var(--dark-surface-soft)!important;border-color:var(--dark-line)!important;box-shadow:0 16px 40px #0000003d!important;color:var(--dark-text)!important}
 body.is-dark-mode .platform-schedule-view .schedule-planner-month h3{color:var(--dark-text)!important}
 body.is-dark-mode .platform-schedule-view .schedule-planner-day,body.is-dark-mode .platform-schedule-view .schedule-planner-day.has-events{background:#ffffff12!important;border-color:var(--dark-line)!important;color:var(--dark-text)!important}
@@ -63,12 +79,14 @@ body.is-dark-mode .platform-schedule-view .schedule-planner-event-chip.is-recove
 body.is-dark-mode .platform-schedule-view .schedule-planner-event-chip.is-off{background:#94a3b824!important;color:#d5e3ec!important}
 body.is-dark-mode .platform-schedule-view .schedule-planner-add input,body.is-dark-mode .platform-schedule-view .schedule-planner-edit input{background:#060c12d6!important;border-color:var(--dark-line-strong)!important;color:var(--dark-text)!important}
 body.is-dark-mode .platform-schedule-view .schedule-planner-add input:focus,body.is-dark-mode .platform-schedule-view .schedule-planner-edit input:focus{border-color:#60a5fa73!important;box-shadow:0 0 0 3px #60a5fa2e!important}
-body.is-dark-mode .platform-schedule-view .schedule-planner-notes{background:var(--dark-surface-soft)!important;border-color:var(--dark-line)!important;color:var(--dark-text)!important}
-body.is-dark-mode .platform-schedule-view .schedule-planner-notes h3{color:var(--dark-text)!important}
-body.is-dark-mode .platform-schedule-view .schedule-planner-notes p,body.is-dark-mode .platform-schedule-view .schedule-planner-notes footer span{color:var(--dark-muted)!important}
-body.is-dark-mode .platform-schedule-view .schedule-planner-notes textarea{background:#060c12d6!important;border-color:var(--dark-line-strong)!important;color:var(--dark-text)!important}
-body.is-dark-mode .platform-schedule-view .schedule-planner-notes footer button{background:#ffffff18!important;color:var(--dark-text)!important}
-@media (max-width:1180px){.schedule-planner-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.schedule-planner-notes{grid-column:1/-1;position:static}.schedule-planner-notes textarea{min-height:7rem}}
-@media (max-width:980px){.schedule-planner-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.schedule-planner-notes{grid-column:1/-1}}
+body.is-dark-mode .platform-schedule-view .schedule-planner-note-indicator{background:#0f172af0!important;border-color:var(--dark-line-strong)!important;color:var(--dark-text)!important}
+body.is-dark-mode .platform-schedule-view .schedule-planner-note-overlay{background:var(--dark-surface-soft)!important;border-color:var(--dark-line)!important;color:var(--dark-text)!important}
+body.is-dark-mode .platform-schedule-view .schedule-planner-note-overlay h3,body.is-dark-mode .platform-schedule-view .schedule-planner-note-overlay header button{color:var(--dark-text)!important}
+body.is-dark-mode .platform-schedule-view .schedule-planner-note-overlay p{color:var(--dark-muted)!important}
+body.is-dark-mode .platform-schedule-view .schedule-planner-note-overlay header button,body.is-dark-mode .platform-schedule-view .schedule-planner-note-overlay footer button{background:#ffffff18!important;color:var(--dark-text)!important}
+body.is-dark-mode .platform-schedule-view .schedule-planner-note-overlay footer button[type=submit]{background:#e2e8f0!important;color:#0f172a!important}
+body.is-dark-mode .platform-schedule-view .schedule-planner-note-overlay textarea{background:#060c12d6!important;border-color:var(--dark-line-strong)!important;color:var(--dark-text)!important}
+@media (max-width:1180px){.schedule-planner-grid{grid-template-columns:repeat(var(--schedule-planner-months,3),minmax(0,1fr))}}
+@media (max-width:980px){.schedule-planner-grid{grid-template-columns:repeat(var(--schedule-planner-months,2),minmax(0,1fr))}}
 @media (max-width:760px){.schedule-planner-grid{grid-template-columns:1fr}}
 @media (max-width:760px){.schedule-planner-month{padding:.62rem;border-radius:16px}.schedule-planner-month>header{align-items:flex-start;flex-direction:column}.schedule-planner-day{grid-template-columns:3.25rem minmax(0,1fr);gap:.24rem}.schedule-planner-events{align-items:stretch}.schedule-planner-event-chip,.schedule-planner-add,.schedule-planner-edit{width:100%;flex-basis:100%}.schedule-planner-event-chip{border-radius:10px}.schedule-planner-add input,.schedule-planner-edit input{border-radius:10px}}

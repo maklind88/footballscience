@@ -145,6 +145,36 @@ export function setScheduleDayNote(state, dateValue, note) {
   return previousNote !== (normalizedNotes[dateValue] || "");
 }
 
+export function moveScheduleEventToDate(state, eventId, dateValue) {
+  if (!state || !eventId || !dateValue) {
+    return { changed: false, eventId: "" };
+  }
+  const event = state.events.find((item) => item.id === eventId);
+  if (!event) {
+    return { changed: false, eventId: "" };
+  }
+  const targetDate = formatScheduleDateValue(parseScheduleDateValue(dateValue));
+  if (event.date === targetDate) {
+    state.selectedDate = targetDate;
+    return { changed: false, eventId };
+  }
+
+  const movedEvent = cloneScheduleEvent({ ...event, date: targetDate });
+  const duplicateEvent = state.events.find(
+    (item) => item.id !== eventId && getScheduleEventDedupKey(item) === getScheduleEventDedupKey(movedEvent)
+  );
+  if (duplicateEvent) {
+    state.events = state.events.filter((item) => item.id !== eventId);
+    state.selectedDate = targetDate;
+    return { changed: true, eventId: duplicateEvent.id };
+  }
+
+  state.events = state.events.map((item) => (item.id === eventId ? movedEvent : item));
+  state.events = getUniqueScheduleEvents(state.events);
+  state.selectedDate = targetDate;
+  return { changed: true, eventId: movedEvent.id };
+}
+
 export function startScheduleEventEdit(state, eventId) {
   if (!state) {
     return null;

@@ -578,6 +578,13 @@ export function createScheduleWorkspaceController(options = {}) {
     run();
   }
 
+  function getPlannerGridElement() {
+    if (!ui.schedulePlannerGrid?.isConnected) {
+      ui.schedulePlannerGrid = doc?.getElementById?.("schedulePlannerGrid") || ui.schedulePlannerGrid || null;
+    }
+    return ui.schedulePlannerGrid || doc?.getElementById?.("schedulePlannerGrid") || null;
+  }
+
   function getPlannerNoteAnchor(point = null) {
     if (!point) {
       return null;
@@ -598,16 +605,28 @@ export function createScheduleWorkspaceController(options = {}) {
       };
     }
 
-    const overlayWidth = Math.min(360, Math.max(280, viewportWidth - 24));
-    const overlayHeight = Math.min(330, Math.max(260, viewportHeight - 32));
-    const minLeft = 12;
-    const minTop = 72;
-    const maxLeft = Math.max(minLeft, viewportWidth - overlayWidth - 12);
-    const maxTop = Math.max(minTop, viewportHeight - overlayHeight - 12);
+    const margin = 16;
+    const overlayWidth = Math.min(344, Math.max(288, viewportWidth - margin * 2));
+    const overlayHeight = Math.min(280, Math.max(252, viewportHeight - margin * 2));
+    const minLeft = margin;
+    const minTop = Math.min(72, Math.max(margin, viewportHeight - overlayHeight - margin));
+    const maxLeft = Math.max(minLeft, viewportWidth - overlayWidth - margin);
+    const maxTop = Math.max(minTop, viewportHeight - overlayHeight - margin);
+    const opensLeft = rawX > viewportWidth - overlayWidth - margin;
+    const opensUp = rawY > viewportHeight - overlayHeight - margin;
+    const preferredLeft = opensLeft ? rawX - overlayWidth + 18 : rawX + 12;
+    const preferredTop = opensUp ? rawY - overlayHeight + 28 : rawY - 16;
+    const left = Math.min(Math.max(minLeft, preferredLeft), maxLeft);
+    const top = Math.min(Math.max(minTop, preferredTop), maxTop);
+    const arrowX = Math.min(Math.max(18, rawX - left), overlayWidth - 22);
+    const frame = getPlannerGridElement()?.closest?.(".schedule-board-card")?.getBoundingClientRect?.();
+    const frameLeft = Number.isFinite(frame?.left) ? frame.left : 0;
+    const frameTop = Number.isFinite(frame?.top) ? frame.top : 0;
 
     return {
-      x: Math.round(Math.min(Math.max(minLeft, rawX - 12), maxLeft)),
-      y: Math.round(Math.min(Math.max(minTop, rawY - 12), maxTop)),
+      arrowX: Math.round(arrowX),
+      x: Math.round(Math.max(0, left - frameLeft)),
+      y: Math.round(Math.max(0, top - frameTop)),
     };
   }
 

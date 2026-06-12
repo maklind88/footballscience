@@ -347,6 +347,7 @@ ${escapeHtml(eventType.label)}
       return null;
     }
     return {
+      arrowX: Number.isFinite(Number(anchor.arrowX)) ? Math.max(18, Math.round(Number(anchor.arrowX))) : 18,
       left: Math.max(0, Math.round(left)),
       top: Math.max(0, Math.round(top)),
     };
@@ -362,7 +363,7 @@ ${escapeHtml(eventType.label)}
     const anchor = getPlannerNoteOverlayAnchor(context);
     const anchoredClass = anchor ? " is-anchored" : "";
     const anchorStyle = anchor
-      ? ` style="--schedule-note-left:${anchor.left}px;--schedule-note-top:${anchor.top}px"`
+      ? ` style="--schedule-note-left:${anchor.left}px;--schedule-note-top:${anchor.top}px;--schedule-note-arrow-left:${anchor.arrowX}px"`
       : "";
     return `
       <div class="schedule-planner-note-backdrop" data-close-schedule-day-note></div>

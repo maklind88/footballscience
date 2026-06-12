@@ -245,18 +245,31 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     setDashboardChatModerationState?.({ ...nextState });
   }
 
-  function updateDashboardChatApiThreads(threads = []) {
+  function isArchivedApiThread(thread = {}) {
+    return Boolean(thread?.archivedAt || thread?.archived_at || thread?.metadata?.archivedAt || thread?.metadata?.archived_at);
+  }
+
+  function updateDashboardChatApiThreads(threads = [], options = {}) {
     if (!Array.isArray(threads)) {
       return;
     }
 
-    const byId = new Map(getApiThreads().map((thread) => [thread.threadId, thread]));
+    const byId = new Map(
+      (options.replace ? [] : getApiThreads())
+        .filter((thread) => thread?.threadId && !isArchivedApiThread(thread))
+        .map((thread) => [thread.threadId, thread])
+    );
     threads.map(normalizeDashboardApiThread).forEach((thread) => {
-      if (thread?.threadId) {
+      if (!thread?.threadId) {
+        return;
+      }
+      if (isArchivedApiThread(thread)) {
+        byId.delete(thread.threadId);
+      } else {
         byId.set(thread.threadId, thread);
       }
     });
-    setApiThreads(Array.from(byId.values()));
+    setApiThreads(Array.from(byId.values()).filter((thread) => !isArchivedApiThread(thread)));
   }
 
   function applyDashboardChatApiPayload(payload = {}, options = {}) {
@@ -275,7 +288,7 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     }
 
     if (Array.isArray(payload.threads)) {
-      updateDashboardChatApiThreads(payload.threads);
+      updateDashboardChatApiThreads(payload.threads, { replace: Boolean(options.replaceThreadList) });
     } else if (payload.thread) {
       updateDashboardChatApiThreads([payload.thread]);
     }
@@ -320,7 +333,7 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       return result;
     }
 
-    applyDashboardChatApiPayload(result.result || {});
+    applyDashboardChatApiPayload(result.result || {}, { replaceThreadList: true });
     syncDashboardChatWidgetNotificationCursor();
     if (options.render !== false) {
       renderDashboardChatWidget();

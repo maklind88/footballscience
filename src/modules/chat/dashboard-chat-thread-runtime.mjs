@@ -53,7 +53,7 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
         ).length
       : 0;
 
-    const apiThreads = getDashboardChatApiThreads();
+    const apiThreads = getDashboardChatApiThreads().filter((thread) => !thread?.archivedAt && !thread?.archived_at);
     const apiThread = apiThreads.find((thread) => thread.threadId === normalizedThreadId) || null;
     const apiLastMessage = apiThread?.lastMessage ? normalizeDashboardApiMessage(apiThread.lastMessage, apiThread) : null;
     const lastMessage = threadMessages.length ? threadMessages[threadMessages.length - 1] : apiLastMessage;

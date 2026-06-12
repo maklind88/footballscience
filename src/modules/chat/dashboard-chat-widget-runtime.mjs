@@ -332,8 +332,16 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     const activeThreadApiLastMessage = activeThreadApi?.lastMessage
       ? normalizeDashboardApiMessage(activeThreadApi.lastMessage, activeThreadApi)
       : null;
+    const isSettledVisibleMessage = (message) => {
+      const status = String(message?.status || "sent").trim().toLowerCase();
+      return Boolean(message?.id && message?.text && status !== "pending" && status !== "failed" && status !== "deleted");
+    };
+    const newestMessage = (sourceMessages = []) =>
+      sourceMessages
+        .filter(isSettledVisibleMessage)
+        .sort((first, second) => getDashboardMessageCreatedAtMs(second) - getDashboardMessageCreatedAtMs(first))[0] || null;
     const activeThreadLastMessage =
-      [...messages].reverse().find((message) => message.threadId === normalizedActiveThreadId) ||
+      newestMessage(messages.filter((message) => message.threadId === normalizedActiveThreadId)) ||
       activeThreadApiLastMessage ||
       (activeThreadApi?.lastMessageId ? { id: activeThreadApi.lastMessageId, userId: "", threadId: normalizedActiveThreadId } : null);
     const currentCursor = readDashboardChatWidgetNotificationCursor();
@@ -355,13 +363,16 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
           threadId: activeThreadLastMessage.threadId,
         });
       }
+      if (dashboardChatWidgetToastState?.threadId === activeThreadLastMessage.threadId) {
+        hideDashboardChatWidgetToast();
+      }
     }
 
     if (!notifications?.enabled) {
       return;
     }
 
-    const latestMessage = [...messages].reverse().find((message) => message.userId !== currentUser.id);
+    const latestMessage = newestMessage(messages.filter((message) => message.userId !== currentUser.id));
     const latestApiThreadMessage = apiThreads
       .map((thread) => (thread.lastMessage ? normalizeDashboardApiMessage(thread.lastMessage, thread) : null))
       .filter((message) => message && message.userId !== currentUser.id)
@@ -375,7 +386,8 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
       return;
     }
 
-    const cursor = currentCursor?.threads?.[latestVisibleMessage.threadId] || currentCursor;
+    const latestCursorState = readDashboardChatWidgetNotificationCursor();
+    const cursor = latestCursorState?.threads?.[latestVisibleMessage.threadId] || latestCursorState;
     if (
       cursor.lastMessageId === latestVisibleMessage.id &&
       cursor.userId === latestVisibleMessage.userId &&
@@ -385,6 +397,10 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     }
 
     if (isDashboardChatThreadActivelyViewed(latestVisibleMessage.threadId)) {
+      markDashboardChatWidgetNotificationSeenForThread?.(latestVisibleMessage.threadId);
+      if (dashboardChatWidgetToastState?.threadId === latestVisibleMessage.threadId) {
+        hideDashboardChatWidgetToast();
+      }
       return;
     }
 
@@ -398,7 +414,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     const sender = users?.find((entry) => entry.id === latestVisibleMessage.userId);
     const senderName = formatUserName(sender ?? latestVisibleMessage.author ?? { firstName: "Team", lastName: "Member" });
     const threadName = formatDashboardChatThreadLabel(latestVisibleMessage.threadId, currentUser, getPlatformUsers());
-    const mentionedCurrentUser = latestVisibleMessage.mentionedUserIds.includes(currentUser.id);
+    const mentionedCurrentUser = Array.isArray(latestVisibleMessage.mentionedUserIds) && latestVisibleMessage.mentionedUserIds.includes(currentUser.id);
 
     if (notifications.level === "mentions" && !mentionedCurrentUser) {
       return;

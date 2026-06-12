@@ -325,6 +325,8 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(chatRealtimePatterns).toContain('table: "chat_thread_participants"');
   const chatWidgetRuntimeContractSource = `${chatWidgetRuntimeSource}\n${rendererSource}`;
   expect(chatWidgetRuntimeContractSource).toContain("latestApiThreadMessage");
+  expect(chatWidgetRuntimeContractSource).toContain("newestMessage");
+  expect(chatWidgetRuntimeContractSource).toContain("hideDashboardChatWidgetToast");
   expect(chatWidgetRuntimeContractSource).toContain("markDashboardMessagesReadForCurrentUser");
   expect(chatWidgetRuntimeContractSource).toContain("previousThreadListScrollTop");
   expect(chatWidgetRuntimeContractSource).toContain("previousChatListWasAtBottom");
@@ -340,6 +342,7 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(rendererSource).toContain("dashboard-chat-support-diagnostics");
   expect(rendererSource).toContain("is-active-search-match");
   expect(rendererSource).toContain("groupedWithNext");
+  expect(rendererSource).toContain("MESSAGE_GROUP_WINDOW_MS = 15 * 60 * 1000");
 
   expect(chatCssSource).toContain("dashboard-chat-message.is-pending");
   expect(chatCssSource).toContain("dashboard-chat-message.is-failed");
@@ -351,6 +354,7 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(chatCssSource).toContain("dashboard-chat-support-diagnostics");
   expect(chatCssSource).toContain("dashboard-chat-attachment-preview-empty");
   expect(chatCssSource).toContain("dashboard-chat-widget.is-mobile-conversation");
+  expect(chatCssSource).toContain("Chat owner stabilization pass");
 
   expect(attachmentPreviewSource).toContain("data-chat-attachment-preview-previous");
   expect(attachmentPreviewSource).toContain("data-chat-attachment-preview-next");

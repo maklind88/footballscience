@@ -47,7 +47,7 @@ function formatDateSeparator(value) {
   }).format(date);
 }
 
-const MESSAGE_GROUP_WINDOW_MS = 5 * 60 * 1000;
+const MESSAGE_GROUP_WINDOW_MS = 15 * 60 * 1000;
 
 function getMessageGroupingAuthorKey(message = {}, currentUser = null) {
   const source = message || {};
@@ -233,7 +233,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       String(lastMessage.text || "")
         .replace(/\s+/g, " ")
         .trim()
-        .slice(0, 55) || "Message";
+        .slice(0, 44) || "Message";
     const priority = normalizePriority(lastMessage.priority);
     const priorityOption = priorityOptions.find((option) => option.key === priority);
     const priorityPrefix = priority === "normal" ? "" : `${priorityOption?.label || priority}: `;
@@ -855,9 +855,17 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const activeThreadSubLabel = activeThread
       ? `${getThreadStatus(activeThread, users)} \u00b7 ${activeThread.messageCount} message${activeThread.messageCount === 1 ? "" : "s"}`
       : "No messages";
-    const headerParticipants = activeThread?.isTeamThread ? users : [activeThread?.participant].filter(Boolean);
+    const headerParticipants = activeThread?.isTeamThread
+      ? users
+      : activeThread?.participants?.length
+        ? activeThread.participants
+        : [activeThread?.participant].filter(Boolean);
     const launcherThread = activeThread || latestThread;
-    const launcherParticipants = launcherThread?.isTeamThread ? users : [launcherThread?.participant].filter(Boolean);
+    const launcherParticipants = launcherThread?.isTeamThread
+      ? users
+      : launcherThread?.participants?.length
+        ? launcherThread.participants
+        : [launcherThread?.participant].filter(Boolean);
     const launcherLabel = launcherThread?.label || teamChatTitle;
     const launcherPreview = launcherThread ? getThreadPreview(launcherThread, users, currentUser) : "Open team room";
     const teamPresenceLabel = getThreadStatus({ isTeamThread: true }, users);

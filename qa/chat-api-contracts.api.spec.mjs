@@ -367,6 +367,7 @@ test("custom database groups keep their own title instead of managed room templa
   expect(chatDomainSource).toContain("const templateByLegacyId = legacyThreadId");
   expect(chatDomainSource).toContain('const templateByManagedType = ["medical", "matchday", "training", "announcement"].includes(type)');
   expect(/title:\s*String\(\s*thread\.title\s*\|\|\s*thread\.name\s*\|\|\s*template\?\.title/.test(chatDomainSource)).toBe(true);
+  expect(chatDomainSource).toContain("archivedAt");
 });
 
 test("custom groups support top placement, avatar metadata, and safe delete", () => {
@@ -379,6 +380,7 @@ test("custom groups support top placement, avatar metadata, and safe delete", ()
   expect(chatDatabaseSource).toContain('thread?.type !== "group"');
   expect(chatDatabaseSource).toContain("archived_at: now");
   expect(chatDatabaseSource).toContain("avatarUrl");
+  expect(chatApiUiActionsSource).toContain("archiveThreadWithApi");
 });
 
 test("legacy custom groups support avatarUrl branding and archiveThread", () => {

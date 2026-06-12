@@ -255,6 +255,7 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
       ).trim(),
       visibility: String(thread.visibility || "members").trim(),
       createdAt: String(thread.created_at || thread.createdAt || "").trim(),
+      archivedAt: String(thread.archived_at || thread.archivedAt || "").trim(),
       avatarUrl: String(thread.avatarUrl || thread.avatar_url || thread.metadata?.avatarUrl || thread.metadata?.imageUrl || "").trim(),
       lastMessageAt: String(messageCount || lastMessage ? thread.last_message_at || thread.lastMessageAt || "" : "").trim(),
       messageCount,

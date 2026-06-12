@@ -272,8 +272,14 @@ export function createDashboardChatDomainRuntime(dependencies = {}) {
     const dashboardChatApiThreads = getDashboardChatApiThreads();
     const apiThread = dashboardChatApiThreads.find((thread) => thread.threadId === normalizedThreadId) || null;
     const apiLastMessage = apiThread?.lastMessage ? normalizeDashboardApiMessage(apiThread.lastMessage, apiThread) : null;
+    const latestLocalMessage = (Array.isArray(messages) ? messages : [])
+      .filter((message) => {
+        const status = String(message?.status || "sent").trim().toLowerCase();
+        return message?.threadId === normalizedThreadId && message?.id && message?.text && status !== "pending" && status !== "failed" && status !== "deleted";
+      })
+      .sort((first, second) => Date.parse(second.createdAt || "") - Date.parse(first.createdAt || ""))[0] || null;
     return (
-      [...messages].reverse().find((message) => message.threadId === normalizedThreadId) ||
+      latestLocalMessage ||
       apiLastMessage ||
       (apiThread?.lastMessageId ? { id: apiThread.lastMessageId, userId: "", threadId: normalizedThreadId } : null)
     );

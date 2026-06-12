@@ -197,8 +197,12 @@ ${escapeHtml(tab.label)}
     </nav>
   `;
 
-  const renderNewPlayerCard = () => {
+  const getDraftValue = (draft = {}, key = "") => String(draft?.[key] ?? "").trim();
+
+  const renderNewPlayerCard = (draft = {}) => {
     const canEdit = canEditPlayerProfiles();
+    const draftPrimaryRole = getDraftValue(draft, "primaryRole") || "CB";
+    const draftRosterType = getDraftValue(draft, "rosterType") || "squad";
     return `
     <article class="squad-add-player-card">
       <header class="squad-section-head">
@@ -211,43 +215,43 @@ ${escapeHtml(tab.label)}
         <div class="squad-form-grid">
           <label>
             <span>Name</span>
-            <input name="name" placeholder="Player name" ${canEdit ? "required" : "disabled"} />
+            <input name="name" value="${escapeHtml(getDraftValue(draft, "name"))}" placeholder="Player name" ${canEdit ? "required" : "disabled"} />
           </label>
           <label>
             <span>Number</span>
-            <input name="number" placeholder="#" ${canEdit ? "" : "disabled"} />
+            <input name="number" value="${escapeHtml(getDraftValue(draft, "number"))}" placeholder="#" ${canEdit ? "" : "disabled"} />
           </label>
           <label>
             <span>Birth date</span>
-            <input name="birthDate" type="date" ${canEdit ? "" : "disabled"} />
+            <input name="birthDate" type="date" value="${escapeHtml(getDraftValue(draft, "birthDate"))}" ${canEdit ? "" : "disabled"} />
           </label>
           <label>
             <span>Position</span>
-            <input name="position" placeholder="Defender" ${canEdit ? "" : "disabled"} />
+            <input name="position" value="${escapeHtml(getDraftValue(draft, "position"))}" placeholder="Defender" ${canEdit ? "" : "disabled"} />
           </label>
           <label>
             <span>Primary role</span>
             <select name="primaryRole" ${canEdit ? "" : "disabled"}>
-              ${renderRoleOptions("CB")}
+              ${renderRoleOptions(draftPrimaryRole)}
             </select>
           </label>
           <label>
             <span>Roster type</span>
             <select name="rosterType" ${canEdit ? "" : "disabled"}>
-              ${renderOptionSet(playerProfileRosterTypeOptions, "squad")}
+              ${renderOptionSet(playerProfileRosterTypeOptions, draftRosterType)}
             </select>
           </label>
           <label>
             <span>Temporary group</span>
-            <input name="temporaryGroup" placeholder="Academy Training Group" ${canEdit ? "" : "disabled"} />
+            <input name="temporaryGroup" value="${escapeHtml(getDraftValue(draft, "temporaryGroup"))}" placeholder="Academy Training Group" ${canEdit ? "" : "disabled"} />
           </label>
           <label>
             <span>Temporary from</span>
-            <input name="temporaryFrom" type="date" ${canEdit ? "" : "disabled"} />
+            <input name="temporaryFrom" type="date" value="${escapeHtml(getDraftValue(draft, "temporaryFrom"))}" ${canEdit ? "" : "disabled"} />
           </label>
           <label>
             <span>Temporary to</span>
-            <input name="temporaryTo" type="date" ${canEdit ? "" : "disabled"} />
+            <input name="temporaryTo" type="date" value="${escapeHtml(getDraftValue(draft, "temporaryTo"))}" ${canEdit ? "" : "disabled"} />
           </label>
         </div>
         <button type="submit" ${canEdit ? "" : "disabled"}>Add player</button>
@@ -256,7 +260,7 @@ ${escapeHtml(tab.label)}
   `;
   };
 
-  const renderNewPlayerModal = () => {
+  const renderNewPlayerModal = (draft = {}) => {
     if (!isNewPlayerModalOpen()) {
       return "";
     }
@@ -276,7 +280,7 @@ ${escapeHtml(tab.label)}
         >
           &times;
         </button>
-        <div class="squad-profile-modal-body">${renderNewPlayerCard()}</div>
+        <div class="squad-profile-modal-body">${renderNewPlayerCard(draft)}</div>
       </div>
     </div>
   `;

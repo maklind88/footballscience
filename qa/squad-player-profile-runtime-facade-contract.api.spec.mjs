@@ -32,18 +32,51 @@ function createHarness() {
     changeLog: [],
   };
   let medicalState = { players: [], records: [], injuryPlans: [] };
+  let playerProfileNewPlayerModalOpen = false;
   const localStorageWrites = [];
   const medicalUpserts = [];
+  const modalDrafts = [];
   const timers = [];
   const form = { id: "playerProfileEditForm" };
+  const newPlayerForm = {
+    id: "playerProfileNewPlayerForm",
+    values: {
+      name: "",
+      number: "",
+      birthDate: "",
+      position: "",
+      primaryRole: "CB",
+      rosterType: "squad",
+      temporaryGroup: "",
+      temporaryFrom: "",
+      temporaryTo: "",
+    },
+  };
   const ui = {
     playerProfilesWorkspace: {
       innerHTML: "",
-      querySelector: (selector) => (selector === "#playerProfileEditForm" ? form : null),
+      querySelector: (selector) => {
+        if (selector === "#playerProfileEditForm") {
+          return form;
+        }
+        if (selector === "#playerProfileNewPlayerForm" && playerProfileNewPlayerModalOpen) {
+          return newPlayerForm;
+        }
+        return null;
+      },
     },
   };
   const win = {
     FileReader: class {},
+    FormData: class {
+      constructor(target = {}) {
+        this.values = target.values || {};
+      }
+
+      get(key) {
+        return this.values[key] ?? "";
+      }
+    },
     clearTimeout: () => {},
     localStorage: {
       getItem: () => null,
@@ -124,7 +157,7 @@ function createHarness() {
     }),
     getPlayerProfileImportUndoRelativeTimeLabel: () => "just now",
     getPlayerProfileModalOpen: () => false,
-    getPlayerProfileNewPlayerModalOpen: () => false,
+    getPlayerProfileNewPlayerModalOpen: () => playerProfileNewPlayerModalOpen,
     getPlayerProfileRoleGroupForRole: () => "midfielder",
     getPlayerProfilesRosterSummary: (players = []) => ({ totalCount: players.length, squadCount: players.length }),
     getPlayerProfileRosterTypeOption: () => ({ shortLabel: "Squad" }),
@@ -176,13 +209,18 @@ function createHarness() {
       medicalState = nextState;
     },
     setPlayerProfileModalOpen: () => {},
-    setPlayerProfileNewPlayerModalOpen: () => {},
+    setPlayerProfileNewPlayerModalOpen: (isOpen) => {
+      playerProfileNewPlayerModalOpen = Boolean(isOpen);
+    },
     setPlayerProfilesState: (nextState) => {
       playerProfilesState = nextState;
     },
     squadProfileSelectedRenderer: { renderModal: (player) => `modal=${player?.id || ""}` },
     squadProfileSupportRenderer: {
-      renderNewPlayerModal: () => "new-player-modal",
+      renderNewPlayerModal: (draft = {}) => {
+        modalDrafts.push(draft);
+        return `new-player-modal=${draft.name || ""}`;
+      },
       renderOptionSet: () => "options",
     },
     squadRosterRenderer: {
@@ -191,8 +229,8 @@ function createHarness() {
     },
     squadWorkspaceRenderer: {
       renderPendingImport: () => "",
-      renderWorkspace: ({ canEdit, messageMarkup, rosterSectionsMarkup, teamName }) =>
-        `team=${teamName};edit=${canEdit};${messageMarkup};${rosterSectionsMarkup}`,
+      renderWorkspace: ({ canEdit, messageMarkup, newPlayerModalMarkup, rosterSectionsMarkup, teamName }) =>
+        `team=${teamName};edit=${canEdit};${messageMarkup};${newPlayerModalMarkup};${rosterSectionsMarkup}`,
     },
     ui,
     upsertMedicalPlayers: (players) => medicalUpserts.push(players),
@@ -214,6 +252,8 @@ function createHarness() {
     getState: () => playerProfilesState,
     localStorageWrites,
     medicalUpserts,
+    modalDrafts,
+    newPlayerForm,
     timers,
     ui,
   };
@@ -264,4 +304,37 @@ test("Squad player profile runtime facade preserves workspace render and edit-sa
   expect(harness.medicalUpserts[0]).toEqual([expect.objectContaining({ id: "p1", name: "Ada Updated" })]);
 
   expect(harness.facade.savePlayerProfileEditForm(harness.form)).toMatchObject({ ok: true, skipped: true });
+});
+
+test("Squad player profile runtime facade preserves Add Player draft values across workspace rerenders", () => {
+  const harness = createHarness();
+
+  harness.facade.openPlayerProfileNewPlayerModal();
+  harness.newPlayerForm.values = {
+    ...harness.newPlayerForm.values,
+    name: "Draft Forward",
+    number: "17",
+    birthDate: "2001-04-05",
+    position: "Forward",
+    primaryRole: "ST",
+    rosterType: "training",
+    temporaryGroup: "Academy",
+    temporaryFrom: "2026-06-12",
+    temporaryTo: "2026-06-18",
+  };
+
+  harness.facade.renderPlayerProfilesWorkspace();
+
+  expect(harness.modalDrafts.at(-1)).toMatchObject({
+    name: "Draft Forward",
+    number: "17",
+    birthDate: "2001-04-05",
+    position: "Forward",
+    primaryRole: "ST",
+    rosterType: "training",
+    temporaryGroup: "Academy",
+    temporaryFrom: "2026-06-12",
+    temporaryTo: "2026-06-18",
+  });
+  expect(harness.ui.playerProfilesWorkspace.innerHTML).toContain("new-player-modal=Draft Forward");
 });

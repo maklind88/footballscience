@@ -46,8 +46,19 @@ test("Squad profile support renderer owns option lists, support panels, and add-
   expect(renderer.renderFuturePanel(player)).toContain("Match / Load / Analysis");
   expect(renderer.renderHistoryPanel(player)).toContain("Profile Audit Trail");
   expect(renderer.renderTabs()).toContain('data-player-profile-tab="medical"');
-  const modalMarkup = renderer.renderNewPlayerModal();
+  const modalMarkup = renderer.renderNewPlayerModal({
+    name: "Grace Hopper",
+    number: "7",
+    birthDate: "1999-01-02",
+    position: "Midfielder",
+    primaryRole: "8",
+    rosterType: "squad",
+  });
   expect(modalMarkup).toContain("data-player-profile-new-modal-overlay");
   expect(modalMarkup).toContain("playerProfileNewPlayerForm");
   expect(modalMarkup).toContain("Add Player");
+  expect(modalMarkup).toContain('name="name" value="Grace Hopper"');
+  expect(modalMarkup).toContain('name="number" value="7"');
+  expect(modalMarkup).toContain('name="birthDate" type="date" value="1999-01-02"');
+  expect(modalMarkup).toContain('value="8" selected');
 });

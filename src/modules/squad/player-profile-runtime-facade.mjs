@@ -17,6 +17,7 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
   let autosaveLastSignature = "";
   let importUndoHistory = [];
   let lastImportSnapshot = null;
+  let newPlayerDraft = {};
   let pendingImportPlan = null;
   let runtimeImportService = null;
   let runtimeMedicalSyncService = null;
@@ -63,6 +64,30 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
     win.clearTimeout(autosaveTimer);
     autosaveTimer = 0;
     return savePlayerProfileEditForm(form);
+  }
+
+  function readPlayerProfileNewPlayerDraft() {
+    const form = ui.playerProfilesWorkspace?.querySelector("#playerProfileNewPlayerForm");
+    if (!form) {
+      return newPlayerDraft;
+    }
+    try {
+      const data = new win.FormData(form);
+      newPlayerDraft = {
+        name: String(data.get("name") ?? "").trim(),
+        number: String(data.get("number") ?? "").trim(),
+        birthDate: String(data.get("birthDate") ?? "").trim(),
+        position: String(data.get("position") ?? "").trim(),
+        primaryRole: String(data.get("primaryRole") ?? "").trim(),
+        rosterType: String(data.get("rosterType") ?? "").trim(),
+        temporaryGroup: String(data.get("temporaryGroup") ?? "").trim(),
+        temporaryFrom: String(data.get("temporaryFrom") ?? "").trim(),
+        temporaryTo: String(data.get("temporaryTo") ?? "").trim(),
+      };
+    } catch {
+      return newPlayerDraft;
+    }
+    return newPlayerDraft;
   }
 
   runtimeStateService = createPlayerProfileRuntimeStateService({
@@ -245,10 +270,11 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
     const currentPlatformUser = deps.getCurrentPlatformUser();
     const squadTeam = deps.getPlatformTeamDisplayTeam(currentPlatformUser, platformStructure);
     const squadTeamName = squadTeam?.name || deps.getPlatformTeamDisplayName(currentPlatformUser, platformStructure);
+    const newPlayerModalMarkup = deps.squadProfileSupportRenderer.renderNewPlayerModal(readPlayerProfileNewPlayerDraft());
     ui.playerProfilesWorkspace.innerHTML = deps.squadWorkspaceRenderer.renderWorkspace({
       canEdit: canEditPlayerProfiles(),
       messageMarkup: message ? deps.renderPlayerProfilesWorkspaceMessage(message) : "",
-      newPlayerModalMarkup: deps.squadProfileSupportRenderer.renderNewPlayerModal(),
+      newPlayerModalMarkup,
       pendingImportMarkup: renderPendingPlayerProfileImport(),
       playerModalMarkup: deps.squadProfileSelectedRenderer.renderModal(selectedPlayer),
       roleGroupFilter: deps.getPlayerProfilesRoleGroupFilter(),
@@ -347,8 +373,14 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
   function getSelectedPlayerProfile(...args) { return method(runtimeStateService, "getSelectedPlayerProfile", ...args); }
   function openPlayerProfileModal(...args) { return method(runtimeStateService, "openPlayerProfileModal", ...args); }
   function closePlayerProfileModal(...args) { return method(runtimeStateService, "closePlayerProfileModal", ...args); }
-  function openPlayerProfileNewPlayerModal(...args) { return method(runtimeStateService, "openPlayerProfileNewPlayerModal", ...args); }
-  function closePlayerProfileNewPlayerModal(...args) { return method(runtimeStateService, "closePlayerProfileNewPlayerModal", ...args); }
+  function openPlayerProfileNewPlayerModal(...args) {
+    newPlayerDraft = {};
+    return method(runtimeStateService, "openPlayerProfileNewPlayerModal", ...args);
+  }
+  function closePlayerProfileNewPlayerModal(...args) {
+    newPlayerDraft = {};
+    return method(runtimeStateService, "closePlayerProfileNewPlayerModal", ...args);
+  }
   function buildPlayerProfileImportFeedback(...args) { return method(runtimeImportService, "buildPlayerProfileImportFeedback", ...args); }
   function createPlayerProfileImportUndoSnapshot(...args) { return method(runtimeImportService, "createPlayerProfileImportUndoSnapshot", ...args); }
   function clearPlayerProfileImportUndoSnapshots(...args) { return method(runtimeImportService, "clearPlayerProfileImportUndoSnapshots", ...args); }

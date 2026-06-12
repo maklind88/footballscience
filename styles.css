@@ -15,7 +15,8 @@
 /* Schedule Planner dense fit */
 .schedule-workspace.is-planner-view{gap:.68rem}
 .schedule-workspace.is-planner-view .schedule-hero-card{padding:.72rem .92rem;border-radius:22px}
-.schedule-workspace.is-planner-view .schedule-title{font-size:clamp(2rem,3.6vw,3.25rem);letter-spacing:-.045em}
+.schedule-workspace.is-planner-view .schedule-hero-card>div:first-child{min-width:0;flex:1 1 auto}
+.schedule-workspace.is-planner-view .schedule-title{font-size:clamp(2rem,3vw,2.65rem);letter-spacing:-.04em;white-space:nowrap}
 .schedule-workspace.is-planner-view .schedule-toolbar{gap:.32rem;padding:.24rem}
 .schedule-workspace.is-planner-view .schedule-view-button{min-height:2rem;padding:0 .72rem;font-size:.78rem}
 .schedule-workspace.is-planner-view .schedule-nav-button,.schedule-workspace.is-planner-view .schedule-today-button{min-width:2.25rem;min-height:2.25rem}
@@ -58,4 +59,4 @@
 .schedule-hero-card{padding:.72rem .92rem;border-radius:22px}
 .schedule-title{font-size:clamp(2rem,3.6vw,3.25rem);letter-spacing:-.045em}
 .schedule-hero-card:has(#scheduleOverviewSpanControl:not([hidden])){padding-bottom:calc(.72rem + 2.35rem)}
-@media (max-width:760px){.schedule-toolbar{width:100%;grid-template-columns:minmax(0,1fr) auto auto auto}.schedule-view-switch{grid-template-columns:repeat(4,minmax(0,1fr));width:100%}.schedule-view-button,.schedule-workspace.is-planner-view .schedule-view-button{padding:0 .38rem;font-size:.72rem}.schedule-today-button,.schedule-workspace.is-planner-view .schedule-today-button{width:4.7rem;min-width:4.7rem}.schedule-span-select{right:0;top:calc(100% + .38rem)}}
+@media (max-width:760px){.schedule-toolbar{width:100%;grid-template-columns:minmax(0,1fr) auto auto auto}.schedule-view-switch{grid-template-columns:repeat(4,minmax(0,1fr));width:100%}.schedule-view-button,.schedule-workspace.is-planner-view .schedule-view-button{padding:0 .38rem;font-size:.72rem}.schedule-today-button,.schedule-workspace.is-planner-view .schedule-today-button{width:4.7rem;min-width:4.7rem}.schedule-workspace.is-planner-view .schedule-title{white-space:normal}.schedule-span-select{right:0;top:calc(100% + .38rem)}}

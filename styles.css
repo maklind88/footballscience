@@ -21,19 +21,20 @@
 .schedule-workspace.is-planner-view .schedule-nav-button,.schedule-workspace.is-planner-view .schedule-today-button{min-width:2.25rem;min-height:2.25rem}
 .schedule-workspace.is-planner-view .schedule-today-button{padding-inline:.82rem}
 .schedule-workspace.is-planner-view .schedule-board-card{padding:.62rem;gap:.48rem;border-radius:22px}
-.schedule-workspace.is-planner-view .schedule-planner-grid{gap:.42rem}
-.schedule-workspace.is-planner-view .schedule-planner-month{gap:.22rem;padding:.38rem;border-radius:12px}
-.schedule-workspace.is-planner-view .schedule-planner-month>header{min-height:1.15rem;padding:0}
-.schedule-workspace.is-planner-view .schedule-planner-month h3{font-size:.84rem;letter-spacing:-.015em}
+.schedule-workspace.is-planner-view .schedule-planner-grid{grid-template-columns:repeat(3,minmax(13.8rem,16.5rem));justify-content:start;align-items:start;gap:.46rem}
+.schedule-workspace.is-planner-view .schedule-planner-month{gap:.26rem;padding:.42rem;border-radius:12px}
+.schedule-workspace.is-planner-view .schedule-planner-month>header{min-height:1.25rem;padding:0}
+.schedule-workspace.is-planner-view .schedule-planner-month h3{font-size:.9rem;letter-spacing:-.015em}
 .schedule-workspace.is-planner-view .schedule-overview-legend{display:none}
-.schedule-workspace.is-planner-view .schedule-planner-days{gap:.045rem}
-.schedule-workspace.is-planner-view .schedule-planner-day{grid-template-columns:2.72rem minmax(0,1fr);gap:.14rem;min-height:1.08rem;padding:.025rem .06rem;border-radius:5px}
-.schedule-workspace.is-planner-view .schedule-planner-date{min-height:1rem;gap:.1rem;padding:0 .08rem;border-radius:4px}
-.schedule-workspace.is-planner-view .schedule-planner-date span{font-size:.43rem;letter-spacing:.015em}
-.schedule-workspace.is-planner-view .schedule-planner-date strong{width:.96rem;height:.96rem;font-size:.55rem}
-.schedule-workspace.is-planner-view .schedule-planner-events{min-height:.98rem;gap:.06rem}
-.schedule-workspace.is-planner-view .schedule-planner-event-chip{padding:.09rem .26rem;border-radius:7px;font-size:.54rem;line-height:1}
-.schedule-workspace.is-planner-view .schedule-planner-event-chip strong{font-size:.54rem;line-height:1}
+.schedule-workspace.is-planner-view .schedule-planner-days{gap:.07rem}
+.schedule-workspace.is-planner-view .schedule-planner-day{grid-template-columns:2.8rem minmax(0,1fr);gap:.1rem;min-height:1.32rem;padding:.06rem .08rem;border-radius:6px}
+.schedule-workspace.is-planner-view .schedule-planner-date{min-height:1.16rem;gap:.08rem;padding:0 .08rem;border-radius:5px}
+.schedule-workspace.is-planner-view .schedule-planner-date span{font-size:.47rem;letter-spacing:.015em}
+.schedule-workspace.is-planner-view .schedule-planner-date strong{width:1.06rem;height:1.06rem;font-size:.6rem}
+.schedule-workspace.is-planner-view .schedule-planner-events{min-height:1.12rem;gap:.05rem}
+.schedule-workspace.is-planner-view .schedule-planner-event-chip{padding:.13rem .26rem;border-radius:7px;font-size:.59rem;line-height:1}
+.schedule-workspace.is-planner-view .schedule-planner-event-chip strong{font-size:.59rem;line-height:1}
 .schedule-workspace.is-planner-view .schedule-planner-event-chip small{display:none}
-.schedule-workspace.is-planner-view .schedule-planner-add input,.schedule-workspace.is-planner-view .schedule-planner-edit input{min-height:1.08rem;padding:.08rem .28rem;font-size:.54rem;border-radius:7px}
+.schedule-workspace.is-planner-view .schedule-planner-add input,.schedule-workspace.is-planner-view .schedule-planner-edit input{min-height:1.25rem;padding:.1rem .3rem;font-size:.59rem;border-radius:7px}
+@media (max-width:1180px){.schedule-workspace.is-planner-view .schedule-planner-grid{grid-template-columns:repeat(3,minmax(12.8rem,15.2rem))}}
 @media (max-width:760px){.schedule-workspace.is-planner-view .schedule-hero-card{padding:.8rem}.schedule-workspace.is-planner-view .schedule-title{font-size:2.25rem}.schedule-workspace.is-planner-view .schedule-planner-day{grid-template-columns:2.9rem minmax(0,1fr);min-height:1.24rem}.schedule-workspace.is-planner-view .schedule-planner-event-chip,.schedule-workspace.is-planner-view .schedule-planner-add,.schedule-workspace.is-planner-view .schedule-planner-edit{width:100%;flex-basis:100%}}

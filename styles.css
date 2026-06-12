@@ -63,6 +63,6 @@ body.is-dark-mode .platform-schedule-view .schedule-planner-event-chip.is-travel
 body.is-dark-mode .platform-schedule-view .schedule-planner-event-chip.is-recovery{background:#2691963d!important;color:#ccfbf1!important}
 body.is-dark-mode .platform-schedule-view .schedule-planner-event-chip.is-off{background:#94a3b824!important;color:#d5e3ec!important}
 body.is-dark-mode .platform-schedule-view .schedule-planner-add input,body.is-dark-mode .platform-schedule-view .schedule-planner-edit input{background:#060c12d6!important;border-color:var(--dark-line-strong)!important;color:var(--dark-text)!important}
-@media (max-width:1180px){.schedule-planner-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:860px){.schedule-planner-grid{grid-template-columns:1fr}}
+@media (max-width:980px){.schedule-planner-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:760px){.schedule-planner-grid{grid-template-columns:1fr}}
 @media (max-width:760px){.schedule-planner-month{padding:.62rem;border-radius:16px}.schedule-planner-month>header{align-items:flex-start;flex-direction:column}.schedule-planner-day{grid-template-columns:3.25rem minmax(0,1fr);gap:.24rem}.schedule-planner-events{align-items:stretch}.schedule-planner-event-chip,.schedule-planner-add,.schedule-planner-edit{width:100%;flex-basis:100%}.schedule-planner-event-chip{border-radius:10px}.schedule-planner-add input,.schedule-planner-edit input{border-radius:10px}}

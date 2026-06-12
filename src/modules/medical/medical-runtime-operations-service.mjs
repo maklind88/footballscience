@@ -225,6 +225,7 @@ export function createMedicalRuntimeOperationsService(deps = {}) {
       selectedIds.add(playerId);
     }
     setBulkSelectedPlayerIds(selectedIds);
+    setBulkRecommendationOpen(selectedIds.size > 0);
     renderMedicalTeamWorkspace();
   }
 

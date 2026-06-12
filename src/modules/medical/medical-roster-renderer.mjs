@@ -369,7 +369,7 @@ ${renderMedicalMetric("Modified", String(stats.modifiedCount), "10-75%", "modifi
 ${renderMedicalMetric("Unavailable", String(stats.unavailableCount), "0%", "unavailable")}
 ${renderMedicalMetric("Not set", String(stats.unloggedCount), "no entry")}
 ${renderMedicalMetric("Month average", monthStats.averageParticipation === null ? "-" : `${monthStats.averageParticipation}%`)}
-${renderMedicalMetric("7-day average", windowAverage === null ? "-" : `${windowAverage}%`, "last 7 days")}
+${renderMedicalMetric("5-session average", windowAverage === null ? "-" : `${windowAverage}%`, "planned sessions")}
 </section>
 ${
   hasActivePlayers

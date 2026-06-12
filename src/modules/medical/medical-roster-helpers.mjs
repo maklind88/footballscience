@@ -149,14 +149,16 @@ export function createMedicalRosterHelpers({
     const defaultRtpPhase = getMedicalRtpPhaseForRecommendation(defaultStatus, defaultParticipation, activityContext.type);
     const defaultPhaseLabel = getMedicalRtpPhaseOption(defaultRtpPhase).label;
     const isOpen = isBulkRecommendationOpen();
+    if (!isOpen) {
+      return "";
+    }
     return `
-<section class="medical-bulk-panel${isOpen ? " is-open" : " is-collapsed"}" aria-label="Bulk medical recommendation"${isOpen ? "" : ` style="grid-template-columns:1fr;grid-template-areas:'summary';"`}>
-<button type="button" class="medical-bulk-summary" data-medical-bulk-menu-toggle aria-expanded="${isOpen ? "true" : "false"}" ${canEdit ? "" : "disabled"}>
+<section class="medical-bulk-panel is-open" aria-label="Bulk medical recommendation">
+<button type="button" class="medical-bulk-summary" data-medical-bulk-menu-toggle aria-expanded="true" ${canEdit ? "" : "disabled"}>
 <span>Bulk Recommendation</span>
 <strong>${selectedCount} selected</strong>
-<small>${players.length} visible${isOpen ? "" : " / open"}</small>
+<small>${players.length} visible</small>
 </button>
-${isOpen ? `
 <div class="medical-bulk-actions">
 <button type="button" data-medical-bulk-clear ${canEdit && selectedCount ? "" : "disabled"}>Clear</button>
 </div>
@@ -182,7 +184,6 @@ ${renderMedicalParticipationOptions(defaultParticipation)}
 <small class="medical-bulk-activity-label${activityContext.isRecommendable ? "" : " is-locked"}" data-medical-bulk-activity-label>${escapeHtml(activityContext.isRecommendable ? `${activityContext.activityLabel} / ${activityContext.scheduleLabel}` : activityContext.blockReason)}</small>
 <button type="submit" ${canRecommend && selectedCount ? "" : "disabled"}>Apply Selected</button>
 </form>
-` : ""}
 </section>
 `;
   };

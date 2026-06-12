@@ -73,9 +73,7 @@ test("Medical roster helpers render bulk panel states without writing medical da
   expect(openMarkup).toContain("Apply Selected");
 
   const collapsedMarkup = createHelpers({ isBulkRecommendationOpen: () => false }).renderBulkUpdatePanel([{ id: "p1" }]);
-  expect(collapsedMarkup).toContain("medical-bulk-panel is-collapsed");
-  expect(collapsedMarkup).toContain("grid-template-columns:1fr");
-  expect(collapsedMarkup).not.toContain("medicalBulkRecommendationForm");
+  expect(collapsedMarkup).toBe("");
 });
 
 test("Medical roster helpers lock bulk controls when activity is not recommendable", () => {

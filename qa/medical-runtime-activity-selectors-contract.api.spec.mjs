@@ -167,6 +167,31 @@ test("Medical runtime activity selectors preserve player, record, activity, and 
   expect(selectors.getMedicalPastWindowDates()).toEqual(["2026-05-29", "2026-05-30", "2026-05-31"]);
   expect(selectors.getMedicalReviewAlerts("2026-05-31")).toHaveLength(1);
 
+  const monthlySelectors = createSelectors({
+    medicalWindowLength: 7,
+    getScheduleEventsForDate: (dateValue) => {
+      if (dateValue === "2026-05-02") {
+        return [{ type: "off", title: "No team event" }];
+      }
+      if (dateValue === "2026-05-04") {
+        return [{ type: "match", title: "Matchday" }];
+      }
+      return [{ type: "training", title: "Training" }];
+    },
+  }).selectors;
+  expect(monthlySelectors.getMedicalMonthToDateDates(new Date("2026-05-04T12:00:00.000Z"))).toEqual([
+    "2026-05-01",
+    "2026-05-03",
+    "2026-05-04",
+  ]);
+  expect(monthlySelectors.getMedicalPastWindowDates("2026-05-04")).toEqual([
+    "2026-04-29",
+    "2026-04-30",
+    "2026-05-01",
+    "2026-05-03",
+    "2026-05-04",
+  ]);
+
   const form = {
     values: { playerId: "p1", duration: "2", shareWithCoach: "on" },
     querySelector: (selector) => selector === "[name='shareWithCoach']" ? { checked: true } : { value: "p1" },

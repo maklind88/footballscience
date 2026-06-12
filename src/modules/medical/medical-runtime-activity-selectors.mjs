@@ -284,9 +284,17 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
   function getMedicalPastWindowDates(dateValue = getSelectedDate()) {
     readState();
     const endDate = parseDateValue(dateValue);
-    return Array.from({ length: medicalWindowLength }, (_, index) =>
-      formatDateValue(addCalendarDays(endDate, index - medicalWindowLength + 1))
-    );
+    const windowLength = Math.max(1, Number(medicalWindowLength) || 5);
+    const targetCount = Math.min(5, windowLength);
+    const scanLimit = windowLength;
+    const plannedDates = [];
+    for (let offset = 0; offset < scanLimit && plannedDates.length < targetCount; offset += 1) {
+      const candidateDate = formatDateValue(addCalendarDays(endDate, -offset));
+      if (getMedicalRecommendationActivityContext(candidateDate).isRecommendable) {
+        plannedDates.push(candidateDate);
+      }
+    }
+    return plannedDates.reverse();
   }
 
   function getMedicalDaySpan(startDateValue, endDateValue) {
@@ -301,7 +309,8 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
     const today = new Date(referenceDate);
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
     const dayCount = getMedicalDaySpan(formatDateValue(monthStart), formatDateValue(today)) ?? 1;
-    return Array.from({ length: dayCount }, (_, index) => formatDateValue(addCalendarDays(monthStart, index)));
+    return Array.from({ length: dayCount }, (_, index) => formatDateValue(addCalendarDays(monthStart, index)))
+      .filter((dateValue) => getMedicalRecommendationActivityContext(dateValue).isRecommendable);
   }
 
   function getMedicalScheduleSummary(dateValue) {

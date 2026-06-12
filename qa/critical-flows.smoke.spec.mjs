@@ -1569,8 +1569,8 @@ test("Medical availability blocks training recommendations for Squad non-availab
     });
 });
 
-test("Medical metrics use current-month and trailing 7-day averages", async ({ page }) => {
-  await page.addInitScript(({ storageKey }) => {
+test("Medical metrics use current-month and planned-session averages", async ({ page }) => {
+  await page.addInitScript(({ storageKey, scheduleStorageKey }) => {
     const fixedNow = new Date("2026-05-15T12:00:00Z").valueOf();
     const NativeDate = Date;
     class FixedDate extends NativeDate {
@@ -1602,7 +1602,25 @@ test("Medical metrics use current-month and trailing 7-day averages", async ({ p
         injuryPlans: [],
       })
     );
-  }, { storageKey: medicalKey });
+    window.localStorage.setItem(
+      scheduleStorageKey,
+      JSON.stringify({
+        selectedYear: 2026,
+        selectedMonthIndex: 4,
+        selectedDate: "2026-05-14",
+        viewMode: "month",
+        overviewSpan: 6,
+        importVersion: "qa-medical-average-schedule-v1",
+        events: [
+          { id: "qa-medical-month-1", date: "2026-05-01", type: "training", title: "Training" },
+          { id: "qa-medical-trailing-1", date: "2026-05-08", type: "training", title: "Training" },
+          { id: "qa-medical-trailing-2", date: "2026-05-14", type: "training", title: "Training" },
+          { id: "qa-medical-today", date: "2026-05-15", type: "training", title: "Training" },
+          { id: "qa-medical-future", date: "2026-05-20", type: "training", title: "Training" },
+        ],
+      })
+    );
+  }, { storageKey: medicalKey, scheduleStorageKey: scheduleKey });
 
   await bootApp(page);
   await openWorkspace(page, "medical-team");
@@ -1610,8 +1628,8 @@ test("Medical metrics use current-month and trailing 7-day averages", async ({ p
   const metricCards = page.locator(".medical-metric-card");
   await expect(metricCards.filter({ hasText: "Month average" })).toContainText("40%");
   await expect(metricCards.filter({ hasText: "Month average" })).not.toContainText("filled");
-  await expect(metricCards.filter({ hasText: "7-day average" })).toContainText("38%");
-  await expect(metricCards.filter({ hasText: "7-day average" })).toContainText("last 7 days");
+  await expect(metricCards.filter({ hasText: "5-session average" })).toContainText("38%");
+  await expect(metricCards.filter({ hasText: "5-session average" })).toContainText("planned sessions");
   await expect(page.locator(".medical-availability-workspace .medical-huddle")).toHaveCount(0);
   await expect(page.locator(".medical-availability-workspace .medical-coach-handover")).toHaveCount(0);
   await page.locator('[data-medical-ops-tab="overview"]').click();

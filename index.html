@@ -909,6 +909,8 @@
         const PLAYER_PROFILES_STATE_KEY = "football-player-profiles-v1";
         const MEDICAL_TEAM_STATE_KEY = "football-medical-team-v1";
         const SCOUTING_STATE_KEY = "football-scouting-v1";
+        const CLIENT_CONFIG_CACHE_KEY = "footballscience-client-config-v1";
+        const CLIENT_CONFIG_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
         const SESSION_PLANNER_REDUCTION_GUARD_KEY = "blockReductionGuard";
         const SESSION_PLANNER_REDUCTION_WINDOW_MS = 30 * 60 * 1000;
         const SESSION_PLANNER_BLOCK_FIELD_META_KEY = "fieldUpdatedAt";
@@ -1125,6 +1127,48 @@
           try {
             window.localStorage.removeItem("mak-coaching-platform-users-v1");
             window.localStorage.removeItem("mak-coaching-platform-session-v1");
+          } catch {}
+        }
+        function readCachedClientConfig() {
+          try {
+            const raw = window.localStorage.getItem(CLIENT_CONFIG_CACHE_KEY);
+            if (!raw) {
+              return null;
+            }
+            const parsed = JSON.parse(raw);
+            if (!parsed?.url || !parsed?.anonKey) {
+              return null;
+            }
+            const savedAt = Number(parsed.savedAt);
+            if (!Number.isFinite(savedAt) || Date.now() - savedAt > CLIENT_CONFIG_CACHE_MAX_AGE_MS) {
+              window.localStorage.removeItem(CLIENT_CONFIG_CACHE_KEY);
+              return null;
+            }
+            return {
+              ok: true,
+              url: String(parsed.url),
+              anonKey: String(parsed.anonKey),
+              hasServiceRoleKey: Boolean(parsed.hasServiceRoleKey),
+              buildId: parsed.buildId ? String(parsed.buildId) : "",
+            };
+          } catch {
+            return null;
+          }
+        }
+        function writeCachedClientConfig(responsePayload = null) {
+          try {
+            if (!responsePayload?.url || !responsePayload?.anonKey) {
+              return;
+            }
+            const payload = {
+              ok: true,
+              url: String(responsePayload.url),
+              anonKey: String(responsePayload.anonKey),
+              hasServiceRoleKey: Boolean(responsePayload.hasServiceRoleKey),
+              buildId: responsePayload.buildId ? String(responsePayload.buildId) : "",
+              savedAt: Date.now(),
+            };
+            window.localStorage.setItem(CLIENT_CONFIG_CACHE_KEY, JSON.stringify(payload));
           } catch {}
         }
         function setForgotPasswordMessage(message, isError = false) {
@@ -3031,6 +3075,7 @@
             return;
           }
           let clientConfigResponse = null;
+          const cachedClientConfig = readCachedClientConfig();
           try {
             const configResponse = await withTimeout(fetch(API_CLIENT_CONFIG,{credentials:"omit",cache:"no-store"}),12000,"Auth settings timed out.");
             const configPayload = await readJsonResponse(configResponse);
@@ -3038,9 +3083,23 @@
               throw new Error(configPayload?.reason || "Supabase settings are not available.");
             }
             clientConfigResponse = configPayload;
+            writeCachedClientConfig(clientConfigResponse);
           } catch (error) {
+            if (cachedClientConfig) {
+              clientConfigResponse = cachedClientConfig;
+              toFormError("Using cached authentication configuration.", false);
+            } else {
+              window.clearTimeout(loginInitSafetyTimer);
+              toFormError(error?.message || "Could not initialize authentication.", true);
+              showLogin();
+              authState.isReady = true;
+              setLoginBusy(false);
+              return;
+            }
+          }
+          if (!clientConfigResponse) {
             window.clearTimeout(loginInitSafetyTimer);
-            toFormError(error?.message || "Could not initialize authentication.", true);
+            toFormError("Could not initialize authentication.", true);
             showLogin();
             authState.isReady = true;
             setLoginBusy(false);

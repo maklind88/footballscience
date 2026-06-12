@@ -759,6 +759,7 @@ const {
   getAttackingGameSpaceProfile: getAttackingGameSpaceProfile,
   getAttackingThirdKey: getAttackingThirdKey,
   getAutoPilotRoleStrength: (...args) => getAutoPilotRoleStrength(...args),
+  getAutoPilotShotTarget: getAutoPilotShotTarget,
   getCarryLaneOpenSpaceScore: getCarryLaneOpenSpaceScore,
   getCoverShadowInfluence: getCoverShadowInfluence,
   getForwardFacingSpaceTwoContext: getForwardFacingSpaceTwoContext,

@@ -40,6 +40,7 @@ function createDecisionEngineDeps(overrides = {}) {
     getAttackingGameSpaceProfile: () => ({ key: "space2", label: "Space 2" }),
     getAttackingThirdKey: () => "middle",
     getAutoPilotRoleStrength: () => 0.7,
+    getAutoPilotShotTarget: (teamId) => ({ x: teamId === "home" ? 105 : 0, y: 34 }),
     getCarryLaneOpenSpaceScore: () => 0.7,
     getCoverShadowInfluence: () => 0,
     getForwardFacingSpaceTwoContext: () => ({ active: false }),
@@ -112,6 +113,8 @@ test("game simulator autopilot decision engine exposes moved scoring contracts",
   expect(typeof engine.getAutoPilotFlowAdjustment).toBe("function");
   expect(typeof engine.getAutoPilotPrincipleAdjustment).toBe("function");
   expect(typeof engine.getAutoPilotChanceHierarchyAdjustment).toBe("function");
+  expect(typeof engine.getAutoPilotLineBreakAdvantageAdjustment).toBe("function");
+  expect(typeof engine.getAutoPilotAdvantageLifecycleAdjustment).toBe("function");
   expect(typeof engine.buildAutoPilotPressureTrapEscapeCandidate).toBe("function");
 });
 
@@ -127,4 +130,24 @@ test("game simulator autopilot decision engine reads live state after simulator 
   });
 
   expect(engine.getAutoPilotPossessionStartIndex("home")).toBe(4);
+});
+
+test("game simulator autopilot decision engine delegates chance hierarchy with injected shot target", () => {
+  const engine = createGameSimulatorAutopilotDecisionEngine(createDecisionEngineDeps());
+  const carrier = { id: "H1", team: "home", position: { x: 78, y: 34 }, role: "Striker" };
+
+  const result = engine.getAutoPilotChanceHierarchyAdjustment(
+    {
+      actionType: "shot",
+      target: { x: 105, y: 34 },
+      mustShoot: true,
+      laneClarity: 0.84,
+    },
+    carrier,
+    { x: 78, y: 34 },
+    { shootBias: 0.72 }
+  );
+
+  expect(result.score).toBeGreaterThan(0);
+  expect(result.labels).toContain("Chance hierarchy: shoot");
 });

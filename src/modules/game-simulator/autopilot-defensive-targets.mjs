@@ -1,3 +1,12 @@
+import { createGameSimulatorAutopilotDefensiveGoalkeeperTargets } from "./autopilot-defensive-goalkeeper-targets.mjs";
+import { createGameSimulatorAutopilotDefensivePressTargets } from "./autopilot-defensive-press-targets.mjs";
+import { createGameSimulatorAutopilotDefensiveCornerTargets } from "./autopilot-defensive-corner-targets.mjs";
+import { createGameSimulatorAutopilotDefensiveFreeKickTargets } from "./autopilot-defensive-free-kick-targets.mjs";
+import { createGameSimulatorAutopilotDefensivePenaltyTargets } from "./autopilot-defensive-penalty-targets.mjs";
+import { createGameSimulatorAutopilotDefensiveThrowInTargets } from "./autopilot-defensive-throw-in-targets.mjs";
+import { createGameSimulatorAutopilotDefensiveNegativeTransitionTargets } from "./autopilot-defensive-negative-transition-targets.mjs";
+import { createGameSimulatorAutopilotDefensiveLooseBallTargets } from "./autopilot-defensive-loose-ball-targets.mjs";
+
 export function createGameSimulatorAutopilotDefensiveTargets(deps = {}) {
   const {
     clamp,
@@ -272,706 +281,67 @@ labels.push("Midfield screens second ball behind line");
 }
 return uniquePrincipleLabels(labels);
 }
-function getDefensiveLineActionLabels(profile) {
-const label = profile.lineActionAdjustment?.label;
-return label ? [label] : [];
-}
-function getDefensiveGoalkeeperTarget(teamId, ballPoint, profile = getDefensiveAutopilotProfile(teamId, ballPoint)) {
-const sign = getDefendingDirectionSign(teamId);
-const ownGoalX = teamId === "home" ? 0 : pitch.length;
-const sweepDepth = getDefensiveLineDistanceFromOwnGoal(teamId, "gk", ballPoint, profile);
-const yClamp = profile.phaseKey === "boxDefending" ? [22.5, 45.5] : [28.5, 39.5];
-const yInfluence = profile.phaseKey === "boxDefending" ? 0.28 : 0.12;
-const y = clamp(lerp(pitch.width / 2, ballPoint.y, yInfluence), yClamp[0], yClamp[1]);
-return clampToPitch({
-x: ownGoalX + sign * sweepDepth,
-y,
-}, 3);
-}
-function getDefensiveGoalkeeperSweeperContext(teamId, goalkeeper, ballPoint, profile) {
-if (!goalkeeper || !ballPoint || state.restartPhase?.type) {
-return null;
-}
-const attackingTeamId = getOtherTeamId(teamId);
-if (!attackingTeamId) {
-return null;
-}
-const actionMeta = state.draftStep ?? {
-actionType: state.ball.actionType,
-target: state.ball.target,
-targetKind: state.ball.targetKind,
-profileKey: state.ball.profileKey,
-profileLabel: state.ball.profileLabel,
-beforeSnapshot: {
-ball: {
-position: state.ball.startPosition,
-ownerPlayerId: state.ball.initiatorPlayerId ?? state.ball.ownerPlayerId,
-},
-},
-autoPrinciples: [],
-};
-const actionType = actionMeta.actionType ?? state.ball.actionType;
-const targetPoint = actionMeta.target ?? state.ball.target ?? ballPoint;
-const startPoint =
-actionMeta.beforeSnapshot?.ball?.position ??
-state.ball.startPosition ??
-state.ball.position ??
-targetPoint;
-if (!targetPoint || !startPoint || !["pass", "dribble"].includes(actionType)) {
-return null;
-}
-const targetFromOwnGoal = getDistanceFromOwnGoal(teamId, targetPoint);
-const startFromOwnGoal = getDistanceFromOwnGoal(teamId, startPoint);
-const actionDistance = distance(startPoint, targetPoint);
-const actionSpeed = Math.max(actionMeta.speed ?? state.ball.speed ?? state.ball.currentSpeed ?? 10, 0.1);
-const eta = actionDistance / actionSpeed;
-const profileText = [
-actionMeta.profileKey,
-actionMeta.profileLabel,
-actionMeta.targetKind,
-actionMeta.offensiveAutopilot?.principleKey,
-actionMeta.offensiveAutopilot?.principleLabel,
-...(actionMeta.autoPrinciples ?? []),
-].filter(Boolean).join(" ").toLowerCase();
-const targetThreat = getPitchThreatProfile(targetPoint, attackingTeamId);
-const forwardGain = (targetPoint.x - startPoint.x) * getAttackDirectionSign(attackingTeamId);
-const centrality = 1 - Math.abs(targetPoint.y - pitch.width / 2) / (pitch.width / 2);
-const ballMovingTowardGoal = targetFromOwnGoal <= startFromOwnGoal - 3 || forwardGain >= 5;
-const isAerialDelivery =
-isAerialFlightStyle(state.ball.flightStyle) ||
-profileText.includes("cross") ||
-profileText.includes("delivery") ||
-profileText.includes("lofted") ||
-profileText.includes("clipped");
-const isThroughThreat =
-ballMovingTowardGoal &&
-(
-targetThreat.behindLine >= 0.2 ||
-targetThreat.box >= 0.18 ||
-profileText.includes("through") ||
-profileText.includes("line-break") ||
-profileText.includes("into-space") ||
-profileText.includes("run behind") ||
-profileText.includes("channel")
-);
-const isCrossClaim =
-actionType === "pass" &&
-targetFromOwnGoal <= 18.5 &&
-isAerialDelivery &&
-(centrality >= 0.24 || targetThreat.box >= 0.16);
-const isBreakawayDribble =
-actionType === "dribble" &&
-targetFromOwnGoal <= 24 &&
-ballMovingTowardGoal &&
-centrality >= 0.18;
-if (!isThroughThreat && !isCrossClaim && !isBreakawayDribble) {
-return null;
-}
-const baseTarget = getDefensiveGoalkeeperTarget(teamId, ballPoint, profile);
-const maxSweepDepth =
-profile.phaseKey === "highPress"
-? 24
-: profile.phaseKey === "midBlock"
-? 19
-: profile.phaseKey === "lowBlock"
-? 15
-: 11.5;
-const desiredDepth = isCrossClaim
-? clamp(targetFromOwnGoal * 0.46 + 3.4, 5.4, 11.8)
-: isBreakawayDribble
-? clamp(targetFromOwnGoal * 0.52 + 2.2, 6.2, 13.4)
-: clamp(targetFromOwnGoal - 2.6, 8.2, maxSweepDepth);
-const yInfluence = isCrossClaim ? 0.48 : isBreakawayDribble ? 0.62 : 0.72;
-const yClamp = isCrossClaim
-? [19.5, 48.5]
-: isBreakawayDribble
-? [20.5, 47.5]
-: [13.5, 54.5];
-const sign = getDefendingDirectionSign(teamId);
-const ownGoal = getOwnGoalCenter(teamId);
-const desiredTarget = clampToPitch({
-x: ownGoal.x + sign * desiredDepth,
-y: clamp(lerp(pitch.width / 2, targetPoint.y, yInfluence), yClamp[0], yClamp[1]),
-}, 2.5);
-const timeToTarget = computeTimeToCoverDistance(
-goalkeeper,
-distance(goalkeeper.position, desiredTarget),
-desiredTarget
-);
-const access = clamp((eta + 0.45) / Math.max(timeToTarget, 0.01), 0.22, 1);
-const target = clampToPitch({
-x: lerp(baseTarget.x, desiredTarget.x, access),
-y: lerp(baseTarget.y, desiredTarget.y, access),
-}, 2.5);
-const label = isCrossClaim
-? "GK claims box delivery"
-: isBreakawayDribble
-? "GK narrows breakaway angle"
-: "GK sweeps behind back line";
-return {
-target,
-label,
-focusPoint: targetPoint,
-};
-}
-function applyDefensiveGoalkeeperSweeperTarget(teamId, targets, groups, ballPoint, profile) {
-const labels = [];
-groups.gk.forEach((goalkeeper) => {
-const context = getDefensiveGoalkeeperSweeperContext(teamId, goalkeeper, ballPoint, profile);
-if (!context) {
-return;
-}
-targets.set(goalkeeper.id, context.target);
-labels.push(context.label);
+const defensiveGoalkeeperTargets = createGameSimulatorAutopilotDefensiveGoalkeeperTargets({
+  clamp,
+  clampToPitch,
+  cloneVector,
+  computeTimeToCoverDistance,
+  distance,
+  getAttackDirectionSign,
+  getDefendingDirectionSign,
+  getDefensiveAutopilotProfile,
+  getDefensiveLineDistanceFromOwnGoal,
+  getDistanceFromOwnGoal,
+  getOtherTeamId,
+  getOwnGoalCenter,
+  getPitchThreatProfile,
+  getWideSideSign,
+  isAerialFlightStyle,
+  lerp,
+  pitch,
+  state,
+  uniquePrincipleLabels,
 });
-return uniquePrincipleLabels(labels);
-}
-function getDefensiveGoalkeeperShotSetContext(teamId, goalkeeper, ballPoint, profile) {
-if (!goalkeeper || !ballPoint || state.restartPhase?.type) {
-return null;
-}
-const attackingTeamId = getOtherTeamId(teamId);
-if (!attackingTeamId) {
-return null;
-}
-const actionMeta = state.draftStep ?? {
-actionType: state.ball.actionType,
-target: state.ball.target,
-targetKind: state.ball.targetKind,
-profileKey: state.ball.profileKey,
-profileLabel: state.ball.profileLabel,
-autoPrinciples: [],
-beforeSnapshot: {
-ball: {
-position: state.ball.startPosition,
-ownerPlayerId: state.ball.initiatorPlayerId ?? state.ball.ownerPlayerId,
-},
-},
-};
-const actionType = actionMeta.actionType ?? state.ball.actionType;
-if (!["pass", "dribble", "shot"].includes(actionType)) {
-return null;
-}
-const startPoint =
-actionMeta.beforeSnapshot?.ball?.position ??
-state.ball.startPosition ??
-state.ball.position ??
-ballPoint;
-const targetPoint = actionMeta.target ?? state.ball.target ?? ballPoint;
-if (!startPoint || !targetPoint) {
-return null;
-}
-const threatPoint = actionType === "shot" ? startPoint : targetPoint;
-const threat = getPitchThreatProfile(threatPoint, attackingTeamId);
-const ballFromOwnGoal = getDistanceFromOwnGoal(teamId, threatPoint);
-const goalDistance = distance(threatPoint, getOwnGoalCenter(teamId));
-const profileText = [
-actionMeta.profileKey,
-actionMeta.profileLabel,
-actionMeta.targetKind,
-actionMeta.offensiveAutopilot?.principleKey,
-actionMeta.offensiveAutopilot?.principleLabel,
-...(actionMeta.autoPrinciples ?? []),
-].filter(Boolean).join(" ").toLowerCase();
-const isCutback =
-profileText.includes("cutback") ||
-threat.cutbackZone >= 0.24;
-const isBoxDelivery =
-profileText.includes("cross") ||
-profileText.includes("delivery") ||
-threat.assistZone >= 0.36 ||
-(actionType === "pass" && threat.box >= 0.18);
-const isShotThreat =
-actionType === "shot" ||
-profileText.includes("shoot") ||
-profileText.includes("finish") ||
-threat.box >= 0.2 ||
-(ballFromOwnGoal <= 31 && threat.centralPocket >= 0.24);
-const isBreakaway =
-actionType === "dribble" &&
-ballFromOwnGoal <= 25 &&
-(threat.box >= 0.12 || threat.centralPocket >= 0.22);
-const shouldSet =
-isShotThreat ||
-isCutback ||
-isBoxDelivery ||
-isBreakaway ||
-(ballFromOwnGoal <= 28 && threat.value >= 0.42);
-if (!shouldSet) {
-return null;
-}
-const actionDistance = distance(startPoint, targetPoint);
-const actionSpeed = Math.max(actionMeta.speed ?? state.ball.speed ?? state.ball.currentSpeed ?? 10, 0.1);
-const eta = actionDistance / actionSpeed;
-const sideSign =
-getWideSideSign(threatPoint) ||
-getWideSideSign(targetPoint) ||
-1;
-return {
-actionType,
-attackingTeamId,
-startPoint: cloneVector(startPoint),
-targetPoint: cloneVector(targetPoint),
-threatPoint: cloneVector(threatPoint),
-threat,
-ballFromOwnGoal,
-goalDistance,
-eta,
-sideSign,
-isShotThreat,
-isCutback,
-isBoxDelivery,
-isBreakaway,
-phaseKey: profile.phaseKey,
-};
-}
-function getDefensiveGoalkeeperShotSetTarget(teamId, goalkeeper, context, baseTarget) {
-const sign = getDefendingDirectionSign(teamId);
-const ownGoal = getOwnGoalCenter(teamId);
-const centerY = pitch.width / 2;
-const sideDistance = Math.abs(context.threatPoint.y - centerY);
-const wideRatio = clamp(sideDistance / (pitch.width / 2), 0, 1);
-const nearPostLock = context.isShotThreat && wideRatio >= 0.52;
-const depth =
-context.isBoxDelivery && !context.isShotThreat
-? clamp(context.ballFromOwnGoal * 0.24 + 2.4, 3.2, 8.8)
-: context.isBreakaway
-? clamp(context.ballFromOwnGoal * 0.32 + 1.7, 3.4, 9.2)
-: context.isCutback
-? clamp(context.ballFromOwnGoal * 0.18 + 2.1, 2.4, 6.8)
-: clamp(context.ballFromOwnGoal * 0.16 + 1.45, 1.8, 7.4);
-const yPull =
-context.isBoxDelivery && !context.isShotThreat
-? 0.3
-: context.isCutback
-? 0.24
-: nearPostLock
-? 0.42
-: 0.32;
-const nearPostBias = nearPostLock
-? context.sideSign * clamp(0.75 + wideRatio * 1.65, 0.75, 2.25)
-: 0;
-const yLimit =
-context.isBoxDelivery && !context.isShotThreat
-? 7.2
-: context.isBreakaway
-? 6.2
-: nearPostLock
-? 4.7
-: 4.15;
-const desiredTarget = clampToPitch({
-x: ownGoal.x + sign * depth,
-y: clamp(
-lerp(centerY, context.threatPoint.y, yPull) + nearPostBias,
-centerY - yLimit,
-centerY + yLimit
-),
-}, 1.6);
-const timeToTarget = computeTimeToCoverDistance(
-goalkeeper,
-distance(goalkeeper.position, desiredTarget),
-desiredTarget
-);
-const access = clamp((context.eta + 0.42) / Math.max(timeToTarget, 0.01), 0.3, 1);
-return clampToPitch({
-x: lerp(baseTarget.x, desiredTarget.x, access),
-y: lerp(baseTarget.y, desiredTarget.y, access),
-}, 1.6);
-}
-function applyDefensiveGoalkeeperShotSetTarget(teamId, targets, groups, ballPoint, profile) {
-const labels = [];
-groups.gk.forEach((goalkeeper) => {
-const context = getDefensiveGoalkeeperShotSetContext(teamId, goalkeeper, ballPoint, profile);
-if (!context) {
-return;
-}
-const baseTarget = targets.get(goalkeeper.id) ?? getDefensiveGoalkeeperTarget(teamId, ballPoint, profile);
-targets.set(goalkeeper.id, getDefensiveGoalkeeperShotSetTarget(teamId, goalkeeper, context, baseTarget));
-labels.push(
-context.isShotThreat
-? "GK sets for shot"
-: context.isCutback
-? "GK protects cutback angle"
-: context.isBreakaway
-? "GK narrows breakaway"
-: "GK adjusts to box delivery"
-);
+const {
+  getDefensiveLineActionLabels,
+  getDefensiveGoalkeeperTarget,
+  getDefensiveGoalkeeperSweeperContext,
+  applyDefensiveGoalkeeperSweeperTarget,
+  getDefensiveGoalkeeperShotSetContext,
+  getDefensiveGoalkeeperShotSetTarget,
+  applyDefensiveGoalkeeperShotSetTarget,
+} = defensiveGoalkeeperTargets;
+const defensivePressTargets = createGameSimulatorAutopilotDefensivePressTargets({
+  clamp,
+  clampToPitch,
+  cloneVector,
+  distance,
+  getDefendingDirectionSign,
+  getDefensiveAutopilotLineKey,
+  getDistanceFromOwnGoal,
+  getOffensiveRoleKey,
+  getOtherTeamId,
+  getPitchThreatProfile,
+  getPlayerById,
+  getPlayerDecisionContext,
+  getPlayerMagnetLabel,
+  getWideSideSign,
+  isGoalkeeper,
+  lerp,
+  pitch,
+  state,
+  teams,
 });
-return uniquePrincipleLabels(labels);
-}
-function chooseDefensiveAutopilotPresser(teamId, ballPoint, targets, profile) {
-const formation = teams[teamId]?.formation ?? "4-3-3";
-const ballFromOwnGoal = getDistanceFromOwnGoal(teamId, ballPoint);
-const candidates = state.players.filter(
-(player) =>
-player.team === teamId &&
-getDefensiveAutopilotLineKey(player, formation, profile.phaseKey) !== "gk"
-);
-let bestCandidate = null;
-let bestScore = Infinity;
-candidates.forEach((player) => {
-const lineKey = getDefensiveAutopilotLineKey(player, formation, profile.phaseKey);
-const target = targets.get(player.id) ?? player.position;
-let score =
-distance(player.position, ballPoint) * 0.58 +
-distance(target, ballPoint) * 0.42;
-const isBallSide =
-Math.sign(ballPoint.y - pitch.width / 2) === Math.sign(target.y - pitch.width / 2) ||
-Math.abs(ballPoint.y - pitch.width / 2) < 6;
-if (profile.phaseKey === "highPress" && lineKey !== "forward") {
-score += 8;
-}
-if (profile.phaseKey === "midBlock" && lineKey === "back" && ballFromOwnGoal > 34) {
-score += 4;
-}
-if (profile.phaseKey === "lowBlock" && lineKey === "forward") {
-score += 5.5;
-}
-if (profile.phaseKey === "boxDefending" && lineKey === "forward") {
-score += 7;
-}
-if (profile.phaseKey === "boxDefending" && lineKey === "back" && ballFromOwnGoal > 15) {
-score += 2;
-}
-if ((profile.threatResponse?.protectCenter ?? 0) >= 0.42) {
-const centralFit = 1 - Math.abs(target.y - pitch.width / 2) / (pitch.width / 2);
-if (lineKey === "midfield") {
-score -= centralFit * (1.7 + profile.threatResponse.protectCenter * 1.8);
-} else if (lineKey === "back" && ballFromOwnGoal <= 38) {
-score -= centralFit * (0.8 + profile.threatResponse.protectCenter * 1.1);
-} else if (lineKey === "forward" && ballFromOwnGoal <= 44) {
-score += 2.2 * profile.threatResponse.protectCenter;
-}
-}
-if (isBallSide) {
-score -= (profile.phaseKey === "highPress" ? 2.5 : 1.4) * (0.8 + profile.pressingIntensity * 0.5);
-}
-score -= profile.pressingIntensity * (lineKey === "forward" ? 1.2 : lineKey === "midfield" ? 0.7 : 0.35);
-if (score < bestScore) {
-bestScore = score;
-bestCandidate = player;
-}
-});
-return bestCandidate;
-}
-function getDefensivePressTarget(teamId, ballPoint, profile, presser = null) {
-const sign = getDefendingDirectionSign(teamId);
-const protectCenter = profile.threatResponse?.protectCenter ?? 0;
-const ballSide = getWideSideSign(ballPoint);
-const presserSide =
-presser && Number.isFinite(presser.position?.y)
-? Math.sign(presser.position.y - ballPoint.y)
-: 0;
-const centralApproachSide = presserSide || getWideSideSign(presser) || (ballPoint.y >= pitch.width / 2 ? 1 : -1);
-const widePress = ballSide !== 0;
-const side = widePress ? ballSide : centralApproachSide;
-const insideShield = clamp(
-widePress
-? 2.1 + Math.abs(ballPoint.y - pitch.width / 2) * 0.055 + protectCenter * 2.4
-: 0.9 + protectCenter * 1.35,
-widePress ? 1.8 : 0.65,
-widePress ? 5.4 : 2.8
-);
-const lineCushion =
-profile.phaseKey === "lowBlock" || profile.phaseKey === "boxDefending"
-? 0.55
-: profile.phaseKey === "highPress"
-? -0.25
-: 0;
-return clampToPitch({
-x: ballPoint.x - sign * clamp(profile.pressOffset + protectCenter * 0.75 + lineCushion, 0.7, 4.2),
-y: widePress
-? clamp(ballPoint.y - side * insideShield, 3, pitch.width - 3)
-: clamp(ballPoint.y + side * insideShield, 3, pitch.width - 3),
-}, 3);
-}
-function getDefensiveAngledPressTarget(teamId, ballPoint, profile, presser, baseTarget = null, reference = null) {
-const sign = getDefendingDirectionSign(teamId);
-const attackingTeamId = getOtherTeamId(teamId);
-const threat = attackingTeamId ? getPitchThreatProfile(ballPoint, attackingTeamId) : null;
-const basePressTarget = getDefensivePressTarget(teamId, ballPoint, profile, presser);
-const ballSide = getWideSideSign(ballPoint);
-const widePress = ballSide !== 0;
-const protectCenter = profile.threatResponse?.protectCenter ?? 0;
-const targetThreat = threat?.value ?? 0;
-const dribbleContainment = !!reference;
-const goalSideCushion = clamp(
-(dribbleContainment ? 1.15 : 0.55) +
-protectCenter * 0.65 +
-targetThreat * 0.45 +
-(profile.phaseKey === "lowBlock" || profile.phaseKey === "boxDefending" ? 0.4 : 0),
-0.45,
-2.4
-);
-const currentTarget = baseTarget ?? basePressTarget;
-const centralLaneWeight = widePress
-? clamp(0.14 + protectCenter * 0.2 + targetThreat * 0.1, 0.12, 0.42)
-: clamp(0.05 + protectCenter * 0.12, 0.04, 0.2);
-const sideLockY = widePress
-? lerp(basePressTarget.y, pitch.width / 2, centralLaneWeight)
-: basePressTarget.y;
-const target = clampToPitch({
-x: lerp(currentTarget.x, basePressTarget.x - sign * goalSideCushion, 0.82),
-y: lerp(currentTarget.y, sideLockY, widePress ? 0.82 : 0.68),
-}, 2.4);
-return {
-target,
-label: widePress
-? "Curve press to lock inside"
-: dribbleContainment
-? "Angle contain pressure"
-: "Angled press cover shadow",
-};
-}
-function applyDefensivePresserAngleTarget(
-teamId,
-targets,
-presser,
-ballPoint,
-profile,
-reference = null
-) {
-if (!presser || isGoalkeeper(presser) || !ballPoint || state.restartPhase?.type) {
-return {
-labels: [],
-protectedIds: new Set([presser?.id].filter(Boolean)),
-};
-}
-const currentTarget = targets.get(presser.id) ?? getDefensivePressTarget(teamId, ballPoint, profile, presser);
-const angleProfile = getDefensiveAngledPressTarget(
-teamId,
-ballPoint,
-profile,
-presser,
-currentTarget,
-reference
-);
-const angleWeight = reference
-? 0.34
-: profile.phaseKey === "highPress"
-? 0.56
-: profile.phaseKey === "lowBlock" || profile.phaseKey === "boxDefending"
-? 0.42
-: 0.5;
-targets.set(presser.id, clampToPitch({
-x: lerp(currentTarget.x, angleProfile.target.x, angleWeight),
-y: lerp(currentTarget.y, angleProfile.target.y, angleWeight),
-}, 2.2));
-return {
-labels: [angleProfile.label],
-protectedIds: new Set([presser.id]),
-};
-}
-function getGoalkeeperBuildOutPressContext(defensiveTeamId, ballPoint) {
-const actionMeta = state.draftStep ?? {
-actionType: state.ball.actionType,
-receiverPlayerId: state.ball.receiverPlayerId,
-beforeSnapshot: {
-ball: {
-ownerPlayerId: state.ball.initiatorPlayerId ?? state.ball.ownerPlayerId,
-},
-},
-};
-const attackingTeamId = getOtherTeamId(defensiveTeamId);
-const goalkeeper = getPlayerById(
-actionMeta.beforeSnapshot?.ball?.ownerPlayerId ??
-state.ball.initiatorPlayerId ??
-state.ball.ownerPlayerId
-);
-if (
-actionMeta.actionType !== "pass" ||
-!goalkeeper ||
-!isGoalkeeper(goalkeeper) ||
-goalkeeper.team !== attackingTeamId
-) {
-return null;
-}
-const receiver = getPlayerById(actionMeta.receiverPlayerId);
-const startPoint = actionMeta.beforeSnapshot?.ball?.position ?? state.ball.startPosition ?? goalkeeper.position;
-const target = actionMeta.target ?? ballPoint;
-const passDistance = distance(startPoint, target);
-const principleText = [
-actionMeta.offensiveAutopilot?.principleKey,
-actionMeta.offensiveAutopilot?.principleLabel,
-...(actionMeta.autoPrinciples ?? []),
-]
-.filter(Boolean)
-.join(" ")
-.toLowerCase();
-const receiverRoleKey = receiver ? getOffensiveRoleKey(receiver, teams[attackingTeamId]?.formation) : null;
-const directRelease =
-principleText.includes("gk release") ||
-(!receiver && passDistance >= 24) ||
-(receiverRoleKey && ["striker", "wideForward", "secondStriker"].includes(receiverRoleKey) && passDistance >= 24);
-const shortBuild =
-!directRelease &&
-(principleText.includes("gk build") ||
-!!receiver ||
-passDistance <= 30);
-if (!shortBuild && !directRelease) {
-return null;
-}
-return {
-actionMeta,
-attackingTeamId,
-goalkeeper,
-receiver,
-receiverRoleKey,
-startPoint: cloneVector(startPoint),
-target: cloneVector(target),
-passDistance,
-directRelease,
-shortBuild,
-sideSign: getWideSideSign(target) || getWideSideSign(receiver) || getWideSideSign(startPoint) || 1,
-};
-}
-function pickDefensiveAutopilotPlayer(groups, lineKeys, excludedIds, referencePoint, preferLabels = []) {
-const labelPreference = new Set(preferLabels);
-const candidates = lineKeys
-.flatMap((lineKey) => groups[lineKey] ?? [])
-.filter((player) => !excludedIds.has(player.id) && !isGoalkeeper(player));
-if (!candidates.length) {
-return null;
-}
-return candidates
-.map((player) => {
-const label = getPlayerMagnetLabel(player);
-return {
-player,
-score:
-distance(player.position, referencePoint) +
-(labelPreference.has(label) ? -4.5 : 0) -
-getPlayerDecisionContext(player).profile.tacticalDiscipline * 1.4 -
-getPlayerDecisionContext(player).profile.decisionSpeed * 1.1,
-};
-})
-.sort((a, b) => a.score - b.score)[0]?.player ?? null;
-}
-function getGoalkeeperBuildOutPressTarget(defensiveTeamId, context, slot) {
-const sign = getDefendingDirectionSign(defensiveTeamId);
-const target = context.target;
-const sideSign = context.sideSign || 1;
-const points = {
-receiverPress: {
-x: target.x - sign * 1.8,
-y: lerp(target.y, pitch.width / 2, 0.16),
-},
-goalkeeperScreen: {
-x: lerp(context.startPoint.x, target.x, 0.42) - sign * 1.4,
-y: lerp(context.startPoint.y, target.y, 0.52),
-},
-pivotLock: {
-x: lerp(context.startPoint.x, target.x, 0.72),
-y: clamp(pitch.width / 2 - sideSign * 5.8, 17, pitch.width - 17),
-},
-farCenterBackLock: {
-x: lerp(context.startPoint.x, target.x, 0.34),
-y: clamp(pitch.width / 2 - sideSign * 15.5, 7, pitch.width - 7),
-},
-secondBallScreen: {
-x: target.x - sign * 4.5,
-y: clamp(lerp(target.y, pitch.width / 2, 0.42), 12, pitch.width - 12),
-},
-restCover: {
-x: target.x - sign * 14,
-y: clamp(pitch.width / 2, 15, pitch.width - 15),
-},
-};
-return clampToPitch(points[slot] ?? points.receiverPress, 2.5);
-}
-function applyGoalkeeperBuildOutPressTargets(teamId, targets, groups, basePresser, ballPoint, profile) {
-const context = getGoalkeeperBuildOutPressContext(teamId, ballPoint);
-if (!context) {
-return {
-presser: basePresser,
-labels: [],
-};
-}
-const labels = [];
-const excludedIds = new Set();
-let presser = basePresser;
-const firstPressPoint = getGoalkeeperBuildOutPressTarget(teamId, context, "receiverPress");
-const firstPresser = pickDefensiveAutopilotPlayer(
-groups,
-profile.phaseKey === "highPress" ? ["forward", "midfield"] : ["forward"],
-excludedIds,
-firstPressPoint,
-context.receiverRoleKey === "wideBack" || context.receiverRoleKey === "wideForward" ? ["W", "10"] : ["9", "10", "W"]
-);
-if (firstPresser) {
-targets.set(firstPresser.id, firstPressPoint);
-excludedIds.add(firstPresser.id);
-presser = firstPresser;
-labels.push(context.directRelease ? "Press second-ball release" : "Press GK first pass");
-}
-if (context.shortBuild) {
-const screenForward = pickDefensiveAutopilotPlayer(
-groups,
-["forward"],
-excludedIds,
-getGoalkeeperBuildOutPressTarget(teamId, context, "goalkeeperScreen"),
-["9", "10"]
-);
-if (screenForward) {
-targets.set(screenForward.id, getGoalkeeperBuildOutPressTarget(teamId, context, "goalkeeperScreen"));
-excludedIds.add(screenForward.id);
-labels.push("Screen pass back to GK");
-}
-const pivotLock = pickDefensiveAutopilotPlayer(
-groups,
-["midfield", "forward"],
-excludedIds,
-getGoalkeeperBuildOutPressTarget(teamId, context, "pivotLock"),
-["6", "8", "10"]
-);
-if (pivotLock) {
-targets.set(pivotLock.id, getGoalkeeperBuildOutPressTarget(teamId, context, "pivotLock"));
-excludedIds.add(pivotLock.id);
-labels.push("Lock the 6");
-}
-const farLock = pickDefensiveAutopilotPlayer(
-groups,
-["forward", "midfield"],
-excludedIds,
-getGoalkeeperBuildOutPressTarget(teamId, context, "farCenterBackLock"),
-["W", "8"]
-);
-if (farLock) {
-targets.set(farLock.id, getGoalkeeperBuildOutPressTarget(teamId, context, "farCenterBackLock"));
-excludedIds.add(farLock.id);
-labels.push("Curve to far CB");
-}
-}
-if (context.directRelease) {
-const secondBall = pickDefensiveAutopilotPlayer(
-groups,
-["midfield"],
-excludedIds,
-getGoalkeeperBuildOutPressTarget(teamId, context, "secondBallScreen"),
-["6", "8"]
-);
-if (secondBall) {
-targets.set(secondBall.id, getGoalkeeperBuildOutPressTarget(teamId, context, "secondBallScreen"));
-excludedIds.add(secondBall.id);
-labels.push("Win second ball");
-}
-const restCover = pickDefensiveAutopilotPlayer(
-groups,
-["back"],
-excludedIds,
-getGoalkeeperBuildOutPressTarget(teamId, context, "restCover"),
-["CB"]
-);
-if (restCover) {
-targets.set(restCover.id, getGoalkeeperBuildOutPressTarget(teamId, context, "restCover"));
-labels.push("Rest cover behind release");
-}
-}
-return {
-presser,
-labels,
-};
-}
+const {
+  chooseDefensiveAutopilotPresser,
+  getDefensivePressTarget,
+  getDefensiveAngledPressTarget,
+  applyDefensivePresserAngleTarget,
+  getGoalkeeperBuildOutPressContext,
+  pickDefensiveAutopilotPlayer,
+  getGoalkeeperBuildOutPressTarget,
+  applyGoalkeeperBuildOutPressTargets,
+} = defensivePressTargets;
 function getDefensiveThreatResponse(teamId, ballPoint = state.ball.target ?? state.ball.position) {
 const attackingTeamId = getOtherTeamId(teamId);
 const threat = attackingTeamId
@@ -1131,224 +501,26 @@ labels.push("Cutback screen");
 }
 return labels;
 }
-function getDefensiveCornerContext(teamId, ballPoint) {
-const actionMeta = state.draftStep ?? {
-actionType: state.ball.actionType,
-target: state.ball.target,
-beforeSnapshot: {
-restartPhase: cloneRestartPhase(state.restartPhase),
-ball: {
-position: cloneVector(state.ball.position),
-ownerPlayerId: state.ball.initiatorPlayerId ?? state.ball.ownerPlayerId,
-},
-},
-};
-const restart = actionMeta.beforeSnapshot?.restartPhase ?? state.restartPhase;
-if (restart?.type !== "corner" || restart.teamId === teamId || getOtherTeamId(restart.teamId) !== teamId) {
-return null;
-}
-const sideY = Number.isFinite(restart.sideY)
-? restart.sideY
-: actionMeta.beforeSnapshot?.ball?.position?.y ?? ballPoint.y;
-const attackingTeamId = restart.teamId;
-const sign = getDefendingDirectionSign(teamId);
-const ownGoalX = teamId === "home" ? 0 : pitch.length;
-const sideSign = sideY <= pitch.width / 2 ? -1 : 1;
-const cornerSpot = actionMeta.beforeSnapshot?.ball?.position ?? getCornerKickSpot(attackingTeamId, sideY);
-const deliveryTarget = actionMeta.target ?? ballPoint;
-return {
-actionMeta,
-attackingTeamId,
-sideY,
-sideSign,
-ownGoalX,
-sign,
-cornerSpot: cloneVector(cornerSpot),
-deliveryTarget: cloneVector(deliveryTarget),
-isShortCorner: distance(cornerSpot, deliveryTarget) <= 13,
-};
-}
-function getDefensiveCornerTarget(teamId, context, slot) {
-const { ownGoalX, sign, sideSign, cornerSpot, deliveryTarget } = context;
-const points = {
-goalkeeper: {
-x: ownGoalX + sign * 2.4,
-y: clamp(lerp(pitch.width / 2, deliveryTarget.y, 0.1), pitch.width / 2 - 2.2, pitch.width / 2 + 2.2),
-},
-nearPost: {
-x: ownGoalX + sign * 2.7,
-y: pitch.width / 2 + sideSign * 3.05,
-},
-farPost: {
-x: ownGoalX + sign * 2.9,
-y: pitch.width / 2 - sideSign * 3.15,
-},
-sixYardCentral: {
-x: ownGoalX + sign * 5.7,
-y: pitch.width / 2 + sideSign * 0.9,
-},
-penaltySpot: {
-x: ownGoalX + sign * 10.8,
-y: pitch.width / 2 - sideSign * 0.6,
-},
-nearZone: {
-x: ownGoalX + sign * 7.6,
-y: pitch.width / 2 + sideSign * 6.6,
-},
-farZone: {
-x: ownGoalX + sign * 8.9,
-y: pitch.width / 2 - sideSign * 8.4,
-},
-edgeSecondBall: {
-x: ownGoalX + sign * 18.2,
-y: pitch.width / 2 - sideSign * 4.6,
-},
-shortCornerPress: {
-x: lerp(cornerSpot.x, ownGoalX + sign * 12.5, 0.55),
-y: lerp(cornerSpot.y, pitch.width / 2 + sideSign * 15, 0.44),
-},
-clearanceOutlet: {
-x: ownGoalX + sign * 25,
-y: pitch.width / 2 - sideSign * 18,
-},
-};
-return clampToPitch(points[slot] ?? points.penaltySpot, 1.8);
-}
-function applyDefensiveCornerSetPieceTargets(teamId, targets, groups, ballPoint, profile) {
-const context = getDefensiveCornerContext(teamId, ballPoint);
-if (!context) {
-return {
-active: false,
-presser: null,
-labels: [],
-focusPoint: null,
-};
-}
-const labels = [];
-const excludedIds = new Set();
-let presser = null;
-groups.gk.forEach((goalkeeper) => {
-targets.set(goalkeeper.id, getDefensiveCornerTarget(teamId, context, "goalkeeper"));
-excludedIds.add(goalkeeper.id);
-labels.push("GK controls six-yard line");
+const defensiveCornerTargets = createGameSimulatorAutopilotDefensiveCornerTargets({
+  clamp,
+  clampToPitch,
+  cloneRestartPhase,
+  cloneVector,
+  distance,
+  getCornerKickSpot,
+  getDefendingDirectionSign,
+  getOtherTeamId,
+  lerp,
+  pickDefensiveAutopilotPlayer,
+  pitch,
+  state,
+  uniquePrincipleLabels,
 });
-const nearPost = pickDefensiveAutopilotPlayer(
-groups,
-["back", "midfield"],
-excludedIds,
-getDefensiveCornerTarget(teamId, context, "nearPost"),
-["CB", "LB", "RB", "WB"]
-);
-if (nearPost) {
-targets.set(nearPost.id, getDefensiveCornerTarget(teamId, context, "nearPost"));
-excludedIds.add(nearPost.id);
-labels.push("Near-post protection");
-}
-const farPost = pickDefensiveAutopilotPlayer(
-groups,
-["back", "midfield"],
-excludedIds,
-getDefensiveCornerTarget(teamId, context, "farPost"),
-["CB", "LB", "RB", "WB"]
-);
-if (farPost) {
-targets.set(farPost.id, getDefensiveCornerTarget(teamId, context, "farPost"));
-excludedIds.add(farPost.id);
-labels.push("Far-post protection");
-}
-const sixYard = pickDefensiveAutopilotPlayer(
-groups,
-["back"],
-excludedIds,
-getDefensiveCornerTarget(teamId, context, "sixYardCentral"),
-["CB"]
-);
-if (sixYard) {
-targets.set(sixYard.id, getDefensiveCornerTarget(teamId, context, "sixYardCentral"));
-excludedIds.add(sixYard.id);
-labels.push("Six-yard zone");
-}
-const penaltySpot = pickDefensiveAutopilotPlayer(
-groups,
-["back", "midfield"],
-excludedIds,
-getDefensiveCornerTarget(teamId, context, "penaltySpot"),
-["CB", "6", "8"]
-);
-if (penaltySpot) {
-targets.set(penaltySpot.id, getDefensiveCornerTarget(teamId, context, "penaltySpot"));
-excludedIds.add(penaltySpot.id);
-labels.push("Penalty-spot duel");
-}
-const nearZone = pickDefensiveAutopilotPlayer(
-groups,
-["midfield", "back"],
-excludedIds,
-getDefensiveCornerTarget(teamId, context, "nearZone"),
-["6", "8", "WB", "LB", "RB"]
-);
-if (nearZone) {
-targets.set(nearZone.id, getDefensiveCornerTarget(teamId, context, "nearZone"));
-excludedIds.add(nearZone.id);
-labels.push("Near-zone screen");
-}
-const farZone = pickDefensiveAutopilotPlayer(
-groups,
-["midfield", "back"],
-excludedIds,
-getDefensiveCornerTarget(teamId, context, "farZone"),
-["8", "10", "WB", "LB", "RB"]
-);
-if (farZone) {
-targets.set(farZone.id, getDefensiveCornerTarget(teamId, context, "farZone"));
-excludedIds.add(farZone.id);
-labels.push("Far-zone screen");
-}
-const edge = pickDefensiveAutopilotPlayer(
-groups,
-["midfield", "forward"],
-excludedIds,
-getDefensiveCornerTarget(teamId, context, "edgeSecondBall"),
-["6", "8", "10"]
-);
-if (edge) {
-targets.set(edge.id, getDefensiveCornerTarget(teamId, context, "edgeSecondBall"));
-excludedIds.add(edge.id);
-labels.push("Edge second ball");
-}
-if (context.isShortCorner) {
-const shortPress = pickDefensiveAutopilotPlayer(
-groups,
-["forward", "midfield"],
-excludedIds,
-getDefensiveCornerTarget(teamId, context, "shortCornerPress"),
-["W", "9", "10", "8"]
-);
-if (shortPress) {
-targets.set(shortPress.id, getDefensiveCornerTarget(teamId, context, "shortCornerPress"));
-excludedIds.add(shortPress.id);
-presser = shortPress;
-labels.push("Short-corner pressure");
-}
-}
-const outlet = pickDefensiveAutopilotPlayer(
-groups,
-["forward"],
-excludedIds,
-getDefensiveCornerTarget(teamId, context, "clearanceOutlet"),
-["9", "W", "10"]
-);
-if (outlet) {
-targets.set(outlet.id, getDefensiveCornerTarget(teamId, context, "clearanceOutlet"));
-labels.push("Clearance outlet");
-}
-return {
-active: true,
-presser,
-labels: uniquePrincipleLabels(labels),
-focusPoint: context.cornerSpot,
-};
-}
+const {
+  getDefensiveCornerContext,
+  getDefensiveCornerTarget,
+  applyDefensiveCornerSetPieceTargets,
+} = defensiveCornerTargets;
 function getRestartActionMeta() {
 return state.draftStep ?? {
 actionType: state.ball.actionType,
@@ -1362,905 +534,131 @@ ownerPlayerId: state.ball.initiatorPlayerId ?? state.ball.ownerPlayerId,
 },
 };
 }
-function getDefensiveFreeKickContext(teamId, ballPoint) {
-const actionMeta = getRestartActionMeta();
-const restart = actionMeta.beforeSnapshot?.restartPhase ?? state.restartPhase;
-if (restart?.type !== "freeKick" || restart.teamId === teamId || getOtherTeamId(restart.teamId) !== teamId) {
-return null;
-}
-const attackingTeamId = restart.teamId;
-const freeKickPoint =
-restart.point ??
-actionMeta.beforeSnapshot?.ball?.position ??
-state.ball.position ??
-ballPoint;
-const opponentGoal = getOpponentGoalCenter(attackingTeamId);
-const goalDistance = distance(freeKickPoint, opponentGoal);
-const centrality = 1 - Math.abs(freeKickPoint.y - pitch.width / 2) / (pitch.width / 2);
-const shotAngle = getShotAngleQuality(freeKickPoint, attackingTeamId);
-const deliveryTarget = actionMeta.target ?? ballPoint;
-const deliveryDistance = distance(freeKickPoint, deliveryTarget);
-const attackingDepth = getAttackingDepth(freeKickPoint, attackingTeamId);
-const directShotThreat =
-goalDistance <= 31.5 &&
-centrality >= 0.14 &&
-shotAngle >= 0.11 &&
-(actionMeta.actionType === "shot" || deliveryDistance <= 18 || getAttackingDepth(deliveryTarget, attackingTeamId) >= 82);
-const wideDeliveryThreat =
-Math.abs(freeKickPoint.y - pitch.width / 2) >= 13 &&
-attackingDepth >= 58;
-return {
-actionMeta,
-attackingTeamId,
-freeKickPoint: cloneVector(freeKickPoint),
-deliveryTarget: cloneVector(deliveryTarget),
-ownGoalX: teamId === "home" ? 0 : pitch.length,
-sign: getDefendingDirectionSign(teamId),
-sideSign: getWideSideSign(freeKickPoint) || getWideSideSign(deliveryTarget) || 1,
-goalDistance,
-centrality,
-shotAngle,
-directShotThreat,
-wideDeliveryThreat,
-isShortFreeKick: deliveryDistance <= 13.5,
-};
-}
-function getFreeKickWallTarget(teamId, context, slotIndex = 0, wallCount = 3) {
-const ownGoal = getOwnGoalCenter(teamId);
-const wallBaseDistance = clamp(context.goalDistance > 25 ? 9.15 : 8.35, 7.8, 9.15);
-const base = moveTowards(context.freeKickPoint, ownGoal, wallBaseDistance);
-const lane = normalize(context.freeKickPoint, ownGoal);
-const perpendicular = { x: -lane.y, y: lane.x };
-const spread = clamp((wallCount - 1) * 0.68, 0.72, 2.4);
-const offset = wallCount <= 1 ? 0 : -spread / 2 + (spread * slotIndex) / (wallCount - 1);
-return clampToPitch({
-x: base.x + perpendicular.x * offset,
-y: base.y + perpendicular.y * offset,
-}, 1.6);
-}
-function getDefensiveFreeKickTarget(teamId, context, slot) {
-const { ownGoalX, sign, sideSign, freeKickPoint, deliveryTarget } = context;
-const wallLeanY = lerp(pitch.width / 2, freeKickPoint.y, 0.12);
-const points = {
-goalkeeper: {
-x: ownGoalX + sign * 1.2,
-y: clamp(lerp(pitch.width / 2, deliveryTarget.y, context.directShotThreat ? 0.1 : 0.18), pitch.width / 2 - 3.05, pitch.width / 2 + 3.05),
-},
-blockerEdge: {
-x: ownGoalX + sign * 19.2,
-y: clamp(wallLeanY - sideSign * 5.2, 7, pitch.width - 7),
-},
-nearZone: {
-x: ownGoalX + sign * 8.7,
-y: pitch.width / 2 + sideSign * 7.8,
-},
-farZone: {
-x: ownGoalX + sign * 9.4,
-y: pitch.width / 2 - sideSign * 8.8,
-},
-penaltySpot: {
-x: ownGoalX + sign * 11.4,
-y: pitch.width / 2 - sideSign * 0.8,
-},
-sixYardCentral: {
-x: ownGoalX + sign * 5.7,
-y: pitch.width / 2 + sideSign * 0.7,
-},
-edgeSecondBall: {
-x: ownGoalX + sign * 18.5,
-y: clamp(pitch.width / 2 - sideSign * 4.8, 7, pitch.width - 7),
-},
-shortFreeKickPress: {
-x: lerp(freeKickPoint.x, deliveryTarget.x, 0.42),
-y: lerp(freeKickPoint.y, deliveryTarget.y, 0.42),
-},
-clearanceOutlet: {
-x: ownGoalX + sign * 26,
-y: pitch.width / 2 - sideSign * 18,
-},
-};
-return clampToPitch(points[slot] ?? points.penaltySpot, 1.8);
-}
-function applyDefensiveFreeKickSetPieceTargets(teamId, targets, groups, ballPoint, profile) {
-const context = getDefensiveFreeKickContext(teamId, ballPoint);
-if (!context) {
-return {
-active: false,
-presser: null,
-labels: [],
-focusPoint: null,
-};
-}
-const labels = [];
-const excludedIds = new Set();
-let presser = null;
-groups.gk.forEach((goalkeeper) => {
-targets.set(goalkeeper.id, getDefensiveFreeKickTarget(teamId, context, "goalkeeper"));
-excludedIds.add(goalkeeper.id);
-labels.push(context.directShotThreat ? "GK sets the wall" : "GK commands delivery line");
+const defensiveFreeKickTargets = createGameSimulatorAutopilotDefensiveFreeKickTargets({
+  clamp,
+  clampToPitch,
+  cloneVector,
+  distance,
+  getAttackingDepth,
+  getDefendingDirectionSign,
+  getOtherTeamId,
+  getOpponentGoalCenter,
+  getOwnGoalCenter,
+  getRestartActionMeta,
+  getShotAngleQuality,
+  getWideSideSign,
+  lerp,
+  moveTowards,
+  normalize,
+  pickDefensiveAutopilotPlayer,
+  pitch,
+  state,
+  uniquePrincipleLabels,
 });
-const wallCount = context.directShotThreat
-? clamp(Math.round(2 + (31.5 - context.goalDistance) / 6 + context.centrality * 1.2), 2, 4)
-: context.wideDeliveryThreat
-? 1
-: 2;
-for (let index = 0; index < wallCount; index += 1) {
-const wallTarget = getFreeKickWallTarget(teamId, context, index, wallCount);
-const wallPlayer = pickDefensiveAutopilotPlayer(
-groups,
-["midfield", "forward", "back"],
-excludedIds,
-wallTarget,
-["6", "8", "10", "W", "9", "CB"]
-);
-if (wallPlayer) {
-targets.set(wallPlayer.id, wallTarget);
-excludedIds.add(wallPlayer.id);
-}
-}
-if (wallCount > 0) {
-labels.push(context.directShotThreat ? "Free-kick wall" : "Short wall");
-}
-if (context.isShortFreeKick) {
-const shortPress = pickDefensiveAutopilotPlayer(
-groups,
-["forward", "midfield"],
-excludedIds,
-getDefensiveFreeKickTarget(teamId, context, "shortFreeKickPress"),
-["9", "W", "10", "8"]
-);
-if (shortPress) {
-targets.set(shortPress.id, getDefensiveFreeKickTarget(teamId, context, "shortFreeKickPress"));
-excludedIds.add(shortPress.id);
-presser = shortPress;
-labels.push("Short free-kick pressure");
-}
-}
-const deliverySlots = context.directShotThreat
-? [
-["blockerEdge", ["midfield"], ["6", "8", "10"]],
-["penaltySpot", ["back", "midfield"], ["CB", "6", "8"]],
-["edgeSecondBall", ["midfield", "forward"], ["6", "8", "10"]],
-]
-: [
-["sixYardCentral", ["back"], ["CB"]],
-["nearZone", ["back", "midfield"], ["CB", "LB", "RB", "WB", "6"]],
-["farZone", ["back", "midfield"], ["CB", "LB", "RB", "WB"]],
-["penaltySpot", ["back", "midfield"], ["CB", "6", "8"]],
-["edgeSecondBall", ["midfield", "forward"], ["6", "8", "10"]],
-];
-deliverySlots.forEach(([slot, lineKeys, preferLabels]) => {
-const target = getDefensiveFreeKickTarget(teamId, context, slot);
-const player = pickDefensiveAutopilotPlayer(groups, lineKeys, excludedIds, target, preferLabels);
-if (player) {
-targets.set(player.id, target);
-excludedIds.add(player.id);
-}
+const {
+  getDefensiveFreeKickContext,
+  getFreeKickWallTarget,
+  getDefensiveFreeKickTarget,
+  applyDefensiveFreeKickSetPieceTargets,
+} = defensiveFreeKickTargets;
+const defensivePenaltyTargets = createGameSimulatorAutopilotDefensivePenaltyTargets({
+  clampToPitch,
+  cloneVector,
+  getDefendingDirectionSign,
+  getOtherTeamId,
+  getOpponentPenaltySpot,
+  getRestartActionMeta,
+  getWideSideSign,
+  pickDefensiveAutopilotPlayer,
+  pitch,
+  state,
+  uniquePrincipleLabels,
 });
-labels.push(context.directShotThreat ? "Rebound and block line" : "Box delivery protection");
-const outlet = pickDefensiveAutopilotPlayer(
-groups,
-["forward"],
-excludedIds,
-getDefensiveFreeKickTarget(teamId, context, "clearanceOutlet"),
-["9", "W", "10"]
-);
-if (outlet) {
-targets.set(outlet.id, getDefensiveFreeKickTarget(teamId, context, "clearanceOutlet"));
-labels.push("Clearance outlet");
-}
-return {
-active: true,
-presser,
-labels: uniquePrincipleLabels(labels),
-focusPoint: context.freeKickPoint,
-};
-}
-function getDefensivePenaltyContext(teamId, ballPoint) {
-const actionMeta = getRestartActionMeta();
-const restart = actionMeta.beforeSnapshot?.restartPhase ?? state.restartPhase;
-if (restart?.type !== "penalty" || restart.teamId === teamId || getOtherTeamId(restart.teamId) !== teamId) {
-return null;
-}
-const attackingTeamId = restart.teamId;
-const penaltyPoint =
-actionMeta.beforeSnapshot?.ball?.position ??
-getOpponentPenaltySpot(attackingTeamId);
-return {
-actionMeta,
-attackingTeamId,
-penaltyPoint: cloneVector(penaltyPoint),
-ownGoalX: teamId === "home" ? 0 : pitch.length,
-sign: getDefendingDirectionSign(teamId),
-sideSign: getWideSideSign(ballPoint) || 1,
-};
-}
-function getDefensivePenaltyTarget(teamId, context, slot) {
-const { ownGoalX, sign, sideSign } = context;
-const points = {
-goalkeeper: {
-x: ownGoalX + sign * 0.55,
-y: pitch.width / 2,
-},
-reboundLeft: {
-x: ownGoalX + sign * 18.1,
-y: pitch.width / 2 - 8.3,
-},
-reboundRight: {
-x: ownGoalX + sign * 18.1,
-y: pitch.width / 2 + 8.3,
-},
-arcScreen: {
-x: ownGoalX + sign * 20.4,
-y: pitch.width / 2,
-},
-farClearance: {
-x: ownGoalX + sign * 24.6,
-y: pitch.width / 2 - sideSign * 15.2,
-},
-wideClearance: {
-x: ownGoalX + sign * 26.5,
-y: pitch.width / 2 + sideSign * 19,
-},
-};
-return clampToPitch(points[slot] ?? points.arcScreen, 1.5);
-}
-function applyDefensivePenaltySetPieceTargets(teamId, targets, groups, ballPoint, profile) {
-const context = getDefensivePenaltyContext(teamId, ballPoint);
-if (!context) {
-return {
-active: false,
-presser: null,
-labels: [],
-focusPoint: null,
-};
-}
-const labels = [];
-const excludedIds = new Set();
-groups.gk.forEach((goalkeeper) => {
-targets.set(goalkeeper.id, getDefensivePenaltyTarget(teamId, context, "goalkeeper"));
-excludedIds.add(goalkeeper.id);
-labels.push("GK on penalty line");
+const {
+  getDefensivePenaltyContext,
+  getDefensivePenaltyTarget,
+  applyDefensivePenaltySetPieceTargets,
+} = defensivePenaltyTargets;
+const defensiveThrowInTargets = createGameSimulatorAutopilotDefensiveThrowInTargets({
+  clamp,
+  clampToPitch,
+  cloneVector,
+  distance,
+  getDefendingDirectionSign,
+  getOtherTeamId,
+  getRestartActionMeta,
+  getWideSideSign,
+  lerp,
+  moveTowards,
+  pickDefensiveAutopilotPlayer,
+  pitch,
+  state,
+  uniquePrincipleLabels,
 });
-[
-["reboundLeft", ["back", "midfield"], ["CB", "LB", "RB", "WB", "6"]],
-["reboundRight", ["back", "midfield"], ["CB", "LB", "RB", "WB", "6"]],
-["arcScreen", ["midfield", "forward"], ["6", "8", "10"]],
-["farClearance", ["forward", "midfield"], ["9", "W", "10"]],
-["wideClearance", ["forward", "midfield"], ["W", "9", "10"]],
-].forEach(([slot, lineKeys, preferLabels]) => {
-const target = getDefensivePenaltyTarget(teamId, context, slot);
-const player = pickDefensiveAutopilotPlayer(groups, lineKeys, excludedIds, target, preferLabels);
-if (player) {
-targets.set(player.id, target);
-excludedIds.add(player.id);
-}
+const {
+  getDefensiveThrowInContext,
+  getDefensiveThrowInTarget,
+  applyDefensiveThrowInSetPieceTargets,
+} = defensiveThrowInTargets;
+const defensiveNegativeTransitionTargets = createGameSimulatorAutopilotDefensiveNegativeTransitionTargets({
+  clamp,
+  clampToPitch,
+  cloneVector,
+  distance,
+  getAttackDirectionSign,
+  getDefendingDirectionSign,
+  getDefensiveAutopilotProfile,
+  getDistanceFromOwnGoal,
+  getOffensiveRoleKey,
+  getOwnGoalCenter,
+  getPitchThreatProfile,
+  getPlannedPossessionTeamId,
+  getPlayerById,
+  getTeamDefenseStyleKey,
+  getTeamDefenseStyleProfile,
+  getWideSideSign,
+  isGoalkeeper,
+  isWidePrincipleZone,
+  lerp,
+  pickDefensiveAutopilotPlayer,
+  pitch,
+  state,
+  teams,
+  uniquePrincipleLabels,
 });
-labels.push("Penalty rebound line", "Clearance outlets");
-return {
-active: true,
-presser: null,
-labels: uniquePrincipleLabels(labels),
-focusPoint: context.penaltyPoint,
-};
-}
-function getDefensiveThrowInContext(teamId, ballPoint) {
-const actionMeta = getRestartActionMeta();
-const restart = actionMeta.beforeSnapshot?.restartPhase ?? state.restartPhase;
-if (restart?.type !== "throwIn" || restart.teamId === teamId || getOtherTeamId(restart.teamId) !== teamId) {
-return null;
-}
-const throwPoint =
-restart.point ??
-actionMeta.beforeSnapshot?.ball?.position ??
-state.ball.position ??
-ballPoint;
-const sideSign = getWideSideSign(throwPoint) || (throwPoint.y <= pitch.width / 2 ? -1 : 1);
-return {
-actionMeta,
-attackingTeamId: restart.teamId,
-throwPoint: cloneVector(throwPoint),
-deliveryTarget: cloneVector(actionMeta.target ?? ballPoint),
-sign: getDefendingDirectionSign(teamId),
-sideSign,
-ownGoalX: teamId === "home" ? 0 : pitch.length,
-isShortThrow: distance(throwPoint, actionMeta.target ?? ballPoint) <= 12.5,
-};
-}
-function getDefensiveThrowInTarget(teamId, context, slot) {
-const { throwPoint, deliveryTarget, sign, sideSign, ownGoalX } = context;
-const insideY = clamp(throwPoint.y - sideSign * 7.5, 4, pitch.width - 4);
-const points = {
-twoMeterPress: moveTowards(
-{
-x: throwPoint.x,
-y: insideY,
-},
-throwPoint,
-Math.max(distance({ x: throwPoint.x, y: insideY }, throwPoint) - 2.15, 0)
-),
-receiverPress: {
-x: lerp(throwPoint.x, deliveryTarget.x, 0.58),
-y: lerp(insideY, deliveryTarget.y, 0.44),
-},
-insideScreen: {
-x: clamp(throwPoint.x - sign * 3.8, 4, pitch.length - 4),
-y: clamp(insideY - sideSign * 5.4, 7, pitch.width - 7),
-},
-downLineCover: {
-x: clamp(throwPoint.x - sign * 9.4, 4, pitch.length - 4),
-y: clamp(throwPoint.y - sideSign * 2.4, 3.2, pitch.width - 3.2),
-},
-backLineCover: {
-x: ownGoalX + sign * 24,
-y: clamp(insideY - sideSign * 9.5, 8, pitch.width - 8),
-},
-centralScreen: {
-x: ownGoalX + sign * 34,
-y: lerp(pitch.width / 2, insideY, 0.35),
-},
-};
-return clampToPitch(points[slot] ?? points.insideScreen, 1.8);
-}
-function applyDefensiveThrowInSetPieceTargets(teamId, targets, groups, ballPoint, profile) {
-const context = getDefensiveThrowInContext(teamId, ballPoint);
-if (!context) {
-return {
-active: false,
-presser: null,
-labels: [],
-focusPoint: null,
-};
-}
-const labels = [];
-const excludedIds = new Set(groups.gk.map((goalkeeper) => goalkeeper.id));
-let presser = null;
-const firstPress = pickDefensiveAutopilotPlayer(
-groups,
-["forward", "midfield"],
-excludedIds,
-getDefensiveThrowInTarget(teamId, context, "twoMeterPress"),
-["W", "9", "10", "8", "WB"]
-);
-if (firstPress) {
-targets.set(firstPress.id, getDefensiveThrowInTarget(teamId, context, "twoMeterPress"));
-excludedIds.add(firstPress.id);
-presser = firstPress;
-labels.push("Two-metre throw-in pressure");
-}
-const receiverPress = pickDefensiveAutopilotPlayer(
-groups,
-["midfield", "back"],
-excludedIds,
-getDefensiveThrowInTarget(teamId, context, "receiverPress"),
-["WB", "LB", "RB", "6", "8"]
-);
-if (receiverPress) {
-targets.set(receiverPress.id, getDefensiveThrowInTarget(teamId, context, "receiverPress"));
-excludedIds.add(receiverPress.id);
-labels.push("Receiver touch pressure");
-}
-[
-["insideScreen", ["midfield"], ["6", "8", "10"]],
-["downLineCover", ["back", "midfield"], ["LB", "RB", "WB", "CB"]],
-["backLineCover", ["back"], ["CB", "LB", "RB", "WB"]],
-["centralScreen", ["midfield", "forward"], ["6", "8", "10", "9"]],
-].forEach(([slot, lineKeys, preferLabels]) => {
-const target = getDefensiveThrowInTarget(teamId, context, slot);
-const player = pickDefensiveAutopilotPlayer(groups, lineKeys, excludedIds, target, preferLabels);
-if (player) {
-targets.set(player.id, target);
-excludedIds.add(player.id);
-}
+const {
+  getNegativeTransitionContext,
+  getNegativeTransitionTarget,
+  getNegativeTransitionOutletOptions,
+  applyNegativeTransitionDefensiveTargets,
+} = defensiveNegativeTransitionTargets;
+const defensiveLooseBallTargets = createGameSimulatorAutopilotDefensiveLooseBallTargets({
+  clamp,
+  clampToPitch,
+  cloneVector,
+  distance,
+  getAttackDirectionSign,
+  getDefendingDirectionSign,
+  getDistanceFromOwnGoal,
+  getOffensiveAutopilotProfile,
+  getOtherTeamId,
+  getOwnGoalCenter,
+  getPitchThreatProfile,
+  getPlayerById,
+  getWideSideSign,
+  isGoalkeeper,
+  isWidePrincipleZone,
+  lerp,
+  pickDefensiveAutopilotPlayer,
+  pitch,
+  state,
+  uniquePrincipleLabels,
 });
-labels.push("Touchline trap", "Inside lane cover");
-return {
-active: true,
-presser,
-labels: uniquePrincipleLabels(labels),
-focusPoint: context.throwPoint,
-};
-}
-function getNegativeTransitionContext(teamId, ballPoint = state.ball.target ?? state.ball.position, profile = null) {
-const secure =
-state.ball.securePossession ??
-state.draftStep?.beforeSnapshot?.ball?.securePossession ??
-null;
-if (!secure?.ownerPlayerId || !secure?.opponentPlayerId || state.restartPhase?.type) {
-return { active: false };
-}
-const newOwner = getPlayerById(secure.ownerPlayerId);
-const playerWhoLostIt = getPlayerById(secure.opponentPlayerId);
-if (!newOwner || !playerWhoLostIt || playerWhoLostIt.team !== teamId || newOwner.team === teamId) {
-return { active: false };
-}
-const plannedPossessionTeamId = getPlannedPossessionTeamId();
-if (plannedPossessionTeamId && plannedPossessionTeamId !== newOwner.team) {
-return { active: false };
-}
-const lossPoint = secure.point ?? playerWhoLostIt.position ?? ballPoint;
-const elapsed = Math.max(0, state.time - (secure.createdAt ?? state.time));
-const distanceFromLoss = distance(ballPoint, lossPoint);
-const freshness = clamp(
-1 - Math.max(distanceFromLoss / 19.5, elapsed / 4.4),
-0,
-1
-);
-if (freshness <= 0.08) {
-return { active: false };
-}
-const styleKey = getTeamDefenseStyleKey(teamId);
-const styleProfile = getTeamDefenseStyleProfile(teamId);
-const resolvedProfile = profile ?? getDefensiveAutopilotProfile(teamId, ballPoint);
-const ballFromOwnGoal = getDistanceFromOwnGoal(teamId, ballPoint);
-const dangerToOwnGoal = clamp((47 - ballFromOwnGoal) / 29, 0, 1);
-const counterPressStyleBonus = ["counter-press", "gegenpress", "high-press", "press-trap-wide"].includes(styleKey)
-? 0.18
-: 0;
-const recoveryStyleBonus = ["low-block", "protect-box", "park-the-bus", "catenaccio"].includes(styleKey)
-? 0.2
-: 0;
-const counterPressIntent = clamp(
-resolvedProfile.pressingIntensity * 0.36 +
-resolvedProfile.tackleIntent * 0.22 +
-freshness * 0.3 +
-counterPressStyleBonus +
-(secure.reason === "interception" ? 0.08 : 0),
-0,
-1
-);
-const recoveryIntent = clamp(
-(1 - resolvedProfile.pressingIntensity) * 0.34 +
-dangerToOwnGoal * 0.34 +
-recoveryStyleBonus +
-(freshness < 0.45 ? 0.1 : 0),
-0,
-1
-);
-return {
-active: true,
-mode: counterPressIntent >= Math.max(0.58, recoveryIntent * 0.86)
-? "counterPress"
-: "delayRecover",
-teamId,
-winningTeamId: newOwner.team,
-newOwner,
-playerWhoLostIt,
-ballPoint: cloneVector(ballPoint),
-lossPoint: cloneVector(lossPoint),
-freshness,
-counterPressIntent,
-recoveryIntent,
-styleKey,
-styleLabel: styleProfile.label,
-dangerToOwnGoal,
-};
-}
-function getNegativeTransitionTarget(teamId, context, slot, outlet = null) {
-const sign = getDefendingDirectionSign(teamId);
-const ownGoal = getOwnGoalCenter(teamId);
-const { ballPoint, lossPoint, freshness } = context;
-const sideSign = getWideSideSign(ballPoint) || getWideSideSign(lossPoint) || 1;
-const counterRadius = lerp(5.6, 2.8, freshness);
-const goalSideX = (meters) => ballPoint.x - sign * meters;
-const outletPoint = outlet?.position ?? outlet?.point ?? ballPoint;
-const outletCentrality = 1 - Math.abs(outletPoint.y - pitch.width / 2) / (pitch.width / 2);
-const points = {
-pressBall: {
-x: goalSideX(lerp(1.8, 0.7, freshness)),
-y: lerp(ballPoint.y, pitch.width / 2, 0.08),
-},
-lockInside: {
-x: goalSideX(5.4),
-y: lerp(ballPoint.y, pitch.width / 2, 0.58),
-},
-lockFirstPassNear: {
-x: goalSideX(3.8),
-y: ballPoint.y - sideSign * counterRadius,
-},
-lockFirstPassFar: {
-x: goalSideX(6.4),
-y: ballPoint.y + sideSign * (counterRadius + 1.8),
-},
-passBackTrap: {
-x: lerp(lossPoint.x, ballPoint.x, 0.36) + sign * 1.6,
-y: lerp(lossPoint.y, ballPoint.y, 0.52),
-},
-outletLock: {
-x: lerp(outletPoint.x, ballPoint.x, 0.24) - sign * lerp(0.8, 1.55, outletCentrality),
-y: lerp(outletPoint.y, pitch.width / 2, outletCentrality >= 0.55 ? 0.26 : 0.12),
-},
-touchlineCage: {
-x: goalSideX(3.2),
-y: clamp(ballPoint.y + sideSign * 4.4, 3.2, pitch.width - 3.2),
-},
-restDefence: {
-x: lerp(ballPoint.x, ownGoal.x, 0.38),
-y: pitch.width / 2,
-},
-delayPress: {
-x: goalSideX(2.2),
-y: lerp(ballPoint.y, pitch.width / 2, 0.18),
-},
-recoverScreen: {
-x: lerp(ballPoint.x, ownGoal.x, 0.26),
-y: lerp(ballPoint.y, pitch.width / 2, 0.62),
-},
-recoverBackLine: {
-x: lerp(ballPoint.x, ownGoal.x, 0.48),
-y: pitch.width / 2 - sideSign * 4.8,
-},
-};
-return clampToPitch(points[slot] ?? points.lockInside, 2.2);
-}
-function getNegativeTransitionOutletOptions(context) {
-const attackSign = getAttackDirectionSign(context.winningTeamId);
-const ballSide = getWideSideSign(context.ballPoint) || 1;
-return state.players
-.filter((player) =>
-player.team === context.winningTeamId &&
-player.id !== context.newOwner?.id &&
-!isGoalkeeper(player)
-)
-.map((player) => {
-const position = cloneVector(player.position);
-const gap = distance(position, context.ballPoint);
-if (gap < 4.2 || gap > 32) {
-return null;
-}
-const threat = getPitchThreatProfile(position, context.winningTeamId);
-const forwardGap = (position.x - context.ballPoint.x) * attackSign;
-const centrality = 1 - Math.abs(position.y - pitch.width / 2) / (pitch.width / 2);
-const sameSide = getWideSideSign(position) === ballSide;
-const roleKey = getOffensiveRoleKey(player, teams[player.team]?.formation);
-const outletScore =
-threat.value * 0.48 +
-threat.centralPocket * 0.34 +
-threat.betweenLines * 0.24 +
-threat.behindLine * 0.2 +
-centrality * 0.16 +
-clamp(forwardGap / 18, -0.08, 0.3) +
-clamp((24 - gap) / 24, 0, 0.24) +
-(sameSide ? 0.08 : 0) +
-(["connector", "wideForward", "secondStriker", "striker"].includes(roleKey) ? 0.12 : 0);
-return {
-player,
-position,
-threat,
-gap,
-forwardGap,
-centrality,
-sameSide,
-roleKey,
-outletScore,
-};
-})
-.filter(Boolean)
-.filter((option) => option.outletScore >= 0.06)
-.sort((a, b) => b.outletScore - a.outletScore)
-.slice(0, 4);
-}
-function applyNegativeTransitionDefensiveTargets(teamId, targets, groups, ballPoint, profile) {
-const context = getNegativeTransitionContext(teamId, ballPoint, profile);
-if (!context.active) {
-return {
-active: false,
-presser: null,
-labels: [],
-focusPoint: null,
-mode: null,
-protectedIds: new Set(),
-};
-}
-const labels = [];
-const assignedIds = new Set(groups.gk.map((goalkeeper) => goalkeeper.id));
-let presser = null;
-const outlets = getNegativeTransitionOutletOptions(context);
-const assign = (slot, lineKeys, preferLabels, label, outlet = null) => {
-const target = getNegativeTransitionTarget(teamId, context, slot, outlet);
-const player = pickDefensiveAutopilotPlayer(groups, lineKeys, assignedIds, target, preferLabels);
-if (!player) {
-return null;
-}
-targets.set(player.id, target);
-assignedIds.add(player.id);
-if (label) {
-labels.push(label);
-}
-return player;
-};
-if (context.mode === "counterPress") {
-presser = assign(
-"pressBall",
-["forward", "midfield", "back"],
-["9", "10", "W", "8", "6"],
-"Counter-press first touch"
-);
-[
-["lockInside", ["midfield", "back"], ["6", "8", "CB"], "Counter-press cage: close inside"],
-["lockFirstPassNear", ["midfield", "forward"], ["8", "10", "W", "6"], "Counter-press cage: near outlet"],
-["passBackTrap", ["forward", "midfield"], ["9", "10", "W", "8"], "Counter-press cage: trap backwards pass"],
-].forEach(([slot, lineKeys, preferLabels, label]) => {
-assign(slot, lineKeys, preferLabels, label);
-});
-outlets.slice(0, context.counterPressIntent >= 0.66 ? 2 : 1).forEach((outlet, index) => {
-assign(
-"outletLock",
-index === 0 ? ["midfield", "forward", "back"] : ["midfield", "back", "forward"],
-outlet.centrality >= 0.55
-? ["6", "8", "10", "CB"]
-: ["W", "8", "LB", "RB", "WB", "10"],
-index === 0 ? "Counter-press cage: lock best outlet" : "Counter-press cage: lock second outlet",
-outlet
-);
-});
-if (isWidePrincipleZone(context.ballPoint)) {
-assign(
-"touchlineCage",
-["back", "midfield", "forward"],
-["WB", "LB", "RB", "W", "8"],
-"Counter-press cage: use touchline"
-);
-}
-assign("restDefence", ["back", "midfield"], ["CB", "LB", "RB", "WB", "6"], "Rest-defence behind counter-press");
-} else {
-presser = assign(
-"delayPress",
-["forward", "midfield"],
-["9", "10", "W", "8"],
-"Delay the first action"
-);
-[
-["recoverScreen", ["midfield"], ["6", "8", "10"], "Recovery transition: screen centre"],
-["recoverBackLine", ["back"], ["CB", "LB", "RB", "WB"], "Recovery transition: rebuild back line"],
-["lockInside", ["midfield", "back"], ["6", "8", "CB"], "Recovery transition: protect inside"],
-["restDefence", ["back", "midfield"], ["CB", "6"], "Recovery transition: protect depth"],
-].forEach(([slot, lineKeys, preferLabels, label]) => {
-assign(slot, lineKeys, preferLabels, label);
-});
-outlets.slice(0, 1).forEach((outlet) => {
-assign(
-"outletLock",
-["midfield", "back", "forward"],
-["6", "8", "10", "CB", "W"],
-"Recovery transition: delay forward outlet",
-outlet
-);
-});
-}
-return {
-active: true,
-presser,
-labels: uniquePrincipleLabels(labels),
-focusPoint: context.mode === "counterPress" ? context.ballPoint : context.lossPoint,
-mode: context.mode,
-protectedIds: assignedIds,
-};
-}
-function getDefensiveLooseBallRecoveryTrapContext(teamId, ballPoint, profile) {
-if (!ballPoint || state.restartPhase?.type) {
-return null;
-}
-const actionMeta = state.draftStep ?? {
-actionType: state.ball.actionType,
-target: state.ball.target,
-carrierPlayerId: state.ball.carrierPlayerId,
-beforeSnapshot: {
-ball: {
-position: state.ball.startPosition,
-ownerPlayerId: state.ball.initiatorPlayerId ?? state.ball.ownerPlayerId,
-},
-},
-profileKey: state.ball.profileKey,
-targetKind: state.ball.targetKind,
-};
-const isRecoveryAction =
-actionMeta.actionType === "recovery" ||
-actionMeta.profileKey === "loose-ball-recovery" ||
-state.ball.actionType === "recovery" ||
-state.ball.profileKey === "loose-ball-recovery";
-if (!isRecoveryAction) {
-return null;
-}
-const attackingTeamId = getOtherTeamId(teamId);
-const collector = getPlayerById(actionMeta.carrierPlayerId ?? state.ball.carrierPlayerId);
-if (!attackingTeamId || !collector || collector.team !== attackingTeamId) {
-return null;
-}
-const targetPoint = cloneVector(actionMeta.target ?? ballPoint);
-const attackingProfile = getOffensiveAutopilotProfile(attackingTeamId, targetPoint);
-const threat = getPitchThreatProfile(targetPoint, attackingTeamId);
-const ballFromOwnGoal = getDistanceFromOwnGoal(teamId, targetPoint);
-const sideSign =
-getWideSideSign(targetPoint) ||
-getWideSideSign(collector) ||
-1;
-const closeAccess = state.players.reduce((count, player) => {
-if (player.team !== teamId || isGoalkeeper(player)) {
-return count;
-}
-return count + (distance(player.position, targetPoint) <= 15.5 ? 1 : 0);
-}, 0);
-const pressStyle = ["counter-press", "gegenpress", "high-press", "press-trap-wide"].includes(profile.styleKey);
-const protectStyle = ["low-block", "protect-box", "park-the-bus", "catenaccio"].includes(profile.styleKey);
-const recoveryDuration = state.ball.recoveryDuration ?? actionMeta.recoveryDuration ?? 1.2;
-const counterPressIntent = clamp(
-profile.pressingIntensity * 0.44 +
-profile.tackleIntent * 0.22 +
-clamp(closeAccess / 3, 0, 1) * 0.2 +
-(pressStyle ? 0.18 : 0) -
-(protectStyle && ballFromOwnGoal <= 32 ? 0.12 : 0),
-0,
-1
-);
-const protectIntent = clamp(
-(1 - profile.pressingIntensity) * 0.26 +
-clamp((38 - ballFromOwnGoal) / 26, 0, 1) * 0.34 +
-(protectStyle ? 0.18 : 0) +
-threat.value * 0.12,
-0,
-1
-);
-const mode =
-counterPressIntent >= Math.max(0.52, protectIntent * 0.9) && closeAccess >= 1
-? "counterPressRecovery"
-: "delayRecovery";
-return {
-actionMeta,
-attackingTeamId,
-collector,
-targetPoint,
-threat,
-ballFromOwnGoal,
-sideSign,
-closeAccess,
-counterPressIntent,
-protectIntent,
-mode,
-recoveryDuration,
-attackingDirectness: attackingProfile.directness ?? 0.52,
-attackingWidth: attackingProfile.widthDiscipline ?? 0.62,
-};
-}
-function getDefensiveLooseBallRecoveryTrapTarget(teamId, context, slot) {
-const sign = getDefendingDirectionSign(teamId);
-const attackSign = getAttackDirectionSign(context.attackingTeamId);
-const ownGoal = getOwnGoalCenter(teamId);
-const ball = context.targetPoint;
-const sideSign = context.sideSign || 1;
-const goalSideOf = (point, meters) => ({
-x: point.x - sign * meters,
-y: point.y,
-});
-const underPassPoint = {
-x: ball.x - attackSign * (8.5 + context.counterPressIntent * 2.2),
-y: lerp(ball.y, pitch.width / 2, 0.36),
-};
-const forwardOutletPoint = {
-x: ball.x + attackSign * lerp(10, 17, context.attackingDirectness),
-y: clamp(lerp(ball.y, pitch.width / 2 - sideSign * 8, 0.34), 7, pitch.width - 7),
-};
-const widthExitPoint = {
-x: ball.x + attackSign * 4.8,
-y: clamp(pitch.width / 2 + sideSign * lerp(22, 30, context.attackingWidth), 4, pitch.width - 4),
-};
-const pressDistance = context.mode === "counterPressRecovery" ? 0.75 : 1.75;
-const points = {
-pressCollector: {
-...goalSideOf(ball, pressDistance),
-y: lerp(ball.y, pitch.width / 2, context.mode === "counterPressRecovery" ? 0.1 : 0.22),
-},
-insideCover: {
-...goalSideOf(ball, context.mode === "counterPressRecovery" ? 4.2 : 6.2),
-y: lerp(ball.y, pitch.width / 2, 0.72),
-},
-underPassLock: {
-...goalSideOf(underPassPoint, 1.15),
-y: lerp(underPassPoint.y, pitch.width / 2, 0.32),
-},
-forwardOutletLock: {
-...goalSideOf(forwardOutletPoint, context.threat.behindLine >= 0.18 ? 2.1 : 1.3),
-y: lerp(forwardOutletPoint.y, pitch.width / 2, 0.18),
-},
-widthExitLock: {
-...goalSideOf(widthExitPoint, 1.2),
-y: clamp(widthExitPoint.y - sideSign * 2.4, 3.5, pitch.width - 3.5),
-},
-restCover: {
-x: lerp(ball.x, ownGoal.x, context.ballFromOwnGoal <= 34 ? 0.5 : 0.36),
-y: clamp(lerp(ball.y, pitch.width / 2, 0.72), 11, pitch.width - 11),
-},
-weakSideTuck: {
-x: lerp(ball.x, ownGoal.x, context.ballFromOwnGoal <= 42 ? 0.44 : 0.32),
-y: clamp(pitch.width / 2 - sideSign * 9.6, 7, pitch.width - 7),
-},
-};
-return clampToPitch(points[slot] ?? points.pressCollector, 2.1);
-}
-function applyDefensiveLooseBallRecoveryTrapTargets(
-teamId,
-targets,
-groups,
-basePresser,
-ballPoint,
-profile,
-protectedIds = new Set()
-) {
-const context = getDefensiveLooseBallRecoveryTrapContext(teamId, ballPoint, profile);
-if (!context) {
-return {
-presser: basePresser,
-labels: [],
-focusPoint: null,
-protectedIds: new Set(protectedIds),
-};
-}
-const labels = [];
-const assignedIds = new Set([
-...protectedIds,
-...groups.gk.map((goalkeeper) => goalkeeper.id),
-].filter(Boolean));
-let presser = basePresser;
-const pressTarget = getDefensiveLooseBallRecoveryTrapTarget(teamId, context, "pressCollector");
-const basePresserFits =
-presser &&
-!isGoalkeeper(presser) &&
-distance(presser.position, pressTarget) <= (context.mode === "counterPressRecovery" ? 19 : 15);
-if (!basePresserFits) {
-presser = pickDefensiveAutopilotPlayer(
-groups,
-context.mode === "counterPressRecovery"
-? ["forward", "midfield", "back"]
-: ["midfield", "forward", "back"],
-assignedIds,
-pressTarget,
-context.mode === "counterPressRecovery"
-? ["9", "10", "W", "8", "6"]
-: ["6", "8", "10", "W", "CB"]
-);
-}
-if (presser) {
-targets.set(presser.id, pressTarget);
-assignedIds.add(presser.id);
-labels.push(
-context.mode === "counterPressRecovery"
-? "Recovery trap: press collector"
-: "Recovery trap: delay collector"
-);
-}
-const assign = (slot, lineKeys, preferLabels, label) => {
-const target = getDefensiveLooseBallRecoveryTrapTarget(teamId, context, slot);
-const player = pickDefensiveAutopilotPlayer(groups, lineKeys, assignedIds, target, preferLabels);
-if (!player) {
-return null;
-}
-targets.set(player.id, target);
-assignedIds.add(player.id);
-labels.push(label);
-return player;
-};
-assign("insideCover", ["midfield", "back"], ["6", "8", "CB", "LB", "RB", "WB"], "Recovery trap: close inside");
-assign("underPassLock", ["midfield", "forward"], ["8", "10", "6", "9", "W"], "Recovery trap: lock safe pass");
-if (context.mode === "counterPressRecovery" || context.ballFromOwnGoal <= 52) {
-assign("forwardOutletLock", ["back", "midfield", "forward"], ["CB", "6", "8", "LB", "RB", "WB"], "Recovery trap: block forward outlet");
-}
-if (isWidePrincipleZone(context.targetPoint) || context.counterPressIntent >= 0.58) {
-assign("widthExitLock", ["back", "midfield", "forward"], ["WB", "LB", "RB", "W", "8"], "Recovery trap: lock width release");
-}
-assign("restCover", ["back", "midfield"], ["CB", "LB", "RB", "WB", "6"], "Recovery trap: rest cover");
-if (context.threat.centralPocket >= 0.22 || context.ballFromOwnGoal <= 42) {
-assign("weakSideTuck", ["back", "midfield"], ["CB", "LB", "RB", "WB", "6"], "Recovery trap: weak-side tuck");
-}
-if (labels.length) {
-labels.unshift("Defensive loose-ball recovery trap");
-}
-return {
-presser,
-labels: uniquePrincipleLabels(labels),
-focusPoint: context.targetPoint,
-protectedIds: assignedIds,
-};
-}
+const {
+  getDefensiveLooseBallRecoveryTrapContext,
+  getDefensiveLooseBallRecoveryTrapTarget,
+  applyDefensiveLooseBallRecoveryTrapTargets,
+} = defensiveLooseBallTargets;
 function getDefensiveOpenPlayTriggerContext(teamId, ballPoint, profile) {
 if (state.restartPhase?.type) {
 return { active: false };

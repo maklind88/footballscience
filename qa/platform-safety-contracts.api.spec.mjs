@@ -118,6 +118,18 @@ const coreFiles = [
   "src/modules/game-simulator/ball-resolution-engine.mjs",
   "src/modules/game-simulator/autopilot-candidates.mjs",
   "src/modules/game-simulator/autopilot-decision-engine.mjs",
+  "src/modules/game-simulator/autopilot-chance-decisions.mjs",
+  "src/modules/game-simulator/autopilot-advantage-decisions.mjs",
+  "src/modules/game-simulator/autopilot-tempo-rhythm.mjs",
+  "src/modules/game-simulator/autopilot-possession-planner.mjs",
+  "src/modules/game-simulator/autopilot-defensive-goalkeeper-targets.mjs",
+  "src/modules/game-simulator/autopilot-defensive-press-targets.mjs",
+  "src/modules/game-simulator/autopilot-defensive-corner-targets.mjs",
+  "src/modules/game-simulator/autopilot-defensive-free-kick-targets.mjs",
+  "src/modules/game-simulator/autopilot-defensive-penalty-targets.mjs",
+  "src/modules/game-simulator/autopilot-defensive-throw-in-targets.mjs",
+  "src/modules/game-simulator/autopilot-defensive-negative-transition-targets.mjs",
+  "src/modules/game-simulator/autopilot-defensive-loose-ball-targets.mjs",
   "src/modules/game-simulator/autopilot-defensive-targets.mjs",
   "src/modules/game-simulator/autopilot-offball-targets.mjs",
   "src/modules/game-simulator/autopilot-targets.mjs",
@@ -371,6 +383,18 @@ test("core module contracts are covered by dedicated QA", () => {
   const gameSimulatorFullscreenSpec = readProjectFile("qa/game-simulator-fullscreen.api.spec.mjs");
   const gameSimulatorAutopilotCandidatesSpec = readProjectFile("qa/game-simulator-autopilot-candidates.api.spec.mjs");
   const gameSimulatorAutopilotDecisionEngineSpec = readProjectFile("qa/game-simulator-autopilot-decision-engine.api.spec.mjs");
+  const gameSimulatorAutopilotChanceDecisionsSpec = readProjectFile("qa/game-simulator-autopilot-chance-decisions.api.spec.mjs");
+  const gameSimulatorAutopilotAdvantageDecisionsSpec = readProjectFile("qa/game-simulator-autopilot-advantage-decisions.api.spec.mjs");
+  const gameSimulatorAutopilotTempoRhythmSpec = readProjectFile("qa/game-simulator-autopilot-tempo-rhythm.api.spec.mjs");
+  const gameSimulatorAutopilotPossessionPlannerSpec = readProjectFile("qa/game-simulator-autopilot-possession-planner.api.spec.mjs");
+  const gameSimulatorAutopilotDefensiveGoalkeeperSpec = readProjectFile("qa/game-simulator-autopilot-defensive-goalkeeper-targets.api.spec.mjs");
+  const gameSimulatorAutopilotDefensivePressSpec = readProjectFile("qa/game-simulator-autopilot-defensive-press-targets.api.spec.mjs");
+  const gameSimulatorAutopilotDefensiveCornerSpec = readProjectFile("qa/game-simulator-autopilot-defensive-corner-targets.api.spec.mjs");
+  const gameSimulatorAutopilotDefensiveFreeKickSpec = readProjectFile("qa/game-simulator-autopilot-defensive-free-kick-targets.api.spec.mjs");
+  const gameSimulatorAutopilotDefensivePenaltySpec = readProjectFile("qa/game-simulator-autopilot-defensive-penalty-targets.api.spec.mjs");
+  const gameSimulatorAutopilotDefensiveThrowInSpec = readProjectFile("qa/game-simulator-autopilot-defensive-throw-in-targets.api.spec.mjs");
+  const gameSimulatorAutopilotDefensiveNegativeTransitionSpec = readProjectFile("qa/game-simulator-autopilot-defensive-negative-transition-targets.api.spec.mjs");
+  const gameSimulatorAutopilotDefensiveLooseBallSpec = readProjectFile("qa/game-simulator-autopilot-defensive-loose-ball-targets.api.spec.mjs");
   const gameSimulatorAutopilotDefensiveTargetsSpec = readProjectFile("qa/game-simulator-autopilot-defensive-targets.api.spec.mjs");
   const gameSimulatorAutopilotOffballTargetsSpec = readProjectFile("qa/game-simulator-autopilot-offball-targets.api.spec.mjs");
   const gameSimulatorAutopilotTargetsSpec = readProjectFile("qa/game-simulator-autopilot-targets.api.spec.mjs");
@@ -458,6 +482,18 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-fullscreen.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-candidates.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-decision-engine.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-chance-decisions.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-advantage-decisions.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-tempo-rhythm.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-possession-planner.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-defensive-goalkeeper-targets.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-defensive-press-targets.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-defensive-corner-targets.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-defensive-free-kick-targets.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-defensive-penalty-targets.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-defensive-throw-in-targets.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-defensive-negative-transition-targets.api.spec.mjs");
+  expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-defensive-loose-ball-targets.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-defensive-targets.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-offball-targets.api.spec.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/game-simulator-autopilot-targets.api.spec.mjs");
@@ -492,6 +528,18 @@ test("core module contracts are covered by dedicated QA", () => {
   expect(gameSimulatorFullscreenSpec).toContain("game simulator fullscreen controller");
   expect(gameSimulatorPointerSpec).toContain("game simulator pointer controller");
   expect(gameSimulatorCommandEngineSpec).toContain("game simulator command engine");
+  expect(gameSimulatorAutopilotChanceDecisionsSpec).toContain("game simulator autopilot chance decisions");
+  expect(gameSimulatorAutopilotAdvantageDecisionsSpec).toContain("game simulator autopilot advantage decisions");
+  expect(gameSimulatorAutopilotTempoRhythmSpec).toContain("game simulator autopilot tempo rhythm");
+  expect(gameSimulatorAutopilotPossessionPlannerSpec).toContain("game simulator autopilot possession planner");
+  expect(gameSimulatorAutopilotDefensiveGoalkeeperSpec).toContain("game simulator autopilot defensive goalkeeper targets");
+  expect(gameSimulatorAutopilotDefensivePressSpec).toContain("game simulator autopilot defensive press targets");
+  expect(gameSimulatorAutopilotDefensiveCornerSpec).toContain("game simulator autopilot defensive corner targets");
+  expect(gameSimulatorAutopilotDefensiveFreeKickSpec).toContain("game simulator autopilot defensive free kick targets");
+  expect(gameSimulatorAutopilotDefensivePenaltySpec).toContain("game simulator autopilot defensive penalty targets");
+  expect(gameSimulatorAutopilotDefensiveThrowInSpec).toContain("game simulator autopilot defensive throw in targets");
+  expect(gameSimulatorAutopilotDefensiveNegativeTransitionSpec).toContain("game simulator autopilot defensive negative transition targets");
+  expect(gameSimulatorAutopilotDefensiveLooseBallSpec).toContain("game simulator autopilot defensive loose ball targets");
   expect(gameSimulatorSequenceEngineSpec).toContain("sequence engine owns snapshots");
   expect(gameSimulatorSidebarSpec).toContain("game simulator sidebar renderer");
   expect(gameSimulatorKeyboardStateSpec).toContain("game simulator keyboard state");
@@ -509,6 +557,18 @@ test("game simulator animation loop does not run globally outside the simulator 
   const fullscreenSource = readProjectFile("src/modules/game-simulator/fullscreen.mjs");
   const autopilotCandidatesSource = readProjectFile("src/modules/game-simulator/autopilot-candidates.mjs");
   const autopilotDecisionEngineSource = readProjectFile("src/modules/game-simulator/autopilot-decision-engine.mjs");
+  const autopilotChanceDecisionsSource = readProjectFile("src/modules/game-simulator/autopilot-chance-decisions.mjs");
+  const autopilotAdvantageDecisionsSource = readProjectFile("src/modules/game-simulator/autopilot-advantage-decisions.mjs");
+  const autopilotTempoRhythmSource = readProjectFile("src/modules/game-simulator/autopilot-tempo-rhythm.mjs");
+  const autopilotPossessionPlannerSource = readProjectFile("src/modules/game-simulator/autopilot-possession-planner.mjs");
+  const autopilotDefensiveGoalkeeperSource = readProjectFile("src/modules/game-simulator/autopilot-defensive-goalkeeper-targets.mjs");
+  const autopilotDefensivePressSource = readProjectFile("src/modules/game-simulator/autopilot-defensive-press-targets.mjs");
+  const autopilotDefensiveCornerSource = readProjectFile("src/modules/game-simulator/autopilot-defensive-corner-targets.mjs");
+  const autopilotDefensiveFreeKickSource = readProjectFile("src/modules/game-simulator/autopilot-defensive-free-kick-targets.mjs");
+  const autopilotDefensivePenaltySource = readProjectFile("src/modules/game-simulator/autopilot-defensive-penalty-targets.mjs");
+  const autopilotDefensiveThrowInSource = readProjectFile("src/modules/game-simulator/autopilot-defensive-throw-in-targets.mjs");
+  const autopilotDefensiveNegativeTransitionSource = readProjectFile("src/modules/game-simulator/autopilot-defensive-negative-transition-targets.mjs");
+  const autopilotDefensiveLooseBallSource = readProjectFile("src/modules/game-simulator/autopilot-defensive-loose-ball-targets.mjs");
   const autopilotDefensiveTargetsSource = readProjectFile("src/modules/game-simulator/autopilot-defensive-targets.mjs");
   const autopilotOffballTargetsSource = readProjectFile("src/modules/game-simulator/autopilot-offball-targets.mjs");
   const autopilotTargetsSource = readProjectFile("src/modules/game-simulator/autopilot-targets.mjs");
@@ -534,6 +594,18 @@ test("game simulator animation loop does not run globally outside the simulator 
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/fullscreen.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-candidates.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-decision-engine.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-chance-decisions.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-advantage-decisions.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-tempo-rhythm.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-possession-planner.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-defensive-goalkeeper-targets.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-defensive-press-targets.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-defensive-corner-targets.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-defensive-free-kick-targets.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-defensive-penalty-targets.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-defensive-throw-in-targets.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-defensive-negative-transition-targets.mjs");
+  expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-defensive-loose-ball-targets.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-defensive-targets.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-offball-targets.mjs");
   expect(packageJson.scripts["check"]).toContain("src/modules/game-simulator/autopilot-targets.mjs");
@@ -550,6 +622,30 @@ test("game simulator animation loop does not run globally outside the simulator 
   expect(appSource).not.toContain('from "./src/modules/game-simulator/engine-wiring.mjs"');
   expect(appSource).not.toContain('from "./src/modules/game-simulator/app-runtime-controller.mjs"');
   expect(appSource).toContain('from "./src/modules/game-simulator/index.mjs"');
+  expect(autopilotDecisionEngineSource).toContain('from "./autopilot-tempo-rhythm.mjs"');
+  expect(autopilotTempoRhythmSource).toContain("createGameSimulatorAutopilotTempoRhythm");
+  expect(autopilotDecisionEngineSource).toContain('from "./autopilot-chance-decisions.mjs"');
+  expect(autopilotChanceDecisionsSource).toContain("createGameSimulatorAutopilotChanceDecisions");
+  expect(autopilotDecisionEngineSource).toContain('from "./autopilot-advantage-decisions.mjs"');
+  expect(autopilotAdvantageDecisionsSource).toContain("createGameSimulatorAutopilotAdvantageDecisions");
+  expect(autopilotDecisionEngineSource).toContain('from "./autopilot-possession-planner.mjs"');
+  expect(autopilotPossessionPlannerSource).toContain("createGameSimulatorAutopilotPossessionPlanner");
+  expect(autopilotDefensiveTargetsSource).toContain('from "./autopilot-defensive-goalkeeper-targets.mjs"');
+  expect(autopilotDefensiveGoalkeeperSource).toContain("createGameSimulatorAutopilotDefensiveGoalkeeperTargets");
+  expect(autopilotDefensiveTargetsSource).toContain('from "./autopilot-defensive-press-targets.mjs"');
+  expect(autopilotDefensivePressSource).toContain("createGameSimulatorAutopilotDefensivePressTargets");
+  expect(autopilotDefensiveTargetsSource).toContain('from "./autopilot-defensive-corner-targets.mjs"');
+  expect(autopilotDefensiveCornerSource).toContain("createGameSimulatorAutopilotDefensiveCornerTargets");
+  expect(autopilotDefensiveTargetsSource).toContain('from "./autopilot-defensive-free-kick-targets.mjs"');
+  expect(autopilotDefensiveFreeKickSource).toContain("createGameSimulatorAutopilotDefensiveFreeKickTargets");
+  expect(autopilotDefensiveTargetsSource).toContain('from "./autopilot-defensive-penalty-targets.mjs"');
+  expect(autopilotDefensivePenaltySource).toContain("createGameSimulatorAutopilotDefensivePenaltyTargets");
+  expect(autopilotDefensiveTargetsSource).toContain('from "./autopilot-defensive-throw-in-targets.mjs"');
+  expect(autopilotDefensiveThrowInSource).toContain("createGameSimulatorAutopilotDefensiveThrowInTargets");
+  expect(autopilotDefensiveTargetsSource).toContain('from "./autopilot-defensive-negative-transition-targets.mjs"');
+  expect(autopilotDefensiveNegativeTransitionSource).toContain("createGameSimulatorAutopilotDefensiveNegativeTransitionTargets");
+  expect(autopilotDefensiveTargetsSource).toContain('from "./autopilot-defensive-loose-ball-targets.mjs"');
+  expect(autopilotDefensiveLooseBallSource).toContain("createGameSimulatorAutopilotDefensiveLooseBallTargets");
   expect(appSource).toContain("createGameSimulatorLazyRuntimeBridge({");
   expect(appSource).not.toContain('import(platformModuleLoader.versionedHref("./src/modules/game-simulator/runtime-entry.mjs"))');
   expect(lazyRuntimeBridgeSource).toContain('import(platformModuleLoader.versionedHref("/src/modules/game-simulator/runtime-entry.mjs"))');

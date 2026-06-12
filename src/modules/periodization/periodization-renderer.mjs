@@ -50,6 +50,8 @@ export function createPeriodizationRenderer(options = {}) {
   const getDay = typeof options.getDay === "function" ? options.getDay : () => ({});
   const canEdit = typeof options.canEdit === "function" ? options.canEdit : () => false;
   const isOffDay = typeof options.isOffDay === "function" ? options.isOffDay : () => false;
+  const getScheduleEventsForDate =
+    typeof options.getScheduleEventsForDate === "function" ? options.getScheduleEventsForDate : () => [];
   const getMultiSelectOpenField =
     typeof options.getMultiSelectOpenField === "function" ? options.getMultiSelectOpenField : () => "";
   const renderActionIcon = typeof options.renderActionIcon === "function" ? options.renderActionIcon : () => "";
@@ -92,6 +94,19 @@ export function createPeriodizationRenderer(options = {}) {
   function getMatchDayLabel(value) {
     const label = String(value || "").trim();
     return label.toUpperCase() === "N/A" ? "" : label;
+  }
+
+  function getScheduledMatchTitle(dateValue) {
+    const matchEvent = getScheduleEventsForDate(dateValue).find((event) => event?.type === "match");
+    return String(matchEvent?.title || "").trim();
+  }
+
+  function getMatchDayDisplayLabel(dateValue, day) {
+    const matchTitle = getScheduledMatchTitle(dateValue);
+    if (matchTitle) {
+      return matchTitle;
+    }
+    return getMatchDayLabel(day.matchDay);
   }
 
   function getPitchTone(pitchSize) {
@@ -567,7 +582,7 @@ title="${escapeHtml(`${item.date.toLocaleDateString("en-US", { weekday: "short",
     const loadTone = getLoadTone(day.physicalLoad);
     const offDay = isOffDay(day);
     const dayScheduleLabel = getDayScheduleLabel(day);
-    const matchDayLabel = getMatchDayLabel(day.matchDay);
+    const matchDayLabel = getMatchDayDisplayLabel(dateValue, day);
     const loadLabel = offDay && loadTone === "off" ? "" : day.physicalLoad;
     const pitchLabel = getPitchLabel(day.pitchSize);
     const preTrainingVideoLabel = day.preTrainingVideo || "";
@@ -746,7 +761,7 @@ ${renderActionIcon("pencil")}
   function renderDayViewPanel(dateValue, { isOverlay = false } = {}) {
     const date = parseDateValue(dateValue);
     const day = getDay(dateValue);
-    const matchDayLabel = getMatchDayLabel(day.matchDay) || "Not match day";
+    const matchDayLabel = getMatchDayDisplayLabel(dateValue, day) || "Not match day";
     const pitchLabel = getPitchLabel(day.pitchSize);
     const microcycleModel = getMicrocycleModel(getWeekDatesForDate(date));
     const trainingBlocks = [
@@ -944,6 +959,8 @@ ${renderActionIcon("pencil")}
     getLoadScoreLabel,
     getLoadTone,
     getMatchDayLabel,
+    getMatchDayDisplayLabel,
+    getScheduledMatchTitle,
     getMicrocycleModel,
     getMultiFieldOptions,
     getMultiFieldValue,

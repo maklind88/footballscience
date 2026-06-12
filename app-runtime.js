@@ -963,6 +963,7 @@ getState: () => periodizationState,
 getDay: getPeriodizationDay,
 canEdit: canEditPeriodizationWorkspace,
 isOffDay: isPeriodizationOffDay,
+getScheduleEventsForDate,
 getMultiSelectOpenField: getPeriodizationMultiSelectOpenField,
 renderActionIcon: renderSessionPlannerActionIcon,
 });

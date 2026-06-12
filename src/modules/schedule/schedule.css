@@ -1,8 +1,8 @@
 /* Schedule Planner */
 .schedule-workspace.is-planner-view .schedule-layout{grid-template-columns:minmax(0,1fr)}
-.schedule-planner-grid{position:relative;display:grid;grid-template-columns:repeat(var(--schedule-planner-months,3),minmax(0,1fr));align-items:start;gap:.56rem}
+.schedule-planner-grid{position:relative;display:grid;grid-template-columns:repeat(var(--schedule-planner-months,3),minmax(0,1fr));align-items:start;justify-items:stretch;gap:.56rem}
 .schedule-planner-grid[hidden]{display:none!important}
-.schedule-planner-month{min-width:0;display:grid;grid-template-rows:auto minmax(0,1fr);gap:.38rem;padding:.58rem;border-radius:16px;background:linear-gradient(180deg,#ffffffe8,#f8f8f9bd),#ffffffcc;border:1px solid #0000000b}
+.schedule-planner-month{width:100%;min-width:0;display:grid;grid-template-rows:auto minmax(0,1fr);gap:.38rem;padding:.58rem;border-radius:16px;background:linear-gradient(180deg,#ffffffe8,#f8f8f9bd),#ffffffcc;border:1px solid #0000000b}
 .schedule-planner-month>header{display:flex;align-items:center;justify-content:space-between;gap:.48rem;padding:.02rem .04rem .08rem}
 .schedule-planner-month h3{margin:0;color:#1d1d1f;font-size:.96rem;font-weight:900;letter-spacing:-.025em;line-height:1}
 .schedule-planner-month .schedule-overview-legend{justify-content:flex-end;margin:0;padding:0;gap:.18rem .28rem}
@@ -17,7 +17,7 @@
 .schedule-planner-date strong{width:1.26rem;height:1.26rem;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;border-radius:999px;background:#1d1d1f10;color:#1d1d1f;font-size:.68rem;font-weight:950}
 .schedule-planner-day.is-today .schedule-planner-date strong{color:#fff;background:var(--schedule-event-solid,#0a84ff)}
 .schedule-planner-events{min-width:0;min-height:1.28rem;display:flex;align-items:center;flex-wrap:wrap;gap:.14rem}
-.schedule-planner-day.has-note .schedule-planner-events{padding-right:.98rem}
+.schedule-planner-day.has-note .schedule-planner-events{padding-right:1.08rem}
 .schedule-planner-empty{display:inline-flex;align-items:center;min-height:1.28rem;padding:0 .4rem;border-radius:999px;color:#86868b;background:#1d1d1f08;font-size:.62rem;font-weight:780}
 .schedule-planner-event-chip{min-width:0;max-width:100%;display:inline-flex;align-items:center;gap:.22rem;padding:.19rem .4rem;border:1px solid #0000000a;border-radius:999px;background:#1d1d1f0f;color:#1d1d1fc7;font:inherit;font-size:.66rem;font-weight:840;line-height:1.05;text-align:left;cursor:pointer;appearance:none}
 .schedule-planner-event-chip.can-drag{cursor:grab;touch-action:none;user-select:none;-webkit-user-drag:none}
@@ -40,7 +40,7 @@
 .schedule-planner-add input,.schedule-planner-edit input{width:100%;min-height:1.42rem;padding:.18rem .42rem;border:1px solid #0000000f;border-radius:999px;background:#ffffffe0;color:#1d1d1f;font:inherit;font-size:.66rem;font-weight:800;outline:0}
 .schedule-planner-add input::placeholder{color:#86868bb0}
 .schedule-planner-add input:focus,.schedule-planner-edit input:focus{border-color:#0071e36b;box-shadow:0 0 0 3px #0071e321;background:#fff}
-.schedule-planner-note-indicator{position:absolute;right:.22rem;top:50%;z-index:2;width:.84rem;height:.84rem;min-width:0;min-height:0;padding:0!important;display:inline-flex;align-items:center;justify-content:center;border:1px solid #0071e333;border-radius:999px;background:linear-gradient(180deg,#fffffffa,#eef6ffef);color:#0a63b7;box-shadow:0 2px 7px #0071e31f;font:inherit;font-size:.5rem;font-weight:950;line-height:1;cursor:pointer;appearance:none;transform:translateY(-50%);transition:background 120ms ease,box-shadow 120ms ease,transform 120ms ease}
+.schedule-planner-note-indicator{position:absolute;right:.3rem;top:50%;z-index:2;width:.94rem;height:.94rem;min-width:0;min-height:0;padding:0!important;display:inline-flex;align-items:center;justify-content:center;border:1px solid #0071e333;border-radius:999px;background:linear-gradient(180deg,#fffffffa,#eef6ffef);color:#0a63b7;box-shadow:0 2px 7px #0071e31f;font:inherit;font-size:.56rem;font-weight:950;line-height:1;cursor:pointer;appearance:none;transform:translateY(-50%);transition:background 120ms ease,box-shadow 120ms ease,transform 120ms ease}
 .schedule-planner-note-indicator:hover{background:#fff;box-shadow:0 4px 11px #0071e32b;transform:translateY(-50%) scale(1.06)}
 .schedule-planner-note-indicator:focus-visible{outline:0;box-shadow:0 0 0 3px #0071e326,0 4px 11px #0071e32b}
 .schedule-planner-note-indicator::after{content:attr(data-note-preview);position:absolute;right:0;top:calc(100% + .32rem);z-index:5;width:max-content;max-width:min(12rem,36vw);padding:.38rem .46rem;border-radius:8px;background:#1d1d1ff2;color:#fff;box-shadow:0 12px 26px #00000030;font-size:.6rem;font-weight:760;line-height:1.25;text-align:left;opacity:0;pointer-events:none;transform:translateY(.2rem);transition:opacity 120ms ease,transform 120ms ease;white-space:normal}

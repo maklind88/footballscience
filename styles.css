@@ -33,12 +33,12 @@
 .schedule-workspace.is-planner-view .schedule-planner-date span{font-size:.47rem;letter-spacing:.015em}
 .schedule-workspace.is-planner-view .schedule-planner-date strong{width:1.06rem;height:1.06rem;font-size:.6rem}
 .schedule-workspace.is-planner-view .schedule-planner-events{min-height:1.16rem;gap:.05rem}
-.schedule-workspace.is-planner-view .schedule-planner-day.has-note .schedule-planner-events{padding-right:.88rem}
+.schedule-workspace.is-planner-view .schedule-planner-day.has-note .schedule-planner-events{padding-right:1rem}
 .schedule-workspace.is-planner-view .schedule-planner-event-chip{padding:.13rem .26rem;border-radius:7px;font-size:.59rem;line-height:1;border-color:currentColor}
 .schedule-workspace.is-planner-view .schedule-planner-event-chip strong{font-size:.59rem;line-height:1}
 .schedule-workspace.is-planner-view .schedule-planner-event-chip small{display:none}
 .schedule-workspace.is-planner-view .schedule-planner-add input,.schedule-workspace.is-planner-view .schedule-planner-edit input{min-height:1.25rem;padding:.1rem .3rem;font-size:.59rem;border-radius:7px}
-.schedule-workspace.is-planner-view .schedule-planner-note-indicator{right:.18rem;width:.72rem;height:.72rem;min-width:0;min-height:0;padding:0!important;font-size:.44rem}
+.schedule-workspace.is-planner-view .schedule-planner-note-indicator{right:.28rem;width:.84rem;height:.84rem;min-width:0;min-height:0;padding:0!important;font-size:.5rem}
 .schedule-workspace.is-planner-view .schedule-planner-note-indicator::after{max-width:min(10.5rem,32vw);font-size:.56rem}
 .schedule-workspace.is-planner-view .schedule-planner-note-overlay{width:min(21.5rem,calc(100vw - 1.5rem))}
 @media (max-width:1180px){.schedule-workspace.is-planner-view .schedule-planner-grid{grid-template-columns:repeat(var(--schedule-planner-months,3),minmax(0,1fr))}}

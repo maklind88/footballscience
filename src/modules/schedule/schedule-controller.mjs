@@ -76,6 +76,7 @@ export function createScheduleWorkspaceController(options = {}) {
   let plannerNoteDate = "";
   let draggedPlannerEventId = "";
   let plannerPointerDrag = null;
+  let plannerDragGhost = null;
   let suppressPlannerClick = false;
   let plannerResizeTimer = 0;
   let plannerClickTimer = 0;
@@ -657,9 +658,37 @@ export function createScheduleWorkspaceController(options = {}) {
     ui.scheduleWorkspace?.classList.add("is-dragging-planner-event");
   }
 
+  function removePlannerDragGhost() {
+    plannerDragGhost?.remove?.();
+    plannerDragGhost = null;
+  }
+
+  function updatePlannerDragGhost(event) {
+    if (!plannerDragGhost || typeof event.clientX !== "number" || typeof event.clientY !== "number") {
+      return;
+    }
+    plannerDragGhost.style.transform = `translate3d(${Math.round(event.clientX + 10)}px, ${Math.round(event.clientY + 10)}px, 0)`;
+  }
+
+  function createPlannerDragGhost(chip, event) {
+    removePlannerDragGhost();
+    if (!doc?.createElement || !chip) {
+      return;
+    }
+    const ghost = doc.createElement("div");
+    ghost.className = `schedule-planner-drag-ghost ${Array.from(chip.classList || [])
+      .filter((className) => className.startsWith("is-"))
+      .join(" ")}`;
+    ghost.textContent = chip.textContent?.trim() || "Plan";
+    doc.body?.append?.(ghost);
+    plannerDragGhost = ghost;
+    updatePlannerDragGhost(event);
+  }
+
   function stopPlannerEventDragVisual() {
     draggedPlannerEventId = "";
     plannerPointerDrag = null;
+    removePlannerDragGhost();
     clearPlannerDropTargets();
     ui.scheduleWorkspace?.classList.remove("is-dragging-planner-event");
     ui.schedulePlannerGrid?.querySelectorAll?.(".schedule-planner-event-chip.is-dragging")?.forEach?.((chip) => {
@@ -697,21 +726,7 @@ export function createScheduleWorkspaceController(options = {}) {
   }
 
   function handlePlannerDragStart(event) {
-    const chip = getClosest(event.target, "[data-planner-event-id]");
-    if (!chip || !canEdit()) {
-      event.preventDefault?.();
-      return;
-    }
-    draggedPlannerEventId = chip.dataset.plannerEventId || "";
-    if (!draggedPlannerEventId) {
-      event.preventDefault?.();
-      return;
-    }
-    startPlannerEventDragVisual(draggedPlannerEventId, chip);
-    event.dataTransfer?.setData?.("text/plain", draggedPlannerEventId);
-    if (event.dataTransfer) {
-      event.dataTransfer.effectAllowed = "move";
-    }
+    event.preventDefault?.();
   }
 
   function handlePlannerDragOver(event) {
@@ -780,8 +795,10 @@ export function createScheduleWorkspaceController(options = {}) {
     if (!plannerPointerDrag.dragging) {
       plannerPointerDrag.dragging = true;
       startPlannerEventDragVisual(plannerPointerDrag.eventId, plannerPointerDrag.chip);
+      createPlannerDragGhost(plannerPointerDrag.chip, event);
     }
     event.preventDefault?.();
+    updatePlannerDragGhost(event);
     markPlannerDropTarget(getPlannerDropDayFromPoint(event));
   }
 

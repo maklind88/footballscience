@@ -20,8 +20,8 @@
 .schedule-planner-day.has-note .schedule-planner-events{padding-right:1.25rem}
 .schedule-planner-empty{display:inline-flex;align-items:center;min-height:1.28rem;padding:0 .4rem;border-radius:999px;color:#86868b;background:#1d1d1f08;font-size:.62rem;font-weight:780}
 .schedule-planner-event-chip{min-width:0;max-width:100%;display:inline-flex;align-items:center;gap:.22rem;padding:.19rem .4rem;border:1px solid #0000000a;border-radius:999px;background:#1d1d1f0f;color:#1d1d1fc7;font:inherit;font-size:.66rem;font-weight:840;line-height:1.05;text-align:left;cursor:pointer;appearance:none}
-.schedule-planner-event-chip[draggable=true]{cursor:grab;touch-action:none}
-.schedule-planner-event-chip[draggable=true]:active{cursor:grabbing}
+.schedule-planner-event-chip.can-drag{cursor:grab;touch-action:none;user-select:none;-webkit-user-drag:none}
+.schedule-planner-event-chip.can-drag:active{cursor:grabbing}
 .schedule-planner-event-chip.is-dragging{opacity:.45;transform:scale(.98)}
 .schedule-planner-event-chip.is-selected{box-shadow:0 0 0 2px #1d1d1f1f,inset 0 0 0 1px #ffffffc9}
 .schedule-planner-event-chip:focus-visible{outline:0;box-shadow:0 0 0 3px #0071e333}
@@ -46,6 +46,11 @@
 .schedule-planner-note-indicator:hover::after,.schedule-planner-note-indicator:focus-visible::after{opacity:1;transform:translateY(-50%)}
 .schedule-workspace.is-dragging-planner-event .schedule-planner-day{cursor:move}
 .schedule-planner-day.is-drop-target{border-color:#0071e36e;box-shadow:inset 0 0 0 2px #0071e35c,0 10px 24px #0071e31c;transform:translateY(-1px)}
+.schedule-planner-drag-ghost{position:fixed;left:0;top:0;z-index:9999;max-width:min(15rem,48vw);padding:.28rem .52rem;border:1px solid #ffffffcc;border-radius:999px;background:#1d1d1ff0;color:#fff;box-shadow:0 16px 36px #00000030;font-size:.68rem;font-weight:900;line-height:1.1;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;will-change:transform}
+.schedule-planner-drag-ghost.is-training{background:#0a63b7f2}
+.schedule-planner-drag-ghost.is-match{background:#d92d20f2}
+.schedule-planner-drag-ghost.is-travel{background:#b86500f2}
+.schedule-planner-drag-ghost.is-recovery{background:#14828ff2}
 .schedule-planner-note-backdrop{position:fixed;inset:0;z-index:280;background:#1d1d1f26;backdrop-filter:blur(8px)}
 .schedule-planner-note-overlay{position:fixed;z-index:281;top:clamp(5.5rem,13vh,8rem);right:clamp(1rem,4vw,3.2rem);width:min(26rem,calc(100vw - 2rem));padding:.72rem;border-radius:18px;background:linear-gradient(180deg,#fffffff7,#f8f8faef),#fffffff0;border:1px solid #ffffffe0;box-shadow:0 30px 90px #0000002e;animation:schedulePlannerNoteIn 140ms ease both}
 .schedule-planner-note-overlay form{display:grid;gap:.62rem}

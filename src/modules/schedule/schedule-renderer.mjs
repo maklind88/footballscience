@@ -254,7 +254,7 @@ ${escapeHtml(eventType.label)}
       `;
     }
     return `
-      <button type="button" class="schedule-planner-event-chip is-${escapeHtml(eventType.tone)}${isSelected ? " is-selected" : ""}" data-planner-event-id="${escapeHtml(event.id)}" aria-pressed="${isSelected ? "true" : "false"}" draggable="${canEdit ? "true" : "false"}">
+      <button type="button" class="schedule-planner-event-chip is-${escapeHtml(eventType.tone)}${canEdit ? " can-drag" : ""}${isSelected ? " is-selected" : ""}" data-planner-event-id="${escapeHtml(event.id)}" aria-pressed="${isSelected ? "true" : "false"}" draggable="false">
         <span>
           <strong>${escapeHtml(event.title)}</strong>
           ${eventMeta ? `<small>${escapeHtml(eventMeta)}</small>` : ""}

@@ -2,14 +2,19 @@ import { expect, test } from "@playwright/test";
 import {
   cloneScoutingState,
   defaultScoutingState,
+  normalizeScoutingPersistentDecisionState,
   normalizeScoutingDatabaseFilters,
   normalizeScoutingFormationValue,
   normalizeScoutingMyTeamPositions,
   normalizeScoutingRecordIds,
   normalizeScoutingShadowBoard,
   normalizeScoutingText,
+  normalizeScoutingWorkflowState,
   preserveScoutingTransientUiState,
+  scoutingPersistentDecisionStateKeys,
   scoutingShadowSlots,
+  scoutingTransientUiStateKeys,
+  scoutingWorkflowStateKeys,
 } from "../src/modules/scouting/index.mjs";
 
 test("Scouting state helpers normalize text, filters, ids, and formations", () => {
@@ -118,4 +123,72 @@ test("Scouting state clone keeps stable defaults and preserves transient UI stat
   expect(preserved.profileTab).toBe("summary");
   expect(preserved.profileRoleProfileId).toBe("role-1");
   expect(preserved.shadowXi.selectedSlotId).toBe("rb");
+});
+
+test("Scouting decision state separates protected decisions from workflow state", () => {
+  const source = {
+    activeTab: "database",
+    selectedRecordId: "record-2",
+    profileTab: "market",
+    databaseFilters: { query: "winger", minMinutes: 900 },
+    favoriteRecordIds: ["record-1", "record-1", "record-2"],
+    lists: [{ id: "list-1", name: "Wingers", recordIds: ["record-1", "record-2", "record-2"] }],
+    shadowXi: {
+      activeBoardId: "board-1",
+      selectedSlotId: "rw",
+      formation: "4-3-3",
+      slots: { rw: ["record-1", "record-1"], bad: ["record-3"] },
+      boards: [{ id: "board-1", name: "Wide players", slots: { rw: ["record-1"] } }],
+    },
+    myTeam: {
+      formation: "4-2-3-1",
+      slots: { rw: ["squad-1", "squad-1"] },
+    },
+    reports: [{ id: "report-1", title: "Record 1", summary: "Good fit" }],
+    targets: [{ id: "target-1", name: "Record 1", recordId: "record-1" }],
+    playerSnapshots: {
+      "record-1": { recordId: "record-1", name: "Record One", club: "NC Courage" },
+    },
+  };
+
+  const decisionState = normalizeScoutingPersistentDecisionState(source);
+  const workflowState = normalizeScoutingWorkflowState(source);
+
+  expect(decisionState.favoriteRecordIds).toEqual(["record-1", "record-2"]);
+  expect(decisionState.lists[0].recordIds).toEqual(["record-1", "record-2"]);
+  expect(decisionState.shadowXi.slots).toEqual({ rw: ["record-1"] });
+  expect(decisionState.shadowXi.selectedSlotId).toBeUndefined();
+  expect(decisionState.myTeam.slots).toEqual({ rw: ["squad-1"] });
+  expect(decisionState.reports[0]).toMatchObject({ id: "report-1", title: "Record 1" });
+  expect(decisionState.playerSnapshots["record-1"]).toMatchObject({ name: "Record One" });
+
+  expect(workflowState).toMatchObject({
+    activeTab: "database",
+    selectedRecordId: "record-2",
+    profileTab: "market",
+    activeShadowBoardId: "board-1",
+    selectedShadowSlotId: "rw",
+  });
+  expect(workflowState.databaseFilters.query).toBe("winger");
+  expect(workflowState.databaseFilters.minMinutes).toBe(900);
+});
+
+test("Scouting state taxonomy keeps decision, workflow, and transient keys disjoint", () => {
+  const persistent = new Set(scoutingPersistentDecisionStateKeys);
+  const workflow = new Set(scoutingWorkflowStateKeys);
+  const transient = new Set(scoutingTransientUiStateKeys);
+
+  for (const key of persistent) {
+    expect(workflow.has(key)).toBe(false);
+    expect(transient.has(key)).toBe(false);
+  }
+  for (const key of workflow) {
+    expect(transient.has(key)).toBe(false);
+  }
+
+  expect(scoutingPersistentDecisionStateKeys).toEqual(
+    expect.arrayContaining(["favoriteRecordIds", "lists", "shadowXi", "myTeam", "reports", "playerSnapshots"])
+  );
+  expect(scoutingWorkflowStateKeys).toEqual(expect.arrayContaining(["activeTab", "databaseFilters", "selectedRecordId"]));
+  expect(scoutingTransientUiStateKeys).toEqual(expect.arrayContaining(["advancedFiltersOpen", "settingsPanel"]));
 });

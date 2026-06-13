@@ -14,6 +14,7 @@ import {
   createScoutingDatabaseResultsService,
   createScoutingDatabaseSourcePolicy,
   createScoutingFavoritesActions,
+  createScoutingMyTeamPitchService,
   createScoutingMyTeamRecordService,
   createScoutingMyTeamSpiderController,
   createScoutingPostRenderController,
@@ -498,6 +499,13 @@ const scoutingTabController = createScoutingTabController({
   startPerformance: startScoutingPerformance,
   syncTabButtonsDom: syncScoutingTabButtonsDom,
   writeState: writeScoutingState,
+});
+const scoutingMyTeamPitchService = createScoutingMyTeamPitchService({
+  ensureState: ensureScoutingState,
+  getMyTeamState: getScoutingMyTeamState,
+  normalizeFormation: normalizeScoutingFormation,
+  normalizeSlotPlayerIds: normalizeScoutingMyTeamSlotPlayerIds,
+  normalizeText: normalizeScoutingText,
 });
 const scoutingMyTeamRecordService = createScoutingMyTeamRecordService({
   areNamesInitialSurnameMatch: areScoutingNamesInitialSurnameMatch,
@@ -3347,110 +3355,19 @@ function findScoutingRecordForMyTeamPlayer(player = {}) {
   return scoutingMyTeamRecordService.findRecordForPlayer(player);
 }
 function getScoutingMyTeamSlotPitchPosition(slot, formation = "4-3-3") {
-  const role = normalizeScoutingText(slot?.label || slot?.id, 40).toUpperCase();
-  const normalizedFormation = normalizeScoutingFormation(formation);
-  const override = getScoutingMyTeamState().positions?.[normalizedFormation]?.[slot?.id];
-  if (Number.isFinite(override?.x) && Number.isFinite(override?.y)) {
-    return { x: override.x, y: override.y };
-  }
-  const layouts = {
-    "4-3-3": {
-      GK: [50, 86],
-      LB: [14, 70],
-      LCB: [38, 74],
-      RCB: [62, 74],
-      RB: [86, 70],
-      DMF: [50, 57],
-      LCMF: [36, 45],
-      RCMF: [64, 45],
-      LW: [13, 23],
-      CF: [50, 14],
-      RW: [87, 23],
-    },
-    "4-2-3-1": {
-      GK: [50, 86],
-      LB: [14, 70],
-      LCB: [38, 74],
-      RCB: [62, 74],
-      RB: [86, 70],
-      DMF: [42, 57],
-      RCMF: [58, 57],
-      LCMF: [50, 40],
-      LW: [13, 29],
-      CF: [50, 14],
-      RW: [87, 29],
-    },
-    "3-4-3": {
-      GK: [50, 86],
-      LCB: [32, 74],
-      DMF: [50, 76],
-      RCB: [68, 74],
-      LB: [12, 51],
-      LCMF: [41, 50],
-      RCMF: [59, 50],
-      RB: [88, 51],
-      LW: [14, 23],
-      CF: [50, 14],
-      RW: [86, 23],
-    },
-    "3-5-2": {
-      GK: [50, 86],
-      LCB: [32, 74],
-      DMF: [50, 76],
-      RCB: [68, 74],
-      LB: [12, 51],
-      LCMF: [38, 48],
-      RW: [50, 41],
-      RCMF: [62, 48],
-      RB: [88, 51],
-      CF: [57, 16],
-      LW: [43, 16],
-    },
-    "4-4-2": {
-      GK: [50, 86],
-      LB: [14, 70],
-      LCB: [38, 74],
-      RCB: [62, 74],
-      RB: [86, 70],
-      LW: [13, 43],
-      LCMF: [40, 43],
-      RCMF: [60, 43],
-      RW: [87, 43],
-      CF: [57, 16],
-      DMF: [43, 16],
-    },
-  };
-  const coordinates = layouts[normalizedFormation]?.[role] || [Number(slot?.x) || 50, Number(slot?.y) || 50];
-  return { x: coordinates[0], y: coordinates[1] };
+  return scoutingMyTeamPitchService.getSlotPitchPosition(slot, formation);
 }
 function normalizeScoutingMyTeamPitchCoordinate(value) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) {
-    return null;
-  }
-  return Math.max(4, Math.min(96, Math.round(number * 100) / 100));
+  return scoutingMyTeamPitchService.normalizePitchCoordinate(value);
 }
 function getScoutingMyTeamPointerPitchPosition(event, pitchElement) {
-  const rect = pitchElement?.getBoundingClientRect?.();
-  if (!rect?.width || !rect?.height) {
-    return null;
-  }
-  const x = normalizeScoutingMyTeamPitchCoordinate(((event.clientX - rect.left) / rect.width) * 100);
-  const y = normalizeScoutingMyTeamPitchCoordinate(((event.clientY - rect.top) / rect.height) * 100);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    return null;
-  }
-  return { x, y };
+  return scoutingMyTeamPitchService.getPointerPitchPosition(event, pitchElement);
 }
 function previewScoutingMyTeamSlotPitchPosition(slotElement, coordinates) {
-  if (!slotElement || !coordinates) {
-    return;
-  }
-  slotElement.style.setProperty("--x", `${coordinates.x}%`);
-  slotElement.style.setProperty("--y", `${coordinates.y}%`);
+  scoutingMyTeamPitchService.previewSlotPitchPosition(slotElement, coordinates);
 }
 function getScoutingMyTeamAssignedIds(state = ensureScoutingState()) {
-  return new Set(Object.values(getScoutingMyTeamState(state).slots).flatMap(normalizeScoutingMyTeamSlotPlayerIds).filter(Boolean));
+  return scoutingMyTeamPitchService.getAssignedIds(state);
 }
 function getScoutingMyTeamInitials(name = "") {
   const parts = normalizeScoutingText(name, 120).split(" ").filter(Boolean);

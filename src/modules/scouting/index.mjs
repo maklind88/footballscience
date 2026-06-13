@@ -37,6 +37,7 @@ export * from "./scouting-state.mjs";
 export * from "./scouting-decision-state.mjs";
 export * from "./scouting-decision-actions.mjs";
 export * from "./scouting-click-router.mjs";
+export * from "./scouting-drag-drop-helpers.mjs";
 export * from "./scouting-import-helpers.mjs";
 export * from "./scouting-role-scoring-profiles.mjs";
 export * from "./scouting-database-filter-service.mjs";

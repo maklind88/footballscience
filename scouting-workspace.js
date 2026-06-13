@@ -4,7 +4,10 @@ import {
   handleScoutingModuleInput,
   handleScoutingModuleSubmit,
   handleScoutingWorkspaceClick,
+  clearScoutingMyTeamDropPreview as clearScoutingMyTeamDropPreviewDom,
+  getScoutingDragPayload as getScoutingDragPayloadFromEvent,
   renderScoutingActiveContentByTab,
+  updateScoutingMyTeamDropPreview as updateScoutingMyTeamDropPreviewDom,
 } from "./src/modules/scouting/index.mjs";
 import {
   getScoutingAdvancedDatabaseFiltersOpen,
@@ -8197,57 +8200,21 @@ function setScoutingTargetStatusByDrag(targetId, status) {
   updateScoutingTarget(targetId, { status: safeStatus });
 }
 function getScoutingDragPayload(event) {
-  if (scoutingDragState) {
-    return scoutingDragState;
-  }
-  const textPayload = event?.dataTransfer?.getData?.("text/plain");
-  if (!textPayload) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(textPayload);
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch {
-    return null;
-  }
+  return getScoutingDragPayloadFromEvent(event, scoutingDragState);
 }
 function clearScoutingMyTeamDropPreview(root = ui.scoutingWorkspace) {
   scoutingMyTeamDropPreviewKey = "";
-  if (!root) {
-    return;
-  }
-  root
-    .querySelectorAll(
-      ".scouting-my-team-slot-entry.is-drop-before, .scouting-my-team-slot.is-drag-over, [data-scouting-my-team-bench-drop].is-drag-over"
-    )
-    .forEach((node) => node.classList.remove("is-drop-before", "is-drag-over"));
+  clearScoutingMyTeamDropPreviewDom(root);
 }
 function updateScoutingMyTeamDropPreview(event, root, dragPayload) {
-  const beforeEntry = event.target.closest("[data-scouting-my-team-drop-before]");
-  const slotTarget = event.target.closest(".scouting-my-team-slot[data-scouting-my-team-drop-slot]");
-  const benchTarget = event.target.closest("[data-scouting-my-team-bench-drop]");
-  const draggingId = normalizeScoutingText(dragPayload?.playerId, 160);
-  const beforeId =
-    beforeEntry && root.contains(beforeEntry) && beforeEntry.dataset.scoutingMyTeamDropBefore !== draggingId
-      ? beforeEntry.dataset.scoutingMyTeamDropBefore || ""
-      : "";
-  const slotId = slotTarget && root.contains(slotTarget) ? slotTarget.dataset.scoutingMyTeamDropSlot || "" : "";
-  const benchId = benchTarget && root.contains(benchTarget) && !slotTarget ? "bench" : "";
-  const nextPreviewKey = [draggingId, slotId, beforeId, benchId].join("|");
-  if (nextPreviewKey === scoutingMyTeamDropPreviewKey) {
-    return;
-  }
-  clearScoutingMyTeamDropPreview(root);
-  scoutingMyTeamDropPreviewKey = nextPreviewKey;
-  if (beforeId) {
-    beforeEntry.classList.add("is-drop-before");
-  }
-  if (slotId) {
-    slotTarget.classList.add("is-drag-over");
-  }
-  if (benchId) {
-    benchTarget.classList.add("is-drag-over");
-  }
+  const preview = updateScoutingMyTeamDropPreviewDom({
+    event,
+    root,
+    dragPayload,
+    currentPreviewKey: scoutingMyTeamDropPreviewKey,
+    normalizeText: normalizeScoutingText,
+  });
+  scoutingMyTeamDropPreviewKey = preview.previewKey;
 }
 function bindScoutingDragAndDrop() {
   const root = ui.scoutingWorkspace;

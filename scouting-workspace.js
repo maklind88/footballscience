@@ -7,6 +7,7 @@ import {
   bindScoutingDragAndDrop as bindScoutingDragAndDropRouter,
   createScoutingListsActions,
   createScoutingMyTeamActions,
+  createScoutingShadowXiActions,
   renderScoutingActiveContentByTab,
 } from "./src/modules/scouting/index.mjs";
 import {
@@ -41,9 +42,6 @@ import {
 } from "./src/modules/scouting/scouting-role-scoring-profiles.mjs";
 import { createScoutingDatabaseFilterService } from "./src/modules/scouting/scouting-database-filter-service.mjs";
 import {
-  addScoutingRecordIdToShadowSlot,
-  removeScoutingRecordIdFromShadowSlot,
-  reorderScoutingRecordIdInShadowSlot,
   toggleScoutingFavoriteRecordId,
 } from "./src/modules/scouting/scouting-decision-actions.mjs";
 
@@ -541,6 +539,7 @@ const scoutingProfileTabs = Object.freeze([
 let scoutingEventDeps = null;
 let scoutingListsActions = null;
 let scoutingMyTeamActions = null;
+let scoutingShadowXiActions = null;
 function setScoutingContext(context) {
   activeContext = context;
   scoutingTabs = context.tabs || [];
@@ -8035,68 +8034,13 @@ function getScoutingShadowFallbackRecord(slotId, recordId, state = ensureScoutin
   return record;
 }
 function setScoutingShadowRecordMeta(slotId, recordId, patch = {}) {
-  if (!canEditScoutingWorkspace()) {
-    return;
-  }
-  const state = ensureScoutingState();
-  const slot = getScoutingShadowSlot(slotId);
-  const id = normalizeScoutingText(recordId, 160);
-  if (!slot || !id || !getScoutingShadowSlotRecordIds(slot.id, state).includes(id)) {
-    return;
-  }
-  const key = getScoutingShadowMetaKey(slot.id, id);
-  state.shadowXi.meta = {
-    ...(state.shadowXi.meta && typeof state.shadowXi.meta === "object" ? state.shadowXi.meta : {}),
-    [key]: {
-      ...getScoutingShadowRecordMeta(slot.id, id, state),
-      ...patch,
-      tag: normalizeScoutingShadowTag(patch.tag || getScoutingShadowRecordMeta(slot.id, id, state).tag),
-      updatedAt: new Date().toISOString(),
-    },
-  };
-  writeScoutingState();
-  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: true }, id);
+  return getScoutingShadowXiActions().setRecordMeta(slotId, recordId, patch);
 }
 function moveScoutingShadowRecord(slotId, recordId, direction) {
-  if (!canEditScoutingWorkspace()) {
-    return;
-  }
-  const state = ensureScoutingState();
-  const slot = getScoutingShadowSlot(slotId);
-  const id = normalizeScoutingText(recordId, 160);
-  const current = slot ? getScoutingShadowSlotRecordIds(slot.id, state) : [];
-  const index = current.indexOf(id);
-  if (!slot || index < 0) {
-    return;
-  }
-  const nextIndex = direction === "down" ? Math.min(current.length - 1, index + 1) : Math.max(0, index - 1);
-  if (nextIndex === index) {
-    return;
-  }
-  const next = [...current];
-  const [item] = next.splice(index, 1);
-  next.splice(nextIndex, 0, item);
-  state.shadowXi.slots = {
-    ...state.shadowXi.slots,
-    [slot.id]: next,
-  };
-  state.shadowXi.selectedSlotId = slot.id;
-  preferredScoutingShadowSlotId = slot.id;
-  writeScoutingState();
-  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: true }, id);
+  return getScoutingShadowXiActions().moveRecord(slotId, recordId, direction);
 }
 function reorderScoutingShadowRecord(slotId, recordId, beforeRecordId = "") {
-  if (!canEditScoutingWorkspace()) {
-    return;
-  }
-  const state = ensureScoutingState();
-  const mutation = reorderScoutingRecordIdInShadowSlot(state, { recordId, slotId, beforeRecordId });
-  if (!mutation.changed) {
-    return;
-  }
-  preferredScoutingShadowSlotId = mutation.slotId;
-  writeScoutingState();
-  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: true }, mutation.recordId);
+  return getScoutingShadowXiActions().reorderRecord(slotId, recordId, beforeRecordId);
 }
 function setScoutingTargetStatusByDrag(targetId, status) {
   if (!canEditScoutingWorkspace()) {
@@ -8111,17 +8055,18 @@ function bindScoutingDragAndDrop() {
     return;
   }
   const myTeamActions = getScoutingMyTeamActions();
+  const shadowXiActions = getScoutingShadowXiActions();
   bindScoutingDragAndDropRouter(root, {
-    addRecordToShadow: addScoutingRecordToShadow,
+    addRecordToShadow: shadowXiActions.addRecordToShadow,
     assignMyTeamPlayerToSlot: myTeamActions.assignPlayerToSlot,
     canEdit: canEditScoutingWorkspace,
     getPointerPitchPosition: getScoutingMyTeamPointerPitchPosition,
     normalizeText: normalizeScoutingText,
     previewSlotPitchPosition: previewScoutingMyTeamSlotPitchPosition,
     removeMyTeamPlayerFromAllSlots: myTeamActions.removePlayerFromAllSlots,
-    reorderShadowRecord: reorderScoutingShadowRecord,
+    reorderShadowRecord: shadowXiActions.reorderRecord,
     setMyTeamSlotPitchPosition: myTeamActions.setSlotPitchPosition,
-    setShadowSlotPitchPosition: setScoutingShadowSlotPitchPosition,
+    setShadowSlotPitchPosition: shadowXiActions.setSlotPitchPosition,
     setTargetStatusByDrag: setScoutingTargetStatusByDrag,
   });
 }
@@ -11915,62 +11860,16 @@ function renderScoutingRecruitmentCockpit(state) {
   `;
 }
 function selectScoutingShadowSlot(slotId) {
-  const state = ensureScoutingState();
-  const id = normalizeScoutingText(slotId, 40);
-  const slot = getScoutingShadowSlot(id);
-  if (!slot) {
-    return;
-  }
-  preferredScoutingShadowSlotId = slot.id;
-  state.shadowXi.selectedSlotId = slot.id;
-  state.activeTab = "database";
-  writeScoutingState({ syncCentral: false });
-  renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: true });
+  return getScoutingShadowXiActions().selectSlot(slotId);
 }
 function clearScoutingShadowSlotSelection() {
-  const state = ensureScoutingState();
-  preferredScoutingShadowSlotId = "";
-  state.shadowXi.selectedSlotId = "";
-  writeScoutingState({ syncCentral: false });
-  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: true });
+  return getScoutingShadowXiActions().clearSlotSelection();
 }
 function setScoutingShadowFormation(value) {
-  if (!canEditScoutingWorkspace()) {
-    return;
-  }
-  const state = ensureScoutingState();
-  state.shadowXi.formation = normalizeScoutingFormation(value);
-  writeScoutingState();
-  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: true });
+  return getScoutingShadowXiActions().setFormation(value);
 }
 function setScoutingShadowSlotPitchPosition(slotId = "", xValue, yValue) {
-  if (!canEditScoutingWorkspace()) {
-    return;
-  }
-  const slot = getScoutingShadowSlot(slotId);
-  if (!slot) {
-    return;
-  }
-  const state = ensureScoutingState();
-  const formation = normalizeScoutingFormation(state.shadowXi?.formation);
-  const x = Math.max(6, Math.min(94, Math.round(Number(xValue) * 10) / 10));
-  const y = Math.max(6, Math.min(94, Math.round(Number(yValue) * 10) / 10));
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    return;
-  }
-  state.shadowXi = {
-    ...(state.shadowXi || {}),
-    formation,
-    positions: {
-      ...(state.shadowXi?.positions || {}),
-      [formation]: {
-        ...(state.shadowXi?.positions?.[formation] || {}),
-        [slot.id]: { x, y },
-      },
-    },
-  };
-  writeScoutingState();
-  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: true });
+  return getScoutingShadowXiActions().setSlotPitchPosition(slotId, xValue, yValue);
 }
 function getScoutingFocusSnapshot() {
   const activeElement = document.activeElement;
@@ -15197,50 +15096,42 @@ function getScoutingListsActions() {
   });
   return scoutingListsActions;
 }
-function addScoutingRecordToShadow(recordId, slotId) {
-  const perf = startScoutingPerformance("shadow.add", { recordId, slotId });
-  if (!canEditScoutingWorkspace()) {
-    perf.end({ status: "blocked" });
-    return;
+function getScoutingShadowXiActions() {
+  if (scoutingShadowXiActions) {
+    return scoutingShadowXiActions;
   }
-  const state = ensureScoutingState();
-  const id = normalizeScoutingText(recordId, 160);
-  const record = getScoutingRecordById(id);
-  const slot =
-    getScoutingShadowSlot(slotId) ||
-    getScoutingShadowSlot(state.shadowXi?.selectedSlotId) ||
-    getScoutingShadowSlot(preferredScoutingShadowSlotId) ||
-    scoutingShadowSlots[0];
-  if (!id || !slot) {
-    perf.end({ status: "empty" });
-    return;
-  }
-  if (record) {
-    rememberScoutingRecordSnapshot(record, state, { includeAnalysis: true });
-  }
-  const currentRecordIds = getScoutingShadowSlotRecordIds(slot.id, state);
-  const mutation = addScoutingRecordIdToShadowSlot(state, {
-    recordId: id,
-    slotId: slot.id,
-    meta: {
-      ...getScoutingShadowRecordMeta(slot.id, id, state),
-      tag: getScoutingRecordAge(record) <= 23 ? "u23" : currentRecordIds.length ? "backup" : "first-choice",
-      playerName: record ? getScoutingRecordName(record) : "",
-      team: record ? getScoutingRecordTeam(record) : "",
-      league: record ? getScoutingRecordLeague(record) : "",
-      season: record ? getScoutingRecordSeason(record) : "",
-      position: record ? normalizeScoutingText(record?.[scoutingRecordIndex.position], 120) : "",
-      updatedAt: new Date().toISOString(),
+  scoutingShadowXiActions = createScoutingShadowXiActions({
+    canEdit: canEditScoutingWorkspace,
+    ensureState: ensureScoutingState,
+    getFirstShadowSlot: () => scoutingShadowSlots[0] || null,
+    getPreferredSlotId: () => preferredScoutingShadowSlotId,
+    getRecordAge: getScoutingRecordAge,
+    getRecordById: getScoutingRecordById,
+    getRecordLeague: getScoutingRecordLeague,
+    getRecordName: getScoutingRecordName,
+    getRecordPosition: (record) => normalizeScoutingText(record?.[scoutingRecordIndex.position], 120),
+    getRecordSeason: getScoutingRecordSeason,
+    getRecordTeam: getScoutingRecordTeam,
+    getShadowMetaKey: getScoutingShadowMetaKey,
+    getShadowRecordMeta: getScoutingShadowRecordMeta,
+    getShadowSlot: getScoutingShadowSlot,
+    getShadowSlotRecordIds: getScoutingShadowSlotRecordIds,
+    normalizeFormation: normalizeScoutingFormation,
+    normalizeShadowTag: normalizeScoutingShadowTag,
+    normalizeText: normalizeScoutingText,
+    refreshWorkspaceAfterShadowMutation: refreshScoutingWorkspaceAfterShadowMutation,
+    rememberRecordSnapshot: rememberScoutingRecordSnapshot,
+    renderActiveTabSurfaceOrWorkspace: renderScoutingActiveTabSurfaceOrWorkspace,
+    setPreferredSlotId: (slotId) => {
+      preferredScoutingShadowSlotId = slotId || "";
     },
+    startPerformance: startScoutingPerformance,
+    writeState: writeScoutingState,
   });
-  if (!mutation.changed) {
-    perf.end({ status: mutation.reason || "unchanged" });
-    return;
-  }
-  preferredScoutingShadowSlotId = slot.id;
-  writeScoutingState();
-  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: state.activeTab === "database" }, id);
-  perf.end({ status: "updated", slot: slot.id });
+  return scoutingShadowXiActions;
+}
+function addScoutingRecordToShadow(recordId, slotId) {
+  return getScoutingShadowXiActions().addRecordToShadow(recordId, slotId);
 }
 function canSendScoutingRecordToTransferRoom() {
   return typeof activeContext?.sendToTransferRoom === "function" && activeContext.canSendToTransferRoom?.() === true;
@@ -15266,17 +15157,7 @@ function sendScoutingRecordToTransferRoom(recordId) {
   writeScoutingState();
 }
 function removeScoutingRecordFromShadow(recordId, slotId) {
-  if (!canEditScoutingWorkspace()) {
-    return;
-  }
-  const state = ensureScoutingState();
-  const mutation = removeScoutingRecordIdFromShadowSlot(state, { recordId, slotId });
-  if (!mutation.changed) {
-    return;
-  }
-  preferredScoutingShadowSlotId = mutation.slotId;
-  writeScoutingState();
-  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: true }, mutation.recordId);
+  return getScoutingShadowXiActions().removeRecordFromShadow(recordId, slotId);
 }
 export function render(context) {
   setScoutingContext(context);

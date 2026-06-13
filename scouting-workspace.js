@@ -10,6 +10,7 @@ import {
   createScoutingDatabaseLoader,
   createScoutingDatabaseSourcePolicy,
   createScoutingFavoritesActions,
+  createFootballScienceDbApiClient,
   createFootballScienceDbScoutingAdapter,
   createFootballScienceDbScoutingModels,
   createScoutingListsActions,
@@ -399,6 +400,10 @@ const footballScienceDbScoutingAdapter = createFootballScienceDbScoutingAdapter(
 });
 const footballScienceDbScoutingModels = createFootballScienceDbScoutingModels({
   normalizeText: normalizeScoutingText,
+});
+const footballScienceDbApiClient = createFootballScienceDbApiClient({
+  fetchRef: (...args) => fetch(...args),
+  getAccessToken: getScoutingApiAccessToken,
 });
 const scoutingCountryCodeByName = Object.freeze({
   afghanistan: "AF",
@@ -1784,48 +1789,7 @@ function getFootballScienceDbQueryFromState() {
   };
 }
 async function fetchFootballScienceDbApi(query = {}) {
-  const params = new URLSearchParams();
-  Object.entries(query).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && String(value).trim()) {
-      params.set(key, String(value));
-    }
-  });
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const token = await getScoutingApiAccessToken({ forceRefresh: attempt > 0 });
-    if (!token) {
-      return { ok: false, status: 401, reason: "Football Science DB requires an authenticated session." };
-    }
-    try {
-      const response = await fetch(`/api/football-science-db${params.toString() ? `?${params.toString()}` : ""}`, {
-        method: "GET",
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
-      const text = await response.text();
-      let result = {};
-      if (text) {
-        try {
-          result = JSON.parse(text);
-        } catch {
-          result = { reason: text.slice(0, 240) };
-        }
-      }
-      if (response.status === 401 && attempt === 0) {
-        continue;
-      }
-      if (!response.ok || result?.ok === false) {
-        return {
-          ok: false,
-          status: response.status,
-          reason: result?.reason || result?.message || `Football Science DB failed (${response.status}).`,
-        };
-      }
-      return { ok: true, status: response.status, result };
-    } catch (error) {
-      return { ok: false, status: 0, reason: error?.message || "Football Science DB could not be reached." };
-    }
-  }
-  return { ok: false, status: 401, reason: "Football Science DB requires a fresh authenticated session." };
+  return footballScienceDbApiClient.fetchApi(query);
 }
 function calculateScoutingAgeFromBirthDate(dateOfBirth = "", birthYear = null) {
   return footballScienceDbScoutingAdapter.calculateAgeFromBirthDate(dateOfBirth, birthYear);

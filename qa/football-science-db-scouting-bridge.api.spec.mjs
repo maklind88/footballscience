@@ -25,8 +25,10 @@ function loadScoutingWorkerSandbox() {
 
 test("Scouting database keeps source enrichment behind one visual player database", () => {
   const workspace = readFileSync(resolve(projectRoot, "scouting-workspace.js"), "utf8");
+  const client = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-football-science-db-client.mjs"), "utf8");
 
-  expect(workspace).toContain("/api/football-science-db");
+  expect(workspace).toContain("createFootballScienceDbApiClient");
+  expect(client).toContain("/api/football-science-db");
   expect(workspace).toContain("footballSciencePlayerToScoutingRecord");
   expect(workspace).toContain("createFootballScienceDbScoutingAdapter");
   expect(workspace).toContain("createFootballScienceDbScoutingModels");
@@ -60,13 +62,14 @@ test("Scouting database keeps source enrichment behind one visual player databas
 test("Scouting database loader resets stale source promises before FSDB loads", () => {
   const workspace = readFileSync(resolve(projectRoot, "scouting-workspace.js"), "utf8");
   const loader = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-database-loader.mjs"), "utf8");
+  const client = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-football-science-db-client.mjs"), "utf8");
 
   expect(workspace).toContain("createScoutingDatabaseLoader");
   expect(loader).toContain('let activeLoadSource = "";');
   expect(loader).toContain("activeLoadSource !== filters.source");
   expect(loader).toContain("activeLoadPromise === loadPromise");
   expect(loader).toContain('activeLoadSource = "";');
-  expect(workspace).toContain("Football Science DB requires an authenticated session.");
+  expect(client).toContain("Football Science DB requires an authenticated session.");
   expect(workspace).toContain("requestScoutingSignIn");
   expect(workspace).toContain('signOut({ scope: "local" })');
   expect(workspace).toContain("window.location.reload()");
@@ -74,14 +77,17 @@ test("Scouting database loader resets stale source promises before FSDB loads", 
 
 test("Football Science DB retries once with a refreshed auth token after server 401", () => {
   const workspace = readFileSync(resolve(projectRoot, "scouting-workspace.js"), "utf8");
+  const client = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-football-science-db-client.mjs"), "utf8");
   const app = readFileSync(resolve(projectRoot, "index.html"), "utf8");
 
   expect(app).toContain("refreshAccessToken,");
   expect(app).toContain("getSupabaseClient");
+  expect(workspace).toContain("createFootballScienceDbApiClient");
+  expect(workspace).toContain("getAccessToken: getScoutingApiAccessToken");
   expect(workspace).toContain("getScoutingApiAccessToken(options = {})");
   expect(workspace).toContain("options.forceRefresh");
-  expect(workspace).toContain("getScoutingApiAccessToken({ forceRefresh: attempt > 0 })");
-  expect(workspace).toContain("response.status === 401 && attempt === 0");
+  expect(client).toContain("getAccessToken({ forceRefresh: attempt > 0 })");
+  expect(client).toContain("response.status === 401 && attempt === 0");
   expect(workspace).toContain("requestScoutingSignIn");
   expect(workspace).toContain('signOut({ scope: "local" })');
   expect(workspace).toContain("window.location.reload()");

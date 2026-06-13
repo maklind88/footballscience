@@ -25,6 +25,7 @@ import {
   createScoutingListsActions,
   createScoutingMyTeamActions,
   createScoutingProfileActions,
+  createScoutingProfileModalController,
   createScoutingReportsActions,
   createScoutingShadowXiActions,
   SCOUTING_FSDB_GENDER_SEGMENT_OPTIONS as SCOUTING_FSDB_GENDER_SEGMENT_POLICY_OPTIONS,
@@ -162,10 +163,6 @@ const scoutingPerformanceMonitor = createScoutingPerformanceMonitor({
 let scoutingMarketIntelVersion = 0;
 let preferredScoutingShadowSlotId = "";
 let scoutingImportedDatabaseLoaded = false;
-let scoutingPendingProfileFocusRecordId = "";
-let scoutingPendingProfileFocusUntil = 0;
-let scoutingProfileFocusTimer = 0;
-let scoutingProfileFocusObserver = null;
 let scoutingImportDraft = null;
 let scoutingImportParserPromise = null;
 let scoutingImportPdfParserPromise = null;
@@ -465,6 +462,24 @@ const scoutingDatabaseRefreshController = createScoutingDatabaseRefreshControlle
   setResultsFrame: setScoutingDatabaseResultsFrame,
   setTimeout: (callback, delayMs) => window.setTimeout(callback, delayMs),
   startPerformance: startScoutingPerformance,
+});
+const scoutingProfileModalController = createScoutingProfileModalController({
+  clearTimeout: (timer) => window.clearTimeout(timer),
+  documentRef: typeof globalThis !== "undefined" ? globalThis.document : null,
+  ensureFocusObserver: ensureScoutingProfileFocusObserver,
+  ensureState: ensureScoutingState,
+  focusElementWithoutScroll: focusScoutingElementWithoutScroll,
+  getProfileBackdrop: () => ui.scoutingWorkspace?.querySelector(".scouting-profile-backdrop") || null,
+  getProfileModal: () => ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]") || null,
+  hasProfileModal: () => Boolean(ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]")),
+  normalizeText: normalizeScoutingText,
+  now: () => Date.now(),
+  queueProfileHydration: queueFootballScienceDbProfileHydration,
+  refreshSummaryMetrics: refreshScoutingWorkspaceSummaryMetrics,
+  renderProfileModal: renderScoutingProfileModalIntoDom,
+  renderWorkspace: renderScoutingWorkspace,
+  setTimeout: (callback, delayMs) => window.setTimeout(callback, delayMs),
+  writeState: writeScoutingState,
 });
 const scoutingTabController = createScoutingTabController({
   cancelDatabaseBackgroundTimers: cancelScoutingDatabaseBackgroundTimers,
@@ -13936,86 +13951,22 @@ function scheduleScoutingDatabaseResultsRender() {
   scoutingDatabaseRefreshController.scheduleResultsRender();
 }
 function focusScoutingProfileModal() {
-  const modal = ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]");
-  if (!modal || typeof modal.focus !== "function") {
-    return;
-  }
-  if (modal.contains(document.activeElement) && document.activeElement?.matches?.("input, textarea, select, [contenteditable='true']")) {
-    return;
-  }
-  try {
-    modal.focus({ preventScroll: true });
-  } catch {
-    modal.focus();
-  }
-  if (document.activeElement !== modal) {
-    focusScoutingElementWithoutScroll(modal);
-  }
+  scoutingProfileModalController.focusModal();
 }
 function shouldFocusScoutingProfileModal(recordId) {
-  const id = normalizeScoutingText(recordId, 160);
-  return Boolean(
-    id &&
-      scoutingPendingProfileFocusRecordId === id &&
-      Date.now() <= scoutingPendingProfileFocusUntil
-  );
+  return scoutingProfileModalController.shouldFocus(recordId);
 }
 function ensureScoutingProfileFocusObserver() {
   return;
 }
 function queueScoutingProfileModalFocus(recordId) {
-  const targetId = normalizeScoutingText(recordId, 160);
-  window.clearTimeout(scoutingProfileFocusTimer);
-  const applyFocus = () => {
-    if (ensureScoutingState().selectedRecordId !== targetId || !shouldFocusScoutingProfileModal(targetId)) {
-      window.clearTimeout(scoutingProfileFocusTimer);
-      scoutingProfileFocusTimer = 0;
-      return;
-    }
-    focusScoutingProfileModal();
-    scoutingProfileFocusTimer = 0;
-    scoutingPendingProfileFocusRecordId = "";
-    scoutingPendingProfileFocusUntil = 0;
-  };
-  scoutingProfileFocusTimer = window.setTimeout(applyFocus, 40);
+  scoutingProfileModalController.queueFocus(recordId);
 }
 function openScoutingRecordProfile(recordId) {
-  const state = ensureScoutingState();
-  const normalizedRecordId = normalizeScoutingText(recordId, 160);
-  if (!normalizedRecordId) {
-    return;
-  }
-  const modalExists = Boolean(ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]"));
-  const isSamePlayer = state.selectedRecordId === normalizedRecordId;
-  if (modalExists && isSamePlayer) {
-    queueScoutingProfileModalFocus(normalizedRecordId);
-    return;
-  }
-  state.selectedRecordId = normalizedRecordId;
-  state.profileTab = "overview";
-  state.profileRoleProfileId = "auto";
-  state.profileSpiderSeasonMode = "latest";
-  state.profileSpiderSeasonValue = "";
-  scoutingPendingProfileFocusRecordId = state.selectedRecordId;
-  scoutingPendingProfileFocusUntil = Date.now() + 1500;
-  writeScoutingState({ syncCentral: false });
-  ensureScoutingProfileFocusObserver();
-  renderScoutingProfileModalIntoDom(state.selectedRecordId);
-  focusScoutingProfileModal();
-  queueScoutingProfileModalFocus(state.selectedRecordId);
-  queueFootballScienceDbProfileHydration(state.selectedRecordId);
+  scoutingProfileModalController.openRecord(recordId);
 }
 function closeScoutingRecordProfile() {
-  const state = ensureScoutingState();
-  state.selectedRecordId = "";
-  writeScoutingState({ syncCentral: false });
-  const backdrop = ui.scoutingWorkspace?.querySelector(".scouting-profile-backdrop");
-  if (backdrop) {
-    backdrop.remove();
-    refreshScoutingWorkspaceSummaryMetrics();
-    return;
-  }
-  renderScoutingWorkspace();
+  scoutingProfileModalController.closeRecord();
 }
 function getScoutingFavoritesActions() {
   if (scoutingFavoritesActions) {

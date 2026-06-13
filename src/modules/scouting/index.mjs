@@ -57,6 +57,7 @@ export * from "./scouting-drag-drop-helpers.mjs";
 export * from "./scouting-drag-drop-router.mjs";
 export * from "./scouting-favorites-actions.mjs";
 export * from "./scouting-lists-actions.mjs";
+export * from "./scouting-mini-radar-service.mjs";
 export * from "./scouting-my-team-actions.mjs";
 export * from "./scouting-my-team-pitch-service.mjs";
 export * from "./scouting-my-team-record-service.mjs";

@@ -14,6 +14,7 @@ import {
   createScoutingDatabaseResultsService,
   createScoutingDatabaseSourcePolicy,
   createScoutingFavoritesActions,
+  createScoutingMiniRadarService,
   createScoutingMyTeamPitchService,
   createScoutingMyTeamRecordService,
   createScoutingMyTeamSpiderController,
@@ -108,7 +109,6 @@ let scoutingComparisonMetricFilterQuery = "";
 let scoutingComparisonCandidatesOpen = false;
 let scoutingComparisonPlayerSearchQuery = "";
 let scoutingLeagueQualityCache = new Map();
-let scoutingRecordMiniRadarCache = new Map();
 let scoutingFilteredDatabaseCache = {
   key: "",
   records: [],
@@ -499,6 +499,16 @@ const scoutingTabController = createScoutingTabController({
   startPerformance: startScoutingPerformance,
   syncTabButtonsDom: syncScoutingTabButtonsDom,
   writeState: writeScoutingState,
+});
+const scoutingMiniRadarService = createScoutingMiniRadarService({
+  escapeHtml,
+  getBenchmarkMode: getScoutingActiveBenchmarkMode,
+  getRadarTemplate: getScoutingRadarTemplate,
+  getRecordById: getScoutingRecordById,
+  getRecordId: getScoutingRecordId,
+  getRoot: () => ui.scoutingWorkspace,
+  getTemplatePercentile: getScoutingTemplatePercentile,
+  normalizeText: normalizeScoutingText,
 });
 const scoutingMyTeamPitchService = createScoutingMyTeamPitchService({
   ensureState: ensureScoutingState,
@@ -1414,7 +1424,7 @@ function getScoutingSnapshotFallbackRecord(recordId, state = null) {
 }
 function resetScoutingComputedCaches() {
   scoutingPercentileCache = new Map();
-  scoutingRecordMiniRadarCache = new Map();
+  scoutingMiniRadarService.resetCache();
   scoutingRecordSearchCorpusCache = new Map();
   scoutingMetricAliasCache = new Map();
   scoutingRoleProfileCache = new Map();
@@ -4133,133 +4143,16 @@ function getScoutingComparablePercentile(record, metricId) {
   return Number.isFinite(calibratedPercentile) ? calibratedPercentile : getScoutingPercentile(record, metricId);
 }
 function getScoutingMiniRadarShortLabel(label = "") {
-  const cleaned = normalizeScoutingText(label, 80)
-    .replace(/\b(per|p90|90|min|minutes|weighted|role|driver|use|volume)\b/gi, "")
-    .replace(/[()%]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  const words = (cleaned || normalizeScoutingText(label, 80)).split(/[\s/-]+/).filter(Boolean);
-  if (!words.length) {
-    return "Metric";
-  }
-  if (words.length === 1) {
-    return words[0].slice(0, 10);
-  }
-  return words
-    .slice(0, 2)
-    .map((word) => word.slice(0, 5))
-    .join(" ");
+  return scoutingMiniRadarService.getShortLabel(label);
 }
 function getScoutingRecordMiniRadarMarkup(record) {
-  const recordId = getScoutingRecordId(record);
-  const benchmarkMode = getScoutingActiveBenchmarkMode();
-  const cacheKey = `${recordId}:${benchmarkMode}`;
-  if (scoutingRecordMiniRadarCache.has(cacheKey)) {
-    return scoutingRecordMiniRadarCache.get(cacheKey);
-  }
-  const template = getScoutingRadarTemplate(record, "", benchmarkMode);
-  if (!template.length) {
-    const empty = `<div class="scouting-mini-radar-empty">No data</div>`;
-    scoutingRecordMiniRadarCache.set(cacheKey, empty);
-    return empty;
-  }
-  const points = template.slice(0, 6).map((item, index, templateItems) => {
-    const percentile = getScoutingTemplatePercentile(record, item, benchmarkMode) || 1;
-    const label = normalizeScoutingText(item.label || item.metric || item.id, 80) || `Metric ${index + 1}`;
-    const angle = -Math.PI / 2 + (index / templateItems.length) * (Math.PI * 2);
-    const radius = 30;
-    const center = 36;
-    const valueRadius = (radius * percentile) / 100;
-    const labelRadius = 36;
-    const labelX = center + Math.cos(angle) * labelRadius;
-    const labelY = center + Math.sin(angle) * labelRadius;
-    return {
-      label,
-      shortLabel: getScoutingMiniRadarShortLabel(label),
-      percentile,
-      x: center + Math.cos(angle) * valueRadius,
-      y: center + Math.sin(angle) * valueRadius,
-      axisX: center + Math.cos(angle) * radius,
-      axisY: center + Math.sin(angle) * radius,
-      labelX,
-      labelY,
-    };
-  });
-  const polygon = points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
-  const markup = `
-    <div class="scouting-mini-radar">
-      <strong class="scouting-mini-radar-title">${escapeHtml(template.profileLabel || "Role spider")}</strong>
-      <svg class="scouting-mini-radar-svg" viewBox="-8 -8 88 88" role="img" aria-label="Role spider">
-        ${points
-          .map(
-            (point) =>
-              `<line class="scouting-radar-axis" x1="36" y1="36" x2="${point.axisX.toFixed(1)}" y2="${point.axisY.toFixed(1)}" />`
-          )
-          .join("")}
-        <circle class="scouting-radar-ring" cx="36" cy="36" r="30" />
-        <polygon class="scouting-radar-shape" points="${polygon}" />
-        ${points
-          .map(
-            (point) => `
-              <text class="scouting-radar-label" x="${point.labelX.toFixed(1)}" y="${point.labelY.toFixed(1)}">
-                <tspan x="${point.labelX.toFixed(1)}">${escapeHtml(point.shortLabel)}</tspan>
-                <tspan x="${point.labelX.toFixed(1)}" dy="4.4">P${escapeHtml(point.percentile)}</tspan>
-              </text>
-            `
-          )
-          .join("")}
-        ${points
-          .map(
-            (point) => `
-              <circle
-                class="scouting-radar-dot"
-                cx="${point.x.toFixed(1)}"
-                cy="${point.y.toFixed(1)}"
-                r="2.15"
-                tabindex="0"
-                aria-label="${escapeHtml(`${point.label}: P${point.percentile}`)}"
-              >
-                <title>${escapeHtml(`${point.label}: P${point.percentile}`)}</title>
-              </circle>
-            `
-          )
-          .join("")}
-      </svg>
-    </div>
-  `;
-  scoutingRecordMiniRadarCache.set(cacheKey, markup);
-  return markup;
+  return scoutingMiniRadarService.getMarkup(record);
 }
 function hydrateScoutingRecordMiniRadarShell(shell = null) {
-  if (!shell || shell.dataset.scoutingMiniRadarLoaded === "1") {
-    return;
-  }
-  const shellRecordId = normalizeScoutingText(shell.dataset.scoutingMiniRadarShell, 160);
-  if (!shellRecordId) {
-    return;
-  }
-  const record = getScoutingRecordById(shellRecordId);
-  if (!record) {
-    return;
-  }
-  const popover = shell.querySelector("[role='img']");
-  if (!popover) {
-    return;
-  }
-  shell.dataset.scoutingMiniRadarLoaded = "1";
-  popover.innerHTML = getScoutingRecordMiniRadarMarkup(record);
+  return scoutingMiniRadarService.hydrateShell(shell);
 }
 function bindScoutingRecordMiniRadarShells() {
-  const nodes = ui.scoutingWorkspace?.querySelectorAll("[data-scouting-mini-radar-shell]") || [];
-  nodes.forEach((shell) => {
-    if (shell.dataset.scoutingMiniRadarBound === "1") {
-      return;
-    }
-    const hydrate = () => hydrateScoutingRecordMiniRadarShell(shell);
-    shell.addEventListener("mouseenter", hydrate, { passive: true });
-    shell.addEventListener("focusin", hydrate, { passive: true });
-    shell.dataset.scoutingMiniRadarBound = "1";
-  });
+  return scoutingMiniRadarService.bindShells();
 }
 async function hydrateScoutingMyTeamSpiderShell(shell = null) {
   return scoutingMyTeamSpiderController.hydrateShell(shell);

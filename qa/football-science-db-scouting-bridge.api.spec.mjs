@@ -55,11 +55,13 @@ test("Scouting database keeps source enrichment behind one visual player databas
 
 test("Scouting database loader resets stale source promises before FSDB loads", () => {
   const workspace = readFileSync(resolve(projectRoot, "scouting-workspace.js"), "utf8");
+  const loader = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-database-loader.mjs"), "utf8");
 
-  expect(workspace).toContain('let scoutingDatabaseLoadSource = "";');
-  expect(workspace).toContain("scoutingDatabaseLoadSource !== filters.source");
-  expect(workspace).toContain("scoutingDatabaseLoadPromise === loadPromise");
-  expect(workspace).toContain('scoutingDatabaseLoadSource = "";');
+  expect(workspace).toContain("createScoutingDatabaseLoader");
+  expect(loader).toContain('let activeLoadSource = "";');
+  expect(loader).toContain("activeLoadSource !== filters.source");
+  expect(loader).toContain("activeLoadPromise === loadPromise");
+  expect(loader).toContain('activeLoadSource = "";');
   expect(workspace).toContain("Football Science DB requires an authenticated session.");
   expect(workspace).toContain("requestScoutingSignIn");
   expect(workspace).toContain('signOut({ scope: "local" })');

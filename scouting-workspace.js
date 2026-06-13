@@ -6,6 +6,7 @@ import {
   handleScoutingWorkspaceClick,
   bindScoutingDragAndDrop as bindScoutingDragAndDropRouter,
   createScoutingDatabaseActions,
+  createScoutingDatabaseLoader,
   createScoutingListsActions,
   createScoutingMyTeamActions,
   createScoutingShadowXiActions,
@@ -52,8 +53,7 @@ let scoutingShadowSlots = [];
 let scoutingCoreMetricOptions = [];
 let scoutingStatusOptions = [];
 let scoutingPriorityOptions = [];
-let scoutingDatabaseLoadPromise = null;
-let scoutingDatabaseLoadSource = "";
+let scoutingDatabaseLoader = null;
 let scoutingDatabaseWorker = null;
 let scoutingDatabaseWorkerPreloadPromise = null;
 let scoutingDatabaseWorkerPreloadTimer = 0;
@@ -3187,7 +3187,7 @@ function prewarmScoutingDatabaseWorker() {
     ensureScoutingState().activeTab !== "database" ||
     filters.source === "fsdb" ||
     isScoutingDatabaseLoaded() ||
-    scoutingDatabaseLoadPromise ||
+    isScoutingDatabaseLoading() ||
     typeof Worker !== "function"
   ) {
     return Promise.resolve(false);
@@ -3313,63 +3313,10 @@ function loadScoutingDatabaseWithWorker(options = {}) {
   return loadFullScoutingDatabaseWithWorker();
 }
 function ensureScoutingDatabaseLoaded() {
-  const existingDatabase = getScoutingDatabase();
-  if (existingDatabase) {
-    return Promise.resolve(existingDatabase);
-  }
-  const filters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
-  if (scoutingDatabaseLoadPromise && scoutingDatabaseLoadSource !== filters.source) {
-    scoutingDatabaseLoadPromise = null;
-    scoutingDatabaseLoadSource = "";
-  }
-  if (!scoutingDatabaseLoadPromise) {
-    scoutingDatabaseError = "";
-    scoutingDatabaseLoadSource = filters.source;
-    const loader = filters.source === "fsdb"
-      ? loadFootballScienceDbDatabase()
-      : loadScoutingDatabaseWithApi().catch(() => loadScoutingDatabaseWithWorker());
-    const loadPromise = loader
-      .then(() => {
-        const database = getScoutingDatabase();
-        if (!database) {
-          throw new Error(filters.source === "fsdb" ? "Football Science DB did not register on window." : "Scouting database did not register on window.");
-        }
-        scoutingDatabaseOptionCache = null;
-        resetScoutingComputedCaches();
-        if (scoutingDatabaseLoadPromise === loadPromise) {
-          scoutingDatabaseLoadPromise = null;
-          scoutingDatabaseLoadSource = "";
-        }
-        return database;
-      })
-      .catch((error) => {
-        if (scoutingDatabaseLoadPromise === loadPromise) {
-          scoutingDatabaseLoadPromise = null;
-          scoutingDatabaseLoadSource = "";
-        }
-        scoutingDatabaseError =
-          error?.message ||
-          (filters.source === "fsdb" ? "Football Science DB could not be loaded." : "Scouting database could not be loaded.");
-        throw error;
-      });
-    scoutingDatabaseLoadPromise = loadPromise;
-  }
-  return scoutingDatabaseLoadPromise;
+  return getScoutingDatabaseLoader().ensureLoaded();
 }
 function queueScoutingDatabaseLoad(onReady = renderScoutingWorkspace) {
-  const scheduleRender = () => onReady({ preserveFocus: true });
-  if (typeof onReady !== "function") {
-    onReady = renderScoutingWorkspace;
-  }
-  if (isScoutingDatabaseLoaded()) {
-    scheduleRender();
-    return;
-  }
-  if (scoutingDatabaseLoadPromise) {
-    scoutingDatabaseLoadPromise.then(scheduleRender).catch(scheduleRender);
-    return;
-  }
-  ensureScoutingDatabaseLoaded().then(scheduleRender).catch(scheduleRender);
+  return getScoutingDatabaseLoader().queueLoad(onReady);
 }
 function cancelScoutingDatabaseBackgroundTimers() {
   window.clearTimeout(scoutingDatabaseAutoLoadTimer);
@@ -3391,7 +3338,7 @@ function scheduleScoutingDatabaseAutoLoad(delayMs = 1200) {
       state.activeTab !== "database" ||
       filters.source === "fsdb" ||
       isScoutingDatabaseLoaded() ||
-      scoutingDatabaseLoadPromise ||
+      isScoutingDatabaseLoading() ||
       scoutingDatabaseError
     ) {
       return;
@@ -12038,11 +11985,7 @@ function getScoutingDatabaseActions() {
   scoutingDatabaseActions = createScoutingDatabaseActions({
     apiPageLimit: SCOUTING_API_DATABASE_PAGE_LIMIT,
     canEdit: canEditScoutingWorkspace,
-    clearDatabaseLoadState: () => {
-      scoutingDatabaseError = "";
-      scoutingDatabaseLoadPromise = null;
-      scoutingDatabaseLoadSource = "";
-    },
+    clearDatabaseLoadState: clearScoutingDatabaseLoadState,
     clearFilteredDatabaseCache: () => {
       scoutingFilteredDatabaseCache.key = "";
     },
@@ -12086,6 +12029,37 @@ function getScoutingDatabaseActions() {
     writeState: writeScoutingState,
   });
   return scoutingDatabaseActions;
+}
+function getScoutingDatabaseLoader() {
+  if (scoutingDatabaseLoader) {
+    return scoutingDatabaseLoader;
+  }
+  scoutingDatabaseLoader = createScoutingDatabaseLoader({
+    clearDatabaseOptionCache: () => {
+      scoutingDatabaseOptionCache = null;
+    },
+    ensureState: ensureScoutingState,
+    getDatabase: getScoutingDatabase,
+    isDatabaseLoaded: isScoutingDatabaseLoaded,
+    loadBySource: (filters = {}) =>
+      filters.source === "fsdb"
+        ? loadFootballScienceDbDatabase()
+        : loadScoutingDatabaseWithApi().catch(() => loadScoutingDatabaseWithWorker()),
+    normalizeDatabaseFilters: normalizeScoutingDatabaseFilters,
+    renderWorkspace: renderScoutingWorkspace,
+    resetComputedCaches: resetScoutingComputedCaches,
+    setDatabaseError: (message) => {
+      scoutingDatabaseError = message || "";
+    },
+  });
+  return scoutingDatabaseLoader;
+}
+function clearScoutingDatabaseLoadState() {
+  scoutingDatabaseError = "";
+  getScoutingDatabaseLoader().clearLoadState();
+}
+function isScoutingDatabaseLoading() {
+  return getScoutingDatabaseLoader().isLoading();
 }
 function setScoutingDatabaseAdvancedMode(enabled) {
   return getScoutingDatabaseActions().setAdvancedMode(enabled);
@@ -14073,7 +14047,7 @@ function renderScoutingActiveContent() {
     ensureState: ensureScoutingState,
     escapeHtml,
     isAdvancedDatabaseMode: isScoutingDatabaseAdvancedMode,
-    isDatabaseLoading: Boolean(scoutingDatabaseLoadPromise),
+    isDatabaseLoading: isScoutingDatabaseLoading(),
     normalizeDatabaseFilters: normalizeScoutingDatabaseFilters,
     normalizeMyTeamSlotPlayerIds: normalizeScoutingMyTeamSlotPlayerIds,
     normalizeRecordIds: normalizeScoutingRecordIds,

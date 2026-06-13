@@ -5,6 +5,8 @@ import {
   assignScoutingMyTeamPlayerIdToSlot,
   createScoutingDecisionList,
   deleteScoutingDecisionListById,
+  removeScoutingMyTeamPlayerIdFromAllSlots,
+  removeScoutingMyTeamPlayerIdFromSlot,
   removeScoutingRecordIdFromShadowSlot,
   reorderScoutingRecordIdInShadowSlot,
   toggleScoutingFavoriteRecordId,
@@ -126,4 +128,47 @@ test("Scouting decision actions assign My Team players to one slot at a time", (
     lw: ["player-1"],
     cf: ["player-2", "player-3"],
   });
+});
+
+test("Scouting decision actions remove My Team players from every slot", () => {
+  const state = {
+    myTeam: {
+      formation: "4-3-3",
+      slots: {
+        lw: ["player-1", "player-2"],
+        cf: ["player-2", "player-3"],
+      },
+    },
+  };
+
+  const result = removeScoutingMyTeamPlayerIdFromAllSlots(state, "player-2");
+
+  expect(result).toMatchObject({ changed: true, playerId: "player-2" });
+  expect(state.myTeam).toMatchObject({ formation: "4-3-3" });
+  expect(state.myTeam.slots).toEqual({
+    lw: ["player-1"],
+    cf: ["player-3"],
+  });
+});
+
+test("Scouting decision actions remove My Team players from one slot or clear the slot", () => {
+  const state = {
+    myTeam: {
+      slots: {
+        lw: ["player-1", "player-2"],
+        cf: ["player-3"],
+      },
+    },
+  };
+
+  const removedOne = removeScoutingMyTeamPlayerIdFromSlot(state, { slotId: "lw", playerId: "player-2" });
+  expect(removedOne).toMatchObject({ changed: true, playerId: "player-2", slotId: "lw" });
+  expect(state.myTeam.slots).toEqual({
+    lw: ["player-1"],
+    cf: ["player-3"],
+  });
+
+  const clearedSlot = removeScoutingMyTeamPlayerIdFromSlot(state, { slotId: "cf" });
+  expect(clearedSlot).toMatchObject({ changed: true, playerId: "", slotId: "cf" });
+  expect(state.myTeam.slots).toEqual({ lw: ["player-1"] });
 });

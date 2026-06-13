@@ -43,6 +43,8 @@ import {
   assignScoutingMyTeamPlayerIdToSlot,
   createScoutingDecisionList,
   deleteScoutingDecisionListById,
+  removeScoutingMyTeamPlayerIdFromAllSlots,
+  removeScoutingMyTeamPlayerIdFromSlot,
   removeScoutingRecordIdFromShadowSlot,
   reorderScoutingRecordIdInShadowSlot,
   toggleScoutingFavoriteRecordId,
@@ -4129,15 +4131,11 @@ function removeScoutingMyTeamPlayerFromAllSlots(playerId = "") {
   }
   const state = ensureScoutingState();
   const myTeam = getScoutingMyTeamState(state);
-  const nextSlots = {};
-  Object.entries(myTeam.slots).forEach(([slotId, playerIds]) => {
-    const filteredIds = normalizeScoutingMyTeamSlotPlayerIds(playerIds).filter((currentPlayerId) => currentPlayerId !== normalizedPlayerId);
-    if (filteredIds.length) {
-      nextSlots[slotId] = filteredIds;
-    }
-  });
-  myTeam.slots = nextSlots;
   state.myTeam = myTeam;
+  const mutation = removeScoutingMyTeamPlayerIdFromAllSlots(state, normalizedPlayerId);
+  if (!mutation.changed) {
+    return;
+  }
   if (scoutingMyTeamSelectedPlayerId === normalizedPlayerId) {
     scoutingMyTeamSelectedPlayerId = "";
   }
@@ -4154,18 +4152,11 @@ function removeScoutingMyTeamPlayerFromSlot(slotId, playerId = "") {
   if (!slot) {
     return;
   }
-  const normalizedPlayerId = normalizeScoutingText(playerId, 160);
-  if (normalizedPlayerId) {
-    const filteredIds = normalizeScoutingMyTeamSlotPlayerIds(myTeam.slots[slot.id]).filter((currentPlayerId) => currentPlayerId !== normalizedPlayerId);
-    if (filteredIds.length) {
-      myTeam.slots[slot.id] = filteredIds;
-    } else {
-      delete myTeam.slots[slot.id];
-    }
-  } else {
-    delete myTeam.slots[slot.id];
-  }
   state.myTeam = myTeam;
+  const mutation = removeScoutingMyTeamPlayerIdFromSlot(state, { slotId: slot.id, playerId });
+  if (!mutation.changed) {
+    return;
+  }
   writeScoutingState();
   refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
 }

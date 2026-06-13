@@ -225,3 +225,69 @@ export function assignScoutingMyTeamPlayerIdToSlot(state = {}, options = {}) {
   };
   return { changed: true, playerId, slotId };
 }
+
+export function removeScoutingMyTeamPlayerIdFromAllSlots(state = {}, playerId = "") {
+  const id = normalizeScoutingText(playerId, 160);
+  const slotIds = getScoutingDecisionSlotIds();
+  if (!state || !id) {
+    return { changed: false, playerId: id, reason: "empty" };
+  }
+  const myTeam = state.myTeam && typeof state.myTeam === "object" ? state.myTeam : {};
+  const currentSlots = normalizeScoutingMyTeamSlots(myTeam.slots, slotIds);
+  const nextSlots = {};
+  let removed = false;
+  Object.entries(currentSlots).forEach(([slotId, playerIds]) => {
+    const filteredIds = playerIds.filter((currentPlayerId) => currentPlayerId !== id);
+    if (filteredIds.length !== playerIds.length) {
+      removed = true;
+    }
+    if (filteredIds.length) {
+      nextSlots[slotId] = filteredIds;
+    }
+  });
+  if (!removed) {
+    state.myTeam = { ...myTeam, slots: currentSlots };
+    return { changed: false, playerId: id, reason: "unchanged" };
+  }
+  state.myTeam = {
+    ...myTeam,
+    slots: nextSlots,
+  };
+  return { changed: true, playerId: id };
+}
+
+export function removeScoutingMyTeamPlayerIdFromSlot(state = {}, options = {}) {
+  const id = normalizeScoutingText(options.playerId, 160);
+  const slotId = normalizeScoutingText(options.slotId, 40);
+  const slotIds = getScoutingDecisionSlotIds();
+  if (!state || !slotIds.has(slotId)) {
+    return { changed: false, playerId: id, slotId, reason: "empty" };
+  }
+  const myTeam = state.myTeam && typeof state.myTeam === "object" ? state.myTeam : {};
+  const currentSlots = normalizeScoutingMyTeamSlots(myTeam.slots, slotIds);
+  const currentPlayerIds = Array.isArray(currentSlots[slotId]) ? currentSlots[slotId] : [];
+  if (!currentPlayerIds.length) {
+    state.myTeam = { ...myTeam, slots: currentSlots };
+    return { changed: false, playerId: id, slotId, reason: "unchanged" };
+  }
+  const nextSlots = { ...currentSlots };
+  if (id) {
+    const filteredIds = currentPlayerIds.filter((currentPlayerId) => currentPlayerId !== id);
+    if (filteredIds.length === currentPlayerIds.length) {
+      state.myTeam = { ...myTeam, slots: currentSlots };
+      return { changed: false, playerId: id, slotId, reason: "unchanged" };
+    }
+    if (filteredIds.length) {
+      nextSlots[slotId] = filteredIds;
+    } else {
+      delete nextSlots[slotId];
+    }
+  } else {
+    delete nextSlots[slotId];
+  }
+  state.myTeam = {
+    ...myTeam,
+    slots: nextSlots,
+  };
+  return { changed: true, playerId: id, slotId };
+}

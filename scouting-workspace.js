@@ -36,6 +36,14 @@ import {
   scoutingRoleScoringProfiles,
 } from "./src/modules/scouting/scouting-role-scoring-profiles.mjs";
 import { createScoutingDatabaseFilterService } from "./src/modules/scouting/scouting-database-filter-service.mjs";
+import {
+  addScoutingRecordIdToDecisionList,
+  addScoutingRecordIdToShadowSlot,
+  assignScoutingMyTeamPlayerIdToSlot,
+  createScoutingDecisionList,
+  deleteScoutingDecisionListById,
+  toggleScoutingFavoriteRecordId,
+} from "./src/modules/scouting/scouting-decision-actions.mjs";
 
 let activeContext = null;
 let scoutingTabs = [];
@@ -4090,30 +4098,16 @@ function assignScoutingMyTeamPlayerToSlot(playerId, slotId, beforePlayerId = "")
   }
   const id = getScoutingMyTeamPlayerId(player);
   const beforeId = normalizeScoutingText(beforePlayerId, 160);
-  const currentSlotId = Object.entries(myTeam.slots).find(([, currentPlayerIds]) => normalizeScoutingMyTeamSlotPlayerIds(currentPlayerIds).includes(id))?.[0] || "";
-  if (currentSlotId === slot.id && beforeId === id) {
-    perf.end({ status: "unchanged" });
+  state.myTeam = myTeam;
+  const mutation = assignScoutingMyTeamPlayerIdToSlot(state, {
+    playerId: id,
+    slotId: slot.id,
+    beforePlayerId: beforeId,
+  });
+  if (!mutation.changed) {
+    perf.end({ status: mutation.reason || "unchanged" });
     return;
   }
-  const nextSlots = {};
-  Object.entries(myTeam.slots).forEach(([currentSlotId, currentPlayerIds]) => {
-    const filteredIds = normalizeScoutingMyTeamSlotPlayerIds(currentPlayerIds).filter((currentPlayerId) => currentPlayerId !== id);
-    if (filteredIds.length) {
-      nextSlots[currentSlotId] = filteredIds;
-    }
-  });
-  const targetStack = normalizeScoutingMyTeamSlotPlayerIds(nextSlots[slot.id]);
-  if (!targetStack.includes(id)) {
-    const beforeIndex = beforeId && beforeId !== id ? targetStack.indexOf(beforeId) : -1;
-    if (beforeIndex >= 0) {
-      targetStack.splice(beforeIndex, 0, id);
-    } else {
-      targetStack.push(id);
-    }
-  }
-  nextSlots[slot.id] = targetStack;
-  myTeam.slots = nextSlots;
-  state.myTeam = myTeam;
   if (scoutingMyTeamSelectedPlayerId === id) {
     scoutingMyTeamSelectedPlayerId = "";
   }
@@ -15525,9 +15519,11 @@ function toggleScoutingFavorite(recordId) {
   }
   markDebugTiming("state-ready");
   const hasProfileModal = Boolean(ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]"));
-  state.favoriteRecordIds = state.favoriteRecordIds.includes(id)
-    ? state.favoriteRecordIds.filter((recordIdValue) => recordIdValue !== id)
-    : [id, ...state.favoriteRecordIds];
+  const mutation = toggleScoutingFavoriteRecordId(state, id);
+  if (!mutation.changed) {
+    perf.end({ status: mutation.reason || "unchanged" });
+    return;
+  }
   markDebugTiming("favorite-state-updated");
   if (hasProfileModal) {
     updateScoutingFavoriteControls(id, state);
@@ -15601,14 +15597,11 @@ function addScoutingRecordToList(recordId, listId) {
   if (record) {
     rememberScoutingRecordSnapshot(record, state);
   }
-  state.lists = state.lists.map((list) =>
-    list.id === targetListId
-      ? cloneScoutingList({
-          ...list,
-          recordIds: list.recordIds.includes(id) ? list.recordIds : [id, ...list.recordIds],
-        })
-      : list
-  );
+  const mutation = addScoutingRecordIdToDecisionList(state, { recordId: id, listId: targetListId });
+  if (!mutation.changed) {
+    perf.end({ status: mutation.reason || "unchanged" });
+    return;
+  }
   writeScoutingState();
   refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
   perf.end({ status: "updated" });
@@ -15622,7 +15615,10 @@ function createScoutingList(name) {
     return;
   }
   const state = ensureScoutingState();
-  state.lists = [cloneScoutingList({ name: listName, recordIds: [] }), ...state.lists];
+  const mutation = createScoutingDecisionList(state, listName);
+  if (!mutation.changed) {
+    return;
+  }
   writeScoutingState();
   refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
 }
@@ -15640,7 +15636,10 @@ function deleteScoutingList(listId) {
   if (!confirmed) {
     return;
   }
-  state.lists = state.lists.filter((item) => item.id !== id);
+  const mutation = deleteScoutingDecisionListById(state, id);
+  if (!mutation.changed) {
+    return;
+  }
   writeScoutingState();
   refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
 }
@@ -15666,13 +15665,10 @@ function addScoutingRecordToShadow(recordId, slotId) {
     rememberScoutingRecordSnapshot(record, state, { includeAnalysis: true });
   }
   const currentRecordIds = getScoutingShadowSlotRecordIds(slot.id, state);
-  state.shadowXi.slots = {
-    ...state.shadowXi.slots,
-    [slot.id]: [id, ...currentRecordIds.filter((candidateId) => candidateId !== id)],
-  };
-  state.shadowXi.meta = {
-    ...(state.shadowXi.meta && typeof state.shadowXi.meta === "object" ? state.shadowXi.meta : {}),
-    [getScoutingShadowMetaKey(slot.id, id)]: {
+  const mutation = addScoutingRecordIdToShadowSlot(state, {
+    recordId: id,
+    slotId: slot.id,
+    meta: {
       ...getScoutingShadowRecordMeta(slot.id, id, state),
       tag: getScoutingRecordAge(record) <= 23 ? "u23" : currentRecordIds.length ? "backup" : "first-choice",
       playerName: record ? getScoutingRecordName(record) : "",
@@ -15682,8 +15678,11 @@ function addScoutingRecordToShadow(recordId, slotId) {
       position: record ? normalizeScoutingText(record?.[scoutingRecordIndex.position], 120) : "",
       updatedAt: new Date().toISOString(),
     },
-  };
-  state.shadowXi.selectedSlotId = slot.id;
+  });
+  if (!mutation.changed) {
+    perf.end({ status: mutation.reason || "unchanged" });
+    return;
+  }
   preferredScoutingShadowSlotId = slot.id;
   writeScoutingState();
   refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: state.activeTab === "database" }, id);

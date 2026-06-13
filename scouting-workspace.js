@@ -10,6 +10,7 @@ import {
   createScoutingDatabaseLoader,
   createScoutingDatabaseSourcePolicy,
   createScoutingFavoritesActions,
+  createFootballScienceDbScoutingAdapter,
   createScoutingListsActions,
   createScoutingMyTeamActions,
   createScoutingProfileActions,
@@ -388,6 +389,12 @@ const scoutingRecordIndex = Object.freeze({
   sourceTrace: 20,
   metricQuality: 21,
   dateOfBirth: 22,
+});
+const footballScienceDbScoutingAdapter = createFootballScienceDbScoutingAdapter({
+  normalizeDateValue: normalizeScoutingDateValue,
+  normalizeText: normalizeScoutingText,
+  now: () => Date.now(),
+  recordIndex: scoutingRecordIndex,
 });
 const scoutingCountryCodeByName = Object.freeze({
   afghanistan: "AF",
@@ -1755,14 +1762,7 @@ async function fetchScoutingApi(query = {}) {
   return { ok: false, status: 401, reason: "Scouting API requires a fresh authenticated session." };
 }
 function mapScoutingPositionToFootballScienceDbGroup(position = "") {
-  const normalized = normalizeScoutingText(position, 40).toUpperCase();
-  if (!normalized || normalized === "ALL") return "";
-  if (["GK", "G"].includes(normalized)) return "GK";
-  if (["CB", "RCB", "LCB", "RB", "LB", "RWB", "LWB", "FB", "DEF"].includes(normalized)) return "DEF";
-  if (["DM", "DMF", "CM", "CMF", "AM", "AMF", "MID", "MF"].includes(normalized)) return "MID";
-  if (["RW", "LW", "WF", "WING"].includes(normalized)) return "WING";
-  if (["CF", "ST", "FW", "F"].includes(normalized)) return "FW";
-  return normalized;
+  return footballScienceDbScoutingAdapter.mapPositionToGroup(position);
 }
 function getFootballScienceDbQueryFromState() {
   const state = ensureScoutingState();
@@ -1824,83 +1824,13 @@ async function fetchFootballScienceDbApi(query = {}) {
   return { ok: false, status: 401, reason: "Football Science DB requires a fresh authenticated session." };
 }
 function calculateScoutingAgeFromBirthDate(dateOfBirth = "", birthYear = null) {
-  const iso = normalizeScoutingDateValue(dateOfBirth);
-  if (iso) {
-    const born = new Date(`${iso}T00:00:00Z`);
-    if (!Number.isNaN(born.getTime())) {
-      const now = new Date();
-      let age = now.getUTCFullYear() - born.getUTCFullYear();
-      const monthDelta = now.getUTCMonth() - born.getUTCMonth();
-      if (monthDelta < 0 || (monthDelta === 0 && now.getUTCDate() < born.getUTCDate())) {
-        age -= 1;
-      }
-      return age >= 0 && age <= 90 ? age : "";
-    }
-  }
-  const year = Number(birthYear);
-  if (Number.isFinite(year) && year > 1900) {
-    return new Date().getUTCFullYear() - year;
-  }
-  return "";
+  return footballScienceDbScoutingAdapter.calculateAgeFromBirthDate(dateOfBirth, birthYear);
 }
 function getFootballScienceDbReadiness(player = {}) {
-  const readiness = player?.dataReadiness && typeof player.dataReadiness === "object" && !Array.isArray(player.dataReadiness)
-    ? player.dataReadiness
-    : {};
-  return {
-    tier: normalizeScoutingText(readiness.tier, 40) || "identity_only",
-    label: normalizeScoutingText(readiness.label, 80) || "Identity only",
-    spiderReady: Boolean(readiness.spiderReady),
-    statsReady: Boolean(readiness.statsReady),
-    rosterReady: Boolean(readiness.rosterReady),
-    missing: Array.isArray(readiness.missing) ? readiness.missing.map((item) => normalizeScoutingText(item, 80)).filter(Boolean) : [],
-  };
+  return footballScienceDbScoutingAdapter.getReadiness(player);
 }
 function footballSciencePlayerToScoutingRecord(player = {}) {
-  const fsdbId = normalizeScoutingText(player.fsdbId || player.id, 160);
-  const name = normalizeScoutingText(player.fullName || player.name || player.displayName, 180) || "Unknown player";
-  const readiness = getFootballScienceDbReadiness(player);
-  const record = [];
-  record[scoutingRecordIndex.id] = fsdbId ? `fsdb:${fsdbId}` : `fsdb:${Date.now()}`;
-  record[scoutingRecordIndex.player] = name;
-  record[scoutingRecordIndex.team] = normalizeScoutingText(player.currentTeam, 180);
-  record[scoutingRecordIndex.teamWithinTimeframe] = normalizeScoutingText(player.currentTeam, 180);
-  record[scoutingRecordIndex.league] = normalizeScoutingText(player.currentCompetition, 180);
-  record[scoutingRecordIndex.season] = "";
-  record[scoutingRecordIndex.position] = normalizeScoutingText(player.primaryPosition || player.positionGroup, 120);
-  record[scoutingRecordIndex.age] = calculateScoutingAgeFromBirthDate(player.dateOfBirth, player.birthYear);
-  record[scoutingRecordIndex.matches] = "";
-  record[scoutingRecordIndex.minutes] = 0;
-  record[scoutingRecordIndex.birthCountry] = normalizeScoutingText(player.birthCountry, 120);
-  record[scoutingRecordIndex.passportCountry] = normalizeScoutingText(player.nationality, 120);
-  record[scoutingRecordIndex.height] = Number.isFinite(Number(player.heightCm)) ? Number(player.heightCm) : "";
-  record[scoutingRecordIndex.weight] = Number.isFinite(Number(player.weightKg)) ? Number(player.weightKg) : "";
-  record[scoutingRecordIndex.metrics] = {};
-  record[scoutingRecordIndex.sourceSystem] = "football-science-db";
-  record[scoutingRecordIndex.playerSourceId] = fsdbId;
-  record[scoutingRecordIndex.sourceRecordId] = normalizeScoutingText(player.id, 160) || fsdbId;
-  record[scoutingRecordIndex.imageUrl] = "";
-  record[scoutingRecordIndex.playerIdentityId] = fsdbId;
-  record[scoutingRecordIndex.sourceTrace] = {
-    identitySource: "football-science-db",
-    footballScienceDb: {
-      id: normalizeScoutingText(player.id, 160),
-      fsdbId,
-      nameQuality: normalizeScoutingText(player.nameQuality, 40),
-      identityStatus: normalizeScoutingText(player.identityStatus, 40),
-      sourcePriority: normalizeScoutingText(player.sourcePriority, 80),
-      sourceConfidence: Number(player.sourceConfidence) || 0,
-      dataReadiness: readiness,
-      sourceLinkCount: Number(player.sourceLinkCount) || 0,
-      rosterEntryCount: Number(player.rosterEntryCount) || 0,
-      seasonStatCount: Number(player.seasonStatCount) || 0,
-      metricCount: Number(player.metricCount) || 0,
-      dedupeKeyPresent: Boolean(player.dedupeKeyPresent),
-    },
-  };
-  record[scoutingRecordIndex.metricQuality] = {};
-  record[scoutingRecordIndex.dateOfBirth] = normalizeScoutingDateValue(player.dateOfBirth);
-  return record;
+  return footballScienceDbScoutingAdapter.playerToScoutingRecord(player);
 }
 function applyFootballScienceDbDatabase(result = {}) {
   if (!Array.isArray(result.players)) {

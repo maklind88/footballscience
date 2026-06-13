@@ -14,6 +14,7 @@ import {
   createScoutingDatabaseResultsService,
   createScoutingDatabaseSourcePolicy,
   createScoutingFavoritesActions,
+  createScoutingMyTeamRecordService,
   createScoutingMyTeamSpiderController,
   createScoutingPostRenderController,
   createScoutingTabController,
@@ -105,7 +106,6 @@ let scoutingComparisonMetricMenuOpen = false;
 let scoutingComparisonMetricFilterQuery = "";
 let scoutingComparisonCandidatesOpen = false;
 let scoutingComparisonPlayerSearchQuery = "";
-let scoutingMyTeamRecordMatchCache = new Map();
 let scoutingLeagueQualityCache = new Map();
 let scoutingRecordMiniRadarCache = new Map();
 let scoutingFilteredDatabaseCache = {
@@ -499,9 +499,32 @@ const scoutingTabController = createScoutingTabController({
   syncTabButtonsDom: syncScoutingTabButtonsDom,
   writeState: writeScoutingState,
 });
+const scoutingMyTeamRecordService = createScoutingMyTeamRecordService({
+  areNamesInitialSurnameMatch: areScoutingNamesInitialSurnameMatch,
+  ensureRecordLookupsReady: ensureScoutingRecordLookupsReady,
+  getActiveDatabaseRecords: () => globalThis.window?.__footballScienceScoutingDatabase?.records,
+  getCandidateSourceState: () => (activeContext ? activeContext.ensureState() : null),
+  getDatabase: getScoutingDatabase,
+  getImportedDatabaseRecords: () => globalThis.window?.__footballScienceImportedScoutingDatabase?.records,
+  getKnownRecordCount: () => scoutingKnownRecordLookupCache.size,
+  getKnownRecords: () => scoutingKnownRecordLookupCache,
+  getPlayerId: getScoutingMyTeamPlayerId,
+  getPlayerSnapshots: () => getScoutingPlayerSnapshots(ensureScoutingState()),
+  getPositionGroup: getScoutingPositionGroup,
+  getRecordAge: getScoutingRecordAge,
+  getRecordId: getScoutingRecordId,
+  getRecordLookupFingerprint: () => scoutingRecordLookupFingerprint,
+  getRecordMinutes: getScoutingRecordMinutes,
+  getRecordName: getScoutingRecordName,
+  getRecordSeasonYearValue: getScoutingRecordSeasonYearValue,
+  getRecordTeam: getScoutingRecordTeam,
+  getSnapshotFallbackRecord: getScoutingSnapshotFallbackRecord,
+  normalizePersonNameForMatch: normalizeScoutingPersonNameForMatch,
+  normalizeText: normalizeScoutingText,
+});
 const scoutingMyTeamSpiderController = createScoutingMyTeamSpiderController({
   canUseWorker: () => typeof Worker === "function",
-  clearRecordMatchCache: () => scoutingMyTeamRecordMatchCache.clear(),
+  clearRecordMatchCache: () => scoutingMyTeamRecordService.clearMatchCache(),
   findRecordForPlayer: findScoutingRecordForMyTeamPlayer,
   getInitialSurnameAlias: getScoutingInitialSurnameAlias,
   getPlayerById: getScoutingMyTeamPlayerById,
@@ -3312,88 +3335,16 @@ function getScoutingRecordKnownFullNameAliases(record) {
     .filter((name) => name && areScoutingNamesInitialSurnameMatch(name, recordName));
 }
 function getScoutingMyTeamCandidateRecords() {
-  ensureScoutingRecordLookupsReady();
-  const seen = new Set();
-  const records = [];
-  const addRecord = (record) => {
-    const id = getScoutingRecordId(record);
-    if (!id || seen.has(id)) {
-      return;
-    }
-    seen.add(id);
-    records.push(record);
-  };
-  const databaseRecords = Array.isArray(getScoutingDatabase()?.records) ? getScoutingDatabase().records : [];
-  databaseRecords.forEach(addRecord);
-  scoutingKnownRecordLookupCache.forEach(addRecord);
-  Object.values(getScoutingPlayerSnapshots(ensureScoutingState())).forEach((snapshot) => {
-    const fallbackRecord = getScoutingSnapshotFallbackRecord(snapshot?.recordId);
-    if (fallbackRecord) {
-      addRecord(fallbackRecord);
-    }
-  });
-  return records;
+  return scoutingMyTeamRecordService.getCandidateRecords();
 }
 function hasScoutingMyTeamCandidateRecordSources(state = null) {
-  const activeDatabase = window.__footballScienceScoutingDatabase;
-  const importedDatabase = window.__footballScienceImportedScoutingDatabase;
-  if (Array.isArray(activeDatabase?.records) && activeDatabase.records.length) {
-    return true;
-  }
-  if (Array.isArray(importedDatabase?.records) && importedDatabase.records.length) {
-    return true;
-  }
-  if (scoutingKnownRecordLookupCache.size) {
-    return true;
-  }
-  const sourceState = state || (activeContext ? activeContext.ensureState() : null);
-  return Boolean(sourceState?.playerSnapshots && typeof sourceState.playerSnapshots === "object" && Object.keys(sourceState.playerSnapshots).length);
+  return scoutingMyTeamRecordService.hasCandidateRecordSources(state);
 }
 function scoreScoutingMyTeamRecordMatch(player = {}, record = null) {
-  if (!record || !areScoutingNamesInitialSurnameMatch(player.name, getScoutingRecordName(record))) {
-    return -1;
-  }
-  let score = 70;
-  const playerAge = Number(player.age);
-  const recordAge = getScoutingRecordAge(record);
-  if (Number.isFinite(playerAge) && Number.isFinite(recordAge)) {
-    const delta = Math.abs(playerAge - recordAge);
-    score += delta === 0 ? 22 : delta === 1 ? 15 : delta <= 2 ? 8 : -18;
-  }
-  const playerGroup = getScoutingPositionGroup(player.position || player.bestRole || "");
-  const recordGroup = getScoutingPositionGroup(record);
-  if (playerGroup && recordGroup && playerGroup === recordGroup) {
-    score += 16;
-  }
-  const playerTeam = normalizeScoutingPersonNameForMatch(player.team || player.club || "");
-  const recordTeam = normalizeScoutingPersonNameForMatch(getScoutingRecordTeam(record));
-  if (playerTeam && recordTeam && (playerTeam === recordTeam || playerTeam.includes(recordTeam) || recordTeam.includes(playerTeam))) {
-    score += 10;
-  }
-  score += Math.min(8, Math.max(0, getScoutingRecordSeasonYearValue(record) - 2018));
-  score += Math.min(8, Math.round(getScoutingRecordMinutes(record) / 900));
-  return score;
+  return scoutingMyTeamRecordService.scoreRecordMatch(player, record);
 }
 function findScoutingRecordForMyTeamPlayer(player = {}) {
-  const playerId = getScoutingMyTeamPlayerId(player);
-  const cacheKey = [
-    playerId,
-    normalizeScoutingText(player.name, 160),
-    normalizeScoutingText(player.position, 80),
-    normalizeScoutingText(player.age, 20),
-    scoutingRecordLookupFingerprint,
-    scoutingKnownRecordLookupCache.size,
-  ].join("|");
-  if (scoutingMyTeamRecordMatchCache.has(cacheKey)) {
-    return scoutingMyTeamRecordMatchCache.get(cacheKey);
-  }
-  const candidates = getScoutingMyTeamCandidateRecords()
-    .map((record) => ({ record, score: scoreScoutingMyTeamRecordMatch(player, record) }))
-    .filter((entry) => entry.score >= 70)
-    .sort((a, b) => b.score - a.score || getScoutingRecordSeasonYearValue(b.record) - getScoutingRecordSeasonYearValue(a.record) || getScoutingRecordMinutes(b.record) - getScoutingRecordMinutes(a.record));
-  const match = candidates[0]?.record || null;
-  scoutingMyTeamRecordMatchCache.set(cacheKey, match);
-  return match;
+  return scoutingMyTeamRecordService.findRecordForPlayer(player);
 }
 function getScoutingMyTeamSlotPitchPosition(slot, formation = "4-3-3") {
   const role = normalizeScoutingText(slot?.label || slot?.id, 40).toUpperCase();

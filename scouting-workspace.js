@@ -541,6 +541,7 @@ const scoutingProfileTabs = Object.freeze([
   { value: "history", label: "History" },
 ]);
 let scoutingMyTeamDropPreviewKey = "";
+let scoutingEventDeps = null;
 function setScoutingContext(context) {
   activeContext = context;
   scoutingTabs = context.tabs || [];
@@ -15756,7 +15757,11 @@ export function openRecord(recordId, context = activeContext) {
   openScoutingRecordProfile(recordId);
 }
 function getScoutingEventDeps() {
-  return {
+  if (scoutingEventDeps) {
+    return scoutingEventDeps;
+  }
+  // Keep entries as functions or live-state closures; direct values would become stale.
+  scoutingEventDeps = {
     addComparisonPlayer: addScoutingComparisonPlayer,
     addRecordToList: addScoutingRecordToList,
     addRecordToShadow: addScoutingRecordToShadow,
@@ -15908,6 +15913,7 @@ function getScoutingEventDeps() {
     updateRangeFilterDisplay: updateScoutingRangeFilterDisplay,
     updateTarget: updateScoutingTarget,
   };
+  return scoutingEventDeps;
 }
 export function handleClick(event, context) {
   setScoutingContext(context);

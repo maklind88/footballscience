@@ -29,6 +29,7 @@ test("Scouting database keeps source enrichment behind one visual player databas
   const qualityService = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-football-science-db-quality-service.mjs"), "utf8");
 
   expect(workspace).toContain("createFootballScienceDbApiClient");
+  expect(workspace).toContain("createFootballScienceDbProfileService");
   expect(workspace).toContain("createFootballScienceDbQualityService");
   expect(client).toContain("/api/football-science-db");
   expect(workspace).toContain("footballSciencePlayerToScoutingRecord");
@@ -53,7 +54,7 @@ test("Scouting database keeps source enrichment behind one visual player databas
   expect(workspace).toContain("data-refresh-fsdb-quality");
   expect(workspace).toContain("data-open-fsdb-profile");
   expect(workspace).toContain("data-load-fsdb-profile");
-  expect(workspace).toContain("scoutingFootballScienceDbProfileCache");
+  expect(workspace).toContain("footballScienceDbProfileService.getCacheEntry(record)");
   expect(workspace).toContain("Source enrichment profile");
   expect(workspace).toContain("Source enrichment linked");
   expect(workspace).toContain("Roster history");

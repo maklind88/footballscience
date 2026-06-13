@@ -11,6 +11,7 @@ import {
   createScoutingDatabaseSourcePolicy,
   createScoutingFavoritesActions,
   createFootballScienceDbApiClient,
+  createFootballScienceDbProfileService,
   createFootballScienceDbQualityService,
   createFootballScienceDbScoutingAdapter,
   createFootballScienceDbScoutingModels,
@@ -168,7 +169,6 @@ let scoutingImportPdfParserPromise = null;
 let scoutingMyTeamSelectedPlayerId = "";
 let scoutingIntelligenceCacheVersion = 0;
 let scoutingImportHistoryCache = { status: "idle", imports: [], error: "", promise: null };
-let scoutingFootballScienceDbProfileCache = new Map();
 let scoutingProfileApiCache = new Map();
 let scoutingProfileOverviewPanelHydrateInProgress = new Set();
 let scoutingOppositionFilters = { team: "", season: "all", minMinutes: 450 };
@@ -405,6 +405,30 @@ const footballScienceDbQualityService = createFootballScienceDbQualityService({
   fetchApi: fetchFootballScienceDbApi,
   normalizeSummary: normalizeFootballScienceDbQualitySummary,
   renderWorkspace: renderScoutingWorkspace,
+});
+const footballScienceDbProfileService = createFootballScienceDbProfileService({
+  fetchApi: fetchFootballScienceDbApi,
+  getFootballScienceDbMeta: getScoutingRecordFootballScienceDbMeta,
+  getRecordById: getScoutingRecordById,
+  getRecordId: getScoutingRecordId,
+  getRecordPlayerSourceId: getScoutingRecordPlayerSourceId,
+  normalizeProfile: normalizeFootballScienceDbProfile,
+  normalizeText: normalizeScoutingText,
+  openRecordProfile: openScoutingRecordProfile,
+  playerToRecord: footballSciencePlayerToScoutingRecord,
+  registerRecord: (record) => {
+    const recordId = getScoutingRecordId(record);
+    if (!recordId) {
+      return "";
+    }
+    scoutingKnownRecordLookupCache.set(recordId, record);
+    rememberScoutingRecordSnapshot(record, ensureScoutingState(), { includeAnalysis: false });
+    return recordId;
+  },
+  renderProfilePanel: renderFootballScienceDbProfilePanelIntoDom,
+  renderWorkspace: renderScoutingWorkspace,
+  requestAnimationFrame: (callback) => window.requestAnimationFrame(callback),
+  setQualityError: (message) => footballScienceDbQualityService.setError(message),
 });
 const footballScienceDbApiClient = createFootballScienceDbApiClient({
   fetchRef: (...args) => fetch(...args),
@@ -1229,7 +1253,7 @@ function resetScoutingComputedCaches() {
   scoutingRecordLookupFingerprint = "";
   scoutingMarketIntelVersion = 0;
   scoutingProfileApiCache = new Map();
-  scoutingFootballScienceDbProfileCache = new Map();
+  footballScienceDbProfileService.resetCache();
   scoutingProfileOverviewPanelHydrateInProgress.clear();
   scoutingDataQualitySummaryCache = { key: "", value: null };
   scoutingFilteredDatabaseNavigationCache = {
@@ -1872,49 +1896,19 @@ function normalizeFootballScienceDbProfile(result = {}) {
   return footballScienceDbScoutingModels.normalizeProfile(result);
 }
 function getFootballScienceDbProfileCacheKeys(record = {}) {
-  const recordId = getScoutingRecordId(record);
-  const fsdb = getScoutingRecordFootballScienceDbMeta(record) || {};
-  return [
-    recordId,
-    normalizeScoutingText(fsdb.id, 160),
-    normalizeScoutingText(fsdb.fsdbId, 160),
-    getScoutingRecordPlayerSourceId(record),
-  ].filter(Boolean);
+  return footballScienceDbProfileService.getCacheKeys(record);
 }
 function getFootballScienceDbProfileCacheEntry(record = {}) {
-  for (const key of getFootballScienceDbProfileCacheKeys(record)) {
-    const entry = scoutingFootballScienceDbProfileCache.get(key);
-    if (entry) {
-      return entry;
-    }
-  }
-  return null;
+  return footballScienceDbProfileService.getCacheEntry(record);
 }
 function setFootballScienceDbProfileCacheEntry(record = {}, entry = {}) {
-  getFootballScienceDbProfileCacheKeys(record).forEach((key) => {
-    scoutingFootballScienceDbProfileCache.set(key, entry);
-  });
+  return footballScienceDbProfileService.setCacheEntry(record, entry);
 }
 function getFootballScienceDbProfileQueryFromRecord(record = {}) {
-  const fsdb = getScoutingRecordFootballScienceDbMeta(record) || {};
-  const id = normalizeScoutingText(fsdb.id, 160);
-  const fsdbId = normalizeScoutingText(fsdb.fsdbId || getScoutingRecordPlayerSourceId(record), 160);
-  return {
-    id: /^[0-9a-f-]{36}$/i.test(id) ? id : "",
-    fsdbId,
-  };
+  return footballScienceDbProfileService.getQueryFromRecord(record);
 }
 function registerFootballScienceDbProfileRecord(record, profile = null) {
-  const recordId = getScoutingRecordId(record);
-  if (!recordId) {
-    return "";
-  }
-  scoutingKnownRecordLookupCache.set(recordId, record);
-  rememberScoutingRecordSnapshot(record, ensureScoutingState(), { includeAnalysis: false });
-  if (profile) {
-    setFootballScienceDbProfileCacheEntry(record, { status: "ready", profile, error: "", promise: null });
-  }
-  return recordId;
+  return footballScienceDbProfileService.registerProfileRecord(record, profile);
 }
 function getFootballScienceDbMetricHighlights(profile = {}, limit = 6) {
   const highlights = [];
@@ -2053,74 +2047,13 @@ function renderFootballScienceDbProfilePanelIntoDom(recordId) {
   }
 }
 async function hydrateFootballScienceDbProfileDetails(recordId, options = {}) {
-  const record = getScoutingRecordById(recordId);
-  if (!record || !getScoutingRecordFootballScienceDbMeta(record)) {
-    return;
-  }
-  const existing = getFootballScienceDbProfileCacheEntry(record);
-  if (!options.force && (existing?.status === "ready" || existing?.status === "loading")) {
-    renderFootballScienceDbProfilePanelIntoDom(recordId);
-    return;
-  }
-  const query = getFootballScienceDbProfileQueryFromRecord(record);
-  if (!query.id && !query.fsdbId) {
-    return;
-  }
-  const loadingEntry = { status: "loading", profile: existing?.profile || null, error: "", promise: null };
-  setFootballScienceDbProfileCacheEntry(record, loadingEntry);
-  renderFootballScienceDbProfilePanelIntoDom(recordId);
-  const response = await fetchFootballScienceDbApi({
-    action: "profile",
-    id: query.id,
-    fsdbId: query.fsdbId,
-  });
-  if (!response.ok) {
-    setFootballScienceDbProfileCacheEntry(record, {
-      status: "error",
-      profile: existing?.profile || null,
-      error: response.reason || "Football Science DB profile could not be loaded.",
-      promise: null,
-    });
-    renderFootballScienceDbProfilePanelIntoDom(recordId);
-    return;
-  }
-  const profile = normalizeFootballScienceDbProfile(response.result || {});
-  const hydratedRecord = footballSciencePlayerToScoutingRecord(profile.player);
-  registerFootballScienceDbProfileRecord(hydratedRecord, profile);
-  setFootballScienceDbProfileCacheEntry(record, { status: "ready", profile, error: "", promise: null });
-  renderFootballScienceDbProfilePanelIntoDom(getScoutingRecordId(hydratedRecord) || recordId);
+  return footballScienceDbProfileService.hydrateDetails(recordId, options);
 }
 function queueFootballScienceDbProfileHydration(recordId, options = {}) {
-  const id = normalizeScoutingText(recordId, 160);
-  if (!id) {
-    return;
-  }
-  const record = getScoutingRecordById(id);
-  if (!record || !getScoutingRecordFootballScienceDbMeta(record)) {
-    return;
-  }
-  window.requestAnimationFrame(() => {
-    hydrateFootballScienceDbProfileDetails(id, options);
-  });
+  return footballScienceDbProfileService.queueHydration(recordId, options);
 }
 async function openFootballScienceDbProfileFromQueue(options = {}) {
-  const id = normalizeScoutingText(options.id, 160);
-  const fsdbId = normalizeScoutingText(options.fsdbId, 160);
-  if (!id && !fsdbId) {
-    return;
-  }
-  const response = await fetchFootballScienceDbApi({ action: "profile", id, fsdbId });
-  if (!response.ok) {
-    footballScienceDbQualityService.setError(response.reason || "Football Science DB profile could not be opened.");
-    renderScoutingWorkspace({ preserveFocus: true });
-    return;
-  }
-  const profile = normalizeFootballScienceDbProfile(response.result || {});
-  const record = footballSciencePlayerToScoutingRecord(profile.player);
-  const recordId = registerFootballScienceDbProfileRecord(record, profile);
-  if (recordId) {
-    openScoutingRecordProfile(recordId);
-  }
+  return footballScienceDbProfileService.openFromQueue(options);
 }
 async function sendScoutingApiAction(payload = {}) {
   for (let attempt = 0; attempt < 2; attempt += 1) {

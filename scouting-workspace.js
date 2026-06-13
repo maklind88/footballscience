@@ -8,12 +8,14 @@ import {
   createScoutingComparisonActions,
   createScoutingDatabaseActions,
   createScoutingDatabaseLoader,
+  createScoutingDatabaseSourcePolicy,
   createScoutingFavoritesActions,
   createScoutingListsActions,
   createScoutingMyTeamActions,
   createScoutingProfileActions,
   createScoutingReportsActions,
   createScoutingShadowXiActions,
+  SCOUTING_FSDB_GENDER_SEGMENT_OPTIONS as SCOUTING_FSDB_GENDER_SEGMENT_POLICY_OPTIONS,
   normalizeScoutingComparisonLab,
   renderScoutingActiveContentByTab,
 } from "./src/modules/scouting/index.mjs";
@@ -295,10 +297,12 @@ const SCOUTING_API_DATABASE_PAGE_LIMIT = 50;
 const SCOUTING_DATABASE_PAGE_SIZE = 50;
 const SCOUTING_ADVANCED_PANEL_RECORD_LIMIT = 4;
 const SCOUTING_STANDALONE_FSDB_DATABASE_ENABLED = false;
-const SCOUTING_FSDB_GENDER_SEGMENT_OPTIONS = Object.freeze([
-  { id: "women", label: "Women's players", shortLabel: "Women's" },
-  { id: "men", label: "Men's players", shortLabel: "Men's" },
-]);
+const SCOUTING_FSDB_GENDER_SEGMENT_OPTIONS = SCOUTING_FSDB_GENDER_SEGMENT_POLICY_OPTIONS;
+const scoutingDatabaseSourcePolicy = createScoutingDatabaseSourcePolicy({
+  normalizeText: normalizeScoutingText,
+  segmentOptions: SCOUTING_FSDB_GENDER_SEGMENT_OPTIONS,
+  standaloneFootballScienceDbEnabled: SCOUTING_STANDALONE_FSDB_DATABASE_ENABLED,
+});
 const scoutingImportSupportedFileExts = Object.freeze(
   scoutingImportSupportedSourceTypes
     .flatMap((sourceType) => sourceType.extensions)
@@ -1487,7 +1491,7 @@ function normalizeScoutingDatabaseFilters(filters = {}) {
     signalMode: normalizeScoutingText(filters.signalMode, 40) || "all",
     marketStatus: normalizeScoutingText(filters.marketStatus, 40) || "all",
     sortMetricId: normalizeScoutingText(filters.sortMetricId, 120) || "minutes",
-    source: SCOUTING_STANDALONE_FSDB_DATABASE_ENABLED && normalizeScoutingText(filters.source, 40) === "fsdb" ? "fsdb" : "scouting",
+    source: scoutingDatabaseSourcePolicy.normalizeFilterSource(filters.source),
     fsdbGenderSegment: normalizeFootballScienceDbGenderSegment(filters.fsdbGenderSegment || filters.genderSegment),
     fsdbCursor: normalizeScoutingText(filters.fsdbCursor, 400),
     fsdbCursorStack: Array.isArray(filters.fsdbCursorStack)
@@ -1513,7 +1517,7 @@ function getScoutingDatabase() {
   if (selectedSource === "fsdb") {
     const databaseSegment = normalizeFootballScienceDbGenderSegment(activeDatabase?.page?.genderSegment);
     if (
-      activeDatabase?.source === "fsdb" &&
+      scoutingDatabaseSourcePolicy.isFootballScienceDbDatabase(activeDatabase) &&
       activeFilters.fsdbGenderSegment &&
       databaseSegment === activeFilters.fsdbGenderSegment &&
       Array.isArray(activeDatabase.records) &&
@@ -1542,7 +1546,7 @@ function getScoutingDatabase() {
     return importedDatabase;
   }
   const database = activeDatabase;
-  if (database?.source === "fsdb") {
+  if (scoutingDatabaseSourcePolicy.isFootballScienceDbDatabase(database)) {
     return null;
   }
   if (database && Array.isArray(database.records) && Array.isArray(database.metrics)) {
@@ -1555,17 +1559,16 @@ function isScoutingDatabaseLoaded() {
   return Boolean(getScoutingDatabase());
 }
 function isScoutingApiDatabaseActive() {
-  return getScoutingDatabase()?.source === "api";
+  return scoutingDatabaseSourcePolicy.isApiDatabase(getScoutingDatabase());
 }
 function isScoutingWorkerDatabaseActive() {
-  return getScoutingDatabase()?.source === "worker";
+  return scoutingDatabaseSourcePolicy.isWorkerDatabase(getScoutingDatabase());
 }
 function isFootballScienceDbDatabaseActive() {
-  return getScoutingDatabase()?.source === "fsdb";
+  return scoutingDatabaseSourcePolicy.isFootballScienceDbDatabase(getScoutingDatabase());
 }
 function isScoutingPagedDatabaseActive() {
-  const source = getScoutingDatabase()?.source;
-  return source === "api" || source === "worker" || source === "fsdb";
+  return scoutingDatabaseSourcePolicy.isPagedDatabase(getScoutingDatabase());
 }
 function getScoutingAssetVersion() {
   return encodeURIComponent(window.__assetVersion || "dev");
@@ -1578,19 +1581,13 @@ function normalizeScoutingApiAccessToken(value = "") {
   return token;
 }
 function normalizeFootballScienceDbGenderSegment(value = "") {
-  const normalized = normalizeScoutingText(value, 20).toLowerCase();
-  return SCOUTING_FSDB_GENDER_SEGMENT_OPTIONS.some((option) => option.id === normalized) ? normalized : "";
+  return scoutingDatabaseSourcePolicy.normalizeFootballScienceDbGenderSegment(value);
 }
 function getFootballScienceDbGenderSegmentOption(value = "") {
-  const normalized = normalizeFootballScienceDbGenderSegment(value);
-  return SCOUTING_FSDB_GENDER_SEGMENT_OPTIONS.find((option) => option.id === normalized) || null;
+  return scoutingDatabaseSourcePolicy.getFootballScienceDbGenderSegmentOption(value);
 }
 function getFootballScienceDbGenderSegmentLabel(value = "", options = {}) {
-  const segment = getFootballScienceDbGenderSegmentOption(value);
-  if (!segment) {
-    return options.fallback || "selected";
-  }
-  return options.short ? segment.shortLabel : segment.label;
+  return scoutingDatabaseSourcePolicy.getFootballScienceDbGenderSegmentLabel(value, options);
 }
 async function getScoutingApiAccessToken(options = {}) {
   if (window.platformAuthReadyPromise instanceof Promise) {

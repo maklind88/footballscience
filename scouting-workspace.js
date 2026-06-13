@@ -14,6 +14,7 @@ import {
   createScoutingDatabaseResultsService,
   createScoutingDatabaseSourcePolicy,
   createScoutingFavoritesActions,
+  createScoutingMyTeamSpiderController,
   createScoutingPostRenderController,
   createScoutingTabController,
   createScoutingApiProfileService,
@@ -105,7 +106,6 @@ let scoutingComparisonMetricFilterQuery = "";
 let scoutingComparisonCandidatesOpen = false;
 let scoutingComparisonPlayerSearchQuery = "";
 let scoutingMyTeamRecordMatchCache = new Map();
-let scoutingMyTeamRecordHydrationInFlight = new Set();
 let scoutingLeagueQualityCache = new Map();
 let scoutingRecordMiniRadarCache = new Map();
 let scoutingFilteredDatabaseCache = {
@@ -497,6 +497,29 @@ const scoutingTabController = createScoutingTabController({
   },
   startPerformance: startScoutingPerformance,
   syncTabButtonsDom: syncScoutingTabButtonsDom,
+  writeState: writeScoutingState,
+});
+const scoutingMyTeamSpiderController = createScoutingMyTeamSpiderController({
+  canUseWorker: () => typeof Worker === "function",
+  clearRecordMatchCache: () => scoutingMyTeamRecordMatchCache.clear(),
+  findRecordForPlayer: findScoutingRecordForMyTeamPlayer,
+  getInitialSurnameAlias: getScoutingInitialSurnameAlias,
+  getPlayerById: getScoutingMyTeamPlayerById,
+  getRoot: () => ui.scoutingWorkspace,
+  getSlotById: (slotId) => scoutingShadowSlots.find((item) => item.id === normalizeScoutingText(slotId, 40)) || null,
+  getWorkerQueryFromState: getScoutingWorkerQueryFromState,
+  isDatabaseLoaded: isScoutingDatabaseLoaded,
+  normalizePersonNameForMatch: normalizeScoutingPersonNameForMatch,
+  normalizeText: normalizeScoutingText,
+  registerWorkerRecord: (candidate) => {
+    const id = getScoutingRecordId(candidate);
+    if (id) {
+      scoutingKnownRecordLookupCache.set(id, candidate);
+      rememberScoutingRecordSnapshot(candidate, ensureScoutingState(), { includeAnalysis: false });
+    }
+  },
+  renderSpiderButton: renderScoutingMyTeamSpiderButton,
+  requestWorkerQuery: requestScoutingDatabaseWorkerQuery,
   writeState: writeScoutingState,
 });
 const scoutingPostRenderController = createScoutingPostRenderController({
@@ -4370,94 +4393,11 @@ function bindScoutingRecordMiniRadarShells() {
     shell.dataset.scoutingMiniRadarBound = "1";
   });
 }
-function getScoutingMyTeamWorkerSearchQuery(player = {}) {
-  return getScoutingInitialSurnameAlias(player.name) || normalizeScoutingPersonNameForMatch(player.name, 120) || normalizeScoutingText(player.name, 120);
-}
 async function hydrateScoutingMyTeamSpiderShell(shell = null) {
-  if (!shell || shell.dataset.scoutingMyTeamSpiderLoaded === "1") {
-    return;
-  }
-  const hasRenderedPanel = Boolean(shell.querySelector(".scouting-my-team-spider-panel"));
-  if (normalizeScoutingText(shell.dataset.scoutingMyTeamSpiderLinked, 160) && hasRenderedPanel) {
-    shell.dataset.scoutingMyTeamSpiderLoaded = "1";
-    return;
-  }
-  const playerId = normalizeScoutingText(shell.dataset.scoutingMyTeamSpiderShell, 160);
-  const player = getScoutingMyTeamPlayerById(playerId);
-  if (!player) {
-    return;
-  }
-  const slotId = normalizeScoutingText(shell.closest("[data-my-team-slot-role]")?.dataset.myTeamSlotRole, 40);
-  const slot = scoutingShadowSlots.find((item) => item.id === slotId) || null;
-  let record = findScoutingRecordForMyTeamPlayer(player);
-  if (!record && !isScoutingDatabaseLoaded()) {
-    shell.outerHTML = renderScoutingMyTeamSpiderButton(player, slot, { renderPanel: true, open: true });
-    bindScoutingMyTeamSpiderShells();
-    return;
-  }
-  if (!record && typeof Worker === "function") {
-    if (scoutingMyTeamRecordHydrationInFlight.has(playerId)) {
-      return;
-    }
-    scoutingMyTeamRecordHydrationInFlight.add(playerId);
-    try {
-      const database = await requestScoutingDatabaseWorkerQuery({
-        query: {
-          ...getScoutingWorkerQueryFromState(),
-          query: getScoutingMyTeamWorkerSearchQuery(player),
-          league: "all",
-          team: "all",
-          season: "all",
-          position: "all",
-          minMinutes: 0,
-          maxMinutes: 0,
-          minAge: "",
-          maxAge: "",
-          limit: 25,
-          offset: 0,
-        },
-        timeoutMs: 9000,
-      });
-      (Array.isArray(database?.records) ? database.records : []).forEach((candidate) => {
-        const id = getScoutingRecordId(candidate);
-        if (id) {
-          scoutingKnownRecordLookupCache.set(id, candidate);
-          rememberScoutingRecordSnapshot(candidate, ensureScoutingState(), { includeAnalysis: false });
-        }
-      });
-      scoutingMyTeamRecordMatchCache.clear();
-      record = findScoutingRecordForMyTeamPlayer(player);
-      if (record) {
-        writeScoutingState({ syncCentral: false, syncShadowBoard: false });
-      }
-    } catch {
-      record = null;
-    } finally {
-      scoutingMyTeamRecordHydrationInFlight.delete(playerId);
-    }
-  }
-  if (!record) {
-    shell.outerHTML = renderScoutingMyTeamSpiderButton(player, slot, { renderPanel: true, open: true });
-    bindScoutingMyTeamSpiderShells();
-    return;
-  }
-  shell.outerHTML = renderScoutingMyTeamSpiderButton(player, slot, { renderPanel: true, open: true });
-  bindScoutingMyTeamSpiderShells();
+  return scoutingMyTeamSpiderController.hydrateShell(shell);
 }
 function bindScoutingMyTeamSpiderShells() {
-  const nodes = ui.scoutingWorkspace?.querySelectorAll("[data-scouting-my-team-spider-shell]") || [];
-  nodes.forEach((shell) => {
-    if (shell.dataset.scoutingMyTeamSpiderBound === "1") {
-      return;
-    }
-    const hydrate = () => hydrateScoutingMyTeamSpiderShell(shell);
-    shell.addEventListener("toggle", () => {
-      if (shell.open) {
-        hydrate();
-      }
-    });
-    shell.dataset.scoutingMyTeamSpiderBound = "1";
-  });
+  return scoutingMyTeamSpiderController.bindShells();
 }
 function getScoutingRecordSeason(record) {
   return normalizeScoutingText(record?.[scoutingRecordIndex.season], 80);

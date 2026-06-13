@@ -282,6 +282,41 @@ async function openFirstScoutingProfile(page) {
   return { profileModal, recordId };
 }
 
+async function expectScoutingDatabasePayloadNotLoaded(page) {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => ({
+          hasDatabase: Boolean(window.__footballScienceScoutingDatabase),
+          hasScript: Array.from(document.scripts).some((script) => /scouting-import-data\.js/.test(script.src || "")),
+          hasRows: Boolean(document.querySelector('[data-workspace-view="scouting"].is-active [data-scouting-record-grid] [data-open-scouting-record]')),
+          hasLoader: Boolean(document.querySelector('[data-workspace-view="scouting"].is-active .scouting-database-loader')),
+        })),
+      { timeout: 5_000 }
+    )
+    .toEqual({ hasDatabase: false, hasScript: false, hasRows: false, hasLoader: false });
+}
+
+test("Scouting non-database tabs do not load the player database payload", async ({ page }) => {
+  test.setTimeout(60_000);
+  await seedScoutingAccess(page, { activeTab: "shadow-xi" });
+  const boot = await bootApp(page);
+  expect(boot.pageErrors).toEqual([]);
+
+  await openWorkspace(page, "scouting");
+  await expect(page.locator(".scouting-tab.is-active")).toContainText("Shadow XI");
+  await expectScoutingDatabasePayloadNotLoaded(page);
+
+  for (const tabId of ["my-team", "lists", "reports", "shadow-xi"]) {
+    const tab = page.locator(`.scouting-tab[data-scouting-tab="${tabId}"]`).first();
+    await expect(tab).toBeVisible({ timeout: 15_000 });
+    await tab.click();
+    await expect(tab).toHaveClass(/is-active/);
+    await page.waitForTimeout(350);
+    await expectScoutingDatabasePayloadNotLoaded(page);
+  }
+});
+
 test("Scouting database load, search and position filter stay stable", async ({ page }) => {
   test.setTimeout(180_000);
   await seedScoutingAccess(page);

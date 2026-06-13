@@ -24,6 +24,7 @@ import {
   setScoutingDatabaseSearchDraft,
 } from "./src/modules/scouting/scouting-database-state.mjs";
 import { createScoutingImportHelpers } from "./src/modules/scouting/scouting-import-helpers.mjs";
+import { createScoutingPerformanceMonitor } from "./src/modules/scouting/scouting-performance.mjs";
 import {
   scoutingFallbackSpiderProfiles,
   scoutingRoleSpiderProfiles,
@@ -135,6 +136,10 @@ const scoutingDatabaseFilterService = createScoutingDatabaseFilterService({
   getMarketIntelVersion: () => scoutingMarketIntelVersion,
 });
 const { getFilteredScoutingDatabaseRecords } = scoutingDatabaseFilterService;
+const scoutingPerformanceMonitor = createScoutingPerformanceMonitor({
+  windowRef: typeof globalThis !== "undefined" ? globalThis.window : null,
+  performanceRef: typeof globalThis !== "undefined" ? globalThis.performance : null,
+});
 let scoutingMarketIntelVersion = 0;
 let preferredScoutingShadowSlotId = "";
 let scoutingImportedDatabaseLoaded = false;
@@ -541,18 +546,26 @@ function ensureScoutingState() {
   return state;
 }
 function writeScoutingState(options = {}) {
-  if (options.syncShadowBoard !== false) {
-    const previousHydrationState = scoutingDurableHydrating;
-    scoutingDurableHydrating = true;
-    try {
-      syncScoutingActiveShadowBoard();
-    } finally {
-      scoutingDurableHydrating = previousHydrationState;
+  const perf = startScoutingPerformance("state.write", {
+    syncCentral: options.syncCentral !== false,
+    syncShadowBoard: options.syncShadowBoard !== false,
+  });
+  try {
+    if (options.syncShadowBoard !== false) {
+      const previousHydrationState = scoutingDurableHydrating;
+      scoutingDurableHydrating = true;
+      try {
+        syncScoutingActiveShadowBoard();
+      } finally {
+        scoutingDurableHydrating = previousHydrationState;
+      }
     }
+    const result = activeContext.writeState(options);
+    persistScoutingDurableState(activeContext.ensureState());
+    return result;
+  } finally {
+    perf.end();
   }
-  const result = activeContext.writeState(options);
-  persistScoutingDurableState(activeContext.ensureState());
-  return result;
 }
 let scoutingDeferredStateWriteTimer = 0;
 function deferScoutingStateWrite(options = {}, beforeWrite = null, delayMs = 120) {
@@ -567,6 +580,12 @@ function deferScoutingStateWrite(options = {}, beforeWrite = null, delayMs = 120
 }
 function canEditScoutingWorkspace() {
   return activeContext.canEdit();
+}
+function startScoutingPerformance(label, detail = {}) {
+  return scoutingPerformanceMonitor.start(label, detail);
+}
+function recordScoutingPerformance(label, detail = {}) {
+  return scoutingPerformanceMonitor.record(label, detail);
 }
 function escapeHtml(value) {
   return activeContext.escapeHtml(value);
@@ -4056,7 +4075,9 @@ function renderScoutingMyTeamPlayerCard(player, options = {}) {
   `;
 }
 function assignScoutingMyTeamPlayerToSlot(playerId, slotId, beforePlayerId = "") {
+  const perf = startScoutingPerformance("my-team.assign", { playerId, slotId });
   if (!canEditScoutingWorkspace()) {
+    perf.end({ status: "blocked" });
     return;
   }
   const state = ensureScoutingState();
@@ -4064,12 +4085,14 @@ function assignScoutingMyTeamPlayerToSlot(playerId, slotId, beforePlayerId = "")
   const player = getScoutingMyTeamPlayerById(playerId);
   const slot = getScoutingShadowSlot(slotId);
   if (!player || !slot) {
+    perf.end({ status: "empty" });
     return;
   }
   const id = getScoutingMyTeamPlayerId(player);
   const beforeId = normalizeScoutingText(beforePlayerId, 160);
   const currentSlotId = Object.entries(myTeam.slots).find(([, currentPlayerIds]) => normalizeScoutingMyTeamSlotPlayerIds(currentPlayerIds).includes(id))?.[0] || "";
   if (currentSlotId === slot.id && beforeId === id) {
+    perf.end({ status: "unchanged" });
     return;
   }
   const nextSlots = {};
@@ -4096,6 +4119,7 @@ function assignScoutingMyTeamPlayerToSlot(playerId, slotId, beforePlayerId = "")
   }
   writeScoutingState();
   refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
+  perf.end({ status: "updated", slot: slot.id });
 }
 function removeScoutingMyTeamPlayerFromAllSlots(playerId = "") {
   if (!canEditScoutingWorkspace()) {
@@ -14560,6 +14584,7 @@ function renderScoutingWorkspace(options = {}) {
   const playerCount = getScoutingDatabaseTotalCount(database);
   const shadowCounts = getScoutingShadowSlotCounts(state);
   const workspaceTitle = getScoutingWorkspaceTitle();
+  const perf = startScoutingPerformance("render.workspace", { tab: state.activeTab });
   ui.scoutingWorkspace.innerHTML = `
     <section class="scouting-shell">
       <header class="scouting-hero">
@@ -14589,6 +14614,7 @@ function renderScoutingWorkspace(options = {}) {
   restoreScoutingFocus(focusSnapshot);
   runScoutingPostRenderHooks(state);
   restoreScoutingScrollSnapshot(scrollSnapshot);
+  perf.end({ tab: state.activeTab });
 }
 function runScoutingPostRenderHooks(state = ensureScoutingState()) {
   if (["database", "shadow-xi", "my-team", "reports"].includes(state.activeTab)) {
@@ -14723,6 +14749,8 @@ function rerenderScoutingActiveContent(options = {}) {
   if (!content) {
     return false;
   }
+  const state = ensureScoutingState();
+  const perf = startScoutingPerformance("render.active-content", { tab: state.activeTab });
   const preserveOverlayState = options.preserveFocus || hasOpenScoutingOverlay();
   const focusSnapshot = preserveOverlayState ? getScoutingFocusSnapshot() : null;
   const scrollSnapshot = preserveOverlayState ? getScoutingScrollSnapshot() : null;
@@ -14730,8 +14758,9 @@ function rerenderScoutingActiveContent(options = {}) {
   if (preserveOverlayState) {
     restoreScoutingFocus(focusSnapshot);
   }
-  runScoutingPostRenderHooks(ensureScoutingState());
+  runScoutingPostRenderHooks(state);
   restoreScoutingScrollSnapshot(scrollSnapshot);
+  perf.end({ tab: state.activeTab });
   return true;
 }
 function refreshScoutingWorkspaceAfterLocalMutation(options = {}) {
@@ -14799,6 +14828,8 @@ function setScoutingActiveTab(tabId) {
   if (state.activeTab === tabId) {
     return;
   }
+  const previousTab = state.activeTab;
+  const perf = startScoutingPerformance("tab.switch", { from: previousTab, to: tabId });
   state.activeTab = tabId;
   if (tabId === "shadow-xi") {
     preferredScoutingShadowSlotId = "";
@@ -14811,7 +14842,9 @@ function setScoutingActiveTab(tabId) {
     cancelScoutingDatabaseBackgroundTimers();
   }
   writeScoutingState({ syncCentral: false });
+  syncScoutingTabButtonsDom(state);
   renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: false });
+  perf.end({ from: previousTab, to: tabId });
 }
 function setScoutingDatabaseFilter(field, value) {
   const state = ensureScoutingState();
@@ -15044,6 +15077,13 @@ function deleteScoutingSavedView(viewId) {
   renderScoutingWorkspace({ preserveFocus: true });
 }
 function renderScoutingDatabaseResults() {
+  if (ensureScoutingState().activeTab !== "database") {
+    recordScoutingPerformance("database.results-render", {
+      durationMs: 0,
+      detail: { status: "skipped-inactive-tab" },
+    });
+    return;
+  }
   const results = getScoutingDatabaseResultsMarkup();
   const isAdvancedMode = isScoutingDatabaseAdvancedMode();
   const market = isAdvancedMode ? ui.scoutingWorkspace?.querySelector("[data-scouting-market-radar]") : null;
@@ -15343,6 +15383,9 @@ function scheduleScoutingDatabaseRefresh() {
   window.clearTimeout(getScoutingDatabaseApiRefreshTimer());
   setScoutingDatabaseApiRefreshTimer(window.setTimeout(() => {
     setScoutingDatabaseApiRefreshTimer(0);
+    const perf = startScoutingPerformance("database.refresh", {
+      source: isFootballScienceDb ? "fsdb" : isApi ? "api" : "worker",
+    });
     const refreshPromise = isFootballScienceDb
       ? loadFootballScienceDbDatabase()
       : isApi
@@ -15355,8 +15398,16 @@ function scheduleScoutingDatabaseRefresh() {
           return appliedDatabase;
         });
     refreshPromise
-      .then(() => renderScoutingDatabaseResults())
-      .catch(() => scheduleScoutingDatabaseResultsRender());
+      .then(() => {
+        perf.end({ status: "loaded" });
+        if (ensureScoutingState().activeTab === "database") {
+          renderScoutingDatabaseResults();
+        }
+      })
+      .catch(() => {
+        perf.end({ status: "fallback" });
+        scheduleScoutingDatabaseResultsRender();
+      });
   }, isApi || isFootballScienceDb ? 260 : 80));
 }
 function scheduleScoutingDatabaseResultsRender() {
@@ -15366,7 +15417,9 @@ function scheduleScoutingDatabaseResultsRender() {
   }
   setScoutingDatabaseResultsFrame(requestAnimationFrame(() => {
     setScoutingDatabaseResultsFrame(0);
+    const perf = startScoutingPerformance("database.results-render", {});
     renderScoutingDatabaseResults();
+    perf.end();
   }));
 }
 function focusScoutingProfileModal() {
@@ -15452,6 +15505,7 @@ function closeScoutingRecordProfile() {
   renderScoutingWorkspace();
 }
 function toggleScoutingFavorite(recordId) {
+  const perf = startScoutingPerformance("favorite.toggle", { recordId });
   const debugTimings = window.__footballScienceScoutingPerfDebug ? [] : null;
   const markDebugTiming = (label) => {
     if (debugTimings) {
@@ -15460,11 +15514,13 @@ function toggleScoutingFavorite(recordId) {
   };
   markDebugTiming("start");
   if (!canEditScoutingWorkspace()) {
+    perf.end({ status: "blocked" });
     return;
   }
   const state = ensureScoutingState();
   const id = normalizeScoutingText(recordId, 160);
   if (!id) {
+    perf.end({ status: "empty" });
     return;
   }
   markDebugTiming("state-ready");
@@ -15491,6 +15547,7 @@ function toggleScoutingFavorite(recordId) {
         JSON.stringify(debugTimings.map((item) => ({ label: item.label, ms: Math.round(item.at - base) })))
       );
     }
+    perf.end({ status: "profile-modal" });
     return;
   }
   const record = getScoutingRecordById(id);
@@ -15510,6 +15567,7 @@ function toggleScoutingFavorite(recordId) {
       JSON.stringify(debugTimings.map((item) => ({ label: item.label, ms: Math.round(item.at - base) })))
     );
   }
+  perf.end({ status: "updated" });
 }
 function updateScoutingFavoriteControls(recordId, state = ensureScoutingState()) {
   const id = normalizeScoutingText(recordId, 160);
@@ -15531,7 +15589,9 @@ function updateScoutingFavoriteControls(recordId, state = ensureScoutingState())
     });
 }
 function addScoutingRecordToList(recordId, listId) {
+  const perf = startScoutingPerformance("list.add", { recordId, listId });
   if (!canEditScoutingWorkspace()) {
+    perf.end({ status: "blocked" });
     return;
   }
   const state = ensureScoutingState();
@@ -15551,6 +15611,7 @@ function addScoutingRecordToList(recordId, listId) {
   );
   writeScoutingState();
   refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
+  perf.end({ status: "updated" });
 }
 function createScoutingList(name) {
   if (!canEditScoutingWorkspace()) {
@@ -15584,7 +15645,9 @@ function deleteScoutingList(listId) {
   refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
 }
 function addScoutingRecordToShadow(recordId, slotId) {
+  const perf = startScoutingPerformance("shadow.add", { recordId, slotId });
   if (!canEditScoutingWorkspace()) {
+    perf.end({ status: "blocked" });
     return;
   }
   const state = ensureScoutingState();
@@ -15596,6 +15659,7 @@ function addScoutingRecordToShadow(recordId, slotId) {
     getScoutingShadowSlot(preferredScoutingShadowSlotId) ||
     scoutingShadowSlots[0];
   if (!id || !slot) {
+    perf.end({ status: "empty" });
     return;
   }
   if (record) {
@@ -15623,6 +15687,7 @@ function addScoutingRecordToShadow(recordId, slotId) {
   preferredScoutingShadowSlotId = slot.id;
   writeScoutingState();
   refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: state.activeTab === "database" }, id);
+  perf.end({ status: "updated", slot: slot.id });
 }
 function canSendScoutingRecordToTransferRoom() {
   return typeof activeContext?.sendToTransferRoom === "function" && activeContext.canSendToTransferRoom?.() === true;

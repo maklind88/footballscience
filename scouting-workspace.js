@@ -7,6 +7,7 @@ import {
   bindScoutingDragAndDrop as bindScoutingDragAndDropRouter,
   createScoutingComparisonActions,
   createScoutingDatabaseActions,
+  createScoutingDatabaseBackgroundController,
   createScoutingDatabaseLoader,
   createScoutingDatabasePagingRenderer,
   createScoutingDatabaseResultsService,
@@ -70,11 +71,7 @@ let scoutingPriorityOptions = [];
 let scoutingDatabaseLoader = null;
 let scoutingDatabaseWorker = null;
 let scoutingDatabaseWorkerPreloadPromise = null;
-let scoutingDatabaseWorkerPreloadTimer = 0;
 let scoutingDatabaseWorkerFullPreloadPromise = null;
-let scoutingDatabaseWorkerFullPreloadTimer = 0;
-let scoutingDatabaseWorkerFullRefreshTimer = 0;
-let scoutingDatabaseAutoLoadTimer = 0;
 let scoutingDatabaseWorkerFullReady = false;
 let scoutingDatabaseWorkerRequestId = 0;
 let scoutingDatabaseError = "";
@@ -431,6 +428,22 @@ const scoutingDatabaseResultsService = createScoutingDatabaseResultsService({
   normalizeText: normalizeScoutingText,
   pageSize: SCOUTING_DATABASE_PAGE_SIZE,
   renderRecordCard: renderScoutingRecordCard,
+});
+const scoutingDatabaseBackgroundController = createScoutingDatabaseBackgroundController({
+  ensureState: ensureScoutingState,
+  getAdvancedFiltersOpen: getScoutingAdvancedDatabaseFiltersOpen,
+  getDatabaseError: () => scoutingDatabaseError,
+  hasOpenOverlay: hasOpenScoutingOverlay,
+  isDatabaseLoaded: isScoutingDatabaseLoaded,
+  isDatabaseLoading: isScoutingDatabaseLoading,
+  isWorkerDatabaseActive: isScoutingWorkerDatabaseActive,
+  normalizeDatabaseFilters: normalizeScoutingDatabaseFilters,
+  prewarmFullWorker: prewarmFullScoutingDatabaseWorker,
+  prewarmWorker: prewarmScoutingDatabaseWorker,
+  queueDatabaseLoad: queueScoutingDatabaseLoad,
+  renderActiveTabSurfaceOrWorkspace: renderScoutingActiveTabSurfaceOrWorkspace,
+  scheduleDatabaseRefresh: scheduleScoutingDatabaseRefresh,
+  windowRef: typeof globalThis !== "undefined" ? globalThis.window : null,
 });
 const scoutingTabController = createScoutingTabController({
   cancelDatabaseBackgroundTimers: cancelScoutingDatabaseBackgroundTimers,
@@ -2868,39 +2881,13 @@ function prewarmFullScoutingDatabaseWorker() {
   return scoutingDatabaseWorkerFullPreloadPromise;
 }
 function scheduleScoutingDatabaseWorkerPrewarm(delayMs = 180) {
-  window.clearTimeout(scoutingDatabaseWorkerPreloadTimer);
-  scoutingDatabaseWorkerPreloadTimer = window.setTimeout(() => {
-    scoutingDatabaseWorkerPreloadTimer = 0;
-    if (ensureScoutingState().activeTab !== "database") {
-      return;
-    }
-    prewarmScoutingDatabaseWorker();
-  }, Math.max(0, Math.floor(Number(delayMs) || 0)));
+  scoutingDatabaseBackgroundController.scheduleWorkerPrewarm(delayMs);
 }
 function scheduleFullScoutingDatabaseWorkerPreload(delayMs = 650) {
-  window.clearTimeout(scoutingDatabaseWorkerFullPreloadTimer);
-  scoutingDatabaseWorkerFullPreloadTimer = window.setTimeout(() => {
-    scoutingDatabaseWorkerFullPreloadTimer = 0;
-    if (ensureScoutingState().activeTab !== "database") {
-      return;
-    }
-    prewarmFullScoutingDatabaseWorker();
-  }, Math.max(0, Math.floor(Number(delayMs) || 0)));
+  scoutingDatabaseBackgroundController.scheduleFullWorkerPreload(delayMs);
 }
 function scheduleScoutingDatabaseWorkerFullRefresh(delayMs = 2500) {
-  window.clearTimeout(scoutingDatabaseWorkerFullRefreshTimer);
-  scoutingDatabaseWorkerFullRefreshTimer = window.setTimeout(() => {
-    scoutingDatabaseWorkerFullRefreshTimer = 0;
-    if (
-      ensureScoutingState().activeTab !== "database" ||
-      !isScoutingWorkerDatabaseActive() ||
-      getScoutingAdvancedDatabaseFiltersOpen() ||
-      hasOpenScoutingOverlay()
-    ) {
-      return;
-    }
-    scheduleScoutingDatabaseRefresh();
-  }, Math.max(0, Math.floor(Number(delayMs) || 0)));
+  scoutingDatabaseBackgroundController.scheduleWorkerFullRefresh(delayMs);
 }
 function markScoutingWorkerPreviewDatabase(database = {}) {
   return {
@@ -2949,37 +2936,10 @@ function queueScoutingDatabaseLoad(onReady = renderScoutingWorkspace) {
   return getScoutingDatabaseLoader().queueLoad(onReady);
 }
 function cancelScoutingDatabaseBackgroundTimers() {
-  window.clearTimeout(scoutingDatabaseAutoLoadTimer);
-  window.clearTimeout(scoutingDatabaseWorkerPreloadTimer);
-  window.clearTimeout(scoutingDatabaseWorkerFullPreloadTimer);
-  window.clearTimeout(scoutingDatabaseWorkerFullRefreshTimer);
-  scoutingDatabaseAutoLoadTimer = 0;
-  scoutingDatabaseWorkerPreloadTimer = 0;
-  scoutingDatabaseWorkerFullPreloadTimer = 0;
-  scoutingDatabaseWorkerFullRefreshTimer = 0;
+  scoutingDatabaseBackgroundController.cancel();
 }
 function scheduleScoutingDatabaseAutoLoad(delayMs = 1200) {
-  window.clearTimeout(scoutingDatabaseAutoLoadTimer);
-  scoutingDatabaseAutoLoadTimer = window.setTimeout(() => {
-    scoutingDatabaseAutoLoadTimer = 0;
-    const state = ensureScoutingState();
-    const filters = normalizeScoutingDatabaseFilters(state.databaseFilters);
-    if (
-      state.activeTab !== "database" ||
-      filters.source === "fsdb" ||
-      isScoutingDatabaseLoaded() ||
-      isScoutingDatabaseLoading() ||
-      scoutingDatabaseError
-    ) {
-      return;
-    }
-    queueScoutingDatabaseLoad((renderOptions = {}) => {
-      if (ensureScoutingState().activeTab !== "database") {
-        return;
-      }
-      renderScoutingActiveTabSurfaceOrWorkspace(renderOptions);
-    });
-  }, Math.max(0, Math.floor(Number(delayMs) || 0)));
+  scoutingDatabaseBackgroundController.scheduleAutoLoad(delayMs);
 }
 function getScoutingMetricOptions() {
   const database = getScoutingDatabase();

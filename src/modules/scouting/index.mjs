@@ -40,6 +40,7 @@ export * from "./scouting-profile-spider-service.mjs";
 export * from "./scouting-profile-overview-controller.mjs";
 export * from "./scouting-profile-market-service.mjs";
 export * from "./scouting-profile-timeline-service.mjs";
+export * from "./scouting-profile-decision-service.mjs";
 export * from "./scouting-database-actions.mjs";
 export * from "./scouting-database-background-controller.mjs";
 export * from "./scouting-database-loader.mjs";

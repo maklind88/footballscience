@@ -12,6 +12,7 @@ import {
   createScoutingDatabaseResultsService,
   createScoutingDatabaseSourcePolicy,
   createScoutingFavoritesActions,
+  createScoutingPostRenderController,
   createScoutingTabController,
   createScoutingApiProfileService,
   createFootballScienceDbApiClient,
@@ -448,6 +449,21 @@ const scoutingTabController = createScoutingTabController({
   startPerformance: startScoutingPerformance,
   syncTabButtonsDom: syncScoutingTabButtonsDom,
   writeState: writeScoutingState,
+});
+const scoutingPostRenderController = createScoutingPostRenderController({
+  bindDragAndDrop: bindScoutingDragAndDrop,
+  bindMyTeamSpiderShells: bindScoutingMyTeamSpiderShells,
+  bindRecordMiniRadarShells: bindScoutingRecordMiniRadarShells,
+  ensureState: ensureScoutingState,
+  focusProfileModal: focusScoutingProfileModal,
+  isAdvancedDatabaseMode: isScoutingDatabaseAdvancedMode,
+  loadImportHistory: loadScoutingImportHistory,
+  normalizeProfileTab: normalizeScoutingProfileTab,
+  queueProfileHydration: queueFootballScienceDbProfileHydration,
+  queueProfileModalFocus: queueScoutingProfileModalFocus,
+  scheduleDatabaseAutoLoad: scheduleScoutingDatabaseAutoLoad,
+  scheduleDatabaseWorkerPrewarm: scheduleScoutingDatabaseWorkerPrewarm,
+  shouldFocusProfileModal: shouldFocusScoutingProfileModal,
 });
 const footballScienceDbProfileService = createFootballScienceDbProfileService({
   fetchApi: fetchFootballScienceDbApi,
@@ -13412,29 +13428,7 @@ function renderScoutingWorkspace(options = {}) {
   perf.end({ tab: state.activeTab });
 }
 function runScoutingPostRenderHooks(state = ensureScoutingState()) {
-  if (["database", "shadow-xi", "my-team", "reports"].includes(state.activeTab)) {
-    bindScoutingDragAndDrop();
-  }
-  if (state.activeTab === "my-team") {
-    bindScoutingMyTeamSpiderShells();
-  }
-  if (state.activeTab === "database") {
-    bindScoutingRecordMiniRadarShells();
-    scheduleScoutingDatabaseAutoLoad();
-    if (isScoutingDatabaseAdvancedMode()) {
-      loadScoutingImportHistory();
-    }
-  }
-  if (shouldFocusScoutingProfileModal(state.selectedRecordId)) {
-    focusScoutingProfileModal();
-    queueScoutingProfileModalFocus(state.selectedRecordId);
-  }
-  if (state.selectedRecordId && normalizeScoutingProfileTab(state.profileTab) === "overview") {
-    queueFootballScienceDbProfileHydration(state.selectedRecordId);
-  }
-  if (state.activeTab === "database") {
-    scheduleScoutingDatabaseWorkerPrewarm(1200);
-  }
+  scoutingPostRenderController.run(state);
 }
 function syncScoutingTabButtonsDom(state = ensureScoutingState()) {
   ui.scoutingWorkspace?.querySelectorAll("[data-scouting-tab]").forEach((button) => {

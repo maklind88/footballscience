@@ -5,6 +5,8 @@ import {
   assignScoutingMyTeamPlayerIdToSlot,
   createScoutingDecisionList,
   deleteScoutingDecisionListById,
+  removeScoutingRecordIdFromShadowSlot,
+  reorderScoutingRecordIdInShadowSlot,
   toggleScoutingFavoriteRecordId,
 } from "../src/modules/scouting/index.mjs";
 
@@ -60,6 +62,47 @@ test("Scouting decision actions add Shadow XI records with slot meta", () => {
   expect(state.shadowXi.slots.cf).toEqual(["record-2", "record-1"]);
   expect(state.shadowXi.selectedSlotId).toBe("cf");
   expect(state.shadowXi.meta["cf:record-2"]).toMatchObject({ tag: "backup", playerName: "Target Two" });
+});
+
+test("Scouting decision actions reorder Shadow XI records across slots", () => {
+  const state = {
+    shadowXi: {
+      slots: {
+        lw: ["record-1", "record-2"],
+        cf: ["record-3"],
+      },
+      selectedSlotId: "lw",
+    },
+  };
+
+  const result = reorderScoutingRecordIdInShadowSlot(state, {
+    recordId: "record-2",
+    slotId: "cf",
+    beforeRecordId: "record-3",
+  });
+
+  expect(result).toMatchObject({ changed: true, recordId: "record-2", slotId: "cf", sourceSlotId: "lw" });
+  expect(state.shadowXi.slots).toEqual({
+    lw: ["record-1"],
+    cf: ["record-2", "record-3"],
+  });
+  expect(state.shadowXi.selectedSlotId).toBe("cf");
+});
+
+test("Scouting decision actions remove Shadow XI records and slot meta", () => {
+  const state = {
+    shadowXi: {
+      slots: { cf: ["record-1", "record-2"] },
+      meta: { "cf:record-1": { tag: "first-choice" }, "cf:record-2": { tag: "backup" } },
+    },
+  };
+
+  const result = removeScoutingRecordIdFromShadowSlot(state, { recordId: "record-1", slotId: "cf" });
+
+  expect(result).toMatchObject({ changed: true, recordId: "record-1", slotId: "cf", metaKey: "cf:record-1" });
+  expect(state.shadowXi.slots).toEqual({ cf: ["record-2"] });
+  expect(state.shadowXi.meta).toEqual({ "cf:record-2": { tag: "backup" } });
+  expect(state.shadowXi.selectedSlotId).toBe("cf");
 });
 
 test("Scouting decision actions assign My Team players to one slot at a time", () => {

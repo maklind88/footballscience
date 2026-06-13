@@ -43,6 +43,8 @@ import {
   assignScoutingMyTeamPlayerIdToSlot,
   createScoutingDecisionList,
   deleteScoutingDecisionListById,
+  removeScoutingRecordIdFromShadowSlot,
+  reorderScoutingRecordIdInShadowSlot,
   toggleScoutingFavoriteRecordId,
 } from "./src/modules/scouting/scouting-decision-actions.mjs";
 
@@ -8188,32 +8190,13 @@ function reorderScoutingShadowRecord(slotId, recordId, beforeRecordId = "") {
     return;
   }
   const state = ensureScoutingState();
-  const slot = getScoutingShadowSlot(slotId);
-  const id = normalizeScoutingText(recordId, 160);
-  const beforeId = normalizeScoutingText(beforeRecordId, 160);
-  if (!slot || !id) {
+  const mutation = reorderScoutingRecordIdInShadowSlot(state, { recordId, slotId, beforeRecordId });
+  if (!mutation.changed) {
     return;
   }
-  const sourceSlotId = Object.keys(state.shadowXi.slots || {}).find((currentSlotId) => getScoutingShadowSlotRecordIds(currentSlotId, state).includes(id)) || "";
-  if (!sourceSlotId || (sourceSlotId === slot.id && beforeId === id)) {
-    return;
-  }
-  const nextSlots = {};
-  Object.entries(state.shadowXi.slots || {}).forEach(([currentSlotId, recordIds]) => {
-    const filteredIds = normalizeScoutingShadowSlotRecordIds(recordIds).filter((item) => item !== id);
-    if (filteredIds.length) {
-      nextSlots[currentSlotId] = filteredIds;
-    }
-  });
-  const next = normalizeScoutingShadowSlotRecordIds(nextSlots[slot.id]);
-  const beforeIndex = beforeId ? next.indexOf(beforeId) : -1;
-  next.splice(beforeIndex >= 0 ? beforeIndex : next.length, 0, id);
-  nextSlots[slot.id] = next;
-  state.shadowXi.slots = nextSlots;
-  state.shadowXi.selectedSlotId = slot.id;
-  preferredScoutingShadowSlotId = slot.id;
+  preferredScoutingShadowSlotId = mutation.slotId;
   writeScoutingState();
-  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: true }, id);
+  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: true }, mutation.recordId);
 }
 function setScoutingTargetStatusByDrag(targetId, status) {
   if (!canEditScoutingWorkspace()) {
@@ -15718,29 +15701,13 @@ function removeScoutingRecordFromShadow(recordId, slotId) {
     return;
   }
   const state = ensureScoutingState();
-  const id = normalizeScoutingText(recordId, 160);
-  const slot = getScoutingShadowSlot(slotId);
-  if (!id || !slot) {
+  const mutation = removeScoutingRecordIdFromShadowSlot(state, { recordId, slotId });
+  if (!mutation.changed) {
     return;
   }
-  const nextRecordIds = getScoutingShadowSlotRecordIds(slot.id, state).filter((candidateId) => candidateId !== id);
-  state.shadowXi.slots = {
-    ...state.shadowXi.slots,
-  };
-  if (nextRecordIds.length) {
-    state.shadowXi.slots[slot.id] = nextRecordIds;
-  } else {
-    delete state.shadowXi.slots[slot.id];
-  }
-  if (state.shadowXi.meta && typeof state.shadowXi.meta === "object") {
-    const nextMeta = { ...state.shadowXi.meta };
-    delete nextMeta[getScoutingShadowMetaKey(slot.id, id)];
-    state.shadowXi.meta = nextMeta;
-  }
-  state.shadowXi.selectedSlotId = slot.id;
-  preferredScoutingShadowSlotId = slot.id;
+  preferredScoutingShadowSlotId = mutation.slotId;
   writeScoutingState();
-  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: true }, id);
+  refreshScoutingWorkspaceAfterShadowMutation({ preserveFocus: true }, mutation.recordId);
 }
 export function render(context) {
   setScoutingContext(context);

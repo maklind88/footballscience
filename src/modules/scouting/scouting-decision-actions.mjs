@@ -23,6 +23,10 @@ function getScoutingDecisionShadowMetaKey(slotId = "", recordId = "") {
   return `${normalizeScoutingText(slotId, 40)}:${normalizeScoutingText(recordId, 160)}`;
 }
 
+function normalizeScoutingDecisionSlotRecordIds(value) {
+  return normalizeScoutingRecordIds(Array.isArray(value) ? value : value ? [value] : []);
+}
+
 export function toggleScoutingFavoriteRecordId(state = {}, recordId = "") {
   const id = normalizeScoutingText(recordId, 160);
   if (!state || !id) {
@@ -90,7 +94,7 @@ export function addScoutingRecordIdToShadowSlot(state = {}, options = {}) {
   }
   const shadowXi = state.shadowXi && typeof state.shadowXi === "object" ? state.shadowXi : {};
   const currentSlots = shadowXi.slots && typeof shadowXi.slots === "object" ? shadowXi.slots : {};
-  const currentRecordIds = normalizeScoutingRecordIds(Array.isArray(currentSlots[slotId]) ? currentSlots[slotId] : currentSlots[slotId] ? [currentSlots[slotId]] : []);
+  const currentRecordIds = normalizeScoutingDecisionSlotRecordIds(currentSlots[slotId]);
   const nextRecordIds = [id, ...currentRecordIds.filter((candidateId) => candidateId !== id)];
   const metaKey = getScoutingDecisionShadowMetaKey(slotId, id);
   const currentMeta = shadowXi.meta && typeof shadowXi.meta === "object" ? shadowXi.meta : {};
@@ -108,6 +112,76 @@ export function addScoutingRecordIdToShadowSlot(state = {}, options = {}) {
         ...(options.meta && typeof options.meta === "object" ? options.meta : {}),
       },
     },
+    selectedSlotId: slotId,
+  };
+  return { changed: true, recordId: id, slotId, metaKey };
+}
+
+export function reorderScoutingRecordIdInShadowSlot(state = {}, options = {}) {
+  const id = normalizeScoutingText(options.recordId, 160);
+  const beforeId = normalizeScoutingText(options.beforeRecordId, 160);
+  const slotIds = getScoutingDecisionSlotIds();
+  const slotId = normalizeScoutingText(options.slotId, 40);
+  if (!state || !id || !slotIds.has(slotId)) {
+    return { changed: false, recordId: id, slotId, reason: "empty" };
+  }
+  const shadowXi = state.shadowXi && typeof state.shadowXi === "object" ? state.shadowXi : {};
+  const currentSlots = shadowXi.slots && typeof shadowXi.slots === "object" ? shadowXi.slots : {};
+  const sourceSlotId =
+    Object.keys(currentSlots).find((currentSlotId) => normalizeScoutingDecisionSlotRecordIds(currentSlots[currentSlotId]).includes(id)) || "";
+  if (!sourceSlotId || (sourceSlotId === slotId && beforeId === id)) {
+    return { changed: false, recordId: id, slotId, sourceSlotId, reason: "unchanged" };
+  }
+
+  const nextSlots = {};
+  Object.entries(currentSlots).forEach(([currentSlotId, recordIds]) => {
+    const normalizedSlotId = normalizeScoutingText(currentSlotId, 40);
+    const filteredIds = normalizeScoutingDecisionSlotRecordIds(recordIds).filter((recordId) => recordId !== id);
+    if (slotIds.has(normalizedSlotId) && filteredIds.length) {
+      nextSlots[normalizedSlotId] = filteredIds;
+    }
+  });
+  const nextRecordIds = normalizeScoutingRecordIds(nextSlots[slotId]);
+  const beforeIndex = beforeId ? nextRecordIds.indexOf(beforeId) : -1;
+  nextRecordIds.splice(beforeIndex >= 0 ? beforeIndex : nextRecordIds.length, 0, id);
+  nextSlots[slotId] = nextRecordIds;
+  state.shadowXi = {
+    ...shadowXi,
+    slots: nextSlots,
+    selectedSlotId: slotId,
+  };
+  return { changed: true, recordId: id, slotId, sourceSlotId };
+}
+
+export function removeScoutingRecordIdFromShadowSlot(state = {}, options = {}) {
+  const id = normalizeScoutingText(options.recordId, 160);
+  const slotIds = getScoutingDecisionSlotIds();
+  const slotId = normalizeScoutingText(options.slotId, 40);
+  if (!state || !id || !slotIds.has(slotId)) {
+    return { changed: false, recordId: id, slotId, reason: "empty" };
+  }
+  const shadowXi = state.shadowXi && typeof state.shadowXi === "object" ? state.shadowXi : {};
+  const currentSlots = shadowXi.slots && typeof shadowXi.slots === "object" ? shadowXi.slots : {};
+  const currentRecordIds = normalizeScoutingDecisionSlotRecordIds(currentSlots[slotId]);
+  const nextRecordIds = currentRecordIds.filter((recordId) => recordId !== id);
+  const nextSlots = { ...currentSlots };
+  if (nextRecordIds.length) {
+    nextSlots[slotId] = nextRecordIds;
+  } else {
+    delete nextSlots[slotId];
+  }
+  const metaKey = getScoutingDecisionShadowMetaKey(slotId, id);
+  const currentMeta = shadowXi.meta && typeof shadowXi.meta === "object" ? shadowXi.meta : {};
+  const nextMeta = { ...currentMeta };
+  const hadMeta = Object.prototype.hasOwnProperty.call(nextMeta, metaKey);
+  delete nextMeta[metaKey];
+  if (currentRecordIds.length === nextRecordIds.length && !hadMeta) {
+    return { changed: false, recordId: id, slotId, reason: "unchanged" };
+  }
+  state.shadowXi = {
+    ...shadowXi,
+    slots: nextSlots,
+    meta: nextMeta,
     selectedSlotId: slotId,
   };
   return { changed: true, recordId: id, slotId, metaKey };

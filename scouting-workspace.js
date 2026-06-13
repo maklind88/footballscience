@@ -10,6 +10,7 @@ import {
   createScoutingDatabaseLoader,
   createScoutingDatabaseSourcePolicy,
   createScoutingFavoritesActions,
+  createScoutingApiProfileService,
   createFootballScienceDbApiClient,
   createFootballScienceDbProfileService,
   createFootballScienceDbQualityService,
@@ -169,7 +170,6 @@ let scoutingImportPdfParserPromise = null;
 let scoutingMyTeamSelectedPlayerId = "";
 let scoutingIntelligenceCacheVersion = 0;
 let scoutingImportHistoryCache = { status: "idle", imports: [], error: "", promise: null };
-let scoutingProfileApiCache = new Map();
 let scoutingProfileOverviewPanelHydrateInProgress = new Set();
 let scoutingOppositionFilters = { team: "", season: "all", minMinutes: 450 };
 let scoutingOppositionLatestSnapshot = null;
@@ -429,6 +429,17 @@ const footballScienceDbProfileService = createFootballScienceDbProfileService({
   renderWorkspace: renderScoutingWorkspace,
   requestAnimationFrame: (callback) => window.requestAnimationFrame(callback),
   setQualityError: (message) => footballScienceDbQualityService.setError(message),
+});
+const scoutingApiProfileService = createScoutingApiProfileService({
+  fetchApi: fetchScoutingApi,
+  isActive: isScoutingApiDatabaseActive,
+  normalizeText: normalizeScoutingText,
+  renderPanel: renderScoutingProfileApiPanelIntoDom,
+  shouldRender: (recordId) => {
+    const id = normalizeScoutingText(recordId, 160);
+    const state = ensureScoutingState();
+    return state.selectedRecordId === id && normalizeScoutingProfileTab(state.profileTab) === "history";
+  },
 });
 const footballScienceDbApiClient = createFootballScienceDbApiClient({
   fetchRef: (...args) => fetch(...args),
@@ -1252,7 +1263,7 @@ function resetScoutingComputedCaches() {
   scoutingRecordPersonLookupCache = new Map();
   scoutingRecordLookupFingerprint = "";
   scoutingMarketIntelVersion = 0;
-  scoutingProfileApiCache = new Map();
+  scoutingApiProfileService.resetCache();
   footballScienceDbProfileService.resetCache();
   scoutingProfileOverviewPanelHydrateInProgress.clear();
   scoutingDataQualitySummaryCache = { key: "", value: null };
@@ -2455,26 +2466,7 @@ function renderScoutingProfileApiPanelIntoDom(recordId, profile = null, status =
   }
 }
 function hydrateScoutingProfileApiDetails(recordId) {
-  const id = normalizeScoutingText(recordId, 160);
-  if (!id || !isScoutingApiDatabaseActive()) {
-    return;
-  }
-  if (scoutingProfileApiCache.has(id)) {
-    renderScoutingProfileApiPanelIntoDom(id, scoutingProfileApiCache.get(id), "ready", "");
-    return;
-  }
-  renderScoutingProfileApiPanelIntoDom(id, null, "loading", "");
-  fetchScoutingApi({ action: "profile", recordId: id })
-    .then((response) => {
-      if (!response.ok) {
-        throw new Error(response.reason || "Could not load master player record.");
-      }
-      scoutingProfileApiCache.set(id, response.result);
-      renderScoutingProfileApiPanelIntoDom(id, response.result, "ready", "");
-    })
-    .catch((error) => {
-      renderScoutingProfileApiPanelIntoDom(id, null, "error", error?.message || "Could not load master player record.");
-    });
+  return scoutingApiProfileService.hydrateDetails(recordId);
 }
 async function loadScoutingDatabaseWithApi() {
   const query = getScoutingApiQueryFromState();

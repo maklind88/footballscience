@@ -19,4 +19,5 @@ test("Scouting defaults expose stable tabs, slots, and state defaults", () => {
   expect(defaultScoutingState.databaseFilters.sortMetricId).toBe("minutes");
   expect(defaultScoutingState.lists[0].id).toBe("main-shortlist");
   expect(defaultScoutingState.comparisonLab.playerIds).toEqual(["", ""]);
+  expect(defaultScoutingState.comparisonLab.metricIds).toEqual(["minutes"]);
 });

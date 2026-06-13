@@ -92,5 +92,6 @@ export const defaultScoutingState = {
     slotId: "",
     playerIds: ["", ""],
     metricId: "minutes",
+    metricIds: ["minutes"],
   },
 };

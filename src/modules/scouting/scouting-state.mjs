@@ -286,10 +286,17 @@ updatedAt: normalizeScoutingText(model.updatedAt, 40) || normalizeScoutingText(m
 }
 function normalizeScoutingComparisonLab(value = {}) {
 const normalizedPlayerIds = normalizeScoutingRecordIds(value.playerIds);
+const metricId = normalizeScoutingText(value.metricId, 120);
+const metricIds = Array.isArray(value.metricIds)
+? value.metricIds.map((item) => normalizeScoutingText(item, 120)).filter(Boolean)
+: metricId
+? [metricId]
+: [];
 return {
 slotId: normalizeScoutingText(value.slotId, 40),
 playerIds: [normalizedPlayerIds[0] || "", normalizedPlayerIds[1] || "", normalizedPlayerIds[2] || "", normalizedPlayerIds[3] || ""],
-metricId: normalizeScoutingText(value.metricId, 120) || "minutes",
+metricId: metricIds[0] || "minutes",
+metricIds: Array.from(new Set(metricIds)).slice(0, 12),
 };
 }
 function cloneScoutingSavedViewState(view = {}) {

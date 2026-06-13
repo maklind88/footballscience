@@ -98,7 +98,7 @@ test("Scouting state clone keeps stable defaults and preserves transient UI stat
       selectedSlotId: "gk",
       slots: { gk: "record-1" },
     },
-    comparisonLab: { playerIds: ["p1", "p2", "p3", "p4", "p5"] },
+    comparisonLab: { playerIds: ["p1", "p2", "p3", "p4", "p5"], metricIds: ["xg", "xa", "xg"] },
   });
 
   expect(defaultScoutingState.activeTab).toBe("shadow-xi");
@@ -109,6 +109,7 @@ test("Scouting state clone keeps stable defaults and preserves transient UI stat
   expect(cloned.lists[0].id).toBe("main-shortlist");
   expect(cloned.shadowXi.boards[0]).toMatchObject({ id: "board-1", name: "First board", visibility: "all" });
   expect(cloned.comparisonLab.playerIds).toEqual(["p1", "p2", "p3", "p4"]);
+  expect(cloned.comparisonLab.metricIds).toEqual(["xg", "xa"]);
 
   const preserved = preserveScoutingTransientUiState(cloned, {
     activeTab: "reports",

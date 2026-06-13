@@ -5,12 +5,14 @@ import {
   handleScoutingModuleSubmit,
   handleScoutingWorkspaceClick,
   bindScoutingDragAndDrop as bindScoutingDragAndDropRouter,
+  createScoutingComparisonActions,
   createScoutingDatabaseActions,
   createScoutingDatabaseLoader,
   createScoutingFavoritesActions,
   createScoutingListsActions,
   createScoutingMyTeamActions,
   createScoutingShadowXiActions,
+  normalizeScoutingComparisonLab,
   renderScoutingActiveContentByTab,
 } from "./src/modules/scouting/index.mjs";
 import {
@@ -89,8 +91,6 @@ let scoutingComparisonMetricMenuOpen = false;
 let scoutingComparisonMetricFilterQuery = "";
 let scoutingComparisonCandidatesOpen = false;
 let scoutingComparisonPlayerSearchQuery = "";
-let scoutingComparisonSearchTimer = 0;
-let scoutingComparisonSearchCache = { key: "", status: "idle", records: [], error: "", promise: null };
 let scoutingMyTeamRecordMatchCache = new Map();
 let scoutingMyTeamRecordHydrationInFlight = new Set();
 let scoutingLeagueQualityCache = new Map();
@@ -536,6 +536,7 @@ const scoutingProfileTabs = Object.freeze([
   { value: "history", label: "History" },
 ]);
 let scoutingEventDeps = null;
+let scoutingComparisonActions = null;
 let scoutingDatabaseActions = null;
 let scoutingFavoritesActions = null;
 let scoutingListsActions = null;
@@ -4069,22 +4070,6 @@ function findScoutingTargetById(targetId, state = ensureScoutingState()) {
   const target = normalizeScoutingText(targetId, 120);
   return state.targets.find((entry) => normalizeScoutingText(entry.id, 120) === target) || null;
 }
-function normalizeScoutingComparisonLab(value = {}) {
-  const playerIds = normalizeScoutingRecordIds(value.playerIds);
-  const metricId = normalizeScoutingText(value.metricId, 120);
-  const metricIds = Array.isArray(value.metricIds)
-    ? value.metricIds.map((item) => normalizeScoutingText(item, 120)).filter(Boolean)
-    : metricId
-      ? [metricId]
-      : [];
-  const slotId = normalizeScoutingText(value.slotId, 40);
-  return {
-    slotId,
-    playerIds: [playerIds[0] || "", playerIds[1] || "", playerIds[2] || "", playerIds[3] || ""],
-    metricId: metricIds[0] || "",
-    metricIds: Array.from(new Set(metricIds)).slice(0, 12),
-  };
-}
 function getScoutingComparisonLab(state = ensureScoutingState()) {
   return normalizeScoutingComparisonLab(state.comparisonLab);
 }
@@ -4127,141 +4112,57 @@ function renderScoutingComparisonWorkspace(options = { preserveFocus: true }) {
   syncScoutingComparisonLabFromDom();
   renderScoutingWorkspace(options);
 }
-function addScoutingComparisonPlayer(recordId) {
-  const id = normalizeScoutingText(recordId, 160);
-  if (!id || !canEditScoutingWorkspace()) {
-    return;
+function getScoutingComparisonActions() {
+  if (scoutingComparisonActions) {
+    return scoutingComparisonActions;
   }
-  const record = getScoutingRecordById(id) || getScoutingComparisonCachedRecordById(id);
-  if (record) {
-    rememberScoutingRecordSnapshot(record);
-  }
-  const lab = getScoutingComparisonLab();
-  const nextPlayerIds = [lab.playerIds[0] || "", lab.playerIds[1] || "", lab.playerIds[2] || "", lab.playerIds[3] || ""];
-  if (nextPlayerIds.includes(id)) {
-    scoutingComparisonPlayerSearchQuery = "";
-    scoutingComparisonCandidatesOpen = false;
-    renderScoutingComparisonWorkspace({ preserveFocus: true });
-    window.requestAnimationFrame(() => ui.scoutingWorkspace?.querySelector("[data-scouting-comparison-player-search]")?.focus());
-    return;
-  }
-  const targetIndex = nextPlayerIds.findIndex((playerId) => !playerId);
-  if (targetIndex < 0) {
-    return;
-  }
-  nextPlayerIds[targetIndex] = id;
-  setScoutingComparisonLab({ ...lab, playerIds: nextPlayerIds });
-  scoutingComparisonPlayerSearchQuery = "";
-  scoutingComparisonCandidatesOpen = false;
-  renderScoutingComparisonWorkspace({ preserveFocus: true });
-  window.requestAnimationFrame(() => ui.scoutingWorkspace?.querySelector("[data-scouting-comparison-player-search]")?.focus());
+  scoutingComparisonActions = createScoutingComparisonActions({
+    canEdit: canEditScoutingWorkspace,
+    clearTimeout: (timerId) => window.clearTimeout(timerId),
+    focusPlayerSearch: () => ui.scoutingWorkspace?.querySelector("[data-scouting-comparison-player-search]")?.focus(),
+    getAssetVersion: getScoutingAssetVersion,
+    getComparisonLab: getScoutingComparisonLab,
+    getDatabase: getScoutingDatabase,
+    getPlayerSearchQuery: () => scoutingComparisonPlayerSearchQuery,
+    getRecordById: getScoutingRecordById,
+    getRecordId: getScoutingRecordId,
+    getRecordLeague: getScoutingRecordLeague,
+    getRecordName: getScoutingRecordName,
+    getRecordNationality: getScoutingRecordNationality,
+    getRecordPosition: getScoutingRecordPosition,
+    getRecordTeam: getScoutingRecordTeam,
+    getWorkerQueryFromState: getScoutingWorkerQueryFromState,
+    normalizeText: normalizeScoutingText,
+    rememberRecordSnapshot: rememberScoutingRecordSnapshot,
+    renderComparisonWorkspace: renderScoutingComparisonWorkspace,
+    renderWorkspace: renderScoutingWorkspace,
+    requestAnimationFrame: (callback) => window.requestAnimationFrame(callback),
+    requestDatabaseWorkerQuery: requestScoutingDatabaseWorkerQuery,
+    setCandidatesOpen: (open) => {
+      scoutingComparisonCandidatesOpen = Boolean(open);
+    },
+    setComparisonLab: setScoutingComparisonLab,
+    setPlayerSearchQuery: (query) => {
+      scoutingComparisonPlayerSearchQuery = normalizeScoutingText(query, 120);
+    },
+    setTimeout: (callback, delayMs) => window.setTimeout(callback, delayMs),
+  });
+  return scoutingComparisonActions;
 }
 function getScoutingComparisonCachedRecordById(recordId) {
-  const id = normalizeScoutingText(recordId, 160);
-  if (!id) {
-    return null;
-  }
-  return (Array.isArray(scoutingComparisonSearchCache.records) ? scoutingComparisonSearchCache.records : []).find((record) => getScoutingRecordId(record) === id) || null;
+  return getScoutingComparisonActions().getCachedRecordById(recordId);
 }
-function getScoutingComparisonSearchKey(query = "") {
-  return `${getScoutingAssetVersion()}::${normalizeScoutingText(query, 120).toLowerCase()}`;
-}
-function getScoutingComparisonSearchText(record) {
-  return [
-    getScoutingRecordName(record),
-    getScoutingRecordTeam(record),
-    getScoutingRecordLeague(record),
-    getScoutingRecordPosition(record),
-    getScoutingRecordNationality(record),
-  ]
-    .map((value) => normalizeScoutingText(value, 160).toLowerCase())
-    .filter(Boolean)
-    .join(" ");
-}
-function getLocalScoutingComparisonSearchRecords(query = "", limit = 24) {
-  const normalizedQuery = normalizeScoutingText(query, 120).toLowerCase();
-  if (normalizedQuery.length < 2) {
-    return [];
-  }
-  const database = getScoutingDatabase();
-  const records = Array.isArray(database?.records) ? database.records : [];
-  return records.filter((record) => getScoutingComparisonSearchText(record).includes(normalizedQuery)).slice(0, limit);
+function getScoutingComparisonSearchCache() {
+  return getScoutingComparisonActions().getSearchCache();
 }
 function queueScoutingComparisonPlayerSearch(query = scoutingComparisonPlayerSearchQuery) {
-  const normalizedQuery = normalizeScoutingText(query, 120);
-  window.clearTimeout(scoutingComparisonSearchTimer);
-  scoutingComparisonPlayerSearchQuery = normalizedQuery;
-  scoutingComparisonCandidatesOpen = true;
-  if (normalizedQuery.length < 2) {
-    scoutingComparisonSearchCache = { key: getScoutingComparisonSearchKey(normalizedQuery), status: "idle", records: [], error: "", promise: null };
-    renderScoutingComparisonWorkspace({ preserveFocus: true });
-    return;
-  }
-  scoutingComparisonSearchTimer = window.setTimeout(() => {
-    const key = getScoutingComparisonSearchKey(normalizedQuery);
-    if (scoutingComparisonSearchCache.key === key && ["loading", "ready"].includes(scoutingComparisonSearchCache.status)) {
-      renderScoutingComparisonWorkspace({ preserveFocus: true });
-      return;
-    }
-    const localRecords = getLocalScoutingComparisonSearchRecords(normalizedQuery, 24);
-    scoutingComparisonSearchCache = { key, status: "loading", records: localRecords, error: "", promise: null };
-    renderScoutingComparisonWorkspace({ preserveFocus: true });
-    const workerQuery = {
-      ...getScoutingWorkerQueryFromState(),
-      query: normalizedQuery,
-      league: "",
-      team: "",
-      season: "",
-      position: "",
-      offset: 0,
-      limit: 32,
-      includeTotal: "0",
-      includeOptions: "0",
-      includeMetrics: "0",
-    };
-    const promise = requestScoutingDatabaseWorkerQuery({ query: workerQuery, timeoutMs: 18000 })
-      .then((database) => {
-        if (scoutingComparisonSearchCache.key !== key) {
-          return;
-        }
-        const remoteRecords = Array.isArray(database?.records) ? database.records : [];
-        const recordMap = new Map();
-        [...localRecords, ...remoteRecords].forEach((record) => {
-          const recordId = getScoutingRecordId(record);
-          if (recordId && !recordMap.has(recordId)) {
-            recordMap.set(recordId, record);
-            rememberScoutingRecordSnapshot(record);
-          }
-        });
-        scoutingComparisonSearchCache = { key, status: "ready", records: Array.from(recordMap.values()).slice(0, 32), error: "", promise: null };
-        renderScoutingComparisonWorkspace({ preserveFocus: true });
-      })
-      .catch((error) => {
-        if (scoutingComparisonSearchCache.key !== key) {
-          return;
-        }
-        scoutingComparisonSearchCache = {
-          key,
-          status: localRecords.length ? "ready" : "error",
-          records: localRecords,
-          error: error?.message || "Could not search the full scouting database.",
-          promise: null,
-        };
-        renderScoutingComparisonWorkspace({ preserveFocus: true });
-      });
-    scoutingComparisonSearchCache.promise = promise;
-  }, 180);
+  return getScoutingComparisonActions().queuePlayerSearch(query);
+}
+function addScoutingComparisonPlayer(recordId) {
+  return getScoutingComparisonActions().addPlayer(recordId);
 }
 function removeScoutingComparisonPlayer(recordId) {
-  const id = normalizeScoutingText(recordId, 160);
-  if (!id || !canEditScoutingWorkspace()) {
-    return;
-  }
-  const lab = getScoutingComparisonLab();
-  const nextPlayerIds = lab.playerIds.map((playerId) => (playerId === id ? "" : playerId));
-  setScoutingComparisonLab({ ...lab, playerIds: nextPlayerIds });
-  scoutingComparisonCandidatesOpen = true;
-  renderScoutingWorkspace({ preserveFocus: true });
+  return getScoutingComparisonActions().removePlayer(recordId);
 }
 function getScoutingRoleModels(state = ensureScoutingState()) {
   return Array.isArray(state.roleModels)
@@ -14004,7 +13905,7 @@ function renderScoutingActiveContent() {
     comparisonMetricFilterQuery: scoutingComparisonMetricFilterQuery,
     comparisonMetricMenuOpen: scoutingComparisonMetricMenuOpen,
     comparisonPlayerSearchQuery: scoutingComparisonPlayerSearchQuery,
-    comparisonSearchCache: scoutingComparisonSearchCache,
+    comparisonSearchCache: getScoutingComparisonSearchCache(),
     databaseError: scoutingDatabaseError,
     expandedPanels: scoutingReportsExpandedPanels,
     formatNumber: formatScoutingNumber,

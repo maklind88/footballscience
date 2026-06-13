@@ -5,6 +5,7 @@ import {
   handleScoutingModuleSubmit,
   handleScoutingWorkspaceClick,
   bindScoutingDragAndDrop as bindScoutingDragAndDropRouter,
+  createScoutingMyTeamActions,
   renderScoutingActiveContentByTab,
 } from "./src/modules/scouting/index.mjs";
 import {
@@ -41,11 +42,8 @@ import { createScoutingDatabaseFilterService } from "./src/modules/scouting/scou
 import {
   addScoutingRecordIdToDecisionList,
   addScoutingRecordIdToShadowSlot,
-  assignScoutingMyTeamPlayerIdToSlot,
   createScoutingDecisionList,
   deleteScoutingDecisionListById,
-  removeScoutingMyTeamPlayerIdFromAllSlots,
-  removeScoutingMyTeamPlayerIdFromSlot,
   removeScoutingRecordIdFromShadowSlot,
   reorderScoutingRecordIdInShadowSlot,
   toggleScoutingFavoriteRecordId,
@@ -543,6 +541,7 @@ const scoutingProfileTabs = Object.freeze([
   { value: "history", label: "History" },
 ]);
 let scoutingEventDeps = null;
+let scoutingMyTeamActions = null;
 function setScoutingContext(context) {
   activeContext = context;
   scoutingTabs = context.tabs || [];
@@ -4085,116 +4084,30 @@ function renderScoutingMyTeamPlayerCard(player, options = {}) {
     </article>
   `;
 }
-function assignScoutingMyTeamPlayerToSlot(playerId, slotId, beforePlayerId = "") {
-  const perf = startScoutingPerformance("my-team.assign", { playerId, slotId });
-  if (!canEditScoutingWorkspace()) {
-    perf.end({ status: "blocked" });
-    return;
+function getScoutingMyTeamActions() {
+  if (scoutingMyTeamActions) {
+    return scoutingMyTeamActions;
   }
-  const state = ensureScoutingState();
-  const myTeam = getScoutingMyTeamState(state);
-  const player = getScoutingMyTeamPlayerById(playerId);
-  const slot = getScoutingShadowSlot(slotId);
-  if (!player || !slot) {
-    perf.end({ status: "empty" });
-    return;
-  }
-  const id = getScoutingMyTeamPlayerId(player);
-  const beforeId = normalizeScoutingText(beforePlayerId, 160);
-  state.myTeam = myTeam;
-  const mutation = assignScoutingMyTeamPlayerIdToSlot(state, {
-    playerId: id,
-    slotId: slot.id,
-    beforePlayerId: beforeId,
-  });
-  if (!mutation.changed) {
-    perf.end({ status: mutation.reason || "unchanged" });
-    return;
-  }
-  if (scoutingMyTeamSelectedPlayerId === id) {
-    scoutingMyTeamSelectedPlayerId = "";
-  }
-  writeScoutingState();
-  refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
-  perf.end({ status: "updated", slot: slot.id });
-}
-function removeScoutingMyTeamPlayerFromAllSlots(playerId = "") {
-  if (!canEditScoutingWorkspace()) {
-    return;
-  }
-  const normalizedPlayerId = normalizeScoutingText(playerId, 160);
-  if (!normalizedPlayerId) {
-    return;
-  }
-  const state = ensureScoutingState();
-  const myTeam = getScoutingMyTeamState(state);
-  state.myTeam = myTeam;
-  const mutation = removeScoutingMyTeamPlayerIdFromAllSlots(state, normalizedPlayerId);
-  if (!mutation.changed) {
-    return;
-  }
-  if (scoutingMyTeamSelectedPlayerId === normalizedPlayerId) {
-    scoutingMyTeamSelectedPlayerId = "";
-  }
-  writeScoutingState();
-  refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
-}
-function removeScoutingMyTeamPlayerFromSlot(slotId, playerId = "") {
-  if (!canEditScoutingWorkspace()) {
-    return;
-  }
-  const state = ensureScoutingState();
-  const myTeam = getScoutingMyTeamState(state);
-  const slot = getScoutingShadowSlot(slotId);
-  if (!slot) {
-    return;
-  }
-  state.myTeam = myTeam;
-  const mutation = removeScoutingMyTeamPlayerIdFromSlot(state, { slotId: slot.id, playerId });
-  if (!mutation.changed) {
-    return;
-  }
-  writeScoutingState();
-  refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
-}
-function setScoutingMyTeamFormation(value) {
-  if (!canEditScoutingWorkspace()) {
-    return;
-  }
-  const state = ensureScoutingState();
-  const myTeam = getScoutingMyTeamState(state);
-  myTeam.formation = normalizeScoutingFormation(value);
-  state.myTeam = myTeam;
-  state.activeTab = "my-team";
-  writeScoutingState();
-  renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: true });
-}
-function setScoutingMyTeamSlotPitchPosition(slotId = "", xValue, yValue) {
-  if (!canEditScoutingWorkspace()) {
-    return;
-  }
-  const slot = getScoutingShadowSlot(slotId);
-  if (!slot) {
-    return;
-  }
-  const state = ensureScoutingState();
-  const myTeam = getScoutingMyTeamState(state);
-  const formation = normalizeScoutingFormation(myTeam.formation);
-  const x = normalizeScoutingMyTeamPitchCoordinate(xValue);
-  const y = normalizeScoutingMyTeamPitchCoordinate(yValue);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    return;
-  }
-  myTeam.positions = {
-    ...(myTeam.positions || {}),
-    [formation]: {
-      ...(myTeam.positions?.[formation] || {}),
-      [slot.id]: { x, y },
+  scoutingMyTeamActions = createScoutingMyTeamActions({
+    canEdit: canEditScoutingWorkspace,
+    ensureState: ensureScoutingState,
+    getMyTeamPlayerById: getScoutingMyTeamPlayerById,
+    getMyTeamPlayerId: getScoutingMyTeamPlayerId,
+    getMyTeamState: getScoutingMyTeamState,
+    getSelectedPlayerId: () => scoutingMyTeamSelectedPlayerId,
+    getShadowSlot: getScoutingShadowSlot,
+    normalizeFormation: normalizeScoutingFormation,
+    normalizePitchCoordinate: normalizeScoutingMyTeamPitchCoordinate,
+    normalizeText: normalizeScoutingText,
+    refreshWorkspaceAfterLocalMutation: refreshScoutingWorkspaceAfterLocalMutation,
+    renderActiveTabSurfaceOrWorkspace: renderScoutingActiveTabSurfaceOrWorkspace,
+    setSelectedPlayerId: (playerId) => {
+      scoutingMyTeamSelectedPlayerId = playerId || "";
     },
-  };
-  state.myTeam = myTeam;
-  writeScoutingState();
-  refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
+    startPerformance: startScoutingPerformance,
+    writeState: writeScoutingState,
+  });
+  return scoutingMyTeamActions;
 }
 function getScoutingTargetRecord(target) {
   return getScoutingRecordById(getScoutingTargetRecordId(target));
@@ -8198,16 +8111,17 @@ function bindScoutingDragAndDrop() {
   if (!root) {
     return;
   }
+  const myTeamActions = getScoutingMyTeamActions();
   bindScoutingDragAndDropRouter(root, {
     addRecordToShadow: addScoutingRecordToShadow,
-    assignMyTeamPlayerToSlot: assignScoutingMyTeamPlayerToSlot,
+    assignMyTeamPlayerToSlot: myTeamActions.assignPlayerToSlot,
     canEdit: canEditScoutingWorkspace,
     getPointerPitchPosition: getScoutingMyTeamPointerPitchPosition,
     normalizeText: normalizeScoutingText,
     previewSlotPitchPosition: previewScoutingMyTeamSlotPitchPosition,
-    removeMyTeamPlayerFromAllSlots: removeScoutingMyTeamPlayerFromAllSlots,
+    removeMyTeamPlayerFromAllSlots: myTeamActions.removePlayerFromAllSlots,
     reorderShadowRecord: reorderScoutingShadowRecord,
-    setMyTeamSlotPitchPosition: setScoutingMyTeamSlotPitchPosition,
+    setMyTeamSlotPitchPosition: myTeamActions.setSlotPitchPosition,
     setShadowSlotPitchPosition: setScoutingShadowSlotPitchPosition,
     setTargetStatusByDrag: setScoutingTargetStatusByDrag,
   });
@@ -15425,6 +15339,7 @@ function getScoutingEventDeps() {
   if (scoutingEventDeps) {
     return scoutingEventDeps;
   }
+  const myTeamActions = getScoutingMyTeamActions();
   // Keep entries as functions or live-state closures; direct values would become stale.
   scoutingEventDeps = {
     addComparisonPlayer: addScoutingComparisonPlayer,
@@ -15435,7 +15350,7 @@ function getScoutingEventDeps() {
     applyImportSourcePreset: applyScoutingImportSourcePreset,
     applyPresetView: applyScoutingPresetView,
     applySavedView: applyScoutingSavedView,
-    assignMyTeamPlayerToSlot: assignScoutingMyTeamPlayerToSlot,
+    assignMyTeamPlayerToSlot: myTeamActions.assignPlayerToSlot,
     canEdit: canEditScoutingWorkspace,
     clearCompareSet: clearScoutingCompareSet,
     clearImportedDatabase: clearScoutingImportedDatabase,
@@ -15495,7 +15410,7 @@ function getScoutingEventDeps() {
     queueFootballScienceDbQualityLoad,
     refreshDatabaseSurface: refreshScoutingDatabaseSurface,
     removeComparisonPlayer: removeScoutingComparisonPlayer,
-    removeMyTeamPlayerFromSlot: removeScoutingMyTeamPlayerFromSlot,
+    removeMyTeamPlayerFromSlot: myTeamActions.removePlayerFromSlot,
     removeRecordFromShadow: removeScoutingRecordFromShadow,
     removeRoleModel: removeScoutingRoleModel,
     removeTarget: removeScoutingTarget,
@@ -15536,7 +15451,7 @@ function getScoutingEventDeps() {
     setImportDraftFailure: setScoutingImportDraftFailure,
     setImportDraftPatch: setScoutingImportDraftPatch,
     setImportMapField: setScoutingImportMapField,
-    setMyTeamFormation: setScoutingMyTeamFormation,
+    setMyTeamFormation: myTeamActions.setFormation,
     setMyTeamSelectedPlayerId: (playerId) => {
       scoutingMyTeamSelectedPlayerId = playerId || "";
     },

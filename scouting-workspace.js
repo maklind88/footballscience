@@ -12,6 +12,7 @@ import {
   createScoutingDatabaseResultsService,
   createScoutingDatabaseSourcePolicy,
   createScoutingFavoritesActions,
+  createScoutingTabController,
   createScoutingApiProfileService,
   createFootballScienceDbApiClient,
   createFootballScienceDbProfileService,
@@ -429,6 +430,24 @@ const scoutingDatabaseResultsService = createScoutingDatabaseResultsService({
   normalizeText: normalizeScoutingText,
   pageSize: SCOUTING_DATABASE_PAGE_SIZE,
   renderRecordCard: renderScoutingRecordCard,
+});
+const scoutingTabController = createScoutingTabController({
+  cancelDatabaseBackgroundTimers: cancelScoutingDatabaseBackgroundTimers,
+  clearReportsExpandedPanels: () => {
+    if (scoutingReportsExpandedPanels.size) {
+      scoutingReportsExpandedPanels = new Set();
+    }
+  },
+  ensureState: ensureScoutingState,
+  getTabs: () => scoutingTabs,
+  renderActiveTabSurfaceOrWorkspace: renderScoutingActiveTabSurfaceOrWorkspace,
+  resetShadowSelection: (state) => {
+    preferredScoutingShadowSlotId = "";
+    state.shadowXi.selectedSlotId = "";
+  },
+  startPerformance: startScoutingPerformance,
+  syncTabButtonsDom: syncScoutingTabButtonsDom,
+  writeState: writeScoutingState,
 });
 const footballScienceDbProfileService = createFootballScienceDbProfileService({
   fetchApi: fetchFootballScienceDbApi,
@@ -13597,30 +13616,7 @@ function renderScoutingAnalysisRoomWorkspace(options = {}) {
   restoreScoutingScrollSnapshot(scrollSnapshot);
 }
 function setScoutingActiveTab(tabId) {
-  const state = ensureScoutingState();
-  if (!scoutingTabs.some((tab) => tab.id === tabId)) {
-    return;
-  }
-  if (state.activeTab === tabId) {
-    return;
-  }
-  const previousTab = state.activeTab;
-  const perf = startScoutingPerformance("tab.switch", { from: previousTab, to: tabId });
-  state.activeTab = tabId;
-  if (tabId === "shadow-xi") {
-    preferredScoutingShadowSlotId = "";
-    state.shadowXi.selectedSlotId = "";
-  }
-  if (tabId !== "reports" && scoutingReportsExpandedPanels.size) {
-    scoutingReportsExpandedPanels = new Set();
-  }
-  if (tabId !== "database") {
-    cancelScoutingDatabaseBackgroundTimers();
-  }
-  writeScoutingState({ syncCentral: false });
-  syncScoutingTabButtonsDom(state);
-  renderScoutingActiveTabSurfaceOrWorkspace({ preserveFocus: false });
-  perf.end({ from: previousTab, to: tabId });
+  scoutingTabController.setActiveTab(tabId);
 }
 function setScoutingDatabaseFilter(field, value) {
   return getScoutingDatabaseActions().setFilter(field, value);

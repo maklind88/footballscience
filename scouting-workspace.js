@@ -11,6 +11,7 @@ import {
   createScoutingFavoritesActions,
   createScoutingListsActions,
   createScoutingMyTeamActions,
+  createScoutingProfileActions,
   createScoutingReportsActions,
   createScoutingShadowXiActions,
   normalizeScoutingComparisonLab,
@@ -542,6 +543,7 @@ let scoutingDatabaseActions = null;
 let scoutingFavoritesActions = null;
 let scoutingListsActions = null;
 let scoutingMyTeamActions = null;
+let scoutingProfileActions = null;
 let scoutingReportsActions = null;
 let scoutingShadowXiActions = null;
 function setScoutingContext(context) {
@@ -4205,57 +4207,38 @@ function getScoutingContactLogForRecord(recordId, state = ensureScoutingState())
   const id = normalizeScoutingText(recordId, 160);
   return getScoutingContactLog(state).filter((entry) => entry.recordId === id);
 }
+function getScoutingProfileActions() {
+  if (scoutingProfileActions) {
+    return scoutingProfileActions;
+  }
+  scoutingProfileActions = createScoutingProfileActions({
+    bumpMarketIntelVersion: () => {
+      scoutingMarketIntelVersion += 1;
+    },
+    canEdit: canEditScoutingWorkspace,
+    createTarget: createScoutingTarget,
+    ensureState: ensureScoutingState,
+    getContactLog: getScoutingContactLog,
+    getMarketInfo: getScoutingMarketInfo,
+    getRecordById: getScoutingRecordById,
+    getTargets: getScoutingTargets,
+    hasProfileModal: () => Boolean(ui.scoutingWorkspace?.querySelector(".scouting-profile-modal")),
+    normalizeContactLogEntry: normalizeScoutingContactLogEntry,
+    normalizeDateText: normalizeScoutingDateText,
+    normalizeMarketInfo: normalizeScoutingMarketInfo,
+    normalizeText: normalizeScoutingText,
+    renderProfileModal: renderScoutingProfileModalIntoDom,
+    renderWorkspace: renderScoutingWorkspace,
+    touchIntelligenceCache: touchScoutingIntelligenceCache,
+    writeState: writeScoutingState,
+  });
+  return scoutingProfileActions;
+}
 function createScoutingContactLogEntry(recordId, entry = {}) {
-  if (!canEditScoutingWorkspace()) {
-    return;
-  }
-  const id = normalizeScoutingText(recordId, 160);
-  if (!id) {
-    return;
-  }
-  const state = ensureScoutingState();
-  state.contactLog = [
-    normalizeScoutingContactLogEntry({
-      ...entry,
-      recordId: id,
-    }),
-    ...getScoutingContactLog(state),
-  ];
-  const target = findScoutingTargetByRecordId(id, state);
-  if (target) {
-    state.targets = getScoutingTargets(state).map((item) =>
-      item.id === target.id
-        ? createScoutingTarget(getScoutingRecordById(id), {
-            ...target,
-            lastContact: normalizeScoutingDateText(entry.date) || new Date().toISOString().slice(0, 10),
-            nextAction: normalizeScoutingText(entry.nextStep, 180) || target.nextAction,
-            updatedAt: new Date().toISOString(),
-          })
-        : item
-    );
-    touchScoutingIntelligenceCache();
-  }
-  writeScoutingState();
-  if (state.selectedRecordId === id && ui.scoutingWorkspace?.querySelector(".scouting-profile-modal")) {
-    renderScoutingProfileModalIntoDom(id);
-    return;
-  }
-  renderScoutingWorkspace({ preserveFocus: true });
+  return getScoutingProfileActions().createContactLogEntry(recordId, entry);
 }
 function deleteScoutingContactLogEntry(contactId) {
-  if (!canEditScoutingWorkspace()) {
-    return;
-  }
-  const id = normalizeScoutingText(contactId, 120);
-  const state = ensureScoutingState();
-  const selectedRecordId = normalizeScoutingText(state.selectedRecordId, 160);
-  state.contactLog = getScoutingContactLog(state).filter((entry) => entry.id !== id);
-  writeScoutingState();
-  if (selectedRecordId && ui.scoutingWorkspace?.querySelector(".scouting-profile-modal")) {
-    renderScoutingProfileModalIntoDom(selectedRecordId);
-    return;
-  }
-  renderScoutingWorkspace({ preserveFocus: true });
+  return getScoutingProfileActions().deleteContactLogEntry(contactId);
 }
 function normalizeScoutingReport(report = {}) {
   const now = new Date().toISOString();
@@ -10205,25 +10188,7 @@ function getScoutingMarketInfo(recordId, state = ensureScoutingState()) {
   return normalizeScoutingMarketInfo(id, records[id] || {});
 }
 function saveScoutingMarketInfo(recordId, patch = {}) {
-  if (!canEditScoutingWorkspace()) {
-    return;
-  }
-  const id = normalizeScoutingText(recordId, 160);
-  if (!id) {
-    return;
-  }
-  const state = ensureScoutingState();
-  state.marketIntel = {
-    ...(state.marketIntel && typeof state.marketIntel === "object" ? state.marketIntel : {}),
-    [id]: normalizeScoutingMarketInfo(id, {
-      ...getScoutingMarketInfo(id, state),
-      ...patch,
-      updatedAt: new Date().toISOString(),
-    }),
-  };
-  scoutingMarketIntelVersion += 1;
-  writeScoutingState();
-  renderScoutingWorkspace();
+  return getScoutingProfileActions().saveMarketInfo(recordId, patch);
 }
 function getScoutingMarketCompleteness(info) {
   const fields = ["contractEnd", "optionYears", "agent", "wageBand", "estimatedFee", "salaryRange", "dealProbability", "budgetImpact", "transferStatus", "medicalLoad", "roleTranslation"];

@@ -83,6 +83,8 @@ export function createScheduleWorkspaceController(options = {}) {
   let plannerLayoutSyncFrame = 0;
   let plannerLayoutSyncTimer = 0;
   let plannerClickTimer = 0;
+  let dateGridClickTimer = 0;
+  let pendingDateGridClick = null;
   let dayPanelMode = "view";
   let isBound = false;
 
@@ -320,6 +322,74 @@ export function createScheduleWorkspaceController(options = {}) {
     if (selectOptions.scrollIntoView) {
       scrollDateIntoView(state.selectedDate);
     }
+  }
+
+  function clearPendingDateGridClick() {
+    if (dateGridClickTimer) {
+      win.clearTimeout?.(dateGridClickTimer);
+      dateGridClickTimer = 0;
+    }
+    pendingDateGridClick = null;
+  }
+
+  function rememberDateGridClick(dateValue) {
+    clearPendingDateGridClick();
+    pendingDateGridClick = {
+      dateValue,
+      clickedAt: Date.now(),
+    };
+    dateGridClickTimer =
+      win.setTimeout?.(() => {
+        dateGridClickTimer = 0;
+        pendingDateGridClick = null;
+      }, 420) || 0;
+  }
+
+  function consumeDateGridDoubleClick(dateValue) {
+    if (!pendingDateGridClick || pendingDateGridClick.dateValue !== dateValue) {
+      return false;
+    }
+    if (Date.now() - pendingDateGridClick.clickedAt > 420) {
+      clearPendingDateGridClick();
+      return false;
+    }
+    clearPendingDateGridClick();
+    return true;
+  }
+
+  function focusDayEditor() {
+    const run = () => {
+      ui.scheduleEventTitle?.focus?.();
+      ui.scheduleEventTitle?.select?.();
+    };
+    if (typeof win.requestAnimationFrame === "function") {
+      win.requestAnimationFrame(run);
+      return;
+    }
+    run();
+  }
+
+  function openDayEditorForDate(dateValue) {
+    const state = ensureState();
+    if (!state || !dateValue) {
+      return;
+    }
+    if (!canEdit()) {
+      selectDate(dateValue);
+      return;
+    }
+    plannerEditingEventId = "";
+    plannerEditingDate = "";
+    selectedPlannerEventId = "";
+    plannerNoteDate = "";
+    draggedPlannerEventId = "";
+    selectScheduleStateDate(state, dateValue);
+    const dayEvents = getEventsForDate(state.selectedDate);
+    editingEventId = dayEvents.length === 1 ? dayEvents[0].id : "";
+    dayPanelMode = "edit";
+    writeState({ syncCentral: false });
+    render();
+    focusDayEditor();
   }
 
   function jumpToToday() {
@@ -997,7 +1067,24 @@ export function createScheduleWorkspaceController(options = {}) {
     if (!dateTrigger) {
       return;
     }
-    selectDate(dateTrigger.dataset.scheduleDate);
+    const dateValue = dateTrigger.dataset.scheduleDate;
+    if (consumeDateGridDoubleClick(dateValue)) {
+      event.preventDefault?.();
+      openDayEditorForDate(dateValue);
+      return;
+    }
+    rememberDateGridClick(dateValue);
+    selectDate(dateValue);
+  }
+
+  function handleDateGridDoubleClick(event) {
+    const dateTrigger = getClosest(event.target, "[data-schedule-date]");
+    if (!dateTrigger) {
+      return;
+    }
+    event.preventDefault?.();
+    clearPendingDateGridClick();
+    openDayEditorForDate(dateTrigger.dataset.scheduleDate);
   }
 
   function handleDayCardClick(event) {
@@ -1305,8 +1392,11 @@ export function createScheduleWorkspaceController(options = {}) {
       button.addEventListener?.("click", () => setOverviewSpan(button.dataset.scheduleSpan));
     });
     ui.scheduleCalendarGrid?.addEventListener?.("click", handleDateGridClick);
+    ui.scheduleCalendarGrid?.addEventListener?.("dblclick", handleDateGridDoubleClick);
     ui.scheduleOverviewGrid?.addEventListener?.("click", handleDateGridClick);
+    ui.scheduleOverviewGrid?.addEventListener?.("dblclick", handleDateGridDoubleClick);
     ui.scheduleWeekGrid?.addEventListener?.("click", handleDateGridClick);
+    ui.scheduleWeekGrid?.addEventListener?.("dblclick", handleDateGridDoubleClick);
     ui.schedulePlannerGrid?.addEventListener?.("click", handlePlannerClick);
     ui.schedulePlannerGrid?.addEventListener?.("dblclick", handlePlannerDblClick);
     ui.schedulePlannerGrid?.addEventListener?.("submit", handlePlannerSubmit);

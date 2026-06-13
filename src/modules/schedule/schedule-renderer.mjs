@@ -148,12 +148,14 @@ ${escapeHtml(eventType.label)}
       if (!isCurrentMonth) {
         return `<span class="schedule-overview-day-spacer" aria-hidden="true"></span>`;
       }
+      const compactTitle = context.canEdit ? `${ariaLabel}. Click to select. Double-click to edit.` : `${ariaLabel}. Click to select.`;
       return `
       <button
         type="button"
         class="schedule-overview-day${isSelected ? " is-selected" : ""}${isToday ? " is-today" : ""}${events.length ? ` has-events${eventToneClass}` : ""}"
         data-schedule-date="${escapeHtml(dateValue)}"
         aria-label="${escapeHtml(ariaLabel)}"
+        title="${escapeHtml(compactTitle)}"
       >
         <span>${date.getDate()}</span>
       </button>
@@ -168,6 +170,7 @@ ${escapeHtml(eventType.label)}
       class="schedule-day-button${isCurrentMonth ? "" : " is-muted"}${isSelected ? " is-selected" : ""}${isToday ? " is-today" : ""}${events.length ? ` has-events${eventToneClass}` : ""}"
       data-schedule-date="${escapeHtml(dateValue)}"
       aria-label="${escapeHtml(ariaLabel)}"
+      title="${escapeHtml(context.canEdit ? `${ariaLabel}. Click to select. Double-click to edit.` : `${ariaLabel}. Click to select.`)}"
     >
       <span class="schedule-day-number">${date.getDate()}</span>
       <span class="schedule-day-events">${visibleEvents}${overflow}</span>
@@ -254,7 +257,7 @@ ${escapeHtml(eventType.label)}
       `;
     }
     return `
-      <button type="button" class="schedule-planner-event-chip is-${escapeHtml(eventType.tone)}${canEdit ? " can-drag" : ""}${isSelected ? " is-selected" : ""}" data-planner-event-id="${escapeHtml(event.id)}" aria-pressed="${isSelected ? "true" : "false"}" draggable="false">
+      <button type="button" class="schedule-planner-event-chip is-${escapeHtml(eventType.tone)}${canEdit ? " can-drag" : ""}${isSelected ? " is-selected" : ""}" data-planner-event-id="${escapeHtml(event.id)}" aria-pressed="${isSelected ? "true" : "false"}" draggable="false" title="${escapeHtml(canEdit ? "Click to select. Drag to move. Double-click to edit." : event.title)}">
         <span>
           <strong>${escapeHtml(event.title)}</strong>
           ${eventMeta ? `<small>${escapeHtml(eventMeta)}</small>` : ""}
@@ -524,6 +527,9 @@ ${escapeHtml(eventType.label)}
     const isEditingDay = dayPanelMode === "edit" && canEdit;
     const editingEvent = state.events.find((event) => event.id === editingEventId) ?? null;
 
+    ui.scheduleWorkspace?.classList.toggle("is-month-view", state.viewMode === "month");
+    ui.scheduleWorkspace?.classList.toggle("is-week-view", isWeek);
+    ui.scheduleWorkspace?.classList.toggle("is-overview-view", isOverview);
     ui.scheduleWorkspace?.classList.toggle("is-planner-view", isPlanner);
     ui.scheduleMonthTitle.textContent = isOverview
       ? getOverviewLabel(state)

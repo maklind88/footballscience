@@ -531,11 +531,30 @@ export function createSessionPlannerTacticalController(deps = {}) {
   .map((elementId) => getSessionPlannerTacticalElementById(elementId))
   .filter(Boolean);
   }
+  function syncSessionPlannerTacticalboardStatus(selectedElementIds = getSessionPlannerTacticalSelectedElementIds()) {
+  const selectedCount = selectedElementIds.length;
+  const selectedLabel = `${selectedCount} selected`;
+  const modal = ui.sessionPlannerWorkspace?.querySelector(".session-tacticalboard-modal");
+  const selectedLabelNode = ui.sessionPlannerWorkspace?.querySelector("[data-session-tactical-selected-label]");
+  const hintState = ui.sessionPlannerWorkspace?.querySelector("[data-session-tactical-hint-state]");
+  if (modal) {
+  modal.classList.toggle("has-selection", selectedCount > 0);
+  modal.classList.toggle("has-no-selection", selectedCount === 0);
+  }
+  if (selectedLabelNode) {
+  selectedLabelNode.textContent = selectedLabel;
+  }
+  if (hintState) {
+  const frameStatus = hintState.dataset.sessionTacticalFrameStatus || "";
+  hintState.textContent = frameStatus ? `${selectedLabel} / Frame ${frameStatus}` : selectedLabel;
+  }
+  }
   function syncSessionPlannerTacticalboardInspector() {
   const colorInput = ui.sessionPlannerWorkspace?.querySelector("[data-session-tactical-color]");
   const widthInput = ui.sessionPlannerWorkspace?.querySelector("[data-session-tactical-width]");
   const styleInput = ui.sessionPlannerWorkspace?.querySelector("[data-session-tactical-style]");
   const selectedElementIds = getSessionPlannerTacticalSelectedElementIds();
+  syncSessionPlannerTacticalboardStatus(selectedElementIds);
   const arrangeCountLabel = ui.sessionPlannerWorkspace?.querySelector("[data-session-tactical-arrange-count]");
   if (arrangeCountLabel) {
   arrangeCountLabel.textContent = `${selectedElementIds.length} selected`;
@@ -560,6 +579,15 @@ export function createSessionPlannerTacticalController(deps = {}) {
   local.sessionPlannerTacticalLineStyle = normalizeTacticalLineStyle(selectedElement.lineStyle);
   }
   colorInput.value = local.sessionPlannerTacticalColor;
+  const normalizedColor = normalizeTacticalColor(local.sessionPlannerTacticalColor);
+  ui.sessionPlannerWorkspace
+  ?.querySelectorAll("[data-session-tactical-color-choice]")
+  ?.forEach((button) => {
+  button.classList.toggle(
+  "is-active",
+  normalizeTacticalColor(button.dataset.sessionTacticalColorChoice) === normalizedColor
+  );
+  });
   widthInput.value = String(local.sessionPlannerTacticalLineWidth);
   if (styleInput) {
   styleInput.value = local.sessionPlannerTacticalLineStyle;

@@ -1,14 +1,281 @@
-.session-tacticalboard-inspector {
+.session-tacticalboard-overlay {
+  padding: clamp(.5rem, 1.25vw, 1rem);
+}
+
+.session-tacticalboard-modal {
+  width: min(96vw, 1680px);
+  height: min(94vh, 980px);
+  max-height: min(94vh, 980px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border-radius: 28px;
+}
+
+.session-tacticalboard-modal .session-library-modal-head {
+  gap: 1rem;
+  align-items: center;
+  padding-bottom: .78rem;
+}
+
+.session-tacticalboard-status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .36rem;
+  margin-top: .42rem;
+}
+
+.session-tacticalboard-status-strip span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.72rem;
+  padding: 0 .58rem;
+  border-radius: 999px;
+  color: #20313f;
+  background: #eef5f8;
+  border: 1px solid #1d1d1f12;
+  font-size: .7rem;
+  font-weight: 850;
+}
+
+.session-tacticalboard-layout {
+  grid-template-columns: minmax(11rem, 15rem) minmax(36rem, 1fr) minmax(15rem, 20rem);
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  gap: .74rem;
+  overflow: hidden;
+}
+
+.session-tacticalboard-layout > * {
+  min-height: 0;
+}
+
+.session-tacticalboard-canvas-wrap {
   align-self: stretch;
-  height: calc(94vh - 6.2rem);
-  max-height: calc(94vh - 6.2rem);
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: clamp(.52rem, 1vw, .9rem);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, #ffffffdb, #f7faf8d6),
+    #ffffff;
+  border: 1px solid #1d1d1f14;
+  box-shadow: inset 0 0 0 1px #ffffffbf, 0 18px 46px #1d2a3214;
+}
+
+.session-tacticalboard-canvas-wrap .session-visual-board {
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  min-height: 0;
+}
+
+.session-tacticalboard-canvas-wrap .session-visual-board-surface {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border-radius: 18px;
+  box-shadow: 0 18px 42px #0d34221f;
+}
+
+.session-tacticalboard-inspector,
+.session-tacticalboard-toolbox {
+  align-self: stretch;
+  height: auto;
+  max-height: none;
+  min-height: 0;
+  overflow: auto;
+  border-radius: 22px;
+  scrollbar-width: thin;
 }
 
 .session-tacticalboard-toolbox {
-  align-self: stretch;
-  height: calc(94vh - 6.2rem);
-  max-height: calc(94vh - 6.2rem);
+  padding: .72rem;
+}
+
+.session-tacticalboard-tools {
+  gap: .62rem;
+}
+
+.session-tacticalboard-tool-group {
+  gap: .34rem;
+  padding: .42rem;
+  border-radius: 18px;
+  background: #ffffffa8;
+  border: 1px solid #1d1d1f10;
+}
+
+.session-tacticalboard-tool-group > span,
+.session-tacticalboard-panel-head span,
+.session-tacticalboard-settings label > span {
+  letter-spacing: 0;
+}
+
+.session-tacticalboard-tool-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .36rem;
+}
+
+.session-tactical-tool-button {
+  min-height: 3rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: .42rem;
+  align-items: center;
+  justify-content: start;
+  padding: .42rem .48rem;
+  border-radius: 14px;
+  text-align: left;
+}
+
+.session-tactical-tool-button.is-active {
+  box-shadow: 0 10px 24px #0d4f8624, inset 0 0 0 1px #0d4f8640;
+}
+
+.session-tactical-tool-icon {
+  width: 1.44rem;
+  height: 1.44rem;
+}
+
+.session-tactical-tool-label {
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .72rem;
+  font-weight: 850;
+}
+
+.session-tacticalboard-settings {
+  gap: .62rem;
+}
+
+.session-tacticalboard-settings label {
+  padding: .62rem;
+  border-radius: 16px;
+  background: #ffffffa8;
+  border: 1px solid #1d1d1f10;
+}
+
+.session-tacticalboard-colour-row {
+  display: grid;
+  gap: .46rem;
+}
+
+.session-tacticalboard-colour-row input[type="color"] {
+  width: 100%;
+  height: 2.25rem;
+  padding: .14rem;
+  border-radius: 12px;
+}
+
+.session-tacticalboard-colour-swatches {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: .28rem;
+}
+
+.session-tactical-colour-swatch {
+  width: 100%;
+  aspect-ratio: 1;
+  min-height: 1.72rem;
+  border-radius: 999px;
+  border: 1px solid #1d1d1f24;
+  background: var(--session-tactical-swatch);
+  box-shadow: inset 0 0 0 2px #ffffffb8, 0 6px 14px #1d1d1f12;
+}
+
+.session-tactical-colour-swatch.is-active {
+  outline: 3px solid #0d4f8630;
+  border-color: #0d4f86;
+}
+
+.session-tacticalboard-frame-actions,
+.session-tacticalboard-arrange-grid,
+.session-tacticalboard-actions {
+  gap: .38rem;
+}
+
+.session-tacticalboard-hint {
+  border-radius: 16px;
+  background: #eef5f8;
+  border-color: #1d1d1f12;
+}
+
+.session-tactical-edit-handle,
+.session-tactical-rotate-handle {
+  filter: drop-shadow(0 8px 14px #0b172033);
+}
+
+.session-tactical-selection-box {
+  stroke-width: .32;
+  stroke-dasharray: 1.5 1.1;
+}
+
+.session-tactical-measurement {
+  border-radius: 999px;
+  background: #ffffffeb;
+  box-shadow: 0 8px 16px #0b172021;
+}
+
+@media (max-width: 1120px) {
+  .session-tacticalboard-modal {
+    height: min(95vh, 980px);
+  }
+
+  .session-tacticalboard-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(34rem, 1fr) auto;
+    overflow: auto;
+  }
+
+  .session-tacticalboard-toolbox,
+  .session-tacticalboard-inspector {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .session-tacticalboard-tool-row {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .session-tacticalboard-canvas-wrap .session-visual-board {
+    min-height: 34rem;
+  }
+}
+
+@media (max-width: 760px) {
+  .session-tacticalboard-overlay {
+    padding: .35rem;
+  }
+
+  .session-tacticalboard-modal {
+    width: calc(100vw - .7rem);
+    height: calc(100vh - .7rem);
+    max-height: calc(100vh - .7rem);
+    border-radius: 20px;
+  }
+
+  .session-tacticalboard-layout {
+    grid-template-rows: auto minmax(27rem, 1fr) auto;
+  }
+
+  .session-tacticalboard-tool-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .session-tactical-tool-button {
+    min-height: 2.75rem;
+  }
+
+  .session-tactical-tool-label {
+    font-size: .68rem;
+  }
 }
 
 @media (max-height: 760px) {

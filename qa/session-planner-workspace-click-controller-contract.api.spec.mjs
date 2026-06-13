@@ -160,6 +160,7 @@ test("Session Planner click controller preserves player board, history, and add 
 test("Session Planner click controller preserves tactical and library dataset actions", () => {
   const listeners = {};
   const calls = [];
+  let tacticalColor = "#111827";
   const workspaceElement = {
     addEventListener: (type, listener) => {
       listeners[type] = listener;
@@ -169,6 +170,15 @@ test("Session Planner click controller preserves tactical and library dataset ac
   bindSessionPlannerWorkspaceClickController({
     workspaceElement,
     updateTacticalPlayerNumber: (elementId, number) => calls.push(`number:${elementId}:${number}`),
+    normalizeTacticalColor: (value) => `normalized:${value}`,
+    getTacticalColor: () => tacticalColor,
+    setTacticalColor: (value) => {
+      tacticalColor = value;
+      calls.push(`tactical-color:${value}`);
+    },
+    getSelectedTacticalElementIds: () => ["shape-1"],
+    updateSelectedTacticalElement: (patch) => calls.push(`tactical-patch:${patch.color}`),
+    renderWorkspace: (options) => calls.push(`render:${options.preserveDateStripScroll}`),
     undoBoardHistory: (type) => calls.push(`undo:${type}`),
     redoBoardHistory: (type) => calls.push(`redo:${type}`),
     moveBlock: (blockId, direction) => calls.push(`move:${blockId}:${direction}`),
@@ -186,6 +196,18 @@ test("Session Planner click controller preserves tactical and library dataset ac
     },
   })));
   expect(calls).toContain("number:shape-1:8");
+
+  listeners.click(createClick(createTarget({
+    closest: {
+      "[data-session-tactical-color-choice]": {
+        dataset: { sessionTacticalColorChoice: "#10b981" },
+      },
+    },
+  })));
+  expect(tacticalColor).toBe("normalized:#10b981");
+  expect(calls).toContain("tactical-color:normalized:#10b981");
+  expect(calls).toContain("tactical-patch:normalized:#10b981");
+  expect(calls).toContain("render:true");
 
   listeners.click(createClick(createTarget({ closest: { "[data-session-undo-board]": { dataset: {} } } })));
   expect(calls).toContain("undo:tactical");

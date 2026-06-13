@@ -893,13 +893,43 @@ const frameButtons = tacticalFrames
 const frameStatusLabel = `${Math.max(1, tacticalFrames.findIndex((frame) => frame.id === activeFrameId) + 1)} / ${tacticalFrames.length || 1}`;
 const selectedTacticalCount = getSessionPlannerTacticalSelectedElementIds().length;
 const arrangeDisabled = selectedTacticalCount < 2 ? "disabled" : "";
+const activeToolEntry = toolGroups.flatMap((group) => group.tools).find(([tool]) => tool === getState().tool);
+const activeToolLabel = activeToolEntry?.[1] || "Tool";
+const selectedLabel = `${selectedTacticalCount} selected`;
+const normalizedCurrentColor = normalizeTacticalColor(getState().color, "#111827").toLowerCase();
+const colorChoices = [
+["#1d8bff", "Blue"],
+["#ff4f4f", "Red"],
+["#fbbf24", "Yellow"],
+["#10b981", "Green"],
+["#f97316", "Orange"],
+["#111827", "Black"],
+["#ffffff", "White"],
+];
+const colorChoiceButtons = colorChoices
+.map(([color, label]) => `
+                <button
+                  type="button"
+                  class="session-tactical-colour-swatch${normalizedCurrentColor === color ? " is-active" : ""}"
+                  data-session-tactical-color-choice="${escapeHtml(color)}"
+                  style="--session-tactical-swatch: ${escapeHtml(color)};"
+                  title="${escapeHtml(label)}"
+                  aria-label="${escapeHtml(label)}"
+                ></button>
+              `)
+.join("");
 return `
     <div class="session-library-overlay session-tacticalboard-overlay" data-session-tacticalboard-overlay>
-      <section class="session-library-modal session-tacticalboard-modal" role="dialog" aria-modal="true" aria-label="Tacticalboard">
+      <section class="session-library-modal session-tacticalboard-modal session-tacticalboard-modal-tool-${escapeHtml(getState().tool)}${selectedTacticalCount ? " has-selection" : " has-no-selection"}" role="dialog" aria-modal="true" aria-label="Tacticalboard">
         <header class="session-library-modal-head">
           <div>
             <span>Tacticalboard</span>
             <h2>${escapeHtml(block.title || "Exercise Board")}</h2>
+            <div class="session-tacticalboard-status-strip" aria-label="Board state">
+              <span data-session-tactical-active-tool-label>${escapeHtml(activeToolLabel)}</span>
+              <span data-session-tactical-selected-label>${escapeHtml(selectedLabel)}</span>
+              <span data-session-tactical-pitch-label>${escapeHtml(pitchMeasurementLabel)}</span>
+            </div>
           </div>
           <button type="button" class="session-library-close-button" data-session-close-tacticalboard aria-label="Close tacticalboard">Close</button>
         </header>
@@ -921,7 +951,7 @@ ${group.tools
                             aria-label="${escapeHtml(label)}"
                           >
                             <span class="session-tactical-tool-icon" aria-hidden="true">${renderSessionPlannerTacticalToolIcon(tool)}</span>
-                            <span>${escapeHtml(label)}</span>
+                            <span class="session-tactical-tool-label">${escapeHtml(label)}</span>
                           </button>
                         `)
 .join("")}
@@ -942,7 +972,12 @@ ${group.tools
               </label>
               <label>
                 <span>Colour</span>
-                <input type="color" value="${escapeHtml(getState().color)}" data-session-tactical-color />
+                <div class="session-tacticalboard-colour-row">
+                  <input type="color" value="${escapeHtml(getState().color)}" data-session-tactical-color />
+                  <div class="session-tacticalboard-colour-swatches" aria-label="Quick colours">
+                    ${colorChoiceButtons}
+                  </div>
+                </div>
               </label>
               <label>
                 <span>Width</span>
@@ -979,8 +1014,8 @@ ${group.tools
               </div>
             </div>
             <div class="session-tacticalboard-hint">
-              <strong>Sharp board mode</strong>
-              <span>Measurements use this view: ${escapeHtml(pitchMeasurementLabel)}. Double-click places items.</span>
+              <strong data-session-tactical-hint-tool>${escapeHtml(activeToolLabel)}</strong>
+              <span data-session-tactical-hint-state data-session-tactical-frame-status="${escapeHtml(frameStatusLabel)}">${escapeHtml(selectedLabel)} / Frame ${escapeHtml(frameStatusLabel)}</span>
             </div>
             <label class="session-media-upload-button session-tacticalboard-upload">
               ${renderSessionPlannerActionIcon("upload")}

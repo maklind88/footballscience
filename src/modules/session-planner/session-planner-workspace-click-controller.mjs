@@ -33,6 +33,11 @@ export function bindSessionPlannerWorkspaceClickController(deps = {}) {
     duplicateTacticalFrame = () => {},
     deleteTacticalFrame = () => {},
     arrangeTacticalElements = () => {},
+    normalizeTacticalColor = (value) => value,
+    getTacticalColor = () => "",
+    setTacticalColor = () => {},
+    getSelectedTacticalElementIds = () => [],
+    updateSelectedTacticalElement = () => {},
     setTacticalTool = () => {},
     clearTacticalBoard = () => {},
     undoBoardHistory = () => {},
@@ -143,6 +148,14 @@ export function bindSessionPlannerWorkspaceClickController(deps = {}) {
     if (callIfClosest(event, "[data-session-duplicate-tactical-frame]", () => duplicateTacticalFrame())) return;
     if (callIfClosest(event, "[data-session-delete-tactical-frame]", () => deleteTacticalFrame())) return;
     if (callIfClosest(event, "[data-session-arrange-tactical]", (el) => arrangeTacticalElements(el.dataset.sessionArrangeTactical))) return;
+    if (callIfClosest(event, "[data-session-tactical-color-choice]", (el) => {
+      const nextColor = normalizeTacticalColor(el.dataset.sessionTacticalColorChoice, getTacticalColor());
+      setTacticalColor(nextColor);
+      if (getSelectedTacticalElementIds().length) {
+        updateSelectedTacticalElement({ color: nextColor });
+      }
+      renderWorkspace({ preserveDateStripScroll: true });
+    })) return;
     if (callIfClosest(event, "[data-session-tactical-tool]", (el) => setTacticalTool(el.dataset.sessionTacticalTool))) return;
     if (callIfClosest(event, "[data-session-clear-board]", () => clearTacticalBoard())) return;
     if (callIfClosest(event, "[data-session-undo-board]", (el) => undoBoardHistory(el.dataset.sessionUndoBoard || "tactical"))) return;

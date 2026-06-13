@@ -223,6 +223,10 @@ test("Session Planner visual renderer owns tactical board pitch, objects, previe
   expect(tacticalboardMarkup).toContain('data-session-tactical-tool="blue-player"');
   expect(tacticalboardMarkup).toContain('data-session-tactical-frame="frame-1"');
   expect(tacticalboardMarkup).toContain("data-session-tactical-color");
+  expect(tacticalboardMarkup).toContain("session-tacticalboard-status-strip");
+  expect(tacticalboardMarkup).toContain("data-session-tactical-selected-label");
+  expect(tacticalboardMarkup).toContain("data-session-tactical-hint-state");
+  expect(tacticalboardMarkup).toContain("data-session-tactical-color-choice");
 });
 
 test("Session Planner player board renderer owns player board, Squad Bridge, Assistant, and team tool markup", () => {

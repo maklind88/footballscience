@@ -27,12 +27,14 @@ test("Scouting database keeps source enrichment behind one visual player databas
   const workspace = readFileSync(resolve(projectRoot, "scouting-workspace.js"), "utf8");
   const client = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-football-science-db-client.mjs"), "utf8");
   const pagingRenderer = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-database-paging-renderer.mjs"), "utf8");
+  const resultsService = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-database-results-service.mjs"), "utf8");
   const profileService = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-football-science-db-profile-service.mjs"), "utf8");
   const qualityService = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-football-science-db-quality-service.mjs"), "utf8");
 
   expect(workspace).toContain("createFootballScienceDbApiClient");
   expect(workspace).toContain("createScoutingApiProfileService");
   expect(workspace).toContain("createScoutingDatabasePagingRenderer");
+  expect(workspace).toContain("createScoutingDatabaseResultsService");
   expect(workspace).toContain("createFootballScienceDbProfileService");
   expect(workspace).toContain("createFootballScienceDbQualityService");
   expect(client).toContain("/api/football-science-db");
@@ -52,6 +54,8 @@ test("Scouting database keeps source enrichment behind one visual player databas
   expect(workspace).not.toContain("Choose Football Science DB segment");
   expect(pagingRenderer).toContain('data-scouting-page-cursor');
   expect(workspace).toContain("scoutingDatabasePagingRenderer.render(paging)");
+  expect(workspace).toContain("scoutingDatabaseResultsService.getResultsMarkup()");
+  expect(resultsService).toContain("No players match these filters yet.");
   expect(workspace).toContain("renderScoutingFootballScienceDbPanel");
   expect(workspace).toContain("renderFootballScienceDbQualityPanel");
   expect(qualityService).toContain('action: "quality"');

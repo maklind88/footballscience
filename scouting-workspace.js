@@ -9,6 +9,7 @@ import {
   createScoutingDatabaseActions,
   createScoutingDatabaseLoader,
   createScoutingDatabasePagingRenderer,
+  createScoutingDatabaseResultsService,
   createScoutingDatabaseSourcePolicy,
   createScoutingFavoritesActions,
   createScoutingApiProfileService,
@@ -412,6 +413,22 @@ const scoutingDatabasePagingRenderer = createScoutingDatabasePagingRenderer({
   escapeHtml,
   normalizeDatabaseFilters: normalizeScoutingDatabaseFilters,
   pageSize: SCOUTING_DATABASE_PAGE_SIZE,
+});
+const scoutingDatabaseResultsService = createScoutingDatabaseResultsService({
+  apiPageLimit: SCOUTING_API_DATABASE_PAGE_LIMIT,
+  ensureState: ensureScoutingState,
+  getDatabase: getScoutingDatabase,
+  getDatabasePage: getScoutingDatabasePage,
+  getDatabasePageOffset: getScoutingDatabasePageOffset,
+  getFilteredDatabaseCacheKey: () => scoutingFilteredDatabaseCache.key,
+  getFilteredRecords: getFilteredScoutingDatabaseRecords,
+  getFootballScienceDbGenderSegmentLabel,
+  hydrateNavigationCache: hydrateScoutingFilteredDatabaseNavigationCache,
+  isAdvancedDatabaseMode: isScoutingDatabaseAdvancedMode,
+  normalizeDatabaseFilters: normalizeScoutingDatabaseFilters,
+  normalizeText: normalizeScoutingText,
+  pageSize: SCOUTING_DATABASE_PAGE_SIZE,
+  renderRecordCard: renderScoutingRecordCard,
 });
 const footballScienceDbProfileService = createFootballScienceDbProfileService({
   fetchApi: fetchFootballScienceDbApi,
@@ -12329,71 +12346,7 @@ function renderFootballScienceDbQualityPanel() {
   `;
 }
 function getScoutingDatabaseResultsMarkup() {
-  const records = getFilteredScoutingDatabaseRecords();
-  const apiPage = getScoutingDatabasePage();
-  const databaseSource = normalizeScoutingText(getScoutingDatabase()?.source, 40);
-  const isFootballScienceDb = databaseSource === "fsdb";
-  const activeFilters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters);
-  const fsdbSegmentLabel = getFootballScienceDbGenderSegmentLabel(activeFilters.fsdbGenderSegment, { short: true });
-  const isPaged = databaseSource === "api" || databaseSource === "worker" || isFootballScienceDb;
-  const pageOffset = isPaged ? apiPage?.offset || 0 : getScoutingDatabasePageOffset(records.length);
-  const visibleRecords = isPaged
-    ? records
-    : records.slice(pageOffset, pageOffset + SCOUTING_DATABASE_PAGE_SIZE);
-  const shownStart = visibleRecords.length ? pageOffset + 1 : 0;
-  const shownEnd = visibleRecords.length ? pageOffset + visibleRecords.length : 0;
-  const hasMore = isPaged ? Boolean(apiPage?.hasMore) : false;
-  const knownTotal =
-    isPaged && Number.isFinite(Number(apiPage?.total)) ? Math.max(0, Math.floor(Number(apiPage.total))) : Number.isFinite(Number(apiPage?.returned))
-      ? Math.max(pageOffset + Math.floor(Number(apiPage.returned)), pageOffset)
-      : null;
-  const total = isPaged
-    ? !apiPage?.hasMore && Number.isFinite(Number(knownTotal)) && records.length < knownTotal
-      ? records.length
-      : knownTotal
-    : records.length;
-  const summary = isFootballScienceDb
-    ? total
-      ? `${total.toLocaleString("en-US")} ${fsdbSegmentLabel} Football Science DB players match.`
-      : visibleRecords.length
-        ? `${visibleRecords.length.toLocaleString("en-US")} ${fsdbSegmentLabel} Football Science DB players shown.`
-        : `No ${fsdbSegmentLabel} Football Science DB players found this page.`
-    : isPaged
-    ? total
-      ? `${total.toLocaleString("en-US")} players match.`
-      : "No players found this page."
-    : `${total.toLocaleString("en-US")} players match.`;
-  hydrateScoutingFilteredDatabaseNavigationCache(
-    visibleRecords,
-    `${scoutingFilteredDatabaseCache.key}:visible:${pageOffset}:${visibleRecords.length}`
-  );
-  return {
-    records,
-    visibleRecords,
-    summary,
-    paging: {
-      total,
-      offset: pageOffset,
-      limit: isPaged ? apiPage?.limit || SCOUTING_API_DATABASE_PAGE_LIMIT : SCOUTING_DATABASE_PAGE_SIZE,
-      returned: isPaged ? visibleRecords.length : records.length,
-      hasMore,
-      nextOffset: isPaged ? apiPage?.nextOffset : null,
-      nextCursor: isFootballScienceDb ? apiPage?.nextCursor || "" : "",
-      mode: isPaged ? databaseSource : "local",
-      shownStart,
-      shownEnd,
-    },
-    html: visibleRecords.length
-      ? visibleRecords
-          .map((record) =>
-            renderScoutingRecordCard(record, {
-              lightweight: true,
-              compactMode: !isScoutingDatabaseAdvancedMode(),
-            })
-          )
-          .join("")
-      : `<div class="scouting-empty-panel">No players match these filters yet.</div>`,
-  };
+  return scoutingDatabaseResultsService.getResultsMarkup();
 }
 function renderScoutingTargetCard(target) {
   const state = ensureScoutingState();
@@ -13785,19 +13738,7 @@ function renderScoutingDatabaseResults() {
   }
 }
 function getScoutingDatabaseVisibleRecordsForPanels() {
-  const records = getFilteredScoutingDatabaseRecords();
-  const apiPage = getScoutingDatabasePage();
-  const databaseSource = normalizeScoutingText(getScoutingDatabase()?.source, 40);
-  const isFootballScienceDb = databaseSource === "fsdb";
-  const isPaged = databaseSource === "api" || databaseSource === "worker" || isFootballScienceDb;
-  const pageOffset = isPaged ? apiPage?.offset || 0 : getScoutingDatabasePageOffset(records.length);
-  const visibleRecords = isPaged
-    ? records
-    : records.slice(pageOffset, pageOffset + SCOUTING_DATABASE_PAGE_SIZE);
-  return {
-    records,
-    visibleRecords,
-  };
+  return scoutingDatabaseResultsService.getVisibleRecordsForPanels();
 }
 function updateScoutingDatabaseModeButtonsDom() {
   const advancedMode = isScoutingDatabaseAdvancedMode();

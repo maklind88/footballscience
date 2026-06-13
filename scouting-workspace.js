@@ -5,6 +5,7 @@ import {
   handleScoutingModuleSubmit,
   handleScoutingWorkspaceClick,
   bindScoutingDragAndDrop as bindScoutingDragAndDropRouter,
+  createScoutingDatabaseActions,
   createScoutingListsActions,
   createScoutingMyTeamActions,
   createScoutingShadowXiActions,
@@ -537,6 +538,7 @@ const scoutingProfileTabs = Object.freeze([
   { value: "history", label: "History" },
 ]);
 let scoutingEventDeps = null;
+let scoutingDatabaseActions = null;
 let scoutingListsActions = null;
 let scoutingMyTeamActions = null;
 let scoutingShadowXiActions = null;
@@ -12029,15 +12031,64 @@ function hasOpenScoutingOverlay(root = ui.scoutingWorkspace) {
 function isScoutingDatabaseAdvancedMode() {
   return Boolean(getScoutingDatabaseAdvancedMode());
 }
+function getScoutingDatabaseActions() {
+  if (scoutingDatabaseActions) {
+    return scoutingDatabaseActions;
+  }
+  scoutingDatabaseActions = createScoutingDatabaseActions({
+    apiPageLimit: SCOUTING_API_DATABASE_PAGE_LIMIT,
+    canEdit: canEditScoutingWorkspace,
+    clearDatabaseLoadState: () => {
+      scoutingDatabaseError = "";
+      scoutingDatabaseLoadPromise = null;
+      scoutingDatabaseLoadSource = "";
+    },
+    clearFilteredDatabaseCache: () => {
+      scoutingFilteredDatabaseCache.key = "";
+    },
+    clearTimeout: (timer) => window.clearTimeout(timer),
+    cloneSavedView: cloneScoutingSavedView,
+    deferStateWrite: deferScoutingStateWrite,
+    ensureState: ensureScoutingState,
+    getAdvancedFiltersOpen: getScoutingAdvancedDatabaseFiltersOpen,
+    getAdvancedMode: getScoutingDatabaseAdvancedMode,
+    getApiOffset: getScoutingApiOffset,
+    getDatabaseFilterDebounceTimer: getScoutingDatabaseFilterDebounceTimer,
+    getDatabaseLiveSearchQuery: getScoutingDatabaseLiveSearchQuery,
+    getDatabasePage: getScoutingDatabasePage,
+    getFilteredDatabaseRecords: getFilteredScoutingDatabaseRecords,
+    getRangeFilterResetValue: getScoutingRangeFilterResetValue,
+    getSavedViewPresets: getScoutingSavedViewPresets,
+    getSavedViews: getScoutingSavedViews,
+    isDatabaseLoaded: isScoutingDatabaseLoaded,
+    isPagedDatabaseActive: isScoutingPagedDatabaseActive,
+    normalizeDatabaseFilters: normalizeScoutingDatabaseFilters,
+    normalizeText: normalizeScoutingText,
+    pageSize: SCOUTING_DATABASE_PAGE_SIZE,
+    refreshDatabaseSurface: refreshScoutingDatabaseSurface,
+    renderWorkspace: renderScoutingWorkspace,
+    scheduleDatabaseRefresh: scheduleScoutingDatabaseRefresh,
+    scheduleDatabaseResultsRender: scheduleScoutingDatabaseResultsRender,
+    setAdvancedFiltersOpenState: setScoutingAdvancedDatabaseFiltersOpenState,
+    setAdvancedModeState: setScoutingDatabaseAdvancedModeState,
+    setDatabaseFilterDebounceTimer: setScoutingDatabaseFilterDebounceTimer,
+    setDatabaseMetricFilterOpen: setScoutingDatabaseMetricFilterOpen,
+    setDatabaseSearchDraft: setScoutingDatabaseSearchDraft,
+    setSavedViewNameDraft: (value) => {
+      scoutingSavedViewNameDraft = value;
+    },
+    setSavedViewsOpen: (open) => {
+      scoutingSavedViewsOpen = Boolean(open);
+    },
+    setTimeout: (callback, delayMs) => window.setTimeout(callback, delayMs),
+    syncAdvancedFiltersDom: syncScoutingAdvancedDatabaseFiltersDom,
+    syncAdvancedModeDom: syncScoutingAdvancedDatabaseModeDom,
+    writeState: writeScoutingState,
+  });
+  return scoutingDatabaseActions;
+}
 function setScoutingDatabaseAdvancedMode(enabled) {
-  const nextMode = Boolean(enabled);
-  if (nextMode === getScoutingDatabaseAdvancedMode()) {
-    return;
-  }
-  setScoutingDatabaseAdvancedModeState(nextMode);
-  if (!syncScoutingAdvancedDatabaseModeDom()) {
-    refreshScoutingDatabaseSurface({ controls: true });
-  }
+  return getScoutingDatabaseActions().setAdvancedMode(enabled);
 }
 function renderScoutingRecordCard(record, options = {}) {
   const lightweight = Boolean(options.lightweight);
@@ -12235,12 +12286,7 @@ function updateScoutingRangeFilterDisplay(rangeInput) {
   }
 }
 function resetScoutingRangeFilter(field) {
-  const resetValue = getScoutingRangeFilterResetValue(field);
-  setScoutingDatabaseFilter(field, resetValue);
-  renderScoutingWorkspace({ preserveFocus: true });
-  if (isScoutingDatabaseLoaded()) {
-    scheduleScoutingDatabaseFilterRefresh();
-  }
+  return getScoutingDatabaseActions().resetRangeFilter(field);
 }
 function renderScoutingDatabaseControls() {
   const state = ensureScoutingState();
@@ -14336,143 +14382,20 @@ function setScoutingActiveTab(tabId) {
   perf.end({ from: previousTab, to: tabId });
 }
 function setScoutingDatabaseFilter(field, value) {
-  const state = ensureScoutingState();
-  if (field === "query") {
-    setScoutingDatabaseSearchDraft(null);
-  }
-  const nextPatch = {
-    ...state.databaseFilters,
-    [field]: value,
-    offset: field === "offset" ? value : 0,
-  };
-  if (field !== "fsdbCursor" && field !== "fsdbCursorStack") {
-    nextPatch.fsdbCursor = "";
-    nextPatch.fsdbCursorStack = [];
-  }
-  if (field === "source") {
-    scoutingDatabaseError = "";
-    scoutingDatabaseLoadPromise = null;
-    scoutingDatabaseLoadSource = "";
-  }
-  if (field === "metricIds") {
-    const metricIds = Array.isArray(value) ? value.map((item) => normalizeScoutingText(item, 120)).filter(Boolean) : [];
-    nextPatch.metricIds = metricIds;
-    nextPatch.metricId = metricIds[0] || "all";
-  }
-  if (field === "minMinutes") {
-    nextPatch.minMinutesIntentional = Number(value) > 0;
-  }
-  state.databaseFilters = normalizeScoutingDatabaseFilters({
-    ...nextPatch,
-  });
-  scoutingFilteredDatabaseCache.key = "";
-  deferScoutingStateWrite({ syncCentral: false });
+  return getScoutingDatabaseActions().setFilter(field, value);
 }
 function setScoutingDatabasePageOffset(offset) {
-  const nextOffset = getScoutingApiOffset(offset);
-  const state = ensureScoutingState();
-  if (isScoutingPagedDatabaseActive()) {
-    const offsetToSet = nextOffset;
-    const currentFilters = normalizeScoutingDatabaseFilters(state.databaseFilters || {});
-    const liveQuery = getScoutingDatabaseLiveSearchQuery(currentFilters.query);
-    if (
-      getScoutingApiOffset(currentFilters.offset) === offsetToSet &&
-      normalizeScoutingText(currentFilters.query, 120) === liveQuery
-    ) {
-      return;
-    }
-    state.databaseFilters = normalizeScoutingDatabaseFilters({
-      ...currentFilters,
-      query: liveQuery,
-      offset: offsetToSet,
-    });
-    scoutingFilteredDatabaseCache.key = "";
-    writeScoutingState({ syncCentral: false });
-    scheduleScoutingDatabaseRefresh();
-    return;
-  }
-  const filtered = getFilteredScoutingDatabaseRecords();
-  const total = Math.max(0, Math.floor(filtered.length));
-  const lastPageStart = Math.max(0, Math.floor((total - 1) / SCOUTING_DATABASE_PAGE_SIZE) * SCOUTING_DATABASE_PAGE_SIZE);
-  const desiredOffset = Math.max(0, Math.min(nextOffset, lastPageStart));
-  const offsetToSet = Number.isFinite(desiredOffset) ? desiredOffset : 0;
-  if (getScoutingApiOffset(state.databaseFilters.offset) === offsetToSet) {
-    return;
-  }
-  state.databaseFilters = normalizeScoutingDatabaseFilters({
-    ...state.databaseFilters,
-    offset: offsetToSet,
-  });
-  scoutingFilteredDatabaseCache.key = "";
-  writeScoutingState({ syncCentral: false });
-  scheduleScoutingDatabaseResultsRender();
+  return getScoutingDatabaseActions().setPageOffset(offset);
 }
 function setScoutingDatabasePageCursor(direction = "", cursor = "") {
-  const state = ensureScoutingState();
-  const currentFilters = normalizeScoutingDatabaseFilters(state.databaseFilters || {});
-  if (currentFilters.source !== "fsdb") {
-    return;
-  }
-  const liveQuery = getScoutingDatabaseLiveSearchQuery(currentFilters.query);
-  const stack = Array.isArray(currentFilters.fsdbCursorStack) ? currentFilters.fsdbCursorStack.slice() : [];
-  let nextCursor = currentFilters.fsdbCursor;
-  let nextStack = stack;
-  if (direction === "next") {
-    const incomingCursor = normalizeScoutingText(cursor || getScoutingDatabasePage()?.nextCursor, 400);
-    if (!incomingCursor) {
-      return;
-    }
-    if (currentFilters.fsdbCursor) {
-      nextStack = [...stack, currentFilters.fsdbCursor].slice(-50);
-    } else {
-      nextStack = [...stack, "__first__"].slice(-50);
-    }
-    nextCursor = incomingCursor;
-  } else if (direction === "previous") {
-    if (!stack.length) {
-      return;
-    }
-    const previousCursor = stack[stack.length - 1];
-    nextStack = stack.slice(0, -1);
-    nextCursor = previousCursor === "__first__" ? "" : previousCursor;
-  } else {
-    return;
-  }
-  state.databaseFilters = normalizeScoutingDatabaseFilters({
-    ...currentFilters,
-    query: liveQuery,
-    fsdbCursor: nextCursor,
-    fsdbCursorStack: nextStack,
-    offset: 0,
-  });
-  scoutingFilteredDatabaseCache.key = "";
-  writeScoutingState({ syncCentral: false });
-  scheduleScoutingDatabaseRefresh();
+  return getScoutingDatabaseActions().setPageCursor(direction, cursor);
 }
 function setScoutingDatabasePageNumber(pageNumber) {
-  const isPaged = isScoutingPagedDatabaseActive();
-  const pageSize = isPaged
-    ? Math.max(1, Math.floor(Number(getScoutingDatabasePage()?.limit) || SCOUTING_API_DATABASE_PAGE_LIMIT))
-    : SCOUTING_DATABASE_PAGE_SIZE;
-  const requestedPage = Math.max(1, Math.floor(Number(pageNumber) || 1));
-  const total = isPaged
-    ? Math.max(0, Math.floor(Number(getScoutingDatabasePage()?.total) || 0))
-    : getFilteredScoutingDatabaseRecords().length;
-  const totalPages = total ? Math.max(1, Math.ceil(total / pageSize)) : requestedPage;
-  const safePage = Math.min(requestedPage, totalPages);
-  setScoutingDatabasePageOffset((safePage - 1) * pageSize);
+  return getScoutingDatabaseActions().setPageNumber(pageNumber);
 }
 
 function scheduleScoutingDatabaseFilterRefresh() {
-  if (isScoutingPagedDatabaseActive()) {
-    scheduleScoutingDatabaseRefresh();
-    return;
-  }
-  window.clearTimeout(getScoutingDatabaseFilterDebounceTimer());
-  setScoutingDatabaseFilterDebounceTimer(window.setTimeout(() => {
-    setScoutingDatabaseFilterDebounceTimer(0);
-    scheduleScoutingDatabaseResultsRender();
-  }, 120));
+  return getScoutingDatabaseActions().scheduleFilterRefresh();
 }
 function rollbackScoutingImport(importBatchId) {
   if (!canEditScoutingWorkspace()) {
@@ -14509,61 +14432,16 @@ function rollbackScoutingImport(importBatchId) {
     });
 }
 function createScoutingSavedView(name) {
-  if (!canEditScoutingWorkspace()) {
-    return;
-  }
-  const state = ensureScoutingState();
-  const safeName = normalizeScoutingText(name, 80);
-  if (!safeName) {
-    return;
-  }
-  scoutingSavedViewNameDraft = "";
-  const view = cloneScoutingSavedView({
-    name: safeName,
-    filters: state.databaseFilters,
-  });
-  state.savedViews = [view, ...getScoutingSavedViews(state).filter((item) => item.name.toLowerCase() !== safeName.toLowerCase())];
-  scoutingSavedViewsOpen = true;
-  writeScoutingState();
-  renderScoutingWorkspace({ preserveFocus: true });
+  return getScoutingDatabaseActions().createSavedView(name);
 }
 function applyScoutingPresetView(presetId) {
-  const preset = getScoutingSavedViewPresets().find((item) => item.id === normalizeScoutingText(presetId, 80));
-  if (!preset) {
-    return;
-  }
-  const state = ensureScoutingState();
-  setScoutingDatabaseSearchDraft(null);
-  state.databaseFilters = normalizeScoutingDatabaseFilters({
-    ...normalizeScoutingDatabaseFilters({}),
-    ...preset.filters,
-  });
-  state.activeTab = "database";
-  writeScoutingState({ syncCentral: false });
-  renderScoutingWorkspace({ preserveFocus: true });
+  return getScoutingDatabaseActions().applyPresetView(presetId);
 }
 function applyScoutingSavedView(viewId) {
-  const state = ensureScoutingState();
-  const id = normalizeScoutingText(viewId, 120);
-  const view = getScoutingSavedViews(state).find((item) => item.id === id);
-  if (!view) {
-    return;
-  }
-  setScoutingDatabaseSearchDraft(null);
-  state.databaseFilters = normalizeScoutingDatabaseFilters(view.filters);
-  state.activeTab = "database";
-  writeScoutingState({ syncCentral: false });
-  renderScoutingWorkspace({ preserveFocus: true });
+  return getScoutingDatabaseActions().applySavedView(viewId);
 }
 function deleteScoutingSavedView(viewId) {
-  if (!canEditScoutingWorkspace()) {
-    return;
-  }
-  const state = ensureScoutingState();
-  const id = normalizeScoutingText(viewId, 120);
-  state.savedViews = getScoutingSavedViews(state).filter((view) => view.id !== id);
-  writeScoutingState();
-  renderScoutingWorkspace({ preserveFocus: true });
+  return getScoutingDatabaseActions().deleteSavedView(viewId);
 }
 function renderScoutingDatabaseResults() {
   if (ensureScoutingState().activeTab !== "database") {
@@ -14849,17 +14727,7 @@ function syncScoutingAdvancedDatabaseFiltersDom() {
   return true;
 }
 function setScoutingAdvancedDatabaseFiltersOpen(open) {
-  const nextOpen = Boolean(open);
-  if (nextOpen === getScoutingAdvancedDatabaseFiltersOpen()) {
-    return;
-  }
-  setScoutingAdvancedDatabaseFiltersOpenState(nextOpen);
-  if (!nextOpen) {
-    setScoutingDatabaseMetricFilterOpen(false);
-  }
-  if (!syncScoutingAdvancedDatabaseFiltersDom()) {
-    refreshScoutingDatabaseSurface({ controls: true });
-  }
+  return getScoutingDatabaseActions().setAdvancedFiltersOpen(open);
 }
 function scheduleScoutingDatabaseRefresh() {
   const isApi = isScoutingApiDatabaseActive();

@@ -36,6 +36,7 @@ export * from "./scouting-defaults.mjs";
 export * from "./scouting-state.mjs";
 export * from "./scouting-database-actions.mjs";
 export * from "./scouting-database-loader.mjs";
+export * from "./scouting-database-paging-renderer.mjs";
 export * from "./scouting-database-source-policy.mjs";
 export * from "./scouting-api-profile-service.mjs";
 export * from "./scouting-football-science-db-client.mjs";

@@ -8,6 +8,7 @@ import {
   createScoutingComparisonActions,
   createScoutingDatabaseActions,
   createScoutingDatabaseLoader,
+  createScoutingDatabasePagingRenderer,
   createScoutingDatabaseSourcePolicy,
   createScoutingFavoritesActions,
   createScoutingApiProfileService,
@@ -405,6 +406,12 @@ const footballScienceDbQualityService = createFootballScienceDbQualityService({
   fetchApi: fetchFootballScienceDbApi,
   normalizeSummary: normalizeFootballScienceDbQualitySummary,
   renderWorkspace: renderScoutingWorkspace,
+});
+const scoutingDatabasePagingRenderer = createScoutingDatabasePagingRenderer({
+  ensureState: ensureScoutingState,
+  escapeHtml,
+  normalizeDatabaseFilters: normalizeScoutingDatabaseFilters,
+  pageSize: SCOUTING_DATABASE_PAGE_SIZE,
 });
 const footballScienceDbProfileService = createFootballScienceDbProfileService({
   fetchApi: fetchFootballScienceDbApi,
@@ -2186,85 +2193,7 @@ function getScoutingDatabaseTotalCount(database = getScoutingDatabase()) {
   return Array.isArray(database?.records) ? database.records.length : 0;
 }
 function renderScoutingDatabasePagingControls(paging = {}) {
-  const isPaged = paging?.mode === "api" || paging?.mode === "worker";
-  const isFootballScienceDb = paging?.mode === "fsdb";
-  const pageSize = Math.max(1, Math.floor(Number(paging.limit) || SCOUTING_DATABASE_PAGE_SIZE));
-  const total = Math.max(0, Math.floor(Number(paging.total) || 0));
-  const returned = Math.max(0, Math.floor(Number(paging.returned) || 0));
-  const hasMore = isPaged || isFootballScienceDb ? Boolean(paging.hasMore) : total > pageSize;
-  if (isFootballScienceDb) {
-    if (!returned) {
-      return "";
-    }
-    const state = ensureScoutingState();
-    const filters = normalizeScoutingDatabaseFilters(state.databaseFilters);
-    const currentPage = Math.max(1, filters.fsdbCursorStack.length + 1);
-    const totalLabel = total ? ` of ${total.toLocaleString("en-US")}` : hasMore ? "" : ` of ${returned.toLocaleString("en-US")}`;
-    return `
-      <div class="scouting-database-paging" data-scouting-database-paging>
-        <span>${escapeHtml(`Showing ${returned.toLocaleString("en-US")} FS DB players${totalLabel}`)}</span>
-        <form class="scouting-database-page-jump" data-scouting-page-jump-form data-scouting-page-size="${pageSize}">
-          <span>Page</span>
-          <input type="number" min="1" name="page" value="${currentPage}" aria-label="Football Science DB page" title="Cursor pages can move one page at a time" disabled />
-        </form>
-        <div>
-          <button type="button" class="scouting-secondary-button" data-scouting-page-cursor="previous" ${filters.fsdbCursorStack.length ? "" : "disabled"}>Previous 50</button>
-          <button type="button" class="scouting-primary-button" data-scouting-page-cursor="next" data-scouting-next-cursor="${escapeHtml(paging.nextCursor || "")}" ${hasMore && paging.nextCursor ? "" : "disabled"}>Next 50</button>
-        </div>
-      </div>
-    `;
-  }
-  if (isPaged) {
-    if (!returned) {
-      return "";
-    }
-    const apiOffset = Math.max(0, Math.floor(Number(paging.offset) || 0));
-    const start = apiOffset + 1;
-    const end = apiOffset + returned;
-    const previousOffset = Math.max(0, apiOffset - pageSize);
-    const nextOffset = Number.isFinite(Number(paging.nextOffset)) ? Number(paging.nextOffset) : apiOffset + returned;
-    const currentPage = Math.floor(apiOffset / pageSize) + 1;
-    const totalPages = total ? Math.max(1, Math.ceil(total / pageSize)) : "";
-    const totalLabel = total ? ` of ${total.toLocaleString("en-US")}` : hasMore ? "" : ` of ${end.toLocaleString("en-US")}`;
-    return `
-      <div class="scouting-database-paging" data-scouting-database-paging>
-        <span>${escapeHtml(`Showing ${start.toLocaleString("en-US")}-${end.toLocaleString("en-US")}${totalLabel}`)}</span>
-        <form class="scouting-database-page-jump" data-scouting-page-jump-form data-scouting-page-size="${pageSize}">
-          <span>Page</span>
-          <input type="number" min="1" ${totalPages ? `max="${totalPages}"` : ""} name="page" value="${currentPage}" aria-label="Jump to scouting database page" title="Type a page number and press Enter" />
-          ${totalPages ? `<span>/ ${totalPages}</span>` : ""}
-        </form>
-        <div>
-          <button type="button" class="scouting-secondary-button" data-scouting-page-offset="${previousOffset}" ${apiOffset <= 0 ? "disabled" : ""}>Previous 50</button>
-          <button type="button" class="scouting-primary-button" data-scouting-page-offset="${nextOffset}" ${!hasMore ? "disabled" : ""}>Next 50</button>
-        </div>
-      </div>
-    `;
-  }
-  if (!total || total <= pageSize) {
-    return "";
-  }
-  const offset = Math.max(0, Math.floor(Number(paging.offset) || 0));
-  const start = Math.min(total, offset + 1);
-  const end = Math.min(total, offset + pageSize);
-  const previousOffset = Math.max(0, offset - pageSize);
-  const nextOffset = Math.min(total - 1, offset + pageSize);
-  const currentPage = Math.floor(offset / pageSize) + 1;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  return `
-    <div class="scouting-database-paging" data-scouting-database-paging>
-      <span>${escapeHtml(`Showing ${start.toLocaleString("en-US")}-${end.toLocaleString("en-US")} of ${total.toLocaleString("en-US")}`)}</span>
-      <form class="scouting-database-page-jump" data-scouting-page-jump-form data-scouting-page-size="${pageSize}">
-        <span>Page</span>
-        <input type="number" min="1" max="${totalPages}" name="page" value="${currentPage}" aria-label="Jump to scouting database page" title="Type a page number and press Enter" />
-        <span>/ ${totalPages}</span>
-      </form>
-      <div>
-        <button type="button" class="scouting-secondary-button" data-scouting-page-offset="${previousOffset}" ${currentPage <= 1 ? "disabled" : ""}>Previous 50</button>
-        <button type="button" class="scouting-primary-button" data-scouting-page-offset="${nextOffset}" ${currentPage >= totalPages ? "disabled" : ""}>Next 50</button>
-      </div>
-    </div>
-  `;
+  return scoutingDatabasePagingRenderer.render(paging);
 }
 function renderScoutingImportHistoryPanel() {
   const canEdit = canEditScoutingWorkspace();

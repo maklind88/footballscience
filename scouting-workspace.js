@@ -11,6 +11,7 @@ import {
   createScoutingFavoritesActions,
   createScoutingListsActions,
   createScoutingMyTeamActions,
+  createScoutingReportsActions,
   createScoutingShadowXiActions,
   normalizeScoutingComparisonLab,
   renderScoutingActiveContentByTab,
@@ -541,6 +542,7 @@ let scoutingDatabaseActions = null;
 let scoutingFavoritesActions = null;
 let scoutingListsActions = null;
 let scoutingMyTeamActions = null;
+let scoutingReportsActions = null;
 let scoutingShadowXiActions = null;
 function setScoutingContext(context) {
   activeContext = context;
@@ -4273,15 +4275,45 @@ function normalizeScoutingReport(report = {}) {
     createdAt: normalizeScoutingText(report.createdAt, 40) || now,
   };
 }
-function createScoutingReport(report = {}) {
-  const state = ensureScoutingState();
-  const nextReport = normalizeScoutingReport(report);
-  if (!nextReport.title && !nextReport.summary) {
-    return;
+function getScoutingReportsActions() {
+  if (scoutingReportsActions) {
+    return scoutingReportsActions;
   }
-  state.reports = [nextReport, ...getScoutingReports(state)];
-  writeScoutingState();
-  renderScoutingWorkspace();
+  scoutingReportsActions = createScoutingReportsActions({
+    canEdit: canEditScoutingWorkspace,
+    ensureState: ensureScoutingState,
+    getExpandedPanels: () => scoutingReportsExpandedPanels,
+    getRecordAge: getScoutingRecordAge,
+    getRecordById: getScoutingRecordById,
+    getRecordId: getScoutingRecordId,
+    getRecordName: getScoutingRecordName,
+    getRecordPosition: getScoutingRecordPosition,
+    getRecordTeam: getScoutingRecordTeam,
+    getReports: getScoutingReports,
+    getRoleFitScore: getScoutingRoleFitScore,
+    getTargets: getScoutingTargets,
+    normalizeDateText: normalizeScoutingDateText,
+    normalizeReportRecommendation: normalizeScoutingReportRecommendation,
+    normalizeReportScore: normalizeScoutingReportScore,
+    normalizeTargetPriority: normalizeScoutingTargetPriority,
+    normalizeTargetStatus: normalizeScoutingTargetStatus,
+    normalizeText: normalizeScoutingText,
+    rememberRecordSnapshot: rememberScoutingRecordSnapshot,
+    renderWorkspace: renderScoutingWorkspace,
+    rerenderActiveContent: rerenderScoutingActiveContent,
+    setExpandedPanels: (panels) => {
+      scoutingReportsExpandedPanels = panels instanceof Set ? panels : new Set();
+    },
+    setReportBuilderOpen: (open) => {
+      scoutingReportBuilderOpen = Boolean(open);
+    },
+    touchIntelligenceCache: touchScoutingIntelligenceCache,
+    writeState: writeScoutingState,
+  });
+  return scoutingReportsActions;
+}
+function createScoutingReport(report = {}) {
+  return getScoutingReportsActions().createReport(report);
 }
 function getScoutingMetric(metricId) {
   const id = normalizeScoutingText(metricId, 120);
@@ -6901,87 +6933,16 @@ function getScoutingSlotById(slotId) {
   return getScoutingShadowSlot(slotId);
 }
 function createScoutingTarget(record, target = {}) {
-  const now = new Date().toISOString();
-  const recordId = getScoutingRecordId(record);
-  const roleFit = getScoutingRoleFitScore(record);
-  return {
-    id: normalizeScoutingText(target.id, 120) || `scouting-target-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    recordId,
-    name: getScoutingRecordName(record),
-    club: getScoutingRecordTeam(record),
-    position: getScoutingRecordPosition(record),
-    age: String(getScoutingRecordAge(record) || ""),
-    status: normalizeScoutingTargetStatus(target.status),
-    priority: normalizeScoutingTargetPriority(target.priority),
-    fit: Number.isFinite(roleFit) ? `P${roleFit}` : "n/a",
-    notes: normalizeScoutingText(target.notes, 900),
-    slotId: normalizeScoutingText(target.slotId, 40),
-    owner: normalizeScoutingText(target.owner, 80),
-    nextAction: normalizeScoutingText(target.nextAction, 220),
-    nextActionDate: normalizeScoutingDateText(target.nextActionDate),
-    lastContact: normalizeScoutingDateText(target.lastContact),
-    decisionDeadline: normalizeScoutingDateText(target.decisionDeadline),
-    createdAt: normalizeScoutingText(target.createdAt, 40) || now,
-    updatedAt: normalizeScoutingText(target.updatedAt, 40) || now,
-  };
+  return getScoutingReportsActions().createTarget(record, target);
 }
 function saveScoutingTarget(recordId, patch = {}) {
-  const state = ensureScoutingState();
-  const record = getScoutingRecordById(recordId);
-  const now = new Date().toISOString();
-  if (!record) {
-    return;
-  }
-  rememberScoutingRecordSnapshot(record, state);
-  const baseTarget = findScoutingTargetByRecordId(recordId, state);
-  const nextTarget = createScoutingTarget(record, {
-    ...(baseTarget || {}),
-    ...patch,
-    updatedAt: now,
-  });
-  if (baseTarget) {
-    state.targets = getScoutingTargets(state).map((target) => (target.id === baseTarget.id ? nextTarget : target));
-  } else {
-    state.targets = [nextTarget, ...getScoutingTargets(state)];
-  }
-  touchScoutingIntelligenceCache();
-  writeScoutingState();
-  renderScoutingWorkspace();
+  return getScoutingReportsActions().saveTarget(recordId, patch);
 }
 function updateScoutingTarget(targetId, patch = {}) {
-  const state = ensureScoutingState();
-  const target = findScoutingTargetById(targetId, state);
-  if (!target) {
-    return;
-  }
-  const record = getScoutingTargetRecord(target);
-  if (!record) {
-    return;
-  }
-  rememberScoutingRecordSnapshot(record, state);
-  const nextTarget = createScoutingTarget(record, {
-    ...target,
-    ...patch,
-    updatedAt: normalizeScoutingText(patch.updatedAt, 40) || new Date().toISOString(),
-  });
-  state.targets = getScoutingTargets(state).map((entry) => (entry.id === target.id ? nextTarget : entry));
-  touchScoutingIntelligenceCache();
-  writeScoutingState();
-  renderScoutingWorkspace();
+  return getScoutingReportsActions().updateTarget(targetId, patch);
 }
 function removeScoutingTarget(targetId) {
-  const state = ensureScoutingState();
-  const id = normalizeScoutingText(targetId, 120);
-  if (!id) {
-    return;
-  }
-  const nextTargets = getScoutingTargets(state).filter((target) => normalizeScoutingText(target.id, 120) !== id);
-  if (nextTargets.length !== getScoutingTargets(state).length) {
-    state.targets = nextTargets;
-    touchScoutingIntelligenceCache();
-    writeScoutingState();
-    renderScoutingWorkspace();
-  }
+  return getScoutingReportsActions().removeTarget(targetId);
 }
 function getScoutingReportTargetOptionMarkup() {
   const state = ensureScoutingState();
@@ -7158,42 +7119,10 @@ function removeScoutingRoleModel(roleModelId) {
   renderScoutingWorkspace();
 }
 function createScoutingReportFromForm(title, type, targetId, summary) {
-  const state = ensureScoutingState();
-  const safeTitle = normalizeScoutingText(title, 160);
-  const safeSummary = normalizeScoutingText(summary, 1200);
-  if (!safeTitle && !safeSummary) {
-    return;
-  }
-  const now = new Date().toISOString();
-  const safeType = type === "opposition" ? "opposition" : "player";
-  const safeTargetId = safeType === "player" ? normalizeScoutingText(targetId, 120) : "";
-  state.reports = [
-    {
-      id: `scouting-report-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      targetId: safeTargetId,
-      title: safeTitle || "Scouting report",
-      type: safeType,
-      summary: safeSummary || "No report summary yet.",
-      createdAt: now,
-    },
-    ...getScoutingReports(state),
-  ];
-  writeScoutingState();
-  renderScoutingWorkspace();
+  return getScoutingReportsActions().createReportFromForm(title, type, targetId, summary);
 }
 function deleteScoutingReport(reportId) {
-  const state = ensureScoutingState();
-  const id = normalizeScoutingText(reportId, 120);
-  if (!id) {
-    return;
-  }
-  const nextReports = getScoutingReports(state).filter((report) => normalizeScoutingText(report.id, 120) !== id);
-  if (nextReports.length === getScoutingReports(state).length) {
-    return;
-  }
-  state.reports = nextReports;
-  writeScoutingState();
-  renderScoutingWorkspace();
+  return getScoutingReportsActions().deleteReport(reportId);
 }
 function getScoutingMetricValuesForGroup(metricId, positionGroup) {
   const metric = getScoutingMetric(metricId);
@@ -13349,15 +13278,10 @@ function renderScoutingRoleModelsPanel() {
   `;
 }
 function openScoutingReportBuilder() {
-  if (!canEditScoutingWorkspace()) {
-    return;
-  }
-  scoutingReportBuilderOpen = true;
-  renderScoutingWorkspace({ preserveFocus: true });
+  return getScoutingReportsActions().openBuilder();
 }
 function closeScoutingReportBuilder() {
-  scoutingReportBuilderOpen = false;
-  renderScoutingWorkspace({ preserveFocus: true });
+  return getScoutingReportsActions().closeBuilder();
 }
 function renderScoutingReportBuilderOverlay(canEdit, targetOptions, reportTypeOptions) {
   if (!scoutingReportBuilderOpen) {
@@ -13517,24 +13441,10 @@ function renderScoutingReportsPanel() {
   `;
 }
 function expandScoutingReportsPanel(panelId) {
-  const id = normalizeScoutingText(panelId, 80);
-  if (!["comparison-lab", "targets"].includes(id)) {
-    return;
-  }
-  scoutingReportsExpandedPanels = new Set([...scoutingReportsExpandedPanels, id]);
-  if (!rerenderScoutingActiveContent({ preserveFocus: true })) {
-    renderScoutingWorkspace({ preserveFocus: true });
-  }
+  return getScoutingReportsActions().expandPanel(panelId);
 }
 function collapseScoutingReportsPanel(panelId) {
-  const id = normalizeScoutingText(panelId, 80);
-  if (!scoutingReportsExpandedPanels.has(id)) {
-    return;
-  }
-  scoutingReportsExpandedPanels = new Set([...scoutingReportsExpandedPanels].filter((panel) => panel !== id));
-  if (!rerenderScoutingActiveContent({ preserveFocus: true })) {
-    renderScoutingWorkspace({ preserveFocus: true });
-  }
+  return getScoutingReportsActions().collapsePanel(panelId);
 }
 function renderScoutingOppositionPanel() {
   if (!isScoutingDatabaseLoaded()) {

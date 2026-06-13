@@ -19,6 +19,7 @@ import {
   createScoutingMyTeamRecordService,
   createScoutingMyTeamSpiderController,
   createScoutingPostRenderController,
+  createScoutingProfileOverviewController,
   createScoutingProfileSpiderService,
   createScoutingTabController,
   createScoutingApiProfileService,
@@ -171,7 +172,6 @@ let scoutingImportPdfParserPromise = null;
 let scoutingMyTeamSelectedPlayerId = "";
 let scoutingIntelligenceCacheVersion = 0;
 let scoutingImportHistoryCache = { status: "idle", imports: [], error: "", promise: null };
-let scoutingProfileOverviewPanelHydrateInProgress = new Set();
 let scoutingOppositionFilters = { team: "", season: "all", minMinutes: 450 };
 let scoutingOppositionLatestSnapshot = null;
 let scoutingDataQualitySummaryCache = { key: "", value: null };
@@ -525,6 +525,32 @@ const scoutingProfileSpiderService = createScoutingProfileSpiderService({
   getSeasonSortValue: getScoutingSeasonSortValue,
   normalizeText: normalizeScoutingText,
   recordIndex: scoutingRecordIndex,
+});
+const scoutingProfileOverviewController = createScoutingProfileOverviewController({
+  ensureState: ensureScoutingState,
+  escapeHtml,
+  formatNumber: formatScoutingNumber,
+  getIntelligenceProfile: getScoutingIntelligenceProfile,
+  getProfileModal: () => ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]") || null,
+  getProfileRows: (record) => getScoutingRecordsForPlayer(record).slice(0, 10),
+  getRecordById: getScoutingRecordById,
+  getRoleFitLabel: getScoutingRoleFitLabel,
+  getRoleFitScore: getScoutingRoleFitScore,
+  getRoleFitTier: getScoutingRoleFitTier,
+  getShadowSlotRecordIds: getScoutingShadowSlotRecordIds,
+  getShadowSlots: () => scoutingShadowSlots,
+  normalizeProfileTab: normalizeScoutingProfileTab,
+  normalizeRoleProfileId: normalizeScoutingRoleProfileId,
+  normalizeText: normalizeScoutingText,
+  renderDossier: renderScoutingProfileDossier,
+  renderShell: renderScoutingFootballScienceDbPanel,
+  setTimeout: (callback, delayMs) => {
+    if (typeof globalThis.window?.setTimeout === "function") {
+      return globalThis.window.setTimeout(callback, delayMs);
+    }
+    return globalThis.setTimeout(callback, delayMs);
+  },
+  windowRef: typeof globalThis !== "undefined" ? globalThis.window : null,
 });
 const scoutingMyTeamPitchService = createScoutingMyTeamPitchService({
   ensureState: ensureScoutingState,
@@ -1453,7 +1479,7 @@ function resetScoutingComputedCaches() {
   scoutingMarketIntelVersion = 0;
   scoutingApiProfileService.resetCache();
   footballScienceDbProfileService.resetCache();
-  scoutingProfileOverviewPanelHydrateInProgress.clear();
+  scoutingProfileOverviewController.clearInProgress();
   scoutingDataQualitySummaryCache = { key: "", value: null };
   scoutingFilteredDatabaseNavigationCache = {
     key: "",
@@ -9593,93 +9619,11 @@ function renderScoutingFootballScienceDbPanel(record) {
 }
 
 function renderScoutingProfileOverviewPanelShell(record) {
-  return renderScoutingFootballScienceDbPanel(record);
+  return scoutingProfileOverviewController.renderShell(record);
 }
 
 function hydrateScoutingProfileOverviewPanel(recordId) {
-  const normalizedId = normalizeScoutingText(recordId, 160);
-  if (!normalizedId) {
-    return;
-  }
-  const state = ensureScoutingState();
-  if (state.selectedRecordId !== normalizedId || normalizeScoutingProfileTab(state.profileTab) !== "overview") {
-    return;
-  }
-  if (scoutingProfileOverviewPanelHydrateInProgress.has(normalizedId)) {
-    return;
-  }
-  const modal = ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]");
-  if (!modal) {
-    return;
-  }
-  const record = getScoutingRecordById(normalizedId);
-  if (!record) {
-    return;
-  }
-  scoutingProfileOverviewPanelHydrateInProgress.add(normalizedId);
-  const scheduleHydration = typeof window.requestIdleCallback === "function"
-    ? (callback) => window.requestIdleCallback(callback, { timeout: 1200 })
-    : (callback) => window.setTimeout(callback, 80);
-  scheduleHydration(() => {
-    try {
-      const latestState = ensureScoutingState();
-      if (latestState.selectedRecordId !== normalizedId || normalizeScoutingProfileTab(latestState.profileTab) !== "overview") {
-        return;
-      }
-      const latestModal = ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]");
-      if (!latestModal) {
-        return;
-      }
-      const profileRoleProfileId = normalizeScoutingRoleProfileId(latestState.profileRoleProfileId, "auto");
-      const selectedProfileRoleId = profileRoleProfileId === "auto" ? "" : profileRoleProfileId;
-      const roleFitScore = getScoutingRoleFitScore(record, selectedProfileRoleId);
-      const intelligence = getScoutingIntelligenceProfile(record, latestState, selectedProfileRoleId);
-      const shadowRoles = scoutingShadowSlots.filter((slot) => getScoutingShadowSlotRecordIds(slot.id, latestState).includes(normalizedId));
-      const dossierNode = Array.from(latestModal.querySelectorAll("[data-scouting-profile-overview-shell]")).find((entry) => entry.dataset.scoutingProfileOverviewShell === normalizedId);
-      if (dossierNode) {
-        const profileRows = getScoutingRecordsForPlayer(record).slice(0, 10);
-        dossierNode.outerHTML = renderScoutingProfileDossier(record, latestState, profileRows);
-      }
-      const decisionStrip = latestModal.querySelector("[data-scouting-profile-decision-strip]");
-      if (decisionStrip) {
-        const roleFit = decisionStrip.querySelector("[data-scouting-profile-role-fit]");
-        const roleFitLabel = decisionStrip.querySelector("[data-scouting-profile-role-fit-label]");
-        const roleFloor = decisionStrip.querySelector("[data-scouting-profile-role-floor]");
-        const roleFloorLabel = decisionStrip.querySelector("[data-scouting-profile-role-floor-label]");
-        const confidence = decisionStrip.querySelector("[data-scouting-profile-confidence]");
-        const signalLabel = decisionStrip.querySelector("[data-scouting-profile-best-signal]");
-        const roleStack = decisionStrip.querySelector("[data-scouting-profile-role-stack]");
-        const roleStackLabel = decisionStrip.querySelector("[data-scouting-profile-role-stack-label]");
-        if (roleFit) {
-          roleFit.className = `is-${escapeHtml(getScoutingRoleFitTier(roleFitScore))}`;
-          roleFit.textContent = Number.isFinite(roleFitScore) ? `P${escapeHtml(formatScoutingNumber(roleFitScore))}` : "n/a";
-        }
-        if (roleFitLabel) {
-          roleFitLabel.textContent = escapeHtml([getScoutingRoleFitLabel(roleFitScore), intelligence?.roleLabel].filter(Boolean).join(" / "));
-        }
-        if (roleFloor) {
-          roleFloor.textContent = Number.isFinite(intelligence?.floor?.score) ? `P${escapeHtml(formatScoutingNumber(intelligence.floor.score))}` : "n/a";
-        }
-        if (roleFloorLabel) {
-          roleFloorLabel.textContent = escapeHtml(intelligence?.floor?.label || "No floor signal");
-        }
-        if (confidence) {
-          confidence.textContent = escapeHtml(intelligence?.confidence?.label || "n/a");
-        }
-        if (signalLabel) {
-          signalLabel.textContent = escapeHtml(intelligence?.signal?.headline || "No standout role signal yet");
-        }
-        if (roleStack) {
-          roleStack.textContent = String(shadowRoles.length);
-        }
-        if (roleStackLabel) {
-          roleStackLabel.textContent = escapeHtml(shadowRoles.length ? shadowRoles.map((slot) => slot.label).join(", ") : "Not in Shadow XI");
-        }
-      }
-    } finally {
-      scoutingProfileOverviewPanelHydrateInProgress.delete(normalizedId);
-    }
-  });
+  return scoutingProfileOverviewController.hydrateOverview(recordId);
 }
 
 function renderScoutingProfileModalIntoDom(recordId, options = {}) {

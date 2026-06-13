@@ -28,6 +28,7 @@ test("Scouting database keeps source enrichment behind one visual player databas
   const client = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-football-science-db-client.mjs"), "utf8");
   const pagingRenderer = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-database-paging-renderer.mjs"), "utf8");
   const resultsService = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-database-results-service.mjs"), "utf8");
+  const overviewController = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-profile-overview-controller.mjs"), "utf8");
   const profileService = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-football-science-db-profile-service.mjs"), "utf8");
   const qualityService = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-football-science-db-quality-service.mjs"), "utf8");
 
@@ -45,7 +46,9 @@ test("Scouting database keeps source enrichment behind one visual player databas
   expect(workspace).toContain("createScoutingDatabaseSourcePolicy");
   expect(workspace).toContain("scoutingDatabaseSourcePolicy.normalizeFilterSource(filters.source)");
   expect(workspace).toContain("renderScoutingProfileOverviewPanelShell");
-  expect(workspace).toContain("return renderScoutingFootballScienceDbPanel(record);");
+  expect(workspace).toContain("renderShell: renderScoutingFootballScienceDbPanel");
+  expect(workspace).toContain("return scoutingProfileOverviewController.renderShell(record);");
+  expect(overviewController).toContain("function renderShell(record)");
   expect(workspace).toContain("data-scouting-profile-fsdb-panel");
   expect(workspace).not.toContain('data-scouting-load-fsdb');
   expect(workspace).not.toContain("data-fsdb-gender-segment");

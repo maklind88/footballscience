@@ -19,6 +19,7 @@ import {
   createScoutingMyTeamRecordService,
   createScoutingMyTeamSpiderController,
   createScoutingPostRenderController,
+  createScoutingProfileSpiderService,
   createScoutingTabController,
   createScoutingApiProfileService,
   createFootballScienceDbApiClient,
@@ -509,6 +510,21 @@ const scoutingMiniRadarService = createScoutingMiniRadarService({
   getRoot: () => ui.scoutingWorkspace,
   getTemplatePercentile: getScoutingTemplatePercentile,
   normalizeText: normalizeScoutingText,
+});
+const scoutingProfileSpiderService = createScoutingProfileSpiderService({
+  ensureState: ensureScoutingState,
+  escapeHtml,
+  formatNumber: formatScoutingNumber,
+  getCoreMetricOptions: () => scoutingCoreMetricOptions,
+  getMetricQuality: getScoutingMetricQuality,
+  getMetricValue: getScoutingMetricValue,
+  getRecordMinutes: getScoutingRecordMinutes,
+  getRecordSeason: getScoutingRecordSeason,
+  getRecordsForPlayer: getScoutingRecordsForPlayer,
+  getRoleFitScore: getScoutingRoleFitScore,
+  getSeasonSortValue: getScoutingSeasonSortValue,
+  normalizeText: normalizeScoutingText,
+  recordIndex: scoutingRecordIndex,
 });
 const scoutingMyTeamPitchService = createScoutingMyTeamPitchService({
   ensureState: ensureScoutingState,
@@ -7983,201 +7999,34 @@ function getScoutingSeasonInsights(record, playerRows = []) {
   };
 }
 function normalizeScoutingProfileSpiderSeasonMode(value) {
-  const normalized = normalizeScoutingText(value, 40).toLowerCase();
-  return normalized === "average" || normalized === "season" ? normalized : "latest";
+  return scoutingProfileSpiderService.normalizeSeasonMode(value);
 }
 function getScoutingProfileSpiderSeasonSelectValue(context = {}) {
-  if (context.mode === "average") {
-    return "average";
-  }
-  if (context.mode === "season" && context.season) {
-    return `season::${context.season}`;
-  }
-  return "latest";
+  return scoutingProfileSpiderService.getSeasonSelectValue(context);
 }
 function getScoutingProfileSpiderSeasonOptions(rows = [], context = {}) {
-  const selected = getScoutingProfileSpiderSeasonSelectValue(context);
-  const seasons = Array.from(
-    new Set(
-      rows
-        .slice()
-        .sort((a, b) => getScoutingSeasonSortValue(b) - getScoutingSeasonSortValue(a))
-        .map((row) => getScoutingRecordSeason(row))
-        .filter(Boolean)
-    )
-  );
-  const options = [
-    { value: "latest", label: "Latest season" },
-    { value: "average", label: "All seasons average" },
-    ...seasons.map((season) => ({ value: `season::${season}`, label: season })),
-  ];
-  return options
-    .map(
-      (option) =>
-        `<option value="${escapeHtml(option.value)}" ${selected === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`
-    )
-    .join("");
+  return scoutingProfileSpiderService.getSeasonOptions(rows, context);
 }
 function getScoutingProfileSpiderRows(record, playerRows = []) {
-  return (playerRows.length ? playerRows : getScoutingRecordsForPlayer(record))
-    .filter(Boolean)
-    .sort((a, b) => getScoutingSeasonSortValue(b) - getScoutingSeasonSortValue(a) || getScoutingRecordMinutes(b) - getScoutingRecordMinutes(a));
+  return scoutingProfileSpiderService.getRows(record, playerRows);
 }
 function getScoutingWeightedAverageValue(rows = [], getter, weightGetter = getScoutingRecordMinutes) {
-  const samples = rows
-    .map((row) => {
-      const value = Number(getter(row));
-      const weight = Math.max(1, Number(weightGetter(row)) || 0);
-      return Number.isFinite(value) ? { value, weight } : null;
-    })
-    .filter(Boolean);
-  if (!samples.length) {
-    return null;
-  }
-  const weightTotal = samples.reduce((sum, sample) => sum + sample.weight, 0);
-  return samples.reduce((sum, sample) => sum + sample.value * sample.weight, 0) / Math.max(weightTotal, 1);
+  return scoutingProfileSpiderService.getWeightedAverageValue(rows, getter, weightGetter);
 }
 function getScoutingAverageMetricQuality(rows = [], metricId) {
-  const qualities = rows
-    .filter((row) => Number.isFinite(Number(getScoutingMetricValue(row, metricId))))
-    .map((row) => getScoutingMetricQuality(row, metricId))
-    .filter((quality) => quality !== "missing");
-  if (!qualities.length) {
-    return "missing";
-  }
-  return qualities.includes("estimated") ? "estimated" : "trusted";
+  return scoutingProfileSpiderService.getAverageMetricQuality(rows, metricId);
 }
 function getScoutingAverageMetricIds(rows = []) {
-  const ids = new Set(["minutes", "matches", "age"]);
-  scoutingCoreMetricOptions.forEach((metric) => {
-    const id = normalizeScoutingText(metric?.id, 120);
-    if (id) {
-      ids.add(id);
-    }
-  });
-  rows.forEach((row) => {
-    const metrics = row?.[scoutingRecordIndex.metrics];
-    if (Array.isArray(metrics)) {
-      metrics.forEach((entry, index) => {
-        if (entry !== null && entry !== undefined && scoutingCoreMetricOptions[index]?.id) {
-          ids.add(scoutingCoreMetricOptions[index].id);
-        }
-      });
-      return;
-    }
-    if (metrics && typeof metrics === "object") {
-      Object.keys(metrics).forEach((id) => ids.add(id));
-    }
-  });
-  return Array.from(ids);
+  return scoutingProfileSpiderService.getAverageMetricIds(rows);
 }
 function buildScoutingMinutesWeightedAverageRecord(rows = [], fallbackRecord = null) {
-  const sourceRows = rows.filter(Boolean);
-  const latest = sourceRows[0] || fallbackRecord;
-  if (!latest) {
-    return fallbackRecord;
-  }
-  const averageRecord = Array.isArray(latest) ? latest.slice() : { ...latest };
-  const metricIds = getScoutingAverageMetricIds(sourceRows);
-  const averagedMetrics = {};
-  const averagedQuality = {};
-  metricIds.forEach((metricId) => {
-    const id = normalizeScoutingText(metricId, 120);
-    if (!id || id === "minutes" || id === "matches" || id === "age") {
-      return;
-    }
-    const value = getScoutingWeightedAverageValue(sourceRows, (row) => getScoutingMetricValue(row, id));
-    if (Number.isFinite(value)) {
-      const quality = getScoutingAverageMetricQuality(sourceRows, id);
-      averagedMetrics[id] = { value, quality };
-      averagedQuality[id] = quality;
-    }
-  });
-  const averageMinutes = getScoutingWeightedAverageValue(sourceRows, getScoutingRecordMinutes);
-  const averageMatches = getScoutingWeightedAverageValue(sourceRows, (row) => Number(row?.[scoutingRecordIndex.matches]));
-  averageRecord[scoutingRecordIndex.season] = "All seasons average";
-  averageRecord[scoutingRecordIndex.metrics] = averagedMetrics;
-  averageRecord[scoutingRecordIndex.metricQuality] = {
-    ...(latest?.[scoutingRecordIndex.metricQuality] || {}),
-    ...averagedQuality,
-  };
-  if (Number.isFinite(averageMinutes)) {
-    averageRecord[scoutingRecordIndex.minutes] = Math.round(averageMinutes);
-  }
-  if (Number.isFinite(averageMatches)) {
-    averageRecord[scoutingRecordIndex.matches] = Math.round(averageMatches * 10) / 10;
-  }
-  averageRecord[scoutingRecordIndex.sourceTrace] = {
-    ...(latest?.[scoutingRecordIndex.sourceTrace] || {}),
-    spiderSeasonMode: "all-seasons-average",
-    seasonCount: sourceRows.length,
-    weightedBy: "minutes",
-  };
-  return averageRecord;
+  return scoutingProfileSpiderService.buildMinutesWeightedAverageRecord(rows, fallbackRecord);
 }
 function getScoutingProfileSpiderTrend(rows = [], roleProfileId = "") {
-  const points = rows
-    .slice()
-    .sort((a, b) => getScoutingSeasonSortValue(a) - getScoutingSeasonSortValue(b))
-    .map((row) => ({
-      season: getScoutingRecordSeason(row) || "Season",
-      minutes: getScoutingRecordMinutes(row),
-      fit: getScoutingRoleFitScore(row, roleProfileId),
-    }))
-    .filter((point) => Number.isFinite(point.fit));
-  if (points.length < 2) {
-    return {
-      label: "No trend yet",
-      detail: rows.length ? `${rows.length} season${rows.length === 1 ? "" : "s"} available` : "Needs more seasons",
-      direction: "flat",
-    };
-  }
-  const first = points[0];
-  const last = points[points.length - 1];
-  const delta = last.fit - first.fit;
-  const direction = delta > 5 ? "up" : delta < -5 ? "down" : "flat";
-  return {
-    label:
-      direction === "up"
-        ? `Trending up +${formatScoutingNumber(delta)}`
-        : direction === "down"
-          ? `Trending down ${formatScoutingNumber(delta)}`
-          : `Stable ${delta >= 0 ? "+" : ""}${formatScoutingNumber(delta)}`,
-    detail: `${first.season} P${formatScoutingNumber(first.fit)} → ${last.season} P${formatScoutingNumber(last.fit)} · ${points.length} seasons`,
-    direction,
-  };
+  return scoutingProfileSpiderService.getTrend(rows, roleProfileId);
 }
 function getScoutingProfileSpiderContext(record, playerRows = [], roleProfileId = "") {
-  const state = ensureScoutingState();
-  const rows = getScoutingProfileSpiderRows(record, playerRows);
-  const latest = rows[0] || record;
-  const storedMode = normalizeScoutingProfileSpiderSeasonMode(state.profileSpiderSeasonMode);
-  const storedSeason = normalizeScoutingText(state.profileSpiderSeasonValue, 80);
-  const selectedSeasonRow = storedMode === "season" ? rows.find((row) => getScoutingRecordSeason(row) === storedSeason) : null;
-  const mode = storedMode === "season" && !selectedSeasonRow ? "latest" : storedMode;
-  const sourceRecord =
-    mode === "average"
-      ? buildScoutingMinutesWeightedAverageRecord(rows, latest)
-      : mode === "season"
-        ? selectedSeasonRow
-        : latest;
-  const seasonLabel =
-    mode === "average"
-      ? "All seasons average"
-      : mode === "season"
-        ? getScoutingRecordSeason(sourceRecord) || storedSeason
-        : getScoutingRecordSeason(sourceRecord) || "Latest season";
-  return {
-    mode,
-    season: mode === "season" ? seasonLabel : "",
-    record: sourceRecord || record,
-    rows,
-    trend: getScoutingProfileSpiderTrend(rows, roleProfileId),
-    sampleLabel:
-      mode === "average"
-        ? `${rows.length} season${rows.length === 1 ? "" : "s"} · minutes-weighted`
-        : `${seasonLabel}${getScoutingRecordMinutes(sourceRecord) ? ` · ${formatScoutingNumber(getScoutingRecordMinutes(sourceRecord))} minutes` : ""}`,
-  };
+  return scoutingProfileSpiderService.getContext(record, playerRows, roleProfileId);
 }
 function getScoutingSeasonSortValue(record) {
   const season = getScoutingRecordSeason(record);

@@ -36,6 +36,7 @@ export * from "./scouting-defaults.mjs";
 export * from "./scouting-state.mjs";
 export * from "./scouting-tab-controller.mjs";
 export * from "./scouting-post-render-controller.mjs";
+export * from "./scouting-profile-spider-service.mjs";
 export * from "./scouting-database-actions.mjs";
 export * from "./scouting-database-background-controller.mjs";
 export * from "./scouting-database-loader.mjs";

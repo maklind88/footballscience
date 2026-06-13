@@ -40,6 +40,13 @@ export function handleScoutingWorkspaceClick(event, deps = {}) {
     closeRecordMoreMenus(deps.getWorkspaceRoot?.());
   }
 
+  const tabTrigger = getClosest(target, "[data-scouting-tab]");
+  if (tabTrigger) {
+    preventAndStop(event);
+    deps.setActiveTab?.(tabTrigger.dataset?.scoutingTab);
+    return true;
+  }
+
   if (deps.handleModuleClick?.(event, deps)) {
     return true;
   }
@@ -54,13 +61,6 @@ export function handleScoutingWorkspaceClick(event, deps = {}) {
   const profileTabTrigger = getClosest(target, "[data-scouting-profile-tab]");
   if (profileTabTrigger) {
     deps.setProfileTab?.(profileTabTrigger.dataset?.scoutingProfileTab);
-    return true;
-  }
-
-  const tabTrigger = getClosest(target, "[data-scouting-tab]");
-  if (tabTrigger) {
-    preventAndStop(event);
-    deps.setActiveTab?.(tabTrigger.dataset?.scoutingTab);
     return true;
   }
 

@@ -56,7 +56,9 @@ test("Scouting click router lets tab clicks stop propagation and switch tab", ()
   const calls = [];
 
   const handled = handleScoutingWorkspaceClick(event, {
-    handleModuleClick: () => false,
+    handleModuleClick: () => {
+      throw new Error("Tab clicks should not run module click handlers.");
+    },
     setActiveTab: (tabId) => calls.push(tabId),
   });
 

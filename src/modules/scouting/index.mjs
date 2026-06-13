@@ -40,6 +40,7 @@ export * from "./scouting-database-source-policy.mjs";
 export * from "./scouting-football-science-db-client.mjs";
 export * from "./scouting-football-science-db-adapter.mjs";
 export * from "./scouting-football-science-db-models.mjs";
+export * from "./scouting-football-science-db-quality-service.mjs";
 export * from "./scouting-comparison-actions.mjs";
 export * from "./scouting-decision-state.mjs";
 export * from "./scouting-decision-actions.mjs";

@@ -26,8 +26,10 @@ function loadScoutingWorkerSandbox() {
 test("Scouting database keeps source enrichment behind one visual player database", () => {
   const workspace = readFileSync(resolve(projectRoot, "scouting-workspace.js"), "utf8");
   const client = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-football-science-db-client.mjs"), "utf8");
+  const qualityService = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-football-science-db-quality-service.mjs"), "utf8");
 
   expect(workspace).toContain("createFootballScienceDbApiClient");
+  expect(workspace).toContain("createFootballScienceDbQualityService");
   expect(client).toContain("/api/football-science-db");
   expect(workspace).toContain("footballSciencePlayerToScoutingRecord");
   expect(workspace).toContain("createFootballScienceDbScoutingAdapter");
@@ -46,7 +48,7 @@ test("Scouting database keeps source enrichment behind one visual player databas
   expect(workspace).toContain('data-scouting-page-cursor');
   expect(workspace).toContain("renderScoutingFootballScienceDbPanel");
   expect(workspace).toContain("renderFootballScienceDbQualityPanel");
-  expect(workspace).toContain('action: "quality"');
+  expect(qualityService).toContain('action: "quality"');
   expect(workspace).toContain('action: "profile"');
   expect(workspace).toContain("data-refresh-fsdb-quality");
   expect(workspace).toContain("data-open-fsdb-profile");

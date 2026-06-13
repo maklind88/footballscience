@@ -11,6 +11,7 @@ import {
   createScoutingDatabaseSourcePolicy,
   createScoutingFavoritesActions,
   createFootballScienceDbApiClient,
+  createFootballScienceDbQualityService,
   createFootballScienceDbScoutingAdapter,
   createFootballScienceDbScoutingModels,
   createScoutingListsActions,
@@ -167,7 +168,6 @@ let scoutingImportPdfParserPromise = null;
 let scoutingMyTeamSelectedPlayerId = "";
 let scoutingIntelligenceCacheVersion = 0;
 let scoutingImportHistoryCache = { status: "idle", imports: [], error: "", promise: null };
-let scoutingFootballScienceDbQualityCache = { status: "idle", summary: null, error: "", promise: null };
 let scoutingFootballScienceDbProfileCache = new Map();
 let scoutingProfileApiCache = new Map();
 let scoutingProfileOverviewPanelHydrateInProgress = new Set();
@@ -400,6 +400,11 @@ const footballScienceDbScoutingAdapter = createFootballScienceDbScoutingAdapter(
 });
 const footballScienceDbScoutingModels = createFootballScienceDbScoutingModels({
   normalizeText: normalizeScoutingText,
+});
+const footballScienceDbQualityService = createFootballScienceDbQualityService({
+  fetchApi: fetchFootballScienceDbApi,
+  normalizeSummary: normalizeFootballScienceDbQualitySummary,
+  renderWorkspace: renderScoutingWorkspace,
 });
 const footballScienceDbApiClient = createFootballScienceDbApiClient({
   fetchRef: (...args) => fetch(...args),
@@ -1855,47 +1860,10 @@ function normalizeFootballScienceDbQualitySummary(summary = {}) {
   return footballScienceDbScoutingModels.normalizeQualitySummary(summary);
 }
 async function loadFootballScienceDbQuality(options = {}) {
-  const force = Boolean(options.force);
-  if (!force && scoutingFootballScienceDbQualityCache.status === "ready" && scoutingFootballScienceDbQualityCache.summary) {
-    return scoutingFootballScienceDbQualityCache.summary;
-  }
-  if (!force && scoutingFootballScienceDbQualityCache.promise) {
-    return scoutingFootballScienceDbQualityCache.promise;
-  }
-  scoutingFootballScienceDbQualityCache = {
-    ...scoutingFootballScienceDbQualityCache,
-    status: "loading",
-    error: "",
-  };
-  const promise = fetchFootballScienceDbApi({ action: "quality" })
-    .then((response) => {
-      if (!response.ok) {
-        throw new Error(response.reason || "Football Science DB quality snapshot failed.");
-      }
-      const summary = normalizeFootballScienceDbQualitySummary(response.result || {});
-      scoutingFootballScienceDbQualityCache = { status: "ready", summary, error: "", promise: null };
-      return summary;
-    })
-    .catch((error) => {
-      scoutingFootballScienceDbQualityCache = {
-        status: "error",
-        summary: scoutingFootballScienceDbQualityCache.summary,
-        error: error?.message || "Football Science DB quality snapshot failed.",
-        promise: null,
-      };
-      throw error;
-    });
-  scoutingFootballScienceDbQualityCache.promise = promise;
-  return promise;
+  return footballScienceDbQualityService.load(options);
 }
 function queueFootballScienceDbQualityLoad(options = {}) {
-  const force = Boolean(options.force);
-  if (!force && ["loading", "ready"].includes(scoutingFootballScienceDbQualityCache.status)) {
-    return;
-  }
-  loadFootballScienceDbQuality({ force })
-    .then(() => renderScoutingWorkspace({ preserveFocus: true }))
-    .catch(() => renderScoutingWorkspace({ preserveFocus: true }));
+  return footballScienceDbQualityService.queueLoad(options);
 }
 function normalizeFootballScienceDbReview(review = {}) {
   return footballScienceDbScoutingModels.normalizeReview(review);
@@ -2143,10 +2111,7 @@ async function openFootballScienceDbProfileFromQueue(options = {}) {
   }
   const response = await fetchFootballScienceDbApi({ action: "profile", id, fsdbId });
   if (!response.ok) {
-    scoutingFootballScienceDbQualityCache = {
-      ...scoutingFootballScienceDbQualityCache,
-      error: response.reason || "Football Science DB profile could not be opened.",
-    };
+    footballScienceDbQualityService.setError(response.reason || "Football Science DB profile could not be opened.");
     renderScoutingWorkspace({ preserveFocus: true });
     return;
   }
@@ -12455,7 +12420,7 @@ function renderFootballScienceDbQualityPlayerList(players = [], emptyLabel = "No
   `;
 }
 function renderFootballScienceDbQualityPanel() {
-  const cache = scoutingFootballScienceDbQualityCache;
+  const cache = footballScienceDbQualityService.getCache();
   const summary = cache.summary;
   const status = normalizeScoutingText(cache.status, 40) || "idle";
   const isLoading = status === "loading";

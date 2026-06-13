@@ -308,7 +308,7 @@ ${escapeHtml(eventType.label)}
       `
       : "";
     return `
-      <article class="schedule-planner-day${isSelected ? " is-selected" : ""}${isToday ? " is-today" : ""}${dayNote ? " has-note" : ""}${events.length ? ` has-events${eventToneClass}` : ""}" data-schedule-date="${escapeHtml(dateValue)}">
+      <article class="schedule-planner-day${isSelected ? " is-selected" : ""}${isToday ? " is-today" : ""}${dayNote ? " has-note" : ""}${events.length ? ` has-events${eventToneClass}` : ""}" data-schedule-date="${escapeHtml(dateValue)}" title="${escapeHtml(canEdit ? "Click to select. Double-click to add/edit. Right-click for quick actions." : getScheduleDateLabel(dateValue))}">
         <button type="button" class="schedule-planner-date" data-schedule-date="${escapeHtml(dateValue)}" aria-label="${escapeHtml(getScheduleDateLabel(dateValue))}">
           <span>${escapeHtml(weekdayLabel)}</span>
           <strong>${date.getDate()}</strong>
@@ -394,6 +394,63 @@ ${escapeHtml(eventType.label)}
             </div>
           </footer>
         </form>
+      </section>
+    `;
+  }
+
+  function getPlannerMenuOverlayAnchor(context) {
+    const anchor = context.plannerMenu?.anchor || null;
+    if (!anchor) {
+      return null;
+    }
+    const left = Number(anchor.x);
+    const top = Number(anchor.y);
+    if (!Number.isFinite(left) || !Number.isFinite(top)) {
+      return null;
+    }
+    return {
+      arrowX: Number.isFinite(Number(anchor.arrowX)) ? Math.max(18, Math.round(Number(anchor.arrowX))) : 18,
+      left: Math.max(0, Math.round(left)),
+      top: Math.max(0, Math.round(top)),
+    };
+  }
+
+  function renderPlannerContextMenu(context) {
+    const { canEdit, clipboard } = context;
+    const dateValue = context.plannerMenu?.dateValue || "";
+    if (!dateValue || !canEdit) {
+      return "";
+    }
+    const anchor = getPlannerMenuOverlayAnchor(context);
+    const anchoredClass = anchor ? " is-anchored" : "";
+    const anchorStyle = anchor
+      ? ` style="--schedule-menu-left:${anchor.left}px;--schedule-menu-top:${anchor.top}px;--schedule-menu-arrow-left:${anchor.arrowX}px"`
+      : "";
+    const quickActions = Array.isArray(context.plannerQuickActions) ? context.plannerQuickActions : [];
+    const pasteDisabled = clipboard?.events?.length ? "" : "disabled";
+    return `
+      <div class="schedule-planner-menu-backdrop" data-close-schedule-planner-menu></div>
+      <section class="schedule-planner-context-menu${anchoredClass}" role="menu" aria-label="Planner quick actions"${anchorStyle}>
+        <header>
+          <p>Quick add</p>
+          <h3>${escapeHtml(getScheduleDateLabel(dateValue))}</h3>
+        </header>
+        <div class="schedule-planner-menu-actions">
+          ${quickActions
+            .map(
+              (action) => `
+                <button type="button" class="schedule-planner-menu-button is-${escapeHtml(action.type)}" data-schedule-quick-add="${escapeHtml(action.key)}" data-schedule-quick-add-date="${escapeHtml(dateValue)}" role="menuitem">
+                  <span aria-hidden="true"></span>
+                  ${escapeHtml(action.label)}
+                </button>
+              `
+            )
+            .join("")}
+        </div>
+        <footer>
+          <button type="button" data-open-schedule-day-note="${escapeHtml(dateValue)}" role="menuitem">Note</button>
+          <button type="button" data-schedule-paste-to-date="${escapeHtml(dateValue)}" ${pasteDisabled} role="menuitem">Paste here</button>
+        </footer>
       </section>
     `;
   }
@@ -635,7 +692,7 @@ ${escapeHtml(eventType.label)}
     } else if (isPlanner && ui.schedulePlannerGrid) {
       ui.schedulePlannerGrid.innerHTML = `${Array.from({ length: plannerMonthCount }, (_, index) =>
         renderPlannerMonth(context, new Date(state.selectedYear, state.selectedMonthIndex + index, 1))
-      ).join("")}${renderPlannerNoteOverlay(context)}`;
+      ).join("")}${renderPlannerContextMenu(context)}${renderPlannerNoteOverlay(context)}`;
     } else if (isWeek && ui.scheduleWeekGrid) {
       ui.scheduleWeekGrid.innerHTML = getScheduleWeekDates(state.selectedDate).map((date) => renderWeekDay(context, date)).join("");
     } else {

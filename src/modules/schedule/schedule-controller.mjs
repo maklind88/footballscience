@@ -14,7 +14,7 @@ import {
   upsertScheduleEventFromValues,
 } from "./schedule-actions.mjs";
 import { createScheduleWorkspaceRenderer } from "./schedule-renderer.mjs";
-import { formatScheduleDateValue } from "./schedule-state.mjs";
+import { cloneScheduleState, formatScheduleDateValue, parseScheduleDateValue } from "./schedule-state.mjs";
 
 function defaultIsEditableKeyboardTarget(target) {
   const element = typeof Element !== "undefined" && target instanceof Element ? target : null;
@@ -56,6 +56,23 @@ function inferScheduleTypeFromPlannerTitle(title = "", fallbackType = "training"
   return fallbackType;
 }
 
+const plannerQuickActions = Object.freeze([
+  Object.freeze({ key: "training", label: "Training", title: "Training", type: "training" }),
+  Object.freeze({ key: "match", label: "Match", title: "Match", type: "match" }),
+  Object.freeze({ key: "travel", label: "Travel", title: "Travel", type: "travel" }),
+  Object.freeze({ key: "recovery", label: "Recovery", title: "Recovery", type: "recovery" }),
+]);
+
+function getPlannerQuickAction(actionKey) {
+  return plannerQuickActions.find((action) => action.key === actionKey) || null;
+}
+
+function formatNoticeDate(dateValue) {
+  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" }).format(
+    parseScheduleDateValue(dateValue)
+  );
+}
+
 export function createScheduleWorkspaceController(options = {}) {
   const ui = { ...(options.ui || {}) };
   const win = options.window || globalThis.window || {};
@@ -75,6 +92,9 @@ export function createScheduleWorkspaceController(options = {}) {
   let selectedPlannerEventId = "";
   let plannerNoteDate = "";
   let plannerNoteAnchor = null;
+  let plannerMenu = null;
+  let scheduleNotice = null;
+  let undoSnapshot = null;
   let draggedPlannerEventId = "";
   let plannerPointerDrag = null;
   let plannerDragGhost = null;
@@ -134,6 +154,113 @@ export function createScheduleWorkspaceController(options = {}) {
   function getPlannerVisibleMonthCount() {
     const monthCount = Number(ui.schedulePlannerGrid?.dataset?.months);
     return [2, 3, 4].includes(monthCount) ? monthCount : 3;
+  }
+
+  function captureScheduleUndo(label = "Last change") {
+    const state = getState();
+    undoSnapshot = state
+      ? {
+          label,
+          state: cloneScheduleState(state),
+          editingEventId,
+          plannerEditingEventId,
+          plannerEditingDate,
+          selectedPlannerEventId,
+          dayPanelMode,
+        }
+      : null;
+  }
+
+  function setScheduleNotice(message, options = {}) {
+    if (!message) {
+      scheduleNotice = null;
+      return;
+    }
+    scheduleNotice = {
+      message,
+      tone: options.tone || "success",
+      canUndo: Boolean(options.canUndo && undoSnapshot),
+    };
+  }
+
+  function dismissScheduleNotice({ shouldRender = true } = {}) {
+    scheduleNotice = null;
+    if (shouldRender) {
+      render();
+    }
+  }
+
+  function removeScheduleNoticePortal() {
+    doc?.getElementById?.("schedulePlannerFeedbackPortal")?.remove?.();
+  }
+
+  function renderScheduleNoticePortal(state = getState()) {
+    if (!doc?.body || !scheduleNotice?.message || state?.viewMode !== "planner") {
+      removeScheduleNoticePortal();
+      return;
+    }
+
+    let portal = doc.getElementById?.("schedulePlannerFeedbackPortal") || null;
+    if (!portal) {
+      portal = doc.createElement?.("div");
+      if (!portal) {
+        return;
+      }
+      portal.id = "schedulePlannerFeedbackPortal";
+      portal.setAttribute("role", "status");
+      portal.dataset.scheduleFeedbackPortal = "true";
+      doc.body.append?.(portal);
+    }
+
+    portal.className = `schedule-planner-feedback is-${scheduleNotice.tone || "success"}`;
+    portal.setAttribute("aria-label", scheduleNotice.message);
+    portal.replaceChildren?.();
+
+    const message = doc.createElement?.("span");
+    if (message) {
+      message.textContent = scheduleNotice.message;
+      portal.append?.(message);
+    }
+
+    if (scheduleNotice.canUndo) {
+      const undoButton = doc.createElement?.("button");
+      if (undoButton) {
+        undoButton.type = "button";
+        undoButton.dataset.scheduleUndo = "true";
+        undoButton.textContent = "Undo";
+        portal.append?.(undoButton);
+      }
+    }
+
+    const closeButton = doc.createElement?.("button");
+    if (closeButton) {
+      closeButton.type = "button";
+      closeButton.dataset.scheduleDismissNotice = "true";
+      closeButton.setAttribute("aria-label", "Dismiss notification");
+      closeButton.textContent = "×";
+      portal.append?.(closeButton);
+    }
+  }
+
+  function undoLastScheduleChange() {
+    const state = getState();
+    if (!state || !undoSnapshot?.state) {
+      return false;
+    }
+    Object.assign(state, cloneScheduleState(undoSnapshot.state));
+    editingEventId = undoSnapshot.editingEventId || "";
+    plannerEditingEventId = undoSnapshot.plannerEditingEventId || "";
+    plannerEditingDate = undoSnapshot.plannerEditingDate || "";
+    selectedPlannerEventId = undoSnapshot.selectedPlannerEventId || "";
+    plannerNoteDate = "";
+    plannerNoteAnchor = null;
+    plannerMenu = null;
+    dayPanelMode = undoSnapshot.dayPanelMode || "view";
+    undoSnapshot = null;
+    setScheduleNotice("Undone", { tone: "neutral" });
+    writeState();
+    render();
+    return true;
   }
 
   function clearPlannerLayoutSync() {
@@ -224,6 +351,8 @@ export function createScheduleWorkspaceController(options = {}) {
       selectedPlannerEventId,
       plannerNoteDate,
       plannerNoteAnchor,
+      plannerMenu,
+      plannerQuickActions,
       dayPanelMode,
       canEdit: canEditWorkspace,
       canCreateSession: Boolean(options.canCreateSession?.()),
@@ -235,6 +364,7 @@ export function createScheduleWorkspaceController(options = {}) {
       getVisibleMonthEvents: options.getVisibleMonthEvents,
       isSessionEvent: options.isSessionEvent,
     });
+    renderScheduleNoticePortal(state);
     schedulePlannerLayoutSync();
   }
 
@@ -288,6 +418,7 @@ export function createScheduleWorkspaceController(options = {}) {
       plannerEditingEventId = "";
       plannerEditingDate = "";
       plannerNoteDate = "";
+      plannerMenu = null;
       draggedPlannerEventId = "";
     }
     writeState({ syncCentral: false });
@@ -315,6 +446,7 @@ export function createScheduleWorkspaceController(options = {}) {
     plannerEditingDate = "";
     selectedPlannerEventId = "";
     plannerNoteDate = "";
+    plannerMenu = null;
     draggedPlannerEventId = "";
     selectScheduleStateDate(state, dateValue, selectOptions);
     writeState({ syncCentral: false });
@@ -382,6 +514,7 @@ export function createScheduleWorkspaceController(options = {}) {
     plannerEditingDate = "";
     selectedPlannerEventId = "";
     plannerNoteDate = "";
+    plannerMenu = null;
     draggedPlannerEventId = "";
     selectScheduleStateDate(state, dateValue);
     const dayEvents = getEventsForDate(state.selectedDate);
@@ -410,6 +543,7 @@ export function createScheduleWorkspaceController(options = {}) {
       return;
     }
     clipboard = createScheduleEventClipboard(event);
+    setScheduleNotice(`Copied ${event.title || "plan"}`, { tone: "neutral" });
     render();
   }
 
@@ -423,6 +557,7 @@ export function createScheduleWorkspaceController(options = {}) {
       return;
     }
     clipboard = createScheduleDayClipboard(events);
+    setScheduleNotice(`Copied ${events.length} plan${events.length === 1 ? "" : "s"}`, { tone: "neutral" });
     render();
   }
 
@@ -437,6 +572,7 @@ export function createScheduleWorkspaceController(options = {}) {
       return false;
     }
     clipboard = createScheduleEventClipboard(event);
+    setScheduleNotice(`Copied ${event.title || "plan"}`, { tone: "neutral" });
     render();
     return true;
   }
@@ -446,7 +582,32 @@ export function createScheduleWorkspaceController(options = {}) {
     if (!state || !canEdit() || !clipboard?.events?.length) {
       return;
     }
+    captureScheduleUndo("Paste plans");
     pasteScheduleClipboard(state, clipboard);
+    plannerMenu = null;
+    setScheduleNotice(`Pasted ${clipboard.events.length} plan${clipboard.events.length === 1 ? "" : "s"}`, {
+      canUndo: true,
+    });
+    writeState();
+    render();
+  }
+
+  function pasteClipboardToDate(dateValue) {
+    const state = getState();
+    if (!state || !canEdit() || !clipboard?.events?.length || !dateValue) {
+      return;
+    }
+    const plannerWindow = getPlannerWindowSnapshot(state);
+    captureScheduleUndo("Paste plans");
+    selectScheduleStateDate(state, dateValue, {
+      keepPlannerWindow: true,
+      plannerWindowMonths: getPlannerVisibleMonthCount(),
+    });
+    pasteScheduleClipboard(state, clipboard);
+    restorePlannerWindow(state, plannerWindow);
+    plannerMenu = null;
+    selectedPlannerEventId = "";
+    setScheduleNotice(`Pasted to ${formatNoticeDate(dateValue)}`, { canUndo: true });
     writeState();
     render();
   }
@@ -465,6 +626,7 @@ export function createScheduleWorkspaceController(options = {}) {
     plannerEditingDate = "";
     selectedPlannerEventId = "";
     plannerNoteDate = "";
+    plannerMenu = null;
     dayPanelMode = "edit";
     writeState({ syncCentral: false });
     render();
@@ -476,6 +638,7 @@ export function createScheduleWorkspaceController(options = {}) {
     plannerEditingDate = "";
     selectedPlannerEventId = "";
     plannerNoteDate = "";
+    plannerMenu = null;
     if (returnToView) {
       dayPanelMode = "view";
     }
@@ -499,6 +662,7 @@ export function createScheduleWorkspaceController(options = {}) {
     plannerEditingDate = "";
     selectedPlannerEventId = "";
     plannerNoteDate = "";
+    plannerMenu = null;
     render();
   }
 
@@ -507,6 +671,8 @@ export function createScheduleWorkspaceController(options = {}) {
     if (!state || !isDayEditing()) {
       return;
     }
+    const removedEvent = state.events.find((item) => item.id === eventId);
+    captureScheduleUndo("Remove plan");
     removeScheduleEventById(state, eventId);
     if (editingEventId === eventId) {
       editingEventId = "";
@@ -518,6 +684,7 @@ export function createScheduleWorkspaceController(options = {}) {
       selectedPlannerEventId = "";
     }
     plannerEditingDate = "";
+    setScheduleNotice(`Removed ${removedEvent?.title || "plan"}`, { canUndo: true });
     writeState();
     render();
   }
@@ -527,6 +694,11 @@ export function createScheduleWorkspaceController(options = {}) {
     if (!state || !canEdit()) {
       return;
     }
+    const removedEvent = state.events.find((item) => item.id === eventId);
+    if (!removedEvent) {
+      return;
+    }
+    captureScheduleUndo("Remove plan");
     removeScheduleEventById(state, eventId);
     if (editingEventId === eventId) {
       editingEventId = "";
@@ -539,6 +711,8 @@ export function createScheduleWorkspaceController(options = {}) {
       selectedPlannerEventId = "";
     }
     plannerEditingDate = "";
+    plannerMenu = null;
+    setScheduleNotice(`Removed ${removedEvent.title || "plan"}`, { canUndo: true });
     writeState();
     render();
   }
@@ -570,6 +744,7 @@ export function createScheduleWorkspaceController(options = {}) {
     plannerEditingDate = "";
     selectedPlannerEventId = event.id;
     plannerNoteDate = "";
+    plannerMenu = null;
     dayPanelMode = "view";
     state.selectedDate = event.date;
     writeState({ syncCentral: false });
@@ -599,6 +774,7 @@ export function createScheduleWorkspaceController(options = {}) {
     plannerEditingDate = dateValue;
     selectedPlannerEventId = "";
     plannerNoteDate = "";
+    plannerMenu = null;
     dayPanelMode = "view";
     state.selectedDate = dateValue;
     writeState({ syncCentral: false });
@@ -614,6 +790,7 @@ export function createScheduleWorkspaceController(options = {}) {
       return false;
     }
     const plannerWindow = getPlannerWindowSnapshot(state);
+    captureScheduleUndo("Edit plan");
     const result = upsertScheduleEventFromValues(
       state,
       {
@@ -626,6 +803,7 @@ export function createScheduleWorkspaceController(options = {}) {
       event.id
     );
     if (!result.changed) {
+      undoSnapshot = null;
       return false;
     }
     restorePlannerWindow(state, plannerWindow);
@@ -634,7 +812,9 @@ export function createScheduleWorkspaceController(options = {}) {
     editingEventId = "";
     selectedPlannerEventId = event.id;
     plannerNoteDate = "";
+    plannerMenu = null;
     dayPanelMode = "view";
+    setScheduleNotice(`Updated ${cleanTitle}`, { canUndo: true });
     writeState();
     render();
     return true;
@@ -647,6 +827,7 @@ export function createScheduleWorkspaceController(options = {}) {
       return false;
     }
     const plannerWindow = getPlannerWindowSnapshot(state);
+    captureScheduleUndo("Add plan");
     const result = upsertScheduleEventFromValues(
       state,
       {
@@ -659,6 +840,7 @@ export function createScheduleWorkspaceController(options = {}) {
       ""
     );
     if (!result.changed) {
+      undoSnapshot = null;
       return false;
     }
     restorePlannerWindow(state, plannerWindow);
@@ -667,6 +849,45 @@ export function createScheduleWorkspaceController(options = {}) {
     plannerEditingDate = "";
     selectedPlannerEventId = "";
     plannerNoteDate = "";
+    plannerMenu = null;
+    setScheduleNotice(`Added ${cleanTitle}`, { canUndo: true });
+    writeState();
+    render();
+    return true;
+  }
+
+  function addPlannerQuickEvent(dateValue, actionKey) {
+    const state = getState();
+    const action = getPlannerQuickAction(actionKey);
+    if (!state || !canEdit() || !dateValue || !action) {
+      return false;
+    }
+    const plannerWindow = getPlannerWindowSnapshot(state);
+    captureScheduleUndo(`Add ${action.label}`);
+    const result = upsertScheduleEventFromValues(
+      state,
+      {
+        date: dateValue,
+        time: "",
+        type: action.type,
+        title: action.title,
+        note: "",
+      },
+      ""
+    );
+    if (!result.changed) {
+      undoSnapshot = null;
+      return false;
+    }
+    restorePlannerWindow(state, plannerWindow);
+    dayPanelMode = "view";
+    editingEventId = "";
+    plannerEditingEventId = "";
+    plannerEditingDate = "";
+    selectedPlannerEventId = "";
+    plannerNoteDate = "";
+    plannerMenu = null;
+    setScheduleNotice(`Added ${action.label} to ${formatNoticeDate(dateValue)}`, { canUndo: true });
     writeState();
     render();
     return true;
@@ -686,6 +907,7 @@ export function createScheduleWorkspaceController(options = {}) {
     plannerEditingDate = "";
     selectedPlannerEventId = event.id;
     plannerNoteDate = "";
+    plannerMenu = null;
     dayPanelMode = "view";
     state.selectedDate = event.date;
     writeState({ syncCentral: false });
@@ -775,6 +997,67 @@ export function createScheduleWorkspaceController(options = {}) {
     };
   }
 
+  function getPlannerMenuAnchor(point = null) {
+    if (!point) {
+      return null;
+    }
+
+    const rawX = Number(point.x ?? point.clientX);
+    const rawY = Number(point.y ?? point.clientY);
+    if (!Number.isFinite(rawX) || !Number.isFinite(rawY)) {
+      return null;
+    }
+
+    const viewportWidth = Number(win.innerWidth) || 0;
+    const viewportHeight = Number(win.innerHeight) || 0;
+    if (!viewportWidth || !viewportHeight) {
+      return { x: Math.max(12, Math.round(rawX)), y: Math.max(72, Math.round(rawY)) };
+    }
+
+    const margin = 12;
+    const overlayWidth = Math.min(236, Math.max(208, viewportWidth - margin * 2));
+    const overlayHeight = Math.min(272, Math.max(232, viewportHeight - margin * 2));
+    const left = Math.min(Math.max(margin, rawX + 10), Math.max(margin, viewportWidth - overlayWidth - margin));
+    const top = Math.min(Math.max(margin, rawY - 12), Math.max(margin, viewportHeight - overlayHeight - margin));
+    return {
+      arrowX: Math.min(Math.max(18, Math.round(rawX - left)), overlayWidth - 22),
+      x: Math.round(left),
+      y: Math.round(top),
+    };
+  }
+
+  function closePlannerMenu({ shouldRender = true } = {}) {
+    if (!plannerMenu) {
+      return;
+    }
+    plannerMenu = null;
+    if (shouldRender) {
+      render();
+    }
+  }
+
+  function openPlannerMenu(dateValue, anchor = null) {
+    const state = getState();
+    if (!state || !dateValue) {
+      return;
+    }
+    clearPlannerClickTimer();
+    editingEventId = "";
+    plannerEditingEventId = "";
+    plannerEditingDate = "";
+    selectedPlannerEventId = "";
+    plannerNoteDate = "";
+    plannerNoteAnchor = null;
+    plannerMenu = {
+      dateValue,
+      anchor: getPlannerMenuAnchor(anchor),
+    };
+    dayPanelMode = "view";
+    state.selectedDate = dateValue;
+    writeState({ syncCentral: false });
+    render();
+  }
+
   function openPlannerNote(dateValue, anchor = null) {
     const state = getState();
     if (!state || !dateValue) {
@@ -787,6 +1070,7 @@ export function createScheduleWorkspaceController(options = {}) {
     selectedPlannerEventId = "";
     plannerNoteDate = dateValue;
     plannerNoteAnchor = getPlannerNoteAnchor(anchor);
+    plannerMenu = null;
     dayPanelMode = "view";
     state.selectedDate = dateValue;
     writeState({ syncCentral: false });
@@ -808,11 +1092,18 @@ export function createScheduleWorkspaceController(options = {}) {
     if (!state || !canEdit() || !dateValue) {
       return false;
     }
+    captureScheduleUndo("Edit note");
     const changed = setScheduleDayNote(state, dateValue, note);
     plannerNoteDate = "";
     plannerNoteAnchor = null;
+    plannerMenu = null;
     if (changed) {
+      setScheduleNotice(note ? `Saved note for ${formatNoticeDate(dateValue)}` : `Cleared note for ${formatNoticeDate(dateValue)}`, {
+        canUndo: true,
+      });
       writeState();
+    } else {
+      undoSnapshot = null;
     }
     render();
     return changed;
@@ -827,16 +1118,20 @@ export function createScheduleWorkspaceController(options = {}) {
     if (!state || !canEdit() || !eventId || !dateValue) {
       return;
     }
+    captureScheduleUndo("Move plan");
     const result = moveScheduleEventToDate(state, eventId, dateValue);
     editingEventId = "";
     plannerEditingEventId = "";
     plannerEditingDate = "";
     plannerNoteDate = "";
+    plannerMenu = null;
     selectedPlannerEventId = result.eventId || eventId;
     dayPanelMode = "view";
     if (result.changed) {
+      setScheduleNotice(`Moved to ${formatNoticeDate(dateValue)}`, { canUndo: true });
       writeState();
     } else {
+      undoSnapshot = null;
       writeState({ syncCentral: false });
     }
     render();
@@ -916,7 +1211,13 @@ export function createScheduleWorkspaceController(options = {}) {
   }
 
   function handlePlannerContextMenu(event) {
-    if (!isActive() || getClosest(event.target, ".schedule-planner-note-overlay, .schedule-planner-add, .schedule-planner-edit, [data-planner-event-id]")) {
+    if (
+      !isActive() ||
+      getClosest(
+        event.target,
+        ".schedule-planner-note-overlay, .schedule-planner-context-menu, .schedule-planner-add, .schedule-planner-edit, [data-planner-event-id]"
+      )
+    ) {
       return;
     }
     const day = getClosest(event.target, ".schedule-planner-day[data-schedule-date]");
@@ -924,7 +1225,7 @@ export function createScheduleWorkspaceController(options = {}) {
       return;
     }
     event.preventDefault?.();
-    openPlannerNote(day.dataset.scheduleDate, { x: event.clientX, y: event.clientY });
+    openPlannerMenu(day.dataset.scheduleDate, { x: event.clientX, y: event.clientY });
   }
 
   function handlePlannerDragStart(event) {
@@ -1051,11 +1352,15 @@ export function createScheduleWorkspaceController(options = {}) {
     if (!values.date || !values.title) {
       return;
     }
+    const wasEditingEventId = editingEventId;
+    captureScheduleUndo(wasEditingEventId ? "Edit plan" : "Add plan");
     const result = upsertScheduleEventFromValues(state, values, editingEventId);
     if (!result.changed) {
+      undoSnapshot = null;
       return;
     }
     editingEventId = result.editingEventId;
+    setScheduleNotice(`${wasEditingEventId ? "Updated" : "Added"} ${values.title}`, { canUndo: true });
     writeState();
     event.currentTarget?.reset?.();
     dayPanelMode = "view";
@@ -1136,6 +1441,41 @@ export function createScheduleWorkspaceController(options = {}) {
       return;
     }
 
+    const undoTrigger = getClosest(event.target, "[data-schedule-undo]");
+    if (undoTrigger) {
+      event.preventDefault?.();
+      undoLastScheduleChange();
+      return;
+    }
+
+    const dismissNoticeTrigger = getClosest(event.target, "[data-schedule-dismiss-notice]");
+    if (dismissNoticeTrigger) {
+      event.preventDefault?.();
+      dismissScheduleNotice();
+      return;
+    }
+
+    const closeMenuTrigger = getClosest(event.target, "[data-close-schedule-planner-menu]");
+    if (closeMenuTrigger) {
+      event.preventDefault?.();
+      closePlannerMenu();
+      return;
+    }
+
+    const quickAddTrigger = getClosest(event.target, "[data-schedule-quick-add]");
+    if (quickAddTrigger) {
+      event.preventDefault?.();
+      addPlannerQuickEvent(quickAddTrigger.dataset.scheduleQuickAddDate, quickAddTrigger.dataset.scheduleQuickAdd);
+      return;
+    }
+
+    const pasteHereTrigger = getClosest(event.target, "[data-schedule-paste-to-date]");
+    if (pasteHereTrigger) {
+      event.preventDefault?.();
+      pasteClipboardToDate(pasteHereTrigger.dataset.schedulePasteToDate);
+      return;
+    }
+
     const closeNoteTrigger = getClosest(event.target, "[data-close-schedule-day-note]");
     if (closeNoteTrigger) {
       event.preventDefault?.();
@@ -1153,6 +1493,7 @@ export function createScheduleWorkspaceController(options = {}) {
     const openNoteTrigger = getClosest(event.target, "[data-open-schedule-day-note]");
     if (openNoteTrigger) {
       event.preventDefault?.();
+      closePlannerMenu({ shouldRender: false });
       const rect = openNoteTrigger.getBoundingClientRect?.();
       openPlannerNote(
         openNoteTrigger.dataset.openScheduleDayNote,
@@ -1161,7 +1502,7 @@ export function createScheduleWorkspaceController(options = {}) {
       return;
     }
 
-    if (getClosest(event.target, ".schedule-planner-note-overlay")) {
+    if (getClosest(event.target, ".schedule-planner-note-overlay, .schedule-planner-context-menu")) {
       return;
     }
 
@@ -1207,7 +1548,7 @@ export function createScheduleWorkspaceController(options = {}) {
     if (
       getClosest(
         event.target,
-        ".schedule-planner-add, .schedule-planner-edit, .schedule-planner-note-overlay, .schedule-planner-note-backdrop, [data-open-schedule-day-note]"
+        ".schedule-planner-add, .schedule-planner-edit, .schedule-planner-note-overlay, .schedule-planner-note-backdrop, .schedule-planner-context-menu, .schedule-planner-menu-backdrop, [data-open-schedule-day-note]"
       )
     ) {
       return;
@@ -1280,6 +1621,12 @@ export function createScheduleWorkspaceController(options = {}) {
       return;
     }
 
+    if (event.key === "Escape" && plannerMenu) {
+      event.preventDefault?.();
+      closePlannerMenu();
+      return;
+    }
+
     if (event.key !== "Escape") {
       return;
     }
@@ -1300,16 +1647,41 @@ export function createScheduleWorkspaceController(options = {}) {
     render();
   }
 
+  function handleDocumentClick(event) {
+    if (!isActive() || !getClosest(event.target, ".schedule-planner-feedback[data-schedule-feedback-portal='true']")) {
+      return;
+    }
+
+    const undoTrigger = getClosest(event.target, "[data-schedule-undo]");
+    if (undoTrigger) {
+      event.preventDefault?.();
+      undoLastScheduleChange();
+      return;
+    }
+
+    const dismissNoticeTrigger = getClosest(event.target, "[data-schedule-dismiss-notice]");
+    if (!dismissNoticeTrigger) {
+      return;
+    }
+    event.preventDefault?.();
+    dismissScheduleNotice();
+  }
+
   function handleDocumentKeydown(event) {
     const key = String(event.key || "").toLowerCase();
     const isCopyShortcut = (event.metaKey || event.ctrlKey) && key === "c";
     const isPasteShortcut = (event.metaKey || event.ctrlKey) && key === "v";
+    const isUndoShortcut = (event.metaKey || event.ctrlKey) && key === "z" && !event.shiftKey;
     const isQuickCopy = key === "c" && !event.metaKey && !event.ctrlKey && !event.altKey;
     const isQuickPaste = key === "v" && !event.metaKey && !event.ctrlKey && !event.altKey;
     const isPlannerDelete = (key === "delete" || key === "backspace") && !event.metaKey && !event.ctrlKey && !event.altKey;
 
     if (!isActive() || !canEdit() || isEditableKeyboardTarget(event.target)) {
       return false;
+    }
+    if (isUndoShortcut && undoSnapshot) {
+      event.preventDefault?.();
+      return undoLastScheduleChange();
     }
     if (isPlannerDelete) {
       const state = getState();
@@ -1418,6 +1790,7 @@ export function createScheduleWorkspaceController(options = {}) {
     ui.scheduleEventCancelButton?.addEventListener?.("click", () => clearEventEditor({ returnToView: true }));
     ui.scheduleEventForm?.addEventListener?.("submit", submitEventForm);
     doc?.addEventListener?.("keydown", handleDocumentKeydown);
+    doc?.addEventListener?.("click", handleDocumentClick);
     doc?.addEventListener?.("copy", handleDocumentCopy);
     doc?.addEventListener?.("paste", handleDocumentPaste);
     win?.addEventListener?.("resize", handleScheduleResize);

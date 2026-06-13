@@ -4,10 +4,8 @@ import {
   handleScoutingModuleInput,
   handleScoutingModuleSubmit,
   handleScoutingWorkspaceClick,
-  clearScoutingMyTeamDropPreview as clearScoutingMyTeamDropPreviewDom,
-  getScoutingDragPayload as getScoutingDragPayloadFromEvent,
+  bindScoutingDragAndDrop as bindScoutingDragAndDropRouter,
   renderScoutingActiveContentByTab,
-  updateScoutingMyTeamDropPreview as updateScoutingMyTeamDropPreviewDom,
 } from "./src/modules/scouting/index.mjs";
 import {
   getScoutingAdvancedDatabaseFiltersOpen,
@@ -166,10 +164,7 @@ let scoutingProfileFocusObserver = null;
 let scoutingImportDraft = null;
 let scoutingImportParserPromise = null;
 let scoutingImportPdfParserPromise = null;
-let scoutingDragState = null;
 let scoutingMyTeamSelectedPlayerId = "";
-let scoutingDragAndDropDelegatesBound = false;
-let scoutingDragAndDropDelegateRoot = null;
 let scoutingIntelligenceCacheVersion = 0;
 let scoutingImportHistoryCache = { status: "idle", imports: [], error: "", promise: null };
 let scoutingFootballScienceDbQualityCache = { status: "idle", summary: null, error: "", promise: null };
@@ -547,7 +542,6 @@ const scoutingProfileTabs = Object.freeze([
   { value: "reports", label: "Reports" },
   { value: "history", label: "History" },
 ]);
-let scoutingMyTeamDropPreviewKey = "";
 let scoutingEventDeps = null;
 function setScoutingContext(context) {
   activeContext = context;
@@ -8199,277 +8193,23 @@ function setScoutingTargetStatusByDrag(targetId, status) {
   const safeStatus = normalizeScoutingTargetStatus(status);
   updateScoutingTarget(targetId, { status: safeStatus });
 }
-function getScoutingDragPayload(event) {
-  return getScoutingDragPayloadFromEvent(event, scoutingDragState);
-}
-function clearScoutingMyTeamDropPreview(root = ui.scoutingWorkspace) {
-  scoutingMyTeamDropPreviewKey = "";
-  clearScoutingMyTeamDropPreviewDom(root);
-}
-function updateScoutingMyTeamDropPreview(event, root, dragPayload) {
-  const preview = updateScoutingMyTeamDropPreviewDom({
-    event,
-    root,
-    dragPayload,
-    currentPreviewKey: scoutingMyTeamDropPreviewKey,
-    normalizeText: normalizeScoutingText,
-  });
-  scoutingMyTeamDropPreviewKey = preview.previewKey;
-}
 function bindScoutingDragAndDrop() {
   const root = ui.scoutingWorkspace;
   if (!root) {
     return;
   }
-  if (scoutingDragAndDropDelegatesBound && scoutingDragAndDropDelegateRoot === root) {
-    return;
-  }
-  scoutingDragAndDropDelegatesBound = true;
-  scoutingDragAndDropDelegateRoot = root;
-  let myTeamSlotPositionDrag = null;
-  const finishMyTeamSlotPositionDrag = (event, cancel = false) => {
-    if (!myTeamSlotPositionDrag || event.pointerId !== myTeamSlotPositionDrag.pointerId) {
-      return;
-    }
-    const drag = myTeamSlotPositionDrag;
-    myTeamSlotPositionDrag = null;
-    drag.slotElement?.classList.remove("is-position-dragging");
-    try {
-      drag.handle?.releasePointerCapture?.(event.pointerId);
-    } catch {
-      // Pointer capture can already be released by the browser.
-    }
-    if (!cancel && drag.lastPosition) {
-      if (drag.mode === "shadow") {
-        setScoutingShadowSlotPitchPosition(drag.slotId, drag.lastPosition.x, drag.lastPosition.y);
-      } else {
-        setScoutingMyTeamSlotPitchPosition(drag.slotId, drag.lastPosition.x, drag.lastPosition.y);
-      }
-    }
-  };
-  root.addEventListener("pointerdown", (event) => {
-    const myTeamSlotHandle = event.target.closest("[data-scouting-drag-my-team-slot]");
-    const shadowSlotHandle = event.target.closest("[data-scouting-drag-shadow-slot]");
-    const slotHandle = myTeamSlotHandle || shadowSlotHandle;
-    if (!slotHandle || !root.contains(slotHandle) || !canEditScoutingWorkspace()) {
-      return;
-    }
-    const mode = shadowSlotHandle ? "shadow" : "my-team";
-    const slotElement = slotHandle.closest(".scouting-shadow-slot");
-    const pitchElement = slotHandle.closest(".scouting-shadow-pitch");
-    const position = getScoutingMyTeamPointerPitchPosition(event, pitchElement);
-    if (!slotElement || !pitchElement || !position) {
-      return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    myTeamSlotPositionDrag = {
-      pointerId: event.pointerId,
-      mode,
-      slotId: mode === "shadow" ? slotHandle.dataset.scoutingDragShadowSlot : slotHandle.dataset.scoutingDragMyTeamSlot,
-      handle: slotHandle,
-      slotElement,
-      pitchElement,
-      lastPosition: position,
-    };
-    slotElement.classList.add("is-position-dragging");
-    previewScoutingMyTeamSlotPitchPosition(slotElement, position);
-    slotHandle.setPointerCapture?.(event.pointerId);
-  });
-  root.addEventListener("pointermove", (event) => {
-    if (!myTeamSlotPositionDrag || event.pointerId !== myTeamSlotPositionDrag.pointerId) {
-      return;
-    }
-    event.preventDefault();
-    const position = getScoutingMyTeamPointerPitchPosition(event, myTeamSlotPositionDrag.pitchElement);
-    if (!position) {
-      return;
-    }
-    myTeamSlotPositionDrag.lastPosition = position;
-    previewScoutingMyTeamSlotPitchPosition(myTeamSlotPositionDrag.slotElement, position);
-  });
-  root.addEventListener("pointerup", (event) => finishMyTeamSlotPositionDrag(event));
-  root.addEventListener("pointercancel", (event) => finishMyTeamSlotPositionDrag(event, true));
-  root.addEventListener("dragstart", (event) => {
-    const myTeamSlotHandle = event.target.closest("[data-scouting-drag-my-team-slot]");
-    if (myTeamSlotHandle && root.contains(myTeamSlotHandle)) {
-      const slotElement = myTeamSlotHandle.closest(".scouting-my-team-slot");
-      scoutingDragState = {
-        type: "my-team-slot",
-        slotId: myTeamSlotHandle.dataset.scoutingDragMyTeamSlot,
-      };
-      event.dataTransfer?.setData("text/plain", JSON.stringify(scoutingDragState));
-      event.dataTransfer?.setDragImage?.(slotElement || myTeamSlotHandle, 18, 18);
-      slotElement?.classList.add("is-position-dragging");
-      return;
-    }
-    const shadowSlotHandle = event.target.closest("[data-scouting-drag-shadow-slot]");
-    if (shadowSlotHandle && root.contains(shadowSlotHandle)) {
-      const slotElement = shadowSlotHandle.closest(".scouting-shadow-slot");
-      scoutingDragState = {
-        type: "shadow-slot",
-        slotId: shadowSlotHandle.dataset.scoutingDragShadowSlot,
-      };
-      event.dataTransfer?.setData("text/plain", JSON.stringify(scoutingDragState));
-      event.dataTransfer?.setDragImage?.(slotElement || shadowSlotHandle, 18, 18);
-      slotElement?.classList.add("is-position-dragging");
-      return;
-    }
-    const myTeamElement = event.target.closest("[data-scouting-drag-my-team-player]");
-    if (myTeamElement && root.contains(myTeamElement)) {
-      scoutingDragState = {
-        type: "my-team",
-        playerId: myTeamElement.dataset.scoutingDragMyTeamPlayer,
-      };
-      myTeamElement.classList.add("is-dragging");
-      event.dataTransfer?.setData("text/plain", JSON.stringify(scoutingDragState));
-      event.dataTransfer?.setDragImage?.(myTeamElement, 12, 12);
-      return;
-    }
-    const favoriteElement = event.target.closest("[data-scouting-drag-favorite-record]");
-    if (favoriteElement && root.contains(favoriteElement)) {
-      scoutingDragState = {
-        type: "favorite",
-        recordId: favoriteElement.dataset.scoutingDragFavoriteRecord,
-      };
-      event.dataTransfer?.setData("text/plain", JSON.stringify(scoutingDragState));
-      event.dataTransfer?.setDragImage?.(favoriteElement, 12, 12);
-      return;
-    }
-    const shadowElement = event.target.closest("[data-scouting-drag-shadow-record]");
-    if (shadowElement && root.contains(shadowElement)) {
-      scoutingDragState = {
-        type: "shadow",
-        recordId: shadowElement.dataset.scoutingDragShadowRecord,
-        slotId: shadowElement.dataset.scoutingShadowSlot,
-      };
-      event.dataTransfer?.setData("text/plain", JSON.stringify(scoutingDragState));
-      event.dataTransfer?.setDragImage?.(shadowElement, 12, 12);
-      return;
-    }
-    const targetElement = event.target.closest("[data-scouting-drag-target]");
-    if (targetElement && root.contains(targetElement)) {
-      scoutingDragState = {
-        type: "target",
-        targetId: targetElement.dataset.scoutingDragTarget,
-      };
-      event.dataTransfer?.setData("text/plain", JSON.stringify(scoutingDragState));
-      event.dataTransfer?.setDragImage?.(targetElement, 12, 12);
-    }
-  });
-  root.addEventListener("dragover", (event) => {
-    const dragPayload = getScoutingDragPayload(event);
-    if (dragPayload?.type === "my-team-slot" && event.target.closest(".scouting-my-team-pitch")) {
-      event.preventDefault();
-      if (event.dataTransfer) {
-        event.dataTransfer.dropEffect = "move";
-      }
-      return;
-    }
-    if (dragPayload?.type === "shadow-slot" && event.target.closest(".scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-pitch")) {
-      event.preventDefault();
-      if (event.dataTransfer) {
-        event.dataTransfer.dropEffect = "move";
-      }
-      return;
-    }
-    if ((dragPayload?.type === "my-team" || !dragPayload?.type) && event.target.closest("[data-scouting-my-team-drop-slot], [data-scouting-my-team-bench-drop]")) {
-      event.preventDefault();
-      updateScoutingMyTeamDropPreview(event, root, dragPayload || scoutingDragState);
-      if (event.dataTransfer) {
-        event.dataTransfer.dropEffect = "move";
-      }
-    } else if (dragPayload?.type === "my-team") {
-      clearScoutingMyTeamDropPreview(root);
-    }
-    if (["shadow", "favorite"].includes(dragPayload?.type) && event.target.closest("[data-scouting-shadow-drop-slot], [data-scouting-shadow-drop-before]")) {
-      event.preventDefault();
-    }
-    if (dragPayload?.type === "target" && event.target.closest("[data-scouting-target-drop-status]")) {
-      event.preventDefault();
-    }
-  });
-  root.addEventListener("drop", (event) => {
-    const dragPayload = getScoutingDragPayload(event);
-    const myTeamPitchDrop = event.target.closest(".scouting-my-team-pitch");
-    if (dragPayload?.type === "my-team-slot" && myTeamPitchDrop && root.contains(myTeamPitchDrop)) {
-      event.preventDefault();
-      const rect = myTeamPitchDrop.getBoundingClientRect();
-      if (rect.width && rect.height) {
-        setScoutingMyTeamSlotPitchPosition(
-          dragPayload.slotId,
-          ((event.clientX - rect.left) / rect.width) * 100,
-          ((event.clientY - rect.top) / rect.height) * 100
-        );
-      }
-      scoutingDragState = null;
-      return;
-    }
-    const shadowPitchDrop = event.target.closest(".scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-pitch");
-    if (dragPayload?.type === "shadow-slot" && shadowPitchDrop && root.contains(shadowPitchDrop)) {
-      event.preventDefault();
-      const rect = shadowPitchDrop.getBoundingClientRect();
-      if (rect.width && rect.height) {
-        setScoutingShadowSlotPitchPosition(
-          dragPayload.slotId,
-          ((event.clientX - rect.left) / rect.width) * 100,
-          ((event.clientY - rect.top) / rect.height) * 100
-        );
-      }
-      scoutingDragState = null;
-      return;
-    }
-    const myTeamBenchDrop = event.target.closest("[data-scouting-my-team-bench-drop]");
-    if (dragPayload?.type === "my-team" && myTeamBenchDrop && root.contains(myTeamBenchDrop) && !event.target.closest("[data-scouting-my-team-drop-slot]")) {
-      event.preventDefault();
-      clearScoutingMyTeamDropPreview(root);
-      removeScoutingMyTeamPlayerFromAllSlots(dragPayload.playerId);
-      scoutingDragState = null;
-      return;
-    }
-    const myTeamBeforeDrop = event.target.closest("[data-scouting-my-team-drop-before]");
-    const myTeamDrop = event.target.closest("[data-scouting-my-team-drop-slot]");
-    if (dragPayload?.type === "my-team" && myTeamDrop && root.contains(myTeamDrop)) {
-      event.preventDefault();
-      clearScoutingMyTeamDropPreview(root);
-      assignScoutingMyTeamPlayerToSlot(
-        dragPayload.playerId,
-        myTeamDrop.dataset.scoutingMyTeamDropSlot,
-        myTeamBeforeDrop?.dataset.scoutingMyTeamDropBefore || ""
-      );
-      scoutingDragState = null;
-      return;
-    }
-    const shadowDrop = event.target.closest("[data-scouting-shadow-drop-slot], [data-scouting-shadow-drop-before]");
-    if (dragPayload?.type === "favorite" && shadowDrop && root.contains(shadowDrop)) {
-      event.preventDefault();
-      addScoutingRecordToShadow(dragPayload.recordId, shadowDrop.dataset.scoutingShadowDropSlot || "");
-      scoutingDragState = null;
-      return;
-    }
-    if (dragPayload?.type === "shadow" && shadowDrop && root.contains(shadowDrop)) {
-      event.preventDefault();
-      reorderScoutingShadowRecord(
-        shadowDrop.dataset.scoutingShadowDropSlot || dragPayload.slotId,
-        dragPayload.recordId,
-        shadowDrop.dataset.scoutingShadowDropBefore || ""
-      );
-      scoutingDragState = null;
-      return;
-    }
-    const targetDrop = event.target.closest("[data-scouting-target-drop-status]");
-    if (dragPayload?.type === "target" && targetDrop && root.contains(targetDrop)) {
-      event.preventDefault();
-      setScoutingTargetStatusByDrag(dragPayload.targetId, targetDrop.dataset.scoutingTargetDropStatus);
-      scoutingDragState = null;
-    }
-  });
-  root.addEventListener("dragend", () => {
-    clearScoutingMyTeamDropPreview(root);
-    root.querySelectorAll(".scouting-my-team-player.is-dragging").forEach((node) => node.classList.remove("is-dragging"));
-    root.querySelectorAll(".scouting-my-team-slot.is-position-dragging").forEach((node) => node.classList.remove("is-position-dragging"));
-    root.querySelectorAll(".scouting-shadow-slot.is-position-dragging").forEach((node) => node.classList.remove("is-position-dragging"));
-    scoutingDragState = null;
+  bindScoutingDragAndDropRouter(root, {
+    addRecordToShadow: addScoutingRecordToShadow,
+    assignMyTeamPlayerToSlot: assignScoutingMyTeamPlayerToSlot,
+    canEdit: canEditScoutingWorkspace,
+    getPointerPitchPosition: getScoutingMyTeamPointerPitchPosition,
+    normalizeText: normalizeScoutingText,
+    previewSlotPitchPosition: previewScoutingMyTeamSlotPitchPosition,
+    removeMyTeamPlayerFromAllSlots: removeScoutingMyTeamPlayerFromAllSlots,
+    reorderShadowRecord: reorderScoutingShadowRecord,
+    setMyTeamSlotPitchPosition: setScoutingMyTeamSlotPitchPosition,
+    setShadowSlotPitchPosition: setScoutingShadowSlotPitchPosition,
+    setTargetStatusByDrag: setScoutingTargetStatusByDrag,
   });
 }
 function getScoutingShadowCoverageScore(slotId, state = ensureScoutingState()) {

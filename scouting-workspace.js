@@ -5,6 +5,7 @@ import {
   handleScoutingModuleSubmit,
   handleScoutingWorkspaceClick,
   bindScoutingDragAndDrop as bindScoutingDragAndDropRouter,
+  createScoutingListsActions,
   createScoutingMyTeamActions,
   renderScoutingActiveContentByTab,
 } from "./src/modules/scouting/index.mjs";
@@ -40,10 +41,7 @@ import {
 } from "./src/modules/scouting/scouting-role-scoring-profiles.mjs";
 import { createScoutingDatabaseFilterService } from "./src/modules/scouting/scouting-database-filter-service.mjs";
 import {
-  addScoutingRecordIdToDecisionList,
   addScoutingRecordIdToShadowSlot,
-  createScoutingDecisionList,
-  deleteScoutingDecisionListById,
   removeScoutingRecordIdFromShadowSlot,
   reorderScoutingRecordIdInShadowSlot,
   toggleScoutingFavoriteRecordId,
@@ -541,6 +539,7 @@ const scoutingProfileTabs = Object.freeze([
   { value: "history", label: "History" },
 ]);
 let scoutingEventDeps = null;
+let scoutingListsActions = null;
 let scoutingMyTeamActions = null;
 function setScoutingContext(context) {
   activeContext = context;
@@ -15181,64 +15180,22 @@ function updateScoutingFavoriteControls(recordId, state = ensureScoutingState())
       }
     });
 }
-function addScoutingRecordToList(recordId, listId) {
-  const perf = startScoutingPerformance("list.add", { recordId, listId });
-  if (!canEditScoutingWorkspace()) {
-    perf.end({ status: "blocked" });
-    return;
+function getScoutingListsActions() {
+  if (scoutingListsActions) {
+    return scoutingListsActions;
   }
-  const state = ensureScoutingState();
-  const id = normalizeScoutingText(recordId, 160);
-  const targetListId = normalizeScoutingText(listId, 120) || state.lists[0]?.id;
-  const record = getScoutingRecordById(id);
-  if (record) {
-    rememberScoutingRecordSnapshot(record, state);
-  }
-  const mutation = addScoutingRecordIdToDecisionList(state, { recordId: id, listId: targetListId });
-  if (!mutation.changed) {
-    perf.end({ status: mutation.reason || "unchanged" });
-    return;
-  }
-  writeScoutingState();
-  refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
-  perf.end({ status: "updated" });
-}
-function createScoutingList(name) {
-  if (!canEditScoutingWorkspace()) {
-    return;
-  }
-  const listName = normalizeScoutingText(name, 80);
-  if (!listName) {
-    return;
-  }
-  const state = ensureScoutingState();
-  const mutation = createScoutingDecisionList(state, listName);
-  if (!mutation.changed) {
-    return;
-  }
-  writeScoutingState();
-  refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
-}
-function deleteScoutingList(listId) {
-  if (!canEditScoutingWorkspace()) {
-    return;
-  }
-  const state = ensureScoutingState();
-  const id = normalizeScoutingText(listId, 120);
-  const list = state.lists.find((item) => item.id === id);
-  if (!id || !list) {
-    return;
-  }
-  const confirmed = window.confirm(`Delete scouting list "${list.name}"? Players stay in the scouting database.`);
-  if (!confirmed) {
-    return;
-  }
-  const mutation = deleteScoutingDecisionListById(state, id);
-  if (!mutation.changed) {
-    return;
-  }
-  writeScoutingState();
-  refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
+  scoutingListsActions = createScoutingListsActions({
+    canEdit: canEditScoutingWorkspace,
+    confirm: (message) => window.confirm(message),
+    ensureState: ensureScoutingState,
+    getRecordById: getScoutingRecordById,
+    normalizeText: normalizeScoutingText,
+    refreshWorkspaceAfterLocalMutation: refreshScoutingWorkspaceAfterLocalMutation,
+    rememberRecordSnapshot: rememberScoutingRecordSnapshot,
+    startPerformance: startScoutingPerformance,
+    writeState: writeScoutingState,
+  });
+  return scoutingListsActions;
 }
 function addScoutingRecordToShadow(recordId, slotId) {
   const perf = startScoutingPerformance("shadow.add", { recordId, slotId });
@@ -15339,11 +15296,12 @@ function getScoutingEventDeps() {
   if (scoutingEventDeps) {
     return scoutingEventDeps;
   }
+  const listsActions = getScoutingListsActions();
   const myTeamActions = getScoutingMyTeamActions();
   // Keep entries as functions or live-state closures; direct values would become stale.
   scoutingEventDeps = {
     addComparisonPlayer: addScoutingComparisonPlayer,
-    addRecordToList: addScoutingRecordToList,
+    addRecordToList: listsActions.addRecordToList,
     addRecordToShadow: addScoutingRecordToShadow,
     addRoleModelMetricFromPicker: addScoutingRoleModelMetricFromPicker,
     applyImportDraft: applyScoutingImportDraft,
@@ -15363,7 +15321,7 @@ function getScoutingEventDeps() {
     collapseReportsPanel: collapseScoutingReportsPanel,
     createCompareSetReport: createScoutingCompareSetReport,
     createContactLogEntry: createScoutingContactLogEntry,
-    createList: createScoutingList,
+    createList: listsActions.createList,
     createReport: createScoutingReport,
     createReportForRecord: createScoutingReportForRecord,
     createReportFromForm: createScoutingReportFromForm,
@@ -15371,7 +15329,7 @@ function getScoutingEventDeps() {
     createSavedView: createScoutingSavedView,
     createShadowBoard: createScoutingShadowBoard,
     deleteContactLogEntry: deleteScoutingContactLogEntry,
-    deleteList: deleteScoutingList,
+    deleteList: listsActions.deleteList,
     deleteReport: deleteScoutingReport,
     deleteSavedView: deleteScoutingSavedView,
     ensureState: ensureScoutingState,

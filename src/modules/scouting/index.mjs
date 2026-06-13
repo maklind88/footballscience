@@ -41,6 +41,7 @@ export * from "./scouting-decision-actions.mjs";
 export * from "./scouting-click-router.mjs";
 export * from "./scouting-drag-drop-helpers.mjs";
 export * from "./scouting-drag-drop-router.mjs";
+export * from "./scouting-favorites-actions.mjs";
 export * from "./scouting-lists-actions.mjs";
 export * from "./scouting-my-team-actions.mjs";
 export * from "./scouting-shadow-xi-actions.mjs";

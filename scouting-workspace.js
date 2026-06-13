@@ -7,6 +7,7 @@ import {
   bindScoutingDragAndDrop as bindScoutingDragAndDropRouter,
   createScoutingDatabaseActions,
   createScoutingDatabaseLoader,
+  createScoutingFavoritesActions,
   createScoutingListsActions,
   createScoutingMyTeamActions,
   createScoutingShadowXiActions,
@@ -43,9 +44,6 @@ import {
   scoutingRoleScoringProfiles,
 } from "./src/modules/scouting/scouting-role-scoring-profiles.mjs";
 import { createScoutingDatabaseFilterService } from "./src/modules/scouting/scouting-database-filter-service.mjs";
-import {
-  toggleScoutingFavoriteRecordId,
-} from "./src/modules/scouting/scouting-decision-actions.mjs";
 
 let activeContext = null;
 let scoutingTabs = [];
@@ -539,6 +537,7 @@ const scoutingProfileTabs = Object.freeze([
 ]);
 let scoutingEventDeps = null;
 let scoutingDatabaseActions = null;
+let scoutingFavoritesActions = null;
 let scoutingListsActions = null;
 let scoutingMyTeamActions = null;
 let scoutingShadowXiActions = null;
@@ -14835,72 +14834,32 @@ function closeScoutingRecordProfile() {
   }
   renderScoutingWorkspace();
 }
+function getScoutingFavoritesActions() {
+  if (scoutingFavoritesActions) {
+    return scoutingFavoritesActions;
+  }
+  scoutingFavoritesActions = createScoutingFavoritesActions({
+    canEdit: canEditScoutingWorkspace,
+    ensureState: ensureScoutingState,
+    getPerformanceNow: () => window.performance?.now?.() ?? Date.now(),
+    getRecordById: getScoutingRecordById,
+    hasProfileModal: () => Boolean(ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]")),
+    isPerfDebug: () => Boolean(window.__footballScienceScoutingPerfDebug),
+    logDebugTimings: (timings) => {
+      console.log("[scouting-favorite-performance]", JSON.stringify(timings));
+    },
+    normalizeText: normalizeScoutingText,
+    refreshSummaryMetrics: refreshScoutingWorkspaceSummaryMetrics,
+    refreshWorkspaceAfterLocalMutation: refreshScoutingWorkspaceAfterLocalMutation,
+    rememberRecordSnapshot: rememberScoutingRecordSnapshot,
+    startPerformance: startScoutingPerformance,
+    updateFavoriteControls: updateScoutingFavoriteControls,
+    writeState: writeScoutingState,
+  });
+  return scoutingFavoritesActions;
+}
 function toggleScoutingFavorite(recordId) {
-  const perf = startScoutingPerformance("favorite.toggle", { recordId });
-  const debugTimings = window.__footballScienceScoutingPerfDebug ? [] : null;
-  const markDebugTiming = (label) => {
-    if (debugTimings) {
-      debugTimings.push({ label, at: performance.now() });
-    }
-  };
-  markDebugTiming("start");
-  if (!canEditScoutingWorkspace()) {
-    perf.end({ status: "blocked" });
-    return;
-  }
-  const state = ensureScoutingState();
-  const id = normalizeScoutingText(recordId, 160);
-  if (!id) {
-    perf.end({ status: "empty" });
-    return;
-  }
-  markDebugTiming("state-ready");
-  const hasProfileModal = Boolean(ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]"));
-  const mutation = toggleScoutingFavoriteRecordId(state, id);
-  if (!mutation.changed) {
-    perf.end({ status: mutation.reason || "unchanged" });
-    return;
-  }
-  markDebugTiming("favorite-state-updated");
-  if (hasProfileModal) {
-    updateScoutingFavoriteControls(id, state);
-    markDebugTiming("favorite-controls-updated");
-    refreshScoutingWorkspaceSummaryMetrics();
-    markDebugTiming("summary-updated");
-    const record = getScoutingRecordById(id);
-    if (record) {
-      rememberScoutingRecordSnapshot(record, state, { includeAnalysis: false });
-    }
-    writeScoutingState();
-    markDebugTiming("state-written");
-    if (debugTimings) {
-      const base = debugTimings[0]?.at || 0;
-      console.log(
-        "[scouting-favorite-performance]",
-        JSON.stringify(debugTimings.map((item) => ({ label: item.label, ms: Math.round(item.at - base) })))
-      );
-    }
-    perf.end({ status: "profile-modal" });
-    return;
-  }
-  const record = getScoutingRecordById(id);
-  markDebugTiming("record-ready");
-  if (record) {
-    rememberScoutingRecordSnapshot(record, state);
-  }
-  markDebugTiming("snapshot-ready");
-  writeScoutingState();
-  markDebugTiming("state-written");
-  refreshScoutingWorkspaceAfterLocalMutation({ preserveFocus: true });
-  markDebugTiming("workspace-refreshed");
-  if (debugTimings) {
-    const base = debugTimings[0]?.at || 0;
-    console.log(
-      "[scouting-favorite-performance]",
-      JSON.stringify(debugTimings.map((item) => ({ label: item.label, ms: Math.round(item.at - base) })))
-    );
-  }
-  perf.end({ status: "updated" });
+  return getScoutingFavoritesActions().toggleFavorite(recordId);
 }
 function updateScoutingFavoriteControls(recordId, state = ensureScoutingState()) {
   const id = normalizeScoutingText(recordId, 160);

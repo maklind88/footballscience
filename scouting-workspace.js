@@ -3,6 +3,7 @@ import {
   handleScoutingModuleClick,
   handleScoutingModuleInput,
   handleScoutingModuleSubmit,
+  handleScoutingWorkspaceClick,
   renderScoutingActiveContentByTab,
 } from "./src/modules/scouting/index.mjs";
 import {
@@ -15769,6 +15770,7 @@ function getScoutingEventDeps() {
     clearCompareSet: clearScoutingCompareSet,
     clearImportedDatabase: clearScoutingImportedDatabase,
     clearShadowSlotSelection: clearScoutingShadowSlotSelection,
+    closeRecordProfile: closeScoutingRecordProfile,
     closeReportBuilder: closeScoutingReportBuilder,
     closeRoleModels: closeScoutingRoleModels,
     closeSavedViews: closeScoutingSavedViews,
@@ -15798,7 +15800,9 @@ function getScoutingEventDeps() {
     getOppositionContext: getScoutingOppositionContext,
     getOppositionLatestSnapshot: () => scoutingOppositionLatestSnapshot,
     getOppositionReportText: getScoutingOppositionReportText,
+    getOpenRecordActionMenuId: () => scoutingOpenRecordActionMenuId,
     getWorkspaceRoot: () => ui.scoutingWorkspace,
+    handleModuleClick: handleScoutingModuleClick,
     hydrateFootballScienceDbProfileDetails,
     isAdvancedDatabaseMode: isScoutingDatabaseAdvancedMode,
     isDatabaseLoaded: isScoutingDatabaseLoaded,
@@ -15811,6 +15815,7 @@ function getScoutingEventDeps() {
     normalizeText: normalizeScoutingText,
     openFootballScienceDbProfileFromQueue,
     openReportBuilder: openScoutingReportBuilder,
+    openRecordProfile: openScoutingRecordProfile,
     openRoleModels: openScoutingRoleModels,
     openSavedViews: openScoutingSavedViews,
     openSettingsPanel: openScoutingSettingsPanel,
@@ -15835,6 +15840,7 @@ function getScoutingEventDeps() {
     scheduleDatabaseFilterRefresh: scheduleScoutingDatabaseFilterRefresh,
     selectShadowSlot: selectScoutingShadowSlot,
     setActiveShadowBoard: setScoutingActiveShadowBoard,
+    setActiveTab: setScoutingActiveTab,
     setAdvancedDatabaseMode: setScoutingDatabaseAdvancedMode,
     setAdvancedFiltersOpen: setScoutingAdvancedDatabaseFiltersOpen,
     setComparisonCandidatesOpen: (open) => {
@@ -15865,8 +15871,12 @@ function getScoutingEventDeps() {
       scoutingMyTeamSelectedPlayerId = playerId || "";
     },
     setOppositionFilters: setScoutingOppositionFilters,
+    setOpenRecordActionMenuId: (recordId) => {
+      scoutingOpenRecordActionMenuId = normalizeScoutingText(recordId, 160);
+    },
     setProfileRoleProfile: setScoutingProfileRoleProfile,
     setProfileSpiderSeason: setScoutingProfileSpiderSeason,
+    setProfileTab: setScoutingProfileTab,
     setReportBuilderOpen: (open) => {
       scoutingReportBuilderOpen = Boolean(open);
     },
@@ -15884,6 +15894,8 @@ function getScoutingEventDeps() {
     setShadowFormation: setScoutingShadowFormation,
     setShadowRecordMeta: setScoutingShadowRecordMeta,
     toggleCompareRecord: toggleScoutingCompareRecord,
+    toggleFavorite: toggleScoutingFavorite,
+    toggleRecordQuickView: toggleScoutingRecordQuickView,
     updateImportSeasonDraft: (value) => {
       if (scoutingImportDraft) {
         scoutingImportDraft = {
@@ -15899,72 +15911,7 @@ function getScoutingEventDeps() {
 }
 export function handleClick(event, context) {
   setScoutingContext(context);
-  const eventDeps = getScoutingEventDeps();
-  const target = event.target;
-  const recordMoreMenuTrigger = target.closest("[data-toggle-scouting-record-more-menu]");
-  if (recordMoreMenuTrigger) {
-    const menu = recordMoreMenuTrigger.closest(".scouting-record-more-menu");
-    const recordId = normalizeScoutingText(recordMoreMenuTrigger.dataset.toggleScoutingRecordMoreMenu, 160);
-    scoutingOpenRecordActionMenuId = menu?.open ? "" : recordId;
-    ui.scoutingWorkspace?.querySelectorAll(".scouting-record-more-menu[open]").forEach((openMenu) => {
-      if (openMenu !== menu) {
-        openMenu.removeAttribute("open");
-      }
-    });
-    return;
-  }
-  if (scoutingOpenRecordActionMenuId && !target.closest(".scouting-record-more-menu")) {
-    scoutingOpenRecordActionMenuId = "";
-    ui.scoutingWorkspace?.querySelectorAll(".scouting-record-more-menu[open]").forEach((openMenu) => openMenu.removeAttribute("open"));
-  }
-  if (handleScoutingModuleClick(event, eventDeps)) {
-    return;
-  }
-  const closeProfileTrigger = target.closest("[data-close-scouting-profile]");
-  if (closeProfileTrigger && (!target.closest("[data-scouting-profile-modal]") || closeProfileTrigger.tagName === "BUTTON")) {
-    closeScoutingRecordProfile();
-    return;
-  }
-  const profileTabTrigger = target.closest("[data-scouting-profile-tab]");
-  if (profileTabTrigger) {
-    setScoutingProfileTab(profileTabTrigger.dataset.scoutingProfileTab);
-    return;
-  }
-  const tabTrigger = target.closest("[data-scouting-tab]");
-  if (tabTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    setScoutingActiveTab(tabTrigger.dataset.scoutingTab);
-    return;
-  }
-  const quickViewTrigger = target.closest("[data-toggle-scouting-record-details]");
-  if (quickViewTrigger) {
-    event.stopPropagation();
-    toggleScoutingRecordQuickView(quickViewTrigger.dataset.toggleScoutingRecordDetails);
-    return;
-  }
-  const favoriteTrigger = target.closest("[data-toggle-scouting-favorite]");
-  if (favoriteTrigger) {
-    event.stopPropagation();
-    toggleScoutingFavorite(favoriteTrigger.dataset.toggleScoutingFavorite);
-    return;
-  }
-  const sendToTransferRoomTrigger = target.closest("[data-send-scouting-record-to-transfer-room]");
-  if (sendToTransferRoomTrigger) {
-    event.preventDefault();
-    event.stopPropagation();
-    sendScoutingRecordToTransferRoom(sendToTransferRoomTrigger.dataset.sendScoutingRecordToTransferRoom);
-    return;
-  }
-  const recordTrigger = target.closest("[data-open-scouting-record]");
-  if (recordTrigger) {
-    openScoutingRecordProfile(recordTrigger.dataset.openScoutingRecord);
-    return;
-  }
-  const recordRowTrigger = target.closest("[data-scouting-record-row]");
-  if (recordRowTrigger && !target.closest("button, a, input, select, textarea, details, summary")) {
-    openScoutingRecordProfile(recordRowTrigger.dataset.scoutingRecordRow);
-  }
+  handleScoutingWorkspaceClick(event, getScoutingEventDeps());
 }
 export function handleInput(event, context) {
   setScoutingContext(context);

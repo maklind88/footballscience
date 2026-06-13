@@ -59,9 +59,14 @@ function createRuntime(overrides = {}) {
             ...createEventHandlers(calls.gameplanEvents),
           };
         }
+        if (id === "video-analysis") {
+          return {
+            render: (context) => calls.analysisRender.push(context),
+            ...createEventHandlers(calls.analysisEvents),
+          };
+        }
         return {
           render: (context) => calls.scoutingRender.push(context),
-          renderAnalysisRoom: (context) => calls.analysisRender.push(context),
           ...createEventHandlers(calls.scoutingEvents),
         };
       },
@@ -71,7 +76,9 @@ function createRuntime(overrides = {}) {
     getCurrentUser: () => ({ id: "u1", team: "First Team" }),
     getScheduleStateForGameplan: () => ({ events: [] }),
     getPlayerProfilesStateForGameplan: () => ({ players: [] }),
+    getPlayerProfilesStateForVideoAnalysis: () => ({ players: [{ id: "p1", name: "Player One" }] }),
     canEditGameplan: () => true,
+    canEditVideoAnalysis: () => true,
     getAuthToken: () => "token",
     suppressCentralWrites: (key) => calls.hydrated.push(`suppress:${key}`),
     unsuppressCentralWrites: (key) => calls.hydrated.push(`unsuppress:${key}`),
@@ -124,7 +131,7 @@ function createRuntime(overrides = {}) {
   return { calls, controller, ui };
 }
 
-test("workspace module runtime owns Gameplan and Scouting lazy render handoff", async () => {
+test("workspace module runtime owns Gameplan, Scouting, and Video Analysis lazy render handoff", async () => {
   const { calls, controller, ui } = createRuntime();
 
   controller.renderGameplanWorkspace();
@@ -143,10 +150,14 @@ test("workspace module runtime owns Gameplan and Scouting lazy render handoff", 
 
   controller.renderAnalysisRoomWorkspace();
   await flushPromises();
-  expect(calls.analysisRender[0].ui.scoutingWorkspace).toBe(ui.analysisRoomWorkspace);
+  expect(calls.modules).toContain("video-analysis");
+  expect(calls.stylesheets).toContain("video-analysis");
+  expect(calls.analysisRender[0].ui.analysisRoomWorkspace).toBe(ui.analysisRoomWorkspace);
+  expect(calls.analysisRender[0].canEdit()).toBe(true);
+  expect(calls.analysisRender[0].getPlayerProfilesState().players[0].id).toBe("p1");
 });
 
-test("workspace module runtime hydrates and preloads the correct module families", () => {
+test("workspace module runtime hydrates and preloads the correct module families", async () => {
   const { calls, controller } = createRuntime();
 
   ["schedule", "periodization", "sessions", "medical", "squad", "scouting", "transfer"].forEach((workspaceId) => {
@@ -162,11 +173,14 @@ test("workspace module runtime hydrates and preloads the correct module families
     "transfer-room",
   ]);
 
+  controller.queueWorkspaceModulePreload("analysis-room");
   controller.queueWorkspaceModulePreload("simulator");
   controller.queueWorkspaceModulePreload("transfer");
   controller.preloadWorkspaceFromTrigger({ dataset: { openWorkspace: "scouting" } });
+  await flushPromises();
 
   expect(calls.hydrated).not.toContain("game-simulator");
+  expect(calls.modules).toContain("video-analysis");
   expect(calls.transferLoad).toBe(1);
 });
 
@@ -187,6 +201,7 @@ test("workspace module runtime owns lazy workspace event delegation", async () =
   controller.bindWorkspaceModuleEvents();
   await controller.loadGameplanModule();
   await controller.loadScoutingWorkspaceModule();
+  await controller.loadVideoAnalysisModule();
 
   ui.gameplanWorkspace.handlers.click({ type: "click" });
   ui.scoutingWorkspace.handlers.input({ type: "input" });
@@ -195,8 +210,9 @@ test("workspace module runtime owns lazy workspace event delegation", async () =
 
   expect(calls.gameplanEvents[0][0]).toBe("click");
   expect(calls.gameplanEvents[0][2].canEdit()).toBe(true);
-  expect(calls.scoutingEvents.map(([type]) => type)).toEqual(["input", "change"]);
-  expect(calls.scoutingEvents[1][2].ui.scoutingWorkspace).toBe(ui.analysisRoomWorkspace);
+  expect(calls.scoutingEvents.map(([type]) => type)).toEqual(["input"]);
+  expect(calls.analysisEvents[0][0]).toBe("change");
+  expect(calls.analysisEvents[0][2].ui.analysisRoomWorkspace).toBe(ui.analysisRoomWorkspace);
   expect(calls.transferEvents[0][0]).toBe("submit");
   expect(calls.transferEvents[0][2]).toEqual({ room: true });
 });

@@ -120,7 +120,7 @@ const DEFAULT_WORKSPACE_EDIT_ACCESS = {
   "player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout"],
   scouting: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
   "transfer-room": ["admin", "team-admin"],
-  "analysis-room": ["admin", "club-admin", "team-admin", "scout", "analyst"],
+  "analysis-room": ["admin", "club-admin", "team-admin", "coach", "analyst"],
   "medical-team": ["admin", "club-admin", "team-admin", "medical", "performance"],
   staff: ["admin", "club-admin", "team-admin"],
   admin: ["admin", "club-admin", "team-admin"],

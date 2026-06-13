@@ -8,7 +8,9 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     getCurrentUser = () => null,
     getScheduleStateForGameplan = () => ({}),
     getPlayerProfilesStateForGameplan = () => ({}),
+    getPlayerProfilesStateForVideoAnalysis = getPlayerProfilesStateForGameplan,
     canEditGameplan = () => false,
+    canEditVideoAnalysis = () => false,
     getAuthToken = () => "",
     suppressCentralWrites = () => {},
     unsuppressCentralWrites = () => {},
@@ -34,6 +36,8 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
   } = deps;
 
   let gameplanModule = null;
+  let videoAnalysisModulePromise = null;
+  let videoAnalysisModule = null;
   let scoutingWorkspaceModulePromise = null;
   let scoutingWorkspaceModule = null;
   let scoutingMenuPreloadTimer = 0;
@@ -113,6 +117,43 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     };
   }
 
+  function getVideoAnalysisContext() {
+    return {
+      ui,
+      win,
+      currentUser: getCurrentUser(),
+      getAuthToken,
+      getPlayerProfilesState: getPlayerProfilesStateForVideoAnalysis,
+      canEdit: canEditVideoAnalysis,
+    };
+  }
+
+  function loadVideoAnalysisModule() {
+    if (videoAnalysisModule) {
+      return Promise.resolve(videoAnalysisModule);
+    }
+    if (!videoAnalysisModulePromise) {
+      videoAnalysisModulePromise = Promise.all([
+        platformModuleLoader.loadStylesheet("video-analysis", "src/modules/video-analysis/video-analysis.css", {
+          id: "videoAnalysisStylesheet",
+          required: true,
+        }),
+        platformModuleLoader.loadModule("video-analysis", () =>
+          import(`../modules/video-analysis/index.js?v=${encodeURIComponent(getAssetVersion())}`)
+        ),
+      ])
+        .then(([, module]) => {
+          videoAnalysisModule = module;
+          return module;
+        })
+        .catch((error) => {
+          videoAnalysisModulePromise = null;
+          throw error;
+        });
+    }
+    return videoAnalysisModulePromise;
+  }
+
   function loadScoutingWorkspaceModule() {
     if (scoutingWorkspaceModule) {
       return Promise.resolve(scoutingWorkspaceModule);
@@ -186,21 +227,21 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     if (!ui.analysisRoomWorkspace) {
       return;
     }
-    if (!scoutingWorkspaceModule) {
+    if (!videoAnalysisModule) {
       ui.analysisRoomWorkspace.innerHTML = `
-      <section class="scouting-shell">
-        <section class="scouting-load-panel">
+      <section class="video-analysis-shell">
+        <section class="video-analysis-player">
           <h2>Loading Analysis Room</h2>
           <p>Preparing the own-team performance room.</p>
         </section>
       </section>
     `;
-      loadScoutingWorkspaceModule()
-        .then((module) => module.renderAnalysisRoom(getScoutingAnalysisRoomContext()))
+      loadVideoAnalysisModule()
+        .then((module) => module.render(getVideoAnalysisContext()))
         .catch(() => {
           ui.analysisRoomWorkspace.innerHTML = `
-          <section class="scouting-shell">
-            <section class="scouting-load-panel">
+          <section class="video-analysis-shell">
+            <section class="video-analysis-player">
               <h2>Analysis Room could not load</h2>
               <p>Refresh and try again.</p>
             </section>
@@ -209,7 +250,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
         });
       return;
     }
-    scoutingWorkspaceModule.renderAnalysisRoom(getScoutingAnalysisRoomContext());
+    videoAnalysisModule.render(getVideoAnalysisContext());
   }
 
   function getTransferRoomWorkspaceContext() { return transferRoomRuntime?.getContext?.(); }
@@ -250,7 +291,10 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
   function queueWorkspaceModulePreload(workspaceId = "") {
     const safeWorkspaceId = getSafeWorkspaceId(workspaceId, getHubState()) || workspaceId;
     const viewId = getWorkspaceViewId(safeWorkspaceId || workspaceHubDefaultActiveWorkspaceId);
-    if (viewId === "analysis-room" || viewId === "scouting") {
+    if (viewId === "analysis-room") {
+      loadVideoAnalysisModule();
+    }
+    if (viewId === "scouting") {
       loadScoutingWorkspaceModule();
     }
     if (viewId === "transfer-room") {
@@ -298,7 +342,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
         );
       });
       bindWorkspaceModuleEvent(ui.analysisRoomWorkspace, type, (event) => {
-        scoutingWorkspaceModule?.[getWorkspaceModuleEventHandlerName(type)]?.(event, getScoutingAnalysisRoomContext());
+        videoAnalysisModule?.[getWorkspaceModuleEventHandlerName(type)]?.(event, getVideoAnalysisContext());
       });
     });
   }
@@ -308,11 +352,13 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     getGameplanContext,
     getScoutingAnalysisRoomContext,
     getScoutingWorkspaceContext,
+    getVideoAnalysisContext,
     getTransferRoomWorkspaceContext,
     hydrateWorkspaceModuleState,
     loadGameplanModule,
     loadScoutingWorkspaceModule,
     loadTransferRoomWorkspaceModule,
+    loadVideoAnalysisModule,
     preloadWorkspaceFromTrigger,
     queueWorkspaceModulePreload,
     renderAnalysisRoomWorkspace,

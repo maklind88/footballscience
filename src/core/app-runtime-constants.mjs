@@ -70,7 +70,7 @@ export const defaultWorkspaceEditAccess = {
   "player-profiles": ["admin", "club-admin", "team-admin", "coach", "scout"],
   scouting: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
   "transfer-room": ["admin", "team-admin"],
-  "analysis-room": ["admin", "club-admin", "team-admin", "scout", "analyst"],
+  "analysis-room": ["admin", "club-admin", "team-admin", "coach", "analyst"],
   "medical-team": ["admin", "club-admin", "team-admin", "medical", "performance"],
   staff: ["admin"],
   admin: ["admin"],

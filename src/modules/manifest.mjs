@@ -16,3 +16,4 @@ export * from "./schedule/index.mjs";
 export * from "./squad/index.mjs";
 export * from "./game-simulator/index.mjs";
 export * from "./scouting/index.mjs";
+export * from "./video-analysis/index.js";

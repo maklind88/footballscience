@@ -154,6 +154,17 @@ Database-primary migration priority: Schedule, Squad, Scouting, Medical Team, Ex
 - `qa`: protected by central state, Data Safety Contracts, permission matrix, Supabase permission seed, signed-link API contracts, and browser proof that Player Brief publishing does not leak staff responsibility text. `qa/gameplan-player-brief-api.api.spec.mjs` verifies token signing, expiry, sanitization, audience gates, individual Player Brief payloads, player-scoped mini-game focus, receipt mutation, linked evidence-source fields, lineup/bench normalization, week-focus principles, and elite workflow state normalization. `qa/gameplan-player-brief.smoke.spec.mjs` verifies the read-first Plan mode, Edit toggle, lineup/bench editing, Periodization/Session Planner week-focus sync, assigned mini-game focus in the player portal, linked evidence source panel, Staff role lens, selected-player portal access, blocked non-audience access, and read receipts.
 - `migration`: move later into `gameplan_match_plans`, `gameplan_staff_roles`, `gameplan_player_briefs`, `gameplan_scenarios`, `gameplan_evidence`, and `gameplan_observations` with team scope, revision checks, soft archive, and explicit audience membership.
 
+## Video Analysis
+
+- `id`: `video-analysis`
+- `purpose`: local video coding engine for own-team match analysis, timestamped clip metadata, football-language tagging, player connections, notes, search, filters, and coach review lists.
+- `data`: database-primary metadata in `video_matches`, `video_videos`, `video_sources`, `video_clip_instances`, `video_clip_players`, `video_clip_tags`, `video_clip_notes`, `video_coding_schemas`, `video_playlists`, and `video_playlist_items`; no protected browser storage key and no cloud video uploads.
+- `api`: `/api/video-analysis` is the only frontend data path. UI components must not call Supabase directly.
+- `permissions`: platform/club/team admin, coach, and analyst can code clips; scouting/performance can read where workspace access allows; admin-only module administration remains explicit.
+- `events`: local source linked, clip saved, review list updated.
+- `qa`: schema, API payload safety, module boundary, permission matrix, and Analysis Room loader contracts must prove metadata-only storage, millisecond precision, no component database access, and no local video path leakage.
+- `migration`: Analysis Room now loads `src/modules/video-analysis/index.js`; Scouting remains isolated in its own workspace. Desktop bridge code stays under `desktop/local-video-app/` and must never expose video paths or raw video bytes to Supabase.
+
 ## Periodization
 
 - `id`: `periodization`

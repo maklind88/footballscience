@@ -45,6 +45,16 @@ function refreshProfileSurface(deps = {}, recordId = "", state = getActionState(
   return "workspace";
 }
 
+function renderProfileOrWorkspace(deps = {}, state = {}, options = {}) {
+  const selectedRecordId = normalizeText(deps, state?.selectedRecordId, 160);
+  if (deps.hasProfileModal?.() === true) {
+    deps.renderProfileModal?.(selectedRecordId, options.modalOptions);
+    return "profile-modal";
+  }
+  deps.renderWorkspace?.({ preserveFocus: true });
+  return "workspace";
+}
+
 export function createScoutingProfileActions(deps = {}) {
   function createContactLogEntry(recordId, entry = {}) {
     if (!canMutate(deps)) {
@@ -139,9 +149,69 @@ export function createScoutingProfileActions(deps = {}) {
     return { changed: true, recordId: id, marketInfo: state.marketIntel[id], status: "updated" };
   }
 
+  function setProfileTab(tabId) {
+    const state = getActionState(deps);
+    if (!state) {
+      return { changed: false, status: "empty" };
+    }
+    const nextTab = deps.normalizeProfileTab?.(tabId) || normalizeText(deps, tabId, 40) || "overview";
+    state.profileTab = nextTab;
+    deps.writeState?.({ syncCentral: false });
+    const surface = renderProfileOrWorkspace(deps, state, { modalOptions: { resetScroll: true } });
+    const selectedRecordId = normalizeText(deps, state.selectedRecordId, 160);
+    if (nextTab === "history" && selectedRecordId) {
+      deps.requestAnimationFrame?.(() => deps.hydrateProfileApiDetails?.(selectedRecordId));
+    }
+    if (nextTab === "overview" && selectedRecordId) {
+      deps.queueFootballScienceDbProfileHydration?.(selectedRecordId);
+    }
+    return { changed: true, profileTab: nextTab, recordId: selectedRecordId, surface, status: "updated" };
+  }
+
+  function setProfileRoleProfile(roleProfileId) {
+    const state = getActionState(deps);
+    if (!state) {
+      return { changed: false, status: "empty" };
+    }
+    state.profileRoleProfileId = deps.normalizeRoleProfileId?.(roleProfileId, "auto") || "auto";
+    deps.writeState?.({ syncCentral: false });
+    const surface = renderProfileOrWorkspace(deps, state);
+    return { changed: true, roleProfileId: state.profileRoleProfileId, surface, status: "updated" };
+  }
+
+  function setProfileSpiderSeason(value) {
+    const state = getActionState(deps);
+    if (!state) {
+      return { changed: false, status: "empty" };
+    }
+    const rawValue = normalizeText(deps, value, 120);
+    if (rawValue === "average") {
+      state.profileSpiderSeasonMode = "average";
+      state.profileSpiderSeasonValue = "";
+    } else if (rawValue.startsWith("season::")) {
+      state.profileSpiderSeasonMode = "season";
+      state.profileSpiderSeasonValue = normalizeText(deps, rawValue.replace(/^season::/, ""), 80);
+    } else {
+      state.profileSpiderSeasonMode = "latest";
+      state.profileSpiderSeasonValue = "";
+    }
+    deps.writeState?.({ syncCentral: false });
+    const surface = renderProfileOrWorkspace(deps, state);
+    return {
+      changed: true,
+      mode: state.profileSpiderSeasonMode,
+      season: state.profileSpiderSeasonValue,
+      surface,
+      status: "updated",
+    };
+  }
+
   return {
     createContactLogEntry,
     deleteContactLogEntry,
     saveMarketInfo,
+    setProfileRoleProfile,
+    setProfileSpiderSeason,
+    setProfileTab,
   };
 }

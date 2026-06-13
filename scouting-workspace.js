@@ -4223,10 +4223,15 @@ function getScoutingProfileActions() {
     getRecordById: getScoutingRecordById,
     getTargets: getScoutingTargets,
     hasProfileModal: () => Boolean(ui.scoutingWorkspace?.querySelector(".scouting-profile-modal")),
+    hydrateProfileApiDetails: hydrateScoutingProfileApiDetails,
     normalizeContactLogEntry: normalizeScoutingContactLogEntry,
     normalizeDateText: normalizeScoutingDateText,
     normalizeMarketInfo: normalizeScoutingMarketInfo,
+    normalizeProfileTab: normalizeScoutingProfileTab,
+    normalizeRoleProfileId: normalizeScoutingRoleProfileId,
     normalizeText: normalizeScoutingText,
+    queueFootballScienceDbProfileHydration,
+    requestAnimationFrame: (callback) => window.requestAnimationFrame(callback),
     renderProfileModal: renderScoutingProfileModalIntoDom,
     renderWorkspace: renderScoutingWorkspace,
     touchIntelligenceCache: touchScoutingIntelligenceCache,
@@ -10361,53 +10366,13 @@ function normalizeScoutingProfileTab(value) {
   return scoutingProfileTabs.some((tab) => tab.value === normalized) ? normalized : "overview";
 }
 function setScoutingProfileTab(tabId) {
-  const state = ensureScoutingState();
-  const nextTab = normalizeScoutingProfileTab(tabId);
-  state.profileTab = nextTab;
-  writeScoutingState({ syncCentral: false });
-  if (ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]")) {
-    renderScoutingProfileModalIntoDom(state.selectedRecordId, { resetScroll: true });
-  } else {
-    renderScoutingWorkspace({ preserveFocus: true });
-  }
-  if (nextTab === "history" && state.selectedRecordId) {
-    requestAnimationFrame(() => {
-      hydrateScoutingProfileApiDetails(state.selectedRecordId);
-    });
-  }
-  if (nextTab === "overview" && state.selectedRecordId) {
-    queueFootballScienceDbProfileHydration(state.selectedRecordId);
-  }
+  return getScoutingProfileActions().setProfileTab(tabId);
 }
 function setScoutingProfileRoleProfile(roleProfileId) {
-  const state = ensureScoutingState();
-  state.profileRoleProfileId = normalizeScoutingRoleProfileId(roleProfileId, "auto");
-  writeScoutingState({ syncCentral: false });
-  if (ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]")) {
-    renderScoutingProfileModalIntoDom(state.selectedRecordId);
-  } else {
-    renderScoutingWorkspace({ preserveFocus: true });
-  }
+  return getScoutingProfileActions().setProfileRoleProfile(roleProfileId);
 }
 function setScoutingProfileSpiderSeason(value) {
-  const state = ensureScoutingState();
-  const rawValue = normalizeScoutingText(value, 120);
-  if (rawValue === "average") {
-    state.profileSpiderSeasonMode = "average";
-    state.profileSpiderSeasonValue = "";
-  } else if (rawValue.startsWith("season::")) {
-    state.profileSpiderSeasonMode = "season";
-    state.profileSpiderSeasonValue = normalizeScoutingText(rawValue.replace(/^season::/, ""), 80);
-  } else {
-    state.profileSpiderSeasonMode = "latest";
-    state.profileSpiderSeasonValue = "";
-  }
-  writeScoutingState({ syncCentral: false });
-  if (ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]")) {
-    renderScoutingProfileModalIntoDom(state.selectedRecordId);
-  } else {
-    renderScoutingWorkspace({ preserveFocus: true });
-  }
+  return getScoutingProfileActions().setProfileSpiderSeason(value);
 }
 
 function renderScoutingFootballScienceDbPanel(record) {

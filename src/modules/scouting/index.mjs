@@ -38,6 +38,7 @@ export * from "./scouting-database-actions.mjs";
 export * from "./scouting-database-loader.mjs";
 export * from "./scouting-database-source-policy.mjs";
 export * from "./scouting-football-science-db-adapter.mjs";
+export * from "./scouting-football-science-db-models.mjs";
 export * from "./scouting-comparison-actions.mjs";
 export * from "./scouting-decision-state.mjs";
 export * from "./scouting-decision-actions.mjs";

@@ -11,6 +11,7 @@ import {
   createScoutingDatabaseSourcePolicy,
   createScoutingFavoritesActions,
   createFootballScienceDbScoutingAdapter,
+  createFootballScienceDbScoutingModels,
   createScoutingListsActions,
   createScoutingMyTeamActions,
   createScoutingProfileActions,
@@ -395,6 +396,9 @@ const footballScienceDbScoutingAdapter = createFootballScienceDbScoutingAdapter(
   normalizeText: normalizeScoutingText,
   now: () => Date.now(),
   recordIndex: scoutingRecordIndex,
+});
+const footballScienceDbScoutingModels = createFootballScienceDbScoutingModels({
+  normalizeText: normalizeScoutingText,
 });
 const scoutingCountryCodeByName = Object.freeze({
   afghanistan: "AF",
@@ -1878,73 +1882,13 @@ async function loadFootballScienceDbDatabase() {
   return database;
 }
 function normalizeFootballScienceDbQualityNumber(value) {
-  const number = Number(value);
-  return Number.isFinite(number) && number >= 0 ? Math.floor(number) : 0;
+  return footballScienceDbScoutingModels.normalizeQualityNumber(value);
 }
 function normalizeFootballScienceDbQualityPlayer(player = {}) {
-  return {
-    id: normalizeScoutingText(player.id, 160),
-    fsdbId: normalizeScoutingText(player.fsdbId || player.id, 160),
-    name: normalizeScoutingText(player.name, 180) || "Unknown player",
-    team: normalizeScoutingText(player.team, 180),
-    position: normalizeScoutingText(player.position, 80),
-    genderSegment: normalizeScoutingText(player.genderSegment, 40) || "unknown",
-    nationality: normalizeScoutingText(player.nationality, 120),
-    nameQuality: normalizeScoutingText(player.nameQuality, 40) || "unknown",
-    sourceConfidence: normalizeFootballScienceDbQualityNumber(player.sourceConfidence),
-    sourceLinkCount: normalizeFootballScienceDbQualityNumber(player.sourceLinkCount),
-    rosterEntryCount: normalizeFootballScienceDbQualityNumber(player.rosterEntryCount),
-    metricCount: normalizeFootballScienceDbQualityNumber(player.metricCount),
-    dedupeKeyPresent: Boolean(player.dedupeKeyPresent),
-    reviewStatus: normalizeScoutingText(player.reviewStatus, 60),
-    reviewLabel: normalizeScoutingText(player.reviewLabel, 120),
-    reviewReasons: Array.isArray(player.reviewReasons)
-      ? player.reviewReasons
-          .map((reason) => ({
-            code: normalizeScoutingText(reason?.code, 80),
-            label: normalizeScoutingText(reason?.label, 160),
-            priority: normalizeScoutingText(reason?.priority, 40) || "medium",
-          }))
-          .filter((reason) => reason.label)
-          .slice(0, 8)
-      : [],
-  };
+  return footballScienceDbScoutingModels.normalizeQualityPlayer(player);
 }
 function normalizeFootballScienceDbQualitySummary(summary = {}) {
-  const totals = summary?.totals && typeof summary.totals === "object" && !Array.isArray(summary.totals) ? summary.totals : {};
-  const coverage = summary?.coverage && typeof summary.coverage === "object" && !Array.isArray(summary.coverage) ? summary.coverage : {};
-  const counts = summary?.counts && typeof summary.counts === "object" && !Array.isArray(summary.counts) ? summary.counts : {};
-  const reviewQueues = summary?.reviewQueues && typeof summary.reviewQueues === "object" && !Array.isArray(summary.reviewQueues) ? summary.reviewQueues : {};
-  return {
-    generatedAt: normalizeScoutingText(summary.generatedAt, 80),
-    countStrategy: normalizeScoutingText(summary.countStrategy, 40) || "planned",
-    totals: {
-      players: normalizeFootballScienceDbQualityNumber(totals.players),
-      women: normalizeFootballScienceDbQualityNumber(totals.women),
-      men: normalizeFootballScienceDbQualityNumber(totals.men),
-      mixed: normalizeFootballScienceDbQualityNumber(totals.mixed),
-      unknownGender: normalizeFootballScienceDbQualityNumber(totals.unknownGender),
-    },
-    coverage: {
-      profileCompleteness: normalizeFootballScienceDbQualityNumber(coverage.profileCompleteness),
-      fullNamePct: normalizeFootballScienceDbQualityNumber(coverage.fullNamePct),
-      dedupePct: normalizeFootballScienceDbQualityNumber(coverage.dedupePct),
-      sourceLinkPct: normalizeFootballScienceDbQualityNumber(coverage.sourceLinkPct),
-      rosterPct: normalizeFootballScienceDbQualityNumber(coverage.rosterPct),
-      statsPct: normalizeFootballScienceDbQualityNumber(coverage.statsPct),
-      spiderMetricPct: normalizeFootballScienceDbQualityNumber(coverage.spiderMetricPct),
-      birthDatePct: normalizeFootballScienceDbQualityNumber(coverage.birthDatePct),
-      nationalityPct: normalizeFootballScienceDbQualityNumber(coverage.nationalityPct),
-      positionPct: normalizeFootballScienceDbQualityNumber(coverage.positionPct),
-    },
-    counts: Object.fromEntries(
-      Object.entries(counts).map(([key, value]) => [key, normalizeFootballScienceDbQualityNumber(value)])
-    ),
-    reviewQueues: {
-      weakIdentity: Array.isArray(reviewQueues.weakIdentity) ? reviewQueues.weakIdentity.map(normalizeFootballScienceDbQualityPlayer) : [],
-      initialNames: Array.isArray(reviewQueues.initialNames) ? reviewQueues.initialNames.map(normalizeFootballScienceDbQualityPlayer) : [],
-    },
-  };
+  return footballScienceDbScoutingModels.normalizeQualitySummary(summary);
 }
 async function loadFootballScienceDbQuality(options = {}) {
   const force = Boolean(options.force);
@@ -1990,90 +1934,10 @@ function queueFootballScienceDbQualityLoad(options = {}) {
     .catch(() => renderScoutingWorkspace({ preserveFocus: true }));
 }
 function normalizeFootballScienceDbReview(review = {}) {
-  const reasons = Array.isArray(review.reasons)
-    ? review.reasons
-        .map((reason) => ({
-          code: normalizeScoutingText(reason?.code, 80),
-          label: normalizeScoutingText(reason?.label, 180),
-          priority: normalizeScoutingText(reason?.priority, 40) || "medium",
-        }))
-        .filter((reason) => reason.label)
-        .slice(0, 12)
-    : [];
-  return {
-    status: normalizeScoutingText(review.status, 80) || (reasons.length ? "needs_review" : "ready"),
-    label: normalizeScoutingText(review.label, 140) || (reasons.length ? "Needs review" : "Ready"),
-    reasons,
-  };
-}
-function normalizeFootballScienceDbProfileList(items = [], mapper = (item) => item) {
-  return (Array.isArray(items) ? items : []).map(mapper).filter(Boolean);
+  return footballScienceDbScoutingModels.normalizeReview(review);
 }
 function normalizeFootballScienceDbProfile(result = {}) {
-  const player = result.player && typeof result.player === "object" && !Array.isArray(result.player) ? result.player : {};
-  return {
-    player: {
-      id: normalizeScoutingText(player.id, 160),
-      fsdbId: normalizeScoutingText(player.fsdbId, 160),
-      name: normalizeScoutingText(player.name || player.fullName || player.displayName, 180) || "Unknown player",
-      fullName: normalizeScoutingText(player.fullName, 240),
-      dateOfBirth: normalizeScoutingText(player.dateOfBirth, 40),
-      birthYear: normalizeFootballScienceDbQualityNumber(player.birthYear),
-      genderSegment: normalizeScoutingText(player.genderSegment, 40) || "unknown",
-      nationality: normalizeScoutingText(player.nationality, 120),
-      birthCountry: normalizeScoutingText(player.birthCountry, 120),
-      primaryPosition: normalizeScoutingText(player.primaryPosition, 80),
-      positionGroup: normalizeScoutingText(player.positionGroup, 40),
-      currentTeam: normalizeScoutingText(player.currentTeam, 180),
-      currentCompetition: normalizeScoutingText(player.currentCompetition, 180),
-      sourceConfidence: normalizeFootballScienceDbQualityNumber(player.sourceConfidence),
-      sourceLinkCount: normalizeFootballScienceDbQualityNumber(player.sourceLinkCount),
-      rosterEntryCount: normalizeFootballScienceDbQualityNumber(player.rosterEntryCount),
-      seasonStatCount: normalizeFootballScienceDbQualityNumber(player.seasonStatCount),
-      metricCount: normalizeFootballScienceDbQualityNumber(player.metricCount),
-      nameQuality: normalizeScoutingText(player.nameQuality, 40) || "unknown",
-      identityStatus: normalizeScoutingText(player.identityStatus, 40) || "unverified",
-      dedupeKeyPresent: Boolean(player.dedupeKeyPresent),
-      dataReadiness: getFootballScienceDbReadiness(player),
-    },
-    review: normalizeFootballScienceDbReview(result.review || {}),
-    aliases: normalizeFootballScienceDbProfileList(result.aliases, (alias) => ({
-      alias: normalizeScoutingText(alias?.alias, 240),
-      aliasType: normalizeScoutingText(alias?.aliasType, 40),
-      sourceSystem: normalizeScoutingText(alias?.sourceSystem, 60),
-      confidence: normalizeFootballScienceDbQualityNumber(alias?.confidence),
-      status: normalizeScoutingText(alias?.status, 40),
-    })),
-    sourceLinks: normalizeFootballScienceDbProfileList(result.sourceLinks, (link) => ({
-      sourceSystem: normalizeScoutingText(link?.sourceSystem, 60),
-      sourceEntityId: normalizeScoutingText(link?.sourceEntityId, 180),
-      sourceUrl: normalizeScoutingText(link?.sourceUrl, 600),
-      confidence: normalizeFootballScienceDbQualityNumber(link?.confidence),
-      verifiedStatus: normalizeScoutingText(link?.verifiedStatus, 40),
-      importedAt: normalizeScoutingText(link?.importedAt, 40),
-    })),
-    rosters: normalizeFootballScienceDbProfileList(result.rosters, (roster) => ({
-      season: normalizeScoutingText(roster?.season, 80),
-      team: normalizeScoutingText(roster?.team, 180),
-      competition: normalizeScoutingText(roster?.competition, 180),
-      country: normalizeScoutingText(roster?.country, 120),
-      position: normalizeScoutingText(roster?.position || roster?.positionGroup, 160),
-      rosterStatus: normalizeScoutingText(roster?.rosterStatus, 40),
-      sourceSystem: normalizeScoutingText(roster?.sourceSystem, 60),
-    })),
-    stats: normalizeFootballScienceDbProfileList(result.stats, (stat) => ({
-      season: normalizeScoutingText(stat?.season, 80),
-      team: normalizeScoutingText(stat?.team, 180),
-      competition: normalizeScoutingText(stat?.competition, 180),
-      position: normalizeScoutingText(stat?.position, 160),
-      matches: Number.isFinite(Number(stat?.matches)) ? Number(stat.matches) : null,
-      starts: Number.isFinite(Number(stat?.starts)) ? Number(stat.starts) : null,
-      minutes: Number.isFinite(Number(stat?.minutes)) ? Number(stat.minutes) : 0,
-      metrics: stat?.metrics && typeof stat.metrics === "object" && !Array.isArray(stat.metrics) ? stat.metrics : {},
-      metricCount: normalizeFootballScienceDbQualityNumber(stat?.metricCount),
-      sourceSystem: normalizeScoutingText(stat?.sourceSystem, 60),
-    })),
-  };
+  return footballScienceDbScoutingModels.normalizeProfile(result);
 }
 function getFootballScienceDbProfileCacheKeys(record = {}) {
   const recordId = getScoutingRecordId(record);

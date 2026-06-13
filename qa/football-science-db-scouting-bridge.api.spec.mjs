@@ -29,6 +29,7 @@ test("Scouting database keeps source enrichment behind one visual player databas
   expect(workspace).toContain("/api/football-science-db");
   expect(workspace).toContain("footballSciencePlayerToScoutingRecord");
   expect(workspace).toContain("createFootballScienceDbScoutingAdapter");
+  expect(workspace).toContain("createFootballScienceDbScoutingModels");
   expect(workspace).toContain("SCOUTING_STANDALONE_FSDB_DATABASE_ENABLED = false");
   expect(workspace).toContain("createScoutingDatabaseSourcePolicy");
   expect(workspace).toContain("scoutingDatabaseSourcePolicy.normalizeFilterSource(filters.source)");

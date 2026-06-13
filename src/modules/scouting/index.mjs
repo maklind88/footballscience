@@ -40,6 +40,7 @@ export * from "./scouting-database-actions.mjs";
 export * from "./scouting-database-background-controller.mjs";
 export * from "./scouting-database-loader.mjs";
 export * from "./scouting-database-paging-renderer.mjs";
+export * from "./scouting-database-refresh-controller.mjs";
 export * from "./scouting-database-results-service.mjs";
 export * from "./scouting-database-source-policy.mjs";
 export * from "./scouting-api-profile-service.mjs";

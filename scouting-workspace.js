@@ -10,6 +10,7 @@ import {
   createScoutingDatabaseBackgroundController,
   createScoutingDatabaseLoader,
   createScoutingDatabasePagingRenderer,
+  createScoutingDatabaseRefreshController,
   createScoutingDatabaseResultsService,
   createScoutingDatabaseSourcePolicy,
   createScoutingFavoritesActions,
@@ -444,6 +445,26 @@ const scoutingDatabaseBackgroundController = createScoutingDatabaseBackgroundCon
   renderActiveTabSurfaceOrWorkspace: renderScoutingActiveTabSurfaceOrWorkspace,
   scheduleDatabaseRefresh: scheduleScoutingDatabaseRefresh,
   windowRef: typeof globalThis !== "undefined" ? globalThis.window : null,
+});
+const scoutingDatabaseRefreshController = createScoutingDatabaseRefreshController({
+  applyWorkerDatabase: applyScoutingWorkerDatabase,
+  cancelAnimationFrame: (frame) => window.cancelAnimationFrame(frame),
+  clearTimeout: (timer) => window.clearTimeout(timer),
+  ensureState: ensureScoutingState,
+  getApiRefreshTimer: getScoutingDatabaseApiRefreshTimer,
+  getResultsFrame: getScoutingDatabaseResultsFrame,
+  isApiDatabaseActive: isScoutingApiDatabaseActive,
+  isFootballScienceDbDatabaseActive,
+  isWorkerDatabaseActive: isScoutingWorkerDatabaseActive,
+  loadApiDatabase: loadScoutingDatabaseWithApi,
+  loadFootballScienceDbDatabase,
+  renderResults: renderScoutingDatabaseResults,
+  requestAnimationFrame: (callback) => window.requestAnimationFrame(callback),
+  requestWorkerQuery: requestScoutingDatabaseWorkerQuery,
+  setApiRefreshTimer: setScoutingDatabaseApiRefreshTimer,
+  setResultsFrame: setScoutingDatabaseResultsFrame,
+  setTimeout: (callback, delayMs) => window.setTimeout(callback, delayMs),
+  startPerformance: startScoutingPerformance,
 });
 const scoutingTabController = createScoutingTabController({
   cancelDatabaseBackgroundTimers: cancelScoutingDatabaseBackgroundTimers,
@@ -13909,54 +13930,10 @@ function setScoutingAdvancedDatabaseFiltersOpen(open) {
   return getScoutingDatabaseActions().setAdvancedFiltersOpen(open);
 }
 function scheduleScoutingDatabaseRefresh() {
-  const isApi = isScoutingApiDatabaseActive();
-  const isWorker = isScoutingWorkerDatabaseActive();
-  const isFootballScienceDb = isFootballScienceDbDatabaseActive();
-  if (!isApi && !isWorker && !isFootballScienceDb) {
-    scheduleScoutingDatabaseResultsRender();
-    return;
-  }
-  window.clearTimeout(getScoutingDatabaseApiRefreshTimer());
-  setScoutingDatabaseApiRefreshTimer(window.setTimeout(() => {
-    setScoutingDatabaseApiRefreshTimer(0);
-    const perf = startScoutingPerformance("database.refresh", {
-      source: isFootballScienceDb ? "fsdb" : isApi ? "api" : "worker",
-    });
-    const refreshPromise = isFootballScienceDb
-      ? loadFootballScienceDbDatabase()
-      : isApi
-      ? loadScoutingDatabaseWithApi()
-      : requestScoutingDatabaseWorkerQuery({ timeoutMs: 15000 }).then((database) => {
-          const appliedDatabase = applyScoutingWorkerDatabase(database);
-          if (!appliedDatabase) {
-            throw new Error("Scouting player database worker returned no records.");
-          }
-          return appliedDatabase;
-        });
-    refreshPromise
-      .then(() => {
-        perf.end({ status: "loaded" });
-        if (ensureScoutingState().activeTab === "database") {
-          renderScoutingDatabaseResults();
-        }
-      })
-      .catch(() => {
-        perf.end({ status: "fallback" });
-        scheduleScoutingDatabaseResultsRender();
-      });
-  }, isApi || isFootballScienceDb ? 260 : 80));
+  scoutingDatabaseRefreshController.scheduleRefresh();
 }
 function scheduleScoutingDatabaseResultsRender() {
-  const frame = getScoutingDatabaseResultsFrame();
-  if (frame) {
-    cancelAnimationFrame(frame);
-  }
-  setScoutingDatabaseResultsFrame(requestAnimationFrame(() => {
-    setScoutingDatabaseResultsFrame(0);
-    const perf = startScoutingPerformance("database.results-render", {});
-    renderScoutingDatabaseResults();
-    perf.end();
-  }));
+  scoutingDatabaseRefreshController.scheduleResultsRender();
 }
 function focusScoutingProfileModal() {
   const modal = ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]");

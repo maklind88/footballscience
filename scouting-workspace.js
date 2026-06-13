@@ -19,6 +19,7 @@ import {
   createScoutingMyTeamRecordService,
   createScoutingMyTeamSpiderController,
   createScoutingPostRenderController,
+  createScoutingProfileMarketService,
   createScoutingProfileOverviewController,
   createScoutingProfileSpiderService,
   createScoutingTabController,
@@ -551,6 +552,31 @@ const scoutingProfileOverviewController = createScoutingProfileOverviewControlle
     return globalThis.setTimeout(callback, delayMs);
   },
   windowRef: typeof globalThis !== "undefined" ? globalThis.window : null,
+});
+const scoutingProfileMarketService = createScoutingProfileMarketService({
+  ensureState: ensureScoutingState,
+  findTargetByRecordId: findScoutingTargetByRecordId,
+  getBestSignal: getScoutingBestSignal,
+  getComparablePlayers: getScoutingComparablePlayers,
+  getDecisionGate: getScoutingDecisionGate,
+  getIntelligenceProfile: getScoutingIntelligenceProfile,
+  getPlayerDataReadiness: getScoutingPlayerDataReadiness,
+  getPositionGroup: getScoutingPositionGroup,
+  getProfileRecommendation: getScoutingProfileRecommendation,
+  getRecordAge: getScoutingRecordAge,
+  getRecordId: getScoutingRecordId,
+  getRecordMinutes: getScoutingRecordMinutes,
+  getRecordName: getScoutingRecordName,
+  getRecordPosition: getScoutingRecordPosition,
+  getRecordTeam: getScoutingRecordTeam,
+  getRecordsForPlayer: getScoutingRecordsForPlayer,
+  getRoleFitLabel: getScoutingRoleFitLabel,
+  getRoleFitScore: getScoutingRoleFitScore,
+  getSeasonInsights: getScoutingSeasonInsights,
+  getShadowSlotRecordIds: getScoutingShadowSlotRecordIds,
+  getShadowSlots: () => scoutingShadowSlots,
+  isRecordFavorited: isScoutingRecordFavorited,
+  normalizeText: normalizeScoutingText,
 });
 const scoutingMyTeamPitchService = createScoutingMyTeamPitchService({
   ensureState: ensureScoutingState,
@@ -9198,205 +9224,28 @@ function renderScoutingProfileDossier(record, state, playerRows) {
   `;
 }
 function getScoutingMarketIntelligence(record, state = ensureScoutingState()) {
-  const recordId = getScoutingRecordId(record);
-  const roleFitScore = getScoutingRoleFitScore(record);
-  const age = getScoutingRecordAge(record);
-  const minutes = getScoutingRecordMinutes(record);
-  const bestSignal = getScoutingBestSignal(record);
-  const target = findScoutingTargetByRecordId(recordId, state);
-  const saved = getScoutingMarketInfo(recordId, state);
-  const hasSavedContractContext = Boolean(
-    saved.contractStatus !== "unknown" ||
-      saved.contractEnd ||
-      saved.optionYears ||
-      saved.agent ||
-      saved.wageBand ||
-      saved.transferStatus
-  );
-  const favorite = isScoutingRecordFavorited(recordId);
-  const shadowRoles = scoutingShadowSlots.filter((slot) => getScoutingShadowSlotRecordIds(slot.id, state).includes(recordId));
-  const positionGroup = getScoutingPositionGroup(record);
-  const segment =
-    Number.isFinite(roleFitScore) && roleFitScore >= 82 && Number.isFinite(age) && age <= 24
-      ? "Strategic upside signing"
-      : Number.isFinite(roleFitScore) && roleFitScore >= 82
-        ? "Immediate impact target"
-        : Number.isFinite(age) && age <= 23 && Number.isFinite(roleFitScore) && roleFitScore >= 70
-          ? "Breakout watch"
-          : Number.isFinite(roleFitScore) && roleFitScore >= 70 && minutes <= 1600
-            ? "Value opportunity"
-            : "Monitoring profile";
-  const urgency =
-    target?.priority === "urgent"
-      ? "Urgent follow-up"
-      : shadowRoles.length && Number.isFinite(roleFitScore) && roleFitScore >= 75
-        ? "Live scout soon"
-        : favorite || target
-          ? "Keep active"
-          : "Verify before pipeline";
-  const availability = hasSavedContractContext
-    ? `${getScoutingContractStatusLabel(saved.contractStatus)}${saved.contractEnd ? ` / Ends ${saved.contractEnd}` : ""}${saved.agent ? ` / Agent ${saved.agent}` : ""}`
-    : target
-      ? "Pipeline target - contract still unverified"
-      : shadowRoles.length
-        ? "Shadow XI target - verify agent/contract"
-        : favorite
-          ? "Favorite - needs contract check"
-          : "Contract status unknown";
-  const negotiationAngle =
-    saved.transferStatus
-      ? `Market note: ${saved.transferStatus}`
-      : minutes <= 900
-      ? "Potential minutes/opportunity angle: ask why playing time is limited."
-      : Number.isFinite(age) && age <= 23
-        ? "Development pathway angle: sell role growth, minutes and performance plan."
-        : Number.isFinite(roleFitScore) && roleFitScore >= 82
-          ? "Sporting impact angle: clarify fee/wage level early."
-          : "Low-pressure monitoring angle: gather agent and contract context first.";
-  const checks = [
-    saved.contractEnd ? `Contract end: ${saved.contractEnd}` : "Contract end date, option years and release clauses",
-    saved.optionYears ? `Option/release context: ${saved.optionYears}` : "Option years and release clauses",
-    saved.agent || saved.wageBand
-      ? `Agent/wage: ${[saved.agent ? `Agent ${saved.agent}` : "", saved.wageBand ? `Wage ${saved.wageBand}` : ""].filter(Boolean).join(" / ")}`
-      : "Agent contact, current wage band and transfer expectations",
-    saved.medicalLoad ? `Medical/load: ${saved.medicalLoad}` : "Medical availability, recent injuries and match load",
-    saved.roleTranslation
-      ? `Role translation: ${saved.roleTranslation}`
-      : positionGroup === "GK"
-        ? "Distribution and pressure profile on video"
-        : "Role translation against stronger opposition",
-  ];
-  const dueDiligence = [
-    {
-      label: "Contract",
-      status: saved.contractStatus !== "unknown" || saved.contractEnd ? "known" : "missing",
-      detail: saved.contractEnd ? `Ends ${saved.contractEnd}` : "Contract end and club option unverified",
-    },
-    {
-      label: "Agent",
-      status: saved.agent ? "known" : "missing",
-      detail: saved.agent || "Agent/agency not verified",
-    },
-    {
-      label: "Wages",
-      status: saved.wageBand || saved.salaryRange ? "known" : "missing",
-      detail: saved.wageBand || saved.salaryRange || "Wage band not verified",
-    },
-    {
-      label: "Injury/load",
-      status: saved.medicalLoad ? "known" : "missing",
-      detail: saved.medicalLoad || "Injury and match-load check required",
-    },
-    {
-      label: "Role translation",
-      status: saved.roleTranslation ? "known" : "missing",
-      detail: saved.roleTranslation || "Needs video/live validation against our model",
-    },
-    {
-      label: "Transfer heatmap",
-      status: saved.transferStatus || saved.dealProbability ? "known" : "missing",
-      detail: saved.transferStatus || saved.dealProbability || "Club stance and deal probability unknown",
-    },
-  ];
-  return {
-    segment,
-    urgency,
-    availability,
-    negotiationAngle,
-    checks,
-    dueDiligence,
-    saved,
-    completeness: getScoutingMarketCompleteness(saved),
-    bestSignal: bestSignal ? `${bestSignal.metric.label} P${bestSignal.percentile}` : "No standout signal",
-  };
+  return scoutingProfileMarketService.getMarketIntelligence(record, state);
 }
 function getScoutingProfileReportDraft(record, state = ensureScoutingState()) {
-  const playerRows = getScoutingRecordsForPlayer(record).slice(0, 10);
-  const recommendation = getScoutingProfileRecommendation(record, state);
-  const intelligence = getScoutingIntelligenceProfile(record, state);
-  const readiness = getScoutingPlayerDataReadiness(record, state);
-  const gate = getScoutingDecisionGate(record, state);
-  const market = getScoutingMarketIntelligence(record, state);
-  const savedMarket = market.saved;
-  const seasonInsights = getScoutingSeasonInsights(record, playerRows);
-  const roleFitScore = getScoutingRoleFitScore(record);
-  const bestSignal = getScoutingBestSignal(record);
-  const similarPlayers = getScoutingComparablePlayers(record, 3);
-  const similarText = similarPlayers.length
-    ? similarPlayers.map((item) => `${getScoutingRecordName(item.record)} (${item.similarity}% similar)`).join(", ")
-    : "No strong comparable profile yet";
-  return normalizeScoutingText(
-    [
-      `${getScoutingRecordName(record)} - ${getScoutingRecordPosition(record)} / ${getScoutingRecordTeam(record) || "No club"}.`,
-      `Decision: ${recommendation.action}. Role fit ${Number.isFinite(roleFitScore) ? `P${roleFitScore}` : "n/a"} (${getScoutingRoleFitLabel(roleFitScore)}).`,
-      `Decision gate: ${gate.title}. Next step: ${gate.nextStep}. Blocker: ${gate.blocker}.`,
-      `Signal: ${intelligence.signal.headline}. ${intelligence.signal.detail}`,
-      `Confidence: ${intelligence.confidence.label} ${intelligence.confidence.score}/99. ${intelligence.confidence.detail}`,
-      `Risk: ${intelligence.risk.label}. ${intelligence.risk.detail}`,
-      `Data needs: ${intelligence.risk.needs.length ? intelligence.risk.needs.join(", ") : "none for selected role spider"}.`,
-      `Data readiness: ${readiness.label} ${readiness.score}%. Next data need: ${readiness.weakest?.label || "none"}.`,
-      `Best data signal: ${bestSignal ? `${bestSignal.metric.label} P${bestSignal.percentile}` : "No standout signal"}.`,
-      `Market lens: ${market.segment}. Availability: ${market.availability}. Urgency: ${market.urgency}.`,
-      `Contract/agent detail: status ${getScoutingContractStatusLabel(savedMarket.contractStatus)}; end ${savedMarket.contractEnd || "unknown"}; option ${savedMarket.optionYears || "unknown"}; agent ${savedMarket.agent || "unknown"}; wage band ${savedMarket.wageBand || "unknown"}; fee ${savedMarket.estimatedFee || "unknown"}; salary ${savedMarket.salaryRange || "unknown"}; deal probability ${savedMarket.dealProbability || "unknown"}; budget impact ${savedMarket.budgetImpact || "unknown"}; transfer status ${savedMarket.transferStatus || "unknown"}.`,
-      `Season trend: ${seasonInsights.trendLabel}. Sample: ${seasonInsights.reliability}. Best season: ${seasonInsights.bestSeason}.`,
-      `Risk/read: ${recommendation.risk}`,
-      `Negotiation angle: ${market.negotiationAngle}`,
-      `Medical/load: ${savedMarket.medicalLoad || "not verified"}. Role translation: ${savedMarket.roleTranslation || "not verified"}.`,
-      savedMarket.notes ? `Market notes: ${savedMarket.notes}` : "",
-      `Comparable profiles: ${similarText}.`,
-      `Due diligence: ${market.checks.join("; ")}.`,
-    ].join(" "),
-    1200
-  );
+  return scoutingProfileMarketService.getProfileReportDraft(record, state);
 }
 function getScoutingContractStatusOptions() {
-  return [
-    { value: "unknown", label: "Unknown / unverified" },
-    { value: "under-contract", label: "Under contract" },
-    { value: "option", label: "Option year exists" },
-    { value: "free-agent", label: "Free agent" },
-    { value: "loan", label: "Loan situation" },
-    { value: "contacted", label: "Agent contacted" },
-  ];
+  return scoutingProfileMarketService.getContractStatusOptions();
 }
 function getScoutingContractStatusLabel(value) {
-  const normalized = normalizeScoutingText(value, 40) || "unknown";
-  return getScoutingContractStatusOptions().find((option) => option.value === normalized)?.label || "Unknown / unverified";
+  return scoutingProfileMarketService.getContractStatusLabel(value);
 }
 function normalizeScoutingMarketInfo(recordId, value = {}) {
-  const id = normalizeScoutingText(recordId || value.recordId, 160);
-  const status = normalizeScoutingText(value.contractStatus, 40) || "unknown";
-  const allowedStatus = getScoutingContractStatusOptions().some((option) => option.value === status) ? status : "unknown";
-  return {
-    recordId: id,
-    contractStatus: allowedStatus,
-    contractEnd: normalizeScoutingText(value.contractEnd, 60),
-    optionYears: normalizeScoutingText(value.optionYears, 120),
-    agent: normalizeScoutingText(value.agent, 120),
-    wageBand: normalizeScoutingText(value.wageBand, 120),
-    estimatedFee: normalizeScoutingText(value.estimatedFee, 120),
-    salaryRange: normalizeScoutingText(value.salaryRange, 120),
-    dealProbability: normalizeScoutingText(value.dealProbability, 80),
-    budgetImpact: normalizeScoutingText(value.budgetImpact, 180),
-    transferStatus: normalizeScoutingText(value.transferStatus, 180),
-    medicalLoad: normalizeScoutingText(value.medicalLoad, 220),
-    roleTranslation: normalizeScoutingText(value.roleTranslation, 260),
-    notes: normalizeScoutingText(value.notes, 500),
-    updatedAt: normalizeScoutingText(value.updatedAt, 40),
-  };
+  return scoutingProfileMarketService.normalizeMarketInfo(recordId, value);
 }
 function getScoutingMarketInfo(recordId, state = ensureScoutingState()) {
-  const id = normalizeScoutingText(recordId, 160);
-  const records = state.marketIntel && typeof state.marketIntel === "object" ? state.marketIntel : {};
-  return normalizeScoutingMarketInfo(id, records[id] || {});
+  return scoutingProfileMarketService.getMarketInfo(recordId, state);
 }
 function saveScoutingMarketInfo(recordId, patch = {}) {
   return getScoutingProfileActions().saveMarketInfo(recordId, patch);
 }
 function getScoutingMarketCompleteness(info) {
-  const fields = ["contractEnd", "optionYears", "agent", "wageBand", "estimatedFee", "salaryRange", "dealProbability", "budgetImpact", "transferStatus", "medicalLoad", "roleTranslation"];
-  const completed = fields.filter((field) => normalizeScoutingText(info[field], 280)).length + (info.contractStatus !== "unknown" ? 1 : 0);
-  return Math.round((completed / (fields.length + 1)) * 100);
+  return scoutingProfileMarketService.getMarketCompleteness(info);
 }
 function createScoutingReportForRecord(recordId) {
   if (!canEditScoutingWorkspace()) {

@@ -42,7 +42,7 @@ test("idp UI modules avoid direct database access and use only the API service f
   expect(read("api/idp.js")).toContain('moduleId: "idp"');
 });
 
-test("idp renderer exposes dashboard, player detail, and action overlay command surfaces", () => {
+test("idp renderer separates the overview from the player development profile", () => {
   const state = {
     ui: { statusFilter: "All", categoryFilter: "All", searchQuery: "" },
     dashboardPlayers: [
@@ -63,20 +63,30 @@ test("idp renderer exposes dashboard, player detail, and action overlay command 
       idp: { primaryFocus: "Receive under pressure", nextAction: "Add evidence" },
     }),
   };
-  const html = renderIdpWorkspace(state, { canEdit: true, teamName: "North Carolina Courage" });
+  const overviewHtml = renderIdpWorkspace(state, { canEdit: true, teamName: "North Carolina Courage" });
 
-  expect(html).toContain("data-idp-player=\"p1\"");
-  expect(html).toContain("data-idp-filter=\"status\"");
-  expect(html).toContain("data-idp-action=\"focus\"");
-  expect(html).toContain("data-idp-action=\"evidence\"");
-  expect(html).toContain("Player Development");
-  expect(html).toContain("North Carolina Courage");
-  expect(html).toContain("Clip Bank");
-  expect(html).toContain("Development Timeline");
+  expect(overviewHtml).toContain("data-idp-player=\"p1\"");
+  expect(overviewHtml).toContain("data-idp-filter=\"status\"");
+  expect(overviewHtml).toContain("Player Development");
+  expect(overviewHtml).toContain("North Carolina Courage");
+  expect(overviewHtml).toContain("Current Focus");
+  expect(overviewHtml).toContain("Next Action");
+  expect(overviewHtml).not.toContain("data-idp-action=\"focus\"");
+  expect(overviewHtml).not.toContain("Development Timeline");
 
-  expect(renderIdpWorkspace({ ...state, ui: { ...state.ui, actionMode: "focus" } }, { canEdit: true })).toContain("data-idp-create-focus");
-  expect(renderIdpWorkspace({ ...state, ui: { ...state.ui, actionMode: "evidence" } }, { canEdit: true })).toContain("data-idp-add-evidence");
-  expect(renderIdpWorkspace({ ...state, ui: { ...state.ui, actionMode: "review" } }, { canEdit: true })).toContain("data-idp-complete-review");
+  const profileState = { ...state, ui: { ...state.ui, selectedPlayerId: "p1" } };
+  const profileHtml = renderIdpWorkspace(profileState, { canEdit: true, teamName: "North Carolina Courage" });
+
+  expect(profileHtml).toContain("Player Development Profile");
+  expect(profileHtml).toContain("data-idp-back-overview");
+  expect(profileHtml).toContain("data-idp-action=\"focus\"");
+  expect(profileHtml).toContain("data-idp-action=\"evidence\"");
+  expect(profileHtml).toContain("Clip Bank");
+  expect(profileHtml).toContain("Development Timeline");
+
+  expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "focus" } }, { canEdit: true })).toContain("data-idp-create-focus");
+  expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "evidence" } }, { canEdit: true })).toContain("data-idp-add-evidence");
+  expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "review" } }, { canEdit: true })).toContain("data-idp-complete-review");
 });
 
 test("idp adapter derives read-only fallback from Squad state", () => {

@@ -36,7 +36,7 @@ function normalizePlayerPayload(payload = {}) {
 }
 
 function selectedPlayerIdFromState(state = {}) {
-  return state.ui?.selectedPlayerId || state.dashboardPlayers?.[0]?.profile?.playerId || "";
+  return state.ui?.selectedPlayerId || "";
 }
 
 export function createIdpActions({ store, api, context = {} }) {
@@ -50,7 +50,7 @@ export function createIdpActions({ store, api, context = {} }) {
       const dashboardPlayers = normalizeDashboardPayload(payload, fallback);
       store.setState({
         dashboardPlayers: dashboardPlayers.length ? dashboardPlayers : fallback,
-        ui: { loading: false, error: "", selectedPlayerId: store.getState().ui.selectedPlayerId || dashboardPlayers[0]?.profile?.playerId || fallback[0]?.profile?.playerId || "" },
+        ui: { loading: false, error: "", selectedPlayerId: store.getState().ui.selectedPlayerId || "" },
       });
     } catch (error) {
       store.setState({

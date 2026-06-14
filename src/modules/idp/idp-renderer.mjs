@@ -107,7 +107,21 @@ function filterDashboardRows(state = {}) {
   return { rows, selectedPlayerId };
 }
 
-function renderDashboardRows(state = {}, dashboard = filterDashboardRows(state)) {
+function formatDate(value = "", fallback = "-") {
+  const text = normalizeText(value, "");
+  return text || fallback;
+}
+
+function getReviewLabel(entry = {}) {
+  const profile = entry.profile || {};
+  const focus = entry.focus || {};
+  const nextReview = profile.nextReviewOn || focus.reviewDate || "";
+  const lastReview = profile.lastReviewOn || "";
+  if (lastReview && nextReview) return `${lastReview} -> ${nextReview}`;
+  return nextReview ? `Next ${nextReview}` : lastReview ? `Last ${lastReview}` : "No date";
+}
+
+function renderOverviewRows(state = {}, dashboard = filterDashboardRows(state)) {
   const { rows, selectedPlayerId } = dashboard;
   if (!rows.length) {
     return `<div class="idp-empty-row">No players match the current view.</div>`;
@@ -118,20 +132,23 @@ function renderDashboardRows(state = {}, dashboard = filterDashboardRows(state))
     const active = selectedPlayerId === profile.playerId;
     const playerName = profile.playerName || "Player";
     return `
-      <button type="button" class="idp-player-card${active ? " is-active" : ""}" data-idp-player="${escapeHtml(profile.playerId)}">
-        <span class="idp-player-avatar" aria-hidden="true">${escapeHtml(initialsFromName(playerName, "P"))}</span>
-        <span class="idp-player-card-main">
-          <span class="idp-player-card-top">
+      <button type="button" class="idp-overview-row${active ? " is-active" : ""}" data-idp-player="${escapeHtml(profile.playerId)}">
+        <span class="idp-overview-player">
+          <span class="idp-player-avatar" aria-hidden="true">${escapeHtml(initialsFromName(playerName, "P"))}</span>
+          <span>
             <strong>${escapeHtml(playerName)}</strong>
-            <span class="idp-status-pill is-${statusTone(entry.overallStatus)}">${escapeHtml(entry.overallStatus)}</span>
+            <small>${escapeHtml([profile.position, profile.role].filter(Boolean).join(" / ") || "Squad")}</small>
           </span>
-          <small>
-            <span>${escapeHtml([profile.position, profile.role].filter(Boolean).join(" / ") || "Squad")} · ${escapeHtml(focus.title || "No active focus")}</span>
-            <span class="idp-player-card-metrics">
-              <b>${escapeHtml(String(entry.evidenceCount || 0))}</b> evidence · <b>${escapeHtml(String(entry.newClipCount || 0))}</b> clips
-            </span>
-          </small>
         </span>
+        <span class="idp-overview-focus">
+          <strong>${escapeHtml(focus.title || "No active focus")}</strong>
+          <small>${escapeHtml(focus.category || "-")}</small>
+        </span>
+        <span><span class="idp-status-pill is-${statusTone(entry.overallStatus)}">${escapeHtml(entry.overallStatus)}</span></span>
+        <span class="idp-overview-metric"><strong>${escapeHtml(String(entry.evidenceCount || 0))}</strong><small>Evidence</small></span>
+        <span class="idp-overview-metric"><strong>${escapeHtml(String(entry.newClipCount || 0))}</strong><small>Clips</small></span>
+        <span class="idp-overview-review"><strong>${escapeHtml(getReviewLabel(entry))}</strong><small>${escapeHtml(profile.ownerId || focus.ownerId || "Unassigned")}</small></span>
+        <span class="idp-overview-action">${escapeHtml(entry.nextAction || "Add evidence")}</span>
       </button>
     `;
   }).join("");
@@ -314,40 +331,82 @@ function renderActionOverlay(state = {}, focus = null, canEdit = false) {
   `;
 }
 
-function renderPlayerPanel(state = {}, canEdit = false) {
+function renderOverviewBoard(state = {}, ui = defaultUiState) {
+  const dashboard = filterDashboardRows({ ...state, ui });
+  const visiblePlayerCount = dashboard.rows.length;
+  const totalPlayerCount = state.dashboardPlayers?.length || 0;
+  return `
+    <section class="idp-overview-board">
+      <div class="idp-overview-head">
+        <div>
+          <p>Overview</p>
+          <h2>Players</h2>
+        </div>
+        <span class="idp-sidebar-count">${escapeHtml(String(visiblePlayerCount))}/${escapeHtml(String(totalPlayerCount))} visible</span>
+      </div>
+      <div class="idp-toolbar">
+        <select data-idp-filter="status" aria-label="Filter by status">
+          ${optionList(["All", "On Track", "Needs Evidence", "Review Due", "No Active Focus", "New Clips To Review"], ui.statusFilter)}
+        </select>
+        <select data-idp-filter="category" aria-label="Filter by category">
+          ${optionList(["All", ...idpDevelopmentCategories], ui.categoryFilter)}
+        </select>
+        <input data-idp-search value="${escapeHtml(ui.searchQuery)}" placeholder="Search player or focus" aria-label="Search player or focus">
+      </div>
+      <div class="idp-overview-table" role="table" aria-label="Player development overview">
+        <div class="idp-overview-row is-header" role="row">
+          <span>Player</span>
+          <span>Current Focus</span>
+          <span>Status</span>
+          <span>Evidence</span>
+          <span>Clips</span>
+          <span>Review / Owner</span>
+          <span>Next Action</span>
+        </div>
+        <div class="idp-overview-rows">
+          ${renderOverviewRows({ ...state, ui }, dashboard)}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderPlayerProfile(state = {}, canEdit = false) {
   const detail = state.playerDetail;
   if (!detail?.profile?.playerId) {
-    return `<section class="idp-player-panel"><div class="idp-muted">Select a player.</div></section>`;
+    return `<section class="idp-player-profile"><div class="idp-muted">Loading player profile.</div></section>`;
   }
   const profile = detail.profile;
   const focus = activeFocus(detail);
   const focusId = focus?.id && !String(focus.id).startsWith("legacy-focus-") ? focus.id : "";
   const nextAction = detail.nextActions?.find((action) => action.status === "open") || detail.nextActions?.[0] || {};
   return `
-    <section class="idp-player-panel">
-      <header class="idp-player-hero">
-        <div class="idp-selected-player">
+    <section class="idp-player-profile">
+      <header class="idp-profile-hero">
+        <button type="button" class="idp-back-button" data-idp-back-overview>Overview</button>
+        <div class="idp-profile-title">
           <span class="idp-player-avatar is-large" aria-hidden="true">${escapeHtml(initialsFromName(profile.playerName || "Player", "P"))}</span>
           <div>
-            <p>${escapeHtml([profile.position, profile.role].filter(Boolean).join(" / ") || "Squad")}</p>
+            <p>Player Development Profile</p>
             <h2>${escapeHtml(profile.playerName || "Player")}</h2>
+            <span>${escapeHtml([profile.position, profile.role].filter(Boolean).join(" / ") || "Squad")}</span>
           </div>
         </div>
-        <div class="idp-player-hero-actions">
+        <div class="idp-profile-actions">
           <span class="idp-status-pill is-${statusTone(focus?.status)}">${escapeHtml(focus?.status || "No Active Focus")}</span>
           ${renderActionRail(canEdit, focusId)}
         </div>
       </header>
-      <section class="idp-player-overview-grid">
-        <article class="idp-panel idp-primary-panel">
+      <section class="idp-profile-core">
+        <article class="idp-panel idp-primary-panel idp-focus-panel">
           <p>Current Focus</p>
           <h3>${escapeHtml(focus?.title || "Create current focus")}</h3>
           <div class="idp-meta-line">${escapeHtml([focus?.category, focus?.linkedPhase, focus?.linkedSubPhase].filter(Boolean).join(" / ") || "Tactical")}</div>
         </article>
-        <article class="idp-panel">
+        <article class="idp-panel idp-next-panel">
           <p>Next Action</p>
           <h3>${escapeHtml(nextAction.title || "Add evidence")}</h3>
-          <div class="idp-meta-line">${escapeHtml(nextAction.dueOn || focus?.reviewDate || "No date set")}</div>
+          <div class="idp-meta-line">${escapeHtml(formatDate(nextAction.dueOn || focus?.reviewDate, "No date set"))}</div>
         </article>
         <article class="idp-panel idp-stat-panel">
           <p>Evidence</p>
@@ -360,7 +419,7 @@ function renderPlayerPanel(state = {}, canEdit = false) {
           <div class="idp-meta-line">clips waiting</div>
         </article>
       </section>
-      <section class="idp-detail-grid">
+      <section class="idp-profile-work">
         <article class="idp-panel">
           <div class="idp-panel-head"><p>Clip Bank</p><span>${escapeHtml(String(detail.clipBank?.length || 0))}</span></div>
           ${renderClipBank(detail, canEdit)}
@@ -377,7 +436,7 @@ function renderPlayerPanel(state = {}, canEdit = false) {
           <p>Staff Ownership</p>
           <div class="idp-owner-card">
             <strong>${escapeHtml(focus?.ownerId || profile.ownerId || "Unassigned")}</strong>
-            <span>Responsible for review rhythm and evidence quality.</span>
+            <span>${escapeHtml(formatDate(profile.nextReviewOn || focus?.reviewDate, "No review date"))}</span>
           </div>
         </article>
       </section>
@@ -390,9 +449,7 @@ export function renderIdpWorkspace(state = {}, options = {}) {
   const canEdit = Boolean(options.canEdit);
   const ui = { ...defaultUiState, ...(state.ui || {}) };
   const teamName = getTeamName(options);
-  const dashboard = filterDashboardRows({ ...state, ui });
-  const visiblePlayerCount = dashboard.rows.length;
-  const totalPlayerCount = state.dashboardPlayers?.length || 0;
+  const hasSelectedPlayer = Boolean(ui.selectedPlayerId);
   return `
     <section class="idp-shell">
       <header class="idp-header">
@@ -411,30 +468,7 @@ export function renderIdpWorkspace(state = {}, options = {}) {
       ${ui.loading ? `<div class="idp-notice">Loading player development plans.</div>` : ""}
       ${ui.error ? `<div class="idp-notice is-warning">${escapeHtml(ui.error)}</div>` : ""}
       ${ui.message ? `<div class="idp-notice">${escapeHtml(ui.message)}</div>` : ""}
-      <section class="idp-workbench">
-        <aside class="idp-sidebar">
-          <div class="idp-sidebar-head">
-            <div>
-              <p>Overview</p>
-              <h2>Players</h2>
-            </div>
-            <span class="idp-sidebar-count">${escapeHtml(String(visiblePlayerCount))}/${escapeHtml(String(totalPlayerCount))} visible</span>
-          </div>
-          <div class="idp-toolbar">
-            <select data-idp-filter="status" aria-label="Filter by status">
-              ${optionList(["All", "On Track", "Needs Evidence", "Review Due", "No Active Focus", "New Clips To Review"], ui.statusFilter)}
-            </select>
-            <select data-idp-filter="category" aria-label="Filter by category">
-              ${optionList(["All", ...idpDevelopmentCategories], ui.categoryFilter)}
-            </select>
-            <input data-idp-search value="${escapeHtml(ui.searchQuery)}" placeholder="Search player or focus" aria-label="Search player or focus">
-          </div>
-          <div class="idp-player-list">
-            ${renderDashboardRows({ ...state, ui }, dashboard)}
-          </div>
-        </aside>
-        ${renderPlayerPanel(state, canEdit)}
-      </section>
+      ${hasSelectedPlayer ? renderPlayerProfile(state, canEdit) : renderOverviewBoard(state, ui)}
     </section>
   `;
 }

@@ -69,7 +69,7 @@ async function boot(activeRuntime) {
   activeRuntime.initialized = true;
   await activeRuntime.actions.loadDashboard();
   const state = activeRuntime.store.getState();
-  const playerId = state.ui.selectedPlayerId || state.dashboardPlayers?.[0]?.profile?.playerId || "";
+  const playerId = state.ui.selectedPlayerId || "";
   if (playerId) {
     await activeRuntime.actions.selectPlayer(playerId);
   }
@@ -115,6 +115,11 @@ export function handleClick(event) {
   const closeActionTrigger = event?.target?.closest?.("[data-idp-close-action]");
   if (closeActionTrigger || event?.target?.matches?.("[data-idp-action-layer]")) {
     runtime?.store.setState({ ui: { actionMode: "" } });
+    return;
+  }
+  const backTrigger = event?.target?.closest?.("[data-idp-back-overview]");
+  if (backTrigger) {
+    runtime?.store.setState({ ui: { selectedPlayerId: "", actionMode: "", error: "", message: "" } });
     return;
   }
   const actionTrigger = event?.target?.closest?.("[data-idp-action]");

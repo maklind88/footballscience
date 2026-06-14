@@ -465,7 +465,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       <span class="dashboard-chat-thread-copy">
         <span class="dashboard-chat-thread-row">
           <strong>${escapeHtml(threadLabel)}</strong>
-          <small>${threadTime}</small>
+          <small class="dashboard-chat-thread-time">${threadTime}</small>
         </span>
         <span class="dashboard-chat-thread-preview-line">
           <small class="dashboard-chat-thread-preview">${escapeHtml(preview)}</small>
@@ -954,11 +954,11 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const threadPresetMarkup = groupCreateUsers.length
       ? `
           <details class="dashboard-chat-thread-presets" data-dashboard-chat-thread-presets>
-            <summary aria-label="Create group chat">+</summary>
+            <summary aria-label="Create group chat" title="Create group chat"><span aria-hidden="true">+</span></summary>
             <div class="dashboard-chat-thread-preset-menu" aria-label="Create group chat">
               <button type="button" class="dashboard-chat-create-menu-action is-primary" data-dashboard-chat-open-group-creator>
                 <strong>New group</strong>
-                <small>Choose teammates, avatar and name</small>
+                <small>Name, avatar and selected teammates</small>
               </button>
             </div>
           </details>

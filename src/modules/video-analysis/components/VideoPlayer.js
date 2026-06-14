@@ -4,6 +4,7 @@ import { escapeHtml } from "./renderHelpers.js";
 export function renderVideoPlayer(state = {}) {
   const ref = state.videoRef;
   const hasVideo = Boolean(ref?.objectUrl);
+  const preparedPlayback = /^https?:\/\/(?:127\.0\.0\.1|localhost):\d+\/playback\//.test(String(ref?.objectUrl || ""));
   const compatibility = ref?.playbackCompatibility || {};
   const codecText = compatibility.codecLabel
     ? `${compatibility.codecLabel}${compatibility.container ? ` / ${compatibility.container.toUpperCase()}` : ""}`
@@ -20,6 +21,7 @@ export function renderVideoPlayer(state = {}) {
         <div class="video-analysis-player__actions">
           <input class="video-analysis-file-input" type="file" accept="video/*" data-video-analysis-file hidden>
           <button type="button" class="video-analysis-icon-button" data-video-analysis-load title="Load local video">Load</button>
+          <button type="button" class="video-analysis-icon-button" data-video-analysis-prepare-playback ${hasVideo && !preparedPlayback ? "" : "disabled"} title="Prepare browser-safe playback copy">${preparedPlayback ? "Prepared" : "Prepare"}</button>
           <button type="button" class="video-analysis-icon-button" data-video-analysis-play ${hasVideo ? "" : "disabled"} title="Play or pause">Play</button>
         </div>
       </div>

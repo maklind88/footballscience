@@ -207,7 +207,16 @@ async function loadClips(nextFilters = null) {
     if (filters.playerId) {
       clips = clips.filter((clip) => (clip.players || []).some((player) => (player.player_id || player.playerId) === filters.playerId));
     }
-    run.store.setState({ status: "ready", clips, filters, error: "" });
+    run.store.update((current) => {
+      const preservePlaybackPreparation = current.status === "preparing-playback" || String(current.error || "").startsWith("Local video bridge");
+      return {
+        ...current,
+        status: preservePlaybackPreparation ? current.status : "ready",
+        clips,
+        filters,
+        error: preservePlaybackPreparation ? current.error : "",
+      };
+    });
   } catch (error) {
     run.store.setState({ status: "error", error: error.message || "Could not load clips." });
   }

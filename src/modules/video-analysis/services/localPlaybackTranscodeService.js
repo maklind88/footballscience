@@ -17,6 +17,13 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 1500) {
   }
 }
 
+function preparationMode(reference = {}) {
+  const compatibility = reference.playbackCompatibility || {};
+  const codec = String(compatibility.codec || "").toLowerCase();
+  const isH264 = codec === "avc1" || codec === "avc3" || codec === "avcc" || compatibility.codecLabel === "H.264";
+  return isH264 ? "auto" : "transcode";
+}
+
 export async function createPlayableLocalCopy(reference = {}, win = window) {
   const file = getLocalVideoFile(reference);
   if (!file) {
@@ -39,9 +46,10 @@ export async function createPlayableLocalCopy(reference = {}, win = window) {
     headers: {
       "content-type": file.type || "application/octet-stream",
       "x-football-science-file-name": encodeURIComponent(file.name || reference.displayName || "match-video"),
+      "x-football-science-prepare-mode": preparationMode(reference),
     },
     body: file,
-  }, 120000);
+  }, 45 * 60 * 1000);
 
   let payload = {};
   try {

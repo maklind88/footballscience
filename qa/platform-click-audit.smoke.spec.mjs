@@ -34,9 +34,115 @@ const workspaceViewIds = {
 const clickBudgetMs = budget(1200);
 const workspaceClickBudgetMs = budget(1500);
 const maxCandidatesPerWorkspace = Number(process.env.PLATFORM_CLICK_AUDIT_MAX || 16);
+const idpAuditProfile = {
+  playerId: "ncc-2026-kailen-sheridan",
+  playerName: "Kailen Sheridan",
+  position: "GK",
+  role: "Goalkeeper",
+  ownerId: "coach-audit",
+};
+const idpAuditFocus = {
+  id: "focus-audit-distribution",
+  playerId: idpAuditProfile.playerId,
+  title: "Back-line distribution",
+  category: "Technical",
+  linkedPhase: "Build-up",
+  linkedSubPhase: "First pass",
+  ownerId: "coach-audit",
+  status: "Active",
+  evidenceStatus: "Needs Evidence",
+  reviewDate: "2026-07-01",
+};
+const idpAuditPlayer = {
+  profile: idpAuditProfile,
+  focuses: [idpAuditFocus],
+  clipBank: [
+    {
+      id: "clip-bank-audit-1",
+      playerId: idpAuditProfile.playerId,
+      clipInstanceId: "clip-audit-1",
+      linkedFocusId: idpAuditFocus.id,
+      status: "New",
+      sourceModule: "video-analysis",
+      createdAt: "2026-06-14T12:00:00.000Z",
+    },
+  ],
+  evidence: [
+    {
+      id: "evidence-audit-1",
+      playerId: idpAuditProfile.playerId,
+      focusId: idpAuditFocus.id,
+      evidenceType: "Coach Note",
+      sourceModule: "idp",
+      note: "Static audit fixture.",
+      createdAt: "2026-06-14T12:00:00.000Z",
+    },
+  ],
+  reviews: [],
+  nextActions: [
+    {
+      id: "next-action-audit-1",
+      playerId: idpAuditProfile.playerId,
+      focusId: idpAuditFocus.id,
+      actionType: "Add Evidence",
+      title: "Review clipped distribution",
+      ownerId: "coach-audit",
+      dueOn: "2026-07-01",
+      status: "open",
+    },
+  ],
+  milestones: [
+    {
+      id: "milestone-audit-1",
+      playerId: idpAuditProfile.playerId,
+      focusId: idpAuditFocus.id,
+      milestoneType: "Focus Created",
+      title: "IDP started",
+      occurredOn: "2026-06-14",
+    },
+  ],
+  ownership: [{ ownerId: "coach-audit", role: "primary" }],
+};
 
 function viewIdForWorkspace(workspaceId) {
   return workspaceViewIds[workspaceId] || workspaceId;
+}
+
+async function mockIdpApi(route) {
+  const request = route.request();
+  const url = new URL(request.url());
+  const method = request.method().toUpperCase();
+  let action = url.searchParams.get("action") || "";
+  if (method !== "GET") {
+    try {
+      action = JSON.parse(request.postData() || "{}")?.action || action;
+    } catch {
+      action = "";
+    }
+  }
+
+  const payload =
+    action === "dashboard"
+      ? {
+          players: [
+            {
+              profile: idpAuditProfile,
+              focus: idpAuditFocus,
+              evidenceCount: idpAuditPlayer.evidence.length,
+              newClipCount: idpAuditPlayer.clipBank.length,
+              nextAction: "Review clipped distribution",
+              overallStatus: "On Track",
+            },
+          ],
+        }
+      : action === "player"
+        ? idpAuditPlayer
+        : { ok: true };
+
+  await route.fulfill({
+    contentType: "application/json",
+    body: JSON.stringify(payload),
+  });
 }
 
 async function dismissDashboardModal(page) {
@@ -76,6 +182,7 @@ async function bootApp(page) {
   page.on("dialog", async (dialog) => {
     await dialog.dismiss().catch(() => {});
   });
+  await page.route("**/api/idp**", mockIdpApi);
 
   await page.addInitScript(
     ({ key, ids }) => {

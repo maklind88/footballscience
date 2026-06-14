@@ -232,17 +232,11 @@ export function renderVideoLibrary(state = {}) {
   const allItems = buildVideoLibraryItems(state);
   const visibleItems = filterVideoLibraryItems(allItems, library.filters || {});
   const searchIsActive = isLibrarySearchActive(library.filters || {});
-  const hasScheduleCandidates = (library.scheduleCandidates || []).length > 0;
   const archiveItems = visibleItems.slice(0, 8);
   return `
     <section class="video-analysis-library" data-video-analysis-library>
       ${renderCalendarOverview(allItems, visibleItems)}
       ${renderLibrarySearch(library, visibleItems.length, searchIsActive)}
-      ${hasScheduleCandidates && searchIsActive ? `
-        <div class="video-analysis-library__note">
-          Schedule days are available as video candidates. Pick a day or connect an existing video row to a schedule day.
-        </div>
-      ` : ""}
       ${searchIsActive ? `
         <section class="video-analysis-library-archive" aria-label="Search results">
         <div class="video-analysis-panel-title">

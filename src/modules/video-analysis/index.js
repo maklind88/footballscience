@@ -89,17 +89,12 @@ function renderAnalysisRoomTabs() {
   `;
 }
 
-function renderAnalysisRoomHeader(state = {}) {
-  const clipCount = Array.isArray(state.clips) ? state.clips.length : 0;
+function renderAnalysisRoomHeader() {
   return `
     <header class="analysis-room-header">
       <div>
         <p class="analysis-room-kicker">Analysis Room</p>
         <h2>Own-team performance</h2>
-      </div>
-      <div class="analysis-room-status" aria-label="Analysis Room status">
-        <span>FS Player active</span>
-        <strong>${escapeHtml(clipCount)} clips</strong>
       </div>
     </header>
   `;

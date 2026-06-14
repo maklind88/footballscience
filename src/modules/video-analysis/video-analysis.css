@@ -35,23 +35,6 @@
   line-height: 1.1;
 }
 
-.analysis-room-status {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #56635c;
-  font-size: 13px;
-}
-
-.analysis-room-status strong {
-  border: 1px solid #c9d7cf;
-  border-radius: 999px;
-  padding: 5px 9px;
-  color: #163b29;
-  background: #eef8f2;
-  font-size: 12px;
-}
-
 .analysis-room-tabs {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -774,8 +757,7 @@
 }
 
 @media (max-width: 980px) {
-  .analysis-room-header,
-  .analysis-room-status {
+  .analysis-room-header {
     align-items: flex-start;
     flex-direction: column;
   }

@@ -214,6 +214,7 @@ export function createDashboardChatDomainRuntime(dependencies = {}) {
       seenAt: Number.isFinite(Number(parsed.seenAt)) ? Number(parsed.seenAt) : 0,
       userId: String(parsed.userId || "").trim(),
       threadId: fallbackThreadId,
+      messageCreatedAtMs: Number.isFinite(Number(parsed.messageCreatedAtMs)) ? Number(parsed.messageCreatedAtMs) : 0,
     };
     const rawThreads = parsed.threads && typeof parsed.threads === "object" && !Array.isArray(parsed.threads) ? parsed.threads : {};
     const threads = Object.fromEntries(
@@ -230,6 +231,7 @@ export function createDashboardChatDomainRuntime(dependencies = {}) {
               seenAt: Number.isFinite(Number(cursor.seenAt)) ? Number(cursor.seenAt) : 0,
               userId: String(cursor.userId || "").trim(),
               threadId: normalizedThreadId,
+              messageCreatedAtMs: Number.isFinite(Number(cursor.messageCreatedAtMs)) ? Number(cursor.messageCreatedAtMs) : 0,
             },
           ];
         })
@@ -251,6 +253,11 @@ export function createDashboardChatDomainRuntime(dependencies = {}) {
       seenAt: Number(nextCursor?.seenAt || 0) || 0,
       userId: String(nextCursor?.userId || "").trim(),
       threadId,
+      messageCreatedAtMs: Number.isFinite(Number(nextCursor?.messageCreatedAtMs))
+        ? Number(nextCursor.messageCreatedAtMs)
+        : Number.isFinite(Date.parse(nextCursor?.createdAt || ""))
+          ? Date.parse(nextCursor.createdAt)
+          : 0,
     };
     const threads = {
       ...previousThreads,
@@ -295,6 +302,7 @@ export function createDashboardChatDomainRuntime(dependencies = {}) {
       seenAt: Date.now(),
       userId: latestMessage.userId,
       threadId: latestMessage.threadId,
+      messageCreatedAtMs: getDashboardMessageCreatedAtMs(latestMessage),
     });
   }
 

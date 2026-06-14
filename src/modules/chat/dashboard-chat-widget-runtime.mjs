@@ -132,6 +132,30 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     }, 0);
   }
 
+  function isDashboardChatNotificationCursorCurrentForMessage(cursor = {}, message = {}) {
+    if (!cursor || !message?.id) {
+      return false;
+    }
+    const messageThreadId = normalizeDashboardChatThreadId(message.threadId, dashboardChatTeamThreadId);
+    const cursorThreadId = normalizeDashboardChatThreadId(cursor.threadId, "");
+    const messageId = String(message.id || "").trim();
+    const cursorMessageId = String(cursor.lastMessageId || "").trim();
+    const messageUserId = String(message.userId || "").trim();
+    const cursorUserId = String(cursor.userId || "").trim();
+    if (cursorThreadId === messageThreadId && cursorMessageId === messageId && cursorUserId === messageUserId) {
+      return true;
+    }
+    const messageCreatedAtMs = Number(getDashboardMessageCreatedAtMs(message) || 0) || 0;
+    const cursorSeenAt = Number(cursor.seenAt || 0) || 0;
+    const cursorMessageCreatedAtMs = Number(cursor.messageCreatedAtMs || 0) || 0;
+    return Boolean(
+      cursorThreadId === messageThreadId &&
+        cursorUserId === messageUserId &&
+        messageCreatedAtMs > 0 &&
+        (cursorSeenAt >= messageCreatedAtMs || cursorMessageCreatedAtMs >= messageCreatedAtMs)
+    );
+  }
+
   function renderDashboardChatWidget() {
     const root = ui.dashboardChatWidgetRoot;
     if (!root) {
@@ -352,15 +376,14 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
       isDashboardChatThreadActivelyViewed(activeThreadLastMessage.threadId)
     ) {
       if (
-        activeThreadCursor.threadId !== activeThreadLastMessage.threadId ||
-        activeThreadCursor.lastMessageId !== activeThreadLastMessage.id ||
-        activeThreadCursor.userId !== activeThreadLastMessage.userId
+        !isDashboardChatNotificationCursorCurrentForMessage(activeThreadCursor, activeThreadLastMessage)
       ) {
         writeDashboardChatWidgetNotificationCursor({
           lastMessageId: activeThreadLastMessage.id,
           seenAt: Date.now(),
           userId: activeThreadLastMessage.userId,
           threadId: activeThreadLastMessage.threadId,
+          messageCreatedAtMs: getDashboardMessageCreatedAtMs(activeThreadLastMessage),
         });
       }
       if (dashboardChatWidgetToastState?.threadId === activeThreadLastMessage.threadId) {
@@ -388,11 +411,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
 
     const latestCursorState = readDashboardChatWidgetNotificationCursor();
     const cursor = latestCursorState?.threads?.[latestVisibleMessage.threadId] || latestCursorState;
-    if (
-      cursor.lastMessageId === latestVisibleMessage.id &&
-      cursor.userId === latestVisibleMessage.userId &&
-      cursor.threadId === latestVisibleMessage.threadId
-    ) {
+    if (isDashboardChatNotificationCursorCurrentForMessage(cursor, latestVisibleMessage)) {
       return;
     }
 
@@ -431,6 +450,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
       seenAt: Date.now(),
       userId: latestVisibleMessage.userId,
       threadId: latestVisibleMessage.threadId,
+      messageCreatedAtMs: getDashboardMessageCreatedAtMs(latestVisibleMessage),
     });
     markDashboardChatWidgetNotificationSeenForThread?.(latestVisibleMessage.threadId);
   }

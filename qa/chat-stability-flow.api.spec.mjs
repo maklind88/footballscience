@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createDashboardChatWidgetRuntime } from "../src/modules/chat/dashboard-chat-widget-runtime.mjs";
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -327,6 +328,8 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(chatWidgetRuntimeContractSource).toContain("latestApiThreadMessage");
   expect(chatWidgetRuntimeContractSource).toContain("newestMessage");
   expect(chatWidgetRuntimeContractSource).toContain("hideDashboardChatWidgetToast");
+  expect(chatWidgetRuntimeContractSource).toContain("isDashboardChatNotificationCursorCurrentForMessage");
+  expect(chatWidgetRuntimeContractSource).toContain("messageCreatedAtMs");
   expect(chatWidgetRuntimeContractSource).toContain("markDashboardMessagesReadForCurrentUser");
   expect(chatWidgetRuntimeContractSource).toContain("previousThreadListScrollTop");
   expect(chatWidgetRuntimeContractSource).toContain("previousChatListWasAtBottom");
@@ -369,4 +372,85 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(databaseSource).toContain("attachmentIds");
   expect(databaseSource).toContain("status: \"ready\"");
   expect(databaseSource).toContain("chat_read_receipts");
+});
+
+test("notification cursor survives reload when API replaces the local message id", () => {
+  const currentUser = { id: "coach-qa", firstName: "Casey", lastName: "Coach", status: "active" };
+  const sender = { id: "teammate-qa", firstName: "Taylor", lastName: "Teammate", status: "active" };
+  const threadId = "dm:coach-qa:teammate-qa";
+  const createdAt = "2026-05-24T10:00:00.000Z";
+  const seenAt = Date.parse("2026-05-24T10:00:05.000Z");
+  const toasts = [];
+  let cursor = {
+    lastMessageId: "local-temp-message",
+    userId: sender.id,
+    threadId,
+    seenAt,
+    messageCreatedAtMs: Date.parse(createdAt),
+    threads: {
+      [threadId]: {
+        lastMessageId: "local-temp-message",
+        userId: sender.id,
+        threadId,
+        seenAt,
+        messageCreatedAtMs: Date.parse(createdAt),
+      },
+    },
+  };
+  const apiThread = {
+    threadId,
+    lastMessage: {
+      id: "api-final-message",
+      userId: sender.id,
+      threadId,
+      text: "Reload should not show this again",
+      createdAt,
+      status: "sent",
+    },
+  };
+
+  const runtime = createDashboardChatWidgetRuntime({
+    getCurrentPlatformUser: () => currentUser,
+    getPlatformUsers: () => [currentUser, sender],
+    readDashboardMessages: () => [],
+    readDashboardChatWidgetNotificationState: () => ({ enabled: true, level: "all" }),
+    readDashboardChatWidgetState: () => ({ isOpen: false, selectedThreadId: "team" }),
+    readDashboardChatWidgetNotificationCursor: () => cursor,
+    writeDashboardChatWidgetNotificationCursor: (nextCursor) => {
+      cursor = {
+        ...nextCursor,
+        threads: {
+          ...(cursor.threads || {}),
+          [nextCursor.threadId]: nextCursor,
+        },
+      };
+    },
+    getDashboardApiThreads: () => [apiThread],
+    normalizeDashboardApiMessage: (message, thread) => ({ ...message, threadId: message.threadId || thread.threadId }),
+    getDashboardMessageCreatedAtMs: (message) => Date.parse(message.createdAt || ""),
+    normalizeDashboardChatThreadId: (value, fallback = "team") => value || fallback,
+    isDashboardChatThreadActivelyViewed: () => false,
+    formatDashboardChatThreadLabel: () => "Taylor Teammate",
+    formatUserName: (user = {}) => `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Staff",
+    ui: {
+      dashboardChatWidgetRoot: {
+        querySelector: () => ({
+          hidden: true,
+          textContent: "",
+          dataset: {},
+        }),
+      },
+    },
+    win: {
+      setTimeout: () => 0,
+      clearTimeout: () => {},
+    },
+  });
+
+  runtime.showDashboardChatWidgetToast = (message) => toasts.push(message);
+  runtime.syncDashboardChatWidgetNotificationCursor();
+
+  expect(toasts).toEqual([]);
+  expect(cursor.threads[threadId].lastMessageId).toBe("local-temp-message");
+  expect(cursor.threads[threadId].messageCreatedAtMs).toBe(Date.parse(createdAt));
 });

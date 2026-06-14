@@ -348,29 +348,26 @@ async function expectScoutingDatabaseReachableForRole(page, role) {
   await databaseTab.click();
   await expect(page.locator(".scouting-tab.is-active")).toContainText("Database");
   await expect(page.locator("[data-scouting-load-fsdb]"), role).toHaveCount(0);
-  await page.waitForFunction(
+  const reachabilityHandle = await page.waitForFunction(
     () => {
       const workspace = document.querySelector('[data-workspace-view="scouting"].is-active');
-      return Boolean(
-        workspace?.querySelector("[data-scouting-load-database]") ||
-          workspace?.querySelector(".scouting-database-loader") ||
-          workspace?.querySelector("[data-scouting-record-grid] [data-open-scouting-record]")
-      );
+      const isVisible = (node) => Boolean(node && (node.offsetParent || node.getClientRects().length));
+      const loadButton = workspace?.querySelector("[data-scouting-load-database]");
+      if (isVisible(loadButton)) {
+        return !loadButton.disabled && /Load scouting player database/i.test(loadButton.textContent || "")
+          ? "load-ready"
+          : "";
+      }
+      if (isVisible(workspace?.querySelector(".scouting-database-loader"))) return "loading";
+      if (isVisible(workspace?.querySelector("[data-scouting-record-grid] [data-open-scouting-record], [data-scouting-record-row]"))) {
+        return "loaded";
+      }
+      return "";
     },
     null,
     { timeout: 15_000 }
   );
-  const loadDatabaseButton = page.locator("[data-scouting-load-database]").first();
-  if ((await loadDatabaseButton.count()) > 0) {
-    await expect(loadDatabaseButton, role).toBeVisible();
-    await expect(loadDatabaseButton, role).toBeEnabled();
-    await expect(loadDatabaseButton, role).toContainText("Load scouting player database");
-  } else {
-    const loadingOrLoadedDatabase = page
-      .locator(".scouting-database-loader, [data-scouting-record-grid] [data-open-scouting-record]")
-      .first();
-    await expect(loadingOrLoadedDatabase, role).toBeVisible();
-  }
+  await expect(await reachabilityHandle.jsonValue(), role).toMatch(/^(load-ready|loading|loaded)$/);
 }
 
 for (const role of scoutingAccessRoles) {

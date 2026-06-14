@@ -469,10 +469,6 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         <span class="dashboard-chat-thread-preview-line">
           <small class="dashboard-chat-thread-preview">${escapeHtml(preview)}</small>
         </span>
-        <span class="dashboard-chat-thread-meta">
-          <span>${escapeHtml(threadStatus)}</span>
-          <span>${escapeHtml(`${thread.messageCount || 0} message${thread.messageCount === 1 ? "" : "s"}`)}</span>
-        </span>
       </span>
       <span class="dashboard-chat-thread-signals">${signalMarkup}</span>
     </button>
@@ -885,10 +881,21 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
               <span>Group name</span>
               <input name="title" type="text" maxlength="80" placeholder="Example: Match prep" required data-dashboard-chat-group-name-input>
             </label>
+            <label class="dashboard-chat-group-avatar-field">
+              <span>Group image or initials</span>
+              <input name="avatar" type="text" maxlength="800" placeholder="Image URL or initials, e.g. MP" data-dashboard-chat-group-avatar-input>
+            </label>
             <div class="dashboard-chat-group-title-presets" aria-label="Suggested group names">
               <button type="button" data-dashboard-chat-group-title-preset="Match prep">Match prep</button>
               <button type="button" data-dashboard-chat-group-title-preset="Training staff">Training staff</button>
               <button type="button" data-dashboard-chat-group-title-preset="Medical update">Medical update</button>
+            </div>
+            <label class="dashboard-chat-group-search">
+              <span>Find teammates</span>
+              <input type="search" placeholder="Search by name, role or email" autocomplete="off" data-dashboard-chat-group-user-filter>
+            </label>
+            <div class="dashboard-chat-group-create-status" data-dashboard-chat-group-filter-status aria-live="polite">
+              ${escapeHtml(`${groupCreateUsers.length} teammates available · 0 selected`)}
             </div>
             <div class="dashboard-chat-group-create-users" aria-label="Choose group members">
               ${groupCreateUsers
@@ -896,8 +903,9 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                   const userName = formatUserName(user);
                   const userInitial = String(userName || "?").trim().slice(0, 1).toUpperCase() || "?";
                   const userMeta = user.role || user.teamRole || user.email || "Team member";
+                  const userSearch = `${userName} ${userMeta} ${user.email || ""} ${user.username || ""}`.toLowerCase();
                   return `
-                    <label class="dashboard-chat-group-user">
+                    <label class="dashboard-chat-group-user" data-dashboard-chat-group-user-search="${escapeHtml(userSearch)}">
                       <input
                         type="checkbox"
                         name="participantIds"
@@ -916,7 +924,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                 })
                 .join("")}
             </div>
-            <button type="submit">Create group</button>
+            <button type="submit" data-dashboard-chat-group-create-submit disabled aria-disabled="true" title="Add a group name and choose at least one teammate">Create group</button>
           </form>
         `
       : `
@@ -934,7 +942,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                   <strong>New group</strong>
                   <small>Choose people and start a focused room</small>
                 </span>
-                <button type="button" aria-label="Close group creator" data-dashboard-chat-group-create-close>×</button>
+                <button type="button" class="dashboard-chat-group-create-close" aria-label="Close group creator" data-dashboard-chat-group-create-close>×</button>
               </header>
               ${groupCreateMarkup}
             </section>
@@ -1123,7 +1131,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                   <i aria-hidden="true"></i>
                   <span>${escapeHtml(realtimeLabel)}</span>
                 </span>
-                <button type="button" class="dashboard-chat-details-button${detailsOpen ? " is-active" : ""}" data-dashboard-chat-details-toggle aria-expanded="${detailsOpen}" aria-label="Open conversation details">
+              <button type="button" class="dashboard-chat-details-button${detailsOpen ? " is-active" : ""}" data-dashboard-chat-details-toggle aria-expanded="${detailsOpen}" aria-label="Open conversation details">
                   Info
                 </button>
                 ${

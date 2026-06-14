@@ -209,6 +209,12 @@ export function createDashboardChatComposerRuntime({
     const currentUser = getCurrentPlatformUser();
     const formData = new FormData(form);
     const title = String(formData.get("title") || "").trim().slice(0, 80);
+    const avatarValue = String(formData.get("avatar") || "").trim().slice(0, 800);
+    const avatarPatch = avatarValue
+      ? /^https?:\/\//i.test(avatarValue)
+        ? { avatarUrl: avatarValue, avatarLabel: "" }
+        : { avatarLabel: avatarValue.slice(0, 2).toUpperCase(), avatarUrl: "" }
+      : {};
 
     setDashboardChatGroupCreateError(form, "");
 
@@ -259,6 +265,7 @@ export function createDashboardChatComposerRuntime({
         type: "group",
         title,
         visibility: "members",
+        ...avatarPatch,
         participantIds,
         participants: [{
           id: currentUser.id,

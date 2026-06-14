@@ -1084,6 +1084,39 @@ const setDashboardChatGroupCreatorOpen = (next = false) => {
   dashboardChatGroupCreatorOpen = Boolean(next);
 };
 
+function syncDashboardChatGroupCreateForm(form) {
+  if (!form) {
+    return;
+  }
+  const titleInput = form.querySelector("[data-dashboard-chat-group-name-input]");
+  const selectedCount = form.querySelectorAll("input[name='participantIds']:checked").length;
+  const visibleCount = Array.from(form.querySelectorAll("[data-dashboard-chat-group-user-search]")).filter((row) => !row.hidden).length;
+  const submitButton = form.querySelector("[data-dashboard-chat-group-create-submit]");
+  const statusElement = form.querySelector("[data-dashboard-chat-group-filter-status]");
+  const hasTitle = Boolean(String(titleInput?.value || "").trim());
+  const isReady = Boolean(hasTitle && selectedCount);
+  if (submitButton) {
+    submitButton.disabled = !isReady || form.dataset.busy === "true";
+    submitButton.setAttribute("aria-disabled", submitButton.disabled ? "true" : "false");
+    submitButton.title = isReady ? "Create group" : "Add a group name and choose at least one teammate";
+  }
+  if (statusElement) {
+    statusElement.textContent = `${visibleCount} teammate${visibleCount === 1 ? "" : "s"} visible · ${selectedCount} selected`;
+  }
+}
+
+function filterDashboardChatGroupCreateUsers(form) {
+  if (!form) {
+    return;
+  }
+  const query = String(form.querySelector("[data-dashboard-chat-group-user-filter]")?.value || "").trim().toLowerCase();
+  form.querySelectorAll("[data-dashboard-chat-group-user-search]").forEach((row) => {
+    const searchableText = row.dataset.dashboardChatGroupUserSearch || row.textContent || "";
+    row.hidden = Boolean(query) && !searchableText.toLowerCase().includes(query);
+  });
+  syncDashboardChatGroupCreateForm(form);
+}
+
 const getDashboardSupabaseClientFromAuthStore = () => {
   const authStore = getPlatformAuthStore?.();
   return authStore?.getSupabaseClient?.() || authStore?.supabase || null;
@@ -3039,6 +3072,7 @@ const groupNameInput = ui.dashboardChatWidgetRoot?.querySelector("[data-dashboar
 if (groupNameInput) {
 groupNameInput.value = groupTitlePresetButton.dataset.dashboardChatGroupTitlePreset || "";
 groupNameInput.focus();
+syncDashboardChatGroupCreateForm(groupNameInput.closest("[data-dashboard-chat-group-create-form]"));
 }
 return;
 }
@@ -3239,6 +3273,15 @@ queueDashboardChatApiRefresh({ search: dashboardChatMessageSearchQuery, delayMs:
 renderDashboardChatWidget();
 return;
 }
+const groupCreateForm = event.target.closest("[data-dashboard-chat-group-create-form]");
+if (groupCreateForm) {
+if (event.target.closest("[data-dashboard-chat-group-user-filter]")) {
+filterDashboardChatGroupCreateUsers(groupCreateForm);
+return;
+}
+syncDashboardChatGroupCreateForm(groupCreateForm);
+return;
+}
 const filterInput = event.target.closest("[data-dashboard-chat-filter]");
 if (!filterInput) {
 return;
@@ -3436,6 +3479,11 @@ updatePlatformUserFromPayload, uploadSquadTeamLogo, upsertMedicalPlayers, withUi
 },
 });
 ui.dashboardChatWidgetRoot?.addEventListener("change", async (event) => {
+const groupParticipantInput = event.target.closest("[data-dashboard-chat-group-create-form] input[name='participantIds']");
+if (groupParticipantInput) {
+syncDashboardChatGroupCreateForm(groupParticipantInput.closest("[data-dashboard-chat-group-create-form]"));
+return;
+}
 const attachmentInput = event.target.closest("[data-dashboard-chat-attachment-input]");
 if (!attachmentInput) {
 return;

@@ -157,6 +157,7 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-clip-block").first()).toBeVisible();
   await expect(page.locator(".video-analysis-playhead")).toHaveCount(1);
   await expect(page.locator(".video-analysis-playhead").first()).toBeVisible();
+  await expect(page.locator(".video-analysis-playhead").first()).toHaveAttribute("draggable", "false");
   const firstClipStyle = await page.locator(".video-analysis-clip-block").first().getAttribute("style");
   expect(firstClipStyle).not.toContain("left:99.5%");
 
@@ -165,6 +166,27 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   expect(railBox).toBeTruthy();
   expect(stackBox).toBeTruthy();
   expect(railBox.height).toBeGreaterThan(stackBox.height);
+  const playheadMarker = await page.evaluate(() => {
+    const playhead = document.querySelector(".video-analysis-playhead");
+    const firstTimeLabel = document.querySelector(".video-analysis-timeline-tick b");
+    const before = window.getComputedStyle(playhead, "::before");
+    const playheadRect = playhead.getBoundingClientRect();
+    return {
+      borderLeftWidth: before.borderLeftWidth,
+      borderRightWidth: before.borderRightWidth,
+      borderTopColor: before.borderTopColor,
+      borderTopWidth: before.borderTopWidth,
+      markerBottom: playheadRect.top + parseFloat(before.top || "0") + parseFloat(before.borderTopWidth || "0"),
+      timeLabelTop: firstTimeLabel.getBoundingClientRect().top,
+      width: before.width,
+    };
+  });
+  expect(playheadMarker.width).toBe("0px");
+  expect(playheadMarker.borderLeftWidth).toBe("6px");
+  expect(playheadMarker.borderRightWidth).toBe("6px");
+  expect(playheadMarker.borderTopWidth).toBe("9px");
+  expect(playheadMarker.borderTopColor).toBe("rgb(225, 53, 45)");
+  expect(playheadMarker.markerBottom).toBeLessThan(playheadMarker.timeLabelTop);
 
   await page.locator('[data-video-analysis-timeline-lane="outcome"]').click();
   await expect(page.locator('[data-video-analysis-timeline-lane="outcome"]')).toHaveClass(/is-active/);
@@ -196,6 +218,10 @@ test("Video Analysis timeline uses h:mm:ss and scrubs video by dragging the red 
   const playheadBox = await playhead.boundingBox();
   expect(railBox).toBeTruthy();
   expect(playheadBox).toBeTruthy();
+  await page.evaluate(() => {
+    const scroller = document.querySelector(".video-analysis-timeline-scroll");
+    scroller.scrollLeft = 0;
+  });
   const y = playheadBox.y + playheadBox.height / 2;
   await page.mouse.move(playheadBox.x + playheadBox.width / 2, y);
   await page.mouse.down();
@@ -203,8 +229,10 @@ test("Video Analysis timeline uses h:mm:ss and scrubs video by dragging the red 
   await page.mouse.up();
 
   const currentTime = await page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.currentTime || 0);
+  const timelineScrollLeft = await page.evaluate(() => document.querySelector(".video-analysis-timeline-scroll")?.scrollLeft || 0);
   expect(currentTime).toBeGreaterThan(3600);
   expect(currentTime).toBeLessThan(3700);
+  expect(timelineScrollLeft).toBe(0);
   await expect(page.locator(".video-analysis-playhead").first()).toHaveAttribute("aria-valuetext", /1:00:3/);
 });
 

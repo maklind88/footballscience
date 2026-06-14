@@ -63,6 +63,7 @@ function renderTimelinePlayhead(playheadMs = 0, totalMs = 1) {
       class="video-analysis-playhead"
       style="${playheadStyle(playheadMs, totalMs)}"
       data-video-analysis-timeline-scrub
+      draggable="false"
       role="slider"
       aria-label="Drag timeline playhead"
       aria-valuemin="0"

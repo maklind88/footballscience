@@ -27,6 +27,11 @@ export function createTimelineScrubController(options = {}) {
     pendingMoveMs = null;
   }
 
+  function lockScrollPosition() {
+    if (!session?.scrollContainer) return;
+    session.scrollContainer.scrollLeft = session.scrollLeft;
+  }
+
   function syncPlayheads(playheadMs = 0, durationMs = 1) {
     const targetRoot = root();
     if (!targetRoot) return;
@@ -41,6 +46,7 @@ export function createTimelineScrubController(options = {}) {
   }
 
   function seekToMs(ms = 0, { commit = false } = {}) {
+    lockScrollPosition();
     const durationMs = getTimelineDurationMs(state());
     const safeMs = Math.min(durationMs, Math.max(0, Math.round(Number(ms || 0))));
     seekVideoToMs(options.getVideoElement?.(), safeMs);
@@ -74,6 +80,7 @@ export function createTimelineScrubController(options = {}) {
       frameId = 0;
       const scrubMs = pendingMoveMs;
       pendingMoveMs = null;
+      lockScrollPosition();
       seekToMs(scrubMs);
     });
   }
@@ -81,6 +88,7 @@ export function createTimelineScrubController(options = {}) {
   function handlePointerMove(event = {}) {
     if (!session) return;
     event.preventDefault?.();
+    lockScrollPosition();
     applyScrub(event);
   }
 
@@ -88,9 +96,11 @@ export function createTimelineScrubController(options = {}) {
     if (!session) return;
     applyScrub(event, { commit: true });
     const targetWindow = win();
-    targetWindow?.removeEventListener?.("pointermove", handlePointerMove);
-    targetWindow?.removeEventListener?.("pointerup", endScrub);
-    targetWindow?.removeEventListener?.("pointercancel", endScrub);
+    targetWindow?.removeEventListener?.("pointermove", handlePointerMove, session.listenerOptions);
+    targetWindow?.removeEventListener?.("pointerup", endScrub, session.listenerOptions);
+    targetWindow?.removeEventListener?.("pointercancel", endScrub, session.listenerOptions);
+    session.scrollContainer?.classList?.remove("is-scrubbing");
+    lockScrollPosition();
     clearPendingFrame();
     session = null;
   }
@@ -120,15 +130,25 @@ export function createTimelineScrubController(options = {}) {
       || surface.closest("[data-video-analysis-timeline-module]")?.dataset.videoAnalysisTimelineDurationMs
       || getTimelineDurationMs(state())
     ));
-    session = { durationMs, rect };
+    const scrollContainer = surface.closest(".video-analysis-timeline-scroll");
+    const listenerOptions = { passive: false };
+    session = {
+      durationMs,
+      listenerOptions,
+      rect,
+      scrollContainer,
+      scrollLeft: Number(scrollContainer?.scrollLeft || 0),
+    };
+    scrollContainer?.classList?.add("is-scrubbing");
 
     const targetWindow = win();
-    targetWindow?.addEventListener?.("pointermove", handlePointerMove);
-    targetWindow?.addEventListener?.("pointerup", endScrub);
-    targetWindow?.addEventListener?.("pointercancel", endScrub);
-    target.setPointerCapture?.(event.pointerId);
-
     event.preventDefault?.();
+    target.blur?.();
+    targetWindow?.addEventListener?.("pointermove", handlePointerMove, listenerOptions);
+    targetWindow?.addEventListener?.("pointerup", endScrub, listenerOptions);
+    targetWindow?.addEventListener?.("pointercancel", endScrub, listenerOptions);
+    target.setPointerCapture?.(event.pointerId);
+    lockScrollPosition();
     applyScrub(event, { immediate: true });
     return true;
   }

@@ -575,10 +575,15 @@
 
 .video-analysis-timeline-scroll {
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   border-bottom: 1px solid #e4eae5;
   background:
     linear-gradient(90deg, rgba(255,255,255,0.94), rgba(255,255,255,0)) 0 0 / 18px 100% no-repeat,
     #f8faf8;
+}
+
+.video-analysis-timeline-scroll.is-scrubbing {
+  overflow-x: hidden;
 }
 
 .video-analysis-timeline-canvas {
@@ -975,23 +980,32 @@
   z-index: 1;
   top: 0;
   bottom: 0;
-  width: 28px;
+  width: 18px;
   min-height: 0;
   border: 0;
   border-radius: 0;
+  outline: 0;
   padding: 0;
   color: #e1352d;
+  appearance: none;
+  -webkit-appearance: none;
   background: transparent;
   cursor: ew-resize;
   pointer-events: auto;
   touch-action: none;
-  transform: translateX(-14px);
+  user-select: none;
+  -webkit-user-drag: none;
+  transform: translateX(-9px);
   will-change: left;
+}
+
+.video-analysis-playhead:focus {
+  outline: none;
 }
 
 .video-analysis-playhead::after {
   position: absolute;
-  top: 0;
+  top: 12px;
   bottom: 0;
   left: 50%;
   width: 2px;
@@ -1004,15 +1018,17 @@
 .video-analysis-playhead::before {
   position: absolute;
   display: block;
-  top: 12px;
+  top: 2px;
   left: 50%;
   z-index: 2;
-  width: 12px;
-  height: 12px;
-  border: 2px solid #ffffff;
-  border-radius: 50%;
-  background: #e1352d;
-  box-shadow: 0 2px 8px rgba(105, 20, 16, 0.3);
+  width: 0;
+  height: 0;
+  border-top: 9px solid #e1352d;
+  border-right: 6px solid transparent;
+  border-bottom: 0;
+  border-left: 6px solid transparent;
+  background: transparent;
+  filter: drop-shadow(0 1px 1px rgba(255,255,255,0.85)) drop-shadow(0 2px 4px rgba(105,20,16,0.26));
   content: "";
   transform: translateX(-50%);
 }

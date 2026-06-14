@@ -57,6 +57,14 @@ function itemStatus(item = {}) {
   return { key: "ready", label: "Ready to analyse", tone: "ready" };
 }
 
+function isLibrarySearchActive(filters = {}) {
+  return Boolean(
+    String(filters.search || "").trim()
+    || String(filters.date || "").trim()
+    || (String(filters.type || "all").trim() && String(filters.type || "all").trim() !== "all")
+  );
+}
+
 function renderScheduleOptions(candidates = [], selectedId = "") {
   const options = candidates
     .map((candidate) => `
@@ -157,9 +165,9 @@ function renderCalendarOverview(allItems = [], visibleItems = []) {
   `;
 }
 
-function renderLibrarySearch(library = {}, visibleCount = 0) {
+function renderLibrarySearch(library = {}, visibleCount = 0, isActive = false) {
   return `
-    <section class="video-analysis-library-search" aria-label="Search videos and match days">
+    <section class="video-analysis-library-search${isActive ? " is-active" : ""}" aria-label="Search videos and match days">
       <input class="video-analysis-file-input" type="file" accept="video/*" data-video-analysis-file hidden>
       <input
         type="search"
@@ -183,7 +191,7 @@ function renderLibrarySearch(library = {}, visibleCount = 0) {
         <button type="button" data-video-analysis-library-refresh>Refresh</button>
         <button type="button" class="video-analysis-primary-action" data-video-analysis-load>Link local video</button>
       </div>
-      <span>${escapeHtml(`${visibleCount} results`)}</span>
+      ${isActive ? `<span>${escapeHtml(`${visibleCount} results`)}</span>` : ""}
     </section>
   `;
 }
@@ -223,18 +231,20 @@ export function renderVideoLibrary(state = {}) {
   const library = state.library || {};
   const allItems = buildVideoLibraryItems(state);
   const visibleItems = filterVideoLibraryItems(allItems, library.filters || {});
+  const searchIsActive = isLibrarySearchActive(library.filters || {});
   const hasScheduleCandidates = (library.scheduleCandidates || []).length > 0;
   const archiveItems = visibleItems.slice(0, 8);
   return `
     <section class="video-analysis-library" data-video-analysis-library>
       ${renderCalendarOverview(allItems, visibleItems)}
-      ${renderLibrarySearch(library, visibleItems.length)}
-      ${hasScheduleCandidates ? `
+      ${renderLibrarySearch(library, visibleItems.length, searchIsActive)}
+      ${hasScheduleCandidates && searchIsActive ? `
         <div class="video-analysis-library__note">
           Schedule days are available as video candidates. Pick a day or connect an existing video row to a schedule day.
         </div>
       ` : ""}
-      <section class="video-analysis-library-archive" aria-label="Compact archive">
+      ${searchIsActive ? `
+        <section class="video-analysis-library-archive" aria-label="Search results">
         <div class="video-analysis-panel-title">
           <div>
             <p class="video-analysis-kicker">Results</p>
@@ -250,7 +260,8 @@ export function renderVideoLibrary(state = {}) {
         ${visibleItems.length > archiveItems.length
           ? `<p class="video-analysis-library-archive__hint">Showing the first ${archiveItems.length}. Use search, date or type to narrow the archive.</p>`
           : ""}
-      </section>
+        </section>
+      ` : ""}
     </section>
   `;
 }

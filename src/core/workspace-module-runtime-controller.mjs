@@ -12,6 +12,9 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     canEditGameplan = () => false,
     canEditVideoAnalysis = () => false,
     getAuthToken = () => "",
+    getPlatformTeamDisplayTeam = () => null,
+    getPlatformTeamDisplayName = () => "",
+    getPlatformTeamLogoUrl = () => "",
     suppressCentralWrites = () => {},
     unsuppressCentralWrites = () => {},
     escapeHtml = (value) => String(value ?? ""),
@@ -118,10 +121,23 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
   }
 
   function getVideoAnalysisContext() {
+    const currentUser = getCurrentUser();
+    const teamNameFromUser = currentUser?.teamName || currentUser?.team || "";
+    const displayTeam = getPlatformTeamDisplayTeam(currentUser);
+    const displayTeamName = getPlatformTeamDisplayName(currentUser);
+    const teamName = displayTeam?.name || displayTeamName || teamNameFromUser || "Team";
+    const team = displayTeam || {
+      name: teamName,
+      shortName: currentUser?.teamShortName || currentUser?.team_short_name || "",
+      logoUrl: currentUser?.teamLogoUrl || currentUser?.team_logo_url || currentUser?.teamLogo || "",
+    };
     return {
       ui,
       win,
-      currentUser: getCurrentUser(),
+      currentUser,
+      team,
+      teamName,
+      teamLogoUrl: getPlatformTeamLogoUrl(team),
       getAuthToken,
       getPlayerProfilesState: getPlayerProfilesStateForVideoAnalysis,
       canEdit: canEditVideoAnalysis,
@@ -232,7 +248,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
       <section class="video-analysis-shell">
         <section class="video-analysis-player">
           <h2>Loading Analysis Room</h2>
-          <p>Preparing the own-team performance room.</p>
+          <p>Preparing the Analysis Room.</p>
         </section>
       </section>
     `;

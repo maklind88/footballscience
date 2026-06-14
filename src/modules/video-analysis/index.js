@@ -89,12 +89,47 @@ function renderAnalysisRoomTabs() {
   `;
 }
 
-function renderAnalysisRoomHeader() {
+function getAnalysisRoomTeamName(context = {}) {
+  return String(context.teamName || context.team?.name || context.currentUser?.teamName || context.currentUser?.team || "Team").trim() || "Team";
+}
+
+function getAnalysisRoomTeamInitials(team = {}, teamName = "Team") {
+  const shortName = String(team.shortName || team.short_name || "").trim();
+  if (shortName && shortName.length <= 4) return shortName.toUpperCase();
+  return (
+    String(teamName || "Team")
+      .trim()
+      .split(/\s+/)
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 3)
+      .toUpperCase() || "TM"
+  );
+}
+
+function renderAnalysisRoomTeamMark(context = {}) {
+  const team = context.team || {};
+  const teamName = getAnalysisRoomTeamName(context);
+  const logoUrl = String(context.teamLogoUrl || team.logoUrl || team.logo_url || team.logo || team.badgeUrl || team.crestUrl || "").trim();
+  return `
+    <span class="analysis-room-team-mark${logoUrl ? " has-logo" : " is-empty"}" aria-label="${escapeHtml(`${teamName} logo`)}">
+      ${logoUrl
+        ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(`${teamName} logo`)}" />`
+        : `<strong>${escapeHtml(getAnalysisRoomTeamInitials(team, teamName))}</strong>`}
+    </span>
+  `;
+}
+
+function renderAnalysisRoomHeader(context = {}) {
+  const teamName = getAnalysisRoomTeamName(context);
   return `
     <header class="analysis-room-header">
-      <div>
-        <p class="analysis-room-kicker">Analysis Room</p>
-        <h2>Own-team performance</h2>
+      <div class="analysis-room-team-head">
+        ${renderAnalysisRoomTeamMark(context)}
+        <div class="analysis-room-team-copy">
+          <p class="analysis-room-kicker">Analysis Room</p>
+          <h2>${escapeHtml(teamName)}</h2>
+        </div>
       </div>
     </header>
   `;
@@ -321,7 +356,7 @@ function paint(root, state) {
   const displayState = { ...state, clips: visibleClips, allClips: state.clips };
   root.innerHTML = `
     <section class="analysis-room-shell">
-      ${renderAnalysisRoomHeader(state)}
+      ${renderAnalysisRoomHeader(runtime?.context || {})}
       ${renderAnalysisRoomTabs()}
       <section class="analysis-room-tab-panel" aria-label="FS Player">
         <section class="video-analysis-shell">

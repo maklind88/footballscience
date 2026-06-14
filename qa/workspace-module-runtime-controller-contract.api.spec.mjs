@@ -74,6 +74,9 @@ function createRuntime(overrides = {}) {
     getAssetVersion: () => "test-build",
     getUsers: () => [{ id: "u1" }],
     getCurrentUser: () => ({ id: "u1", team: "First Team" }),
+    getPlatformTeamDisplayTeam: () => ({ id: "team-first", name: "First Team", shortName: "FT", logoUrl: "/team-logo.png" }),
+    getPlatformTeamDisplayName: () => "First Team",
+    getPlatformTeamLogoUrl: (team = {}) => team.logoUrl || "",
     getScheduleStateForGameplan: () => ({ events: [] }),
     getPlayerProfilesStateForGameplan: () => ({ players: [] }),
     getPlayerProfilesStateForVideoAnalysis: () => ({ players: [{ id: "p1", name: "Player One" }] }),
@@ -153,6 +156,8 @@ test("workspace module runtime owns Gameplan, Scouting, and Video Analysis lazy 
   expect(calls.modules).toContain("video-analysis");
   expect(calls.stylesheets).toContain("video-analysis");
   expect(calls.analysisRender[0].ui.analysisRoomWorkspace).toBe(ui.analysisRoomWorkspace);
+  expect(calls.analysisRender[0].teamName).toBe("First Team");
+  expect(calls.analysisRender[0].teamLogoUrl).toBe("/team-logo.png");
   expect(calls.analysisRender[0].canEdit()).toBe(true);
   expect(calls.analysisRender[0].getPlayerProfilesState().players[0].id).toBe("p1");
 });

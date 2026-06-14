@@ -1,0 +1,498 @@
+const { parseJsonBody, sendJson } = require("./supabase-admin.js");
+const {
+  MAX_BODY_BYTES,
+  asLimit,
+  actorScope,
+  buildTeamParams,
+  insertRow,
+  normalizeNote,
+  normalizeText,
+  normalizeUuid,
+  patchRows,
+  selectRows,
+} = require("./idp-database-core.js");
+
+const IDP_SCHEMA = "footballscience-idp-v1";
+const CATEGORIES = new Set(["Technical", "Tactical", "Physical", "Psychological", "Leadership"]);
+const FOCUS_STATUSES = new Set(["Draft", "Active", "Needs Evidence", "Ready For Review", "Reviewed", "Completed", "Archived"]);
+const CLIP_STATUSES = new Set(["New", "Reviewed", "Linked To Focus", "Marked As Evidence", "Archived", "Hidden"]);
+const EVIDENCE_TYPES = new Set([
+  "Video Clip",
+  "Coach Note",
+  "Training Observation",
+  "Match Observation",
+  "Performance Note",
+  "Medical Note",
+  "Leadership Note",
+  "Player Reflection",
+  "Review Meeting",
+]);
+
+function rowList(result) {
+  return result.ok && Array.isArray(result.payload) ? result.payload : [];
+}
+
+function normalizeCategory(value) {
+  const category = normalizeText(value, 40);
+  return CATEGORIES.has(category) ? category : "Tactical";
+}
+
+function normalizeFocusStatus(value, fallback = "Active") {
+  const status = normalizeText(value, 60);
+  return FOCUS_STATUSES.has(status) ? status : fallback;
+}
+
+function normalizeClipStatus(value, fallback = "Reviewed") {
+  const status = normalizeText(value, 80);
+  return CLIP_STATUSES.has(status) ? status : fallback;
+}
+
+function normalizeFocusLevel(value) {
+  const level = normalizeText(value, 40).toLowerCase();
+  return ["main", "secondary", "personal"].includes(level) ? level : "main";
+}
+
+function normalizeEvidenceType(value, fallback = "Coach Note") {
+  const type = normalizeText(value, 80);
+  return EVIDENCE_TYPES.has(type) ? type : fallback;
+}
+
+function dateOrNull(value) {
+  const text = normalizeText(value, 24);
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+}
+
+function idFilter(ids = []) {
+  return `in.(${ids.filter(Boolean).join(",")})`;
+}
+
+function dashboardStatus(profile = {}, focus = null, clipCount = 0) {
+  if (!focus) return "No Active Focus";
+  if (clipCount > 0) return "New Clips To Review";
+  if (focus.status === "Needs Evidence" || focus.evidence_status === "Needs Evidence") return "Needs Evidence";
+  if (focus.review_date && new Date(`${focus.review_date}T00:00:00Z`) < new Date()) return "Review Due";
+  if (focus.status === "Completed") return "Completed";
+  return profile.status === "watch" ? "Needs Evidence" : "On Track";
+}
+
+function buildNextAction(profile = {}, focus = null, explicitAction = null, clipCount = 0) {
+  if (explicitAction?.title) return explicitAction.title;
+  if (!focus) return "Create next focus";
+  if (clipCount > 0) return "Review clip bank";
+  if (focus.evidence_status === "Needs Evidence") return "Add evidence";
+  if (focus.status === "Ready For Review") return "Complete review";
+  if (focus.review_date) return "Review focus";
+  return profile.next_review_on ? "Prepare next review" : "Set review date";
+}
+
+async function listByPlayer(table, scope, playerId, options = {}) {
+  const params = buildTeamParams(scope);
+  params.set("select", "*");
+  params.set("player_id", `eq.${playerId}`);
+  if (options.notDeleted !== false) params.set("deleted_at", "is.null");
+  if (options.status) params.set("status", options.status);
+  params.set("order", options.order || "created_at.desc");
+  params.set("limit", String(asLimit(options.limit, 100)));
+  return selectRows(table, params);
+}
+
+async function listDashboard(query, actor) {
+  const scope = actorScope(actor);
+  const profileParams = buildTeamParams(scope);
+  profileParams.set("select", "*");
+  profileParams.set("deleted_at", "is.null");
+  profileParams.set("order", "updated_at.desc");
+  profileParams.set("limit", String(asLimit(query.limit, 80)));
+  const profiles = await selectRows("idp_profiles", profileParams);
+  if (!profiles.ok) return profiles;
+  const playerIds = profiles.payload.map((profile) => profile.player_id).filter(Boolean);
+  if (!playerIds.length) return { ok: true, payload: { schema: IDP_SCHEMA, players: [] } };
+
+  const scopedChildParams = (table, order = "updated_at.desc") => {
+    const params = buildTeamParams(scope);
+    params.set("select", "*");
+    params.set("player_id", idFilter(playerIds));
+    params.set("deleted_at", "is.null");
+    params.set("order", order);
+    return [table, params];
+  };
+  const [focuses, clips, actions, evidence] = await Promise.all([
+    selectRows(...scopedChildParams("idp_focuses")),
+    selectRows(...scopedChildParams("idp_clip_bank_items", "created_at.desc")),
+    selectRows(...scopedChildParams("idp_next_actions", "created_at.desc")),
+    selectRows(...scopedChildParams("idp_evidence", "created_at.desc")),
+  ]);
+  const activeFocusByPlayer = new Map();
+  for (const focus of rowList(focuses)) {
+    if (!["Active", "Needs Evidence", "Ready For Review", "Reviewed"].includes(focus.status)) continue;
+    if (!activeFocusByPlayer.has(focus.player_id)) activeFocusByPlayer.set(focus.player_id, focus);
+  }
+  const countByPlayer = (rows, predicate = () => true) => rows.reduce((map, row) => {
+    if (predicate(row)) map.set(row.player_id, (map.get(row.player_id) || 0) + 1);
+    return map;
+  }, new Map());
+  const clipCounts = countByPlayer(rowList(clips), (clip) => clip.status === "New");
+  const evidenceCounts = countByPlayer(rowList(evidence));
+  const actionByPlayer = new Map(rowList(actions).filter((action) => action.status === "open").map((action) => [action.player_id, action]));
+  const players = profiles.payload.map((profile) => {
+    const focus = activeFocusByPlayer.get(profile.player_id) || null;
+    const newClipCount = clipCounts.get(profile.player_id) || 0;
+    return {
+      profile,
+      focus,
+      evidenceCount: evidenceCounts.get(profile.player_id) || 0,
+      newClipCount,
+      nextAction: buildNextAction(profile, focus, actionByPlayer.get(profile.player_id), newClipCount),
+      overallStatus: dashboardStatus(profile, focus, newClipCount),
+    };
+  });
+  return { ok: true, payload: { schema: IDP_SCHEMA, players } };
+}
+
+async function getPlayerDevelopment(query, actor) {
+  const scope = actorScope(actor);
+  const playerId = normalizeText(query.playerId || query.player_id, 160);
+  if (!playerId) return { ok: false, status: 400, reason: "playerId is required." };
+  const [profiles, focuses, clipBank, evidence, reviews, actions, milestones, ownership] = await Promise.all([
+    listByPlayer("idp_profiles", scope, playerId, { limit: 1, order: "updated_at.desc" }),
+    listByPlayer("idp_focuses", scope, playerId, { limit: 50, order: "updated_at.desc" }),
+    listByPlayer("idp_clip_bank_items", scope, playerId, { limit: 120, order: "created_at.desc" }),
+    listByPlayer("idp_evidence", scope, playerId, { limit: 120, order: "created_at.desc" }),
+    listByPlayer("idp_reviews", scope, playerId, { limit: 80, order: "created_at.desc" }),
+    listByPlayer("idp_next_actions", scope, playerId, { limit: 40, order: "created_at.desc" }),
+    listByPlayer("idp_milestones", scope, playerId, { notDeleted: false, limit: 80, order: "occurred_on.desc,created_at.desc" }),
+    listByPlayer("idp_staff_ownership", scope, playerId, { limit: 60, order: "created_at.desc" }),
+  ]);
+  const failed = [profiles, focuses, clipBank, evidence, reviews, actions, milestones, ownership].find((result) => !result.ok);
+  if (failed) return failed;
+  return {
+    ok: true,
+    payload: {
+      schema: IDP_SCHEMA,
+      profile: profiles.payload[0] || null,
+      focuses: focuses.payload,
+      clipBank: clipBank.payload,
+      evidence: evidence.payload,
+      reviews: reviews.payload,
+      nextActions: actions.payload,
+      milestones: milestones.payload,
+      ownership: ownership.payload,
+    },
+  };
+}
+
+async function ensureProfile(scope, playerId, payload = {}) {
+  const existing = await listByPlayer("idp_profiles", scope, playerId, { limit: 1 });
+  if (!existing.ok) return existing;
+  if (existing.payload[0]) return { ok: true, payload: existing.payload[0] };
+  const result = await insertRow("idp_profiles", {
+    organization_id: scope.organizationId,
+    club_id: scope.clubId,
+    team_id: scope.teamId,
+    player_id: playerId,
+    position_label: normalizeText(payload.positionLabel || payload.position_label, 80) || null,
+    role_label: normalizeText(payload.roleLabel || payload.role_label, 120) || null,
+    primary_owner_id: normalizeText(payload.ownerId || payload.owner_id || scope.actorId, 160) || null,
+    created_by: scope.actorId,
+    updated_by: scope.actorId,
+  });
+  return result.ok ? { ok: true, payload: result.payload?.[0] || null } : result;
+}
+
+async function createFocus(payload, actor) {
+  const scope = actorScope(actor);
+  const playerId = normalizeText(payload.playerId || payload.player_id, 160);
+  const title = normalizeText(payload.title, 180);
+  if (!playerId || !title) return { ok: false, status: 400, reason: "playerId and title are required." };
+  const profileResult = await ensureProfile(scope, playerId, payload);
+  if (!profileResult.ok) return profileResult;
+  const focusResult = await insertRow("idp_focuses", {
+    organization_id: scope.organizationId,
+    club_id: scope.clubId,
+    team_id: scope.teamId,
+    profile_id: profileResult.payload.id,
+    player_id: playerId,
+    title,
+    description: normalizeNote(payload.description, 1200) || null,
+    category: normalizeCategory(payload.category),
+    focus_level: normalizeFocusLevel(payload.focusLevel || payload.focus_level),
+    linked_phase: normalizeText(payload.linkedPhase || payload.linked_phase, 80) || null,
+    linked_sub_phase: normalizeText(payload.linkedSubPhase || payload.linked_sub_phase, 80) || null,
+    team_principle_id: normalizeText(payload.teamPrincipleId || payload.team_principle_id, 120) || null,
+    mini_game_principle_id: normalizeText(payload.miniGamePrincipleId || payload.mini_game_principle_id, 120) || null,
+    owner_id: normalizeText(payload.ownerId || payload.owner_id || scope.actorId, 160) || null,
+    status: normalizeFocusStatus(payload.status),
+    evidence_status: "Needs Evidence",
+    review_date: dateOrNull(payload.reviewDate || payload.review_date),
+    created_by: scope.actorId,
+    updated_by: scope.actorId,
+  });
+  if (!focusResult.ok) return focusResult;
+  const focus = focusResult.payload?.[0] || null;
+  await insertRow("idp_milestones", {
+    organization_id: scope.organizationId,
+    team_id: scope.teamId,
+    player_id: playerId,
+    profile_id: profileResult.payload.id,
+    focus_id: focus?.id,
+    milestone_type: "Current Focus Created",
+    title: "Current focus created",
+    source_module: "idp",
+    source_id: focus?.id || null,
+    created_by: scope.actorId,
+  });
+  return { ok: true, payload: { schema: IDP_SCHEMA, focus } };
+}
+
+async function updateFocus(payload, actor) {
+  const scope = actorScope(actor);
+  const focusId = normalizeUuid(payload.id || payload.focusId || payload.focus_id);
+  if (!focusId) return { ok: false, status: 400, reason: "focus id is required." };
+  const params = buildTeamParams(scope);
+  params.set("id", `eq.${focusId}`);
+  params.set("deleted_at", "is.null");
+  const patch = {
+    updated_by: scope.actorId,
+  };
+  if ("title" in payload) patch.title = normalizeText(payload.title, 180);
+  if ("description" in payload) patch.description = normalizeNote(payload.description, 1200) || null;
+  if ("category" in payload) patch.category = normalizeCategory(payload.category);
+  if ("status" in payload) patch.status = normalizeFocusStatus(payload.status);
+  if ("reviewDate" in payload || "review_date" in payload) patch.review_date = dateOrNull(payload.reviewDate || payload.review_date);
+  if ("evidenceStatus" in payload || "evidence_status" in payload) {
+    patch.evidence_status = normalizeText(payload.evidenceStatus || payload.evidence_status, 80);
+  }
+  const result = await patchRows("idp_focuses", params, patch);
+  return result.ok ? { ok: true, payload: { schema: IDP_SCHEMA, focus: result.payload?.[0] || null } } : result;
+}
+
+async function upsertClipBankItem(payload, actor) {
+  const scope = actorScope(actor);
+  const playerId = normalizeText(payload.playerId || payload.player_id, 160);
+  const clipId = normalizeUuid(payload.clipInstanceId || payload.clip_instance_id || payload.clipId || payload.clip_id);
+  if (!playerId || !clipId) return { ok: false, status: 400, reason: "playerId and clipInstanceId are required." };
+  const profileResult = await ensureProfile(scope, playerId, payload);
+  if (!profileResult.ok) return profileResult;
+  const existingParams = buildTeamParams(scope);
+  existingParams.set("select", "*");
+  existingParams.set("player_id", `eq.${playerId}`);
+  existingParams.set("clip_instance_id", `eq.${clipId}`);
+  existingParams.set("deleted_at", "is.null");
+  existingParams.set("limit", "1");
+  const existing = await selectRows("idp_clip_bank_items", existingParams);
+  if (!existing.ok) return existing;
+  if (existing.payload[0]) {
+    return { ok: true, payload: { schema: IDP_SCHEMA, clipBankItem: existing.payload[0], created: false } };
+  }
+  const result = await insertRow("idp_clip_bank_items", {
+    organization_id: scope.organizationId,
+    team_id: scope.teamId,
+    player_id: playerId,
+    profile_id: profileResult.payload.id,
+    clip_instance_id: clipId,
+    source_module: "video-analysis",
+    source_id: clipId,
+    status: "New",
+    created_by: scope.actorId,
+    updated_by: scope.actorId,
+  });
+  return result.ok
+    ? { ok: true, payload: { schema: IDP_SCHEMA, clipBankItem: result.payload?.[0] || null, created: true } }
+    : result;
+}
+
+async function reviewClipBank(payload, actor) {
+  const scope = actorScope(actor);
+  const itemId = normalizeUuid(payload.id || payload.clipBankItemId || payload.clip_bank_item_id);
+  if (!itemId) return { ok: false, status: 400, reason: "clip bank item id is required." };
+  const params = buildTeamParams(scope);
+  params.set("id", `eq.${itemId}`);
+  params.set("deleted_at", "is.null");
+  const status = normalizeClipStatus(payload.status);
+  const patch = {
+    status,
+    linked_focus_id: normalizeUuid(payload.focusId || payload.focus_id) || null,
+    reviewed_by: scope.actorId,
+    reviewed_at: new Date().toISOString(),
+    updated_by: scope.actorId,
+  };
+  const result = await patchRows("idp_clip_bank_items", params, patch);
+  if (!result.ok) return result;
+  const item = result.payload?.[0] || null;
+  if (status === "Marked As Evidence" && item?.linked_focus_id) {
+    await addEvidence({
+      playerId: item.player_id,
+      focusId: item.linked_focus_id,
+      clipBankItemId: item.id,
+      evidenceType: "Video Clip",
+      sourceModule: "video-analysis",
+      sourceTable: "video_clip_instances",
+      sourceId: item.clip_instance_id,
+      note: payload.note,
+    }, actor);
+  }
+  return { ok: true, payload: { schema: IDP_SCHEMA, clipBankItem: item } };
+}
+
+async function addEvidence(payload, actor) {
+  const scope = actorScope(actor);
+  const playerId = normalizeText(payload.playerId || payload.player_id, 160);
+  const focusId = normalizeUuid(payload.focusId || payload.focus_id);
+  if (!playerId || !focusId) return { ok: false, status: 400, reason: "playerId and focusId are required." };
+  const profileResult = await ensureProfile(scope, playerId, payload);
+  if (!profileResult.ok) return profileResult;
+  const result = await insertRow("idp_evidence", {
+    organization_id: scope.organizationId,
+    team_id: scope.teamId,
+    player_id: playerId,
+    profile_id: profileResult.payload.id,
+    focus_id: focusId,
+    clip_bank_item_id: normalizeUuid(payload.clipBankItemId || payload.clip_bank_item_id) || null,
+    evidence_type: normalizeEvidenceType(payload.evidenceType || payload.evidence_type),
+    source_module: normalizeText(payload.sourceModule || payload.source_module || "idp", 80),
+    source_table: normalizeText(payload.sourceTable || payload.source_table, 80) || null,
+    source_id: normalizeText(payload.sourceId || payload.source_id, 160) || null,
+    note: normalizeNote(payload.note, 1200) || null,
+    created_by: scope.actorId,
+    updated_by: scope.actorId,
+  });
+  if (!result.ok) return result;
+  const focusParams = buildTeamParams(scope);
+  focusParams.set("id", `eq.${focusId}`);
+  await patchRows("idp_focuses", focusParams, { evidence_status: "Has Evidence", updated_by: scope.actorId });
+  await insertRow("idp_milestones", {
+    organization_id: scope.organizationId,
+    team_id: scope.teamId,
+    player_id: playerId,
+    profile_id: profileResult.payload.id,
+    focus_id: focusId,
+    milestone_type: "First Evidence Added",
+    title: "Evidence added",
+    source_module: "idp",
+    source_id: result.payload?.[0]?.id || null,
+    created_by: scope.actorId,
+  });
+  return { ok: true, payload: { schema: IDP_SCHEMA, evidence: result.payload?.[0] || null } };
+}
+
+async function completeReview(payload, actor) {
+  const scope = actorScope(actor);
+  const playerId = normalizeText(payload.playerId || payload.player_id, 160);
+  const focusId = normalizeUuid(payload.focusId || payload.focus_id);
+  if (!playerId || !focusId) return { ok: false, status: 400, reason: "playerId and focusId are required." };
+  const profileResult = await ensureProfile(scope, playerId, payload);
+  if (!profileResult.ok) return profileResult;
+  const result = await insertRow("idp_reviews", {
+    organization_id: scope.organizationId,
+    team_id: scope.teamId,
+    player_id: playerId,
+    profile_id: profileResult.payload.id,
+    focus_id: focusId,
+    review_type: normalizeText(payload.reviewType || payload.review_type || "coach-review", 80),
+    progress_summary: normalizeNote(payload.progressSummary || payload.progress_summary, 1200) || null,
+    evidence_summary: normalizeNote(payload.evidenceSummary || payload.evidence_summary, 1200) || null,
+    coach_note: normalizeNote(payload.coachNote || payload.coach_note, 1200) || null,
+    player_response: normalizeNote(payload.playerResponse || payload.player_response, 1200) || null,
+    next_action: normalizeText(payload.nextAction || payload.next_action, 400) || null,
+    status_change: normalizeText(payload.statusChange || payload.status_change, 80) || null,
+    created_by: scope.actorId,
+    updated_by: scope.actorId,
+  });
+  if (!result.ok) return result;
+  const focusParams = buildTeamParams(scope);
+  focusParams.set("id", `eq.${focusId}`);
+  await patchRows("idp_focuses", focusParams, {
+    evidence_status: "Ready For Review",
+    status: normalizeFocusStatus(payload.statusChange || payload.status_change, "Reviewed"),
+    updated_by: scope.actorId,
+  });
+  const nextAction = normalizeText(payload.nextAction || payload.next_action, 180);
+  if (nextAction) {
+    await insertRow("idp_next_actions", {
+      organization_id: scope.organizationId,
+      team_id: scope.teamId,
+      player_id: playerId,
+      profile_id: profileResult.payload.id,
+      focus_id: focusId,
+      action_type: "Create Next Focus",
+      title: nextAction,
+      owner_id: scope.actorId,
+      due_on: dateOrNull(payload.nextActionDueOn || payload.next_action_due_on),
+      status: "open",
+      source_module: "idp",
+      source_id: result.payload?.[0]?.id || null,
+      created_by: scope.actorId,
+      updated_by: scope.actorId,
+    });
+  }
+  await insertRow("idp_milestones", {
+    organization_id: scope.organizationId,
+    team_id: scope.teamId,
+    player_id: playerId,
+    profile_id: profileResult.payload.id,
+    focus_id: focusId,
+    milestone_type: "First Review Completed",
+    title: "Review completed",
+    source_module: "idp",
+    source_id: result.payload?.[0]?.id || null,
+    created_by: scope.actorId,
+  });
+  return { ok: true, payload: { schema: IDP_SCHEMA, review: result.payload?.[0] || null } };
+}
+
+function statusPayload(actor) {
+  return {
+    ok: true,
+    schema: IDP_SCHEMA,
+    mode: "player-development-system",
+    enabled: true,
+    scope: actorScope(actor),
+    ownsPlayerIdentity: false,
+    ownsClipMetadata: false,
+    evidenceIsCurated: true,
+  };
+}
+
+async function handleIdpRequest(req, res, actor) {
+  const url = new URL(req.url || "/api/idp", "https://footballscience.local");
+  if (req.method === "GET") {
+    const action = normalizeText(url.searchParams.get("action") || "dashboard", 40);
+    const query = Object.fromEntries(url.searchParams.entries());
+    const result = action === "status"
+      ? { ok: true, payload: statusPayload(actor) }
+      : action === "player"
+        ? await getPlayerDevelopment(query, actor)
+        : await listDashboard(query, actor);
+    return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
+  }
+
+  const body = await parseJsonBody(req, { maxBytes: MAX_BODY_BYTES });
+  const action = normalizeText(body.action || url.searchParams.get("action"), 80);
+  const result =
+    action === "create-focus"
+      ? await createFocus(body.focus || body, actor)
+      : action === "update-focus"
+        ? await updateFocus(body.focus || body, actor)
+        : action === "video-player-tagged"
+          ? await upsertClipBankItem(body.clip || body, actor)
+          : action === "review-clip-bank"
+            ? await reviewClipBank(body.clipBankItem || body, actor)
+            : action === "add-evidence"
+              ? await addEvidence(body.evidence || body, actor)
+              : action === "complete-review"
+                ? await completeReview(body.review || body, actor)
+                : { ok: false, status: 400, reason: "Unsupported IDP action." };
+  return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
+}
+
+module.exports = {
+  IDP_SCHEMA,
+  addEvidence,
+  completeReview,
+  createFocus,
+  dashboardStatus,
+  handleIdpRequest,
+  normalizeCategory,
+  reviewClipBank,
+  upsertClipBankItem,
+};

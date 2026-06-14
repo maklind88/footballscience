@@ -165,6 +165,17 @@ Database-primary migration priority: Schedule, Squad, Scouting, Medical Team, Ex
 - `qa`: schema, API payload safety, module boundary, workstation UX, permission matrix, and Analysis Room loader contracts must prove metadata-only storage, millisecond precision, no component database access, keyboard-ready coding, and no local video path leakage.
 - `migration`: Analysis Room now loads `src/modules/video-analysis/index.js`; Scouting remains isolated in its own workspace. Desktop bridge code stays under `desktop/local-video-app/` and must never expose video paths or raw video bytes to Supabase.
 
+## IDP
+
+- `id`: `idp`
+- `purpose`: daily player development system for current focus, curated evidence, clip-bank review, lightweight reviews, next actions, staff ownership, and development timeline.
+- `data`: database-primary records in `idp_profiles`, `idp_development_areas`, `idp_focuses`, `idp_clip_bank_items`, `idp_evidence`, `idp_reviews`, `idp_next_actions`, `idp_milestones`, `idp_staff_ownership`, and `idp_audit_events`; no protected browser storage key.
+- `api`: `/api/idp` is the frontend data path. UI components must not call Supabase directly.
+- `permissions`: platform/club/team admin, coach, analyst, scout, performance, and medical can read according to workspace access; platform/club/team admin, coach, and analyst can write; destructive actions remain admin/coach scoped and soft-delete only.
+- `events`: focus updated, clip bank reviewed, evidence added, review completed, next action updated, milestone created.
+- `qa`: schema, API payload safety, module boundary, permission matrix, no direct component database access, clip-bank idempotency, and MVP renderer contracts must stay green before release.
+- `migration`: IDP references Squad player identity and Video Analysis clips. Existing lightweight Squad IDP fields remain compatibility context until database reads and rollback are proven.
+
 ## Periodization
 
 - `id`: `periodization`

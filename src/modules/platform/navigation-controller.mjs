@@ -3,6 +3,7 @@ const topIconLabels = Object.freeze({
   schedule: "Schedule",
   periodization: "Period",
   "session-planner": "Sessions",
+  idp: "IDP",
   "player-profiles": "Squad Room",
   scouting: "Scouting",
   "transfer-room": "Transfers",

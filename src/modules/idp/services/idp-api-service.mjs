@@ -1,0 +1,46 @@
+async function parseJson(response) {
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { reason: text };
+  }
+}
+
+export function createIdpApiService(context = {}) {
+  const getAuthToken = typeof context.getAuthToken === "function" ? context.getAuthToken : () => "";
+
+  async function request(path = "/api/idp", options = {}) {
+    const token = await getAuthToken();
+    const headers = {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    };
+    const response = await fetch(path, {
+      method: options.method || "GET",
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+    const payload = await parseJson(response);
+    if (!response.ok) {
+      const error = new Error(payload?.reason || `IDP request failed (${response.status}).`);
+      error.status = response.status;
+      error.payload = payload;
+      throw error;
+    }
+    return payload || {};
+  }
+
+  return {
+    loadDashboard: () => request("/api/idp?action=dashboard"),
+    loadPlayer: (playerId) => request(`/api/idp?action=player&playerId=${encodeURIComponent(playerId)}`),
+    createFocus: (focus) => request("/api/idp", { method: "POST", body: { action: "create-focus", focus } }),
+    updateFocus: (focus) => request("/api/idp", { method: "POST", body: { action: "update-focus", focus } }),
+    reviewClipBank: (clipBankItem) => request("/api/idp", { method: "POST", body: { action: "review-clip-bank", clipBankItem } }),
+    addEvidence: (evidence) => request("/api/idp", { method: "POST", body: { action: "add-evidence", evidence } }),
+    completeReview: (review) => request("/api/idp", { method: "POST", body: { action: "complete-review", review } }),
+    videoPlayerTagged: (clip) => request("/api/idp", { method: "POST", body: { action: "video-player-tagged", clip } }),
+  };
+}

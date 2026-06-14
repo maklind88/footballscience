@@ -121,6 +121,15 @@ export const defaultHubState = {
       icon: "☷",
     },
     {
+      id: "idp",
+      kind: "idp",
+      title: "IDP",
+      meta: "Player development",
+      description: "Individual development plans, evidence, reviews and staff ownership.",
+      status: "New",
+      icon: "◎",
+    },
+    {
       id: "scouting",
       kind: "scouting",
       title: "Scouting",
@@ -155,6 +164,7 @@ export const topIconMenuOrder = [
   "gameplan",
   "periodization",
   "session-planner",
+  "idp",
   "player-profiles",
   "scouting",
   "transfer-room",
@@ -170,6 +180,7 @@ export const platformSidebarPrimaryOrder = [
   "periodization",
   "medical-team",
   "session-planner",
+  "idp",
   "player-profiles",
   "scouting",
 ];

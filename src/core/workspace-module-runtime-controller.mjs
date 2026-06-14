@@ -10,8 +10,10 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     getScheduleStateForVideoAnalysis = getScheduleStateForGameplan,
     getPlayerProfilesStateForGameplan = () => ({}),
     getPlayerProfilesStateForVideoAnalysis = getPlayerProfilesStateForGameplan,
+    getPlayerProfilesStateForIdp = getPlayerProfilesStateForVideoAnalysis,
     canEditGameplan = () => false,
     canEditVideoAnalysis = () => false,
+    canEditIdp = () => false,
     getAuthToken = () => "",
     getPlatformTeamDisplayTeam = () => null,
     getPlatformTeamDisplayName = () => "",
@@ -42,6 +44,8 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
   let gameplanModule = null;
   let videoAnalysisModulePromise = null;
   let videoAnalysisModule = null;
+  let idpModulePromise = null;
+  let idpModule = null;
   let scoutingWorkspaceModulePromise = null;
   let scoutingWorkspaceModule = null;
   let scoutingMenuPreloadTimer = 0;
@@ -146,6 +150,17 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     };
   }
 
+  function getIdpContext() {
+    return {
+      ui,
+      win,
+      currentUser: getCurrentUser(),
+      getAuthToken,
+      getPlayerProfilesState: getPlayerProfilesStateForIdp,
+      canEdit: canEditIdp,
+    };
+  }
+
   function loadVideoAnalysisModule() {
     if (videoAnalysisModule) {
       return Promise.resolve(videoAnalysisModule);
@@ -170,6 +185,32 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
         });
     }
     return videoAnalysisModulePromise;
+  }
+
+  function loadIdpModule() {
+    if (idpModule) {
+      return Promise.resolve(idpModule);
+    }
+    if (!idpModulePromise) {
+      idpModulePromise = Promise.all([
+        platformModuleLoader.loadStylesheet("idp", "src/modules/idp/idp.css", {
+          id: "idpStylesheet",
+          required: true,
+        }),
+        platformModuleLoader.loadModule("idp", () =>
+          import(`../modules/idp/index.mjs?v=${encodeURIComponent(getAssetVersion())}`)
+        ),
+      ])
+        .then(([, module]) => {
+          idpModule = module;
+          return module;
+        })
+        .catch((error) => {
+          idpModulePromise = null;
+          throw error;
+        });
+    }
+    return idpModulePromise;
   }
 
   function loadScoutingWorkspaceModule() {
@@ -271,6 +312,36 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     videoAnalysisModule.render(getVideoAnalysisContext());
   }
 
+  function renderIdpWorkspace() {
+    if (!ui.idpWorkspace) {
+      return;
+    }
+    if (!idpModule) {
+      ui.idpWorkspace.innerHTML = `
+      <section class="idp-shell">
+        <section class="idp-loading-panel">
+          <h2>Loading IDP</h2>
+          <p>Preparing player development plans and evidence.</p>
+        </section>
+      </section>
+    `;
+      loadIdpModule()
+        .then((module) => module.render(getIdpContext()))
+        .catch(() => {
+          ui.idpWorkspace.innerHTML = `
+          <section class="idp-shell">
+            <section class="idp-loading-panel">
+              <h2>IDP could not load</h2>
+              <p>Refresh and try Player Development again.</p>
+            </section>
+          </section>
+        `;
+        });
+      return;
+    }
+    idpModule.render(getIdpContext());
+  }
+
   function getTransferRoomWorkspaceContext() { return transferRoomRuntime?.getContext?.(); }
   function loadTransferRoomWorkspaceModule() { return transferRoomRuntime?.loadWorkspaceModule?.(); }
   function renderTransferRoomWorkspace() { return transferRoomRuntime?.render?.(); }
@@ -297,6 +368,10 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
       hydrateState.playerProfiles?.();
       return;
     }
+    if (viewId === "idp") {
+      hydrateState.idp?.();
+      return;
+    }
     if (viewId === "scouting") {
       ensureScoutingState();
       return;
@@ -311,6 +386,9 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     const viewId = getWorkspaceViewId(safeWorkspaceId || workspaceHubDefaultActiveWorkspaceId);
     if (viewId === "analysis-room") {
       loadVideoAnalysisModule();
+    }
+    if (viewId === "idp") {
+      loadIdpModule();
     }
     if (viewId === "scouting") {
       loadScoutingWorkspaceModule();
@@ -362,18 +440,23 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
       bindWorkspaceModuleEvent(ui.analysisRoomWorkspace, type, (event) => {
         videoAnalysisModule?.[getWorkspaceModuleEventHandlerName(type)]?.(event, getVideoAnalysisContext());
       });
+      bindWorkspaceModuleEvent(ui.idpWorkspace, type, (event) => {
+        idpModule?.[getWorkspaceModuleEventHandlerName(type)]?.(event, getIdpContext());
+      });
     });
   }
 
   return Object.freeze({
     bindWorkspaceModuleEvents,
     getGameplanContext,
+    getIdpContext,
     getScoutingAnalysisRoomContext,
     getScoutingWorkspaceContext,
     getVideoAnalysisContext,
     getTransferRoomWorkspaceContext,
     hydrateWorkspaceModuleState,
     loadGameplanModule,
+    loadIdpModule,
     loadScoutingWorkspaceModule,
     loadTransferRoomWorkspaceModule,
     loadVideoAnalysisModule,
@@ -381,6 +464,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     queueWorkspaceModulePreload,
     renderAnalysisRoomWorkspace,
     renderGameplanWorkspace,
+    renderIdpWorkspace,
     renderScoutingWorkspace,
     renderTransferRoomWorkspace,
   });

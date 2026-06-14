@@ -273,6 +273,19 @@ Current direction:
 - Heavy sections below the list stay hidden until needed.
 - Long-term data moves from `football-player-profiles-v1` to the multi-tenant `squad_*` schema.
 
+## IDP
+
+IDP is the Player Development System, not a form or document module. It owns current focus, evidence links, lightweight reviews, next actions, milestones, and staff accountability while referencing Squad players and Video Analysis clips.
+
+Current direction:
+
+- Build as `src/modules/idp`, backed by guarded `/api/idp` routes and `idp_*` database tables.
+- Keep browser state as UI cache only; IDP records are database-primary.
+- Clip Bank is automatic from Video Analysis player tags, but Evidence is curated by a coach.
+- Do not duplicate player identity from Squad or clip metadata from Video Analysis.
+- MVP must stay daily-coach-first: dashboard, player view, current focus, clip bank, mark evidence, short note, review date, next action, and timeline.
+- Excluded for now: player login, AI-generated plans, PDF exports, ratings, gamification, advanced analytics, full Medical/Performance integration, and complex scheduling.
+
 ## Team Identity
 
 Identity currently shows an under-development view with a clean DNA-style visual. Keep it honest and avoid fake content until the real structure for phases, principles, styles and role behaviours is built.

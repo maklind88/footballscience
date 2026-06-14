@@ -21,6 +21,7 @@ const {
   selectRows,
 } = require("./video-analysis-database-core.js");
 const { listMatches, normalizeMetadata, normalizeVideoEventType, updateMatchLink } = require("./video-analysis-library-database.js");
+const { upsertClipBankItem } = require("./idp-database.js");
 const { saveReviewSession } = require("./video-analysis-review-database.js");
 
 const VIDEO_ANALYSIS_SCHEMA = "footballscience-video-analysis-v2";
@@ -320,6 +321,27 @@ async function listClips(query, actor) {
   return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clips } };
 }
 
+async function syncClipPlayersToIdp(clip = {}, saved = {}, actor = {}) {
+  const playerIds = Array.from(new Set((clip.players || []).map((player) => player.playerId).filter(Boolean)));
+  if (!playerIds.length || !saved.id) {
+    return { attempted: false, synced: 0, failed: 0 };
+  }
+  const results = await Promise.all(
+    playerIds.map((playerId) =>
+      upsertClipBankItem({
+        playerId,
+        clipInstanceId: saved.id,
+        sourceModule: "video-analysis",
+      }, actor).catch((error) => ({ ok: false, reason: error?.message || "IDP clip bank sync failed." }))
+    )
+  );
+  return {
+    attempted: true,
+    synced: results.filter((result) => result.ok).length,
+    failed: results.filter((result) => !result.ok).length,
+  };
+}
+
 async function saveClip(payload, actor) {
   const clip = normalizeClipPayload(payload, actor);
   const row = {
@@ -400,8 +422,9 @@ async function saveClip(payload, actor) {
   }
   const failed = (await Promise.all(childWrites)).find((entry) => !entry.ok && entry.status !== 409);
   if (failed) return failed;
+  const idpClipBank = await syncClipPlayersToIdp(clip, saved, actor);
   const [withRelations] = await attachClipRelations([saved], { organizationId: clip.organizationId, teamId: clip.teamId });
-  return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clip: withRelations } };
+  return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clip: withRelations, idpClipBank } };
 }
 
 async function archiveClip(payload, actor) {
@@ -496,4 +519,5 @@ module.exports = {
   normalizeClipPayload,
   normalizeOutcome,
   rejectForbiddenPayload,
+  syncClipPlayersToIdp,
 };

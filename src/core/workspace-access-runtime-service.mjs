@@ -316,6 +316,9 @@ return "medical-team";
 if (workspace.kind === "player-profiles") {
 return "player-profiles";
 }
+if (workspace.kind === "idp") {
+return "idp";
+}
 if (workspace.kind === "analysis-room") {
 return "analysis-room";
 }

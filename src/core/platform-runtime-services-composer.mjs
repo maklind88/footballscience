@@ -267,8 +267,10 @@ export function createPlatformRuntimeServices(deps = {}) {
     getScheduleStateForVideoAnalysis: () => deps.getScheduleState?.() || readScheduleState(),
     getPlayerProfilesStateForGameplan,
     getPlayerProfilesStateForVideoAnalysis: () => deps.getPlayerProfilesState?.() || readPlayerProfilesState(),
+    getPlayerProfilesStateForIdp: () => deps.getPlayerProfilesState?.() || readPlayerProfilesState(),
     canEditGameplan: () => canCurrentUserEditWorkspace("gameplan"),
     canEditVideoAnalysis: () => canCurrentUserEditWorkspace("analysis-room"),
+    canEditIdp: () => canCurrentUserEditWorkspace("idp"),
     getAuthToken: getPlatformApiAccessToken,
     suppressCentralWrites,
     unsuppressCentralWrites,
@@ -335,6 +337,11 @@ export function createPlatformRuntimeServices(deps = {}) {
         }
         if (!deps.getMedicalState()) {
           deps.setMedicalState(deps.readMedicalState());
+        }
+      },
+      idp: () => {
+        if (!deps.getPlayerProfilesState()) {
+          setPlayerProfilesState(readPlayerProfilesState());
         }
       },
       transferRoom: () => {

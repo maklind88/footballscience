@@ -360,7 +360,11 @@ export function handleClick(event, context = {}) {
   const root = getRoot(context);
   const target = event.target;
   if (target.closest("[data-video-analysis-load]")) {
-    root?.querySelector("[data-video-analysis-file]")?.click();
+    const fileInput = root?.querySelector("[data-video-analysis-file]");
+    if (fileInput) {
+      fileInput.value = "";
+      fileInput.click();
+    }
     return true;
   }
   if (target.closest("[data-video-analysis-play]")) {
@@ -541,6 +545,7 @@ export function handleChange(event, context = {}) {
   const fileInput = event.target.closest("[data-video-analysis-file]");
   if (fileInput?.files?.[0]) {
     handleFileSelection(fileInput.files[0], context);
+    fileInput.value = "";
     return true;
   }
   return handleInput(event, context);

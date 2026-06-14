@@ -16,7 +16,7 @@ test("Video Analysis keeps the local video element stable after metadata loads",
   });
 
   await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
-  await expect(page.locator("[data-video-analysis-load]")).toBeVisible();
+  await expect(page.locator(".video-analysis-player__actions [data-video-analysis-load]")).toBeVisible();
 
   await page.locator("[data-video-analysis-file]").setInputFiles({
     name: "match.mp4",
@@ -58,12 +58,33 @@ test("Video Analysis keeps the local video element stable after metadata loads",
   expect(pageErrors).toEqual([]);
 });
 
+test("Video Analysis lets coaches load and reload a local match from the empty player", async ({ page }) => {
+  await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
+
+  await expect(page.locator(".video-analysis-empty-video [data-video-analysis-load]")).toBeVisible();
+  await page.locator("[data-video-analysis-file]").setInputFiles({
+    name: "first-half.mp4",
+    mimeType: "video/mp4",
+    buffer: Buffer.from("football-science-first-half"),
+  });
+  await expect(page.locator("[data-video-analysis-video]")).toBeVisible();
+  await expect(page.locator(".video-analysis-player h2")).toContainText("first-half.mp4");
+
+  await page.locator("[data-video-analysis-file]").setInputFiles({
+    name: "second-half.mp4",
+    mimeType: "video/mp4",
+    buffer: Buffer.from("football-science-second-half"),
+  });
+  await expect(page.locator(".video-analysis-player h2")).toContainText("second-half.mp4");
+  await expect(page.locator("[data-video-analysis-file]")).toHaveValue("");
+});
+
 test("Video Analysis warns when a local file appears to use HEVC", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
   await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
-  await expect(page.locator("[data-video-analysis-load]")).toBeVisible();
+  await expect(page.locator(".video-analysis-player__actions [data-video-analysis-load]")).toBeVisible();
 
   await page.locator("[data-video-analysis-file]").setInputFiles({
     name: "match-hevc.mov",
@@ -92,7 +113,7 @@ test("Video Analysis samples large MP4 files for codec markers away from the fil
   ]);
 
   await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
-  await expect(page.locator("[data-video-analysis-load]")).toBeVisible();
+  await expect(page.locator(".video-analysis-player__actions [data-video-analysis-load]")).toBeVisible();
 
   await page.locator("[data-video-analysis-file]").setInputFiles({
     name: "angle-1.mp4",
@@ -108,7 +129,7 @@ test("Video Analysis samples large MP4 files for codec markers away from the fil
 
 test("Video Analysis explains when the local transcode bridge is not running", async ({ page }) => {
   await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
-  await expect(page.locator("[data-video-analysis-load]")).toBeVisible();
+  await expect(page.locator(".video-analysis-player__actions [data-video-analysis-load]")).toBeVisible();
 
   await page.locator("[data-video-analysis-file]").setInputFiles({
     name: "match-hevc.mov",

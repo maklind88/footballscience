@@ -27,7 +27,11 @@ export function renderVideoPlayer(state = {}) {
         ${
           hasVideo
             ? `<video class="video-analysis-video" data-video-analysis-video src="${escapeHtml(ref.objectUrl)}" controls playsinline></video>`
-            : `<div class="video-analysis-empty-video">Load a local match video to start coding.</div>`
+            : `<div class="video-analysis-empty-video">
+                <button type="button" class="video-analysis-empty-video__button" data-video-analysis-load>
+                  Load local match video
+                </button>
+              </div>`
         }
       </div>
       <div class="video-analysis-player__meta">

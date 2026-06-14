@@ -111,6 +111,18 @@
   font-size: 14px;
 }
 
+.video-analysis-empty-video__button {
+  min-height: 42px;
+  border: 1px solid #d7e4dc;
+  border-radius: 7px;
+  padding: 0 16px;
+  color: #111816;
+  background: #f4faf6;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .video-analysis-player__meta {
   color: #627065;
   font-size: 12px;

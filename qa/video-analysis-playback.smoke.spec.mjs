@@ -1,0 +1,48 @@
+import { expect, test } from "@playwright/test";
+
+test("Video Analysis keeps the local video element stable after metadata loads", async ({ page }) => {
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  await page.addInitScript(() => {
+    window.__videoPlayCalls = 0;
+    Object.defineProperty(HTMLMediaElement.prototype, "play", {
+      configurable: true,
+      value() {
+        window.__videoPlayCalls += 1;
+        return Promise.resolve();
+      },
+    });
+  });
+
+  await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("[data-video-analysis-load]")).toBeVisible();
+
+  await page.locator("[data-video-analysis-file]").setInputFiles({
+    name: "match.mp4",
+    mimeType: "video/mp4",
+    buffer: Buffer.from("football-science-local-video-smoke"),
+  });
+
+  await expect(page.locator("[data-video-analysis-video]")).toBeVisible();
+  await expect(page.locator(".video-analysis-player__meta")).toContainText("Ready on this device");
+
+  await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    Object.defineProperty(video, "duration", { configurable: true, value: 12.345 });
+    video.dispatchEvent(new Event("loadedmetadata"));
+  });
+  await expect(page.locator(".video-analysis-player__meta")).toContainText("0:12");
+
+  const stableAfterSameMetadata = await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    Object.defineProperty(video, "duration", { configurable: true, value: 12.345 });
+    video.dispatchEvent(new Event("loadedmetadata"));
+    return video === document.querySelector("[data-video-analysis-video]");
+  });
+  expect(stableAfterSameMetadata).toBe(true);
+
+  await page.locator("[data-video-analysis-play]").click();
+  await expect.poll(() => page.evaluate(() => window.__videoPlayCalls)).toBe(1);
+  expect(pageErrors).toEqual([]);
+});

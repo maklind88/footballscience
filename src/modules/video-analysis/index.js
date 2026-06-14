@@ -19,7 +19,7 @@ import { handleVideoAnalysisShortcut } from "./services/keyboardShortcutService.
 import { createLocalVideoReference, revokeLocalVideoReference } from "./services/localVideoBridgeService.js";
 import { addClipToReviewSection, buildReviewSessionPayload, removeClipFromReviewSection, updateReviewSectionNote } from "./services/reviewSessionService.js";
 import { trimClipDraft } from "./services/timelineService.js";
-import { getVideoCurrentMs, seekVideoToMs, toggleVideoPlayback } from "./services/videoPlaybackService.js";
+import { describeVideoPlaybackError, getVideoCurrentMs, seekVideoToMs, toggleVideoPlayback } from "./services/videoPlaybackService.js";
 import { createVideoAnalysisStore } from "./video-analysis.store.js";
 
 let runtime = null;
@@ -49,6 +49,35 @@ function ensureRuntime(context = {}) {
 
 function videoElement(context = {}) {
   return getRoot(context)?.querySelector("[data-video-analysis-video]");
+}
+
+function updateVideoDuration(durationMs = 0) {
+  const safeDurationMs = Math.round(Number(durationMs || 0));
+  if (!Number.isFinite(safeDurationMs) || safeDurationMs <= 0) return;
+  const state = runtime?.store.getState();
+  const currentDurationMs = Math.round(Number(state?.videoRef?.durationMs || 0));
+  if (!state?.videoRef || currentDurationMs === safeDurationMs) return;
+  runtime?.store.update((current) => {
+    return {
+      ...current,
+      videoRef: { ...current.videoRef, durationMs: safeDurationMs },
+    };
+  });
+}
+
+function setVideoPlaybackError(video) {
+  const message = describeVideoPlaybackError(video);
+  if (!message) return;
+  const state = runtime?.store.getState();
+  if (state?.status === "error" && state.error === message) return;
+  runtime?.store.setState({ status: "error", error: message });
+}
+
+function togglePlayback(context = {}) {
+  const video = videoElement(context);
+  toggleVideoPlayback(video).then((playing) => {
+    if (!playing && video?.error) setVideoPlaybackError(video);
+  });
 }
 
 function isLocalStaticHost(context = {}) {
@@ -130,12 +159,9 @@ function paint(root, state) {
       if (playhead) playhead.style.left = `${Math.min(99.5, Math.max(0, (getVideoCurrentMs(video) / safeDuration) * 100))}%`;
     };
     video.addEventListener("loadedmetadata", () => {
-      const durationMs = Math.round(Number(video.duration || 0) * 1000);
-      runtime?.store.update((current) => ({
-        ...current,
-        videoRef: current.videoRef ? { ...current.videoRef, durationMs } : current.videoRef,
-      }));
+      updateVideoDuration(Math.round(Number(video.duration || 0) * 1000));
     }, { once: true });
+    video.addEventListener("error", () => setVideoPlaybackError(video), { once: true });
   }
 }
 
@@ -292,7 +318,7 @@ export function handleClick(event, context = {}) {
     return true;
   }
   if (target.closest("[data-video-analysis-play]")) {
-    toggleVideoPlayback(videoElement(context));
+    togglePlayback(context);
     return true;
   }
   const modeButton = target.closest("[data-video-analysis-mode]");
@@ -479,7 +505,7 @@ export function handleKeydown(event, context = {}) {
     getState: run.store.getState,
     root,
     saveDraftClip: () => saveDraftClip(context),
-    togglePlayback: () => toggleVideoPlayback(videoElement(context)),
+    togglePlayback: () => togglePlayback(context),
     update: run.store.update,
   });
 }

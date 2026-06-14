@@ -9,6 +9,15 @@ export function getVideoCurrentMs(videoElement) {
   return Math.max(0, Math.round(Number(videoElement?.currentTime || 0) * 1000));
 }
 
+export function describeVideoPlaybackError(videoElement) {
+  const code = Number(videoElement?.error?.code || 0);
+  if (code === 1) return "Video playback was cancelled.";
+  if (code === 2) return "The local video could not be read by the browser.";
+  if (code === 3) return "The local video is damaged or uses an unsupported encoding.";
+  if (code === 4) return "This browser cannot play that video format. Use MP4/H.264, MOV/H.264, or WebM.";
+  return "";
+}
+
 export function seekVideoToMs(videoElement, ms = 0) {
   if (!videoElement) return;
   videoElement.currentTime = Math.max(0, Number(ms || 0) / 1000);

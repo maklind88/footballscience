@@ -107,8 +107,8 @@ function filterDashboardRows(state = {}) {
   return { rows, selectedPlayerId };
 }
 
-function renderDashboardRows(state = {}) {
-  const { rows, selectedPlayerId } = filterDashboardRows(state);
+function renderDashboardRows(state = {}, dashboard = filterDashboardRows(state)) {
+  const { rows, selectedPlayerId } = dashboard;
   if (!rows.length) {
     return `<div class="idp-empty-row">No players match the current view.</div>`;
   }
@@ -125,12 +125,12 @@ function renderDashboardRows(state = {}) {
             <strong>${escapeHtml(playerName)}</strong>
             <span class="idp-status-pill is-${statusTone(entry.overallStatus)}">${escapeHtml(entry.overallStatus)}</span>
           </span>
-          <small>${escapeHtml([profile.position, profile.role].filter(Boolean).join(" / ") || "Squad")} · ${escapeHtml(focus.title || "No active focus")}</small>
-          <span class="idp-player-card-metrics">
-            <span><b>${escapeHtml(String(entry.evidenceCount || 0))}</b> evidence</span>
-            <span><b>${escapeHtml(String(entry.newClipCount || 0))}</b> clips</span>
-            <span>${escapeHtml(entry.nextAction || "Add evidence")}</span>
-          </span>
+          <small>
+            <span>${escapeHtml([profile.position, profile.role].filter(Boolean).join(" / ") || "Squad")} · ${escapeHtml(focus.title || "No active focus")}</span>
+            <span class="idp-player-card-metrics">
+              <b>${escapeHtml(String(entry.evidenceCount || 0))}</b> evidence · <b>${escapeHtml(String(entry.newClipCount || 0))}</b> clips
+            </span>
+          </small>
         </span>
       </button>
     `;
@@ -390,6 +390,9 @@ export function renderIdpWorkspace(state = {}, options = {}) {
   const canEdit = Boolean(options.canEdit);
   const ui = { ...defaultUiState, ...(state.ui || {}) };
   const teamName = getTeamName(options);
+  const dashboard = filterDashboardRows({ ...state, ui });
+  const visiblePlayerCount = dashboard.rows.length;
+  const totalPlayerCount = state.dashboardPlayers?.length || 0;
   return `
     <section class="idp-shell">
       <header class="idp-header">
@@ -415,6 +418,7 @@ export function renderIdpWorkspace(state = {}, options = {}) {
               <p>Overview</p>
               <h2>Players</h2>
             </div>
+            <span class="idp-sidebar-count">${escapeHtml(String(visiblePlayerCount))}/${escapeHtml(String(totalPlayerCount))} visible</span>
           </div>
           <div class="idp-toolbar">
             <select data-idp-filter="status" aria-label="Filter by status">
@@ -426,7 +430,7 @@ export function renderIdpWorkspace(state = {}, options = {}) {
             <input data-idp-search value="${escapeHtml(ui.searchQuery)}" placeholder="Search player or focus" aria-label="Search player or focus">
           </div>
           <div class="idp-player-list">
-            ${renderDashboardRows(state)}
+            ${renderDashboardRows({ ...state, ui }, dashboard)}
           </div>
         </aside>
         ${renderPlayerPanel(state, canEdit)}

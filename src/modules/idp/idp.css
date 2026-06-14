@@ -154,16 +154,17 @@
   align-items: start;
   display: grid;
   gap: 16px;
-  grid-template-columns: minmax(305px, 365px) minmax(0, 1fr);
+  grid-template-columns: minmax(380px, 440px) minmax(0, 1fr);
 }
 
 .idp-sidebar {
   display: grid;
-  gap: 12px;
-  max-height: calc(100vh - 160px);
+  gap: 9px;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  max-height: calc(100vh - 145px);
   min-height: 0;
   overflow: hidden;
-  padding: 14px;
+  padding: 12px;
   position: sticky;
   top: 12px;
 }
@@ -171,17 +172,28 @@
 .idp-sidebar-head {
   align-items: center;
   display: flex;
+  gap: 12px;
   justify-content: space-between;
+}
+
+.idp-sidebar-count {
+  align-items: center;
+  background: rgba(36, 87, 166, .1);
+  border-radius: 999px;
+  color: var(--idp-cobalt);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: .72rem;
+  font-weight: 900;
+  min-height: 24px;
+  padding: 0 9px;
+  white-space: nowrap;
 }
 
 .idp-toolbar {
   display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.idp-toolbar input {
-  grid-column: 1 / -1;
+  gap: 7px;
+  grid-template-columns: 92px 92px minmax(0, 1fr);
 }
 
 .idp-toolbar select,
@@ -194,8 +206,9 @@
   border-radius: 7px;
   color: var(--idp-ink);
   font: inherit;
-  min-height: 40px;
-  padding: 0 10px;
+  font-size: .86rem;
+  min-height: 34px;
+  padding: 0 9px;
 }
 
 .idp-action-form textarea {
@@ -206,7 +219,7 @@
 
 .idp-player-list {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   min-height: 0;
   overflow: auto;
   padding-right: 2px;
@@ -222,9 +235,10 @@
   cursor: pointer;
   display: grid;
   font: inherit;
-  gap: 10px;
-  grid-template-columns: 42px minmax(0, 1fr);
-  padding: 10px;
+  gap: 8px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  min-height: 54px;
+  padding: 6px 9px;
   text-align: left;
   width: 100%;
 }
@@ -246,11 +260,11 @@
   border-radius: 8px;
   color: var(--idp-cobalt);
   display: inline-flex;
-  font-size: .78rem;
+  font-size: .7rem;
   font-weight: 900;
-  height: 42px;
+  height: 34px;
   justify-content: center;
-  width: 42px;
+  width: 34px;
 }
 
 .idp-player-avatar.is-large {
@@ -264,14 +278,14 @@
 .idp-timeline-item div,
 .idp-owner-card {
   display: grid;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
 }
 
 .idp-player-card-top {
   align-items: center;
   display: flex;
-  gap: 8px;
+  gap: 6px;
   justify-content: space-between;
   min-width: 0;
 }
@@ -279,26 +293,49 @@
 .idp-player-card strong,
 .idp-list-item strong,
 .idp-timeline-item strong {
+  font-size: .92rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .idp-player-card small,
-.idp-player-card-metrics,
 .idp-list-item small,
 .idp-timeline-item small,
 .idp-meta-line,
 .idp-muted,
 .idp-owner-card span {
   color: var(--idp-muted);
-  font-size: .82rem;
+  font-size: .78rem;
+}
+
+.idp-player-card small {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  line-height: 1.15;
+}
+
+.idp-player-card small,
+.idp-player-card small > span,
+.idp-player-card-metrics span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-player-card small > span:first-child {
+  flex: 1 1 auto;
 }
 
 .idp-player-card-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 10px;
+  color: var(--idp-muted);
+  flex: 0 0 auto;
+  font-size: .74rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .idp-player-card-metrics b {
@@ -310,11 +347,11 @@
   border-radius: 999px;
   display: inline-flex;
   flex: 0 0 auto;
-  font-size: .7rem;
+  font-size: .64rem;
   font-weight: 900;
   justify-content: center;
-  min-height: 24px;
-  padding: 0 9px;
+  min-height: 20px;
+  padding: 0 7px;
   white-space: nowrap;
 }
 

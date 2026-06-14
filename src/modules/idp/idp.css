@@ -1,5 +1,6 @@
 .idp-workspace {
   min-height: 100%;
+  width: 100%;
 }
 
 .idp-shell {
@@ -17,7 +18,8 @@
   display: grid;
   gap: 14px;
   min-height: 100%;
-  padding: 18px;
+  padding: 14px 16px 18px;
+  width: 100%;
 }
 
 .idp-header,
@@ -351,6 +353,7 @@
   gap: 12px;
   min-height: 0;
   padding: 14px;
+  width: 100%;
 }
 
 .idp-overview-head {
@@ -378,14 +381,13 @@
   border: 1px solid var(--idp-line);
   border-radius: 8px;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .idp-overview-rows {
   display: grid;
-  max-height: calc(100vh - 250px);
-  min-height: 410px;
-  overflow: auto;
+  min-height: 0;
+  overflow: visible;
 }
 
 .idp-overview-row {
@@ -399,7 +401,7 @@
   display: grid;
   font: inherit;
   gap: 12px;
-  grid-template-columns: minmax(190px, 1.25fr) minmax(230px, 1.55fr) minmax(118px, .76fr) minmax(70px, .42fr) minmax(64px, .38fr) minmax(142px, .88fr) minmax(140px, 1fr);
+  grid-template-columns: minmax(180px, 1.2fr) minmax(220px, 1.45fr) minmax(108px, .7fr) minmax(58px, .32fr) minmax(56px, .3fr) minmax(128px, .78fr) minmax(130px, .9fr);
   min-height: 46px;
   padding: 5px 10px;
   text-align: left;
@@ -871,11 +873,51 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
   }
 
   .idp-overview-table {
-    overflow-x: auto;
+    border: 0;
+    overflow: visible;
+  }
+
+  .idp-overview-rows {
+    gap: 8px;
   }
 
   .idp-overview-row {
-    min-width: 1040px;
+    border: 1px solid var(--idp-line);
+    border-radius: 8px;
+    gap: 7px 10px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    min-height: 0;
+    min-width: 0;
+    padding: 9px 10px;
+  }
+
+  .idp-overview-row.is-header {
+    display: none;
+  }
+
+  .idp-overview-player {
+    grid-column: 1;
+  }
+
+  .idp-overview-row > span:nth-child(3) {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .idp-overview-focus,
+  .idp-overview-action {
+    grid-column: 1 / -1;
+  }
+
+  .idp-overview-metric {
+    align-items: baseline;
+    display: flex;
+    gap: 4px;
+  }
+
+  .idp-overview-review {
+    grid-column: 1;
   }
 
   .idp-profile-hero {

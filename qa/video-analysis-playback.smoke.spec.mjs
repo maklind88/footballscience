@@ -1,15 +1,50 @@
 import { expect, test } from "@playwright/test";
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const h264Mp4Fixture = fs.readFileSync(path.join(rootDir, "reference-copy.mp4"));
+const h264Mp4Fixture = Buffer.from("ftypisommp42moovtrakmdiahdlrstsdavc1", "latin1");
+
+async function installDeterministicMedia(page) {
+  await page.addInitScript(() => {
+    Object.defineProperty(HTMLMediaElement.prototype, "error", {
+      configurable: true,
+      get() {
+        return this.__videoAnalysisForcedError || null;
+      },
+    });
+    const nativeLoad = HTMLMediaElement.prototype.load;
+    HTMLMediaElement.prototype.load = function load() {
+      if (this.matches?.("[data-video-analysis-video]")) return;
+      return nativeLoad?.call(this);
+    };
+    const nativeAddEventListener = HTMLMediaElement.prototype.addEventListener;
+    HTMLMediaElement.prototype.addEventListener = function addEventListener(type, listener, options) {
+      if (type !== "error" || !this.matches?.("[data-video-analysis-video]") || typeof listener !== "function") {
+        return nativeAddEventListener.call(this, type, listener, options);
+      }
+      const once = typeof options === "object" && options?.once === true;
+      const wrapped = (event) => {
+        if (!this.__videoAnalysisForcedError) return;
+        listener.call(this, event);
+        if (once) this.removeEventListener(type, wrapped, options);
+      };
+      const nextOptions = typeof options === "object" ? { ...options, once: false } : options;
+      return nativeAddEventListener.call(this, type, wrapped, nextOptions);
+    };
+  });
+}
+
+async function markVideoMetadataReady(page, duration = 55.5) {
+  await page.evaluate((durationSeconds) => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    Object.defineProperty(video, "duration", { configurable: true, value: durationSeconds });
+    video.dispatchEvent(new Event("loadedmetadata"));
+  }, duration);
+}
 
 test("Video Analysis keeps the local video element stable after metadata loads", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
+  await installDeterministicMedia(page);
   await page.addInitScript(() => {
     window.__videoPlayCalls = 0;
     Object.defineProperty(HTMLMediaElement.prototype, "play", {
@@ -31,6 +66,7 @@ test("Video Analysis keeps the local video element stable after metadata loads",
   });
 
   await expect(page.locator("[data-video-analysis-video]")).toBeVisible();
+  await markVideoMetadataReady(page);
   await expect(page.locator(".video-analysis-player__meta")).toContainText("Native playback ready");
   await expect(page.locator(".video-analysis-player__actions [data-video-analysis-prepare-playback]")).toHaveCount(0);
 
@@ -49,7 +85,7 @@ test("Video Analysis keeps the local video element stable after metadata loads",
 
   await page.evaluate(() => {
     const video = document.querySelector("[data-video-analysis-video]");
-    Object.defineProperty(video, "error", { configurable: true, value: { code: 4 } });
+    video.__videoAnalysisForcedError = { code: 4 };
     video.dispatchEvent(new Event("error"));
   });
   await expect(page.locator(".video-analysis-error[role='alert']")).toContainText("Prepare a local H.264 playback copy");
@@ -61,6 +97,7 @@ test("Video Analysis keeps the local video element stable after metadata loads",
 });
 
 test("Video Analysis tries native H264 MP4 playback before offering bridge prepare", async ({ page }) => {
+  await installDeterministicMedia(page);
   await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
 
   await page.locator("[data-video-analysis-file]").setInputFiles({
@@ -73,17 +110,13 @@ test("Video Analysis tries native H264 MP4 playback before offering bridge prepa
   await expect(page.locator(".video-analysis-player__meta")).toContainText("H.264 / MP4");
   await expect(page.locator(".video-analysis-player__actions [data-video-analysis-prepare-playback]")).toHaveCount(0);
 
-  await page.evaluate(() => {
-    const video = document.querySelector("[data-video-analysis-video]");
-    Object.defineProperty(video, "duration", { configurable: true, value: 55.5 });
-    video.dispatchEvent(new Event("loadedmetadata"));
-  });
+  await markVideoMetadataReady(page);
   await expect(page.locator(".video-analysis-player__meta")).toContainText("Native playback ready");
   await expect(page.locator(".video-analysis-player__actions [data-video-analysis-prepare-playback]")).toHaveCount(0);
 
   await page.evaluate(() => {
     const video = document.querySelector("[data-video-analysis-video]");
-    Object.defineProperty(video, "error", { configurable: true, value: { code: 4 } });
+    video.__videoAnalysisForcedError = { code: 4 };
     video.dispatchEvent(new Event("error"));
   });
   await expect(page.locator(".video-analysis-error[role='alert']")).toContainText("Prepare a local H.264 playback copy");

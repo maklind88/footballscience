@@ -1,10 +1,22 @@
 import { expect, test } from "@playwright/test";
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const h264Mp4FixtureBase64 = fs.readFileSync(path.join(rootDir, "reference-copy.mp4")).toString("base64");
+const h264Mp4FixtureBase64 = Buffer.from("ftypisommp42moovtrakmdiahdlrstsdavc1", "latin1").toString("base64");
+
+async function installDeterministicMedia(page) {
+  await page.addInitScript(() => {
+    Object.defineProperty(HTMLMediaElement.prototype, "error", {
+      configurable: true,
+      get() {
+        return this.__videoAnalysisForcedError || null;
+      },
+    });
+    const nativeLoad = HTMLMediaElement.prototype.load;
+    HTMLMediaElement.prototype.load = function load() {
+      if (this.matches?.("[data-video-analysis-video]")) return;
+      return nativeLoad?.call(this);
+    };
+  });
+}
 
 async function clearHandleDatabase(page) {
   await page.evaluate(() => new Promise((resolve, reject) => {
@@ -83,6 +95,7 @@ test("local video permission helpers verify and request read access", async ({ p
 });
 
 test("video analysis restores a persisted File System Access handle after refresh", async ({ page }) => {
+  await installDeterministicMedia(page);
   const identity = {
     organizationId: "local",
     teamId: "team",
@@ -127,6 +140,11 @@ test("video analysis restores a persisted File System Access handle after refres
   await page.goto("/qa/video-analysis-browser-smoke.html?restore=1", { waitUntil: "domcontentloaded" });
 
   await expect(page.locator("[data-video-analysis-video]")).toBeVisible();
+  await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    Object.defineProperty(video, "duration", { configurable: true, value: 55.5 });
+    video.dispatchEvent(new Event("loadedmetadata"));
+  });
   await expect(page.locator(".video-analysis-player h2")).toContainText("restore-match.mp4");
   await expect(page.locator(".video-analysis-player__meta")).toContainText("Native playback ready");
   await expect(page.locator(".video-analysis-player__actions [data-video-analysis-prepare-playback]")).toHaveCount(0);
